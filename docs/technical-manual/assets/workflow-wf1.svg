@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 576" role="img" aria-labelledby="workflow-wf1-title workflow-wf1-desc">
+<title id="workflow-wf1-title">Model construction and historical simulation</title>
+<desc id="workflow-wf1-desc">Scientific processing steps for model building; the accompanying page explains inputs, choices, products and conditional calculations.</desc>
+<defs><marker id="workflow-wf1-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6 Z" fill="#4f555e"/></marker></defs>
+<rect width="800" height="576" fill="#fff"/>
+<g fill="none" stroke="#4f555e" stroke-width="1.5" marker-end="url(#workflow-wf1-arrow)">
+<path d="M240 104 V140"/>
+<path d="M240 204 V240"/>
+<path d="M240 304 V340"/>
+<path d="M240 404 V440"/>
+<path d="M440 472 H480"/>
+<path d="M440 72 H612 Q620 72 620 80 V140"/>
+<path d="M480 172 H472 Q464 172 464 180 V364 Q464 372 456 372 H440"/>
+</g>
+<g>
+<rect x="40" y="40" width="400" height="64" fill="#fff" stroke="#4f555e" stroke-width="1.5" rx="6"/>
+<text x="240" y="67" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" fill="#292d34">Define basin boundary and spatial units</text>
+<text x="240" y="87" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="13" fill="#292d34">Basin, subbasins, rivers and locations</text>
+</g>
+<g>
+<rect x="40" y="140" width="400" height="64" fill="#fff" stroke="#4f555e" stroke-width="1.5" rx="6"/>
+<text x="240" y="167" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" fill="#292d34">Prepare land and soil maps</text>
+<text x="240" y="187" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="13" fill="#292d34">Thematic rasters and spatial catalog</text>
+</g>
+<g>
+<rect x="40" y="240" width="400" height="64" fill="#fff" stroke="#4f555e" stroke-width="1.5" rx="6"/>
+<text x="240" y="267" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" fill="#292d34">Build and configure Wflow-SBM</text>
+<text x="240" y="287" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="13" fill="#292d34">Waterbodies, gauges and output variables</text>
+</g>
+<g>
+<rect x="40" y="340" width="400" height="64" fill="#fff" stroke="#4f555e" stroke-width="1.5" rx="6"/>
+<text x="240" y="367" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" fill="#292d34">Add historical climate forcing</text>
+<text x="240" y="387" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="13" fill="#292d34">Model-grid forcing and completed model</text>
+</g>
+<g>
+<rect x="40" y="440" width="400" height="64" fill="#fff" stroke="#4f555e" stroke-width="1.5" rx="6"/>
+<text x="240" y="467" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" fill="#292d34">Run historical simulation</text>
+<text x="240" y="487" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="13" fill="#292d34">Native daily Wflow response</text>
+</g>
+<g>
+<rect x="480" y="140" width="280" height="64" fill="#fff" stroke="#4f555e" stroke-width="1.5" rx="6"/>
+<text x="620" y="167" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" fill="#292d34">Extract climate and prepare maps</text>
+<text x="620" y="187" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="13" fill="#292d34">Selected forcing; candidate map scales</text>
+</g>
+<g>
+<rect x="480" y="440" width="280" height="64" fill="#fff" stroke="#4f555e" stroke-width="1.5" rx="6"/>
+<text x="620" y="467" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" fill="#292d34">Export and review</text>
+<text x="620" y="487" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="13" fill="#292d34">Tables, maps, forcing QA, evaluation</text>
+</g>
+<line x1="40" y1="528" x2="760" y2="528" stroke="#aaa"/>
+<text x="40" y="552" font-family="'Segoe UI', Arial, sans-serif" font-size="13" fill="#292d34">Review figures can branch earlier. Metadata, logs and benchmarks also complete all.</text>
+</svg>

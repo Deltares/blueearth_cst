@@ -1,0 +1,15 @@
+# simulate_system settings, v2. Filled by P1b, which moved this workflow's T2
+# reads; it was empty under P1, which moved the T1 reads only.
+#
+# D-7.9: this file and its `config_path` stanza travel together -- an empty
+# file is legal, a MISSING file with `config_path` still declared is not.
+
+experiment_name: v2_probe
+
+# C-34: the three batch/disk knobs, regrouped. A regroup only -- P2 decides what
+# `CONFIG_PROJECTION` does with the section.
+compute:
+  batch_size_max: 8
+
+# `run_historical` is absent: C-69 DELETED it and `st_0` is always produced.
+operation: simulate-and-indicators

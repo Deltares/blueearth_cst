@@ -1,0 +1,10 @@
+# build_model (wf1) -- baseline set
+
+engine:
+  build_config: toolbox:config/defaults/wflow_build_model.yml
+  waterbodies_config: toolbox:config/defaults/wflow_update_waterbodies.yml
+
+observations:
+  river discharge: test_data/observations_timeseries.csv
+
+simulation_window: {start: 2000, end: 2016}

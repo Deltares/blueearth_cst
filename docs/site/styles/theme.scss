@@ -1,0 +1,227 @@
+/*-----------------------------------------------------------------------------
+  BlueEarth CST documentation site — brand layer.
+
+  Applied over `cosmo` in both modes so switching changes colour without
+  changing the page's type scale or spacing.
+
+  This file sets the accent colours, type scale and documentation chrome.
+  Body colours belong to the base themes.
+
+  !! THE THREE BRAND COLOURS BELOW ARE APPROXIMATIONS !!
+  They were chosen to sit in the right family, not copied from the Deltares
+  brand guide. Replace them with the official values when you have them; nothing
+  else in this file needs to change when you do.
+-----------------------------------------------------------------------------*/
+
+/*-- scss:defaults --*/
+
+// --- Brand palette (APPROXIMATE — see header) --------------------------------
+$deltares-navy:  #0a2e4d !default;  // headings, identity
+$deltares-blue:  #0b7ebb !default;  // primary, links
+$deltares-teal:  #00a0aa !default;  // accent, callout rules
+
+// --- Bootstrap semantic mapping ----------------------------------------------
+$primary:        $deltares-blue !default;
+$link-color:     $deltares-blue !default;
+
+// Keep BlueEarth's original dark navigation bar.
+$navbar-bg:      $deltares-navy !default;
+$navbar-fg:      #ffffff !default;
+$navbar-light-color: #ffffff !default;
+$navbar-light-hover-color: #ffffff !default;
+$navbar-light-active-color: #ffffff !default;
+$navbar-light-brand-color: #ffffff !default;
+
+// --- Typography ---------------------------------------------------------------
+// A system stack, deliberately: the site must render identically offline, and a
+// webfont is a network dependency the published page would silently acquire.
+$font-family-sans-serif: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                         "Helvetica Neue", Arial, sans-serif !default;
+$font-family-monospace:  "Cascadia Mono", "SFMono-Regular", Consolas,
+                         "Liberation Mono", Menlo, monospace !default;
+$font-size-root:         16px !default;
+$toc-font-size:          0.875rem !default;
+
+/*-- scss:rules --*/
+
+.navbar {
+  border-bottom: 0;
+}
+
+.navbar-brand {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+// Keep the desktop menu beside the title, before the right-hand tools and search.
+@include media-breakpoint-up(lg) {
+  #quarto-header .navbar-brand-container {
+    order: 0;
+  }
+
+  #quarto-header .navbar-collapse {
+    order: 1;
+    flex-grow: 1;
+    margin-left: 1rem;
+  }
+
+  #quarto-header .quarto-navbar-tools {
+    order: 2;
+  }
+
+  #quarto-header #quarto-search {
+    order: 3;
+  }
+}
+
+#quarto-sidebar {
+  background: #f8f9fa;
+  border-right: 1px solid #e0e3e7;
+}
+
+#quarto-document-content h1,
+#quarto-document-content h2,
+#quarto-document-content h3 {
+  color: #27333e;
+  font-weight: 650;
+}
+
+// Keep prose emphasis and illustrative captions consistent across pages.
+#quarto-document-content strong {
+  font-weight: 600;
+}
+
+#quarto-document-content figcaption {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  font-weight: 400;
+  text-align: left;
+}
+
+// Give both levels of the sidebar room to read at documentation scale.
+.sidebar-navigation .sidebar-item-container {
+  padding-block: 0.18rem;
+}
+
+.sidebar-navigation .sidebar-item-text {
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
+.sidebar-navigation .sidebar-item-section > .sidebar-item-container .sidebar-item-text {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+// Mark the active page with the brand accent rather than weight alone.
+.sidebar-navigation .sidebar-item-container .active,
+.sidebar-navigation .sidebar-item-container .show > .menu-text {
+  color: $deltares-blue;
+  font-weight: 600;
+}
+
+// Section headings use a quiet rule rather than a brand accent.
+#quarto-document-content h2,
+#quarto-document-content .h2 {
+  border-bottom: 1px solid #dfe3e8;
+  padding-bottom: 0.25rem;
+}
+
+// Keep table headers distinct with a quiet rule.
+#quarto-document-content table > thead {
+  border-bottom: 1px solid #cfd6dd;
+}
+
+// The footer sits under the navbar's colour so the page is bracketed.
+.nav-footer {
+  border-top: 1px solid #dfe3e8;
+}
+
+.quarto-dark #quarto-sidebar {
+  background: #202830;
+  border-right-color: #3d4750;
+}
+
+.quarto-dark #quarto-document-content h1,
+.quarto-dark #quarto-document-content h2,
+.quarto-dark #quarto-document-content h3 {
+  color: #eef3f7;
+}
+
+.quarto-dark #quarto-document-content h2,
+.quarto-dark #quarto-document-content .h2,
+.quarto-dark #quarto-document-content table > thead,
+.quarto-dark .nav-footer {
+  border-color: #3d4750;
+}
+
+.quarto-dark #quarto-document-content a {
+  color: #65c4f0;
+}
+
+.quarto-dark .sidebar-navigation .sidebar-item-container .active {
+  color: #65c4f0;
+}
+
+// Separate block children keep Pandoc from combining map links into one paragraph.
+.guide-map-figure {
+  width: 100%;
+  margin: 1.5rem 0;
+}
+
+.guide-illustration {
+  width: 100%;
+  margin: 1.5rem auto;
+}
+
+.guide-map-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.guide-map-grid > div {
+  min-width: 0;
+}
+
+.guide-map-grid p {
+  margin: 0;
+}
+
+.guide-map-grid img {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 0;
+}
+
+.guide-climate-comparison {
+  align-items: start;
+  margin: 1.5rem 0;
+}
+
+#quarto-document-content .guide-panel-label {
+  display: block;
+  margin: 0 0 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+// Space parameter entries without loosening wrapped lines or navigation lists.
+#prepare-the-remaining-workflows > section > ul > li + li {
+  margin-top: 0.65rem;
+}
+
+.guide-climate-comparison > figure {
+  min-width: 0;
+  margin: 0;
+}
+
+@media (max-width: 575px) {
+  .guide-map-grid {
+    grid-template-columns: 1fr;
+  }
+}

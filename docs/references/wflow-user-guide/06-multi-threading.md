@@ -1,0 +1,30 @@
+---
+title: Wflow documentation — multi threading
+source: "https://deltares.github.io/Wflow.jl/stable/user_guide/multi_threading.html"
+reference: "Wflow.jl team. (n.d.). *multi threading*. Wflow documentation. Retrieved May 25, 2026, from sources/tools/wflow/wflow-user-guide/06-multi-threading.md"
+topic: tools
+type: documentation
+promoted: 2026-05-25
+tags:
+  - tools
+  - wflow
+accessed: 2026-05-25
+---
+
+## Using wflow in Julia
+
+Wflow supports multi-threading execution of the wflow\_sbm model that uses the kinematic wave approach for river, overland and lateral subsurface flow. Both the vertical SBM concept and the kinematic wave components of this model can run on multiple threads. The optional [local inertial model for river flow](../model_docs/model_configurations.html#local-inertial-river) and the optional [local inertial model for river (1D) and land (2D)](../model_docs/model_configurations.html#local-inertial-river-1d-and-land-2d), both part of wflow\_sbm, can also run on multiple threads. The threading functionality for the kinematic wave may also be useful for the wflow\_sbm model with [groundwater flow](../model_docs/model_configurations.html#groundwater-flow). The multi-threading functionality in wflow is considered experimental, see also the following [issue](https://github.com/Deltares/Wflow.jl/issues/139), where an error was not thrown running code multi-threaded. Because of this we advise to start with running a wflow model single-threaded (for example during the testing phase of setting up an new wflow model).
+
+For information on how to start Julia with multiple threads we refer to [How to start Julia with multiple threads](https://docs.julialang.org/en/v1/manual/multi-threading/#Starting-Julia-with-multiple-threads).
+
+Additionally, when running Julia + wflow via the command line (note that this is different from the `wflow_cli`), it is possible to define the number of threads via the `-t` flag. An example where we start Julia with three threads:
+
+```bash
+julia -t 3 -e 'using Wflow; Wflow.run()' path/to/config.toml
+```
+
+## Using the command line interface
+
+As explained above, we need to start julia with multiple threads to make use of this speedup. For `wflow_cli`, the only way to do this is by setting the `JULIA_NUM_THREADS` environment variable, as explained in [these julia docs](https://docs.julialang.org/en/v1/manual/multi-threading/#Starting-Julia-with-multiple-threads).
+
+When a model run starts, among the run information the number of threads that are used is printed, so `nthreads() = 4` means 4 threads are used, because `JULIA_NUM_THREADS` has been set to 4.

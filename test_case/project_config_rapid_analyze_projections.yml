@@ -1,0 +1,29 @@
+# analyze_projections (wf2) -- rapid set
+
+catalog: toolbox:config/catalogs/cmip6_data.yml
+ensemble: cmip6
+
+# Two models, one scenario: four series instead of nine, and the multi-model
+# summary still runs.
+models:
+- NOAA-GFDL/GFDL-ESM4
+- INM/INM-CM4-8
+scenarios: [ssp245]
+members:
+  preference:
+  - r1i1p1f1
+
+variables:
+  precip: {source: precip, canonical: rate, units: mm/day, change: relative}
+  temp: {source: temp, canonical: state, units: degC, change: absolute}
+
+# Ends 2014, where the CMIP6 historical runs stop.
+reference_window:
+  start: 2000
+  end: 2014
+# Same years as the stress test's `simulation_window`, so the projections
+# land on the period the stress test simulates.
+future_windows:
+- start: 2046
+  end: 2054
+  name: mid

@@ -1,0 +1,23 @@
+---
+title: "Datasets"
+format: html
+---
+
+Read [Data requirements](../../technical-manual/data-requirements.md) for this reference.
+
+## Spatial data for the basin and model {#spatial-data-for-the-basin-and-model}
+
+See [Spatial data](../../technical-manual/spatial-datasets.md).
+
+## Historical meteorology and observations {#historical-meteorology-and-observations}
+
+See [Meteorological data](../../technical-manual/historical-meteorological-data.md) and
+[discharge observations](../../technical-manual/data-formats-and-conventions.md#discharge-observations).
+
+## Future climate information {#future-climate-information}
+
+See [Climate projections](../../technical-manual/climate-projection-data.md).
+
+## Choosing, replacing, and recording sources {#choosing-replacing-and-recording-sources}
+
+See [Data catalogs](../../technical-manual/data-catalogs-and-access.md).

@@ -1,0 +1,60 @@
+modeltype: wflow_sbm
+
+steps:
+  # Domain, grid, flow direction, subbasin IDs, and raw spatial inputs come
+  # from the generated blueearth-cst-spatial-v1 catalog. The project adapter
+  # supplies those objects to the public setup methods below; setup_basemaps is
+  # deliberately absent because it would delineate the basin a second time.
+  # `river_upa` is NOT declared here: the threshold follows the one P1 actually
+  # delineated with (`shared.basin.river_uparea_km2`, carried on the grid's
+  # river_mask). Declared in both places, the two could disagree and the wflow
+  # river map and the P1 river mask would call different cells river.
+  - setup_rivers:
+      slope_len: 2000                   # length over which to calculate river slope [m]
+      rivdph_method: powlaw             # method to estimate depth {'powlaw', 'manning', 'gvf'}
+      min_rivdph: 0.5                   # minimum river depth [m]
+      min_rivwth: 30                    # minimum river width [m]
+      smooth_len: 5000                  # length over which to smooth river depth and river width [m]
+
+  # The land-cover RASTER and the source name behind its mapping table both
+  # come from P1 (`shared.basin.spatial_sources.lulc`). `lulc_fn` is NOT
+  # declared here: it named the source a SECOND time, and the two could
+  # disagree — a corine raster read through vito's mapping table.
+  - setup_lulcmaps: {}
+
+  # LAI comes from P1 as an array (`shared.basin.spatial_sources.lai`).
+  # `lai_fn` is NOT declared here: it was popped and discarded, so it read as a
+  # setting and reached nothing.
+  - setup_laimaps: {}
+
+  # `soil_fn` is NOT declared here: it names the source a SECOND time. P1
+  # resamples `shared.basin.spatial_sources.soil` into the soil_* maps rule 1.12
+  # plots, so a template naming a different source let the basin report
+  # describe one dataset while the model ran on another.
+  - setup_soilmaps:
+      ptf_ksatver: brakensiek           # pedotransfer function to calculate hydraulic conductivity: {brakensiek, cosby}
+
+  # Restore the upstream Deltares-template constant parameters under Wflow.jl 1.x
+  # CSDMS Standard Names. Current change policy:
+  # dev/reference/wf1-model-construction.md. Values are the git
+  # 6ebc46f template; all 13 cleared the two-sided equivalence gate (units/sign/
+  # scale/semantics preserved 0.x -> 1.x). Snow/soil/veg (8) pin the doc-template
+  # default under a stable name (drift-protection); MaxLeakage=0 is the 9th proven
+  # default-equal pin; the 4 glacier/InfiltCapPath values are explicit reference
+  # choices that differ from the 1.x engine default. Assess scientific effects
+  # before changing these bindings; retain evidence, and update the current reference.
+  - setup_constant_pars:
+      subsurface_water__horizontal_to_vertical_saturated_hydraulic_conductivity_ratio: 100  # KsatHorFrac (retained; required by Wflow.jl 1.x)
+      snowpack__degree_day_coefficient: 3.75653          # Cfmax
+      atmosphere_air__snowfall_temperature_threshold: 0  # TT
+      atmosphere_air__snowfall_temperature_interval: 2   # TTI (template value; engine default 1.0)
+      snowpack__melting_temperature_threshold: 0         # TTM
+      snowpack__liquid_water_holding_capacity: 0.1       # WHC
+      soil_surface_water__infiltration_reduction_parameter: 0.038                   # cf_soil
+      vegetation_canopy_water__mean_evaporation_to_mean_precipitation_ratio: 0.11   # EoverR (template value; engine default 0.1)
+      compacted_soil_surface_water__infiltration_capacity: 5                        # InfiltCapPath (reference choice; engine default 10)
+      soil_water_saturated_zone_bottom__max_leakage_volume_flux: 0                  # MaxLeakage (9th default-equal pin; 1.x default resolved = 0)
+      soil_wet_root__sigmoid_function_shape_parameter: -500                         # rootdistpar
+      glacier_ice__degree_day_coefficient: 5.3                                      # G_Cfmax (reference choice; engine default 3.0)
+      glacier_firn_accumulation__snowpack_dry_snow_leq_depth_fraction: 0.002        # G_SIfrac (reference choice; engine default 0.001)
+      glacier_ice__melting_temperature_threshold: 1.3                              # G_TT (reference choice; engine default 0.0; g_ttm/g_tt collapse)

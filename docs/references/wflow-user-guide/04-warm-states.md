@@ -1,0 +1,46 @@
+---
+title: Wflow documentation — warm states
+source: "https://deltares.github.io/Wflow.jl/stable/user_guide/warm_states.html"
+reference: "Wflow.jl team. (n.d.). *warm states*. Wflow documentation. Retrieved May 25, 2026, from sources/tools/wflow/wflow-user-guide/04-warm-states.md"
+topic: tools
+type: documentation
+promoted: 2026-05-25
+tags:
+  - tools
+  - wflow
+accessed: 2026-05-25
+---
+
+The `state` section in the TOML file provides information on the input file if the model is initialized with a warm state (`path_input`) and to what file the states are written at the end of the model run (`path_output`). Please note that the model setting `cold_start__flag` needs to be set to `false` in order to initialize the model with states from the file located at `path_input`. A mapping between external netCDF variable state names and model state variable standard names is required below the `[state.variables]` section. The model state variable standard names are listed on the left side, and the external netCDF variable state names are listed on the right side. Note that `path_input` is only required when `cold_start__flag` is set to false. `path_output` is optional, an output state file is only written when it is defined. If neither is set, the entire `state` section can be left out.
+
+```toml
+[model]
+cold_start__flag = false # cold (cold_start__flag = true) or warm state (cold_start__flag = false), default is true
+
+[state]
+path_input = "data/instates-moselle.nc"     # Location of the file with the input states
+path_output = "data/outstates-moselle.nc"   # Output location of the states after the model run
+
+[state.variables]
+vegetation_canopy_water__depth = "canopystorage"
+
+soil_water_saturated_zone__depth = "satwaterdepth"
+soil_surface__temperature = "tsoil"
+soil_layer_water_unsaturated_zone__depth = "ustorelayerdepth"
+
+snowpack_dry_snow__leq_depth = "snow"
+snowpack_liquid_water__depth = "snowwater"
+
+river_water__depth = "h_river"
+river_water__instantaneous_volume_flow_rate = "q_river"
+
+floodplain_water__instantaneous_volume_flow_rate = "q_floodplain"
+floodplain_water__depth = "h_floodplain"
+
+reservoir_water_surface__elevation = "waterlevel_reservoir"
+
+subsurface_water__volume_flow_rate  = "ssf"
+
+land_surface_water__instantaneous_volume_flow_rate = "q_land"
+land_surface_water__depth = "h_land"
+```

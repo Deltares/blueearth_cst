@@ -1,0 +1,8 @@
+# Fixed eflowrisk daily-flow extension: 35 annual metrics, each summarized
+# across retained water years by its median and type-7 interquartile range.
+schema_version: 1
+id: eflow-erfa
+title: Environmental flow ERFA indicators
+description: The 70 IHA-style median/IQR indicators ported from eflowrisk defaults.
+selection:
+  registry: eflow-erfa

@@ -1,0 +1,26 @@
+---
+title: "WF3 — Generate scenarios"
+format: html
+---
+
+Read the [technical manual](../../technical-manual/workflow-generate-scenarios.md) for this reference.
+
+## Rules and wrapper steps {#rules-and-wrapper-steps}
+
+See the [current reference](../../technical-manual/workflow-rule-reference.md#generate-scenarios).
+
+## Rule flow {#rule-flow}
+
+See the [current reference](../../technical-manual/workflow-generate-scenarios.md#rule-flow).
+
+## Configuration {#configuration}
+
+See the [current reference](../../technical-manual/workflow-generate-scenarios.md#configuration).
+
+## Inputs {#inputs}
+
+See the [current reference](../../technical-manual/workflow-generate-scenarios.md#inputs).
+
+## Outputs {#outputs}
+
+See the [current reference](../../technical-manual/workflow-generate-scenarios.md#outputs).

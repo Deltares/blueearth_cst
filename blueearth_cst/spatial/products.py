@@ -1,0 +1,1399 @@
+# Current guidance: dev/reference/toolbox-spatial-foundation.md
+"""Compose and write the versioned spatial-foundation products.
+
+The producer is split at the thematic-raster seam:
+
+* the **vector half** (``prepare_spatial_units`` / ``write_spatial_units``) —
+  region polygon, hydrography catalog and configured gauge points into the
+  five vector layers, the location registry, and the hydrography grid stack.
+  Model-free consumers obtain basin and subbasin boundaries without resampling
+  thematic rasters;
+* the **raster half** (``prepare_spatial_maps`` / ``write_spatial_maps``) —
+  reads that seam back, adds the LULC/LAI/soil layers, and writes
+  ``spatial_maps.nc`` with its catalog and report. **WF1 only**: it exists to
+  parameterise Wflow.
+
+The seam carries the whole hydrography grid stack, so the vector
+half writes it as an intermediate the raster half declares as an input.
+Recomputing it instead would make WF1 read the hydrography twice with two grids
+that can drift.
+"""
+
+from __future__ import annotations
+
+import os
+from collections.abc import Mapping
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+import geopandas as gpd
+import numpy as np
+import pandas as pd
+import xarray as xr
+import yaml
+from hydromt import DataCatalog
+from hydromt.gis import flw
+from pyflwdir import FlwdirRaster
+
+from blueearth_cst.shared.snake_utils import listed, log_row, plural
+from blueearth_cst.spatial.config import SpatialConfig
+from blueearth_cst.spatial.delineate_region import read_region
+from blueearth_cst.spatial.delineation import (
+    downstream_steps,
+    find_parent_outlet,
+    full_catchment,
+    incremental_subbasins,
+    select_automatic_subbasins,
+)
+from blueearth_cst.spatial.hydrography import prepare_hydrography
+from blueearth_cst.spatial.identity import (
+    assign_basin_ids,
+    assign_location_ids,
+    assign_subbasin_ids,
+)
+
+SPATIAL_CONTRACT_VERSION = "blueearth-cst-spatial-v1"
+
+#: The seam intermediate's filename, relative to the spatial directory.
+#:
+#: A SEAM INTERMEDIATE, NOT A PRODUCT: it is deliberately absent
+#: from ``spatial_catalog.yml``, which is the model-build interface. It carries
+#: the WHOLE hydrography grid stack, including derived layers,
+#: because ``spatial_maps.nc`` also holds ``cell_area``, ``river_order``,
+#: ``elevation`` and ``slope``, and recomputing those in the raster half is the
+#: second hydrography read the shared-producer boundary prevents.
+HYDROGRAPHY_SEAM_NAME = "hydrography.nc"
+
+
+@dataclass
+class SpatialUnits:
+    """The vector half's in-memory result: layers, registry, and the seam grid.
+
+    ``maps`` is the hydrography grid stack the raster half consumes; the rest
+    are the six declared vector artifacts, already in EPSG:4326.
+    """
+
+    maps: xr.Dataset
+    basins: gpd.GeoDataFrame
+    subbasins: gpd.GeoDataFrame
+    catchments: gpd.GeoDataFrame
+    #: The river NETWORK — derived from this project's own flow direction at
+    #: ``river_uparea_km2``. See :func:`derive_river_network`.
+    rivers: gpd.GeoDataFrame
+    #: The river ATTRIBUTE source — width and bankfull discharge, from the
+    #: catalog. Not a network; see :data:`RIVER_ATTRIBUTES_NAME`.
+    river_attributes: gpd.GeoDataFrame
+    locations: gpd.GeoDataFrame
+    location_registry: pd.DataFrame
+    #: Physical waterbodies clipped to the basins, keyed by layer name
+    #: (:data:`WATERBODY_SOURCES`); an empty frame where there are none.
+    waterbodies: dict[str, gpd.GeoDataFrame] | None = None
+
+
+#: Layer name -> catalog source for the physical waterbodies drawn on the
+#: study-area map (t2608091730). The same three sources rule 1.07 hands the
+#: model build, named for what they are rather than in the model's vocabulary
+#: (the model plugin has no `lakes` geom). Physical and unfiltered, by the
+#: 2026-08-11 ruling: the map shows what is there, not what the model keeps.
+WATERBODY_SOURCES = {
+    "reservoirs": "hydro_reservoirs",
+    "lakes": "hydro_lakes",
+    "glaciers": "rgi",
+}
+
+
+def _empty_layer() -> gpd.GeoDataFrame:
+    return gpd.GeoDataFrame(geometry=gpd.GeoSeries([], crs=4326), crs=4326)
+
+
+def clip_waterbodies(
+    catalog: DataCatalog, basins: gpd.GeoDataFrame
+) -> dict[str, gpd.GeoDataFrame]:
+    """Clip each waterbody source to ``basins``; an empty layer where none fall.
+
+    Two failures hydromt reports alike are told apart here (t2608121606):
+    no feature inside the basins is an EMPTY RESULT, written silently as an
+    empty layer; a source absent from the catalog or its file absent from disk
+    is a MISSING SOURCE, which warns by name and also writes an empty layer.
+    Warn rather than fail, by the 2026-09-25 ruling: this rule runs in every
+    workflow, and an optional map layer must not stop one.
+    """
+    from hydromt.error import NoDataException
+
+    layers = {}
+    for layer, source in WATERBODY_SOURCES.items():
+        layers[layer] = _empty_layer()
+        if source not in getattr(catalog, "sources", {}):
+            log_row(
+                f"{layer.capitalize()} layer omitted: {source} absent from catalog",
+                module="spatial",
+                level="WARNING",
+            )
+            continue
+        try:
+            frame = catalog.get_geodataframe(source, geom=basins)
+        except NoDataException as error:
+            if "found no files" in str(error):
+                log_row(
+                    f"{layer.capitalize()} layer omitted: {source} files missing ({catalog.get_source(source).full_uri})",
+                    module="spatial",
+                    level="WARNING",
+                )
+            continue
+        if frame is None or frame.empty:
+            continue
+        if frame.crs is None:
+            raise ValueError(f"catalog source {source!r} has no CRS")
+        layers[layer] = frame.to_crs(4326)
+    drawn = [
+        f"{plural(len(f), name[:-1], name)}" for name, f in layers.items() if len(f)
+    ]
+    if drawn:
+        log_row(f"Basin waterbodies: {', '.join(drawn)}", module="spatial")
+    return layers
+
+
+#: Layer name for the catalog's river vector, kept beside the derived network.
+#:
+#: It is NOT the river network and must not be drawn as one. hydromt-wflow's
+#: ``setup_rivers`` takes it as ``river_geom_fn`` — "river source data with river
+#: width and bankfull discharge" — so it is an ATTRIBUTE source, carrying
+#: ``rivwth`` and ``qbankfull`` that cannot be derived from flow direction. Its
+#: geometry comes with whatever drainage-area floor the global product has.
+RIVER_ATTRIBUTES_NAME = "river_attributes"
+
+#: Column carrying Strahler order on the derived network, matching what the
+#: wflow model spells ``strord`` so one renderer scales widths on either.
+RIVER_ORDER_COLUMN = "order"
+
+
+def derive_river_network(maps: xr.Dataset, flwdir: FlwdirRaster) -> gpd.GeoDataFrame:
+    """Vectorize the river network THIS project delineated with.
+
+    **One definition of "river", used everywhere** (owner ruling 2026-08-17).
+    The threshold is ``shared.basin.river_uparea_km2``, carried on the grid as
+    ``river_mask``, and it already governs two things: gauge snapping
+    (``_snap_gauge_points`` snaps onto that mask) and the wflow river map
+    (``build_wflow_model`` injects it as ``river_upa`` rather than letting the
+    build config declare a second number). This makes the DRAWN network the
+    third, so all three agree by construction.
+
+    Before this, maps drew the catalog's ``river_geom_fn`` vector instead — an
+    attribute source with its own, much coarser, drainage-area floor. Measured
+    on the rapid fixture: that product's smallest reach drained 90 km² while
+    subbasin 103 drains 42.9, so **no branch reached station 1030** even though
+    the gauge had been snapped onto a river cell 4.3 km away. Two definitions of
+    one word, and the figure showed the wrong one.
+
+    The coverage guarantee falls out rather than being enforced: a location is
+    snapped onto ``river_mask``, and this network is the vectorization of that
+    same mask, so every configured location sits on a reach. Nothing here has to
+    check it — but ``locations_off_network`` does, cheaply, because a guarantee
+    that holds by construction is exactly the kind that breaks silently when the
+    construction changes.
+    """
+    mask = maps["river_mask"].values.astype(bool)
+    if not mask.any():
+        raise ValueError(
+            "river_mask selects no cells; river_uparea_km2 is above the basin's "
+            "largest upstream area"
+        )
+    features = flwdir.streams(mask=mask, strord=flwdir.stream_order(mask=mask))
+    network = gpd.GeoDataFrame.from_features(features, crs=maps.raster.crs)
+    # A reach needs two cells to be a line. Where the mask is a handful of
+    # isolated cells -- a basin barely above the threshold -- `streams()` still
+    # returns features, but degenerate ones, and an invalid geometry written to
+    # the foundation fails `_validate_vector_relations` several steps later with
+    # a message that does not mention the threshold.
+    if not network.empty:
+        network = network[
+            network.geometry.notna()
+            & ~network.geometry.is_empty
+            & network.geometry.is_valid
+        ].reset_index(drop=True)
+    if network.empty:
+        threshold = maps["river_mask"].attrs.get("upstream_area_threshold_km2")
+        largest = float(np.nanmax(maps["upstream_area"].values))
+        raise ValueError(
+            "the river network has no reach with two connected cells: "
+            f"river_uparea_km2 = {threshold} against a largest upstream area of "
+            f"{largest:.1f} km2, so the river mask is isolated cells. Lower "
+            "shared.basin.river_uparea_km2 for this basin."
+        )
+    # `streams()` spells the order column `strord`; the shared foundation has
+    # always spelled it `order`, and `_river_order_column` tries both. Renamed
+    # here so the derived layer matches the layer it replaces.
+    if "strord" in network.columns:
+        network = network.rename(columns={"strord": RIVER_ORDER_COLUMN})
+    return network.to_crs(4326)
+
+
+def locations_off_network(
+    locations: gpd.GeoDataFrame, rivers: gpd.GeoDataFrame, tolerance_deg: float = 1e-6
+) -> list:
+    """Configured locations that no reach passes through, by ``wflow_id``.
+
+    Should always be empty — see :func:`derive_river_network`. Reported rather
+    than raised: an empty river network is already an error above, and a figure
+    that draws three of four stations on the network is still worth having while
+    the fourth is investigated.
+    """
+    if locations.empty or rivers.empty:
+        return []
+    network = rivers.union_all() if hasattr(rivers, "union_all") else rivers.unary_union
+    return [
+        row["wflow_id"]
+        for _, row in locations.iterrows()
+        if row.geometry is not None
+        and not row.geometry.is_empty
+        and row.geometry.distance(network) > tolerance_deg
+    ]
+
+
+def _vectorize_ids(data: xr.DataArray, id_column: str) -> gpd.GeoDataFrame:
+    """Vectorize positive raster IDs and name the value column explicitly."""
+    vector = data.raster.vectorize().rename(columns={"value": id_column})
+    vector[id_column] = vector[id_column].astype("int32")
+    vector = vector.loc[vector[id_column] > 0]
+    dissolved = vector.dissolve(by=id_column, as_index=False).reset_index(drop=True)
+    # Corner-connected raster cells can polygonize as self-touching rings.
+    # Preserve their exact footprint as valid Polygon/MultiPolygon geometry.
+    dissolved.geometry = dissolved.geometry.make_valid()
+    return dissolved
+
+
+def _region_geometry(region_fn: str | os.PathLike[str]) -> gpd.GeoDataFrame:
+    """Read the shared region artifact and split it into parent features.
+
+    This used to call ``parse_region_basin`` itself. Since the shared-region refactor the
+    delineation happens once per project, in rule ``delineate_region``, and this
+    reads its declared output — so 1.02 and the climate store can no longer
+    disagree about the region, and WF2/WF3 can obtain the polygon without
+    running either producer.
+
+    Every validation stays: ``read_region`` rechecks non-empty and CRS, and the
+    explode + non-overlap check below is unchanged. This stopped delineating,
+    not checking.
+    """
+    geometry = read_region(region_fn)
+    geometry = geometry.explode(index_parts=False).reset_index(drop=True)
+    for left in range(len(geometry)):
+        for right in range(left + 1, len(geometry)):
+            overlap = geometry.geometry.iloc[left].intersection(
+                geometry.geometry.iloc[right]
+            )
+            if not overlap.is_empty and overlap.area > 0:
+                raise ValueError(
+                    "resolved parent basins overlap; separate parent features must "
+                    "be non-overlapping"
+                )
+    return geometry
+
+
+def _parent_basins(
+    maps: xr.Dataset, flwdir: FlwdirRaster, region_geom: gpd.GeoDataFrame
+) -> tuple[xr.DataArray, gpd.GeoDataFrame, dict[int, int]]:
+    """Rasterize parent features and assign deterministic parent identities."""
+    if region_geom.crs != maps.raster.crs:
+        region_geom = region_geom.to_crs(maps.raster.crs)
+    records: list[dict[str, Any]] = []
+    masks: dict[int, np.ndarray] = {}
+    source_name_column = next(
+        (name for name in ("basin_name", "name") if name in region_geom.columns),
+        None,
+    )
+    for source_feature, row in region_geom.iterrows():
+        feature = gpd.GeoDataFrame(geometry=[row.geometry], crs=region_geom.crs)
+        mask = maps.raster.geometry_mask(feature).values.astype(bool)
+        mask &= maps["flow_direction"].values != maps["flow_direction"].raster.nodata
+        outlet_index = find_parent_outlet(flwdir, mask, maps["upstream_area"].values)
+        outlet_row, outlet_col = np.unravel_index(outlet_index, flwdir.shape)
+        records.append(
+            {
+                "source_feature": int(source_feature),
+                "basin_name": row[source_name_column] if source_name_column else None,
+                "upstream_area": float(
+                    maps["upstream_area"].values.ravel()[outlet_index]
+                ),
+                "outlet_row": int(outlet_row),
+                "outlet_col": int(outlet_col),
+                "outlet_index": outlet_index,
+            }
+        )
+        masks[int(source_feature)] = mask
+
+    basin_table = assign_basin_ids(pd.DataFrame(records))
+    basin_values = np.zeros(maps.raster.shape, dtype="int32")
+    outlet_by_basin: dict[int, int] = {}
+    for row in basin_table.itertuples(index=False):
+        mask = masks[row.source_feature]
+        collision = (basin_values > 0) & mask
+        if collision.any():
+            raise ValueError("resolved parent basins occupy the same grid cells")
+        basin_values[mask] = row.basin_id
+        outlet_by_basin[int(row.basin_id)] = int(row.outlet_index)
+
+    basin_map = xr.DataArray(
+        basin_values,
+        coords=maps.raster.coords,
+        dims=maps.raster.dims,
+        name="basin_id",
+        attrs={"long_name": "parent basin identifier", "units": "1", "_FillValue": 0},
+    )
+    basin_map.raster.set_crs(maps.raster.crs)
+    basin_map.raster.set_nodata(0)
+    basins = _vectorize_ids(basin_map, "basin_id").merge(
+        basin_table[["basin_id", "basin_code", "basin_name"]],
+        on="basin_id",
+        how="left",
+        validate="one_to_one",
+    )
+    return basin_map, basins, outlet_by_basin
+
+
+def read_gauge_points(path: str | os.PathLike[str] | None) -> gpd.GeoDataFrame:
+    """Read optional EPSG:4326 gauge/control points with explicit roles."""
+    columns = ["station_name", "x", "y", "location_role", "provided_wflow_id"]
+    if path is None:
+        return gpd.GeoDataFrame(
+            columns=columns + ["geometry"], geometry="geometry", crs=4326
+        )
+    frame = pd.read_csv(path, sep=",")
+    missing = sorted({"station_name", "x", "y"}.difference(frame.columns))
+    if missing:
+        raise ValueError(f"gauge_points is missing required columns: {missing}")
+    if frame.empty:
+        return gpd.GeoDataFrame(
+            columns=columns + ["geometry"], geometry="geometry", crs=4326
+        )
+    if frame[["x", "y"]].isna().any().any():
+        raise ValueError("gauge_points x/y coordinates cannot be missing")
+    frame["station_name"] = frame["station_name"].astype("string").str.strip()
+    if frame["station_name"].isna().any() or frame["station_name"].eq("").any():
+        raise ValueError("gauge_points station_name values cannot be empty")
+    if "location_role" not in frame:
+        frame["location_role"] = "control"
+    frame["location_role"] = (
+        frame["location_role"]
+        .fillna("control")
+        .astype("string")
+        .str.strip()
+        .str.lower()
+    )
+    invalid_roles = sorted(
+        set(frame["location_role"]).difference({"control", "observation"})
+    )
+    if invalid_roles:
+        raise ValueError(
+            f"gauge_points location_role values must be control or observation: {invalid_roles}"
+        )
+    frame["provided_wflow_id"] = frame["wflow_id"] if "wflow_id" in frame else pd.NA
+    return gpd.GeoDataFrame(
+        frame,
+        geometry=gpd.points_from_xy(frame["x"], frame["y"]),
+        crs=4326,
+    )
+
+
+def _snap_gauge_points(
+    gauges: gpd.GeoDataFrame,
+    maps: xr.Dataset,
+    flwdir: FlwdirRaster,
+    tolerance_m: float,
+    *,
+    outlet_by_basin: dict[int, int] | None = None,
+) -> gpd.GeoDataFrame:
+    """Trace valid parent cells downstream to rivers, retaining their parent.
+
+    When parent outlets are supplied, every role must drain to its assigned
+    outlet. Snapping follows flow direction and never crosses a divide to
+    select a geometrically nearer river.
+    """
+    if gauges.empty:
+        result = gauges.copy()
+        for column in (
+            "original_x",
+            "original_y",
+            "snapped_x",
+            "snapped_y",
+            "snapped_distance_m",
+            "snapped_index",
+            "snapped_row",
+            "snapped_col",
+            "basin_id",
+        ):
+            result[column] = pd.Series(dtype="float64")
+        return result
+
+    def reject(mask: np.ndarray, reason: str) -> None:
+        points = gauges.to_crs(4326).loc[mask]
+        details = "; ".join(
+            f"{point.station_name} (lon={point.geometry.x:.6f}, lat={point.geometry.y:.6f})"
+            for point in points.itertuples()
+        )
+        raise ValueError(f"{reason}: {details}")
+
+    projected = gauges.to_crs(maps.raster.crs)
+    finite = np.isfinite(projected.geometry.x.values) & np.isfinite(
+        projected.geometry.y.values
+    )
+    if not finite.all():
+        reject(~finite, "output locations must have finite longitude and latitude")
+    initial = maps.raster.xy_to_idx(
+        xs=projected.geometry.x.values,
+        ys=projected.geometry.y.values,
+        mask_outside=True,
+    )
+    valid = (initial >= 0) & (initial < maps["basin_id"].size)
+    if not valid.all():
+        reject(~valid, "output locations fall outside the analysis grid")
+    original_basins = maps["basin_id"].values.ravel()[initial]
+    active = (original_basins > 0) & flwdir.mask.ravel()[initial]
+    if not active.all():
+        reject(~active, "output locations fall outside active parent basin cells")
+    snapped, distances = flwdir.snap(
+        idxs=initial, mask=maps["river_mask"].values, unit="m"
+    )
+    valid = (snapped >= 0) & (snapped < maps["basin_id"].size)
+    if not valid.all():
+        reject(~valid, "output locations have no valid downstream snap")
+    on_river = maps["river_mask"].values.ravel()[snapped].astype(bool)
+    if not on_river.all():
+        reject(~on_river, "output locations reach a terminal cell before a river")
+    snapped_basins = maps["basin_id"].values.ravel()[snapped]
+    same_parent = (snapped_basins > 0) & (snapped_basins == original_basins)
+    if not same_parent.all():
+        reject(
+            ~same_parent, "output locations snap outside their original parent basin"
+        )
+    if outlet_by_basin is not None:
+        target = np.zeros(flwdir.shape, dtype=bool)
+        target.ravel()[list(outlet_by_basin.values())] = True
+        terminal, _ = flwdir.snap(idxs=snapped, mask=target, unit="cell")
+        connected = np.asarray(
+            [
+                int(end) == outlet_by_basin[int(parent)]
+                for end, parent in zip(terminal, snapped_basins)
+            ]
+        )
+        if not connected.all():
+            reject(
+                ~connected, "output locations do not drain to their parent basin outlet"
+            )
+    too_far = distances > tolerance_m
+    if too_far.any():
+        reject(too_far, f"gauge points exceed gauge_snap_tolerance_m={tolerance_m}")
+    duplicate_points = pd.Series(snapped).duplicated(keep=False)
+    if duplicate_points.any():
+        reject(
+            duplicate_points.to_numpy(), "gauge points snap to duplicate river cells"
+        )
+
+    snapped_x, snapped_y = maps.raster.idx_to_xy(snapped)
+    snapped_projected = gpd.GeoDataFrame(
+        geometry=gpd.points_from_xy(snapped_x, snapped_y), crs=maps.raster.crs
+    )
+    snapped_wgs84 = snapped_projected.to_crs(4326)
+    result = gauges.copy()
+    result["original_x"] = gauges.geometry.x.values
+    result["original_y"] = gauges.geometry.y.values
+    result["snapped_x"] = snapped_wgs84.geometry.x.values
+    result["snapped_y"] = snapped_wgs84.geometry.y.values
+    result["snapped_distance_m"] = distances
+    result["snapped_index"] = snapped.astype("int64")
+    result["snapped_row"], result["snapped_col"] = np.unravel_index(
+        snapped, maps.raster.shape
+    )
+    result["basin_id"] = snapped_basins.astype("int32")
+    result.geometry = snapped_wgs84.geometry
+    result.set_crs(4326, allow_override=True, inplace=True)
+    original_wgs84 = gauges.to_crs(4326)
+    # Ignore only CRS roundtrip noise (~0.1 mm), including on river cells.
+    changed = ~(
+        np.isclose(
+            original_wgs84.geometry.x.values,
+            snapped_wgs84.geometry.x.values,
+            atol=1e-9,
+            rtol=0,
+        )
+        & np.isclose(
+            original_wgs84.geometry.y.values,
+            snapped_wgs84.geometry.y.values,
+            atol=1e-9,
+            rtol=0,
+        )
+    )
+    changed_indices = np.flatnonzero(changed)
+    if changed_indices.size:
+        log_row(
+            "Output location coordinates adjusted:",
+            module="spatial",
+            level="WARNING",
+        )
+    for index in changed_indices:
+        original = original_wgs84.iloc[index]
+        resolved = snapped_wgs84.geometry.iloc[index]
+        log_row(
+            f"{original.station_name} adjusted to lon={resolved.x:.9f}, lat={resolved.y:.9f}",
+            module="spatial",
+            level="WARNING",
+        )
+    return result
+
+
+def _mask_flwdir(maps: xr.Dataset, parent_mask: np.ndarray) -> FlwdirRaster:
+    """Create a parent-local flow network on the shared analysis grid."""
+    mask = xr.DataArray(
+        parent_mask,
+        coords=maps.raster.coords,
+        dims=maps.raster.dims,
+    )
+    return flw.flwdir_from_da(maps["flow_direction"], ftype="d8", mask=mask)
+
+
+def _catchment_geometry(
+    maps: xr.Dataset, catchment: np.ndarray, temporary_label: int
+) -> gpd.GeoDataFrame:
+    """Vectorize one full contributing catchment."""
+    data = xr.DataArray(
+        np.where(catchment, temporary_label, 0).astype("int32"),
+        coords=maps.raster.coords,
+        dims=maps.raster.dims,
+        name="temporary_label",
+    )
+    data.raster.set_crs(maps.raster.crs)
+    data.raster.set_nodata(0)
+    vector = _vectorize_ids(data, "temporary_label")
+    return vector
+
+
+def _delineate_spatial_units(
+    maps: xr.Dataset,
+    flwdir: FlwdirRaster,
+    basins: gpd.GeoDataFrame,
+    outlet_by_basin: dict[int, int],
+    gauges: gpd.GeoDataFrame,
+    max_subbasins_per_basin: int,
+) -> tuple[
+    xr.DataArray,
+    gpd.GeoDataFrame,
+    gpd.GeoDataFrame,
+    gpd.GeoDataFrame,
+    pd.DataFrame,
+    dict[int, str],
+]:
+    """Resolve gauge-driven or automatic partitions independently per parent.
+
+    the ceiling is PER PARENT, so every automatic parent gets the
+    same one and there is nothing to allocate.
+    ``allocate_automatic_subbasin_budgets`` — which handed each parent one unit,
+    spread the remainder by largest-remainder weighted on upstream area, and
+    RAISED outright when the project had more parent basins than the global
+    budget — is deleted rather than adapted. Its per-parent upstream areas went
+    with it: they existed only to weight that split.
+
+    Dropping the area weighting costs less than it sounds. ``select_automatic_
+    subbasins`` treats the ceiling as an UPPER BOUND, binary-searching for the
+    most detailed partition within it, so a small parent already yielded fewer
+    units than a large one at the same ceiling.
+    """
+    methods: dict[int, str] = {}
+    for basin_id, parent_outlet in outlet_by_basin.items():
+        controls = gauges.loc[
+            gauges["basin_id"].eq(basin_id) & gauges["location_role"].eq("control")
+        ]
+        has_internal = bool((controls["snapped_index"] != parent_outlet).any())
+        methods[basin_id] = "gauge" if has_internal else "automatic"
+
+    temporary_map = np.zeros(maps.raster.shape, dtype="int32")
+    subbasin_records: list[dict[str, Any]] = []
+    catchment_parts: list[gpd.GeoDataFrame] = []
+    primary_seeds: list[dict[str, Any]] = []
+    for basin_id in sorted(outlet_by_basin):
+        parent_mask = maps["basin_id"].values == basin_id
+        parent_flwdir = _mask_flwdir(maps, parent_mask)
+        parent_outlet = outlet_by_basin[basin_id]
+        controls = gauges.loc[
+            gauges["basin_id"].eq(basin_id) & gauges["location_role"].eq("control")
+        ]
+        if methods[basin_id] == "gauge":
+            internal = sorted(
+                set(
+                    controls.loc[
+                        controls["snapped_index"] != parent_outlet, "snapped_index"
+                    ].astype(int)
+                )
+            )
+            outlets = np.asarray([parent_outlet, *internal], dtype=np.int64)
+            partition = incremental_subbasins(parent_flwdir, outlets)
+        else:
+            partition, outlets = select_automatic_subbasins(
+                parent_flwdir,
+                maps["upstream_area"].values,
+                max_subbasins_per_basin,
+                outlet_mask=maps["river_mask"].values,
+            )
+            if parent_outlet not in outlets:
+                raise RuntimeError(
+                    f"automatic partition for basin {basin_id} omitted its outlet"
+                )
+
+        for local_label, outlet_index in enumerate(outlets, start=1):
+            temporary_label = basin_id * 1000 + local_label
+            temporary_map[partition == local_label] = temporary_label
+            row, col = np.unravel_index(outlet_index, maps.raster.shape)
+            matching_control = controls.loc[controls["snapped_index"].eq(outlet_index)]
+            supplied_name = (
+                matching_control.iloc[0]["station_name"]
+                if not matching_control.empty
+                else None
+            )
+            subbasin_records.append(
+                {
+                    "temporary_label": temporary_label,
+                    "basin_id": basin_id,
+                    "downstream_steps": downstream_steps(
+                        parent_flwdir, int(outlet_index), parent_outlet
+                    ),
+                    "upstream_area": float(
+                        maps["upstream_area"].values.ravel()[outlet_index]
+                    ),
+                    "outlet_row": int(row),
+                    "outlet_col": int(col),
+                    "outlet_index": int(outlet_index),
+                    "subbasin_name": supplied_name,
+                    "delineation_method": methods[basin_id],
+                }
+            )
+            catchment = full_catchment(parent_flwdir, int(outlet_index))
+            catchment_parts.append(
+                _catchment_geometry(maps, catchment, temporary_label)
+            )
+            if matching_control.empty:
+                snapped_x, snapped_y = maps.raster.idx_to_xy([outlet_index])
+                point = (
+                    gpd.GeoSeries(
+                        gpd.points_from_xy(snapped_x, snapped_y), crs=maps.raster.crs
+                    )
+                    .to_crs(4326)
+                    .iloc[0]
+                )
+                primary_seeds.append(
+                    {
+                        "temporary_label": temporary_label,
+                        "station_name": None,
+                        "location_role": "automatic_outlet",
+                        "is_primary": True,
+                        "original_x": point.x,
+                        "original_y": point.y,
+                        "snapped_x": point.x,
+                        "snapped_y": point.y,
+                        "snapped_row": int(row),
+                        "snapped_col": int(col),
+                        "provided_wflow_id": pd.NA,
+                    }
+                )
+            else:
+                gauge = matching_control.iloc[0]
+                primary_seeds.append(
+                    {
+                        "temporary_label": temporary_label,
+                        "station_name": gauge["station_name"],
+                        "location_role": "control",
+                        "is_primary": True,
+                        "original_x": gauge["original_x"],
+                        "original_y": gauge["original_y"],
+                        "snapped_x": gauge["snapped_x"],
+                        "snapped_y": gauge["snapped_y"],
+                        "snapped_row": int(gauge["snapped_row"]),
+                        "snapped_col": int(gauge["snapped_col"]),
+                        "provided_wflow_id": gauge["provided_wflow_id"],
+                    }
+                )
+
+    subbasin_table = assign_subbasin_ids(pd.DataFrame(subbasin_records))
+    subbasin_values = np.zeros_like(temporary_map, dtype="int32")
+    for row in subbasin_table.itertuples(index=False):
+        subbasin_values[temporary_map == row.temporary_label] = row.subbasin_id
+    subbasin_map = xr.DataArray(
+        subbasin_values,
+        coords=maps.raster.coords,
+        dims=maps.raster.dims,
+        name="subbasin_id",
+        attrs={
+            "long_name": "incremental subbasin identifier",
+            "units": "1",
+            "_FillValue": 0,
+        },
+    )
+    subbasin_map.raster.set_crs(maps.raster.crs)
+    subbasin_map.raster.set_nodata(0)
+    subbasins = _vectorize_ids(subbasin_map, "subbasin_id").merge(
+        subbasin_table[
+            [
+                "subbasin_id",
+                "basin_id",
+                "subbasin_code",
+                "subbasin_name",
+                "delineation_method",
+                "upstream_area",
+            ]
+        ],
+        on="subbasin_id",
+        how="left",
+        validate="one_to_one",
+    )
+
+    catchments = pd.concat(catchment_parts, ignore_index=True)
+    catchments = gpd.GeoDataFrame(catchments, geometry="geometry", crs=maps.raster.crs)
+    catchments = catchments.merge(
+        subbasin_table[
+            [
+                "temporary_label",
+                "subbasin_id",
+                "basin_id",
+                "subbasin_code",
+                "subbasin_name",
+            ]
+        ],
+        on="temporary_label",
+        how="left",
+        validate="one_to_one",
+    ).drop(columns="temporary_label")
+
+    seeds = pd.DataFrame(primary_seeds)
+    assigned_primary = set(
+        zip(seeds["temporary_label"], seeds["snapped_row"], seeds["snapped_col"])
+    )
+    extra_seeds: list[dict[str, Any]] = []
+    for gauge in gauges.itertuples(index=False):
+        temporary_label = int(temporary_map.ravel()[gauge.snapped_index])
+        key = (temporary_label, int(gauge.snapped_row), int(gauge.snapped_col))
+        if key in assigned_primary and gauge.location_role == "control":
+            continue
+        extra_seeds.append(
+            {
+                "temporary_label": temporary_label,
+                "station_name": gauge.station_name,
+                "location_role": gauge.location_role,
+                "is_primary": False,
+                "original_x": gauge.original_x,
+                "original_y": gauge.original_y,
+                "snapped_x": gauge.snapped_x,
+                "snapped_y": gauge.snapped_y,
+                "snapped_row": int(gauge.snapped_row),
+                "snapped_col": int(gauge.snapped_col),
+                "provided_wflow_id": gauge.provided_wflow_id,
+            }
+        )
+    if extra_seeds:
+        seeds = pd.concat([seeds, pd.DataFrame(extra_seeds)], ignore_index=True)
+    seeds = seeds.merge(
+        subbasin_table[
+            [
+                "temporary_label",
+                "basin_id",
+                "subbasin_id",
+                "subbasin_code",
+                "subbasin_name",
+                # The identity encoding builds wflow_id from this, so it has to reach
+                # `assign_location_ids` rather than stop at the subbasin table.
+                "local_subbasin_number",
+            ]
+        ],
+        on="temporary_label",
+        how="left",
+        validate="many_to_one",
+    ).merge(
+        basins[["basin_id", "basin_code", "basin_name"]],
+        on="basin_id",
+        how="left",
+        validate="many_to_one",
+    )
+    synthetic = seeds["station_name"].isna()
+    seeds.loc[synthetic, "station_name"] = seeds.loc[synthetic, "subbasin_name"]
+    registry = assign_location_ids(seeds)
+    locations = gpd.GeoDataFrame(
+        registry.copy(),
+        geometry=gpd.points_from_xy(registry["snapped_x"], registry["snapped_y"]),
+        crs=4326,
+    )
+    return subbasin_map, subbasins, catchments, locations, registry, methods
+
+
+def _as_dataset(data: xr.Dataset | xr.DataArray) -> xr.Dataset:
+    """Normalize one catalog raster result to a dataset."""
+    if isinstance(data, xr.DataArray):
+        name = data.name or "value"
+        return data.rename(name).to_dataset()
+    return data
+
+
+def _resample_source(
+    catalog: DataCatalog,
+    source_name: str,
+    basin_geom: gpd.GeoDataFrame,
+    grid: xr.DataArray,
+    prefix: str,
+    method: str,
+) -> xr.Dataset:
+    """Read, clip, regrid, and namespace one model-neutral thematic source."""
+    source = catalog.get_rasterdataset(
+        source_name,
+        geom=basin_geom,
+        buffer=2,
+        single_var_as_array=False,
+    )
+    if source is None:
+        raise ValueError(f"catalog source {source_name!r} returned no raster data")
+    source_ds = _as_dataset(source)
+    if source_ds.raster.crs is None:
+        raise ValueError(f"catalog source {source_name!r} has no CRS")
+    reprojected = source_ds.raster.reproject_like(grid, method=method)
+    if (
+        prefix == "leaf_area_index"
+        and "dim0" in reprojected.dims
+        and reprojected.sizes["dim0"] == 12
+    ):
+        reprojected = reprojected.rename(dim0="month").assign_coords(
+            month=np.arange(1, 13, dtype="int16")
+        )
+        reprojected["month"].attrs.update(long_name="calendar month", units="1")
+    renamed: dict[str, str] = {}
+    names = list(reprojected.data_vars)
+    for name in names:
+        if prefix == "land_cover" and len(names) == 1:
+            renamed[name] = "land_cover"
+        elif prefix == "leaf_area_index" and len(names) == 1:
+            renamed[name] = "leaf_area_index"
+        else:
+            renamed[name] = f"{prefix}_{name}"
+    reprojected = reprojected.rename(renamed)
+    for name in reprojected.data_vars:
+        data = reprojected[name]
+        nodata = data.raster.nodata
+        if nodata is None or (isinstance(nodata, float) and np.isnan(nodata)):
+            nodata = -1 if method == "nearest" else -9999.0
+            if method == "nearest":
+                data = data.fillna(nodata)
+            else:
+                data = data.astype("float32").fillna(nodata)
+            reprojected[name] = data
+            reprojected[name].raster.set_nodata(nodata)
+        reprojected[name].encoding.pop("_FillValue", None)
+        reprojected[name].attrs.update(
+            source=source_name,
+            resampling=method,
+            resolution=float(abs(grid.raster.res[0])),
+            units=reprojected[name].attrs.get("units", "source-native"),
+            _FillValue=nodata,
+        )
+    return reprojected
+
+
+def _thematic_maps(
+    catalog: DataCatalog,
+    config: SpatialConfig,
+    basins: gpd.GeoDataFrame,
+    grid: xr.DataArray,
+) -> xr.Dataset:
+    """Load raw/analysis-ready land-cover, LAI, and soil layers."""
+    return xr.merge(
+        [
+            _resample_source(
+                catalog, config.sources.lulc, basins, grid, "land_cover", "nearest"
+            ),
+            _resample_source(
+                catalog,
+                config.sources.lai,
+                basins,
+                grid,
+                "leaf_area_index",
+                "average",
+            ),
+            _resample_source(
+                catalog, config.sources.soil, basins, grid, "soil", "average"
+            ),
+        ],
+        compat="override",
+    )
+
+
+def prepare_spatial_units(
+    catalog: DataCatalog,
+    region_fn: str | os.PathLike[str],
+    *,
+    hydrography: str,
+    resolution: float,
+    river_uparea_km2: float,
+    rivers_source: str,
+    gauge_points_path: str | None,
+    gauge_snap_tolerance_m: float,
+    max_subbasins_per_basin: int,
+) -> SpatialUnits:
+    """Build the model-free vector foundation and the hydrography grid seam.
+
+    Every argument is a shared spatial input resolved by ``parse_spatial_config``.
+    Explicit arguments keep workflow-local settings out of the producer contract.
+    The rule is shared, so anything that
+    could differ per invoking workflow (``workflows.build_model``, the
+    ``--configfile`` path) cannot reach it. The thematic source names are
+    deliberately absent: they belong to the raster half.
+
+    ``region_fn`` is the rule's declared ``region_geojson`` input — the one
+    project region artifact, not a path this function derives.
+    """
+    region = _region_geometry(region_fn)
+    source = catalog.get_rasterdataset(
+        hydrography,
+        geom=region,
+        buffer=10,
+        single_var_as_array=False,
+    )
+    if source is None:
+        raise ValueError(f"catalog source {hydrography!r} returned no data")
+    source_ds = _as_dataset(source)
+    maps, flwdir = prepare_hydrography(
+        source_ds,
+        region,
+        resolution,
+        river_uparea_km2,
+    )
+    basin_map, basins, outlet_by_basin = _parent_basins(maps, flwdir, region)
+    maps["basin_id"] = basin_map
+    gauges = _snap_gauge_points(
+        read_gauge_points(gauge_points_path),
+        maps,
+        flwdir,
+        gauge_snap_tolerance_m,
+        outlet_by_basin=outlet_by_basin,
+    )
+    (
+        subbasin_map,
+        subbasins,
+        catchments,
+        locations,
+        registry,
+        _methods,
+    ) = _delineate_spatial_units(
+        maps,
+        flwdir,
+        basins,
+        outlet_by_basin,
+        gauges,
+        max_subbasins_per_basin,
+    )
+    maps["subbasin_id"] = subbasin_map
+    for name in maps.data_vars:
+        maps[name].attrs.setdefault("source", hydrography)
+        maps[name].attrs.setdefault("resolution", float(abs(maps.raster.res[0])))
+    maps.raster.set_crs(source_ds.raster.crs)
+
+    # The catalog vector is the ATTRIBUTE source (width, bankfull discharge)
+    # hydromt's `setup_rivers` takes as `river_geom_fn`. It is NOT the network
+    # -- it carries the global product's own drainage-area floor -- so it is
+    # named for what it is and the drawn network is derived below.
+    river_attributes = catalog.get_geodataframe(rivers_source, geom=basins)
+    if river_attributes is None or river_attributes.empty:
+        raise ValueError(f"catalog source {rivers_source!r} returned no rivers")
+    if river_attributes.crs is None:
+        raise ValueError(f"catalog source {rivers_source!r} has no CRS")
+    river_attributes = river_attributes.to_crs(4326)
+
+    rivers = derive_river_network(maps, flwdir)
+    stranded = locations_off_network(locations, rivers)
+    if stranded:
+        log_row(
+            "River-network consistency warning: vector geometry and river_mask disagree; "
+            f"{plural(len(stranded), 'output location')} off the derived network "
+            f"({listed(stranded)})",
+            module="spatial",
+            level="WARNING",
+        )
+    else:
+        log_row(
+            f"River network: {plural(len(rivers), 'reach', 'reaches')}; upstream-area threshold "
+            f"{float(maps['river_mask'].attrs.get('upstream_area_threshold_km2', 0)):g}"
+            f" km²; output locations: {len(locations)}",
+            module="spatial",
+        )
+    for frame in (basins, subbasins, catchments):
+        if frame.crs is None:
+            raise ValueError("generated spatial geometry has no CRS")
+    return SpatialUnits(
+        maps=maps,
+        basins=basins.to_crs(4326),
+        subbasins=subbasins.to_crs(4326),
+        catchments=catchments.to_crs(4326),
+        rivers=rivers,
+        river_attributes=river_attributes,
+        locations=locations,
+        location_registry=registry,
+        waterbodies=clip_waterbodies(catalog, basins.to_crs(4326)),
+    )
+
+
+def read_hydrography_seam(seam_fn: str | os.PathLike[str]) -> xr.Dataset:
+    """Read the seam intermediate back as the raster half's starting grid.
+
+    Two properties this reader exists for, both measured on the synthetic
+    fixture (2026-08-06) against the pre-split ``spatial_maps.nc``:
+
+    * ``mask_and_scale=False``. Every layer carries ``_FillValue`` in its
+      ATTRS, and the CF mask decoder would move it into ``encoding`` and recast
+      the array to float — ``basin_id`` and ``subbasin_id`` would come back as
+      float64 with NaN where the fill is, and ``spatial_maps.nc`` would ship
+      float identifier rasters;
+    * COORDS FIRST. netCDF stores variables in creation order, and
+      ``open_dataset`` yields data variables before coordinates while the
+      pre-split dataset had ``y``/``x``/``spatial_ref`` first. Rebuilding the
+      dataset coords-first is what makes the written file byte-identical rather
+      than merely equivalent.
+
+    The CRS re-anchor below needs an authority code. A hydrography source whose
+    CRS has none keeps the WKT as stored: correct values and a correct
+    projection, but ``spatial_maps.nc`` will not be byte-identical to what the
+    unsplit rule wrote. No source in the shipped catalogs is in that position.
+    """
+    raw = xr.open_dataset(seam_fn, mask_and_scale=False)
+    try:
+        maps = xr.Dataset(coords=raw.coords, attrs=dict(raw.attrs))
+        for name in raw.data_vars:
+            maps[name] = raw[name]
+        # Materialize before the handle closes: `open_dataset` is lazy, and the
+        # caller writes these arrays out again.
+        maps.load()
+    finally:
+        raw.close()
+    # Re-anchor the CRS on its authority code. Reading `spatial_ref` back gives
+    # pyproj a CRS built from the stored WKT, whose re-emitted WKT is POORER
+    # than the catalog's -- `DATUM[...]` where the catalog had
+    # `ENSEMBLE[... MEMBER ...]`, and `CONVERSION["unnamed"]`. Same coordinate
+    # system, but a different string in the file, which is the difference
+    # between byte-identical and merely equivalent. Measured 2026-08-06: this
+    # was the ONLY difference left between the split and unsplit outputs.
+    epsg = maps.raster.crs.to_epsg() if maps.raster.crs is not None else None
+    if epsg is not None:
+        maps.raster.set_crs(epsg)
+    return maps
+
+
+def prepare_spatial_maps(
+    maps: xr.Dataset,
+    basins: gpd.GeoDataFrame,
+    config: SpatialConfig,
+    catalog: DataCatalog,
+) -> xr.Dataset:
+    """Fold the thematic layers onto the seam grid — the raster half, WF1 only.
+
+    ``basins`` arrives from the declared ``basins.geojson`` input in EPSG:4326
+    and is reprojected onto the grid's CRS, which is what the unsplit rule
+    passed: a no-op whenever the hydrography is geographic (merit_hydro is).
+    """
+    if basins.crs != maps.raster.crs:
+        basins = basins.to_crs(maps.raster.crs)
+    thematic = _thematic_maps(catalog, config, basins, maps["flow_direction"])
+    merged = xr.merge([maps, thematic], compat="override")
+    merged.raster.set_crs(maps.raster.crs)
+    merged.attrs.update(
+        spatial_contract=SPATIAL_CONTRACT_VERSION,
+        hydrography_source=config.hydrography,
+        river_source=config.sources.rivers,
+        lulc_source=config.sources.lulc,
+        lai_source=config.sources.lai,
+        soil_source=config.sources.soil,
+    )
+    return merged
+
+
+def spatial_report(
+    basins: gpd.GeoDataFrame,
+    subbasins: gpd.GeoDataFrame,
+    registry: pd.DataFrame,
+) -> dict[str, Any]:
+    """Summarize the written vector foundation.
+
+    ``delineation_method_by_basin`` is DERIVED from ``subbasins`` rather than
+    carried across the seam: the method is a per-parent property that every one
+    of that parent's subbasins already records, so recovering it needs no extra
+    channel. The uniformity that makes the recovery valid is checked, not
+    assumed.
+    """
+    per_basin = subbasins.groupby("basin_id", sort=True)["delineation_method"]
+    ambiguous = sorted(
+        int(value) for value in per_basin.nunique().loc[lambda s: s > 1].index
+    )
+    if ambiguous:
+        raise ValueError(
+            f"parent basins carry more than one delineation method: {ambiguous}"
+        )
+    methods = {int(basin): str(method) for basin, method in per_basin.first().items()}
+    return {
+        "contract": SPATIAL_CONTRACT_VERSION,
+        "parent_basins": len(basins),
+        "subbasins": len(subbasins),
+        "locations": len(registry),
+        "delineation_method_by_basin": methods,
+        "automatic_subbasins": int(
+            subbasins["delineation_method"].eq("automatic").sum()
+        ),
+        "gauge_subbasins": int(subbasins["delineation_method"].eq("gauge").sum()),
+        "basin_id_range": [
+            int(basins["basin_id"].min()),
+            int(basins["basin_id"].max()),
+        ],
+        "subbasin_id_range": [
+            int(subbasins["subbasin_id"].min()),
+            int(subbasins["subbasin_id"].max()),
+        ],
+        "wflow_id_range": [
+            int(registry["wflow_id"].min()),
+            int(registry["wflow_id"].max()),
+        ],
+    }
+
+
+def _catalog_dict() -> dict[str, Any]:
+    """Return the portable HydroMT catalog for a written spatial product.
+
+    ``hydrography.nc`` is deliberately absent: it is the seam between the two
+    halves, not a product. Adding it would advertise an
+    intermediate to ``build_wflow_model``, which resolves every model input
+    through this catalog.
+    """
+    entries: dict[str, Any] = {
+        "spatial_maps": {
+            "data_type": "RasterDataset",
+            "uri": "spatial_maps.nc",
+            "driver": {"name": "raster_xarray"},
+            "metadata": {
+                "category": "topography",
+                "contract": SPATIAL_CONTRACT_VERSION,
+            },
+        },
+        "location_registry": {
+            "data_type": "DataFrame",
+            "uri": "location_registry.csv",
+            "driver": {"name": "pandas"},
+            "metadata": {
+                "category": "hydrography",
+                "contract": SPATIAL_CONTRACT_VERSION,
+            },
+        },
+    }
+    for name in (
+        "basins",
+        "subbasins",
+        "catchments",
+        "rivers",
+        RIVER_ATTRIBUTES_NAME,
+        "locations",
+        *WATERBODY_SOURCES,
+    ):
+        entries[name] = {
+            "data_type": "GeoDataFrame",
+            "uri": f"geoms/{name}.geojson",
+            "driver": {"name": "pyogrio"},
+            "metadata": {
+                "category": "hydrography",
+                "contract": SPATIAL_CONTRACT_VERSION,
+                "crs": 4326,
+            },
+        }
+    return entries
+
+
+def _write_dataset(data: xr.Dataset, path: Path) -> None:
+    """Serialize one dataset through a temporary sibling, then swap it in."""
+    temporary_path = path.parent / f"{path.stem}.tmp.nc"
+    data.to_netcdf(temporary_path)
+    temporary_path.replace(path)
+
+
+def write_spatial_units(units: SpatialUnits, output_dir: str | Path) -> None:
+    """Serialize the six vector artifacts and the hydrography grid seam.
+
+    ``spatial_catalog.yml`` is NOT written here. It is the model-build
+    interface, it lists the raster entries too, and a file with two writers is
+    ambiguous — so the complete catalog stays in the raster half.
+    """
+    output_dir = Path(output_dir)
+    geoms_dir = output_dir / "geoms"
+    geoms_dir.mkdir(parents=True, exist_ok=True)
+    _write_dataset(units.maps, output_dir / HYDROGRAPHY_SEAM_NAME)
+    for name in (
+        "basins",
+        "subbasins",
+        "catchments",
+        "rivers",
+        RIVER_ATTRIBUTES_NAME,
+        "locations",
+    ):
+        frame = getattr(units, name)
+        frame.to_file(geoms_dir / f"{name}.geojson", driver="GeoJSON")
+    for name in WATERBODY_SOURCES:
+        frame = (units.waterbodies or {}).get(name)
+        (_empty_layer() if frame is None else frame).to_file(
+            geoms_dir / f"{name}.geojson", driver="GeoJSON"
+        )
+    units.location_registry.to_csv(output_dir / "location_registry.csv", index=False)
+
+
+def write_spatial_maps(
+    maps: xr.Dataset, report: dict[str, Any], output_dir: str | Path
+) -> None:
+    """Serialize the thematic map stack, its HydroMT catalog, and the report."""
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    _write_dataset(maps, output_dir / "spatial_maps.nc")
+    with (output_dir / "spatial_catalog.yml").open("w", encoding="utf-8") as stream:
+        yaml.safe_dump(_catalog_dict(), stream, sort_keys=False)
+    with (output_dir / "spatial_report.yml").open("w", encoding="utf-8") as stream:
+        yaml.safe_dump(report, stream, sort_keys=False)
+
+
+def _validate_flow_topology(maps: xr.Dataset) -> None:
+    """Validate D8 codes and non-decreasing accumulation downstream."""
+    direction = np.asarray(maps["flow_direction"].values)
+    finite_direction = np.isfinite(direction)
+    codes = {int(value) for value in np.unique(direction[finite_direction])}
+    valid_codes = {0, 1, 2, 4, 8, 16, 32, 64, 128}
+    if not codes.issubset(valid_codes):
+        raise ValueError(f"flow_direction contains invalid ArcGIS D8 codes: {codes}")
+
+    basin_values = np.asarray(maps["basin_id"].values)
+    active = np.isfinite(basin_values) & (basin_values > 0)
+    if np.any(active & ~finite_direction):
+        raise ValueError("active basin cells contain missing flow direction")
+    flow_da = xr.DataArray(
+        np.where(finite_direction, direction, 247).astype("uint8"),
+        coords=maps["flow_direction"].coords,
+        dims=maps["flow_direction"].dims,
+    )
+    flow_da.raster.set_crs(maps.raster.crs)
+    flow_da.raster.set_nodata(247)
+    flow_network = flw.flwdir_from_da(
+        flow_da,
+        ftype="d8",
+        mask=xr.DataArray(active, coords=flow_da.coords, dims=flow_da.dims),
+    )
+    active_indices = np.flatnonzero(active.ravel())
+    downstream = flow_network.idxs_ds[active_indices]
+    internal = (downstream >= 0) & (downstream != active_indices)
+    internal &= active.ravel()[downstream]
+    accumulation = np.asarray(maps["flow_accumulation"].values).ravel()
+    if not np.isfinite(accumulation[active_indices]).all():
+        raise ValueError("active basin cells contain missing flow accumulation")
+    if np.any(
+        accumulation[downstream[internal]] < accumulation[active_indices[internal]]
+    ):
+        raise ValueError("flow accumulation decreases along a downstream D8 edge")
+
+
+def _validate_vector_relations(geoms: Mapping[str, gpd.GeoDataFrame]) -> None:
+    """Validate incremental-unit disjointness and catchment containment."""
+    for name, frame in geoms.items():
+        if frame.empty or not frame.geometry.is_valid.all():
+            raise ValueError(f"written {name} geometry is empty or invalid")
+
+    subbasins = geoms["subbasins"].to_crs(6933)
+    catchments = geoms["catchments"].to_crs(6933)
+    if not subbasins["subbasin_id"].is_unique:
+        raise ValueError("subbasin vector identifiers are not unique")
+    if not catchments["subbasin_id"].is_unique:
+        raise ValueError("catchment vector identifiers are not unique")
+    union_area = float(subbasins.geometry.union_all().area)
+    summed_area = float(subbasins.geometry.area.sum())
+    tolerance = max(union_area * 1e-9, 0.01)
+    if summed_area - union_area > tolerance:
+        raise ValueError("incremental subbasin polygons overlap")
+
+    pairs = subbasins[["subbasin_id", "geometry"]].merge(
+        catchments[["subbasin_id", "geometry"]],
+        on="subbasin_id",
+        how="outer",
+        suffixes=("_subbasin", "_catchment"),
+        validate="one_to_one",
+        indicator=True,
+    )
+    if not pairs["_merge"].eq("both").all():
+        raise ValueError("subbasin and catchment vector identifiers disagree")
+    outside = [
+        int(row.subbasin_id)
+        for row in pairs.itertuples(index=False)
+        if not row.geometry_subbasin.covered_by(row.geometry_catchment.buffer(0.01))
+    ]
+    if outside:
+        raise ValueError(f"subbasins fall outside their full catchments: {outside}")
+
+
+def validate_written_spatial_products(output_dir: str | Path) -> None:
+    """Open every generated catalog entry and verify the core ID joins."""
+    output_dir = Path(output_dir)
+    catalog = DataCatalog(data_libs=str(output_dir / "spatial_catalog.yml"))
+    maps = catalog.get_rasterdataset("spatial_maps", single_var_as_array=False)
+    registry = catalog.get_dataframe("location_registry")
+    geoms = {
+        name: catalog.get_geodataframe(name)
+        for name in (
+            "basins",
+            "subbasins",
+            "catchments",
+            "rivers",
+            RIVER_ATTRIBUTES_NAME,
+            "locations",
+        )
+    }
+    subbasins = geoms["subbasins"]
+    if maps is None or maps.raster.crs is None:
+        raise ValueError("written spatial_maps has no readable CRS")
+    if registry is None or subbasins is None:
+        raise ValueError("written registry or subbasins catalog entry is unreadable")
+    unreadable = [
+        name for name, frame in geoms.items() if frame is None or frame.crs is None
+    ]
+    if unreadable:
+        raise ValueError(f"written spatial geometries are unreadable: {unreadable}")
+    if any(frame.crs.to_epsg() != 4326 for frame in geoms.values()):
+        raise ValueError("written spatial geometries must use EPSG:4326")
+    for name, data in maps.data_vars.items():
+        missing = sorted({"source", "resolution", "units"}.difference(data.attrs))
+        if missing:
+            raise ValueError(f"written spatial map {name!r} lacks metadata: {missing}")
+        if data.raster.nodata is None:
+            raise ValueError(f"written spatial map {name!r} lacks nodata metadata")
+    raster_values = np.asarray(maps["subbasin_id"].values)
+    valid_raster_values = raster_values[
+        np.isfinite(raster_values) & (raster_values > 0)
+    ]
+    raster_ids = {int(value) for value in np.unique(valid_raster_values)}
+    vector_ids = set(subbasins["subbasin_id"].astype(int))
+    registry_ids = set(registry["subbasin_id"].astype(int))
+    if raster_ids != vector_ids or not registry_ids.issubset(vector_ids):
+        raise ValueError(
+            "subbasin IDs disagree between raster, vector, and location registry"
+        )
+    required_registry_columns = {
+        "basin_id",
+        "basin_code",
+        "basin_name",
+        "subbasin_id",
+        "subbasin_code",
+        "subbasin_name",
+        "location_id",
+        "location_code",
+        "station_name",
+        "wflow_id",
+        "location_role",
+        "original_x",
+        "original_y",
+        "snapped_x",
+        "snapped_y",
+    }
+    missing_registry = sorted(required_registry_columns.difference(registry.columns))
+    if missing_registry:
+        raise ValueError(f"location registry lacks columns: {missing_registry}")
+    _validate_flow_topology(maps)
+    _validate_vector_relations(geoms)
+    maps.close()

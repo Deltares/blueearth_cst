@@ -1,0 +1,61 @@
+# A hand-written v2 project config — P1's acceptance fixture.
+#
+# NOT a migration of `tests/project_config_fixture.yml`, which P4 owns and
+# migrates with the rewriter. This file exists for one claim: that the v2 SHAPE
+# parses, composes and builds a DAG. It is deliberately minimal — every T2 body
+# is empty or near-empty — because P1 moved the T1 reads and not the T2 ones,
+# so a body full of v2 workflow keys would be asserting something P1 did not
+# build.
+#
+# Paths are relative to the repo root (where you run Snakemake), not to this
+# file — except `config_path`, which anchors at this file's own directory.
+
+schema_version: 2
+
+project:
+  project_dir: tests/test_project
+  catalog: tests/data/tests_data_catalog.yml
+
+basin:
+  region: "{'subbasin': [9.738, 0.4212], 'uparea': 70}"
+  resolution: 0.0062475
+  output_locations:
+  delineation:
+    max_subbasins: 11
+
+climate:
+  # The full candidate set, with no privileged element (C-43). `selected` names
+  # the one the model is built and run on (C-44).
+  sources: [era5]
+  selected: era5
+  # INCLUSIVE water years (C-70). >= snake_utils.MIN_HISTORICAL_YEARS (16), or
+  # every dry-run below reds at parse time. Nothing here asserts the window's
+  # value, only that the DAG builds.
+  window: {start: 2000, end: 2020}
+  water_year_start: Jan
+
+model:
+  outvars:
+  - river discharge
+  - precipitation
+  - overland flow
+  - actual evapotranspiration
+  - groundwater recharge
+  - snow
+
+workflows:
+  analyze_climate:
+    enabled: true
+    config_path: project_config_v2_probe_analyze_climate.yml
+  build_model:
+    enabled: true
+    config_path: project_config_v2_probe_build_model.yml
+  analyze_projections:
+    enabled: true
+    config_path: project_config_v2_probe_analyze_projections.yml
+  generate_scenarios:
+    enabled: true
+    config_path: project_config_v2_probe_generate_scenarios.yml
+  simulate_system:
+    enabled: true
+    config_path: project_config_v2_probe_simulate_system.yml

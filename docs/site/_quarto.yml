@@ -1,0 +1,171 @@
+# Quarto project for the BlueEarth CST documentation site.
+#
+# Rooted at docs/site/, so repository-only sources stay outside the render
+# scope. Documentation layout and authoring entry point: docs/README.md.
+#
+# The site stages canonical guide/manual chapters and complete local indicator sources.
+# Existing scientific pages are retained; new scientific writing is deferred.
+# Upstream references, notebooks and developer guidance stay outside the render list.
+#
+# Nothing here publishes. There is deliberately no `site-url` and no deploy
+# workflow: the subpath a GitHub Pages project page needs is not known until the
+# repository has a home, and a wrong one breaks links only once deployed.
+project:
+  type: website
+  output-dir: _site
+  pre-render:
+    - "python ../../dev/scripts/stage_site_guides.py"
+  resources:
+    - "guide/assets/**"
+    - "manuals/**"
+  render:
+    # Globs, not directories. A bare `guide/` matches nothing and renders
+    # nothing -- silently, with a successful exit and a smaller site.
+    - "index.qmd"
+    - "downloads.qmd"
+    - "guide/*.qmd"
+    - "technical-manual/*.qmd"
+    - "technical-manual/appendices/*.qmd"
+    - "scientific-approach/*.qmd"
+    - "toolbox-reference/*.qmd"
+    # Explicit, like everything else here: quarto special-cases a 404.qmd only
+    # when it is rendered, and this project enumerates its render targets.
+    - "404.qmd"
+    # Setup pages are kept together; live references were updated with the move.
+    - "setup/*.md"
+
+    # Repository-only sources live outside docs/site. The notebook publication
+    # task must stage frozen copies here before adding them to this render list.
+
+website:
+  title: "Climate Stress Testing Toolbox"
+  description: "Climate stress testing for water systems — the workflow toolbox"
+  favicon: _images/favicon.svg
+  page-navigation: true
+  navbar:
+    left:
+      - text: "User guide"
+        href: guide/quick-start.qmd
+      - text: "Technical manual"
+        href: technical-manual/overview.qmd
+      - text: "Methodology"
+        href: scientific-approach/overview.qmd
+    right:
+      - icon: github
+        href: https://github.com/tanerumit/blueearth_cst
+        aria-label: "Source on GitHub"
+  sidebar:
+    - title: "User guide"
+      style: docked
+      collapse-level: 1
+      contents:
+        - section: "Getting started"
+          contents:
+            - guide/install.qmd
+            - guide/quick-start.qmd
+            - guide/new-case.qmd
+        - section: "Working with a project"
+          contents:
+            - text: "Running workflows"
+              href: guide/running.qmd
+            - text: "Reading outputs"
+              href: guide/outputs.qmd
+            - guide/troubleshooting.qmd
+        - section: "Advanced examples"
+          contents:
+            - guide/notebooks.qmd
+    - title: "Methodology"
+      style: docked
+      collapse-level: 1
+      contents:
+        - scientific-approach/overview.qmd
+        - scientific-approach/climate-stress-test.qmd
+        - scientific-approach/system-vulnerabilities.qmd
+        - scientific-approach/interpreting-results.qmd
+        - scientific-approach/applying-the-approach.qmd
+        - scientific-approach/references.qmd
+    - title: "Technical manual"
+      style: docked
+      collapse-level: 1
+      contents:
+        - technical-manual/overview.qmd
+        - section: "Models and tools"
+          contents:
+            - text: "Overview"
+              href: technical-manual/modeling-and-analysis.qmd
+            - technical-manual/model-preparation.qmd
+            - technical-manual/hydrological-simulation.qmd
+            - technical-manual/weather-generation.qmd
+            - technical-manual/indicator-calculations.qmd
+        - section: "Data"
+          contents:
+            - text: "Data requirements"
+              href: technical-manual/data-requirements.qmd
+            - section: "Datasets"
+              contents:
+                - technical-manual/spatial-datasets.qmd
+                - technical-manual/historical-meteorological-data.qmd
+                - technical-manual/climate-projection-data.qmd
+            - section: "Data access and preparation"
+              contents:
+                - section: "Data catalogs"
+                  contents:
+                    - text: "Overview"
+                      href: technical-manual/data-catalogs-and-access.qmd
+                    - technical-manual/catalog-deltares.qmd
+                    - technical-manual/catalog-climate-projections.qmd
+                - technical-manual/data-formats-and-conventions.qmd
+        - section: "Workflows"
+          contents:
+            - text: "Overview"
+              href: technical-manual/scientific-workflows.qmd
+            - technical-manual/shared-configuration.qmd
+            - technical-manual/workflow-analyze-climate.qmd
+            - technical-manual/workflow-build-model.qmd
+            - technical-manual/workflow-analyze-projections.qmd
+            - technical-manual/workflow-generate-scenarios.qmd
+            - technical-manual/workflow-simulate-system.qmd
+            - technical-manual/workflow-rule-reference.qmd
+        - section: "Execution and results"
+          contents:
+            - technical-manual/configuration-and-execution.qmd
+            - technical-manual/results-and-interpretation.qmd
+        - section: "Detailed references"
+          contents:
+            - technical-manual/configuration.qmd
+            - technical-manual/input-formats.qmd
+            - technical-manual/indicator-requests.qmd
+            - technical-manual/retained-handoffs.qmd
+            - technical-manual/execution-and-provenance.qmd
+            - technical-manual/runtime-and-resources.qmd
+            - technical-manual/results-transfer.qmd
+            - technical-manual/indicator-extension.qmd
+  search:
+    location: navbar
+    type: textbox
+  page-footer:
+    center: "Deltares · World Bank Global Water Practice — GPL-3.0"
+
+format:
+  html:
+    theme:
+      light: [cosmo, styles/theme.scss]
+      dark: [cosmo, styles/theme.scss, styles/theme-dark.scss]
+    toc: true
+    toc-depth: 3
+    number-sections: false
+    code-copy: true
+    code-overflow: wrap
+
+language:
+  search-text-placeholder: Search
+
+# Website prose refers directly to nearby illustrations instead of numbered floats.
+crossref: false
+
+filters:
+  - ../../dev/scripts/publication_links.lua
+
+# Commands are displayed examples. Rendering must never execute code or acquire data.
+execute:
+  enabled: false

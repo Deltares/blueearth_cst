@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 576" role="img" aria-labelledby="workflow-wf3-title workflow-wf3-desc">
+<title id="workflow-wf3-title">Standalone scenario collection</title>
+<desc id="workflow-wf3-desc">Scientific processing steps for scenario generation; the accompanying page explains inputs, choices, products and conditional calculations.</desc>
+<defs><marker id="workflow-wf3-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6 Z" fill="#4f555e"/></marker></defs>
+<rect width="800" height="576" fill="#fff"/>
+<g fill="none" stroke="#4f555e" stroke-width="1.5" marker-end="url(#workflow-wf3-arrow)">
+<path d="M240 104 V140"/>
+<path d="M240 204 V240"/>
+<path d="M240 304 V340"/>
+<path d="M240 404 V440"/>
+<path d="M440 172 H480"/>
+<path d="M620 204 V440"/>
+<path d="M440 472 H480"/>
+</g>
+<g>
+<rect x="40" y="40" width="400" height="64" fill="#fff" stroke="#4f555e" stroke-width="1.5" rx="6"/>
+<text x="240" y="67" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" fill="#292d34">Prepare historical climate</text>
+<text x="240" y="87" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="13" fill="#292d34">Region, historical climate and perturbation grid</text>
+</g>
+<g>
+<rect x="40" y="140" width="400" height="64" fill="#f6f6f4" stroke="#4f555e" stroke-width="1.5" rx="6" stroke-dasharray="6 4"/>
+<text x="240" y="167" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" fill="#292d34">Save weather-generation settings</text>
+<text x="240" y="187" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="13" fill="#292d34">Source data and generator configuration</text>
+</g>
+<g>
+<rect x="40" y="240" width="400" height="64" fill="#fff" stroke="#4f555e" stroke-width="1.5" rx="6"/>
+<text x="240" y="267" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" fill="#292d34">Generate stochastic weather</text>
+<text x="240" y="287" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="13" fill="#292d34">Weather variability under reference conditions</text>
+</g>
+<g>
+<rect x="40" y="340" width="400" height="64" fill="#fff" stroke="#4f555e" stroke-width="1.5" rx="6"/>
+<text x="240" y="367" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" fill="#292d34">Apply monthly climate perturbations</text>
+<text x="240" y="387" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="13" fill="#292d34">Perturbed and unperturbed reference members</text>
+</g>
+<g>
+<rect x="40" y="440" width="400" height="64" fill="#fff" stroke="#4f555e" stroke-width="1.5" rx="6"/>
+<text x="240" y="467" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" fill="#292d34">Check completed weather scenarios</text>
+<text x="240" y="487" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="13" fill="#292d34">Daily weather series in NetCDF</text>
+</g>
+<g>
+<rect x="480" y="140" width="280" height="64" fill="#fff" stroke="#4f555e" stroke-width="1.5" rx="6"/>
+<text x="620" y="167" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" fill="#292d34">Reuse completed weather scenarios</text>
+<text x="620" y="187" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="13" fill="#292d34">Skip generation and transformation</text>
+</g>
+<g>
+<rect x="480" y="440" width="280" height="64" fill="#f6f6f4" stroke="#4f555e" stroke-width="1.5" rx="6" stroke-dasharray="6 4"/>
+<text x="620" y="467" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" fill="#292d34">Prepare scenario files for use</text>
+<text x="620" y="487" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="13" fill="#292d34">Series, lookups and configuration</text>
+</g>
+<line x1="40" y1="528" x2="760" y2="528" stroke="#aaa"/>
+<text x="40" y="552" font-family="'Segoe UI', Arial, sans-serif" font-size="13" fill="#292d34">Dashed boxes: preparation by the launch command. Completed scenarios can be reused.</text>
+</svg>

@@ -1,0 +1,88 @@
+# =============================================================================
+#  BASELINE, LINUX -- the baseline set with Linux data-catalog paths
+# =============================================================================
+#
+# A TWIN of `project_config_baseline.yml`: the same experiment, pointed at the
+# Linux catalog. Only `project.project_dir` and `project.catalog` may differ,
+# and `t2608241414` is the record of what happened when that was not enforced —
+# the two sets had drifted on nine keys across four files, including the basin
+# resolution, the historical window, the emitted variables and the WF3
+# simulation window, while this header claimed they were the same basin. One
+# `baseline` name has to mean one experiment, or a cross-platform comparison of
+# baseline numbers is unsound.
+#
+# **Editing either set means editing both.** `dev/baseline/manifest.json` is
+# recorded from the Windows set and nothing else; end-to-end validation on Linux
+# is deferred (dev/records/milestones/roadmap.md), so this set's obligation is to parse cleanly and
+# to stay a twin. `tests/test_cli.py` dry-runs it against `build_model.smk`.
+#
+# Paths resolve beside their declaring YAML; toolbox: names bundled resources.
+
+schema_version: 3
+
+
+# -----------------------------------------------------------------------------
+#  PROJECT
+# -----------------------------------------------------------------------------
+
+project:
+  project_dir: gabon
+  catalog: toolbox:config/catalogs/deltares_data_pdrive.yml
+
+
+# -----------------------------------------------------------------------------
+#  BASIN
+# -----------------------------------------------------------------------------
+
+basin:
+  region: "{'subbasin': [9.666, 0.4476], 'uparea': 100}"
+  resolution: 0.00833
+  output_locations: test_data/output_locations.csv
+  sources:
+    rivers: hydro_rivers_lin
+    lulc: globcover
+  delineation:
+    max_subbasins: 11
+
+
+# -----------------------------------------------------------------------------
+#  CLIMATE
+# -----------------------------------------------------------------------------
+
+climate:
+  sources:
+  - era5
+  selected: era5
+  # 17 years: one more than the 16-year minimum.
+  window:
+    start: 2000
+    end: 2016
+
+
+# -----------------------------------------------------------------------------
+#  MODEL
+# -----------------------------------------------------------------------------
+
+model:
+  outvars: ["river discharge", "groundwater recharge"]
+
+
+# -----------------------------------------------------------------------------
+#  WORKFLOWS
+# -----------------------------------------------------------------------------
+
+workflows:
+  analyze_climate:
+    enabled: true
+  build_model:
+    enabled: true
+    config_path: project_config_baseline_linux_build_model.yml
+  analyze_projections:
+    enabled: true
+    config_path: project_config_baseline_linux_analyze_projections.yml
+  generate_scenarios:
+    enabled: true
+    config_path: project_config_baseline_linux_generate_scenarios.yml
+  simulate_system:
+    enabled: true
+    config_path: project_config_baseline_linux_simulate_system.yml

@@ -1,0 +1,40 @@
+---
+title: "From climate stresses to system vulnerabilities"
+format: html
+bibliography: references.bib
+link-citations: true
+---
+
+Before generating scenarios, the assessment defines its system boundary, planning horizon, performance
+indicators and acceptability criteria.
+Indicators might describe water-supply reliability, flood levels or environmental-flow deficits.
+Thresholds should reflect stakeholder objectives, service standards or ecological requirements.
+A change in river discharge alone does not establish whether a system performs acceptably [@brown2012].
+
+The stress test then connects three activities, illustrated in the diagram below.
+
+1. **Generate climate conditions.** Select the climate characteristics that could affect performance and
+   vary them systematically over a justified range.
+   Changes in mean temperature and precipitation provide a useful starting point, but seasonality,
+   rainfall intensity, drought duration or other characteristics may be decisive.
+   Perturbed historical records or stochastic weather generators can supply the required time series.
+   Multiple realizations help explore different weather sequences under the same prescribed climate change.
+2. **Simulate the system response.** Use these time series to drive hydrological and, where needed,
+   infrastructure or water-management models.
+   Calculate the performance indicators consistently across the experiment.
+   This connects climatic stresses to consequences such as shortages, high flows or ecological impacts.
+3. **Identify vulnerable conditions.** Relate the indicators to the imposed stresses and compare them
+   with the acceptability criteria.
+   The result shows where performance deteriorates, which combinations cross a threshold, and which
+   stressors or interactions drive those changes.
+
+<span id="fig-climate-stress-test"></span>
+
+![Climate stress testing: generate climate trajectories, simulate system response and identify vulnerable conditions. The response map illustrates temperature and precipitation changes, a discharge threshold, a reference climate marked by a star, and climate projections marked by dots. The hatched region denotes unacceptable performance for this schematic example; the threshold, “safe” label and 2060–2090 projection period are illustrative, not general assessment criteria. Illustration from the 2025 CST development report, Section 1, page 9.](assets/climate-stress-test.png){width=100% fig-alt="Three steps connect generated climate trajectories to a hydrological simulation and a response map. The map has precipitation change on the horizontal axis and temperature change on the vertical axis. A boundary separates acceptable performance from a hatched vulnerable region; a star marks the reference climate and dots show climate projections."}
+
+With two stressors, results can be displayed as a **climate response surface**: temperature change on one
+axis, precipitation change on the other, and system performance represented by colour or contours.
+A performance threshold divides the surface into acceptable and unacceptable regions.
+Several indicators may produce different boundaries, revealing trade-offs between objectives.
+Variation among weather realizations can also make the boundary uncertain rather than a single sharp line
+[@fowler2024].

@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BlueEarth · Workflow report</title>
+<style>
+:root{color-scheme:light;--ink:#183b50;--text:#334e5e;--muted:#586d79;--blue:#236b8e;--pale:#e9f2f5;--line:#d0dce2;--bg:#f3f6f7;--white:#fff;--amber:#885c26;--amber-bg:#fbf3e7}
+*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:30px}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 'Segoe UI',Arial,sans-serif}button,input,select{font:inherit}a{color:var(--blue);text-underline-offset:3px}button,a,input,summary{touch-action:manipulation}:focus-visible{outline:3px solid #ad622a;outline-offset:4px}button{cursor:pointer}button:disabled{opacity:.45;cursor:default}[hidden]{display:none!important}
+.rail{position:fixed;inset:0 auto 0 0;width:230px;background:var(--ink);color:#d6e5ed;padding:32px 24px;display:flex;flex-direction:column}.brand{color:white;font-size:23px;letter-spacing:-.7px;font-weight:650}.brand span{color:#96ccdf}.rail .subtitle{font-size:11px;text-transform:uppercase;letter-spacing:.12em;margin:3px 0 35px;color:#bfd1db}.workflow-tag{font:12px Consolas,monospace;letter-spacing:.04em;color:#a8d3e3;margin-bottom:16px}nav{display:grid;gap:5px}nav a{text-decoration:none;color:#c9dce6;padding:9px 12px;border-radius:5px;font-size:14px}nav a:hover,nav a.active{background:#31596e;color:white}nav a span{display:inline-block;width:25px;font:11px Consolas,monospace;color:#a3c2d1}.rail-bottom{margin-top:auto;font-size:12px;color:#bdd0da;padding-top:30px}.rail-bottom strong{font-weight:500;color:white;display:block}
+.page{margin-left:230px;max-width:1490px;padding:0 54px 50px}.topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:22px 0;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted)}.topbar .actions{display:flex;gap:8px}.button{border:1px solid #b6c9d3;border-radius:5px;background:white;padding:7px 13px;color:var(--ink);text-decoration:none;font-size:13px;display:inline-flex;align-items:center;justify-content:center;gap:7px}.button:hover{background:var(--pale)}.button.primary{background:var(--blue);color:white;border-color:var(--blue)}
+.intro{padding:38px 0 25px}.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.12em;font-weight:650;color:var(--blue);margin:0 0 12px}h1{font:normal 46px/1.12 Georgia,serif;color:var(--ink);letter-spacing:-1.4px;margin:0 0 17px;max-width:780px}.lead{font-size:18px;line-height:1.6;max-width:800px;margin:0}.metadata{display:flex;gap:8px;flex-wrap:wrap;margin-top:22px}.chip{display:inline-block;padding:4px 10px;background:var(--white);border:1px solid var(--line);border-radius:4px;font-size:12px}.notice{display:flex;gap:13px;align-items:flex-start;padding:14px 17px;background:var(--amber-bg);border-left:3px solid #ad7a37;font-size:13px;color:#654b2d}.notice strong{white-space:nowrap;font-weight:600}.notice p{margin:0}
+section{padding:30px 0;border-bottom:1px solid var(--line)}.section-head{display:flex;align-items:baseline;justify-content:space-between;gap:18px;margin-bottom:20px}h2{font:normal 28px/1.3 Georgia,serif;color:var(--ink);letter-spacing:-.4px;margin:0}h3{color:var(--ink);font-size:16px;line-height:1.45;margin:0 0 10px}.section-no{font:11px Consolas,monospace;color:var(--muted);letter-spacing:.07em}.section-intro{margin:-8px 0 22px;max-width:760px;color:var(--muted);font-size:14px}.indicators{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);margin:22px 0}.indicator{padding:18px;background:white}.indicator .value{font-size:26px;line-height:1.2;color:var(--ink);letter-spacing:-.6px}.indicator .label{font-size:12px;color:var(--muted);margin-top:7px}.indicator .basis{font-size:11px;color:var(--muted);margin-top:4px}
+.finding-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:15px}.finding{background:white;padding:23px;border:1px solid var(--line);border-radius:6px;display:flex;flex-direction:column}.finding .classification{font-size:10px;text-transform:uppercase;letter-spacing:.09em;color:var(--blue);margin-bottom:12px}.finding p{font-size:14px;margin:0 0 18px}.finding a{font-size:13px;margin-top:auto;align-self:flex-start}.question{background:var(--pale);padding:18px 23px;border-radius:5px;margin-top:17px}.question strong{color:var(--ink);font-size:13px}.question p{font-size:14px;margin:5px 0 0}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;counter-reset:step}.step{border-top:2px solid #97b9c9;padding-top:15px}.step::before{counter-increment:step;content:'0' counter(step);font:12px Consolas,monospace;color:var(--blue);display:block;margin-bottom:11px}.step p{font-size:14px;margin:0}.step .detail{font-size:12px;color:var(--muted);margin-top:12px}
+.method-list{display:grid;gap:10px}.method-list details{background:white;border:1px solid var(--line);border-radius:5px}.method-list summary{padding:15px 18px;cursor:pointer;color:var(--ink);font-weight:600}.method-body{padding:0 18px 18px;font-size:14px}.method-body p{margin:0 0 10px}.method-note{background:var(--pale);padding:10px 13px;color:var(--muted);font-size:12px}
+.gallery-controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:20px}.filter-group{display:flex;gap:5px;flex-wrap:wrap}.filter{border:1px solid var(--line);background:white;border-radius:4px;color:var(--ink);padding:7px 12px;font-size:13px}.filter[aria-pressed=true]{background:var(--ink);color:white;border-color:var(--ink)}.search{margin-left:auto}.search input{max-width:230px;width:100%;background:white;border:1px solid #b6c9d3;border-radius:4px;padding:7px 10px;font-size:13px}.gallery{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.figure-card{margin:0;background:white;border:1px solid var(--line);border-radius:6px;overflow:hidden;scroll-margin-top:25px}.figure-card.featured{grid-column:1/-1}.figure-head{padding:16px 20px 6px;display:flex;justify-content:space-between;gap:10px}.figure-head h3{font-size:14px;margin:0}.figure-head .kind{font-size:11px;color:var(--muted);white-space:nowrap}.image-button{display:block;background:white;border:0;padding:16px;width:100%;position:relative;color:var(--blue)}.image-button img{display:block;width:auto;max-width:100%;height:auto;max-height:330px;margin:auto}.featured .image-button img{max-height:430px}.image-button .zoom-hint{position:absolute;right:13px;bottom:8px;font-size:11px;background:#ffffffed;padding:3px 8px;border:1px solid var(--line);border-radius:3px}.figure-card figcaption{padding:12px 20px 17px;font-size:12px;line-height:1.6;border-top:1px solid #e8eef1}.figure-card .figure-id{font:11px Consolas,monospace;color:var(--muted);margin-bottom:6px}.figure-card figcaption p{margin:0}.figure-card .note{font-size:11px;color:var(--muted);margin-top:7px}.image-error{padding:30px;color:#904b21}.empty{padding:30px;background:white;border:1px dashed var(--line);color:var(--muted)}
+.limitations{display:grid;grid-template-columns:1fr 1fr;gap:18px}.limit{padding:18px 20px;background:white;border:1px solid var(--line);border-left:3px solid #b88b51}.limit h3{font-size:14px}.limit p{font-size:13px;margin:0}.inventory{width:100%;border-collapse:collapse;font-size:13px}.inventory th{text-align:left;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--line);padding:10px}.inventory td{vertical-align:top;padding:13px 10px;border-bottom:1px solid #e0e8ec;overflow-wrap:anywhere}.inventory td:first-child{font-weight:600;color:var(--ink)}.table-wrap{overflow-x:auto}.inventory .mono{font:11px Consolas,monospace}.reference{margin:0 0 15px;font-size:13px}.reference strong{font-weight:600;color:var(--ink)}.reference .ref-id{font:11px Consolas,monospace;color:var(--blue);margin-right:10px}.reference p{margin:5px 0 0 35px;color:var(--muted)}.provenance{display:grid;grid-template-columns:1fr 1fr;gap:10px 30px;font-size:12px;margin-top:20px}.provenance dt{color:var(--muted)}.provenance dd{margin:3px 0 10px;overflow-wrap:anywhere;color:var(--ink)}footer{padding-top:23px;color:var(--muted);font-size:12px;display:flex;justify-content:space-between;gap:15px}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+dialog{width:min(1300px,96vw);max-width:96vw;max-height:94vh;padding:0;border:1px solid var(--line);border-radius:7px;color:var(--text);background:white}dialog::backdrop{background:#102c3be0}.dialog-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;border-bottom:1px solid var(--line)}.dialog-head h2{font:600 15px 'Segoe UI',sans-serif}.dialog-controls{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.image-stage{height:65vh;overflow:auto;background:#edf2f5;padding:22px;display:flex;align-items:flex-start;justify-content:flex-start}.image-stage img{display:block;width:auto;height:auto;max-width:100%;max-height:100%;object-fit:contain;margin:auto;flex:none}.image-stage.native img{max-width:none;max-height:none;margin:0}.dialog-caption{padding:15px 22px;font-size:13px;max-width:1000px}.dialog-caption p{margin:0}#image-zoom-label{font-size:11px;color:var(--muted)}
+@media(min-width:1600px){.page{margin-right:auto;margin-left:230px;padding-left:70px;padding-right:70px}}@media(max-width:1100px){.rail{width:195px;padding:25px 18px}.page{margin-left:195px;padding:0 30px 35px}.finding-grid{grid-template-columns:1fr}.finding{padding:19px}.indicators{grid-template-columns:repeat(2,1fr)}h1{font-size:39px}.steps{gap:16px}}@media(max-width:760px){html{scroll-padding-top:15px}.rail{position:static;width:auto;padding:14px 20px;display:block}.rail .subtitle,.rail-bottom,.workflow-tag{display:none}.brand{font-size:20px}nav{display:flex;overflow:auto;gap:4px;margin-top:10px}nav a{white-space:nowrap;padding:6px 8px;font-size:12px}nav a span{display:none}.page{margin:0;padding:0 20px 25px}.topbar{padding:14px 0}.intro{padding-top:25px}h1{font-size:36px}.lead{font-size:16px}.notice{display:block}.notice strong{display:block;margin-bottom:4px}.steps,.gallery,.limitations{grid-template-columns:1fr}.figure-card.featured{grid-column:auto}.section-head{display:block}.section-no{display:block;margin-bottom:7px}.search{margin-left:0;width:100%}.search input{max-width:none}.provenance{grid-template-columns:1fr}.dialog-head{align-items:flex-start;flex-direction:column}.image-stage{height:55vh}.topbar .actions{gap:4px}.button{padding:6px 9px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}@media print{body{background:white;color:#222;font-size:10pt}.rail,.topbar,.gallery-controls,.image-button .zoom-hint,.no-print,dialog{display:none!important}.page{margin:0;max-width:none;padding:0}.intro{padding-top:0}h1{font-size:30pt}.lead{font-size:12pt}h2{font-size:19pt}.notice{background:#fff;border:1px solid #b9aa93}.indicators{grid-template-columns:repeat(4,1fr)}.finding-grid,.steps{grid-template-columns:repeat(3,1fr)}.gallery{display:block}.figure-card{margin-bottom:16px;break-inside:avoid}.figure-card[hidden]{display:block!important}.image-button img,.featured .image-button img{max-height:145mm}.finding,.limit,.method-list details{break-inside:avoid}section{padding:18px 0}.method-body{display:block}.section-head{break-after:avoid}.provenance{grid-template-columns:1fr 1fr}a{color:#254c61}footer{font-size:9pt}}
+</style>
+<style>.skip-link{position:fixed;top:-100px;left:15px;z-index:10;background:white;padding:10px 16px}.skip-link:focus{top:10px}</style>
+</head>
+<body>
+<a class="skip-link" href="#overview">Skip to report</a>
+<aside class="rail" aria-label="Report navigation">
+ <div class="brand">Blue<span>Earth</span></div><div class="subtitle">Climate stress testing</div>
+ <div class="workflow-tag" id="workflow-tag">Workflow report</div>
+ <nav><a href="#overview"><span>01</span>Overview</a><a href="#findings"><span>02</span>Key findings</a><a href="#approach"><span>03</span>What was done</a><a href="#methods"><span>04</span>Methods</a><a href="#outputs"><span>05</span>Explore outputs</a><a href="#limitations"><span>06</span>Interpretation</a><a href="#record"><span>07</span>Report record</a></nav>
+ <div class="rail-bottom"><strong>Read • inspect • trace</strong>Findings connect to figures.<br>Methods stay within reach.</div>
+</aside>
+<main class="page">
+ <div class="topbar"><span id="report-context">Reusable report template</span><div class="actions"><button class="button" id="expand-methods">Expand methods</button><button class="button primary" id="print">Print / PDF</button></div></div>
+ <section id="overview" class="intro"><p class="eyebrow" id="eyebrow">Workflow assessment</p><h1 id="report-title">Your workflow, explained.</h1><p class="lead" id="summary">Populate the embedded report data to connect an assessment summary, methods, figures and findings.</p><div class="metadata" id="metadata"></div><div class="indicators" id="indicators" hidden></div><div class="notice" id="notice" hidden><strong id="notice-label"></strong><p id="notice-text"></p></div></section>
+ <section id="findings"><div class="section-head"><h2>Key findings</h2><span class="section-no">02 / WHAT THE OUTPUTS SHOW</span></div><p class="section-intro" id="findings-intro">Each interpretation should link to the output that supports it.</p><div class="finding-grid" id="findings-grid"></div><div class="question" id="decision" hidden><strong id="decision-label"></strong><p id="decision-text"></p></div></section>
+ <section id="approach"><div class="section-head"><h2>What was done</h2><span class="section-no">03 / FROM INPUTS TO EVIDENCE</span></div><div class="steps" id="steps"></div></section>
+ <section id="methods"><div class="section-head"><h2>Methods &amp; assumptions</h2><span class="section-no">04 / HOW TO READ THE RESULTS</span></div><p class="section-intro">Open a method for its scope, assumptions and references.</p><div class="method-list" id="method-list"></div></section>
+ <section id="outputs"><div class="section-head"><h2>Explore the outputs</h2><span class="section-no" id="figure-count">05 / FIGURES</span></div><p class="section-intro" id="output-note">Select a figure to inspect it at a larger size. Filters affect browsing; printing includes all figures.</p><div class="gallery-controls"><div class="filter-group" id="filters" aria-label="Filter figures"></div><label class="search"><span class="sr-only">Search figures</span><input id="search" type="search" placeholder="Search figures…"></label></div><div class="gallery" id="gallery"></div><p id="no-results" class="empty" hidden>No figures match. Choose All or clear the search.</p></section>
+ <section id="limitations"><div class="section-head"><h2>Interpretation &amp; next steps</h2><span class="section-no">06 / WHAT TO CARRY FORWARD</span></div><div class="limitations" id="limits"></div></section>
+ <section id="record"><div class="section-head"><h2>Report record</h2><span class="section-no">07 / SOURCES &amp; TRACEABILITY</span></div><h3>Included evidence</h3><p class="section-intro" id="inventory-note"></p><div class="table-wrap"><table class="inventory"><thead><tr><th scope="col">Output</th><th scope="col">Role in this report</th><th scope="col">Availability</th></tr></thead><tbody id="inventory"></tbody></table></div><dl class="provenance" id="provenance"></dl><h3>References</h3><div id="references"></div></section>
+ <footer><span id="footer-text">BlueEarth CST · Workflow report template</span><a href="#overview">Back to top ↑</a></footer>
+</main>
+<dialog id="figure-dialog" aria-labelledby="dialog-title"><div class="dialog-head"><h2 id="dialog-title">Figure</h2><div class="dialog-controls"><span id="image-zoom-label">Fit to view</span><button class="button" id="native">Actual pixels</button><a class="button" id="download" download>Save figure</a><button class="button primary" id="close-dialog" autofocus>Close ×</button></div></div><div class="image-stage" id="image-stage"><img id="dialog-image" alt=""></div><div class="dialog-caption"><p id="dialog-caption"></p></div></dialog>
+<!-- Replace only the JSON below; serialize it and escape < as \u003c. -->
+<script type="application/json" id="report-data">{}</script>
+<script>
+'use strict';
+const report = JSON.parse(document.getElementById('report-data').textContent);
+const $ = id => document.getElementById(id);
+const text = (id, value) => { if (value !== undefined) $(id).textContent = value; };
+function node(tag, className, value) {
+ const el = document.createElement(tag); if (className) el.className = className;
+ if (value !== undefined) el.textContent = value; return el;
+}
+function safeLink(value, image = false) {
+ if (!value) return null;
+ if (image && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=\s]+$/.test(value)) return value;
+ if (!image && /^https?:\/\//i.test(value)) return value;
+ return null;
+}
+const figures = report.figures || [];
+const references = report.references || [];
+text('report-title', report.title); if (report.title) document.title = report.title + ' · BlueEarth';
+text('report-context', report.context); text('workflow-tag', report.workflow); text('eyebrow', report.eyebrow);
+text('summary', report.summary); text('findings-intro', report.findingsIntro); text('output-note', report.outputNote);
+text('inventory-note', report.inventoryNote); text('footer-text', report.footer);
+for (const value of report.metadata || []) $('metadata').append(node('span', 'chip', value));
+for (const item of report.indicators || []) {
+ const el = node('div', 'indicator'); el.append(node('div', 'value', item.value), node('div', 'label', item.label), node('div', 'basis', item.basis)); $('indicators').append(el);
+}
+$('indicators').hidden = !(report.indicators || []).length;
+if (report.notice) { $('notice').hidden = false; text('notice-label', report.notice.label); text('notice-text', report.notice.text); }
+if (report.decision) { $('decision').hidden = false; text('decision-label', report.decision.label); text('decision-text', report.decision.text); }
+let activeFilter = 'All';
+for (const item of report.findings || []) {
+ const el = node('article', 'finding'); el.append(node('div', 'classification', item.status || 'Interpretation'), node('h3', '', item.title), node('p', '', item.text));
+ const evidence = figures.find(f => f.id === item.figure);
+ if (evidence) { const link = node('a', '', `View evidence · ${evidence.id} ↗`); link.href = '#figure-' + evidence.id; link.onclick = () => { activeFilter = 'All'; $('search').value = ''; filterFigures(); }; el.append(link); }
+ $('findings-grid').append(el);
+}
+for (const item of report.steps || []) {
+ const el = node('article', 'step'); el.append(node('h3', '', item.title), node('p', '', item.text));
+ if (item.detail) el.append(node('p', 'detail', item.detail)); $('steps').append(el);
+}
+for (const item of report.methods || []) {
+ const el = node('details'); el.id = 'method-' + item.id; el.append(node('summary', '', item.title));
+ const body = node('div', 'method-body'); body.append(node('p', '', item.text));
+ if (item.note) body.append(node('p', 'method-note', item.note));
+ for (const id of item.references || []) {
+  const ref = references.find(r => r.id === id); if (!ref) continue;
+  const a = node('a', '', `${id} · ${ref.title}`); a.href = '#ref-' + id; const p = node('p'); p.append(a); body.append(p);
+ }
+ el.append(body); $('method-list').append(el);
+}
+function openFigure(figure) {
+ text('dialog-title', figure.id + ' · ' + figure.title); text('dialog-caption', figure.caption);
+ $('dialog-image').src = safeLink(figure.image, true) || ''; $('dialog-image').alt = figure.alt || figure.title;
+ $('download').href = safeLink(figure.image, true) || ''; $('download').download = figure.filename || figure.id + '.png';
+ $('image-stage').classList.remove('native'); $('image-stage').scrollTop = $('image-stage').scrollLeft = 0;
+ text('native', 'Actual pixels'); text('image-zoom-label', 'Fit to view'); $('figure-dialog').showModal();
+}
+for (const [index, figure] of figures.entries()) {
+ const card = node('figure', 'figure-card' + (figure.featured ? ' featured' : '')); card.id = 'figure-' + figure.id;
+ const heading = node('div', 'figure-head'); heading.append(node('h3', '', figure.title), node('span', 'kind', figure.kind || 'Figure')); card.append(heading);
+ const src = safeLink(figure.image, true);
+ if (src) {
+  const button = node('button', 'image-button'); button.type = 'button'; button.setAttribute('aria-label', 'Enlarge ' + figure.title);
+  const img = node('img'); img.src = src; img.alt = figure.alt || figure.title; img.loading = index < 2 ? 'eager' : 'lazy';
+  img.onerror = () => { button.replaceWith(node('p', 'image-error', 'Figure unavailable: ' + (figure.filename || figure.id))); };
+  button.append(img, node('span', 'zoom-hint', 'Enlarge ↗')); button.onclick = () => openFigure(figure); card.append(button);
+ } else card.append(node('p', 'image-error', 'No embedded figure supplied.'));
+ const caption = node('figcaption'); caption.append(node('div', 'figure-id', figure.id + ' / ' + (figure.group || 'Output')), node('p', '', figure.caption));
+ if (figure.note) caption.append(node('p', 'note', figure.note)); card.append(caption); $('gallery').append(card);
+}
+for (const value of ['All', ...new Set(figures.map(f => f.group || 'Output'))]) {
+ const button = node('button', 'filter', value); button.type = 'button'; button.dataset.filter = value;
+ button.onclick = () => { activeFilter = value; filterFigures(); }; $('filters').append(button);
+}
+function filterFigures() {
+ const query = $('search').value.trim().toLowerCase(); let count = 0;
+ figures.forEach(f => { const shown = (activeFilter === 'All' || (f.group || 'Output') === activeFilter) && [f.title, f.caption, f.group, f.id].join(' ').toLowerCase().includes(query); $('figure-' + f.id).hidden = !shown; if (shown) count++; });
+ for (const button of $('filters').children) button.setAttribute('aria-pressed', String(button.dataset.filter === activeFilter));
+ text('figure-count', `05 / ${count} OF ${figures.length} FIGURES`); $('no-results').hidden = count > 0;
+ if (!figures.length) text('no-results', 'No figures supplied. Populate report.figures with embedded images.');
+}
+$('search').addEventListener('input', filterFigures); filterFigures();
+for (const item of report.limitations || []) { const el = node('article', 'limit'); el.append(node('h3', '', item.title), node('p', '', item.text)); $('limits').append(el); }
+for (const item of report.inventory || []) { const row = node('tr'); row.append(node('td', '', item.name), node('td', '', item.role), node('td', '', item.availability)); $('inventory').append(row); }
+for (const item of report.provenance || []) { const div = node('div'); div.append(node('dt', '', item.label), node('dd', '', item.value)); $('provenance').append(div); }
+for (const ref of references) {
+ const el = node('div', 'reference'); el.id = 'ref-' + ref.id; el.append(node('span', 'ref-id', ref.id), node('strong', '', ref.title));
+ if (ref.text) el.append(node('p', '', ref.text));
+ const url = safeLink(ref.url); if (url) { const p = node('p'); const a = node('a', '', 'Open source ↗ (internet required)'); a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer'; p.append(a); el.append(p); }
+ $('references').append(el);
+}
+if (!report.title) { $('notice').hidden = false; text('notice-label', 'Template'); text('notice-text', 'This is an empty reusable layout. See workflow-report.md for the data fields and the populated WF0 example.'); }
+function methodDetails() { return [...$('method-list').querySelectorAll('details')]; }
+$('expand-methods').onclick = () => { const expand = methodDetails().some(el => !el.open); methodDetails().forEach(el => el.open = expand); text('expand-methods', expand ? 'Collapse methods' : 'Expand methods'); };
+$('method-list').addEventListener('toggle', () => { text('expand-methods', methodDetails().every(el => el.open) ? 'Collapse methods' : 'Expand methods'); }, true);
+$('close-dialog').onclick = () => $('figure-dialog').close();
+$('figure-dialog').addEventListener('click', event => { if (event.target === $('figure-dialog')) { const box = $('figure-dialog').getBoundingClientRect(); if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) $('figure-dialog').close(); } });
+$('native').onclick = () => { const native = $('image-stage').classList.toggle('native'); text('native', native ? 'Fit to view' : 'Actual pixels'); text('image-zoom-label', native ? '100% · scroll to inspect' : 'Fit to view'); };
+let printState = [];
+window.addEventListener('beforeprint', () => { printState = methodDetails().map(el => el.open); methodDetails().forEach(el => el.open = true); document.querySelectorAll('#gallery img').forEach(img => img.loading = 'eager'); });
+window.addEventListener('afterprint', () => { methodDetails().forEach((el, i) => el.open = printState[i] || false); });
+$('print').onclick = () => window.print();
+if ('IntersectionObserver' in window) { const observer = new IntersectionObserver(entries => { for (const entry of entries) if (entry.isIntersecting) { document.querySelectorAll('nav a').forEach(link => link.classList.toggle('active', link.getAttribute('href') === '#' + entry.target.id)); } }, {rootMargin: '-5% 0px -65% 0px'}); document.querySelectorAll('main section').forEach(el => observer.observe(el)); }
+</script>
+</body>
+</html>

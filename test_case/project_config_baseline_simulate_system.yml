@@ -1,0 +1,5 @@
+# simulate_system (wf4) -- baseline set
+
+experiment_name: experiment
+operations: [simulations, indicators]
+indicator_sets: [default]

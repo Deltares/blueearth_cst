@@ -1,0 +1,58 @@
+# =============================================================================
+#  build_model (wf1) -- build the Wflow-SBM model, run it on the historical record
+# =============================================================================
+#
+# Keep this next to the project file. The basin, climate record and output
+# variables come from there; only the model build and its run are set here.
+
+
+# -----------------------------------------------------------------------------
+#  OBSERVATIONS
+# -----------------------------------------------------------------------------
+
+# One observed series per variable in `model.outvars`. Optional. Needs
+# `basin.output_locations`; columns are matched by wflow_id.
+# Format: data/observed_daily_discharge_template.csv beside this config.
+#
+# ABSOLUTE PATH if you set one -- a relative path resolves against the repo
+# root, not this folder. Put the file in this case's `data/` folder, e.g.
+#   river discharge: /path/to/cst-cases/applications/my-basin/data/observed_discharge.csv
+# Observed series for model evaluation. Input: variable-to-file mapping.
+observations:
+  # Observed daily series for evaluation. Input: CSV path or null.
+  river discharge: null
+
+# Basin-average annual and seasonal figures are standard. Enable individual
+# subbasin figures of both types under evaluation/plots/subbasins/ if needed.
+# Model evaluation settings. Input: mapping.
+#evaluation:
+# Generate individual subbasin evaluation figures. Options: true | false.
+#  subbasin_plots: false
+
+
+# -----------------------------------------------------------------------------
+#  RUN PERIOD
+# -----------------------------------------------------------------------------
+
+# Required inclusive years for the Wflow run, inside `climate.window`.
+# Choose this separately from the longer climate record; short runs are allowed.
+# Select inclusive simulation water years. Input: years within climate.window.
+simulation_window:
+  # First simulation water year. Input: integer year, <= end.
+  start: 2010
+  # Last simulation water year. Input: integer year, >= start.
+  end: 2016
+
+
+# -----------------------------------------------------------------------------
+#  ENGINE
+# -----------------------------------------------------------------------------
+
+# hydromt build settings. These are the defaults; point at your own copies
+# to change how the model is built.
+# Model construction settings. Input: mapping of configuration paths.
+#engine:
+# Configure initial model construction. Input: HydroMT YAML file path.
+#  build_config: toolbox:config/defaults/wflow_build_model.yml
+# Configure lake and reservoir updates. Input: HydroMT YAML file path.
+#  waterbodies_config: toolbox:config/defaults/wflow_update_waterbodies.yml

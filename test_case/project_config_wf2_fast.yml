@@ -1,0 +1,79 @@
+# =============================================================================
+#  WF2 FAST -- for iterating on analyze_projections code only
+# =============================================================================
+#
+# One model, one scenario: two series instead of nine, so a code change in
+# the projections stage costs minutes rather than tens of minutes. Writes to
+# its own project folder, so it never touches the baseline fixture.
+#
+# Not a baseline seed: never point check_baseline.py here.
+#
+# Paths resolve beside their declaring YAML; toolbox: names bundled resources.
+
+schema_version: 3
+
+
+# -----------------------------------------------------------------------------
+#  PROJECT
+# -----------------------------------------------------------------------------
+
+project:
+  project_dir: test_dev
+  catalog: toolbox:config/catalogs/deltares_data_pdrive.yml
+
+
+# -----------------------------------------------------------------------------
+#  BASIN
+# -----------------------------------------------------------------------------
+
+basin:
+  region: "{'subbasin': [9.666, 0.4476], 'uparea': 100}"
+  resolution: 0.00833
+  output_locations:
+  sources:
+    rivers: hydro_rivers_lin
+  delineation:
+    max_subbasins: 11
+
+
+# -----------------------------------------------------------------------------
+#  CLIMATE
+# -----------------------------------------------------------------------------
+
+climate:
+  sources:
+  - era5
+  selected: era5
+  window:
+    start: 2000
+    end: 2020
+
+
+# -----------------------------------------------------------------------------
+#  MODEL
+# -----------------------------------------------------------------------------
+
+model:
+  # Discharge only: this set exists for wf2, and more outputs only add work.
+  outvars: ["river discharge"]
+
+
+# -----------------------------------------------------------------------------
+#  WORKFLOWS
+# -----------------------------------------------------------------------------
+
+workflows:
+  analyze_climate:
+    enabled: true
+  build_model:
+    enabled: true
+    config_path: project_config_wf2_fast_build_model.yml
+  analyze_projections:
+    enabled: true
+    config_path: project_config_wf2_fast_analyze_projections.yml
+  generate_scenarios:
+    enabled: true
+    config_path: project_config_wf2_fast_generate_scenarios.yml
+  simulate_system:
+    enabled: true
+    config_path: project_config_wf2_fast_simulate_system.yml

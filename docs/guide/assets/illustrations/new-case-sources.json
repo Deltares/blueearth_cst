@@ -1,0 +1,78 @@
+{
+  "copied_on": "2026-10-30T19:50:10.480966+00:00",
+  "render_code_revision": "7931aab0ea33414bb07de371461075a817d54417",
+  "source_root": ".tmp/scratchpad/guide-figures",
+  "retained_run": "wrt-egypt-v2",
+  "commands": [
+    "scripts/render_figures.py FAMILY --project <retained-run> --out <source_root>/FAMILY",
+    "hydro.py: plot_hydrograph from run_default/output_q.csv, column 1050, without observations"
+  ],
+  "hydrograph_input": "models/hydrology/wflow/run_default/output_q.csv (exported values)",
+  "images": [
+    {
+      "asset": "annual-precip-trend.png",
+      "source": "wf0/era5_19510101_20201231/plots/era5_precip_annual_trend_ts_basin_avg.png",
+      "sha256": "e17517f3bc156f3aacd6d0349b1a72df57b476cd07257e2325773d7878bd4b84"
+    },
+    {
+      "asset": "basin.png",
+      "source": "spatial/spatial/plots/subbasins.png",
+      "sha256": "104ed46461f707eabbcd9dcb5f5b37e0916af2d113601dcb3a0ae2a6dc20c2f4"
+    },
+    {
+      "asset": "climate.png",
+      "source": "wf0/era5_19510101_20201231/plots/era5_precip_monthly_clim_band_basin_avg.png",
+      "sha256": "7595da2df5244fdfc6e87c07db12ea57c7354ecd7fb7a3813f65e2d361a8ae34"
+    },
+    {
+      "asset": "cmip6-agreement.png",
+      "source": "wf2/projections/cmip6/plots/period_2040_2060/cmip6_precip_temp_annual_monthly_sign_agreement_basin_avg.png",
+      "sha256": "6a5e736f167acfa6bd37f47c7797145f45bc2c6f3c88526c95d857f677a65d16"
+    },
+    {
+      "asset": "cmip6-cloud.png",
+      "source": "wf2/projections/cmip6/plots/period_2040_2060/cmip6_precip_temp_annual_change_cloud_basin_avg.png",
+      "sha256": "9f8be2a2039862bb2fcf1b742de9b91a9162d8176d680bdca2b98ad63ad184c6"
+    },
+    {
+      "asset": "cmip6-seasonal-precip.png",
+      "source": "wf2/projections/cmip6/plots/period_2040_2060/cmip6_precip_annual_seasonal_change_pct_box_basin_avg.png",
+      "sha256": "dd7c7b89eb4057544c393bb1cdb0038fd9587b85759b1f3abac4270945e68ce6"
+    },
+    {
+      "asset": "cmip6-temperature.png",
+      "source": "wf2/projections/cmip6/plots/full_period/cmip6_temp_annual_anomaly_ts_basin_avg.png",
+      "sha256": "9e71afeafa7ecef4b5896d85013ef81e091670a56421c776984c22706d077db3"
+    },
+    {
+      "asset": "elevation-map.png",
+      "source": "spatial/spatial/plots/elevation_basin.png",
+      "sha256": "34cfa46e9ea4d1d8fde1a986ebe794b22ceb19e06ee7192ea7ea040b351a1343"
+    },
+    {
+      "asset": "hydrograph.png",
+      "source": "hydro/hydrograph_1050.png",
+      "sha256": "c95a0a4285f7b2f34e812c1819e3dec362b8176a19dbbbbe0706c8d40069c812"
+    },
+    {
+      "asset": "land-cover-map.png",
+      "source": "spatial/spatial/plots/land_cover_basin.png",
+      "sha256": "46735236a14a14056a6c057656f391ae086da72905f90c9c16577e4827d340c0"
+    },
+    {
+      "asset": "precip-map.png",
+      "source": "wf0/era5_19510101_20201231/plots/era5_precip_annual_clim_map_basin_ext.png",
+      "sha256": "6469c4db46da52e113bb910b312a925ee000028f558ceb168c3395b2ce74eb46"
+    },
+    {
+      "asset": "soil-clay-map.png",
+      "source": "spatial/spatial/plots/soil_clay_basin.png",
+      "sha256": "01143480d6606c43a1dcb7607512d3943bed4e0a839f96c7d06bed8ef2f1abc6"
+    },
+    {
+      "asset": "temp-map.png",
+      "source": "wf0/era5_19510101_20201231/plots/era5_temp_annual_clim_map_basin_ext.png",
+      "sha256": "62feeb80309ed8233daa8f8405d161ae14f7822fa2f6e2cf14629d25d6a3bb63"
+    }
+  ]
+}
