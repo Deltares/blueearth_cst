@@ -115,3 +115,10 @@ venv.bak/
 
 # dask
 dask-worker-space/
+
+# snakemake
+wk_project_creation/.snakemake/
+
+# Examples
+examples/
+wk_project_creation/config/wflow_build_forcing.ini

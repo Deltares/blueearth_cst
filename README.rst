@@ -12,7 +12,7 @@ The toolbox will enable end-users to:
 
  - Provide a user-friendly tool with visualization elements that satisfy the needs and expectations of non-specialized audiences 
 
-The Climate Stress Tester is part of the _BlueEarth initiative and uses hydromt_weather as weather generator and _Wflow for hydrological modelling.
+The Climate Stress Tester is part of the BlueEarth_ initiative and uses hydromt_weather as weather generator and Wflow_ for hydrological modelling.
 
 .. image:: docs/_images/CST_scheme.png
 
