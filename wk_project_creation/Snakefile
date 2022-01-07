@@ -3,19 +3,22 @@ import os
 
 # Path to the Snakemake config file (options for basins to build, data catalog, model output directory)
 configfile: "config/snake_config.yml"
+project = config['project_name']
 project_dir = config['project_dir']
 model_region = config['model_region']
 model_resolution = config['model_resolution']
 DATA_SOURCES = config["data_sources"]
 
-station_locs = config["station_location"]
-station_timeseries = config["station_timeseries"]
+output_locations = config["output_locations"]
+observations_timeseries = config["observations_timeseries"]
 
 basin_dir = f"{project_dir}/hydrology_model"
 
 # Master rule: end with all model run and analysed with saving a output plot
 rule all:
-    input: f"{basin_dir}/run_default/output.csv" 
+    input: 
+        #f"{basin_dir}/run_default/output.csv",
+        f"{project_dir}/plots/hydro.png",
 
 # Rule to build model hydromt build wflow
 rule create_model:
@@ -31,14 +34,18 @@ rule add_gauges:
     input:
         basin_nc = f"{basin_dir}/staticmaps.nc"
     output:
-        gauges_fid = f"{basin_dir}/staticgeoms/gauges.geojson"
+        gauges_fid = f"{basin_dir}/staticgeoms/gauges.geojson",
+        gauges_output_fid = f"{basin_dir}/staticgeoms/gauges_output-locations-{project}.geojson"
+    params:
+        output_locs = f"config/{project}/{output_locations}_{project}.csv"
     shell:
-        """hydromt update wflow "{basin_dir}" -c setup_gauges -d "{DATA_SOURCES}" --opt gauges_fn="{station_locs}" --opt derive_subcatch=True -vv"""
+        """hydromt update wflow "{basin_dir}" -c setup_gauges -d "{DATA_SOURCES}" --opt gauges_fn="{params.output_locs}" --opt derive_subcatch=True -vv"""
 
 # Rule to prepare the time horizon
 rule setup_runtime:
     input:
-        gauges_fid = f"{basin_dir}/staticgeoms/gauges.geojson"
+        gauges_fid = f"{basin_dir}/staticgeoms/gauges.geojson",
+        gauges_output_fid = f"{basin_dir}/staticgeoms/gauges_output-locations-{project}.geojson"
     output:
         forcing_ini = "config/wflow_build_forcing.ini"
     params:
@@ -67,10 +74,16 @@ rule run_wflow:
         """ julia -e "using Wflow; Wflow.run()" "{params.toml_fid}" """
 
 # Rule to analyse and plot wflow model run results --> final output
-#rule plot_results:
-#    input:
-#        csv_file = f"{config['models_dir']}" + "{basin_id}" + "/run_default/output.csv",
-#        script = "src/4-analyze/plot_results.py"
-#    output: 
-#        output_png = f"{config['models_dir']}" + "{basin_id}" + "/run_default/test.png"
-#    script: "src/4-analyze/plot_results.py"
+rule plot_results:
+   input:
+       csv_file = f"{basin_dir}/run_default/output.csv",
+       observations_file = f"{project_dir}/observations/{observations_timeseries}_{project}.csv",
+       output_locs = f"config/{project}/{output_locations}_{project}.csv",
+       script = "src/plot_results.py"
+   output: 
+       output_png = f"{project_dir}/plots/hydro.png",
+   params:
+       starttime = config["starttime"],
+       endtime = config["endtime"],
+       project = f"{project}",
+   script: "src/plot_results.py"
