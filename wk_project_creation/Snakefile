@@ -2,7 +2,7 @@ import shutil
 import os
 
 # Path to the Snakemake config file (options for basins to build, data catalog, model output directory)
-configfile: "config/snake_config.yml"
+#configfile: "config/snake_config_test.yml"
 project = config['project_name']
 project_dir = config['project_dir']
 model_region = config['model_region']
@@ -18,7 +18,8 @@ basin_dir = f"{project_dir}/hydrology_model"
 rule all:
     input: 
         #f"{basin_dir}/run_default/output.csv",
-        f"{project_dir}/plots/hydro.png",
+        f"{project_dir}/plots/hydro_wflow_1.png",
+        f"{project_dir}/plots/basin_area.png",
 
 # Rule to build model hydromt build wflow
 rule create_model:
@@ -44,10 +45,10 @@ rule add_gauges:
 # Rule to prepare the time horizon
 rule setup_runtime:
     input:
-        gauges_fid = f"{basin_dir}/staticgeoms/gauges.geojson",
-        gauges_output_fid = f"{basin_dir}/staticgeoms/gauges_output-locations-{project}.geojson"
+        gauges_fid = ancient(f"{basin_dir}/staticgeoms/gauges.geojson"),
+        gauges_output_fid = ancient(f"{basin_dir}/staticgeoms/gauges_output-locations-{project}.geojson")
     output:
-        forcing_ini = "config/wflow_build_forcing.ini"
+        forcing_ini = f"config/{project}/wflow_build_forcing_{project}.ini"
     params:
         starttime = config["starttime"],
         endtime = config["endtime"],
@@ -56,7 +57,7 @@ rule setup_runtime:
 # Rule to add forcing to the updated model
 rule add_forcing:
     input:
-        forcing_ini = "config/wflow_build_forcing.ini"
+        forcing_ini = f"config/{project}/wflow_build_forcing_{project}.ini"
     output:
         forcing_fid = f"{project_dir}/climate/ERA5/inmaps_historical.nc"
     shell:
@@ -81,9 +82,20 @@ rule plot_results:
        output_locs = f"config/{project}/{output_locations}_{project}.csv",
        script = "src/plot_results.py"
    output: 
-       output_png = f"{project_dir}/plots/hydro.png",
+       output_png = f"{project_dir}/plots/hydro_wflow_1.png",
    params:
        starttime = config["starttime"],
        endtime = config["endtime"],
        project = f"{project}",
    script: "src/plot_results.py"
+
+rule plot_map:
+    input:
+        gauges_fid = ancient(f"{basin_dir}/staticgeoms/gauges.geojson"),
+        gauges_output_fid = ancient(f"{basin_dir}/staticgeoms/gauges_output-locations-{project}.geojson")
+    output:
+        output_map_png = f"{project_dir}/plots/basin_area.png",
+    params:
+        project = f"{project}",
+    script: "src/plot_map.py"
+

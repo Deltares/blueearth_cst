@@ -1,0 +1,20 @@
+# Path to where the wflow model will be stored (include the project name)
+project_name: Gabon
+project_dir: ../examples/Gabon
+
+# Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
+data_sources: config/deltares_data.yml
+
+# hydromt "region" for building the model
+model_region: "{'subbasin': [9.666, 0.4476], 'strord': 5}"
+model_resolution: 0.0062475
+
+# Time horizon
+starttime: "2000-01-01T00:00:00"
+# endtime: "2000-01-31T00:00:00"
+endtime: "2003-12-31T00:00:00"
+
+# name of the files wihtout project name suffix
+output_locations: output_locations
+observations_timeseries: observations_timeseries
+

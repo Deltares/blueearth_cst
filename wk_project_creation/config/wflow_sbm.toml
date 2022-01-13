@@ -41,6 +41,24 @@ header = "Q"
 map = "gauges"
 parameter = "lateral.river.q_av"
 
+[[csv.column]]
+header = "P"
+map = "subcatchment"
+parameter = "vertical.precipitation"
+reducer = "mean"
+
+[[csv.column]]
+header = "EP"
+map = "subcatchment"
+parameter = "vertical.potential_evaporation"
+reducer = "mean"
+
+[[csv.column]]
+header = "T"
+map = "subcatchment"
+parameter = "vertical.temperature"
+reducer = "mean"
+
 [state.vertical]
 satwaterdepth = "satwaterdepth"
 snow = "snow"

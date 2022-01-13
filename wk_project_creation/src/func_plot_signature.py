@@ -9,15 +9,15 @@ import hydromt
 import numpy as np
 import matplotlib.pyplot as plt
 import os
-import scipy
+import scipy.stats as stats
 
 def rsquared(x, y):
     """ Return R^2 where x and y are array-like."""
 
-    slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(x, y)
+    slope, intercept, r_value, p_value, std_err = stats.linregress(x, y)
     return r_value**2
 
-def plot_signatures(dsq, label_00, label_01, color_00, color_01, Folder_out, station_name, lw = 0.8, fs = 8):
+def plot_signatures(dsq, labels, colors, linestyles, markers, Folder_out, station_name, lw = 0.8, fs = 8):
     
     #first calc some signatures 
     dsq['metrics'] = ['KGE', 'NSE', 'NSElog', 'RMSE', 'MSE']
@@ -25,7 +25,7 @@ def plot_signatures(dsq, label_00, label_01, color_00, color_01, Folder_out, sta
 
     
     #perf metrics for single station 
-    for label in [label_00, label_01]:
+    for label in labels:
         #nse
         nse = hydromt.stats.nashsutcliffe(dsq['Q'].sel(runs=label), dsq['Q'].sel(runs='Obs.'))
         dsq['performance'].loc[dict(runs = label, metrics = 'NSE')] = nse
@@ -53,8 +53,8 @@ def plot_signatures(dsq, label_00, label_01, color_00, color_01, Folder_out, sta
     axes = axes.flatten()
 
     # daily against each other axes[0]
-    axes[0].plot(dsq['Q'].sel(runs = 'Obs.'), dsq['Q'].sel(runs = label_00), marker = 'o', linestyle = 'None', linewidth = lw, label = label_00, color = color_00, markersize = 3)
-    axes[0].plot(dsq['Q'].sel(runs = 'Obs.'), dsq['Q'].sel(runs = label_01), marker = 'o', linestyle = 'None', linewidth = lw, label = label_01, color = color_01, markersize = 3)   
+    for label, color in zip(labels, colors):
+        axes[0].plot(dsq['Q'].sel(runs = 'Obs.'), dsq['Q'].sel(runs = label), marker = 'o', linestyle = 'None', linewidth = lw, label = label, color = color, markersize = 3)
     max_y = np.round(dsq['Q'].max().values)
     axes[0].plot([0, max_y],[0, max_y], color = '0.5', linestyle = '--', linewidth = 1)
     axes[0].set_xlim([0,max_y])
@@ -66,14 +66,17 @@ def plot_signatures(dsq, label_00, label_01, color_00, color_01, Folder_out, sta
            ncol=2, mode="expand", borderaxespad=0., fontsize = fs,)
     
     #r2 
-    r2_score_ref = rsquared(dsq['Q'].sel(runs = 'Obs.'), dsq['Q'].sel(runs = label_00))
-    r2_score_new = rsquared(dsq['Q'].sel(runs = 'Obs.'), dsq['Q'].sel(runs = label_01))
-    axes[0].text(max_y/2, max_y/8, f"R$_2$ {label_00} = {r2_score_ref:.2f} \nR$_2$ {label_01} = {r2_score_new:.2f}", fontsize=fs)
+    text_label = "" 
+    for label in labels:
+        r2_score = rsquared(dsq['Q'].sel(runs = 'Obs.'), dsq['Q'].sel(runs = label))
+        text_label = text_label + f"R$_2$ {label} = {r2_score:.2f} \n"
+    axes[0].text(max_y/2, max_y/8, text_label, fontsize=fs)
+    # axes[0].text(max_y/2, max_y/8, f"R$_2$ {label} = {r2_score:.2f} \nR$_2$ {label_01} = {r2_score_new:.2f} ", fontsize=fs)  
 
     
     #streamflow regime axes[1]
-    dsq['Q'].sel(runs = label_00).groupby('time.month').mean('time').plot(ax=axes[1], linewidth = lw, label = label_00, color = color_00)
-    dsq['Q'].sel(runs = label_01).groupby('time.month').mean('time').plot(ax=axes[1], linewidth = lw, label = label_01, color = color_01)
+    for label, color in zip(labels, colors):
+        dsq['Q'].sel(runs = label).groupby('time.month').mean('time').plot(ax=axes[1], linewidth = lw, label = label, color = color)
     dsq['Q'].sel(runs = 'Obs.').groupby('time.month').mean('time').plot(ax=axes[1], linewidth = lw, label = 'Obs.', color = 'k', linestyle = '--')
     axes[1].tick_params(axis='both', labelsize = fs)
     axes[1].set_ylabel('Q (m$^3$s$^{-1}$)', fontsize = fs)
@@ -84,16 +87,16 @@ def plot_signatures(dsq, label_00, label_01, color_00, color_01, Folder_out, sta
            ncol=3, mode="expand", borderaxespad=0., fontsize = fs,)
     
     #FDC axes[2]
-    axes[2].plot(np.arange(0, len(dsq.time))/(len(dsq.time)+1), dsq.Q.sel(runs = label_00).sortby(dsq.Q.sel(runs = label_00, ), ascending = False), color = color_00, linestyle = '-', linewidth = lw, label = label_00)
-    axes[2].plot(np.arange(0, len(dsq.time))/(len(dsq.time)+1), dsq.Q.sel(runs = label_01).sortby(dsq.Q.sel(runs = label_01, ), ascending = False), color = color_01, linestyle = '--', linewidth = lw, label = label_01)
+    for label, color, linestyle in zip(labels, colors, linestyles):
+        axes[2].plot(np.arange(0, len(dsq.time))/(len(dsq.time)+1), dsq.Q.sel(runs = label).sortby(dsq.Q.sel(runs = label, ), ascending = False), color = color, linestyle = linestyle, linewidth = lw, label = label)
     axes[2].plot(np.arange(0, len(dsq.time))/(len(dsq.time)+1), dsq.Q.sel(runs = 'Obs.').sortby(dsq.Q.sel(runs = 'Obs.', ), ascending = False), color = 'k', linestyle = ':', linewidth = lw, label = 'Obs.')
     axes[2].set_xlabel('Exceedence probability (-)', fontsize = fs)
     axes[2].set_ylabel('Q (m$^3$s$^{-1}$)', fontsize = fs)
     
     
     #FDClog axes[3]
-    axes[3].plot(np.arange(0, len(dsq.time))/(len(dsq.time)+1), np.log(dsq.Q.sel(runs = label_00).sortby(dsq.Q.sel(runs = label_00, ), ascending = False)), color = color_00, linestyle = '-', linewidth = lw, label = label_00)
-    axes[3].plot(np.arange(0, len(dsq.time))/(len(dsq.time)+1), np.log(dsq.Q.sel(runs = label_01).sortby(dsq.Q.sel(runs = label_01, ), ascending = False)), color = color_01, linestyle = '--', linewidth = lw, label = label_01)
+    for label, color, linestyle in zip(labels, colors, linestyles):
+        axes[3].plot(np.arange(0, len(dsq.time))/(len(dsq.time)+1), np.log(dsq.Q.sel(runs = label).sortby(dsq.Q.sel(runs = label, ), ascending = False)), color = color, linestyle = linestyle, linewidth = lw, label = label)
     axes[3].plot(np.arange(0, len(dsq.time))/(len(dsq.time)+1), np.log(dsq.Q.sel(runs = 'Obs.').sortby(dsq.Q.sel(runs = 'Obs.', ), ascending = False)), color = 'k', linestyle = ':', linewidth = lw, label = 'Obs.')
     axes[3].set_xlabel('Exceedence probability (-)', fontsize = fs)
     axes[3].set_ylabel('log(Q)', fontsize = fs)
@@ -101,19 +104,22 @@ def plot_signatures(dsq, label_00, label_01, color_00, color_01, Folder_out, sta
     
     #max annual axes[4]
     dsq_max = dsq.sel(time = slice(f"{str(dsq['time.year'][0].values)}-09-01", f"{str(dsq['time.year'][-1].values)}-08-31")).resample(time = 'AS-Sep').max('time')
-    axes[4].plot(dsq_max.Q.sel(runs = 'Obs.'), dsq_max.Q.sel(runs = label_00), color = color_00, marker = 'o', linestyle = 'None', linewidth = lw, label = label_00)
-    axes[4].plot(dsq_max.Q.sel(runs = 'Obs.'), dsq_max.Q.sel(runs = label_01), color = color_01, marker = '.', linestyle = 'None', linewidth = lw, label = label_01)
+    for label, color, marker in zip(labels, colors, markers):
+        axes[4].plot(dsq_max.Q.sel(runs = 'Obs.'), dsq_max.Q.sel(runs = label), color = color, marker = marker, linestyle = 'None', linewidth = lw, label = label)
     axes[4].plot([0, max_y*1.1],[0, max_y*1.1], color = '0.5', linestyle = '--', linewidth = 1)
     axes[4].set_xlim([0,max_y*1.1])
     axes[4].set_ylim([0,max_y*1.1])
-    #R2 score add!
-    r2_score_ref = rsquared(dsq_max['Q'].sel(runs = 'Obs.'), dsq_max['Q'].sel(runs = label_00))
-    r2_score_new = rsquared(dsq_max['Q'].sel(runs = 'Obs.'), dsq_max['Q'].sel(runs = label_01))
-    axes[4].text(max_y/2, max_y/8, f"R$_2$ {label_00} = {r2_score_ref:.2f} \nR$_2$ {label_01} = {r2_score_new:.2f}", fontsize=fs)
+    #R2 score
+    text_label = ""
+    for label in labels:
+        r2_score = rsquared(dsq_max['Q'].sel(runs = 'Obs.'), dsq_max['Q'].sel(runs = label))
+        text_label = text_label + f"R$_2$ {label} = {r2_score:.2f} \n"
+    axes[4].text(max_y/2, max_y/8, text_label, fontsize=fs)
+    # axes[4].text(max_y/2, max_y/8, f"R$_2$ {label} = {r2_score:.2f} \nR$_2$ {label_01} = {r2_score_new:.2f}", fontsize=fs)   
     #add MHQ
     mhq = dsq_max.mean('time')
-    axes[4].plot(mhq.Q.sel(runs = 'Obs.'), mhq.Q.sel(runs = label_00), color = 'black', marker = '>', linestyle = 'None', linewidth = lw, label = label_00, markersize = 6)
-    axes[4].plot(mhq.Q.sel(runs = 'Obs.'), mhq.Q.sel(runs = label_01), color = 'grey', marker = '^', linestyle = 'None', linewidth = lw, label = label_01, markersize = 6)
+    for label in labels:
+        axes[4].plot(mhq.Q.sel(runs = 'Obs.'), mhq.Q.sel(runs = label), color = 'black', marker = '>', linestyle = 'None', linewidth = lw, label = label, markersize = 6)
     #labels
     axes[4].set_ylabel('Sim. max annual Q (m$^3$s$^{-1}$)', fontsize = fs)
     axes[4].set_xlabel('Obs. max annual Q (m$^3$s$^{-1}$)', fontsize = fs)
@@ -122,15 +128,18 @@ def plot_signatures(dsq, label_00, label_01, color_00, color_01, Folder_out, sta
     #nm7q axes[5]
     dsq_nm7q = dsq.rolling(time = 7).mean().resample(time = 'A').min('time')
     max_ylow = dsq_nm7q['Q'].max().values
-    axes[5].plot(dsq_nm7q.Q.sel(runs = 'Obs.'), dsq_nm7q.Q.sel(runs = label_00), color = color_00, marker = 'o', linestyle = 'None', linewidth = lw, label = label_00)
-    axes[5].plot(dsq_nm7q.Q.sel(runs = 'Obs.'), dsq_nm7q.Q.sel(runs = label_01), color = color_01, marker = '.', linestyle = 'None', linewidth = lw, label = label_01)
+    for label, color, marker in zip(labels, colors, markers):
+        axes[5].plot(dsq_nm7q.Q.sel(runs = 'Obs.'), dsq_nm7q.Q.sel(runs = label), color = color, marker = marker, linestyle = 'None', linewidth = lw, label = label)
     axes[5].plot([0, max_ylow*1.1],[0, max_ylow*1.1], color = '0.5', linestyle = '--', linewidth = 1)
     axes[5].set_xlim([0,max_ylow*1.1])
     axes[5].set_ylim([0,max_ylow*1.1])
-    #R2 score add!
-    r2_score_ref = rsquared(dsq_nm7q['Q'].sel(runs = 'Obs.'), dsq_nm7q['Q'].sel(runs = label_00))
-    r2_score_new = rsquared(dsq_nm7q['Q'].sel(runs = 'Obs.'), dsq_nm7q['Q'].sel(runs = label_01))
-    axes[5].text(max_ylow*1.1/2, max_ylow*1.1/8, f"R$_2$ {label_00} = {r2_score_ref:.2f} \nR$_2$ {label_01} = {r2_score_new:.2f}", fontsize=fs)
+    # #R2 score 
+    text_label = ""
+    for label in labels:
+        r2_score = rsquared(dsq_nm7q['Q'].sel(runs = 'Obs.'), dsq_nm7q['Q'].sel(runs = label))
+        text_label = text_label + f"R$_2$ {label} = {r2_score:.2f} \n"
+    axes[5].text(max_y/2, max_y/8, text_label, fontsize=fs)
+    # axes[5].text(max_ylow*1.1/2, max_ylow*1.1/8, f"R$_2$ {label} = {r2_score:.2f} \nR$_2$ {label_01} = {r2_score_new:.2f} ", fontsize=fs) 
     #labels
     axes[5].set_ylabel('Simulated NM7Q (m$^3$s$^{-1}$)', fontsize = fs)
     axes[5].set_xlabel('Observed NM7Q (m$^3$s$^{-1}$)', fontsize = fs)
@@ -146,8 +155,8 @@ def plot_signatures(dsq, label_00, label_01, color_00, color_01, Folder_out, sta
     ts = [2., 5.,10.,30.] #,30.,100.,300.,1000.,3000.,10000.,30000.]
     #plot
     axes[6].plot(gumbel_p1, dsq_max['Q'].sel(runs = 'Obs.').sortby(dsq_max['Q'].sel(runs = 'Obs.')), marker = '+', color = 'k', linestyle = 'None', label = 'Obs.', markersize = 6)
-    axes[6].plot(gumbel_p1, dsq_max['Q'].sel(runs = label_00).sortby(dsq_max['Q'].sel(runs = label_00)), marker = 'o', color = color_00, linestyle = 'None', label = label_00, markersize = 4)
-    axes[6].plot(gumbel_p1, dsq_max['Q'].sel(runs = label_01).sortby(dsq_max['Q'].sel(runs = label_01)), marker = '.', color = color_01, linestyle = 'None', label = label_01, markersize = 3)
+    for label, color, marker in zip(labels, colors, markers):
+        axes[6].plot(gumbel_p1, dsq_max['Q'].sel(runs = label).sortby(dsq_max['Q'].sel(runs = label)), marker = marker, color = color, linestyle = 'None', label = label, markersize = 4)
 
     for t in ts:
         axes[6].vlines(-np.log(-np.log(1-1./t)),ymin,ymax,'0.5', alpha=0.4)
@@ -167,8 +176,8 @@ def plot_signatures(dsq, label_00, label_01, color_00, color_01, Folder_out, sta
     ts = [2., 5.,10.,30.] #,30.,100.,300.,1000.,3000.,10000.,30000.]
     #plot
     axes[7].plot(gumbel_p1, dsq_nm7q['Q'].sel(runs = 'Obs.').sortby(dsq_nm7q['Q'].sel(runs = 'Obs.'), ascending=False), marker = '+', color = 'k', linestyle = 'None', label = 'Obs.', markersize = 6)
-    axes[7].plot(gumbel_p1, dsq_nm7q['Q'].sel(runs = label_00).sortby(dsq_nm7q['Q'].sel(runs = label_00), ascending=False), marker = 'o', color = color_00, linestyle = 'None', label = label_00, markersize = 4)
-    axes[7].plot(gumbel_p1, dsq_nm7q['Q'].sel(runs = label_01).sortby(dsq_nm7q['Q'].sel(runs = label_01), ascending=False), marker = '.', color = color_01, linestyle = 'None', label = label_01, markersize = 3)
+    for label, color, marker in zip(labels, colors, markers):
+        axes[7].plot(gumbel_p1, dsq_nm7q['Q'].sel(runs = label).sortby(dsq_nm7q['Q'].sel(runs = label), ascending=False), marker = marker, color = color, linestyle = 'None', label = label, markersize = 4)
 
     for t in ts:
         axes[7].vlines(-np.log(-np.log(1-1./t)),ymin,ymax,'0.5', alpha=0.4)
@@ -180,8 +189,8 @@ def plot_signatures(dsq, label_00, label_01, color_00, color_01, Folder_out, sta
     
     #cum axes[8]
     dsq['Q'].sel(runs = 'Obs.').cumsum('time').plot(ax=axes[8], color = 'k', linestyle = ':', linewidth = lw, label = 'Obs.')
-    dsq['Q'].sel(runs = label_00).cumsum('time').plot(ax=axes[8], color = color_00, linestyle = '-', linewidth = lw, label = label_00)
-    dsq['Q'].sel(runs = label_01).cumsum('time').plot(ax=axes[8], color = color_01, linestyle = '--', linewidth = lw, label = label_01)
+    for label, color, linestyle in zip(labels, colors, linestyles):
+        dsq['Q'].sel(runs = label).cumsum('time').plot(ax=axes[8], color = color, linestyle = linestyle, linewidth = lw, label = label)
     axes[8].set_xlabel('')
     axes[8].set_ylabel('Cum. Q (m$^3$s$^{-1}$)', fontsize = fs)
     
@@ -189,14 +198,14 @@ def plot_signatures(dsq, label_00, label_01, color_00, color_01, Folder_out, sta
     #performance measures NS, NSlogQ, KGE, axes[9]
 #     sns.boxplot(ax=axes[9], data = df_perf, x = 'metrics', hue = 'runs', y = 'performance')
     #nse
-    axes[9].plot(0.8, dsq['performance'].loc[dict(runs = label_00, metrics = 'NSE')], color = color_00, marker = 'o', linestyle = 'None', linewidth = lw, label = label_00)
-    axes[9].plot(1.2, dsq['performance'].loc[dict(runs = label_01, metrics = 'NSE')], color = color_01, marker = 'o', linestyle = 'None', linewidth = lw, label = label_01)
+    for label, color, marker in zip(labels, colors, markers):
+        axes[9].plot(0.8, dsq['performance'].loc[dict(runs = label, metrics = 'NSE')], color = color, marker = marker, linestyle = 'None', linewidth = lw, label = label)
     #nselog
-    axes[9].plot(2.8, dsq['performance'].loc[dict(runs = label_00, metrics = 'NSElog')], color = color_00, marker = 'o', linestyle = 'None', linewidth = lw, label = label_00)
-    axes[9].plot(3.2, dsq['performance'].loc[dict(runs = label_01, metrics = 'NSElog')], color = color_01, marker = 'o', linestyle = 'None', linewidth = lw, label = label_01)
+    for label, color, marker in zip(labels, colors, markers):
+        axes[9].plot(2.8, dsq['performance'].loc[dict(runs = label, metrics = 'NSElog')], color = color, marker = marker, linestyle = 'None', linewidth = lw, label = label)
     #kge
-    axes[9].plot(4.8, dsq['performance'].loc[dict(runs = label_00, metrics = 'KGE')], color = color_00, marker = 'o', linestyle = 'None', linewidth = lw, label = label_00)
-    axes[9].plot(5.2, dsq['performance'].loc[dict(runs = label_01, metrics = 'KGE')], color = color_01, marker = 'o', linestyle = 'None', linewidth = lw, label = label_01)
+    for label, color, marker in zip(labels, colors, markers):
+        axes[9].plot(4.8, dsq['performance'].loc[dict(runs = label, metrics = 'KGE')], color = color, marker = marker, linestyle = 'None', linewidth = lw, label = label)
     axes[9].set_xticks([1,3,5])
     axes[9].set_xticklabels(['NSE', 'NSElog', 'KGE'])
     axes[9].set_ylim([0,1])
@@ -205,33 +214,28 @@ def plot_signatures(dsq, label_00, label_01, color_00, color_01, Folder_out, sta
     for ax in axes:
         ax.tick_params(axis='both', labelsize = fs)
         ax.set_title('')
-        
+    
     plt.tight_layout()
     plt.savefig(os.path.join(Folder_out, f"signatures_{station_name}.png"), dpi = 300)
     
     
-def plot_hydro(dsq, start_long, end_long, start_1, end_1, start_2, end_2, start_3, end_3, label_00, label_01, color_00, color_01, Folder_out, station_name, lw = 0.8, fs = 8):
-    fig, axes = plt.subplots(4,1, figsize=(16/2.54, 20/2.54))
+def plot_hydro(dsq, start_long, end_long, start_1, end_1, start_2, end_2, labels, colors, Folder_out, station_name, lw = 0.8, fs = 8):
+    fig, axes = plt.subplots(3,1, figsize=(16/2.54, 15/2.54))
     #long period
-    dsq['Q'].sel(runs = label_01, time = slice(start_long, end_long)).plot(ax=axes[0], label = label_01, linewidth = lw, color = color_01)
-    dsq['Q'].sel(runs = label_00, time = slice(start_long, end_long)).plot(ax=axes[0], label = label_00, linewidth = lw, color = color_00)
+    for label, color in zip(labels, colors):
+        dsq['Q'].sel(runs = label, time = slice(start_long, end_long)).plot(ax=axes[0], label = label, linewidth = lw, color = color)
     dsq['Q'].sel(runs = 'Obs.', time = slice(start_long, end_long)).plot(ax=axes[0], label = 'Obs.', linewidth = lw, color = 'k', linestyle = '--')
     
-    #1994-1995
-    dsq['Q'].sel(runs = label_01, time = slice(start_1, end_1)).plot(ax=axes[1], label = label_01, linewidth = lw, color = color_01)
-    dsq['Q'].sel(runs = label_00, time = slice(start_1, end_1)).plot(ax=axes[1], label = label_00, linewidth = lw, color = color_00)
+    #s1-e1
+    for label, color in zip(labels, colors):
+        dsq['Q'].sel(runs = label, time = slice(start_1, end_1)).plot(ax=axes[1], label = label, linewidth = lw, color = color)
     dsq['Q'].sel(runs = 'Obs.', time = slice(start_1, end_1)).plot(ax=axes[1], label = 'Obs.', linewidth = lw, color = 'k', linestyle = '--')
     
-    #1994
-    dsq['Q'].sel(runs = label_01, time = slice(start_2, end_2)).plot(ax=axes[2], label = label_01, linewidth = lw, color = color_01)
-    dsq['Q'].sel(runs = label_00, time = slice(start_2, end_2)).plot(ax=axes[2], label = label_00, linewidth = lw, color = color_00)
+    #s2-e2
+    for label, color in zip(labels, colors):
+        dsq['Q'].sel(runs = label, time = slice(start_2, end_2)).plot(ax=axes[2], label = label, linewidth = lw, color = color)
     dsq['Q'].sel(runs = 'Obs.', time = slice(start_2, end_2)).plot(ax=axes[2], label = 'Obs.', linewidth = lw, color = 'k', linestyle = '--')
-    
-    #2003
-    dsq['Q'].sel(runs = label_01, time = slice(start_3, end_3)).plot(ax=axes[3], label = label_01, linewidth = lw, color = color_01)
-    dsq['Q'].sel(runs = label_00, time = slice(start_3, end_3)).plot(ax=axes[3], label = label_00, linewidth = lw, color = color_00)
-    dsq['Q'].sel(runs = 'Obs.', time = slice(start_3, end_3)).plot(ax=axes[3], label = 'Obs.', linewidth = lw, color = 'k', linestyle = '--')
-    
+        
     for ax in axes:
         ax.tick_params(axis = 'both', labelsize = fs)
         ax.set_ylabel("Q (m$^3$s$^{-1}$)", fontsize = fs)
@@ -241,3 +245,71 @@ def plot_hydro(dsq, start_long, end_long, start_1, end_1, start_2, end_2, start_
     plt.tight_layout()
     
     plt.savefig(os.path.join(Folder_out, f"hydro_{station_name}.png"), dpi=300)
+
+
+def plot_hydro_1y(dsq, start_long, end_long, labels, colors, Folder_out, station_name, lw = 0.8, fs = 8):
+    fig, ax = plt.subplots(1,1, figsize=(16/2.54, 5/2.54))
+    #long period
+    for label, color in zip(labels, colors):
+        dsq['Q'].sel(runs = label, time = slice(start_long, end_long)).plot(ax=ax, label = label, linewidth = lw, color = color)
+    dsq['Q'].sel(runs = 'Obs.', time = slice(start_long, end_long)).plot(ax=ax, label = 'Obs.', linewidth = lw, color = 'k', linestyle = '--')
+        
+
+    ax.tick_params(axis = 'both', labelsize = fs)
+    ax.set_ylabel("Q (m$^3$s$^{-1}$)", fontsize = fs)
+    ax.set_xlabel("", fontsize = fs)
+    ax.set_title("")
+    ax.legend(fontsize = fs)
+    plt.tight_layout()
+    
+    plt.savefig(os.path.join(Folder_out, f"hydro_{station_name}.png"), dpi=300)
+    
+def plot_clim(ds_clim, Folder_out, station_name, lw = 0.8, fs = 8):
+    fig, (ax1, ax2, ax3) = plt.subplots(3,1, figsize = (16/2.54, 15/2.54), sharex=True)
+    #precip
+    P_sum_monthly = ds_clim['P'].resample(time = 'M').sum('time')
+    P_sum_monthly_mean = P_sum_monthly.groupby('time.month').mean('time')
+    P_sum_monthly_q25 = P_sum_monthly.groupby('time.month').quantile(0.25, 'time')
+    P_sum_monthly_q75 = P_sum_monthly.groupby('time.month').quantile(0.75, 'time')
+    
+    #plot
+    P_sum_monthly_mean.plot(ax=ax1, color = 'darkblue')
+    ax1.fill_between(np.arange(1,13), P_sum_monthly_q25, P_sum_monthly_q75, color = 'lightblue')
+    
+    #pot evap
+    P_sum_monthly = ds_clim['EP'].resample(time = 'M').sum('time')
+    P_sum_monthly_mean = P_sum_monthly.groupby('time.month').mean('time')
+    P_sum_monthly_q25 = P_sum_monthly.groupby('time.month').quantile(0.25, 'time')
+    P_sum_monthly_q75 = P_sum_monthly.groupby('time.month').quantile(0.75, 'time')
+    
+    #plot
+    P_sum_monthly_mean.plot(ax=ax2, color = 'darkgreen')
+    ax2.fill_between(np.arange(1,13), P_sum_monthly_q25, P_sum_monthly_q75, color = 'lightgreen')
+#    P_sum_monthly_mean.to_series().plot.bar(ax=ax1, color = 'lightblue')
+    
+    #temp
+    T_mean_monthly_mean = ds_clim['T'].groupby('time.month').mean('time')
+    T_mean_monthly_q25 = ds_clim['T'].groupby('time.month').quantile(0.25, 'time')
+    T_mean_monthly_q75 = ds_clim['T'].groupby('time.month').quantile(0.75, 'time')
+    #plot
+    T_mean_monthly_mean.plot(ax=ax3, color = 'red')
+    ax3.fill_between(np.arange(1,13), T_mean_monthly_q25, T_mean_monthly_q75, color = 'orange')
+#    T_mean_monthly_mean.to_series().plot.line(ax=ax2, color = 'orange')
+    
+    for ax in [ax1,ax2,ax3]:
+        ax.tick_params(axis = 'both', labelsize = fs)
+        ax.set_xlabel("", fontsize = fs)
+        ax.set_title("")
+    
+    ax1.set_ylabel("P (mm month$^{-1}$)", fontsize = fs)
+    ax2.set_ylabel("E$_P$ (mm month$^{-1}$)", fontsize = fs)
+    ax3.set_ylabel("T (deg C)", fontsize = fs)
+    
+    month_labels = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D']
+    ax3.set_xticks(ticks = np.arange(1,13), labels=month_labels, fontsize = fs)
+    
+    plt.tight_layout()
+    plt.savefig(os.path.join(Folder_out, f"clim_{station_name}.png"), dpi=300)
+    
+        
+
