@@ -28,8 +28,8 @@ project = snakemake.params.project
 starttime = snakemake.params.starttime
 endtime = snakemake.params.endtime
 
-output_locations = snakemake.input.output_locs
-observations_timeseries = snakemake.input.observations_file
+output_locations = snakemake.params.output_locs
+observations_timeseries = snakemake.params.observations_file
 
 Folder_plots = f"../examples/{project}/plots"
 Folder_run = f"../examples/{project}/hydrology_model" 
@@ -54,9 +54,12 @@ markers =   ['o']
 #%%
 
 #read output_locations.csv (should include id, name, x and y coordinate)
-df_output_locs = pd.read_csv(output_locations, header = 0)
-#make a dict of station name and station id 
-stations_dic = dict(df_output_locs[["wflow_id", "station_name"]].values)
+if os.path.exists(observations_timeseries):
+    df_output_locs = pd.read_csv(output_locations, header = 0)
+    #make a dict of station name and station id 
+    stations_dic = dict(df_output_locs[["wflow_id", "station_name"]].values)
+else:
+    stations_dic = dict()
 
 #add wflow locations already present in wflow_gauges (check if id's are not duplicated from output_locations file)
 gauges = gpd.read_file(os.path.join(Folder_run, "staticgeoms", "gauges.geojson"))
@@ -72,7 +75,10 @@ stations = list(stations_dic.keys()) #+ [1] #TODO check how to deal with id 1 of
 #read observation timeseries TODO check format 
 #rows with variable and unit are skipped
 #TODO: sep , or ; and dayfirst or not 
-df_obs = pd.read_csv(observations_timeseries, header = 0, parse_dates = True, index_col=0, sep = ';', skiprows = [1,2])  
+if os.path.exists(observations_timeseries):
+    df_obs = pd.read_csv(observations_timeseries, header = 0, parse_dates = True, index_col=0, sep = ';', skiprows = [1,2])  
+else:
+    df_obs = pd.DataFrame()
 
 
 ## read csv modeled timeseries
@@ -95,14 +101,14 @@ ds = xr.Dataset(
                 'runs': runs})
 ds = ds * np.nan
 
-start_up = max(df_obs.index[0], rng[0])
-end_up = min(df_obs.index[-1], rng[-1])
 
 #TODO: id 1 from gauges also in output !! 
 #fill dataset with model and observed data
 for id_obs_station in df_obs.columns:
+    start_up = max(df_obs.index[0], rng[0])
+    end_up = min(df_obs.index[-1], rng[-1])
 #     import pdb; pdb.set_trace()
-     ds['Q'].loc[dict(runs = 'Obs.', stations = int(id_obs_station), time = df_obs.loc[start_up:end_up].index)] = df_obs[str(id_obs_station)].loc[start_up:end_up]
+    ds['Q'].loc[dict(runs = 'Obs.', stations = int(id_obs_station), time = df_obs.loc[start_up:end_up].index)] = df_obs[str(id_obs_station)].loc[start_up:end_up]
 #add model results for all output locations
 for label in labels: # not really needed as only one run, but list is needed for the plot functions. 
     ds['Q'].loc[dict(runs = label)] = run01[['Q_' + sub for sub in list(map(str,stations))]].loc[starttime:endtime]
@@ -118,9 +124,9 @@ for gauge_id in gauges.index.values+1: #TODO check ids in gauges geojson!!
 for station_id, station_name in stations_dic.items():
     print( station_id)
     #skip first year for hydro -- warm up period
-    try:
+    if len(ds.time) > 365:
         dsq = ds.sel(stations = station_id).sel(time = slice(f'{rng[0].year+1}-{rng[0].month}-{rng[0].day}', None))#.dropna(dim='time')
-    except:
+    else:
         dsq = ds.sel(stations = station_id)
     #plot hydro
     if len(np.unique(dsq['time.year'])) >= 3:
@@ -130,7 +136,7 @@ for station_id, station_name in stations_dic.items():
         plot_hydro(dsq, dsq.time[0], dsq.time[-1], f"{year_max}-01-01", f"{year_max}-12-31", f"{year_min}-01-01", f"{year_min}-12-31", labels, colors, Folder_plots, station_name)
         plt.close()
     else:
-#        import pdb; pdb.set_trace()
+        import pdb; pdb.set_trace()
         plot_hydro_1y(dsq, dsq.time[0], dsq.time[-1], labels, colors, Folder_plots, station_name)
         plt.close()
     #make plot using function
