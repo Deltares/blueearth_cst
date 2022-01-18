@@ -12,27 +12,27 @@ import os
 import matplotlib.pyplot as plt
 import pandas as pd
 import geopandas as gpd
+import hydromt
 
-from func_plot_signature import plot_signatures
-from func_plot_signature import plot_hydro
-from func_plot_signature import plot_hydro_1y
-from func_plot_signature import plot_clim
-
+from func_plot_signature import plot_signatures, plot_hydro, plot_hydro_1y, plot_clim
 
 fs = 8
 lw=0.8
 
-
+# Snakemake options
 project_dir = snakemake.params.project_dir
 starttime = snakemake.params.starttime
 endtime = snakemake.params.endtime
 
 output_locations = snakemake.params.output_locs
 observations_timeseries = snakemake.params.observations_file
+gauges_output_name = snakemake.params.gauges_output_fid
+gauges_output_name = os.path.basename(gauges_output_name).split('.')[0]
 
 Folder_plots = f"{project_dir}/plots"
 Folder_run = f"{project_dir}/hydrology_model" 
 
+# Other options
 case = "run_default" #do we want at some point to show multiple cases? 
 labels = ['Mod.']
 colors = ['orange']
@@ -51,7 +51,12 @@ markers =   ['o']
 #gauges = gpd.read_file(r"d:\repos\blueearth_cst\examples\Gabon\hydrology_model\staticgeoms\gauges.geojson")
 
 #%%
+#Instantiate wflow model
+mod = hydromt.WflowModel(root=Folder_run, mode='r')
 
+#%%
+#HB: use sttaicgeoms instead
+#output_locs = mod.staticgeoms[gauges_output_name]
 #read output_locations.csv (should include id, name, x and y coordinate)
 if os.path.exists(output_locations):
     df_output_locs = pd.read_csv(output_locations, header = 0)
@@ -61,7 +66,9 @@ else:
     stations_dic = dict()
 
 #add wflow locations already present in wflow_gauges (check if id's are not duplicated from output_locations file)
-gauges = gpd.read_file(os.path.join(Folder_run, "staticgeoms", "gauges.geojson"))
+#HB: use staticgeoms instead
+#gauges = gpd.read_file(os.path.join(Folder_run, "staticgeoms", "gauges.geojson"))
+gauges = mod.staticgeoms["gauges"]
 for gauge_id in gauges.index.values+1: #TODO check ids in gauges geojson!!
     print(gauge_id)
     if gauge_id in stations_dic:
@@ -70,6 +77,9 @@ for gauge_id in gauges.index.values+1: #TODO check ids in gauges geojson!!
         stations_dic[gauge_id] = f"wflow_{gauge_id}"
 #stations_dic[1] = project #TODO check!
 stations = list(stations_dic.keys()) #+ [1] #TODO check how to deal with id 1 of gauges from setup 
+
+#HB: not sure how the plots are done but if by station can you first loop over output location and then loop over gauges? Or even a dict and keys in dict?
+# then no 'tough' merging handling to do
 
 #read observation timeseries TODO check format 
 #rows with variable and unit are skipped
@@ -128,7 +138,7 @@ for station_id, station_name in stations_dic.items():
     if len(np.unique(dsq['time.year'])) >= 3:
         year_min = pd.to_datetime(dsq['Q'].sel(runs = 'Mod.').idxmin().values).year
         year_max = pd.to_datetime(dsq['Q'].sel(runs = 'Mod.').idxmax().values).year
-        plot_hydro(dsq, dsq.time[0], dsq.time[-1], year_max, year_min, labels, colors, Folder_plots, station_name)
+        plot_hydro(dsq, dsq.time[0], dsq.time[-1], str(year_max), str(year_min), labels, colors, Folder_plots, station_name)
         plt.close()
     else:
         plot_hydro_1y(dsq, dsq.time[0], dsq.time[-1], labels, colors, Folder_plots, station_name)
