@@ -1,7 +1,7 @@
 import shutil
 import os
 
-# Path to the Snakemake config file (options for basins to build, data catalog, model output directory)
+# Parsing the Snakemake config file (options for basins to build, data catalog, model output directory)
 #configfile: "config/snake_config_test.yml"
 project = config['project_name']
 project_dir = config['project_dir']
@@ -17,7 +17,6 @@ basin_dir = f"{project_dir}/hydrology_model"
 # Master rule: end with all model run and analysed with saving a output plot
 rule all:
     input: 
-        #f"{basin_dir}/run_default/output.csv",
         f"{project_dir}/plots/hydro_wflow_1.png",
         f"{project_dir}/plots/basin_area.png",
 
@@ -38,7 +37,7 @@ rule add_gauges:
         gauges_fid = f"{basin_dir}/staticgeoms/gauges.geojson",
         gauges_output_fid = f"{basin_dir}/staticgeoms/gauges_output-locations-{project}.geojson"
     params:
-        output_locs = f"config/{project}/{output_locations}_{project}.csv"
+        output_locs = f"config/{output_locations}_{project}.csv"
     shell:
         """hydromt update wflow "{basin_dir}" -c setup_gauges -d "{DATA_SOURCES}" --opt gauges_fn="{params.output_locs}" --opt derive_subcatch=True -vv"""
 
@@ -48,7 +47,7 @@ rule setup_runtime:
         gauges_fid = ancient(f"{basin_dir}/staticgeoms/gauges.geojson"),
         gauges_output_fid = ancient(f"{basin_dir}/staticgeoms/gauges_output-locations-{project}.geojson")
     output:
-        forcing_ini = f"config/{project}/wflow_build_forcing_{project}.ini"
+        forcing_ini = f"{project_dir}/config/wflow_build_forcing_historical.ini"
     params:
         starttime = config["starttime"],
         endtime = config["endtime"],
@@ -57,7 +56,7 @@ rule setup_runtime:
 # Rule to add forcing to the updated model
 rule add_forcing:
     input:
-        forcing_ini = f"config/{project}/wflow_build_forcing_{project}.ini"
+        forcing_ini = f"{project_dir}/config/wflow_build_forcing_historical.ini"
     output:
         forcing_fid = f"{project_dir}/climate/ERA5/inmaps_historical.nc"
     shell:
@@ -84,7 +83,7 @@ rule plot_results:
    params:
        starttime = config["starttime"],
        endtime = config["endtime"],
-       project = f"{project}",
+       project_dir = f"{project_dir}",
        observations_file = f"{project_dir}/observations/{observations_timeseries}_{project}.csv",
        output_locs = f"config/{project}/{output_locations}_{project}.csv",
    script: "src/plot_results.py"
@@ -96,6 +95,6 @@ rule plot_map:
     output:
         output_map_png = f"{project_dir}/plots/basin_area.png",
     params:
-        project = f"{project}",
+        project_dir = f"{project_dir}",
     script: "src/plot_map.py"
 

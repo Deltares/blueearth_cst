@@ -10,7 +10,7 @@ Created on Thu Jan 13 16:23:11 2022
 import pandas as pd
 import xarray as xr
 import numpy as np
-from os.path import join, dirname
+from os.path import join, dirname, basename
 import os
 import matplotlib.pyplot as plt
 import matplotlib as mpl
@@ -24,10 +24,12 @@ import cartopy.io.img_tiles as cimgt
 
 import hydromt
 
-project = snakemake.params.project
+project_dir = snakemake.params.project_dir
+gauges_fn = snakemake.input.gauges_output_fid
+gauges_name = basename(gauges_fn).split('.')[0]
 
-Folder_plots = f"../examples/{project}/plots"
-root = f"../examples/{project}/hydrology_model" 
+Folder_plots = f"{project_dir}/plots"
+root = f"{project_dir}/hydrology_model" 
 
 
 mod = hydromt.WflowModel(root, mode="r")
@@ -96,8 +98,8 @@ if "gauges" in mod.staticgeoms:
     mod.staticgeoms["gauges"].plot(
         ax=ax, marker="d", markersize=25, facecolor="k", zorder=5, label="gauges"
     )
-if f"gauges_output-locations-{project}" in mod.staticgeoms:
-    mod.staticgeoms[f"gauges_output-locations-{project}"].plot(
+if gauges_name in mod.staticgeoms:
+    mod.staticgeoms[gauges_name].plot(
         ax=ax, marker="d", markersize=25, facecolor="blue", zorder=5, label="output locs"
     )
 patches = (

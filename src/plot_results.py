@@ -23,15 +23,15 @@ fs = 8
 lw=0.8
 
 
-project = snakemake.params.project
+project_dir = snakemake.params.project_dir
 starttime = snakemake.params.starttime
 endtime = snakemake.params.endtime
 
 output_locations = snakemake.params.output_locs
 observations_timeseries = snakemake.params.observations_file
 
-Folder_plots = f"../examples/{project}/plots"
-Folder_run = f"../examples/{project}/hydrology_model" 
+Folder_plots = f"{project_dir}/plots"
+Folder_run = f"{project_dir}/hydrology_model" 
 
 case = "run_default" #do we want at some point to show multiple cases? 
 labels = ['Mod.']
