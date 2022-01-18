@@ -219,7 +219,7 @@ def plot_signatures(dsq, labels, colors, linestyles, markers, Folder_out, statio
     plt.savefig(os.path.join(Folder_out, f"signatures_{station_name}.png"), dpi = 300)
     
     
-def plot_hydro(dsq, start_long, end_long, start_1, end_1, start_2, end_2, labels, colors, Folder_out, station_name, lw = 0.8, fs = 8):
+def plot_hydro(dsq, start_long, end_long, year_1, year_2, labels, colors, Folder_out, station_name, lw = 0.8, fs = 8):
     fig, axes = plt.subplots(3,1, figsize=(16/2.54, 15/2.54))
     #long period
     for label, color in zip(labels, colors):
@@ -228,13 +228,13 @@ def plot_hydro(dsq, start_long, end_long, start_1, end_1, start_2, end_2, labels
     
     #s1-e1
     for label, color in zip(labels, colors):
-        dsq['Q'].sel(runs = label, time = slice(start_1, end_1)).plot(ax=axes[1], label = label, linewidth = lw, color = color)
-    dsq['Q'].sel(runs = 'Obs.', time = slice(start_1, end_1)).plot(ax=axes[1], label = 'Obs.', linewidth = lw, color = 'k', linestyle = '--')
+        dsq['Q'].sel(runs = label, time = year_1).plot(ax=axes[1], label = label, linewidth = lw, color = color)
+    dsq['Q'].sel(runs = 'Obs.', time = year_1).plot(ax=axes[1], label = 'Obs.', linewidth = lw, color = 'k', linestyle = '--')
     
     #s2-e2
     for label, color in zip(labels, colors):
-        dsq['Q'].sel(runs = label, time = slice(start_2, end_2)).plot(ax=axes[2], label = label, linewidth = lw, color = color)
-    dsq['Q'].sel(runs = 'Obs.', time = slice(start_2, end_2)).plot(ax=axes[2], label = 'Obs.', linewidth = lw, color = 'k', linestyle = '--')
+        dsq['Q'].sel(runs = label, time = year_2).plot(ax=axes[2], label = label, linewidth = lw, color = color)
+    dsq['Q'].sel(runs = 'Obs.', time = year_2).plot(ax=axes[2], label = 'Obs.', linewidth = lw, color = 'k', linestyle = '--')
         
     for ax in axes:
         ax.tick_params(axis = 'both', labelsize = fs)

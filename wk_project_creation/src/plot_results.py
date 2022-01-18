@@ -22,7 +22,6 @@ from func_plot_signature import plot_clim
 fs = 8
 lw=0.8
 
-#import pdb; pdb.set_trace()
 
 project = snakemake.params.project
 starttime = snakemake.params.starttime
@@ -107,7 +106,6 @@ ds = ds * np.nan
 for id_obs_station in df_obs.columns:
     start_up = max(df_obs.index[0], rng[0])
     end_up = min(df_obs.index[-1], rng[-1])
-#     import pdb; pdb.set_trace()
     ds['Q'].loc[dict(runs = 'Obs.', stations = int(id_obs_station), time = df_obs.loc[start_up:end_up].index)] = df_obs[str(id_obs_station)].loc[start_up:end_up]
 #add model results for all output locations
 for label in labels: # not really needed as only one run, but list is needed for the plot functions. 
@@ -119,8 +117,6 @@ for gauge_id in gauges.index.values+1: #TODO check ids in gauges geojson!!
     ds['EP'].loc[dict(stations = gauge_id, runs = labels[0])] = run01[f'EP_{gauge_id}'].loc[starttime:endtime]
     ds['T'].loc[dict(stations = gauge_id, runs = labels[0])] = run01[f'T_{gauge_id}'].loc[starttime:endtime]
     
-#import pdb; pdb.set_trace()
-
 for station_id, station_name in stations_dic.items():
     print( station_id)
     #skip first year for hydro -- warm up period
@@ -132,11 +128,9 @@ for station_id, station_name in stations_dic.items():
     if len(np.unique(dsq['time.year'])) >= 3:
         year_min = pd.to_datetime(dsq['Q'].sel(runs = 'Mod.').idxmin().values).year
         year_max = pd.to_datetime(dsq['Q'].sel(runs = 'Mod.').idxmax().values).year
-#        plot_hydro(dsq, dsq.time[0], dsq.time[-1], max(dsq.time[0], f"{year_max}-01-01"), min(dsq.time[-1],f"{year_max}-12-31"), max(dsq.time[0], f"{year_min}-01-01"), min(dsq.time[-1], f"{year_min}-12-31"), labels, colors, Folder_plots, station_name)
-        plot_hydro(dsq, dsq.time[0], dsq.time[-1], f"{year_max}-01-01", f"{year_max}-12-31", f"{year_min}-01-01", f"{year_min}-12-31", labels, colors, Folder_plots, station_name)
+        plot_hydro(dsq, dsq.time[0], dsq.time[-1], year_max, year_min, labels, colors, Folder_plots, station_name)
         plt.close()
     else:
-        import pdb; pdb.set_trace()
         plot_hydro_1y(dsq, dsq.time[0], dsq.time[-1], labels, colors, Folder_plots, station_name)
         plt.close()
     #make plot using function
@@ -158,4 +152,4 @@ for gauge_id in gauges.index.values+1:
 
 
 #TODO add summary maps mean prec and temp spatially?
-#TODO add plot of basin, dem, rivers and stations -- this one is checked in snake 
+
