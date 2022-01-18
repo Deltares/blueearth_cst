@@ -53,7 +53,7 @@ markers =   ['o']
 #%%
 
 #read output_locations.csv (should include id, name, x and y coordinate)
-if os.path.exists(observations_timeseries):
+if os.path.exists(output_locations):
     df_output_locs = pd.read_csv(output_locations, header = 0)
     #make a dict of station name and station id 
     stations_dic = dict(df_output_locs[["wflow_id", "station_name"]].values)
