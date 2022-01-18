@@ -1,0 +1,101 @@
+import shutil
+import os
+
+# Parsing the Snakemake config file (options for basins to build, data catalog, model output directory)
+#configfile: "config/snake_config_test.yml"
+project = config['project_name']
+project_dir = config['project_dir']
+model_region = config['model_region']
+model_resolution = config['model_resolution']
+DATA_SOURCES = config["data_sources"]
+
+output_locations = config["output_locations"]
+observations_timeseries = config["observations_timeseries"]
+
+basin_dir = f"{project_dir}/hydrology_model"
+
+# Master rule: end with all model run and analysed with saving a output plot
+rule all:
+    input: 
+        f"{project_dir}/plots/hydro_wflow_1.png",
+        f"{project_dir}/plots/basin_area.png",
+
+# Rule to build model hydromt build wflow
+rule create_model:
+    input:
+        hydromt_ini = "config/wflow_build_model.ini",
+    output:
+        basin_nc = f"{basin_dir}/staticmaps.nc",
+    shell:
+        """hydromt build wflow "{basin_dir}" "{model_region}" -r "{model_resolution}" -i "{input.hydromt_ini}" -d "{DATA_SOURCES}" -vv"""
+
+# Rule to add gauges to the built model
+rule add_gauges:
+    input:
+        basin_nc = f"{basin_dir}/staticmaps.nc"
+    output:
+        gauges_fid = f"{basin_dir}/staticgeoms/gauges.geojson",
+        gauges_output_fid = f"{basin_dir}/staticgeoms/gauges_output-locations-{project}.geojson"
+    params:
+        output_locs = f"config/{output_locations}_{project}.csv"
+    shell:
+        """hydromt update wflow "{basin_dir}" -c setup_gauges -d "{DATA_SOURCES}" --opt gauges_fn="{params.output_locs}" --opt derive_subcatch=True -vv"""
+
+# Rule to prepare the time horizon
+rule setup_runtime:
+    input:
+        gauges_fid = ancient(f"{basin_dir}/staticgeoms/gauges.geojson"),
+        gauges_output_fid = ancient(f"{basin_dir}/staticgeoms/gauges_output-locations-{project}.geojson")
+    output:
+        forcing_ini = f"{project_dir}/config/wflow_build_forcing_historical.ini"
+    params:
+        starttime = config["starttime"],
+        endtime = config["endtime"],
+    script: "src/setup_time_horizon.py"
+
+# Rule to add forcing to the updated model
+rule add_forcing:
+    input:
+        forcing_ini = f"{project_dir}/config/wflow_build_forcing_historical.ini"
+    output:
+        forcing_fid = f"{project_dir}/climate/ERA5/inmaps_historical.nc"
+    shell:
+        """hydromt update wflow "{basin_dir}" -i "{input.forcing_ini}" -d "{DATA_SOURCES}" -vv"""
+
+# Rule to run the wflow model
+rule run_wflow:
+    input:
+        forcing_fid = f"{project_dir}/climate/ERA5/inmaps_historical.nc"
+    output:
+        csv_file = f"{basin_dir}/run_default/output.csv"
+    params:
+        toml_fid = f"{basin_dir}/wflow_sbm.toml"
+    shell:
+        """ julia -e "using Wflow; Wflow.run()" "{params.toml_fid}" """
+
+# Rule to analyse and plot wflow model run results --> final output
+rule plot_results:
+   input:
+       csv_file = f"{basin_dir}/run_default/output.csv",
+       script = "src/plot_results.py"
+   output: 
+       output_png = f"{project_dir}/plots/hydro_wflow_1.png",
+   params:
+       starttime = config["starttime"],
+       endtime = config["endtime"],
+       project_dir = f"{project_dir}",
+       observations_file = f"{project_dir}/observations/{observations_timeseries}_{project}.csv",
+       output_locs = f"config/{output_locations}_{project}.csv",
+       gauges_output_fid = ancient(f"{basin_dir}/staticgeoms/gauges_output-locations-{project}.geojson"),
+   script: "src/plot_results.py"
+
+rule plot_map:
+    input:
+        gauges_fid = ancient(f"{basin_dir}/staticgeoms/gauges.geojson"),
+        gauges_output_fid = ancient(f"{basin_dir}/staticgeoms/gauges_output-locations-{project}.geojson")
+    output:
+        output_map_png = f"{project_dir}/plots/basin_area.png",
+    params:
+        project_dir = f"{project_dir}",
+    script: "src/plot_map.py"
+
