@@ -15,9 +15,6 @@ import hydromt
 
 from func_plot_signature import plot_signatures, plot_hydro, plot_hydro_1y, plot_clim
 
-def intersection(lst1, lst2):
-    lst3 = [value for value in lst1 if value in lst2]
-    return lst3
 
 fs = 8
 lw=0.8
@@ -42,8 +39,7 @@ linestyles = ['-']
 markers =   ['o']
 
 
-#%%
-#test outside snake - to be removed !
+#%% #test outside snake - to be removed !
 #starttime = "2000-01-01T00:00:00"
 #endtime = "2003-12-31T00:00:00"
 #output_locations = r"d:\repos\blueearth_cst\wk_project_creation\config\Gabon\output_locations_Gabon.csv"
@@ -150,12 +146,12 @@ for ds in ds_list:
         #dropna time for signature calculations. 
         #skip first year for signatures -- warm up period -- if model did not run for a full year - skip signature plots 
         if len(ds.time) > 365: 
-        #dit was try: en except ipv else -- werkt nu niet -- check ax.set_tight etc.. maar ook error. 
-            # ds.sel(time = f"{ds['time.year'][0].values+1}-{ds['time.month'][0].values}-{ds['time.day'][0].values}")
             dsq = ds['Q'].sel(index = station_id).sel(time = slice(f"{ds['time.year'][0].values+1}-{ds['time.month'][0].values}-{ds['time.day'][0].values}", None)).to_dataset().dropna(dim='time')
             if (len(dsq['Q'].time)>0) & ("Obs." in dsq["runs"]): #only plot signatures if observations timeseries are present
-                print("observed timeseries are not available - no signature plots are made.")
+                print("observed timeseries are available - making signature plots.")
                 plot_signatures(dsq, labels, colors, linestyles, markers, Folder_plots, station_name)
+            else:
+                print("observed timeseries are not available - no signature plots are made.")
             plt.close()
         else:
             print("less than 1 year of data is available - no signature plots are made.")
