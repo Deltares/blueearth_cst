@@ -1,13 +1,18 @@
 import shutil
 import os
+import numpy as np
 
 # Parsing the Snakemake config file (options for basins to build, data catalog, model output directory)
 #configfile: "config/snake_config_test.yml"
 project = config['project_name']
 project_dir = config['project_dir']
+experiment = config['experiment_name']
+rlz_num = config['realizations_num']
+
 DATA_SOURCES = config["data_sources"]
 
 basin_dir = f"{project_dir}/hydrology_model"
+exp_dir = f"{project_dir}/climate_{experiment}"
 
 starttime = config['starttime']
 endtime = config['endtime']
@@ -15,7 +20,7 @@ endtime = config['endtime']
 # Master rule: end with all model run and analysed with saving a output plot
 rule all:
     input: 
-        f"{project_dir}/climate_historical/raw_data/extract_era5.nc",
+        f"{exp_dir}/realization_{rlz_num}/rlz_{rlz_num}_historical.nc"
 
 # Rule to build model hydromt build wflow
 rule extract_climate_grid:
@@ -30,8 +35,13 @@ rule extract_climate_grid:
     script: "src/extract_historical_climate.py"
 
 # Prepare climate realization
-#rule generate_weather:
-#    input:
-#        climate_nc = f"{project_dir}/climate/historical/raw_data/era5_extract.nc",
-#    output:
-#        real_nc = f"{project_dir}/"
+rule generate_weather_realization:
+    input:
+        climate_nc = ancient(f"{project_dir}/climate_historical/raw_data/extract_era5.nc"),
+    output:
+        f"{exp_dir}/realization_{rlz_num}/rlz_{rlz_num}_historical.nc"
+    params:
+        weagen_config = "config/weathergen_config.yml",
+        output_path = f"{exp_dir}/"
+    script: 
+        "src/weathergen/generate_weather.R"

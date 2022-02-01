@@ -5,6 +5,7 @@ import hydromt
 
 from dask.diagnostics import ProgressBar
 
+# Snake parameters
 region_fn = snakemake.input.prj_region
 fn_out = snakemake.output.climate_nc
 starttime = snakemake.params.starttime
@@ -18,7 +19,7 @@ data_catalog = hydromt.DataCatalog(deltares_data=True)
 print("Extracting historical climate grid")
 ds = data_catalog.get_rasterdataset(
     source, 
-    geom = region,
+    bbox = region.geometry.total_bounds,
     time_tuple = (starttime, endtime),
     buffer = 1,
 )
