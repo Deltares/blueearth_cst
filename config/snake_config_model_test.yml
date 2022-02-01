@@ -1,3 +1,4 @@
+### General setting ###
 # Path to where the wflow model will be stored (include the project name)
 project_name: Gabon
 project_dir: examples/Gabon
@@ -5,6 +6,7 @@ project_dir: examples/Gabon
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
 data_sources: config/deltares_data.yml
 
+### Model building ###
 # hydromt "region" for building the model
 model_region: "{'subbasin': [9.666, 0.4476], 'strord': 5}"
 model_resolution: 0.0062475

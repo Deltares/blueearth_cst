@@ -1,0 +1,37 @@
+import shutil
+import os
+
+# Parsing the Snakemake config file (options for basins to build, data catalog, model output directory)
+#configfile: "config/snake_config_test.yml"
+project = config['project_name']
+project_dir = config['project_dir']
+DATA_SOURCES = config["data_sources"]
+
+basin_dir = f"{project_dir}/hydrology_model"
+
+starttime = config['starttime']
+endtime = config['endtime']
+
+# Master rule: end with all model run and analysed with saving a output plot
+rule all:
+    input: 
+        f"{project_dir}/climate_historical/raw_data/extract_era5.nc",
+
+# Rule to build model hydromt build wflow
+rule extract_climate_grid:
+    input:
+        prj_region = f"{basin_dir}/staticgeoms/region.geojson",
+    params:
+        data_sources = DATA_SOURCES,
+        starttime = starttime,
+        endtime = endtime,
+    output:
+        climate_nc = f"{project_dir}/climate_historical/raw_data/extract_era5.nc",
+    script: "src/extract_historical_climate.py"
+
+# Prepare climate realization
+#rule generate_weather:
+#    input:
+#        climate_nc = f"{project_dir}/climate/historical/raw_data/era5_extract.nc",
+#    output:
+#        real_nc = f"{project_dir}/"
