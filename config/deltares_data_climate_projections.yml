@@ -1,0 +1,31 @@
+root: p:/i1000365-007-blue-earth/ClimateChange
+isimip3_{model}_{scenario}_{realization}:
+  crs: 4326
+  data_type: RasterDataset
+  driver: netcdf
+  kwargs:
+    chunks:
+      lat: 125
+      lon: 120
+      time: 50
+    decode_times: true
+    parallel: true
+  meta:
+    category: climate
+    paper_doi: todo
+    paper_ref: todo
+    source_license: todo
+    source_url: todo
+    source_version: 1.0  
+  placeholders:
+    model: [gfdl, ipsl, mpi, mri, ukesm]
+    scenario: [ssp126, ssp370, ssp585, historical]
+    realization: [r1i1p1f1]
+  path: ISIMIP3/{model}/{scenario}/{variable}/{model}*{realization}*{scenario}*{variable}_global_daily*.nc
+  rename:
+    pr: precip
+    tas: temp
+  unit_add:
+    temp: -273.15
+  unit_mult:
+    precip: 86400

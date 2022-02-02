@@ -1,0 +1,94 @@
+import shutil
+import os
+
+# Parsing the Snakemake config file (options for basins to build, data catalog, model output directory)
+#configfile: "config/snake_config_test.yml"
+project = config['project_name']
+project_dir = config['project_dir']
+DATA_SOURCES = config["data_sources"]
+
+clim_project = config["clim_project"]
+models = config["models"]
+scenarios = config["scenarios"]
+
+time_horizon_hist = config["historical"]
+future_horizons = config["future_horizons"]
+
+start_month_hyd_year = config["start_month_hyd_year"]
+
+basin_dir = f"{project_dir}/hydrology_model"
+
+### Dictionary elements from the config based on wildcards
+def get_horizon(wildcards):
+    return config["future_horizons"][wildcards.horizon]
+
+# Master rule: end with csv with change factors for each scenario and model
+rule all:
+    input: 
+        (project_dir + "/climate_projections/mean_change_annual_scalar_summary.nc"),
+
+ruleorder: monthly_stats_hist > monthly_stats_fut > monthly_change > monthly_change_scalar_merge
+
+# Rule to calculate mean monthly statistics for historical and future scenarios - grid saved to netcdf
+# also calculate monthly time series averaged over the grid.
+rule monthly_stats_hist:
+    input:
+        region_fid = ancient(f"{basin_dir}/staticgeoms/region.geojson"),
+    output:
+        stats_nc_hist = (project_dir + "/climate_projections/historical_stats_{model}.nc"),
+        stats_time_nc_hist = (project_dir + "/climate_projections/historical_stats_time_{model}.nc"),
+    params:
+        yml_fid = DATA_SOURCES,
+        project_dir = f"{project_dir}",
+        time_horizon = time_horizon_hist, 
+        name_horizon = "historical",
+        name_scenario = "historical",
+        name_realisation = "r1i1p1f1",
+        name_model = "{model}",
+        name_clim_project = clim_project,
+    script: "src/get_stats_climate_proj.py"
+
+# Rule to calculate mean monthly statistics for historical and future scenarios - grid saved to netcdf
+# also calculate monthly time series averaged over the grid.
+rule monthly_stats_fut:
+    input:
+        region_fid = ancient(f"{basin_dir}/staticgeoms/region.geojson"),
+    output:
+        stats_nc = (project_dir + "/climate_projections/stats-{model}_{scenario}_{horizon}.nc"),
+        stats_time_nc = (project_dir + "/climate_projections/stats_time-{model}_{scenario}_{horizon}.nc"),
+    params:
+        yml_fid = DATA_SOURCES,
+        project_dir = f"{project_dir}",
+        time_horizon = get_horizon, 
+        name_horizon = "{horizon}",
+        name_scenario = "{scenario}",
+        name_realisation = "r1i1p1f1",
+        name_model = "{model}",
+        name_clim_project = clim_project,
+    script: "src/get_stats_climate_proj.py"
+
+# Rule to calculate change stats over the grid
+rule monthly_change:
+    input:
+        stats_nc_hist = ancient(project_dir + "/climate_projections/historical_stats_{model}.nc"),
+        stats_nc = ancient(project_dir + "/climate_projections/stats-{model}_{scenario}_{horizon}.nc"),
+        stats_time_nc_hist = ancient(project_dir + "/climate_projections/historical_stats_time_{model}.nc"),
+        stats_time_nc = ancient(project_dir + "/climate_projections/stats_time-{model}_{scenario}_{horizon}.nc"),
+    output:
+        stats_nc_change = (project_dir + "/climate_projections/mean_change_annual_scalar-{model}_{scenario}_{horizon}.nc"),
+    params:
+        project_dir = f"{project_dir}",
+    script: "src/get_change_climate_proj.py"
+
+#rule to merge results in one netcdf
+rule monthly_change_scalar_merge:
+    input:
+        stats_nc_change = ancient(expand((project_dir + "/climate_projections/mean_change_annual_scalar-{model}_{scenario}_{horizon}.nc"), model = config["models"], scenario = config["scenarios"], horizon = config["future_horizons"])),
+    output:
+        stats_change_summary = (project_dir + "/climate_projections/mean_change_annual_scalar_summary.nc"),
+    params:
+        project_dir = f"{project_dir}",
+    script: "src/get_change_climate_proj_summary.py"
+
+
+#todo: add rule to delete all temporary files? 
