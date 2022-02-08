@@ -28,6 +28,7 @@ endtime = snakemake.params.endtime
 observations_timeseries = snakemake.params.observations_file
 gauges_output_name = snakemake.params.gauges_output_fid
 gauges_output_name = os.path.basename(gauges_output_name).split(".")[0]
+
 project = gauges_output_name.split("-")[-1]
 
 Folder_plots = f"{project_dir}/plots/wflow_model_performance"
@@ -50,8 +51,8 @@ mod = hydromt.WflowModel(root=Folder_run, mode="r")
 gdf_gauges = mod.staticgeoms["gauges"]
 
 # read outputlocs staticgeoms
-if f"{gauges_output_name}" in mod.staticgeoms:
-    gdf_outlocs = mod.staticgeoms[f"{gauges_output_name}"]
+if f"gauges_{gauges_output_name}" in mod.staticgeoms:
+    gdf_outlocs = mod.staticgeoms[f"gauges_{gauges_output_name}"]
     stationID = "wflow_id"  # column name in staticgeoms containing the stations IDs
     gdf_outlocs.index = gdf_outlocs[stationID]
 
@@ -67,8 +68,8 @@ qsim_gauges = qsim_gauges.assign_coords(
 
 
 # read model output at output locations provided by user
-if f"{gauges_output_name}" in mod.staticgeoms:
-    qsim_outloc = mod.results[f"Q_{gauges_output_name}"]
+if f"gauges_{gauges_output_name}" in mod.staticgeoms:
+    qsim_outloc = mod.results[f"Q_gauges_{gauges_output_name}"]
     # add station_name
     qsim_outloc = qsim_outloc.assign_coords(
         station_name=(
@@ -81,7 +82,7 @@ if f"{gauges_output_name}" in mod.staticgeoms:
         qsim_outloc.to_dataset()
         .assign_coords({"runs": labels[0]})
         .expand_dims("runs")
-        .rename({f"Q_{gauges_output_name}": "Q"})
+        .rename({f"Q_gauges_{gauges_output_name}": "Q"})
     )
 
 # P, EP and T for wflow_subcatch
@@ -98,10 +99,10 @@ ds_clim = xr.merge(
 
 # Discharge data
 # make sure the user provided a observation file and ouput locations
-if (f"{gauges_output_name}" in mod.staticgeoms) & (
+if (f"gauges_{gauges_output_name}" in mod.staticgeoms) & (
     os.path.exists(observations_timeseries)
 ):
-    name = f"Q_{gauges_output_name}"  # gauges locations in staticgeoms
+    name = f"gauges_{gauges_output_name}"  # gauges locations in staticgeoms
     da_ts = hydromt.io.open_timeseries_from_table(
         observations_timeseries, name=name, sep=";"
     )
@@ -112,13 +113,13 @@ if (f"{gauges_output_name}" in mod.staticgeoms) & (
         qobs_outloc.to_dataset()
         .assign_coords({"runs": "Obs."})
         .expand_dims("runs")
-        .rename({f"Q_{gauges_output_name}": "Q"})
+        .rename({f"gauges_{gauges_output_name }": "Q"})
     )
 
 #%% make plots - first loop over output locations
 
 # combine sim and obs at outputloc in one dataset if timeseries observations exist
-if (f"{gauges_output_name}" in mod.staticgeoms) & (
+if (f"gauges_{gauges_output_name}" in mod.staticgeoms) & (
     os.path.exists(observations_timeseries)
 ):
     ds_outlocs = ds_obs.combine_first(ds_sim_outlocs)

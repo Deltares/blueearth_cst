@@ -9,7 +9,7 @@ model_region = config['model_region']
 model_resolution = config['model_resolution']
 DATA_SOURCES = config["data_sources"]
 
-output_locations = config["output_locations"]
+output_locations = config["output_locations" ]
 observations_timeseries = config["observations_timeseries"]
 
 basin_dir = f"{project_dir}/hydrology_model"
@@ -69,7 +69,7 @@ rule run_wflow:
     params:
         toml_fid = f"{basin_dir}/wflow_sbm.toml"
     shell:
-        """ julia -e "using Wflow; Wflow.run()" "{params.toml_fid}" """
+         """ julia -e "using Wflow; Wflow.run()" "{params.toml_fid}" """
 
 # Rule to analyse and plot wflow model run results --> final output
 rule plot_results:
