@@ -108,7 +108,7 @@ for i, ds in enumerate([monthly_change_mean_grid, monthly_change_mean_scalar]):
 
 # stats = ["mean", "std", "median", "q_90", "q_75", "q_10", "q_25"]
 
-def get_change_annual_clim_proj(ds_hist_time, ds_clim_time, stats = ["mean", "std", "median", "q_90", "q_75", "q_10", "q_25"], start_month_hyd_year = "Jan"):
+def get_change_annual_clim_proj(ds_hist_time, ds_clim_time, stats = ["mean", "std", "var", "median", "q_90", "q_75", "q_10", "q_25"], start_month_hyd_year = "Jan"):
     """
 
     Parameters
@@ -118,7 +118,7 @@ def get_change_annual_clim_proj(ds_hist_time, ds_clim_time, stats = ["mean", "st
     ds_clim_time : xarray dataset
         monthly averages of variables over time horizon period, spatially averaged over the grid (projection).
     stats : list of strings of statistics 
-        quantiles should be provided as q_xx. The default is ["mean", "std", "median", "q_90", "q_75", "q_10", "q_25"]
+        quantiles should be provided as q_xx. The default is ["mean", "std", "var", "median", "q_90", "q_75", "q_10", "q_25"]
     start_month_hyd_year : str, optional
         Month start of hydrological year. The default is "Jan".
 
