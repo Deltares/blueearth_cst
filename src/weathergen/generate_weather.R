@@ -16,7 +16,7 @@ ncdata <- weathergenr::readNetcdf(weathergen_input_ncfile)
 
 # STEP 2) GENERATE NEW REALIZATIONS OF HISTORICAL WEATHER DATA
 stochastic_weather <- weathergenr::generateWeatherSeries(
-     output.path = weathergen_output_path,
+     output.path = paste0(weathergen_output_path, "plots/"),
      realization.num = historical_realizations_num,
      variable.names = variables,
      weather.data = ncdata$data,

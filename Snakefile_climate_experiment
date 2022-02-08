@@ -7,7 +7,8 @@ import numpy as np
 project = config['project_name']
 project_dir = config['project_dir']
 experiment = config['experiment_name']
-rlz_num = config['realizations_num']
+RLZ_NUM = config['realizations_num']
+ST_NUM = config['stresstests_num']
 
 DATA_SOURCES = config["data_sources"]
 
@@ -20,7 +21,9 @@ endtime = config['endtime']
 # Master rule: end with all model run and analysed with saving a output plot
 rule all:
     input: 
-        f"{exp_dir}/realization_{rlz_num}/rlz_{rlz_num}_historical.nc"
+        expand((f"{exp_dir}/realization_"+"{rlz_num}"+"/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc"), rlz_num=np.arange(1, RLZ_NUM+1), st_num=np.arange(1, ST_NUM+1))
+        #f"{exp_dir}/realization_{RLZ_NUM}/rlz_{RLZ_NUM}_historical.nc",
+        #f"{exp_dir}/stress_test/cst_{ST_NUM}.csv"
 
 # Rule to build model hydromt build wflow
 rule extract_climate_grid:
@@ -39,9 +42,33 @@ rule generate_weather_realization:
     input:
         climate_nc = ancient(f"{project_dir}/climate_historical/raw_data/extract_era5.nc"),
     output:
-        f"{exp_dir}/realization_{rlz_num}/rlz_{rlz_num}_historical.nc"
+        [f"{exp_dir}/realization_{rlz_num}/rlz_{rlz_num}_historical.nc" for rlz_num in np.arange(1, RLZ_NUM+1)]
     params:
         weagen_config = "config/weathergen_config.yml",
         output_path = f"{exp_dir}/"
     script: 
         "src/weathergen/generate_weather.R"
+
+# Prepare stress test experiment
+rule climate_stress_parameters:
+    input:
+        config = "config/stresstest_config.yml"
+    output:
+        st_csv_fns = [f"{exp_dir}/stress_test/cst_{st_num}.csv" for st_num in np.arange(1, ST_NUM+1)]
+    script:
+        "src/prepare_cst_parameters.py"
+
+# Prepare climate stress tests
+rule generate_climate_stress_test:
+    input:
+        rlz_nc = f"{exp_dir}/realization_"+"{rlz_num}"+"/rlz_"+"{rlz_num}"+"_historical.nc",
+        st_csv = f"{exp_dir}/stress_test/cst_"+"{st_num}"+".csv"
+    output:
+        rlz_st_nc = f"{exp_dir}/realization_"+"{rlz_num}"+"/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc"
+    params:
+        weagen_config = "config/stresstest_config.yml",
+        output_path = f"{exp_dir}/realization_"+"{rlz_num}"+"/",
+        nc_file_prefix = "rlz_"+"{rlz_num}"+"_cst",
+        nc_file_suffix = "{st_num}",
+    script:
+        "src/weathergen/impose_climate_change.R"

@@ -21,4 +21,7 @@ observations_timeseries: observations_timeseries
 
 ### Climate experiment ###
 experiment_name: experiment_01
+# Number of climate realizations
 realizations_num: 3
+# Number of stress tests (temp*precip steps)
+stresstests_num: 6

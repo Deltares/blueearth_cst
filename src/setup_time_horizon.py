@@ -11,7 +11,7 @@ forcing_options = {
         "starttime": starttime,
         "endtime": endtime,
         "timestepsecs": 86400,
-        "input.path_forcing": "../climate_historical/model_data/inmaps_era5.nc",
+        "input.path_forcing": "../climate_historical/wflow_data/inmaps_era5.nc",
     },
     "setup_precip_forcing": {
         "precip_fn": "era5",
