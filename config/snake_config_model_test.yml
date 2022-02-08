@@ -14,6 +14,6 @@ starttime: "2000-01-01T00:00:00"
 endtime: "2003-12-31T00:00:00"
 
 # name of the files wihtout project name suffix
-output_locations: output_locations
-observations_timeseries: observations_timeseries
+output_locations: "config/output-locations-Gabon.csv" # If set to None, will default to the wflow outlets
+observations_timeseries: "data/observations/observations_timeseries_Gabon.csv" 
 
