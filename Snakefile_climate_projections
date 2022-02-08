@@ -17,6 +17,7 @@ future_horizons = config["future_horizons"]
 start_month_hyd_year = config["start_month_hyd_year"]
 
 basin_dir = f"{project_dir}/hydrology_model"
+clim_project_dir = f"{project_dir}/climate_projections/{clim_project}"
 
 ### Dictionary elements from the config based on wildcards
 def get_horizon(wildcards):
@@ -25,7 +26,8 @@ def get_horizon(wildcards):
 # Master rule: end with csv with change factors for each scenario and model
 rule all:
     input: 
-        (project_dir + "/climate_projections/mean_change_annual_scalar_summary.nc"),
+        (clim_project_dir + "/annual_change_scalar_stats_summary.nc"),
+        (clim_project_dir + "/annual_change_scalar_stats_summary.csv"),
 
 ruleorder: monthly_stats_hist > monthly_stats_fut > monthly_change > monthly_change_scalar_merge
 
@@ -35,8 +37,8 @@ rule monthly_stats_hist:
     input:
         region_fid = ancient(f"{basin_dir}/staticgeoms/region.geojson"),
     output:
-        stats_nc_hist = (project_dir + "/climate_projections/historical_stats_{model}.nc"),
-        stats_time_nc_hist = (project_dir + "/climate_projections/historical_stats_time_{model}.nc"),
+        stats_nc_hist = (clim_project_dir + "/historical_stats_{model}.nc"),
+        stats_time_nc_hist = (clim_project_dir + "/historical_stats_time_{model}.nc"),
     params:
         yml_fid = DATA_SOURCES,
         project_dir = f"{project_dir}",
@@ -54,8 +56,8 @@ rule monthly_stats_fut:
     input:
         region_fid = ancient(f"{basin_dir}/staticgeoms/region.geojson"),
     output:
-        stats_nc = (project_dir + "/climate_projections/stats-{model}_{scenario}_{horizon}.nc"),
-        stats_time_nc = (project_dir + "/climate_projections/stats_time-{model}_{scenario}_{horizon}.nc"),
+        stats_nc = (clim_project_dir + "/stats-{model}_{scenario}_{horizon}.nc"),
+        stats_time_nc = (clim_project_dir + "/stats_time-{model}_{scenario}_{horizon}.nc"),
     params:
         yml_fid = DATA_SOURCES,
         project_dir = f"{project_dir}",
@@ -70,24 +72,26 @@ rule monthly_stats_fut:
 # Rule to calculate change stats over the grid
 rule monthly_change:
     input:
-        stats_nc_hist = ancient(project_dir + "/climate_projections/historical_stats_{model}.nc"),
-        stats_nc = ancient(project_dir + "/climate_projections/stats-{model}_{scenario}_{horizon}.nc"),
-        stats_time_nc_hist = ancient(project_dir + "/climate_projections/historical_stats_time_{model}.nc"),
-        stats_time_nc = ancient(project_dir + "/climate_projections/stats_time-{model}_{scenario}_{horizon}.nc"),
+        stats_nc_hist = ancient(clim_project_dir + "/historical_stats_{model}.nc"),
+        stats_nc = ancient(clim_project_dir + "/stats-{model}_{scenario}_{horizon}.nc"),
+        stats_time_nc_hist = ancient(clim_project_dir + "/historical_stats_time_{model}.nc"),
+        stats_time_nc = ancient(clim_project_dir + "/stats_time-{model}_{scenario}_{horizon}.nc"),
     output:
-        stats_nc_change = (project_dir + "/climate_projections/mean_change_annual_scalar-{model}_{scenario}_{horizon}.nc"),
+        stats_nc_change = (clim_project_dir + "/annual_change_scalar_stats-{model}_{scenario}_{horizon}.nc"),
     params:
-        project_dir = f"{project_dir}",
+        clim_project_dir = f"{clim_project_dir}",
+        start_month_hyd_year = start_month_hyd_year, 
     script: "src/get_change_climate_proj.py"
 
 #rule to merge results in one netcdf
 rule monthly_change_scalar_merge:
     input:
-        stats_nc_change = ancient(expand((project_dir + "/climate_projections/mean_change_annual_scalar-{model}_{scenario}_{horizon}.nc"), model = config["models"], scenario = config["scenarios"], horizon = config["future_horizons"])),
+        stats_nc_change = ancient(expand((clim_project_dir + "/annual_change_scalar_stats-{model}_{scenario}_{horizon}.nc"), model = config["models"], scenario = config["scenarios"], horizon = config["future_horizons"])),
     output:
-        stats_change_summary = (project_dir + "/climate_projections/mean_change_annual_scalar_summary.nc"),
+        stats_change_summary = (clim_project_dir + "/annual_change_scalar_stats_summary.nc"),
+        stats_change_summary_csv = (clim_project_dir + "/annual_change_scalar_stats_summary.csv"),
     params:
-        project_dir = f"{project_dir}",
+        clim_project_dir = f"{clim_project_dir}",
     script: "src/get_change_climate_proj_summary.py"
 
 

@@ -14,7 +14,7 @@ import xarray as xr
 
 #%% outside snake
 # folder_model = r"d:\repos\blueearth_cst\examples\Gabon\hydrology_model"
-# folder_out = r"d:\repos\blueearth_cst\examples\Gabon\climate_projections"
+# folder_out = r"d:\repos\blueearth_cst\examples\Gabon\climate_projections\isimip3"
 # path_yml = r"d:\repos\blueearth_cst\config\deltares_data_climate_projections.yml"
 # name_scenario = "historical"
 # name_realisation = "r1i1p1f1"
@@ -41,7 +41,10 @@ name_clim_project = snakemake.params.name_clim_project
 
 #additional folder structure info
 folder_model = os.path.join(project_dir, "hydrology_model")
-folder_out = os.path.join(project_dir, "climate_projections")
+folder_out = os.path.join(project_dir, "climate_projections", name_clim_project)
+
+if not os.path.exists(folder_out):
+    os.mkdir(folder_out)
 
 # initialize model and region properties
 mod = hydromt.WflowModel(root=folder_model, mode='r')
