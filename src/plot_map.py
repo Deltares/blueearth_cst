@@ -25,10 +25,10 @@ import cartopy.io.img_tiles as cimgt
 import hydromt
 
 project_dir = snakemake.params.project_dir
-gauges_fn = snakemake.input.gauges_output_fid
+gauges_fn = snakemake.input.gauges_fid
 gauges_name = basename(gauges_fn).split('.')[0]
 
-Folder_plots = f"{project_dir}/plots"
+Folder_plots = f"{project_dir}/plots/wflow_model_performance"
 root = f"{project_dir}/hydrology_model" 
 
 

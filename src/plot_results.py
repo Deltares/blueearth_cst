@@ -12,6 +12,7 @@ import os
 import matplotlib.pyplot as plt
 import pandas as pd
 import hydromt
+import os
 
 from func_plot_signature import plot_signatures, plot_hydro, plot_hydro_1y, plot_clim
 
@@ -32,28 +33,14 @@ project = gauges_output_name.split('-')[-1]
 Folder_plots = f"{project_dir}/plots/wflow_model_performance"
 Folder_run = f"{project_dir}/hydrology_model" 
 
+if not os.path.isdir(Folder_plots):
+    os.mkdir(Folder_plots)
+
 # Other options
 labels = ['Mod.'] 
 colors = ['orange']
 linestyles = ['-']
 markers =   ['o']
-
-
-#%% #test outside snake - to be removed !
-#starttime = "2000-01-01T00:00:00"
-#endtime = "2003-12-31T00:00:00"
-#output_locations = r"d:\repos\blueearth_cst\wk_project_creation\config\Gabon\output_locations_Gabon.csv"
-#run01 = pd.read_csv(r"d:\repos\blueearth_cst\examples\Gabon\hydrology_model\run_default\output.csv", index_col=0, header=0, parse_dates =True)
-#project = "Gabon"
-#gauges = gpd.read_file(r"d:\repos\blueearth_cst\examples\Gabon\hydrology_model\staticgeoms\gauges.geojson")
-
-# observations_timeseries = r"d:\repos\blueearth_cst\examples\Gabon\observations\observations_timeseries_Gabon.csv"
-# Folder_run = r"d:\repos\blueearth_cst\examples\Gabon\hydrology_model"
-# gauges_output_name = os.path.join("Folder_run","staticgeoms","gauges_output-locations-Gabon.geojson")
-# gauges_output_name = os.path.basename(gauges_output_name).split('.')[0]
-# project = gauges_output_name.split('-')[-1]
-
-# Folder_plots = r"d:\repos\blueearth_cst\examples\Gabon\plots_test"
 
 #%%
 #Instantiate wflow model
@@ -67,7 +54,6 @@ if f"{gauges_output_name}" in mod.staticgeoms:
     gdf_outlocs = mod.staticgeoms[f"{gauges_output_name}"]
     stationID = "wflow_id"  # column name in staticgeoms containing the stations IDs
     gdf_outlocs.index = gdf_outlocs[stationID]
-
 
 #read model output at gauges locations from model setup
 qsim_gauges = mod.results['Q_gauges']
@@ -120,7 +106,7 @@ elif ((f"{gauges_output_name}" in mod.staticgeoms) == True) & (os.path.exists(ob
 # if output locs and observations are available - make hydro plots for gauges and make hydro and signature plots for outputlocs
 else: 
     ds_list = [ds_sim_gauges, ds_outlocs]
-    
+
 #plot and loop over datasets with outlocs and gauges locations 
 for ds in ds_list:
     for station_id, station_name in zip(ds.index.values, ds.station_name.values):
@@ -140,6 +126,7 @@ for ds in ds_list:
             plot_hydro(dsq, dsq.time[0], dsq.time[-1], str(year_max), str(year_min), labels, colors, Folder_plots, station_name)
             plt.close()
         else:
+            print(dsq)
             plot_hydro_1y(dsq, dsq.time[0], dsq.time[-1], labels, colors, Folder_plots, station_name)
             plt.close()
         
