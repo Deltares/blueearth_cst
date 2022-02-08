@@ -29,7 +29,7 @@ gauges_output_name = snakemake.params.gauges_output_fid
 gauges_output_name = os.path.basename(gauges_output_name).split('.')[0]
 project = gauges_output_name.split('-')[-1]
 
-Folder_plots = f"{project_dir}/plots/model_performance"
+Folder_plots = f"{project_dir}/plots/wflow_model_performance"
 Folder_run = f"{project_dir}/hydrology_model" 
 
 # Other options
