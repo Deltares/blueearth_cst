@@ -183,7 +183,6 @@ for ds in ds_list:
             )
             plt.close()
         else:
-            print(dsq)
             plot_hydro_1y(
                 dsq,
                 dsq.time[0],
