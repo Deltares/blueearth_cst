@@ -2,6 +2,7 @@ name: blueearth-cst
 
 channels:
   - conda-forge
+  - r
 
 # notes R packages stats and utils were not found
 dependencies:
@@ -37,6 +38,7 @@ dependencies:
   - r-essentials
   - r-akima
   - r-patchwork
+  - r-doparallel
   - r-devtools
   - r-dplyr
   - r-e1071
@@ -45,7 +47,7 @@ dependencies:
   - r-ggplot2
   - r-MASS
   - r-ncdf4
-  - r-rlang
+#  - r-rlang
   - r-scales
   - r-sf
   - r-tibble
@@ -53,6 +55,7 @@ dependencies:
   - r-r.utils
   - r-yaml
   - rpy2
+  - rtools
   - requests
   - scipy
   - toml

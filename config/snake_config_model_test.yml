@@ -25,3 +25,6 @@ experiment_name: experiment_01
 realizations_num: 3
 # Number of stress tests (temp*precip steps)
 stresstests_num: 6
+# Time horizon for the climate experiment
+starttime_climate: "2030-01-01T00:00:00"
+endtime_climate: "2050-12-31T00:00:00"

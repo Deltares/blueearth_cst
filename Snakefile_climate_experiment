@@ -1,6 +1,7 @@
 import shutil
 import os
 import numpy as np
+import pandas as pd
 
 # Parsing the Snakemake config file (options for basins to build, data catalog, model output directory)
 #configfile: "config/snake_config_test.yml"
@@ -15,13 +16,18 @@ DATA_SOURCES = config["data_sources"]
 basin_dir = f"{project_dir}/hydrology_model"
 exp_dir = f"{project_dir}/climate_{experiment}"
 
+# Time horizon historical
 starttime = config['starttime']
 endtime = config['endtime']
+
+# Time horizon climate experiment
+starttime_climate = config['starttime_climate']
+endtime_climate = config['endtime_climate']
 
 # Master rule: end with all model run and analysed with saving a output plot
 rule all:
     input: 
-        expand((f"{exp_dir}/realization_"+"{rlz_num}"+"/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc"), rlz_num=np.arange(1, RLZ_NUM+1), st_num=np.arange(1, ST_NUM+1))
+        rlz_nc = expand((f"{basin_dir}/run_climate_{experiment}/output_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".csv"), rlz_num=np.arange(1, RLZ_NUM+1), st_num2=np.arange(0, ST_NUM+1)),
         #f"{exp_dir}/realization_{RLZ_NUM}/rlz_{RLZ_NUM}_historical.nc",
         #f"{exp_dir}/stress_test/cst_{ST_NUM}.csv"
 
@@ -35,17 +41,20 @@ rule extract_climate_grid:
         endtime = endtime,
     output:
         climate_nc = f"{project_dir}/climate_historical/raw_data/extract_era5.nc",
-    script: "src/extract_historical_climate.py"
+    script: 
+        "src/extract_historical_climate.py"
 
 # Prepare climate realization
 rule generate_weather_realization:
     input:
         climate_nc = ancient(f"{project_dir}/climate_historical/raw_data/extract_era5.nc"),
     output:
-        [f"{exp_dir}/realization_{rlz_num}/rlz_{rlz_num}_historical.nc" for rlz_num in np.arange(1, RLZ_NUM+1)]
+        [f"{exp_dir}/realization_{rlz_num}/rlz_{rlz_num}_cst_0.nc" for rlz_num in np.arange(1, RLZ_NUM+1)]
     params:
         weagen_config = "config/weathergen_config.yml",
-        output_path = f"{exp_dir}/"
+        output_path = f"{exp_dir}/",
+        start_year = (pd.to_datetime(starttime_climate).year - 2),
+        sim_years = (pd.to_datetime(endtime_climate).year - pd.to_datetime(starttime_climate).year + 2)
     script: 
         "src/weathergen/generate_weather.R"
 
@@ -61,7 +70,7 @@ rule climate_stress_parameters:
 # Prepare climate stress tests
 rule generate_climate_stress_test:
     input:
-        rlz_nc = f"{exp_dir}/realization_"+"{rlz_num}"+"/rlz_"+"{rlz_num}"+"_historical.nc",
+        rlz_nc = f"{exp_dir}/realization_"+"{rlz_num}"+"/rlz_"+"{rlz_num}"+"_cst_0.nc",
         st_csv = f"{exp_dir}/stress_test/cst_"+"{st_num}"+".csv"
     output:
         rlz_st_nc = f"{exp_dir}/realization_"+"{rlz_num}"+"/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc"
@@ -72,3 +81,40 @@ rule generate_climate_stress_test:
         nc_file_suffix = "{st_num}",
     script:
         "src/weathergen/impose_climate_change.R"
+
+# Prepare data catalog of the climate files
+rule climate_data_catalog:
+    input:
+        cst_nc = expand((f"{exp_dir}/realization_"+"{rlz_num}"+"/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc"), rlz_num = np.arange(1, RLZ_NUM+1), st_num = np.arange(1, ST_NUM+1)),
+        rlz_nc = [f"{exp_dir}/realization_{rlz_num}/rlz_{rlz_num}_cst_0.nc" for rlz_num in np.arange(1, RLZ_NUM+1)]
+    output:
+        clim_data = f"{exp_dir}/data_catalog_climate_experiment.yml"
+    params:
+        data_sources = DATA_SOURCES
+    script:
+        "src/prepare_climate_data_catalog.py"
+
+# Downscale climate forcing for use with wflow
+rule downscale_climate_realization:
+    input:
+        nc = f"{exp_dir}/realization_"+"{rlz_num}"+"/rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".nc",
+        data_sources = [f"{exp_dir}/data_catalog_climate_experiment.yml", DATA_SOURCES]
+    output:
+        nc = f"{exp_dir}/realization_"+"{rlz_num}"+"/inmaps_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".nc",
+        toml = f"{basin_dir}/run_climate_{experiment}/wflow_sbm_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".toml"
+    params:
+        model_dir = basin_dir,
+        starttime = starttime_climate,
+        endtime = endtime_climate,
+    script:
+        "src/downscale_climate_forcing.py"
+
+# Run Wflow for all climate forcing
+rule run_wflow:
+    input:
+        forcing_fid = f"{exp_dir}/realization_"+"{rlz_num}"+"/inmaps_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".nc",
+        toml_fid = f"{basin_dir}/run_climate_{experiment}/wflow_sbm_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".toml"
+    output:
+        csv_file = f"{basin_dir}/run_climate_{experiment}/output_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".csv"
+    shell:
+        """ julia -e "using Wflow; Wflow.run()" "{input.toml_fid}" """

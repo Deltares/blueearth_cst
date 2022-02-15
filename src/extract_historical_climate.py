@@ -10,12 +10,13 @@ region_fn = snakemake.input.prj_region
 fn_out = snakemake.output.climate_nc
 starttime = snakemake.params.starttime
 endtime = snakemake.params.endtime
+data_libs = snakemake.params.data_sources
 
 region = gpd.read_file(region_fn)
 
 source = 'era5_daily'
 
-data_catalog = hydromt.DataCatalog(deltares_data=True)
+data_catalog = hydromt.DataCatalog(data_libs=data_libs)
 print("Extracting historical climate grid")
 ds = data_catalog.get_rasterdataset(
     source, 
