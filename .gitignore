@@ -121,3 +121,4 @@ dask-worker-space/
 
 # Examples
 examples/
+.Rproj.user
