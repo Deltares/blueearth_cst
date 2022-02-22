@@ -1,15 +1,6 @@
-################################################################################
-################################################################################
-################################################################################
-# Disable warnings
-options(warn = -1)
 
-# Disable S3 method overwritten message
-Sys.setenv(`_R_S3_METHOD_REGISTRATION_NOTE_OVERWRITES_` = "false")
-
-### GENERAL INPUTS
-
-library(weathergenr)
+# General R settings and prequisites
+source("./src/weathergen/global.R")
 
 # Read config
 yaml <- yaml::read_yaml(snakemake@params[["weagen_config"]])

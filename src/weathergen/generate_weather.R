@@ -1,12 +1,7 @@
-# Disable warnings
-options(warn = -1)
 
-# Disable S3 method overwritten message
-Sys.setenv(`_R_S3_METHOD_REGISTRATION_NOTE_OVERWRITES_` = "false")
 
-#library(weathergenr)
-#install.packages("rlang")
-devtools::install_github("Deltares/weathergenr")
+# General R settings and prequisites
+source("./src/weathergen/global.R")
 
 yaml <- yaml::read_yaml(snakemake@params[["weagen_config"]])
 
@@ -18,10 +13,10 @@ weathergen_input_ncfile <- snakemake@input[["climate_nc"]]
 sim_year_start <- snakemake@params[["start_year"]]
 sim_year_num <- snakemake@params[["sim_years"]]
 
-# STEP 1) READ BASELINE HISTORICAL DATA FROM NETCDF
+# Step 1) Read weather data from the netcdf file
 ncdata <- weathergenr::readNetcdf(weathergen_input_ncfile)
 
-# STEP 2) GENERATE NEW REALIZATIONS OF HISTORICAL WEATHER DATA
+# Step 2) Generate new weather realizations
 stochastic_weather <- weathergenr::generateWeatherSeries(
      output.path = paste0(weathergen_output_path, "plots/"),
      realization.num = historical_realizations_num,
@@ -42,11 +37,11 @@ stochastic_weather <- weathergenr::generateWeatherSeries(
      evaluate.model = yaml$generateWeatherSeries$evaluate.model,
      evaluate.grid.num = yaml$generateWeatherSeries$evaluate.grid.num,
      seed = yaml$generateWeatherSeries$seed,
-     compute.parallel = TRUE,
-     num.cores = NULL
+     compute.parallel = yaml$generateWeatherSeries$compute.parallel,
+     num.cores = yaml$generateWeatherSeries$num.cores
 )
 
-# STEP 3) SAVE EACH GENERATED REALIZATION TO A NETCDF FILE
+# STEP 3) Save each stochastic realization back to a netcdf file
 
 for (n in 1:historical_realizations_num) {
 
@@ -66,7 +61,7 @@ for (n in 1:historical_realizations_num) {
         nc.template.file = weathergen_input_ncfile,
         nc.compression = 4,
         nc.spatial.ref = "spatial_ref",
-        nc.file.prefix = "rlz",
+        nc.file.prefix = nc_file_prefix,
         nc.file.suffix = paste0(n,"_cst_0")
   )
 

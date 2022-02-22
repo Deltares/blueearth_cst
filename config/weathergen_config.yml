@@ -12,15 +12,18 @@ general:
   historical_realizations_num: 3
 
 generateWeatherSeries:
+  sim.year.num: 20
   sim.year.start: 2020
   month.start: 1
-  realization.num: 5
+  realization.num: 3
   warm.variable: precip
   warm.signif.level: 0.90
   warm.sample.num: 5000
   knn.sample.num: 100
-  mc.wet.threshold: 0.3
+  mc.wet.quantile: 0.2
   mc.extreme.quantile: 0.8
   evaluate.model: TRUE
   evaluate.grid.num: 20
+  compute.parallel: FALSE
+  num.cores: 2
   seed: 12345
