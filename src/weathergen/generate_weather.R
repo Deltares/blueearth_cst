@@ -12,6 +12,7 @@ variables <- yaml$general$variables
 weathergen_input_ncfile <- snakemake@input[["climate_nc"]]
 sim_year_start <- snakemake@params[["start_year"]]
 sim_year_num <- snakemake@params[["sim_years"]]
+nc_file_prefix <- snakemake@params[["nc_file_prefix"]]
 
 # Step 1) Read weather data from the netcdf file
 ncdata <- weathergenr::readNetcdf(weathergen_input_ncfile)
