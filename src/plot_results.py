@@ -11,155 +11,228 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 import pandas as pd
-import geopandas as gpd
 import hydromt
+import os
 
 from func_plot_signature import plot_signatures, plot_hydro, plot_hydro_1y, plot_clim
 
+
 fs = 8
-lw=0.8
+lw = 0.8
 
 # Snakemake options
 project_dir = snakemake.params.project_dir
 starttime = snakemake.params.starttime
 endtime = snakemake.params.endtime
 
-output_locations = snakemake.params.output_locs
 observations_timeseries = snakemake.params.observations_file
 gauges_output_name = snakemake.params.gauges_output_fid
-gauges_output_name = os.path.basename(gauges_output_name).split('.')[0]
+gauges_output_name = os.path.basename(gauges_output_name).split(".")[0]
 
-Folder_plots = f"{project_dir}/plots"
-Folder_run = f"{project_dir}/hydrology_model" 
+project = gauges_output_name.split("-")[-1]
+
+Folder_plots = f"{project_dir}/plots/wflow_model_performance"
+Folder_run = f"{project_dir}/hydrology_model"
+
+if not os.path.isdir(Folder_plots):
+    os.mkdir(Folder_plots)
 
 # Other options
-case = "run_default" #do we want at some point to show multiple cases? 
-labels = ['Mod.']
-colors = ['orange']
-linestyles = ['-']
-markers =   ['o']
-
+labels = ["Mod."]
+colors = ["orange"]
+linestyles = ["-"]
+markers = ["o"]
 
 #%%
-#test outside snake - to be removed !
-#starttime = "2000-01-01T00:00:00"
-#endtime = "2003-12-31T00:00:00"
-#output_locations = r"d:\repos\blueearth_cst\wk_project_creation\config\Gabon\output_locations_Gabon.csv"
-#observations_timeseries = r"d:\repos\blueearth_cst\examples\Gabon\observations\observations_timeseries_Gabon.csv"
-#run01 = pd.read_csv(r"d:\repos\blueearth_cst\examples\Gabon\hydrology_model\run_default\output.csv", index_col=0, header=0, parse_dates =True)
-#project = "Gabon"
-#gauges = gpd.read_file(r"d:\repos\blueearth_cst\examples\Gabon\hydrology_model\staticgeoms\gauges.geojson")
+# Instantiate wflow model
+mod = hydromt.WflowModel(root=Folder_run, mode="r")
 
-#%%
-#Instantiate wflow model
-mod = hydromt.WflowModel(root=Folder_run, mode='r')
+# read gauges staticgeoms
+gdf_gauges = mod.staticgeoms["gauges"]
 
-#%%
-#HB: use sttaicgeoms instead
-#output_locs = mod.staticgeoms[gauges_output_name]
-#read output_locations.csv (should include id, name, x and y coordinate)
-if os.path.exists(output_locations):
-    df_output_locs = pd.read_csv(output_locations, header = 0)
-    #make a dict of station name and station id 
-    stations_dic = dict(df_output_locs[["wflow_id", "station_name"]].values)
+# read outputlocs staticgeoms
+if f"gauges_{gauges_output_name}" in mod.staticgeoms:
+    gdf_outlocs = mod.staticgeoms[f"gauges_{gauges_output_name}"]
+    stationID = "wflow_id"  # column name in staticgeoms containing the stations IDs
+    gdf_outlocs.index = gdf_outlocs[stationID]
+
+# read model output at gauges locations from model setup
+qsim_gauges = mod.results["Q_gauges"]
+# add station_name
+qsim_gauges = qsim_gauges.assign_coords(
+    station_name=(
+        "index",
+        ["wflow_" + x for x in list(qsim_gauges["index"].values.astype(str))],
+    )
+)
+
+
+# read model output at output locations provided by user
+if f"gauges_{gauges_output_name}" in mod.staticgeoms:
+    qsim_outloc = mod.results[f"Q_gauges_{gauges_output_name}"]
+    # add station_name
+    qsim_outloc = qsim_outloc.assign_coords(
+        station_name=(
+            "index",
+            list(gdf_outlocs["station_name"][qsim_outloc.index.values].values),
+        )
+    )
+    # rename run to label and rename var to Q
+    ds_sim_outlocs = (
+        qsim_outloc.to_dataset()
+        .assign_coords({"runs": labels[0]})
+        .expand_dims("runs")
+        .rename({f"Q_gauges_{gauges_output_name}": "Q"})
+    )
+
+# P, EP and T for wflow_subcatch
+ds_clim = xr.merge(
+    [
+        mod.results["P_subcatchment"],
+        mod.results["T_subcatchment"],
+        mod.results["EP_subcatchment"],
+    ]
+)
+
+#%% Read the observations data
+# read timeseries data and match with existing gdf
+
+# Discharge data
+# make sure the user provided a observation file and ouput locations
+if (f"gauges_{gauges_output_name}" in mod.staticgeoms) & (
+    os.path.exists(observations_timeseries)
+):
+    name = f"gauges_{gauges_output_name}"  # gauges locations in staticgeoms
+    da_ts = hydromt.io.open_timeseries_from_table(
+        observations_timeseries, name=name, sep=";"
+    )
+    da = hydromt.vector.GeoDataArray.from_gdf(gdf_outlocs, da_ts, index_dim="index")
+    qobs_outloc = da
+    # rename run to Obs. and rename var to Q
+    ds_obs = (
+        qobs_outloc.to_dataset()
+        .assign_coords({"runs": "Obs."})
+        .expand_dims("runs")
+        .rename({f"gauges_{gauges_output_name }": "Q"})
+    )
+
+#%% make plots - first loop over output locations
+
+# combine sim and obs at outputloc in one dataset if timeseries observations exist
+if (f"gauges_{gauges_output_name}" in mod.staticgeoms) & (
+    os.path.exists(observations_timeseries)
+):
+    ds_outlocs = ds_obs.combine_first(ds_sim_outlocs)
+
+# rename Q in modeled dataset at gauges locations
+ds_sim_gauges = (
+    qsim_gauges.to_dataset()
+    .assign_coords({"runs": labels[0]})
+    .expand_dims("runs")
+    .rename({"Q_gauges": "Q"})
+)
+
+# select dataset based on gauges or/and outputloc locations
+# if no user output and observations are provided:
+if ((f"{gauges_output_name}" in mod.staticgeoms) == False) & (
+    os.path.exists(observations_timeseries) == False
+):
+    ds_list = [ds_sim_gauges]
+# if user output locs are available but no observations timeseries:
+elif ((f"{gauges_output_name}" in mod.staticgeoms) == True) & (
+    os.path.exists(observations_timeseries) == False
+):
+    ds_list = [ds_sim_gauges, ds_sim_outlocs]
+# if output locs and observations are available - make hydro plots for gauges and make hydro and signature plots for outputlocs
 else:
-    stations_dic = dict()
+    ds_list = [ds_sim_gauges, ds_outlocs]
 
-#add wflow locations already present in wflow_gauges (check if id's are not duplicated from output_locations file)
-#HB: use staticgeoms instead
-#gauges = gpd.read_file(os.path.join(Folder_run, "staticgeoms", "gauges.geojson"))
-gauges = mod.staticgeoms["gauges"]
-for gauge_id in gauges.index.values+1: #TODO check ids in gauges geojson!!
-    print(gauge_id)
-    if gauge_id in stations_dic:
-        print("wflow id and output location id overlap")
-    else:
-        stations_dic[gauge_id] = f"wflow_{gauge_id}"
-#stations_dic[1] = project #TODO check!
-stations = list(stations_dic.keys()) #+ [1] #TODO check how to deal with id 1 of gauges from setup 
+# plot and loop over datasets with outlocs and gauges locations
+for ds in ds_list:
+    for station_id, station_name in zip(ds.index.values, ds.station_name.values):
+        print(station_id, station_name)
+        # skip first year for hydro -- warm up period
+        if len(ds.time) > 365:
+            dsq = ds.sel(index=station_id).sel(
+                time=slice(
+                    f"{ds['time.year'][0].values+1}-{ds['time.month'][0].values}-{ds['time.day'][0].values}",
+                    None,
+                )
+            )  # .dropna(dim='time')
+        else:
+            dsq = ds.sel(index=station_id)
+        # plot hydro
+        if len(np.unique(dsq["time.year"])) >= 3:
+            year_min = pd.to_datetime(dsq["Q"].sel(runs="Mod.").idxmin().values).year
+            year_max = pd.to_datetime(dsq["Q"].sel(runs="Mod.").idxmax().values).year
+            # if min and max occur during the same year, select 2nd year with modeled min flow:
+            if year_min == year_max:
+                year_min = (
+                    dsq.resample(time="A").min("time").isel(time=1)["time.year"].values
+                )
+            plot_hydro(
+                dsq,
+                dsq.time[0],
+                dsq.time[-1],
+                str(year_max),
+                str(year_min),
+                labels,
+                colors,
+                Folder_plots,
+                station_name,
+            )
+            plt.close()
+        else:
+            plot_hydro_1y(
+                dsq,
+                dsq.time[0],
+                dsq.time[-1],
+                labels,
+                colors,
+                Folder_plots,
+                station_name,
+            )
+            plt.close()
 
-#HB: not sure how the plots are done but if by station can you first loop over output location and then loop over gauges? Or even a dict and keys in dict?
-# then no 'tough' merging handling to do
+        # dropna time for signature calculations.
+        # skip first year for signatures -- warm up period -- if model did not run for a full year - skip signature plots
+        if len(ds.time) > 365:
+            dsq = (
+                ds["Q"]
+                .sel(index=station_id)
+                .sel(
+                    time=slice(
+                        f"{ds['time.year'][0].values+1}-{ds['time.month'][0].values}-{ds['time.day'][0].values}",
+                        None,
+                    )
+                )
+                .to_dataset()
+                .dropna(dim="time")
+            )
+            if (len(dsq["Q"].time) > 0) & (
+                "Obs." in dsq["runs"]
+            ):  # only plot signatures if observations timeseries are present
+                print("observed timeseries are available - making signature plots.")
+                plot_signatures(
+                    dsq, labels, colors, linestyles, markers, Folder_plots, station_name
+                )
+            else:
+                print(
+                    "observed timeseries are not available - no signature plots are made."
+                )
+            plt.close()
+        else:
+            print(
+                "less than 1 year of data is available - no signature plots are made."
+            )
 
-#read observation timeseries TODO check format 
-#rows with variable and unit are skipped
-#TODO: sep , or ; and dayfirst or not 
-if os.path.exists(observations_timeseries):
-    df_obs = pd.read_csv(observations_timeseries, header = 0, parse_dates = True, index_col=0, sep = ';', skiprows = [1,2])  
-else:
-    df_obs = pd.DataFrame()
-
-
-## read csv modeled timeseries
-run01 = pd.read_csv(os.path.join(Folder_run, case, "output.csv"), index_col=0, header=0, parse_dates =True)
-
-
-#make dataset to combine results from several runs
-variables = ['Q', 'P', 'EP', 'T']
-runs = ['Obs.'] + labels
-rng = pd.date_range(starttime, endtime)
-
-S = np.zeros((len(rng), len(stations), len(runs)))
-v = (('time', 'stations', 'runs'), S)
-h = {k:v for k in variables}
-
-ds = xr.Dataset(
-        data_vars=h, 
-        coords={'time': rng,
-                'stations': stations,
-                'runs': runs})
-ds = ds * np.nan
-
-
-#TODO: id 1 from gauges also in output !! 
-#fill dataset with model and observed data
-for id_obs_station in df_obs.columns:
-    start_up = max(df_obs.index[0], rng[0])
-    end_up = min(df_obs.index[-1], rng[-1])
-    ds['Q'].loc[dict(runs = 'Obs.', stations = int(id_obs_station), time = df_obs.loc[start_up:end_up].index)] = df_obs[str(id_obs_station)].loc[start_up:end_up]
-#add model results for all output locations
-for label in labels: # not really needed as only one run, but list is needed for the plot functions. 
-    ds['Q'].loc[dict(runs = label)] = run01[['Q_' + sub for sub in list(map(str,stations))]].loc[starttime:endtime]
-
-#add P and PET for basin outlet - TODO for each id of subcatch
-for gauge_id in gauges.index.values+1: #TODO check ids in gauges geojson!!
-    ds['P'].loc[dict(stations = gauge_id, runs = labels[0])] = run01[f'P_{gauge_id}'].loc[starttime:endtime]
-    ds['EP'].loc[dict(stations = gauge_id, runs = labels[0])] = run01[f'EP_{gauge_id}'].loc[starttime:endtime]
-    ds['T'].loc[dict(stations = gauge_id, runs = labels[0])] = run01[f'T_{gauge_id}'].loc[starttime:endtime]
-    
-for station_id, station_name in stations_dic.items():
-    print( station_id)
-    #skip first year for hydro -- warm up period
-    if len(ds.time) > 365:
-        dsq = ds.sel(stations = station_id).sel(time = slice(f'{rng[0].year+1}-{rng[0].month}-{rng[0].day}', None))#.dropna(dim='time')
-    else:
-        dsq = ds.sel(stations = station_id)
-    #plot hydro
-    if len(np.unique(dsq['time.year'])) >= 3:
-        year_min = pd.to_datetime(dsq['Q'].sel(runs = 'Mod.').idxmin().values).year
-        year_max = pd.to_datetime(dsq['Q'].sel(runs = 'Mod.').idxmax().values).year
-        plot_hydro(dsq, dsq.time[0], dsq.time[-1], str(year_max), str(year_min), labels, colors, Folder_plots, station_name)
-        plt.close()
-    else:
-        plot_hydro_1y(dsq, dsq.time[0], dsq.time[-1], labels, colors, Folder_plots, station_name)
-        plt.close()
-    #make plot using function
-    #dropna for signature calculations. 
-    #skip first year for signatures -- warm up period -- if model did not run for a full year - skip signature plots 
-    try:
-        ds.sel(time = f'{rng[0].year+1}-{rng[0].month}-{rng[0].day}')
-        dsq = ds['Q'].sel(stations = station_id).sel(time = slice(f'{rng[0].year+1}-{rng[0].month}-{rng[0].day}', None)).to_dataset().dropna(dim='time')
-        if len(dsq['Q'])>0: #only plot signatures if observations are present
-            plot_signatures(dsq, labels, colors, linestyles, markers, Folder_plots, station_name)
-        plt.close()
-    except:
-        print("less than 1 year of data is available - no signature plots are made.")
-
-for gauge_id in gauges.index.values+1:
-    ds_clim = ds[['P', 'EP', 'T']].sel(stations = gauge_id, runs = labels[0])
-    plot_clim(ds_clim, Folder_plots, f"wflow_{gauge_id}")
+for index in ds_clim.index.values:
+    print(f"Plot climatic data at wflow basin {index}")
+    ds_clim_i = ds_clim[["P_subcatchment", "EP_subcatchment", "T_subcatchment"]].sel(
+        index=index
+    )
+    plot_clim(ds_clim_i, Folder_plots, f"wflow_{index}")
     plt.close()
 
 
-#TODO add summary maps mean prec and temp spatially?
-
+# TODO add summary maps mean prec and temp spatially?

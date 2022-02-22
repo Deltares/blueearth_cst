@@ -25,8 +25,8 @@ forcing_options = {
         "pet_method": "debruin",
         "skip_pet ": False,
     },
-    "write_config":{},
-    "write_forcing":{},
+    "write_config": {},
+    "write_forcing": {},
 }
 
 # Save it to a hydroMT ini file

@@ -5,8 +5,8 @@ Created on Thu Jan 13 16:23:11 2022
 @author: bouaziz
 """
 
-#%% plot map 
-    
+#%% plot map
+
 import pandas as pd
 import xarray as xr
 import numpy as np
@@ -19,17 +19,18 @@ from matplotlib import cm, colors
 # plot maps dependencies
 import matplotlib.patches as mpatches
 import cartopy.crs as ccrs
-#import descartes  # required to plot polygons
+
+# import descartes  # required to plot polygons
 import cartopy.io.img_tiles as cimgt
 
 import hydromt
 
 project_dir = snakemake.params.project_dir
-gauges_fn = snakemake.input.gauges_output_fid
-gauges_name = basename(gauges_fn).split('.')[0]
+gauges_fn = snakemake.input.gauges_fid
+gauges_name = basename(gauges_fn).split(".")[0]
 
-Folder_plots = f"{project_dir}/plots"
-root = f"{project_dir}/hydrology_model" 
+Folder_plots = f"{project_dir}/plots/wflow_model_performance"
+root = f"{project_dir}/hydrology_model"
 
 
 mod = hydromt.WflowModel(root, mode="r")
@@ -100,7 +101,12 @@ if "gauges" in mod.staticgeoms:
     )
 if gauges_name in mod.staticgeoms:
     mod.staticgeoms[gauges_name].plot(
-        ax=ax, marker="d", markersize=25, facecolor="blue", zorder=5, label="output locs"
+        ax=ax,
+        marker="d",
+        markersize=25,
+        facecolor="blue",
+        zorder=5,
+        label="output locs",
     )
 patches = (
     []
@@ -137,4 +143,3 @@ legend = ax.legend(
 # NOTE create figs folder in model root if it does not exist
 # fn_out = join(mod.root, "figs", "basemap.png")
 plt.savefig(os.path.join(Folder_plots, "basin_area.png"), dpi=300, bbox_inches="tight")
-    
