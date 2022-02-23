@@ -54,7 +54,7 @@ rule generate_weather_realization:
         weagen_config = "config/weathergen_config.yml",
         output_path = f"{exp_dir}/",
         start_year = (pd.to_datetime(starttime_climate).year - 2),
-        sim_years = (pd.to_datetime(endtime_climate).year - pd.to_datetime(starttime_climate).year + 2)
+        sim_years = (pd.to_datetime(endtime_climate).year - pd.to_datetime(starttime_climate).year + 2),
         nc_file_prefix = "rlz",
     script: 
         "src/weathergen/generate_weather.R"
