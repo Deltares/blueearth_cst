@@ -4,24 +4,16 @@ source("./src/weathergen/global.R")
 
 # Read config
 yaml <- yaml::read_yaml(snakemake@params[["weagen_config"]])
-
-# path to the base nc file [string]
 output_path <- snakemake@params[["output_path"]]
-
-# What prefix we want to attach to the final scenario name when writing back to nc? [string]
 nc_file_prefix <- snakemake@params[["nc_file_prefix"]]
-
-# What suffix we want to attach to the final scenario name when writing back to nc? [string]
-# (index to keep track of both natural variability realization and current climate change run)
 nc_file_suffix <- snakemake@params[["nc_file_suffix"]]
 
-# temp_change_type [string]
+# temp_change_type/precip_change_type [string]
 temp_change_type = yaml$temp$change_type
-
-# precip_change_type [string]
 precip_change_type = yaml$precip$change_type
 
-### RUN SPECIFIC INPUTS (changes in the loop)
+
+# Inputs varied within the loop ++++++++++++++++++++++++++++++++++++++++++++++
 
 # stochastic_nc = Name of the gridded historical realization nc file [string]
 stochastic_nc <- snakemake@input[["rlz_nc"]]
@@ -38,14 +30,6 @@ current_precip_variance_change <- cst_data$precip_mean
 
 # strtest_matrix_temp_mean = vector of monthly temperature mean changes, ad DegC [numeric vector with 12 values]
 current_temp_mean_change <- cst_data$precip_variance
-
-
-################################################################################
-################################################################################
-################################################################################
-
-
-# THIS IS THE MAIN WORKFLOW TO BE CALLED FROM R #
 
 #rlz_input_name <- paste0(output_path, "/", stochastic_nc)
 rlz_input <- readNetcdf(stochastic_nc)

@@ -123,9 +123,10 @@ dask-worker-space/
 examples/
 .Rproj.user
 
-# Other R-related files
+# R-related files
 /config/reticulate_config.R
 
+# Images
 *.png
 
 
