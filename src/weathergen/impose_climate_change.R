@@ -32,7 +32,7 @@ current_precip_variance_change <- cst_data$precip_mean
 current_temp_mean_change <- cst_data$precip_variance
 
 #rlz_input_name <- paste0(output_path, "/", stochastic_nc)
-rlz_input <- readNetcdf(stochastic_nc)
+rlz_input <- weathergenr::readNetcdf(stochastic_nc)
 
 # Apply climate changes to baseline weather data stored in the nc file
 rlz_future <- imposeClimateChanges(
@@ -46,7 +46,7 @@ rlz_future <- imposeClimateChanges(
    change.type.precip = precip_change_type)
 
  # Save to netcdf file
- writeNetcdf(
+ weathergenr::writeNetcdf(
    data = rlz_future,
    coord.grid = rlz_input$grid,
    output.path = output_path,

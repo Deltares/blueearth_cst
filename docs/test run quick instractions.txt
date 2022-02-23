@@ -1,0 +1,26 @@
+
+
+# Command-line tool test run instructions
+
+Prequisites:
+- Install conda 
+
+
+
+
+1) Install Blueearth_cst from the github repository:
+https://github.com/Deltares/blueearth_cst
+
+2) Install Blueearth-cst environment using conda:
+onda env create -f environment.yml
+
+3) Copy /examples folder to Blueearth-cst directory
+/path_to_blueearth_cst/examples
+
+
+4) From command prompt activate Blueearth-cst and go to folder
+activate Blueearth-cst
+cd /path_to_blueearth_cst/
+
+5) Run test snakefile
+run_snake_test.cmd
