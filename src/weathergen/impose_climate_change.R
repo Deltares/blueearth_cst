@@ -35,7 +35,7 @@ current_temp_mean_change <- cst_data$precip_variance
 rlz_input <- weathergenr::readNetcdf(stochastic_nc)
 
 # Apply climate changes to baseline weather data stored in the nc file
-rlz_future <- imposeClimateChanges(
+rlz_future <- weathergenr::imposeClimateChanges(
    climate.data = rlz_input$data,
    climate.grid = rlz_input$grid,
    sim.dates = rlz_input$date,
