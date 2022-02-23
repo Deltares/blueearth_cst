@@ -3,12 +3,13 @@
 # General R settings and prequisites
 source("./src/weathergen/global.R")
 
+# Read parameters from the yaml file
 yaml <- yaml::read_yaml(snakemake@params[["weagen_config"]])
-
-# General settings
-weathergen_output_path <- snakemake@params[["output_path"]]
 historical_realizations_num <- yaml$general$historical_realizations_num
 variables <- yaml$general$variables
+
+# Parameters set through snakemake
+weathergen_output_path <- snakemake@params[["output_path"]]
 weathergen_input_ncfile <- snakemake@input[["climate_nc"]]
 sim_year_start <- snakemake@params[["start_year"]]
 sim_year_num <- snakemake@params[["sim_years"]]
@@ -31,9 +32,9 @@ stochastic_weather <- weathergenr::generateWeatherSeries(
      warm.variable = yaml$generateWeatherSeries$warm.variable,
      warm.signif.level = yaml$generateWeatherSeries$warm.signif.level,
      warm.sample.num = yaml$generateWeatherSeries$warm.sample.num,
-     warm.subset.criteria= yaml$generateWeatherSeries$warm.subset.criteria,
+     warm.subset.criteria = yaml$generateWeatherSeries$warm.subset.criteria,
      knn.sample.num = yaml$generateWeatherSeries$knn.sample.num,
-     mc.wet.quantile = yaml$generateWeatherSeries$mc.wet.threshold,
+     mc.wet.quantile = yaml$generateWeatherSeries$mc.wet.quantile,
      mc.extreme.quantile = yaml$generateWeatherSeries$mc.extreme.quantile,
      evaluate.model = yaml$generateWeatherSeries$evaluate.model,
      evaluate.grid.num = yaml$generateWeatherSeries$evaluate.grid.num,

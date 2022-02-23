@@ -18,12 +18,13 @@ generateWeatherSeries:
   realization.num: 3
   warm.variable: precip
   warm.signif.level: 0.90
-  warm.sample.num: 5000
+  warm.sample.num: 20000
+  warm.subset.criteria: NULL
   knn.sample.num: 100
   mc.wet.quantile: 0.2
   mc.extreme.quantile: 0.8
   evaluate.model: TRUE
   evaluate.grid.num: 20
   compute.parallel: FALSE
-  num.cores: 2
+  num.cores: NULL
   seed: 12345
