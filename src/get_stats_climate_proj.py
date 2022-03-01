@@ -12,16 +12,20 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import xarray as xr
 
-#%% outside snake
+#%% outside snake - can be removed after review!
 # folder_model = r"d:\repos\blueearth_cst\examples\Gabon\hydrology_model"
-# folder_out = r"d:\repos\blueearth_cst\examples\Gabon\climate_projections\isimip3"
+# folder_out = r"d:\repos\blueearth_cst\examples\Gabon\climate_projections\cmip5"
 # path_yml = r"d:\repos\blueearth_cst\config\deltares_data_climate_projections.yml"
 # name_scenario = "historical"
-# name_realisation = "r1i1p1f1"
-# name_clim_project = "isimip3"
-# name_model = "ipsl"
-# time_tuple = ('1991-01-01', '2014-12-31')
-# time_tuple_fut = ('2071-01-01', '2100-12-31')
+# name_scenario = "rcp45"
+# name_members = ["r1i1p1", "r1i1p2"]
+# name_clim_project = "cmip5"
+# name_model = "HadGEM2-ES"
+# #time_tuple = ('1991-01-01', '2014-12-31')
+# #time_tuple_fut = ('2071-01-01', '2100-12-31')
+# time_tuple = ("2020","2060")
+# name_horizon = "near"
+# variables = ["precip", "temp", "temp_min", "temp_max"]
 
 #%%
 
@@ -35,9 +39,10 @@ time_tuple = snakemake.params.time_horizon
 time_tuple = tuple(map(str, time_tuple.split(', ')))
 name_horizon = snakemake.params.name_horizon
 name_scenario = snakemake.params.name_scenario
-name_realisation = snakemake.params.name_realisation
+name_members = snakemake.params.name_members
 name_model = snakemake.params.name_model
 name_clim_project = snakemake.params.name_clim_project
+variables = snakemake.params.variables
 
 #additional folder structure info
 folder_model = os.path.join(project_dir, "hydrology_model")
@@ -55,10 +60,12 @@ buffer = 1
 #initialize data_catalog from yml file
 data_catalog = hydromt.DataCatalog(data_libs=path_yml)
 
-def get_stats_clim_projections(name_clim_project, name_model, name_scenario, name_realisation, geom, time_tuple, buffer):
+def get_stats_clim_projections(data, name_clim_project, name_model, name_scenario, name_member, geom, time_tuple, buffer):
     """
     Parameters
     ----------
+    data: dataset
+        dataset for all available variables after opening data catalog
     name_clim_project : str
         name of the climate project (e.g. cmip5, cmip6, isimip3).
         should link to the name in the yml catalog. 
@@ -66,8 +73,8 @@ def get_stats_clim_projections(name_clim_project, name_model, name_scenario, nam
         model name of the climate model (e.g. ipsl, gfdl).
     name_scenario : str
         scenario name of the climate model (e.g. rcp4.5, rcp8.5).
-    name_realisation : str
-        realisation name of the climate model (e.g. r1i1p1f1).
+    name_member : str
+        member name of the climate model (e.g. r1i1p1f1).
     geom : polygon
         model region file.
     time_tuple : tuple
@@ -81,7 +88,6 @@ def get_stats_clim_projections(name_clim_project, name_model, name_scenario, nam
     todo: Writes a csv file with mean monthly timeseries of precip and temp statistics (mean) over the geom
 
     """
-    data = data_catalog.get_rasterdataset(f"{name_clim_project}_{name_model}_{name_scenario}_{name_realisation}", bbox=bbox, buffer=buffer, time_tuple=time_tuple)
     
     #get lat lon name of data
     for dim in XDIMS:
@@ -93,13 +99,18 @@ def get_stats_clim_projections(name_clim_project, name_model, name_scenario, nam
     
     ds = []
     ds_scalar = []
-    for var in data.data_vars:
+    #filter variables for precip and temp 
+    # data_vars = list(data.data_vars)
+    # var_list = [str for str in data_vars if any(sub in str for sub in variables)]
+    for var in data.data_vars: #var_list: 
         if var == "precip":
-            var_m = data[var].resample(time='M').sum('time')
+            var_m = data[var].resample(time='MS').sum('time')
         else: #for temp
-            var_m = data[var].resample(time='M').mean('time')
+        # elif "temp" in var: #for temp
+            var_m = data[var].resample(time='MS').mean('time')
 
         #get scalar average over grid for each month
+        var_m = var_m.sel(time = slice(*time_tuple)) #needed for cmip5 cftime.Datetime360Day which is not picked up before.
         var_m_scalar = var_m.mean([x_dim, y_dim])
         ds_scalar.append(var_m_scalar.to_dataset())
         
@@ -115,33 +126,99 @@ def get_stats_clim_projections(name_clim_project, name_model, name_scenario, nam
                               "model":f"{name_model}",
                               "scenario":f"{name_scenario}",
                               "horizon":f"{name_horizon}",
-                              "realisation":f"{name_realisation}",
-                              }).expand_dims(["clim_project", "model", "scenario", "horizon", "realisation"])
+                              "member":f"{name_member}",
+                              }).expand_dims(["clim_project", "model", "scenario", "horizon", "member"])
     
     #same for time scalar dataset
     mean_stats_time = mean_stats_time.assign_coords({"clim_project":f"{name_clim_project}",
                               "model":f"{name_model}",
                               "scenario":f"{name_scenario}",
                               "horizon":f"{name_horizon}",
-                              "realisation":f"{name_realisation}",
-                              }).expand_dims(["clim_project", "model", "scenario", "horizon", "realisation"])
-    
-    #use hydromt function instead to write to netcdf?
-    dvars = mean_stats.raster.vars
+                              "member":f"{name_member}",
+                              }).expand_dims(["clim_project", "model", "scenario", "horizon", "member"])
 
-    if name_scenario == "historical":
-        name_nc_out = f"historical_stats_{name_model}.nc"
-        name_nc_out_time = f"historical_stats_time_{name_model}.nc"
+    # #use hydromt function instead to write to netcdf?
+    # dvars = mean_stats.raster.vars
+
+    # if name_scenario == "historical":
+    #     name_nc_out = f"historical_stats_{name_model}.nc"
+    #     name_nc_out_time = f"historical_stats_time_{name_model}.nc"
+    # else:
+    #     name_nc_out = f"stats-{name_model}_{name_scenario}_{name_horizon}.nc"
+    #     name_nc_out_time = f"stats_time-{name_model}_{name_scenario}_{name_horizon}.nc"
+
+    # print('writing stats over grid to nc')        
+    # mean_stats.to_netcdf(os.path.join(folder_out, name_nc_out), encoding={k: {"zlib": True} for k in dvars})
+    # print('writing stats over time to nc')
+    # mean_stats_time.to_netcdf(os.path.join(folder_out, name_nc_out_time), encoding={k: {"zlib": True} for k in dvars})
+    
+    return mean_stats, mean_stats_time
+
+
+    
+#check if model really exists from data catalog entry - else skip and provide empty ds?? 
+
+ds_members_mean_stats = []
+ds_members_mean_stats_time = []
+
+for name_member in name_members:
+    print(name_member)
+    entry = f"{name_clim_project}_{name_model}_{name_scenario}_{name_member}"
+    if entry in data_catalog:
+            
+        try: #todo can this be replaced by if statement?
+            data = data_catalog.get_rasterdataset(entry, bbox=bbox, buffer=buffer, time_tuple=time_tuple) 
+        except:
+            #if it is not possible to open all variables at once, loop over each one, remove duplicates and then merge:
+            ds_list = []
+            for var in variables:
+                try:
+                    data_ = data_catalog.get_rasterdataset(entry, bbox=bbox, buffer=buffer, time_tuple=time_tuple, variables = [var])
+                    #drop duplicates if any
+                    data_ = data_.drop_duplicates(dim = 'time', keep = 'first')
+                    ds_list.append(data_)    
+                except:
+                    print(f"{name_scenario}", f"{name_model}", f"{var} not found")
+            #merge all variables back to data
+            data = xr.merge(ds_list)               
+        
+        #calculate statistics
+        mean_stats, mean_stats_time = get_stats_clim_projections(data, name_clim_project, name_model, name_scenario, name_member, bbox, time_tuple, buffer)
+
     else:
-        name_nc_out = f"stats-{name_model}_{name_scenario}_{name_horizon}.nc"
-        name_nc_out_time = f"stats_time-{name_model}_{name_scenario}_{name_horizon}.nc"
-
-    print('writing stats over grid to nc')        
-    mean_stats.to_netcdf(os.path.join(folder_out, name_nc_out), encoding={k: {"zlib": True} for k in dvars})
-    print('writing stats over time to nc')
-    mean_stats_time.to_netcdf(os.path.join(folder_out, name_nc_out_time), encoding={k: {"zlib": True} for k in dvars})
+        mean_stats = xr.Dataset()
+        mean_stats_time = xr.Dataset()
+        
+    #merge members results
+    ds_members_mean_stats.append(mean_stats)
+    ds_members_mean_stats_time.append(mean_stats_time)
+      
+        
+nc_mean_stats =xr.merge(ds_members_mean_stats)
+nc_mean_stats_time = xr.merge(ds_members_mean_stats_time)
+        
     
 
-get_stats_clim_projections(name_clim_project, name_model, name_scenario, name_realisation, bbox, time_tuple, buffer)
+#write netcdf:
+    
+#use hydromt function instead to write to netcdf?
+dvars = nc_mean_stats.raster.vars
+
+if name_scenario == "historical":
+    name_nc_out = f"historical_stats_{name_model}.nc"
+    name_nc_out_time = f"historical_stats_time_{name_model}.nc"
+else:
+    name_nc_out = f"stats-{name_model}_{name_scenario}_{name_horizon}.nc"
+    name_nc_out_time = f"stats_time-{name_model}_{name_scenario}_{name_horizon}.nc"
+
+print('writing stats over grid to nc')        
+nc_mean_stats.to_netcdf(os.path.join(folder_out, name_nc_out), encoding={k: {"zlib": True} for k in dvars})
+print('writing stats over time to nc')
+nc_mean_stats_time.to_netcdf(os.path.join(folder_out, name_nc_out_time), encoding={k: {"zlib": True} for k in dvars})
 
 
+
+#%%
+# def drop_duplicates(ds):
+#     ds = ds.sel(time=~ds.indexes['time'].duplicated())
+#     return ds

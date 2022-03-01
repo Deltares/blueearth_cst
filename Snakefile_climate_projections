@@ -2,7 +2,6 @@ import shutil
 import os
 
 # Parsing the Snakemake config file (options for basins to build, data catalog, model output directory)
-#configfile: "config/snake_config_test.yml"
 project = config['project_name']
 project_dir = config['project_dir']
 DATA_SOURCES = config["data_sources"]
@@ -10,6 +9,8 @@ DATA_SOURCES = config["data_sources"]
 clim_project = config["clim_project"]
 models = config["models"]
 scenarios = config["scenarios"]
+members = config["members"]
+variables = config["variables"]
 
 time_horizon_hist = config["historical"]
 future_horizons = config["future_horizons"]
@@ -28,6 +29,7 @@ rule all:
     input: 
         (clim_project_dir + "/annual_change_scalar_stats_summary.nc"),
         (clim_project_dir + "/annual_change_scalar_stats_summary.csv"),
+        (clim_project_dir + "/annual_change_scalar_stats_summary_mean.csv"),
 
 ruleorder: monthly_stats_hist > monthly_stats_fut > monthly_change > monthly_change_scalar_merge
 
@@ -45,9 +47,10 @@ rule monthly_stats_hist:
         time_horizon = time_horizon_hist, 
         name_horizon = "historical",
         name_scenario = "historical",
-        name_realisation = "r1i1p1f1",
+        name_members = members,
         name_model = "{model}",
         name_clim_project = clim_project,
+        variables = variables,
     script: "src/get_stats_climate_proj.py"
 
 # Rule to calculate mean monthly statistics for historical and future scenarios - grid saved to netcdf
@@ -55,6 +58,7 @@ rule monthly_stats_hist:
 rule monthly_stats_fut:
     input:
         region_fid = ancient(f"{basin_dir}/staticgeoms/region.geojson"),
+        stats_nc_hist = ancient(clim_project_dir + "/historical_stats_{model}.nc"), #make sure starts with previous job
     output:
         stats_nc = (clim_project_dir + "/stats-{model}_{scenario}_{horizon}.nc"),
         stats_time_nc = (clim_project_dir + "/stats_time-{model}_{scenario}_{horizon}.nc"),
@@ -64,9 +68,10 @@ rule monthly_stats_fut:
         time_horizon = get_horizon, 
         name_horizon = "{horizon}",
         name_scenario = "{scenario}",
-        name_realisation = "r1i1p1f1",
+        name_members = members,
         name_model = "{model}",
         name_clim_project = clim_project,
+        variables = variables,
     script: "src/get_stats_climate_proj.py"
 
 # Rule to calculate change stats over the grid
@@ -81,6 +86,10 @@ rule monthly_change:
     params:
         clim_project_dir = f"{clim_project_dir}",
         start_month_hyd_year = start_month_hyd_year, 
+        name_model = "{model}",
+        name_scenario = "{scenario}",
+        name_horizon = "{horizon}",
+        # variables = variables,
     script: "src/get_change_climate_proj.py"
 
 #rule to merge results in one netcdf
@@ -90,6 +99,7 @@ rule monthly_change_scalar_merge:
     output:
         stats_change_summary = (clim_project_dir + "/annual_change_scalar_stats_summary.nc"),
         stats_change_summary_csv = (clim_project_dir + "/annual_change_scalar_stats_summary.csv"),
+        stats_change_summary_csv_mean = (clim_project_dir + "/annual_change_scalar_stats_summary_mean.csv"),
     params:
         clim_project_dir = f"{clim_project_dir}",
     script: "src/get_change_climate_proj_summary.py"
