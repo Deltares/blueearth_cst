@@ -9,6 +9,9 @@ data_sources: config/deltares_data_climate_projections.yml
 clim_project: isimip3
 models: [gfdl]
 scenarios: [ssp370]
+realisations: [r1i1p1f1]
+
+variables: [precip, temp]
 
 # time horizons
 start_month_hyd_year: Oct
