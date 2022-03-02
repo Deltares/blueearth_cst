@@ -31,7 +31,7 @@ rule all:
         #f"{exp_dir}/realization_{RLZ_NUM}/rlz_{RLZ_NUM}_historical.nc",
         #f"{exp_dir}/stress_test/cst_{ST_NUM}.csv"
 
-# Rule to build model hydromt build wflow
+# Rule to extract ERA5 climate data at native resolution for the project area
 rule extract_climate_grid:
     input:
         prj_region = f"{basin_dir}/staticgeoms/region.geojson",
