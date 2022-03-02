@@ -47,6 +47,10 @@ def prepare_clim_data_catalog(fns, data_libs_like, source_like, fn_out=None):
         dc_fn['path'] = fn
         dc_fn['kwargs']['preprocess'] = "transpose_dims"
         dc_fn['meta']['processing'] = f"Climate data generated from {source_like} using Deltares/weathergenr"
+        #remove entries that have already been processes while reading in the data:
+        dc_fn.pop('unit_mult')
+        dc_fn.pop('unit_add')
+        dc_fn.pop('rename')
         climate_data_dict[name] = dc_fn
     
     climate_data_catalog.from_dict(climate_data_dict)
