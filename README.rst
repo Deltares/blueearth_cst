@@ -29,20 +29,21 @@ Installation
 BlueEarth CST is a python package that makes use of BlueEarth HydroMT to build the model (python), weathergenr to prepare the weather realization and stress tests (R), and Wlfow 
 hydrological model (Julia). The installation steps are as follow:
 
- 1. For both python and R installation we recommend using conda and `Miniconda <https://docs.conda.io/en/latest/miniconda.html>`_.
+1. For both python and R installation we recommend using conda and `Miniconda <https://docs.conda.io/en/latest/miniconda.html>`_.
 
- 2. Install Julia from https://julialang.org/downloads/ and Wflow https://deltares.github.io/Wflow.jl/dev/user_guide/install/#Installing-as-Julia-package
+2. Install Julia from https://julialang.org/downloads/ and Wflow following the instructions from the 
+`installation documentation <https://deltares.github.io/Wflow.jl/dev/user_guide/install/#Installing-as-Julia-package>`_.
 
- 3. Download (clone) the BlueEarth_cst ``git`` repo from `github <https://github.com/Deltares/blueearth_cst>`_, then navigate into the 
-    the code folder (where the environment.yml file is located):
+3. Download (clone) the BlueEarth_cst ``git`` repo from `github <https://github.com/Deltares/blueearth_cst>`_, then navigate into the 
+the code folder (where the environment.yml file is located):
 
 .. code-block:: console
 
     $ git clone https://github.com/Deltares/blueearth_cst.git
     $ cd blueearth_cst
 
- 4. Make and activate a new blueearth-cst conda environment based on the environment.yml file contained in the repository. This will install all python and R dependcies to run the 
-    tool:
+4. Make and activate a new blueearth-cst conda environment based on the environment.yml file contained in the repository. This will install all python and R dependcies to run the 
+tool:
 
 .. code-block:: console
 
@@ -53,9 +54,9 @@ Running
 -------
 BlueEarth CST toolbox is based on several workflows developped using Snakemake_ . Three workflows are available:
 
- - Snakefile_model_creation: creates a Wflow model based on global data for the selected region and run and anlayse the model results for a historical period.
- - Snakefile_climate_projections: derives future climate statistics (expected temperature and precipitation change) for different RCPs and GCMs (from CMIP dataset).
- - Snakefile_climate_experiment: prepares futyre weather realizations and climate stress tests and run the realizations with the hydroloigcal model.
+ - **Snakefile_model_creation**: creates a Wflow model based on global data for the selected region and run and anlayse the model results for a historical period.
+ - **Snakefile_climate_projections**: derives future climate statistics (expected temperature and precipitation change) for different RCPs and GCMs (from CMIP dataset).
+ - **Snakefile_climate_experiment**: prepares futyre weather realizations and climate stress tests and run the realizations with the hydroloigcal model.
 
 To prepare these workflows, you can select the different options for your model region and climate scenario using a config file. An example is available in the folder 
 config/snake_config_model_test.yml.
@@ -74,10 +75,10 @@ in order to save the future results of the workflow, and the fourth line runs th
 
 With snakemake command line, you can use different options:
 
-- -s: selection of the snakefile (workflow) to run (see list above).
-- --config-file: name of the config file with the model and climate options.
-- -c: number of cores to use to run the worflows (if more than 1, the workflow will be parallelized).
-- --dry-run: retiurns the list of steps (rules) in the workflow that will be run, without actually running it.
+- **-s**: selection of the snakefile (workflow) to run (see list above).
+- **--config-file**: name of the config file with the model and climate options.
+- **-c**: number of cores to use to run the worflows (if more than 1, the workflow will be parallelized).
+- **--dry-run**: retiurns the list of steps (rules) in the workflow that will be run, without actually running it.
 
 There are many other options available, you can learn more in the `Snakemake CLI documentation <https://snakemake.readthedocs.io/en/stable/executing/cli.html>`_
 
