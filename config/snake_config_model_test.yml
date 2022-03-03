@@ -1,3 +1,4 @@
+### General setting ###
 # Path to where the wflow model will be stored (include the project name)
 project_name: Gabon
 project_dir: examples/Gabon
@@ -5,15 +6,25 @@ project_dir: examples/Gabon
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
 data_sources: config/deltares_data.yml
 
+# Time horizon
+starttime: "2000-01-01T00:00:00"
+endtime: "2020-12-31T00:00:00"
+
+### Model building ###
 # hydromt "region" for building the model
 model_region: "{'subbasin': [9.666, 0.4476], 'strord': 5}"
 model_resolution: 0.0062475
-
-# Time horizon
-starttime: "2000-01-01T00:00:00"
-endtime: "2003-12-31T00:00:00"
 
 # name of the files wihtout project name suffix
 output_locations: "config/output-locations-Gabon.csv" # If set to None, will default to the wflow outlets
 observations_timeseries: "data/observations/observations_timeseries_Gabon.csv" 
 
+### Climate experiment ###
+experiment_name: experiment_01
+# Number of climate realizations
+realizations_num: 3
+# Number of stress tests (temp*precip steps)
+stresstests_num: 6
+# Time horizon for the climate experiment
+starttime_climate: "2030-01-01T00:00:00"
+endtime_climate: "2050-12-31T00:00:00"

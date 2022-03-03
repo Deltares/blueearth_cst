@@ -1,0 +1,30 @@
+
+Description: >
+  This yml file includes general parameters to configure the weather generator
+  and parameters for the generateWeatherSeries function.
+
+general:
+  variables:
+      - precip
+      - temp
+      - temp_min
+      - temp_max
+  historical_realizations_num: 3
+
+generateWeatherSeries:
+  sim.year.num: 20
+  sim.year.start: 2020
+  month.start: 1
+  realization.num: 3
+  warm.variable: precip
+  warm.signif.level: 0.90
+  warm.sample.num: 20000
+  warm.subset.criteria: NULL
+  knn.sample.num: 100
+  mc.wet.quantile: 0.2
+  mc.extreme.quantile: 0.8
+  evaluate.model: TRUE
+  evaluate.grid.num: 20
+  compute.parallel: FALSE
+  num.cores: NULL
+  seed: 12345

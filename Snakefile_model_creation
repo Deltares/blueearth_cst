@@ -56,14 +56,14 @@ rule add_forcing:
     input:
         forcing_ini = f"{project_dir}/config/wflow_build_forcing_historical.ini"
     output:
-        forcing_fid = f"{project_dir}/climate/ERA5/inmaps_historical.nc"
+        forcing_fid = f"{project_dir}/climate_historical/wflow_data/inmaps_era5.nc"
     shell:
         """hydromt update wflow "{basin_dir}" -i "{input.forcing_ini}" -d "{DATA_SOURCES}" -vv"""
 
 # Rule to run the wflow model
 rule run_wflow:
     input:
-        forcing_fid = f"{project_dir}/climate/ERA5/inmaps_historical.nc"
+        forcing_fid = f"{project_dir}/climate_historical/wflow_data/inmaps_era5.nc"
     output:
         csv_file = f"{basin_dir}/run_default/output.csv"
     params:
