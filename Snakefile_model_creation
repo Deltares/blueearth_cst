@@ -19,6 +19,7 @@ rule all:
     input: 
         f"{project_dir}/plots/wflow_model_performance/hydro_wflow_1.png",
         f"{project_dir}/plots/wflow_model_performance/basin_area.png",
+        f"{project_dir}/plots/wflow_model_performance/precip.png",
 
 # Rule to build model hydromt build wflow
 rule create_model:
@@ -95,3 +96,13 @@ rule plot_map:
         project_dir = f"{project_dir}",
     script: "src/plot_map.py"
 
+# Rule to plot the forcing on a map
+rule plot_forcing:
+    input:
+        forcing_fid = ancient(f"{project_dir}/climate_historical/wflow_data/inmaps_era5.nc"),
+    output:
+        output_forcing_map = f"{project_dir}/plots/wflow_model_performance/precip.png",
+    params:
+        project_dir = f"{project_dir}",
+        gauges_fid = ancient(f"{basin_dir}/staticgeoms/gauges.geojson")
+    script: "src/plot_map_forcing.py"
