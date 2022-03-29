@@ -27,14 +27,15 @@ endtime_climate = config['endtime_climate']
 # Master rule: end with all model run and analysed with saving a output plot
 rule all:
     input:
-        rlz_nc = expand((f"{basin_dir}/run_climate_{experiment}/output_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".csv"), rlz_num=np.arange(1, RLZ_NUM+1), st_num2=np.arange(0, ST_NUM+1)),
+        mean = f"{exp_dir}/model_results/mean_discharge.csv",
+        #rlz_nc = expand((f"{basin_dir}/run_climate_{experiment}/output_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".csv"), rlz_num=np.arange(1, RLZ_NUM+1), st_num2=np.arange(0, ST_NUM+1)),
         #f"{exp_dir}/realization_{RLZ_NUM}/rlz_{RLZ_NUM}_historical.nc",
         #f"{exp_dir}/stress_test/cst_{ST_NUM}.csv"
 
 # Rule to extract ERA5 climate data at native resolution for the project area
 rule extract_climate_grid:
     input:
-        prj_region = f"{basin_dir}/staticgeoms/region.geojson",
+        prj_region = ancient(f"{basin_dir}/staticgeoms/region.geojson"),
     params:
         data_sources = DATA_SOURCES,
         starttime = starttime,
@@ -62,7 +63,7 @@ rule generate_weather_realization:
 # Prepare stress test experiment
 rule climate_stress_parameters:
     input:
-        config = "config/stresstest_config.yml"
+        config = "config/weathergen_config.yml"
     output:
         st_csv_fns = [f"{exp_dir}/stress_test/cst_{st_num}.csv" for st_num in np.arange(1, ST_NUM+1)]
     script:
@@ -76,7 +77,7 @@ rule generate_climate_stress_test:
     output:
         rlz_st_nc = f"{exp_dir}/realization_"+"{rlz_num}"+"/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc"
     params:
-        weagen_config = "config/stresstest_config.yml",
+        weagen_config = "config/weathergen_config.yml",
         output_path = f"{exp_dir}/realization_"+"{rlz_num}"+"/",
         nc_file_prefix = "rlz_"+"{rlz_num}"+"_cst",
         nc_file_suffix = "{st_num}",
@@ -119,3 +120,17 @@ rule run_wflow:
         csv_file = f"{basin_dir}/run_climate_{experiment}/output_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".csv"
     shell:
         """ julia -e "using Wflow; Wflow.run()" "{input.toml_fid}" """
+
+rule export_wflow_results:
+    input:
+        rlz_csv_fns = expand((f"{basin_dir}/run_climate_{experiment}/output_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".csv"), rlz_num=np.arange(1, RLZ_NUM+1), st_num2=np.arange(0, ST_NUM+1)),
+    output:
+        mean = f"{exp_dir}/model_results/mean_discharge.csv",
+        min = f"{exp_dir}/model_results/min_discharge.csv",
+        max = f"{exp_dir}/model_results/max_discharge.csv",
+        q95 = f"{exp_dir}/model_results/q95_discharge.csv",
+    params:
+        model_dir = basin_dir,
+        exp_dir = exp_dir,
+    script:
+        "src/export_wflow_results.py"
