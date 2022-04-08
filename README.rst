@@ -65,7 +65,7 @@ You can then run the worflow from your choice using the snakemake command line, 
 
 .. code-block:: console
 
-    $ conda activate bluearth-cst
+    $ conda activate blueearth-cst
     $ snakemake -s Snakefile_model_creation --configfile config/snake_config_model_test.yml  --dag | dot -Tpng > dag_all.png
     $ snakemake --unlock -s Snakefile_model_creation --configfile config/snake_config_model_test.yml
     $ snakemake all -c 1 -s Snakefile_model_creation --configfile config/snake_config_model_test.yml
