@@ -12,9 +12,6 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import xarray as xr
 
-#%% outside snake - can be removed after review!
-# clim_project_dir = r"d:\repos\blueearth_cst\examples\Gabon\climate_projections\cmip5"
-
 #%%
 
 # Snakemake options
@@ -22,7 +19,8 @@ clim_project_dir = snakemake.params.clim_project_dir
 clim_project = os.path.basename(clim_project_dir)
 
 #merge summary maps across models, scnearios and horizons. 
-prefixes = ["monthly_change_mean_grid", "monthly_change_mean_scalar", "annual_change_scalar_stats"]
+# prefixes = ["monthly_change_mean_grid", "monthly_change_mean_scalar", "annual_change_scalar_stats"]
+prefixes = ["annual_change_scalar_stats"]
 for prefix in prefixes:
     print(f"merging netcdf files {prefix}")
     #open annual scalar summary and merge
