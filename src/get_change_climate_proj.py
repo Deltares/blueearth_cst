@@ -12,22 +12,6 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import xarray as xr
 
-#%% outside snake - can be removed after review!
-# stats_nc_hist = r"d:\repos\blueearth_cst\examples\Gabon\climate_projections\isimip3\historical_stats_gfdl.nc"
-# stats_nc = r"d:\repos\blueearth_cst\examples\Gabon\climate_projections\isimip3\stats-gfdl_ssp370_far.nc"
-
-# stats_time_nc_hist = r"d:\repos\blueearth_cst\examples\Gabon\climate_projections\cmip5\historical_stats_time_HadGEM2-ES.nc"
-# stats_time_nc_hist = r"d:\repos\blueearth_cst\examples\Gabon\climate_projections\isimip3\historical_stats_time_gfdl.nc"
-# stats_time_nc = r"d:\repos\blueearth_cst\examples\Gabon\climate_projections\isimip3\stats_time-gfdl_ssp370_far.nc"
-
-# stats_nc = r"d:\repos\blueearth_cst\examples\Gabon\climate_projections\cmip5\stats-BNU-ESM_rcp85_near.nc"
-# stats_time_nc = r"d:\repos\blueearth_cst\examples\Gabon\climate_projections\cmip5\stats_time-MPI-ESM-P_rcp45_near.nc"
-
-# stats_nc_hist = r"d:\repos\blueearth_cst\examples\Gabon\climate_projections\cmip5\historical_stats_BNU-ESM.nc"
-# stats_time_nc_hist = r"d:\repos\blueearth_cst\examples\Gabon\climate_projections\cmip5\historical_stats_MPI-ESM-P.nc"
-
-
-# start_month_hyd_year = "Jan"
 #%%
 
 def intersection(lst1, lst2):
@@ -139,8 +123,8 @@ def get_change_annual_clim_proj(ds_hist_time, ds_clim_time, stats = ["mean", "st
 
 # Snakemake options
 clim_project_dir = snakemake.params.clim_project_dir
-stats_nc_hist = snakemake.input.stats_nc_hist
-stats_nc = snakemake.input.stats_nc
+#stats_nc_hist = snakemake.input.stats_nc_hist
+#stats_nc = snakemake.input.stats_nc
 stats_time_nc_hist = snakemake.input.stats_time_nc_hist
 stats_time_nc = snakemake.input.stats_time_nc
 start_month_hyd_year = snakemake.params.start_month_hyd_year
@@ -149,52 +133,49 @@ name_scenario = snakemake.params.name_scenario
 name_model = snakemake.params.name_model
 
 #open datasets
-ds_hist = xr.open_dataset(stats_nc_hist)
-ds_clim = xr.open_dataset(stats_nc)
+#ds_hist = xr.open_dataset(stats_nc_hist)
+#ds_clim = xr.open_dataset(stats_nc)
 
 ds_hist_time = xr.open_dataset(stats_time_nc_hist)
 ds_clim_time = xr.open_dataset(stats_time_nc)
 
+#get lat lon name of data
 XDIMS = ("x", "longitude", "lon", "long")
 YDIMS = ("y", "latitude", "lat")
+for dim in XDIMS:
+    if dim in ds_hist_time.coords:
+        x_dim = dim
+for dim in YDIMS:
+    if dim in ds_hist_time.coords:
+        y_dim = dim
 
 
-#only calc statistics if netcdf is filled (for snake all the files are made, even dummy when no data)
-if len(ds_clim) > 0:
 
-    #if time format is CFTimeIndex, convert to DatetimeIndex 
-    #(NB: This may lead to subtle errors in operations that depend on the length of time between dates. However needed if we want to have the possibility to resample over hydrological years with "AS-Mon") 
-    if ds_hist_time.indexes['time'].dtype == "O":
-        datetimeindex_hist = ds_hist_time.indexes['time'].to_datetimeindex()
-        ds_hist_time['time'] = datetimeindex_hist
-        #same for clim
-        datetimeindex_clim = ds_clim_time.indexes['time'].to_datetimeindex()
-        ds_clim_time['time'] = datetimeindex_clim
-        
+# #only calc statistics if netcdf is filled (for snake all the files are made, even dummy when no data)
+# if len(ds_clim_time) > 0:
+
+#     #if time format is CFTimeIndex, convert to DatetimeIndex 
+#     #(NB: This may lead to subtle errors in operations that depend on the length of time between dates. However needed if we want to have the possibility to resample over hydrological years with "AS-Mon") 
+#     if ds_hist_time.indexes['time'].dtype == "O":
+#         datetimeindex_hist = ds_hist_time.indexes['time'].to_datetimeindex()
+#         ds_hist_time['time'] = datetimeindex_hist
+#         #same for clim
+#         datetimeindex_clim = ds_clim_time.indexes['time'].to_datetimeindex()
+#         ds_clim_time['time'] = datetimeindex_clim
+   
+#     #calculate change
+#     monthly_change_mean_grid, monthly_change_mean_scalar = get_change_clim_projections(ds_hist, ds_clim)
     
-    #get lat lon name of data
-    for dim in XDIMS:
-        if dim in ds_hist.coords:
-            x_dim = dim
-    for dim in YDIMS:
-        if dim in ds_hist.coords:
-            y_dim = dim
-    
-    
-    
-    #calculate change
-    monthly_change_mean_grid, monthly_change_mean_scalar = get_change_clim_projections(ds_hist, ds_clim)
-    
-    #write to netcdf files
-    strings = ["monthly_change_mean_grid", "monthly_change_mean_scalar"]
-    for i, ds in enumerate([monthly_change_mean_grid, monthly_change_mean_scalar]):
-        print(f"writing netcdf files {strings[i]}")
-        dvars = ds.raster.vars        
-        name_model = ds.model.values[0]
-        name_scenario = ds.scenario.values[0]
-        name_horizon = ds.horizon.values[0]
-        name_nc_out = f"{strings[i]}-{name_model}_{name_scenario}_{name_horizon}.nc"
-        ds.to_netcdf(os.path.join(clim_project_dir, name_nc_out), encoding={k: {"zlib": True} for k in dvars})
+#     #write to netcdf files
+#     strings = ["monthly_change_mean_grid", "monthly_change_mean_scalar"]
+#     for i, ds in enumerate([monthly_change_mean_grid, monthly_change_mean_scalar]):
+#         print(f"writing netcdf files {strings[i]}")
+#         dvars = ds.raster.vars        
+#         name_model = ds.model.values[0]
+#         name_scenario = ds.scenario.values[0]
+#         name_horizon = ds.horizon.values[0]
+#         name_nc_out = f"{strings[i]}-{name_model}_{name_scenario}_{name_horizon}.nc"
+#         ds.to_netcdf(os.path.join(clim_project_dir, name_nc_out), encoding={k: {"zlib": True} for k in dvars})
 
 
 
@@ -203,7 +184,7 @@ if len(ds_clim) > 0:
 #only calc statistics if netcdf is filled (for snake all the files are made, even dummy when no data)
 #create dummy netcdf otherwise as this is the file snake is checking:
 
-if len(ds_clim) > 0:
+if len(ds_clim_time) > 0:
 
     #calculate statistics (mean, std, 0.1 0.25 0.50 0.75 0.90 quantiles of annual precip sum and mean temp)    
     stats_annual_change = get_change_annual_clim_proj(ds_hist_time, ds_clim_time)

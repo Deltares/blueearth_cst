@@ -39,7 +39,7 @@ rule monthly_stats_hist:
     input:
         region_fid = ancient(f"{basin_dir}/staticgeoms/region.geojson"),
     output:
-        stats_nc_hist = (clim_project_dir + "/historical_stats_{model}.nc"),
+        #stats_nc_hist = (clim_project_dir + "/historical_stats_{model}.nc"),
         stats_time_nc_hist = (clim_project_dir + "/historical_stats_time_{model}.nc"),
     params:
         yml_fid = DATA_SOURCES,
@@ -58,9 +58,10 @@ rule monthly_stats_hist:
 rule monthly_stats_fut:
     input:
         region_fid = ancient(f"{basin_dir}/staticgeoms/region.geojson"),
-        stats_nc_hist = ancient(clim_project_dir + "/historical_stats_{model}.nc"), #make sure starts with previous job
+        #stats_nc_hist = ancient(clim_project_dir + "/historical_stats_{model}.nc"), #make sure starts with previous job
+        stats_time_nc_hist = (clim_project_dir + "/historical_stats_time_{model}.nc"), #make sure starts with previous job
     output:
-        stats_nc = (clim_project_dir + "/stats-{model}_{scenario}_{horizon}.nc"),
+        #stats_nc = (clim_project_dir + "/stats-{model}_{scenario}_{horizon}.nc"),
         stats_time_nc = (clim_project_dir + "/stats_time-{model}_{scenario}_{horizon}.nc"),
     params:
         yml_fid = DATA_SOURCES,
@@ -77,8 +78,8 @@ rule monthly_stats_fut:
 # Rule to calculate change stats over the grid
 rule monthly_change:
     input:
-        stats_nc_hist = ancient(clim_project_dir + "/historical_stats_{model}.nc"),
-        stats_nc = ancient(clim_project_dir + "/stats-{model}_{scenario}_{horizon}.nc"),
+        #stats_nc_hist = ancient(clim_project_dir + "/historical_stats_{model}.nc"),
+        #stats_nc = ancient(clim_project_dir + "/stats-{model}_{scenario}_{horizon}.nc"),
         stats_time_nc_hist = ancient(clim_project_dir + "/historical_stats_time_{model}.nc"),
         stats_time_nc = ancient(clim_project_dir + "/stats_time-{model}_{scenario}_{horizon}.nc"),
     output:

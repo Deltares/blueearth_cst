@@ -5,9 +5,9 @@ isimip3_{model}_{scenario}_{member}:
   driver: netcdf
   kwargs:
     chunks:
-      lat: 125
-      lon: 120
-      time: 50
+      lat: 50
+      lon: 50
+      time: -1
     decode_times: true
     parallel: true
   meta:
@@ -38,7 +38,7 @@ cmip5_{model}_historical_{member}:
     chunks:
       lat: 125
       lon: 120
-      time: 50
+      time: 100
     drop_variables: ['time_bnds', 'lat_bnds', 'lon_bnds', 'height', 'average_DT']
     decode_times: true
     parallel: true
