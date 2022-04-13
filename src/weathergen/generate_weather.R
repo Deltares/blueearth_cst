@@ -2,9 +2,6 @@
 # General R settings and prequisites
 source("./src/weathergen/global.R")
 
-# Install and load libraries
-devtools::install_github("Deltares/weathergenr")
-
 # Read parameters from the snkae yaml file
 yaml <- yaml::read_yaml(snakemake@params[["snake_config"]])
 
