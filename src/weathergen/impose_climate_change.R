@@ -5,16 +5,19 @@
 # General R settings and prequisites
 source("./src/weathergen/global.R")
 
-# Read config
-yaml <- yaml::read_yaml(snakemake@params[["weagen_config"]])
+# Read parameters from the snkae yaml file
+yaml <- yaml::read_yaml(snakemake@params[["snake_config"]])
+
+# Read parameters from the defaults yaml file
+yaml_defaults <- yaml::read_yaml(snakemake@params[["weagen_config"]])
 
 # General stress test parameters
 output_path <- snakemake@params[["output_path"]]
 nc_file_prefix <- snakemake@params[["nc_file_prefix"]]
 
 # temp_change_type/precip_change_type [string]
-temp_change_type = yaml$temp$change_type
-precip_change_type = yaml$precip$change_type
+temp_change_type = yaml_defaults$temp$change_type
+precip_change_type = yaml_defaults$precip$change_type
 
 
 # PARAMETERS CHANGING PER RUN ##################################################
