@@ -7,8 +7,8 @@ data_sources: config/deltares_data_climate_projections.yml
 
 # climate models and scenarios
 clim_project: cmip5
-models: ['GFDL-ESM2M', 'MIROC5']
-scenarios: [rcp45, rcp60, rcp85]
+models: ['MIROC5']
+scenarios: [rcp45, rcp85]
 members: [r1i1p1]
 
 variables: [precip, temp, temp_min, temp_max]

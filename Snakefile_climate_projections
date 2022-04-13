@@ -4,7 +4,7 @@ import os
 # Parsing the Snakemake config file (options for basins to build, data catalog, model output directory)
 project = config['project_name']
 project_dir = config['project_dir']
-DATA_SOURCES = config["data_sources"]
+DATA_SOURCES = config["data_sources_climate"]
 
 clim_project = config["clim_project"]
 models = config["models"]
