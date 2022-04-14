@@ -61,7 +61,10 @@ BlueEarth CST toolbox is based on several workflows developped using Snakemake_ 
 To prepare these workflows, you can select the different options for your model region and climate scenario using a config file. An example is available in the folder 
 config/snake_config_model_test.yml.
 
-You can then run the worflow from your choice using the snakemake command line, after activating your blueearth_cst conda environment:
+You can run each worflow using the snakemake command line, after activating your blueearth_cst conda environment.
+
+Snakefile_model_creation
+~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: console
 
@@ -85,6 +88,20 @@ There are many other options available, you can learn more in the `Snakemake CLI
 More examples of how to run the worflows are available in the file run_snake_test.cmd .
 
 .. _Snakemake: https://snakemake.github.io/
+
+
+Snakefile_climate_projections
+~~~~~~~~~~~~~~~~~~~~~~
+
+[Enter code-block]
+[Enter Description here]
+
+
+Snakefile_climate_experiment
+~~~~~~~~~~~~~~~~~~~~~~
+
+[Enter code-block]
+[Enter Description here]
 
 
 Documentation
