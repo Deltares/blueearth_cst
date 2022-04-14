@@ -89,18 +89,27 @@ More examples of how to run the worflows are available in the file run_snake_tes
 
 .. _Snakemake: https://snakemake.github.io/
 
-
 Snakefile_climate_projections
 ~~~~~~~~~~~~~~~~~~~~~~
 
-[Enter code-block]
-[Enter Description here]
+.. code-block:: console
 
+    $ snakemake --unlock -s Snakefile_climate_projections --configfile config/snake_config_projections_cmip5_test.yml
+    $ snakemake -s Snakefile_climate_projections --configfile config/snake_config_projections_cmip5_test.yml --dag | dot -Tpng > dag_projections.png
+    $ snakemake all -c 1 -s Snakefile_climate_projections --configfile config/snake_config_projections_cmip5_test.yml --keep-going 
+
+[Enter Description here]
 
 Snakefile_climate_experiment
 ~~~~~~~~~~~~~~~~~~~~~~
 
-[Enter code-block]
+.. code-block:: console
+
+    $ snakemake -s Snakefile_climate_experiment --configfile config/snake_config_model_test.yml  --dag | dot -Tpng > dag_climate.png
+    $ snakemake --unlock -s Snakefile_climate_experiment --configfile config/snake_config_model_test.yml
+    $ snakemake all -c 1 -s Snakefile_climate_experiment --configfile config/snake_config_model_test.yml
+    
+    
 [Enter Description here]
 
 
