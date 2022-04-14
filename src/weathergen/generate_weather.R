@@ -8,7 +8,7 @@ yaml <- yaml::read_yaml(snakemake@params[["snake_config"]])
 # Read parameters from the defaults yaml file
 yaml_defaults <- yaml::read_yaml(snakemake@params[["weagen_config"]])
 
-historical_realizations_num <- yaml$general$historical_realizations_num
+historical_realizations_num <- yaml$realizations_num
 variables <- yaml_defaults$general$variables
 
 # Parameters set through snakemake
@@ -33,10 +33,10 @@ stochastic_weather <- weathergenr::generateWeatherSeries(
      sim.year.start = sim_year_start,
      month.start = yaml_defaults$generateWeatherSeries$month.start,
      warm.variable = yaml_defaults$generateWeatherSeries$warm.variable,
-     warm.signif.level = yaml_defaults$generateWeatherSeries$warm.signif.level,
-     warm.sample.num = yaml_defaults$generateWeatherSeries$warm.sample.num,
+     warm.signif.level = yaml$warm.signif.level,
+     warm.sample.num = yaml$warm.sample.num,
      warm.subset.criteria = yaml_defaults$generateWeatherSeries$warm.subset.criteria,
-     knn.sample.num = yaml_defaults$generateWeatherSeries$knn.sample.num,
+     knn.sample.num = yaml$knn.sample.num,
      mc.wet.quantile = yaml_defaults$generateWeatherSeries$mc.wet.quantile,
      mc.extreme.quantile = yaml_defaults$generateWeatherSeries$mc.extreme.quantile,
      evaluate.model = yaml_defaults$generateWeatherSeries$evaluate.model,

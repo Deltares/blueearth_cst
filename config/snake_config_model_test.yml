@@ -1,36 +1,72 @@
-### General setting ###
+
+###########################################################################################
+#################################### General setting ######################################
+
 # Path to where the wflow model will be stored (include the project name)
 project_name: Gabon
 project_dir: examples/Gabon
 
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
 data_sources: config/deltares_data.yml
+# Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
+data_sources_climate: config/deltares_data_climate_projections.yml
 
-# Time horizon
+# Time horizon of the historical period
 starttime: "2000-01-01T00:00:00"
 endtime: "2020-12-31T00:00:00"
 
-### Model building ###
-# hydromt "region" for building the model
+###########################################################################################
+#################################### Model building #######################################
+
+# hydromt "region" for building the model, coordinates are in EPSG 4326
+# for more info on how to fill this, you can see the hydromt documentation: 
+# https://deltares.github.io/hydromt/latest/user_guide/cli.html#region-options
+# For wflow please use either 'basin' or 'subbasin' keywords
 model_region: "{'subbasin': [9.666, 0.4476], 'strord': 5}"
+# Grid resolution of the model in degrees
 model_resolution: 0.0062475
 
-# name of the files wihtout project name suffix
+# If available, please here put the path to the available observation stations locations files
+# csv file containing three columns: station_ID, x, y
 output_locations: "config/output-locations-Gabon.csv" # If set to None, will default to the wflow outlets
+# Path to the file with observed discharge timeseries per station 
 observations_timeseries: "data/observations/observations_timeseries_Gabon.csv" 
 
-### Climate experiment ###
+###########################################################################################
+################################## Climate projections ####################################
+# climate models and scenarios
+clim_project: cmip5
+models: ['MIROC5']
+scenarios: [rcp45, rcp85]
+members: [r1i1p1]
+
+variables: [precip, temp, temp_min, temp_max]
+
+# time horizons of the climate projections
+start_month_hyd_year: Jan
+historical: 1960, 2000
+future_horizons: 
+  near: 2020, 2060
+#  far: 2060, 2100
+
+###########################################################################################
+################################## Climate experiment #####################################
+# Name of the experiment
 experiment_name: experiment_01
 # Number of climate realizations
 realizations_num: 3
-# Number of stress tests (temp*precip steps)
-#stresstests_num: 6
-# Time horizon for the climate experiment
+# Future Time horizon for the climate experiment
 starttime_climate: "2030-01-01T00:00:00"
 endtime_climate: "2050-12-31T00:00:00"
 
-# Stress test definition
-########## Temperature change factors ##########
+# Weathergen settings
+warm.signif.level: 0.80
+warm.sample.num: 30000
+knn.sample.num: 120
+
+# Climate stress test parameters
+# Temperature change factors
+# including number of steps and min, max change
 temp:
   step_num: 2
   change_type: transient
@@ -62,7 +98,8 @@ temp:
       - 3.0  # November
       - 3.0  # December
 
-########## #Precipitation change factors ##########
+# Precipitation change factors
+# including number of steps and min, max change
 precip:
   step_num: 3
   change_type: transient
