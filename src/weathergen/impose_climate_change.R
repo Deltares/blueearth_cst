@@ -16,8 +16,8 @@ output_path <- snakemake@params[["output_path"]]
 nc_file_prefix <- snakemake@params[["nc_file_prefix"]]
 
 # temp_change_type/precip_change_type [string]
-temp_change_type = yaml_defaults$temp$change_type
-precip_change_type = yaml_defaults$precip$change_type
+temp_change_type = yaml$temp$change_type
+precip_change_type = yaml$precip$change_type
 
 
 # PARAMETERS CHANGING PER RUN ##################################################
