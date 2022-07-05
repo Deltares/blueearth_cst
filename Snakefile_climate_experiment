@@ -1,15 +1,20 @@
 import shutil
 import os
+import sys
 import numpy as np
 import pandas as pd
 
 # Parsing the Snakemake config file (options for basins to build, data catalog, model output directory)
 #configfile: "config/snake_config_test.yml"
+# read path of the config file to give to the weagen scripts
+args = sys.argv
+config_path = args[args.index("--configfile") + 1]
+
 project = config['project_name']
 project_dir = config['project_dir']
 experiment = config['experiment_name']
 RLZ_NUM = config['realizations_num']
-ST_NUM = config['stresstests_num']
+ST_NUM = config['temp']['step_num'] * config['precip']['step_num']
 
 DATA_SOURCES = config["data_sources"]
 
@@ -53,6 +58,7 @@ rule generate_weather_realization:
         [f"{exp_dir}/realization_{rlz_num}/rlz_{rlz_num}_cst_0.nc" for rlz_num in np.arange(1, RLZ_NUM+1)]
     params:
         weagen_config = "config/weathergen_config.yml",
+        snake_config = config_path,
         output_path = f"{exp_dir}/",
         start_year = (pd.to_datetime(starttime_climate).year - 2),
         sim_years = (pd.to_datetime(endtime_climate).year - pd.to_datetime(starttime_climate).year + 2),
@@ -63,7 +69,7 @@ rule generate_weather_realization:
 # Prepare stress test experiment
 rule climate_stress_parameters:
     input:
-        config = "config/weathergen_config.yml"
+        config = config_path,
     output:
         st_csv_fns = [f"{exp_dir}/stress_test/cst_{st_num}.csv" for st_num in np.arange(1, ST_NUM+1)]
     script:
@@ -78,6 +84,7 @@ rule generate_climate_stress_test:
         rlz_st_nc = f"{exp_dir}/realization_"+"{rlz_num}"+"/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc"
     params:
         weagen_config = "config/weathergen_config.yml",
+        snake_config = config_path,
         output_path = f"{exp_dir}/realization_"+"{rlz_num}"+"/",
         nc_file_prefix = "rlz_"+"{rlz_num}"+"_cst",
         nc_file_suffix = "{st_num}",

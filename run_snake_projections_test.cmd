@@ -6,10 +6,10 @@ rem snakemake all -c 1 -s Snakefile_climate_projections --configfile config/snak
 rem --until monthly_stats_hist 
 
 rem CMIP5
-snakemake --unlock -s Snakefile_climate_projections --configfile config/snake_config_projections_cmip5_test.yml
-snakemake -s Snakefile_climate_projections --configfile config/snake_config_projections_cmip5_test.yml --dag | dot -Tpng > dag_projections.png
+snakemake --unlock -s Snakefile_climate_projections --configfile config/snake_config_modeltest.yml
+snakemake -s Snakefile_climate_projections --configfile config/snake_config_model_test.yml --dag | dot -Tpng > dag_projections.png
 
-snakemake all -c 1 -s Snakefile_climate_projections --configfile config/snake_config_projections_cmip5_test.yml --keep-going 
+snakemake all -c 1 -s Snakefile_climate_projections --configfile config/snake_config_model_test.yml --keep-going 
 
 
 

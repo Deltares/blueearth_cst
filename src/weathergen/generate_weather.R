@@ -2,13 +2,14 @@
 # General R settings and prequisites
 source("./src/weathergen/global.R")
 
-# Install and load libraries
-devtools::install_github("Deltares/weathergenr")
+# Read parameters from the snkae yaml file
+yaml <- yaml::read_yaml(snakemake@params[["snake_config"]])
 
-# Read parameters from the yaml file
-yaml <- yaml::read_yaml(snakemake@params[["weagen_config"]])
-historical_realizations_num <- yaml$general$historical_realizations_num
-variables <- yaml$general$variables
+# Read parameters from the defaults yaml file
+yaml_defaults <- yaml::read_yaml(snakemake@params[["weagen_config"]])
+
+historical_realizations_num <- yaml$realizations_num
+variables <- yaml_defaults$general$variables
 
 # Parameters set through snakemake
 weathergen_output_path <- snakemake@params[["output_path"]]
@@ -30,19 +31,19 @@ stochastic_weather <- weathergenr::generateWeatherSeries(
      weather.date = ncdata$date,
      sim.year.num = sim_year_num,
      sim.year.start = sim_year_start,
-     month.start = yaml$generateWeatherSeries$month.start,
-     warm.variable = yaml$generateWeatherSeries$warm.variable,
-     warm.signif.level = yaml$generateWeatherSeries$warm.signif.level,
-     warm.sample.num = yaml$generateWeatherSeries$warm.sample.num,
-     warm.subset.criteria = yaml$generateWeatherSeries$warm.subset.criteria,
-     knn.sample.num = yaml$generateWeatherSeries$knn.sample.num,
-     mc.wet.quantile = yaml$generateWeatherSeries$mc.wet.quantile,
-     mc.extreme.quantile = yaml$generateWeatherSeries$mc.extreme.quantile,
-     evaluate.model = yaml$generateWeatherSeries$evaluate.model,
-     evaluate.grid.num = yaml$generateWeatherSeries$evaluate.grid.num,
-     seed = yaml$generateWeatherSeries$seed,
-     compute.parallel = yaml$generateWeatherSeries$compute.parallel,
-     num.cores = yaml$generateWeatherSeries$num.cores
+     month.start = yaml_defaults$generateWeatherSeries$month.start,
+     warm.variable = yaml_defaults$generateWeatherSeries$warm.variable,
+     warm.signif.level = yaml$warm.signif.level,
+     warm.sample.num = yaml$warm.sample.num,
+     warm.subset.criteria = yaml_defaults$generateWeatherSeries$warm.subset.criteria,
+     knn.sample.num = yaml$knn.sample.num,
+     mc.wet.quantile = yaml_defaults$generateWeatherSeries$mc.wet.quantile,
+     mc.extreme.quantile = yaml_defaults$generateWeatherSeries$mc.extreme.quantile,
+     evaluate.model = yaml_defaults$generateWeatherSeries$evaluate.model,
+     evaluate.grid.num = yaml_defaults$generateWeatherSeries$evaluate.grid.num,
+     seed = yaml_defaults$generateWeatherSeries$seed,
+     compute.parallel = yaml_defaults$generateWeatherSeries$compute.parallel,
+     num.cores = yaml_defaults$generateWeatherSeries$num.cores
 )
 
 # STEP 3) Save each stochastic realization back to a netcdf file
