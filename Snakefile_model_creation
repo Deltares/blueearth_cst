@@ -70,7 +70,7 @@ rule run_wflow:
     params:
         toml_fid = f"{basin_dir}/wflow_sbm.toml"
     shell:
-        """ julia -e "using Wflow; Wflow.run()" "{params.toml_fid}" """
+        """ julia --threads 4 -e "using Wflow; Wflow.run()" "{params.toml_fid}" """
 
 # Rule to analyse and plot wflow model run results --> final output
 rule plot_results:
