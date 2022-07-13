@@ -12,6 +12,8 @@ data_sources: config/deltares_data.yml
 # Time horizon of the historical period
 starttime: "2000-01-01T00:00:00"
 endtime: "2020-12-31T00:00:00"
+# Historical climate data source (name as available in the data_sources catalog file). Either [era5, chirps_global, chirps, eobs].
+clim_historical: chirps_global
 
 ###########################################################################################
 #################################### Model building #######################################

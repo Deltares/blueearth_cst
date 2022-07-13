@@ -24,6 +24,7 @@ exp_dir = f"{project_dir}/climate_{experiment}"
 # Time horizon historical
 starttime = config['starttime']
 endtime = config['endtime']
+clim_source = config["clim_historical"]
 
 # Time horizon climate experiment
 starttime_climate = config['starttime_climate']
@@ -37,7 +38,7 @@ rule all:
         #f"{exp_dir}/realization_{RLZ_NUM}/rlz_{RLZ_NUM}_historical.nc",
         #f"{exp_dir}/stress_test/cst_{ST_NUM}.csv"
 
-# Rule to extract ERA5 climate data at native resolution for the project area
+# Rule to extract historic climate data at native resolution for the project area
 rule extract_climate_grid:
     input:
         prj_region = ancient(f"{basin_dir}/staticgeoms/region.geojson"),
@@ -45,15 +46,16 @@ rule extract_climate_grid:
         data_sources = DATA_SOURCES,
         starttime = starttime,
         endtime = endtime,
+        clim_source = clim_source,
     output:
-        climate_nc = f"{project_dir}/climate_historical/raw_data/extract_era5.nc",
+        climate_nc = f"{project_dir}/climate_historical/raw_data/extract_historical.nc",
     script:
         "src/extract_historical_climate.py"
 
 # Prepare climate realization
 rule generate_weather_realization:
     input:
-        climate_nc = ancient(f"{project_dir}/climate_historical/raw_data/extract_era5.nc"),
+        climate_nc = ancient(f"{project_dir}/climate_historical/raw_data/extract_historical.nc"),
     output:
         [f"{exp_dir}/realization_{rlz_num}/rlz_{rlz_num}_cst_0.nc" for rlz_num in np.arange(1, RLZ_NUM+1)]
     params:
@@ -99,7 +101,8 @@ rule climate_data_catalog:
     output:
         clim_data = f"{exp_dir}/data_catalog_climate_experiment.yml"
     params:
-        data_sources = DATA_SOURCES
+        data_sources = DATA_SOURCES,
+        clim_source = clim_source,
     script:
         "src/prepare_climate_data_catalog.py"
 
@@ -115,6 +118,7 @@ rule downscale_climate_realization:
         model_dir = basin_dir,
         starttime = starttime_climate,
         endtime = endtime_climate,
+        clim_source = clim_source,
     script:
         "src/downscale_climate_forcing.py"
 
