@@ -1,4 +1,7 @@
 
+# Install required packages -- ONLY ONCE!
+source("./src/weathergen/install_rpackages.r")
+
 # General R settings and prequisites
 source("./src/weathergen/global.R")
 
