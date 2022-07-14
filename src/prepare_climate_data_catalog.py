@@ -6,6 +6,7 @@ from pathlib import Path
 # Snake parameters
 fn_out = snakemake.output.clim_data
 data_libs = snakemake.params.data_sources
+clim_source = snakemake.params.clim_source
 nc_fns = snakemake.input.cst_nc
 nc_fns2 = snakemake.input.rlz_nc
 
@@ -46,19 +47,46 @@ def prepare_clim_data_catalog(fns, data_libs_like, source_like, fn_out=None):
         dc_fn = dc_like.copy()
         dc_fn['path'] = fn
         dc_fn['kwargs']['preprocess'] = "transpose_dims"
-        dc_fn['meta']['processing'] = f"Climate data generated from {source_like} using Deltares/weathergenr"
-        #remove entries that have already been processes while reading in the data:
-        dc_fn.pop('unit_mult')
-        dc_fn.pop('unit_add')
-        dc_fn.pop('rename')
+        if source_like == 'chirps' or source_like == 'chirps_global': # precip only
+            dc_fn['meta']['processing'] = f"Climate data generated from {source_like} for precipitation and era5 using Deltares/weathergenr"
+        else:
+            dc_fn['meta']['processing'] = f"Climate data generated from {source_like} using Deltares/weathergenr"
+        #remove entries that have already been processed while reading in the data:
+        for v in ['unit_mult', 'unit_add', 'rename']:
+            if v in dc_fn:
+                dc_fn.pop(v)
         climate_data_dict[name] = dc_fn
     
+    # Add local orography for chirps resolution
+    if source_like == 'chirps' or source_like == 'chirps_global':
+        fn_oro = Path(fns[0], resolve_path=True)
+        fn_oro = os.path.join(os.path.dirname(fn_oro), "..", "..","climate_historical","raw_data",f"{source_like}_orography.nc")
+        fn_oro = Path(fn_oro, resolve_path=True)       
+        dc_oro = {
+            "crs": 4326,
+            "data_type": "RasterDataset",
+            "driver": "netcdf",
+            "kwargs": {
+                "chunks": {
+                    "latitude": 100,
+                    "longitude": 100,
+                }
+            },
+            "meta": {
+                "category": "topography",
+                "processing": f"Resampled DEM from MERIT Hydro to the resolution of {source_like}",
+            },
+            "path": fn_oro,
+        }
+        climate_data_dict[f"{source_like}_orography"] = dc_oro
+    
     climate_data_catalog.from_dict(climate_data_dict)
+    import pdb; pdb.set_trace()
     if fn_out is not None:
         climate_data_catalog.to_yml(fn_out)
 
 
-_ = prepare_clim_data_catalog(fns= nc_fns, data_libs_like=data_libs, source_like='era5_daily', fn_out=fn_out)
+_ = prepare_clim_data_catalog(fns= nc_fns, data_libs_like=data_libs, source_like=clim_source, fn_out=fn_out)
 
 
 

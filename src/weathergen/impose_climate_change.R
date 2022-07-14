@@ -16,8 +16,8 @@ output_path <- snakemake@params[["output_path"]]
 nc_file_prefix <- snakemake@params[["nc_file_prefix"]]
 
 # temp_change_type/precip_change_type [string]
-temp_change_type = yaml$temp$change_type
-precip_change_type = yaml$precip$change_type
+temp_change_transient = yaml$temp$transient_change
+precip_change_transient = yaml$precip$transient_change
 
 
 # PARAMETERS CHANGING PER RUN ##################################################
@@ -41,8 +41,8 @@ rlz_future <- weathergenr::imposeClimateChanges(
    change.factor.precip.mean = cst_data$precip_mean ,
    change.factor.precip.variance = cst_data$precip_variance,
    change.factor.temp.mean = cst_data$temp_mean,
-   change.type.temp = temp_change_type,
-   change.type.precip = precip_change_type,
+   transient.temp.change = temp_change_transient,
+   transient.precip.change = precip_change_transient,
    calculate.pet = TRUE
 )
 
