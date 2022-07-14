@@ -81,7 +81,6 @@ def prepare_clim_data_catalog(fns, data_libs_like, source_like, fn_out=None):
         climate_data_dict[f"{source_like}_orography"] = dc_oro
     
     climate_data_catalog.from_dict(climate_data_dict)
-    import pdb; pdb.set_trace()
     if fn_out is not None:
         climate_data_catalog.to_yml(fn_out)
 
