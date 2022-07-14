@@ -19,9 +19,10 @@ dependencies:
   - flit>=3.2
   - gdal>=3.1
   - geopandas
+  - git
   - graphviz
-  - hydromt>=0.4.3
-  - hydromt_wflow>=0.1.3
+#  - hydromt>=0.4.3
+#  - hydromt_wflow>=0.1.3
   - jupyter # to run examples
   - netcdf4
   - matplotlib # to run examples
@@ -62,5 +63,7 @@ dependencies:
   - xarray
   - zarr
   - pip:
+    - git+https://github.com/Deltares/hydromt.git
+    - git+https://github.com/Deltares/hydromt_wflow.git
     - hydroengine
     - snakemake

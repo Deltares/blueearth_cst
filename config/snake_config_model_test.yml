@@ -11,9 +11,12 @@ data_sources: config/deltares_data.yml
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
 data_sources_climate: config/deltares_data_climate_projections.yml
 
+# Info on the historical climate data is used in the historic model run + reference data for the weather generator
 # Time horizon of the historical period
 starttime: "2000-01-01T00:00:00"
 endtime: "2020-12-31T00:00:00"
+# Historical climate data source (name as available in the data_sources catalog file). Either [era5, chirps_global, chirps, eobs].
+clim_historical: era5
 
 ###########################################################################################
 #################################### Model building #######################################
@@ -69,7 +72,7 @@ knn.sample.num: 120
 # including number of steps and min, max change
 temp:
   step_num: 2
-  change_type: transient
+  transient_change: TRUE
   mean:
     min:
       - 0.0  # January
@@ -102,7 +105,7 @@ temp:
 # including number of steps and min, max change
 precip:
   step_num: 3
-  change_type: transient
+  transient_change: TRUE
   mean:
     min:
       - 0.7  # January

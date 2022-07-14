@@ -11,6 +11,14 @@ fn_in = snakemake.input.nc
 data_libs = snakemake.input.data_sources
 model_root = snakemake.params.model_dir
 
+precip_source = snakemake.params.clim_source
+
+oro_source = f'{precip_source}_orography'
+if precip_source == 'eobs':
+    pet_method = 'makkink'
+else: # (chirps is precip only so combined with era5)
+    pet_method = 'debruin'
+
 # Get name of climate scenario (rlz_*_cst_*)
 fn_in_path = Path(fn_in, resolve_path=True)
 climate_name = os.path.basename(fn_in_path).split(".")[0]
@@ -41,8 +49,8 @@ update_options = {
         "temp_pet_fn": climate_name,
         "press_correction": True,
         "temp_correction": True,
-        "dem_forcing_fn": "era5_orography",
-        "pet_method": "debruin",
+        "dem_forcing_fn": oro_source,
+        "pet_method": pet_method,
     },
     "write_forcing":{},
     "setup_config1": {
