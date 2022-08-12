@@ -51,9 +51,7 @@ def get_change_clim_projections(ds_hist, ds_clim):
     
     monthly_change_mean_grid = xr.merge(ds)
     
-    #scalar 
-    monthly_change_mean_scalar = monthly_change_mean_grid.mean([x_dim, y_dim])
-    return monthly_change_mean_grid, monthly_change_mean_scalar
+    return monthly_change_mean_grid
 
 
 def get_change_annual_clim_proj(ds_hist_time, ds_clim_time, stats = ["mean", "std", "var", "median", "q_90", "q_75", "q_10", "q_25"], start_month_hyd_year = "Jan"):
@@ -123,21 +121,25 @@ def get_change_annual_clim_proj(ds_hist_time, ds_clim_time, stats = ["mean", "st
 
 # Snakemake options
 clim_project_dir = snakemake.params.clim_project_dir
-#stats_nc_hist = snakemake.input.stats_nc_hist
-#stats_nc = snakemake.input.stats_nc
+stats_nc_hist = snakemake.params.stats_nc_hist
+stats_nc = snakemake.params.stats_nc
 stats_time_nc_hist = snakemake.input.stats_time_nc_hist
 stats_time_nc = snakemake.input.stats_time_nc
 start_month_hyd_year = snakemake.params.start_month_hyd_year
 name_horizon = snakemake.params.name_horizon
 name_scenario = snakemake.params.name_scenario
 name_model = snakemake.params.name_model
+save_grids = snakemake.params.save_grids
 
-#open datasets
-#ds_hist = xr.open_dataset(stats_nc_hist)
-#ds_clim = xr.open_dataset(stats_nc)
-
+# open datasets
 ds_hist_time = xr.open_dataset(stats_time_nc_hist)
 ds_clim_time = xr.open_dataset(stats_time_nc)
+
+# Get names of grids if save_grids
+if save_grids:
+    #open datasets
+    ds_hist = xr.open_dataset(stats_nc_hist)
+    ds_clim = xr.open_dataset(stats_nc)
 
 #get lat lon name of data
 XDIMS = ("x", "longitude", "lon", "long")
@@ -148,7 +150,6 @@ for dim in XDIMS:
 for dim in YDIMS:
     if dim in ds_hist_time.coords:
         y_dim = dim
-
 
 
 # #only calc statistics if netcdf is filled (for snake all the files are made, even dummy when no data)
@@ -201,3 +202,22 @@ else: #create a dummy netcdf
     name_nc_out = f"annual_change_scalar_stats-{name_model}_{name_scenario}_{name_horizon}.nc"
     ds_dummy = xr.Dataset()
     ds_dummy.to_netcdf(os.path.join(clim_project_dir, name_nc_out))
+
+if save_grids:
+    if len(ds_clim) > 0:
+        #calculate change
+        monthly_change_mean_grid = get_change_clim_projections(ds_hist, ds_clim)
+        
+        #write to netcdf files
+        print(f"writing netcdf files monthly_change_mean_grid")
+        dvars = monthly_change_mean_grid.raster.vars        
+        name_model = monthly_change_mean_grid.model.values[0]
+        name_scenario = monthly_change_mean_grid.scenario.values[0]
+        name_horizon = monthly_change_mean_grid.horizon.values[0]
+        name_nc_out = f"monthly_change_mean_grid-{name_model}_{name_scenario}_{name_horizon}.nc"
+        monthly_change_mean_grid.to_netcdf(os.path.join(clim_project_dir, name_nc_out), encoding={k: {"zlib": True} for k in dvars})
+    else: #create a dummy netcdf
+        name_nc_out = f"monthly_change_mean_grid-{name_model}_{name_scenario}_{name_horizon}.nc"
+        ds_dummy = xr.Dataset()
+        ds_dummy.to_netcdf(os.path.join(clim_project_dir, name_nc_out))
+
