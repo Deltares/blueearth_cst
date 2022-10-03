@@ -1,4 +1,4 @@
-name: blueearth-cst
+name: cst
 
 channels:
   - conda-forge
@@ -59,10 +59,10 @@ dependencies:
   - requests
   - rioxarray
   - scipy
-  - seaborn
+  - seaborn # plot
   - toml
   - xarray
   - zarr
   - pip:
     - hydroengine
-    - snakemake
+    - snakemake==7.8.0
