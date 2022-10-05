@@ -31,24 +31,32 @@ change_grids_nc = snakemake.params.change_grids
 #%% Historical
 print("Opening historical gcm timeseries")
 # open historical datasets
-def to_datetimeindex(ds):
+def todatetimeindex_dropvars(ds):
     if "time" in ds.coords:
         if ds.indexes["time"].dtype == "O":
             ds["time"] = ds.indexes["time"].to_datetimeindex()
-        return ds
-ds_hist = xr.open_mfdataset(stats_time_nc_hist, preprocess=to_datetimeindex)
+    if 'spatial_ref' in ds.coords:
+        ds = ds.drop_vars('spatial_ref')
+    return ds
+
+fns_hist = stats_time_nc_hist.copy()
+for fn in fns_hist:
+    ds = xr.open_dataset(fn)
+    if len(ds) == 0 or ds is None:
+        fns_hist.remove(fn)
+ds_hist = xr.open_mfdataset(stats_time_nc_hist, preprocess=todatetimeindex_dropvars)
 
 # convert to df and compute anomalies
 print("Computing historical gcm timeseries anomalies")
 #precip
-gcm_pr = ds_hist['precip'].squeeze(drop=True).drop_vars('spatial_ref').transpose().to_pandas()
+gcm_pr = ds_hist['precip'].squeeze(drop=True).transpose().to_pandas()
 gcm_pr_annmn = gcm_pr.resample('A').mean()
 gcm_pr_ref = gcm_pr_annmn.mean()
 gcm_pr_anom = (gcm_pr_annmn-gcm_pr_ref)/gcm_pr_ref*100
 q_pr_anom = gcm_pr_anom.quantile([0.05, 0.5, 0.95], axis=1).transpose()
 
 # temp
-gcm_tas = ds_hist['temp'].squeeze(drop=True).drop_vars('spatial_ref').transpose().to_pandas()
+gcm_tas = ds_hist['temp'].squeeze(drop=True).transpose().to_pandas()
 gcm_tas_annmn = gcm_tas.resample('A').mean()
 gcm_tas_ref = gcm_tas_annmn.mean()
 gcm_tas_anom = (gcm_tas_annmn-gcm_tas_ref)/gcm_tas_ref*100
@@ -81,7 +89,7 @@ for i in range(len(rcps)):
 for i in range(len(rcps)):
     print(f"Opening future gcm timeseries for rcp {rcps[i]}")
     fns_rcp = [fn for fn in fns_future if rcps[i] in fn]
-    ds_rcp = xr.open_mfdataset(fns_rcp, preprocess=to_datetimeindex)
+    ds_rcp = xr.open_mfdataset(fns_rcp, preprocess=todatetimeindex_dropvars)
     ds_rcp_pr = ds_rcp['precip'].squeeze(drop=True)
     ds_rcp_tas = ds_rcp['temp'].squeeze(drop=True)
     if len(ds_rcp.horizon) > 1:
@@ -91,8 +99,8 @@ for i in range(len(rcps)):
         ds_rcp_tas = xr.merge([ds_rcp_tas.sel({"horizon":hz[0]}, drop=True), ds_rcp_tas.sel({"horizon":hz[1]}, drop=True)])
         ds_rcp_tas = ds_rcp_tas["temp"]
     # to dataframe
-    pr_fut[i] = ds_rcp_pr.drop_vars('spatial_ref').transpose().to_pandas()
-    tas_fut[i] = ds_rcp_tas.drop_vars('spatial_ref').transpose().to_pandas()
+    pr_fut[i] = ds_rcp_pr.transpose().to_pandas()
+    tas_fut[i] = ds_rcp_tas.transpose().to_pandas()
 
 #compute anomalies
 print("Computing future gcm timeseries anomalies")
@@ -165,14 +173,14 @@ if save_grids:
             pr = ds_rcp_hz_med["precip"]
             pr.attrs.update(long_name='Precipitation Change (median over GCMs)', units='%')
             g = pr.plot(x="lon", y="lat", col="month", col_wrap=3)
-            g.set_axis_labels(x_var=f"longitude [degree east]", y_var=f"latitude [degree north]")
+            g.set_axis_labels("longitude [degree east]", "latitude [degree north]")
             plt.savefig(os.path.join(clim_project_dir, "plots",f"gridded_monthly_precipitation_change_{rcp}_{hz}-future-horizon.png"))
             #temp
             plt.figure(1)
             tas = ds_rcp_hz_med["temp"]
             pr.attrs.update(long_name='Temperature Change (median over GCMs)', units='degC')
             g = pr.plot(x="lon", y="lat", col="month", col_wrap=3)
-            g.set_axis_labels(x_var=f"longitude [degree east]", y_var=f"latitude [degree north]")
+            g.set_axis_labels("longitude [degree east]", "latitude [degree north]")
             plt.savefig(os.path.join(clim_project_dir, "plots",f"gridded_monthly_temperature_change_{rcp}_{hz}-future-horizon.png"))
 
             # Average maps
