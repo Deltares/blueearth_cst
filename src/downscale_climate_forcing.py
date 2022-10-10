@@ -1,4 +1,5 @@
 import hydromt
+from hydromt_wflow import WflowModel
 from pathlib import Path
 import os
 
@@ -64,7 +65,7 @@ update_options = {
 
 ### Run Hydromt update using update_options dict ###
 # Instantiate model
-mod = hydromt.WflowModel(root=model_root, mode="r+", data_libs=data_libs)
+mod = WflowModel(root=model_root, mode="r+", data_libs=data_libs)
 
 # Update
 mod.update(opt=update_options)

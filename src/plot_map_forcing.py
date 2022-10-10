@@ -24,6 +24,7 @@ import cartopy.crs as ccrs
 import cartopy.io.img_tiles as cimgt
 
 import hydromt
+from hydromt_wflow import WflowModel
 
 project_dir = snakemake.params.project_dir
 gauges_fn = snakemake.params.gauges_fid
@@ -31,7 +32,7 @@ gauges_name = basename(gauges_fn).split(".")[0]
 
 Folder_plots = f"{project_dir}/plots/wflow_model_performance"
 root = f"{project_dir}/hydrology_model"
-mod = hydromt.WflowModel(root, mode="r")
+mod = WflowModel(root, mode="r")
 
 forcing_vars = {'precip': {
                             "long_name": "precipitation",
@@ -162,7 +163,7 @@ for forcing_var, forcing_char in forcing_vars.items():
         da = mod.forcing[forcing_var].resample(time="A").mean("time").mean("time")
     else:
         da = mod.forcing[forcing_var].resample(time="A").sum("time").mean("time")
-    da = da.where(mod.staticmaps.mask)
+    da = da.where(mod.staticmaps['wflow_subcatch']>=0)
     da.attrs.update(long_name=forcing_char["long_name"], units=forcing_char["unit"])
     figname = f"{forcing_var}"
     plot_map_model(mod, da, figname)

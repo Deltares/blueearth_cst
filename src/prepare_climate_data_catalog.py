@@ -46,6 +46,8 @@ def prepare_clim_data_catalog(fns, data_libs_like, source_like, fn_out=None):
         name = os.path.basename(fn).split(".")[0]
         dc_fn = dc_like.copy()
         dc_fn['path'] = fn
+        if 'kwargs' not in dc_fn:
+            dc_fn['kwargs'] = dict()
         dc_fn['kwargs']['preprocess'] = "transpose_dims"
         if source_like == 'chirps' or source_like == 'chirps_global': # precip only
             dc_fn['meta']['processing'] = f"Climate data generated from {source_like} for precipitation and era5 using Deltares/weathergenr"

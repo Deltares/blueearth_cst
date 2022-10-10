@@ -3,7 +3,7 @@ project_name: Gabon
 project_dir: examples/Gabon
 
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
-data_sources: config/deltares_data_climate_projections.yml
+data_sources: config/deltares_data_climate_projections_linux.yml
 
 # climate models and scenarios
 clim_project: cmip5
@@ -28,6 +28,3 @@ start_month_hyd_year: Jan
 historical: 1960, 2000
 future_horizons: 
   near: 2020, 2060
-
-
-

@@ -10,6 +10,7 @@ import os
 import glob
 import matplotlib.pyplot as plt
 import pandas as pd
+import geopandas as gpd
 import xarray as xr
 
 from dask.diagnostics import ProgressBar
@@ -18,6 +19,7 @@ from dask.diagnostics import ProgressBar
 
 # Snakemake options
 project_dir = snakemake.params.project_dir
+region_fn = snakemake.input.region_fid
 path_yml = snakemake.params.yml_fid
 time_tuple = snakemake.params.time_horizon
 time_tuple = tuple(map(str, time_tuple.split(', ')))
@@ -27,6 +29,7 @@ name_members = snakemake.params.name_members
 name_model = snakemake.params.name_model
 name_clim_project = snakemake.params.name_clim_project
 variables = snakemake.params.variables
+save_grids = snakemake.params.save_grids
 
 #additional folder structure info
 folder_model = os.path.join(project_dir, "hydrology_model")
@@ -36,15 +39,14 @@ if not os.path.exists(folder_out):
     os.mkdir(folder_out)
 
 # initialize model and region properties
-mod = hydromt.WflowModel(root=folder_model, mode='r')
-bbox = list(mod.region.geometry.bounds.values[0])
-geom = mod.region.geometry
+geom = gpd.read_file(region_fn)
+bbox = list(geom.geometry.bounds.values[0])
 buffer = 1
 
 #initialize data_catalog from yml file
 data_catalog = hydromt.DataCatalog(data_libs=path_yml)
 
-def get_stats_clim_projections(data, name_clim_project, name_model, name_scenario, name_member, time_tuple):
+def get_stats_clim_projections(data, name_clim_project, name_model, name_scenario, name_member, time_tuple, save_grids=False):
     """
     Parameters
     ----------
@@ -61,6 +63,8 @@ def get_stats_clim_projections(data, name_clim_project, name_model, name_scenari
         member name of the climate model (e.g. r1i1p1f1).
     time_tuple : tuple
         time period over which to calculate statistics.
+    save_grids : bool
+        save gridded stats as well as scalar stats. False by default.
 
     Returns
     -------
@@ -79,7 +83,7 @@ def get_stats_clim_projections(data, name_clim_project, name_model, name_scenari
         if dim in data.coords:
             y_dim = dim
 
-    #ds = []
+    ds = []
     ds_scalar = []
     #filter variables for precip and temp 
     # data_vars = list(data.data_vars)
@@ -97,36 +101,44 @@ def get_stats_clim_projections(data, name_clim_project, name_model, name_scenari
         ds_scalar.append(var_m_scalar.to_dataset())
         
         #get grid average over time for each month
-        #var_mm = var_m.groupby('time.month').mean('time')
-        #ds.append(var_mm.to_dataset())
+        if save_grids:
+            var_mm = var_m.groupby('time.month').mean('time')
+            ds.append(var_mm.to_dataset())
+    
     #mean stats over grid and time
-    #mean_stats = xr.merge(ds)
-    mean_stats_time = xr.merge(ds_scalar)
+    mean_stats_time = xr.merge(ds_scalar)   
+    #add coordinate on project, model, scenario, realization to later merge all files
+    mean_stats_time = mean_stats_time.assign_coords(
+        {"clim_project":f"{name_clim_project}",
+        "model":f"{name_model}",
+        "scenario":f"{name_scenario}",
+        "horizon":f"{name_horizon}",
+        "member":f"{name_member}",
+        }
+    ).expand_dims(["clim_project", "model", "scenario", "horizon", "member"])
     
-    # #add coordinate on project, model, scenario, realization to later merge all files
-    # mean_stats = mean_stats.assign_coords({"clim_project":f"{name_clim_project}",
-    #                           "model":f"{name_model}",
-    #                           "scenario":f"{name_scenario}",
-    #                           "horizon":f"{name_horizon}",
-    #                           "member":f"{name_member}",
-    #                           }).expand_dims(["clim_project", "model", "scenario", "horizon", "member"])
+    if save_grids:
+        mean_stats = xr.merge(ds)  
+        #add coordinate on project, model, scenario, realization to later merge all files
+        mean_stats = mean_stats.assign_coords(
+            {"clim_project":f"{name_clim_project}",
+            "model":f"{name_model}",
+            "scenario":f"{name_scenario}",
+            "horizon":f"{name_horizon}",
+            "member":f"{name_member}",
+            }
+        ).expand_dims(["clim_project", "model", "scenario", "horizon", "member"])
+
+    else:
+        mean_stats = xr.Dataset()
     
-    #same for time scalar dataset
-    mean_stats_time = mean_stats_time.assign_coords({"clim_project":f"{name_clim_project}",
-                              "model":f"{name_model}",
-                              "scenario":f"{name_scenario}",
-                              "horizon":f"{name_horizon}",
-                              "member":f"{name_member}",
-                              }).expand_dims(["clim_project", "model", "scenario", "horizon", "member"])
-    
-    #return mean_stats, mean_stats_time
-    return mean_stats_time
+    return mean_stats, mean_stats_time
 
 
     
 #check if model really exists from data catalog entry - else skip and provide empty ds?? 
 
-#ds_members_mean_stats = []
+ds_members_mean_stats = []
 ds_members_mean_stats_time = []
 
 for name_member in name_members:
@@ -151,19 +163,20 @@ for name_member in name_members:
             data = xr.merge(ds_list)               
         
         #calculate statistics
-        #mean_stats, mean_stats_time = get_stats_clim_projections(data, name_clim_project, name_model, name_scenario, name_member, time_tuple)
-        mean_stats_time = get_stats_clim_projections(data, name_clim_project, name_model, name_scenario, name_member, time_tuple)
+        mean_stats, mean_stats_time = get_stats_clim_projections(data, name_clim_project, name_model, name_scenario, name_member, time_tuple, save_grids=save_grids)
 
     else:
-        #mean_stats = xr.Dataset()
+        mean_stats = xr.Dataset()
         mean_stats_time = xr.Dataset()
         
     #merge members results
-    #ds_members_mean_stats.append(mean_stats)
+    ds_members_mean_stats.append(mean_stats)
     ds_members_mean_stats_time.append(mean_stats_time)
       
-        
-#nc_mean_stats =xr.merge(ds_members_mean_stats)
+if save_grids:        
+    nc_mean_stats =xr.merge(ds_members_mean_stats)
+else:
+    nc_mean_stats = xr.Dataset()
 nc_mean_stats_time = xr.merge(ds_members_mean_stats_time)
         
     
@@ -174,25 +187,19 @@ nc_mean_stats_time = xr.merge(ds_members_mean_stats_time)
 dvars = nc_mean_stats_time.raster.vars
 
 if name_scenario == "historical":
-    #name_nc_out = f"historical_stats_{name_model}.nc"
+    name_nc_out = f"historical_stats_{name_model}.nc"
     name_nc_out_time = f"historical_stats_time_{name_model}.nc"
 else:
-    #name_nc_out = f"stats-{name_model}_{name_scenario}_{name_horizon}.nc"
+    name_nc_out = f"stats-{name_model}_{name_scenario}_{name_horizon}.nc"
     name_nc_out_time = f"stats_time-{name_model}_{name_scenario}_{name_horizon}.nc"
-
-#print('writing stats over grid to nc')        
-#delayed_obj = nc_mean_stats.to_netcdf(os.path.join(folder_out, name_nc_out), encoding={k: {"zlib": True} for k in dvars}, compute=False)
-#with ProgressBar():
-#    delayed_obj.compute()
 
 print('writing stats over time to nc')
 delayed_obj = nc_mean_stats_time.to_netcdf(os.path.join(folder_out, name_nc_out_time), encoding={k: {"zlib": True} for k in dvars}, compute=False)
 with ProgressBar():
     delayed_obj.compute()
 
-
-
-#%%
-# def drop_duplicates(ds):
-#     ds = ds.sel(time=~ds.indexes['time'].duplicated())
-#     return ds
+if save_grids:
+    print('writing stats over grid to nc')        
+    delayed_obj = nc_mean_stats.to_netcdf(os.path.join(folder_out, name_nc_out), encoding={k: {"zlib": True} for k in dvars}, compute=False)
+    with ProgressBar():
+        delayed_obj.compute()

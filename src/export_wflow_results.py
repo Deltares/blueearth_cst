@@ -7,6 +7,7 @@ import pandas as pd
 import numpy as np
 
 import hydromt
+from hydromt_wflow import WflowModel
 from hydromt_wflow.utils import read_csv_results
 
 # Snakemake options
@@ -22,7 +23,7 @@ q95_fn = snakemake.output.q95
 
 # Read the wflow models and results
 print("Reading wflow model")
-mod = hydromt.WflowModel(root=model_dir, mode="r")
+mod = WflowModel(root=model_dir, mode="r")
 
 # Get output discharge columns
 sim = pd.read_csv(csv_fns[0], index_col=0, parse_dates=True)

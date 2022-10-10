@@ -129,4 +129,5 @@ examples/
 # Images
 *.png
 
-
+# singularity
+singularity/*

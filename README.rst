@@ -50,6 +50,29 @@ tool:
     $ conda env create -f environment.yml
     $ conda activate bluearth-cst
 
+Docker
+======
+
+There is a docker directory present, containing 2 Dockerfiles:
+- hydromt_wflow: a docker image the HydroMT Wflow plugin
+- snakemake_singularity: a docker image for snakemake containing singularity
+
+Build the images using:
+.. code-block:: console
+    docker build -t snakemake-singularity ./docker/snakemake_singularity
+    docker build -t hydromt-wflow ./docker/hydromt_wflow
+    docker build -t weathergenr -f docker/weathergenr/Dockerfile .
+
+Then build the docker image for wflow from [the Deltares GitLab](https://gitlab.com/deltares/wflow/wflow_cli).
+Then tag this image as `wflow-cli:latest`
+
+To install using docker:
+Make sure you have the wflow-cli and hydromt-wflow images locally, then use:
+.. code-block:: console
+    singularity build singularity/wflow-cli.sif docker-daemon://wflow-cli:latest
+    singularity build singularity/hydromt-wflow.sif docker-daemon://hydromt-wflow:latest
+    singularity build singularity/weathergenr.sif docker-daemon://weathergenr:latest
+
 Running
 -------
 BlueEarth CST toolbox is based on several workflows developped using Snakemake_ . Three workflows are available:
