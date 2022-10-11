@@ -20,7 +20,7 @@ dependencies:
   - gdal>=3.1
   - geopandas
   - graphviz
-  - hydromt>=0.5.0
+#  - hydromt>=0.5.0
 #  - hydromt_wflow
   - jupyter # to run examples
   - netcdf4
@@ -60,10 +60,12 @@ dependencies:
   - rioxarray
   - scipy
   - seaborn # plot
+  - tabulate==0.8.10 # snakemake dependency, bug in v0.9.0
   - toml
   - xarray
   - zarr
   - pip:
     - hydroengine
     - snakemake==7.8.0
+    - git+https://github.com/Deltares/hydromt.git
     - git+https://github.com/Deltares/hydromt_wflow.git
