@@ -24,6 +24,7 @@ import cartopy.crs as ccrs
 import cartopy.io.img_tiles as cimgt
 
 import hydromt
+from hydromt_wflow import WflowModel
 
 project_dir = snakemake.params.project_dir
 gauges_fn = snakemake.params.gauges_fid
@@ -31,7 +32,7 @@ gauges_name = basename(gauges_fn).split(".")[0]
 
 Folder_plots = f"{project_dir}/plots/wflow_model_performance"
 root = f"{project_dir}/hydrology_model"
-mod = hydromt.WflowModel(root, mode="r")
+mod = WflowModel(root, mode="r")
 
 forcing_vars = {'precip': {
                             "long_name": "precipitation",
