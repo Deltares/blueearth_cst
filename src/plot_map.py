@@ -24,6 +24,7 @@ import cartopy.crs as ccrs
 import cartopy.io.img_tiles as cimgt
 
 import hydromt
+from hydromt_wflow import WflowModel
 
 project_dir = snakemake.params.project_dir
 gauges_fn = snakemake.input.gauges_fid
@@ -33,7 +34,7 @@ Folder_plots = f"{project_dir}/plots/wflow_model_performance"
 root = f"{project_dir}/hydrology_model"
 
 
-mod = hydromt.WflowModel(root, mode="r")
+mod = WflowModel(root, mode="r")
 
 # read and mask the model elevation
 da = mod.staticmaps["wflow_dem"].raster.mask_nodata()

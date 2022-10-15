@@ -7,7 +7,7 @@ data_sources: config/deltares_data_climate_projections.yml
 
 # climate models and scenarios
 clim_project: cmip5
-models: [IPSL-CM5A-LR, 'ACCESS1-0', 'ACCESS1-3', 'BNU-ESM', 'CCSM4', 'CESM1-BGC',
+models: ['IPSL-CM5A-LR', 'ACCESS1-0', 'ACCESS1-3', 'BNU-ESM', 'CCSM4', 'CESM1-BGC',
        'CESM1-CAM5', 'CESM1-FASTCHEM', 'CESM1-WACCM', 'CMCC-CESM',
        'CMCC-CM', 'CMCC-CMS', 'CNRM-CM5', 'CNRM-CM5-2', 'CSIRO-Mk3-6-0',
        'CanCM4', 'CanESM2', 'EC-EARTH', 'FGOALS-g2', 'FIO-ESM',

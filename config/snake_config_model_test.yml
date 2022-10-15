@@ -39,7 +39,7 @@ observations_timeseries: "data/observations/observations_timeseries_Gabon.csv"
 ################################## Climate projections ####################################
 # climate models and scenarios
 clim_project: cmip5
-models: ['MIROC5']
+models: ['MIROC5', 'HadGEM2-ES', 'IPSL-CM5A-LR', 'CMCC-CM', 'CNRM-CM5', 'GFDL-ESM2M']
 scenarios: [rcp45, rcp85]
 members: [r1i1p1]
 
@@ -50,7 +50,10 @@ start_month_hyd_year: Jan
 historical: 1960, 2000
 future_horizons: 
   near: 2020, 2060
-#  far: 2060, 2100
+  far: 2060, 2100
+
+# Additional gridded outputs (else only basin average)
+save_grids: TRUE
 
 ###########################################################################################
 ################################## Climate experiment #####################################

@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import hydromt
 import os
+from hydromt_wflow import WflowModel
 
 from func_plot_signature import plot_signatures, plot_hydro, plot_hydro_1y, plot_clim
 
@@ -45,7 +46,7 @@ markers = ["o"]
 
 #%%
 # Instantiate wflow model
-mod = hydromt.WflowModel(root=Folder_run, mode="r")
+mod = WflowModel(root=Folder_run, mode="r")
 
 # read gauges staticgeoms
 gdf_gauges = mod.staticgeoms["gauges"]

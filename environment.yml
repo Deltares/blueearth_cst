@@ -1,4 +1,4 @@
-name: blueearth-cst
+name: cst
 
 channels:
   - conda-forge
@@ -19,10 +19,9 @@ dependencies:
   - flit>=3.2
   - gdal>=3.1
   - geopandas
-  - git
   - graphviz
-#  - hydromt>=0.4.3
-#  - hydromt_wflow>=0.1.3
+#  - hydromt>=0.5.0
+#  - hydromt_wflow
   - jupyter # to run examples
   - netcdf4
   - matplotlib # to run examples
@@ -58,12 +57,15 @@ dependencies:
   - rpy2
   - rtools
   - requests
+  - rioxarray
   - scipy
+  - seaborn # plot
+  - tabulate==0.8.10 # snakemake dependency, bug in v0.9.0
   - toml
   - xarray
   - zarr
   - pip:
+    - hydroengine
+    - snakemake==7.8.0
     - git+https://github.com/Deltares/hydromt.git
     - git+https://github.com/Deltares/hydromt_wflow.git
-    - hydroengine
-    - snakemake
