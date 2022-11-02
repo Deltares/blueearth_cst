@@ -40,11 +40,11 @@ def todatetimeindex_dropvars(ds):
     return ds
 
 fns_hist = stats_time_nc_hist.copy()
-for fn in fns_hist:
+for fn in stats_time_nc_hist:
     ds = xr.open_dataset(fn)
     if len(ds) == 0 or ds is None:
         fns_hist.remove(fn)
-ds_hist = xr.open_mfdataset(stats_time_nc_hist, preprocess=todatetimeindex_dropvars)
+ds_hist = xr.open_mfdataset(fns_hist, preprocess=todatetimeindex_dropvars)
 
 # convert to df and compute anomalies
 print("Computing historical gcm timeseries anomalies")
@@ -66,7 +66,7 @@ q_tas_anom = gcm_tas_anom.quantile([0.05, 0.5, 0.95], axis=1).transpose()
 #%% Future
 # remove files containing empty dataset
 fns_future = stats_time_nc.copy()
-for fn in fns_future:
+for fn in stats_time_nc:
     ds = xr.open_dataset(fn)
     if len(ds) == 0 or ds is None:
         fns_future.remove(fn)
@@ -146,8 +146,8 @@ plt.savefig(os.path.join(clim_project_dir, "plots", "temperature_anomaly_project
 #%%
 # Map plots of gridded change per scenario / horizon
 if save_grids:
-    fns_grids= change_grids_nc
-    for fn in fns_grids:
+    fns_grids = change_grids_nc.copy()
+    for fn in change_grids_nc:
         ds = xr.open_dataset(fn)
         if len(ds) == 0 or ds is None:
             fns_grids.remove(fn)
@@ -178,8 +178,8 @@ if save_grids:
             #temp
             plt.figure(1)
             tas = ds_rcp_hz_med["temp"]
-            pr.attrs.update(long_name='Temperature Change (median over GCMs)', units='degC')
-            g = pr.plot(x="lon", y="lat", col="month", col_wrap=3)
+            tas.attrs.update(long_name='Temperature Change (median over GCMs)', units='degC')
+            g = tas.plot(x="lon", y="lat", col="month", col_wrap=3)
             g.set_axis_labels("longitude [degree east]", "latitude [degree north]")
             plt.savefig(os.path.join(clim_project_dir, "plots",f"gridded_monthly_temperature_change_{rcp}_{hz}-future-horizon.png"))
 
@@ -189,7 +189,7 @@ if save_grids:
             # we assume the model maps are in the geographic CRS EPSG:4326
             proj = ccrs.PlateCarree()
             # adjust zoomlevel and figure size to your basis size & aspect
-            zoom_level = 10
+            zoom_level = 8
             figsize = (10, 8)
             
             # precip
