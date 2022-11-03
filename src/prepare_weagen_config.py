@@ -6,11 +6,13 @@ yml_default = snakemake.params.default_config
 weagen_config = snakemake.output.weagen_config
 cftype = snakemake.params.cftype
 
+
 def read_yml(yml_fn):
-    """"Read yml file and return a dictionnary"""
+    """ "Read yml file and return a dictionnary"""
     with open(yml_fn, "r") as stream:
         yml = yaml.load(stream, Loader=yaml.FullLoader)
     return yml
+
 
 print(f"Preparing and writting the weather generator config file {weagen_config}")
 
@@ -20,9 +22,7 @@ yml_snake = read_yml(yml_default)
 if cftype == "generate":
     # new arguments
     yml_dict = {
-        "general": {
-            "variables": ["precip", "temp", "temp_min", "temp_max"]
-        },
+        "general": {"variables": ["precip", "temp", "temp_min", "temp_max"]},
         "generateWeatherSeries": {
             "output.path": snakemake.params.output_path,
             "sim.year.start": snakemake.params.start_year,
@@ -42,19 +42,23 @@ if cftype == "generate":
         },
     }
     # arguments from yml_snake
-    yml_dict["generateWeatherSeries"]["realizations_num"] = yml_snake["realizations_num"]
-    yml_dict["generateWeatherSeries"]["warm.signif.level"] = yml_snake["warm.signif.level"]
+    yml_dict["generateWeatherSeries"]["realizations_num"] = yml_snake[
+        "realizations_num"
+    ]
+    yml_dict["generateWeatherSeries"]["warm.signif.level"] = yml_snake[
+        "warm.signif.level"
+    ]
     yml_dict["generateWeatherSeries"]["warm.sample.num"] = yml_snake["warm.sample.num"]
     yml_dict["generateWeatherSeries"]["knn.sample.num"] = yml_snake["knn.sample.num"]
 
 
-else: # stress test
+else:  # stress test
     # new arguments
     yml_dict = {
         "imposeClimateChanges": {
             "output.path": snakemake.params.output_path,
             "nc.file.prefix": snakemake.params.nc_file_prefix,
-            "nc.file.suffix": snakemake.params.nc_file_suffix, 
+            "nc.file.suffix": snakemake.params.nc_file_suffix,
         }
     }
     # arguments from yml_snake

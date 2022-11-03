@@ -6,14 +6,14 @@ endtime = snakemake.params.endtime
 fn_ini = snakemake.output.forcing_ini
 precip_source = snakemake.params.clim_source
 
-if precip_source == 'eobs':
-    clim_source = 'eobs'
-    oro_source = 'eobs_orography'
-    pet_method = 'makkink'
-else: # (chirps is precip only)
-    clim_source = 'era5'
-    oro_source = 'era5_orography'
-    pet_method = 'debruin'
+if precip_source == "eobs":
+    clim_source = "eobs"
+    oro_source = "eobs_orography"
+    pet_method = "makkink"
+else:  # (chirps is precip only)
+    clim_source = "era5"
+    oro_source = "era5_orography"
+    pet_method = "debruin"
 
 
 forcing_options = {

@@ -27,14 +27,14 @@ mod = WflowModel(root=model_dir, mode="r")
 
 # Get output discharge columns
 sim = pd.read_csv(csv_fns[0], index_col=0, parse_dates=True)
-Q_vars = [x for x in sim.columns if x.startswith('Q_')]
-col_names = ['realization', 'tavg', 'prcp']
+Q_vars = [x for x in sim.columns if x.startswith("Q_")]
+col_names = ["realization", "tavg", "prcp"]
 col_names.extend(Q_vars)
 
 df_out_mean = pd.DataFrame(
-    data = np.zeros((len(csv_fns),len(col_names))),
-    columns = col_names, #["tavg", "prcp", "Mean", "Max", "Min", "Q95"],
-    dtype = "float32",
+    data=np.zeros((len(csv_fns), len(col_names))),
+    columns=col_names,  # ["tavg", "prcp", "Mean", "Max", "Min", "Q95"],
+    dtype="float32",
 )
 df_out_max = df_out_mean.copy()
 df_out_min = df_out_mean.copy()
@@ -53,13 +53,13 @@ for i in range(len(csv_fns)):
     # Get stress test stats
     rlz_nb = int(os.path.basename(csv_fns[i]).split(".")[0].split("_")[2])
     st_nb = os.path.basename(csv_fns[i]).split(".")[0].split("_")[-1]
-    if st_nb == '0':
+    if st_nb == "0":
         tavg = 0
         prcp = 0
     else:
         df_st = pd.read_csv(f"{exp_dir}/stress_test/cst_{st_nb}.csv")
-        tavg = df_st['temp_mean'].iloc[0]
-        prcp = df_st['precip_mean'].iloc[0]*100 - 100 # change in %
+        tavg = df_st["temp_mean"].iloc[0]
+        prcp = df_st["precip_mean"].iloc[0] * 100 - 100  # change in %
     df_out_mean.iloc[i, :] = np.append((rlz_nb, tavg, prcp), df_mean.values.round(2))
     df_out_max.iloc[i, :] = np.append((rlz_nb, tavg, prcp), df_max.values.round(2))
     df_out_min.iloc[i, :] = np.append((rlz_nb, tavg, prcp), df_min.values.round(2))
@@ -70,4 +70,3 @@ df_out_mean.to_csv(mean_fn, index=False)
 df_out_max.to_csv(max_fn, index=False)
 df_out_min.to_csv(min_fn, index=False)
 df_out_q95.to_csv(q95_fn, index=False)
-    
