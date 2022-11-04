@@ -28,3 +28,4 @@ RUN Rscript -e "install.packages('devtools',repos = 'http://cran.us.r-project.or
  && Rscript /root/work/weathergen/install_rpackages.r
 
 RUN Rscript -e "install.packages('devtools')"
+RUN Rscript -e "install.packages('yaml')"

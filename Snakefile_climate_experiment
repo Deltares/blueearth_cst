@@ -69,8 +69,10 @@ rule generate_weather_realization:
         nc_file_prefix = "rlz"
     container:
         "singularity/weathergenr.sif"
-    script:
-        "src/weathergen/generate_weather.R"
+    shell:
+        """
+        Rscript src/weathergen/generate_weather.R
+        """
 
 # Prepare stress test experiment
 rule climate_stress_parameters:
