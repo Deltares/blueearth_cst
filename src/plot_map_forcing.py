@@ -34,16 +34,11 @@ Folder_plots = f"{project_dir}/plots/wflow_model_performance"
 root = f"{project_dir}/hydrology_model"
 mod = WflowModel(root, mode="r")
 
-forcing_vars = {'precip': {
-                            "long_name": "precipitation",
-                            "unit": "mm y$^{-1}$"},
-                'pet': {
-                            "long_name": "potential evap.",
-                            "unit": "mm y$^{-1}$"},
-                'temp': {
-                            "long_name": "temperature",
-                            "unit": "degC"},
-                }
+forcing_vars = {
+    "precip": {"long_name": "precipitation", "unit": "mm y$^{-1}$"},
+    "pet": {"long_name": "potential evap.", "unit": "mm y$^{-1}$"},
+    "temp": {"long_name": "temperature", "unit": "degC"},
+}
 
 #%%
 def plot_map_model(mod, da, figname):
@@ -57,8 +52,10 @@ def plot_map_model(mod, da, figname):
     # adjust zoomlevel and figure size to your basis size & aspect
     zoom_level = 10
     figsize = (10, 8)
-    shaded = False  # shaded elevation (looks nicer with more pixels (e.g.: larger basins))!
-    
+    shaded = (
+        False  # shaded elevation (looks nicer with more pixels (e.g.: larger basins))!
+    )
+
     # initialize image with geoaxes
     fig = plt.figure(figsize=figsize)
     ax = fig.add_subplot(projection=proj)
@@ -67,8 +64,7 @@ def plot_map_model(mod, da, figname):
 
     # add sat background image
     ax.add_image(cimgt.QuadtreeTiles(), zoom_level, alpha=0.5)
-    
-    
+
     ## plot elevation\
     # create nice colormap
     # vmin, vmax = da.quantile([0.0, 0.98]).compute()
@@ -77,10 +73,14 @@ def plot_map_model(mod, da, figname):
     # norm = colors.Normalize(vmin=vmin, vmax=vmax)
     # kwargs = dict(cmap=cmap, norm=norm)
     # plot 'normal' elevation
-    
-    #plot da variables. 
+
+    # plot da variables.
     da.plot(
-        transform=proj, ax=ax, zorder=1, cbar_kwargs=dict(aspect=30, shrink=0.8),) # **kwargs)
+        transform=proj,
+        ax=ax,
+        zorder=1,
+        cbar_kwargs=dict(aspect=30, shrink=0.8),
+    )  # **kwargs)
     # plot elevation with shades
     if shaded:
         ls = colors.LightSource(azdeg=315, altdeg=45)
@@ -97,7 +97,7 @@ def plot_map_model(mod, da, figname):
         rgb = xr.DataArray(dims=("y", "x", "rgb"), data=_rgb, coords=da.raster.coords)
         rgb = xr.where(np.isnan(da), np.nan, rgb)
         rgb.plot.imshow(transform=proj, ax=ax, zorder=2)
-    
+
     # plot rivers with increasing width with stream order
     gdf_riv.plot(
         ax=ax, linewidth=gdf_riv["strord"] / 2, color="blue", zorder=3, label="river"
@@ -122,18 +122,22 @@ def plot_map_model(mod, da, figname):
         []
     )  # manual patches for legend, see https://github.com/geopandas/geopandas/issues/660
     if "lakes" in mod.staticgeoms:
-        kwargs = dict(facecolor="lightblue", edgecolor="black", linewidth=1, label="lakes")
+        kwargs = dict(
+            facecolor="lightblue", edgecolor="black", linewidth=1, label="lakes"
+        )
         mod.staticgeoms["lakes"].plot(ax=ax, zorder=4, **kwargs)
         patches.append(mpatches.Patch(**kwargs))
     if "reservoirs" in mod.staticgeoms:
-        kwargs = dict(facecolor="blue", edgecolor="black", linewidth=1, label="reservoirs")
+        kwargs = dict(
+            facecolor="blue", edgecolor="black", linewidth=1, label="reservoirs"
+        )
         mod.staticgeoms["reservoirs"].plot(ax=ax, zorder=4, **kwargs)
         patches.append(mpatches.Patch(**kwargs))
     if "glaciers" in mod.staticgeoms:
         kwargs = dict(facecolor="grey", edgecolor="grey", linewidth=1, label="glaciers")
         mod.staticgeoms["glaciers"].plot(ax=ax, zorder=4, **kwargs)
         patches.append(mpatches.Patch(**kwargs))
-    
+
     ax.xaxis.set_visible(True)
     ax.yaxis.set_visible(True)
     ax.set_ylabel(f"latitude [degree north]")
@@ -148,23 +152,25 @@ def plot_map_model(mod, da, figname):
         edgecolor="k",
         facecolor="white",
     )
-    
+
     # save figure
     # NOTE create figs folder in model root if it does not exist
     # fn_out = join(mod.root, "figs", "basemap.png")
-    plt.savefig(os.path.join(Folder_plots, f"{figname}.png"), dpi=300, bbox_inches="tight")
-    
+    plt.savefig(
+        os.path.join(Folder_plots, f"{figname}.png"), dpi=300, bbox_inches="tight"
+    )
+
+
 #%%
 
-#plot mean annual precip temp and potential evap. 
+# plot mean annual precip temp and potential evap.
 for forcing_var, forcing_char in forcing_vars.items():
     print(forcing_var, forcing_char)
     if forcing_var == "temp":
         da = mod.forcing[forcing_var].resample(time="A").mean("time").mean("time")
     else:
         da = mod.forcing[forcing_var].resample(time="A").sum("time").mean("time")
-    da = da.where(mod.staticmaps['wflow_subcatch']>=0)
+    da = da.where(mod.staticmaps["wflow_subcatch"] >= 0)
     da.attrs.update(long_name=forcing_char["long_name"], units=forcing_char["unit"])
     figname = f"{forcing_var}"
     plot_map_model(mod, da, figname)
-

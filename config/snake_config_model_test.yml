@@ -53,7 +53,7 @@ future_horizons:
   far: 2060, 2100
 
 # Additional gridded outputs (else only basin average)
-save_grids: TRUE
+save_grids: FALSE
 
 ###########################################################################################
 ################################## Climate experiment #####################################

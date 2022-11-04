@@ -5,15 +5,22 @@
 # General R settings and prequisites
 source("./src/weathergen/global.R")
 
-# Read parameters from the snkae yaml file
-yaml <- yaml::read_yaml(snakemake@params[["snake_config"]])
+args <- commandArgs(trailingOnly = TRUE)
 
-# Read parameters from the defaults yaml file
-yaml_defaults <- yaml::read_yaml(snakemake@params[["weagen_config"]])
+# Pass command line options
+# Config file
+yaml <- yaml::read_yaml(args[2])
+# Stochastic weather realization to be perturbed
+rlz_fn <- args[1]
+rlz_input <- weathergenr::readNetcdf(rlz_fn)
+# Climate stress file
+cst_data <- read.csv(args[3])
+
 
 # General stress test parameters
-output_path <- snakemake@params[["output_path"]]
-nc_file_prefix <- snakemake@params[["nc_file_prefix"]]
+output_path <- yaml$imposeClimateChanges$output.path
+nc_file_prefix <- yaml$imposeClimateChanges$nc.file.prefix
+nc_file_suffix <- yaml$imposeClimateChanges$nc.file.suffix
 
 # temp_change_type/precip_change_type [string]
 temp_change_transient = yaml$temp$transient_change
@@ -21,17 +28,6 @@ precip_change_transient = yaml$precip$transient_change
 
 
 # PARAMETERS CHANGING PER RUN ##################################################
-
-# Stochastic weather realization to be perturbed
-stochastic_nc <- snakemake@input[["rlz_nc"]]
-rlz_input <- weathergenr::readNetcdf(stochastic_nc)
-
-# scenario run identifier
-nc_file_suffix <- snakemake@params[["nc_file_suffix"]]
-
-# Climate stress file
-cst_csv_fn <- snakemake@input[["st_csv"]]
-cst_data <- read.csv(cst_csv_fn)
 
 # Apply climate changes to baseline weather data stored in the nc file
 rlz_future <- weathergenr::imposeClimateChanges(
@@ -53,7 +49,7 @@ weathergenr::writeNetcdf(
  output.path = output_path,
  origin.date =  rlz_input$date,
  calendar.type = "noleap",
- nc.template.file = stochastic_nc,
+ nc.template.file = rlz_fn,
  nc.compression = 4,
  nc.spatial.ref = "spatial_ref",
  nc.file.prefix = nc_file_prefix,
