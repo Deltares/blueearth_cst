@@ -12,9 +12,10 @@ nc_fns2 = snakemake.input.rlz_nc
 
 nc_fns.extend(nc_fns2)
 
+
 def prepare_clim_data_catalog(fns, data_libs_like, source_like, fn_out=None):
     """
-    Prepares a data catalog for files path listed in fns using the same attributes as source_like 
+    Prepares a data catalog for files path listed in fns using the same attributes as source_like
     in data_libs_like.
     If fn_out is provided writes the data catalog to that path.
 
@@ -28,7 +29,7 @@ def prepare_clim_data_catalog(fns, data_libs_like, source_like, fn_out=None):
         Data sources with the same attributes as the new sources in fns.
     fn_out: str, Optional
         If provided, writes the new data catalog to the corresponding path.
-    
+
     Returns
     -------
     climate_data_catalog: hydromt.DataCatalog
@@ -45,25 +46,36 @@ def prepare_clim_data_catalog(fns, data_libs_like, source_like, fn_out=None):
         fn = Path(fn, resolve_path=True)
         name = os.path.basename(fn).split(".")[0]
         dc_fn = dc_like.copy()
-        dc_fn['path'] = fn
-        if 'kwargs' not in dc_fn:
-            dc_fn['kwargs'] = dict()
-        dc_fn['kwargs']['preprocess'] = "transpose_dims"
-        if source_like == 'chirps' or source_like == 'chirps_global': # precip only
-            dc_fn['meta']['processing'] = f"Climate data generated from {source_like} for precipitation and era5 using Deltares/weathergenr"
+        dc_fn["path"] = fn
+        if "kwargs" not in dc_fn:
+            dc_fn["kwargs"] = dict()
+        dc_fn["kwargs"]["preprocess"] = "transpose_dims"
+        if source_like == "chirps" or source_like == "chirps_global":  # precip only
+            dc_fn["meta"][
+                "processing"
+            ] = f"Climate data generated from {source_like} for precipitation and era5 using Deltares/weathergenr"
         else:
-            dc_fn['meta']['processing'] = f"Climate data generated from {source_like} using Deltares/weathergenr"
-        #remove entries that have already been processed while reading in the data:
-        for v in ['unit_mult', 'unit_add', 'rename']:
+            dc_fn["meta"][
+                "processing"
+            ] = f"Climate data generated from {source_like} using Deltares/weathergenr"
+        # remove entries that have already been processed while reading in the data:
+        for v in ["unit_mult", "unit_add", "rename"]:
             if v in dc_fn:
                 dc_fn.pop(v)
         climate_data_dict[name] = dc_fn
-    
+
     # Add local orography for chirps resolution
-    if source_like == 'chirps' or source_like == 'chirps_global':
+    if source_like == "chirps" or source_like == "chirps_global":
         fn_oro = Path(fns[0], resolve_path=True)
-        fn_oro = os.path.join(os.path.dirname(fn_oro), "..", "..","climate_historical","raw_data",f"{source_like}_orography.nc")
-        fn_oro = Path(fn_oro, resolve_path=True)       
+        fn_oro = os.path.join(
+            os.path.dirname(fn_oro),
+            "..",
+            "..",
+            "climate_historical",
+            "raw_data",
+            f"{source_like}_orography.nc",
+        )
+        fn_oro = Path(fn_oro, resolve_path=True)
         dc_oro = {
             "crs": 4326,
             "data_type": "RasterDataset",
@@ -81,16 +93,12 @@ def prepare_clim_data_catalog(fns, data_libs_like, source_like, fn_out=None):
             "path": fn_oro,
         }
         climate_data_dict[f"{source_like}_orography"] = dc_oro
-    
+
     climate_data_catalog.from_dict(climate_data_dict)
     if fn_out is not None:
         climate_data_catalog.to_yml(fn_out)
 
 
-_ = prepare_clim_data_catalog(fns= nc_fns, data_libs_like=data_libs, source_like=clim_source, fn_out=fn_out)
-
-
-
-
-
-
+_ = prepare_clim_data_catalog(
+    fns=nc_fns, data_libs_like=data_libs, source_like=clim_source, fn_out=fn_out
+)

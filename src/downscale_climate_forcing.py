@@ -14,11 +14,11 @@ model_root = snakemake.params.model_dir
 
 precip_source = snakemake.params.clim_source
 
-oro_source = f'{precip_source}_orography'
-if precip_source == 'eobs':
-    pet_method = 'makkink'
-else: # (chirps is precip only so combined with era5)
-    pet_method = 'debruin'
+oro_source = f"{precip_source}_orography"
+if precip_source == "eobs":
+    pet_method = "makkink"
+else:  # (chirps is precip only so combined with era5)
+    pet_method = "debruin"
 
 # Get name of climate scenario (rlz_*_cst_*)
 fn_in_path = Path(fn_in, resolve_path=True)
@@ -53,13 +53,13 @@ update_options = {
         "dem_forcing_fn": oro_source,
         "pet_method": pet_method,
     },
-    "write_forcing":{},
+    "write_forcing": {},
     "setup_config1": {
-        "input.path_forcing": f"../../../../{fn_out}", # the TOML will be saved one extra folder into model_root so need to re-update forcing path after writting
+        "input.path_forcing": f"../../../../{fn_out}",  # the TOML will be saved one extra folder into model_root so need to re-update forcing path after writting
     },
-    "write_config":{
+    "write_config": {
         "config_name": config_out_name,
-        "config_root": config_out_root, 
+        "config_root": config_out_root,
     },
 }
 
