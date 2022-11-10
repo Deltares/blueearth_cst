@@ -60,6 +60,8 @@ rule climate_stress_parameters:
         config = config_path,
     output:
         st_csv_fns = [f"{exp_dir}/stress_test/cst_{st_num}.csv" for st_num in np.arange(1, ST_NUM+1)]
+    container:
+        "singularity/hydromt-wflow.sif"
     script:
         "src/prepare_cst_parameters.py"
 
@@ -74,6 +76,8 @@ rule prepare_weagen_config:
         start_year = (pd.to_datetime(starttime_climate).year - 2),
         sim_years = (pd.to_datetime(endtime_climate).year - pd.to_datetime(starttime_climate).year + 2),
         nc_file_prefix = "rlz"
+    container:
+        "singularity/hydromt-wflow.sif"
     script:
         "src/prepare_weagen_config.py"
 
@@ -86,6 +90,8 @@ rule prepare_weagen_config_st:
         output_path = f"{exp_dir}/realization_"+"{rlz_num}"+"/",
         nc_file_prefix = "rlz_"+"{rlz_num}"+"_cst",
         nc_file_suffix = "{st_num}",
+    container:
+        "singularity/hydromt-wflow.sif"
     script:
         "src/prepare_weagen_config.py"
 
@@ -96,8 +102,10 @@ rule generate_weather_realization:
         weagen_config = f"{exp_dir}/weathergen_config.yml",
     output:
         [f"{exp_dir}/realization_{rlz_num}/rlz_{rlz_num}_cst_0.nc" for rlz_num in np.arange(1, RLZ_NUM+1)]
+    container:
+        "singularity/weathergenr.sif"
     shell:
-        """Rscript --vanilla src/weathergen/generate_weather.R {input.climate_nc} {input.weagen_config} """
+        """Rscript --no-save --no-restore src/weathergen/generate_weather.R {input.climate_nc} {input.weagen_config} """
 
 # Prepare climate stress tests
 rule generate_climate_stress_test:
@@ -107,8 +115,10 @@ rule generate_climate_stress_test:
         weagen_config = f"{exp_dir}/realization_"+"{rlz_num}"+"/weathergen_config_rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".yml",
     output:
         rlz_st_nc = f"{exp_dir}/realization_"+"{rlz_num}"+"/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc"
+    container:
+        "singularity/weathergenr.sif"
     shell:
-        """Rscript --vanilla src/weathergen/impose_climate_change.R {input.rlz_nc} {input.weagen_config} {input.st_csv} """
+        """Rscript  --no-save --no-restore src/weathergen/impose_climate_change.R {input.rlz_nc} {input.weagen_config} {input.st_csv} """
 
 # Prepare data catalog of the climate files
 rule climate_data_catalog:
