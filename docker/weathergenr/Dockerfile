@@ -22,10 +22,11 @@ RUN apt-get update -y \
 RUN mkdir /root/work
 WORKDIR /root/work
 
-COPY src/weathergen /root/work/weathergen
+COPY src/weathergen/install_rpackages.R /tmp/install_rpackages.R
 
 RUN Rscript -e "install.packages('devtools',repos = 'http://cran.us.r-project.org')" \
- && Rscript /root/work/weathergen/install_rpackages.r
+ && Rscript /tmp/install_rpackages.R
 
 RUN Rscript -e "install.packages('devtools')"
-RUN Rscript -e "install.packages('yaml')"
+
+COPY src/weathergen /root/work/weathergen

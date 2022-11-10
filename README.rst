@@ -69,9 +69,9 @@ Then tag this image as `wflow-cli:latest`
 To install using docker:
 Make sure you have the wflow-cli and hydromt-wflow images locally, then use:
 .. code-block:: console
-    singularity build singularity/wflow-cli.sif docker-daemon://wflow-cli:latest
-    singularity build singularity/hydromt-wflow.sif docker-daemon://hydromt-wflow:latest
-    singularity build singularity/weathergenr.sif docker-daemon://weathergenr:latest
+    sudo singularity build singularity/wflow-cli.sif docker-daemon://wflow-cli:latest
+    sudo singularity build singularity/hydromt-wflow.sif docker-daemon://hydromt-wflow:latest
+    sudo singularity build singularity/weathergenr.sif docker-daemon://weathergenr:latest
 
 Running
 -------

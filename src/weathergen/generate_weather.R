@@ -68,4 +68,3 @@ for (n in 1:historical_realizations_num) {
   )
 
 }
-
