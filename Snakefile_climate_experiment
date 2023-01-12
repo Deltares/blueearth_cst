@@ -28,7 +28,6 @@ clim_source = config["clim_historical"]
 
 # Time horizon climate experiment
 starttime_climate = config['starttime_climate']
-endtime_climate = config['endtime_climate']
 
 # Master rule: end with all model run and analysed with saving a output plot
 rule all:
@@ -73,8 +72,8 @@ rule prepare_weagen_config:
         cftype = "generate",
         default_config = config_path,
         output_path = f"{exp_dir}/",
-        start_year = (pd.to_datetime(starttime_climate).year - 2),
-        sim_years = (pd.to_datetime(endtime_climate).year - pd.to_datetime(starttime_climate).year + 2),
+        start_year = starttime_climate,
+        sim_years = (pd.to_datetime(endtime).year - pd.to_datetime(starttime).year + 1), # + 2),
         nc_file_prefix = "rlz"
     container:
         "singularity/hydromt-wflow.sif"
@@ -145,8 +144,6 @@ rule downscale_climate_realization:
         toml = f"{basin_dir}/run_climate_{experiment}/wflow_sbm_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".toml"
     params:
         model_dir = basin_dir,
-        starttime = starttime_climate,
-        endtime = endtime_climate,
         clim_source = clim_source,
     container:
         "singularity/hydromt-wflow.sif"

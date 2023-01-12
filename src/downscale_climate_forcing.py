@@ -2,6 +2,7 @@ import hydromt
 from hydromt_wflow import WflowModel
 from pathlib import Path
 import os
+import xarray as xr
 
 # # FIXME: temp from snakefile
 
@@ -27,8 +28,6 @@ import os
 # config_out_fn = f"{basin_dir}/run_climate_{experiment}/wflow_sbm_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".toml"
 
 # Snakemake parameters
-starttime = snakemake.params.starttime
-endtime = snakemake.params.endtime
 config_out_fn = snakemake.output.toml
 fn_out = snakemake.output.nc
 fn_in = snakemake.input.nc
@@ -46,6 +45,11 @@ else:  # (chirps is precip only so combined with era5)
 fn_in_path = Path(fn_in, resolve_path=True)
 climate_name = os.path.basename(fn_in_path).split(".")[0]
 
+# Get start and endtime from fn_in
+ds_in = xr.open_dataset(fn_in_path)
+starttime = ds_in.time.values[0].strftime(format="%Y-%m-%dT%H:%M:%S")
+endtime = ds_in.time.values[-1].strftime(format="%Y-%m-%dT%H:%M:%S")
+
 # Get options for toml file name
 config_out_fn = Path(config_out_fn)
 config_out_root = os.path.dirname(config_out_fn)
@@ -61,8 +65,12 @@ update_options = {
         "state.path_input": "../instate/instates.nc",
         "state.path_output": f"outstates_{climate_name}.nc",
         "input.path_static": "../staticmaps.nc",
-        "input.path_forcing": f"../../../{fn_out}",
+        "input.path_forcing": f"../../../../{fn_out}",
         "csv.path": f"output_{climate_name}.csv",
+    },
+    "set_root": {
+        "root": config_out_root,
+        "mode": "r+",
     },
     "setup_precip_forcing": {
         "precip_fn": climate_name,
@@ -76,9 +84,6 @@ update_options = {
         "pet_method": pet_method,
     },
     "write_forcing": {},
-    "setup_config1": {
-        "input.path_forcing": f"../../../../{fn_out}",  # the TOML will be saved one extra folder into model_root so need to re-update forcing path after writting
-    },
     "write_config": {
         "config_name": config_out_name,
         "config_root": config_out_root,
