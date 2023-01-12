@@ -131,3 +131,4 @@ examples/
 
 # singularity
 singularity/*
+hdata

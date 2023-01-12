@@ -3,6 +3,29 @@ from hydromt_wflow import WflowModel
 from pathlib import Path
 import os
 
+# # FIXME: temp from snakefile
+
+# starttime = "2000-01-01T00:00:00"
+
+# endtime = "2020-12-31T00:00:00"
+
+# repo_root = str(Path(__file__).parent.parent.absolute())
+
+# DATA_SOURCES = f"{repo_root}/config/deltares_data_linux.yml"
+# experiment = "experiment_02"
+# exp_dir = f"{repo_root}/examples/Gabon2/climate_{experiment}"
+# basin_dir = f"{repo_root}/examples/Gabon2/hydrology_model"
+# rlz_num = 1
+# st_num2 = 0
+# precip_source="era5"
+# model_root = basin_dir
+# # input
+# fn_in = f"{exp_dir}/realization_{rlz_num}/rlz_{rlz_num}_cst_{st_num2}.nc"
+# data_libs = [f"{exp_dir}/data_catalog_climate_experiment.yml", DATA_SOURCES]
+# # output
+# fn_out = f"{exp_dir}/realization_"+"{rlz_num}"+"/inmaps_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".nc",
+# config_out_fn = f"{basin_dir}/run_climate_{experiment}/wflow_sbm_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".toml"
+
 # Snakemake parameters
 starttime = snakemake.params.starttime
 endtime = snakemake.params.endtime
@@ -11,7 +34,6 @@ fn_out = snakemake.output.nc
 fn_in = snakemake.input.nc
 data_libs = snakemake.input.data_sources
 model_root = snakemake.params.model_dir
-
 precip_source = snakemake.params.clim_source
 
 oro_source = f"{precip_source}_orography"

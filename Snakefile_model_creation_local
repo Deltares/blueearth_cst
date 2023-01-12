@@ -1,0 +1,117 @@
+import shutil
+import os
+
+# Parsing the Snakemake config file (options for basins to build, data catalog, model output directory)
+#configfile: "config/snake_config_test.yml"
+project = config['project_name']
+project_dir = config['project_dir']
+model_region = config['model_region']
+model_resolution = config['model_resolution']
+DATA_SOURCES = config["data_sources"]
+
+output_locations = config["output_locations"]
+observations_timeseries = config["observations_timeseries"]
+
+basin_dir = f"{project_dir}/hydrology_model"
+
+# Master rule: end with all model run and analysed with saving a output plot
+rule all:
+    input: 
+        f"{project_dir}/plots/wflow_model_performance/hydro_wflow_1.png",
+        f"{project_dir}/plots/wflow_model_performance/basin_area.png",
+        f"{project_dir}/plots/wflow_model_performance/precip.png",
+
+# Rule to build model hydromt build wflow
+rule create_model:
+    input:
+        hydromt_ini = "config/wflow_build_model_local.ini",
+    output:
+        basin_nc = f"{basin_dir}/staticmaps.nc",
+    container: "singularity/hydromt-wflow.sif"
+    shell:
+        """hydromt build wflow "{basin_dir}" "{model_region}" -r "{model_resolution}" -i "{input.hydromt_ini}" -d "{DATA_SOURCES}" -vv"""
+
+# Rule to add gauges to the built model
+rule add_gauges:
+    input:
+        basin_nc = f"{basin_dir}/staticmaps.nc"
+    output:
+        gauges_fid = f"{basin_dir}/staticgeoms/gauges.geojson"
+    params:
+        output_locs = output_locations
+    container: "singularity/hydromt-wflow.sif"
+    shell:
+        """hydromt update wflow "{basin_dir}" -c setup_gauges -d "{DATA_SOURCES}" --opt gauges_fn="{params.output_locs}" --opt derive_subcatch=True -vv"""
+
+# Rule to prepare the time horizon
+rule setup_runtime:
+    input:
+        gauges_fid = ancient(f"{basin_dir}/staticgeoms/gauges.geojson")
+    output:
+        forcing_ini = f"{project_dir}/config/wflow_build_forcing_historical.ini"
+    params:
+        starttime = config["starttime"],
+        endtime = config["endtime"],
+        clim_source = config["clim_historical"],
+    container: "singularity/hydromt-wflow.sif"
+    script: "src/setup_time_horizon.py"
+
+# Rule to add forcing to the updated model
+rule add_forcing:
+    input:
+        forcing_ini = f"{project_dir}/config/wflow_build_forcing_historical.ini"
+    output:
+        forcing_fid = f"{project_dir}/climate_historical/wflow_data/inmaps_historical.nc"
+    container: "singularity/hydromt-wflow.sif"
+    shell:
+        """hydromt update wflow "{basin_dir}" -i "{input.forcing_ini}" -d "{DATA_SOURCES}" -vv"""
+
+# Rule to run the wflow model
+rule run_wflow:
+    input:
+        forcing_fid = f"{project_dir}/climate_historical/wflow_data/inmaps_historical.nc"
+    output:
+        csv_file = f"{basin_dir}/run_default/output.csv"
+    params:
+        toml_fid = f"{basin_dir}/wflow_sbm.toml"
+    container: "singularity/wflow-cli.sif"
+    shell:
+        """julia --threads 4 -e 'import Pkg; Pkg.add("Wflow"); using Wflow; Wflow.run()' "{params.toml_fid}" """
+
+# Rule to analyse and plot wflow model run results --> final output
+rule plot_results:
+    input:
+        csv_file = f"{basin_dir}/run_default/output.csv",
+        script = "src/plot_results.py"
+    output: 
+        output_png = f"{project_dir}/plots/wflow_model_performance/hydro_wflow_1.png",
+    params:
+        starttime = config["starttime"],
+        endtime = config["endtime"],
+        project_dir = f"{project_dir}",
+        observations_file = observations_timeseries,
+        gauges_output_fid = output_locations,
+    container: "singularity/hydromt-wflow.sif"
+    script: "src/plot_results.py"
+
+rule plot_map:
+    input:
+        gauges_fid = ancient(f"{basin_dir}/staticgeoms/gauges.geojson")
+    output:
+        output_map_png = f"{project_dir}/plots/wflow_model_performance/basin_area.png",
+    params:
+        project_dir = f"{project_dir}",
+    container: "singularity/hydromt-wflow.sif"
+    script: "src/plot_map.py"
+
+# Rule to plot the forcing on a map
+rule plot_forcing:
+    input:
+        forcing_fid = ancient(f"{project_dir}/climate_historical/wflow_data/inmaps_historical.nc"),
+    output:
+        output_forcing_map = f"{project_dir}/plots/wflow_model_performance/precip.png",
+    params:
+        project_dir = f"{project_dir}",
+        gauges_fid = ancient(f"{basin_dir}/staticgeoms/gauges.geojson")
+    container: "singularity/hydromt-wflow.sif"
+    script: "src/plot_map_forcing.py"
