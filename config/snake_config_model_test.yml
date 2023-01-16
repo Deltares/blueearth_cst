@@ -62,8 +62,7 @@ experiment_name: experiment_01
 # Number of climate realizations
 realizations_num: 3
 # Future Time horizon for the climate experiment
-starttime_climate: "2030-01-01T00:00:00"
-endtime_climate: "2050-12-31T00:00:00"
+starttime_climate: 2030
 
 # Weathergen settings
 warm.signif.level: 0.80
