@@ -12,6 +12,8 @@ DATA_SOURCES = config["data_sources"]
 output_locations = config["output_locations"]
 observations_timeseries = config["observations_timeseries"]
 
+wflow_outvars = config["wflow_outvars"]
+
 basin_dir = f"{project_dir}/hydrology_model"
 
 # Master rule: end with all model run and analysed with saving a output plot
@@ -31,15 +33,18 @@ rule create_model:
         """hydromt build wflow "{basin_dir}" "{model_region}" -r "{model_resolution}" -i "{input.hydromt_ini}" -d "{DATA_SOURCES}" -vv"""
 
 # Rule to add gauges to the built model
-rule add_gauges:
+rule add_gauges_and_outputs:
     input:
         basin_nc = f"{basin_dir}/staticmaps.nc"
     output:
         gauges_fid = f"{basin_dir}/staticgeoms/gauges.geojson"
     params:
-        output_locs = output_locations
-    shell:
-        """hydromt update wflow "{basin_dir}" -c setup_gauges -d "{DATA_SOURCES}" --opt gauges_fn="{params.output_locs}" --opt derive_subcatch=True -vv"""
+        output_locs = output_locations,
+        outputs = wflow_outvars,
+        data_catalog = DATA_SOURCES
+    script:
+        "src/setup_gauges_and_outputs.py"
+        #"""hydromt update wflow "{basin_dir}" -c setup_gauges -d "{DATA_SOURCES}" --opt gauges_fn="{params.output_locs}" --opt derive_subcatch=True -vv"""
 
 # Rule to prepare the time horizon
 rule setup_runtime:
@@ -86,6 +91,7 @@ rule plot_results:
        project_dir = f"{project_dir}",
        observations_file = observations_timeseries,
        gauges_output_fid = output_locations,
+       outputs = wflow_outvars,
    script: "src/plot_results.py"
 
 rule plot_map:

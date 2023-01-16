@@ -28,8 +28,12 @@ mod = WflowModel(root=model_dir, mode="r")
 # Get output discharge columns
 sim = pd.read_csv(csv_fns[0], index_col=0, parse_dates=True)
 Q_vars = [x for x in sim.columns if x.startswith("Q_")]
+basavg_vars = [x for x in sim.columns if "basavg" in x]
+outvars = Q_vars.copy()
+outvars.extend(basavg_vars)
+
 col_names = ["realization", "tavg", "prcp"]
-col_names.extend(Q_vars)
+col_names.extend(outvars)
 
 df_out_mean = pd.DataFrame(
     data=np.zeros((len(csv_fns), len(col_names))),
@@ -44,7 +48,7 @@ print("Computing discharge stats for each realization/stress test")
 for i in range(len(csv_fns)):
     # Read csv file
     sim = pd.read_csv(csv_fns[i], index_col=0, parse_dates=True)
-    sim = sim[Q_vars]
+    sim = sim[outvars]
     # Get statistics
     df_mean = sim.mean()
     df_max = sim.max()
