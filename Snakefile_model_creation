@@ -7,6 +7,7 @@ project = config['project_name']
 project_dir = config['project_dir']
 model_region = config['model_region']
 model_resolution = config['model_resolution']
+hydromt_ini = config['hydromt_ini']
 DATA_SOURCES = config["data_sources"]
 
 output_locations = config["output_locations"]
@@ -24,7 +25,7 @@ rule all:
 # Rule to build model hydromt build wflow
 rule create_model:
     input:
-        hydromt_ini = "config/wflow_build_model.ini",
+        hydromt_ini = hydromt_ini,
     output:
         basin_nc = f"{basin_dir}/staticmaps.nc",
     container: "singularity/hydromt-wflow.sif"

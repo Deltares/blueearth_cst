@@ -38,8 +38,8 @@ docker run \
     --use-singularity \
     --singularity-args "$(echo ${singularity_volumeargs[@]})" \
     -c 1 \
-    -s /root/work/Snakefile_model_creation \
-    --configfile /root/work/config/snake_config_model_test_linux.yml
+    -s ${docker_root}/Snakefile_model_creation \
+    --configfile ${docker_root}/config/snake_config_model_test_linux.yml
 
 docker run \
     $(echo ${volumeargs[@]}) \
@@ -50,5 +50,17 @@ docker run \
     --use-singularity \
     --singularity-args "$(echo ${singularity_volumeargs[@]})" \
     -c 1 \
-    -s /root/work/Snakefile_climate_experiment \
-    --configfile /root/work/config/snake_config_model_test_linux.yml
+    -s ${docker_root}/Snakefile_climate_experiment \
+    --configfile ${docker_root}/config/snake_config_model_test_linux.yml
+
+docker run \
+    $(echo ${volumeargs[@]}) \
+    --privileged \
+    --entrypoint='' \
+    snakemake-singularity \
+    snakemake all \
+    --use-singularity \
+    --singularity-args "$(echo ${singularity_volumeargs[@]})" \
+    -c 1 \
+    -s ${docker_root}/Snakefile_climate_projections \
+    --configfile ${docker_root}/hdata/snake_config_model_test.yml

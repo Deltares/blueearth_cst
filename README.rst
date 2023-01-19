@@ -59,7 +59,7 @@ There is a docker directory present, containing 2 Dockerfiles:
 
 Build the images using:
 .. code-block:: console
-    docker build -t snakemake-singularity ./docker/snakemake_singularity
+    docker build -t snakemake-singularity -f docker/snakemake_singularity/Dockerfile .
     docker build -t hydromt-wflow ./docker/hydromt_wflow
     docker build -t weathergenr -f docker/weathergenr/Dockerfile .
 
