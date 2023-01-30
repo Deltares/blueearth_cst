@@ -32,8 +32,8 @@ starttime_climate = config['starttime_climate']
 # Master rule: end with all model run and analysed with saving a output plot
 rule all:
     input:
-        mean = f"{exp_dir}/model_results/mean_discharge.csv",
-        #rlz_nc = expand((f"{basin_dir}/run_climate_{experiment}/output_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".csv"), rlz_num=np.arange(1, RLZ_NUM+1), st_num2=np.arange(0, ST_NUM+1)),
+        mean = f"{exp_dir}/model_results/mean.csv",
+        rlz_nc = expand((f"{basin_dir}/run_climate_{experiment}/output_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".csv"), rlz_num=np.arange(1, RLZ_NUM+1), st_num2=np.arange(0, ST_NUM+1)),
         #f"{exp_dir}/realization_{RLZ_NUM}/rlz_{RLZ_NUM}_historical.nc",
         #f"{exp_dir}/stress_test/cst_{ST_NUM}.csv"
 
@@ -148,10 +148,10 @@ rule export_wflow_results:
     input:
         rlz_csv_fns = expand((f"{basin_dir}/run_climate_{experiment}/output_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".csv"), rlz_num=np.arange(1, RLZ_NUM+1), st_num2=np.arange(0, ST_NUM+1)),
     output:
-        mean = f"{exp_dir}/model_results/mean_discharge.csv",
-        min = f"{exp_dir}/model_results/min_discharge.csv",
-        max = f"{exp_dir}/model_results/max_discharge.csv",
-        q95 = f"{exp_dir}/model_results/q95_discharge.csv",
+        mean = f"{exp_dir}/model_results/mean.csv",
+        min = f"{exp_dir}/model_results/min.csv",
+        max = f"{exp_dir}/model_results/max.csv",
+        q95 = f"{exp_dir}/model_results/q95.csv",
     params:
         model_dir = basin_dir,
         exp_dir = exp_dir,
