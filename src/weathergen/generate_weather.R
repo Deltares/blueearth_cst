@@ -1,9 +1,8 @@
+# General R settings and prequisites
+source("./src/weathergen/global.R")
 
 # Install required packages -- ONLY ONCE!
 source("./src/weathergen/install_rpackages.r")
-
-# General R settings and prequisites
-source("./src/weathergen/global.R")
 
 args <- commandArgs(trailingOnly = TRUE)
 
