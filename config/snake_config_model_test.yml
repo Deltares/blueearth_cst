@@ -3,8 +3,8 @@
 #################################### General setting ######################################
 
 # Path to where the wflow model will be stored (include the project name)
-project_name: Gabon
-project_dir: examples/Gabon
+project_name: Gabon_20230202
+project_dir: C:/Users/taner/Documents/Tools/CST_PROJECTS/Gabon_20230202
 
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
 data_sources: config/deltares_data.yml
@@ -63,7 +63,7 @@ save_grids: FALSE
 # Name of the experiment
 experiment_name: experiment_01
 # Number of climate realizations
-realizations_num: 3
+realizations_num: 2
 # Future Time horizon for the climate experiment
 starttime_climate: 2030
 
@@ -76,7 +76,7 @@ knn.sample.num: 120
 # Temperature change factors
 # including number of steps and min, max change
 temp:
-  step_num: 2
+  step_num: 1
   transient_change: TRUE
   mean:
     min:
@@ -109,7 +109,7 @@ temp:
 # Precipitation change factors
 # including number of steps and min, max change
 precip:
-  step_num: 3
+  step_num: 2
   transient_change: TRUE
   mean:
     min:

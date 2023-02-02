@@ -1,7 +1,6 @@
 
 Description: >
-  This yml file includes general parameters to configure the weather generator
-  and parameters for the generateWeatherSeries function.
+  This yml file includes general parameters to configure the weather generator.
 
 general:
   variables:
@@ -21,3 +20,5 @@ generateWeatherSeries:
   compute.parallel: FALSE
   num.cores: NULL
   seed: 1
+  dry.spell.change: 1,1,1,1,1,1,1,1,1,1,1,1
+  wet.spell.change: 1,1,1,1,1,1,1,1,1,1,1,1
