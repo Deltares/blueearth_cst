@@ -3,8 +3,8 @@
 #################################### General setting ######################################
 
 # Path to where the wflow model will be stored (include the project name)
-project_name: Gabon_20230202
-project_dir: C:/Users/taner/Documents/Tools/CST_PROJECTS/Gabon_20230202
+project_name: Gabon_20230202_2
+project_dir: examples/Gabon_20230202_2
 
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
 data_sources: config/deltares_data.yml
