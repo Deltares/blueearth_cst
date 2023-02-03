@@ -18,7 +18,6 @@ generateWeatherSeries:
   evaluate.model: TRUE
   evaluate.grid.num: 20
   compute.parallel: FALSE
-  num.cores: NULL
   seed: 1
   dry.spell.change: 1,1,1,1,1,1,1,1,1,1,1,1
   wet.spell.change: 1,1,1,1,1,1,1,1,1,1,1,1

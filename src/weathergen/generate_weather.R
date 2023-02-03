@@ -34,14 +34,13 @@ stochastic_weather <- weathergenr::generateWeatherSeries(
     knn.sample.num = yaml$generateWeatherSeries$knn.sample.num,
 	mc.wet.quantile = yaml$generateWeatherSeries$mc.wet.quantile,
     mc.extreme.quantile = yaml$generateWeatherSeries$mc.extreme.quantile,
-	dry.spell.change = yaml$generateWeatherSeries$dry.spell.change,
-	wet.spell.change = yaml$generateWeatherSeries$wet.spell.change,
+	#dry.spell.change = yaml$generateWeatherSeries$dry.spell.change,
+	#wet.spell.change = yaml$generateWeatherSeries$wet.spell.change,
 	evaluate.model = yaml$generateWeatherSeries$evaluate.model,
     evaluate.grid.num = yaml$generateWeatherSeries$evaluate.grid.num,
 	output.path = paste0(weathergen_output_path, "plots/"),
-    seed = yaml$generateWeatherSeries$seed,
-    compute.parallel = yaml$generateWeatherSeries$compute.parallel,
-    num.cores = yaml$generateWeatherSeries$num.cores
+    seed = yaml$generateWeatherSeries$seed#,
+    #compute.parallel = yaml$generateWeatherSeries$compute.parallel
 )
 
 # STEP 3) Save each stochastic realization back to a netcdf file
