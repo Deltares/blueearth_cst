@@ -15,7 +15,13 @@ import hydromt
 import os
 from hydromt_wflow import WflowModel
 
-from func_plot_signature import plot_signatures, plot_hydro, plot_hydro_1y, plot_clim
+from func_plot_signature import (
+    plot_signatures,
+    plot_hydro,
+    plot_hydro_1y,
+    plot_clim,
+    plot_basavg,
+)
 
 
 fs = 8
@@ -29,6 +35,8 @@ endtime = snakemake.params.endtime
 observations_timeseries = snakemake.params.observations_file
 gauges_output_name = snakemake.params.gauges_output_fid
 gauges_output_name = os.path.basename(gauges_output_name).split(".")[0]
+
+outputs = snakemake.params.outputs
 
 project = gauges_output_name.split("-")[-1]
 
@@ -94,6 +102,10 @@ ds_clim = xr.merge(
         mod.results["EP_subcatchment"],
     ]
 )
+
+# Other wflow outputs for wflow basin
+ds_basin = xr.merge([mod.results[dvar] for dvar in mod.results if "_basavg" in dvar])
+ds_basin = ds_basin.squeeze(drop=True)
 
 #%% Read the observations data
 # read timeseries data and match with existing gdf
@@ -235,5 +247,9 @@ for index in ds_clim.index.values:
     plot_clim(ds_clim_i, Folder_plots, f"wflow_{index}")
     plt.close()
 
+# Plots for other wflow outputs
+print("Plot basin average wflow outputs")
+plot_basavg(ds_basin, Folder_plots)
+plt.close()
 
 # TODO add summary maps mean prec and temp spatially?

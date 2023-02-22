@@ -1,0 +1,27 @@
+# Path to where the wflow model will be stored (include the project name)
+project_name: Gabon
+project_dir: examples/Gabon
+
+# Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
+data_sources: config/cmip6_data.yml
+
+# climate models and scenarios
+clim_project: cmip6
+models: ['IPSL/IPSL-CM6A-LR','SNU/SAM0-UNICON','NCAR/CESM2','NCAR/CESM2-WACCM','INM/INM-CM4-8','INM/INM-CM5-0',
+    'NOAA-GFDL/GFDL-ESM4','NCC/NorESM2-LM','NIMS-KMA/KACE-1-0-G','CAS/FGOALS-f3-L','CSIRO-ARCCSS/ACCESS-CM2',
+    'NCC/NorESM2-MM','CSIRO/ACCESS-ESM1-5','NCAR/CESM2-WACCM-FV2','NCAR/CESM2-FV2','CMCC/CMCC-CM2-SR5',
+    'AS-RCEC/TaiESM1','NCC/NorCPM1','IPSL/IPSL-CM5A2-INCA','CMCC/CMCC-CM2-HR4','CMCC/CMCC-ESM2','IPSL/IPSL-CM6A-LR-INCA',
+    'E3SM-Project/E3SM-1-0']
+scenarios: [ssp126, ssp245, ssp370, ssp585]
+members: [r1i1p1f1]
+
+variables: [precip, temp]
+
+# time horizons
+start_month_hyd_year: Jan
+historical: 1970, 2010
+future_horizons: 
+  near: 2020, 2060
+
+
+
