@@ -67,9 +67,9 @@ rule prepare_weagen_config:
     params:
         cftype = "generate",
         default_config = config_path,
-        output_path = f"{exp_dir}/",
+        output_path = f"{exp_dir}/",   #f"{exp_dir}/",
         start_year = starttime_climate,
-        sim_years = (pd.to_datetime(endtime).year - pd.to_datetime(starttime).year + 1), # + 2),
+        sim_years = (pd.to_datetime(endtime).year - pd.to_datetime(starttime).year + 2), # + 1),
         nc_file_prefix = "rlz"
     script:
         "src/prepare_weagen_config.py"

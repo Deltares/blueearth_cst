@@ -38,7 +38,7 @@ stochastic_weather <- weathergenr::generateWeatherSeries(
 	#wet.spell.change = yaml$generateWeatherSeries$wet.spell.change,
 	evaluate.model = yaml$generateWeatherSeries$evaluate.model,
     evaluate.grid.num = yaml$generateWeatherSeries$evaluate.grid.num,
-	output.path = paste0(weathergen_output_path, "plots/"),
+	output.path = weathergen_output_path,
     seed = yaml$generateWeatherSeries$seed#,
     #compute.parallel = yaml$generateWeatherSeries$compute.parallel
 )
