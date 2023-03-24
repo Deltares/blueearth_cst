@@ -2,4 +2,4 @@
 install.packages("rlang", repos = "http://cran.rstudio.com", dependencies = TRUE)
 
 # Install weathergenr package, but not don't update the dependencies
-devtools::install_github("Deltares/weathergenr@dev", upgrade = "never")
+devtools::install_github("Deltares/weathergenr", upgrade = "never")
