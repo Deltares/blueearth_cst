@@ -28,28 +28,29 @@ if cftype == "generate":
             "sim.year.start": snakemake.params.start_year,
             "sim.year.num": snakemake.params.sim_years,
             "nc.file.prefix": snakemake.params.nc_file_prefix,
-            "month.start": 1,
             "warm.variable": "precip",
-            "warm.sample.num": 30000,
             "warm.subset.criteria": None,
-            "mc.wet.quantile": 0.2,
-            "mc.extreme.quantile": 0.8,
             "evaluate.model": True,
             "evaluate.grid.num": 20,
             "compute.parallel": False,
             "num.cores": None,
-            "seed": 1,
         },
     }
     # arguments from yml_snake
-    yml_dict["generateWeatherSeries"]["realizations_num"] = yml_snake[
-        "realizations_num"
-    ]
-    yml_dict["generateWeatherSeries"]["warm.signif.level"] = yml_snake[
-        "warm.signif.level"
-    ]
+    yml_dict["generateWeatherSeries"]["month.start"] = yml_snake["month.start"]
+    yml_dict["generateWeatherSeries"]["warm.sample.num"] = yml_snake["warm.sample.num"]
+    yml_dict["generateWeatherSeries"]["mc.wet.quantile"] = yml_snake["mc.wet.quantile"]
+    yml_dict["generateWeatherSeries"]["mc.extreme.quantile"] = yml_snake["mc.extreme.quantile"]    
+    yml_dict["generateWeatherSeries"]["seed"] = yml_snake["seed"]
+    yml_dict["generateWeatherSeries"]["realizations_num"] = yml_snake["realizations_num"]
+    yml_dict["generateWeatherSeries"]["warm.signif.level"] = yml_snake["warm.signif.level"]
     yml_dict["generateWeatherSeries"]["warm.sample.num"] = yml_snake["warm.sample.num"]
     yml_dict["generateWeatherSeries"]["knn.sample.num"] = yml_snake["knn.sample.num"]
+    yml_dict["generateWeatherSeries"]["knn.sample.num"] = yml_snake["knn.sample.num"]
+    yml_dict["generateWeatherSeries"]["dry.spell.change"] = yml_snake["dry.spell.change"]
+    yml_dict["generateWeatherSeries"]["wet.spell.change"] = yml_snake["wet.spell.change"]
+    
+    
 
 
 else:  # stress test

@@ -3,8 +3,8 @@
 #################################### General setting ######################################
 
 # Path to where the wflow model will be stored (include the project name)
-project_name: Cambodia_b2
-project_dir: examples/Cambodia_b2
+project_name: cambodia_b2
+project_dir: examples/cambodia_b2
 
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
 data_sources: config/deltares_data.yml

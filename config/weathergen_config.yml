@@ -19,5 +19,5 @@ generateWeatherSeries:
   evaluate.grid.num: 20
   compute.parallel: FALSE
   seed: 123
-  dry.spell.change: 1,1,1,1,1,1,1,1,1,1,1,1
-  wet.spell.change: 1,1,1,1,1,1,1,1,1,1,1,1
+  dry.spell.change: [1,1,1,1,1,1,1,1,1,1,1,1]
+  wet.spell.change: [1,1,1,1,1,1,1,1,1,1,1,1]
