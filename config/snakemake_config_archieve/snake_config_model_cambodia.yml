@@ -1,0 +1,168 @@
+
+###########################################################################################
+#################################### General setting ######################################
+
+# Path to where the wflow model will be stored (include the project name)
+project_name: Cambodia
+project_dir: examples/Cambodia
+
+# Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
+data_sources: config/deltares_data.yml
+# Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
+data_sources_climate: config/deltares_data_climate_projections.yml
+
+# Info on the historical climate data is used in the historic model run + reference data for the weather generator
+# Time horizon of the historical period
+starttime: "2000-01-01T00:00:00"
+endtime: "2020-12-31T00:00:00"
+# Historical climate data source (name as available in the data_sources catalog file). Either [era5, chirps_global, chirps, eobs].
+clim_historical: era5
+
+# List of wflow output variables to save
+wflow_outvars: ['river discharge', 'overland flow', 'actual evapotranspiration', 'groundwater recharge', 'snow']
+
+###########################################################################################
+#################################### Model building #######################################
+
+# hydromt "region" for building the model, coordinates are in EPSG 4326
+# for more info on how to fill this, you can see the hydromt documentation: 
+# https://deltares.github.io/hydromt/latest/user_guide/cli.html#region-options
+# For wflow please use either 'basin' or 'subbasin' keywords
+model_region: "{'subbasin': [[106.1274,106.05,106.010],[13.5598,12.44,12.1724]], 'strord': 5, 'bounds': [102,10.6,109.5,17]}"
+# Grid resolution of the model in degrees
+model_resolution: 0.0083333
+
+# If available, please here put the path to the available observation stations locations files
+# csv file containing three columns: station_ID, x, y
+output_locations: reservoirlocs.csv # If set to None, will default to the wflow outlets
+# Path to the file with observed discharge timeseries per station 
+observations_timeseries: None
+
+###########################################################################################
+################################## Climate projections ####################################
+# climate models and scenarios
+clim_project: cmip5
+models: ['MIROC5', 'HadGEM2-ES', 'IPSL-CM5A-LR', 'CMCC-CM', 'CNRM-CM5', 'GFDL-ESM2M']
+scenarios: [rcp45, rcp85]
+members: [r1i1p1]
+
+variables: [precip, temp, temp_min, temp_max]
+
+# time horizons of the climate projections
+start_month_hyd_year: Jan
+historical: 1960, 2000
+future_horizons: 
+  near: 2020, 2060
+  far: 2060, 2100
+
+# Additional gridded outputs (else only basin average)
+save_grids: FALSE
+
+###########################################################################################
+################################## Climate experiment #####################################
+# Name of the experiment
+experiment_name: experiment_01
+# Number of climate realizations
+realizations_num: 2
+# Future Time horizon for the climate experiment
+starttime_climate: "2030-01-01T00:00:00"
+endtime_climate: "2050-12-31T00:00:00"
+
+# Weathergen settings
+warm.signif.level: 0.80
+warm.sample.num: 30000
+knn.sample.num: 120
+
+# Climate stress test parameters
+# Temperature change factors
+# including number of steps and min, max change
+temp:
+  step_num: 2
+  transient_change: TRUE
+  mean:
+    min:
+      - 0.0  # January
+      - 0.0  # February
+      - 0.0  # March
+      - 0.0  # April
+      - 0.0  # May
+      - 0.0  # June
+      - 0.0  # July
+      - 0.0  # August
+      - 0.0  # September
+      - 0.0  # October
+      - 0.0  # November
+      - 0.0  # December
+    max:
+      - 3.0  # January
+      - 3.0  # February
+      - 3.0  # March
+      - 3.0  # April
+      - 3.0  # May
+      - 3.0  # June
+      - 3.0  # July
+      - 3.0  # August
+      - 3.0  # September
+      - 3.0  # October
+      - 3.0  # November
+      - 3.0  # December
+
+# Precipitation change factors
+# including number of steps and min, max change
+precip:
+  step_num: 3
+  transient_change: TRUE
+  mean:
+    min:
+      - 0.7  # January
+      - 0.7  # February
+      - 0.7  # March
+      - 0.7  # April
+      - 0.7  # May
+      - 0.7  # June
+      - 0.7  # July
+      - 0.7  # August
+      - 0.7  # September
+      - 0.7  # October
+      - 0.7  # November
+      - 0.7  # December
+    max:
+      - 1.3  # January
+      - 1.3  # February
+      - 1.3  # March
+      - 1.3  # April
+      - 1.3  # May
+      - 1.3  # June
+      - 1.3  # July
+      - 1.3  # August
+      - 1.3  # September
+      - 1.3  # October
+      - 1.3  # November
+      - 1.3  # December
+  variance:
+    min:
+      - 1.0  # January
+      - 1.0  # February
+      - 1.0  # March
+      - 1.0  # April
+      - 1.0  # May
+      - 1.0  # June
+      - 1.0  # July
+      - 1.0  # August
+      - 1.0  # September
+      - 1.0  # October
+      - 1.0  # November
+      - 1.0  # December
+    max:
+      - 1.0  # January
+      - 1.0  # February
+      - 1.0  # March
+      - 1.0  # April
+      - 1.0  # May
+      - 1.0  # June
+      - 1.0  # July
+      - 1.0  # August
+      - 1.0  # September
+      - 1.0  # October
+      - 1.0  # November
+      - 1.0  # December
