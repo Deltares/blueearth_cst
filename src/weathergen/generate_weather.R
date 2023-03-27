@@ -10,9 +10,6 @@ args <- commandArgs(trailingOnly = TRUE)
 yaml <- yaml::read_yaml(args[2])
 weathergen_input_ncfile <- args[1]
 
-#dry_change <- yaml$generateWeatherSeries$dry.spell.change
-
-
 # Parse global parameters from the yaml configuration file
 historical_realizations_num <- yaml$generateWeatherSeries$realizations_num
 weathergen_output_path <- yaml$generateWeatherSeries$output.path
@@ -47,7 +44,6 @@ stochastic_weather <- weathergenr::generateWeatherSeries(
 )
 
 # STEP 3) Save each stochastic realization back to a netcdf file
-
 for (n in 1:historical_realizations_num) {
 
   # Resample order
