@@ -43,8 +43,8 @@ rule extract_climate_grid:
         prj_region = ancient(f"{basin_dir}/staticgeoms/region.geojson"),
     params:
         data_sources = DATA_SOURCES,
-        starttime = starttime,
-        endtime = endtime,
+        #starttime = starttime,
+        #endtime = endtime,
         clim_source = clim_source,
     output:
         climate_nc = f"{project_dir}/climate_historical/raw_data/extract_historical.nc",
