@@ -30,7 +30,7 @@ rule create_model:
     output:
         basin_nc = f"{basin_dir}/staticmaps.nc",
     shell:
-        """hydromt build wflow "{basin_dir}" "{model_region}" -r "{model_resolution}" -i "{input.hydromt_ini}" -d "{DATA_SOURCES}" -vv"""
+        """hydromt build wflow "{basin_dir}" --region "{model_region}" --opt setup_basemaps.res="{model_resolution}" -i "{input.hydromt_ini}" -d "{DATA_SOURCES}" -vv"""
 
 # Rule to add gauges to the built model
 rule add_gauges_and_outputs:
@@ -44,7 +44,6 @@ rule add_gauges_and_outputs:
         data_catalog = DATA_SOURCES
     script:
         "src/setup_gauges_and_outputs.py"
-        #"""hydromt update wflow "{basin_dir}" -c setup_gauges -d "{DATA_SOURCES}" --opt gauges_fn="{params.output_locs}" --opt derive_subcatch=True -vv"""
 
 # Rule to prepare the time horizon
 rule setup_runtime:
@@ -101,6 +100,7 @@ rule plot_map:
         output_map_png = f"{project_dir}/plots/wflow_model_performance/basin_area.png",
     params:
         project_dir = f"{project_dir}",
+        output_locations = output_locations,
     script: "src/plot_map.py"
 
 # Rule to plot the forcing on a map
