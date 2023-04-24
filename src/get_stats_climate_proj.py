@@ -157,10 +157,10 @@ for name_member in name_members:
     print(name_member)
     entry = f"{name_clim_project}_{name_model}_{name_scenario}_{name_member}"
     if entry in data_catalog:
-
+        
         try:  # todo can this be replaced by if statement?
             data = data_catalog.get_rasterdataset(
-                entry, bbox=bbox, buffer=buffer, time_tuple=time_tuple
+                entry, bbox=bbox, buffer=buffer, time_tuple=time_tuple, variables = variables
             )
         except:
             # if it is not possible to open all variables at once, loop over each one, remove duplicates and then merge:

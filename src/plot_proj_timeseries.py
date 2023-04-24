@@ -51,6 +51,9 @@ ds_hist = xr.open_mfdataset(fns_hist, preprocess=todatetimeindex_dropvars)
 print("Computing historical gcm timeseries anomalies")
 # precip
 gcm_pr = ds_hist["precip"].squeeze(drop=True).transpose().to_pandas()
+# check if gcm_pr_anom is pd.Series or pd.DataFrame
+if isinstance(gcm_pr, pd.Series):
+    gcm_pr = gcm_pr.to_frame()
 gcm_pr_annmn = gcm_pr.resample("A").mean()
 gcm_pr_ref = gcm_pr_annmn.mean()
 gcm_pr_anom = (gcm_pr_annmn - gcm_pr_ref) / gcm_pr_ref * 100
@@ -58,6 +61,9 @@ q_pr_anom = gcm_pr_anom.quantile([0.05, 0.5, 0.95], axis=1).transpose()
 
 # temp
 gcm_tas = ds_hist["temp"].squeeze(drop=True).transpose().to_pandas()
+# check if gcm_pr_anom is pd.Series or pd.DataFrame
+if isinstance(gcm_tas, pd.Series):
+    gcm_tas = gcm_tas.to_frame()
 gcm_tas_annmn = gcm_tas.resample("A").mean()
 gcm_tas_ref = gcm_tas_annmn.mean()
 gcm_tas_anom = (gcm_tas_annmn - gcm_tas_ref) / gcm_tas_ref * 100
@@ -110,8 +116,14 @@ for i in range(len(rcps)):
         )
         ds_rcp_tas = ds_rcp_tas["temp"]
     # to dataframe
-    pr_fut[i] = ds_rcp_pr.transpose().to_pandas()
-    tas_fut[i] = ds_rcp_tas.transpose().to_pandas()
+    prfi = ds_rcp_pr.transpose().to_pandas()
+    if isinstance(prfi, pd.Series):
+        prfi = prfi.to_frame()
+    pr_fut[i] = prfi
+    tasfi = ds_rcp_tas.transpose().to_pandas()
+    if isinstance(tasfi, pd.Series):
+        tasfi = tasfi.to_frame()
+    tas_fut[i] = tasfi
 
 # compute anomalies
 print("Computing future gcm timeseries anomalies")
