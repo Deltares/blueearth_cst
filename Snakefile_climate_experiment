@@ -14,7 +14,12 @@ project = config['project_name']
 project_dir = config['project_dir']
 experiment = config['experiment_name']
 RLZ_NUM = config['realizations_num']
-ST_NUM = config['temp']['step_num'] * config['precip']['step_num']
+ST_NUM = (config['temp']['step_num'] + 1) * (config['precip']['step_num'] + 1)
+run_hist = config["run_historical"]
+if run_hist:
+    ST_START = 0
+else:
+    ST_START = 1
 
 DATA_SOURCES = config["data_sources"]
 
@@ -147,7 +152,7 @@ rule run_wflow:
 
 rule export_wflow_results:
     input:
-        rlz_csv_fns = expand((f"{basin_dir}/run_climate_{experiment}/output_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".csv"), rlz_num=np.arange(1, RLZ_NUM+1), st_num2=np.arange(0, ST_NUM+1)),
+        rlz_csv_fns = expand((f"{basin_dir}/run_climate_{experiment}/output_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".csv"), rlz_num=np.arange(1, RLZ_NUM+1), st_num2=np.arange(ST_START, ST_NUM+1)),
     output:
         mean = f"{exp_dir}/model_results/mean.csv",
         min = f"{exp_dir}/model_results/min.csv",

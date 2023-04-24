@@ -66,6 +66,8 @@ experiment_name: experiment_01
 realizations_num: 3
 # Future Time horizon for the climate experiment
 starttime_climate: 2030
+# Run historical realization
+run_historical: FALSE
 
 # Weathergen settings
 warm.signif.level: 0.80

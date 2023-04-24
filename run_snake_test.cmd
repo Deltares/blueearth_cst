@@ -4,7 +4,7 @@ rem Snakefile_model_creation
 snakemake -s Snakefile_model_creation --configfile config/snake_config_model_test.yml  --dag | dot -Tpng > dag_model.png
 
 snakemake --unlock -s Snakefile_model_creation --configfile config/snake_config_model_test.yml
-snakemake all -c 1 -s Snakefile_model_creation --configfile config/snake_config_model_test.yml --delete-temp-output
+snakemake all -c 1 -s Snakefile_model_creation --configfile config/snake_config_model_test.yml
 
 rem Snakefile climate_projections
 snakemake -s Snakefile_climate_projections --configfile config/snake_config_model_test.yml --dag | dot -Tpng > dag_projections.png
