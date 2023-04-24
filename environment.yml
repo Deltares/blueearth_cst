@@ -1,4 +1,4 @@
-name: cst
+name: blueearth-cst
 
 channels:
   - conda-forge
@@ -6,34 +6,23 @@ channels:
 
 # notes R packages stats and utils were not found
 dependencies:
-  - affine
-  - click
-  - black
-  - bottleneck
-  - cartopy # to run examples
-  - dask
+  - cartopy
   - datrie # for snakemake
   - dvc
   - descartes
-  - entrypoints
   - flit>=3.2
+  - gcsfs
   - gdal>=3.1
-  - geopandas
-  - graphviz
-#  - hydromt>=0.5.0
+  - geopandas>=0.10
+  - graphviz # for snakemake
+  - hydromt>=0.7
 #  - hydromt_wflow
   - jupyter # to run examples
-  - netcdf4
-  - matplotlib # to run examples
-  - numba
+  - matplotlib
   - numpy
-  - openpyxl
   - pandas
   - pip
-  - pyflwdir>=0.5.0
-  - pygeos>=0.8
   - python>=3.7
-  - rasterio
   - r-base
   - r-essentials
   - r-akima
@@ -56,16 +45,13 @@ dependencies:
   - r-yaml
   - rpy2
   - rtools
-  - requests
-  - rioxarray
   - scipy
   - seaborn # plot
+  - shapely>=2.0.0
   - tabulate==0.8.10 # snakemake dependency, bug in v0.9.0
-  - toml
   - xarray
   - zarr
   - pip:
     - hydroengine
     - snakemake==7.8.0
-    - git+https://github.com/Deltares/hydromt.git
     - git+https://github.com/Deltares/hydromt_wflow.git
