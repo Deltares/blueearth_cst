@@ -1,8 +1,5 @@
-import shutil
-import os
 import sys
 import numpy as np
-import pandas as pd
 
 # Parsing the Snakemake config file (options for basins to build, data catalog, model output directory)
 #configfile: "config/snake_config_test.yml"
@@ -10,30 +7,56 @@ import pandas as pd
 args = sys.argv
 config_path = args[args.index("--configfile") + 1]
 
-project = config['project_name']
-project_dir = config['project_dir']
-experiment = config['experiment_name']
-RLZ_NUM = config['realizations_num']
-ST_NUM = config['temp']['step_num'] * config['precip']['step_num']
+# Function to get argument from config file and return default value if not found
+def get_config(config, arg, default=None, optional=True):
+    """
+    Function to get argument from config file and return default value if not found
 
-DATA_SOURCES = config["data_sources"]
+    Parameters
+    ----------
+    config : dict
+        config file
+    arg : str   
+        argument to get from config file
+    default : str/int/float/list, optional
+        default value if argument not found, by default None
+    optional : bool, optional
+        if True, argument is optional, by default True
+    """
+    if arg in config:
+        return config[arg]
+    elif optional:
+        return default
+    else:
+        raise ValueError(f"Argument {arg} not found in config file")
+
+#project = get_config(config, 'project_name', optional=False)
+project_dir = get_config(config, 'project_dir', optional=False)
+experiment = get_config(config, 'experiment_name', optional=False)
+RLZ_NUM = get_config(config, 'realizations_num', 1)
+ST_NUM = (get_config(config['temp'], 'step_num', 1) + 1) * (get_config(config['precip'], 'step_num', 1) + 1)
+run_hist = get_config(config,"run_historical", False)
+if run_hist:
+    ST_START = 0
+else:
+    ST_START = 1
+
+DATA_SOURCES = get_config(config, "data_sources", optional=False)
 
 basin_dir = f"{project_dir}/hydrology_model"
 exp_dir = f"{project_dir}/climate_{experiment}"
 
-# Time horizon historical
-starttime = config['starttime']
-endtime = config['endtime']
-clim_source = config["clim_historical"]
-
-# Time horizon climate experiment
-starttime_climate = config['starttime_climate']
+# Data catalog historical
+clim_source = get_config(config, "clim_historical", optional=False)
+# Time horizon climate experiment and number of hydrological model run
+horizontime_climate = get_config(config, 'horizontime_climate', optional=False)
+wflow_run_length = get_config(config, 'run_length', 20)
 
 # Master rule: end with all model run and analysed with saving a output plot
 rule all:
     input:
         mean = f"{exp_dir}/model_results/mean.csv",
-        rlz_nc = expand((f"{basin_dir}/run_climate_{experiment}/output_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".csv"), rlz_num=np.arange(1, RLZ_NUM+1), st_num2=np.arange(0, ST_NUM+1)),
+        #rlz_nc = expand((f"{basin_dir}/run_climate_{experiment}/output_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".csv"), rlz_num=np.arange(1, RLZ_NUM+1), st_num2=np.arange(0, ST_NUM+1)),
         #f"{exp_dir}/realization_{RLZ_NUM}/rlz_{RLZ_NUM}_historical.nc",
         #f"{exp_dir}/stress_test/cst_{ST_NUM}.csv"
 
@@ -43,8 +66,6 @@ rule extract_climate_grid:
         prj_region = ancient(f"{basin_dir}/staticgeoms/region.geojson"),
     params:
         data_sources = DATA_SOURCES,
-        starttime = starttime,
-        endtime = endtime,
         clim_source = clim_source,
     output:
         climate_nc = f"{project_dir}/climate_historical/raw_data/extract_historical.nc",
@@ -60,7 +81,7 @@ rule climate_stress_parameters:
     script:
         "src/prepare_cst_parameters.py"
 
-# Preapre config files for the weather generator
+# Prepare config files for the weather generator: generate
 rule prepare_weagen_config:
     output:
         weagen_config = f"{exp_dir}/weathergen_config.yml",
@@ -69,12 +90,13 @@ rule prepare_weagen_config:
         snake_config = config_path,
         default_config = "config/weathergen_config.yml",
         output_path = f"{exp_dir}/", 
-        start_year = starttime_climate,
-        sim_years = (pd.to_datetime(endtime).year - pd.to_datetime(starttime).year + 2),
+        middle_year = horizontime_climate,
+        sim_years = wflow_run_length,
         nc_file_prefix = "rlz"
     script:
         "src/prepare_weagen_config.py"
 
+# Prepare config files for the weather generator: climate change
 rule prepare_weagen_config_st:
     output:
         weagen_config = f"{exp_dir}/realization_"+"{rlz_num}"+"/weathergen_config_rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".yml",
@@ -87,24 +109,24 @@ rule prepare_weagen_config_st:
     script:
         "src/prepare_weagen_config.py"
 
-# Prepare climate realization
+# Generate climate realization
 rule generate_weather_realization:
     input:
         climate_nc = ancient(f"{project_dir}/climate_historical/raw_data/extract_historical.nc"),
         weagen_config = f"{exp_dir}/weathergen_config.yml",
     output:
-        [f"{exp_dir}/realization_{rlz_num}/rlz_{rlz_num}_cst_0.nc" for rlz_num in np.arange(1, RLZ_NUM+1)]
+        temp([f"{exp_dir}/realization_{rlz_num}/rlz_{rlz_num}_cst_0.nc" for rlz_num in np.arange(1, RLZ_NUM+1)])
     shell:
         """Rscript --vanilla src/weathergen/generate_weather.R {input.climate_nc} {input.weagen_config} """
 
-# Prepare climate stress tests
+# Generate climate stress tests
 rule generate_climate_stress_test:
     input:
         rlz_nc = f"{exp_dir}/realization_"+"{rlz_num}"+"/rlz_"+"{rlz_num}"+"_cst_0.nc",
         st_csv = f"{exp_dir}/stress_test/cst_"+"{st_num}"+".csv",
         weagen_config = f"{exp_dir}/realization_"+"{rlz_num}"+"/weathergen_config_rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".yml",
     output:
-        rlz_st_nc = f"{exp_dir}/realization_"+"{rlz_num}"+"/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc"
+        rlz_st_nc = temp(f"{exp_dir}/realization_"+"{rlz_num}"+"/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc")
     shell:
         """Rscript --vanilla src/weathergen/impose_climate_change.R {input.rlz_nc} {input.weagen_config} {input.st_csv} """
 
@@ -127,11 +149,13 @@ rule downscale_climate_realization:
         nc = f"{exp_dir}/realization_"+"{rlz_num}"+"/rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".nc",
         data_sources = [f"{exp_dir}/data_catalog_climate_experiment.yml", DATA_SOURCES]
     output:
-        nc = f"{exp_dir}/realization_"+"{rlz_num}"+"/inmaps_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".nc",
+        nc = temp(f"{exp_dir}/realization_"+"{rlz_num}"+"/inmaps_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".nc"),
         toml = f"{basin_dir}/run_climate_{experiment}/wflow_sbm_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".toml"
     params:
         model_dir = basin_dir,
         clim_source = clim_source,
+        horizontime_climate = horizontime_climate,
+        run_length = wflow_run_length,
     script:
         "src/downscale_climate_forcing.py"
 
@@ -141,13 +165,15 @@ rule run_wflow:
         forcing_fid = f"{exp_dir}/realization_"+"{rlz_num}"+"/inmaps_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".nc",
         toml_fid = f"{basin_dir}/run_climate_{experiment}/wflow_sbm_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".toml"
     output:
-        csv_file = f"{basin_dir}/run_climate_{experiment}/output_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".csv"
+        csv_file = temp(f"{basin_dir}/run_climate_{experiment}/output_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".csv"),
+        state_file = temp(f"{basin_dir}/run_climate_{experiment}/outstates_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".nc")
     shell:
         """ julia --threads 4 -e "using Wflow; Wflow.run()" "{input.toml_fid}" """
 
+# Export wflow results
 rule export_wflow_results:
     input:
-        rlz_csv_fns = expand((f"{basin_dir}/run_climate_{experiment}/output_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".csv"), rlz_num=np.arange(1, RLZ_NUM+1), st_num2=np.arange(0, ST_NUM+1)),
+        rlz_csv_fns = expand((f"{basin_dir}/run_climate_{experiment}/output_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".csv"), rlz_num=np.arange(1, RLZ_NUM+1), st_num2=np.arange(ST_START, ST_NUM+1)),
     output:
         mean = f"{exp_dir}/model_results/mean.csv",
         min = f"{exp_dir}/model_results/min.csv",

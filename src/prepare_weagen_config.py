@@ -20,13 +20,19 @@ print(f"Preparing and writting the weather generator config file {weagen_config}
 yml_snake = read_yml(yml_snake)
 
 if cftype == "generate":
+    # Get the simulation years
+    middle_year = snakemake.params.middle_year
+    wflow_run_length = snakemake.params.sim_years
+    # Compute number of years needed based on the wflow run length and horizon and end of historical period in 2010
+    nr_years_weagen = (middle_year + wflow_run_length / 2) - 2010 + 2
+
     # arguments from the default weagen config file
     yml_dict = read_yml(snakemake.params.default_config)
     # add new arguments from snakemake and yml_snake
     yml_add = {
         "output.path": snakemake.params.output_path,
-        "sim.year.start": snakemake.params.start_year,
-        "sim.year.num": snakemake.params.sim_years,
+        "sim.year.start": 2010,
+        "sim.year.num": nr_years_weagen,
         "nc.file.prefix": snakemake.params.nc_file_prefix,
         "realizations_num": yml_snake["realizations_num"]
     }

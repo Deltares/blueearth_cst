@@ -22,4 +22,5 @@ rem snakemake -s Snakefile_model_creation all -c 1 --keep-going --until add_gaug
 rem keep going is when parallel runs to keep going parallel if one series goes wrong
 rem dryrun is to tell what it will be doing without actually running
 rem until - still the whole workflow but not all jobs 
+rem --delete-temp-output - delete the temp files after the run
 pause

@@ -20,6 +20,8 @@ WFLOW_VARS = {
 mod = WflowModel(root, mode="r+", data_libs=data_catalog)
 
 # Add gauges
+if not os.path.isfile(gauges_fn):
+    gauges_fn = None
 mod.setup_gauges(
     gauges_fn=gauges_fn,
     derive_subcatch=True,

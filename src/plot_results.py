@@ -136,6 +136,9 @@ if (f"gauges_{gauges_output_name}" in mod.staticgeoms) & (
     os.path.exists(observations_timeseries)
 ):
     ds_outlocs = ds_obs.combine_first(ds_sim_outlocs)
+    # combine_first now seems to somehow drop the coordinate station_name?
+    ds_outlocs["station_name"] = ds_obs["station_name"]
+    ds_outlocs = ds_outlocs.set_coords("station_name")
 
 # rename Q in modeled dataset at gauges locations
 ds_sim_gauges = (

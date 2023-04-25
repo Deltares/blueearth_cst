@@ -14,14 +14,14 @@ with open(config_fn, "r") as stream:
 # Temperature change attributes
 delta_temp_mean_min = yml["temp"]["mean"]["min"]
 delta_temp_mean_max = yml["temp"]["mean"]["max"]
-temp_step_num = yml["temp"]["step_num"]
+temp_step_num = yml["temp"]["step_num"] + 1
 
 # Precip change attributes
 delta_precip_mean_min = yml["precip"]["mean"]["min"]
 delta_precip_mean_max = yml["precip"]["mean"]["max"]
 delta_precip_variance_min = yml["precip"]["variance"]["min"]
 delta_precip_variance_max = yml["precip"]["variance"]["min"]
-precip_step_num = yml["precip"]["step_num"]
+precip_step_num = yml["precip"]["step_num"] + 1
 
 # Number of stress tests
 ST_NUM = temp_step_num * precip_step_num

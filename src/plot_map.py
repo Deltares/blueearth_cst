@@ -15,6 +15,7 @@ import os
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 from matplotlib import cm, colors
+import matplotlib.patheffects as pe
 
 # plot maps dependencies
 import matplotlib.patches as mpatches
@@ -27,8 +28,8 @@ import hydromt
 from hydromt_wflow import WflowModel
 
 project_dir = snakemake.params.project_dir
-gauges_fn = snakemake.input.gauges_fid
-gauges_name = basename(gauges_fn).split(".")[0]
+gauges_fn = snakemake.params.output_locations
+gauges_name = f'gauges_{basename(gauges_fn).split(".")[0]}'
 
 Folder_plots = f"{project_dir}/plots/wflow_model_performance"
 root = f"{project_dir}/hydrology_model"
@@ -109,6 +110,23 @@ if gauges_name in mod.staticgeoms:
         zorder=5,
         label="output locs",
     )
+    if 'station_name' in mod.staticgeoms[gauges_name].columns:
+        mod.staticgeoms[gauges_name].apply(
+            lambda x: ax.annotate(
+                text=x['station_name'], 
+                xy=x.geometry.coords[0],
+                xytext=(2.0, 2.0), 
+                textcoords='offset points', 
+                #ha='left',
+                #va = 'top',
+                fontsize=5,
+                fontweight='bold',
+                color='black',
+                path_effects=[pe.withStroke(linewidth=2, foreground="white")]
+            ), 
+            axis=1
+        )
+
 patches = (
     []
 )  # manual patches for legend, see https://github.com/geopandas/geopandas/issues/660
@@ -129,7 +147,7 @@ ax.xaxis.set_visible(True)
 ax.yaxis.set_visible(True)
 ax.set_ylabel(f"latitude [degree north]")
 ax.set_xlabel(f"longitude [degree east]")
-_ = ax.set_title(f"wflow base map")
+_ = ax.set_title(f"")
 legend = ax.legend(
     handles=[*ax.get_legend_handles_labels()[0], *patches],
     title="Legend",
