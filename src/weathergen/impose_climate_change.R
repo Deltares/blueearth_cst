@@ -39,7 +39,10 @@ rlz_future <- weathergenr::imposeClimateChanges(
    change.factor.temp.mean = cst_data$temp_mean,
    transient.temp.change = temp_change_transient,
    transient.precip.change = precip_change_transient,
-   calculate.pet = TRUE
+   calculate.pet = TRUE,
+   compute.parallel = FALSE,
+   num.cores = NULL,
+   fit.method = "mme"
 )
 
 # Save to netcdf file

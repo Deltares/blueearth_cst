@@ -2,7 +2,7 @@ import os
 import yaml
 
 # Snakemake config file
-yml_default = snakemake.params.default_config
+yml_snake = snakemake.params.snake_config
 weagen_config = snakemake.output.weagen_config
 cftype = snakemake.params.cftype
 
@@ -17,7 +17,7 @@ def read_yml(yml_fn):
 print(f"Preparing and writting the weather generator config file {weagen_config}")
 
 # Read existing config file
-yml_snake = read_yml(yml_default)
+yml_snake = read_yml(yml_snake)
 
 if cftype == "generate":
     # Get the simulation years
@@ -26,37 +26,18 @@ if cftype == "generate":
     # Compute number of years needed based on the wflow run length and horizon and end of historical period in 2010
     nr_years_weagen = (middle_year + wflow_run_length / 2) - 2010 + 2
 
-    # new arguments to the dict
-    yml_dict = {
-        "general": {"variables": ["precip", "temp", "temp_min", "temp_max"]},
-        "generateWeatherSeries": {
-            "output.path": snakemake.params.output_path,
-            "sim.year.start": 2010,
-            "sim.year.num": nr_years_weagen,
-            "nc.file.prefix": snakemake.params.nc_file_prefix,
-            "month.start": 1,
-            "warm.variable": "precip",
-            "warm.sample.num": 30000,
-            "warm.subset.criteria": None,
-            "mc.wet.quantile": 0.2,
-            "mc.extreme.quantile": 0.8,
-            "evaluate.model": True,
-            "evaluate.grid.num": 20,
-            "compute.parallel": False,
-            "num.cores": None,
-            "seed": 1,
-        },
+    # arguments from the default weagen config file
+    yml_dict = read_yml(snakemake.params.default_config)
+    # add new arguments from snakemake and yml_snake
+    yml_add = {
+        "output.path": snakemake.params.output_path,
+        "sim.year.start": 2010,
+        "sim.year.num": nr_years_weagen,
+        "nc.file.prefix": snakemake.params.nc_file_prefix,
+        "realizations_num": yml_snake["realizations_num"]
     }
-    # arguments from yml_snake
-    yml_dict["generateWeatherSeries"]["realizations_num"] = yml_snake[
-        "realizations_num"
-    ]
-    yml_dict["generateWeatherSeries"]["warm.signif.level"] = yml_snake[
-        "warm.signif.level"
-    ]
-    yml_dict["generateWeatherSeries"]["warm.sample.num"] = yml_snake["warm.sample.num"]
-    yml_dict["generateWeatherSeries"]["knn.sample.num"] = yml_snake["knn.sample.num"]
-
+    for k,v in yml_add.items():
+        yml_dict["generateWeatherSeries"][k] = v
 
 else:  # stress test
     # new arguments

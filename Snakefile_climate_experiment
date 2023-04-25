@@ -87,8 +87,9 @@ rule prepare_weagen_config:
         weagen_config = f"{exp_dir}/weathergen_config.yml",
     params:
         cftype = "generate",
-        default_config = config_path,
-        output_path = f"{exp_dir}/",
+        snake_config = config_path,
+        default_config = "config/weathergen_config.yml",
+        output_path = f"{exp_dir}/", 
         middle_year = horizontime_climate,
         sim_years = wflow_run_length,
         nc_file_prefix = "rlz"
@@ -101,7 +102,7 @@ rule prepare_weagen_config_st:
         weagen_config = f"{exp_dir}/realization_"+"{rlz_num}"+"/weathergen_config_rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".yml",
     params:
         cftype = "stress_test",
-        default_config = config_path,
+        snake_config = config_path,
         output_path = f"{exp_dir}/realization_"+"{rlz_num}"+"/",
         nc_file_prefix = "rlz_"+"{rlz_num}"+"_cst",
         nc_file_suffix = "{st_num}",
