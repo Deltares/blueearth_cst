@@ -8,7 +8,8 @@ project_dir: examples/Gabon
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
 data_sources: config/deltares_data.yml
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
-data_sources_climate: config/deltares_data_climate_projections.yml
+#data_sources_climate: config/deltares_data_climate_projections.yml
+data_sources_climate: config/cmip6_data.yml
 
 # Info on the historical climate data is used in the historic model run + reference data for the weather generator
 # Time horizon of the historical period

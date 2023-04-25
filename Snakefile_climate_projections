@@ -132,6 +132,7 @@ rule monthly_change_scalar_merge:
         stats_change_plt = (clim_project_dir + "/plots/projected_climate_statistics.png"),
     params:
         clim_project_dir = f"{clim_project_dir}",
+        horizons = future_horizons,
     script: "src/get_change_climate_proj_summary.py"
 
 #rule to plot timeseries
