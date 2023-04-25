@@ -3,7 +3,6 @@
 #################################### General setting ######################################
 
 # Path to where the wflow model will be stored (include the project name)
-project_name: Gabon
 project_dir: examples/Gabon
 
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
@@ -41,19 +40,21 @@ observations_timeseries: "data/observations/observations_timeseries_Gabon.csv"
 ###########################################################################################
 ################################## Climate projections ####################################
 # climate models and scenarios
-clim_project: cmip5
-models: ['MIROC5', 'HadGEM2-ES', 'IPSL-CM5A-LR', 'CMCC-CM', 'CNRM-CM5', 'GFDL-ESM2M']
-scenarios: [rcp45, rcp85]
-members: [r1i1p1]
+clim_project: cmip6
+#models: ['NOAA-GFDL/GFDL-ESM4', 'INM/INM-CM4-8' ,'INM/INM-CM5-0','NIMS-KMA/KACE-1-0-G','NCC/NorESM2-MM','NCC/NorESM2-LM','CMCC/CMCC-CM2-SR5','CMCC/CMCC-ESM2']
+models: ['NOAA-GFDL/GFDL-ESM4', 'CMCC/CMCC-ESM2', 'INM/INM-CM5-0']
+#scenarios: [ssp126, ssp245, ssp370, ssp585]
+scenarios: [ssp245, ssp585]
+members: [r1i1p1f1]
 
-variables: [precip, temp, temp_min, temp_max]
+variables: [precip, temp]
 
 # time horizons of the climate projections
 start_month_hyd_year: Jan
-historical: 1960, 2000
+historical: 1980, 2010
 future_horizons: 
-  near: 2020, 2060
-  far: 2060, 2100
+  near: 2030, 2060
+  far: 2070, 2100
 
 # Additional gridded outputs (else only basin average)
 save_grids: FALSE
@@ -61,11 +62,13 @@ save_grids: FALSE
 ###########################################################################################
 ################################## Climate experiment #####################################
 # Name of the experiment
-experiment_name: experiment_01
+experiment_name: experiment
 # Number of climate realizations
-realizations_num: 3
+realizations_num: 2
 # Future Time horizon for the climate experiment
-starttime_climate: 2030
+horizontime_climate: 2050
+# Length of future run in years
+run_length: 20
 # Run historical realization
 run_historical: FALSE
 

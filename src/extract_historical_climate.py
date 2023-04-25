@@ -9,8 +9,8 @@ from hydromt.workflows.forcing import temp
 # Snake parameters
 region_fn = snakemake.input.prj_region
 fn_out = snakemake.output.climate_nc
-starttime = "1990-01-01T00:00:00" #snakemake.params.starttime
-endtime = "2020-12-31T00:00:00" #snakemake.params.endtime
+starttime = "1980-01-01T00:00:00"
+endtime = "2010-12-31T00:00:00"
 data_libs = snakemake.params.data_sources
 
 region = gpd.read_file(region_fn)
