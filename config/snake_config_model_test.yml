@@ -36,7 +36,7 @@ model_resolution: 0.0062475
 
 # If available, please here put the path to the available observation stations locations files
 # csv file containing three columns: station_ID, x, y
-output_locations: "config/output-locations-test.csv" # If set to None, will default to the wflow outlets
+output_locations: "data/observations/output-locations-test.csv" # If set to None, will default to the wflow outlets
 # Path to the file with observed discharge timeseries per station 
 observations_timeseries: "data/observations/observations_timeseries_test.csv" 
 
@@ -94,23 +94,3 @@ precip:
   variance:
     min: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
     max: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
-
-
-
-###########################################################################################
-################################## Weather Generator Advanced settings ####################
-
-warm.signif.level: 0.80      # Low-frequency signal statistical significance level (suggested: 0.80 - 0.95)
-warm.sample.num: 10000       # Number of initial annual precip series to be generated (suggested: 10,000 - 30,000)
-knn.sample.num: 100          # Number of repeated samples for each simulated year (suggested: 100-120)
-month.start: 1               # First month of the hydrological year (1 to 12)
-warm.variable: precip        # Variable to be used for wavelet analysis & modeling (do not change)
-warm.subset.criteria: NULL   # Additional subsetting criteria (do not change)
-mc.wet.quantile: 0.2         # quantile threshold to define wet weather
-mc.extreme.quantile: 0.8     # quantile threshold to define very wet weather
-seed: 123                    # Randomization seed (needs to be an integer value)
-evaluate.model: TRUE         # Should performance plots be generated?
-evaluate.grid.num: 20        # Number of grids to be sampled for the comparison plots (for speed reasons, keep <50)
-compute.parallel: FALSE      # Should the code run in parallel mode? 
-dry.spell.change: [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]  # monthly coefficient to adjust dry spell length
-wet.spell.change: [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]  # monthly coefficient to adjust wet spell length
