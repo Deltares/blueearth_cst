@@ -99,7 +99,7 @@ rule plot_results:
         gauges_output_fid = output_locations,
         outputs = wflow_outvars,
     container: "singularity/hydromt-wflow.sif"
-script: "src/plot_results.py"
+    script: "src/plot_results.py"
 
 rule plot_map:
     input:
