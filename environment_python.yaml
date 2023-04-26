@@ -2,9 +2,7 @@ name: blueearth-cst
 
 channels:
   - conda-forge
-  - r
 
-# notes R packages stats and utils were not found
 dependencies:
   - cartopy
   - datrie # for snakemake
@@ -16,7 +14,6 @@ dependencies:
   - geopandas>=0.10
   - graphviz # for snakemake
   - hydromt>=0.7
-#  - hydromt_wflow
   - jupyter # to run examples
   - matplotlib
   - numpy
@@ -24,28 +21,6 @@ dependencies:
   - pip
   - python>=3.7
   - rasterio
-  - r-base
-  - r-essentials
-  - r-akima
-  - r-patchwork
-  - r-doparallel
-  - r-devtools
-  - r-dplyr
-  - r-e1071
-  - r-fitdistrplus
-  - r-forecast
-  - r-ggplot2
-  - r-MASS
-  - r-ncdf4
-#  - r-rlang
-  - r-scales
-  - r-sf
-  - r-tibble
-  - r-tidyr
-  - r-r.utils
-  - r-yaml
-  - rpy2
-  - rtools
   - requests
   - rioxarray
   - scipy
