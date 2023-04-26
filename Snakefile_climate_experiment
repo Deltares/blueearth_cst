@@ -179,8 +179,19 @@ rule export_wflow_results:
         min = f"{exp_dir}/model_results/min.csv",
         max = f"{exp_dir}/model_results/max.csv",
         q95 = f"{exp_dir}/model_results/q95.csv",
+	RT = f"{exp_dir}/model_results/returninterval_discharge.csv",
+        Q7dmax = f"{exp_dir}/model_results/Q7dmax_discharge.csv",
+        highpulse = f"{exp_dir}/model_results/highpulse_discharge.csv",
+        wetmonth = f"{exp_dir}/model_results/wetmonth_discharge.csv",
+        RT7d = f"{exp_dir}/model_results/returninterval7d_discharge.csv",
+        Q7dmin = f"{exp_dir}/model_results/Q7dmin_discharge.csv",
+        lowpulse = f"{exp_dir}/model_results/lowpulse_discharge.csv",
+        drymonth = f"{exp_dir}/model_results/drymonth_discharge.csv",
+        BFI = f"{exp_dir}/model_results/BFI_discharge.csv",
     params:
         model_dir = basin_dir,
         exp_dir = exp_dir,
+	Tlow = config['Tlow'],
+        Tpeak = config['Tpeak'],
     script:
-        "src/export_wflow_results.py"
+        "src/export_wflow_results_metrics.py"
