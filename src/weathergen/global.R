@@ -1,5 +1,7 @@
-
 #################### GLOBAL R SETTINGS #########################################
+
+# Set library location (prevents errors if another R.exe is already installed in the system)
+.libPaths(paste0(Sys.getenv("R_HOME"),"/library"))
 
 # General options
 options(warn = -1) # Disable warnings

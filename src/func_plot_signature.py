@@ -581,11 +581,13 @@ def plot_clim(ds_clim, Folder_out, station_name, lw=0.8, fs=8):
 def plot_basavg(ds, Folder_out, fs=8):
     dvars = [dvar for dvar in ds.data_vars]
     n = len(dvars)
-    fig, axes = plt.subplots(n, 1, sharex=True, figsize=(15, n * 4))
-    axes = [axes] if n == 1 else axes
-
+    
     for i in range(n):
         dvar = dvars[i]
+
+        fig, ax = plt.subplots(1, 1, sharex=True, figsize=(15, 4))
+        #axes = [axes] if n == 1 else axes
+
         if WFLOW_VARS[dvar.split("_")[0]]["resample"] == "sum":
             sum_monthly = ds[dvar].resample(time="M").sum("time")
         else:  # assume mean
@@ -595,21 +597,20 @@ def plot_basavg(ds, Folder_out, fs=8):
         sum_monthly_q75 = sum_monthly.groupby("time.month").quantile(0.75, "time")
 
         # plot
-        sum_monthly_mean.plot(ax=axes[i], color="darkblue")
-        axes[i].fill_between(
+        sum_monthly_mean.plot(ax=ax, color="darkblue")
+        ax.fill_between(
             np.arange(1, 13), sum_monthly_q25, sum_monthly_q75, color="lightblue"
         )
         legend = WFLOW_VARS[dvar.split("_")[0]]["legend"]
-        axes[i].set_ylabel(legend, fontsize=fs)
+        ax.set_ylabel(legend, fontsize=fs)
 
-    for ax in axes:
         ax.tick_params(axis="both", labelsize=fs)
         ax.set_xlabel("", fontsize=fs)
         ax.set_title("")
 
-    month_labels = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
-    axes[-1].set_xticks(ticks=np.arange(1, 13), labels=month_labels, fontsize=fs)
+        month_labels = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
+        ax.set_xticks(ticks=np.arange(1, 13), labels=month_labels, fontsize=fs)
 
-    plt.tight_layout()
-    fig.set_tight_layout(True)
-    plt.savefig(os.path.join(Folder_out, f"basin_average_outputs.png"), dpi=300)
+        plt.tight_layout()
+        fig.set_tight_layout(True)
+        plt.savefig(os.path.join(Folder_out, f"basin_average_{dvar}.png"), dpi=300)

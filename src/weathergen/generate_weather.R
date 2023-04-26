@@ -1,9 +1,9 @@
+# General R settings and prequisites
+source("./src/weathergen/global.R")
+
 # Install required packages -- ONLY ONCE!
 # source("./src/weathergen/install_rpackages.r")
 library(yaml)
-
-# General R settings and prequisites
-source("./src/weathergen/global.R")
 
 args <- commandArgs(trailingOnly = TRUE)
 
@@ -20,31 +20,31 @@ ncdata <- weathergenr::readNetcdf(weathergen_input_ncfile)
 
 # Step 2) Generate new weather realizations
 stochastic_weather <- weathergenr::generateWeatherSeries(
-     output.path = paste0(weathergen_output_path, "plots/"),
-     realization.num = historical_realizations_num,
-     variable.names = yaml$general$variables,
-     weather.data = ncdata$data,
-     weather.grid = ncdata$grid,
-     weather.date = ncdata$date,
-     sim.year.num = yaml$generateWeatherSeries$sim.year.num,
-     sim.year.start = yaml$generateWeatherSeries$sim.year.start,
-     month.start = yaml$generateWeatherSeries$month.start,
-     warm.variable = yaml$generateWeatherSeries$warm.variable,
-     warm.signif.level = yaml$generateWeatherSeries$warm.signif.level,
-     warm.sample.num = yaml$generateWeatherSeries$warm.sample.num,
-     warm.subset.criteria = yaml$generateWeatherSeries$warm.subset.criteria,
-     knn.sample.num = yaml$generateWeatherSeries$knn.sample.num,
-     mc.wet.quantile = yaml$generateWeatherSeries$mc.wet.quantile,
-     mc.extreme.quantile = yaml$generateWeatherSeries$mc.extreme.quantile,
-     evaluate.model = yaml$generateWeatherSeries$evaluate.model,
-     evaluate.grid.num = yaml$generateWeatherSeries$evaluate.grid.num,
-     seed = yaml$generateWeatherSeries$seed,
-     compute.parallel = yaml$generateWeatherSeries$compute.parallel,
-     num.cores = yaml$generateWeatherSeries$num.cores
+	weather.data = ncdata$data,
+    weather.grid = ncdata$grid,
+    weather.date = ncdata$date,
+	variable.names = yaml$general$variables,
+    sim.year.num = yaml$generateWeatherSeries$sim.year.num,
+    sim.year.start = yaml$generateWeatherSeries$sim.year.start,
+    month.start = yaml$generateWeatherSeries$month.start,
+	realization.num = historical_realizations_num,
+	warm.variable = yaml$generateWeatherSeries$warm.variable,
+    warm.signif.level = yaml$generateWeatherSeries$warm.signif.level,
+    warm.sample.num = yaml$generateWeatherSeries$warm.sample.num,
+    warm.subset.criteria = yaml$generateWeatherSeries$warm.subset.criteria,
+    knn.sample.num = yaml$generateWeatherSeries$knn.sample.num,
+	mc.wet.quantile = yaml$generateWeatherSeries$mc.wet.quantile,
+    mc.extreme.quantile = yaml$generateWeatherSeries$mc.extreme.quantile,
+	dry.spell.change = yaml$generateWeatherSeries$dry.spell.change,
+	wet.spell.change = yaml$generateWeatherSeries$wet.spell.change,
+	evaluate.model = yaml$generateWeatherSeries$evaluate.model,
+    evaluate.grid.num = yaml$generateWeatherSeries$evaluate.grid.num,
+	output.path = weathergen_output_path,
+    seed = yaml$generateWeatherSeries$seed,
+    compute.parallel = yaml$generateWeatherSeries$compute.parallel
 )
 
 # STEP 3) Save each stochastic realization back to a netcdf file
-
 for (n in 1:historical_realizations_num) {
 
   # Resample order

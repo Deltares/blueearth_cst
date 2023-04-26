@@ -19,6 +19,7 @@ import xarray as xr
 clim_project_dir = snakemake.params.clim_project_dir
 clim_project = os.path.basename(clim_project_dir)
 list_files = snakemake.input.stats_nc_change
+horizons = snakemake.params.horizons
 
 # merge summary maps across models, scnearios and horizons.
 # prefixes = ["monthly_change_mean_grid", "monthly_change_mean_scalar", "annual_change_scalar_stats"]
@@ -59,6 +60,19 @@ df.to_csv(os.path.join(clim_project_dir, "annual_change_scalar_stats_summary_mea
 # plot change
 if not os.path.exists(os.path.join(clim_project_dir, "plots")):
     os.mkdir(os.path.join(clim_project_dir, "plots"))
+
+# Rename horizon names to the middle year of the period
+hz_list = df.index.levels[df.index.names.index("horizon")].tolist()
+for hz in horizons:
+    # Get start and end year
+    period = horizons[hz].split(",")
+    period = [int(i) for i in period]
+    horizon_year = int((period[0] + period[1]) / 2)
+    # Replace hz values by horizon_year in hz_list
+    hz_list = [horizon_year if h == hz else h for h in hz_list]
+
+# Set new values in multiindex dataframe
+df.index = df.index.set_levels(hz_list, level="horizon")
 
 g = sns.JointGrid(
     data=df,

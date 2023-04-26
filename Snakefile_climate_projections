@@ -1,23 +1,43 @@
-import shutil
-import os
 import itertools
 
 # Parsing the Snakemake config file (options for basins to build, data catalog, model output directory)
-project = config['project_name']
-project_dir = config['project_dir']
-DATA_SOURCES = config["data_sources_climate"]
+# Function to get argument from config file and return default value if not found
+def get_config(config, arg, default=None, optional=True):
+    """
+    Function to get argument from config file and return default value if not found
 
-clim_project = config["clim_project"]
-models = config["models"]
-scenarios = config["scenarios"]
-members = config["members"]
-variables = config["variables"]
+    Parameters
+    ----------
+    config : dict
+        config file
+    arg : str   
+        argument to get from config file
+    default : str/int/float/list, optional
+        default value if argument not found, by default None
+    optional : bool, optional
+        if True, argument is optional, by default True
+    """
+    if arg in config:
+        return config[arg]
+    elif optional:
+        return default
+    else:
+        raise ValueError(f"Argument {arg} not found in config file")
 
-start_month_hyd_year = config["start_month_hyd_year"]
-time_horizon_hist = config["historical"]
-future_horizons = config["future_horizons"]
+project_dir = get_config(config, 'project_dir', optional=False)
+DATA_SOURCES = get_config(config, "data_sources_climate", optional=False)
 
-save_grids = config["save_grids"]
+clim_project = get_config(config, "clim_project", optional=False)
+models = get_config(config, "models", optional=False)
+scenarios = get_config(config, "scenarios", optional=False)
+members = get_config(config, "members", optional=False)
+variables = get_config(config, "variables", optional=False)
+
+start_month_hyd_year = get_config(config, "start_month_hyd_year", "Jan")
+time_horizon_hist = get_config(config, "historical", optional=False)
+future_horizons = get_config(config, "future_horizons", optional=False)
+
+save_grids = get_config(config, "save_grids", False)
 
 basin_dir = f"{project_dir}/hydrology_model"
 clim_project_dir = f"{project_dir}/climate_projections/{clim_project}"
@@ -29,7 +49,7 @@ def get_horizon(wildcards):
 # Master rule: end with csv with change factors for each scenario and model
 rule all:
     input:
-        ancient(expand((clim_project_dir + "/annual_change_scalar_stats-{model}_{scenario}_{horizon}.nc"), model = config["models"], scenario = config["scenarios"], horizon = config["future_horizons"])),
+        #ancient(expand((clim_project_dir + "/annual_change_scalar_stats-{model}_{scenario}_{horizon}.nc"), model = config["models"], scenario = config["scenarios"], horizon = config["future_horizons"])),
         (clim_project_dir + "/annual_change_scalar_stats_summary.nc"),
         (clim_project_dir + "/annual_change_scalar_stats_summary.csv"),
         (clim_project_dir + "/annual_change_scalar_stats_summary_mean.csv"),
@@ -46,7 +66,7 @@ rule monthly_stats_hist:
         region_fid = ancient(f"{basin_dir}/staticgeoms/region.geojson"),
     output:
         #stats_nc_hist = (clim_project_dir + "/historical_stats_{model}.nc"),
-        stats_time_nc_hist = (clim_project_dir + "/historical_stats_time_{model}.nc"),
+        stats_time_nc_hist = temp(clim_project_dir + "/historical_stats_time_{model}.nc"),
     params:
         yml_fid = DATA_SOURCES,
         project_dir = f"{project_dir}",
@@ -71,7 +91,7 @@ rule monthly_stats_fut:
         stats_time_nc_hist = (clim_project_dir + "/historical_stats_time_{model}.nc"), #make sure starts with previous job
     output:
         #stats_nc = (clim_project_dir + "/stats-{model}_{scenario}_{horizon}.nc"),
-        stats_time_nc = (clim_project_dir + "/stats_time-{model}_{scenario}_{horizon}.nc"),
+        stats_time_nc = temp(clim_project_dir + "/stats_time-{model}_{scenario}_{horizon}.nc"),
     params:
         yml_fid = DATA_SOURCES,
         project_dir = f"{project_dir}",
@@ -93,7 +113,7 @@ rule monthly_change:
         stats_time_nc_hist = ancient(clim_project_dir + "/historical_stats_time_{model}.nc"),
         stats_time_nc = ancient(clim_project_dir + "/stats_time-{model}_{scenario}_{horizon}.nc"),
     output:
-        stats_nc_change = (clim_project_dir + "/annual_change_scalar_stats-{model}_{scenario}_{horizon}.nc"),
+        stats_nc_change = temp(clim_project_dir + "/annual_change_scalar_stats-{model}_{scenario}_{horizon}.nc"),
     params:
         clim_project_dir = f"{clim_project_dir}",
         start_month_hyd_year = start_month_hyd_year, 
@@ -110,7 +130,7 @@ rule monthly_change:
 #rule to merge results in one netcdf / todo: add plotting
 rule monthly_change_scalar_merge:
     input:
-        stats_nc_change = ancient(expand((clim_project_dir + "/annual_change_scalar_stats-{model}_{scenario}_{horizon}.nc"), model = config["models"], scenario = config["scenarios"], horizon = config["future_horizons"])),
+        stats_nc_change = ancient(expand((clim_project_dir + "/annual_change_scalar_stats-{model}_{scenario}_{horizon}.nc"), model = models, scenario = scenarios, horizon = future_horizons)),
     output:
         stats_change_summary = (clim_project_dir + "/annual_change_scalar_stats_summary.nc"),
         stats_change_summary_csv = (clim_project_dir + "/annual_change_scalar_stats_summary.csv"),
@@ -118,6 +138,7 @@ rule monthly_change_scalar_merge:
         stats_change_plt = (clim_project_dir + "/plots/projected_climate_statistics.png"),
     params:
         clim_project_dir = f"{clim_project_dir}",
+        horizons = future_horizons,
     container:
         "singularity/hydromt-wflow.sif"
     script: "src/get_change_climate_proj_summary.py"
@@ -126,19 +147,17 @@ rule monthly_change_scalar_merge:
 rule plot_climate_proj_timeseries:
     input:
         stats_change_summary = (clim_project_dir + "/annual_change_scalar_stats_summary.nc"),
-        stats_time_nc_hist =[(clim_project_dir + f"/historical_stats_time_{mod}.nc") for mod in config["models"]],
-        stats_time_nc = expand((clim_project_dir + "/stats_time-{model}_{scenario}_{horizon}.nc"), model = config["models"], scenario = config["scenarios"], horizon = config["future_horizons"]),
+        stats_time_nc_hist =[(clim_project_dir + f"/historical_stats_time_{mod}.nc") for mod in models],
+        stats_time_nc = expand((clim_project_dir + "/stats_time-{model}_{scenario}_{horizon}.nc"), model = models, scenario = scenarios, horizon = future_horizons),
     params:
         clim_project_dir = f"{clim_project_dir}",
-        scenarios = config["scenarios"],
-        horizons = config["future_horizons"],
+        scenarios = scenarios,
+        horizons = future_horizons,
         save_grids = save_grids,
-        change_grids = [(clim_project_dir + f"/monthly_change_mean_grid-{mod}_{sc}_{hz}.nc") for mod,sc,hz in list(itertools.product(config["models"],config["scenarios"],config["future_horizons"]))],
+        change_grids = [(clim_project_dir + f"/monthly_change_mean_grid-{mod}_{sc}_{hz}.nc") for mod,sc,hz in list(itertools.product(models,scenarios,future_horizons))],
     output:
         precip_plt = (clim_project_dir + "/plots/precipitation_anomaly_projections.png"),
         temp_plt = (clim_project_dir + "/plots/temperature_anomaly_projections.png"),
     container:
         "singularity/hydromt-wflow.sif"
     script: "src/plot_proj_timeseries.py"
-
-#todo: add rule to delete all temporary files? 
