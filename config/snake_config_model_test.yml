@@ -3,7 +3,7 @@
 #################################### General settings ######################################
 
 # Path to where the wflow model will be stored (include the project name)
-project_dir: examples/test
+project_dir: examples/20230426_Gabon
 
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
 data_sources: config/deltares_data.yml
@@ -99,3 +99,7 @@ precip:
   variance:
     min: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
     max: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+
+# Runoff statistics
+Tlow: 2
+Tpeak: 50
