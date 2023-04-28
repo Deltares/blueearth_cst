@@ -24,9 +24,7 @@ WORKDIR /root/work
 
 COPY src/weathergen/install_rpackages.R /tmp/install_rpackages.R
 
-RUN Rscript -e "install.packages('devtools',repos = 'http://cran.us.r-project.org')" \
- && Rscript /tmp/install_rpackages.R
-
-RUN Rscript -e "install.packages('devtools')"
+RUN Rscript -e "install.packages('devtools',repos = 'http://cran.us.r-project.org')"
+RUN Rscript /tmp/install_rpackages.R
 
 COPY src/weathergen /root/work/weathergen
