@@ -17,7 +17,7 @@ dependencies:
   - jupyter # to run examples
   - matplotlib
   - numpy
-  - pandas
+  - pandas=
   - pip
   - python>=3.7
   - rasterio
