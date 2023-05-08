@@ -4,6 +4,7 @@
 
 # Path to where the wflow model will be stored (include the project name)
 project_dir: examples/Gabon
+static_dir: config
 
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
 data_sources: config/deltares_data_linux.yml
