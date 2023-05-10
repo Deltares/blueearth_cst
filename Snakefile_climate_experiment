@@ -165,7 +165,7 @@ rule run_wflow:
         forcing_fid = f"{exp_dir}/realization_"+"{rlz_num}"+"/inmaps_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".nc",
         toml_fid = f"{basin_dir}/run_climate_{experiment}/wflow_sbm_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".toml"
     output:
-        csv_file = f"{basin_dir}/run_climate_{experiment}/output_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".csv",    #temp(f"{basin_dir}/run_climate_{experiment}/output_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".csv"),
+        csv_file = temp(f"{basin_dir}/run_climate_{experiment}/output_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".csv"),
         state_file = temp(f"{basin_dir}/run_climate_{experiment}/outstates_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".nc")
     shell:
         """ julia --threads 4 -e "using Wflow; Wflow.run()" "{input.toml_fid}" """
@@ -179,19 +179,19 @@ rule export_wflow_results:
         min = f"{exp_dir}/model_results/min.csv",
         max = f"{exp_dir}/model_results/max.csv",
         q95 = f"{exp_dir}/model_results/q95.csv",
-	RT = f"{exp_dir}/model_results/returninterval_discharge.csv",
-        Q7dmax = f"{exp_dir}/model_results/Q7dmax_discharge.csv",
-        highpulse = f"{exp_dir}/model_results/highpulse_discharge.csv",
-        wetmonth = f"{exp_dir}/model_results/wetmonth_discharge.csv",
-        RT7d = f"{exp_dir}/model_results/returninterval7d_discharge.csv",
-        Q7dmin = f"{exp_dir}/model_results/Q7dmin_discharge.csv",
-        lowpulse = f"{exp_dir}/model_results/lowpulse_discharge.csv",
-        drymonth = f"{exp_dir}/model_results/drymonth_discharge.csv",
-        BFI = f"{exp_dir}/model_results/BFI_discharge.csv",
+	    RT = f"{exp_dir}/model_results/returninterval.csv",
+        Q7dmax = f"{exp_dir}/model_results/Q7dmax.csv",
+        highpulse = f"{exp_dir}/model_results/highpulse.csv",
+        wetmonth = f"{exp_dir}/model_results/wetmonth.csv",
+        RT7d = f"{exp_dir}/model_results/returninterval7d.csv",
+        Q7dmin = f"{exp_dir}/model_results/Q7dmin.csv",
+        lowpulse = f"{exp_dir}/model_results/lowpulse.csv",
+        drymonth = f"{exp_dir}/model_results/drymonth.csv",
+        BFI = f"{exp_dir}/model_results/BFI.csv",
     params:
         model_dir = basin_dir,
         exp_dir = exp_dir,
-	Tlow = config['Tlow'],
-        Tpeak = config['Tpeak'],
+	    Tlow = get_config(config,"Tlow", 2),
+        Tpeak = get_config(config,"Tpeak", 50),
     script:
         "src/export_wflow_results.py"
