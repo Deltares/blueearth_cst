@@ -163,7 +163,7 @@ for i in range(len(csv_fns)):
     # Update discharge statistics tables
     df_out_mean.iloc[i, :] = np.append((rlz_nb, tavg, prcp), df_mean.values.round(2))
     df_out_max.iloc[i, :] = np.append((rlz_nb, tavg, prcp), df_max.values.round(2))
-    df_out_min.iloc[i, :] = np.append((rlz_nb, tavg, prcp), df_min.values.round(2))
+    df_out_min.iloc[i, :] = np.append((rlz_nb, tavg, prcp), df_min.values.round(4))
     df_out_q95.iloc[i, :] = np.append((rlz_nb, tavg, prcp), df_q95.values.round(2))
     df_out_RT.iloc[i, :] = np.append((rlz_nb, tavg, prcp), df_RT.values.round(2))
     df_out_Q7dmax.iloc[i, :] = np.append((rlz_nb, tavg, prcp), df_Q7dmax.values.round(2))
