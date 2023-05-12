@@ -20,7 +20,7 @@ endtime: "2020-12-31T00:00:00"
 clim_historical: era5
 
 # List of wflow output variables to save
-wflow_outvars: ['river discharge', 'overland flow', 'actual evapotranspiration', 'groundwater recharge', 'snow']
+wflow_outvars: ['river discharge', 'precipitation', 'overland flow', 'actual evapotranspiration', 'groundwater recharge', 'snow']
 
 ###########################################################################################
 #################################### Model building #######################################
@@ -102,4 +102,4 @@ precip:
 
 # Runoff statistics
 Tlow: 2
-Tpeak: 50
+Tpeak: 10

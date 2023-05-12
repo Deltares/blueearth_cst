@@ -106,6 +106,9 @@ ds_clim = xr.merge(
 # Other wflow outputs for wflow basin
 ds_basin = xr.merge([mod.results[dvar] for dvar in mod.results if "_basavg" in dvar])
 ds_basin = ds_basin.squeeze(drop=True)
+# If precipitation, skip as this will be plotted with the other climate data
+if "precipitation_basavg" in ds_basin:
+    ds_basin = ds_basin.drop_vars("precipitation_basavg")
 
 #%% Read the observations data
 # read timeseries data and match with existing gdf
