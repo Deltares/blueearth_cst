@@ -50,6 +50,7 @@ dependencies:
   - shapely>=2.0.0
   - tabulate==0.8.10 # snakemake dependency, bug in v0.9.0
   - xarray
+  - xclim
   - zarr
   - pip:
     - hydroengine
