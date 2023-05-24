@@ -103,3 +103,4 @@ precip:
 # Runoff statistics
 Tlow: 2
 Tpeak: 10
+aggregate_rlz: TRUE

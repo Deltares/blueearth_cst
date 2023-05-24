@@ -192,6 +192,9 @@ rule export_wflow_results:
     params:
         model_dir = basin_dir,
         exp_dir = exp_dir,
+        aggr_rlz = get_config(config, 'aggregate_rlz', optional=False),
+        rlz_num = RLZ_NUM, 
+        st_num = ST_NUM,
         Tlow = get_config(config,"Tlow", 2),
         Tpeak = get_config(config,"Tpeak", 10),
     script:
