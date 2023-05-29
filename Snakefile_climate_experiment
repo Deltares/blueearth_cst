@@ -75,7 +75,7 @@ rule extract_climate_grid:
 # Prepare stress test experiment
 rule climate_stress_parameters:
     input:
-        config = config_path,
+        config = ancient(config_path),
     output:
         st_csv_fns = [f"{exp_dir}/stress_test/cst_{st_num}.csv" for st_num in np.arange(1, ST_NUM+1)]
     script:
@@ -192,7 +192,7 @@ rule export_wflow_results:
     params:
         model_dir = basin_dir,
         exp_dir = exp_dir,
-        aggr_rlz = get_config(config, 'aggregate_rlz', optional=False),
+        aggr_rlz = get_config(config, 'aggregate_rlz', True),
         rlz_num = RLZ_NUM, 
         st_num = ST_NUM,
         Tlow = get_config(config,"Tlow", 2),
