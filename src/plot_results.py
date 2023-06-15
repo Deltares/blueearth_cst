@@ -167,6 +167,7 @@ else:
     ds_list = [ds_sim_gauges, ds_outlocs]
 
 # plot and loop over datasets with outlocs and gauges locations
+df_perf_all = pd.DataFrame()
 for ds in ds_list:
     for station_id, station_name in zip(ds.index.values, ds.station_name.values):
         print(station_id, station_name)
@@ -232,9 +233,13 @@ for ds in ds_list:
                 "Obs." in dsq["runs"]
             ):  # only plot signatures if observations timeseries are present
                 print("observed timeseries are available - making signature plots.")
-                plot_signatures(
+                df_perf = plot_signatures(
                     dsq, labels, colors, linestyles, markers, Folder_plots, station_name
                 )
+                if df_perf_all.empty:
+                    df_perf_all = df_perf
+                else:
+                    df_perf_all = df_perf_all.join(df_perf)
             else:
                 print(
                     "observed timeseries are not available - no signature plots are made."
@@ -244,6 +249,9 @@ for ds in ds_list:
             print(
                 "less than 1 year of data is available - no signature plots are made."
             )
+
+# save performance metrics to csv
+df_perf_all.to_csv(os.path.join(Folder_plots, "performance_metrics.csv"))
 
 for index in ds_clim.index.values:
     print(f"Plot climatic data at wflow basin {index}")
