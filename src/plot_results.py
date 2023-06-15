@@ -112,11 +112,15 @@ if "precipitation_basavg" in ds_basin:
 
 #%% Read the observations data
 # read timeseries data and match with existing gdf
+has_observations = False
+if observations_timeseries is not None:
+    if os.path.exists(observations_timeseries):
+        has_observations = True
 
 # Discharge data
 # make sure the user provided a observation file and ouput locations
 if (f"gauges_{gauges_output_name}" in mod.staticgeoms) & (
-    os.path.exists(observations_timeseries)
+    has_observations
 ):
     name = f"gauges_{gauges_output_name}"  # gauges locations in staticgeoms
     da_ts = hydromt.io.open_timeseries_from_table(
@@ -136,7 +140,7 @@ if (f"gauges_{gauges_output_name}" in mod.staticgeoms) & (
 
 # combine sim and obs at outputloc in one dataset if timeseries observations exist
 if (f"gauges_{gauges_output_name}" in mod.staticgeoms) & (
-    os.path.exists(observations_timeseries)
+    has_observations
 ):
     ds_outlocs = ds_obs.combine_first(ds_sim_outlocs)
     # combine_first now seems to somehow drop the coordinate station_name?
@@ -154,12 +158,12 @@ ds_sim_gauges = (
 # select dataset based on gauges or/and outputloc locations
 # if no user output and observations are provided:
 if ((f"{gauges_output_name}" in mod.staticgeoms) == False) & (
-    os.path.exists(observations_timeseries) == False
+    not has_observations
 ):
     ds_list = [ds_sim_gauges]
 # if user output locs are available but no observations timeseries:
 elif ((f"{gauges_output_name}" in mod.staticgeoms) == True) & (
-    os.path.exists(observations_timeseries) == False
+    not has_observations
 ):
     ds_list = [ds_sim_gauges, ds_sim_outlocs]
 # if output locs and observations are available - make hydro plots for gauges and make hydro and signature plots for outputlocs
