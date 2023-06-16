@@ -23,19 +23,20 @@ aggr_rlz = snakemake.params.aggr_rlz
 rlz_num = snakemake.params.rlz_num 
 st_num = snakemake.params.st_num
 
-mean_fn = snakemake.output.mean
-max_fn = snakemake.output.max
-min_fn = snakemake.output.min
-q95_fn = snakemake.output.q95
-RT_fn = snakemake.output.RT
-Q7dmax_fn = snakemake.output.Q7dmax
-highpulse_fn = snakemake.output.highpulse
-wetmonth_fn = snakemake.output.wetmonth
-RT7d_fn = snakemake.output.RT7d
-Q7dmin_fn = snakemake.output.Q7dmin
-lowpulse_fn = snakemake.output.lowpulse
-drymonth_fn = snakemake.output.drymonth
-BFI_fn = snakemake.output.BFI
+# mean_fn = snakemake.output.mean
+# max_fn = snakemake.output.max
+# min_fn = snakemake.output.min
+# q95_fn = snakemake.output.q95
+# RT_fn = snakemake.output.RT
+# Q7dmax_fn = snakemake.output.Q7dmax
+# highpulse_fn = snakemake.output.highpulse
+# wetmonth_fn = snakemake.output.wetmonth
+# RT7d_fn = snakemake.output.RT7d
+# Q7dmin_fn = snakemake.output.Q7dmin
+# lowpulse_fn = snakemake.output.lowpulse
+# drymonth_fn = snakemake.output.drymonth
+# BFI_fn = snakemake.output.BFI
+Qstats_fn = snakemake.output.Qstats
 bas_fn = snakemake.output.basin
 
 # Read the wflow models and results
@@ -49,7 +50,7 @@ basavg_vars = [x for x in sim.columns if "basavg" in x]
 
 # Initialise emtpy output dataframes
 if aggr_rlz: 
-    col_names = ["tavg", "prcp"]
+    col_names = ["statistic", "tavg", "prcp"]
     col_names.extend(Q_vars)
     df_out_mean = pd.DataFrame(
         data=np.zeros((st_num, len(col_names))),
@@ -57,7 +58,7 @@ if aggr_rlz:
         dtype="float32",
     )
 else: 
-    col_names = ["realization", "tavg", "prcp"]
+    col_names = ["statistic", "realization", "tavg", "prcp"]
     col_names.extend(Q_vars)
     df_out_mean = pd.DataFrame(
         data=np.zeros((len(csv_fns), len(col_names))),
@@ -69,11 +70,11 @@ df_out_min = df_out_mean.copy()
 df_out_q95 = df_out_mean.copy()
 df_out_RT = df_out_mean.copy()
 df_out_Q7dmax = df_out_mean.copy()
-df_out_highpulse = df_out_mean.copy()
+# df_out_highpulse = df_out_mean.copy()
 df_out_wetmonth = df_out_mean.copy()
 df_out_RT7d = df_out_mean.copy()
 df_out_Q7dmin = df_out_mean.copy()
-df_out_lowpulse = df_out_mean.copy()
+# df_out_lowpulse = df_out_mean.copy()
 df_out_drymonth = df_out_mean.copy()
 df_out_BFI = df_out_mean.copy()
 
@@ -106,7 +107,7 @@ def returninterval(df, T):
 
 def returnintervalmulti(df):
     ds = xr.Dataset.from_dataframe(df)
-    all_T = [2, 5, 10, 20, 50, 100]
+    all_T = [2, 5, 10, 20, 50, 100,200]
     Q_rps = frequency_analysis(ds, t=all_T, dist="genextreme", mode="max", freq="YS")
     return Q_rps
 
@@ -175,12 +176,12 @@ for i in range(np.size(df_out_mean,0)):
     # High flows
     df_RT = returninterval(sim, Tpeak)
     df_Q7dmax = Q7d_max(sim)
-    df_highpulse = highpulse(sim)
+    # df_highpulse = highpulse(sim)
     df_wetmonth = wetmonth_mean(sim)
     # Low flows
     df_RT7d = returninterval_Q7d(sim, Tlow)
     df_Q7dmin = Q7d_min(sim)
-    df_lowpulse = lowpulse(sim)
+    # df_lowpulse = lowpulse(sim)
     df_drymonth = drymonth_mean(sim)
     df_BFI = BFI(sim)
 
@@ -199,19 +200,19 @@ for i in range(np.size(df_out_mean,0)):
         cst_stat = (tavg, prcp)
 
     # Update discharge statistics tableslen
-    df_out_mean.iloc[i, :] = np.append(cst_stat, df_mean.values.round(2))
-    df_out_max.iloc[i, :] = np.append(cst_stat, df_max.values.round(2))
-    df_out_min.iloc[i, :] = np.append(cst_stat, df_min.values.round(4))
-    df_out_q95.iloc[i, :] = np.append(cst_stat, df_q95.values.round(2))
-    df_out_RT.iloc[i, :] = np.append(cst_stat, df_RT.values.round(2))
-    df_out_Q7dmax.iloc[i, :] = np.append(cst_stat, df_Q7dmax.values.round(2))
-    df_out_highpulse.iloc[i, :] = np.append(cst_stat, df_highpulse.values.round(2))
-    df_out_wetmonth.iloc[i, :] = np.append(cst_stat, df_wetmonth.values.round(2))
-    df_out_RT7d.iloc[i, :] = np.append(cst_stat, df_RT7d.values.round(4))
-    df_out_Q7dmin.iloc[i, :] = np.append(cst_stat, df_Q7dmin.values.round(4))
-    df_out_lowpulse.iloc[i, :] = np.append(cst_stat, df_lowpulse.values.round(2))
-    df_out_drymonth.iloc[i, :] = np.append(cst_stat, df_drymonth.values.round(4))
-    df_out_BFI.iloc[i, :] = np.append(cst_stat, df_BFI.values.round(4))
+    df_out_mean.iloc[i, :] = np.concatenate([['mean'], cst_stat, df_mean.values.round(2)]) 
+    df_out_max.iloc[i, :] = np.concatenate([['max'], cst_stat, df_max.values.round(2)]) 
+    df_out_min.iloc[i, :] = np.concatenate([['min'], cst_stat, df_min.values.round(4)])
+    df_out_q95.iloc[i, :] = np.concatenate([['q95'], cst_stat, df_q95.values.round(2)])
+    df_out_RT.iloc[i, :] = np.concatenate([['returninterval'], cst_stat, df_RT.values.round(2)])
+    df_out_Q7dmax.iloc[i, :] = np.concatenate([['Q7day_max'], cst_stat, df_Q7dmax.values.round(2)])
+    # df_out_highpulse.iloc[i, :] = np.concatenate([['highpulse'], cst_stat, df_highpulse.values.round(2)])
+    df_out_wetmonth.iloc[i, :] = np.concatenate([['wetmonth_mean'], cst_stat, df_wetmonth.values.round(2)])
+    df_out_RT7d.iloc[i, :] = np.concatenate([['returninternval_min_7day'], cst_stat, df_RT7d.values.round(4)])
+    df_out_Q7dmin.iloc[i, :] = np.concatenate([['Q7day_min'], cst_stat, df_Q7dmin.values.round(4)])
+    # df_out_lowpulse.iloc[i, :] = np.concatenate([['lowpulse'], cst_stat, df_lowpulse.values.round(2)])
+    df_out_drymonth.iloc[i, :] = np.concatenate([['drymonth_mean'], cst_stat, df_drymonth.values.round(4)])
+    df_out_BFI.iloc[i, :] = np.concatenate([['BaseFlowIndex'], cst_stat, df_BFI.values.round(4)])
 
     # Update return interval dataset
     Q_rp = returnintervalmulti(sim)
@@ -242,20 +243,25 @@ for i in range(np.size(df_out_mean,0)):
     df_out_basavg.iloc[i, :] = stats_basavg.round(1)
 
 print("Writting tables for 2D stress tests plots")
-df_out_mean.to_csv(mean_fn, index=False)
-df_out_max.to_csv(max_fn, index=False)
-df_out_min.to_csv(min_fn, index=False)
-df_out_q95.to_csv(q95_fn, index=False)
-df_out_RT.to_csv(RT_fn, index=False)
-df_out_Q7dmax.to_csv(Q7dmax_fn, index=False)
-df_out_highpulse.to_csv(highpulse_fn, index=False)
-df_out_wetmonth.to_csv(wetmonth_fn, index=False)
-df_out_RT7d.to_csv(RT7d_fn, index=False)
-df_out_Q7dmin.to_csv(Q7dmin_fn, index=False)
-df_out_lowpulse.to_csv(lowpulse_fn, index=False)
-df_out_drymonth.to_csv(drymonth_fn, index=False)
-df_out_BFI.to_csv(BFI_fn, index=False)
+# df_out_mean.to_csv(mean_fn, index=False)
+# df_out_max.to_csv(max_fn, index=False)
+# df_out_min.to_csv(min_fn, index=False)
+# df_out_q95.to_csv(q95_fn, index=False)
+# df_out_RT.to_csv(RT_fn, index=False)
+# df_out_Q7dmax.to_csv(Q7dmax_fn, index=False)
+# df_out_highpulse.to_csv(highpulse_fn, index=False)
+# df_out_wetmonth.to_csv(wetmonth_fn, index=False)
+# df_out_RT7d.to_csv(RT7d_fn, index=False)
+# df_out_Q7dmin.to_csv(Q7dmin_fn, index=False)
+# df_out_lowpulse.to_csv(lowpulse_fn, index=False)
+# df_out_drymonth.to_csv(drymonth_fn, index=False)
+# df_out_BFI.to_csv(BFI_fn, index=False)
 df_out_basavg.to_csv(bas_fn, index=False)
+
+df_out_Qstats = pd.concat([df_out_mean, df_out_max, df_out_min, df_out_q95, 
+                           df_out_RT, df_out_Q7dmax, df_out_wetmonth, df_out_RT7d, 
+                           df_out_Q7dmin, df_out_drymonth, df_out_BFI])
+df_out_Qstats.to_csv(Qstats_fn, index=False)
 
 # Merge Qrps list and save as one csv per loc
 Q_rps = xr.concat(Q_rps, dim="scenario")
@@ -274,4 +280,4 @@ for v in Q_rps.data_vars:
         cols = cols[-2:] + cols[:-2]
     df_rp = df_rp[cols]
     # Save to csv
-    df_rp.to_csv(os.path.join(os.path.dirname(RT_fn), f"RT_{v}.csv"), index=False)
+    df_rp.to_csv(os.path.join(f"{exp_dir}/model_results", f"RT_{v}.csv"), index=False)
