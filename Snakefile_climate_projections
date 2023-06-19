@@ -70,8 +70,6 @@ rule monthly_stats_hist:
     params:
         yml_fid = DATA_SOURCES,
         project_dir = f"{project_dir}",
-        time_horizon = time_horizon_hist, 
-        name_horizon = "historical",
         name_scenario = "historical",
         name_members = members,
         name_model = "{model}",
@@ -89,12 +87,10 @@ rule monthly_stats_fut:
         stats_time_nc_hist = (clim_project_dir + "/historical_stats_time_{model}.nc"), #make sure starts with previous job
     output:
         #stats_nc = (clim_project_dir + "/stats-{model}_{scenario}_{horizon}.nc"),
-        stats_time_nc = temp(clim_project_dir + "/stats_time-{model}_{scenario}_{horizon}.nc"),
+        stats_time_nc = temp(clim_project_dir + "/stats_time-{model}_{scenario}.nc"),
     params:
         yml_fid = DATA_SOURCES,
         project_dir = f"{project_dir}",
-        time_horizon = get_horizon, 
-        name_horizon = "{horizon}",
         name_scenario = "{scenario}",
         name_members = members,
         name_model = "{model}",
@@ -107,7 +103,7 @@ rule monthly_stats_fut:
 rule monthly_change:
     input:
         stats_time_nc_hist = ancient(clim_project_dir + "/historical_stats_time_{model}.nc"),
-        stats_time_nc = ancient(clim_project_dir + "/stats_time-{model}_{scenario}_{horizon}.nc"),
+        stats_time_nc = ancient(clim_project_dir + "/stats_time-{model}_{scenario}.nc"),
     output:
         stats_nc_change = temp(clim_project_dir + "/annual_change_scalar_stats-{model}_{scenario}_{horizon}.nc"),
     params:
@@ -116,9 +112,11 @@ rule monthly_change:
         name_model = "{model}",
         name_scenario = "{scenario}",
         name_horizon = "{horizon}",
+        time_horizon_hist = time_horizon_hist,
+        time_horizon_fut = get_horizon,
         save_grids = save_grids,
         stats_nc_hist = (clim_project_dir + "/historical_stats_{model}.nc"),
-        stats_nc = (clim_project_dir + "/stats-{model}_{scenario}_{horizon}.nc"),
+        stats_nc = (clim_project_dir + "/stats-{model}_{scenario}.nc"),
     script: "src/get_change_climate_proj.py"
 
 #rule to merge results in one netcdf / todo: add plotting
@@ -140,7 +138,7 @@ rule plot_climate_proj_timeseries:
     input:
         stats_change_summary = (clim_project_dir + "/annual_change_scalar_stats_summary.nc"),
         stats_time_nc_hist =[(clim_project_dir + f"/historical_stats_time_{mod}.nc") for mod in models],
-        stats_time_nc = expand((clim_project_dir + "/stats_time-{model}_{scenario}_{horizon}.nc"), model = models, scenario = scenarios, horizon = future_horizons),
+        stats_time_nc = expand((clim_project_dir + "/stats_time-{model}_{scenario}.nc"), model = models, scenario = scenarios),
     params:
         clim_project_dir = f"{clim_project_dir}",
         scenarios = scenarios,
@@ -150,4 +148,5 @@ rule plot_climate_proj_timeseries:
     output:
         precip_plt = (clim_project_dir + "/plots/precipitation_anomaly_projections.png"),
         temp_plt = (clim_project_dir + "/plots/temperature_anomaly_projections.png"),
+        timeseries_csv = (clim_project_dir + "/gcm_timeseries.nc"),
     script: "src/plot_proj_timeseries.py"

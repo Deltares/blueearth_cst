@@ -83,6 +83,7 @@ pr_fut = []
 tas_fut = []
 anom_pr_fut = []
 anom_tas_fut = []
+ds_fut = []
 qpr_fut = []
 qtas_fut = []
 for i in range(len(rcps)):
@@ -97,24 +98,25 @@ for i in range(len(rcps)):
     print(f"Opening future gcm timeseries for rcp {rcps[i]}")
     fns_rcp = [fn for fn in fns_future if rcps[i] in fn]
     ds_rcp = xr.open_mfdataset(fns_rcp, preprocess=todatetimeindex_dropvars)
+    ds_fut.append(ds_rcp)
     ds_rcp_pr = ds_rcp["precip"].squeeze(drop=True)
     ds_rcp_tas = ds_rcp["temp"].squeeze(drop=True)
-    if len(ds_rcp.horizon) > 1:
-        hz = ds_rcp.horizon
-        ds_rcp_pr = xr.merge(
-            [
-                ds_rcp_pr.sel({"horizon": hz[0]}, drop=True),
-                ds_rcp_pr.sel({"horizon": hz[1]}, drop=True),
-            ]
-        )
-        ds_rcp_pr = ds_rcp_pr["precip"]
-        ds_rcp_tas = xr.merge(
-            [
-                ds_rcp_tas.sel({"horizon": hz[0]}, drop=True),
-                ds_rcp_tas.sel({"horizon": hz[1]}, drop=True),
-            ]
-        )
-        ds_rcp_tas = ds_rcp_tas["temp"]
+    # if len(ds_rcp.horizon) > 1:
+    #     hz = ds_rcp.horizon
+    #     ds_rcp_pr = xr.merge(
+    #         [
+    #             ds_rcp_pr.sel({"horizon": hz[0]}, drop=True),
+    #             ds_rcp_pr.sel({"horizon": hz[1]}, drop=True),
+    #         ]
+    #     )
+    #     ds_rcp_pr = ds_rcp_pr["precip"]
+    #     ds_rcp_tas = xr.merge(
+    #         [
+    #             ds_rcp_tas.sel({"horizon": hz[0]}, drop=True),
+    #             ds_rcp_tas.sel({"horizon": hz[1]}, drop=True),
+    #         ]
+    #     )
+    #     ds_rcp_tas = ds_rcp_tas["temp"]
     # to dataframe
     prfi = ds_rcp_pr.transpose().to_pandas()
     if isinstance(prfi, pd.Series):
@@ -138,6 +140,15 @@ for i in range(len(anom_pr_fut)):
         (tas_fut[i].resample("A").mean() - fut_tas_ref) / fut_tas_ref * 100
     )
     qtas_fut[i] = anom_tas_fut[i].quantile([0.05, 0.5, 0.95], axis=1).transpose()
+
+#%% Merge and write all timeseries to a single netcdf file
+ds_fut.append(ds_hist)
+ds_all = xr.merge(ds_fut)
+# make sure we have two digits still
+ds_all["precip"] = ds_all["precip"].round(decimals=2)
+ds_all["temp"] = ds_all["temp"].round(decimals=2)
+# write to netcdf
+ds_all.to_netcdf(os.path.join(clim_project_dir, "gcm_timeseries.nc"))
 
 #%% Plots
 if not os.path.exists(os.path.join(clim_project_dir, "plots")):

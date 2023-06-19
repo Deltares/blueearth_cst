@@ -21,15 +21,35 @@ from dask.diagnostics import ProgressBar
 project_dir = snakemake.params.project_dir
 region_fn = snakemake.input.region_fid
 path_yml = snakemake.params.yml_fid
-time_tuple = snakemake.params.time_horizon
-time_tuple = tuple(map(str, time_tuple.split(", ")))
-name_horizon = snakemake.params.name_horizon
 name_scenario = snakemake.params.name_scenario
 name_members = snakemake.params.name_members
 name_model = snakemake.params.name_model
 name_clim_project = snakemake.params.name_clim_project
 variables = snakemake.params.variables
 save_grids = snakemake.params.save_grids
+
+# Time tuple for timeseries
+if name_clim_project == "cmip6":
+    if name_scenario == "historical":
+        #cmip6 historical 1850-2014
+        time_tuple_all = ("1950-01-01", "2014-12-31")
+    else:
+        #cmip6 future 2015-2100+ depending on models
+        time_tuple_all = ("2015-01-01", "2100-12-31")
+elif name_clim_project == "cmip5":
+    if name_scenario == "historical":
+        #cmip5 historical 1850-2005
+        time_tuple_all = ("1950-01-01", "2005-12-31")
+    else:
+        #cmip5 future 2006-2100
+        time_tuple_all = ("2006-01-01", "2100-12-31")
+else: #isimip3
+    if name_scenario == "historical":
+        #isimip3 historical 1850-2014
+        time_tuple_all = ("1991-01-01", "2014-12-31")
+    else:
+        #isimip3 future 2015-2100 / p drive has gaps in between 2014-2021
+        time_tuple_all = ("2021-01-01", "2100-12-31")
 
 # additional folder structure info
 folder_model = os.path.join(project_dir, "hydrology_model")
@@ -53,7 +73,6 @@ def get_stats_clim_projections(
     name_model,
     name_scenario,
     name_member,
-    time_tuple,
     save_grids=False,
 ):
     """
@@ -105,15 +124,14 @@ def get_stats_clim_projections(
             var_m = data[var].resample(time="MS").mean("time")
 
         # get scalar average over grid for each month
-        var_m = var_m.sel(
-            time=slice(*time_tuple)
-        )  # needed for cmip5 cftime.Datetime360Day which is not picked up before.
-        var_m_scalar = var_m.mean([x_dim, y_dim])
+        var_m_scalar = var_m.mean([x_dim, y_dim]).round(decimals=2)
         ds_scalar.append(var_m_scalar.to_dataset())
 
         # get grid average over time for each month
         if save_grids:
-            var_mm = var_m.groupby("time.month").mean("time")
+            # slice over time_tuple to save minimal required info for the grid
+            #var_m = var_m.sel(time=slice(*time_tuple))
+            var_mm = var_m.groupby("time.month").mean("time").round(decimals=2)
             ds.append(var_mm.to_dataset())
 
     # mean stats over grid and time
@@ -124,10 +142,9 @@ def get_stats_clim_projections(
             "clim_project": f"{name_clim_project}",
             "model": f"{name_model}",
             "scenario": f"{name_scenario}",
-            "horizon": f"{name_horizon}",
             "member": f"{name_member}",
         }
-    ).expand_dims(["clim_project", "model", "scenario", "horizon", "member"])
+    ).expand_dims(["clim_project", "model", "scenario", "member"])
 
     if save_grids:
         mean_stats = xr.merge(ds)
@@ -137,10 +154,9 @@ def get_stats_clim_projections(
                 "clim_project": f"{name_clim_project}",
                 "model": f"{name_model}",
                 "scenario": f"{name_scenario}",
-                "horizon": f"{name_horizon}",
                 "member": f"{name_member}",
             }
-        ).expand_dims(["clim_project", "model", "scenario", "horizon", "member"])
+        ).expand_dims(["clim_project", "model", "scenario", "member"])
 
     else:
         mean_stats = xr.Dataset()
@@ -160,8 +176,10 @@ for name_member in name_members:
         
         try:  # todo can this be replaced by if statement?
             data = data_catalog.get_rasterdataset(
-                entry, bbox=bbox, buffer=buffer, time_tuple=time_tuple, variables = variables
+                entry, bbox=bbox, buffer=buffer, time_tuple=time_tuple_all, variables = variables
             )
+            # needed for cmip5/cmip6 cftime.Datetime360Day which is not picked up before.
+            data = data.sel(time=slice(*time_tuple_all))
         except:
             # if it is not possible to open all variables at once, loop over each one, remove duplicates and then merge:
             ds_list = []
@@ -171,7 +189,7 @@ for name_member in name_members:
                         entry,
                         bbox=bbox,
                         buffer=buffer,
-                        time_tuple=time_tuple,
+                        time_tuple=time_tuple_all,
                         variables=[var],
                     )
                     # drop duplicates if any
@@ -189,7 +207,6 @@ for name_member in name_members:
             name_model,
             name_scenario,
             name_member,
-            time_tuple,
             save_grids=save_grids,
         )
 
@@ -207,7 +224,6 @@ else:
     nc_mean_stats = xr.Dataset()
 nc_mean_stats_time = xr.merge(ds_members_mean_stats_time)
 
-
 # write netcdf:
 
 # use hydromt function instead to write to netcdf?
@@ -217,8 +233,8 @@ if name_scenario == "historical":
     name_nc_out = f"historical_stats_{name_model}.nc"
     name_nc_out_time = f"historical_stats_time_{name_model}.nc"
 else:
-    name_nc_out = f"stats-{name_model}_{name_scenario}_{name_horizon}.nc"
-    name_nc_out_time = f"stats_time-{name_model}_{name_scenario}_{name_horizon}.nc"
+    name_nc_out = f"stats-{name_model}_{name_scenario}.nc"
+    name_nc_out_time = f"stats_time-{name_model}_{name_scenario}.nc"
 
 print("writing stats over time to nc")
 delayed_obj = nc_mean_stats_time.to_netcdf(
