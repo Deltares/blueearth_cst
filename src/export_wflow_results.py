@@ -23,19 +23,6 @@ aggr_rlz = snakemake.params.aggr_rlz
 rlz_num = snakemake.params.rlz_num 
 st_num = snakemake.params.st_num
 
-# mean_fn = snakemake.output.mean
-# max_fn = snakemake.output.max
-# min_fn = snakemake.output.min
-# q95_fn = snakemake.output.q95
-# RT_fn = snakemake.output.RT
-# Q7dmax_fn = snakemake.output.Q7dmax
-# highpulse_fn = snakemake.output.highpulse
-# wetmonth_fn = snakemake.output.wetmonth
-# RT7d_fn = snakemake.output.RT7d
-# Q7dmin_fn = snakemake.output.Q7dmin
-# lowpulse_fn = snakemake.output.lowpulse
-# drymonth_fn = snakemake.output.drymonth
-# BFI_fn = snakemake.output.BFI
 Qstats_fn = snakemake.output.Qstats
 bas_fn = snakemake.output.basin
 
@@ -243,19 +230,6 @@ for i in range(np.size(df_out_mean,0)):
     df_out_basavg.iloc[i, :] = stats_basavg.round(1)
 
 print("Writting tables for 2D stress tests plots")
-# df_out_mean.to_csv(mean_fn, index=False)
-# df_out_max.to_csv(max_fn, index=False)
-# df_out_min.to_csv(min_fn, index=False)
-# df_out_q95.to_csv(q95_fn, index=False)
-# df_out_RT.to_csv(RT_fn, index=False)
-# df_out_Q7dmax.to_csv(Q7dmax_fn, index=False)
-# df_out_highpulse.to_csv(highpulse_fn, index=False)
-# df_out_wetmonth.to_csv(wetmonth_fn, index=False)
-# df_out_RT7d.to_csv(RT7d_fn, index=False)
-# df_out_Q7dmin.to_csv(Q7dmin_fn, index=False)
-# df_out_lowpulse.to_csv(lowpulse_fn, index=False)
-# df_out_drymonth.to_csv(drymonth_fn, index=False)
-# df_out_BFI.to_csv(BFI_fn, index=False)
 df_out_basavg.to_csv(bas_fn, index=False)
 
 df_out_Qstats = pd.concat([df_out_mean, df_out_max, df_out_min, df_out_q95, 
