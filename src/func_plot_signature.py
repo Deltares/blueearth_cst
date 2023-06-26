@@ -11,6 +11,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import scipy.stats as stats
+import pandas as pd
 
 # Supported wflow outputs
 WFLOW_VARS = {
@@ -66,11 +67,19 @@ def plot_signatures(
         dsq["performance"].loc[dict(runs=label, metrics="MSE")] = mse
     #         print(nse.values, nselog.values, kge['kge'].values, rmse.values, mse.values)
 
-    # needed later for sns boxplot
-    #     df_perf = pd.DataFrame()
-    #     for label in [label_00, label_01]:
-    #         df = dsq['performance'].sel(runs = label, metrics = ['NSE', 'NSElog', 'KGE']).to_dataframe()
-    #         df_perf = pd.concat([df,df_perf])
+    # convert to dataframe - needed later for sns boxplot?
+    df_perf = None
+    for label in labels:
+        df = dsq['performance'].sel(runs = label, metrics = ['NSE', 'NSElog', 'KGE', 'RMSE', 'MSE']).to_dataframe()
+        station_name = df["station_name"].iloc[0]
+        if len(labels) > 1:
+            station_name = f"{station_name}_{label}"
+        df = df[["performance"]]
+        df = df.rename(columns={"performance": station_name})
+        if df_perf is None:
+            df_perf = df
+        else:
+            df_perf = df_perf.join(df)
 
     # fig, axes = plt.subplots(5,2, figsize=(16/2.54, 22/2.54), tight_layout=True)
     fig = plt.figure(figsize=(16 / 2.54, 22 / 2.54), tight_layout=True)
@@ -282,7 +291,6 @@ def plot_signatures(
             dsq_nm7q["Q"].sel(runs="Obs."), dsq_nm7q["Q"].sel(runs=label)
         )
         text_label = text_label + f"R$_2$ {label} = {r2_score:.2f} \n"
-    # import pdb; pdb.set_trace()
     # axes[5].text(max_ylow*1.1/2, max_ylow*1.1/8, text_label, fontsize=fs)
     axes[5].text(0.5, 0.05, text_label, transform=axes[5].transAxes, fontsize=fs)
     ## axes[5].text(max_ylow*1.1/2, max_ylow*1.1/8, f"R$_2$ {label} = {r2_score:.2f} \nR$_2$ {label_01} = {r2_score_new:.2f} ", fontsize=fs)
@@ -436,6 +444,8 @@ def plot_signatures(
     # plt.tight_layout()
     # plt.subplots_adjust(wspace = 0.5, hspace = 0.6)
     plt.savefig(os.path.join(Folder_out, f"signatures_{station_name}.png"), dpi=300)
+
+    return df_perf
 
 
 def plot_hydro(

@@ -10,10 +10,11 @@ outputs = snakemake.params.outputs
 # Supported wflow outputs
 WFLOW_VARS = {
     "river discharge": "lateral.river.q_av",
+    "precipitation": "vertical.precipitation",
     "overland flow": "lateral.land.q_av",
     "actual evapotranspiration": "vertical.actevap",
     "groundwater recharge": "vertical.recharge",
-    "snow": "vertical.snow",
+    "snow": "vertical.snowwater",
 }
 
 # Instantiate wflow model

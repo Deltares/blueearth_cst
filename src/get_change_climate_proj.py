@@ -49,12 +49,10 @@ def get_change_clim_projections(ds_hist, ds_clim):
                 (
                     ds_clim[var]
                     - ds_hist[var].sel(
-                        horizon=ds_hist.horizon.values[0],
                         scenario=ds_hist.scenario.values[0],
                     )
                 )
                 / ds_hist[var].sel(
-                    horizon=ds_hist.horizon.values[0],
                     scenario=ds_hist.scenario.values[0],
                 )
                 * 100
@@ -62,7 +60,7 @@ def get_change_clim_projections(ds_hist, ds_clim):
         else:  # for temp
             # additive for temp
             change = ds_clim[var] - ds_hist[var].sel(
-                horizon=ds_hist.horizon.values[0], scenario=ds_hist.scenario.values[0]
+                scenario=ds_hist.scenario.values[0]
             )
         ds.append(change.to_dataset())
 
@@ -120,7 +118,6 @@ def get_change_annual_clim_proj(
                 .resample(time=f"AS-{start_month_hyd_year}")
                 .sum("time")
                 .sel(
-                    horizon=ds_hist_time.horizon.values[0],
                     scenario=ds_hist_time.scenario.values[0],
                 )
             )
@@ -139,7 +136,6 @@ def get_change_annual_clim_proj(
                 .resample(time=f"AS-{start_month_hyd_year}")
                 .mean("time")
                 .sel(
-                    horizon=ds_hist_time.horizon.values[0],
                     scenario=ds_hist_time.scenario.values[0],
                 )
             )
@@ -189,9 +185,17 @@ name_scenario = snakemake.params.name_scenario
 name_model = snakemake.params.name_model
 save_grids = snakemake.params.save_grids
 
-# open datasets
+# Time tuples for comparison hist-fut
+time_tuple_hist = snakemake.params.time_horizon_hist
+time_tuple_hist = tuple(map(str, time_tuple_hist.split(", ")))
+time_tuple_fut = snakemake.params.time_horizon_fut
+time_tuple_fut = tuple(map(str, time_tuple_fut.split(", ")))
+
+# open datasets and slice times
 ds_hist_time = xr.open_dataset(stats_time_nc_hist)
+ds_hist_time = ds_hist_time.sel(time=slice(*time_tuple_hist))
 ds_clim_time = xr.open_dataset(stats_time_nc)
+ds_clim_time = ds_clim_time.sel(time=slice(*time_tuple_fut))
 
 # Get names of grids if save_grids
 if save_grids:
@@ -246,6 +250,14 @@ if len(ds_clim_time) > 0:
 
     # calculate statistics (mean, std, 0.1 0.25 0.50 0.75 0.90 quantiles of annual precip sum and mean temp)
     stats_annual_change = get_change_annual_clim_proj(ds_hist_time, ds_clim_time)
+    # add time horizon coords
+    stats_annual_change = stats_annual_change.assign_coords(
+        {
+            "horizon": f"{name_horizon}",
+        }
+    ).expand_dims(["horizon"])
+    # Reorder dims
+    stats_annual_change = stats_annual_change.transpose(..., "clim_project", "model", "scenario", "horizon", "member")
 
     # write to netcdf files
     dvars = stats_annual_change.raster.vars
@@ -271,6 +283,14 @@ if save_grids:
     if len(ds_clim) > 0:
         # calculate change
         monthly_change_mean_grid = get_change_clim_projections(ds_hist, ds_clim)
+        # add time horizon coords
+        monthly_change_mean_grid = monthly_change_mean_grid.assign_coords(
+            {
+                "horizon": f"{name_horizon}",
+            }
+        ).expand_dims(["horizon"])
+        # Reorder dims
+        stats_annual_change = stats_annual_change.transpose(..., "clim_project", "model", "scenario", "horizon", "member")
 
         # write to netcdf files
         print(f"writing netcdf files monthly_change_mean_grid")

@@ -92,3 +92,10 @@ precip:
   variance:
     min: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
     max: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+
+# Drought return period
+Tlow: 2
+# Flood return period
+Tpeak: 10
+# Aggregate realizations before computing statistics
+aggregate_rlz: TRUE

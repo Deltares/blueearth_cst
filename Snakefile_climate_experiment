@@ -56,10 +56,8 @@ wflow_run_length = get_config(config, 'run_length', 20)
 # Master rule: end with all model run and analysed with saving a output plot
 rule all:
     input:
-        mean = f"{exp_dir}/model_results/mean.csv",
-        #rlz_nc = expand((f"{basin_dir}/run_climate_{experiment}/output_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".csv"), rlz_num=np.arange(1, RLZ_NUM+1), st_num2=np.arange(0, ST_NUM+1)),
-        #f"{exp_dir}/realization_{RLZ_NUM}/rlz_{RLZ_NUM}_historical.nc",
-        #f"{exp_dir}/stress_test/cst_{ST_NUM}.csv"
+        Qstats = f"{exp_dir}/model_results/Qstats.csv",
+        basin = f"{exp_dir}/model_results/basin.csv",
 
 # Rule to extract historic climate data at native resolution for the project area
 rule extract_climate_grid:
@@ -78,7 +76,7 @@ rule extract_climate_grid:
 # Prepare stress test experiment
 rule climate_stress_parameters:
     input:
-        config = config_path,
+        config = ancient(config_path),
     output:
         st_csv_fns = [f"{exp_dir}/stress_test/cst_{st_num}.csv" for st_num in np.arange(1, ST_NUM+1)]
     container:
@@ -182,7 +180,7 @@ rule run_wflow:
         forcing_fid = f"{exp_dir}/realization_"+"{rlz_num}"+"/inmaps_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".nc",
         toml_fid = f"{basin_dir}/run_climate_{experiment}/wflow_sbm_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".toml"
     output:
-        csv_file = temp(f"{basin_dir}/run_climate_{experiment}/output_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".csv"),
+        csv_file = f"{basin_dir}/run_climate_{experiment}/output_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".csv",
         state_file = temp(f"{basin_dir}/run_climate_{experiment}/outstates_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".nc")
     container:
         "singularity/wflow-cli.sif"
@@ -194,13 +192,16 @@ rule export_wflow_results:
     input:
         rlz_csv_fns = expand((f"{basin_dir}/run_climate_{experiment}/output_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".csv"), rlz_num=np.arange(1, RLZ_NUM+1), st_num2=np.arange(ST_START, ST_NUM+1)),
     output:
-        mean = f"{exp_dir}/model_results/mean.csv",
-        min = f"{exp_dir}/model_results/min.csv",
-        max = f"{exp_dir}/model_results/max.csv",
-        q95 = f"{exp_dir}/model_results/q95.csv",
+        Qstats = f"{exp_dir}/model_results/Qstats.csv",
+        basin = f"{exp_dir}/model_results/basin.csv",
     params:
         model_dir = basin_dir,
         exp_dir = exp_dir,
+        aggr_rlz = get_config(config, 'aggregate_rlz', True),
+        rlz_num = RLZ_NUM, 
+        st_num = ST_NUM,
+        Tlow = get_config(config,"Tlow", 2),
+        Tpeak = get_config(config,"Tpeak", 10),
     container:
         "singularity/hydromt-wflow.sif"
     script:
