@@ -51,7 +51,7 @@ variables: [precip, temp]
 # time horizons of the climate projections
 start_month_hyd_year: Jan
 historical: 1980, 2010
-future_horizons: 
+future_horizons:
   near: 2030, 2060
   far: 2070, 2100
 
