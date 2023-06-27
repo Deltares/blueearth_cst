@@ -100,7 +100,8 @@ rule run_wflow:
         toml_fid = f"{basin_dir}/wflow_sbm.toml"
     container: "singularity/wflow-cli.sif"
     shell:
-        """ julia --threads 4 -e "using Wflow; Wflow.run()" "{params.toml_fid}" """
+        """JULIA_NUM_THREADS=4 /app/create_app/wflow_bundle/bin/wflow_cli {params.toml_fid}"""
+        # """ julia --threads 4 -e "using Wflow; Wflow.run()" "{params.toml_fid}" """
         #""" julia --threads 4 -e 'import Pkg; Pkg.add("Wflow"); using Wflow; Wflow.run()' "{params.toml_fid}" """
 
 # Rule to analyse and plot wflow model run results --> final output

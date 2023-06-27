@@ -57,9 +57,8 @@ There is a docker directory present, containing 2 Dockerfiles:
 - hydromt_wflow: a docker image the HydroMT Wflow plugin
 - snakemake_singularity: a docker image for snakemake containing singularity
 
-Build the images using:
+Build the 2 base images using:
 .. code-block:: console
-    docker build -t snakemake-singularity -f docker/snakemake_singularity/Dockerfile .
     docker build -t hydromt-wflow ./docker/hydromt_wflow
     docker build -t weathergenr -f docker/weathergenr/Dockerfile .
 
@@ -72,6 +71,10 @@ Make sure you have the wflow-cli and hydromt-wflow images locally, then use:
     sudo singularity build singularity/wflow-cli.sif docker-daemon://wflow-cli:latest
     sudo singularity build singularity/hydromt-wflow.sif docker-daemon://hydromt-wflow:latest
     sudo singularity build singularity/weathergenr.sif docker-daemon://weathergenr:latest
+
+Then build the image containing the singularity images:
+.. code-block:: console
+    sudo docker build -t snakemake-singularity -f docker/snakemake_singularity/Dockerfile .
 
 Running
 -------

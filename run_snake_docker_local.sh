@@ -27,6 +27,7 @@ docker run \
     snakemake-singularity \
     snakemake all \
     --use-singularity \
+    --rerun-incomplete \
     --singularity-args "$(echo ${singularity_volumeargs[@]})" \
     -c 1 \
     -s ${docker_root}/Snakefile_model_creation \
@@ -38,6 +39,7 @@ docker run \
     --entrypoint='' \
     snakemake-singularity \
     snakemake all \
+    --rerun-incomplete \
     --use-singularity \
     --singularity-args "$(echo ${singularity_volumeargs[@]})" \
     -c 1 \
@@ -50,6 +52,7 @@ docker run \
     --entrypoint='' \
     snakemake-singularity \
     snakemake all \
+    --rerun-incomplete \
     --use-singularity \
     --singularity-args "$(echo ${singularity_volumeargs[@]})" \
     -c 1 \

@@ -1,4 +1,4 @@
-FROM condaforge/mambaforge:4.14.0-0
+FROM condaforge/mambaforge:23.1.0-1
 
 COPY environment_python.yaml /tmp/environment.yaml
 RUN mamba env update -f /tmp/environment.yaml -n base \

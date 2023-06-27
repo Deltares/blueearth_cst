@@ -185,7 +185,8 @@ rule run_wflow:
     container:
         "singularity/wflow-cli.sif"
     shell:
-        """ julia --threads 4 -e 'import Pkg; Pkg.add("Wflow"); using Wflow; Wflow.run()' "{input.toml_fid}" """
+        """JULIA_NUM_THREADS=4 /app/create_app/wflow_bundle/bin/wflow_cli {input.toml_fid}"""
+        # """ julia --threads 4 -e 'import Pkg; Pkg.add("Wflow"); using Wflow; Wflow.run()' "{input.toml_fid}" """
 
 # Export wflow results
 rule export_wflow_results:
