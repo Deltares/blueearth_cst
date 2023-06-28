@@ -32,9 +32,9 @@ model_resolution: 0.0062475
 
 # If available, please here put the path to the available observation stations locations files
 # csv file containing three columns: station_ID, x, y
-output_locations: "config/output-locations-Gabon.csv" # If set to None, will default to the wflow outlets
+output_locations: "data/observations/output-locations-test.csv" # If set to None, will default to the wflow outlets
 # Path to the file with observed discharge timeseries per station 
-observations_timeseries: "data/observations/observations_timeseries_Gabon.csv" 
+observations_timeseries: "data/observations/observations_timeseries_test.csv" 
 
 ###########################################################################################
 ################################## Climate projections ####################################

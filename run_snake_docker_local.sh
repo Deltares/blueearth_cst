@@ -6,6 +6,7 @@ volumeargs=(
     "-v $(pwd)/config:${docker_root}/config"
     "-v $(pwd)/examples:${docker_root}/examples"
     "-v $(pwd)/hdata:${docker_root}/hdata"
+    "-v $(pwd)/data:${docker_root}/data"
     "-v $(pwd)/.snakemake:${docker_root}/.snakemake"
 )
 
@@ -17,6 +18,7 @@ singularity_volumeargs=(
     "-B ${docker_root}/config:${docker_root}/config"
     "-B ${docker_root}/examples:${docker_root}/examples"
     "-B ${docker_root}/src:${docker_root}/src"
+    "-B ${docker_root}/data:${docker_root}/data"
     "-B ${docker_root}/hdata:${docker_root}/hdata"
     "-B ${docker_root}/.snakemake:${docker_root}/.snakemake"
 )
