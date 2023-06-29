@@ -20,13 +20,23 @@ WFLOW_VARS = {
 # Instantiate wflow model
 mod = WflowModel(root, mode="r+", data_libs=data_catalog)
 
-# Add gauges
-if not os.path.isfile(gauges_fn):
-    gauges_fn = None
-mod.setup_gauges(
-    gauges_fn=gauges_fn,
-    derive_subcatch=True,
+# Add outlets
+mod.setup_outlets(
+    river_only=True,
+    gauge_toml_header=["Q"],
+    gauge_toml_param=["lateral.river.q_av"],
 )
+
+# Add gauges
+if os.path.isfile(gauges_fn):
+    mod.setup_gauges(
+        gauges_fn=gauges_fn,
+        snap_to_river=True,
+        derive_subcatch=True,
+        toml_output = "csv",
+        gauge_toml_header = ["Q", "P"],
+        gauge_toml_param = ["lateral.river.q_av","vertical.precipitation"],
+    )
 
 # Add additional outputs to the config
 # For now assumes basin-average timeseries apart for river.q_av which is saved by default for all outlets and gauges
