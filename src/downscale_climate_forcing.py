@@ -7,7 +7,7 @@ import numpy as np
 
 # Snakemake parameters
 config_out_fn = snakemake.output.toml
-fn_out = snakemake.output.nc
+fn_out = Path(snakemake.output.nc)
 fn_in = snakemake.input.nc
 data_libs = snakemake.input.data_sources
 model_root = snakemake.params.model_dir
@@ -45,10 +45,10 @@ update_options = {
         "starttime": starttime,
         "endtime": endtime,
         "timestepsecs": 86400,
-        "state.path_input": "../instate/instates.nc",
+        "state.path_input": os.path.join('..','instate','instates.nc'),
         "state.path_output": f"outstates_{climate_name}.nc",
-        "input.path_static": "../staticmaps.nc",
-        "input.path_forcing": f"../../../../{fn_out}",
+        "input.path_static": os.path.join('..','staticmaps.nc'),
+        "input.path_forcing": os.path.join('..','..','..','..',fn_out),
         "csv.path": f"output_{climate_name}.csv",
     },
     "set_root": {
