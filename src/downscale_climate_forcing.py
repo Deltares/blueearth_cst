@@ -5,29 +5,6 @@ import os
 import xarray as xr
 import numpy as np
 
-# # FIXME: temp from snakefile
-
-# starttime = "2000-01-01T00:00:00"
-
-# endtime = "2020-12-31T00:00:00"
-
-# repo_root = str(Path(__file__).parent.parent.absolute())
-
-# DATA_SOURCES = f"{repo_root}/config/deltares_data_linux.yml"
-# experiment = "experiment_02"
-# exp_dir = f"{repo_root}/examples/Gabon2/climate_{experiment}"
-# basin_dir = f"{repo_root}/examples/Gabon2/hydrology_model"
-# rlz_num = 1
-# st_num2 = 0
-# precip_source="era5"
-# model_root = basin_dir
-# # input
-# fn_in = f"{exp_dir}/realization_{rlz_num}/rlz_{rlz_num}_cst_{st_num2}.nc"
-# data_libs = [f"{exp_dir}/data_catalog_climate_experiment.yml", DATA_SOURCES]
-# # output
-# fn_out = f"{exp_dir}/realization_"+"{rlz_num}"+"/inmaps_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".nc",
-# config_out_fn = f"{basin_dir}/run_climate_{experiment}/wflow_sbm_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".toml"
-
 # Snakemake parameters
 config_out_fn = snakemake.output.toml
 fn_out = snakemake.output.nc
@@ -97,7 +74,7 @@ update_options = {
 
 ### Run Hydromt update using update_options dict ###
 # Instantiate model
-mod = WflowModel(root=model_root, mode="r+", data_libs=data_libs)
+mod = WflowModel(root=str(hydrology_model_dir), mode="r+", data_libs=data_libs)
 
 # Update
 mod.update(opt=update_options)

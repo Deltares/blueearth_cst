@@ -33,9 +33,9 @@ if os.path.isfile(gauges_fn):
         gauges_fn=gauges_fn,
         snap_to_river=True,
         derive_subcatch=True,
-        toml_output = "csv",
-        gauge_toml_header = ["Q", "P"],
-        gauge_toml_param = ["lateral.river.q_av","vertical.precipitation"],
+        toml_output="csv",
+        gauge_toml_header=["Q", "P"],
+        gauge_toml_param=["lateral.river.q_av", "vertical.precipitation"],
     )
 
 # Add additional outputs to the config

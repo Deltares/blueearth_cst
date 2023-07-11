@@ -52,7 +52,7 @@ colors = ["orange"]
 linestyles = ["-"]
 markers = ["o"]
 
-#%%
+# %%
 # Instantiate wflow model
 mod = WflowModel(root=Folder_run, mode="r")
 
@@ -110,7 +110,7 @@ ds_basin = ds_basin.squeeze(drop=True)
 if "precipitation_basavg" in ds_basin:
     ds_basin = ds_basin.drop_vars("precipitation_basavg")
 
-#%% Read the observations data
+# %% Read the observations data
 # read timeseries data and match with existing gdf
 has_observations = False
 if observations_timeseries is not None:
@@ -119,9 +119,7 @@ if observations_timeseries is not None:
 
 # Discharge data
 # make sure the user provided a observation file and ouput locations
-if (f"gauges_{gauges_output_name}" in mod.staticgeoms) & (
-    has_observations
-):
+if (f"gauges_{gauges_output_name}" in mod.staticgeoms) & (has_observations):
     name = f"gauges_{gauges_output_name}"  # gauges locations in staticgeoms
     da_ts = hydromt.io.open_timeseries_from_table(
         observations_timeseries, name=name, sep=";"
@@ -136,12 +134,10 @@ if (f"gauges_{gauges_output_name}" in mod.staticgeoms) & (
         .rename({f"gauges_{gauges_output_name }": "Q"})
     )
 
-#%% make plots - first loop over output locations
+# %% make plots - first loop over output locations
 
 # combine sim and obs at outputloc in one dataset if timeseries observations exist
-if (f"gauges_{gauges_output_name}" in mod.staticgeoms) & (
-    has_observations
-):
+if (f"gauges_{gauges_output_name}" in mod.staticgeoms) & (has_observations):
     ds_outlocs = ds_obs.combine_first(ds_sim_outlocs)
     # combine_first now seems to somehow drop the coordinate station_name?
     ds_outlocs["station_name"] = ds_obs["station_name"]
@@ -157,14 +153,10 @@ ds_sim_gauges = (
 
 # select dataset based on gauges or/and outputloc locations
 # if no user output and observations are provided:
-if ((f"{gauges_output_name}" in mod.staticgeoms) == False) & (
-    not has_observations
-):
+if ((f"{gauges_output_name}" in mod.staticgeoms) == False) & (not has_observations):
     ds_list = [ds_sim_gauges]
 # if user output locs are available but no observations timeseries:
-elif ((f"{gauges_output_name}" in mod.staticgeoms) == True) & (
-    not has_observations
-):
+elif ((f"{gauges_output_name}" in mod.staticgeoms) == True) & (not has_observations):
     ds_list = [ds_sim_gauges, ds_sim_outlocs]
 # if output locs and observations are available - make hydro plots for gauges and make hydro and signature plots for outputlocs
 else:

@@ -1,4 +1,5 @@
 import os
+import math
 import yaml
 
 # Snakemake config file
@@ -24,7 +25,7 @@ if cftype == "generate":
     middle_year = snakemake.params.middle_year
     wflow_run_length = snakemake.params.sim_years
     # Compute number of years needed based on the wflow run length and horizon and end of historical period in 2010
-    nr_years_weagen = (middle_year + wflow_run_length / 2) - 2010 + 2
+    nr_years_weagen = math.ceil((middle_year + wflow_run_length / 2) - 2010 + 2)
 
     # arguments from the default weagen config file
     yml_dict = read_yml(snakemake.params.default_config)
@@ -34,9 +35,9 @@ if cftype == "generate":
         "sim.year.start": 2010,
         "sim.year.num": nr_years_weagen,
         "nc.file.prefix": snakemake.params.nc_file_prefix,
-        "realizations_num": yml_snake["realizations_num"]
+        "realizations_num": yml_snake["realizations_num"],
     }
-    for k,v in yml_add.items():
+    for k, v in yml_add.items():
         yml_dict["generateWeatherSeries"][k] = v
 
 else:  # stress test
