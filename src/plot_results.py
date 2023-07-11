@@ -126,6 +126,11 @@ if (f"gauges_{gauges_output_name}" in mod.staticgeoms) & (
     da_ts = hydromt.io.open_timeseries_from_table(
         observations_timeseries, name=name, sep=";"
     )
+    # HydroMT bug to be fixed index len and names on gdf_outltocs and da_ts need to be an excact match
+    # Find common index in gdf_outlocs and da_ts and keep only the common ones
+    common_index = gdf_outlocs.index.intersection(da_ts.index)
+    gdf_outlocs = gdf_outlocs.loc[common_index]
+    da_ts = da_ts.sel(index=common_index)
     da = hydromt.vector.GeoDataArray.from_gdf(gdf_outlocs, da_ts, index_dim="index")
     qobs_outloc = da
     # rename run to Obs. and rename var to Q
