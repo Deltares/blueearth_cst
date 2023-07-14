@@ -11,6 +11,7 @@ fn_out = Path(snakemake.output.nc)
 fn_in = snakemake.input.nc
 data_libs = snakemake.input.data_sources
 model_root = snakemake.params.model_dir
+
 precip_source = snakemake.params.clim_source
 
 # Time horizon climate experiment and number of hydrological model run
@@ -44,10 +45,10 @@ update_options = {
         "starttime": starttime,
         "endtime": endtime,
         "timestepsecs": 86400,
-        "state.path_input": os.path.join('..','instate','instates.nc'),
+        "state.path_input": os.path.join("..", "instate", "instates.nc"),
         "state.path_output": f"outstates_{climate_name}.nc",
-        "input.path_static": os.path.join('..','staticmaps.nc'),
-        "input.path_forcing": os.path.join('..','..','..','..',fn_out),
+        "input.path_static": os.path.join("..", "staticmaps.nc"),
+        "input.path_forcing": os.path.join("..", "..", "..", "..", fn_out),
         "csv.path": f"output_{climate_name}.csv",
     },
     "set_root": {
@@ -74,7 +75,7 @@ update_options = {
 
 ### Run Hydromt update using update_options dict ###
 # Instantiate model
-mod = WflowModel(root=str(hydrology_model_dir), mode="r+", data_libs=data_libs)
+mod = WflowModel(root=model_root, mode="r+", data_libs=data_libs)
 
 # Update
 mod.update(opt=update_options)
