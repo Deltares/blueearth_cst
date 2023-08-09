@@ -146,7 +146,7 @@ for i in range(np.size(df_out_mean,0)):
     else:
         # read and concat several files
         st_nb = i+1
-        csv_fns_i = [x for x in csv_fns if x.endswith(str(i+1)+'.csv')]
+        csv_fns_i = [x for x in csv_fns if x.endswith('cst_'+str(i+1)+'.csv')]
         csv_rlz = []
         for j in range(len(csv_fns_i)): 
             sim_j = pd.read_csv(csv_fns_i[j], index_col=0, parse_dates=True)
@@ -230,6 +230,8 @@ for i in range(np.size(df_out_mean,0)):
     df_out_basavg.iloc[i, :] = stats_basavg.round(1)
 
 print("Writting tables for 2D stress tests plots")
+if not os.path.isdir(bas_fn):
+    os.makedirs(bas_fn)
 df_out_basavg.to_csv(bas_fn, index=False)
 
 df_out_Qstats = pd.concat([df_out_mean, df_out_max, df_out_min, df_out_q95, 
