@@ -26,37 +26,40 @@ docker run \
     $(echo ${volumeargs[@]}) \
     --privileged \
     --entrypoint='' \
-    snakemake-singularity \
+    blueearth-cst:0.0.1 \
     snakemake all \
-    --use-singularity \
     --rerun-incomplete \
-    --singularity-args "$(echo ${singularity_volumeargs[@]})" \
     -c 4 \
     -s ${docker_root}/Snakefile_model_creation \
     --configfile ${docker_root}/hdata/snake_config_model_test.yml
 
-docker run \
-    $(echo ${volumeargs[@]}) \
-    --privileged \
-    --entrypoint='' \
-    snakemake-singularity \
-    snakemake all \
-    --rerun-incomplete \
-    --use-singularity \
-    --singularity-args "$(echo ${singularity_volumeargs[@]})" \
-    -c 4 \
-    -s ${docker_root}/Snakefile_climate_projections \
-    --configfile ${docker_root}/hdata/snake_config_model_test.yml
+#     --use-singularity \
+#     --singularity-args "$(echo ${singularity_volumeargs[@]})" \
 
 docker run \
     $(echo ${volumeargs[@]}) \
     --privileged \
     --entrypoint='' \
-    snakemake-singularity \
+    blueearth-cst:0.0.1 \
     snakemake all \
     --rerun-incomplete \
-    --use-singularity \
-    --singularity-args "$(echo ${singularity_volumeargs[@]})" \
+    -c 4 \
+    -s ${docker_root}/Snakefile_climate_projections \
+    --configfile ${docker_root}/hdata/snake_config_model_test.yml
+
+#     --use-singularity \
+#     --singularity-args "$(echo ${singularity_volumeargs[@]})" \
+
+docker run \
+    $(echo ${volumeargs[@]}) \
+    --privileged \
+    --entrypoint='' \
+    blueearth-cst:0.0.1 \
+    snakemake all \
+    --rerun-incomplete \
     -c 4 \
     -s ${docker_root}/Snakefile_climate_experiment \
     --configfile ${docker_root}/hdata/snake_config_model_test.yml
+
+#     --use-singularity \
+#     --singularity-args "$(echo ${singularity_volumeargs[@]})" \

@@ -22,7 +22,7 @@ dependencies:
   - numpy
   - pandas
   - pip
-  - python>=3.7
+  - python>=3.7,<3.11
   - rasterio
   - r-base
   - r-essentials
@@ -45,7 +45,7 @@ dependencies:
   - r-r.utils
   - r-yaml
   - rpy2
-  - rtools
+  # - rtools  # only needed for windows
   - requests
   - rioxarray
   - scipy

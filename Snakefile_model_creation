@@ -49,7 +49,7 @@ rule create_model:
         hydromt_ini = f"{static_dir}/wflow_build_model.ini",
     output:
         basin_nc = f"{basin_dir}/staticmaps.nc",
-    container: "singularity/hydromt-wflow.sif"
+    # container: "singularity/hydromt-wflow.sif"
     shell:
         """hydromt build wflow "{basin_dir}" --region "{model_region}" --opt setup_basemaps.res="{model_resolution}" -i "{input.hydromt_ini}" -d "{DATA_SOURCES}" -vv"""
 
@@ -63,7 +63,7 @@ rule add_gauges_and_outputs:
         output_locs = output_locations,
         outputs = wflow_outvars,
         data_catalog = DATA_SOURCES
-    container: "singularity/hydromt-wflow.sif"
+    # container: "singularity/hydromt-wflow.sif"
     script:
         "src/setup_gauges_and_outputs.py"
 
@@ -77,7 +77,7 @@ rule setup_runtime:
         starttime = get_config(config, "starttime", optional=False),
         endtime = get_config(config, "endtime", optional=False),
         clim_source = get_config(config, "clim_historical", optional=False),
-    container: "singularity/hydromt-wflow.sif"
+    # container: "singularity/hydromt-wflow.sif"
     script: "src/setup_time_horizon.py"
 
 # Rule to add forcing to the updated model
@@ -86,7 +86,7 @@ rule add_forcing:
         forcing_ini = f"{project_dir}/config/wflow_build_forcing_historical.ini"
     output:
         forcing_fid = f"{project_dir}/climate_historical/wflow_data/inmaps_historical.nc"
-    container: "singularity/hydromt-wflow.sif"
+    # container: "singularity/hydromt-wflow.sif"
     shell:
         """hydromt update wflow "{basin_dir}" -i "{input.forcing_ini}" -d "{DATA_SOURCES}" -vv"""
 
@@ -99,10 +99,10 @@ rule run_wflow:
         csv_file = f"{basin_dir}/run_default/output.csv"
     params:
         toml_fid = f"{basin_dir}/wflow_sbm.toml"
-    container: "singularity/wflow-cli.sif"
+    # container: "singularity/wflow-cli.sif"
     shell:
-        """JULIA_NUM_THREADS=4 /app/create_app/wflow_bundle/bin/wflow_cli {params.toml_fid}"""
-        # """ julia --threads 4 -e "using Wflow; Wflow.run()" "{params.toml_fid}" """
+        # """JULIA_NUM_THREADS=4 /app/create_app/wflow_bundle/bin/wflow_cli {params.toml_fid}"""
+        """ julia --threads 4 -e "using Wflow; Wflow.run()" "{params.toml_fid}" """
         #""" julia --threads 4 -e 'import Pkg; Pkg.add("Wflow"); using Wflow; Wflow.run()' "{params.toml_fid}" """
 
 # Rule to analyse and plot wflow model run results --> final output
@@ -119,7 +119,7 @@ rule plot_results:
         observations_file = observations_timeseries,
         gauges_output_fid = output_locations,
         outputs = wflow_outvars,
-    container: "singularity/hydromt-wflow.sif"
+    # container: "singularity/hydromt-wflow.sif"
     script: "src/plot_results.py"
 
 rule plot_map:
@@ -130,7 +130,7 @@ rule plot_map:
     params:
         project_dir = f"{project_dir}",
         output_locations = output_locations,
-    container: "singularity/hydromt-wflow.sif"
+    # container: "singularity/hydromt-wflow.sif"
     script: "src/plot_map.py"
 
 # Rule to plot the forcing on a map
@@ -142,5 +142,5 @@ rule plot_forcing:
     params:
         project_dir = f"{project_dir}",
         gauges_fid = ancient(f"{basin_dir}/staticgeoms/gauges.geojson")
-    container: "singularity/hydromt-wflow.sif"
+    # # container: "singularity/hydromt-wflow.sif"
     script: "src/plot_map_forcing.py"
