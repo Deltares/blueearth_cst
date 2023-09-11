@@ -36,6 +36,8 @@ docker run \
 #     --use-singularity \
 #     --singularity-args "$(echo ${singularity_volumeargs[@]})" \
 
+sleep 2
+
 docker run \
     $(echo ${volumeargs[@]}) \
     --privileged \
@@ -49,6 +51,8 @@ docker run \
 
 #     --use-singularity \
 #     --singularity-args "$(echo ${singularity_volumeargs[@]})" \
+
+sleep 2
 
 docker run \
     $(echo ${volumeargs[@]}) \

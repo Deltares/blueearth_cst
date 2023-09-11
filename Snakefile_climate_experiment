@@ -126,7 +126,8 @@ rule generate_weather_realization:
     # container:
     #     "singularity/weathergenr.sif"
     shell:
-        """Rscript --no-save --no-restore src/weathergen/generate_weather.R {input.climate_nc} {input.weagen_config} """
+        # """Rscript --no-save --no-restore src/weathergen/generate_weather.R {input.climate_nc} {input.weagen_config} """
+        """Rscript --vanilla src/weathergen/generate_weather.R {input.climate_nc} {input.weagen_config} """
 
 # Generate climate stress tests
 rule generate_climate_stress_test:
@@ -139,7 +140,8 @@ rule generate_climate_stress_test:
     # container:
     #     "singularity/weathergenr.sif"
     shell:
-        """Rscript  --no-save --no-restore src/weathergen/impose_climate_change.R {input.rlz_nc} {input.weagen_config} {input.st_csv} """
+        # """Rscript  --no-save --no-restore src/weathergen/impose_climate_change.R {input.rlz_nc} {input.weagen_config} {input.st_csv} """
+        """Rscript --vanilla src/weathergen/impose_climate_change.R {input.rlz_nc} {input.weagen_config} {input.st_csv}"""
 
 # Prepare data catalog of the climate files
 rule climate_data_catalog:

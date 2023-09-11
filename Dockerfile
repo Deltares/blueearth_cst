@@ -37,4 +37,9 @@ ENV PATH /opt/julia/bin:${PATH}
 
 RUN julia -e "import Pkg; Pkg.add(\"Wflow\"); using Wflow;"
 
+COPY src/weathergen/install_rpackages.R /tmp/install_rpackages.R
+
+RUN Rscript -e "install.packages('devtools',repos = 'http://cran.us.r-project.org')"
+RUN Rscript /tmp/install_rpackages.R
+
 COPY --from=local_files /root/code /root/work/

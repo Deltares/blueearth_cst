@@ -70,7 +70,8 @@ rule add_gauges_and_outputs:
 # Rule to prepare the time horizon
 rule setup_runtime:
     input:
-        basin_nc = f"{basin_dir}/staticmaps.nc"
+        gauges_fid = ancient(f"{basin_dir}/staticgeoms/gauges.geojson"),
+        # basin_nc = f"{basin_dir}/staticmaps.nc"
     output:
         forcing_ini = f"{project_dir}/config/wflow_build_forcing_historical.ini"
     params:
@@ -93,7 +94,7 @@ rule add_forcing:
 # Rule to run the wflow model
 rule run_wflow:
     input:
-        gauges_fid = ancient(f"{basin_dir}/staticgeoms/gauges.geojson"),
+        # gauges_fid = ancient(f"{basin_dir}/staticgeoms/gauges.geojson"),
         forcing_fid = f"{project_dir}/climate_historical/wflow_data/inmaps_historical.nc"
     output:
         csv_file = f"{basin_dir}/run_default/output.csv"
