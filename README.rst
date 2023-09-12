@@ -74,7 +74,7 @@ Make sure you have the wflow-cli and hydromt-wflow images locally, then use:
 
 Then build the image containing the singularity images:
 .. code-block:: console
-    sudo docker build -t snakemake-singularity -f docker/snakemake_singularity/Dockerfile .
+    sudo docker build -t cst-workflow:0.0.1 -f docker/snakemake_singularity/Dockerfile .
 
 Running
 -------

@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e # fail on errors
 
+workflow_image=cst-workflow:0.0.1
+
 docker_root='/root/work'
 volumeargs=(
     "-v $(pwd)/config:${docker_root}/config"
@@ -26,7 +28,7 @@ docker run \
     $(echo ${volumeargs[@]}) \
     --privileged \
     --entrypoint='' \
-    blueearth-cst:0.0.1 \
+    $workflow_image \
     snakemake all \
     --rerun-incomplete \
     -c 4 \
@@ -42,7 +44,7 @@ docker run \
     $(echo ${volumeargs[@]}) \
     --privileged \
     --entrypoint='' \
-    blueearth-cst:0.0.1 \
+    $workflow_image \
     snakemake all \
     --rerun-incomplete \
     -c 4 \
@@ -58,7 +60,7 @@ docker run \
     $(echo ${volumeargs[@]}) \
     --privileged \
     --entrypoint='' \
-    blueearth-cst:0.0.1 \
+    $workflow_image \
     snakemake all \
     --rerun-incomplete \
     -c 4 \
