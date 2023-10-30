@@ -53,28 +53,32 @@ tool:
 Docker
 ======
 
-There is a docker directory present, containing 2 Dockerfiles:
+The entire workflow is contained in one docker image at the base level. Build it using:
+.. code-block:: console
+    docker build -t cst-workflow:0.0.1 .
+
+There is a docker directory present, containing 3 Dockerfiles:
 - hydromt_wflow: a docker image the HydroMT Wflow plugin
 - snakemake_singularity: a docker image for snakemake containing singularity
 
-Build the 2 base images using:
-.. code-block:: console
-    docker build -t hydromt-wflow ./docker/hydromt_wflow
-    docker build -t weathergenr -f docker/weathergenr/Dockerfile .
+.. Build the 2 base images using:
+.. .. code-block:: console
+..     docker build -t hydromt-wflow ./docker/hydromt_wflow
+..     docker build -t weathergenr -f docker/weathergenr/Dockerfile .
 
-Then build the docker image for wflow from [the Deltares GitLab](https://gitlab.com/deltares/wflow/wflow_cli).
-Then tag this image as `wflow-cli:latest`
+.. Then build the docker image for wflow from [the Deltares GitLab](https://gitlab.com/deltares/wflow/wflow_cli).
+.. Then tag this image as `wflow-cli:latest`
 
-To install using docker:
-Make sure you have the wflow-cli and hydromt-wflow images locally, then use:
-.. code-block:: console
-    sudo singularity build singularity/wflow-cli.sif docker-daemon://wflow-cli:latest
-    sudo singularity build singularity/hydromt-wflow.sif docker-daemon://hydromt-wflow:latest
-    sudo singularity build singularity/weathergenr.sif docker-daemon://weathergenr:latest
+.. To install using docker:
+.. Make sure you have the wflow-cli and hydromt-wflow images locally, then use:
+.. .. code-block:: console
+..     sudo singularity build singularity/wflow-cli.sif docker-daemon://wflow-cli:latest
+..     sudo singularity build singularity/hydromt-wflow.sif docker-daemon://hydromt-wflow:latest
+..     sudo singularity build singularity/weathergenr.sif docker-daemon://weathergenr:latest
 
-Then build the image containing the singularity images:
-.. code-block:: console
-    sudo docker build -t cst-workflow:0.0.1 -f docker/snakemake_singularity/Dockerfile .
+.. Then build the image containing the singularity images:
+.. .. code-block:: console
+..     sudo docker build -t cst-workflow:0.0.1 -f docker/snakemake_singularity/Dockerfile .
 
 Running
 -------

@@ -41,6 +41,7 @@ rule all:
         # f"{project_dir}/plots/wflow_model_performance/hydro_wflow_1.png",
         # f"{project_dir}/plots/wflow_model_performance/basin_area.png",
         # f"{project_dir}/plots/wflow_model_performance/precip.png",
+        f"{project_dir}/plots/wflow_model_performance/performance_metrics.csv",
         f"{basin_dir}/run_default/output.csv"
 
 # Rule to build model hydromt build wflow
@@ -113,6 +114,7 @@ rule plot_results:
         script = "src/plot_results.py"
     output: 
         output_png = f"{project_dir}/plots/wflow_model_performance/hydro_wflow_1.png",
+        output_csv = f"{project_dir}/plots/wflow_model_performance/performance_metrics.csv",
     params:
         starttime = get_config(config, "starttime", optional=False),
         endtime = get_config(config, "endtime", optional=False),
