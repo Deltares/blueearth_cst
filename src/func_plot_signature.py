@@ -10,8 +10,12 @@ from hydromt.stats import skills
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+from pathlib import Path
 import scipy.stats as stats
 import pandas as pd
+import xarray as xr
+
+from typing import List, Union
 
 # Supported wflow outputs
 WFLOW_VARS = {
@@ -36,41 +40,154 @@ def rsquared(x, y):
 
 
 def plot_signatures(
-    dsq, labels, colors, linestyles, markers, Folder_out, station_name, lw=0.8, fs=8
-):
+    dsq: xr.Dataset, 
+    Folder_out: Union[Path, str],
+    station_name: str = "station",
+    labels: List = ["Mod."], 
+    colors: List = ["orange"], 
+    linestyles: List = ["-"], 
+    markers: List = ["o"], 
+    lw: float = 0.8, 
+    fs: int = 8,
+) -> pd.DataFrame:
+    """
+    Compute and plot hydrological signatures and performance metrics.
 
+    Parameters
+    ----------
+    dsq : xr.Dataset
+        Dataset with simulated and observed streamflow.
+
+        * Required variables: [Q]
+        * Required dimensions: [time, runs] and Obs. in runs
+        * Required attributes: [station_name]
+    Folder_out : Union[Path, str]
+        Output folder to save plots.
+    station_name : str, optional
+        Station name, by default "station"
+    labels : List, optional
+        List of labels for the different runs, by default ["Mod."]
+    colors : List, optional
+        List of colors for the different runs, by default ["orange"]
+    linestyles : List, optional
+        List of linestyles for the different runs, by default ["-"]
+    markers : List, optional
+        List of markers for the different runs, by default ["o"]
+    lw : float, optional
+        Line width, by default 0.8
+    fs : int, optional
+        Font size, by default 8
+
+    Returns
+    -------
+    pd.DataFrame
+        Dataframe with performance metrics for each run.
+    """
+
+    ### 1. Calculate performance metrics based on daily and monthly timeseries ###
     # first calc some signatures
-    dsq["metrics"] = ["KGE", "NSE", "NSElog", "RMSE", "MSE"]
+    dsq["metrics"] = ["KGE", "NSE", "NSElog", "RMSE", "MSE", "Pbias", "VE"]
+    dsq["time_type"] = ["daily", "monthly"]
     dsq["performance"] = (
-        ("runs", "metrics"),
-        np.zeros((len(dsq.runs), len(dsq.metrics))) * np.nan,
+        ("runs", "metrics", "time_type"),
+        np.zeros((len(dsq.runs), len(dsq.metrics), len(dsq.time_type))) * np.nan,
     )
 
     # perf metrics for single station
     for label in labels:
-        # nse
-        nse = skills.nashsutcliffe(dsq["Q"].sel(runs=label), dsq["Q"].sel(runs="Obs."))
-        dsq["performance"].loc[dict(runs=label, metrics="NSE")] = nse
-        # nse logq
-        nselog = skills.lognashsutcliffe(
-            dsq["Q"].sel(runs=label), dsq["Q"].sel(runs="Obs.")
-        )
-        dsq["performance"].loc[dict(runs=label, metrics="NSElog")] = nselog
-        # kge
-        kge = skills.kge(dsq["Q"].sel(runs=label), dsq["Q"].sel(runs="Obs."))
-        dsq["performance"].loc[dict(runs=label, metrics="KGE")] = kge["kge"]
-        # rmse
-        rmse = skills.rmse(dsq["Q"].sel(runs=label), dsq["Q"].sel(runs="Obs."))
-        dsq["performance"].loc[dict(runs=label, metrics="RMSE")] = rmse
-        # mse
-        mse = skills.mse(dsq["Q"].sel(runs=label), dsq["Q"].sel(runs="Obs."))
-        dsq["performance"].loc[dict(runs=label, metrics="MSE")] = mse
-    #         print(nse.values, nselog.values, kge['kge'].values, rmse.values, mse.values)
+        # Select data and resample to monthly timeseries as well
+        qsim_daily = dsq["Q"].sel(runs=label)
+        qsim_monthly = qsim_daily.resample(time="M").mean("time")
+        qobs_daily = dsq["Q"].sel(runs="Obs.")
+        qobs_monthly = qobs_daily.resample(time="M").mean("time")
 
-    # convert to dataframe - needed later for sns boxplot?
+        # nse
+        nse = skills.nashsutcliffe(qsim_daily, qobs_daily)
+        dsq["performance"].loc[
+            dict(runs=label, metrics="NSE", time_type="daily")
+        ] = nse
+        nse_m = skills.nashsutcliffe(qsim_monthly, qobs_monthly)
+        dsq["performance"].loc[
+            dict(runs=label, metrics="NSE", time_type="monthly")
+        ] = nse_m
+
+        # nse logq
+        nselog = skills.lognashsutcliffe(qsim_daily, qobs_daily)
+        dsq["performance"].loc[
+            dict(runs=label, metrics="NSElog", time_type="daily")
+        ] = nselog
+        nselog_m = skills.lognashsutcliffe(qsim_monthly, qobs_monthly)
+        dsq["performance"].loc[
+            dict(runs=label, metrics="NSElog", time_type="monthly")
+        ] = nselog_m
+        
+        # kge
+        kge = skills.kge(qsim_daily, qobs_daily)
+        dsq["performance"].loc[
+            dict(runs=label, metrics="KGE", time_type="daily")
+        ] = kge["kge"]
+        kge_m = skills.kge(qsim_monthly, qobs_monthly)
+        dsq["performance"].loc[
+            dict(runs=label, metrics="KGE", time_type="monthly")
+        ] = kge_m["kge"]
+        
+        # rmse
+        rmse = skills.rmse(qsim_daily, qobs_daily)
+        dsq["performance"].loc[
+            dict(runs=label, metrics="RMSE", time_type="daily")
+        ] = rmse
+        rmse_m = skills.rmse(qsim_monthly, qobs_monthly)
+        dsq["performance"].loc[
+            dict(runs=label, metrics="RMSE", time_type="monthly")
+        ] = rmse_m
+        
+        # mse
+        mse = skills.mse(qsim_daily, qobs_daily)
+        dsq["performance"].loc[
+            dict(runs=label, metrics="MSE", time_type="daily")
+        ] = mse
+        mse_m = skills.mse(qsim_monthly, qobs_monthly)
+        dsq["performance"].loc[
+            dict(runs=label, metrics="MSE", time_type="monthly")
+        ] = mse_m
+
+        # pbias
+        pbias = skills.percentual_bias(qsim_daily, qobs_daily)
+        dsq["performance"].loc[
+            dict(runs=label, metrics="Pbias", time_type="daily")
+        ] = pbias * 100
+        pbias_m = skills.percentual_bias(qsim_monthly, qobs_monthly)
+        dsq["performance"].loc[
+            dict(runs=label, metrics="Pbias", time_type="monthly")
+        ] = pbias_m * 100
+
+        # ve (volumetric efficiency)
+        # TODO: replace when moved to hydromt
+        def _ve(sim, obs, axis=-1):
+            """Volumetric efficiency."""
+            return 1 - np.nansum(np.absolute(sim - obs), axis=axis) / np.nansum(np.isfinite(obs), axis=axis)
+        
+        kwargs = dict(
+            input_core_dims=[["time"], ["time"]], dask="parallelized", output_dtypes=[float]
+        )
+        ve = xr.apply_ufunc(_ve, qsim_daily, qobs_daily, **kwargs)
+        ve.name = "ve"
+        dsq["performance"].loc[
+            dict(runs=label, metrics="VE", time_type="daily")
+        ] = ve
+        ve_m = xr.apply_ufunc(_ve, qsim_monthly, qobs_monthly, **kwargs)
+        ve_m.name = "ve"
+        dsq["performance"].loc[
+            dict(runs=label, metrics="VE", time_type="monthly")
+        ] = ve_m
+
+    ### 2. Convert to dataframe ###
     df_perf = None
     for label in labels:
-        df = dsq['performance'].sel(runs = label, metrics = ['NSE', 'NSElog', 'KGE', 'RMSE', 'MSE']).to_dataframe()
+        df = dsq['performance'].sel(
+            runs = label, 
+            metrics = ['NSE', 'NSElog', 'KGE', 'RMSE', 'MSE', 'Pbias', 'VE'],
+        ).to_dataframe()
         station_name = df["station_name"].iloc[0]
         if len(labels) > 1:
             station_name = f"{station_name}_{label}"
@@ -81,7 +198,7 @@ def plot_signatures(
         else:
             df_perf = df_perf.join(df)
 
-    # fig, axes = plt.subplots(5,2, figsize=(16/2.54, 22/2.54), tight_layout=True)
+    ### 3. Plot signatures ###
     fig = plt.figure(figsize=(16 / 2.54, 22 / 2.54), tight_layout=True)
     axes = fig.subplots(nrows=5, ncols=2)
     axes = axes.flatten()
@@ -242,9 +359,8 @@ def plot_signatures(
     for label in labels:
         r2_score = rsquared(dsq_max["Q"].sel(runs="Obs."), dsq_max["Q"].sel(runs=label))
         text_label = text_label + f"R$_2$ {label} = {r2_score:.2f} \n"
-    # axes[4].text(max_y/2, max_y/8, text_label, fontsize=fs)
     axes[4].text(0.5, 0.05, text_label, transform=axes[4].transAxes, fontsize=fs)
-    # axes[4].text(max_y/2, max_y/8, f"R$_2$ {label} = {r2_score:.2f} \nR$_2$ {label_01} = {r2_score_new:.2f}", fontsize=fs)
+
     # add MHQ
     mhq = dsq_max.mean("time")
     for label in labels:
@@ -291,9 +407,7 @@ def plot_signatures(
             dsq_nm7q["Q"].sel(runs="Obs."), dsq_nm7q["Q"].sel(runs=label)
         )
         text_label = text_label + f"R$_2$ {label} = {r2_score:.2f} \n"
-    # axes[5].text(max_ylow*1.1/2, max_ylow*1.1/8, text_label, fontsize=fs)
     axes[5].text(0.5, 0.05, text_label, transform=axes[5].transAxes, fontsize=fs)
-    ## axes[5].text(max_ylow*1.1/2, max_ylow*1.1/8, f"R$_2$ {label} = {r2_score:.2f} \nR$_2$ {label_01} = {r2_score_new:.2f} ", fontsize=fs)
     # labels
     axes[5].set_ylabel("Simulated NM7Q (m$^3$s$^{-1}$)", fontsize=fs)
     axes[5].set_xlabel("Observed NM7Q (m$^3$s$^{-1}$)", fontsize=fs)
@@ -398,12 +512,11 @@ def plot_signatures(
     axes[8].set_ylabel("Cum. Q (m$^3$s$^{-1}$)", fontsize=fs)
 
     # performance measures NS, NSlogQ, KGE, axes[9]
-    #     sns.boxplot(ax=axes[9], data = df_perf, x = 'metrics', hue = 'runs', y = 'performance')
     # nse
     for label, color, marker in zip(labels, colors, markers):
         axes[9].plot(
             0.8,
-            dsq["performance"].loc[dict(runs=label, metrics="NSE")],
+            dsq["performance"].loc[dict(runs=label, metrics="NSE", time_type="daily")],
             color=color,
             marker=marker,
             linestyle="None",
@@ -414,7 +527,7 @@ def plot_signatures(
     for label, color, marker in zip(labels, colors, markers):
         axes[9].plot(
             2.8,
-            dsq["performance"].loc[dict(runs=label, metrics="NSElog")],
+            dsq["performance"].loc[dict(runs=label, metrics="NSElog", time_type="daily")],
             color=color,
             marker=marker,
             linestyle="None",
@@ -425,7 +538,7 @@ def plot_signatures(
     for label, color, marker in zip(labels, colors, markers):
         axes[9].plot(
             4.8,
-            dsq["performance"].loc[dict(runs=label, metrics="KGE")],
+            dsq["performance"].loc[dict(runs=label, metrics="KGE", time_type="daily")],
             color=color,
             marker=marker,
             linestyle="None",

@@ -27,6 +27,7 @@ def get_config(config, arg, default=None, optional=True):
 project_dir = get_config(config, 'project_dir', optional=False)
 model_region = get_config(config, 'model_region', optional=False)
 model_resolution = get_config(config, 'model_resolution', 0.00833333)
+model_build_config = get_config(config, 'model_build_config', 'config/wflow_build_model.ini')
 DATA_SOURCES = get_config(config, "data_sources", optional=False)
 
 output_locations = get_config(config, "output_locations", None)
@@ -46,7 +47,7 @@ rule all:
 # Rule to build model hydromt build wflow
 rule create_model:
     input:
-        hydromt_ini = "config/wflow_build_model.ini",
+        hydromt_ini = model_build_config,
     output:
         basin_nc = f"{basin_dir}/staticmaps.nc",
     shell:
@@ -105,12 +106,9 @@ rule plot_results:
    output: 
        output_png = f"{project_dir}/plots/wflow_model_performance/hydro_wflow_1.png",
    params:
-       starttime = get_config(config, "starttime", optional=False),
-       endtime = get_config(config, "endtime", optional=False),
        project_dir = f"{project_dir}",
        observations_file = observations_timeseries,
        gauges_output_fid = output_locations,
-       outputs = wflow_outvars,
    script: "src/plot_results.py"
 
 rule plot_map:
