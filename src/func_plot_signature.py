@@ -165,7 +165,7 @@ def plot_signatures(
         # TODO: replace when moved to hydromt
         def _ve(sim, obs, axis=-1):
             """Volumetric efficiency."""
-            return 1 - np.nansum(np.absolute(sim - obs), axis=axis) / np.nansum(np.isfinite(obs), axis=axis)
+            return 1 - np.nansum(np.absolute(sim - obs), axis=axis) / np.nansum(obs, axis=axis)
         
         kwargs = dict(
             input_core_dims=[["time"], ["time"]], dask="parallelized", output_dtypes=[float]

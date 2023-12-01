@@ -1,3 +1,12 @@
+# import sys
+
+# # Get the snake_config file from the command line
+# if '--configfile' in sys.argv:
+#     i = sys.argv.index('--configfile')
+# elif '--configfiles' in sys.argv:
+#     i = sys.argv.index('--configfiles')
+# csnake_config = sys.argv[i+1]
+
 # Parsing the Snakemake config file (options for basins to build, data catalog, model output directory)
 #configfile: "config/snake_config_test.yml"
 
@@ -43,6 +52,20 @@ rule all:
         f"{project_dir}/plots/wflow_model_performance/hydro_wflow_1.png",
         f"{project_dir}/plots/wflow_model_performance/basin_area.png",
         f"{project_dir}/plots/wflow_model_performance/precip.png",
+        f"{project_dir}/config/snake_config_model_creation.yml",
+
+# Rule to copy config files to the project_dir/config folder
+rule copy_config:
+    input:
+        config_build = model_build_config,
+        config_snake = workflow.configfiles[0],
+    params:
+        data_catalogs = DATA_SOURCES,
+        workflow_name = "model_creation",
+    output:
+        config_snake_out = f"{project_dir}/config/snake_config_model_creation.yml",
+    script:
+        "src/copy_config_files.py"
 
 # Rule to build model hydromt build wflow
 rule create_model:
@@ -111,6 +134,7 @@ rule plot_results:
        gauges_output_fid = output_locations,
    script: "src/plot_results.py"
 
+# Rule to plot the wflow basin, rivers, gauges and DEM on a map
 rule plot_map:
     input:
         gauges_fid = ancient(f"{basin_dir}/staticgeoms/gauges.geojson")
