@@ -194,9 +194,7 @@ time_tuple_fut = tuple(map(str, time_tuple_fut.split(", ")))
 
 # open datasets and slice times
 ds_hist_time = xr.open_dataset(stats_time_nc_hist)
-ds_hist_time = ds_hist_time.sel(time=slice(*time_tuple_hist))
 ds_clim_time = xr.open_dataset(stats_time_nc)
-ds_clim_time = ds_clim_time.sel(time=slice(*time_tuple_fut))
 
 # Get names of grids if save_grids
 if save_grids:
@@ -248,7 +246,8 @@ for dim in YDIMS:
 # create dummy netcdf otherwise as this is the file snake is checking:
 
 if len(ds_clim_time) > 0:
-
+    ds_hist_time = ds_hist_time.sel(time=slice(*time_tuple_hist))
+    ds_clim_time = ds_clim_time.sel(time=slice(*time_tuple_fut))
     # calculate statistics (mean, std, 0.1 0.25 0.50 0.75 0.90 quantiles of annual precip sum and mean temp)
     stats_annual_change = get_change_annual_clim_proj(ds_hist_time, ds_clim_time)
     # add time horizon coords

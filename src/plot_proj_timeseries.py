@@ -37,6 +37,8 @@ def todatetimeindex_dropvars(ds):
             ds["time"] = ds.indexes["time"].to_datetimeindex()
     if "spatial_ref" in ds.coords:
         ds = ds.drop_vars("spatial_ref")
+    if "height" in ds.coords:
+        ds = ds.drop_vars("height")
     return ds
 
 
