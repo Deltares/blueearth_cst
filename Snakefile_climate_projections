@@ -1,4 +1,9 @@
 import itertools
+import sys
+
+# read path of the config file to give to the weagen scripts
+args = sys.argv
+config_path = args[args.index("--configfile") + 1]
 
 # Parsing the Snakemake config file (options for basins to build, data catalog, model output directory)
 # Function to get argument from config file and return default value if not found
@@ -56,8 +61,21 @@ rule all:
         stats_change_plt = (clim_project_dir + "/plots/projected_climate_statistics.png"),
         precip_plt = (clim_project_dir + "/plots/precipitation_anomaly_projections.png"),
         temp_plt = (clim_project_dir + "/plots/temperature_anomaly_projections.png"),
+        snake_config = f"{project_dir}/config/snake_config_climate_projections.yml",
 
 ruleorder: monthly_stats_hist > monthly_stats_fut > monthly_change > monthly_change_scalar_merge
+
+# Rule to copy config files to the project_dir/config folder
+rule copy_config:
+    input:
+        config_snake = config_path,
+    params:
+        data_catalogs = DATA_SOURCES,
+        workflow_name = "climate_projections",
+    output:
+        config_snake_out = f"{project_dir}/config/snake_config_climate_projections.yml",
+    script:
+        "src/copy_config_files.py"
 
 # Rule to calculate mean monthly statistics for historical and future scenarios - grid saved to netcdf
 # also calculate monthly time series averaged over the grid.

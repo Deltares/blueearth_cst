@@ -1,11 +1,14 @@
-# import sys
+import sys
 
 # # Get the snake_config file from the command line
 # if '--configfile' in sys.argv:
 #     i = sys.argv.index('--configfile')
 # elif '--configfiles' in sys.argv:
 #     i = sys.argv.index('--configfiles')
-# csnake_config = sys.argv[i+1]
+# snake_config = sys.argv[i+1]
+# read path of the config file to give to the weagen scripts
+args = sys.argv
+config_path = args[args.index("--configfile") + 1]
 
 # Parsing the Snakemake config file (options for basins to build, data catalog, model output directory)
 #configfile: "config/snake_config_test.yml"
@@ -58,7 +61,7 @@ rule all:
 rule copy_config:
     input:
         config_build = model_build_config,
-        config_snake = workflow.configfiles[0],
+        config_snake = config_path,
     params:
         data_catalogs = DATA_SOURCES,
         workflow_name = "model_creation",

@@ -59,7 +59,6 @@ if __name__ == "__main__":
         sm = globals()["snakemake"]
         # Get the in and out path of the snake (main) config file
         config_snake = sm.input.config_snake
-        import pdb; pdb.set_trace()
         config_snake_out = sm.output.config_snake_out
 
         # Derive output dir from the output path of the snake config file
@@ -75,6 +74,9 @@ if __name__ == "__main__":
             config_build = sm.input.config_build
             data_sources = sm.params.data_catalogs
             other_config_files.extend([config_build, data_sources])
+        elif workflow_name == "climate_projections" or workflow_name == "climate_experiment":
+            data_sources = sm.params.data_catalogs
+            other_config_files.extend([data_sources])
 
         # Call the main function
         copy_config_files(
@@ -88,6 +90,6 @@ if __name__ == "__main__":
         copy_config_files(
             config="config/snake_config_model_test.yml", 
             output_dir="examples/test/config",
-            config_out_name="snake_config_model_creation.yml",  
+            config_out_name=None,  
             other_config_files=[],
         )
