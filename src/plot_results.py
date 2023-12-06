@@ -5,7 +5,7 @@ Created on Wed Jul 14 09:18:38 2021
 @author: bouaziz
 """
 
-
+#%%
 import xarray as xr
 import numpy as np
 import os
@@ -23,10 +23,10 @@ from func_plot_signature import (
     plot_basavg,
 )
 
-
 fs = 8
 lw = 0.8
 
+#%%
 # Snakemake options
 project_dir = snakemake.params.project_dir
 starttime = snakemake.params.starttime
@@ -47,8 +47,8 @@ if not os.path.isdir(Folder_plots):
     os.mkdir(Folder_plots)
 
 # Other options
-labels = ["Mod."]
-colors = ["orange"]
+labels = ["simulated"] #"observed"
+colors = ["steelblue"] #"red"
 linestyles = ["-"]
 markers = ["o"]
 
@@ -75,7 +75,7 @@ qsim_gauges = qsim_gauges.assign_coords(
     )
 )
 
-
+#%%
 # read model output at output locations provided by user
 if f"gauges_{gauges_output_name}" in mod.staticgeoms:
     qsim_outloc = mod.results[f"Q_gauges_{gauges_output_name}"]
@@ -187,8 +187,10 @@ for ds in ds_list:
             dsq = ds.sel(index=station_id)
         # plot hydro
         if len(np.unique(dsq["time.year"])) >= 3:
-            year_min = pd.to_datetime(dsq["Q"].sel(runs="Mod.").idxmin().values).year
-            year_max = pd.to_datetime(dsq["Q"].sel(runs="Mod.").idxmax().values).year
+            year_min = dsq['Q'].resample(time='A').sum().sel(runs="simulated").idxmin().dt.year.values # driest year
+            year_max = dsq['Q'].resample(time='A').sum().sel(runs="simulated").idxmax().dt.year.values # wettest year
+            # year_min = pd.to_datetime(dsq["Q"].sel(runs="Mod.").idxmin().values).year 
+            # year_max = pd.to_datetime(dsq["Q"].sel(runs="Mod.").idxmax().values).year # highest peak
             # if min and max occur during the same year, select 2nd year with modeled min flow:
             if year_min == year_max:
                 year_min = (
@@ -262,7 +264,9 @@ for index in ds_clim.index.values:
     ds_clim_i = ds_clim[["P_subcatchment", "EP_subcatchment", "T_subcatchment"]].sel(
         index=index
     )
-    plot_clim(ds_clim_i, Folder_plots, f"wflow_{index}")
+    plot_clim(ds_clim_i, Folder_plots, f"wflow_{index}", 'year')
+    plt.close()
+    plot_clim(ds_clim_i, Folder_plots, f"wflow_{index}", 'month')
     plt.close()
 
 # Plots for other wflow outputs
@@ -271,3 +275,6 @@ plot_basavg(ds_basin, Folder_plots)
 plt.close()
 
 # TODO add summary maps mean prec and temp spatially?
+
+
+# %%
