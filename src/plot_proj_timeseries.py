@@ -17,28 +17,14 @@ import cartopy.io.img_tiles as cimgt
 import numpy as np
 
 #%%
-project_dir = r'n:\Projects\11208000\11208225\F. Other information\05 WB Pilots\04 Georgia_Tashiskari\05 Models\915\Tashiskari' #snakemake.params.project_dir
-clim_project_dir = f"{project_dir}/climate_projections/cmip6"  #f"{clim_project_dir}",
-models= ['NCC/NorESM2-LM'] #, 'CMCC/CMCC-ESM2', 'INM/INM-CM5-0']
-rcps = ['ssp245', 'ssp585']
-stats_time_nc_hist =[(clim_project_dir + f"/historical_stats_time_{mod}.nc") for mod in models]
-stats_time_nc = os.listdir(clim_project_dir + "/stats_time-NCC")#expand((clim_project_dir + "/stats_time-{model}_{scenario}.nc"), model = models, scenario = rcps),
-stats_time_nc = [os.path.join(clim_project_dir + "/stats_time-NCC", nc) for nc in stats_time_nc]
-# future_horizons: 
-#   near: 2030, 2060
-#   far: 2070, 2100 
-save_grids = False
-#change_grids = [(clim_project_dir + f"/monthly_change_mean_grid-{mod}_{sc}_{hz}.nc") for mod,sc,hz in list(itertools.product(models,scenarios,future_horizons))],
-
-
 # Snakemake options
-#clim_project_dir = snakemake.params.clim_project_dir
-#stats_time_nc_hist = snakemake.input.stats_time_nc_hist
-#stats_time_nc = snakemake.input.stats_time_nc
-#rcps = snakemake.params.scenarios
-#horizons = snakemake.params.horizons
-#save_grids = snakemake.params.save_grids
-#change_grids_nc = snakemake.params.change_grids
+clim_project_dir = snakemake.params.clim_project_dir
+stats_time_nc_hist = snakemake.input.stats_time_nc_hist
+stats_time_nc = snakemake.input.stats_time_nc
+rcps = snakemake.params.scenarios
+horizons = snakemake.params.horizons
+save_grids = snakemake.params.save_grids
+change_grids_nc = snakemake.params.change_grids
 
 
 #%% Historical

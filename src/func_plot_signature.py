@@ -636,8 +636,6 @@ def plot_clim(ds_clim, Folder_out, station_name, period, lw=0.8, fs=8):
     plt.savefig(os.path.join(Folder_out, f"clim_{station_name}_{period}.png"), dpi=300)
 
 
-
-
 def plot_basavg(ds, Folder_out, fs=10):
     dvars = [dvar for dvar in ds.data_vars]
     n = len(dvars)
