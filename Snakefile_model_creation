@@ -1,12 +1,6 @@
 import sys
 
-# # Get the snake_config file from the command line
-# if '--configfile' in sys.argv:
-#     i = sys.argv.index('--configfile')
-# elif '--configfiles' in sys.argv:
-#     i = sys.argv.index('--configfiles')
-# snake_config = sys.argv[i+1]
-# read path of the config file to give to the weagen scripts
+# Get the snake_config file from the command line
 args = sys.argv
 config_path = args[args.index("--configfile") + 1]
 
@@ -39,7 +33,7 @@ def get_config(config, arg, default=None, optional=True):
 project_dir = get_config(config, 'project_dir', optional=False)
 model_region = get_config(config, 'model_region', optional=False)
 model_resolution = get_config(config, 'model_resolution', 0.00833333)
-model_build_config = get_config(config, 'model_build_config', 'config/wflow_build_model.ini')
+model_build_config = get_config(config, 'model_build_config', 'config/wflow_build_model.yml')
 DATA_SOURCES = get_config(config, "data_sources", optional=False)
 
 output_locations = get_config(config, "output_locations", None)
@@ -77,7 +71,7 @@ rule create_model:
     output:
         basin_nc = f"{basin_dir}/staticmaps.nc",
     shell:
-        """hydromt build wflow "{basin_dir}" --region "{model_region}" --opt setup_basemaps.res="{model_resolution}" -i "{input.hydromt_ini}" -d "{DATA_SOURCES}" -vv"""
+        """hydromt build wflow "{basin_dir}" --region "{model_region}" --opt setup_basemaps.res="{model_resolution}" -i "{input.hydromt_ini}" -d "{DATA_SOURCES}" --fo -vv"""
 
 # Rule to add gauges to the built model
 rule add_gauges_and_outputs:
@@ -97,7 +91,7 @@ rule setup_runtime:
     input:
         gauges_fid = ancient(f"{basin_dir}/staticgeoms/gauges.geojson")
     output:
-        forcing_ini = f"{project_dir}/config/wflow_build_forcing_historical.ini"
+        forcing_yml = f"{project_dir}/config/wflow_build_forcing_historical.yml"
     params:
         starttime = get_config(config, "starttime", optional=False),
         endtime = get_config(config, "endtime", optional=False),
@@ -107,7 +101,7 @@ rule setup_runtime:
 # Rule to add forcing to the updated model
 rule add_forcing:
     input:
-        forcing_ini = f"{project_dir}/config/wflow_build_forcing_historical.ini"
+        forcing_ini = f"{project_dir}/config/wflow_build_forcing_historical.yml"
     output:
         forcing_fid = f"{project_dir}/climate_historical/wflow_data/inmaps_historical.nc"
     shell:

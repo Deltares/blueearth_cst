@@ -15,7 +15,7 @@ import pandas as pd
 import hydromt
 from hydromt_wflow import WflowModel
 
-from typing import Union, List
+from typing import Union
 
 from func_plot_signature import (
     plot_signatures,
@@ -67,13 +67,10 @@ def analyse_wflow_historical(
     # Instantiate wflow model
     mod = WflowModel(root=Folder_run, mode="r")
 
-    # read gauges staticgeoms
-    #gdf_gauges = mod.staticgeoms["gauges"]
-
-    # read outputlocs staticgeoms
-    if f"gauges_{gauges_output_name}" in mod.staticgeoms:
-        gdf_outlocs = mod.staticgeoms[f"gauges_{gauges_output_name}"]
-        stationID = "wflow_id"  # column name in staticgeoms containing the stations IDs
+    # read outputlocs geoms
+    if f"gauges_{gauges_output_name}" in mod.geoms:
+        gdf_outlocs = mod.geoms[f"gauges_{gauges_output_name}"]
+        stationID = "wflow_id"  # column name in geoms containing the stations IDs
         gdf_outlocs.index = gdf_outlocs[stationID]
 
     # read model output at gauges locations from model setup
@@ -87,7 +84,7 @@ def analyse_wflow_historical(
     )
 
     # read model output at output locations provided by user
-    if f"gauges_{gauges_output_name}" in mod.staticgeoms:
+    if f"gauges_{gauges_output_name}" in mod.geoms:
         qsim_outloc = mod.results[f"Q_gauges_{gauges_output_name}"]
         # add station_name
         qsim_outloc = qsim_outloc.assign_coords(
@@ -131,10 +128,10 @@ def analyse_wflow_historical(
 
     # Discharge data
     # make sure the user provided a observation file and ouput locations
-    if (f"gauges_{gauges_output_name}" in mod.staticgeoms) & (
+    if (f"gauges_{gauges_output_name}" in mod.geoms) & (
         has_observations
     ):
-        name = f"gauges_{gauges_output_name}"  # gauges locations in staticgeoms
+        name = f"gauges_{gauges_output_name}"  # gauges locations in geoms
         da_ts = hydromt.io.open_timeseries_from_table(
             observations_fn, name=name, sep=";"
         )
@@ -156,7 +153,7 @@ def analyse_wflow_historical(
     ### 3. make plots - first loop over output locations ###
 
     # combine sim and obs at outputloc in one dataset if timeseries observations exist
-    if (f"gauges_{gauges_output_name}" in mod.staticgeoms) & (
+    if (f"gauges_{gauges_output_name}" in mod.geoms) & (
         has_observations
     ):
         ds_outlocs = ds_obs.combine_first(ds_sim_outlocs)
@@ -174,12 +171,12 @@ def analyse_wflow_historical(
 
     # select dataset based on gauges or/and outputloc locations
     # if no user output and observations are provided:
-    if ((f"{gauges_output_name}" in mod.staticgeoms) == False) & (
+    if ((f"{gauges_output_name}" in mod.geoms) == False) & (
         not has_observations
     ):
         ds_list = [ds_sim_gauges]
     # if user output locs are available but no observations timeseries:
-    elif ((f"{gauges_output_name}" in mod.staticgeoms) == True) & (
+    elif ((f"{gauges_output_name}" in mod.geoms) == True) & (
         not has_observations
     ):
         ds_list = [ds_sim_gauges, ds_sim_outlocs]
