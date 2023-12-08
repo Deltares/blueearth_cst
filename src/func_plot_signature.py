@@ -451,10 +451,18 @@ def plot_signatures(
     return df_perf
 
 def plot_hydro(
-    dsq,start_long,end_long,
-    year_wet,year_dry,
-    labels,colors,
-    Folder_out,station_name,lw=0.8,fs=7):
+    dsq,
+    start_long,
+    end_long,
+    year_wet,
+    year_dry,
+    labels,
+    colors,
+    Folder_out,
+    station_name,
+    lw=0.8,
+    fs=7
+):
     fig, axes = plt.subplots(5, 1, figsize=(16 / 2.54, 23 / 2.54))
     # long period
     for label, color in zip(labels, colors):
@@ -528,61 +536,6 @@ def plot_hydro(
     plt.tight_layout()
 
     plt.savefig(os.path.join(Folder_out, f"hydro_{station_name}.png"), dpi=300)
-
-def plot_hydro_old(
-    dsq,
-    start_long,
-    end_long,
-    year_1,
-    year_2,
-    labels,
-    colors,
-    Folder_out,
-    station_name,
-    lw=0.8,
-    fs=8,
-):
-    fig, axes = plt.subplots(3, 1, figsize=(16 / 2.54, 15 / 2.54))
-    # long period
-    for label, color in zip(labels, colors):
-        dsq["Q"].sel(runs=label, time=slice(start_long, end_long)).plot(
-            ax=axes[0], label=label, linewidth=lw, color=color
-        )
-    if "Obs." in dsq["runs"]:
-        dsq["Q"].sel(runs="Obs.", time=slice(start_long, end_long)).plot(
-            ax=axes[0], label="Obs.", linewidth=lw, color="k", linestyle="--"
-        )
-
-    # s1-e1
-    for label, color in zip(labels, colors):
-        dsq["Q"].sel(runs=label, time=year_1).plot(
-            ax=axes[1], label=label, linewidth=lw, color=color
-        )
-    if "Obs." in dsq["runs"]:
-        dsq["Q"].sel(runs="Obs.", time=year_1).plot(
-            ax=axes[1], label="Obs.", linewidth=lw, color="k", linestyle="--"
-        )
-
-    # s2-e2
-    for label, color in zip(labels, colors):
-        dsq["Q"].sel(runs=label, time=year_2).plot(
-            ax=axes[2], label=label, linewidth=lw, color=color
-        )
-    if "Obs." in dsq["runs"]:
-        dsq["Q"].sel(runs="Obs.", time=year_2).plot(
-            ax=axes[2], label="Obs.", linewidth=lw, color="k", linestyle="--"
-        )
-
-    for ax in axes:
-        ax.tick_params(axis="both", labelsize=fs)
-        ax.set_ylabel("Q (m$^3$s$^{-1}$)", fontsize=fs)
-        ax.set_xlabel("", fontsize=fs)
-        ax.set_title("")
-    axes[0].legend(fontsize=fs)
-    plt.tight_layout()
-
-    plt.savefig(os.path.join(Folder_out, f"hydro_{station_name}.png"), dpi=300)
-
 
 def plot_hydro_1y(
     dsq, start_long, end_long, labels, colors, Folder_out, station_name, lw=0.8, fs=8
