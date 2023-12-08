@@ -5,6 +5,7 @@ Created on Wed Jul 14 09:18:38 2021
 @author: bouaziz
 """
 
+#%%
 import hydromt
 from hydromt.stats import skills
 import numpy as np
@@ -13,6 +14,8 @@ import os
 import scipy.stats as stats
 import pandas as pd
 
+
+#%%
 # Supported wflow outputs
 WFLOW_VARS = {
     "overland flow": {"resample": "mean", "legend": "Overland Flow (m$^3$s$^{-1}$)"},
@@ -447,21 +450,20 @@ def plot_signatures(
 
     return df_perf
 
-
 def plot_hydro(
     dsq,
     start_long,
     end_long,
-    year_1,
-    year_2,
+    year_wet,
+    year_dry,
     labels,
     colors,
     Folder_out,
     station_name,
     lw=0.8,
-    fs=8,
+    fs=7
 ):
-    fig, axes = plt.subplots(3, 1, figsize=(16 / 2.54, 15 / 2.54))
+    fig, axes = plt.subplots(5, 1, figsize=(16 / 2.54, 23 / 2.54))
     # long period
     for label, color in zip(labels, colors):
         dsq["Q"].sel(runs=label, time=slice(start_long, end_long)).plot(
@@ -472,36 +474,68 @@ def plot_hydro(
             ax=axes[0], label="Obs.", linewidth=lw, color="k", linestyle="--"
         )
 
-    # s1-e1
+    # annual Q
     for label, color in zip(labels, colors):
-        dsq["Q"].sel(runs=label, time=year_1).plot(
+        dsq.sel(runs=label).resample(time='A').sum().Q.plot(
             ax=axes[1], label=label, linewidth=lw, color=color
         )
     if "Obs." in dsq["runs"]:
-        dsq["Q"].sel(runs="Obs.", time=year_1).plot(
+        dsq["Q"].sel(runs="Obs.").resample(time='A').sum().Q.plot(
             ax=axes[1], label="Obs.", linewidth=lw, color="k", linestyle="--"
         )
 
-    # s2-e2
+    # monthly Q
+    month_labels = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
     for label, color in zip(labels, colors):
-        dsq["Q"].sel(runs=label, time=year_2).plot(
+        dsqM = dsq.sel(runs=label).resample(time='M').sum()
+        dsqM = dsqM.groupby(dsqM.time.dt.month).mean()
+        dsqM.Q.plot(
             ax=axes[2], label=label, linewidth=lw, color=color
         )
     if "Obs." in dsq["runs"]:
-        dsq["Q"].sel(runs="Obs.", time=year_2).plot(
-            ax=axes[2], label="Obs.", linewidth=lw, color="k", linestyle="--"
+        dsqMo = dsq.sel(runs="Obs.").resample(time='M').sum()
+        dsqMo = dsqMo.groupby(dsqMo.time.dt.month).mean()
+        dsqMo.Q.plot(
+            ax=axes[2], label="Obs.", linewidth=lw, color=color
+        )
+    axes[2].set_title('Average monthly sum')
+    axes[2].set_xticks(ticks=np.arange(1, 13), labels=month_labels, fontsize=5)
+
+    # wettest year
+    for label, color in zip(labels, colors):
+        dsq["Q"].sel(runs=label, time=year_wet).plot(
+            ax=axes[3], label=label, linewidth=lw, color=color
+        )
+    if "Obs." in dsq["runs"]:
+        dsq["Q"].sel(runs="Obs.", time=year_wet).plot(
+            ax=axes[3], label="Obs.", linewidth=lw, color="k", linestyle="--"
         )
 
-    for ax in axes:
+    # driest year
+    for label, color in zip(labels, colors):
+        dsq["Q"].sel(runs=label, time=year_dry).plot(
+            ax=axes[4], label=label, linewidth=lw, color=color
+        )
+    if "Obs." in dsq["runs"]:
+        dsq["Q"].sel(runs="Obs.", time=year_dry).plot(
+            ax=axes[4], label="Obs.", linewidth=lw, color="k", linestyle="--"
+        )
+
+    titles = ['Daily time-series', 'Annual time-series', 'Annual cycle', 'Wettest year', 'Driest year']
+    for ax, title in zip(axes, titles):
         ax.tick_params(axis="both", labelsize=fs)
-        ax.set_ylabel("Q (m$^3$s$^{-1}$)", fontsize=fs)
+        if ax == axes[1]:
+            ax.set_ylabel("Q (m$^3$yr$^{-1}$)", fontsize=fs)
+        elif ax == axes[2]: 
+            ax.set_ylabel("Q (m$^3$month$^{-1}$)", fontsize=fs)
+        else: 
+            ax.set_ylabel("Q (m$^3$s$^{-1}$)", fontsize=fs)
+        ax.set_title(title, fontsize=fs)
         ax.set_xlabel("", fontsize=fs)
-        ax.set_title("")
     axes[0].legend(fontsize=fs)
     plt.tight_layout()
 
     plt.savefig(os.path.join(Folder_out, f"hydro_{station_name}.png"), dpi=300)
-
 
 def plot_hydro_1y(
     dsq, start_long, end_long, labels, colors, Folder_out, station_name, lw=0.8, fs=8
@@ -527,75 +561,89 @@ def plot_hydro_1y(
     plt.savefig(os.path.join(Folder_out, f"hydro_{station_name}.png"), dpi=300)
 
 
-def plot_clim(ds_clim, Folder_out, station_name, lw=0.8, fs=8):
+def plot_clim(ds_clim, Folder_out, station_name, period, lw=0.8, fs=8):
     fig, (ax1, ax2, ax3) = plt.subplots(
         3, 1, figsize=(16 / 2.54, 15 / 2.54), sharex=True
     )
-    # precip
-    P_sum_monthly = ds_clim["P_subcatchment"].resample(time="M").sum("time")
-    P_sum_monthly_mean = P_sum_monthly.groupby("time.month").mean("time")
-    P_sum_monthly_q25 = P_sum_monthly.groupby("time.month").quantile(0.25, "time")
-    P_sum_monthly_q75 = P_sum_monthly.groupby("time.month").quantile(0.75, "time")
 
-    # plot
-    P_sum_monthly_mean.plot(ax=ax1, color="darkblue")
-    ax1.fill_between(
-        np.arange(1, 13), P_sum_monthly_q25, P_sum_monthly_q75, color="lightblue"
-    )
-
-    # pot evap
-    P_sum_monthly = ds_clim["EP_subcatchment"].resample(time="M").sum("time")
-    P_sum_monthly_mean = P_sum_monthly.groupby("time.month").mean("time")
-    P_sum_monthly_q25 = P_sum_monthly.groupby("time.month").quantile(0.25, "time")
-    P_sum_monthly_q75 = P_sum_monthly.groupby("time.month").quantile(0.75, "time")
-
-    # plot
-    P_sum_monthly_mean.plot(ax=ax2, color="darkgreen")
-    ax2.fill_between(
-        np.arange(1, 13), P_sum_monthly_q25, P_sum_monthly_q75, color="lightgreen"
-    )
-    #    P_sum_monthly_mean.to_series().plot.bar(ax=ax1, color = 'lightblue')
-
+    if period == 'year': 
+        resampleper = 'A'
+    else: 
+        resampleper = 'M'
+    
     # temp
-    T_mean_monthly_mean = ds_clim["T_subcatchment"].groupby("time.month").mean("time")
-    T_mean_monthly_q25 = (
-        ds_clim["T_subcatchment"].groupby("time.month").quantile(0.25, "time")
-    )
-    T_mean_monthly_q75 = (
-        ds_clim["T_subcatchment"].groupby("time.month").quantile(0.75, "time")
-    )
-    # plot
-    T_mean_monthly_mean.plot(ax=ax3, color="red")
-    ax3.fill_between(
-        np.arange(1, 13), T_mean_monthly_q25, T_mean_monthly_q75, color="orange"
-    )
-    #    T_mean_monthly_mean.to_series().plot.line(ax=ax2, color = 'orange')
+    if period=='month': 
+        T_mean_monthly_mean = ds_clim["T_subcatchment"].groupby(f"time.{period}").mean("time")
+        T_mean_monthly_q25 = (
+            ds_clim["T_subcatchment"].groupby(f"time.{period}").quantile(0.25, "time")
+        )
+        T_mean_monthly_q75 = (
+            ds_clim["T_subcatchment"].groupby(f"time.{period}").quantile(0.75, "time")
+        )
+        # plot
+        T_mean_monthly_mean.plot(ax=ax1, color="red")
+        ax1.fill_between(
+            np.arange(1, 13), T_mean_monthly_q25, T_mean_monthly_q75, color="orange"
+        )
+        #    T_mean_monthly_mean.to_series().plot.line(ax=ax2, color = 'orange')
+    else:   
+        T_mean_year = ds_clim["T_subcatchment"].resample(time=resampleper).mean("time")
+        T_mean_year.plot(ax=ax1, color="red")
 
-    for ax in [ax1, ax2, ax3]:
+        x = T_mean_year.time.dt.year
+        z = np.polyfit(x, T_mean_year, 1)
+        p = np.poly1d(z)
+        r2_score = rsquared(p(x), T_mean_year)
+        ax1.plot(T_mean_year.time, p(x), ls='--', color='lightgrey')
+        ax1.text(T_mean_year.time[0], T_mean_year.min(), f'$R^2$ = {round(r2_score, 3)}')
+
+    # precip and evap
+    for climvar, clr, clr_range, ax in zip(["P_subcatchment", "EP_subcatchment"], ['steelblue', 'forestgreen'], ['lightblue', 'lightgreen'], [ax2,ax3]):
+        var_sum_monthly = ds_clim[climvar].resample(time=resampleper).sum("time")
+        
+        if period=='month': 
+            var_sum_monthly_mean = var_sum_monthly.groupby(f"time.{period}").mean("time")
+            var_sum_monthly_q25 = var_sum_monthly.groupby(f"time.{period}").quantile(0.25, "time")
+            var_sum_monthly_q75 = var_sum_monthly.groupby(f"time.{period}").quantile(0.75, "time")
+            
+            var_sum_monthly_mean.plot(ax=ax, color=clr)
+            ax.fill_between(
+                np.arange(1, 13), var_sum_monthly_q25, var_sum_monthly_q75, color=clr_range
+            )
+        else: 
+            x = var_sum_monthly.time.dt.year
+            z = np.polyfit(x, var_sum_monthly, 1)
+            p = np.poly1d(z)
+            r2_score = rsquared(p(x), var_sum_monthly)
+            
+            ax.plot(var_sum_monthly.time, p(x), ls='--', color='lightgrey')
+            ax.text(var_sum_monthly.time[0], var_sum_monthly.min(), f'$R^2$ = {round(r2_score, 3)}')
+            var_sum_monthly.plot(ax=ax, color=clr)
+
+    for ax, title_name, ylab in zip([ax1, ax2, ax3], ['Temperature', 'Precipitation','Potential evaporation'], ["T (deg C)", f"P (mm {period}$^{-1}$)", f"E$_P$ (mm {period}$^{-1}$)", ]):
         ax.tick_params(axis="both", labelsize=fs)
         ax.set_xlabel("", fontsize=fs)
-        ax.set_title("")
+        ax.set_title(title_name)
+        ax.grid(alpha=0.5)
+        ax.set_ylabel(ylab, fontsize=fs)
 
-    ax1.set_ylabel("P (mm month$^{-1}$)", fontsize=fs)
-    ax2.set_ylabel("E$_P$ (mm month$^{-1}$)", fontsize=fs)
-    ax3.set_ylabel("T (deg C)", fontsize=fs)
-
-    month_labels = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
-    ax3.set_xticks(ticks=np.arange(1, 13), labels=month_labels, fontsize=fs)
+    if period == 'month':
+        month_labels = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
+        ax3.set_xticks(ticks=np.arange(1, 13), labels=month_labels, fontsize=fs)
 
     plt.tight_layout()
     fig.set_tight_layout(True)
-    plt.savefig(os.path.join(Folder_out, f"clim_{station_name}.png"), dpi=300)
+    plt.savefig(os.path.join(Folder_out, f"clim_{station_name}_{period}.png"), dpi=300)
 
 
-def plot_basavg(ds, Folder_out, fs=8):
+def plot_basavg(ds, Folder_out, fs=10):
     dvars = [dvar for dvar in ds.data_vars]
     n = len(dvars)
     
     for i in range(n):
         dvar = dvars[i]
 
-        fig, ax = plt.subplots(1, 1, sharex=True, figsize=(15, 4))
+        fig, ax = plt.subplots(1, 1, sharex=True, figsize=(11, 4))
         #axes = [axes] if n == 1 else axes
 
         if WFLOW_VARS[dvar.split("_")[0]]["resample"] == "sum":
@@ -617,10 +665,13 @@ def plot_basavg(ds, Folder_out, fs=8):
         ax.tick_params(axis="both", labelsize=fs)
         ax.set_xlabel("", fontsize=fs)
         ax.set_title("")
+        ax.grid(alpha=0.5)
 
         month_labels = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
         ax.set_xticks(ticks=np.arange(1, 13), labels=month_labels, fontsize=fs)
 
         plt.tight_layout()
         fig.set_tight_layout(True)
-        plt.savefig(os.path.join(Folder_out, f"basin_average_{dvar}.png"), dpi=300)
+        plt.savefig(os.path.join(Folder_out, f"{dvar}.png"), dpi=300)
+
+# %%
