@@ -186,7 +186,7 @@ rule export_wflow_results:
     input:
         rlz_csv_fns = expand((f"{basin_dir}/run_climate_{experiment}/output_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".csv"), rlz_num=np.arange(1, RLZ_NUM+1), st_num2=np.arange(ST_START, ST_NUM+1)),
     output:
-        Qstats = f"{exp_dir}/model_results/Qstats.csv",
+        Qstats = f"{exp_dir}/model_results/mean.csv",
         basin = f"{exp_dir}/model_results/basin.csv",
     params:
         model_dir = basin_dir,

@@ -58,8 +58,8 @@ def analyse_wflow_historical(
         os.mkdir(Folder_plots)
 
     # Other plot options
-    labels = ["Mod."]
-    colors = ["orange"]
+    labels = ["simulated"] #"observed"
+    colors = ["steelblue"] #"red"
     linestyles = ["-"]
     markers = ["o"]
 
@@ -138,6 +138,11 @@ def analyse_wflow_historical(
         da_ts = hydromt.io.open_timeseries_from_table(
             observations_fn, name=name, sep=";"
         )
+        # HydroMT bug to be fixed index len and names on gdf_outltocs and da_ts need to be an excact match
+        # Find common index in gdf_outlocs and da_ts and keep only the common ones
+        common_index = gdf_outlocs.index.intersection(da_ts.index)
+        gdf_outlocs = gdf_outlocs.loc[common_index]
+        da_ts = da_ts.sel(index=common_index)
         da = hydromt.vector.GeoDataArray.from_gdf(gdf_outlocs, da_ts, index_dim="index")
         qobs_outloc = da
         # rename run to Obs. and rename var to Q
@@ -200,9 +205,8 @@ def analyse_wflow_historical(
                 dsq = ds.sel(index=station_id)
             # plot hydro
             if len(np.unique(dsq["time.year"])) >= 3:
-                year_min = pd.to_datetime(dsq["Q"].sel(runs="Mod.").idxmin().values).year
-                year_max = pd.to_datetime(dsq["Q"].sel(runs="Mod.").idxmax().values).year
-                # if min and max occur during the same year, select 2nd year with modeled min flow:
+                year_min = dsq['Q'].resample(time='A').sum().sel(runs="simulated").idxmin().dt.year.values # driest year
+                year_max = dsq['Q'].resample(time='A').sum().sel(runs="simulated").idxmax().dt.year.values # wettest year
                 if year_min == year_max:
                     year_min = (
                         dsq.resample(time="A").min("time").isel(time=1)["time.year"].values
@@ -287,7 +291,9 @@ def analyse_wflow_historical(
         ds_clim_i = ds_clim[["P_subcatchment", "EP_subcatchment", "T_subcatchment"]].sel(
             index=index
         )
-        plot_clim(ds_clim_i, Folder_plots, f"wflow_{index}")
+        plot_clim(ds_clim_i, Folder_plots, f"wflow_{index}", 'year')
+        plt.close()
+        plot_clim(ds_clim_i, Folder_plots, f"wflow_{index}", 'month')
         plt.close()
 
     # Plots for other wflow outputs
