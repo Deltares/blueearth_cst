@@ -5,12 +5,9 @@ Export wflow results for easy plotting of the climate response plots
 import os
 import pandas as pd
 import numpy as np
-from xclim.indices.stats import frequency_analysis
 import xarray as xr
 
-import hydromt
 from hydromt_wflow import WflowModel
-from hydromt_wflow.utils import read_csv_results
 
 import metrics_definition as md
 
@@ -114,7 +111,7 @@ for i in range(np.size(df_out_mean,0)):
     df_q95 = sim.resample('a').quantile(0.95).mean()
     # High flows
     df_RT = md.returninterval(sim, Tpeak)
-    df_Q7dmax = md.Q7d_max(sim)
+    df_Q7dmax = md.Q7d_maxyear(sim)
     df_highpulse = md.highpulse(sim)
     df_wetmonth = md.wetmonth_mean(sim)
     # Low flows
@@ -182,8 +179,9 @@ for i in range(np.size(df_out_mean,0)):
     df_out_basavg.iloc[i, :] = stats_basavg.round(1)
 
 print("Writting tables for 2D stress tests plots")
-if not os.path.isdir(bas_fn):
+if not os.path.isdir(os.path.dirname(bas_fn)):
     os.makedirs(bas_fn)
+
 df_out_basavg.to_csv(bas_fn, index=False)
 # One file per stat
 df_out_mean.to_csv(mean_fn, index=False)

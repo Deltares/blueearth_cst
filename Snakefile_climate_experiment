@@ -55,7 +55,7 @@ wflow_run_length = get_config(config, 'run_length', 20)
 # Master rule: end with all model run and analysed with saving a output plot
 rule all:
     input:
-        Qstats = f"{exp_dir}/model_results/Qstats.csv",
+        Qstats = f"{exp_dir}/model_results/mean.csv",
         basin = f"{exp_dir}/model_results/basin.csv",
         snake_config = f"{project_dir}/config/snake_config_climate_experiment.yml",
 

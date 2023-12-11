@@ -1,19 +1,14 @@
 import os
-import numpy as np
 import hydromt
 from pathlib import Path
+from typing import Union, List
 
-# Snake parameters
-fn_out = snakemake.output.clim_data
-data_libs = snakemake.params.data_sources
-clim_source = snakemake.params.clim_source
-nc_fns = snakemake.input.cst_nc
-nc_fns2 = snakemake.input.rlz_nc
-
-nc_fns.extend(nc_fns2)
-
-
-def prepare_clim_data_catalog(fns, data_libs_like, source_like, fn_out=None):
+def prepare_clim_data_catalog(
+    fns: List[Union[str,Path]], 
+    data_libs_like: Union[str,Path], 
+    source_like: str, 
+    fn_out: Union[str, Path] = None,
+):
     """
     Prepares a data catalog for files path listed in fns using the same attributes as source_like
     in data_libs_like.
@@ -24,7 +19,7 @@ def prepare_clim_data_catalog(fns, data_libs_like, source_like, fn_out=None):
     fns: list(path)
         Path to the new data sources files.
     data_libs_like: str or list(str)
-        Path to the existing data catlaog where source_like is stored.
+        Path to the existing data catalog where source_like is stored.
     source_like: str
         Data sources with the same attributes as the new sources in fns.
     fn_out: str, Optional
@@ -99,6 +94,24 @@ def prepare_clim_data_catalog(fns, data_libs_like, source_like, fn_out=None):
         climate_data_catalog.to_yml(fn_out)
 
 
-_ = prepare_clim_data_catalog(
-    fns=nc_fns, data_libs_like=data_libs, source_like=clim_source, fn_out=fn_out
-)
+
+if __name__ == "__main__":
+    if "snakemake" in globals():
+        sm = globals()["snakemake"]
+        # Read the two list of nc files and combine
+        nc_fns = sm.input.cst_nc
+        nc_fns2 = sm.input.rlz_nc
+        nc_fns.extend(nc_fns2)
+        
+        prepare_clim_data_catalog(
+            fns=nc_fns, 
+            data_libs_like=sm.params.data_sources, 
+            source_like=sm.params.clim_source, 
+            fn_out=sm.output.clim_data,
+        )
+    else:
+        raise ValueError("This script should be run from a snakemake environment")
+
+
+
+

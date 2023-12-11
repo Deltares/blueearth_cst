@@ -1,6 +1,4 @@
 import xarray as xr
-import pandas as pd
-import numpy as np
 from xclim.indices.stats import frequency_analysis
 
 ## High flows
@@ -29,7 +27,7 @@ def wetmonth_mean(df):
     monthlysum = df.groupby(df.index.month).sum()
     wetmonth = monthlysum.idxmax()[0] 
     df_wetmonth = df[df.index.month == wetmonth]
-    return df_wetmonth.resample('a').mean()
+    return df_wetmonth.resample('a').mean().mean()
 
 ## Low flows
 def returninterval_Q7d(df, T):
@@ -49,7 +47,7 @@ def drymonth_mean(df):
     monthlysum = df.groupby(df.index.month).sum()
     drymonth = monthlysum.idxmin()[0]
     df_drymonth = df[df.index.month == drymonth]
-    return df_drymonth.resample('a').mean()
+    return df_drymonth.resample('a').mean().mean()
 
 def BFI(df): 
     Q7d = df.rolling(7).mean().resample('a').min()
