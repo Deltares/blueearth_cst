@@ -19,7 +19,7 @@ setup_rivers:
 setup_reservoirs:
   reservoirs_fn: hydro_reservoirs  # source for reservoirs based on GRAND: {hydro_reservoirs}; None to skip
   min_area: 1.0           # minimum lake area to consider [km2]
-  priority_jrc: True          # if True then JRC data from hydroengine is used to calculate some reservoir attributes instead of the GRanD and HydroLAKES db.   
+  timeseries_fn: hydroengine  # if hydroengine is used to calculate some reservoir attributes instead of the GRanD and HydroLAKES db.   
 
 setup_lakes:
   lakes_fn: hydro_lakes   # source for lakes based on hydroLAKES: {hydro_lakes}; None to skip
