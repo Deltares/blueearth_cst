@@ -4,6 +4,7 @@ from os.path import join, dirname
 from pathlib import Path
 from typing import Union, List
 
+
 def copy_config_files(
     config: Union[str, Path],
     output_dir: Union[str, Path],
@@ -22,16 +23,16 @@ def copy_config_files(
     output_dir : Union[str, Path]
         path to the output directory
     config_out_name : str, optional
-        name of the output snake config file, by default None to use the same name 
+        name of the output snake config file, by default None to use the same name
         as the input config
     other_config_files : List[Union[str, Path]], optional
         list of paths to other config files to copy, by default []
-    
+
     """
     # Create output directory if it does not exist
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    
+
     # Get the name of the output snake config file
     if config_out_name is None:
         config_out_name = os.path.basename(config)
@@ -44,7 +45,7 @@ def copy_config_files(
 
     # Copy other config files to the output directory
     for config_file in other_config_files:
-        # Check if the file does exist 
+        # Check if the file does exist
         # (eg predefined catalogs of hydromt do not have a path)
         if os.path.isfile(config_file):
             with open(config_file, "r") as f:
@@ -53,6 +54,7 @@ def copy_config_files(
             print(f"Copying {config_name} to {output_dir}")
             with open(join(output_dir, config_name), "w") as f:
                 f.write(config)
+
 
 if __name__ == "__main__":
     if "snakemake" in globals():
@@ -74,22 +76,25 @@ if __name__ == "__main__":
             config_build = sm.input.config_build
             data_sources = sm.params.data_catalogs
             other_config_files.extend([config_build, data_sources])
-        elif workflow_name == "climate_projections" or workflow_name == "climate_experiment":
+        elif (
+            workflow_name == "climate_projections"
+            or workflow_name == "climate_experiment"
+        ):
             data_sources = sm.params.data_catalogs
             other_config_files.extend([data_sources])
 
         # Call the main function
         copy_config_files(
-            config=config_snake, 
+            config=config_snake,
             output_dir=output_dir,
-            config_out_name=config_snake_out_name,  
+            config_out_name=config_snake_out_name,
             other_config_files=other_config_files,
         )
-        
+
     else:
         copy_config_files(
-            config="config/snake_config_model_test.yml", 
+            config="config/snake_config_model_test.yml",
             output_dir="examples/test/config",
-            config_out_name=None,  
+            config_out_name=None,
             other_config_files=[],
         )

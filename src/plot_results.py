@@ -46,7 +46,7 @@ def analyse_wflow_historical(
     # TODO: check if used and moved to arguments
     fs = 8
     lw = 0.8
-    
+
     # Get name of gauges dataset from the gauges locations file
     gauges_output_name = os.path.basename(gauges_locs).split(".")[0]
 
@@ -58,8 +58,8 @@ def analyse_wflow_historical(
         os.mkdir(Folder_plots)
 
     # Other plot options
-    labels = ["simulated"] #"observed"
-    colors = ["steelblue"] #"red"
+    labels = ["simulated"]  # "observed"
+    colors = ["steelblue"]  # "red"
     linestyles = ["-"]
     markers = ["o"]
 
@@ -128,9 +128,7 @@ def analyse_wflow_historical(
 
     # Discharge data
     # make sure the user provided a observation file and ouput locations
-    if (f"gauges_{gauges_output_name}" in mod.geoms) & (
-        has_observations
-    ):
+    if (f"gauges_{gauges_output_name}" in mod.geoms) & (has_observations):
         name = f"gauges_{gauges_output_name}"  # gauges locations in geoms
         da_ts = hydromt.io.open_timeseries_from_table(
             observations_fn, name=name, sep=";"
@@ -153,9 +151,7 @@ def analyse_wflow_historical(
     ### 3. make plots - first loop over output locations ###
 
     # combine sim and obs at outputloc in one dataset if timeseries observations exist
-    if (f"gauges_{gauges_output_name}" in mod.geoms) & (
-        has_observations
-    ):
+    if (f"gauges_{gauges_output_name}" in mod.geoms) & (has_observations):
         ds_outlocs = ds_obs.combine_first(ds_sim_outlocs)
         # combine_first now seems to somehow drop the coordinate station_name?
         ds_outlocs["station_name"] = ds_obs["station_name"]
@@ -171,16 +167,12 @@ def analyse_wflow_historical(
 
     # select dataset based on gauges or/and outputloc locations
     # if no user output and observations are provided:
-    if ((f"{gauges_output_name}" in mod.geoms) == False) & (
-        not has_observations
-    ):
+    if ((f"{gauges_output_name}" in mod.geoms) == False) & (not has_observations):
         ds_list = [ds_sim_gauges]
     # if user output locs are available but no observations timeseries:
-    elif ((f"{gauges_output_name}" in mod.geoms) == True) & (
-        not has_observations
-    ):
+    elif ((f"{gauges_output_name}" in mod.geoms) == True) & (not has_observations):
         ds_list = [ds_sim_gauges, ds_sim_outlocs]
-    # if output locs and observations are available 
+    # if output locs and observations are available
     # make hydro plots for gauges and make hydro and signature plots for outputlocs
     else:
         ds_list = [ds_sim_gauges, ds_outlocs]
@@ -202,11 +194,28 @@ def analyse_wflow_historical(
                 dsq = ds.sel(index=station_id)
             # plot hydro
             if len(np.unique(dsq["time.year"])) >= 3:
-                year_min = dsq['Q'].resample(time='A').sum().sel(runs="simulated").idxmin().dt.year.values # driest year
-                year_max = dsq['Q'].resample(time='A').sum().sel(runs="simulated").idxmax().dt.year.values # wettest year
+                year_min = (
+                    dsq["Q"]
+                    .resample(time="A")
+                    .sum()
+                    .sel(runs="simulated")
+                    .idxmin()
+                    .dt.year.values
+                )  # driest year
+                year_max = (
+                    dsq["Q"]
+                    .resample(time="A")
+                    .sum()
+                    .sel(runs="simulated")
+                    .idxmax()
+                    .dt.year.values
+                )  # wettest year
                 if year_min == year_max:
                     year_min = (
-                        dsq.resample(time="A").min("time").isel(time=1)["time.year"].values
+                        dsq.resample(time="A")
+                        .min("time")
+                        .isel(time=1)["time.year"]
+                        .values
                     )
                 plot_hydro(
                     dsq,
@@ -234,7 +243,7 @@ def analyse_wflow_historical(
 
             ### 4. Compute and plot model performance metrics ###
             # dropna time for signature calculations.
-            # skip first year for signatures -- warm up period 
+            # skip first year for signatures -- warm up period
             # if model did not run for a full year - skip signature plots
             if len(ds.time) > 365:
                 dsq = (
@@ -255,14 +264,14 @@ def analyse_wflow_historical(
                     print("observed timeseries are available - making signature plots.")
                     df_perf = plot_signatures(
                         dsq,
-                        Folder_out = Folder_plots,
-                        station_name = station_name,
-                        labels = labels, 
-                        colors = colors, 
-                        linestyles = linestyles, 
-                        markers = markers,
-                        fs = fs,
-                        lw = lw,
+                        Folder_out=Folder_plots,
+                        station_name=station_name,
+                        labels=labels,
+                        colors=colors,
+                        linestyles=linestyles,
+                        markers=markers,
+                        fs=fs,
+                        lw=lw,
                     )
                     if df_perf_all.empty:
                         df_perf_all = df_perf
@@ -285,18 +294,18 @@ def analyse_wflow_historical(
 
     for index in ds_clim.index.values:
         print(f"Plot climatic data at wflow basin {index}")
-        ds_clim_i = ds_clim[["P_subcatchment", "EP_subcatchment", "T_subcatchment"]].sel(
-            index=index
-        )
+        ds_clim_i = ds_clim[
+            ["P_subcatchment", "EP_subcatchment", "T_subcatchment"]
+        ].sel(index=index)
         if len(ds.time) > 365:
-            plot_clim(ds_clim_i, Folder_plots, f"wflow_{index}", 'year')
+            plot_clim(ds_clim_i, Folder_plots, f"wflow_{index}", "year")
             plt.close()
         else:
             print(
                 "less than 1 year of data is available "
                 "no yearly clim plots are made."
-                )
-        plot_clim(ds_clim_i, Folder_plots, f"wflow_{index}", 'month')
+            )
+        plot_clim(ds_clim_i, Folder_plots, f"wflow_{index}", "month")
         plt.close()
 
     # Plots for other wflow outputs
@@ -309,13 +318,13 @@ if __name__ == "__main__":
     if "snakemake" in globals():
         sm = globals()["snakemake"]
         analyse_wflow_historical(
-            project_dir = sm.params.project_dir,
-            observations_fn = sm.params.observations_file,
-            gauges_locs = sm.params.gauges_output_fid,
+            project_dir=sm.params.project_dir,
+            observations_fn=sm.params.observations_file,
+            gauges_locs=sm.params.gauges_output_fid,
         )
     else:
         analyse_wflow_historical(
-            project_dir = join(os.getcwd(), "examples", "my_project"),
-            observations_fn = None,
-            gauges_locs = None,
+            project_dir=join(os.getcwd(), "examples", "my_project"),
+            observations_fn=None,
+            gauges_locs=None,
         )

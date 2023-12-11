@@ -16,6 +16,7 @@ WFLOW_VARS = {
     "snow": "vertical.snowwater",
 }
 
+
 def update_wflow_gauges_outputs(
     wflow_root: Union[str, Path],
     data_catalog: Union[str, Path] = "deltares_data",
@@ -24,7 +25,7 @@ def update_wflow_gauges_outputs(
 ):
     """
     Update wflow model with output and optionnally gauges locations
-    
+
     Parameters
     ----------
     wflow_root : Union[str, Path]
@@ -60,9 +61,9 @@ def update_wflow_gauges_outputs(
             gauges_fn=gauges_fn,
             snap_to_river=True,
             derive_subcatch=True,
-            toml_output = "csv",
-            gauge_toml_header = ["Q", "P"],
-            gauge_toml_param = ["lateral.river.q_av","vertical.precipitation"],
+            toml_output="csv",
+            gauge_toml_header=["Q", "P"],
+            gauge_toml_param=["lateral.river.q_av", "vertical.precipitation"],
         )
 
     # Add additional outputs to the config
@@ -82,19 +83,20 @@ def update_wflow_gauges_outputs(
 
     mod.write()
 
+
 if __name__ == "__main__":
     if "snakemake" in globals():
         sm = globals()["snakemake"]
         update_wflow_gauges_outputs(
-            wflow_root = os.path.dirname(sm.input.basin_nc),
-            data_catalog = sm.params.data_catalog,
-            gauges_fn = sm.params.output_locs,
-            outputs = sm.params.outputs,
+            wflow_root=os.path.dirname(sm.input.basin_nc),
+            data_catalog=sm.params.data_catalog,
+            gauges_fn=sm.params.output_locs,
+            outputs=sm.params.outputs,
         )
     else:
         update_wflow_gauges_outputs(
-            wflow_root = join(os.getcwd(), "examples", "my_project", "hydrology_model"),
-            data_catalog = "deltares_data",
-            gauges_fn = None,
-            outputs = ["river discharge"],
+            wflow_root=join(os.getcwd(), "examples", "my_project", "hydrology_model"),
+            data_catalog="deltares_data",
+            gauges_fn=None,
+            outputs=["river discharge"],
         )

@@ -5,7 +5,7 @@ Created on Wed Jul 14 09:18:38 2021
 @author: bouaziz
 """
 
-#%%
+# %%
 import hydromt
 from hydromt.stats import skills
 import numpy as np
@@ -19,7 +19,7 @@ import xarray as xr
 from typing import List, Union
 
 
-#%%
+# %%
 # Supported wflow outputs
 WFLOW_VARS = {
     "overland flow": {"resample": "mean", "legend": "Overland Flow (m$^3$s$^{-1}$)"},
@@ -43,14 +43,14 @@ def rsquared(x, y):
 
 
 def plot_signatures(
-    dsq: xr.Dataset, 
+    dsq: xr.Dataset,
     Folder_out: Union[Path, str],
     station_name: str = "station",
-    labels: List = ["Mod."], 
-    colors: List = ["orange"], 
-    linestyles: List = ["-"], 
-    markers: List = ["o"], 
-    lw: float = 0.8, 
+    labels: List = ["Mod."],
+    colors: List = ["orange"],
+    linestyles: List = ["-"],
+    markers: List = ["o"],
+    lw: float = 0.8,
     fs: int = 8,
 ) -> pd.DataFrame:
     """
@@ -106,9 +106,7 @@ def plot_signatures(
 
         # nse
         nse = skills.nashsutcliffe(qsim_daily, qobs_daily)
-        dsq["performance"].loc[
-            dict(runs=label, metrics="NSE", time_type="daily")
-        ] = nse
+        dsq["performance"].loc[dict(runs=label, metrics="NSE", time_type="daily")] = nse
         nse_m = skills.nashsutcliffe(qsim_monthly, qobs_monthly)
         dsq["performance"].loc[
             dict(runs=label, metrics="NSE", time_type="monthly")
@@ -123,7 +121,7 @@ def plot_signatures(
         dsq["performance"].loc[
             dict(runs=label, metrics="NSElog", time_type="monthly")
         ] = nselog_m
-        
+
         # kge
         kge = skills.kge(qsim_daily, qobs_daily)
         dsq["performance"].loc[
@@ -133,7 +131,7 @@ def plot_signatures(
         dsq["performance"].loc[
             dict(runs=label, metrics="KGE", time_type="monthly")
         ] = kge_m["kge"]
-        
+
         # rmse
         rmse = skills.rmse(qsim_daily, qobs_daily)
         dsq["performance"].loc[
@@ -143,12 +141,10 @@ def plot_signatures(
         dsq["performance"].loc[
             dict(runs=label, metrics="RMSE", time_type="monthly")
         ] = rmse_m
-        
+
         # mse
         mse = skills.mse(qsim_daily, qobs_daily)
-        dsq["performance"].loc[
-            dict(runs=label, metrics="MSE", time_type="daily")
-        ] = mse
+        dsq["performance"].loc[dict(runs=label, metrics="MSE", time_type="daily")] = mse
         mse_m = skills.mse(qsim_monthly, qobs_monthly)
         dsq["performance"].loc[
             dict(runs=label, metrics="MSE", time_type="monthly")
@@ -156,28 +152,30 @@ def plot_signatures(
 
         # pbias
         pbias = skills.percentual_bias(qsim_daily, qobs_daily)
-        dsq["performance"].loc[
-            dict(runs=label, metrics="Pbias", time_type="daily")
-        ] = pbias * 100
+        dsq["performance"].loc[dict(runs=label, metrics="Pbias", time_type="daily")] = (
+            pbias * 100
+        )
         pbias_m = skills.percentual_bias(qsim_monthly, qobs_monthly)
         dsq["performance"].loc[
             dict(runs=label, metrics="Pbias", time_type="monthly")
-        ] = pbias_m * 100
+        ] = (pbias_m * 100)
 
         # ve (volumetric efficiency)
         # TODO: replace when moved to hydromt
         def _ve(sim, obs, axis=-1):
             """Volumetric efficiency."""
-            return 1 - np.nansum(np.absolute(sim - obs), axis=axis) / np.nansum(obs, axis=axis)
-        
+            return 1 - np.nansum(np.absolute(sim - obs), axis=axis) / np.nansum(
+                obs, axis=axis
+            )
+
         kwargs = dict(
-            input_core_dims=[["time"], ["time"]], dask="parallelized", output_dtypes=[float]
+            input_core_dims=[["time"], ["time"]],
+            dask="parallelized",
+            output_dtypes=[float],
         )
         ve = xr.apply_ufunc(_ve, qsim_daily, qobs_daily, **kwargs)
         ve.name = "ve"
-        dsq["performance"].loc[
-            dict(runs=label, metrics="VE", time_type="daily")
-        ] = ve
+        dsq["performance"].loc[dict(runs=label, metrics="VE", time_type="daily")] = ve
         ve_m = xr.apply_ufunc(_ve, qsim_monthly, qobs_monthly, **kwargs)
         ve_m.name = "ve"
         dsq["performance"].loc[
@@ -187,10 +185,14 @@ def plot_signatures(
     ### 2. Convert to dataframe ###
     df_perf = None
     for label in labels:
-        df = dsq['performance'].sel(
-            runs = label, 
-            metrics = ['NSE', 'NSElog', 'KGE', 'RMSE', 'MSE', 'Pbias', 'VE'],
-        ).to_dataframe()
+        df = (
+            dsq["performance"]
+            .sel(
+                runs=label,
+                metrics=["NSE", "NSElog", "KGE", "RMSE", "MSE", "Pbias", "VE"],
+            )
+            .to_dataframe()
+        )
         station_name = df["station_name"].iloc[0]
         if len(labels) > 1:
             station_name = f"{station_name}_{label}"
@@ -370,8 +372,10 @@ def plot_signatures(
     # R2 score
     text_label = ""
     for label in labels:
-        if len(dsq.time) > 365: 
-            r2_score = rsquared(dsq_max["Q"].sel(runs="Obs."), dsq_max["Q"].sel(runs=label))
+        if len(dsq.time) > 365:
+            r2_score = rsquared(
+                dsq_max["Q"].sel(runs="Obs."), dsq_max["Q"].sel(runs=label)
+            )
             text_label = text_label + f"R$_2$ {label} = {r2_score:.2f} \n"
         else:
             text_label = text_label + f"{label}\n"
@@ -458,7 +462,9 @@ def plot_signatures(
     for label, color, marker in zip(labels, colors, markers):
         axes[7].plot(
             2.8,
-            dsq["performance"].loc[dict(runs=label, metrics="NSElog", time_type="daily")],
+            dsq["performance"].loc[
+                dict(runs=label, metrics="NSElog", time_type="daily")
+            ],
             color=color,
             marker=marker,
             linestyle="None",
@@ -523,7 +529,9 @@ def plot_signatures(
             )
 
         axes[8].set_ylabel("max. annual Q (m$^3$s$^{-1}$)", fontsize=fs)
-        axes[8].set_xlabel("Plotting position and associated return period", fontsize=fs)
+        axes[8].set_xlabel(
+            "Plotting position and associated return period", fontsize=fs
+        )
 
     # gumbel low axes[9]
     # Only if more than 5 years of data
@@ -571,7 +579,9 @@ def plot_signatures(
             )
 
         axes[9].set_ylabel("NM7Q (m$^3$s$^{-1}$)", fontsize=fs)
-        axes[9].set_xlabel("Plotting position and associated return period", fontsize=fs)
+        axes[9].set_xlabel(
+            "Plotting position and associated return period", fontsize=fs
+        )
 
     for ax in axes:
         ax.tick_params(axis="both", labelsize=fs)
@@ -582,6 +592,7 @@ def plot_signatures(
     plt.savefig(os.path.join(Folder_out, f"signatures_{station_name}.png"), dpi=300)
 
     return df_perf
+
 
 def plot_hydro(
     dsq,
@@ -594,7 +605,7 @@ def plot_hydro(
     Folder_out,
     station_name,
     lw=0.8,
-    fs=7
+    fs=7,
 ):
     fig, axes = plt.subplots(5, 1, figsize=(16 / 2.54, 23 / 2.54))
     # long period
@@ -609,29 +620,25 @@ def plot_hydro(
 
     # annual Q
     for label, color in zip(labels, colors):
-        dsq.sel(runs=label).resample(time='A').sum().Q.plot(
+        dsq.sel(runs=label).resample(time="A").sum().Q.plot(
             ax=axes[1], label=label, linewidth=lw, color=color
         )
     if "Obs." in dsq["runs"]:
-        dsq["Q"].sel(runs="Obs.").resample(time='A').sum().Q.plot(
+        dsq["Q"].sel(runs="Obs.").resample(time="A").sum().Q.plot(
             ax=axes[1], label="Obs.", linewidth=lw, color="k", linestyle="--"
         )
 
     # monthly Q
     month_labels = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
     for label, color in zip(labels, colors):
-        dsqM = dsq.sel(runs=label).resample(time='M').sum()
+        dsqM = dsq.sel(runs=label).resample(time="M").sum()
         dsqM = dsqM.groupby(dsqM.time.dt.month).mean()
-        dsqM.Q.plot(
-            ax=axes[2], label=label, linewidth=lw, color=color
-        )
+        dsqM.Q.plot(ax=axes[2], label=label, linewidth=lw, color=color)
     if "Obs." in dsq["runs"]:
-        dsqMo = dsq.sel(runs="Obs.").resample(time='M').sum()
+        dsqMo = dsq.sel(runs="Obs.").resample(time="M").sum()
         dsqMo = dsqMo.groupby(dsqMo.time.dt.month).mean()
-        dsqMo.Q.plot(
-            ax=axes[2], label="Obs.", linewidth=lw, color=color
-        )
-    axes[2].set_title('Average monthly sum')
+        dsqMo.Q.plot(ax=axes[2], label="Obs.", linewidth=lw, color=color)
+    axes[2].set_title("Average monthly sum")
     axes[2].set_xticks(ticks=np.arange(1, 13), labels=month_labels, fontsize=5)
 
     # wettest year
@@ -654,14 +661,20 @@ def plot_hydro(
             ax=axes[4], label="Obs.", linewidth=lw, color="k", linestyle="--"
         )
 
-    titles = ['Daily time-series', 'Annual time-series', 'Annual cycle', 'Wettest year', 'Driest year']
+    titles = [
+        "Daily time-series",
+        "Annual time-series",
+        "Annual cycle",
+        "Wettest year",
+        "Driest year",
+    ]
     for ax, title in zip(axes, titles):
         ax.tick_params(axis="both", labelsize=fs)
         if ax == axes[1]:
             ax.set_ylabel("Q (m$^3$yr$^{-1}$)", fontsize=fs)
-        elif ax == axes[2]: 
+        elif ax == axes[2]:
             ax.set_ylabel("Q (m$^3$month$^{-1}$)", fontsize=fs)
-        else: 
+        else:
             ax.set_ylabel("Q (m$^3$s$^{-1}$)", fontsize=fs)
         ax.set_title(title, fontsize=fs)
         ax.set_xlabel("", fontsize=fs)
@@ -669,6 +682,7 @@ def plot_hydro(
     plt.tight_layout()
 
     plt.savefig(os.path.join(Folder_out, f"hydro_{station_name}.png"), dpi=300)
+
 
 def plot_hydro_1y(
     dsq, start_long, end_long, labels, colors, Folder_out, station_name, lw=0.8, fs=8
@@ -699,14 +713,16 @@ def plot_clim(ds_clim, Folder_out, station_name, period, lw=0.8, fs=8):
         3, 1, figsize=(16 / 2.54, 15 / 2.54), sharex=True
     )
 
-    if period == 'year': 
-        resampleper = 'A'
-    else: 
-        resampleper = 'M'
-    
+    if period == "year":
+        resampleper = "A"
+    else:
+        resampleper = "M"
+
     # temp
-    if period=='month': 
-        T_mean_monthly_mean = ds_clim["T_subcatchment"].groupby(f"time.{period}").mean("time")
+    if period == "month":
+        T_mean_monthly_mean = (
+            ds_clim["T_subcatchment"].groupby(f"time.{period}").mean("time")
+        )
         T_mean_monthly_q25 = (
             ds_clim["T_subcatchment"].groupby(f"time.{period}").quantile(0.25, "time")
         )
@@ -719,7 +735,7 @@ def plot_clim(ds_clim, Folder_out, station_name, period, lw=0.8, fs=8):
             np.arange(1, 13), T_mean_monthly_q25, T_mean_monthly_q75, color="orange"
         )
         #    T_mean_monthly_mean.to_series().plot.line(ax=ax2, color = 'orange')
-    else:   
+    else:
         T_mean_year = ds_clim["T_subcatchment"].resample(time=resampleper).mean("time")
         T_mean_year.plot(ax=ax1, color="red")
 
@@ -727,40 +743,68 @@ def plot_clim(ds_clim, Folder_out, station_name, period, lw=0.8, fs=8):
         z = np.polyfit(x, T_mean_year, 1)
         p = np.poly1d(z)
         r2_score = rsquared(p(x), T_mean_year)
-        ax1.plot(T_mean_year.time, p(x), ls='--', color='lightgrey')
-        ax1.text(T_mean_year.time[0], T_mean_year.min(), f'$R^2$ = {round(r2_score, 3)}')
+        ax1.plot(T_mean_year.time, p(x), ls="--", color="lightgrey")
+        ax1.text(
+            T_mean_year.time[0], T_mean_year.min(), f"$R^2$ = {round(r2_score, 3)}"
+        )
 
     # precip and evap
-    for climvar, clr, clr_range, ax in zip(["P_subcatchment", "EP_subcatchment"], ['steelblue', 'forestgreen'], ['lightblue', 'lightgreen'], [ax2,ax3]):
+    for climvar, clr, clr_range, ax in zip(
+        ["P_subcatchment", "EP_subcatchment"],
+        ["steelblue", "forestgreen"],
+        ["lightblue", "lightgreen"],
+        [ax2, ax3],
+    ):
         var_sum_monthly = ds_clim[climvar].resample(time=resampleper).sum("time")
-        
-        if period=='month': 
-            var_sum_monthly_mean = var_sum_monthly.groupby(f"time.{period}").mean("time")
-            var_sum_monthly_q25 = var_sum_monthly.groupby(f"time.{period}").quantile(0.25, "time")
-            var_sum_monthly_q75 = var_sum_monthly.groupby(f"time.{period}").quantile(0.75, "time")
-            
+
+        if period == "month":
+            var_sum_monthly_mean = var_sum_monthly.groupby(f"time.{period}").mean(
+                "time"
+            )
+            var_sum_monthly_q25 = var_sum_monthly.groupby(f"time.{period}").quantile(
+                0.25, "time"
+            )
+            var_sum_monthly_q75 = var_sum_monthly.groupby(f"time.{period}").quantile(
+                0.75, "time"
+            )
+
             var_sum_monthly_mean.plot(ax=ax, color=clr)
             ax.fill_between(
-                np.arange(1, 13), var_sum_monthly_q25, var_sum_monthly_q75, color=clr_range
+                np.arange(1, 13),
+                var_sum_monthly_q25,
+                var_sum_monthly_q75,
+                color=clr_range,
             )
-        else: 
+        else:
             x = var_sum_monthly.time.dt.year
             z = np.polyfit(x, var_sum_monthly, 1)
             p = np.poly1d(z)
             r2_score = rsquared(p(x), var_sum_monthly)
-            
-            ax.plot(var_sum_monthly.time, p(x), ls='--', color='lightgrey')
-            ax.text(var_sum_monthly.time[0], var_sum_monthly.min(), f'$R^2$ = {round(r2_score, 3)}')
+
+            ax.plot(var_sum_monthly.time, p(x), ls="--", color="lightgrey")
+            ax.text(
+                var_sum_monthly.time[0],
+                var_sum_monthly.min(),
+                f"$R^2$ = {round(r2_score, 3)}",
+            )
             var_sum_monthly.plot(ax=ax, color=clr)
 
-    for ax, title_name, ylab in zip([ax1, ax2, ax3], ['Temperature', 'Precipitation','Potential evaporation'], ["T (deg C)", f"P (mm {period}$^{-1}$)", f"E$_P$ (mm {period}$^{-1}$)", ]):
+    for ax, title_name, ylab in zip(
+        [ax1, ax2, ax3],
+        ["Temperature", "Precipitation", "Potential evaporation"],
+        [
+            "T (deg C)",
+            f"P (mm {period}$^{-1}$)",
+            f"E$_P$ (mm {period}$^{-1}$)",
+        ],
+    ):
         ax.tick_params(axis="both", labelsize=fs)
         ax.set_xlabel("", fontsize=fs)
         ax.set_title(title_name)
         ax.grid(alpha=0.5)
         ax.set_ylabel(ylab, fontsize=fs)
 
-    if period == 'month':
+    if period == "month":
         month_labels = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
         ax3.set_xticks(ticks=np.arange(1, 13), labels=month_labels, fontsize=fs)
 
@@ -772,12 +816,12 @@ def plot_clim(ds_clim, Folder_out, station_name, period, lw=0.8, fs=8):
 def plot_basavg(ds, Folder_out, fs=10):
     dvars = [dvar for dvar in ds.data_vars]
     n = len(dvars)
-    
+
     for i in range(n):
         dvar = dvars[i]
 
         fig, ax = plt.subplots(1, 1, sharex=True, figsize=(11, 4))
-        #axes = [axes] if n == 1 else axes
+        # axes = [axes] if n == 1 else axes
 
         if WFLOW_VARS[dvar.split("_")[0]]["resample"] == "sum":
             sum_monthly = ds[dvar].resample(time="M").sum("time")
@@ -806,5 +850,6 @@ def plot_basavg(ds, Folder_out, fs=10):
         plt.tight_layout()
         fig.set_tight_layout(True)
         plt.savefig(os.path.join(Folder_out, f"{dvar}.png"), dpi=300)
+
 
 # %%

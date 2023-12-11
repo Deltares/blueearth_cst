@@ -25,6 +25,7 @@ import cartopy.io.img_tiles as cimgt
 
 from hydromt_wflow import WflowModel
 
+
 def plot_map_model(mod, da, figname, gauges_name):
     # read/derive river geometries
     gdf_riv = mod.rivers
@@ -136,7 +137,7 @@ def plot_map_model(mod, da, figname, gauges_name):
 
 def plot_forcing(
     wflow_root: Union[str, Path],
-    plot_dir = None,
+    plot_dir=None,
     gauges_name: str = None,
 ):
     """
@@ -147,7 +148,7 @@ def plot_forcing(
     wflow_root : Union[str, Path]
         Path to the wflow model root folder
     plot_dir : str, optional
-        Path to the output folder. If None (default), create a folder "plots" 
+        Path to the output folder. If None (default), create a folder "plots"
         in the wflow_root folder.
     gauges_name : str, optional
         Name of the gauges to plot. If None (default), no gauges are plot.
@@ -174,11 +175,12 @@ def plot_forcing(
             da = mod.forcing[forcing_var].resample(time="A").mean("time").mean("time")
         else:
             da = mod.forcing[forcing_var].resample(time="A").sum("time").mean("time")
-            da = da.where(da>0)
+            da = da.where(da > 0)
         da = da.where(mod.grid["wflow_subcatch"] >= 0)
         da.attrs.update(long_name=forcing_char["long_name"], units=forcing_char["unit"])
         figname = f"{forcing_var}"
         plot_map_model(mod, da, figname, gauges_name)
+
 
 if __name__ == "__main__":
     if "snakemake" in globals():
@@ -193,11 +195,11 @@ if __name__ == "__main__":
         root = f"{project_dir}/hydrology_model"
 
         plot_forcing(
-            wflow_root = root,
-            plot_dir = Folder_plots,
-            gauges_name = gauges_name,
+            wflow_root=root,
+            plot_dir=Folder_plots,
+            gauges_name=gauges_name,
         )
     else:
         plot_forcing(
-            wflow_root = join(os.getcwd(), "examples", "my_project", "hydrology_model")
+            wflow_root=join(os.getcwd(), "examples", "my_project", "hydrology_model")
         )

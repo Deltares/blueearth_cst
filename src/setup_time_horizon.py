@@ -3,6 +3,7 @@ import hydromt
 from pathlib import Path
 from typing import Union
 
+
 def prep_hydromt_update_forcing_config(
     starttime: str,
     endtime: str,
@@ -32,7 +33,6 @@ def prep_hydromt_update_forcing_config(
         oro_source = "era5_orography"
         pet_method = "debruin"
 
-
     forcing_options = {
         "setup_config": {
             "starttime": starttime,
@@ -58,19 +58,20 @@ def prep_hydromt_update_forcing_config(
     # Save it to a hydroMT ini file
     hydromt.config.configwrite(fn_yml, forcing_options)
 
+
 if __name__ == "__main__":
     if "snakemake" in globals():
         sm = globals()["snakemake"]
         prep_hydromt_update_forcing_config(
-            starttime = sm.params.starttime,
-            endtime = sm.params.endtime,
-            fn_yml = sm.output.forcing_yml,
-            precip_source = sm.params.clim_source,
+            starttime=sm.params.starttime,
+            endtime=sm.params.endtime,
+            fn_yml=sm.output.forcing_yml,
+            precip_source=sm.params.clim_source,
         )
     else:
         prep_hydromt_update_forcing_config(
-            starttime = "2010-01-01T00:00:00",
-            endtime = "2010-12-31T00:00:00",
-            fn_yml = "wflow_build_forcing_historical.yml",
-            precip_source = "era5",
+            starttime="2010-01-01T00:00:00",
+            endtime="2010-12-31T00:00:00",
+            fn_yml="wflow_build_forcing_historical.yml",
+            precip_source="era5",
         )

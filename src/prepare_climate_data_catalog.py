@@ -3,10 +3,11 @@ import hydromt
 from pathlib import Path
 from typing import Union, List
 
+
 def prepare_clim_data_catalog(
-    fns: List[Union[str,Path]], 
-    data_libs_like: Union[str,Path], 
-    source_like: str, 
+    fns: List[Union[str, Path]],
+    data_libs_like: Union[str, Path],
+    source_like: str,
     fn_out: Union[str, Path] = None,
 ):
     """
@@ -94,7 +95,6 @@ def prepare_clim_data_catalog(
         climate_data_catalog.to_yml(fn_out)
 
 
-
 if __name__ == "__main__":
     if "snakemake" in globals():
         sm = globals()["snakemake"]
@@ -102,16 +102,12 @@ if __name__ == "__main__":
         nc_fns = sm.input.cst_nc
         nc_fns2 = sm.input.rlz_nc
         nc_fns.extend(nc_fns2)
-        
+
         prepare_clim_data_catalog(
-            fns=nc_fns, 
-            data_libs_like=sm.params.data_sources, 
-            source_like=sm.params.clim_source, 
+            fns=nc_fns,
+            data_libs_like=sm.params.data_sources,
+            source_like=sm.params.clim_source,
             fn_out=sm.output.clim_data,
         )
     else:
         raise ValueError("This script should be run from a snakemake environment")
-
-
-
-

@@ -10,11 +10,12 @@ from typing import Union
 from dask.diagnostics import ProgressBar
 from hydromt.workflows.forcing import temp
 
+
 def prep_historical_climate(
     region_fn: Union[str, Path],
     fn_out: Union[str, Path],
     data_libs: Union[str, Path] = "deltares_data",
-    clim_source: str = "era5", 
+    clim_source: str = "era5",
     starttime: str = "1980-01-01T00:00:00",
     endtime: str = "2010-12-31T00:00:00",
 ):
@@ -66,9 +67,11 @@ def prep_historical_climate(
             buffer=1,
             variables=["temp", "temp_min", "temp_max", "kin", "kout", "press_msl"],
         )
-        # Prepare orography data corresponding to chirps from merit hydro DEM 
+        # Prepare orography data corresponding to chirps from merit hydro DEM
         # (needed for downscaling of climate variables)
-        print(f"Preparing orography data for {clim_source} to downscale climate variables.")
+        print(
+            f"Preparing orography data for {clim_source} to downscale climate variables."
+        )
         dem = data_catalog.get_rasterdataset(
             "merit_hydro",
             bbox=region.geometry.total_bounds,
@@ -119,23 +122,38 @@ def prep_historical_climate(
     with ProgressBar():
         delayed_obj.compute()
 
+
 if __name__ == "__main__":
     if "snakemake" in globals():
         sm = globals()["snakemake"]
         prep_historical_climate(
-            region_fn = sm.input.prj_region,
-            fn_out = sm.output.climate_nc,
-            data_libs = sm.params.data_sources,
-            clim_source = sm.params.clim_source,
-            starttime = "1980-01-01T00:00:00",
-            endtime = "2010-12-31T00:00:00",
+            region_fn=sm.input.prj_region,
+            fn_out=sm.output.climate_nc,
+            data_libs=sm.params.data_sources,
+            clim_source=sm.params.clim_source,
+            starttime="1980-01-01T00:00:00",
+            endtime="2010-12-31T00:00:00",
         )
     else:
         prep_historical_climate(
-            region_fn = join(os.getcwd(), "examples", "my_project", "hydrology_model", "staticgeoms", "region.geojson"),
-            fn_out = join(os.getcwd(), "examples", "my_project", "climate_historical", "raw_data", "extract_historical.nc"),
-            data_libs = "deltares_data",
-            clim_source = "era5",
-            starttime = "1980-01-01T00:00:00",
-            endtime = "2010-12-31T00:00:00",
+            region_fn=join(
+                os.getcwd(),
+                "examples",
+                "my_project",
+                "hydrology_model",
+                "staticgeoms",
+                "region.geojson",
+            ),
+            fn_out=join(
+                os.getcwd(),
+                "examples",
+                "my_project",
+                "climate_historical",
+                "raw_data",
+                "extract_historical.nc",
+            ),
+            data_libs="deltares_data",
+            clim_source="era5",
+            starttime="1980-01-01T00:00:00",
+            endtime="2010-12-31T00:00:00",
         )

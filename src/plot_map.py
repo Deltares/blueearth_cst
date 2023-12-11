@@ -5,7 +5,7 @@ Created on Thu Jan 13 16:23:11 2022
 @author: bouaziz
 """
 
-#%% plot map
+# %% plot map
 
 import xarray as xr
 import numpy as np
@@ -107,21 +107,21 @@ if gauges_name in mod.geoms:
         zorder=5,
         label="output locs",
     )
-    if 'station_name' in mod.geoms[gauges_name].columns:
+    if "station_name" in mod.geoms[gauges_name].columns:
         mod.geoms[gauges_name].apply(
             lambda x: ax.annotate(
-                text=x['station_name'], 
+                text=x["station_name"],
                 xy=x.geometry.coords[0],
-                xytext=(2.0, 2.0), 
-                textcoords='offset points', 
-                #ha='left',
-                #va = 'top',
+                xytext=(2.0, 2.0),
+                textcoords="offset points",
+                # ha='left',
+                # va = 'top',
                 fontsize=5,
-                fontweight='bold',
-                color='black',
-                path_effects=[pe.withStroke(linewidth=2, foreground="white")]
-            ), 
-            axis=1
+                fontweight="bold",
+                color="black",
+                path_effects=[pe.withStroke(linewidth=2, foreground="white")],
+            ),
+            axis=1,
         )
 
 patches = (

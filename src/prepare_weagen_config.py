@@ -34,9 +34,9 @@ if cftype == "generate":
         "sim.year.start": 2010,
         "sim.year.num": nr_years_weagen,
         "nc.file.prefix": snakemake.params.nc_file_prefix,
-        "realizations_num": yml_snake["realizations_num"]
+        "realizations_num": yml_snake["realizations_num"],
     }
-    for k,v in yml_add.items():
+    for k, v in yml_add.items():
         yml_dict["generateWeatherSeries"][k] = v
 
 else:  # stress test

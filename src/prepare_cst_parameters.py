@@ -7,6 +7,7 @@ import yaml
 
 from typing import Union, List
 
+
 def prep_cst_parameters(
     config_fn: Union[str, Path],
     csv_fns: List[Union[str, Path]],
@@ -79,14 +80,15 @@ def prep_cst_parameters(
 
             i += 1
 
+
 if __name__ == "__main__":
     if "snakemake" in globals():
         sm = globals()["snakemake"]
         prep_cst_parameters(
-            config_fn = sm.input.config,
-            csv_fns = sm.output.st_csv_fns,
+            config_fn=sm.input.config,
+            csv_fns=sm.output.st_csv_fns,
         )
     else:
         prep_cst_parameters(
-            config_fn = join(os.getcwd(), "config", "snake_config_model_test.yml"),
+            config_fn=join(os.getcwd(), "config", "snake_config_model_test.yml"),
         )

@@ -15,7 +15,7 @@ import xarray as xr
 
 from dask.diagnostics import ProgressBar
 
-#%%
+# %%
 
 # Snakemake options
 project_dir = snakemake.params.project_dir
@@ -31,24 +31,24 @@ save_grids = snakemake.params.save_grids
 # Time tuple for timeseries
 if name_clim_project == "cmip6":
     if name_scenario == "historical":
-        #cmip6 historical 1850-2014
+        # cmip6 historical 1850-2014
         time_tuple_all = ("1950-01-01", "2014-12-31")
     else:
-        #cmip6 future 2015-2100+ depending on models
+        # cmip6 future 2015-2100+ depending on models
         time_tuple_all = ("2015-01-01", "2100-12-31")
 elif name_clim_project == "cmip5":
     if name_scenario == "historical":
-        #cmip5 historical 1850-2005
+        # cmip5 historical 1850-2005
         time_tuple_all = ("1950-01-01", "2005-12-31")
     else:
-        #cmip5 future 2006-2100
+        # cmip5 future 2006-2100
         time_tuple_all = ("2006-01-01", "2100-12-31")
-else: #isimip3
+else:  # isimip3
     if name_scenario == "historical":
-        #isimip3 historical 1850-2014
+        # isimip3 historical 1850-2014
         time_tuple_all = ("1991-01-01", "2014-12-31")
     else:
-        #isimip3 future 2015-2100 / p drive has gaps in between 2014-2021
+        # isimip3 future 2015-2100 / p drive has gaps in between 2014-2021
         time_tuple_all = ("2021-01-01", "2100-12-31")
 
 # additional folder structure info
@@ -130,7 +130,7 @@ def get_stats_clim_projections(
         # get grid average over time for each month
         if save_grids:
             # slice over time_tuple to save minimal required info for the grid
-            #var_m = var_m.sel(time=slice(*time_tuple))
+            # var_m = var_m.sel(time=slice(*time_tuple))
             var_mm = var_m.groupby("time.month").mean("time").round(decimals=2)
             ds.append(var_mm.to_dataset())
 
@@ -173,10 +173,13 @@ for name_member in name_members:
     print(name_member)
     entry = f"{name_clim_project}_{name_model}_{name_scenario}_{name_member}"
     if entry in data_catalog:
-        
         try:  # todo can this be replaced by if statement?
             data = data_catalog.get_rasterdataset(
-                entry, bbox=bbox, buffer=buffer, time_tuple=time_tuple_all, variables = variables
+                entry,
+                bbox=bbox,
+                buffer=buffer,
+                time_tuple=time_tuple_all,
+                variables=variables,
             )
             # needed for cmip5/cmip6 cftime.Datetime360Day which is not picked up before.
             data = data.sel(time=slice(*time_tuple_all))
