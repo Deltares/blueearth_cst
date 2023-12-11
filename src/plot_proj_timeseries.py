@@ -195,7 +195,7 @@ ds_all = xr.merge(ds_fut)
 ds_all["precip"] = ds_all["precip"].round(decimals=2)
 ds_all["temp"] = ds_all["temp"].round(decimals=2)
 # write to netcdf
-#ds_all.to_netcdf(os.path.join(clim_project_dir, "gcm_timeseries.nc"))
+ds_all.to_netcdf(os.path.join(clim_project_dir, "gcm_timeseries.nc"))
 
 #%% Plots
 if not os.path.exists(os.path.join(clim_project_dir, "plots")):
@@ -247,7 +247,7 @@ for n in ['abs', 'anom']:
     plt.legend()
     plt.grid()
     plt.savefig(
-        os.path.join(clim_project_dir, "plots", "precipitation_anomaly_projections_{n}"),
+        os.path.join(clim_project_dir, "plots", f"precipitation_anomaly_projections_{n}"),
         dpi=300,
         bbox_inches="tight",
     )

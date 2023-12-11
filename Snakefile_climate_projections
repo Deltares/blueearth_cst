@@ -59,8 +59,8 @@ rule all:
         (clim_project_dir + "/annual_change_scalar_stats_summary.csv"),
         (clim_project_dir + "/annual_change_scalar_stats_summary_mean.csv"),
         stats_change_plt = (clim_project_dir + "/plots/projected_climate_statistics.png"),
-        precip_plt = (clim_project_dir + "/plots/precipitation_anomaly_projections.png"),
-        temp_plt = (clim_project_dir + "/plots/temperature_anomaly_projections.png"),
+        precip_plt = (clim_project_dir + "/plots/precipitation_anomaly_projections_abs.png"),
+        temp_plt = (clim_project_dir + "/plots/temperature_anomaly_projections_abs.png"),
         snake_config = f"{project_dir}/config/snake_config_climate_projections.yml",
 
 ruleorder: monthly_stats_hist > monthly_stats_fut > monthly_change > monthly_change_scalar_merge
@@ -164,7 +164,7 @@ rule plot_climate_proj_timeseries:
         save_grids = save_grids,
         change_grids = [(clim_project_dir + f"/monthly_change_mean_grid-{mod}_{sc}_{hz}.nc") for mod,sc,hz in list(itertools.product(models,scenarios,future_horizons))],
     output:
-        precip_plt = (clim_project_dir + "/plots/precipitation_anomaly_projections.png"),
-        temp_plt = (clim_project_dir + "/plots/temperature_anomaly_projections.png"),
+        precip_plt = (clim_project_dir + "/plots/precipitation_anomaly_projections_abs.png"),
+        temp_plt = (clim_project_dir + "/plots/temperature_anomaly_projections_abs.png"),
         timeseries_csv = (clim_project_dir + "/gcm_timeseries.nc"),
     script: "src/plot_proj_timeseries.py"
