@@ -202,8 +202,14 @@ def plot_signatures(
             df_perf = df_perf.join(df)
 
     ### 3. Plot signatures ###
+    # Depending on number of years of data available, skip plotting position
+    nb_years = np.unique(dsq["time.year"].values).size
+    if nb_years > 5:
+        nrows = 5
+    else:
+        nrows = 4
     fig = plt.figure(figsize=(16 / 2.54, 22 / 2.54), tight_layout=True)
-    axes = fig.subplots(nrows=5, ncols=2)
+    axes = fig.subplots(nrows=nrows, ncols=2)
     axes = axes.flatten()
 
     # daily against each other axes[0]
@@ -332,16 +338,20 @@ def plot_signatures(
     axes[3].set_ylabel("log(Q)", fontsize=fs)
 
     # max annual axes[4]
-    dsq_max = (
-        dsq.sel(
-            time=slice(
-                f"{str(dsq['time.year'][0].values)}-09-01",
-                f"{str(dsq['time.year'][-1].values)}-08-31",
+    if len(dsq.time) > 365:
+        dsq_max = (
+            dsq.sel(
+                time=slice(
+                    f"{str(dsq['time.year'][0].values)}-09-01",
+                    f"{str(dsq['time.year'][-1].values)}-08-31",
+                )
             )
+            .resample(time="AS-Sep")
+            .max("time")
         )
-        .resample(time="AS-Sep")
-        .max("time")
-    )
+    else:
+        # Less than a year of data, max over the whole timeseries
+        dsq_max = dsq.max("time")
     for label, color, marker in zip(labels, colors, markers):
         axes[4].plot(
             dsq_max.Q.sel(runs="Obs."),
@@ -360,12 +370,18 @@ def plot_signatures(
     # R2 score
     text_label = ""
     for label in labels:
-        r2_score = rsquared(dsq_max["Q"].sel(runs="Obs."), dsq_max["Q"].sel(runs=label))
-        text_label = text_label + f"R$_2$ {label} = {r2_score:.2f} \n"
+        if len(dsq.time) > 365: 
+            r2_score = rsquared(dsq_max["Q"].sel(runs="Obs."), dsq_max["Q"].sel(runs=label))
+            text_label = text_label + f"R$_2$ {label} = {r2_score:.2f} \n"
+        else:
+            text_label = text_label + f"{label}\n"
     axes[4].text(0.5, 0.05, text_label, transform=axes[4].transAxes, fontsize=fs)
 
     # add MHQ
-    mhq = dsq_max.mean("time")
+    if len(dsq.time) > 365:
+        mhq = dsq_max.mean("time")
+    else:
+        mhq = dsq_max.copy()
     for label in labels:
         axes[4].plot(
             mhq.Q.sel(runs="Obs."),
@@ -415,109 +431,21 @@ def plot_signatures(
     axes[5].set_ylabel("Simulated NM7Q (m$^3$s$^{-1}$)", fontsize=fs)
     axes[5].set_xlabel("Observed NM7Q (m$^3$s$^{-1}$)", fontsize=fs)
 
-    # gumbel high axes[6]
-    a = 0.3
-    b = 1.0 - 2.0 * a
-    ymin, ymax = 0, max_y
-    p1 = ((np.arange(1, len(dsq_max.time) + 1.0) - a)) / (len(dsq_max.time) + b)
-    RP1 = 1 / (1 - p1)
-    gumbel_p1 = -np.log(-np.log(1.0 - 1.0 / RP1))
-    ts = [2.0, 5.0, 10.0, 30.0]  # ,30.,100.,300.,1000.,3000.,10000.,30000.]
-    # plot
-    axes[6].plot(
-        gumbel_p1,
-        dsq_max["Q"].sel(runs="Obs.").sortby(dsq_max["Q"].sel(runs="Obs.")),
-        marker="+",
-        color="k",
-        linestyle="None",
-        label="Obs.",
-        markersize=6,
-    )
-    for label, color, marker in zip(labels, colors, markers):
-        axes[6].plot(
-            gumbel_p1,
-            dsq_max["Q"].sel(runs=label).sortby(dsq_max["Q"].sel(runs=label)),
-            marker=marker,
-            color=color,
-            linestyle="None",
-            label=label,
-            markersize=4,
-        )
-
-    for t in ts:
-        axes[6].vlines(-np.log(-np.log(1 - 1.0 / t)), ymin, ymax, "0.5", alpha=0.4)
-        axes[6].text(
-            -np.log(-np.log(1 - 1.0 / t)),
-            ymax * 0.2,
-            "T=%.0f y" % t,
-            rotation=45,
-            fontsize=fs,
-        )
-
-    axes[6].set_ylabel("max. annual Q (m$^3$s$^{-1}$)", fontsize=fs)
-    axes[6].set_xlabel("Plotting position and associated return period", fontsize=fs)
-
-    # gumbel low axes[7]
-    a = 0.3
-    b = 1.0 - 2.0 * a
-    ymin, ymax = 0, max_ylow
-    p1 = ((np.arange(1, len(dsq_nm7q.time) + 1.0) - a)) / (len(dsq_nm7q.time) + b)
-    RP1 = 1 / (1 - p1)
-    gumbel_p1 = -np.log(-np.log(1.0 - 1.0 / RP1))
-    ts = [2.0, 5.0, 10.0, 30.0]  # ,30.,100.,300.,1000.,3000.,10000.,30000.]
-    # plot
-    axes[7].plot(
-        gumbel_p1,
-        dsq_nm7q["Q"]
-        .sel(runs="Obs.")
-        .sortby(dsq_nm7q["Q"].sel(runs="Obs."), ascending=False),
-        marker="+",
-        color="k",
-        linestyle="None",
-        label="Obs.",
-        markersize=6,
-    )
-    for label, color, marker in zip(labels, colors, markers):
-        axes[7].plot(
-            gumbel_p1,
-            dsq_nm7q["Q"]
-            .sel(runs=label)
-            .sortby(dsq_nm7q["Q"].sel(runs=label), ascending=False),
-            marker=marker,
-            color=color,
-            linestyle="None",
-            label=label,
-            markersize=4,
-        )
-
-    for t in ts:
-        axes[7].vlines(-np.log(-np.log(1 - 1.0 / t)), ymin, ymax, "0.5", alpha=0.4)
-        axes[7].text(
-            -np.log(-np.log(1 - 1.0 / t)),
-            ymax * 0.8,
-            "T=%.0f y" % t,
-            rotation=45,
-            fontsize=fs,
-        )
-
-    axes[7].set_ylabel("NM7Q (m$^3$s$^{-1}$)", fontsize=fs)
-    axes[7].set_xlabel("Plotting position and associated return period", fontsize=fs)
-
-    # cum axes[8]
+    # cum axes[6]
     dsq["Q"].sel(runs="Obs.").cumsum("time").plot(
-        ax=axes[8], color="k", linestyle=":", linewidth=lw, label="Obs."
+        ax=axes[6], color="k", linestyle=":", linewidth=lw, label="Obs."
     )
     for label, color, linestyle in zip(labels, colors, linestyles):
         dsq["Q"].sel(runs=label).cumsum("time").plot(
-            ax=axes[8], color=color, linestyle=linestyle, linewidth=lw, label=label
+            ax=axes[6], color=color, linestyle=linestyle, linewidth=lw, label=label
         )
-    axes[8].set_xlabel("")
-    axes[8].set_ylabel("Cum. Q (m$^3$s$^{-1}$)", fontsize=fs)
+    axes[6].set_xlabel("")
+    axes[6].set_ylabel("Cum. Q (m$^3$s$^{-1}$)", fontsize=fs)
 
-    # performance measures NS, NSlogQ, KGE, axes[9]
+    # performance measures NS, NSlogQ, KGE, axes[7]
     # nse
     for label, color, marker in zip(labels, colors, markers):
-        axes[9].plot(
+        axes[7].plot(
             0.8,
             dsq["performance"].loc[dict(runs=label, metrics="NSE", time_type="daily")],
             color=color,
@@ -528,7 +456,7 @@ def plot_signatures(
         )
     # nselog
     for label, color, marker in zip(labels, colors, markers):
-        axes[9].plot(
+        axes[7].plot(
             2.8,
             dsq["performance"].loc[dict(runs=label, metrics="NSElog", time_type="daily")],
             color=color,
@@ -539,7 +467,7 @@ def plot_signatures(
         )
     # kge
     for label, color, marker in zip(labels, colors, markers):
-        axes[9].plot(
+        axes[7].plot(
             4.8,
             dsq["performance"].loc[dict(runs=label, metrics="KGE", time_type="daily")],
             color=color,
@@ -548,10 +476,102 @@ def plot_signatures(
             linewidth=lw,
             label=label,
         )
-    axes[9].set_xticks([1, 3, 5])
-    axes[9].set_xticklabels(["NSE", "NSElog", "KGE"])
-    axes[9].set_ylim([0, 1])
-    axes[9].set_ylabel("Performance", fontsize=fs)
+    axes[7].set_xticks([1, 3, 5])
+    axes[7].set_xticklabels(["NSE", "NSElog", "KGE"])
+    axes[7].set_ylim([0, 1])
+    axes[7].set_ylabel("Performance", fontsize=fs)
+
+    # gumbel high axes[8]
+    # Only if more than 5 years of data
+    if nb_years > 5:
+        a = 0.3
+        b = 1.0 - 2.0 * a
+        ymin, ymax = 0, max_y
+        p1 = ((np.arange(1, len(dsq_max.time) + 1.0) - a)) / (len(dsq_max.time) + b)
+        RP1 = 1 / (1 - p1)
+        gumbel_p1 = -np.log(-np.log(1.0 - 1.0 / RP1))
+        ts = [2.0, 5.0, 10.0, 30.0]  # ,30.,100.,300.,1000.,3000.,10000.,30000.]
+        # plot
+        axes[8].plot(
+            gumbel_p1,
+            dsq_max["Q"].sel(runs="Obs.").sortby(dsq_max["Q"].sel(runs="Obs.")),
+            marker="+",
+            color="k",
+            linestyle="None",
+            label="Obs.",
+            markersize=6,
+        )
+        for label, color, marker in zip(labels, colors, markers):
+            axes[8].plot(
+                gumbel_p1,
+                dsq_max["Q"].sel(runs=label).sortby(dsq_max["Q"].sel(runs=label)),
+                marker=marker,
+                color=color,
+                linestyle="None",
+                label=label,
+                markersize=4,
+            )
+
+        for t in ts:
+            axes[8].vlines(-np.log(-np.log(1 - 1.0 / t)), ymin, ymax, "0.5", alpha=0.4)
+            axes[8].text(
+                -np.log(-np.log(1 - 1.0 / t)),
+                ymax * 0.2,
+                "T=%.0f y" % t,
+                rotation=45,
+                fontsize=fs,
+            )
+
+        axes[8].set_ylabel("max. annual Q (m$^3$s$^{-1}$)", fontsize=fs)
+        axes[8].set_xlabel("Plotting position and associated return period", fontsize=fs)
+
+    # gumbel low axes[9]
+    # Only if more than 5 years of data
+    if nb_years > 5:
+        a = 0.3
+        b = 1.0 - 2.0 * a
+        ymin, ymax = 0, max_ylow
+        p1 = ((np.arange(1, len(dsq_nm7q.time) + 1.0) - a)) / (len(dsq_nm7q.time) + b)
+        RP1 = 1 / (1 - p1)
+        gumbel_p1 = -np.log(-np.log(1.0 - 1.0 / RP1))
+        ts = [2.0, 5.0, 10.0, 30.0]  # ,30.,100.,300.,1000.,3000.,10000.,30000.]
+        # plot
+        axes[9].plot(
+            gumbel_p1,
+            dsq_nm7q["Q"]
+            .sel(runs="Obs.")
+            .sortby(dsq_nm7q["Q"].sel(runs="Obs."), ascending=False),
+            marker="+",
+            color="k",
+            linestyle="None",
+            label="Obs.",
+            markersize=6,
+        )
+        for label, color, marker in zip(labels, colors, markers):
+            axes[9].plot(
+                gumbel_p1,
+                dsq_nm7q["Q"]
+                .sel(runs=label)
+                .sortby(dsq_nm7q["Q"].sel(runs=label), ascending=False),
+                marker=marker,
+                color=color,
+                linestyle="None",
+                label=label,
+                markersize=4,
+            )
+
+        for t in ts:
+            axes[9].vlines(-np.log(-np.log(1 - 1.0 / t)), ymin, ymax, "0.5", alpha=0.4)
+            axes[9].text(
+                -np.log(-np.log(1 - 1.0 / t)),
+                ymax * 0.8,
+                "T=%.0f y" % t,
+                rotation=45,
+                fontsize=fs,
+            )
+
+        axes[9].set_ylabel("NM7Q (m$^3$s$^{-1}$)", fontsize=fs)
+        axes[9].set_xlabel("Plotting position and associated return period", fontsize=fs)
 
     for ax in axes:
         ax.tick_params(axis="both", labelsize=fs)

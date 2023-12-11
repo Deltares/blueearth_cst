@@ -288,8 +288,14 @@ def analyse_wflow_historical(
         ds_clim_i = ds_clim[["P_subcatchment", "EP_subcatchment", "T_subcatchment"]].sel(
             index=index
         )
-        plot_clim(ds_clim_i, Folder_plots, f"wflow_{index}", 'year')
-        plt.close()
+        if len(ds.time) > 365:
+            plot_clim(ds_clim_i, Folder_plots, f"wflow_{index}", 'year')
+            plt.close()
+        else:
+            print(
+                "less than 1 year of data is available "
+                "no yearly clim plots are made."
+                )
         plot_clim(ds_clim_i, Folder_plots, f"wflow_{index}", 'month')
         plt.close()
 
