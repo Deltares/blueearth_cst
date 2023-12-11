@@ -15,8 +15,8 @@ dependencies:
   - gdal>=3.1
   - geopandas>=0.10
   - graphviz # for snakemake
-  - hydromt>=0.7
-#  - hydromt_wflow
+  - hydromt>=0.9.1, <0.10
+  - hydromt_wflow>=0.4.1, <0.5
   - jupyter # to run examples
   - matplotlib
   - numpy
@@ -55,4 +55,3 @@ dependencies:
   - pip:
     - hydroengine
     - snakemake==7.8.0
-    - git+https://github.com/Deltares/hydromt_wflow.git
