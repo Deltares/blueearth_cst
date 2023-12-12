@@ -74,8 +74,9 @@ if __name__ == "__main__":
         if workflow_name == "model_creation":
             # Get the in and out path of the model build config file
             config_build = sm.input.config_build
+            config_wb = sm.input.config_waterbodies
             data_sources = sm.params.data_catalogs
-            other_config_files.extend([config_build, data_sources])
+            other_config_files.extend([config_build, config_wb, data_sources])
         elif (
             workflow_name == "climate_projections"
             or workflow_name == "climate_experiment"

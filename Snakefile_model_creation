@@ -34,6 +34,7 @@ project_dir = get_config(config, 'project_dir', optional=False)
 model_region = get_config(config, 'model_region', optional=False)
 model_resolution = get_config(config, 'model_resolution', 0.00833333)
 model_build_config = get_config(config, 'model_build_config', 'config/wflow_build_model.yml')
+waterbodies_config = get_config(config, 'waterbodies_config', 'config/wflow_update_waterbodies.yml')
 DATA_SOURCES = get_config(config, "data_sources", optional=False)
 
 output_locations = get_config(config, "output_locations", None)
@@ -56,6 +57,7 @@ rule copy_config:
     input:
         config_build = model_build_config,
         config_snake = config_path,
+        config_waterbodies = waterbodies_config,
     params:
         data_catalogs = DATA_SOURCES,
         workflow_name = "model_creation",
@@ -73,10 +75,24 @@ rule create_model:
     shell:
         """hydromt build wflow "{basin_dir}" --region "{model_region}" --opt setup_basemaps.res="{model_resolution}" -i "{input.hydromt_ini}" -d "{DATA_SOURCES}" --fo -vv"""
 
+# Rule to add reservoirs, lakes and glaciers to the built model (temporary hydromt fix)
+# Can be moved back to create_model rule when hydromt is updated
+rule add_reservoirs_lakes_glaciers:
+    input:
+        basin_nc = f"{basin_dir}/staticmaps.nc"
+    output:
+        text_out = f"{basin_dir}/staticgeoms/reservoirs_lakes_glaciers.txt"
+    params:
+        data_catalog = DATA_SOURCES,
+        config = waterbodies_config,
+    script:
+        "src/setup_reservoirs_lakes_glaciers.py"
+
 # Rule to add gauges to the built model
 rule add_gauges_and_outputs:
     input:
-        basin_nc = f"{basin_dir}/staticmaps.nc"
+        basin_nc = f"{basin_dir}/staticmaps.nc",
+        text = f"{basin_dir}/staticgeoms/reservoirs_lakes_glaciers.txt"
     output:
         gauges_fid = f"{basin_dir}/staticgeoms/gauges.geojson"
     params:
