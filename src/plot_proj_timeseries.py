@@ -4,7 +4,7 @@ Created on Tue Feb  1 14:34:58 2022
 
 @author: bouaziz
 """
-#%%
+# %%
 import hydromt
 import os
 import glob
@@ -16,7 +16,7 @@ import cartopy.crs as ccrs
 import cartopy.io.img_tiles as cimgt
 import numpy as np
 
-#%%
+# %%
 # Snakemake options
 clim_project_dir = snakemake.params.clim_project_dir
 stats_time_nc_hist = snakemake.input.stats_time_nc_hist
@@ -27,8 +27,10 @@ save_grids = snakemake.params.save_grids
 change_grids_nc = snakemake.params.change_grids
 
 
-#%% Historical
+# %% Historical
 print("Opening historical gcm timeseries")
+
+
 # open historical datasets
 def todatetimeindex_dropvars(ds):
     if "time" in ds.coords:
@@ -36,6 +38,8 @@ def todatetimeindex_dropvars(ds):
             ds["time"] = ds.indexes["time"].to_datetimeindex()
     if "spatial_ref" in ds.coords:
         ds = ds.drop_vars("spatial_ref")
+    if "height" in ds.coords:
+        ds = ds.drop_vars("height")
     return ds
 
 
@@ -53,7 +57,7 @@ gcm_pr = ds_hist["precip"].squeeze(drop=True).transpose().to_pandas()
 # check if gcm_pr_anom is pd.Series or pd.DataFrame
 if isinstance(gcm_pr, pd.Series):
     gcm_pr = gcm_pr.to_frame()
-#%%
+# %%
 # monthly mean
 gcm_pr_mnmn = gcm_pr.groupby(gcm_pr.index.month).mean()
 q_pr_mnmn = gcm_pr_mnmn.quantile([0.05, 0.5, 0.95], axis=1).transpose()
@@ -85,7 +89,7 @@ gcm_tas_ref = gcm_tas_annmn.mean()
 gcm_tas_anom = gcm_tas_annmn - gcm_tas_ref
 q_tas_anom = gcm_tas_anom.quantile([0.05, 0.5, 0.95], axis=1).transpose()
 
-#%% Future
+# %% Future
 # remove files containing empty dataset
 fns_future = stats_time_nc.copy()
 for fn in stats_time_nc:
@@ -165,57 +169,69 @@ print("Computing future gcm timeseries anomalies")
 fut_pr_ref = gcm_pr_annmn.mean()
 fut_tas_ref = gcm_tas_annmn.mean()
 
-#monthly
+# monthly
 for i in range(len(qpr_futmonth)):
     pr_futmonth = pr_fut[i].groupby(pr_fut[i].index.month).mean()
     qpr_futmonth[i] = pr_futmonth.quantile([0.05, 0.5, 0.95], axis=1).transpose()
     pr_futmonth_anom = (pr_futmonth - fut_pr_ref) / fut_pr_ref * 100
-    qpr_futmonth_anom[i] = pr_futmonth_anom.dropna(axis=1,how='all').quantile([0.05, 0.5, 0.95], axis=1).transpose()
-    
+    qpr_futmonth_anom[i] = (
+        pr_futmonth_anom.dropna(axis=1, how="all")
+        .quantile([0.05, 0.5, 0.95], axis=1)
+        .transpose()
+    )
+
     tas_futmonth = tas_fut[i].groupby(tas_fut[i].index.month).mean()
     qtas_futmonth[i] = tas_futmonth.quantile([0.05, 0.5, 0.95], axis=1).transpose()
     tas_futmonth_anom = tas_futmonth - fut_tas_ref
-    qtas_futmonth_anom[i] = tas_futmonth_anom.dropna(axis=1,how='all').quantile([0.05, 0.5, 0.95], axis=1).transpose()
-#annual
+    qtas_futmonth_anom[i] = (
+        tas_futmonth_anom.dropna(axis=1, how="all")
+        .quantile([0.05, 0.5, 0.95], axis=1)
+        .transpose()
+    )
+# annual
 for i in range(len(anom_pr_fut)):
-    qpr_fut[i] = pr_fut[i].resample("A").mean().quantile([0.05, 0.5, 0.95], axis=1).transpose()
+    qpr_fut[i] = (
+        pr_fut[i].resample("A").mean().quantile([0.05, 0.5, 0.95], axis=1).transpose()
+    )
     anom_pr_fut[i] = (pr_fut[i].resample("A").mean() - fut_pr_ref) / fut_pr_ref * 100
     qanom_pr_fut[i] = anom_pr_fut[i].quantile([0.05, 0.5, 0.95], axis=1).transpose()
-    
-    qtas_fut[i] = tas_fut[i].resample("A").mean().quantile([0.05, 0.5, 0.95], axis=1).transpose()
+
+    qtas_fut[i] = (
+        tas_fut[i].resample("A").mean().quantile([0.05, 0.5, 0.95], axis=1).transpose()
+    )
     anom_tas_fut[i] = tas_fut[i].resample("A").mean() - fut_tas_ref
     qanom_tas_fut[i] = anom_tas_fut[i].quantile([0.05, 0.5, 0.95], axis=1).transpose()
 
-#%% Merge and write all timeseries to a single netcdf file
+# %% Merge and write all timeseries to a single netcdf file
 ds_fut.append(ds_hist)
 ds_all = xr.merge(ds_fut)
 # make sure we have two digits still
 ds_all["precip"] = ds_all["precip"].round(decimals=2)
 ds_all["temp"] = ds_all["temp"].round(decimals=2)
 # write to netcdf
-#ds_all.to_netcdf(os.path.join(clim_project_dir, "gcm_timeseries.nc"))
+ds_all.to_netcdf(os.path.join(clim_project_dir, "gcm_timeseries.nc"))
 
-#%% Plots
+# %% Plots
 if not os.path.exists(os.path.join(clim_project_dir, "plots")):
     os.mkdir(os.path.join(clim_project_dir, "plots"))
 
 clrs = []
-for s in rcps: 
-    if s == 'ssp126':
-        clrs.append('#003466')
-    if s == 'ssp245':
-        clrs.append('#f69320')
-    if s == 'ssp370':
-        clrs.append('#df0000')
-    elif s == 'ssp585':
-        clrs.append('#980002')
+for s in rcps:
+    if s == "ssp126":
+        clrs.append("#003466")
+    if s == "ssp245":
+        clrs.append("#f69320")
+    if s == "ssp370":
+        clrs.append("#df0000")
+    elif s == "ssp585":
+        clrs.append("#980002")
 # precip anomaly and absolute series
-for n in ['abs', 'anom']: 
-    if n=='abs': 
-        data_hist = q_pr_annmn * 365 #q_pr_anom_abs
-        data_fut = [data*365 for data in qpr_fut] #qpr_fut_abs
+for n in ["abs", "anom"]:
+    if n == "abs":
+        data_hist = q_pr_annmn * 365  # q_pr_anom_abs
+        data_fut = [data * 365 for data in qpr_fut]  # qpr_fut_abs
         y_label = "mm/year"
-    else: 
+    else:
         data_hist = q_pr_anom
         data_fut = qanom_pr_fut
         y_label = "Anomaly (%)"
@@ -229,34 +245,43 @@ for n in ['abs', 'anom']:
         alpha=0.5,
     )
     plt.plot(
-        data_hist[0.5].index, data_hist[0.5], color="darkgrey", label="historical multi-model median"
+        data_hist[0.5].index,
+        data_hist[0.5],
+        color="darkgrey",
+        label="historical multi-model median",
     )
     for i in range(len(data_fut)):
         plt.fill_between(
             x=data_fut[i].index,
             y1=data_fut[i][0.95],
             y2=data_fut[i][0.05],
-            alpha=0.5, color=clrs[i]
+            alpha=0.5,
+            color=clrs[i],
         )
         plt.plot(
-            data_fut[i].index, data_fut[i][0.50], color=clrs[i], label=rcps[i] + " multi-model median"
+            data_fut[i].index,
+            data_fut[i][0.50],
+            color=clrs[i],
+            label=rcps[i] + " multi-model median",
         )
     plt.ylabel(y_label)
     plt.legend()
     plt.grid()
     plt.savefig(
-        os.path.join(clim_project_dir, "plots", "precipitation_anomaly_projections_{n}"),
+        os.path.join(
+            clim_project_dir, "plots", f"precipitation_anomaly_projections_{n}"
+        ),
         dpi=300,
         bbox_inches="tight",
     )
-#%%
+# %%
 # temp anomaly
-for n in ['abs', 'anom']: 
-    if n=='abs': 
+for n in ["abs", "anom"]:
+    if n == "abs":
         data_hist = q_tas_annmn
         data_fut = qtas_fut
         y_label = "degC"
-else: 
+    else:
         data_hist = q_tas_anom
         data_fut = qanom_tas_fut
         y_label = "Anomaly (degC)"
@@ -270,31 +295,40 @@ else:
         alpha=0.5,
     )
     plt.plot(
-        data_hist[0.5].index, data_hist[0.5], color="darkgrey", label="historical multi-model median"
+        data_hist[0.5].index,
+        data_hist[0.5],
+        color="darkgrey",
+        label="historical multi-model median",
     )
     for i in range(len(data_fut)):
         plt.fill_between(
             x=data_fut[i].index,
             y1=data_fut[i][0.95],
             y2=data_fut[i][0.05],
-            alpha=0.5, color=clrs[i]
+            alpha=0.5,
+            color=clrs[i],
         )
         plt.plot(
-            data_fut[i].index, data_fut[i][0.50], color=clrs[i], label=rcps[i] + " multi-model median"
+            data_fut[i].index,
+            data_fut[i][0.50],
+            color=clrs[i],
+            label=rcps[i] + " multi-model median",
         )
     plt.ylabel(y_label)
     plt.legend()
     plt.grid()
     plt.savefig(
-        os.path.join(clim_project_dir, "plots", f"temperature_anomaly_projections_{n}.png"),
+        os.path.join(
+            clim_project_dir, "plots", f"temperature_anomaly_projections_{n}.png"
+        ),
         dpi=300,
         bbox_inches="tight",
     )
 
-#%%
+# %%
 # monthly changes precip
-for n in ['abs', 'anom']:  
-    if n=='abs': 
+for n in ["abs", "anom"]:
+    if n == "abs":
         qpr = qpr_futmonth
         qprhist = q_pr_mnmn
         y_label = "mm/day"
@@ -314,20 +348,21 @@ for n in ['abs', 'anom']:
     plt.plot(
         qprhist.index, qprhist[0.5], color="k", label="historical multi-model median"
     )
-    
+
     for i in range(len(qpr)):
         plt.fill_between(
-            x=qpr[i].index,
-            y1=qpr[i][0.95],
-            y2=qpr[i][0.05],
-            alpha=0.5, color=clrs[i]
+            x=qpr[i].index, y1=qpr[i][0.95], y2=qpr[i][0.05], alpha=0.5, color=clrs[i]
         )
         plt.plot(
-            qpr[i].index, qpr[i][0.50], color=clrs[i], label=rcps[i] + " multi-model median"
+            qpr[i].index,
+            qpr[i][0.50],
+            color=clrs[i],
+            label=rcps[i] + " multi-model median",
         )
     plt.ylabel(y_label)
-    plt.xticks(np.arange(1,13),
-            ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'])
+    plt.xticks(
+        np.arange(1, 13), ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
+    )
     plt.legend()
     plt.grid()
     figname = f"precipitation_monthly_projections_{n}.png"
@@ -336,13 +371,13 @@ for n in ['abs', 'anom']:
         dpi=300,
         bbox_inches="tight",
     )
-#%%
+# %%
 # monthly changes temp
-for n in ['abs', 'anom']:  
-    if n=='abs': 
+for n in ["abs", "anom"]:
+    if n == "abs":
         qtas = qtas_futmonth
         qtashist = q_tas_mnmn
-        y_label = 'degC'
+        y_label = "degC"
     else:
         qtas = qtas_futmonth_anom
         qtashist = q_tas_mnanom
@@ -361,7 +396,9 @@ for n in ['abs', 'anom']:
         qtashist.index, qtashist[0.5], color="k", label="historical multi-model median"
     )
     plt.ylabel(f"{y_label}")
-    plt.xticks(np.arange(1,13), ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'])
+    plt.xticks(
+        np.arange(1, 13), ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
+    )
     plt.legend()
     plt.grid()
     for i in range(len(qtas)):
@@ -369,20 +406,26 @@ for n in ['abs', 'anom']:
             x=qtas[i].index,
             y1=qtas[i][0.95],
             y2=qtas[i][0.05],
-            alpha=0.5, color=clrs[i]
+            alpha=0.5,
+            color=clrs[i],
         )
         plt.plot(
-            qtas[i].index, qtas[i][0.50], color=clrs[i], label=rcps[i] + " multi-model median"
+            qtas[i].index,
+            qtas[i][0.50],
+            color=clrs[i],
+            label=rcps[i] + " multi-model median",
         )
 
     plt.savefig(
-        os.path.join(clim_project_dir, "plots", f"temperature_monthly_projections_{n}.png"),
+        os.path.join(
+            clim_project_dir, "plots", f"temperature_monthly_projections_{n}.png"
+        ),
         dpi=300,
         bbox_inches="tight",
     )
 
 
-#%%
+# %%
 # Map plots of gridded change per scenario / horizon
 if save_grids:
     fns_grids = change_grids_nc.copy()
@@ -440,7 +483,7 @@ if save_grids:
 
             # Average maps
             grids = ds_rcp_hz_med.mean(dim="month")
-            plt.style.use("seaborn-whitegrid")  # set nice style
+            plt.style.use("seaborn-v0_8-whitegrid")  # set nice style
             # we assume the model maps are in the geographic CRS EPSG:4326
             proj = ccrs.PlateCarree()
             # adjust zoomlevel and figure size to your basis size & aspect

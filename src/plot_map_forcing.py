@@ -5,16 +5,16 @@ Created on Thu Jan 13 16:23:11 2022
 @author: bouaziz
 """
 
-#%% plot map
+# plot map
 
-import pandas as pd
 import xarray as xr
 import numpy as np
-from os.path import join, dirname, basename
+from os.path import basename, join
 import os
+from pathlib import Path
+from typing import Union
 import matplotlib.pyplot as plt
-import matplotlib as mpl
-from matplotlib import cm, colors
+from matplotlib import colors
 
 # plot maps dependencies
 import matplotlib.patches as mpatches
@@ -23,30 +23,15 @@ import cartopy.crs as ccrs
 # import descartes  # required to plot polygons
 import cartopy.io.img_tiles as cimgt
 
-import hydromt
 from hydromt_wflow import WflowModel
 
-project_dir = snakemake.params.project_dir
-gauges_fn = snakemake.params.gauges_fid
-gauges_name = basename(gauges_fn).split(".")[0]
 
-Folder_plots = f"{project_dir}/plots/wflow_model_performance"
-root = f"{project_dir}/hydrology_model"
-mod = WflowModel(root, mode="r")
-
-forcing_vars = {
-    "precip": {"long_name": "precipitation", "unit": "mm y$^{-1}$"},
-    "pet": {"long_name": "potential evap.", "unit": "mm y$^{-1}$"},
-    "temp": {"long_name": "temperature", "unit": "degC"},
-}
-
-#%%
-def plot_map_model(mod, da, figname):
+def plot_map_model(mod, da, figname, gauges_name):
     # read/derive river geometries
     gdf_riv = mod.rivers
     # read/derive model basin boundary
     gdf_bas = mod.basins
-    plt.style.use("seaborn-whitegrid")  # set nice style
+    plt.style.use("seaborn-v0_8-whitegrid")  # set nice style
     # we assume the model maps are in the geographic CRS EPSG:4326
     proj = ccrs.PlateCarree()
     # adjust zoomlevel and figure size to your basis size & aspect
@@ -64,15 +49,6 @@ def plot_map_model(mod, da, figname):
 
     # add sat background image
     ax.add_image(cimgt.QuadtreeTiles(), zoom_level, alpha=0.5)
-
-    ## plot elevation\
-    # create nice colormap
-    # vmin, vmax = da.quantile([0.0, 0.98]).compute()
-    # c_dem = plt.cm.terrain(np.linspace(0.25, 1, 256))
-    # cmap = colors.LinearSegmentedColormap.from_list("dem", c_dem)
-    # norm = colors.Normalize(vmin=vmin, vmax=vmax)
-    # kwargs = dict(cmap=cmap, norm=norm)
-    # plot 'normal' elevation
 
     # plot da variables.
     da.plot(
@@ -105,12 +81,12 @@ def plot_map_model(mod, da, figname):
     # plot the basin boundary
     gdf_bas.boundary.plot(ax=ax, color="k", linewidth=0.3)
     # plot various vector layers if present
-    if "gauges" in mod.staticgeoms:
-        mod.staticgeoms["gauges"].plot(
+    if "gauges" in mod.geoms:
+        mod.geoms["gauges"].plot(
             ax=ax, marker="d", markersize=25, facecolor="k", zorder=5, label="gauges"
         )
-    if gauges_name in mod.staticgeoms:
-        mod.staticgeoms[gauges_name].plot(
+    if gauges_name in mod.geoms:
+        mod.geoms[gauges_name].plot(
             ax=ax,
             marker="d",
             markersize=25,
@@ -121,21 +97,21 @@ def plot_map_model(mod, da, figname):
     patches = (
         []
     )  # manual patches for legend, see https://github.com/geopandas/geopandas/issues/660
-    if "lakes" in mod.staticgeoms:
+    if "lakes" in mod.geoms:
         kwargs = dict(
             facecolor="lightblue", edgecolor="black", linewidth=1, label="lakes"
         )
-        mod.staticgeoms["lakes"].plot(ax=ax, zorder=4, **kwargs)
+        mod.geoms["lakes"].plot(ax=ax, zorder=4, **kwargs)
         patches.append(mpatches.Patch(**kwargs))
-    if "reservoirs" in mod.staticgeoms:
+    if "reservoirs" in mod.geoms:
         kwargs = dict(
             facecolor="blue", edgecolor="black", linewidth=1, label="reservoirs"
         )
-        mod.staticgeoms["reservoirs"].plot(ax=ax, zorder=4, **kwargs)
+        mod.geoms["reservoirs"].plot(ax=ax, zorder=4, **kwargs)
         patches.append(mpatches.Patch(**kwargs))
-    if "glaciers" in mod.staticgeoms:
+    if "glaciers" in mod.geoms:
         kwargs = dict(facecolor="grey", edgecolor="grey", linewidth=1, label="glaciers")
-        mod.staticgeoms["glaciers"].plot(ax=ax, zorder=4, **kwargs)
+        mod.geoms["glaciers"].plot(ax=ax, zorder=4, **kwargs)
         patches.append(mpatches.Patch(**kwargs))
 
     ax.xaxis.set_visible(True)
@@ -154,24 +130,76 @@ def plot_map_model(mod, da, figname):
     )
 
     # save figure
-    # NOTE create figs folder in model root if it does not exist
-    # fn_out = join(mod.root, "figs", "basemap.png")
     plt.savefig(
         os.path.join(Folder_plots, f"{figname}.png"), dpi=300, bbox_inches="tight"
     )
 
 
-#%%
+def plot_forcing(
+    wflow_root: Union[str, Path],
+    plot_dir=None,
+    gauges_name: str = None,
+):
+    """
+    Plot the wflow forcing in separate maps.
 
-# plot mean annual precip temp and potential evap.
-for forcing_var, forcing_char in forcing_vars.items():
-    print(forcing_var, forcing_char)
-    if forcing_var == "temp":
-        da = mod.forcing[forcing_var].resample(time="A").mean("time").mean("time")
+    Parameters
+    ----------
+    wflow_root : Union[str, Path]
+        Path to the wflow model root folder
+    plot_dir : str, optional
+        Path to the output folder. If None (default), create a folder "plots"
+        in the wflow_root folder.
+    gauges_name : str, optional
+        Name of the gauges to plot. If None (default), no gauges are plot.
+    """
+    mod = WflowModel(wflow_root, mode="r")
+
+    # If plotting dir is None, create
+    if plot_dir is None:
+        plot_dir = os.path.join(wflow_root, "plots")
+    if not os.path.exists(plot_dir):
+        os.makedirs(plot_dir)
+
+    # Forcing variables to plot
+    forcing_vars = {
+        "precip": {"long_name": "precipitation", "unit": "mm y$^{-1}$"},
+        "pet": {"long_name": "potential evap.", "unit": "mm y$^{-1}$"},
+        "temp": {"long_name": "temperature", "unit": "degC"},
+    }
+
+    # plot mean annual precip temp and potential evap.
+    for forcing_var, forcing_char in forcing_vars.items():
+        print(forcing_var, forcing_char)
+        if forcing_var == "temp":
+            da = mod.forcing[forcing_var].resample(time="A").mean("time").mean("time")
+        else:
+            da = mod.forcing[forcing_var].resample(time="A").sum("time").mean("time")
+            da = da.where(da > 0)
+        da = da.where(mod.grid["wflow_subcatch"] >= 0)
+        da.attrs.update(long_name=forcing_char["long_name"], units=forcing_char["unit"])
+        figname = f"{forcing_var}"
+        plot_map_model(mod, da, figname, gauges_name)
+
+
+if __name__ == "__main__":
+    if "snakemake" in globals():
+        sm = globals()["snakemake"]
+
+        # Parse snake options
+        project_dir = sm.params.project_dir
+        gauges_fn = sm.params.gauges_fid
+        gauges_name = basename(gauges_fn).split(".")[0]
+
+        Folder_plots = f"{project_dir}/plots/wflow_model_performance"
+        root = f"{project_dir}/hydrology_model"
+
+        plot_forcing(
+            wflow_root=root,
+            plot_dir=Folder_plots,
+            gauges_name=gauges_name,
+        )
     else:
-        da = mod.forcing[forcing_var].resample(time="A").sum("time").mean("time")
-        da = da.where(da>0)
-    da = da.where(mod.staticmaps["wflow_subcatch"] >= 0)
-    da.attrs.update(long_name=forcing_char["long_name"], units=forcing_char["unit"])
-    figname = f"{forcing_var}"
-    plot_map_model(mod, da, figname)
+        plot_forcing(
+            wflow_root=join(os.getcwd(), "examples", "my_project", "hydrology_model")
+        )

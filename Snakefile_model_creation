@@ -1,3 +1,9 @@
+import sys
+
+# Get the snake_config file from the command line
+args = sys.argv
+config_path = args[args.index("--configfile") + 1]
+
 # Parsing the Snakemake config file (options for basins to build, data catalog, model output directory)
 #configfile: "config/snake_config_test.yml"
 
@@ -27,6 +33,8 @@ def get_config(config, arg, default=None, optional=True):
 project_dir = get_config(config, 'project_dir', optional=False)
 model_region = get_config(config, 'model_region', optional=False)
 model_resolution = get_config(config, 'model_resolution', 0.00833333)
+model_build_config = get_config(config, 'model_build_config', 'config/wflow_build_model.yml')
+waterbodies_config = get_config(config, 'waterbodies_config', 'config/wflow_update_waterbodies.yml')
 DATA_SOURCES = get_config(config, "data_sources", optional=False)
 
 output_locations = get_config(config, "output_locations", None)
@@ -42,20 +50,49 @@ rule all:
         f"{project_dir}/plots/wflow_model_performance/hydro_wflow_1.png",
         f"{project_dir}/plots/wflow_model_performance/basin_area.png",
         f"{project_dir}/plots/wflow_model_performance/precip.png",
+        f"{project_dir}/config/snake_config_model_creation.yml",
+
+# Rule to copy config files to the project_dir/config folder
+rule copy_config:
+    input:
+        config_build = model_build_config,
+        config_snake = config_path,
+        config_waterbodies = waterbodies_config,
+    params:
+        data_catalogs = DATA_SOURCES,
+        workflow_name = "model_creation",
+    output:
+        config_snake_out = f"{project_dir}/config/snake_config_model_creation.yml",
+    script:
+        "src/copy_config_files.py"
 
 # Rule to build model hydromt build wflow
 rule create_model:
     input:
-        hydromt_ini = "config/wflow_build_model.ini",
+        hydromt_ini = model_build_config,
     output:
         basin_nc = f"{basin_dir}/staticmaps.nc",
     shell:
-        """hydromt build wflow "{basin_dir}" --region "{model_region}" --opt setup_basemaps.res="{model_resolution}" -i "{input.hydromt_ini}" -d "{DATA_SOURCES}" -vv"""
+        """hydromt build wflow "{basin_dir}" --region "{model_region}" --opt setup_basemaps.res="{model_resolution}" -i "{input.hydromt_ini}" -d "{DATA_SOURCES}" --fo -vv"""
+
+# Rule to add reservoirs, lakes and glaciers to the built model (temporary hydromt fix)
+# Can be moved back to create_model rule when hydromt is updated
+rule add_reservoirs_lakes_glaciers:
+    input:
+        basin_nc = ancient(f"{basin_dir}/staticmaps.nc")
+    output:
+        text_out = f"{basin_dir}/staticgeoms/reservoirs_lakes_glaciers.txt"
+    params:
+        data_catalog = DATA_SOURCES,
+        config = waterbodies_config,
+    script:
+        "src/setup_reservoirs_lakes_glaciers.py"
 
 # Rule to add gauges to the built model
 rule add_gauges_and_outputs:
     input:
-        basin_nc = f"{basin_dir}/staticmaps.nc"
+        basin_nc = ancient(f"{basin_dir}/staticmaps.nc"),
+        text = f"{basin_dir}/staticgeoms/reservoirs_lakes_glaciers.txt"
     output:
         gauges_fid = f"{basin_dir}/staticgeoms/gauges.geojson"
     params:
@@ -68,9 +105,9 @@ rule add_gauges_and_outputs:
 # Rule to prepare the time horizon
 rule setup_runtime:
     input:
-        gauges_fid = ancient(f"{basin_dir}/staticgeoms/gauges.geojson")
+        gauges_fid = f"{basin_dir}/staticgeoms/gauges.geojson"
     output:
-        forcing_ini = f"{project_dir}/config/wflow_build_forcing_historical.ini"
+        forcing_yml = f"{project_dir}/config/wflow_build_forcing_historical.yml"
     params:
         starttime = get_config(config, "starttime", optional=False),
         endtime = get_config(config, "endtime", optional=False),
@@ -80,7 +117,7 @@ rule setup_runtime:
 # Rule to add forcing to the updated model
 rule add_forcing:
     input:
-        forcing_ini = f"{project_dir}/config/wflow_build_forcing_historical.ini"
+        forcing_ini = f"{project_dir}/config/wflow_build_forcing_historical.yml"
     output:
         forcing_fid = f"{project_dir}/climate_historical/wflow_data/inmaps_historical.nc"
     shell:
@@ -105,17 +142,15 @@ rule plot_results:
    output: 
        output_png = f"{project_dir}/plots/wflow_model_performance/hydro_wflow_1.png",
    params:
-       starttime = get_config(config, "starttime", optional=False),
-       endtime = get_config(config, "endtime", optional=False),
        project_dir = f"{project_dir}",
        observations_file = observations_timeseries,
        gauges_output_fid = output_locations,
-       outputs = wflow_outvars,
    script: "src/plot_results.py"
 
+# Rule to plot the wflow basin, rivers, gauges and DEM on a map
 rule plot_map:
     input:
-        gauges_fid = ancient(f"{basin_dir}/staticgeoms/gauges.geojson")
+        gauges_fid = f"{basin_dir}/staticgeoms/gauges.geojson"
     output:
         output_map_png = f"{project_dir}/plots/wflow_model_performance/basin_area.png",
     params:
@@ -126,10 +161,10 @@ rule plot_map:
 # Rule to plot the forcing on a map
 rule plot_forcing:
     input:
-        forcing_fid = ancient(f"{project_dir}/climate_historical/wflow_data/inmaps_historical.nc"),
+        forcing_fid = f"{project_dir}/climate_historical/wflow_data/inmaps_historical.nc",
     output:
         output_forcing_map = f"{project_dir}/plots/wflow_model_performance/precip.png",
     params:
         project_dir = f"{project_dir}",
-        gauges_fid = ancient(f"{basin_dir}/staticgeoms/gauges.geojson")
+        gauges_fid = f"{basin_dir}/staticgeoms/gauges.geojson"
     script: "src/plot_map_forcing.py"

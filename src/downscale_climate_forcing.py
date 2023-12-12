@@ -1,8 +1,6 @@
-import hydromt
 from hydromt_wflow import WflowModel
 from pathlib import Path
 import os
-import xarray as xr
 import numpy as np
 
 # Snakemake parameters
@@ -45,10 +43,10 @@ update_options = {
         "starttime": starttime,
         "endtime": endtime,
         "timestepsecs": 86400,
-        "state.path_input": os.path.join('..','instate','instates.nc'),
+        "state.path_input": os.path.join("..", "instate", "instates.nc"),
         "state.path_output": f"outstates_{climate_name}.nc",
-        "input.path_static": os.path.join('..','staticmaps.nc'),
-        "input.path_forcing": os.path.join('..','..','..','..',fn_out),
+        "input.path_static": os.path.join("..", "staticmaps.nc"),
+        "input.path_forcing": os.path.join("..", "..", "..", "..", fn_out),
         "csv.path": f"output_{climate_name}.csv",
     },
     "set_root": {
