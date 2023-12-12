@@ -79,7 +79,7 @@ rule create_model:
 # Can be moved back to create_model rule when hydromt is updated
 rule add_reservoirs_lakes_glaciers:
     input:
-        basin_nc = f"{basin_dir}/staticmaps.nc"
+        basin_nc = ancient(f"{basin_dir}/staticmaps.nc")
     output:
         text_out = f"{basin_dir}/staticgeoms/reservoirs_lakes_glaciers.txt"
     params:
@@ -91,7 +91,7 @@ rule add_reservoirs_lakes_glaciers:
 # Rule to add gauges to the built model
 rule add_gauges_and_outputs:
     input:
-        basin_nc = f"{basin_dir}/staticmaps.nc",
+        basin_nc = ancient(f"{basin_dir}/staticmaps.nc"),
         text = f"{basin_dir}/staticgeoms/reservoirs_lakes_glaciers.txt"
     output:
         gauges_fid = f"{basin_dir}/staticgeoms/gauges.geojson"
@@ -166,5 +166,5 @@ rule plot_forcing:
         output_forcing_map = f"{project_dir}/plots/wflow_model_performance/precip.png",
     params:
         project_dir = f"{project_dir}",
-        gauges_fid = f"{basin_dir}/staticgeoms/gauges.geojson",
+        gauges_fid = f"{basin_dir}/staticgeoms/gauges.geojson"
     script: "src/plot_map_forcing.py"
