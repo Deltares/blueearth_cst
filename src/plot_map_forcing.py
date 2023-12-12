@@ -31,7 +31,7 @@ def plot_map_model(mod, da, figname, gauges_name):
     gdf_riv = mod.rivers
     # read/derive model basin boundary
     gdf_bas = mod.basins
-    plt.style.use("whitegrid")  # set nice style
+    plt.style.use("seaborn-v0_8-whitegrid")  # set nice style
     # we assume the model maps are in the geographic CRS EPSG:4326
     proj = ccrs.PlateCarree()
     # adjust zoomlevel and figure size to your basis size & aspect

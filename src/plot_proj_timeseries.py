@@ -483,7 +483,7 @@ if save_grids:
 
             # Average maps
             grids = ds_rcp_hz_med.mean(dim="month")
-            plt.style.use("whitegrid")  # set nice style
+            plt.style.use("seaborn-v0_8-whitegrid")  # set nice style
             # we assume the model maps are in the geographic CRS EPSG:4326
             proj = ccrs.PlateCarree()
             # adjust zoomlevel and figure size to your basis size & aspect
