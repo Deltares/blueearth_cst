@@ -105,7 +105,7 @@ rule add_gauges_and_outputs:
 # Rule to prepare the time horizon
 rule setup_runtime:
     input:
-        gauges_fid = ancient(f"{basin_dir}/staticgeoms/gauges.geojson")
+        gauges_fid = f"{basin_dir}/staticgeoms/gauges.geojson"
     output:
         forcing_yml = f"{project_dir}/config/wflow_build_forcing_historical.yml"
     params:
@@ -150,7 +150,7 @@ rule plot_results:
 # Rule to plot the wflow basin, rivers, gauges and DEM on a map
 rule plot_map:
     input:
-        gauges_fid = ancient(f"{basin_dir}/staticgeoms/gauges.geojson")
+        gauges_fid = f"{basin_dir}/staticgeoms/gauges.geojson"
     output:
         output_map_png = f"{project_dir}/plots/wflow_model_performance/basin_area.png",
     params:
@@ -161,10 +161,10 @@ rule plot_map:
 # Rule to plot the forcing on a map
 rule plot_forcing:
     input:
-        forcing_fid = ancient(f"{project_dir}/climate_historical/wflow_data/inmaps_historical.nc"),
+        forcing_fid = f"{project_dir}/climate_historical/wflow_data/inmaps_historical.nc",
     output:
         output_forcing_map = f"{project_dir}/plots/wflow_model_performance/precip.png",
     params:
         project_dir = f"{project_dir}",
-        gauges_fid = ancient(f"{basin_dir}/staticgeoms/gauges.geojson")
+        gauges_fid = f"{basin_dir}/staticgeoms/gauges.geojson",
     script: "src/plot_map_forcing.py"
