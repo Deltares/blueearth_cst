@@ -56,8 +56,21 @@ wflow_run_length = get_config(config, 'run_length', 20)
 # Master rule: end with all model run and analysed with saving a output plot
 rule all:
     input:
-        Qstats = f"{exp_dir}/model_results/Qstats.csv",
+        Qstats = f"{exp_dir}/model_results/mean.csv",
         basin = f"{exp_dir}/model_results/basin.csv",
+        snake_config = f"{project_dir}/config/snake_config_climate_experiment.yml",
+
+# Rule to copy config files to the project_dir/config folder
+rule copy_config:
+    input:
+        config_snake = config_path,
+    params:
+        data_catalogs = DATA_SOURCES,
+        workflow_name = "climate_experiment",
+    output:
+        config_snake_out = f"{project_dir}/config/snake_config_climate_experiment.yml",
+    script:
+        "src/copy_config_files.py"
 
 # Rule to extract historic climate data at native resolution for the project area
 rule extract_climate_grid:
@@ -195,7 +208,7 @@ rule export_wflow_results:
     input:
         rlz_csv_fns = expand((f"{basin_dir}/run_climate_{experiment}/output_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".csv"), rlz_num=np.arange(1, RLZ_NUM+1), st_num2=np.arange(ST_START, ST_NUM+1)),
     output:
-        Qstats = f"{exp_dir}/model_results/Qstats.csv",
+        Qstats = f"{exp_dir}/model_results/mean.csv",
         basin = f"{exp_dir}/model_results/basin.csv",
     params:
         model_dir = basin_dir,

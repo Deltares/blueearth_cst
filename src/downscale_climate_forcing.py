@@ -1,8 +1,6 @@
-import hydromt
 from hydromt_wflow import WflowModel
 from pathlib import Path
 import os
-import xarray as xr
 import numpy as np
 
 # Snakemake parameters

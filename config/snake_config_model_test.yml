@@ -33,6 +33,7 @@ wflow_outvars: ['river discharge', 'precipitation', 'overland flow', 'actual eva
 model_region: "{'subbasin': [9.666, 0.4476], 'uparea': 100}"
 # Grid resolution of the model in degrees
 model_resolution: 0.0062475
+
 # If available, please here put the path to the available observation stations locations files
 # csv file containing three columns: station_ID, x, y
 output_locations: "data/observations/output-locations-test.csv" # If set to None, will default to the wflow outlets

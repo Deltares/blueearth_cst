@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import xarray as xr
 
-#%%
+# %%
 
 
 def intersection(lst1, lst2):
@@ -170,7 +170,7 @@ def get_change_annual_clim_proj(
     return stats_annual_change
 
 
-#%%
+# %%
 
 
 # Snakemake options
@@ -193,9 +193,7 @@ time_tuple_fut = tuple(map(str, time_tuple_fut.split(", ")))
 
 # open datasets and slice times
 ds_hist_time = xr.open_dataset(stats_time_nc_hist)
-ds_hist_time = ds_hist_time.sel(time=slice(*time_tuple_hist))
 ds_clim_time = xr.open_dataset(stats_time_nc)
-ds_clim_time = ds_clim_time.sel(time=slice(*time_tuple_fut))
 
 # Get names of grids if save_grids
 if save_grids:
@@ -241,13 +239,14 @@ for dim in YDIMS:
 #         ds.to_netcdf(os.path.join(clim_project_dir, name_nc_out), encoding={k: {"zlib": True} for k in dvars})
 
 
-#%% get annual statistics from time series of monthly variables
+# %% get annual statistics from time series of monthly variables
 
 # only calc statistics if netcdf is filled (for snake all the files are made, even dummy when no data)
 # create dummy netcdf otherwise as this is the file snake is checking:
 
 if len(ds_clim_time) > 0:
-
+    ds_hist_time = ds_hist_time.sel(time=slice(*time_tuple_hist))
+    ds_clim_time = ds_clim_time.sel(time=slice(*time_tuple_fut))
     # calculate statistics (mean, std, 0.1 0.25 0.50 0.75 0.90 quantiles of annual precip sum and mean temp)
     stats_annual_change = get_change_annual_clim_proj(ds_hist_time, ds_clim_time)
     # add time horizon coords
@@ -257,7 +256,9 @@ if len(ds_clim_time) > 0:
         }
     ).expand_dims(["horizon"])
     # Reorder dims
-    stats_annual_change = stats_annual_change.transpose(..., "clim_project", "model", "scenario", "horizon", "member")
+    stats_annual_change = stats_annual_change.transpose(
+        ..., "clim_project", "model", "scenario", "horizon", "member"
+    )
 
     # write to netcdf files
     dvars = stats_annual_change.raster.vars
@@ -290,7 +291,9 @@ if save_grids:
             }
         ).expand_dims(["horizon"])
         # Reorder dims
-        stats_annual_change = stats_annual_change.transpose(..., "clim_project", "model", "scenario", "horizon", "member")
+        stats_annual_change = stats_annual_change.transpose(
+            ..., "clim_project", "model", "scenario", "horizon", "member"
+        )
 
         # write to netcdf files
         print(f"writing netcdf files monthly_change_mean_grid")

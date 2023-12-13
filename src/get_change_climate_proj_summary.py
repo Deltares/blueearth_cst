@@ -12,8 +12,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
 import xarray as xr
+import numpy as np
 
-#%%
+# %%
 
 # Snakemake options
 clim_project_dir = snakemake.params.clim_project_dir
@@ -74,15 +75,29 @@ for hz in horizons:
 # Set new values in multiindex dataframe
 df.index = df.index.set_levels(hz_list, level="horizon")
 
+scenarios = np.unique(df.index.get_level_values("scenario"))
+clrs = []
+for s in scenarios:
+    if s == "ssp126":
+        clrs.append("#003466")
+    if s == "ssp245":
+        clrs.append("#f69320")
+    if s == "ssp370":
+        clrs.append("#df0000")
+    elif s == "ssp585":
+        clrs.append("#980002")
 g = sns.JointGrid(
     data=df,
     x="precip",
     y="temp",
     hue="scenario",
 )
-g.plot_joint(sns.scatterplot, s=100, alpha=0.5, data=df, style="horizon")
-g.plot_marginals(sns.kdeplot)
-g.set_axis_labels(xlabel="Mean precipitation (%)", ylabel="Mean temperature (degC)")
+g.plot_joint(sns.scatterplot, s=100, alpha=0.5, data=df, style="horizon", palette=clrs)
+g.plot_marginals(sns.kdeplot, palette=clrs)
+g.set_axis_labels(
+    xlabel="Change in mean precipitation (%)",
+    ylabel="Change in mean temperature (degC)",
+)
 g.ax_joint.grid()
-g.ax_joint.legend(loc="upper right", bbox_to_anchor=(1.3, 1.4))
+g.ax_joint.legend(loc="right", bbox_to_anchor=(1.5, 0.5))
 g.savefig(os.path.join(clim_project_dir, "plots", "projected_climate_statistics.png"))

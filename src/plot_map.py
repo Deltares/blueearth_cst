@@ -5,16 +5,14 @@ Created on Thu Jan 13 16:23:11 2022
 @author: bouaziz
 """
 
-#%% plot map
+# %% plot map
 
-import pandas as pd
 import xarray as xr
 import numpy as np
-from os.path import join, dirname, basename
+from os.path import basename
 import os
 import matplotlib.pyplot as plt
-import matplotlib as mpl
-from matplotlib import cm, colors
+from matplotlib import colors
 import matplotlib.patheffects as pe
 
 # plot maps dependencies
@@ -24,7 +22,6 @@ import cartopy.crs as ccrs
 # import descartes  # required to plot polygons
 import cartopy.io.img_tiles as cimgt
 
-import hydromt
 from hydromt_wflow import WflowModel
 
 project_dir = snakemake.params.project_dir
@@ -38,13 +35,13 @@ root = f"{project_dir}/hydrology_model"
 mod = WflowModel(root, mode="r")
 
 # read and mask the model elevation
-da = mod.staticmaps["wflow_dem"].raster.mask_nodata()
+da = mod.grid["wflow_dem"].raster.mask_nodata()
 da.attrs.update(long_name="elevation", units="m")
 # read/derive river geometries
 gdf_riv = mod.rivers
 # read/derive model basin boundary
 gdf_bas = mod.basins
-plt.style.use("seaborn-whitegrid")  # set nice style
+plt.style.use("seaborn-v0_8-whitegrid")  # set nice style
 # we assume the model maps are in the geographic CRS EPSG:4326
 proj = ccrs.PlateCarree()
 # adjust zoomlevel and figure size to your basis size & aspect
@@ -97,12 +94,12 @@ gdf_riv.plot(
 # plot the basin boundary
 gdf_bas.boundary.plot(ax=ax, color="k", linewidth=0.3)
 # plot various vector layers if present
-if "gauges" in mod.staticgeoms:
-    mod.staticgeoms["gauges"].plot(
+if "gauges" in mod.geoms:
+    mod.geoms["gauges"].plot(
         ax=ax, marker="d", markersize=25, facecolor="k", zorder=5, label="gauges"
     )
-if gauges_name in mod.staticgeoms:
-    mod.staticgeoms[gauges_name].plot(
+if gauges_name in mod.geoms:
+    mod.geoms[gauges_name].plot(
         ax=ax,
         marker="d",
         markersize=25,
@@ -110,37 +107,37 @@ if gauges_name in mod.staticgeoms:
         zorder=5,
         label="output locs",
     )
-    if 'station_name' in mod.staticgeoms[gauges_name].columns:
-        mod.staticgeoms[gauges_name].apply(
+    if "station_name" in mod.geoms[gauges_name].columns:
+        mod.geoms[gauges_name].apply(
             lambda x: ax.annotate(
-                text=x['station_name'], 
+                text=x["station_name"],
                 xy=x.geometry.coords[0],
-                xytext=(2.0, 2.0), 
-                textcoords='offset points', 
-                #ha='left',
-                #va = 'top',
+                xytext=(2.0, 2.0),
+                textcoords="offset points",
+                # ha='left',
+                # va = 'top',
                 fontsize=5,
-                fontweight='bold',
-                color='black',
-                path_effects=[pe.withStroke(linewidth=2, foreground="white")]
-            ), 
-            axis=1
+                fontweight="bold",
+                color="black",
+                path_effects=[pe.withStroke(linewidth=2, foreground="white")],
+            ),
+            axis=1,
         )
 
 patches = (
     []
 )  # manual patches for legend, see https://github.com/geopandas/geopandas/issues/660
-if "lakes" in mod.staticgeoms:
+if "lakes" in mod.geoms:
     kwargs = dict(facecolor="lightblue", edgecolor="black", linewidth=1, label="lakes")
-    mod.staticgeoms["lakes"].plot(ax=ax, zorder=4, **kwargs)
+    mod.geoms["lakes"].plot(ax=ax, zorder=4, **kwargs)
     patches.append(mpatches.Patch(**kwargs))
-if "reservoirs" in mod.staticgeoms:
+if "reservoirs" in mod.geoms:
     kwargs = dict(facecolor="blue", edgecolor="black", linewidth=1, label="reservoirs")
-    mod.staticgeoms["reservoirs"].plot(ax=ax, zorder=4, **kwargs)
+    mod.geoms["reservoirs"].plot(ax=ax, zorder=4, **kwargs)
     patches.append(mpatches.Patch(**kwargs))
-if "glaciers" in mod.staticgeoms:
+if "glaciers" in mod.geoms:
     kwargs = dict(facecolor="grey", edgecolor="grey", linewidth=1, label="glaciers")
-    mod.staticgeoms["glaciers"].plot(ax=ax, zorder=4, **kwargs)
+    mod.geoms["glaciers"].plot(ax=ax, zorder=4, **kwargs)
     patches.append(mpatches.Patch(**kwargs))
 
 ax.xaxis.set_visible(True)
