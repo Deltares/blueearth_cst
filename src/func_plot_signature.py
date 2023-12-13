@@ -624,7 +624,7 @@ def plot_hydro(
             ax=axes[1], label=label, linewidth=lw, color=color
         )
     if "Obs." in dsq["runs"]:
-        dsq["Q"].sel(runs="Obs.").resample(time="A").sum().Q.plot(
+        dsq.sel(runs="Obs.").resample(time="A").sum().Q.plot(
             ax=axes[1], label="Obs.", linewidth=lw, color="k", linestyle="--"
         )
 
