@@ -11,7 +11,7 @@ dependencies:
   - dvc
   - descartes
   - flit>=3.2
-  - gcsfs
+  - gcsfs>=2023.12.1
   - gdal>=3.1
   - geopandas>=0.10
   - graphviz # for snakemake
@@ -24,6 +24,7 @@ dependencies:
   - pip
   - python>=3.7,<3.11
   - rasterio
+  - universal_pathlib<0.1
   - r-base
   - r-essentials
   - r-akima
