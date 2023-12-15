@@ -56,7 +56,7 @@ wflow_run_length = get_config(config, 'run_length', 20)
 # Master rule: end with all model run and analysed with saving a output plot
 rule all:
     input:
-        Qstats = f"{exp_dir}/model_results/mean.csv",
+        Qstats = f"{exp_dir}/model_results/Qstats.csv",
         basin = f"{exp_dir}/model_results/basin.csv",
         snake_config = f"{project_dir}/config/snake_config_climate_experiment.yml",
 
@@ -208,13 +208,11 @@ rule export_wflow_results:
     input:
         rlz_csv_fns = expand((f"{basin_dir}/run_climate_{experiment}/output_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".csv"), rlz_num=np.arange(1, RLZ_NUM+1), st_num2=np.arange(ST_START, ST_NUM+1)),
     output:
-        Qstats = f"{exp_dir}/model_results/mean.csv",
+        Qstats = f"{exp_dir}/model_results/Qstats.csv",
         basin = f"{exp_dir}/model_results/basin.csv",
     params:
-        model_dir = basin_dir,
         exp_dir = exp_dir,
         aggr_rlz = get_config(config, 'aggregate_rlz', True),
-        rlz_num = RLZ_NUM, 
         st_num = ST_NUM,
         Tlow = get_config(config,"Tlow", 2),
         Tpeak = get_config(config,"Tpeak", 10),
