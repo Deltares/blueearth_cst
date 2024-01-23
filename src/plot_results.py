@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Wed Jul 14 09:18:38 2021
-
-@author: bouaziz
+Plot wflow results and compare to observations if any
 """
 
 import xarray as xr
@@ -20,7 +18,7 @@ from typing import Union
 from func_plot_signature import (
     plot_signatures,
     plot_hydro,
-    plot_hydro_1y,
+    compute_metrics,
     plot_clim,
     plot_basavg,
 )
@@ -34,74 +32,125 @@ def analyse_wflow_historical(
     """
     Analyse and plot wflow model performance for historical run.
 
+    To be read, model should be stored in ``project_dir``/hydrology_model.
+    Model results should include the following keys: Q_gauges,
+    Q_gauges_{basename(gauges_locs)}, P_subcatchment, T_subcatchment, EP_subcatchment.
+
+
+    Outputs:
+
+    - plot of hydrographs at the outlet(s) and gauges_locs if provided. If wflow run is
+      three years or less, only the daily hydrograph will be plotted. If wflow run is
+      longer than three years, plots will also include the yearly hydrograph, the
+      monthly average and hyddrographs for the wettest and driest years. If observations
+      are available, they are added as well.
+    - plot of signature plots if wflow run is longer than a year and if observations
+      are available.
+    - plot of climate data per year and per month at the subcatchment level if wflow run
+      is longer than a year.
+    - plot of basin average outputs (e.g. soil moisture, snow, etc.). The variables to
+      include should have the postfix _basavg in the wflow output file.
+    - compute performance metrics (daily and monthly KGE, NSE, NSElog, RMSE, MSE, Pbias,
+      VE) if observations are available and if wflow run is longer than a year. Metrics
+      are saved to a csv file.
+
     Parameters
     ----------
     project_dir : Path
         path to CST project directory
     observations_fn : Union[Path, str], optional
-        path to observations timeseries file, by default None
+        Path to observations timeseries file, by default None
+        Required columns: time, wflow_id IDs of the locations as in ``gauges_locs``.
+        Separator is , and decimal is .
     gauges_locs : Union[Path, str], optional
-        path to gauges/observations locations file, by default None
+        Path to gauges/observations locations file, by default None
+        Required columns: wflow_id, station_name, x, y.
+        Values in wflow_id column should match column names in ``observations_fn``.
+        Separator is , and decimal is .
     """
-    # TODO: check if used and moved to arguments
-    fs = 8
-    lw = 0.8
-
-    # Get name of gauges dataset from the gauges locations file
-    gauges_output_name = os.path.basename(gauges_locs).split(".")[0]
+    ### 1. Prepare output and plotting options ###
 
     # Create output folders
     Folder_plots = f"{project_dir}/plots/wflow_model_performance"
-    Folder_run = f"{project_dir}/hydrology_model"
 
     if not os.path.isdir(Folder_plots):
         os.mkdir(Folder_plots)
 
-    # Other plot options
-    labels = ["simulated"]  # "observed"
-    colors = ["steelblue"]  # "red"
-    linestyles = ["-"]
-    markers = ["o"]
+    # Plotting options
+    fs = 7
+    lw = 0.8
 
-    ### 1. Read wflow model and results ###
+    # Other plot options
+    label = "simulated"  # "observed"
+    color = "steelblue"  # "red"
+    linestyle = "-"
+    marker = "o"
+
+    ### 2. Read the observations ###
+    # check if user provided observations
+    has_observations = False
+
+    if observations_fn is not None:
+        if os.path.exists(observations_fn):
+            has_observations = True
+
+        # Read
+        try:
+            ds_obs = hydromt.io.open_geodataset(
+                fn_locs=gauges_locs,
+                fn_data=observations_fn,
+                var_name="Q",
+                index_dim="wflow_id",
+                crs=4326,
+            )
+        except:
+            # If ; is still used as sep in observations_fn
+            gdf_obs = hydromt.io.open_vector(gauges_locs, crs=4326, sep=",")
+            da_ts_obs = hydromt.io.open_timeseries_from_table(
+                observations_fn, name="Q", index_dim="wflow_id", sep=";"
+            )
+            ds_obs = hydromt.vector.GeoDataset.from_gdf(gdf_obs, da_ts_obs)
+        # Rename wflow_id to index
+        ds_obs = ds_obs.rename({"wflow_id": "index"})
+        qobs = ds_obs["Q"].load()
+
+    ### 3. Read the wflow model and results ###
     # Instantiate wflow model
+    Folder_run = f"{project_dir}/hydrology_model"
     mod = WflowModel(root=Folder_run, mode="r")
 
-    # read outputlocs geoms
-    if f"gauges_{gauges_output_name}" in mod.geoms:
-        gdf_outlocs = mod.geoms[f"gauges_{gauges_output_name}"]
-        stationID = "wflow_id"  # column name in geoms containing the stations IDs
-        gdf_outlocs.index = gdf_outlocs[stationID]
-
-    # read model output at gauges locations from model setup
-    qsim_gauges = mod.results["Q_gauges"]
+    # Read the results
+    # Discharge at the outlet(s)
+    qsim = mod.results["Q_gauges"].rename("Q")
     # add station_name
-    qsim_gauges = qsim_gauges.assign_coords(
+    qsim = qsim.assign_coords(
         station_name=(
             "index",
-            ["wflow_" + x for x in list(qsim_gauges["index"].values.astype(str))],
+            ["wflow_" + x for x in list(qsim["index"].values.astype(str))],
         )
     )
-
-    # read model output at output locations provided by user
-    if f"gauges_{gauges_output_name}" in mod.geoms:
-        qsim_outloc = mod.results[f"Q_gauges_{gauges_output_name}"]
-        # add station_name
-        qsim_outloc = qsim_outloc.assign_coords(
-            station_name=(
-                "index",
-                list(gdf_outlocs["station_name"][qsim_outloc.index.values].values),
+    # Discharge at the gauges_locs if present
+    if has_observations:
+        # Get name of gauges dataset from the gauges locations file
+        gauges_output_name = os.path.basename(gauges_locs).split(".")[0]
+        if f"Q_gauges_{gauges_output_name}" in mod.results:
+            qsim_gauges = mod.results[f"Q_gauges_{gauges_output_name}"].rename("Q")
+            # Add station_name
+            gdf_gauges = (
+                mod.geoms[f"gauges_{gauges_output_name}"]
+                .rename(columns={"wflow_id": "index"})
+                .set_index("index")
             )
-        )
-        # rename run to label and rename var to Q
-        ds_sim_outlocs = (
-            qsim_outloc.to_dataset()
-            .assign_coords({"runs": labels[0]})
-            .expand_dims("runs")
-            .rename({f"Q_gauges_{gauges_output_name}": "Q"})
-        )
+            qsim_gauges = qsim_gauges.assign_coords(
+                station_name=(
+                    "index",
+                    list(gdf_gauges["station_name"][qsim_gauges.index.values].values),
+                )
+            )
+            # Merge with qsim
+            qsim = xr.merge([qsim, qsim_gauges])["Q"]
 
-    # P, EP and T for wflow_subcatch
+    # Climate data P, EP, T for wflow_subcatch
     ds_clim = xr.merge(
         [
             mod.results["P_subcatchment"],
@@ -110,7 +159,7 @@ def analyse_wflow_historical(
         ]
     )
 
-    # Other wflow outputs for wflow basin
+    # Other catchment average outputs
     ds_basin = xr.merge(
         [mod.results[dvar] for dvar in mod.results if "_basavg" in dvar]
     )
@@ -119,199 +168,112 @@ def analyse_wflow_historical(
     if "precipitation_basavg" in ds_basin:
         ds_basin = ds_basin.drop_vars("precipitation_basavg")
 
-    ### 2. Read the observations data ###
-    # read timeseries data and match with existing gdf
-    has_observations = False
-    if observations_fn is not None:
-        if os.path.exists(observations_fn):
-            has_observations = True
-
-    # Discharge data
-    # make sure the user provided a observation file and ouput locations
-    if (f"gauges_{gauges_output_name}" in mod.geoms) & (has_observations):
-        name = f"gauges_{gauges_output_name}"  # gauges locations in geoms
-        da_ts = hydromt.io.open_timeseries_from_table(
-            observations_fn, name=name, sep=";"
-        )
-        # HydroMT bug to be fixed index len and names on gdf_outltocs and da_ts need to be an excact match
-        # Find common index in gdf_outlocs and da_ts and keep only the common ones
-        common_index = gdf_outlocs.index.intersection(da_ts.index)
-        gdf_outlocs = gdf_outlocs.loc[common_index]
-        da_ts = da_ts.sel(index=common_index)
-        da = hydromt.vector.GeoDataArray.from_gdf(gdf_outlocs, da_ts, index_dim="index")
-        qobs_outloc = da
-        # rename run to Obs. and rename var to Q
-        ds_obs = (
-            qobs_outloc.to_dataset()
-            .assign_coords({"runs": "Obs."})
-            .expand_dims("runs")
-            .rename({f"gauges_{gauges_output_name }": "Q"})
-        )
-
-    ### 3. make plots - first loop over output locations ###
-
-    # combine sim and obs at outputloc in one dataset if timeseries observations exist
-    if (f"gauges_{gauges_output_name}" in mod.geoms) & (has_observations):
-        ds_outlocs = ds_obs.combine_first(ds_sim_outlocs)
-        # combine_first now seems to somehow drop the coordinate station_name?
-        ds_outlocs["station_name"] = ds_obs["station_name"]
-        ds_outlocs = ds_outlocs.set_coords("station_name")
-
-    # rename Q in modeled dataset at gauges locations
-    ds_sim_gauges = (
-        qsim_gauges.to_dataset()
-        .assign_coords({"runs": labels[0]})
-        .expand_dims("runs")
-        .rename({"Q_gauges": "Q"})
-    )
-
-    # select dataset based on gauges or/and outputloc locations
-    # if no user output and observations are provided:
-    if ((f"{gauges_output_name}" in mod.geoms) == False) & (not has_observations):
-        ds_list = [ds_sim_gauges]
-    # if user output locs are available but no observations timeseries:
-    elif ((f"{gauges_output_name}" in mod.geoms) == True) & (not has_observations):
-        ds_list = [ds_sim_gauges, ds_sim_outlocs]
-    # if output locs and observations are available
-    # make hydro plots for gauges and make hydro and signature plots for outputlocs
+    ### 4. Plot climate data ###
+    # No plots of climate data if wflow run is less than a year
+    if len(ds_clim.time) < 365:
+        print("less than 1 year of data is available " "no yearly clim plots are made.")
     else:
-        ds_list = [ds_sim_gauges, ds_outlocs]
-
-    # plot and loop over datasets with outlocs and gauges locations
-    df_perf_all = pd.DataFrame()
-    for ds in ds_list:
-        for station_id, station_name in zip(ds.index.values, ds.station_name.values):
-            print(station_id, station_name)
-            # skip first year for hydro -- warm up period
-            if len(ds.time) > 365:
-                dsq = ds.sel(index=station_id).sel(
-                    time=slice(
-                        f"{ds['time.year'][0].values+1}-{ds['time.month'][0].values}-{ds['time.day'][0].values}",
-                        None,
-                    )
-                )  # .dropna(dim='time')
-            else:
-                dsq = ds.sel(index=station_id)
-            # plot hydro
-            if len(np.unique(dsq["time.year"])) >= 3:
-                year_min = (
-                    dsq["Q"]
-                    .resample(time="A")
-                    .sum()
-                    .sel(runs="simulated")
-                    .idxmin()
-                    .dt.year.values
-                )  # driest year
-                year_max = (
-                    dsq["Q"]
-                    .resample(time="A")
-                    .sum()
-                    .sel(runs="simulated")
-                    .idxmax()
-                    .dt.year.values
-                )  # wettest year
-                if year_min == year_max:
-                    year_min = (
-                        dsq.resample(time="A")
-                        .min("time")
-                        .isel(time=1)["time.year"]
-                        .values
-                    )
-                plot_hydro(
-                    dsq,
-                    dsq.time[0],
-                    dsq.time[-1],
-                    str(year_max),
-                    str(year_min),
-                    labels,
-                    colors,
-                    Folder_plots,
-                    station_name,
-                )
-                plt.close()
-            else:
-                plot_hydro_1y(
-                    dsq,
-                    dsq.time[0],
-                    dsq.time[-1],
-                    labels,
-                    colors,
-                    Folder_plots,
-                    station_name,
-                )
-                plt.close()
-
-            ### 4. Compute and plot model performance metrics ###
-            # dropna time for signature calculations.
-            # skip first year for signatures -- warm up period
-            # if model did not run for a full year - skip signature plots
-            if len(ds.time) > 365:
-                dsq = (
-                    ds["Q"]
-                    .sel(index=station_id)
-                    .sel(
-                        time=slice(
-                            f"{ds['time.year'][0].values+1}-{ds['time.month'][0].values}-{ds['time.day'][0].values}",
-                            None,
-                        )
-                    )
-                    .to_dataset()
-                    .dropna(dim="time")
-                )
-                if (len(dsq["Q"].time) > 0) & (
-                    "Obs." in dsq["runs"]
-                ):  # only plot signatures if observations timeseries are present
-                    print("observed timeseries are available - making signature plots.")
-                    df_perf = plot_signatures(
-                        dsq,
-                        Folder_out=Folder_plots,
-                        station_name=station_name,
-                        labels=labels,
-                        colors=colors,
-                        linestyles=linestyles,
-                        markers=markers,
-                        fs=fs,
-                        lw=lw,
-                    )
-                    if df_perf_all.empty:
-                        df_perf_all = df_perf
-                    else:
-                        df_perf_all = df_perf_all.join(df_perf)
-                else:
-                    print(
-                        "observed timeseries are not available "
-                        "no signature plots are made."
-                    )
-                plt.close()
-            else:
-                print(
-                    "less than 1 year of data is available "
-                    "no signature plots are made."
-                )
-
-    ### 4. save performance metrics to csv ###
-    df_perf_all.to_csv(os.path.join(Folder_plots, "performance_metrics.csv"))
-
-    for index in ds_clim.index.values:
-        print(f"Plot climatic data at wflow basin {index}")
-        ds_clim_i = ds_clim[
-            ["P_subcatchment", "EP_subcatchment", "T_subcatchment"]
-        ].sel(index=index)
-        if len(ds.time) > 365:
+        for index in ds_clim.index.values:
+            print(f"Plot climatic data at wflow basin {index}")
+            ds_clim_i = ds_clim.sel(index=index)
+            # Plot per year
             plot_clim(ds_clim_i, Folder_plots, f"wflow_{index}", "year")
             plt.close()
-        else:
-            print(
-                "less than 1 year of data is available "
-                "no yearly clim plots are made."
-            )
-        plot_clim(ds_clim_i, Folder_plots, f"wflow_{index}", "month")
-        plt.close()
+            # Plot per month
+            plot_clim(ds_clim_i, Folder_plots, f"wflow_{index}", "month")
+            plt.close()
 
-    # Plots for other wflow outputs
+    ### 5. Plot other basin average outputs ###
     print("Plot basin average wflow outputs")
     plot_basavg(ds_basin, Folder_plots)
     plt.close()
+
+    ### 6. Plot hydrographs and compute performance metrics ###
+    # Initialise the output performance table
+    df_perf_all = pd.DataFrame()
+    # Flag for plot signatures
+    # (True if wflow run is longer than a year and observations are available)
+    do_signatures = False
+
+    # If possible, skip the first year of the wflow run (warm-up period)
+    if len(qsim.time) > 365:
+        print("Skipping the first year of the wflow run (warm-up period)")
+        qsim = qsim.sel(
+            time=slice(
+                f"{qsim['time.year'][0].values+1}-{qsim['time.month'][0].values}-{qsim['time.day'][0].values}",
+                None,
+            )
+        )
+        if has_observations:
+            do_signatures = True
+    else:
+        print("Simulation is less than a year so model warm-up period will be plotted.")
+    # Sel qsim and qobs so that they have the same time period
+    if has_observations:
+        start = max(qsim.time.values[0], qobs.time.values[0])
+        end = min(qsim.time.values[-1], qobs.time.values[-1])
+        qsim = qsim.sel(time=slice(start, end))
+        qobs = qobs.sel(time=slice(start, end))
+
+    # Loop over the stations
+    for station_id, station_name in zip(qsim.index.values, qsim.station_name.values):
+        # Select the station
+        qsim_i = qsim.sel(index=station_id)
+        qobs_i = None
+        if has_observations:
+            if station_id in qobs.index.values:
+                qobs_i = qobs.sel(index=station_id)
+
+        # a) Plot hydrographs
+        print(f"Plot hydrographs at wflow station {station_name}")
+        plot_hydro(
+            qsim=qsim_i,
+            qobs=qobs_i,
+            Folder_out=Folder_plots,
+            station_name=station_name,
+            label=label,
+            color=color,
+            lw=lw,
+            fs=fs,
+        )
+        plt.close()
+        # b) Signature plot and performance metrics
+        if do_signatures and qobs_i is not None:
+            print("observed timeseries are available - making signature plots.")
+            # Plot signatures
+            plot_signatures(
+                qsim=qsim_i,
+                qobs=qobs_i,
+                Folder_out=Folder_plots,
+                station_name=station_name,
+                label=label,
+                color=color,
+                linestyle=linestyle,
+                marker=marker,
+                fs=fs,
+                lw=lw,
+            )
+            plt.close()
+            # Compute performance metrics
+            df_perf = compute_metrics(
+                qsim=qsim_i,
+                qobs=qobs_i,
+                station_name=station_name,
+            )
+            # Join with other stations
+            if df_perf_all.empty:
+                df_perf_all = df_perf
+            else:
+                df_perf_all = df_perf_all.join(df_perf)
+        else:
+            print(
+                "observed timeseries are not available " "no signature plots are made."
+            )
+
+    # Save performance metrics to csv
+    df_perf_all.to_csv(os.path.join(Folder_plots, "performance_metrics.csv"))
+
+    ### End of the function ###
 
 
 if __name__ == "__main__":
