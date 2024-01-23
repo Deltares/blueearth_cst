@@ -399,8 +399,6 @@ for n in ["abs", "anom"]:
     plt.xticks(
         np.arange(1, 13), ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
     )
-    plt.legend()
-    plt.grid()
     for i in range(len(qtas)):
         plt.fill_between(
             x=qtas[i].index,
@@ -415,6 +413,8 @@ for n in ["abs", "anom"]:
             color=clrs[i],
             label=rcps[i] + " multi-model median",
         )
+    plt.legend()
+    plt.grid()
 
     plt.savefig(
         os.path.join(
