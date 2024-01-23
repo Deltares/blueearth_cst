@@ -130,4 +130,7 @@ examples/
 # Images
 *.png
 
+# Tests
+tests/test_project
+
 
