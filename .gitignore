@@ -133,3 +133,8 @@ examples/
 # singularity
 singularity/*
 hdata
+
+# Tests
+tests/test_project
+
+

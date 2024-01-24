@@ -58,4 +58,4 @@ dependencies:
   - zarr
   - pip:
     - hydroengine
-    - snakemake==7.8.0
+    - snakemake
