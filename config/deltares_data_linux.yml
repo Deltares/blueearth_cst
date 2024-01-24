@@ -444,7 +444,7 @@ eobs_orography_v25.0e:
     elevation: elevtn
 
 era5:
-  alias: era5_daily
+  alias: era5_daily_zarr
 era5_daily:
   crs: 4326
   data_type: RasterDataset
