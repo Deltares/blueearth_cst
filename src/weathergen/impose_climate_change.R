@@ -12,7 +12,7 @@ args <- commandArgs(trailingOnly = TRUE)
 yaml <- yaml::read_yaml(args[2])
 # Stochastic weather realization to be perturbed
 rlz_fn <- args[1]
-rlz_input <- weathergenr::readNetcdf(rlz_fn)
+rlz_input <- weathergenr::readNetcdf(rlz_fn, leap.days = FALSE)
 # Climate stress file
 cst_data <- read.csv(args[3])
 
