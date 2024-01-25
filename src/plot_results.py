@@ -90,9 +90,8 @@ def analyse_wflow_historical(
     # check if user provided observations
     has_observations = False
 
-    if observations_fn is not None:
-        if os.path.exists(observations_fn):
-            has_observations = True
+    if observations_fn is not None and os.path.exists(observations_fn):
+        has_observations = True
 
         # Read
         try:
