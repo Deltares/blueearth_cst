@@ -56,7 +56,7 @@ def update_wflow_gauges_outputs(
     )
 
     # Add gauges
-    if os.path.isfile(gauges_fn):
+    if gauges_fn is not None and os.path.isfile(gauges_fn):
         mod.setup_gauges(
             gauges_fn=gauges_fn,
             snap_to_river=True,

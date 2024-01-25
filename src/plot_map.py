@@ -26,7 +26,10 @@ from hydromt_wflow import WflowModel
 
 project_dir = snakemake.params.project_dir
 gauges_fn = snakemake.params.output_locations
-gauges_name = f'gauges_{basename(gauges_fn).split(".")[0]}'
+if gauges_fn is not None:
+    gauges_name = f'gauges_{basename(gauges_fn).split(".")[0]}'
+else:
+    gauges_name = None
 
 Folder_plots = f"{project_dir}/plots/wflow_model_performance"
 root = f"{project_dir}/hydrology_model"
@@ -98,7 +101,7 @@ if "gauges" in mod.geoms:
     mod.geoms["gauges"].plot(
         ax=ax, marker="d", markersize=25, facecolor="k", zorder=5, label="gauges"
     )
-if gauges_name in mod.geoms:
+if gauges_name is not None and gauges_name in mod.geoms:
     mod.geoms[gauges_name].plot(
         ax=ax,
         marker="d",

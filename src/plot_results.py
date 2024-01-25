@@ -89,9 +89,8 @@ def analyse_wflow_historical(
     # check if user provided observations
     has_observations = False
 
-    if observations_fn is not None:
-        if os.path.exists(observations_fn):
-            has_observations = True
+    if observations_fn is not None and os.path.exists(observations_fn):
+        has_observations = True
 
         # Read
         try:
@@ -129,7 +128,7 @@ def analyse_wflow_historical(
         )
     )
     # Discharge at the gauges_locs if present
-    if has_observations:
+    if gauges_locs is not None and os.path.exists(gauges_locs):
         # Get name of gauges dataset from the gauges locations file
         gauges_output_name = os.path.basename(gauges_locs).split(".")[0]
         if f"Q_gauges_{gauges_output_name}" in mod.results:
