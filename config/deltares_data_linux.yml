@@ -444,7 +444,7 @@ eobs_orography_v25.0e:
     elevation: elevtn
 
 era5:
-  alias: era5_daily
+  alias: era5_daily_zarr
 era5_daily:
   crs: 4326
   data_type: RasterDataset
@@ -489,13 +489,37 @@ era5_daily:
     press_msl: 0.01
 
 era5_daily_zarr:
-  alias: era5_daily
   crs: 4326
   data_type: RasterDataset
   driver: zarr
   kwargs:
     chunks: auto
   path: meteo/era5_daily.zarr
+  meta:
+    category: meteo
+    notes: Extracted from Copernicus Climate Data Store; resampled by Deltares to
+      daily frequency
+    paper_doi: 10.1002/qj.3803
+    paper_ref: Hersbach et al. (2019)
+    source_license: https://cds.climate.copernicus.eu/cdsapp/#!/terms/licence-to-use-copernicus-products
+    source_url: https://doi.org/10.24381/cds.bd0915c6
+    source_version: ERA5 daily data on pressure levels
+  rename:
+    msl: press_msl
+    ssrd: kin
+    t2m: temp
+    tisr: kout
+    tmax: temp_max
+    tmin: temp_min
+    tp: precip
+  unit_add:
+    temp: -273.15
+    temp_max: -273.15
+    temp_min: -273.15
+  unit_mult:
+    kin: 0.000277778
+    kout: 0.000277778
+    press_msl: 0.01
 
 era5_hourly:
   crs: 4326
