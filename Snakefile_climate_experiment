@@ -81,8 +81,6 @@ rule extract_climate_grid:
         clim_source = clim_source,
     output:
         climate_nc = f"{project_dir}/climate_historical/raw_data/extract_historical.nc",
-    # container:
-    #     "singularity/hydromt-wflow.sif"
     script:
         "src/extract_historical_climate.py"
 
@@ -92,8 +90,6 @@ rule climate_stress_parameters:
         config = ancient(config_path),
     output:
         st_csv_fns = [f"{exp_dir}/stress_test/cst_{st_num}.csv" for st_num in np.arange(1, ST_NUM+1)]
-    # container:
-    #     "singularity/hydromt-wflow.sif"
     script:
         "src/prepare_cst_parameters.py"
 
@@ -109,8 +105,6 @@ rule prepare_weagen_config:
         middle_year = horizontime_climate,
         sim_years = wflow_run_length,
         nc_file_prefix = "rlz"
-    # container:
-    #     "singularity/hydromt-wflow.sif"
     script:
         "src/prepare_weagen_config.py"
 
@@ -124,8 +118,6 @@ rule prepare_weagen_config_st:
         output_path = f"{exp_dir}/realization_"+"{rlz_num}"+"/",
         nc_file_prefix = "rlz_"+"{rlz_num}"+"_cst",
         nc_file_suffix = "{st_num}",
-    # container:
-    #     "singularity/hydromt-wflow.sif"
     script:
         "src/prepare_weagen_config.py"
 
@@ -136,8 +128,6 @@ rule generate_weather_realization:
         weagen_config = f"{exp_dir}/weathergen_config.yml",
     output:
         temp([f"{exp_dir}/realization_{rlz_num}/rlz_{rlz_num}_cst_0.nc" for rlz_num in np.arange(1, RLZ_NUM+1)])
-    # container:
-    #     "singularity/weathergenr.sif"
     shell:
         # """Rscript --no-save --no-restore src/weathergen/generate_weather.R {input.climate_nc} {input.weagen_config} """
         """Rscript --vanilla src/weathergen/generate_weather.R {input.climate_nc} {input.weagen_config} """
@@ -150,8 +140,6 @@ rule generate_climate_stress_test:
         weagen_config = f"{exp_dir}/realization_"+"{rlz_num}"+"/weathergen_config_rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".yml",
     output:
         rlz_st_nc = temp(f"{exp_dir}/realization_"+"{rlz_num}"+"/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc")
-    # container:
-    #     "singularity/weathergenr.sif"
     shell:
         # """Rscript  --no-save --no-restore src/weathergen/impose_climate_change.R {input.rlz_nc} {input.weagen_config} {input.st_csv} """
         """Rscript --vanilla src/weathergen/impose_climate_change.R {input.rlz_nc} {input.weagen_config} {input.st_csv}"""
@@ -166,8 +154,6 @@ rule climate_data_catalog:
     params:
         data_sources = DATA_SOURCES,
         clim_source = clim_source,
-    # container:
-    #     "singularity/hydromt-wflow.sif"
     script:
         "src/prepare_climate_data_catalog.py"
 
@@ -184,8 +170,6 @@ rule downscale_climate_realization:
         clim_source = clim_source,
         horizontime_climate = horizontime_climate,
         run_length = wflow_run_length,
-    # container:
-    #     "singularity/hydromt-wflow.sif"
     script:
         "src/downscale_climate_forcing.py"
 
@@ -197,8 +181,6 @@ rule run_wflow:
     output:
         csv_file = f"{basin_dir}/run_climate_{experiment}/output_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".csv",
         state_file = temp(f"{basin_dir}/run_climate_{experiment}/outstates_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".nc")
-    # container:
-    #     "singularity/wflow-cli.sif"
     shell:
         # """JULIA_NUM_THREADS=4 /app/create_app/wflow_bundle/bin/wflow_cli {input.toml_fid}"""
         """ julia --threads 4 -e 'using Wflow; Wflow.run()' "{input.toml_fid}" """
@@ -216,7 +198,5 @@ rule export_wflow_results:
         st_num = ST_NUM,
         Tlow = get_config(config,"Tlow", 2),
         Tpeak = get_config(config,"Tpeak", 10),
-    # container:
-    #     "singularity/hydromt-wflow.sif"
     script:
         "src/export_wflow_results.py"
