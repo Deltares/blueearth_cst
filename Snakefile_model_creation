@@ -71,7 +71,6 @@ rule create_model:
         hydromt_ini = f"{static_dir}/wflow_build_model.yml",
     output:
         basin_nc = f"{basin_dir}/staticmaps.nc",
-    # container: "singularity/hydromt-wflow.sif"
     shell:
         """hydromt build wflow "{basin_dir}" --region "{model_region}" --opt setup_basemaps.res="{model_resolution}" -i "{input.hydromt_ini}" -d "{DATA_SOURCES}" --fo -vv"""
 
