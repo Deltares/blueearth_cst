@@ -43,6 +43,7 @@ def prepare_clim_data_catalog(
         name = os.path.basename(fn).split(".")[0]
         dc_fn = dc_like.copy()
         dc_fn["path"] = fn
+        dc_fn["driver"] = "netcdf"
         if "kwargs" not in dc_fn:
             dc_fn["kwargs"] = dict()
         dc_fn["kwargs"]["preprocess"] = "transpose_dims"

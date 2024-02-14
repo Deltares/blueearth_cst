@@ -94,21 +94,13 @@ def analyse_wflow_historical(
         has_observations = True
 
         # Read
-        try:
-            ds_obs = hydromt.io.open_geodataset(
-                fn_locs=gauges_locs,
-                fn_data=observations_fn,
-                var_name="Q",
-                index_dim="wflow_id",
-                crs=4326,
-            )
-        except:
-            # If ; is still used as sep in observations_fn
-            gdf_obs = hydromt.io.open_vector(gauges_locs, crs=4326, sep=",")
-            da_ts_obs = hydromt.io.open_timeseries_from_table(
-                observations_fn, name="Q", index_dim="wflow_id", sep=";"
-            )
-            ds_obs = hydromt.vector.GeoDataset.from_gdf(gdf_obs, da_ts_obs)
+        gdf_obs = hydromt.io.open_vector(gauges_locs, crs=4326, sep=",")
+        da_ts_obs = hydromt.io.open_timeseries_from_table(
+            observations_fn, name="Q", index_dim="wflow_id", sep=";"
+        )
+        ds_obs = hydromt.vector.GeoDataset.from_gdf(
+            gdf_obs, da_ts_obs, merge_index = "inner"
+        )
         # Rename wflow_id to index
         ds_obs = ds_obs.rename({"wflow_id": "index"})
         qobs = ds_obs["Q"].load()
