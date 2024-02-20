@@ -8,7 +8,7 @@
     A path to an output directory for the region GeoJSON
     -p path/to/output/dir
 
-    There is also the option to use ifferent hydrography and river files:
+    There is also the option to use different hydrography and river files:
     -h <hydrography file name>, by default merit_hydro_ihu
     -n <rivers file name>, by default rivers_atlas_v10
 
