@@ -50,7 +50,7 @@ def get_basin_preview(
 def get_river_preview(
     region: gpd.GeoDataFrame,
     data_catalog_fn: str | List,
-    rivers_fn: str = "rivers_atlas_v10",
+    rivers_fn: str = "river_atlas_v10",
 ) -> dict | None:
     datacatalog = hydromt.DataCatalog(data_libs=data_catalog_fn)
     surface_water_source = datacatalog.get_source(source=rivers_fn)
@@ -85,7 +85,7 @@ if __name__ == "__main__":
         "--rivers_fn",
         help="file name of rivers dataset to use",
         required=False,
-        default="rivers_atlas_v10",
+        default="river_atlas_v10",
     )
     args = parser.parse_args()
     region_json = args.region.replace("'", '"')
