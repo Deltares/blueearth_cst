@@ -88,6 +88,8 @@ if __name__ == "__main__":
         default="river_atlas_v10",
     )
     args = parser.parse_args()
+    if not os.path.exists(args.path):
+        raise ValueError(f"Directory '{args.path}' does not exist")
     region_json = args.region.replace("'", '"')
     region = loads(region_json)
     region_geom = get_basin_preview(
@@ -102,8 +104,5 @@ if __name__ == "__main__":
     )
 
     region = gpd.GeoDataFrame(pd.concat([region_geom, river_geom]))
-    file_dir = os.path.join(args.path, "region")
-    if not os.path.isdir(file_dir):
-        os.mkdir(file_dir)
-    file_path = os.path.join(file_dir, "region.geojson")
+    file_path = os.path.join(args.path, "region.geojson")
     region_geojson = region.to_file(filename=file_path, driver="GeoJSON")
