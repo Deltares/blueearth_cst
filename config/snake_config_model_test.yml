@@ -17,7 +17,10 @@ starttime: "2000-01-01T00:00:00"
 endtime: "2020-12-31T00:00:00"
 
 # Historical climate data source (name as available in the data_sources catalog file). Either [era5, chirps_global, chirps, eobs].
+#default to set up the model
 clim_historical: era5
+#additional to select from
+clim_historical_add: [chirps_global, chirps]
 
 # List of wflow output variables to save
 wflow_outvars: ['river discharge', 'precipitation', 'overland flow', 'actual evapotranspiration', 'groundwater recharge', 'snow']
