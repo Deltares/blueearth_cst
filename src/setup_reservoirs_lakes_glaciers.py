@@ -6,6 +6,7 @@ from hydromt.cli.cli_utils import parse_config
 import os
 from os.path import join
 from pathlib import Path
+import numpy as np
 from typing import Union
 
 
@@ -28,12 +29,17 @@ def update_wflow_waterbodies_glaciers(
     data_catalog : str
         Name of the data catalog to use
     """
-
-    # Instantiate wflow model
-    mod = WflowModel(wflow_root, mode="r+", data_libs=data_catalog)
-
     # Read the config file
     config = parse_config(config_fn)
+
+    # Check if "global" in config and pass to model init instead
+    kwargs = config.pop("global", {})
+    # parse data catalog options from global section in config and cli options
+    data_libs = np.atleast_1d(kwargs.pop("data_libs", [])).tolist()  # from global
+    data_libs += list(np.atleast_1d(data_catalog))  # add data catalogs from cli
+
+    # Instantiate wflow model
+    mod = WflowModel(wflow_root, mode="r+", data_libs=data_libs, **kwargs)
 
     # List of methods that ran successfully
     successful_methods = []

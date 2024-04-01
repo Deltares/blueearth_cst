@@ -99,7 +99,7 @@ def analyse_wflow_historical(
             observations_fn, name="Q", index_dim="wflow_id", sep=";"
         )
         ds_obs = hydromt.vector.GeoDataset.from_gdf(
-            gdf_obs, da_ts_obs, merge_index = "inner"
+            gdf_obs, da_ts_obs, merge_index="inner"
         )
         # Rename wflow_id to index
         ds_obs = ds_obs.rename({"wflow_id": "index"})
@@ -161,7 +161,7 @@ def analyse_wflow_historical(
 
     ### 4. Plot climate data ###
     # No plots of climate data if wflow run is less than a year
-    if len(ds_clim.time) < 365:
+    if len(ds_clim.time) <= 366:
         print("less than 1 year of data is available " "no yearly clim plots are made.")
     else:
         for index in ds_clim.index.values:
@@ -203,8 +203,13 @@ def analyse_wflow_historical(
     if has_observations:
         start = max(qsim.time.values[0], qobs.time.values[0])
         end = min(qsim.time.values[-1], qobs.time.values[-1])
-        qsim = qsim.sel(time=slice(start, end))
-        qobs = qobs.sel(time=slice(start, end))
+        # make sure obs and sim have period in common
+        if start < end:
+            qsim = qsim.sel(time=slice(start, end))
+            qobs = qobs.sel(time=slice(start, end))
+        else:
+            has_observations = False
+            print("No common period between observations and simulation.")
 
     # Loop over the stations
     for station_id, station_name in zip(qsim.index.values, qsim.station_name.values):

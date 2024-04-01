@@ -7,6 +7,7 @@ import pytest
 
 TESTDIR = dirname(realpath(__file__))
 SNAKEDIR = join(TESTDIR, "..")
+SAMPLE_PROJECTDIR = join(TESTDIR, "test_project_sample")
 
 config_fn = join(TESTDIR, "snake_config_model_test.yml")
 
@@ -65,3 +66,11 @@ def model_build_config(config):
     model_build_config = get_config(config, "model_build_config", optional=False)
     model_build_config = join(SNAKEDIR, model_build_config)
     return model_build_config
+
+
+@pytest.fixture()
+def waterbodies_config(config):
+    """Return waterbodies config"""
+    waterbodies_config = get_config(config, "waterbodies_config", optional=False)
+    waterbodies_config = join(SNAKEDIR, waterbodies_config)
+    return waterbodies_config

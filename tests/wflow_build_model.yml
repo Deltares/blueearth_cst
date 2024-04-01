@@ -1,13 +1,16 @@
+global:
+  data_libs: artifact_data
+
 read_config: # read user-defined config template in build mode instead of the default
   config_fn: "../config/wflow_sbm.toml"
 
 setup_basemaps:
-  hydrography_fn: merit_hydro_ihu   # source hydrography data {merit_hydro, merit_hydro_1k}
+  hydrography_fn: merit_hydro_1k   # source hydrography data {merit_hydro, merit_hydro_1k}
   basin_index_fn: merit_hydro_index # source of basin index corresponding to hydrography_fn
   upscale_method: ihu           # upscaling method for flow direction data, by default 'ihu'
 
 setup_rivers:
-  hydrography_fn: merit_hydro_ihu   # source hydrography data, should match basemaps source
+  hydrography_fn: merit_hydro_1k   # source hydrography data, should match basemaps source
   river_geom_fn: rivers_lin2019_v1 # river source data with river width and bankfull discharge
   river_upa: 32            # minimum upstream area threshold for the river map [km2]
   slope_len: 2000          # length over which tp calculate river slope [m]
@@ -15,19 +18,6 @@ setup_rivers:
   min_rivdph: 0.5                # minimum river depth [m]
   min_rivwth: 30               # minimum river width [m]
   smooth_len: 5000             # length over which to smooth river depth and river width [m]
-
-#setup_reservoirs:
-#  reservoirs_fn: hydro_reservoirs  # source for reservoirs based on GRAND: {hydro_reservoirs}; None to skip
-#  min_area: 1.0           # minimum lake area to consider [km2]
-#  timeseries_fn: hydroengine  # if hydroengine is used to calculate some reservoir attributes instead of the GRanD and HydroLAKES db.   
-
-#setup_lakes:
-#  lakes_fn: hydro_lakes   # source for lakes based on hydroLAKES: {hydro_lakes}; None to skip
-#  min_area: 10.0          # minimum reservoir area to consider [km2]
-
-#setup_glaciers:
-#  glaciers_fn: rgi           # source for glaciers based on Randolph Glacier Inventory {rgi}; None to skip
-#  min_area: 1.0           # minimum glacier area to consider [km2]
 
 setup_lulcmaps:
   lulc_fn: vito     # source for lulc maps: {globcover, vito, corine}
