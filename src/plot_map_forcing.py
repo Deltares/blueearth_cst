@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Union
 import matplotlib.pyplot as plt
 from matplotlib import colors
+import matplotlib.patheffects as pe
 
 # plot maps dependencies
 import matplotlib.patches as mpatches
@@ -26,7 +27,41 @@ import cartopy.io.img_tiles as cimgt
 from hydromt_wflow import WflowModel
 
 
-def plot_map_model(mod, da, figname, gauges_name):
+def plot_map_model(
+    mod: WflowModel,
+    da: xr.DataArray,
+    figname: str,
+    plot_dir: Union[str, Path] = None,
+    gauges_name: str = None,
+    **kwargs,
+):
+    """
+    Plot wflow model forcing map for one variable.
+
+    Output map will be saved in plot_dir/figname.png.
+
+    Parameters
+    ----------
+    mod : WflowModel
+        wflow model instance used to also plot basins, rivers, etc.
+    da : xr.DataArray
+        Forcing DataArray to plot. The annual mean will be plotted.
+    figname : str
+        Name of the output figure file.
+    plot_dir : Path
+        Path to the output folder. If None (default), create a folder "plots"
+        in the wflow_root folder.
+    gauges_name : str, optional
+        Name of the gauges in model to plot. If None (default), no gauges are plot.
+    kwargs : dict
+        Additional keyword arguments to pass to da.plot()
+    """
+    # If plotting dir is None, create
+    if plot_dir is None:
+        plot_dir = os.path.join(mod.root, "plots")
+    if not os.path.exists(plot_dir):
+        os.makedirs(plot_dir)
+
     # read/derive river geometries
     gdf_riv = mod.rivers
     # read/derive model basin boundary
@@ -56,7 +91,8 @@ def plot_map_model(mod, da, figname, gauges_name):
         ax=ax,
         zorder=1,
         cbar_kwargs=dict(aspect=30, shrink=0.8),
-    )  # **kwargs)
+        **kwargs,
+    )
     # plot elevation with shades
     if shaded:
         ls = colors.LightSource(azdeg=315, altdeg=45)
@@ -94,6 +130,22 @@ def plot_map_model(mod, da, figname, gauges_name):
             zorder=5,
             label="output locs",
         )
+        if "station_name" in mod.geoms[gauges_name].columns:
+            mod.geoms[gauges_name].apply(
+                lambda x: ax.annotate(
+                    text=x["station_name"],
+                    xy=x.geometry.coords[0],
+                    xytext=(2.0, 2.0),
+                    textcoords="offset points",
+                    # ha='left',
+                    # va = 'top',
+                    fontsize=5,
+                    fontweight="bold",
+                    color="black",
+                    path_effects=[pe.withStroke(linewidth=2, foreground="white")],
+                ),
+                axis=1,
+            )
     patches = (
         []
     )  # manual patches for legend, see https://github.com/geopandas/geopandas/issues/660
@@ -130,14 +182,12 @@ def plot_map_model(mod, da, figname, gauges_name):
     )
 
     # save figure
-    plt.savefig(
-        os.path.join(Folder_plots, f"{figname}.png"), dpi=300, bbox_inches="tight"
-    )
+    plt.savefig(os.path.join(plot_dir, f"{figname}.png"), dpi=300, bbox_inches="tight")
 
 
 def plot_forcing(
     wflow_root: Union[str, Path],
-    plot_dir=None,
+    plot_dir: Union[str, Path] = None,
     gauges_name: str = None,
 ):
     """
@@ -179,7 +229,7 @@ def plot_forcing(
         da = da.where(mod.grid["wflow_subcatch"] >= 0)
         da.attrs.update(long_name=forcing_char["long_name"], units=forcing_char["unit"])
         figname = f"{forcing_var}"
-        plot_map_model(mod, da, figname, gauges_name)
+        plot_map_model(mod, da, figname, plot_dir, gauges_name)
 
 
 if __name__ == "__main__":

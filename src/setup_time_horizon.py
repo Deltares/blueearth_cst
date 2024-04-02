@@ -1,5 +1,6 @@
 """Prepare a hydromt config file to be able to add forcing to a wflow model"""
 import hydromt
+import os
 from pathlib import Path
 from typing import Union
 
@@ -55,6 +56,9 @@ def prep_hydromt_update_forcing_config(
         "write_forcing": {},
     }
 
+    # Create output dir if it does not exist
+    if not os.path.exists(os.path.dirname(fn_yml)):
+        os.makedirs(os.path.dirname(fn_yml))
     # Save it to a hydroMT ini file
     hydromt.config.configwrite(fn_yml, forcing_options)
 

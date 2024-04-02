@@ -15,7 +15,7 @@ from hydromt_wflow import WflowModel
 
 from typing import Union
 
-from func_plot_signature import (
+from .func_plot_signature import (
     plot_signatures,
     plot_hydro,
     compute_metrics,
@@ -25,14 +25,15 @@ from func_plot_signature import (
 
 
 def analyse_wflow_historical(
-    project_dir: Path,
+    wflow_root: Union[str, Path],
+    plot_dir: Union[str, Path] = None,
     observations_fn: Union[Path, str] = None,
     gauges_locs: Union[Path, str] = None,
+    wflow_config_fn: str = "wflow_sbm.toml",
 ):
     """
     Analyse and plot wflow model performance for historical run.
 
-    To be read, model should be stored in ``project_dir``/hydrology_model.
     Model results should include the following keys: Q_gauges,
     Q_gauges_{basename(gauges_locs)}, P_subcatchment, T_subcatchment, EP_subcatchment.
 
@@ -56,8 +57,11 @@ def analyse_wflow_historical(
 
     Parameters
     ----------
-    project_dir : Path
-        path to CST project directory
+    wflow_root : Union[str, Path]
+        Path to the wflow model root folder.
+    plot_dir : Union[str, Path], optional
+        Path to the output folder. If None (default), create a folder "plots"
+        in the wflow_root folder.
     observations_fn : Union[Path, str], optional
         Path to observations timeseries file, by default None
         Required columns: time, wflow_id IDs of the locations as in ``gauges_locs``.
@@ -67,14 +71,17 @@ def analyse_wflow_historical(
         Required columns: wflow_id, station_name, x, y.
         Values in wflow_id column should match column names in ``observations_fn``.
         Separator is , and decimal is .
+    wflow_config_fn : str, optional
+        Name of the wflow configuration file, by default "wflow_sbm.toml". Used to read
+        the right results files from the wflow model.
     """
     ### 1. Prepare output and plotting options ###
 
-    # Create output folders
-    Folder_plots = f"{project_dir}/plots/wflow_model_performance"
-
-    if not os.path.isdir(Folder_plots):
-        os.mkdir(Folder_plots)
+    # If plotting dir is None, create
+    if plot_dir is None:
+        plot_dir = os.path.join(wflow_root, "plots")
+    if not os.path.exists(plot_dir):
+        os.makedirs(plot_dir)
 
     # Plotting options
     fs = 7
@@ -107,8 +114,7 @@ def analyse_wflow_historical(
 
     ### 3. Read the wflow model and results ###
     # Instantiate wflow model
-    Folder_run = f"{project_dir}/hydrology_model"
-    mod = WflowModel(root=Folder_run, mode="r")
+    mod = WflowModel(root=wflow_root, mode="r", config_fn=wflow_config_fn)
 
     # Read the results
     # Discharge at the outlet(s)
@@ -168,15 +174,15 @@ def analyse_wflow_historical(
             print(f"Plot climatic data at wflow basin {index}")
             ds_clim_i = ds_clim.sel(index=index)
             # Plot per year
-            plot_clim(ds_clim_i, Folder_plots, f"wflow_{index}", "year")
+            plot_clim(ds_clim_i, plot_dir, f"wflow_{index}", "year")
             plt.close()
             # Plot per month
-            plot_clim(ds_clim_i, Folder_plots, f"wflow_{index}", "month")
+            plot_clim(ds_clim_i, plot_dir, f"wflow_{index}", "month")
             plt.close()
 
     ### 5. Plot other basin average outputs ###
     print("Plot basin average wflow outputs")
-    plot_basavg(ds_basin, Folder_plots)
+    plot_basavg(ds_basin, plot_dir)
     plt.close()
 
     ### 6. Plot hydrographs and compute performance metrics ###
@@ -225,7 +231,7 @@ def analyse_wflow_historical(
         plot_hydro(
             qsim=qsim_i,
             qobs=qobs_i,
-            Folder_out=Folder_plots,
+            Folder_out=plot_dir,
             station_name=station_name,
             label=label,
             color=color,
@@ -240,7 +246,7 @@ def analyse_wflow_historical(
             plot_signatures(
                 qsim=qsim_i,
                 qobs=qobs_i,
-                Folder_out=Folder_plots,
+                Folder_out=plot_dir,
                 station_name=station_name,
                 label=label,
                 color=color,
@@ -267,7 +273,7 @@ def analyse_wflow_historical(
             )
 
     # Save performance metrics to csv
-    df_perf_all.to_csv(os.path.join(Folder_plots, "performance_metrics.csv"))
+    df_perf_all.to_csv(os.path.join(plot_dir, "performance_metrics.csv"))
 
     ### End of the function ###
 
@@ -275,14 +281,20 @@ def analyse_wflow_historical(
 if __name__ == "__main__":
     if "snakemake" in globals():
         sm = globals()["snakemake"]
+        project_dir = (sm.params.project_dir,)
+        Folder_plots = f"{project_dir}/plots/wflow_model_performance"
+        root = f"{project_dir}/hydrology_model"
+
         analyse_wflow_historical(
-            project_dir=sm.params.project_dir,
+            wflow_root=root,
+            plot_dir=Folder_plots,
             observations_fn=sm.params.observations_file,
             gauges_locs=sm.params.gauges_output_fid,
         )
     else:
         analyse_wflow_historical(
-            project_dir=join(os.getcwd(), "examples", "my_project"),
+            wflow_root=join(os.getcwd(), "examples", "my_project", "hydrology_model"),
+            plot_dir=None,
             observations_fn=None,
             gauges_locs=None,
         )
