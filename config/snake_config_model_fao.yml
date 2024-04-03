@@ -3,7 +3,7 @@
 #################################### General settings ######################################
 
 # Path to where the wflow model will be stored (include the project name)
-project_dir: examples/test
+project_dir: examples/fao
 
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
 data_sources: config/deltares_data.yml
@@ -17,7 +17,8 @@ starttime: "2000-01-01T00:00:00"
 endtime: "2020-12-31T00:00:00"
 
 # Historical climate data source (name as available in the data_sources catalog file). Either [era5, chirps_global, chirps, eobs].
-clim_historical: era5
+#default to set up the model
+clim_historical_datasets: [era5, chirps_global]
 
 # List of wflow output variables to save
 wflow_outvars: ['river discharge', 'precipitation', 'overland flow', 'actual evapotranspiration', 'groundwater recharge', 'snow']

@@ -1,0 +1,19 @@
+call activate blueearth-cst
+
+rem snakefile/Snakefile_run_historical_datasets.smk
+snakemake -s snakefile/Snakefile_run_historical_datasets.smk --configfile config/snake_config_model_fao.yml  --dag | dot -Tpng > dag_model_datasets.png
+rem snakemake --unlock -s snakefile/Snakefile_run_historical_datasets.smk --configfile config/snake_config_model_fao.yml
+rem snakemake all -c 1 -s snakefile/Snakefile_run_historical_datasets.smk --configfile config/snake_config_model_fao.yml
+
+rem Snakefile climate_projections
+rem snakemake -s Snakefile_climate_projections --configfile config/snake_config_model_fao.yml --dag | dot -Tpng > dag_projections.png
+rem snakemake --unlock -s Snakefile_climate_projections --configfile config/snake_config_model_fao.yml
+rem snakemake all -c 1 -s Snakefile_climate_projections --configfile config/snake_config_model_fao.yml --keep-going 
+
+
+rem snakemake -s snakefile/Snakefile_run_historical_datasets.smk all -c 1 --keep-going --until add_gauges --report --dryrun 
+rem keep going is when parallel runs to keep going parallel if one series goes wrong
+rem dryrun is to tell what it will be doing without actually running
+rem until - still the whole workflow but not all jobs 
+rem --delete-temp-output - delete the temp files after the run
+pause
