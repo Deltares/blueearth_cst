@@ -307,8 +307,8 @@ def plot_signatures(
     if len(qsim.time) > 365:
         start = f"{str(qsim['time.year'][0].values)}-09-01"
         end = f"{str(qsim['time.year'][-1].values)}-08-31"
-        qsim_max = qsim.sel(time=slice(start, end)).resample(time="AS-Sep").max("time")
-        qobs_max = qobs.sel(time=slice(start, end)).resample(time="AS-Sep").max("time")
+        qsim_max = qsim.sel(time=slice(start, end)).resample(time="YS-Sep").max("time")
+        qobs_max = qobs.sel(time=slice(start, end)).resample(time="YS-Sep").max("time")
     else:
         # Less than a year of data, max over the whole timeseries
         qsim_max = qsim.max("time")
