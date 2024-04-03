@@ -587,6 +587,7 @@ def plot_hydro(
     if nb_years <= 3:
         nb_panel = 1
         titles = ["Daily time-series"]
+        figsize_y = 8
     else:
         nb_panel = 5
         titles = [
@@ -596,6 +597,7 @@ def plot_hydro(
             "Wettest year",
             "Driest year",
         ]
+        figsize_y = 23
         # Get the wettest and driest year
         qyr = qsim.resample(time="A").sum()
         qyr["time"] = qyr["time.year"]
@@ -603,7 +605,7 @@ def plot_hydro(
         year_dry = str(qyr.isel(time=qyr.argmin()).time.values)
         year_wet = str(qyr.isel(time=qyr.argmax()).time.values)
 
-    fig, axes = plt.subplots(nb_panel, 1, figsize=(16 / 2.54, 23 / 2.54))
+    fig, axes = plt.subplots(nb_panel, 1, figsize=(16 / 2.54, figsize_y / 2.54))
     axes = [axes] if nb_panel == 1 else axes
 
     # 1. long period

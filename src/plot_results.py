@@ -43,7 +43,7 @@ def analyse_wflow_historical(
     - plot of hydrographs at the outlet(s) and gauges_locs if provided. If wflow run is
       three years or less, only the daily hydrograph will be plotted. If wflow run is
       longer than three years, plots will also include the yearly hydrograph, the
-      monthly average and hyddrographs for the wettest and driest years. If observations
+      monthly average and hydrographs for the wettest and driest years. If observations
       are available, they are added as well.
     - plot of signature plots if wflow run is longer than a year and if observations
       are available.
