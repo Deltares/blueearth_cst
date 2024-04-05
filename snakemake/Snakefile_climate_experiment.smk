@@ -128,7 +128,7 @@ rule generate_weather_realization:
     output:
         temp([f"{exp_dir}/realization_{rlz_num}/rlz_{rlz_num}_cst_0.nc" for rlz_num in np.arange(1, RLZ_NUM+1)])
     shell:
-        """Rscript --vanilla ../src/weathergen/generate_weather.R {input.climate_nc} {input.weagen_config} """
+        """Rscript --vanilla src/weathergen/generate_weather.R {input.climate_nc} {input.weagen_config} """
 
 # Generate climate stress tests
 rule generate_climate_stress_test:
@@ -139,7 +139,7 @@ rule generate_climate_stress_test:
     output:
         rlz_st_nc = temp(f"{exp_dir}/realization_"+"{rlz_num}"+"/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc")
     shell:
-        """Rscript --vanilla ../src/weathergen/impose_climate_change.R {input.rlz_nc} {input.weagen_config} {input.st_csv} """
+        """Rscript --vanilla src/weathergen/impose_climate_change.R {input.rlz_nc} {input.weagen_config} {input.st_csv} """
 
 # Prepare data catalog of the climate files
 rule climate_data_catalog:

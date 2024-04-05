@@ -15,13 +15,26 @@ from hydromt_wflow import WflowModel
 
 from typing import Union
 
-from func_plot_signature import (
-    plot_signatures,
-    plot_hydro,
-    compute_metrics,
-    plot_clim,
-    plot_basavg,
-)
+# Avoid relative import errors
+import sys
+
+parent_module = sys.modules[".".join(__name__.split(".")[:-1]) or "__main__"]
+if __name__ == "__main__" or parent_module.__name__ == "__main__":
+    from func_plot_signature import (
+        plot_signatures,
+        plot_hydro,
+        compute_metrics,
+        plot_clim,
+        plot_basavg,
+    )
+else:
+    from .func_plot_signature import (
+        plot_signatures,
+        plot_hydro,
+        compute_metrics,
+        plot_clim,
+        plot_basavg,
+    )
 
 
 def analyse_wflow_historical(
