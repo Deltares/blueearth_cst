@@ -69,7 +69,7 @@ rule copy_config:
     output:
         config_snake_out = f"{project_dir}/config/snake_config_climate_experiment.yml",
     script:
-        "src/copy_config_files.py"
+        "../src/copy_config_files.py"
 
 # Rule to extract historic climate data at native resolution for the project area
 rule extract_climate_grid:
@@ -81,7 +81,7 @@ rule extract_climate_grid:
     output:
         climate_nc = f"{project_dir}/climate_historical/raw_data/extract_historical.nc",
     script:
-        "src/extract_historical_climate.py"
+        "../src/extract_historical_climate.py"
 
 # Prepare stress test experiment
 rule climate_stress_parameters:
@@ -90,7 +90,7 @@ rule climate_stress_parameters:
     output:
         st_csv_fns = [f"{exp_dir}/stress_test/cst_{st_num}.csv" for st_num in np.arange(1, ST_NUM+1)]
     script:
-        "src/prepare_cst_parameters.py"
+        "../src/prepare_cst_parameters.py"
 
 # Prepare config files for the weather generator: generate
 rule prepare_weagen_config:
@@ -99,13 +99,13 @@ rule prepare_weagen_config:
     params:
         cftype = "generate",
         snake_config = config_path,
-        default_config = "config/weathergen_config.yml",
+        default_config = "config/cst_api/weathergen_config.yml",
         output_path = f"{exp_dir}/", 
         middle_year = horizontime_climate,
         sim_years = wflow_run_length,
         nc_file_prefix = "rlz"
     script:
-        "src/prepare_weagen_config.py"
+        "../src/prepare_weagen_config.py"
 
 # Prepare config files for the weather generator: climate change
 rule prepare_weagen_config_st:
@@ -118,7 +118,7 @@ rule prepare_weagen_config_st:
         nc_file_prefix = "rlz_"+"{rlz_num}"+"_cst",
         nc_file_suffix = "{st_num}",
     script:
-        "src/prepare_weagen_config.py"
+        "../src/prepare_weagen_config.py"
 
 # Generate climate realization
 rule generate_weather_realization:
@@ -128,7 +128,7 @@ rule generate_weather_realization:
     output:
         temp([f"{exp_dir}/realization_{rlz_num}/rlz_{rlz_num}_cst_0.nc" for rlz_num in np.arange(1, RLZ_NUM+1)])
     shell:
-        """Rscript --vanilla src/weathergen/generate_weather.R {input.climate_nc} {input.weagen_config} """
+        """Rscript --vanilla ../src/weathergen/generate_weather.R {input.climate_nc} {input.weagen_config} """
 
 # Generate climate stress tests
 rule generate_climate_stress_test:
@@ -139,7 +139,7 @@ rule generate_climate_stress_test:
     output:
         rlz_st_nc = temp(f"{exp_dir}/realization_"+"{rlz_num}"+"/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc")
     shell:
-        """Rscript --vanilla src/weathergen/impose_climate_change.R {input.rlz_nc} {input.weagen_config} {input.st_csv} """
+        """Rscript --vanilla ../src/weathergen/impose_climate_change.R {input.rlz_nc} {input.weagen_config} {input.st_csv} """
 
 # Prepare data catalog of the climate files
 rule climate_data_catalog:
@@ -152,7 +152,7 @@ rule climate_data_catalog:
         data_sources = DATA_SOURCES,
         clim_source = clim_source,
     script:
-        "src/prepare_climate_data_catalog.py"
+        "../src/prepare_climate_data_catalog.py"
 
 # Downscale climate forcing for use with wflow
 rule downscale_climate_realization:
@@ -168,7 +168,7 @@ rule downscale_climate_realization:
         horizontime_climate = horizontime_climate,
         run_length = wflow_run_length,
     script:
-        "src/downscale_climate_forcing.py"
+        "../src/downscale_climate_forcing.py"
 
 # Run Wflow for all climate forcing
 rule run_wflow:
@@ -195,4 +195,4 @@ rule export_wflow_results:
         Tlow = get_config(config,"Tlow", 2),
         Tpeak = get_config(config,"Tpeak", 10),
     script:
-        "src/export_wflow_results.py"
+        "../src/export_wflow_results.py"

@@ -26,7 +26,7 @@ import cartopy.io.img_tiles as cimgt
 
 from hydromt_wflow import WflowModel
 
-from .plot_map_forcing import plot_map_model
+from plot_map_forcing import plot_map_model
 
 
 def plot_wflow_map(

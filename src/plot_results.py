@@ -15,7 +15,7 @@ from hydromt_wflow import WflowModel
 
 from typing import Union
 
-from .func_plot_signature import (
+from func_plot_signature import (
     plot_signatures,
     plot_hydro,
     compute_metrics,
@@ -281,7 +281,7 @@ def analyse_wflow_historical(
 if __name__ == "__main__":
     if "snakemake" in globals():
         sm = globals()["snakemake"]
-        project_dir = (sm.params.project_dir,)
+        project_dir = sm.params.project_dir
         Folder_plots = f"{project_dir}/plots/wflow_model_performance"
         root = f"{project_dir}/hydrology_model"
 
