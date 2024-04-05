@@ -166,5 +166,5 @@ rule plot_forcing:
         output_forcing_map = f"{project_dir}/plots/wflow_model_performance/precip.png",
     params:
         project_dir = f"{project_dir}",
-        gauges_fid = f"{basin_dir}/staticgeoms/gauges.geojson"
+        gauges_fid = output_locations,
     script: "src/plot_map_forcing.py"

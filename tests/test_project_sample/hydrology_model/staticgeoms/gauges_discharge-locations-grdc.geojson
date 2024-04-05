@@ -1,0 +1,7 @@
+{
+"type": "FeatureCollection",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{ "type": "Feature", "properties": { "wflow_id": 6349400, "station_name": "PONTE DELLA IASTA" }, "geometry": { "type": "Point", "coordinates": [ 12.525, 46.541666666666671 ] } }
+]
+}
