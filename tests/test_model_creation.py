@@ -24,7 +24,7 @@ from ..src import plot_results
 
 
 def test_copy_config(tmpdir, data_sources, model_build_config):
-    """Test if config files are copied to project_dir/config folder"""
+    """Test if config files are copied to tmpdir/config folder"""
     # Call the copy file function
     copy_config_files.copy_config_files(
         config=config_fn,
@@ -33,7 +33,7 @@ def test_copy_config(tmpdir, data_sources, model_build_config):
         other_config_files=[data_sources, model_build_config],
     )
 
-    # Check if config files are copied to project_dir/config folder
+    # Check if config files are copied to tmpdir/config folder
     assert os.path.exists(f"{tmpdir}/config/snake_config_model_creation.yml")
     assert os.path.exists(f"{tmpdir}/config/wflow_build_model.yml")
     assert os.path.exists(f"{tmpdir}/config/tests_data_catalog.yml")
