@@ -7,7 +7,7 @@ import yaml
 import pytest
 
 TESTDIR = dirname(realpath(__file__))
-SNAKEDIR = join(TESTDIR, "..")
+MAINDIR = join(TESTDIR, "..")
 SAMPLE_PROJECTDIR = join(TESTDIR, "test_project_sample")
 
 config_fn = join(TESTDIR, "snake_config_model_test.yml")
@@ -49,7 +49,7 @@ def config() -> Dict:
 def project_dir(config) -> Path:
     """Return project directory"""
     project_dir = get_config(config, "project_dir", optional=False)
-    project_dir = join(SNAKEDIR, project_dir)
+    project_dir = join(MAINDIR, project_dir)
     return project_dir
 
 
@@ -57,7 +57,7 @@ def project_dir(config) -> Path:
 def data_sources(config) -> Union[str, Path]:
     """Return data sources"""
     data_sources = get_config(config, "data_sources", optional=False)
-    data_sources = join(SNAKEDIR, data_sources)
+    data_sources = join(MAINDIR, data_sources)
     return data_sources
 
 
@@ -65,7 +65,7 @@ def data_sources(config) -> Union[str, Path]:
 def model_build_config(config) -> Union[str, Path]:
     """Return model build config"""
     model_build_config = get_config(config, "model_build_config", optional=False)
-    model_build_config = join(SNAKEDIR, model_build_config)
+    model_build_config = join(MAINDIR, model_build_config)
     return model_build_config
 
 
@@ -73,5 +73,5 @@ def model_build_config(config) -> Union[str, Path]:
 def waterbodies_config(config) -> Union[str, Path]:
     """Return waterbodies config"""
     waterbodies_config = get_config(config, "waterbodies_config", optional=False)
-    waterbodies_config = join(SNAKEDIR, waterbodies_config)
+    waterbodies_config = join(MAINDIR, waterbodies_config)
     return waterbodies_config
