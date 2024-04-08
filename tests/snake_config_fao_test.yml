@@ -4,8 +4,10 @@
 # Path to where the wflow model will be stored (include the project name)
 project_dir: tests/test_project
 
-# Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
-data_sources: tests/data/tests_data_catalog.yml
+# Path to the data catalog(s) to use (can be different for Linux/Windows/data stored on P drive or other)
+data_catalogs: 
+  - tests/data/tests_data_catalog.yml
+  - artifact_data
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
 #data_sources_climate: config/deltares_data_climate_projections.yml
 data_sources_future_climate: config/cmip6_data.yml
@@ -29,6 +31,8 @@ endtime: "2010-12-31T00:00:00"
 model_region: "{'subbasin': [12.3758, 46.4076], 'uparea': 70}"
 # Buffer in km to apply to the region for the climate analysis
 region_buffer: 10
+# Hydrography dataset to use to derive region from (sub)basin
+hydrography_fn: merit_hydro_1k
 
 # Additional sub-basins or sub-regions to include in the analysis
 climate_subregions: None

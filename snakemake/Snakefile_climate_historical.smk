@@ -37,7 +37,7 @@ data_catalog = get_config(config, "data_sources", optional=False)
 
 rule all:
     input:
-        f"{project_dir}/config/snake_config_historical_climate.yaml",
+        f"{project_dir}/config/snake_config_climate_historical.yaml",
         f"{project_dir}/plots/climate_historical/precipitation_basin.png",
         f"{project_dir}/plots/climate_historical/temperature_basin.png",
         f"{project_dir}/plots/climate_historical/precipitation_location.png",
@@ -51,9 +51,9 @@ rule copy_config:
     input:
         config_snake = config_path,
     params:
-        workflow_name = "historical_climate",
+        workflow_name = "climate_historical",
     output:
-        config_snake_out = f"{project_dir}/config/snake_config_historical_climate.yaml",
+        config_snake_out = f"{project_dir}/config/snake_config_climate_historical.yaml",
     script:
         "../src/copy_config_files.py"
 
@@ -62,19 +62,22 @@ rule select_region:
     params:
         hydromt_region = get_config(config, "model_region", optional=False),
         buffer_km = get_config(config, "region_buffer", 10),
+        data_catalog = data_catalog,
+        hydrography_fn = get_config(config, "hydrography_fn", None),
+        basin_index_fn = get_config(config, "basin_index_fn", None),
     output:
-        region_file = f"{project_dir}/region/region.shp",
-        region_buffer_file = f"{project_dir}/region/region_buffer.shp",
+        region_file = f"{project_dir}/region/region.geojson",
+        region_buffer_file = f"{project_dir}/region/region_buffer.geojson",
     script:
         "../src/derive_region.py"
 
 # Region/basin wide plots
 rule plot_basin_climate:
     input:
-        region_file = f"{project_dir}/region/region.shp",
-        region_buffer_file = f"{project_dir}/region/region_buffer.shp",
+        region_file = f"{project_dir}/region/region.geojson",
+        region_buffer_file = f"{project_dir}/region/region_buffer.geojson",
     params:
-        subbasin_file = get_config(config, "climate_subregions", None),
+        subregion_file = get_config(config, "climate_subregions", None),
         climate_sources = climate_sources,
         data_catalog = data_catalog,
     output:
@@ -88,7 +91,7 @@ rule plot_basin_climate:
 # Output an empty geods if no location is provided
 rule plot_location_climate:
     input:
-        region_buffer_file = f"{project_dir}/region/region_buffer.shp",
+        region_buffer_file = f"{project_dir}/region/region_buffer.geojson",
     params:
         location_file = get_config(config, "climate_locations"),
         location_timeseries = get_config(config, "climate_locations_timeseries"),
