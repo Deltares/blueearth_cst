@@ -11,7 +11,7 @@ import pandas as pd
 import numpy as np
 from hydromt_wflow import WflowModel
 
-from .conftest import SNAKEDIR, SAMPLE_PROJECTDIR, config_fn
+from .conftest import MAINDIR, SAMPLE_PROJECTDIR, config_fn
 from .conftest import get_config
 
 from ..src import copy_config_files
@@ -89,7 +89,7 @@ def test_create_model_full(
 
     ### 3. Add gauges and select outputs ###
     gauges_fn = get_config(config, "output_locations", None)
-    gauges_fn = join(SNAKEDIR, gauges_fn)
+    gauges_fn = join(MAINDIR, gauges_fn)
     outputs = get_config(config, "wflow_outvars")
 
     setup_gauges_and_outputs.update_wflow_gauges_outputs(
@@ -226,9 +226,9 @@ def test_plot_results(tmpdir, config):
     wflow_root = f"{SAMPLE_PROJECTDIR}/hydrology_model"
     plot_dir = f"{tmpdir}/plots"
     gauges_locs = get_config(config, "output_locations")
-    gauges_locs = join(SNAKEDIR, gauges_locs)
+    gauges_locs = join(MAINDIR, gauges_locs)
     observations_fn = get_config(config, "observations_timeseries")
-    observations_fn = join(SNAKEDIR, observations_fn)
+    observations_fn = join(MAINDIR, observations_fn)
 
     # 1. Plot all results
     plot_results.analyse_wflow_historical(

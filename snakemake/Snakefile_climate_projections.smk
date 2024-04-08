@@ -75,7 +75,7 @@ rule copy_config:
     output:
         config_snake_out = f"{project_dir}/config/snake_config_climate_projections.yml",
     script:
-        "src/copy_config_files.py"
+        "../src/copy_config_files.py"
 
 # Rule to calculate mean monthly statistics for historical and future scenarios - grid saved to netcdf
 # also calculate monthly time series averaged over the grid.
@@ -94,7 +94,7 @@ rule monthly_stats_hist:
         name_clim_project = clim_project,
         variables = variables,
         save_grids = save_grids,
-    script: "src/get_stats_climate_proj.py"
+    script: "../src/get_stats_climate_proj.py"
 
 # Rule to calculate mean monthly statistics for historical and future scenarios - grid saved to netcdf
 # also calculate monthly time series averaged over the grid.
@@ -115,7 +115,7 @@ rule monthly_stats_fut:
         name_clim_project = clim_project,
         variables = variables,
         save_grids = save_grids,
-    script: "src/get_stats_climate_proj.py"
+    script: "../src/get_stats_climate_proj.py"
 
 # Rule to calculate change stats over the grid
 rule monthly_change:
@@ -135,7 +135,7 @@ rule monthly_change:
         save_grids = save_grids,
         stats_nc_hist = (clim_project_dir + "/historical_stats_{model}.nc"),
         stats_nc = (clim_project_dir + "/stats-{model}_{scenario}.nc"),
-    script: "src/get_change_climate_proj.py"
+    script: "../src/get_change_climate_proj.py"
 
 #rule to merge results in one netcdf / todo: add plotting
 rule monthly_change_scalar_merge:
@@ -149,7 +149,7 @@ rule monthly_change_scalar_merge:
     params:
         clim_project_dir = f"{clim_project_dir}",
         horizons = future_horizons,
-    script: "src/get_change_climate_proj_summary.py"
+    script: "../src/get_change_climate_proj_summary.py"
 
 #rule to plot timeseries
 rule plot_climate_proj_timeseries:
@@ -167,4 +167,4 @@ rule plot_climate_proj_timeseries:
         precip_plt = (clim_project_dir + "/plots/precipitation_anomaly_projections_abs.png"),
         temp_plt = (clim_project_dir + "/plots/temperature_anomaly_projections_abs.png"),
         timeseries_csv = (clim_project_dir + "/gcm_timeseries.nc"),
-    script: "src/plot_proj_timeseries.py"
+    script: "../src/plot_proj_timeseries.py"

@@ -33,8 +33,8 @@ def get_config(config, arg, default=None, optional=True):
 project_dir = get_config(config, 'project_dir', optional=False)
 model_region = get_config(config, 'model_region', optional=False)
 model_resolution = get_config(config, 'model_resolution', 0.00833333)
-model_build_config = get_config(config, 'model_build_config', 'config/wflow_build_model.yml')
-waterbodies_config = get_config(config, 'waterbodies_config', 'config/wflow_update_waterbodies.yml')
+model_build_config = get_config(config, 'model_build_config', 'config/cst_api/wflow_build_model.yml')
+waterbodies_config = get_config(config, 'waterbodies_config', 'config/cst_api/wflow_update_waterbodies.yml')
 DATA_SOURCES = get_config(config, "data_sources", optional=False)
 
 output_locations = get_config(config, "output_locations", None)
@@ -64,7 +64,7 @@ rule copy_config:
     output:
         config_snake_out = f"{project_dir}/config/snake_config_model_creation.yml",
     script:
-        "src/copy_config_files.py"
+        "../src/copy_config_files.py"
 
 # Rule to build model hydromt build wflow
 rule create_model:
@@ -86,7 +86,7 @@ rule add_reservoirs_lakes_glaciers:
         data_catalog = DATA_SOURCES,
         config = waterbodies_config,
     script:
-        "src/setup_reservoirs_lakes_glaciers.py"
+        "../src/setup_reservoirs_lakes_glaciers.py"
 
 # Rule to add gauges to the built model
 rule add_gauges_and_outputs:
@@ -100,7 +100,7 @@ rule add_gauges_and_outputs:
         outputs = wflow_outvars,
         data_catalog = DATA_SOURCES
     script:
-        "src/setup_gauges_and_outputs.py"
+        "../src/setup_gauges_and_outputs.py"
 
 # Rule to prepare the time horizon
 rule setup_runtime:
@@ -112,7 +112,7 @@ rule setup_runtime:
         starttime = get_config(config, "starttime", optional=False),
         endtime = get_config(config, "endtime", optional=False),
         clim_source = get_config(config, "clim_historical", optional=False),
-    script: "src/setup_time_horizon.py"
+    script: "../src/setup_time_horizon.py"
 
 # Rule to add forcing to the updated model
 rule add_forcing:
@@ -145,7 +145,7 @@ rule plot_results:
        project_dir = f"{project_dir}",
        observations_file = observations_timeseries,
        gauges_output_fid = output_locations,
-   script: "src/plot_results.py"
+   script: "../src/plot_results.py"
 
 # Rule to plot the wflow basin, rivers, gauges and DEM on a map
 rule plot_map:
@@ -156,7 +156,7 @@ rule plot_map:
     params:
         project_dir = f"{project_dir}",
         output_locations = output_locations,
-    script: "src/plot_map.py"
+    script: "../src/plot_map.py"
 
 # Rule to plot the forcing on a map
 rule plot_forcing:
@@ -167,4 +167,4 @@ rule plot_forcing:
     params:
         project_dir = f"{project_dir}",
         gauges_fid = output_locations,
-    script: "src/plot_map_forcing.py"
+    script: "../src/plot_map_forcing.py"

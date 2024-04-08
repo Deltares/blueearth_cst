@@ -7,26 +7,24 @@ Created on Thu Jan 13 16:23:11 2022
 
 # plot map
 
-import xarray as xr
 import numpy as np
 from os.path import basename, join
 import os
 from pathlib import Path
 import matplotlib.pyplot as plt
 from matplotlib import colors
-import matplotlib.patheffects as pe
 from typing import Union
-
-# plot maps dependencies
-import matplotlib.patches as mpatches
-import cartopy.crs as ccrs
-
-# import descartes  # required to plot polygons
-import cartopy.io.img_tiles as cimgt
 
 from hydromt_wflow import WflowModel
 
-from .plot_map_forcing import plot_map_model
+# Avoid relative import errors
+import sys
+
+parent_module = sys.modules[".".join(__name__.split(".")[:-1]) or "__main__"]
+if __name__ == "__main__" or parent_module.__name__ == "__main__":
+    from func_plot_map import plot_map_model
+else:
+    from .func_plot_map import plot_map_model
 
 
 def plot_wflow_map(

@@ -1,0 +1,20 @@
+﻿Files from;Filename;Workflow model_creation;Workflow climate_projections;Workflow climate_experiment;Impact if filename change;Breaking impact if content change;Visual impact if content change;Notes
+blueearth_cst;Snakefile_model_creation;x;;;x;;;
+blueearth_cst;Snakefile_climate_projections;;x;;x;;;
+blueearth_cst;Snakefile_climate_experiement;;;x;x;;;
+blueearth_cst;config/snake_model_config_test.yml;x;x;x;;x;x;Any change in options should be updated in the API when generating the snake config file
+blueearth_cst;config/data_catalog.yaml;;;;x;x;;those are CST dashboard configs directly
+blueearth_cst;config/climate_data_catalog.yaml;;;;x;x;;those are CST dashboard configs directly
+blueearth_cst;config/weathergen_config.yaml;;;;x;x;;those are CST dashboard configs directly
+blueearth_cst;config/wflow_build_model.yaml;;;;x;x;;those are CST dashboard configs directly
+blueearth_cst;config/wflow_sbm.toml;;;;x;x;;those are CST dashboard configs directly
+blueearth_cst;config/wflow_update_waterbodies.yaml;;;;x;x;;those are CST dashboard configs directly
+project_directory;hydrology_model/run_default/output.csv;;;;x;x;;
+project_directory;hydrology_model/staticgeoms;;;;x;;;
+project_directory;plots/wflow_model_performance/performance_metrics.csv;x;;;x;x;;
+project_directory;plots/wflow_model_performance/hydro_{station_name}.png;x;;;x;;x;Discharge plots at output stations
+project_directory;plots/wflow_model_performance/{variable_name}_basavg.png;x;;;x;;x;Plots of wflow basin average varibables (recharge, snow, evaporation)
+project_directory;plots/wflow_model_performance/annual_change_scalar_stats_summary_mean.csv;;x;;x;x;;Question: Is GCM_source cmip6 hardcoded? Ie cmip5 or local GCMs cannot be used -> At the API level, only CMIP6 is used
+project_directory;plots/wflow_model_performance/model_results/Qstats.csv;;;x;x;x;;
+project_directory;plots/wflow_model_performance/model_results/basin.csv;;;x;x;x;;
+project_directory;plots/wflow_model_performance/model_results/RT_W_{station_name};;;x;x;x;;

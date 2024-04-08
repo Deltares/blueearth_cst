@@ -20,7 +20,7 @@ dependencies:
   - jupyter # to run examples
   - matplotlib
   - numpy
-  - pandas
+  - pandas>=2.2.0
   - pip
   - python>=3.7
   - r-base
