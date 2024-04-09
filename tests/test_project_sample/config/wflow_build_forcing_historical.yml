@@ -1,0 +1,16 @@
+setup_config:
+  starttime: '2000-01-01T00:00:00'
+  endtime: '2010-12-31T00:00:00'
+  timestepsecs: 86400
+  input.path_forcing: ../climate_historical/wflow_data/inmaps_historical.nc
+setup_precip_forcing:
+  precip_fn: era5
+setup_temp_pet_forcing:
+  temp_pet_fn: era5
+  press_correction: true
+  temp_correction: true
+  dem_forcing_fn: era5_orography
+  pet_method: debruin
+  skip_pet: false
+write_config: {}
+write_forcing: {}
