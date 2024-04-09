@@ -33,14 +33,17 @@ def get_config(config, arg, default=None, optional=True):
 project_dir = get_config(config, 'project_dir', optional=False)
 basin_dir = f"{project_dir}/hydrology_model"
 
-clim_historical_datasets = get_config(config, "clim_historical_datasets", optional=False)
+climate_sources = get_config(config, "clim_historical", optional=False)
 
 project_dir = get_config(config, 'project_dir', optional=False)
 model_region = get_config(config, 'model_region', optional=False)
 model_resolution = get_config(config, 'model_resolution', 0.00833333)
-model_build_config = get_config(config, 'model_build_config', 'config/wflow_build_model.yml')
-waterbodies_config = get_config(config, 'waterbodies_config', 'config/wflow_update_waterbodies.yml')
+model_build_config = get_config(config, 'model_build_config', 'config/cst_api/wflow_build_model.yml')
+waterbodies_config = get_config(config, 'waterbodies_config', 'config/cst_api/wflow_update_waterbodies.yml')
 DATA_SOURCES = get_config(config, "data_sources", optional=False)
+#DATA_SOURCES = get_config(config, "data_catalogs", optional=False)
+#data_catalog = get_config(config, "data_catalogs", optional=False)
+
 
 output_locations = get_config(config, "output_locations", None)
 observations_timeseries = get_config(config, "observations_timeseries", None)
@@ -52,11 +55,7 @@ rule all:
     input: 
         f"{project_dir}/plots/wflow_model_performance/hydro_wflow_1.png",
         f"{project_dir}/plots/wflow_model_performance/basin_area.png",
-#         f"{project_dir}/plots/wflow_model_performance/precip.png",
-        # f"{project_dir}/config/snake_config_model_creation.yml",
-        # expand((project_dir + "/config/wflow_build_forcing_historical_{clim_historical_dataset}.yml"), clim_historical_dataset = clim_historical_datasets),
-        expand((project_dir + "/climate_historical/wflow_data/inmaps_historical_{clim_historical_dataset}.nc"), clim_historical_dataset = clim_historical_datasets)
-
+        f"{project_dir}/config/snake_config_model_creation.yml",
 
 # Rule to copy config files to the project_dir/config folder
 rule copy_config:
@@ -113,40 +112,40 @@ rule setup_runtime:
     input:
         gauges_fid = f"{basin_dir}/staticgeoms/gauges.geojson"
     output:
-        forcing_yml = (project_dir + "/config/wflow_build_forcing_historical_{clim_historical_dataset}.yml")
+        forcing_yml = (project_dir + "/config/wflow_build_forcing_historical_{climate_source}.yml")
     params:
         starttime = get_config(config, "starttime", optional=False),
         endtime = get_config(config, "endtime", optional=False),
-        clim_source = "{clim_historical_dataset}",
+        clim_source = "{climate_source}",
     script: "../src/setup_time_horizon.py" #todo update path forcing name nc in script
 
 # Rule to update the model for each additional forcing dataset - todo
 rule add_forcing:
     input:
-        forcing_ini = expand((project_dir + "/config/wflow_build_forcing_historical_{clim_historical_dataset}.yml"), clim_historical_dataset = clim_historical_datasets)
+        forcing_ini = (project_dir + "/config/wflow_build_forcing_historical_{climate_source}.yml")
     output:
-        forcing_fid = (project_dir + "/climate_historical/wflow_data/inmaps_historical_{clim_historical_dataset}.nc")
+        forcing_fid = (project_dir + "/climate_historical/wflow_data/inmaps_historical_{climate_source}.nc")
     params:
-        clim_source = "{clim_historical_dataset}",
+        clim_source = "{climate_source}",
     shell:
         """hydromt update wflow "{basin_dir}" -i "{input.forcing_ini}" -d "{DATA_SOURCES}" -vv"""
 
 #Rule to run the wflow model for each additional forcing dataset - todo
 rule run_wflow:
     input:
-        forcing_fid = expand((project_dir + "/climate_historical/wflow_data/inmaps_historical_{clim_historical_dataset}.nc"), clim_historical_dataset = clim_historical_datasets)
+        forcing_fid = (project_dir + "/climate_historical/wflow_data/inmaps_historical_{climate_source}.nc")
     output:
-        csv_file = (basin_dir + "/run_default_{clim_historical_dataset}/output.csv")
+        csv_file = (basin_dir + "/run_default_{climate_source}/output.csv")
     params:
-        toml_fid = (basin_dir + "/wflow_sbm_{clim_historical_dataset}.toml"),
-        clim_source = "{clim_historical_dataset}",
+        toml_fid = (basin_dir + "/wflow_sbm_{climate_source}.toml"),
+        clim_source = "{climate_source}",
     shell:
         """ julia --threads 4 -e "using Wflow; Wflow.run()" "{params.toml_fid}" """
 
 # Rule to analyse and plot wflow model run results --> final output
 rule plot_results:
    input:
-       csv_file = expand((basin_dir + "/run_default_{clim_historical_dataset}/output.csv"), clim_historical_dataset = clim_historical_datasets),
+       csv_file = expand((basin_dir + "/run_default_{climate_source}/output.csv"), climate_source = climate_sources),
        script = "src/plot_results.py"
    output: 
        output_png = f"{project_dir}/plots/wflow_model_performance/hydro_wflow_1.png",
