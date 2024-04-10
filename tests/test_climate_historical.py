@@ -9,6 +9,7 @@ from .conftest import get_config
 
 from ..src import copy_config_files
 from ..src import derive_region
+from ..src import plot_climate_basin
 
 config_fn = join(TESTDIR, "snake_config_fao_test.yml")
 
@@ -65,3 +66,28 @@ def test_select_region(tmpdir, config_fao, data_libs_fao):
     region = gpd.read_file(f"{tmpdir}/region_bbox/region.geojson")
     region_buffer = gpd.read_file(f"{tmpdir}/region_bbox/region_buffer.geojson")
     assert_geodataframe_equal(region, region_buffer)
+
+
+def test_plot_climate_region(tmpdir, config_fao, data_libs_fao):
+    """Test the basin averaged plots."""
+    region_filename = join(SAMPLE_PROJECTDIR, "region", "region.geojson")
+    subregions_filename = join(
+        SAMPLE_PROJECTDIR,
+        "hydrology_model",
+        "staticgeoms",
+        "subcatch_discharge-locations-grdc.geojson",
+    )
+
+    # Call the plot function
+    plot_climate_basin.plot_historical_climate_region(
+        region_filename=region_filename,
+        path_output=join(tmpdir, "climate_historical"),
+        climate_sources=config_fao["clim_historical"],
+        climate_catalog=data_libs_fao,
+        subregions_filename=subregions_filename,
+        heat_threshold=15,
+    )
+
+    # Check if the output files are created
+    assert os.path.exists(f"{tmpdir}/climate_historical/plots")
+    assert os.path.exists(f"{tmpdir}/climate_historical/statistics/basin_climate.nc")

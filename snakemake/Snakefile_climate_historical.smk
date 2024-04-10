@@ -33,7 +33,7 @@ def get_config(config, arg, default=None, optional=True):
 # Config settings
 project_dir = get_config(config, 'project_dir', optional=False)
 climate_sources = get_config(config, "clim_historical", optional=False)
-data_catalog = get_config(config, "data_sources", optional=False)
+data_catalog = get_config(config, "data_catalogs", optional=False)
 
 rule all:
     input:
@@ -75,15 +75,18 @@ rule select_region:
 rule plot_basin_climate:
     input:
         region_file = f"{project_dir}/region/region.geojson",
-        region_buffer_file = f"{project_dir}/region/region_buffer.geojson",
     params:
         subregion_file = get_config(config, "climate_subregions", None),
         climate_sources = climate_sources,
         data_catalog = data_catalog,
+        project_dir = project_dir,
+        precip_peak = get_config(config, "precipitation_peak_threshold", 40),
+        precip_dry = get_config(config, "precipitation_dry_threshold", 0.2),
+        temp_heat = get_config(config, "temperature_heat_threshold", 25),
     output:
         geods_basin = f"{project_dir}/climate_historical/statistics/basin_climate.nc",
-        precip_basin_plot = f"{project_dir}/plots/climate_historical/precipitation_basin.png",
-        temp_basin_plot = f"{project_dir}/plots/climate_historical/temperature_basin.png",
+        precip_basin_plot = f"{project_dir}/climate_historical/plots/precipitation_basin.png",
+        temp_basin_plot = f"{project_dir}/climate_historical/plots/temperature_basin.png",
     script:
         "../src/plot_climate_basin.py"
 

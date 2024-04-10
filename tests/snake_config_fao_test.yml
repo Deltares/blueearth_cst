@@ -6,8 +6,9 @@ project_dir: tests/test_project
 
 # Path to the data catalog(s) to use (can be different for Linux/Windows/data stored on P drive or other)
 data_catalogs: 
-  - tests/data/tests_data_catalog.yml
   - artifact_data
+  - tests/data/tests_data_catalog.yml
+
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
 #data_sources_climate: config/deltares_data_climate_projections.yml
 data_sources_future_climate: config/cmip6_data.yml
@@ -42,3 +43,11 @@ climate_subregions: None
 climate_locations: "tests/data/observations/climate-locations-eca.csv" # If set to None, will default to the wflow outlets
 # Path to the file with observed discharge timeseries per station 
 climate_locations_timeseries: "tests/data/observations/observations-climate-eca.csv" 
+
+# Thresholds for the climate analysis
+# Precipitation peak threshold in mm/day
+precipitation_peak_threshold: 40
+# Precipitation daily mean dry threshold in mm/day
+precipitation_dry_threshold: 0.2
+# Heat daily mean temperature threshold in degrees Celsius
+temperature_heat_threshold: 25
