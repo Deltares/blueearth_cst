@@ -6,7 +6,8 @@
 project_dir: tests/test_project
 
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
-data_sources: artifact_data
+#data_sources: artifact_data
+data_sources: tests/data/tests_data_catalog.yml
 
 #todo change code to use a list of data catalogs instead.
 data_catalogs: 
