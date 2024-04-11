@@ -6,8 +6,9 @@
 project_dir: tests/test_project
 
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
-data_sources: config/deltares_data.yml
+data_sources: artifact_data
 
+#todo change code to use a list of data catalogs instead.
 data_catalogs: 
   - tests/data/tests_data_catalog.yml
   - artifact_data
@@ -41,7 +42,8 @@ model_region: "{'subbasin': [12.3758, 46.4076], 'uparea': 70}"
 # Grid resolution of the model in degrees
 model_resolution: 0.00833333
 # Path to model build configuration
-model_build_config: "config/cst_api/wflow_build_model.yml"
+model_build_config: "config/fao/wflow_build_model.yml"
+waterbodies_config: "config/fao/wflow_update_waterbodies.yml"
 
 # If available, please here put the path to the available observation stations locations files
 # csv file containing three columns: station_ID, x, y

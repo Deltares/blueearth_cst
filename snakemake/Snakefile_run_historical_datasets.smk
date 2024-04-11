@@ -38,10 +38,10 @@ climate_sources = get_config(config, "clim_historical", optional=False)
 project_dir = get_config(config, 'project_dir', optional=False)
 model_region = get_config(config, 'model_region', optional=False)
 model_resolution = get_config(config, 'model_resolution', 0.00833333)
-model_build_config = get_config(config, 'model_build_config', 'config/cst_api/wflow_build_model.yml')
-waterbodies_config = get_config(config, 'waterbodies_config', 'config/cst_api/wflow_update_waterbodies.yml')
+model_build_config = get_config(config, 'model_build_config', 'config/fao/wflow_build_model.yml')
+waterbodies_config = get_config(config, 'waterbodies_config', 'config/fao/wflow_update_waterbodies.yml')
 DATA_SOURCES = get_config(config, "data_sources", optional=False)
-#DATA_SOURCES = get_config(config, "data_catalogs", optional=False)
+#todo check multiple data catalogs as input. 
 #data_catalog = get_config(config, "data_catalogs", optional=False)
 
 
@@ -117,7 +117,8 @@ rule setup_runtime:
         starttime = get_config(config, "starttime", optional=False),
         endtime = get_config(config, "endtime", optional=False),
         clim_source = "{climate_source}",
-    script: "../src/setup_time_horizon.py" #todo update path forcing name nc in script
+        suffix=True, #add climate_source name to config_name and forcing_path name. 
+    script: "../src/setup_time_horizon.py" 
 
 # Rule to update the model for each additional forcing dataset - todo
 rule add_forcing:
@@ -153,7 +154,7 @@ rule plot_results:
        project_dir = f"{project_dir}",
        observations_file = observations_timeseries,
        gauges_output_fid = output_locations,
-   script: "src/plot_results.py"
+   script: "../src/plot_results.py"
 
 # Rule to plot the wflow basin, rivers, gauges and DEM on a map
 rule plot_map:
@@ -164,4 +165,4 @@ rule plot_map:
     params:
         project_dir = f"{project_dir}",
         output_locations = output_locations,
-    script: "src/plot_map.py"
+    script: "../src/plot_map.py"
