@@ -13,7 +13,7 @@ import pandas as pd
 import hydromt
 from hydromt_wflow import WflowModel
 
-from typing import Union
+from typing import Union, List
 
 # Avoid relative import errors
 import sys
@@ -36,6 +36,78 @@ else:
         plot_basavg,
     )
 
+def get_wflow_results(
+    wflow_root: Union[str, Path],
+    wflow_config_fn: str = "wflow_sbm.toml",
+    climate_source: List[str] = None, # climate source name used as suffix in config file 
+    gauges_locs: Union[Path, str] = None,
+):
+    """
+    TODO!
+    """
+    if climate_source is None:
+        mod = WflowModel(root=wflow_root, mode="r", config_fn=wflow_config_fn) 
+        qsim = mod.results["Q_gauges"].rename("Q") 
+    else:
+        mod = WflowModel(root=wflow_root, mode="r", config_fn=wflow_config_fn.replace(".toml", f"_{climate_source}.toml"))   
+        qsim = mod.results["Q_gauges"].rename("Q") 
+        #add climate data source 
+        qsim = qsim.assign_coords(climate_source=(f"{climate_source}")).expand_dims(["climate_source"])
+    qsim = qsim.assign_coords(
+        station_name=(
+            "index",
+            ["wflow_" + x for x in list(qsim["index"].values.astype(str))],
+        )
+    )
+
+    # Discharge at the gauges_locs if present
+    if gauges_locs is not None and os.path.exists(gauges_locs):
+        # Get name of gauges dataset from the gauges locations file
+        gauges_output_name = os.path.basename(gauges_locs).split(".")[0]
+        if f"Q_gauges_{gauges_output_name}" in mod.results:
+            qsim_gauges = mod.results[f"Q_gauges_{gauges_output_name}"].rename("Q")
+            # Add station_name
+            gdf_gauges = (
+                mod.geoms[f"gauges_{gauges_output_name}"]
+                .rename(columns={"wflow_id": "index"})
+                .set_index("index")
+            )
+            qsim_gauges = qsim_gauges.assign_coords(
+                station_name=(
+                    "index",
+                    list(gdf_gauges["station_name"][qsim_gauges.index.values].values),
+                )
+            )
+    else:
+        qsim_gauges = None
+
+        # Climate data P, EP, T for wflow_subcatch
+    ds_clim = xr.merge(
+        [
+            mod.results["P_subcatchment"],
+            mod.results["T_subcatchment"],
+            mod.results["EP_subcatchment"],
+        ]
+    )
+    if climate_source is not None:
+        #add climate data source 
+        ds_clim = ds_clim.assign_coords(climate_source=(f"{climate_source}")).expand_dims(["climate_source"])
+
+    # Other catchment average outputs
+    ds_basin = xr.merge(
+        [mod.results[dvar] for dvar in mod.results if "_basavg" in dvar]
+    )
+    ds_basin = ds_basin.squeeze(drop=True)
+    # If precipitation, skip as this will be plotted with the other climate data
+    if "precipitation_basavg" in ds_basin:
+        ds_basin = ds_basin.drop_vars("precipitation_basavg")
+    if climate_source is not None:
+        #add climate data source 
+        ds_basin = ds_basin.assign_coords(climate_source=(f"{climate_source}")).expand_dims(["climate_source"])
+
+
+    return qsim, qsim_gauges, ds_clim, ds_basin
+
 
 def analyse_wflow_historical(
     wflow_root: Union[str, Path],
@@ -43,6 +115,7 @@ def analyse_wflow_historical(
     observations_fn: Union[Path, str] = None,
     gauges_locs: Union[Path, str] = None,
     wflow_config_fn: str = "wflow_sbm.toml",
+    climate_sources: List[str] = ["era5"],
 ):
     """
     Analyse and plot wflow model performance for historical run.
@@ -87,6 +160,8 @@ def analyse_wflow_historical(
     wflow_config_fn : str, optional
         Name of the wflow configuration file, by default "wflow_sbm.toml". Used to read
         the right results files from the wflow model.
+    climate_sources: List[str], optional 
+        List of climate datasets used to run wflow. 
     """
     ### 1. Prepare output and plotting options ###
 
@@ -127,56 +202,34 @@ def analyse_wflow_historical(
 
     ### 3. Read the wflow model and results ###
     # Instantiate wflow model
-    mod = WflowModel(root=wflow_root, mode="r", config_fn=wflow_config_fn)
+    #read wflow runs from several climate sources if more than one
+    if len(climate_sources)>1:
+        qsim = []
+        qsim_gauges = []
+        ds_clim = []
+        ds_basin = []
+        for climate_source in climate_sources:
+            qsim_source, qsim_gauges_source, ds_clim_source, ds_basin_source = get_wflow_results(wflow_root=wflow_root, wflow_config_fn=wflow_config_fn, climate_source=climate_source, gauges_locs=gauges_locs)
+            qsim.append(qsim_source)
+            qsim_gauges.append(qsim_gauges_source)
+            ds_clim.append(ds_clim_source)
+            ds_basin.append(ds_basin_source)
+        qsim = xr.merge(qsim)
+        ds_clim = xr.merge(ds_clim, compat="override")
+        ds_basin = xr.merge(ds_basin, compat="override")
+        if qsim_gauges[0] is not None:
+            qsim_gauges = xr.merge(qsim_gauges, compat="override")
+            #merge with qsim
+            qsim = xr.merge([qsim, qsim_gauges])["Q"]
+    
+    else:
+        qsim, qsim_gauges, ds_clim, ds_basin = get_wflow_results(wflow_root=wflow_root, wflow_config_fn=wflow_config_fn, climate_source=None, gauges_locs=gauges_locs)
 
-    # Read the results
-    # Discharge at the outlet(s)
-    qsim = mod.results["Q_gauges"].rename("Q")
-    # add station_name
-    qsim = qsim.assign_coords(
-        station_name=(
-            "index",
-            ["wflow_" + x for x in list(qsim["index"].values.astype(str))],
-        )
-    )
-    # Discharge at the gauges_locs if present
-    if gauges_locs is not None and os.path.exists(gauges_locs):
-        # Get name of gauges dataset from the gauges locations file
-        gauges_output_name = os.path.basename(gauges_locs).split(".")[0]
-        if f"Q_gauges_{gauges_output_name}" in mod.results:
-            qsim_gauges = mod.results[f"Q_gauges_{gauges_output_name}"].rename("Q")
-            # Add station_name
-            gdf_gauges = (
-                mod.geoms[f"gauges_{gauges_output_name}"]
-                .rename(columns={"wflow_id": "index"})
-                .set_index("index")
-            )
-            qsim_gauges = qsim_gauges.assign_coords(
-                station_name=(
-                    "index",
-                    list(gdf_gauges["station_name"][qsim_gauges.index.values].values),
-                )
-            )
-            # Merge with qsim
+        # Merge with qsim
+        if qsim_gauges is not None:
             qsim = xr.merge([qsim, qsim_gauges])["Q"]
 
-    # Climate data P, EP, T for wflow_subcatch
-    ds_clim = xr.merge(
-        [
-            mod.results["P_subcatchment"],
-            mod.results["T_subcatchment"],
-            mod.results["EP_subcatchment"],
-        ]
-    )
 
-    # Other catchment average outputs
-    ds_basin = xr.merge(
-        [mod.results[dvar] for dvar in mod.results if "_basavg" in dvar]
-    )
-    ds_basin = ds_basin.squeeze(drop=True)
-    # If precipitation, skip as this will be plotted with the other climate data
-    if "precipitation_basavg" in ds_basin:
-        ds_basin = ds_basin.drop_vars("precipitation_basavg")
 
     ### 4. Plot climate data ###
     # No plots of climate data if wflow run is less than a year
@@ -303,6 +356,7 @@ if __name__ == "__main__":
             plot_dir=Folder_plots,
             observations_fn=sm.params.observations_file,
             gauges_locs=sm.params.gauges_output_fid,
+            climate_sources=sm.params.climate_sources,
         )
     else:
         analyse_wflow_historical(
@@ -310,4 +364,5 @@ if __name__ == "__main__":
             plot_dir=None,
             observations_fn=None,
             gauges_locs=None,
+            climate_sources=None,
         )

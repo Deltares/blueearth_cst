@@ -1,4 +1,5 @@
 import sys
+import numpy as np 
 
 # Get the snake_config file from the command line
 args = sys.argv
@@ -41,6 +42,8 @@ model_resolution = get_config(config, 'model_resolution', 0.00833333)
 model_build_config = get_config(config, 'model_build_config', 'config/fao/wflow_build_model.yml')
 waterbodies_config = get_config(config, 'waterbodies_config', 'config/fao/wflow_update_waterbodies.yml')
 DATA_SOURCES = get_config(config, "data_sources", optional=False)
+#make sure DATA_SOURCES is a list format (even if only one DATA_SOURCE)
+DATA_SOURCES = np.atleast_1d(DATA_SOURCES).tolist()
 #todo check multiple data catalogs as input. 
 #data_catalog = get_config(config, "data_catalogs", optional=False)
 
@@ -77,8 +80,10 @@ rule create_model:
         hydromt_ini = model_build_config,
     output:
         basin_nc = f"{basin_dir}/staticmaps.nc",
+    params:
+        data_catalogs = [f"-d {cat} " for cat in DATA_SOURCES]  
     shell:
-        """hydromt build wflow "{basin_dir}" --region "{model_region}" --opt setup_basemaps.res="{model_resolution}" -i "{input.hydromt_ini}" -d "{DATA_SOURCES}" --fo -vv"""
+        """hydromt build wflow "{basin_dir}" --region "{model_region}" --opt setup_basemaps.res="{model_resolution}" -i "{input.hydromt_ini}" {params.data_catalogs} --fo -vv"""
 
 # Rule to add reservoirs, lakes and glaciers to the built model (temporary hydromt fix)
 # Can be moved back to create_model rule when hydromt is updated
@@ -120,18 +125,18 @@ rule setup_runtime:
         suffix=True, #add climate_source name to config_name and forcing_path name. 
     script: "../src/setup_time_horizon.py" 
 
-# Rule to update the model for each additional forcing dataset - todo
+# Rule to update the model for each additional forcing dataset 
 rule add_forcing:
     input:
         forcing_ini = (project_dir + "/config/wflow_build_forcing_historical_{climate_source}.yml")
     output:
         forcing_fid = (project_dir + "/climate_historical/wflow_data/inmaps_historical_{climate_source}.nc")
     params:
-        clim_source = "{climate_source}",
+        data_catalogs = [f"-d {cat} " for cat in DATA_SOURCES] #todo adapt cst snake 
     shell:
-        """hydromt update wflow "{basin_dir}" -i "{input.forcing_ini}" -d "{DATA_SOURCES}" -vv"""
+        """hydromt update wflow "{basin_dir}" -i "{input.forcing_ini}" {params.data_catalogs} -vv"""
 
-#Rule to run the wflow model for each additional forcing dataset - todo
+#Rule to run the wflow model for each additional forcing dataset 
 rule run_wflow:
     input:
         forcing_fid = (project_dir + "/climate_historical/wflow_data/inmaps_historical_{climate_source}.nc")
@@ -139,7 +144,6 @@ rule run_wflow:
         csv_file = (basin_dir + "/run_default_{climate_source}/output.csv")
     params:
         toml_fid = (basin_dir + "/wflow_sbm_{climate_source}.toml"),
-        clim_source = "{climate_source}",
     shell:
         """ julia --threads 4 -e "using Wflow; Wflow.run()" "{params.toml_fid}" """
 
@@ -154,6 +158,7 @@ rule plot_results:
        project_dir = f"{project_dir}",
        observations_file = observations_timeseries,
        gauges_output_fid = output_locations,
+       climate_sources = climate_sources,
    script: "../src/plot_results.py"
 
 # Rule to plot the wflow basin, rivers, gauges and DEM on a map

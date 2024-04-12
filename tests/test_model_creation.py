@@ -51,7 +51,11 @@ def test_create_model_full(
     hydromt_ini = model_build_config
 
     # Run hydromt build command similarly as in snakemake workflow
-    cmd = f"""hydromt build wflow {basin_dir} --region "{model_region}" --opt setup_basemaps.res={model_resolution} -i {hydromt_ini} -d {data_sources} --fo -vv"""
+    #np.atleast_1d to convert string to list (if there is only one element in a list)
+    data_sources = np.atleast_1d(data_sources).tolist()
+    data_catalogs = [f"-d {cat} " for cat in data_sources]
+    #-d {data_sources} should be called similarly as in the snakefile -  ".join(data_catalogs) combine list elements to string
+    cmd = f"""hydromt build wflow {basin_dir} --region "{model_region}" --opt setup_basemaps.res={model_resolution} -i {hydromt_ini} {" ".join(data_catalogs)} --fo -vv"""
     result = subprocess.run(cmd, shell=True, capture_output=True)
     # Check the output of the subprocess command
     assert result.returncode == 0

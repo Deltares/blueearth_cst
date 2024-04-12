@@ -1,4 +1,5 @@
 import sys
+import numpy as np 
 
 # Get the snake_config file from the command line
 args = sys.argv
@@ -36,6 +37,8 @@ model_resolution = get_config(config, 'model_resolution', 0.00833333)
 model_build_config = get_config(config, 'model_build_config', 'config/cst_api/wflow_build_model.yml')
 waterbodies_config = get_config(config, 'waterbodies_config', 'config/cst_api/wflow_update_waterbodies.yml')
 DATA_SOURCES = get_config(config, "data_sources", optional=False)
+#make sure DATA_SOURCES is a list format (even if only one DATA_SOURCE)
+DATA_SOURCES = np.atleast_1d(DATA_SOURCES).tolist()
 
 output_locations = get_config(config, "output_locations", None)
 observations_timeseries = get_config(config, "observations_timeseries", None)
@@ -72,8 +75,10 @@ rule create_model:
         hydromt_ini = model_build_config,
     output:
         basin_nc = f"{basin_dir}/staticmaps.nc",
+    params:
+        data_catalogs = [f"-d {cat} " for cat in DATA_SOURCES]
     shell:
-        """hydromt build wflow "{basin_dir}" --region "{model_region}" --opt setup_basemaps.res="{model_resolution}" -i "{input.hydromt_ini}" -d "{DATA_SOURCES}" --fo -vv"""
+        """hydromt build wflow "{basin_dir}" --region "{model_region}" --opt setup_basemaps.res="{model_resolution}" -i "{input.hydromt_ini}" {params.data_catalogs} --fo -vv"""
 
 # Rule to add reservoirs, lakes and glaciers to the built model (temporary hydromt fix)
 # Can be moved back to create_model rule when hydromt is updated
@@ -120,8 +125,10 @@ rule add_forcing:
         forcing_ini = f"{project_dir}/config/wflow_build_forcing_historical.yml"
     output:
         forcing_fid = f"{project_dir}/climate_historical/wflow_data/inmaps_historical.nc"
+    params:
+        data_catalogs = [f"-d {cat} " for cat in DATA_SOURCES]  
     shell:
-        """hydromt update wflow "{basin_dir}" -i "{input.forcing_ini}" -d "{DATA_SOURCES}" -vv"""
+        """hydromt update wflow "{basin_dir}" -i "{input.forcing_ini}" {params.data_catalogs} -vv"""
 
 # Rule to run the wflow model
 rule run_wflow:
