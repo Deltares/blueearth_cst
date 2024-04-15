@@ -14,6 +14,7 @@ import hydromt
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 import cartopy.io.img_tiles as cimgt
+import seaborn as sns
 
 __all__ = ["plot_scalar_climate_statistics"]
 
@@ -73,6 +74,8 @@ def plot_scalar_climate_statistics(
     if geods_obs is not None:
         geods_obs = geods_obs.assign_coords(source="observed")
         geods = xr.concat([geods, geods_obs], dim="source")
+        if colors is not None:
+            colors["observed"] = "black"
     # Check the number of days in the first year in geods.time
     # and remove the year if not complete
     if len(geods.sel(time=geods.time.dt.year.isin(geods.time.dt.year[0]))) < 365:
@@ -96,6 +99,18 @@ def plot_scalar_climate_statistics(
                 peak_threshold=precip_peak_threshold,
                 dry_days_threshold=dry_days_threshold,
                 gdf_region=gdf_region,
+            )
+
+        # And plot for all locations (if more than 1)
+        prec = geods.precip.copy()
+        prec = prec.dropna(dim="index", how="all")
+        if len(prec.index.values) > 1:
+            print("Plotting precipitation boxplot for all locations")
+            # Plot the precipitation per location
+            boxplot_clim(
+                da=prec,
+                path_output=path_output,
+                colors=colors,
             )
 
     # Temperature plots
@@ -449,3 +464,41 @@ def plot_temperature_per_location(
 
     # Save the figure
     fig.savefig(join(path_output, f"temperature_{st}.png"))
+
+
+def boxplot_clim(
+    da: xr.DataArray,
+    path_output: Union[str, Path],
+    colors: Optional[List] = None,
+):
+    """Boxplot of the climate data at different locations."""
+    fs = 8
+    # First convert to a dataframe
+    # Resample to year
+    da = da.resample(time="Y").sum(min_count=1)
+    dfa = da.to_dataframe()[["precip"]]
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+    sns.boxplot(
+        ax=ax,
+        data=dfa,
+        x="index",
+        hue="source",
+        y="precip",
+        # order = stations_z,
+        palette=colors,
+        width=0.8,
+        fliersize=0.5,
+        linewidth=0.5,
+    )
+
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=90, fontsize=fs)
+    ax.tick_params(axis="both", labelsize=fs)
+    ax.set_xlabel("", fontsize=fs)
+    if da.name == "precip":
+        ax.set_ylabel("Precipitation [mm/year]", fontsize=fs)
+    ax.legend(fontsize=fs)
+
+    # Save the figure
+    plt.tight_layout()
+    plt.savefig(join(path_output, f"precipitation_boxplot.png"), dpi=300)
