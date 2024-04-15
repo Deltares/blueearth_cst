@@ -18,6 +18,11 @@ clim_historical:
   - era5
   - chirps_global
 
+clim_historical_colors:
+  - blue
+  - green
+
+
 # Time horizon of the historical period for trend analysis
 starttime: "2000-01-01T00:00:00"
 endtime: "2010-12-31T00:00:00"

@@ -78,6 +78,7 @@ rule plot_basin_climate:
     params:
         subregion_file = get_config(config, "climate_subregions", None),
         climate_sources = climate_sources,
+        climate_sources_colors = get_config(config, "clim_historical_colors", None),
         data_catalog = data_catalog,
         project_dir = project_dir,
         precip_peak = get_config(config, "precipitation_peak_threshold", 40),

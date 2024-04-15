@@ -27,8 +27,9 @@ else:
 def plot_historical_climate_region(
     region_filename: Union[str, Path],
     path_output: Union[str, Path],
-    climate_sources: Union[str, List[str]],
     climate_catalog: Union[str, Path, List],
+    climate_sources: Union[str, List[str]],
+    climate_sources_colors: Optional[Union[str, List[str]]] = None,
     subregions_filename: Optional[Union[str, Path]] = None,
     climate_variables: List[str] = ["precip", "temp"],
     legend_column: str = "value",
@@ -48,10 +49,14 @@ def plot_historical_climate_region(
         Path to the region boundary vector file.
     path_output : str or Path
         Path to the output directory where the plots are stored.
-    climate_sources : str or list of str
-        Name of the climate data sources to plot.
     climate_catalog : str or list of str
         Path to the climate data catalog(s) to use.
+    climate_sources : str or list of str
+        Name of the climate data sources to plot. Should be available in
+        climate_catalog.
+    climate_sources_colors : str or list of str, optional
+        Color to use for each ``climate_sources``. If None, unique color per source is
+        not assured.
     subregions_filename : str or Path, optional
         Path to the subregions boundary vector file to produce similar plots for
         subregions.
@@ -113,7 +118,7 @@ def plot_historical_climate_region(
                 variables=var,
                 single_var_as_array=False,  # HydroMT rename bug
             )
-            # HydroMT rename bug... after bugfix check will be on empty
+            # HydroMT rename bug... after bugfix check will be on None
             if var not in ds_clim.data_vars:
                 continue
 
@@ -149,7 +154,11 @@ def plot_historical_climate_region(
         # Merge region and subregions datasets
         ds_clim_region = xr.merge([ds_clim_region, ds_clim_subregions])
         # Merge the gdf
-        region = gpd.GeoDataFrame(pd.concat([region, subregions], ignore_index=False))
+        region_all = gpd.GeoDataFrame(
+            pd.concat([region, subregions], ignore_index=False)
+        )
+    else:
+        region_all = region
 
     # Rename the variables
     ds_clim_region = ds_clim_region.rename_vars(
@@ -157,16 +166,26 @@ def plot_historical_climate_region(
     )
 
     # Convert to Geodataset
-    geods_region = hydromt.vector.GeoDataset.from_gdf(region, data_vars=ds_clim_region)
+    geods_region = hydromt.vector.GeoDataset.from_gdf(
+        region_all, data_vars=ds_clim_region
+    )
+
+    # Prepare colors dict
+    if climate_sources_colors is not None:
+        colors = {k: v for k, v in zip(climate_sources, climate_sources_colors)}
+    else:
+        colors = None
 
     # Plot historical climate for region and optionally subregions
     plot_scalar_climate_statistics(
         geods=geods_region,
         path_output=join(path_output, "plots"),
         climate_variables=climate_variables,
+        colors=colors,
         precip_peak_threshold=precip_peak_threshold,
         dry_days_threshold=dry_days_threshold,
         heat_threshold=heat_threshold,
+        gdf_region=region,
     )
 
     # Save the sampled timeseries
@@ -181,16 +200,17 @@ if __name__ == "__main__":
         sm = globals()["snakemake"]
         project_dir = sm.params.project_dir
 
-    plot_historical_climate_region(
-        region_filename=sm.input.region_file,
-        path_output=join(project_dir, "climate_historical"),
-        climate_sources=sm.params.climate_sources,
-        climate_catalog=sm.params.data_catalog,
-        subregions_filename=sm.params.subregion_file,
-        precip_peak_threshold=sm.params.precip_peak,
-        dry_days_threshold=sm.params.precip_dry,
-        heat_threshold=sm.params.temp_heat,
-    )
+        plot_historical_climate_region(
+            region_filename=sm.input.region_file,
+            path_output=join(project_dir, "climate_historical"),
+            climate_catalog=sm.params.data_catalog,
+            climate_sources=sm.params.climate_sources,
+            climate_sources_colors=sm.params.climate_sources_colors,
+            subregions_filename=sm.params.subregion_file,
+            precip_peak_threshold=sm.params.precip_peak,
+            dry_days_threshold=sm.params.precip_dry,
+            heat_threshold=sm.params.temp_heat,
+        )
 
-else:
-    print("This script should be run from a snakemake environment")
+    else:
+        print("This script should be run from a snakemake environment")

@@ -82,8 +82,9 @@ def test_plot_climate_region(tmpdir, config_fao, data_libs_fao):
     plot_climate_basin.plot_historical_climate_region(
         region_filename=region_filename,
         path_output=join(tmpdir, "climate_historical"),
-        climate_sources=config_fao["clim_historical"],
         climate_catalog=data_libs_fao,
+        climate_sources=config_fao["clim_historical"],
+        climate_sources_colors=config_fao["clim_historical_colors"],
         subregions_filename=subregions_filename,
         heat_threshold=15,
     )

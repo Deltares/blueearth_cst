@@ -128,5 +128,5 @@ if __name__ == "__main__":
             basin_index_fn=sm.params.basin_index_fn,
         )
 
-else:
-    print("This script should be run from a snakemake environment")
+    else:
+        print("This script should be run from a snakemake environment")
