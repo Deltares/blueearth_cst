@@ -72,8 +72,8 @@ def plot_scalar_climate_statistics(
         geods_obs = geods_obs.sel(time=slice(time_start, time_end))
     # Add a source dimension to the observed data
     if geods_obs is not None:
-        geods_obs = geods_obs.assign_coords(source="observed")
-        geods = xr.concat([geods, geods_obs], dim="source")
+        geods_obs = geods_obs.expand_dims(dim={"source": np.array(["observed"])})
+        geods = xr.merge([geods, geods_obs])
         if colors is not None:
             colors["observed"] = "black"
     # Check the number of days in the first year in geods.time
@@ -248,7 +248,7 @@ def plot_precipitation_per_location(
             .resample(time="W")
             .sum()
         )
-        wettest_year.plot.step(ax=axes[5], label=source, color=c)
+        wettest_year.plot.step(ax=axes[5], label=source, color=c, ls=ls)
 
     ### Add legends ###
     # 1. Plot per year

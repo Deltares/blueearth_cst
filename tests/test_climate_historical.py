@@ -10,6 +10,7 @@ from .conftest import get_config
 from ..src import copy_config_files
 from ..src import derive_region
 from ..src import plot_climate_basin
+from ..src import plot_climate_location
 
 config_fn = join(TESTDIR, "snake_config_fao_test.yml")
 
@@ -92,3 +93,28 @@ def test_plot_climate_region(tmpdir, config_fao, data_libs_fao):
     # Check if the output files are created
     assert os.path.exists(f"{tmpdir}/climate_historical/plots")
     assert os.path.exists(f"{tmpdir}/climate_historical/statistics/basin_climate.nc")
+
+
+def test_plot_climate_point(tmpdir, config_fao, data_libs_fao):
+    """Test the point location plots."""
+    region_filename = join(SAMPLE_PROJECTDIR, "region", "region.geojson")
+    obs_fn = join(MAINDIR, get_config(config_fao, "climate_locations"))
+    timeseries_fn = join(
+        MAINDIR, get_config(config_fao, "climate_locations_timeseries")
+    )
+
+    # Call the plot function
+    plot_climate_location.plot_historical_climate_point(
+        locations_filename=obs_fn,
+        region_filename=region_filename,
+        path_output=join(tmpdir, "climate_historical"),
+        data_catalog=data_libs_fao,
+        climate_sources=config_fao["clim_historical"],
+        climate_sources_colors=config_fao["clim_historical_colors"],
+        observations_timeseries_filename=timeseries_fn,
+        heat_threshold=15,
+        region_buffer=get_config(config_fao, "region_buffer"),
+    )
+
+    # Check if the output files are created
+    assert os.path.exists(f"{tmpdir}/climate_historical/statistics/point_climate.nc")

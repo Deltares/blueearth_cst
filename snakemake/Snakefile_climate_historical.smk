@@ -95,12 +95,18 @@ rule plot_basin_climate:
 # Output an empty geods if no location is provided
 rule plot_location_climate:
     input:
-        region_buffer_file = f"{project_dir}/region/region_buffer.geojson",
+        region_file = f"{project_dir}/region/region.geojson",
     params:
         location_file = get_config(config, "climate_locations"),
         location_timeseries = get_config(config, "climate_locations_timeseries"),
         climate_sources = climate_sources,
+        climate_sources_colors = get_config(config, "clim_historical_colors", None),
         data_catalog = data_catalog,
+        project_dir = project_dir,
+        precip_peak = get_config(config, "precipitation_peak_threshold", 40),
+        precip_dry = get_config(config, "precipitation_dry_threshold", 0.2),
+        temp_heat = get_config(config, "temperature_heat_threshold", 25),
+        region_buffer = get_config(config, "region_buffer", 10),
     output:
         geods_point = f"{project_dir}/climate_historical/statistics/point_climate.nc",
         precip_location_plot = f"{project_dir}/plots/climate_historical/precipitation_location.png",
