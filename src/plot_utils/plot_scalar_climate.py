@@ -29,7 +29,7 @@ def plot_scalar_climate_statistics(
     dry_days_threshold: float = 0.2,
     heat_threshold: float = 25,
     gdf_region: Optional[gpd.GeoDataFrame] = None,
-):
+) -> xr.Dataset:
     """
     Plot scalar climate statistics from a xarray dataset.
 
@@ -57,6 +57,12 @@ def plot_scalar_climate_statistics(
         Threshold for the number of heat days [oC] to highlight in the plot.
     gdf_region : gpd.GeoDataFrame, optional
         The total region of the project to add to the inset map if provided.
+
+    Returns
+    -------
+    geods : xr.Dataset
+        The input geods with an additional source dimension for the observed data and
+        filtered over the common time period between geods and geods_obs.
     """
 
     # Check if the output directory exists
@@ -129,7 +135,7 @@ def plot_scalar_climate_statistics(
                 gdf_region=gdf_region,
             )
 
-    return
+    return geods
 
 
 def plot_precipitation_per_location(

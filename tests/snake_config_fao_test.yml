@@ -40,12 +40,13 @@ region_buffer: 10
 # Hydrography dataset to use to derive region from (sub)basin
 hydrography_fn: merit_hydro_1k
 
+
 # Additional sub-basins or sub-regions to include in the analysis
 climate_subregions: None
 
 # If available, please here put the path to the available climate observation stations locations files
 # csv file containing three columns: station_ID, name, x, y
-climate_locations: "tests/data/observations/climate-locations-eca.csv" # If set to None, will default to the wflow outlets
+climate_locations: "tests/data/observations/climate-locations-eca.csv"
 # Path to the file with observed discharge timeseries per station 
 climate_locations_timeseries: "tests/data/observations/observations-climate-eca.csv" 
 
@@ -56,3 +57,5 @@ precipitation_peak_threshold: 40
 precipitation_dry_threshold: 0.2
 # Heat daily mean temperature threshold in degrees Celsius
 temperature_heat_threshold: 25
+# Split year for the timeseries trends
+split_year_trend: 2005

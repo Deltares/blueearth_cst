@@ -177,7 +177,7 @@ def plot_historical_climate_region(
         colors = None
 
     # Plot historical climate for region and optionally subregions
-    plot_scalar_climate_statistics(
+    geods_region = plot_scalar_climate_statistics(
         geods=geods_region,
         path_output=join(path_output, "plots", "region"),
         climate_variables=climate_variables,

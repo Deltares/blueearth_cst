@@ -38,13 +38,10 @@ data_catalog = get_config(config, "data_catalogs", optional=False)
 rule all:
     input:
         f"{project_dir}/config/snake_config_climate_historical.yaml",
-        f"{project_dir}/plots/climate_historical/precipitation_basin.png",
-        f"{project_dir}/plots/climate_historical/temperature_basin.png",
-        f"{project_dir}/plots/climate_historical/precipitation_location.png",
-        f"{project_dir}/climate_historical/trends/precipitation_trend_basin.png",
-        f"{project_dir}/climate_historical/trends/precipitation_trend_point.png",
-        f"{project_dir}/climate_historical/trends/temperature_trend_basin.png",
-        f"{project_dir}/climate_historical/trends/temperature_trend_point.png"
+        f"{project_dir}/climate_historical/statistics/basin_climate.nc",
+        f"{project_dir}/climate_historical/statistics/point_climate.nc",
+        f"{project_dir}/climate_historical/trends/gridded_trends.txt",
+        f"{project_dir}/climate_historical/trends/timeseries_trends.txt",
 
 # Rule to copy config files to the project_dir/config folder
 rule copy_config:
@@ -63,8 +60,8 @@ rule select_region:
         hydromt_region = get_config(config, "model_region", optional=False),
         buffer_km = get_config(config, "region_buffer", 10),
         data_catalog = data_catalog,
-        hydrography_fn = get_config(config, "hydrography_fn", None),
-        basin_index_fn = get_config(config, "basin_index_fn", None),
+        hydrography_fn = get_config(config, "hydrography_fn", "merit_hydro"),
+        basin_index_fn = get_config(config, "basin_index_fn", "merit_hydro_index"),
     output:
         region_file = f"{project_dir}/region/region.geojson",
         region_buffer_file = f"{project_dir}/region/region_buffer.geojson",
@@ -86,13 +83,11 @@ rule plot_basin_climate:
         temp_heat = get_config(config, "temperature_heat_threshold", 25),
     output:
         geods_basin = f"{project_dir}/climate_historical/statistics/basin_climate.nc",
-        precip_basin_plot = f"{project_dir}/climate_historical/plots/precipitation_basin.png",
-        temp_basin_plot = f"{project_dir}/climate_historical/plots/temperature_basin.png",
     script:
         "../src/plot_climate_basin.py"
 
 # Location specific plots
-# Output an empty geods if no location is provided
+# TODO: Output an empty geods if no location is provided?? Or assumes always locations?
 rule plot_location_climate:
     input:
         region_file = f"{project_dir}/region/region.geojson",
@@ -109,19 +104,30 @@ rule plot_location_climate:
         region_buffer = get_config(config, "region_buffer", 10),
     output:
         geods_point = f"{project_dir}/climate_historical/statistics/point_climate.nc",
-        precip_location_plot = f"{project_dir}/plots/climate_historical/precipitation_location.png",
     script:
         "../src/plot_climate_location.py"
 
 # Rule to derive trends in the historical data
-rule derive_trends:
+rule derive_trends_timeseries:
     input:
-        geods_basin = f"{project_dir}/climate_historical/statistics/basin_climate.nc",
-        geods_point = f"{project_dir}/climate_historical/statistics/point_climate.nc",
+        #geods_basin = f"{project_dir}/climate_historical/statistics/basin_climate.nc",
+        geods = f"{project_dir}/climate_historical/statistics/point_climate.nc",
+    params:
+        project_dir = project_dir,
+        split_year = get_config(config, "split_year_trend", None),
     output:
-        precip_trends_basin = f"{project_dir}/climate_historical/trends/precipitation_trend_basin.png",
-        precip_trends_point = f"{project_dir}/climate_historical/trends/precipitation_trend_point.png",
-        temp_trends_basin = f"{project_dir}/climate_historical/trends/temperature_trend_basin.png",
-        temp_trends_point = f"{project_dir}/climate_historical/trends/temperature_trend_point.png",
+        trends_timeseries_done = f"{project_dir}/climate_historical/trends/timeseries_trends.txt",
     script:
         "../src/derive_climate_trends.py"
+
+rule derive_trends_gridded:
+    input:
+        region_file = f"{project_dir}/region/region.geojson",
+    params:
+        climate_sources = climate_sources,
+        data_catalog = data_catalog,
+        project_dir = project_dir,
+    output:
+        trends_gridded_done = f"{project_dir}/climate_historical/trends/gridded_trends.txt",
+    script:
+        "../src/derive_climate_trends_gridded.py"

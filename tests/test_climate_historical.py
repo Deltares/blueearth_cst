@@ -11,6 +11,8 @@ from ..src import copy_config_files
 from ..src import derive_region
 from ..src import plot_climate_basin
 from ..src import plot_climate_location
+from ..src import derive_climate_trends_gridded
+from ..src import derive_climate_trends
 
 config_fn = join(TESTDIR, "snake_config_fao_test.yml")
 
@@ -118,3 +120,40 @@ def test_plot_climate_point(tmpdir, config_fao, data_libs_fao):
 
     # Check if the output files are created
     assert os.path.exists(f"{tmpdir}/climate_historical/statistics/point_climate.nc")
+
+
+def test_timeseries_historical_trends(tmpdir):
+    """Test the timeseries trends plots."""
+    clim_fn = join(
+        SAMPLE_PROJECTDIR, "climate_historical", "statistics", "basin_climate.nc"
+    )
+
+    derive_climate_trends.derive_timeseries_trends(
+        clim_filename=clim_fn,
+        path_output=join(tmpdir, "climate_historical", "trends"),
+        split_year=2005,
+    )
+
+    # Check if the output files are created
+    # assert os.path.exists(f"{tmpdir}/climate_historical/trends/timeseries_anomalies_precip_chirps_global.png")
+    # assert os.path.exists(f"{tmpdir}/climate_historical/trends/timeseries_anomalies_temp_era5.png")
+
+
+def test_gridded_historical_trends(tmpdir, config_fao, data_libs_fao):
+    """Test the gridded trends plots."""
+    region_filename = join(SAMPLE_PROJECTDIR, "region", "region.geojson")
+
+    derive_climate_trends_gridded.derive_gridded_trends(
+        region_filename=region_filename,
+        path_output=join(tmpdir, "climate_historical", "trends"),
+        climate_catalog=data_libs_fao,
+        climate_sources=config_fao["clim_historical"],
+    )
+
+    # Check if the output files are created
+    assert os.path.exists(
+        f"{tmpdir}/climate_historical/trends/gridded_anomalies_precip_chirps_global.png"
+    )
+    assert os.path.exists(
+        f"{tmpdir}/climate_historical/trends/gridded_anomalies_temp_era5.png"
+    )
