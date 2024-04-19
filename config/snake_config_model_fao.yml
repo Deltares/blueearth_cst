@@ -11,8 +11,8 @@ project_dir: tests/test_project
 
 #change code to use a list of data catalogs instead.
 data_sources: 
-  - tests/data/tests_data_catalog.yml
   - artifact_data
+  - tests/data/tests_data_catalog.yml
 
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
 #data_sources_climate: config/deltares_data_climate_projections.yml
@@ -41,7 +41,7 @@ wflow_outvars: ['river discharge', 'precipitation', 'overland flow', 'actual eva
 # For wflow please use either 'basin' or 'subbasin' keywords
 model_region: "{'subbasin': [12.3758, 46.4076], 'uparea': 70}"
 # Grid resolution of the model in degrees
-model_resolution: 0.00833333
+model_resolution: 0.0166666
 # Path to model build configuration
 model_build_config: "config/fao/wflow_build_model.yml"
 waterbodies_config: "config/fao/wflow_update_waterbodies.yml"

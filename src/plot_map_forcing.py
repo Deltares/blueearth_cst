@@ -23,11 +23,11 @@ if __name__ == "__main__" or parent_module.__name__ == "__main__":
 else:
     from .func_plot_map import plot_map_model
 
-
 def plot_forcing(
     wflow_root: Union[str, Path],
     plot_dir: Union[str, Path] = None,
     gauges_name: str = None,
+    config_fn: str = "wflow_sbm.toml",
 ):
     """
     Plot the wflow forcing in separate maps.
@@ -41,8 +41,10 @@ def plot_forcing(
         in the wflow_root folder.
     gauges_name : str, optional
         Name of the gauges to plot. If None (default), no gauges are plot.
+    config_fn : str, optional
+        name of the config file, default is wflow_sbm.toml
     """
-    mod = WflowModel(wflow_root, mode="r")
+    mod = WflowModel(wflow_root, mode="r", config_fn=config_fn)
 
     # If plotting dir is None, create
     if plot_dir is None:
