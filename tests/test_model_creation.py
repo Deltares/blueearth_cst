@@ -143,6 +143,32 @@ def test_setup_runtime(tmpdir, config):
     assert content["setup_config"]["starttime"] == starttime
     assert content["setup_precip_forcing"]["precip_fn"] == precip_source
 
+def test_setup_runtime_suffix(tmpdir, config):
+    """Test preparing the forcing config file when there are multiple data sources and suffix is required."""
+    starttime = get_config(config, "starttime", optional=False)
+    endtime = get_config(config, "endtime", optional=False)
+    precip_source = get_config(config, "clim_historical", optional=False)
+    fn_yml = f"{tmpdir}/config/wflow_build_forcing_historical_{precip_source}.yml"
+
+    setup_time_horizon.prep_hydromt_update_forcing_config(
+        starttime=starttime,
+        endtime=endtime,
+        fn_yml=fn_yml,
+        precip_source=precip_source,
+        suffix=True,
+    )
+
+    # Check the output file
+    assert os.path.exists(fn_yml)
+    # Check the content of the output file
+    with open(fn_yml, "rb") as f:
+        content = yaml.safe_load(f)
+    assert "setup_config" in content
+    assert "write_config" in content
+
+    assert content["setup_config"]["dir_output"] == f"run_default_{precip_source}"
+    assert content["setup_config"]["input.path_forcing"] == f"../climate_historical/wflow_data/inmaps_historical_{precip_source}.nc"
+    assert content["write_config"]["config_name"] == f"wflow_sbm_{precip_source}.toml"
 
 @pytest.mark.timeout(120)  # max 2 min
 def test_add_forcing(tmpdir, data_sources, config):
