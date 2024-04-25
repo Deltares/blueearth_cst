@@ -16,13 +16,13 @@ dependencies:
   - geopandas>=0.10
   - graphviz # for snakemake
   - hydromt>=0.9.1, <0.10
-  - hydromt_wflow>=0.4.1, <0.5
+  - hydromt_wflow>=0.4.1, <0.6
   - jupyter # to run examples
   - matplotlib
   - numpy
   - pandas
   - pip
-  - python>=3.7
+  - python>=3.9, <3.12
   - r-base
   - r-essentials
   - r-akima
