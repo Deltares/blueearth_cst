@@ -675,7 +675,7 @@ def plot_clim(ds_clim, Folder_out, station_name, period, color, lw=0.8, fs=8):
     Parameters
     ----------
     ds_clim : xr.DataArray
-        Precipitation, temperature and potential evaporation daily data. 
+        Precipitation, temperature and potential evaporation data at model timestep. 
         Should include a coordinate named "climate_source"
     Folder_out : Union[Path, str]
         Output folder to save plots.
@@ -818,7 +818,22 @@ def plot_clim(ds_clim, Folder_out, station_name, period, color, lw=0.8, fs=8):
     plt.savefig(os.path.join(Folder_out, f"clim_{station_name}_{period}.png"), dpi=300)
 
 
-def plot_basavg(ds, Folder_out, fs=10):
+def plot_basavg(ds, Folder_out, color, fs=10):
+    """
+    Plot basin average mean monthly regime and 25-75% uncertainty band for several output variables of the model. 
+
+    Parameters
+    ----------
+    ds : xr.DataArray
+        Data of output variables at model timestep. 
+        Should include a coordinate named "climate_source"
+    Folder_out : Union[Path, str]
+        Output folder to save plots.
+    color : dic
+        Color to be used for each climate_source 
+    fs : int, optional
+        Font size, by default 10 
+    """
     dvars = [dvar for dvar in ds.data_vars]
     n = len(dvars)
 
@@ -837,10 +852,16 @@ def plot_basavg(ds, Folder_out, fs=10):
         sum_monthly_q75 = sum_monthly.groupby("time.month").quantile(0.75, "time")
 
         # plot
-        sum_monthly_mean.plot(ax=ax, color="darkblue")
-        ax.fill_between(
-            np.arange(1, 13), sum_monthly_q25, sum_monthly_q75, color="lightblue"
-        )
+        for climate_source in ds.climate_source.values:
+            p = sum_monthly_mean.sel(climate_source=climate_source).plot(ax=ax, color=color[climate_source], label=f"{climate_source} (mean)")
+            if color[climate_source] == None:
+                c = p[0].get_color()
+            else:
+                c = color[climate_source]
+            ax.fill_between(
+                np.arange(1, 13), sum_monthly_q25.sel(climate_source=climate_source), sum_monthly_q75.sel(climate_source=climate_source), color=c, alpha=0.5,
+                label=f"{climate_source} (25%-75%)"
+            )
         legend = WFLOW_VARS[dvar.split("_")[0]]["legend"]
         ax.set_ylabel(legend, fontsize=fs)
 
@@ -848,6 +869,7 @@ def plot_basavg(ds, Folder_out, fs=10):
         ax.set_xlabel("", fontsize=fs)
         ax.set_title("")
         ax.grid(alpha=0.5)
+        ax.legend(fontsize=fs)
 
         month_labels = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
         ax.set_xticks(ticks=np.arange(1, 13), labels=month_labels, fontsize=fs)

@@ -241,16 +241,17 @@ def analyse_wflow_historical(
             qsim = xr.merge([qsim, qsim_gauges])["Q"]
 
     #make sure qsim, ds_clim and ds_basin have coord climate_source (even if only one climate source is used in the default case)
-    if "climate_source" not in qsim.coords and climate_sources is not None:
-        qsim = qsim.assign_coords(climate_source=(f"{climate_sources[0]}")).expand_dims(["climate_source"])
-        ds_clim = ds_clim.assign_coords(climate_source=(f"{climate_sources[0]}")).expand_dims(["climate_source"])
-        ds_basin = ds_basin.assign_coords(climate_source=(f"{climate_sources[0]}")).expand_dims(["climate_source"])
-    else:
-        qsim = qsim.assign_coords(climate_source=("climate_source")).expand_dims(["climate_source"])
-    # if "climate_source" not in ds_clim.coords:
-        ds_clim = ds_clim.assign_coords(climate_source=("climate_source")).expand_dims(["climate_source"])
-    # if "climate_source" not in ds_basin.coords:
-        ds_basin = ds_basin.assign_coords(climate_source=("climate_source")).expand_dims(["climate_source"])
+    if "climate_source" not in qsim.coords:
+        if climate_sources is not None:
+            qsim = qsim.assign_coords(climate_source=(f"{climate_sources[0]}")).expand_dims(["climate_source"])
+            ds_clim = ds_clim.assign_coords(climate_source=(f"{climate_sources[0]}")).expand_dims(["climate_source"])
+            ds_basin = ds_basin.assign_coords(climate_source=(f"{climate_sources[0]}")).expand_dims(["climate_source"])
+        else:
+            qsim = qsim.assign_coords(climate_source=("climate_source")).expand_dims(["climate_source"])
+        # if "climate_source" not in ds_clim.coords:
+            ds_clim = ds_clim.assign_coords(climate_source=("climate_source")).expand_dims(["climate_source"])
+        # if "climate_source" not in ds_basin.coords:
+            ds_basin = ds_basin.assign_coords(climate_source=("climate_source")).expand_dims(["climate_source"])
 
 
     ### 4. Plot climate data ###
@@ -270,7 +271,7 @@ def analyse_wflow_historical(
 
     ### 5. Plot other basin average outputs ###
     print("Plot basin average wflow outputs")
-    plot_basavg(ds_basin, plot_dir)
+    plot_basavg(ds_basin, plot_dir, color)
     plt.close()
 
     ### 6. Plot hydrographs and compute performance metrics ###
