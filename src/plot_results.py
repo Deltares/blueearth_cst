@@ -322,7 +322,6 @@ def analyse_wflow_historical(
             qobs=qobs_i,
             Folder_out=plot_dir,
             station_name=station_name,
-            label=label,
             color=color,
             lw=lw,
             fs=fs,

@@ -538,8 +538,7 @@ def plot_hydro(
     qsim: xr.DataArray,
     Folder_out: Union[Path, str],
     qobs: xr.DataArray = None,
-    label: str = "simulated",
-    color: str = "steelblue",
+    color: dict = {"climate_source":"steelblue"},
     station_name: str = "station_1",
     lw: float = 0.8,
     fs: int = 7,
@@ -560,15 +559,13 @@ def plot_hydro(
     Parameters
     ----------
     qsim : xr.DataArray
-        Simulated streamflow.
+        Simulated streamflow. Coordinate "climate_source" should be present. 
     Folder_out : Union[Path, str]
         Output folder to save plots.
     qobs : xr.DataArray, optional
         Observed streamflow, by default None
-    label : str, optional
-        Label for the simulated run, by default ["simulated"]
-    color : str, optional
-        Color for the simulated run, by default ["steelblue"]
+    color : dict, optional
+        Color belonging to a climate source run, by default {"climate_source":"steelblue"}
     station_name : str, optional
         Station name, by default "station_1"
     lw : float, optional
@@ -598,26 +595,28 @@ def plot_hydro(
             "Driest year",
         ]
         figsize_y = 23
-        # Get the wettest and driest year
+        # Get the wettest and driest year (based on first climate_source)
         qyr = qsim.resample(time="A").sum()
         qyr["time"] = qyr["time.year"]
         # Get the year for the minimum as an integer
-        year_dry = str(qyr.isel(time=qyr.argmin()).time.values)
-        year_wet = str(qyr.isel(time=qyr.argmax()).time.values)
+        year_dry = str(qyr.isel(time=qyr.argmin("time")).time.values[0])
+        year_wet = str(qyr.isel(time=qyr.argmax("time")).time.values[0])
 
     fig, axes = plt.subplots(nb_panel, 1, figsize=(16 / 2.54, figsize_y / 2.54))
     axes = [axes] if nb_panel == 1 else axes
 
     # 1. long period
-    qsim.plot(ax=axes[0], label=label, linewidth=lw, color=color)
+    for climate_source in qsim.climate_source.values:
+        qsim.sel(climate_source=climate_source).plot(ax=axes[0], label=f"simulated {climate_source}", linewidth=lw, color=color[climate_source])
     if qobs is not None:
         qobs.plot(ax=axes[0], label=labobs, linewidth=lw, color=colobs, linestyle="--")
 
     if nb_panel == 5:
         # 2. annual Q
-        qsim.resample(time="A").sum().plot(
-            ax=axes[1], label=label, linewidth=lw, color=color
-        )
+        for climate_source in qsim.climate_source.values:
+            qsim.sel(climate_source=climate_source).resample(time="A").sum().plot(
+                ax=axes[1], label=f"simulated {climate_source}", linewidth=lw, color=color[climate_source]
+            )
         if qobs is not None:
             qobs.resample(time="A").sum().plot(
                 ax=axes[1], label=labobs, linewidth=lw, color=colobs, linestyle="--"
@@ -627,7 +626,8 @@ def plot_hydro(
         month_labels = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
         dsqM = qsim.resample(time="M").sum()
         dsqM = dsqM.groupby(dsqM.time.dt.month).mean()
-        dsqM.plot(ax=axes[2], label=label, linewidth=lw, color=color)
+        for climate_source in qsim.climate_source.values:
+            dsqM.sel(climate_source=climate_source).plot(ax=axes[2], label=f"simulated {climate_source}", linewidth=lw, color=color[climate_source])
         if qobs is not None:
             dsqMo = qobs.resample(time="M").sum()
             dsqMo = dsqMo.groupby(dsqMo.time.dt.month).mean()
@@ -636,14 +636,16 @@ def plot_hydro(
         axes[2].set_xticks(ticks=np.arange(1, 13), labels=month_labels, fontsize=5)
 
         # 4. wettest year
-        qsim.sel(time=year_wet).plot(ax=axes[3], label=label, linewidth=lw, color=color)
+        for climate_source in qsim.climate_source.values:
+            qsim.sel(climate_source=climate_source).sel(time=year_wet).plot(ax=axes[3], label=f"simulated {climate_source}", linewidth=lw, color=color[climate_source])
         if qobs is not None:
             qobs.sel(time=year_wet).plot(
                 ax=axes[3], label=labobs, linewidth=lw, color=colobs, linestyle="--"
             )
 
         # 5. driest year
-        qsim.sel(time=year_dry).plot(ax=axes[4], label=label, linewidth=lw, color=color)
+        for climate_source in qsim.climate_source.values:
+            qsim.sel(climate_source=climate_source).sel(time=year_dry).plot(ax=axes[4], label=f"simulated {climate_source}", linewidth=lw, color=color[climate_source])
         if qobs is not None:
             qobs.sel(time=year_dry).plot(
                 ax=axes[4], label=labobs, linewidth=lw, color=colobs, linestyle="--"
@@ -667,7 +669,15 @@ def plot_hydro(
     plt.savefig(os.path.join(Folder_out, f"hydro_{station_name}.png"), dpi=300)
 
 
-def plot_clim(ds_clim, Folder_out, station_name, period, color, lw=0.8, fs=8):
+def plot_clim(
+    ds_clim: xr.DataArray,
+    Folder_out: Union[Path, str], 
+    station_name: str, 
+    period: str, 
+    color: dict, 
+    lw: float=0.8, 
+    fs: int=8,
+    ):
     """
     Plot monthly of annual climatology of precipitation, temperature and potential evaporation. 
     Also show trends in mean annual precipitation, temperature and potential evaporation. 
@@ -683,7 +693,7 @@ def plot_clim(ds_clim, Folder_out, station_name, period, color, lw=0.8, fs=8):
         Station name 
     period : str
         Either monthly or annual climatology plots
-    color : dic
+    color : dict
         Color to be used for each climate_source 
     lw : float, optional
         Line width, by default 0.8
@@ -817,8 +827,12 @@ def plot_clim(ds_clim, Folder_out, station_name, period, color, lw=0.8, fs=8):
     fig.set_tight_layout(True)
     plt.savefig(os.path.join(Folder_out, f"clim_{station_name}_{period}.png"), dpi=300)
 
-
-def plot_basavg(ds, Folder_out, color, fs=10):
+def plot_basavg(
+    ds: xr.DataArray, 
+    Folder_out: Union[Path, str], 
+    color: dict, 
+    fs: float=10,
+    ):
     """
     Plot basin average mean monthly regime and 25-75% uncertainty band for several output variables of the model. 
 
@@ -829,7 +843,7 @@ def plot_basavg(ds, Folder_out, color, fs=10):
         Should include a coordinate named "climate_source"
     Folder_out : Union[Path, str]
         Output folder to save plots.
-    color : dic
+    color : dict
         Color to be used for each climate_source 
     fs : int, optional
         Font size, by default 10 
