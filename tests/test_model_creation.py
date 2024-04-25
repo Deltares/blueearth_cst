@@ -259,6 +259,8 @@ def test_plot_results(tmpdir, config):
     gauges_locs = join(MAINDIR, gauges_locs)
     observations_fn = get_config(config, "observations_timeseries")
     observations_fn = join(MAINDIR, observations_fn)
+    climate_source = get_config(config, "clim_historical")
+    climate_source = np.atleast_1d(climate_source).tolist()
 
     # 1. Plot all results
     plot_results.analyse_wflow_historical(
@@ -267,6 +269,7 @@ def test_plot_results(tmpdir, config):
         observations_fn=observations_fn,
         gauges_locs=gauges_locs,
         wflow_config_fn="wflow_sbm.toml",
+        climate_sources=climate_source, #option to add name of climate source in plots
     )
 
     # Check monthly and yearly clim plots are there

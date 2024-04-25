@@ -115,7 +115,8 @@ def analyse_wflow_historical(
     observations_fn: Union[Path, str] = None,
     gauges_locs: Union[Path, str] = None,
     wflow_config_fn: str = "wflow_sbm.toml",
-    climate_sources: List[str] = ["era5"],
+    climate_sources: List[str] = None,
+    climate_sources_colors: List[str] = None,
 ):
     """
     Analyse and plot wflow model performance for historical run.
@@ -162,6 +163,8 @@ def analyse_wflow_historical(
         the right results files from the wflow model.
     climate_sources: List[str], optional 
         List of climate datasets used to run wflow. 
+    climate_sources_colors: List[str], optional 
+        List of colors to use for the different climate sources. Default is None. 
     """
     ### 1. Prepare output and plotting options ###
 
@@ -180,6 +183,14 @@ def analyse_wflow_historical(
     color = "steelblue"  # "red"
     linestyle = "-"
     marker = "o"
+
+    # Prepare colors dict
+    if climate_sources_colors is not None and climate_sources is not None:
+        color = {k: v for k, v in zip(climate_sources, climate_sources_colors)}
+    elif climate_sources is not None:
+        color = {k: None for k in climate_sources}
+    else:
+        color = {"climate_source":None}
 
     ### 2. Read the observations ###
     # check if user provided observations
@@ -203,7 +214,7 @@ def analyse_wflow_historical(
     ### 3. Read the wflow model and results ###
     # Instantiate wflow model
     #read wflow runs from several climate sources if more than one
-    if len(climate_sources)>1:
+    if len(np.atleast_1d(climate_sources).tolist())>1:  
         qsim = []
         qsim_gauges = []
         ds_clim = []
@@ -215,8 +226,8 @@ def analyse_wflow_historical(
             ds_clim.append(ds_clim_source)
             ds_basin.append(ds_basin_source)
         qsim = xr.merge(qsim)
-        ds_clim = xr.merge(ds_clim, compat="override")
-        ds_basin = xr.merge(ds_basin, compat="override")
+        ds_clim = xr.merge(ds_clim)
+        ds_basin = xr.merge(ds_basin)
         if qsim_gauges[0] is not None:
             qsim_gauges = xr.merge(qsim_gauges, compat="override")
             #merge with qsim
@@ -229,6 +240,17 @@ def analyse_wflow_historical(
         if qsim_gauges is not None:
             qsim = xr.merge([qsim, qsim_gauges])["Q"]
 
+    #make sure qsim, ds_clim and ds_basin have coord climate_source (even if only one climate source is used in the default case)
+    if "climate_source" not in qsim.coords and climate_sources is not None:
+        qsim = qsim.assign_coords(climate_source=(f"{climate_sources[0]}")).expand_dims(["climate_source"])
+        ds_clim = ds_clim.assign_coords(climate_source=(f"{climate_sources[0]}")).expand_dims(["climate_source"])
+        ds_basin = ds_basin.assign_coords(climate_source=(f"{climate_sources[0]}")).expand_dims(["climate_source"])
+    else:
+        qsim = qsim.assign_coords(climate_source=("climate_source")).expand_dims(["climate_source"])
+    # if "climate_source" not in ds_clim.coords:
+        ds_clim = ds_clim.assign_coords(climate_source=("climate_source")).expand_dims(["climate_source"])
+    # if "climate_source" not in ds_basin.coords:
+        ds_basin = ds_basin.assign_coords(climate_source=("climate_source")).expand_dims(["climate_source"])
 
 
     ### 4. Plot climate data ###
@@ -240,10 +262,10 @@ def analyse_wflow_historical(
             print(f"Plot climatic data at wflow basin {index}")
             ds_clim_i = ds_clim.sel(index=index)
             # Plot per year
-            plot_clim(ds_clim_i, plot_dir, f"wflow_{index}", "year")
+            plot_clim(ds_clim_i, plot_dir, f"wflow_{index}", "year", color)
             plt.close()
             # Plot per month
-            plot_clim(ds_clim_i, plot_dir, f"wflow_{index}", "month")
+            plot_clim(ds_clim_i, plot_dir, f"wflow_{index}", "month", color)
             plt.close()
 
     ### 5. Plot other basin average outputs ###

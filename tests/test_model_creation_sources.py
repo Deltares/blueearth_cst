@@ -164,14 +164,17 @@ def test_plot_forcing(tmpdir, config_fao):
         assert os.path.exists(f"{plot_dir}/pet.png")
 
 
-def test_plot_results(tmpdir, config):
+def test_plot_results(tmpdir, config_fao):
     """Test plotting the model results."""
     wflow_root = f"{SAMPLE_PROJECTDIR}/hydrology_model"
     plot_dir = f"{tmpdir}/plots"
-    gauges_locs = get_config(config, "output_locations")
+    gauges_locs = get_config(config_fao, "output_locations")
     gauges_locs = join(MAINDIR, gauges_locs)
-    observations_fn = get_config(config, "observations_timeseries")
+    observations_fn = get_config(config_fao, "observations_timeseries")
     observations_fn = join(MAINDIR, observations_fn)
+    precip_sources = get_config(config_fao, "clim_historical", optional=False)
+    precip_sources = np.atleast_1d(precip_sources).tolist()
+    clim_historical_colors = get_config(config_fao, "clim_historical_colors", optional=False)
 
     # 1. Plot all results
     plot_results.analyse_wflow_historical(
@@ -180,6 +183,8 @@ def test_plot_results(tmpdir, config):
         observations_fn=observations_fn,
         gauges_locs=gauges_locs,
         wflow_config_fn="wflow_sbm.toml",
+        climate_sources=precip_sources,
+        climate_sources_colors=clim_historical_colors,
     )
 
     # Check monthly and yearly clim plots are there

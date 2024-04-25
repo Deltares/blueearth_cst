@@ -667,7 +667,31 @@ def plot_hydro(
     plt.savefig(os.path.join(Folder_out, f"hydro_{station_name}.png"), dpi=300)
 
 
-def plot_clim(ds_clim, Folder_out, station_name, period, lw=0.8, fs=8):
+def plot_clim(ds_clim, Folder_out, station_name, period, color, lw=0.8, fs=8):
+    """
+    Plot monthly of annual climatology of precipitation, temperature and potential evaporation. 
+    Also show trends in mean annual precipitation, temperature and potential evaporation. 
+
+    Parameters
+    ----------
+    ds_clim : xr.DataArray
+        Precipitation, temperature and potential evaporation daily data. 
+        Should include a coordinate named "climate_source"
+    Folder_out : Union[Path, str]
+        Output folder to save plots.
+    station_name : str
+        Station name 
+    period : str
+        Either monthly or annual climatology plots
+    color : dic
+        Color to be used for each climate_source 
+    lw : float, optional
+        Line width, by default 0.8
+    fs : int, optional
+        Font size, by default 8
+
+    """
+
     fig, (ax1, ax2, ax3) = plt.subplots(
         3, 1, figsize=(16 / 2.54, 15 / 2.54), sharex=True
     )
@@ -679,82 +703,103 @@ def plot_clim(ds_clim, Folder_out, station_name, period, lw=0.8, fs=8):
 
     # temp
     if period == "month":
-        T_mean_monthly_mean = (
-            ds_clim["T_subcatchment"].groupby(f"time.{period}").mean("time")
-        )
-        T_mean_monthly_q25 = (
-            ds_clim["T_subcatchment"].groupby(f"time.{period}").quantile(0.25, "time")
-        )
-        T_mean_monthly_q75 = (
-            ds_clim["T_subcatchment"].groupby(f"time.{period}").quantile(0.75, "time")
-        )
-        # plot
-        T_mean_monthly_mean.plot(ax=ax1, color="red")
-        ax1.fill_between(
-            np.arange(1, 13), T_mean_monthly_q25, T_mean_monthly_q75, color="orange"
-        )
-        #    T_mean_monthly_mean.to_series().plot.line(ax=ax2, color = 'orange')
+        for climate_source in ds_clim.climate_source.values:
+            T_mean_monthly_mean = (
+                ds_clim["T_subcatchment"].groupby(f"time.{period}").mean("time").sel(climate_source=climate_source)
+            )
+            T_mean_monthly_q25 = (
+                ds_clim["T_subcatchment"].groupby(f"time.{period}").quantile(0.25, "time").sel(climate_source=climate_source)
+            )
+            T_mean_monthly_q75 = (
+                ds_clim["T_subcatchment"].groupby(f"time.{period}").quantile(0.75, "time").sel(climate_source=climate_source)
+            )
+            # plot
+            p = T_mean_monthly_mean.plot(ax=ax1, color=color[climate_source], label = f"{climate_source}")
+            if color[climate_source] == None:
+                c = p[0].get_color()
+            else:
+                c = color[climate_source]
+            ax1.fill_between(
+                np.arange(1, 13), T_mean_monthly_q25, T_mean_monthly_q75, color=c, alpha = 0.5, label = f"{climate_source} 25%-75%"
+            )
     else:
-        T_mean_year = ds_clim["T_subcatchment"].resample(time=resampleper).mean("time")
-        T_mean_year.plot(ax=ax1, color="red")
+        for climate_source in ds_clim.climate_source.values:
+            T_mean_year = ds_clim["T_subcatchment"].resample(time=resampleper).mean("time").sel(climate_source=climate_source)
+            p = T_mean_year.plot(ax=ax1, color=color[climate_source], label = f"{climate_source}")
 
-        x = T_mean_year.time.dt.year
-        z = np.polyfit(x, T_mean_year, 1)
-        p = np.poly1d(z)
-        r2_score = rsquared(p(x), T_mean_year)
-        ax1.plot(T_mean_year.time, p(x), ls="--", color="lightgrey")
-        ax1.text(
-            T_mean_year.time[0], T_mean_year.min(), f"$R^2$ = {round(r2_score, 3)}"
-        )
+            if color[climate_source] == None:
+                c = p[0].get_color()
+            else:
+                c = color[climate_source]
+
+            x = T_mean_year.time.dt.year
+            z = np.polyfit(x, T_mean_year, 1)
+            p = np.poly1d(z)
+            r2_score = rsquared(p(x), T_mean_year)
+            ax1.plot(T_mean_year.time, p(x), ls="--", color=c, alpha = 0.5, label = f"trend {climate_source} $R^2$ = {round(r2_score, 3)}")
+            # ax1.text(
+            #     T_mean_year.time[0], T_mean_year.min(), f"$R^2$ = {round(r2_score, 3)} ({climate_source})"
+            # )
 
     # precip and evap
-    for climvar, clr, clr_range, ax in zip(
+    for climvar, ax in zip(
         ["P_subcatchment", "EP_subcatchment"],
-        ["steelblue", "forestgreen"],
-        ["lightblue", "lightgreen"],
         [ax2, ax3],
     ):
-        var_sum_monthly = ds_clim[climvar].resample(time=resampleper).sum("time")
+        for climate_source in ds_clim.climate_source.values:
+            var_sum_monthly = ds_clim[climvar].resample(time=resampleper).sum("time").sel(climate_source=climate_source)
 
-        if period == "month":
-            var_sum_monthly_mean = var_sum_monthly.groupby(f"time.{period}").mean(
-                "time"
-            )
-            var_sum_monthly_q25 = var_sum_monthly.groupby(f"time.{period}").quantile(
-                0.25, "time"
-            )
-            var_sum_monthly_q75 = var_sum_monthly.groupby(f"time.{period}").quantile(
-                0.75, "time"
-            )
+            if period == "month":
+                var_sum_monthly_mean = var_sum_monthly.groupby(f"time.{period}").mean(
+                    "time"
+                )
+                var_sum_monthly_q25 = var_sum_monthly.groupby(f"time.{period}").quantile(
+                    0.25, "time"
+                )
+                var_sum_monthly_q75 = var_sum_monthly.groupby(f"time.{period}").quantile(
+                    0.75, "time"
+                )
 
-            var_sum_monthly_mean.plot(ax=ax, color=clr)
-            ax.fill_between(
-                np.arange(1, 13),
-                var_sum_monthly_q25,
-                var_sum_monthly_q75,
-                color=clr_range,
-            )
-        else:
-            x = var_sum_monthly.time.dt.year
-            z = np.polyfit(x, var_sum_monthly, 1)
-            p = np.poly1d(z)
-            r2_score = rsquared(p(x), var_sum_monthly)
+                p = var_sum_monthly_mean.plot(ax=ax, color=color[climate_source], label = f"{climate_source}")
+                if color[climate_source] == None:
+                    c = p[0].get_color()
+                else:
+                    c = color[climate_source]
 
-            ax.plot(var_sum_monthly.time, p(x), ls="--", color="lightgrey")
-            ax.text(
-                var_sum_monthly.time[0],
-                var_sum_monthly.min(),
-                f"$R^2$ = {round(r2_score, 3)}",
-            )
-            var_sum_monthly.plot(ax=ax, color=clr)
+                ax.fill_between(
+                    np.arange(1, 13),
+                    var_sum_monthly_q25,
+                    var_sum_monthly_q75,
+                    color=c,
+                    alpha=0.5,
+                    label = f"{climate_source} 25%-75%"
+                )
+            else:
+                x = var_sum_monthly.time.dt.year
+                z = np.polyfit(x, var_sum_monthly, 1)
+                p = np.poly1d(z)
+                r2_score = rsquared(p(x), var_sum_monthly)
+
+                p = ax.plot(var_sum_monthly.time, p(x), ls="--", alpha=0.5, color=color[climate_source], label=f"trend {climate_source} $R^2$ = {round(r2_score, 3)}")
+                if color[climate_source] == None:
+                    c = p[0].get_color()
+                else:
+                    c = color[climate_source]
+
+                # ax.text(
+                #     var_sum_monthly.time[0],
+                #     var_sum_monthly.min(),
+                #     f"$R^2$ = {round(r2_score, 3)} ({climate_source})",
+                # )
+                var_sum_monthly.plot(ax=ax, color=c, label = f"{climate_source}")
 
     for ax, title_name, ylab in zip(
         [ax1, ax2, ax3],
         ["Temperature", "Precipitation", "Potential evaporation"],
         [
-            "T (deg C)",
-            f"P (mm {period}$^{-1}$)",
-            f"E$_P$ (mm {period}$^{-1}$)",
+            "T ($\degree$C)",
+            f"P (mm {period}"+ "$^{-1}$)",
+            f"E$_P$ (mm {period}"+ "$^{-1}$)",
         ],
     ):
         ax.tick_params(axis="both", labelsize=fs)
@@ -762,6 +807,7 @@ def plot_clim(ds_clim, Folder_out, station_name, period, lw=0.8, fs=8):
         ax.set_title(title_name)
         ax.grid(alpha=0.5)
         ax.set_ylabel(ylab, fontsize=fs)
+        ax.legend(fontsize=fs)
 
     if period == "month":
         month_labels = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
