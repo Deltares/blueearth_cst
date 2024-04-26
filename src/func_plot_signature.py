@@ -147,8 +147,7 @@ def plot_signatures(
     qobs: xr.DataArray,
     Folder_out: Union[Path, str],
     station_name: str = "station",
-    label: str = "simulated",
-    color: str = "orange",
+    color: dict = {"climate_source":"orange"}, 
     linestyle: str = "-",
     marker: str = "o",
     lw: float = 0.8,
@@ -177,6 +176,7 @@ def plot_signatures(
 
         * Required dimensions: [time]
         * Required attributes: [station_name]
+        * Required attributes: [climate_source]
     qobs : xr.DataArray
         Dataset with observed streamflow.
 
@@ -186,10 +186,8 @@ def plot_signatures(
         Output folder to save plots.
     station_name : str, optional
         Station name, by default "station"
-    label : str, optional
-        Labels for the simulated run, by default "simulated"
-    color : str, optional
-        Color for the simulated run, by default "orange"
+    color : dict, optional
+        Color for each climate source of the simulated runs , by default "orange"
     linestyle : str, optional
         Linestyle for the simulated run, by default "-"
     marker : str, optional
@@ -211,16 +209,17 @@ def plot_signatures(
     axes = axes.flatten()
 
     ### 1. daily against each other axes[0] ###
-    axes[0].plot(
-        qobs,
-        qsim,
-        marker="o",
-        linestyle="None",
-        linewidth=lw,
-        label=label,
-        color=color,
-        markersize=3,
-    )
+    for climate_source in qsim.climate_source.values:
+        axes[0].plot(
+            qobs,
+            qsim.sel(climate_source=climate_source),
+            marker="o",
+            linestyle="None",
+            linewidth=lw,
+            label=f"{climate_source}",
+            color=color[climate_source],
+            markersize=3,
+        )
     max_y = np.round(qobs.max().values)
     axes[0].plot([0, max_y], [0, max_y], color="0.5", linestyle="--", linewidth=1)
     axes[0].set_xlim([0, max_y])
@@ -238,14 +237,16 @@ def plot_signatures(
     )
     # r2
     text_label = ""
-    r2_score = rsquared(qobs, qsim)
-    text_label = text_label + f"R$_2$ {label} = {r2_score:.2f} \n"
-    axes[0].text(0.2, 0.7, text_label, transform=axes[0].transAxes, fontsize=fs)
+    for climate_source in qsim.climate_source.values:
+        r2_score = rsquared(qobs, qsim.sel(climate_source=climate_source))
+        text_label += f"R$_2$ {climate_source} = {r2_score:.2f} \n"
+    axes[0].text(0.05, 0.7, text_label, transform=axes[0].transAxes, fontsize=fs)
 
     ### 2. streamflow regime axes[1] ###
-    qsim.groupby("time.month").mean("time").plot(
-        ax=axes[1], linewidth=lw, label=label, color=color
-    )
+    for climate_source in qsim.climate_source.values:
+        qsim.sel(climate_source=climate_source).groupby("time.month").mean("time").plot(
+            ax=axes[1], linewidth=lw, label=f"{climate_source}", color=color[climate_source]
+        )
     qobs.groupby("time.month").mean("time").plot(
         ax=axes[1], linewidth=lw, label="observed", color="k", linestyle="--"
     )
@@ -264,14 +265,15 @@ def plot_signatures(
     )
 
     ### 3. FDC axes[2] ###
-    axes[2].plot(
-        np.arange(0, len(qsim.time)) / (len(qsim.time) + 1),
-        qsim.sortby(qsim, ascending=False),
-        color=color,
-        linestyle=linestyle,
-        linewidth=lw,
-        label=label,
-    )
+    for climate_source in qsim.climate_source.values:
+        axes[2].plot(
+            np.arange(0, len(qsim.sel(climate_source=climate_source).time)) / (len(qsim.sel(climate_source=climate_source).time) + 1),
+            qsim.sel(climate_source=climate_source).sortby(qsim.sel(climate_source=climate_source), ascending=False),
+            color=color[climate_source],
+            linestyle=linestyle,
+            linewidth=lw,
+            label=f"{climate_source}",
+        )
     axes[2].plot(
         np.arange(0, len(qobs.time)) / (len(qobs.time) + 1),
         qobs.sortby(qobs, ascending=False),
@@ -284,14 +286,15 @@ def plot_signatures(
     axes[2].set_ylabel("Q (m$^3$s$^{-1}$)", fontsize=fs)
 
     ### 4. FDClog axes[3] ###
-    axes[3].plot(
-        np.arange(0, len(qsim.time)) / (len(qsim.time) + 1),
-        np.log(qsim.sortby(qsim, ascending=False)),
-        color=color,
-        linestyle=linestyle,
-        linewidth=lw,
-        label=label,
-    )
+    for climate_source in qsim.climate_source.values:
+        axes[3].plot(
+            np.arange(0, len(qsim.sel(climate_source=climate_source).time)) / (len(qsim.sel(climate_source=climate_source).time) + 1),
+            np.log(qsim.sel(climate_source=climate_source).sortby(qsim.sel(climate_source=climate_source), ascending=False)),
+            color=color[climate_source],
+            linestyle=linestyle,
+            linewidth=lw,
+            label=f"{climate_source}",
+        )
     axes[3].plot(
         np.arange(0, len(qobs.time)) / (len(qobs.time) + 1),
         np.log(qobs.sortby(qobs, ascending=False)),
@@ -312,16 +315,18 @@ def plot_signatures(
     else:
         # Less than a year of data, max over the whole timeseries
         qsim_max = qsim.max("time")
-        qobs_max = qobs.max("time")
-    axes[4].plot(
-        qobs_max,
-        qsim_max,
-        color=color,
-        marker=marker,
-        linestyle="None",
-        linewidth=lw,
-        label=label,
-    )
+        qobs_max = qobs.max("time") 
+
+    for climate_source in qsim.climate_source.values:
+        axes[4].plot(
+            qobs_max,
+            qsim_max.sel(climate_source=climate_source),
+            color=color[climate_source],
+            marker=marker,
+            linestyle="None",
+            linewidth=lw,
+            label=f"{climate_source}",
+        )
     axes[4].plot(
         [0, max_y * 1.1], [0, max_y * 1.1], color="0.5", linestyle="--", linewidth=1
     )
@@ -329,12 +334,13 @@ def plot_signatures(
     axes[4].set_ylim([0, max_y * 1.1])
     # R2 score
     text_label = ""
-    if len(qsim.time) > 365:
-        r2_score = rsquared(qobs_max, qsim_max)
-        text_label = text_label + f"R$_2$ {label} = {r2_score:.2f} \n"
-    else:
-        text_label = text_label + f"{label}\n"
-    axes[4].text(0.5, 0.05, text_label, transform=axes[4].transAxes, fontsize=fs)
+    for climate_source in qsim.climate_source.values:
+        if len(qsim.time) > 365:
+                r2_score = rsquared(qobs_max, qsim_max.sel(climate_source=climate_source))
+                text_label += f"R$_2$ {climate_source} = {r2_score:.2f} \n"
+        else:
+            text_label = text_label + f"{climate_source}\n"
+    axes[4].text(0.05, 0.7, text_label, transform=axes[4].transAxes, fontsize=fs)
 
     # add MHQ
     if len(qsim.time) > 365:
@@ -343,16 +349,17 @@ def plot_signatures(
     else:
         mhq = qsim_max.copy()
         mhq_obs = qobs_max.copy()
-    axes[4].plot(
-        mhq_obs,
-        mhq,
-        color="black",
-        marker=">",
-        linestyle="None",
-        linewidth=lw,
-        label=label,
-        markersize=6,
-    )
+    for climate_source in qsim.climate_source.values:
+        axes[4].plot(
+            mhq_obs,
+            mhq.sel(climate_source=climate_source),
+            color="black",
+            marker=">",
+            linestyle="None",
+            linewidth=lw,
+            label=f"{climate_source}",
+            markersize=6,
+        )
     # labels
     axes[4].set_ylabel("Sim. max annual Q (m$^3$s$^{-1}$)", fontsize=fs)
     axes[4].set_xlabel("Obs. max annual Q (m$^3$s$^{-1}$)", fontsize=fs)
@@ -362,15 +369,16 @@ def plot_signatures(
     qobs_nm7q = qobs.rolling(time=7).mean().resample(time="A").min("time")
     max_ylow = max(qsim_nm7q.max().values, qobs_nm7q.max().values)
 
-    axes[5].plot(
-        qobs_nm7q,
-        qsim_nm7q,
-        color=color,
-        marker=marker,
-        linestyle="None",
-        linewidth=lw,
-        label=label,
-    )
+    for climate_source in qsim.climate_source.values:
+        axes[5].plot(
+            qobs_nm7q,
+            qsim_nm7q.sel(climate_source=climate_source),
+            color=color[climate_source],
+            marker=marker,
+            linestyle="None",
+            linewidth=lw,
+            label=f"{climate_source}",
+        )
     axes[5].plot(
         [0, max_ylow * 1.1],
         [0, max_ylow * 1.1],
@@ -382,9 +390,10 @@ def plot_signatures(
     axes[5].set_ylim([0, max_ylow * 1.1])
     # #R2 score
     text_label = ""
-    r2_score = rsquared(qobs_nm7q, qsim_nm7q)
-    text_label = text_label + f"R$_2$ {label} = {r2_score:.2f} \n"
-    axes[5].text(0.5, 0.05, text_label, transform=axes[5].transAxes, fontsize=fs)
+    for climate_source in qsim.climate_source.values:
+        r2_score = rsquared(qobs_nm7q, qsim_nm7q.sel(climate_source=climate_source))
+        text_label += f"R$_2$ {climate_source} = {r2_score:.2f} \n"
+    axes[5].text(0.05, 0.7, text_label, transform=axes[5].transAxes, fontsize=fs)
     # labels
     axes[5].set_ylabel("Simulated NM7Q (m$^3$s$^{-1}$)", fontsize=fs)
     axes[5].set_xlabel("Observed NM7Q (m$^3$s$^{-1}$)", fontsize=fs)
@@ -393,43 +402,49 @@ def plot_signatures(
     qobs.cumsum("time").plot(
         ax=axes[6], color="k", linestyle=":", linewidth=lw, label="observed"
     )
-    qsim.cumsum("time").plot(
-        ax=axes[6], color=color, linestyle=linestyle, linewidth=lw, label=label
-    )
+    for climate_source in qsim.climate_source.values:
+        qsim.sel(climate_source=climate_source).cumsum("time").plot(
+            ax=axes[6], color=color[climate_source], linestyle=linestyle, linewidth=lw, label=f"{climate_source}"
+        )
     axes[6].set_xlabel("")
     axes[6].set_ylabel("Cum. Q (m$^3$s$^{-1}$)", fontsize=fs)
 
     ### 8. performance measures NS, NSlogQ, KGE, axes[7] ###
     # nse
-    axes[7].plot(
-        0.8,
-        skills.nashsutcliffe(qsim, qobs).values,
-        color=color,
-        marker=marker,
-        linestyle="None",
-        linewidth=lw,
-        label=label,
-    )
-    # nselog
-    axes[7].plot(
-        2.8,
-        skills.lognashsutcliffe(qsim, qobs).values,
-        color=color,
-        marker=marker,
-        linestyle="None",
-        linewidth=lw,
-        label=label,
-    )
-    # kge
-    axes[7].plot(
-        4.8,
-        skills.kge(qsim, qobs)["kge"].values,
-        color=color,
-        marker=marker,
-        linestyle="None",
-        linewidth=lw,
-        label=label,
-    )
+    for climate_source in qsim.climate_source.values:
+        p = axes[7].plot(
+            0.8,
+            skills.nashsutcliffe(qsim.sel(climate_source=climate_source), qobs).values,
+            color=color[climate_source],
+            marker=marker,
+            linestyle="None",
+            linewidth=lw,
+            label=f"{climate_source}",
+        )
+        if color[climate_source] == None:
+            c = p[0].get_color()
+        else:
+            c = color[climate_source]
+        # nselog
+        axes[7].plot(
+            2.8,
+            skills.lognashsutcliffe(qsim.sel(climate_source=climate_source), qobs).values,
+            color=c,
+            marker=marker,
+            linestyle="None",
+            linewidth=lw,
+            label=f"{climate_source}",
+        )
+        # kge
+        axes[7].plot(
+            4.8,
+            skills.kge(qsim.sel(climate_source=climate_source), qobs)["kge"].values,
+            color=c,
+            marker=marker,
+            linestyle="None",
+            linewidth=lw,
+            label=f"{climate_source}",
+        )
     axes[7].set_xticks([1, 3, 5])
     axes[7].set_xticklabels(["NSE", "NSElog", "KGE"])
     axes[7].set_ylim([0, 1])
@@ -455,15 +470,16 @@ def plot_signatures(
             label="observed",
             markersize=6,
         )
-        axes[8].plot(
-            gumbel_p1,
-            qsim_max.sortby(qsim_max),
-            marker=marker,
-            color=color,
-            linestyle="None",
-            label=label,
-            markersize=4,
-        )
+        for climate_source in qsim.climate_source.values:
+            axes[8].plot(
+                gumbel_p1,
+                qsim_max.sel(climate_source=climate_source).sortby(qsim_max.sel(climate_source=climate_source)),
+                marker=marker,
+                color=color[climate_source],
+                linestyle="None",
+                label=f"{climate_source}",
+                markersize=4,
+            )
 
         for t in ts:
             axes[8].vlines(-np.log(-np.log(1 - 1.0 / t)), ymin, ymax, "0.5", alpha=0.4)
@@ -500,15 +516,16 @@ def plot_signatures(
             label="observed",
             markersize=6,
         )
-        axes[9].plot(
-            gumbel_p1,
-            qsim_nm7q.sortby(qsim_nm7q, ascending=False),
-            marker=marker,
-            color=color,
-            linestyle="None",
-            label=label,
-            markersize=4,
-        )
+        for climate_source in qsim.climate_source.values:
+            axes[9].plot(
+                gumbel_p1,
+                qsim_nm7q.sel(climate_source=climate_source).sortby(qsim_nm7q.sel(climate_source=climate_source), ascending=False),
+                marker=marker,
+                color=color[climate_source],
+                linestyle="None",
+                label=f"{climate_source}",
+                markersize=4,
+            )
 
         for t in ts:
             axes[9].vlines(-np.log(-np.log(1 - 1.0 / t)), ymin, ymax, "0.5", alpha=0.4)

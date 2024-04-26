@@ -43,7 +43,35 @@ def get_wflow_results(
     gauges_locs: Union[Path, str] = None,
 ):
     """
-    TODO!
+    Get wflow results as xarray.Dataset for simulated discharges, simulated flux/states as basin averages and basin average forcing. 
+
+    Outputs:
+
+    qsim: xr.Dataset
+        simulated discharge at wflow basin locations  per climate source
+    qsim_gauges: xr.Dataset
+        simulated discharge at observation locations  per climate source
+    ds_clim: xr.Dataset
+        basin average precipitation, temperature and potential evaporation per climate source
+    ds_basin: xr.Dataset
+        basin average flux and state variables per climate source
+
+        
+    Parameters
+    ----------
+    wflow_root : Union[str, Path]
+        Path to the wflow model root folder.
+    wflow_config_fn : str, optional
+        Name of the wflow configuration file, by default "wflow_sbm.toml". Used to read
+        the right results files from the wflow model.
+    climate_sources: List[str], optional 
+        List of climate datasets used to run wflow. 
+    gauges_locs : Union[Path, str], optional
+        Path to gauges/observations locations file, by default None
+        Required columns: wflow_id, station_name, x, y.
+        Values in wflow_id column should match column names in ``observations_fn``.
+        Separator is , and decimal is .
+
     """
     if climate_source is None:
         mod = WflowModel(root=wflow_root, mode="r", config_fn=wflow_config_fn) 
@@ -78,6 +106,8 @@ def get_wflow_results(
                     list(gdf_gauges["station_name"][qsim_gauges.index.values].values),
                 )
             )
+            if climate_source is not None:
+                qsim_gauges = qsim_gauges.assign_coords(climate_source=(f"{climate_source}")).expand_dims(["climate_source"])
     else:
         qsim_gauges = None
 
@@ -229,7 +259,7 @@ def analyse_wflow_historical(
         ds_clim = xr.merge(ds_clim)
         ds_basin = xr.merge(ds_basin)
         if qsim_gauges[0] is not None:
-            qsim_gauges = xr.merge(qsim_gauges, compat="override")
+            qsim_gauges = xr.merge(qsim_gauges) 
             #merge with qsim
             qsim = xr.merge([qsim, qsim_gauges])["Q"]
     
@@ -336,7 +366,6 @@ def analyse_wflow_historical(
                 qobs=qobs_i,
                 Folder_out=plot_dir,
                 station_name=station_name,
-                label=label,
                 color=color,
                 linestyle=linestyle,
                 marker=marker,
@@ -345,11 +374,15 @@ def analyse_wflow_historical(
             )
             plt.close()
             # Compute performance metrics
-            df_perf = compute_metrics(
-                qsim=qsim_i,
-                qobs=qobs_i,
-                station_name=station_name,
-            )
+            df_perf = pd.DataFrame()
+            for climate_source in qsim.climate_source.values:
+                df_perf_source = compute_metrics(
+                    qsim=qsim_i.sel(climate_source=climate_source),
+                    qobs=qobs_i,
+                    station_name=station_name,
+                )
+                df_perf_source["climate_source"] = f"{climate_source}"
+                df_perf = pd.concat([df_perf, df_perf_source])
             # Join with other stations
             if df_perf_all.empty:
                 df_perf_all = df_perf

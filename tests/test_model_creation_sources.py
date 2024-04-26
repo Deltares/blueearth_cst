@@ -163,7 +163,9 @@ def test_plot_forcing(tmpdir, config_fao):
         assert os.path.exists(f"{plot_dir}/temp.png")
         assert os.path.exists(f"{plot_dir}/pet.png")
 
-
+#todo!
+# @pytest.mark.parametrize("model", list(_supported_models.keys())) check -- https://github.com/Deltares/hydromt_wflow/blob/main/tests/test_model_class.py def test_model_build
+# _supported_models = {"wflow": WflowModel, "wflow_sediment": WflowSedimentModel} to have same tests for two config files -- make a list ! 
 def test_plot_results(tmpdir, config_fao):
     """Test plotting the model results."""
     wflow_root = f"{SAMPLE_PROJECTDIR}/hydrology_model"
