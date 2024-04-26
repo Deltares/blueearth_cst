@@ -22,24 +22,30 @@ from typing import List, Union
 # %%
 # Supported wflow outputs
 WFLOW_VARS = {
-    "overland flow": {"resample": "mean", "legend": "Overland Flow (m$^3$s$^{-1}$)"},
+    "overland flow": {"resample": "mean", "legend": "Overland Flow (m$^3$s$^{-1}$)", "legend_annual": "Overland Flow (m$^3$s$^{-1}$)"},
     "actual evapotranspiration": {
         "resample": "sum",
         "legend": "Actual Evapotranspiration (mm month$^{-1}$)",
+        "legend_annual": "Actual Evapotranspiration (mm year$^{-1}$)",
+
     },
     "groundwater recharge": {
         "resample": "sum",
         "legend": "groundwater recharge (mm month$^{-1}$)",
+        "legend_annual": "groundwater recharge (mm year$^{-1}$)",
     },
-    "snow": {"resample": "sum", "legend": "Snowpack (mm month$^{-1}$)"},
+    "snow": {"resample": "sum", 
+             "legend": "Snowpack (mm month$^{-1}$)", 
+             "legend_annual": "Snowpack (mm year$^{-1}$)}",
+    },
 }
 
 
 def rsquared(x, y):
-    """Return R^2 where x and y are array-like."""
+    """Return R^2 and p_value where x and y are array-like."""
 
     slope, intercept, r_value, p_value, std_err = stats.linregress(x, y)
-    return r_value**2
+    return r_value**2, p_value
 
 
 def compute_metrics(
@@ -238,7 +244,7 @@ def plot_signatures(
     # r2
     text_label = ""
     for climate_source in qsim.climate_source.values:
-        r2_score = rsquared(qobs, qsim.sel(climate_source=climate_source))
+        r2_score = rsquared(qobs, qsim.sel(climate_source=climate_source))[0]
         text_label += f"R$_2$ {climate_source} = {r2_score:.2f} \n"
     axes[0].text(0.05, 0.7, text_label, transform=axes[0].transAxes, fontsize=fs)
 
@@ -336,7 +342,7 @@ def plot_signatures(
     text_label = ""
     for climate_source in qsim.climate_source.values:
         if len(qsim.time) > 365:
-                r2_score = rsquared(qobs_max, qsim_max.sel(climate_source=climate_source))
+                r2_score = rsquared(qobs_max, qsim_max.sel(climate_source=climate_source))[0]
                 text_label += f"R$_2$ {climate_source} = {r2_score:.2f} \n"
         else:
             text_label = text_label + f"{climate_source}\n"
@@ -391,7 +397,7 @@ def plot_signatures(
     # #R2 score
     text_label = ""
     for climate_source in qsim.climate_source.values:
-        r2_score = rsquared(qobs_nm7q, qsim_nm7q.sel(climate_source=climate_source))
+        r2_score = rsquared(qobs_nm7q, qsim_nm7q.sel(climate_source=climate_source))[0]
         text_label += f"R$_2$ {climate_source} = {r2_score:.2f} \n"
     axes[5].text(0.05, 0.7, text_label, transform=axes[5].transAxes, fontsize=fs)
     # labels
@@ -762,11 +768,8 @@ def plot_clim(
             x = T_mean_year.time.dt.year
             z = np.polyfit(x, T_mean_year, 1)
             p = np.poly1d(z)
-            r2_score = rsquared(p(x), T_mean_year)
-            ax1.plot(T_mean_year.time, p(x), ls="--", color=c, alpha = 0.5, label = f"trend {climate_source} $R^2$ = {round(r2_score, 3)}")
-            # ax1.text(
-            #     T_mean_year.time[0], T_mean_year.min(), f"$R^2$ = {round(r2_score, 3)} ({climate_source})"
-            # )
+            r2_score, p_value = rsquared(p(x), T_mean_year)
+            ax1.plot(T_mean_year.time, p(x), ls="--", color=c, alpha = 0.5, label = f"trend {climate_source} $R^2$ = {round(r2_score, 3)}, p = {round(p_value, 3)}")
 
     # precip and evap
     for climvar, ax in zip(
@@ -805,19 +808,14 @@ def plot_clim(
                 x = var_sum_monthly.time.dt.year
                 z = np.polyfit(x, var_sum_monthly, 1)
                 p = np.poly1d(z)
-                r2_score = rsquared(p(x), var_sum_monthly)
+                r2_score, p_value = rsquared(p(x), var_sum_monthly)
 
-                p = ax.plot(var_sum_monthly.time, p(x), ls="--", alpha=0.5, color=color[climate_source], label=f"trend {climate_source} $R^2$ = {round(r2_score, 3)}")
+                p = ax.plot(var_sum_monthly.time, p(x), ls="--", alpha=0.5, color=color[climate_source], label=f"trend {climate_source} $R^2$ = {round(r2_score, 3)}, p = {round(p_value, 3)}")
                 if color[climate_source] == None:
                     c = p[0].get_color()
                 else:
                     c = color[climate_source]
 
-                # ax.text(
-                #     var_sum_monthly.time[0],
-                #     var_sum_monthly.min(),
-                #     f"$R^2$ = {round(r2_score, 3)} ({climate_source})",
-                # )
                 var_sum_monthly.plot(ax=ax, color=c, label = f"{climate_source}")
 
     for ax, title_name, ylab in zip(
@@ -851,7 +849,9 @@ def plot_basavg(
     fs: float=10,
     ):
     """
-    Plot basin average mean monthly regime and 25-75% uncertainty band for several output variables of the model. 
+    Subplots of:
+    - basin average mean monthly regime and 25-75% uncertainty band for several flux and state variables of the model.
+    - basin mean annual trends for several flux and state variables of the model (only if there are 3 or more years of data)
 
     Parameters
     ----------
@@ -867,43 +867,74 @@ def plot_basavg(
     """
     dvars = [dvar for dvar in ds.data_vars]
     n = len(dvars)
+    #number of years available 
+    nb_years = np.unique(ds["time.year"].values).size
 
     for i in range(n):
         dvar = dvars[i]
 
-        fig, ax = plt.subplots(1, 1, sharex=True, figsize=(11, 4))
+        #only plot annual trend if there are more than 3 years of data
+        if nb_years < 3:
+            fig, (ax1) = plt.subplots(1, 1, figsize=(11, 4))
+            axes = [ax1]
+        else:    
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(11, 8))
+            axes = [ax1,ax2]
         # axes = [axes] if n == 1 else axes
 
         if WFLOW_VARS[dvar.split("_")[0]]["resample"] == "sum":
             sum_monthly = ds[dvar].resample(time="M").sum("time")
+            sum_annual = ds[dvar].resample(time="A").sum("time")
         else:  # assume mean
             sum_monthly = ds[dvar].resample(time="M").mean("time")
+            sum_annual = ds[dvar].resample(time="A").mean("time")
         sum_monthly_mean = sum_monthly.groupby("time.month").mean("time")
         sum_monthly_q25 = sum_monthly.groupby("time.month").quantile(0.25, "time")
-        sum_monthly_q75 = sum_monthly.groupby("time.month").quantile(0.75, "time")
-
-        # plot
+        sum_monthly_q75 = sum_monthly.groupby("time.month").quantile(0.75, "time")       
+        
         for climate_source in ds.climate_source.values:
-            p = sum_monthly_mean.sel(climate_source=climate_source).plot(ax=ax, color=color[climate_source], label=f"{climate_source} (mean)")
+            # plot monthly mean
+            p = sum_monthly_mean.sel(climate_source=climate_source).plot(ax=ax1, color=color[climate_source], label=f"{climate_source} (mean)")
             if color[climate_source] == None:
                 c = p[0].get_color()
             else:
                 c = color[climate_source]
-            ax.fill_between(
+            ax1.fill_between(
                 np.arange(1, 13), sum_monthly_q25.sel(climate_source=climate_source), sum_monthly_q75.sel(climate_source=climate_source), color=c, alpha=0.5,
                 label=f"{climate_source} (25%-75%)"
             )
-        legend = WFLOW_VARS[dvar.split("_")[0]]["legend"]
-        ax.set_ylabel(legend, fontsize=fs)
 
-        ax.tick_params(axis="both", labelsize=fs)
-        ax.set_xlabel("", fontsize=fs)
-        ax.set_title("")
-        ax.grid(alpha=0.5)
-        ax.legend(fontsize=fs)
+            #plot annual trends if 3 or more years of data:
+            if nb_years >= 3:
+                var_year = sum_annual.sel(climate_source=climate_source)
+                p = var_year.plot(ax=ax2, color=color[climate_source], label = f"{climate_source}")
+
+                if color[climate_source] == None:
+                    c = p[0].get_color()
+                else:
+                    c = color[climate_source]
+
+                x = var_year.time.dt.year
+                z = np.polyfit(x, var_year, 1)
+                p = np.poly1d(z)
+                r2_score, p_value = rsquared(p(x), var_year)
+                ax2.plot(var_year.time, p(x), ls="--", color=c, alpha = 0.5, label = f"trend {climate_source} $R^2$ = {round(r2_score, 3)}, p = {round(p_value, 3)}")
+
+                legend_annual = WFLOW_VARS[dvar.split("_")[0]]["legend_annual"]
+                ax2.set_ylabel(legend_annual, fontsize=fs)
+
+        legend = WFLOW_VARS[dvar.split("_")[0]]["legend"]
+        ax1.set_ylabel(legend, fontsize=fs)
+
+        for ax in axes:
+            ax.tick_params(axis="both", labelsize=fs)
+            ax.set_xlabel("", fontsize=fs)
+            ax.set_title("")
+            ax.grid(alpha=0.5)
+            ax.legend(fontsize=fs)
 
         month_labels = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
-        ax.set_xticks(ticks=np.arange(1, 13), labels=month_labels, fontsize=fs)
+        ax1.set_xticks(ticks=np.arange(1, 13), labels=month_labels, fontsize=fs)
 
         plt.tight_layout()
         fig.set_tight_layout(True)
