@@ -206,6 +206,10 @@ def test_plot_results(tmpdir, config_fao):
     metrics = ["KGE", "NSE", "NSElog", "RMSE", "MSE", "Pbias", "VE"]
     assert np.all([c in np.unique(perf["metrics"]) for c in metrics])
     assert np.array_equal(np.unique(perf["time_type"]), ["daily", "monthly"])
+    # Check if trend plots are present
+    assert os.path.exists(f"{plot_dir}/long_run/timeseries_anomalies_Q_chirps_global.png")
+    assert os.path.exists(f"{plot_dir}/long_run/timeseries_anomalies_Q_era5.png")
+
 
     # 2. Plot medium length and no observations timeseries
     plot_results.analyse_wflow_historical(

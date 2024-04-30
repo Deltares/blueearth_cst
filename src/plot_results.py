@@ -13,7 +13,7 @@ import pandas as pd
 import hydromt
 from hydromt_wflow import WflowModel
 
-from typing import Union, List
+from typing import Union, List, Optional
 
 # Avoid relative import errors
 import sys
@@ -27,6 +27,7 @@ if __name__ == "__main__" or parent_module.__name__ == "__main__":
         plot_clim,
         plot_basavg,
     )
+    from plot_utils.plot_anomalies import plot_timeseries_anomalies
 else:
     from .func_plot_signature import (
         plot_signatures,
@@ -35,6 +36,7 @@ else:
         plot_clim,
         plot_basavg,
     )
+    from .plot_utils.plot_anomalies import plot_timeseries_anomalies
 
 def get_wflow_results(
     wflow_root: Union[str, Path],
@@ -147,6 +149,7 @@ def analyse_wflow_historical(
     wflow_config_fn: str = "wflow_sbm.toml",
     climate_sources: List[str] = None,
     climate_sources_colors: List[str] = None,
+    split_year: Optional[int] = None,
 ):
     """
     Analyse and plot wflow model performance for historical run.
@@ -195,6 +198,8 @@ def analyse_wflow_historical(
         List of climate datasets used to run wflow. 
     climate_sources_colors: List[str], optional 
         List of colors to use for the different climate sources. Default is None. 
+    split_year : int, optional
+        Derive additional trends for years before and after this year.
     """
     ### 1. Prepare output and plotting options ###
 
@@ -395,6 +400,34 @@ def analyse_wflow_historical(
 
     # Save performance metrics to csv
     df_perf_all.to_csv(os.path.join(plot_dir, "performance_metrics.csv"))
+
+    ### 7. Plot trends in mean annual streamflow ###
+    # Derive the anomalies and trends for each climate source
+    for climate_source in qsim.climate_source.values:
+        # Filter the dataset
+        ds_source = qsim.sel(climate_source = climate_source).to_dataset()
+
+        # Plot the anomalies if there is more than 3 years of data
+        nb_years = np.unique(qsim["time.year"].values).size
+        if nb_years >=3:
+            plot_timeseries_anomalies(
+                ds=ds_source,
+                path_output=plot_dir,
+                split_year=split_year,
+                suffix=climate_source,
+            )
+
+    #if there are observations also plot anomalies and trends of observations
+    if has_observations:
+        # Plot the anomalies if there is more than 3 years of data
+        nb_years = np.unique(qobs["time.year"].values).size
+        if nb_years >=3:
+            plot_timeseries_anomalies(
+                ds=qobs.to_dataset(),
+                path_output=plot_dir,
+                split_year=split_year,
+                suffix="obs",
+            )
 
     ### End of the function ###
 
