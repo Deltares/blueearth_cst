@@ -178,7 +178,7 @@ def plot_signatures(
     Parameters
     ----------
     qsim : xr.DataArray
-        Dataset with simulated streamflow.
+        Dataset with simulated streamflow from several runs with different climate sources. 
 
         * Required dimensions: [time]
         * Required attributes: [station_name]
@@ -582,7 +582,7 @@ def plot_hydro(
     Parameters
     ----------
     qsim : xr.DataArray
-        Simulated streamflow. Coordinate "climate_source" should be present. 
+        Simulated streamflow. Coordinate "climate_source" should be present for several runs with different climate sources as forcing. 
     Folder_out : Union[Path, str]
         Output folder to save plots.
     qobs : xr.DataArray, optional

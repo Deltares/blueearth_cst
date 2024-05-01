@@ -56,19 +56,7 @@ def get_wflow_results(
 ):
     """
     Get wflow results as xarray.Dataset for simulated discharges, simulated flux/states as basin averages and basin average forcing. 
-
-    Outputs:
-
-    qsim: xr.Dataset
-        simulated discharge at wflow basin locations  per climate source
-    qsim_gauges: xr.Dataset
-        simulated discharge at observation locations  per climate source
-    ds_clim: xr.Dataset
-        basin average precipitation, temperature and potential evaporation per climate source
-    ds_basin: xr.Dataset
-        basin average flux and state variables per climate source
-
-        
+       
     Parameters
     ----------
     wflow_root : Union[str, Path]
@@ -84,6 +72,18 @@ def get_wflow_results(
         Values in wflow_id column should match column names in ``observations_fn``.
         Separator is , and decimal is .
 
+    Returns
+    ----------
+    qsim: xr.Dataset
+        simulated discharge at wflow basin locations  per climate source
+    qsim_gauges: xr.Dataset
+        simulated discharge at observation locations  per climate source
+    ds_clim: xr.Dataset
+        basin average precipitation, temperature and potential evaporation per climate source
+    ds_basin: xr.Dataset
+        basin average flux and state variables per climate source
+
+        
     """
     if climate_source is None:
         mod = WflowModel(root=wflow_root, mode="r", config_fn=wflow_config_fn) 
@@ -147,7 +147,6 @@ def get_wflow_results(
         #add climate data source 
         ds_basin = ds_basin.assign_coords(climate_source=(f"{climate_source}")).expand_dims(["climate_source"])
 
-
     return qsim, qsim_gauges, ds_clim, ds_basin
 
 
@@ -184,6 +183,8 @@ def analyse_wflow_historical(
     - compute performance metrics (daily and monthly KGE, NSE, NSElog, RMSE, MSE, Pbias,
       VE) if observations are available and if wflow run is longer than a year. Metrics
       are saved to a csv file.
+    - plot of annual trends in streamflow for each climate source and for observations.
+    - plot of runoff coefficient as a function of aridity index (Budyko framework) for each discharge observation station. 
 
     Parameters
     ----------

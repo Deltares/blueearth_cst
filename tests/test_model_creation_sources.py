@@ -130,7 +130,6 @@ def test_plot_map(tmpdir, config_fao):
     # Check output
     assert os.path.exists(f"{plot_dir}/basin_area.png")
 
-#TODO: for now loop and make separate plots as comparison is done in historical workflow - or make subplots here too? 
 def test_plot_forcing(tmpdir, config_fao):
     """Test plotting the forcing maps."""
     wflow_root = f"{SAMPLE_PROJECTDIR}/hydrology_model"
