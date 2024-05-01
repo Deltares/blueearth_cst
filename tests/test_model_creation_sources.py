@@ -209,6 +209,9 @@ def test_plot_results(tmpdir, config_fao):
     # Check if trend plots are present
     assert os.path.exists(f"{plot_dir}/long_run/timeseries_anomalies_Q_chirps_global.png")
     assert os.path.exists(f"{plot_dir}/long_run/timeseries_anomalies_Q_era5.png")
+    assert os.path.exists(f"{plot_dir}/long_run/timeseries_anomalies_Q_obs.png")
+    # Check budyko plot 
+    assert os.path.exists(f"{plot_dir}/long_run/budyko_qobs.png")
 
 
     # 2. Plot medium length and no observations timeseries
@@ -267,3 +270,5 @@ def test_plot_results(tmpdir, config_fao):
     # Check the performance metrics table is empty
     perf = pd.read_csv(f"{plot_dir}/short_run/performance_metrics.csv")
     assert perf.empty
+    #check budyko plot
+    assert os.path.exists(f"{plot_dir}/short_run/budyko_qobs.png")

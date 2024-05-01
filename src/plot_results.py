@@ -28,6 +28,11 @@ if __name__ == "__main__" or parent_module.__name__ == "__main__":
         plot_basavg,
     )
     from plot_utils.plot_anomalies import plot_timeseries_anomalies
+    from plot_utils.plot_budyko import (
+        get_upstream_clim_basin,
+        determine_budyko_curve_terms,
+        plot_budyko,
+    )
 else:
     from .func_plot_signature import (
         plot_signatures,
@@ -37,6 +42,11 @@ else:
         plot_basavg,
     )
     from .plot_utils.plot_anomalies import plot_timeseries_anomalies
+    from .plot_utils.plot_budyko import (
+        get_upstream_clim_basin,
+        determine_budyko_curve_terms,
+        plot_budyko,
+    )
 
 def get_wflow_results(
     wflow_root: Union[str, Path],
@@ -428,6 +438,33 @@ def analyse_wflow_historical(
                 split_year=split_year,
                 suffix="obs",
             )
+    
+    ### 8. Plot budyko framework if there are observations ###
+    if has_observations:
+        if climate_sources is None:
+            config_fn=wflow_config_fn
+            #get mean annual precip, pet and q_specific upstream of observation locations for a specific source
+            ds_clim_sub, ds_clim_sub_annual = get_upstream_clim_basin(qobs, wflow_root, config_fn)
+            ds_clim_sub_annual = determine_budyko_curve_terms(ds_clim_sub_annual)
+            ds_clim_sub_annual = ds_clim_sub_annual.assign_coords(climate_source=(f"{climate_source}")).expand_dims(["climate_source"])
+
+        else:
+            ds_clim_sub_annual = []
+            for climate_source in climate_sources:
+                config_fn=wflow_config_fn.replace(".toml", f"_{climate_source}.toml")   
+            
+                #get mean annual precip, pet and q_specific upstream of observation locations for a specific source
+                ds_clim_sub_source, ds_clim_sub_annual_source = get_upstream_clim_basin(qobs, wflow_root, config_fn)
+                #calculate budyko terms
+                ds_clim_sub_annual_source = determine_budyko_curve_terms(ds_clim_sub_annual_source)
+                ds_clim_sub_annual_source = ds_clim_sub_annual_source.assign_coords(climate_source=(f"{climate_source}")).expand_dims(["climate_source"])
+                ds_clim_sub_annual.append(ds_clim_sub_annual_source)
+
+            ds_clim_sub_annual = xr.merge(ds_clim_sub_annual)
+
+        #plot budyko with different sources. 
+        plot_budyko(ds_clim_sub_annual, plot_dir, color=color)
+
 
     ### End of the function ###
 
