@@ -52,6 +52,7 @@ def compute_metrics(
     qsim: xr.DataArray,
     qobs: xr.DataArray,
     station_name: str = "station",
+    climate_source: str = "climate_source",
 ) -> pd.DataFrame:
     """
     Compute performance metrics.
@@ -79,7 +80,8 @@ def compute_metrics(
         * Required attributes: [station_name]
     station_name : str, optional
         Station name, by default "station"
-
+    climate_source : str, optional
+        Climate source used, by default "climate_source"
     Returns
     -------
     pd.DataFrame
@@ -89,58 +91,58 @@ def compute_metrics(
     # Initialize performance array
     metrics = ["KGE", "NSE", "NSElog", "RMSE", "MSE", "Pbias", "VE"]
     time_type = ["daily", "monthly"]
+    climate_source = [f"{climate_source}"]
     da_perf = xr.DataArray(
-        np.zeros((len(metrics), len(time_type))),
-        coords=[metrics, time_type],
-        dims=["metrics", "time_type"],
+        np.zeros((len(metrics), len(time_type), len(climate_source))),
+        coords=[metrics, time_type, climate_source],
+        dims=["metrics", "time_type", "climate_source"],
     )
 
     # Select data and resample to monthly timeseries as well
     qsim_monthly = qsim.resample(time="M").mean("time")
     qobs_monthly = qobs.resample(time="M").mean("time")
-
     # compute perf metrics
     # nse
     nse = skills.nashsutcliffe(qsim, qobs)
-    da_perf.loc[dict(metrics="NSE", time_type="daily")] = nse
+    da_perf.loc[dict(metrics="NSE", time_type="daily", climate_source=f"{climate_source[0]}")] = nse
     nse_m = skills.nashsutcliffe(qsim_monthly, qobs_monthly)
-    da_perf.loc[dict(metrics="NSE", time_type="monthly")] = nse_m
+    da_perf.loc[dict(metrics="NSE", time_type="monthly", climate_source=f"{climate_source[0]}")] = nse_m
 
     # nse logq
     nselog = skills.lognashsutcliffe(qsim, qobs)
-    da_perf.loc[dict(metrics="NSElog", time_type="daily")] = nselog
+    da_perf.loc[dict(metrics="NSElog", time_type="daily", climate_source=f"{climate_source[0]}")] = nselog
     nselog_m = skills.lognashsutcliffe(qsim_monthly, qobs_monthly)
-    da_perf.loc[dict(metrics="NSElog", time_type="monthly")] = nselog_m
+    da_perf.loc[dict(metrics="NSElog", time_type="monthly", climate_source=f"{climate_source[0]}")] = nselog_m
 
     # kge
     kge = skills.kge(qsim, qobs)
-    da_perf.loc[dict(metrics="KGE", time_type="daily")] = kge["kge"]
+    da_perf.loc[dict(metrics="KGE", time_type="daily", climate_source=f"{climate_source[0]}")] = kge["kge"]
     kge_m = skills.kge(qsim_monthly, qobs_monthly)
-    da_perf.loc[dict(metrics="KGE", time_type="monthly")] = kge_m["kge"]
+    da_perf.loc[dict(metrics="KGE", time_type="monthly", climate_source=f"{climate_source[0]}")] = kge_m["kge"]
 
     # rmse
     rmse = skills.rmse(qsim, qobs)
-    da_perf.loc[dict(metrics="RMSE", time_type="daily")] = rmse
+    da_perf.loc[dict(metrics="RMSE", time_type="daily", climate_source=f"{climate_source[0]}")] = rmse
     rmse_m = skills.rmse(qsim_monthly, qobs_monthly)
-    da_perf.loc[dict(metrics="RMSE", time_type="monthly")] = rmse_m
+    da_perf.loc[dict(metrics="RMSE", time_type="monthly", climate_source=f"{climate_source[0]}")] = rmse_m
 
     # mse
     mse = skills.mse(qsim, qobs)
-    da_perf.loc[dict(metrics="MSE", time_type="daily")] = mse
+    da_perf.loc[dict(metrics="MSE", time_type="daily", climate_source=f"{climate_source[0]}")] = mse
     mse_m = skills.mse(qsim_monthly, qobs_monthly)
-    da_perf.loc[dict(metrics="MSE", time_type="monthly")] = mse_m
+    da_perf.loc[dict(metrics="MSE", time_type="monthly", climate_source=f"{climate_source[0]}")] = mse_m
 
     # pbias
     pbias = skills.percentual_bias(qsim, qobs)
-    da_perf.loc[dict(metrics="Pbias", time_type="daily")] = pbias
+    da_perf.loc[dict(metrics="Pbias", time_type="daily", climate_source=f"{climate_source[0]}")] = pbias
     pbias_m = skills.percentual_bias(qsim_monthly, qobs_monthly)
-    da_perf.loc[dict(metrics="Pbias", time_type="monthly")] = pbias_m
+    da_perf.loc[dict(metrics="Pbias", time_type="monthly", climate_source=f"{climate_source[0]}")] = pbias_m
 
     # ve (volumetric efficiency)
     ve = skills.volumetric_error(qsim, qobs)
-    da_perf.loc[dict(metrics="VE", time_type="daily")] = ve
+    da_perf.loc[dict(metrics="VE", time_type="daily", climate_source=f"{climate_source[0]}")] = ve
     ve_m = skills.volumetric_error(qsim_monthly, qobs_monthly)
-    da_perf.loc[dict(metrics="VE", time_type="monthly")] = ve_m
+    da_perf.loc[dict(metrics="VE", time_type="monthly", climate_source=f"{climate_source[0]}")] = ve_m
 
     ### 2. Convert to dataframe ###
     df_perf = da_perf.to_dataframe(name=station_name)
@@ -917,8 +919,10 @@ def plot_basavg(
                 x = var_year.time.dt.year
                 z = np.polyfit(x, var_year, 1)
                 p = np.poly1d(z)
-                r2_score, p_value = rsquared(p(x), var_year)
-                ax2.plot(var_year.time, p(x), ls="--", color=c, alpha = 0.5, label = f"trend {climate_source} $R^2$ = {round(r2_score, 3)}, p = {round(p_value, 3)}")
+                #if snow 0 each year -- cannot calculate linear regression 
+                if sum(var_year) > 0:
+                    r2_score, p_value = rsquared(p(x), var_year)
+                    ax2.plot(var_year.time, p(x), ls="--", color=c, alpha = 0.5, label = f"trend {climate_source} $R^2$ = {round(r2_score, 3)}, p = {round(p_value, 3)}")
 
                 legend_annual = WFLOW_VARS[dvar.split("_")[0]]["legend_annual"]
                 ax2.set_ylabel(legend_annual, fontsize=fs)

@@ -117,6 +117,7 @@ rule setup_runtime:
         starttime = get_config(config, "starttime", optional=False),
         endtime = get_config(config, "endtime", optional=False),
         clim_source = get_config(config, "clim_historical", optional=False),
+        suffix = False,
     script: "../src/setup_time_horizon.py"
 
 # Rule to add forcing to the updated model
@@ -152,6 +153,7 @@ rule plot_results:
        project_dir = f"{project_dir}",
        observations_file = observations_timeseries,
        gauges_output_fid = output_locations,
+       climate_sources = np.atleast_1d(get_config(config, "clim_historical", optional=False)).tolist(),
    script: "../src/plot_results.py"
 
 # Rule to plot the wflow basin, rivers, gauges and DEM on a map

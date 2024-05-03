@@ -67,6 +67,8 @@ def get_upstream_clim_basin(
 
     # Loop over basins and get per gauge location a polygon of the upstream
     # area.
+    x_all = []
+    y_all = []
     for i, id in enumerate(qobs.index.values):
         x, y = qobs.vector.geometry.x.values[i], qobs.vector.geometry.y.values[i]
         ds_basin_single = flw.basin_map(
@@ -76,6 +78,9 @@ def get_upstream_clim_basin(
             xy=(x, y),
             stream=ds_grid["wflow_river"],
         )[0]
+        x_all.append(x)
+        y_all.append(y)
+
         ds_basin_single.name = int(qobs.index[i].values)
         ds_basin_single.raster.set_crs(ds_grid.raster.crs)
         gdf_basin_single = ds_basin_single.raster.vectorize()
@@ -86,14 +91,13 @@ def get_upstream_clim_basin(
     #add basin area to calculate specific runoff [mm/d]
     # Add the catchment area to gdf_basins and sort in a descending order
     # make sure to also snap to river when retrieving areas
-    idxs_gauges = flwdir.snap(xy=(x, y), mask=ds_grid["wflow_river"].values)[0]
+    idxs_gauges = flwdir.snap(xy=(x_all, y_all), mask=ds_grid["wflow_river"].values)[0]
     areas_uparea = ds_grid["wflow_uparea"].values.flat[idxs_gauges]
     df_areas = pd.DataFrame(index=qobs.index.values, data=areas_uparea * 1e6, columns=["area"])
     gdf_basins = pd.concat([gdf_basins, df_areas], axis=1)
     gdf_basins = gdf_basins.sort_values(by="area", ascending=False)
     # drop basins where area is NaN.
     gdf_basins = gdf_basins[(gdf_basins["area"] >= 0)]
-
 
     #zonal stats:
     ds_clim_grid = xr.merge([mod.forcing["precip"], mod.forcing["pet"]])
@@ -177,7 +181,6 @@ def plot_budyko(
 
     plt.figure(figsize = (12/2.54, 12/2.54))
     for climate_source in ds_clim_sub_annual.climate_source.values:
-        
         plt.plot(ds_clim_sub_annual["aridity_index"].sel(climate_source = climate_source), ds_clim_sub_annual["discharge_coeff"].sel(climate_source = climate_source), marker = "o", linestyle = "None", label = f"{climate_source}", color = color[climate_source])
         for i in ds_clim_sub_annual.index.values:
             plt.text(ds_clim_sub_annual["aridity_index"].sel(climate_source = climate_source, index=i), ds_clim_sub_annual["discharge_coeff"].sel(climate_source = climate_source, index=i), f"{i}", fontsize = fs)

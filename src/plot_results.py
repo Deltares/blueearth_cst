@@ -396,8 +396,8 @@ def analyse_wflow_historical(
                     qsim=qsim_i.sel(climate_source=climate_source),
                     qobs=qobs_i,
                     station_name=station_name,
+                    climate_source = climate_source,
                 )
-                df_perf_source["climate_source"] = f"{climate_source}"
                 df_perf = pd.concat([df_perf, df_perf_source])
             # Join with other stations
             if df_perf_all.empty:
@@ -442,14 +442,7 @@ def analyse_wflow_historical(
     
     ### 8. Plot budyko framework if there are observations ###
     if has_observations:
-        if climate_sources is None:
-            config_fn=wflow_config_fn
-            #get mean annual precip, pet and q_specific upstream of observation locations for a specific source
-            ds_clim_sub, ds_clim_sub_annual = get_upstream_clim_basin(qobs, wflow_root, config_fn)
-            ds_clim_sub_annual = determine_budyko_curve_terms(ds_clim_sub_annual)
-            ds_clim_sub_annual = ds_clim_sub_annual.assign_coords(climate_source=(f"{climate_source}")).expand_dims(["climate_source"])
-
-        else:
+        if len(np.atleast_1d(climate_sources).tolist())>1: # no suffix of climate source added in name config file 
             ds_clim_sub_annual = []
             for climate_source in climate_sources:
                 config_fn=wflow_config_fn.replace(".toml", f"_{climate_source}.toml")   
@@ -459,9 +452,14 @@ def analyse_wflow_historical(
                 #calculate budyko terms
                 ds_clim_sub_annual_source = determine_budyko_curve_terms(ds_clim_sub_annual_source)
                 ds_clim_sub_annual_source = ds_clim_sub_annual_source.assign_coords(climate_source=(f"{climate_source}")).expand_dims(["climate_source"])
-                ds_clim_sub_annual.append(ds_clim_sub_annual_source)
-
-            ds_clim_sub_annual = xr.merge(ds_clim_sub_annual)
+                ds_clim_sub_annual.append(ds_clim_sub_annual_source)  
+            ds_clim_sub_annual = xr.merge(ds_clim_sub_annual)          
+        else:
+            config_fn=wflow_config_fn
+            #get mean annual precip, pet and q_specific upstream of observation locations for a specific source
+            ds_clim_sub, ds_clim_sub_annual = get_upstream_clim_basin(qobs, wflow_root, config_fn)
+            ds_clim_sub_annual = determine_budyko_curve_terms(ds_clim_sub_annual)
+            ds_clim_sub_annual = ds_clim_sub_annual.assign_coords(climate_source=(f"{climate_source}")).expand_dims(["climate_source"])
 
         #plot budyko with different sources. 
         plot_budyko(ds_clim_sub_annual, plot_dir, color=color)
