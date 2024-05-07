@@ -41,7 +41,23 @@ def plot_historical_climate_region(
 
     Outputs:
     * **basin_climate.nc**: sampled timeseries plots over the region (and subregions).
+    * **plots/region/**: plots of the historical climate for the region.
 
+    The function plots the following statistics for each location in `region` and
+    optionally `subregions`:
+
+    - Precipitation:
+        1. Precipitation per year.
+        2. Cumulative precipitation.
+        3. Monthly mean precipitation.
+        4. Rainfall peaks > ``precip_peak_treshold`` mm/day.
+        5. Number of dry days (dailyP < ``dry_days_threshold``mm) per year.
+        6. Weekly plot for the wettest year.
+    - Temperature:
+        1. Monthly mean temperature.
+        2. Long-term average temperature per month.
+        3. Number of frost days per year.
+        4. Number of heat days per year (temp > ``heat_threshold`` $\degree$C).
 
     Parameters
     ----------

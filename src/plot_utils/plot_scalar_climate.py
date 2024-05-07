@@ -33,11 +33,29 @@ def plot_scalar_climate_statistics(
     """
     Plot scalar climate statistics from a xarray dataset.
 
+    The function plots the following statistics for each location in the geods:
+
+    - Precipitation:
+        1. Precipitation per year.
+        2. Cumulative precipitation.
+        3. Monthly mean precipitation.
+        4. Rainfall peaks > ``precip_peak_treshold`` mm/day.
+        5. Number of dry days (dailyP < ``dry_days_threshold``mm) per year.
+        6. Weekly plot for the wettest year.
+    - Temperature:
+        1. Monthly mean temperature.
+        2. Long-term average temperature per month.
+        3. Number of frost days per year.
+        4. Number of heat days per year (temp > ``heat_threshold`` $\degree$C).
+
     Parameters
     ----------
     geods : xr.Dataset
         HydroMT GeoDataset with climate data to plot (organised along a source
         dimension).
+
+        - Supported variables: ["precip", "temp"].
+        - Required dimensions: ["time", "index"].
     path_output : str or Path
         Path to the output directory where the plots are stored.
     geods_obs : xr.Dataset, optional
@@ -45,7 +63,7 @@ def plot_scalar_climate_statistics(
     climate_variables : list of str, optional
         List of climate variables to plot. By default ["precip", "temp"].
         Allowed values are "precip" for precipitation [mm] or "temp" for temperature
-        [oC].
+        [$\degree$C].
     colors: List, optional
         List of colors to use for each source. If None, unique color per source is
         not assured.
@@ -54,7 +72,7 @@ def plot_scalar_climate_statistics(
     dry_days_threshold : float, optional
         Threshold for the number of dry days [mm/day] to highlight in the plot.
     heat_threshold : float, optional
-        Threshold for the number of heat days [oC] to highlight in the plot.
+        Threshold for the number of heat days [$\degree$C] to highlight in the plot.
     gdf_region : gpd.GeoDataFrame, optional
         The total region of the project to add to the inset map if provided.
 
@@ -151,9 +169,9 @@ def plot_precipitation_per_location(
     st = geoda["index"].values[0]
     # Remove source for which there is no data
     geoda = geoda.dropna(dim="source", how="all")
-    # Get the geoda geometry now before reducing st
+    # Get the geoda geometry now before reducing st and loading
     gdf = geoda.vector.geometry
-    geoda = geoda.sel(index=st)
+    geoda = geoda.sel(index=st).load()
 
     # Get the wettest year from Observed if available
     wettest_source = (
@@ -165,16 +183,17 @@ def plot_precipitation_per_location(
 
     # Start the subplots for precipitation
     fig, axes = plt.subplots(
-        3, 2, figsize=(18, 15)
+        3, 2, figsize=(16 / 2.54, 21 / 2.54)
     )  # , subplot_kw={'projection': ccrs.PlateCarree()})
     axes = axes.flatten()
     ax_twin = axes[4].twinx()
-    fig.suptitle(f"Rainfall analysis for location {st}", fontsize="20")
+    fig.suptitle(f"Precipitation analysis for location {st}", fontsize="10")
 
     ### Do the plots ###
     for source in geoda.source.values:
         # Styling
         ls = "-" if source != "observed" else "--"
+        fs = 8
         if source == "observed":
             c = "black"
         elif colors is not None:
@@ -199,7 +218,10 @@ def plot_precipitation_per_location(
 
         # 3. Plot the monthly mean
         prec_m = prec.resample(time="M").sum().groupby("time.month").mean()
-        prec_m["month"] = np.array(
+        # Add the 25-75 quantile range
+        prec_m_25 = prec.resample(time="M").sum().groupby("time.month").quantile(0.25)
+        prec_m_75 = prec.resample(time="M").sum().groupby("time.month").quantile(0.75)
+        prec_month = np.array(
             [
                 "Jan",
                 "Feb",
@@ -215,6 +237,15 @@ def plot_precipitation_per_location(
                 "Dec",
             ]
         )
+        axes[2].fill_between(
+            prec_month,
+            prec_m_25,
+            prec_m_75,
+            alpha=0.2,
+            label=f"{source} 25%-75%",
+            color=c,
+        )
+        prec_m["month"] = prec_month
         prec_m.plot.line(ax=axes[2], label=source, linestyle=ls, color=c)
 
         # 4. Rainfall peaks > 40 mm/day
@@ -258,45 +289,51 @@ def plot_precipitation_per_location(
 
     ### Add legends ###
     # 1. Plot per year
-    axes[0].set_title("Rainfall amounts per year")
-    axes[0].set_ylabel("Rainfall [mm/yr]")
-    axes[0].set_xlabel("Year")
-    axes[0].legend()
+    axes[0].set_title("Precipitation per year", fontsize=fs)
+    axes[0].set_ylabel("Precipitation [mm/yr]", fontsize=fs)
+    axes[0].set_xlabel("", fontsize=fs)
+    axes[0].legend(fontsize=fs)
 
     # 2. Plot the cumulative
-    axes[1].set_title("Cumulative rainfall")
-    axes[1].set_ylabel("Cumulative rainfall [mm]")
-    axes[1].set_xlabel("Year")
-    axes[1].legend()
+    axes[1].set_title("Cumulative precipitation", fontsize=fs)
+    axes[1].set_ylabel("Cumulative precipitation [mm]", fontsize=fs)
+    axes[1].set_xlabel("", fontsize=fs)
+    axes[1].legend(fontsize=fs)
 
     # 3. Plot the monthly mean
-    axes[2].set_title("Long-term average rainfall per month")
-    axes[2].set_ylabel("Rainfall [mm/month]")
-    axes[2].set_xlabel("Month")
-    axes[2].legend()
+    axes[2].set_title("Long-term average precipitation per month", fontsize=fs)
+    axes[2].set_ylabel("Precipitation [mm/month]", fontsize=fs)
+    axes[2].set_xlabel("", fontsize=fs)
+    axes[2].legend(fontsize=fs)
 
     # 4. Rainfall peaks > 40 mm/day
-    axes[3].set_title(f"Rainfall Event > {peak_threshold}mm")
-    axes[3].set_ylabel("Rainfall [mm/day]")
-    axes[3].set_xlabel("Time")
+    axes[3].set_title(f"Precipitation Events > {peak_threshold} mm/day", fontsize=fs)
+    axes[3].set_ylabel("Precipitation [mm/day]", fontsize=fs)
+    axes[3].set_xlabel("", fontsize=fs)
     axes[3].grid(True)
-    axes[3].legend()
+    axes[3].legend(fontsize=fs)
 
     # 5. Number of dry days (dailyP < 0.2mm) per year
-    axes[4].set_title(f"Number of dry days per year (P < {dry_days_threshold}mm)")
-    axes[4].set_ylabel("Number of dry days")
-    ax_twin.set_ylabel("Longest dry spell [days]")
+    axes[4].set_title(
+        f"Number of dry days per year (P < {dry_days_threshold}mm)", fontsize=fs
+    )
+    axes[4].set_ylabel("Number of dry days", fontsize=fs)
+    ax_twin.set_ylabel(
+        f"Longest dry spell (P < {dry_days_threshold*4}mm) [days]", fontsize=fs
+    )
     ax_twin.grid(True)
-    axes[4].set_xlabel("Year")
-    axes[4].legend()
+    ax_twin.legend(title="Longest dry spell", fontsize=fs)
+    axes[4].set_xlabel("", fontsize=fs)
+    axes[4].legend(title="Number of dry days", fontsize=fs)
 
     # 6. Select the wettest year and do daily plot
     axes[5].set_title(
-        f"Weekly rainfall for the wettest year ({wet_year} according to {wettest_source})"
+        f"Weekly precipitation for the wettest year ({wet_year} according to {wettest_source})",
+        fontsize=fs,
     )
-    axes[5].set_ylabel("Time")
-    axes[5].set_xlabel("Rainfall [mm/week]")
-    axes[5].legend()
+    axes[5].set_xlabel("", fontsize=fs)
+    axes[5].set_ylabel("Precipitation [mm/week]", fontsize=fs)
+    axes[5].legend(fontsize=fs)
 
     # A. Location plot
     # Add an inset map on the top right corner of the figure
@@ -320,6 +357,7 @@ def plot_precipitation_per_location(
         gdf.plot(ax=ax_inset, color="red", edgecolor="black", alpha=0.5)
 
     # Save the figure
+    plt.tight_layout()
     fig.savefig(join(path_output, f"precipitation_{st}.png"))
 
 
@@ -335,19 +373,20 @@ def plot_temperature_per_location(
     st = geoda["index"].values[0]
     # Remove source for which there is no data
     geoda = geoda.dropna(dim="source", how="all")
-    # Get the geoda geometry now before reducing st
+    # Get the geoda geometry now before reducing st and loading
     gdf = geoda.vector.geometry
-    geoda = geoda.sel(index=st)
+    geoda = geoda.sel(index=st).load()
 
     # Start the subplots for temperature
-    fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+    fig, axes = plt.subplots(2, 2, figsize=(16 / 2.54, 14 / 2.54))
     axes = axes.flatten()
-    fig.suptitle(f"Temperature analysis for location {st}", fontsize="20")
+    fig.suptitle(f"Temperature analysis for location {st}", fontsize="10")
 
     ### Do the plots ###
     for source in geoda.source.values:
         # Styling
         ls = "-" if source != "observed" else "--"
+        fs = 8
         if source == "observed":
             c = "black"
         elif colors is not None:
@@ -362,15 +401,20 @@ def plot_temperature_per_location(
         temp_min = temp.resample(time="M").min()
         temp_max = temp.resample(time="M").max()
         axes[0].fill_between(
-            temp_mean.time, temp_min, temp_max, alpha=0.2, label=source, color=c
+            temp_mean.time,
+            temp_min,
+            temp_max,
+            alpha=0.2,
+            label=f"{source} min-max",
+            color=c,
         )
         temp_mean.plot.line(ax=axes[0], label=source, color=c)
 
         # 2. Plot with mean, min, max per year filled in between long term average
         temp_m = temp.resample(time="M").mean()
         temp_mean = temp_m.groupby("time.month").mean()
-        temp_min = temp_m.groupby("time.month").min()
-        temp_max = temp_m.groupby("time.month").max()
+        temp_min = temp_m.groupby("time.month").quantile(0.25)
+        temp_max = temp_m.groupby("time.month").quantile(0.75)
         month_names = np.array(
             [
                 "Jan",
@@ -388,24 +432,14 @@ def plot_temperature_per_location(
             ]
         )
         axes[1].fill_between(
-            month_names, temp_min, temp_max, alpha=0.2, label=source, color=c
+            month_names,
+            temp_min,
+            temp_max,
+            alpha=0.2,
+            label=f"{source} 25%-75%",
+            color=c,
         )
-        temp_mean["month"] = np.array(
-            [
-                "Jan",
-                "Feb",
-                "Mar",
-                "Apr",
-                "May",
-                "Jun",
-                "Jul",
-                "Aug",
-                "Sep",
-                "Oct",
-                "Nov",
-                "Dec",
-            ]
-        )
+        temp_mean["month"] = month_names
         temp_mean.plot.line(ax=axes[1], label=source, linestyle=ls, color=c)
 
         # 3. Number of frost days per year
@@ -424,28 +458,31 @@ def plot_temperature_per_location(
 
     ### Add legends ###
     # 1. Plot with mean, min, max per month filled in between
-    axes[0].set_title("Monthly mean temperature (including minimum/maximum)")
-    axes[0].set_ylabel("Temperature [oC]")
-    axes[0].set_xlabel("Time")
-    axes[0].legend()
+    axes[0].set_title("Monthly mean temperature", fontsize=fs)
+    axes[0].set_ylabel("Temperature [$\degree$C]", fontsize=fs)
+    axes[0].set_xlabel("", fontsize=fs)
+    axes[0].legend(fontsize=fs)
 
     # 2. Plot with mean, min, max per year filled in between long term average
-    axes[1].set_title("Long-term average temperature per month")
-    axes[1].set_ylabel("Temperature [oC]")
-    axes[1].set_xlabel("Month")
-    axes[1].legend()
+    axes[1].set_title("Long-term average temperature per month", fontsize=fs)
+    axes[1].set_ylabel("Temperature [$\degree$C]", fontsize=fs)
+    axes[1].set_xlabel("", fontsize=fs)
+    axes[1].legend(fontsize=fs)
 
     # 3. Number of frost days per year
-    axes[2].set_title("Number of frost days per year (T < 0oC)")
-    axes[2].set_ylabel("Number of frost days")
-    axes[2].set_xlabel("Year")
-    axes[2].legend()
+    axes[2].set_title("Number of frost days per year (T < 0$\degree$C)", fontsize=fs)
+    axes[2].set_ylabel("Number of frost days", fontsize=fs)
+    axes[2].set_xlabel("", fontsize=fs)
+    axes[2].legend(fontsize=fs)
 
     # 4. Number of heat days per year
-    axes[3].set_title(f"Number of heat days per year (T > {heat_threshold}oC)")
-    axes[3].set_ylabel("Number of heat days")
-    axes[3].set_xlabel("Year")
-    axes[3].legend()
+    axes[3].set_title(
+        f"Number of heat days per year (T > {heat_threshold}$\degree$C)",
+        fontsize=fs,
+    )
+    axes[3].set_ylabel("Number of heat days", fontsize=fs)
+    axes[3].set_xlabel("", fontsize=fs)
+    axes[3].legend(fontsize=fs)
 
     # A. Location plot
     # Add an inset map on the top right corner of the figure
@@ -477,7 +514,7 @@ def boxplot_clim(
     path_output: Union[str, Path],
     colors: Optional[List] = None,
 ):
-    """Boxplot of the climate data at different locations."""
+    """Boxplot of annual precipitation data at different locations."""
     fs = 8
     # First convert to a dataframe
     # Resample to year

@@ -11,6 +11,7 @@ from matplotlib import colors
 
 import xarray as xr
 import numpy as np
+import scipy.stats as stats
 
 __all__ = ["plot_gridded_anomalies", "plot_timeseries_anomalies"]
 
@@ -66,12 +67,14 @@ def plot_gridded_anomalies(
     path_output: Union[str, Path],
     suffix: Optional[str] = None,
 ):
-    """Plot gridded historical anomalies for a specific region.
+    """Plot gridded historical annual anomalies for a specific region.
 
     Parameters
     ----------
     ds : xr.Dataset
         Dataset with the gridded climate data.
+
+        Supported variables: ["precip", "temp"]
     path_output : str or Path
         Path to the output directory where the plots are stored.
     suffix : str, optional
@@ -123,6 +126,8 @@ def plot_timeseries_anomalies(
     ----------
     ds : xr.Dataset
         Dataset with the climate data.
+
+        Supported variables: ["precip", "temp"]
     path_output : str or Path
         Path to the output directory where the plots are stored.
     split_year : int, optional
@@ -142,7 +147,7 @@ def plot_timeseries_anomalies(
 
         # Plot a line for each locations in different shades of grey
         da_yr_anom.plot.line(
-            x="time", hue="index", ax=ax, add_legend=False, alpha=0.5, color="gray"
+            x="time", hue="index", ax=ax, add_legend=False, alpha=0.5, color="black"
         )
 
         # Add straight line for the 90th and 10th percentile
@@ -150,8 +155,11 @@ def plot_timeseries_anomalies(
         p10 = da_yr_anom.quantile(0.1, dim="index").min("time").values
 
         # add a line using a constant value
-        ax.axhline(p90, color="black", linestyle="--")
-        ax.axhline(p10, color="black", linestyle="--")
+        ax.axhline(p90, color="grey", linestyle="--", label="90% percentile")
+        ax.axhline(p10, color="grey", linestyle="--", label="10% percentile")
+
+        # also add a  line at 0% anomaly
+        ax.axhline(0, color="darkgrey", linestyle="--")
 
         # Derive linear trend using xarray curvefit
         start_year = ds.time.dt.year.min().values
@@ -184,12 +192,18 @@ def plot_timeseries_anomalies(
             a = trend.curvefit_coefficients.values[0]
             b = trend.curvefit_coefficients.values[1]
             trend_line = b + a * da_yr_trend.time
+
+            # also get r_value and p_value
+            slope, intercept, r_value, p_value, std_err = stats.linregress(
+                da_yr_trend.time, da_yr_trend.mean("index")
+            )
+
             trend_line.plot.line(
                 ax=ax,
                 color=color,
                 linestyle="--",
                 linewidth=2,
-                label=f"Trend {start}-{end} (slope={a:.2f})",
+                label=f"Trend {start}-{end} (slope={a:.2f}, R$^2$={r_value**2:.2f}, p={p_value:.3f})",
             )
 
         # Add the legend in a white box on the top right corner

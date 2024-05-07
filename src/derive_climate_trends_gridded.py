@@ -30,6 +30,11 @@ def derive_gridded_trends(
     """
     Plot gridded historical anomalies for a specific region.
 
+    Outputs:
+    * **gridded_trends.txt**: a file to indicate that the plots were created.
+    * **trends**: plots of the gridded historical anomalies for each source and per
+      climate variable.
+
 
     Parameters
     ----------

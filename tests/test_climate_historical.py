@@ -93,7 +93,12 @@ def test_plot_climate_region(tmpdir, config_fao, data_libs_fao):
     )
 
     # Check if the output files are created
-    assert os.path.exists(f"{tmpdir}/climate_historical/plots")
+    assert os.path.exists(
+        f"{tmpdir}/climate_historical/plots/region/precipitation_region_1.png"
+    )
+    assert os.path.exists(
+        f"{tmpdir}/climate_historical/plots/region/temperature_region_1.png"
+    )
     assert os.path.exists(f"{tmpdir}/climate_historical/statistics/basin_climate.nc")
 
 
@@ -120,6 +125,12 @@ def test_plot_climate_point(tmpdir, config_fao, data_libs_fao):
 
     # Check if the output files are created
     assert os.path.exists(f"{tmpdir}/climate_historical/statistics/point_climate.nc")
+    assert os.path.exists(
+        f"{tmpdir}/climate_historical/plots/point/precipitation_location_24431.png"
+    )
+    assert os.path.exists(
+        f"{tmpdir}/climate_historical/plots/point/temperature_location_24431.png"
+    )
 
 
 def test_timeseries_historical_trends(tmpdir):
@@ -135,8 +146,12 @@ def test_timeseries_historical_trends(tmpdir):
     )
 
     # Check if the output files are created
-    # assert os.path.exists(f"{tmpdir}/climate_historical/trends/timeseries_anomalies_precip_chirps_global.png")
-    # assert os.path.exists(f"{tmpdir}/climate_historical/trends/timeseries_anomalies_temp_era5.png")
+    assert os.path.exists(
+        f"{tmpdir}/climate_historical/trends/timeseries_anomalies_precip_era5.png"
+    )
+    assert os.path.exists(
+        f"{tmpdir}/climate_historical/trends/timeseries_anomalies_temp_era5.png"
+    )
 
 
 def test_gridded_historical_trends(tmpdir, config_fao, data_libs_fao):

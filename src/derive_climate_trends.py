@@ -23,10 +23,16 @@ def derive_timeseries_trends(
     """
     Plot the historical anomalies for a set of locations.
 
+    Outputs:
+    * **timeseries_trends.txt**: a file to indicate that the plots were created.
+    * **trends**: plots of the historical anomalies for each source and per climate
+      variable.
+
     Parameters
     ----------
     ds : xr.Dataset
         Dataset with the climate data.
+        Supported variables: []"precip", "temp"].
     path_output : str or Path
         Path to the output directory where the plots are stored.
     split_year : int, optional
