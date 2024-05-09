@@ -40,8 +40,8 @@ rule all:
         f"{project_dir}/config/snake_config_climate_historical.yaml",
         f"{project_dir}/climate_historical/statistics/basin_climate.nc",
         f"{project_dir}/climate_historical/statistics/point_climate.nc",
-        f"{project_dir}/climate_historical/trends/gridded_trends.txt",
-        f"{project_dir}/climate_historical/trends/timeseries_trends.txt",
+        f"{project_dir}/climate_historical/plots/trends/gridded_trends.txt",
+        f"{project_dir}/climate_historical/plots/trends/timeseries_trends.txt",
 
 # Rule to copy config files to the project_dir/config folder
 rule copy_config:
@@ -116,7 +116,7 @@ rule derive_trends_timeseries:
         project_dir = project_dir,
         split_year = get_config(config, "split_year_trend", None),
     output:
-        trends_timeseries_done = f"{project_dir}/climate_historical/trends/timeseries_trends.txt",
+        trends_timeseries_done = f"{project_dir}/climate_historical/plots/trends/timeseries_trends.txt",
     script:
         "../src/derive_climate_trends.py"
 
@@ -128,6 +128,6 @@ rule derive_trends_gridded:
         data_catalog = data_catalog,
         project_dir = project_dir,
     output:
-        trends_gridded_done = f"{project_dir}/climate_historical/trends/gridded_trends.txt",
+        trends_gridded_done = f"{project_dir}/climate_historical/plots/trends/gridded_trends.txt",
     script:
         "../src/derive_climate_trends_gridded.py"

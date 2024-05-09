@@ -207,7 +207,7 @@ def plot_timeseries_anomalies(
             )
 
         # Add the legend in a white box on the top right corner
-        ax.legend(loc="upper right", frameon=True, facecolor="white", framealpha=1.0)
+        ax.legend(loc="upper right", frameon=True, facecolor="white", framealpha=0.7)
 
         if var == "precip":
             legend = "precipitation anomalies [%]"

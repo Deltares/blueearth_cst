@@ -15,8 +15,10 @@ import sys
 parent_module = sys.modules[".".join(__name__.split(".")[:-1]) or "__main__"]
 if __name__ == "__main__" or parent_module.__name__ == "__main__":
     from plot_utils.plot_anomalies import plot_gridded_anomalies
+    from plot_utils.plot_gridded_climate import plot_gridded_precip
 else:
     from .plot_utils.plot_anomalies import plot_gridded_anomalies
+    from .plot_utils.plot_gridded_climate import plot_gridded_precip
 
 
 def derive_gridded_trends(
@@ -58,6 +60,9 @@ def derive_gridded_trends(
     # Initialize the data catalog
     data_catalog = DataCatalog(climate_catalog)
 
+    # Initiliaze gridded precipi dict
+    precip_dict = dict()
+
     # Open the climate data and plot anomalies
     for climate_source in climate_sources:
         ds_clim = []
@@ -79,6 +84,8 @@ def derive_gridded_trends(
 
             # Append to the list
             ds_clim.append(ds)
+            if var == "precip":
+                precip_dict[climate_source] = ds[var]
 
         ds_clim = xr.merge(ds_clim)
         # Try clipping to region
@@ -114,13 +121,19 @@ def derive_gridded_trends(
         # Plot the anomalies
         plot_gridded_anomalies(
             ds=ds_clim,
-            path_output=path_output,
+            path_output=join(path_output, "trends"),
             suffix=climate_source,
         )
 
+    # Plot the gridded median yearly precipitation
+    plot_gridded_precip(
+        precip_dict=precip_dict,
+        path_output=join(path_output, "grid"),
+    )
+
     if "snakemake" in globals():
         # Write a file when everything is done for snakemake tracking
-        text_out = join(path_output, "gridded_trends.txt")
+        text_out = join(path_output, "trends", "gridded_trends.txt")
         with open(text_out, "w") as f:
             f.write("Gridded anomalies plots were made.\n")
 
@@ -132,7 +145,7 @@ if __name__ == "__main__":
 
         derive_gridded_trends(
             region_filename=sm.input.region_file,
-            path_output=join(project_dir, "climate_historical", "trends"),
+            path_output=join(project_dir, "climate_historical", "plots"),
             climate_catalog=sm.params.data_catalog,
             climate_sources=sm.params.climate_sources,
         )

@@ -141,16 +141,16 @@ def test_timeseries_historical_trends(tmpdir):
 
     derive_climate_trends.derive_timeseries_trends(
         clim_filename=clim_fn,
-        path_output=join(tmpdir, "climate_historical", "trends"),
+        path_output=join(tmpdir, "climate_historical", "plots", "trends"),
         split_year=2005,
     )
 
     # Check if the output files are created
     assert os.path.exists(
-        f"{tmpdir}/climate_historical/trends/timeseries_anomalies_precip_era5.png"
+        f"{tmpdir}/climate_historical/plots/trends/timeseries_anomalies_precip_era5.png"
     )
     assert os.path.exists(
-        f"{tmpdir}/climate_historical/trends/timeseries_anomalies_temp_era5.png"
+        f"{tmpdir}/climate_historical/plots/trends/timeseries_anomalies_temp_era5.png"
     )
 
 
@@ -160,15 +160,21 @@ def test_gridded_historical_trends(tmpdir, config_fao, data_libs_fao):
 
     derive_climate_trends_gridded.derive_gridded_trends(
         region_filename=region_filename,
-        path_output=join(tmpdir, "climate_historical", "trends"),
+        path_output=join(tmpdir, "climate_historical", "plots"),
         climate_catalog=data_libs_fao,
         climate_sources=config_fao["clim_historical"],
     )
 
     # Check if the output files are created
     assert os.path.exists(
-        f"{tmpdir}/climate_historical/trends/gridded_anomalies_precip_chirps_global.png"
+        f"{tmpdir}/climate_historical/plots/trends/gridded_anomalies_precip_chirps_global.png"
     )
     assert os.path.exists(
-        f"{tmpdir}/climate_historical/trends/gridded_anomalies_temp_era5.png"
+        f"{tmpdir}/climate_historical/plots/trends/gridded_anomalies_temp_era5.png"
+    )
+    assert not os.path.exists(
+        f"{tmpdir}/climate_historical/plots/trends/gridded_trends.txt"
+    )
+    assert os.path.exists(
+        f"{tmpdir}/climate_historical/plots/grid/median_annual_precipitation.png"
     )

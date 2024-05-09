@@ -36,6 +36,7 @@ def plot_historical_climate_region(
     precip_peak_threshold: float = 40,
     dry_days_threshold: float = 0.2,
     heat_threshold: float = 25,
+    add_inset_map: bool = True,
 ):
     """Plot historical climate for a region and optionally subregions.
 
@@ -90,6 +91,8 @@ def plot_historical_climate_region(
     heat_threshold : float, optional
         Threshold for the daily mean temperature in degrees Celsius to define a
         heatwave. By default 25 degrees Celsius.
+    add_inset_map : bool, optional
+        Add an inset map to the plots. By default True.
     """
 
     # Small function to set the index of the geodataframe
@@ -202,6 +205,7 @@ def plot_historical_climate_region(
         dry_days_threshold=dry_days_threshold,
         heat_threshold=heat_threshold,
         gdf_region=region,
+        add_map=add_inset_map,
     )
 
     # Save the sampled timeseries

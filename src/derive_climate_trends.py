@@ -68,7 +68,7 @@ if __name__ == "__main__":
 
         derive_timeseries_trends(
             clim_filename=sm.input.geods,
-            path_output=join(project_dir, "climate_historical", "trends"),
+            path_output=join(project_dir, "climate_historical", "plots", "trends"),
             split_year=sm.params.split_year,
         )
 
