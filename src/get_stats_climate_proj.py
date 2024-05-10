@@ -1,103 +1,70 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Feb  1 14:34:58 2022
-
-@author: bouaziz
-"""
+"""Extract historical or future climate from a GCM model for a specific region."""
 
 import hydromt
 import os
-import glob
-import matplotlib.pyplot as plt
-import pandas as pd
+from os.path import join, dirname
+from pathlib import Path
 import geopandas as gpd
 import xarray as xr
+import pandas as pd
 
 from dask.diagnostics import ProgressBar
 
-# %%
-
-# Snakemake options
-project_dir = snakemake.params.project_dir
-region_fn = snakemake.input.region_fid
-path_yml = snakemake.params.yml_fid
-name_scenario = snakemake.params.name_scenario
-name_members = snakemake.params.name_members
-name_model = snakemake.params.name_model
-name_clim_project = snakemake.params.name_clim_project
-variables = snakemake.params.variables
-save_grids = snakemake.params.save_grids
+from typing import Union, List, Dict, Tuple, Optional
 
 # Time tuple for timeseries
-if name_clim_project == "cmip6":
-    if name_scenario == "historical":
-        # cmip6 historical 1850-2014
-        time_tuple_all = ("1950-01-01", "2014-12-31")
-    else:
-        # cmip6 future 2015-2100+ depending on models
-        time_tuple_all = ("2015-01-01", "2100-12-31")
-elif name_clim_project == "cmip5":
-    if name_scenario == "historical":
-        # cmip5 historical 1850-2005
-        time_tuple_all = ("1950-01-01", "2005-12-31")
-    else:
-        # cmip5 future 2006-2100
-        time_tuple_all = ("2006-01-01", "2100-12-31")
-else:  # isimip3
-    if name_scenario == "historical":
-        # isimip3 historical 1850-2014
-        time_tuple_all = ("1991-01-01", "2014-12-31")
-    else:
-        # isimip3 future 2015-2100 / p drive has gaps in between 2014-2021
-        time_tuple_all = ("2021-01-01", "2100-12-31")
-
-# additional folder structure info
-folder_model = os.path.join(project_dir, "hydrology_model")
-folder_out = os.path.join(project_dir, "climate_projections", name_clim_project)
-
-if not os.path.exists(folder_out):
-    os.mkdir(folder_out)
-
-# initialize model and region properties
-geom = gpd.read_file(region_fn)
-bbox = list(geom.geometry.bounds.values[0])
-buffer = 1
-
-# initialize data_catalog from yml file
-data_catalog = hydromt.DataCatalog(data_libs=path_yml)
+CLIM_PROJECT_TIME_TUPLE = {
+    "cmip6": {
+        "historical": ("1950-01-01", "2014-12-31"),
+        "future": ("2015-01-01", "2100-12-31"),
+    },
+    "cmip5": {
+        "historical": ("1950-01-01", "2005-12-31"),
+        "future": ("2006-01-01", "2100-12-31"),
+    },
+    "isimip3": {
+        "historical": ("1991-01-01", "2014-12-31"),
+        "future": ("2021-01-01", "2100-12-31"),
+    },
+}
 
 
 def get_stats_clim_projections(
     data,
-    name_clim_project,
-    name_model,
-    name_scenario,
-    name_member,
+    clim_source,
+    model,
+    scenario,
+    member,
     save_grids=False,
+    time_horizon=None,
 ):
     """
     Parameters
     ----------
     data: dataset
         dataset for all available variables after opening data catalog
-    name_clim_project : str
-        name of the climate project (e.g. cmip5, cmip6, isimip3).
+    clim_source : str
+        name of the climate project source (e.g. cmip5, cmip6, isimip3).
         should link to the name in the yml catalog.
-    name_model : str
+    model : str
         model name of the climate model (e.g. ipsl, gfdl).
-    name_scenario : str
+    scenario : str
         scenario name of the climate model (e.g. rcp4.5, rcp8.5).
-    name_member : str
+    member : str
         member name of the climate model (e.g. r1i1p1f1).
-    time_tuple : tuple
-        time period over which to calculate statistics.
     save_grids : bool
         save gridded stats as well as scalar stats. False by default.
+    time_horizon : dict
+        dictionary with time horizons to select before computing monthly regime.
+        several periods can be supplied if needed. the dictionary should have the
+        following format: {'period_name': ('start_year', 'end_year')}. default is None
 
     Returns
     -------
-    Writes a netcdf file with mean monthly precipitation and temperature regime (12 maps) over the geom.
-    todo: Writes a csv file with mean monthly timeseries of precip and temp statistics (mean) over the geom
+    Writes a netcdf file with mean monthly precipitation and temperature regime
+    (12 maps) over the geom.
+    todo: Writes a csv file with mean monthly timeseries of precip and temp statistics
+    (mean) over the geom
 
     """
 
@@ -113,12 +80,21 @@ def get_stats_clim_projections(
 
     ds = []
     ds_scalar = []
-    # filter variables for precip and temp
-    # data_vars = list(data.data_vars)
-    # var_list = [str for str in data_vars if any(sub in str for sub in variables)]
-    for var in data.data_vars:  # var_list:
+
+    for var in data.data_vars:
         if var == "precip":
             var_m = data[var].resample(time="MS").sum("time")
+            # for monthly cmip6 units is mm/day and not mm
+            if "units" in data[var].attrs and data[var].attrs["units"] == "mm/day":
+                # convert to mm/month by multiplying with number of days in month
+                days_in_month = pd.to_datetime(var_m.time.values).days_in_month
+                # convert days_in_month to xarray variable
+                days_in_month = xr.DataArray(
+                    days_in_month, dims=["time"], coords={"time": var_m.time}
+                )
+                var_m = var_m * days_in_month
+                var_m.name = "precip"
+                var_m.attrs["units"] = "mm"
         else:  # for temp
             # elif "temp" in var: #for temp
             var_m = data[var].resample(time="MS").mean("time")
@@ -129,32 +105,41 @@ def get_stats_clim_projections(
 
         # get grid average over time for each month
         if save_grids:
-            # slice over time_tuple to save minimal required info for the grid
-            # var_m = var_m.sel(time=slice(*time_tuple))
-            var_mm = var_m.groupby("time.month").mean("time").round(decimals=2)
-            ds.append(var_mm.to_dataset())
+            if time_horizon is not None:
+                for period_name, time_tuple in time_horizon.items():
+                    var_mm = var_m.sel(time=slice(*time_tuple))
+                    var_mm = var_mm.groupby("time.month").mean("time").round(decimals=2)
+                    # Add a new horizon dimension
+                    var_mm = var_mm.expand_dims(horizon=[period_name])
+                    var_mm = var_mm.transpose(..., "horizon")
+                    ds.append(var_mm.to_dataset())
+
+            # else compute stats over the whole period
+            else:
+                var_mm = var_m.groupby("time.month").mean("time").round(decimals=2)
+                ds.append(var_mm.to_dataset())
 
     # mean stats over grid and time
     mean_stats_time = xr.merge(ds_scalar)
-    # add coordinate on project, model, scenario, realization to later merge all files
+    # add coordinate on project, model, scenario, member to later merge all files
     mean_stats_time = mean_stats_time.assign_coords(
         {
-            "clim_project": f"{name_clim_project}",
-            "model": f"{name_model}",
-            "scenario": f"{name_scenario}",
-            "member": f"{name_member}",
+            "clim_project": f"{clim_source}",
+            "model": f"{model}",
+            "scenario": f"{scenario}",
+            "member": f"{member}",
         }
     ).expand_dims(["clim_project", "model", "scenario", "member"])
 
     if save_grids:
         mean_stats = xr.merge(ds)
-        # add coordinate on project, model, scenario, realization to later merge all files
+        # add coordinate on project, model, scenario, member to later merge all files
         mean_stats = mean_stats.assign_coords(
             {
-                "clim_project": f"{name_clim_project}",
-                "model": f"{name_model}",
-                "scenario": f"{name_scenario}",
-                "member": f"{name_member}",
+                "clim_project": f"{clim_source}",
+                "model": f"{model}",
+                "scenario": f"{scenario}",
+                "member": f"{member}",
             }
         ).expand_dims(["clim_project", "model", "scenario", "member"])
 
@@ -164,96 +149,213 @@ def get_stats_clim_projections(
     return mean_stats, mean_stats_time
 
 
-# check if model really exists from data catalog entry - else skip and provide empty ds??
+def extract_climate_projections_statistics(
+    region_fn: Union[str, Path],
+    data_catalog: Union[str, Path],
+    path_output: Union[str, Path],
+    clim_source: str,
+    scenario: str,
+    members: List[str],
+    model: str,
+    variables: List[str] = ["precip", "temp"],
+    save_grids: bool = False,
+    time_horizon: Optional[Dict[str, Tuple[str, str]]] = None,
+):
+    """
+    Extract climate projections statistics for a specific region.
 
-ds_members_mean_stats = []
-ds_members_mean_stats_time = []
+    Output is a netcdf file with mean monthly precipitation and temperature timeseries
+    averaged over the geom.
+    If save_grids is True, also writes a netcdf file with mean monthly regime of
+    precipitation and temperature statistics (12 maps) over the geom. The regimes
+    can be computed for specific time horizons instead of the entire period if needed.
 
-for name_member in name_members:
-    print(name_member)
-    entry = f"{name_clim_project}_{name_model}_{name_scenario}_{name_member}"
-    if entry in data_catalog:
-        try:  # todo can this be replaced by if statement?
-            data = data_catalog.get_rasterdataset(
-                entry,
-                bbox=bbox,
-                buffer=buffer,
-                time_tuple=time_tuple_all,
-                variables=variables,
-            )
-            # needed for cmip5/cmip6 cftime.Datetime360Day which is not picked up before.
-            data = data.sel(time=slice(*time_tuple_all))
-        except:
-            # if it is not possible to open all variables at once, loop over each one, remove duplicates and then merge:
-            ds_list = []
-            for var in variables:
-                try:
-                    data_ = data_catalog.get_rasterdataset(
-                        entry,
-                        bbox=bbox,
-                        buffer=buffer,
-                        time_tuple=time_tuple_all,
-                        variables=[var],
-                    )
-                    # drop duplicates if any
-                    data_ = data_.drop_duplicates(dim="time", keep="first")
-                    ds_list.append(data_)
-                except:
-                    print(f"{name_scenario}", f"{name_model}", f"{var} not found")
-            # merge all variables back to data
-            data = xr.merge(ds_list)
+    Parameters
+    ----------
+    region_fn : str, Path
+        Path to the region geodataframe file.
+    data_catalog : str, Path
+        Path to the data catalog yml file containing the climate source info.
+    path_output : str, Path
+        Path to the output folder.
+    clim_source : str
+        Name of the climate project source (e.g. cmip5, cmip6, isimip3). Should link to
+        the name in the yml catalog.
+        Allowed climate project sources are: [cmip5, cmip6, isimip3].
+    scenario : str
+        Scenario name of the climate model (e.g. historical, ssp245, ssp585).
+        Depends on the climate source.
+    members : list
+        List of member names of the climate model (e.g. r1i1p1f1). Depends on the
+        climate source.
+    model : str
+        Model name of the climate model (e.g. 'NOAA-GFDL/GFDL-ESM4', 'INM/INM-CM5-0').
+        Depends on the climate source.
+    variables : list
+        List of variables to extract (e.g. ['precip', 'temp']). Variables should be
+        present in the climate source.
+    save_grids : bool
+        Save gridded stats as well as scalar stats. False by default.
+    time_horizon : dict
+        Dictionary with time horizons to select before computing monthly regime. Several
+        periods can be supplied if needed. The dictionary should have the following
+        format: {'period_name': ('start_year', 'end_year')}. Default is None to select
+        the entire period. If time horizon is given, an extra dimension will be added to
+        the output netcdf file.
+    """
+    # initialize model and region properties
+    geom = gpd.read_file(region_fn)
+    bbox = list(geom.geometry.bounds.values[0])
+    buffer = 1
 
-        # calculate statistics
-        mean_stats, mean_stats_time = get_stats_clim_projections(
-            data,
-            name_clim_project,
-            name_model,
-            name_scenario,
-            name_member,
-            save_grids=save_grids,
+    # initialize data_catalog from yml file
+    data_catalog = hydromt.DataCatalog(data_libs=data_catalog)
+
+    # Check climate source name and get time_tuple
+    if clim_source not in CLIM_PROJECT_TIME_TUPLE.keys():
+        raise ValueError(
+            f"Climate source {clim_source} not supported. "
+            f"Please choose from {CLIM_PROJECT_TIME_TUPLE.keys()}"
         )
-
+    if scenario == "historical":
+        time_tuple = CLIM_PROJECT_TIME_TUPLE[clim_source]["historical"]
     else:
-        mean_stats = xr.Dataset()
-        mean_stats_time = xr.Dataset()
+        time_tuple = CLIM_PROJECT_TIME_TUPLE[clim_source]["future"]
 
-    # merge members results
-    ds_members_mean_stats.append(mean_stats)
-    ds_members_mean_stats_time.append(mean_stats_time)
+    # check if model really exists from data catalog entry
+    # else skip and provide empty ds
+    ds_members_mean_stats = []
+    ds_members_mean_stats_time = []
 
-if save_grids:
-    nc_mean_stats = xr.merge(ds_members_mean_stats)
-else:
-    nc_mean_stats = xr.Dataset()
-nc_mean_stats_time = xr.merge(ds_members_mean_stats_time)
+    for member in members:
+        print(member)
+        entry = f"{clim_source}_{model}_{scenario}_{member}"
+        if entry in data_catalog:
+            try:  # todo can this be replaced by if statement?
+                data = data_catalog.get_rasterdataset(
+                    entry,
+                    bbox=bbox,
+                    buffer=buffer,
+                    time_tuple=time_tuple,
+                    variables=variables,
+                )
+                # needed for cmip5/cmip6 cftime.Datetime360Day which is not picked up
+                data = data.sel(time=slice(*time_tuple))
+            except:
+                # if it is not possible to open all variables at once,
+                # loop over each one, remove duplicates and then merge:
+                ds_list = []
+                for var in variables:
+                    try:
+                        data_ = data_catalog.get_rasterdataset(
+                            entry,
+                            bbox=bbox,
+                            buffer=buffer,
+                            time_tuple=time_tuple,
+                            variables=[var],
+                        )
+                        # drop duplicates if any
+                        data_ = data_.drop_duplicates(dim="time", keep="first")
+                        ds_list.append(data_)
+                    except:
+                        print(f"{scenario}", f"{model}", f"{var} not found")
+                # merge all variables back to data
+                data = xr.merge(ds_list)
 
-# write netcdf:
+            # calculate statistics
+            mean_stats, mean_stats_time = get_stats_clim_projections(
+                data,
+                clim_source,
+                model,
+                scenario,
+                member,
+                save_grids=save_grids,
+                time_horizon=time_horizon,
+            )
 
-# use hydromt function instead to write to netcdf?
-dvars = nc_mean_stats_time.raster.vars
+        else:
+            mean_stats = xr.Dataset()
+            mean_stats_time = xr.Dataset()
 
-if name_scenario == "historical":
-    name_nc_out = f"historical_stats_{name_model}.nc"
-    name_nc_out_time = f"historical_stats_time_{name_model}.nc"
-else:
-    name_nc_out = f"stats-{name_model}_{name_scenario}.nc"
-    name_nc_out_time = f"stats_time-{name_model}_{name_scenario}.nc"
+        # merge members results
+        ds_members_mean_stats.append(mean_stats)
+        ds_members_mean_stats_time.append(mean_stats_time)
 
-print("writing stats over time to nc")
-delayed_obj = nc_mean_stats_time.to_netcdf(
-    os.path.join(folder_out, name_nc_out_time),
-    encoding={k: {"zlib": True} for k in dvars},
-    compute=False,
-)
-with ProgressBar():
-    delayed_obj.compute()
+    if save_grids:
+        nc_mean_stats = xr.merge(ds_members_mean_stats)
+    else:
+        nc_mean_stats = xr.Dataset()
+    nc_mean_stats_time = xr.merge(ds_members_mean_stats_time)
 
-if save_grids:
-    print("writing stats over grid to nc")
-    delayed_obj = nc_mean_stats.to_netcdf(
-        os.path.join(folder_out, name_nc_out),
+    # write netcdf:
+
+    # use hydromt function instead to write to netcdf?
+    dvars = nc_mean_stats_time.data_vars
+
+    if scenario == "historical":
+        name_nc_out = f"historical_stats_{model}.nc"
+        name_nc_out_time = f"historical_stats_time_{model}.nc"
+    else:
+        name_nc_out = f"stats-{model}_{scenario}.nc"
+        name_nc_out_time = f"stats_time-{model}_{scenario}.nc"
+
+    # Create output dir (model name can contain subfolders)
+    dir_output = dirname(join(path_output, name_nc_out_time))
+    if not os.path.exists(dir_output):
+        os.makedirs(dir_output)
+
+    print("writing stats over time to nc")
+    delayed_obj = nc_mean_stats_time.to_netcdf(
+        join(path_output, name_nc_out_time),
         encoding={k: {"zlib": True} for k in dvars},
         compute=False,
     )
     with ProgressBar():
         delayed_obj.compute()
+
+    if save_grids:
+        print("writing stats over grid to nc")
+
+        # Create output dir (model name can contain subfolders)
+        dir_output = dirname(join(path_output, name_nc_out))
+        if not os.path.exists(dir_output):
+            os.makedirs(dir_output)
+
+        delayed_obj = nc_mean_stats.to_netcdf(
+            join(path_output, name_nc_out),
+            encoding={k: {"zlib": True} for k in dvars},
+            compute=False,
+        )
+        with ProgressBar():
+            delayed_obj.compute()
+
+
+if __name__ == "__main__":
+    if "snakemake" in globals():
+        sm = globals()["snakemake"]
+
+        # Snakemake options
+        project_dir = sm.params.project_dir
+        name_clim_project = sm.params.name_clim_project
+        path_output = join(project_dir, "climate_projections", name_clim_project)
+
+        # Convert time horizons from string to tuple
+        time_horizon = sm.params.time_horizon
+        for key, value in time_horizon.items():
+            time_horizon[key] = tuple(map(str, value.split(", ")))
+
+        extract_climate_projections_statistics(
+            region_fn=sm.input.region_fid,
+            data_catalog=sm.params.yml_fid,
+            path_output=path_output,
+            clim_source=name_clim_project,
+            scenario=sm.params.name_scenario,
+            members=sm.params.name_members,
+            model=sm.params.name_model,
+            variables=sm.params.variables,
+            save_grids=sm.params.save_grids,
+            time_horizon=time_horizon,
+        )
+
+    else:
+        print("This script should be run from a snakemake environment")

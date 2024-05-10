@@ -68,7 +68,6 @@ rule select_region:
         basin_index_fn = get_config(config, "basin_index_fn", "merit_hydro_index"),
     output:
         region_file = f"{project_dir}/region/region.geojson",
-        region_buffer_file = f"{project_dir}/region/region_buffer.geojson",
     script:
         "../src/derive_region.py"
 
@@ -78,7 +77,6 @@ rule monthly_stats_hist:
     input:
         region_fid = ancient(f"{project_dir}/region/region.geojson"),
     output:
-        #stats_nc_hist = (clim_project_dir + "/historical_stats_{model}.nc"),
         stats_time_nc_hist = temp(clim_project_dir + "/historical_stats_time_{model}.nc"),
     params:
         yml_fid = DATA_SOURCES_CLIMATE,
@@ -89,6 +87,7 @@ rule monthly_stats_hist:
         name_clim_project = clim_project,
         variables = variables,
         save_grids = save_grids,
+        time_horizon = {"historical": get_config(config, "historical", optional=False)},
     script: "../src/get_stats_climate_proj.py"
 
 # Rule to calculate mean monthly statistics for historical and future scenarios - grid saved to netcdf
@@ -96,10 +95,8 @@ rule monthly_stats_hist:
 rule monthly_stats_fut:
     input:
         region_fid = ancient(f"{project_dir}/region/region.geojson"),
-        #stats_nc_hist = ancient(clim_project_dir + "/historical_stats_{model}.nc"), #make sure starts with previous job
         stats_time_nc_hist = (clim_project_dir + "/historical_stats_time_{model}.nc"), #make sure starts with previous job
     output:
-        #stats_nc = (clim_project_dir + "/stats-{model}_{scenario}_{horizon}.nc"),
         stats_time_nc = temp(clim_project_dir + "/stats_time-{model}_{scenario}.nc"),
     params:
         yml_fid = DATA_SOURCES_CLIMATE,
@@ -110,6 +107,7 @@ rule monthly_stats_fut:
         name_clim_project = clim_project,
         variables = variables,
         save_grids = save_grids,
+        time_horizon = get_config(config, "future_horizons", optional=False),
     script: "../src/get_stats_climate_proj.py"
 
 # Rule to calculate change stats over the grid

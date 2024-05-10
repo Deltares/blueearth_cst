@@ -2,7 +2,6 @@
 Open monthly change files for all models/scenarios/horizon and compute/plot statistics
 """
 
-import hydromt
 import os
 from pathlib import Path
 import seaborn as sns
@@ -27,7 +26,7 @@ def summary_climate_proj(
     horizons: Dict,
 ):
     """
-    Compute climate change statitistics for all models/scenario/horizons.
+    Compute climate change statistics for all models/scenario/horizons.
 
     Also prepare response surface plot.
 
@@ -46,6 +45,9 @@ def summary_climate_proj(
         Time horizon names and start and end year separated with a comma.
         E.g {"far": "2070, 2100", "near": "2030, 2060"}
     """
+    if not os.path.exists(clim_dir):
+        os.makedirs(clim_dir)
+
     # merge summary maps across models, scnearios and horizons.
     prefix = "annual_change_scalar_stats"
     # for prefix in prefixes:
@@ -60,7 +62,7 @@ def summary_climate_proj(
     ds = xr.open_mfdataset(
         list_files_not_empty, coords="minimal", preprocess=preprocess_coords
     )
-    dvars = ds.raster.vars
+    dvars = ds.data_vars
     name_nc_out = f"{prefix}_summary.nc"
     ds.to_netcdf(
         os.path.join(clim_dir, name_nc_out),
