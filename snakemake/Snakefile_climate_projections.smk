@@ -1,51 +1,32 @@
 import itertools
 import sys
 
+from get_config import get_config
+
 # read path of the config file to give to the weagen scripts
 args = sys.argv
 config_path = args[args.index("--configfile") + 1]
 
 # Parsing the Snakemake config file (options for basins to build, data catalog, model output directory)
-# Function to get argument from config file and return default value if not found
-def get_config(config, arg, default=None, optional=True):
-    """
-    Function to get argument from config file and return default value if not found
-
-    Parameters
-    ----------
-    config : dict
-        config file
-    arg : str   
-        argument to get from config file
-    default : str/int/float/list, optional
-        default value if argument not found, by default None
-    optional : bool, optional
-        if True, argument is optional, by default True
-    """
-    if arg in config:
-        return config[arg]
-    elif optional:
-        return default
-    else:
-        raise ValueError(f"Argument {arg} not found in config file")
-
 project_dir = get_config(config, 'project_dir', optional=False)
-DATA_SOURCES = get_config(config, "data_sources_climate", optional=False)
+DATA_SOURCES = get_config(config, "data_sources", [])
+DATA_SOURCES_CLIMATE = get_config(config, "data_sources_climate", optional=False)
+data_catalogs = []
+data_catalogs.extend(DATA_SOURCES)
+data_catalogs.extend(DATA_SOURCES_CLIMATE)
 
 clim_project = get_config(config, "clim_project", optional=False)
 models = get_config(config, "models", optional=False)
 scenarios = get_config(config, "scenarios", optional=False)
 members = get_config(config, "members", optional=False)
 variables = get_config(config, "variables", optional=False)
-
-start_month_hyd_year = get_config(config, "start_month_hyd_year", "Jan")
-time_horizon_hist = get_config(config, "historical", optional=False)
 future_horizons = get_config(config, "future_horizons", optional=False)
 
 save_grids = get_config(config, "save_grids", False)
 
 basin_dir = f"{project_dir}/hydrology_model"
 clim_project_dir = f"{project_dir}/climate_projections/{clim_project}"
+region_default = {"geom": f"{basin_dir}/staticgeoms/region.geojson"}
 
 ### Dictionary elements from the config based on wildcards
 def get_horizon(wildcards):
@@ -70,23 +51,37 @@ rule copy_config:
     input:
         config_snake = config_path,
     params:
-        data_catalogs = DATA_SOURCES,
+        data_catalogs = data_catalogs,
         workflow_name = "climate_projections",
     output:
         config_snake_out = f"{project_dir}/config/snake_config_climate_projections.yml",
     script:
         "../src/copy_config_files.py"
 
+# Rule to derive the region of interest from the hydromt region dictionary
+rule select_region:
+    params:
+        hydromt_region = get_config(config, "model_region", optional=region_default),
+        buffer_km = get_config(config, "region_buffer", 10),
+        data_catalog = DATA_SOURCES,
+        hydrography_fn = get_config(config, "hydrography_fn", "merit_hydro"),
+        basin_index_fn = get_config(config, "basin_index_fn", "merit_hydro_index"),
+    output:
+        region_file = f"{project_dir}/region/region.geojson",
+        region_buffer_file = f"{project_dir}/region/region_buffer.geojson",
+    script:
+        "../src/derive_region.py"
+
 # Rule to calculate mean monthly statistics for historical and future scenarios - grid saved to netcdf
 # also calculate monthly time series averaged over the grid.
 rule monthly_stats_hist:
     input:
-        region_fid = ancient(f"{basin_dir}/staticgeoms/region.geojson"),
+        region_fid = ancient(f"{project_dir}/region/region.geojson"),
     output:
         #stats_nc_hist = (clim_project_dir + "/historical_stats_{model}.nc"),
         stats_time_nc_hist = temp(clim_project_dir + "/historical_stats_time_{model}.nc"),
     params:
-        yml_fid = DATA_SOURCES,
+        yml_fid = DATA_SOURCES_CLIMATE,
         project_dir = f"{project_dir}",
         name_scenario = "historical",
         name_members = members,
@@ -100,14 +95,14 @@ rule monthly_stats_hist:
 # also calculate monthly time series averaged over the grid.
 rule monthly_stats_fut:
     input:
-        region_fid = ancient(f"{basin_dir}/staticgeoms/region.geojson"),
+        region_fid = ancient(f"{project_dir}/region/region.geojson"),
         #stats_nc_hist = ancient(clim_project_dir + "/historical_stats_{model}.nc"), #make sure starts with previous job
         stats_time_nc_hist = (clim_project_dir + "/historical_stats_time_{model}.nc"), #make sure starts with previous job
     output:
         #stats_nc = (clim_project_dir + "/stats-{model}_{scenario}_{horizon}.nc"),
         stats_time_nc = temp(clim_project_dir + "/stats_time-{model}_{scenario}.nc"),
     params:
-        yml_fid = DATA_SOURCES,
+        yml_fid = DATA_SOURCES_CLIMATE,
         project_dir = f"{project_dir}",
         name_scenario = "{scenario}",
         name_members = members,
@@ -126,11 +121,11 @@ rule monthly_change:
         stats_nc_change = temp(clim_project_dir + "/annual_change_scalar_stats-{model}_{scenario}_{horizon}.nc"),
     params:
         clim_project_dir = f"{clim_project_dir}",
-        start_month_hyd_year = start_month_hyd_year, 
+        start_month_hyd_year = get_config(config, "start_month_hyd_year", "Jan"), 
         name_model = "{model}",
         name_scenario = "{scenario}",
         name_horizon = "{horizon}",
-        time_horizon_hist = time_horizon_hist,
+        time_horizon_hist = get_config(config, "historical", optional=False),
         time_horizon_fut = get_horizon,
         save_grids = save_grids,
         stats_nc_hist = (clim_project_dir + "/historical_stats_{model}.nc"),

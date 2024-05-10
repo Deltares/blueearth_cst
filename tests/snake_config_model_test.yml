@@ -62,7 +62,7 @@ future_horizons:
   far: 2090, 2100
 
 # Additional gridded outputs (else only basin average)
-save_grids: FALSE
+save_grids: TRUE
 
 ###########################################################################################
 ################################## Stress Test Experiment #################################

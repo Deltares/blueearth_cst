@@ -28,4 +28,3 @@ def test_snakefile_cli(snakefile):
     result = subprocess.run(cmd, shell=True, capture_output=True)
     # Check the output of the subprocess command
     assert result.returncode == 0
-    # assert result.stdout == b'Hello, world!\n'

@@ -6,35 +6,13 @@ from typing import Dict, Union
 import yaml
 import pytest
 
+from ..snakemake.get_config import get_config
+
 TESTDIR = dirname(realpath(__file__))
 MAINDIR = join(TESTDIR, "..")
 SAMPLE_PROJECTDIR = join(TESTDIR, "test_project_sample")
 
 config_fn = join(TESTDIR, "snake_config_model_test.yml")
-
-
-# Function to get argument from config file and return default value if not found
-def get_config(config, arg, default=None, optional=True):
-    """
-    Function to get argument from config file and return default value if not found
-
-    Parameters
-    ----------
-    config : dict
-        config file
-    arg : str
-        argument to get from config file
-    default : str/int/float/list, optional
-        default value if argument not found, by default None
-    optional : bool, optional
-        if True, argument is optional, by default True
-    """
-    if arg in config:
-        return config[arg]
-    elif optional:
-        return default
-    else:
-        raise ValueError(f"Argument {arg} not found in config file")
 
 
 @pytest.fixture()
@@ -59,6 +37,14 @@ def data_sources(config) -> Union[str, Path]:
     data_sources = get_config(config, "data_sources", optional=False)
     data_sources = join(MAINDIR, data_sources)
     return data_sources
+
+
+@pytest.fixture()
+def data_sources_climate(config) -> Union[str, Path]:
+    """Return data sources climate"""
+    data_sources_climate = get_config(config, "data_sources_climate", optional=False)
+    data_sources_climate = join(MAINDIR, data_sources_climate)
+    return data_sources_climate
 
 
 @pytest.fixture()
