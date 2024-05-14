@@ -78,6 +78,7 @@ rule monthly_stats_hist:
         region_fid = ancient(f"{project_dir}/region/region.geojson"),
     output:
         stats_time_nc_hist = temp(clim_project_dir + "/historical_stats_time_{model}.nc"),
+        stats_grid_nc_hist = temp(clim_project_dir + "/historical_stats_{model}.nc") if save_grids else None,
     params:
         yml_fid = DATA_SOURCES_CLIMATE,
         project_dir = f"{project_dir}",
@@ -96,8 +97,10 @@ rule monthly_stats_fut:
     input:
         region_fid = ancient(f"{project_dir}/region/region.geojson"),
         stats_time_nc_hist = (clim_project_dir + "/historical_stats_time_{model}.nc"), #make sure starts with previous job
+        stats_grid_nc_hist = (clim_project_dir + "/historical_stats_{model}.nc") if save_grids else None,
     output:
         stats_time_nc = temp(clim_project_dir + "/stats_time-{model}_{scenario}.nc"),
+        stats_grid_nc = temp(clim_project_dir + "/stats-{model}_{scenario}.nc") if save_grids else None,
     params:
         yml_fid = DATA_SOURCES_CLIMATE,
         project_dir = f"{project_dir}",
@@ -115,8 +118,11 @@ rule monthly_change:
     input:
         stats_time_nc_hist = ancient(clim_project_dir + "/historical_stats_time_{model}.nc"),
         stats_time_nc = ancient(clim_project_dir + "/stats_time-{model}_{scenario}.nc"),
+        stats_grid_nc_hist = ancient(clim_project_dir + "/historical_stats_{model}.nc") if save_grids else None,
+        stats_grid_nc = ancient(clim_project_dir + "/stats-{model}_{scenario}.nc") if save_grids else None,
     output:
         stats_nc_change = temp(clim_project_dir + "/annual_change_scalar_stats-{model}_{scenario}_{horizon}.nc"),
+        monthly_change_mean_grid = (clim_project_dir + "/monthly_change_mean_grid-{model}_{scenario}_{horizon}.nc") if save_grids else None,
     params:
         clim_project_dir = f"{clim_project_dir}",
         start_month_hyd_year = get_config(config, "start_month_hyd_year", "Jan"), 
@@ -126,8 +132,8 @@ rule monthly_change:
         time_horizon_hist = get_config(config, "historical", optional=False),
         time_horizon_fut = get_horizon,
         save_grids = save_grids,
-        stats_nc_hist = (clim_project_dir + "/historical_stats_{model}.nc"),
-        stats_nc = (clim_project_dir + "/stats-{model}_{scenario}.nc"),
+        #stats_nc_hist = (clim_project_dir + "/historical_stats_{model}.nc"),
+        #stats_nc = (clim_project_dir + "/stats-{model}_{scenario}.nc"),
     script: "../src/get_change_climate_proj.py"
 
 #rule to merge results in one netcdf / todo: add plotting
@@ -142,6 +148,7 @@ rule monthly_change_scalar_merge:
     params:
         clim_project_dir = f"{clim_project_dir}",
         horizons = future_horizons,
+        save_grids = save_grids,
     script: "../src/get_change_climate_proj_summary.py"
 
 #rule to plot timeseries
@@ -150,14 +157,15 @@ rule plot_climate_proj_timeseries:
         stats_change_summary = (clim_project_dir + "/annual_change_scalar_stats_summary.nc"),
         stats_time_nc_hist =[(clim_project_dir + f"/historical_stats_time_{mod}.nc") for mod in models],
         stats_time_nc = expand((clim_project_dir + "/stats_time-{model}_{scenario}.nc"), model = models, scenario = scenarios),
+        monthly_change_mean_grid = expand((clim_project_dir + "/monthly_change_mean_grid-{model}_{scenario}_{horizon}.nc"), model = models, scenario = scenarios, horizon = future_horizons) if save_grids else None,
     params:
         clim_project_dir = f"{clim_project_dir}",
         scenarios = scenarios,
         horizons = future_horizons,
-        save_grids = save_grids,
-        change_grids = [(clim_project_dir + f"/monthly_change_mean_grid-{mod}_{sc}_{hz}.nc") for mod,sc,hz in list(itertools.product(models,scenarios,future_horizons))],
+        #save_grids = save_grids,
+        #change_grids = [(clim_project_dir + f"/monthly_change_mean_grid-{mod}_{sc}_{hz}.nc") for mod,sc,hz in list(itertools.product(models,scenarios,future_horizons))],
     output:
         precip_plt = (clim_project_dir + "/plots/precipitation_anomaly_projections_abs.png"),
         temp_plt = (clim_project_dir + "/plots/temperature_anomaly_projections_abs.png"),
-        timeseries_csv = (clim_project_dir + "/gcm_timeseries.nc"),
+        timeseries_nc = (clim_project_dir + "/gcm_timeseries.nc"),
     script: "../src/plot_proj_timeseries.py"

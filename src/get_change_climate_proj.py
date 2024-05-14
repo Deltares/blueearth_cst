@@ -373,8 +373,8 @@ if __name__ == "__main__":
 
         if save_grids:
             get_expected_change_grid(
-                nc_historical=sm.params.stats_nc_hist,
-                nc_future=sm.params.stats_nc,
+                nc_historical=sm.input.stats_grid_nc_hist,
+                nc_future=sm.input.stats_grid_nc,
                 path_output=sm.params.clim_project_dir,
                 name_horizon=sm.params.name_horizon,
                 name_model=sm.params.name_model,

@@ -8,7 +8,7 @@ import seaborn as sns
 import xarray as xr
 import numpy as np
 
-from typing import Union, List, Dict
+from typing import Union, List, Dict, Optional
 
 
 def preprocess_coords(ds: xr.Dataset) -> xr.Dataset:
@@ -23,7 +23,7 @@ def preprocess_coords(ds: xr.Dataset) -> xr.Dataset:
 def summary_climate_proj(
     clim_dir: Union[Path, str],
     clim_files: List[Union[Path, str]],
-    horizons: Dict,
+    horizons: Dict[str, str],
 ):
     """
     Compute climate change statistics for all models/scenario/horizons.

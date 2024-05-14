@@ -17,6 +17,7 @@ from ..src import derive_region
 from ..src import get_stats_climate_proj
 from ..src import get_change_climate_proj
 from ..src import get_change_climate_proj_summary
+from ..src import plot_proj_timeseries
 
 config_fn = join(TESTDIR, "snake_config_model_test.yml")
 
@@ -245,6 +246,7 @@ def test_monthly_change(tmpdir):
 def test_monthly_change_scalar_merge(tmpdir, config):
     """Test merging and outputs of the scalar change files."""
     clim_dir = join(tmpdir, "climate_projections", "cmip6")
+    # Scalar files
     clim_folders = glob.glob(
         join(
             SAMPLE_PROJECTDIR,
@@ -276,3 +278,97 @@ def test_monthly_change_scalar_merge(tmpdir, config):
     assert "precip" in df.columns
     assert np.round(max(df["precip"]), 2) == 11.83
     assert np.round(min(df["temp"]), 2) == 1.19
+
+
+def test_plot_climate_projections(tmpdir):
+    """Test plotting the climate projections scalar and gridded."""
+    # Historical files
+    clim_folders = glob.glob(
+        join(
+            SAMPLE_PROJECTDIR,
+            "climate_projections",
+            "cmip6",
+            "historical_stats_time_*",
+        )
+    )
+    nc_historical = []
+    for folder in clim_folders:
+        nc_historical.extend(glob.glob(join(folder, "*.nc")))
+
+    # Future files
+    clim_folders = glob.glob(
+        join(
+            SAMPLE_PROJECTDIR,
+            "climate_projections",
+            "cmip6",
+            "stats_time-*",
+        )
+    )
+    nc_future = []
+    for folder in clim_folders:
+        nc_future.extend(glob.glob(join(folder, "*.nc")))
+
+    # Grid files
+    clim_folders_grid = glob.glob(
+        join(
+            SAMPLE_PROJECTDIR,
+            "climate_projections",
+            "cmip6",
+            "monthly_change_mean_grid*",
+        )
+    )
+    grid_files = []
+    for folder in clim_folders_grid:
+        grid_files.extend(glob.glob(join(folder, "*.nc")))
+
+    path_output = join(tmpdir, "climate_projections", "cmip6")
+    plot_proj_timeseries.plot_climate_projections(
+        nc_historical=nc_historical,
+        nc_future=nc_future,
+        path_output=path_output,
+        scenarios=["ssp245", "ssp585"],
+        horizons=["near", "far"],
+        nc_grid_projections=grid_files,
+    )
+
+    # Check if the files were created
+    assert isfile(
+        join(path_output, "plots", "precipitation_anomaly_projections_abs.png")
+    )
+    assert isfile(join(path_output, "plots", "temperature_anomaly_projections_abs.png"))
+    assert isfile(
+        join(path_output, "plots", "precipitation_anomaly_projections_anom.png")
+    )
+    assert isfile(
+        join(path_output, "plots", "temperature_anomaly_projections_anom.png")
+    )
+    assert isfile(
+        join(path_output, "plots", "precipitation_monthly_projections_abs.png")
+    )
+    assert isfile(join(path_output, "plots", "temperature_monthly_projections_abs.png"))
+    assert isfile(
+        join(path_output, "plots", "precipitation_monthly_projections_anom.png")
+    )
+    assert isfile(
+        join(path_output, "plots", "temperature_monthly_projections_anom.png")
+    )
+
+    # Check for a couple of grid plots
+    assert isfile(
+        join(
+            path_output,
+            "plots",
+            "gridded_monthly_precipitation_change_ssp245_far-future-horizon.png",
+        )
+    )
+    assert isfile(
+        join(
+            path_output,
+            "plots",
+            "gridded_precipitation_change_ssp245_far-future-horizon.png",
+        )
+    )
+
+    # Merged files
+    assert isfile(join(path_output, "gcm_timeseries.nc"))
+    assert isfile(join(path_output, "gcm_grid_factors_025.nc"))
