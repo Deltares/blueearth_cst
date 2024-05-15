@@ -1,4 +1,5 @@
 """Function to update a wflow model and add gauges and outputs"""
+
 from hydromt_wflow import WflowModel
 import os
 from os.path import join

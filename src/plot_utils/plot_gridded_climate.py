@@ -58,15 +58,17 @@ def plot_gridded_precip(
     min_precip = min([v.min().values for v in precip_dict.values()])
 
     # Plot the precipitation in one figure
-    fig, ax = plt.subplots(1, len(precip_dict), figsize=(16 / 2.54, 8 / 2.54), sharex=True, sharey=True)
+    fig, ax = plt.subplots(
+        1, len(precip_dict), figsize=(16 / 2.54, 8 / 2.54), sharex=True, sharey=True
+    )
     fs = 8
     for i in range(len(precip_dict)):
         k = list(precip_dict.keys())[i]
         v = precip_dict[k]
         v.plot(ax=ax[i], label=k, vmin=min_precip, vmax=max_precip, cmap="viridis")
-        #add outline basin
+        # add outline basin
         if gdf_region is not None:
-            gdf_region.plot(ax=ax[i], facecolor ="None")
+            gdf_region.plot(ax=ax[i], facecolor="None")
         ax[i].set_title(k, fontsize=fs)
         ax[i].set_xlabel("Longitude", fontsize=fs)
         ax[i].set_ylabel("Latitude", fontsize=fs)

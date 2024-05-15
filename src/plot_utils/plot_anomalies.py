@@ -109,7 +109,7 @@ def plot_gridded_anomalies(
 
         if gdf_region is not None:
             for ax in p.axes.flatten():
-                gdf_region.plot(ax=ax, facecolor ="None")
+                gdf_region.plot(ax=ax, facecolor="None")
 
         # Save the plots
         if not os.path.exists(path_output):

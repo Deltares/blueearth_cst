@@ -1,4 +1,5 @@
 """Function to update a wflow model and add gauges and outputs"""
+
 from hydromt_wflow import WflowModel
 from hydromt.exceptions import NoDataException
 from hydromt.cli.cli_utils import parse_config
