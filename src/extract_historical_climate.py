@@ -1,4 +1,5 @@
 """Extract historical climate data for a given region and time period."""
+
 import os
 from os.path import join
 from pathlib import Path

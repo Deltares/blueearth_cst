@@ -39,3 +39,15 @@ era5_orography:
     source_license: https://cds.climate.copernicus.eu/cdsapp/#!/terms/licence-to-use-copernicus-products
     source_url: https://apps.ecmwf.int/codes/grib/param-db?id=129
   crs: 4326
+eca_climate:
+  data_type: GeoDataset
+  driver: vector
+  path: observations/climate-locations-eca.csv
+  crs: 4326
+  driver_kwargs:
+    index_col: 0
+    fn_data: observations/observations-climate-eca.csv
+    index_dim: id
+    var_name: precip
+  meta:
+    category: meteo
