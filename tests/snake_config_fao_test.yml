@@ -1,9 +1,14 @@
-
 ###########################################################################################
 #################################### General settings ######################################
 
 # Path to where the wflow model will be stored (include the project name)
 project_dir: tests/test_project
+
+# hydromt "region" for building the model, coordinates are in EPSG 4326
+# for more info on how to fill this, you can see the hydromt documentation: 
+# https://deltares.github.io/hydromt/latest/user_guide/cli.html#region-options
+# For wflow please use either 'basin' or 'subbasin' keywords
+model_region: "{'subbasin': [12.3758, 46.4076], 'uparea': 70}"
 
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
 # NB: should be ordered from most recent to use last! 
@@ -11,16 +16,15 @@ data_catalogs:
   - artifact_data
   - tests/data/tests_data_catalog.yml
 
-# Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
-#data_sources_climate: config/deltares_data_climate_projections.yml
-data_sources_climate: config/cmip6_data.yml
-
 # Info on the historical climate data is used in the historic model run + reference data for the weather generator
 # Time horizon of the historical period
 starttime: "2000-01-01T00:00:00"
 endtime: "2010-12-31T00:00:00"
 
-# Historical climate data source (name as available in the data_sources catalog file). Either [era5, chirps_global, chirps, eobs].
+# Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
+data_sources_future_climate: config/cmip6_data.yml
+
+# Historical gridded climate data sources (name as available in the data_sources catalog file). Either [era5, chirps_global, chirps, eobs].
 clim_historical: 
   - era5
   - chirps_global
@@ -35,11 +39,6 @@ wflow_outvars: ['river discharge', 'precipitation', 'overland flow', 'actual eva
 ###########################################################################################
 #################################### Model building #######################################
 
-# hydromt "region" for building the model, coordinates are in EPSG 4326
-# for more info on how to fill this, you can see the hydromt documentation: 
-# https://deltares.github.io/hydromt/latest/user_guide/cli.html#region-options
-# For wflow please use either 'basin' or 'subbasin' keywords
-model_region: "{'subbasin': [12.3758, 46.4076], 'uparea': 70}"
 # Grid resolution of the model in degrees
 model_resolution: 0.0166666
 # Path to model build configuration
@@ -52,4 +51,31 @@ output_locations: "tests/data/observations/discharge-locations-grdc.csv" # If se
 # Path to the file with observed discharge timeseries per station 
 observations_timeseries: "tests/data/observations/observations-discharge-grdc.csv" 
 
+###########################################################################################
+#################################### Analysis of historical climate data #######################################
 
+
+# Buffer in km to apply to the region for the climate analysis
+region_buffer: 10
+# Hydrography dataset to use to derive region from (sub)basin
+hydrography_fn: merit_hydro_1k
+
+
+# Additional sub-basins or sub-regions to include in the analysis
+climate_subregions: None
+
+# If available, please here put the path to the available climate observation stations locations files
+# csv file containing three columns: station_ID, name, x, y
+climate_locations: "tests/data/observations/climate-locations-eca.csv"
+# Path to the file with observed discharge timeseries per station 
+climate_locations_timeseries: "tests/data/observations/observations-climate-eca.csv" 
+
+# Thresholds for the climate analysis
+# Precipitation peak threshold in mm/day
+precipitation_peak_threshold: 40
+# Precipitation daily mean dry threshold in mm/day
+precipitation_dry_threshold: 0.2
+# Heat daily mean temperature threshold in degrees Celsius
+temperature_heat_threshold: 25
+# Split year for the timeseries trends
+split_year_trend: 2005

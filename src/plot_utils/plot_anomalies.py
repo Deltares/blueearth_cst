@@ -9,10 +9,10 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from matplotlib import colors
 
-import scipy.stats as stats
-
 import xarray as xr
 import numpy as np
+import scipy.stats as stats
+import geopandas as gpd
 
 __all__ = ["plot_gridded_anomalies", "plot_timeseries_anomalies"]
 
@@ -78,17 +78,22 @@ def plot_gridded_anomalies(
     ds: xr.Dataset,
     path_output: Union[str, Path],
     suffix: Optional[str] = None,
+    gdf_region: Optional[gpd.GeoDataFrame] = None,
 ):
-    """Plot gridded historical anomalies for a specific region.
+    """Plot gridded historical annual anomalies for a specific region.
 
     Parameters
     ----------
     ds : xr.Dataset
         Dataset with the gridded climate data.
+
+        Supported variables: ["precip", "temp"]
     path_output : str or Path
         Path to the output directory where the plots are stored.
     suffix : str, optional
         Suffix to add to the output filename.
+    gdf_region : gpd.GeoDataFrame, optional
+        The total region of the project to add to the inset map if provided.
     """
 
     # Mask nodata
@@ -103,7 +108,7 @@ def plot_gridded_anomalies(
         minmax = max(abs(np.nanmin(da_yr_anom.values)), np.nanmax(da_yr_anom.values))
         divnorm = colors.TwoSlopeNorm(vmin=-minmax, vcenter=0.0, vmax=minmax)
 
-        ax = da_yr_anom.plot(
+        p = da_yr_anom.plot(
             x=da_yr_anom.raster.x_dim,
             y=da_yr_anom.raster.y_dim,
             col="year",
@@ -111,7 +116,11 @@ def plot_gridded_anomalies(
             cmap="bwr",
             norm=divnorm,
         )
-        ax.set_axis_labels("longitude [degree east]", "latitude [degree north]")
+        p.set_axis_labels("longitude [degree east]", "latitude [degree north]")
+
+        if gdf_region is not None:
+            for ax in p.axes.flatten():
+                gdf_region.plot(ax=ax, facecolor="None")
 
         # Save the plots
         if not os.path.exists(path_output):
@@ -136,6 +145,8 @@ def plot_timeseries_anomalies(
     ----------
     ds : xr.Dataset
         Dataset with the climate data.
+
+        Supported variables: ["precip", "temp"]
     path_output : str or Path
         Path to the output directory where the plots are stored.
     split_year : int, optional
@@ -153,8 +164,10 @@ def plot_timeseries_anomalies(
         plt.style.use("seaborn-v0_8-whitegrid")
         fig, ax = plt.subplots(figsize=(12, 6))
 
-        # Plot a line for each locations in black
-        da_yr_anom.plot.line(x="time", hue="index", ax=ax, add_legend=False, color="k")
+        # Plot a line for each locations in different shades of grey
+        da_yr_anom.plot.line(
+            x="time", hue="index", ax=ax, add_legend=False, alpha=0.5, color="black"
+        )
 
         # Add straight line for the 90th and 10th percentile
         p90 = da_yr_anom.quantile(0.9, dim="index").max("time").values
@@ -213,7 +226,7 @@ def plot_timeseries_anomalies(
             )
 
         # Add the legend in a white box on the top right corner
-        ax.legend(loc="upper right", frameon=True, facecolor="white", framealpha=1.0)
+        ax.legend(loc="upper right", frameon=True, facecolor="white", framealpha=0.7)
 
         if var == "precip":
             legend = "precipitation anomalies [%]"
