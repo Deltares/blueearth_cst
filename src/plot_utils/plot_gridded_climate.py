@@ -3,12 +3,13 @@
 import os
 from os.path import join
 from pathlib import Path
-from typing import Union, Dict
+from typing import Union, Dict, Optional
 
 import xarray as xr
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import geopandas as gpd
 
 __all__ = ["plot_gridded_precip"]
 
@@ -16,6 +17,7 @@ __all__ = ["plot_gridded_precip"]
 def plot_gridded_precip(
     precip_dict: Dict[str, xr.DataArray],
     path_output: Union[str, Path],
+    gdf_region: Optional[gpd.GeoDataFrame] = None,
 ):
     """
     Plot the median annual precipitation for multiple climate sources.
@@ -26,6 +28,8 @@ def plot_gridded_precip(
         Dictionary with the precipitation data for each climate source.
     path_output : str or Path
         Path to the output directory where the plots are stored.
+    gdf_region : gpd.GeoDataFrame, optional
+        The total region of the project to add to the inset map if provided.
     """
 
     # Find the common time period between sources
@@ -54,12 +58,15 @@ def plot_gridded_precip(
     min_precip = min([v.min().values for v in precip_dict.values()])
 
     # Plot the precipitation in one figure
-    fig, ax = plt.subplots(1, len(precip_dict), figsize=(16 / 2.54, 8 / 2.54))
+    fig, ax = plt.subplots(1, len(precip_dict), figsize=(16 / 2.54, 8 / 2.54), sharex=True, sharey=True)
     fs = 8
     for i in range(len(precip_dict)):
         k = list(precip_dict.keys())[i]
         v = precip_dict[k]
         v.plot(ax=ax[i], label=k, vmin=min_precip, vmax=max_precip, cmap="viridis")
+        #add outline basin
+        if gdf_region is not None:
+            gdf_region.plot(ax=ax[i], facecolor ="None")
         ax[i].set_title(k, fontsize=fs)
         ax[i].set_xlabel("Longitude", fontsize=fs)
         ax[i].set_ylabel("Latitude", fontsize=fs)

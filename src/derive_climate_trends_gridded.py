@@ -123,12 +123,14 @@ def derive_gridded_trends(
             ds=ds_clim,
             path_output=join(path_output, "trends"),
             suffix=climate_source,
+            gdf_region=region,
         )
 
     # Plot the gridded median yearly precipitation
     plot_gridded_precip(
         precip_dict=precip_dict,
         path_output=join(path_output, "grid"),
+        gdf_region=region,
     )
 
     if "snakemake" in globals():

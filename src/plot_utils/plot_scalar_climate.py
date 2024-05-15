@@ -429,7 +429,7 @@ def plot_precipitation_per_location(
     # Split the title on two lines
     axes2[2].set_title("", fontsize=fs)
     axes2[2].set_ylabel(
-        f"Number of dry days\n(P < {dry_days_threshold}mm)", fontsize=fs
+        f"Number of dry days\n(P < {dry_days_threshold}mm/day)", fontsize=fs
     )
     ax_twin.set_ylabel(
         f"Longest dry spell\n(P < {dry_days_threshold*4}mm) [days]", fontsize=fs

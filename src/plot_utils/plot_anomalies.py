@@ -12,6 +12,7 @@ from matplotlib import colors
 import xarray as xr
 import numpy as np
 import scipy.stats as stats
+import geopandas as gpd
 
 __all__ = ["plot_gridded_anomalies", "plot_timeseries_anomalies"]
 
@@ -66,6 +67,7 @@ def plot_gridded_anomalies(
     ds: xr.Dataset,
     path_output: Union[str, Path],
     suffix: Optional[str] = None,
+    gdf_region: Optional[gpd.GeoDataFrame] = None,
 ):
     """Plot gridded historical annual anomalies for a specific region.
 
@@ -79,6 +81,8 @@ def plot_gridded_anomalies(
         Path to the output directory where the plots are stored.
     suffix : str, optional
         Suffix to add to the output filename.
+    gdf_region : gpd.GeoDataFrame, optional
+        The total region of the project to add to the inset map if provided.
     """
 
     # Mask nodata
@@ -93,7 +97,7 @@ def plot_gridded_anomalies(
         minmax = max(abs(np.nanmin(da_yr_anom.values)), np.nanmax(da_yr_anom.values))
         divnorm = colors.TwoSlopeNorm(vmin=-minmax, vcenter=0.0, vmax=minmax)
 
-        ax = da_yr_anom.plot(
+        p = da_yr_anom.plot(
             x=da_yr_anom.raster.x_dim,
             y=da_yr_anom.raster.y_dim,
             col="year",
@@ -101,7 +105,11 @@ def plot_gridded_anomalies(
             cmap="bwr",
             norm=divnorm,
         )
-        ax.set_axis_labels("longitude [degree east]", "latitude [degree north]")
+        p.set_axis_labels("longitude [degree east]", "latitude [degree north]")
+
+        if gdf_region is not None:
+            for ax in p.axes.flatten():
+                gdf_region.plot(ax=ax, facecolor ="None")
 
         # Save the plots
         if not os.path.exists(path_output):
