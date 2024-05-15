@@ -23,6 +23,7 @@ if __name__ == "__main__" or parent_module.__name__ == "__main__":
 else:
     from .func_plot_map import plot_map_model
 
+
 def plot_forcing(
     wflow_root: Union[str, Path],
     plot_dir: Union[str, Path] = None,

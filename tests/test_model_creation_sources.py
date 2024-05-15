@@ -24,7 +24,7 @@ from ..src import plot_results
 def test_copy_config(tmpdir, data_libs_fao, model_build_config):
     """Test if config files are copied to tmpdir/config folder"""
     # Call the copy file function
-    data_libs_fao=np.atleast_1d(data_libs_fao).tolist()
+    data_libs_fao = np.atleast_1d(data_libs_fao).tolist()
     copy_config_files.copy_config_files(
         config=config_fao_fn,
         output_dir=join(tmpdir, "config"),
@@ -37,7 +37,9 @@ def test_copy_config(tmpdir, data_libs_fao, model_build_config):
     assert os.path.exists(f"{tmpdir}/config/wflow_build_model.yml")
     assert os.path.exists(f"{tmpdir}/config/tests_data_catalog.yml")
 
-#model creation and model running not tested -- same as in CST test workflow
+
+# model creation and model running not tested -- same as in CST test workflow
+
 
 def test_setup_runtime_suffix(tmpdir, config_fao):
     """Test preparing the forcing config file when there are multiple data sources and suffix is required."""
@@ -66,8 +68,14 @@ def test_setup_runtime_suffix(tmpdir, config_fao):
         assert "write_config" in content
 
         assert content["setup_config"]["dir_output"] == f"run_default_{precip_source}"
-        assert content["setup_config"]["input.path_forcing"] == f"../climate_historical/wflow_data/inmaps_historical_{precip_source}.nc"
-        assert content["write_config"]["config_name"] == f"wflow_sbm_{precip_source}.toml"
+        assert (
+            content["setup_config"]["input.path_forcing"]
+            == f"../climate_historical/wflow_data/inmaps_historical_{precip_source}.nc"
+        )
+        assert (
+            content["write_config"]["config_name"] == f"wflow_sbm_{precip_source}.toml"
+        )
+
 
 @pytest.mark.timeout(120)  # max 2 min
 def test_add_forcing(tmpdir, data_libs_fao, config_fao):
@@ -77,14 +85,14 @@ def test_add_forcing(tmpdir, data_libs_fao, config_fao):
     output_model = f"{tmpdir}/hydrology_model"
     precip_sources = get_config(config_fao, "clim_historical", optional=False)
     precip_sources = np.atleast_1d(precip_sources).tolist()
-    #data catalogs
+    # data catalogs
     data_catalogs = np.atleast_1d(data_libs_fao).tolist()
     data_catalogs = [f"-d {cat} " for cat in data_catalogs]
 
     for precip_source in precip_sources:
         # Settings
         forcing_ini = f"{SAMPLE_PROJECTDIR}/config/wflow_build_forcing_historical_{precip_source}.yml"
-        
+
         cmd = f"""hydromt update wflow {sample_model} -o {output_model} -i {forcing_ini} {" ".join(data_catalogs)} --fo -vv"""
         result = subprocess.run(cmd, shell=True, capture_output=True)
         # Check the output of the subprocess command
@@ -99,7 +107,7 @@ def test_add_forcing(tmpdir, data_libs_fao, config_fao):
         assert "temp" in ds
         assert "pet" in ds
 
-        #TODO if length available data in data_source is less than start/end in config file - this fails! 
+        # TODO if length available data in data_source is less than start/end in config file - this fails!
         starttime = get_config(config_fao, "starttime", optional=False)
         endtime = get_config(config_fao, "endtime", optional=False)
         assert pd.to_datetime(ds.time[0].item()) == pd.to_datetime(starttime)
@@ -130,6 +138,7 @@ def test_plot_map(tmpdir, config_fao):
     # Check output
     assert os.path.exists(f"{plot_dir}/basin_area.png")
 
+
 def test_plot_forcing(tmpdir, config_fao):
     """Test plotting the forcing maps."""
     wflow_root = f"{SAMPLE_PROJECTDIR}/hydrology_model"
@@ -138,7 +147,7 @@ def test_plot_forcing(tmpdir, config_fao):
     precip_sources = get_config(config_fao, "clim_historical", optional=False)
     precip_sources = np.atleast_1d(precip_sources).tolist()
 
-    for precip_source in precip_sources : 
+    for precip_source in precip_sources:
         plot_dir = f"{tmpdir}/plots/wflow_model_performance/{precip_source}"
 
         # Test first without gauges
@@ -162,9 +171,10 @@ def test_plot_forcing(tmpdir, config_fao):
         assert os.path.exists(f"{plot_dir}/temp.png")
         assert os.path.exists(f"{plot_dir}/pet.png")
 
-#todo!
+
+# todo!
 # @pytest.mark.parametrize("model", list(_supported_models.keys())) check -- https://github.com/Deltares/hydromt_wflow/blob/main/tests/test_model_class.py def test_model_build
-# _supported_models = {"wflow": WflowModel, "wflow_sediment": WflowSedimentModel} to have same tests for two config files -- make a list ! 
+# _supported_models = {"wflow": WflowModel, "wflow_sediment": WflowSedimentModel} to have same tests for two config files -- make a list !
 def test_plot_results(tmpdir, config_fao):
     """Test plotting the model results."""
     wflow_root = f"{SAMPLE_PROJECTDIR}/hydrology_model"
@@ -175,7 +185,9 @@ def test_plot_results(tmpdir, config_fao):
     observations_fn = join(MAINDIR, observations_fn)
     precip_sources = get_config(config_fao, "clim_historical", optional=False)
     precip_sources = np.atleast_1d(precip_sources).tolist()
-    clim_historical_colors = get_config(config_fao, "clim_historical_colors", optional=False)
+    clim_historical_colors = get_config(
+        config_fao, "clim_historical_colors", optional=False
+    )
 
     # 1. Plot all results
     plot_results.analyse_wflow_historical(
@@ -206,12 +218,13 @@ def test_plot_results(tmpdir, config_fao):
     assert np.all([c in np.unique(perf["metrics"]) for c in metrics])
     assert np.array_equal(np.unique(perf["time_type"]), ["daily", "monthly"])
     # Check if trend plots are present
-    assert os.path.exists(f"{plot_dir}/long_run/timeseries_anomalies_Q_chirps_global.png")
+    assert os.path.exists(
+        f"{plot_dir}/long_run/timeseries_anomalies_Q_chirps_global.png"
+    )
     assert os.path.exists(f"{plot_dir}/long_run/timeseries_anomalies_Q_era5.png")
     assert os.path.exists(f"{plot_dir}/long_run/timeseries_anomalies_Q_obs.png")
-    # Check budyko plot 
+    # Check budyko plot
     assert os.path.exists(f"{plot_dir}/long_run/budyko_qobs.png")
-
 
     # 2. Plot medium length and no observations timeseries
     plot_results.analyse_wflow_historical(
@@ -269,5 +282,5 @@ def test_plot_results(tmpdir, config_fao):
     # Check the performance metrics table is empty
     perf = pd.read_csv(f"{plot_dir}/short_run/performance_metrics.csv")
     assert perf.empty
-    #check budyko plot
+    # check budyko plot
     assert os.path.exists(f"{plot_dir}/short_run/budyko_qobs.png")

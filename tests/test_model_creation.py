@@ -51,10 +51,10 @@ def test_create_model_full(
     hydromt_ini = model_build_config
 
     # Run hydromt build command similarly as in snakemake workflow
-    #np.atleast_1d to convert string to list (if there is only one element in a list)
+    # np.atleast_1d to convert string to list (if there is only one element in a list)
     data_sources = np.atleast_1d(data_sources).tolist()
     data_catalogs = [f"-d {cat} " for cat in data_sources]
-    #-d {data_sources} should be called similarly as in the snakefile -  ".join(data_catalogs) combine list elements to string
+    # -d {data_sources} should be called similarly as in the snakefile -  ".join(data_catalogs) combine list elements to string
     cmd = f"""hydromt build wflow {basin_dir} --region "{model_region}" --opt setup_basemaps.res={model_resolution} -i {hydromt_ini} {" ".join(data_catalogs)} --fo -vv"""
     result = subprocess.run(cmd, shell=True, capture_output=True)
     # Check the output of the subprocess command
@@ -143,6 +143,7 @@ def test_setup_runtime(tmpdir, config):
     assert content["setup_config"]["starttime"] == starttime
     assert content["setup_precip_forcing"]["precip_fn"] == precip_source
 
+
 def test_setup_runtime_suffix(tmpdir, config):
     """Test preparing the forcing config file when there are multiple data sources and suffix is required."""
     starttime = get_config(config, "starttime", optional=False)
@@ -167,8 +168,12 @@ def test_setup_runtime_suffix(tmpdir, config):
     assert "write_config" in content
 
     assert content["setup_config"]["dir_output"] == f"run_default_{precip_source}"
-    assert content["setup_config"]["input.path_forcing"] == f"../climate_historical/wflow_data/inmaps_historical_{precip_source}.nc"
+    assert (
+        content["setup_config"]["input.path_forcing"]
+        == f"../climate_historical/wflow_data/inmaps_historical_{precip_source}.nc"
+    )
     assert content["write_config"]["config_name"] == f"wflow_sbm_{precip_source}.toml"
+
 
 @pytest.mark.timeout(120)  # max 2 min
 def test_add_forcing(tmpdir, data_sources, config):
@@ -269,7 +274,7 @@ def test_plot_results(tmpdir, config):
         observations_fn=observations_fn,
         gauges_locs=gauges_locs,
         wflow_config_fn="wflow_sbm.toml",
-        climate_sources=climate_source, #option to add name of climate source in plots
+        climate_sources=climate_source,  # option to add name of climate source in plots
     )
 
     # Check monthly and yearly clim plots are there
@@ -292,7 +297,7 @@ def test_plot_results(tmpdir, config):
     # Check if trend plots are present
     assert os.path.exists(f"{plot_dir}/long_run/timeseries_anomalies_Q_era5.png")
     assert os.path.exists(f"{plot_dir}/long_run/timeseries_anomalies_Q_obs.png")
-    # Check budyko plot 
+    # Check budyko plot
     assert os.path.exists(f"{plot_dir}/long_run/budyko_qobs.png")
 
     # 2. Plot medium length and no observations timeseries
@@ -351,5 +356,5 @@ def test_plot_results(tmpdir, config):
     # Check the performance metrics table is empty
     perf = pd.read_csv(f"{plot_dir}/short_run/performance_metrics.csv")
     assert perf.empty
-    #check budyko plot
+    # check budyko plot
     assert os.path.exists(f"{plot_dir}/short_run/budyko_qobs.png")

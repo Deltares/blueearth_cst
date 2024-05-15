@@ -6,7 +6,7 @@ from typing import Dict, Union, List
 import yaml
 import pytest
 
-import numpy as np 
+import numpy as np
 
 TESTDIR = dirname(realpath(__file__))
 MAINDIR = join(TESTDIR, "..")
@@ -47,12 +47,14 @@ def config() -> Dict:
         cfdict = yaml.safe_load(f)
     return cfdict
 
+
 @pytest.fixture()
 def config_fao() -> Dict:
     """Return config dictionary"""
     with open(config_fao_fn, "rb") as f:
         cfdict = yaml.safe_load(f)
     return cfdict
+
 
 @pytest.fixture()
 def project_dir(config) -> Path:
@@ -69,6 +71,7 @@ def data_sources(config) -> Union[str, Path]:
     data_sources = join(MAINDIR, data_sources)
     return data_sources
 
+
 @pytest.fixture()
 def data_libs_fao(config_fao) -> List:
     """Return data sources from fao config"""
@@ -82,6 +85,7 @@ def data_libs_fao(config_fao) -> List:
             # predefined catalogs if no file extension
             data_libs_fao.append(source)
     return data_libs_fao
+
 
 @pytest.fixture()
 def model_build_config(config) -> Union[str, Path]:

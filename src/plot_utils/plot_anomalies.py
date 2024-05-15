@@ -154,19 +154,17 @@ def plot_timeseries_anomalies(
         fig, ax = plt.subplots(figsize=(12, 6))
 
         # Plot a line for each locations in black
-        da_yr_anom.plot.line(
-            x="time", hue="index", ax=ax, add_legend=False, color="k"
-        )
+        da_yr_anom.plot.line(x="time", hue="index", ax=ax, add_legend=False, color="k")
 
         # Add straight line for the 90th and 10th percentile
         p90 = da_yr_anom.quantile(0.9, dim="index").max("time").values
         p10 = da_yr_anom.quantile(0.1, dim="index").min("time").values
 
         # add a line using a constant value
-        ax.axhline(p90, color="lightgrey", linestyle="--", label = "90% percentile")
-        ax.axhline(p10, color="lightgrey", linestyle="--", label = "10% percentile")
+        ax.axhline(p90, color="lightgrey", linestyle="--", label="90% percentile")
+        ax.axhline(p10, color="lightgrey", linestyle="--", label="10% percentile")
 
-        #also add a  line at 0% anomaly 
+        # also add a  line at 0% anomaly
         ax.axhline(0, color="darkgrey", linestyle="--")
 
         # Derive linear trend using xarray curvefit
@@ -201,8 +199,10 @@ def plot_timeseries_anomalies(
             b = trend.curvefit_coefficients.values[1]
             trend_line = b + a * da_yr_trend.time
 
-            #also get r_value and p_value
-            slope, intercept, r_value, p_value, std_err = stats.linregress(da_yr_trend.time, da_yr_trend.mean("index"))
+            # also get r_value and p_value
+            slope, intercept, r_value, p_value, std_err = stats.linregress(
+                da_yr_trend.time, da_yr_trend.mean("index")
+            )
 
             trend_line.plot.line(
                 ax=ax,

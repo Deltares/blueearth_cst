@@ -1,4 +1,5 @@
 """Prepare a hydromt config file to be able to add forcing to a wflow model"""
+
 import hydromt
 import os
 from pathlib import Path
@@ -25,7 +26,7 @@ def prep_hydromt_update_forcing_config(
     precip_source : str
         Name of the precipitation source to use
     suffix: bool
-        add {precip_source} as suffix to config file name, path_forcing name and run_default name 
+        add {precip_source} as suffix to config file name, path_forcing name and run_default name
     """
     # Check precip source and set options accordingly
     if precip_source == "eobs":
@@ -36,9 +37,11 @@ def prep_hydromt_update_forcing_config(
         clim_source = "era5"
         oro_source = "era5_orography"
         pet_method = "debruin"
-    
+
     if suffix == True:
-        path_forcing = f"../climate_historical/wflow_data/inmaps_historical_{precip_source}.nc"
+        path_forcing = (
+            f"../climate_historical/wflow_data/inmaps_historical_{precip_source}.nc"
+        )
         config_name = f"wflow_sbm_{precip_source}.toml"
         dir_output = f"run_default_{precip_source}"
     else:
@@ -67,9 +70,7 @@ def prep_hydromt_update_forcing_config(
             "pet_method": pet_method,
             "skip_pet": False,
         },
-        "write_config": {
-            "config_name": config_name
-        },
+        "write_config": {"config_name": config_name},
         "write_forcing": {},
     }
 
@@ -96,5 +97,5 @@ if __name__ == "__main__":
             endtime="2010-12-31T00:00:00",
             fn_yml="wflow_build_forcing_historical.yml",
             precip_source="era5",
-            suffix=False
+            suffix=False,
         )
