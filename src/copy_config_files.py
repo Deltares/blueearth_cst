@@ -1,4 +1,5 @@
 """Copy snake config and other config files to the output directory."""
+
 import os
 from os.path import join, dirname
 from pathlib import Path
