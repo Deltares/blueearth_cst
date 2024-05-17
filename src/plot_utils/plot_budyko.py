@@ -18,7 +18,7 @@ def get_upstream_clim_basin(
     wflow_root: Union[str, Path],
     wflow_config_fn: str = "wflow_sbm.toml",
     timestep: int = 86400,
-    start_hydro_year: str = "Jan",
+    start_hydro_year: str = "JAN",
     missing_days_threshold: int = 330,
 ):
     """
@@ -40,7 +40,7 @@ def get_upstream_clim_basin(
     start_hydro_year : str
         The start month (abreviated to the first three letters of the month,
         starting with a capital letter) of the hydrological year.
-        The default is "Jan".
+        The default is "JAN".
     missing_days_threshold: int, optional
         Minimum number of days within a year for that year to be counted in the
         long-term Budyko analysis.
