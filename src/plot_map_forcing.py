@@ -46,7 +46,7 @@ def plot_forcing(
         name of the config file, default is wflow_sbm.toml
     """
     mod = WflowModel(wflow_root, mode="r", config_fn=config_fn)
-    
+
     # If plotting dir is None, create
     if plot_dir is None:
         plot_dir = os.path.join(wflow_root, "plots")
@@ -92,7 +92,7 @@ if __name__ == "__main__":
             wflow_root=root,
             plot_dir=Folder_plots,
             gauges_name=gauges_name,
-            config_fn=config_fn
+            config_fn=config_fn,
         )
     else:
         plot_forcing(

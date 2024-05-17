@@ -107,6 +107,7 @@ def test_add_forcing(tmpdir, data_libs_fao, config_fao):
         assert "temp" in ds
         assert "pet" in ds
 
+
 def test_plot_forcing(tmpdir, config_fao):
     """Test plotting the forcing maps."""
     wflow_root = f"{SAMPLE_PROJECTDIR}/hydrology_model"
@@ -163,7 +164,7 @@ def test_plot_results(tmpdir, config_fao):
         plot_dir=join(plot_dir, "long_run"),
         observations_fn=observations_fn,
         gauges_locs=gauges_locs,
-        wflow_config_fn_prefix="wflow_sbm", #prefix name toml file instead? "wflow_sbm"
+        wflow_config_fn_prefix="wflow_sbm",  # prefix name toml file instead? "wflow_sbm"
         climate_sources=precip_sources,
         climate_sources_colors=clim_historical_colors,
     )

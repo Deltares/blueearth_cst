@@ -89,7 +89,9 @@ def get_wflow_results(
 
     """
     if climate_source is None:
-        mod = WflowModel(root=wflow_root, mode="r", config_fn=wflow_config_fn_prefix + ".toml")
+        mod = WflowModel(
+            root=wflow_root, mode="r", config_fn=wflow_config_fn_prefix + ".toml"
+        )
         qsim = mod.results["Q_gauges"].rename("Q")
     else:
         mod = WflowModel(
@@ -300,7 +302,6 @@ def analyse_wflow_historical(
             qsim_gauges = xr.concat(qsim_gauges, dim="climate_source")
             # merge with qsim
             qsim = xr.concat([qsim, qsim_gauges], dim="index")
-            
 
     else:
         qsim, qsim_gauges, ds_clim, ds_basin = get_wflow_results(

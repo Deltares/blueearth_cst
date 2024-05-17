@@ -167,6 +167,7 @@ def test_add_forcing(tmpdir, data_sources, config):
     assert "temp" in ds
     assert "pet" in ds
 
+
 def test_plot_map(tmpdir, config):
     """Test plotting the model map."""
     wflow_root = f"{SAMPLE_PROJECTDIR}/hydrology_model"
