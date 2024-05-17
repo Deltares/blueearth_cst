@@ -293,13 +293,14 @@ def analyse_wflow_historical(
             qsim_gauges.append(qsim_gauges_source)
             ds_clim.append(ds_clim_source)
             ds_basin.append(ds_basin_source)
-        qsim = xr.merge(qsim)
-        ds_clim = xr.merge(ds_clim)
-        ds_basin = xr.merge(ds_basin)
+        qsim = xr.concat(qsim, dim="climate_source")
+        ds_clim = xr.concat(ds_clim, dim="climate_source")
+        ds_basin = xr.concat(ds_basin, dim="climate_source")
         if qsim_gauges[0] is not None:
-            qsim_gauges = xr.merge(qsim_gauges)
+            qsim_gauges = xr.concat(qsim_gauges, dim="climate_source")
             # merge with qsim
-            qsim = xr.merge([qsim, qsim_gauges])["Q"]
+            qsim = xr.concat([qsim, qsim_gauges], dim="index")
+            
 
     else:
         qsim, qsim_gauges, ds_clim, ds_basin = get_wflow_results(
@@ -311,7 +312,7 @@ def analyse_wflow_historical(
 
         # Merge with qsim
         if qsim_gauges is not None:
-            qsim = xr.merge([qsim, qsim_gauges])["Q"]
+            qsim = xr.concat([qsim, qsim_gauges], dim="index")
 
     # make sure qsim, ds_clim and ds_basin have coord climate_source (even if only one climate source is used in the default case)
     if "climate_source" not in qsim.coords:
@@ -338,8 +339,10 @@ def analyse_wflow_historical(
                 climate_source=("climate_source")
             ).expand_dims(["climate_source"])
 
-    ### TODO make sure the time period of all climate sources is the same for the subsequent plots.
-    #print the common period. 
+    ### make sure the time period of all climate sources is the same for the subsequent plots.
+    qsim = qsim.dropna("time")
+    ds_clim = ds_clim.dropna("time")
+    ds_basin = ds_basin.dropna("time")
 
     ### 4. Plot climate data ###
     # No plots of climate data if wflow run is less than a year
