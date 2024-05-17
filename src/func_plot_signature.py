@@ -1013,7 +1013,7 @@ def plot_basavg(
 
         if WFLOW_VARS[dvar.split("_")[0]]["resample"] == "sum":
             sum_monthly = ds[dvar].resample(time="M").sum("time")
-            sum_annual = ds[dvar].resample(time="A").sum("time")
+            sum_annual = ds[dvar].resample(time="YE").sum("time")
         else:  # assume mean
             sum_monthly = ds[dvar].resample(time="M").mean("time")
             sum_annual = ds[dvar].resample(time="A").mean("time")
