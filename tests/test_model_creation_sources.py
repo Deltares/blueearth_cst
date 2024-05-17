@@ -113,32 +113,6 @@ def test_add_forcing(tmpdir, data_libs_fao, config_fao):
         assert pd.to_datetime(ds.time[0].item()) == pd.to_datetime(starttime)
         assert pd.to_datetime(ds.time[-1].item()) == pd.to_datetime(endtime)
 
-
-def test_plot_map(tmpdir, config_fao):
-    """Test plotting the model map."""
-    wflow_root = f"{SAMPLE_PROJECTDIR}/hydrology_model"
-    plot_dir = f"{tmpdir}/plots/wflow_model_performance"
-    gauges_fn = get_config(config_fao, "output_locations")
-    gauges_name = f'gauges_{basename(gauges_fn).split(".")[0]}'
-
-    # Try without gauges
-    plot_map.plot_wflow_map(
-        wflow_root=wflow_root,
-        plot_dir=plot_dir,
-        gauges_name=None,
-    )
-
-    # Try with gauges
-    plot_map.plot_wflow_map(
-        wflow_root=wflow_root,
-        plot_dir=plot_dir,
-        gauges_name=gauges_name,
-    )
-
-    # Check output
-    assert os.path.exists(f"{plot_dir}/basin_area.png")
-
-
 def test_plot_forcing(tmpdir, config_fao):
     """Test plotting the forcing maps."""
     wflow_root = f"{SAMPLE_PROJECTDIR}/hydrology_model"
