@@ -142,7 +142,7 @@ def determine_budyko_curve_terms(
     ds_sub_annual : xr.Dataset
         Dataset containing per subcatchment the annual precipitation,
         potential evaporation and specific discharge sums.
-
+        Required variables: ["specific_Q", "precip_mean", "pet_mean"]
     Returns
     -------
     ds_sub_annual : xr.Dataset
