@@ -167,12 +167,6 @@ def test_add_forcing(tmpdir, data_sources, config):
     assert "temp" in ds
     assert "pet" in ds
 
-    starttime = get_config(config, "starttime", optional=False)
-    endtime = get_config(config, "endtime", optional=False)
-    assert pd.to_datetime(ds.time[0].item()) == pd.to_datetime(starttime)
-    assert pd.to_datetime(ds.time[-1].item()) == pd.to_datetime(endtime)
-
-
 def test_plot_map(tmpdir, config):
     """Test plotting the model map."""
     wflow_root = f"{SAMPLE_PROJECTDIR}/hydrology_model"

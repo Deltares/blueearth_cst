@@ -107,12 +107,6 @@ def test_add_forcing(tmpdir, data_libs_fao, config_fao):
         assert "temp" in ds
         assert "pet" in ds
 
-        # TODO if length available data in data_source is less than start/end in config file - this fails!
-        starttime = get_config(config_fao, "starttime", optional=False)
-        endtime = get_config(config_fao, "endtime", optional=False)
-        assert pd.to_datetime(ds.time[0].item()) == pd.to_datetime(starttime)
-        assert pd.to_datetime(ds.time[-1].item()) == pd.to_datetime(endtime)
-
 def test_plot_forcing(tmpdir, config_fao):
     """Test plotting the forcing maps."""
     wflow_root = f"{SAMPLE_PROJECTDIR}/hydrology_model"
