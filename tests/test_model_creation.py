@@ -273,7 +273,7 @@ def test_plot_results(tmpdir, config):
         plot_dir=join(plot_dir, "long_run"),
         observations_fn=observations_fn,
         gauges_locs=gauges_locs,
-        wflow_config_fn="wflow_sbm.toml",
+        wflow_config_fn_prefix="wflow_sbm",
         climate_sources=climate_source,  # option to add name of climate source in plots
     )
 
@@ -306,7 +306,7 @@ def test_plot_results(tmpdir, config):
         plot_dir=join(plot_dir, "medium_run"),
         observations_fn=None,
         gauges_locs=gauges_locs,
-        wflow_config_fn="wflow_sbm_medium.toml",
+        wflow_config_fn_prefix="wflow_sbm_medium",
     )
     # Check monthly and yearly clim plots are there
     assert os.path.exists(f"{plot_dir}/medium_run/clim_wflow_1_month.png")
@@ -328,7 +328,7 @@ def test_plot_results(tmpdir, config):
         plot_dir=join(plot_dir, "medium_run_no_obs"),
         observations_fn=None,
         gauges_locs=None,
-        wflow_config_fn="wflow_sbm_medium.toml",
+        wflow_config_fn_prefix="wflow_sbm_medium",
     )
     # Check plot for obs locs is not there
     assert not os.path.exists(
@@ -341,7 +341,7 @@ def test_plot_results(tmpdir, config):
         plot_dir=join(plot_dir, "short_run"),
         observations_fn=observations_fn,
         gauges_locs=gauges_locs,
-        wflow_config_fn="wflow_sbm_short.toml",
+        wflow_config_fn_prefix="wflow_sbm_short",
     )
     # No clim plot should be there
     assert not os.path.exists(f"{plot_dir}/short_run/clim_wflow_1_month.png")

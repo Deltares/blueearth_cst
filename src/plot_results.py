@@ -51,7 +51,7 @@ else:
 
 def get_wflow_results(
     wflow_root: Union[str, Path],
-    wflow_config_fn: str = "wflow_sbm.toml",
+    wflow_config_fn_prefix: str = "wflow_sbm",
     climate_source: List[
         str
     ] = None,  # climate source name used as suffix in config file
@@ -64,8 +64,8 @@ def get_wflow_results(
     ----------
     wflow_root : Union[str, Path]
         Path to the wflow model root folder.
-    wflow_config_fn : str, optional
-        Name of the wflow configuration file, by default "wflow_sbm.toml". Used to read
+    wflow_config_fn_prefix : str, optional
+        Prefix name of the wflow configuration file, by default "wflow_sbm". Used to read
         the right results files from the wflow model.
     climate_sources: List[str], optional
         List of climate datasets used to run wflow.
@@ -89,13 +89,13 @@ def get_wflow_results(
 
     """
     if climate_source is None:
-        mod = WflowModel(root=wflow_root, mode="r", config_fn=wflow_config_fn)
+        mod = WflowModel(root=wflow_root, mode="r", config_fn=wflow_config_fn_prefix + ".toml")
         qsim = mod.results["Q_gauges"].rename("Q")
     else:
         mod = WflowModel(
             root=wflow_root,
             mode="r",
-            config_fn=wflow_config_fn.replace(".toml", f"_{climate_source}.toml"),
+            config_fn=wflow_config_fn_prefix + f"_{climate_source}.toml",
         )
         qsim = mod.results["Q_gauges"].rename("Q")
         # add climate data source
@@ -170,7 +170,7 @@ def analyse_wflow_historical(
     plot_dir: Union[str, Path] = None,
     observations_fn: Union[Path, str] = None,
     gauges_locs: Union[Path, str] = None,
-    wflow_config_fn: str = "wflow_sbm.toml",
+    wflow_config_fn_prefix: str = "wflow_sbm",
     climate_sources: List[str] = None,
     climate_sources_colors: List[str] = None,
     split_year: Optional[int] = None,
@@ -217,8 +217,8 @@ def analyse_wflow_historical(
         Required columns: wflow_id, station_name, x, y.
         Values in wflow_id column should match column names in ``observations_fn``.
         Separator is , and decimal is .
-    wflow_config_fn : str, optional
-        Name of the wflow configuration file, by default "wflow_sbm.toml". Used to read
+    wflow_config_fn_prefix : str, optional
+        Prefix name of the wflow configuration file, by default "wflow_sbm". Used to read
         the right results files from the wflow model.
     climate_sources: List[str], optional
         List of climate datasets used to run wflow.
@@ -284,7 +284,7 @@ def analyse_wflow_historical(
             qsim_source, qsim_gauges_source, ds_clim_source, ds_basin_source = (
                 get_wflow_results(
                     wflow_root=wflow_root,
-                    wflow_config_fn=wflow_config_fn,
+                    wflow_config_fn_prefix=wflow_config_fn_prefix,
                     climate_source=climate_source,
                     gauges_locs=gauges_locs,
                 )
@@ -304,7 +304,7 @@ def analyse_wflow_historical(
     else:
         qsim, qsim_gauges, ds_clim, ds_basin = get_wflow_results(
             wflow_root=wflow_root,
-            wflow_config_fn=wflow_config_fn,
+            wflow_config_fn_prefix=wflow_config_fn_prefix,
             climate_source=None,
             gauges_locs=gauges_locs,
         )
@@ -485,7 +485,7 @@ def analyse_wflow_historical(
         ):  # no suffix of climate source added in name config file
             ds_clim_sub_annual = []
             for climate_source in climate_sources:
-                config_fn = wflow_config_fn.replace(".toml", f"_{climate_source}.toml")
+                config_fn = wflow_config_fn_prefix + f"_{climate_source}.toml"
 
                 # get mean annual precip, pet and q_specific upstream of observation locations for a specific source
                 ds_clim_sub_source, ds_clim_sub_annual_source = get_upstream_clim_basin(
@@ -501,7 +501,7 @@ def analyse_wflow_historical(
                 ds_clim_sub_annual.append(ds_clim_sub_annual_source)
             ds_clim_sub_annual = xr.merge(ds_clim_sub_annual)
         else:
-            config_fn = wflow_config_fn
+            config_fn = wflow_config_fn_prefix + ".toml"
             # get mean annual precip, pet and q_specific upstream of observation locations for a specific source
             ds_clim_sub, ds_clim_sub_annual = get_upstream_clim_basin(
                 qobs, wflow_root, config_fn
