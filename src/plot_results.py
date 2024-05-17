@@ -338,6 +338,9 @@ def analyse_wflow_historical(
                 climate_source=("climate_source")
             ).expand_dims(["climate_source"])
 
+    ### TODO make sure the time period of all climate sources is the same for the subsequent plots.
+    #print the common period. 
+
     ### 4. Plot climate data ###
     # No plots of climate data if wflow run is less than a year
     if len(ds_clim.time) <= 366:

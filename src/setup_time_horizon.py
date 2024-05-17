@@ -37,6 +37,7 @@ def prep_hydromt_update_forcing_config(
         clim_source = "era5"
         oro_source = "era5_orography"
         pet_method = "debruin"
+    #TODO: make more flexible to allow using temp variables if they would be available in the dataset. 
 
     if suffix == True:
         path_forcing = (

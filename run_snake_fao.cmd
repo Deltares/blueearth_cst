@@ -1,9 +1,9 @@
 call activate blueearth-cst
 
 rem snakemake/Snakefile_run_historical_datasets.smk
-snakemake -s snakemake/Snakefile_run_historical_datasets.smk --configfile config/snake_config_model_fao.yml  --dag | dot -Tpng > dag_model_datasets.png
-snakemake --unlock -s snakemake/Snakefile_run_historical_datasets.smk --configfile config/snake_config_model_fao.yml
-snakemake all -c 1 -s snakemake/Snakefile_run_historical_datasets.smk --configfile config/snake_config_model_fao.yml --rerun-incomplete 
+snakemake -s snakemake/Snakefile_historical_hydrology.smk --configfile config/snake_config_model_fao.yml  --dag | dot -Tpng > dag_model_datasets.png
+snakemake --unlock -s snakemake/Snakefile_historical_hydrology.smk --configfile config/snake_config_model_fao.yml
+snakemake all -c 1 -s snakemake/Snakefile_historical_hydrology.smk --configfile config/snake_config_model_fao.yml --rerun-incomplete 
 rem --until create_model
 rem --report --dryrun
 
