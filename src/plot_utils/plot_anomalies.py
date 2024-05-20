@@ -102,7 +102,7 @@ def plot_gridded_anomalies(
             y=da_yr_anom.raster.y_dim,
             col="year",
             col_wrap=5,
-            cmap="bwr",
+            cmap="bwr" if var == "temp" else "bwr_r",
             norm=divnorm,
         )
         p.set_axis_labels("longitude [degree east]", "latitude [degree north]")
