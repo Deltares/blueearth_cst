@@ -1,34 +1,10 @@
 import sys
 
+from get_config import get_config
+
 # Get the snake_config file from the command line
 args = sys.argv
 config_path = args[args.index("--configfile") + 1]
-
-# Function to get argument from config file and return default value if not found
-def get_config(config, arg, default=None, optional=True):
-    """
-    Function to get argument from config file and return default value if not found
-
-    Parameters
-    ----------
-    config : dict
-        config file
-    arg : str   
-        argument to get from config file
-    default : str/int/float/list, optional
-        default value if argument not found, by default None
-    optional : bool, optional
-        if True, argument is optional, by default True
-    """
-    if arg in config:
-        value = config[arg]
-        if value == "None":
-            value = None
-        return value
-    elif optional:
-        return default
-    else:
-        raise ValueError(f"Argument {arg} not found in config file")
 
 # Config settings
 project_dir = get_config(config, 'project_dir', optional=False)
@@ -78,6 +54,8 @@ rule plot_basin_climate:
         climate_sources_colors = get_config(config, "clim_historical_colors", None),
         data_catalog = data_catalog,
         project_dir = project_dir,
+        starttime = get_config(config, "starttime", optional=False),
+        endtime = get_config(config, "endtime", optional=False),
         precip_peak = get_config(config, "precipitation_peak_threshold", 40),
         precip_dry = get_config(config, "precipitation_dry_threshold", 0.2),
         temp_heat = get_config(config, "temperature_heat_threshold", 25),
@@ -98,6 +76,8 @@ rule plot_location_climate:
         climate_sources_colors = get_config(config, "clim_historical_colors", None),
         data_catalog = data_catalog,
         project_dir = project_dir,
+        starttime = get_config(config, "starttime", optional=False),
+        endtime = get_config(config, "endtime", optional=False),
         precip_peak = get_config(config, "precipitation_peak_threshold", 40),
         precip_dry = get_config(config, "precipitation_dry_threshold", 0.2),
         temp_heat = get_config(config, "temperature_heat_threshold", 25),
@@ -127,6 +107,8 @@ rule derive_trends_gridded:
         climate_sources = climate_sources,
         data_catalog = data_catalog,
         project_dir = project_dir,
+        starttime = get_config(config, "starttime", optional=False),
+        endtime = get_config(config, "endtime", optional=False),
     output:
         trends_gridded_done = f"{project_dir}/climate_historical/plots/trends/gridded_trends.txt",
     script:

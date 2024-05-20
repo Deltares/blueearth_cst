@@ -3,7 +3,7 @@
 import os
 from os.path import join, dirname
 from pathlib import Path
-from typing import Union, Optional, List
+from typing import Union, Optional, List, Tuple
 
 import geopandas as gpd
 import pandas as pd
@@ -30,6 +30,7 @@ def plot_historical_climate_region(
     climate_catalog: Union[str, Path, List],
     climate_sources: Union[str, List[str]],
     climate_sources_colors: Optional[Union[str, List[str]]] = None,
+    time_tuple: Optional[Tuple] = None,
     subregions_filename: Optional[Union[str, Path]] = None,
     climate_variables: List[str] = ["precip", "temp"],
     legend_column: str = "value",
@@ -74,6 +75,9 @@ def plot_historical_climate_region(
     climate_sources_colors : str or list of str, optional
         Color to use for each ``climate_sources``. If None, unique color per source is
         not assured.
+    time_tuple : tuple of str, optional
+        Start and end date of the period to sample the climate data. If None, the full
+        period of the climate data is used. eg ('1970-01-01', '2000-12-31').
     subregions_filename : str or Path, optional
         Path to the subregions boundary vector file to produce similar plots for
         subregions.
@@ -132,6 +136,7 @@ def plot_historical_climate_region(
             ds_clim = data_catalog.get_rasterdataset(
                 climate_source,
                 bbox=region.total_bounds,
+                time_tuple=time_tuple,
                 buffer=2,
                 handle_nodata=NoDataStrategy.IGNORE,
                 variables=var,
@@ -226,6 +231,7 @@ if __name__ == "__main__":
             climate_catalog=sm.params.data_catalog,
             climate_sources=sm.params.climate_sources,
             climate_sources_colors=sm.params.climate_sources_colors,
+            time_tuple=(sm.params.starttime, sm.params.endtime),
             subregions_filename=sm.params.subregion_file,
             precip_peak_threshold=sm.params.precip_peak,
             dry_days_threshold=sm.params.precip_dry,
