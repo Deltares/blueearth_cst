@@ -50,13 +50,14 @@ def data_sources(config) -> Union[str, Path]:
 
 
 @pytest.fixture()
-<<<<<<< HEAD
 def data_sources_climate(config) -> Union[str, Path]:
     """Return data sources climate"""
     data_sources_climate = get_config(config, "data_sources_climate", optional=False)
     data_sources_climate = join(MAINDIR, data_sources_climate)
     return data_sources_climate
-=======
+
+
+@pytest.fixture()
 def data_libs_fao(config_fao) -> List:
     """Return data sources from fao config"""
     data_libs = np.atleast_1d(config_fao["data_catalogs"]).tolist()
@@ -69,7 +70,6 @@ def data_libs_fao(config_fao) -> List:
             # predefined catalogs if no file extension
             data_libs_fao.append(source)
     return data_libs_fao
->>>>>>> fao
 
 
 @pytest.fixture()

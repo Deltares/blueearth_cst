@@ -300,8 +300,8 @@ def plot_climate_projections(
 
     # Precipitation absolute change
     plot_scalar_anomaly(
-        data_hist=q_pr_annmn * 365,
-        data_fut=[data * 365 for data in qpr_fut],
+        data_hist=q_pr_annmn,
+        data_fut=[data for data in qpr_fut],
         scenario_names=scenarios,
         title="Annual precipitation",
         y_label="mm/year",
@@ -356,7 +356,7 @@ def plot_climate_projections(
         data_fut=qpr_futmonth,
         scenario_names=scenarios,
         title="Average precipitation",
-        y_label="mm/day",
+        y_label="mm/month",
         monthly=True,
         figure_filename=join(
             path_output, "plots", "precipitation_monthly_projections_abs.png"
