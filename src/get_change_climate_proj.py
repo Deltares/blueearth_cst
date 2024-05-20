@@ -47,8 +47,8 @@ def get_change_clim_projections(ds_hist, ds_clim, name_horizon="future"):
     if "horizon" in ds_clim.dims:
         ds_clim = ds_clim.sel(horizon=name_horizon)
     for var in intersection(ds_hist.data_vars, ds_clim.data_vars):
-        if var == "precip":
-            # multiplicative for precip
+        if var == "precip" or var == "pet":
+            # multiplicative for precip and pet
             change = (
                 (
                     ds_clim[var]
@@ -118,8 +118,8 @@ def get_change_annual_clim_proj(
             f"{ds_clim_time['time.year'][-1].values}-{start_month_hyd_year}"
         ) - pd.DateOffset(months=1)
 
-        if var == "precip":
-            # multiplicative for precip
+        if var == "precip" or var == "pet":
+            # multiplicative for precip and pet
             hist = (
                 ds_hist_time[var]
                 .sel(time=slice(start_hyd_year_hist, end_hyd_year_hist))
@@ -163,7 +163,7 @@ def get_change_annual_clim_proj(
                 hist_stat = getattr(hist, stat_name)("time")
                 clim_stat = getattr(clim, stat_name)("time")
 
-            if var == "precip":
+            if var == "precip" or var == "pet":
                 change = (clim_stat - hist_stat) / hist_stat * 100
             else:
                 change = clim_stat - hist_stat

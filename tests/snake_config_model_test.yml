@@ -52,7 +52,14 @@ models: ['NOAA-GFDL/GFDL-ESM4', 'INM/INM-CM5-0', 'CSIRO-ARCCSS/ACCESS-CM2']
 scenarios: [ssp245, ssp585]
 members: [r1i1p1f1]
 
-variables: [precip, temp]
+# Climate projections for the following variables
+variables: [precip, temp, pet]
+
+# Method to compute PET if not available in the climate data - None to use pet in the climate data
+# Available methods: 'None', 'makkink' 'debruin', 'penman-monteith_rh_simple', 'penman-monteith_tdew'
+# Required variables are: 'temp' [°C], 'press_msl' [hPa], 'kin'[W/m2] for makkink
+# 'temp' [°C], 'press_msl' [hPa], 'kin' [W/m2], 'kout' [W/m2] for debruin
+pet_method: makkink
 
 # time horizons of the climate projections
 start_month_hyd_year: Jan

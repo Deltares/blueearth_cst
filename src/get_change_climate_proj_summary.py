@@ -4,11 +4,12 @@ Open monthly change files for all models/scenarios/horizon and compute/plot stat
 
 import os
 from pathlib import Path
+import matplotlib.pyplot as plt
 import seaborn as sns
 import xarray as xr
 import numpy as np
 
-from typing import Union, List, Dict, Optional
+from typing import Union, List, Dict
 
 
 def preprocess_coords(ds: xr.Dataset) -> xr.Dataset:
@@ -123,6 +124,29 @@ def summary_climate_proj(
     g.ax_joint.grid()
     g.ax_joint.legend(loc="right", bbox_to_anchor=(1.5, 0.5))
     g.savefig(os.path.join(clim_dir, "plots", "projected_climate_statistics.png"))
+    plt.close(g.figure)
+
+    if "pet" in df.columns:
+        g = sns.JointGrid(
+            data=df,
+            x="precip",
+            y="pet",
+            hue="scenario",
+        )
+        g.plot_joint(
+            sns.scatterplot, s=100, alpha=0.5, data=df, style="horizon", palette=clrs
+        )
+        g.plot_marginals(sns.kdeplot, palette=clrs)
+        g.set_axis_labels(
+            xlabel="Change in mean precipitation (%)",
+            ylabel="Change in mean potential evapotranspiration (%)",
+        )
+        g.ax_joint.grid()
+        g.ax_joint.legend(loc="right", bbox_to_anchor=(1.5, 0.5))
+        g.savefig(
+            os.path.join(clim_dir, "plots", "projected_climate_pet_statistics.png")
+        )
+        plt.close(g.figure)
 
 
 if __name__ == "__main__":

@@ -20,6 +20,7 @@ models = get_config(config, "models", optional=False)
 scenarios = get_config(config, "scenarios", optional=False)
 members = get_config(config, "members", optional=False)
 variables = get_config(config, "variables", optional=False)
+pet_method = get_config(config, "pet_method", "makkink")
 future_horizons = get_config(config, "future_horizons", optional=False)
 
 save_grids = get_config(config, "save_grids", False)
@@ -87,6 +88,7 @@ rule monthly_stats_hist:
         name_model = "{model}",
         name_clim_project = clim_project,
         variables = variables,
+        pet_method = pet_method,
         save_grids = save_grids,
         time_horizon = {"historical": get_config(config, "historical", optional=False)},
     script: "../src/get_stats_climate_proj.py"
@@ -109,6 +111,7 @@ rule monthly_stats_fut:
         name_model = "{model}",
         name_clim_project = clim_project,
         variables = variables,
+        pet_method = pet_method,
         save_grids = save_grids,
         time_horizon = get_config(config, "future_horizons", optional=False),
     script: "../src/get_stats_climate_proj.py"

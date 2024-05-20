@@ -7,6 +7,9 @@ from pathlib import Path
 import geopandas as gpd
 import xarray as xr
 import pandas as pd
+import numpy as np
+
+from hydromt.workflows import forcing
 
 from dask.diagnostics import ProgressBar
 
@@ -29,12 +32,55 @@ CLIM_PROJECT_TIME_TUPLE = {
 }
 
 
+def derive_pet(
+    ds: xr.DataArray, pet_method: str, timestep: np.ndarray, drop_vars: bool = True
+):
+    """
+    Compute potential evapotranspiration using different methods.
+
+    Parameters
+    ----------
+    ds : xr.Dataset
+        Dataset with temperature, pressure, and radiation data.
+    pet_method : str
+        Method to compute potential evapotranspiration. Available methods are 'makkink',
+        'debruin'.
+
+    Returns
+    -------
+    xr.Dataset
+        Dataset with added potential evapotranspiration data.
+    """
+    if pet_method == "makkink":
+        ds["pet"] = forcing.pet_makkink(
+            temp=ds["temp"],
+            press=ds["press_msl"],
+            k_in=ds["kin"],
+            timestep=timestep,
+        )
+        if drop_vars:
+            ds = ds.drop_vars(["press_msl", "kin"])
+    elif pet_method == "debruin":
+        ds["pet"] = forcing.pet_debruin(
+            temp=ds["temp"],
+            press=ds["press_msl"],
+            k_in=ds["kin"],
+            k_ext=ds["kout"],
+            timestep=timestep,
+        )
+        if drop_vars:
+            ds = ds.drop_vars(["press_msl", "kin", "kout"])
+    return ds
+
+
 def get_stats_clim_projections(
     data,
     clim_source,
     model,
     scenario,
     member,
+    compute_pet=False,
+    pet_method="makkink",
     save_grids=False,
     time_horizon=None,
 ):
@@ -52,6 +98,11 @@ def get_stats_clim_projections(
         scenario name of the climate model (e.g. rcp4.5, rcp8.5).
     member : str
         member name of the climate model (e.g. r1i1p1f1).
+    compute_pet : bool
+        compute potential evapotranspiration. False by default.
+    pet_method : str
+        method to compute potential evapotranspiration if compute_pet is True.
+        available methods are 'makkink' (default), 'debruin'.
     save_grids : bool
         save gridded stats as well as scalar stats. False by default.
     time_horizon : dict
@@ -95,7 +146,9 @@ def get_stats_clim_projections(
                 var_m = var_m * days_in_month
                 var_m.name = "precip"
                 var_m.attrs["units"] = "mm"
-        else:  # for temp
+        elif np.isin(var, ["kin", "kout", "pet"]):
+            var_m = data[var].resample(time="MS").sum("time")
+        else:  # for temp, wind, rh, press
             # elif "temp" in var: #for temp
             var_m = data[var].resample(time="MS").mean("time")
 
@@ -121,6 +174,11 @@ def get_stats_clim_projections(
 
     # mean stats over grid and time
     mean_stats_time = xr.merge(ds_scalar)
+
+    # if needed compute pet
+    if compute_pet:
+        timestep = mean_stats_time["time"].to_index().daysinmonth * 86400
+        mean_stats_time = derive_pet(mean_stats_time, pet_method, timestep)
     # add coordinate on project, model, scenario, member to later merge all files
     mean_stats_time = mean_stats_time.assign_coords(
         {
@@ -133,6 +191,14 @@ def get_stats_clim_projections(
 
     if save_grids:
         mean_stats = xr.merge(ds)
+        # if needed compute pet
+        if compute_pet:
+            timestep = xr.DataArray(
+                np.array([31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]) * 86400,
+                dims=["month"],
+                coords={"month": mean_stats["month"]},
+            )
+            mean_stats = derive_pet(mean_stats, pet_method, timestep)
         # add coordinate on project, model, scenario, member to later merge all files
         mean_stats = mean_stats.assign_coords(
             {
@@ -158,6 +224,7 @@ def extract_climate_projections_statistics(
     members: List[str],
     model: str,
     variables: List[str] = ["precip", "temp"],
+    pet_method: Optional[str] = "makkink",
     save_grids: bool = False,
     time_horizon: Optional[Dict[str, Tuple[str, str]]] = None,
 ):
@@ -194,6 +261,13 @@ def extract_climate_projections_statistics(
     variables : list
         List of variables to extract (e.g. ['precip', 'temp']). Variables should be
         present in the climate source.
+    pet_method : str
+        Method to compute potential evapotranspiration. use None to use pet from the
+        climate source. Available methods are 'makkink' (default), 'debruin'.
+        Required variables for each method are:
+
+        * makkink: 'temp' [°C], 'press_msl' [hPa], 'kin'[W/m2]
+        * debruin: 'temp' [°C], 'press_msl' [hPa], 'kin' [W/m2], 'kout' [W/m2]
     save_grids : bool
         Save gridded stats as well as scalar stats. False by default.
     time_horizon : dict
@@ -221,6 +295,24 @@ def extract_climate_projections_statistics(
         time_tuple = CLIM_PROJECT_TIME_TUPLE[clim_source]["historical"]
     else:
         time_tuple = CLIM_PROJECT_TIME_TUPLE[clim_source]["future"]
+
+    # Initialize list of variables depending on pet_method
+    if "pet" in variables and pet_method is not None:
+        compute_pet = True
+        # Remove pet from variables
+        variables.remove("pet")
+        # Add pet variables depending on method
+        if pet_method == "makkink":
+            variables.extend(["press_msl", "kin"])
+        elif pet_method == "debruin":
+            variables.extend(["press_msl", "kin", "kout"])
+        else:
+            raise ValueError(
+                f"pet_method {pet_method} not supported. "
+                f"Please choose from ['makkink', 'debruin']"
+            )
+    else:
+        compute_pet = False
 
     # check if model really exists from data catalog entry
     # else skip and provide empty ds
@@ -269,6 +361,8 @@ def extract_climate_projections_statistics(
                 model,
                 scenario,
                 member,
+                compute_pet=compute_pet,
+                pet_method=pet_method,
                 save_grids=save_grids,
                 time_horizon=time_horizon,
             )
@@ -287,8 +381,7 @@ def extract_climate_projections_statistics(
         nc_mean_stats = xr.Dataset()
     nc_mean_stats_time = xr.merge(ds_members_mean_stats_time)
 
-    # write netcdf:
-
+    # write netcdf
     # use hydromt function instead to write to netcdf?
     dvars = nc_mean_stats_time.data_vars
 
@@ -353,6 +446,7 @@ if __name__ == "__main__":
             members=sm.params.name_members,
             model=sm.params.name_model,
             variables=sm.params.variables,
+            pet_method=sm.params.pet_method,
             save_grids=sm.params.save_grids,
             time_horizon=time_horizon,
         )

@@ -1,5 +1,5 @@
-###########################################################################################
-#################################### General settings ######################################
+########################################################################################
+#################################### General settings ##################################
 
 # Path to where the wflow model will be stored (include the project name)
 project_dir: tests/test_project
@@ -27,8 +27,8 @@ clim_historical_colors:
 starttime: "2000-01-01T00:00:00"
 endtime: "2010-12-31T00:00:00"
 
-###########################################################################################
-#################################### Analysis of historical climate data #######################################
+########################################################################################
+######################### Analysis of historical climate data ##########################
 
 # hydromt "region" for building the model, coordinates are in EPSG 4326
 # for more info on how to fill this, you can see the hydromt documentation: 

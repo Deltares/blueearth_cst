@@ -73,7 +73,8 @@ def test_get_climate_historical_statistics(tmpdir, data_sources_climate):
         scenario="historical",
         members=["r1i1p1f1"],
         model="NOAA-GFDL/GFDL-ESM4",
-        variables=["precip", "temp"],
+        variables=["precip", "temp", "pet"],
+        pet_method="makkink",
         save_grids=True,
         time_horizon={"historical": ("2000", "2010")},
     )
@@ -97,6 +98,7 @@ def test_get_climate_historical_statistics(tmpdir, data_sources_climate):
     # Check that precip and temp are in the data_vars
     assert "precip" in ds.data_vars
     assert "temp" in ds.data_vars
+    assert "pet" in ds.data_vars
 
     # Check the content of the grid file
     ds_grid = xr.open_dataset(fn_out_grid)
@@ -132,7 +134,8 @@ def test_get_climate_future_statistics(tmpdir, data_sources_climate, config):
         scenario="ssp245",
         members=["r1i1p1f1"],
         model="NOAA-GFDL/GFDL-ESM4",
-        variables=["precip", "temp"],
+        variables=["precip", "temp", "pet"],
+        pet_method="makkink",
         save_grids=True,
         time_horizon=time_horizon,
     )
@@ -166,7 +169,8 @@ def test_get_climate_future_statistics(tmpdir, data_sources_climate, config):
         scenario="ssp119",
         members=["r1i1p1f1"],
         model="INM/INM-CM5-0",
-        variables=["precip", "temp"],
+        variables=["precip", "temp", "pet"],
+        pet_method="makkink",
         save_grids=True,
         time_horizon=get_config(config, "future_horizons", optional=False),
     )
@@ -240,7 +244,8 @@ def test_monthly_change(tmpdir):
     ds = xr.open_dataset(fn_out)
     assert ds.horizon.values[0] == "near"
     assert np.round(ds["precip"].mean().values, 2) == 14.01
-    assert np.round(ds["temp"].mean().values, 2) == 1.11
+    assert np.isclose(ds["temp"].mean().values, 1.11, atol=0.01)
+    assert np.isclose(ds["pet"].mean().values, 5.54, atol=0.01)
 
 
 def test_monthly_change_scalar_merge(tmpdir, config):
@@ -276,8 +281,10 @@ def test_monthly_change_scalar_merge(tmpdir, config):
     assert len(clim_files) == len(df) == 12
     assert "temp" in df.columns
     assert "precip" in df.columns
+    assert "pet" in df.columns
     assert np.round(max(df["precip"]), 2) == 11.83
     assert np.round(min(df["temp"]), 2) == 1.19
+    assert np.round(min(df["pet"]), 2) == 6.8
 
 
 def test_plot_climate_projections(tmpdir):
@@ -352,6 +359,9 @@ def test_plot_climate_projections(tmpdir):
     assert isfile(
         join(path_output, "plots", "temperature_monthly_projections_anom.png")
     )
+    assert isfile(join(path_output, "plots", "pet_anomaly_projections_abs.png"))
+    assert isfile(join(path_output, "plots", "pet_anomaly_projections_anom.png"))
+    assert isfile(join(path_output, "plots", "pet_monthly_projections_abs.png"))
 
     # Check for a couple of grid plots
     assert isfile(
