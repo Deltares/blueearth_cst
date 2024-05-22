@@ -15,6 +15,8 @@ from .conftest import MAINDIR, SAMPLE_PROJECTDIR, TESTDIR, config_fao_fn, data_l
 from .conftest import get_config
 
 from ..src import copy_config_files
+from ..src import setup_reservoirs_lakes_glaciers
+from ..src import setup_gauges_and_outputs
 from ..src import setup_time_horizon
 from ..src import plot_map
 from ..src import plot_map_forcing
@@ -38,8 +40,83 @@ def test_copy_config(tmpdir, data_libs_fao, model_build_config):
     assert os.path.exists(f"{tmpdir}/config/tests_data_catalog.yml")
 
 
-# model creation and model running not tested -- same as in CST test workflow
+# model creation and model running not tested 
+def test_create_model_full(
+    tmpdir, config, model_build_config, waterbodies_config, data_sources
+):
+    """Test building the wflow model including all steps."""
 
+    ### 1. Create model base ###
+    basin_dir = f"{tmpdir}/hydrology_model"
+    model_region = get_config(config, "model_region", optional=False)
+    model_resolution = get_config(config, "model_resolution", 0.00833333)
+    hydromt_ini = model_build_config
+
+    # Run hydromt build command similarly as in snakemake workflow
+    # np.atleast_1d to convert string to list (if there is only one element in a list)
+    data_sources = np.atleast_1d(data_sources).tolist()
+    data_catalogs = [f"-d {cat} " for cat in data_sources]
+    # -d {data_sources} should be called similarly as in the snakefile -  ".join(data_catalogs) combine list elements to string
+    cmd = f"""hydromt build wflow {basin_dir} --region "{model_region}" --opt setup_basemaps.res={model_resolution} -i {hydromt_ini} {" ".join(data_catalogs)} --fo -vv"""
+    result = subprocess.run(cmd, shell=True, capture_output=True)
+    # Check the output of the subprocess command
+    assert result.returncode == 0
+
+    # Check the output files
+    assert os.path.exists(f"{tmpdir}/hydrology_model/staticmaps.nc")
+    assert os.path.exists(f"{tmpdir}/hydrology_model/wflow_sbm.toml")
+
+    # Compare to the wflow_dem sample output file as not all variables are built yet
+    # gauges, waterbodies, glaciers etc are not yet added
+    ds_project = xr.open_dataset(f"{tmpdir}/hydrology_model/staticmaps.nc")
+    ds_sample = xr.open_dataset(f"{SAMPLE_PROJECTDIR}/hydrology_model/staticmaps.nc")
+
+    xr.testing.assert_allclose(ds_project["wflow_dem"], ds_sample["wflow_dem"])
+
+    # Close and release the datasets
+    ds_project.close()
+    ds_sample.close()
+
+    ### 2. Add reservoirs, lakes and glaciers to the built model ###
+    setup_reservoirs_lakes_glaciers.update_wflow_waterbodies_glaciers(
+        wflow_root=basin_dir,
+        data_catalog=data_sources,
+        config_fn=waterbodies_config,
+    )
+
+    # Check the output files
+    # In this case we should get glaciers and reservoirs added but no lakes
+    assert os.path.exists(
+        f"{tmpdir}/hydrology_model/staticgeoms/reservoirs_lakes_glaciers.txt"
+    )
+    assert os.path.exists(f"{tmpdir}/hydrology_model/staticgeoms/glaciers.geojson")
+    assert os.path.exists(f"{tmpdir}/hydrology_model/staticgeoms/reservoirs.geojson")
+    assert not os.path.exists(f"{tmpdir}/hydrology_model/staticgeoms/lakes.geojson")
+
+    ### 3. Add gauges and select outputs ###
+    gauges_fn = get_config(config, "output_locations", None)
+    gauges_fn = join(MAINDIR, gauges_fn)
+    outputs = get_config(config, "wflow_outvars")
+
+    setup_gauges_and_outputs.update_wflow_gauges_outputs(
+        wflow_root=basin_dir,
+        data_catalog=data_sources,
+        gauges_fn=gauges_fn,
+        outputs=outputs,
+    )
+
+    # Check the output files
+    assert os.path.exists(f"{tmpdir}/hydrology_model/staticgeoms/gauges.geojson")
+    assert os.path.exists(
+        f"{tmpdir}/hydrology_model/staticgeoms/gauges_discharge-locations-grdc.geojson"
+    )
+
+    # Check if our output vars are in the wflow_sbm.toml file
+    wflow = WflowModel(root=basin_dir, mode="r")
+
+    vars = [v["header"] for v in wflow.config["csv"]["column"]]
+    for output in outputs:
+        assert f"{output}_basavg" in vars
 
 def test_setup_runtime_suffix(tmpdir, config_fao):
     """Test preparing the forcing config file when there are multiple data sources and suffix is required."""
@@ -76,6 +153,31 @@ def test_setup_runtime_suffix(tmpdir, config_fao):
             content["write_config"]["config_name"] == f"wflow_sbm_{precip_source}.toml"
         )
 
+def test_setup_runtime(tmpdir, config):
+    """Test preparing the forcing config file without suffix."""
+    starttime = get_config(config, "starttime", optional=False)
+    endtime = get_config(config, "endtime", optional=False)
+    fn_yml = f"{tmpdir}/config/wflow_build_forcing_historical.yml"
+    precip_source = get_config(config, "clim_historical", optional=False)
+
+    setup_time_horizon.prep_hydromt_update_forcing_config(
+        starttime=starttime,
+        endtime=endtime,
+        fn_yml=fn_yml,
+        precip_source=precip_source,
+    )
+
+    # Check the output file
+    assert os.path.exists(fn_yml)
+    # Check the content of the output file
+    with open(fn_yml, "rb") as f:
+        content = yaml.safe_load(f)
+    assert "setup_config" in content
+    assert "setup_precip_forcing" in content
+    assert "setup_temp_pet_forcing" in content
+
+    assert content["setup_config"]["starttime"] == starttime
+    assert content["setup_precip_forcing"]["precip_fn"] == precip_source
 
 @pytest.mark.timeout(120)  # max 2 min
 def test_add_forcing(tmpdir, data_libs_fao, config_fao):
@@ -107,6 +209,29 @@ def test_add_forcing(tmpdir, data_libs_fao, config_fao):
         assert "temp" in ds
         assert "pet" in ds
 
+def test_plot_map(tmpdir, config):
+    """Test plotting the model map."""
+    wflow_root = f"{SAMPLE_PROJECTDIR}/hydrology_model"
+    plot_dir = f"{tmpdir}/plots/wflow_model_performance"
+    gauges_fn = get_config(config, "output_locations")
+    gauges_name = f'gauges_{basename(gauges_fn).split(".")[0]}'
+
+    # Try without gauges
+    plot_map.plot_wflow_map(
+        wflow_root=wflow_root,
+        plot_dir=plot_dir,
+        gauges_name=None,
+    )
+
+    # Try with gauges
+    plot_map.plot_wflow_map(
+        wflow_root=wflow_root,
+        plot_dir=plot_dir,
+        gauges_name=gauges_name,
+    )
+
+    # Check output
+    assert os.path.exists(f"{plot_dir}/basin_area.png")
 
 def test_plot_forcing(tmpdir, config_fao):
     """Test plotting the forcing maps."""
@@ -141,9 +266,6 @@ def test_plot_forcing(tmpdir, config_fao):
         assert os.path.exists(f"{plot_dir}/pet.png")
 
 
-# todo!
-# @pytest.mark.parametrize("model", list(_supported_models.keys())) check -- https://github.com/Deltares/hydromt_wflow/blob/main/tests/test_model_class.py def test_model_build
-# _supported_models = {"wflow": WflowModel, "wflow_sediment": WflowSedimentModel} to have same tests for two config files -- make a list !
 def test_plot_results(tmpdir, config_fao):
     """Test plotting the model results."""
     wflow_root = f"{SAMPLE_PROJECTDIR}/hydrology_model"
@@ -161,11 +283,11 @@ def test_plot_results(tmpdir, config_fao):
     # 1. Plot all results
     plot_results.analyse_wflow_historical(
         wflow_root=wflow_root,
+        climate_sources=precip_sources,
         plot_dir=join(plot_dir, "long_run"),
         observations_fn=observations_fn,
         gauges_locs=gauges_locs,
         wflow_config_fn_prefix="wflow_sbm",  # prefix name toml file instead? "wflow_sbm"
-        climate_sources=precip_sources,
         climate_sources_colors=clim_historical_colors,
     )
 
@@ -195,9 +317,10 @@ def test_plot_results(tmpdir, config_fao):
     # Check budyko plot
     assert os.path.exists(f"{plot_dir}/long_run/budyko_qobs.png")
 
-    # 2. Plot medium length and no observations timeseries
+    # 2. Plot medium length and no observations timeseries (only era5)
     plot_results.analyse_wflow_historical(
         wflow_root=wflow_root,
+        climate_sources=["era5"], #precip_sources,
         plot_dir=join(plot_dir, "medium_run"),
         observations_fn=None,
         gauges_locs=gauges_locs,
@@ -217,9 +340,10 @@ def test_plot_results(tmpdir, config_fao):
     perf = pd.read_csv(f"{plot_dir}/medium_run/performance_metrics.csv")
     assert perf.empty
 
-    # 3. Plot medium length and no observations locs and timeseries
+    # 3. Plot medium length and no observations locs and timeseries (only era5)
     plot_results.analyse_wflow_historical(
         wflow_root=wflow_root,
+        climate_sources=["era5"],
         plot_dir=join(plot_dir, "medium_run_no_obs"),
         observations_fn=None,
         gauges_locs=None,
@@ -230,9 +354,10 @@ def test_plot_results(tmpdir, config_fao):
         f"{plot_dir}/medium_run_no_obs/hydro_PONTE DELLA IASTA.png"
     )
 
-    # 4. Plot short run with observations
+    # 4. Plot short run with observations (only era5 provided as string and not as list)
     plot_results.analyse_wflow_historical(
         wflow_root=wflow_root,
+        climate_sources="era5",
         plot_dir=join(plot_dir, "short_run"),
         observations_fn=observations_fn,
         gauges_locs=gauges_locs,

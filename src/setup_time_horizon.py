@@ -11,7 +11,7 @@ def prep_hydromt_update_forcing_config(
     endtime: str,
     fn_yml: Union[str, Path] = "wflow_build_forcing_historical.yml",
     precip_source: str = "era5",
-    suffix: bool = False,
+    suffix: bool = True,
 ):
     """Prepare a hydromt config file to be able to add forcing to a wflow model
 
@@ -26,7 +26,7 @@ def prep_hydromt_update_forcing_config(
     precip_source : str
         Name of the precipitation source to use
     suffix: bool
-        add {precip_source} as suffix to config file name, path_forcing name and run_default name
+        add {precip_source} as suffix to config file name, path_forcing name and run_default name, default is True
     """
     # Check precip source and set options accordingly
     if precip_source == "eobs":

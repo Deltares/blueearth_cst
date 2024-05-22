@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import hydromt
 from hydromt_wflow import WflowModel
+import seaborn as sns
 
 from typing import Union, List, Optional
 
@@ -51,10 +52,8 @@ else:
 
 def get_wflow_results(
     wflow_root: Union[str, Path],
-    wflow_config_fn_prefix: str = "wflow_sbm",
-    climate_source: List[
-        str
-    ] = None,  # climate source name used as suffix in config file
+    climate_source: List[str],  
+    wflow_config_fn_prefix: str = "wflow_sbm", # climate source name used as suffix in config file
     gauges_locs: Union[Path, str] = None,
 ):
     """
@@ -64,11 +63,11 @@ def get_wflow_results(
     ----------
     wflow_root : Union[str, Path]
         Path to the wflow model root folder.
+    climate_source: List[str]
+        climate dataset for run to read.
     wflow_config_fn_prefix : str, optional
         Prefix name of the wflow configuration file, by default "wflow_sbm". Used to read
         the right results files from the wflow model.
-    climate_sources: List[str], optional
-        List of climate datasets used to run wflow.
     gauges_locs : Union[Path, str], optional
         Path to gauges/observations locations file, by default None
         Required columns: wflow_id, station_name, x, y.
@@ -88,22 +87,16 @@ def get_wflow_results(
 
 
     """
-    if climate_source is None:
-        mod = WflowModel(
-            root=wflow_root, mode="r", config_fn=wflow_config_fn_prefix + ".toml"
-        )
-        qsim = mod.results["Q_gauges"].rename("Q")
-    else:
-        mod = WflowModel(
-            root=wflow_root,
-            mode="r",
-            config_fn=wflow_config_fn_prefix + f"_{climate_source}.toml",
-        )
-        qsim = mod.results["Q_gauges"].rename("Q")
-        # add climate data source
-        qsim = qsim.assign_coords(climate_source=(f"{climate_source}")).expand_dims(
-            ["climate_source"]
-        )
+    mod = WflowModel(
+        root=wflow_root,
+        mode="r",
+        config_fn=wflow_config_fn_prefix + f"_{climate_source}.toml",
+    )
+    qsim = mod.results["Q_gauges"].rename("Q")
+    # add climate data source
+    qsim = qsim.assign_coords(climate_source=(f"{climate_source}")).expand_dims(
+        ["climate_source"]
+    )
     qsim = qsim.assign_coords(
         station_name=(
             "index",
@@ -129,10 +122,9 @@ def get_wflow_results(
                     list(gdf_gauges["station_name"][qsim_gauges.index.values].values),
                 )
             )
-            if climate_source is not None:
-                qsim_gauges = qsim_gauges.assign_coords(
-                    climate_source=(f"{climate_source}")
-                ).expand_dims(["climate_source"])
+            qsim_gauges = qsim_gauges.assign_coords(
+                climate_source=(f"{climate_source}")
+            ).expand_dims(["climate_source"])
     else:
         qsim_gauges = None
 
@@ -144,11 +136,10 @@ def get_wflow_results(
             mod.results["EP_subcatchment"],
         ]
     )
-    if climate_source is not None:
-        # add climate data source
-        ds_clim = ds_clim.assign_coords(
-            climate_source=(f"{climate_source}")
-        ).expand_dims(["climate_source"])
+    # add climate data source
+    ds_clim = ds_clim.assign_coords(
+        climate_source=(f"{climate_source}")
+    ).expand_dims(["climate_source"])
 
     # Other catchment average outputs
     ds_basin = xr.merge(
@@ -158,22 +149,22 @@ def get_wflow_results(
     # If precipitation, skip as this will be plotted with the other climate data
     if "precipitation_basavg" in ds_basin:
         ds_basin = ds_basin.drop_vars("precipitation_basavg")
-    if climate_source is not None:
-        # add climate data source
-        ds_basin = ds_basin.assign_coords(
-            climate_source=(f"{climate_source}")
-        ).expand_dims(["climate_source"])
+
+    # add climate data source
+    ds_basin = ds_basin.assign_coords(
+        climate_source=(f"{climate_source}")
+    ).expand_dims(["climate_source"])
 
     return qsim, qsim_gauges, ds_clim, ds_basin
 
 
 def analyse_wflow_historical(
     wflow_root: Union[str, Path],
+    climate_sources: List[str],
     plot_dir: Union[str, Path] = None,
     observations_fn: Union[Path, str] = None,
     gauges_locs: Union[Path, str] = None,
     wflow_config_fn_prefix: str = "wflow_sbm",
-    climate_sources: List[str] = None,
     climate_sources_colors: List[str] = None,
     split_year: Optional[int] = None,
 ):
@@ -207,6 +198,8 @@ def analyse_wflow_historical(
     ----------
     wflow_root : Union[str, Path]
         Path to the wflow model root folder.
+    climate_sources: List[str]
+        List of climate datasets used to run wflow.
     plot_dir : Union[str, Path], optional
         Path to the output folder. If None (default), create a folder "plots"
         in the wflow_root folder.
@@ -222,8 +215,6 @@ def analyse_wflow_historical(
     wflow_config_fn_prefix : str, optional
         Prefix name of the wflow configuration file, by default "wflow_sbm". Used to read
         the right results files from the wflow model.
-    climate_sources: List[str], optional
-        List of climate datasets used to run wflow.
     climate_sources_colors: List[str], optional
         List of colors to use for the different climate sources. Default is None.
     split_year : int, optional
@@ -242,18 +233,16 @@ def analyse_wflow_historical(
     lw = 0.8
 
     # Other plot options
-    label = "simulated"  # "observed"
-    color = "steelblue"  # "red"
+    color = "steelblue"  
     linestyle = "-"
     marker = "o"
 
     # Prepare colors dict
-    if climate_sources_colors is not None and climate_sources is not None:
-        color = {k: v for k, v in zip(climate_sources, climate_sources_colors)}
-    elif climate_sources is not None:
-        color = {k: None for k in climate_sources}
+    if climate_sources_colors is not None:
+        cmap = climate_sources_colors
     else:
-        color = {"climate_source": None}
+        cmap = sns.color_palette("Set2", len(np.atleast_1d(climate_sources).tolist()))
+    color = {k: v for k, v in zip(np.atleast_1d(climate_sources).tolist(), cmap)}
 
     ### 2. Read the observations ###
     # check if user provided observations
@@ -276,69 +265,31 @@ def analyse_wflow_historical(
 
     ### 3. Read the wflow model and results ###
     # Instantiate wflow model
-    # read wflow runs from several climate sources if more than one
-    if len(np.atleast_1d(climate_sources).tolist()) > 1:
-        qsim = []
-        qsim_gauges = []
-        ds_clim = []
-        ds_basin = []
-        for climate_source in climate_sources:
-            qsim_source, qsim_gauges_source, ds_clim_source, ds_basin_source = (
-                get_wflow_results(
-                    wflow_root=wflow_root,
-                    wflow_config_fn_prefix=wflow_config_fn_prefix,
-                    climate_source=climate_source,
-                    gauges_locs=gauges_locs,
-                )
+    # read wflow runs for different climate sources 
+    qsim = []
+    qsim_gauges = []
+    ds_clim = []
+    ds_basin = []
+    for climate_source in np.atleast_1d(climate_sources).tolist():
+        qsim_source, qsim_gauges_source, ds_clim_source, ds_basin_source = (
+            get_wflow_results(
+                wflow_root=wflow_root,
+                wflow_config_fn_prefix=wflow_config_fn_prefix,
+                climate_source=climate_source,
+                gauges_locs=gauges_locs,
             )
-            qsim.append(qsim_source)
-            qsim_gauges.append(qsim_gauges_source)
-            ds_clim.append(ds_clim_source)
-            ds_basin.append(ds_basin_source)
-        qsim = xr.concat(qsim, dim="climate_source")
-        ds_clim = xr.concat(ds_clim, dim="climate_source")
-        ds_basin = xr.concat(ds_basin, dim="climate_source")
-        if qsim_gauges[0] is not None:
-            qsim_gauges = xr.concat(qsim_gauges, dim="climate_source")
-            # merge with qsim
-            qsim = xr.concat([qsim, qsim_gauges], dim="index")
-
-    else:
-        qsim, qsim_gauges, ds_clim, ds_basin = get_wflow_results(
-            wflow_root=wflow_root,
-            wflow_config_fn_prefix=wflow_config_fn_prefix,
-            climate_source=None,
-            gauges_locs=gauges_locs,
         )
-
-        # Merge with qsim
-        if qsim_gauges is not None:
-            qsim = xr.concat([qsim, qsim_gauges], dim="index")
-
-    # make sure qsim, ds_clim and ds_basin have coord climate_source (even if only one climate source is used in the default case)
-    if "climate_source" not in qsim.coords:
-        if climate_sources is not None:
-            qsim = qsim.assign_coords(
-                climate_source=(f"{climate_sources[0]}")
-            ).expand_dims(["climate_source"])
-            ds_clim = ds_clim.assign_coords(
-                climate_source=(f"{climate_sources[0]}")
-            ).expand_dims(["climate_source"])
-            ds_basin = ds_basin.assign_coords(
-                climate_source=(f"{climate_sources[0]}")
-            ).expand_dims(["climate_source"])
-        else:
-            qsim = qsim.assign_coords(climate_source=("climate_source")).expand_dims(
-                ["climate_source"]
-            )
-            # if "climate_source" not in ds_clim.coords:
-            ds_clim = ds_clim.assign_coords(
-                climate_source=("climate_source")
-            ).expand_dims(["climate_source"])
-            # if "climate_source" not in ds_basin.coords:
-            ds_basin = ds_basin.assign_coords(
-                climate_source=("climate_source")
-            ).expand_dims(["climate_source"])
+        qsim.append(qsim_source)
+        qsim_gauges.append(qsim_gauges_source)
+        ds_clim.append(ds_clim_source)
+        ds_basin.append(ds_basin_source)
+    qsim = xr.concat(qsim, dim="climate_source")
+    ds_clim = xr.concat(ds_clim, dim="climate_source")
+    ds_basin = xr.concat(ds_basin, dim="climate_source")
+    if qsim_gauges[0] is not None:
+        qsim_gauges = xr.concat(qsim_gauges, dim="climate_source")
+        # merge with qsim
+        qsim = xr.concat([qsim, qsim_gauges], dim="index")
 
     ### make sure the time period of all climate sources is the same for the subsequent plots.
     qsim = qsim.dropna("time")
@@ -487,36 +438,22 @@ def analyse_wflow_historical(
 
     ### 8. Plot budyko framework if there are observations ###
     if has_observations:
-        if (
-            len(np.atleast_1d(climate_sources).tolist()) > 1
-        ):  # no suffix of climate source added in name config file
-            ds_clim_sub_annual = []
-            for climate_source in climate_sources:
-                config_fn = wflow_config_fn_prefix + f"_{climate_source}.toml"
-
-                # get mean annual precip, pet and q_specific upstream of observation locations for a specific source
-                ds_clim_sub_source, ds_clim_sub_annual_source = get_upstream_clim_basin(
-                    qobs, wflow_root, config_fn
-                )
-                # calculate budyko terms
-                ds_clim_sub_annual_source = determine_budyko_curve_terms(
-                    ds_clim_sub_annual_source
-                )
-                ds_clim_sub_annual_source = ds_clim_sub_annual_source.assign_coords(
-                    climate_source=(f"{climate_source}")
-                ).expand_dims(["climate_source"])
-                ds_clim_sub_annual.append(ds_clim_sub_annual_source)
-            ds_clim_sub_annual = xr.merge(ds_clim_sub_annual)
-        else:
-            config_fn = wflow_config_fn_prefix + ".toml"
+        ds_clim_sub_annual = []
+        for climate_source in np.atleast_1d(climate_sources).tolist():
+            config_fn = wflow_config_fn_prefix + f"_{climate_source}.toml"
             # get mean annual precip, pet and q_specific upstream of observation locations for a specific source
-            ds_clim_sub, ds_clim_sub_annual = get_upstream_clim_basin(
+            ds_clim_sub_source, ds_clim_sub_annual_source = get_upstream_clim_basin(
                 qobs, wflow_root, config_fn
             )
-            ds_clim_sub_annual = determine_budyko_curve_terms(ds_clim_sub_annual)
-            ds_clim_sub_annual = ds_clim_sub_annual.assign_coords(
+            # calculate budyko terms
+            ds_clim_sub_annual_source = determine_budyko_curve_terms(
+                ds_clim_sub_annual_source
+            )
+            ds_clim_sub_annual_source = ds_clim_sub_annual_source.assign_coords(
                 climate_source=(f"{climate_source}")
             ).expand_dims(["climate_source"])
+            ds_clim_sub_annual.append(ds_clim_sub_annual_source)
+        ds_clim_sub_annual = xr.merge(ds_clim_sub_annual)
 
         # plot budyko with different sources.
         plot_budyko(ds_clim_sub_annual, plot_dir, color=color)
