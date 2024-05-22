@@ -840,21 +840,24 @@ def plot_clim(
                 .sel(climate_source=climate_source)
             )
             # plot
-            p = T_mean_monthly_mean.plot(
-                ax=ax1, color=color[climate_source], label=f"{climate_source}"
-            )
-            if color[climate_source] == None:
-                c = p[0].get_color()
-            else:
-                c = color[climate_source]
-            ax1.fill_between(
-                np.arange(1, 13),
-                T_mean_monthly_q25,
-                T_mean_monthly_q75,
-                color=c,
-                alpha=0.5,
-                label=f"{climate_source} 25%-75%",
-            )
+            # todo: update the workflow to have more control on the forcing and allow the user to select the dataset for precip and for temp+pet and the equation for pet
+            # for now only plot temp and evap it climate source is era5 and era5 is in climate source.
+            if "era5" in ds_clim.climate_source and climate_source == "era5":
+                p = T_mean_monthly_mean.plot(
+                    ax=ax1, color=color[climate_source], label=f"{climate_source}"
+                )
+                if color[climate_source] == None:
+                    c = p[0].get_color()
+                else:
+                    c = color[climate_source]
+                ax1.fill_between(
+                    np.arange(1, 13),
+                    T_mean_monthly_q25,
+                    T_mean_monthly_q75,
+                    color=c,
+                    alpha=0.5,
+                    label=f"{climate_source} 25%-75%",
+                )
     else:
         for climate_source in ds_clim.climate_source.values:
             T_mean_year = (
@@ -863,27 +866,28 @@ def plot_clim(
                 .mean("time")
                 .sel(climate_source=climate_source)
             )
-            p = T_mean_year.plot(
-                ax=ax1, color=color[climate_source], label=f"{climate_source}"
-            )
+            if "era5" in ds_clim.climate_source and climate_source == "era5":
+                p = T_mean_year.plot(
+                    ax=ax1, color=color[climate_source], label=f"{climate_source}"
+                )
 
-            if color[climate_source] == None:
-                c = p[0].get_color()
-            else:
-                c = color[climate_source]
+                if color[climate_source] == None:
+                    c = p[0].get_color()
+                else:
+                    c = color[climate_source]
 
-            x = T_mean_year.time.dt.year
-            z = np.polyfit(x, T_mean_year, 1)
-            p = np.poly1d(z)
-            r2_score, p_value = rsquared(p(x), T_mean_year)
-            ax1.plot(
-                T_mean_year.time,
-                p(x),
-                ls="--",
-                color=c,
-                alpha=0.5,
-                label=f"trend {climate_source} $R^2$ = {round(r2_score, 3)}, p = {round(p_value, 3)}",
-            )
+                x = T_mean_year.time.dt.year
+                z = np.polyfit(x, T_mean_year, 1)
+                p = np.poly1d(z)
+                r2_score, p_value = rsquared(p(x), T_mean_year)
+                ax1.plot(
+                    T_mean_year.time,
+                    p(x),
+                    ls="--",
+                    color=c,
+                    alpha=0.5,
+                    label=f"trend {climate_source} $R^2$ = {round(r2_score, 3)}, p = {round(p_value, 3)}",
+                )
 
     # precip and evap
     for climvar, ax in zip(
@@ -909,42 +913,52 @@ def plot_clim(
                     f"time.{period}"
                 ).quantile(0.75, "time")
 
-                p = var_sum_monthly_mean.plot(
-                    ax=ax, color=color[climate_source], label=f"{climate_source}"
-                )
-                if color[climate_source] == None:
-                    c = p[0].get_color()
-                else:
-                    c = color[climate_source]
+                if (
+                    "era5" in ds_clim.climate_source
+                    and climate_source == "era5"
+                    and climvar == "EP_subcatchment"
+                ) | (climvar == "P_subcatchment"):
+                    p = var_sum_monthly_mean.plot(
+                        ax=ax, color=color[climate_source], label=f"{climate_source}"
+                    )
+                    if color[climate_source] == None:
+                        c = p[0].get_color()
+                    else:
+                        c = color[climate_source]
 
-                ax.fill_between(
-                    np.arange(1, 13),
-                    var_sum_monthly_q25,
-                    var_sum_monthly_q75,
-                    color=c,
-                    alpha=0.5,
-                    label=f"{climate_source} 25%-75%",
-                )
+                    ax.fill_between(
+                        np.arange(1, 13),
+                        var_sum_monthly_q25,
+                        var_sum_monthly_q75,
+                        color=c,
+                        alpha=0.5,
+                        label=f"{climate_source} 25%-75%",
+                    )
             else:
                 x = var_sum_monthly.time.dt.year
                 z = np.polyfit(x, var_sum_monthly, 1)
                 p = np.poly1d(z)
                 r2_score, p_value = rsquared(p(x), var_sum_monthly)
 
-                p = ax.plot(
-                    var_sum_monthly.time,
-                    p(x),
-                    ls="--",
-                    alpha=0.5,
-                    color=color[climate_source],
-                    label=f"trend {climate_source} $R^2$ = {round(r2_score, 3)}, p = {round(p_value, 3)}",
-                )
-                if color[climate_source] == None:
-                    c = p[0].get_color()
-                else:
-                    c = color[climate_source]
+                if (
+                    "era5" in ds_clim.climate_source
+                    and climate_source == "era5"
+                    and climvar == "EP_subcatchment"
+                ) | (climvar == "P_subcatchment"):
+                    p = ax.plot(
+                        var_sum_monthly.time,
+                        p(x),
+                        ls="--",
+                        alpha=0.5,
+                        color=color[climate_source],
+                        label=f"trend {climate_source} $R^2$ = {round(r2_score, 3)}, p = {round(p_value, 3)}",
+                    )
+                    if color[climate_source] == None:
+                        c = p[0].get_color()
+                    else:
+                        c = color[climate_source]
 
-                var_sum_monthly.plot(ax=ax, color=c, label=f"{climate_source}")
+                    var_sum_monthly.plot(ax=ax, color=c, label=f"{climate_source}")
 
     for ax, title_name, ylab in zip(
         [ax1, ax2, ax3],
