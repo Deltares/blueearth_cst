@@ -40,7 +40,7 @@ def test_copy_config(tmpdir, data_libs_fao, model_build_config):
     assert os.path.exists(f"{tmpdir}/config/tests_data_catalog.yml")
 
 
-# model creation and model running not tested 
+# model creation and model running not tested
 def test_create_model_full(
     tmpdir, config, model_build_config, waterbodies_config, data_sources
 ):
@@ -118,6 +118,7 @@ def test_create_model_full(
     for output in outputs:
         assert f"{output}_basavg" in vars
 
+
 def test_setup_runtime_suffix(tmpdir, config_fao):
     """Test preparing the forcing config file when there are multiple data sources and suffix is required."""
     starttime = get_config(config_fao, "starttime", optional=False)
@@ -153,6 +154,7 @@ def test_setup_runtime_suffix(tmpdir, config_fao):
             content["write_config"]["config_name"] == f"wflow_sbm_{precip_source}.toml"
         )
 
+
 def test_setup_runtime(tmpdir, config):
     """Test preparing the forcing config file without suffix."""
     starttime = get_config(config, "starttime", optional=False)
@@ -178,6 +180,7 @@ def test_setup_runtime(tmpdir, config):
 
     assert content["setup_config"]["starttime"] == starttime
     assert content["setup_precip_forcing"]["precip_fn"] == precip_source
+
 
 @pytest.mark.timeout(120)  # max 2 min
 def test_add_forcing(tmpdir, data_libs_fao, config_fao):
@@ -209,6 +212,7 @@ def test_add_forcing(tmpdir, data_libs_fao, config_fao):
         assert "temp" in ds
         assert "pet" in ds
 
+
 def test_plot_map(tmpdir, config):
     """Test plotting the model map."""
     wflow_root = f"{SAMPLE_PROJECTDIR}/hydrology_model"
@@ -232,6 +236,7 @@ def test_plot_map(tmpdir, config):
 
     # Check output
     assert os.path.exists(f"{plot_dir}/basin_area.png")
+
 
 def test_plot_forcing(tmpdir, config_fao):
     """Test plotting the forcing maps."""
@@ -320,7 +325,7 @@ def test_plot_results(tmpdir, config_fao):
     # 2. Plot medium length and no observations timeseries (only era5)
     plot_results.analyse_wflow_historical(
         wflow_root=wflow_root,
-        climate_sources=["era5"], #precip_sources,
+        climate_sources=["era5"],  # precip_sources,
         plot_dir=join(plot_dir, "medium_run"),
         observations_fn=None,
         gauges_locs=gauges_locs,

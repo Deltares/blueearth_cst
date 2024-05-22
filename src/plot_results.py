@@ -52,8 +52,8 @@ else:
 
 def get_wflow_results(
     wflow_root: Union[str, Path],
-    climate_source: List[str],  
-    wflow_config_fn_prefix: str = "wflow_sbm", # climate source name used as suffix in config file
+    climate_source: List[str],
+    wflow_config_fn_prefix: str = "wflow_sbm",  # climate source name used as suffix in config file
     gauges_locs: Union[Path, str] = None,
 ):
     """
@@ -137,9 +137,9 @@ def get_wflow_results(
         ]
     )
     # add climate data source
-    ds_clim = ds_clim.assign_coords(
-        climate_source=(f"{climate_source}")
-    ).expand_dims(["climate_source"])
+    ds_clim = ds_clim.assign_coords(climate_source=(f"{climate_source}")).expand_dims(
+        ["climate_source"]
+    )
 
     # Other catchment average outputs
     ds_basin = xr.merge(
@@ -151,9 +151,9 @@ def get_wflow_results(
         ds_basin = ds_basin.drop_vars("precipitation_basavg")
 
     # add climate data source
-    ds_basin = ds_basin.assign_coords(
-        climate_source=(f"{climate_source}")
-    ).expand_dims(["climate_source"])
+    ds_basin = ds_basin.assign_coords(climate_source=(f"{climate_source}")).expand_dims(
+        ["climate_source"]
+    )
 
     return qsim, qsim_gauges, ds_clim, ds_basin
 
@@ -233,7 +233,7 @@ def analyse_wflow_historical(
     lw = 0.8
 
     # Other plot options
-    color = "steelblue"  
+    color = "steelblue"
     linestyle = "-"
     marker = "o"
 
@@ -265,7 +265,7 @@ def analyse_wflow_historical(
 
     ### 3. Read the wflow model and results ###
     # Instantiate wflow model
-    # read wflow runs for different climate sources 
+    # read wflow runs for different climate sources
     qsim = []
     qsim_gauges = []
     ds_clim = []
