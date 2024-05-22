@@ -6,16 +6,11 @@
 project_dir: tests/test_project
 
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
-#data_sources: artifact_data
-#data_sources: tests/data/tests_data_catalog.yml
-
-#change code to use a list of data catalogs instead.
 data_sources: 
   - artifact_data
   - tests/data/tests_data_catalog.yml
 
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
-#data_sources_climate: config/deltares_data_climate_projections.yml
 data_sources_climate: config/cmip6_data.yml
 
 # Info on the historical climate data is used in the historic model run + reference data for the weather generator
@@ -28,6 +23,10 @@ endtime: "2010-12-31T00:00:00"
 clim_historical: 
   - era5
   - chirps_global
+
+climate_sources_colors:
+  - blue
+  - green 
 
 # List of wflow output variables to save
 wflow_outvars: ['river discharge', 'precipitation', 'overland flow', 'actual evapotranspiration', 'groundwater recharge', 'snow']
@@ -50,7 +49,7 @@ waterbodies_config: "config/fao/wflow_update_waterbodies.yml"
 # csv file containing three columns: station_ID, x, y
 output_locations: "tests/data/observations/discharge-locations-grdc.csv" # If set to None, will default to the wflow outlets
 # Path to the file with observed discharge timeseries per station 
-observations_timeseries: "tests/data/observations/observations_discharge_grdc.csv" 
+observations_timeseries: "tests/data/observations/observations-discharge-grdc.csv"
 
 ###########################################################################################
 ################################## Climate projections ####################################

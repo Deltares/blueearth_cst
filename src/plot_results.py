@@ -233,13 +233,12 @@ def analyse_wflow_historical(
     lw = 0.8
 
     # Other plot options
-    color = "steelblue"
     linestyle = "-"
     marker = "o"
 
     # Prepare colors dict
     if climate_sources_colors is not None:
-        cmap = climate_sources_colors
+        cmap = np.atleast_1d(climate_sources_colors).tolist()
     else:
         cmap = sns.color_palette("Set2", len(np.atleast_1d(climate_sources).tolist()))
     color = {k: v for k, v in zip(np.atleast_1d(climate_sources).tolist(), cmap)}
@@ -247,7 +246,6 @@ def analyse_wflow_historical(
     ### 2. Read the observations ###
     # check if user provided observations
     has_observations = False
-
     if observations_fn is not None and os.path.exists(observations_fn):
         has_observations = True
 
@@ -474,6 +472,7 @@ if __name__ == "__main__":
             observations_fn=sm.params.observations_file,
             gauges_locs=sm.params.gauges_output_fid,
             climate_sources=sm.params.climate_sources,
+            climate_sources_colors=sm.params.climate_sources_colors,
         )
     else:
         analyse_wflow_historical(
