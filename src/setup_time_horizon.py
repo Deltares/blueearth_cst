@@ -34,13 +34,23 @@ def prep_hydromt_update_forcing_config(
         clim_source = "era5"
         oro_source = "era5_orography"
         pet_method = "debruin"
+    # TODO: make more flexible to allow using temp variables if they would be available in the dataset.
+
+    path_forcing = (
+        f"../climate_historical/wflow_data/inmaps_historical_{precip_source}.nc"
+    )
+    config_name = f"wflow_sbm_{precip_source}.toml"
+    dir_output = f"run_default_{precip_source}"
 
     forcing_options = {
         "setup_config": {
             "starttime": starttime,
             "endtime": endtime,
             "timestepsecs": 86400,
-            "input.path_forcing": "../climate_historical/wflow_data/inmaps_historical.nc",
+            "dir_output": dir_output,
+            "input.path_forcing": path_forcing,
+            "csv.path": "output.csv",
+            "state.path_output": "outstate/outstates.nc",
         },
         "setup_precip_forcing": {
             "precip_fn": precip_source,
@@ -53,7 +63,7 @@ def prep_hydromt_update_forcing_config(
             "pet_method": pet_method,
             "skip_pet": False,
         },
-        "write_config": {},
+        "write_config": {"config_name": config_name},
         "write_forcing": {},
     }
 

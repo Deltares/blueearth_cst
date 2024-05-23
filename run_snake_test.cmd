@@ -1,9 +1,9 @@
 call activate blueearth-cst
 
 rem Snakefile_model_creation
-snakemake -s snakemake/Snakefile_model_creation.smk --configfile config/snake_config_cst.yml  --dag | dot -Tpng > dag_model.png
-snakemake --unlock -s snakemake/Snakefile_model_creation.smk --configfile config/snake_config_cst.yml
-snakemake all -c 1 -s snakemake/Snakefile_model_creation.smk --configfile config/snake_config_cst.yml
+snakemake -s snakemake/Snakefile_historical_hydrology.smk --configfile config/snake_config_cst.yml  --dag | dot -Tpng > dag_model.png
+snakemake --unlock -s snakemake/Snakefile_historical_hydrology.smk --configfile config/snake_config_cst.yml
+snakemake all -c 1 -s snakemake/Snakefile_historical_hydrology.smk --configfile config/snake_config_cst.yml
 
 rem Snakefile climate_projections
 snakemake -s snakemake/Snakefile_climate_projections.smk --configfile config/snake_config_cst.yml --dag | dot -Tpng > dag_projections.png

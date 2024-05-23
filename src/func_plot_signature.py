@@ -22,30 +22,41 @@ from typing import List, Union
 # %%
 # Supported wflow outputs
 WFLOW_VARS = {
-    "overland flow": {"resample": "mean", "legend": "Overland Flow (m$^3$s$^{-1}$)"},
+    "overland flow": {
+        "resample": "mean",
+        "legend": "Overland Flow (m$^3$s$^{-1}$)",
+        "legend_annual": "Overland Flow (m$^3$s$^{-1}$)",
+    },
     "actual evapotranspiration": {
         "resample": "sum",
         "legend": "Actual Evapotranspiration (mm month$^{-1}$)",
+        "legend_annual": "Actual Evapotranspiration (mm year$^{-1}$)",
     },
     "groundwater recharge": {
         "resample": "sum",
         "legend": "groundwater recharge (mm month$^{-1}$)",
+        "legend_annual": "groundwater recharge (mm year$^{-1}$)",
     },
-    "snow": {"resample": "sum", "legend": "Snowpack (mm month$^{-1}$)"},
+    "snow": {
+        "resample": "sum",
+        "legend": "Snowpack (mm month$^{-1}$)",
+        "legend_annual": "Snowpack (mm year$^{-1}$)}",
+    },
 }
 
 
 def rsquared(x, y):
-    """Return R^2 where x and y are array-like."""
+    """Return R^2 and p_value where x and y are array-like."""
 
     slope, intercept, r_value, p_value, std_err = stats.linregress(x, y)
-    return r_value**2
+    return r_value**2, p_value
 
 
 def compute_metrics(
     qsim: xr.DataArray,
     qobs: xr.DataArray,
     station_name: str = "station",
+    climate_source: str = "climate_source",
 ) -> pd.DataFrame:
     """
     Compute performance metrics.
@@ -73,7 +84,8 @@ def compute_metrics(
         * Required attributes: [station_name]
     station_name : str, optional
         Station name, by default "station"
-
+    climate_source : str, optional
+        Climate source used, by default "climate_source"
     Returns
     -------
     pd.DataFrame
@@ -83,58 +95,90 @@ def compute_metrics(
     # Initialize performance array
     metrics = ["KGE", "NSE", "NSElog", "RMSE", "MSE", "Pbias", "VE"]
     time_type = ["daily", "monthly"]
+    climate_source = [f"{climate_source}"]
     da_perf = xr.DataArray(
-        np.zeros((len(metrics), len(time_type))),
-        coords=[metrics, time_type],
-        dims=["metrics", "time_type"],
+        np.zeros((len(metrics), len(time_type), len(climate_source))),
+        coords=[metrics, time_type, climate_source],
+        dims=["metrics", "time_type", "climate_source"],
     )
 
     # Select data and resample to monthly timeseries as well
-    qsim_monthly = qsim.resample(time="M").mean("time")
-    qobs_monthly = qobs.resample(time="M").mean("time")
-
+    qsim_monthly = qsim.resample(time="ME").mean("time")
+    qobs_monthly = qobs.resample(time="ME").mean("time")
     # compute perf metrics
     # nse
     nse = skills.nashsutcliffe(qsim, qobs)
-    da_perf.loc[dict(metrics="NSE", time_type="daily")] = nse
+    da_perf.loc[
+        dict(metrics="NSE", time_type="daily", climate_source=f"{climate_source[0]}")
+    ] = nse
     nse_m = skills.nashsutcliffe(qsim_monthly, qobs_monthly)
-    da_perf.loc[dict(metrics="NSE", time_type="monthly")] = nse_m
+    da_perf.loc[
+        dict(metrics="NSE", time_type="monthly", climate_source=f"{climate_source[0]}")
+    ] = nse_m
 
     # nse logq
     nselog = skills.lognashsutcliffe(qsim, qobs)
-    da_perf.loc[dict(metrics="NSElog", time_type="daily")] = nselog
+    da_perf.loc[
+        dict(metrics="NSElog", time_type="daily", climate_source=f"{climate_source[0]}")
+    ] = nselog
     nselog_m = skills.lognashsutcliffe(qsim_monthly, qobs_monthly)
-    da_perf.loc[dict(metrics="NSElog", time_type="monthly")] = nselog_m
+    da_perf.loc[
+        dict(
+            metrics="NSElog", time_type="monthly", climate_source=f"{climate_source[0]}"
+        )
+    ] = nselog_m
 
     # kge
     kge = skills.kge(qsim, qobs)
-    da_perf.loc[dict(metrics="KGE", time_type="daily")] = kge["kge"]
+    da_perf.loc[
+        dict(metrics="KGE", time_type="daily", climate_source=f"{climate_source[0]}")
+    ] = kge["kge"]
     kge_m = skills.kge(qsim_monthly, qobs_monthly)
-    da_perf.loc[dict(metrics="KGE", time_type="monthly")] = kge_m["kge"]
+    da_perf.loc[
+        dict(metrics="KGE", time_type="monthly", climate_source=f"{climate_source[0]}")
+    ] = kge_m["kge"]
 
     # rmse
     rmse = skills.rmse(qsim, qobs)
-    da_perf.loc[dict(metrics="RMSE", time_type="daily")] = rmse
+    da_perf.loc[
+        dict(metrics="RMSE", time_type="daily", climate_source=f"{climate_source[0]}")
+    ] = rmse
     rmse_m = skills.rmse(qsim_monthly, qobs_monthly)
-    da_perf.loc[dict(metrics="RMSE", time_type="monthly")] = rmse_m
+    da_perf.loc[
+        dict(metrics="RMSE", time_type="monthly", climate_source=f"{climate_source[0]}")
+    ] = rmse_m
 
     # mse
     mse = skills.mse(qsim, qobs)
-    da_perf.loc[dict(metrics="MSE", time_type="daily")] = mse
+    da_perf.loc[
+        dict(metrics="MSE", time_type="daily", climate_source=f"{climate_source[0]}")
+    ] = mse
     mse_m = skills.mse(qsim_monthly, qobs_monthly)
-    da_perf.loc[dict(metrics="MSE", time_type="monthly")] = mse_m
+    da_perf.loc[
+        dict(metrics="MSE", time_type="monthly", climate_source=f"{climate_source[0]}")
+    ] = mse_m
 
     # pbias
     pbias = skills.percentual_bias(qsim, qobs)
-    da_perf.loc[dict(metrics="Pbias", time_type="daily")] = pbias
+    da_perf.loc[
+        dict(metrics="Pbias", time_type="daily", climate_source=f"{climate_source[0]}")
+    ] = pbias
     pbias_m = skills.percentual_bias(qsim_monthly, qobs_monthly)
-    da_perf.loc[dict(metrics="Pbias", time_type="monthly")] = pbias_m
+    da_perf.loc[
+        dict(
+            metrics="Pbias", time_type="monthly", climate_source=f"{climate_source[0]}"
+        )
+    ] = pbias_m
 
     # ve (volumetric efficiency)
     ve = skills.volumetric_error(qsim, qobs)
-    da_perf.loc[dict(metrics="VE", time_type="daily")] = ve
+    da_perf.loc[
+        dict(metrics="VE", time_type="daily", climate_source=f"{climate_source[0]}")
+    ] = ve
     ve_m = skills.volumetric_error(qsim_monthly, qobs_monthly)
-    da_perf.loc[dict(metrics="VE", time_type="monthly")] = ve_m
+    da_perf.loc[
+        dict(metrics="VE", time_type="monthly", climate_source=f"{climate_source[0]}")
+    ] = ve_m
 
     ### 2. Convert to dataframe ###
     df_perf = da_perf.to_dataframe(name=station_name)
@@ -147,8 +191,7 @@ def plot_signatures(
     qobs: xr.DataArray,
     Folder_out: Union[Path, str],
     station_name: str = "station",
-    label: str = "simulated",
-    color: str = "orange",
+    color: dict = {"climate_source": "orange"},
     linestyle: str = "-",
     marker: str = "o",
     lw: float = 0.8,
@@ -173,10 +216,11 @@ def plot_signatures(
     Parameters
     ----------
     qsim : xr.DataArray
-        Dataset with simulated streamflow.
+        Dataset with simulated streamflow from several runs with different climate sources.
 
         * Required dimensions: [time]
         * Required attributes: [station_name]
+        * Required attributes: [climate_source]
     qobs : xr.DataArray
         Dataset with observed streamflow.
 
@@ -186,10 +230,8 @@ def plot_signatures(
         Output folder to save plots.
     station_name : str, optional
         Station name, by default "station"
-    label : str, optional
-        Labels for the simulated run, by default "simulated"
-    color : str, optional
-        Color for the simulated run, by default "orange"
+    color : dict, optional
+        Color for each climate source of the simulated runs , by default "orange"
     linestyle : str, optional
         Linestyle for the simulated run, by default "-"
     marker : str, optional
@@ -211,16 +253,17 @@ def plot_signatures(
     axes = axes.flatten()
 
     ### 1. daily against each other axes[0] ###
-    axes[0].plot(
-        qobs,
-        qsim,
-        marker="o",
-        linestyle="None",
-        linewidth=lw,
-        label=label,
-        color=color,
-        markersize=3,
-    )
+    for climate_source in qsim.climate_source.values:
+        axes[0].plot(
+            qobs,
+            qsim.sel(climate_source=climate_source),
+            marker="o",
+            linestyle="None",
+            linewidth=lw,
+            label=f"{climate_source}",
+            color=color[climate_source],
+            markersize=3,
+        )
     max_y = np.round(qobs.max().values)
     axes[0].plot([0, max_y], [0, max_y], color="0.5", linestyle="--", linewidth=1)
     axes[0].set_xlim([0, max_y])
@@ -238,14 +281,19 @@ def plot_signatures(
     )
     # r2
     text_label = ""
-    r2_score = rsquared(qobs, qsim)
-    text_label = text_label + f"R$_2$ {label} = {r2_score:.2f} \n"
-    axes[0].text(0.2, 0.7, text_label, transform=axes[0].transAxes, fontsize=fs)
+    for climate_source in qsim.climate_source.values:
+        r2_score = rsquared(qobs, qsim.sel(climate_source=climate_source))[0]
+        text_label += f"R$_2$ {climate_source} = {r2_score:.2f} \n"
+    axes[0].text(0.05, 0.7, text_label, transform=axes[0].transAxes, fontsize=fs)
 
     ### 2. streamflow regime axes[1] ###
-    qsim.groupby("time.month").mean("time").plot(
-        ax=axes[1], linewidth=lw, label=label, color=color
-    )
+    for climate_source in qsim.climate_source.values:
+        qsim.sel(climate_source=climate_source).groupby("time.month").mean("time").plot(
+            ax=axes[1],
+            linewidth=lw,
+            label=f"{climate_source}",
+            color=color[climate_source],
+        )
     qobs.groupby("time.month").mean("time").plot(
         ax=axes[1], linewidth=lw, label="observed", color="k", linestyle="--"
     )
@@ -264,14 +312,18 @@ def plot_signatures(
     )
 
     ### 3. FDC axes[2] ###
-    axes[2].plot(
-        np.arange(0, len(qsim.time)) / (len(qsim.time) + 1),
-        qsim.sortby(qsim, ascending=False),
-        color=color,
-        linestyle=linestyle,
-        linewidth=lw,
-        label=label,
-    )
+    for climate_source in qsim.climate_source.values:
+        axes[2].plot(
+            np.arange(0, len(qsim.sel(climate_source=climate_source).time))
+            / (len(qsim.sel(climate_source=climate_source).time) + 1),
+            qsim.sel(climate_source=climate_source).sortby(
+                qsim.sel(climate_source=climate_source), ascending=False
+            ),
+            color=color[climate_source],
+            linestyle=linestyle,
+            linewidth=lw,
+            label=f"{climate_source}",
+        )
     axes[2].plot(
         np.arange(0, len(qobs.time)) / (len(qobs.time) + 1),
         qobs.sortby(qobs, ascending=False),
@@ -284,14 +336,20 @@ def plot_signatures(
     axes[2].set_ylabel("Q (m$^3$s$^{-1}$)", fontsize=fs)
 
     ### 4. FDClog axes[3] ###
-    axes[3].plot(
-        np.arange(0, len(qsim.time)) / (len(qsim.time) + 1),
-        np.log(qsim.sortby(qsim, ascending=False)),
-        color=color,
-        linestyle=linestyle,
-        linewidth=lw,
-        label=label,
-    )
+    for climate_source in qsim.climate_source.values:
+        axes[3].plot(
+            np.arange(0, len(qsim.sel(climate_source=climate_source).time))
+            / (len(qsim.sel(climate_source=climate_source).time) + 1),
+            np.log(
+                qsim.sel(climate_source=climate_source).sortby(
+                    qsim.sel(climate_source=climate_source), ascending=False
+                )
+            ),
+            color=color[climate_source],
+            linestyle=linestyle,
+            linewidth=lw,
+            label=f"{climate_source}",
+        )
     axes[3].plot(
         np.arange(0, len(qobs.time)) / (len(qobs.time) + 1),
         np.log(qobs.sortby(qobs, ascending=False)),
@@ -307,21 +365,23 @@ def plot_signatures(
     if len(qsim.time) > 365:
         start = f"{str(qsim['time.year'][0].values)}-09-01"
         end = f"{str(qsim['time.year'][-1].values)}-08-31"
-        qsim_max = qsim.sel(time=slice(start, end)).resample(time="YS-Sep").max("time")
-        qobs_max = qobs.sel(time=slice(start, end)).resample(time="YS-Sep").max("time")
+        qsim_max = qsim.sel(time=slice(start, end)).resample(time="YS-SEP").max("time")
+        qobs_max = qobs.sel(time=slice(start, end)).resample(time="YS-SEP").max("time")
     else:
         # Less than a year of data, max over the whole timeseries
         qsim_max = qsim.max("time")
         qobs_max = qobs.max("time")
-    axes[4].plot(
-        qobs_max,
-        qsim_max,
-        color=color,
-        marker=marker,
-        linestyle="None",
-        linewidth=lw,
-        label=label,
-    )
+
+    for climate_source in qsim.climate_source.values:
+        axes[4].plot(
+            qobs_max,
+            qsim_max.sel(climate_source=climate_source),
+            color=color[climate_source],
+            marker=marker,
+            linestyle="None",
+            linewidth=lw,
+            label=f"{climate_source}",
+        )
     axes[4].plot(
         [0, max_y * 1.1], [0, max_y * 1.1], color="0.5", linestyle="--", linewidth=1
     )
@@ -329,12 +389,15 @@ def plot_signatures(
     axes[4].set_ylim([0, max_y * 1.1])
     # R2 score
     text_label = ""
-    if len(qsim.time) > 365:
-        r2_score = rsquared(qobs_max, qsim_max)
-        text_label = text_label + f"R$_2$ {label} = {r2_score:.2f} \n"
-    else:
-        text_label = text_label + f"{label}\n"
-    axes[4].text(0.5, 0.05, text_label, transform=axes[4].transAxes, fontsize=fs)
+    for climate_source in qsim.climate_source.values:
+        if len(qsim.time) > 365:
+            r2_score = rsquared(qobs_max, qsim_max.sel(climate_source=climate_source))[
+                0
+            ]
+            text_label += f"R$_2$ {climate_source} = {r2_score:.2f} \n"
+        else:
+            text_label = text_label + f"{climate_source}\n"
+    axes[4].text(0.05, 0.7, text_label, transform=axes[4].transAxes, fontsize=fs)
 
     # add MHQ
     if len(qsim.time) > 365:
@@ -343,34 +406,36 @@ def plot_signatures(
     else:
         mhq = qsim_max.copy()
         mhq_obs = qobs_max.copy()
-    axes[4].plot(
-        mhq_obs,
-        mhq,
-        color="black",
-        marker=">",
-        linestyle="None",
-        linewidth=lw,
-        label=label,
-        markersize=6,
-    )
+    for climate_source in qsim.climate_source.values:
+        axes[4].plot(
+            mhq_obs,
+            mhq.sel(climate_source=climate_source),
+            color="black",
+            marker=">",
+            linestyle="None",
+            linewidth=lw,
+            label=f"{climate_source}",
+            markersize=6,
+        )
     # labels
     axes[4].set_ylabel("Sim. max annual Q (m$^3$s$^{-1}$)", fontsize=fs)
     axes[4].set_xlabel("Obs. max annual Q (m$^3$s$^{-1}$)", fontsize=fs)
 
     ### 6. nm7q axes[5] ###
-    qsim_nm7q = qsim.rolling(time=7).mean().resample(time="A").min("time")
-    qobs_nm7q = qobs.rolling(time=7).mean().resample(time="A").min("time")
+    qsim_nm7q = qsim.rolling(time=7).mean().resample(time="YE").min("time")
+    qobs_nm7q = qobs.rolling(time=7).mean().resample(time="YE").min("time")
     max_ylow = max(qsim_nm7q.max().values, qobs_nm7q.max().values)
 
-    axes[5].plot(
-        qobs_nm7q,
-        qsim_nm7q,
-        color=color,
-        marker=marker,
-        linestyle="None",
-        linewidth=lw,
-        label=label,
-    )
+    for climate_source in qsim.climate_source.values:
+        axes[5].plot(
+            qobs_nm7q,
+            qsim_nm7q.sel(climate_source=climate_source),
+            color=color[climate_source],
+            marker=marker,
+            linestyle="None",
+            linewidth=lw,
+            label=f"{climate_source}",
+        )
     axes[5].plot(
         [0, max_ylow * 1.1],
         [0, max_ylow * 1.1],
@@ -382,9 +447,10 @@ def plot_signatures(
     axes[5].set_ylim([0, max_ylow * 1.1])
     # #R2 score
     text_label = ""
-    r2_score = rsquared(qobs_nm7q, qsim_nm7q)
-    text_label = text_label + f"R$_2$ {label} = {r2_score:.2f} \n"
-    axes[5].text(0.5, 0.05, text_label, transform=axes[5].transAxes, fontsize=fs)
+    for climate_source in qsim.climate_source.values:
+        r2_score = rsquared(qobs_nm7q, qsim_nm7q.sel(climate_source=climate_source))[0]
+        text_label += f"R$_2$ {climate_source} = {r2_score:.2f} \n"
+    axes[5].text(0.05, 0.7, text_label, transform=axes[5].transAxes, fontsize=fs)
     # labels
     axes[5].set_ylabel("Simulated NM7Q (m$^3$s$^{-1}$)", fontsize=fs)
     axes[5].set_xlabel("Observed NM7Q (m$^3$s$^{-1}$)", fontsize=fs)
@@ -393,43 +459,55 @@ def plot_signatures(
     qobs.cumsum("time").plot(
         ax=axes[6], color="k", linestyle=":", linewidth=lw, label="observed"
     )
-    qsim.cumsum("time").plot(
-        ax=axes[6], color=color, linestyle=linestyle, linewidth=lw, label=label
-    )
+    for climate_source in qsim.climate_source.values:
+        qsim.sel(climate_source=climate_source).cumsum("time").plot(
+            ax=axes[6],
+            color=color[climate_source],
+            linestyle=linestyle,
+            linewidth=lw,
+            label=f"{climate_source}",
+        )
     axes[6].set_xlabel("")
     axes[6].set_ylabel("Cum. Q (m$^3$s$^{-1}$)", fontsize=fs)
 
     ### 8. performance measures NS, NSlogQ, KGE, axes[7] ###
     # nse
-    axes[7].plot(
-        0.8,
-        skills.nashsutcliffe(qsim, qobs).values,
-        color=color,
-        marker=marker,
-        linestyle="None",
-        linewidth=lw,
-        label=label,
-    )
-    # nselog
-    axes[7].plot(
-        2.8,
-        skills.lognashsutcliffe(qsim, qobs).values,
-        color=color,
-        marker=marker,
-        linestyle="None",
-        linewidth=lw,
-        label=label,
-    )
-    # kge
-    axes[7].plot(
-        4.8,
-        skills.kge(qsim, qobs)["kge"].values,
-        color=color,
-        marker=marker,
-        linestyle="None",
-        linewidth=lw,
-        label=label,
-    )
+    for climate_source in qsim.climate_source.values:
+        p = axes[7].plot(
+            0.8,
+            skills.nashsutcliffe(qsim.sel(climate_source=climate_source), qobs).values,
+            color=color[climate_source],
+            marker=marker,
+            linestyle="None",
+            linewidth=lw,
+            label=f"{climate_source}",
+        )
+        if color[climate_source] == None:
+            c = p[0].get_color()
+        else:
+            c = color[climate_source]
+        # nselog
+        axes[7].plot(
+            2.8,
+            skills.lognashsutcliffe(
+                qsim.sel(climate_source=climate_source), qobs
+            ).values,
+            color=c,
+            marker=marker,
+            linestyle="None",
+            linewidth=lw,
+            label=f"{climate_source}",
+        )
+        # kge
+        axes[7].plot(
+            4.8,
+            skills.kge(qsim.sel(climate_source=climate_source), qobs)["kge"].values,
+            color=c,
+            marker=marker,
+            linestyle="None",
+            linewidth=lw,
+            label=f"{climate_source}",
+        )
     axes[7].set_xticks([1, 3, 5])
     axes[7].set_xticklabels(["NSE", "NSElog", "KGE"])
     axes[7].set_ylim([0, 1])
@@ -455,15 +533,18 @@ def plot_signatures(
             label="observed",
             markersize=6,
         )
-        axes[8].plot(
-            gumbel_p1,
-            qsim_max.sortby(qsim_max),
-            marker=marker,
-            color=color,
-            linestyle="None",
-            label=label,
-            markersize=4,
-        )
+        for climate_source in qsim.climate_source.values:
+            axes[8].plot(
+                gumbel_p1,
+                qsim_max.sel(climate_source=climate_source).sortby(
+                    qsim_max.sel(climate_source=climate_source)
+                ),
+                marker=marker,
+                color=color[climate_source],
+                linestyle="None",
+                label=f"{climate_source}",
+                markersize=4,
+            )
 
         for t in ts:
             axes[8].vlines(-np.log(-np.log(1 - 1.0 / t)), ymin, ymax, "0.5", alpha=0.4)
@@ -500,15 +581,18 @@ def plot_signatures(
             label="observed",
             markersize=6,
         )
-        axes[9].plot(
-            gumbel_p1,
-            qsim_nm7q.sortby(qsim_nm7q, ascending=False),
-            marker=marker,
-            color=color,
-            linestyle="None",
-            label=label,
-            markersize=4,
-        )
+        for climate_source in qsim.climate_source.values:
+            axes[9].plot(
+                gumbel_p1,
+                qsim_nm7q.sel(climate_source=climate_source).sortby(
+                    qsim_nm7q.sel(climate_source=climate_source), ascending=False
+                ),
+                marker=marker,
+                color=color[climate_source],
+                linestyle="None",
+                label=f"{climate_source}",
+                markersize=4,
+            )
 
         for t in ts:
             axes[9].vlines(-np.log(-np.log(1 - 1.0 / t)), ymin, ymax, "0.5", alpha=0.4)
@@ -538,8 +622,7 @@ def plot_hydro(
     qsim: xr.DataArray,
     Folder_out: Union[Path, str],
     qobs: xr.DataArray = None,
-    label: str = "simulated",
-    color: str = "steelblue",
+    color: dict = {"climate_source": "steelblue"},
     station_name: str = "station_1",
     lw: float = 0.8,
     fs: int = 7,
@@ -560,15 +643,13 @@ def plot_hydro(
     Parameters
     ----------
     qsim : xr.DataArray
-        Simulated streamflow.
+        Simulated streamflow. Coordinate "climate_source" should be present for several runs with different climate sources as forcing.
     Folder_out : Union[Path, str]
         Output folder to save plots.
     qobs : xr.DataArray, optional
         Observed streamflow, by default None
-    label : str, optional
-        Label for the simulated run, by default ["simulated"]
-    color : str, optional
-        Color for the simulated run, by default ["steelblue"]
+    color : dict, optional
+        Color belonging to a climate source run, by default {"climate_source":"steelblue"}
     station_name : str, optional
         Station name, by default "station_1"
     lw : float, optional
@@ -598,52 +679,80 @@ def plot_hydro(
             "Driest year",
         ]
         figsize_y = 23
-        # Get the wettest and driest year
-        qyr = qsim.resample(time="A").sum()
+        # Get the wettest and driest year (based on first climate_source)
+        qyr = qsim.resample(time="YE").sum()
         qyr["time"] = qyr["time.year"]
         # Get the year for the minimum as an integer
-        year_dry = str(qyr.isel(time=qyr.argmin()).time.values)
-        year_wet = str(qyr.isel(time=qyr.argmax()).time.values)
+        year_dry = str(qyr.isel(time=qyr.argmin("time")).time.values[0])
+        year_wet = str(qyr.isel(time=qyr.argmax("time")).time.values[0])
 
     fig, axes = plt.subplots(nb_panel, 1, figsize=(16 / 2.54, figsize_y / 2.54))
     axes = [axes] if nb_panel == 1 else axes
 
     # 1. long period
-    qsim.plot(ax=axes[0], label=label, linewidth=lw, color=color)
+    for climate_source in qsim.climate_source.values:
+        qsim.sel(climate_source=climate_source).plot(
+            ax=axes[0],
+            label=f"simulated {climate_source}",
+            linewidth=lw,
+            color=color[climate_source],
+        )
     if qobs is not None:
         qobs.plot(ax=axes[0], label=labobs, linewidth=lw, color=colobs, linestyle="--")
 
     if nb_panel == 5:
         # 2. annual Q
-        qsim.resample(time="A").sum().plot(
-            ax=axes[1], label=label, linewidth=lw, color=color
-        )
+        for climate_source in qsim.climate_source.values:
+            qsim.sel(climate_source=climate_source).resample(time="YE").sum().plot(
+                ax=axes[1],
+                label=f"simulated {climate_source}",
+                linewidth=lw,
+                color=color[climate_source],
+            )
         if qobs is not None:
-            qobs.resample(time="A").sum().plot(
+            qobs.resample(time="YE").sum().plot(
                 ax=axes[1], label=labobs, linewidth=lw, color=colobs, linestyle="--"
             )
 
         # 3. monthly Q
         month_labels = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
-        dsqM = qsim.resample(time="M").sum()
+        dsqM = qsim.resample(time="ME").sum()
         dsqM = dsqM.groupby(dsqM.time.dt.month).mean()
-        dsqM.plot(ax=axes[2], label=label, linewidth=lw, color=color)
+        for climate_source in qsim.climate_source.values:
+            dsqM.sel(climate_source=climate_source).plot(
+                ax=axes[2],
+                label=f"simulated {climate_source}",
+                linewidth=lw,
+                color=color[climate_source],
+            )
         if qobs is not None:
-            dsqMo = qobs.resample(time="M").sum()
+            dsqMo = qobs.resample(time="ME").sum()
             dsqMo = dsqMo.groupby(dsqMo.time.dt.month).mean()
             dsqMo.plot(ax=axes[2], label=labobs, linewidth=lw, color=colobs)
         axes[2].set_title("Average monthly sum")
         axes[2].set_xticks(ticks=np.arange(1, 13), labels=month_labels, fontsize=5)
 
         # 4. wettest year
-        qsim.sel(time=year_wet).plot(ax=axes[3], label=label, linewidth=lw, color=color)
+        for climate_source in qsim.climate_source.values:
+            qsim.sel(climate_source=climate_source).sel(time=year_wet).plot(
+                ax=axes[3],
+                label=f"simulated {climate_source}",
+                linewidth=lw,
+                color=color[climate_source],
+            )
         if qobs is not None:
             qobs.sel(time=year_wet).plot(
                 ax=axes[3], label=labobs, linewidth=lw, color=colobs, linestyle="--"
             )
 
         # 5. driest year
-        qsim.sel(time=year_dry).plot(ax=axes[4], label=label, linewidth=lw, color=color)
+        for climate_source in qsim.climate_source.values:
+            qsim.sel(climate_source=climate_source).sel(time=year_dry).plot(
+                ax=axes[4],
+                label=f"simulated {climate_source}",
+                linewidth=lw,
+                color=color[climate_source],
+            )
         if qobs is not None:
             qobs.sel(time=year_dry).plot(
                 ax=axes[4], label=labobs, linewidth=lw, color=colobs, linestyle="--"
@@ -667,94 +776,204 @@ def plot_hydro(
     plt.savefig(os.path.join(Folder_out, f"hydro_{station_name}.png"), dpi=300)
 
 
-def plot_clim(ds_clim, Folder_out, station_name, period, lw=0.8, fs=8):
+def plot_clim(
+    ds_clim: xr.DataArray,
+    Folder_out: Union[Path, str],
+    station_name: str,
+    period: str,
+    color: dict,
+    lw: float = 0.8,
+    fs: int = 8,
+):
+    """
+    Plot monthly of annual climatology of precipitation, temperature and potential evaporation.
+    Also show trends in mean annual precipitation, temperature and potential evaporation.
+
+    Parameters
+    ----------
+    ds_clim : xr.DataArray
+        Precipitation, temperature and potential evaporation data at model timestep.
+        Should include a coordinate named "climate_source"
+    Folder_out : Union[Path, str]
+        Output folder to save plots.
+    station_name : str
+        Station name
+    period : str
+        Either monthly or annual climatology plots
+    color : dict
+        Color to be used for each climate_source
+    lw : float, optional
+        Line width, by default 0.8
+    fs : int, optional
+        Font size, by default 8
+
+    """
+
     fig, (ax1, ax2, ax3) = plt.subplots(
         3, 1, figsize=(16 / 2.54, 15 / 2.54), sharex=True
     )
 
     if period == "year":
-        resampleper = "A"
+        resampleper = "YE"
     else:
-        resampleper = "M"
+        resampleper = "ME"
 
     # temp
     if period == "month":
-        T_mean_monthly_mean = (
-            ds_clim["T_subcatchment"].groupby(f"time.{period}").mean("time")
-        )
-        T_mean_monthly_q25 = (
-            ds_clim["T_subcatchment"].groupby(f"time.{period}").quantile(0.25, "time")
-        )
-        T_mean_monthly_q75 = (
-            ds_clim["T_subcatchment"].groupby(f"time.{period}").quantile(0.75, "time")
-        )
-        # plot
-        T_mean_monthly_mean.plot(ax=ax1, color="red")
-        ax1.fill_between(
-            np.arange(1, 13), T_mean_monthly_q25, T_mean_monthly_q75, color="orange"
-        )
-        #    T_mean_monthly_mean.to_series().plot.line(ax=ax2, color = 'orange')
+        for climate_source in ds_clim.climate_source.values:
+            T_mean_monthly_mean = (
+                ds_clim["T_subcatchment"]
+                .groupby(f"time.{period}")
+                .mean("time")
+                .sel(climate_source=climate_source)
+            )
+            T_mean_monthly_q25 = (
+                ds_clim["T_subcatchment"]
+                .groupby(f"time.{period}")
+                .quantile(0.25, "time")
+                .sel(climate_source=climate_source)
+            )
+            T_mean_monthly_q75 = (
+                ds_clim["T_subcatchment"]
+                .groupby(f"time.{period}")
+                .quantile(0.75, "time")
+                .sel(climate_source=climate_source)
+            )
+            # plot
+            # todo: update the workflow to have more control on the forcing and allow the user to select the dataset for precip and for temp+pet and the equation for pet
+            # for now only plot temp and evap it climate source is era5 and era5 is in climate source.
+            if "era5" in ds_clim.climate_source and climate_source == "era5":
+                p = T_mean_monthly_mean.plot(
+                    ax=ax1, color=color[climate_source], label=f"{climate_source}"
+                )
+                if color[climate_source] == None:
+                    c = p[0].get_color()
+                else:
+                    c = color[climate_source]
+                ax1.fill_between(
+                    np.arange(1, 13),
+                    T_mean_monthly_q25,
+                    T_mean_monthly_q75,
+                    color=c,
+                    alpha=0.5,
+                    label=f"{climate_source} 25%-75%",
+                )
     else:
-        T_mean_year = ds_clim["T_subcatchment"].resample(time=resampleper).mean("time")
-        T_mean_year.plot(ax=ax1, color="red")
+        for climate_source in ds_clim.climate_source.values:
+            T_mean_year = (
+                ds_clim["T_subcatchment"]
+                .resample(time=resampleper)
+                .mean("time")
+                .sel(climate_source=climate_source)
+            )
+            do_climate_plot = True
+            if (
+                climate_source != "era5"
+                and climate_source != "eobs"
+                and "era5" in ds_clim.climate_source
+            ):
+                do_climate_plot = False
+            if do_climate_plot:
+                p = T_mean_year.plot(
+                    ax=ax1, color=color[climate_source], label=f"{climate_source}"
+                )
 
-        x = T_mean_year.time.dt.year
-        z = np.polyfit(x, T_mean_year, 1)
-        p = np.poly1d(z)
-        r2_score = rsquared(p(x), T_mean_year)
-        ax1.plot(T_mean_year.time, p(x), ls="--", color="lightgrey")
-        ax1.text(
-            T_mean_year.time[0], T_mean_year.min(), f"$R^2$ = {round(r2_score, 3)}"
-        )
+                if color[climate_source] == None:
+                    c = p[0].get_color()
+                else:
+                    c = color[climate_source]
+
+                x = T_mean_year.time.dt.year
+                z = np.polyfit(x, T_mean_year, 1)
+                p = np.poly1d(z)
+                r2_score, p_value = rsquared(p(x), T_mean_year)
+                ax1.plot(
+                    T_mean_year.time,
+                    p(x),
+                    ls="--",
+                    color=c,
+                    alpha=0.5,
+                    label=f"trend {climate_source} $R^2$ = {round(r2_score, 3)}, p = {round(p_value, 3)}",
+                )
 
     # precip and evap
-    for climvar, clr, clr_range, ax in zip(
+    for climvar, ax in zip(
         ["P_subcatchment", "EP_subcatchment"],
-        ["steelblue", "forestgreen"],
-        ["lightblue", "lightgreen"],
         [ax2, ax3],
     ):
-        var_sum_monthly = ds_clim[climvar].resample(time=resampleper).sum("time")
-
-        if period == "month":
-            var_sum_monthly_mean = var_sum_monthly.groupby(f"time.{period}").mean(
-                "time"
-            )
-            var_sum_monthly_q25 = var_sum_monthly.groupby(f"time.{period}").quantile(
-                0.25, "time"
-            )
-            var_sum_monthly_q75 = var_sum_monthly.groupby(f"time.{period}").quantile(
-                0.75, "time"
+        for climate_source in ds_clim.climate_source.values:
+            var_sum_monthly = (
+                ds_clim[climvar]
+                .resample(time=resampleper)
+                .sum("time")
+                .sel(climate_source=climate_source)
             )
 
-            var_sum_monthly_mean.plot(ax=ax, color=clr)
-            ax.fill_between(
-                np.arange(1, 13),
-                var_sum_monthly_q25,
-                var_sum_monthly_q75,
-                color=clr_range,
-            )
-        else:
-            x = var_sum_monthly.time.dt.year
-            z = np.polyfit(x, var_sum_monthly, 1)
-            p = np.poly1d(z)
-            r2_score = rsquared(p(x), var_sum_monthly)
+            if period == "month":
+                var_sum_monthly_mean = var_sum_monthly.groupby(f"time.{period}").mean(
+                    "time"
+                )
+                var_sum_monthly_q25 = var_sum_monthly.groupby(
+                    f"time.{period}"
+                ).quantile(0.25, "time")
+                var_sum_monthly_q75 = var_sum_monthly.groupby(
+                    f"time.{period}"
+                ).quantile(0.75, "time")
 
-            ax.plot(var_sum_monthly.time, p(x), ls="--", color="lightgrey")
-            ax.text(
-                var_sum_monthly.time[0],
-                var_sum_monthly.min(),
-                f"$R^2$ = {round(r2_score, 3)}",
-            )
-            var_sum_monthly.plot(ax=ax, color=clr)
+                if (
+                    "era5" in ds_clim.climate_source
+                    and climate_source == "era5"
+                    and climvar == "EP_subcatchment"
+                ) | (climvar == "P_subcatchment"):
+                    p = var_sum_monthly_mean.plot(
+                        ax=ax, color=color[climate_source], label=f"{climate_source}"
+                    )
+                    if color[climate_source] == None:
+                        c = p[0].get_color()
+                    else:
+                        c = color[climate_source]
+
+                    ax.fill_between(
+                        np.arange(1, 13),
+                        var_sum_monthly_q25,
+                        var_sum_monthly_q75,
+                        color=c,
+                        alpha=0.5,
+                        label=f"{climate_source} 25%-75%",
+                    )
+            else:
+                x = var_sum_monthly.time.dt.year
+                z = np.polyfit(x, var_sum_monthly, 1)
+                p = np.poly1d(z)
+                r2_score, p_value = rsquared(p(x), var_sum_monthly)
+
+                if (
+                    "era5" in ds_clim.climate_source
+                    and climate_source == "era5"
+                    and climvar == "EP_subcatchment"
+                ) | (climvar == "P_subcatchment"):
+                    p = ax.plot(
+                        var_sum_monthly.time,
+                        p(x),
+                        ls="--",
+                        alpha=0.5,
+                        color=color[climate_source],
+                        label=f"trend {climate_source} $R^2$ = {round(r2_score, 3)}, p = {round(p_value, 3)}",
+                    )
+                    if color[climate_source] == None:
+                        c = p[0].get_color()
+                    else:
+                        c = color[climate_source]
+
+                    var_sum_monthly.plot(ax=ax, color=c, label=f"{climate_source}")
 
     for ax, title_name, ylab in zip(
         [ax1, ax2, ax3],
         ["Temperature", "Precipitation", "Potential evaporation"],
         [
-            "T (deg C)",
-            f"P (mm {period}$^{-1}$)",
-            f"E$_P$ (mm {period}$^{-1}$)",
+            "T ($\degree$C)",
+            f"P (mm {period}" + "$^{-1}$)",
+            f"E$_P$ (mm {period}" + "$^{-1}$)",
         ],
     ):
         ax.tick_params(axis="both", labelsize=fs)
@@ -762,52 +981,128 @@ def plot_clim(ds_clim, Folder_out, station_name, period, lw=0.8, fs=8):
         ax.set_title(title_name)
         ax.grid(alpha=0.5)
         ax.set_ylabel(ylab, fontsize=fs)
+        ax.legend(fontsize=fs)
 
     if period == "month":
         month_labels = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
         ax3.set_xticks(ticks=np.arange(1, 13), labels=month_labels, fontsize=fs)
 
     plt.tight_layout()
-    fig.set_tight_layout(True)
     plt.savefig(os.path.join(Folder_out, f"clim_{station_name}_{period}.png"), dpi=300)
 
 
-def plot_basavg(ds, Folder_out, fs=10):
+def plot_basavg(
+    ds: xr.DataArray,
+    Folder_out: Union[Path, str],
+    color: dict,
+    fs: float = 10,
+):
+    """
+    Subplots of:
+    - basin average mean monthly regime and 25-75% uncertainty band for several flux and state variables of the model.
+    - basin mean annual trends for several flux and state variables of the model (only if there are 3 or more years of data)
+
+    Parameters
+    ----------
+    ds : xr.DataArray
+        Data of output variables at model timestep.
+        Should include a coordinate named "climate_source"
+    Folder_out : Union[Path, str]
+        Output folder to save plots.
+    color : dict
+        Color to be used for each climate_source
+    fs : int, optional
+        Font size, by default 10
+    """
     dvars = [dvar for dvar in ds.data_vars]
     n = len(dvars)
+    # number of years available
+    nb_years = np.unique(ds["time.year"].values).size
 
     for i in range(n):
         dvar = dvars[i]
 
-        fig, ax = plt.subplots(1, 1, sharex=True, figsize=(11, 4))
+        # only plot annual trend if there are more than 3 years of data
+        if nb_years < 3:
+            fig, (ax1) = plt.subplots(1, 1, figsize=(11, 4))
+            axes = [ax1]
+        else:
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(11, 8))
+            axes = [ax1, ax2]
         # axes = [axes] if n == 1 else axes
 
         if WFLOW_VARS[dvar.split("_")[0]]["resample"] == "sum":
-            sum_monthly = ds[dvar].resample(time="M").sum("time")
+            sum_monthly = ds[dvar].resample(time="ME").sum("time")
+            sum_annual = ds[dvar].resample(time="YE").sum("time")
         else:  # assume mean
-            sum_monthly = ds[dvar].resample(time="M").mean("time")
+            sum_monthly = ds[dvar].resample(time="ME").mean("time")
+            sum_annual = ds[dvar].resample(time="YE").mean("time")
         sum_monthly_mean = sum_monthly.groupby("time.month").mean("time")
         sum_monthly_q25 = sum_monthly.groupby("time.month").quantile(0.25, "time")
         sum_monthly_q75 = sum_monthly.groupby("time.month").quantile(0.75, "time")
 
-        # plot
-        sum_monthly_mean.plot(ax=ax, color="darkblue")
-        ax.fill_between(
-            np.arange(1, 13), sum_monthly_q25, sum_monthly_q75, color="lightblue"
-        )
-        legend = WFLOW_VARS[dvar.split("_")[0]]["legend"]
-        ax.set_ylabel(legend, fontsize=fs)
+        for climate_source in ds.climate_source.values:
+            # plot monthly mean
+            p = sum_monthly_mean.sel(climate_source=climate_source).plot(
+                ax=ax1, color=color[climate_source], label=f"{climate_source} (mean)"
+            )
+            if color[climate_source] == None:
+                c = p[0].get_color()
+            else:
+                c = color[climate_source]
+            ax1.fill_between(
+                np.arange(1, 13),
+                sum_monthly_q25.sel(climate_source=climate_source),
+                sum_monthly_q75.sel(climate_source=climate_source),
+                color=c,
+                alpha=0.5,
+                label=f"{climate_source} (25%-75%)",
+            )
 
-        ax.tick_params(axis="both", labelsize=fs)
-        ax.set_xlabel("", fontsize=fs)
-        ax.set_title("")
-        ax.grid(alpha=0.5)
+            # plot annual trends if 3 or more years of data:
+            if nb_years >= 3:
+                var_year = sum_annual.sel(climate_source=climate_source)
+                p = var_year.plot(
+                    ax=ax2, color=color[climate_source], label=f"{climate_source}"
+                )
+
+                if color[climate_source] == None:
+                    c = p[0].get_color()
+                else:
+                    c = color[climate_source]
+
+                x = var_year.time.dt.year
+                z = np.polyfit(x, var_year, 1)
+                p = np.poly1d(z)
+                # if snow 0 each year -- cannot calculate linear regression
+                if sum(var_year) > 0:
+                    r2_score, p_value = rsquared(p(x), var_year)
+                    ax2.plot(
+                        var_year.time,
+                        p(x),
+                        ls="--",
+                        color=c,
+                        alpha=0.5,
+                        label=f"trend {climate_source} $R^2$ = {round(r2_score, 3)}, p = {round(p_value, 3)}",
+                    )
+
+                legend_annual = WFLOW_VARS[dvar.split("_")[0]]["legend_annual"]
+                ax2.set_ylabel(legend_annual, fontsize=fs)
+
+        legend = WFLOW_VARS[dvar.split("_")[0]]["legend"]
+        ax1.set_ylabel(legend, fontsize=fs)
+
+        for ax in axes:
+            ax.tick_params(axis="both", labelsize=fs)
+            ax.set_xlabel("", fontsize=fs)
+            ax.set_title("")
+            ax.grid(alpha=0.5)
+            ax.legend(fontsize=fs)
 
         month_labels = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
-        ax.set_xticks(ticks=np.arange(1, 13), labels=month_labels, fontsize=fs)
+        ax1.set_xticks(ticks=np.arange(1, 13), labels=month_labels, fontsize=fs)
 
         plt.tight_layout()
-        fig.set_tight_layout(True)
         plt.savefig(os.path.join(Folder_out, f"{dvar}.png"), dpi=300)
 
 
