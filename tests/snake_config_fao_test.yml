@@ -51,6 +51,9 @@ output_locations: "tests/data/observations/discharge-locations-grdc.csv" # If se
 # Path to the file with observed discharge timeseries per station 
 observations_timeseries: "tests/data/observations/observations-discharge-grdc.csv" 
 
+# Additional plot of budyko
+plot_budyko: True
+
 ###########################################################################################
 #################################### Analysis of historical climate data #######################################
 

@@ -117,7 +117,6 @@ rule setup_runtime:
         starttime = get_config(config, "starttime", optional=False),
         endtime = get_config(config, "endtime", optional=False),
         clim_source = "{climate_source}",
-        suffix=True, #add climate_source name to config_name and forcing_path name. 
     script: "../src/setup_time_horizon.py" 
 
 # Rule to update the model for each additional forcing dataset 
@@ -155,6 +154,7 @@ rule plot_results:
        gauges_output_fid = output_locations,
        climate_sources = climate_sources,
        climate_sources_colors = climate_sources_colors,
+       add_budyko_plot = get_config(config, "plot_budyko", False),
    script: "../src/plot_results.py"
 
 # Rule to plot the wflow basin, rivers, gauges and DEM on a map

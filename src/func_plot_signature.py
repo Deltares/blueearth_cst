@@ -103,8 +103,8 @@ def compute_metrics(
     )
 
     # Select data and resample to monthly timeseries as well
-    qsim_monthly = qsim.resample(time="M").mean("time")
-    qobs_monthly = qobs.resample(time="M").mean("time")
+    qsim_monthly = qsim.resample(time="ME").mean("time")
+    qobs_monthly = qobs.resample(time="ME").mean("time")
     # compute perf metrics
     # nse
     nse = skills.nashsutcliffe(qsim, qobs)
@@ -365,8 +365,8 @@ def plot_signatures(
     if len(qsim.time) > 365:
         start = f"{str(qsim['time.year'][0].values)}-09-01"
         end = f"{str(qsim['time.year'][-1].values)}-08-31"
-        qsim_max = qsim.sel(time=slice(start, end)).resample(time="YS-Sep").max("time")
-        qobs_max = qobs.sel(time=slice(start, end)).resample(time="YS-Sep").max("time")
+        qsim_max = qsim.sel(time=slice(start, end)).resample(time="YS-SEP").max("time")
+        qobs_max = qobs.sel(time=slice(start, end)).resample(time="YS-SEP").max("time")
     else:
         # Less than a year of data, max over the whole timeseries
         qsim_max = qsim.max("time")
@@ -422,8 +422,8 @@ def plot_signatures(
     axes[4].set_xlabel("Obs. max annual Q (m$^3$s$^{-1}$)", fontsize=fs)
 
     ### 6. nm7q axes[5] ###
-    qsim_nm7q = qsim.rolling(time=7).mean().resample(time="A").min("time")
-    qobs_nm7q = qobs.rolling(time=7).mean().resample(time="A").min("time")
+    qsim_nm7q = qsim.rolling(time=7).mean().resample(time="YE").min("time")
+    qobs_nm7q = qobs.rolling(time=7).mean().resample(time="YE").min("time")
     max_ylow = max(qsim_nm7q.max().values, qobs_nm7q.max().values)
 
     for climate_source in qsim.climate_source.values:
@@ -680,7 +680,7 @@ def plot_hydro(
         ]
         figsize_y = 23
         # Get the wettest and driest year (based on first climate_source)
-        qyr = qsim.resample(time="A").sum()
+        qyr = qsim.resample(time="YE").sum()
         qyr["time"] = qyr["time.year"]
         # Get the year for the minimum as an integer
         year_dry = str(qyr.isel(time=qyr.argmin("time")).time.values[0])
@@ -703,20 +703,20 @@ def plot_hydro(
     if nb_panel == 5:
         # 2. annual Q
         for climate_source in qsim.climate_source.values:
-            qsim.sel(climate_source=climate_source).resample(time="A").sum().plot(
+            qsim.sel(climate_source=climate_source).resample(time="YE").sum().plot(
                 ax=axes[1],
                 label=f"simulated {climate_source}",
                 linewidth=lw,
                 color=color[climate_source],
             )
         if qobs is not None:
-            qobs.resample(time="A").sum().plot(
+            qobs.resample(time="YE").sum().plot(
                 ax=axes[1], label=labobs, linewidth=lw, color=colobs, linestyle="--"
             )
 
         # 3. monthly Q
         month_labels = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
-        dsqM = qsim.resample(time="M").sum()
+        dsqM = qsim.resample(time="ME").sum()
         dsqM = dsqM.groupby(dsqM.time.dt.month).mean()
         for climate_source in qsim.climate_source.values:
             dsqM.sel(climate_source=climate_source).plot(
@@ -726,7 +726,7 @@ def plot_hydro(
                 color=color[climate_source],
             )
         if qobs is not None:
-            dsqMo = qobs.resample(time="M").sum()
+            dsqMo = qobs.resample(time="ME").sum()
             dsqMo = dsqMo.groupby(dsqMo.time.dt.month).mean()
             dsqMo.plot(ax=axes[2], label=labobs, linewidth=lw, color=colobs)
         axes[2].set_title("Average monthly sum")
@@ -814,9 +814,9 @@ def plot_clim(
     )
 
     if period == "year":
-        resampleper = "A"
+        resampleper = "YE"
     else:
-        resampleper = "M"
+        resampleper = "ME"
 
     # temp
     if period == "month":
@@ -866,7 +866,14 @@ def plot_clim(
                 .mean("time")
                 .sel(climate_source=climate_source)
             )
-            if "era5" in ds_clim.climate_source and climate_source == "era5":
+            do_climate_plot = True
+            if (
+                climate_source != "era5"
+                and climate_source != "eobs"
+                and "era5" in ds_clim.climate_source
+            ):
+                do_climate_plot = False
+            if do_climate_plot:
                 p = T_mean_year.plot(
                     ax=ax1, color=color[climate_source], label=f"{climate_source}"
                 )
@@ -981,7 +988,6 @@ def plot_clim(
         ax3.set_xticks(ticks=np.arange(1, 13), labels=month_labels, fontsize=fs)
 
     plt.tight_layout()
-    fig.set_tight_layout(True)
     plt.savefig(os.path.join(Folder_out, f"clim_{station_name}_{period}.png"), dpi=300)
 
 
@@ -1026,11 +1032,11 @@ def plot_basavg(
         # axes = [axes] if n == 1 else axes
 
         if WFLOW_VARS[dvar.split("_")[0]]["resample"] == "sum":
-            sum_monthly = ds[dvar].resample(time="M").sum("time")
+            sum_monthly = ds[dvar].resample(time="ME").sum("time")
             sum_annual = ds[dvar].resample(time="YE").sum("time")
         else:  # assume mean
-            sum_monthly = ds[dvar].resample(time="M").mean("time")
-            sum_annual = ds[dvar].resample(time="A").mean("time")
+            sum_monthly = ds[dvar].resample(time="ME").mean("time")
+            sum_annual = ds[dvar].resample(time="YE").mean("time")
         sum_monthly_mean = sum_monthly.groupby("time.month").mean("time")
         sum_monthly_q25 = sum_monthly.groupby("time.month").quantile(0.25, "time")
         sum_monthly_q75 = sum_monthly.groupby("time.month").quantile(0.75, "time")
@@ -1097,7 +1103,6 @@ def plot_basavg(
         ax1.set_xticks(ticks=np.arange(1, 13), labels=month_labels, fontsize=fs)
 
         plt.tight_layout()
-        fig.set_tight_layout(True)
         plt.savefig(os.path.join(Folder_out, f"{dvar}.png"), dpi=300)
 
 

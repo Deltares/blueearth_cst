@@ -167,6 +167,7 @@ def analyse_wflow_historical(
     wflow_config_fn_prefix: str = "wflow_sbm",
     climate_sources_colors: List[str] = None,
     split_year: Optional[int] = None,
+    add_budyko_plot: bool = True,
 ):
     """
     Analyse and plot wflow model performance for historical run.
@@ -192,7 +193,8 @@ def analyse_wflow_historical(
       VE) if observations are available and if wflow run is longer than a year. Metrics
       are saved to a csv file.
     - plot of annual trends in streamflow for each climate source and for observations.
-    - plot of runoff coefficient as a function of aridity index (Budyko framework) for each discharge observation station.
+    - optional: plot of runoff coefficient as a function of aridity index (Budyko
+      framework) for each discharge observation station.
 
     Parameters
     ----------
@@ -213,12 +215,14 @@ def analyse_wflow_historical(
         Values in wflow_id column should match column names in ``observations_fn``.
         Separator is , and decimal is .
     wflow_config_fn_prefix : str, optional
-        Prefix name of the wflow configuration file, by default "wflow_sbm". Used to read
-        the right results files from the wflow model.
+        Prefix name of the wflow configuration file, by default "wflow_sbm". Used to
+        read the right results files from the wflow model.
     climate_sources_colors: List[str], optional
         List of colors to use for the different climate sources. Default is None.
     split_year : int, optional
         Derive additional trends for years before and after this year.
+    add_budyko_plot : bool, optional
+        If True, plot the budyko framework. Default is True.
     """
     ### 1. Prepare output and plotting options ###
 
@@ -435,7 +439,7 @@ def analyse_wflow_historical(
             )
 
     ### 8. Plot budyko framework if there are observations ###
-    if has_observations:
+    if has_observations and add_budyko_plot:
         ds_clim_sub_annual = []
         for climate_source in np.atleast_1d(climate_sources).tolist():
             config_fn = wflow_config_fn_prefix + f"_{climate_source}.toml"
@@ -473,6 +477,7 @@ if __name__ == "__main__":
             gauges_locs=sm.params.gauges_output_fid,
             climate_sources=sm.params.climate_sources,
             climate_sources_colors=sm.params.climate_sources_colors,
+            add_budyko_plot=sm.params.add_budyko_plot,
         )
     else:
         analyse_wflow_historical(

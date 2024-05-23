@@ -64,9 +64,9 @@ def plot_forcing(
     for forcing_var, forcing_char in forcing_vars.items():
         print(forcing_var, forcing_char)
         if forcing_var == "temp":
-            da = mod.forcing[forcing_var].resample(time="A").mean("time").mean("time")
+            da = mod.forcing[forcing_var].resample(time="YE").mean("time").mean("time")
         else:
-            da = mod.forcing[forcing_var].resample(time="A").sum("time").mean("time")
+            da = mod.forcing[forcing_var].resample(time="YE").sum("time").mean("time")
             da = da.where(da > 0)
         da = da.where(mod.grid["wflow_subcatch"] >= 0)
         da.attrs.update(long_name=forcing_char["long_name"], units=forcing_char["unit"])
