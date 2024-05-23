@@ -380,8 +380,8 @@ def plot_climate_projections(
         data_hist=q_pr_annmn,
         data_fut=[data for data in qpr_fut],
         scenario_names=scenarios,
-        title="Annual precipitation",
-        y_label="mm/year",
+        title="Annual precipitation anomaly",
+        y_label="Anomaly (mm/year)",
         monthly=False,
         figure_filename=join(
             path_output, "plots", "precipitation_anomaly_projections_abs.png"
@@ -406,8 +406,8 @@ def plot_climate_projections(
         data_hist=q_tas_annmn,
         data_fut=qtas_fut,
         scenario_names=scenarios,
-        title="Average annual temperature",
-        y_label="degC",
+        title="Average annual temperature anomaly",
+        y_label="Anomaly ($\degree$C)",
         monthly=False,
         figure_filename=join(
             path_output, "plots", "temperature_anomaly_projections_abs.png"
@@ -420,7 +420,7 @@ def plot_climate_projections(
         data_fut=qanom_tas_fut,
         scenario_names=scenarios,
         title="Average annual temperature anomaly",
-        y_label="Anomaly (degC)",
+        y_label="Anomaly ($\degree$C)",
         monthly=False,
         figure_filename=join(
             path_output, "plots", "temperature_anomaly_projections_anom.png"
@@ -433,8 +433,8 @@ def plot_climate_projections(
             data_hist=q_pet_annmn,
             data_fut=[data for data in qpet_fut],
             scenario_names=scenarios,
-            title="Annual potential evapotranspiration",
-            y_label="mm/year",
+            title="Annual potential evapotranspiration anomaly",
+            y_label="Anomaly (mm/year)",
             monthly=False,
             figure_filename=join(
                 path_output, "plots", "pet_anomaly_projections_abs.png"
@@ -485,7 +485,7 @@ def plot_climate_projections(
         data_fut=qtas_futmonth,
         scenario_names=scenarios,
         title="Average monthly temperature",
-        y_label="degC",
+        y_label="$\degree$C",
         monthly=True,
         figure_filename=join(
             path_output, "plots", "temperature_monthly_projections_abs.png"
@@ -497,7 +497,7 @@ def plot_climate_projections(
         data_fut=qtas_futmonth_anom,
         scenario_names=scenarios,
         title="Average monthly temperature anomaly",
-        y_label="Anomaly (degC)",
+        y_label="Anomaly ($\degree$C)",
         monthly=True,
         figure_filename=join(
             path_output, "plots", "temperature_monthly_projections_anom.png"
@@ -680,7 +680,7 @@ def plot_climate_projections(
                 plot_gridded_anomaly(
                     da=ds_rcp_hz_med_mean["temp"].sel(scenario=sc, horizon=hz),
                     title=f"Annual mean temperature change for {sc} and time horizon {hz}",
-                    legend="Temperature Change (median over GCMs) [degC]",
+                    legend="Temperature Change (median over GCMs) [$\degree$C]",
                     vmin=vmin_tas,
                     vmax=vmax_tas,
                     cmap="RdYlBu_r",
