@@ -2,7 +2,7 @@ global:
   data_libs: artifact_data
 
 read_config: # read user-defined config template in build mode instead of the default
-  config_fn: "../config/wflow_sbm.toml"
+  config_fn: "../config/fao/wflow_sbm.toml"
 
 setup_basemaps:
   hydrography_fn: merit_hydro_1k   # source hydrography data {merit_hydro, merit_hydro_1k}

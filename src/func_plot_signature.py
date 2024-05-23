@@ -812,15 +812,6 @@ def plot_clim(
     fig, (ax1, ax2, ax3) = plt.subplots(
         3, 1, figsize=(16 / 2.54, 15 / 2.54), sharex=True
     )
-    # Check as for some sources only precipitation is used
-    # so avoid to plot temperature and evaporation twice
-    do_climate_plot = True
-    if (
-        climate_source != "era5"
-        and climate_source != "eobs"
-        and "era5" in ds_clim.climate_source
-    ):
-        do_climate_plot = False
 
     if period == "year":
         resampleper = "YE"
@@ -830,6 +821,16 @@ def plot_clim(
     # temp
     if period == "month":
         for climate_source in ds_clim.climate_source.values:
+            # Check as for some sources only precipitation is used
+            # so avoid to plot temperature and evaporation twice
+            do_climate_plot = True
+            if (
+                climate_source != "era5"
+                and climate_source != "eobs"
+                and "era5" in ds_clim.climate_source
+            ):
+                do_climate_plot = False
+
             T_mean_monthly_mean = (
                 ds_clim["T_subcatchment"]
                 .groupby(f"time.{period}")
@@ -869,6 +870,13 @@ def plot_clim(
                 )
     else:
         for climate_source in ds_clim.climate_source.values:
+            do_climate_plot = True
+            if (
+                climate_source != "era5"
+                and climate_source != "eobs"
+                and "era5" in ds_clim.climate_source
+            ):
+                do_climate_plot = False
             T_mean_year = (
                 ds_clim["T_subcatchment"]
                 .resample(time=resampleper)
@@ -904,6 +912,14 @@ def plot_clim(
         [ax2, ax3],
     ):
         for climate_source in ds_clim.climate_source.values:
+            do_climate_plot = True
+            if (
+                climate_source != "era5"
+                and climate_source != "eobs"
+                and "era5" in ds_clim.climate_source
+            ):
+                do_climate_plot = False
+                
             var_sum_monthly = (
                 ds_clim[climvar]
                 .resample(time=resampleper)
