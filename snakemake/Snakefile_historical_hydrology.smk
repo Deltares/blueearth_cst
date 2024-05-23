@@ -1,4 +1,5 @@
 import sys
+import numpy as np 
 
 # Get the snake_config file from the command line
 args = sys.argv
@@ -31,25 +32,27 @@ def get_config(config, arg, default=None, optional=True):
         raise ValueError(f"Argument {arg} not found in config file")
 
 project_dir = get_config(config, 'project_dir', optional=False)
+basin_dir = f"{project_dir}/hydrology_model"
 model_region = get_config(config, 'model_region', optional=False)
 model_resolution = get_config(config, 'model_resolution', 0.00833333)
 model_build_config = get_config(config, 'model_build_config', 'config/cst_api/wflow_build_model.yml')
 waterbodies_config = get_config(config, 'waterbodies_config', 'config/cst_api/wflow_update_waterbodies.yml')
+climate_sources = get_config(config, "clim_historical", optional=False)
+climate_sources_colors = get_config(config, "climate_sources_colors", optional=True)
 DATA_SOURCES = get_config(config, "data_sources", optional=False)
+DATA_SOURCES = np.atleast_1d(DATA_SOURCES).tolist() #make sure DATA_SOURCES is a list format (even if only one DATA_SOURCE)
 
 output_locations = get_config(config, "output_locations", None)
 observations_timeseries = get_config(config, "observations_timeseries", None)
 
 wflow_outvars = get_config(config, "wflow_outvars", ['river discharge'])
 
-basin_dir = f"{project_dir}/hydrology_model"
-
 # Master rule: end with all model run and analysed with saving a output plot
 rule all:
     input: 
         f"{project_dir}/plots/wflow_model_performance/hydro_wflow_1.png",
         f"{project_dir}/plots/wflow_model_performance/basin_area.png",
-        f"{project_dir}/plots/wflow_model_performance/precip.png",
+        expand((project_dir + "/plots/wflow_model_performance/{climate_source}/precip.png"), climate_source = climate_sources),
         f"{project_dir}/config/snake_config_model_creation.yml",
 
 # Rule to copy config files to the project_dir/config folder
@@ -72,8 +75,10 @@ rule create_model:
         hydromt_ini = model_build_config,
     output:
         basin_nc = f"{basin_dir}/staticmaps.nc",
+    params:
+        data_catalogs = [f"-d {cat} " for cat in DATA_SOURCES]  
     shell:
-        """hydromt build wflow "{basin_dir}" --region "{model_region}" --opt setup_basemaps.res="{model_resolution}" -i "{input.hydromt_ini}" -d "{DATA_SOURCES}" --fo -vv"""
+        """hydromt build wflow "{basin_dir}" --region "{model_region}" --opt setup_basemaps.res="{model_resolution}" -i "{input.hydromt_ini}" {params.data_catalogs} --fo -vv"""
 
 # Rule to add reservoirs, lakes and glaciers to the built model (temporary hydromt fix)
 # Can be moved back to create_model rule when hydromt is updated
@@ -102,42 +107,44 @@ rule add_gauges_and_outputs:
     script:
         "../src/setup_gauges_and_outputs.py"
 
-# Rule to prepare the time horizon
+# Rule to prepare the yml for each clim dataset with time horizon 
 rule setup_runtime:
     input:
         gauges_fid = f"{basin_dir}/staticgeoms/gauges.geojson"
     output:
-        forcing_yml = f"{project_dir}/config/wflow_build_forcing_historical.yml"
+        forcing_yml = (project_dir + "/config/wflow_build_forcing_historical_{climate_source}.yml")
     params:
         starttime = get_config(config, "starttime", optional=False),
         endtime = get_config(config, "endtime", optional=False),
-        clim_source = get_config(config, "clim_historical", optional=False),
-    script: "../src/setup_time_horizon.py"
+        clim_source = "{climate_source}",
+    script: "../src/setup_time_horizon.py" 
 
-# Rule to add forcing to the updated model
+# Rule to update the model for each additional forcing dataset 
 rule add_forcing:
     input:
-        forcing_ini = f"{project_dir}/config/wflow_build_forcing_historical.yml"
+        forcing_ini = (project_dir + "/config/wflow_build_forcing_historical_{climate_source}.yml")
     output:
-        forcing_fid = f"{project_dir}/climate_historical/wflow_data/inmaps_historical.nc"
+        forcing_fid = (project_dir + "/climate_historical/wflow_data/inmaps_historical_{climate_source}.nc")
+    params:
+        data_catalogs = [f"-d {cat} " for cat in DATA_SOURCES] 
     shell:
-        """hydromt update wflow "{basin_dir}" -i "{input.forcing_ini}" -d "{DATA_SOURCES}" -vv"""
+        """hydromt update wflow "{basin_dir}" -i "{input.forcing_ini}" {params.data_catalogs} -vv"""
 
-# Rule to run the wflow model
+#Rule to run the wflow model for each additional forcing dataset 
 rule run_wflow:
     input:
-        forcing_fid = f"{project_dir}/climate_historical/wflow_data/inmaps_historical.nc"
+        forcing_fid = (project_dir + "/climate_historical/wflow_data/inmaps_historical_{climate_source}.nc")
     output:
-        csv_file = f"{basin_dir}/run_default/output.csv"
+        csv_file = (basin_dir + "/run_default_{climate_source}/output.csv")
     params:
-        toml_fid = f"{basin_dir}/wflow_sbm.toml"
+        toml_fid = (basin_dir + "/wflow_sbm_{climate_source}.toml"),
     shell:
         """ julia --threads 4 -e "using Wflow; Wflow.run()" "{params.toml_fid}" """
 
 # Rule to analyse and plot wflow model run results --> final output
 rule plot_results:
    input:
-       csv_file = f"{basin_dir}/run_default/output.csv",
+       csv_file = expand((basin_dir + "/run_default_{climate_source}/output.csv"), climate_source = climate_sources),
        script = "src/plot_results.py"
    output: 
        output_png = f"{project_dir}/plots/wflow_model_performance/hydro_wflow_1.png",
@@ -145,6 +152,9 @@ rule plot_results:
        project_dir = f"{project_dir}",
        observations_file = observations_timeseries,
        gauges_output_fid = output_locations,
+       climate_sources = climate_sources,
+       climate_sources_colors = climate_sources_colors,
+       add_budyko_plot = get_config(config, "plot_budyko", False),
    script: "../src/plot_results.py"
 
 # Rule to plot the wflow basin, rivers, gauges and DEM on a map
@@ -161,10 +171,13 @@ rule plot_map:
 # Rule to plot the forcing on a map
 rule plot_forcing:
     input:
-        forcing_fid = f"{project_dir}/climate_historical/wflow_data/inmaps_historical.nc",
+        # forcing_fid = expand((project_dir + "/climate_historical/wflow_data/inmaps_historical_{climate_source}.nc"), climate_source = climate_sources),
+        forcing_fid = (project_dir + "/climate_historical/wflow_data/inmaps_historical_{climate_source}.nc"),
     output:
-        output_forcing_map = f"{project_dir}/plots/wflow_model_performance/precip.png",
+        output_forcing_map = (project_dir + "/plots/wflow_model_performance/{climate_source}/precip.png"),
     params:
         project_dir = f"{project_dir}",
         gauges_fid = output_locations,
+        config_fn=("wflow_sbm_{climate_source}.toml"),
+        climate_source="{climate_source}",
     script: "../src/plot_map_forcing.py"

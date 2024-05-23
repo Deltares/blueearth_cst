@@ -13,7 +13,7 @@ fao_config_fn = join(TESTDIR, "snake_config_fao_test.yml")
 
 _snakefiles = {
     "model_creation": {
-        "file": "Snakefile_model_creation.smk",
+        "file": "Snakefile_historical_hydrology.smk",
         "config": config_fn,
     },
     "climate_projections": {

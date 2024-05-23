@@ -25,12 +25,12 @@ def linealg(x, a, b):
 def compute_anomalies_year(da: xr.DataArray) -> xr.DataArray:
     """Resample timeseries to year and compute anomalies for a given DataArray.
 
-    Supported variables are "precip" and "temp".
+    Supported variables are "precip" and "temp" and "Q".
 
     Parameters
     ----------
     da : xr.DataArray
-        DataArray with the climate data.
+        DataArray with the climate and hydrology data.
 
     Returns
     -------
@@ -58,6 +58,17 @@ def compute_anomalies_year(da: xr.DataArray) -> xr.DataArray:
         da_yr_anom = da_yr - da_yr_median
         da_yr_anom.attrs.update(
             units="°C", long_name=f"Anomalies in temperature relative to the median"
+        )
+    elif da.name == "Q":
+        # Calculate the yearly mean
+        da_yr = da.resample(time="YS").mean("time")
+        da_yr["time"] = da_yr.time.dt.year
+        # Derive the median
+        da_yr_median = da_yr.median("time")
+        # Derive the anomalies
+        da_yr_anom = (da_yr - da_yr_median) / da_yr_median * 100
+        da_yr_anom.attrs.update(
+            units="%", long_name=f"Anomalies in streamflow relative to the median"
         )
 
     return da_yr_anom
@@ -163,8 +174,8 @@ def plot_timeseries_anomalies(
         p10 = da_yr_anom.quantile(0.1, dim="index").min("time").values
 
         # add a line using a constant value
-        ax.axhline(p90, color="grey", linestyle="--", label="90% percentile")
-        ax.axhline(p10, color="grey", linestyle="--", label="10% percentile")
+        ax.axhline(p90, color="lightgrey", linestyle="--", label="90% percentile")
+        ax.axhline(p10, color="lightgrey", linestyle="--", label="10% percentile")
 
         # also add a  line at 0% anomaly
         ax.axhline(0, color="darkgrey", linestyle="--")
@@ -223,6 +234,9 @@ def plot_timeseries_anomalies(
         elif var == "temp":
             legend = "temperature anomalies [°C]"
             variable = "temperature"
+        elif var == "Q":
+            legend = "streamflow anomalies [%]"
+            variable = "streamflow"
         ax.set_ylabel(legend)
         ax.set_title(
             f"Anomalies in {variable} for different locations using {suffix} data"
