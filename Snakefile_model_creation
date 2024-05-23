@@ -112,6 +112,7 @@ rule setup_runtime:
         starttime = get_config(config, "starttime", optional=False),
         endtime = get_config(config, "endtime", optional=False),
         clim_source = get_config(config, "clim_historical", optional=False),
+        basin_dir = basin_dir,
     script: "src/setup_time_horizon.py"
 
 # Rule to add forcing to the updated model
