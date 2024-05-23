@@ -117,6 +117,10 @@ def summary_climate_proj(
         sns.scatterplot, s=100, alpha=0.5, data=df, style="horizon", palette=clrs
     )
     g.plot_marginals(sns.kdeplot, palette=clrs)
+    for ax in (g.ax_joint, g.ax_marg_x):
+        ax.axvline(0, color='darkgrey', ls='--', lw=2)
+    for ax in (g.ax_joint, g.ax_marg_y):
+        ax.axhline(0, color='darkgrey', ls='--', lw=2)
     g.set_axis_labels(
         xlabel="Change in mean precipitation (%)",
         ylabel="Change in mean temperature (degC)",
@@ -137,6 +141,10 @@ def summary_climate_proj(
             sns.scatterplot, s=100, alpha=0.5, data=df, style="horizon", palette=clrs
         )
         g.plot_marginals(sns.kdeplot, palette=clrs)
+        for ax in (g.ax_joint, g.ax_marg_x):
+            ax.axvline(0, color='darkgrey', ls='--', lw=2)
+        for ax in (g.ax_joint, g.ax_marg_y):
+            ax.axhline(0, color='darkgrey', ls='--', lw=2)
         g.set_axis_labels(
             xlabel="Change in mean precipitation (%)",
             ylabel="Change in mean potential evapotranspiration (%)",
