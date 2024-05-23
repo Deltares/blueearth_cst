@@ -43,9 +43,16 @@ def project_dir(config) -> Path:
 
 @pytest.fixture()
 def data_sources(config) -> Union[str, Path]:
-    """Return data sources"""
-    data_sources = get_config(config, "data_sources", optional=False)
-    data_sources = join(MAINDIR, data_sources)
+    """Return data sources from fao config"""
+    data_libs = np.atleast_1d(config["data_sources"]).tolist()
+    data_sources = []
+    for source in data_libs:
+        ext = splitext(source)[-1]
+        if not len(ext) == 0:
+            data_sources.append(join(MAINDIR, source))
+        else:
+            # predefined catalogs if no file extension
+            data_sources.append(source)
     return data_sources
 
 
@@ -60,7 +67,7 @@ def data_sources_climate(config) -> Union[str, Path]:
 @pytest.fixture()
 def data_libs_fao(config_fao) -> List:
     """Return data sources from fao config"""
-    data_libs = np.atleast_1d(config_fao["data_catalogs"]).tolist()
+    data_libs = np.atleast_1d(config_fao["data_sources"]).tolist()
     data_libs_fao = []
     for source in data_libs:
         ext = splitext(source)[-1]

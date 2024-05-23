@@ -6,7 +6,9 @@
 project_dir: tests/test_project
 
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
-data_sources: tests/data/tests_data_catalog.yml
+data_sources: 
+  - artifact_data
+  - tests/data/tests_data_catalog.yml
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
 #data_sources_climate: config/deltares_data_climate_projections.yml
 data_sources_climate: config/cmip6_data.yml
@@ -53,7 +55,7 @@ scenarios: [ssp245, ssp585]
 members: [r1i1p1f1]
 
 # Climate projections for the following variables
-variables: [precip, temp, pet]
+variables: [precip, temp]
 
 # Method to compute PET if not available in the climate data - None to use pet in the climate data
 # Available methods: 'None', 'makkink' 'debruin', 'penman-monteith_rh_simple', 'penman-monteith_tdew'
@@ -69,7 +71,7 @@ future_horizons:
   far: 2090, 2100
 
 # Additional gridded outputs (else only basin average)
-save_grids: TRUE
+save_grids: FALSE
 
 ###########################################################################################
 ################################## Stress Test Experiment #################################

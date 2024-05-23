@@ -812,6 +812,15 @@ def plot_clim(
     fig, (ax1, ax2, ax3) = plt.subplots(
         3, 1, figsize=(16 / 2.54, 15 / 2.54), sharex=True
     )
+    # Check as for some sources only precipitation is used
+    # so avoid to plot temperature and evaporation twice
+    do_climate_plot = True
+    if (
+        climate_source != "era5"
+        and climate_source != "eobs"
+        and "era5" in ds_clim.climate_source
+    ):
+        do_climate_plot = False
 
     if period == "year":
         resampleper = "YE"
@@ -842,7 +851,7 @@ def plot_clim(
             # plot
             # todo: update the workflow to have more control on the forcing and allow the user to select the dataset for precip and for temp+pet and the equation for pet
             # for now only plot temp and evap it climate source is era5 and era5 is in climate source.
-            if "era5" in ds_clim.climate_source and climate_source == "era5":
+            if do_climate_plot:
                 p = T_mean_monthly_mean.plot(
                     ax=ax1, color=color[climate_source], label=f"{climate_source}"
                 )
@@ -866,13 +875,6 @@ def plot_clim(
                 .mean("time")
                 .sel(climate_source=climate_source)
             )
-            do_climate_plot = True
-            if (
-                climate_source != "era5"
-                and climate_source != "eobs"
-                and "era5" in ds_clim.climate_source
-            ):
-                do_climate_plot = False
             if do_climate_plot:
                 p = T_mean_year.plot(
                     ax=ax1, color=color[climate_source], label=f"{climate_source}"
@@ -920,11 +922,9 @@ def plot_clim(
                     f"time.{period}"
                 ).quantile(0.75, "time")
 
-                if (
-                    "era5" in ds_clim.climate_source
-                    and climate_source == "era5"
-                    and climvar == "EP_subcatchment"
-                ) | (climvar == "P_subcatchment"):
+                if (do_climate_plot and climvar == "EP_subcatchment") | (
+                    climvar == "P_subcatchment"
+                ):
                     p = var_sum_monthly_mean.plot(
                         ax=ax, color=color[climate_source], label=f"{climate_source}"
                     )
@@ -947,11 +947,9 @@ def plot_clim(
                 p = np.poly1d(z)
                 r2_score, p_value = rsquared(p(x), var_sum_monthly)
 
-                if (
-                    "era5" in ds_clim.climate_source
-                    and climate_source == "era5"
-                    and climvar == "EP_subcatchment"
-                ) | (climvar == "P_subcatchment"):
+                if (do_climate_plot and climvar == "EP_subcatchment") | (
+                    climvar == "P_subcatchment"
+                ):
                     p = ax.plot(
                         var_sum_monthly.time,
                         p(x),

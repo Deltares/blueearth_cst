@@ -1,4 +1,5 @@
 import itertools
+import numpy as np
 import sys
 
 from get_config import get_config
@@ -9,8 +10,10 @@ config_path = args[args.index("--configfile") + 1]
 
 # Parsing the Snakemake config file (options for basins to build, data catalog, model output directory)
 project_dir = get_config(config, 'project_dir', optional=False)
+# Data catalogs
 DATA_SOURCES = get_config(config, "data_sources", [])
-DATA_SOURCES_CLIMATE = get_config(config, "data_sources_climate", optional=False)
+DATA_SOURCES = np.atleast_1d(DATA_SOURCES).tolist() #make sure DATA_SOURCES is a list format (even if only one DATA_SOURCE)
+DATA_SOURCES_CLIMATE = np.atleast_1d(get_config(config, "data_sources_climate", optional=False)).tolist()
 data_catalogs = []
 data_catalogs.extend(DATA_SOURCES)
 data_catalogs.extend(DATA_SOURCES_CLIMATE)
@@ -79,7 +82,7 @@ rule monthly_stats_hist:
         region_fid = ancient(f"{project_dir}/region/region.geojson"),
     output:
         stats_time_nc_hist = temp(clim_project_dir + "/historical_stats_time_{model}.nc"),
-        stats_grid_nc_hist = temp(clim_project_dir + "/historical_stats_{model}.nc") if save_grids else None,
+        stats_grid_nc_hist = temp(clim_project_dir + "/historical_stats_{model}.nc") if save_grids else [],
     params:
         yml_fid = DATA_SOURCES_CLIMATE,
         project_dir = f"{project_dir}",
@@ -99,10 +102,10 @@ rule monthly_stats_fut:
     input:
         region_fid = ancient(f"{project_dir}/region/region.geojson"),
         stats_time_nc_hist = (clim_project_dir + "/historical_stats_time_{model}.nc"), #make sure starts with previous job
-        stats_grid_nc_hist = (clim_project_dir + "/historical_stats_{model}.nc") if save_grids else None,
+        stats_grid_nc_hist = (clim_project_dir + "/historical_stats_{model}.nc") if save_grids else [],
     output:
         stats_time_nc = temp(clim_project_dir + "/stats_time-{model}_{scenario}.nc"),
-        stats_grid_nc = temp(clim_project_dir + "/stats-{model}_{scenario}.nc") if save_grids else None,
+        stats_grid_nc = temp(clim_project_dir + "/stats-{model}_{scenario}.nc") if save_grids else [],
     params:
         yml_fid = DATA_SOURCES_CLIMATE,
         project_dir = f"{project_dir}",
@@ -121,11 +124,11 @@ rule monthly_change:
     input:
         stats_time_nc_hist = ancient(clim_project_dir + "/historical_stats_time_{model}.nc"),
         stats_time_nc = ancient(clim_project_dir + "/stats_time-{model}_{scenario}.nc"),
-        stats_grid_nc_hist = ancient(clim_project_dir + "/historical_stats_{model}.nc") if save_grids else None,
-        stats_grid_nc = ancient(clim_project_dir + "/stats-{model}_{scenario}.nc") if save_grids else None,
+        stats_grid_nc_hist = ancient(clim_project_dir + "/historical_stats_{model}.nc") if save_grids else [],
+        stats_grid_nc = ancient(clim_project_dir + "/stats-{model}_{scenario}.nc") if save_grids else [],
     output:
         stats_nc_change = temp(clim_project_dir + "/annual_change_scalar_stats-{model}_{scenario}_{horizon}.nc"),
-        monthly_change_mean_grid = (clim_project_dir + "/monthly_change_mean_grid-{model}_{scenario}_{horizon}.nc") if save_grids else None,
+        monthly_change_mean_grid = (clim_project_dir + "/monthly_change_mean_grid-{model}_{scenario}_{horizon}.nc") if save_grids else [],
     params:
         clim_project_dir = f"{clim_project_dir}",
         start_month_hyd_year = get_config(config, "start_month_hyd_year", "Jan"), 
@@ -160,7 +163,7 @@ rule plot_climate_proj_timeseries:
         stats_change_summary = (clim_project_dir + "/annual_change_scalar_stats_summary.nc"),
         stats_time_nc_hist =[(clim_project_dir + f"/historical_stats_time_{mod}.nc") for mod in models],
         stats_time_nc = expand((clim_project_dir + "/stats_time-{model}_{scenario}.nc"), model = models, scenario = scenarios),
-        monthly_change_mean_grid = expand((clim_project_dir + "/monthly_change_mean_grid-{model}_{scenario}_{horizon}.nc"), model = models, scenario = scenarios, horizon = future_horizons) if save_grids else None,
+        monthly_change_mean_grid = expand((clim_project_dir + "/monthly_change_mean_grid-{model}_{scenario}_{horizon}.nc"), model = models, scenario = scenarios, horizon = future_horizons) if save_grids else [],
     params:
         clim_project_dir = f"{clim_project_dir}",
         scenarios = scenarios,

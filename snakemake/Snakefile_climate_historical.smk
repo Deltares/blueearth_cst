@@ -9,7 +9,7 @@ config_path = args[args.index("--configfile") + 1]
 # Config settings
 project_dir = get_config(config, 'project_dir', optional=False)
 climate_sources = get_config(config, "clim_historical", optional=False)
-data_catalog = get_config(config, "data_catalogs", optional=False)
+data_catalog = get_config(config, "data_sources", optional=False)
 
 rule all:
     input:

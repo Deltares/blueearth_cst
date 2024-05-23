@@ -393,7 +393,7 @@ def plot_climate_projections(
         data_hist=q_pr_anom,
         data_fut=qanom_pr_fut,
         scenario_names=scenarios,
-        title="Annual precipitation",
+        title="Annual precipitation anomaly",
         y_label="Anomaly (%)",
         monthly=False,
         figure_filename=join(
@@ -419,7 +419,7 @@ def plot_climate_projections(
         data_hist=q_tas_anom,
         data_fut=qanom_tas_fut,
         scenario_names=scenarios,
-        title="Average annual temperature",
+        title="Average annual temperature anomaly",
         y_label="Anomaly (degC)",
         monthly=False,
         figure_filename=join(
@@ -446,7 +446,7 @@ def plot_climate_projections(
             data_hist=q_pet_anom,
             data_fut=qanom_pet_fut,
             scenario_names=scenarios,
-            title="Annual potential evapotranspiration",
+            title="Annual potential evapotranspiration anomaly",
             y_label="Anomaly (%)",
             monthly=False,
             figure_filename=join(
@@ -471,7 +471,7 @@ def plot_climate_projections(
         data_hist=q_pr_mnanom,
         data_fut=qpr_futmonth_anom,
         scenario_names=scenarios,
-        title="Average precipitation",
+        title="Average precipitation anomaly",
         y_label="Anomaly (%)",
         monthly=True,
         figure_filename=join(
@@ -496,7 +496,7 @@ def plot_climate_projections(
         data_hist=q_tas_mnanom,
         data_fut=qtas_futmonth_anom,
         scenario_names=scenarios,
-        title="Average monthly temperature",
+        title="Average monthly temperature anomaly",
         y_label="Anomaly (degC)",
         monthly=True,
         figure_filename=join(
@@ -522,7 +522,7 @@ def plot_climate_projections(
             data_hist=q_pet_mnanom,
             data_fut=qpet_futmonth_anom,
             scenario_names=scenarios,
-            title="Average potential evapotranspiration",
+            title="Average potential evapotranspiration anomaly",
             y_label="Anomaly (%)",
             monthly=True,
             figure_filename=join(
@@ -714,12 +714,17 @@ if __name__ == "__main__":
     if "snakemake" in globals():
         sm = globals()["snakemake"]
 
+        nc_grid_projections = sm.input.monthly_change_mean_grid
+        if len(nc_grid_projections) == 0:
+            nc_grid_projections = None
+
         plot_climate_projections(
             nc_historical=sm.input.stats_time_nc_hist,
             nc_future=sm.input.stats_time_nc,
             path_output=sm.params.clim_project_dir,
             scenarios=sm.params.scenarios,
-            nc_grid_projections=sm.input.monthly_change_mean_grid,
+            horizons=sm.params.horizons,
+            nc_grid_projections=nc_grid_projections,
         )
 
     else:
