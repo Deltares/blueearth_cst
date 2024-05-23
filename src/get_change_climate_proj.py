@@ -77,7 +77,7 @@ def get_change_annual_clim_proj(
     ds_hist_time,
     ds_clim_time,
     stats=["mean", "std", "var", "median", "q_90", "q_75", "q_10", "q_25"],
-    start_month_hyd_year="Jan",
+    start_month_hyd_year="JAN",
 ):
     """
 
@@ -93,7 +93,7 @@ def get_change_annual_clim_proj(
         quantiles should be provided as q_xx. The default is ["mean", "std", "var",
         "median", "q_90", "q_75", "q_10", "q_25"]
     start_month_hyd_year : str, optional
-        Month start of hydrological year. The default is "Jan".
+        Month start of hydrological year. The default is "JAN".
 
     Returns
     -------
@@ -183,7 +183,7 @@ def get_expected_change_scalar(
     path_output: Union[str, Path],
     time_tuple_historical: Tuple[str, str] = ("1990", "2010"),
     time_tuple_future: Tuple[str, str] = ("2040", "2060"),
-    start_month_hyd_year: str = "Jan",
+    start_month_hyd_year: str = "JAN",
     name_horizon: str = "future",
     name_model: str = "model",
     name_scenario: str = "scenario",
@@ -212,7 +212,7 @@ def get_expected_change_scalar(
         Time horizon for future data to slice in ``nc_future``. The default is
         ("2040", "2060").
     start_month_hyd_year : str, optional
-        Month start of hydrological year. The default is "Jan".
+        Month start of hydrological year. The default is "JAN".
     name_horizon : str, optional
         Name of the horizon. The default is "future". Will be added as an extra
         dimension in the output netcdf file.
