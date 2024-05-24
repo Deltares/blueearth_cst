@@ -115,3 +115,16 @@ save_grids: TRUE
 change_drymonth_threshold: 3.0
 # Maximum change factor for dry months [%]
 change_drymonth_maxchange: 50
+
+########################################################################################
+######################### Analysis of future hydrology delta change ####################
+
+config_model_historical: "wflow_sbm_era5.toml"
+gcm_selected: ['NOAA-GFDL/GFDL-ESM4', 'INM/INM-CM5-0']
+scenarios_selected: [ssp245, ssp585]
+members: [r1i1p1f1]
+#assume period is near and far (fixed!!)
+
+
+
+
