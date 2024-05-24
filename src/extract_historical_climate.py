@@ -108,11 +108,25 @@ def prep_historical_climate(
         dem.to_netcdf(fn_dem, mode="w")
 
     else:
+        # Here we can afford larger chunks as we only extract and save
+        data_catalog_temp = data_catalog.to_dict()
+        data_catalog_temp[clim_source]["driver_kwargs"]["chunks"] = "auto"
+        data_catalog = hydromt.DataCatalog().from_dict(data_catalog_temp)
+
         ds = data_catalog.get_rasterdataset(
             clim_source,
             bbox=region.geometry.total_bounds,
             time_tuple=(starttime, endtime),
             buffer=1,
+            variables=[
+                "precip",
+                "temp",
+                "temp_min",
+                "temp_max",
+                "kin",
+                "kout",
+                "press_msl",
+            ],
         )
 
     dvars = ds.raster.vars

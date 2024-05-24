@@ -36,6 +36,20 @@ config_out_fn = Path(config_out_fn)
 config_out_root = os.path.dirname(config_out_fn)
 config_out_name = os.path.basename(config_out_fn)
 
+# Instantiate model
+mod = WflowModel(root=model_root, mode="r+", data_libs=data_libs)
+
+# For large / small model domains adjust chunksize to compute forcing
+size = mod.grid.raster.size
+if size > 1e6:
+    chunksize = 1
+elif size > 2.5e5:
+    chunksize = 30
+elif size > 1e5:
+    chunksize = 100
+else:
+    chunksize = 365
+
 # Hydromt ini dictionnaries for update options
 update_options = {
     "setup_config": {
@@ -56,6 +70,7 @@ update_options = {
     "setup_precip_forcing": {
         "precip_fn": climate_name,
         "precip_clim_fn": None,
+        "chunksize": chunksize,
     },
     "setup_temp_pet_forcing": {
         "temp_pet_fn": climate_name,
@@ -63,6 +78,7 @@ update_options = {
         "temp_correction": True,
         "dem_forcing_fn": oro_source,
         "pet_method": pet_method,
+        "chunksize": chunksize,
     },
     # "write_forcing": {},
     "write_config": {
@@ -72,9 +88,6 @@ update_options = {
 }
 
 ### Run Hydromt update using update_options dict ###
-# Instantiate model
-mod = WflowModel(root=model_root, mode="r+", data_libs=data_libs)
-
 # Update
 mod.update(opt=update_options)
 

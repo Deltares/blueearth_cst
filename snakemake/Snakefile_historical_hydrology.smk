@@ -96,7 +96,8 @@ rule setup_runtime:
         starttime = get_config(config, "starttime", optional=False),
         endtime = get_config(config, "endtime", optional=False),
         clim_source = "{climate_source}",
-    script: "../src/setup_time_horizon.py" 
+        basin_dir = basin_dir,
+    script: "src/setup_time_horizon.py"
 
 # Rule to update the model for each additional forcing dataset 
 rule add_forcing:
