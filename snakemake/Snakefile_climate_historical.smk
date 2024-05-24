@@ -69,7 +69,7 @@ rule plot_location_climate:
     input:
         region_file = f"{project_dir}/region/region.geojson",
     params:
-        location_file = get_config(config, "climate_locations"),
+        location_file = get_config(config, "climate_locations", optional=False),
         location_timeseries = get_config(config, "climate_locations_timeseries", None),
         climate_sources = climate_sources,
         climate_sources_colors = get_config(config, "clim_historical_colors", None),

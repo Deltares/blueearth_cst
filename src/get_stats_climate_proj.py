@@ -145,7 +145,7 @@ def get_stats_clim_projections(
                 )
                 var_m = var_m * days_in_month
                 var_m.name = "precip"
-                var_m.attrs["units"] = "mm"
+                var_m.attrs["units"] = "mm/month"
         elif np.isin(var, ["kin", "kout", "pet"]):
             var_m = data[var].resample(time="MS").sum("time")
         else:  # for temp, wind, rh, press

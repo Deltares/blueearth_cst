@@ -111,3 +111,7 @@ future_horizons:
 
 # Additional gridded outputs (else only basin average)
 save_grids: TRUE
+# Threshold to apply to avoid too large change factors for dry months [mm/month]
+change_drymonth_threshold: 3.0
+# Maximum change factor for dry months [%]
+change_drymonth_maxchange: 50

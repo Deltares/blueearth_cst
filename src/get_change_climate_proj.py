@@ -5,6 +5,7 @@ from os.path import join, dirname
 from pathlib import Path
 import pandas as pd
 import xarray as xr
+import numpy as np
 
 from typing import List, Tuple, Union
 
@@ -14,7 +15,11 @@ def intersection(lst1, lst2):
 
 
 def get_change_clim_projections(
-    ds_hist: xr.Dataset, ds_clim: xr.Dataset, name_horizon: str = "future"
+    ds_hist: xr.Dataset,
+    ds_clim: xr.Dataset,
+    name_horizon: str = "future",
+    drymonth_threshold: float = 3.0,
+    drymonth_maxchange: float = 50.0,
 ):
     """
     Parameters
@@ -28,6 +33,12 @@ def get_change_clim_projections(
     name_horizon : str, optional
         Name of the horizon to select in ds_clim in case several are available.
         The default is "future".
+    drymonth_threshold : float, optional
+        Threshold for dry month definition in mm/month. For too dry months, the change
+        factors will be limited to ``drymonth_maxchange`` is avoid to avoid too large
+        change factors. The default is 3.0 mm/month.
+    drymonth_maxchange : float, optional
+        Maximum change factor for dry months (% change). The default is +-50.0%.
 
     Returns
     -------
@@ -50,19 +61,31 @@ def get_change_clim_projections(
         ds_clim = ds_clim.sel(horizon=name_horizon)
     for var in intersection(ds_hist.data_vars, ds_clim.data_vars):
         if var == "precip" or var == "pet":
+            ds_hist_var = ds_hist[var].sel(scenario=ds_hist.scenario.values[0])
             # multiplicative for precip and pet
-            change = (
-                (
-                    ds_clim[var]
-                    - ds_hist[var].sel(
-                        scenario=ds_hist.scenario.values[0],
-                    )
+            change = (ds_clim[var] - ds_hist_var) / ds_hist_var * 100
+            # Dry month
+            if var == "precip":
+                # Add a min limit
+                change = change.where(
+                    np.invert(
+                        np.logical_and(
+                            ds_hist_var <= drymonth_threshold,
+                            change <= -drymonth_maxchange,
+                        )
+                    ),
+                    -drymonth_maxchange,
                 )
-                / ds_hist[var].sel(
-                    scenario=ds_hist.scenario.values[0],
+                # Add a max limit
+                change = change.where(
+                    np.invert(
+                        np.logical_and(
+                            ds_hist_var <= drymonth_threshold,
+                            change >= drymonth_maxchange,
+                        )
+                    ),
+                    drymonth_maxchange,
                 )
-                * 100
-            )
         else:  # for temp
             # additive for temp
             change = ds_clim[var] - ds_hist[var].sel(
@@ -282,6 +305,8 @@ def get_expected_change_grid(
     name_horizon: str = "future",
     name_model: str = "model",
     name_scenario: str = "scenario",
+    drymonth_threshold: float = 3.0,
+    drymonth_maxchange: float = 50.0,
 ):
     """
     Compute the expected change in climate variables from gridded timeseries.
@@ -307,6 +332,12 @@ def get_expected_change_grid(
         Name of the model for the output filename. The default is "model".
     name_scenario : str, optional
         Name of the scenario for the output filename. The default is "scenario".
+    drymonth_threshold : float, optional
+        Threshold for dry month definition in mm/month. For too dry months, the change
+        factors will be limited to ``drymonth_maxchange`` is avoid to avoid too large
+        change factors. The default is 3.0 mm/month.
+    drymonth_maxchange : float, optional
+        Maximum change factor for dry months (% change). The default is +-50.0%.
     """
     # Prepare the output filename and directory
     name_nc_out = (
@@ -382,6 +413,8 @@ if __name__ == "__main__":
                 name_horizon=sm.params.name_horizon,
                 name_model=sm.params.name_model,
                 name_scenario=sm.params.name_scenario,
+                drymonth_threshold=sm.params.change_drymonth_threshold,
+                drymonth_maxchange=sm.params.change_drymonth_maxchange,
             )
 
     else:

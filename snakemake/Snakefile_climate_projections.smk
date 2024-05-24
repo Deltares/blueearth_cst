@@ -138,8 +138,8 @@ rule monthly_change:
         time_horizon_hist = get_config(config, "historical", optional=False),
         time_horizon_fut = get_horizon,
         save_grids = save_grids,
-        #stats_nc_hist = (clim_project_dir + "/historical_stats_{model}.nc"),
-        #stats_nc = (clim_project_dir + "/stats-{model}_{scenario}.nc"),
+        change_drymonth_threshold = get_config(config, "change_drymonth_threshold", 3.0),
+        change_drymonth_maxchange = get_config(config, "change_drymonth_maxchange", 50.0),
     script: "../src/get_change_climate_proj.py"
 
 #rule to merge results in one netcdf / todo: add plotting

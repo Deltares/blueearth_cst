@@ -236,6 +236,8 @@ def test_monthly_change(tmpdir):
         name_horizon="near",
         name_model="NOAA-GFDL/GFDL-ESM4",
         name_scenario="ssp245",
+        drymonth_threshold=3.0,
+        drymonth_maxchange=50.0,
     )
     # Check if the file was produced
     fn_out = f"{tmpdir}/climate_projections/cmip6/monthly_change_mean_grid-NOAA-GFDL/GFDL-ESM4_ssp245_near.nc"
