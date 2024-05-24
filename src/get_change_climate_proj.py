@@ -13,7 +13,9 @@ def intersection(lst1, lst2):
     return list(set(lst1) & set(lst2))
 
 
-def get_change_clim_projections(ds_hist, ds_clim, name_horizon="future"):
+def get_change_clim_projections(
+    ds_hist:xr.Dataset, ds_clim:xr.Dataset, name_horizon:str="future"
+):
     """
     Parameters
     ----------
@@ -74,10 +76,10 @@ def get_change_clim_projections(ds_hist, ds_clim, name_horizon="future"):
 
 
 def get_change_annual_clim_proj(
-    ds_hist_time,
-    ds_clim_time,
-    stats=["mean", "std", "var", "median", "q_90", "q_75", "q_10", "q_25"],
-    start_month_hyd_year="JAN",
+    ds_hist_time: xr.Dataset,
+    ds_clim_time: xr.Dataset,
+    stats:List[str]=["mean", "std", "var", "median", "q_90", "q_75", "q_10", "q_25"],
+    start_month_hyd_year:str="JAN",
 ):
     """
 
@@ -231,8 +233,8 @@ def get_expected_change_scalar(
         os.makedirs(dir_output)
 
     # open datasets and slice times
-    ds_hist = xr.open_dataset(nc_historical)
-    ds_fut = xr.open_dataset(nc_future)
+    ds_hist = xr.open_dataset(nc_historical, lock=False)
+    ds_fut = xr.open_dataset(nc_future, lock=False)
 
     # get annual statistics from time series of monthly variables
 
@@ -315,8 +317,8 @@ def get_expected_change_grid(
         os.makedirs(dir_output)
 
     # open datasets
-    ds_hist = xr.open_dataset(nc_historical)
-    ds_fut = xr.open_dataset(nc_future)
+    ds_hist = xr.open_dataset(nc_historical, lock=False)
+    ds_fut = xr.open_dataset(nc_future, lock=False)
 
     # Check if the future file is a dummy file
     if len(ds_fut) > 0:

@@ -129,10 +129,13 @@ def plot_climate_projections(
     print("Opening historical gcm timeseries")
     fns_hist = nc_historical.copy()
     for fn in nc_historical:
-        ds = xr.open_dataset(fn)
+        ds = xr.open_dataset(fn, lock=False)
         if len(ds) == 0 or ds is None:
             fns_hist.remove(fn)
-    ds_hist = xr.open_mfdataset(fns_hist, preprocess=todatetimeindex_dropvars)
+        ds.close()
+    ds_hist = xr.open_mfdataset(
+        fns_hist, preprocess=todatetimeindex_dropvars, lock=False
+    )
 
     # check if pet data is present
     has_pet = "pet" in ds_hist.data_vars
@@ -201,9 +204,10 @@ def plot_climate_projections(
     # remove files containing empty dataset
     fns_future = nc_future.copy()
     for fn in nc_future:
-        ds = xr.open_dataset(fn)
+        ds = xr.open_dataset(fn, lock=False)
         if len(ds) == 0 or ds is None:
             fns_future.remove(fn)
+        ds.close()
 
     # Initialise list of future df per rcp/scenario
     pr_fut = []
@@ -261,7 +265,9 @@ def plot_climate_projections(
     for i in range(len(scenarios)):
         print(f"Opening future gcm timeseries for rcp {scenarios[i]}")
         fns_rcp = [fn for fn in fns_future if scenarios[i] in fn]
-        ds_rcp = xr.open_mfdataset(fns_rcp, preprocess=todatetimeindex_dropvars)
+        ds_rcp = xr.open_mfdataset(
+            fns_rcp, preprocess=todatetimeindex_dropvars, lock=False
+        )
         ds_fut.append(ds_rcp)
         ds_rcp_pr = ds_rcp["precip"].squeeze(drop=True)
         ds_rcp_tas = ds_rcp["temp"].squeeze(drop=True)
@@ -540,7 +546,7 @@ def plot_climate_projections(
         fns = [fn for fn in nc_grid_projections if sc in fn and hz in fn]
         ymax, ymin, xmax, xmin = None, None, None, None
         for fn in fns:
-            ds = xr.open_dataset(fn)
+            ds = xr.open_dataset(fn, lock=False)
             if len(ds) == 0 or ds is None:
                 continue
             lats = ds.lat.values
@@ -549,6 +555,7 @@ def plot_climate_projections(
             ymax = max(ymax, np.max(lats)) if ymax is not None else np.max(lats)
             xmin = min(xmin, np.min(lons)) if xmin is not None else np.min(lons)
             xmax = max(xmax, np.max(lons)) if xmax is not None else np.max(lons)
+            ds.close()
         ds_grid = create_regular_grid(
             bbox=[xmin, ymin, xmax, ymax], res=0.25, align=True
         )
@@ -560,7 +567,7 @@ def plot_climate_projections(
                 print(f"Preparing change map plots for {sc} and horizon {hz}")
                 fns_rcp_hz = [fn for fn in nc_grid_projections if sc in fn and hz in fn]
                 for fn in fns_rcp_hz:
-                    ds = xr.open_dataset(fn)
+                    ds = xr.open_dataset(fn, lock=False)
                     if len(ds) == 0 or ds is None:
                         continue
                     if "time" in ds.coords:

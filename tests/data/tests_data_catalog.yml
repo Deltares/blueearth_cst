@@ -3,6 +3,8 @@ chirps_global:
   path: chirps_global.nc
   driver: netcdf
   filesystem: local
+  driver_kwargs:
+    lock: False
   meta:
     category: meteo
     paper_doi: 10.3133/ds832
@@ -16,6 +18,8 @@ era5:
   path: era5_daily.nc
   driver: netcdf
   filesystem: local
+  driver_kwargs:
+    lock: False
   meta:
     category: meteo
     notes: Extracted from Copernicus Climate Data Store; resampled by Deltares to
@@ -31,6 +35,8 @@ era5_orography:
   path: era5_orography.nc
   driver: netcdf
   filesystem: local
+  driver_kwargs:
+    lock: False
   meta:
     category: meteo
     notes: Extracted from Copernicus Climate Data Store

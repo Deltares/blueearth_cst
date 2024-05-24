@@ -56,12 +56,13 @@ def summary_climate_proj(
     # open annual scalar summary and merge
     list_files_not_empty = []
     for file in clim_files:
-        ds_f = xr.open_dataset(file)
+        ds_f = xr.open_dataset(file, lock=False)
         # don't read in the dummy datasets
         if len(ds_f) > 0:
             list_files_not_empty.append(file)
+        ds_f.close()
     ds = xr.open_mfdataset(
-        list_files_not_empty, coords="minimal", preprocess=preprocess_coords
+        list_files_not_empty, coords="minimal", preprocess=preprocess_coords, lock=False
     )
     dvars = ds.data_vars
     name_nc_out = f"{prefix}_summary.nc"

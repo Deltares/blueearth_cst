@@ -65,7 +65,6 @@ rule plot_basin_climate:
         "../src/plot_climate_basin.py"
 
 # Location specific plots
-# TODO: Output an empty geods if no location is provided?? Or assumes always locations?
 rule plot_location_climate:
     input:
         region_file = f"{project_dir}/region/region.geojson",
