@@ -2,9 +2,9 @@
 Open monthly change files for all models/scenarios/horizon and compute/plot statistics
 """
 
-import hydromt
 import os
 from pathlib import Path
+import matplotlib.pyplot as plt
 import seaborn as sns
 import xarray as xr
 import numpy as np
@@ -24,12 +24,13 @@ def preprocess_coords(ds: xr.Dataset) -> xr.Dataset:
 def summary_climate_proj(
     clim_dir: Union[Path, str],
     clim_files: List[Union[Path, str]],
-    horizons: Dict,
+    horizons: Dict[str, str],
 ):
     """
-    Compute climate change statitistics for all models/scenario/horizons.
+    Compute climate change statistics for all models/scenario/horizons.
 
-    Also prepare response surface plot.
+    Also prepare response surface plot and create single file with the merged timeseries
+    from all models, scenarios and horizons.
 
     Output in ``clim_dir``:
     - annual_change_scalar_stats_summary.nc/.csv: all change statistics (netcdf or csv)
@@ -46,6 +47,9 @@ def summary_climate_proj(
         Time horizon names and start and end year separated with a comma.
         E.g {"far": "2070, 2100", "near": "2030, 2060"}
     """
+    if not os.path.exists(clim_dir):
+        os.makedirs(clim_dir)
+
     # merge summary maps across models, scnearios and horizons.
     prefix = "annual_change_scalar_stats"
     # for prefix in prefixes:
@@ -53,14 +57,15 @@ def summary_climate_proj(
     # open annual scalar summary and merge
     list_files_not_empty = []
     for file in clim_files:
-        ds_f = xr.open_dataset(file)
+        ds_f = xr.open_dataset(file, lock=False)
         # don't read in the dummy datasets
         if len(ds_f) > 0:
             list_files_not_empty.append(file)
+        ds_f.close()
     ds = xr.open_mfdataset(
-        list_files_not_empty, coords="minimal", preprocess=preprocess_coords
+        list_files_not_empty, coords="minimal", preprocess=preprocess_coords, lock=False
     )
-    dvars = ds.raster.vars
+    dvars = ds.data_vars
     name_nc_out = f"{prefix}_summary.nc"
     ds.to_netcdf(
         os.path.join(clim_dir, name_nc_out),
@@ -114,6 +119,10 @@ def summary_climate_proj(
         sns.scatterplot, s=100, alpha=0.5, data=df, style="horizon", palette=clrs
     )
     g.plot_marginals(sns.kdeplot, palette=clrs)
+    for ax in (g.ax_joint, g.ax_marg_x):
+        ax.axvline(0, color="darkgrey", ls="--", lw=2)
+    for ax in (g.ax_joint, g.ax_marg_y):
+        ax.axhline(0, color="darkgrey", ls="--", lw=2)
     g.set_axis_labels(
         xlabel="Change in mean precipitation (%)",
         ylabel="Change in mean temperature (degC)",
@@ -121,6 +130,33 @@ def summary_climate_proj(
     g.ax_joint.grid()
     g.ax_joint.legend(loc="right", bbox_to_anchor=(1.5, 0.5))
     g.savefig(os.path.join(clim_dir, "plots", "projected_climate_statistics.png"))
+    plt.close(g.figure)
+
+    if "pet" in df.columns:
+        g = sns.JointGrid(
+            data=df,
+            x="precip",
+            y="pet",
+            hue="scenario",
+        )
+        g.plot_joint(
+            sns.scatterplot, s=100, alpha=0.5, data=df, style="horizon", palette=clrs
+        )
+        g.plot_marginals(sns.kdeplot, palette=clrs)
+        for ax in (g.ax_joint, g.ax_marg_x):
+            ax.axvline(0, color="darkgrey", ls="--", lw=2)
+        for ax in (g.ax_joint, g.ax_marg_y):
+            ax.axhline(0, color="darkgrey", ls="--", lw=2)
+        g.set_axis_labels(
+            xlabel="Change in mean precipitation (%)",
+            ylabel="Change in mean potential evapotranspiration (%)",
+        )
+        g.ax_joint.grid()
+        g.ax_joint.legend(loc="right", bbox_to_anchor=(1.5, 0.5))
+        g.savefig(
+            os.path.join(clim_dir, "plots", "projected_climate_pet_statistics.png")
+        )
+        plt.close(g.figure)
 
 
 if __name__ == "__main__":

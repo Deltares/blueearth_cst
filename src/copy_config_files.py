@@ -84,7 +84,7 @@ if __name__ == "__main__":
             or workflow_name == "climate_experiment"
         ):
             data_sources = sm.params.data_catalogs
-            other_config_files.extend([data_sources])
+            other_config_files.extend(data_sources)
 
         # Call the main function
         copy_config_files(

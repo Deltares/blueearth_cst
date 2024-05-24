@@ -88,6 +88,7 @@ def test_plot_climate_region(tmpdir, config_fao, data_libs_fao):
         climate_catalog=data_libs_fao,
         climate_sources=config_fao["clim_historical"],
         climate_sources_colors=config_fao["clim_historical_colors"],
+        time_tuple=(config_fao["starttime"], config_fao["endtime"]),
         subregions_filename=subregions_filename,
         heat_threshold=15,
     )
@@ -119,6 +120,7 @@ def test_plot_climate_point(tmpdir, config_fao, data_libs_fao):
         climate_sources=config_fao["clim_historical"],
         climate_sources_colors=config_fao["clim_historical_colors"],
         observations_timeseries_filename=timeseries_fn,
+        time_tuple=(config_fao["starttime"], config_fao["endtime"]),
         heat_threshold=15,
         region_buffer=get_config(config_fao, "region_buffer"),
     )
@@ -163,6 +165,7 @@ def test_gridded_historical_trends(tmpdir, config_fao, data_libs_fao):
         path_output=join(tmpdir, "climate_historical", "plots"),
         climate_catalog=data_libs_fao,
         climate_sources=config_fao["clim_historical"],
+        time_tuple=(config_fao["starttime"], config_fao["endtime"]),
     )
 
     # Check if the output files are created

@@ -1,35 +1,14 @@
 import sys
 import numpy as np 
 
+from get_config import get_config
+
 # Get the snake_config file from the command line
 args = sys.argv
 config_path = args[args.index("--configfile") + 1]
 
 # Parsing the Snakemake config file (options for basins to build, data catalog, model output directory)
 #configfile: "config/snake_config_test.yml"
-
-# Function to get argument from config file and return default value if not found
-def get_config(config, arg, default=None, optional=True):
-    """
-    Function to get argument from config file and return default value if not found
-
-    Parameters
-    ----------
-    config : dict
-        config file
-    arg : str   
-        argument to get from config file
-    default : str/int/float/list, optional
-        default value if argument not found, by default None
-    optional : bool, optional
-        if True, argument is optional, by default True
-    """
-    if arg in config:
-        return config[arg]
-    elif optional:
-        return default
-    else:
-        raise ValueError(f"Argument {arg} not found in config file")
 
 project_dir = get_config(config, 'project_dir', optional=False)
 basin_dir = f"{project_dir}/hydrology_model"
@@ -38,7 +17,7 @@ model_resolution = get_config(config, 'model_resolution', 0.00833333)
 model_build_config = get_config(config, 'model_build_config', 'config/cst_api/wflow_build_model.yml')
 waterbodies_config = get_config(config, 'waterbodies_config', 'config/cst_api/wflow_update_waterbodies.yml')
 climate_sources = get_config(config, "clim_historical", optional=False)
-climate_sources_colors = get_config(config, "climate_sources_colors", optional=True)
+climate_sources_colors = get_config(config, "clim_historical_colors", optional=True) 
 DATA_SOURCES = get_config(config, "data_sources", optional=False)
 DATA_SOURCES = np.atleast_1d(DATA_SOURCES).tolist() #make sure DATA_SOURCES is a list format (even if only one DATA_SOURCE)
 

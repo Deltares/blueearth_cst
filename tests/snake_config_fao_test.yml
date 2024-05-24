@@ -1,5 +1,5 @@
-###########################################################################################
-#################################### General settings ######################################
+########################################################################################
+#################################### General settings ##################################
 
 # Path to where the wflow model will be stored (include the project name)
 project_dir: tests/test_project
@@ -12,7 +12,7 @@ model_region: "{'subbasin': [12.3758, 46.4076], 'uparea': 70}"
 
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
 # NB: should be ordered from most recent to use last! 
-data_catalogs: 
+data_sources: 
   - artifact_data
   - tests/data/tests_data_catalog.yml
 
@@ -22,7 +22,7 @@ starttime: "2000-01-01T00:00:00"
 endtime: "2010-12-31T00:00:00"
 
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
-data_sources_future_climate: config/cmip6_data.yml
+data_sources_climate: config/cmip6_data.yml
 
 # Historical gridded climate data sources (name as available in the data_sources catalog file). Either [era5, chirps_global, chirps, eobs].
 clim_historical: 
@@ -54,8 +54,8 @@ observations_timeseries: "tests/data/observations/observations-discharge-grdc.cs
 # Additional plot of budyko
 plot_budyko: True
 
-###########################################################################################
-#################################### Analysis of historical climate data #######################################
+########################################################################################
+######################### Analysis of historical climate data ##########################
 
 
 # Buffer in km to apply to the region for the climate analysis
@@ -82,3 +82,36 @@ precipitation_dry_threshold: 0.2
 temperature_heat_threshold: 25
 # Split year for the timeseries trends
 split_year_trend: 2005
+
+###########################################################################################
+################################## Climate projections ####################################
+# climate models and scenarios
+clim_project: cmip6
+#models: ['NOAA-GFDL/GFDL-ESM4', 'INM/INM-CM4-8' ,'INM/INM-CM5-0','NIMS-KMA/KACE-1-0-G','NCC/NorESM2-MM','NCC/NorESM2-LM','CMCC/CMCC-CM2-SR5','CMCC/CMCC-ESM2']
+models: ['NOAA-GFDL/GFDL-ESM4', 'INM/INM-CM5-0', 'CSIRO-ARCCSS/ACCESS-CM2']
+#scenarios: [ssp126, ssp245, ssp370, ssp585]
+scenarios: [ssp245, ssp585]
+members: [r1i1p1f1]
+
+# Climate projections for the following variables
+variables: [precip, temp, pet]
+
+# Method to compute PET if not available in the climate data - None to use pet in the climate data
+# Available methods: 'None', 'makkink' 'debruin', 'penman-monteith_rh_simple', 'penman-monteith_tdew'
+# Required variables are: 'temp' [°C], 'press_msl' [hPa], 'kin'[W/m2] for makkink
+# 'temp' [°C], 'press_msl' [hPa], 'kin' [W/m2], 'kout' [W/m2] for debruin
+pet_method: makkink
+
+# time horizons of the climate projections
+start_month_hyd_year: Jan
+historical: 2000, 2010
+future_horizons: 
+  near: 2050, 2060
+  far: 2090, 2100
+
+# Additional gridded outputs (else only basin average)
+save_grids: TRUE
+# Threshold to apply to avoid too large change factors for dry months [mm/month]
+change_drymonth_threshold: 3.0
+# Maximum change factor for dry months [%]
+change_drymonth_maxchange: 50

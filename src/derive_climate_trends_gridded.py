@@ -2,7 +2,7 @@
 
 from os.path import join
 from pathlib import Path
-from typing import Union, List
+from typing import Union, List, Optional, Tuple
 
 import geopandas as gpd
 import numpy as np
@@ -27,6 +27,7 @@ def derive_gridded_trends(
     climate_catalog: Union[str, Path, List],
     climate_sources: Union[str, List[str]],
     climate_variables: List[str] = ["precip", "temp"],
+    time_tuple: Optional[Tuple] = None,
     buffer: int = 2,
 ):
     """
@@ -51,6 +52,9 @@ def derive_gridded_trends(
         climate_catalog.
     climate_variables : list of str, optional
         List of climate variables to plot. Default is ["precip", "temp"].
+    time_tuple : tuple of str, optional
+        Start and end date of the period to sample the climate data. If None, the full
+        period of the climate data is used. eg ('1970-01-01', '2000-12-31').
     buffer : int, optional
         Buffer to add to the region boundary to clip the climate data. Default is 2.
     """
@@ -72,6 +76,7 @@ def derive_gridded_trends(
                 climate_source,
                 bbox=region.total_bounds,
                 buffer=buffer,
+                time_tuple=time_tuple,
                 handle_nodata=NoDataStrategy.IGNORE,
                 variables=var,
                 single_var_as_array=False,
@@ -88,6 +93,7 @@ def derive_gridded_trends(
                 precip_dict[climate_source] = ds[var]
 
         ds_clim = xr.merge(ds_clim)
+
         # Try clipping to region
         try:
             ds_clip = ds_clim.raster.clip_geom(region, mask=True)
@@ -150,6 +156,7 @@ if __name__ == "__main__":
             path_output=join(project_dir, "climate_historical", "plots"),
             climate_catalog=sm.params.data_catalog,
             climate_sources=sm.params.climate_sources,
+            time_tuple=(sm.params.starttime, sm.params.endtime),
         )
 
     else:

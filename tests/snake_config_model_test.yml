@@ -6,7 +6,9 @@
 project_dir: tests/test_project
 
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
-data_sources: tests/data/tests_data_catalog.yml
+data_sources: 
+  - artifact_data
+  - tests/data/tests_data_catalog.yml
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
 #data_sources_climate: config/deltares_data_climate_projections.yml
 data_sources_climate: config/cmip6_data.yml
@@ -47,12 +49,19 @@ observations_timeseries: "tests/data/observations/observations-discharge-grdc.cs
 # climate models and scenarios
 clim_project: cmip6
 #models: ['NOAA-GFDL/GFDL-ESM4', 'INM/INM-CM4-8' ,'INM/INM-CM5-0','NIMS-KMA/KACE-1-0-G','NCC/NorESM2-MM','NCC/NorESM2-LM','CMCC/CMCC-CM2-SR5','CMCC/CMCC-ESM2']
-models: ['NOAA-GFDL/GFDL-ESM4', 'INM/INM-CM5-0']
+models: ['NOAA-GFDL/GFDL-ESM4', 'INM/INM-CM5-0', 'CSIRO-ARCCSS/ACCESS-CM2']
 #scenarios: [ssp126, ssp245, ssp370, ssp585]
 scenarios: [ssp245, ssp585]
 members: [r1i1p1f1]
 
+# Climate projections for the following variables
 variables: [precip, temp]
+
+# Method to compute PET if not available in the climate data - None to use pet in the climate data
+# Available methods: 'None', 'makkink' 'debruin', 'penman-monteith_rh_simple', 'penman-monteith_tdew'
+# Required variables are: 'temp' [°C], 'press_msl' [hPa], 'kin'[W/m2] for makkink
+# 'temp' [°C], 'press_msl' [hPa], 'kin' [W/m2], 'kout' [W/m2] for debruin
+pet_method: makkink
 
 # time horizons of the climate projections
 start_month_hyd_year: Jan

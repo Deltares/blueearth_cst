@@ -2,11 +2,12 @@
 
 from os.path import join, dirname, realpath, splitext
 from pathlib import Path
+import numpy as np
 from typing import Dict, Union, List
 import yaml
 import pytest
 
-import numpy as np
+from ..snakemake.get_config import get_config
 
 TESTDIR = dirname(realpath(__file__))
 MAINDIR = join(TESTDIR, "..")
@@ -14,30 +15,6 @@ SAMPLE_PROJECTDIR = join(TESTDIR, "test_project_sample")
 
 config_fn = join(TESTDIR, "snake_config_model_test.yml")
 config_fao_fn = join(TESTDIR, "snake_config_fao_test.yml")
-
-
-# Function to get argument from config file and return default value if not found
-def get_config(config, arg, default=None, optional=True):
-    """
-    Function to get argument from config file and return default value if not found
-
-    Parameters
-    ----------
-    config : dict
-        config file
-    arg : str
-        argument to get from config file
-    default : str/int/float/list, optional
-        default value if argument not found, by default None
-    optional : bool, optional
-        if True, argument is optional, by default True
-    """
-    if arg in config:
-        return config[arg]
-    elif optional:
-        return default
-    else:
-        raise ValueError(f"Argument {arg} not found in config file")
 
 
 @pytest.fixture()
@@ -66,16 +43,31 @@ def project_dir(config) -> Path:
 
 @pytest.fixture()
 def data_sources(config) -> Union[str, Path]:
-    """Return data sources"""
-    data_sources = get_config(config, "data_sources", optional=False)
-    data_sources = join(MAINDIR, data_sources)
+    """Return data sources from fao config"""
+    data_libs = np.atleast_1d(config["data_sources"]).tolist()
+    data_sources = []
+    for source in data_libs:
+        ext = splitext(source)[-1]
+        if not len(ext) == 0:
+            data_sources.append(join(MAINDIR, source))
+        else:
+            # predefined catalogs if no file extension
+            data_sources.append(source)
     return data_sources
+
+
+@pytest.fixture()
+def data_sources_climate(config) -> Union[str, Path]:
+    """Return data sources climate"""
+    data_sources_climate = get_config(config, "data_sources_climate", optional=False)
+    data_sources_climate = join(MAINDIR, data_sources_climate)
+    return data_sources_climate
 
 
 @pytest.fixture()
 def data_libs_fao(config_fao) -> List:
     """Return data sources from fao config"""
-    data_libs = np.atleast_1d(config_fao["data_catalogs"]).tolist()
+    data_libs = np.atleast_1d(config_fao["data_sources"]).tolist()
     data_libs_fao = []
     for source in data_libs:
         ext = splitext(source)[-1]

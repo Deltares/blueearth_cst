@@ -1,34 +1,13 @@
 import sys
 import numpy as np
 
+from get_config import get_config
+
 # Parsing the Snakemake config file (options for basins to build, data catalog, model output directory)
 #configfile: "config/snake_config_test.yml"
 # read path of the config file to give to the weagen scripts
 args = sys.argv
 config_path = args[args.index("--configfile") + 1]
-
-# Function to get argument from config file and return default value if not found
-def get_config(config, arg, default=None, optional=True):
-    """
-    Function to get argument from config file and return default value if not found
-
-    Parameters
-    ----------
-    config : dict
-        config file
-    arg : str   
-        argument to get from config file
-    default : str/int/float/list, optional
-        default value if argument not found, by default None
-    optional : bool, optional
-        if True, argument is optional, by default True
-    """
-    if arg in config:
-        return config[arg]
-    elif optional:
-        return default
-    else:
-        raise ValueError(f"Argument {arg} not found in config file")
 
 #project = get_config(config, 'project_name', optional=False)
 project_dir = get_config(config, 'project_dir', optional=False)

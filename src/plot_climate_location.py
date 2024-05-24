@@ -3,7 +3,7 @@
 import os
 from os.path import join, dirname, isfile
 from pathlib import Path
-from typing import Union, Optional, List
+from typing import Union, Optional, List, Tuple
 
 import geopandas as gpd
 import pandas as pd
@@ -31,6 +31,7 @@ def plot_historical_climate_point(
     climate_sources: Union[str, List[str]],
     climate_sources_colors: Optional[Union[str, List[str]]] = None,
     observations_timeseries_filename: Optional[Union[str, Path]] = None,
+    time_tuple: Optional[Tuple] = None,
     climate_variables: List[str] = ["precip", "temp"],
     precip_peak_threshold: float = 40,
     dry_days_threshold: float = 0.2,
@@ -82,6 +83,9 @@ def plot_historical_climate_point(
     observations_timeseries_filename: str or Path, optional
         Path or data catalog source to the observed timeseries data file for the
         locations in ``locations_filename``.
+    time_tuple : tuple of str, optional
+        Start and end date of the period to sample the climate data. If None, the full
+        period of the climate data is used. eg ('1970-01-01', '2000-12-31').
     climate_variables : list of str, optional
         List of climate variables to sample/plot.
     precip_peak_threshold : float, optional
@@ -137,8 +141,14 @@ def plot_historical_climate_point(
                 name="precip",
                 index_dim=locations.index.name,
             )
+            # Sel dates
+            if time_tuple is not None:
+                ds_obs = ds_obs.sel(time=slice(*time_tuple))
         else:  # dataset data catalog entry
-            ds_obs = data_catalog.get_dataset(observations_timeseries_filename)
+            ds_obs = data_catalog.get_dataset(
+                observations_timeseries_filename,
+                time_tuple=time_tuple,
+            )
         # Convert to Geodataset
         geods_obs = hydromt.vector.GeoDataset.from_gdf(
             locations,
@@ -163,6 +173,7 @@ def plot_historical_climate_point(
                 climate_source,
                 bbox=region.total_bounds,
                 buffer=region_buffer * 1000,
+                time_tuple=time_tuple,
                 handle_nodata=NoDataStrategy.IGNORE,
                 variables=var,
                 single_var_as_array=False,  # HydroMT rename bug
@@ -227,6 +238,7 @@ if __name__ == "__main__":
             climate_sources=sm.params.climate_sources,
             climate_sources_colors=sm.params.climate_sources_colors,
             observations_timeseries_filename=sm.params.location_timeseries,
+            time_tuple=(sm.params.starttime, sm.params.endtime),
             precip_peak_threshold=sm.params.precip_peak,
             dry_days_threshold=sm.params.precip_dry,
             heat_threshold=sm.params.temp_heat,

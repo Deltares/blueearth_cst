@@ -39,7 +39,7 @@ def derive_timeseries_trends(
         Derive additional trends for years before and after this year.
     """
     # Read the timeseries
-    ds = xr.open_dataset(clim_filename)
+    ds = xr.open_dataset(clim_filename, lock=False)
 
     # Derive the anomalies and trends for each climate source
     for source in ds.source.values:
