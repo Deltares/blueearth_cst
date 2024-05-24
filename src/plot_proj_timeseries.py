@@ -730,7 +730,7 @@ if __name__ == "__main__":
             nc_future=sm.input.stats_time_nc,
             path_output=sm.params.clim_project_dir,
             scenarios=sm.params.scenarios,
-            horizons=sm.params.horizons,
+            horizons=sm.params.horizons.keys(),
             nc_grid_projections=nc_grid_projections,
         )
 

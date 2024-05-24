@@ -919,7 +919,7 @@ def plot_clim(
                 and "era5" in ds_clim.climate_source
             ):
                 do_climate_plot = False
-                
+
             var_sum_monthly = (
                 ds_clim[climvar]
                 .resample(time=resampleper)

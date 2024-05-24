@@ -14,7 +14,7 @@ def intersection(lst1, lst2):
 
 
 def get_change_clim_projections(
-    ds_hist:xr.Dataset, ds_clim:xr.Dataset, name_horizon:str="future"
+    ds_hist: xr.Dataset, ds_clim: xr.Dataset, name_horizon: str = "future"
 ):
     """
     Parameters
@@ -78,10 +78,11 @@ def get_change_clim_projections(
 def get_change_annual_clim_proj(
     ds_hist_time: xr.Dataset,
     ds_clim_time: xr.Dataset,
-    stats:List[str]=["mean", "std", "var", "median", "q_90", "q_75", "q_10", "q_25"],
-    start_month_hyd_year:str="JAN",
+    stats: List[str] = ["mean", "std", "var", "median", "q_90", "q_75", "q_10", "q_25"],
+    start_month_hyd_year: str = "JAN",
 ):
     """
+    Calculate changes between future and historical climate for several statistics.
 
     Parameters
     ----------

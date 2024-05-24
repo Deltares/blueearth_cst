@@ -29,7 +29,8 @@ def summary_climate_proj(
     """
     Compute climate change statistics for all models/scenario/horizons.
 
-    Also prepare response surface plot.
+    Also prepare response surface plot and create single file with the merged timeseries
+    from all models, scenarios and horizons.
 
     Output in ``clim_dir``:
     - annual_change_scalar_stats_summary.nc/.csv: all change statistics (netcdf or csv)
@@ -119,9 +120,9 @@ def summary_climate_proj(
     )
     g.plot_marginals(sns.kdeplot, palette=clrs)
     for ax in (g.ax_joint, g.ax_marg_x):
-        ax.axvline(0, color='darkgrey', ls='--', lw=2)
+        ax.axvline(0, color="darkgrey", ls="--", lw=2)
     for ax in (g.ax_joint, g.ax_marg_y):
-        ax.axhline(0, color='darkgrey', ls='--', lw=2)
+        ax.axhline(0, color="darkgrey", ls="--", lw=2)
     g.set_axis_labels(
         xlabel="Change in mean precipitation (%)",
         ylabel="Change in mean temperature (degC)",
@@ -143,9 +144,9 @@ def summary_climate_proj(
         )
         g.plot_marginals(sns.kdeplot, palette=clrs)
         for ax in (g.ax_joint, g.ax_marg_x):
-            ax.axvline(0, color='darkgrey', ls='--', lw=2)
+            ax.axvline(0, color="darkgrey", ls="--", lw=2)
         for ax in (g.ax_joint, g.ax_marg_y):
-            ax.axhline(0, color='darkgrey', ls='--', lw=2)
+            ax.axhline(0, color="darkgrey", ls="--", lw=2)
         g.set_axis_labels(
             xlabel="Change in mean precipitation (%)",
             ylabel="Change in mean potential evapotranspiration (%)",

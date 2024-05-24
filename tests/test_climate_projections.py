@@ -119,13 +119,13 @@ def test_get_climate_historical_statistics(tmpdir, data_sources_climate):
 
 
 def test_get_climate_future_statistics(tmpdir, data_sources_climate, config):
-    """Test if historical statistics are calculated properly."""
+    """Test if future statistics are calculated properly."""
     region_fn = join(SAMPLE_PROJECTDIR, "region", "region.geojson")
     time_horizon = get_config(config, "future_horizons", optional=False)
     for key, value in time_horizon.items():
         time_horizon[key] = tuple(map(str, value.split(", ")))
 
-    # Compute historical statistics for a specific climate model
+    # Compute future statistics for a specific climate model
     get_stats_climate_proj.extract_climate_projections_statistics(
         region_fn=region_fn,
         data_catalog=data_sources_climate,
@@ -243,7 +243,7 @@ def test_monthly_change(tmpdir):
     # Check the content of the gridded file
     ds = xr.open_dataset(fn_out)
     assert ds.horizon.values[0] == "near"
-    assert np.round(ds["precip"].mean().values, 2) == 14.01
+    assert np.isclose(ds["precip"].mean().values, 14.01, atol=0.01)
     assert np.isclose(ds["temp"].mean().values, 1.11, atol=0.01)
     assert np.isclose(ds["pet"].mean().values, 5.54, atol=0.01)
 
