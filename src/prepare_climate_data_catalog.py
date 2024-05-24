@@ -44,9 +44,10 @@ def prepare_clim_data_catalog(
         dc_fn = dc_like.copy()
         dc_fn["path"] = fn
         dc_fn["driver"] = "netcdf"
-        if "kwargs" not in dc_fn:
-            dc_fn["kwargs"] = dict()
-        dc_fn["kwargs"]["preprocess"] = "transpose_dims"
+        if "driver_kwargs" not in dc_fn:
+            dc_fn["driver_kwargs"] = dict()
+        dc_fn["driver_kwargs"]["preprocess"] = "transpose_dims"
+        dc_fn["driver_kwargs"]["lock"] = False
         if source_like == "chirps" or source_like == "chirps_global":  # precip only
             dc_fn["meta"][
                 "processing"
@@ -81,7 +82,8 @@ def prepare_clim_data_catalog(
                 "chunks": {
                     "latitude": 100,
                     "longitude": 100,
-                }
+                },
+                "lock": False,
             },
             "meta": {
                 "category": "topography",

@@ -22,7 +22,7 @@ dependencies:
   - numpy
   - pandas>=2.2.0
   - pip
-  - python>=3.7
+  - python>=3.9, <3.12
   - r-base
   - r-essentials
   - r-akima
