@@ -12,16 +12,15 @@ def update_config_run_future(
     model: str,
     scenario: str,
     horizon: str,
-    
 ):
-    """Create a config file to run the model for a delta change scenario 
+    """Create a config file to run the model for a delta change scenario
     with the name of the historical config file and suffix: "_delta_{model}_{scenario}_{horizon}"
     Updated fields in config file are: dir_output, instate, reinit
 
     Parameters
     ----------
     config_model_historical_fn : str
-        Path of the config file 
+        Path of the config file
     model: str
         name of the model
     scenario: str
@@ -33,20 +32,29 @@ def update_config_run_future(
 
     # Check if wflow_root is provided and adjust the forcing computation chunksizes
     wflow_root = os.path.dirname(config_model_historical_fn)
-    mod = WflowModel(root=wflow_root, config_fn=os.path.basename(config_model_historical_fn), mode="r+")
-    
-    #update dir_output, state, 
-    outstates_path_hist_run = os.path.join(wflow_root, mod.config["dir_output"], mod.config["state"]["path_output"])
-    
-    mod.set_config("state.path_input",outstates_path_hist_run)
-    mod.set_config("dir_output", f"run_delta_{model}_{scenario}_{horizon}")
-    mod.set_config("model.reinit",False)
+    mod = WflowModel(
+        root=wflow_root,
+        config_fn=os.path.basename(config_model_historical_fn),
+        mode="r+",
+    )
 
-    #TODO fix better!
+    # update dir_output, state,
+    outstates_path_hist_run = os.path.join(
+        wflow_root, mod.config["dir_output"], mod.config["state"]["path_output"]
+    )
+
+    mod.set_config("state.path_input", outstates_path_hist_run)
+    mod.set_config("dir_output", f"run_delta_{model}_{scenario}_{horizon}")
+    mod.set_config("model.reinit", False)
+
+    # TODO fix better!
     if "/" in model:
         model = model.replace("/", "_")
 
-    config_delta_change_fn = os.path.basename(config_model_historical_fn).split(".")[0] + f"_delta_{model}_{scenario}_{horizon}.toml"
+    config_delta_change_fn = (
+        os.path.basename(config_model_historical_fn).split(".")[0]
+        + f"_delta_{model}_{scenario}_{horizon}.toml"
+    )
 
     mod.write_config(config_name=config_delta_change_fn, config_root=wflow_root)
 

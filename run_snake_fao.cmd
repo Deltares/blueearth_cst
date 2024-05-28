@@ -19,7 +19,7 @@ snakemake --unlock -s snakemake/Snakefile_climate_projections.smk --configfile t
 snakemake all -c 1 -s snakemake/Snakefile_climate_projections.smk --configfile tests/snake_config_fao_test.yml --keep-going 
 
 rem Snakefile run delta change
-snakemake -s snakemake/Snakefile_future_hydrology_delta_change.smk --configfile tests/snake_config_fao_test.yml --until run_wflow_near --dag | dot -Tsvg > dag_hydrology_future.svg
+snakemake -s snakemake/Snakefile_future_hydrology_delta_change.smk --configfile tests/snake_config_fao_test.yml --dag | dot -Tsvg > dag_hydrology_future.svg
 snakemake --unlock -s snakemake/Snakefile_future_hydrology_delta_change.smk --configfile tests/snake_config_fao_test.yml
 snakemake all -c 1 -s snakemake/Snakefile_future_hydrology_delta_change.smk --configfile tests/snake_config_fao_test.yml
 rem snakemake all -c 1 -s snakemake/Snakefile_future_hydrology_delta_change.smk --configfile tests/snake_config_fao_test.yml --keep-going --report --dryrun --until run_wflow_near

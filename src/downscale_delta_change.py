@@ -6,12 +6,13 @@ from os.path import join, dirname, basename
 import xarray as xr
 from typing import List, Tuple, Union
 
+
 def downscale_delta_change(
-        delta_change_grid_fn: Union[str, Path],
-        dst_grid_fn: Union[str, Path],
-        path_output: Union[str, Path] = None, 
-        method: str = "nearest"
-        ):
+    delta_change_grid_fn: Union[str, Path],
+    dst_grid_fn: Union[str, Path],
+    path_output: Union[str, Path] = None,
+    method: str = "nearest",
+):
     """
     Converts the delta change percentages into fractions.
     Output is a netcdf file with the delta change factors downscaled to model resolution grid (dst_grid_fn).
@@ -19,19 +20,21 @@ def downscale_delta_change(
     Parameters
     ----------
     delta_change_grid_fn : Union[str, Path]
-        Path to the monthly percentage change (precip and pet) and absolute change (temp) 
+        Path to the monthly percentage change (precip and pet) and absolute change (temp)
     dst_grid_fn : Union[str, Path]
         Path to a dataset with destination resolution to resample to
     path_output : Union[str, Path]
-        Path to the output directory. Default is None, which means the netcdf is saved 
+        Path to the output directory. Default is None, which means the netcdf is saved
         in the same directory as the delta_change_grid_fn with "_downscaled" as suffix
     method: str
-        method for the resampling. Default is nearest. 
+        method for the resampling. Default is nearest.
 
     """
 
     # Prepare the output filename and directory
-    name_nc_out = os.path.basename(delta_change_grid_fn).split(".")[0] + "_downscaled.nc"
+    name_nc_out = (
+        os.path.basename(delta_change_grid_fn).split(".")[0] + "_downscaled.nc"
+    )
 
     if path_output is None:
         path_output = dirname(delta_change_grid_fn)
@@ -49,10 +52,12 @@ def downscale_delta_change(
     delta_change_grid = delta_change_grid.squeeze()
 
     # convert from percentage to fraction for pet and precip
-    delta_change_grid["precip"] = 1 + delta_change_grid["precip"]/100
-    delta_change_grid["pet"] = 1 + delta_change_grid["pet"]/100
+    delta_change_grid["precip"] = 1 + delta_change_grid["precip"] / 100
+    delta_change_grid["pet"] = 1 + delta_change_grid["pet"] / 100
 
-    delta_change_grid_downscaled = delta_change_grid.raster.reproject_like(dst_grid, method=method)
+    delta_change_grid_downscaled = delta_change_grid.raster.reproject_like(
+        dst_grid, method=method
+    )
 
     # write netcdf
     delta_change_grid_downscaled.to_netcdf(
@@ -75,5 +80,3 @@ if __name__ == "__main__":
             delta_change_grid_fn="delta_change.nc",
             dst_grid_fn="staticmaps.nc",
         )
-
-
