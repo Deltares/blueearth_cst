@@ -72,7 +72,7 @@ def test_get_climate_historical_statistics(tmpdir, data_sources_climate):
         clim_source="cmip6",
         scenario="historical",
         members=["r1i1p1f1"],
-        model="NOAA-GFDL/GFDL-ESM4",
+        model="NOAA-GFDL_GFDL-ESM4",
         variables=["precip", "temp", "pet"],
         pet_method="makkink",
         save_grids=True,
@@ -80,10 +80,10 @@ def test_get_climate_historical_statistics(tmpdir, data_sources_climate):
     )
 
     # Check if the files were produced
-    fn_out = f"{tmpdir}/climate_projections/cmip6/historical_stats_time_NOAA-GFDL/GFDL-ESM4.nc"
+    fn_out = f"{tmpdir}/climate_projections/cmip6/historical_stats_time_NOAA-GFDL_GFDL-ESM4.nc"
     assert os.path.exists(fn_out)
     fn_out_grid = (
-        f"{tmpdir}/climate_projections/cmip6/historical_stats_NOAA-GFDL/GFDL-ESM4.nc"
+        f"{tmpdir}/climate_projections/cmip6/historical_stats_NOAA-GFDL_GFDL-ESM4.nc"
     )
     assert os.path.exists(fn_out_grid)
 
@@ -91,7 +91,7 @@ def test_get_climate_historical_statistics(tmpdir, data_sources_climate):
     ds = xr.open_dataset(fn_out)
     ds_dims = [name for name in ds.dims]
     assert ds_dims == ["time", "clim_project", "model", "scenario", "member"]
-    assert ds.model.values[0] == "NOAA-GFDL/GFDL-ESM4"
+    assert ds.model.values[0] == "NOAA-GFDL_GFDL-ESM4"
     assert ds.scenario.values[0] == "historical"
     # Check that the len of time (for cmip6 historical) is 780 months
     assert len(ds.time) == 780
@@ -133,7 +133,7 @@ def test_get_climate_future_statistics(tmpdir, data_sources_climate, config):
         clim_source="cmip6",
         scenario="ssp245",
         members=["r1i1p1f1"],
-        model="NOAA-GFDL/GFDL-ESM4",
+        model="NOAA-GFDL_GFDL-ESM4",
         variables=["precip", "temp", "pet"],
         pet_method="makkink",
         save_grids=True,
@@ -142,11 +142,11 @@ def test_get_climate_future_statistics(tmpdir, data_sources_climate, config):
 
     # Check if the files were produced
     fn_out = (
-        f"{tmpdir}/climate_projections/cmip6/stats_time-NOAA-GFDL/GFDL-ESM4_ssp245.nc"
+        f"{tmpdir}/climate_projections/cmip6/stats_time-NOAA-GFDL_GFDL-ESM4_ssp245.nc"
     )
     assert os.path.exists(fn_out)
     fn_out_grid = (
-        f"{tmpdir}/climate_projections/cmip6/stats-NOAA-GFDL/GFDL-ESM4_ssp245.nc"
+        f"{tmpdir}/climate_projections/cmip6/stats-NOAA-GFDL_GFDL-ESM4_ssp245.nc"
     )
     assert os.path.exists(fn_out_grid)
 
@@ -168,7 +168,7 @@ def test_get_climate_future_statistics(tmpdir, data_sources_climate, config):
         clim_source="cmip6",
         scenario="ssp119",
         members=["r1i1p1f1"],
-        model="INM/INM-CM5-0",
+        model="INM_INM-CM5-0",
         variables=["precip", "temp", "pet"],
         pet_method="makkink",
         save_grids=True,
@@ -176,7 +176,7 @@ def test_get_climate_future_statistics(tmpdir, data_sources_climate, config):
     )
 
     # Check if the files were produced
-    fn_out = f"{tmpdir}/climate_projections/cmip6/stats_time-INM/INM-CM5-0_ssp119.nc"
+    fn_out = f"{tmpdir}/climate_projections/cmip6/stats_time-INM_INM-CM5-0_ssp119.nc"
     assert os.path.exists(fn_out)
     # Read to check that the dataset is empty
     ds = xr.open_dataset(fn_out)
@@ -192,25 +192,25 @@ def test_monthly_change(tmpdir):
             SAMPLE_PROJECTDIR,
             "climate_projections",
             "cmip6",
-            "historical_stats_time_NOAA-GFDL/GFDL-ESM4.nc",
+            "historical_stats_time_NOAA-GFDL_GFDL-ESM4.nc",
         ),
         nc_future=join(
             SAMPLE_PROJECTDIR,
             "climate_projections",
             "cmip6",
-            "stats_time-NOAA-GFDL/GFDL-ESM4_ssp245.nc",
+            "stats_time-NOAA-GFDL_GFDL-ESM4_ssp245.nc",
         ),
         path_output=join(tmpdir, "climate_projections", "cmip6"),
         time_tuple_historical=("2000", "2010"),
         time_tuple_future=("2050", "2060"),
         start_month_hyd_year="Oct",
         name_horizon="near",
-        name_model="NOAA-GFDL/GFDL-ESM4",
+        name_model="NOAA-GFDL_GFDL-ESM4",
         name_scenario="ssp245",
     )
 
     # Check if the file was produced
-    fn_out = f"{tmpdir}/climate_projections/cmip6/annual_change_scalar_stats-NOAA-GFDL/GFDL-ESM4_ssp245_near.nc"
+    fn_out = f"{tmpdir}/climate_projections/cmip6/annual_change_scalar_stats-NOAA-GFDL_GFDL-ESM4_ssp245_near.nc"
     assert os.path.exists(fn_out)
     # Check the content of the basin averaged file
     ds = xr.open_dataset(fn_out)
@@ -224,23 +224,23 @@ def test_monthly_change(tmpdir):
             SAMPLE_PROJECTDIR,
             "climate_projections",
             "cmip6",
-            "historical_stats_NOAA-GFDL/GFDL-ESM4.nc",
+            "historical_stats_NOAA-GFDL_GFDL-ESM4.nc",
         ),
         nc_future=join(
             SAMPLE_PROJECTDIR,
             "climate_projections",
             "cmip6",
-            "stats-NOAA-GFDL/GFDL-ESM4_ssp245.nc",
+            "stats-NOAA-GFDL_GFDL-ESM4_ssp245.nc",
         ),
         path_output=join(tmpdir, "climate_projections", "cmip6"),
         name_horizon="near",
-        name_model="NOAA-GFDL/GFDL-ESM4",
+        name_model="NOAA-GFDL_GFDL-ESM4",
         name_scenario="ssp245",
         drymonth_threshold=3.0,
         drymonth_maxchange=50.0,
     )
     # Check if the file was produced
-    fn_out = f"{tmpdir}/climate_projections/cmip6/monthly_change_mean_grid-NOAA-GFDL/GFDL-ESM4_ssp245_near.nc"
+    fn_out = f"{tmpdir}/climate_projections/cmip6/monthly_change_grid/NOAA-GFDL_GFDL-ESM4_ssp245_near.nc"
     assert os.path.exists(fn_out)
     # Check the content of the gridded file
     ds = xr.open_dataset(fn_out)
@@ -254,17 +254,14 @@ def test_monthly_change_scalar_merge(tmpdir, config):
     """Test merging and outputs of the scalar change files."""
     clim_dir = join(tmpdir, "climate_projections", "cmip6")
     # Scalar files
-    clim_folders = glob.glob(
+    clim_files = glob.glob(
         join(
             SAMPLE_PROJECTDIR,
             "climate_projections",
             "cmip6",
-            "annual_change_scalar_stats*",
+            "annual_change_scalar_stats*.nc",
         )
     )
-    clim_files = []
-    for folder in clim_folders:
-        clim_files.extend(glob.glob(join(folder, "*.nc")))
 
     get_change_climate_proj_summary.summary_climate_proj(
         clim_dir=clim_dir,
@@ -292,43 +289,35 @@ def test_monthly_change_scalar_merge(tmpdir, config):
 def test_plot_climate_projections(tmpdir):
     """Test plotting the climate projections scalar and gridded."""
     # Historical files
-    clim_folders = glob.glob(
+    nc_historical = glob.glob(
         join(
             SAMPLE_PROJECTDIR,
             "climate_projections",
             "cmip6",
-            "historical_stats_time_*",
+            "historical_stats_time_*.nc",
         )
     )
-    nc_historical = []
-    for folder in clim_folders:
-        nc_historical.extend(glob.glob(join(folder, "*.nc")))
 
     # Future files
-    clim_folders = glob.glob(
+    nc_future = glob.glob(
         join(
             SAMPLE_PROJECTDIR,
             "climate_projections",
             "cmip6",
-            "stats_time-*",
+            "stats_time-*.nc",
         )
     )
-    nc_future = []
-    for folder in clim_folders:
-        nc_future.extend(glob.glob(join(folder, "*.nc")))
 
     # Grid files
-    clim_folders_grid = glob.glob(
+    grid_files = glob.glob(
         join(
             SAMPLE_PROJECTDIR,
             "climate_projections",
             "cmip6",
-            "monthly_change_mean_grid*",
+            "monthly_change_grid",
+            "*.nc",
         )
     )
-    grid_files = []
-    for folder in clim_folders_grid:
-        grid_files.extend(glob.glob(join(folder, "*.nc")))
 
     path_output = join(tmpdir, "climate_projections", "cmip6")
     plot_proj_timeseries.plot_climate_projections(
