@@ -55,7 +55,7 @@ members: [r1i1p1f1]
 variables: [precip, temp]
 
 # time horizons of the climate projections
-start_month_hyd_year: Jan
+start_month_hyd_year: JAN
 historical: 1980, 2010
 future_horizons: 
   near: 2030, 2060
