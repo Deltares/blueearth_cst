@@ -256,8 +256,9 @@ def extract_climate_projections_statistics(
         List of member names of the climate model (e.g. r1i1p1f1). Depends on the
         climate source.
     model : str
-        Model name of the climate model (e.g. 'NOAA-GFDL/GFDL-ESM4', 'INM/INM-CM5-0').
-        Depends on the climate source.
+        Model name of the climate model (e.g. 'NOAA-GFDL_GFDL-ESM4', 'INM_INM-CM5-0').
+        Depends on the climate source. For cmip6 climate source, if '_' are present in
+        the model name, they will be replaced by '/' to match the data catalog entry.
     variables : list
         List of variables to extract (e.g. ['precip', 'temp']). Variables should be
         present in the climate source.
@@ -321,7 +322,10 @@ def extract_climate_projections_statistics(
 
     for member in members:
         print(member)
-        entry = f"{clim_source}_{model}_{scenario}_{member}"
+        # For cmip6, replace _ in model by \ to match the data catalog entry
+        if clim_source == "cmip6":
+            model_entry = model.replace("_", "/")
+        entry = f"{clim_source}_{model_entry}_{scenario}_{member}"
         if entry in data_catalog:
             try:  # todo can this be replaced by if statement?
                 data = data_catalog.get_rasterdataset(
@@ -350,7 +354,7 @@ def extract_climate_projections_statistics(
                         data_ = data_.drop_duplicates(dim="time", keep="first")
                         ds_list.append(data_)
                     except:
-                        print(f"{scenario}", f"{model}", f"{var} not found")
+                        print(f"{scenario}", f"{model_entry}", f"{var} not found")
                 # merge all variables back to data
                 data = xr.merge(ds_list)
 

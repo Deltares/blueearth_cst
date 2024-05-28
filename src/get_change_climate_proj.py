@@ -340,11 +340,9 @@ def get_expected_change_grid(
         Maximum change factor for dry months (% change). The default is +-50.0%.
     """
     # Prepare the output filename and directory
-    name_nc_out = (
-        f"monthly_change_mean_grid-{name_model}_{name_scenario}_{name_horizon}.nc"
-    )
+    name_nc_out = f"{name_model}_{name_scenario}_{name_horizon}.nc"
     # Create output dir (model name can contain subfolders)
-    dir_output = dirname(join(path_output, name_nc_out))
+    dir_output = dirname(join(path_output, "monthly_change_grid", name_nc_out))
     if not os.path.exists(dir_output):
         os.makedirs(dir_output)
 
@@ -356,7 +354,11 @@ def get_expected_change_grid(
     if len(ds_fut) > 0:
         # calculate change
         monthly_change_mean_grid = get_change_clim_projections(
-            ds_hist, ds_fut, name_horizon
+            ds_hist,
+            ds_fut,
+            name_horizon,
+            drymonth_threshold=drymonth_threshold,
+            drymonth_maxchange=drymonth_maxchange,
         )
         # add time horizon coords
         monthly_change_mean_grid = monthly_change_mean_grid.assign_coords(
@@ -370,14 +372,14 @@ def get_expected_change_grid(
         )
 
         # write to netcdf files
-        print(f"writing netcdf files monthly_change_mean_grid")
+        print(f"writing netcdf files monthly_change_grid")
         monthly_change_mean_grid.to_netcdf(
-            join(path_output, name_nc_out),
+            join(path_output, "monthly_change_grid", name_nc_out),
             encoding={k: {"zlib": True} for k in monthly_change_mean_grid.data_vars},
         )
     else:  # create a dummy netcdf
         ds_dummy = xr.Dataset()
-        ds_dummy.to_netcdf(join(path_output, name_nc_out))
+        ds_dummy.to_netcdf(join(path_output, "monthly_change_grid", name_nc_out))
 
 
 if __name__ == "__main__":

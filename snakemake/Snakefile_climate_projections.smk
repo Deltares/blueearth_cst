@@ -39,7 +39,6 @@ def get_horizon(wildcards):
 # Master rule: end with csv with change factors for each scenario and model
 rule all:
     input:
-        #ancient(expand((clim_project_dir + "/annual_change_scalar_stats-{model}_{scenario}_{horizon}.nc"), model = config["models"], scenario = config["scenarios"], horizon = config["future_horizons"])),
         (clim_project_dir + "/annual_change_scalar_stats_summary.nc"),
         (clim_project_dir + "/annual_change_scalar_stats_summary.csv"),
         (clim_project_dir + "/annual_change_scalar_stats_summary_mean.csv"),
@@ -128,7 +127,7 @@ rule monthly_change:
         stats_grid_nc = ancient(clim_project_dir + "/stats-{model}_{scenario}.nc") if save_grids else [],
     output:
         stats_nc_change = temp(clim_project_dir + "/annual_change_scalar_stats-{model}_{scenario}_{horizon}.nc"),
-        monthly_change_mean_grid = (clim_project_dir + "/monthly_change_mean_grid-{model}_{scenario}_{horizon}.nc") if save_grids else [],
+        monthly_change_mean_grid = (clim_project_dir + "/monthly_change_grid/{model}_{scenario}_{horizon}.nc") if save_grids else [],
     params:
         clim_project_dir = f"{clim_project_dir}",
         start_month_hyd_year = get_config(config, "start_month_hyd_year", "Jan"), 
@@ -142,7 +141,7 @@ rule monthly_change:
         change_drymonth_maxchange = get_config(config, "change_drymonth_maxchange", 50.0),
     script: "../src/get_change_climate_proj.py"
 
-#rule to merge results in one netcdf / todo: add plotting
+#rule to merge results in one netcdf
 rule monthly_change_scalar_merge:
     input:
         stats_nc_change = ancient(expand((clim_project_dir + "/annual_change_scalar_stats-{model}_{scenario}_{horizon}.nc"), model = models, scenario = scenarios, horizon = future_horizons)),
@@ -163,13 +162,11 @@ rule plot_climate_proj_timeseries:
         stats_change_summary = (clim_project_dir + "/annual_change_scalar_stats_summary.nc"),
         stats_time_nc_hist =[(clim_project_dir + f"/historical_stats_time_{mod}.nc") for mod in models],
         stats_time_nc = expand((clim_project_dir + "/stats_time-{model}_{scenario}.nc"), model = models, scenario = scenarios),
-        monthly_change_mean_grid = expand((clim_project_dir + "/monthly_change_mean_grid-{model}_{scenario}_{horizon}.nc"), model = models, scenario = scenarios, horizon = future_horizons) if save_grids else [],
+        monthly_change_mean_grid = expand((clim_project_dir + "/monthly_change_grid/{model}_{scenario}_{horizon}.nc"), model = models, scenario = scenarios, horizon = future_horizons) if save_grids else [],
     params:
         clim_project_dir = f"{clim_project_dir}",
         scenarios = scenarios,
         horizons = future_horizons,
-        #save_grids = save_grids,
-        #change_grids = [(clim_project_dir + f"/monthly_change_mean_grid-{mod}_{sc}_{hz}.nc") for mod,sc,hz in list(itertools.product(models,scenarios,future_horizons))],
     output:
         precip_plt = (clim_project_dir + "/plots/precipitation_anomaly_projections_abs.png"),
         temp_plt = (clim_project_dir + "/plots/temperature_anomaly_projections_abs.png"),
