@@ -48,8 +48,8 @@ observations_timeseries: "tests/data/observations/observations-discharge-grdc.cs
 ################################## Climate projections ####################################
 # climate models and scenarios
 clim_project: cmip6
-#models: ['NOAA-GFDL/GFDL-ESM4', 'INM/INM-CM4-8' ,'INM/INM-CM5-0','NIMS-KMA/KACE-1-0-G','NCC/NorESM2-MM','NCC/NorESM2-LM','CMCC/CMCC-CM2-SR5','CMCC/CMCC-ESM2']
-models: ['NOAA-GFDL/GFDL-ESM4', 'INM/INM-CM5-0', 'CSIRO-ARCCSS/ACCESS-CM2']
+#models: ['NOAA-GFDL_GFDL-ESM4', 'INM_INM-CM4-8' ,'INM_INM-CM5-0','NIMS-KMA_KACE-1-0-G','NCC_NorESM2-MM','NCC_NorESM2-LM','CMCC_CMCC-CM2-SR5','CMCC_CMCC-ESM2']
+models: ['NOAA-GFDL_GFDL-ESM4', 'INM_INM-CM5-0', 'CSIRO-ARCCSS_ACCESS-CM2']
 #scenarios: [ssp126, ssp245, ssp370, ssp585]
 scenarios: [ssp245, ssp585]
 members: [r1i1p1f1]

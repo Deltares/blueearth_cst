@@ -31,4 +31,5 @@ rem keep going is when parallel runs to keep going parallel if one series goes w
 rem dryrun is to tell what it will be doing without actually running
 rem until - still the whole workflow but not all jobs 
 rem --delete-temp-output - delete the temp files after the run
+rem --notemp do not delete the temp files after the run
 pause
