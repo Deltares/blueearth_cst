@@ -64,7 +64,7 @@ variables: [precip, temp]
 pet_method: makkink
 
 # time horizons of the climate projections
-start_month_hyd_year: Jan
+start_month_hyd_year: JAN
 historical: 2000, 2010
 future_horizons: 
   near: 2050, 2060

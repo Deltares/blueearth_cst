@@ -196,7 +196,7 @@ def get_change_annual_clim_proj(
             change = change.assign_coords({"stats": stat_name}).expand_dims("stats")
 
             if "quantile" in change.coords:
-                change = change.drop("quantile")
+                change = change.drop_vars("quantile")
             ds.append(change.to_dataset())
 
     stats_annual_change = xr.merge(ds)
