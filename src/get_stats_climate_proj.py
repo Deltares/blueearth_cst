@@ -325,6 +325,8 @@ def extract_climate_projections_statistics(
         # For cmip6, replace _ in model by \ to match the data catalog entry
         if clim_source == "cmip6":
             model_entry = model.replace("_", "/")
+        else:
+            model_entry = model
         entry = f"{clim_source}_{model_entry}_{scenario}_{member}"
         if entry in data_catalog:
             try:  # todo can this be replaced by if statement?
