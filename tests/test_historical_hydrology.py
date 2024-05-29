@@ -11,7 +11,7 @@ import pandas as pd
 import numpy as np
 from hydromt_wflow import WflowModel
 
-from .conftest import MAINDIR, SAMPLE_PROJECTDIR, TESTDIR, config_fao_fn, data_libs_fao
+from .conftest import MAINDIR, SAMPLE_PROJECTDIR, config_fao_fn
 from .conftest import get_config
 
 from ..src import copy_config_files
