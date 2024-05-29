@@ -29,10 +29,8 @@ if __name__ == "__main__" or parent_module.__name__ == "__main__":
         plot_basavg,
     )
     from plot_utils.plot_anomalies import plot_timeseries_anomalies
-    from plot_utils.plot_budyko import (
-        get_upstream_clim_basin,
-        determine_budyko_curve_terms,
-        plot_budyko,
+    from plot_utils.plot_change_delta_runs import (
+        plot_near_far_abs,
     )
 else:
     from .func_plot_signature import (
@@ -43,10 +41,8 @@ else:
         plot_basavg,
     )
     from .plot_utils.plot_anomalies import plot_timeseries_anomalies
-    from .plot_utils.plot_budyko import (
-        get_upstream_clim_basin,
-        determine_budyko_curve_terms,
-        plot_budyko,
+    from .plot_utils.plot_change_delta_runs import (
+        plot_near_far_abs,
     )
 
 
@@ -148,6 +144,7 @@ def analyse_wflow_delta(
 
 
     Outputs:
+    TODO !! 
 
     - plot of hydrographs at the outlet(s) and gauges_locs if provided. If wflow run is
       three years or less, only the daily hydrograph will be plotted. If wflow run is
@@ -206,235 +203,61 @@ def analyse_wflow_delta(
     #read model results for historical 
     root = os.path.dirname(wflow_hist_run_config)
     config_fn =  os.path.basename(wflow_hist_run_config)
-    qsim, ds_basin = get_wflow_results(root, config_fn, gauges_locs)
+    qsim_hist, ds_basin_hist = get_wflow_results(root, config_fn, gauges_locs)
    
-    #read the model results
+
+    #read the model results and merge to single netcdf
+    qsim_delta = []
+    ds_basin_delta = []
     for delta_config in wflow_delta_runs_config:
+        model = os.path.basename(delta_config).split(".")[0].split("_")[-3]
+        scenario = os.path.basename(delta_config).split(".")[0].split("_")[-2]
+        horizon = os.path.basename(delta_config).split(".")[0].split("_")[-1]
         root = os.path.dirname(delta_config)
         config_fn =  os.path.basename(delta_config)
-        qsim, ds_basin = get_wflow_results(root, config_fn, gauges_locs)
-        
+        qsim_delta_run, ds_basin_delta_run = get_wflow_results(root, config_fn, gauges_locs)
+        qsim_delta_run = qsim_delta_run.assign_coords({"horizon":horizon, "model":model, "scenario":scenario}).expand_dims(["horizon", "model", "scenario"])
+        ds_basin_delta_run = ds_basin_delta_run.assign_coords({"horizon":horizon, "model":model, "scenario":scenario}).expand_dims(["horizon", "model", "scenario"])
+        qsim_delta.append(qsim_delta_run)
+        ds_basin_delta.append(ds_basin_delta_run)
+    qsim_delta = xr.merge(qsim_delta) 
+    ds_basin_delta = xr.merge(ds_basin_delta)
+
+    cmap = sns.color_palette("Set2", len(np.atleast_1d(scenarios).tolist()))
+
+    #plot cum flows
+    for index in qsim_delta.index.values: 
+
+        #plot cumsum
+        plot_near_far_abs(
+            qsim_delta["Q"].cumsum("time"), 
+            qsim_hist.cumsum("time"),
+            index=index,
+            plot_dir=plot_dir,
+            ylabel="Q",
+            figname_prefix="cumsum",
+            cmap=cmap,
+            fs=fs
+        )
+
+        #plot mean monthly flow
+        plot_near_far_abs(
+            qsim_delta["Q"].groupby("time.month").mean("time"), 
+            qsim_hist.groupby("time.month").mean("time"),
+            index=index,
+            plot_dir=plot_dir,
+            ylabel="Q (m$^3$s$^{-1}$)",
+            figname_prefix="mean_monthly_Q",
+            cmap=cmap,
+            fs=fs
+        )
 
 
-    # # Prepare colors dict
-    # if climate_sources_colors is not None:
-    #     cmap = np.atleast_1d(climate_sources_colors).tolist()
-    # else:
-    #     cmap = sns.color_palette("Set2", len(np.atleast_1d(climate_sources).tolist()))
-    # color = {k: v for k, v in zip(np.atleast_1d(climate_sources).tolist(), cmap)}
 
-    # ### 2. Read the observations ###
-    # # check if user provided observations
-    # has_observations = False
-    # if observations_fn is not None and os.path.exists(observations_fn):
-    #     has_observations = True
+        #plot nm7q
+        #plot maxq
 
-    #     # Read
-    #     gdf_obs = hydromt.io.open_vector(gauges_locs, crs=4326, sep=",")
-    #     da_ts_obs = hydromt.io.open_timeseries_from_table(
-    #         observations_fn, name="Q", index_dim="wflow_id", sep=";"
-    #     )
-    #     ds_obs = hydromt.vector.GeoDataset.from_gdf(
-    #         gdf_obs, da_ts_obs, merge_index="inner"
-    #     )
-    #     # Rename wflow_id to index
-    #     ds_obs = ds_obs.rename({"wflow_id": "index"})
-    #     qobs = ds_obs["Q"].load()
 
-    # ### 3. Read the wflow model and results ###
-    # # Instantiate wflow model
-    # # read wflow runs for different climate sources
-    # qsim = []
-    # qsim_gauges = []
-    # ds_clim = []
-    # ds_basin = []
-    # for climate_source in np.atleast_1d(climate_sources).tolist():
-    #     qsim_source, qsim_gauges_source, ds_clim_source, ds_basin_source = (
-    #         get_wflow_results(
-    #             wflow_root=wflow_root,
-    #             wflow_config_fn_prefix=wflow_config_fn_prefix,
-    #             climate_source=climate_source,
-    #             gauges_locs=gauges_locs,
-    #         )
-    #     )
-    #     qsim.append(qsim_source)
-    #     qsim_gauges.append(qsim_gauges_source)
-    #     ds_clim.append(ds_clim_source)
-    #     ds_basin.append(ds_basin_source)
-    # qsim = xr.concat(qsim, dim="climate_source")
-    # ds_clim = xr.concat(ds_clim, dim="climate_source")
-    # ds_basin = xr.concat(ds_basin, dim="climate_source")
-    # if qsim_gauges[0] is not None:
-    #     qsim_gauges = xr.concat(qsim_gauges, dim="climate_source")
-    #     # merge with qsim
-    #     qsim = xr.concat([qsim, qsim_gauges], dim="index")
-
-    # ### make sure the time period of all climate sources is the same for the subsequent plots.
-    # qsim = qsim.dropna("time")
-    # ds_clim = ds_clim.dropna("time")
-    # ds_basin = ds_basin.dropna("time")
-
-    # ### 4. Plot climate data ###
-    # # No plots of climate data if wflow run is less than a year
-    # if len(ds_clim.time) <= 366:
-    #     print("less than 1 year of data is available " "no yearly clim plots are made.")
-    # else:
-    #     for index in ds_clim.index.values:
-    #         print(f"Plot climatic data at wflow basin {index}")
-    #         ds_clim_i = ds_clim.sel(index=index)
-    #         # Plot per year
-    #         plot_clim(ds_clim_i, plot_dir, f"wflow_{index}", "year", color)
-    #         plt.close()
-    #         # Plot per month
-    #         plot_clim(ds_clim_i, plot_dir, f"wflow_{index}", "month", color)
-    #         plt.close()
-
-    # ### 5. Plot other basin average outputs ###
-    # print("Plot basin average wflow outputs")
-    # plot_basavg(ds_basin, plot_dir, color)
-    # plt.close()
-
-    # ### 6. Plot hydrographs and compute performance metrics ###
-    # # Initialise the output performance table
-    # df_perf_all = pd.DataFrame()
-    # # Flag for plot signatures
-    # # (True if wflow run is longer than a year and observations are available)
-    # do_signatures = False
-
-    # # If possible, skip the first year of the wflow run (warm-up period)
-    # if len(qsim.time) > 365:
-    #     print("Skipping the first year of the wflow run (warm-up period)")
-    #     qsim = qsim.sel(
-    #         time=slice(
-    #             f"{qsim['time.year'][0].values+1}-{qsim['time.month'][0].values}-{qsim['time.day'][0].values}",
-    #             None,
-    #         )
-    #     )
-    #     if has_observations:
-    #         do_signatures = True
-    # else:
-    #     print("Simulation is less than a year so model warm-up period will be plotted.")
-    # # Sel qsim and qobs so that they have the same time period
-    # if has_observations:
-    #     start = max(qsim.time.values[0], qobs.time.values[0])
-    #     end = min(qsim.time.values[-1], qobs.time.values[-1])
-    #     # make sure obs and sim have period in common
-    #     if start < end:
-    #         qsim = qsim.sel(time=slice(start, end))
-    #         qobs = qobs.sel(time=slice(start, end))
-    #     else:
-    #         has_observations = False
-    #         print("No common period between observations and simulation.")
-
-    # # Loop over the stations
-    # for station_id, station_name in zip(qsim.index.values, qsim.station_name.values):
-    #     # Select the station
-    #     qsim_i = qsim.sel(index=station_id)
-    #     qobs_i = None
-    #     if has_observations:
-    #         if station_id in qobs.index.values:
-    #             qobs_i = qobs.sel(index=station_id)
-
-    #     # a) Plot hydrographs
-    #     print(f"Plot hydrographs at wflow station {station_name}")
-    #     plot_hydro(
-    #         qsim=qsim_i,
-    #         qobs=qobs_i,
-    #         Folder_out=plot_dir,
-    #         station_name=station_name,
-    #         color=color,
-    #         lw=lw,
-    #         fs=fs,
-    #     )
-    #     plt.close()
-    #     # b) Signature plot and performance metrics
-    #     if do_signatures and qobs_i is not None:
-    #         print("observed timeseries are available - making signature plots.")
-    #         # Plot signatures
-    #         plot_signatures(
-    #             qsim=qsim_i,
-    #             qobs=qobs_i,
-    #             Folder_out=plot_dir,
-    #             station_name=station_name,
-    #             color=color,
-    #             linestyle=linestyle,
-    #             marker=marker,
-    #             fs=fs,
-    #             lw=lw,
-    #         )
-    #         plt.close()
-    #         # Compute performance metrics
-    #         df_perf = pd.DataFrame()
-    #         for climate_source in qsim.climate_source.values:
-    #             df_perf_source = compute_metrics(
-    #                 qsim=qsim_i.sel(climate_source=climate_source),
-    #                 qobs=qobs_i,
-    #                 station_name=station_name,
-    #                 climate_source=climate_source,
-    #             )
-    #             df_perf = pd.concat([df_perf, df_perf_source])
-    #         # Join with other stations
-    #         if df_perf_all.empty:
-    #             df_perf_all = df_perf
-    #         else:
-    #             df_perf_all = df_perf_all.join(df_perf)
-    #     else:
-    #         print(
-    #             "observed timeseries are not available " "no signature plots are made."
-    #         )
-
-    # # Save performance metrics to csv
-    # df_perf_all.to_csv(os.path.join(plot_dir, "performance_metrics.csv"))
-
-    # ### 7. Plot trends in mean annual streamflow ###
-    # # Derive the anomalies and trends for each climate source
-    # for climate_source in qsim.climate_source.values:
-    #     # Filter the dataset
-    #     ds_source = qsim.sel(climate_source=climate_source).to_dataset()
-
-    #     # Plot the anomalies if there is more than 3 years of data
-    #     nb_years = np.unique(qsim["time.year"].values).size
-    #     if nb_years >= 3:
-    #         plot_timeseries_anomalies(
-    #             ds=ds_source,
-    #             path_output=plot_dir,
-    #             split_year=split_year,
-    #             suffix=climate_source,
-    #         )
-
-    # # if there are observations also plot anomalies and trends of observations
-    # if has_observations:
-    #     # Plot the anomalies if there is more than 3 years of data
-    #     nb_years = np.unique(qobs["time.year"].values).size
-    #     if nb_years >= 3:
-    #         plot_timeseries_anomalies(
-    #             ds=qobs.to_dataset(),
-    #             path_output=plot_dir,
-    #             split_year=split_year,
-    #             suffix="obs",
-    #         )
-
-    # ### 8. Plot budyko framework if there are observations ###
-    # if has_observations and add_budyko_plot:
-    #     ds_clim_sub_annual = []
-    #     for climate_source in np.atleast_1d(climate_sources).tolist():
-    #         config_fn = wflow_config_fn_prefix + f"_{climate_source}.toml"
-    #         # get mean annual precip, pet and q_specific upstream of observation locations for a specific source
-    #         ds_clim_sub_source, ds_clim_sub_annual_source = get_upstream_clim_basin(
-    #             qobs, wflow_root, config_fn
-    #         )
-    #         # calculate budyko terms
-    #         ds_clim_sub_annual_source = determine_budyko_curve_terms(
-    #             ds_clim_sub_annual_source
-    #         )
-    #         ds_clim_sub_annual_source = ds_clim_sub_annual_source.assign_coords(
-    #             climate_source=(f"{climate_source}")
-    #         ).expand_dims(["climate_source"])
-    #         ds_clim_sub_annual.append(ds_clim_sub_annual_source)
-    #     ds_clim_sub_annual = xr.merge(ds_clim_sub_annual)
-
-    #     # plot budyko with different sources.
-    #     plot_budyko(ds_clim_sub_annual, plot_dir, color=color)
 
     ### End of the function ###
 
@@ -446,20 +269,14 @@ if __name__ == "__main__":
         Folder_plots = f"{project_dir}/plots/wflow_model_performance"
         root = f"{project_dir}/hydrology_model"
 
-        analyse_wflow_historical(
-            wflow_root=root,
-            plot_dir=Folder_plots,
-            observations_fn=sm.params.observations_file,
-            gauges_locs=sm.params.gauges_output_fid,
-            climate_sources=sm.params.climate_sources,
-            climate_sources_colors=sm.params.climate_sources_colors,
-            add_budyko_plot=sm.params.add_budyko_plot,
+        analyse_wflow_delta(
+            #TODO!!
+            wflow_hist_run_config=root,
+            wflow_delta_runs_config=Folder_plots,
+            models=sm.params.observations_file,
+            scenarios=sm.params.gauges_output_fid,
+            gauges_locs=sm.params.climate_sources,
+            plot_dir=sm.params.climate_sources_colors,
         )
     else:
-        analyse_wflow_historical(
-            wflow_root=join(os.getcwd(), "examples", "my_project", "hydrology_model"),
-            plot_dir=None,
-            observations_fn=None,
-            gauges_locs=None,
-            climate_sources=None,
-        )
+        print("run with snakemake please")
