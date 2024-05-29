@@ -1,10 +1,9 @@
 from pathlib import Path
 import os
-import numpy as np
 import hydromt
-from os.path import join, dirname, basename
+from os.path import join, dirname
 import xarray as xr
-from typing import List, Tuple, Union
+from typing import Union
 
 
 def downscale_delta_change(
@@ -44,9 +43,16 @@ def downscale_delta_change(
     if not os.path.exists(dir_output):
         os.makedirs(dir_output)
 
-    # open datasets and slice times
+    # open datasets
     delta_change_grid = xr.open_dataset(delta_change_grid_fn, lock=False)
-    dst_grid = xr.open_dataset(dst_grid_fn, lock=False)
+    # Open dst_grid similar to WflowModel.read_grid
+    dst_grid = xr.open_dataset(
+        dst_grid_fn, mask_and_scale=False, decode_coords="all"
+    ).load()
+    dst_grid.close()
+    # make sure maps are always North -> South oriented for hydromt
+    if dst_grid.raster.res[1] > 0:
+        dst_grid = dst_grid.raster.flipud()
 
     # squeeze
     delta_change_grid = delta_change_grid.squeeze()
@@ -58,6 +64,12 @@ def downscale_delta_change(
     delta_change_grid_downscaled = delta_change_grid.raster.reproject_like(
         dst_grid, method=method
     )
+
+    # rename from month to time for wflow
+    if "month" in delta_change_grid_downscaled.coords:
+        delta_change_grid_downscaled = delta_change_grid_downscaled.rename(
+            {"month": "time"}
+        )
 
     # write netcdf
     delta_change_grid_downscaled.to_netcdf(

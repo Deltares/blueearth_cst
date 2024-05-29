@@ -34,7 +34,7 @@ wflow_outvars = get_config(config, "wflow_outvars", ['river discharge'])
 # Master rule: end with all model run and analysed with saving a output plot
 rule all:
     input: 
-        # f"{project_dir}/config/snake_config_model_creation.yml",
+        f"{project_dir}/config/snake_config_future_hydrology_delta_change.yml",
         f"{project_dir}/plots/wflow_model_performance/hydro_wflow_1.png",
         # expand((basin_dir + "/run_delta_{model}_{scenario}_near/output.csv"), model = gcms_selected, scenario = scenarios_selected),
 
@@ -48,19 +48,17 @@ rule all:
 #7. plots comparison. 
 
 
-
-
 # Rule to copy config files to the project_dir/config folder
-# rule copy_config:
-#     input:
-#         config_snake = config_path,
-#     params:
-#         data_catalogs = DATA_SOURCES,
-#         workflow_name = "model_creation",
-#     output:
-#         config_snake_out = f"{project_dir}/config/snake_config_model_creation.yml",
-#     script:
-#         "../src/copy_config_files.py"
+rule copy_config:
+    input:
+        config_snake = config_path,
+    params:
+        data_catalogs = DATA_SOURCES,
+        workflow_name = "future_hydrology_delta_change",
+    output:
+        config_snake_out = f"{project_dir}/config/snake_config_future_hydrology_delta_change.yml",
+    script:
+        "../src/copy_config_files.py"
 
 # Rule to downscale the monthly delta change factor for the near future
 rule downscale_monthly_delta_change_grids_near:
@@ -84,6 +82,7 @@ rule downscale_monthly_delta_change_grids_far:
 rule setup_toml_near:
     input:
         config_model_historical_fn = config_model_historical_fn,
+        monthly_change_mean_grid = (clim_project_dir + "/monthly_change_grid/{model}_{scenario}_near.nc"),
     output:
         config_model_near_fn = (basin_dir + "/" + config_basename + "_{model}_{scenario}_near.toml"),
     params:
@@ -96,18 +95,19 @@ rule setup_toml_near:
 #Rule to run the wflow model for each additional forcing dataset 
 rule run_wflow_near:
     input:
-        config_model_near_fn = (basin_dir + "/" + config_basename + "_{model}_{scenario}_near.toml"),
+        config_model_near = (basin_dir + "/" + config_basename + "_{model}_{scenario}_near.toml"),
         delta_change_downscale_near_nc = (clim_project_dir + "/monthly_change_grid/{model}_{scenario}_near_downscaled.nc"),
     output:
         csv_file_near = (basin_dir + "/run_delta_change/{model}_{scenario}_near/output.csv"), 
         state_near_nc = (basin_dir + "/run_delta_change/{model}_{scenario}_near/outstate/outstates.nc"), 
     shell:
-        """ julia --threads 4 -e "using Wflow; Wflow.run()" "{params.toml_fid}" """
+        """ julia --threads 4 "../src/wflow/run_wflow_change_factors.jl" "{input.config_model_near}" """
 
 # Rule to prepare the yml for each clim dataset with time horizon 
 rule setup_toml_far:
     input:
         state_near_nc = (basin_dir + "/run_delta_change/{model}_{scenario}_near/outstate/outstates.nc"),
+        monthly_change_mean_grid = (clim_project_dir + "/monthly_change_grid/{model}_{scenario}_far.nc"),
     output:
         config_model_far_fn = (basin_dir + "/" + config_basename + "_{model}_{scenario}_far.toml"),
     params:
@@ -119,12 +119,12 @@ rule setup_toml_far:
 #Rule to run the wflow model for each additional forcing dataset 
 rule run_wflow_far:
     input:
-        config_model_near_fn = (basin_dir + "/" + config_basename + "_{model}_{scenario}_far.toml"),
+        config_model_far = (basin_dir + "/" + config_basename + "_{model}_{scenario}_far.toml"),
         delta_change_downscale_far_nc = (clim_project_dir + "/monthly_change_grid/{model}_{scenario}_far_downscaled.nc"),
     output:
         csv_file_far = (basin_dir + "/run_delta_change/{model}_{scenario}_far/output.csv"), 
     shell:
-        """ julia --threads 4 -e "using Wflow; Wflow.run()" "{params.toml_fid}" """
+        """ julia --threads 4 "../src/wflow/run_wflow_change_factors.jl" "{input.config_model_far}" """
 
 # Rule to analyse and plot wflow model run results --> final output
 rule plot_results:
