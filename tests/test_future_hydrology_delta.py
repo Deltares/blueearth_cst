@@ -2,14 +2,16 @@ import os
 from os.path import join, dirname, basename
 import numpy as np
 import yaml
+import glob
 
-from .conftest import SAMPLE_PROJECTDIR, config_fao_fn
+from .conftest import MAINDIR, SAMPLE_PROJECTDIR, config_fao_fn
 
 from ..snakemake.get_config import get_config
 
 from ..src import copy_config_files
 from ..src import downscale_delta_change
 from ..src import setup_config_future
+from ..src import plot_results_delta
 
 
 def test_copy_config(tmpdir):
@@ -99,3 +101,42 @@ def test_setup_toml_delta_change_hydrology(tmpdir, config_fao):
     # # Check the content of the output file
     # with open(fn_yml, "rb") as f:
     #     content = yaml.safe_load(f)
+
+
+def test_plot_results_delta(tmpdir, config_fao):
+    """Test if results from the delta runs are correctly made"""
+    # Call the results from the delta runs function 
+    
+    wflow_delta_runs_config = glob.glob(join(SAMPLE_PROJECTDIR, 
+                                "hydrology_model", 
+                                # "run_delta_*", 
+                                "wflow_sbm_*_delta_*.toml"
+                                ))
+    
+    wflow_historical_config = join(SAMPLE_PROJECTDIR, 
+                                   "hydrology_model",
+                                   get_config(config_fao, "config_model_historical", "wflow_sbm_era5.toml")
+                                   )
+    
+    plot_dir = f"{tmpdir}/plots"
+
+    models = get_config(config_fao, "gcm_selected")
+    scenarios = get_config(config_fao, "scenarios_selected")
+
+    gauges_locs = get_config(config_fao, "output_locations")
+    gauges_locs = join(MAINDIR, gauges_locs)
+
+    plot_results_delta.analyse_wflow_delta(
+        wflow_hist_run_config=wflow_historical_config,
+        wflow_delta_runs_config=wflow_delta_runs_config,
+        models = models,
+        scenarios = scenarios,
+        gauges_locs = gauges_locs,
+        plot_dir=join(plot_dir, "model_delta_runs"),
+
+    )
+
+    # Check if 
+    # assert os.path.exists(
+    #     f"{tmpdir}/config/snake_config_future_hydrology_delta_change.yml"
+    # )
