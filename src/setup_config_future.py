@@ -56,16 +56,23 @@ def update_config_run_future(
     mod.set_config("state.path_input", outstates_path_hist_run)
     mod.set_config("dir_output", f"run_delta_{model}_{scenario}_{horizon}")
     mod.set_config("model.reinit", False)
+    mod.set_config("csv.path", f"output_delta_{model}_{scenario}_{horizon}.csv")
 
     # Add the (relative) path to the downscaled delta change grids
     config_root = config_root or wflow_root
-    delta_change_fn = os.path.relpath(delta_change_fn, config_root)
+    # todo fix the run function relative path instead of this fix.
+    # delta_change_fn = os.path.relpath(delta_change_fn, config_root)
     mod.set_config("input.path_forcing_scale", delta_change_fn)
 
-    config_delta_change_fn = (
-        os.path.basename(config_model_historical_fn).split(".")[0]
-        + f"_delta_{model}_{scenario}_{horizon}.toml"
-    )
+    if ("near" in config_model_historical_fn) and (horizon == "far"):
+        config_delta_change_fn = os.path.basename(
+            config_model_historical_fn.replace("near", horizon)
+        )
+    else:
+        config_delta_change_fn = (
+            os.path.basename(config_model_historical_fn).split(".")[0]
+            + f"_delta_{model}_{scenario}_{horizon}.toml"
+        )
 
     mod.write_config(config_name=config_delta_change_fn, config_root=config_root)
 

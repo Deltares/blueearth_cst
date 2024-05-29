@@ -82,9 +82,9 @@ rule downscale_monthly_delta_change_grids_far:
 rule setup_toml_near:
     input:
         config_model_historical_fn = config_model_historical_fn,
-        monthly_change_mean_grid = (clim_project_dir + "/monthly_change_grid/{model}_{scenario}_near.nc"),
+        monthly_change_mean_grid = (clim_project_dir + "/monthly_change_grid/{model}_{scenario}_near_downscaled.nc"),
     output:
-        config_model_near_fn = (basin_dir + "/" + config_basename + "_{model}_{scenario}_near.toml"),
+        config_model_near_fn = (basin_dir + "/" + config_basename + "_delta_{model}_{scenario}_near.toml"),
     params:
         model_name = "{model}",
         scenario_name = "{scenario}",
@@ -95,21 +95,22 @@ rule setup_toml_near:
 #Rule to run the wflow model for each additional forcing dataset 
 rule run_wflow_near:
     input:
-        config_model_near = (basin_dir + "/" + config_basename + "_{model}_{scenario}_near.toml"),
+        config_model_near = (basin_dir + "/" + config_basename + "_delta_{model}_{scenario}_near.toml"),
         delta_change_downscale_near_nc = (clim_project_dir + "/monthly_change_grid/{model}_{scenario}_near_downscaled.nc"),
     output:
-        csv_file_near = (basin_dir + "/run_delta_change/{model}_{scenario}_near/output.csv"), 
-        state_near_nc = (basin_dir + "/run_delta_change/{model}_{scenario}_near/outstate/outstates.nc"), 
+        csv_file_near = (basin_dir + "/run_delta_{model}_{scenario}_near/output_delta_{model}_{scenario}_near.csv"), 
+        state_near_nc = (basin_dir + "/run_delta_{model}_{scenario}_near/outstate/outstates.nc"), 
     shell:
-        """ julia --threads 4 "../src/wflow/run_wflow_change_factors.jl" "{input.config_model_near}" """
+        """ julia --threads 4 "./src/wflow/run_wflow_change_factors.jl" "{input.config_model_near}" """
 
 # Rule to prepare the yml for each clim dataset with time horizon 
 rule setup_toml_far:
     input:
-        state_near_nc = (basin_dir + "/run_delta_change/{model}_{scenario}_near/outstate/outstates.nc"),
-        monthly_change_mean_grid = (clim_project_dir + "/monthly_change_grid/{model}_{scenario}_far.nc"),
+        config_model_historical_fn = (basin_dir + "/" + config_basename + "_delta_{model}_{scenario}_near.toml"),
+        state_near_nc = (basin_dir + "/run_delta_{model}_{scenario}_near/outstate/outstates.nc"),
+        monthly_change_mean_grid = (clim_project_dir + "/monthly_change_grid/{model}_{scenario}_far_downscaled.nc"),
     output:
-        config_model_far_fn = (basin_dir + "/" + config_basename + "_{model}_{scenario}_far.toml"),
+        config_model_far_fn = (basin_dir + "/" + config_basename + "_delta_{model}_{scenario}_far.toml"),
     params:
         model_name = "{model}",
         scenario_name = "{scenario}",
@@ -119,19 +120,18 @@ rule setup_toml_far:
 #Rule to run the wflow model for each additional forcing dataset 
 rule run_wflow_far:
     input:
-        config_model_far = (basin_dir + "/" + config_basename + "_{model}_{scenario}_far.toml"),
+        config_model_far = (basin_dir + "/" + config_basename + "_delta_{model}_{scenario}_far.toml"),
         delta_change_downscale_far_nc = (clim_project_dir + "/monthly_change_grid/{model}_{scenario}_far_downscaled.nc"),
     output:
-        csv_file_far = (basin_dir + "/run_delta_change/{model}_{scenario}_far/output.csv"), 
+        csv_file_far = (basin_dir + "/run_delta_{model}_{scenario}_far/output_delta_{model}_{scenario}_far.csv"), 
     shell:
-        """ julia --threads 4 "../src/wflow/run_wflow_change_factors.jl" "{input.config_model_far}" """
+        """ julia --threads 4 "./src/wflow/run_wflow_change_factors.jl" "{input.config_model_far}" """
 
 # Rule to analyse and plot wflow model run results --> final output
 rule plot_results:
    input:
-       csv_file_near = expand((basin_dir + "/run_delta_change/{model}_{scenario}_near/output.csv"), model = gcms_selected, scenario = scenarios_selected), 
-       csv_file_far = expand((basin_dir + "/run_delta_change/{model}_{scenario}_far/output.csv"), model = gcms_selected, scenario = scenarios_selected),
-    #    script = "src/plot_results.py"
+       csv_file_near = expand((basin_dir + "/run_delta_{model}_{scenario}_near/output_delta_{model}_{scenario}_near.csv"), model = gcms_selected, scenario = scenarios_selected), 
+       csv_file_far = expand((basin_dir + "/run_delta_{model}_{scenario}_far/output_delta_{model}_{scenario}_far.csv"), model = gcms_selected, scenario = scenarios_selected),
    output: 
        output_png = f"{project_dir}/plots/wflow_model_performance/hydro_wflow_1.png",
 #    params:
@@ -141,4 +141,4 @@ rule plot_results:
 #        climate_sources = climate_sources,
 #        climate_sources_colors = climate_sources_colors,
 #        add_budyko_plot = get_config(config, "plot_budyko", False),
-   script: "../src/plot_results.py"
+   script: "../src/plot_results_deltas.py"
