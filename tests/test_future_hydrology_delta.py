@@ -105,19 +105,23 @@ def test_setup_toml_delta_change_hydrology(tmpdir, config_fao):
 
 def test_plot_results_delta(tmpdir, config_fao):
     """Test if results from the delta runs are correctly made"""
-    # Call the results from the delta runs function 
-    
-    wflow_delta_runs_config = glob.glob(join(SAMPLE_PROJECTDIR, 
-                                "hydrology_model", 
-                                # "run_delta_*", 
-                                "wflow_sbm_*_delta_*.toml"
-                                ))
-    
-    wflow_historical_config = join(SAMPLE_PROJECTDIR, 
-                                   "hydrology_model",
-                                   get_config(config_fao, "config_model_historical", "wflow_sbm_era5.toml")
-                                   )
-    
+    # Call the results from the delta runs function
+
+    wflow_delta_runs_config = glob.glob(
+        join(
+            SAMPLE_PROJECTDIR,
+            "hydrology_model",
+            # "run_delta_*",
+            "wflow_sbm_*_delta_*.toml",
+        )
+    )
+
+    wflow_historical_config = join(
+        SAMPLE_PROJECTDIR,
+        "hydrology_model",
+        get_config(config_fao, "config_model_historical", "wflow_sbm_era5.toml"),
+    )
+
     plot_dir = f"{tmpdir}/plots"
 
     models = get_config(config_fao, "gcm_selected")
@@ -129,14 +133,13 @@ def test_plot_results_delta(tmpdir, config_fao):
     plot_results_delta.analyse_wflow_delta(
         wflow_hist_run_config=wflow_historical_config,
         wflow_delta_runs_config=wflow_delta_runs_config,
-        models = models,
-        scenarios = scenarios,
-        gauges_locs = gauges_locs,
+        models=models,
+        scenarios=scenarios,
+        gauges_locs=gauges_locs,
         plot_dir=join(plot_dir, "model_delta_runs"),
-
     )
 
-    # Check if 
+    # Check if
     # assert os.path.exists(
     #     f"{tmpdir}/config/snake_config_future_hydrology_delta_change.yml"
     # )
