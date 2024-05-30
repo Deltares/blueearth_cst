@@ -16,13 +16,15 @@ function apply_forcing_change_factors!(model::Wflow.Model)
 
     # get the change factors
     change_factors_filename = get(config.input, "path_forcing_scale", nothing)::String
+    abspath_change_factors = Wflow.input_path(config, change_factors_filename)
+
     precipitation_scale = get(config.input.vertical, "precipitation", "precip")::String
     temperature_offset = get(config.input.vertical, "temperature", "temp")::String
     potential_evaporation_scale = get(config.input.vertical, "potential_evaporation", "pet")::String
     
-    if !isnothing(change_factors_filename)
+    if !isnothing(abspath_change_factors)
         # Read the netdcf file with the change factors
-        change_factors = NCDataset(change_factors_filename)
+        change_factors = NCDataset(abspath_change_factors)
         
         # Get the active indices of forcing
         sel = network.land.indices
@@ -89,11 +91,11 @@ function run_delta_change(model::Wflow.Model; close_files = true)
     # get the path to the scale factor file
     scale_factor = get(config.input, "path_forcing_scale", nothing)
 
-    @info "Run information" model_type starttime dt endtime nthreads()
     @info "Running with climate change factors from" scale_factor
+    @info "Run information" model_type starttime dt endtime nthreads()
     runstart_time = Wflow.now()
     @progress for (i, time) in enumerate(times)
-        @debug "Starting timestep." time i now()
+        @debug "Starting timestep." time i Wflow.now()
         model = run_timestep_delta_change(model)
     end
     @info "Simulation duration: $(canonicalize(now() - runstart_time))"

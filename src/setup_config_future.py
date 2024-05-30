@@ -60,8 +60,7 @@ def update_config_run_future(
 
     # Add the (relative) path to the downscaled delta change grids
     config_root = config_root or wflow_root
-    # todo fix the run function relative path instead of this fix.
-    # delta_change_fn = os.path.relpath(delta_change_fn, config_root)
+    delta_change_fn = os.path.relpath(delta_change_fn, config_root)
     mod.set_config("input.path_forcing_scale", delta_change_fn)
 
     if ("near" in config_model_historical_fn) and (horizon == "far"):
