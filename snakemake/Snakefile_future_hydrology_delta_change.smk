@@ -1,5 +1,6 @@
 import sys
 import numpy as np 
+import glob
 
 from get_config import get_config
 
@@ -136,10 +137,10 @@ rule plot_results:
        output_png = f"{project_dir}/plots/model_delta_runs/qhydro_1.png",
    params:
         wflow_hist_run_config = config_model_historical_fn,
-        wflow_delta_runs_config = basin_dir + "/" + config_basename,
+        wflow_delta_runs_config = glob.glob(basin_dir + "/" + config_basename + "_delta_*.toml"), #list of toml paths
         models = gcms_selected,
         scenarios = scenarios_selected,
         gauges_locs = output_locations,
         start_month_hyd_year = "JAN",
         project_dir = f"{project_dir}",
-   script: "../src/plot_results_deltas.py"
+   script: "../src/plot_results_delta.py"

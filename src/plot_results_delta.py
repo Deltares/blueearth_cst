@@ -14,6 +14,7 @@ import hydromt
 from hydromt_wflow import WflowModel
 import seaborn as sns
 import matplotlib.patches as mpatches
+import glob
 
 from typing import Union, List, Optional
 
@@ -543,7 +544,7 @@ if __name__ == "__main__":
     if "snakemake" in globals():
         sm = globals()["snakemake"]
         project_dir = sm.params.project_dir
-        Folder_plots = f"{project_dir}/plots/wflow_model_performance"
+        Folder_plots = f"{project_dir}/plots/model_delta_runs"
         root = f"{project_dir}/hydrology_model"
 
         analyse_wflow_delta(

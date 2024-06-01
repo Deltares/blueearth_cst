@@ -111,7 +111,6 @@ def test_plot_results_delta(tmpdir, config_fao):
         join(
             SAMPLE_PROJECTDIR,
             "hydrology_model",
-            # "run_delta_*",
             "wflow_sbm_*_delta_*.toml",
         )
     )
