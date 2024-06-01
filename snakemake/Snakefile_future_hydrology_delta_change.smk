@@ -35,7 +35,7 @@ wflow_outvars = get_config(config, "wflow_outvars", ['river discharge'])
 rule all:
     input: 
         f"{project_dir}/config/snake_config_future_hydrology_delta_change.yml",
-        f"{project_dir}/plots/wflow_model_performance/hydro_wflow_1.png",
+        f"{project_dir}/plots/model_delta_runs/qhydro_1.png"
         # expand((basin_dir + "/run_delta_{model}_{scenario}_near/output.csv"), model = gcms_selected, scenario = scenarios_selected),
 
 
@@ -133,12 +133,13 @@ rule plot_results:
        csv_file_near = expand((basin_dir + "/run_delta_{model}_{scenario}_near/output_delta_{model}_{scenario}_near.csv"), model = gcms_selected, scenario = scenarios_selected), 
        csv_file_far = expand((basin_dir + "/run_delta_{model}_{scenario}_far/output_delta_{model}_{scenario}_far.csv"), model = gcms_selected, scenario = scenarios_selected),
    output: 
-       output_png = f"{project_dir}/plots/wflow_model_performance/hydro_wflow_1.png",
-#    params:
-#        project_dir = f"{project_dir}",
-#        observations_file = observations_timeseries,
-#        gauges_output_fid = output_locations,
-#        climate_sources = climate_sources,
-#        climate_sources_colors = climate_sources_colors,
-#        add_budyko_plot = get_config(config, "plot_budyko", False),
+       output_png = f"{project_dir}/plots/model_delta_runs/qhydro_1.png",
+   params:
+        wflow_hist_run_config = config_model_historical_fn,
+        wflow_delta_runs_config = basin_dir + "/" + config_basename,
+        models = gcms_selected,
+        scenarios = scenarios_selected,
+        gauges_locs = output_locations,
+        start_month_hyd_year = "JAN",
+        project_dir = f"{project_dir}",
    script: "../src/plot_results_deltas.py"
