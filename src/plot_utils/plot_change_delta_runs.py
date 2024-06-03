@@ -2,16 +2,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 
-from hydromt import flw
 import pandas as pd
-from hydromt_wflow import WflowModel
 import xarray as xr
 import seaborn as sns
 
 import matplotlib.patches as mpatches
 
-from typing import Union, List, Optional
-from pathlib import Path
+from typing import List
 
 __all__ = [
     "plot_near_far_abs",
@@ -23,6 +20,13 @@ __all__ = [
     "plot_plotting_position",
 ]
 
+COLORS = {
+    "ssp126": "#003466",
+    "ssp245": "#f69320",
+    "ssp370": "#df0000",
+    "ssp585": "#980002",
+}
+
 
 def plot_near_far_abs(
     qsim_delta_metric: xr.DataArray,
@@ -30,7 +34,6 @@ def plot_near_far_abs(
     plot_dir: str,
     ylabel: str,
     figname_prefix: str,
-    cmap: List,
     fs: int = 8,
     lw: int = 0.6,
 ):
@@ -51,8 +54,6 @@ def plot_near_far_abs(
         prefix name of figure (suffix is .png)
         if qhydro in prefix -- 2 rows in subplots instead of 2 columns for near and far future
         if mean_monthly in prefix -- xticks are 1 to 12.
-    cmap: List,
-        cmap for scenarios (should be same length as scenarios)
     fs: int = 8,
         fontsize
     lw: int = 0.6,
@@ -67,21 +68,21 @@ def plot_near_far_abs(
         fig, (ax1, ax2) = plt.subplots(
             1, 2, figsize=(16 / 2.54, 8 / 2.54), sharex=True, sharey=True
         )
-    for scenario, color in zip(qsim_delta_metric.scenario.values, cmap):
+    for scenario in qsim_delta_metric.scenario.values:
         # first entry just for legend
         qsim_delta_metric.sel(horizon="near").sel(scenario=scenario).sel(
             model=qsim_delta_metric.model[0]
-        ).plot(label=f"{scenario}", ax=ax1, color=color, linewidth=lw)
+        ).plot(label=f"{scenario}", ax=ax1, color=COLORS[scenario], linewidth=lw)
         qsim_delta_metric.sel(horizon="far").sel(scenario=scenario).sel(
             model=qsim_delta_metric.model[0]
-        ).plot(label=f"{scenario}", ax=ax2, color=color, linewidth=lw)
+        ).plot(label=f"{scenario}", ax=ax2, color=COLORS[scenario], linewidth=lw)
 
         # plot all lines
         qsim_delta_metric.sel(horizon="near").sel(scenario=scenario).plot(
-            hue="model", ax=ax1, color=color, add_legend=False, linewidth=lw
+            hue="model", ax=ax1, color=COLORS[scenario], add_legend=False, linewidth=lw
         )
         qsim_delta_metric.sel(horizon="far").sel(scenario=scenario).plot(
-            hue="model", ax=ax2, color=color, add_legend=False, linewidth=lw
+            hue="model", ax=ax2, color=COLORS[scenario], add_legend=False, linewidth=lw
         )
     for ax in [ax1, ax2]:
         q_hist_metric.plot(label="hist", color="k", ax=ax, linewidth=lw)
@@ -105,7 +106,6 @@ def plot_near_far_rel(
     plot_dir: str,
     ylabel: str,
     figname_prefix: str,
-    cmap: List,
     fs: int = 8,
     lw: int = 0.6,
 ):
@@ -123,8 +123,6 @@ def plot_near_far_rel(
     figname_prefix: str,
         prefix name of figure (prefix before prefix is rel_ and suffix is .png)
         if mean_monthly in prefix -- xticks are 1 to 12.
-    cmap: List,
-        cmap for scenarios (should be same length as scenarios)
     fs: int = 8,
         fontsize
     lw: int = 0.6,
@@ -138,21 +136,21 @@ def plot_near_far_rel(
         fig, (ax1, ax2) = plt.subplots(
             1, 2, figsize=(16 / 2.54, 8 / 2.54), sharex=True, sharey=True
         )
-    for scenario, color in zip(qsim_delta_metric.scenario.values, cmap):
+    for scenario in qsim_delta_metric.scenario.values:
         # first entry just for legend
         qsim_delta_metric.sel(horizon="near").sel(scenario=scenario).sel(
             model=qsim_delta_metric.model[0]
-        ).plot(label=f"{scenario}", ax=ax1, color=color, linewidth=lw)
+        ).plot(label=f"{scenario}", ax=ax1, color=COLORS[scenario], linewidth=lw)
         qsim_delta_metric.sel(horizon="far").sel(scenario=scenario).sel(
             model=qsim_delta_metric.model[0]
-        ).plot(label=f"{scenario}", ax=ax2, color=color, linewidth=lw)
+        ).plot(label=f"{scenario}", ax=ax2, color=COLORS[scenario], linewidth=lw)
 
         # plot all lines
         qsim_delta_metric.sel(horizon="near").sel(scenario=scenario).plot(
-            hue="model", ax=ax1, color=color, add_legend=False, linewidth=lw
+            hue="model", ax=ax1, color=COLORS[scenario], add_legend=False, linewidth=lw
         )
         qsim_delta_metric.sel(horizon="far").sel(scenario=scenario).plot(
-            hue="model", ax=ax2, color=color, add_legend=False, linewidth=lw
+            hue="model", ax=ax2, color=COLORS[scenario], add_legend=False, linewidth=lw
         )
     for ax in [ax1, ax2]:
         ax.tick_params(axis="both", labelsize=fs)
@@ -287,8 +285,6 @@ def make_boxplot_monthly(
     plot_dir: str,
     figname_suffix: str,
     ylabel: str,
-    palette: List,
-    hue_order: List,
     var_x: str = "month",
     var_y: str = "Q",
     var_hue: str = "scenario",
@@ -326,6 +322,12 @@ def make_boxplot_monthly(
         fontsize. default is 8
 
     """
+    # Define palette and hue_order
+    hue_order = np.unique(df_delta_near["scenario"].values).tolist()
+    palette = [COLORS[scenario] for scenario in hue_order if scenario != "hist"]
+    if "hist" in hue_order:
+        palette = ["grey"] + palette
+
     fig, axes = plt.subplots(
         2, 1, figsize=(16 / 2.54, 12 / 2.54), sharex=True, sharey=True
     )
@@ -377,7 +379,6 @@ def plot_plotting_position(
     qsim_hist_var: xr.DataArray,
     plot_dir: str,
     figname_suffix: str,
-    cmap: List,
     ylabel: str,
     ascending: bool = True,
     ts: List[int] = [2.0, 5.0, 10.0, 30.0],
@@ -396,8 +397,6 @@ def plot_plotting_position(
         directory to save plot
     figname_suffix: str,
         name of suffix for figname (plotting_pos_{figname_suffix}.png)
-    cmap: List,
-        cmap for the scenarios
     ylabel: str,
         ylabel description
     ascending: bool = True,
@@ -411,7 +410,7 @@ def plot_plotting_position(
     fig, (ax1, ax2) = plt.subplots(
         1, 2, figsize=(16 / 2.54, 10 / 2.54), sharex=True, sharey=True
     )
-    for scenario, color in zip(qsim_delta_var.scenario.values, cmap):
+    for scenario in qsim_delta_var.scenario.values:
         for model in qsim_delta_var.model.values:
             # near
             qsim_delta_var_sel = qsim_delta_var.sel(
@@ -424,7 +423,7 @@ def plot_plotting_position(
                 gumbel_p1,
                 plotting_positions_hist,
                 marker="o",
-                color=color,
+                color=COLORS[scenario],
                 linestyle="None",
                 label="hist.",
                 markersize=6,
@@ -440,7 +439,7 @@ def plot_plotting_position(
                 gumbel_p1,
                 plotting_positions_hist,
                 marker="o",
-                color=color,
+                color=COLORS[scenario],
                 linestyle="None",
                 label="hist.",
                 markersize=6,
@@ -476,8 +475,8 @@ def plot_plotting_position(
         ax.tick_params(axis="both", labelsize=fs)
 
     ll = []
-    for scenario, color in zip(qsim_delta_var.scenario.values, cmap):
-        l1 = mpatches.Patch(color=color, label=f"{scenario}")
+    for scenario in qsim_delta_var.scenario.values:
+        l1 = mpatches.Patch(color=COLORS[scenario], label=f"{scenario}")
         ll.append(l1)
     l3 = mpatches.Patch(color="k", label="Historical")
     plt.legend(handles=ll + [l3], fontsize=fs)

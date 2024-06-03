@@ -6,18 +6,13 @@ Plot wflow results of delta change runs.
 import xarray as xr
 import numpy as np
 import os
-from os.path import join, dirname
+from os.path import join, dirname, basename
 from pathlib import Path
-import matplotlib.pyplot as plt
 import pandas as pd
-import geopandas as gpd
-import hydromt
 from hydromt_wflow import WflowModel
 import seaborn as sns
-import matplotlib.patches as mpatches
-import glob
 
-from typing import Union, List, Optional
+from typing import Union, List
 
 # Avoid relative import errors
 import sys
@@ -30,7 +25,6 @@ if __name__ == "__main__" or parent_module.__name__ == "__main__":
         get_df_seaborn,
         get_sum_annual_and_monthly,
         make_boxplot_monthly,
-        get_plotting_position,
         plot_plotting_position,
     )
 else:
@@ -40,7 +34,6 @@ else:
         get_df_seaborn,
         get_sum_annual_and_monthly,
         make_boxplot_monthly,
-        get_plotting_position,
         plot_plotting_position,
     )
 
@@ -163,8 +156,6 @@ def get_wflow_results(
 def analyse_wflow_delta(
     wflow_hist_run_config: Path,
     wflow_delta_runs_config: List[Path],
-    models: List[str],
-    scenarios: List[str],
     gauges_locs: Union[Path, str] = None,
     plot_dir: Union[str, Path] = None,
     start_month_hyd_year: str = "JAN",
@@ -204,10 +195,6 @@ def analyse_wflow_delta(
         NB: it is important that the historical run is initialized with a warm state as the full period is used to make the plots!
     wflow_runs_toml : List[Path]
         List of paths of config files for the delta change runs.
-    models: List[str]
-        List of climate models
-    scenarios: List[str]
-        List of climate scenarios
     gauges_locs : Union[Path, str], optional
         Path to gauges/observations locations file, by default None
         Required columns: wflow_id, station_name, x, y.
@@ -224,33 +211,29 @@ def analyse_wflow_delta(
 
     # If plotting dir is None, create
     if plot_dir is None:
-        wflow_root = os.path.dirname(wflow_hist_run_config)
-        plot_dir = os.path.join(wflow_root, "plots")
+        wflow_root = dirname(wflow_hist_run_config)
+        plot_dir = join(wflow_root, "plots")
     if not os.path.exists(plot_dir):
         os.makedirs(plot_dir)
 
     # Plotting options
     fs = 7
-    lw = 0.8
-
-    # Other plot options
-    linestyle = "-"
-    marker = "o"
+    lw = 0.6
 
     # read model results for historical
-    root = os.path.dirname(wflow_hist_run_config)
-    config_fn = os.path.basename(wflow_hist_run_config)
+    root = dirname(wflow_hist_run_config)
+    config_fn = basename(wflow_hist_run_config)
     qsim_hist, ds_basin_hist = get_wflow_results(root, config_fn, gauges_locs)
 
     # read the model results and merge to single netcdf
     qsim_delta = []
     ds_basin_delta = []
     for delta_config in wflow_delta_runs_config:
-        model = os.path.basename(delta_config).split(".")[0].split("_")[-3]
-        scenario = os.path.basename(delta_config).split(".")[0].split("_")[-2]
-        horizon = os.path.basename(delta_config).split(".")[0].split("_")[-1]
-        root = os.path.dirname(delta_config)
-        config_fn = os.path.basename(delta_config)
+        model = basename(delta_config).split(".")[0].split("_")[-3]
+        scenario = basename(delta_config).split(".")[0].split("_")[-2]
+        horizon = basename(delta_config).split(".")[0].split("_")[-1]
+        root = dirname(delta_config)
+        config_fn = basename(delta_config)
         qsim_delta_run, ds_basin_delta_run = get_wflow_results(
             root, config_fn, gauges_locs
         )
@@ -265,8 +248,6 @@ def analyse_wflow_delta(
     qsim_delta = xr.merge(qsim_delta)
     ds_basin_delta = xr.merge(ds_basin_delta)
 
-    cmap = sns.color_palette("Set2", len(np.atleast_1d(scenarios).tolist()))
-
     # make plots per station
     for index in qsim_delta.index.values:
 
@@ -277,8 +258,8 @@ def analyse_wflow_delta(
             plot_dir=plot_dir,
             ylabel="Q",
             figname_prefix=f"cumsum_{index}",
-            cmap=cmap,
             fs=fs,
+            lw=lw,
         )
 
         # plot mean monthly flow
@@ -288,8 +269,8 @@ def analyse_wflow_delta(
             plot_dir=plot_dir,
             ylabel="Q (m$^3$s$^{-1}$)",
             figname_prefix=f"mean_monthly_Q_{index}",
-            cmap=cmap,
             fs=fs,
+            lw=lw,
         )
 
         # plot nm7q timeseries
@@ -315,8 +296,8 @@ def analyse_wflow_delta(
             plot_dir=plot_dir,
             ylabel="NM7Q (m$^3$s$^{-1}$)",
             figname_prefix=f"nm7q_{index}",
-            cmap=cmap,
             fs=fs,
+            lw=lw,
         )
 
         # plot maxq timeseries
@@ -338,8 +319,8 @@ def analyse_wflow_delta(
             plot_dir=plot_dir,
             ylabel="max annual Q (m$^3$s$^{-1}$)",
             figname_prefix=f"max_annual_q_{index}",
-            cmap=cmap,
             fs=fs,
+            lw=lw,
         )
 
         # plot mean annual flow
@@ -363,8 +344,8 @@ def analyse_wflow_delta(
             plot_dir=plot_dir,
             ylabel="mean annual Q (m$^3$s$^{-1}$)",
             figname_prefix=f"mean_annual_q_{index}",
-            cmap=cmap,
             fs=fs,
+            lw=lw,
         )
 
         # plot timeseries daily q
@@ -376,8 +357,8 @@ def analyse_wflow_delta(
             plot_dir=plot_dir,
             ylabel="Q (m$^3$s$^{-1}$)",
             figname_prefix=f"qhydro_{index}",
-            cmap=cmap,
             fs=fs,
+            lw=lw,
         )
 
         # plot relative change mean, max, min q
@@ -390,8 +371,8 @@ def analyse_wflow_delta(
                 plot_dir=plot_dir,
                 ylabel=f"Change {prefix} (Qfut-Qhist)/Qhist (%)",
                 figname_prefix=f"{prefix}_annual_q_{index}",
-                cmap=cmap,
                 fs=fs,
+                lw=lw,
             )
 
         # plotting position maxq
@@ -400,7 +381,6 @@ def analyse_wflow_delta(
             qsim_hist_maxq,
             plot_dir,
             f"maxq_{index}",
-            cmap,
             "Annual maximum discharge (m$^3$s$^{-1}$)",
             ascending=True,
         )
@@ -411,7 +391,6 @@ def analyse_wflow_delta(
             qsim_hist_nm7q,
             plot_dir,
             f"nm7q_{index}",
-            cmap,
             "Annual min 7 days discharge (m$^3$s$^{-1}$)",
             ascending=False,
         )
@@ -432,16 +411,12 @@ def analyse_wflow_delta(
         df_delta_far = pd.concat([df_delta_far, df_hist])
 
         # boxplot monthly q abs values
-        palette_with_hist = ["grey"] + cmap
-        hue_order_with_hist = ["hist"] + scenarios
         make_boxplot_monthly(
             df_delta_near,
             df_delta_far,
             plot_dir,
             f"q_abs_{index}",
             "Q (m$^3$s$^{-1}$)",
-            palette_with_hist,
-            hue_order_with_hist,
         )
 
         # boxplot relative monthly q
@@ -449,16 +424,12 @@ def analyse_wflow_delta(
             qsim_delta_m_rel.dropna("time"), "Q"
         )
         # boxplot relative change q
-        palette = cmap
-        hue_order = scenarios
         make_boxplot_monthly(
             df_delta_near_rel,
             df_delta_far_rel,
             plot_dir,
             f"q_rel_{index}",
             "change monthly Q (%)",
-            palette,
-            hue_order,
             relative=True,
         )
 
@@ -474,16 +445,12 @@ def analyse_wflow_delta(
             ds_basin_delta_m_rel.dropna("time"), "snow_basavg"
         )
         # boxplot relative change snow
-        palette = cmap
-        hue_order = scenarios
         make_boxplot_monthly(
             df_delta_near_rel,
             df_delta_far_rel,
             plot_dir,
             "snow_rel",
             "change monthly snow (%)",
-            palette,
-            hue_order,
             var_y="snow_basavg",
             relative=True,
         )
@@ -513,8 +480,8 @@ def analyse_wflow_delta(
             plot_dir=plot_dir,
             ylabel=WFLOW_VARS[dvar.split("_")[0]]["legend"],
             figname_prefix=f"mean_monthly_{dvar}",
-            cmap=cmap,
             fs=fs,
+            lw=lw,
         )
 
         # mean annual sum or mean
@@ -524,8 +491,8 @@ def analyse_wflow_delta(
             plot_dir=plot_dir,
             ylabel=WFLOW_VARS[dvar.split("_")[0]]["legend_annual"],
             figname_prefix=f"sum_annual_{dvar}",
-            cmap=cmap,
             fs=fs,
+            lw=lw,
         )
 
         # relative mean monthly sum or mean
@@ -534,8 +501,8 @@ def analyse_wflow_delta(
             plot_dir=plot_dir,
             ylabel=f"Change monthly {dvar} \n (fut-hist)/hist (%)",
             figname_prefix=f"mean_monthly_{dvar}",
-            cmap=cmap,
             fs=fs,
+            lw=lw,
         )
 
         # relative mean annual sum or mean
@@ -544,8 +511,8 @@ def analyse_wflow_delta(
             plot_dir=plot_dir,
             ylabel=f"Change annual {dvar} \n (fut-hist)/hist (%)",
             figname_prefix=f"sum_annual_{dvar}",
-            cmap=cmap,
             fs=fs,
+            lw=lw,
         )
 
     ### End of the function ###
@@ -561,8 +528,6 @@ if __name__ == "__main__":
         analyse_wflow_delta(
             wflow_hist_run_config=sm.params.wflow_hist_run_config,
             wflow_delta_runs_config=sm.params.wflow_delta_runs_config,
-            models=sm.params.models,
-            scenarios=sm.params.scenarios,
             gauges_locs=sm.params.gauges_locs,
             plot_dir=Folder_plots,
             start_month_hyd_year=sm.params.start_month_hyd_year,

@@ -138,8 +138,6 @@ rule plot_results:
    params:
         wflow_hist_run_config = config_model_historical_fn,
         wflow_delta_runs_config = glob.glob(basin_dir + "/run_delta_change/" + config_basename + "_delta_*.toml"), #list of toml paths
-        models = gcms_selected,
-        scenarios = scenarios_selected,
         gauges_locs = output_locations,
         start_month_hyd_year = "JAN",
         project_dir = f"{project_dir}",

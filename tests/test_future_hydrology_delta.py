@@ -148,17 +148,12 @@ def test_plot_results_delta(tmpdir, config_fao):
 
     plot_dir = f"{tmpdir}/plots"
 
-    models = get_config(config_fao, "gcm_selected")
-    scenarios = get_config(config_fao, "scenarios_selected")
-
     gauges_locs = get_config(config_fao, "output_locations")
     gauges_locs = join(MAINDIR, gauges_locs)
 
     plot_results_delta.analyse_wflow_delta(
         wflow_hist_run_config=wflow_historical_config,
         wflow_delta_runs_config=wflow_delta_runs_config,
-        models=models,
-        scenarios=scenarios,
         gauges_locs=gauges_locs,
         plot_dir=join(plot_dir, "model_delta_runs"),
     )
