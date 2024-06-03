@@ -11,7 +11,7 @@ import pandas as pd
 import numpy as np
 from hydromt_wflow import WflowModel
 
-from .conftest import MAINDIR, SAMPLE_PROJECTDIR, TESTDIR, config_fao_fn, data_libs_fao
+from .conftest import MAINDIR, SAMPLE_PROJECTDIR, config_fao_fn
 from .conftest import get_config
 
 from ..src import copy_config_files
@@ -144,7 +144,7 @@ def test_setup_runtime(tmpdir, config_fao):
         assert "setup_config" in content
         assert "write_config" in content
 
-        assert content["setup_config"]["dir_output"] == f"run_default_{precip_source}"
+        assert content["setup_config"]["dir_input"] == ".."
         assert (
             content["setup_config"]["input.path_forcing"]
             == f"../climate_historical/wflow_data/inmaps_historical_{precip_source}.nc"
@@ -218,7 +218,7 @@ def test_plot_map(tmpdir, config):
 
 def test_plot_forcing(tmpdir, config):
     """Test plotting the forcing maps."""
-    wflow_root = f"{SAMPLE_PROJECTDIR}/hydrology_model"
+    wflow_root = f"{SAMPLE_PROJECTDIR}/hydrology_model/run_default"
     gauges_fn = get_config(config, "output_locations")
     gauges_name = f'gauges_{basename(gauges_fn).split(".")[0]}'
     precip_sources = get_config(config, "clim_historical", optional=False)
@@ -251,7 +251,7 @@ def test_plot_forcing(tmpdir, config):
 
 def test_plot_results(tmpdir, config_fao):
     """Test plotting the model results."""
-    wflow_root = f"{SAMPLE_PROJECTDIR}/hydrology_model"
+    wflow_root = f"{SAMPLE_PROJECTDIR}/hydrology_model/run_default"
     plot_dir = f"{tmpdir}/plots"
     gauges_locs = get_config(config_fao, "output_locations")
     gauges_locs = join(MAINDIR, gauges_locs)
@@ -365,7 +365,7 @@ def test_plot_results(tmpdir, config_fao):
 
 def test_plot_results_budyko(tmpdir, config):
     """Test plotting the model results."""
-    wflow_root = f"{SAMPLE_PROJECTDIR}/hydrology_model"
+    wflow_root = f"{SAMPLE_PROJECTDIR}/hydrology_model/run_default"
     plot_dir = f"{tmpdir}/plots"
     gauges_locs = get_config(config, "output_locations")
     gauges_locs = join(MAINDIR, gauges_locs)

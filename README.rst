@@ -33,6 +33,7 @@ hydrological model (Julia). The installation steps are as follow:
 
 2. Install Julia from https://julialang.org/downloads/ and Wflow following the instructions from the 
 `installation documentation <https://deltares.github.io/Wflow.jl/dev/user_guide/install/#Installing-as-Julia-package>`_.
+If you would like to run wflow with the delta change factors, you will also need to install the packages: NCDatasets, UnPack, ProgressLogging
 
 3. Download (clone) the BlueEarth_cst ``git`` repo from `github <https://github.com/Deltares/blueearth_cst>`_, then navigate into the 
 the code folder (where the environment.yml file is located):

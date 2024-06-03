@@ -86,7 +86,7 @@ if __name__ == "__main__":
         climate_source = sm.params.climate_source
 
         Folder_plots = f"{project_dir}/plots/wflow_model_performance/{climate_source}"
-        root = f"{project_dir}/hydrology_model"
+        root = f"{project_dir}/hydrology_model/run_default"
 
         plot_forcing(
             wflow_root=root,

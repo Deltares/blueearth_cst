@@ -28,6 +28,10 @@ _snakefiles = {
         "file": "Snakefile_climate_historical.smk",
         "config": fao_config_fn,
     },
+    "future_hydrology_delta": {
+        "file": "Snakefile_future_hydrology_delta_change.smk",
+        "config": fao_config_fn,
+    },
 }
 
 
