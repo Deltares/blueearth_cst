@@ -6,10 +6,11 @@ Plot wflow results of delta change runs.
 import xarray as xr
 import numpy as np
 import os
-from os.path import join
+from os.path import join, dirname
 from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
+import geopandas as gpd
 import hydromt
 from hydromt_wflow import WflowModel
 import seaborn as sns
@@ -119,7 +120,20 @@ def get_wflow_results(
         gauges_output_name = os.path.basename(gauges_locs).split(".")[0]
         if f"Q_gauges_{gauges_output_name}" in mod.results:
             qsim_gauges = mod.results[f"Q_gauges_{gauges_output_name}"].rename("Q")
-            # Add station_name
+            # Add station_name > bug for reading geoms if dir_input in toml is not None
+            if f"gauges_{gauges_output_name}" not in mod.geoms:
+                dir_geoms = dirname(
+                    join(
+                        mod.root,
+                        mod.get_config("dir_input", abs_path=False),
+                        mod.get_config("input.path_static", abs_path=False),
+                    )
+                )
+                dir_geoms = join(dir_geoms, "staticgeoms")
+                name = f"gauges_{gauges_output_name}"
+                mod.set_geoms(
+                    gpd.read_file(join(dir_geoms, f"{name}.geojson")), name=name
+                )
             gdf_gauges = (
                 mod.geoms[f"gauges_{gauges_output_name}"]
                 .rename(columns={"wflow_id": "index"})
