@@ -1,16 +1,11 @@
-# -*- coding: utf-8 -*-
-"""
-Plot wflow results of delta change runs. 
-"""
+"""Plot wflow results of delta change runs."""
 
 import xarray as xr
-import numpy as np
 import os
 from os.path import join, dirname, basename
 from pathlib import Path
 import pandas as pd
 from hydromt_wflow import WflowModel
-import seaborn as sns
 
 from typing import Union, List
 
@@ -67,6 +62,7 @@ def get_wflow_results(
     wflow_root: Union[str, Path],
     config_fn: str = "wflow_sbm.toml",
     gauges_locs: Union[Path, str] = None,
+    remove_warmup: bool = True,
 ):
     """
     Get wflow results as xarray.Dataset for simulated discharges, simulated flux/states as basin averages.
@@ -83,6 +79,8 @@ def get_wflow_results(
         Required columns: wflow_id, station_name, x, y.
         Values in wflow_id column should match column names in ``observations_fn``.
         Separator is , and decimal is .
+    remove_warmup : bool, optional
+        Remove the first year of the simulation (warm-up), by default True
 
     Returns
     ----------
@@ -150,6 +148,21 @@ def get_wflow_results(
     if "precipitation_basavg" in ds_basin:
         ds_basin = ds_basin.drop_vars("precipitation_basavg")
 
+    # Remove the first year (model warm-up for historical)
+    if remove_warmup:
+        qsim = qsim.sel(
+            time=slice(
+                f"{qsim['time.year'][0].values+1}-{qsim['time.month'][0].values}-{qsim['time.day'][0].values}",
+                None,
+            )
+        )
+        ds_basin = ds_basin.sel(
+            time=slice(
+                f"{ds_basin['time.year'][0].values+1}-{ds_basin['time.month'][0].values}-{ds_basin['time.day'][0].values}",
+                None,
+            )
+        )
+
     return qsim, ds_basin
 
 
@@ -159,12 +172,16 @@ def analyse_wflow_delta(
     gauges_locs: Union[Path, str] = None,
     plot_dir: Union[str, Path] = None,
     start_month_hyd_year: str = "JAN",
+    near_legend: str = "near future",
+    far_legend: str = "far future",
 ):
     """
     Evaluate impact of climate change for delta change runs compared to historical.
 
     Model results should include the following keys: Q_gauges,
     Q_gauges_{basename(gauges_locs)}, snow_basavg.
+
+    Future time horizons should be called near and far. The legends can be updated.
 
     For each streamflow station, the following plots are made:
 
@@ -205,7 +222,10 @@ def analyse_wflow_delta(
         in the wflow_hist_run_config folder.
     start_month_hyd_year: str, optional
         start month for hydrological year. default is "JAN"
-
+    near_legend: str, optional
+        legend for near future, default is "near future"
+    far_legend: str, optional
+        legend for far future, default is "far future"
     """
     ### 1. Prepare output and plotting options ###
 
@@ -260,6 +280,8 @@ def analyse_wflow_delta(
             figname_prefix=f"cumsum_{index}",
             fs=fs,
             lw=lw,
+            near_legend=near_legend,
+            far_legend=far_legend,
         )
 
         # plot mean monthly flow
@@ -271,6 +293,8 @@ def analyse_wflow_delta(
             figname_prefix=f"mean_monthly_Q_{index}",
             fs=fs,
             lw=lw,
+            near_legend=near_legend,
+            far_legend=far_legend,
         )
 
         # plot nm7q timeseries
@@ -298,6 +322,8 @@ def analyse_wflow_delta(
             figname_prefix=f"nm7q_{index}",
             fs=fs,
             lw=lw,
+            near_legend=near_legend,
+            far_legend=far_legend,
         )
 
         # plot maxq timeseries
@@ -321,6 +347,8 @@ def analyse_wflow_delta(
             figname_prefix=f"max_annual_q_{index}",
             fs=fs,
             lw=lw,
+            near_legend=near_legend,
+            far_legend=far_legend,
         )
 
         # plot mean annual flow
@@ -346,6 +374,8 @@ def analyse_wflow_delta(
             figname_prefix=f"mean_annual_q_{index}",
             fs=fs,
             lw=lw,
+            near_legend=near_legend,
+            far_legend=far_legend,
         )
 
         # plot timeseries daily q
@@ -359,6 +389,8 @@ def analyse_wflow_delta(
             figname_prefix=f"qhydro_{index}",
             fs=fs,
             lw=lw,
+            near_legend=near_legend,
+            far_legend=far_legend,
         )
 
         # plot relative change mean, max, min q
@@ -373,6 +405,8 @@ def analyse_wflow_delta(
                 figname_prefix=f"{prefix}_annual_q_{index}",
                 fs=fs,
                 lw=lw,
+                near_legend=near_legend,
+                far_legend=far_legend,
             )
 
         # plotting position maxq
@@ -383,6 +417,8 @@ def analyse_wflow_delta(
             f"maxq_{index}",
             "Annual maximum discharge (m$^3$s$^{-1}$)",
             ascending=True,
+            near_legend=near_legend,
+            far_legend=far_legend,
         )
 
         # plotting position nm7q
@@ -393,6 +429,8 @@ def analyse_wflow_delta(
             f"nm7q_{index}",
             "Annual min 7 days discharge (m$^3$s$^{-1}$)",
             ascending=False,
+            near_legend=near_legend,
+            far_legend=far_legend,
         )
 
         # plot boxplot monthly - abs
@@ -402,7 +440,7 @@ def analyse_wflow_delta(
 
         df_hist = pd.DataFrame(qsim_hist_m.to_dataframe().unstack()["Q"].rename("Q"))
         df_hist["month"] = df_hist.index.month
-        df_hist["scenario"] = "hist"
+        df_hist["scenario"] = "historical"
 
         # absolute monthly q
         df_delta_near, df_delta_far = get_df_seaborn(qsim_delta_m.dropna("time"), "Q")
@@ -417,6 +455,8 @@ def analyse_wflow_delta(
             plot_dir,
             f"q_abs_{index}",
             "Q (m$^3$s$^{-1}$)",
+            near_legend=near_legend,
+            far_legend=far_legend,
         )
 
         # boxplot relative monthly q
@@ -431,6 +471,8 @@ def analyse_wflow_delta(
             f"q_rel_{index}",
             "change monthly Q (%)",
             relative=True,
+            near_legend=near_legend,
+            far_legend=far_legend,
         )
 
     # boxplot relative monthly snow
@@ -453,6 +495,8 @@ def analyse_wflow_delta(
             "change monthly snow (%)",
             var_y="snow_basavg",
             relative=True,
+            near_legend=near_legend,
+            far_legend=far_legend,
         )
 
     # plot basinavg monthly and annual
@@ -482,6 +526,8 @@ def analyse_wflow_delta(
             figname_prefix=f"mean_monthly_{dvar}",
             fs=fs,
             lw=lw,
+            near_legend=near_legend,
+            far_legend=far_legend,
         )
 
         # mean annual sum or mean
@@ -493,6 +539,8 @@ def analyse_wflow_delta(
             figname_prefix=f"sum_annual_{dvar}",
             fs=fs,
             lw=lw,
+            near_legend=near_legend,
+            far_legend=far_legend,
         )
 
         # relative mean monthly sum or mean
@@ -503,6 +551,8 @@ def analyse_wflow_delta(
             figname_prefix=f"mean_monthly_{dvar}",
             fs=fs,
             lw=lw,
+            near_legend=near_legend,
+            far_legend=far_legend,
         )
 
         # relative mean annual sum or mean
@@ -513,6 +563,8 @@ def analyse_wflow_delta(
             figname_prefix=f"sum_annual_{dvar}",
             fs=fs,
             lw=lw,
+            near_legend=near_legend,
+            far_legend=far_legend,
         )
 
     ### End of the function ###
@@ -521,9 +573,14 @@ def analyse_wflow_delta(
 if __name__ == "__main__":
     if "snakemake" in globals():
         sm = globals()["snakemake"]
+        # output folder
         project_dir = sm.params.project_dir
         Folder_plots = f"{project_dir}/plots/model_delta_runs"
         root = f"{project_dir}/hydrology_model"
+        # time horizons legend
+        future_horizons = sm.params.future_horizons
+        near_horizon = future_horizons["near"].replace(", ", "-")
+        far_horizon = future_horizons["far"].replace(", ", "-")
 
         analyse_wflow_delta(
             wflow_hist_run_config=sm.params.wflow_hist_run_config,
@@ -531,6 +588,8 @@ if __name__ == "__main__":
             gauges_locs=sm.params.gauges_locs,
             plot_dir=Folder_plots,
             start_month_hyd_year=sm.params.start_month_hyd_year,
+            near_legend=f"Horizon {near_horizon}",
+            far_legend=f"Horizon {far_horizon}",
         )
     else:
         print("run with snakemake please")

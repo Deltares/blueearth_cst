@@ -121,6 +121,7 @@ change_drymonth_maxchange: 50
 
 config_model_historical: "wflow_sbm_era5.toml"
 gcm_selected: ['NOAA-GFDL_GFDL-ESM4', 'INM_INM-CM5-0']
+#gcm_legend: [wet, dry]
 scenarios_selected: [ssp245, ssp585]
 members: [r1i1p1f1]
 #assume period is near and far (fixed!!)

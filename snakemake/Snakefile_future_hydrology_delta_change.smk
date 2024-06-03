@@ -141,4 +141,5 @@ rule plot_results:
         gauges_locs = output_locations,
         start_month_hyd_year = "JAN",
         project_dir = f"{project_dir}",
+        future_horizons = get_config(config, "future_horizons", optional=False),
    script: "../src/plot_results_delta.py"

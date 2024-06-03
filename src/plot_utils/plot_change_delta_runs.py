@@ -27,6 +27,8 @@ COLORS = {
     "ssp585": "#980002",
 }
 
+MONTHS_LABELS = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
+
 
 def plot_near_far_abs(
     qsim_delta_metric: xr.DataArray,
@@ -36,6 +38,8 @@ def plot_near_far_abs(
     figname_prefix: str,
     fs: int = 8,
     lw: int = 0.6,
+    near_legend: str = "near future",
+    far_legend: str = "far future",
 ):
     """
     subplots of variable for near and far future showing scenarios and historical output.
@@ -58,6 +62,10 @@ def plot_near_far_abs(
         fontsize
     lw: int = 0.6,
         linewidth
+    near_legend: str = "near future",
+        legend for near future
+    far_legend: str = "far future",
+        legend for far future
     """
 
     if "qhydro" in figname_prefix:
@@ -85,16 +93,16 @@ def plot_near_far_abs(
             hue="model", ax=ax2, color=COLORS[scenario], add_legend=False, linewidth=lw
         )
     for ax in [ax1, ax2]:
-        q_hist_metric.plot(label="hist", color="k", ax=ax, linewidth=lw)
+        q_hist_metric.plot(label="historical", color="k", ax=ax, linewidth=lw)
         ax.tick_params(axis="both", labelsize=fs)
         ax.set_xlabel("")
     ax1.set_ylabel(f"{ylabel}", fontsize=fs)
     ax2.set_ylabel("")
-    ax1.set_title("near future", fontsize=fs)
-    ax2.set_title("far future", fontsize=fs)
+    ax1.set_title(near_legend, fontsize=fs)
+    ax2.set_title(far_legend, fontsize=fs)
     if "mean_monthly" in figname_prefix:
-        ax1.set_xticks(np.arange(1, 13))
-        ax2.set_xticks(np.arange(1, 13))
+        ax1.set_xticks(ticks=np.arange(1, 13), labels=MONTHS_LABELS)
+        ax2.set_xticks(ticks=np.arange(1, 13), labels=MONTHS_LABELS)
     ax1.legend(fontsize=fs)
     ax2.legend(fontsize=fs)
     plt.tight_layout()
@@ -108,6 +116,8 @@ def plot_near_far_rel(
     figname_prefix: str,
     fs: int = 8,
     lw: int = 0.6,
+    near_legend: str = "near future",
+    far_legend: str = "far future",
 ):
     """
     subplots of variable for near and far future showing relative change in scenarios compared to historical output
@@ -127,6 +137,10 @@ def plot_near_far_rel(
         fontsize
     lw: int = 0.6,
         linewidth
+    near_legend: str = "near future",
+        legend for near future
+    far_legend: str = "far future",
+        legend for far future
     """
     if figname_prefix == "qhydro":
         fig, (ax1, ax2) = plt.subplots(
@@ -158,11 +172,11 @@ def plot_near_far_rel(
         ax.axhline(0, linestyle="--", color="lightgrey")
     ax1.set_ylabel(f"{ylabel}", fontsize=fs)
     ax2.set_ylabel("")
-    ax1.set_title("near future", fontsize=fs)
-    ax2.set_title("far future", fontsize=fs)
+    ax1.set_title(near_legend, fontsize=fs)
+    ax2.set_title(far_legend, fontsize=fs)
     if "mean_monthly" in figname_prefix:
-        ax1.set_xticks(np.arange(1, 13))
-        ax2.set_xticks(np.arange(1, 13))
+        ax1.set_xticks(ticks=np.arange(1, 13), labels=MONTHS_LABELS)
+        ax2.set_xticks(ticks=np.arange(1, 13), labels=MONTHS_LABELS)
     ax1.legend(fontsize=fs)
     ax2.legend(fontsize=fs)
     plt.tight_layout()
@@ -194,10 +208,10 @@ def get_sum_annual_and_monthly(ds: xr.Dataset, dvar: str, resample: str = "mean"
     """
     if resample == "sum":
         sum_monthly = ds[dvar].resample(time="ME").sum("time")
-        sum_annual = ds[dvar].resample(time="YE").sum("time")
+        sum_annual = ds[dvar].resample(time="YS").sum("time")
     else:  # assume mean
         sum_monthly = ds[dvar].resample(time="ME").mean("time")
-        sum_annual = ds[dvar].resample(time="YE").mean("time")
+        sum_annual = ds[dvar].resample(time="YS").mean("time")
 
     sum_monthly_mean = sum_monthly.groupby("time.month").mean("time")
 
@@ -290,6 +304,8 @@ def make_boxplot_monthly(
     var_hue: str = "scenario",
     relative: str = False,
     fs: int = 8,
+    near_legend: str = "near future",
+    far_legend: str = "far future",
 ):
     """
     make monthly subplots for near and far future. The width of the boxplot represents the number of years for each month
@@ -320,12 +336,15 @@ def make_boxplot_monthly(
         if df_delta_near contains relative values of change, a dashed line at y=0 is shown in the plot. default is False.
     fs:int=8,
         fontsize. default is 8
-
+    near_legend: str = "near future",
+        legend for near future
+    far_legend: str = "far future",
+        legend for far future
     """
     # Define palette and hue_order
     hue_order = np.unique(df_delta_near["scenario"].values).tolist()
-    palette = [COLORS[scenario] for scenario in hue_order if scenario != "hist"]
-    if "hist" in hue_order:
+    palette = [COLORS[scenario] for scenario in hue_order if scenario != "historical"]
+    if "historical" in hue_order:
         palette = ["grey"] + palette
 
     fig, axes = plt.subplots(
@@ -362,14 +381,12 @@ def make_boxplot_monthly(
         ax.tick_params(axis="both", labelsize=fs)
         if relative == True:
             ax.axhline(0, linestyle="--", color="lightgrey")
-    axes[0].set_title(f"near future", fontsize=fs)
-    axes[1].set_title(f"far future", fontsize=fs)
+    axes[0].set_title(near_legend, fontsize=fs)
+    axes[1].set_title(far_legend, fontsize=fs)
     axes[0].legend(
         bbox_to_anchor=(1.05, 1), loc="upper left", borderaxespad=0.0, fontsize=fs
     )
-    axes[1].set_xticklabels(
-        ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"], fontsize=fs
-    )
+    axes[1].set_xticklabels(MONTHS_LABELS, fontsize=fs)
     plt.tight_layout()
     plt.savefig(os.path.join(plot_dir, f"boxplot_{figname_suffix}.png"), dpi=300)
 
@@ -383,6 +400,8 @@ def plot_plotting_position(
     ascending: bool = True,
     ts: List[int] = [2.0, 5.0, 10.0, 30.0],
     fs: int = 8,
+    near_legend: str = "near future",
+    far_legend: str = "far future",
 ):
     """
     Returns a plot of plotting position as a funciton of max (or min) of a specific variable
@@ -405,7 +424,10 @@ def plot_plotting_position(
         list of return period values to show on the xaxis
     fs: int = 8,
         fontsize
-
+    near_legend: str = "near future",
+        legend for near future
+    far_legend: str = "far future",
+        legend for far future
     """
     fig, (ax1, ax2) = plt.subplots(
         1, 2, figsize=(16 / 2.54, 10 / 2.54), sharex=True, sharey=True
@@ -468,6 +490,8 @@ def plot_plotting_position(
     )
 
     ax1.set_ylabel(f"{ylabel}", fontsize=fs)
+    ax1.set_title(near_legend, fontsize=fs)
+    ax2.set_title(far_legend, fontsize=fs)
     for ax in [ax1, ax2]:
         ax.set_xlabel("Return period (1/year)", fontsize=fs)
         ax.xaxis.set_ticks([-np.log(-np.log(1 - 1.0 / t)) for t in ts])

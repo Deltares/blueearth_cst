@@ -151,11 +151,17 @@ def test_plot_results_delta(tmpdir, config_fao):
     gauges_locs = get_config(config_fao, "output_locations")
     gauges_locs = join(MAINDIR, gauges_locs)
 
+    future_horizons = get_config(config_fao, "future_horizons")
+    near_horizon = future_horizons["near"].replace(", ", "-")
+    far_horizon = future_horizons["far"].replace(", ", "-")
+
     plot_results_delta.analyse_wflow_delta(
         wflow_hist_run_config=wflow_historical_config,
         wflow_delta_runs_config=wflow_delta_runs_config,
         gauges_locs=gauges_locs,
         plot_dir=join(plot_dir, "model_delta_runs"),
+        near_legend=f"Horizon {near_horizon}",
+        far_legend=f"Horizon {far_horizon}",
     )
 
     # Check if plots exist
