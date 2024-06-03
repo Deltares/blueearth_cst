@@ -4,11 +4,12 @@ starttime = "2000-01-01T00:00:00"
 endtime = "2010-12-31T00:00:00"
 time_units = "days since 1900-01-01 00:00:00"
 timestepsecs = 86400
-dir_output = "run_delta_NOAA-GFDL_GFDL-ESM4_ssp245_far"
+dir_output = ""
+dir_input = ".."
 
 [state]
-path_input = "run_delta_NOAA-GFDL_GFDL-ESM4_ssp245_near\\outstate\\outstates.nc"
-path_output = "outstate/outstates.nc"
+path_input = "run_delta_change\\outstate\\outstates_NOAA-GFDL_GFDL-ESM4_ssp245_near.nc"
+path_output = "outstate/outstates_NOAA-GFDL_GFDL-ESM4_ssp245_far.nc"
 
 [input]
 path_forcing = "../climate_historical/wflow_data/inmaps_historical_era5.nc"
@@ -20,7 +21,7 @@ subcatchment = "wflow_subcatch"
 forcing = [ "vertical.precipitation", "vertical.temperature", "vertical.potential_evaporation",]
 cyclic = [ "vertical.leaf_area_index",]
 gauges_discharge-locations-grdc = "wflow_gauges_discharge-locations-grdc"
-path_forcing_scale = "tests/test_project/climate_projections/cmip6/monthly_change_grid/NOAA-GFDL_GFDL-ESM4_ssp245_far_downscaled.nc"
+path_forcing_scale = "..\\climate_projections\\cmip6\\monthly_change_grid\\NOAA-GFDL_GFDL-ESM4_ssp245_far_downscaled.nc"
 
 [model]
 type = "sbm"
@@ -115,7 +116,7 @@ f = "f"
 infiltcappath = "InfiltCapPath"
 infiltcapsoil = "InfiltCapSoil"
 kext = "Kext"
-"kv₀" = "KsatVer"
+kv_0 = "KsatVer"
 leaf_area_index = "LAI"
 m = "M_"
 maxleakage = "MaxLeakage"
@@ -134,8 +135,8 @@ tti = "TTI"
 ttm = "TTM"
 water_holding_capacity = "WHC"
 waterfrac = "WaterFrac"
-"θᵣ" = "thetaR"
-"θₛ" = "thetaS"
+theta_r = "thetaR"
+theta_s = "thetaS"
 glacierstore = "wflow_glacierstore"
 glacierfrac = "wflow_glacierfrac"
 g_cfmax = "G_Cfmax"

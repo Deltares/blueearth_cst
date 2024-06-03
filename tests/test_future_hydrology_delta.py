@@ -1,7 +1,8 @@
 import os
-from os.path import join, dirname, basename
+from os.path import join, dirname
 import numpy as np
-import yaml
+from tomli import load as load_toml
+import subprocess
 import glob
 
 from .conftest import MAINDIR, SAMPLE_PROJECTDIR, config_fao_fn
@@ -88,19 +89,42 @@ def test_setup_toml_delta_change_hydrology(tmpdir, config_fao):
         model="NOAA-GFDL_GFDL-ESM4",
         scenario="ssp245",
         horizon="near",
-        config_root=None,  # join(tmpdir, "hydrology_model"),
+        config_root=join(tmpdir, "hydrology_model"),
     )
 
-    # # Check the output file
-    # fn_yml = (
-    #     os.path.basename(wflow_config_template).split(".")[0]
-    #     + "_delta_NOAA-GFDL_GFDL-ESM4_ssp245_near.toml"
-    # )
-    # fn_yml = join(tmpdir, "hydrology_model", fn_yml)
-    # assert os.path.exists(fn_yml)
-    # # Check the content of the output file
-    # with open(fn_yml, "rb") as f:
-    #     content = yaml.safe_load(f)
+    # Check the output file
+    fn_yml = (
+        os.path.basename(wflow_config_template).split(".")[0]
+        + "_delta_NOAA-GFDL_GFDL-ESM4_ssp245_near.toml"
+    )
+    fn_yml = join(tmpdir, "hydrology_model", fn_yml)
+    assert os.path.exists(fn_yml)
+    # Check the content of the output file
+    with open(fn_yml, "rb") as f:
+        content = load_toml(f)
+
+    assert content["model"]["reinit"] == False
+    assert content["csv"]["path"] == "output_delta_NOAA-GFDL_GFDL-ESM4_ssp245_near.csv"
+    assert (
+        content["state"]["path_output"]
+        == "outstate/outstates_NOAA-GFDL_GFDL-ESM4_ssp245_near.nc"
+    )
+    assert "path_forcing_scale" in content["input"]
+
+    # Run wflow with this config file
+    wflow_julia_src = join(MAINDIR, "src", "wflow", "run_wflow_change_factors.jl")
+    cmd = f""" julia "{wflow_julia_src}" "{fn_yml}" """
+    result = subprocess.run(cmd, shell=True, capture_output=True)
+    # Check the output of the subprocess command
+    assert result.returncode == 0
+    # Check if the output files are created
+    assert os.path.exists(
+        join(
+            tmpdir,
+            "hydrology_model",
+            "output_delta_NOAA-GFDL_GFDL-ESM4_ssp245_near.csv",
+        )
+    )
 
 
 def test_plot_results_delta(tmpdir, config_fao):
@@ -111,6 +135,7 @@ def test_plot_results_delta(tmpdir, config_fao):
         join(
             SAMPLE_PROJECTDIR,
             "hydrology_model",
+            "run_delta_change",
             "wflow_sbm_*_delta_*.toml",
         )
     )

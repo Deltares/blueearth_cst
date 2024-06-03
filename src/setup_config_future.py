@@ -57,7 +57,10 @@ def update_config_run_future(
         config_root = wflow_root
     else:
         # Update the dir_input folder in case config_root is different than wflow root
-        dir_input = relpath(wflow_root_input, config_root)
+        try:
+            dir_input = relpath(wflow_root_input, config_root)
+        except ValueError:
+            dir_input = wflow_root_input
         mod.set_config("dir_input", dir_input)
 
     # update dir_output, state,
@@ -68,7 +71,10 @@ def update_config_run_future(
     else:
         outstates_path_hist_run = join(wflow_root, mod.config["state"]["path_output"])
     # get the relative path
-    outstates_path_hist_run = relpath(outstates_path_hist_run, wflow_root_input)
+    try:
+        outstates_path_hist_run = relpath(outstates_path_hist_run, wflow_root_input)
+    except ValueError:
+        pass
 
     mod.set_config("state.path_input", outstates_path_hist_run)
     mod.set_config("dir_output", "")
@@ -79,7 +85,10 @@ def update_config_run_future(
     )
 
     # Add the (relative) path to the downscaled delta change grids
-    delta_change_fn = relpath(delta_change_fn, wflow_root_input)
+    try:
+        delta_change_fn = relpath(delta_change_fn, wflow_root_input)
+    except ValueError:
+        pass
     mod.set_config("input.path_forcing_scale", delta_change_fn)
 
     if ("near" in config_model_historical_fn) and (horizon == "far"):
@@ -92,6 +101,9 @@ def update_config_run_future(
             + f"_delta_{model}_{scenario}_{horizon}.toml"
         )
 
+    # Create output dir if needed
+    if not os.path.exists(config_root):
+        os.makedirs(config_root)
     mod.write_config(config_name=config_delta_change_fn, config_root=config_root)
 
 

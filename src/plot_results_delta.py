@@ -130,10 +130,7 @@ def get_wflow_results(
                     )
                 )
                 dir_geoms = join(dir_geoms, "staticgeoms")
-                name = f"gauges_{gauges_output_name}"
-                mod.set_geoms(
-                    gpd.read_file(join(dir_geoms, f"{name}.geojson")), name=name
-                )
+                mod.read_geoms(dir_geoms)
             gdf_gauges = (
                 mod.geoms[f"gauges_{gauges_output_name}"]
                 .rename(columns={"wflow_id": "index"})
