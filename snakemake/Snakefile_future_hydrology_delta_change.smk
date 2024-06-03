@@ -23,7 +23,6 @@ config_basename = os.path.basename(config_model_historical).split(".")[0]
 clim_project = get_config(config, 'clim_project', optional=False)
 gcms_selected = get_config(config, 'gcm_selected', optional=False)
 scenarios_selected = get_config(config, 'scenarios_selected', optional=False)
-members = get_config(config, 'members', optional=False)
 
 clim_project_dir = f"{project_dir}/climate_projections/{clim_project}"
 

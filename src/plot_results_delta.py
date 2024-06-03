@@ -269,7 +269,7 @@ def analyse_wflow_delta(
     ds_basin_delta = xr.merge(ds_basin_delta)
 
     # make plots per station
-    for index in qsim_delta.index.values:
+    for index in qsim_delta["index"].values:
 
         # plot cumsum
         plot_near_far_abs(

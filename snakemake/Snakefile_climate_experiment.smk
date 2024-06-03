@@ -137,7 +137,6 @@ rule climate_data_catalog:
 rule downscale_climate_realization:
     input:
         nc = f"{exp_dir}/realization_"+"{rlz_num}"+"/rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".nc",
-        data_sources = [f"{exp_dir}/data_catalog_climate_experiment.yml", DATA_SOURCES]
     output:
         nc = temp(f"{exp_dir}/realization_"+"{rlz_num}"+"/inmaps_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".nc"),
         toml = f"{basin_dir}/run_climate_{experiment}/wflow_sbm_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".toml"
@@ -146,6 +145,7 @@ rule downscale_climate_realization:
         clim_source = clim_source,
         horizontime_climate = horizontime_climate,
         run_length = wflow_run_length,
+        data_sources = [f"{exp_dir}/data_catalog_climate_experiment.yml", DATA_SOURCES],
     script:
         "../src/downscale_climate_forcing.py"
 

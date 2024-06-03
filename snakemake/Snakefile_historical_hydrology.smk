@@ -115,16 +115,16 @@ rule run_wflow:
     input:
         forcing_fid = (project_dir + "/climate_historical/wflow_data/inmaps_historical_{climate_source}.nc")
     output:
-        csv_file = (basin_dir + "/run_default_{climate_source}/output.csv")
+        csv_file = (basin_dir + "/run_default/output_{climate_source}.csv")
     params:
-        toml_fid = (basin_dir + "/wflow_sbm_{climate_source}.toml"),
+        toml_fid = (basin_dir + "/run_default/wflow_sbm_{climate_source}.toml"),
     shell:
         """ julia --threads 4 -e "using Wflow; Wflow.run()" "{params.toml_fid}" """
 
 # Rule to analyse and plot wflow model run results --> final output
 rule plot_results:
    input:
-       csv_file = expand((basin_dir + "/run_default_{climate_source}/output.csv"), climate_source = climate_sources),
+       csv_file = expand((basin_dir + "/run_default/output_{climate_source}.csv"), climate_source = climate_sources),
        script = "src/plot_results.py"
    output: 
        output_png = f"{project_dir}/plots/wflow_model_performance/hydro_wflow_1.png",

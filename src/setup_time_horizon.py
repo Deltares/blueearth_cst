@@ -16,6 +16,8 @@ def prep_hydromt_update_forcing_config(
 ):
     """Prepare a hydromt config file to be able to add forcing to a wflow model
 
+    Output config will be saved in wflow_root/run_default/wflow_sbm_{precip_source}.toml
+
     Parameters
     ----------
     starttime : str
@@ -45,7 +47,6 @@ def prep_hydromt_update_forcing_config(
         f"../climate_historical/wflow_data/inmaps_historical_{precip_source}.nc"
     )
     config_name = f"wflow_sbm_{precip_source}.toml"
-    dir_output = f"run_default_{precip_source}"
 
     # Check if wflow_root is provided and adjust the forcing computation chunksizes
     if wflow_root is not None:
@@ -67,10 +68,10 @@ def prep_hydromt_update_forcing_config(
             "starttime": starttime,
             "endtime": endtime,
             "timestepsecs": 86400,
-            "dir_output": dir_output,
+            "dir_input": "..",
             "input.path_forcing": path_forcing,
-            "csv.path": "output.csv",
-            "state.path_output": "outstate/outstates.nc",
+            "csv.path": f"output_{precip_source}.csv",
+            "state.path_output": f"outstate/outstates_{precip_source}.nc",
         },
         "setup_precip_forcing": {
             "precip_fn": precip_source,
@@ -85,7 +86,10 @@ def prep_hydromt_update_forcing_config(
             "skip_pet": False,
             "chunksize": chunksize,
         },
-        "write_config": {"config_name": config_name},
+        "write_config": {
+            "config_name": config_name,
+            "config_root": os.path.join(wflow_root, "run_default"),
+        },
         "write_forcing": {},
     }
 
