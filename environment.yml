@@ -54,4 +54,5 @@ dependencies:
   - zarr
   - pip:
     - hydroengine
+    - gwwapi
     - snakemake
