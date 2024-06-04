@@ -97,12 +97,14 @@ def test_create_model_full(
     gauges_fn = get_config(config, "output_locations", None)
     gauges_fn = join(MAINDIR, gauges_fn)
     outputs = get_config(config, "wflow_outvars")
+    outputs_gridded = ["snow"]
 
     setup_gauges_and_outputs.update_wflow_gauges_outputs(
         wflow_root=basin_dir,
         data_catalog=data_sources,
         gauges_fn=gauges_fn,
         outputs=outputs,
+        outputs_gridded=outputs_gridded,
     )
 
     # Check the output files
@@ -117,6 +119,9 @@ def test_create_model_full(
     vars = [v["header"] for v in wflow.config["csv"]["column"]]
     for output in outputs:
         assert f"{output}_basavg" in vars
+
+    # Same for the gridded outputs
+    assert "snow" in wflow.config["output"]["vertical"]
 
 
 def test_setup_runtime(tmpdir, config_fao):
@@ -152,6 +157,7 @@ def test_setup_runtime(tmpdir, config_fao):
         assert (
             content["write_config"]["config_name"] == f"wflow_sbm_{precip_source}.toml"
         )
+        assert content["setup_config"]["output.path"] == f"output_{precip_source}.nc"
 
         assert "setup_precip_forcing" in content
         assert "setup_temp_pet_forcing" in content

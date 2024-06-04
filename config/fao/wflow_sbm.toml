@@ -32,6 +32,9 @@ kw_river_tstep = 900
 kw_land_tstep = 3600
 thicknesslayers = [ 100, 300, 800,]
 
+[output]
+path = "run_default/output.nc"
+compressionlevel = 1
 
 [csv]
 path = "run_default/output.csv"

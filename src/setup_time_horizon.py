@@ -60,8 +60,10 @@ def prep_hydromt_update_forcing_config(
             chunksize = 100
         else:
             chunksize = 365
+        config_root = os.path.join(wflow_root, "run_default")
     else:
         chunksize = 30
+        config_root = "run_default"
 
     forcing_options = {
         "setup_config": {
@@ -70,6 +72,8 @@ def prep_hydromt_update_forcing_config(
             "timestepsecs": 86400,
             "dir_input": "..",
             "input.path_forcing": path_forcing,
+            "output.path": f"output_{precip_source}.nc",
+            "output.compressionlevel": 1,
             "csv.path": f"output_{precip_source}.csv",
             "state.path_output": f"outstate/outstates_{precip_source}.nc",
         },
@@ -88,7 +92,7 @@ def prep_hydromt_update_forcing_config(
         },
         "write_config": {
             "config_name": config_name,
-            "config_root": os.path.join(wflow_root, "run_default"),
+            "config_root": config_root,
         },
         "write_forcing": {},
     }
