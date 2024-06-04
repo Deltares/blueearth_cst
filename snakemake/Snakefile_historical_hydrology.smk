@@ -82,7 +82,8 @@ rule add_gauges_and_outputs:
     params:
         output_locs = output_locations,
         outputs = wflow_outvars,
-        data_catalog = DATA_SOURCES
+        outputs_gridded = get_config(config, "wflow_outvars_gridded", None),
+        data_catalog = DATA_SOURCES,
     script:
         "../src/setup_gauges_and_outputs.py"
 

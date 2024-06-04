@@ -83,6 +83,7 @@ def update_config_run_future(
     mod.set_config(
         "state.path_output", f"outstate/outstates_{model}_{scenario}_{horizon}.nc"
     )
+    mod.set_config("output.path", f"output_delta_{model}_{scenario}_{horizon}.nc")
 
     # Add the (relative) path to the downscaled delta change grids
     try:
