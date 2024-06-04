@@ -28,7 +28,7 @@ wflow_outvars: ['river discharge', 'precipitation', 'overland flow', 'actual eva
 #################################### Model building #######################################
 
 # hydromt "region" for building the model, coordinates are in EPSG 4326
-# for more info on how to fill this, you can see the hydromt documentation: 
+# for more info on how to fill this, see the hydromt documentation: 
 # https://deltares.github.io/hydromt/latest/user_guide/cli.html#region-options
 # For wflow please use either 'basin' or 'subbasin' keywords
 model_region: "{'subbasin': [12.3758, 46.4076], 'uparea': 70}"
@@ -38,8 +38,8 @@ model_resolution: 0.0166666
 model_build_config: "tests/wflow_build_model.yml"
 waterbodies_config: "tests/wflow_update_waterbodies.yml"
 
-# If available, please here put the path to the available observation stations locations files
-# csv file containing three columns: station_ID, x, y
+# If available, please put here the path to the available observation stations locations files
+# csv file containing four columns: station_ID, name, x, y
 output_locations: "tests/data/observations/discharge-locations-grdc.csv" # If set to None, will default to the wflow outlets
 # Path to the file with observed discharge timeseries per station 
 observations_timeseries: "tests/data/observations/observations-discharge-grdc.csv" 
@@ -48,9 +48,9 @@ observations_timeseries: "tests/data/observations/observations-discharge-grdc.cs
 ################################## Climate projections ####################################
 # climate models and scenarios
 clim_project: cmip6
-#models: ['NOAA-GFDL_GFDL-ESM4', 'INM_INM-CM4-8' ,'INM_INM-CM5-0','NIMS-KMA_KACE-1-0-G','NCC_NorESM2-MM','NCC_NorESM2-LM','CMCC_CMCC-CM2-SR5','CMCC_CMCC-ESM2']
+# Available models: ['NOAA-GFDL_GFDL-ESM4', 'INM_INM-CM4-8' ,'INM_INM-CM5-0','NIMS-KMA_KACE-1-0-G','NCC_NorESM2-MM','NCC_NorESM2-LM','CMCC_CMCC-CM2-SR5','CMCC_CMCC-ESM2']
 models: ['NOAA-GFDL_GFDL-ESM4', 'INM_INM-CM5-0', 'CSIRO-ARCCSS_ACCESS-CM2']
-#scenarios: [ssp126, ssp245, ssp370, ssp585]
+# Available scenarios: [ssp126, ssp245, ssp370, ssp585]
 scenarios: [ssp245, ssp585]
 members: [r1i1p1f1]
 
