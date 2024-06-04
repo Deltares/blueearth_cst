@@ -75,7 +75,7 @@ climate_subregions: None
 # If available, please here put the path to the available climate observation stations locations files
 # csv file containing three columns: station_ID, name, x, y
 climate_locations: "tests/data/observations/climate-locations-eca.csv"
-# Path to the file with observed discharge timeseries per station 
+# Path to the file with observed precipitation timeseries per station 
 climate_locations_timeseries: "tests/data/observations/observations-climate-eca.csv" 
 
 # Thresholds for the climate analysis
