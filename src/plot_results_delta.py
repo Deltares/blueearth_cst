@@ -587,9 +587,6 @@ if __name__ == "__main__":
         future_horizons = sm.params.future_horizons
         near_horizon = future_horizons["near"].replace(", ", "-")
         far_horizon = future_horizons["far"].replace(", ", "-")
-        # Reference time (to slice the historical run if needed)
-        reference_time = sm.params.reference_time
-        reference_time = tuple(map(str, reference_time.split(", ")))
 
         analyse_wflow_delta(
             wflow_hist_run_config=sm.params.wflow_hist_run_config,
