@@ -89,6 +89,7 @@ rule setup_toml_near:
         model_name = "{model}",
         scenario_name = "{scenario}",
         horizon = "near",
+        ref_time = get_config(config, "historical", None),
     script: "../src/setup_config_future.py"
 
 
@@ -115,6 +116,7 @@ rule setup_toml_far:
         model_name = "{model}",
         scenario_name = "{scenario}",
         horizon = "far",
+        ref_time = get_config(config, "historical", None),
     script: "../src/setup_config_future.py"
 
 #Rule to run the wflow model for each additional forcing dataset 

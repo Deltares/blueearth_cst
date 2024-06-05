@@ -268,6 +268,12 @@ def analyse_wflow_delta(
     qsim_delta = xr.merge(qsim_delta)
     ds_basin_delta = xr.merge(ds_basin_delta)
 
+    # Slice historical reference run (may be longer than the future one) before plotting
+    qsim_hist = qsim_hist.sel(time=slice(qsim_delta["time"][0], qsim_delta["time"][-1]))
+    ds_basin_hist = ds_basin_hist.sel(
+        time=slice(ds_basin_delta["time"][0], ds_basin_delta["time"][-1])
+    )
+
     # make plots per station
     for index in qsim_delta["index"].values:
 
@@ -581,6 +587,9 @@ if __name__ == "__main__":
         future_horizons = sm.params.future_horizons
         near_horizon = future_horizons["near"].replace(", ", "-")
         far_horizon = future_horizons["far"].replace(", ", "-")
+        # Reference time (to slice the historical run if needed)
+        reference_time = sm.params.reference_time
+        reference_time = tuple(map(str, reference_time.split(", ")))
 
         analyse_wflow_delta(
             wflow_hist_run_config=sm.params.wflow_hist_run_config,
