@@ -4,11 +4,11 @@ starttime = "2000-01-01T00:00:00"
 endtime = "2010-12-31T00:00:00"
 time_units = "days since 1900-01-01 00:00:00"
 timestepsecs = 86400
-dir_output = "run_default_era5"
+dir_input = ".."
 
 [state]
 path_input = "instate/instates.nc"
-path_output = "outstate/outstates.nc"
+path_output = "outstate/outstates_era5.nc"
 
 [input]
 path_forcing = "../climate_historical/wflow_data/inmaps_historical_era5.nc"
@@ -36,7 +36,7 @@ thicknesslayers = [ 100, 300, 800,]
 river_routing = "kinematic-wave"
 
 [csv]
-path = "output.csv"
+path = "output_era5.csv"
 [[csv.column]]
 header = "Q"
 map = "gauges"
@@ -95,6 +95,35 @@ header = "snow_basavg"
 reducer = "mean"
 parameter = "vertical.snowwater"
 
+[[csv.column]]
+header = "precipitation_basavg"
+reducer = "mean"
+parameter = "vertical.precipitation"
+
+[[csv.column]]
+header = "overland flow_basavg"
+reducer = "mean"
+parameter = "lateral.land.q_av"
+
+[[csv.column]]
+header = "actual evapotranspiration_basavg"
+reducer = "mean"
+parameter = "vertical.actevap"
+
+[[csv.column]]
+header = "groundwater recharge_basavg"
+reducer = "mean"
+parameter = "vertical.recharge"
+
+[[csv.column]]
+header = "snow_basavg"
+reducer = "mean"
+parameter = "vertical.snow"
+
+[output]
+path = "output_era5.nc"
+compressionlevel = 1
+
 [state.vertical]
 satwaterdepth = "satwaterdepth"
 snow = "snow"
@@ -114,7 +143,7 @@ f = "f"
 infiltcappath = "InfiltCapPath"
 infiltcapsoil = "InfiltCapSoil"
 kext = "Kext"
-"kv₀" = "KsatVer"
+kv_0 = "KsatVer"
 leaf_area_index = "LAI"
 m = "M_"
 maxleakage = "MaxLeakage"
@@ -133,13 +162,16 @@ tti = "TTI"
 ttm = "TTM"
 water_holding_capacity = "WHC"
 waterfrac = "WaterFrac"
-"θᵣ" = "thetaR"
-"θₛ" = "thetaS"
+theta_r = "thetaR"
+theta_s = "thetaS"
 glacierstore = "wflow_glacierstore"
 glacierfrac = "wflow_glacierfrac"
 g_cfmax = "G_Cfmax"
 g_tt = "G_TT"
 g_sifrac = "G_SIfrac"
+
+[output.vertical]
+snow = "snow"
 
 [state.lateral.river]
 q = "q_river"

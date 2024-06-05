@@ -4,7 +4,7 @@ starttime = "2000-01-01T00:00:00"
 endtime = "2001-12-31T00:00:00"
 time_units = "days since 1900-01-01 00:00:00"
 timestepsecs = 86400
-dir_output = "run_default_era5"
+dir_input = ".."
 
 
 [state]
