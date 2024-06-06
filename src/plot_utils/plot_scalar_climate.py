@@ -315,14 +315,16 @@ def plot_precipitation_per_location(
 
         # 2. Rainfall peaks > 40 mm/day
         peak = prec.where(geoda.sel(source=source) > peak_threshold).dropna(dim="time")
-        peak.plot.line(
-            ax=axes2[1],
-            marker="o",
-            linestyle=":",
-            markersize=fs / 2,
-            color=c,
-            label=f"{source}: {len(peak)} peaks",
-        )
+        # Check if there are peaks
+        if len(peak) > 0:
+            peak.plot.line(
+                ax=axes2[1],
+                marker="o",
+                linestyle=":",
+                markersize=fs / 2,
+                color=c,
+                label=f"{source}: {len(peak)} peaks",
+            )
 
         # 3. Number of dry days (dailyP < 0.2mm) per year
         dry = prec.where(prec < dry_days_threshold).resample(time="YE").count()
