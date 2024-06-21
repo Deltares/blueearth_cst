@@ -66,6 +66,7 @@ def derive_region(
     if isinstance(region, str):
         region = literal_eval(region)
     # Parse region dictionary
+    data_catalog = DataCatalog(data_libs=data_catalog)
     kind, region = parse_region(region, data_catalog=data_catalog)
 
     # Derive region geometry
