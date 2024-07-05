@@ -38,9 +38,9 @@ WFLOW_VARS = {
         "legend_annual": "groundwater recharge (mm year$^{-1}$)",
     },
     "snow": {
-        "resample": "sum",
-        "legend": "Snowpack (mm month$^{-1}$)",
-        "legend_annual": "Snowpack (mm year$^{-1}$)}",
+        "resample": "mean",
+        "legend": "Snowpack (mm)",
+        "legend_annual": "Snowpack (mm)}",
     },
 }
 
