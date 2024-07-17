@@ -219,7 +219,7 @@ def analyse_wflow_historical(
     observations_fn : Union[Path, str], optional
         Path to observations timeseries file, by default None
         Required columns: time, wflow_id IDs of the locations as in ``gauges_locs``.
-        Separator is , and decimal is .
+        Separator is ; and decimal is .
     gauges_locs : Union[Path, str], optional
         Path to gauges/observations locations file, by default None
         Required columns: wflow_id, station_name, x, y.
