@@ -75,6 +75,7 @@ def derive_pet(
 
 def get_stats_clim_projections(
     data,
+    geom,
     clim_source,
     model,
     scenario,
@@ -89,6 +90,8 @@ def get_stats_clim_projections(
     ----------
     data: dataset
         dataset for all available variables after opening data catalog
+    geom : gpd.GeoDataFrame
+        region geometry to extract the data from before averaging over x and y dim.
     clim_source : str
         name of the climate project source (e.g. cmip5, cmip6, isimip3).
         should link to the name in the yml catalog.
@@ -152,8 +155,18 @@ def get_stats_clim_projections(
             # elif "temp" in var: #for temp
             var_m = data[var].resample(time="MS").mean("time")
 
+        # mask region before computing stats
+        var_m_masked = var_m.copy()
+        if var_m_masked.raster.nodata is None:
+            var_m_masked.raster.set_nodata(np.nan)
+        var_m_masked = var_m_masked.assign_coords(
+            mask=var_m_masked.raster.geometry_mask(geom, all_touched=True)
+        )
+        var_m_masked = var_m_masked.raster.mask(var_m_masked.coords["mask"])
         # get scalar average over grid for each month
-        var_m_scalar = var_m.mean([x_dim, y_dim]).round(decimals=2)
+        var_m_scalar = (
+            var_m_masked.raster.mask_nodata().mean([x_dim, y_dim]).round(decimals=2)
+        )
         ds_scalar.append(var_m_scalar.to_dataset())
 
         # get grid average over time for each month
@@ -280,7 +293,7 @@ def extract_climate_projections_statistics(
     """
     # initialize model and region properties
     geom = gpd.read_file(region_fn)
-    bbox = list(geom.geometry.bounds.values[0])
+    bbox = list(geom.total_bounds)
     buffer = 1
 
     # initialize data_catalog from yml file
@@ -363,6 +376,7 @@ def extract_climate_projections_statistics(
             # calculate statistics
             mean_stats, mean_stats_time = get_stats_clim_projections(
                 data,
+                geom,
                 clim_source,
                 model,
                 scenario,
