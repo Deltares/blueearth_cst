@@ -71,7 +71,6 @@ def derive_region(
 
     # Derive region geometry
     if kind in ["basin", "subbasin", "interbasin", "outlet"]:
-        data_catalog = DataCatalog(data_libs=data_catalog)
         # retrieve global hydrography data (lazy!)
         ds_org = data_catalog.get_rasterdataset(hydrography_fn)
         if "bounds" not in region:
