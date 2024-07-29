@@ -90,6 +90,7 @@ def test_setup_toml_delta_change_hydrology(tmpdir, config_fao):
         scenario="ssp245",
         horizon="near",
         config_root=join(tmpdir, "hydrology_model"),
+        ref_time=("2000", "2005"),
     )
 
     # Check the output file
@@ -110,6 +111,7 @@ def test_setup_toml_delta_change_hydrology(tmpdir, config_fao):
         == "outstate/outstates_NOAA-GFDL_GFDL-ESM4_ssp245_near.nc"
     )
     assert "path_forcing_scale" in content["input"]
+    assert content["endtime"] == "2005-12-31T00:00:00"
 
     # Run wflow with this config file
     wflow_julia_src = join(MAINDIR, "src", "wflow", "run_wflow_change_factors.jl")

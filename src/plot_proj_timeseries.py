@@ -549,8 +549,8 @@ def plot_climate_projections(
             ds = xr.open_dataset(fn, lock=False)
             if len(ds) == 0 or ds is None:
                 continue
-            lats = ds.lat.values
-            lons = ds.lon.values
+            lats = ds[ds.raster.y_dim].values
+            lons = ds[ds.raster.x_dim].values
             ymin = min(ymin, np.min(lats)) if ymin is not None else np.min(lats)
             ymax = max(ymax, np.max(lats)) if ymax is not None else np.max(lats)
             xmin = min(xmin, np.min(lons)) if xmin is not None else np.min(lons)

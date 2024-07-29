@@ -51,9 +51,9 @@ WFLOW_VARS = {
         "legend_annual": "groundwater recharge (mm year$^{-1}$)",
     },
     "snow": {
-        "resample": "sum",
-        "legend": "Snowpack (mm month$^{-1}$)",
-        "legend_annual": "Snowpack (mm year$^{-1}$)",
+        "resample": "mean",
+        "legend": "Snowpack (mm)",
+        "legend_annual": "Snowpack (mm)",
     },
 }
 
@@ -267,6 +267,12 @@ def analyse_wflow_delta(
         ds_basin_delta.append(ds_basin_delta_run)
     qsim_delta = xr.merge(qsim_delta)
     ds_basin_delta = xr.merge(ds_basin_delta)
+
+    # Slice historical reference run (may be longer than the future one) before plotting
+    qsim_hist = qsim_hist.sel(time=slice(qsim_delta["time"][0], qsim_delta["time"][-1]))
+    ds_basin_hist = ds_basin_hist.sel(
+        time=slice(ds_basin_delta["time"][0], ds_basin_delta["time"][-1])
+    )
 
     # make plots per station
     for index in qsim_delta["index"].values:

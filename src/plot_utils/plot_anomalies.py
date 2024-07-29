@@ -22,7 +22,9 @@ def linealg(x, a, b):
     return a * x + b
 
 
-def compute_anomalies_year(da: xr.DataArray) -> xr.DataArray:
+def compute_anomalies_year(
+    da: xr.DataArray, no_data_limit: Optional[int] = None
+) -> xr.DataArray:
     """Resample timeseries to year and compute anomalies for a given DataArray.
 
     Supported variables are "precip" and "temp" and "Q".
@@ -31,15 +33,24 @@ def compute_anomalies_year(da: xr.DataArray) -> xr.DataArray:
     ----------
     da : xr.DataArray
         DataArray with the climate and hydrology data.
+    no_data_limit : int, optional
+        Maximum number of nodata values allowed per year. If exceeded, the year is
+        considered as nodata.
 
     Returns
     -------
     da_yr_anom: xr.DataArray
         DataArray with the anomalies.
     """
+    if no_data_limit is not None:
+        # Compute the number of nodata per year
+        da_nodata = da.isnull().resample(time="YS").sum("time")
     if da.name == "precip":
         # Calculate the yearly sum
         da_yr = da.resample(time="YS").sum("time")
+        # Filter out if too many nodata
+        if no_data_limit is not None:
+            da_yr = da_yr.where(da_nodata < no_data_limit, np.nan)
         da_yr["time"] = da_yr.time.dt.year
         # Derive the median
         da_yr_median = da_yr.median("time")
@@ -51,6 +62,9 @@ def compute_anomalies_year(da: xr.DataArray) -> xr.DataArray:
     elif da.name == "temp":
         # Calculate the yearly mean
         da_yr = da.resample(time="YS").mean("time")
+        # Filter out if too many nodata
+        if no_data_limit is not None:
+            da_yr = da_yr.where(da_nodata < no_data_limit, np.nan)
         da_yr["time"] = da_yr.time.dt.year
         # Derive the median
         da_yr_median = da_yr.median("time")
@@ -62,6 +76,9 @@ def compute_anomalies_year(da: xr.DataArray) -> xr.DataArray:
     elif da.name == "Q":
         # Calculate the yearly mean
         da_yr = da.resample(time="YS").mean("time")
+        # Filter out if too many nodata
+        if no_data_limit is not None:
+            da_yr = da_yr.where(da_nodata < no_data_limit, np.nan)
         da_yr["time"] = da_yr.time.dt.year
         # Derive the median
         da_yr_median = da_yr.median("time")
@@ -158,7 +175,7 @@ def plot_timeseries_anomalies(
         # Check if the data is all NaN
         if ds[var].isnull().all():
             continue
-        da_yr_anom = compute_anomalies_year(ds[var])
+        da_yr_anom = compute_anomalies_year(ds[var], no_data_limit=100)
 
         # Start the plot
         plt.style.use("seaborn-v0_8-whitegrid")
@@ -202,6 +219,8 @@ def plot_timeseries_anomalies(
 
         for start, end, color in zip(starts, ends, colors):
             da_yr_trend = da_yr_anom.sel(time=slice(start, end))
+            # Remove NaN values along index dimension
+            da_yr_trend = da_yr_trend.dropna("index", how="any")
             trend = da_yr_trend.curvefit(
                 coords="time",
                 func=linealg,

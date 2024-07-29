@@ -96,7 +96,12 @@ def derive_gridded_trends(
 
         # Try clipping to region
         try:
-            ds_clip = ds_clim.raster.clip_geom(region, mask=True)
+            # Mask afterwards to allow for all touched = True
+            ds_clip = ds_clim.raster.clip_geom(region, buffer=2, mask=False)
+            ds_clip = ds_clip.assign_coords(
+                mask=ds_clip.raster.geometry_mask(region, all_touched=True)
+            )
+            ds_clip = ds_clip.raster.mask(ds_clip.coords["mask"])
             ds_clim = ds_clip
         except ValueError:
             if np.any(np.asarray(ds_clim.raster.shape) == 1):

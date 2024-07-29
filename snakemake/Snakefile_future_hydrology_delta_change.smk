@@ -63,7 +63,7 @@ rule copy_config:
 # Rule to downscale the monthly delta change factor for the near future
 rule downscale_monthly_delta_change_grids_near:
     input:
-        staticmaps_fid = f"{basin_dir}/staticmaps.nc",
+        staticmaps_fid = ancient(f"{basin_dir}/staticmaps.nc"),
         monthly_change_mean_grid = (clim_project_dir + "/monthly_change_grid/{model}_{scenario}_near.nc"),
     output:
         delta_change_downscale_near_nc = (clim_project_dir + "/monthly_change_grid/{model}_{scenario}_near_downscaled.nc"),
@@ -72,7 +72,7 @@ rule downscale_monthly_delta_change_grids_near:
 # Rule to downscale the monthly delta change factor for the far future
 rule downscale_monthly_delta_change_grids_far:
     input:
-        staticmaps_fid = f"{basin_dir}/staticmaps.nc",
+        staticmaps_fid = ancient(f"{basin_dir}/staticmaps.nc"),
         monthly_change_mean_grid = (clim_project_dir + "/monthly_change_grid/{model}_{scenario}_far.nc"),
     output:
         delta_change_downscale_far_nc = (clim_project_dir + "/monthly_change_grid/{model}_{scenario}_far_downscaled.nc"),
@@ -89,6 +89,7 @@ rule setup_toml_near:
         model_name = "{model}",
         scenario_name = "{scenario}",
         horizon = "near",
+        ref_time = get_config(config, "historical", None),
     script: "../src/setup_config_future.py"
 
 
@@ -115,6 +116,7 @@ rule setup_toml_far:
         model_name = "{model}",
         scenario_name = "{scenario}",
         horizon = "far",
+        ref_time = get_config(config, "historical", None),
     script: "../src/setup_config_future.py"
 
 #Rule to run the wflow model for each additional forcing dataset 
@@ -136,7 +138,8 @@ rule plot_results:
        output_png = f"{project_dir}/plots/model_delta_runs/qhydro_1.png",
    params:
         wflow_hist_run_config = config_model_historical_fn,
-        wflow_delta_runs_config = glob.glob(basin_dir + "/run_delta_change/" + config_basename + "_delta_*.toml"), #list of toml paths
+        #wflow_delta_runs_config = expand((basin_dir + "/run_delta_change/" + config_basename + "_delta_{model}_{scenario}_*.toml"), model = gcms_selected, scenario = scenarios_selected),
+        wflow_delta_runs_config = [f"{basin_dir}/run_delta_change/{config_basename}_delta_{model}_{scenario}_{hz}.toml" for model in gcms_selected for scenario in scenarios_selected for hz in ["near", "far"]],
         gauges_locs = output_locations,
         start_month_hyd_year = "JAN",
         project_dir = f"{project_dir}",

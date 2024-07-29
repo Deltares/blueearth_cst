@@ -4,7 +4,7 @@ import os
 from os.path import dirname, basename, relpath, join
 from hydromt_wflow import WflowModel
 from pathlib import Path
-from typing import Union, Optional
+from typing import Union, Optional, Tuple
 
 
 def update_config_run_future(
@@ -14,6 +14,7 @@ def update_config_run_future(
     scenario: str,
     horizon: str,
     config_root: Optional[Union[str, Path]] = None,
+    ref_time: Optional[Tuple[str]] = None,
 ):
     """Create a config file to run the model for a delta change scenario.
 
@@ -38,6 +39,9 @@ def update_config_run_future(
     config_root : str, optional
         Folder where the output config file will be written to. If None (default), will
         be written to the same folder as the historical config file.
+    ref_time : tuple of str, optional
+        Reference time of the historical run (start_year, end_year). If None, the same
+        reference time as the historical run in config_model_historical_fn will be used.
 
     """
     # Get the wflow root from the config file
@@ -92,6 +96,23 @@ def update_config_run_future(
         pass
     mod.set_config("input.path_forcing_scale", delta_change_fn)
 
+    # Update the start and end time if needed
+    if ref_time is not None:
+        start_year = mod.config["starttime"].split("-")[0]
+        if int(start_year) <= int(ref_time[0]):
+            mod.set_config("starttime", f"{ref_time[0]}-01-01T00:00:00")
+        else:
+            print(
+                f"Warning: Reference time {ref_time[0]} is before the historical run {start_year}."
+            )
+        end_year = mod.config["endtime"].split("-")[0]
+        if int(end_year) >= int(ref_time[1]):
+            mod.set_config("endtime", f"{ref_time[1]}-12-31T00:00:00")
+        else:
+            print(
+                f"Warning: Reference time {ref_time[1]} is after the historical run {end_year}."
+            )
+
     if ("near" in config_model_historical_fn) and (horizon == "far"):
         config_delta_change_fn = basename(
             config_model_historical_fn.replace("near", horizon)
@@ -112,6 +133,8 @@ if __name__ == "__main__":
     if "snakemake" in globals():
         sm = globals()["snakemake"]
         config_root = dirname(sm.output.config_model_out_fn)
+        ref_time = sm.params.ref_time
+        ref_time = tuple(map(str, ref_time.split(", ")))
 
         update_config_run_future(
             config_model_historical_fn=sm.input.config_model_historical_fn,
@@ -120,6 +143,7 @@ if __name__ == "__main__":
             scenario=sm.params.scenario_name,
             horizon=sm.params.horizon,
             config_root=config_root,
+            ref_time=ref_time,
         )
     else:
         print("Please run this script using snakemake.")

@@ -318,6 +318,8 @@ def test_plot_climate_projections(tmpdir):
             "*.nc",
         )
     )
+    # exclude the downscaled file from the list
+    grid_files = [f for f in grid_files if "downscaled" not in f]
 
     path_output = join(tmpdir, "climate_projections", "cmip6")
     plot_proj_timeseries.plot_climate_projections(

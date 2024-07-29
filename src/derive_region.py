@@ -66,11 +66,11 @@ def derive_region(
     if isinstance(region, str):
         region = literal_eval(region)
     # Parse region dictionary
+    data_catalog = DataCatalog(data_libs=data_catalog)
     kind, region = parse_region(region, data_catalog=data_catalog)
 
     # Derive region geometry
     if kind in ["basin", "subbasin", "interbasin", "outlet"]:
-        data_catalog = DataCatalog(data_libs=data_catalog)
         # retrieve global hydrography data (lazy!)
         ds_org = data_catalog.get_rasterdataset(hydrography_fn)
         if "bounds" not in region:
