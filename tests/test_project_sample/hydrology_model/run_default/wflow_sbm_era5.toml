@@ -93,31 +93,6 @@ parameter = "vertical.recharge"
 [[csv.column]]
 header = "snow_basavg"
 reducer = "mean"
-parameter = "vertical.snowwater"
-
-[[csv.column]]
-header = "precipitation_basavg"
-reducer = "mean"
-parameter = "vertical.precipitation"
-
-[[csv.column]]
-header = "overland flow_basavg"
-reducer = "mean"
-parameter = "lateral.land.q_av"
-
-[[csv.column]]
-header = "actual evapotranspiration_basavg"
-reducer = "mean"
-parameter = "vertical.actevap"
-
-[[csv.column]]
-header = "groundwater recharge_basavg"
-reducer = "mean"
-parameter = "vertical.recharge"
-
-[[csv.column]]
-header = "snow_basavg"
-reducer = "mean"
 parameter = "vertical.snow"
 
 [output]

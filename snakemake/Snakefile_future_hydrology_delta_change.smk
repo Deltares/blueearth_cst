@@ -138,7 +138,8 @@ rule plot_results:
        output_png = f"{project_dir}/plots/model_delta_runs/qhydro_1.png",
    params:
         wflow_hist_run_config = config_model_historical_fn,
-        wflow_delta_runs_config = expand((basin_dir + "/run_delta_change/" + config_basename + "_delta_{model}_{scenario}_*.toml"), model = gcms_selected, scenario = scenarios_selected),
+        #wflow_delta_runs_config = expand((basin_dir + "/run_delta_change/" + config_basename + "_delta_{model}_{scenario}_*.toml"), model = gcms_selected, scenario = scenarios_selected),
+        wflow_delta_runs_config = [f"{basin_dir}/run_delta_change/{config_basename}_delta_{model}_{scenario}_{hz}.toml" for model in gcms_selected for scenario in scenarios_selected for hz in ["near", "far"]],
         gauges_locs = output_locations,
         start_month_hyd_year = "JAN",
         project_dir = f"{project_dir}",
