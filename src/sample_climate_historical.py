@@ -17,6 +17,7 @@ def sample_climate_historical(
     path_output: Union[str, Path],
     climate_catalog: Union[str, Path, List] = [],
     clim_source: Optional[str] = None,
+    climate_variables: List[str] = ["precip", "temp"],
     subregions_filename: Optional[Union[str, Path]] = None,
     locations_filename: Optional[Union[str, Path]] = None,
     buffer: Optional[float] = 2.0,
@@ -47,6 +48,8 @@ def sample_climate_historical(
     clim_source : str
         Name of the climate source. It is used for the output filename and to add a
         source coordinate to the output dataset if provided.
+    climate_variables : List
+        List of climate variables to extract. By default ["precip", "temp"].
     subregions_filename : str, Path
         Path to the subregions vector file or data catalog entry.
         Optional variables: "name" for the subregion name.
@@ -113,6 +116,9 @@ def sample_climate_historical(
 
     # Read climate dataset
     ds_clim = data_catalog.get_rasterdataset(clim_filename)
+    # Select variables
+    variables = [v for v in climate_variables if v in ds_clim.data_vars]
+    ds_clim = ds_clim[variables]
 
     # Sample climate data for region
     print("Sampling climate data for region")
@@ -198,6 +204,7 @@ if __name__ == "__main__":
             path_output=dirname(sm.output.basin),
             climate_catalog=sm.params.data_catalog,
             clim_source=sm.params.clim_source,
+            climate_variables=sm.params.climate_variables,
             subregions_filename=sm.params.subregion_fn,
             locations_filename=sm.params.location_fn,
             buffer=sm.params.buffer_km,

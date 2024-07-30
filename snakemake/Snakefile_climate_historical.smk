@@ -87,6 +87,7 @@ rule sample_historical_climate:
         region_fn = ancient(f"{project_dir}/region/region.geojson"),
     params:
         clim_source = "{source}",
+        climate_variables = ["precip", "temp"],
         buffer_km = get_config(config, "region_buffer", 10),
         subregion_fn = get_config(config, "climate_subregions", None),
         location_fn = get_config(config, "climate_locations", optional=False),
@@ -102,7 +103,6 @@ rule plot_basin_climate:
     input:
         basin_climate = expand((f"{project_dir}/climate_historical/statistics/"+"basin_{source}.nc"), source=climate_sources),
     params:
-        subregion_file = get_config(config, "climate_subregions", None),
         climate_sources = climate_sources,
         climate_sources_colors = get_config(config, "clim_historical_colors", None),
         precip_peak = get_config(config, "precipitation_peak_threshold", 40),
@@ -150,7 +150,6 @@ rule derive_trends_gridded:
         grid = expand((f"{project_dir}/climate_historical/raw_data/" + "extract_{source}.nc"), source=climate_sources),
         region_fn = ancient(f"{project_dir}/region/region.geojson"),
     params:
-        climate_sources = climate_sources,
         project_dir = project_dir,
     output:
         trends_gridded_done = f"{project_dir}/plots/climate_historical/trends/gridded_trends.txt",

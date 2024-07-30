@@ -127,7 +127,7 @@ if __name__ == "__main__":
         project_dir = sm.params.project_dir
 
         plot_historical_climate_region(
-            climate_filename=sm.input.basin_climate,
+            climate_filenames=sm.input.basin_climate,
             path_output=dirname(sm.output.basin_plot_done),
             climate_sources=sm.params.climate_sources,
             climate_sources_colors=sm.params.climate_sources_colors,

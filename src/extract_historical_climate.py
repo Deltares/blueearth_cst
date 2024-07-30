@@ -51,6 +51,10 @@ def prep_historical_climate(
         If True, missing variables will be extracted from era5 and downscaled to the
         resolution of the clim_source.
     """
+    # Create output dir
+    if not os.path.exists(os.path.dirname(fn_out)):
+        os.makedirs(os.path.dirname(fn_out))
+
     # Read region
     region = gpd.read_file(region_fn)
     # Read data catalog
@@ -155,6 +159,8 @@ def prep_historical_climate(
     delayed_obj = ds.to_netcdf(fn_out, encoding=encoding, mode="w", compute=False)
     with ProgressBar():
         delayed_obj.compute()
+
+    ds.close()
 
 
 if __name__ == "__main__":

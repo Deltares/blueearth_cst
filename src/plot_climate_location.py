@@ -1,5 +1,6 @@
 """Plot historical climate for specific locations"""
 
+import os
 from os.path import join, dirname, isfile
 from pathlib import Path
 from typing import Union, Optional, List
@@ -35,6 +36,7 @@ def plot_historical_climate_point(
     heat_threshold: float = 25,
     add_inset_map: bool = False,
     region_filename: Optional[Union[str, Path]] = None,
+    export_observations: bool = True,
 ):
     """Plot historical climate for specific point locations.
 
@@ -103,7 +105,13 @@ def plot_historical_climate_point(
         Add an inset map to the plots. By default True.
     region_filename : str or Path, optional
         Path to a region vector file for the inset map.
+    export_observations : bool, optional
+        Export the observed data to a netcdf file in the same folder as
+        climate_filenames. By default True.
     """
+    # Create dirs
+    if not os.path.exists(path_output):
+        os.makedirs(path_output)
 
     # Small function to set the index of the geodataset
     def _update_geods_index(geods, prefix="location", legend_column="name"):
@@ -121,7 +129,7 @@ def plot_historical_climate_point(
     # Read the different geodataset file and merge them
     geods_list = []
     for climate_file in climate_filenames:
-        geods = hydromt.vector.GeoDataset.from_netcdf(climate_file)
+        geods = hydromt.vector.GeoDataset.from_netcdf(climate_file, lock=False)
         geods_list.append(geods)
 
     geods_locs = xr.concat(geods_list, dim="source")
@@ -198,7 +206,7 @@ def plot_historical_climate_point(
     )
 
     # Save the observed data
-    if geods_obs is not None:
+    if geods_obs is not None and export_observations:
         geods_obs = geods_obs.expand_dims(dim={"source": np.array(["observed"])})
         dir_out = dirname(climate_filenames[0])
         geods_obs.vector.to_netcdf(join(dir_out, "point_observed.nc"))
