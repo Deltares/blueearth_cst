@@ -2,7 +2,7 @@
 
 from os.path import join
 from pathlib import Path
-from typing import Union, List, Optional, Tuple
+from typing import Union, List, Optional
 
 import geopandas as gpd
 import numpy as np
@@ -22,16 +22,12 @@ else:
 
 
 def derive_gridded_trends(
-    region_filename: Union[str, Path],
+    climate_filenames: List[Union[str, Path]],
     path_output: Union[str, Path],
-    climate_catalog: Union[str, Path, List],
-    climate_sources: Union[str, List[str]],
-    climate_variables: List[str] = ["precip", "temp"],
-    time_tuple: Optional[Tuple] = None,
-    buffer: int = 2,
+    region_filename: Optional[Union[str, Path]] = None,
 ):
     """
-    Plot gridded historical anomalies for a specific region.
+    Plot gridded historical anomalies of precip and temp for a specific region.
 
     Outputs:
     * **gridded_trends.txt**: a file to indicate that the plots were created.
@@ -41,101 +37,63 @@ def derive_gridded_trends(
 
     Parameters
     ----------
-    region_filename : str or Path
-        Path to the region boundary vector file.
+    climate_filenames : List of str or Path
+        Path to the gridded files extracted for a specific domain. They
+        should contain the climate ``source`` in the coords or dims.
     path_output : str or Path
         Path to the output directory where the plots are stored.
-    climate_catalog : str or list of str
-        Path to the climate data catalog(s) to use.
-    climate_sources : str or list of str
-        Name of the climate data sources to plot. Should be available in
-        climate_catalog.
-    climate_variables : list of str, optional
-        List of climate variables to plot. Default is ["precip", "temp"].
-    time_tuple : tuple of str, optional
-        Start and end date of the period to sample the climate data. If None, the full
-        period of the climate data is used. eg ('1970-01-01', '2000-12-31').
-    buffer : int, optional
-        Buffer to add to the region boundary to clip the climate data. Default is 2.
+    region_filename : str or Path, optional
+        Path to the region vector file. If provided, it will be added to the plots.
     """
     # Read the region file
-    region = gpd.read_file(region_filename)
+    if region_filename is not None:
+        region = gpd.read_file(region_filename)
+    else:
+        region = None
 
-    # Initialize the data catalog
-    data_catalog = DataCatalog(climate_catalog)
-
-    # Initiliaze gridded precipi dict
+    # Initialize gridded precip and temp dict
     precip_dict = dict()
+    temp_dict = dict()
 
     # Open the climate data and plot anomalies
-    for climate_source in climate_sources:
-        ds_clim = []
-        for var in climate_variables:
-            # Open the climate data
-            ds = data_catalog.get_rasterdataset(
-                climate_source,
-                bbox=region.total_bounds,
-                buffer=buffer,
-                time_tuple=time_tuple,
-                handle_nodata=NoDataStrategy.IGNORE,
-                variables=var,
-                single_var_as_array=False,
+    for file in climate_filenames:
+        # Open the climate data
+        ds = xr.open_dataset(file, mask_and_scale=False)
+        climate_source = ds["source"].values.item()
+
+        # Clip to the region
+        if region is not None:
+            ds = ds.raster.clip_geom(region, buffer=2, mask=False)
+            ds = ds.assign_coords(
+                mask=ds.raster.geometry_mask(region, all_touched=True)
             )
-
-            # Check if any data intersects with region
-            if ds is None or var not in ds.data_vars:
-                print(f"Skipping {climate_source} as it does not intersect the region")
-                continue
-
-            # Append to the list
-            ds_clim.append(ds)
-            if var == "precip":
-                precip_dict[climate_source] = ds[var]
-
-        ds_clim = xr.merge(ds_clim)
-
-        # Try clipping to region
-        try:
-            # Mask afterwards to allow for all touched = True
-            ds_clip = ds_clim.raster.clip_geom(region, buffer=2, mask=False)
-            ds_clip = ds_clip.assign_coords(
-                mask=ds_clip.raster.geometry_mask(region, all_touched=True)
-            )
-            ds_clip = ds_clip.raster.mask(ds_clip.coords["mask"])
-            ds_clim = ds_clip
-        except ValueError:
-            if np.any(np.asarray(ds_clim.raster.shape) == 1):
-                print(
-                    f"Skipping {climate_source} as it does not contain enough cells in the "
-                    "region (at least 2*2). Try increasing the buffer."
-                )
-                continue
+            ds = ds.raster.mask(ds.coords["mask"])
 
         # Check the number of days in the first year in ds_clim.time
         # and remove the year if not complete
-        if (
-            len(ds_clim.sel(time=ds_clim.time.dt.year.isin(ds_clim.time.dt.year[0])))
-            < 365
-        ):
-            ds_clim = ds_clim.sel(
-                time=~ds_clim.time.dt.year.isin(ds_clim.time.dt.year[0])
-            )
+        if len(ds.sel(time=ds.time.dt.year.isin(ds.time.dt.year[0]))) < 365:
+            ds = ds.sel(time=~ds.time.dt.year.isin(ds.time.dt.year[0]))
         # Same for the last year
-        if (
-            len(ds_clim.sel(time=ds_clim.time.dt.year.isin(ds_clim.time.dt.year[-1])))
-            < 365
-        ):
-            ds_clim = ds_clim.sel(
-                time=~ds_clim.time.dt.year.isin(ds_clim.time.dt.year[-1])
-            )
+        if len(ds.sel(time=ds.time.dt.year.isin(ds.time.dt.year[-1]))) < 365:
+            ds = ds.sel(time=~ds.time.dt.year.isin(ds.time.dt.year[-1]))
 
-        # Plot the anomalies
-        plot_gridded_anomalies(
-            ds=ds_clim,
-            path_output=join(path_output, "trends"),
-            suffix=climate_source,
-            gdf_region=region,
-        )
+        # Add to dict
+        if "precip" in ds:
+            precip_dict[climate_source] = ds["precip"]
+        if "temp" in ds:
+            temp_dict[climate_source] = ds["temp"]
+
+    # Plot the anomalies
+    plot_gridded_anomalies(
+        clim_dict=precip_dict,
+        path_output=join(path_output, "trends"),
+        gdf_region=region,
+    )
+    plot_gridded_anomalies(
+        clim_dict=temp_dict,
+        path_output=join(path_output, "trends"),
+        gdf_region=region,
+    )
 
     # Plot the gridded median yearly precipitation
     plot_gridded_precip(
@@ -157,11 +115,9 @@ if __name__ == "__main__":
         project_dir = sm.params.project_dir
 
         derive_gridded_trends(
-            region_filename=sm.input.region_file,
-            path_output=join(project_dir, "climate_historical", "plots"),
-            climate_catalog=sm.params.data_catalog,
-            climate_sources=sm.params.climate_sources,
-            time_tuple=(sm.params.starttime, sm.params.endtime),
+            climate_filenames=sm.input.grid,
+            path_output=join(project_dir, "plots", "climate_historical"),
+            region_filename=sm.input.region_fn,
         )
 
     else:

@@ -31,6 +31,9 @@ def plot_gridded_precip(
     gdf_region : gpd.GeoDataFrame, optional
         The total region of the project to add to the inset map if provided.
     """
+    # Mask no data values
+    for k, v in precip_dict.items():
+        precip_dict[k] = precip_dict[k].raster.mask_nodata()
 
     # Find the common time period between sources
     time_start = max([v.time.values[0] for v in precip_dict.values()])
@@ -49,7 +52,9 @@ def plot_gridded_precip(
     }
 
     # Compute the sum of precipitation per year
-    precip_dict = {k: v.resample(time="YE").sum() for k, v in precip_dict.items()}
+    precip_dict = {
+        k: v.resample(time="YE").sum(skipna=False) for k, v in precip_dict.items()
+    }
     # Compute the median of the annual precipitation
     precip_dict = {k: v.median("time") for k, v in precip_dict.items()}
 

@@ -3,7 +3,7 @@
 import os
 from os.path import join
 from pathlib import Path
-from typing import Union, Optional
+from typing import Union, Optional, Dict
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -92,45 +92,60 @@ def compute_anomalies_year(
 
 
 def plot_gridded_anomalies(
-    ds: xr.Dataset,
+    clim_dict: Dict[str, xr.DataArray],
     path_output: Union[str, Path],
-    suffix: Optional[str] = None,
     gdf_region: Optional[gpd.GeoDataFrame] = None,
 ):
     """Plot gridded historical annual anomalies for a specific region.
 
     Parameters
     ----------
-    ds : xr.Dataset
-        Dataset with the gridded climate data.
+    clim_dict : dict(str, xr.DataArray)
+        Dictionary for a specific climate variables containing one DataArray for each
+        climate source. The climate source name will be used in the output filename of
+        the plot.
 
-        Supported variables: ["precip", "temp"]
+        Supported climate variables: ["precip", "temp"]
     path_output : str or Path
         Path to the output directory where the plots are stored.
-    suffix : str, optional
-        Suffix to add to the output filename.
     gdf_region : gpd.GeoDataFrame, optional
         The total region of the project to add to the inset map if provided.
     """
+    clim_dict_anom = dict()
 
-    # Mask nodata
-    ds = ds.raster.mask_nodata()
-    for var in ds.data_vars:
-        da_yr_anom = compute_anomalies_year(ds[var])
+    # Compute the anomalies per year for each climate source
+    for source, da in clim_dict.items():
+        # Mask nodata
+        da_yr_anom = compute_anomalies_year(da.raster.mask_nodata())
+        clim_dict_anom[source] = da_yr_anom
 
-        # Plot the anomalies
+    # Find the common time period between sources
+    time_start = max([v.time.values[0] for v in clim_dict_anom.values()])
+    time_end = min([v.time.values[-1] for v in clim_dict_anom.values()])
+    # Sel each source
+    clim_dict_anom = {
+        k: v.sel(time=slice(time_start, time_end)) for k, v in clim_dict_anom.items()
+    }
+
+    # Find the min and max over all sources
+    clim_max = max([v.max().values for v in clim_dict_anom.values()])
+    clim_min = min([v.min().values for v in clim_dict_anom.values()])
+    # Create corresponding color scale
+    minmax = max(abs(clim_min), clim_max)
+    divnorm = colors.TwoSlopeNorm(vmin=-minmax, vcenter=0.0, vmax=minmax)
+
+    # Plot the anomalies
+    for source, da_yr_anom in clim_dict_anom.items():
         plt.style.use("seaborn-v0_8-whitegrid")  # set nice style
         fig = plt.figure()
         da_yr_anom = da_yr_anom.rename({"time": "year"})
-        minmax = max(abs(np.nanmin(da_yr_anom.values)), np.nanmax(da_yr_anom.values))
-        divnorm = colors.TwoSlopeNorm(vmin=-minmax, vcenter=0.0, vmax=minmax)
 
         p = da_yr_anom.plot(
             x=da_yr_anom.raster.x_dim,
             y=da_yr_anom.raster.y_dim,
             col="year",
             col_wrap=5,
-            cmap="bwr" if var == "temp" else "bwr_r",
+            cmap="bwr" if da_yr_anom.name == "temp" else "bwr_r",
             norm=divnorm,
         )
         p.set_axis_labels("longitude [degree east]", "latitude [degree north]")
@@ -143,7 +158,7 @@ def plot_gridded_anomalies(
         if not os.path.exists(path_output):
             os.makedirs(path_output)
         plt.savefig(
-            join(path_output, f"gridded_anomalies_{var}_{suffix}.png"),
+            join(path_output, f"gridded_anomalies_{da_yr_anom.name}_{source}.png"),
             bbox_inches="tight",
             dpi=300,
         )

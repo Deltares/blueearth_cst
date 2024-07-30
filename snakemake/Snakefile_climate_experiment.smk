@@ -53,10 +53,15 @@ rule copy_config:
 # Rule to extract historic climate data at native resolution for the project area
 rule extract_climate_grid:
     input:
-        prj_region = ancient(f"{basin_dir}/staticgeoms/region.geojson"),
+        region_fn = ancient(f"{basin_dir}/staticgeoms/region.geojson"),
     params:
         data_sources = DATA_SOURCES,
         clim_source = clim_source,
+        starttime = "1980-01-01T00:00:00",
+        endtime = "2010-12-31T00:00:00",
+        buffer_km = 1,
+        climate_variables = ["precip", "temp", "temp_min", "temp_max", "kin", "kout", "press_msl"],
+        combine_with_era5 = True,
     output:
         climate_nc = f"{project_dir}/climate_historical/raw_data/extract_historical.nc",
     script:
