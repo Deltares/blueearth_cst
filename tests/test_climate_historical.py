@@ -226,7 +226,11 @@ def test_gridded_historical_trends(tmpdir, data_libs_fao):
         data_catalog=data_libs_fao,
         region_filename=region_filename,
         river_filename="river_atlas",
-        plot_height_mean_precip=6,
+        year_per_line=5,
+        line_height_yearly_plot=6,
+        line_height_mean_precip=6,
+        fs_yearly_plot=10,
+        fs_mean_precip=8,
     )
 
     # Check if the output files are created

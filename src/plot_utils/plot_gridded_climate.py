@@ -65,7 +65,8 @@ def plot_gridded_precip(
     path_output: Union[str, Path],
     gdf_region: Optional[gpd.GeoDataFrame] = None,
     gdf_river: Optional[gpd.GeoDataFrame] = None,
-    plot_height: float = 8,
+    line_height: float = 8,
+    fs: int = 8,
     colorbar_shrink: float = 0.9,
 ):
     """
@@ -82,8 +83,10 @@ def plot_gridded_precip(
     gdf_river : gpd.GeoDataFrame, optional
         The river network of the project to add to the inset map if provided.
         Optional variable for styling: `strord`.
-    plot_height : float, optional
+    line_height : float, optional
         Height of a single climate plot in cm. Default is 8.
+    fs : int, optional
+        Font size for the labels. Default is 8.
     colorbar_shrink : float, optional
         Shrink the colorbar size. Default is 0.9.
     """
@@ -140,7 +143,7 @@ def plot_gridded_precip(
     # Plot the precipitation in one figure
     fig_width = 8 if len(precip_dict) == 1 else 16
     nb_cols = 2 if len(precip_dict) > 1 else 1
-    fig_height = np.ceil(len(precip_dict) / 2) * plot_height
+    fig_height = np.ceil(len(precip_dict) / 2) * line_height
     nb_rows = int(np.ceil(len(precip_dict) / 2))
 
     fig, ax = plt.subplots(
@@ -154,7 +157,6 @@ def plot_gridded_precip(
     )
     ax = [ax] if (nb_rows * nb_cols) == 1 else ax.flatten()
 
-    fs = 8
     for i in range(len(ax)):
         if i >= len(precip_dict):
             ax[i].axis("off")
@@ -183,7 +185,6 @@ def plot_gridded_precip(
             gdf_region.plot(ax=ax[i], facecolor="None")
         # Add title in caps and bold font
         ax[i].set_title(k.upper(), fontsize=fs + 2, fontweight="bold")
-        # ax[i].set_title(k.upper(), fontsize=fs+2)
         ax[i].xaxis.set_visible(True)
         ax[i].yaxis.set_visible(True)
         ax[i].set_xlabel("Longitude", fontsize=fs)

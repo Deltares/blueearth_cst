@@ -26,7 +26,11 @@ def derive_gridded_trends(
     data_catalog: List[Union[str, Path]] = [],
     region_filename: Optional[Union[str, Path]] = None,
     river_filename: Optional[Union[str, Path]] = None,
-    plot_height_mean_precip: int = 6,
+    year_per_line: int = 5,
+    line_height_yearly_plot: int = 6,
+    line_height_mean_precip: int = 6,
+    fs_yearly_plot: int = 8,
+    fs_mean_precip: int = 8,
 ):
     """
     Plot gridded historical anomalies of precip and temp for a specific region.
@@ -53,8 +57,16 @@ def derive_gridded_trends(
         Path to the region vector file. If provided, it will be added to the plots.
     river_filename : str or Path, optional
         Path to the river vector file. If provided, it will be added to the plots.
-    plot_height_mean_precip : int, optional
+    year_per_line : int, optional
+        Number of years per line in the gridded anomalies plot. Default is 5.
+    line_height_yearly_plot : int, optional
+        Height of a tile in the yearly climate plot in cm. Default is 6.
+    line_height_mean_precip : int, optional
         Height of a tile in the average annual precipitation plot in cm. Default is 6.
+    fs_yearly_plot : int, optional
+        Font size of the yearly climate plot. Default is 8.
+    fs_mean_plot : int, optional
+        Font size of the average annual precipitation plot. Default is 8.
     """
     # Start a data catalog
     data_catalog = DataCatalog(data_catalog)
@@ -109,12 +121,18 @@ def derive_gridded_trends(
             clim_dict=precip_dict,
             path_output=join(path_output, "trends"),
             gdf_region=region,
+            year_per_line=year_per_line,
+            line_height=line_height_yearly_plot,
+            fs=fs_yearly_plot,
         )
     if len(temp_dict) > 0:
         plot_gridded_anomalies(
             clim_dict=temp_dict,
             path_output=join(path_output, "trends"),
             gdf_region=region,
+            year_per_line=year_per_line,
+            line_height=line_height_yearly_plot,
+            fs=fs_yearly_plot,
         )
 
     # Plot the gridded median yearly precipitation
@@ -124,7 +142,8 @@ def derive_gridded_trends(
             path_output=join(path_output, "grid"),
             gdf_region=region,
             gdf_river=rivers,
-            plot_height=plot_height_mean_precip,
+            line_height=line_height_mean_precip,
+            fs=fs_mean_precip,
         )
 
     if "snakemake" in globals():
@@ -145,7 +164,11 @@ if __name__ == "__main__":
             data_catalog=sm.params.data_catalog,
             region_filename=sm.input.region_fn,
             river_filename=sm.params.river_fn,
-            plot_height_mean_precip=sm.params.plot_height_mean_precip,
+            year_per_line=sm.params.year_per_line,
+            line_height_yearly_plot=sm.params.line_height_yearly_plot,
+            line_height_mean_precip=sm.params.line_height_mean_precip,
+            fs_yearly_plot=sm.params.fs_yearly_plot,
+            fs_mean_precip=sm.params.fs_mean_precip,
         )
 
     else:

@@ -90,9 +90,14 @@ split_year_trend: 2005
 
 # Plotting options
 historical_climate_plots:
+  climate_per_year:
+    year_per_line: 5
+    line_height: 6
+    fontsize: 10
   mean_precipitation:
     add_rivers: True
-    plot_height: 6
+    line_height: 6
+    fontsize: 8
 
 ###########################################################################################
 ################################## Climate projections ####################################
