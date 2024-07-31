@@ -13,6 +13,32 @@ chirps_global:
     source_url: https://www.chc.ucsb.edu/data/chirps
     source_version: v2.0
   crs: 4326
+eobs:
+  data_type: RasterDataset
+  path: eobs.nc
+  driver: netcdf
+  filesystem: local
+  meta:
+    category: meteo
+    paper_doi: 10.1029/2017JD028200
+    paper_ref: Cornes et al (2018)
+    source_license: https://surfobs.climate.copernicus.eu/dataaccess/access_eobs.php#datafiles
+    source_url: https://surfobs.climate.copernicus.eu/dataaccess/access_eobs.php#datafiles
+    source_version: 22.0e
+  crs: 4326
+eobs_orography:
+  data_type: RasterDataset
+  path: eobs_orography.tif
+  driver: raster
+  filesystem: local
+  meta:
+    category: meteo
+    paper_doi: 10.1029/2017JD028200
+    paper_ref: Cornes et al (2018)
+    source_license: https://surfobs.climate.copernicus.eu/dataaccess/access_eobs.php#datafiles
+    source_url: https://surfobs.climate.copernicus.eu/dataaccess/access_eobs.php#datafiles
+    source_version: 22.0e
+  crs: 4326
 era5:
   data_type: RasterDataset
   path: era5_daily.nc
@@ -57,3 +83,20 @@ eca_climate:
     var_name: precip
   meta:
     category: meteo
+river_atlas:
+  data_type: GeoDataFrame
+  path: river_atlas.geojson
+  driver: vector
+  filesystem: local
+  meta:
+    category: hydrography
+    notes: renaming and units might require some revision
+    paper_doi: 10.1038/s41597-019-0300-6
+    paper_ref: Linke et al. (2019)
+    source_license: CC BY 4.0
+    source_url: https://www.hydrosheds.org/hydroatlas
+    source_version: 10
+  crs: 4326
+  rename:
+    UPLAND_SKM: uparea
+    ORD_STRA: strord

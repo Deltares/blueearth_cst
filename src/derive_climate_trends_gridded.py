@@ -7,7 +7,6 @@ from typing import Union, List, Optional
 import geopandas as gpd
 import numpy as np
 import xarray as xr
-from hydromt.nodata import NoDataStrategy
 from hydromt import DataCatalog
 
 import sys
@@ -24,10 +23,15 @@ else:
 def derive_gridded_trends(
     climate_filenames: List[Union[str, Path]],
     path_output: Union[str, Path],
+    data_catalog: List[Union[str, Path]] = [],
     region_filename: Optional[Union[str, Path]] = None,
+    river_filename: Optional[Union[str, Path]] = None,
+    plot_height_mean_precip: int = 6,
 ):
     """
     Plot gridded historical anomalies of precip and temp for a specific region.
+
+    If provided the region and river files will be added to the plots.
 
     Outputs:
     * **gridded_trends.txt**: a file to indicate that the plots were created.
@@ -42,14 +46,30 @@ def derive_gridded_trends(
         should contain the climate ``source`` in the coords or dims.
     path_output : str or Path
         Path to the output directory where the plots are stored.
+    data_catalog : List of str or Path, optional
+        List of paths to the data catalogs to use for the plotting. Needed if the region
+        or river filenames are data catlog entries.
     region_filename : str or Path, optional
         Path to the region vector file. If provided, it will be added to the plots.
+    river_filename : str or Path, optional
+        Path to the river vector file. If provided, it will be added to the plots.
+    plot_height_mean_precip : int, optional
+        Height of a tile in the average annual precipitation plot in cm. Default is 6.
     """
+    # Start a data catalog
+    data_catalog = DataCatalog(data_catalog)
+
     # Read the region file
     if region_filename is not None:
         region = gpd.read_file(region_filename)
     else:
         region = None
+
+    # Read the river file
+    if river_filename is not None:
+        rivers = data_catalog.get_geodataframe(river_filename, geom=region)
+    else:
+        rivers = None
 
     # Initialize gridded precip and temp dict
     precip_dict = dict()
@@ -84,23 +104,28 @@ def derive_gridded_trends(
             temp_dict[climate_source] = ds["temp"]
 
     # Plot the anomalies
-    plot_gridded_anomalies(
-        clim_dict=precip_dict,
-        path_output=join(path_output, "trends"),
-        gdf_region=region,
-    )
-    plot_gridded_anomalies(
-        clim_dict=temp_dict,
-        path_output=join(path_output, "trends"),
-        gdf_region=region,
-    )
+    if len(precip_dict) > 0:
+        plot_gridded_anomalies(
+            clim_dict=precip_dict,
+            path_output=join(path_output, "trends"),
+            gdf_region=region,
+        )
+    if len(temp_dict) > 0:
+        plot_gridded_anomalies(
+            clim_dict=temp_dict,
+            path_output=join(path_output, "trends"),
+            gdf_region=region,
+        )
 
     # Plot the gridded median yearly precipitation
-    plot_gridded_precip(
-        precip_dict=precip_dict,
-        path_output=join(path_output, "grid"),
-        gdf_region=region,
-    )
+    if len(precip_dict) > 0:
+        plot_gridded_precip(
+            precip_dict=precip_dict,
+            path_output=join(path_output, "grid"),
+            gdf_region=region,
+            gdf_river=rivers,
+            plot_height=plot_height_mean_precip,
+        )
 
     if "snakemake" in globals():
         # Write a file when everything is done for snakemake tracking
@@ -117,7 +142,10 @@ if __name__ == "__main__":
         derive_gridded_trends(
             climate_filenames=sm.input.grid,
             path_output=join(project_dir, "plots", "climate_historical"),
+            data_catalog=sm.params.data_catalog,
             region_filename=sm.input.region_fn,
+            river_filename=sm.params.river_fn,
+            plot_height_mean_precip=sm.params.plot_height_mean_precip,
         )
 
     else:

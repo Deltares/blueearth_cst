@@ -39,10 +39,10 @@ rule copy_config:
 rule select_region:
     params:
         hydromt_region = get_config(config, "model_region", optional=False),
-        buffer_km = get_config(config, "region_buffer", 10),
+        buffer_km = get_config(config, "region_buffer", default=10),
         data_catalog = data_catalog,
-        hydrography_fn = get_config(config, "hydrography_fn", "merit_hydro"),
-        basin_index_fn = get_config(config, "basin_index_fn", "merit_hydro_index"),
+        hydrography_fn = get_config(config, "hydrography_fn", default="merit_hydro"),
+        basin_index_fn = get_config(config, "basin_index_fn", default="merit_hydro_index"),
     output:
         region_file = f"{project_dir}/region/region.geojson",
         region_buffer_file = f"{project_dir}/region/region_buffer.geojson",
@@ -69,7 +69,7 @@ rule extract_climate_historical_grid:
         region_fn = ancient(f"{project_dir}/region/region.geojson"),
     params:
         clim_source = "{source}",
-        buffer_km = get_config(config, "region_buffer", 10),
+        buffer_km = get_config(config, "region_buffer", default=10),
         data_sources = data_catalog,
         starttime = get_config(config, "starttime", optional=False),
         endtime = get_config(config, "endtime", optional=False),
@@ -88,8 +88,8 @@ rule sample_historical_climate:
     params:
         clim_source = "{source}",
         climate_variables = ["precip", "temp"],
-        buffer_km = get_config(config, "region_buffer", 10),
-        subregion_fn = get_config(config, "climate_subregions", None),
+        buffer_km = get_config(config, "region_buffer", default=10),
+        subregion_fn = get_config(config, "climate_subregions", default=None),
         location_fn = get_config(config, "climate_locations", optional=False),
         data_catalog = data_catalog,
     output:
@@ -104,10 +104,10 @@ rule plot_basin_climate:
         basin_climate = expand((f"{project_dir}/climate_historical/statistics/"+"basin_{source}.nc"), source=climate_sources),
     params:
         climate_sources = climate_sources,
-        climate_sources_colors = get_config(config, "clim_historical_colors", None),
-        precip_peak = get_config(config, "precipitation_peak_threshold", 40),
-        precip_dry = get_config(config, "precipitation_dry_threshold", 0.2),
-        temp_heat = get_config(config, "temperature_heat_threshold", 25),
+        climate_sources_colors = get_config(config, "clim_historical_colors", default=None),
+        precip_peak = get_config(config, "precipitation_peak_threshold", default=40),
+        precip_dry = get_config(config, "precipitation_dry_threshold", default=0.2),
+        temp_heat = get_config(config, "temperature_heat_threshold", default=25),
     output:
         basin_plot_done = f"{project_dir}/plots/climate_historical/region/basin_climate.txt",
     script:
@@ -119,14 +119,14 @@ rule plot_location_climate:
         point_climate = expand((f"{project_dir}/climate_historical/statistics/"+"point_{source}.nc"), source=climate_sources),
     params:
         location_file = get_config(config, "climate_locations", optional=False),
-        location_timeseries_precip = get_config(config, "climate_locations_timeseries", None),
+        location_timeseries_precip = get_config(config, "climate_locations_timeseries", default=None),
         #location_timeseries_temp = get_config(config, "climate_locations_timeseries_temp", None),
         climate_sources = climate_sources,
-        climate_sources_colors = get_config(config, "clim_historical_colors", None),
+        climate_sources_colors = get_config(config, "clim_historical_colors", default=None),
         data_catalog = data_catalog,
-        precip_peak = get_config(config, "precipitation_peak_threshold", 40),
-        precip_dry = get_config(config, "precipitation_dry_threshold", 0.2),
-        temp_heat = get_config(config, "temperature_heat_threshold", 25),
+        precip_peak = get_config(config, "precipitation_peak_threshold", default=40),
+        precip_dry = get_config(config, "precipitation_dry_threshold", default=0.2),
+        temp_heat = get_config(config, "temperature_heat_threshold", default=25),
     output:
         point_plot_done = f"{project_dir}/plots/climate_historical/point/point_climate.txt",
     script:
@@ -138,7 +138,7 @@ rule derive_trends_timeseries:
         point_climate = expand((f"{project_dir}/climate_historical/statistics/"+"point_{source}.nc"), source=climate_sources),
         point_plot_done = f"{project_dir}/plots/climate_historical/point/point_climate.txt",
     params:
-        split_year = get_config(config, "split_year_trend", None),
+        split_year = get_config(config, "split_year_trend", default=None),
         point_observed = f"{project_dir}/climate_historical/statistics/point_observed.nc"
     output:
         trends_timeseries_done = f"{project_dir}/plots/climate_historical/trends/timeseries_trends.txt",
@@ -151,6 +151,9 @@ rule derive_trends_gridded:
         region_fn = ancient(f"{project_dir}/region/region.geojson"),
     params:
         project_dir = project_dir,
+        data_catalog = data_catalog,
+        plot_height_mean_precip = get_config(config, "historical_climate_plots.mean_precipitation.plot_height", default=8),
+        river_fn = get_config(config, "river_geom_fn", default=None) if get_config(config, "historical_climate_plots.mean_precipitation.add_rivers", default=False) else None,
     output:
         trends_gridded_done = f"{project_dir}/plots/climate_historical/trends/gridded_trends.txt",
     script:

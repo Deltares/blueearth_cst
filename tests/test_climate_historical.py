@@ -213,7 +213,7 @@ def test_timeseries_historical_trends(tmpdir):
     )
 
 
-def test_gridded_historical_trends(tmpdir):
+def test_gridded_historical_trends(tmpdir, data_libs_fao):
     """Test the gridded trends plots."""
     region_filename = join(SAMPLE_PROJECTDIR, "region", "region.geojson")
     grids = glob.glob(
@@ -223,7 +223,10 @@ def test_gridded_historical_trends(tmpdir):
     derive_climate_trends_gridded.derive_gridded_trends(
         climate_filenames=grids,
         path_output=join(tmpdir, "plots", "climate_historical"),
+        data_catalog=data_libs_fao,
         region_filename=region_filename,
+        river_filename="river_atlas",
+        plot_height_mean_precip=6,
     )
 
     # Check if the output files are created
@@ -237,5 +240,5 @@ def test_gridded_historical_trends(tmpdir):
         f"{tmpdir}/plots/climate_historical/trends/gridded_trends.txt"
     )
     assert os.path.exists(
-        f"{tmpdir}/plots/climate_historical/grid/median_annual_precipitation.png"
+        f"{tmpdir}/plots/climate_historical/grid/mean_annual_precipitation.png"
     )

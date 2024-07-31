@@ -66,6 +66,8 @@ plot_budyko: True
 region_buffer: 10
 # Hydrography dataset to use to derive region from (sub)basin
 hydrography_fn: merit_hydro_1k
+# River geometry dataset to add to plots
+river_geom_fn: river_atlas
 
 # Additional sub-basins or sub-regions to include in the analysis
 climate_subregions: None
@@ -85,6 +87,12 @@ precipitation_dry_threshold: 0.2
 temperature_heat_threshold: 25
 # Split year for the timeseries trends
 split_year_trend: 2005
+
+# Plotting options
+historical_climate_plots:
+  mean_precipitation:
+    add_rivers: True
+    plot_height: 6
 
 ###########################################################################################
 ################################## Climate projections ####################################
