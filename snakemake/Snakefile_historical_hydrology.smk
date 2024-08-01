@@ -147,6 +147,10 @@ rule plot_map:
     params:
         project_dir = f"{project_dir}",
         output_locations = output_locations,
+        output_locations_legend = get_config(config, "output_locations_legend", default="output locations"),
+        data_catalog = DATA_SOURCES,
+        meteo_locations = get_config(config, "climate_locations", default=None),
+        buffer_km = get_config(config, "region_buffer", default=2),
     script: "../src/plot_map.py"
 
 # Rule to plot the forcing on a map

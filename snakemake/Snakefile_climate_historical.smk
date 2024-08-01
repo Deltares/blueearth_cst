@@ -56,7 +56,7 @@ rule plot_region_and_location:
     params:
         data_catalog = data_catalog,
         subregion_file = get_config(config, "climate_subregions", default=None),
-        location_file = get_config(config, "climate_locations", optional=False),
+        location_file = get_config(config, "climate_locations", default=None),
         river_fn = get_config(config, "river_geom_fn", default=None),
         hydrography_fn = get_config(config, "hydrography_fn", default="merit_hydro"),
         buffer_km = get_config(config, "region_buffer", default=10),

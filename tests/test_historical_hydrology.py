@@ -197,12 +197,13 @@ def test_add_forcing(tmpdir, data_libs_fao, config):
         assert "pet" in ds
 
 
-def test_plot_map(tmpdir, config):
+def test_plot_map(tmpdir, config, config_fao):
     """Test plotting the model map."""
     wflow_root = f"{SAMPLE_PROJECTDIR}/hydrology_model"
     plot_dir = f"{tmpdir}/plots/wflow_model_performance"
     gauges_fn = get_config(config, "output_locations")
     gauges_name = f'gauges_{basename(gauges_fn).split(".")[0]}'
+    meteo_locations = join(MAINDIR, get_config(config_fao, "climate_locations"))
 
     # Try without gauges
     plot_map.plot_wflow_map(
@@ -216,6 +217,16 @@ def test_plot_map(tmpdir, config):
         wflow_root=wflow_root,
         plot_dir=plot_dir,
         gauges_name=gauges_name,
+    )
+
+    # Try with meteo locations
+    plot_map.plot_wflow_map(
+        wflow_root=wflow_root,
+        plot_dir=plot_dir,
+        gauges_name=gauges_name,
+        gauges_name_legend="hydrological stations",
+        meteo_locations=meteo_locations,
+        buffer_km=10.0,
     )
 
     # Check output

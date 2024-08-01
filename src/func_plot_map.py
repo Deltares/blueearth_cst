@@ -128,7 +128,9 @@ def plot_map(
                 vert_exag=200,
             )
             rgb = xr.DataArray(
-                dims=("y", "x", "rgb"), data=_rgb, coords=da.raster.coords
+                dims=(da.raster.y_dim, da.raster.x_dim, "rgb"),
+                data=_rgb,
+                coords=da.raster.coords,
             )
             rgb = xr.where(np.isnan(da), np.nan, rgb)
             rgb.plot.imshow(transform=proj, ax=ax, zorder=2)
@@ -245,16 +247,20 @@ def plot_map(
     _ = ax.set_title(f"")
     legend = ax.legend(
         handles=[*ax.get_legend_handles_labels()[0], *patches],
-        title="Legend",
+        # title="Legend",
         loc="lower right",
         frameon=True,
         framealpha=0.7,
         edgecolor="k",
         facecolor="white",
+        fontsize=9,
     )
 
     # save figure
     plt.savefig(os.path.join(plot_dir, f"{figname}.png"), dpi=300, bbox_inches="tight")
+
+    # close figure
+    plt.close()
 
 
 def plot_map_model(
@@ -263,6 +269,9 @@ def plot_map_model(
     figname: str,
     plot_dir: Union[str, Path] = None,
     gauges_name: str = None,
+    gauges_name_legend: str = "output locations",
+    meteo_locations: Optional[gpd.GeoDataFrame] = None,
+    buffer_km: Optional[float] = 2.0,
     **kwargs,
 ):
     """
@@ -283,21 +292,38 @@ def plot_map_model(
         in the wflow_root folder.
     gauges_name : str, optional
         Name of the gauges in model to plot. If None (default), no gauges are plot.
+    gauges_name_legend : str, optional
+        Name of the gauges in the legend.
+    meteo_locations : gpd.GeoDataFrame, optional
+        GeoDataFrame with the meteorological stations to add to the plot.
+    buffer_km : float, optional
+        Buffer in km around the region for the plot extent.
     kwargs : dict
         Additional keyword arguments to pass to da.plot()
+
+    See Also:
+    ---------
+    plot_map
     """
     gauges = {}
 
     model_gauges = mod.geoms.get("gauges", None)
     if model_gauges is not None:
-        gauges["gauges"] = model_gauges
+        if "fid" in model_gauges.columns:
+            model_gauges.index = model_gauges["fid"]
+        gauges["outlets"] = model_gauges
 
     if gauges_name is not None:
         output_locs = mod.geoms.get(gauges_name, None)
         if output_locs is not None:
+            if "wflow_id" in output_locs.columns:
+                output_locs.index = output_locs["wflow_id"]
             if "station_name" in output_locs.columns:
                 output_locs = output_locs.rename(columns={"station_name": "name"})
-            gauges["output locs"] = output_locs
+            gauges[gauges_name_legend] = output_locs
+
+    if meteo_locations is not None:
+        gauges["meteorological stations"] = meteo_locations
 
     plot_map(
         da=da,
@@ -309,5 +335,6 @@ def plot_map_model(
         lakes=mod.geoms.get("lakes", None),
         reservoirs=mod.geoms.get("reservoirs", None),
         glaciers=mod.geoms.get("glaciers", None),
+        buffer_km=buffer_km,
         **kwargs,
     )
