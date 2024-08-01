@@ -17,6 +17,7 @@ from ..src import derive_climate_trends_gridded
 from ..src import derive_climate_trends
 from ..src import extract_historical_climate
 from ..src import sample_climate_historical
+from ..src import plot_region_and_location
 
 config_fn = join(TESTDIR, "snake_config_fao_test.yml")
 
@@ -73,6 +74,33 @@ def test_select_region(tmpdir, config_fao, data_libs_fao):
     region = gpd.read_file(f"{tmpdir}/region_bbox/region.geojson")
     region_buffer = gpd.read_file(f"{tmpdir}/region_bbox/region_buffer.geojson")
     assert_geodataframe_equal(region, region_buffer)
+
+
+def test_plot_region_and_location(tmpdir, config_fao, data_libs_fao):
+    """Test the plotting of the region and locations."""
+    region_filename = join(SAMPLE_PROJECTDIR, "region", "region.geojson")
+    subregions_filename = join(
+        SAMPLE_PROJECTDIR,
+        "hydrology_model",
+        "staticgeoms",
+        "subcatch_discharge-locations-grdc.geojson",
+    )
+    obs_fn = join(MAINDIR, get_config(config_fao, "climate_locations"))
+    fn_out = join(tmpdir, "plots", "climate_historical", "region_plot.png")
+
+    plot_region_and_location.plot_region_and_location(
+        region_fn=region_filename,
+        fn_out=fn_out,
+        data_catalog=data_libs_fao,
+        subregions_fn=subregions_filename,
+        locations_fn=obs_fn,
+        hydrography_fn=config_fao["hydrography_fn"],
+        rivers_fn=config_fao["river_geom_fn"],
+        buffer_km=config_fao["region_buffer"],
+    )
+
+    # Check if the output files are created
+    assert isfile(fn_out)
 
 
 def test_extract_climate_historical_grid(tmpdir, config_fao, data_libs_fao):

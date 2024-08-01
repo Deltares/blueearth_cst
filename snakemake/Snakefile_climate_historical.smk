@@ -15,7 +15,7 @@ rule all:
     input:
         f"{project_dir}/config/snake_config_climate_historical.yaml",
         #f"{project_dir}/region/region.geojson",
-        #f"{project_dir}/plots/climate_historical/region_plot.png",
+        f"{project_dir}/plots/climate_historical/region_plot.png",
         expand((f"{project_dir}/climate_historical/raw_data/" + "extract_{source}.nc"), source=climate_sources),
         expand((f"{project_dir}/climate_historical/statistics/" + "basin_{source}.nc"), source=climate_sources),
         expand((f"{project_dir}/climate_historical/statistics/" + "point_{source}.nc"), source=climate_sources),
@@ -50,18 +50,20 @@ rule select_region:
         "../src/derive_region.py"
 
 # Plot the reagion and subbasin/locations of interest
-# rule plot_region_and_location:
-#     input:
-#         region_file = f"{project_dir}/region/region.geojson",
-#     params:
-#         project_dir = project_dir,
-#         data_catalog = data_catalog,
-#         subregion_file = get_config(config, "climate_subregions", None),
-#         location_file = get_config(config, "climate_locations", optional=False),
-#     output:
-#         region_plot = f"{project_dir}/plots/climate_historical/region_plot.png",
-#     script:
-#         "../src/plot_region_and_location.py"
+rule plot_region_and_location:
+    input:
+        region_file = f"{project_dir}/region/region.geojson",
+    params:
+        data_catalog = data_catalog,
+        subregion_file = get_config(config, "climate_subregions", default=None),
+        location_file = get_config(config, "climate_locations", optional=False),
+        river_fn = get_config(config, "river_geom_fn", default=None),
+        hydrography_fn = get_config(config, "hydrography_fn", default="merit_hydro"),
+        buffer_km = get_config(config, "region_buffer", default=10),
+    output:
+        region_plot = f"{project_dir}/plots/climate_historical/region_plot.png",
+    script:
+        "../src/plot_region_and_location.py"
 
 # Rule to extract the historical climate data for the region of interest
 rule extract_climate_historical_grid:
@@ -156,7 +158,7 @@ rule derive_trends_gridded:
         year_per_line = get_config(config, "historical_climate_plots.climate_per_year.year_per_line", default=8),
         line_height_yearly_plot = get_config(config, "historical_climate_plots.climate_per_year.line_height", default=8),
         line_height_mean_precip = get_config(config, "historical_climate_plots.mean_precipitation.line_height", default=8),
-        fs_yearly_plotget_config(config, "historical_climate_plots.climate_per_year.fontsize", default=8),
+        fs_yearly_plot = get_config(config, "historical_climate_plots.climate_per_year.fontsize", default=8),
         fs_mean_precip = get_config(config, "historical_climate_plots.mean_precipitation.fontsize", default=8),
     output:
         trends_gridded_done = f"{project_dir}/plots/climate_historical/trends/gridded_trends.txt",

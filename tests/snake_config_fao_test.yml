@@ -70,7 +70,7 @@ hydrography_fn: merit_hydro_1k
 river_geom_fn: river_atlas
 
 # Additional sub-basins or sub-regions to include in the analysis
-climate_subregions: None
+climate_subregions: "tests/test_project/hydrology_model/staticgeoms/subcatch_discharge-locations-grdc.geojson"
 
 # If available, please put here the path to the available climate observation stations locations files
 # csv file containing four columns: station_ID, name, x, y
