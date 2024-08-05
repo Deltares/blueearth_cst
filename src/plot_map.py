@@ -105,6 +105,7 @@ def plot_wflow_map(
         gauges_name_legend=gauges_name_legend,
         meteo_locations=locations,
         buffer_km=buffer_km,
+        shaded=True,
         **kwargs,
     )
 

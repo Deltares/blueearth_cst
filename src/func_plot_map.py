@@ -38,6 +38,7 @@ def plot_map(
     glaciers: Optional[gpd.GeoDataFrame] = None,
     buffer_km: Optional[float] = 2.0,
     annotate_regions: bool = False,
+    shaded: bool = False,
     **kwargs,
 ):
     """
@@ -72,8 +73,13 @@ def plot_map(
         GeoDataFrame with the reservoir polygons.
     glaciers : gpd.GeoDataFrame
         GeoDataFrame with the glacier polygons.
+    buffer_km : float
+        Buffer in km around the region for the plot extent.
     annotate_regions : bool
         If True, annotate the basins and subregions with the region name.
+    shaded : bool
+        If True, plot the elevation with shades. Looks nicer with more pixels
+        (e.g.: larger basins).
     kwargs : dict
         Additional keyword arguments to pass to da.plot()
     """
@@ -86,9 +92,6 @@ def plot_map(
     # adjust zoomlevel and figure size to your basis size & aspect
     zoom_level = 10
     figsize = (10, 8)
-    shaded = (
-        True  # shaded elevation (looks nicer with more pixels (e.g.: larger basins))!
-    )
 
     # initialize image with geoaxes
     fig = plt.figure(figsize=figsize)

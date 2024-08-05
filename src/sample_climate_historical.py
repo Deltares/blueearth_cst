@@ -115,7 +115,7 @@ def sample_climate_historical(
             )
 
     # Read climate dataset
-    ds_clim = data_catalog.get_rasterdataset(clim_filename)
+    ds_clim = data_catalog.get_rasterdataset(clim_filename, single_var_as_array=False)
     # Select variables
     variables = [v for v in climate_variables if v in ds_clim.data_vars]
     ds_clim = ds_clim[variables]

@@ -139,6 +139,7 @@ def plot_region_and_location(
         gauges=locations,
         buffer_km=buffer_km,
         annotate_regions=True,
+        shaded=True if hydrography is not None else False,
         **kwargs,
     )
 
