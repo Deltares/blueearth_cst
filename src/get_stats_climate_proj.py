@@ -33,7 +33,7 @@ CLIM_PROJECT_TIME_TUPLE = {
 
 
 def derive_pet(
-    ds: xr.DataArray, pet_method: str, timestep: np.ndarray, drop_vars: bool = True
+    ds: xr.Dataset, pet_method: str, timestep: np.ndarray, drop_vars: bool = True
 ):
     """
     Compute potential evapotranspiration using different methods.
@@ -73,6 +73,69 @@ def derive_pet(
     return ds
 
 
+def derive_wind(ds: xr.Dataset, altitude: float = 10, drop_vars: bool = True):
+    """
+    Compute wind speed from u and v wind components.
+
+    Parameters
+    ----------
+    ds : xr.Dataset
+        Dataset with either wind or u and v wind components data.
+    altitude : float
+        Altitude to correct wind speed from 10m to 2m. Default is 10m.
+    drop_vars : bool
+        Drop u and v wind components after computing wind speed. True by default.
+
+    Returns
+    -------
+    xr.Dataset
+        Dataset with added wind speed data.
+    """
+    if "wind10_u" in ds and "wind10_v" in ds:
+        ds["wind"] = np.sqrt(np.power(ds["wind10_u"], 2) + np.power(ds["wind10_v"], 2))
+        if drop_vars:
+            ds = ds.drop_vars(["wind10_u", "wind10_v"])
+    else:
+        print("u and v wind components not found, wind speed not computed")
+
+    # Correct altitude from 10m to 2m wind
+    ds["wind"] = ds["wind"] * (4.87 / np.log((67.8 * altitude) - 5.42))
+
+    return ds
+
+
+def derive_tdew(ds: xr.Dataset, drop_vars: bool = True):
+    """
+    Compute dew point temperature using Magnus formula and constant from NOAA.
+
+    Parameters
+    ----------
+    ds : xr.Dataset
+        Dataset with temperature temp [Celsius] and relative humidity rh [%].
+    drop_vars : bool
+        Drop relative humidity after computing dew point temperature.
+        True by default.
+
+    Returns
+    -------
+    xr.Dataset
+        Dataset with added dew point temperature data.
+    """
+    if "temp" in ds and "rh" in ds:
+        # Compute saturation vapor pressure
+        es = 6.112 * np.exp((17.67 * ds["temp"]) / (ds["temp"] + 243.5))
+        # Compute actual vapor pressure
+        e = (ds["rh"] / 100) * es
+        # Compute dew point temperature
+        ds["temp_dew"] = (243.5 * np.log(e / 6.112)) / (17.67 - np.log(e / 6.112))
+        if drop_vars:
+            ds = ds.drop_vars(["rh"])
+    else:
+        print("temp and rh not found, dew point temperature not computed")
+
+    return ds
+
+
 def get_stats_clim_projections(
     data,
     geom,
@@ -81,6 +144,8 @@ def get_stats_clim_projections(
     scenario,
     member,
     compute_pet=False,
+    compute_wind=False,
+    compute_tdew=False,
     pet_method="makkink",
     save_grids=False,
     time_horizon=None,
@@ -103,6 +168,12 @@ def get_stats_clim_projections(
         member name of the climate model (e.g. r1i1p1f1).
     compute_pet : bool
         compute potential evapotranspiration. False by default.
+    compute_wind : bool
+        compute wind speed from u and v wind components (wind10_u and wind10_v).
+        False by default.
+    compute_tdew : bool
+        compute dew point temperature from temperature and relative humidity.
+        False by default.
     pet_method : str
         method to compute potential evapotranspiration if compute_pet is True.
         available methods are 'makkink' (default), 'debruin'.
@@ -139,7 +210,7 @@ def get_stats_clim_projections(
         if var == "precip":
             var_m = data[var].resample(time="MS").sum("time")
             # for monthly cmip6 units is mm/day and not mm
-            if "units" in data[var].attrs and data[var].attrs["units"] == "mm/day":
+            if "unit" in data[var].attrs and data[var].attrs["unit"] == "mm/day":
                 # convert to mm/month by multiplying with number of days in month
                 days_in_month = pd.to_datetime(var_m.time.values).days_in_month
                 # convert days_in_month to xarray variable
@@ -151,7 +222,7 @@ def get_stats_clim_projections(
                 var_m.attrs["units"] = "mm/month"
         elif np.isin(var, ["kin", "kout", "pet"]):
             var_m = data[var].resample(time="MS").sum("time")
-        else:  # for temp, wind, rh, press
+        else:  # for temp, wind, rh, press, tcc
             # elif "temp" in var: #for temp
             var_m = data[var].resample(time="MS").mean("time")
 
@@ -192,6 +263,13 @@ def get_stats_clim_projections(
     if compute_pet:
         timestep = mean_stats_time["time"].to_index().daysinmonth * 86400
         mean_stats_time = derive_pet(mean_stats_time, pet_method, timestep)
+    # if needed compute wind
+    if compute_wind:
+        mean_stats_time = derive_wind(mean_stats_time, altitude=10)
+    # if needed compute dew point temperature
+    if compute_tdew:
+        mean_stats_time = derive_tdew(mean_stats_time)
+
     # add coordinate on project, model, scenario, member to later merge all files
     mean_stats_time = mean_stats_time.assign_coords(
         {
@@ -212,6 +290,13 @@ def get_stats_clim_projections(
                 coords={"month": mean_stats["month"]},
             )
             mean_stats = derive_pet(mean_stats, pet_method, timestep)
+        # compute wind
+        if compute_wind:
+            mean_stats = derive_wind(mean_stats, altitude=10)
+        # compute dew point temperature
+        if compute_tdew:
+            mean_stats = derive_tdew(mean_stats)
+
         # add coordinate on project, model, scenario, member to later merge all files
         mean_stats = mean_stats.assign_coords(
             {
@@ -238,17 +323,31 @@ def extract_climate_projections_statistics(
     model: str,
     variables: List[str] = ["precip", "temp"],
     pet_method: Optional[str] = "makkink",
+    compute_wind: bool = False,
+    compute_tdew: bool = False,
     save_grids: bool = False,
     time_horizon: Optional[Dict[str, Tuple[str, str]]] = None,
 ):
     """
     Extract climate projections statistics for a specific region.
 
-    Output is a netcdf file with mean monthly precipitation and temperature timeseries
-    averaged over the geom.
+    Output is a netcdf file with mean monthly climate (e.g precipitation and
+    temperature timeseries averaged over the geom.
+
     If save_grids is True, also writes a netcdf file with mean monthly regime of
     precipitation and temperature statistics (12 maps) over the geom. The regimes
     can be computed for specific time horizons instead of the entire period if needed.
+
+    Supported variables:
+    * precip: precipitation [mm/month] or [mm/day]
+    * temp: temperature [°C]
+    * pet: potential evapotranspiration [mm/month] - can be computed using several
+      methods and variables (see pet_method)
+    * temp_dew: dew point temperature [°C] - can be computed from temp and relative
+      humidity [%]
+    * wind: wind speed [m/s] - can be computed from u and v wind components
+    * kin: incoming shortwave radiation [W/m2]
+    * tcc: total cloud cover [-]
 
     Parameters
     ----------
@@ -282,6 +381,12 @@ def extract_climate_projections_statistics(
 
         * makkink: 'temp' [°C], 'press_msl' [hPa], 'kin'[W/m2]
         * debruin: 'temp' [°C], 'press_msl' [hPa], 'kin' [W/m2], 'kout' [W/m2]
+    compute_wind : bool
+        Compute wind speed from u and v wind components (wind10_u and wind10_v). False
+        by default.
+    compute_tdew : bool
+        Compute dew point temperature from temperature and relative humidity. False by
+        default.
     save_grids : bool
         Save gridded stats as well as scalar stats. False by default.
     time_horizon : dict
@@ -328,6 +433,14 @@ def extract_climate_projections_statistics(
     else:
         compute_pet = False
 
+    if "wind" in variables and compute_wind:
+        variables.remove("wind")
+        variables.extend(["wind10_u", "wind10_v"])
+
+    if "temp_dew" in variables and compute_tdew:
+        variables.remove("temp_dew")
+        variables.extend(["temp", "rh"])
+
     # check if model really exists from data catalog entry
     # else skip and provide empty ds
     ds_members_mean_stats = []
@@ -342,6 +455,15 @@ def extract_climate_projections_statistics(
             model_entry = model
         entry = f"{clim_source}_{model_entry}_{scenario}_{member}"
         if entry in data_catalog:
+            # bug #677 in hydromt: attrs for non selected variables
+            # for now, remove and update after get_data method
+            dc_entry = data_catalog[entry].to_dict()
+            entry_attrs = dc_entry.pop("attrs", None)
+            dc_entry.pop("data_type", None)
+            adapter = hydromt.data_adapter.RasterDatasetAdapter(**dc_entry)
+            data_catalog.add_source(entry, adapter)
+
+            # Try to read all variables at once
             try:  # todo can this be replaced by if statement?
                 data = data_catalog.get_rasterdataset(
                     entry,
@@ -373,6 +495,14 @@ def extract_climate_projections_statistics(
                 # merge all variables back to data
                 data = xr.merge(ds_list)
 
+            # bug #677 in hydromt: attrs for non selected variables
+            # update the attrs
+            if entry_attrs is not None:
+                # unit attributes
+                for k in entry_attrs:
+                    if k in data:
+                        data[k].attrs.update(entry_attrs[k])
+
             # calculate statistics
             mean_stats, mean_stats_time = get_stats_clim_projections(
                 data,
@@ -382,6 +512,8 @@ def extract_climate_projections_statistics(
                 scenario,
                 member,
                 compute_pet=compute_pet,
+                compute_wind=compute_wind,
+                compute_tdew=compute_tdew,
                 pet_method=pet_method,
                 save_grids=save_grids,
                 time_horizon=time_horizon,
@@ -467,6 +599,8 @@ if __name__ == "__main__":
             model=sm.params.name_model,
             variables=sm.params.variables,
             pet_method=sm.params.pet_method,
+            compute_wind=sm.params.compute_wind,
+            compute_tdew=sm.params.compute_tdew,
             save_grids=sm.params.save_grids,
             time_horizon=time_horizon,
         )

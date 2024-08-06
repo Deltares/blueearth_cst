@@ -118,6 +118,8 @@ def plot_scalar_anomaly(
             os.makedirs(dirname(figure_filename))
         fig.savefig(figure_filename, dpi=300, bbox_inches="tight")
 
+    plt.close()
+
 
 def plot_gridded_anomaly_month(
     da: xr.DataArray,

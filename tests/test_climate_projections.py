@@ -332,26 +332,14 @@ def test_plot_climate_projections(tmpdir):
     )
 
     # Check if the files were created
-    assert isfile(
-        join(path_output, "plots", "precipitation_anomaly_projections_abs.png")
-    )
-    assert isfile(join(path_output, "plots", "temperature_anomaly_projections_abs.png"))
-    assert isfile(
-        join(path_output, "plots", "precipitation_anomaly_projections_anom.png")
-    )
-    assert isfile(
-        join(path_output, "plots", "temperature_anomaly_projections_anom.png")
-    )
-    assert isfile(
-        join(path_output, "plots", "precipitation_monthly_projections_abs.png")
-    )
-    assert isfile(join(path_output, "plots", "temperature_monthly_projections_abs.png"))
-    assert isfile(
-        join(path_output, "plots", "precipitation_monthly_projections_anom.png")
-    )
-    assert isfile(
-        join(path_output, "plots", "temperature_monthly_projections_anom.png")
-    )
+    assert isfile(join(path_output, "plots", "precip_anomaly_projections_abs.png"))
+    assert isfile(join(path_output, "plots", "temp_anomaly_projections_abs.png"))
+    assert isfile(join(path_output, "plots", "precip_anomaly_projections_anom.png"))
+    assert isfile(join(path_output, "plots", "temp_anomaly_projections_anom.png"))
+    assert isfile(join(path_output, "plots", "precip_monthly_projections_abs.png"))
+    assert isfile(join(path_output, "plots", "temp_monthly_projections_abs.png"))
+    assert isfile(join(path_output, "plots", "precip_monthly_projections_anom.png"))
+    assert isfile(join(path_output, "plots", "temp_monthly_projections_anom.png"))
     assert isfile(join(path_output, "plots", "pet_anomaly_projections_abs.png"))
     assert isfile(join(path_output, "plots", "pet_anomaly_projections_anom.png"))
     assert isfile(join(path_output, "plots", "pet_monthly_projections_abs.png"))

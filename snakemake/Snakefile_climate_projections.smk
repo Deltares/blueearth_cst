@@ -43,8 +43,8 @@ rule all:
         (clim_project_dir + "/annual_change_scalar_stats_summary.csv"),
         (clim_project_dir + "/annual_change_scalar_stats_summary_mean.csv"),
         stats_change_plt = (clim_project_dir + "/plots/projected_climate_statistics.png"),
-        precip_plt = (clim_project_dir + "/plots/precipitation_anomaly_projections_abs.png"),
-        temp_plt = (clim_project_dir + "/plots/temperature_anomaly_projections_abs.png"),
+        precip_plt = (clim_project_dir + "/plots/precip_anomaly_projections_abs.png"),
+        temp_plt = (clim_project_dir + "/plots/temp_anomaly_projections_abs.png"),
         snake_config = f"{project_dir}/config/snake_config_climate_projections.yml",
 
 ruleorder: monthly_stats_hist > monthly_stats_fut > monthly_change > monthly_change_scalar_merge
@@ -91,6 +91,8 @@ rule monthly_stats_hist:
         name_clim_project = clim_project,
         variables = variables,
         pet_method = pet_method,
+        compute_wind = get_config(config, "compute_wind", default=False),
+        compute_tdew = get_config(config, "compute_tdew", default=False),
         save_grids = save_grids,
         time_horizon = {"historical": get_config(config, "historical", optional=False)},
     script: "../src/get_stats_climate_proj.py"
@@ -114,6 +116,8 @@ rule monthly_stats_fut:
         name_clim_project = clim_project,
         variables = variables,
         pet_method = pet_method,
+        compute_wind = get_config(config, "compute_wind", default=False),
+        compute_tdew = get_config(config, "compute_tdew", default=False),
         save_grids = save_grids,
         time_horizon = get_config(config, "future_horizons", optional=False),
     script: "../src/get_stats_climate_proj.py"
@@ -168,7 +172,7 @@ rule plot_climate_proj_timeseries:
         scenarios = scenarios,
         horizons = future_horizons,
     output:
-        precip_plt = (clim_project_dir + "/plots/precipitation_anomaly_projections_abs.png"),
-        temp_plt = (clim_project_dir + "/plots/temperature_anomaly_projections_abs.png"),
+        precip_plt = (clim_project_dir + "/plots/precip_anomaly_projections_abs.png"),
+        temp_plt = (clim_project_dir + "/plots/temp_anomaly_projections_abs.png"),
         timeseries_nc = (clim_project_dir + "/gcm_timeseries.nc"),
     script: "../src/plot_proj_timeseries.py"

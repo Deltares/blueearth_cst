@@ -132,5 +132,6 @@ examples/
 
 # Tests
 tests/test_project
+tests/test_project_waq
 
 

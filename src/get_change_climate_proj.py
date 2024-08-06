@@ -9,6 +9,37 @@ import numpy as np
 
 from typing import List, Tuple, Union
 
+CLIMATE_VARS = {
+    "precip": {
+        "resample": "sum",
+        "multiplier": True,
+    },
+    "temp": {
+        "resample": "mean",
+        "multiplier": False,
+    },
+    "pet": {
+        "resample": "sum",
+        "multiplier": True,
+    },
+    "temp_dew": {
+        "resample": "mean",
+        "multiplier": False,
+    },
+    "kin": {
+        "resample": "sum",
+        "multiplier": True,
+    },
+    "wind": {
+        "resample": "mean",
+        "multiplier": True,
+    },
+    "tcc": {
+        "resample": "mean",
+        "multiplier": True,
+    },
+}
+
 
 def intersection(lst1, lst2):
     return list(set(lst1) & set(lst2))
@@ -60,7 +91,7 @@ def get_change_clim_projections(
     if "horizon" in ds_clim.dims:
         ds_clim = ds_clim.sel(horizon=name_horizon)
     for var in intersection(ds_hist.data_vars, ds_clim.data_vars):
-        if var == "precip" or var == "pet":
+        if var in CLIMATE_VARS and CLIMATE_VARS[var]["multiplier"]:
             ds_hist_var = ds_hist[var].sel(scenario=ds_hist.scenario.values[0])
             # multiplicative for precip and pet
             change = (ds_clim[var] - ds_hist_var) / ds_hist_var * 100
@@ -86,11 +117,15 @@ def get_change_clim_projections(
                     ),
                     drymonth_maxchange,
                 )
-        else:  # for temp
+        elif var in CLIMATE_VARS and not CLIMATE_VARS[var]["multiplier"]:  # for temp
             # additive for temp
             change = ds_clim[var] - ds_hist[var].sel(
                 scenario=ds_hist.scenario.values[0]
             )
+        else:
+            print(f"Variable {var} not supported.")
+            continue
+
         ds.append(change.to_dataset())
 
     monthly_change_mean_grid = xr.merge(ds)
@@ -106,6 +141,15 @@ def get_change_annual_clim_proj(
 ):
     """
     Calculate changes between future and historical climate for several statistics.
+
+    Supported variables:
+    * precip: precipitation
+    * temp: temperature
+    * pet: potential evapotranspiration
+    * temp_dew: dew point temperature
+    * kin: incoming shortwave radiation
+    * wind: wind speed
+    * tcc: total cloud cover
 
     Parameters
     ----------
@@ -144,7 +188,7 @@ def get_change_annual_clim_proj(
             f"{ds_clim_time['time.year'][-1].values}-{start_month_hyd_year}"
         ) - pd.DateOffset(months=1)
 
-        if var == "precip" or var == "pet":
+        if var in CLIMATE_VARS and CLIMATE_VARS[var]["resample"] == "sum":
             # multiplicative for precip and pet
             hist = (
                 ds_hist_time[var]
@@ -161,7 +205,9 @@ def get_change_annual_clim_proj(
                 .resample(time=f"YS-{start_month_hyd_year}")
                 .sum("time")
             )
-        else:  # for temp
+        elif (
+            var in CLIMATE_VARS and CLIMATE_VARS[var]["resample"] == "mean"
+        ):  # for temp
             # additive for temp
             hist = (
                 ds_hist_time[var]
@@ -178,6 +224,9 @@ def get_change_annual_clim_proj(
                 .resample(time=f"YS-{start_month_hyd_year}")
                 .mean("time")
             )
+        else:
+            print(f"Variable {var} not supported.")
+            continue
 
         # calc statistics
         for stat_name in stats:  # , stat_props in stats_dic.items():
@@ -189,9 +238,9 @@ def get_change_annual_clim_proj(
                 hist_stat = getattr(hist, stat_name)("time")
                 clim_stat = getattr(clim, stat_name)("time")
 
-            if var == "precip" or var == "pet":
+            if var in CLIMATE_VARS and CLIMATE_VARS[var]["multiplier"]:
                 change = (clim_stat - hist_stat) / hist_stat * 100
-            else:
+            elif var in CLIMATE_VARS and not CLIMATE_VARS[var]["multiplier"]:
                 change = clim_stat - hist_stat
             change = change.assign_coords({"stats": stat_name}).expand_dims("stats")
 

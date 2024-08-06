@@ -148,6 +148,9 @@ def plot_gridded_anomalies(
             dpi=300,
         )
 
+        # Close the figure
+        plt.close(fig)
+
 
 def plot_timeseries_anomalies(
     ds: xr.Dataset,
@@ -270,3 +273,6 @@ def plot_timeseries_anomalies(
             bbox_inches="tight",
             dpi=300,
         )
+
+        # Close the figure
+        plt.close(fig)

@@ -29,6 +29,58 @@ else:
         plot_gridded_anomaly_month,
     )
 
+CLIM_PLOTS = {
+    "precip": {
+        "absolute": False,
+        "unit_year": "mm/year",
+        "unit_month": "mm/month",
+        "unit_anomaly": "%",
+        "long_name": "precipitation",
+    },
+    "temp": {
+        "absolute": True,
+        "unit_year": "$\degree$C",
+        "unit_month": "$\degree$C",
+        "unit_anomaly": "$\degree$C",
+        "long_name": "temperature",
+    },
+    "pet": {
+        "absolute": False,
+        "unit_year": "mm/year",
+        "unit_month": "mm/month",
+        "unit_anomaly": "%",
+        "long_name": "potential evapotranspiration",
+    },
+    "temp_dew": {
+        "absolute": True,
+        "unit_year": "$\degree$C",
+        "unit_month": "$\degree$C",
+        "unit_anomaly": "$\degree$C",
+        "long_name": "dew point temperature",
+    },
+    "kin": {
+        "absolute": False,
+        "unit_year": "W/m2",
+        "unit_month": "W/m2",
+        "unit_anomaly": "%",
+        "long_name": "incoming shortwave radiation",
+    },
+    "wind": {
+        "absolute": False,
+        "unit_year": "m/s",
+        "unit_month": "m/s",
+        "unit_anomaly": "%",
+        "long_name": "wind speed",
+    },
+    "tcc": {
+        "absolute": False,
+        "unit_year": "frac/year",
+        "unit_month": "frac/month",
+        "unit_anomaly": "%",
+        "long_name": "total cloud cover",
+    },
+}
+
 
 # open historical datasets
 def todatetimeindex_dropvars(ds):
@@ -88,6 +140,117 @@ def create_regular_grid(
     return grid
 
 
+def compute_anomalies(da_hist: xr.DataArray, ds_fut: List[xr.Dataset]):
+    """
+    Compute anomalies for a given variable and datasets.
+
+    Parameters
+    ----------
+    da_hist: xr.DataArray
+        Historical data array
+    ds_fut: List[xr.Dataset]
+        List of future datasets
+
+    Returns
+    -------
+    q_mnmn: List[pd.DataFrame]
+        List of quantiles for monthly mean
+    q_mnanom: List[pd.DataFrame]
+        List of quantiles for monthly mean anomalies
+    q_annmn: List[pd.DataFrame]
+        List of quantiles for annual mean
+    q_anom: List[pd.DataFrame]
+        List of quantiles for annual mean anomalies
+    q_futmonth: List[pd.DataFrame]
+        List of quantiles for monthly future mean
+    q_futmonth_anom: List[pd.DataFrame]
+        List of quantiles for monthly future mean anomalies
+    q_fut: List[pd.DataFrame]
+        List of quantiles for annual future mean
+    q_fut_anom: List[pd.DataFrame]
+        List of quantiles for annual future mean anomalies
+    """
+    # Variable
+    var = da_hist.name
+
+    # Initialise pandas lists
+    df_fut = []
+    q_futmonth = []
+    q_futmonth_anom = []
+    q_fut = []
+    q_fut_anom = []
+
+    # Convert to pandas
+    gcm = da_hist.squeeze(drop=True).transpose().to_pandas()
+    # check if gcm is pd.Series or pd.DataFrame
+    if isinstance(gcm, pd.Series):
+        gcm = gcm.to_frame()
+
+    # monthly mean
+    gcm_mnmn = gcm.groupby(gcm.index.month).mean()
+    q_mnmn = gcm_mnmn.quantile([0.05, 0.5, 0.95], axis=1).transpose()
+    gcm_mnref = gcm_mnmn.mean()
+    if CLIM_PLOTS[var]["absolute"]:
+        gcm_mnanom = gcm_mnmn - gcm_mnref
+    else:
+        gcm_mnanom = (gcm_mnmn - gcm_mnref) / gcm_mnref * 100
+    q_mnanom = gcm_mnanom.quantile([0.05, 0.5, 0.95], axis=1).transpose()
+
+    # annual mean
+    gcm_annmn = gcm.resample("YE").mean()
+    q_annmn = gcm_annmn.quantile([0.05, 0.5, 0.95], axis=1).transpose()
+    gcm_ref = gcm_annmn.mean()
+    if CLIM_PLOTS[var]["absolute"]:
+        gcm_anom = gcm_annmn - gcm_ref
+    else:
+        gcm_anom = (gcm_annmn - gcm_ref) / gcm_ref * 100
+    q_anom = gcm_anom.quantile([0.05, 0.5, 0.95], axis=1).transpose()
+
+    # Loop over future datasets
+    for ds in ds_fut:
+        fi = ds[var].squeeze(drop=True).transpose().to_pandas()
+        if isinstance(fi, pd.Series):
+            fi = fi.to_frame()
+        df_fut.append(fi)
+
+    # Compute future anomalies
+    fut_ref = gcm_annmn.mean()
+
+    for i in range(len(df_fut)):
+        # monthly
+        fut_month = df_fut[i].groupby(df_fut[i].index.month).mean()
+        q_futmonth.append(fut_month.quantile([0.05, 0.5, 0.95], axis=1).transpose())
+        if CLIM_PLOTS[var]["absolute"]:
+            fut_month_anom = fut_month - fut_ref
+        else:
+            fut_month_anom = (fut_month - fut_ref) / fut_ref * 100
+        q_futmonth_anom.append(
+            fut_month_anom.dropna(axis=1, how="all")
+            .quantile([0.05, 0.5, 0.95], axis=1)
+            .transpose()
+        )
+
+        # annual
+        fut_year = df_fut[i].resample("YE").mean()
+        q_fut.append(fut_year.quantile([0.05, 0.5, 0.95], axis=1).transpose())
+        if CLIM_PLOTS[var]["absolute"]:
+            fut_anom = fut_year - fut_ref
+        else:
+            fut_anom = (fut_year - fut_ref) / fut_ref * 100
+        q_fut_anom.append(fut_anom.quantile([0.05, 0.5, 0.95], axis=1).transpose())
+
+    return (
+        q_mnmn,
+        q_mnanom,
+        q_annmn,
+        q_anom,
+        q_futmonth,
+        q_futmonth_anom,
+        q_fut,
+        q_fut_anom,
+    )
+
+
 def plot_climate_projections(
     nc_historical: List[Union[str, Path]],
     nc_future: List[Union[str, Path]],
@@ -137,69 +300,6 @@ def plot_climate_projections(
         fns_hist, preprocess=todatetimeindex_dropvars, lock=False
     )
 
-    # check if pet data is present
-    has_pet = "pet" in ds_hist.data_vars
-
-    # convert to df and compute anomalies
-    print("Computing historical gcm timeseries anomalies")
-    # precip
-    gcm_pr = ds_hist["precip"].squeeze(drop=True).transpose().to_pandas()
-    # check if gcm_pr_anom is pd.Series or pd.DataFrame
-    if isinstance(gcm_pr, pd.Series):
-        gcm_pr = gcm_pr.to_frame()
-
-    # monthly mean
-    gcm_pr_mnmn = gcm_pr.groupby(gcm_pr.index.month).mean()
-    q_pr_mnmn = gcm_pr_mnmn.quantile([0.05, 0.5, 0.95], axis=1).transpose()
-    gcm_pr_mnref = gcm_pr_mnmn.mean()
-    gcm_pr_mnanom = (gcm_pr_mnmn - gcm_pr_mnref) / gcm_pr_mnref * 100
-    q_pr_mnanom = gcm_pr_mnanom.quantile([0.05, 0.5, 0.95], axis=1).transpose()
-    # annual mean
-    gcm_pr_annmn = gcm_pr.resample("YE").mean()
-    q_pr_annmn = gcm_pr_annmn.quantile([0.05, 0.5, 0.95], axis=1).transpose()
-    gcm_pr_ref = gcm_pr_annmn.mean()
-    gcm_pr_anom = (gcm_pr_annmn - gcm_pr_ref) / gcm_pr_ref * 100
-    q_pr_anom = gcm_pr_anom.quantile([0.05, 0.5, 0.95], axis=1).transpose()
-
-    # temp
-    gcm_tas = ds_hist["temp"].squeeze(drop=True).transpose().to_pandas()
-    # check if gcm_pr_anom is pd.Series or pd.DataFrame
-    if isinstance(gcm_tas, pd.Series):
-        gcm_tas = gcm_tas.to_frame()
-
-    # monthly mean
-    gcm_tas_mnmn = gcm_tas.groupby(gcm_tas.index.month).mean()
-    q_tas_mnmn = gcm_tas_mnmn.quantile([0.05, 0.5, 0.95], axis=1).transpose()
-    gcm_tas_mnref = gcm_tas_mnmn.mean()
-    gcm_tas_mnanom = gcm_tas_mnmn - gcm_tas_mnref
-    q_tas_mnanom = gcm_tas_mnanom.quantile([0.05, 0.5, 0.95], axis=1).transpose()
-    # annual mean
-    gcm_tas_annmn = gcm_tas.resample("YE").mean()
-    q_tas_annmn = gcm_tas_annmn.quantile([0.05, 0.5, 0.95], axis=1).transpose()
-    gcm_tas_ref = gcm_tas_annmn.mean()
-    gcm_tas_anom = gcm_tas_annmn - gcm_tas_ref
-    q_tas_anom = gcm_tas_anom.quantile([0.05, 0.5, 0.95], axis=1).transpose()
-
-    # pet
-    if has_pet:
-        gcm_pet = ds_hist["pet"].squeeze(drop=True).transpose().to_pandas()
-        # check if gcm_pr_anom is pd.Series or pd.DataFrame
-        if isinstance(gcm_pet, pd.Series):
-            gcm_pet = gcm_pet.to_frame()
-
-        # monthly mean
-        gcm_pet_mnmn = gcm_pet.groupby(gcm_pet.index.month).mean()
-        q_pet_mnmn = gcm_pet_mnmn.quantile([0.05, 0.5, 0.95], axis=1).transpose()
-        gcm_pet_mnref = gcm_pet_mnmn.mean()
-        gcm_pet_mnanom = (gcm_pet_mnmn - gcm_pet_mnref) / gcm_pet_mnref * 100
-        q_pet_mnanom = gcm_pet_mnanom.quantile([0.05, 0.5, 0.95], axis=1).transpose()
-        # annual mean
-        gcm_pet_annmn = gcm_pet.resample("YE").mean()
-        q_pet_annmn = gcm_pet_annmn.quantile([0.05, 0.5, 0.95], axis=1).transpose()
-        gcm_pet_ref = gcm_pet_annmn.mean()
-        gcm_pet_anom = (gcm_pet_annmn - gcm_pet_ref) / gcm_pet_ref * 100
-        q_pet_anom = gcm_pet_anom.quantile([0.05, 0.5, 0.95], axis=1).transpose()
-
     # 2. Future timeseries
     # remove files containing empty dataset
     fns_future = nc_future.copy()
@@ -209,59 +309,8 @@ def plot_climate_projections(
             fns_future.remove(fn)
         ds.close()
 
-    # Initialise list of future df per rcp/scenario
-    pr_fut = []
-    tas_fut = []
-    anom_pr_fut = []
-    anom_tas_fut = []
-    qanom_pr_fut = []
-    qanom_tas_fut = []
-    ds_fut = []
-    qpr_fut = []
-    qtas_fut = []
-    qpr_futmonth = []
-    qpr_futmonth_sum = []
-    qpr_futmonth_anom = []
-    qtas_futmonth_anom = []
-    qtas_futmonth = []
-    qpr_fut_abs = []
-    qtas_fut_abs = []
-    for i in range(len(scenarios)):
-        pr_fut.append([])
-        tas_fut.append([])
-        anom_pr_fut.append([])
-        anom_tas_fut.append([])
-        qanom_pr_fut.append([])
-        qanom_tas_fut.append([])
-        qpr_fut.append([])
-        qtas_fut.append([])
-        qpr_futmonth.append([])
-        qpr_futmonth_sum.append([])
-        qpr_futmonth_anom.append([])
-        qtas_futmonth_anom.append([])
-        qtas_futmonth.append([])
-        qpr_fut_abs.append([])
-        qtas_fut_abs.append([])
-    if has_pet:
-        pet_fut = []
-        anom_pet_fut = []
-        qanom_pet_fut = []
-        qpet_fut = []
-        qpet_futmonth = []
-        qpet_futmonth_sum = []
-        qpet_futmonth_anom = []
-        qpet_fut_abs = []
-        for i in range(len(scenarios)):
-            pet_fut.append([])
-            anom_pet_fut.append([])
-            qanom_pet_fut.append([])
-            qpet_fut.append([])
-            qpet_futmonth.append([])
-            qpet_futmonth_sum.append([])
-            qpet_futmonth_anom.append([])
-            qpet_fut_abs.append([])
-
     # read files
+    ds_fut = []
     for i in range(len(scenarios)):
         print(f"Opening future gcm timeseries for rcp {scenarios[i]}")
         fns_rcp = [fn for fn in fns_future if scenarios[i] in fn]
@@ -269,108 +318,10 @@ def plot_climate_projections(
             fns_rcp, preprocess=todatetimeindex_dropvars, lock=False
         )
         ds_fut.append(ds_rcp)
-        ds_rcp_pr = ds_rcp["precip"].squeeze(drop=True)
-        ds_rcp_tas = ds_rcp["temp"].squeeze(drop=True)
-        if has_pet:
-            ds_rcp_pet = ds_rcp["pet"].squeeze(drop=True)
-
-        # to dataframe
-        prfi = ds_rcp_pr.transpose().to_pandas()
-        if isinstance(prfi, pd.Series):
-            prfi = prfi.to_frame()
-        pr_fut[i] = prfi
-        tasfi = ds_rcp_tas.transpose().to_pandas()
-        if isinstance(tasfi, pd.Series):
-            tasfi = tasfi.to_frame()
-        tas_fut[i] = tasfi
-        if has_pet:
-            petfi = ds_rcp_pet.transpose().to_pandas()
-            if isinstance(petfi, pd.Series):
-                petfi = petfi.to_frame()
-            pet_fut[i] = petfi
-
-    # compute anomalies
-    print("Computing future gcm timeseries anomalies")
-    fut_pr_ref = gcm_pr_annmn.mean()
-    fut_tas_ref = gcm_tas_annmn.mean()
-    if has_pet:
-        fut_pet_ref = gcm_pet_annmn.mean()
-
-    # monthly
-    for i in range(len(qpr_futmonth)):
-        pr_futmonth = pr_fut[i].groupby(pr_fut[i].index.month).mean()
-        qpr_futmonth[i] = pr_futmonth.quantile([0.05, 0.5, 0.95], axis=1).transpose()
-        pr_futmonth_anom = (pr_futmonth - fut_pr_ref) / fut_pr_ref * 100
-        qpr_futmonth_anom[i] = (
-            pr_futmonth_anom.dropna(axis=1, how="all")
-            .quantile([0.05, 0.5, 0.95], axis=1)
-            .transpose()
-        )
-
-        tas_futmonth = tas_fut[i].groupby(tas_fut[i].index.month).mean()
-        qtas_futmonth[i] = tas_futmonth.quantile([0.05, 0.5, 0.95], axis=1).transpose()
-        tas_futmonth_anom = tas_futmonth - fut_tas_ref
-        qtas_futmonth_anom[i] = (
-            tas_futmonth_anom.dropna(axis=1, how="all")
-            .quantile([0.05, 0.5, 0.95], axis=1)
-            .transpose()
-        )
-
-        if has_pet:
-            pet_futmonth = pet_fut[i].groupby(pet_fut[i].index.month).mean()
-            qpet_futmonth[i] = pet_futmonth.quantile(
-                [0.05, 0.5, 0.95], axis=1
-            ).transpose()
-            pet_futmonth_anom = (pet_futmonth - fut_pet_ref) / fut_pet_ref * 100
-            qpet_futmonth_anom[i] = (
-                pet_futmonth_anom.dropna(axis=1, how="all")
-                .quantile([0.05, 0.5, 0.95], axis=1)
-                .transpose()
-            )
-    # annual
-    for i in range(len(anom_pr_fut)):
-        qpr_fut[i] = (
-            pr_fut[i]
-            .resample("YE")
-            .mean()
-            .quantile([0.05, 0.5, 0.95], axis=1)
-            .transpose()
-        )
-        anom_pr_fut[i] = (
-            (pr_fut[i].resample("YE").mean() - fut_pr_ref) / fut_pr_ref * 100
-        )
-        qanom_pr_fut[i] = anom_pr_fut[i].quantile([0.05, 0.5, 0.95], axis=1).transpose()
-
-        qtas_fut[i] = (
-            tas_fut[i]
-            .resample("YE")
-            .mean()
-            .quantile([0.05, 0.5, 0.95], axis=1)
-            .transpose()
-        )
-        anom_tas_fut[i] = tas_fut[i].resample("YE").mean() - fut_tas_ref
-        qanom_tas_fut[i] = (
-            anom_tas_fut[i].quantile([0.05, 0.5, 0.95], axis=1).transpose()
-        )
-
-        if has_pet:
-            qpet_fut[i] = (
-                pet_fut[i]
-                .resample("YE")
-                .mean()
-                .quantile([0.05, 0.5, 0.95], axis=1)
-                .transpose()
-            )
-            anom_pet_fut[i] = (
-                (pet_fut[i].resample("YE").mean() - fut_pet_ref) / fut_pet_ref * 100
-            )
-            qanom_pet_fut[i] = (
-                anom_pet_fut[i].quantile([0.05, 0.5, 0.95], axis=1).transpose()
-            )
 
     # 3. Merge and write all timeseries to a single netcdf file
-    ds_fut.append(ds_hist)
     ds_all = xr.merge(ds_fut)
+    ds_all = xr.merge([ds_all, ds_hist])
     # make sure we have two digits still
     for var in ds_all.data_vars:
         ds_all[var] = ds_all[var].round(decimals=2)
@@ -379,165 +330,83 @@ def plot_climate_projections(
         os.makedirs(path_output)
     ds_all.to_netcdf(join(path_output, "gcm_timeseries.nc"))
 
-    # 4. Plots scalar timeseries
+    # 4. Compute anomalies and plots scalar timeseries
+    print("Computing anomalies and plotting scalar timeseries")
+    for var in ds_hist.data_vars:
+        if var not in CLIM_PLOTS:
+            print(f"Variable {var} not supported, skipping plots")
+            continue
 
-    # Precipitation absolute change
-    plot_scalar_anomaly(
-        data_hist=q_pr_annmn,
-        data_fut=[data for data in qpr_fut],
-        scenario_names=scenarios,
-        title="Annual precipitation anomaly",
-        y_label="Anomaly (mm/year)",
-        monthly=False,
-        figure_filename=join(
-            path_output, "plots", "precipitation_anomaly_projections_abs.png"
-        ),
-    )
+        # Settings
+        long_name = CLIM_PLOTS[var]["long_name"]
+        unit_year = CLIM_PLOTS[var]["unit_year"]
+        unit_month = CLIM_PLOTS[var]["unit_month"]
+        unit_anomaly = CLIM_PLOTS[var]["unit_anomaly"]
 
-    # Precipitation anomaly change
-    plot_scalar_anomaly(
-        data_hist=q_pr_anom,
-        data_fut=qanom_pr_fut,
-        scenario_names=scenarios,
-        title="Annual precipitation anomaly",
-        y_label="Anomaly (%)",
-        monthly=False,
-        figure_filename=join(
-            path_output, "plots", "precipitation_anomaly_projections_anom.png"
-        ),
-    )
+        # Compute historic and future anomalies
+        (
+            q_mnmn,
+            q_mnanom,
+            q_annmn,
+            q_anom,
+            q_futmonth,
+            q_futmonth_anom,
+            q_fut,
+            q_fut_anom,
+        ) = compute_anomalies(ds_hist[var], ds_fut)
 
-    # Temperature absolute change
-    plot_scalar_anomaly(
-        data_hist=q_tas_annmn,
-        data_fut=qtas_fut,
-        scenario_names=scenarios,
-        title="Average annual temperature anomaly",
-        y_label="Anomaly ($\degree$C)",
-        monthly=False,
-        figure_filename=join(
-            path_output, "plots", "temperature_anomaly_projections_abs.png"
-        ),
-    )
-
-    # Temperature anomaly change
-    plot_scalar_anomaly(
-        data_hist=q_tas_anom,
-        data_fut=qanom_tas_fut,
-        scenario_names=scenarios,
-        title="Average annual temperature anomaly",
-        y_label="Anomaly ($\degree$C)",
-        monthly=False,
-        figure_filename=join(
-            path_output, "plots", "temperature_anomaly_projections_anom.png"
-        ),
-    )
-
-    if has_pet:
-        # PET absolute change
+        # Absolute change
         plot_scalar_anomaly(
-            data_hist=q_pet_annmn,
-            data_fut=[data for data in qpet_fut],
+            data_hist=q_annmn,
+            data_fut=[data for data in q_fut],
             scenario_names=scenarios,
-            title="Annual potential evapotranspiration anomaly",
-            y_label="Anomaly (mm/year)",
+            title=f"Annual {long_name} anomaly",
+            y_label=f"Anomaly ({unit_year})",
             monthly=False,
             figure_filename=join(
-                path_output, "plots", "pet_anomaly_projections_abs.png"
+                path_output, "plots", f"{var}_anomaly_projections_abs.png"
             ),
         )
-
-        # PET anomaly change
+        # Anomaly change
         plot_scalar_anomaly(
-            data_hist=q_pet_anom,
-            data_fut=qanom_pet_fut,
+            data_hist=q_anom,
+            data_fut=q_fut_anom,
             scenario_names=scenarios,
-            title="Annual potential evapotranspiration anomaly",
-            y_label="Anomaly (%)",
+            title=f"Annual {long_name} anomaly",
+            y_label=f"Anomaly ({unit_anomaly})",
             monthly=False,
             figure_filename=join(
-                path_output, "plots", "pet_anomaly_projections_anom.png"
+                path_output, "plots", f"{var}_anomaly_projections_anom.png"
             ),
         )
-
-    # Precipitation absolute change monthly
-    plot_scalar_anomaly(
-        data_hist=q_pr_mnmn,
-        data_fut=qpr_futmonth,
-        scenario_names=scenarios,
-        title="Average precipitation",
-        y_label="mm/month",
-        monthly=True,
-        figure_filename=join(
-            path_output, "plots", "precipitation_monthly_projections_abs.png"
-        ),
-    )
-    # Precipitation anomaly change monthly
-    plot_scalar_anomaly(
-        data_hist=q_pr_mnanom,
-        data_fut=qpr_futmonth_anom,
-        scenario_names=scenarios,
-        title="Average precipitation anomaly",
-        y_label="Anomaly (%)",
-        monthly=True,
-        figure_filename=join(
-            path_output, "plots", "precipitation_monthly_projections_anom.png"
-        ),
-    )
-
-    # Temperature absolute change monthly
-    plot_scalar_anomaly(
-        data_hist=q_tas_mnmn,
-        data_fut=qtas_futmonth,
-        scenario_names=scenarios,
-        title="Average monthly temperature",
-        y_label="$\degree$C",
-        monthly=True,
-        figure_filename=join(
-            path_output, "plots", "temperature_monthly_projections_abs.png"
-        ),
-    )
-    # Temperature anomaly change monthly
-    plot_scalar_anomaly(
-        data_hist=q_tas_mnanom,
-        data_fut=qtas_futmonth_anom,
-        scenario_names=scenarios,
-        title="Average monthly temperature anomaly",
-        y_label="Anomaly ($\degree$C)",
-        monthly=True,
-        figure_filename=join(
-            path_output, "plots", "temperature_monthly_projections_anom.png"
-        ),
-    )
-
-    if has_pet:
-        # PET absolute change monthly
+        # Absolute change monthly
         plot_scalar_anomaly(
-            data_hist=q_pet_mnmn,
-            data_fut=qpet_futmonth,
+            data_hist=q_mnmn,
+            data_fut=q_futmonth,
             scenario_names=scenarios,
-            title="Average potential evapotranspiration",
-            y_label="mm/month",
+            title=f"Average monthly {long_name}",
+            y_label=f"{unit_month}",
             monthly=True,
             figure_filename=join(
-                path_output, "plots", "pet_monthly_projections_abs.png"
+                path_output, "plots", f"{var}_monthly_projections_abs.png"
             ),
         )
-        # PET anomaly change monthly
+        # Anomaly change monthly
         plot_scalar_anomaly(
-            data_hist=q_pet_mnanom,
-            data_fut=qpet_futmonth_anom,
+            data_hist=q_mnanom,
+            data_fut=q_futmonth_anom,
             scenario_names=scenarios,
-            title="Average potential evapotranspiration anomaly",
-            y_label="Anomaly (%)",
+            title=f"Average monthly {long_name} anomaly",
+            y_label=f"Anomaly ({unit_anomaly})",
             monthly=True,
             figure_filename=join(
-                path_output, "plots", "pet_monthly_projections_anom.png"
+                path_output, "plots", f"{var}_monthly_projections_anom.png"
             ),
         )
 
     # 5. Map plots of gridded change per scenario / horizon
     if nc_grid_projections is not None:
+        print("Preparing gridded change map plots")
         # Create a regular grid of 0.25 * 0.25 degrees to reproject the models to
         # (most models are defined on their own grid...)
         sc = scenarios[0]
@@ -599,7 +468,7 @@ def plot_climate_projections(
         vmax_m_pr = ds_rcp_hz_med["precip"].max().values
         vmin_m_tas = ds_rcp_hz_med["temp"].min().values
         vmax_m_tas = ds_rcp_hz_med["temp"].max().values
-        if has_pet:
+        if "pet" in ds_rcp_hz_med.data_vars:
             vmin_m_pet = ds_rcp_hz_med["pet"].min().values
             vmax_m_pet = ds_rcp_hz_med["pet"].max().values
         # Average maps over the months
@@ -608,7 +477,7 @@ def plot_climate_projections(
         vmax_pr = ds_rcp_hz_med_mean["precip"].max().values
         vmin_tas = ds_rcp_hz_med_mean["temp"].min().values
         vmax_tas = ds_rcp_hz_med_mean["temp"].max().values
-        if has_pet:
+        if "pet" in ds_rcp_hz_med_mean.data_vars:
             vmin_pet = ds_rcp_hz_med_mean["pet"].min().values
             vmax_pet = ds_rcp_hz_med_mean["pet"].max().values
 
@@ -649,7 +518,7 @@ def plot_climate_projections(
                         f"gridded_monthly_temperature_change_{sc}_{hz}-future-horizon.png",
                     ),
                 )
-                if has_pet:
+                if "pet" in ds_rcp_hz_med.data_vars:
                     # pet
                     plot_gridded_anomaly_month(
                         da=ds_rcp_hz_med["pet"].sel(scenario=sc, horizon=hz),
@@ -700,7 +569,7 @@ def plot_climate_projections(
                 )
 
                 # pet
-                if has_pet:
+                if "pet" in ds_rcp_hz_med_mean.data_vars:
                     plot_gridded_anomaly(
                         da=ds_rcp_hz_med_mean["pet"].sel(scenario=sc, horizon=hz),
                         title=f"Annual mean potential evapotranspiration change for {sc} and time horizon {hz}",
