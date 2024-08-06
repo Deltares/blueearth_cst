@@ -3,7 +3,7 @@
 Plots expected change in climate variables based on GCM projections
 """
 import os
-from os.path import join
+from os.path import join, dirname
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -254,9 +254,10 @@ def compute_anomalies(da_hist: xr.DataArray, ds_fut: List[xr.Dataset]):
 def plot_climate_projections(
     nc_historical: List[Union[str, Path]],
     nc_future: List[Union[str, Path]],
-    path_output: Union[str, Path],
+    path_output_nc: Union[str, Path],
     scenarios: List[str],
     horizons: List[str],
+    path_output_plots: Optional[Union[str, Path]] = None,
     nc_grid_projections: Optional[List[Union[str, Path]]] = None,
 ):
     """
@@ -276,7 +277,10 @@ def plot_climate_projections(
     nc_future: List[Union[str, Path]]
         List of future netcdf scalar timeseries files
     path_output: Union[str, Path]
-        Path to the output directory
+        Path to the output directory to save the netcdf files with combined gcm results.
+    path_output_plots: Union[str, Path], optional
+        Path to the output directory to save the plots. If None, plots will be saved in
+        path_output_nc/plots. By default None.
     scenarios: List[str]
         List of scenarios. Should be part of the nc_future filenames and
         nc_grid_projections for selection in plots.
@@ -288,6 +292,10 @@ def plot_climate_projections(
         for no grid plots to make. Should contain the scenario and horizon in the
         filename.
     """
+    # Output directory
+    if path_output_plots is None:
+        path_output_plots = join(path_output_nc, "plots")
+
     # 1. Historical timeseries
     print("Opening historical gcm timeseries")
     fns_hist = nc_historical.copy()
@@ -326,9 +334,9 @@ def plot_climate_projections(
     for var in ds_all.data_vars:
         ds_all[var] = ds_all[var].round(decimals=2)
     # write to netcdf
-    if not os.path.exists(path_output):
-        os.makedirs(path_output)
-    ds_all.to_netcdf(join(path_output, "gcm_timeseries.nc"))
+    if not os.path.exists(path_output_nc):
+        os.makedirs(path_output_nc)
+    ds_all.to_netcdf(join(path_output_nc, "gcm_timeseries.nc"))
 
     # 4. Compute anomalies and plots scalar timeseries
     print("Computing anomalies and plotting scalar timeseries")
@@ -364,7 +372,7 @@ def plot_climate_projections(
             y_label=f"Anomaly ({unit_year})",
             monthly=False,
             figure_filename=join(
-                path_output, "plots", f"{var}_anomaly_projections_abs.png"
+                path_output_plots, f"{var}_anomaly_projections_abs.png"
             ),
         )
         # Anomaly change
@@ -376,7 +384,7 @@ def plot_climate_projections(
             y_label=f"Anomaly ({unit_anomaly})",
             monthly=False,
             figure_filename=join(
-                path_output, "plots", f"{var}_anomaly_projections_anom.png"
+                path_output_plots, f"{var}_anomaly_projections_anom.png"
             ),
         )
         # Absolute change monthly
@@ -388,7 +396,7 @@ def plot_climate_projections(
             y_label=f"{unit_month}",
             monthly=True,
             figure_filename=join(
-                path_output, "plots", f"{var}_monthly_projections_abs.png"
+                path_output_plots, f"{var}_monthly_projections_abs.png"
             ),
         )
         # Anomaly change monthly
@@ -400,7 +408,7 @@ def plot_climate_projections(
             y_label=f"Anomaly ({unit_anomaly})",
             monthly=True,
             figure_filename=join(
-                path_output, "plots", f"{var}_monthly_projections_anom.png"
+                path_output_plots, f"{var}_monthly_projections_anom.png"
             ),
         )
 
@@ -482,7 +490,7 @@ def plot_climate_projections(
             vmax_pet = ds_rcp_hz_med_mean["pet"].max().values
 
         # Save the merged factors on the "common" grid
-        ds_rcp_hz_med.to_netcdf(join(path_output, "gcm_grid_factors_025.nc"))
+        ds_rcp_hz_med.to_netcdf(join(path_output_nc, "gcm_grid_factors_025.nc"))
 
         # Reloop over the scenarios and horizons to plot the maps
         for sc in scenarios:
@@ -498,8 +506,8 @@ def plot_climate_projections(
                     cmap="RdYlBu",
                     use_diverging_cmap=True,
                     figure_filename=join(
-                        path_output,
-                        "plots",
+                        path_output_plots,
+                        "grid",
                         f"gridded_monthly_precipitation_change_{sc}_{hz}-future-horizon.png",
                     ),
                 )
@@ -513,8 +521,8 @@ def plot_climate_projections(
                     cmap="RdYlBu_r",
                     use_diverging_cmap=True,
                     figure_filename=join(
-                        path_output,
-                        "plots",
+                        path_output_plots,
+                        "grid",
                         f"gridded_monthly_temperature_change_{sc}_{hz}-future-horizon.png",
                     ),
                 )
@@ -529,8 +537,8 @@ def plot_climate_projections(
                         cmap="RdYlBu_r",
                         use_diverging_cmap=True,
                         figure_filename=join(
-                            path_output,
-                            "plots",
+                            path_output_plots,
+                            "grid",
                             f"gridded_monthly_pet_change_{sc}_{hz}-future-horizon.png",
                         ),
                     )
@@ -546,8 +554,8 @@ def plot_climate_projections(
                     cmap="RdYlBu",
                     use_diverging_cmap=True,
                     figure_filename=join(
-                        path_output,
-                        "plots",
+                        path_output_plots,
+                        "grid",
                         f"gridded_precipitation_change_{sc}_{hz}-future-horizon.png",
                     ),
                 )
@@ -562,8 +570,8 @@ def plot_climate_projections(
                     cmap="RdYlBu_r",
                     use_diverging_cmap=True,
                     figure_filename=join(
-                        path_output,
-                        "plots",
+                        path_output_plots,
+                        "grid",
                         f"gridded_temperature_change_{sc}_{hz}-future-horizon.png",
                     ),
                 )
@@ -579,8 +587,8 @@ def plot_climate_projections(
                         cmap="RdYlBu_r",
                         use_diverging_cmap=True,
                         figure_filename=join(
-                            path_output,
-                            "plots",
+                            path_output_plots,
+                            "grid",
                             f"gridded_pet_change_{sc}_{hz}-future-horizon.png",
                         ),
                     )
@@ -597,7 +605,8 @@ if __name__ == "__main__":
         plot_climate_projections(
             nc_historical=sm.input.stats_time_nc_hist,
             nc_future=sm.input.stats_time_nc,
-            path_output=sm.params.clim_project_dir,
+            path_output_nc=dirname(sm.output.timeseries_nc),
+            path_output_plots=dirname(sm.output.precip_plt),
             scenarios=sm.params.scenarios,
             horizons=list(sm.params.horizons.keys()),
             nc_grid_projections=nc_grid_projections,
