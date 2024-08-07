@@ -33,7 +33,10 @@ CLIM_PROJECT_TIME_TUPLE = {
 
 
 def derive_pet(
-    ds: xr.Dataset, pet_method: str, timestep: np.ndarray, drop_vars: bool = True
+    ds: xr.Dataset,
+    pet_method: str,
+    timestep: np.ndarray,
+    drop_vars: List = [],
 ):
     """
     Compute potential evapotranspiration using different methods.
@@ -45,6 +48,10 @@ def derive_pet(
     pet_method : str
         Method to compute potential evapotranspiration. Available methods are 'makkink',
         'debruin'.
+    timestep : np.ndarray
+        Timestep in seconds for each month.
+    drop_vars : list
+        List of variables to drop after computing pet. Default is [].
 
     Returns
     -------
@@ -58,8 +65,6 @@ def derive_pet(
             k_in=ds["kin"],
             timestep=timestep,
         )
-        if drop_vars:
-            ds = ds.drop_vars(["press_msl", "kin"])
     elif pet_method == "debruin":
         ds["pet"] = forcing.pet_debruin(
             temp=ds["temp"],
@@ -68,12 +73,15 @@ def derive_pet(
             k_ext=ds["kout"],
             timestep=timestep,
         )
-        if drop_vars:
-            ds = ds.drop_vars(["press_msl", "kin", "kout"])
+    # Drop variables
+    for var in drop_vars:
+        if var in ds:
+            ds = ds.drop_vars(var)
+
     return ds
 
 
-def derive_wind(ds: xr.Dataset, altitude: float = 10, drop_vars: bool = True):
+def derive_wind(ds: xr.Dataset, altitude: float = 10, drop_vars: List = []):
     """
     Compute wind speed from u and v wind components.
 
@@ -83,8 +91,8 @@ def derive_wind(ds: xr.Dataset, altitude: float = 10, drop_vars: bool = True):
         Dataset with either wind or u and v wind components data.
     altitude : float
         Altitude to correct wind speed from 10m to 2m. Default is 10m.
-    drop_vars : bool
-        Drop u and v wind components after computing wind speed. True by default.
+    drop_vars : list
+        Drop u and v wind components after computing wind speed.
 
     Returns
     -------
@@ -93,18 +101,19 @@ def derive_wind(ds: xr.Dataset, altitude: float = 10, drop_vars: bool = True):
     """
     if "wind10_u" in ds and "wind10_v" in ds:
         ds["wind"] = np.sqrt(np.power(ds["wind10_u"], 2) + np.power(ds["wind10_v"], 2))
-        if drop_vars:
-            ds = ds.drop_vars(["wind10_u", "wind10_v"])
     else:
         print("u and v wind components not found, wind speed not computed")
-
     # Correct altitude from 10m to 2m wind
     ds["wind"] = ds["wind"] * (4.87 / np.log((67.8 * altitude) - 5.42))
+    # Drop variables
+    for var in drop_vars:
+        if var in ds:
+            ds = ds.drop_vars(var)
 
     return ds
 
 
-def derive_tdew(ds: xr.Dataset, drop_vars: bool = True):
+def derive_tdew(ds: xr.Dataset, drop_vars: List = []):
     """
     Compute dew point temperature using Magnus formula and constant from NOAA.
 
@@ -112,9 +121,8 @@ def derive_tdew(ds: xr.Dataset, drop_vars: bool = True):
     ----------
     ds : xr.Dataset
         Dataset with temperature temp [Celsius] and relative humidity rh [%].
-    drop_vars : bool
-        Drop relative humidity after computing dew point temperature.
-        True by default.
+    drop_vars : List
+        Drop relative humidity and/or temperature after computing dew point temperature.
 
     Returns
     -------
@@ -128,10 +136,12 @@ def derive_tdew(ds: xr.Dataset, drop_vars: bool = True):
         e = (ds["rh"] / 100) * es
         # Compute dew point temperature
         ds["temp_dew"] = (243.5 * np.log(e / 6.112)) / (17.67 - np.log(e / 6.112))
-        if drop_vars:
-            ds = ds.drop_vars(["rh"])
     else:
         print("temp and rh not found, dew point temperature not computed")
+    # Drop variables
+    for var in drop_vars:
+        if var in ds:
+            ds = ds.drop_vars(var)
 
     return ds
 
@@ -149,6 +159,9 @@ def get_stats_clim_projections(
     pet_method="makkink",
     save_grids=False,
     time_horizon=None,
+    drop_vars_pet=[],
+    drop_vars_wind=[],
+    drop_vars_dew=[],
 ):
     """
     Parameters
@@ -183,6 +196,12 @@ def get_stats_clim_projections(
         dictionary with time horizons to select before computing monthly regime.
         several periods can be supplied if needed. the dictionary should have the
         following format: {'period_name': ('start_year', 'end_year')}. default is None
+    drop_vars_pet : list
+        list of variables to drop after computing pet. default is [].
+    drop_vars_wind : list
+        list of variables to drop after computing wind. default is [].
+    drop_vars_dew : list
+        list of variables to drop after computing dew point temperature. default is [].
 
     Returns
     -------
@@ -262,13 +281,17 @@ def get_stats_clim_projections(
     # if needed compute pet
     if compute_pet:
         timestep = mean_stats_time["time"].to_index().daysinmonth * 86400
-        mean_stats_time = derive_pet(mean_stats_time, pet_method, timestep)
+        mean_stats_time = derive_pet(
+            mean_stats_time, pet_method, timestep, drop_vars=drop_vars_pet
+        )
     # if needed compute wind
     if compute_wind:
-        mean_stats_time = derive_wind(mean_stats_time, altitude=10)
+        mean_stats_time = derive_wind(
+            mean_stats_time, altitude=10, drop_vars=drop_vars_wind
+        )
     # if needed compute dew point temperature
     if compute_tdew:
-        mean_stats_time = derive_tdew(mean_stats_time)
+        mean_stats_time = derive_tdew(mean_stats_time, drop_vars=drop_vars_dew)
 
     # add coordinate on project, model, scenario, member to later merge all files
     mean_stats_time = mean_stats_time.assign_coords(
@@ -289,13 +312,15 @@ def get_stats_clim_projections(
                 dims=["month"],
                 coords={"month": mean_stats["month"]},
             )
-            mean_stats = derive_pet(mean_stats, pet_method, timestep)
+            mean_stats = derive_pet(
+                mean_stats, pet_method, timestep, drop_vars=drop_vars_pet
+            )
         # compute wind
         if compute_wind:
-            mean_stats = derive_wind(mean_stats, altitude=10)
+            mean_stats = derive_wind(mean_stats, altitude=10, drop_vars=drop_vars_wind)
         # compute dew point temperature
         if compute_tdew:
-            mean_stats = derive_tdew(mean_stats)
+            mean_stats = derive_tdew(mean_stats, drop_vars=drop_vars_dew)
 
         # add coordinate on project, model, scenario, member to later merge all files
         mean_stats = mean_stats.assign_coords(
@@ -420,6 +445,11 @@ def extract_climate_projections_statistics(
         compute_pet = True
         # Remove pet from variables
         variables.remove("pet")
+        # Find if kin was in the requested variables
+        if "kin" in variables:
+            drop_vars_pet = ["press_msl", "kout"]
+        else:
+            drop_vars_pet = ["press_msl", "kin", "kout"]
         # Add pet variables depending on method
         if pet_method == "makkink":
             variables.extend(["press_msl", "kin"])
@@ -439,7 +469,12 @@ def extract_climate_projections_statistics(
 
     if "temp_dew" in variables and compute_tdew:
         variables.remove("temp_dew")
-        variables.extend(["temp", "rh"])
+        if "temp" in variables:
+            drop_vars_dew = ["rh"]
+            variables.extend(["rh"])
+        else:
+            drop_vars_dew = ["rh", "temp"]
+            variables.extend(["temp", "rh"])
 
     # check if model really exists from data catalog entry
     # else skip and provide empty ds
@@ -517,6 +552,9 @@ def extract_climate_projections_statistics(
                 pet_method=pet_method,
                 save_grids=save_grids,
                 time_horizon=time_horizon,
+                drop_vars_pet=drop_vars_pet,
+                drop_vars_wind=["wind10_u", "wind10_v"],
+                drop_vars_dew=drop_vars_dew,
             )
 
         else:
