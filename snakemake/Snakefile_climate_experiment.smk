@@ -12,9 +12,9 @@ config_path = args[args.index("--configfile") + 1]
 #project = get_config(config, 'project_name', optional=False)
 project_dir = get_config(config, 'project_dir', optional=False)
 experiment = get_config(config, 'experiment_name', optional=False)
-RLZ_NUM = get_config(config, 'realizations_num', 1)
-ST_NUM = (get_config(config['temp'], 'step_num', 1) + 1) * (get_config(config['precip'], 'step_num', 1) + 1)
-run_hist = get_config(config,"run_historical", False)
+RLZ_NUM = get_config(config, 'realizations_num', default=1)
+ST_NUM = (get_config(config['temp'], 'step_num', default=1) + 1) * (get_config(config['precip'], 'step_num', default=1) + 1)
+run_hist = get_config(config,"run_historical", default=False)
 if run_hist:
     ST_START = 0
 else:
@@ -29,7 +29,7 @@ exp_dir = f"{project_dir}/climate_{experiment}"
 clim_source = get_config(config, "clim_historical", optional=False)
 # Time horizon climate experiment and number of hydrological model run
 horizontime_climate = get_config(config, 'horizontime_climate', optional=False)
-wflow_run_length = get_config(config, 'run_length', 20)
+wflow_run_length = get_config(config, 'run_length', default=20)
 
 # Master rule: end with all model run and analysed with saving a output plot
 rule all:
@@ -53,10 +53,15 @@ rule copy_config:
 # Rule to extract historic climate data at native resolution for the project area
 rule extract_climate_grid:
     input:
-        prj_region = ancient(f"{basin_dir}/staticgeoms/region.geojson"),
+        region_fn = ancient(f"{basin_dir}/staticgeoms/region.geojson"),
     params:
         data_sources = DATA_SOURCES,
         clim_source = clim_source,
+        starttime = "1980-01-01T00:00:00",
+        endtime = "2010-12-31T00:00:00",
+        buffer_km = 1,
+        climate_variables = ["precip", "temp", "temp_min", "temp_max", "kin", "kout", "press_msl"],
+        combine_with_era5 = True,
     output:
         climate_nc = f"{project_dir}/climate_historical/raw_data/extract_historical.nc",
     script:
@@ -169,9 +174,9 @@ rule export_wflow_results:
         basin = f"{exp_dir}/model_results/basin.csv",
     params:
         exp_dir = exp_dir,
-        aggr_rlz = get_config(config, 'aggregate_rlz', True),
+        aggr_rlz = get_config(config, 'aggregate_rlz', default=True),
         st_num = ST_NUM,
-        Tlow = get_config(config,"Tlow", 2),
-        Tpeak = get_config(config,"Tpeak", 10),
+        Tlow = get_config(config,"Tlow", default=2),
+        Tpeak = get_config(config,"Tpeak", default=10),
     script:
         "../src/export_wflow_results.py"

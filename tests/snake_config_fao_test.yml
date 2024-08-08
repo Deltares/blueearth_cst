@@ -66,9 +66,11 @@ plot_budyko: True
 region_buffer: 10
 # Hydrography dataset to use to derive region from (sub)basin
 hydrography_fn: merit_hydro_1k
+# River geometry dataset to add to plots
+river_geom_fn: river_atlas
 
 # Additional sub-basins or sub-regions to include in the analysis
-climate_subregions: None
+climate_subregions: "tests/test_project/hydrology_model/staticgeoms/subcatch_discharge-locations-grdc.geojson"
 
 # If available, please put here the path to the available climate observation stations locations files
 # csv file containing four columns: station_ID, name, x, y
@@ -77,14 +79,25 @@ climate_locations: "tests/data/observations/climate-locations-eca.csv"
 climate_locations_timeseries: "tests/data/observations/observations-climate-eca.csv" 
 
 # Thresholds for the climate analysis
-# Precipitation peak threshold in mm/day
-precipitation_peak_threshold: 40
-# Precipitation daily mean dry threshold in mm/day
-precipitation_dry_threshold: 0.2
-# Heat daily mean temperature threshold in degrees Celsius
-temperature_heat_threshold: 25
-# Split year for the timeseries trends
-split_year_trend: 2005
+climate_thresholds:
+  precip:
+    peak: 40 # Precipitation peak threshold in mm/day
+    dry: 0.2 # Precipitation daily mean dry threshold in mm/day
+  temp:
+    heat: 25 # Heat daily mean temperature threshold in degrees Celsius
+
+# Plotting options
+historical_climate_plots:
+  timeseries_trends:
+    split_year: 2005 # Split year for the timeseries trends
+  climate_per_year: # plot options for the gridded climate data per year
+    year_per_line: 5
+    line_height: 6
+    fontsize: 10
+  mean_precipitation: # plot options for the gridded mean precipitation
+    add_rivers: True
+    line_height: 6
+    fontsize: 8
 
 ###########################################################################################
 ################################## Climate projections ####################################

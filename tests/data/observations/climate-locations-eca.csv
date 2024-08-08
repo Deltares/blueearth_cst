@@ -1,2 +1,2 @@
-id,station_name,x,y
-24431,SILLIAN,12.4231,46.7458
+id,name,x,y,elevtn
+24431,SILLIAN,12.4231,46.7458,1081
