@@ -26,10 +26,10 @@ scenarios_selected = get_config(config, 'scenarios_selected', optional=False)
 
 clim_project_dir = f"{project_dir}/climate_projections/{clim_project}"
 
-output_locations = get_config(config, "output_locations", None)
-observations_timeseries = get_config(config, "observations_timeseries", None)
+output_locations = get_config(config, "output_locations", default=None)
+observations_timeseries = get_config(config, "observations_timeseries", default=None)
 
-wflow_outvars = get_config(config, "wflow_outvars", ['river discharge'])
+wflow_outvars = get_config(config, "wflow_outvars", default=['river discharge'])
 
 # Master rule: end with all model run and analysed with saving a output plot
 rule all:
@@ -89,7 +89,7 @@ rule setup_toml_near:
         model_name = "{model}",
         scenario_name = "{scenario}",
         horizon = "near",
-        ref_time = get_config(config, "historical", None),
+        ref_time = get_config(config, "historical", default=None),
     script: "../src/setup_config_future.py"
 
 
@@ -116,7 +116,7 @@ rule setup_toml_far:
         model_name = "{model}",
         scenario_name = "{scenario}",
         horizon = "far",
-        ref_time = get_config(config, "historical", None),
+        ref_time = get_config(config, "historical", default=None),
     script: "../src/setup_config_future.py"
 
 #Rule to run the wflow model for each additional forcing dataset 

@@ -13,18 +13,18 @@ config_path = args[args.index("--configfile") + 1]
 project_dir = get_config(config, 'project_dir', optional=False)
 basin_dir = f"{project_dir}/hydrology_model"
 model_region = get_config(config, 'model_region', optional=False)
-model_resolution = get_config(config, 'model_resolution', 0.00833333)
-model_build_config = get_config(config, 'model_build_config', 'config/cst_api/wflow_build_model.yml')
-waterbodies_config = get_config(config, 'waterbodies_config', 'config/cst_api/wflow_update_waterbodies.yml')
+model_resolution = get_config(config, 'model_resolution', default=0.00833333)
+model_build_config = get_config(config, 'model_build_config', default='config/cst_api/wflow_build_model.yml')
+waterbodies_config = get_config(config, 'waterbodies_config', default='config/cst_api/wflow_update_waterbodies.yml')
 climate_sources = get_config(config, "clim_historical", optional=False)
 climate_sources_colors = get_config(config, "clim_historical_colors", optional=True) 
 DATA_SOURCES = get_config(config, "data_sources", optional=False)
 DATA_SOURCES = np.atleast_1d(DATA_SOURCES).tolist() #make sure DATA_SOURCES is a list format (even if only one DATA_SOURCE)
 
-output_locations = get_config(config, "output_locations", None)
-observations_timeseries = get_config(config, "observations_timeseries", None)
+output_locations = get_config(config, "output_locations", default=None)
+observations_timeseries = get_config(config, "observations_timeseries", default=None)
 
-wflow_outvars = get_config(config, "wflow_outvars", ['river discharge'])
+wflow_outvars = get_config(config, "wflow_outvars", default=['river discharge'])
 
 # Master rule: end with all model run and analysed with saving a output plot
 rule all:
@@ -82,7 +82,7 @@ rule add_gauges_and_outputs:
     params:
         output_locs = output_locations,
         outputs = wflow_outvars,
-        outputs_gridded = get_config(config, "wflow_outvars_gridded", None),
+        outputs_gridded = get_config(config, "wflow_outvars_gridded", default=None),
         data_catalog = DATA_SOURCES,
     script:
         "../src/setup_gauges_and_outputs.py"
@@ -135,7 +135,7 @@ rule plot_results:
        gauges_output_fid = output_locations,
        climate_sources = climate_sources,
        climate_sources_colors = climate_sources_colors,
-       add_budyko_plot = get_config(config, "plot_budyko", False),
+       add_budyko_plot = get_config(config, "plot_budyko", default=False),
    script: "../src/plot_results.py"
 
 # Rule to plot the wflow basin, rivers, gauges and DEM on a map
@@ -147,6 +147,10 @@ rule plot_map:
     params:
         project_dir = f"{project_dir}",
         output_locations = output_locations,
+        output_locations_legend = get_config(config, "output_locations_legend", default="output locations"),
+        data_catalog = DATA_SOURCES,
+        meteo_locations = get_config(config, "climate_locations", default=None),
+        buffer_km = get_config(config, "region_buffer", default=2),
     script: "../src/plot_map.py"
 
 # Rule to plot the forcing on a map

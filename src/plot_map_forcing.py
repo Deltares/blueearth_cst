@@ -10,7 +10,7 @@ Created on Thu Jan 13 16:23:11 2022
 from os.path import basename, join
 import os
 from pathlib import Path
-from typing import Union
+from typing import Union, Optional
 
 from hydromt_wflow import WflowModel
 
@@ -26,7 +26,7 @@ else:
 
 def plot_forcing(
     wflow_root: Union[str, Path],
-    plot_dir: Union[str, Path] = None,
+    plot_dir: Optional[Union[str, Path]] = None,
     gauges_name: str = None,
     config_fn: str = "wflow_sbm.toml",
 ):

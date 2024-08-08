@@ -3,7 +3,7 @@ call activate blueearth-cst
 rem Snakefile_historical_climate
 snakemake -s snakemake/Snakefile_climate_historical.smk --configfile tests/snake_config_fao_test.yml  --dag | dot -Tpng > dag_climate_historical.png
 snakemake --unlock -s snakemake/Snakefile_climate_historical.smk --configfile tests/snake_config_fao_test.yml
-snakemake all -c 1 -s snakemake/Snakefile_climate_historical.smk --configfile tests/snake_config_fao_test.yml
+snakemake all -c 1 -s snakemake/Snakefile_climate_historical.smk --configfile tests/snake_config_fao_test.yml --rerun-triggers mtime --dry-run
 
 rem snakemake/Snakefile_run_historical_datasets.smk
 snakemake -s snakemake/Snakefile_historical_hydrology.smk --configfile tests/snake_config_fao_test.yml  --dag | dot -Tpng > dag_hydrology_historical.png
@@ -16,7 +16,7 @@ rem snakemake all -c 1 -s snakemake/Snakefile_historical_hydrology.smk --configf
 rem Snakefile climate_projections
 snakemake -s snakemake/Snakefile_climate_projections.smk --configfile tests/snake_config_fao_test.yml --dag | dot -Tpng > dag_projections.png
 snakemake --unlock -s snakemake/Snakefile_climate_projections.smk --configfile tests/snake_config_fao_test.yml
-snakemake all -c 1 -s snakemake/Snakefile_climate_projections.smk --configfile tests/snake_config_fao_test.yml --keep-going 
+snakemake all -c 1 -s snakemake/Snakefile_climate_projections.smk --configfile tests/snake_config_fao_test.yml --keep-going --rerun-triggers mtime
 
 rem Snakefile run delta change
 snakemake -s snakemake/Snakefile_future_hydrology_delta_change.smk --configfile tests/snake_config_fao_test.yml --dag | dot -Tsvg > dag_hydrology_future.svg
@@ -32,4 +32,8 @@ rem dryrun is to tell what it will be doing without actually running
 rem until - still the whole workflow but not all jobs 
 rem --delete-temp-output - delete the temp files after the run
 rem --notemp do not delete the temp files after the run
+rem --rerun-triggers Define what triggers the rerunning of a job. By default, all triggers are used, which guarantees that results are consistent 
+rem with the workflow code and configuration. If you rather prefer the traditional way of just considering file modification dates, use ‘–rerun-trigger mtime’.
+rem for example useful to not re-derive region in the workflows that have that step in common or in case of minor code changes.
+rem Default: [‘mtime’, ‘params’, ‘input’, ‘software-env’, ‘code’]
 pause

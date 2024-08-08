@@ -49,7 +49,7 @@ def test_create_model_full(
     ### 1. Create model base ###
     basin_dir = f"{tmpdir}/hydrology_model"
     model_region = get_config(config, "model_region", optional=False)
-    model_resolution = get_config(config, "model_resolution", 0.00833333)
+    model_resolution = get_config(config, "model_resolution", default=0.00833333)
     hydromt_ini = model_build_config
 
     # Run hydromt build command similarly as in snakemake workflow
@@ -94,9 +94,9 @@ def test_create_model_full(
     assert not os.path.exists(f"{tmpdir}/hydrology_model/staticgeoms/lakes.geojson")
 
     ### 3. Add gauges and select outputs ###
-    gauges_fn = get_config(config, "output_locations", None)
+    gauges_fn = get_config(config, "output_locations", default=None)
     gauges_fn = join(MAINDIR, gauges_fn)
-    outputs = get_config(config, "wflow_outvars")
+    outputs = get_config(config, "wflow_outvars", default=["river discharge"])
     outputs_gridded = ["snow"]
 
     setup_gauges_and_outputs.update_wflow_gauges_outputs(
@@ -197,12 +197,15 @@ def test_add_forcing(tmpdir, data_libs_fao, config):
         assert "pet" in ds
 
 
-def test_plot_map(tmpdir, config):
+def test_plot_map(tmpdir, config, config_fao):
     """Test plotting the model map."""
     wflow_root = f"{SAMPLE_PROJECTDIR}/hydrology_model"
     plot_dir = f"{tmpdir}/plots/wflow_model_performance"
-    gauges_fn = get_config(config, "output_locations")
+    gauges_fn = get_config(config, "output_locations", default=None)
     gauges_name = f'gauges_{basename(gauges_fn).split(".")[0]}'
+    meteo_locations = join(
+        MAINDIR, get_config(config_fao, "climate_locations", default=None)
+    )
 
     # Try without gauges
     plot_map.plot_wflow_map(
@@ -218,6 +221,16 @@ def test_plot_map(tmpdir, config):
         gauges_name=gauges_name,
     )
 
+    # Try with meteo locations
+    plot_map.plot_wflow_map(
+        wflow_root=wflow_root,
+        plot_dir=plot_dir,
+        gauges_name=gauges_name,
+        gauges_name_legend="hydrological stations",
+        meteo_locations=meteo_locations,
+        buffer_km=10.0,
+    )
+
     # Check output
     assert os.path.exists(f"{plot_dir}/basin_area.png")
 
@@ -225,7 +238,7 @@ def test_plot_map(tmpdir, config):
 def test_plot_forcing(tmpdir, config):
     """Test plotting the forcing maps."""
     wflow_root = f"{SAMPLE_PROJECTDIR}/hydrology_model/run_default"
-    gauges_fn = get_config(config, "output_locations")
+    gauges_fn = get_config(config, "output_locations", default=None)
     gauges_name = f'gauges_{basename(gauges_fn).split(".")[0]}'
     precip_sources = get_config(config, "clim_historical", optional=False)
     precip_sources = np.atleast_1d(precip_sources).tolist()
@@ -259,9 +272,9 @@ def test_plot_results(tmpdir, config_fao):
     """Test plotting the model results."""
     wflow_root = f"{SAMPLE_PROJECTDIR}/hydrology_model/run_default"
     plot_dir = f"{tmpdir}/plots"
-    gauges_locs = get_config(config_fao, "output_locations")
+    gauges_locs = get_config(config_fao, "output_locations", default=None)
     gauges_locs = join(MAINDIR, gauges_locs)
-    observations_fn = get_config(config_fao, "observations_timeseries")
+    observations_fn = get_config(config_fao, "observations_timeseries", default=None)
     observations_fn = join(MAINDIR, observations_fn)
     precip_sources = get_config(config_fao, "clim_historical", optional=False)
     precip_sources = np.atleast_1d(precip_sources).tolist()
@@ -373,9 +386,9 @@ def test_plot_results_budyko(tmpdir, config):
     """Test plotting the model results."""
     wflow_root = f"{SAMPLE_PROJECTDIR}/hydrology_model/run_default"
     plot_dir = f"{tmpdir}/plots"
-    gauges_locs = get_config(config, "output_locations")
+    gauges_locs = get_config(config, "output_locations", default=None)
     gauges_locs = join(MAINDIR, gauges_locs)
-    observations_fn = get_config(config, "observations_timeseries")
+    observations_fn = get_config(config, "observations_timeseries", default=None)
     observations_fn = join(MAINDIR, observations_fn)
     precip_sources = get_config(config, "clim_historical", optional=False)
     precip_sources = np.atleast_1d(precip_sources).tolist()

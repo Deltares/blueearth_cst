@@ -72,7 +72,9 @@ def test_setup_toml_delta_change_hydrology(tmpdir, config_fao):
     wflow_config_template = join(
         SAMPLE_PROJECTDIR,
         "hydrology_model",
-        get_config(config_fao, "config_model_historical", "wflow_sbm_era5.toml"),
+        get_config(
+            config_fao, "config_model_historical", default="wflow_sbm_era5.toml"
+        ),
     )
     delta_change_fn = join(
         SAMPLE_PROJECTDIR,
@@ -145,15 +147,17 @@ def test_plot_results_delta(tmpdir, config_fao):
     wflow_historical_config = join(
         SAMPLE_PROJECTDIR,
         "hydrology_model",
-        get_config(config_fao, "config_model_historical", "wflow_sbm_era5.toml"),
+        get_config(
+            config_fao, "config_model_historical", default="wflow_sbm_era5.toml"
+        ),
     )
 
     plot_dir = f"{tmpdir}/plots"
 
-    gauges_locs = get_config(config_fao, "output_locations")
+    gauges_locs = get_config(config_fao, "output_locations", default=None)
     gauges_locs = join(MAINDIR, gauges_locs)
 
-    future_horizons = get_config(config_fao, "future_horizons")
+    future_horizons = get_config(config_fao, "future_horizons", default=None)
     near_horizon = future_horizons["near"].replace(", ", "-")
     far_horizon = future_horizons["far"].replace(", ", "-")
 
