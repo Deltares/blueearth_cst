@@ -21,6 +21,13 @@ __all__ = ["plot_gridded_precip"]
 def create_grid_from_geom(
     geom: gpd.GeoDataFrame, res: float, align: bool = True
 ) -> xr.DataArray:
+    """
+    Create regular grid from a geometry.
+
+    Taken from hydromt.GridModel.setup_grid. Should be available in hydromt version 1.0
+    when this is moved to a workflow.
+
+    """
     xmin, ymin, xmax, ymax = geom.total_bounds
     res = abs(res)
     if align:
@@ -203,4 +210,8 @@ def plot_gridded_precip(
     # fig.tight_layout()
     if not os.path.exists(path_output):
         os.makedirs(path_output)
-    fig.savefig(join(path_output, "mean_annual_precipitation.png"), bbox_inches="tight")
+    fig.savefig(
+        join(path_output, "mean_annual_precipitation.png"),
+        bbox_inches="tight",
+        dpi=300,
+    )

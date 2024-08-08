@@ -51,12 +51,13 @@ def derive_gridded_trends(
     path_output : str or Path
         Path to the output directory where the plots are stored.
     data_catalog : List of str or Path, optional
-        List of paths to the data catalogs to use for the plotting. Needed if the region
-        or river filenames are data catlog entries.
+        List of paths to the data catalogs to use for the plotting. Needed if the
+        river filename are data catalog entries.
     region_filename : str or Path, optional
         Path to the region vector file. If provided, it will be added to the plots.
     river_filename : str or Path, optional
-        Path to the river vector file. If provided, it will be added to the plots.
+        Path or data catalog entry to the river vector file. If provided, it will be
+        added to the plots.
     year_per_line : int, optional
         Number of years per line in the gridded anomalies plot. Default is 5.
     line_height_yearly_plot : int, optional
@@ -103,10 +104,10 @@ def derive_gridded_trends(
 
         # Check the number of days in the first year in ds_clim.time
         # and remove the year if not complete
-        if len(ds.sel(time=ds.time.dt.year.isin(ds.time.dt.year[0]))) < 365:
+        if len(ds.sel(time=ds.time.dt.year.isin(ds.time.dt.year[0]))) < 364:
             ds = ds.sel(time=~ds.time.dt.year.isin(ds.time.dt.year[0]))
         # Same for the last year
-        if len(ds.sel(time=ds.time.dt.year.isin(ds.time.dt.year[-1]))) < 365:
+        if len(ds.sel(time=ds.time.dt.year.isin(ds.time.dt.year[-1]))) < 364:
             ds = ds.sel(time=~ds.time.dt.year.isin(ds.time.dt.year[-1]))
 
         # Add to dict

@@ -12,7 +12,7 @@ def get_config(config, *args, default=None, optional=True):
     config : dict
         config file
     args : tuple or string
-        keys can given by multiple args: ('key1', 'key2')
+        keys can be given by multiple args: ('key1', 'key2')
         or a string with '.' indicating a new level: ('key1.key2')
     default : str/int/float/list, optional
         default value if argument not found, by default None

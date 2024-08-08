@@ -24,7 +24,7 @@ def prep_historical_climate(
     combine_with_era5: bool = False,
 ):
     """
-    Extract historical climate data for a given region and time period.
+    Extract and save historical climate data for a given region and time period.
 
     If clim_source only contains precip, then only precip is extracted and will be
     combined with other climate data from era5 if combine_with_era5 is True.
@@ -59,12 +59,6 @@ def prep_historical_climate(
     region = gpd.read_file(region_fn)
     # Read data catalog
     data_catalog = hydromt.DataCatalog(data_libs=data_libs)
-
-    # Extract climate data
-    # Here we can afford larger chunks as we only extract and save
-    # data_catalog_temp = data_catalog.to_dict()
-    # data_catalog_temp[clim_source]["driver_kwargs"]["chunks"] = "auto"
-    # data_catalog = hydromt.DataCatalog().from_dict(data_catalog_temp)
 
     # Load the data
     ds = data_catalog.get_rasterdataset(

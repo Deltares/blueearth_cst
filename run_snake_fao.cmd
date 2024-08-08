@@ -32,4 +32,8 @@ rem dryrun is to tell what it will be doing without actually running
 rem until - still the whole workflow but not all jobs 
 rem --delete-temp-output - delete the temp files after the run
 rem --notemp do not delete the temp files after the run
+rem --rerun-triggers Define what triggers the rerunning of a job. By default, all triggers are used, which guarantees that results are consistent 
+rem with the workflow code and configuration. If you rather prefer the traditional way of just considering file modification dates, use ‘–rerun-trigger mtime’.
+rem for example useful to not re-derive region in the workflows that have that step in common or in case of minor code changes.
+rem Default: [‘mtime’, ‘params’, ‘input’, ‘software-env’, ‘code’]
 pause

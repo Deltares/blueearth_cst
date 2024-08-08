@@ -23,16 +23,19 @@ def sample_climate_historical(
     buffer: Optional[float] = 2.0,
 ):
     """
-    Extract timeseries at specific locations from a climate dataset.
+    Extract and save timeseries at specific locations from a climate dataset.
 
     Specific locations can be polygons or points. At minimum, region polygons should be
     provided to extract timeseries for the entire region.
     Additional polygons or points locations can be provided.
 
+    The files will be saved to netcdf format.
+
     Outputs:
-    * **basin_{clim_source}.nc**: sampled timeseries plots over the region
-        (and subregions).
-    * **point_{clim_source}.nc**: sampled timeseries plots at specific point locations.
+    * **basin_{clim_source}.nc**: sampled mean averaged time series of climate_variable
+        over the region (and subregions).
+    * **point_{clim_source}.nc**: sampled timeseries of climate variables at specific
+        point locations.
 
     Parameters
     ----------

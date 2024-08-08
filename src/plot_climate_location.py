@@ -80,14 +80,11 @@ def plot_historical_climate_point(
         Path to the data catalog(s) to use. Useful mainly to read observations if any.
     locations_filename : str or Path
         Path or data catalog source of the point locations file. If the observed
-        timeseries data are provided in ``observations_filename``, the index
+        timeseries data are provided in ``precip_observations_filename``, the index
         should match the column names in the timeseries file.
         Optional variables: "name" for the location name and "elevtn" for the elevation
         of the location.
     precip_observations_filename: str or Path, optional
-        Path or data catalog source to the observed precipitation timeseries data file
-        for the locations in ``locations_filename``.
-    temp_observations_filename: str or Path, optional
         Path or data catalog source to the observed precipitation timeseries data file
         for the locations in ``locations_filename``.
     climate_variables : list of str, optional
@@ -106,8 +103,8 @@ def plot_historical_climate_point(
     region_filename : str or Path, optional
         Path to a region vector file for the inset map.
     export_observations : bool, optional
-        Export the observed data to a netcdf file in the same folder as
-        climate_filenames. By default True.
+        Export the observed data to a netcdf file with name "point_observed.nc" in the
+        same folder as climate_filenames. By default True.
     """
     # Create dirs
     if not os.path.exists(path_output):
