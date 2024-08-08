@@ -124,7 +124,6 @@ def plot_historical_climate_region(
 if __name__ == "__main__":
     if "snakemake" in globals():
         sm = globals()["snakemake"]
-        project_dir = sm.params.project_dir
 
         plot_historical_climate_region(
             climate_filenames=sm.input.basin_climate,

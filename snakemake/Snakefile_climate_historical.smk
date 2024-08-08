@@ -107,9 +107,9 @@ rule plot_basin_climate:
     params:
         climate_sources = climate_sources,
         climate_sources_colors = get_config(config, "clim_historical_colors", default=None),
-        precip_peak = get_config(config, "precipitation_peak_threshold", default=40),
-        precip_dry = get_config(config, "precipitation_dry_threshold", default=0.2),
-        temp_heat = get_config(config, "temperature_heat_threshold", default=25),
+        precip_peak = get_config(config, "climate_thresholds.precip.peak", default=40),
+        precip_dry = get_config(config, "climate_thresholds.precip.dry", default=0.2),
+        temp_heat = get_config(config, "climate_thresholds.temp.heat", default=25),
     output:
         basin_plot_done = f"{project_dir}/plots/climate_historical/region/basin_climate.txt",
     script:
@@ -126,9 +126,9 @@ rule plot_location_climate:
         climate_sources = climate_sources,
         climate_sources_colors = get_config(config, "clim_historical_colors", default=None),
         data_catalog = data_catalog,
-        precip_peak = get_config(config, "precipitation_peak_threshold", default=40),
-        precip_dry = get_config(config, "precipitation_dry_threshold", default=0.2),
-        temp_heat = get_config(config, "temperature_heat_threshold", default=25),
+        precip_peak = get_config(config, "climate_thresholds.precip.peak", default=40),
+        precip_dry = get_config(config, "climate_thresholds.precip.dry", default=0.2),
+        temp_heat = get_config(config, "climate_thresholds.temp.heat", default=25),
     output:
         point_plot_done = f"{project_dir}/plots/climate_historical/point/point_climate.txt",
     script:
@@ -140,7 +140,7 @@ rule derive_trends_timeseries:
         point_climate = expand((f"{project_dir}/climate_historical/statistics/"+"point_{source}.nc"), source=climate_sources),
         point_plot_done = f"{project_dir}/plots/climate_historical/point/point_climate.txt",
     params:
-        split_year = get_config(config, "split_year_trend", default=None),
+        split_year = get_config(config, "historical_climate_plots.timeseries_trends.split_year", default=None),
         point_observed = f"{project_dir}/climate_historical/statistics/point_observed.nc"
     output:
         trends_timeseries_done = f"{project_dir}/plots/climate_historical/trends/timeseries_trends.txt",
