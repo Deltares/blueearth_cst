@@ -3,7 +3,7 @@
 import os
 from os.path import join
 from pathlib import Path
-from typing import Union, Optional
+from typing import Union, Optional, Dict
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -13,6 +13,7 @@ import xarray as xr
 import numpy as np
 import scipy.stats as stats
 import geopandas as gpd
+import cartopy.crs as ccrs
 
 __all__ = ["plot_gridded_anomalies", "plot_timeseries_anomalies"]
 
@@ -92,61 +93,109 @@ def compute_anomalies_year(
 
 
 def plot_gridded_anomalies(
-    ds: xr.Dataset,
+    clim_dict: Dict[str, xr.DataArray],
     path_output: Union[str, Path],
-    suffix: Optional[str] = None,
     gdf_region: Optional[gpd.GeoDataFrame] = None,
+    year_per_line: int = 5,
+    line_height: float = 6,
+    fs: float = 10,
 ):
     """Plot gridded historical annual anomalies for a specific region.
 
     Parameters
     ----------
-    ds : xr.Dataset
-        Dataset with the gridded climate data.
+    clim_dict : dict(str, xr.DataArray)
+        Dictionary for a specific climate variables containing one DataArray for each
+        climate source. The climate source name will be used in the output filename of
+        the plot.
 
-        Supported variables: ["precip", "temp"]
+        Supported climate variables: ["precip", "temp"]
     path_output : str or Path
         Path to the output directory where the plots are stored.
-    suffix : str, optional
-        Suffix to add to the output filename.
     gdf_region : gpd.GeoDataFrame, optional
         The total region of the project to add to the inset map if provided.
+    year_per_line : int, optional
+        Number of years to plot per line. Default is 5.
+    line_height : float, optional
+        Height of a single year in the plot in cm. Default is 6.
+    fs : int, optional
+        Font size for the plot. Default is 10.
     """
+    clim_dict_anom = dict()
 
-    # Mask nodata
-    ds = ds.raster.mask_nodata()
-    for var in ds.data_vars:
-        da_yr_anom = compute_anomalies_year(ds[var])
+    # Compute the anomalies per year for each climate source
+    for source, da in clim_dict.items():
+        # Mask nodata
+        da_yr_anom = compute_anomalies_year(da.raster.mask_nodata())
+        clim_dict_anom[source] = da_yr_anom
 
-        # Plot the anomalies
+    # Find the common time period between sources
+    time_start = max([v.time.values[0] for v in clim_dict_anom.values()])
+    time_end = min([v.time.values[-1] for v in clim_dict_anom.values()])
+    # Sel each source
+    clim_dict_anom = {
+        k: v.sel(time=slice(time_start, time_end)) for k, v in clim_dict_anom.items()
+    }
+
+    # Find the min and max over all sources
+    clim_max = max([v.max().values for v in clim_dict_anom.values()])
+    clim_min = min([v.min().values for v in clim_dict_anom.values()])
+    # Create corresponding color scale
+    minmax = max(abs(clim_min), clim_max)
+    divnorm = colors.TwoSlopeNorm(vmin=-minmax, vcenter=0.0, vmax=minmax)
+
+    # Proj, extent
+    proj = ccrs.PlateCarree()
+    if gdf_region is not None:
+        extent = np.array(gdf_region.buffer(0.02).total_bounds)[[0, 2, 1, 3]]
+    else:
+        extent = None
+
+    # Plot the anomalies
+    for source, da_yr_anom in clim_dict_anom.items():
         plt.style.use("seaborn-v0_8-whitegrid")  # set nice style
         fig = plt.figure()
         da_yr_anom = da_yr_anom.rename({"time": "year"})
-        minmax = max(abs(np.nanmin(da_yr_anom.values)), np.nanmax(da_yr_anom.values))
-        divnorm = colors.TwoSlopeNorm(vmin=-minmax, vcenter=0.0, vmax=minmax)
 
         p = da_yr_anom.plot(
             x=da_yr_anom.raster.x_dim,
             y=da_yr_anom.raster.y_dim,
             col="year",
-            col_wrap=5,
-            cmap="bwr" if var == "temp" else "bwr_r",
+            col_wrap=year_per_line,
+            cmap="bwr" if da_yr_anom.name == "temp" else "bwr_r",
             norm=divnorm,
+            subplot_kws={"projection": proj},
+            cbar_kwargs={"shrink": 0.9},
+            size=line_height / 2.54,
+            aspect=1,
         )
         p.set_axis_labels("longitude [degree east]", "latitude [degree north]")
 
         if gdf_region is not None:
-            for ax in p.axes.flatten():
+            for i, ax in enumerate(p.axs.flatten()):
                 gdf_region.plot(ax=ax, facecolor="None")
+                if i >= len(da_yr_anom.year):
+                    continue
+                ax.set_extent(extent, crs=proj)
+                ax.set_title(
+                    da_yr_anom.year[i].values.item(), fontsize=fs, fontweight="bold"
+                )
+
+        # Update colorbar
+        p.cbar.ax.tick_params(labelsize=fs)
+        label = f"{da_yr_anom.attrs['long_name']} [{da_yr_anom.attrs['units']}]"
+        p.cbar.set_label(label=label, size=fs, weight="bold")
 
         # Save the plots
         if not os.path.exists(path_output):
             os.makedirs(path_output)
+
         plt.savefig(
-            join(path_output, f"gridded_anomalies_{var}_{suffix}.png"),
+            join(path_output, f"gridded_anomalies_{da_yr_anom.name}_{source}.png"),
             bbox_inches="tight",
             dpi=300,
         )
+        plt.close(fig)
 
         # Close the figure
         plt.close(fig)

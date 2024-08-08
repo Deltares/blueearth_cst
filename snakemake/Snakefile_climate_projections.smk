@@ -11,7 +11,7 @@ config_path = args[args.index("--configfile") + 1]
 # Parsing the Snakemake config file (options for basins to build, data catalog, model output directory)
 project_dir = get_config(config, 'project_dir', optional=False)
 # Data catalogs
-DATA_SOURCES = get_config(config, "data_sources", [])
+DATA_SOURCES = get_config(config, "data_sources", default=[])
 DATA_SOURCES = np.atleast_1d(DATA_SOURCES).tolist() #make sure DATA_SOURCES is a list format (even if only one DATA_SOURCE)
 DATA_SOURCES_CLIMATE = np.atleast_1d(get_config(config, "data_sources_climate", optional=False)).tolist()
 data_catalogs = []
@@ -23,10 +23,10 @@ models = get_config(config, "models", optional=False)
 scenarios = get_config(config, "scenarios", optional=False)
 members = get_config(config, "members", optional=False)
 variables = get_config(config, "variables", optional=False)
-pet_method = get_config(config, "pet_method", "makkink")
+pet_method = get_config(config, "pet_method", default="makkink")
 future_horizons = get_config(config, "future_horizons", optional=False)
 
-save_grids = get_config(config, "save_grids", False)
+save_grids = get_config(config, "save_grids", default=False)
 
 basin_dir = f"{project_dir}/hydrology_model"
 clim_project_dir = f"{project_dir}/climate_projections/{clim_project}"
@@ -65,10 +65,10 @@ rule copy_config:
 rule select_region:
     params:
         hydromt_region = get_config(config, "model_region", optional=region_default),
-        buffer_km = get_config(config, "region_buffer", 10),
+        buffer_km = get_config(config, "region_buffer", default=10),
         data_catalog = DATA_SOURCES,
-        hydrography_fn = get_config(config, "hydrography_fn", "merit_hydro"),
-        basin_index_fn = get_config(config, "basin_index_fn", "merit_hydro_index"),
+        hydrography_fn = get_config(config, "hydrography_fn", default="merit_hydro"),
+        basin_index_fn = get_config(config, "basin_index_fn", default="merit_hydro_index"),
     output:
         region_file = f"{project_dir}/region/region.geojson",
     script:
@@ -134,15 +134,15 @@ rule monthly_change:
         monthly_change_mean_grid = (clim_project_dir + "/monthly_change_grid/{model}_{scenario}_{horizon}.nc") if save_grids else [],
     params:
         clim_project_dir = f"{clim_project_dir}",
-        start_month_hyd_year = get_config(config, "start_month_hyd_year", "Jan"), 
+        start_month_hyd_year = get_config(config, "start_month_hyd_year", default="Jan"), 
         name_model = "{model}",
         name_scenario = "{scenario}",
         name_horizon = "{horizon}",
         time_horizon_hist = get_config(config, "historical", optional=False),
         time_horizon_fut = get_horizon,
         save_grids = save_grids,
-        change_drymonth_threshold = get_config(config, "change_drymonth_threshold", 3.0),
-        change_drymonth_maxchange = get_config(config, "change_drymonth_maxchange", 50.0),
+        change_drymonth_threshold = get_config(config, "change_drymonth_threshold", default=3.0),
+        change_drymonth_maxchange = get_config(config, "change_drymonth_maxchange", default=50.0),
     script: "../src/get_change_climate_proj.py"
 
 #rule to merge results in one netcdf
