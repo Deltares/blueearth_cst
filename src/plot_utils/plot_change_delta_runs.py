@@ -67,6 +67,8 @@ def plot_near_far_abs(
     far_legend: str = "far future",
         legend for far future
     """
+    if not os.path.exists(plot_dir):
+        os.makedirs(plot_dir)
 
     if "qhydro" in figname_prefix:
         fig, (ax1, ax2) = plt.subplots(

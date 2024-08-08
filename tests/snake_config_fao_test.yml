@@ -37,7 +37,7 @@ clim_historical_colors:
 # Supported variables: ['river discharge', 'precipitation', 'overland flow', 'actual evapotranspiration', 'groundwater recharge', 'snow']
 # Comment out to disable saving
 # Scalar csv
-wflow_outvars: ['river discharge', 'precipitation', 'overland flow', 'actual evapotranspiration', 'groundwater recharge', 'snow']
+wflow_outvars: ['river discharge', 'precipitation', 'overland flow', 'actual evapotranspiration', 'groundwater recharge', 'snow', 'glacier']
 # Gridded netcdf
 wflow_outvars_gridded: ['snow']
 

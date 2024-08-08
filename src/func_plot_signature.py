@@ -40,7 +40,12 @@ WFLOW_VARS = {
     "snow": {
         "resample": "mean",
         "legend": "Snowpack (mm)",
-        "legend_annual": "Snowpack (mm)}",
+        "legend_annual": "Snowpack (mm)",
+    },
+    "glacier": {
+        "resample": "mean",
+        "legend": "Glacier water volume (mm)",
+        "legend_annual": "Glacier water volume (mm)",
     },
 }
 

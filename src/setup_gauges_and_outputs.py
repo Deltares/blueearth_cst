@@ -15,6 +15,7 @@ WFLOW_VARS = {
     "actual evapotranspiration": "vertical.actevap",
     "groundwater recharge": "vertical.recharge",
     "snow": "vertical.snow",
+    "glacier": "vertical.glacierstore",
 }
 
 
@@ -45,6 +46,7 @@ def update_wflow_gauges_outputs(
             - "actual evapotranspiration"
             - "groundwater recharge"
             - "snow"
+            - "glacier"
     outputs_gridded : Optional[List[str]], optional
         List of gridded outputs to add to the model, by default None to save no gridded
         outputs. Available outputs are the same as in `outputs`.
@@ -77,6 +79,13 @@ def update_wflow_gauges_outputs(
     if "river discharge" in outputs:
         outputs.remove("river discharge")
 
+    # If glacier check that there are included in the model
+    if "glacier" in outputs:
+        has_glacier = mod.get_config("model.glacier", fallback=False)
+        if not has_glacier:
+            print("Glacier output requested but no glacier model found, removing glacier from outputs")
+            outputs.remove("glacier")
+    
     for var in outputs:
         if var in WFLOW_VARS:
             mod.config["csv"]["column"].append(
