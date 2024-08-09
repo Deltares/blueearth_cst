@@ -184,7 +184,11 @@ def plot_gridded_anomalies(
         # Update colorbar
         p.cbar.ax.tick_params(labelsize=fs)
         label = f"{da_yr_anom.attrs['long_name']} [{da_yr_anom.attrs['units']}]"
-        p.cbar.set_label(label=label, size=fs, weight="bold")
+        p.cbar.set_label(label=label, size=fs + 2, weight="bold")
+
+        # Remove the borders around each tile of the plot
+        for ax in p.axes.flat:
+            ax.axis("off")
 
         # Save the plots
         if not os.path.exists(path_output):

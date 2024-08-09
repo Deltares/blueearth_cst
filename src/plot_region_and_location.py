@@ -51,6 +51,7 @@ def plot_region_and_location(
         Path to the hydrography raster file or data catalog entry.
     rivers_fn : str, Path, optional
         Path to the rivers vector file or data catalog entry.
+        Optional variables for plotting: "strord".
     buffer_km : float, optional
         Buffer in km around the region to extract the data.
 

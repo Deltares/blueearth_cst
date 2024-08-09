@@ -140,6 +140,8 @@ def plot_map(
 
     # plot rivers with increasing width with stream order
     if rivers is not None:
+        if "strord" not in rivers.columns:
+            rivers["strord"] = 2
         rivers.plot(
             ax=ax, linewidth=rivers["strord"] / 2, color="blue", zorder=3, label="river"
         )

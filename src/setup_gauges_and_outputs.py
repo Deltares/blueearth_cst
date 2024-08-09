@@ -83,9 +83,11 @@ def update_wflow_gauges_outputs(
     if "glacier" in outputs:
         has_glacier = mod.get_config("model.glacier", fallback=False)
         if not has_glacier:
-            print("Glacier output requested but no glacier model found, removing glacier from outputs")
+            print(
+                "Glacier output requested but no glacier model found, removing glacier from outputs"
+            )
             outputs.remove("glacier")
-    
+
     for var in outputs:
         if var in WFLOW_VARS:
             mod.config["csv"]["column"].append(
