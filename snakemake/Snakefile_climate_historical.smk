@@ -129,6 +129,8 @@ rule plot_location_climate:
         precip_peak = get_config(config, "climate_thresholds.precip.peak", default=40),
         precip_dry = get_config(config, "climate_thresholds.precip.dry", default=0.2),
         temp_heat = get_config(config, "climate_thresholds.temp.heat", default=25),
+        max_nan_year = get_config(config, "historical_climate_plots.climate_per_location.max_nan_per_year", default=60),
+        max_nan_month = get_config(config, "historical_climate_plots.climate_per_location.max_nan_per_month", default=5),
     output:
         point_plot_done = f"{project_dir}/plots/climate_historical/point/point_climate.txt",
     script:
@@ -160,6 +162,7 @@ rule derive_trends_gridded:
         line_height_mean_precip = get_config(config, "historical_climate_plots.mean_precipitation.line_height", default=8),
         fs_yearly_plot = get_config(config, "historical_climate_plots.climate_per_year.fontsize", default=8),
         fs_mean_precip = get_config(config, "historical_climate_plots.mean_precipitation.fontsize", default=8),
+        y_title_yearly_plot = get_config(config, "historical_climate_plots.climate_per_year.y_title", default=1.0),
     output:
         trends_gridded_done = f"{project_dir}/plots/climate_historical/trends/gridded_trends.txt",
     script:

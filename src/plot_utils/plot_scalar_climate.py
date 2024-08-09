@@ -52,6 +52,8 @@ def plot_scalar_climate_statistics(
     heat_threshold: float = 25,
     gdf_region: Optional[gpd.GeoDataFrame] = None,
     add_map: bool = True,
+    max_nan_year: int = 60,
+    max_nan_month: int = 5,
 ) -> xr.Dataset:
     """
     Plot scalar climate statistics from a xarray dataset.
@@ -100,6 +102,12 @@ def plot_scalar_climate_statistics(
         The total region of the project to add to the inset map if provided.
     add_map : bool, optional
         Add an inset map on the top right corner of the figure.
+    max_nan_year : int, optional
+        Maximum number of missing days per year to consider the year for the analysis.
+        By default 60.
+    max_nan_month : int, optional
+        Maximum number of missing days per month to consider the month for the analysis
+        in the monthly plot (2). By default 5.
 
     Returns
     -------
@@ -112,13 +120,6 @@ def plot_scalar_climate_statistics(
     if not os.path.exists(path_output):
         os.makedirs(path_output)
 
-    # No data inspection in the observed data
-    if geods_obs is not None:
-        # Find common period between obs and geods for fair comparison
-        time_start = max(geods.time.min(), geods_obs.time.min())
-        time_end = min(geods.time.max(), geods_obs.time.max())
-        geods = geods.sel(time=slice(time_start, time_end))
-        geods_obs = geods_obs.sel(time=slice(time_start, time_end))
     # Add a source dimension to the observed data
     if geods_obs is not None:
         geods_obs = geods_obs.expand_dims(dim={"source": np.array(["observed"])})
@@ -127,10 +128,10 @@ def plot_scalar_climate_statistics(
             colors["observed"] = "black"
     # Check the number of days in the first year in geods.time
     # and remove the year if not complete
-    if len(geods.sel(time=geods.time.dt.year.isin(geods.time.dt.year[0]))) < 365:
+    if len(geods.sel(time=geods.time.dt.year.isin(geods.time.dt.year[0]))) < 363:
         geods = geods.sel(time=~geods.time.dt.year.isin(geods.time.dt.year[0]))
     # Same for the last year
-    if len(geods.sel(time=geods.time.dt.year.isin(geods.time.dt.year[-1]))) < 365:
+    if len(geods.sel(time=geods.time.dt.year.isin(geods.time.dt.year[-1]))) < 363:
         geods = geods.sel(time=~geods.time.dt.year.isin(geods.time.dt.year[-1]))
 
     # Precipitation plots
@@ -191,6 +192,8 @@ def plot_precipitation_per_location(
     dry_days_threshold: float = 0.2,
     gdf_region: Optional[gpd.GeoDataFrame] = None,
     add_map: bool = True,
+    max_nan_year: int = 60,
+    max_nan_month: int = 5,
 ):
     """Plot the precipitation per location."""
     # Get index value of geoda
@@ -201,11 +204,27 @@ def plot_precipitation_per_location(
     gdf = geoda.vector.geometry
     geoda = geoda.sel(index=st).load()
 
+    # Remove the years with missing data
+    if "observed" in geoda.source.values:
+        geoda_obs = geoda.sel(source="observed")
+        # Drop the years with too many missing data for a fair comparison where needed
+        nan_per_year = geoda_obs.isnull().groupby("time.year").sum()
+        years_to_drop = (
+            nan_per_year.where(nan_per_year > max_nan_year).dropna(dim="year").year
+        )
+        geoda_na = geoda.where(~geoda.time.dt.year.isin(years_to_drop), drop=True)
+    else:
+        geoda_na = geoda
+
     # Get the wettest year from Observed if available
     wettest_source = (
         "observed" if "observed" in geoda.source.values else geoda.source.values[0]
     )
-    year_sum = geoda.sel(source=wettest_source).resample(time="YE").sum()
+    year_sum = (
+        geoda_na.sel(source=wettest_source)
+        .resample(time="YE")
+        .sum(skipna=True, min_count=(365 - max_nan_year))
+    )
     year_sum["time"] = year_sum["time.year"]
     wet_year = str(year_sum.isel(time=year_sum.argmax(dim="time").values).time.values)
     dry_year = str(year_sum.isel(time=year_sum.argmin(dim="time").values).time.values)
@@ -236,13 +255,17 @@ def plot_precipitation_per_location(
             c = None
         # Select current source
         prec = geoda.sel(source=source).copy()
+        prec_na = geoda_na.sel(source=source).copy()
         # Add the units
         prec.attrs.update({"units": "mm/day"})
+        prec_na.attrs.update({"units": "mm/day"})
 
         ### Figure 1 ###
 
         # 1. Plot per year
-        prec_yr = prec.resample(time="YE").sum()
+        prec_yr = prec.resample(time="YE").sum(
+            skipna=True, min_count=(365 - max_nan_year)
+        )
         prec_yr["time"] = prec_yr["time.year"]
         prec_yr.plot.line(
             ax=axes[0],
@@ -252,13 +275,29 @@ def plot_precipitation_per_location(
         )
 
         # 2. Plot the cumulative
-        prec.cumsum().plot.line(ax=axes[1], label=source, linestyle=ls, color=c)
+        prec_na.cumsum().plot.line(ax=axes[1], label=source, linestyle=ls, color=c)
 
         # 3. Plot the monthly mean
-        prec_m = prec.resample(time="ME").sum().groupby("time.month").mean()
+        min_count_month = 30 - max_nan_month
+        prec_m = (
+            prec_na.resample(time="ME")
+            .sum(skipna=True, min_count=min_count_month)
+            .groupby("time.month")
+            .mean()
+        )
         # Add the 25-75 quantile range
-        prec_m_25 = prec.resample(time="ME").sum().groupby("time.month").quantile(0.25)
-        prec_m_75 = prec.resample(time="ME").sum().groupby("time.month").quantile(0.75)
+        prec_m_25 = (
+            prec.resample(time="ME")
+            .sum(skipna=True, min_count=min_count_month)
+            .groupby("time.month")
+            .quantile(0.25)
+        )
+        prec_m_75 = (
+            prec.resample(time="ME")
+            .sum(skipna=True, min_count=min_count_month)
+            .groupby("time.month")
+            .quantile(0.75)
+        )
         prec_month = np.array(
             [
                 "Jan",
@@ -314,7 +353,7 @@ def plot_precipitation_per_location(
         SPI.plot.line(ax=axes2[0], linestyle=ls, color=c, label=f"SPI {source}")
 
         # 2. Rainfall peaks > 40 mm/day
-        peak = prec.where(geoda.sel(source=source) > peak_threshold).dropna(dim="time")
+        peak = prec_na.where(prec_na > peak_threshold).dropna(dim="time")
         # Check if there are peaks
         if len(peak) > 0:
             peak.plot.line(
@@ -327,7 +366,12 @@ def plot_precipitation_per_location(
             )
 
         # 3. Number of dry days (dailyP < 0.2mm) per year
-        dry = prec.where(prec < dry_days_threshold).resample(time="YE").count()
+        if source == "observed":
+            dry = (
+                prec_na.where(prec_na < dry_days_threshold).resample(time="YE").count()
+            )
+        else:
+            dry = prec.where(prec < dry_days_threshold).resample(time="YE").count()
         dry["time"] = dry["time.year"]
         dry.plot.line(
             ax=axes2[2],
@@ -338,12 +382,21 @@ def plot_precipitation_per_location(
             label=f"dry days: {source}",
         )
         # Find longest consecutive dry days spell per year - xclim
-        prec.attrs.update({"units": "mm/day"})
-        dry_spell = xclim.indices.maximum_consecutive_dry_days(
-            prec,
-            thresh=f"{dry_days_threshold*4} mm/day",
-            freq="YS",
-        )
+        if source == "observed":
+            prec_na.attrs.update({"units": "mm/day"})
+            dry_spell = xclim.indices.maximum_consecutive_dry_days(
+                prec_na,
+                thresh=f"{dry_days_threshold*4} mm/day",
+                freq="YS",
+            )
+        else:
+            prec.attrs.update({"units": "mm/day"})
+            dry_spell = xclim.indices.maximum_consecutive_dry_days(
+                prec,
+                thresh=f"{dry_days_threshold*4} mm/day",
+                freq="YS",
+            )
+
         dry_spell["time"] = dry_spell["time.year"]
         ax_twin.plot(
             dry_spell.time.values,

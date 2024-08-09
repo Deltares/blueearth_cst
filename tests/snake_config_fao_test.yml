@@ -88,12 +88,16 @@ climate_thresholds:
 
 # Plotting options
 historical_climate_plots:
+  climate_per_location:
+    max_nan_per_year: 60 # maximum number of nan per year in the observed data to be plotted
+    max_nan_per_month: 5 # maximum number of nan per month in the observed data to be plotted
   timeseries_trends:
     split_year: 2005 # Split year for the timeseries trends
   climate_per_year: # plot options for the gridded climate data per year
     year_per_line: 5
     line_height: 6
     fontsize: 10
+    y_title: 0.9
   mean_precipitation: # plot options for the gridded mean precipitation
     add_rivers: True
     line_height: 6

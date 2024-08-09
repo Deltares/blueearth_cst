@@ -31,6 +31,7 @@ def derive_gridded_trends(
     line_height_mean_precip: int = 6,
     fs_yearly_plot: int = 8,
     fs_mean_precip: int = 8,
+    y_title_yearly_plot: float = 1.0,
 ):
     """
     Plot gridded historical anomalies of precip and temp for a specific region.
@@ -68,6 +69,8 @@ def derive_gridded_trends(
         Font size of the yearly climate plot. Default is 8.
     fs_mean_plot : int, optional
         Font size of the average annual precipitation plot. Default is 8.
+    y_title_yearly_plot: float, optional
+        Y position of the title in the subplot (between 0 and 1). Default is 1.
     """
     # Start a data catalog
     data_catalog = DataCatalog(data_catalog)
@@ -125,6 +128,7 @@ def derive_gridded_trends(
             year_per_line=year_per_line,
             line_height=line_height_yearly_plot,
             fs=fs_yearly_plot,
+            y_title=y_title_yearly_plot,
         )
     if len(temp_dict) > 0:
         plot_gridded_anomalies(
@@ -134,6 +138,7 @@ def derive_gridded_trends(
             year_per_line=year_per_line,
             line_height=line_height_yearly_plot,
             fs=fs_yearly_plot,
+            y_title=y_title_yearly_plot,
         )
 
     # Plot the gridded median yearly precipitation
@@ -170,6 +175,7 @@ if __name__ == "__main__":
             line_height_mean_precip=sm.params.line_height_mean_precip,
             fs_yearly_plot=sm.params.fs_yearly_plot,
             fs_mean_precip=sm.params.fs_mean_precip,
+            y_title_yearly_plot=sm.params.y_title_yearly_plot,
         )
 
     else:

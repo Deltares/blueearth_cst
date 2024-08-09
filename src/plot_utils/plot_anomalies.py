@@ -99,6 +99,7 @@ def plot_gridded_anomalies(
     year_per_line: int = 5,
     line_height: float = 6,
     fs: float = 10,
+    y_title: float = 1.0,
 ):
     """Plot gridded historical annual anomalies for a specific region.
 
@@ -120,6 +121,8 @@ def plot_gridded_anomalies(
         Height of a single year in the plot in cm. Default is 6.
     fs : int, optional
         Font size for the plot. Default is 10.
+    y_title : float, optional
+        Y position of the title in the subplot (between 0 and 1). Default is 1.
     """
     clim_dict_anom = dict()
 
@@ -178,7 +181,10 @@ def plot_gridded_anomalies(
                     continue
                 ax.set_extent(extent, crs=proj)
                 ax.set_title(
-                    da_yr_anom.year[i].values.item(), fontsize=fs, fontweight="bold"
+                    da_yr_anom.year[i].values.item(),
+                    fontsize=fs,
+                    fontweight="bold",
+                    y=y_title,
                 )
 
         # Update colorbar
@@ -273,11 +279,12 @@ def plot_timeseries_anomalies(
         for start, end, color in zip(starts, ends, colors):
             da_yr_trend = da_yr_anom.sel(time=slice(start, end))
             # Remove NaN values along index dimension
-            da_yr_trend = da_yr_trend.dropna("index", how="any")
+            da_yr_trend = da_yr_trend.dropna("time", how="all")
             trend = da_yr_trend.curvefit(
                 coords="time",
                 func=linealg,
                 reduce_dims="index",
+                skipna=True,
             )
             # Construct the trend line and plot it
             a = trend.curvefit_coefficients.values[0]
@@ -286,7 +293,7 @@ def plot_timeseries_anomalies(
 
             # also get r_value and p_value
             slope, intercept, r_value, p_value, std_err = stats.linregress(
-                da_yr_trend.time, da_yr_trend.mean("index")
+                da_yr_trend.time, da_yr_trend.mean("index", skipna=True)
             )
 
             trend_line.plot.line(
