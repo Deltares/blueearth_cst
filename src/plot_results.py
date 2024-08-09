@@ -172,11 +172,11 @@ def get_wflow_results(
 def analyse_wflow_historical(
     wflow_root: Union[str, Path],
     climate_sources: List[str],
-    plot_dir: Union[str, Path] = None,
-    observations_fn: Union[Path, str] = None,
-    gauges_locs: Union[Path, str] = None,
+    plot_dir: Optional[Union[str, Path]] = None,
+    observations_fn: Optional[Union[Path, str]] = None,
+    gauges_locs: Optional[Union[Path, str]] = None,
     wflow_config_fn_prefix: str = "wflow_sbm",
-    climate_sources_colors: List[str] = None,
+    climate_sources_colors: Optional[List[str]] = None,
     split_year: Optional[int] = None,
     add_budyko_plot: bool = True,
 ):
@@ -349,17 +349,6 @@ def analyse_wflow_historical(
             do_signatures = True
     else:
         print("Simulation is less than a year so model warm-up period will be plotted.")
-    # Sel qsim and qobs so that they have the same time period
-    if has_observations:
-        start = max(qsim.time.values[0], qobs.time.values[0])
-        end = min(qsim.time.values[-1], qobs.time.values[-1])
-        # make sure obs and sim have period in common
-        if start < end:
-            qsim = qsim.sel(time=slice(start, end))
-            qobs = qobs.sel(time=slice(start, end))
-        else:
-            has_observations = False
-            print("No common period between observations and simulation.")
 
     # Loop over the stations
     for station_id, station_name in zip(qsim.index.values, qsim.station_name.values):

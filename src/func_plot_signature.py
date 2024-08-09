@@ -16,7 +16,7 @@ import scipy.stats as stats
 import pandas as pd
 import xarray as xr
 
-from typing import List, Union
+from typing import List, Union, Optional
 
 
 # %%
@@ -106,10 +106,22 @@ def compute_metrics(
         coords=[metrics, time_type, climate_source],
         dims=["metrics", "time_type", "climate_source"],
     )
+    # Find the common period between obs and sim
+    start = max(qsim.time.values[0], qobs.time.values[0])
+    end = min(qsim.time.values[-1], qobs.time.values[-1])
+    # make sure obs and sim have period in common
+    if start < end:
+        qsim = qsim.sel(time=slice(start, end))
+        qobs = qobs.sel(time=slice(start, end))
+    else:
+        print(
+            f"No common period between obs and sim for {station_name}. Skipping signatures."
+        )
+        return
 
     # Select data and resample to monthly timeseries as well
-    qsim_monthly = qsim.resample(time="ME").mean("time")
-    qobs_monthly = qobs.resample(time="ME").mean("time")
+    qsim_monthly = qsim.resample(time="ME").mean("time", skipna=False)
+    qobs_monthly = qobs.resample(time="ME").mean("time", skipna=False)
     # compute perf metrics
     # nse
     nse = skills.nashsutcliffe(qsim, qobs)
@@ -246,6 +258,19 @@ def plot_signatures(
     fs : int, optional
         Font size, by default 8
     """
+    # Find the common period between obs and sim
+    start = max(qsim.time.values[0], qobs.time.values[0])
+    end = min(qsim.time.values[-1], qobs.time.values[-1])
+    # make sure obs and sim have period in common
+    if start < end:
+        qsim = qsim.sel(time=slice(start, end))
+        qobs = qobs.sel(time=slice(start, end))
+    else:
+        print(
+            f"No common period between obs and sim for {station_name}. Skipping signatures."
+        )
+        return
+
     # Depending on number of years of data available, skip plotting position
     nb_years = np.unique(qsim["time.year"].values).size
     nb_year_threshold = 5
@@ -626,7 +651,7 @@ def plot_signatures(
 def plot_hydro(
     qsim: xr.DataArray,
     Folder_out: Union[Path, str],
-    qobs: xr.DataArray = None,
+    qobs: Optional[xr.DataArray] = None,
     color: dict = {"climate_source": "steelblue"},
     station_name: str = "station_1",
     lw: float = 0.8,
@@ -662,9 +687,27 @@ def plot_hydro(
     fs : int, optional
         Font size, by default 7
     """
+    min_count_year = 365 - 60
+    min_count_month = 30 - 5
+
     # Settings for obs
     labobs = "observed"
     colobs = "k"
+
+    # Find the common period between obs and sim
+    if qobs is not None:
+        start = max(qsim.time.values[0], qobs.time.values[0])
+        end = min(qsim.time.values[-1], qobs.time.values[-1])
+        # make sure obs and sim have period in common
+        if start < end:
+            qsim_na = qsim.sel(time=slice(start, end))
+            qobs_na = qobs.sel(time=slice(start, end))
+        else:
+            qobs = None
+            qobs_na = None
+            qsim_na = qsim
+    else:
+        qsim_na = qsim
 
     # Number of years available
     nb_years = np.unique(qsim["time.year"].values).size
@@ -685,11 +728,18 @@ def plot_hydro(
         ]
         figsize_y = 23
         # Get the wettest and driest year (based on first climate_source)
-        qyr = qsim.resample(time="YE").sum()
-        qyr["time"] = qyr["time.year"]
-        # Get the year for the minimum as an integer
-        year_dry = str(qyr.isel(time=qyr.argmin("time")).time.values[0])
-        year_wet = str(qyr.isel(time=qyr.argmax("time")).time.values[0])
+        if qobs is not None:
+            qyr = qobs_na.resample(time="YE").sum(skipna=True, min_count=min_count_year)
+            qyr["time"] = qyr["time.year"]
+            # Get the year for the minimum as an integer
+            year_dry = str(qyr.isel(time=qyr.argmin("time")).time.item())
+            year_wet = str(qyr.isel(time=qyr.argmax("time")).time.item())
+        else:
+            qyr = qsim.resample(time="YE").sum()
+            qyr["time"] = qyr["time.year"]
+            # Get the year for the minimum as an integer
+            year_dry = str(qyr.isel(time=qyr.argmin("time")).time.values[0])
+            year_wet = str(qyr.isel(time=qyr.argmax("time")).time.values[0])
 
     fig, axes = plt.subplots(nb_panel, 1, figsize=(16 / 2.54, figsize_y / 2.54))
     axes = [axes] if nb_panel == 1 else axes
@@ -703,25 +753,29 @@ def plot_hydro(
             color=color[climate_source],
         )
     if qobs is not None:
-        qobs.plot(ax=axes[0], label=labobs, linewidth=lw, color=colobs, linestyle="--")
+        qobs_na.plot(
+            ax=axes[0], label=labobs, linewidth=lw, color=colobs, linestyle="--"
+        )
 
     if nb_panel == 5:
         # 2. annual Q
         for climate_source in qsim.climate_source.values:
-            qsim.sel(climate_source=climate_source).resample(time="YE").sum().plot(
+            qsim.sel(climate_source=climate_source).resample(time="YE").sum(
+                skipna=True, min_count=min_count_year
+            ).plot(
                 ax=axes[1],
                 label=f"simulated {climate_source}",
                 linewidth=lw,
                 color=color[climate_source],
             )
         if qobs is not None:
-            qobs.resample(time="YE").sum().plot(
+            qobs.resample(time="YE").sum(skipna=True, min_count=min_count_year).plot(
                 ax=axes[1], label=labobs, linewidth=lw, color=colobs, linestyle="--"
             )
 
         # 3. monthly Q
         month_labels = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
-        dsqM = qsim.resample(time="ME").sum()
+        dsqM = qsim_na.resample(time="ME").sum()
         dsqM = dsqM.groupby(dsqM.time.dt.month).mean()
         for climate_source in qsim.climate_source.values:
             dsqM.sel(climate_source=climate_source).plot(
@@ -731,7 +785,7 @@ def plot_hydro(
                 color=color[climate_source],
             )
         if qobs is not None:
-            dsqMo = qobs.resample(time="ME").sum()
+            dsqMo = qobs.resample(time="ME").sum(skipna=True, min_count=min_count_month)
             dsqMo = dsqMo.groupby(dsqMo.time.dt.month).mean()
             dsqMo.plot(ax=axes[2], label=labobs, linewidth=lw, color=colobs)
         axes[2].set_title("Average monthly sum")
