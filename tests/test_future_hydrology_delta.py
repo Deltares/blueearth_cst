@@ -171,21 +171,21 @@ def test_plot_results_delta(tmpdir, config_fao):
     )
 
     # Check if plots exist
-    assert os.path.exists(f"{plot_dir}/model_delta_runs/cumsum_1.png")
-    assert os.path.exists(f"{plot_dir}/model_delta_runs/mean_monthly_Q_1.png")
-    assert os.path.exists(f"{plot_dir}/model_delta_runs/nm7q_1.png")
-    assert os.path.exists(f"{plot_dir}/model_delta_runs/max_annual_q_1.png")
-    assert os.path.exists(f"{plot_dir}/model_delta_runs/mean_annual_q_1.png")
-    assert os.path.exists(f"{plot_dir}/model_delta_runs/qhydro_1.png")
-    assert os.path.exists(f"{plot_dir}/model_delta_runs/rel_mean_annual_q_1.png")
-    assert os.path.exists(f"{plot_dir}/model_delta_runs/rel_max_annual_q_1.png")
-    assert os.path.exists(f"{plot_dir}/model_delta_runs/rel_nm7q_annual_q_1.png")
-    assert os.path.exists(f"{plot_dir}/model_delta_runs/boxplot_q_abs_6349400.png")
-    assert os.path.exists(f"{plot_dir}/model_delta_runs/boxplot_q_rel_6349400.png")
-    assert os.path.exists(f"{plot_dir}/model_delta_runs/boxplot_snow_rel.png")
+    assert os.path.exists(f"{plot_dir}/model_delta_runs/flow/1/cumsum_1.png")
+    assert os.path.exists(f"{plot_dir}/model_delta_runs/flow/1/mean_monthly_Q_1.png")
+    assert os.path.exists(f"{plot_dir}/model_delta_runs/flow/1/nm7q_1.png")
+    assert os.path.exists(f"{plot_dir}/model_delta_runs/flow/1/max_annual_q_1.png")
+    assert os.path.exists(f"{plot_dir}/model_delta_runs/flow/1/mean_annual_q_1.png")
+    assert os.path.exists(f"{plot_dir}/model_delta_runs/flow/1/qhydro_1.png")
+    assert os.path.exists(f"{plot_dir}/model_delta_runs/flow/1/rel_mean_annual_q_1.png")
+    assert os.path.exists(f"{plot_dir}/model_delta_runs/flow/1/rel_max_annual_q_1.png")
+    assert os.path.exists(f"{plot_dir}/model_delta_runs/flow/1/rel_nm7q_annual_q_1.png")
+    assert os.path.exists(f"{plot_dir}/model_delta_runs/flow/6349400/boxplot_q_abs_6349400.png")
+    assert os.path.exists(f"{plot_dir}/model_delta_runs/flow/6349400/boxplot_q_rel_6349400.png")
+    assert os.path.exists(f"{plot_dir}/model_delta_runs/other/boxplot_snow_rel.png")
     assert os.path.exists(
-        f"{plot_dir}/model_delta_runs/mean_monthly_overland flow_basavg.png"
+        f"{plot_dir}/model_delta_runs/other/mean_monthly_overland flow_basavg.png"
     )
     assert os.path.exists(
-        f"{plot_dir}/model_delta_runs/mean_monthly_groundwater recharge_basavg.png"
+        f"{plot_dir}/model_delta_runs/other/mean_monthly_groundwater recharge_basavg.png"
     )
