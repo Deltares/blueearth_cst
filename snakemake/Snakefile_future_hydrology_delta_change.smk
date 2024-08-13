@@ -35,7 +35,7 @@ wflow_outvars = get_config(config, "wflow_outvars", default=['river discharge'])
 rule all:
     input: 
         f"{project_dir}/config/snake_config_future_hydrology_delta_change.yml",
-        f"{project_dir}/plots/model_delta_runs/qhydro_1.png"
+        f"{project_dir}/plots/model_delta_runs/flow/1/qhydro_1.png"
         # expand((basin_dir + "/run_delta_{model}_{scenario}_near/output.csv"), model = gcms_selected, scenario = scenarios_selected),
 
 
@@ -135,7 +135,7 @@ rule plot_results:
        csv_file_near = expand((basin_dir + "/run_delta_change/output_delta_{model}_{scenario}_near.csv"), model = gcms_selected, scenario = scenarios_selected), 
        csv_file_far = expand((basin_dir + "/run_delta_change/output_delta_{model}_{scenario}_far.csv"), model = gcms_selected, scenario = scenarios_selected),
    output: 
-       output_png = f"{project_dir}/plots/model_delta_runs/qhydro_1.png",
+       output_png = f"{project_dir}/plots/model_delta_runs/flow/1/qhydro_1.png",
    params:
         wflow_hist_run_config = config_model_historical_fn,
         #wflow_delta_runs_config = expand((basin_dir + "/run_delta_change/" + config_basename + "_delta_{model}_{scenario}_*.toml"), model = gcms_selected, scenario = scenarios_selected),
