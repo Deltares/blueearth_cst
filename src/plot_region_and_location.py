@@ -115,7 +115,7 @@ def plot_region_and_location(
         hydrography.attrs.update(long_name="elevation", units="m")
 
         # create nice colormap for elevation
-        vmin, vmax = hydrography.quantile([0.0, 0.98]).compute()
+        vmin, vmax = hydrography.chunk({hydrography.raster.x_dim: -1, hydrography.raster.y_dim:-1}).quantile([0.0, 0.98]).compute()
         c_dem = plt.cm.terrain(np.linspace(0.25, 1, 256))
         cmap = colors.LinearSegmentedColormap.from_list("dem", c_dem)
         norm = colors.Normalize(vmin=vmin, vmax=vmax)
