@@ -38,6 +38,7 @@ cmip6_{model}_historical_{member}:
     rsdt: kout
     psl: press_msl
     hurs: rh
+    huss: sh
     uas: wind10_u
     vas: wind10_v
     sfcWind: wind
@@ -48,6 +49,7 @@ cmip6_{model}_historical_{member}:
     precip: 86400
     press_msl: 0.01
     hurs: 0.01
+    huss: 0.01
     clt: 100
   attrs:
     precip: 
@@ -57,6 +59,8 @@ cmip6_{model}_historical_{member}:
 #    press_msl:
 #      unit: hPa
 #    hurs:
+#      unit: '%'
+#    huss:
 #      unit: '%'
 #    clt:
 #      unit: 1
@@ -91,6 +95,7 @@ cmip6_{model}_ssp119_{member}:
     rsdt: kout
     psl: press_msl
     hurs: rh
+    huss: sh
     uas: wind10_u
     vas: wind10_v
     sfcWind: wind
@@ -101,6 +106,7 @@ cmip6_{model}_ssp119_{member}:
     precip: 86400
     press_msl: 0.01
     hurs: 0.01
+    huss: 0.01
     clt: 100
   attrs:
     precip: 
@@ -139,6 +145,7 @@ cmip6_{model}_ssp126_{member}:
     rsdt: kout
     psl: press_msl
     hurs: rh
+    huss: sh
     uas: wind10_u
     vas: wind10_v
     sfcWind: wind
@@ -149,6 +156,7 @@ cmip6_{model}_ssp126_{member}:
     precip: 86400
     press_msl: 0.01
     hurs: 0.01
+    huss: 0.01
     clt: 100
   attrs:
     precip: 
@@ -188,6 +196,7 @@ cmip6_{model}_ssp245_{member}:
     rsdt: kout
     psl: press_msl
     hurs: rh
+    huss: sh
     uas: wind10_u
     vas: wind10_v
     sfcWind: wind
@@ -198,6 +207,7 @@ cmip6_{model}_ssp245_{member}:
     precip: 86400
     press_msl: 0.01
     hurs: 0.01
+    huss: 0.01
     clt: 100
   attrs:
     precip: 
@@ -237,6 +247,7 @@ cmip6_{model}_ssp370_{member}:
     rsdt: kout
     psl: press_msl
     hurs: rh
+    huss: sh
     uas: wind10_u
     vas: wind10_v
     sfcWind: wind
@@ -247,6 +258,7 @@ cmip6_{model}_ssp370_{member}:
     precip: 86400
     press_msl: 0.01
     hurs: 0.01
+    huss: 0.01
     clt: 100
   attrs:
     precip: 
@@ -281,6 +293,7 @@ cmip6_{model}_ssp434_{member}:
     rsdt: kout
     psl: press_msl
     hurs: rh
+    huss: sh
     uas: wind10_u
     vas: wind10_v
     sfcWind: wind
@@ -291,6 +304,7 @@ cmip6_{model}_ssp434_{member}:
     precip: 86400
     press_msl: 0.01
     hurs: 0.01
+    huss: 0.01
     clt: 100
   attrs:
     precip: 
@@ -325,6 +339,7 @@ cmip6_{model}_ssp460_{member}:
     rsdt: kout
     psl: press_msl
     hurs: rh
+    huss: sh
     uas: wind10_u
     vas: wind10_v
     sfcWind: wind
@@ -335,6 +350,7 @@ cmip6_{model}_ssp460_{member}:
     precip: 86400
     press_msl: 0.01
     hurs: 0.01
+    huss: 0.01
     clt: 100
   attrs:
     precip: 
@@ -374,6 +390,7 @@ cmip6_{model}_ssp585_{member}:
     rsdt: kout
     psl: press_msl
     hurs: rh
+    huss: sh
     uas: wind10_u
     vas: wind10_v
     sfcWind: wind
@@ -384,6 +401,7 @@ cmip6_{model}_ssp585_{member}:
     precip: 86400
     press_msl: 0.01
     hurs: 0.01
+    huss: 0.01
     clt: 100
   attrs:
     precip: 

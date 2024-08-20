@@ -113,31 +113,56 @@ def derive_wind(ds: xr.Dataset, altitude: float = 10, drop_vars: List = []):
     return ds
 
 
-def derive_tdew(ds: xr.Dataset, drop_vars: List = []):
+def derive_tdew(ds: xr.Dataset, tdew_method: str = "rh", drop_vars: List = []):
     """
-    Compute dew point temperature using Magnus formula and constant from NOAA.
+    Compute dew point temperature.
+
+    Dewpoint temperature can either be computed from:
+
+    * temperature [Celsius] and relative humidity [%] using Magnus formula and constant
+      from NOAA.
+    * temperature [Celsius], pressure [hPa] and specific humidity [%] using mixing ratio
+      and actual vapor pressure.
 
     Parameters
     ----------
     ds : xr.Dataset
-        Dataset with temperature temp [Celsius] and relative humidity rh [%].
+        Dataset with climate data.
+        Required variable using relative humidity: 'temp' [Celsius], 'rh' [%].
+        Required variable using specific humidity: 'temp' [Celsius], 'sh' [%],
+        'press_msl' [hPa].
+    tdew_method : str
+        Method to compute dew point temperature. Available methods are 'rh' (default),
+        'sh' to use either relative (Magnus) or specific humidity (mixing ratio).
     drop_vars : List
-        Drop relative humidity and/or temperature after computing dew point temperature.
+        Drop humidity, pressure and/or temperature after computing dewpoint temperature.
 
     Returns
     -------
     xr.Dataset
         Dataset with added dew point temperature data.
     """
-    if "temp" in ds and "rh" in ds:
-        # Compute saturation vapor pressure
+    if "temp" not in ds:
+        print("temp not found, dew point temperature not computed")
+        return ds
+    if "rh" in ds:
+        # Compute saturation vapor pressure in hPa
         es = 6.112 * np.exp((17.67 * ds["temp"]) / (ds["temp"] + 243.5))
-        # Compute actual vapor pressure
+        # Compute actual vapor pressure in hPa
         e = (ds["rh"] / 100) * es
-        # Compute dew point temperature
-        ds["temp_dew"] = (243.5 * np.log(e / 6.112)) / (17.67 - np.log(e / 6.112))
+    elif "sh" in ds and "press_msl" in ds:
+        # Compute mixing ratio from specific humidity (sh) in kg/kg
+        w = (ds["sh"] / 100) / (1 - (ds["sh"] / 100))
+        # Compute actual vapor pressure from specific humidity in hPa
+        # 0.622 is epsilon: the ratio of the molecular weight of water vapor to dry air
+        e = ((w * ds["press_msl"] * 100) / (0.622 + w)) / 100
     else:
-        print("temp and rh not found, dew point temperature not computed")
+        print("rh or sh not found, dew point temperature not computed")
+        return ds
+
+    # Compute dew point temperature in Celsius
+    ds["temp_dew"] = (243.5 * np.log(e / 6.112)) / (17.67 - np.log(e / 6.112))
+
     # Drop variables
     for var in drop_vars:
         if var in ds:
@@ -157,6 +182,7 @@ def get_stats_clim_projections(
     compute_wind=False,
     compute_tdew=False,
     pet_method="makkink",
+    tdew_method="rh",
     save_grids=False,
     time_horizon=None,
     drop_vars_pet=[],
@@ -190,6 +216,9 @@ def get_stats_clim_projections(
     pet_method : str
         method to compute potential evapotranspiration if compute_pet is True.
         available methods are 'makkink' (default), 'debruin'.
+    tdew_method : str
+        method to compute dew point temperature if compute_tdew is True.
+        available methods are 'rh' (default), 'sh'.
     save_grids : bool
         save gridded stats as well as scalar stats. False by default.
     time_horizon : dict
@@ -278,9 +307,13 @@ def get_stats_clim_projections(
     # mean stats over grid and time
     mean_stats_time = xr.merge(ds_scalar)
 
+    # todo: convert press_msl to press for pet and tdew computation - need orography
     # if needed compute pet
     if compute_pet:
         timestep = mean_stats_time["time"].to_index().daysinmonth * 86400
+        # need to keep press_msl for tdew computation with sh
+        if compute_tdew and tdew_method == "sh":
+            drop_vars_pet = [var for var in drop_vars_pet if var != "press_msl"]
         mean_stats_time = derive_pet(
             mean_stats_time, pet_method, timestep, drop_vars=drop_vars_pet
         )
@@ -291,7 +324,9 @@ def get_stats_clim_projections(
         )
     # if needed compute dew point temperature
     if compute_tdew:
-        mean_stats_time = derive_tdew(mean_stats_time, drop_vars=drop_vars_dew)
+        mean_stats_time = derive_tdew(
+            mean_stats_time, tdew_method, drop_vars=drop_vars_dew
+        )
 
     # add coordinate on project, model, scenario, member to later merge all files
     mean_stats_time = mean_stats_time.assign_coords(
@@ -305,6 +340,7 @@ def get_stats_clim_projections(
 
     if save_grids:
         mean_stats = xr.merge(ds)
+        # todo: convert press_msl to press for pet and tdew computation - need orography
         # if needed compute pet
         if compute_pet:
             timestep = xr.DataArray(
@@ -312,6 +348,8 @@ def get_stats_clim_projections(
                 dims=["month"],
                 coords={"month": mean_stats["month"]},
             )
+            if compute_tdew and tdew_method == "sh":
+                drop_vars_pet = [var for var in drop_vars_pet if var != "press_msl"]
             mean_stats = derive_pet(
                 mean_stats, pet_method, timestep, drop_vars=drop_vars_pet
             )
@@ -320,7 +358,7 @@ def get_stats_clim_projections(
             mean_stats = derive_wind(mean_stats, altitude=10, drop_vars=drop_vars_wind)
         # compute dew point temperature
         if compute_tdew:
-            mean_stats = derive_tdew(mean_stats, drop_vars=drop_vars_dew)
+            mean_stats = derive_tdew(mean_stats, tdew_method, drop_vars=drop_vars_dew)
 
         # add coordinate on project, model, scenario, member to later merge all files
         mean_stats = mean_stats.assign_coords(
@@ -348,8 +386,8 @@ def extract_climate_projections_statistics(
     model: str,
     variables: List[str] = ["precip", "temp"],
     pet_method: Optional[str] = "makkink",
+    tdew_method: Optional[str] = "rh",
     compute_wind: bool = False,
-    compute_tdew: bool = False,
     save_grids: bool = False,
     time_horizon: Optional[Dict[str, Tuple[str, str]]] = None,
 ):
@@ -368,8 +406,8 @@ def extract_climate_projections_statistics(
     * temp: temperature [°C]
     * pet: potential evapotranspiration [mm/month] - can be computed using several
       methods and variables (see pet_method)
-    * temp_dew: dew point temperature [°C] - can be computed from temp and relative
-      humidity [%]
+    * temp_dew: dew point temperature [°C] - can be computed using relative or specific
+      humidity (see tdew_method)
     * wind: wind speed [m/s] - can be computed from u and v wind components
     * kin: incoming shortwave radiation [W/m2]
     * tcc: total cloud cover [-]
@@ -400,18 +438,22 @@ def extract_climate_projections_statistics(
         List of variables to extract (e.g. ['precip', 'temp']). Variables should be
         present in the climate source.
     pet_method : str
-        Method to compute potential evapotranspiration. use None to use pet from the
+        Method to compute potential evapotranspiration. Use None to use pet from the
         climate source. Available methods are 'makkink' (default), 'debruin'.
         Required variables for each method are:
 
         * makkink: 'temp' [°C], 'press_msl' [hPa], 'kin'[W/m2]
         * debruin: 'temp' [°C], 'press_msl' [hPa], 'kin' [W/m2], 'kout' [W/m2]
+    tdew_method : str
+        Method to compute dewpoint temperature. Use None to use tdew from the climate
+        source. Available methods are 'rh' (default), 'sh' to compute using either
+        relative or specific humidity. Required variables for each method are:
+
+        * rh: 'temp' [°C], 'rh' [%]
+        * sh: 'temp' [°C], 'sh' [%], 'press_msl' [hPa]
     compute_wind : bool
         Compute wind speed from u and v wind components (wind10_u and wind10_v). False
         by default.
-    compute_tdew : bool
-        Compute dew point temperature from temperature and relative humidity. False by
-        default.
     save_grids : bool
         Save gridded stats as well as scalar stats. False by default.
     time_horizon : dict
@@ -463,18 +505,35 @@ def extract_climate_projections_statistics(
     else:
         compute_pet = False
 
+    # Initialize list of variables depending on tdew_method
+    if "temp_dew" in variables and tdew_method is not None:
+        compute_tdew = True
+        variables.remove("temp_dew")
+        if tdew_method == "rh":
+            if "temp" in variables:
+                drop_vars_dew = ["rh"]
+                variables.extend(["rh"])
+            else:
+                drop_vars_dew = ["rh", "temp"]
+                variables.extend(["temp", "rh"])
+        elif tdew_method == "sh":
+            if "temp" in variables:
+                drop_vars_dew = ["sh", "press_msl"]
+                variables.extend(["sh", "press_msl"])
+            else:
+                drop_vars_dew = ["sh", "press_msl", "temp"]
+                variables.extend(["temp", "sh", "press_msl"])
+        else:
+            raise ValueError(
+                f"tdew_method {tdew_method} not supported. "
+                f"Please choose from ['rh', 'sh']"
+            )
+    else:
+        compute_tdew = False
+
     if "wind" in variables and compute_wind:
         variables.remove("wind")
         variables.extend(["wind10_u", "wind10_v"])
-
-    if "temp_dew" in variables and compute_tdew:
-        variables.remove("temp_dew")
-        if "temp" in variables:
-            drop_vars_dew = ["rh"]
-            variables.extend(["rh"])
-        else:
-            drop_vars_dew = ["rh", "temp"]
-            variables.extend(["temp", "rh"])
 
     # check if model really exists from data catalog entry
     # else skip and provide empty ds
@@ -550,6 +609,7 @@ def extract_climate_projections_statistics(
                 compute_wind=compute_wind,
                 compute_tdew=compute_tdew,
                 pet_method=pet_method,
+                tdew_method=tdew_method,
                 save_grids=save_grids,
                 time_horizon=time_horizon,
                 drop_vars_pet=drop_vars_pet,
