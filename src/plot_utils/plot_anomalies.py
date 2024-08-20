@@ -195,8 +195,6 @@ def plot_gridded_anomalies(
             bbox_inches="tight",
             dpi=300,
         )
-        plt.close(fig)
-
         # Close the figure
         plt.close(fig)
 

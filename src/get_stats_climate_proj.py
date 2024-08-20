@@ -172,24 +172,44 @@ def derive_tdew(ds: xr.Dataset, tdew_method: str = "rh", drop_vars: List = []):
 
 
 def get_stats_clim_projections(
-    data,
-    geom,
-    clim_source,
-    model,
-    scenario,
-    member,
-    compute_pet=False,
-    compute_wind=False,
-    compute_tdew=False,
-    pet_method="makkink",
-    tdew_method="rh",
-    save_grids=False,
-    time_horizon=None,
-    drop_vars_pet=[],
-    drop_vars_wind=[],
-    drop_vars_dew=[],
+    data: xr.Dataset,
+    geom: gpd.GeoDataFrame,
+    clim_source: str,
+    model: str,
+    scenario: str,
+    member: str,
+    compute_pet: bool = False,
+    compute_wind: bool = False,
+    compute_tdew: bool = False,
+    pet_method: Optional[str] = "makkink",
+    tdew_method: Optional[str] = "rh",
+    save_grids: bool = False,
+    time_horizon: Optional[str] = None,
+    drop_vars_pet: List[str] = [],
+    drop_vars_wind: List[str] = [],
+    drop_vars_dew: List[str] = [],
 ):
     """
+    Extract climate projections statistics for a specific geom.
+
+    Output is a dataset with mean monthly climate (e.g precipitation and
+    temperature) timeseries averaged over the geom.
+
+    If save_grids is True, also returns a dataset with mean monthly regime of climate
+    variables (e.g. precipitation and temperature) statistics (12 maps) over the geom.
+    The regimes can be computed for specific time horizons instead of the entire period
+    if needed.
+
+    Supported variables:
+    * precip: precipitation [mm/month] or [mm/day]
+    * temp: temperature [°C]
+    * pet: potential evapotranspiration [mm/month] - can be computed using several
+      methods and variables (see pet_method)
+    * temp_dew: dew point temperature [°C] - can be computed using relative or specific
+      humidity (see tdew_method)
+    * wind: wind speed [m/s] - can be computed from u and v wind components
+    * kin: incoming shortwave radiation [W/m2]
+    * tcc: total cloud cover [-]
     Parameters
     ----------
     data: dataset
@@ -231,14 +251,6 @@ def get_stats_clim_projections(
         list of variables to drop after computing wind. default is [].
     drop_vars_dew : list
         list of variables to drop after computing dew point temperature. default is [].
-
-    Returns
-    -------
-    Writes a netcdf file with mean monthly precipitation and temperature regime
-    (12 maps) over the geom.
-    todo: Writes a csv file with mean monthly timeseries of precip and temp statistics
-    (mean) over the geom
-
     """
 
     # get lat lon name of data
@@ -395,11 +407,12 @@ def extract_climate_projections_statistics(
     Extract climate projections statistics for a specific region.
 
     Output is a netcdf file with mean monthly climate (e.g precipitation and
-    temperature timeseries averaged over the geom.
+    temperature) timeseries averaged over the geom.
 
-    If save_grids is True, also writes a netcdf file with mean monthly regime of
-    precipitation and temperature statistics (12 maps) over the geom. The regimes
-    can be computed for specific time horizons instead of the entire period if needed.
+    If save_grids is True, also writes a netcdf file with mean monthly regime of climate
+    variables (e.g. precipitation and temperature) statistics (12 maps) over the geom.
+    The regimes can be computed for specific time horizons instead of the entire period
+    if needed.
 
     Supported variables:
     * precip: precipitation [mm/month] or [mm/day]
@@ -504,6 +517,7 @@ def extract_climate_projections_statistics(
             )
     else:
         compute_pet = False
+        drop_vars_pet = []
 
     # Initialize list of variables depending on tdew_method
     if "temp_dew" in variables and tdew_method is not None:
@@ -530,6 +544,7 @@ def extract_climate_projections_statistics(
             )
     else:
         compute_tdew = False
+        drop_vars_dew = []
 
     if "wind" in variables and compute_wind:
         variables.remove("wind")

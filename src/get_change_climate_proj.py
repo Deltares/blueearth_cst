@@ -53,6 +53,22 @@ def get_change_clim_projections(
     drymonth_maxchange: float = 50.0,
 ):
     """
+    Calculate grid changes between future and historical climate for several statistics.
+
+    Supported variables:
+    * precip: precipitation [mm/month] or [mm/day]
+    * temp: temperature [°C]
+    * pet: potential evapotranspiration [mm/month] - can be computed using several
+      methods and variables (see pet_method)
+    * temp_dew: dew point temperature [°C] - can be computed using relative or specific
+      humidity (see tdew_method)
+    * wind: wind speed [m/s] - can be computed from u and v wind components
+    * kin: incoming shortwave radiation [W/m2]
+    * tcc: total cloud cover [-]
+
+    Expected change is absolute [°C] for temperature and dew point temperature, and
+    relative [%] for all others.
+
     Parameters
     ----------
     ds_hist : xarray dataset
@@ -80,8 +96,6 @@ def get_change_clim_projections(
     -------
     monthly_change_mean_grid : xarray dataset
         mean monthly change over the grid.
-    monthly_change_mean_scalar : xarray dataset
-        mean monthly change averaged over the grid.
 
     """
     ds = []
@@ -143,13 +157,18 @@ def get_change_annual_clim_proj(
     Calculate changes between future and historical climate for several statistics.
 
     Supported variables:
-    * precip: precipitation
-    * temp: temperature
-    * pet: potential evapotranspiration
-    * temp_dew: dew point temperature
-    * kin: incoming shortwave radiation
-    * wind: wind speed
-    * tcc: total cloud cover
+    * precip: precipitation [mm/month] or [mm/day]
+    * temp: temperature [°C]
+    * pet: potential evapotranspiration [mm/month] - can be computed using several
+      methods and variables (see pet_method)
+    * temp_dew: dew point temperature [°C] - can be computed using relative or specific
+      humidity (see tdew_method)
+    * wind: wind speed [m/s] - can be computed from u and v wind components
+    * kin: incoming shortwave radiation [W/m2]
+    * tcc: total cloud cover [-]
+
+    Expected change is absolute [°C] for temperature and dew point temperature, and
+    relative [%] for all others.
 
     Parameters
     ----------
@@ -268,11 +287,25 @@ def get_expected_change_scalar(
 
     Output is a netcdf file with the expected change in annual statistics.
 
+    Supported variables:
+    * precip: precipitation [mm/month] or [mm/day]
+    * temp: temperature [°C]
+    * pet: potential evapotranspiration [mm/month] - can be computed using several
+      methods and variables (see pet_method)
+    * temp_dew: dew point temperature [°C] - can be computed using relative or specific
+      humidity (see tdew_method)
+    * wind: wind speed [m/s] - can be computed from u and v wind components
+    * kin: incoming shortwave radiation [W/m2]
+    * tcc: total cloud cover [-]
+
+    Expected change is absolute [°C] for temperature and dew point temperature, and
+    relative [%] for all others.
+
     Parameters
     ----------
     nc_historical : Union[str, Path]
         Path to the historical timeseries netcdf file. Contains monthly timeseries.
-        Supported variables: precip, temp.
+        Supported variables: precip, temp, pet, temp_dew, wind, kin, tcc.
         Required dimensions: time, model, scenario, member.
     nc_future : Union[str, Path]
         Path to the future timeseries netcdf file. Contains monthly timeseries.
@@ -362,11 +395,25 @@ def get_expected_change_grid(
 
     Output is a netcdf file with the expected gridded change in monthly statistics.
 
+    Supported variables:
+    * precip: precipitation [mm/month] or [mm/day]
+    * temp: temperature [°C]
+    * pet: potential evapotranspiration [mm/month] - can be computed using several
+      methods and variables (see pet_method)
+    * temp_dew: dew point temperature [°C] - can be computed using relative or specific
+      humidity (see tdew_method)
+    * wind: wind speed [m/s] - can be computed from u and v wind components
+    * kin: incoming shortwave radiation [W/m2]
+    * tcc: total cloud cover [-]
+
+    Expected change is absolute [°C] for temperature and dew point temperature, and
+    relative [%] for all others.
+
     Parameters
     ----------
     nc_historical : Union[str, Path]
         Path to the historical timeseries netcdf file. Contains monthly timeseries.
-        Supported variables: precip, temp.
+        Supported variables: precip, temp, pet, temp_dew, wind, kin, tcc.
         Required dimensions: lat, lon, time, model, scenario, member.
     nc_future : Union[str, Path]
         Path to the future timeseries netcdf file. Contains monthly timeseries.
