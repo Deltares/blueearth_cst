@@ -712,8 +712,8 @@ if __name__ == "__main__":
             model=sm.params.name_model,
             variables=sm.params.variables,
             pet_method=sm.params.pet_method,
+            tdew_method=sm.params.tdew_method,
             compute_wind=sm.params.compute_wind,
-            compute_tdew=sm.params.compute_tdew,
             save_grids=sm.params.save_grids,
             time_horizon=time_horizon,
         )

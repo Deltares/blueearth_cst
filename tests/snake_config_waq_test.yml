@@ -48,10 +48,13 @@ variables: [precip, temp, temp_dew, kin, tcc, wind]
 # Required variables are: 'temp' [°C], 'press_msl' [hPa], 'kin'[W/m2] for makkink
 # 'temp' [°C], 'press_msl' [hPa], 'kin' [W/m2], 'kout' [W/m2] for debruin
 pet_method: makkink
+# Method to compute temp_dew if not available - None to use temp_dew in the climate data
+# Available method: 'None', 'rh' for realtive humidity, 'sh' for specific humidity
+# Required varibales are: 'temp' [°C], 'rh' [%] for rh method
+# 'temp' [°C], 'sh' [%], 'press_msl' [hPa] for sh method
+tdew_method: sh
 # Calculate wind using u and v components
 compute_wind: False
-# Calculate temp_dew using temperature and relative humidity
-compute_tdew: True
 
 # Additional gridded outputs (else only basin average)
 save_grids: TRUE

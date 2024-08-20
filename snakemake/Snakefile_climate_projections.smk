@@ -91,8 +91,8 @@ rule monthly_stats_hist:
         name_clim_project = clim_project,
         variables = variables,
         pet_method = pet_method,
+        tdew_method = get_config(config, "tdew_method", default="rh"),
         compute_wind = get_config(config, "compute_wind", default=False),
-        compute_tdew = get_config(config, "compute_tdew", default=False),
         save_grids = save_grids,
         time_horizon = {"historical": get_config(config, "historical", optional=False)},
     script: "../src/get_stats_climate_proj.py"
@@ -116,8 +116,8 @@ rule monthly_stats_fut:
         name_clim_project = clim_project,
         variables = variables,
         pet_method = pet_method,
+        tdew_method = get_config(config, "tdew_method", default="rh"),
         compute_wind = get_config(config, "compute_wind", default=False),
-        compute_tdew = get_config(config, "compute_tdew", default=False),
         save_grids = save_grids,
         time_horizon = get_config(config, "future_horizons", optional=False),
     script: "../src/get_stats_climate_proj.py"
