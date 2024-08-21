@@ -32,6 +32,7 @@ else:
 CLIM_PLOTS = {
     "precip": {
         "absolute": False,
+        "resample": "sum",
         "unit_year": "mm/year",
         "unit_month": "mm/month",
         "unit_anomaly": "%",
@@ -39,6 +40,7 @@ CLIM_PLOTS = {
     },
     "temp": {
         "absolute": True,
+        "resample": "mean",
         "unit_year": "$\degree$C",
         "unit_month": "$\degree$C",
         "unit_anomaly": "$\degree$C",
@@ -46,6 +48,7 @@ CLIM_PLOTS = {
     },
     "pet": {
         "absolute": False,
+        "resample": "sum",
         "unit_year": "mm/year",
         "unit_month": "mm/month",
         "unit_anomaly": "%",
@@ -53,6 +56,7 @@ CLIM_PLOTS = {
     },
     "temp_dew": {
         "absolute": True,
+        "resample": "mean",
         "unit_year": "$\degree$C",
         "unit_month": "$\degree$C",
         "unit_anomaly": "$\degree$C",
@@ -60,6 +64,7 @@ CLIM_PLOTS = {
     },
     "kin": {
         "absolute": False,
+        "resample": "mean",
         "unit_year": "W/m2",
         "unit_month": "W/m2",
         "unit_anomaly": "%",
@@ -67,6 +72,7 @@ CLIM_PLOTS = {
     },
     "wind": {
         "absolute": False,
+        "resample": "mean",
         "unit_year": "m/s",
         "unit_month": "m/s",
         "unit_anomaly": "%",
@@ -74,8 +80,9 @@ CLIM_PLOTS = {
     },
     "tcc": {
         "absolute": False,
-        "unit_year": "frac/year",
-        "unit_month": "frac/month",
+        "resample": "mean",
+        "unit_year": "frac",
+        "unit_month": "frac",
         "unit_anomaly": "%",
         "long_name": "total cloud cover",
     },
@@ -197,7 +204,10 @@ def compute_anomalies(da_hist: xr.DataArray, ds_fut: List[xr.Dataset]):
     q_mnanom = gcm_mnanom.quantile([0.05, 0.5, 0.95], axis=1).transpose()
 
     # annual mean
-    gcm_annmn = gcm.resample("YE").mean()
+    if CLIM_PLOTS[var]["resample"] == "sum":
+        gcm_annmn = gcm.resample("YE").sum()
+    else:
+        gcm_annmn = gcm.resample("YE").mean()
     q_annmn = gcm_annmn.quantile([0.05, 0.5, 0.95], axis=1).transpose()
     gcm_ref = gcm_annmn.mean()
     if CLIM_PLOTS[var]["absolute"]:
@@ -231,7 +241,10 @@ def compute_anomalies(da_hist: xr.DataArray, ds_fut: List[xr.Dataset]):
         )
 
         # annual
-        fut_year = df_fut[i].resample("YE").mean()
+        if CLIM_PLOTS[var]["resample"] == "sum":
+            fut_year = df_fut[i].resample("YE").sum()
+        else:
+            fut_year = df_fut[i].resample("YE").mean()
         q_fut.append(fut_year.quantile([0.05, 0.5, 0.95], axis=1).transpose())
         if CLIM_PLOTS[var]["absolute"]:
             fut_anom = fut_year - fut_ref

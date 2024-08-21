@@ -27,7 +27,7 @@ CLIMATE_VARS = {
         "multiplier": False,
     },
     "kin": {
-        "resample": "sum",
+        "resample": "mean",
         "multiplier": True,
     },
     "wind": {

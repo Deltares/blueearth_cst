@@ -58,17 +58,20 @@ def derive_pet(
     xr.Dataset
         Dataset with added potential evapotranspiration data.
     """
+    if "press_msl" in ds:
+        # todo downscale with orography
+        ds = ds.rename({"press_msl": "press"})
     if pet_method == "makkink":
         ds["pet"] = forcing.pet_makkink(
             temp=ds["temp"],
-            press=ds["press_msl"],
+            press=ds["press"],
             k_in=ds["kin"],
             timestep=timestep,
         )
     elif pet_method == "debruin":
         ds["pet"] = forcing.pet_debruin(
             temp=ds["temp"],
-            press=ds["press_msl"],
+            press=ds["press"],
             k_in=ds["kin"],
             k_ext=ds["kout"],
             timestep=timestep,
@@ -130,7 +133,7 @@ def derive_tdew(ds: xr.Dataset, tdew_method: str = "rh", drop_vars: List = []):
         Dataset with climate data.
         Required variable using relative humidity: 'temp' [Celsius], 'rh' [%].
         Required variable using specific humidity: 'temp' [Celsius], 'sh' [%],
-        'press_msl' [hPa].
+        'press' [hPa].
     tdew_method : str
         Method to compute dew point temperature. Available methods are 'rh' (default),
         'sh' to use either relative (Magnus) or specific humidity (mixing ratio).
@@ -150,12 +153,12 @@ def derive_tdew(ds: xr.Dataset, tdew_method: str = "rh", drop_vars: List = []):
         es = 6.112 * np.exp((17.67 * ds["temp"]) / (ds["temp"] + 243.5))
         # Compute actual vapor pressure in hPa
         e = (ds["rh"] / 100) * es
-    elif "sh" in ds and "press_msl" in ds:
+    elif "sh" in ds and "press" in ds:
         # Compute mixing ratio from specific humidity (sh) in kg/kg
         w = (ds["sh"] / 100) / (1 - (ds["sh"] / 100))
         # Compute actual vapor pressure from specific humidity in hPa
         # 0.622 is epsilon: the ratio of the molecular weight of water vapor to dry air
-        e = ((w * ds["press_msl"] * 100) / (0.622 + w)) / 100
+        e = (w * ds["press"]) / (0.622 + w)
     else:
         print("rh or sh not found, dew point temperature not computed")
         return ds
@@ -325,7 +328,7 @@ def get_stats_clim_projections(
         timestep = mean_stats_time["time"].to_index().daysinmonth * 86400
         # need to keep press_msl for tdew computation with sh
         if compute_tdew and tdew_method == "sh":
-            drop_vars_pet = [var for var in drop_vars_pet if var != "press_msl"]
+            drop_vars_pet = [var for var in drop_vars_pet if var != "press"]
         mean_stats_time = derive_pet(
             mean_stats_time, pet_method, timestep, drop_vars=drop_vars_pet
         )
@@ -361,7 +364,7 @@ def get_stats_clim_projections(
                 coords={"month": mean_stats["month"]},
             )
             if compute_tdew and tdew_method == "sh":
-                drop_vars_pet = [var for var in drop_vars_pet if var != "press_msl"]
+                drop_vars_pet = [var for var in drop_vars_pet if var != "press"]
             mean_stats = derive_pet(
                 mean_stats, pet_method, timestep, drop_vars=drop_vars_pet
             )
@@ -455,15 +458,15 @@ def extract_climate_projections_statistics(
         climate source. Available methods are 'makkink' (default), 'debruin'.
         Required variables for each method are:
 
-        * makkink: 'temp' [°C], 'press_msl' [hPa], 'kin'[W/m2]
-        * debruin: 'temp' [°C], 'press_msl' [hPa], 'kin' [W/m2], 'kout' [W/m2]
+        * makkink: 'temp' [°C], 'press' [hPa], 'kin'[W/m2]
+        * debruin: 'temp' [°C], 'press' [hPa], 'kin' [W/m2], 'kout' [W/m2]
     tdew_method : str
         Method to compute dewpoint temperature. Use None to use tdew from the climate
         source. Available methods are 'rh' (default), 'sh' to compute using either
         relative or specific humidity. Required variables for each method are:
 
         * rh: 'temp' [°C], 'rh' [%]
-        * sh: 'temp' [°C], 'sh' [%], 'press_msl' [hPa]
+        * sh: 'temp' [°C], 'sh' [%], 'press' [hPa]
     compute_wind : bool
         Compute wind speed from u and v wind components (wind10_u and wind10_v). False
         by default.
@@ -502,14 +505,14 @@ def extract_climate_projections_statistics(
         variables.remove("pet")
         # Find if kin was in the requested variables
         if "kin" in variables:
-            drop_vars_pet = ["press_msl", "kout"]
+            drop_vars_pet = ["press", "kout"]
         else:
-            drop_vars_pet = ["press_msl", "kin", "kout"]
+            drop_vars_pet = ["press", "kin", "kout"]
         # Add pet variables depending on method
         if pet_method == "makkink":
-            variables.extend(["press_msl", "kin"])
+            variables.extend(["press", "kin"])
         elif pet_method == "debruin":
-            variables.extend(["press_msl", "kin", "kout"])
+            variables.extend(["press", "kin", "kout"])
         else:
             raise ValueError(
                 f"pet_method {pet_method} not supported. "
@@ -532,11 +535,11 @@ def extract_climate_projections_statistics(
                 variables.extend(["temp", "rh"])
         elif tdew_method == "sh":
             if "temp" in variables:
-                drop_vars_dew = ["sh", "press_msl"]
-                variables.extend(["sh", "press_msl"])
+                drop_vars_dew = ["sh", "press"]
+                variables.extend(["sh", "press"])
             else:
-                drop_vars_dew = ["sh", "press_msl", "temp"]
-                variables.extend(["temp", "sh", "press_msl"])
+                drop_vars_dew = ["sh", "press", "temp"]
+                variables.extend(["temp", "sh", "press"])
         else:
             raise ValueError(
                 f"tdew_method {tdew_method} not supported. "
