@@ -180,8 +180,12 @@ def test_plot_results_delta(tmpdir, config_fao):
     assert os.path.exists(f"{plot_dir}/model_delta_runs/flow/1/rel_mean_annual_q_1.png")
     assert os.path.exists(f"{plot_dir}/model_delta_runs/flow/1/rel_max_annual_q_1.png")
     assert os.path.exists(f"{plot_dir}/model_delta_runs/flow/1/rel_nm7q_annual_q_1.png")
-    assert os.path.exists(f"{plot_dir}/model_delta_runs/flow/6349400/boxplot_q_abs_6349400.png")
-    assert os.path.exists(f"{plot_dir}/model_delta_runs/flow/6349400/boxplot_q_rel_6349400.png")
+    assert os.path.exists(
+        f"{plot_dir}/model_delta_runs/flow/6349400/boxplot_q_abs_6349400.png"
+    )
+    assert os.path.exists(
+        f"{plot_dir}/model_delta_runs/flow/6349400/boxplot_q_rel_6349400.png"
+    )
     assert os.path.exists(f"{plot_dir}/model_delta_runs/other/boxplot_snow_rel.png")
     assert os.path.exists(
         f"{plot_dir}/model_delta_runs/other/mean_monthly_overland flow_basavg.png"

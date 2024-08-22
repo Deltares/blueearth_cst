@@ -80,19 +80,76 @@ def plot_near_far_abs(
         )
     for scenario in qsim_delta_metric.scenario.values:
         # first entry just for legend
-        qsim_delta_metric.sel(horizon="near").sel(scenario=scenario).sel(
-            model=qsim_delta_metric.model[0]
-        ).plot(label=f"{scenario}", ax=ax1, color=COLORS[scenario], linewidth=lw)
-        qsim_delta_metric.sel(horizon="far").sel(scenario=scenario).sel(
-            model=qsim_delta_metric.model[0]
-        ).plot(label=f"{scenario}", ax=ax2, color=COLORS[scenario], linewidth=lw)
+        # qsim_delta_metric.sel(horizon="near").sel(scenario=scenario).sel(
+        #    model=qsim_delta_metric.model[0]
+        # ).plot(label=f"{scenario}", ax=ax1, color=COLORS[scenario], linewidth=lw)
+        # qsim_delta_metric.sel(horizon="far").sel(scenario=scenario).sel(
+        #    model=qsim_delta_metric.model[0]
+        # ).plot(label=f"{scenario}", ax=ax2, color=COLORS[scenario], linewidth=lw)
+        # Find the min, max and mean over the models
+        import pdb
+
+        pdb.set_trace()
+        qsim_delta_metric_min = (
+            qsim_delta_metric.sel(horizon="near").sel(scenario=scenario).min("model")
+        )
+        qsim_delta_metric_max = (
+            qsim_delta_metric.sel(horizon="near").sel(scenario=scenario).max("model")
+        )
+        qsim_delta_metric_mean = (
+            qsim_delta_metric.sel(horizon="near").sel(scenario=scenario).mean("model")
+        )
+        # plot the mean
+        qsim_delta_metric_mean.plot(
+            label=f"{scenario}", ax=ax1, color=COLORS[scenario], linewidth=lw
+        )
+        # plot the min and max with a fill between
+        ax1.fill_between(
+            qsim_delta_metric_mean.time.values,
+            qsim_delta_metric_min.values,
+            qsim_delta_metric_max.values,
+            color=COLORS[scenario],
+            alpha=0.5,
+        )
+        # Find the min, max and mean over the models
+        qsim_delta_metric_min = (
+            qsim_delta_metric.sel(horizon="far").sel(scenario=scenario).min("model")
+        )
+        qsim_delta_metric_max = (
+            qsim_delta_metric.sel(horizon="far").sel(scenario=scenario).max("model")
+        )
+        qsim_delta_metric_mean = (
+            qsim_delta_metric.sel(horizon="far").sel(scenario=scenario).mean("model")
+        )
+        # plot the mean
+        qsim_delta_metric_mean.plot(
+            label=f"{scenario}", ax=ax2, color=COLORS[scenario], linewidth=lw
+        )
+        # plot the min and max with a fill between
+        ax2.fill_between(
+            qsim_delta_metric_mean.time.values,
+            qsim_delta_metric_min.values,
+            qsim_delta_metric_max.values,
+            color=COLORS[scenario],
+            alpha=0.5,
+        )
 
         # plot all lines
         qsim_delta_metric.sel(horizon="near").sel(scenario=scenario).plot(
-            hue="model", ax=ax1, color=COLORS[scenario], add_legend=False, linewidth=lw
+            hue="model",
+            ax=ax1,
+            color=COLORS[scenario],
+            add_legend=False,
+            linewidth=lw,
+            alpha=0.5,
         )
         qsim_delta_metric.sel(horizon="far").sel(scenario=scenario).plot(
-            hue="model", ax=ax2, color=COLORS[scenario], add_legend=False, linewidth=lw
+            hue="model",
+            ax=ax2,
+            color=COLORS[scenario],
+            add_legend=False,
+            linewidth=lw,
+            alpha=0.5,
         )
     for ax in [ax1, ax2]:
         q_hist_metric.plot(label="historical", color="k", ax=ax, linewidth=lw)

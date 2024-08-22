@@ -4,9 +4,6 @@ Created on Wed Jul 14 09:18:38 2021
 
 @author: bouaziz
 """
-
-# %%
-import hydromt
 from hydromt.stats import skills
 import numpy as np
 import matplotlib.pyplot as plt
@@ -16,10 +13,8 @@ import scipy.stats as stats
 import pandas as pd
 import xarray as xr
 
-from typing import List, Union, Optional
+from typing import Union, Optional
 
-
-# %%
 # Supported wflow outputs
 WFLOW_VARS = {
     "overland flow": {
@@ -258,6 +253,8 @@ def plot_signatures(
     fs : int, optional
         Font size, by default 8
     """
+    # Drop nans from obs
+    qobs = qobs.dropna("time")
     # Find the common period between obs and sim
     start = max(qsim.time.values[0], qobs.time.values[0])
     end = min(qsim.time.values[-1], qobs.time.values[-1])
@@ -270,6 +267,9 @@ def plot_signatures(
             f"No common period between obs and sim for {station_name}. Skipping signatures."
         )
         return
+
+    # Drop the times in qsim that are not in qobs because of nans
+    qsim = qsim.sel(time=qobs.time)
 
     # Depending on number of years of data available, skip plotting position
     nb_years = np.unique(qsim["time.year"].values).size
@@ -397,6 +397,9 @@ def plot_signatures(
         end = f"{str(qsim['time.year'][-1].values)}-08-31"
         qsim_max = qsim.sel(time=slice(start, end)).resample(time="YS-SEP").max("time")
         qobs_max = qobs.sel(time=slice(start, end)).resample(time="YS-SEP").max("time")
+        # Nans can reappear after resampling, drop them
+        qobs_max = qobs_max.dropna("time")
+        qsim_max = qsim_max.sel(time=qobs_max.time)
     else:
         # Less than a year of data, max over the whole timeseries
         qsim_max = qsim.max("time")
@@ -454,6 +457,9 @@ def plot_signatures(
     ### 6. nm7q axes[5] ###
     qsim_nm7q = qsim.rolling(time=7).mean().resample(time="YE").min("time")
     qobs_nm7q = qobs.rolling(time=7).mean().resample(time="YE").min("time")
+    # Nans can reappear after resampling, drop them
+    qobs_nm7q = qobs_nm7q.dropna("time")
+    qsim_nm7q = qsim_nm7q.sel(time=qobs_nm7q.time)
     max_ylow = max(qsim_nm7q.max().values, qobs_nm7q.max().values)
 
     for climate_source in qsim.climate_source.values:
@@ -646,6 +652,7 @@ def plot_signatures(
 
     ### Save plot ###
     plt.savefig(os.path.join(Folder_out, f"signatures_{station_name}.png"), dpi=300)
+    plt.close()
 
 
 def plot_hydro(
@@ -656,6 +663,8 @@ def plot_hydro(
     station_name: str = "station_1",
     lw: float = 0.8,
     fs: int = 7,
+    max_nan_year: int = 60,
+    max_nan_month: int = 5,
 ):
     """
     Plot hydrograph for a specific location.
@@ -686,9 +695,15 @@ def plot_hydro(
         Line width, by default 0.8
     fs : int, optional
         Font size, by default 7
+    max_nan_year : int, optional
+        Maximum number of missing days per year in the observations data to consider
+        the year for the discharge analysis. By default 60.
+    max_nan_month : int, optional
+        Maximum number of missing days per month in the observations data to consider
+        the month for the discharge analysis. By default 5.
     """
-    min_count_year = 365 - 60
-    min_count_month = 30 - 5
+    min_count_year = 365 - max_nan_year
+    min_count_month = 30 - max_nan_month
 
     # Settings for obs
     labobs = "observed"
@@ -785,7 +800,9 @@ def plot_hydro(
                 color=color[climate_source],
             )
         if qobs is not None:
-            dsqMo = qobs.resample(time="ME").sum(skipna=True, min_count=min_count_month)
+            dsqMo = qobs_na.resample(time="ME").sum(
+                skipna=True, min_count=min_count_month
+            )
             dsqMo = dsqMo.groupby(dsqMo.time.dt.month).mean()
             dsqMo.plot(ax=axes[2], label=labobs, linewidth=lw, color=colobs)
         axes[2].set_title("Average monthly sum")
@@ -833,6 +850,7 @@ def plot_hydro(
     plt.tight_layout()
 
     plt.savefig(os.path.join(Folder_out, f"hydro_{station_name}.png"), dpi=300)
+    plt.close()
 
 
 def plot_clim(
@@ -1062,6 +1080,7 @@ def plot_clim(
 
     plt.tight_layout()
     plt.savefig(os.path.join(Folder_out, f"clim_{station_name}_{period}.png"), dpi=300)
+    plt.close()
 
 
 def plot_basavg(
@@ -1177,6 +1196,4 @@ def plot_basavg(
 
         plt.tight_layout()
         plt.savefig(os.path.join(Folder_out, f"{dvar}.png"), dpi=300)
-
-
-# %%
+        plt.close()

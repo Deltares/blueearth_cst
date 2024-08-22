@@ -136,6 +136,8 @@ rule plot_results:
        climate_sources = climate_sources,
        climate_sources_colors = climate_sources_colors,
        add_budyko_plot = get_config(config, "plot_budyko", default=False),
+       max_nan_year = get_config(config, "historical_hydrology_plots.flow.max_nan_per_year", default=60),
+       max_nan_month = get_config(config, "historical_hydrology_plots.flow.max_nan_per_month", default=5),
    script: "../src/plot_results.py"
 
 # Rule to plot the wflow basin, rivers, gauges and DEM on a map

@@ -14,9 +14,9 @@ import sys
 
 parent_module = sys.modules[".".join(__name__.split(".")[:-1]) or "__main__"]
 if __name__ == "__main__" or parent_module.__name__ == "__main__":
-    from func_plot_map import plot_map
+    from plot_utils.func_plot_map import plot_map
 else:
-    from .func_plot_map import plot_map
+    from .plot_utils.func_plot_map import plot_map
 
 
 def plot_region_and_location(
@@ -115,7 +115,13 @@ def plot_region_and_location(
         hydrography.attrs.update(long_name="elevation", units="m")
 
         # create nice colormap for elevation
-        vmin, vmax = hydrography.chunk({hydrography.raster.x_dim: -1, hydrography.raster.y_dim:-1}).quantile([0.0, 0.98]).compute()
+        vmin, vmax = (
+            hydrography.chunk(
+                {hydrography.raster.x_dim: -1, hydrography.raster.y_dim: -1}
+            )
+            .quantile([0.0, 0.98])
+            .compute()
+        )
         c_dem = plt.cm.terrain(np.linspace(0.25, 1, 256))
         cmap = colors.LinearSegmentedColormap.from_list("dem", c_dem)
         norm = colors.Normalize(vmin=vmin, vmax=vmax)

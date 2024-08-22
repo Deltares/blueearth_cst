@@ -150,6 +150,8 @@ def plot_scalar_climate_statistics(
                 dry_days_threshold=dry_days_threshold,
                 gdf_region=gdf_region,
                 add_map=add_map,
+                max_nan_year=max_nan_year,
+                max_nan_month=max_nan_month,
             )
 
         # And plot for all locations (if more than 1)

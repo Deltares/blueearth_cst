@@ -278,7 +278,7 @@ def plot_timeseries_anomalies(
 
         for start, end, color in zip(starts, ends, colors):
             da_yr_trend = da_yr_anom.sel(time=slice(start, end))
-            # Remove NaN values along index dimension
+            # Remove NaN values along time dimension
             da_yr_trend = da_yr_trend.dropna("time", how="all")
             trend = da_yr_trend.curvefit(
                 coords="time",
