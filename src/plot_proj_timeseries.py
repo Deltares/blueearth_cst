@@ -225,15 +225,16 @@ def compute_anomalies(da_hist: xr.DataArray, ds_fut: List[xr.Dataset]):
 
     # Compute future anomalies
     fut_ref = gcm_annmn.mean()
+    fut_mnref = gcm_mnmn.mean()
 
     for i in range(len(df_fut)):
         # monthly
         fut_month = df_fut[i].groupby(df_fut[i].index.month).mean()
         q_futmonth.append(fut_month.quantile([0.05, 0.5, 0.95], axis=1).transpose())
         if CLIM_PLOTS[var]["absolute"]:
-            fut_month_anom = fut_month - fut_ref
+            fut_month_anom = fut_month - fut_mnref
         else:
-            fut_month_anom = (fut_month - fut_ref) / fut_ref * 100
+            fut_month_anom = (fut_month - fut_mnref) / fut_mnref * 100
         q_futmonth_anom.append(
             fut_month_anom.dropna(axis=1, how="all")
             .quantile([0.05, 0.5, 0.95], axis=1)

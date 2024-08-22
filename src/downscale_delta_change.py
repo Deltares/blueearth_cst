@@ -57,9 +57,10 @@ def downscale_delta_change(
     # squeeze
     delta_change_grid = delta_change_grid.squeeze()
 
-    # convert from percentage to fraction for pet and precip
-    delta_change_grid["precip"] = 1 + delta_change_grid["precip"] / 100
-    delta_change_grid["pet"] = 1 + delta_change_grid["pet"] / 100
+    # convert from percentage to fraction for variables that are not temperature
+    for var in delta_change_grid.data_vars:
+        if not var.startswith("temp"):
+            delta_change_grid[var] = 1 + delta_change_grid[var] / 100
 
     delta_change_grid_downscaled = delta_change_grid.raster.reproject_like(
         dst_grid, method=method

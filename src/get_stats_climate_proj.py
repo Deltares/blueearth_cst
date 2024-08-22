@@ -116,7 +116,7 @@ def derive_wind(ds: xr.Dataset, altitude: float = 10, drop_vars: List = []):
     return ds
 
 
-def derive_tdew(ds: xr.Dataset, tdew_method: str = "rh", drop_vars: List = []):
+def derive_tdew(ds: xr.Dataset, drop_vars: List = []):
     """
     Compute dew point temperature.
 
@@ -124,7 +124,7 @@ def derive_tdew(ds: xr.Dataset, tdew_method: str = "rh", drop_vars: List = []):
 
     * temperature [Celsius] and relative humidity [%] using Magnus formula and constant
       from NOAA.
-    * temperature [Celsius], pressure [hPa] and specific humidity [%] using mixing ratio
+    * temperature [Celsius], pressure [hPa] and specific humidity [kg/kg] using mixing ratio
       and actual vapor pressure.
 
     Parameters
@@ -132,11 +132,8 @@ def derive_tdew(ds: xr.Dataset, tdew_method: str = "rh", drop_vars: List = []):
     ds : xr.Dataset
         Dataset with climate data.
         Required variable using relative humidity: 'temp' [Celsius], 'rh' [%].
-        Required variable using specific humidity: 'temp' [Celsius], 'sh' [%],
+        Required variable using specific humidity: 'temp' [Celsius], 'sh' [kg/kg],
         'press' [hPa].
-    tdew_method : str
-        Method to compute dew point temperature. Available methods are 'rh' (default),
-        'sh' to use either relative (Magnus) or specific humidity (mixing ratio).
     drop_vars : List
         Drop humidity, pressure and/or temperature after computing dewpoint temperature.
 
@@ -155,10 +152,10 @@ def derive_tdew(ds: xr.Dataset, tdew_method: str = "rh", drop_vars: List = []):
         e = (ds["rh"] / 100) * es
     elif "sh" in ds and "press" in ds:
         # Compute mixing ratio from specific humidity (sh) in kg/kg
-        w = (ds["sh"] / 100) / (1 - (ds["sh"] / 100))
+        m = (ds["sh"]) / (1 - ds["sh"])
         # Compute actual vapor pressure from specific humidity in hPa
         # 0.622 is epsilon: the ratio of the molecular weight of water vapor to dry air
-        e = (w * ds["press"]) / (0.622 + w)
+        e = (m * ds["press"]) / (0.622 + (1 - 0.622) * m)
     else:
         print("rh or sh not found, dew point temperature not computed")
         return ds
@@ -185,7 +182,6 @@ def get_stats_clim_projections(
     compute_wind: bool = False,
     compute_tdew: bool = False,
     pet_method: Optional[str] = "makkink",
-    tdew_method: Optional[str] = "rh",
     save_grids: bool = False,
     time_horizon: Optional[str] = None,
     drop_vars_pet: List[str] = [],
@@ -239,9 +235,6 @@ def get_stats_clim_projections(
     pet_method : str
         method to compute potential evapotranspiration if compute_pet is True.
         available methods are 'makkink' (default), 'debruin'.
-    tdew_method : str
-        method to compute dew point temperature if compute_tdew is True.
-        available methods are 'rh' (default), 'sh'.
     save_grids : bool
         save gridded stats as well as scalar stats. False by default.
     time_horizon : dict
@@ -298,9 +291,7 @@ def get_stats_clim_projections(
         )
         var_m_masked = var_m_masked.raster.mask(var_m_masked.coords["mask"])
         # get scalar average over grid for each month
-        var_m_scalar = (
-            var_m_masked.raster.mask_nodata().mean([x_dim, y_dim]).round(decimals=2)
-        )
+        var_m_scalar = var_m_masked.raster.mask_nodata().mean([x_dim, y_dim])
         ds_scalar.append(var_m_scalar.to_dataset())
 
         # get grid average over time for each month
@@ -308,7 +299,7 @@ def get_stats_clim_projections(
             if time_horizon is not None:
                 for period_name, time_tuple in time_horizon.items():
                     var_mm = var_m.sel(time=slice(*time_tuple))
-                    var_mm = var_mm.groupby("time.month").mean("time").round(decimals=2)
+                    var_mm = var_mm.groupby("time.month").mean("time")
                     # Add a new horizon dimension
                     var_mm = var_mm.expand_dims(horizon=[period_name])
                     var_mm = var_mm.transpose(..., "horizon")
@@ -316,7 +307,7 @@ def get_stats_clim_projections(
 
             # else compute stats over the whole period
             else:
-                var_mm = var_m.groupby("time.month").mean("time").round(decimals=2)
+                var_mm = var_m.groupby("time.month").mean("time")
                 ds.append(var_mm.to_dataset())
 
     # mean stats over grid and time
@@ -327,7 +318,7 @@ def get_stats_clim_projections(
     if compute_pet:
         timestep = mean_stats_time["time"].to_index().daysinmonth * 86400
         # need to keep press_msl for tdew computation with sh
-        if compute_tdew and tdew_method == "sh":
+        if compute_tdew and "sh" in mean_stats_time.data_vars:
             drop_vars_pet = [var for var in drop_vars_pet if var != "press"]
         mean_stats_time = derive_pet(
             mean_stats_time, pet_method, timestep, drop_vars=drop_vars_pet
@@ -339,19 +330,21 @@ def get_stats_clim_projections(
         )
     # if needed compute dew point temperature
     if compute_tdew:
-        mean_stats_time = derive_tdew(
-            mean_stats_time, tdew_method, drop_vars=drop_vars_dew
-        )
+        mean_stats_time = derive_tdew(mean_stats_time, drop_vars=drop_vars_dew)
 
     # add coordinate on project, model, scenario, member to later merge all files
-    mean_stats_time = mean_stats_time.assign_coords(
-        {
-            "clim_project": f"{clim_source}",
-            "model": f"{model}",
-            "scenario": f"{scenario}",
-            "member": f"{member}",
-        }
-    ).expand_dims(["clim_project", "model", "scenario", "member"])
+    mean_stats_time = (
+        mean_stats_time.round(decimals=2)
+        .assign_coords(
+            {
+                "clim_project": f"{clim_source}",
+                "model": f"{model}",
+                "scenario": f"{scenario}",
+                "member": f"{member}",
+            }
+        )
+        .expand_dims(["clim_project", "model", "scenario", "member"])
+    )
 
     if save_grids:
         mean_stats = xr.merge(ds)
@@ -363,7 +356,7 @@ def get_stats_clim_projections(
                 dims=["month"],
                 coords={"month": mean_stats["month"]},
             )
-            if compute_tdew and tdew_method == "sh":
+            if compute_tdew and "sh" in mean_stats.data_vars:
                 drop_vars_pet = [var for var in drop_vars_pet if var != "press"]
             mean_stats = derive_pet(
                 mean_stats, pet_method, timestep, drop_vars=drop_vars_pet
@@ -373,17 +366,21 @@ def get_stats_clim_projections(
             mean_stats = derive_wind(mean_stats, altitude=10, drop_vars=drop_vars_wind)
         # compute dew point temperature
         if compute_tdew:
-            mean_stats = derive_tdew(mean_stats, tdew_method, drop_vars=drop_vars_dew)
+            mean_stats = derive_tdew(mean_stats, drop_vars=drop_vars_dew)
 
         # add coordinate on project, model, scenario, member to later merge all files
-        mean_stats = mean_stats.assign_coords(
-            {
-                "clim_project": f"{clim_source}",
-                "model": f"{model}",
-                "scenario": f"{scenario}",
-                "member": f"{member}",
-            }
-        ).expand_dims(["clim_project", "model", "scenario", "member"])
+        mean_stats = (
+            mean_stats.round(decimals=2)
+            .assign_coords(
+                {
+                    "clim_project": f"{clim_source}",
+                    "model": f"{model}",
+                    "scenario": f"{scenario}",
+                    "member": f"{member}",
+                }
+            )
+            .expand_dims(["clim_project", "model", "scenario", "member"])
+        )
 
     else:
         mean_stats = xr.Dataset()
@@ -466,7 +463,7 @@ def extract_climate_projections_statistics(
         relative or specific humidity. Required variables for each method are:
 
         * rh: 'temp' [°C], 'rh' [%]
-        * sh: 'temp' [°C], 'sh' [%], 'press' [hPa]
+        * sh: 'temp' [°C], 'sh' [kg/kg], 'press' [hPa]
     compute_wind : bool
         Compute wind speed from u and v wind components (wind10_u and wind10_v). False
         by default.
@@ -627,7 +624,6 @@ def extract_climate_projections_statistics(
                 compute_wind=compute_wind,
                 compute_tdew=compute_tdew,
                 pet_method=pet_method,
-                tdew_method=tdew_method,
                 save_grids=save_grids,
                 time_horizon=time_horizon,
                 drop_vars_pet=drop_vars_pet,
