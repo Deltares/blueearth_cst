@@ -52,19 +52,19 @@ cmip6_{model}_historical_{member}:
     press: 0.01
   attrs:
     precip: 
-      unit: mm/day
+      units: mm/day
 #    temp:
-#      unit: Celsius
+#      units: Celsius
 #    press_msl:
-#      unit: hPa
+#      units: hPa
 #    press:
-#      unit: hPa
+#      units: hPa
 #    rh:
-#      unit: '%'
+#      units: '%'
 #    sh:
-#      unit: 1
+#      units: 1
 #    tcc:
-#      unit: 1
+#      units: 1
     
 cmip6_{model}_ssp119_{member}:
   crs: 4326
@@ -110,7 +110,7 @@ cmip6_{model}_ssp119_{member}:
     press: 0.01
   attrs:
     precip: 
-      unit: mm/day
+      units: mm/day
 
 cmip6_{model}_ssp126_{member}:
   crs: 4326
@@ -159,7 +159,7 @@ cmip6_{model}_ssp126_{member}:
     press: 0.01
   attrs:
     precip: 
-      unit: mm/day
+      units: mm/day
 
 cmip6_{model}_ssp245_{member}:
   crs: 4326
@@ -209,7 +209,7 @@ cmip6_{model}_ssp245_{member}:
     press: 0.01
   attrs:
     precip: 
-      unit: mm/day
+      units: mm/day
 
 cmip6_{model}_ssp370_{member}:
   crs: 4326
@@ -259,7 +259,7 @@ cmip6_{model}_ssp370_{member}:
     press: 0.01
   attrs:
     precip: 
-      unit: mm/day
+      units: mm/day
 
 cmip6_{model}_ssp434_{member}:
   crs: 4326
@@ -304,7 +304,7 @@ cmip6_{model}_ssp434_{member}:
     press: 0.01
   attrs:
     precip: 
-      unit: mm/day
+      units: mm/day
 
 cmip6_{model}_ssp460_{member}:
   crs: 4326
@@ -349,7 +349,7 @@ cmip6_{model}_ssp460_{member}:
     press: 0.01
   attrs:
     precip: 
-      unit: mm/day
+      units: mm/day
 
 cmip6_{model}_ssp585_{member}:
   crs: 4326
@@ -399,4 +399,4 @@ cmip6_{model}_ssp585_{member}:
     press: 0.01
   attrs:
     precip: 
-      unit: mm/day
+      units: mm/day

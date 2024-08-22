@@ -266,7 +266,7 @@ def get_stats_clim_projections(
         if var == "precip":
             var_m = data[var].resample(time="MS").sum("time")
             # for monthly cmip6 units is mm/day and not mm
-            if "unit" in data[var].attrs and data[var].attrs["unit"] == "mm/day":
+            if "units" in data[var].attrs and data[var].attrs["units"] == "mm/day":
                 # convert to mm/month by multiplying with number of days in month
                 days_in_month = pd.to_datetime(var_m.time.values).days_in_month
                 # convert days_in_month to xarray variable
