@@ -488,70 +488,113 @@ def plot_plotting_position(
     far_legend: str = "far future",
         legend for far future
     """
-    fig, (ax1, ax2) = plt.subplots(
+    do_boxplot = False
+    show_all_markers = False
+    hue_order = np.unique(qsim_delta_var.scenario.values).tolist()
+    palette = [COLORS[scenario] for scenario in hue_order if scenario != "historical"]
+
+    fig, axes = plt.subplots(
         1, 2, figsize=(16 / 2.54, 10 / 2.54), sharex=True, sharey=True
     )
-    for scenario in qsim_delta_var.scenario.values:
-        for model in qsim_delta_var.model.values:
-            # near
-            qsim_delta_var_sel = qsim_delta_var.sel(
-                model=model, scenario=scenario, horizon="near"
+    axes = axes.flatten()
+    for ax, horizon in zip(axes, ["near", "far"]):
+        df_gumbel = pd.DataFrame()
+        for scenario in qsim_delta_var.scenario.values:
+            df_gumbel_scenario = pd.DataFrame()
+            for model in qsim_delta_var.model.values:
+                # near
+                qsim_delta_var_sel = qsim_delta_var.sel(
+                    model=model, scenario=scenario, horizon=horizon
+                )
+                gumbel_p1, plotting_positions_hist, max_y_hist = get_plotting_position(
+                    qsim_delta_var_sel, ascending=ascending
+                )
+                if not do_boxplot and show_all_markers:
+                    ax.plot(
+                        gumbel_p1,
+                        plotting_positions_hist,
+                        marker="o",
+                        color=COLORS[scenario],
+                        linestyle="None",
+                        label="hist.",
+                        markersize=5,
+                    )
+                else:
+                    # convert to df for seaborn
+                    df_gumbel_m = pd.DataFrame(
+                        {
+                            "return_period": gumbel_p1,
+                            "var": plotting_positions_hist.values,
+                            "model": np.repeat(model, len(gumbel_p1)),
+                            "scenario": np.repeat(scenario, len(gumbel_p1)),
+                        }
+                    )
+                    df_gumbel = pd.concat([df_gumbel, df_gumbel_m])
+                    df_gumbel_scenario = pd.concat([df_gumbel_scenario, df_gumbel_m])
+            if not do_boxplot and not show_all_markers:
+                # compute the min, mean, max over the models
+                df_gumbel_scenario = df_gumbel_scenario.groupby("return_period").agg(
+                    {"var": ["min", "mean", "max"]}
+                )
+                # plot the mean with markers
+                df_gumbel_scenario["var"]["mean"].plot(
+                    label=f"{scenario}",
+                    ax=ax,
+                    color=COLORS[scenario],
+                    linestyle="None",
+                    marker="o",
+                    markersize=5,
+                )
+                # fill between min and max
+                ax.fill_between(
+                    df_gumbel_scenario.index,
+                    df_gumbel_scenario["var"]["min"],
+                    df_gumbel_scenario["var"]["max"],
+                    color=COLORS[scenario],
+                    alpha=0.4,
+                )
+        # Add historical
+        gumbel_p1, plotting_positions_hist, max_y_hist = get_plotting_position(
+            qsim_hist_var, ascending=ascending
+        )
+        if do_boxplot:
+            df_hist = pd.DataFrame(
+                {
+                    "return_period": gumbel_p1,
+                    "var": plotting_positions_hist.values,
+                    "model": np.repeat("hist.", len(gumbel_p1)),
+                    "scenario": np.repeat("historical", len(gumbel_p1)),
+                }
             )
-            gumbel_p1, plotting_positions_hist, max_y_hist = get_plotting_position(
-                qsim_delta_var_sel, ascending=ascending
+            df_gumbel = pd.concat([df_gumbel, df_hist])
+            sns.boxplot(
+                data=df_gumbel,
+                x="return_period",
+                y="var",
+                hue="scenario",
+                ax=ax,
+                fliersize=0.5,
+                linewidth=0.8,
+                width=0.8,
+                palette=["grey"] + palette,
+                hue_order=["historical"] + hue_order,
             )
-            ax1.plot(
+        else:
+            # add historical
+            ax.plot(
                 gumbel_p1,
                 plotting_positions_hist,
-                marker="o",
-                color=COLORS[scenario],
-                linestyle="None",
-                label="hist.",
-                markersize=6,
-            )
-            # far
-            qsim_delta_var_sel = qsim_delta_var.sel(
-                model=model, scenario=scenario, horizon="far"
-            )
-            gumbel_p1, plotting_positions_hist, max_y_hist = get_plotting_position(
-                qsim_delta_var_sel, ascending=ascending
-            )
-            ax2.plot(
-                gumbel_p1,
-                plotting_positions_hist,
-                marker="o",
-                color=COLORS[scenario],
+                marker="+",
+                color="k",
                 linestyle="None",
                 label="hist.",
                 markersize=6,
             )
 
-    gumbel_p1, plotting_positions_hist, max_y_hist = get_plotting_position(
-        qsim_hist_var, ascending=ascending
-    )
-    ax1.plot(
-        gumbel_p1,
-        plotting_positions_hist,
-        marker="+",
-        color="k",
-        linestyle="None",
-        label="hist.",
-        markersize=6,
-    )
-    ax2.plot(
-        gumbel_p1,
-        plotting_positions_hist,
-        marker="+",
-        color="k",
-        linestyle="None",
-        label="hist.",
-        markersize=6,
-    )
-
-    ax1.set_ylabel(f"{ylabel}", fontsize=fs)
-    ax1.set_title(near_legend, fontsize=fs)
-    ax2.set_title(far_legend, fontsize=fs)
-    for ax in [ax1, ax2]:
+    axes[0].set_ylabel(f"{ylabel}", fontsize=fs)
+    axes[0].set_title(near_legend, fontsize=fs)
+    axes[1].set_title(far_legend, fontsize=fs)
+    for ax in axes:
         ax.set_xlabel("Return period (1/year)", fontsize=fs)
         ax.xaxis.set_ticks([-np.log(-np.log(1 - 1.0 / t)) for t in ts])
         ax.xaxis.set_ticklabels([t for t in ts])
@@ -566,3 +609,4 @@ def plot_plotting_position(
 
     plt.tight_layout()
     plt.savefig(os.path.join(plot_dir, f"plotting_pos_{figname_suffix}.png"), dpi=300)
+    plt.close()
