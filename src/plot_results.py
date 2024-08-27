@@ -5,12 +5,11 @@ Plot wflow results and compare to observations if any
 import xarray as xr
 import numpy as np
 import os
-from os.path import join, dirname
+from os.path import join
 from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 import hydromt
-from hydromt_wflow import WflowModel
 import seaborn as sns
 
 from typing import Union, List, Optional

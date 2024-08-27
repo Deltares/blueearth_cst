@@ -159,7 +159,7 @@ def plot_gridded_precip(
         figsize=(fig_width / 2.54, fig_height / 2.54),
         sharex=True,
         sharey=True,
-        constrained_layout=True,
+        layout="compressed",
         subplot_kw={"projection": proj},
     )
     ax = [ax] if (nb_rows * nb_cols) == 1 else ax.flatten()

@@ -55,6 +55,8 @@ waterbodies_config: "tests/wflow_update_waterbodies.yml"
 output_locations: "tests/data/observations/discharge-locations-grdc.csv" # If set to None, will default to the wflow outlets
 # Path to the file with observed discharge timeseries per station 
 observations_timeseries: "tests/data/observations/observations-discharge-grdc.csv" 
+# Path or data catalog entry to gridded snow cover [%]
+observations_snow: modis_snow
 
 # Additional plot of budyko
 plot_budyko: True
