@@ -144,7 +144,7 @@ rule plot_results:
         wflow_hist_run_config = config_model_historical_fn,
         wflow_delta_runs_config = [f"{basin_dir}/run_delta_change/{config_basename}_delta_{model}_{scenario}_{hz}.toml" for model in gcms_selected for scenario in scenarios_selected for hz in ["near", "far"]],
         gauges_locs = output_locations,
-        start_month_hyd_year = get_config("start_month_hyd_year", default="JAN"),
+        start_month_hyd_year = "JAN",
         project_dir = f"{project_dir}",
         future_horizons = get_config(config, "future_horizons", optional=False),
         add_plots_with_all_lines = get_config(config, "future_hydrology_plots.add_plots_with_all_lines", default=False),
