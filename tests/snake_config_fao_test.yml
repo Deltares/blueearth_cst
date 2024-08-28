@@ -28,12 +28,12 @@ data_sources_climate: config/cmip6_data.yml
 clim_historical: 
   - era5
   - chirps_global
-#  - eobs
+  - eobs
 
 clim_historical_colors:
   - blue
   - green
-#  - brown
+  - brown
 
 # List of wflow output variables to save
 # Supported variables: ['river discharge', 'precipitation', 'overland flow', 'actual evapotranspiration', 'groundwater recharge', 'snow']
@@ -121,13 +121,10 @@ historical_climate_plots:
   timeseries_trends:
     split_year: 2005 # Split year for the timeseries trends
   climate_per_year: # plot options for the gridded climate data per year
-    year_per_line: 5
-    line_height: 6
-    fontsize: 10
-    y_title: 0.9
+    year_per_line: 6
+    fontsize: 6
   mean_precipitation: # plot options for the gridded mean precipitation
     add_rivers: True
-    line_height: 6
     fontsize: 8
 
 ###########################################################################################

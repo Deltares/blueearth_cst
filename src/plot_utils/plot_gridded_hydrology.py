@@ -76,7 +76,7 @@ def plot_gridded_snow_cover(
 
     # Add colorbar to figure
     cbar = fig.colorbar(im, ax=axes, shrink=0.9, aspect=30, label="% of time with snow")
-    # Change the fontisize of the colorbar label
+    # Change the fontsize of the colorbar label
     cbar.ax.yaxis.label.set_fontsize(fs + 1)
     # Change the fontsize of the colorbar ticks
     cbar.ax.tick_params(labelsize=fs)

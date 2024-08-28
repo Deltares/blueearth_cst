@@ -158,11 +158,8 @@ rule derive_trends_gridded:
         data_catalog = data_catalog,
         river_fn = get_config(config, "river_geom_fn", default=None) if get_config(config, "historical_climate_plots.mean_precipitation.add_rivers", default=False) else None,
         year_per_line = get_config(config, "historical_climate_plots.climate_per_year.year_per_line", default=8),
-        line_height_yearly_plot = get_config(config, "historical_climate_plots.climate_per_year.line_height", default=8),
-        line_height_mean_precip = get_config(config, "historical_climate_plots.mean_precipitation.line_height", default=8),
         fs_yearly_plot = get_config(config, "historical_climate_plots.climate_per_year.fontsize", default=8),
         fs_mean_precip = get_config(config, "historical_climate_plots.mean_precipitation.fontsize", default=8),
-        y_title_yearly_plot = get_config(config, "historical_climate_plots.climate_per_year.y_title", default=1.0),
     output:
         trends_gridded_done = f"{project_dir}/plots/climate_historical/trends/gridded_trends.txt",
     script:
