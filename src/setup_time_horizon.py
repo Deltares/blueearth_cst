@@ -46,6 +46,7 @@ def prep_hydromt_update_forcing_config(
     pet_fn = forcing_options.get("pet_fn", None)
     oro_source = forcing_options.get("dem_forcing_fn", "era5_orography")
     pet_method = forcing_options.get("pet_method", "debruin")
+    press_correction = forcing_options.get("press_correction", True)
 
     # Check if direct pet forcing is provided
     if pet_fn is not None:
@@ -92,7 +93,7 @@ def prep_hydromt_update_forcing_config(
     }
     setup_temp_pet_forcing = {
         "temp_pet_fn": clim_source,
-        "press_correction": True,
+        "press_correction": press_correction,
         "temp_correction": True,
         "dem_forcing_fn": oro_source,
         "pet_method": pet_method,

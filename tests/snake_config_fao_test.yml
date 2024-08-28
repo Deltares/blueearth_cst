@@ -59,14 +59,17 @@ forcing_options:
     pet_fn: # direct data source for pet else will be computed using the temp data source
     dem_forcing_fn: era5_orography # data source for orography for downscaling temperature
     pet_method: debruin # method to compute pet
+    press_correction: TRUE
   chirps_global:
     temp_pet_fn: era5
     dem_forcing_fn: era5_orography
     pet_method: debruin
+    press_correction: TRUE
   eobs:
     temp_pet_fn: eobs
     dem_forcing_fn: eobs_orography
     pet_method: makkink
+    press_correction: TRUE
 
 # If available, please put here the path to the available observation stations locations file
 # csv file containing four columns: station_ID, name, x, y
