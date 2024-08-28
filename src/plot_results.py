@@ -62,6 +62,7 @@ def analyse_wflow_historical(
     add_budyko_plot: bool = True,
     max_nan_year: int = 60,
     max_nan_month: int = 5,
+    skip_temp_pet_sources: List[str] = [],
 ):
     """
     Analyse and plot wflow model performance for historical run.
@@ -123,6 +124,9 @@ def analyse_wflow_historical(
     max_nan_month : int, optional
         Maximum number of missing days per month in the observations data to consider
         the month for the discharge analysis. By default 5.
+    skip_temp_pet_sources : List[str]
+        List of climate sources for which to skip the plotting temperature and
+        potential evapotranspiration.
     """
     ### 1. Prepare output and plotting options ###
 
@@ -210,10 +214,24 @@ def analyse_wflow_historical(
             print(f"Plot climatic data at wflow basin {index}")
             ds_clim_i = ds_clim.sel(index=index)
             # Plot per year
-            plot_clim(ds_clim_i, plot_dir, f"wflow_{index}", "year", color)
+            plot_clim(
+                ds_clim_i,
+                Folder_out=plot_dir,
+                station_name=f"wflow_{index}",
+                period="year",
+                color=color,
+                skip_temp_pet_sources=skip_temp_pet_sources,
+            )
             plt.close()
             # Plot per month
-            plot_clim(ds_clim_i, plot_dir, f"wflow_{index}", "month", color)
+            plot_clim(
+                ds_clim_i,
+                Folder_out=plot_dir,
+                station_name=f"wflow_{index}",
+                period="month",
+                color=color,
+                skip_temp_pet_sources=skip_temp_pet_sources,
+            )
             plt.close()
 
     ### 5. Plot other basin average outputs ###
@@ -374,6 +392,7 @@ if __name__ == "__main__":
             add_budyko_plot=sm.params.add_budyko_plot,
             max_nan_year=sm.params.max_nan_year,
             max_nan_month=sm.params.max_nan_month,
+            skip_temp_pet_sources=sm.params.skip_temp_pet_sources,
         )
     else:
         analyse_wflow_historical(

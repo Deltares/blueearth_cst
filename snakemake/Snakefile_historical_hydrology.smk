@@ -28,6 +28,15 @@ wflow_outvars = get_config(config, "wflow_outvars", default=['river discharge'])
 
 has_gridded_outputs = len(get_config(config, "wflow_outvars_gridded", default=[])) > 0
 
+### Custom Python functions (here to access dictionnary elements from the config based on wildcards)
+def get_forcing_options(wildcards):
+    if "forcing_options" in config:
+        if wildcards.climate_source in config["forcing_options"]:
+            opts = config["forcing_options"][wildcards.climate_source]
+    else:
+        opts = {}
+    return opts
+
 # Master rule: end with all model run and analysed with saving a output plot
 rule all:
     input: 
@@ -100,6 +109,7 @@ rule setup_runtime:
         starttime = get_config(config, "starttime", optional=False),
         endtime = get_config(config, "endtime", optional=False),
         clim_source = "{climate_source}",
+        forcing_options = get_forcing_options,
         basin_dir = basin_dir,
     script: "../src/setup_time_horizon.py"
 
@@ -138,9 +148,10 @@ rule plot_results:
        gauges_output_fid = output_locations,
        climate_sources = climate_sources,
        climate_sources_colors = climate_sources_colors,
-       add_budyko_plot = get_config(config, "plot_budyko", default=False),
+       add_budyko_plot = get_config(config, "historical_hydrology_plots.plot_budyko", default=False),
        max_nan_year = get_config(config, "historical_hydrology_plots.flow.max_nan_per_year", default=60),
        max_nan_month = get_config(config, "historical_hydrology_plots.flow.max_nan_per_month", default=5),
+       skip_temp_pet_sources = get_config(config, "historical_hydrology_plots.clim.skip_temp_pet_sources", default=[]),
    script: "../src/plot_results.py"
 
 # Rule to plot the wflow basin, rivers, gauges and DEM on a map
@@ -152,7 +163,7 @@ rule plot_map:
     params:
         project_dir = f"{project_dir}",
         output_locations = output_locations,
-        output_locations_legend = get_config(config, "output_locations_legend", default="output locations"),
+        output_locations_legend = get_config(config, "historical_hydrology_plots.basin_map.output_locations_legend", default="output locations"),
         data_catalog = DATA_SOURCES,
         meteo_locations = get_config(config, "climate_locations", default=None),
         buffer_km = get_config(config, "region_buffer", default=2),

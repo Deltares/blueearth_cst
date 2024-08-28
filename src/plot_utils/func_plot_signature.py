@@ -13,7 +13,7 @@ import scipy.stats as stats
 import pandas as pd
 import xarray as xr
 
-from typing import Union, Optional
+from typing import Union, Optional, List
 
 # Supported wflow outputs
 WFLOW_VARS = {
@@ -859,8 +859,8 @@ def plot_clim(
     station_name: str,
     period: str,
     color: dict,
-    lw: float = 0.8,
     fs: int = 8,
+    skip_temp_pet_sources: List[str] = [],
 ):
     """
     Plot monthly of annual climatology of precipitation, temperature and potential evaporation.
@@ -879,11 +879,10 @@ def plot_clim(
         Either monthly or annual climatology plots
     color : dict
         Color to be used for each climate_source
-    lw : float, optional
-        Line width, by default 0.8
     fs : int, optional
         Font size, by default 8
-
+    skip_temp_pet_sources : List[str]
+        List of climate sources to skip for temperature and potential evaporation plots.
     """
 
     fig, (ax1, ax2, ax3) = plt.subplots(
@@ -901,11 +900,7 @@ def plot_clim(
             # Check as for some sources only precipitation is used
             # so avoid to plot temperature and evaporation twice
             do_climate_plot = True
-            if (
-                climate_source != "era5"
-                and climate_source != "eobs"
-                and "era5" in ds_clim.climate_source
-            ):
+            if climate_source in skip_temp_pet_sources:
                 do_climate_plot = False
 
             T_mean_monthly_mean = (
@@ -948,11 +943,7 @@ def plot_clim(
     else:
         for climate_source in ds_clim.climate_source.values:
             do_climate_plot = True
-            if (
-                climate_source != "era5"
-                and climate_source != "eobs"
-                and "era5" in ds_clim.climate_source
-            ):
+            if climate_source in skip_temp_pet_sources:
                 do_climate_plot = False
             T_mean_year = (
                 ds_clim["T_subcatchment"]

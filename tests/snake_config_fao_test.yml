@@ -28,10 +28,12 @@ data_sources_climate: config/cmip6_data.yml
 clim_historical: 
   - era5
   - chirps_global
+#  - eobs
 
 clim_historical_colors:
   - blue
   - green
+#  - brown
 
 # List of wflow output variables to save
 # Supported variables: ['river discharge', 'precipitation', 'overland flow', 'actual evapotranspiration', 'groundwater recharge', 'snow']
@@ -50,6 +52,22 @@ model_resolution: 0.0166666
 model_build_config: "tests/wflow_build_model.yml"
 waterbodies_config: "tests/wflow_update_waterbodies.yml"
 
+# Options to prepare wflow forcing for the different dataset in clim_historical
+forcing_options:
+  era5: # clim/precip source name
+    temp_pet_fn: era5 # data source for temperature and pet if computed
+    pet_fn: # direct data source for pet else will be computed using the temp data source
+    dem_forcing_fn: era5_orography # data source for orography for downscaling temperature
+    pet_method: debruin # method to compute pet
+  chirps_global:
+    temp_pet_fn: era5
+    dem_forcing_fn: era5_orography
+    pet_method: debruin
+  eobs:
+    temp_pet_fn: eobs
+    dem_forcing_fn: eobs_orography
+    pet_method: makkink
+
 # If available, please put here the path to the available observation stations locations file
 # csv file containing four columns: station_ID, name, x, y
 output_locations: "tests/data/observations/discharge-locations-grdc.csv" # If set to None, will default to the wflow outlets
@@ -58,8 +76,15 @@ observations_timeseries: "tests/data/observations/observations-discharge-grdc.cs
 # Path or data catalog entry to gridded snow cover [%]
 observations_snow: modis_snow
 
-# Additional plot of budyko
-plot_budyko: True
+# Plotting options for historical hydrology
+historical_hydrology_plots:
+  plot_budyko: True # Additional plot of budyko
+  flow:
+    max_nan_per_year: 60
+    max_nan_per_month: 5
+  clim:
+    skip_temp_pet_sources: # list of climate sources for which temp, pet will not be plotted
+      - chirps_global
 
 ########################################################################################
 ######################### Analysis of historical climate data ##########################
