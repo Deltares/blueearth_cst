@@ -40,6 +40,7 @@ def plot_near_far_abs(
     lw: int = 0.6,
     near_legend: str = "near future",
     far_legend: str = "far future",
+    show_all_lines: bool = False,
 ):
     """
     subplots of variable for near and far future showing scenarios and historical output.
@@ -66,6 +67,9 @@ def plot_near_far_abs(
         legend for near future
     far_legend: str = "far future",
         legend for far future
+    show_all_lines: bool = False,
+        if True, all lines are shown in the plot. Else the mean and min-max of the
+        models are shown. Default is False.
     """
     if not os.path.exists(plot_dir):
         os.makedirs(plot_dir)
@@ -82,45 +86,50 @@ def plot_near_far_abs(
 
     for scenario in qsim_delta_metric.scenario.values:
         for ax, horizon in zip(axes, ["near", "far"]):
-            # Find the min, max and mean over the models
-            qsim_delta_metric_min = (
-                qsim_delta_metric.sel(horizon=horizon)
-                .sel(scenario=scenario)
-                .min("model")
-            )
-            qsim_delta_metric_max = (
-                qsim_delta_metric.sel(horizon=horizon)
-                .sel(scenario=scenario)
-                .max("model")
-            )
-            qsim_delta_metric_mean = (
-                qsim_delta_metric.sel(horizon=horizon)
-                .sel(scenario=scenario)
-                .mean("model")
-            )
-            # plot the mean
-            qsim_delta_metric_mean.plot(
-                label=f"{scenario}", ax=ax, color=COLORS[scenario], linewidth=lw
-            )
-            # plot the min and max with a fill between
-            dim0 = qsim_delta_metric_mean.dims[0]
-            ax.fill_between(
-                qsim_delta_metric_mean[dim0].values,
-                qsim_delta_metric_min.values,
-                qsim_delta_metric_max.values,
-                color=COLORS[scenario],
-                alpha=0.4,
-                # label = f"{scenario} min-max",
-            )
-            # # plot all lines
-            # qsim_delta_metric.sel(horizon=horizon).sel(scenario=scenario).plot(
-            #     hue="model",
-            #     ax=ax,
-            #     color=COLORS[scenario],
-            #     add_legend=False,
-            #     linewidth=lw,
-            #     alpha=0.5,
-            # )
+            if show_all_lines:
+                # first entry just for legend
+                qsim_delta_metric.sel(horizon=horizon).sel(scenario=scenario).sel(
+                    model=qsim_delta_metric.model[0]
+                ).plot(label=f"{scenario}", ax=ax, color=COLORS[scenario], linewidth=lw)
+                # plot all lines
+                qsim_delta_metric.sel(horizon=horizon).sel(scenario=scenario).plot(
+                    hue="model",
+                    ax=ax,
+                    color=COLORS[scenario],
+                    add_legend=False,
+                    linewidth=lw,
+                )
+            else:
+                # Find the min, max and mean over the models
+                qsim_delta_metric_min = (
+                    qsim_delta_metric.sel(horizon=horizon)
+                    .sel(scenario=scenario)
+                    .min("model")
+                )
+                qsim_delta_metric_max = (
+                    qsim_delta_metric.sel(horizon=horizon)
+                    .sel(scenario=scenario)
+                    .max("model")
+                )
+                qsim_delta_metric_mean = (
+                    qsim_delta_metric.sel(horizon=horizon)
+                    .sel(scenario=scenario)
+                    .mean("model")
+                )
+                # plot the mean
+                qsim_delta_metric_mean.plot(
+                    label=f"{scenario}", ax=ax, color=COLORS[scenario], linewidth=lw
+                )
+                # plot the min and max with a fill between
+                dim0 = qsim_delta_metric_mean.dims[0]
+                ax.fill_between(
+                    qsim_delta_metric_mean[dim0].values,
+                    qsim_delta_metric_min.values,
+                    qsim_delta_metric_max.values,
+                    color=COLORS[scenario],
+                    alpha=0.4,
+                    # label = f"{scenario} min-max",
+                )
 
     for ax in axes:
         q_hist_metric.plot(label="historical", color="k", ax=ax, linewidth=lw)
@@ -148,6 +157,7 @@ def plot_near_far_rel(
     lw: int = 0.6,
     near_legend: str = "near future",
     far_legend: str = "far future",
+    show_all_lines: bool = False,
 ):
     """
     subplots of variable for near and far future showing relative change in scenarios compared to historical output
@@ -155,7 +165,8 @@ def plot_near_far_rel(
     Parameters
     ----------
     qsim_delta_metric: xr.DataArray,
-        data to plot for delta runs. Should include horizon (near and far), model and scenario as coordinates.
+        data to plot for delta runs. Should include horizon (near and far), model and
+        scenario as coordinates.
     plot_dir: str,
         directory to save figures
     ylabel: str,
@@ -171,6 +182,9 @@ def plot_near_far_rel(
         legend for near future
     far_legend: str = "far future",
         legend for far future
+    show_all_lines: bool = False,
+        if True, all lines are shown in the plot. Else the mean and min-max of the
+        models are shown. Default is False.
     """
     if figname_prefix == "qhydro":
         fig, axes = plt.subplots(
@@ -184,45 +198,50 @@ def plot_near_far_rel(
 
     for scenario in qsim_delta_metric.scenario.values:
         for ax, horizon in zip(axes, ["near", "far"]):
-            # Find the min, max and mean over the models
-            qsim_delta_metric_min = (
-                qsim_delta_metric.sel(horizon=horizon)
-                .sel(scenario=scenario)
-                .min("model")
-            )
-            qsim_delta_metric_max = (
-                qsim_delta_metric.sel(horizon=horizon)
-                .sel(scenario=scenario)
-                .max("model")
-            )
-            qsim_delta_metric_mean = (
-                qsim_delta_metric.sel(horizon=horizon)
-                .sel(scenario=scenario)
-                .mean("model")
-            )
-            # plot the mean
-            qsim_delta_metric_mean.plot(
-                label=f"{scenario}", ax=ax, color=COLORS[scenario], linewidth=lw
-            )
-            # plot the min and max with a fill between
-            dim0 = qsim_delta_metric_mean.dims[0]
-            ax.fill_between(
-                qsim_delta_metric_mean[dim0].values,
-                qsim_delta_metric_min.values,
-                qsim_delta_metric_max.values,
-                color=COLORS[scenario],
-                alpha=0.4,
-                # label = f"{scenario} min-max",
-            )
-            # # plot all lines
-            # qsim_delta_metric.sel(horizon=horizon).sel(scenario=scenario).plot(
-            #     hue="model",
-            #     ax=ax,
-            #     color=COLORS[scenario],
-            #     add_legend=False,
-            #     linewidth=lw,
-            #     alpha=0.5,
-            # )
+            if show_all_lines:
+                # first entry just for legend
+                qsim_delta_metric.sel(horizon=horizon).sel(scenario=scenario).sel(
+                    model=qsim_delta_metric.model[0]
+                ).plot(label=f"{scenario}", ax=ax, color=COLORS[scenario], linewidth=lw)
+                # plot all lines
+                qsim_delta_metric.sel(horizon=horizon).sel(scenario=scenario).plot(
+                    hue="model",
+                    ax=ax,
+                    color=COLORS[scenario],
+                    add_legend=False,
+                    linewidth=lw,
+                )
+            else:
+                # Find the min, max and mean over the models
+                qsim_delta_metric_min = (
+                    qsim_delta_metric.sel(horizon=horizon)
+                    .sel(scenario=scenario)
+                    .min("model")
+                )
+                qsim_delta_metric_max = (
+                    qsim_delta_metric.sel(horizon=horizon)
+                    .sel(scenario=scenario)
+                    .max("model")
+                )
+                qsim_delta_metric_mean = (
+                    qsim_delta_metric.sel(horizon=horizon)
+                    .sel(scenario=scenario)
+                    .mean("model")
+                )
+                # plot the mean
+                qsim_delta_metric_mean.plot(
+                    label=f"{scenario}", ax=ax, color=COLORS[scenario], linewidth=lw
+                )
+                # plot the min and max with a fill between
+                dim0 = qsim_delta_metric_mean.dims[0]
+                ax.fill_between(
+                    qsim_delta_metric_mean[dim0].values,
+                    qsim_delta_metric_min.values,
+                    qsim_delta_metric_max.values,
+                    color=COLORS[scenario],
+                    alpha=0.4,
+                    # label = f"{scenario} min-max",
+                )
 
     for ax in axes:
         ax.tick_params(axis="both", labelsize=fs)
@@ -587,7 +606,7 @@ def plot_plotting_position(
                 marker="+",
                 color="k",
                 linestyle="None",
-                label="hist.",
+                label="Historical",
                 markersize=6,
             )
 
@@ -599,13 +618,14 @@ def plot_plotting_position(
         ax.xaxis.set_ticks([-np.log(-np.log(1 - 1.0 / t)) for t in ts])
         ax.xaxis.set_ticklabels([t for t in ts])
         ax.tick_params(axis="both", labelsize=fs)
+        ax.legend(fontsize=fs)
 
-    ll = []
-    for scenario in qsim_delta_var.scenario.values:
-        l1 = mpatches.Patch(color=COLORS[scenario], label=f"{scenario}")
-        ll.append(l1)
-    l3 = mpatches.Patch(color="k", label="Historical")
-    plt.legend(handles=ll + [l3], fontsize=fs)
+    # ll = []
+    # for scenario in qsim_delta_var.scenario.values:
+    #     l1 = mpatches.Patch(color=COLORS[scenario], label=f"{scenario}")
+    #     ll.append(l1)
+    # l3 = mpatches.Patch(color="k", label="Historical")
+    # plt.legend(handles=ll + [l3], fontsize=fs)
 
     plt.tight_layout()
     plt.savefig(os.path.join(plot_dir, f"plotting_pos_{figname_suffix}.png"), dpi=300)

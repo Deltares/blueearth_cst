@@ -73,6 +73,7 @@ def analyse_wflow_delta(
     start_month_hyd_year: str = "JAN",
     near_legend: str = "near future",
     far_legend: str = "far future",
+    add_plots_with_all_lines: bool = False,
 ):
     """
     Evaluate impact of climate change for delta change runs compared to historical.
@@ -125,9 +126,11 @@ def analyse_wflow_delta(
         legend for near future, default is "near future"
     far_legend: str, optional
         legend for far future, default is "far future"
+    add_plots_with_all_lines: bool, optional
+        add another version of the abs/rel plots with all lines on top on the mean and
+        min-max shaded ones. Default is False.
     """
     ### 1. Prepare output and plotting options ###
-
     # If plotting dir is None, create
     if plot_dir is None:
         wflow_root = dirname(wflow_hist_run_config)
@@ -194,6 +197,19 @@ def analyse_wflow_delta(
             near_legend=near_legend,
             far_legend=far_legend,
         )
+        if add_plots_with_all_lines:
+            plot_near_far_abs(
+                qsim_delta["Q"].cumsum("time").sel(index=index),
+                qsim_hist.cumsum("time").sel(index=index),
+                plot_dir=plot_dir_flow_id,
+                ylabel="Q",
+                figname_prefix=f"cumsum_{index}_all_lines",
+                fs=fs,
+                lw=lw,
+                near_legend=near_legend,
+                far_legend=far_legend,
+                show_all_lines=True,
+            )
 
         # plot mean monthly flow
         plot_near_far_abs(
@@ -207,6 +223,19 @@ def analyse_wflow_delta(
             near_legend=near_legend,
             far_legend=far_legend,
         )
+        if add_plots_with_all_lines:
+            plot_near_far_abs(
+                qsim_delta["Q"].groupby("time.month").mean("time").sel(index=index),
+                qsim_hist.groupby("time.month").mean("time").sel(index=index),
+                plot_dir=plot_dir_flow_id,
+                ylabel="mean monthly Q (m$^3$s$^{-1}$)",
+                figname_prefix=f"mean_monthly_Q_{index}_all_lines",
+                fs=fs,
+                lw=lw,
+                near_legend=near_legend,
+                far_legend=far_legend,
+                show_all_lines=True,
+            )
 
         # plot nm7q timeseries
         qsim_delta_nm7q = (
@@ -236,6 +265,19 @@ def analyse_wflow_delta(
             near_legend=near_legend,
             far_legend=far_legend,
         )
+        if add_plots_with_all_lines:
+            plot_near_far_abs(
+                qsim_delta_nm7q,
+                qsim_hist_nm7q,
+                plot_dir=plot_dir_flow_id,
+                ylabel="NM7Q (m$^3$s$^{-1}$)",
+                figname_prefix=f"nm7q_{index}_all_lines",
+                fs=fs,
+                lw=lw,
+                near_legend=near_legend,
+                far_legend=far_legend,
+                show_all_lines=True,
+            )
 
         # plot maxq timeseries
         qsim_delta_maxq = (
@@ -261,6 +303,19 @@ def analyse_wflow_delta(
             near_legend=near_legend,
             far_legend=far_legend,
         )
+        if add_plots_with_all_lines:
+            plot_near_far_abs(
+                qsim_delta_maxq,
+                qsim_hist_maxq,
+                plot_dir=plot_dir_flow_id,
+                ylabel="max annual Q (m$^3$s$^{-1}$)",
+                figname_prefix=f"max_annual_q_{index}_all_lines",
+                fs=fs,
+                lw=lw,
+                near_legend=near_legend,
+                far_legend=far_legend,
+                show_all_lines=True,
+            )
 
         # plot mean annual flow
         qsim_delta_meanq = (
@@ -288,6 +343,19 @@ def analyse_wflow_delta(
             near_legend=near_legend,
             far_legend=far_legend,
         )
+        if add_plots_with_all_lines:
+            plot_near_far_abs(
+                qsim_delta_meanq,
+                qsim_hist_meanq,
+                plot_dir=plot_dir_flow_id,
+                ylabel="mean annual Q (m$^3$s$^{-1}$)",
+                figname_prefix=f"mean_annual_q_{index}_all_lines",
+                fs=fs,
+                lw=lw,
+                near_legend=near_legend,
+                far_legend=far_legend,
+                show_all_lines=True,
+            )
 
         # plot timeseries daily q
         qsim_delta_d = qsim_delta["Q"].sel(index=index)
@@ -303,6 +371,19 @@ def analyse_wflow_delta(
             near_legend=near_legend,
             far_legend=far_legend,
         )
+        if add_plots_with_all_lines:
+            plot_near_far_abs(
+                qsim_delta_d,
+                qsim_hist_d,
+                plot_dir=plot_dir_flow_id,
+                ylabel="Q (m$^3$s$^{-1}$)",
+                figname_prefix=f"qhydro_{index}_all_lines",
+                fs=fs,
+                lw=lw,
+                near_legend=near_legend,
+                far_legend=far_legend,
+                show_all_lines=True,
+            )
 
         # plot relative change mean, max, min q
         for dvar, prefix in zip(
@@ -319,6 +400,18 @@ def analyse_wflow_delta(
                 near_legend=near_legend,
                 far_legend=far_legend,
             )
+            if add_plots_with_all_lines:
+                plot_near_far_rel(
+                    dvar,
+                    plot_dir=plot_dir_flow_id,
+                    ylabel=f"Change {prefix} (Qfut-Qhist)/Qhist (%)",
+                    figname_prefix=f"{prefix}_annual_q_{index}_all_lines",
+                    fs=fs,
+                    lw=lw,
+                    near_legend=near_legend,
+                    far_legend=far_legend,
+                    show_all_lines=True,
+                )
 
         # plotting position maxq
         plot_plotting_position(
@@ -440,6 +533,19 @@ def analyse_wflow_delta(
             near_legend=near_legend,
             far_legend=far_legend,
         )
+        if add_plots_with_all_lines:
+            plot_near_far_abs(
+                mean_monthly_delta,
+                mean_monthly_hist,
+                plot_dir=plot_dir_other,
+                ylabel=WFLOW_VARS[dvar.split("_")[0]]["legend"],
+                figname_prefix=f"mean_monthly_{dvar}_all_lines",
+                fs=fs,
+                lw=lw,
+                near_legend=near_legend,
+                far_legend=far_legend,
+                show_all_lines=True,
+            )
 
         # mean annual sum or mean
         plot_near_far_abs(
@@ -453,6 +559,19 @@ def analyse_wflow_delta(
             near_legend=near_legend,
             far_legend=far_legend,
         )
+        if add_plots_with_all_lines:
+            plot_near_far_abs(
+                sum_annual_delta,
+                sum_annual_hist,
+                plot_dir=plot_dir_other,
+                ylabel=WFLOW_VARS[dvar.split("_")[0]]["legend_annual"],
+                figname_prefix=f"sum_annual_{dvar}_all_lines",
+                fs=fs,
+                lw=lw,
+                near_legend=near_legend,
+                far_legend=far_legend,
+                show_all_lines=True,
+            )
 
         # relative mean monthly sum or mean
         plot_near_far_rel(
@@ -465,6 +584,18 @@ def analyse_wflow_delta(
             near_legend=near_legend,
             far_legend=far_legend,
         )
+        if add_plots_with_all_lines:
+            plot_near_far_rel(
+                mean_monthly_delta_rel,
+                plot_dir=plot_dir_other,
+                ylabel=f"Change monthly {dvar} \n (fut-hist)/hist (%)",
+                figname_prefix=f"mean_monthly_{dvar}_all_lines",
+                fs=fs,
+                lw=lw,
+                near_legend=near_legend,
+                far_legend=far_legend,
+                show_all_lines=True,
+            )
 
         # relative mean annual sum or mean
         plot_near_far_rel(
@@ -477,6 +608,18 @@ def analyse_wflow_delta(
             near_legend=near_legend,
             far_legend=far_legend,
         )
+        if add_plots_with_all_lines:
+            plot_near_far_rel(
+                sum_annual_delta_rel,
+                plot_dir=plot_dir_other,
+                ylabel=f"Change annual {dvar} \n (fut-hist)/hist (%)",
+                figname_prefix=f"sum_annual_{dvar}_all_lines",
+                fs=fs,
+                lw=lw,
+                near_legend=near_legend,
+                far_legend=far_legend,
+                show_all_lines=True,
+            )
 
     ### End of the function ###
 
@@ -501,6 +644,7 @@ if __name__ == "__main__":
             start_month_hyd_year=sm.params.start_month_hyd_year,
             near_legend=f"Horizon {near_horizon}",
             far_legend=f"Horizon {far_horizon}",
+            add_plots_with_all_lines=sm.params.add_plots_with_all_lines,
         )
     else:
         print("run with snakemake please")

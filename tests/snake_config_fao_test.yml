@@ -146,3 +146,5 @@ gcm_selected: ['NOAA-GFDL_GFDL-ESM4', 'INM_INM-CM5-0']
 #gcm_legend: [wet, dry]
 scenarios_selected: [ssp245, ssp585]
 #assume period is near and far (fixed!!)
+future_hydrology_plots:
+  add_plots_with_all_lines: TRUE

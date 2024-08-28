@@ -147,6 +147,7 @@ rule plot_results:
         start_month_hyd_year = "JAN",
         project_dir = f"{project_dir}",
         future_horizons = get_config(config, "future_horizons", optional=False),
+        add_plots_with_all_lines = get_config(config, "future_hydrology_plots.add_plots_with_all_lines", default=False),
    script: "../src/plot_results_delta.py"
 
 rule plot_results_grid:
