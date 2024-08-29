@@ -113,7 +113,7 @@ def plot_grid_wflow_historical(
             buffer=0.2,
         )
         # Only use values where snow cover is between 10% and 100%
-        obs_snow = obs_snow.where((obs_snow >= 10) & (obs_snow <= 100))
+        obs_snow = obs_snow.where((obs_snow >= 10) & (obs_snow <= 100), 0)
         # Percent of time snow cover is observed
         obs_snow = obs_snow.mean(dim="time")
         # Add to dictionary
