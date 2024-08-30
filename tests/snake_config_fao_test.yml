@@ -28,12 +28,12 @@ data_sources_climate: config/cmip6_data.yml
 clim_historical: 
   - era5
   - chirps_global
-  - eobs
+#  - eobs
 
 clim_historical_colors:
   - blue
   - green
-  - brown
+#  - brown
 
 # List of wflow output variables to save
 # Supported variables: ['river discharge', 'precipitation', 'overland flow', 'actual evapotranspiration', 'groundwater recharge', 'snow']
@@ -59,17 +59,17 @@ forcing_options:
     pet_fn: # direct data source for pet else will be computed using the temp data source
     dem_forcing_fn: era5_orography # data source for orography for downscaling temperature
     pet_method: debruin # method to compute pet
-    press_correction: TRUE
+    press_correction: true
   chirps_global:
     temp_pet_fn: era5
     dem_forcing_fn: era5_orography
     pet_method: debruin
-    press_correction: TRUE
+    press_correction: true
   eobs:
     temp_pet_fn: eobs
     dem_forcing_fn: eobs_orography
     pet_method: makkink
-    press_correction: TRUE
+    press_correction: true
 
 # If available, please put here the path to the available observation stations locations file
 # csv file containing four columns: station_ID, name, x, y
@@ -81,7 +81,10 @@ observations_snow: modis_snow
 
 # Plotting options for historical hydrology
 historical_hydrology_plots:
-  plot_budyko: True # Additional plot of budyko
+  plot_budyko: true # Additional plot of budyko
+  basin_map:
+    output_locations_legend: "output locations"
+    legend_loc: "lower right"
   flow:
     max_nan_per_year: 60
     max_nan_per_month: 5
@@ -118,6 +121,8 @@ climate_thresholds:
 
 # Plotting options
 historical_climate_plots:
+  basin_map:
+    legend_loc: "lower right" # legend location in the basin map plot
   climate_per_location:
     max_nan_per_year: 60 # maximum number of nan per year in the observed data to be plotted
     max_nan_per_month: 5 # maximum number of nan per month in the observed data to be plotted
@@ -127,7 +132,7 @@ historical_climate_plots:
     year_per_line: 6
     fontsize: 6
   mean_precipitation: # plot options for the gridded mean precipitation
-    add_rivers: True
+    add_rivers: true
     fontsize: 8
 
 ###########################################################################################
@@ -172,4 +177,4 @@ gcm_selected: ['NOAA-GFDL_GFDL-ESM4', 'INM_INM-CM5-0']
 scenarios_selected: [ssp245, ssp585]
 #assume period is near and far (fixed!!)
 future_hydrology_plots:
-  add_plots_with_all_lines: TRUE
+  add_plots_with_all_lines: true

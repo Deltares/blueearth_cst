@@ -60,6 +60,7 @@ rule plot_region_and_location:
         river_fn = get_config(config, "river_geom_fn", default=None),
         hydrography_fn = get_config(config, "hydrography_fn", default="merit_hydro"),
         buffer_km = get_config(config, "region_buffer", default=10),
+        legend_loc = get_config(config, "historical_climate_plots.basin_map.legend_loc", default="lower right"),
     output:
         region_plot = f"{project_dir}/plots/climate_historical/region_plot.png",
     script:

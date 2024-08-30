@@ -36,6 +36,7 @@ def plot_wflow_map(
     data_catalog: List[Union[str, Path]] = [],
     meteo_locations: Optional[Union[str, Path]] = None,
     buffer_km: float = 2.0,
+    legend_loc: str = "lower right",
 ):
     """
     Plot the wflow model map with rivers, basins, gauges, etc.
@@ -63,6 +64,8 @@ def plot_wflow_map(
     buffer_km : float, optional
         Buffer in km around the region to extract the data and do the plot.
         Default is 2 km.
+    legend_loc : str, optional
+        Location of the legend in the plot. Default is "lower right".
     """
     mod = WflowModel(wflow_root, mode="r")
 
@@ -106,6 +109,7 @@ def plot_wflow_map(
         meteo_locations=locations,
         buffer_km=buffer_km,
         shaded=True,
+        legend_loc=legend_loc,
         **kwargs,
     )
 
@@ -133,6 +137,7 @@ if __name__ == "__main__":
             data_catalog=sm.params.data_catalog,
             meteo_locations=sm.params.meteo_locations,
             buffer_km=sm.params.buffer_km,
+            legend_loc=sm.params.legend_loc,
         )
     else:
         print("This script should be run from a snakemake environment")

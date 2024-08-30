@@ -28,6 +28,7 @@ def plot_region_and_location(
     hydrography_fn: Optional[Union[str, Path]] = None,
     rivers_fn: Optional[Union[str, Path]] = None,
     buffer_km: Optional[float] = 2.0,
+    legend_loc: str = "lower right",
 ):
     """
     Plot the region and location of the data.
@@ -54,7 +55,8 @@ def plot_region_and_location(
         Optional variables for plotting: "strord".
     buffer_km : float, optional
         Buffer in km around the region to extract the data.
-
+    legend_loc : str, optional
+        Location of the legend in the plot. Default is "lower right".
     """
 
     # Small function to set the index of the geodataframe
@@ -147,6 +149,7 @@ def plot_region_and_location(
         buffer_km=buffer_km,
         annotate_regions=True,
         shaded=True if hydrography is not None else False,
+        legend_loc=legend_loc,
         **kwargs,
     )
 
@@ -164,6 +167,7 @@ if __name__ == "__main__":
             hydrography_fn=sm.params.hydrography_fn,
             rivers_fn=sm.params.river_fn,
             buffer_km=sm.params.buffer_km,
+            legend_loc=sm.params.legend_loc,
         )
 
     else:

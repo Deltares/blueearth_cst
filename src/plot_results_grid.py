@@ -52,6 +52,14 @@ def plot_grid_wflow_historical(
         Required variables: ['snow_cover']
     data_catalog : List[Union[str, Path]], optional
         List of paths to data catalogs to search for the observations_snow data source.
+    basin_filename : Optional[Union[str, Path]], optional
+        Path or data source in catalog to basin shapefile. Added to the plot if
+        provided.
+    river_filename : Optional[Union[str, Path]], optional
+        Path or data source in catalog to river shapefile. Added to the plot if
+        provided.
+    fontsize : int, optional
+        Font size for the plot, by default 8.
     """
     # Create dictionary with snow cover for different datasets
     snow_cover = dict()

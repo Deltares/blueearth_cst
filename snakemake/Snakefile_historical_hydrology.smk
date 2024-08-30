@@ -167,6 +167,7 @@ rule plot_map:
         data_catalog = DATA_SOURCES,
         meteo_locations = get_config(config, "climate_locations", default=None),
         buffer_km = get_config(config, "region_buffer", default=2),
+        legend_loc = get_config(config, "historical_hydrology_plots.basin_map.legend_loc", default="lower right"),
     script: "../src/plot_map.py"
 
 # Rule to plot the forcing on a map
