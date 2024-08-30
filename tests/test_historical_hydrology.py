@@ -1,7 +1,7 @@
 """Test functions from the model creation workflow."""
 
 import os
-from os.path import join, basename
+from os.path import join, basename, isfile
 import subprocess
 import yaml
 import pytest
@@ -21,6 +21,7 @@ from ..src import setup_time_horizon
 from ..src import plot_map
 from ..src import plot_map_forcing
 from ..src import plot_results
+from ..src import plot_results_grid
 
 
 def test_copy_config(tmpdir, data_libs_fao, model_build_config):
@@ -426,3 +427,22 @@ def test_plot_results_budyko(tmpdir, config):
 
     # Check budyko plot
     assert os.path.exists(f"{plot_dir}/long_run/budyko_qobs.png")
+
+
+def test_gridded_results(tmpdir, data_libs_fao):
+    """Test plotting the snow cover with MODIS."""
+    wflow_root = join(SAMPLE_PROJECTDIR, "hydrology_model")
+
+    plot_results_grid.plot_grid_wflow_historical(
+        wflow_output_filenames=[join(wflow_root, "run_default", "output_era5.nc")],
+        climate_sources=["era5"],
+        plot_dir=f"{tmpdir}/plots/wflow_model_performance",
+        observations_snow="modis_snow",
+        data_catalog=data_libs_fao,
+        basin_filename=join(wflow_root, "staticgeoms", "basins.geojson"),
+        river_filename=join(wflow_root, "staticgeoms", "rivers.geojson"),
+        fontsize=8,
+    )
+
+    # Check the plot was made
+    assert isfile(f"{tmpdir}/plots/wflow_model_performance/snow_cover.png")
