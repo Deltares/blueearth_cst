@@ -488,7 +488,7 @@ def analyse_wflow_delta(
         )
         # NB: remove nan otherwise boxplot fails!
         df_delta_near_rel, df_delta_far_rel = get_df_seaborn(
-            ds_basin_delta_m_rel.dropna("time"), "snow_basavg"
+            ds_basin_delta_m_rel[["snow_basavg"]].dropna("time"), "snow_basavg"
         )
         # boxplot relative change snow
         make_boxplot_monthly(
