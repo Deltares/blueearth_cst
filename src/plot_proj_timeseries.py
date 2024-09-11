@@ -161,13 +161,13 @@ def compute_anomalies(da_hist: xr.DataArray, ds_fut: List[xr.Dataset]):
     Returns
     -------
     q_mnmn: List[pd.DataFrame]
-        List of quantiles for monthly mean
+        List of quantiles for monthly mean over historical period
     q_mnanom: List[pd.DataFrame]
-        List of quantiles for monthly mean anomalies
+        List of quantiles for monthly mean anomalies over historical period
     q_annmn: List[pd.DataFrame]
-        List of quantiles for annual mean
+        List of quantiles for annual mean over historical period
     q_anom: List[pd.DataFrame]
-        List of quantiles for annual mean anomalies
+        List of quantiles for annual mean anomalies over historical period
     q_futmonth: List[pd.DataFrame]
         List of quantiles for monthly future mean
     q_futmonth_anom: List[pd.DataFrame]
@@ -290,7 +290,7 @@ def plot_climate_projections(
         List of historical netcdf scalar timeseries files
     nc_future: List[Union[str, Path]]
         List of future netcdf scalar timeseries files
-    path_output: Union[str, Path]
+    path_output_nc: Union[str, Path]
         Path to the output directory to save the netcdf files with combined gcm results.
     path_output_plots: Union[str, Path], optional
         Path to the output directory to save the plots. If None, plots will be saved in

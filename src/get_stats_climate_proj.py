@@ -87,6 +87,7 @@ def derive_pet(
 def derive_wind(ds: xr.Dataset, altitude: float = 10, drop_vars: List = []):
     """
     Compute wind speed from u and v wind components.
+    Adjust wind speed data obtained from instruments placed at elevations other than the standard height of 2 m, using a logarithmic wind speed profile (Allen et al., 1998)
 
     Parameters
     ----------
