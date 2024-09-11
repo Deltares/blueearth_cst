@@ -121,11 +121,12 @@ def plot_grid_wflow_historical(
             buffer=0.2,
         )
         # Only use values where snow cover is between 10% and 100%
+        # 10% threshold is chosen to make sure a relatively large fraction of the cell is covered by snow
         obs_snow = obs_snow.where((obs_snow >= 10) & (obs_snow <= 100), 0)
         # Percent of time snow cover is observed
         obs_snow = obs_snow.mean(dim="time")
         # Add to dictionary
-        snow_cover["observed"] = obs_snow
+        snow_cover[f"observed ({observations_snow})"] = obs_snow
 
     # Plot the snow cover
     if len(snow_cover) > 0:
@@ -139,16 +140,22 @@ def plot_grid_wflow_historical(
             if source_crs is not None and gdf_basin.crs != source_crs:
                 gdf_basin = gdf_basin.to_crs(snow_cover[source].raster.crs)
             # Mask the observations with gdf_basin
-            if "observed" in snow_cover:
-                snow_cover["observed"] = snow_cover["observed"].assign_coords(
-                    mask=snow_cover["observed"].raster.geometry_mask(
-                        gdf_basin, all_touched=True
-                    )
+            if f"observed ({observations_snow})" in snow_cover:
+                snow_cover[f"observed ({observations_snow})"] = snow_cover[
+                    f"observed ({observations_snow})"
+                ].assign_coords(
+                    mask=snow_cover[
+                        f"observed ({observations_snow})"
+                    ].raster.geometry_mask(gdf_basin, all_touched=True)
                 )
-                if snow_cover["observed"].raster.nodata is None:
-                    snow_cover["observed"].raster.set_nodata(np.nan)
-                snow_cover["observed"] = snow_cover["observed"].raster.mask(
-                    snow_cover["observed"].coords["mask"]
+                if snow_cover[f"observed ({observations_snow})"].raster.nodata is None:
+                    snow_cover[f"observed ({observations_snow})"].raster.set_nodata(
+                        np.nan
+                    )
+                snow_cover[f"observed ({observations_snow})"] = snow_cover[
+                    f"observed ({observations_snow})"
+                ].raster.mask(
+                    snow_cover[f"observed ({observations_snow})"].coords["mask"]
                 )
         else:
             gdf_basin = None

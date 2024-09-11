@@ -620,13 +620,6 @@ def plot_plotting_position(
         ax.tick_params(axis="both", labelsize=fs)
         ax.legend(fontsize=fs)
 
-    # ll = []
-    # for scenario in qsim_delta_var.scenario.values:
-    #     l1 = mpatches.Patch(color=COLORS[scenario], label=f"{scenario}")
-    #     ll.append(l1)
-    # l3 = mpatches.Patch(color="k", label="Historical")
-    # plt.legend(handles=ll + [l3], fontsize=fs)
-
     plt.tight_layout()
     plt.savefig(os.path.join(plot_dir, f"plotting_pos_{figname_suffix}.png"), dpi=300)
     plt.close()

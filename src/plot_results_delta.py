@@ -54,13 +54,13 @@ WFLOW_VARS = {
     },
     "snow": {
         "resample": "mean",
-        "legend": "Snowpack (mm)",
-        "legend_annual": "Snowpack (mm)",
+        "legend": "Snow water equivalent (mm)",
+        "legend_annual": "Snow water equivalent (mm)",
     },
     "glacier": {
         "resample": "mean",
-        "legend": "Glacier water volume (mm)",
-        "legend_annual": "Glacier water volume (mm)",
+        "legend": "Glacier water equivalent (mm)",
+        "legend_annual": "Glacier water equivalent (mm)",
     },
 }
 
@@ -127,7 +127,7 @@ def analyse_wflow_delta(
     far_legend: str, optional
         legend for far future, default is "far future"
     add_plots_with_all_lines: bool, optional
-        add another version of the abs/rel plots with all lines on top on the mean and
+        add another version of the abs/rel plots with all lines of each of the delta runs on top on the mean and
         min-max shaded ones. Default is False.
     """
     ### 1. Prepare output and plotting options ###

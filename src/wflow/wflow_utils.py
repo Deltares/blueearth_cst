@@ -112,8 +112,8 @@ def get_wflow_results(
     ds_basin = xr.merge(
         [mod.results[dvar] for dvar in mod.results if "_basavg" in dvar]
     )
-    #glacier and other variables may have a different index value introducing nan's in ds_basin
-    ds_basin = ds_basin.mean("index") 
+    # glacier and other variables may have a different index value introducing nan's in ds_basin
+    ds_basin = ds_basin.mean("index")
     ds_basin = ds_basin.squeeze(drop=True)
     # If precipitation, skip as this will be plotted with the other climate data
     if "precipitation_basavg" in ds_basin:

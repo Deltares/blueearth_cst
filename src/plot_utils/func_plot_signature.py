@@ -34,13 +34,13 @@ WFLOW_VARS = {
     },
     "snow": {
         "resample": "mean",
-        "legend": "Snowpack (mm)",
-        "legend_annual": "Snowpack (mm)",
+        "legend": "Snow water equivalent (mm)",
+        "legend_annual": "Snow water equivalent (mm)",
     },
     "glacier": {
         "resample": "mean",
-        "legend": "Glacier water volume (mm)",
-        "legend_annual": "Glacier water volume (mm)",
+        "legend": "Glacier water equivalent (mm)",
+        "legend_annual": "Glacier water equivalent (mm)",
     },
 }
 
@@ -697,10 +697,10 @@ def plot_hydro(
         Font size, by default 7
     max_nan_year : int, optional
         Maximum number of missing days per year in the observations data to consider
-        the year for the discharge analysis. By default 60.
+        the year in the annual hydrograph plot. By default 60.
     max_nan_month : int, optional
         Maximum number of missing days per month in the observations data to consider
-        the month for the discharge analysis. By default 5.
+        the month in the monthly regime plot. By default 5.
     """
     min_count_year = 365 - max_nan_year
     min_count_month = 30 - max_nan_month

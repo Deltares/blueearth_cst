@@ -25,7 +25,7 @@ def plot_gridded_snow_cover(
     Parameters
     ----------
     snow_cover : dict
-        Dictionary with snow cover for different datasets.
+        Dictionary with snow cover for different datasets, which may include simulated and observed data.
     plot_dir : Union[str, Path]
         Path to the output folder for plots.
     gdf_basin : Optional[gpd.GeoDataFrame], optional
