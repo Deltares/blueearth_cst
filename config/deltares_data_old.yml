@@ -71,34 +71,6 @@ chelsa_v1.2:
     source_version: 1.2
   path: meteo/chelsa_clim_v1.2/CHELSA_bio10_12.tif
 
-imdaa_reg:
-  crs: 4326
-  data_type: RasterDataset
-  driver: netcdf
-  driver_kwargs:
-    chunks:
-      latitude: -1
-      longitude: -1
-      time: 100
-    combine: by_coords
-    decode_times: true
-    parallel: true
-  meta:
-    category: meteo
-    paper_doi: 10.1029/2019JD030973
-    paper_ref: Ashrit et al (2020)
-    source_license: 
-    source_url: https://rds.ncmrwf.gov.in/
-    source_version: 
-    note: daily grid resampled from hourly data for the full IMDAA extent
-  path: "p:/wflow_global/forcing/IMDAA/IMDAA-daily-fullextent/*/ncum_imdaa_reanl_DAILY_*.nc"
-  rename:
-    APCP_sfc: precip
-    TMP_2m: temp
-  unit_add:
-    time: -3600
-    temp: -273.15
-    
 chirps:
   alias: chirps_africa_daily_v2.0
 chirps_africa_daily_v2.0:

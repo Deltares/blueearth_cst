@@ -1,0 +1,373 @@
+#%%
+# -*- coding: utf-8 -*-
+"""
+Export wflow results for easy plotting of the climate response plots
+"""
+import os
+from pathlib import Path
+import pandas as pd
+import numpy as np
+import xarray as xr
+from typing import List, Union
+
+import metrics_definition as md
+
+#%%
+def analyze_wflow_results(
+    csv_fns: List[Union[str, Path]],
+    exp_dir: Union[str, Path],
+    st_num: int,
+    qstats_fn: Union[str, Path] = None,
+    bas_fn: Union[str, Path] = None,
+    Tpeak: int = 10,
+    Tlow: int = 2,
+    aggr_rlz: bool = True,
+):
+    """
+    Analyze wflow results and computes statistics for each realization/stress test.
+
+    Parameters
+    ----------
+    csv_fns : List[Union[str, Path]]
+        List of csv files containing the wflow results for each realization/stress test
+    exp_dir : Union[str, Path]
+        Path to the experiment directory with the definition of each stress test for
+        precip and temp changes.
+    st_num : int
+        Number of stress tests (increments) per realization
+    qstats_fn : Union[str, Path], optional
+        Path to the output csv file with the discharge statistics for each
+        realization/stress test.
+        If None will be saved in `exp_dir/Qstats.csv`.
+    bas_fn : Union[str, Path], optional
+        Path to the output csv file with the basin average statistics for each
+        realization/stress test.
+        If None will be saved in `exp_dir/basin.csv`.
+    Tpeak : int, optional
+        Return period for high flows (in years), by default 10
+    Tlow : int, optional
+        Return period for low flows (in years), by default 2
+    aggr_rlz : bool, optional
+        If True, aggregate all realizations for each stress test, by default True.
+    """
+    # Output file paths
+    if qstats_fn is None:
+        qstats_fn = f"{exp_dir}/Qstats.csv"
+    if bas_fn is None:
+        bas_fn = f"{exp_dir}/basin.csv"
+
+    # Get output discharge columns
+    sim = pd.read_csv(csv_fns[0], index_col=0, parse_dates=True)
+    Q_vars = [x for x in sim.columns if x.startswith("Q_")]
+    basavg_vars = [x for x in sim.columns if "basavg" in x]
+
+    # Initialise emtpy output dataframes
+    if aggr_rlz:
+        col_names = ["statistic", "tavg", "prcp"]
+        col_names.extend(Q_vars)
+        df_out_mean = pd.DataFrame(
+            data=np.zeros((st_num, len(col_names))),
+            columns=col_names,
+            dtype="float32",
+        )
+    else:
+        col_names = ["statistic", "realization", "tavg", "prcp"]
+        col_names.extend(Q_vars)
+        df_out_mean = pd.DataFrame(
+            data=np.zeros((len(csv_fns), len(col_names))),
+            columns=col_names,
+            dtype="float32",
+        )
+    df_out_max = df_out_mean.copy()
+    df_out_min = df_out_mean.copy()
+    df_out_q95 = df_out_mean.copy()
+    df_out_RT = df_out_mean.copy()
+    df_out_Q7dmax = df_out_mean.copy()
+    # df_out_highpulse = df_out_mean.copy()
+    df_out_wetmonth = df_out_mean.copy()
+    df_out_RT7d = df_out_mean.copy()
+    df_out_Q7dmin = df_out_mean.copy()
+    # df_out_lowpulse = df_out_mean.copy()
+    df_out_drymonth = df_out_mean.copy()
+    df_out_BFI = df_out_mean.copy()
+
+    # Other variables than discharge
+    if aggr_rlz:
+        col_names = ["tavg", "prcp"]
+        col_names.extend(basavg_vars)
+        df_out_basavg = pd.DataFrame(
+            data=np.zeros((st_num, len(col_names))),
+            columns=col_names,
+            dtype="float32",
+        )
+    else:
+        col_names = ["realization", "tavg", "prcp"]
+        col_names.extend(basavg_vars)
+        df_out_basavg = pd.DataFrame(
+            data=np.zeros((len(csv_fns), len(col_names))),
+            columns=col_names,
+            dtype="float32",
+        )
+
+    print("Computing discharge stats for each realization/stress test")
+    Q_rps = []
+    for i in range(np.size(df_out_mean, 0)):
+        # Read csv file
+        if not aggr_rlz:
+            st_nb = os.path.basename(csv_fns[i]).split(".")[0].split("_")[-1]
+            sim_all = pd.read_csv(csv_fns[i], index_col=0, parse_dates=True)
+            sim = sim_all[Q_vars]
+        else:
+            # read and concat several files
+            st_nb = i + 1
+            csv_fns_i = [x for x in csv_fns if x.endswith("cst_" + str(i + 1) + ".csv")]
+            csv_rlz = []
+            for j in range(len(csv_fns_i)):
+                sim_j = pd.read_csv(csv_fns_i[j], index_col=0, parse_dates=True)
+                csv_rlz.append(sim_j)
+            sim_all = pd.concat(csv_rlz)
+            sim_all.index = pd.date_range(
+                start=sim_all.index[0], periods=len(sim_all), name="time"
+            )
+            sim = sim_all[Q_vars]
+        # Get statistics
+        # Average Yearly statistics
+        df_mean = sim.resample("a").mean().mean()
+        df_max = sim.resample("a").max().mean()
+        df_min = sim.resample("a").min().mean()
+        df_q95 = sim.resample("a").quantile(0.95).mean()
+        # High flows
+        df_RT = md.returninterval(sim, Tpeak)
+        df_Q7dmax = md.Q7d_maxyear(sim)
+        # df_highpulse = md.highpulse(sim)
+        df_wetmonth = md.wetmonth_mean(sim)
+        # Low flows
+        df_RT7d = md.returninterval_Q7d(sim, Tlow)
+        df_Q7dmin = md.Q7d_min(sim)
+        # df_lowpulse = md.lowpulse(sim)
+        df_drymonth = md.drymonth_mean(sim)
+        df_BFI = md.BFI(sim)
+
+        # Get stress test stats
+        rlz_nb = int(os.path.basename(csv_fns[i]).split(".")[0].split("_")[2])
+        if st_nb == "0":
+            tavg = 0
+            prcp = 0
+        else:
+            df_st = pd.read_csv(f"{exp_dir}/stress_test/cst_{st_nb}.csv")
+            tavg = df_st["temp_mean"].iloc[0]
+            prcp = df_st["precip_mean"].iloc[0] * 100 - 100  # change in %
+        if not aggr_rlz:
+            cst_stat = (rlz_nb, tavg, prcp)
+        else:
+            cst_stat = (tavg, prcp)
+
+        # Update discharge statistics tableslen
+        df_out_mean.iloc[i, :] = np.concatenate(
+            [["mean"], cst_stat, df_mean.values.round(2)]
+        )
+        df_out_max.iloc[i, :] = np.concatenate(
+            [["max"], cst_stat, df_max.values.round(2)]
+        )
+        df_out_min.iloc[i, :] = np.concatenate(
+            [["min"], cst_stat, df_min.values.round(4)]
+        )
+        df_out_q95.iloc[i, :] = np.concatenate(
+            [["q95"], cst_stat, df_q95.values.round(2)]
+        )
+        df_out_RT.iloc[i, :] = np.concatenate(
+            [["returninterval"], cst_stat, df_RT.values.round(2)]
+        )
+        df_out_Q7dmax.iloc[i, :] = np.concatenate(
+            [["Q7day_max"], cst_stat, df_Q7dmax.values.round(2)]
+        )
+        # df_out_highpulse.iloc[i, :] = np.concatenate([['highpulse'], cst_stat, df_highpulse.values.round(2)])
+        df_out_wetmonth.iloc[i, :] = np.concatenate(
+            [["wetmonth_mean"], cst_stat, df_wetmonth.values.round(2)]
+        )
+        df_out_RT7d.iloc[i, :] = np.concatenate(
+            [["returninternval_min_7day"], cst_stat, df_RT7d.values.round(4)]
+        )
+        df_out_Q7dmin.iloc[i, :] = np.concatenate(
+            [["Q7day_min"], cst_stat, df_Q7dmin.values.round(4)]
+        )
+        # df_out_lowpulse.iloc[i, :] = np.concatenate([['lowpulse'], cst_stat, df_lowpulse.values.round(2)])
+        df_out_drymonth.iloc[i, :] = np.concatenate(
+            [["drymonth_mean"], cst_stat, df_drymonth.values.round(4)]
+        )
+        df_out_BFI.iloc[i, :] = np.concatenate(
+            [["BaseFlowIndex"], cst_stat, df_BFI.values.round(4)]
+        )
+
+        # Update return interval dataset
+        Q_rp = md.returnintervalmulti(sim)
+        # Add realization as new coords
+        Q_rp = Q_rp.assign_coords(scenario=i)
+        # Add a new dim for realization number
+        Q_rp = Q_rp.expand_dims("scenario")
+        # Add tavg coords that are function of scenario dim
+        if not aggr_rlz:
+            Q_rp = Q_rp.assign_coords(realization=("scenario", [rlz_nb]))
+        Q_rp = Q_rp.assign_coords(tavg=("scenario", [tavg]))
+        Q_rp = Q_rp.assign_coords(prcp=("scenario", [prcp]))
+        Q_rps.append(Q_rp)
+
+        # Update basin average statistics table
+        if not aggr_rlz:
+            stats_basavg = np.array([rlz_nb, tavg, prcp])
+        else:
+            stats_basavg = np.array([tavg, prcp])
+        sim = sim_all[basavg_vars]
+        for v in basavg_vars:
+            if v == "snow_basavg":
+                # Maximum snow water equivalent per year (mm/yr)
+                stats_basavg = np.append(
+                    stats_basavg, (sim[v].resample("a").max().mean())
+                )
+            else:
+                # actual evapotranspiration_basavg or groundwater recharge_basavg
+                # or overland_flow_basavg
+                # Total evaporation or recharge or overland flow volume (mm/yr)
+                stats_basavg = np.append(
+                    stats_basavg, (sim[v].resample("a").sum().mean())
+                )
+        df_out_basavg.iloc[i, :] = stats_basavg.round(1)
+
+    print("Writting tables for 2D stress tests plots")
+    if not os.path.isdir(os.path.dirname(bas_fn)):
+        os.makedirs(bas_fn)
+
+    df_out_basavg.to_csv(bas_fn, index=False)
+    # One file for all stats
+    df_out_Qstats = pd.concat(
+        [
+            df_out_mean,
+            df_out_max,
+            df_out_min,
+            df_out_q95,
+            df_out_RT,
+            df_out_Q7dmax,
+            df_out_wetmonth,
+            df_out_RT7d,
+            df_out_Q7dmin,
+            df_out_drymonth,
+            df_out_BFI,
+        ]
+    )
+    df_out_Qstats.to_csv(qstats_fn, index=False)
+
+    # Merge Qrps list and save as one csv per loc
+    Q_rps = xr.concat(Q_rps, dim="scenario")
+    for v in Q_rps.data_vars:
+        df_rp = Q_rps[v].to_pandas().round(1)
+        # Reorder dims of Q_rp
+        if not aggr_rlz:
+            df_rp["realization"] = Q_rps["realization"].values
+        df_rp["tavg"] = Q_rps["tavg"].values
+        df_rp["prcp"] = Q_rps["prcp"].values
+        # Change column order of df
+        cols = df_rp.columns.tolist()
+        if not aggr_rlz:
+            cols = cols[-3:] + cols[:-3]
+        else:
+            cols = cols[-2:] + cols[:-2]
+        df_rp = df_rp[cols]
+        # Save to csv
+        df_rp.to_csv(
+            os.path.join(f"{exp_dir}/model_results", f"RT_{v}.csv"), index=False
+        )
+
+def analyze_wflow_results_relative(
+    exp_dir: Union[str, Path],
+    qstats_fn: Union[str, Path] = None,
+    bas_fn: Union[str, Path] = None,
+):
+    """
+    Output - change in statistics relative to the base situation (no changen in precipitation and temperature)
+    Parameters
+    ----------
+    exp_dir : Union[str, Path]
+        Path to the experiment directory with the definition of each stress test for
+        precip and temp changes.
+    qstats_fn : Union[str, Path], optional
+        Path to the output csv file with the discharge statistics for each
+        realization/stress test.
+        If None will be saved in `exp_dir/Qstats.csv`.
+    bas_fn : Union[str, Path], optional
+        Path to the output csv file with the basin average statistics for each
+        realization/stress test.
+    """
+
+    # Output file paths
+    if qstats_fn is None:
+        qstats_fn = f"{exp_dir}/Qstats.csv"
+    if bas_fn is None:
+        bas_fn = f"{exp_dir}/basin.csv"
+
+    df_qstats = pd.read_csv(qstats_fn, index_col=0, header=0)
+    df_basin = pd.read_csv(bas_fn, header=0)
+
+    base_qstats = df_qstats[(df_qstats.tavg == 0) & (df_qstats.prcp == 0)]
+    df_qstats_relative = df_qstats.copy()
+    for stat in base_qstats.index:
+        df_qstats_relative.loc[stat] -= base_qstats.loc[stat]
+        df_qstats_relative.loc[stat] = df_qstats_relative.loc[stat].divide(base_qstats.loc[stat].values, axis=1).round(2) * 100
+    df_qstats_relative[['tavg', 'prcp']] = df_qstats[['tavg', 'prcp']]
+
+    base_basin = df_basin[(df_basin.tavg == 0) & (df_basin.prcp == 0)]
+    df_basin_relative = df_basin.subtract(base_basin.values, axis=1).divide(base_basin.values).round(2) * 100
+    df_basin_relative[['tavg', 'prcp']] = df_basin[['tavg', 'prcp']]
+
+    df_qstats_relative.to_csv(qstats_fn[:-4] + '_rel.csv')
+    df_basin_relative.to_csv(bas_fn[:-4] + '_rel.csv', index=False)
+     
+#%%
+test_here = True
+
+project_dir = r'c:\Users\strien\MyProjects\2024_CST\Vakhsh_Afghanistan5'
+basin_dir = rf"{project_dir}/hydrology_model"
+exp_dir = rf"{project_dir}/climate_experiment"
+
+rlz_num = 3
+st_num = 15
+ST_START = 1
+csv_fns2 = [
+    rf"{basin_dir}/run_climate_experiment/output_rlz_{rlz_num}_cst_{st_num2}.csv"
+    for rlz_num in range(1, rlz_num + 1)
+    for st_num2 in range(ST_START, st_num + 1)]
+
+if __name__ == "__main__":
+    if "snakemake" in globals():
+        sm = globals()["snakemake"]
+        analyze_wflow_results(
+            csv_fns=sm.input.rlz_csv_fns,
+            exp_dir=sm.params.exp_dir,
+            st_num=sm.params.st_num,
+            qstats_fn=sm.output.Qstats,
+            bas_fn=sm.output.basin,
+            Tpeak=sm.params.Tpeak,
+            Tlow=sm.params.Tlow,
+            aggr_rlz=sm.params.aggr_rlz,
+        )
+    elif test_here == True: 
+        analyze_wflow_results(
+            csv_fns=csv_fns2,
+            exp_dir=exp_dir,
+            st_num=st_num,
+            qstats_fn=f"{exp_dir}/model_results/Qstats.csv",
+            bas_fn=f"{exp_dir}/model_results/basin.csv",
+            Tpeak=10,
+            Tlow=2,
+            aggr_rlz=True,
+        )
+
+        analyze_wflow_results_relative(
+            exp_dir=exp_dir,
+            qstats_fn=f"{exp_dir}/model_results/Qstats.csv",
+            bas_fn=f"{exp_dir}/model_results/basin.csv",
+        )
+    else:
+        raise ValueError("This script should be run from a snakemake environment")
+
+
+# %%
