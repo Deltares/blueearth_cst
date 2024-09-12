@@ -124,9 +124,12 @@ def derive_tdew(ds: xr.Dataset, drop_vars: List = []):
     Dewpoint temperature can either be computed from:
 
     * temperature [Celsius] and relative humidity [%] using Magnus formula and constant
-      from NOAA.
+      from NOAA (Bolton 1980).
     * temperature [Celsius], pressure [hPa] and specific humidity [kg/kg] using mixing ratio
-      and actual vapor pressure.
+      and actual vapor pressure (WMO, 2020).
+
+    Bolton, D., 1980: The computation of equivalent potential temperature. Mon. Wea. Rev., 108, 1046-1053, doi:10.1175/1520-0493(1980)108%3C1046:TCOEPT%3E2.0.CO;2.
+    WMO, 2020: Guide to Meteorological Instruments and Methods of Observation, Volume 1: Measurement of Meteorological Variables. WMO No.8.
 
     Parameters
     ----------
