@@ -6,7 +6,7 @@ cmip6_{model}_historical_{member}:
   driver: zarr
   filesystem: gcs
   kwargs:
-    drop_variables: ['time_bnds', 'lat_bnds', 'lon_bnds', 'bnds']
+    drop_variables: ['time_bnds', 'lat_bnds', 'lon_bnds', 'bnds', 'height']
     decode_times: true
     preprocess: harmonise_dims
     consolidated: true
@@ -35,15 +35,36 @@ cmip6_{model}_historical_{member}:
     pr: precip
     tas: temp
     rsds: kin
+    rsdt: kout
     psl: press_msl
+    ps: press
+    hurs: rh
+    huss: sh
+    uas: wind10_u
+    vas: wind10_v
+    sfcWind: wind
+    clt: tcc
   unit_add:
     temp: -273.15
   unit_mult:
     precip: 86400
     press_msl: 0.01
+    press: 0.01
   attrs:
     precip: 
       units: mm/day
+#    temp:
+#      units: Celsius
+#    press_msl:
+#      units: hPa
+#    press:
+#      units: hPa
+#    rh:
+#      units: '%'
+#    sh:
+#      units: 1
+#    tcc:
+#      units: 1
     
 cmip6_{model}_ssp119_{member}:
   crs: 4326
@@ -51,7 +72,7 @@ cmip6_{model}_ssp119_{member}:
   driver: zarr
   filesystem: gcs
   kwargs:
-    drop_variables: ['time_bnds', 'lat_bnds', 'lon_bnds', 'bnds']
+    drop_variables: ['time_bnds', 'lat_bnds', 'lon_bnds', 'bnds', 'height']
     decode_times: true
     preprocess: harmonise_dims
     consolidated: true
@@ -72,12 +93,21 @@ cmip6_{model}_ssp119_{member}:
     pr: precip
     tas: temp
     rsds: kin
+    rsdt: kout
     psl: press_msl
+    ps: press
+    hurs: rh
+    huss: sh
+    uas: wind10_u
+    vas: wind10_v
+    sfcWind: wind
+    clt: tcc
   unit_add:
     temp: -273.15
   unit_mult:
     precip: 86400
     press_msl: 0.01
+    press: 0.01
   attrs:
     precip: 
       units: mm/day
@@ -88,7 +118,7 @@ cmip6_{model}_ssp126_{member}:
   driver: zarr
   filesystem: gcs
   kwargs:
-    drop_variables: ['time_bnds', 'lat_bnds', 'lon_bnds', 'bnds']
+    drop_variables: ['time_bnds', 'lat_bnds', 'lon_bnds', 'bnds', 'height']
     decode_times: true
     preprocess: harmonise_dims
     consolidated: true
@@ -112,12 +142,21 @@ cmip6_{model}_ssp126_{member}:
     pr: precip
     tas: temp
     rsds: kin
+    rsdt: kout
     psl: press_msl
+    ps: press
+    hurs: rh
+    huss: sh
+    uas: wind10_u
+    vas: wind10_v
+    sfcWind: wind
+    clt: tcc
   unit_add:
     temp: -273.15
   unit_mult:
     precip: 86400
     press_msl: 0.01
+    press: 0.01
   attrs:
     precip: 
       units: mm/day
@@ -128,7 +167,7 @@ cmip6_{model}_ssp245_{member}:
   driver: zarr
   filesystem: gcs
   kwargs:
-    drop_variables: ['time_bnds', 'lat_bnds', 'lon_bnds', 'bnds']
+    drop_variables: ['time_bnds', 'lat_bnds', 'lon_bnds', 'bnds', 'height']
     decode_times: true
     preprocess: harmonise_dims
     consolidated: true
@@ -153,12 +192,21 @@ cmip6_{model}_ssp245_{member}:
     pr: precip
     tas: temp
     rsds: kin
+    rsdt: kout
     psl: press_msl
+    ps: press
+    hurs: rh
+    huss: sh
+    uas: wind10_u
+    vas: wind10_v
+    sfcWind: wind
+    clt: tcc
   unit_add:
     temp: -273.15
   unit_mult:
     precip: 86400
     press_msl: 0.01
+    press: 0.01
   attrs:
     precip: 
       units: mm/day
@@ -169,7 +217,7 @@ cmip6_{model}_ssp370_{member}:
   driver: zarr
   filesystem: gcs
   kwargs:
-    drop_variables: ['time_bnds', 'lat_bnds', 'lon_bnds', 'bnds']
+    drop_variables: ['time_bnds', 'lat_bnds', 'lon_bnds', 'bnds', 'height']
     decode_times: true
     preprocess: harmonise_dims
     consolidated: true
@@ -194,12 +242,21 @@ cmip6_{model}_ssp370_{member}:
     pr: precip
     tas: temp
     rsds: kin
+    rsdt: kout
     psl: press_msl
+    ps: press
+    hurs: rh
+    huss: sh
+    uas: wind10_u
+    vas: wind10_v
+    sfcWind: wind
+    clt: tcc
   unit_add:
     temp: -273.15
   unit_mult:
     precip: 86400
     press_msl: 0.01
+    press: 0.01
   attrs:
     precip: 
       units: mm/day
@@ -210,7 +267,7 @@ cmip6_{model}_ssp434_{member}:
   driver: zarr
   filesystem: gcs
   kwargs:
-    drop_variables: ['time_bnds', 'lat_bnds', 'lon_bnds', 'bnds']
+    drop_variables: ['time_bnds', 'lat_bnds', 'lon_bnds', 'bnds', 'height']
     decode_times: true
     preprocess: harmonise_dims
     consolidated: true
@@ -230,12 +287,21 @@ cmip6_{model}_ssp434_{member}:
     pr: precip
     tas: temp
     rsds: kin
+    rsdt: kout
     psl: press_msl
+    ps: press
+    hurs: rh
+    huss: sh
+    uas: wind10_u
+    vas: wind10_v
+    sfcWind: wind
+    clt: tcc
   unit_add:
     temp: -273.15
   unit_mult:
     precip: 86400
     press_msl: 0.01
+    press: 0.01
   attrs:
     precip: 
       units: mm/day
@@ -246,7 +312,7 @@ cmip6_{model}_ssp460_{member}:
   driver: zarr
   filesystem: gcs
   kwargs:
-    drop_variables: ['time_bnds', 'lat_bnds', 'lon_bnds', 'bnds']
+    drop_variables: ['time_bnds', 'lat_bnds', 'lon_bnds', 'bnds', 'height']
     decode_times: true
     preprocess: harmonise_dims
     consolidated: true
@@ -266,12 +332,21 @@ cmip6_{model}_ssp460_{member}:
     pr: precip
     tas: temp
     rsds: kin
+    rsdt: kout
     psl: press_msl
+    ps: press
+    hurs: rh
+    huss: sh
+    uas: wind10_u
+    vas: wind10_v
+    sfcWind: wind
+    clt: tcc
   unit_add:
     temp: -273.15
   unit_mult:
     precip: 86400
     press_msl: 0.01
+    press: 0.01
   attrs:
     precip: 
       units: mm/day
@@ -282,7 +357,7 @@ cmip6_{model}_ssp585_{member}:
   driver: zarr
   filesystem: gcs
   kwargs:
-    drop_variables: ['time_bnds', 'lat_bnds', 'lon_bnds', 'bnds']
+    drop_variables: ['time_bnds', 'lat_bnds', 'lon_bnds', 'bnds', 'height']
     decode_times: true
     preprocess: harmonise_dims
     consolidated: true
@@ -307,12 +382,21 @@ cmip6_{model}_ssp585_{member}:
     pr: precip
     tas: temp
     rsds: kin
+    rsdt: kout
     psl: press_msl
+    ps: press
+    hurs: rh
+    huss: sh
+    uas: wind10_u
+    vas: wind10_v
+    sfcWind: wind
+    clt: tcc
   unit_add:
     temp: -273.15
   unit_mult:
     precip: 86400
     press_msl: 0.01
+    press: 0.01
   attrs:
     precip: 
       units: mm/day

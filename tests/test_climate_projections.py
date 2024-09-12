@@ -253,6 +253,7 @@ def test_monthly_change(tmpdir):
 def test_monthly_change_scalar_merge(tmpdir, config):
     """Test merging and outputs of the scalar change files."""
     clim_dir = join(tmpdir, "climate_projections", "cmip6")
+    plot_dir = join(tmpdir, "plots", "climate_projections")
     # Scalar files
     clim_files = glob.glob(
         join(
@@ -267,13 +268,14 @@ def test_monthly_change_scalar_merge(tmpdir, config):
         clim_dir=clim_dir,
         clim_files=clim_files,
         horizons=get_config(config, "future_horizons", optional=False),
+        plot_dir=plot_dir,
     )
 
     # Check if the different files were added
     assert isfile(join(clim_dir, "annual_change_scalar_stats_summary.nc"))
     assert isfile(join(clim_dir, "annual_change_scalar_stats_summary.csv"))
     assert isfile(join(clim_dir, "annual_change_scalar_stats_summary_mean.csv"))
-    assert isfile(join(clim_dir, "plots", "projected_climate_statistics.png"))
+    assert isfile(join(plot_dir, "projected_climate_statistics.png"))
 
     # Open and check the summary mean csv file (CST file)
     df = pd.read_csv(join(clim_dir, "annual_change_scalar_stats_summary_mean.csv"))
@@ -322,52 +324,42 @@ def test_plot_climate_projections(tmpdir):
     grid_files = [f for f in grid_files if "downscaled" not in f]
 
     path_output = join(tmpdir, "climate_projections", "cmip6")
+    path_output_plots = join(tmpdir, "plots", "climate_projections")
     plot_proj_timeseries.plot_climate_projections(
         nc_historical=nc_historical,
         nc_future=nc_future,
-        path_output=path_output,
+        path_output_nc=path_output,
+        path_output_plots=path_output_plots,
         scenarios=["ssp245", "ssp585"],
         horizons=["near", "far"],
         nc_grid_projections=grid_files,
     )
 
     # Check if the files were created
-    assert isfile(
-        join(path_output, "plots", "precipitation_anomaly_projections_abs.png")
-    )
-    assert isfile(join(path_output, "plots", "temperature_anomaly_projections_abs.png"))
-    assert isfile(
-        join(path_output, "plots", "precipitation_anomaly_projections_anom.png")
-    )
-    assert isfile(
-        join(path_output, "plots", "temperature_anomaly_projections_anom.png")
-    )
-    assert isfile(
-        join(path_output, "plots", "precipitation_monthly_projections_abs.png")
-    )
-    assert isfile(join(path_output, "plots", "temperature_monthly_projections_abs.png"))
-    assert isfile(
-        join(path_output, "plots", "precipitation_monthly_projections_anom.png")
-    )
-    assert isfile(
-        join(path_output, "plots", "temperature_monthly_projections_anom.png")
-    )
-    assert isfile(join(path_output, "plots", "pet_anomaly_projections_abs.png"))
-    assert isfile(join(path_output, "plots", "pet_anomaly_projections_anom.png"))
-    assert isfile(join(path_output, "plots", "pet_monthly_projections_abs.png"))
+    assert isfile(join(path_output_plots, "precip_anomaly_projections_abs.png"))
+    assert isfile(join(path_output_plots, "temp_anomaly_projections_abs.png"))
+    assert isfile(join(path_output_plots, "precip_anomaly_projections_anom.png"))
+    assert isfile(join(path_output_plots, "temp_anomaly_projections_anom.png"))
+    assert isfile(join(path_output_plots, "precip_monthly_projections_abs.png"))
+    assert isfile(join(path_output_plots, "temp_monthly_projections_abs.png"))
+    assert isfile(join(path_output_plots, "precip_monthly_projections_anom.png"))
+    assert isfile(join(path_output_plots, "temp_monthly_projections_anom.png"))
+    assert isfile(join(path_output_plots, "pet_anomaly_projections_abs.png"))
+    assert isfile(join(path_output_plots, "pet_anomaly_projections_anom.png"))
+    assert isfile(join(path_output_plots, "pet_monthly_projections_abs.png"))
 
     # Check for a couple of grid plots
     assert isfile(
         join(
-            path_output,
-            "plots",
+            path_output_plots,
+            "grid",
             "gridded_monthly_precipitation_change_ssp245_far-future-horizon.png",
         )
     )
     assert isfile(
         join(
-            path_output,
-            "plots",
+            path_output_plots,
+            "grid",
             "gridded_precipitation_change_ssp245_far-future-horizon.png",
         )
     )

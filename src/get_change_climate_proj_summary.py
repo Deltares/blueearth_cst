@@ -3,13 +3,14 @@ Open monthly change files for all models/scenarios/horizon and compute/plot stat
 """
 
 import os
+from os.path import join, dirname
 from pathlib import Path
 import matplotlib.pyplot as plt
 import seaborn as sns
 import xarray as xr
 import numpy as np
 
-from typing import Union, List, Dict
+from typing import Union, List, Dict, Optional
 
 
 def preprocess_coords(ds: xr.Dataset) -> xr.Dataset:
@@ -25,6 +26,7 @@ def summary_climate_proj(
     clim_dir: Union[Path, str],
     clim_files: List[Union[Path, str]],
     horizons: Dict[str, str],
+    plot_dir: Optional[Union[Path, str]],
 ):
     """
     Compute climate change statistics for all models/scenario/horizons.
@@ -35,7 +37,7 @@ def summary_climate_proj(
     Output in ``clim_dir``:
     - annual_change_scalar_stats_summary.nc/.csv: all change statistics (netcdf or csv)
     - annual_change_scalar_stats_summary_mean.csv: only mean change
-    - plots/projected_climate_statistics.png: surface response plot
+    - plot_dir/projected_climate_statistics.png: surface response plot
 
     Parameters
     ----------
@@ -46,9 +48,16 @@ def summary_climate_proj(
     horizons: Dict
         Time horizon names and start and end year separated with a comma.
         E.g {"far": "2070, 2100", "near": "2030, 2060"}
+    plot_dir: Path
+        Path to the directory where the plots will be saved. If not provided, plots
+        will be saved in clim_dir/plots
     """
     if not os.path.exists(clim_dir):
         os.makedirs(clim_dir)
+    if plot_dir is None:
+        plot_dir = join(clim_dir, "plots")
+    if not os.path.exists(plot_dir):
+        os.makedirs(plot_dir)
 
     # merge summary maps across models, scnearios and horizons.
     prefix = "annual_change_scalar_stats"
@@ -82,9 +91,6 @@ def summary_climate_proj(
     df.to_csv(os.path.join(clim_dir, "annual_change_scalar_stats_summary_mean.csv"))
 
     # plot change
-    if not os.path.exists(os.path.join(clim_dir, "plots")):
-        os.mkdir(os.path.join(clim_dir, "plots"))
-
     # Rename horizon names to the middle year of the period
     hz_list = df.index.levels[df.index.names.index("horizon")].tolist()
     for hz in horizons:
@@ -129,7 +135,7 @@ def summary_climate_proj(
     )
     g.ax_joint.grid()
     g.ax_joint.legend(loc="right", bbox_to_anchor=(1.5, 0.5))
-    g.savefig(os.path.join(clim_dir, "plots", "projected_climate_statistics.png"))
+    g.savefig(os.path.join(plot_dir, "projected_climate_statistics.png"))
     plt.close(g.figure)
 
     if "pet" in df.columns:
@@ -153,9 +159,7 @@ def summary_climate_proj(
         )
         g.ax_joint.grid()
         g.ax_joint.legend(loc="right", bbox_to_anchor=(1.5, 0.5))
-        g.savefig(
-            os.path.join(clim_dir, "plots", "projected_climate_pet_statistics.png")
-        )
+        g.savefig(os.path.join(plot_dir, "projected_climate_pet_statistics.png"))
         plt.close(g.figure)
 
 
@@ -172,6 +176,7 @@ if __name__ == "__main__":
             clim_dir=clim_project_dir,
             clim_files=list_files,
             horizons=horizons,
+            plot_dir=dirname(sm.output.stats_change_plt),
         )
     else:
         raise ValueError("This script should be run from a snakemake environment")
