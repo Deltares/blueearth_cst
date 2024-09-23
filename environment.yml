@@ -16,16 +16,16 @@ dependencies:
   - geopandas>=0.10
   - graphviz # for snakemake
   - hydromt>=0.9.4, <0.10
-  - hydromt_wflow>=0.4.1, <0.5
+  - hydromt_wflow>=0.4.1, <0.6
   - jupyter # to run examples
   - matplotlib
   - numpy
   - pandas
   - pip
   - pulp >=2.3.1,<2.8
-  - python>=3.7,<3.11
   - rasterio
   - universal_pathlib<0.1
+  - python>=3.9, <3.12
   - r-base
   - r-essentials
   - r-akima

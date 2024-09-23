@@ -489,7 +489,10 @@ era5_daily_zarr:
   data_type: RasterDataset
   driver: zarr
   kwargs:
-    chunks: auto
+    chunks:
+      latitude: 250
+      longitude: 240
+      time: 30
   path: meteo/era5_daily.zarr
   meta:
     category: meteo
