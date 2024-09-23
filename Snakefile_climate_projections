@@ -54,7 +54,6 @@ def get_horizon(wildcards):
 # Master rule: end with csv with change factors for each scenario and model
 rule all:
     input:
-        #ancient(expand((clim_project_dir + "/annual_change_scalar_stats-{model}_{scenario}_{horizon}.nc"), model = config["models"], scenario = config["scenarios"], horizon = config["future_horizons"])),
         (clim_project_dir + "/annual_change_scalar_stats_summary.nc"),
         (clim_project_dir + "/annual_change_scalar_stats_summary.csv"),
         (clim_project_dir + "/annual_change_scalar_stats_summary_mean.csv"),
@@ -101,10 +100,8 @@ rule monthly_stats_hist:
 rule monthly_stats_fut:
     input:
         region_fid = ancient(f"{basin_dir}/staticgeoms/region.geojson"),
-        #stats_nc_hist = ancient(clim_project_dir + "/historical_stats_{model}.nc"), #make sure starts with previous job
         stats_time_nc_hist = (clim_project_dir + "/historical_stats_time_{model}.nc"), #make sure starts with previous job
     output:
-        #stats_nc = (clim_project_dir + "/stats-{model}_{scenario}_{horizon}.nc"),
         stats_time_nc = temp(clim_project_dir + "/stats_time-{model}_{scenario}.nc"),
     params:
         yml_fid = DATA_SOURCES,

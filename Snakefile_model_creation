@@ -126,13 +126,11 @@ rule add_forcing:
 # Rule to run the wflow model
 rule run_wflow:
     input:
-        # gauges_fid = ancient(f"{basin_dir}/staticgeoms/gauges.geojson"),
         forcing_fid = f"{project_dir}/climate_historical/wflow_data/inmaps_historical.nc"
     output:
         csv_file = f"{basin_dir}/run_default/output.csv"
     params:
         toml_fid = f"{basin_dir}/wflow_sbm.toml"
-    # container: "singularity/wflow-cli.sif"
     shell:
         """ julia --threads 4 -e "using Wflow; Wflow.run()" "{params.toml_fid}" """
 
