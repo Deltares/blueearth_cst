@@ -1,4 +1,4 @@
-root: p:/i1000365-007-blue-earth/ClimateChange
+root: /p/i1000365-007-blue-earth/ClimateChange
 isimip3_{model}_{scenario}_{member}:
   crs: 4326
   data_type: RasterDataset
@@ -66,7 +66,7 @@ cmip5_{model}_historical_{member}:
        'MRI-CGCM3', 'MRI-ESM1', 'NorESM1-M', 'NorESM1-ME', 'bcc-csm1-1',
        'bcc-csm1-1-m', 'inmcm4']
     member: [r1i1p1]
-  path: p:/i1000365-007-blue-earth/ClimateChange/hydromt/CMIP5/month/historical/{model}/{variable}/{variable}_*{model}_*historical_{member}*.nc
+  path: /p/i1000365-007-blue-earth/ClimateChange/hydromt/CMIP5/month/historical/{model}/{variable}/{variable}_*{model}_*historical_{member}*.nc
   rename:
     pr: precip
     tas: temp
@@ -110,7 +110,7 @@ cmip5_{model}_rcp26_{member}:
        'MIROC5', 'MPI-ESM-LR', 'MPI-ESM-MR', 'MRI-CGCM3', 'NorESM1-M',
        'NorESM1-ME', 'bcc-csm1-1', 'bcc-csm1-1-m']
     member: [r1i1p1]
-  path: p:/i1000365-007-blue-earth/ClimateChange/hydromt/CMIP5/month/rcp26/{model}/{variable}/{variable}_*{model}_*rcp26_{member}*.nc
+  path: /p/i1000365-007-blue-earth/ClimateChange/hydromt/CMIP5/month/rcp26/{model}/{variable}/{variable}_*{model}_*rcp26_{member}*.nc
   rename:
     pr: precip
     tas: temp
@@ -157,7 +157,7 @@ cmip5_{model}_rcp45_{member}:
        'MIROC4h', 'MIROC5', 'MPI-ESM-LR', 'MPI-ESM-MR', 'MRI-CGCM3',
        'NorESM1-M', 'NorESM1-ME', 'bcc-csm1-1', 'bcc-csm1-1-m', 'inmcm4']
     member: [r1i1p1]
-  path: p:/i1000365-007-blue-earth/ClimateChange/hydromt/CMIP5/month/rcp45/{model}/{variable}/{variable}_*{model}_*rcp45_{member}*.nc
+  path: /p/i1000365-007-blue-earth/ClimateChange/hydromt/CMIP5/month/rcp45/{model}/{variable}/{variable}_*{model}_*rcp45_{member}*.nc
   rename:
     pr: precip
     tas: temp
@@ -200,7 +200,7 @@ cmip5_{model}_rcp60_{member}:
        'MIROC-ESM-CHEM', 'MIROC5', 'MRI-CGCM3', 'NorESM1-M', 'NorESM1-ME',
        'bcc-csm1-1', 'bcc-csm1-1-m']
     member: [r1i1p1]
-  path: p:/i1000365-007-blue-earth/ClimateChange/hydromt/CMIP5/month/rcp60/{model}/{variable}/{variable}_*{model}_*rcp60_{member}*.nc
+  path: /p/i1000365-007-blue-earth/ClimateChange/hydromt/CMIP5/month/rcp60/{model}/{variable}/{variable}_*{model}_*rcp60_{member}*.nc
   rename:
     pr: precip
     tas: temp
@@ -246,7 +246,7 @@ cmip5_{model}_rcp85_{member}:
        'MIROC5', 'MPI-ESM-LR', 'MPI-ESM-MR', 'MRI-CGCM3', 'NorESM1-M',
        'NorESM1-ME', 'SP-CCSM4', 'bcc-csm1-1', 'bcc-csm1-1-m', 'inmcm4']
     member: [r1i1p1]
-  path: p:/i1000365-007-blue-earth/ClimateChange/hydromt/CMIP5/month/rcp85/{model}/{variable}/{variable}_*{model}_*rcp85_{member}*.nc
+  path: /p/i1000365-007-blue-earth/ClimateChange/hydromt/CMIP5/month/rcp85/{model}/{variable}/{variable}_*{model}_*rcp85_{member}*.nc
   rename:
     pr: precip
     tas: temp

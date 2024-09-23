@@ -1,27 +1,23 @@
 
 ###########################################################################################
-#################################### General settings ######################################
+#################################### General setting ######################################
 
 # Path to where the wflow model will be stored (include the project name)
-project_dir: examples/test
+project_dir: examples/Gabon
 static_dir: config
 
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
-data_sources: config/deltares_data.yml
-# Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
-#data_sources_climate: config/deltares_data_climate_projections.yml
+data_sources: config/deltares_data_linux.yml
+# # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other) TODO: REMOVE
+# data_sources_climate: config/deltares_data_climate_projections_linux.yml
 data_sources_climate: config/cmip6_data.yml
 
 # Info on the historical climate data is used in the historic model run + reference data for the weather generator
 # Time horizon of the historical period
 starttime: "2000-01-01T00:00:00"
 endtime: "2020-12-31T00:00:00"
-
 # Historical climate data source (name as available in the data_sources catalog file). Either [era5, chirps_global, chirps, eobs].
 clim_historical: era5
-
-# List of wflow output variables to save
-wflow_outvars: ['river discharge', 'precipitation', 'overland flow', 'actual evapotranspiration', 'groundwater recharge', 'snow']
 
 ###########################################################################################
 #################################### Model building #######################################
@@ -55,16 +51,12 @@ variables: [precip, temp]
 # time horizons of the climate projections
 start_month_hyd_year: Jan
 historical: 1980, 2010
-future_horizons: 
+future_horizons:
   near: 2030, 2060
   far: 2070, 2100
 
-# Additional gridded outputs (else only basin average)
-save_grids: FALSE
-
 ###########################################################################################
-################################## Stress Test Experiment #################################
-
+################################## Climate experiment #####################################
 # Name of the experiment
 experiment_name: experiment
 # Number of climate realizations
@@ -101,7 +93,6 @@ precip:
     min: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
     max: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
 
-# Runoff statistics
 # Drought return period
 Tlow: 2
 # Flood return period
