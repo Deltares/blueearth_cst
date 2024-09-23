@@ -9,10 +9,6 @@ volumeargs=(
     "-v $(pwd)/.snakemake:${docker_root}/.snakemake"
 )
 
-# uncomment to explore snakemake container:
-# docker run $(echo ${volumeargs[@]}) -ti --entrypoint='' snakemake-singularity bash
-# exit 0
-
 docker run \
     $(echo ${volumeargs[@]}) \
     --privileged \
@@ -22,7 +18,7 @@ docker run \
     -F \
     -c 4 \
     -s ${docker_root}/Snakefile_model_creation \
-    --configfile ${docker_root}/config/snake_config_model_test_linux.yml
+    --configfile ${docker_root}/config/snake_config_model_test.yml
 
 docker run \
     $(echo ${volumeargs[@]}) \
@@ -33,7 +29,7 @@ docker run \
     -F \
     -c 4 \
     -s ${docker_root}/Snakefile_climate_experiment \
-    --configfile ${docker_root}/config/snake_config_model_test_linux.yml
+    --configfile ${docker_root}/config/snake_config_model_test.yml
 
 docker run \
     $(echo ${volumeargs[@]}) \
@@ -44,4 +40,4 @@ docker run \
     -F \
     -c 4 \
     -s ${docker_root}/Snakefile_climate_projections \
-    --configfile ${docker_root}/config/snake_config_model_test_linux.yml
+    --configfile ${docker_root}/config/snake_config_model_test.yml

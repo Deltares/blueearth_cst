@@ -1,5 +1,7 @@
 meta:
-  root: p:/wflow_global/hydromt
+  roots: 
+  - p:/wflow_global/hydromt
+  - /mnt/p/wflow_global/hydromt
   version: 2022.7
 
 basin_atlas_level12_v10: 

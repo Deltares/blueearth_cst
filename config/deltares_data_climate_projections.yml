@@ -1,4 +1,6 @@
-root: p:/i1000365-007-blue-earth/ClimateChange
+roots:
+ - p:/i1000365-007-blue-earth/ClimateChange
+ - /mnt/p/i1000365-007-blue-earth/ClimateChange
 isimip3_{model}_{scenario}_{member}:
   crs: 4326
   data_type: RasterDataset
