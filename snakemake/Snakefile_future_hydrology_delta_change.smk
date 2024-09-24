@@ -163,3 +163,20 @@ rule plot_results_grid:
         gcms = gcms_selected,
         config_historical = config_model_historical_fn,
     script: "../src/plot_results_grid_delta.py"
+
+rule compute_change_statistics:
+    input:
+        csv_file_near = expand((basin_dir + "/run_delta_change/output_delta_{model}_{scenario}_near.csv"), model = gcms_selected, scenario = scenarios_selected), 
+        csv_file_far = expand((basin_dir + "/run_delta_change/output_delta_{model}_{scenario}_far.csv"), model = gcms_selected, scenario = scenarios_selected),
+    output:
+        output_txt = f"{project_dir}/plots/model_delta_runs/other/change_statistics.txt",
+    params:
+        wflow_hist_run_config = config_model_historical_fn,
+        wflow_delta_runs_config = [f"{basin_dir}/run_delta_change/{config_basename}_delta_{model}_{scenario}_{hz}.toml" for model in gcms_selected for scenario in scenarios_selected for hz in ["near", "far"]],
+        gauges_locs = output_locations,
+        start_month_hyd_year = "JAN",
+        project_dir = f"{project_dir}",
+        future_horizons = get_config(config, "future_horizons", optional=False),
+        scenarios = scenarios_selected,
+        gcms = gcms_selected,
+    script: "../src/compute_change_statistics.py"
