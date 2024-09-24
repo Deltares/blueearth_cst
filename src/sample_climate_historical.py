@@ -70,9 +70,9 @@ def sample_climate_historical(
             if gdf[legend_column].dtype == float:
                 gdf[legend_column] = gdf[legend_column].astype(int)
             gdf.index = f"{prefix}_" + gdf[legend_column].astype(str)
-            gdf.index.name = "index"
         else:
             gdf.index = f"{prefix}_" + gdf.index.astype(str)
+        gdf.index.name = "index"
 
         return gdf
 

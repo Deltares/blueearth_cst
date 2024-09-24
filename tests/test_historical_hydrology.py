@@ -1,7 +1,7 @@
 """Test functions from the model creation workflow."""
 
 import os
-from os.path import join, basename
+from os.path import join, basename, isfile
 import subprocess
 import yaml
 import pytest
@@ -21,6 +21,7 @@ from ..src import setup_time_horizon
 from ..src import plot_map
 from ..src import plot_map_forcing
 from ..src import plot_results
+from ..src import plot_results_grid
 
 
 def test_copy_config(tmpdir, data_libs_fao, model_build_config):
@@ -318,7 +319,25 @@ def test_plot_results(tmpdir, config_fao):
     assert os.path.exists(f"{plot_dir}/long_run/timeseries_anomalies_Q_era5.png")
     assert os.path.exists(f"{plot_dir}/long_run/timeseries_anomalies_Q_obs.png")
 
-    # 2. Plot medium length and no observations timeseries (only era5)
+    # 2. Plot all results with missings in observations
+    obs_na = join(
+        MAINDIR, "tests/data/observations/observations-discharge-grdc-nodata.csv"
+    )
+    plot_results.analyse_wflow_historical(
+        wflow_root=wflow_root,
+        climate_sources=precip_sources,
+        plot_dir=join(plot_dir, "long_run_nans"),
+        observations_fn=obs_na,
+        gauges_locs=gauges_locs,
+        wflow_config_fn_prefix="wflow_sbm",  # prefix name toml file instead? "wflow_sbm"
+        climate_sources_colors=clim_historical_colors,
+        add_budyko_plot=False,
+    )
+
+    # Check the signature plot for the gauges_locs was also created
+    assert os.path.exists(f"{plot_dir}/long_run_nans/signatures_PONTE DELLA IASTA.png")
+
+    # 3. Plot medium length and no observations timeseries (only era5)
     plot_results.analyse_wflow_historical(
         wflow_root=wflow_root,
         climate_sources=["era5"],  # precip_sources,
@@ -342,7 +361,7 @@ def test_plot_results(tmpdir, config_fao):
     perf = pd.read_csv(f"{plot_dir}/medium_run/performance_metrics.csv")
     assert perf.empty
 
-    # 3. Plot medium length and no observations locs and timeseries (only era5)
+    # 4. Plot medium length and no observations locs and timeseries (only era5)
     plot_results.analyse_wflow_historical(
         wflow_root=wflow_root,
         climate_sources=["era5"],
@@ -357,7 +376,7 @@ def test_plot_results(tmpdir, config_fao):
         f"{plot_dir}/medium_run_no_obs/hydro_PONTE DELLA IASTA.png"
     )
 
-    # 4. Plot short run with observations (only era5 provided as string and not as list)
+    # 5. Plot short run with observations (only era5 provided as string and not as list)
     plot_results.analyse_wflow_historical(
         wflow_root=wflow_root,
         climate_sources="era5",
@@ -408,3 +427,22 @@ def test_plot_results_budyko(tmpdir, config):
 
     # Check budyko plot
     assert os.path.exists(f"{plot_dir}/long_run/budyko_qobs.png")
+
+
+def test_gridded_results(tmpdir, data_libs_fao):
+    """Test plotting the snow cover with MODIS."""
+    wflow_root = join(SAMPLE_PROJECTDIR, "hydrology_model")
+
+    plot_results_grid.plot_grid_wflow_historical(
+        wflow_output_filenames=[join(wflow_root, "run_default", "output_era5.nc")],
+        climate_sources=["era5"],
+        plot_dir=f"{tmpdir}/plots/wflow_model_performance",
+        observations_snow="modis_snow",
+        data_catalog=data_libs_fao,
+        basin_filename=join(wflow_root, "staticgeoms", "basins.geojson"),
+        river_filename=join(wflow_root, "staticgeoms", "rivers.geojson"),
+        fontsize=8,
+    )
+
+    # Check the plot was made
+    assert isfile(f"{tmpdir}/plots/wflow_model_performance/snow_cover.png")

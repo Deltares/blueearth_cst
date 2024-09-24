@@ -30,12 +30,14 @@ output_locations = get_config(config, "output_locations", default=None)
 observations_timeseries = get_config(config, "observations_timeseries", default=None)
 
 wflow_outvars = get_config(config, "wflow_outvars", default=['river discharge'])
+has_gridded_outputs = len(get_config(config, "wflow_outvars_gridded", default=[])) > 0
 
 # Master rule: end with all model run and analysed with saving a output plot
 rule all:
     input: 
         f"{project_dir}/config/snake_config_future_hydrology_delta_change.yml",
-        f"{project_dir}/plots/model_delta_runs/qhydro_1.png"
+        f"{project_dir}/plots/model_delta_runs/flow/1/qhydro_1.png",
+        f"{project_dir}/plots/model_delta_runs/other/gridded_output.txt",
         # expand((basin_dir + "/run_delta_{model}_{scenario}_near/output.csv"), model = gcms_selected, scenario = scenarios_selected),
 
 
@@ -101,6 +103,7 @@ rule run_wflow_near:
     output:
         csv_file_near = (basin_dir + "/run_delta_change/output_delta_{model}_{scenario}_near.csv"), 
         state_near_nc = (basin_dir + "/run_delta_change/outstate/outstates_{model}_{scenario}_near.nc"),
+        nc_file_near = (basin_dir + "/run_delta_change/output_delta_{model}_{scenario}_near.nc") if has_gridded_outputs else []
     shell:
         """ julia --threads 4 "./src/wflow/run_wflow_change_factors.jl" "{input.config_model_near}" """
 
@@ -126,6 +129,7 @@ rule run_wflow_far:
         delta_change_downscale_far_nc = (clim_project_dir + "/monthly_change_grid/{model}_{scenario}_far_downscaled.nc"),
     output:
         csv_file_far = (basin_dir + "/run_delta_change/output_delta_{model}_{scenario}_far.csv"),
+        nc_file_far = (basin_dir + "/run_delta_change/output_delta_{model}_{scenario}_far.nc") if has_gridded_outputs else [],
     shell:
         """ julia --threads 4 "./src/wflow/run_wflow_change_factors.jl" "{input.config_model_far}" """
 
@@ -135,13 +139,27 @@ rule plot_results:
        csv_file_near = expand((basin_dir + "/run_delta_change/output_delta_{model}_{scenario}_near.csv"), model = gcms_selected, scenario = scenarios_selected), 
        csv_file_far = expand((basin_dir + "/run_delta_change/output_delta_{model}_{scenario}_far.csv"), model = gcms_selected, scenario = scenarios_selected),
    output: 
-       output_png = f"{project_dir}/plots/model_delta_runs/qhydro_1.png",
+       output_png = f"{project_dir}/plots/model_delta_runs/flow/1/qhydro_1.png",
    params:
         wflow_hist_run_config = config_model_historical_fn,
-        #wflow_delta_runs_config = expand((basin_dir + "/run_delta_change/" + config_basename + "_delta_{model}_{scenario}_*.toml"), model = gcms_selected, scenario = scenarios_selected),
         wflow_delta_runs_config = [f"{basin_dir}/run_delta_change/{config_basename}_delta_{model}_{scenario}_{hz}.toml" for model in gcms_selected for scenario in scenarios_selected for hz in ["near", "far"]],
         gauges_locs = output_locations,
         start_month_hyd_year = "JAN",
         project_dir = f"{project_dir}",
         future_horizons = get_config(config, "future_horizons", optional=False),
+        add_plots_with_all_lines = get_config(config, "future_hydrology_plots.add_plots_with_all_lines", default=False),
    script: "../src/plot_results_delta.py"
+
+rule plot_results_grid:
+    input:
+        nc_file_near = expand((basin_dir + "/run_delta_change/output_delta_{model}_{scenario}_near.nc"), model = gcms_selected, scenario = scenarios_selected) if has_gridded_outputs else [],
+        nc_file_far = expand((basin_dir + "/run_delta_change/output_delta_{model}_{scenario}_far.nc"), model = gcms_selected, scenario = scenarios_selected) if has_gridded_outputs else [],
+    output:
+        output_txt = f"{project_dir}/plots/model_delta_runs/other/gridded_output.txt",
+    params:
+        project_dir = f"{project_dir}",
+        future_horizons = get_config(config, "future_horizons", optional=False),
+        scenarios = scenarios_selected,
+        gcms = gcms_selected,
+        config_historical = config_model_historical_fn,
+    script: "../src/plot_results_grid_delta.py"

@@ -37,6 +37,8 @@ def plot_historical_climate_point(
     add_inset_map: bool = False,
     region_filename: Optional[Union[str, Path]] = None,
     export_observations: bool = True,
+    max_nan_year: int = 60,
+    max_nan_month: int = 5,
 ):
     """Plot historical climate for specific point locations.
 
@@ -105,6 +107,12 @@ def plot_historical_climate_point(
     export_observations : bool, optional
         Export the observed data to a netcdf file with name "point_observed.nc" in the
         same folder as climate_filenames. By default True.
+    max_nan_year : int, optional
+        Maximum number of missing days per year to consider the year for the analysis.
+        By default 60.
+    max_nan_month : int, optional
+        Maximum number of missing days per month to consider the month for the analysis
+        in the monthly plot (2). By default 5.
     """
     # Create dirs
     if not os.path.exists(path_output):
@@ -200,6 +208,8 @@ def plot_historical_climate_point(
         heat_threshold=heat_threshold,
         gdf_region=region,
         add_map=add_inset_map,
+        max_nan_year=max_nan_year,
+        max_nan_month=max_nan_month,
     )
 
     # Save the observed data
@@ -230,6 +240,8 @@ if __name__ == "__main__":
             precip_peak_threshold=sm.params.precip_peak,
             dry_days_threshold=sm.params.precip_dry,
             heat_threshold=sm.params.temp_heat,
+            max_nan_year=sm.params.max_nan_year,
+            max_nan_month=sm.params.max_nan_month,
         )
 
     else:

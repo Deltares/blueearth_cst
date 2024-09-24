@@ -4,9 +4,6 @@ Created on Wed Jul 14 09:18:38 2021
 
 @author: bouaziz
 """
-
-# %%
-import hydromt
 from hydromt.stats import skills
 import numpy as np
 import matplotlib.pyplot as plt
@@ -16,10 +13,8 @@ import scipy.stats as stats
 import pandas as pd
 import xarray as xr
 
-from typing import List, Union
+from typing import Union, Optional, List
 
-
-# %%
 # Supported wflow outputs
 WFLOW_VARS = {
     "overland flow": {
@@ -39,8 +34,13 @@ WFLOW_VARS = {
     },
     "snow": {
         "resample": "mean",
-        "legend": "Snowpack (mm)",
-        "legend_annual": "Snowpack (mm)}",
+        "legend": "Snow water equivalent (mm)",
+        "legend_annual": "Snow water equivalent (mm)",
+    },
+    "glacier": {
+        "resample": "mean",
+        "legend": "Glacier water equivalent (mm)",
+        "legend_annual": "Glacier water equivalent (mm)",
     },
 }
 
@@ -101,10 +101,22 @@ def compute_metrics(
         coords=[metrics, time_type, climate_source],
         dims=["metrics", "time_type", "climate_source"],
     )
+    # Find the common period between obs and sim
+    start = max(qsim.time.values[0], qobs.time.values[0])
+    end = min(qsim.time.values[-1], qobs.time.values[-1])
+    # make sure obs and sim have period in common
+    if start < end:
+        qsim = qsim.sel(time=slice(start, end))
+        qobs = qobs.sel(time=slice(start, end))
+    else:
+        print(
+            f"No common period between obs and sim for {station_name}. Skipping signatures."
+        )
+        return
 
     # Select data and resample to monthly timeseries as well
-    qsim_monthly = qsim.resample(time="ME").mean("time")
-    qobs_monthly = qobs.resample(time="ME").mean("time")
+    qsim_monthly = qsim.resample(time="ME").mean("time", skipna=False)
+    qobs_monthly = qobs.resample(time="ME").mean("time", skipna=False)
     # compute perf metrics
     # nse
     nse = skills.nashsutcliffe(qsim, qobs)
@@ -241,6 +253,24 @@ def plot_signatures(
     fs : int, optional
         Font size, by default 8
     """
+    # Drop nans from obs
+    qobs = qobs.dropna("time")
+    # Find the common period between obs and sim
+    start = max(qsim.time.values[0], qobs.time.values[0])
+    end = min(qsim.time.values[-1], qobs.time.values[-1])
+    # make sure obs and sim have period in common
+    if start < end:
+        qsim = qsim.sel(time=slice(start, end))
+        qobs = qobs.sel(time=slice(start, end))
+    else:
+        print(
+            f"No common period between obs and sim for {station_name}. Skipping signatures."
+        )
+        return
+
+    # Drop the times in qsim that are not in qobs because of nans
+    qsim = qsim.sel(time=qobs.time)
+
     # Depending on number of years of data available, skip plotting position
     nb_years = np.unique(qsim["time.year"].values).size
     nb_year_threshold = 5
@@ -367,6 +397,9 @@ def plot_signatures(
         end = f"{str(qsim['time.year'][-1].values)}-08-31"
         qsim_max = qsim.sel(time=slice(start, end)).resample(time="YS-SEP").max("time")
         qobs_max = qobs.sel(time=slice(start, end)).resample(time="YS-SEP").max("time")
+        # Nans can reappear after resampling, drop them
+        qobs_max = qobs_max.dropna("time")
+        qsim_max = qsim_max.sel(time=qobs_max.time)
     else:
         # Less than a year of data, max over the whole timeseries
         qsim_max = qsim.max("time")
@@ -424,6 +457,9 @@ def plot_signatures(
     ### 6. nm7q axes[5] ###
     qsim_nm7q = qsim.rolling(time=7).mean().resample(time="YE").min("time")
     qobs_nm7q = qobs.rolling(time=7).mean().resample(time="YE").min("time")
+    # Nans can reappear after resampling, drop them
+    qobs_nm7q = qobs_nm7q.dropna("time")
+    qsim_nm7q = qsim_nm7q.sel(time=qobs_nm7q.time)
     max_ylow = max(qsim_nm7q.max().values, qobs_nm7q.max().values)
 
     for climate_source in qsim.climate_source.values:
@@ -616,16 +652,19 @@ def plot_signatures(
 
     ### Save plot ###
     plt.savefig(os.path.join(Folder_out, f"signatures_{station_name}.png"), dpi=300)
+    plt.close()
 
 
 def plot_hydro(
     qsim: xr.DataArray,
     Folder_out: Union[Path, str],
-    qobs: xr.DataArray = None,
+    qobs: Optional[xr.DataArray] = None,
     color: dict = {"climate_source": "steelblue"},
     station_name: str = "station_1",
     lw: float = 0.8,
     fs: int = 7,
+    max_nan_year: int = 60,
+    max_nan_month: int = 5,
 ):
     """
     Plot hydrograph for a specific location.
@@ -656,10 +695,34 @@ def plot_hydro(
         Line width, by default 0.8
     fs : int, optional
         Font size, by default 7
+    max_nan_year : int, optional
+        Maximum number of missing days per year in the observations data to consider
+        the year in the annual hydrograph plot. By default 60.
+    max_nan_month : int, optional
+        Maximum number of missing days per month in the observations data to consider
+        the month in the monthly regime plot. By default 5.
     """
+    min_count_year = 365 - max_nan_year
+    min_count_month = 30 - max_nan_month
+
     # Settings for obs
     labobs = "observed"
     colobs = "k"
+
+    # Find the common period between obs and sim
+    if qobs is not None:
+        start = max(qsim.time.values[0], qobs.time.values[0])
+        end = min(qsim.time.values[-1], qobs.time.values[-1])
+        # make sure obs and sim have period in common
+        if start < end:
+            qsim_na = qsim.sel(time=slice(start, end))
+            qobs_na = qobs.sel(time=slice(start, end))
+        else:
+            qobs = None
+            qobs_na = None
+            qsim_na = qsim
+    else:
+        qsim_na = qsim
 
     # Number of years available
     nb_years = np.unique(qsim["time.year"].values).size
@@ -680,11 +743,18 @@ def plot_hydro(
         ]
         figsize_y = 23
         # Get the wettest and driest year (based on first climate_source)
-        qyr = qsim.resample(time="YE").sum()
-        qyr["time"] = qyr["time.year"]
-        # Get the year for the minimum as an integer
-        year_dry = str(qyr.isel(time=qyr.argmin("time")).time.values[0])
-        year_wet = str(qyr.isel(time=qyr.argmax("time")).time.values[0])
+        if qobs is not None:
+            qyr = qobs_na.resample(time="YE").sum(skipna=True, min_count=min_count_year)
+            qyr["time"] = qyr["time.year"]
+            # Get the year for the minimum as an integer
+            year_dry = str(qyr.isel(time=qyr.argmin("time")).time.item())
+            year_wet = str(qyr.isel(time=qyr.argmax("time")).time.item())
+        else:
+            qyr = qsim.resample(time="YE").sum()
+            qyr["time"] = qyr["time.year"]
+            # Get the year for the minimum as an integer
+            year_dry = str(qyr.isel(time=qyr.argmin("time")).time.values[0])
+            year_wet = str(qyr.isel(time=qyr.argmax("time")).time.values[0])
 
     fig, axes = plt.subplots(nb_panel, 1, figsize=(16 / 2.54, figsize_y / 2.54))
     axes = [axes] if nb_panel == 1 else axes
@@ -698,25 +768,29 @@ def plot_hydro(
             color=color[climate_source],
         )
     if qobs is not None:
-        qobs.plot(ax=axes[0], label=labobs, linewidth=lw, color=colobs, linestyle="--")
+        qobs_na.plot(
+            ax=axes[0], label=labobs, linewidth=lw, color=colobs, linestyle="--"
+        )
 
     if nb_panel == 5:
         # 2. annual Q
         for climate_source in qsim.climate_source.values:
-            qsim.sel(climate_source=climate_source).resample(time="YE").sum().plot(
+            qsim.sel(climate_source=climate_source).resample(time="YE").sum(
+                skipna=True, min_count=min_count_year
+            ).plot(
                 ax=axes[1],
                 label=f"simulated {climate_source}",
                 linewidth=lw,
                 color=color[climate_source],
             )
         if qobs is not None:
-            qobs.resample(time="YE").sum().plot(
+            qobs.resample(time="YE").sum(skipna=True, min_count=min_count_year).plot(
                 ax=axes[1], label=labobs, linewidth=lw, color=colobs, linestyle="--"
             )
 
         # 3. monthly Q
         month_labels = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
-        dsqM = qsim.resample(time="ME").sum()
+        dsqM = qsim_na.resample(time="ME").sum()
         dsqM = dsqM.groupby(dsqM.time.dt.month).mean()
         for climate_source in qsim.climate_source.values:
             dsqM.sel(climate_source=climate_source).plot(
@@ -726,7 +800,9 @@ def plot_hydro(
                 color=color[climate_source],
             )
         if qobs is not None:
-            dsqMo = qobs.resample(time="ME").sum()
+            dsqMo = qobs_na.resample(time="ME").sum(
+                skipna=True, min_count=min_count_month
+            )
             dsqMo = dsqMo.groupby(dsqMo.time.dt.month).mean()
             dsqMo.plot(ax=axes[2], label=labobs, linewidth=lw, color=colobs)
         axes[2].set_title("Average monthly sum")
@@ -774,6 +850,7 @@ def plot_hydro(
     plt.tight_layout()
 
     plt.savefig(os.path.join(Folder_out, f"hydro_{station_name}.png"), dpi=300)
+    plt.close()
 
 
 def plot_clim(
@@ -782,8 +859,8 @@ def plot_clim(
     station_name: str,
     period: str,
     color: dict,
-    lw: float = 0.8,
     fs: int = 8,
+    skip_temp_pet_sources: List[str] = [],
 ):
     """
     Plot monthly of annual climatology of precipitation, temperature and potential evaporation.
@@ -802,11 +879,10 @@ def plot_clim(
         Either monthly or annual climatology plots
     color : dict
         Color to be used for each climate_source
-    lw : float, optional
-        Line width, by default 0.8
     fs : int, optional
         Font size, by default 8
-
+    skip_temp_pet_sources : List[str]
+        List of climate sources to skip for temperature and potential evaporation plots.
     """
 
     fig, (ax1, ax2, ax3) = plt.subplots(
@@ -824,11 +900,7 @@ def plot_clim(
             # Check as for some sources only precipitation is used
             # so avoid to plot temperature and evaporation twice
             do_climate_plot = True
-            if (
-                climate_source != "era5"
-                and climate_source != "eobs"
-                and "era5" in ds_clim.climate_source
-            ):
+            if climate_source in skip_temp_pet_sources:
                 do_climate_plot = False
 
             T_mean_monthly_mean = (
@@ -854,7 +926,9 @@ def plot_clim(
             # for now only plot temp and evap it climate source is era5 and era5 is in climate source.
             if do_climate_plot:
                 p = T_mean_monthly_mean.plot(
-                    ax=ax1, color=color[climate_source], label=f"{climate_source}"
+                    ax=ax1,
+                    color=color[climate_source],
+                    label=f"{climate_source} (25%-75%)",
                 )
                 if color[climate_source] == None:
                     c = p[0].get_color()
@@ -866,16 +940,12 @@ def plot_clim(
                     T_mean_monthly_q75,
                     color=c,
                     alpha=0.5,
-                    label=f"{climate_source} 25%-75%",
+                    # label=f"{climate_source} 25%-75%",
                 )
     else:
         for climate_source in ds_clim.climate_source.values:
             do_climate_plot = True
-            if (
-                climate_source != "era5"
-                and climate_source != "eobs"
-                and "era5" in ds_clim.climate_source
-            ):
+            if climate_source in skip_temp_pet_sources:
                 do_climate_plot = False
             T_mean_year = (
                 ds_clim["T_subcatchment"]
@@ -884,26 +954,27 @@ def plot_clim(
                 .sel(climate_source=climate_source)
             )
             if do_climate_plot:
-                p = T_mean_year.plot(
-                    ax=ax1, color=color[climate_source], label=f"{climate_source}"
-                )
-
-                if color[climate_source] == None:
-                    c = p[0].get_color()
-                else:
-                    c = color[climate_source]
-
                 x = T_mean_year.time.dt.year
                 z = np.polyfit(x, T_mean_year, 1)
                 p = np.poly1d(z)
                 r2_score, p_value = rsquared(p(x), T_mean_year)
+
+                im = T_mean_year.plot(
+                    ax=ax1,
+                    color=color[climate_source],
+                    label=f"{climate_source} ($R^2$ = {round(r2_score, 3)}, p = {round(p_value, 3)})",
+                )
+                if color[climate_source] == None:
+                    c = im[0].get_color()
+                else:
+                    c = color[climate_source]
                 ax1.plot(
                     T_mean_year.time,
                     p(x),
                     ls="--",
                     color=c,
                     alpha=0.5,
-                    label=f"trend {climate_source} $R^2$ = {round(r2_score, 3)}, p = {round(p_value, 3)}",
+                    # label=f"trend {climate_source} $R^2$ = {round(r2_score, 3)}, p = {round(p_value, 3)}",
                 )
 
     # precip and evap
@@ -913,11 +984,7 @@ def plot_clim(
     ):
         for climate_source in ds_clim.climate_source.values:
             do_climate_plot = True
-            if (
-                climate_source != "era5"
-                and climate_source != "eobs"
-                and "era5" in ds_clim.climate_source
-            ):
+            if climate_source in skip_temp_pet_sources:
                 do_climate_plot = False
 
             var_sum_monthly = (
@@ -942,7 +1009,9 @@ def plot_clim(
                     climvar == "P_subcatchment"
                 ):
                     p = var_sum_monthly_mean.plot(
-                        ax=ax, color=color[climate_source], label=f"{climate_source}"
+                        ax=ax,
+                        color=color[climate_source],
+                        label=f"{climate_source} (25%-75%)",
                     )
                     if color[climate_source] == None:
                         c = p[0].get_color()
@@ -955,7 +1024,7 @@ def plot_clim(
                         var_sum_monthly_q75,
                         color=c,
                         alpha=0.5,
-                        label=f"{climate_source} 25%-75%",
+                        # label=f"{climate_source} 25%-75%",
                     )
             else:
                 x = var_sum_monthly.time.dt.year
@@ -972,14 +1041,18 @@ def plot_clim(
                         ls="--",
                         alpha=0.5,
                         color=color[climate_source],
-                        label=f"trend {climate_source} $R^2$ = {round(r2_score, 3)}, p = {round(p_value, 3)}",
+                        # label=f"trend {climate_source} $R^2$ = {round(r2_score, 3)}, p = {round(p_value, 3)}",
                     )
                     if color[climate_source] == None:
                         c = p[0].get_color()
                     else:
                         c = color[climate_source]
 
-                    var_sum_monthly.plot(ax=ax, color=c, label=f"{climate_source}")
+                    var_sum_monthly.plot(
+                        ax=ax,
+                        color=c,
+                        label=f"{climate_source} ($R^2$ = {round(r2_score, 3)}, p = {round(p_value, 3)})",
+                    )
 
     for ax, title_name, ylab in zip(
         [ax1, ax2, ax3],
@@ -1003,6 +1076,7 @@ def plot_clim(
 
     plt.tight_layout()
     plt.savefig(os.path.join(Folder_out, f"clim_{station_name}_{period}.png"), dpi=300)
+    plt.close()
 
 
 def plot_basavg(
@@ -1118,6 +1192,4 @@ def plot_basavg(
 
         plt.tight_layout()
         plt.savefig(os.path.join(Folder_out, f"{dvar}.png"), dpi=300)
-
-
-# %%
+        plt.close()

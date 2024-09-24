@@ -97,8 +97,7 @@ def plot_gridded_anomalies(
     path_output: Union[str, Path],
     gdf_region: Optional[gpd.GeoDataFrame] = None,
     year_per_line: int = 5,
-    line_height: float = 6,
-    fs: float = 10,
+    fs: float = 6,
 ):
     """Plot gridded historical annual anomalies for a specific region.
 
@@ -116,8 +115,6 @@ def plot_gridded_anomalies(
         The total region of the project to add to the inset map if provided.
     year_per_line : int, optional
         Number of years to plot per line. Default is 5.
-    line_height : float, optional
-        Height of a single year in the plot in cm. Default is 6.
     fs : int, optional
         Font size for the plot. Default is 10.
     """
@@ -147,44 +144,73 @@ def plot_gridded_anomalies(
     # Proj, extent
     proj = ccrs.PlateCarree()
     if gdf_region is not None:
-        extent = np.array(gdf_region.buffer(0.02).total_bounds)[[0, 2, 1, 3]]
+        extent = np.array(gdf_region.buffer(0.01).total_bounds)[[0, 2, 1, 3]]
     else:
         extent = None
 
     # Plot the anomalies
     for source, da_yr_anom in clim_dict_anom.items():
-        plt.style.use("seaborn-v0_8-whitegrid")  # set nice style
-        fig = plt.figure()
         da_yr_anom = da_yr_anom.rename({"time": "year"})
+        # Just loop...
+        nb_years = len(da_yr_anom.year)
+        fig_width = 8 if nb_years == 1 else 16
+        nb_cols = year_per_line if nb_years > 1 else 1
+        fig_height = np.ceil(nb_years / year_per_line) * 8
+        nb_rows = int(np.ceil(nb_years / year_per_line))
 
-        p = da_yr_anom.plot(
-            x=da_yr_anom.raster.x_dim,
-            y=da_yr_anom.raster.y_dim,
-            col="year",
-            col_wrap=year_per_line,
-            cmap="bwr" if da_yr_anom.name == "temp" else "bwr_r",
-            norm=divnorm,
-            subplot_kws={"projection": proj},
-            cbar_kwargs={"shrink": 0.9},
-            size=line_height / 2.54,
-            aspect=1,
+        fig, ax = plt.subplots(
+            nb_rows,
+            nb_cols,
+            figsize=(fig_width / 2.54, fig_height / 2.54),
+            sharex=True,
+            sharey=True,
+            layout="compressed",
+            subplot_kw={"projection": proj},
         )
-        p.set_axis_labels("longitude [degree east]", "latitude [degree north]")
+        # Reduce white space between subplots
+        plt.subplots_adjust(wspace=0.05, hspace=0.05)
+        ax = [ax] if (nb_rows * nb_cols) == 1 else ax.flatten()
 
-        if gdf_region is not None:
-            for i, ax in enumerate(p.axs.flatten()):
-                gdf_region.plot(ax=ax, facecolor="None")
-                if i >= len(da_yr_anom.year):
-                    continue
-                ax.set_extent(extent, crs=proj)
-                ax.set_title(
-                    da_yr_anom.year[i].values.item(), fontsize=fs, fontweight="bold"
-                )
+        for i in range(len(ax)):
+            ax[i].axis("off")
+            if i >= nb_years:
+                continue
+            im = da_yr_anom.isel(year=i).plot(
+                ax=ax[i],
+                cmap="bwr" if da_yr_anom.name == "temp" else "bwr_r",
+                norm=divnorm,
+                add_colorbar=False,
+            )
+            # add outline basin
+            if gdf_region is not None:
+                gdf_region.plot(ax=ax[i], facecolor="None")
+            ax[i].set_title(
+                da_yr_anom.year[i].values.item(),
+                fontsize=fs + 1,
+                fontweight="bold",
+            )
+            ax[i].set_extent(extent, crs=proj)
+            # Add title in caps and bold font
+            ax[i].xaxis.set_visible(True)
+            ax[i].yaxis.set_visible(True)
+            ax[i].set_xlabel("longitude [degree east]", fontsize=fs)
+            ax[i].set_ylabel("latitude [degree north]", fontsize=fs)
+            ax[i].tick_params(axis="both", labelsize=fs)
 
-        # Update colorbar
-        p.cbar.ax.tick_params(labelsize=fs)
-        label = f"{da_yr_anom.attrs['long_name']} [{da_yr_anom.attrs['units']}]"
-        p.cbar.set_label(label=label, size=fs, weight="bold")
+        # Add common colorbar
+        cbar = fig.colorbar(
+            im,
+            ax=ax,
+            label=f"{da_yr_anom.attrs['long_name']} [{da_yr_anom.attrs['units']}]",
+            shrink=0.95,
+            aspect=30,
+        )
+        # Change the fontsize of the colorbar label
+        cbar.ax.yaxis.label.set_fontsize(fs + 1)
+        # Set label wrap
+        cbar.ax.yaxis.label.set_wrap(True)
+        # Change the fontsize of the colorbar ticks
+        cbar.ax.tick_params(labelsize=fs)
 
         # Save the plots
         if not os.path.exists(path_output):
@@ -269,12 +295,13 @@ def plot_timeseries_anomalies(
 
         for start, end, color in zip(starts, ends, colors):
             da_yr_trend = da_yr_anom.sel(time=slice(start, end))
-            # Remove NaN values along index dimension
-            da_yr_trend = da_yr_trend.dropna("index", how="any")
+            # Remove NaN values along time dimension
+            da_yr_trend = da_yr_trend.dropna("time", how="all")
             trend = da_yr_trend.curvefit(
                 coords="time",
                 func=linealg,
                 reduce_dims="index",
+                skipna=True,
             )
             # Construct the trend line and plot it
             a = trend.curvefit_coefficients.values[0]
@@ -283,7 +310,7 @@ def plot_timeseries_anomalies(
 
             # also get r_value and p_value
             slope, intercept, r_value, p_value, std_err = stats.linregress(
-                da_yr_trend.time, da_yr_trend.mean("index")
+                da_yr_trend.time, da_yr_trend.mean("index", skipna=True)
             )
 
             trend_line.plot.line(

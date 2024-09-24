@@ -7,7 +7,7 @@ from pathlib import Path
 import pandas as pd
 from hydromt_wflow import WflowModel
 
-from typing import Union, List
+from typing import Union, List, Optional
 
 # Avoid relative import errors
 import sys
@@ -22,6 +22,7 @@ if __name__ == "__main__" or parent_module.__name__ == "__main__":
         make_boxplot_monthly,
         plot_plotting_position,
     )
+    from wflow.wflow_utils import get_wflow_results
 else:
     from .plot_utils.plot_change_delta_runs import (
         plot_near_far_abs,
@@ -31,6 +32,7 @@ else:
         make_boxplot_monthly,
         plot_plotting_position,
     )
+    from .wflow.wflow_utils import get_wflow_results
 
 
 # Supported wflow outputs
@@ -52,134 +54,32 @@ WFLOW_VARS = {
     },
     "snow": {
         "resample": "mean",
-        "legend": "Snowpack (mm)",
-        "legend_annual": "Snowpack (mm)",
+        "legend": "Snow water equivalent (mm)",
+        "legend_annual": "Snow water equivalent (mm)",
+    },
+    "glacier": {
+        "resample": "mean",
+        "legend": "Glacier water equivalent (mm)",
+        "legend_annual": "Glacier water equivalent (mm)",
     },
 }
-
-
-def get_wflow_results(
-    wflow_root: Union[str, Path],
-    config_fn: str = "wflow_sbm.toml",
-    gauges_locs: Union[Path, str] = None,
-    remove_warmup: bool = True,
-):
-    """
-    Get wflow results as xarray.Dataset for simulated discharges, simulated flux/states as basin averages.
-
-    Parameters
-    ----------
-    wflow_root : Union[str, Path]
-        Path to the wflow model root folder.
-    wflow_config_fn : str, optional
-        Name of the wflow configuration file, by default "wflow_sbm.toml". Used to read
-        the right results files from the wflow model.
-    gauges_locs : Union[Path, str], optional
-        Path to gauges/observations locations file, by default None
-        Required columns: wflow_id, station_name, x, y.
-        Values in wflow_id column should match column names in ``observations_fn``.
-        Separator is , and decimal is .
-    remove_warmup : bool, optional
-        Remove the first year of the simulation (warm-up), by default True
-
-    Returns
-    ----------
-    qsim: xr.Dataset
-        simulated discharge at wflow basin locations and at observation locations
-    ds_basin: xr.Dataset
-        basin average flux and state variables
-
-    """
-    mod = WflowModel(
-        root=wflow_root,
-        mode="r",
-        config_fn=config_fn,
-    )
-
-    # Q at wflow locations
-    qsim = mod.results["Q_gauges"].rename("Q")
-    qsim = qsim.assign_coords(
-        station_name=(
-            "index",
-            ["wflow_" + x for x in list(qsim["index"].values.astype(str))],
-        )
-    )
-
-    # Discharge at the gauges_locs if present
-    if gauges_locs is not None and os.path.exists(gauges_locs):
-        # Get name of gauges dataset from the gauges locations file
-        gauges_output_name = os.path.basename(gauges_locs).split(".")[0]
-        if f"Q_gauges_{gauges_output_name}" in mod.results:
-            qsim_gauges = mod.results[f"Q_gauges_{gauges_output_name}"].rename("Q")
-            # Add station_name > bug for reading geoms if dir_input in toml is not None
-            if f"gauges_{gauges_output_name}" not in mod.geoms:
-                dir_geoms = dirname(
-                    join(
-                        mod.root,
-                        mod.get_config("dir_input", abs_path=False),
-                        mod.get_config("input.path_static", abs_path=False),
-                    )
-                )
-                dir_geoms = join(dir_geoms, "staticgeoms")
-                mod.read_geoms(dir_geoms)
-            gdf_gauges = (
-                mod.geoms[f"gauges_{gauges_output_name}"]
-                .rename(columns={"wflow_id": "index"})
-                .set_index("index")
-            )
-            qsim_gauges = qsim_gauges.assign_coords(
-                station_name=(
-                    "index",
-                    list(gdf_gauges["station_name"][qsim_gauges.index.values].values),
-                )
-            )
-    else:
-        qsim_gauges = None
-
-    # merge qsim and qsim_gauges
-    qsim = xr.concat([qsim, qsim_gauges], dim="index")
-
-    # Other catchment average outputs
-    ds_basin = xr.merge(
-        [mod.results[dvar] for dvar in mod.results if "_basavg" in dvar]
-    )
-    ds_basin = ds_basin.squeeze(drop=True)
-    # If precipitation, skip as this will be plotted with the other climate data
-    if "precipitation_basavg" in ds_basin:
-        ds_basin = ds_basin.drop_vars("precipitation_basavg")
-
-    # Remove the first year (model warm-up for historical)
-    if remove_warmup:
-        qsim = qsim.sel(
-            time=slice(
-                f"{qsim['time.year'][0].values+1}-{qsim['time.month'][0].values}-{qsim['time.day'][0].values}",
-                None,
-            )
-        )
-        ds_basin = ds_basin.sel(
-            time=slice(
-                f"{ds_basin['time.year'][0].values+1}-{ds_basin['time.month'][0].values}-{ds_basin['time.day'][0].values}",
-                None,
-            )
-        )
-
-    return qsim, ds_basin
 
 
 def analyse_wflow_delta(
     wflow_hist_run_config: Path,
     wflow_delta_runs_config: List[Path],
-    gauges_locs: Union[Path, str] = None,
-    plot_dir: Union[str, Path] = None,
+    gauges_locs: Optional[Union[Path, str]] = None,
+    plot_dir: Optional[Union[str, Path]] = None,
     start_month_hyd_year: str = "JAN",
     near_legend: str = "near future",
     far_legend: str = "far future",
+    add_plots_with_all_lines: bool = False,
 ):
     """
     Evaluate impact of climate change for delta change runs compared to historical.
 
     Model results should include the following keys: Q_gauges,
-    Q_gauges_{basename(gauges_locs)}, snow_basavg.
+    Q_gauges_{basename(gauges_locs)}, {variable}_basavg.
 
     Future time horizons should be called near and far. The legends can be updated.
 
@@ -226,15 +126,21 @@ def analyse_wflow_delta(
         legend for near future, default is "near future"
     far_legend: str, optional
         legend for far future, default is "far future"
+    add_plots_with_all_lines: bool, optional
+        add another version of the abs/rel plots with all lines of each of the delta runs on top on the mean and
+        min-max shaded ones. Default is False.
     """
     ### 1. Prepare output and plotting options ###
-
     # If plotting dir is None, create
     if plot_dir is None:
         wflow_root = dirname(wflow_hist_run_config)
         plot_dir = join(wflow_root, "plots")
-    if not os.path.exists(plot_dir):
-        os.makedirs(plot_dir)
+    plot_dir_flow = join(plot_dir, "flow")
+    if not os.path.exists(plot_dir_flow):
+        os.makedirs(plot_dir_flow)
+    plot_dir_other = join(plot_dir, "other")
+    if not os.path.exists(plot_dir_other):
+        os.makedirs(plot_dir_other)
 
     # Plotting options
     fs = 7
@@ -243,7 +149,9 @@ def analyse_wflow_delta(
     # read model results for historical
     root = dirname(wflow_hist_run_config)
     config_fn = basename(wflow_hist_run_config)
-    qsim_hist, ds_basin_hist = get_wflow_results(root, config_fn, gauges_locs)
+    qsim_hist, ds_clim_hist, ds_basin_hist = get_wflow_results(
+        root, config_fn, gauges_locs
+    )
 
     # read the model results and merge to single netcdf
     qsim_delta = []
@@ -254,7 +162,7 @@ def analyse_wflow_delta(
         horizon = basename(delta_config).split(".")[0].split("_")[-1]
         root = dirname(delta_config)
         config_fn = basename(delta_config)
-        qsim_delta_run, ds_basin_delta_run = get_wflow_results(
+        qsim_delta_run, ds_clim_delta_run, ds_basin_delta_run = get_wflow_results(
             root, config_fn, gauges_locs
         )
         qsim_delta_run = qsim_delta_run.assign_coords(
@@ -276,12 +184,12 @@ def analyse_wflow_delta(
 
     # make plots per station
     for index in qsim_delta["index"].values:
-
+        plot_dir_flow_id = join(plot_dir_flow, str(index))
         # plot cumsum
         plot_near_far_abs(
             qsim_delta["Q"].cumsum("time").sel(index=index),
             qsim_hist.cumsum("time").sel(index=index),
-            plot_dir=plot_dir,
+            plot_dir=plot_dir_flow_id,
             ylabel="Q",
             figname_prefix=f"cumsum_{index}",
             fs=fs,
@@ -289,19 +197,45 @@ def analyse_wflow_delta(
             near_legend=near_legend,
             far_legend=far_legend,
         )
+        if add_plots_with_all_lines:
+            plot_near_far_abs(
+                qsim_delta["Q"].cumsum("time").sel(index=index),
+                qsim_hist.cumsum("time").sel(index=index),
+                plot_dir=plot_dir_flow_id,
+                ylabel="Q",
+                figname_prefix=f"cumsum_{index}_all_lines",
+                fs=fs,
+                lw=lw,
+                near_legend=near_legend,
+                far_legend=far_legend,
+                show_all_lines=True,
+            )
 
         # plot mean monthly flow
         plot_near_far_abs(
             qsim_delta["Q"].groupby("time.month").mean("time").sel(index=index),
             qsim_hist.groupby("time.month").mean("time").sel(index=index),
-            plot_dir=plot_dir,
-            ylabel="Q (m$^3$s$^{-1}$)",
+            plot_dir=plot_dir_flow_id,
+            ylabel="mean monthly Q (m$^3$s$^{-1}$)",
             figname_prefix=f"mean_monthly_Q_{index}",
             fs=fs,
             lw=lw,
             near_legend=near_legend,
             far_legend=far_legend,
         )
+        if add_plots_with_all_lines:
+            plot_near_far_abs(
+                qsim_delta["Q"].groupby("time.month").mean("time").sel(index=index),
+                qsim_hist.groupby("time.month").mean("time").sel(index=index),
+                plot_dir=plot_dir_flow_id,
+                ylabel="mean monthly Q (m$^3$s$^{-1}$)",
+                figname_prefix=f"mean_monthly_Q_{index}_all_lines",
+                fs=fs,
+                lw=lw,
+                near_legend=near_legend,
+                far_legend=far_legend,
+                show_all_lines=True,
+            )
 
         # plot nm7q timeseries
         qsim_delta_nm7q = (
@@ -323,7 +257,7 @@ def analyse_wflow_delta(
         plot_near_far_abs(
             qsim_delta_nm7q,
             qsim_hist_nm7q,
-            plot_dir=plot_dir,
+            plot_dir=plot_dir_flow_id,
             ylabel="NM7Q (m$^3$s$^{-1}$)",
             figname_prefix=f"nm7q_{index}",
             fs=fs,
@@ -331,6 +265,19 @@ def analyse_wflow_delta(
             near_legend=near_legend,
             far_legend=far_legend,
         )
+        if add_plots_with_all_lines:
+            plot_near_far_abs(
+                qsim_delta_nm7q,
+                qsim_hist_nm7q,
+                plot_dir=plot_dir_flow_id,
+                ylabel="NM7Q (m$^3$s$^{-1}$)",
+                figname_prefix=f"nm7q_{index}_all_lines",
+                fs=fs,
+                lw=lw,
+                near_legend=near_legend,
+                far_legend=far_legend,
+                show_all_lines=True,
+            )
 
         # plot maxq timeseries
         qsim_delta_maxq = (
@@ -348,7 +295,7 @@ def analyse_wflow_delta(
         plot_near_far_abs(
             qsim_delta_maxq,
             qsim_hist_maxq,
-            plot_dir=plot_dir,
+            plot_dir=plot_dir_flow_id,
             ylabel="max annual Q (m$^3$s$^{-1}$)",
             figname_prefix=f"max_annual_q_{index}",
             fs=fs,
@@ -356,6 +303,19 @@ def analyse_wflow_delta(
             near_legend=near_legend,
             far_legend=far_legend,
         )
+        if add_plots_with_all_lines:
+            plot_near_far_abs(
+                qsim_delta_maxq,
+                qsim_hist_maxq,
+                plot_dir=plot_dir_flow_id,
+                ylabel="max annual Q (m$^3$s$^{-1}$)",
+                figname_prefix=f"max_annual_q_{index}_all_lines",
+                fs=fs,
+                lw=lw,
+                near_legend=near_legend,
+                far_legend=far_legend,
+                show_all_lines=True,
+            )
 
         # plot mean annual flow
         qsim_delta_meanq = (
@@ -375,7 +335,7 @@ def analyse_wflow_delta(
         plot_near_far_abs(
             qsim_delta_meanq,
             qsim_hist_meanq,
-            plot_dir=plot_dir,
+            plot_dir=plot_dir_flow_id,
             ylabel="mean annual Q (m$^3$s$^{-1}$)",
             figname_prefix=f"mean_annual_q_{index}",
             fs=fs,
@@ -383,6 +343,19 @@ def analyse_wflow_delta(
             near_legend=near_legend,
             far_legend=far_legend,
         )
+        if add_plots_with_all_lines:
+            plot_near_far_abs(
+                qsim_delta_meanq,
+                qsim_hist_meanq,
+                plot_dir=plot_dir_flow_id,
+                ylabel="mean annual Q (m$^3$s$^{-1}$)",
+                figname_prefix=f"mean_annual_q_{index}_all_lines",
+                fs=fs,
+                lw=lw,
+                near_legend=near_legend,
+                far_legend=far_legend,
+                show_all_lines=True,
+            )
 
         # plot timeseries daily q
         qsim_delta_d = qsim_delta["Q"].sel(index=index)
@@ -390,7 +363,7 @@ def analyse_wflow_delta(
         plot_near_far_abs(
             qsim_delta_d,
             qsim_hist_d,
-            plot_dir=plot_dir,
+            plot_dir=plot_dir_flow_id,
             ylabel="Q (m$^3$s$^{-1}$)",
             figname_prefix=f"qhydro_{index}",
             fs=fs,
@@ -398,6 +371,19 @@ def analyse_wflow_delta(
             near_legend=near_legend,
             far_legend=far_legend,
         )
+        if add_plots_with_all_lines:
+            plot_near_far_abs(
+                qsim_delta_d,
+                qsim_hist_d,
+                plot_dir=plot_dir_flow_id,
+                ylabel="Q (m$^3$s$^{-1}$)",
+                figname_prefix=f"qhydro_{index}_all_lines",
+                fs=fs,
+                lw=lw,
+                near_legend=near_legend,
+                far_legend=far_legend,
+                show_all_lines=True,
+            )
 
         # plot relative change mean, max, min q
         for dvar, prefix in zip(
@@ -406,7 +392,7 @@ def analyse_wflow_delta(
         ):
             plot_near_far_rel(
                 dvar,
-                plot_dir=plot_dir,
+                plot_dir=plot_dir_flow_id,
                 ylabel=f"Change {prefix} (Qfut-Qhist)/Qhist (%)",
                 figname_prefix=f"{prefix}_annual_q_{index}",
                 fs=fs,
@@ -414,12 +400,24 @@ def analyse_wflow_delta(
                 near_legend=near_legend,
                 far_legend=far_legend,
             )
+            if add_plots_with_all_lines:
+                plot_near_far_rel(
+                    dvar,
+                    plot_dir=plot_dir_flow_id,
+                    ylabel=f"Change {prefix} (Qfut-Qhist)/Qhist (%)",
+                    figname_prefix=f"{prefix}_annual_q_{index}_all_lines",
+                    fs=fs,
+                    lw=lw,
+                    near_legend=near_legend,
+                    far_legend=far_legend,
+                    show_all_lines=True,
+                )
 
         # plotting position maxq
         plot_plotting_position(
             qsim_delta_maxq,
             qsim_hist_maxq,
-            plot_dir,
+            plot_dir_flow_id,
             f"maxq_{index}",
             "Annual maximum discharge (m$^3$s$^{-1}$)",
             ascending=True,
@@ -431,7 +429,7 @@ def analyse_wflow_delta(
         plot_plotting_position(
             qsim_delta_nm7q,
             qsim_hist_nm7q,
-            plot_dir,
+            plot_dir_flow_id,
             f"nm7q_{index}",
             "Annual min 7 days discharge (m$^3$s$^{-1}$)",
             ascending=False,
@@ -458,7 +456,7 @@ def analyse_wflow_delta(
         make_boxplot_monthly(
             df_delta_near,
             df_delta_far,
-            plot_dir,
+            plot_dir_flow_id,
             f"q_abs_{index}",
             "Q (m$^3$s$^{-1}$)",
             near_legend=near_legend,
@@ -473,7 +471,7 @@ def analyse_wflow_delta(
         make_boxplot_monthly(
             df_delta_near_rel,
             df_delta_far_rel,
-            plot_dir,
+            plot_dir_flow_id,
             f"q_rel_{index}",
             "change monthly Q (%)",
             relative=True,
@@ -490,13 +488,13 @@ def analyse_wflow_delta(
         )
         # NB: remove nan otherwise boxplot fails!
         df_delta_near_rel, df_delta_far_rel = get_df_seaborn(
-            ds_basin_delta_m_rel.dropna("time"), "snow_basavg"
+            ds_basin_delta_m_rel[["snow_basavg"]].dropna("time"), "snow_basavg"
         )
         # boxplot relative change snow
         make_boxplot_monthly(
             df_delta_near_rel,
             df_delta_far_rel,
-            plot_dir,
+            plot_dir_other,
             "snow_rel",
             "change monthly snow (%)",
             var_y="snow_basavg",
@@ -527,7 +525,7 @@ def analyse_wflow_delta(
         plot_near_far_abs(
             mean_monthly_delta,
             mean_monthly_hist,
-            plot_dir=plot_dir,
+            plot_dir=plot_dir_other,
             ylabel=WFLOW_VARS[dvar.split("_")[0]]["legend"],
             figname_prefix=f"mean_monthly_{dvar}",
             fs=fs,
@@ -535,12 +533,25 @@ def analyse_wflow_delta(
             near_legend=near_legend,
             far_legend=far_legend,
         )
+        if add_plots_with_all_lines:
+            plot_near_far_abs(
+                mean_monthly_delta,
+                mean_monthly_hist,
+                plot_dir=plot_dir_other,
+                ylabel=WFLOW_VARS[dvar.split("_")[0]]["legend"],
+                figname_prefix=f"mean_monthly_{dvar}_all_lines",
+                fs=fs,
+                lw=lw,
+                near_legend=near_legend,
+                far_legend=far_legend,
+                show_all_lines=True,
+            )
 
         # mean annual sum or mean
         plot_near_far_abs(
             sum_annual_delta,
             sum_annual_hist,
-            plot_dir=plot_dir,
+            plot_dir=plot_dir_other,
             ylabel=WFLOW_VARS[dvar.split("_")[0]]["legend_annual"],
             figname_prefix=f"sum_annual_{dvar}",
             fs=fs,
@@ -548,11 +559,24 @@ def analyse_wflow_delta(
             near_legend=near_legend,
             far_legend=far_legend,
         )
+        if add_plots_with_all_lines:
+            plot_near_far_abs(
+                sum_annual_delta,
+                sum_annual_hist,
+                plot_dir=plot_dir_other,
+                ylabel=WFLOW_VARS[dvar.split("_")[0]]["legend_annual"],
+                figname_prefix=f"sum_annual_{dvar}_all_lines",
+                fs=fs,
+                lw=lw,
+                near_legend=near_legend,
+                far_legend=far_legend,
+                show_all_lines=True,
+            )
 
         # relative mean monthly sum or mean
         plot_near_far_rel(
             mean_monthly_delta_rel,
-            plot_dir=plot_dir,
+            plot_dir=plot_dir_other,
             ylabel=f"Change monthly {dvar} \n (fut-hist)/hist (%)",
             figname_prefix=f"mean_monthly_{dvar}",
             fs=fs,
@@ -560,11 +584,23 @@ def analyse_wflow_delta(
             near_legend=near_legend,
             far_legend=far_legend,
         )
+        if add_plots_with_all_lines:
+            plot_near_far_rel(
+                mean_monthly_delta_rel,
+                plot_dir=plot_dir_other,
+                ylabel=f"Change monthly {dvar} \n (fut-hist)/hist (%)",
+                figname_prefix=f"mean_monthly_{dvar}_all_lines",
+                fs=fs,
+                lw=lw,
+                near_legend=near_legend,
+                far_legend=far_legend,
+                show_all_lines=True,
+            )
 
         # relative mean annual sum or mean
         plot_near_far_rel(
             sum_annual_delta_rel,
-            plot_dir=plot_dir,
+            plot_dir=plot_dir_other,
             ylabel=f"Change annual {dvar} \n (fut-hist)/hist (%)",
             figname_prefix=f"sum_annual_{dvar}",
             fs=fs,
@@ -572,6 +608,18 @@ def analyse_wflow_delta(
             near_legend=near_legend,
             far_legend=far_legend,
         )
+        if add_plots_with_all_lines:
+            plot_near_far_rel(
+                sum_annual_delta_rel,
+                plot_dir=plot_dir_other,
+                ylabel=f"Change annual {dvar} \n (fut-hist)/hist (%)",
+                figname_prefix=f"sum_annual_{dvar}_all_lines",
+                fs=fs,
+                lw=lw,
+                near_legend=near_legend,
+                far_legend=far_legend,
+                show_all_lines=True,
+            )
 
     ### End of the function ###
 
@@ -596,6 +644,7 @@ if __name__ == "__main__":
             start_month_hyd_year=sm.params.start_month_hyd_year,
             near_legend=f"Horizon {near_horizon}",
             far_legend=f"Horizon {far_horizon}",
+            add_plots_with_all_lines=sm.params.add_plots_with_all_lines,
         )
     else:
         print("run with snakemake please")
