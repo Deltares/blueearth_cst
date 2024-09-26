@@ -66,8 +66,6 @@ save_grids: FALSE
 
 ###########################################################################################
 ################################## Stress Test Experiment #################################
-# Weather generator default/advanced settings file
-weathergen_config: config/weathergen_config.yml
 # Name of the experiment
 experiment_name: experiment
 # Number of climate realizations
