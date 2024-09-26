@@ -39,6 +39,7 @@ def plot_map(
     buffer_km: Optional[float] = 2.0,
     annotate_regions: bool = False,
     shaded: bool = False,
+    legend_loc: str = "lower right",
     **kwargs,
 ):
     """
@@ -80,6 +81,8 @@ def plot_map(
     shaded : bool
         If True, plot the elevation with shades. Looks nicer with more pixels
         (e.g.: larger basins).
+    legend_loc : str
+        Location of the legend in the plot. Default is "lower right".
     kwargs : dict
         Additional keyword arguments to pass to da.plot()
     """
@@ -140,6 +143,8 @@ def plot_map(
 
     # plot rivers with increasing width with stream order
     if rivers is not None:
+        if "strord" not in rivers.columns:
+            rivers["strord"] = 2
         rivers.plot(
             ax=ax, linewidth=rivers["strord"] / 2, color="blue", zorder=3, label="river"
         )
@@ -187,8 +192,27 @@ def plot_map(
                     ),
                     axis=1,
                 )
+    patches = (
+        []
+    )  # manual patches for legend, see https://github.com/geopandas/geopandas/issues/660
+    if lakes is not None:
+        kwargs = dict(
+            facecolor="lightblue", edgecolor="black", linewidth=1, label="lakes"
+        )
+        lakes.plot(ax=ax, zorder=4, **kwargs)
+        patches.append(mpatches.Patch(**kwargs))
+    if reservoirs is not None:
+        kwargs = dict(
+            facecolor="blue", edgecolor="black", linewidth=1, label="reservoirs"
+        )
+        reservoirs.plot(ax=ax, zorder=4, **kwargs)
+        patches.append(mpatches.Patch(**kwargs))
+    if glaciers is not None:
+        kwargs = dict(facecolor="grey", edgecolor="grey", linewidth=1, label="glaciers")
+        glaciers.plot(ax=ax, zorder=4, **kwargs)
+        patches.append(mpatches.Patch(**kwargs))
 
-    # Gauges
+    # Gauges - last for annotataions
     if len(gauges) > 0:
 
         def _annotation_text(x):
@@ -223,25 +247,6 @@ def plot_map(
                 ),
                 axis=1,
             )
-    patches = (
-        []
-    )  # manual patches for legend, see https://github.com/geopandas/geopandas/issues/660
-    if lakes is not None:
-        kwargs = dict(
-            facecolor="lightblue", edgecolor="black", linewidth=1, label="lakes"
-        )
-        lakes.plot(ax=ax, zorder=4, **kwargs)
-        patches.append(mpatches.Patch(**kwargs))
-    if reservoirs is not None:
-        kwargs = dict(
-            facecolor="blue", edgecolor="black", linewidth=1, label="reservoirs"
-        )
-        reservoirs.plot(ax=ax, zorder=4, **kwargs)
-        patches.append(mpatches.Patch(**kwargs))
-    if glaciers is not None:
-        kwargs = dict(facecolor="grey", edgecolor="grey", linewidth=1, label="glaciers")
-        glaciers.plot(ax=ax, zorder=4, **kwargs)
-        patches.append(mpatches.Patch(**kwargs))
 
     ax.xaxis.set_visible(True)
     ax.yaxis.set_visible(True)
@@ -251,7 +256,7 @@ def plot_map(
     legend = ax.legend(
         handles=[*ax.get_legend_handles_labels()[0], *patches],
         # title="Legend",
-        loc="lower right",
+        loc=legend_loc,
         frameon=True,
         framealpha=0.7,
         edgecolor="k",
@@ -275,6 +280,7 @@ def plot_map_model(
     gauges_name_legend: str = "output locations",
     meteo_locations: Optional[gpd.GeoDataFrame] = None,
     buffer_km: Optional[float] = 2.0,
+    legend_loc: str = "lower right",
     **kwargs,
 ):
     """
@@ -301,6 +307,8 @@ def plot_map_model(
         GeoDataFrame with the meteorological stations to add to the plot.
     buffer_km : float, optional
         Buffer in km around the region for the plot extent.
+    legend_loc : str, optional
+        Location of the legend in the plot. Default is "lower right".
     kwargs : dict
         Additional keyword arguments to pass to da.plot()
 
@@ -339,5 +347,6 @@ def plot_map_model(
         reservoirs=mod.geoms.get("reservoirs", None),
         glaciers=mod.geoms.get("glaciers", None),
         buffer_km=buffer_km,
+        legend_loc=legend_loc,
         **kwargs,
     )

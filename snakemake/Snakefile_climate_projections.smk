@@ -42,9 +42,9 @@ rule all:
         (clim_project_dir + "/annual_change_scalar_stats_summary.nc"),
         (clim_project_dir + "/annual_change_scalar_stats_summary.csv"),
         (clim_project_dir + "/annual_change_scalar_stats_summary_mean.csv"),
-        stats_change_plt = (clim_project_dir + "/plots/projected_climate_statistics.png"),
-        precip_plt = (clim_project_dir + "/plots/precipitation_anomaly_projections_abs.png"),
-        temp_plt = (clim_project_dir + "/plots/temperature_anomaly_projections_abs.png"),
+        stats_change_plt = (project_dir + "/plots/climate_projections/projected_climate_statistics.png"),
+        precip_plt = (project_dir + "/plots/climate_projections/precip_anomaly_projections_abs.png"),
+        temp_plt = (project_dir + "/plots/climate_projections/temp_anomaly_projections_abs.png"),
         snake_config = f"{project_dir}/config/snake_config_climate_projections.yml",
 
 ruleorder: monthly_stats_hist > monthly_stats_fut > monthly_change > monthly_change_scalar_merge
@@ -91,6 +91,8 @@ rule monthly_stats_hist:
         name_clim_project = clim_project,
         variables = variables,
         pet_method = pet_method,
+        tdew_method = get_config(config, "tdew_method", default="rh"),
+        compute_wind = get_config(config, "compute_wind", default=False),
         save_grids = save_grids,
         time_horizon = {"historical": get_config(config, "historical", optional=False)},
     script: "../src/get_stats_climate_proj.py"
@@ -114,6 +116,8 @@ rule monthly_stats_fut:
         name_clim_project = clim_project,
         variables = variables,
         pet_method = pet_method,
+        tdew_method = get_config(config, "tdew_method", default="rh"),
+        compute_wind = get_config(config, "compute_wind", default=False),
         save_grids = save_grids,
         time_horizon = get_config(config, "future_horizons", optional=False),
     script: "../src/get_stats_climate_proj.py"
@@ -149,7 +153,7 @@ rule monthly_change_scalar_merge:
         stats_change_summary = (clim_project_dir + "/annual_change_scalar_stats_summary.nc"),
         stats_change_summary_csv = (clim_project_dir + "/annual_change_scalar_stats_summary.csv"),
         stats_change_summary_csv_mean = (clim_project_dir + "/annual_change_scalar_stats_summary_mean.csv"),
-        stats_change_plt = (clim_project_dir + "/plots/projected_climate_statistics.png"),
+        stats_change_plt = (project_dir + "/plots/climate_projections/projected_climate_statistics.png"),
     params:
         clim_project_dir = f"{clim_project_dir}",
         horizons = future_horizons,
@@ -164,11 +168,10 @@ rule plot_climate_proj_timeseries:
         stats_time_nc = expand((clim_project_dir + "/stats_time-{model}_{scenario}.nc"), model = models, scenario = scenarios),
         monthly_change_mean_grid = expand((clim_project_dir + "/monthly_change_grid/{model}_{scenario}_{horizon}.nc"), model = models, scenario = scenarios, horizon = future_horizons) if save_grids else [],
     params:
-        clim_project_dir = f"{clim_project_dir}",
         scenarios = scenarios,
         horizons = future_horizons,
     output:
-        precip_plt = (clim_project_dir + "/plots/precipitation_anomaly_projections_abs.png"),
-        temp_plt = (clim_project_dir + "/plots/temperature_anomaly_projections_abs.png"),
+        precip_plt = (project_dir + "/plots/climate_projections/precip_anomaly_projections_abs.png"),
+        temp_plt = (project_dir + "/plots/climate_projections/temp_anomaly_projections_abs.png"),
         timeseries_nc = (clim_project_dir + "/gcm_timeseries.nc"),
     script: "../src/plot_proj_timeseries.py"

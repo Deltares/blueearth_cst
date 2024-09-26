@@ -1,0 +1,64 @@
+########################################################################################
+#################################### General settings ##################################
+
+# Path to where the wflow model will be stored (include the project name)
+project_dir: tests/test_project_waq
+
+# hydromt "region" for building the model, coordinates are in EPSG 4326
+# for more info on how to fill this, you can see the hydromt documentation: 
+# https://deltares.github.io/hydromt/latest/user_guide/cli.html#region-options
+# For wflow please use either 'basin' or 'subbasin' keywords
+model_region: "{'geom': 'tests/test_project_sample/region/region.geojson'}"
+
+# Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
+# NB: should be ordered from most recent to use last! 
+data_sources: 
+  - artifact_data
+  - tests/data/tests_data_catalog.yml
+
+# Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
+data_sources_climate: config/cmip6_data.yml
+
+###########################################################################################
+################################## Climate projections ####################################
+# climate models and scenarios
+clim_project: cmip6
+# Available models: ['NOAA-GFDL_GFDL-ESM4', 'INM_INM-CM4-8' ,'INM_INM-CM5-0','NIMS-KMA_KACE-1-0-G','NCC_NorESM2-MM','NCC_NorESM2-LM','CMCC_CMCC-CM2-SR5','CMCC_CMCC-ESM2']
+models: ['NOAA-GFDL_GFDL-ESM4', 'INM_INM-CM5-0', 'CSIRO-ARCCSS_ACCESS-CM2']
+# Available scenarios: [ssp126, ssp245, ssp370, ssp585]
+scenarios: [ssp245, ssp585]
+members: [r1i1p1f1]
+
+# time horizons of the climate projections
+start_month_hyd_year: JAN
+historical: 2000, 2010
+future_horizons: 
+  near: 2050, 2060
+  far: 2090, 2100
+
+# Climate projections for the following variables
+# Allowed variables: [precip, temp, temp_dew, ssr, tcc, wind, pet]
+# If temp_dew not available, can be computed from temp [°C] and relative humidity rh [%]
+# If wind not available, can be computed from the u and v components: wind10_u and wind10_v [m/s]
+# PET can also be computed from several equations/variables (see below)
+variables: [precip, temp, temp_dew, kin, tcc, wind]
+
+# Method to compute PET if not available in the climate data - None to use pet in the climate data
+# Available methods: 'None', 'makkink' 'debruin'
+# Required variables are: 'temp' [°C], 'press_msl' [hPa], 'kin'[W/m2] for makkink
+# 'temp' [°C], 'press_msl' [hPa], 'kin' [W/m2], 'kout' [W/m2] for debruin
+pet_method: makkink
+# Method to compute temp_dew if not available - None to use temp_dew in the climate data
+# Available method: 'None', 'rh' for realtive humidity, 'sh' for specific humidity
+# Required varibales are: 'temp' [°C], 'rh' [%] for rh method
+# 'temp' [°C], 'sh' [%], 'press_msl' [hPa] for sh method
+tdew_method: sh
+# Calculate wind using u and v components
+compute_wind: False
+
+# Additional gridded outputs (else only basin average)
+save_grids: TRUE
+# Threshold to apply to avoid too large change factors for dry months [mm/month]
+change_drymonth_threshold: 3.0
+# Maximum change factor for dry months [%]
+change_drymonth_maxchange: 50

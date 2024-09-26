@@ -9,6 +9,37 @@ import numpy as np
 
 from typing import List, Tuple, Union
 
+CLIMATE_VARS = {
+    "precip": {
+        "resample": "sum",
+        "multiplier": True,
+    },
+    "temp": {
+        "resample": "mean",
+        "multiplier": False,
+    },
+    "pet": {
+        "resample": "sum",
+        "multiplier": True,
+    },
+    "temp_dew": {
+        "resample": "mean",
+        "multiplier": False,
+    },
+    "kin": {
+        "resample": "mean",
+        "multiplier": True,
+    },
+    "wind": {
+        "resample": "mean",
+        "multiplier": True,
+    },
+    "tcc": {
+        "resample": "mean",
+        "multiplier": True,
+    },
+}
+
 
 def intersection(lst1, lst2):
     return list(set(lst1) & set(lst2))
@@ -22,6 +53,22 @@ def get_change_clim_projections(
     drymonth_maxchange: float = 50.0,
 ):
     """
+    Calculate grid changes between future and historical climate for several statistics.
+
+    Supported variables:
+    * precip: precipitation [mm/month] or [mm/day]
+    * temp: temperature [°C]
+    * pet: potential evapotranspiration [mm/month] - can be computed using several
+      methods and variables (see pet_method)
+    * temp_dew: dew point temperature [°C] - can be computed using relative or specific
+      humidity (see tdew_method)
+    * wind: wind speed [m/s] - can be computed from u and v wind components
+    * kin: incoming shortwave radiation [W/m2]
+    * tcc: total cloud cover [-]
+
+    Expected change is absolute [°C] for temperature and dew point temperature, and
+    relative [%] for all others.
+
     Parameters
     ----------
     ds_hist : xarray dataset
@@ -49,8 +96,6 @@ def get_change_clim_projections(
     -------
     monthly_change_mean_grid : xarray dataset
         mean monthly change over the grid.
-    monthly_change_mean_scalar : xarray dataset
-        mean monthly change averaged over the grid.
 
     """
     ds = []
@@ -60,7 +105,7 @@ def get_change_clim_projections(
     if "horizon" in ds_clim.dims:
         ds_clim = ds_clim.sel(horizon=name_horizon)
     for var in intersection(ds_hist.data_vars, ds_clim.data_vars):
-        if var == "precip" or var == "pet":
+        if var in CLIMATE_VARS and CLIMATE_VARS[var]["multiplier"]:
             ds_hist_var = ds_hist[var].sel(scenario=ds_hist.scenario.values[0])
             # multiplicative for precip and pet
             change = (ds_clim[var] - ds_hist_var) / ds_hist_var * 100
@@ -86,11 +131,15 @@ def get_change_clim_projections(
                     ),
                     drymonth_maxchange,
                 )
-        else:  # for temp
+        elif var in CLIMATE_VARS and not CLIMATE_VARS[var]["multiplier"]:  # for temp
             # additive for temp
             change = ds_clim[var] - ds_hist[var].sel(
                 scenario=ds_hist.scenario.values[0]
             )
+        else:
+            print(f"Variable {var} not supported.")
+            continue
+
         ds.append(change.to_dataset())
 
     monthly_change_mean_grid = xr.merge(ds)
@@ -106,6 +155,20 @@ def get_change_annual_clim_proj(
 ):
     """
     Calculate changes between future and historical climate for several statistics.
+
+    Supported variables:
+    * precip: precipitation [mm/month] or [mm/day]
+    * temp: temperature [°C]
+    * pet: potential evapotranspiration [mm/month] - can be computed using several
+      methods and variables (see pet_method)
+    * temp_dew: dew point temperature [°C] - can be computed using relative or specific
+      humidity (see tdew_method)
+    * wind: wind speed [m/s] - can be computed from u and v wind components
+    * kin: incoming shortwave radiation [W/m2]
+    * tcc: total cloud cover [-]
+
+    Expected change is absolute [°C] for temperature and dew point temperature, and
+    relative [%] for all others.
 
     Parameters
     ----------
@@ -144,7 +207,7 @@ def get_change_annual_clim_proj(
             f"{ds_clim_time['time.year'][-1].values}-{start_month_hyd_year}"
         ) - pd.DateOffset(months=1)
 
-        if var == "precip" or var == "pet":
+        if var in CLIMATE_VARS and CLIMATE_VARS[var]["resample"] == "sum":
             # multiplicative for precip and pet
             hist = (
                 ds_hist_time[var]
@@ -161,7 +224,9 @@ def get_change_annual_clim_proj(
                 .resample(time=f"YS-{start_month_hyd_year}")
                 .sum("time")
             )
-        else:  # for temp
+        elif (
+            var in CLIMATE_VARS and CLIMATE_VARS[var]["resample"] == "mean"
+        ):  # for temp
             # additive for temp
             hist = (
                 ds_hist_time[var]
@@ -178,6 +243,9 @@ def get_change_annual_clim_proj(
                 .resample(time=f"YS-{start_month_hyd_year}")
                 .mean("time")
             )
+        else:
+            print(f"Variable {var} not supported.")
+            continue
 
         # calc statistics
         for stat_name in stats:  # , stat_props in stats_dic.items():
@@ -189,9 +257,9 @@ def get_change_annual_clim_proj(
                 hist_stat = getattr(hist, stat_name)("time")
                 clim_stat = getattr(clim, stat_name)("time")
 
-            if var == "precip" or var == "pet":
+            if var in CLIMATE_VARS and CLIMATE_VARS[var]["multiplier"]:
                 change = (clim_stat - hist_stat) / hist_stat * 100
-            else:
+            elif var in CLIMATE_VARS and not CLIMATE_VARS[var]["multiplier"]:
                 change = clim_stat - hist_stat
             change = change.assign_coords({"stats": stat_name}).expand_dims("stats")
 
@@ -219,11 +287,25 @@ def get_expected_change_scalar(
 
     Output is a netcdf file with the expected change in annual statistics.
 
+    Supported variables:
+    * precip: precipitation [mm/month] or [mm/day]
+    * temp: temperature [°C]
+    * pet: potential evapotranspiration [mm/month] - can be computed using several
+      methods and variables (see pet_method)
+    * temp_dew: dew point temperature [°C] - can be computed using relative or specific
+      humidity (see tdew_method)
+    * wind: wind speed [m/s] - can be computed from u and v wind components
+    * kin: incoming shortwave radiation [W/m2]
+    * tcc: total cloud cover [-]
+
+    Expected change is absolute [°C] for temperature and dew point temperature, and
+    relative [%] for all others.
+
     Parameters
     ----------
     nc_historical : Union[str, Path]
         Path to the historical timeseries netcdf file. Contains monthly timeseries.
-        Supported variables: precip, temp.
+        Supported variables: precip, temp, pet, temp_dew, wind, kin, tcc.
         Required dimensions: time, model, scenario, member.
     nc_future : Union[str, Path]
         Path to the future timeseries netcdf file. Contains monthly timeseries.
@@ -313,11 +395,25 @@ def get_expected_change_grid(
 
     Output is a netcdf file with the expected gridded change in monthly statistics.
 
+    Supported variables:
+    * precip: precipitation [mm/month] or [mm/day]
+    * temp: temperature [°C]
+    * pet: potential evapotranspiration [mm/month] - can be computed using several
+      methods and variables (see pet_method)
+    * temp_dew: dew point temperature [°C] - can be computed using relative or specific
+      humidity (see tdew_method)
+    * wind: wind speed [m/s] - can be computed from u and v wind components
+    * kin: incoming shortwave radiation [W/m2]
+    * tcc: total cloud cover [-]
+
+    Expected change is absolute [°C] for temperature and dew point temperature, and
+    relative [%] for all others.
+
     Parameters
     ----------
     nc_historical : Union[str, Path]
         Path to the historical timeseries netcdf file. Contains monthly timeseries.
-        Supported variables: precip, temp.
+        Supported variables: precip, temp, pet, temp_dew, wind, kin, tcc.
         Required dimensions: lat, lon, time, model, scenario, member.
     nc_future : Union[str, Path]
         Path to the future timeseries netcdf file. Contains monthly timeseries.

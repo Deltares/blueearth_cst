@@ -83,6 +83,26 @@ eca_climate:
     var_name: precip
   meta:
     category: meteo
+modis_snow:
+  path: modis_snow_piave.nc
+  data_type: RasterDataset
+  driver: netcdf
+  kwargs:
+    chunks:
+      longitude: 3600
+      latitude: 3600
+  meta:
+    category: hydrography
+    notes: some month can be missing for certain years - check if download issue
+    processing_notes: converted from HDF/XML to NetCDF files per year
+    processing_script:
+      - download_script: nsidc-download_MOD10CM.061_2024-08-26.py
+      - conversion_script: process_MODIS.ipynb
+    paper_doi: 10.5067/MODIS/MOD10C1.061
+    paper_ref: Hall and Riggs (2015)
+    source_license: https://lpdaac.usgs.gov/data/data-citation-and-policies/
+    source_url: https://nsidc.org/data/mod10cm/versions/61
+  version: 6.1
 river_atlas:
   data_type: GeoDataFrame
   path: river_atlas.geojson

@@ -1,5 +1,5 @@
 import os
-from os.path import join, dirname
+from os.path import join, dirname, isfile
 import numpy as np
 from tomli import load as load_toml
 import subprocess
@@ -13,6 +13,7 @@ from ..src import copy_config_files
 from ..src import downscale_delta_change
 from ..src import setup_config_future
 from ..src import plot_results_delta
+from ..src import plot_results_grid_delta
 
 
 def test_copy_config(tmpdir):
@@ -171,21 +172,53 @@ def test_plot_results_delta(tmpdir, config_fao):
     )
 
     # Check if plots exist
-    assert os.path.exists(f"{plot_dir}/model_delta_runs/cumsum_1.png")
-    assert os.path.exists(f"{plot_dir}/model_delta_runs/mean_monthly_Q_1.png")
-    assert os.path.exists(f"{plot_dir}/model_delta_runs/nm7q_1.png")
-    assert os.path.exists(f"{plot_dir}/model_delta_runs/max_annual_q_1.png")
-    assert os.path.exists(f"{plot_dir}/model_delta_runs/mean_annual_q_1.png")
-    assert os.path.exists(f"{plot_dir}/model_delta_runs/qhydro_1.png")
-    assert os.path.exists(f"{plot_dir}/model_delta_runs/rel_mean_annual_q_1.png")
-    assert os.path.exists(f"{plot_dir}/model_delta_runs/rel_max_annual_q_1.png")
-    assert os.path.exists(f"{plot_dir}/model_delta_runs/rel_nm7q_annual_q_1.png")
-    assert os.path.exists(f"{plot_dir}/model_delta_runs/boxplot_q_abs_6349400.png")
-    assert os.path.exists(f"{plot_dir}/model_delta_runs/boxplot_q_rel_6349400.png")
-    assert os.path.exists(f"{plot_dir}/model_delta_runs/boxplot_snow_rel.png")
+    assert os.path.exists(f"{plot_dir}/model_delta_runs/flow/1/cumsum_1.png")
+    assert os.path.exists(f"{plot_dir}/model_delta_runs/flow/1/mean_monthly_Q_1.png")
+    assert os.path.exists(f"{plot_dir}/model_delta_runs/flow/1/nm7q_1.png")
+    assert os.path.exists(f"{plot_dir}/model_delta_runs/flow/1/max_annual_q_1.png")
+    assert os.path.exists(f"{plot_dir}/model_delta_runs/flow/1/mean_annual_q_1.png")
+    assert os.path.exists(f"{plot_dir}/model_delta_runs/flow/1/qhydro_1.png")
+    assert os.path.exists(f"{plot_dir}/model_delta_runs/flow/1/rel_mean_annual_q_1.png")
+    assert os.path.exists(f"{plot_dir}/model_delta_runs/flow/1/rel_max_annual_q_1.png")
+    assert os.path.exists(f"{plot_dir}/model_delta_runs/flow/1/rel_nm7q_annual_q_1.png")
     assert os.path.exists(
-        f"{plot_dir}/model_delta_runs/mean_monthly_overland flow_basavg.png"
+        f"{plot_dir}/model_delta_runs/flow/6349400/boxplot_q_abs_6349400.png"
     )
     assert os.path.exists(
-        f"{plot_dir}/model_delta_runs/mean_monthly_groundwater recharge_basavg.png"
+        f"{plot_dir}/model_delta_runs/flow/6349400/boxplot_q_rel_6349400.png"
+    )
+    assert os.path.exists(f"{plot_dir}/model_delta_runs/other/boxplot_snow_rel.png")
+    assert os.path.exists(
+        f"{plot_dir}/model_delta_runs/other/mean_monthly_overland flow_basavg.png"
+    )
+    assert os.path.exists(
+        f"{plot_dir}/model_delta_runs/other/mean_monthly_groundwater recharge_basavg.png"
+    )
+
+
+def test_gridded_results_delta(tmpdir, data_libs_fao):
+    """Test plotting projected (changes in) snow cover."""
+    wflow_root = join(SAMPLE_PROJECTDIR, "hydrology_model")
+
+    plot_results_grid_delta.plot_grid_wflow_future(
+        wflow_output_filenames=[
+            join(
+                wflow_root,
+                "run_delta_change",
+                "output_delta_NOAA-GFDL_GFDL-ESM4_ssp245_near.nc",
+            )
+        ],
+        scenarios=["ssp245"],
+        horizons=["near"],
+        models=["NOAA-GFDL_GFDL-ESM4"],
+        plot_dir=f"{tmpdir}/plots/model_delta_runs/other",
+        wflow_root=join(wflow_root, "run_default"),
+        config_historical=join(wflow_root, "run_default", "wflow_sbm_era5.toml"),
+        fontsize=8,
+    )
+
+    # Check the plot was made
+    assert isfile(f"{tmpdir}/plots/model_delta_runs/other/snow_cover_ssp245_near.png")
+    assert isfile(
+        f"{tmpdir}/plots/model_delta_runs/other/snow_cover_ssp245_near_rel.png"
     )

@@ -26,6 +26,17 @@ observations_timeseries = get_config(config, "observations_timeseries", default=
 
 wflow_outvars = get_config(config, "wflow_outvars", default=['river discharge'])
 
+has_gridded_outputs = len(get_config(config, "wflow_outvars_gridded", default=[])) > 0
+
+### Custom Python functions (here to access dictionnary elements from the config based on wildcards)
+def get_forcing_options(wildcards):
+    if "forcing_options" in config:
+        if wildcards.climate_source in config["forcing_options"]:
+            opts = config["forcing_options"][wildcards.climate_source]
+    else:
+        opts = {}
+    return opts
+
 # Master rule: end with all model run and analysed with saving a output plot
 rule all:
     input: 
@@ -33,6 +44,7 @@ rule all:
         f"{project_dir}/plots/wflow_model_performance/basin_area.png",
         expand((project_dir + "/plots/wflow_model_performance/{climate_source}/precip.png"), climate_source = climate_sources),
         f"{project_dir}/config/snake_config_model_creation.yml",
+        f"{project_dir}/plots/wflow_model_performance/gridded_output.txt",
 
 # Rule to copy config files to the project_dir/config folder
 rule copy_config:
@@ -97,6 +109,7 @@ rule setup_runtime:
         starttime = get_config(config, "starttime", optional=False),
         endtime = get_config(config, "endtime", optional=False),
         clim_source = "{climate_source}",
+        forcing_options = get_forcing_options,
         basin_dir = basin_dir,
     script: "../src/setup_time_horizon.py"
 
@@ -116,7 +129,8 @@ rule run_wflow:
     input:
         forcing_fid = (project_dir + "/climate_historical/wflow_data/inmaps_historical_{climate_source}.nc")
     output:
-        csv_file = (basin_dir + "/run_default/output_{climate_source}.csv")
+        csv_file = (basin_dir + "/run_default/output_{climate_source}.csv"),
+        nc_file = (basin_dir + "/run_default/output_{climate_source}.nc") if has_gridded_outputs else []
     params:
         toml_fid = (basin_dir + "/run_default/wflow_sbm_{climate_source}.toml"),
     shell:
@@ -126,7 +140,6 @@ rule run_wflow:
 rule plot_results:
    input:
        csv_file = expand((basin_dir + "/run_default/output_{climate_source}.csv"), climate_source = climate_sources),
-       script = "src/plot_results.py"
    output: 
        output_png = f"{project_dir}/plots/wflow_model_performance/hydro_wflow_1.png",
    params:
@@ -135,7 +148,10 @@ rule plot_results:
        gauges_output_fid = output_locations,
        climate_sources = climate_sources,
        climate_sources_colors = climate_sources_colors,
-       add_budyko_plot = get_config(config, "plot_budyko", default=False),
+       add_budyko_plot = get_config(config, "historical_hydrology_plots.plot_budyko", default=False),
+       max_nan_year = get_config(config, "historical_hydrology_plots.flow.max_nan_per_year", default=60),
+       max_nan_month = get_config(config, "historical_hydrology_plots.flow.max_nan_per_month", default=5),
+       skip_temp_pet_sources = get_config(config, "historical_hydrology_plots.clim.skip_temp_pet_sources", default=[]),
    script: "../src/plot_results.py"
 
 # Rule to plot the wflow basin, rivers, gauges and DEM on a map
@@ -147,10 +163,11 @@ rule plot_map:
     params:
         project_dir = f"{project_dir}",
         output_locations = output_locations,
-        output_locations_legend = get_config(config, "output_locations_legend", default="output locations"),
+        output_locations_legend = get_config(config, "historical_hydrology_plots.basin_map.output_locations_legend", default="output locations"),
         data_catalog = DATA_SOURCES,
         meteo_locations = get_config(config, "climate_locations", default=None),
         buffer_km = get_config(config, "region_buffer", default=2),
+        legend_loc = get_config(config, "historical_hydrology_plots.basin_map.legend_loc", default="lower right"),
     script: "../src/plot_map.py"
 
 # Rule to plot the forcing on a map
@@ -166,3 +183,15 @@ rule plot_forcing:
         config_fn=("wflow_sbm_{climate_source}.toml"),
         climate_source="{climate_source}",
     script: "../src/plot_map_forcing.py"
+
+rule plot_gridded_results:
+    input:
+        nc_files = expand((basin_dir + "/run_default/output_{climate_source}.nc"), climate_source = climate_sources) if has_gridded_outputs else [],
+    output:
+        output_txt = (project_dir + "/plots/wflow_model_performance/gridded_output.txt")
+    params:
+        project_dir = f"{project_dir}",
+        climate_sources = climate_sources,
+        data_catalog = DATA_SOURCES,
+        observations_snow = get_config(config, "observations_snow", default=None),
+    script: "../src/plot_results_grid.py"

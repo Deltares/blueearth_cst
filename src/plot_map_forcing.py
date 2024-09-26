@@ -19,9 +19,9 @@ import sys
 
 parent_module = sys.modules[".".join(__name__.split(".")[:-1]) or "__main__"]
 if __name__ == "__main__" or parent_module.__name__ == "__main__":
-    from func_plot_map import plot_map_model
+    from plot_utils.func_plot_map import plot_map_model
 else:
-    from .func_plot_map import plot_map_model
+    from .plot_utils.func_plot_map import plot_map_model
 
 
 def plot_forcing(

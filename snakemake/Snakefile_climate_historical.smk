@@ -60,6 +60,7 @@ rule plot_region_and_location:
         river_fn = get_config(config, "river_geom_fn", default=None),
         hydrography_fn = get_config(config, "hydrography_fn", default="merit_hydro"),
         buffer_km = get_config(config, "region_buffer", default=10),
+        legend_loc = get_config(config, "historical_climate_plots.basin_map.legend_loc", default="lower right"),
     output:
         region_plot = f"{project_dir}/plots/climate_historical/region_plot.png",
     script:
@@ -129,6 +130,8 @@ rule plot_location_climate:
         precip_peak = get_config(config, "climate_thresholds.precip.peak", default=40),
         precip_dry = get_config(config, "climate_thresholds.precip.dry", default=0.2),
         temp_heat = get_config(config, "climate_thresholds.temp.heat", default=25),
+        max_nan_year = get_config(config, "historical_climate_plots.climate_per_location.max_nan_per_year", default=60),
+        max_nan_month = get_config(config, "historical_climate_plots.climate_per_location.max_nan_per_month", default=5),
     output:
         point_plot_done = f"{project_dir}/plots/climate_historical/point/point_climate.txt",
     script:
@@ -156,8 +159,6 @@ rule derive_trends_gridded:
         data_catalog = data_catalog,
         river_fn = get_config(config, "river_geom_fn", default=None) if get_config(config, "historical_climate_plots.mean_precipitation.add_rivers", default=False) else None,
         year_per_line = get_config(config, "historical_climate_plots.climate_per_year.year_per_line", default=8),
-        line_height_yearly_plot = get_config(config, "historical_climate_plots.climate_per_year.line_height", default=8),
-        line_height_mean_precip = get_config(config, "historical_climate_plots.mean_precipitation.line_height", default=8),
         fs_yearly_plot = get_config(config, "historical_climate_plots.climate_per_year.fontsize", default=8),
         fs_mean_precip = get_config(config, "historical_climate_plots.mean_precipitation.fontsize", default=8),
     output:

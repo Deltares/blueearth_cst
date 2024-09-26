@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Plot wflow results and compare to observations if any
 """
@@ -6,12 +5,11 @@ Plot wflow results and compare to observations if any
 import xarray as xr
 import numpy as np
 import os
-from os.path import join, dirname
+from os.path import join
 from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 import hydromt
-from hydromt_wflow import WflowModel
 import seaborn as sns
 
 from typing import Union, List, Optional
@@ -21,7 +19,7 @@ import sys
 
 parent_module = sys.modules[".".join(__name__.split(".")[:-1]) or "__main__"]
 if __name__ == "__main__" or parent_module.__name__ == "__main__":
-    from func_plot_signature import (
+    from plot_utils.func_plot_signature import (
         plot_signatures,
         plot_hydro,
         compute_metrics,
@@ -34,8 +32,9 @@ if __name__ == "__main__" or parent_module.__name__ == "__main__":
         determine_budyko_curve_terms,
         plot_budyko,
     )
+    from wflow.wflow_utils import get_wflow_results
 else:
-    from .func_plot_signature import (
+    from .plot_utils.func_plot_signature import (
         plot_signatures,
         plot_hydro,
         compute_metrics,
@@ -48,137 +47,22 @@ else:
         determine_budyko_curve_terms,
         plot_budyko,
     )
-
-
-def get_wflow_results(
-    wflow_root: Union[str, Path],
-    climate_source: List[str],
-    wflow_config_fn_prefix: str = "wflow_sbm",  # climate source name used as suffix in config file
-    gauges_locs: Union[Path, str] = None,
-):
-    """
-    Get wflow results as xarray.Dataset for simulated discharges, simulated flux/states as basin averages and basin average forcing.
-
-    Parameters
-    ----------
-    wflow_root : Union[str, Path]
-        Path to the wflow model root folder.
-    climate_source: List[str]
-        climate dataset for run to read.
-    wflow_config_fn_prefix : str, optional
-        Prefix name of the wflow configuration file, by default "wflow_sbm". Used to read
-        the right results files from the wflow model.
-    gauges_locs : Union[Path, str], optional
-        Path to gauges/observations locations file, by default None
-        Required columns: wflow_id, station_name, x, y.
-        Values in wflow_id column should match column names in ``observations_fn``.
-        Separator is , and decimal is .
-
-    Returns
-    ----------
-    qsim: xr.Dataset
-        simulated discharge at wflow basin locations  per climate source
-    qsim_gauges: xr.Dataset
-        simulated discharge at observation locations  per climate source
-    ds_clim: xr.Dataset
-        basin average precipitation, temperature and potential evaporation per climate source
-    ds_basin: xr.Dataset
-        basin average flux and state variables per climate source
-
-
-    """
-    mod = WflowModel(
-        root=wflow_root,
-        mode="r",
-        config_fn=wflow_config_fn_prefix + f"_{climate_source}.toml",
-    )
-    qsim = mod.results["Q_gauges"].rename("Q")
-    # add climate data source
-    qsim = qsim.assign_coords(climate_source=(f"{climate_source}")).expand_dims(
-        ["climate_source"]
-    )
-    qsim = qsim.assign_coords(
-        station_name=(
-            "index",
-            ["wflow_" + x for x in list(qsim["index"].values.astype(str))],
-        )
-    )
-
-    # Discharge at the gauges_locs if present
-    if gauges_locs is not None and os.path.exists(gauges_locs):
-        # Get name of gauges dataset from the gauges locations file
-        gauges_output_name = os.path.basename(gauges_locs).split(".")[0]
-        if f"Q_gauges_{gauges_output_name}" in mod.results:
-            qsim_gauges = mod.results[f"Q_gauges_{gauges_output_name}"].rename("Q")
-            # Add station_name > bug for reading geoms if dir_input in toml is not None
-            if f"gauges_{gauges_output_name}" not in mod.geoms:
-                dir_geoms = dirname(
-                    join(
-                        mod.root,
-                        mod.get_config("dir_input", abs_path=False),
-                        mod.get_config("input.path_static", abs_path=False),
-                    )
-                )
-                dir_geoms = join(dir_geoms, "staticgeoms")
-                mod.read_geoms(dir_geoms)
-            # Add station_name
-            gdf_gauges = (
-                mod.geoms[f"gauges_{gauges_output_name}"]
-                .rename(columns={"wflow_id": "index"})
-                .set_index("index")
-            )
-            qsim_gauges = qsim_gauges.assign_coords(
-                station_name=(
-                    "index",
-                    list(gdf_gauges["station_name"][qsim_gauges.index.values].values),
-                )
-            )
-            qsim_gauges = qsim_gauges.assign_coords(
-                climate_source=(f"{climate_source}")
-            ).expand_dims(["climate_source"])
-    else:
-        qsim_gauges = None
-
-        # Climate data P, EP, T for wflow_subcatch
-    ds_clim = xr.merge(
-        [
-            mod.results["P_subcatchment"],
-            mod.results["T_subcatchment"],
-            mod.results["EP_subcatchment"],
-        ]
-    )
-    # add climate data source
-    ds_clim = ds_clim.assign_coords(climate_source=(f"{climate_source}")).expand_dims(
-        ["climate_source"]
-    )
-
-    # Other catchment average outputs
-    ds_basin = xr.merge(
-        [mod.results[dvar] for dvar in mod.results if "_basavg" in dvar]
-    )
-    ds_basin = ds_basin.squeeze(drop=True)
-    # If precipitation, skip as this will be plotted with the other climate data
-    if "precipitation_basavg" in ds_basin:
-        ds_basin = ds_basin.drop_vars("precipitation_basavg")
-
-    # add climate data source
-    ds_basin = ds_basin.assign_coords(climate_source=(f"{climate_source}")).expand_dims(
-        ["climate_source"]
-    )
-
-    return qsim, qsim_gauges, ds_clim, ds_basin
+    from .wflow.wflow_utils import get_wflow_results
 
 
 def analyse_wflow_historical(
     wflow_root: Union[str, Path],
     climate_sources: List[str],
-    plot_dir: Union[str, Path] = None,
-    observations_fn: Union[Path, str] = None,
-    gauges_locs: Union[Path, str] = None,
+    plot_dir: Optional[Union[str, Path]] = None,
+    observations_fn: Optional[Union[Path, str]] = None,
+    gauges_locs: Optional[Union[Path, str]] = None,
     wflow_config_fn_prefix: str = "wflow_sbm",
-    climate_sources_colors: List[str] = None,
+    climate_sources_colors: Optional[List[str]] = None,
     split_year: Optional[int] = None,
     add_budyko_plot: bool = True,
+    max_nan_year: int = 60,
+    max_nan_month: int = 5,
+    skip_temp_pet_sources: List[str] = [],
 ):
     """
     Analyse and plot wflow model performance for historical run.
@@ -234,6 +118,15 @@ def analyse_wflow_historical(
         Derive additional trends for years before and after this year.
     add_budyko_plot : bool, optional
         If True, plot the budyko framework. Default is True.
+    max_nan_year : int, optional
+        Maximum number of missing days per year in the observations data to consider
+        the year for the discharge analysis. By default 60.
+    max_nan_month : int, optional
+        Maximum number of missing days per month in the observations data to consider
+        the month for the discharge analysis. By default 5.
+    skip_temp_pet_sources : List[str]
+        List of climate sources for which to skip the plotting temperature and
+        potential evapotranspiration.
     """
     ### 1. Prepare output and plotting options ###
 
@@ -280,29 +173,32 @@ def analyse_wflow_historical(
     # Instantiate wflow model
     # read wflow runs for different climate sources
     qsim = []
-    qsim_gauges = []
     ds_clim = []
     ds_basin = []
     for climate_source in np.atleast_1d(climate_sources).tolist():
-        qsim_source, qsim_gauges_source, ds_clim_source, ds_basin_source = (
-            get_wflow_results(
-                wflow_root=wflow_root,
-                wflow_config_fn_prefix=wflow_config_fn_prefix,
-                climate_source=climate_source,
-                gauges_locs=gauges_locs,
-            )
+        wflow_config_fn = wflow_config_fn_prefix + f"_{climate_source}.toml"
+        qsim_source, ds_clim_source, ds_basin_source = get_wflow_results(
+            wflow_root=wflow_root,
+            config_fn=wflow_config_fn,
+            gauges_locs=gauges_locs,
+            remove_warmup=False,
         )
+        # Add climate source to dimension
+        qsim_source = qsim_source.assign_coords(
+            climate_source=(f"{climate_source}")
+        ).expand_dims(["climate_source"])
+        ds_clim_source = ds_clim_source.assign_coords(
+            climate_source=(f"{climate_source}")
+        ).expand_dims(["climate_source"])
+        ds_basin_source = ds_basin_source.assign_coords(
+            climate_source=(f"{climate_source}")
+        ).expand_dims(["climate_source"])
         qsim.append(qsim_source)
-        qsim_gauges.append(qsim_gauges_source)
         ds_clim.append(ds_clim_source)
         ds_basin.append(ds_basin_source)
     qsim = xr.concat(qsim, dim="climate_source")
     ds_clim = xr.concat(ds_clim, dim="climate_source")
     ds_basin = xr.concat(ds_basin, dim="climate_source")
-    if qsim_gauges[0] is not None:
-        qsim_gauges = xr.concat(qsim_gauges, dim="climate_source")
-        # merge with qsim
-        qsim = xr.concat([qsim, qsim_gauges], dim="index")
 
     ### make sure the time period of all climate sources is the same for the subsequent plots.
     qsim = qsim.dropna("time")
@@ -318,10 +214,24 @@ def analyse_wflow_historical(
             print(f"Plot climatic data at wflow basin {index}")
             ds_clim_i = ds_clim.sel(index=index)
             # Plot per year
-            plot_clim(ds_clim_i, plot_dir, f"wflow_{index}", "year", color)
+            plot_clim(
+                ds_clim_i,
+                Folder_out=plot_dir,
+                station_name=f"wflow_{index}",
+                period="year",
+                color=color,
+                skip_temp_pet_sources=skip_temp_pet_sources,
+            )
             plt.close()
             # Plot per month
-            plot_clim(ds_clim_i, plot_dir, f"wflow_{index}", "month", color)
+            plot_clim(
+                ds_clim_i,
+                Folder_out=plot_dir,
+                station_name=f"wflow_{index}",
+                period="month",
+                color=color,
+                skip_temp_pet_sources=skip_temp_pet_sources,
+            )
             plt.close()
 
     ### 5. Plot other basin average outputs ###
@@ -349,17 +259,6 @@ def analyse_wflow_historical(
             do_signatures = True
     else:
         print("Simulation is less than a year so model warm-up period will be plotted.")
-    # Sel qsim and qobs so that they have the same time period
-    if has_observations:
-        start = max(qsim.time.values[0], qobs.time.values[0])
-        end = min(qsim.time.values[-1], qobs.time.values[-1])
-        # make sure obs and sim have period in common
-        if start < end:
-            qsim = qsim.sel(time=slice(start, end))
-            qobs = qobs.sel(time=slice(start, end))
-        else:
-            has_observations = False
-            print("No common period between observations and simulation.")
 
     # Loop over the stations
     for station_id, station_name in zip(qsim.index.values, qsim.station_name.values):
@@ -380,6 +279,8 @@ def analyse_wflow_historical(
             color=color,
             lw=lw,
             fs=fs,
+            max_nan_year=max_nan_year,
+            max_nan_month=max_nan_month,
         )
         plt.close()
         # b) Signature plot and performance metrics
@@ -489,6 +390,9 @@ if __name__ == "__main__":
             climate_sources=sm.params.climate_sources,
             climate_sources_colors=sm.params.climate_sources_colors,
             add_budyko_plot=sm.params.add_budyko_plot,
+            max_nan_year=sm.params.max_nan_year,
+            max_nan_month=sm.params.max_nan_month,
+            skip_temp_pet_sources=sm.params.skip_temp_pet_sources,
         )
     else:
         analyse_wflow_historical(

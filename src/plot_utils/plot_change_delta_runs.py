@@ -40,6 +40,7 @@ def plot_near_far_abs(
     lw: int = 0.6,
     near_legend: str = "near future",
     far_legend: str = "far future",
+    show_all_lines: bool = False,
 ):
     """
     subplots of variable for near and far future showing scenarios and historical output.
@@ -66,47 +67,85 @@ def plot_near_far_abs(
         legend for near future
     far_legend: str = "far future",
         legend for far future
+    show_all_lines: bool = False,
+        if True, all lines are shown in the plot. Else the mean and min-max of the
+        models are shown. Default is False.
     """
+    if not os.path.exists(plot_dir):
+        os.makedirs(plot_dir)
 
     if "qhydro" in figname_prefix:
-        fig, (ax1, ax2) = plt.subplots(
+        fig, axes = plt.subplots(
             2, 1, figsize=(16 / 2.54, 12 / 2.54), sharex=True, sharey=True
         )
     else:
-        fig, (ax1, ax2) = plt.subplots(
+        fig, axes = plt.subplots(
             1, 2, figsize=(16 / 2.54, 8 / 2.54), sharex=True, sharey=True
         )
-    for scenario in qsim_delta_metric.scenario.values:
-        # first entry just for legend
-        qsim_delta_metric.sel(horizon="near").sel(scenario=scenario).sel(
-            model=qsim_delta_metric.model[0]
-        ).plot(label=f"{scenario}", ax=ax1, color=COLORS[scenario], linewidth=lw)
-        qsim_delta_metric.sel(horizon="far").sel(scenario=scenario).sel(
-            model=qsim_delta_metric.model[0]
-        ).plot(label=f"{scenario}", ax=ax2, color=COLORS[scenario], linewidth=lw)
+    axes = axes.flatten()
 
-        # plot all lines
-        qsim_delta_metric.sel(horizon="near").sel(scenario=scenario).plot(
-            hue="model", ax=ax1, color=COLORS[scenario], add_legend=False, linewidth=lw
-        )
-        qsim_delta_metric.sel(horizon="far").sel(scenario=scenario).plot(
-            hue="model", ax=ax2, color=COLORS[scenario], add_legend=False, linewidth=lw
-        )
-    for ax in [ax1, ax2]:
+    for scenario in qsim_delta_metric.scenario.values:
+        for ax, horizon in zip(axes, ["near", "far"]):
+            if show_all_lines:
+                # first entry just for legend
+                qsim_delta_metric.sel(horizon=horizon).sel(scenario=scenario).sel(
+                    model=qsim_delta_metric.model[0]
+                ).plot(label=f"{scenario}", ax=ax, color=COLORS[scenario], linewidth=lw)
+                # plot all lines
+                qsim_delta_metric.sel(horizon=horizon).sel(scenario=scenario).plot(
+                    hue="model",
+                    ax=ax,
+                    color=COLORS[scenario],
+                    add_legend=False,
+                    linewidth=lw,
+                )
+            else:
+                # Find the min, max and mean over the models
+                qsim_delta_metric_min = (
+                    qsim_delta_metric.sel(horizon=horizon)
+                    .sel(scenario=scenario)
+                    .min("model")
+                )
+                qsim_delta_metric_max = (
+                    qsim_delta_metric.sel(horizon=horizon)
+                    .sel(scenario=scenario)
+                    .max("model")
+                )
+                qsim_delta_metric_mean = (
+                    qsim_delta_metric.sel(horizon=horizon)
+                    .sel(scenario=scenario)
+                    .mean("model")
+                )
+                # plot the mean
+                qsim_delta_metric_mean.plot(
+                    label=f"{scenario}", ax=ax, color=COLORS[scenario], linewidth=lw
+                )
+                # plot the min and max with a fill between
+                dim0 = qsim_delta_metric_mean.dims[0]
+                ax.fill_between(
+                    qsim_delta_metric_mean[dim0].values,
+                    qsim_delta_metric_min.values,
+                    qsim_delta_metric_max.values,
+                    color=COLORS[scenario],
+                    alpha=0.4,
+                    # label = f"{scenario} min-max",
+                )
+
+    for ax in axes:
         q_hist_metric.plot(label="historical", color="k", ax=ax, linewidth=lw)
         ax.tick_params(axis="both", labelsize=fs)
         ax.set_xlabel("")
-    ax1.set_ylabel(f"{ylabel}", fontsize=fs)
-    ax2.set_ylabel("")
-    ax1.set_title(near_legend, fontsize=fs)
-    ax2.set_title(far_legend, fontsize=fs)
-    if "mean_monthly" in figname_prefix:
-        ax1.set_xticks(ticks=np.arange(1, 13), labels=MONTHS_LABELS)
-        ax2.set_xticks(ticks=np.arange(1, 13), labels=MONTHS_LABELS)
-    ax1.legend(fontsize=fs)
-    ax2.legend(fontsize=fs)
+        ax.legend(fontsize=fs)
+        if "mean_monthly" in figname_prefix:
+            ax.set_xticks(ticks=np.arange(1, 13), labels=MONTHS_LABELS)
+    axes[0].set_ylabel(f"{ylabel}", fontsize=fs)
+    axes[1].set_ylabel("")
+    axes[0].set_title(near_legend, fontsize=fs)
+    axes[1].set_title(far_legend, fontsize=fs)
+
     plt.tight_layout()
     plt.savefig(os.path.join(plot_dir, f"{figname_prefix}.png"), dpi=300)
+    plt.close()
 
 
 def plot_near_far_rel(
@@ -118,6 +157,7 @@ def plot_near_far_rel(
     lw: int = 0.6,
     near_legend: str = "near future",
     far_legend: str = "far future",
+    show_all_lines: bool = False,
 ):
     """
     subplots of variable for near and far future showing relative change in scenarios compared to historical output
@@ -125,7 +165,8 @@ def plot_near_far_rel(
     Parameters
     ----------
     qsim_delta_metric: xr.DataArray,
-        data to plot for delta runs. Should include horizon (near and far), model and scenario as coordinates.
+        data to plot for delta runs. Should include horizon (near and far), model and
+        scenario as coordinates.
     plot_dir: str,
         directory to save figures
     ylabel: str,
@@ -141,46 +182,83 @@ def plot_near_far_rel(
         legend for near future
     far_legend: str = "far future",
         legend for far future
+    show_all_lines: bool = False,
+        if True, all lines are shown in the plot. Else the mean and min-max of the
+        models are shown. Default is False.
     """
     if figname_prefix == "qhydro":
-        fig, (ax1, ax2) = plt.subplots(
+        fig, axes = plt.subplots(
             2, 1, figsize=(16 / 2.54, 12 / 2.54), sharex=True, sharey=True
         )
     else:
-        fig, (ax1, ax2) = plt.subplots(
+        fig, axes = plt.subplots(
             1, 2, figsize=(16 / 2.54, 8 / 2.54), sharex=True, sharey=True
         )
-    for scenario in qsim_delta_metric.scenario.values:
-        # first entry just for legend
-        qsim_delta_metric.sel(horizon="near").sel(scenario=scenario).sel(
-            model=qsim_delta_metric.model[0]
-        ).plot(label=f"{scenario}", ax=ax1, color=COLORS[scenario], linewidth=lw)
-        qsim_delta_metric.sel(horizon="far").sel(scenario=scenario).sel(
-            model=qsim_delta_metric.model[0]
-        ).plot(label=f"{scenario}", ax=ax2, color=COLORS[scenario], linewidth=lw)
+    axes = axes.flatten()
 
-        # plot all lines
-        qsim_delta_metric.sel(horizon="near").sel(scenario=scenario).plot(
-            hue="model", ax=ax1, color=COLORS[scenario], add_legend=False, linewidth=lw
-        )
-        qsim_delta_metric.sel(horizon="far").sel(scenario=scenario).plot(
-            hue="model", ax=ax2, color=COLORS[scenario], add_legend=False, linewidth=lw
-        )
-    for ax in [ax1, ax2]:
+    for scenario in qsim_delta_metric.scenario.values:
+        for ax, horizon in zip(axes, ["near", "far"]):
+            if show_all_lines:
+                # first entry just for legend
+                qsim_delta_metric.sel(horizon=horizon).sel(scenario=scenario).sel(
+                    model=qsim_delta_metric.model[0]
+                ).plot(label=f"{scenario}", ax=ax, color=COLORS[scenario], linewidth=lw)
+                # plot all lines
+                qsim_delta_metric.sel(horizon=horizon).sel(scenario=scenario).plot(
+                    hue="model",
+                    ax=ax,
+                    color=COLORS[scenario],
+                    add_legend=False,
+                    linewidth=lw,
+                )
+            else:
+                # Find the min, max and mean over the models
+                qsim_delta_metric_min = (
+                    qsim_delta_metric.sel(horizon=horizon)
+                    .sel(scenario=scenario)
+                    .min("model")
+                )
+                qsim_delta_metric_max = (
+                    qsim_delta_metric.sel(horizon=horizon)
+                    .sel(scenario=scenario)
+                    .max("model")
+                )
+                qsim_delta_metric_mean = (
+                    qsim_delta_metric.sel(horizon=horizon)
+                    .sel(scenario=scenario)
+                    .mean("model")
+                )
+                # plot the mean
+                qsim_delta_metric_mean.plot(
+                    label=f"{scenario}", ax=ax, color=COLORS[scenario], linewidth=lw
+                )
+                # plot the min and max with a fill between
+                dim0 = qsim_delta_metric_mean.dims[0]
+                ax.fill_between(
+                    qsim_delta_metric_mean[dim0].values,
+                    qsim_delta_metric_min.values,
+                    qsim_delta_metric_max.values,
+                    color=COLORS[scenario],
+                    alpha=0.4,
+                    # label = f"{scenario} min-max",
+                )
+
+    for ax in axes:
         ax.tick_params(axis="both", labelsize=fs)
         ax.set_xlabel("")
         ax.axhline(0, linestyle="--", color="lightgrey")
-    ax1.set_ylabel(f"{ylabel}", fontsize=fs)
-    ax2.set_ylabel("")
-    ax1.set_title(near_legend, fontsize=fs)
-    ax2.set_title(far_legend, fontsize=fs)
-    if "mean_monthly" in figname_prefix:
-        ax1.set_xticks(ticks=np.arange(1, 13), labels=MONTHS_LABELS)
-        ax2.set_xticks(ticks=np.arange(1, 13), labels=MONTHS_LABELS)
-    ax1.legend(fontsize=fs)
-    ax2.legend(fontsize=fs)
+        ax.legend(fontsize=fs)
+        if "mean_monthly" in figname_prefix:
+            ax.set_xticks(ticks=np.arange(1, 13), labels=MONTHS_LABELS)
+
+    axes[0].set_ylabel(f"{ylabel}", fontsize=fs)
+    axes[1].set_ylabel("")
+    axes[0].set_title(near_legend, fontsize=fs)
+    axes[1].set_title(far_legend, fontsize=fs)
+
     plt.tight_layout()
     plt.savefig(os.path.join(plot_dir, f"rel_{figname_prefix}.png"), dpi=300)
+    plt.close()
 
 
 def get_sum_annual_and_monthly(ds: xr.Dataset, dvar: str, resample: str = "mean"):
@@ -429,81 +507,119 @@ def plot_plotting_position(
     far_legend: str = "far future",
         legend for far future
     """
-    fig, (ax1, ax2) = plt.subplots(
+    do_boxplot = False
+    show_all_markers = False
+    hue_order = np.unique(qsim_delta_var.scenario.values).tolist()
+    palette = [COLORS[scenario] for scenario in hue_order if scenario != "historical"]
+
+    fig, axes = plt.subplots(
         1, 2, figsize=(16 / 2.54, 10 / 2.54), sharex=True, sharey=True
     )
-    for scenario in qsim_delta_var.scenario.values:
-        for model in qsim_delta_var.model.values:
-            # near
-            qsim_delta_var_sel = qsim_delta_var.sel(
-                model=model, scenario=scenario, horizon="near"
+    axes = axes.flatten()
+    for ax, horizon in zip(axes, ["near", "far"]):
+        df_gumbel = pd.DataFrame()
+        for scenario in qsim_delta_var.scenario.values:
+            df_gumbel_scenario = pd.DataFrame()
+            for model in qsim_delta_var.model.values:
+                # near
+                qsim_delta_var_sel = qsim_delta_var.sel(
+                    model=model, scenario=scenario, horizon=horizon
+                )
+                gumbel_p1, plotting_positions_hist, max_y_hist = get_plotting_position(
+                    qsim_delta_var_sel, ascending=ascending
+                )
+                if not do_boxplot and show_all_markers:
+                    ax.plot(
+                        gumbel_p1,
+                        plotting_positions_hist,
+                        marker="o",
+                        color=COLORS[scenario],
+                        linestyle="None",
+                        label="hist.",
+                        markersize=5,
+                    )
+                else:
+                    # convert to df for seaborn
+                    df_gumbel_m = pd.DataFrame(
+                        {
+                            "return_period": gumbel_p1,
+                            "var": plotting_positions_hist.values,
+                            "model": np.repeat(model, len(gumbel_p1)),
+                            "scenario": np.repeat(scenario, len(gumbel_p1)),
+                        }
+                    )
+                    df_gumbel = pd.concat([df_gumbel, df_gumbel_m])
+                    df_gumbel_scenario = pd.concat([df_gumbel_scenario, df_gumbel_m])
+            if not do_boxplot and not show_all_markers:
+                # compute the min, mean, max over the models
+                df_gumbel_scenario = df_gumbel_scenario.groupby("return_period").agg(
+                    {"var": ["min", "mean", "max"]}
+                )
+                # plot the mean with markers
+                df_gumbel_scenario["var"]["mean"].plot(
+                    label=f"{scenario}",
+                    ax=ax,
+                    color=COLORS[scenario],
+                    linestyle="None",
+                    marker="o",
+                    markersize=5,
+                )
+                # fill between min and max
+                ax.fill_between(
+                    df_gumbel_scenario.index,
+                    df_gumbel_scenario["var"]["min"],
+                    df_gumbel_scenario["var"]["max"],
+                    color=COLORS[scenario],
+                    alpha=0.4,
+                )
+        # Add historical
+        gumbel_p1, plotting_positions_hist, max_y_hist = get_plotting_position(
+            qsim_hist_var, ascending=ascending
+        )
+        if do_boxplot:
+            df_hist = pd.DataFrame(
+                {
+                    "return_period": gumbel_p1,
+                    "var": plotting_positions_hist.values,
+                    "model": np.repeat("hist.", len(gumbel_p1)),
+                    "scenario": np.repeat("historical", len(gumbel_p1)),
+                }
             )
-            gumbel_p1, plotting_positions_hist, max_y_hist = get_plotting_position(
-                qsim_delta_var_sel, ascending=ascending
+            df_gumbel = pd.concat([df_gumbel, df_hist])
+            sns.boxplot(
+                data=df_gumbel,
+                x="return_period",
+                y="var",
+                hue="scenario",
+                ax=ax,
+                fliersize=0.5,
+                linewidth=0.8,
+                width=0.8,
+                palette=["grey"] + palette,
+                hue_order=["historical"] + hue_order,
             )
-            ax1.plot(
+        else:
+            # add historical
+            ax.plot(
                 gumbel_p1,
                 plotting_positions_hist,
-                marker="o",
-                color=COLORS[scenario],
+                marker="+",
+                color="k",
                 linestyle="None",
-                label="hist.",
-                markersize=6,
-            )
-            # far
-            qsim_delta_var_sel = qsim_delta_var.sel(
-                model=model, scenario=scenario, horizon="far"
-            )
-            gumbel_p1, plotting_positions_hist, max_y_hist = get_plotting_position(
-                qsim_delta_var_sel, ascending=ascending
-            )
-            ax2.plot(
-                gumbel_p1,
-                plotting_positions_hist,
-                marker="o",
-                color=COLORS[scenario],
-                linestyle="None",
-                label="hist.",
+                label="Historical",
                 markersize=6,
             )
 
-    gumbel_p1, plotting_positions_hist, max_y_hist = get_plotting_position(
-        qsim_hist_var, ascending=ascending
-    )
-    ax1.plot(
-        gumbel_p1,
-        plotting_positions_hist,
-        marker="+",
-        color="k",
-        linestyle="None",
-        label="hist.",
-        markersize=6,
-    )
-    ax2.plot(
-        gumbel_p1,
-        plotting_positions_hist,
-        marker="+",
-        color="k",
-        linestyle="None",
-        label="hist.",
-        markersize=6,
-    )
-
-    ax1.set_ylabel(f"{ylabel}", fontsize=fs)
-    ax1.set_title(near_legend, fontsize=fs)
-    ax2.set_title(far_legend, fontsize=fs)
-    for ax in [ax1, ax2]:
+    axes[0].set_ylabel(f"{ylabel}", fontsize=fs)
+    axes[0].set_title(near_legend, fontsize=fs)
+    axes[1].set_title(far_legend, fontsize=fs)
+    for ax in axes:
         ax.set_xlabel("Return period (1/year)", fontsize=fs)
         ax.xaxis.set_ticks([-np.log(-np.log(1 - 1.0 / t)) for t in ts])
         ax.xaxis.set_ticklabels([t for t in ts])
         ax.tick_params(axis="both", labelsize=fs)
-
-    ll = []
-    for scenario in qsim_delta_var.scenario.values:
-        l1 = mpatches.Patch(color=COLORS[scenario], label=f"{scenario}")
-        ll.append(l1)
-    l3 = mpatches.Patch(color="k", label="Historical")
-    plt.legend(handles=ll + [l3], fontsize=fs)
+        ax.legend(fontsize=fs)
 
     plt.tight_layout()
     plt.savefig(os.path.join(plot_dir, f"plotting_pos_{figname_suffix}.png"), dpi=300)
+    plt.close()
