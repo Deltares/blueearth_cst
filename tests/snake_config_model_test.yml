@@ -32,8 +32,6 @@ wflow_outvars: ['river discharge', 'precipitation', 'overland flow', 'actual eva
 model_region: "{'subbasin': [9.738, 0.4212], 'uparea': 70}"
 # Grid resolution of the model in degrees
 model_resolution: 0.0062475
-# Path to model build configuration
-model_build_config: "tests/wflow_build_model.yml"
 
 # If available, please here put the path to the available observation stations locations files
 # csv file containing three columns: station_ID, x, y
