@@ -15,7 +15,7 @@ FROM condaforge/mambaforge:4.14.0-0
 
 WORKDIR /root/work
 
-COPY environment.yml environment.yaml
+COPY environment_linux.yml environment.yaml
 RUN mamba env create -f environment.yaml -n snakemake -q \
     && . activate snakemake \
     && conda clean --all -y \
