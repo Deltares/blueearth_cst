@@ -36,7 +36,6 @@ dependencies:
   - r-ggplot2
   - r-MASS
   - r-ncdf4
-#  - r-rlang
   - r-scales
   - r-sf
   - r-tibble
