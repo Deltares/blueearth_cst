@@ -40,7 +40,8 @@ or conda/mamba and `Miniforge <https://github.com/conda-forge/miniforge>`_.
 `installation documentation <https://deltares.github.io/Wflow.jl/dev/user_guide/install/#Installing-as-Julia-package>`_.
 
 3. Go to the `release page <https://github.com/Deltares/blueearth_cst/releases>`_ of the toolbox and download the version you wish to install 
-(under Assets, folder "Source code.zip"). Unzip the downloaded folder in the folder of your choice.
+(under Assets, folder "Source code.zip"). Unzip the downloaded folder in the folder of your choice. For Windows users, you also have an environment 
+lock file with fixed dependency that you can decide to use (eg environment_0.1.0_win-64.yml for release 0.1.0)
 
 Windows
 ~~~~~~~
@@ -51,7 +52,7 @@ The last line will install the weathergenr package:
 
 .. code-block:: console
 
-    $ conda create --name blueearth-cst --file cst-win-64.lock
+    $ conda env create -f environment.yml
     $ conda activate blueearth-cst
     $ Rscript src/weathergen/install_rpackages.R
 
@@ -64,7 +65,7 @@ The last line will install the weathergenr package:
 
 .. code-block:: console
 
-    $ conda create --name blueearth-cst --file cst-linux-64.lock
+    $ conda env create -f environment_linux.yml
     $ conda activate blueearth-cst
     $ Rscript src/weathergen/install_rpackages.R
 
@@ -88,7 +89,6 @@ the code folder (where the environment.yml file is located):
 
     $ git clone https://github.com/Deltares/blueearth_cst.git
     $ cd blueearth_cst
-    $ Rscript src/weathergen/install_rpackages.R
 
 Windows
 ~~~~~~~
@@ -112,6 +112,7 @@ tool:
 
     $ conda env create -f environment_linux.yml
     $ conda activate blueearth-cst
+    $ Rscript src/weathergen/install_rpackages.R
 
 Running
 =======
