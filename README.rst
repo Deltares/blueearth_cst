@@ -88,6 +88,7 @@ the code folder (where the environment.yml file is located):
 
     $ git clone https://github.com/Deltares/blueearth_cst.git
     $ cd blueearth_cst
+    $ Rscript src/weathergen/install_rpackages.R
 
 Windows
 ~~~~~~~
@@ -99,6 +100,7 @@ tool:
 
     $ conda env create -f environment.yml
     $ conda activate blueearth-cst
+    $ Rscript src/weathergen/install_rpackages.R
 
 Linux
 ~~~~~
