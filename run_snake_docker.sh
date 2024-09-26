@@ -9,10 +9,6 @@ volumeargs=(
     "-v $(pwd)/.snakemake:${docker_root}/.snakemake"
 )
 
-# uncomment to explore snakemake container:
-# docker run $(echo ${volumeargs[@]}) -ti --entrypoint='' snakemake-singularity bash
-# exit 0
-
 docker run \
     $(echo ${volumeargs[@]}) \
     --privileged \

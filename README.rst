@@ -69,13 +69,16 @@ The last line will install the weathergenr package:
     $ conda activate blueearth-cst
     $ Rscript src/weathergen/install_rpackages.R
 
-Docker installation
--------------------
-TODO
+Docker
+------
+The workflow is also available as a docker image, with all dependencies preinstalled.
+
+.. code-block:: console
+    docker pull https://containers.deltares.nl/CST/cst_workflows:0.1.0
 
 Developer installation
 ----------------------
-This installation allows you to install the latest version of the toolbox using conda/mamba package manager. The installation steps are as follow:
+This installation allows you to install the latest version of the toolbox using conda/mamba package manager. The installation steps are as follows:
 
 1. For both python and R installation we recommend using conda and `Miniconda <https://docs.conda.io/en/latest/miniconda.html>`_.
 
@@ -141,7 +144,7 @@ Then you can run the workflows using the snakemake commands detailed below.
 
 Running from docker image
 -------------------------
-TODO
+A script is available to run via docker: `run_snake_docker.sh`
 
 Snakefile_model_creation
 ------------------------
@@ -207,10 +210,11 @@ The entire workflow is contained in one docker image at the base level. Build it
 .. code-block:: console
     docker build -t cst-workflow:0.0.1 .
 
-Tag and push the image to a new <version> using:
+Tag and push the image to a new <<Tag>> using:
 .. code-block:: console
-    docker tag cst-workflow:0.0.1 deltares/blueearth_cst_workflow:<version>
-    docker push deltares/blueearth_cst_workflow:<version>
+    docker login -u <<deltares_email>> -p <<cli_secret>> https://containers.deltares.nl
+    docker tag cst-workflow:0.0.1 https://containers.deltares.nl/CST/cst_workflows:<<Tag>>
+    docker push https://containers.deltares.nl/CST/cst_workflows:<<Tag>>
 
 License
 =======
