@@ -1,10 +1,10 @@
 """Function to update a wflow model and add gauges and outputs"""
+from hydromt_wflow import WflowModel
 import os
 from os.path import join
 from pathlib import Path
-from typing import List, Union
+from typing import Union, List
 
-from hydromt_wflow import WflowModel
 
 # Supported wflow outputs
 WFLOW_VARS = {

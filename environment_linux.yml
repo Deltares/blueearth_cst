@@ -36,7 +36,6 @@ dependencies:
   - r-ggplot2
   - r-MASS
   - r-ncdf4
-#  - r-rlang
   - r-scales
   - r-sf
   - r-tibble
@@ -44,7 +43,6 @@ dependencies:
   - r-r.utils
   - r-yaml
   - rpy2
-  - rtools  # only needed for windows
   - scipy
   - seaborn # plot
   - shapely>=2.0.0

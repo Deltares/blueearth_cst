@@ -65,6 +65,7 @@ def get_change_clim_projections(ds_hist, ds_clim):
         ds.append(change.to_dataset())
 
     monthly_change_mean_grid = xr.merge(ds)
+
     return monthly_change_mean_grid
 
 

@@ -3,24 +3,25 @@
 Plot wflow results and compare to observations if any
 """
 
+import xarray as xr
+import numpy as np
 import os
 from os.path import join
 from pathlib import Path
+import matplotlib.pyplot as plt
+import pandas as pd
+import hydromt
+from hydromt_wflow import WflowModel
+
 from typing import Union
 
-import hydromt
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
-import xarray as xr
 from func_plot_signature import (
-    compute_metrics,
-    plot_basavg,
-    plot_clim,
-    plot_hydro,
     plot_signatures,
+    plot_hydro,
+    compute_metrics,
+    plot_clim,
+    plot_basavg,
 )
-from hydromt_wflow import WflowModel
 
 
 def analyse_wflow_historical(

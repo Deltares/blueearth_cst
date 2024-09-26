@@ -29,6 +29,10 @@ clim_historical: era5
 model_region: "{'subbasin': [9.666, 0.4476], 'uparea': 100}"
 # Grid resolution of the model in degrees
 model_resolution: 0.0062475
+# Path to model build configuration
+model_build_config: "config/wflow_build_model.yml"
+# Path to model build waterbodies configuration
+model_waterbodies_config: "config/wflow_update_waterbodies.yml"
 
 # If available, please here put the path to the available observation stations locations files
 # csv file containing three columns: station_ID, x, y
@@ -57,6 +61,8 @@ future_horizons:
 
 ###########################################################################################
 ################################## Climate experiment #####################################
+# Weather generator default/advanced settings file
+weathergen_config: config/weathergen_config.yml
 # Name of the experiment
 experiment_name: experiment
 # Number of climate realizations

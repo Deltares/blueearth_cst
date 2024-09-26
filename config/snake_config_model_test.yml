@@ -33,6 +33,8 @@ wflow_outvars: ['river discharge', 'precipitation', 'overland flow', 'actual eva
 model_region: "{'subbasin': [9.666, 0.4476], 'uparea': 100}"
 # Grid resolution of the model in degrees
 model_resolution: 0.0062475
+# Path to model build configuration
+model_build_config: "config/wflow_build_model.yml"
 
 # If available, please here put the path to the available observation stations locations files
 # csv file containing three columns: station_ID, x, y
@@ -64,7 +66,8 @@ save_grids: FALSE
 
 ###########################################################################################
 ################################## Stress Test Experiment #################################
-
+# Weather generator default/advanced settings file
+weathergen_config: config/weathergen_config.yml
 # Name of the experiment
 experiment_name: experiment
 # Number of climate realizations

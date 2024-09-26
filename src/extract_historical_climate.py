@@ -110,7 +110,10 @@ def prep_historical_climate(
     else:
         # Here we can afford larger chunks as we only extract and save
         data_catalog_temp = data_catalog.to_dict()
-        data_catalog_temp[clim_source]["driver_kwargs"]["chunks"] = "auto"
+        if "driver_kwargs" not in data_catalog_temp[clim_source]:
+            data_catalog_temp[clim_source]["driver_kwargs"] = {"chunks": "auto"}
+        else:
+            data_catalog_temp[clim_source]["driver_kwargs"]["chunks"] = "auto"
         data_catalog = hydromt.DataCatalog().from_dict(data_catalog_temp)
 
         ds = data_catalog.get_rasterdataset(
