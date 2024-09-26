@@ -1,6 +1,6 @@
 # julia intermediate
 ARG julia_version=1.8.2
-FROM julia:${julia_version} as jul
+FROM julia:${julia_version} AS jul
 
 FROM alpine:latest AS local_files
 
@@ -21,7 +21,7 @@ RUN mamba env create -f environment.yaml -n snakemake -q \
     && conda clean --all -y \
     && echo "source activate snakemake" > ~/.bashrc \
     && rm environment.yaml
-ENV PATH /opt/conda/envs/snakemake/bin:${PATH}
+ENV PATH=/opt/conda/envs/snakemake/bin:${PATH}
 
 # Julia wflow
 ENV DEBIAN_FRONTEND="noninteractive" TZ="Europe/Amsterdam"
@@ -33,7 +33,7 @@ RUN apt-get update -y \
 
 COPY --from=jul /usr/local/julia /opt/julia
 
-ENV PATH /opt/julia/bin:${PATH}
+ENV PATH=/opt/julia/bin:${PATH}
 
 RUN julia -e "import Pkg; Pkg.add(\"Wflow\"); using Wflow;"
 
