@@ -30,8 +30,8 @@ def get_config(config, arg, default=None, optional=True):
     else:
         raise ValueError(f"Argument {arg} not found in config file")
 
-#project = get_config(config, 'project_name', optional=False)
 project_dir = get_config(config, 'project_dir', optional=False)
+static_dir = get_config(config, 'static_dir', optional=False)
 experiment = get_config(config, 'experiment_name', optional=False)
 RLZ_NUM = get_config(config, 'realizations_num', 1)
 ST_NUM = (get_config(config['temp'], 'step_num', 1) + 1) * (get_config(config['precip'], 'step_num', 1) + 1)
@@ -139,7 +139,7 @@ rule generate_climate_stress_test:
     output:
         rlz_st_nc = temp(f"{exp_dir}/realization_"+"{rlz_num}"+"/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc")
     shell:
-        """Rscript --vanilla src/weathergen/impose_climate_change.R {input.rlz_nc} {input.weagen_config} {input.st_csv} """
+        """Rscript --vanilla src/weathergen/impose_climate_change.R {input.rlz_nc} {input.weagen_config} {input.st_csv}"""
 
 # Prepare data catalog of the climate files
 rule climate_data_catalog:
