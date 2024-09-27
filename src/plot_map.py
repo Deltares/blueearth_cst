@@ -17,6 +17,7 @@ from typing import Union, Optional, List
 
 from hydromt_wflow import WflowModel
 from hydromt import DataCatalog
+from hydromt.nodata import NoDataStrategy
 
 # Avoid relative import errors
 import sys
@@ -93,8 +94,10 @@ def plot_wflow_map(
             crs=crs,
             geom=mod.basins,
             buffer=buffer_km * 1000,
+            handle_nodata=NoDataStrategy.IGNORE,
         )
-        locations.index.name = "index"
+        if locations is not None:
+            locations.index.name = "index"
     else:
         locations = None
 

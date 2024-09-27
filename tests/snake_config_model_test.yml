@@ -7,7 +7,7 @@ project_dir: tests/test_project
 
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
 data_sources: 
-  - artifact_data
+  - "artifact_data==v0.0.9"
   - tests/data/tests_data_catalog.yml
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
 #data_sources_climate: config/deltares_data_climate_projections.yml

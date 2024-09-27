@@ -48,11 +48,11 @@ def data_sources(config) -> Union[str, Path]:
     data_sources = []
     for source in data_libs:
         ext = splitext(source)[-1]
-        if not len(ext) == 0:
-            data_sources.append(join(MAINDIR, source))
-        else:
-            # predefined catalogs if no file extension
+        if len(ext) == 0 or "=" in source:
+            # predefined catalogs if no file extension or = for version number
             data_sources.append(source)
+        else:
+            data_sources.append(join(MAINDIR, source))
     return data_sources
 
 
@@ -71,11 +71,11 @@ def data_libs_fao(config_fao) -> List:
     data_libs_fao = []
     for source in data_libs:
         ext = splitext(source)[-1]
-        if not len(ext) == 0:
-            data_libs_fao.append(join(MAINDIR, source))
-        else:
-            # predefined catalogs if no file extension
+        if len(ext) == 0 or "=" in source:
+            # predefined catalogs if no file extension r = for version number
             data_libs_fao.append(source)
+        else:
+            data_libs_fao.append(join(MAINDIR, source))
     return data_libs_fao
 
 

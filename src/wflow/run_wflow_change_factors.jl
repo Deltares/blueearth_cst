@@ -85,7 +85,7 @@ function run_delta_change(model::Wflow.Model; close_files = true)
     # determine timesteps to run
     calendar = get(config, "calendar", "standard")::String
     starttime = clock.time
-    dt = clock.Δt
+    dt = clock.dt
     endtime = Wflow.cftime(config.endtime, calendar)
     times = range(starttime + dt, endtime, step = dt)
     # get the path to the scale factor file

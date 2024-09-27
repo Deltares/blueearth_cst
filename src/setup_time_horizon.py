@@ -102,7 +102,6 @@ def prep_hydromt_update_forcing_config(
     }
     write_config = {
         "config_name": config_name,
-        "config_root": config_root,
     }
 
     # Order matters
@@ -115,16 +114,18 @@ def prep_hydromt_update_forcing_config(
                 "pet_fn": pet_fn,
                 "chunksize": chunksize,
             },
-            "write_config": write_config,
+            "set_root": {"root": config_root, "mode": "w+"},
             "write_forcing": {},
+            "write_config": write_config,
         }
     else:
         forcing_config = {
             "setup_config": setup_config,
             "setup_precip_forcing": setup_precip_forcing,
             "setup_temp_pet_forcing": setup_temp_pet_forcing,
-            "write_config": write_config,
+            "set_root": {"root": config_root, "mode": "w+"},
             "write_forcing": {},
+            "write_config": write_config,
         }
 
     # Create output dir if it does not exist
