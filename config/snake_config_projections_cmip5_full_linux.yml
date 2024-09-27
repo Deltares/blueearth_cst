@@ -1,0 +1,30 @@
+# Path to where the wflow model will be stored (include the project name)
+project_name: Gabon
+project_dir: examples/Gabon
+
+# Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
+data_sources: config/deltares_data_climate_projections_linux.yml
+
+# climate models and scenarios
+clim_project: cmip5
+models: ['IPSL-CM5A-LR', 'ACCESS1-0', 'ACCESS1-3', 'BNU-ESM', 'CCSM4', 'CESM1-BGC',
+       'CESM1-CAM5', 'CESM1-FASTCHEM', 'CESM1-WACCM', 'CMCC-CESM',
+       'CMCC-CM', 'CMCC-CMS', 'CNRM-CM5', 'CNRM-CM5-2', 'CSIRO-Mk3-6-0',
+       'CanCM4', 'CanESM2', 'EC-EARTH', 'FGOALS-g2', 'FIO-ESM',
+       'GFDL-CM2p1', 'GFDL-CM3', 'GFDL-ESM2G', 'GFDL-ESM2M', 'GISS-E2-H',
+       'GISS-E2-H-CC', 'GISS-E2-R', 'GISS-E2-R-CC', 'HadCM3',
+       'HadGEM2-AO', 'HadGEM2-CC', 'HadGEM2-ES', 'IPSL-CM5A-LR',
+       'IPSL-CM5A-MR', 'IPSL-CM5B-LR', 'MIROC-ESM', 'MIROC-ESM-CHEM',
+       'MIROC4h', 'MIROC5', 'MPI-ESM-LR', 'MPI-ESM-MR', 'MPI-ESM-P',
+       'MRI-CGCM3', 'MRI-ESM1', 'NorESM1-M', 'NorESM1-ME', 'bcc-csm1-1',
+       'bcc-csm1-1-m', 'inmcm4']
+scenarios: [rcp26, rcp45, rcp60, rcp85]
+members: [r1i1p1]
+
+variables: [precip, temp, temp_min, temp_max]
+
+# time horizons
+start_month_hyd_year: Jan
+historical: 1960, 2000
+future_horizons: 
+  near: 2020, 2060

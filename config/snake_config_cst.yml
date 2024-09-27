@@ -4,6 +4,7 @@
 
 # Path to where the wflow model will be stored (include the project name)
 project_dir: examples/test
+static_dir: config
 
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
 data_sources: config/deltares_data.yml
@@ -66,7 +67,6 @@ save_grids: FALSE
 
 ###########################################################################################
 ################################## Stress Test Experiment #################################
-
 # Name of the experiment
 experiment_name: experiment
 # Number of climate realizations

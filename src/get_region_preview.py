@@ -1,19 +1,19 @@
-""" A command line script for delineating basins and subbasin with river geometries.
-    The script expects a region string in the following format:
-    -r "{'basin': [x,y]}"
+"""A command line script for delineating basins and subbasin with river geometries.
+The script expects a region string in the following format:
+-r "{'basin': [x,y]}"
 
-    A data catalog file path:
-    -d path/to/datacatalog
+A data catalog file path:
+-d path/to/datacatalog
 
-    A path to an output directory for the region GeoJSON
-    -p path/to/output/dir
+A path to an output directory for the region GeoJSON
+-p path/to/output/dir
 
-    There is also the option to use different hydrography and river files:
-    -h <hydrography file name>, by default merit_hydro_ihu
-    -n <rivers file name>, by default rivers_atlas_v10
+There is also the option to use different hydrography and river files:
+-h <hydrography file name>, by default merit_hydro_ihu
+-n <rivers file name>, by default rivers_atlas_v10
 
-    The resulting (sub)basin is written as a GeoJSON to the given output directory
-    in a folder named region    
+The resulting (sub)basin is written as a GeoJSON to the given output directory
+in a folder named region
 """
 
 from json import loads
@@ -40,8 +40,9 @@ def get_basin_preview(
         )
 
         region_geojson = loads(region_geojson)
-        region = gpd.GeoDataFrame.from_features(region_geojson, crs=4326)
-        return region
+        region_geom = gpd.GeoDataFrame.from_features(region_geojson, crs=4326)
+        region_geom.drop(columns="value", inplace=True)
+        return region_geom
     except IndexError as e:
         logger.warning(f"Region out of index, see following error: {e}")
         return None
@@ -49,13 +50,16 @@ def get_basin_preview(
 
 def get_river_preview(
     region: gpd.GeoDataFrame,
-    data_catalog_fn: str | List,
+    datacatalog_fn: str | List,
     rivers_fn: str = "river_atlas_v10",
-) -> dict | None:
-    datacatalog = hydromt.DataCatalog(data_libs=data_catalog_fn)
+) -> gpd.GeoDataFrame | None:
+    datacatalog = hydromt.DataCatalog(data_libs=datacatalog_fn)
     surface_water_source = datacatalog.get_source(source=rivers_fn)
     try:
         surface_water_data = surface_water_source.get_data(geom=region.geometry)
+        surface_water_data = surface_water_data.clip(
+            region
+        )  # clip off geometries outside region
         return surface_water_data
     except IndexError as e:
         logger.warning(f"River geometry out of index, see following error{e}")
@@ -85,9 +89,11 @@ if __name__ == "__main__":
         "--rivers_fn",
         help="file name of rivers dataset to use",
         required=False,
-        default="river_atlas_v10",
+        default="rivers_lin2019_v1",
     )
     args = parser.parse_args()
+    if not os.path.exists(args.path):
+        raise ValueError(f"Directory '{args.path}' does not exist")
     region_json = args.region.replace("'", '"')
     region = loads(region_json)
     region_geom = get_basin_preview(
@@ -97,13 +103,10 @@ if __name__ == "__main__":
     )
     river_geom = get_river_preview(
         region=region_geom,
-        data_catalog_fn=args.datacatalog,
+        datacatalog_fn=args.datacatalog,
         rivers_fn=args.rivers_fn,
     )
-
+    river_geom = river_geom[["geometry"]]
     region = gpd.GeoDataFrame(pd.concat([region_geom, river_geom]))
-    file_dir = os.path.join(args.path, "region")
-    if not os.path.isdir(file_dir):
-        os.mkdir(file_dir)
-    file_path = os.path.join(file_dir, "region.geojson")
+    file_path = os.path.join(args.path, "region.geojson")
     region_geojson = region.to_file(filename=file_path, driver="GeoJSON")

@@ -43,7 +43,6 @@ dependencies:
   - r-r.utils
   - r-yaml
   - rpy2
-  - rtools  # only needed for windows
   - scipy
   - seaborn # plot
   - shapely>=2.0.0

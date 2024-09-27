@@ -1,82 +1,62 @@
 
 ###########################################################################################
-#################################### General settings ######################################
+#################################### General setting ######################################
 
 # Path to where the wflow model will be stored (include the project name)
-project_dir: tests/test_project
+project_dir: examples/Gabon
+static_dir: config
 
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
-data_sources: 
-  - artifact_data
-  - tests/data/tests_data_catalog.yml
-# Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
-#data_sources_climate: config/deltares_data_climate_projections.yml
+data_sources: config/deltares_data_linux.yml
+# # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other) TODO: REMOVE
+# data_sources_climate: config/deltares_data_climate_projections_linux.yml
 data_sources_climate: config/cmip6_data.yml
 
 # Info on the historical climate data is used in the historic model run + reference data for the weather generator
 # Time horizon of the historical period
 starttime: "2000-01-01T00:00:00"
-endtime: "2010-12-31T00:00:00"
-
+endtime: "2020-12-31T00:00:00"
 # Historical climate data source (name as available in the data_sources catalog file). Either [era5, chirps_global, chirps, eobs].
 clim_historical: era5
-
-# List of wflow output variables to save
-wflow_outvars: ['river discharge', 'precipitation', 'overland flow', 'actual evapotranspiration', 'groundwater recharge', 'snow']
 
 ###########################################################################################
 #################################### Model building #######################################
 
 # hydromt "region" for building the model, coordinates are in EPSG 4326
-# for more info on how to fill this, see the hydromt documentation: 
+# for more info on how to fill this, you can see the hydromt documentation: 
 # https://deltares.github.io/hydromt/latest/user_guide/cli.html#region-options
 # For wflow please use either 'basin' or 'subbasin' keywords
-model_region: "{'subbasin': [12.3758, 46.4076], 'uparea': 70}"
+model_region: "{'subbasin': [9.666, 0.4476], 'uparea': 100}"
 # Grid resolution of the model in degrees
-model_resolution: 0.0166666
-# Path to model build configuration
-model_build_config: "tests/wflow_build_model.yml"
-waterbodies_config: "tests/wflow_update_waterbodies.yml"
+model_resolution: 0.0062475
 
-# If available, please put here the path to the available observation stations locations files
-# csv file containing four columns: station_ID, name, x, y
-output_locations: "tests/data/observations/discharge-locations-grdc.csv" # If set to None, will default to the wflow outlets
+# If available, please here put the path to the available observation stations locations files
+# csv file containing three columns: station_ID, x, y
+output_locations: "data/observations/output-locations-test.csv" # If set to None, will default to the wflow outlets
 # Path to the file with observed discharge timeseries per station 
-observations_timeseries: "tests/data/observations/observations-discharge-grdc.csv" 
+observations_timeseries: "data/observations/observations_timeseries_test.csv" 
 
 ###########################################################################################
 ################################## Climate projections ####################################
 # climate models and scenarios
 clim_project: cmip6
-# Available models: ['NOAA-GFDL_GFDL-ESM4', 'INM_INM-CM4-8' ,'INM_INM-CM5-0','NIMS-KMA_KACE-1-0-G','NCC_NorESM2-MM','NCC_NorESM2-LM','CMCC_CMCC-CM2-SR5','CMCC_CMCC-ESM2']
-models: ['NOAA-GFDL_GFDL-ESM4', 'INM_INM-CM5-0', 'CSIRO-ARCCSS_ACCESS-CM2']
-# Available scenarios: [ssp126, ssp245, ssp370, ssp585]
+#models: ['NOAA-GFDL/GFDL-ESM4', 'INM/INM-CM4-8' ,'INM/INM-CM5-0','NIMS-KMA/KACE-1-0-G','NCC/NorESM2-MM','NCC/NorESM2-LM','CMCC/CMCC-CM2-SR5','CMCC/CMCC-ESM2']
+models: ['NOAA-GFDL/GFDL-ESM4', 'CMCC/CMCC-ESM2', 'INM/INM-CM5-0']
+#scenarios: [ssp126, ssp245, ssp370, ssp585]
 scenarios: [ssp245, ssp585]
 members: [r1i1p1f1]
 
-# Climate projections for the following variables
 variables: [precip, temp]
 
-# Method to compute PET if not available in the climate data - None to use pet in the climate data
-# Available methods: 'None', 'makkink' 'debruin', 'penman-monteith_rh_simple', 'penman-monteith_tdew'
-# Required variables are: 'temp' [°C], 'press_msl' [hPa], 'kin'[W/m2] for makkink
-# 'temp' [°C], 'press_msl' [hPa], 'kin' [W/m2], 'kout' [W/m2] for debruin
-pet_method: makkink
-
 # time horizons of the climate projections
-start_month_hyd_year: JAN
-historical: 2000, 2010
-future_horizons: 
-  near: 2050, 2060
-  far: 2090, 2100
-
-# Additional gridded outputs (else only basin average)
-save_grids: FALSE
+start_month_hyd_year: Jan
+historical: 1980, 2010
+future_horizons:
+  near: 2030, 2060
+  far: 2070, 2100
 
 ###########################################################################################
-################################## Stress Test Experiment #################################
-# Weather generator default/advanced settings file
-weathergen_config: config/weathergen_config.yml
+################################## Climate experiment #####################################
 # Name of the experiment
 experiment_name: experiment
 # Number of climate realizations
@@ -84,7 +64,7 @@ realizations_num: 2
 # Future Time horizon for the climate experiment
 horizontime_climate: 2050
 # Length of future run in years
-run_length: 10
+run_length: 20
 # Run historical realization
 run_historical: FALSE
 
@@ -102,7 +82,7 @@ temp:
 # Precipitation change factors
 # including number of steps and min, max change
 precip:
-  step_num: 1
+  step_num: 2
   transient_change: TRUE
   # Monthly coefficients to set the minimum and maximum bounds of mean precip changes
   mean:
@@ -113,7 +93,6 @@ precip:
     min: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
     max: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
 
-# Runoff statistics
 # Drought return period
 Tlow: 2
 # Flood return period
