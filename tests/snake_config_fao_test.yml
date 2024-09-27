@@ -13,7 +13,7 @@ model_region: "{'subbasin': [12.3758, 46.4076], 'uparea': 70}"
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
 # NB: should be ordered from most recent to use last! 
 data_sources: 
-  - artifact_data
+  - "artifact_data==v0.0.9"
   - tests/data/tests_data_catalog.yml
 
 # Info on the historical climate data is used in the historic model run + reference data for the weather generator
@@ -98,7 +98,7 @@ historical_hydrology_plots:
 # Buffer in km to apply to the region for the climate analysis
 region_buffer: 10
 # Hydrography dataset to use to derive region from (sub)basin
-hydrography_fn: merit_hydro_1k
+hydrography_fn: merit_hydro_ihu
 # River geometry dataset to add to plots
 river_geom_fn: river_atlas
 

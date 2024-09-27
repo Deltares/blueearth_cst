@@ -67,16 +67,20 @@ def analyze_wflow_results(
         df_out_mean = pd.DataFrame(
             data=np.zeros((st_num, len(col_names))),
             columns=col_names,
-            dtype="float32",
+            dtype="str",
         )
+        # Update the dtype of the statistics columns into string
+        df_out_mean["statistic"] = df_out_mean["statistic"].astype(str)
     else:
         col_names = ["statistic", "realization", "tavg", "prcp"]
         col_names.extend(Q_vars)
         df_out_mean = pd.DataFrame(
             data=np.zeros((len(csv_fns), len(col_names))),
             columns=col_names,
-            dtype="float32",
+            dtype="str",
         )
+        # Update the dtype of the statistics columns into string
+        df_out_mean["statistic"] = df_out_mean["statistic"].astype(str)
     df_out_max = df_out_mean.copy()
     df_out_min = df_out_mean.copy()
     df_out_q95 = df_out_mean.copy()
@@ -131,10 +135,10 @@ def analyze_wflow_results(
             sim = sim_all[Q_vars]
         # Get statistics
         # Average Yearly statistics
-        df_mean = sim.resample("a").mean().mean()
-        df_max = sim.resample("a").max().mean()
-        df_min = sim.resample("a").min().mean()
-        df_q95 = sim.resample("a").quantile(0.95).mean()
+        df_mean = sim.resample("YE").mean().mean()
+        df_max = sim.resample("YE").max().mean()
+        df_min = sim.resample("YE").min().mean()
+        df_q95 = sim.resample("YE").quantile(0.95).mean()
         # High flows
         df_RT = md.returninterval(sim, Tpeak)
         df_Q7dmax = md.Q7d_maxyear(sim)
@@ -221,16 +225,16 @@ def analyze_wflow_results(
             if v == "snow_basavg":
                 # Maximum snow water equivalent per year (mm/yr)
                 stats_basavg = np.append(
-                    stats_basavg, (sim[v].resample("a").max().mean())
+                    stats_basavg, (sim[v].resample("YE").max().mean())
                 )
             else:
                 # actual evapotranspiration_basavg or groundwater recharge_basavg
                 # or overland_flow_basavg
                 # Total evaporation or recharge or overland flow volume (mm/yr)
                 stats_basavg = np.append(
-                    stats_basavg, (sim[v].resample("a").sum().mean())
+                    stats_basavg, (sim[v].resample("YE").sum().mean())
                 )
-        df_out_basavg.iloc[i, :] = stats_basavg.round(1)
+        df_out_basavg.iloc[i, :] = np.float32(stats_basavg.round(1))
 
     print("Writting tables for 2D stress tests plots")
     if not os.path.isdir(os.path.dirname(bas_fn)):
