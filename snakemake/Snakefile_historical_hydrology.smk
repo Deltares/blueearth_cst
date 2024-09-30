@@ -16,8 +16,8 @@ model_region = get_config(config, 'model_region', optional=False)
 model_resolution = get_config(config, 'model_resolution', default=0.00833333)
 model_build_config = get_config(config, 'model_build_config', default='config/cst_api/wflow_build_model.yml')
 waterbodies_config = get_config(config, 'waterbodies_config', default='config/cst_api/wflow_update_waterbodies.yml')
-climate_sources = get_config(config, "clim_historical", optional=False)
-climate_sources_colors = get_config(config, "clim_historical_colors", optional=True) 
+climate_sources = list(get_config(config, "forcing_options", optional=False).keys())
+#climate_sources_colors = get_config(config, "clim_historical_colors", optional=True) 
 DATA_SOURCES = get_config(config, "data_sources", optional=False)
 DATA_SOURCES = np.atleast_1d(DATA_SOURCES).tolist() #make sure DATA_SOURCES is a list format (even if only one DATA_SOURCE)
 
@@ -36,6 +36,18 @@ def get_forcing_options(wildcards):
     else:
         opts = {}
     return opts
+
+def get_climate_sources_colors(config, climate_sources):
+    colors = []
+    for source in climate_sources:
+        color = get_config(config, f"forcing_options.{source}.color", default=None)
+        if color is not None:
+            colors.append(color)
+    # Check that colors were found for all sources
+    if len(colors) != len(climate_sources):
+        print("Not all climate sources have a color defined in the config file, using defaults")
+        colors = None
+    return colors
 
 # Master rule: end with all model run and analysed with saving a output plot
 rule all:
@@ -147,7 +159,7 @@ rule plot_results:
        observations_file = observations_timeseries,
        gauges_output_fid = output_locations,
        climate_sources = climate_sources,
-       climate_sources_colors = climate_sources_colors,
+       climate_sources_colors = get_climate_sources_colors(config, climate_sources),
        add_budyko_plot = get_config(config, "historical_hydrology_plots.plot_budyko", default=False),
        max_nan_year = get_config(config, "historical_hydrology_plots.flow.max_nan_per_year", default=60),
        max_nan_month = get_config(config, "historical_hydrology_plots.flow.max_nan_per_month", default=5),
