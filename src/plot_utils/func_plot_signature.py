@@ -860,6 +860,7 @@ def plot_clim(
     period: str,
     color: dict,
     fs: int = 8,
+    skip_precip_sources: List[str] = [],
     skip_temp_pet_sources: List[str] = [],
 ):
     """
@@ -881,6 +882,8 @@ def plot_clim(
         Color to be used for each climate_source
     fs : int, optional
         Font size, by default 8
+    skip_precip_sources : List[str]
+        List of climate sources to skip for precipitation plots.
     skip_temp_pet_sources : List[str]
         List of climate sources to skip for temperature and potential evaporation plots.
     """
@@ -986,6 +989,10 @@ def plot_clim(
             do_climate_plot = True
             if climate_source in skip_temp_pet_sources:
                 do_climate_plot = False
+            # Same for duplicate use of precip sources
+            do_precip_plot = True
+            if climate_source in skip_precip_sources:
+                do_precip_plot = False
 
             var_sum_monthly = (
                 ds_clim[climvar]
@@ -1006,7 +1013,7 @@ def plot_clim(
                 ).quantile(0.75, "time")
 
                 if (do_climate_plot and climvar == "EP_subcatchment") | (
-                    climvar == "P_subcatchment"
+                    do_precip_plot and climvar == "P_subcatchment"
                 ):
                     p = var_sum_monthly_mean.plot(
                         ax=ax,
@@ -1033,7 +1040,7 @@ def plot_clim(
                 r2_score, p_value = rsquared(p(x), var_sum_monthly)
 
                 if (do_climate_plot and climvar == "EP_subcatchment") | (
-                    climvar == "P_subcatchment"
+                    do_precip_plot and climvar == "P_subcatchment"
                 ):
                     p = ax.plot(
                         var_sum_monthly.time,

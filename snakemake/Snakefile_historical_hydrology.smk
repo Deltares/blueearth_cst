@@ -162,6 +162,7 @@ rule plot_results:
        add_budyko_plot = get_config(config, "historical_hydrology_plots.plot_budyko", default=False),
        max_nan_year = get_config(config, "historical_hydrology_plots.flow.max_nan_per_year", default=60),
        max_nan_month = get_config(config, "historical_hydrology_plots.flow.max_nan_per_month", default=5),
+       skip_precip_sources = get_config(config, "historical_hydrology_plots.clim.skip_precip_sources", default=[]),
        skip_temp_pet_sources = get_config(config, "historical_hydrology_plots.clim.skip_temp_pet_sources", default=[]),
    script: "../src/plot_results.py"
 
