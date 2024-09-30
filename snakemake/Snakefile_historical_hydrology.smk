@@ -17,7 +17,6 @@ model_resolution = get_config(config, 'model_resolution', default=0.00833333)
 model_build_config = get_config(config, 'model_build_config', default='config/cst_api/wflow_build_model.yml')
 waterbodies_config = get_config(config, 'waterbodies_config', default='config/cst_api/wflow_update_waterbodies.yml')
 climate_sources = list(get_config(config, "forcing_options", optional=False).keys())
-#climate_sources_colors = get_config(config, "clim_historical_colors", optional=True) 
 DATA_SOURCES = get_config(config, "data_sources", optional=False)
 DATA_SOURCES = np.atleast_1d(DATA_SOURCES).tolist() #make sure DATA_SOURCES is a list format (even if only one DATA_SOURCE)
 
