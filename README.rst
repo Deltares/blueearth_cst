@@ -6,7 +6,7 @@ The toolbox will enable end-users to:
 
  - Explore the range of hydro-climatic uncertainty in a selected geographic area of choice, including natural variability and climate change signals.  
 
- - Quantify the impact of climate change on water resources for any basin the world, based on a delta change approach with different climate models and scenarios.
+ - Quantify the impact of climate change on water resources for any basin in the world, based on a delta change approach with different climate models and scenarios.
 
  - Design and execute a climate stress test for the response and vulnerabilities of user-defined thresholds and metrics.  
 
@@ -125,7 +125,7 @@ Running
 BlueEarth CST toolbox is based on several workflows developed using Snakemake_ . The following workflows are available:
 
  - **Snakefile_climate_historical**: extracts and samples from global and regional historical meteorological climate data sources to compare different sources.
- - **Snakefile_historical_hydrology**: creates a wflow model and runs the model for a selection of historical meteorological datasets. Evaluates model performance using observed streamflow data (if available).
+ - **Snakefile_historical_hydrology**: creates a hydrological wflow model and runs the model for a selection of historical meteorological datasets. Evaluates model performance using observed streamflow data (if available).
  - **Snakefile_climate_projections**: derives future climate statistics (projected temperature, precipitation and potential evaporation change) for different climate models and scenarios.
  - **Snakefile_future_hydrology_delta_change**: runs the hydrological model for a set of future climate projections based on the delta change approach.
  - **Snakefile_climate_experiment**: prepares future weather realizations and climate stress tests and run the realizations with the hydrological model.
