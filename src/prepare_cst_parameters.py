@@ -90,5 +90,5 @@ if __name__ == "__main__":
         )
     else:
         prep_cst_parameters(
-            config_fn=join(os.getcwd(), "config", "snake_config_model_test.yml"),
+            config_fn=join(os.getcwd(), "config", "snake_config_cst_test.yml"),
         )

@@ -8,8 +8,8 @@ import pytest
 TESTDIR = dirname(realpath(__file__))
 MAINDIR = join(TESTDIR, "..")
 
-config_fn = join(TESTDIR, "snake_config_model_test.yml")
-fao_config_fn = join(TESTDIR, "snake_config_fao_test.yml")
+config_fn = join(TESTDIR, "snake_config_cst_test.yml")
+fao_config_fn = join(TESTDIR, "snake_config_example.yml")
 
 _snakefiles = {
     "model_creation": {
@@ -38,7 +38,7 @@ _snakefiles = {
 @pytest.mark.parametrize("snakefile", list(_snakefiles.keys()))
 def test_snakefile_cli(snakefile):
     # Test if snake command line runs successfully
-    # snakemake all -c 1 -s Snakefile_model_creation --configfile tests/snake_config_model_test.yml --dry-run
+    # snakemake all -c 1 -s Snakefile_model_creation --configfile tests/snake_config_cst_test.yml --dry-run
     # move to SNAKEDIR
     os.chdir(MAINDIR)
     snakefile_path = f"snakemake/{_snakefiles[snakefile]['file']}"
