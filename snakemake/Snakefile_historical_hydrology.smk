@@ -51,7 +51,7 @@ def get_climate_sources_colors(config, climate_sources):
 # Master rule: end with all model run and analysed with saving a output plot
 rule all:
     input: 
-        f"{project_dir}/plots/wflow_model_performance/hydro_wflow_1.png",
+        f"{project_dir}/plots/wflow_model_performance/plot_results.txt",
         f"{project_dir}/plots/wflow_model_performance/basin_area.png",
         expand((project_dir + "/plots/wflow_model_performance/{climate_source}/precip.png"), climate_source = climate_sources),
         f"{project_dir}/config/snake_config_model_creation.yml",
@@ -152,7 +152,7 @@ rule plot_results:
    input:
        csv_file = expand((basin_dir + "/run_default/output_{climate_source}.csv"), climate_source = climate_sources),
    output: 
-       output_png = f"{project_dir}/plots/wflow_model_performance/hydro_wflow_1.png",
+       output_txt = f"{project_dir}/plots/wflow_model_performance/plot_results.txt",
    params:
        project_dir = f"{project_dir}",
        observations_file = observations_timeseries,
