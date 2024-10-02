@@ -221,9 +221,9 @@ Finally it derives the results of the stress test and the model run.
 
 .. code-block:: console
 
-    $ snakemake -s snakemake/Snakefile_climate_experiment --configfile config/snake_config_cst_test.yml  --dag | dot -Tpng > dag_climate.png
-    $ snakemake --unlock -s snakemake/Snakefile_climate_experiment --configfile config/snake_config_cst_test.yml
-    $ snakemake all -c 1 -s snakemake/Snakefile_climate_experiment --configfile config/snake_config_cst_test.yml
+    $ snakemake -s snakemake/Snakefile_climate_experiment.smk --configfile config/snake_config_cst_test.yml  --dag | dot -Tpng > dag_climate.png
+    $ snakemake --unlock -s snakemake/Snakefile_climate_experiment.smk --configfile config/snake_config_cst_test.yml
+    $ snakemake all -c 1 -s snakemake/Snakefile_climate_experiment.smk --configfile config/snake_config_cst_test.yml
 
 Documentation
 =============
