@@ -13,8 +13,8 @@ TESTDIR = dirname(realpath(__file__))
 MAINDIR = join(TESTDIR, "..")
 SAMPLE_PROJECTDIR = join(TESTDIR, "test_project_sample")
 
-config_fn = join(TESTDIR, "snake_config_model_test.yml")
-config_fao_fn = join(TESTDIR, "snake_config_fao_test.yml")
+config_fn = join(TESTDIR, "snake_config_cst_test.yml")
+config_fao_fn = join(TESTDIR, "snake_config_example.yml")
 
 
 @pytest.fixture()

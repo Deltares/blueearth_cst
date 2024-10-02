@@ -27,7 +27,6 @@ scenarios_selected = get_config(config, 'scenarios_selected', optional=False)
 clim_project_dir = f"{project_dir}/climate_projections/{clim_project}"
 
 output_locations = get_config(config, "output_locations", default=None)
-observations_timeseries = get_config(config, "observations_timeseries", default=None)
 
 wflow_outvars = get_config(config, "wflow_outvars", default=['river discharge'])
 has_gridded_outputs = len(get_config(config, "wflow_outvars_gridded", default=[])) > 0

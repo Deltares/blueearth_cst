@@ -131,9 +131,13 @@ BlueEarth CST toolbox is based on several workflows developed using Snakemake_ .
  - **Snakefile_climate_experiment**: prepares future weather realizations and climate stress tests and run the realizations with the hydrological model.
 
 To prepare these workflows, you can select the different options for your model region and climate scenario using a config file. An example is available in the folder 
-test/snake_config_fao_test.yml.
+test/snake_config_example.yml.
 
 You can run each workflow using the snakemake command line, after activating your blueearth_cst conda environment.
+
+Running from docker image
+-------------------------
+A script is available to run via docker: `run_snake_docker.sh`
 
 Running from conda environment
 ------------------------------
@@ -147,20 +151,15 @@ snakefiles are located:
 
 Then you can run the workflows using the snakemake commands detailed below.
 
-Running from docker image
--------------------------
-A script is available to run via docker: `run_snake_docker.sh`
-
-
 Snakefile_climate_historical
-------------------------
+----------------------------
 This workflow extracts historical climate data from global or regional sources. Data of meteorological variables are sampled at the location of precipitation stations and over subregions for each climate source to allow the user to compare different meteo sources. 
 
 .. code-block:: console
 
-    $ snakemake -s Snakefile_climate_historical.smk --configfile tests/snake_config_model_test.yml  --dag | dot -Tpng > dag_climate_historical.png
-    $ snakemake --unlock -s Snakefile_climate_historical.smk --configfile tests/snake_config_model_test.yml
-    $ snakemake all -c 1 -s Snakefile_climate_historical.smk --configfile tests/snake_config_model_test.yml
+    $ snakemake -s snakemake/Snakefile_climate_historical.smk --configfile tests/snake_config_example.yml  --dag | dot -Tpng > dag_climate_historical.png
+    $ snakemake --unlock -s snakemake/Snakefile_climate_historical.smk --configfile tests/snake_config_example.yml
+    $ snakemake all -c 1 -s snakemake/Snakefile_climate_historical.smk --configfile tests/snake_config_example.yml
 
 The first line will activate your environment, the second creates a picture file recapitulating the different steps of the workflow, the third will if needed unlock your directory 
 in order to save the future results of the workflow, and the fourth line runs the workflow (here for model creation).
@@ -180,15 +179,15 @@ More examples of how to run the workflows are available in the file run_snake_te
 
 
 Snakefile_historical_hydrology
-------------------------
+------------------------------
 This workflow creates a hydrological wflow model, based on global data for the selected region, and runs and evaluates the model performance over the historical period, using a selection of historical climate data.
 This workflow can be run independently from the previous workflow, but running both gives a more comprehensive overview of historical climate and hydrology.
 
 .. code-block:: console
 
-    $ snakemake -s Snakefile_historical_hydrology.smk --configfile tests/snake_config_model_test.yml  --dag | dot -Tpng > dag_historical_hydrology.png
-    $ snakemake --unlock -s Snakefile_historical_hydrology.smk --configfile tests/snake_config_model_test.yml
-    $ snakemake all -c 1 -s Snakefile_historical_hydrology.smk --configfile tests/snake_config_model_test.yml
+    $ snakemake -s snakemake/Snakefile_historical_hydrology.smk --configfile tests/snake_config_example.yml  --dag | dot -Tpng > dag_historical_hydrology.png
+    $ snakemake --unlock -s snakemake/Snakefile_historical_hydrology.smk --configfile tests/snake_config_example.yml
+    $ snakemake all -c 1 -s snakemake/Snakefile_historical_hydrology.smk --configfile tests/snake_config_example.yml
 
 
 Snakefile_climate_projections
@@ -198,21 +197,21 @@ This workflow is indenpendent.
 
 .. code-block:: console
 
-    $ snakemake -s Snakefile_climate_projections.smk --configfile tests/snake_config_model_test.yml  --dag | dot -Tpng > dag_climate_projections.png
-    $ snakemake --unlock -s Snakefile_climate_projections.smk --configfile tests/snake_config_model_test.yml
-    $ snakemake all -c 1 -s Snakefile_climate_projections.smk --configfile tests/snake_config_model_test.yml
+    $ snakemake -s snakemake/Snakefile_climate_projections.smk --configfile tests/snake_config_example.yml  --dag | dot -Tpng > dag_climate_projections.png
+    $ snakemake --unlock -s snakemake/Snakefile_climate_projections.smk --configfile tests/snake_config_example.yml
+    $ snakemake all -c 1 -s snakemake/Snakefile_climate_projections.smk --configfile tests/snake_config_example.yml
 
 
 Snakefile_future_hydrology_delta_change
------------------------------
+---------------------------------------
 This workflow runs the hydrological model for a set of future climate projections based on the delta change approach.
 To be able to run this workflow, it is required to have run the historical hydrology workflow in combination with the climate projection workflow. 
 
 .. code-block:: console
 
-    $ snakemake -s Snakefile_future_hydrology_delta_change.smk --configfile tests/snake_config_model_test.yml  --dag | dot -Tpng > dag_hydrologicaL_projections.png
-    $ snakemake --unlock -s Snakefile_future_hydrology_delta_change.smk --configfile tests/snake_config_model_test.yml
-    $ snakemake all -c 1 -s Snakefile_future_hydrology_delta_change.smk --configfile tests/snake_config_model_test.yml
+    $ snakemake -s snakemake/Snakefile_future_hydrology_delta_change.smk --configfile tests/snake_config_example.yml  --dag | dot -Tpng > dag_hydrologicaL_projections.png
+    $ snakemake --unlock -s snakemake/Snakefile_future_hydrology_delta_change.smk --configfile tests/snake_config_example.yml
+    $ snakemake all -c 1 -s snakemake/Snakefile_future_hydrology_delta_change.smk --configfile tests/snake_config_example.yml
 
 
 Snakefile_climate_experiment
@@ -222,9 +221,9 @@ Finally it derives the results of the stress test and the model run.
 
 .. code-block:: console
 
-    $ snakemake -s Snakefile_climate_experiment --configfile config/snake_config_model_test.yml  --dag | dot -Tpng > dag_climate.png
-    $ snakemake --unlock -s Snakefile_climate_experiment --configfile config/snake_config_model_test.yml
-    $ snakemake all -c 1 -s Snakefile_climate_experiment --configfile config/snake_config_model_test.yml
+    $ snakemake -s snakemake/Snakefile_climate_experiment --configfile config/snake_config_cst_test.yml  --dag | dot -Tpng > dag_climate.png
+    $ snakemake --unlock -s snakemake/Snakefile_climate_experiment --configfile config/snake_config_cst_test.yml
+    $ snakemake all -c 1 -s snakemake/Snakefile_climate_experiment --configfile config/snake_config_cst_test.yml
 
 Documentation
 =============

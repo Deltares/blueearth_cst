@@ -19,7 +19,7 @@ from ..src import extract_historical_climate
 from ..src import sample_climate_historical
 from ..src import plot_region_and_location
 
-config_fn = join(TESTDIR, "snake_config_fao_test.yml")
+config_fn = join(TESTDIR, "snake_config_example.yml")
 
 
 def test_copy_config(tmpdir):
