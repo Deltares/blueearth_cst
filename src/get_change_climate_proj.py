@@ -193,14 +193,14 @@ time_tuple_fut = snakemake.params.time_horizon_fut
 time_tuple_fut = tuple(map(str, time_tuple_fut.split(", ")))
 
 # open datasets and slice times
-ds_hist_time = xr.open_dataset(stats_time_nc_hist)
-ds_clim_time = xr.open_dataset(stats_time_nc)
+ds_hist_time = xr.open_dataset(stats_time_nc_hist, lock=False)
+ds_clim_time = xr.open_dataset(stats_time_nc, lock=False)
 
 # Get names of grids if save_grids
 if save_grids:
     # open datasets
-    ds_hist = xr.open_dataset(stats_nc_hist)
-    ds_clim = xr.open_dataset(stats_nc)
+    ds_hist = xr.open_dataset(stats_nc_hist, lock=False)
+    ds_clim = xr.open_dataset(stats_nc, lock=False)
 
 # get lat lon name of data
 XDIMS = ("x", "longitude", "lon", "long")
