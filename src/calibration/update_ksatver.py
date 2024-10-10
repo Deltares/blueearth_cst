@@ -20,7 +20,7 @@ folder_p = r"p:\11210673-fao\14 Subbasins"
 
 data_libs = [
     "deltares_data==v0.7.0", 
-    "p:\wflow_global\hydromt_wflow\catalog.yml", #datacatalog for ksathorfrac and other water demand data
+    # "p:\wflow_global\hydromt_wflow\catalog.yml", #datacatalog for ksathorfrac and other water demand data
 ]
 #data_libs = [
 #    r"C:\Users\boisgont\.hydromt_data\artifact_data\v0.0.9\data_catalog.yml", 
@@ -28,8 +28,8 @@ data_libs = [
 #]
 
 lai_fn = "modis_lai"
-lulc_fn = "vito_2015"
-lulc_mapping_fn = "vito_mapping_default"
+lulc_fn = "rlcms_2021"
+lulc_mapping_fn = r"p:\11210673-fao\12 Data\ICIMOD\landuse\rlcms_mapping.csv"
 soil_fn = "soilgrids"
 
 # Method to prepare the mapping table
@@ -40,6 +40,8 @@ lulc_sampling_method = "q3"
 lulc_zero_classes = [80, 200, 0] # decide for snow and ice 70 and urban 50
 # esa_worldcover
 #lulc_zero_classes = [80, 0] # decide for snow and ice 70 and urban 50
+# rlcms
+lulc_zero_classes = [1, 2, 4, 0] # decide for snow and ice 70 and urban 50
 
 #%% functions to modify ksatver
 
@@ -132,27 +134,9 @@ for case in cases:
     ds = mod.grid
 
     #% update model 
-    
-    # # update model with AI derived ksathorfrac map (BRT and RF options)
-    print("Updating ksathorfrac with AI derived maps")
-    mod.setup_ksathorfrac(
-        ksat_fn = "ksathorfrac",
-        variable = "BRT_250", 
-    )
-
-    mod.setup_ksathorfrac(
-        ksat_fn = "ksathorfrac",
-        variable = "RF_250", 
-    )
-
     #now ksatver
     print("Computing KsatVer with Brakensiek and Cosby")
-    #first make a copy of ksatver brakensiek 
-    ksaver_brakensiek = mod.grid["KsatVer"]
-    ksaver_brakensiek.name = "KsatVer_Brakensiek"
-    mod.set_grid(ksaver_brakensiek, "KsatVer_Brakensiek")
-
-
+    
     #update ksatver with cosby 
     mod.setup_soilmaps(
         soil_fn=soil_fn,
@@ -164,11 +148,16 @@ for case in cases:
     ksaver_cosby.name = "KsatVer_Cosby"
     mod.set_grid(ksaver_cosby, "KsatVer_Cosby")
 
-    #to avoid confusion make KsatVer equal to Brakensiek
+    #to avoid confusion make KsatVer equal to Brakensiek and rename map to Brakensiek
     mod.setup_soilmaps(
         soil_fn=soil_fn,
         ptf_ksatver="brakensiek",
     )
+
+    #first make a copy of ksatver brakensiek 
+    ksaver_brakensiek = mod.grid["KsatVer"]
+    ksaver_brakensiek.name = "KsatVer_Brakensiek"
+    mod.set_grid(ksaver_brakensiek, "KsatVer_Brakensiek")
 
     plt.figure(); mod.grid["KsatVer"].raster.mask_nodata().plot()
     plt.figure(); mod.grid["KsatVer_Brakensiek"].raster.mask_nodata().plot()
@@ -181,16 +170,7 @@ for case in cases:
     lai_modis.name = "LAI_modis"
     mod.set_grid(lai_modis, "LAI_modis")
 
-    # Prepare lai landuse tables
-    mod.setup_laimaps(
-        lai_fn = lai_fn,
-        lulc_fn = lulc_fn,
-        lulc_sampling_method = lulc_sampling_method,
-        lulc_zero_classes = lulc_zero_classes,
-        buffer = 5,
-    )
-
-    # Derive LAI based on landuse
+    # Derive LAI based on landuse rlcms_2021
     mod.setup_laimaps_from_lulc_mapping(
         lulc_fn = lulc_fn,
         lai_mapping_fn = os.path.join(mod.root, f"lai_per_lulc_{lulc_fn}.csv")
@@ -210,8 +190,8 @@ for case in cases:
     #mask
     snd_ppt = snd_ppt.where(ds["wflow_subcatch"]>0)
 
-    #mean lai is required
-    LAI_mean = ds["LAI"].mean("time")
+    #max lai is required
+    LAI_mean = ds["LAI"].max("time")
     LAI_mean.raster.set_nodata(255.)
 
     KSatVer_Brakensiek_Bonetti = get_ksatver_bonetti(KsatVer=mod.grid["KsatVer_Brakensiek"]/10, 
@@ -240,15 +220,15 @@ for case in cases:
 
 
     #update the toml with settings for reinfiltration option
-    setting_toml = {
-        "model.surface_water_infiltration" : True,
+    # setting_toml = {
+        # "model.surface_water_infiltration" : True,
         #add a map with threshold in meters # todo! 
         # for the area value and for the rest if local inertial value should be 1.0e-3
         # "input.lateral.land.h_thresh": "name_map",
-    }
+    # }
 
-    for option in setting_toml:
-        mod.set_config(option, setting_toml[option])
+    # for option in setting_toml:
+    #     mod.set_config(option, setting_toml[option])
 
     mod.set_config("input.path_static", "staticmaps_ksat.nc")
     mod.write_config(os.path.basename(toml).split(".")[0] + "_ksat.toml")
