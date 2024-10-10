@@ -159,9 +159,9 @@ for case in cases:
     ksaver_brakensiek.name = "KsatVer_Brakensiek"
     mod.set_grid(ksaver_brakensiek, "KsatVer_Brakensiek")
 
-    plt.figure(); mod.grid["KsatVer"].raster.mask_nodata().plot()
-    plt.figure(); mod.grid["KsatVer_Brakensiek"].raster.mask_nodata().plot()
-    plt.figure(); mod.grid["KsatVer_Cosby"].where(mod.grid["KsatVer_Brakensiek"]>0).raster.mask_nodata().plot()
+    # plt.figure(); mod.grid["KsatVer"].raster.mask_nodata().plot()
+    # plt.figure(); mod.grid["KsatVer_Brakensiek"].raster.mask_nodata().plot()
+    # plt.figure(); mod.grid["KsatVer_Cosby"].where(mod.grid["KsatVer_Brakensiek"]>0).raster.mask_nodata().plot()
 
     #% prepare LAI based on landuse map
     print("Preparing LAI based on landuse")
@@ -204,8 +204,8 @@ for case in cases:
                                                     LAI=LAI_mean, 
                                                     alfa=4.5, beta=5)
 
-    plt.figure(); (KSatVer_Brakensiek_Bonetti*10).plot()
-    plt.figure(); (KSatVer_Cosby_Bonetti*10).plot()
+    # plt.figure(); (KSatVer_Brakensiek_Bonetti*10).plot()
+    # plt.figure(); (KSatVer_Cosby_Bonetti*10).plot()
 
     ksaver_brakensiek_bonetti = KSatVer_Brakensiek_Bonetti*10
     ksaver_brakensiek_bonetti.name = "KsatVer_Brakensiek_Bonetti"

@@ -12,10 +12,10 @@ import sys
 
 parent_module = sys.modules[".".join(__name__.split(".")[:-1]) or "__main__"]
 if __name__ == "__main__" or parent_module.__name__ == "__main__":
-    from wflow_utils import get_wflow_results
+    from wflow.wflow_utils import get_wflow_results
     from plot_utils import plot_hydro
 else:
-    from .wflow_utils import get_wflow_results
+    from .wflow.wflow_utils import get_wflow_results
     from .plot_utils import plot_hydro
 
 def plot_results_calib_run(
