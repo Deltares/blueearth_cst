@@ -1,0 +1,27 @@
+# Location of the wflow model (staticmaps.nc)
+wflow_root: D:/Temp/FAO/test_project/hydrology_model
+# Toml of the default run relative to wflow_root
+toml_default_run: run_default/wflow_sbm_era5_ksat.toml
+# Folder where the calibration runs will be stored relative to wflow root
+calibration_runs_folder: run_calibrations/era5
+# Path to the calibration parameters file realtive to snake file
+calibration_parameters: snake_calibration/calibration_parameters_test.csv
+# Path to the output folder for plots relative to wflow root
+plot_folder: ../plots/calibration/era5
+# Starttime/endtime of the calibration
+starttime: "2000-01-01T00:00:00"
+endtime: "2005-12-31T00:00:00"
+# Observations file
+observations_locations: D:/Repos/CST/blueearth_cst/tests/data/observations/discharge-locations-grdc.csv
+observations_timeseries: D:/Repos/CST/blueearth_cst/tests/data/observations/observations-discharge-grdc.csv
+
+# Line of the calibration parameters file that contains the default uncalibrated paramset
+# python starts counting at 0!
+uncalibrated_run: 0
+# Runs to include in the combined plot - use empty list to include all runs
+# the number is the line number in the calibration parameters file (python starts counting at 0!)
+calibration_runs_selection: []
+
+# Default parameters - for info only
+#ksathorfrac,f,theta_s,tt,ttm,cfmax,water_holding_capacity,g_cfmax,g_tt,g_sifrac 
+#100.0,1.0,1.0,0.0,0.0,3.75653,0.1,5.3,1.3,0.002
