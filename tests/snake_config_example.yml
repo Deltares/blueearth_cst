@@ -24,17 +24,6 @@ endtime: "2010-12-31T00:00:00"
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
 data_sources_climate: config/cmip6_data.yml
 
-# Historical gridded climate data sources (name as available in the data_sources catalog file). Either [era5, chirps_global, chirps, eobs].
-clim_historical: 
-  - era5
-  - chirps_global
-#  - eobs
-
-clim_historical_colors:
-  - blue
-  - green
-#  - brown
-
 # List of wflow output variables to save
 # Supported variables: ['river discharge', 'precipitation', 'overland flow', 'actual evapotranspiration', 'groundwater recharge', 'snow']
 # Comment out to disable saving
@@ -52,24 +41,30 @@ model_resolution: 0.0166666
 model_build_config: "tests/wflow_build_model.yml"
 waterbodies_config: "tests/wflow_update_waterbodies.yml"
 
-# Options to prepare wflow forcing for the different dataset in clim_historical
+# Options to prepare wflow forcing for different data sources
 forcing_options:
   era5: # clim/precip source name
+    precip_fn: era5 # data source for precipitation
     temp_pet_fn: era5 # data source for temperature and pet if computed
     pet_fn: # direct data source for pet else will be computed using the temp data source
     dem_forcing_fn: era5_orography # data source for orography for downscaling temperature
     pet_method: debruin # method to compute pet
     press_correction: true
+    color: blue
   chirps_global:
+    precip_fn: chirps_global
     temp_pet_fn: era5
     dem_forcing_fn: era5_orography
     pet_method: debruin
     press_correction: true
-  eobs:
-    temp_pet_fn: eobs
-    dem_forcing_fn: eobs_orography
-    pet_method: makkink
-    press_correction: true
+    color: green
+  # eobs:
+  #   precip_fn: eobs
+  #   temp_pet_fn: eobs
+  #   dem_forcing_fn: eobs_orography
+  #   pet_method: makkink
+  #   press_correction: true
+  #   color: brown
 
 # If available, please put here the path to the available observation stations locations file
 # csv file containing four columns: station_ID, name, x, y
@@ -94,6 +89,17 @@ historical_hydrology_plots:
 
 ########################################################################################
 ######################### Analysis of historical climate data ##########################
+# Data sources to analyse
+# Historical gridded climate data sources (name as available in the data_sources catalog file). Either [era5, chirps_global, chirps, eobs].
+clim_historical: 
+  - era5
+  - chirps_global
+#  - eobs
+
+clim_historical_colors:
+  - blue
+  - green
+#  - brown
 
 # Buffer in km to apply to the region for the climate analysis
 region_buffer: 10

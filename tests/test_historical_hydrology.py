@@ -129,8 +129,8 @@ def test_setup_runtime(tmpdir, config_fao):
     """Test preparing the forcing config file when there are multiple data sources."""
     starttime = get_config(config_fao, "starttime", optional=False)
     endtime = get_config(config_fao, "endtime", optional=False)
-    precip_sources = get_config(config_fao, "clim_historical", optional=False)
-    precip_sources = np.atleast_1d(precip_sources).tolist()
+    precip_sources = get_config(config_fao, "forcing_options", optional=False)
+    precip_sources = list(precip_sources.keys())
 
     for precip_source in precip_sources:
         fn_yml = f"{tmpdir}/config/wflow_build_forcing_historical_{precip_source}.yml"
@@ -139,7 +139,7 @@ def test_setup_runtime(tmpdir, config_fao):
             starttime=starttime,
             endtime=endtime,
             fn_yml=fn_yml,
-            precip_source=precip_source,
+            forcing_name=precip_source,
         )
 
         # Check the output file
@@ -173,8 +173,8 @@ def test_add_forcing(tmpdir, data_libs_fao, config):
     # Compared to build model, use the SAMPLE model for updating
     sample_model = f"{SAMPLE_PROJECTDIR}/hydrology_model"
     output_model = f"{tmpdir}/hydrology_model"
-    precip_sources = get_config(config, "clim_historical", optional=False)
-    precip_sources = np.atleast_1d(precip_sources).tolist()
+    precip_sources = get_config(config, "forcing_options", optional=False)
+    precip_sources = list(precip_sources.keys())
     # data catalogs
     data_catalogs = np.atleast_1d(data_libs_fao).tolist()
     data_catalogs = [f"-d {cat} " for cat in data_catalogs]
@@ -241,8 +241,8 @@ def test_plot_forcing(tmpdir, config):
     wflow_root = f"{SAMPLE_PROJECTDIR}/hydrology_model/run_default"
     gauges_fn = get_config(config, "output_locations", default=None)
     gauges_name = f'gauges_{basename(gauges_fn).split(".")[0]}'
-    precip_sources = get_config(config, "clim_historical", optional=False)
-    precip_sources = np.atleast_1d(precip_sources).tolist()
+    precip_sources = get_config(config, "forcing_options", optional=False)
+    precip_sources = list(precip_sources.keys())
 
     for precip_source in precip_sources:
         plot_dir = f"{tmpdir}/plots/wflow_model_performance/{precip_source}"
@@ -277,11 +277,14 @@ def test_plot_results(tmpdir, config_fao):
     gauges_locs = join(MAINDIR, gauges_locs)
     observations_fn = get_config(config_fao, "observations_timeseries", default=None)
     observations_fn = join(MAINDIR, observations_fn)
-    precip_sources = get_config(config_fao, "clim_historical", optional=False)
-    precip_sources = np.atleast_1d(precip_sources).tolist()
-    clim_historical_colors = get_config(
-        config_fao, "clim_historical_colors", optional=False
-    )
+    precip_sources = get_config(config_fao, "forcing_options", optional=False)
+    precip_sources = list(precip_sources.keys())
+    clim_historical_colors = []
+    for source in precip_sources:
+        color = get_config(
+            config_fao, f"forcing_options.{source}.color", default="blue"
+        )
+        clim_historical_colors.append(color)
 
     # 1. Plot all results
     plot_results.analyse_wflow_historical(
@@ -409,9 +412,12 @@ def test_plot_results_budyko(tmpdir, config):
     gauges_locs = join(MAINDIR, gauges_locs)
     observations_fn = get_config(config, "observations_timeseries", default=None)
     observations_fn = join(MAINDIR, observations_fn)
-    precip_sources = get_config(config, "clim_historical", optional=False)
-    precip_sources = np.atleast_1d(precip_sources).tolist()
-    clim_historical_colors = get_config(config, "clim_historical_colors", optional=True)
+    precip_sources = get_config(config, "forcing_options", optional=False)
+    precip_sources = list(precip_sources.keys())
+    clim_historical_colors = []
+    for source in precip_sources:
+        color = get_config(config, f"forcing_options.{source}.color", default="blue")
+        clim_historical_colors.append(color)
 
     # 1. Plot all results
     plot_results.analyse_wflow_historical(

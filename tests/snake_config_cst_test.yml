@@ -18,9 +18,6 @@ data_sources_climate: config/cmip6_data.yml
 starttime: "2000-01-01T00:00:00"
 endtime: "2010-12-31T00:00:00"
 
-# Historical climate data source (name as available in the data_sources catalog file). Either [era5, chirps_global, chirps, eobs].
-clim_historical: era5
-
 # List of wflow output variables to save
 wflow_outvars: ['river discharge', 'precipitation', 'overland flow', 'actual evapotranspiration', 'groundwater recharge', 'snow']
 
@@ -37,6 +34,12 @@ model_resolution: 0.0166666
 # Path to model build configuration
 model_build_config: "tests/wflow_build_model.yml"
 waterbodies_config: "tests/wflow_update_waterbodies.yml"
+
+# Options to prepare wflow forcing for different data sources
+forcing_options:
+  era5: # clim/precip source name
+    precip_fn: era5 # data source for precipitation
+    color: blue
 
 # If available, please put here the path to the available observation stations locations files
 # csv file containing four columns: station_ID, name, x, y
