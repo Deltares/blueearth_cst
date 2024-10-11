@@ -5,8 +5,10 @@ from snakemake.utils import Paramspace
 import pandas as pd
 
 # get options from config file
-calibration_parameters = config["calibration_parameters"]
 wflow_root = config["wflow_root"]
+
+calibration_parameters = config["calibration_parameters"]
+calibration_parameters = join(wflow_root, calibration_parameters)
 
 toml_default = config["toml_default_run"]
 toml_default = join(wflow_root, toml_default)

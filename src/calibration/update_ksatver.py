@@ -6,12 +6,12 @@ import numpy as np
 
 #%% Options to modify to use the script for a specific basin
 cases = {
-    #"Nepal_Seti": {
-    #    "toml": "hydrology_model/run_default/wflow_sbm_era5_imdaa_clim.toml",
-    #    },
-    "Bhutan_Damchuu": {
-        "toml": "hydrology_model/run_default/wflow_sbm_imdaa.toml",
-        },
+    "Nepal_Seti_500m": {
+       "toml": "hydrology_model/run_default/wflow_sbm_era5_imdaa_clim.toml",
+       },
+    # "Bhutan_Damchuu": {
+    #     "toml": "hydrology_model/run_default/wflow_sbm_imdaa.toml",
+    #     },
     #"test_project": {
     #    "toml": "hydrology_model/run_default/wflow_sbm_era5.toml",
     #},
@@ -20,6 +20,7 @@ folder_p = r"p:\11210673-fao\14 Subbasins"
 
 data_libs = [
     "deltares_data==v0.7.0", 
+    r"p:\11210673-fao\fao_data.yml",
     # "p:\wflow_global\hydromt_wflow\catalog.yml", #datacatalog for ksathorfrac and other water demand data
 ]
 #data_libs = [
@@ -37,11 +38,11 @@ soil_fn = "soilgrids"
 lulc_sampling_method = "q3"
 # Landuse classes in lulc_fn for which LAI should be zero
 # vito
-lulc_zero_classes = [80, 200, 0] # decide for snow and ice 70 and urban 50
+# lulc_zero_classes = [80, 200, 0] # decide for snow and ice 70 and urban 50
 # esa_worldcover
 #lulc_zero_classes = [80, 0] # decide for snow and ice 70 and urban 50
 # rlcms
-lulc_zero_classes = [1, 2, 4, 0] # decide for snow and ice 70 and urban 50
+lulc_zero_classes = [1, 2, 4, 8, 0] # decide for snow and ice 70 and urban 50
 
 #%% functions to modify ksatver
 
@@ -169,6 +170,24 @@ for case in cases:
     lai_modis = mod.grid["LAI"]
     lai_modis.name = "LAI_modis"
     mod.set_grid(lai_modis, "LAI_modis")
+
+    # also derive lai landuse table with "mode" and "any" sample methods
+    # Prepare lai landuse tables
+    for lulc_sampling_method in ["mode", "any", "q3"]:
+        mod.setup_laimaps(
+            lai_fn = lai_fn,
+            lulc_fn = lulc_fn,
+            lulc_sampling_method = lulc_sampling_method,
+            lulc_zero_classes = lulc_zero_classes,
+            buffer = 5,
+        )
+        #rename table
+        os.rename(os.path.join(mod.root, f"lai_per_lulc_{lulc_fn}.csv"), 
+                os.path.join(mod.root, f"lai_per_lulc_{lulc_fn}_{lulc_sampling_method}.csv")
+        )
+
+    #NB: manual step of combining if necessary LAI tables to one that will be used to create the LAI maps.
+    # manual step create lai_per_lulc_{lulc_fn}.csv in mod.root that will be used to create the LAI maps!
 
     # Derive LAI based on landuse rlcms_2021
     mod.setup_laimaps_from_lulc_mapping(
