@@ -68,7 +68,7 @@ rule plot_results_per_run:
     output: 
         output_txt = f"{plot_folder}/per_run/txt/plot_{paramspace.wildcard_pattern}.txt"
     script: 
-        "../src/calibration/plot_results_calib.py"
+        "../src/plot_results_calib.py"
 
 # Rule to plot different model runs
 rule plot_results_combined:
@@ -83,5 +83,5 @@ rule plot_results_combined:
     output: 
         output_txt = f"{plot_folder}/combined/combined_plot.txt"
     script: 
-        "../src/calibration/plot_results_calib_combined.py"
+        "../src/plot_results_calib_combined.py"
 
