@@ -99,7 +99,7 @@ rule prepare_weagen_config:
     params:
         cftype = "generate",
         snake_config = config_path,
-        default_config = "config/weathergen_config.yml",
+        default_config = f"{static_dir}/weathergen_config.yml",
         output_path = f"{exp_dir}/", 
         middle_year = horizontime_climate,
         sim_years = wflow_run_length,

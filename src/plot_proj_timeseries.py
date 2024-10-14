@@ -45,10 +45,10 @@ def todatetimeindex_dropvars(ds):
 
 fns_hist = stats_time_nc_hist.copy()
 for fn in stats_time_nc_hist:
-    ds = xr.open_dataset(fn)
+    ds = xr.open_dataset(fn, lock=False)
     if len(ds) == 0 or ds is None:
         fns_hist.remove(fn)
-ds_hist = xr.open_mfdataset(fns_hist, preprocess=todatetimeindex_dropvars)
+ds_hist = xr.open_mfdataset(fns_hist, preprocess=todatetimeindex_dropvars, lock=False)
 
 # convert to df and compute anomalies
 print("Computing historical gcm timeseries anomalies")
@@ -93,7 +93,7 @@ q_tas_anom = gcm_tas_anom.quantile([0.05, 0.5, 0.95], axis=1).transpose()
 # remove files containing empty dataset
 fns_future = stats_time_nc.copy()
 for fn in stats_time_nc:
-    ds = xr.open_dataset(fn)
+    ds = xr.open_dataset(fn, lock=False)
     if len(ds) == 0 or ds is None:
         fns_future.remove(fn)
 
@@ -134,7 +134,7 @@ for i in range(len(rcps)):
 for i in range(len(rcps)):
     print(f"Opening future gcm timeseries for rcp {rcps[i]}")
     fns_rcp = [fn for fn in fns_future if rcps[i] in fn]
-    ds_rcp = xr.open_mfdataset(fns_rcp, preprocess=todatetimeindex_dropvars)
+    ds_rcp = xr.open_mfdataset(fns_rcp, preprocess=todatetimeindex_dropvars, lock=False)
     ds_fut.append(ds_rcp)
     ds_rcp_pr = ds_rcp["precip"].squeeze(drop=True)
     ds_rcp_tas = ds_rcp["temp"].squeeze(drop=True)
@@ -430,7 +430,7 @@ for n in ["abs", "anom"]:
 if save_grids:
     fns_grids = change_grids_nc.copy()
     for fn in change_grids_nc:
-        ds = xr.open_dataset(fn)
+        ds = xr.open_dataset(fn, lock=False)
         if len(ds) == 0 or ds is None:
             fns_grids.remove(fn)
 
@@ -441,7 +441,7 @@ if save_grids:
             fns_rcp_hz = [fn for fn in fns_grids if rcp in fn and hz in fn]
             ds_rcp_hz = []
             for fn in fns_rcp_hz:
-                ds = xr.open_dataset(fn)
+                ds = xr.open_dataset(f, lock=False)
                 if "time" in ds.coords:
                     if ds.indexes["time"].dtype == "O":
                         ds["time"] = ds.indexes["time"].to_datetimeindex()
