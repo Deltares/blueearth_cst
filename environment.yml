@@ -20,6 +20,7 @@ dependencies:
   - jupyter # to run examples
   - matplotlib
   - numpy
+  - libcurl==8.9.1
   - pandas>=2.0.0
   - pip
   - python>=3.9, <3.12
