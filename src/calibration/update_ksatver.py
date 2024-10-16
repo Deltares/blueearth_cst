@@ -21,7 +21,7 @@ folder_p = r"p:\11210673-fao\14 Subbasins"
 data_libs = [
     "deltares_data==v0.7.0", 
     r"p:\11210673-fao\fao_data.yml",
-    # "p:\wflow_global\hydromt_wflow\catalog.yml", #datacatalog for ksathorfrac and other water demand data
+    "p:\wflow_global\hydromt_wflow\catalog.yml", #datacatalog for ksathorfrac and other water demand data
 ]
 #data_libs = [
 #    r"C:\Users\boisgont\.hydromt_data\artifact_data\v0.0.9\data_catalog.yml", 
@@ -135,6 +135,13 @@ for case in cases:
     ds = mod.grid
 
     #% update model 
+    #ksathorfrac
+    print("Computing ksathorfrac RF map")
+    mod.setup_ksathorfrac(
+        ksat_fn = "ksathorfrac",
+        variable = "RF_250", 
+    )
+
     #now ksatver
     print("Computing KsatVer with Brakensiek and Cosby")
     
@@ -146,8 +153,8 @@ for case in cases:
 
     #rename to cosby 
     ksaver_cosby = mod.grid["KsatVer"]
-    ksaver_cosby.name = "KsatVer_Cosby"
-    mod.set_grid(ksaver_cosby, "KsatVer_Cosby")
+    ksaver_cosby.name = "KvC"
+    mod.set_grid(ksaver_cosby, "KvC")
 
     #to avoid confusion make KsatVer equal to Brakensiek and rename map to Brakensiek
     mod.setup_soilmaps(
@@ -157,8 +164,8 @@ for case in cases:
 
     #first make a copy of ksatver brakensiek 
     ksaver_brakensiek = mod.grid["KsatVer"]
-    ksaver_brakensiek.name = "KsatVer_Brakensiek"
-    mod.set_grid(ksaver_brakensiek, "KsatVer_Brakensiek")
+    ksaver_brakensiek.name = "KvB"
+    mod.set_grid(ksaver_brakensiek, "KvB")
 
     # plt.figure(); mod.grid["KsatVer"].raster.mask_nodata().plot()
     # plt.figure(); mod.grid["KsatVer_Brakensiek"].raster.mask_nodata().plot()
@@ -213,12 +220,12 @@ for case in cases:
     LAI_mean = ds["LAI"].max("time")
     LAI_mean.raster.set_nodata(255.)
 
-    KSatVer_Brakensiek_Bonetti = get_ksatver_bonetti(KsatVer=mod.grid["KsatVer_Brakensiek"]/10, 
+    KSatVer_Brakensiek_Bonetti = get_ksatver_bonetti(KsatVer=mod.grid["KvB"]/10, 
                                                     sndppt=snd_ppt, 
                                                     LAI=LAI_mean, 
                                                     alfa=4.5, beta=5)
 
-    KSatVer_Cosby_Bonetti = get_ksatver_bonetti(KsatVer=mod.grid["KsatVer_Cosby"]/10, 
+    KSatVer_Cosby_Bonetti = get_ksatver_bonetti(KsatVer=mod.grid["KvC"]/10, 
                                                     sndppt=snd_ppt, 
                                                     LAI=LAI_mean, 
                                                     alfa=4.5, beta=5)
@@ -227,12 +234,23 @@ for case in cases:
     # plt.figure(); (KSatVer_Cosby_Bonetti*10).plot()
 
     ksaver_brakensiek_bonetti = KSatVer_Brakensiek_Bonetti*10
-    ksaver_brakensiek_bonetti.name = "KsatVer_Brakensiek_Bonetti"
-    mod.set_grid(ksaver_brakensiek_bonetti, "KsatVer_Brakensiek_Bonetti")
+    ksaver_brakensiek_bonetti.name = "KvBB"
+    mod.set_grid(ksaver_brakensiek_bonetti, "KvBB")
 
     ksaver_cosby_bonetti = KSatVer_Cosby_Bonetti*10
-    ksaver_cosby_bonetti.name = "KsatVer_Cosby_Bonetti"
-    mod.set_grid(ksaver_cosby_bonetti, "KsatVer_Cosby_Bonetti")
+    ksaver_cosby_bonetti.name = "KvCB"
+    mod.set_grid(ksaver_cosby_bonetti, "KvCB")
+
+    print("Setup irrigation (should be done after LAI and landuse)")
+    mod.setup_irrigation(
+       irrigated_area_fn = "lgrip30",
+       irrigated_value = 2,
+       cropland_class = 6,
+       paddy_class = 10,
+       area_threshold = 0.6,
+       lai_threshold = 0.2
+    )
+
 
     print("Saving the model")
     mod.write_grid(os.path.join(folder_p, case, "hydrology_model", "staticmaps_ksat.nc"))
@@ -252,4 +270,3 @@ for case in cases:
     mod.set_config("input.path_static", "staticmaps_ksat.nc")
     mod.write_config(os.path.basename(toml).split(".")[0] + "_ksat.toml")
 
-# %%
