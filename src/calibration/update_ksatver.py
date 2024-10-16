@@ -3,11 +3,13 @@ import os
 import hydromt_wflow
 import matplotlib.pyplot as plt
 import numpy as np 
+import xarray as xr
 
 #%% Options to modify to use the script for a specific basin
 cases = {
     "Nepal_Seti_500m": {
-       "toml": "hydrology_model/run_default/wflow_sbm_era5_imdaa_clim.toml",
+    #    "toml": "hydrology_model/run_default/wflow_sbm_era5_imdaa_clim.toml",
+       "toml": "hydrology_model/run_default/wflow_sbm_era5.toml",
        },
     # "Bhutan_Damchuu": {
     #     "toml": "hydrology_model/run_default/wflow_sbm_imdaa.toml",
@@ -32,6 +34,8 @@ lai_fn = "modis_lai"
 lulc_fn = "rlcms_2021"
 lulc_mapping_fn = r"p:\11210673-fao\12 Data\ICIMOD\landuse\rlcms_mapping.csv"
 soil_fn = "soilgrids"
+lulc_fn_with_paddy = "landuse_with_paddy.tif"
+lulc_with_paddy_mapping_fn = "landuse_with_paddy_mapping.csv"
 
 # Method to prepare the mapping table
 # any, mode, q3
@@ -183,23 +187,23 @@ for case in cases:
     for lulc_sampling_method in ["mode", "any", "q3"]:
         mod.setup_laimaps(
             lai_fn = lai_fn,
-            lulc_fn = lulc_fn,
+            lulc_fn = xr.open_dataarray(os.path.join(folder_p, case, "hydrology_model", "maps", lulc_fn_with_paddy)),
             lulc_sampling_method = lulc_sampling_method,
             lulc_zero_classes = lulc_zero_classes,
             buffer = 5,
         )
         #rename table
-        os.rename(os.path.join(mod.root, f"lai_per_lulc_{lulc_fn}.csv"), 
-                os.path.join(mod.root, f"lai_per_lulc_{lulc_fn}_{lulc_sampling_method}.csv")
+        os.rename(os.path.join(mod.root, f"lai_per_lulc.csv"), 
+                os.path.join(mod.root, f"lai_per_lulc_{lulc_sampling_method}.csv")
         )
 
     #NB: manual step of combining if necessary LAI tables to one that will be used to create the LAI maps.
-    # manual step create lai_per_lulc_{lulc_fn}.csv in mod.root that will be used to create the LAI maps!
+    # manual step create lai_per_lulc.csv in mod.root that will be used to create the LAI maps!
 
     # Derive LAI based on landuse rlcms_2021
     mod.setup_laimaps_from_lulc_mapping(
         lulc_fn = lulc_fn,
-        lai_mapping_fn = os.path.join(mod.root, f"lai_per_lulc_{lulc_fn}.csv")
+        lai_mapping_fn = os.path.join(mod.root, f"lai_per_lulc.csv")
     )
 
     #% modify ksatver to account for vegetation 
@@ -242,13 +246,24 @@ for case in cases:
     mod.set_grid(ksaver_cosby_bonetti, "KvCB")
 
     print("Setup irrigation (should be done after LAI and landuse)")
+    #TODO: data not well read! 
+    # mod.data_catalog.get_rasterdataset("lgrip30", bbox=mod.grid.raster.bounds, buffer=3)
     mod.setup_irrigation(
        irrigated_area_fn = "lgrip30",
-       irrigated_value = 2,
+       irrigation_value = 2,
        cropland_class = 6,
        paddy_class = 10,
        area_threshold = 0.6,
        lai_threshold = 0.2
+    )
+
+    
+    #test setup_allocation_areas
+    #TODO ERROR
+    print("Setup allocation areas")
+    mod.setup_allocation_areas(
+        admin_bounds_fn="gadm_level2",
+        min_area=30,
     )
 
 
