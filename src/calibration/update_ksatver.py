@@ -246,26 +246,14 @@ for case in cases:
     mod.set_grid(ksaver_cosby_bonetti, "KvCB")
 
     print("Setup irrigation (should be done after LAI and landuse)")
-    #TODO: data not well read! 
-    # mod.data_catalog.get_rasterdataset("lgrip30", bbox=mod.grid.raster.bounds, buffer=3)
     mod.setup_irrigation(
        irrigated_area_fn = "lgrip30",
-       irrigation_value = 2,
-       cropland_class = 6,
-       paddy_class = 10,
+       irrigation_value = [2],
+       cropland_class = [6],
+       paddy_class = [10],
        area_threshold = 0.6,
        lai_threshold = 0.2
-    )
-
-    
-    #test setup_allocation_areas
-    #TODO ERROR
-    print("Setup allocation areas")
-    mod.setup_allocation_areas(
-        admin_bounds_fn="gadm_level2",
-        min_area=30,
-    )
-
+    )    
 
     print("Saving the model")
     mod.write_grid(os.path.join(folder_p, case, "hydrology_model", "staticmaps_ksat.nc"))
