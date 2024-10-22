@@ -7,13 +7,15 @@ import xarray as xr
 
 #%% Options to modify to use the script for a specific basin
 cases = {
-    "Nepal_Seti_500m_v1": {
-    #    "toml": "hydrology_model/run_default/wflow_sbm_era5_imdaa_clim.toml",
-       "toml": "hydrology_model/wflow_sbm.toml",
-       },
-    # "Bhutan_Damchuu": {
-    #     "toml": "hydrology_model/run_default/wflow_sbm_imdaa.toml",
-    #     },
+    # "Nepal_Seti_500m_v1": {
+    #    "toml": "hydrology_model/wflow_sbm.toml",
+    #    },
+    # "Pakistan_Swat_500m_v1": {
+    #    "toml": "hydrology_model/wflow_sbm.toml",
+    #    },
+    "Bhutan_Damchhu_500m_v1": {
+        "toml": "hydrology_model/wflow_sbm.toml",
+        },
     #"test_project": {
     #    "toml": "hydrology_model/run_default/wflow_sbm_era5.toml",
     #},

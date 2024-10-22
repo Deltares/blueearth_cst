@@ -42,7 +42,7 @@ for param in paramset:
             update_scale_toml(mod, "f", paramset[param])
     elif param == "kv_0":
         # if paramset[param].startswith("KSatVer_"):
-        if (paramset[param]== "KsatVer_Cosby") | (paramset[param]== "KsatVer_Brakensiek_Bonetti") | (paramset[param]== "KsatVer_Cosby_Bonetti"):
+        if (paramset[param]== "KvB"): # | (paramset[param]== "KsatVer_Brakensiek_Bonetti") | (paramset[param]== "KsatVer_Cosby_Bonetti"):
             mod.set_config(f"input.vertical.{param}", paramset[param])
         else: #scale
             update_scale_toml(mod, "kv_0", paramset[param])
