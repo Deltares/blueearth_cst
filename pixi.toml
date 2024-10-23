@@ -5,6 +5,9 @@ name = "cst"
 platforms = ["win-64", "linux-64"]
 version = "0.1.0"
 
+[system-requirements]
+linux = "4.18"
+
 [tasks]
 
 [dependencies]
