@@ -18,11 +18,11 @@ parent_module = sys.modules[".".join(__name__.split(".")[:-1]) or "__main__"]
 if __name__ == "__main__" or parent_module.__name__ == "__main__":
     from wflow.wflow_utils import get_wflow_results
     from calibration.plot_utils import plot_hydro_all_timeseries, plot_hydro_all_per_year
-    from calibration.plot_utils import plot_hydro_all_month, plot_snow_glacier
+    from calibration.plot_utils import plot_hydro_all_month, plot_snow_glacier, plot_snow_glacier_interactive
 else:
     from .wflow.wflow_utils import get_wflow_results
     from .calibration.plot_utils import plot_hydro_all_timeseries, plot_hydro_all_per_year
-    from .calibration.plot_utils import plot_hydro_all_month, plot_snow_glacier
+    from .calibration.plot_utils import plot_hydro_all_month, plot_snow_glacier, plot_snow_glacier_interactive
 
 def plot_results_calib_runs(
     wflow_tomls: List[Union[str, Path]],
@@ -112,6 +112,12 @@ def plot_results_calib_runs(
     if "snow_basavg" in ds_basin_uncal:
         print("Plot snow (and glacier)")
         plot_snow_glacier(
+            ds_basin_uncal,
+            ds_basin_cal,
+            names_cal=name_cal,
+            Folder_out=plot_folder,
+        )
+        plot_snow_glacier_interactive(
             ds_basin_uncal,
             ds_basin_cal,
             names_cal=name_cal,

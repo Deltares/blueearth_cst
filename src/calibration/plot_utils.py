@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import os
 from pathlib import Path
 import xarray as xr
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 from typing import Union, Optional
 
@@ -508,3 +510,85 @@ def plot_snow_glacier(
         os.makedirs(os.path.join(Folder_out))
     plt.savefig(os.path.join(Folder_out, "snow_glacier.png"), dpi=300)
     plt.close()
+
+def plot_snow_glacier_interactive(
+    ds_uncalibrated: xr.Dataset,
+    ds_cals: xr.Dataset,
+    names_cal: list[str],
+    Folder_out: Union[Path, str],
+):
+    """Plot snow (and glacier) timeseries using Plotly."""
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    
+    max_storage = 0
+    has_glacier = "glacier_basavg" in ds_uncalibrated
+
+    # 1. Plot the calibrated runs
+    for i, ds_id in enumerate(ds_cals):
+        fig.add_trace(
+            go.Scatter(
+                x=ds_id["snow_basavg"].time,
+                y=ds_id["snow_basavg"],
+                name=f"{names_cal[i]} (Snow)",
+                line=dict(width=2),
+            ),
+            secondary_y=False,
+        )
+        max_storage = max(max_storage, ds_id["snow_basavg"].max().values)
+        
+        if has_glacier:
+            fig.add_trace(
+                go.Scatter(
+                    x=ds_id["glacier_basavg"].time,
+                    y=ds_id["glacier_basavg"],
+                    name=f"{names_cal[i]} (Glacier)",
+                    line=dict(width=2, dash='dot'),
+                ),
+                secondary_y=True,
+            )
+            max_storage = max(max_storage, ds_id["glacier_basavg"].max().values)
+
+    # 2. Plot the uncalibrated run
+    fig.add_trace(
+        go.Scatter(
+            x=ds_uncalibrated["snow_basavg"].time,
+            y=ds_uncalibrated["snow_basavg"],
+            name="Uncalibrated (Snow)",
+            line=dict(color='gray', width=3),
+        ),
+        secondary_y=False,
+    )
+    max_storage = max(max_storage, ds_uncalibrated["snow_basavg"].max().values)
+
+    if has_glacier:
+        fig.add_trace(
+            go.Scatter(
+                x=ds_uncalibrated["glacier_basavg"].time,
+                y=ds_uncalibrated["glacier_basavg"],
+                name="Uncalibrated (Glacier)",
+                line=dict(color='gray', width=3, dash='dot'),
+            ),
+            secondary_y=True,
+        )
+        max_storage = max(max_storage, ds_uncalibrated["glacier_basavg"].max().values)
+
+    # Update layout
+    fig.update_layout(
+        title="Snow and Glacier Storage",
+        xaxis_title="",
+        yaxis_title="Snow Storage (mm)",
+        legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5),
+        height=600,
+        width=1000,
+    )
+
+    fig.update_yaxes(title_text="Glacier Storage (mm)", secondary_y=True)
+    
+    y_max = max_storage + 50
+    fig.update_yaxes(range=[0, y_max], secondary_y=False)
+    fig.update_yaxes(range=[0, y_max], secondary_y=True)
+
+    # Save the plot
+    if not os.path.exists(Folder_out):
+        os.makedirs(Folder_out)
+    fig.write_html(os.path.join(Folder_out, "snow_glacier_interactive.html"))
