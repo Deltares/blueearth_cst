@@ -2,7 +2,7 @@
 channels = ["conda-forge", "r"]
 description = "Add a short description here"
 name = "cst"
-platforms = ["win-64"]
+platforms = ["win-64", "linux-64"]
 version = "0.1.0"
 
 [tasks]
@@ -45,7 +45,6 @@ r-tidyr = "*"
 "r-r.utils" = "*"
 r-yaml = "*"
 rpy2 = "*"
-rtools = "*"
 scipy = "*"
 seaborn = "*"
 shapely = ">=2.0.0"
@@ -54,6 +53,9 @@ xarray = "<=2024.3.0"
 xclim = "*"
 zarr = "*"
 plotly = ">=5.24.1,<6"
+
+[target.win-64.dependencies]
+rtools = "*"
 
 [pypi-dependencies]
 hydroengine = "*"
