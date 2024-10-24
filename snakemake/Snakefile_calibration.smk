@@ -3,9 +3,11 @@ import os
 from os.path import join
 from snakemake.utils import Paramspace
 import pandas as pd
+from pathlib import Path
 
 # get options from config file
 wflow_root = config["wflow_root"]
+basin = config["basin"]
 
 calibration_parameters = config["calibration_parameters"]
 calibration_parameters = join(wflow_root, calibration_parameters)
@@ -48,18 +50,26 @@ rule update_toml:
         "../src/calibration/update_toml_parameters.py"
 
 # Rule to run the wflow model
-rule run_wflow:
+rule: 
+    name: f"run_wflow_{basin}"
+    group: "run_wflow"
     input:
         toml_fid = f"{calib_folder}/wflow_sbm_{paramspace.wildcard_pattern}.toml"
     output:
         csv_file = f"{calib_folder}/output_{paramspace.wildcard_pattern}.csv",
+    params:
+        project = Path("wflow", "Project.toml"),
+        basin = basin,
     resources:
-        threads = 4,
-        time = "0-12:00:00",
-        mem_mb = 32768
+        partition = "4pcpu",
+        threads = 1,
+        time = "0-24:00:00",
+        mem_mb = 8000
     localrule: False
     shell:
-        """ julia --threads {resources.threads} -e "using Wflow; Wflow.run()" "{input.toml_fid}" """
+        """ julia --project={params.project}\
+         --threads {resources.threads}\
+          -e "using Pkg; Pkg.instantiate(); using Wflow; Wflow.run()" "{input.toml_fid}" """
         # """ julia --threads 4 --project=c:\Users\bouaziz\.julia\environments\reinfiltration -e "using Wflow; Wflow.run()" "{input.toml_fid}" """
 
 # Rule to analyse and plot wflow model run results

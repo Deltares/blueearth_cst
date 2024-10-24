@@ -2,14 +2,16 @@ executor: cluster-generic
 latency-wait: 60
 keep-going: True
 keep-incomplete: True
-rerun-incomplete: False
+rerun-incomplete: True
 printshellcmds: True
 scheduler: greedy
 restart-times: 0
 forceall: False
 max-jobs-per-second: 4
 max-status-checks-per-second: 1
-jobs: 30
+jobs: 10 # Max jobs per snakemake job orchestator
+        #14 params, 4 configs = (14 params /4 group) = 3.5 (Nodes for all params in this job) = 
+        #4*4(jobs) + 4(job orchestator) + 1 (array orchestator) = 21 (for all runs, all configs)
 rerun-triggers: mtime
 
 #successor to --cluster must be installed with pip snakemake-executor-plugin-cluster-generic  (1.0.9)
@@ -35,6 +37,6 @@ default-resources:
   - mem_mb=32768 #32gb
 
 group-components:
-  - run_wflow=1
+  - run_wflow=4
 
 

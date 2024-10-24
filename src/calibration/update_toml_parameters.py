@@ -58,6 +58,7 @@ rel_path = os.path.relpath(wflow_dir_input, os.path.dirname(toml_out) )
 setting_toml = {
     "starttime": starttime,
     "endtime": endtime,
+    "state.path_output": f"outstates_{paramsetname}.nc",
     "csv.path": f"output_{paramsetname}.csv",
     "dir_input": rel_path,
     "dir_output": "",
