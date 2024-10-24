@@ -34,6 +34,7 @@ rule update_toml:
     input:
         staticmaps_fn = f"{wflow_root}/staticmaps.nc",
         toml_default = toml_default,
+    localrule: True
     output:
         toml_fid = f"{calib_folder}/wflow_sbm_{paramspace.wildcard_pattern}.toml"
     params:
@@ -52,8 +53,13 @@ rule run_wflow:
         toml_fid = f"{calib_folder}/wflow_sbm_{paramspace.wildcard_pattern}.toml"
     output:
         csv_file = f"{calib_folder}/output_{paramspace.wildcard_pattern}.csv",
+    resources:
+        threads = 4,
+        time = "0-12:00:00",
+        mem_mb = 32768
+    localrule: False
     shell:
-        """ julia --threads 4 -e "using Wflow; Wflow.run()" "{input.toml_fid}" """
+        """ julia --threads {resources.threads} -e "using Wflow; Wflow.run()" "{input.toml_fid}" """
         # """ julia --threads 4 --project=c:\Users\bouaziz\.julia\environments\reinfiltration -e "using Wflow; Wflow.run()" "{input.toml_fid}" """
 
 # Rule to analyse and plot wflow model run results
@@ -67,6 +73,7 @@ rule plot_results_per_run:
         calib_run = paramspace.wildcard_pattern,
     output: 
         output_txt = f"{plot_folder}/per_run/txt/plot_{paramspace.wildcard_pattern}.txt"
+    localrule: True
     script: 
         "../src/plot_results_calib.py"
 
@@ -82,6 +89,7 @@ rule plot_results_combined:
         uncalibrated_run = config["uncalibrated_run"],
     output: 
         output_txt = f"{plot_folder}/combined/combined_plot.txt"
+    localrule: True
     script: 
         "../src/plot_results_calib_combined.py"
 

@@ -6,6 +6,8 @@ from pathlib import Path
 import xarray as xr
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import matplotlib.colors as mcolors
+import numpy as np
 
 from typing import Union, Optional
 
@@ -513,24 +515,48 @@ def plot_snow_glacier(
 
 def plot_snow_glacier_interactive(
     ds_uncalibrated: xr.Dataset,
-    ds_cals: xr.Dataset,
+    ds_cals: list[xr.Dataset],
     names_cal: list[str],
     Folder_out: Union[Path, str],
-):
+) -> None:
     """Plot snow (and glacier) timeseries using Plotly."""
     fig = make_subplots(specs=[[{"secondary_y": True}]])
     
     max_storage = 0
     has_glacier = "glacier_basavg" in ds_uncalibrated
 
-    # 1. Plot the calibrated runs
+    # Define a large set of distinct colors
+    color_set = [
+        # Tableau 20 colors
+        '#1f77b4', '#aec7e8', '#ff7f0e', '#ffbb78', '#2ca02c', '#98df8a', '#d62728', '#ff9896',
+        '#9467bd', '#c5b0d5', '#8c564b', '#c49c94', '#e377c2', '#f7b6d2', '#7f7f7f', '#c7c7c7',
+        '#bcbd22', '#dbdb8d', '#17becf', '#9edae5',
+        # Additional colors if needed
+        '#636363', '#bdbdbd', '#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c',
+        '#fdbf6f', '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928', '#8dd3c7', '#ffffb3',
+        '#bebada', '#fb8072', '#80b1d3', '#fdb462'
+    ]
+
+    n_colors = len(ds_cals)
+    
+    # If we need more colors than available, we'll cycle through the colors
+    colors = color_set * (n_colors // len(color_set) + 1)
+    
+    # Shuffle the colors to make them more random
+    np.random.seed(42)  # for reproducibility
+    np.random.shuffle(colors)
+    
+    # Take only the number of colors we need
+    colors = colors[:n_colors]
+
     for i, ds_id in enumerate(ds_cals):
+        color = colors[i]
         fig.add_trace(
             go.Scatter(
                 x=ds_id["snow_basavg"].time,
                 y=ds_id["snow_basavg"],
                 name=f"{names_cal[i]} (Snow)",
-                line=dict(width=2),
+                line=dict(color=color, width=2),
             ),
             secondary_y=False,
         )
@@ -542,7 +568,7 @@ def plot_snow_glacier_interactive(
                     x=ds_id["glacier_basavg"].time,
                     y=ds_id["glacier_basavg"],
                     name=f"{names_cal[i]} (Glacier)",
-                    line=dict(width=2, dash='dot'),
+                    line=dict(color=color, width=2, dash='dot'),
                 ),
                 secondary_y=True,
             )
@@ -577,9 +603,19 @@ def plot_snow_glacier_interactive(
         title="Snow and Glacier Storage",
         xaxis_title="",
         yaxis_title="Snow Storage (mm)",
-        legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5),
-        height=600,
-        width=1000,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=-1.3,
+            xanchor="center",
+            x=0.5,
+            bgcolor="rgba(255,255,255,0.8)",
+            bordercolor="Black",
+            borderwidth=1
+        ),
+        height=1000,
+        margin=dict(l=50, r=50, t=100, b=50),
+        autosize=True,
     )
 
     fig.update_yaxes(title_text="Glacier Storage (mm)", secondary_y=True)
@@ -591,4 +627,17 @@ def plot_snow_glacier_interactive(
     # Save the plot
     if not os.path.exists(Folder_out):
         os.makedirs(Folder_out)
-    fig.write_html(os.path.join(Folder_out, "snow_glacier_interactive.html"))
+    
+    # Configure the plot for responsiveness
+    config = {
+        'responsive': True,
+        'displayModeBar': False  # Hide the mode bar for a cleaner look
+    }
+    
+    fig.write_html(
+        os.path.join(Folder_out, "snow_glacier_interactive.html"),
+        config=config,
+        full_html=True,
+        include_plotlyjs='cdn',  # Use CDN for plotly.js
+    )
+
