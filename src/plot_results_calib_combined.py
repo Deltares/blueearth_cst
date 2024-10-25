@@ -17,11 +17,11 @@ import sys
 parent_module = sys.modules[".".join(__name__.split(".")[:-1]) or "__main__"]
 if __name__ == "__main__" or parent_module.__name__ == "__main__":
     from wflow.wflow_utils import get_wflow_results
-    from calibration.plot_utils import plot_hydro_all_timeseries, plot_hydro_all_per_year
+    from calibration.plot_utils import plot_hydro_all_timeseries, plot_hydro_all_per_year, plot_hydro_all_timeseries_interactive, plot_hydro_all_per_year_interactive
     from calibration.plot_utils import plot_hydro_all_month, plot_snow_glacier, plot_snow_glacier_interactive
 else:
     from .wflow.wflow_utils import get_wflow_results
-    from .calibration.plot_utils import plot_hydro_all_timeseries, plot_hydro_all_per_year
+    from .calibration.plot_utils import plot_hydro_all_timeseries, plot_hydro_all_per_year, plot_hydro_all_timeseries_interactive, plot_hydro_all_per_year_interactive
     from .calibration.plot_utils import plot_hydro_all_month, plot_snow_glacier, plot_snow_glacier_interactive
 
 def plot_results_calib_runs(
@@ -82,6 +82,7 @@ def plot_results_calib_runs(
 
     # 3. Plot results
     # a) Monthly timeseries
+    print("Plot annual hydrographs")
     plot_hydro_all_timeseries(
         qsim_uncalibrated=qsim_uncal,
         qobs=qobs,
@@ -90,7 +91,17 @@ def plot_results_calib_runs(
         Folder_out=plot_folder,
     )
 
-    # b) Annual hydrographs
+    # b) Interactive annual timeseries
+    print("Plot interactive monthly timeseries")
+    plot_hydro_all_timeseries_interactive(
+        qsim_uncalibrated=qsim_uncal,
+        qobs=qobs,
+        qsim_cals=qsim_cal,
+        qsim_cals_names=name_cal,
+        Folder_out=plot_folder,
+    )
+
+    # c) Annual hydrographs
     plot_hydro_all_per_year(
         qsim_uncalibrated=qsim_uncal,
         qobs=qobs,
@@ -99,7 +110,17 @@ def plot_results_calib_runs(
         Folder_out=plot_folder,
     )
 
-    # c) Discharge per month
+    # d) Interactive annual timeseries
+    print("Plot interactive annual timeseries")
+    plot_hydro_all_per_year_interactive(
+        qsim_uncalibrated=qsim_uncal,
+        qobs=qobs,
+        qsim_cals=qsim_cal,
+        qsim_cals_names=name_cal,
+        Folder_out=plot_folder,
+    )
+
+    # e) Discharge per month
     plot_hydro_all_month(
         qsim_uncalibrated=qsim_uncal,
         qobs=qobs,

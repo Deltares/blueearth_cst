@@ -8,6 +8,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import matplotlib.colors as mcolors
 import numpy as np
+import pandas as pd
 
 from typing import Union, Optional
 
@@ -205,11 +206,14 @@ def plot_hydro(
         # Use the same time for qsim
         qsim_drop = qsim.sel(time=qobs_drop.time)
         # Compute scores
-        nse = skills.nashsutcliffe(qsim_drop, qobs_drop, dim="time")
-        nse_monthly = skills.nashsutcliffe(qsim_drop.resample(time="ME").mean(), qobs_drop.resample(time="ME").mean(), dim="time")
-        kge = skills.kge(qsim_drop, qobs_drop, dim="time")
-        kge_monthly = skills.kge(qsim_drop.resample(time="ME").mean(), qobs_drop.resample(time="ME").mean(), dim="time")
-        bias = skills.percentual_bias(qsim_drop, qobs_drop, dim="time")
+        #common time to avoid value error in join='exact'
+        common_time_min = min(qsim_drop.time.min().item(), qobs_drop.time.min().item())
+        common_time_max = max(qsim_drop.time.max().item(), qobs_drop.time.max().item())
+        nse = skills.nashsutcliffe(qsim_drop.sel(time=slice(common_time_min, common_time_max)), qobs_drop.sel(time=slice(common_time_min, common_time_max)), dim="time")
+        nse_monthly = skills.nashsutcliffe(qsim_drop.resample(time="ME").mean().sel(time=slice(common_time_min, common_time_max)), qobs_drop.resample(time="ME").mean().sel(time=slice(common_time_min, common_time_max)), dim="time")
+        kge = skills.kge(qsim_drop.sel(time=slice(common_time_min, common_time_max)), qobs_drop.sel(time=slice(common_time_min, common_time_max)), dim="time")
+        kge_monthly = skills.kge(qsim_drop.resample(time="ME").mean().sel(time=slice(common_time_min, common_time_max)), qobs_drop.resample(time="ME").mean().sel(time=slice(common_time_min, common_time_max)), dim="time")
+        bias = skills.percentual_bias(qsim_drop.sel(time=slice(common_time_min, common_time_max)), qobs_drop.sel(time=slice(common_time_min, common_time_max)), dim="time")
         scores = f"NSE: {nse.values.round(2)} | NSE monthly: {nse_monthly.values.round(2)} | KGE: {kge['kge'].values.round(2)} | KGE monthly: {kge_monthly['kge'].values.round(2)} | Bias: {bias.values.round(2)}%"
     else:
         scores = ""
@@ -251,8 +255,13 @@ def plot_hydro_all_timeseries(
         # 1. Plot the calibrated runs
         for i in range(len(qsim_cals)):
             qsim_id = qsim_cals[i].sel(index=station_id)
-            nse = skills.nashsutcliffe(qsim_id.sel(time=qobs_drop.time), qobs_drop, dim="time")
-            kge = skills.kge(qsim_id.sel(time=qobs_drop.time), qobs_drop, dim="time")
+            # Find common time range
+            common_time = qsim_id.time.where(qsim_id.time.isin(qobs_drop.time), drop=True)
+            qsim_common = qsim_id.sel(time=common_time)
+            qobs_common = qobs_drop.sel(time=common_time)
+            
+            nse = skills.nashsutcliffe(qsim_common, qobs_common, dim="time")
+            kge = skills.kge(qsim_common, qobs_common, dim="time")
             qsim_id.resample(time="ME").mean().plot(
                 ax=ax, 
                 label=f"{qsim_cals_names[i]} | NSE: {nse.values.round(2)} | KGE: {kge['kge'].values.round(2)}", 
@@ -262,8 +271,11 @@ def plot_hydro_all_timeseries(
         
         # 2. Plot the uncalibrated run (second position)
         qsim_id = qsim_uncalibrated.sel(index=station_id)
-        nse = skills.nashsutcliffe(qsim_id.sel(time=qobs_drop.time), qobs_drop, dim="time")
-        kge = skills.kge(qsim_id.sel(time=qobs_drop.time), qobs_drop, dim="time")
+        common_time = qsim_id.time.where(qsim_id.time.isin(qobs_drop.time), drop=True)
+        qsim_common = qsim_id.sel(time=common_time)
+        qobs_common = qobs_drop.sel(time=common_time)
+        nse = skills.nashsutcliffe(qsim_common, qobs_common, dim="time")
+        kge = skills.kge(qsim_common, qobs_common, dim="time")
         qsim_id.resample(time="ME").mean().plot(
             ax=ax, 
             label=f"uncalibrated | NSE: {nse.values.round(2)} | KGE: {kge['kge'].values.round(2)}", 
@@ -294,6 +306,63 @@ def plot_hydro_all_timeseries(
             os.makedirs(os.path.join(Folder_out, station_name))
         plt.savefig(os.path.join(Folder_out, station_name, "hydro_monthly_timeseries.png"), dpi=300)
         plt.close()
+
+def plot_hydro_all_timeseries_interactive(
+    qsim_uncalibrated: xr.DataArray,
+    qobs: xr.DataArray,
+    qsim_cals: list[xr.DataArray],
+    qsim_cals_names: list[str],
+    Folder_out: Union[Path, str],
+    max_nan_month: int = 5,
+):
+    """Interactive monthly timeseries plot over the different stations using Plotly."""
+    min_count_month = 30 - max_nan_month
+    qobs_month = (
+        qobs.resample(time="ME").sum(skipna=True, min_count=min_count_month) /
+        qobs.resample(time="ME").count(dim="time")
+    )
+
+    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+
+    for station_id, station_name in zip(qobs.index.values, qobs.station_name.values):
+        print(f"Plotting interactive monthly timeseries at station {station_name}")
+        
+        fig = go.Figure()
+        
+        qobs_drop = qobs.sel(index=station_id).dropna("time")
+
+        for i, qsim_cal in enumerate(qsim_cals):
+            qsim_id = qsim_cal.sel(index=station_id)
+            nse = skills.nashsutcliffe(qsim_id.sel(time=qobs_drop.time), qobs_drop, dim="time")
+            kge = skills.kge(qsim_id.sel(time=qobs_drop.time), qobs_drop, dim="time")
+            
+            fig.add_trace(go.Scatter(
+                x=qsim_id.resample(time="ME").mean().time,
+                y=qsim_id.resample(time="ME").mean(),
+                name=f"{qsim_cals_names[i]} | NSE: {nse.values.round(2)} | KGE: {kge['kge'].values.round(2)}",
+                line=dict(color=colors[i % len(colors)], width=2),
+            ))
+        
+        qsim_id = qsim_uncalibrated.sel(index=station_id)
+        nse = skills.nashsutcliffe(qsim_id.sel(time=qobs_drop.time), qobs_drop, dim="time")
+        kge = skills.kge(qsim_id.sel(time=qobs_drop.time), qobs_drop, dim="time")
+        
+        fig.add_trace(go.Scatter(
+            x=qsim_id.resample(time="ME").mean().time,
+            y=qsim_id.resample(time="ME").mean(),
+            name=f"Uncalibrated | NSE: {nse.values.round(2)} | KGE: {kge['kge'].values.round(2)}",
+            line=dict(color='gray', width=3, dash='dot'),
+        ))
+
+        fig.add_trace(go.Scatter(
+            x=qobs_month.sel(index=station_id).time,
+            y=qobs_month.sel(index=station_id),
+            name="Observed",
+            line=dict(color='black', width=3, dash='dash'),
+        ))
+        
+        # Update layout and save as before
+        # ...
 
 def plot_hydro_all_per_year(
     qsim_uncalibrated: xr.DataArray,
@@ -366,6 +435,91 @@ def plot_hydro_all_per_year(
                 os.makedirs(os.path.join(Folder_out, station_name))
             plt.savefig(os.path.join(Folder_out, station_name, f"hydro_daily_timeseries_{year}.png"), dpi=300)
             plt.close()
+
+def plot_hydro_all_per_year_interactive(
+    qsim_uncalibrated: xr.DataArray,
+    qobs: xr.DataArray,
+    qsim_cals: list[xr.DataArray],
+    qsim_cals_names: list[str],
+    Folder_out: Union[Path, str],
+):
+    """Interactive daily timeseries plot for each year over the different stations using Plotly."""
+    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+
+    for station_id, station_name in zip(qobs.index.values, qobs.station_name.values):
+        print(f"Plotting interactive daily timeseries at station {station_name}")
+        
+        # Get unique years
+        years = np.unique(qobs.sel(index=station_id).time.dt.year)
+        
+        for year in years:
+            fig = go.Figure()
+            
+            # Select data for the current year
+            qobs_year = qobs.sel(index=station_id).sel(time=str(year))
+            qsim_uncal_year = qsim_uncalibrated.sel(index=station_id).sel(time=str(year))
+            
+            # Find common time range
+            common_time = qsim_uncal_year.time.where(qsim_uncal_year.time.isin(qobs_year.time), drop=True)
+            
+            # Plot calibrated runs
+            for i, qsim_cal in enumerate(qsim_cals):
+                qsim_cal_year = qsim_cal.sel(index=station_id).sel(time=str(year))
+                qsim_cal_common = qsim_cal_year.sel(time=common_time)
+                qobs_common = qobs_year.sel(time=common_time)
+                
+                nse = skills.nashsutcliffe(qsim_cal_common, qobs_common, dim="time")
+                kge = skills.kge(qsim_cal_common, qobs_common, dim="time")
+                
+                fig.add_trace(go.Scatter(
+                    x=qsim_cal_year.time,
+                    y=qsim_cal_year,
+                    name=f"{qsim_cals_names[i]} | NSE: {nse.values.round(2)} | KGE: {kge['kge'].values.round(2)}",
+                    line=dict(color=colors[i % len(colors)], width=2),
+                ))
+            
+            # Plot uncalibrated run
+            qsim_uncal_common = qsim_uncal_year.sel(time=common_time)
+            nse_uncal = skills.nashsutcliffe(qsim_uncal_common, qobs_common, dim="time")
+            kge_uncal = skills.kge(qsim_uncal_common, qobs_common, dim="time")
+            fig.add_trace(go.Scatter(
+                x=qsim_uncal_year.time,
+                y=qsim_uncal_year,
+                name=f"Uncalibrated | NSE: {nse_uncal.values.round(2)} | KGE: {kge_uncal['kge'].values.round(2)}",
+                line=dict(color='gray', width=3, dash='dot'),
+            ))
+            
+            # Plot observed data
+            fig.add_trace(go.Scatter(
+                x=qobs_year.time,
+                y=qobs_year,
+                name="Observed",
+                line=dict(color='black', width=3, dash='dash'),
+            ))
+            
+            # Update layout
+            fig.update_layout(
+                title=f"Daily Streamflow at {station_name} - {year}",
+                xaxis_title="Date",
+                yaxis_title="Streamflow (m³/s)",
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=-0.5,
+                    xanchor="center",
+                    x=0.5
+                ),
+                height=600,
+                margin=dict(l=50, r=50, t=50, b=50),
+            )
+            
+            # Save the plot
+            if not os.path.exists(os.path.join(Folder_out, station_name)):
+                os.makedirs(os.path.join(Folder_out, station_name))
+            fig.write_html(os.path.join(Folder_out, station_name, f"hydro_daily_timeseries_{year}_interactive.html"))
+            
+            # Update layout and save as before
+            # ...
 
 def plot_hydro_all_month(
     qsim_uncalibrated: xr.DataArray,

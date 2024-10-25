@@ -1,0 +1,18 @@
+cwd="$1"
+yaml_filename="$2"
+rule="$3"
+cd "$cwd"
+echo "current working directory: $PWD"
+echo "pixi run snakemake -s "snakemake/Snakefile_calibration.smk" -c 4 --configfile "$yaml_filename" --unlock"
+pixi run snakemake -s "snakemake/Snakefile_calibration.smk" -c 4 --configfile "$yaml_filename" --unlock 
+echo "unlocked"
+# echo "touching"
+# echo "pixi run snakemake -s "snakemake/Snakefile_calibration.smk" -c 4 --configfile "$yaml_filename" --quiet rules --touch --forceall"
+# pixi run snakemake -s "snakemake/Snakefile_calibration.smk" -c 4 --configfile "$yaml_filename" --quiet rules --touch --forceall
+# echo "touched"
+echo "Dry running"
+echo "pixi run snakemake -s "snakemake/Snakefile_calibration.smk" -c 4 --configfile "$yaml_filename" --quiet rules -n -R "$rule""
+pixi run snakemake -s "snakemake/Snakefile_calibration.smk" -c 4 --configfile "$yaml_filename" --quiet rules -n -R "$rule"
+echo "Dry run complete"
+echo "Running"
+pixi run snakemake -s "snakemake/Snakefile_calibration.smk" -c 4 --configfile "$yaml_filename" --quiet rules  -R "$rule"
