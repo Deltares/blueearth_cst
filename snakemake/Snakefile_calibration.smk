@@ -17,6 +17,7 @@ toml_default = join(wflow_root, toml_default)
 
 calibration_runs_folder = config["calibration_runs_folder"]
 calib_folder = join(wflow_root, calibration_runs_folder)
+os.makedirs(calib_folder, exist_ok=True)
 
 plot_folder = config["plot_folder"]
 plot_folder = join(wflow_root, plot_folder)
@@ -51,7 +52,7 @@ rule update_toml:
 
 # Rule to run the wflow model
 rule: 
-    name: f"run_wflow_{basin}"
+    name: f"Wflow_{basin}"
     group: "run_wflow"
     input:
         toml_fid = f"{calib_folder}/wflow_sbm_{paramspace.wildcard_pattern}.toml"
@@ -62,9 +63,9 @@ rule:
         basin = basin,
     resources:
         partition = "4pcpu",
-        threads = 1,
+        threads = 4,
         time = "0-24:00:00",
-        mem_mb = 8000
+        mem_mb = 32000
     localrule: False
     shell:
         """ julia --project={params.project}\
