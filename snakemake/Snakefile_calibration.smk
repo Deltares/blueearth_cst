@@ -3,9 +3,11 @@ import os
 from os.path import join
 from snakemake.utils import Paramspace
 import pandas as pd
+from pathlib import Path
 
 # get options from config file
 wflow_root = config["wflow_root"]
+basin = config["basin"]
 
 calibration_parameters = config["calibration_parameters"]
 calibration_parameters = join(wflow_root, calibration_parameters)
@@ -15,6 +17,7 @@ toml_default = join(wflow_root, toml_default)
 
 calibration_runs_folder = config["calibration_runs_folder"]
 calib_folder = join(wflow_root, calibration_runs_folder)
+os.makedirs(calib_folder, exist_ok=True)
 
 plot_folder = config["plot_folder"]
 plot_folder = join(wflow_root, plot_folder)
@@ -34,6 +37,7 @@ rule update_toml:
     input:
         staticmaps_fn = f"{wflow_root}/staticmaps.nc",
         toml_default = toml_default,
+    localrule: True
     output:
         toml_fid = f"{calib_folder}/wflow_sbm_{paramspace.wildcard_pattern}.toml"
     params:
@@ -47,13 +51,26 @@ rule update_toml:
         "../src/calibration/update_toml_parameters.py"
 
 # Rule to run the wflow model
-rule run_wflow:
+rule: 
+    name: f"Wflow_{basin}"
+    group: "run_wflow"
     input:
         toml_fid = f"{calib_folder}/wflow_sbm_{paramspace.wildcard_pattern}.toml"
     output:
         csv_file = f"{calib_folder}/output_{paramspace.wildcard_pattern}.csv",
+    params:
+        project = Path("wflow", "Project.toml"),
+        basin = basin,
+    resources:
+        partition = "4pcpu",
+        threads = 4,
+        time = "0-24:00:00",
+        mem_mb = 32000
+    localrule: False
     shell:
-        """ julia --threads 4 -e "using Wflow; Wflow.run()" "{input.toml_fid}" """
+        """ julia --project={params.project}\
+         --threads {resources.threads}\
+          -e "using Pkg; Pkg.instantiate(); using Wflow; Wflow.run()" "{input.toml_fid}" """
         # """ julia --threads 4 --project=c:\Users\bouaziz\.julia\environments\reinfiltration -e "using Wflow; Wflow.run()" "{input.toml_fid}" """
 
 # Rule to analyse and plot wflow model run results
@@ -67,6 +84,7 @@ rule plot_results_per_run:
         calib_run = paramspace.wildcard_pattern,
     output: 
         output_txt = f"{plot_folder}/per_run/txt/plot_{paramspace.wildcard_pattern}.txt"
+    localrule: True
     script: 
         "../src/plot_results_calib.py"
 
@@ -82,6 +100,7 @@ rule plot_results_combined:
         uncalibrated_run = config["uncalibrated_run"],
     output: 
         output_txt = f"{plot_folder}/combined/combined_plot.txt"
+    localrule: True
     script: 
         "../src/plot_results_calib_combined.py"
 
