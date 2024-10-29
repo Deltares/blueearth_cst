@@ -55,12 +55,17 @@ def create_set(p: Path | str):
     for item in data.values():
         method_count = len(item["short_name"].split(','))
         methods.extend([item["method"]] * method_count)
+    
+    #wflow vars
+    wflow_vars = []
+    for item in data.values():
+        wflow_var_count = len(item["wflow_vars"].split(','))
+        wflow_vars.extend([item["wflow_vars"]] * wflow_var_count)
 
-    return lnames, methods, ds
+    return lnames, methods, ds, wflow_vars
 
 
 if __name__ == "__main__":
-#     ds = create_set("c:/CODING/NONPRODUCT/puget/res/calib_recipe.json")
     fn = R"N:\My Documents\unix\documents\RWSoS\RWSOS_Calibration\meuse\config\MINIMAL_calib_recipe.json"
     lnames, methods, ds = create_set(fn)
     print(ds)

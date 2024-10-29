@@ -1,29 +1,44 @@
 import shutil
 import os
+import sys
 from os.path import join
 from snakemake.utils import Paramspace
+sys.path.append(os.getcwd())
+from src.calibration.create_params import create_set
 import pandas as pd
 from pathlib import Path
+import json
+
+
+#Eliminate the need to have linux configs
+if sys.platform.startswith("win"):
+    DRIVE="p:"
+elif sys.platform.startswith("linux"):
+    DRIVE="/p"
+else:
+    raise ValueError(f"Unsupported platform for formatting drive location: {sys.platform}")
 
 # get options from config file
-wflow_root = config["wflow_root"]
+wflow_root = config["wflow_root"].format(DRIVE)
 basin = config["basin"]
-
-calibration_parameters = config["calibration_parameters"]
-calibration_parameters = join(wflow_root, calibration_parameters)
-
 toml_default = config["toml_default_run"]
 toml_default = join(wflow_root, toml_default)
-
 calibration_runs_folder = config["calibration_runs_folder"]
 calib_folder = join(wflow_root, calibration_runs_folder)
-os.makedirs(calib_folder, exist_ok=True)
-
 plot_folder = config["plot_folder"]
 plot_folder = join(wflow_root, plot_folder)
+calibration_parameters = join(wflow_root, config["calibration_parameters"])
+if 'recipe' in str(calibration_parameters):
+    lnames, methods, df, wflow_vars = create_set(calibration_parameters)
 
-# Paramspace with model calibration parameters
-paramspace = Paramspace(pd.read_csv(calibration_parameters, sep=","), filename_params="*")
+#TODO: work out this part 
+elif 'csv' in str(calibration_parameters):
+    df = pd.read_csv(calibration_parameters)
+    lnames = []
+    methods = []
+    wflow_vars = []
+
+paramspace = Paramspace(df, filename_params="*")
 
 # Master rule: end with all model run and analysed with saving a output plot
 rule all:
@@ -42,6 +57,9 @@ rule update_toml:
         toml_fid = f"{calib_folder}/wflow_sbm_{paramspace.wildcard_pattern}.toml"
     params:
         calibration_parameters = paramspace.instance,
+        lnames = lnames,
+        methods = methods,
+        wflow_vars = wflow_vars,
         calibration_pattern = paramspace.wildcard_pattern,
         wflow_dir_input = wflow_root,
         calib_folder = calib_folder,
@@ -52,7 +70,7 @@ rule update_toml:
 
 # Rule to run the wflow model
 rule: 
-    name: f"Wflow_{basin}"
+    name: f"run_wflow_{basin}"
     group: "run_wflow"
     input:
         toml_fid = f"{calib_folder}/wflow_sbm_{paramspace.wildcard_pattern}.toml"
@@ -63,9 +81,9 @@ rule:
         basin = basin,
     resources:
         partition = "4pcpu",
-        threads = 4,
+        threads = 1,
         time = "0-24:00:00",
-        mem_mb = 32000
+        mem_mb = 8000
     localrule: False
     shell:
         """ julia --project={params.project}\
