@@ -1,13 +1,14 @@
-import xarray as xr
-import numpy as np
+# import xarray as xr
+# import numpy as np
 import os
 from os.path import join, basename, dirname
 from pathlib import Path
-import matplotlib.pyplot as plt
-import pandas as pd
+# import matplotlib.pyplot as plt
+# import pandas as pd
 import hydromt
 from hydromt_wflow import WflowModel
-import seaborn as sns
+# import seaborn as sns
+from icecream import ic
 
 from typing import Union, List
 
@@ -63,7 +64,6 @@ def plot_results_calib_runs(
     # 2. Read observations
     # Get wflow basins to clip observations
     wflow = WflowModel(root=dirname(wflow_tomls[uncalibrated_run]), config_fn=basename(wflow_tomls[uncalibrated_run]), mode="r")
-
     # Read
     gdf_obs = hydromt.io.open_vector(
         observations_locations, crs=4326, sep=",", geom=wflow.basins
@@ -82,6 +82,10 @@ def plot_results_calib_runs(
 
     # 3. Plot results
     # a) Monthly timeseries
+    ic(qsim_uncal)
+    ic(qobs)
+    ic(qsim_cal)
+    ic(name_cal)
     print("Plot annual hydrographs")
     plot_hydro_all_timeseries(
         qsim_uncalibrated=qsim_uncal,
@@ -102,6 +106,7 @@ def plot_results_calib_runs(
     )
 
     # c) Annual hydrographs
+    print("Plot annual hydrographs")
     plot_hydro_all_per_year(
         qsim_uncalibrated=qsim_uncal,
         qobs=qobs,
@@ -121,6 +126,7 @@ def plot_results_calib_runs(
     )
 
     # e) Discharge per month
+    print("Plot monthly timeseries")
     plot_hydro_all_month(
         qsim_uncalibrated=qsim_uncal,
         qobs=qobs,

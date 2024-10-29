@@ -139,3 +139,4 @@ config/my-project-settings.yml
 # pixi environments
 .pixi
 *.egg-info
+./scripts/

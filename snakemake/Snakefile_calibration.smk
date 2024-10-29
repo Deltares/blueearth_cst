@@ -5,11 +5,23 @@ from snakemake.utils import Paramspace
 import pandas as pd
 from pathlib import Path
 
+#Eliminate the need to have linux configs
+if sys.platform.startswith("win"):
+    DRIVE="p:"
+elif sys.platform.startswith("linux"):
+    DRIVE="/p"
+else:
+    raise ValueError(f"Unsupported platform for formatting drive location: {sys.platform}")
+
 # get options from config file
-wflow_root = config["wflow_root"]
+wflow_root = config["wflow_root"].format(DRIVE)
+
+# get options from config file
+wflow_root = config["wflow_root"].format(DRIVE)
 basin = config["basin"]
 
-calibration_parameters = config["calibration_parameters"]
+calibration_parameters = config["calibration_parameters"].format(DRIVE)
+print(calibration_parameters)
 calibration_parameters = join(wflow_root, calibration_parameters)
 
 toml_default = config["toml_default_run"]
@@ -79,8 +91,8 @@ rule plot_results_per_run:
         csv_file = f"{calib_folder}/output_{paramspace.wildcard_pattern}.csv",
         toml_fid = f"{calib_folder}/wflow_sbm_{paramspace.wildcard_pattern}.toml",
     params:
-        observations_locations = config["observations_locations"],
-        observations_timeseries = config["observations_timeseries"],
+        observations_locations = config["observations_locations"].format(DRIVE),
+        observations_timeseries = config["observations_timeseries"].format(DRIVE),
         calib_run = paramspace.wildcard_pattern,
     output: 
         output_txt = f"{plot_folder}/per_run/txt/plot_{paramspace.wildcard_pattern}.txt"
@@ -94,8 +106,8 @@ rule plot_results_combined:
         csv_files = expand(join(calib_folder, "output_{params}.csv"), params=paramspace.instance_patterns),
         toml_files = expand(join(calib_folder, "wflow_sbm_{params}.toml"), params=paramspace.instance_patterns),
     params:
-        observations_locations = config["observations_locations"],
-        observations_timeseries = config["observations_timeseries"],
+        observations_locations = config["observations_locations"].format(DRIVE),
+        observations_timeseries = config["observations_timeseries"].format(DRIVE),
         calibration_runs_selection = config["calibration_runs_selection"],
         uncalibrated_run = config["uncalibrated_run"],
     output: 

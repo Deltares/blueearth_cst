@@ -9,6 +9,7 @@ from plotly.subplots import make_subplots
 import matplotlib.colors as mcolors
 import numpy as np
 import pandas as pd
+from icecream import ic
 
 from typing import Union, Optional
 
@@ -205,11 +206,17 @@ def plot_hydro(
         qobs_drop = qobs_na.dropna("time")
         # Use the same time for qsim
         qsim_drop = qsim.sel(time=qobs_drop.time)
-        # Compute scores
-        #common time to avoid value error in join='exact'
-        common_time_min = min(qsim_drop.time.min().item(), qobs_drop.time.min().item())
-        common_time_max = max(qsim_drop.time.max().item(), qobs_drop.time.max().item())
-        nse = skills.nashsutcliffe(qsim_drop.sel(time=slice(common_time_min, common_time_max)), qobs_drop.sel(time=slice(common_time_min, common_time_max)), dim="time")
+        
+        # Convert timestamps to pandas datetime objects
+        common_time_min = pd.Timestamp(min(qsim_drop.time.min().item(), qobs_drop.time.min().item()))
+        common_time_max = pd.Timestamp(max(qsim_drop.time.max().item(), qobs_drop.time.max().item()))
+        
+        # Compute scores using the converted timestamps
+        nse = skills.nashsutcliffe(
+            qsim_drop.sel(time=slice(common_time_min, common_time_max)), 
+            qobs_drop.sel(time=slice(common_time_min, common_time_max)), 
+            dim="time"
+        )
         nse_monthly = skills.nashsutcliffe(qsim_drop.resample(time="ME").mean().sel(time=slice(common_time_min, common_time_max)), qobs_drop.resample(time="ME").mean().sel(time=slice(common_time_min, common_time_max)), dim="time")
         kge = skills.kge(qsim_drop.sel(time=slice(common_time_min, common_time_max)), qobs_drop.sel(time=slice(common_time_min, common_time_max)), dim="time")
         kge_monthly = skills.kge(qsim_drop.resample(time="ME").mean().sel(time=slice(common_time_min, common_time_max)), qobs_drop.resample(time="ME").mean().sel(time=slice(common_time_min, common_time_max)), dim="time")
@@ -242,7 +249,6 @@ def plot_hydro_all_timeseries(
         qobs.resample(time="ME").sum(skipna=True, min_count=min_count_month) /
         qobs.resample(time="ME").count(dim="time")
     )
-
     # Loop per station
     for station_id, station_name in zip(qobs.index.values, qobs.station_name.values):
         print(f"Plotting monthly timeseries at station {station_name}")

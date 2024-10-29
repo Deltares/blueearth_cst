@@ -197,6 +197,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/hydromt-0.10.0-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/hydromt_wflow-0.6.1-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/hyperframe-6.0.1-pyhd8ed1ab_0.tar.bz2
+      - conda: https://conda.anaconda.org/conda-forge/noarch/icecream-2.1.3-pyhd8ed1ab_0.tar.bz2
       - conda: https://conda.anaconda.org/conda-forge/linux-64/icu-75.1-he02047a_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/idna-3.10-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/importlib-metadata-8.5.0-pyha770c72_0.conda
@@ -993,6 +994,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/hydromt-0.10.0-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/hydromt_wflow-0.6.1-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/hyperframe-6.0.1-pyhd8ed1ab_0.tar.bz2
+      - conda: https://conda.anaconda.org/conda-forge/noarch/icecream-2.1.3-pyhd8ed1ab_0.tar.bz2
       - conda: https://conda.anaconda.org/conda-forge/win-64/icu-73.2-h63175ca_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/idna-3.10-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/importlib-metadata-8.5.0-pyha770c72_0.conda
@@ -6624,6 +6626,27 @@ packages:
   - pkg:pypi/hyperframe?source=conda-forge-mapping
   size: 14646
   timestamp: 1619110249723
+- kind: conda
+  name: icecream
+  version: 2.1.3
+  build: pyhd8ed1ab_0
+  subdir: noarch
+  noarch: python
+  url: https://conda.anaconda.org/conda-forge/noarch/icecream-2.1.3-pyhd8ed1ab_0.tar.bz2
+  sha256: c63d1f83d7b6577f38c28158533ef4d77c61756f20f7861aecd80136740d2ebb
+  md5: 6e9df79dc265bd348b831b41d6c1784d
+  depends:
+  - asttokens >=2.0.1
+  - colorama >=0.3.9
+  - executing >=0.3.1
+  - pygments >=2.2.0
+  - python >=2.7
+  license: MIT
+  license_family: MIT
+  purls:
+  - pkg:pypi/icecream?source=conda-forge-mapping
+  size: 12530
+  timestamp: 1658422260428
 - kind: conda
   name: icu
   version: '73.2'
