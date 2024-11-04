@@ -59,8 +59,8 @@ def create_set(p: Path | str):
     #wflow vars
     wflow_vars = []
     for item in data.values():
-        wflow_var_count = len(item["wflow_vars"].split(','))
-        wflow_vars.extend([item["wflow_vars"]] * wflow_var_count)
+        wflow_var_count = len(item["wflow"].split(','))
+        wflow_vars.extend([item["wflow"]] * wflow_var_count)
 
     return lnames, methods, ds, wflow_vars
 

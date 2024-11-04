@@ -9,7 +9,7 @@ restart-times: 0
 forceall: False
 max-jobs-per-second: 100
 max-status-checks-per-second: 1
-jobs: 13 # Max jobs per snakemake workflow (FAIR use is <= 4x60cpus)
+jobs: 18 # Max jobs per snakemake workflow (FAIR use is <= 4x60cpus) 18x4 is 72
 rerun-triggers: mtime
 
 #for naming with grouped rules, unexpected behavior:
@@ -40,7 +40,7 @@ default-resources:
   - time="1-00:00:00"
   - mem_mb=32768 #32gb
 
-# group-components:
-#   - run_wflow=4 #set mem_mb in rule to = (total node mem_mb / group size) to get effective grouping 
+group-components:
+  - run_wflow=4 #set mem_mb in rule to = (total node mem_mb / group size) to get effective grouping 
 
 

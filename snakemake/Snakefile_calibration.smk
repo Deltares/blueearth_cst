@@ -10,7 +10,7 @@ from pathlib import Path
 import json
 
 
-#Eliminate the need to have linux configs
+#Eliminate the need to have linux configs by formatting the DRIVE to absolute paths in config file
 if sys.platform.startswith("win"):
     DRIVE="p:"
 elif sys.platform.startswith("linux"):
@@ -28,19 +28,16 @@ else:
 
 # get options from config file
 wflow_root = config["wflow_root"].format(DRIVE)
-<<<<<<< HEAD
 
 # get options from config file
 wflow_root = config["wflow_root"].format(DRIVE)
 basin = config["basin"]
+mode = config["mode"]
 
 calibration_parameters = config["calibration_parameters"].format(DRIVE)
 print(calibration_parameters)
 calibration_parameters = join(wflow_root, calibration_parameters)
 
-=======
-basin = config["basin"]
->>>>>>> 914cf570611ec32757f6c3bf9e1c25c3caacce6d
 toml_default = config["toml_default_run"]
 toml_default = join(wflow_root, toml_default)
 calibration_runs_folder = config["calibration_runs_folder"]
@@ -48,15 +45,16 @@ calib_folder = join(wflow_root, calibration_runs_folder)
 plot_folder = config["plot_folder"]
 plot_folder = join(wflow_root, plot_folder)
 calibration_parameters = join(wflow_root, config["calibration_parameters"])
+
 if 'recipe' in str(calibration_parameters):
     lnames, methods, df, wflow_vars = create_set(calibration_parameters)
 
 #TODO: work out this part 
 elif 'csv' in str(calibration_parameters):
     df = pd.read_csv(calibration_parameters)
-    lnames = []
-    methods = []
-    wflow_vars = []
+    lnames = None
+    methods = None
+    wflow_vars = None
 
 paramspace = Paramspace(df, filename_params="*")
 
@@ -77,6 +75,7 @@ rule update_toml:
         toml_fid = f"{calib_folder}/wflow_sbm_{paramspace.wildcard_pattern}.toml"
     params:
         calibration_parameters = paramspace.instance,
+        mode = mode,
         lnames = lnames,
         methods = methods,
         wflow_vars = wflow_vars,
