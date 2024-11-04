@@ -28,7 +28,6 @@ else:
 
 # get options from config file
 wflow_root = config["wflow_root"].format(DRIVE)
-<<<<<<< HEAD
 
 # get options from config file
 wflow_root = config["wflow_root"].format(DRIVE)
@@ -38,9 +37,7 @@ calibration_parameters = config["calibration_parameters"].format(DRIVE)
 print(calibration_parameters)
 calibration_parameters = join(wflow_root, calibration_parameters)
 
-=======
 basin = config["basin"]
->>>>>>> 914cf570611ec32757f6c3bf9e1c25c3caacce6d
 toml_default = config["toml_default_run"]
 toml_default = join(wflow_root, toml_default)
 calibration_runs_folder = config["calibration_runs_folder"]

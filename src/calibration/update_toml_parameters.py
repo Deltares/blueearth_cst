@@ -1,6 +1,7 @@
 import os
 import hydromt_wflow
 from src.setuplog import setup_logging
+import snakemake
 
 #%% Read the data. SnakeMake arguments are automatically passed
 logger = setup_logging("data/0-log/update_toml_parameters.log", "create_toml.log")
