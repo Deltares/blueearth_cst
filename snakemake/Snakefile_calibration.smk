@@ -18,24 +18,14 @@ elif sys.platform.startswith("linux"):
 else:
     raise ValueError(f"Unsupported platform for formatting drive location: {sys.platform}")
 
-#Eliminate the need to have linux configs
-if sys.platform.startswith("win"):
-    DRIVE="p:"
-elif sys.platform.startswith("linux"):
-    DRIVE="/p"
-else:
-    raise ValueError(f"Unsupported platform for formatting drive location: {sys.platform}")
-
 # get options from config file
 wflow_root = config["wflow_root"].format(DRIVE)
 
-# get options from config file
-wflow_root = config["wflow_root"].format(DRIVE)
 basin = config["basin"]
 mode = config["mode"]
 
 calibration_parameters = config["calibration_parameters"].format(DRIVE)
-print(calibration_parameters)
+#absolute
 calibration_parameters = join(wflow_root, calibration_parameters)
 
 toml_default = config["toml_default_run"]
@@ -46,11 +36,11 @@ plot_folder = config["plot_folder"]
 plot_folder = join(wflow_root, plot_folder)
 calibration_parameters = join(wflow_root, config["calibration_parameters"])
 
-if 'recipe' in str(calibration_parameters):
+if 'recipe' and 'json' in str(calibration_parameters):
     lnames, methods, df, wflow_vars = create_set(calibration_parameters)
 
 #TODO: work out this part 
-elif 'csv' in str(calibration_parameters):
+elif 'csv' in str(calibration_parameters) and mode == "sensitivity":
     df = pd.read_csv(calibration_parameters)
     lnames = None
     methods = None
@@ -109,6 +99,16 @@ rule:
          --threads {resources.threads}\
           -e "using Pkg; Pkg.instantiate(); using Wflow; Wflow.run()" "{input.toml_fid}" """
         # """ julia --threads 4 --project=c:\Users\bouaziz\.julia\environments\reinfiltration -e "using Wflow; Wflow.run()" "{input.toml_fid}" """
+
+rule evaluate_per_run:
+    input:
+        csv_file = f"{calib_folder}/output_{paramspace.wildcard_pattern}.csv",
+    output:
+        csv_file = f"{calib_folder}/evaluation_{paramspace.wildcard_pattern}.csv",
+    params:
+        mode = mode,
+    script:
+        "../src/calibration/evaluate_runs.py"
 
 # Rule to analyse and plot wflow model run results
 rule plot_results_per_run:

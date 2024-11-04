@@ -11,6 +11,7 @@ from timeit import default_timer as timer
 from metrics import kge, nselog_mm7q, mae_peak_timing, mape_peak_magnitude, weighted_euclidean
 from metrics import _obs_peaks, _sim_peaks
 from filelock import FileLock
+import pdb 
 
 # Avoid relative import errors
 import sys
@@ -126,7 +127,7 @@ def main(
         if isinstance(gauges, list):
             raise ValueError("Gauges should be a path to a csv with wflow_id and station_name when using modelled data")
         
-        qsim, _, _ = get_wflow_results(
+        md, _, _ = get_wflow_results(
             wflow_root=os.path.dirname(modelled),
             config_fn=os.path.basename(modelled),
             gauges_locs=gauges,
@@ -155,6 +156,8 @@ def main(
     
     params = parse_params_from_path(modelled)
     
+    pdb.set_trace()
+
     if md[gid].dtype != int:
         md[gid] = md[gid].astype(np.int64)
 
@@ -330,39 +333,29 @@ if __name__ == "__main__":
             )
 
         else:
-            Exception "NO TEST DATA SET UP IN EVALUATE"
-            # import json
-            # import yaml            
-            # gpath = "/p/11209265-grade2023/wflow/RWSOS_Calibration/meuse/data/2-interim/Hall_levels_graph.json"
-            
-            # with open(gpath) as f:
-            #     graph = json.load(f)
-            
-            # cfg = "/u/ohanrah/documents/RWSoS/RWSOS_Calibration/meuse_random/config/calib.yml"
-            
-            # with open(cfg) as f:
-            #     cfg = yaml.safe_load(f)
-            
-            # params = "ksat~1.06/f~1.5/rd~0.39/st~0.77/nr~1.0/ml~0.47/nl~1.02/nf~1.02"
+            raise ValueError("NO TEST DATA SET UP IN EVALUATE")
+            from src.calibration.create_params import create_set
+            import yaml
+            from snakemake.utils import Paramspace
 
-            # params_d = {str(p.split("~")[0]):float(p.split("~")[1]) for p in params.split('/')}
+            if sys.platform.startswith("win"):
+                DRIVE="p:"
+            elif sys.platform.startswith("lin"):
+                DRIVE="/p"
+            else:
+                raise ValueError(f"Unsupported platform for formatting drive location: {sys.platform}")
+            
+            config = "{}/11210673-fao/14 Subbasins/run_configs/2_calibration/snake_calibration_config_damchhu_soil_cal.yml".format(DRIVE)
+            with open(config) as f:
+                cfg = yaml.safe_load(f)
+            
+            root = cfg["wflow_root"].format(DRIVE)
+            calibration_parameters = cfg["calibration_parameters"].format(DRIVE)
+            calibration_parameters = calibration_parameters.format(DRIVE)
+            lnames, methods, df, wflow_vars = create_set(calibration_parameters)
+            paramspace = Paramspace(df, filename_params="*")
+            print(paramspace)
 
-            # modelled = f"/p/11209265-grade2023/wflow/RWSOS_Calibration/meuse_random/data/2-interim/calib_data/level0/{params}/output_scalar.nc"
-
-            # main(l,
-            #     modelled=modelled,
-            #     observed="/p/11209265-grade2023/wflow/RWSOS_Calibration/meuse_random/data/1-external/discharge_hourlyobs_smoothed.nc",
-            #     dry_month=[6, 7, 8],
-            #     window=60,
-            #     gid='Q_gauges_Hall',
-            #     gauges=graph["level0"]["elements"],
-            #     params=params_d,
-            #     starttime= cfg["starttime"],
-            #     endtime=cfg["endtime"], 
-            #     metrics=cfg["metrics"],
-            #     weights=cfg["weights"],
-            #     out="/p/11209265-grade2023/wflow/RWSOS_Calibration/meuse_random/data/2-interim/calib_data/level0/ksat~1.06/f~1.5/rd~0.39/st~0.77/nr~1.0/ml~0.47/nl~1.02/nf~1.02/evaluated.nc",
-            # )
     except Exception as e:
         l.exception(e)
         l.error(traceback.format_exc())
