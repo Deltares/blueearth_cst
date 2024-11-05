@@ -36,10 +36,12 @@ plot_folder = config["plot_folder"]
 plot_folder = join(wflow_root, plot_folder)
 calibration_parameters = join(wflow_root, config["calibration_parameters"])
 
+
+#trying to distinguish betweeen these two distinct phases/approaches
 if 'recipe' and 'json' in str(calibration_parameters):
     lnames, methods, df, wflow_vars = create_set(calibration_parameters)
 
-#TODO: work out this part 
+#both working
 elif 'csv' in str(calibration_parameters) and mode == "sensitivity":
     df = pd.read_csv(calibration_parameters)
     lnames = None
@@ -53,6 +55,9 @@ rule all:
     input: 
         expand((join(calib_folder, "output_{params}.csv")), params=paramspace.instance_patterns),
         expand((join(plot_folder, "per_run/txt/plot_{params}.txt")), params=paramspace.instance_patterns),
+        expand((join(calib_folder, "performance_{params}.nc")), params=paramspace.instance_patterns),
+        f"{calib_folder}/performance_appended.txt",
+        f"{plot_folder}/best_params/interactive/best_params_timeseries.html",
         f"{plot_folder}/combined/combined_plot.txt"
 
 # Rule to update TOML file settings for calibration
@@ -102,13 +107,45 @@ rule:
 
 rule evaluate_per_run:
     input:
-        csv_file = f"{calib_folder}/output_{paramspace.wildcard_pattern}.csv",
+        result = f"{calib_folder}/output_{paramspace.wildcard_pattern}.csv",
+        sim = f"{calib_folder}/wflow_sbm_{paramspace.wildcard_pattern}.toml",
+    params:
+        observed = config["observations_timeseries"].format(DRIVE),
+        gauges = config["observations_locations"].format(DRIVE),
+        params = paramspace.wildcard_pattern,
+        calib_folder = calib_folder,
+        starttime = config["starttime"],
+        endtime = config["endtime"],
+        metrics = config["metrics"],
+        weights = config["weights"],
+        outflow = config["outflow"],
     output:
-        csv_file = f"{calib_folder}/evaluation_{paramspace.wildcard_pattern}.csv",
+        csv_file = f"{calib_folder}/performance_{paramspace.wildcard_pattern}.nc",
     params:
         mode = mode,
     script:
         "../src/calibration/evaluate_runs.py"
+
+
+rule touch_performance:
+    input:
+        expand(f"{calib_folder}/performance_"+"{params}"+".nc", params=paramspace.instance_patterns),
+    params:
+        calib_folder = calib_folder,
+        observed = config["observations_timeseries"].format(DRIVE),
+    output: #P:/11210673-fao/14%20Subbasins/Bhutan_Damchhu_500m_v2/plots/calibration/era5_imdaa_clim_soil_cal/best_params/interactive/best_params_timeseries.html
+        f"{calib_folder}/performance_appended.txt"
+
+rule assess_best_params:
+    input:
+        f"{calib_folder}/performance_appended.txt",
+    params:
+        calib_folder = calib_folder,
+        gauges = config["observations_locations"].format(DRIVE),
+    output:
+        f"{plot_folder}/best_params/interactive/best_params_timeseries.html"
+    script:
+        "../src/calibration/best_params.py"
 
 # Rule to analyse and plot wflow model run results
 rule plot_results_per_run:

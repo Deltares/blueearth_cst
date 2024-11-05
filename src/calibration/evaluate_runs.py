@@ -8,19 +8,21 @@ import hydromt
 from setuplog import setup_logging
 import traceback
 from timeit import default_timer as timer
-from metrics import kge, nselog_mm7q, mae_peak_timing, mape_peak_magnitude, weighted_euclidean
+from metrics import *
 from metrics import _obs_peaks, _sim_peaks
 from filelock import FileLock
 import pdb 
-
+from rich.console import Console
+from rich.traceback import Traceback
+console = Console()
 # Avoid relative import errors
 import sys
 
 parent_module = sys.modules[".".join(__name__.split(".")[:-1]) or "__main__"]
 if __name__ == "__main__" or parent_module.__name__ == "__main__":
-    from wflow.wflow_utils import get_wflow_results
+    from src.wflow.wflow_utils import get_wflow_results
 else:
-    from .wflow.wflow_utils import get_wflow_results
+    from wflow.wflow_utils import get_wflow_results
 
 def create_index_from_params(params: dict) -> pd.Index:
     """
@@ -64,16 +66,36 @@ def create_index_from_params(params: dict) -> pd.Index:
 
 def parse_params_from_path(file_path):
     # Extract the part of the path that contains the parameters
-    path_parts = Path(file_path).parts
-    params_dict = {part.split('~')[0]:np.float64(part.split('~')[1]) for part in path_parts if '~' in part}  # Assuming the parameters are in the third last part of the path
-    return params_dict
+    if isinstance(file_path, Path):
+        file_path = str(file_path)
+    remove = [".toml", ".csv", ".nc"]
+    
+    if '/' in file_path:
+        file_path = file_path.split('/')[-1]
+
+    for r in remove:
+        if file_path.endswith(r):
+            file_path = file_path[:-len(r)]
+            break
+    
+    remove = ["output_", "wflow_sbm_"]
+    
+    for r in remove:
+        if file_path.startswith(r):
+            file_path = file_path[len(r):]
+            break
+    param_str = file_path
+    path_parts = file_path.split("_")
+    parts = [part.split("~") for part in path_parts if "~" in part]
+    params_dict = {part[0]:np.float64(part[1]) for part in parts}
+    
+    return params_dict, param_str
+    
 
 def main(
     l,
     modelled: Path | str,
     observed: Path | str,
-    dry_month: list,
-    window: int,
     gauges: tuple | list | Path,
     params: dict | str,
     starttime: str,
@@ -81,7 +103,10 @@ def main(
     metrics: tuple | list,
     weights: tuple | list,
     out: Path | str,
-    gid: str,
+    gid: str | None,
+    outflow: dict | None,
+    dry_month: list | None,
+    window: int | None,
 ):
     """
     Perform evaluation of model parameters.
@@ -109,6 +134,8 @@ def main(
     out_dir = Path(out).parent
     os.makedirs(out_dir, exist_ok=True)
     
+    if gid == None:
+        gid = "index"
     
     #Old version read the results file directly
     # if observed:
@@ -116,17 +143,20 @@ def main(
         #TODO: make coords compatible with the standard hmt obs reads
         obs = xr.open_dataset(observed)
     elif observed.endswith(".csv") or observed.endswith(".xlsx"):
-        da_ts_obs = hydromt.io.open_timeseries_from_table(
+        obs = hydromt.io.open_timeseries_from_table(
             observed, name="Q", index_dim="wflow_id", sep=";"
         )
     else:
         raise ValueError(f"Unknown file type for observed data: {observed}")
 
     #CST compatible import
-    if modelled.endswith(".toml"):
+    if modelled.endswith(".toml") and isinstance(gauges, str | Path):
         if isinstance(gauges, list):
             raise ValueError("Gauges should be a path to a csv with wflow_id and station_name when using modelled data")
-        
+        # wflow_root = os.path.dirname(modelled)
+        # config_fn = os.path.basename(modelled)
+        # gauges_locs = os.path.join(wflow_root, gauges)
+
         md, _, _ = get_wflow_results(
             wflow_root=os.path.dirname(modelled),
             config_fn=os.path.basename(modelled),
@@ -138,29 +168,40 @@ def main(
     elif modelled.endswith(".nc"):
         md = xr.open_dataset(modelled)
         
-    
-    obs = obs.sel(runs='Obs.', time=slice(starttime, endtime)) 
-
+    if isinstance(obs, xr.Dataset):
+        obs = obs.sel(runs='Obs.', time=slice(starttime, endtime)) 
+    else:
+        obs = obs.sel(time=slice(starttime, endtime))
+        
     metric_values = {
         item: [] for item in metrics
     }
+    
     evals=[]
     
     md = md.sel(time=slice(starttime, endtime))
-    
+
+    if outflow:
+        gauges = [outflow["wflow_id"]]
+
     if len(md.time.values) == 0:
         l.warning(f"\n{'*'*10}\n{modelled}\nIs not a complete time series, Skipping...\n{'*'*10}")
         with open(Path(out_dir, "failed.nc"), 'a') as f:
             f.write(f"")
         raise ValueError(f"{modelled} is not a complete time series")
     
-    params = parse_params_from_path(modelled)
-    
-    pdb.set_trace()
+    params, param_str = parse_params_from_path(modelled)
 
     if md[gid].dtype != int:
         md[gid] = md[gid].astype(np.int64)
 
+    #make sure a dataset with Q variable is returned
+    if isinstance(md, xr.DataArray):
+        md = xr.Dataset({'Q': md})
+
+    if isinstance(obs, xr.DataArray):
+        obs = xr.Dataset({'Q': obs})
+    
     if any("peak" in metric for metric in metrics):
         start = timer()
         obs_peaks = {
@@ -179,10 +220,6 @@ def main(
         peaks = None
     
     md, obs = xr.align(md,obs, join='inner')
-    
-    l.info(f"sim time: {md.time}")
-    l.info(f"obs time: {obs.time}")
-    
     
     # Calculate the metric values
     for metric in metrics:
@@ -205,11 +242,9 @@ def main(
         
         metric_values[metric].append(e)
         end = timer()
-        l.info(f"Calculated {metric} in {end-start} seconds")
-        l.info(f"{metric} value: {e}")
         evals.append(e)
     
-    l.info(f"Calculated metrics for {modelled}")
+    # l.info(f"Calculated metrics for {modelled}")
     
     # Get the euclidean distance
     res = weighted_euclidean(
@@ -220,22 +255,15 @@ def main(
     
     # Extract the level from the modelled file path
     # allowing easy access to eucldean 
-    level = None
-    for part in Path(modelled).parts:
-        if "level" in part:
-            level = part
-            break
-    split = str(out).split(level)[0]
-    results_file = Path(split) / level / f"results_{level}.txt"
+    results_file = Path(out_dir, f"performance_appended.txt")
     l.info(f"appending results to: {results_file}")
      
-    append_results_to_file(results_file, gauges, modelled, res, l)  # Call the new function
+    append_results_to_file(results_file, gauges, modelled, res, metric_values, param_str, l)  # Call the new function
 
     param_coords = create_index_from_params(params)
-    
+
     ds = None
     for metric in metrics:
-        l.info(metric)
         #metric_values[metric] has an array of len 60 at level 0
         da = xr.DataArray(
             metric_values[metric], 
@@ -243,7 +271,7 @@ def main(
             dims=['params', 'gauges'],
             attrs={"metric": metric}
         )
-        l.info(da)
+        # l.info(da)
         da.name = metric
         if ds is None:
             ds = da.to_dataset()
@@ -251,7 +279,6 @@ def main(
 
         ds[metric] = da
     
-    # l.info(ds)
     
     if res.ndim == 1:
         res = res.reshape((len(param_coords), len(gauges)))
@@ -273,14 +300,26 @@ def main(
     ds.to_netcdf(
         Path(out)
     )
-    l.info(f"Saved the performance dataset to {out_dir}")
-    #
     
-    with open(out_dir / "evaluate.done", "w") as f:
-        f.write("")
+    l.info(f"for params: {param_str}")
+    for i, gauge in enumerate(gauges):
+        l.info(f"gauge: {i}")
+        for j, (key, value) in enumerate(metric_values.items()):
+            l.info(f"{gauge} -- o_i * w_i: {key} * {weights[j]} = {value[i][0]}, euclidean: {res[i][0]}")
+
+    l.info(f"Saved the performance dataset to {out_dir}")
+    assert Path(out).exists(), f"Performance file not found: {out}"
+    assert Path(Path(out).parent, "performance_appended.txt").exists(), f"Performance appended file not found: {Path(out).parent, 'performance_appended.txt'}"
+    
 
 
-def append_results_to_file(results_file: Path, gauges: list, modelled: Path, res: np.ndarray, l) -> None:
+def append_results_to_file(results_file: Path, 
+                           gauges: list, 
+                           modelled: Path,
+                           res: np.ndarray,
+                           metric_values: dict, 
+                           param_str: str,
+                           l) -> None:
     """
     Append results to the specified results file with file locking.
     This method is preferred over multidimensional evaluation files,
@@ -294,12 +333,14 @@ def append_results_to_file(results_file: Path, gauges: list, modelled: Path, res
         with open(results_file, 'a') as f:
             # Write the header if the file is empty
             if os.stat(results_file).st_size == 0:
-                header = "params," + ",".join(map(str, gauges)) + "\n"
+                # Create the header with parameters and metrics
+                header = "params,gauge,euclidean," + ",".join(metric_values.keys()) + "\n"
                 f.write(header)
-
-            # Write the file path and distances
-            f.write(f"{parse_params_from_path(Path(modelled))}," + ",".join(map(str, res)) + "\n")
-
+                
+            for i, gauge in enumerate(gauges):
+                # Prepare the row with parameters, followed by gauge results and metric values
+                row = f"{param_str},{gauge},{res[i]}," + ",".join([','.join(map(str, metric_values[metric][i])) for metric in metric_values.keys()]) + "\n"
+                f.write(row)
 
 if __name__ == "__main__":
     
@@ -320,24 +361,25 @@ if __name__ == "__main__":
                 l,
                 modelled=mod.input.sim,
                 observed=mod.params.observed,
-                dry_month=mod.params.dry_month,
-                window=mod.params.window,
                 gauges=mod.params.gauges,
                 params=mod.params.params,
                 starttime=mod.params.starttime,
                 endtime=mod.params.endtime,
                 metrics=mod.params.metrics,
                 weights=mod.params.weights,
-                out=mod.output.performance,
-                gid=mod.params.gaugeset,
+                out=os.path.join(mod.params.calib_folder, f"performance_{mod.params.params}.nc"),
+                outflow=mod.params.outflow,
+                gid=None, #gauge index for sim, defaults to index
+                dry_month=None, #for NM7Q
+                window=None, #for peak timing
             )
 
         else:
-            raise ValueError("NO TEST DATA SET UP IN EVALUATE")
+            # raise ValueError("NO TEST DATA SET UP IN EVALUATE")
             from src.calibration.create_params import create_set
             import yaml
             from snakemake.utils import Paramspace
-
+            import shutil
             if sys.platform.startswith("win"):
                 DRIVE="p:"
             elif sys.platform.startswith("lin"):
@@ -350,13 +392,47 @@ if __name__ == "__main__":
                 cfg = yaml.safe_load(f)
             
             root = cfg["wflow_root"].format(DRIVE)
-            calibration_parameters = cfg["calibration_parameters"].format(DRIVE)
-            calibration_parameters = calibration_parameters.format(DRIVE)
+            calibration_parameters = os.path.join(root, cfg["calibration_parameters"])
             lnames, methods, df, wflow_vars = create_set(calibration_parameters)
             paramspace = Paramspace(df, filename_params="*")
-            print(paramspace)
+            wildcard_pattern = paramspace.wildcard_pattern
+            params = [part.split('~')[0] for part in wildcard_pattern.split('_')]
+            param_values = {}
+            
+            for param in params:
+                param_values[param] = paramspace.get(param)
+            
+            formatted_string = wildcard_pattern
+            
+            for param in params:
+                value = param_values[param].iloc[0]  # Get the first value
+                formatted_string = formatted_string.replace(f'{{{param}}}', str(value))
+            
+            calib_folder = os.path.join(root, cfg["calibration_runs_folder"])
+            calib_file = os.path.join(calib_folder, f"wflow_sbm_{formatted_string}.toml")
+            test_file = os.path.join(calib_folder, f"test_{formatted_string}.toml")
 
-    except Exception as e:
-        l.exception(e)
-        l.error(traceback.format_exc())
-        raise e
+            #make a testcopy
+            shutil.copy(calib_file, test_file)
+            main(
+                l,
+                modelled=test_file,
+                observed=cfg["observations_timeseries"].format(DRIVE),
+                gauges=cfg["observations_locations"].format(DRIVE),
+                params=formatted_string,
+                starttime=cfg["starttime"],
+                endtime=cfg["endtime"],
+                metrics=cfg["metrics"],
+                weights=cfg["weights"],
+                out=os.path.join(calib_folder, f"performance_{formatted_string}.nc"),
+                gid=None,
+                outflow=cfg["outflow"],
+                dry_month=None,
+                window=None,
+            )
+
+    except Exception:
+        console.print_exception()
+        # l.exception(e)
+        # l.error(traceback.format_exc())
+        # raise e
