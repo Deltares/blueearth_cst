@@ -141,7 +141,7 @@ rule assess_best_params:
         f"{calib_folder}/performance_appended.txt",
     params:
         calib_folder = calib_folder,
-        gauges = config["observations_locations"].format(DRIVE),
+        observed = config["observations_timeseries"].format(DRIVE),
     output:
         f"{plot_folder}/best_params/interactive/best_params_timeseries.html"
     script:

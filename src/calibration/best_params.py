@@ -97,7 +97,7 @@ def pareto_pair(results_file, comb, plot_folder):
     plt.savefig(Path(plot_folder, "pareto_fronts", f"{m1}_vs_{m2}.png"))
 def main(calib_dir, observed, out_interactive):
     results_file = pd.read_csv(Path(calib_dir, "performance_appended.txt"), sep=",", index_col=None)
-    print(results_file)
+    # print(results_file)
     forcing = [p for p in Path(calib_dir).parts if np.any(["era5" in p, "imdaa" in p])][0]
     metrics = [col for col in results_file.columns if not col in ["params", "gauge"]]
     ne_metrics = [m for m in metrics if m != "euclidean"]
@@ -109,8 +109,8 @@ def main(calib_dir, observed, out_interactive):
     gauge = results_file["gauge"].iloc[0]
     
     #PARETO
-    # for comb in combs:
-    #     pareto_pair(results_file, comb, plot_folder)
+    for comb in combs:
+        pareto_pair(results_file, comb, plot_folder)
     
     observed = pd.read_csv(observed, index_col='time', parse_dates=True, sep=";")
     uncalibrated_pattern = "*ksat~1.0_f~1.0_rd~1.0_st~1.0_ml~0*.csv"
@@ -143,7 +143,7 @@ def main(calib_dir, observed, out_interactive):
     # Loop through metrics to plot each best parameter set
     for i, metric in enumerate(metrics):
         best_param, results_file = best_col(results_file, metric)
-        print(f"{'*'*10}\nmetric: {metric}\n{results_file}\n{'*'*10}")
+        # print(f"{'*'*10}\nmetric: {metric}\n{results_file}\n{'*'*10}")
         
         params = best_param["params"]
         file_pattern = f"output_{params}.csv"
@@ -190,10 +190,8 @@ def main(calib_dir, observed, out_interactive):
     fig.update_xaxes(rangeslider_visible=True)
 
     # Save the figure
-    fig.write_html(out_interactive)
-    
-    # Show the figure
-    fig.show()
+    fig.write_html(str(out_interactive))
+
 
     #final_dict to csv
     final_df = pd.DataFrame(final_dict)
