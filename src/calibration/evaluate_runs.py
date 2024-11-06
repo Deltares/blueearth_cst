@@ -98,8 +98,9 @@ def main(
     observed: Path | str,
     gauges: tuple | list | Path,
     params: dict | str,
-    starttime: str,
-    endtime: str,
+    starttime: str | None,
+    splittime: str,
+    endtime: str | None,
     metrics: tuple | list,
     weights: tuple | list,
     out: Path | str,
@@ -128,7 +129,13 @@ def main(
     #original example indexed by 'Q_gauges_obs' and 'time'
     #we use gid 
     #our data is indexed by 'wflow_id' 'runs' and 'time'
-    
+
+    if starttime is None:
+        starttime = splittime
+        perf_str = "cal"
+    if endtime is None:
+        endtime = splittime
+        perf_str = "eval"
     METRICS = {metric: globals()[metric] for metric in metrics}
     
     out_dir = Path(out).parent
@@ -255,7 +262,7 @@ def main(
     
     # Extract the level from the modelled file path
     # allowing easy access to eucldean 
-    results_file = Path(out_dir, f"performance_appended.txt")
+    results_file = Path(out_dir, f"performance_{perf_str}.txt")
     l.info(f"appending results to: {results_file}")
      
     append_results_to_file(results_file, gauges, modelled, res, metric_values, param_str, l)  # Call the new function
@@ -298,7 +305,7 @@ def main(
 
     ds = ds.unstack()
     ds.to_netcdf(
-        Path(out)
+        Path(str(out).format(perf_str))
     )
     
     l.info(f"for params: {param_str}")
@@ -308,8 +315,8 @@ def main(
             l.info(f"{gauge} -- o_i * w_i: {key} * {weights[j]} = {value[i][0]}, euclidean: {res[i][0]}")
 
     l.info(f"Saved the performance dataset to {out_dir}")
-    assert Path(out).exists(), f"Performance file not found: {out}"
-    assert Path(Path(out).parent, "performance_appended.txt").exists(), f"Performance appended file not found: {Path(out).parent, 'performance_appended.txt'}"
+    assert Path(str(out).format(perf_str)).exists(), f"Performance file not found: {str(out).format(perf_str)}"
+    assert Path(Path(out).parent, f"performance_{perf_str}.txt").exists(), f"Performance appended file not found: {Path(out).parent, f'performance_{perf_str}.txt'}"
     
 
 
@@ -357,6 +364,7 @@ if __name__ == "__main__":
     try:
         if "snakemake" in globals():
             mod = globals()["snakemake"]
+            l.info(f"{'*'*10}\nEvaluating {mod.input.sim} for calibration period\n{'*'*10}")
             main(
                 l,
                 modelled=mod.input.sim,
@@ -364,10 +372,29 @@ if __name__ == "__main__":
                 gauges=mod.params.gauges,
                 params=mod.params.params,
                 starttime=mod.params.starttime,
+                splittime=mod.params.caleval_split,
+                endtime=None, #CALIBRATION SPLIT
+                metrics=mod.params.metrics,
+                weights=mod.params.weights,
+                out=mod.output.cal_file,
+                outflow=mod.params.outflow,
+                gid=None, #gauge index for sim, defaults to index
+                dry_month=None, #for NM7Q
+                window=None, #for peak timing
+            )
+            l.info(f"{'*'*10}\nEvaluating {mod.input.sim} for evaluation period\n{'*'*10}")
+            main(
+                l,
+                modelled=mod.input.sim,
+                observed=mod.params.observed,
+                gauges=mod.params.gauges,
+                params=mod.params.params,
+                starttime=None, #EVALUATION SPLIT
+                splittime=mod.params.caleval_split,
                 endtime=mod.params.endtime,
                 metrics=mod.params.metrics,
                 weights=mod.params.weights,
-                out=os.path.join(mod.params.calib_folder, f"performance_{mod.params.params}.nc"),
+                out=mod.output.eval_file, #EVALUATION SPLIT
                 outflow=mod.params.outflow,
                 gid=None, #gauge index for sim, defaults to index
                 dry_month=None, #for NM7Q
@@ -414,6 +441,7 @@ if __name__ == "__main__":
 
             #make a testcopy
             shutil.copy(calib_file, test_file)
+            l.info(f"{'*'*10}\nEvaluating {test_file} for calibration period\n{'*'*10}")
             main(
                 l,
                 modelled=test_file,
@@ -421,6 +449,25 @@ if __name__ == "__main__":
                 gauges=cfg["observations_locations"].format(DRIVE),
                 params=formatted_string,
                 starttime=cfg["starttime"],
+                splittime=cfg["caleval"],
+                endtime=None,
+                metrics=cfg["metrics"],
+                weights=cfg["weights"],
+                out=os.path.join(calib_folder, f"performance_{formatted_string}.nc"),
+                gid=None,
+                outflow=cfg["outflow"],
+                dry_month=None,
+                window=None,
+            )
+            l.info(f"{'*'*10}\nEvaluating {test_file} for evaluation period\n{'*'*10}")
+            main(
+                l,
+                modelled=test_file,
+                observed=cfg["observations_timeseries"].format(DRIVE),
+                gauges=cfg["observations_locations"].format(DRIVE),
+                params=formatted_string,
+                starttime=None,
+                splittime=cfg["caleval"],  
                 endtime=cfg["endtime"],
                 metrics=cfg["metrics"],
                 weights=cfg["weights"],
@@ -430,6 +477,7 @@ if __name__ == "__main__":
                 dry_month=None,
                 window=None,
             )
+
 
     except Exception:
         console.print_exception()

@@ -55,8 +55,10 @@ rule all:
     input: 
         expand((join(calib_folder, "output_{params}.csv")), params=paramspace.instance_patterns),
         expand((join(plot_folder, "per_run/txt/plot_{params}.txt")), params=paramspace.instance_patterns),
-        expand((join(calib_folder, "performance_{params}.nc")), params=paramspace.instance_patterns),
-        f"{calib_folder}/performance_appended.txt",
+        expand((join(calib_folder, "performance_{params}_cal.nc")), params=paramspace.instance_patterns),
+        expand((join(calib_folder, "performance_{params}_eval.nc")), params=paramspace.instance_patterns),
+        f"{calib_folder}/performance_cal.txt",
+        f"{calib_folder}/performance_eval.txt",
         f"{plot_folder}/best_params/interactive/best_params_timeseries.html",
         f"{plot_folder}/combined/combined_plot.txt"
 
@@ -105,6 +107,14 @@ rule:
           -e "using Pkg; Pkg.instantiate(); using Wflow; Wflow.run()" "{input.toml_fid}" """
         # """ julia --threads 4 --project=c:\Users\bouaziz\.julia\environments\reinfiltration -e "using Wflow; Wflow.run()" "{input.toml_fid}" """
 
+"""
+This rule evaluates both a calibration and evaluation period.
+Three dates are required: starttime, caleval (the split date) and endtime.
+The current implementation just uses the outflow gauge for evaluation, though more are possible
+#TODO: multiple gauge evaluation
+
+"""
+
 rule evaluate_per_run:
     input:
         result = f"{calib_folder}/output_{paramspace.wildcard_pattern}.csv",
@@ -115,12 +125,14 @@ rule evaluate_per_run:
         params = paramspace.wildcard_pattern,
         calib_folder = calib_folder,
         starttime = config["starttime"],
+        caleval_split = config["caleval"],
         endtime = config["endtime"],
         metrics = config["metrics"],
         weights = config["weights"],
         outflow = config["outflow"],
     output:
-        csv_file = f"{calib_folder}/performance_{paramspace.wildcard_pattern}.nc",
+        cal_file = f"{calib_folder}/performance_{paramspace.wildcard_pattern}_cal.nc",
+        eval_file = f"{calib_folder}/performance_{paramspace.wildcard_pattern}_eval.nc",
     params:
         mode = mode,
     script:
@@ -129,16 +141,16 @@ rule evaluate_per_run:
 
 rule touch_performance:
     input:
-        expand(f"{calib_folder}/performance_"+"{params}"+".nc", params=paramspace.instance_patterns),
-    params:
-        calib_folder = calib_folder,
-        observed = config["observations_timeseries"].format(DRIVE),
+        cal_file = expand(f"{calib_folder}/performance_"+"{params}"+"_cal.nc", params=paramspace.instance_patterns),
+        eval_file = expand(f"{calib_folder}/performance_"+"{params}"+"_eval.nc", params=paramspace.instance_patterns),
     output: #P:/11210673-fao/14%20Subbasins/Bhutan_Damchhu_500m_v2/plots/calibration/era5_imdaa_clim_soil_cal/best_params/interactive/best_params_timeseries.html
-        f"{calib_folder}/performance_appended.txt"
+        f"{calib_folder}/performance_cal.txt",
+        f"{calib_folder}/performance_eval.txt",
 
 rule assess_best_params:
     input:
-        f"{calib_folder}/performance_appended.txt",
+        cal_file = f"{calib_folder}/performance_cal.txt",
+        eval_file = f"{calib_folder}/performance_eval.txt",
     params:
         calib_folder = calib_folder,
         observed = config["observations_timeseries"].format(DRIVE),
