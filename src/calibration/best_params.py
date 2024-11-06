@@ -54,25 +54,26 @@ def pareto_front(data):
             pareto_indices.append(i)
 
     return sorted_data.iloc[pareto_indices]
-def pareto_pair(results_file, comb, plot_folder, colorby_col, show=False):
+
+def pareto_pair(results_file, comb, plot_folder, colorby_col, eval_type, soil_cols, show=False):
     """Plot pareto front for a pair of metrics with multiple coloring schemes"""
     m1, m2 = comb
     
-    # Create a DataFrame for the two metrics and soil parameters
-    data_pair = results_file[[m1, m2] + colorby_col]
+    # Create a DataFrame for the two metrics and coloring parameters
+    data_pair = results_file[[m1, m2]]
     
     # Calculate the Pareto front
     pareto_front_data = pareto_front(data_pair[[m1, m2]])  # Only use metrics for Pareto calculation
     
-    # Add soil parameters back to pareto_front_data
-    pareto_front_data = pareto_front_data.join(results_file[colorby_col])
+    # Add coloring parameters back to pareto_front_data
+    pareto_front_data = pareto_front_data.join(results_file[colorby_col + soil_cols + ["euclidean"]])
+    #drop any columns that are duplicates
+    pareto_front_data = pareto_front_data.loc[:, ~pareto_front_data.columns.duplicated()]
     
-    # List of parameters to color by
-    color_params = colorby_col
-    
-    for color_param in color_params:
-        # Plotting
+    for color_param in colorby_col:
         plt.figure(figsize=(10, 10))
+        
+        print(f"Plotting: {m1} vs {m2} colored by {color_param}")
         
         if color_param == 'euclidean':
             # Continuous colormap for euclidean distance
@@ -81,52 +82,121 @@ def pareto_pair(results_file, comb, plot_folder, colorby_col, show=False):
             cmap = plt.get_cmap('viridis_r')
             pareto_colors = cmap(norm_values[pareto_front_data.index])
             
-            # Plot Pareto front points
             scatter = plt.scatter(1-pareto_front_data[m1], 1-pareto_front_data[m2], 
                                 color=pareto_colors, 
                                 label='Pareto Front',
                                 zorder=5)
             
-            # Add continuous colorbar
             cbar = plt.colorbar(plt.cm.ScalarMappable(cmap=cmap), ax=plt.gca())
             cbar.set_label('Euclidean Distance')
             
-        else:
-            # Discrete colors but using a gradient
+        elif color_param == 'eval_type':
+            # Categorical colors for cal/eval
             unique_values = sorted(results_file[color_param].unique())
-            cmap = plt.get_cmap('viridis')
-            norm = plt.Normalize(min(unique_values), max(unique_values))
+            colors = {'cal': 'blue', 'eval': 'red'}  # Fixed colors for cal/eval
+            best_params_dict = {}
+            # Plot each category separately
+            for value in unique_values:
+                mask = pareto_front_data[color_param] == value
+                data = pareto_front_data[mask]
+                
+                best_params = data.sort_values(by="euclidean").iloc[0]
+                best_params = best_params.to_dict()
+                best_params_dict[value] = best_params
+
+                plt.scatter(1-data[m1], 
+                          1-data[m2],
+                          color=colors[value], 
+                          label=f"{value} phase",
+                          zorder=5,
+                          alpha=0.5)
+            arrow_point_cal = {'x':1-best_params_dict['cal'][m1], 'y':1-best_params_dict['cal'][m2]}
             
-            # Plot Pareto front points
-            scatter = plt.scatter(1-pareto_front_data[m1], 1-pareto_front_data[m2],
-                                c=pareto_front_data[color_param],
+            #tricky to get only the best params for cal
+            eval_file = results_file[results_file["eval_type"] == "eval"]
+            
+            mask = pd.Series(True, index=eval_file.index)
+            for col, value in best_params_dict['cal'].items():
+                if col not in ["euclidean", "eval_type", "nse", "kge"]:
+                    print(f"masking with {col}={value}")
+                    mask &= (eval_file[col] == value)
+            
+            masked_eval = eval_file[mask]
+            min_euclid_idx = masked_eval["euclidean"].idxmin()
+            min_euclidean_params = results_file.loc[min_euclid_idx, soil_cols + [m1, m2]]
+
+            arrow_point_eval = {'x':1-min_euclidean_params[m1], 'y':1-min_euclidean_params[m2]}
+            
+            nse_cal = best_params_dict['cal'][m2]
+            nse_eval = min_euclidean_params[m2]
+
+            kge_cal = best_params_dict['cal'][m1]
+            kge_eval = min_euclidean_params[m1]
+            plt.scatter(**arrow_point_eval, color='black', s=100, marker="+", label=f'Best param, eval phase, NSE={nse_eval:.2f}, KGE={kge_eval:.2f}', zorder=6, linewidth=2)
+            
+            plt.scatter(**arrow_point_cal, color='black', s=100, marker="^", label=f'Best param, cal phase, NSE={nse_cal:.2f}, KGE={kge_cal:.2f}', zorder=6, linewidth=2)
+            plt.arrow(0, 0, arrow_point_cal['x'], arrow_point_cal['y'], 
+                    color='blue', alpha=0.2, 
+                    length_includes_head=True,
+                    head_width=0.001, head_length=0.001,
+                    zorder=4)
+            plt.arrow(0, 0, arrow_point_eval['x'], arrow_point_eval['y'], 
+                    color='red', alpha=0.2, 
+                    length_includes_head=True,
+                    head_width=0.001, head_length=0.001,
+                    zorder=4)
+            
+            plt.legend()  # Show cal/eval in legend instead of colorbar
+
+        elif color_param in soil_cols:
+            # Continuous colormap for soil parameters
+            values = pareto_front_data[color_param]  # Use values from pareto_front_data
+            norm = plt.Normalize(values.min(), values.max())
+            cmap = plt.get_cmap('viridis')
+            
+            scatter = plt.scatter(x=1-pareto_front_data[m1], 
+                                y=1-pareto_front_data[m2],
+                                c=pareto_front_data[color_param],  # Use pareto_front_data values directly
                                 cmap=cmap,
                                 norm=norm,
+                                label=f'Colored by {color_param}',
                                 zorder=5)
             
-            # Add discrete colorbar
-            cbar = plt.colorbar(scatter, 
-                              ticks=unique_values,
-                              ax=plt.gca())
-            cbar.set_label(color_param)
+            plt.colorbar(scatter, label=color_param)
+            
+            
+        else:
+            # Default case - just plot points in a single color
+            plt.scatter(1-pareto_front_data[m1], 
+                       1-pareto_front_data[m2],
+                       color='blue',
+                       label='Pareto Front',
+                       zorder=5)
+
+
+        # Create a boolean mask that checks all conditions
+        if color_param != "eval_type":
+            min_euc = pareto_front_data["euclidean"].idxmin()
+            min_x = pareto_front_data.loc[min_euc, m1]
+            min_y = pareto_front_data.loc[min_euc, m2]
+            
+            if isinstance(min_x, pd.Series):
+                min_x = min_x.iloc[0]
+            if isinstance(min_y, pd.Series):
+                min_y = min_y.iloc[0]
+            
+            min_point = plt.scatter(1-min_x, 1-min_y, 
+                                color='red', s=200, marker="+", 
+                                label=f'Min Euclidean, {m1.capitalize()}={min_x:.2f}, {m2.capitalize()}={min_y:.2f}',
+                                zorder=6,
+                                linewidth=2)
         
-        # Highlight the minimum Euclidean point
-        min_euclid_idx = results_file["euclidean"].idxmin()
-        min_point = plt.scatter(1-results_file[m1][min_euclid_idx], 
-                             1-results_file[m2][min_euclid_idx], 
-                              color='red', s=200, marker="+", 
-                              label='Min Euclidean',
-                              zorder=6,
-                              linewidth=2)
-        
-        # Add vector arrow from origin to min euclidean point
-        min_x = 1-results_file[m1][min_euclid_idx]
-        min_y = 1-results_file[m2][min_euclid_idx]
-        plt.arrow(0, 0, min_x, min_y, 
-                 color='red', alpha=0.3, 
-                 length_includes_head=True,
-                 head_width=0.001, head_length=0.001,
-                 zorder=4)
+            # Add vector arrow from origin to min euclidean point
+            plt.arrow(0, 0, 1-min_x, 1-min_y, 
+                    color='red', alpha=0.3, 
+                    length_includes_head=True,
+                    head_width=0.001, head_length=0.001,
+                    zorder=4)
         
         # Add reference lines at origin
         plt.axhline(0, color='black', linewidth=0.8, linestyle='--', alpha=0.8)
@@ -134,24 +204,19 @@ def pareto_pair(results_file, comb, plot_folder, colorby_col, show=False):
         
         # Labels and titles
         plt.title(f'Pareto Front for {m1} vs {m2}')
-        plt.suptitle(f'Min Euclidean Point: {m1}={min_x:.2f}, {m2}={min_y:.2f}', 
-                     y=0.95)
-        plt.xlabel(f'{m1}')
-        plt.ylabel(f'{m2}')
+        plt.xlabel(f'1-{m1.capitalize()}')
+        plt.ylabel(f'1-{m2.capitalize()}')
         plt.grid(True, alpha=0.3)
-        
-        # Legend only for Pareto front and min euclidean point
-        plt.legend(['Pareto Front', 'Min Euclidean'], loc='upper left')
         
         # Save plot
         plot_subfolder = plot_folder / "pareto_fronts" / f"colored_by_{color_param}"
         os.makedirs(plot_subfolder, exist_ok=True)
-        plt.savefig(plot_subfolder / f"{m1}_vs_{m2}.png", 
+        plt.savefig(plot_subfolder / f"{m1}_vs_{m2}_{eval_type}.png", 
                     bbox_inches='tight', dpi=300)
         if show:
             plt.show()
         plt.close()
-def plot_metric_vs_euclidean(results_file, metric, plot_folder, show=False):
+def plot_metric_vs_euclidean(results_file, metric, plot_folder, eval_type, show=False):
     """Plot relationship between a metric and euclidean distance"""
     plt.figure(figsize=(10, 6))
     
@@ -195,7 +260,7 @@ def plot_metric_vs_euclidean(results_file, metric, plot_folder, show=False):
     
     # Save plot
     os.makedirs(plot_folder / "metric_vs_euclidean", exist_ok=True)
-    plt.savefig(plot_folder / "metric_vs_euclidean" / f"{metric}_vs_euclidean.png")
+    plt.savefig(plot_folder / "metric_vs_euclidean" / f"{metric}_vs_euclidean_{eval_type}.png")
     if show:
         plt.show()
     else:
@@ -225,51 +290,68 @@ def parse_params_column(results_file):
     return parsed_df
 def concat_cal_eval(cal_file, eval_file):
     cal = pd.read_csv(cal_file, sep=",", index_col=None)
+    #drop dupes in params col
+    cal = cal.drop_duplicates(subset='params')
     cal = parse_params_column(cal)
     cal['eval_type'] = 'cal'
     eval = pd.read_csv(eval_file, sep=",", index_col=None)
+    #drop dupes in params col
+    eval = eval.drop_duplicates(subset='params')
     eval = parse_params_column(eval)
     eval['eval_type'] = 'eval'
-    return pd.concat([cal, eval], axis=0)
-
-def main(cal_file, eval_file, calib_dir, cal_html, eval_html, combined_html):
+    cat = pd.concat([cal, eval], axis=0, ignore_index=True)
+    
+    return cat
+def main(cal_file, 
+         eval_file,
+         metrics,
+         calib_dir, 
+         observed,
+         cal_html, 
+         eval_html, 
+         combined_html):
     #concat eval and cal with the 
-    eval_dict = {"cal":(cal_file, cal_html), 
+    eval_dict = {
+        "cal":(cal_file, cal_html), 
                  "eval":(eval_file, eval_html), 
                  "combined":(concat_cal_eval(cal_file, eval_file), combined_html)}
     
+    observed = pd.read_csv(observed, index_col='time', parse_dates=True, sep=";")
+    
+    out_best_params = {}
+    
     for eval_type, (eval_file, out_html) in eval_dict.items():
+        print(f"{'*'*10}\nPlotting: {eval_type}\n{'*'*10}")
         if isinstance(eval_file, str | Path):
             results_file = pd.read_csv(eval_file, sep=",", index_col=None)
             results_file = parse_params_column(results_file)
         else:
             results_file = eval_file
         
+        soil_cols = ["ksat", "f", "rd", "st", "ml"]
         if eval_type == "combined":
             colorby_col = ["eval_type"]
         else:
-            colorby_col = ["ksat", "f", "rd", "st", "ml"]
+            colorby_col = soil_cols
         
         # print(results_file)
         forcing = [p for p in Path(calib_dir).parts if np.any(["era5" in p, "imdaa" in p])][0]
-        metrics = ['nse', 'kge', 'nse_log']
         ne_metrics = [m for m in metrics if m != "euclidean"]
         combs = list(combinations(ne_metrics, 2))
-        plot_folder = Path(calib_dir.split("hydrology_model")[0]) / "plots" / "calibration" / forcing / eval_type / "best_params"
+        plot_folder = Path(calib_dir.split("hydrology_model")[0]) / "plots" / "calibration" / forcing / "best_params"
         plot_folder.mkdir(exist_ok=True, parents=True)
         interactive_plot_folder = plot_folder / "interactive"
         interactive_plot_folder.mkdir(exist_ok=True, parents=True)
         gauge = results_file["gauge"].iloc[0]
         
         #METRIC VS EUCLIDEAN
-        for metric in ne_metrics:
-            plot_metric_vs_euclidean(results_file, metric, plot_folder, show=False)
+        # for metric in ne_metrics:
+        #     plot_metric_vs_euclidean(results_file, metric, plot_folder, eval_type, show=False)
 
         #PARETO
         for comb in combs:
-            pareto_pair(results_file, comb, plot_folder, colorby_col, show=True)
-        
-        observed = pd.read_csv(observed, index_col='time', parse_dates=True, sep=";")
+            pareto_pair(results_file, comb, plot_folder, colorby_col, eval_type, soil_cols, show=False)
+                
         uncalibrated_pattern = "*ksat~1.0_f~1.0_rd~1.0_st~1.0_ml~0*.csv"
         uncalibrated_files = list(Path(calib_dir).glob(uncalibrated_pattern))
         if not uncalibrated_files:
@@ -282,7 +364,7 @@ def main(cal_file, eval_file, calib_dir, cal_html, eval_html, combined_html):
         fig = go.Figure()
 
         # Create a color palette for the different metrics
-        colors = ['blue', 'red', 'green', 'purple']  # Add more colors if needed
+        colors = ['blue', 'red', 'green', 'purple', 'orange', 'brown', 'pink', 'grey', 'olive', 'cyan']  # Add more colors if needed
 
         fig.add_trace(go.Scatter(x=observed.index, 
                                 y=observed[f"{gauge}"], 
@@ -303,11 +385,9 @@ def main(cal_file, eval_file, calib_dir, cal_html, eval_html, combined_html):
             # print(f"{'*'*10}\nmetric: {metric}\n{results_file}\n{'*'*10}")
             
             params = best_param["params"]
-            file_pattern = f"output_{eval_type}_{params}.csv"
+            file_pattern = f"output_{params}.csv"
             file = Path(calib_dir) / file_pattern
             #testing
-            # file = Path('p:\\11210673-fao\\14 Subbasins\\Bhutan_Damchhu_500m_v2\\hydrology_model\\run_calibrations\\era5_imdaa_clim_soil_cal\\output_ksat~1.0_f~0.75_rd~1.5_st~1.5_ml~0.3_cfm~3.7_gcf~30_tt~0_ttm~0_gtt~0_gsif~0.002.csv')
-
             # Read the data
             df = pd.read_csv(file, index_col=0, parse_dates=True)
             
@@ -347,13 +427,14 @@ def main(cal_file, eval_file, calib_dir, cal_html, eval_html, combined_html):
         fig.update_xaxes(rangeslider_visible=True)
 
         # Save the figure
-        fig.write_html(str(out_interactive))
+        fig.write_html(str(out_html))
 
 
         #final_dict to csv
-        final_df = pd.DataFrame(final_dict)
+        out_best_params[eval_type] = final_dict
 
-        final_df.to_csv(Path(calib_dir, "best_params.csv"), index=False)
+    final_df = pd.DataFrame(out_best_params)
+    final_df.to_csv(Path(calib_dir, f"best_params.csv"), index=False)
 
 
 if __name__ == "__main__":
@@ -363,8 +444,10 @@ if __name__ == "__main__":
 
     if "snakemake" in globals():
         snakemake = globals()["snakemake"]
+
         main(snakemake.input.cal_file,
              snakemake.input.eval_file,
+             snakemake.params.metrics,
              snakemake.params.calib_folder, 
              snakemake.params.observed, 
              snakemake.output.cal_html,

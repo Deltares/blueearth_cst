@@ -59,7 +59,9 @@ rule all:
         expand((join(calib_folder, "performance_{params}_eval.nc")), params=paramspace.instance_patterns),
         f"{calib_folder}/performance_cal.txt",
         f"{calib_folder}/performance_eval.txt",
-        f"{plot_folder}/best_params/interactive/best_params_timeseries.html",
+        f"{plot_folder}/best_params/interactive/cal_timeseries.html",
+        f"{plot_folder}/best_params/interactive/eval_timeseries.html",
+        f"{plot_folder}/best_params/interactive/combined_timeseries.html",
         f"{plot_folder}/combined/combined_plot.txt"
 
 # Rule to update TOML file settings for calibration
@@ -154,8 +156,11 @@ rule assess_best_params:
     params:
         calib_folder = calib_folder,
         observed = config["observations_timeseries"].format(DRIVE),
+        metrics = config["metrics"],
     output:
-        f"{plot_folder}/best_params/interactive/best_params_timeseries.html"
+        cal_html = f"{plot_folder}/best_params/interactive/cal_timeseries.html",
+        eval_html = f"{plot_folder}/best_params/interactive/eval_timeseries.html",
+        combined_html = f"{plot_folder}/best_params/interactive/combined_timeseries.html",
     script:
         "../src/calibration/best_params.py"
 
