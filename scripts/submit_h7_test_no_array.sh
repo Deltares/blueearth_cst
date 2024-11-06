@@ -14,7 +14,7 @@ stem="/p/11210673-fao/14 Subbasins/run_configs/2_calibration"
 cwd="/u/ohanrah/documents/FAO/"
 phase="soil_cal"
 basin="swat"
-
+#p:\11210673-fao\14 Subbasins\run_configs\2_calibration\snake_calibration_config_damchhu_snow.yml
 yaml_files=(
     "$stem/snake_calibration_config_${basin}_${phase}.yml"
 )

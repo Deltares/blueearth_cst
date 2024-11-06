@@ -11,13 +11,14 @@
 
 
 echo "current working directory: $PWD"
-stem="/p/11210673-fao/14 Subbasins/"
+stem="/p/11210673-fao/14 Subbasins"
 cwd="/u/ohanrah/documents/FAO/"
-names=(damchhu_snow1, damchhu_snow2, seti_snow, swat_snow)
+#p:\11210673-fao\14 Subbasins\run_configs\2_calibration\snake_calibration_config_damchhu_snow.yml
 yaml_files=(
-    "$stem/snake_calibration_config_damchhu_linux_snow.yml"
+    "$stem/run_configs/2_calibration/snake_calibration_config_damchhu_snow.yml"
 )
 yaml_file="${yaml_files[0]}"
 echo "Processing $yaml_file"
-./scripts/B_run_calib.sh "$cwd" "$yaml_file"
+chmod +x "$cwd/scripts/B_run_calib.sh"
+"$cwd/scripts/B_run_calib.sh" "$cwd" "$yaml_file"
 

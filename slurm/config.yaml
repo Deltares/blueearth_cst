@@ -9,7 +9,7 @@ restart-times: 0
 forceall: False
 max-jobs-per-second: 100
 max-status-checks-per-second: 1
-jobs: 18 # Max jobs per snakemake workflow (FAIR use is <= 4x60cpus) 18x4 is 72
+jobs: 60 # Max jobs per snakemake workflow (FAIR use is <= 4x60cpus) 18x4 is 72
 rerun-triggers: mtime
 
 #for naming with grouped rules, unexpected behavior:
