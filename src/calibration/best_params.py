@@ -10,12 +10,18 @@ import matplotlib.pyplot as plt
 from plotly import graph_objects as go
 
 def best_col(results_file, col):
+    # print(results_file)
+    if "eval_type" in results_file.columns:
+        results_file = results_file[results_file["eval_type"] == "cal"]
+        # print(results_file)
+    
     if col not in ["euclidean"]:
         sorted = results_file.sort_values(by=col, ascending=False)
         sorted[f"{col}_rank"] = sorted.index
     else:
         sorted = results_file.sort_values(by=col, ascending=True)
         sorted[f"{col}_rank"] = sorted.index
+    print(sorted)
     return sorted.iloc[0], sorted
 def normalize_series(series):
     """
@@ -118,7 +124,7 @@ def pareto_pair(results_file, comb, plot_folder, colorby_col, eval_type, soil_co
             mask = pd.Series(True, index=eval_file.index)
             for col, value in best_params_dict['cal'].items():
                 if col not in ["euclidean", "eval_type", "nse", "kge"]:
-                    print(f"masking with {col}={value}")
+                    # print(f"masking with {col}={value}")
                     mask &= (eval_file[col] == value)
             
             masked_eval = eval_file[mask]
@@ -312,8 +318,8 @@ def main(cal_file,
          combined_html):
     #concat eval and cal with the 
     eval_dict = {
-        "cal":(cal_file, cal_html), 
-                 "eval":(eval_file, eval_html), 
+        # "cal":(cal_file, cal_html), 
+                #  "eval":(eval_file, eval_html), 
                  "combined":(concat_cal_eval(cal_file, eval_file), combined_html)}
     
     observed = pd.read_csv(observed, index_col='time', parse_dates=True, sep=";")
@@ -345,8 +351,8 @@ def main(cal_file,
         gauge = results_file["gauge"].iloc[0]
         
         #METRIC VS EUCLIDEAN
-        # for metric in ne_metrics:
-        #     plot_metric_vs_euclidean(results_file, metric, plot_folder, eval_type, show=False)
+        for metric in ne_metrics:
+            plot_metric_vs_euclidean(results_file, metric, plot_folder, eval_type, show=False)
 
         #PARETO
         for comb in combs:
@@ -380,8 +386,8 @@ def main(cal_file,
                                         width=2)))
 
         # Loop through metrics to plot each best parameter set
-        for i, metric in enumerate(metrics):
-            best_param, results_file = best_col(results_file, metric)
+        for i, metric in enumerate(metrics + ["euclidean"]):
+            best_param, cal_file = best_col(results_file, metric)
             # print(f"{'*'*10}\nmetric: {metric}\n{results_file}\n{'*'*10}")
             
             params = best_param["params"]
@@ -390,7 +396,6 @@ def main(cal_file,
             #testing
             # Read the data
             df = pd.read_csv(file, index_col=0, parse_dates=True)
-            
             q_series = df[f"Q_{gauge}"]
             per_run_metrics = {metric: best_param[metric] for metric in metrics}
             summary_dict = {pv.split("~")[0]:float(pv.split("~")[1]) for pv in params.split("_")}
@@ -398,11 +403,28 @@ def main(cal_file,
             summary_dict.update(per_run_metrics)
             final_dict[f"{metric}_best"] = summary_dict
             # Add trace for this metric's best parameter set
+            # if eval_type == "combined":
+            #     eval_file = results_file[results_file["eval_type"] == "eval"]
+            #     #mask for best params
+            #     mask = pd.Series(True, index=eval_file.index)
+            #     for col, value in summary_dict.items():
+            #         if col not in ["euclidean", "eval_type", "nse", "kge", "gauge"]:
+            #             print(f"masking with {col}={value}")
+            #             mask &= (eval_file[col] == value)
+            #     masked_eval = eval_file[mask]
+            #     min_euclid_idx = masked_eval["euclidean"].idxmin()
+            #     min_euclidean_params = masked_eval.loc[min_euclid_idx, soil_cols]
+
+            #     eval_nse = min_euclidean_params["nse"]
+            #     eval_kge = min_euclidean_params["kge"]
+            #     label = f'Best {metric},cal: {per_run_metrics}, eval: NSE={eval_nse:.2f}, KGE={eval_kge:.2f}'
+            # else:
+            label = f'Best {metric}, {per_run_metrics}'
             fig.add_trace(
                 go.Scatter(
                     x=df.index,  # Assuming index represents time
                     y=q_series,
-                    name=f'Best {metric}, {per_run_metrics}',
+                    name=label,
                     line=dict(color=colors[i % len(colors)]),
                     opacity=0.7
                 )
