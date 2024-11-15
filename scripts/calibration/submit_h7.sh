@@ -27,5 +27,6 @@ yaml_files=(
 yaml_file="${yaml_files[$SLURM_ARRAY_TASK_ID]}" #FOR USE WITH ARRAY JOBS
 
 echo "Processing $yaml_file"
+chmod +x ./scripts/B_run_calib.sh
 ./scripts/B_run_calib.sh "$cwd" "$yaml_file"
 

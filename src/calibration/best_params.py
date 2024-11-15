@@ -13,15 +13,16 @@ def best_col(results_file, col):
     # print(results_file)
     if "eval_type" in results_file.columns:
         results_file = results_file[results_file["eval_type"] == "cal"]
-        # print(results_file)
+        # min_idx = results_file[col].idxmin()
     
     if col not in ["euclidean"]:
         sorted = results_file.sort_values(by=col, ascending=False)
         sorted[f"{col}_rank"] = sorted.index
+        
     else:
         sorted = results_file.sort_values(by=col, ascending=True)
         sorted[f"{col}_rank"] = sorted.index
-    print(sorted)
+
     return sorted.iloc[0], sorted
 def normalize_series(series):
     """
@@ -60,7 +61,6 @@ def pareto_front(data):
             pareto_indices.append(i)
 
     return sorted_data.iloc[pareto_indices]
-
 def pareto_pair(results_file, comb, plot_folder, colorby_col, eval_type, soil_cols, show=False):
     """Plot pareto front for a pair of metrics with multiple coloring schemes"""
     m1, m2 = comb
@@ -98,9 +98,11 @@ def pareto_pair(results_file, comb, plot_folder, colorby_col, eval_type, soil_co
             
         elif color_param == 'eval_type':
             # Categorical colors for cal/eval
-            unique_values = sorted(results_file[color_param].unique())
+            unique_values = ["cal", "eval"]
             colors = {'cal': 'blue', 'eval': 'red'}  # Fixed colors for cal/eval
+            
             best_params_dict = {}
+            
             # Plot each category separately
             for value in unique_values:
                 mask = pareto_front_data[color_param] == value
@@ -116,36 +118,42 @@ def pareto_pair(results_file, comb, plot_folder, colorby_col, eval_type, soil_co
                           label=f"{value} phase",
                           zorder=5,
                           alpha=0.5)
-            arrow_point_cal = {'x':1-best_params_dict['cal'][m1], 'y':1-best_params_dict['cal'][m2]}
             
+            #plot the best pont for the calibration phase
+            arrow_point_cal = {'x':1-best_params_dict['cal'][m1], 'y':1-best_params_dict['cal'][m2]}
+            cal_1 = best_params_dict['cal'][m1]
+            cal_2 = best_params_dict['cal'][m2]
+
             #tricky to get only the best params for cal
             eval_file = results_file[results_file["eval_type"] == "eval"]
             
+            #make a masking dataframe
             mask = pd.Series(True, index=eval_file.index)
+            #going through the best calibration parameters
             for col, value in best_params_dict['cal'].items():
                 if col not in ["euclidean", "eval_type", "nse", "kge"]:
-                    # print(f"masking with {col}={value}")
                     mask &= (eval_file[col] == value)
             
             masked_eval = eval_file[mask]
+            
+            
             min_euclid_idx = masked_eval["euclidean"].idxmin()
             min_euclidean_params = results_file.loc[min_euclid_idx, soil_cols + [m1, m2]]
 
-            arrow_point_eval = {'x':1-min_euclidean_params[m1], 'y':1-min_euclidean_params[m2]}
+            eval_1 = min_euclidean_params[m1] 
+            eval_2 = min_euclidean_params[m2]
             
-            nse_cal = best_params_dict['cal'][m2]
-            nse_eval = min_euclidean_params[m2]
+            arrow_point_eval = {'x':1-eval_1, 'y':1-eval_2}
 
-            kge_cal = best_params_dict['cal'][m1]
-            kge_eval = min_euclidean_params[m1]
-            plt.scatter(**arrow_point_eval, color='black', s=100, marker="+", label=f'Best param, eval phase, NSE={nse_eval:.2f}, KGE={kge_eval:.2f}', zorder=6, linewidth=2)
+            plt.scatter(**arrow_point_cal, color='black', s=100, marker="^", label=f'Best param, cal phase, {m1.capitalize()}={cal_1:.2f}, {m2.capitalize()}={cal_2:.2f}', zorder=6, linewidth=2)
+            plt.scatter(**arrow_point_eval, color='black', s=100, marker="+", label=f'Best param, eval phase, {m1.capitalize()}={eval_1:.2f}, {m2.capitalize()}={eval_2:.2f}', zorder=6, linewidth=2)
             
-            plt.scatter(**arrow_point_cal, color='black', s=100, marker="^", label=f'Best param, cal phase, NSE={nse_cal:.2f}, KGE={kge_cal:.2f}', zorder=6, linewidth=2)
             plt.arrow(0, 0, arrow_point_cal['x'], arrow_point_cal['y'], 
                     color='blue', alpha=0.2, 
                     length_includes_head=True,
                     head_width=0.001, head_length=0.001,
                     zorder=4)
+            
             plt.arrow(0, 0, arrow_point_eval['x'], arrow_point_eval['y'], 
                     color='red', alpha=0.2, 
                     length_includes_head=True,
@@ -153,7 +161,7 @@ def pareto_pair(results_file, comb, plot_folder, colorby_col, eval_type, soil_co
                     zorder=4)
             
             plt.legend()  # Show cal/eval in legend instead of colorbar
-
+            
         elif color_param in soil_cols:
             # Continuous colormap for soil parameters
             values = pareto_front_data[color_param]  # Use values from pareto_front_data
@@ -169,7 +177,6 @@ def pareto_pair(results_file, comb, plot_folder, colorby_col, eval_type, soil_co
                                 zorder=5)
             
             plt.colorbar(scatter, label=color_param)
-            
             
         else:
             # Default case - just plot points in a single color
@@ -318,8 +325,8 @@ def main(cal_file,
          combined_html):
     #concat eval and cal with the 
     eval_dict = {
-        # "cal":(cal_file, cal_html), 
-                #  "eval":(eval_file, eval_html), 
+        "cal":(cal_file, cal_html), 
+                 "eval":(eval_file, eval_html), 
                  "combined":(concat_cal_eval(cal_file, eval_file), combined_html)}
     
     observed = pd.read_csv(observed, index_col='time', parse_dates=True, sep=";")
@@ -327,14 +334,14 @@ def main(cal_file,
     out_best_params = {}
     
     for eval_type, (eval_file, out_html) in eval_dict.items():
-        print(f"{'*'*10}\nPlotting: {eval_type}\n{'*'*10}")
         if isinstance(eval_file, str | Path):
             results_file = pd.read_csv(eval_file, sep=",", index_col=None)
             results_file = parse_params_column(results_file)
         else:
             results_file = eval_file
-        
+        #TODO: make this dynamic
         soil_cols = ["ksat", "f", "rd", "st", "ml"]
+
         if eval_type == "combined":
             colorby_col = ["eval_type"]
         else:
@@ -388,7 +395,6 @@ def main(cal_file,
         # Loop through metrics to plot each best parameter set
         for i, metric in enumerate(metrics + ["euclidean"]):
             best_param, cal_file = best_col(results_file, metric)
-            # print(f"{'*'*10}\nmetric: {metric}\n{results_file}\n{'*'*10}")
             
             params = best_param["params"]
             file_pattern = f"output_{params}.csv"
@@ -402,24 +408,9 @@ def main(cal_file,
             summary_dict.update({"gauge": gauge})
             summary_dict.update(per_run_metrics)
             final_dict[f"{metric}_best"] = summary_dict
-            # Add trace for this metric's best parameter set
-            # if eval_type == "combined":
-            #     eval_file = results_file[results_file["eval_type"] == "eval"]
-            #     #mask for best params
-            #     mask = pd.Series(True, index=eval_file.index)
-            #     for col, value in summary_dict.items():
-            #         if col not in ["euclidean", "eval_type", "nse", "kge", "gauge"]:
-            #             print(f"masking with {col}={value}")
-            #             mask &= (eval_file[col] == value)
-            #     masked_eval = eval_file[mask]
-            #     min_euclid_idx = masked_eval["euclidean"].idxmin()
-            #     min_euclidean_params = masked_eval.loc[min_euclid_idx, soil_cols]
-
-            #     eval_nse = min_euclidean_params["nse"]
-            #     eval_kge = min_euclidean_params["kge"]
-            #     label = f'Best {metric},cal: {per_run_metrics}, eval: NSE={eval_nse:.2f}, KGE={eval_kge:.2f}'
-            # else:
+            
             label = f'Best {metric}, {per_run_metrics}'
+
             fig.add_trace(
                 go.Scatter(
                     x=df.index,  # Assuming index represents time
@@ -446,18 +437,27 @@ def main(cal_file,
         )
 
         # Add range slider
-        fig.update_xaxes(rangeslider_visible=True)
+        fig.update_xaxes(rangeslider_visible=False)
 
         # Save the figure
         fig.write_html(str(out_html))
 
-
         #final_dict to csv
         out_best_params[eval_type] = final_dict
 
-    final_df = pd.DataFrame(out_best_params)
-    final_df.to_csv(Path(calib_dir, f"best_params.csv"), index=False)
+        final_df = pd.DataFrame(out_best_params)
+    plot_tables_folder = plot_folder / "summary_tables"
+    plot_tables_folder.mkdir(exist_ok=True, parents=True)
+    calib_table_folder = Path(calib_dir) / "summary_tables"
+    calib_table_folder.mkdir(exist_ok=True, parents=True)
 
+    for folder, eval_type in zip([plot_folder, calib_table_folder], ["cal", "eval"]):
+        if eval_type == "cal":
+            final_df.to_csv(Path(folder,  f"best_params.csv"), index=True)
+        results_file.to_csv(Path(folder, f"calibration_results.csv"), index=True)
+        results_file[results_file["eval_type"] == eval_type].to_csv(Path(folder, f"{eval_type}_results.csv"), index=True)
+        #described
+        results_file.describe().to_csv(Path(folder, f"{eval_type}_results_describe.csv"))
 
 if __name__ == "__main__":
     """
@@ -477,8 +477,23 @@ if __name__ == "__main__":
              snakemake.output.combined_html)
     else:
         print("Not running under snakemake")
-        main("p:/11210673-fao/14 Subbasins/Bhutan_Damchhu_500m_v2/hydrology_model/run_calibrations/era5_imdaa_clim_soil_cal",
-            "p:/11210673-fao/12 Data/Bhutan/ObservedFlow_csv/discharge-bhutan.csv",
-            "p:/11210673-fao/14 Subbasins/Bhutan_Damchhu_500m_v2/plots/calibration/era5_imdaa_clim_soil_cal/best_params/interactive/best_params_timeseries.html"
+        """
+        For building and debugging
+        """
+        import sys
+        #python debugging
+        import pdb
+        if sys.platform == "win32":
+            DRIVE = "p:"
+        elif sys.platform == "linux":
+            DRIVE = "/p/"
+        main(f"{DRIVE}11210673-fao/14 Subbasins/Bhutan_Damchhu_500m_v2/hydrology_model/run_calibrations/imdaa_soil_cal/performance_cal.txt",
+            f"{DRIVE}11210673-fao/14 Subbasins/Bhutan_Damchhu_500m_v2/hydrology_model/run_calibrations/imdaa_soil_cal/performance_eval.txt",
+            ["nse", "kge"],
+            f"{DRIVE}11210673-fao/14 Subbasins/Bhutan_Damchhu_500m_v2/hydrology_model/run_calibrations/imdaa_soil_cal",
+            f"{DRIVE}11210673-fao/12 Data/Bhutan/ObservedFlow_csv/discharge-bhutan.csv",
+            f"{DRIVE}11210673-fao/14 Subbasins/Bhutan_Damchhu_500m_v2/plots/calibration/imdaa_soil_cal/best_params/interactive/cal_timeseries.html",
+            f"{DRIVE}11210673-fao/14 Subbasins/Bhutan_Damchhu_500m_v2/plots/calibration/imdaa_soil_cal/best_params/interactive/eval_timeseries.html",
+            f"{DRIVE}11210673-fao/14 Subbasins/Bhutan_Damchhu_500m_v2/plots/calibration/imdaa_soil_cal/best_params/interactive/combined_timeseries.html"
             )
         

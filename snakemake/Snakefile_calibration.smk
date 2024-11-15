@@ -121,6 +121,8 @@ rule evaluate_per_run:
     input:
         result = f"{calib_folder}/output_{paramspace.wildcard_pattern}.csv",
         sim = f"{calib_folder}/wflow_sbm_{paramspace.wildcard_pattern}.toml",
+    group: "evaluate"
+    localrule: False
     params:
         observed = config["observations_timeseries"].format(DRIVE),
         gauges = config["observations_locations"].format(DRIVE),
@@ -137,6 +139,11 @@ rule evaluate_per_run:
         eval_file = f"{calib_folder}/performance_{paramspace.wildcard_pattern}_eval.nc",
     params:
         mode = mode,
+    resources:
+        partition = "4pcpu",
+        threads = 1,
+        time = "0-00:45:00",
+        mem_mb = 8000
     script:
         "../src/calibration/evaluate_runs.py"
 
@@ -145,6 +152,7 @@ rule touch_performance:
     input:
         cal_file = expand(f"{calib_folder}/performance_"+"{params}"+"_cal.nc", params=paramspace.instance_patterns),
         eval_file = expand(f"{calib_folder}/performance_"+"{params}"+"_eval.nc", params=paramspace.instance_patterns),
+    localrule: True
     output: #P:/11210673-fao/14%20Subbasins/Bhutan_Damchhu_500m_v2/plots/calibration/era5_imdaa_clim_soil_cal/best_params/interactive/best_params_timeseries.html
         f"{calib_folder}/performance_cal.txt",
         f"{calib_folder}/performance_eval.txt",
@@ -161,6 +169,7 @@ rule assess_best_params:
         cal_html = f"{plot_folder}/best_params/interactive/cal_timeseries.html",
         eval_html = f"{plot_folder}/best_params/interactive/eval_timeseries.html",
         combined_html = f"{plot_folder}/best_params/interactive/combined_timeseries.html",
+    localrule: True
     script:
         "../src/calibration/best_params.py"
 

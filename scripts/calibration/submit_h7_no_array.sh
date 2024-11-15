@@ -15,7 +15,7 @@ stem="/p/11210673-fao/14 Subbasins"
 cwd="/u/ohanrah/documents/FAO/"
 #p:\11210673-fao\14 Subbasins\run_configs\2_calibration\snake_calibration_config_damchhu_snow.yml
 yaml_files=(
-    "$stem/run_configs/2_calibration/snake_calibration_config_damchhu_snow.yml"
+    "$stem/run_configs/2_calibration/snake_calibration_config_damchhu_soil_cal.yml"
 )
 yaml_file="${yaml_files[0]}"
 echo "Processing $yaml_file"
