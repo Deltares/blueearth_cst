@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=FAOhistclim
+#SBATCH --job-name=FAOclimpro
 #SBATCH --account=hyd
 #SBATCH --output=/u/ohanrah/documents/FAO/data/0-log/slurm/characterisation/%x_%A_%a.log
 #SBATCH --cpus-per-task=1
@@ -12,7 +12,7 @@
 
 echo "current working directory: $PWD"
 # //////////////////////////////////////
-script="scripts/A_historical_climate.sh"
+script="scripts/E_run_climate_projections.sh"
 echo "RUNNING: $script"
 # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 
