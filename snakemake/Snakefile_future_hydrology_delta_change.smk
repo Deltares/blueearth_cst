@@ -4,12 +4,7 @@ import glob
 
 from get_config import get_config
 
-# Get the snake_config file from the command line
-args = sys.argv
-config_path = args[args.index("--configfile") + 1]
-
-# Parsing the Snakemake config file (options for basins to build, data catalog, model output directory)
-#configfile: "config/snake_config_test.yml"
+config_path = config.get("config_path")
 
 project_dir = get_config(config, 'project_dir', optional=False)
 basin_dir = f"{project_dir}/hydrology_model"
@@ -39,15 +34,15 @@ rule all:
         f"{project_dir}/plots/model_delta_runs/other/gridded_output.txt",
         # expand((basin_dir + "/run_delta_{model}_{scenario}_near/output.csv"), model = gcms_selected, scenario = scenarios_selected),
 
-
-#1. copy config
-#2. downscale selected delta change (GCM and ssp and future_period selection) - reproject_like(method = nearest)
-#3. update toml - use outstate historical run (config file - selected toml historical run - path to toml relative to basin root)
-#4. run near (assume "near" and "far" names are fixed) 
-#5. update toml (du historical) of far using states of near (change dir_output, input_path, state_path, reinit)
-#6. run far 
-#7. plots comparison. 
-
+"""
+    1. copy config
+    2. downscale selected delta change (GCM and ssp and future_period selection) - reproject_like(method = nearest)
+    3. update toml - use outstate historical run (config file - selected toml historical run - path to toml relative to basin root)
+    4. run near (assume "near" and "far" names are fixed) 
+    5. update toml (du historical) of far using states of near (change dir_output, input_path, state_path, reinit)
+    6. run far 
+    7. plots comparison. 
+"""
 
 """
 Rule to copy config files to the project_dir/config folder
@@ -91,20 +86,25 @@ rule downscale_monthly_delta_change_grids_far:
 """
 Rule to prepare the yml for each clim dataset with time horizon 
 """
+# rule setup_toml_near:
+#     input:
+#         config_model_historical_fn = config_model_historical_fn,
+#         monthly_change_mean_grid = (clim_project_dir + "/monthly_change_grid/{model}_{scenario}_near_downscaled.nc"),
+#     params:
+#         model_name = "{model}",
+#         scenario_name = "{scenario}",
+#         horizon = "near",
+#         ref_time = get_config(config, "historical", default=None),
+#     localrule: True
+#     output:
+#         config_model_out_fn = (basin_dir + "/run_delta_change/" + config_basename + "_delta_{model}_{scenario}_near.toml"),
+#     script: "../src/setup_config_future.py"
 rule setup_toml_near:
     input:
         config_model_historical_fn = config_model_historical_fn,
         monthly_change_mean_grid = (clim_project_dir + "/monthly_change_grid/{model}_{scenario}_near_downscaled.nc"),
-    params:
-        model_name = "{model}",
-        scenario_name = "{scenario}",
-        horizon = "near",
-        ref_time = get_config(config, "historical", default=None),
-    localrule: True
     output:
-        config_model_out_fn = (basin_dir + "/run_delta_change/" + config_basename + "_delta_{model}_{scenario}_near.toml"),
-    script: "../src/setup_config_future.py"
-
+        touch(basin_dir + "/run_delta_change/" + config_basename + "_delta_{model}_{scenario}_near.toml")
 """
 Rule to run the wflow model for each additional forcing dataset 
 """
@@ -116,32 +116,40 @@ rule run_wflow_near:
         csv_file_near = (basin_dir + "/run_delta_change/output_delta_{model}_{scenario}_near.csv"), 
         state_near_nc = (basin_dir + "/run_delta_change/outstate/outstates_{model}_{scenario}_near.nc"),
         nc_file_near = (basin_dir + "/run_delta_change/output_delta_{model}_{scenario}_near.nc") if has_gridded_outputs else []
+    params:
+        project = "wflow/project.toml"
     localrule: False
-    group: "run_wflow"
+    group: "run_wflow_near"
     resources:
         mem_mb = 8000, #8GB
         threads = 1
     shell:
-        """ julia --threads {resources.threads} "./src/wflow/run_wflow_change_factors.jl" "{input.config_model_near}" """
+        """ julia --project={params.project} --threads {resources.threads} "./src/wflow/run_wflow_change_factors.jl" "{input.config_model_near}" """
 
 """
 Rule to prepare the yml for each clim dataset with time horizon 
 """
+# rule setup_toml_far:
+#     input:
+#         config_model_historical_fn = (basin_dir + "/run_delta_change/" + config_basename + "_delta_{model}_{scenario}_near.toml"),
+#         state_near_nc = (basin_dir + "/run_delta_change/outstate/outstates_{model}_{scenario}_near.nc"),
+#         monthly_change_mean_grid = (clim_project_dir + "/monthly_change_grid/{model}_{scenario}_far_downscaled.nc"),
+#     params:
+#         model_name = "{model}",
+#         scenario_name = "{scenario}",
+#         horizon = "far",
+#         ref_time = get_config(config, "historical", default=None),
+#     output:
+#         config_model_out_fn = (basin_dir + "/run_delta_change/" + config_basename + "_delta_{model}_{scenario}_far.toml"),
+#     localrule: True
+#     script: "../src/setup_config_future.py"
 rule setup_toml_far:
     input:
         config_model_historical_fn = (basin_dir + "/run_delta_change/" + config_basename + "_delta_{model}_{scenario}_near.toml"),
         state_near_nc = (basin_dir + "/run_delta_change/outstate/outstates_{model}_{scenario}_near.nc"),
         monthly_change_mean_grid = (clim_project_dir + "/monthly_change_grid/{model}_{scenario}_far_downscaled.nc"),
-    params:
-        model_name = "{model}",
-        scenario_name = "{scenario}",
-        horizon = "far",
-        ref_time = get_config(config, "historical", default=None),
     output:
-        config_model_out_fn = (basin_dir + "/run_delta_change/" + config_basename + "_delta_{model}_{scenario}_far.toml"),
-    localrule: True
-    script: "../src/setup_config_future.py"
-
+        touch(basin_dir + "/run_delta_change/" + config_basename + "_delta_{model}_{scenario}_far.toml")
 """
 Rule to run the wflow model for each additional forcing dataset 
 """
@@ -152,13 +160,15 @@ rule run_wflow_far:
     output:
         csv_file_far = (basin_dir + "/run_delta_change/output_delta_{model}_{scenario}_far.csv"),
         nc_file_far = (basin_dir + "/run_delta_change/output_delta_{model}_{scenario}_far.nc") if has_gridded_outputs else [],
+    params: 
+        project = "wflow/project.toml"
     localrule: False
-    group: "run_wflow"
+    group: "run_wflow_far"
     resources:
         mem_mb = 8000, #8GB
         threads = 1
     shell:
-        """ julia --threads {resources.threads} "./src/wflow/run_wflow_change_factors.jl" "{input.config_model_far}" """
+        """ julia --project={params.project} --threads {resources.threads} "./src/wflow/run_wflow_change_factors.jl" "{input.config_model_far}" """
 
 """
 Rule to analyse and plot wflow model run results --> final output

@@ -197,6 +197,8 @@ def analyse_wflow_historical(
         qsim_source = qsim_source.assign_coords(
             climate_source=(f"{climate_source}")
         ).expand_dims(["climate_source"])
+        print("qsim_source.head(): ", qsim_source.head())
+        
         ds_clim_source = ds_clim_source.assign_coords(
             climate_source=(f"{climate_source}")
         ).expand_dims(["climate_source"])
@@ -206,6 +208,7 @@ def analyse_wflow_historical(
         qsim.append(qsim_source)
         ds_clim.append(ds_clim_source)
         ds_basin.append(ds_basin_source)
+
     qsim = xr.concat(qsim, dim="climate_source")
     ds_clim = xr.concat(ds_clim, dim="climate_source")
     ds_basin = xr.concat(ds_basin, dim="climate_source")
@@ -277,9 +280,17 @@ def analyse_wflow_historical(
         # Select the station
         qsim_i = qsim.sel(index=station_id)
         qobs_i = None
+        print("has observations?")
         if has_observations:
+            print("yes")
+            print(f"station_id: {station_id} in qobs.index.values: {station_id in qobs.index.values}??")
             if station_id in qobs.index.values:
+                print("yes")
                 qobs_i = qobs.sel(index=station_id)
+            else:
+                print("no")
+        else:
+            print("no")
 
         # a) Plot hydrographs
         print(f"Plot hydrographs at wflow station {station_name}")
@@ -412,10 +423,22 @@ if __name__ == "__main__":
         with open(text_out, "w") as f:
             f.write(f"Plotted wflow results.\n")
     else:
+        print(f"{'*'*50}\nTESTING\n{'*'*50}")
+        import sys 
+        if sys.platform == "win32":
+            folder_p = r"P:"
+        else:
+            folder_p = r"/p"        
         analyse_wflow_historical(
-            wflow_root=join(os.getcwd(), "examples", "my_project", "hydrology_model"),
-            plot_dir=None,
-            observations_fn=None,
-            gauges_locs=None,
-            climate_sources=None,
+            wflow_root=join(folder_p, "11210673-fao", "14 Subbasins", "Pakistan_Swat_500m_v2", "hydrology_model", "run_default"),
+            plot_dir=join(folder_p, "11210673-fao", "14 Subbasins", "Pakistan_Swat_500m_v2", "plots", "wflow_model_performance_test"),
+            observations_fn="/p/11210673-fao/12 Data/Kabul/hydro_obs/observations-discharge-grdc.csv",
+            gauges_locs="/p/11210673-fao/12 Data/Kabul/hydro_obs/discharge-locations-grdc.csv",
+            climate_sources=['era5'],
+            climate_sources_colors=['blue'],
+            add_budyko_plot=False,
+            max_nan_year=60,
+            max_nan_month=5,
+            skip_precip_sources=[],
+            skip_temp_pet_sources=[],
         )

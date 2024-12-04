@@ -23,8 +23,8 @@ basin=("alishing" "damchhu" "swat" "seti")
 suff=("v2_linux" "v3_linux" "v2_linux" "v3_linux")
 
 yaml_files=(
-    # "$stem/snake_config_fao_${country[0]}_${basin[0]}_${suff[0]}.yml"
-    "$stem/snake_config_fao_${country[1]}_${basin[1]}_${suff[1]}.yml"
+    "$stem/snake_config_fao_${country[0]}_${basin[0]}_${suff[0]}.yml"
+    # "$stem/snake_config_fao_${country[1]}_${basin[1]}_${suff[1]}.yml"
     # "$stem/snake_config_fao_${country[2]}_${basin[2]}_${suff[2]}.yml"
     # "$stem/snake_config_fao_${country[3]}_${basin[3]}_${suff[3]}.yml"
 )
@@ -40,3 +40,5 @@ yaml_file="${yaml_files[$SLURM_ARRAY_TASK_ID]}" #FOR USE WITH ARRAY JOBS
 cd "$cwd"
 chmod +x "$script"
 "$script" "$cwd" "$yaml_file"
+
+# "/p/11210673-fao/14 Subbasins/run_configs/1_characterisation/afg_alishing_v2_linux.yml"

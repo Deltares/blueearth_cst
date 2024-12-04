@@ -5,7 +5,7 @@ keep-incomplete: True
 rerun-incomplete: True
 printshellcmds: True
 scheduler: greedy
-restart-times: 0
+restart-times: 1
 forceall: False
 max-jobs-per-second: 100
 max-status-checks-per-second: 1
@@ -28,7 +28,7 @@ cluster-generic-submit-cmd:
     --get-user-env
     --qos={resources.qos}sacct
     --cpus-per-task={threads}
-    --job-name={name}_%j
+    --job-name={name}
     --mail-type=FAIL
     --mail-user=michael.ohanrahan@deltares.nl
     --output=./data/0-log/h7/{name}/%j_{wildcards}.log
@@ -41,7 +41,9 @@ default-resources:
   - mem_mb=32768 #32gb
 
 group-components:
+  - run_wflow_near=4
   - run_wflow=4 #set mem_mb in rule to = (total node mem_mb / group size) to get effective grouping 
+  - run_wflow_far=4
   - evaluate=4
 
 

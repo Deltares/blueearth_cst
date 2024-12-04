@@ -1,14 +1,12 @@
-import sys
+import argparse as ap
 import numpy as np 
 
 from get_config import get_config
 
-# Get the snake_config file from the command line
-args = sys.argv
-config_path = args[args.index("--configfile") + 1]
 
-# Parsing the Snakemake config file (options for basins to build, data catalog, model output directory)
-#configfile: "config/snake_config_test.yml"
+config_path = config.get("config_path")
+
+# print(f"{'*'*13}\n{config_path}\n{'*'*13}")
 
 project_dir = get_config(config, 'project_dir', optional=False)
 basin_dir = f"{project_dir}/hydrology_model"
@@ -60,7 +58,7 @@ rule all:
 # Rule to copy config files to the project_dir/config folder
 rule copy_config:
     input:
-        config_build = model_build_config,
+        config_build = model_build_config, 
         config_snake = config_path,
         config_waterbodies = waterbodies_config,
     params:
@@ -101,7 +99,7 @@ rule add_reservoirs_lakes_glaciers:
 # Rule to add gauges to the built model
 rule add_gauges_and_outputs:
     input:
-        basin_nc = ancient(f"{basin_dir}/staticmaps.nc"),
+        basin_nc = f"{basin_dir}/staticmaps.nc",
         text = f"{basin_dir}/staticgeoms/reservoirs_lakes_glaciers.txt"
     output:
         gauges_fid = f"{basin_dir}/staticgeoms/gauges.geojson"
@@ -132,31 +130,35 @@ rule setup_runtime:
 # Rule to update the model for each additional forcing dataset 
 rule add_forcing:
     input:
-        forcing_ini = (project_dir + "/config/wflow_build_forcing_historical_{climate_source}.yml")
+        forcing_ini = ancient(project_dir + "/config/wflow_build_forcing_historical_{climate_source}.yml")
     output:
         forcing_fid = (project_dir + "/climate_historical/wflow_data/inmaps_historical_{climate_source}.nc")
     params:
         data_catalogs = [f"-d {cat} " for cat in DATA_SOURCES] 
-    localrule: True
+    localrule: False
+    resources:
+        mem_mb=32768,
+        threads=4
     shell:
         """hydromt update wflow "{basin_dir}" -i "{input.forcing_ini}" {params.data_catalogs} -vv"""
 
 #Rule to run the wflow model for each additional forcing dataset 
 rule run_wflow:
     input:
-        forcing_fid = (project_dir + "/climate_historical/wflow_data/inmaps_historical_{climate_source}.nc")
+        forcing_fid = ancient(project_dir + "/climate_historical/wflow_data/inmaps_historical_{climate_source}.nc")
     output:
         csv_file = (basin_dir + "/run_default/output_{climate_source}.csv"),
         nc_file = (basin_dir + "/run_default/output_{climate_source}.nc") if has_gridded_outputs else []
     params:
         toml_fid = (basin_dir + "/run_default/wflow_sbm_{climate_source}.toml"),
+        project = "wflow/project.toml"
     localrule: False
     group: "run_wflow"
     resources:
         threads = 1,
         mem_mb=8000
     shell:
-        """ julia --threads {resources.threads} -e "using Wflow; Wflow.run()" "{params.toml_fid}" """
+        """ julia --project={params.project} --threads {resources.threads} -e "using Wflow; Wflow.run()" "{params.toml_fid}" """
 
 # Rule to analyse and plot wflow model run results --> final output
 rule plot_results:
@@ -221,4 +223,4 @@ rule plot_gridded_results:
         data_catalog = DATA_SOURCES,
         observations_snow = get_config(config, "observations_snow", default=None),
     localrule: True
-    script: "../src/plot_results_grid.py"
+    script: "../src/plot_results_grid.py"   

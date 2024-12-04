@@ -4,9 +4,7 @@ import sys
 
 from get_config import get_config
 
-# read path of the config file to give to the weagen scripts
-args = sys.argv
-config_path = args[args.index("--configfile") + 1]
+config_path = str(config.get("config_path"))
 
 # Parsing the Snakemake config file (options for basins to build, data catalog, model output directory)
 project_dir = get_config(config, 'project_dir', optional=False)
