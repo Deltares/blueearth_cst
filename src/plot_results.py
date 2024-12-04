@@ -217,7 +217,9 @@ def analyse_wflow_historical(
 
     # If possible, skip the first year of the wflow run (warm-up period) for the basin average dataset
     if len(ds_basin.time) > 365:
-        print("Skipping the first year of the wflow run (warm-up period) in basin average variables plots")
+        print(
+            "Skipping the first year of the wflow run (warm-up period) in basin average variables plots"
+        )
         ds_basin = ds_basin.sel(
             time=slice(
                 f"{ds_basin['time.year'][0].values+1}-{ds_basin['time.month'][0].values}-{ds_basin['time.day'][0].values}",
@@ -225,7 +227,9 @@ def analyse_wflow_historical(
             )
         )
     else:
-        print("Simulation is less than a year so model warm-up period will be plotted in basin average variables.")
+        print(
+            "Simulation is less than a year so model warm-up period will be plotted in basin average variables."
+        )
 
     ### 4. Plot climate data ###
     # No plots of climate data if wflow run is less than a year
