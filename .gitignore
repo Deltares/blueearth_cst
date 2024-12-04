@@ -140,3 +140,4 @@ config/my-project-settings.yml
 .pixi
 *.egg-info
 ./scripts/
+*/tmp/
