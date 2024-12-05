@@ -1,4 +1,4 @@
-name: blueearth-cst
+name: cst
 
 channels:
   - conda-forge
@@ -11,16 +11,16 @@ dependencies:
   - dvc
   - descartes
   - flit>=3.2
-  - gcsfs
+  - gcsfs>=2023.12.1
   - gdal>=3.1
   - geopandas>=0.10
   - graphviz # for snakemake
-  - hydromt>=0.9.1, <0.10
-  - hydromt_wflow>=0.4.1
+  - hydromt>=0.9.4
+  - hydromt_wflow>=0.6.0
   - jupyter # to run examples
   - matplotlib
   - numpy
-  - pandas>=2.2.0
+  - pandas>=2.0.0
   - pip
   - python>=3.9, <3.12
   - r-base
@@ -36,7 +36,6 @@ dependencies:
   - r-ggplot2
   - r-MASS
   - r-ncdf4
-  #  - r-rlang
   - r-scales
   - r-sf
   - r-tibble
@@ -44,12 +43,12 @@ dependencies:
   - r-r.utils
   - r-yaml
   - rpy2
-  - rtools
+  - rtools  # only needed for windows
   - scipy
   - seaborn # plot
   - shapely>=2.0.0
   - tabulate==0.8.10 # snakemake dependency, bug in v0.9.0
-  - xarray==2024.6
+  - xarray<=2024.3.0
   - xclim
   - zarr
   - pip:

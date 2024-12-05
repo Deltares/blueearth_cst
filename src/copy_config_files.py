@@ -96,7 +96,7 @@ if __name__ == "__main__":
 
     else:
         copy_config_files(
-            config="config/snake_config_model_test.yml",
+            config="config/snake_config_cst_test.yml",
             output_dir="examples/test/config",
             config_out_name=None,
             other_config_files=[],

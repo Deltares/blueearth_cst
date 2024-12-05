@@ -2,7 +2,8 @@
 source("./src/weathergen/global.R")
 
 # Install required packages -- ONLY ONCE!
-source("./src/weathergen/install_rpackages.r")
+# weathergen is assumed to be installed in R-environment
+library(yaml)
 
 args <- commandArgs(trailingOnly = TRUE)
 
@@ -67,4 +68,3 @@ for (n in 1:historical_realizations_num) {
   )
 
 }
-

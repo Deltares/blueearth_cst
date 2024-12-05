@@ -4,7 +4,9 @@ BlueEarth Climate Stress Test toolbox
 The BlueEarth Climate Stress Test toolbox (blueearth_cst) is a free, open-source, and online toolbox for interactive climate risk assessment based on bottom-up analysis principles. 
 The toolbox will enable end-users to: 
 
- - Explore the range of hydroclimatic uncertainty in a selected geographic area of choice, including natural variability and climate change signals.  
+ - Explore the range of hydro-climatic uncertainty in a selected geographic area of choice, including natural variability and climate change signals.  
+
+ - Quantify the impact of climate change on water resources for any basin in the world, based on a delta change approach with different climate models and scenarios.
 
  - Design and execute a climate stress test for the response and vulnerabilities of user-defined thresholds and metrics.  
 
@@ -25,9 +27,60 @@ The Climate Stress Tester is part of the BlueEarth_ initiative and uses weatherg
 
 
 Installation
-------------
-BlueEarth CST is a python package that makes use of BlueEarth HydroMT to build the model (python), weathergenr to prepare the weather realization and stress tests (R), and Wlfow 
-hydrological model (Julia). The installation steps are as follow:
+============
+BlueEarth CST is a python package that makes use of BlueEarth HydroMT to build the model (python), weathergenr to prepare the weather realization and stress tests (R), and Wflow 
+hydrological model (Julia). We have three types of installation available: conda, docker and developer installation.
+
+Conda installation
+------------------
+This installation allows you to install a released version of the toolbox using conda/mamba package manager. The installation steps are as follow:
+
+1. For both python and R installation we recommend using either conda and `Miniconda <https://docs.conda.io/en/latest/miniconda.html>`_ 
+or conda/mamba and `Miniforge <https://github.com/conda-forge/miniforge>`_.
+
+2. Install Julia from https://julialang.org/downloads/ and Wflow following the instructions from the 
+`installation documentation <https://deltares.github.io/Wflow.jl/dev/user_guide/install/#Installing-as-Julia-package>`_.
+
+3. Go to the `release page <https://github.com/Deltares/blueearth_cst/releases>`_ of the toolbox and download the version you wish to install 
+(under Assets, folder "Source code.zip"). Unzip the downloaded folder in the folder of your choice. For Windows users, you also have an environment 
+lock file with fixed dependency that you can decide to use (eg environment_0.1.0_win-64.yml for release 0.1.0)
+
+Windows
+~~~~~~~
+
+4. Make and activate a new blueearth-cst conda environment based either on the provided lock file. This will install all python and R dependencies to run the 
+tool. For this open your terminal and navigate to the folder where the lock file is located (using cd command to change directory) and run the following commands.
+The last line will install the weathergenr package:
+
+.. code-block:: console
+
+    $ conda env create -f environment.yml
+    $ conda activate blueearth-cst
+    $ Rscript src/weathergen/install_rpackages.R
+
+Linux
+~~~~~
+
+4. Make and activate a new blueearth-cst conda environment based either on the provided lock file. This will install all python and R dependencies to run the 
+tool. For this open your terminal and navigate to the folder where the lock file is located (using cd command to change directory) and run the following commands.
+The last line will install the weathergenr package:
+
+.. code-block:: console
+
+    $ conda env create -f environment_linux.yml
+    $ conda activate blueearth-cst
+    $ Rscript src/weathergen/install_rpackages.R
+
+Docker
+------
+The workflow is also available as a docker image, with all dependencies preinstalled.
+
+.. code-block:: console
+    docker pull https://containers.deltares.nl/CST/cst_workflows:0.1.0
+
+Developer installation
+----------------------
+This installation allows you to install the latest version of the toolbox using conda/mamba package manager. The installation steps are as follows:
 
 1. For both python and R installation we recommend using conda and `Miniconda <https://docs.conda.io/en/latest/miniconda.html>`_.
 
@@ -43,85 +96,160 @@ the code folder (where the environment.yml file is located):
     $ git clone https://github.com/Deltares/blueearth_cst.git
     $ cd blueearth_cst
 
-4. Make and activate a new blueearth-cst conda environment based on the environment.yml file contained in the repository. This will install all python and R dependcies to run the 
+Windows
+~~~~~~~
+
+4. Make and activate a new blueearth-cst conda environment based on the environment.yml file contained in the repository. This will install all python and R dependencies to run the 
 tool:
 
 .. code-block:: console
 
     $ conda env create -f environment.yml
-    $ conda activate bluearth-cst
+    $ conda activate blueearth-cst
+    $ Rscript src/weathergen/install_rpackages.R
+
+Linux
+~~~~~
+
+4. Make and activate a new blueearth-cst conda environment based on the environment.yml file contained in the repository. This will install all python and R dependencies to run the 
+tool:
+
+.. code-block:: console
+
+    $ conda env create -f environment_linux.yml
+    $ conda activate blueearth-cst
+    $ Rscript src/weathergen/install_rpackages.R
 
 Running
--------
-BlueEarth CST toolbox is based on several workflows developped using Snakemake_ . Three workflows are available:
+=======
+BlueEarth CST toolbox is based on several workflows developed using Snakemake_ . The following workflows are available:
 
- - **Snakefile_model_creation**: creates a Wflow model based on global data for the selected region and run and anlayse the model results for a historical period.
- - **Snakefile_climate_projections**: derives future climate statistics (expected temperature and precipitation change) for different RCPs and GCMs (from CMIP dataset).
- - **Snakefile_climate_experiment**: prepares futyre weather realizations and climate stress tests and run the realizations with the hydroloigcal model.
+ - **Snakefile_climate_historical**: extracts and samples from global and regional historical meteorological climate data sources to compare different sources.
+ - **Snakefile_historical_hydrology**: creates a hydrological wflow model and runs the model for a selection of historical meteorological datasets. Evaluates model performance using observed streamflow data (if available).
+ - **Snakefile_climate_projections**: derives future climate statistics (projected temperature, precipitation and potential evaporation change) for different climate models and scenarios.
+ - **Snakefile_future_hydrology_delta_change**: runs the hydrological model for a set of future climate projections based on the delta change approach.
+ - **Snakefile_climate_experiment**: prepares future weather realizations and climate stress tests and run the realizations with the hydrological model.
 
 To prepare these workflows, you can select the different options for your model region and climate scenario using a config file. An example is available in the folder 
-config/snake_config_model_test.yml.
+test/snake_config_example.yml.
 
-You can run each worflow using the snakemake command line, after activating your blueearth_cst conda environment.
+You can run each workflow using the snakemake command line, after activating your blueearth_cst conda environment.
 
-Snakefile_model_creation
-~~~~~~~~~~~~~~~~~~~~~~
+Running from docker image
+-------------------------
+A script is available to run via docker: `run_snake_docker.sh`
+
+Running from conda environment
+------------------------------
+Before running the workflows, you need to activate your conda environment where you installed the necessary packages and navigate into the folder where the
+snakefiles are located:
 
 .. code-block:: console
 
     $ conda activate blueearth-cst
-    $ snakemake -s Snakefile_model_creation --configfile config/snake_config_model_test.yml  --dag | dot -Tpng > dag_all.png
-    $ snakemake --unlock -s Snakefile_model_creation --configfile config/snake_config_model_test.yml
-    $ snakemake all -c 1 -s Snakefile_model_creation --configfile config/snake_config_model_test.yml
+    $ cd blueearth_cst
 
-The first line will activate your environment, the second creates a picture file recapitulating the different steps of the worflow, the third will if needed unlock your directory 
-in order to save the future results of the workflow, and the fourth line runs the worflow (here for model creation).
+Then you can run the workflows using the snakemake commands detailed below.
+
+Snakefile_climate_historical
+----------------------------
+This workflow extracts historical climate data from global or regional sources. Data of meteorological variables are sampled at the location of precipitation stations and over subregions for each climate source to allow the user to compare different meteo sources. 
+
+.. code-block:: console
+
+    $ snakemake -s snakemake/Snakefile_climate_historical.smk --configfile tests/snake_config_example.yml  --dag | dot -Tpng > dag_climate_historical.png
+    $ snakemake --unlock -s snakemake/Snakefile_climate_historical.smk --configfile tests/snake_config_example.yml
+    $ snakemake all -c 1 -s snakemake/Snakefile_climate_historical.smk --configfile tests/snake_config_example.yml
+
+The first line will activate your environment, the second creates a picture file recapitulating the different steps of the workflow, the third will if needed unlock your directory 
+in order to save the future results of the workflow, and the fourth line runs the workflow (here for model creation).
 
 With snakemake command line, you can use different options:
 
 - **-s**: selection of the snakefile (workflow) to run (see list above).
 - **--config-file**: name of the config file with the model and climate options.
-- **-c**: number of cores to use to run the worflows (if more than 1, the workflow will be parallelized).
-- **--dry-run**: retiurns the list of steps (rules) in the workflow that will be run, without actually running it.
+- **-c**: number of cores to use to run the workflows (if more than 1, the workflow will be parallelized).
+- **--dry-run**: returns the list of steps (rules) in the workflow that will be run, without actually running it.
 
 There are many other options available, you can learn more in the `Snakemake CLI documentation <https://snakemake.readthedocs.io/en/stable/executing/cli.html>`_
 
-More examples of how to run the worflows are available in the file run_snake_test.cmd .
+More examples of how to run the workflows are available in the file run_snake_test.cmd .
 
 .. _Snakemake: https://snakemake.github.io/
 
-Snakefile_climate_projections
-~~~~~~~~~~~~~~~~~~~~~~
+
+Snakefile_historical_hydrology
+------------------------------
+This workflow creates a hydrological wflow model, based on global data for the selected region, and runs and evaluates the model performance over the historical period, using a selection of historical climate data.
+This workflow can be run independently from the previous workflow, but running both gives a more comprehensive overview of historical climate and hydrology.
 
 .. code-block:: console
 
-    $ snakemake --unlock -s Snakefile_climate_projections --configfile config/snake_config_projections_cmip5_test.yml
-    $ snakemake -s Snakefile_climate_projections --configfile config/snake_config_projections_cmip5_test.yml --dag | dot -Tpng > dag_projections.png
-    $ snakemake all -c 1 -s Snakefile_climate_projections --configfile config/snake_config_projections_cmip5_test.yml --keep-going 
+    $ snakemake -s snakemake/Snakefile_historical_hydrology.smk --configfile tests/snake_config_example.yml  --dag | dot -Tpng > dag_historical_hydrology.png
+    $ snakemake --unlock -s snakemake/Snakefile_historical_hydrology.smk --configfile tests/snake_config_example.yml
+    $ snakemake all -c 1 -s snakemake/Snakefile_historical_hydrology.smk --configfile tests/snake_config_example.yml
 
-[Enter Description here]
+
+Snakefile_climate_projections
+-----------------------------
+This workflow derives future climate statistics (projected temperature, precipitation and potential evaporation change) for different climate models and scenarios.
+This workflow is indenpendent. 
+
+.. code-block:: console
+
+    $ snakemake -s snakemake/Snakefile_climate_projections.smk --configfile tests/snake_config_example.yml  --dag | dot -Tpng > dag_climate_projections.png
+    $ snakemake --unlock -s snakemake/Snakefile_climate_projections.smk --configfile tests/snake_config_example.yml
+    $ snakemake all -c 1 -s snakemake/Snakefile_climate_projections.smk --configfile tests/snake_config_example.yml
+
+
+Snakefile_future_hydrology_delta_change
+---------------------------------------
+This workflow runs the hydrological model for a set of future climate projections based on the delta change approach.
+To be able to run this workflow, it is required to have run the historical hydrology workflow in combination with the climate projection workflow. 
+
+.. code-block:: console
+
+    $ snakemake -s snakemake/Snakefile_future_hydrology_delta_change.smk --configfile tests/snake_config_example.yml  --dag | dot -Tpng > dag_hydrologicaL_projections.png
+    $ snakemake --unlock -s snakemake/Snakefile_future_hydrology_delta_change.smk --configfile tests/snake_config_example.yml
+    $ snakemake all -c 1 -s snakemake/Snakefile_future_hydrology_delta_change.smk --configfile tests/snake_config_example.yml
+
 
 Snakefile_climate_experiment
-~~~~~~~~~~~~~~~~~~~~~~
+----------------------------
+This workflow prepares future weather realizations and climate stress tests and run the realizations with the hydrological model.
+Finally it derives the results of the stress test and the model run.
 
 .. code-block:: console
 
-    $ snakemake -s Snakefile_climate_experiment --configfile config/snake_config_model_test.yml  --dag | dot -Tpng > dag_climate.png
-    $ snakemake --unlock -s Snakefile_climate_experiment --configfile config/snake_config_model_test.yml
-    $ snakemake all -c 1 -s Snakefile_climate_experiment --configfile config/snake_config_model_test.yml
-    
-    
-[Enter Description here]
-
+    $ snakemake -s snakemake/Snakefile_climate_experiment.smk --configfile config/snake_config_cst_test.yml  --dag | dot -Tpng > dag_climate.png
+    $ snakemake --unlock -s snakemake/Snakefile_climate_experiment.smk --configfile config/snake_config_cst_test.yml
+    $ snakemake all -c 1 -s snakemake/Snakefile_climate_experiment.smk --configfile config/snake_config_cst_test.yml
 
 Documentation
--------------
+=============
 
-Learn more about blueearth_cst in its `online documentation <http://deltares.github.io/blueearth_cst/latest/>`_
+We do not yet have a detailed documentation but you can find Jupyter Notebooks explaining in details how to run each workflow and
+what are the expected inputs and outputs. You can find these examples in the folder **docs/notebooks** or your downloaded version of the toolbox.
+Or online for the `latest version <https://github.com/Deltares/blueearth_cst/tree/main/docs/notebooks>`_.
 
+Publishing
+==========
+
+Docker
+------
+
+The entire workflow is contained in one docker image at the base level. Build it using:
+.. code-block:: console
+    docker build -t cst-workflow:0.0.1 .
+
+Tag and push the image to a new <<Tag>> using:
+.. code-block:: console
+    docker login -u <<deltares_email>> -p <<cli_secret>> https://containers.deltares.nl
+    docker tag cst-workflow:0.0.1 https://containers.deltares.nl/CST/cst_workflows:<<Tag>>
+    docker push https://containers.deltares.nl/CST/cst_workflows:<<Tag>>
 
 License
--------
+=======
 
 Copyright (c) 2021, Deltares
 

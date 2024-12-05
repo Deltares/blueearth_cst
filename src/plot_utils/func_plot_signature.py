@@ -737,7 +737,7 @@ def plot_hydro(
         titles = [
             "Daily time-series",
             "Annual time-series",
-            "Annual cycle",
+            "Monthly regime",
             "Wettest year",
             "Driest year",
         ]
@@ -775,22 +775,23 @@ def plot_hydro(
     if nb_panel == 5:
         # 2. annual Q
         for climate_source in qsim.climate_source.values:
-            qsim.sel(climate_source=climate_source).resample(time="YE").sum(
-                skipna=True, min_count=min_count_year
-            ).plot(
+            qsim.sel(climate_source=climate_source).resample(time="YE").mean().plot(
                 ax=axes[1],
                 label=f"simulated {climate_source}",
                 linewidth=lw,
                 color=color[climate_source],
             )
         if qobs is not None:
-            qobs.resample(time="YE").sum(skipna=True, min_count=min_count_year).plot(
+            qobs_year = qobs.resample(time="YE").sum(
+                skipna=True, min_count=min_count_year
+            ) / qobs.resample(time="YE").count(dim="time")
+            qobs_year.plot(
                 ax=axes[1], label=labobs, linewidth=lw, color=colobs, linestyle="--"
             )
 
         # 3. monthly Q
         month_labels = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
-        dsqM = qsim_na.resample(time="ME").sum()
+        dsqM = qsim_na.resample(time="ME").mean()
         dsqM = dsqM.groupby(dsqM.time.dt.month).mean()
         for climate_source in qsim.climate_source.values:
             dsqM.sel(climate_source=climate_source).plot(
@@ -802,10 +803,9 @@ def plot_hydro(
         if qobs is not None:
             dsqMo = qobs_na.resample(time="ME").sum(
                 skipna=True, min_count=min_count_month
-            )
+            ) / qobs_na.resample(time="ME").count(dim="time")
             dsqMo = dsqMo.groupby(dsqMo.time.dt.month).mean()
             dsqMo.plot(ax=axes[2], label=labobs, linewidth=lw, color=colobs)
-        axes[2].set_title("Average monthly sum")
         axes[2].set_xticks(ticks=np.arange(1, 13), labels=month_labels, fontsize=5)
 
         # 4. wettest year
@@ -837,13 +837,7 @@ def plot_hydro(
     # Axes settings
     for ax, title in zip(axes, titles):
         ax.tick_params(axis="both", labelsize=fs)
-        if ax == axes[0]:
-            ax.set_ylabel("Q (m$^3$s$^{-1}$)", fontsize=fs)
-        elif nb_panel == 5:
-            if ax == axes[1]:
-                ax.set_ylabel("Q (m$^3$yr$^{-1}$)", fontsize=fs)
-            elif ax == axes[2]:
-                ax.set_ylabel("Q (m$^3$month$^{-1}$)", fontsize=fs)
+        ax.set_ylabel("Q (m$^3$s$^{-1}$)", fontsize=fs)
         ax.set_title(title, fontsize=fs)
         ax.set_xlabel("", fontsize=fs)
     axes[0].legend(fontsize=fs)
@@ -860,6 +854,7 @@ def plot_clim(
     period: str,
     color: dict,
     fs: int = 8,
+    skip_precip_sources: List[str] = [],
     skip_temp_pet_sources: List[str] = [],
 ):
     """
@@ -881,6 +876,8 @@ def plot_clim(
         Color to be used for each climate_source
     fs : int, optional
         Font size, by default 8
+    skip_precip_sources : List[str]
+        List of climate sources to skip for precipitation plots.
     skip_temp_pet_sources : List[str]
         List of climate sources to skip for temperature and potential evaporation plots.
     """
@@ -986,6 +983,10 @@ def plot_clim(
             do_climate_plot = True
             if climate_source in skip_temp_pet_sources:
                 do_climate_plot = False
+            # Same for duplicate use of precip sources
+            do_precip_plot = True
+            if climate_source in skip_precip_sources:
+                do_precip_plot = False
 
             var_sum_monthly = (
                 ds_clim[climvar]
@@ -1006,7 +1007,7 @@ def plot_clim(
                 ).quantile(0.75, "time")
 
                 if (do_climate_plot and climvar == "EP_subcatchment") | (
-                    climvar == "P_subcatchment"
+                    do_precip_plot and climvar == "P_subcatchment"
                 ):
                     p = var_sum_monthly_mean.plot(
                         ax=ax,
@@ -1033,7 +1034,7 @@ def plot_clim(
                 r2_score, p_value = rsquared(p(x), var_sum_monthly)
 
                 if (do_climate_plot and climvar == "EP_subcatchment") | (
-                    climvar == "P_subcatchment"
+                    do_precip_plot and climvar == "P_subcatchment"
                 ):
                     p = ax.plot(
                         var_sum_monthly.time,

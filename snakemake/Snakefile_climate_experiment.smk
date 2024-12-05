@@ -9,7 +9,6 @@ from get_config import get_config
 args = sys.argv
 config_path = args[args.index("--configfile") + 1]
 
-#project = get_config(config, 'project_name', optional=False)
 project_dir = get_config(config, 'project_dir', optional=False)
 experiment = get_config(config, 'experiment_name', optional=False)
 RLZ_NUM = get_config(config, 'realizations_num', default=1)
@@ -83,7 +82,7 @@ rule prepare_weagen_config:
     params:
         cftype = "generate",
         snake_config = config_path,
-        default_config = "config/cst_api/weathergen_config.yml",
+        default_config = get_config(config, "weathergen_config", default="config/cst_api/weathergen_config.yml"),
         output_path = f"{exp_dir}/", 
         middle_year = horizontime_climate,
         sim_years = wflow_run_length,
@@ -123,7 +122,7 @@ rule generate_climate_stress_test:
     output:
         rlz_st_nc = temp(f"{exp_dir}/realization_"+"{rlz_num}"+"/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc")
     shell:
-        """Rscript --vanilla src/weathergen/impose_climate_change.R {input.rlz_nc} {input.weagen_config} {input.st_csv} """
+        """Rscript --vanilla src/weathergen/impose_climate_change.R {input.rlz_nc} {input.weagen_config} {input.st_csv}"""
 
 # Prepare data catalog of the climate files
 rule climate_data_catalog:

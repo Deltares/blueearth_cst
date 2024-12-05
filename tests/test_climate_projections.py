@@ -19,7 +19,7 @@ from ..src import get_change_climate_proj
 from ..src import get_change_climate_proj_summary
 from ..src import plot_proj_timeseries
 
-config_fn = join(TESTDIR, "snake_config_model_test.yml")
+config_fn = join(TESTDIR, "snake_config_cst_test.yml")
 
 
 def test_copy_config(tmpdir, data_sources_climate):

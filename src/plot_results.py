@@ -10,6 +10,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 import hydromt
+from hydromt_wflow import WflowModel
 import seaborn as sns
 
 from typing import Union, List, Optional
@@ -62,6 +63,7 @@ def analyse_wflow_historical(
     add_budyko_plot: bool = True,
     max_nan_year: int = 60,
     max_nan_month: int = 5,
+    skip_precip_sources: List[str] = [],
     skip_temp_pet_sources: List[str] = [],
 ):
     """
@@ -124,6 +126,8 @@ def analyse_wflow_historical(
     max_nan_month : int, optional
         Maximum number of missing days per month in the observations data to consider
         the month for the discharge analysis. By default 5.
+    skip_precip_sources : List[str]
+        List of climate sources for which to skip the plotting of precipitation.
     skip_temp_pet_sources : List[str]
         List of climate sources for which to skip the plotting temperature and
         potential evapotranspiration.
@@ -145,6 +149,7 @@ def analyse_wflow_historical(
     marker = "o"
 
     # Prepare colors dict
+    climate_sources = np.atleast_1d(climate_sources).tolist()
     if climate_sources_colors is not None:
         cmap = np.atleast_1d(climate_sources_colors).tolist()
     else:
@@ -156,9 +161,14 @@ def analyse_wflow_historical(
     has_observations = False
     if observations_fn is not None and os.path.exists(observations_fn):
         has_observations = True
+        # Get wflow basins to clip observations
+        wflow_config_fn = wflow_config_fn_prefix + f"_{climate_sources[0]}.toml"
+        wflow = WflowModel(root=wflow_root, config_fn=wflow_config_fn, mode="r")
 
         # Read
-        gdf_obs = hydromt.io.open_vector(gauges_locs, crs=4326, sep=",")
+        gdf_obs = hydromt.io.open_vector(
+            gauges_locs, crs=4326, sep=",", geom=wflow.basins
+        )
         da_ts_obs = hydromt.io.open_timeseries_from_table(
             observations_fn, name="Q", index_dim="wflow_id", sep=";"
         )
@@ -175,7 +185,7 @@ def analyse_wflow_historical(
     qsim = []
     ds_clim = []
     ds_basin = []
-    for climate_source in np.atleast_1d(climate_sources).tolist():
+    for climate_source in climate_sources:
         wflow_config_fn = wflow_config_fn_prefix + f"_{climate_source}.toml"
         qsim_source, ds_clim_source, ds_basin_source = get_wflow_results(
             wflow_root=wflow_root,
@@ -220,6 +230,7 @@ def analyse_wflow_historical(
                 station_name=f"wflow_{index}",
                 period="year",
                 color=color,
+                skip_precip_sources=skip_precip_sources,
                 skip_temp_pet_sources=skip_temp_pet_sources,
             )
             plt.close()
@@ -230,6 +241,7 @@ def analyse_wflow_historical(
                 station_name=f"wflow_{index}",
                 period="month",
                 color=color,
+                skip_precip_sources=skip_precip_sources,
                 skip_temp_pet_sources=skip_temp_pet_sources,
             )
             plt.close()
@@ -378,6 +390,7 @@ def analyse_wflow_historical(
 if __name__ == "__main__":
     if "snakemake" in globals():
         sm = globals()["snakemake"]
+        text_out = sm.output.output_txt
         project_dir = sm.params.project_dir
         Folder_plots = f"{project_dir}/plots/wflow_model_performance"
         root = f"{project_dir}/hydrology_model/run_default"
@@ -392,8 +405,12 @@ if __name__ == "__main__":
             add_budyko_plot=sm.params.add_budyko_plot,
             max_nan_year=sm.params.max_nan_year,
             max_nan_month=sm.params.max_nan_month,
+            skip_precip_sources=sm.params.skip_precip_sources,
             skip_temp_pet_sources=sm.params.skip_temp_pet_sources,
         )
+        # Write a file for snakemake tracking
+        with open(text_out, "w") as f:
+            f.write(f"Plotted wflow results.\n")
     else:
         analyse_wflow_historical(
             wflow_root=join(os.getcwd(), "examples", "my_project", "hydrology_model"),

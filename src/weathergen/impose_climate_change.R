@@ -47,16 +47,16 @@ rlz_future <- weathergenr::imposeClimateChanges(
 
 # Save to netcdf file
 weathergenr::writeNetcdf(
- data = rlz_future,
- coord.grid = rlz_input$grid,
- output.path = output_path,
- origin.date =  rlz_input$date,
- calendar.type = "noleap",
- nc.template.file = rlz_fn,
- nc.compression = 4,
- nc.spatial.ref = "spatial_ref",
- nc.file.prefix = nc_file_prefix,
- nc.file.suffix = nc_file_suffix
+   data = rlz_future,
+   coord.grid = rlz_input$grid,
+   output.path = output_path,
+   origin.date =  rlz_input$date[1],
+   calendar.type = "noleap",
+   nc.template.file = rlz_fn,
+   nc.compression = 4,
+   nc.spatial.ref = "spatial_ref",
+   nc.file.prefix = nc_file_prefix,
+   nc.file.suffix = nc_file_suffix
 )
 
 

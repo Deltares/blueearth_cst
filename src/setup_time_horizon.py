@@ -11,7 +11,7 @@ def prep_hydromt_update_forcing_config(
     starttime: str,
     endtime: str,
     fn_yml: Union[str, Path] = "wflow_build_forcing_historical.yml",
-    precip_source: str = "era5",
+    forcing_name: str = "era5",
     wflow_root: Optional[Union[str, Path]] = None,
     forcing_options: Dict = {},
 ):
@@ -27,8 +27,9 @@ def prep_hydromt_update_forcing_config(
         End time of the forcing, format YYYY-MM-DDTHH:MM:SS
     fn_yml : str, Path
         Path to the output hydromt config file
-    precip_source : str
-        Name of the precipitation source to use
+    forcing_name : str
+        Name of the forcing data used. This will be used to name the output forcing
+        file.
     wflow_root : str, Path
         Path to the wflow model root directory, if provided reads the model
         and adjust the forcing computation chunksizes depending on model size.
@@ -42,6 +43,7 @@ def prep_hydromt_update_forcing_config(
         - pet_method: method to compute pet
     """
     # Check if forcing options are provided
+    precip_source = forcing_options.get("precip_fn", forcing_name)
     clim_source = forcing_options.get("temp_pet_fn", "era5")
     pet_fn = forcing_options.get("pet_fn", None)
     oro_source = forcing_options.get("dem_forcing_fn", "era5_orography")
@@ -55,9 +57,9 @@ def prep_hydromt_update_forcing_config(
         skip_pet = False
 
     path_forcing = (
-        f"../climate_historical/wflow_data/inmaps_historical_{precip_source}.nc"
+        f"../climate_historical/wflow_data/inmaps_historical_{forcing_name}.nc"
     )
-    config_name = f"wflow_sbm_{precip_source}.toml"
+    config_name = f"wflow_sbm_{forcing_name}.toml"
 
     # Check if wflow_root is provided and adjust the forcing computation chunksizes
     if wflow_root is not None:
@@ -82,10 +84,10 @@ def prep_hydromt_update_forcing_config(
         "timestepsecs": 86400,
         "dir_input": "..",
         "input.path_forcing": path_forcing,
-        "output.path": f"output_{precip_source}.nc",
+        "output.path": f"output_{forcing_name}.nc",
         "output.compressionlevel": 1,
-        "csv.path": f"output_{precip_source}.csv",
-        "state.path_output": f"outstate/outstates_{precip_source}.nc",
+        "csv.path": f"output_{forcing_name}.csv",
+        "state.path_output": f"outstate/outstates_{forcing_name}.nc",
     }
     setup_precip_forcing = {
         "precip_fn": precip_source,
@@ -102,7 +104,6 @@ def prep_hydromt_update_forcing_config(
     }
     write_config = {
         "config_name": config_name,
-        "config_root": config_root,
     }
 
     # Order matters
@@ -115,16 +116,18 @@ def prep_hydromt_update_forcing_config(
                 "pet_fn": pet_fn,
                 "chunksize": chunksize,
             },
-            "write_config": write_config,
+            "set_root": {"root": config_root, "mode": "w+"},
             "write_forcing": {},
+            "write_config": write_config,
         }
     else:
         forcing_config = {
             "setup_config": setup_config,
             "setup_precip_forcing": setup_precip_forcing,
             "setup_temp_pet_forcing": setup_temp_pet_forcing,
-            "write_config": write_config,
+            "set_root": {"root": config_root, "mode": "w+"},
             "write_forcing": {},
+            "write_config": write_config,
         }
 
     # Create output dir if it does not exist
@@ -141,7 +144,7 @@ if __name__ == "__main__":
             starttime=sm.params.starttime,
             endtime=sm.params.endtime,
             fn_yml=sm.output.forcing_yml,
-            precip_source=sm.params.clim_source,
+            forcing_name=sm.params.clim_source,
             wflow_root=sm.params.basin_dir,
             forcing_options=sm.params.forcing_options,
         )
@@ -150,5 +153,5 @@ if __name__ == "__main__":
             starttime="2010-01-01T00:00:00",
             endtime="2010-12-31T00:00:00",
             fn_yml="wflow_build_forcing_historical.yml",
-            precip_source="era5",
+            forcing_name="era5",
         )

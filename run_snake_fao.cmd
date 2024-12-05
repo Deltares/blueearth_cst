@@ -1,28 +1,28 @@
 call activate blueearth-cst
 
 rem Snakefile_historical_climate
-snakemake -s snakemake/Snakefile_climate_historical.smk --configfile tests/snake_config_fao_test.yml  --dag | dot -Tpng > dag_climate_historical.png
-snakemake --unlock -s snakemake/Snakefile_climate_historical.smk --configfile tests/snake_config_fao_test.yml
-snakemake all -c 1 -s snakemake/Snakefile_climate_historical.smk --configfile tests/snake_config_fao_test.yml --rerun-triggers mtime --dry-run
+snakemake -s snakemake/Snakefile_climate_historical.smk --configfile tests/snake_config_example.yml  --dag | dot -Tpng > dag_climate_historical.png
+snakemake --unlock -s snakemake/Snakefile_climate_historical.smk --configfile tests/snake_config_example.yml
+snakemake all -c 1 -s snakemake/Snakefile_climate_historical.smk --configfile tests/snake_config_example.yml --rerun-triggers mtime --dry-run
 
 rem snakemake/Snakefile_run_historical_datasets.smk
-snakemake -s snakemake/Snakefile_historical_hydrology.smk --configfile tests/snake_config_fao_test.yml  --dag | dot -Tpng > dag_hydrology_historical.png
-snakemake --unlock -s snakemake/Snakefile_historical_hydrology.smk --configfile tests/snake_config_fao_test.yml
-snakemake all -c 1 -s snakemake/Snakefile_historical_hydrology.smk --configfile tests/snake_config_fao_test.yml --rerun-incomplete 
+snakemake -s snakemake/Snakefile_historical_hydrology.smk --configfile tests/snake_config_example.yml  --dag | dot -Tpng > dag_hydrology_historical.png
+snakemake --unlock -s snakemake/Snakefile_historical_hydrology.smk --configfile tests/snake_config_example.yml
+snakemake all -c 1 -s snakemake/Snakefile_historical_hydrology.smk --configfile tests/snake_config_example.yml --rerun-incomplete 
 rem --until create_model
 rem --report --dryrun
-rem snakemake all -c 1 -s snakemake/Snakefile_historical_hydrology.smk --configfile tests/snake_config_fao_test.yml --keep-going --report --dryrun 
+rem snakemake all -c 1 -s snakemake/Snakefile_historical_hydrology.smk --configfile tests/snake_config_example.yml --keep-going --report --dryrun 
 
 rem Snakefile climate_projections
-snakemake -s snakemake/Snakefile_climate_projections.smk --configfile tests/snake_config_fao_test.yml --dag | dot -Tpng > dag_projections.png
-snakemake --unlock -s snakemake/Snakefile_climate_projections.smk --configfile tests/snake_config_fao_test.yml
-snakemake all -c 1 -s snakemake/Snakefile_climate_projections.smk --configfile tests/snake_config_fao_test.yml --keep-going --rerun-triggers mtime
+snakemake -s snakemake/Snakefile_climate_projections.smk --configfile tests/snake_config_example.yml --dag | dot -Tpng > dag_projections.png
+snakemake --unlock -s snakemake/Snakefile_climate_projections.smk --configfile tests/snake_config_example.yml
+snakemake all -c 1 -s snakemake/Snakefile_climate_projections.smk --configfile tests/snake_config_example.yml --keep-going --rerun-triggers mtime
 
 rem Snakefile run delta change
-snakemake -s snakemake/Snakefile_future_hydrology_delta_change.smk --configfile tests/snake_config_fao_test.yml --dag | dot -Tsvg > dag_hydrology_future.svg
-snakemake --unlock -s snakemake/Snakefile_future_hydrology_delta_change.smk --configfile tests/snake_config_fao_test.yml
-snakemake all -c 1 -s snakemake/Snakefile_future_hydrology_delta_change.smk --configfile tests/snake_config_fao_test.yml
-rem snakemake all -c 1 -s snakemake/Snakefile_future_hydrology_delta_change.smk --configfile tests/snake_config_fao_test.yml --keep-going --report --dryrun --until run_wflow_near
+snakemake -s snakemake/Snakefile_future_hydrology_delta_change.smk --configfile tests/snake_config_example.yml --dag | dot -Tsvg > dag_hydrology_future.svg
+snakemake --unlock -s snakemake/Snakefile_future_hydrology_delta_change.smk --configfile tests/snake_config_example.yml
+snakemake all -c 1 -s snakemake/Snakefile_future_hydrology_delta_change.smk --configfile tests/snake_config_example.yml
+rem snakemake all -c 1 -s snakemake/Snakefile_future_hydrology_delta_change.smk --configfile tests/snake_config_example.yml --keep-going --report --dryrun --until run_wflow_near
 
 
 
