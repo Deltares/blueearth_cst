@@ -72,6 +72,9 @@ def compute_statistics_delta_run(
 
     For flow related indices, they can be computed only at the catchment ``outlets``,
     for ``all`` locations (outlets+gauges) or for a specific list of locations.
+    Indices are computed using functions from the xclim library.
+    For extreme statistics, the Generalized Extreme Value distribution is used on 
+    annual maxima.
 
     Flood indices:
     - Number of days with high rainfall
