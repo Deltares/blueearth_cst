@@ -136,3 +136,8 @@ tests/test_project_waq
 
 # Docs
 config/my-project-settings.yml
+# pixi environments
+.pixi
+*.egg-info
+./scripts/
+*/tmp/

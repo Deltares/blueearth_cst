@@ -75,6 +75,7 @@ def plot_region_and_location(
     data_catalog = DataCatalog(data_catalog)
 
     # Read the region
+    print(f"Reading region from {region_fn}")
     region = data_catalog.get_geodataframe(region_fn)
     region = _update_gdf_index(region, legend_column="value")
 
@@ -93,12 +94,16 @@ def plot_region_and_location(
             crs = 4326
         else:
             crs = None
-        locations = data_catalog.get_geodataframe(
-            locations_fn,
-            crs=crs,
-            geom=region,
-            buffer=buffer_km * 1000,
-        )
+        print(f"DEBUG: **** locations_fn: {locations_fn}")
+        try:    
+            locations = data_catalog.get_geodataframe(
+                locations_fn,
+                crs=crs,
+                geom=region,
+                buffer=buffer_km * 1000,
+            )
+        except:
+            print(f"DEBUG: **** locations_fn: {locations_fn} failed")
         locations.index.name = "index"
         locations = {"meteorological stations": locations}
     else:

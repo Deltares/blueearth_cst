@@ -1,0 +1,49 @@
+executor: cluster-generic
+latency-wait: 60
+keep-going: True
+keep-incomplete: True
+rerun-incomplete: True
+printshellcmds: True
+scheduler: greedy
+restart-times: 1
+forceall: False
+max-jobs-per-second: 100
+max-status-checks-per-second: 1
+jobs: 14 # Max jobs per snakemake workflow (FAIR use is <= 4x60cpus) 18x4 is 72
+rerun-triggers: mtime
+
+#for naming with grouped rules, unexpected behavior:
+#      {rule}="Group"
+#      {wildcards}=works
+#      {name}=Name of group not rule
+#      {jobid}=is a random uuid (snakemake group job number) and not the slurm jobid
+
+#GROUP optimized for snakemake-executor-plugin-cluster-generic  (1.0.9)
+cluster-generic-submit-cmd:
+  mkdir -p ./data/0-log/h7/{name} &&
+  sbatch
+    --partition={resources.partition}
+    --account=hyd
+    --time={resources.time}
+    --get-user-env
+    --qos={resources.qos}sacct
+    --cpus-per-task={threads}
+    --job-name={name}
+    --mail-type=FAIL
+    --mail-user=michael.ohanrahan@deltares.nl
+    --output=./data/0-log/h7/{name}/%j_{wildcards}.log
+
+#scontrol show partition 4pcpu shows unlimited mem
+default-resources:
+  - partition="4pcpu"
+  - qos="sbatch"
+  - time="1-00:00:00"
+  - mem_mb=32768 #32gb
+
+group-components:
+  - run_wflow_near=4
+  - run_wflow=4 #set mem_mb in rule to = (total node mem_mb / group size) to get effective grouping 
+  - run_wflow_far=4
+  - evaluate=4
+
+
