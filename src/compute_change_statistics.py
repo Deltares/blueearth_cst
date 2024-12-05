@@ -63,6 +63,7 @@ def compute_statistics_delta_run(
     precip_peak_threshold: float = 40,
     dry_days_threshold: float = 0.2,
     heat_threshold: float = 25.0,
+    rps: List[int] = [5, 10],
     split_plot_per_scenario: bool = False,
     discharge_statistics_locations: Union[str, List[str]] = "all",
 ):
@@ -74,8 +75,8 @@ def compute_statistics_delta_run(
 
     Flood indices:
     - Number of days with high rainfall
-    - Multi day rainfall volume (2, 5, 10)
-    - Extreme discharge statistics (Q5, Q10, Q20, Q50)
+    - Extreme rainfall statistics
+    - Extreme discharge statistics
 
     Drought indices:
     - Mean annual precipitation
@@ -90,14 +91,10 @@ def compute_statistics_delta_run(
     - Average actual evapotranspiration
 
     Outputs:
-    - A csv file with the absolute values of the drought indices for historical and
+    - A csv file with the absolute values of the different indices for historical and
       future runs
-    - A csv file with the relative change of the drought indices for future runs
+    - A csv file with the relative change of the different indices for future runs
     - Plots for the relative change of the drought indices for near and far future
-    - A csv file with the absolute values of the flood indices for historical and
-      future runs
-    - A csv file with the relative change of the flood indices for future runs
-    - Plots for the relative change of the flood indices for near and far future
 
     Parameters
     ----------
@@ -116,6 +113,8 @@ def compute_statistics_delta_run(
         Threshold for dry days, by default 0.2 mm/day.
     heat_threshold : float, optional
         Threshold for heat days, by default 25.0 degC.
+    rps : List[int], optional
+        Return periods for the extreme statistics, by default [5, 10].
     split_plot_per_scenario : bool, optional
         If True, the plots will also be split per scenario, by default True.
     discharge_statistics_locations : Union[str, List[str]], optional
@@ -177,11 +176,95 @@ def compute_statistics_delta_run(
     ):
         qsim_hist = qsim_hist.sel(index=discharge_statistics_locations)
         qsim_delta = qsim_delta.sel(index=discharge_statistics_locations)
+    # Update units
+    qsim_hist.attrs["units"] = "m3/s"
+    qsim_delta["Q"].attrs["units"] = "m3/s"
 
     # Get the future horizons, scenarios and models
     future_horizons = ds_clim_delta.horizon.values
     scenarios = ds_clim_delta.scenario.values
     models = ds_clim_delta.model.values
+
+    ### Flood indices ###
+
+    # 1. Number of days with high rainfall
+    wet_days_hist = (
+        xclim.indices.wetdays(
+            pr=ds_clim_hist["P_subcatchment"],
+            thresh=f"{precip_peak_threshold} mm/day",
+            freq="YS",
+        )
+        .mean()
+        .round(0)
+    )
+    wet_days_delta = (
+        xclim.indices.wetdays(
+            pr=ds_clim_delta["P_subcatchment"],
+            thresh=f"{precip_peak_threshold} mm/day",
+            freq="YS",
+        )
+        .mean(dim="time")
+        .round(0)
+    )
+    wet_name = f"Days with high rainfall\n(P > {precip_peak_threshold} mm/day) [mm/day]"
+    absolute_stats_hist = wet_days_hist.astype(int).to_dataset(name=wet_name)
+    absolute_stats_delta = wet_days_delta.astype(int).to_dataset(name=wet_name)
+
+    # 2. Extreme rainfall statistics (P5, P10)
+    for rp in rps:
+        prec_rp_hist = (
+            xclim.indices.stats.frequency_analysis(
+                ds_clim_hist["P_subcatchment"],
+                t=rp,
+                dist="genextreme",
+                mode="max",
+                freq="YS",
+            )
+            .mean()
+            .round(1)
+        )
+        prec_rp_delta = xclim.indices.stats.frequency_analysis(
+            ds_clim_delta["P_subcatchment"],
+            t=rp,
+            dist="genextreme",
+            mode="max",
+            freq="YS",
+        ).round(1)
+        # Drop the unnecessary "return_period" dimension
+        prec_rp_delta = prec_rp_delta.squeeze("return_period", drop=True)
+        prec_rp_name = f"Extreme precipitation (RP {rp}) [mm/day]"
+        absolute_stats_hist[prec_rp_name] = prec_rp_hist
+        absolute_stats_delta[prec_rp_name] = prec_rp_delta
+
+    # 3. Extreme discharge statistics (Q5, Q10)
+    for loc in qsim_hist.index.values:
+        qsim_loc_hist = qsim_hist.sel(index=loc)
+        qsim_loc_delta = qsim_delta["Q"].sel(index=loc)
+        loc_name = qsim_loc_hist.station_name.item()
+        for rp in rps:
+            dis_rp_hist = xclim.indices.stats.frequency_analysis(
+                qsim_loc_hist,
+                t=rp,
+                dist="genextreme",
+                mode="max",
+                freq="YS",
+            ).round(1)
+            dis_rp_delta = xclim.indices.stats.frequency_analysis(
+                qsim_loc_delta,
+                t=rp,
+                dist="genextreme",
+                mode="max",
+                freq="YS",
+            ).round(1)
+            # Drop the unnecessary "return_period" dimension
+            dis_rp_hist = dis_rp_hist.squeeze("return_period", drop=True)
+            dis_rp_delta = dis_rp_delta.squeeze("return_period", drop=True)
+            dis_rp_name = f"Extreme discharge (RP {rp})\nat {loc_name} [m3/s]"
+            absolute_stats_hist[dis_rp_name] = dis_rp_hist.values
+            absolute_stats_delta[dis_rp_name] = (
+                dis_rp_delta.dims,
+                dis_rp_delta.values,
+            )
 
     ### Drought indices ###
 
@@ -191,8 +274,8 @@ def compute_statistics_delta_run(
     prec_yr_hist = prec_yr_hist.mean().round(1)
     prec_yr_delta = prec_yr_delta.mean(dim="time").round(1)
     prec_name = "Annual precipitation [mm/year]"
-    absolute_stats_drought_hist = prec_yr_hist.to_dataset(name=prec_name)
-    absolute_stats_drought_delta = prec_yr_delta.to_dataset(name=prec_name)
+    absolute_stats_hist[prec_name] = prec_yr_hist
+    absolute_stats_delta[prec_name] = prec_yr_delta
 
     # 2.a Consecutive number of dry days
     dry_days_hist = (
@@ -214,8 +297,8 @@ def compute_statistics_delta_run(
         .round(0)
     )
     dry_name = f"Dry days\n(P < {dry_days_threshold}mm/d) [days]"
-    absolute_stats_drought_hist[dry_name] = dry_days_hist.astype(int)
-    absolute_stats_drought_delta[dry_name] = dry_days_delta.astype(int)
+    absolute_stats_hist[dry_name] = dry_days_hist.astype(int)
+    absolute_stats_delta[dry_name] = dry_days_delta.astype(int)
 
     # 2.b Maximum number of consecutive dry days
     dry_spell_hist = (
@@ -237,8 +320,8 @@ def compute_statistics_delta_run(
         .round(0)
     )
     spell_name = f"Longest Dry spell\n(P < {dry_days_threshold*4}mm/d) [days]"
-    absolute_stats_drought_hist[spell_name] = dry_spell_hist.astype(int)
-    absolute_stats_drought_delta[spell_name] = dry_spell_delta.astype(int)
+    absolute_stats_hist[spell_name] = dry_spell_hist.astype(int)
+    absolute_stats_delta[spell_name] = dry_spell_delta.astype(int)
 
     # 3. Number of freezing days
     freeze_days_hist = (
@@ -260,8 +343,8 @@ def compute_statistics_delta_run(
         .round(0)
     )
     freeze_name = "Freezing days\n(T < 0 degC) [degC]"
-    absolute_stats_drought_hist[freeze_name] = freeze_days_hist.astype(int)
-    absolute_stats_drought_delta[freeze_name] = freeze_days_delta.astype(int)
+    absolute_stats_hist[freeze_name] = freeze_days_hist.astype(int)
+    absolute_stats_delta[freeze_name] = freeze_days_delta.astype(int)
 
     # 4. Number of days with extreme high temperature
     hot_days_hist = (
@@ -283,8 +366,8 @@ def compute_statistics_delta_run(
         .round(0)
     )
     warm_name = f"Warm days\n(T > {heat_threshold} degC) [degC]"
-    absolute_stats_drought_hist[warm_name] = hot_days_hist.astype(int)
-    absolute_stats_drought_delta[warm_name] = hot_days_delta.astype(int)
+    absolute_stats_hist[warm_name] = hot_days_hist.astype(int)
+    absolute_stats_delta[warm_name] = hot_days_delta.astype(int)
 
     # 5. 7-day average low flow
     nm7q_hist = (
@@ -309,19 +392,16 @@ def compute_statistics_delta_run(
         nm7q_loc_delta = nm7q_delta.sel(index=loc)
         loc_name = nm7q_loc_hist.station_name.item()
         nm7q_name = f"Minimum 7-day average flow\nat {loc_name} [m3/s]"
-        absolute_stats_drought_hist[nm7q_name] = nm7q_loc_hist.values
-        absolute_stats_drought_delta[nm7q_name] = (
+        absolute_stats_hist[nm7q_name] = nm7q_loc_hist.values
+        absolute_stats_delta[nm7q_name] = (
             nm7q_loc_delta.dims,
             nm7q_loc_delta.values,
         )
 
-    # 6. Average soil moisture conditions during dry season
-    # TODO --> soil moisture not supported yet in the workflows
-
-    # 7. Average recharge
-    # 8. Average snow water equivalent
-    # 9. Average glacier water volume
-    # 10. Average actual evapotranspiration
+    # 6. Average recharge
+    # 7. Average snow water equivalent
+    # 8. Average glacier water volume
+    # 9. Average actual evapotranspiration
     for dvar in [
         "groundwater recharge",
         "snow",
@@ -340,11 +420,11 @@ def compute_statistics_delta_run(
                 var_delta = ds_basin_delta[var].resample(time="YS").sum()
             else:
                 raise ValueError(f"Resample method {resample_method} not supported")
-            absolute_stats_drought_hist[name] = var_hist.mean().round(1)
-            absolute_stats_drought_delta[name] = var_delta.mean(dim="time").round(1)
+            absolute_stats_hist[name] = var_hist.mean().round(1)
+            absolute_stats_delta[name] = var_delta.mean(dim="time").round(1)
 
     ### Prepare a recap table for the absolute drought indices values
-    absolute_stats_df = absolute_stats_drought_hist.expand_dims(
+    absolute_stats_df = absolute_stats_hist.expand_dims(
         {"Drought Indices": ["Historical"]}
     ).to_dataframe()
     absolute_stats_df = absolute_stats_df.astype(str).T
@@ -353,10 +433,10 @@ def compute_statistics_delta_run(
         for scenario in scenarios:
             # Add the horizon and scenario to the index
             stats_delta_hz_sc_str = []
-            stats_delta_hz_sc = absolute_stats_drought_delta.sel(
+            stats_delta_hz_sc = absolute_stats_delta.sel(
                 horizon=horizon, scenario=scenario
             )
-            for dvar in absolute_stats_drought_delta.data_vars:
+            for dvar in absolute_stats_delta.data_vars:
                 mean_str = stats_delta_hz_sc[dvar].mean().round(1).item()
                 min_str = stats_delta_hz_sc[dvar].min().round(1).item()
                 max_str = stats_delta_hz_sc[dvar].max().round(1).item()
@@ -368,21 +448,21 @@ def compute_statistics_delta_run(
     absolute_stats_df.index = absolute_stats_df.index.str.replace("\n", " ")
     # Save to csv
     absolute_stats_df.to_csv(
-        join(plot_dir, "drought_indices_absolute_values.csv"),
+        join(plot_dir, "indices_absolute_values.csv"),
         header=True,
         index=True,
-        index_label="Drought Indices",
+        index_label="Indices",
     )
 
     ### Prepare a csv / plots for the relative values
     # Compute the relative change
     relative_stats = xr.Dataset()
-    for var in absolute_stats_drought_hist.data_vars:
-        var_hist = absolute_stats_drought_hist[var].item()
+    for var in absolute_stats_hist.data_vars:
+        var_hist = absolute_stats_hist[var].item()
         if var_hist == 0:
             continue
         relative_stats[var] = (
-            (absolute_stats_drought_delta[var] - var_hist) / var_hist * 100
+            (absolute_stats_delta[var] - var_hist) / var_hist * 100
         ).round(1)
     # Compute the median relative change
     relative_stats_mean = relative_stats.mean(dim="model").round(1)
@@ -398,7 +478,7 @@ def compute_statistics_delta_run(
     # Rename the columns (replace \n by a space)
     relative_stats_df.columns = relative_stats_df.columns.str.replace("\n", " ")
     # Save to csv
-    relative_stats_df.to_csv(join(plot_dir, "drought_indices_relative_change.csv"))
+    relative_stats_df.to_csv(join(plot_dir, "indices_relative_change.csv"))
 
     # Prepare a plot for near and a plot for far future
     for horizon in future_horizons:
@@ -413,13 +493,11 @@ def compute_statistics_delta_run(
             # Plot the heatmap
             plot_table_statistics_multiindex(
                 relative_stats_hz,
-                output_path=join(
-                    plot_dir, f"drought_indices_relative_change_{horizon}.png"
-                ),
+                output_path=join(plot_dir, f"indices_relative_change_{horizon}.png"),
                 x_label="Scenarios",
-                y_label="Drought Indices",
+                y_label="Indices",
                 cmap="RdBu",
-                cmap_label="Change compared to historical [%]",
+                cmap_label="Change compared to historical [%]\nNegative values: drier; Positive values: wetter",
                 vmin=-100,
                 vmax=100,
                 invert_cmap_for=["Actual Evapotranspiration"],
@@ -440,28 +518,17 @@ def compute_statistics_delta_run(
                     relative_stats_hz_sc,
                     output_path=join(
                         plot_dir,
-                        f"drought_indices_relative_change_{horizon}_{scenario}.png",
+                        f"indices_relative_change_{horizon}_{scenario}.png",
                     ),
                     x_label="Models",
-                    y_label="Drought Indices",
+                    y_label="Indices",
                     cmap="RdBu",
-                    cmap_label="Change compared to historical [%]",
+                    cmap_label="Change compared to historical [%]\nNegative values: drier; Positive values: wetter",
                     vmin=-100,
                     vmax=100,
                     invert_cmap_for=["Actual Evapotranspiration"],
                     bold_keyword="MEAN",
                 )
-
-    ### Flood indices ###
-
-    # 1. Number of days with high rainfall
-
-    # 2. Multi day rainfall volume (2, 5, 10)
-
-    # 3. Extreme discharge statistics (Q5, Q10, Q20, Q50)
-
-    # 4. Average soil moisture conditions during monsoon season
-    # TODO soil moisture not supported yet in the workflows
 
 
 if __name__ == "__main__":
@@ -471,17 +538,18 @@ if __name__ == "__main__":
         project_dir = sm.params.project_dir
         Folder_plots = f"{project_dir}/plots/model_delta_runs"
         root = f"{project_dir}/hydrology_model"
-        # time horizons legend
-        future_horizons = sm.params.future_horizons
-        near_horizon = future_horizons["near"].replace(", ", "-")
-        far_horizon = future_horizons["far"].replace(", ", "-")
 
         compute_statistics_delta_run(
             wflow_hist_run_config=sm.params.wflow_hist_run_config,
             wflow_delta_runs_config=sm.params.wflow_delta_runs_config,
             gauges_locs=sm.params.gauges_locs,
             plot_dir=Folder_plots,
-            # start_month_hyd_year=sm.params.start_month_hyd_year,
+            precip_peak_threshold=sm.params.precip_peak_threshold,
+            dry_days_threshold=sm.params.dry_days_threshold,
+            heat_threshold=sm.params.heat_threshold,
+            rps=sm.params.return_periods,
+            split_plot_per_scenario=sm.params.split_plot_per_scenario,
+            discharge_statistics_locations=sm.params.discharge_locations,
         )
     else:
         print("run with snakemake please")

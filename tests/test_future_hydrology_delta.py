@@ -14,6 +14,7 @@ from ..src import downscale_delta_change
 from ..src import setup_config_future
 from ..src import plot_results_delta
 from ..src import plot_results_grid_delta
+from ..src import compute_change_statistics
 
 
 def test_copy_config(tmpdir):
@@ -222,3 +223,37 @@ def test_gridded_results_delta(tmpdir, data_libs_fao):
     assert isfile(
         f"{tmpdir}/plots/model_delta_runs/other/snow_cover_ssp245_near_rel.png"
     )
+
+
+def test_compute_change_statistics(tmpdir, config_fao):
+    """Test if results from the delta runs are correctly made"""
+    # Call the results from the delta runs function
+
+    wflow_delta_runs_config = glob.glob(
+        join(
+            SAMPLE_PROJECTDIR,
+            "hydrology_model",
+            "run_delta_change",
+            "wflow_sbm_*_delta_*.toml",
+        )
+    )
+    wflow_historical_config = join(
+        SAMPLE_PROJECTDIR,
+        "hydrology_model",
+        get_config(
+            config_fao, "config_model_historical", default="wflow_sbm_era5.toml"
+        ),
+    )
+    plot_dir = f"{tmpdir}/plots"
+    gauges_locs = get_config(config_fao, "output_locations", default=None)
+    gauges_locs = join(MAINDIR, gauges_locs)
+
+    compute_change_statistics.compute_statistics_delta_run(
+        wflow_hist_run_config=wflow_historical_config,
+        wflow_delta_runs_config=wflow_delta_runs_config,
+        gauges_locs=gauges_locs,
+        plot_dir=join(plot_dir, "model_delta_runs"),
+    )
+
+    # Check if plots exist
+    assert os.path.exists(f"{plot_dir}/model_delta_runs/indices_absolute_values.csv")
