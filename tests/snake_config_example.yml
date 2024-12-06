@@ -184,3 +184,7 @@ scenarios_selected: [ssp245, ssp585]
 #assume period is near and far (fixed!!)
 future_hydrology_plots:
   add_plots_with_all_lines: true
+  statistics:
+    return_periods: [5, 10] # return periods to compute extreme rain and flow
+    discharge_locations: "all" # locations to compute flow statistics: "outlets", "all", ["1", "3"]
+    split_plot_per_scenario: FALSE # do one plot per SSP or combine all SSP in one plot
