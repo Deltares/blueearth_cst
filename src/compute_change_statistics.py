@@ -29,28 +29,28 @@ else:
 WFLOW_VARS = {
     "overland flow": {
         "resample": "mean",
-        "legend": "Overland Flow",
+        "legend": "Average Overland Flow",
         "units": "m3/s",
     },
     "actual evapotranspiration": {
         "resample": "sum",
-        "legend": "Actual Evapotranspiration",
+        "legend": "Annual Actual Evapotranspiration",
         "units": "mm/yr",
     },
     "groundwater recharge": {
         "resample": "sum",
-        "legend": "Groundwater Recharge",
+        "legend": "Annual Groundwater Recharge",
         "units": "mm/yr",
     },
     "snow": {
         "resample": "mean",
-        "legend": "Snowpack",
+        "legend": "Average Snow Water Equivalent",
         "units": "mm",
     },
     "glacier": {
         "resample": "mean",
-        "legend": "Glacier Volume",
-        "units": "m3",
+        "legend": "Average Glacier Water Equivalent",
+        "units": "mm",
     },
 }
 
@@ -73,12 +73,13 @@ def compute_statistics_delta_run(
     For flow related indices, they can be computed only at the catchment ``outlets``,
     for ``all`` locations (outlets+gauges) or for a specific list of locations.
     Indices are computed using functions from the xclim library.
-    For extreme statistics, the Generalized Extreme Value distribution is used on 
+    For extreme statistics, the Generalized Extreme Value distribution is used on
     annual maxima.
 
     Flood indices:
     - Number of days with high rainfall
     - Extreme rainfall statistics
+    - Annual maximum discharge
     - Extreme discharge statistics
 
     Drought indices:
@@ -87,17 +88,23 @@ def compute_statistics_delta_run(
     - Maximum number of consecutive dry days
     - Number of freezing days
     - Number of days with extreme high temperature
+    - Mean annual discharge
     - 7-day average low flow
+    - Average overland flow
     - Average recharge
     - Average snow water equivalent
-    - Average glacier water volume
+    - Average glacier water equivalent
     - Average actual evapotranspiration
 
     Outputs:
     - A csv file with the absolute values of the different indices for historical and
-      future runs
+        future runs per scenario, horizon and climate model.
+    - A csv file with the absolute values of the different indices for historical and
+      future runs ('mean [min-max]' over the GCMs for the future runs).
     - A csv file with the relative change of the different indices for future runs
-    - Plots for the relative change of the drought indices for near and far future
+      ('mean [min-max]' over the GCMs for the future runs).
+    - Plots for the relative change of the drought indices for near and far future (
+      or one plot per scenario if ``split_plot_per_scenario``).
 
     Parameters
     ----------
@@ -179,6 +186,17 @@ def compute_statistics_delta_run(
     ):
         qsim_hist = qsim_hist.sel(index=discharge_statistics_locations)
         qsim_delta = qsim_delta.sel(index=discharge_statistics_locations)
+    # Update names of outlet locations
+    location_names = []
+    for loc in qsim_hist.index.values:
+        loc_name = qsim_hist.loc[loc].station_name.item()
+        if loc_name.split("_")[0] == "wflow":
+            # replace wflow by outlet
+            location_names.append(loc_name.replace("wflow", "outlet"))
+        else:
+            location_names.append(loc_name)
+    qsim_hist["station_name"] = ("index", location_names)
+    qsim_delta["station_name"] = ("index", location_names)
     # Update units
     qsim_hist.attrs["units"] = "m3/s"
     qsim_delta["Q"].attrs["units"] = "m3/s"
@@ -239,11 +257,22 @@ def compute_statistics_delta_run(
         absolute_stats_hist[prec_rp_name] = prec_rp_hist
         absolute_stats_delta[prec_rp_name] = prec_rp_delta
 
-    # 3. Extreme discharge statistics (Q5, Q10)
+    # 3. Annual maximum discharge
+    # 4. Extreme discharge statistics (Q5, Q10)
     for loc in qsim_hist.index.values:
         qsim_loc_hist = qsim_hist.sel(index=loc)
         qsim_loc_delta = qsim_delta["Q"].sel(index=loc)
         loc_name = qsim_loc_hist.station_name.item()
+        # Start with the annual maximum discharge
+        qmax_name = f"Annual maximum discharge\nat {loc_name} [m3/s]"
+        absolute_stats_hist[qmax_name] = (
+            qsim_loc_hist.resample(time="YS").max().mean().round(1).values
+        )
+        qmax_delta = qsim_loc_delta.resample(time="YS").max().mean(dim="time").round(1)
+        absolute_stats_delta[qmax_name] = (
+            qmax_delta.dims,
+            qmax_delta.values,
+        )
         for rp in rps:
             dis_rp_hist = xclim.indices.stats.frequency_analysis(
                 qsim_loc_hist,
@@ -372,6 +401,7 @@ def compute_statistics_delta_run(
     absolute_stats_hist[warm_name] = hot_days_hist.astype(int)
     absolute_stats_delta[warm_name] = hot_days_delta.astype(int)
 
+    # 5. Mean annual discharge
     # 5. 7-day average low flow
     nm7q_hist = (
         qsim_hist.rolling(time=7)
@@ -391,9 +421,25 @@ def compute_statistics_delta_run(
         .round(1)
     )
     for loc in nm7q_hist.index.values:
+        # Start with mean annual discharge
+        qsim_loc_hist = qsim_hist.sel(index=loc)
+        qsim_loc_delta = qsim_delta["Q"].sel(index=loc)
+        loc_name = qsim_loc_hist.station_name.item()
+        qmean_name = f"Mean annual discharge\nat {loc_name} [m3/s]"
+        absolute_stats_hist[qmean_name] = (
+            qsim_loc_hist.resample(time="YS").mean().mean().round(1).values
+        )
+        qmean_delta = (
+            qsim_loc_delta.resample(time="YS").mean().mean(dim="time").round(1)
+        )
+        absolute_stats_delta[qmean_name] = (
+            qmean_delta.dims,
+            qmean_delta.values,
+        )
+
+        # Continue with the 7-day average low flow
         nm7q_loc_hist = nm7q_hist.sel(index=loc)
         nm7q_loc_delta = nm7q_delta.sel(index=loc)
-        loc_name = nm7q_loc_hist.station_name.item()
         nm7q_name = f"Minimum 7-day average flow\nat {loc_name} [m3/s]"
         absolute_stats_hist[nm7q_name] = nm7q_loc_hist.values
         absolute_stats_delta[nm7q_name] = (
@@ -401,11 +447,13 @@ def compute_statistics_delta_run(
             nm7q_loc_delta.values,
         )
 
-    # 6. Average recharge
-    # 7. Average snow water equivalent
-    # 8. Average glacier water volume
-    # 9. Average actual evapotranspiration
+    # 6. Average overland flow
+    # 7. Average recharge
+    # 8. Average snow water equivalent
+    # 9. Average glacier water volume
+    # 10. Average actual evapotranspiration
     for dvar in [
+        "overland flow",
         "groundwater recharge",
         "snow",
         "glacier",
@@ -431,6 +479,7 @@ def compute_statistics_delta_run(
         {"Drought Indices": ["Historical"]}
     ).to_dataframe()
     absolute_stats_df = absolute_stats_df.astype(str).T
+    absolute_stats_df_all = absolute_stats_df.copy()
     # Loop over the future horizons and scenarios
     for horizon in future_horizons:
         for scenario in scenarios:
@@ -447,11 +496,29 @@ def compute_statistics_delta_run(
                 stats_delta_hz_sc_str.append(f"{mean_str} [{min_str}-{max_str}]")
             # Add to the dataframe
             absolute_stats_df[f"{horizon}_{scenario}"] = stats_delta_hz_sc_str
+            # Add one row per model
+            for model in models:
+                stats_delta_hz_sc_model = stats_delta_hz_sc.sel(model=model).to_pandas()
+                absolute_stats_df_all[f"{horizon}_{scenario}_{model}"] = (
+                    stats_delta_hz_sc_model
+                )
+            # Add the MEAN row
+            stats_delta_hz_sc_mean = (
+                stats_delta_hz_sc.mean(dim="model").round(1).to_pandas()
+            )
+            absolute_stats_df_all[f"{horizon}_{scenario}_mean"] = stats_delta_hz_sc_mean
     # Rename the indexes (replace \n by a space)
     absolute_stats_df.index = absolute_stats_df.index.str.replace("\n", " ")
+    absolute_stats_df_all.index = absolute_stats_df_all.index.str.replace("\n", " ")
     # Save to csv
     absolute_stats_df.to_csv(
         join(plot_dir, "indices_absolute_values.csv"),
+        header=True,
+        index=True,
+        index_label="Indices",
+    )
+    absolute_stats_df_all.to_csv(
+        join(plot_dir, "indices_absolute_values_all.csv"),
         header=True,
         index=True,
         index_label="Indices",
@@ -503,7 +570,7 @@ def compute_statistics_delta_run(
                 cmap_label="Change compared to historical [%]\nNegative values: drier; Positive values: wetter",
                 vmin=-100,
                 vmax=100,
-                invert_cmap_for=["Actual Evapotranspiration"],
+                invert_cmap_for=["Annual Actual Evapotranspiration"],
                 index_separator=":\n",
                 bold_keyword="MEAN",
             )
@@ -529,7 +596,7 @@ def compute_statistics_delta_run(
                     cmap_label="Change compared to historical [%]\nNegative values: drier; Positive values: wetter",
                     vmin=-100,
                     vmax=100,
-                    invert_cmap_for=["Actual Evapotranspiration"],
+                    invert_cmap_for=["Annual Actual Evapotranspiration"],
                     bold_keyword="MEAN",
                 )
 

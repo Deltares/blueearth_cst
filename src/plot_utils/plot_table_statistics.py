@@ -64,7 +64,7 @@ def plot_table_statistics(
 
     # Plot the heatmap
     sns.set_theme(style="whitegrid")
-    fig, ax = plt.subplots(figsize=(8, 8))
+    fig, ax = plt.subplots(figsize=(10, 10))
     im = sns.heatmap(
         df,
         ax=ax,

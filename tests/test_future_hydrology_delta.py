@@ -257,3 +257,21 @@ def test_compute_change_statistics(tmpdir, config_fao):
 
     # Check if plots exist
     assert os.path.exists(f"{plot_dir}/model_delta_runs/indices_absolute_values.csv")
+    assert os.path.exists(
+        f"{plot_dir}/model_delta_runs/indices_relative_change_far.png"
+    )
+
+    # Try with one plot per scenario
+    compute_change_statistics.compute_statistics_delta_run(
+        wflow_hist_run_config=wflow_historical_config,
+        wflow_delta_runs_config=wflow_delta_runs_config,
+        gauges_locs=gauges_locs,
+        plot_dir=join(plot_dir, "model_delta_runs"),
+        split_plot_per_scenario=True,
+    )
+    assert os.path.exists(
+        f"{plot_dir}/model_delta_runs/indices_relative_change_far_ssp245.png"
+    )
+    assert os.path.exists(
+        f"{plot_dir}/model_delta_runs/indices_relative_change_far_ssp585.png"
+    )
