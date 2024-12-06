@@ -5,6 +5,7 @@ import os
 from os.path import join, dirname, basename
 from pathlib import Path
 import xclim
+import numpy as np
 
 from typing import Union, List, Optional
 
@@ -28,27 +29,27 @@ else:
 # Supported wflow outputs
 WFLOW_VARS = {
     "overland flow": {
-        "resample": "mean",
+        "resample": np.mean,
         "legend": "Average Overland Flow",
         "units": "m3/s",
     },
     "actual evapotranspiration": {
-        "resample": "sum",
+        "resample": np.sum,
         "legend": "Annual Actual Evapotranspiration",
         "units": "mm/yr",
     },
     "groundwater recharge": {
-        "resample": "sum",
+        "resample": np.sum,
         "legend": "Annual Groundwater Recharge",
         "units": "mm/yr",
     },
     "snow": {
-        "resample": "mean",
+        "resample": np.mean,
         "legend": "Average Snow Water Equivalent",
         "units": "mm",
     },
     "glacier": {
-        "resample": "mean",
+        "resample": np.mean,
         "legend": "Average Glacier Water Equivalent",
         "units": "mm",
     },
@@ -463,14 +464,8 @@ def compute_statistics_delta_run(
         if var in ds_basin_hist:
             resample_method = WFLOW_VARS[dvar]["resample"]
             name = f"{WFLOW_VARS[dvar]['legend']} [{WFLOW_VARS[dvar]['units']}]"
-            if resample_method == "mean":
-                var_hist = ds_basin_hist[var].resample(time="YS").mean()
-                var_delta = ds_basin_delta[var].resample(time="YS").mean()
-            elif resample_method == "sum":
-                var_hist = ds_basin_hist[var].resample(time="YS").sum()
-                var_delta = ds_basin_delta[var].resample(time="YS").sum()
-            else:
-                raise ValueError(f"Resample method {resample_method} not supported")
+            var_hist = ds_basin_hist[var].resample(time="YS").reduce(resample_method, dim="time")
+            var_delta = ds_basin_delta[var].resample(time="YS").reduce(resample_method, dim="time")
             absolute_stats_hist[name] = var_hist.mean().round(1)
             absolute_stats_delta[name] = var_delta.mean(dim="time").round(1)
 
