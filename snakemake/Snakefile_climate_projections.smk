@@ -42,6 +42,7 @@ rule all:
         (clim_project_dir + "/annual_change_scalar_stats_summary.nc"),
         (clim_project_dir + "/annual_change_scalar_stats_summary.csv"),
         (clim_project_dir + "/annual_change_scalar_stats_summary_mean.csv"),
+        region_file = f"{project_dir}/region/region.geojson",
         stats_change_plt = (project_dir + "/plots/climate_projections/projected_climate_statistics.png"),
         precip_plt = (project_dir + "/plots/climate_projections/precip_anomaly_projections_abs.png"),
         temp_plt = (project_dir + "/plots/climate_projections/temp_anomaly_projections_abs.png"),

@@ -28,7 +28,7 @@ DATA_SOURCES_ALL = DATA_SOURCES.copy()
 DATA_SOURCES_ALL.append(f"{exp_dir}/data_catalog_climate_experiment.yml")
 
 # Data catalog historical
-clim_source = get_config(config, "clim_historical", optional=False)
+clim_source = get_config(config, "clim_reference", optional=False)
 # Time horizon climate experiment and number of hydrological model run
 horizontime_climate = get_config(config, 'horizontime_climate', optional=False)
 wflow_run_length = get_config(config, 'run_length', default=20)

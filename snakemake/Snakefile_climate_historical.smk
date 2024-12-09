@@ -78,6 +78,7 @@ rule extract_climate_historical_grid:
         endtime = get_config(config, "endtime", optional=False),
         climate_variables = ["precip", "temp"],
         combine_with_era5 = False,
+        add_source_to_coords = True,
     output:
         climate_nc = f"{project_dir}/climate_historical/raw_data/" + "extract_{source}.nc",
     script:

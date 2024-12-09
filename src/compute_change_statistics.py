@@ -464,8 +464,16 @@ def compute_statistics_delta_run(
         if var in ds_basin_hist:
             resample_method = WFLOW_VARS[dvar]["resample"]
             name = f"{WFLOW_VARS[dvar]['legend']} [{WFLOW_VARS[dvar]['units']}]"
-            var_hist = ds_basin_hist[var].resample(time="YS").reduce(resample_method, dim="time")
-            var_delta = ds_basin_delta[var].resample(time="YS").reduce(resample_method, dim="time")
+            var_hist = (
+                ds_basin_hist[var]
+                .resample(time="YS")
+                .reduce(resample_method, dim="time")
+            )
+            var_delta = (
+                ds_basin_delta[var]
+                .resample(time="YS")
+                .reduce(resample_method, dim="time")
+            )
             absolute_stats_hist[name] = var_hist.mean().round(1)
             absolute_stats_delta[name] = var_delta.mean(dim="time").round(1)
 
