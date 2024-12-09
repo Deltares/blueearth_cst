@@ -9,7 +9,7 @@ cftype = snakemake.params.cftype
 
 
 def read_yml(yml_fn):
-    """ "Read yml file and return a dictionnary"""
+    """ "Read yml file and return a dictionary"""
     with open(yml_fn, "r") as stream:
         yml = yaml.load(stream, Loader=yaml.FullLoader)
     return yml

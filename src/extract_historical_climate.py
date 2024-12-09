@@ -15,13 +15,14 @@ from hydromt.workflows.forcing import temp
 def prep_historical_climate(
     region_fn: Union[str, Path],
     fn_out: Union[str, Path],
-    data_libs: Union[str, Path] = "deltares_data",
+    data_libs: Union[List, str, Path] = "deltares_data",
     clim_source: str = "era5",
     climate_variables: List[str] = ["precip", "temp"],
     starttime: str = "1980-01-01T00:00:00",
     endtime: str = "2010-12-31T00:00:00",
     buffer: int = 1,
     combine_with_era5: bool = False,
+    add_source_to_coords: bool = True,
 ):
     """
     Extract and save historical climate data for a given region and time period.
@@ -50,6 +51,8 @@ def prep_historical_climate(
     combine_with_era5 : bool
         If True, missing variables will be extracted from era5 and downscaled to the
         resolution of the clim_source.
+    add_source_to_coords : bool
+        If True, add the source to the coordinates of the dataset.
     """
     # Create output dir
     if not os.path.exists(os.path.dirname(fn_out)):
@@ -142,9 +145,17 @@ def prep_historical_climate(
         # Save dem grid to netcdf
         fn_dem = os.path.join(os.path.dirname(fn_out), f"{clim_source}_orography.nc")
         dem.to_netcdf(fn_dem, mode="w")
+    # Check that all variables are present
+    if len(ds.data_vars) != len(climate_variables):
+        variables_missing = [v for v in climate_variables if v not in ds.data_vars]
+        raise ValueError(
+            f"Missing variables {variables_missing} could not be extracted "
+            "from {clim_source} (and era5)."
+        )
 
     # Add clim_source to coordinates
-    ds.coords["source"] = clim_source
+    if add_source_to_coords:
+        ds.coords["source"] = clim_source
 
     # Save to netcdf
     dvars = ds.raster.vars
@@ -170,6 +181,7 @@ if __name__ == "__main__":
             endtime=sm.params.endtime,
             buffer=sm.params.buffer_km,
             combine_with_era5=sm.params.combine_with_era5,
+            add_source_to_coords=sm.params.add_source_to_coords,
         )
     else:
         print("This script should be run from a snakemake environment")
