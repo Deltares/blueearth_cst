@@ -3,7 +3,7 @@
 #################################### General settings ######################################
 
 # Path to where the wflow model will be stored (include the project name)
-project_dir: tests/test_project
+project_dir: tests/test_cst
 
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
 data_sources: 
@@ -81,7 +81,7 @@ save_grids: FALSE
 # Historical climate to use for the stress test
 clim_historical: era5
 # Weather generator default/advanced settings file
-weathergen_config: config/weathergen_config.yml
+weathergen_config: config/cst_api/weathergen_config.yml
 # Name of the experiment
 experiment_name: experiment
 # Number of climate realizations

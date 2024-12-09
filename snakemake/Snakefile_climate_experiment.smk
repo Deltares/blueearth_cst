@@ -19,10 +19,13 @@ if run_hist:
 else:
     ST_START = 1
 
-DATA_SOURCES = get_config(config, "data_sources", optional=False)
-
 basin_dir = f"{project_dir}/hydrology_model"
 exp_dir = f"{project_dir}/climate_{experiment}"
+
+DATA_SOURCES = get_config(config, "data_sources", optional=False)
+DATA_SOURCES = np.atleast_1d(DATA_SOURCES).tolist() #make sure DATA_SOURCES is a list format (even if only one DATA_SOURCE)
+DATA_SOURCES_ALL = DATA_SOURCES.copy()
+DATA_SOURCES_ALL.append(f"{exp_dir}/data_catalog_climate_experiment.yml")
 
 # Data catalog historical
 clim_source = get_config(config, "clim_historical", optional=False)
@@ -61,6 +64,7 @@ rule extract_climate_grid:
         buffer_km = 1,
         climate_variables = ["precip", "temp", "temp_min", "temp_max", "kin", "kout", "press_msl"],
         combine_with_era5 = True,
+        add_source_to_coords = False,
     output:
         climate_nc = f"{project_dir}/climate_historical/raw_data/extract_historical.nc",
     script:
@@ -141,6 +145,7 @@ rule climate_data_catalog:
 rule downscale_climate_realization:
     input:
         nc = f"{exp_dir}/realization_"+"{rlz_num}"+"/rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".nc",
+        clim_data = f"{exp_dir}/data_catalog_climate_experiment.yml",
     output:
         nc = temp(f"{exp_dir}/realization_"+"{rlz_num}"+"/inmaps_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".nc"),
         toml = f"{basin_dir}/run_climate_{experiment}/wflow_sbm_rlz_"+"{rlz_num}"+"_cst_"+"{st_num2}"+".toml"
@@ -149,7 +154,7 @@ rule downscale_climate_realization:
         clim_source = clim_source,
         horizontime_climate = horizontime_climate,
         run_length = wflow_run_length,
-        data_sources = [f"{exp_dir}/data_catalog_climate_experiment.yml", DATA_SOURCES],
+        data_sources = DATA_SOURCES_ALL,
     script:
         "../src/downscale_climate_forcing.py"
 
