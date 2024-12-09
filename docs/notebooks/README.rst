@@ -8,28 +8,11 @@ in the `docs/notebooks` directory of the repository.
 Each notebook represent a specific snakemake workflow and are organized in the following 
 categories:
 
-   1. **Historical climate.ipynb**: This notebook shows how to run the historical climate 
-     workflow in **Snakefile_climate_historical**. It extracts and analyse different
-     climate variables from the historical climate dataset, compares to observations and
-     search for existing trends in climate.
-   2. **Climate projections.ipynb**: This notebook shows how to run the climate projections 
-     workflow in **Snakefile_climate_projections**. It extracts and analyse different
-     climate variables from the climate projections dataset (CMIP6), and derives basin 
-     averaged and gridded change in climate based on several scenarios, time horizons and 
-     climate models.
-   3. **Historical hydrology.ipynb**: This notebook shows how to run the hydrological 
-     workflow in **Snakefile_historical_hydrology**. It builds a hydrological Wflow model,
-     runs it ith different climate datasets, compares to observations and search for
-     existing trends in hydrology.
-   4. **Hydrological projections.ipynb**: This notebook shows how to run the hydrological
-      projections workflow in **Snakefile_future_hydrology_delta_change**. It runs the
-      previoulsy built hydrological model with a reference historical climate modified
-      with monthly delta changes from the climate projections dataset.
-    5. **Climate Stress Test.ipynb**: This notebook shows how to run the climate stress test
-      workflow in **Snakefile_climate_experiment**. A weather generator is used to generate
-      synthetic and perturbed weather realizations based on the historical climate dataset.
-      The hydrological model is then run (stress test) with these perturbed weather
-      realizations to assess the impact of future climate on the hydrology.
+1. **Historical climate.ipynb**: This notebook shows how to run the historical climate workflow in **Snakefile_climate_historical**. It extracts and analyse different climate variables from the historical climate dataset, compares to observations and search for existing trends in climate.
+2. **Climate projections.ipynb**: This notebook shows how to run the climate projections workflow in **Snakefile_climate_projections**. It extracts and analyse different climate variables from the climate projections dataset (CMIP6), and derives basin averaged and gridded change in climate based on several scenarios, time horizons and climate models.
+3. **Historical hydrology.ipynb**: This notebook shows how to run the hydrological workflow in **Snakefile_historical_hydrology**. It builds a hydrological Wflow model, runs it ith different climate datasets, compares to observations and search for existing trends in hydrology.
+4. **Hydrological projections.ipynb**: This notebook shows how to run the hydrological projections workflow in **Snakefile_future_hydrology_delta_change**. It runs the previoulsy built hydrological model with a reference historical climate modified with monthly delta changes from the climate projections dataset.
+5. **Climate Stress Test.ipynb**: This notebook shows how to run the climate stress test workflow in **Snakefile_climate_experiment**. A weather generator is used to generate synthetic and perturbed weather realizations based on the historical climate dataset. The hydrological model is then run (stress test) with these perturbed weather realizations to assess the impact of future climate on the hydrology.
 
 To run the notebooks, you first need to install the toolbox. See the detailed explanations
 in the `../../README.rst` file. Once the toolbox is installed, you can run the notebooks
@@ -41,9 +24,8 @@ different workflows. They also contain the expected outputs and how to visualize
 The notebooks are also a good starting point to understand the different workflows and
 how to adapt them to your specific needs.
 
-.. note::
-    *The notebooks are provided as examples and the model used or the results presented
-    in the notebooks are for illustration only.* 
+*NOTE: The notebooks are provided as examples and the model used or the results presented
+in the notebooks are for illustration only.* 
 
 **Data**
 
