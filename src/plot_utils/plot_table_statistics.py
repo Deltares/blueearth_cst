@@ -209,6 +209,9 @@ def plot_table_statistics_absolute(
     # calculate percentage change
     df_rel_perc = (df_rel - 1) * 100
 
+    # replace nan's and inf with zero - to make sure plot covers all lines
+    df_rel_perc = df_rel_perc.replace([np.inf, -np.inf, np.nan], 0)
+
     invert_cmap = []
     for param in invert_cmap_for:
         if param in df_rel_perc.index:
@@ -231,11 +234,9 @@ def plot_table_statistics_absolute(
         annot_kws={"fontsize": fs},
         cbar_kws={
             "orientation": "horizontal",
-            #    "shrink": 0.8,
             "pad": 0.05,
             "fraction": 0.02,
         },
-        #  cbar_kws={"label": "(changement %)"},
     )
 
     # change annotations - add absolute values and put relative values between brackets.
@@ -248,7 +249,6 @@ def plot_table_statistics_absolute(
             else:
                 i.set_text(df_sel["Historical"].iloc[int(y - 0.5)].round(3))
         else:
-            # print(x-0.5,y-0.5)
             if df_sel.iloc[int(y - 0.5), int(x - 0.5)] > 1:
                 text_abs = str(df_sel.iloc[int(y - 0.5), int(x - 0.5)].round(1))
             else:
@@ -265,6 +265,11 @@ def plot_table_statistics_absolute(
                 i.set_text(text_abs + " (" + str(-int(i.get_text())) + "%)")
             else:
                 i.set_text(text_abs + " (" + i.get_text() + "%)")
+
+            # if historical was zero - don't show relative change - only absolute
+            if df_sel.iloc[int(y - 0.5)]["Historical"] == 0:
+                print(df_rel_perc.iloc[int(y - 0.5)])
+                i.set_text(text_abs)
 
     y_ticks_labels = df_rel_perc.index
     im.set_yticks(np.arange(len(y_ticks_labels)) + 0.5)
