@@ -500,9 +500,13 @@ def compute_statistics_delta_run(
                 horizon=horizon, scenario=scenario
             )
             for dvar in absolute_stats_delta.data_vars:
-                mean_str = stats_delta_hz_sc[dvar].mean().round(1).item()
-                min_str = stats_delta_hz_sc[dvar].min().round(1).item()
-                max_str = stats_delta_hz_sc[dvar].max().round(1).item()
+                if stats_delta_hz_sc[dvar].mean() < 1:
+                    round = 3
+                else:
+                    round = 1
+                mean_str = stats_delta_hz_sc[dvar].mean().round(round).item()
+                min_str = stats_delta_hz_sc[dvar].min().round(round).item()
+                max_str = stats_delta_hz_sc[dvar].max().round(round).item()
                 # TODO add significant change test with a * in the string if True
                 stats_delta_hz_sc_str.append(f"{mean_str} [{min_str}-{max_str}]")
             # Add to the dataframe
@@ -514,8 +518,14 @@ def compute_statistics_delta_run(
                     stats_delta_hz_sc_model
                 )
             # Add the MEAN row
+            if stats_delta_hz_sc[dvar].mean() < 1:
+                round = 3
+            else:
+                round = 1
             stats_delta_hz_sc_mean = (
-                stats_delta_hz_sc.mean(dim="model").round(1).to_pandas()
+                stats_delta_hz_sc.mean(dim="model")
+                .apply(lambda x: x.round(3) if x < 1 else x.round(1))
+                .to_pandas()
             )
             absolute_stats_df_all[f"{horizon}_{scenario}_mean"] = stats_delta_hz_sc_mean
     # Rename the indexes (replace \n by a space)

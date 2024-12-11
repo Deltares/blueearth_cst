@@ -284,5 +284,5 @@ def plot_table_statistics_absolute(
     im.set_ylabel(y_label, fontweight="bold")
 
     # Save the plot
-    plt.savefig(output_path, bbox_inches="tight")
+    plt.savefig(output_path, bbox_inches="tight", dpi=300)
     plt.close()
