@@ -175,7 +175,7 @@ def plot_table_statistics_absolute(
     Parameters
     ----------
     df : pandas.DataFrame
-        Dataframe containing the data with absolute changes to be plotted.
+        Dataframe containing the data with absolute changes to be plotted. the dataframe should contain columns with "mean" and "far" or "near" in the column names.
     output_path : str
         Path to save the plot.
     x_label : str

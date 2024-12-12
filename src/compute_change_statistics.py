@@ -34,26 +34,31 @@ WFLOW_VARS = {
         "resample": np.mean,
         "legend": "Average Overland Flow",
         "units": "m3/s",
+        "rounding": 3,
     },
     "actual evapotranspiration": {
         "resample": np.sum,
         "legend": "Annual Actual Evapotranspiration",
         "units": "mm/yr",
+        "rounding": 1,
     },
     "groundwater recharge": {
         "resample": np.sum,
         "legend": "Annual Groundwater Recharge",
         "units": "mm/yr",
+        "rounding": 1,
     },
     "snow": {
         "resample": np.mean,
         "legend": "Average Snow Water Equivalent",
         "units": "mm",
+        "rounding": 1,
     },
     "glacier": {
         "resample": np.mean,
         "legend": "Average Glacier Water Equivalent",
         "units": "mm",
+        "rounding": 1,
     },
 }
 
@@ -467,6 +472,7 @@ def compute_statistics_delta_run(
         var = f"{dvar}_basavg"
         if var in ds_basin_hist:
             resample_method = WFLOW_VARS[dvar]["resample"]
+            round = WFLOW_VARS[dvar]["rounding"]
             name = f"{WFLOW_VARS[dvar]['legend']} [{WFLOW_VARS[dvar]['units']}]"
             var_hist = (
                 ds_basin_hist[var]
@@ -478,10 +484,6 @@ def compute_statistics_delta_run(
                 .resample(time="YS")
                 .reduce(resample_method, dim="time")
             )
-            if var_hist.mean() < 1:
-                round = 3
-            else:
-                round = 1
             absolute_stats_hist[name] = var_hist.mean().round(round)
             absolute_stats_delta[name] = var_delta.mean(dim="time").round(round)
 
@@ -500,8 +502,13 @@ def compute_statistics_delta_run(
                 horizon=horizon, scenario=scenario
             )
             for dvar in absolute_stats_delta.data_vars:
-                if stats_delta_hz_sc[dvar].mean() < 1:
-                    round = 3
+                long_names = [
+                    WFLOW_VARS[k]["legend"] + " [" + WFLOW_VARS[k]["units"] + "]"
+                    for k in WFLOW_VARS
+                ]
+                if dvar in long_names:
+                    key = next(k for k, v in WFLOW_VARS.items() if v["legend"] in dvar)
+                    round = WFLOW_VARS[key]["rounding"]
                 else:
                     round = 1
                 mean_str = stats_delta_hz_sc[dvar].mean().round(round).item()
@@ -518,15 +525,7 @@ def compute_statistics_delta_run(
                     stats_delta_hz_sc_model
                 )
             # Add the MEAN row
-            if stats_delta_hz_sc[dvar].mean() < 1:
-                round = 3
-            else:
-                round = 1
-            stats_delta_hz_sc_mean = (
-                stats_delta_hz_sc.mean(dim="model")
-                .apply(lambda x: x.round(3) if x < 1 else x.round(1))
-                .to_pandas()
-            )
+            stats_delta_hz_sc_mean = stats_delta_hz_sc.mean(dim="model").to_pandas()
             absolute_stats_df_all[f"{horizon}_{scenario}_mean"] = stats_delta_hz_sc_mean
     # Rename the indexes (replace \n by a space)
     absolute_stats_df.index = absolute_stats_df.index.str.replace("\n", " ")
@@ -629,7 +628,7 @@ def compute_statistics_delta_run(
             plot_dir,
             f"indices_absolute_relative_change_summary.png",
         ),
-        x_label="Models",
+        x_label="Climate Scenario",
         y_label="Indices",
         cmap="RdBu",
         cmap_label="Change compared to historical [%]\nNegative values: drier; Positive values: wetter",
