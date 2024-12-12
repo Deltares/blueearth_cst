@@ -226,7 +226,8 @@ their financial support.
 The toolbox is still under development and we welcome any feedback or suggestions for
 improvement. We believe that it will be a valuable resource that will benefit many users.
 
-.. _image:: docs/_images/company_logos.png
+.. image:: docs/_images/company_logos.png
+    :align: center
 
 License
 =======
