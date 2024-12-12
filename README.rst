@@ -2,7 +2,7 @@ BlueEarth Climate Stress Test toolbox
 #####################################
 
 The BlueEarth Climate Stress Test toolbox (blueearth_cst) is a free, open-source, and online toolbox for interactive climate risk assessment based on bottom-up analysis principles. 
-The toolbox will enable end-users to: 
+The toolbox is under development and will enable end-users to: 
 
  - Explore the range of hydro-climatic uncertainty in a selected geographic area of choice, including natural variability and climate change signals.  
 
@@ -233,3 +233,23 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+Acknowledgements
+================
+The development of the BlueEarth Climate Stress Testing Toolbox came from a joint 
+collaboration between Deltares and the World Bank. The underlying research was 
+supported by Deltares and the World Bank and we would like to thank the World Bank for
+their financial support.
+
+The toolbox is still under development and we welcome any feedback or suggestions for
+improvement. We believe that it will be a valuable resource that will benefit many users.
+
+# Add a table with three columns containing _images
+
+.. list-table::
+   :widths: 33 33 33
+   :header-rows: 1
+
+   * - .. image:: docs/_images/WB_logo.png
+     - 
+     - .. image:: docs/_images/deltares_logo.png

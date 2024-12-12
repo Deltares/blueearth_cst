@@ -129,6 +129,7 @@ examples/
 
 # Images
 *.png
+!/docs/_images/*.png
 
 # Tests
 tests/test_project
