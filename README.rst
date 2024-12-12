@@ -246,7 +246,7 @@ improvement. We believe that it will be a valuable resource that will benefit ma
 
 .. image:: docs/_images/company_logos.png
     :align: center
-    :width: 400
+    :width: 600
 
 
 
