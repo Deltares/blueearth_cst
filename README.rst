@@ -216,6 +216,18 @@ Tag and push the image to a new <<Tag>> using:
     docker tag cst-workflow:0.0.1 https://containers.deltares.nl/CST/cst_workflows:<<Tag>>
     docker push https://containers.deltares.nl/CST/cst_workflows:<<Tag>>
 
+Acknowledgements
+================
+The development of the BlueEarth Climate Stress Testing Toolbox came from a joint 
+collaboration between Deltares and the World Bank. The underlying research was 
+supported by Deltares and the World Bank and we would like to thank the World Bank for
+their financial support.
+
+The toolbox is still under development and we welcome any feedback or suggestions for
+improvement. We believe that it will be a valuable resource that will benefit many users.
+
+.. _image:: docs/_images/company_logos.png
+
 License
 =======
 
@@ -234,15 +246,5 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-Acknowledgements
-================
-The development of the BlueEarth Climate Stress Testing Toolbox came from a joint 
-collaboration between Deltares and the World Bank. The underlying research was 
-supported by Deltares and the World Bank and we would like to thank the World Bank for
-their financial support.
 
-The toolbox is still under development and we welcome any feedback or suggestions for
-improvement. We believe that it will be a valuable resource that will benefit many users.
-
-.. _image:: docs/_images/company_logos.png
 
