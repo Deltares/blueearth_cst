@@ -244,12 +244,5 @@ their financial support.
 The toolbox is still under development and we welcome any feedback or suggestions for
 improvement. We believe that it will be a valuable resource that will benefit many users.
 
-# Add a table with three columns containing _images
+.. _image:: docs/_images/company_logos.png
 
-.. list-table::
-   :widths: 33 33 33
-   :header-rows: 1
-
-   * - .. image:: docs/_images/WB_logo.png
-     - 
-     - .. image:: docs/_images/deltares_logo.png
