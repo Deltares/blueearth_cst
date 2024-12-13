@@ -42,10 +42,10 @@ WFLOW_VARS = {
         "legend": "Overland Flow (m$^3$s$^{-1}$)",
         "legend_annual": "Overland Flow (m$^3$s$^{-1}$)",
     },
-    "actual evapotranspiration": {
+    "actual evaporation": {
         "resample": "sum",
-        "legend": "Actual Evapotranspiration (mm month$^{-1}$)",
-        "legend_annual": "Actual Evapotranspiration (mm year$^{-1}$)",
+        "legend": "Actual evaporation (mm month$^{-1}$)",
+        "legend_annual": "Actual evaporation (mm year$^{-1}$)",
     },
     "groundwater recharge": {
         "resample": "sum",

@@ -12,7 +12,7 @@ WFLOW_VARS = {
     "river discharge": "lateral.river.q_av",
     "precipitation": "vertical.precipitation",
     "overland flow": "lateral.land.q_av",
-    "actual evapotranspiration": "vertical.actevap",
+    "actual evaporation": "vertical.actevap",
     "groundwater recharge": "vertical.recharge",
     "snow": "vertical.snow",
     "glacier": "vertical.glacierstore",
@@ -43,7 +43,7 @@ def update_wflow_gauges_outputs(
             - "river discharge"
             - "precipitation"
             - "overland flow"
-            - "actual evapotranspiration"
+            - "actual evaporation"
             - "groundwater recharge"
             - "snow"
             - "glacier"

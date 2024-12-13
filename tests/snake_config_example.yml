@@ -25,10 +25,10 @@ endtime: "2010-12-31T00:00:00"
 data_sources_climate: config/cmip6_data.yml
 
 # List of wflow output variables to save
-# Supported variables: ['river discharge', 'precipitation', 'overland flow', 'actual evapotranspiration', 'groundwater recharge', 'snow']
+# Supported variables: ['river discharge', 'precipitation', 'overland flow', 'actual evaporation', 'groundwater recharge', 'snow']
 # Comment out to disable saving
 # Scalar csv
-wflow_outvars: ['river discharge', 'precipitation', 'overland flow', 'actual evapotranspiration', 'groundwater recharge', 'snow', 'glacier']
+wflow_outvars: ['river discharge', 'precipitation', 'overland flow', 'actual evaporation', 'groundwater recharge', 'snow', 'glacier']
 # Gridded netcdf
 wflow_outvars_gridded: ['snow']
 

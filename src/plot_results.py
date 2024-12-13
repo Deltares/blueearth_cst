@@ -130,7 +130,7 @@ def analyse_wflow_historical(
         List of climate sources for which to skip the plotting of precipitation.
     skip_temp_pet_sources : List[str]
         List of climate sources for which to skip the plotting temperature and
-        potential evapotranspiration.
+        potential evaporation.
     """
     ### 1. Prepare output and plotting options ###
 

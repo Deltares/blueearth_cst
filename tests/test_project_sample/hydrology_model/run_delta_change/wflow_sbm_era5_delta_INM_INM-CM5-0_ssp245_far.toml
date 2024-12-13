@@ -83,7 +83,7 @@ reducer = "mean"
 parameter = "lateral.land.q_av"
 
 [[csv.column]]
-header = "actual evapotranspiration_basavg"
+header = "actual evaporation_basavg"
 reducer = "mean"
 parameter = "vertical.actevap"
 

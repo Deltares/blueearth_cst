@@ -228,7 +228,7 @@ def analyze_wflow_results(
                     stats_basavg, (sim[v].resample("YE").max().mean())
                 )
             else:
-                # actual evapotranspiration_basavg or groundwater recharge_basavg
+                # actual evaporation_basavg or groundwater recharge_basavg
                 # or overland_flow_basavg
                 # Total evaporation or recharge or overland flow volume (mm/yr)
                 stats_basavg = np.append(

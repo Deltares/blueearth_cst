@@ -17,7 +17,7 @@ starttime: "2000-01-01T00:00:00"
 endtime: "2020-12-31T00:00:00"
 
 # List of wflow output variables to save
-wflow_outvars: ['river discharge', 'precipitation', 'overland flow', 'actual evapotranspiration', 'groundwater recharge', 'snow']
+wflow_outvars: ['river discharge', 'precipitation', 'overland flow', 'actual evaporation', 'groundwater recharge', 'snow']
 
 ###########################################################################################
 #################################### Model building #######################################

@@ -39,14 +39,14 @@ def derive_pet(
     drop_vars: List = [],
 ):
     """
-    Compute potential evapotranspiration using different methods.
+    Compute potential evaporation using different methods.
 
     Parameters
     ----------
     ds : xr.Dataset
         Dataset with temperature, pressure, and radiation data.
     pet_method : str
-        Method to compute potential evapotranspiration. Available methods are 'makkink',
+        Method to compute potential evaporation. Available methods are 'makkink',
         'debruin'.
     timestep : np.ndarray
         Timestep in seconds for each month.
@@ -56,7 +56,7 @@ def derive_pet(
     Returns
     -------
     xr.Dataset
-        Dataset with added potential evapotranspiration data.
+        Dataset with added potential evaporation data.
     """
     if "press_msl" in ds:
         # todo downscale with orography
@@ -206,7 +206,7 @@ def get_stats_clim_projections(
     Supported variables:
     * precip: precipitation [mm/month] or [mm/day]
     * temp: temperature [°C]
-    * pet: potential evapotranspiration [mm/month] - can be computed using several
+    * pet: potential evaporation [mm/month] - can be computed using several
       methods and variables (see pet_method)
     * temp_dew: dew point temperature [°C] - can be computed using relative or specific
       humidity (see tdew_method)
@@ -229,7 +229,7 @@ def get_stats_clim_projections(
     member : str
         member name of the climate model (e.g. r1i1p1f1).
     compute_pet : bool
-        compute potential evapotranspiration. False by default.
+        compute potential evaporation. False by default.
     compute_wind : bool
         compute wind speed from u and v wind components (wind10_u and wind10_v).
         False by default.
@@ -237,7 +237,7 @@ def get_stats_clim_projections(
         compute dew point temperature from temperature and relative humidity.
         False by default.
     pet_method : str
-        method to compute potential evapotranspiration if compute_pet is True.
+        method to compute potential evaporation if compute_pet is True.
         available methods are 'makkink' (default), 'debruin'.
     save_grids : bool
         save gridded stats as well as scalar stats. False by default.
@@ -421,7 +421,7 @@ def extract_climate_projections_statistics(
     Supported variables:
     * precip: precipitation [mm/month] or [mm/day]
     * temp: temperature [°C]
-    * pet: potential evapotranspiration [mm/month] - can be computed using several
+    * pet: potential evaporation [mm/month] - can be computed using several
       methods and variables (see pet_method)
     * temp_dew: dew point temperature [°C] - can be computed using relative or specific
       humidity (see tdew_method)
@@ -455,7 +455,7 @@ def extract_climate_projections_statistics(
         List of variables to extract (e.g. ['precip', 'temp']). Variables should be
         present in the climate source.
     pet_method : str
-        Method to compute potential evapotranspiration. Use None to use pet from the
+        Method to compute potential evaporation. Use None to use pet from the
         climate source. Available methods are 'makkink' (default), 'debruin'.
         Required variables for each method are:
 

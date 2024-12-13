@@ -52,7 +52,7 @@ CLIM_PLOTS = {
         "unit_year": "mm/year",
         "unit_month": "mm/month",
         "unit_anomaly": "%",
-        "long_name": "potential evapotranspiration",
+        "long_name": "potential evaporation",
     },
     "temp_dew": {
         "absolute": True,
@@ -544,7 +544,7 @@ def plot_climate_projections(
                     # pet
                     plot_gridded_anomaly_month(
                         da=ds_rcp_hz_med["pet"].sel(scenario=sc, horizon=hz),
-                        title="Potential Evapotranspiration Change (median over GCMs)",
+                        title="Potential evaporation Change (median over GCMs)",
                         unit="%",
                         vmin=vmin_m_pet,
                         vmax=vmax_m_pet,
@@ -594,8 +594,8 @@ def plot_climate_projections(
                 if "pet" in ds_rcp_hz_med_mean.data_vars:
                     plot_gridded_anomaly(
                         da=ds_rcp_hz_med_mean["pet"].sel(scenario=sc, horizon=hz),
-                        title=f"Annual mean potential evapotranspiration change for {sc} and time horizon {hz}",
-                        legend="Potential Evapotranspiration Change (median over GCMs) [%]",
+                        title=f"Annual mean potential evaporation change for {sc} and time horizon {hz}",
+                        legend="Potential evaporation Change (median over GCMs) [%]",
                         vmin=vmin_pet,
                         vmax=vmax_pet,
                         cmap="RdYlBu_r",

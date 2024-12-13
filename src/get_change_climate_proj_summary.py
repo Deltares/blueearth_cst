@@ -155,7 +155,7 @@ def summary_climate_proj(
             ax.axhline(0, color="darkgrey", ls="--", lw=2)
         g.set_axis_labels(
             xlabel="Change in mean precipitation (%)",
-            ylabel="Change in mean potential evapotranspiration (%)",
+            ylabel="Change in mean potential evaporation (%)",
         )
         g.ax_joint.grid()
         g.ax_joint.legend(loc="right", bbox_to_anchor=(1.5, 0.5))

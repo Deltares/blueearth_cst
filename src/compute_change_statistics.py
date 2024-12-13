@@ -33,9 +33,9 @@ WFLOW_VARS = {
         "legend": "Average Overland Flow",
         "units": "m3/s",
     },
-    "actual evapotranspiration": {
+    "actual evaporation": {
         "resample": np.sum,
-        "legend": "Annual Actual Evapotranspiration",
+        "legend": "Annual Actual evaporation",
         "units": "mm/yr",
     },
     "groundwater recharge": {
@@ -95,7 +95,7 @@ def compute_statistics_delta_run(
     - Average recharge
     - Average snow water equivalent
     - Average glacier water equivalent
-    - Average actual evapotranspiration
+    - Average actual evaporation
 
     Outputs:
     - A csv file with the absolute values of the different indices for historical and
@@ -452,13 +452,13 @@ def compute_statistics_delta_run(
     # 7. Average recharge
     # 8. Average snow water equivalent
     # 9. Average glacier water volume
-    # 10. Average actual evapotranspiration
+    # 10. Average actual evaporation
     for dvar in [
         "overland flow",
         "groundwater recharge",
         "snow",
         "glacier",
-        "actual evapotranspiration",
+        "actual evaporation",
     ]:
         var = f"{dvar}_basavg"
         if var in ds_basin_hist:
@@ -565,7 +565,7 @@ def compute_statistics_delta_run(
                 cmap_label="Change compared to historical [%]\nNegative values: drier; Positive values: wetter",
                 vmin=-100,
                 vmax=100,
-                invert_cmap_for=["Annual Actual Evapotranspiration"],
+                invert_cmap_for=["Annual Actual evaporation"],
                 index_separator=":\n",
                 bold_keyword="MEAN",
             )
@@ -591,7 +591,7 @@ def compute_statistics_delta_run(
                     cmap_label="Change compared to historical [%]\nNegative values: drier; Positive values: wetter",
                     vmin=-100,
                     vmax=100,
-                    invert_cmap_for=["Annual Actual Evapotranspiration"],
+                    invert_cmap_for=["Annual Actual evaporation"],
                     bold_keyword="MEAN",
                 )
 

@@ -58,7 +58,7 @@ def get_change_clim_projections(
     Supported variables:
     * precip: precipitation [mm/month] or [mm/day]
     * temp: temperature [°C]
-    * pet: potential evapotranspiration [mm/month] - can be computed using several
+    * pet: potential evaporation [mm/month] - can be computed using several
       methods and variables (see pet_method)
     * temp_dew: dew point temperature [°C] - can be computed using relative or specific
       humidity (see tdew_method)
@@ -159,7 +159,7 @@ def get_change_annual_clim_proj(
     Supported variables:
     * precip: precipitation [mm/month] or [mm/day]
     * temp: temperature [°C]
-    * pet: potential evapotranspiration [mm/month] - can be computed using several
+    * pet: potential evaporation [mm/month] - can be computed using several
       methods and variables (see pet_method)
     * temp_dew: dew point temperature [°C] - can be computed using relative or specific
       humidity (see tdew_method)
@@ -290,7 +290,7 @@ def get_expected_change_scalar(
     Supported variables:
     * precip: precipitation [mm/month] or [mm/day]
     * temp: temperature [°C]
-    * pet: potential evapotranspiration [mm/month] - can be computed using several
+    * pet: potential evaporation [mm/month] - can be computed using several
       methods and variables (see pet_method)
     * temp_dew: dew point temperature [°C] - can be computed using relative or specific
       humidity (see tdew_method)
@@ -398,7 +398,7 @@ def get_expected_change_grid(
     Supported variables:
     * precip: precipitation [mm/month] or [mm/day]
     * temp: temperature [°C]
-    * pet: potential evapotranspiration [mm/month] - can be computed using several
+    * pet: potential evaporation [mm/month] - can be computed using several
       methods and variables (see pet_method)
     * temp_dew: dew point temperature [°C] - can be computed using relative or specific
       humidity (see tdew_method)
