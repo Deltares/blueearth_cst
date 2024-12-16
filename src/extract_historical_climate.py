@@ -146,7 +146,7 @@ def prep_historical_climate(
         fn_dem = os.path.join(os.path.dirname(fn_out), f"{clim_source}_orography.nc")
         dem.to_netcdf(fn_dem, mode="w")
     # Check that all variables are present
-    if len(ds.data_vars) != len(climate_variables):
+    if len(ds.data_vars) != len(climate_variables) and combine_with_era5:
         variables_missing = [v for v in climate_variables if v not in ds.data_vars]
         raise ValueError(
             f"Missing variables {variables_missing} could not be extracted "
