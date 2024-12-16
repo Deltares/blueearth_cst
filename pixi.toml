@@ -1,0 +1,71 @@
+[project]
+authors = ["Sam Vente <savente93@proton.me>"]
+channels = ["conda-forge", "r"]
+description = "Add a short description here"
+name = "cst"
+platforms = ["win-64", "linux-64"]
+version = "0.1.0"
+
+[tasks]
+model-creation = { cmd = ["snakemake","all","-c","1","-s","Snakefile_model_creation","--configfile","config/snake_config_model_test.yml"]}
+climate-projections = {cmd = ["snakemake","all","-c","1","-s","Snakefile_climate_projections","--configfile","config/snake_config_model_test.yml","--keep-going"]}
+climate-experiment = {cmd = ["snakemake","all","-c","1","-s","Snakefile_climate_experiment","--configfile","config/snake_config_model_test.yml"]}
+
+docker-build = {cmd = ["docker", "build", "-t", "cst-workflow:$CST_WORKFLOW_VERSION"], env = {CST_WORKFLOW_VERSION="0.0.1"}}
+docker-push = {cmd = [" docker push https://containers.deltares.nl/CST/cst_workflows:$CST_WORKFLOW_TAG"], env = {CST_WORKFLOW_TAG = "latest"}, depends-on = ["docker-tag"]}
+docker-publish = {depends-on = ["docker-push"]}
+docker-tag = {cmd = ["docker", "tag", "cst-workflow:0.0.1", "https://containers.deltares.nl/CST/cst_workflows:$CST_WORKFLOW_TAG"], env = {CST_WORKFLOW_TAG = "latest"}, depends-on = ["docker-build"]}
+
+[target.win-64.dependencies]
+rtools = "*"
+
+[dependencies]
+cartopy = "*"
+datrie = "*"
+dvc = "*"
+descartes = "*"
+flit = ">=3.2"
+gcsfs = ">=2023.12.1"
+gdal = ">=3.1"
+geopandas = ">=0.10"
+graphviz = "*"
+hydromt = ">=0.9.4,<1.0"
+hydromt_wflow = ">=0.4.1,<0.6"
+jupyter = "*"
+matplotlib = "*"
+numpy = "*"
+pandas = ">=2.0.0"
+pip = "*"
+python = ">=3.9,<3.12"
+r-base = "*"
+r-essentials = "*"
+r-akima = "*"
+r-patchwork = "*"
+r-doparallel = "*"
+r-devtools = "*"
+r-dplyr = "*"
+r-e1071 = "*"
+r-fitdistrplus = "*"
+r-forecast = "*"
+r-ggplot2 = "*"
+r-mass = "*"
+r-ncdf4 = "*"
+r-scales = "*"
+r-sf = "*"
+r-tibble = "*"
+r-tidyr = "*"
+"r-r.utils" = "*"
+r-yaml = "*"
+rpy2 = "*"
+scipy = "*"
+seaborn = "*"
+shapely = ">=2.0.0"
+tabulate = "==0.8.10"
+xarray = "<=2024.3.0"
+xclim = "*"
+zarr = "*"
+
+[pypi-dependencies]
+hydroengine = "*"
+gwwapi = "*"
+snakemake = "*"

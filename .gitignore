@@ -133,3 +133,7 @@ examples/
 
 # Tests
 tests/test_project
+
+# pixi environments
+.pixi
+*.egg-info
