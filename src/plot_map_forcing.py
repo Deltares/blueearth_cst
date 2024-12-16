@@ -81,7 +81,10 @@ if __name__ == "__main__":
         # Parse snake options
         project_dir = sm.params.project_dir
         gauges_fn = sm.params.gauges_fid
-        gauges_name = basename(gauges_fn).split(".")[0]
+        if gauges_fn is not None:
+            gauges_name = basename(gauges_fn).split(".")[0]
+        else:
+            gauges_name = None
         config_fn = sm.params.config_fn
         climate_source = sm.params.climate_source
 
