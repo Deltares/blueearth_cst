@@ -472,7 +472,7 @@ def compute_statistics_delta_run(
         var = f"{dvar}_basavg"
         if var in ds_basin_hist:
             resample_method = WFLOW_VARS[dvar]["resample"]
-            round = WFLOW_VARS[dvar]["rounding"]
+            rounding = WFLOW_VARS[dvar]["rounding"]
             name = f"{WFLOW_VARS[dvar]['legend']} [{WFLOW_VARS[dvar]['units']}]"
             var_hist = (
                 ds_basin_hist[var]
@@ -484,8 +484,8 @@ def compute_statistics_delta_run(
                 .resample(time="YS")
                 .reduce(resample_method, dim="time")
             )
-            absolute_stats_hist[name] = var_hist.mean().round(round)
-            absolute_stats_delta[name] = var_delta.mean(dim="time").round(round)
+            absolute_stats_hist[name] = var_hist.mean().round(rounding)
+            absolute_stats_delta[name] = var_delta.mean(dim="time").round(rounding)
 
     ### Prepare a recap table for the absolute drought indices values
     absolute_stats_df = absolute_stats_hist.expand_dims(
@@ -508,12 +508,12 @@ def compute_statistics_delta_run(
                 ]
                 if dvar in long_names:
                     key = next(k for k, v in WFLOW_VARS.items() if v["legend"] in dvar)
-                    round = WFLOW_VARS[key]["rounding"]
+                    rounding = WFLOW_VARS[key]["rounding"]
                 else:
-                    round = 1
-                mean_str = stats_delta_hz_sc[dvar].mean().round(round).item()
-                min_str = stats_delta_hz_sc[dvar].min().round(round).item()
-                max_str = stats_delta_hz_sc[dvar].max().round(round).item()
+                    rounding = 1
+                mean_str = stats_delta_hz_sc[dvar].mean().round(rounding).item()
+                min_str = stats_delta_hz_sc[dvar].min().round(rounding).item()
+                max_str = stats_delta_hz_sc[dvar].max().round(rounding).item()
                 # TODO add significant change test with a * in the string if True
                 stats_delta_hz_sc_str.append(f"{mean_str} [{min_str}-{max_str}]")
             # Add to the dataframe
