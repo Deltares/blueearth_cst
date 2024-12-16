@@ -1,4 +1,5 @@
 """Copy snake config and other config files to the output directory."""
+
 import os
 from os.path import join, dirname
 from pathlib import Path
@@ -76,13 +77,14 @@ if __name__ == "__main__":
             config_build = sm.input.config_build
             config_wb = sm.input.config_waterbodies
             data_sources = sm.params.data_catalogs
-            other_config_files.extend([config_build, config_wb, data_sources])
+            other_config_files.extend([config_build, config_wb])
+            other_config_files.extend(data_sources)  # data sources is already a list
         elif (
             workflow_name == "climate_projections"
             or workflow_name == "climate_experiment"
         ):
             data_sources = sm.params.data_catalogs
-            other_config_files.extend([data_sources])
+            other_config_files.extend(data_sources)
 
         # Call the main function
         copy_config_files(
@@ -94,7 +96,7 @@ if __name__ == "__main__":
 
     else:
         copy_config_files(
-            config="config/snake_config_model_test.yml",
+            config="config/snake_config_cst_test.yml",
             output_dir="examples/test/config",
             config_out_name=None,
             other_config_files=[],

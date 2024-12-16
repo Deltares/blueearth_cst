@@ -7,7 +7,7 @@ import numpy as np
 config_out_fn = snakemake.output.toml
 fn_out = Path(snakemake.output.nc)
 fn_in = snakemake.input.nc
-data_libs = snakemake.input.data_sources
+data_libs = snakemake.params.data_sources
 model_root = snakemake.params.model_dir
 
 precip_source = snakemake.params.clim_source

@@ -6,6 +6,8 @@ The toolbox is under development and will enable end-users to:
 
  - Explore the range of hydro-climatic uncertainty in a selected geographic area of choice, including natural variability and climate change signals.  
 
+ - Quantify the impact of climate change on water resources for any basin in the world, based on a delta change approach with different climate models and scenarios.
+
  - Design and execute a climate stress test for the response and vulnerabilities of user-defined thresholds and metrics.  
 
  - Make a judgment on the plausibility of vulnerabilities identified using climate model projections. As such, users should be able to estimate up to what extent the chosen metric or parameter may be sensitive to climate change. 
@@ -26,7 +28,7 @@ The Climate Stress Tester is part of the BlueEarth_ initiative and uses weatherg
 
 Installation
 ============
-BlueEarth CST is a python package that makes use of BlueEarth HydroMT to build the model (python), weathergenr to prepare the weather realization and stress tests (R), and Wlfow 
+BlueEarth CST is a python package that makes use of BlueEarth HydroMT to build the model (python), weathergenr to prepare the weather realization and stress tests (R), and Wflow 
 hydrological model (Julia). We have three types of installation available: conda, docker and developer installation.
 
 Conda installation
@@ -84,6 +86,7 @@ This installation allows you to install the latest version of the toolbox using 
 
 2. Install Julia from https://julialang.org/downloads/ and Wflow following the instructions from the 
 `installation documentation <https://deltares.github.io/Wflow.jl/dev/user_guide/install/#Installing-as-Julia-package>`_.
+If you would like to run wflow with the delta change factors, you will also need to install the packages: NCDatasets, UnPack, ProgressLogging
 
 3. Download (clone) the BlueEarth_cst ``git`` repo from `github <https://github.com/Deltares/blueearth_cst>`_, then navigate into the 
 the code folder (where the environment.yml file is located):
@@ -119,16 +122,22 @@ tool:
 
 Running
 =======
-BlueEarth CST toolbox is based on several workflows developed using Snakemake_ . Three workflows are available:
+BlueEarth CST toolbox is based on several workflows developed using Snakemake_ . The following workflows are available:
 
- - **Snakefile_model_creation**: creates a Wflow model based on global data for the selected region and run and analyse the model results for a historical period.
- - **Snakefile_climate_projections**: derives future climate statistics (expected temperature and precipitation change) for different RCPs and GCMs (from CMIP dataset).
+ - **Snakefile_climate_historical**: extracts and samples from global and regional historical meteorological climate data sources to compare different sources.
+ - **Snakefile_historical_hydrology**: creates a hydrological wflow model and runs the model for a selection of historical meteorological datasets. Evaluates model performance using observed streamflow data (if available).
+ - **Snakefile_climate_projections**: derives future climate statistics (projected temperature, precipitation and potential evaporation change) for different climate models and scenarios.
+ - **Snakefile_future_hydrology_delta_change**: runs the hydrological model for a set of future climate projections based on the delta change approach.
  - **Snakefile_climate_experiment**: prepares future weather realizations and climate stress tests and run the realizations with the hydrological model.
 
 To prepare these workflows, you can select the different options for your model region and climate scenario using a config file. An example is available in the folder 
-config/snake_config_model_test.yml.
+test/snake_config_example.yml.
 
 You can run each workflow using the snakemake command line, after activating your blueearth_cst conda environment.
+
+Running from docker image
+-------------------------
+A script is available to run via docker: `run_snake_docker.sh`
 
 Running from conda environment
 ------------------------------
@@ -142,19 +151,15 @@ snakefiles are located:
 
 Then you can run the workflows using the snakemake commands detailed below.
 
-Running from docker image
--------------------------
-A script is available to run via docker: `run_snake_docker.sh`
-
-Snakefile_model_creation
-------------------------
-This workflow creates a hydrological wflow model, based on global data for the selected region, and runs and analyses the model results for a historical period.
+Snakefile_climate_historical
+----------------------------
+This workflow extracts historical climate data from global or regional sources. Data of meteorological variables are sampled at the location of precipitation stations and over subregions for each climate source to allow the user to compare different meteo sources. 
 
 .. code-block:: console
 
-    $ snakemake -s Snakefile_model_creation --configfile config/snake_config_model_test.yml  --dag | dot -Tpng > dag_all.png
-    $ snakemake --unlock -s Snakefile_model_creation --configfile config/snake_config_model_test.yml
-    $ snakemake all -c 1 -s Snakefile_model_creation --configfile config/snake_config_model_test.yml
+    $ snakemake -s snakemake/Snakefile_climate_historical.smk --configfile tests/snake_config_example.yml  --dag | dot -Tpng > dag_climate_historical.png
+    $ snakemake --unlock -s snakemake/Snakefile_climate_historical.smk --configfile tests/snake_config_example.yml
+    $ snakemake all -c 1 -s snakemake/Snakefile_climate_historical.smk --configfile tests/snake_config_example.yml
 
 The first line will activate your environment, the second creates a picture file recapitulating the different steps of the workflow, the third will if needed unlock your directory 
 in order to save the future results of the workflow, and the fourth line runs the workflow (here for model creation).
@@ -172,15 +177,42 @@ More examples of how to run the workflows are available in the file run_snake_te
 
 .. _Snakemake: https://snakemake.github.io/
 
-Snakefile_climate_projections
------------------------------
-This workflow derives future climate statistics (expected temperature and precipitation change) for different RCPs and GCMs (from CMIP dataset).
+
+Snakefile_historical_hydrology
+------------------------------
+This workflow creates a hydrological wflow model, based on global data for the selected region, and runs and evaluates the model performance over the historical period, using a selection of historical climate data.
+This workflow can be run independently from the previous workflow, but running both gives a more comprehensive overview of historical climate and hydrology.
 
 .. code-block:: console
 
-    $ snakemake --unlock -s Snakefile_climate_projections --configfile config/snake_config_model_test.yml
-    $ snakemake -s Snakefile_climate_projections --configfile config/snake_config_model_test.yml --dag | dot -Tpng > dag_projections.png
-    $ snakemake all -c 1 -s Snakefile_climate_projections --configfile config/snake_config_model_test.yml --keep-going 
+    $ snakemake -s snakemake/Snakefile_historical_hydrology.smk --configfile tests/snake_config_example.yml  --dag | dot -Tpng > dag_historical_hydrology.png
+    $ snakemake --unlock -s snakemake/Snakefile_historical_hydrology.smk --configfile tests/snake_config_example.yml
+    $ snakemake all -c 1 -s snakemake/Snakefile_historical_hydrology.smk --configfile tests/snake_config_example.yml
+
+
+Snakefile_climate_projections
+-----------------------------
+This workflow derives future climate statistics (projected temperature, precipitation and potential evaporation change) for different climate models and scenarios.
+This workflow is indenpendent. 
+
+.. code-block:: console
+
+    $ snakemake -s snakemake/Snakefile_climate_projections.smk --configfile tests/snake_config_example.yml  --dag | dot -Tpng > dag_climate_projections.png
+    $ snakemake --unlock -s snakemake/Snakefile_climate_projections.smk --configfile tests/snake_config_example.yml
+    $ snakemake all -c 1 -s snakemake/Snakefile_climate_projections.smk --configfile tests/snake_config_example.yml
+
+
+Snakefile_future_hydrology_delta_change
+---------------------------------------
+This workflow runs the hydrological model for a set of future climate projections based on the delta change approach.
+To be able to run this workflow, it is required to have run the historical hydrology workflow in combination with the climate projection workflow. 
+
+.. code-block:: console
+
+    $ snakemake -s snakemake/Snakefile_future_hydrology_delta_change.smk --configfile tests/snake_config_example.yml  --dag | dot -Tpng > dag_hydrologicaL_projections.png
+    $ snakemake --unlock -s snakemake/Snakefile_future_hydrology_delta_change.smk --configfile tests/snake_config_example.yml
+    $ snakemake all -c 1 -s snakemake/Snakefile_future_hydrology_delta_change.smk --configfile tests/snake_config_example.yml
+
 
 Snakefile_climate_experiment
 ----------------------------
@@ -189,9 +221,9 @@ Finally it derives the results of the stress test and the model run.
 
 .. code-block:: console
 
-    $ snakemake -s Snakefile_climate_experiment --configfile config/snake_config_model_test.yml  --dag | dot -Tpng > dag_climate.png
-    $ snakemake --unlock -s Snakefile_climate_experiment --configfile config/snake_config_model_test.yml
-    $ snakemake all -c 1 -s Snakefile_climate_experiment --configfile config/snake_config_model_test.yml
+    $ snakemake -s snakemake/Snakefile_climate_experiment.smk --configfile config/snake_config_cst_test.yml  --dag | dot -Tpng > dag_climate.png
+    $ snakemake --unlock -s snakemake/Snakefile_climate_experiment.smk --configfile config/snake_config_cst_test.yml
+    $ snakemake all -c 1 -s snakemake/Snakefile_climate_experiment.smk --configfile config/snake_config_cst_test.yml
 
 Documentation
 =============

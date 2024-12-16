@@ -1,9 +1,10 @@
 """Function to update a wflow model and add gauges and outputs"""
+
 from hydromt_wflow import WflowModel
 import os
 from os.path import join
 from pathlib import Path
-from typing import Union, List
+from typing import Union, List, Optional
 
 
 # Supported wflow outputs
@@ -13,7 +14,8 @@ WFLOW_VARS = {
     "overland flow": "lateral.land.q_av",
     "actual evapotranspiration": "vertical.actevap",
     "groundwater recharge": "vertical.recharge",
-    "snow": "vertical.snowwater",
+    "snow": "vertical.snow",
+    "glacier": "vertical.glacierstore",
 }
 
 
@@ -22,9 +24,10 @@ def update_wflow_gauges_outputs(
     data_catalog: Union[str, Path] = "deltares_data",
     gauges_fn: Union[str, Path, None] = None,
     outputs: List[str] = ["river discharge"],
+    outputs_gridded: Optional[List[str]] = None,
 ):
     """
-    Update wflow model with output and optionnally gauges locations
+    Update wflow model with output and optionally gauges locations
 
     Parameters
     ----------
@@ -35,7 +38,7 @@ def update_wflow_gauges_outputs(
     gauges_fn : Union[str, Path, None], optional
         Path to the gauges locations file, by default None
     outputs : List[str], optional
-        List of outputs to add to the model, by default ["river discharge"]
+        List of scalar outputs to add to the model, by default ["river discharge"]
         Available outputs are:
             - "river discharge"
             - "precipitation"
@@ -43,6 +46,10 @@ def update_wflow_gauges_outputs(
             - "actual evapotranspiration"
             - "groundwater recharge"
             - "snow"
+            - "glacier"
+    outputs_gridded : Optional[List[str]], optional
+        List of gridded outputs to add to the model, by default None to save no gridded
+        outputs. Available outputs are the same as in `outputs`.
     """
 
     # Instantiate wflow model
@@ -67,9 +74,19 @@ def update_wflow_gauges_outputs(
         )
 
     # Add additional outputs to the config
-    # For now assumes basin-average timeseries apart for river.q_av which is saved by default for all outlets and gauges
+    # For now assumes basin-average timeseries apart for river.q_av which is saved
+    # by default for all outlets and gauges
     if "river discharge" in outputs:
         outputs.remove("river discharge")
+
+    # If glacier check that there are included in the model
+    if "glacier" in outputs:
+        has_glacier = mod.get_config("model.glacier", fallback=False)
+        if not has_glacier:
+            print(
+                "Glacier output requested but no glacier model found, removing glacier from outputs"
+            )
+            outputs.remove("glacier")
 
     for var in outputs:
         if var in WFLOW_VARS:
@@ -80,6 +97,13 @@ def update_wflow_gauges_outputs(
                     "parameter": WFLOW_VARS[var],
                 }
             )
+
+    # Add gridded outputs
+    if outputs_gridded is not None:
+        for var in outputs_gridded:
+            if var in WFLOW_VARS:
+                opt = f"output.{WFLOW_VARS[var]}"
+                mod.set_config(opt, var)
 
     mod.write()
 
@@ -92,6 +116,7 @@ if __name__ == "__main__":
             data_catalog=sm.params.data_catalog,
             gauges_fn=sm.params.output_locs,
             outputs=sm.params.outputs,
+            outputs_gridded=sm.params.outputs_gridded,
         )
     else:
         update_wflow_gauges_outputs(

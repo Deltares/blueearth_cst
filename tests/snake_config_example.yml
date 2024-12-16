@@ -1,0 +1,190 @@
+########################################################################################
+#################################### General settings ##################################
+
+# Path to where the wflow model will be stored (include the project name)
+project_dir: tests/test_project
+
+# hydromt "region" for building the model, coordinates are in EPSG 4326
+# for more info on how to fill this, you can see the hydromt documentation: 
+# https://deltares.github.io/hydromt/latest/user_guide/cli.html#region-options
+# For wflow please use either 'basin' or 'subbasin' keywords
+model_region: "{'subbasin': [12.3758, 46.4076], 'uparea': 70}"
+
+# Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
+# NB: should be ordered from most recent to use last! 
+data_sources: 
+  - "artifact_data==v0.0.9"
+  - tests/data/tests_data_catalog.yml
+
+# Info on the historical climate data is used in the historic model run + reference data for the weather generator
+# Time horizon of the historical period
+starttime: "2000-01-01T00:00:00"
+endtime: "2010-12-31T00:00:00"
+
+# Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
+data_sources_climate: config/cmip6_data.yml
+
+# List of wflow output variables to save
+# Supported variables: ['river discharge', 'precipitation', 'overland flow', 'actual evapotranspiration', 'groundwater recharge', 'snow']
+# Comment out to disable saving
+# Scalar csv
+wflow_outvars: ['river discharge', 'precipitation', 'overland flow', 'actual evapotranspiration', 'groundwater recharge', 'snow', 'glacier']
+# Gridded netcdf
+wflow_outvars_gridded: ['snow']
+
+###########################################################################################
+#################################### Model building #######################################
+
+# Grid resolution of the model in degrees
+model_resolution: 0.0166666
+# Path to model build configuration
+model_build_config: "tests/wflow_build_model.yml"
+waterbodies_config: "tests/wflow_update_waterbodies.yml"
+
+# Options to prepare wflow forcing for different data sources
+forcing_options:
+  era5: # clim/precip source name
+    precip_fn: era5 # data source for precipitation
+    temp_pet_fn: era5 # data source for temperature and pet if computed
+    pet_fn: # direct data source for pet else will be computed using the temp data source
+    dem_forcing_fn: era5_orography # data source for orography for downscaling temperature
+    pet_method: debruin # method to compute pet
+    press_correction: true
+    color: blue
+  chirps_global:
+    precip_fn: chirps_global
+    temp_pet_fn: era5
+    dem_forcing_fn: era5_orography
+    pet_method: debruin
+    press_correction: true
+    color: green
+  # eobs:
+  #   precip_fn: eobs
+  #   temp_pet_fn: eobs
+  #   dem_forcing_fn: eobs_orography
+  #   pet_method: makkink
+  #   press_correction: true
+  #   color: brown
+
+# If available, please put here the path to the available observation stations locations file
+# csv file containing four columns: station_ID, name, x, y
+output_locations: "tests/data/observations/discharge-locations-grdc.csv" # If set to None, will default to the wflow outlets
+# Path to the file with observed discharge timeseries per station 
+observations_timeseries: "tests/data/observations/observations-discharge-grdc.csv" 
+# Path or data catalog entry to gridded snow cover [%]
+observations_snow: modis_snow
+
+# Plotting options for historical hydrology
+historical_hydrology_plots:
+  plot_budyko: true # Additional plot of budyko
+  basin_map:
+    output_locations_legend: "output locations"
+    legend_loc: "lower right"
+  flow:
+    max_nan_per_year: 60
+    max_nan_per_month: 5
+  clim:
+    skip_temp_pet_sources: # list of climate sources for which temp, pet will not be plotted
+      - chirps_global
+
+########################################################################################
+######################### Analysis of historical climate data ##########################
+# Data sources to analyse
+# Historical gridded climate data sources (name as available in the data_sources catalog file). Either [era5, chirps_global, chirps, eobs].
+clim_historical: 
+  - era5
+  - chirps_global
+#  - eobs
+
+clim_historical_colors:
+  - blue
+  - green
+#  - brown
+
+# Buffer in km to apply to the region for the climate analysis
+region_buffer: 10
+# Hydrography dataset to use to derive region from (sub)basin
+hydrography_fn: merit_hydro_ihu
+# River geometry dataset to add to plots
+river_geom_fn: river_atlas
+
+# Additional sub-basins or sub-regions to include in the analysis
+climate_subregions: "tests/test_project/hydrology_model/staticgeoms/subcatch_discharge-locations-grdc.geojson"
+
+# If available, please put here the path to the available climate observation stations locations files
+# csv file containing four columns: station_ID, name, x, y
+climate_locations: "tests/data/observations/climate-locations-eca.csv"
+# Path to the file with observed precipitation timeseries per station 
+climate_locations_timeseries: "tests/data/observations/observations-climate-eca.csv" 
+
+# Thresholds for the climate analysis
+climate_thresholds:
+  precip:
+    peak: 40 # Precipitation peak threshold in mm/day
+    dry: 0.2 # Precipitation daily mean dry threshold in mm/day
+  temp:
+    heat: 25 # Heat daily mean temperature threshold in degrees Celsius
+
+# Plotting options
+historical_climate_plots:
+  basin_map:
+    legend_loc: "lower right" # legend location in the basin map plot
+  climate_per_location:
+    max_nan_per_year: 60 # maximum number of nan per year in the observed data to be plotted
+    max_nan_per_month: 5 # maximum number of nan per month in the observed data to be plotted
+  timeseries_trends:
+    split_year: 2005 # Split year for the timeseries trends
+  climate_per_year: # plot options for the gridded climate data per year
+    year_per_line: 6
+    fontsize: 6
+  mean_precipitation: # plot options for the gridded mean precipitation
+    add_rivers: true
+    fontsize: 8
+
+###########################################################################################
+################################## Climate projections ####################################
+# climate models and scenarios
+clim_project: cmip6
+# Available models: ['NOAA-GFDL_GFDL-ESM4', 'INM_INM-CM4-8' ,'INM_INM-CM5-0','NIMS-KMA_KACE-1-0-G','NCC_NorESM2-MM','NCC_NorESM2-LM','CMCC_CMCC-CM2-SR5','CMCC_CMCC-ESM2']
+models: ['NOAA-GFDL_GFDL-ESM4', 'INM_INM-CM5-0', 'CSIRO-ARCCSS_ACCESS-CM2']
+# Available scenarios: [ssp126, ssp245, ssp370, ssp585]
+scenarios: [ssp245, ssp585]
+members: [r1i1p1f1]
+
+# Climate projections for the following variables
+variables: [precip, temp, pet]
+
+# Method to compute PET if not available in the climate data - None to use pet in the climate data
+# Available methods: 'None', 'makkink' 'debruin', 'penman-monteith_rh_simple', 'penman-monteith_tdew'
+# Required variables are: 'temp' [°C], 'press_msl' [hPa], 'kin'[W/m2] for makkink
+# 'temp' [°C], 'press_msl' [hPa], 'kin' [W/m2], 'kout' [W/m2] for debruin
+pet_method: makkink
+
+# time horizons of the climate projections
+start_month_hyd_year: JAN
+historical: 2000, 2010
+future_horizons: 
+  near: 2050, 2060
+  far: 2090, 2100
+
+# Additional gridded outputs (else only basin average)
+save_grids: TRUE
+# Threshold to apply to avoid too large change factors for dry months [mm/month]
+change_drymonth_threshold: 3.0
+# Maximum change factor for dry months [%]
+change_drymonth_maxchange: 50
+
+########################################################################################
+######################### Analysis of future hydrology delta change ####################
+# (Calibrated) reference historical wflow runs - path to the toml file relative to hydrology_model folder
+config_model_historical: "run_default/wflow_sbm_era5.toml"
+gcm_selected: ['NOAA-GFDL_GFDL-ESM4', 'INM_INM-CM5-0']
+#gcm_legend: [wet, dry]
+scenarios_selected: [ssp245, ssp585]
+#assume period is near and far (fixed!!)
+future_hydrology_plots:
+  add_plots_with_all_lines: true
+  statistics:
+    return_periods: [5, 10] # return periods to compute extreme rain and flow
+    discharge_locations: "all" # locations to compute flow statistics: "outlets", "all", ["1", "3"]
+    split_plot_per_scenario: FALSE # do one plot per SSP or combine all SSP in one plot
