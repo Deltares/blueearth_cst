@@ -123,7 +123,10 @@ def plot_scalar_climate_statistics(
     # Add a source dimension to the observed data
     if geods_obs is not None:
         geods_obs = geods_obs.expand_dims(dim={"source": np.array(["observed"])})
+        geods_index = geods.index.values
         geods = xr.merge([geods, geods_obs])
+        # only keep the index that are in geods_index
+        geods = geods.sel(index=geods_index)
         if colors is not None:
             colors["observed"] = "black"
     # Check the number of days in the first year in geods.time
