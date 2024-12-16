@@ -73,8 +73,8 @@ save_grids: FALSE
 
 ###########################################################################################
 ################################## Stress Test Experiment #################################
-# Historical climate data source (name as available in the data_sources catalog file). Either [era5, chirps_global, chirps, eobs].
-clim_historical: era5
+# Reference historical climate to use for the stress test
+clim_reference: era5
 # Weather generator default/advanced settings file
 weathergen_config: config/cst_api/weathergen_config.yml
 # Name of the experiment
