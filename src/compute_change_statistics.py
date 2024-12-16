@@ -18,12 +18,14 @@ if __name__ == "__main__" or parent_module.__name__ == "__main__":
     from plot_utils.plot_table_statistics import (
         plot_table_statistics_multiindex,
         plot_table_statistics,
+        plot_table_statistics_absolute,
     )
 else:
     from .wflow.wflow_utils import get_wflow_results, get_wflow_results_delta
     from .plot_utils.plot_table_statistics import (
         plot_table_statistics_multiindex,
         plot_table_statistics,
+        plot_table_statistics_absolute,
     )
 
 # Supported wflow outputs
@@ -32,26 +34,31 @@ WFLOW_VARS = {
         "resample": np.mean,
         "legend": "Average Overland Flow",
         "units": "m3/s",
+        "rounding": 3,
     },
     "actual evapotranspiration": {
         "resample": np.sum,
         "legend": "Annual Actual Evapotranspiration",
         "units": "mm/yr",
+        "rounding": 1,
     },
     "groundwater recharge": {
         "resample": np.sum,
         "legend": "Annual Groundwater Recharge",
         "units": "mm/yr",
+        "rounding": 1,
     },
     "snow": {
         "resample": np.mean,
         "legend": "Average Snow Water Equivalent",
         "units": "mm",
+        "rounding": 1,
     },
     "glacier": {
         "resample": np.mean,
         "legend": "Average Glacier Water Equivalent",
         "units": "mm",
+        "rounding": 1,
     },
 }
 
@@ -228,7 +235,9 @@ def compute_statistics_delta_run(
         .mean(dim="time")
         .round(0)
     )
-    wet_name = f"Days with high rainfall\n(P > {precip_peak_threshold} mm/day) [mm/day]"
+    wet_name = (
+        f"Days with high rainfall\n(P > {precip_peak_threshold} mm/day) [days/year]"
+    )
     absolute_stats_hist = wet_days_hist.astype(int).to_dataset(name=wet_name)
     absolute_stats_delta = wet_days_delta.astype(int).to_dataset(name=wet_name)
 
@@ -329,7 +338,7 @@ def compute_statistics_delta_run(
         .mean(dim="time")
         .round(0)
     )
-    dry_name = f"Dry days\n(P < {dry_days_threshold}mm/d) [days]"
+    dry_name = f"Dry days\n(P < {dry_days_threshold}mm/d) [days/year]"
     absolute_stats_hist[dry_name] = dry_days_hist.astype(int)
     absolute_stats_delta[dry_name] = dry_days_delta.astype(int)
 
@@ -352,7 +361,7 @@ def compute_statistics_delta_run(
         .mean(dim="time")
         .round(0)
     )
-    spell_name = f"Longest Dry spell\n(P < {dry_days_threshold*4}mm/d) [days]"
+    spell_name = f"Longest Dry spell\n(P < {dry_days_threshold*4}mm/d) [days/year]"
     absolute_stats_hist[spell_name] = dry_spell_hist.astype(int)
     absolute_stats_delta[spell_name] = dry_spell_delta.astype(int)
 
@@ -375,7 +384,7 @@ def compute_statistics_delta_run(
         .mean(dim="time")
         .round(0)
     )
-    freeze_name = "Freezing days\n(T < 0 degC) [degC]"
+    freeze_name = "Freezing days\n(T < 0 degC) [days/year]"
     absolute_stats_hist[freeze_name] = freeze_days_hist.astype(int)
     absolute_stats_delta[freeze_name] = freeze_days_delta.astype(int)
 
@@ -398,7 +407,7 @@ def compute_statistics_delta_run(
         .mean(dim="time")
         .round(0)
     )
-    warm_name = f"Warm days\n(T > {heat_threshold} degC) [degC]"
+    warm_name = f"Warm days\n(T > {heat_threshold} degC) [days/year]"
     absolute_stats_hist[warm_name] = hot_days_hist.astype(int)
     absolute_stats_delta[warm_name] = hot_days_delta.astype(int)
 
@@ -463,6 +472,7 @@ def compute_statistics_delta_run(
         var = f"{dvar}_basavg"
         if var in ds_basin_hist:
             resample_method = WFLOW_VARS[dvar]["resample"]
+            rounding = WFLOW_VARS[dvar]["rounding"]
             name = f"{WFLOW_VARS[dvar]['legend']} [{WFLOW_VARS[dvar]['units']}]"
             var_hist = (
                 ds_basin_hist[var]
@@ -474,8 +484,8 @@ def compute_statistics_delta_run(
                 .resample(time="YS")
                 .reduce(resample_method, dim="time")
             )
-            absolute_stats_hist[name] = var_hist.mean().round(1)
-            absolute_stats_delta[name] = var_delta.mean(dim="time").round(1)
+            absolute_stats_hist[name] = var_hist.mean().round(rounding)
+            absolute_stats_delta[name] = var_delta.mean(dim="time").round(rounding)
 
     ### Prepare a recap table for the absolute drought indices values
     absolute_stats_df = absolute_stats_hist.expand_dims(
@@ -492,9 +502,18 @@ def compute_statistics_delta_run(
                 horizon=horizon, scenario=scenario
             )
             for dvar in absolute_stats_delta.data_vars:
-                mean_str = stats_delta_hz_sc[dvar].mean().round(1).item()
-                min_str = stats_delta_hz_sc[dvar].min().round(1).item()
-                max_str = stats_delta_hz_sc[dvar].max().round(1).item()
+                long_names = [
+                    WFLOW_VARS[k]["legend"] + " [" + WFLOW_VARS[k]["units"] + "]"
+                    for k in WFLOW_VARS
+                ]
+                if dvar in long_names:
+                    key = next(k for k, v in WFLOW_VARS.items() if v["legend"] in dvar)
+                    rounding = WFLOW_VARS[key]["rounding"]
+                else:
+                    rounding = 1
+                mean_str = stats_delta_hz_sc[dvar].mean().round(rounding).item()
+                min_str = stats_delta_hz_sc[dvar].min().round(rounding).item()
+                max_str = stats_delta_hz_sc[dvar].max().round(rounding).item()
                 # TODO add significant change test with a * in the string if True
                 stats_delta_hz_sc_str.append(f"{mean_str} [{min_str}-{max_str}]")
             # Add to the dataframe
@@ -506,9 +525,7 @@ def compute_statistics_delta_run(
                     stats_delta_hz_sc_model
                 )
             # Add the MEAN row
-            stats_delta_hz_sc_mean = (
-                stats_delta_hz_sc.mean(dim="model").round(1).to_pandas()
-            )
+            stats_delta_hz_sc_mean = stats_delta_hz_sc.mean(dim="model").to_pandas()
             absolute_stats_df_all[f"{horizon}_{scenario}_mean"] = stats_delta_hz_sc_mean
     # Rename the indexes (replace \n by a space)
     absolute_stats_df.index = absolute_stats_df.index.str.replace("\n", " ")
@@ -602,6 +619,23 @@ def compute_statistics_delta_run(
                     invert_cmap_for=["Annual Actual Evapotranspiration"],
                     bold_keyword="MEAN",
                 )
+
+    # prepare a summary heatmap with absolute and relative values
+    # using the previously created absolute_stats_df_all
+    plot_table_statistics_absolute(
+        absolute_stats_df_all,
+        output_path=join(
+            plot_dir,
+            f"indices_absolute_relative_change_summary.png",
+        ),
+        x_label="Climate Scenario",
+        y_label="Indices",
+        cmap="RdBu",
+        cmap_label="Change compared to historical [%]\nNegative values: drier; Positive values: wetter",
+        vmin=-100,
+        vmax=100,
+        invert_cmap_for=["Annual Actual Evapotranspiration [mm/yr]"],
+    )
 
 
 if __name__ == "__main__":

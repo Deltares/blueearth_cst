@@ -275,3 +275,8 @@ def test_compute_change_statistics(tmpdir, config_fao):
     assert os.path.exists(
         f"{plot_dir}/model_delta_runs/indices_relative_change_far_ssp585.png"
     )
+
+    # test the summary heatmap with absolute and relative values:
+    assert os.path.exists(
+        f"{plot_dir}/model_delta_runs/indices_absolute_relative_change_summary.png"
+    )
