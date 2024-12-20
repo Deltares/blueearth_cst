@@ -326,6 +326,9 @@ def plot_map_model(
 
     if gauges_name is not None:
         output_locs = mod.geoms.get(gauges_name, None)
+        if output_locs is None:
+            # HydroMT replaces _ with - in the geoms names
+            output_locs = mod.geoms.get(gauges_name.replace("_", "-"), None)
         if output_locs is not None:
             if "wflow_id" in output_locs.columns:
                 output_locs.index = output_locs["wflow_id"]

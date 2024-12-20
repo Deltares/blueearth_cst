@@ -68,7 +68,16 @@ def get_wflow_results(
     if gauges_locs is not None and os.path.exists(gauges_locs):
         # Get name of gauges dataset from the gauges locations file
         gauges_output_name = os.path.basename(gauges_locs).split(".")[0]
+        gauges_output_name2 = gauges_output_name.replace("_", "-")
         if f"Q_gauges_{gauges_output_name}" in mod.results:
+            has_gauges_output = True
+        # hydromt replaces - by _ in the gauges name
+        elif f"Q_gauges_{gauges_output_name2}" in mod.results:
+            has_gauges_output = True
+            gauges_output_name = gauges_output_name2
+        else:
+            has_gauges_output = False
+        if has_gauges_output:
             qsim_gauges = mod.results[f"Q_gauges_{gauges_output_name}"].rename("Q")
             # Add station_name > bug for reading geoms if dir_input in toml is not None
             if f"gauges_{gauges_output_name}" not in mod.geoms:
