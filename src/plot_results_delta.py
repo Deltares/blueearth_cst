@@ -647,4 +647,4 @@ if __name__ == "__main__":
             add_plots_with_all_lines=sm.params.add_plots_with_all_lines,
         )
     else:
-        print("run with snakemake please")
+        raise ValueError("This script should be run from a snakemake environment")

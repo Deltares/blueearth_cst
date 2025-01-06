@@ -94,16 +94,14 @@ def plot_region_and_location(
             crs = 4326
         else:
             crs = None
-        print(f"DEBUG: **** locations_fn: {locations_fn}")
-        try:    
-            locations = data_catalog.get_geodataframe(
-                locations_fn,
-                crs=crs,
-                geom=region,
-                buffer=buffer_km * 1000,
-            )
-        except:
-            print(f"DEBUG: **** locations_fn: {locations_fn} failed")
+        
+        locations = data_catalog.get_geodataframe(
+            locations_fn,
+            crs=crs,
+            geom=region,
+            buffer=buffer_km * 1000,
+        )
+    
         locations.index.name = "index"
         locations = {"meteorological stations": locations}
     else:
@@ -176,4 +174,4 @@ if __name__ == "__main__":
         )
 
     else:
-        print("This script should be run from a snakemake environment")
+        raise ValueError("This script should be run from a snakemake environment")

@@ -6,8 +6,6 @@ from get_config import get_config
 
 config_path = config.get("config_path")
 
-# print(f"{'*'*13}\n{config_path}\n{'*'*13}")
-
 project_dir = get_config(config, 'project_dir', optional=False)
 basin_dir = f"{project_dir}/hydrology_model"
 model_region = get_config(config, 'model_region', optional=False)
@@ -17,7 +15,6 @@ waterbodies_config = get_config(config, 'waterbodies_config', default='config/cs
 climate_sources = list(get_config(config, "forcing_options", optional=False).keys())
 DATA_SOURCES = get_config(config, "data_sources", optional=False)
 DATA_SOURCES = np.atleast_1d(DATA_SOURCES).tolist() #make sure DATA_SOURCES is a list format (even if only one DATA_SOURCE)
-
 output_locations = get_config(config, "output_locations", default=None)
 observations_timeseries = get_config(config, "observations_timeseries", default=None)
 

@@ -14,7 +14,7 @@ data_catalog = get_config(config, "data_sources", optional=False)
 rule all:
     input:
         f"{project_dir}/config/snake_config_climate_historical.yaml",
-        #f"{project_dir}/region/region.geojson",
+        f"{project_dir}/region/region.geojson",
         f"{project_dir}/plots/climate_historical/region_plot.png",
         expand((f"{project_dir}/climate_historical/raw_data/" + "extract_{source}.nc"), source=climate_sources),
         expand((f"{project_dir}/climate_historical/statistics/" + "basin_{source}.nc"), source=climate_sources),

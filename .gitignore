@@ -141,3 +141,6 @@ config/my-project-settings.yml
 *.egg-info
 ./scripts/
 */tmp/
+
+#CST 
+all_toml_files.txt

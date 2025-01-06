@@ -627,4 +627,4 @@ if __name__ == "__main__":
         )
 
     else:
-        print("This script is intended to be run with snakemake.")
+        raise ValueError("This script should be run from a snakemake environment")

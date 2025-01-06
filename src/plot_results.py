@@ -193,18 +193,21 @@ def analyse_wflow_historical(
             gauges_locs=gauges_locs,
             remove_warmup=False,
         )
-        # Add climate source to dimension
+        # Add discharge source to dimension
         qsim_source = qsim_source.assign_coords(
             climate_source=(f"{climate_source}")
         ).expand_dims(["climate_source"])
-        print("qsim_source.head(): ", qsim_source.head())
         
+        # Add climate source to dimension
         ds_clim_source = ds_clim_source.assign_coords(
             climate_source=(f"{climate_source}")
         ).expand_dims(["climate_source"])
+        
+        #add basin average source to dimension
         ds_basin_source = ds_basin_source.assign_coords(
             climate_source=(f"{climate_source}")
         ).expand_dims(["climate_source"])
+
         qsim.append(qsim_source)
         ds_clim.append(ds_clim_source)
         ds_basin.append(ds_basin_source)
@@ -262,7 +265,6 @@ def analyse_wflow_historical(
             plt.close()
 
     ### 5. Plot other basin average outputs ###
-    print("Plot basin average wflow outputs")
     plot_basavg(ds_basin, plot_dir, color)
     plt.close()
 
@@ -292,20 +294,15 @@ def analyse_wflow_historical(
         # Select the station
         qsim_i = qsim.sel(index=station_id)
         qobs_i = None
-        print("has observations?")
         if has_observations:
-            print("yes")
-            print(f"station_id: {station_id} in qobs.index.values: {station_id in qobs.index.values}??")
             if station_id in qobs.index.values:
-                print("yes")
                 qobs_i = qobs.sel(index=station_id)
             else:
                 print("no")
         else:
-            print("no")
+            print("No observations to plot")
 
         # a) Plot hydrographs
-        print(f"Plot hydrographs at wflow station {station_name}")
         plot_hydro(
             qsim=qsim_i,
             qobs=qobs_i,
@@ -318,10 +315,9 @@ def analyse_wflow_historical(
             max_nan_month=max_nan_month,
         )
         plt.close()
+        
         # b) Signature plot and performance metrics
         if do_signatures and qobs_i is not None:
-            print("observed timeseries are available - making signature plots.")
-            # Plot signatures
             plot_signatures(
                 qsim=qsim_i,
                 qobs=qobs_i,
@@ -442,10 +438,10 @@ if __name__ == "__main__":
         else:
             folder_p = r"/p"        
         analyse_wflow_historical(
-            wflow_root=join(folder_p, "11210673-fao", "14 Subbasins", "Pakistan_Swat_500m_v2", "hydrology_model", "run_default"),
-            plot_dir=join(folder_p, "11210673-fao", "14 Subbasins", "Pakistan_Swat_500m_v2", "plots", "wflow_model_performance_test"),
-            observations_fn="/p/11210673-fao/12 Data/Kabul/hydro_obs/observations-discharge-grdc.csv",
-            gauges_locs="/p/11210673-fao/12 Data/Kabul/hydro_obs/discharge-locations-grdc.csv",
+            wflow_root=join(folder_p, ""),
+            plot_dir=join(folder_p, ""),
+            observations_fn=join(folder_p, ""),
+            gauges_locs=join(folder_p, ""),
             climate_sources=['era5'],
             climate_sources_colors=['blue'],
             add_budyko_plot=False,
