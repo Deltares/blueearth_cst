@@ -6,6 +6,7 @@ channels:
 
 # notes R packages stats and utils were not found
 dependencies:
+  - python>=3.9, <3.12
   - cartopy
   - datrie # for snakemake
   - dvc
@@ -15,14 +16,14 @@ dependencies:
   - gdal>=3.1
   - geopandas>=0.10
   - graphviz # for snakemake
-  - hydromt>=0.9.4
+  - hydromt>=0.9.4, <=0.10
   - hydromt_wflow>=0.6.0
   - jupyter # to run examples
   - matplotlib
   - numpy
   - pandas>=2.0.0
   - pip
-  - python>=3.9, <3.12
+  - proj
   - r-base
   - r-essentials
   - r-akima
@@ -51,6 +52,6 @@ dependencies:
   - xclim
   - zarr
   - pip:
-    - hydroengine
-    - gwwapi
-    - snakemake
+      - hydroengine
+      - gwwapi
+      - snakemake

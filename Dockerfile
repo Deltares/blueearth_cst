@@ -22,6 +22,8 @@ RUN mamba env create -f environment.yaml -n snakemake -q \
     && echo "source activate snakemake" > ~/.bashrc \
     && rm environment.yaml
 ENV PATH=/opt/conda/envs/snakemake/bin:${PATH}
+# to avoid "ERROR 1: PROJ: proj_create_from_database: Open of /opt/conda/share/proj failed"
+ENV PROJ_LIB=/opt/conda/envs/snakemake/share/proj
 
 # Julia wflow
 ENV DEBIAN_FRONTEND="noninteractive" TZ="Europe/Amsterdam"
