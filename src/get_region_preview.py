@@ -27,6 +27,10 @@ from hydromt.cli.api import get_region
 import geopandas as gpd
 import pandas as pd
 
+from dask import config as dask_config
+
+dask_config.set(scheduler="single-threaded")
+
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +39,7 @@ def get_basin_preview(
     region: dict, datacatalog_fn: str | List, hydrography_fn: str = "merit_hydro_ihu"
 ) -> dict | None:
     try:
+        logger.info("Generating region with hydromt")
         region_geojson = get_region(
             region, datacatalog_fn, hydrography_fn=hydrography_fn
         )

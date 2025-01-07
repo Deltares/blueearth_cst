@@ -2,13 +2,13 @@
 
 import xarray as xr
 import os
-from os.path import join, dirname
+from os.path import join, dirname, basename
 from pathlib import Path
 from hydromt_wflow import WflowModel
 
-from typing import Union, Tuple, Optional
+from typing import Union, Tuple, Optional, List
 
-__all__ = ["get_wflow_results"]
+__all__ = ["get_wflow_results", "get_wflow_results_delta"]
 
 
 def get_wflow_results(
@@ -27,7 +27,7 @@ def get_wflow_results(
     ----------
     wflow_root : Union[str, Path]
         Path to the wflow model root folder.
-    wflow_config_fn : str, optional
+    config_fn : str, optional
         Name of the wflow configuration file, by default "wflow_sbm.toml". Used to read
         the right results files from the wflow model.
     gauges_locs : Union[Path, str], optional
@@ -142,3 +142,70 @@ def get_wflow_results(
         )
 
     return qsim, ds_clim, ds_basin
+
+
+def get_wflow_results_delta(
+    delta_config_fns: List[str],
+    gauges_locs: Optional[Union[Path, str]] = None,
+    remove_warmup: bool = True,
+) -> Tuple[xr.Dataset, xr.Dataset, xr.Dataset]:
+    """
+    Get several wflow results from delta runs and combine per horizon/model/scenario.
+
+    Results can contain simulated discharges, simulated flux/states as basin averages
+    and basin average forcing.
+
+    Parameters
+    ----------
+    delta_config_fns : str, optional
+        Name of the wflow configuration files of the delta runs. Used to read
+        the right results files from the wflow model.
+        The individual run filename should be organised as
+        "*_model_scenario_horizon.toml".
+    gauges_locs : Union[Path, str], optional
+        Path to gauges/observations locations file, by default None
+        Required columns: wflow_id, station_name, x, y.
+        Values in wflow_id column should match column names in ``observations_fn``.
+        Separator is , and decimal is .
+    remove_warmup : bool, optional
+        Remove the first year of the simulation (warm-up), by default True
+
+    Returns
+    -------
+    qsim_delta: xr.Dataset
+        simulated discharge at wflow basin locations and at observation locations
+    ds_clim_delta: xr.Dataset
+        basin average precipitation, temperature and potential evaporation.
+    ds_basin_delta: xr.Dataset
+        basin average flux and state variables
+
+    """
+    qsim_delta = []
+    ds_clim_delta = []
+    ds_basin_delta = []
+    for delta_config in delta_config_fns:
+        model = basename(delta_config).split(".")[0].split("_")[-3]
+        scenario = basename(delta_config).split(".")[0].split("_")[-2]
+        horizon = basename(delta_config).split(".")[0].split("_")[-1]
+        root = dirname(delta_config)
+        config_fn = basename(delta_config)
+        qsim_delta_run, ds_clim_delta_run, ds_basin_delta_run = get_wflow_results(
+            root, config_fn, gauges_locs, remove_warmup=remove_warmup
+        )
+        qsim_delta_run = qsim_delta_run.assign_coords(
+            {"horizon": horizon, "model": model, "scenario": scenario}
+        ).expand_dims(["horizon", "model", "scenario"])
+        ds_clim_delta_run = ds_clim_delta_run.assign_coords(
+            {"horizon": horizon, "model": model, "scenario": scenario}
+        ).expand_dims(["horizon", "model", "scenario"])
+        ds_basin_delta_run = ds_basin_delta_run.assign_coords(
+            {"horizon": horizon, "model": model, "scenario": scenario}
+        ).expand_dims(["horizon", "model", "scenario"])
+        qsim_delta.append(qsim_delta_run)
+        ds_clim_delta.append(ds_clim_delta_run)
+        ds_basin_delta.append(ds_basin_delta_run)
+    qsim_delta = xr.merge(qsim_delta)
+    ds_clim_delta = xr.merge(ds_clim_delta)
+    ds_basin_delta = xr.merge(ds_basin_delta)
+
+    return qsim_delta, ds_clim_delta, ds_basin_delta
