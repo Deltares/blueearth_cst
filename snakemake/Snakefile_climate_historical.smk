@@ -2,9 +2,7 @@ import sys
 
 from get_config import get_config
 
-# Get the snake_config file from the command line
-args = sys.argv
-config_path = args[args.index("--configfile") + 1]
+config_path = config.get("config_path")
 
 # Config settings
 project_dir = get_config(config, 'project_dir', optional=False)

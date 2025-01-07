@@ -10,6 +10,7 @@
 echo "current working directory: $PWD"
 # //////////////////////////////////////
 script="scripts/A_historical_hydrology.sh"
+#force_rule="run_wflow"
 echo "RUNNING: $script"
 # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 

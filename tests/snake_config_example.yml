@@ -2,8 +2,8 @@
 #################################### General settings ##################################
 
 # Path to where the wflow model will be stored (include the project name)
-project_dir: tests/test_project
-
+project_dir: tests/test_project_sample
+experiment_name: "test_experiment"
 # hydromt "region" for building the model, coordinates are in EPSG 4326
 # for more info on how to fill this, you can see the hydromt documentation: 
 # https://deltares.github.io/hydromt/latest/user_guide/cli.html#region-options

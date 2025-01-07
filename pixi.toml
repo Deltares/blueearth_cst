@@ -1,6 +1,6 @@
 [project]
 channels = ["conda-forge", "r", "bioconda", "pip"]
-description = "Add a short description here"
+description = "BlueEarth-CST pixi environment added to support the calibration branch"
 name = "cst"
 platforms = ["win-64", "linux-64"]
 version = "0.1.0"

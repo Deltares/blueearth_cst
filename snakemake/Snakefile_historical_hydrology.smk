@@ -3,7 +3,6 @@ import numpy as np
 
 from get_config import get_config
 
-
 config_path = config.get("config_path")
 
 project_dir = get_config(config, 'project_dir', optional=False)

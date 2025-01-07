@@ -4,6 +4,7 @@
 
 # Path to where the wflow model will be stored (include the project name)
 project_dir: tests/test_project
+experiment_name: "test_experiment"
 
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
 data_sources: 
@@ -41,6 +42,17 @@ forcing_options:
     precip_fn: era5 # data source for precipitation
     color: blue
 
+# Data sources to analyse
+# Historical gridded climate data sources (name as available in the data_sources catalog file). Either [era5, chirps_global, chirps, eobs].
+clim_historical: 
+  - era5
+  - chirps_global
+#  - eobs
+
+clim_historical_colors:
+  - blue
+  - green
+#  - brown
 # If available, please put here the path to the available observation stations locations files
 # csv file containing four columns: station_ID, name, x, y
 output_locations: "tests/data/observations/discharge-locations-grdc.csv" # If set to None, will default to the wflow outlets

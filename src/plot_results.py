@@ -431,22 +431,4 @@ if __name__ == "__main__":
         with open(text_out, "w") as f:
             f.write(f"Plotted wflow results.\n")
     else:
-        print(f"{'*'*50}\nTESTING\n{'*'*50}")
-        import sys 
-        if sys.platform == "win32":
-            folder_p = r"P:"
-        else:
-            folder_p = r"/p"        
-        analyse_wflow_historical(
-            wflow_root=join(folder_p, ""),
-            plot_dir=join(folder_p, ""),
-            observations_fn=join(folder_p, ""),
-            gauges_locs=join(folder_p, ""),
-            climate_sources=['era5'],
-            climate_sources_colors=['blue'],
-            add_budyko_plot=False,
-            max_nan_year=60,
-            max_nan_month=5,
-            skip_precip_sources=[],
-            skip_temp_pet_sources=[],
-        )
+        raise ValueError("This script should be run from a snakemake environment")

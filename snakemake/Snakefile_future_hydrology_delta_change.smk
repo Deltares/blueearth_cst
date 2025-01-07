@@ -65,7 +65,7 @@ Rule to downscale the monthly delta change factor for the near future
 rule downscale_monthly_delta_change_grids_near:
     input:
         staticmaps_fid = ancient(f"{basin_dir}/staticmaps.nc"),
-        monthly_change_mean_grid = (clim_project_dir + "/monthly_change_grid/{model}_{scenario}_near.nc"),
+        monthly_change_mean_grid = ancient(clim_project_dir + "/monthly_change_grid/{model}_{scenario}_near.nc"),
     output:
         delta_change_downscale_near_nc = (clim_project_dir + "/monthly_change_grid/{model}_{scenario}_near_downscaled.nc"),
     localrule: True

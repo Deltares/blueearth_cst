@@ -43,7 +43,8 @@ def test_snakefile_cli(snakefile):
     os.chdir(MAINDIR)
     snakefile_path = f"snakemake/{_snakefiles[snakefile]['file']}"
     configfile = _snakefiles[snakefile]["config"]
-    cmd = f"snakemake all -c 1 -s {snakefile_path} --configfile {configfile} --dry-run"
+    cmd = f"snakemake all -c 1 -s {snakefile_path} --configfile {configfile} --config config_path={configfile} --dry-run"
     result = subprocess.run(cmd, shell=True, capture_output=True)
+    
     # Check the output of the subprocess command
-    assert result.returncode == 0
+    assert result.returncode == 0, f"Command failed with output: {result.stdout}"
