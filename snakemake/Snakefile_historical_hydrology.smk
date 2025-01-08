@@ -1,14 +1,10 @@
-import sys
+import argparse as ap
 import numpy as np 
 
 from get_config import get_config
 
-# Get the snake_config file from the command line
 args = sys.argv
 config_path = args[args.index("--configfile") + 1]
-
-# Parsing the Snakemake config file (options for basins to build, data catalog, model output directory)
-#configfile: "config/snake_config_test.yml"
 
 project_dir = get_config(config, 'project_dir', optional=False)
 basin_dir = f"{project_dir}/hydrology_model"
@@ -19,13 +15,16 @@ waterbodies_config = get_config(config, 'waterbodies_config', default='config/cs
 climate_sources = list(get_config(config, "forcing_options", optional=False).keys())
 DATA_SOURCES = get_config(config, "data_sources", optional=False)
 DATA_SOURCES = np.atleast_1d(DATA_SOURCES).tolist() #make sure DATA_SOURCES is a list format (even if only one DATA_SOURCE)
-
 output_locations = get_config(config, "output_locations", default=None)
 observations_timeseries = get_config(config, "observations_timeseries", default=None)
 
 wflow_outvars = get_config(config, "wflow_outvars", default=['river discharge'])
-
 has_gridded_outputs = len(get_config(config, "wflow_outvars_gridded", default=[])) > 0
+
+#paralellisation on HPC
+total_mem = int(get_config(config, "total_mem", default=32768))
+group_modelruns = int(get_config(config, "group_modelruns", default=4))
+threads_available = int(get_config(config, "threads_available", default=4))
 
 ### Custom Python functions (here to access dictionnary elements from the config based on wildcards)
 def get_forcing_options(wildcards):
@@ -68,6 +67,7 @@ rule copy_config:
         workflow_name = "model_creation",
     output:
         config_snake_out = f"{project_dir}/config/snake_config_model_creation.yml",
+    localrule: True
     script:
         "../src/copy_config_files.py"
 
@@ -79,6 +79,7 @@ rule create_model:
         basin_nc = f"{basin_dir}/staticmaps.nc",
     params:
         data_catalogs = [f"-d {cat} " for cat in DATA_SOURCES]  
+    localrule: True
     shell:
         """hydromt build wflow "{basin_dir}" --region "{model_region}" --opt setup_basemaps.res="{model_resolution}" -i "{input.hydromt_ini}" {params.data_catalogs} --fo -vv"""
 
@@ -92,6 +93,7 @@ rule add_reservoirs_lakes_glaciers:
     params:
         data_catalog = DATA_SOURCES,
         config = waterbodies_config,
+    localrule: True
     script:
         "../src/setup_reservoirs_lakes_glaciers.py"
 
@@ -107,6 +109,7 @@ rule add_gauges_and_outputs:
         outputs = wflow_outvars,
         outputs_gridded = get_config(config, "wflow_outvars_gridded", default=None),
         data_catalog = DATA_SOURCES,
+    localrule: True
     script:
         "../src/setup_gauges_and_outputs.py"
 
@@ -122,16 +125,21 @@ rule setup_runtime:
         clim_source = "{climate_source}",
         forcing_options = get_forcing_options,
         basin_dir = basin_dir,
+    localrule: True
     script: "../src/setup_time_horizon.py"
 
 # Rule to update the model for each additional forcing dataset 
 rule add_forcing:
     input:
-        forcing_ini = (project_dir + "/config/wflow_build_forcing_historical_{climate_source}.yml")
+        forcing_ini = ancient(project_dir + "/config/wflow_build_forcing_historical_{climate_source}.yml")
     output:
         forcing_fid = (project_dir + "/climate_historical/wflow_data/inmaps_historical_{climate_source}.nc")
     params:
         data_catalogs = [f"-d {cat} " for cat in DATA_SOURCES] 
+    localrule: False
+    resources:
+        mem_mb=total_mem,
+        threads=threads_available #Fastest way to generate the fo
     shell:
         """hydromt update wflow "{basin_dir}" -i "{input.forcing_ini}" {params.data_catalogs} -vv"""
 
@@ -143,9 +151,14 @@ rule run_wflow:
         csv_file = (basin_dir + "/run_default/output_{climate_source}.csv"),
         nc_file = (basin_dir + "/run_default/output_{climate_source}.nc") if has_gridded_outputs else []
     params:
-        toml_fid = (basin_dir + "/run_default/wflow_sbm_{climate_source}.toml"),
+        toml_fid = (basin_dir + "/run_default/wflow_sbm_{climate_source}.toml")
+    localrule: False
+    group: "run_wflow"
+    resources:
+        threads = int(threads_available/group_modelruns),
+        mem_mb= int(total_mem/group_modelruns)
     shell:
-        """ julia --threads 4 -e "using Wflow; Wflow.run()" "{params.toml_fid}" """
+        """ julia --threads {resources.threads} -e "using Wflow; Wflow.run()" "{params.toml_fid}" """
 
 # Rule to analyse and plot wflow model run results --> final output
 rule plot_results:
@@ -164,6 +177,7 @@ rule plot_results:
        max_nan_month = get_config(config, "historical_hydrology_plots.flow.max_nan_per_month", default=5),
        skip_precip_sources = get_config(config, "historical_hydrology_plots.clim.skip_precip_sources", default=[]),
        skip_temp_pet_sources = get_config(config, "historical_hydrology_plots.clim.skip_temp_pet_sources", default=[]),
+   localrule: True
    script: "../src/plot_results.py"
 
 # Rule to plot the wflow basin, rivers, gauges and DEM on a map
@@ -180,6 +194,7 @@ rule plot_map:
         meteo_locations = get_config(config, "climate_locations", default=None),
         buffer_km = get_config(config, "region_buffer", default=2),
         legend_loc = get_config(config, "historical_hydrology_plots.basin_map.legend_loc", default="lower right"),
+    localrule: True
     script: "../src/plot_map.py"
 
 # Rule to plot the forcing on a map
@@ -194,6 +209,7 @@ rule plot_forcing:
         gauges_fid = output_locations,
         config_fn=("wflow_sbm_{climate_source}.toml"),
         climate_source="{climate_source}",
+    localrule: True
     script: "../src/plot_map_forcing.py"
 
 rule plot_gridded_results:
@@ -206,4 +222,5 @@ rule plot_gridded_results:
         climate_sources = climate_sources,
         data_catalog = DATA_SOURCES,
         observations_snow = get_config(config, "observations_snow", default=None),
-    script: "../src/plot_results_grid.py"
+    localrule: True
+    script: "../src/plot_results_grid.py"   

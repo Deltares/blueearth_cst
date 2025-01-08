@@ -193,19 +193,25 @@ def analyse_wflow_historical(
             gauges_locs=gauges_locs,
             remove_warmup=False,
         )
-        # Add climate source to dimension
+        # Add discharge source to dimension
         qsim_source = qsim_source.assign_coords(
             climate_source=(f"{climate_source}")
         ).expand_dims(["climate_source"])
+        
+        # Add climate source to dimension
         ds_clim_source = ds_clim_source.assign_coords(
             climate_source=(f"{climate_source}")
         ).expand_dims(["climate_source"])
+        
+        #add basin average source to dimension
         ds_basin_source = ds_basin_source.assign_coords(
             climate_source=(f"{climate_source}")
         ).expand_dims(["climate_source"])
+
         qsim.append(qsim_source)
         ds_clim.append(ds_clim_source)
         ds_basin.append(ds_basin_source)
+
     qsim = xr.concat(qsim, dim="climate_source")
     ds_clim = xr.concat(ds_clim, dim="climate_source")
     ds_basin = xr.concat(ds_basin, dim="climate_source")
@@ -217,9 +223,8 @@ def analyse_wflow_historical(
 
     # If possible, skip the first year of the wflow run (warm-up period) for the basin average dataset
     if len(ds_basin.time) > 365:
-        print(
-            "Skipping the first year of the wflow run (warm-up period) in basin average variables plots"
-        )
+        print("Skipping the first year of the wflow run (warm-up period) in basin average variables plots")
+
         ds_basin = ds_basin.sel(
             time=slice(
                 f"{ds_basin['time.year'][0].values+1}-{ds_basin['time.month'][0].values}-{ds_basin['time.day'][0].values}",
@@ -227,9 +232,8 @@ def analyse_wflow_historical(
             )
         )
     else:
-        print(
-            "Simulation is less than a year so model warm-up period will be plotted in basin average variables."
-        )
+        print("Simulation is less than a year so model warm-up period will be plotted in basin average variables.")
+
 
     ### 4. Plot climate data ###
     # No plots of climate data if wflow run is less than a year
@@ -263,7 +267,6 @@ def analyse_wflow_historical(
             plt.close()
 
     ### 5. Plot other basin average outputs ###
-    print("Plot basin average wflow outputs")
     plot_basavg(ds_basin, plot_dir, color)
     plt.close()
 
@@ -297,8 +300,11 @@ def analyse_wflow_historical(
             if station_id in qobs.index.values:
                 qobs_i = qobs.sel(index=station_id)
 
-        # a) Plot hydrographs
+        else:
+            print("No observations to plot")
+        
         print(f"Plot hydrographs at wflow station {station_name}")
+        # a) Plot hydrographs
         plot_hydro(
             qsim=qsim_i,
             qobs=qobs_i,
@@ -311,10 +317,9 @@ def analyse_wflow_historical(
             max_nan_month=max_nan_month,
         )
         plt.close()
+        
         # b) Signature plot and performance metrics
         if do_signatures and qobs_i is not None:
-            print("observed timeseries are available - making signature plots.")
-            # Plot signatures
             plot_signatures(
                 qsim=qsim_i,
                 qobs=qobs_i,
@@ -428,10 +433,4 @@ if __name__ == "__main__":
         with open(text_out, "w") as f:
             f.write(f"Plotted wflow results.\n")
     else:
-        analyse_wflow_historical(
-            wflow_root=join(os.getcwd(), "examples", "my_project", "hydrology_model"),
-            plot_dir=None,
-            observations_fn=None,
-            gauges_locs=None,
-            climate_sources=None,
-        )
+        raise ValueError("This script should be run from a snakemake environment")

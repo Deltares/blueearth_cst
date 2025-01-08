@@ -75,6 +75,7 @@ def plot_region_and_location(
     data_catalog = DataCatalog(data_catalog)
 
     # Read the region
+    print(f"Reading region from {region_fn}")
     region = data_catalog.get_geodataframe(region_fn)
     region = _update_gdf_index(region, legend_column="value")
 
@@ -93,12 +94,14 @@ def plot_region_and_location(
             crs = 4326
         else:
             crs = None
+        
         locations = data_catalog.get_geodataframe(
             locations_fn,
             crs=crs,
             geom=region,
             buffer=buffer_km * 1000,
         )
+    
         locations.index.name = "index"
         locations = {"meteorological stations": locations}
     else:
@@ -171,4 +174,4 @@ if __name__ == "__main__":
         )
 
     else:
-        print("This script should be run from a snakemake environment")
+        raise ValueError("This script should be run from a snakemake environment")

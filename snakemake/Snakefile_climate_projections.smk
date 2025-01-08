@@ -4,7 +4,6 @@ import sys
 
 from get_config import get_config
 
-# read path of the config file to give to the weagen scripts
 args = sys.argv
 config_path = args[args.index("--configfile") + 1]
 

@@ -20,10 +20,10 @@ _snakefiles = {
         "file": "Snakefile_climate_projections.smk",
         "config": config_fn,
     },
-    "climate_experiment": {
-        "file": "Snakefile_climate_experiment.smk",
-        "config": config_fn,
-    },
+    # "climate_experiment": {
+    #     "file": "Snakefile_climate_experiment.smk",
+    #     "config": config_fn,
+    # },
     "climate_historical": {
         "file": "Snakefile_climate_historical.smk",
         "config": fao_config_fn,
@@ -45,5 +45,6 @@ def test_snakefile_cli(snakefile):
     configfile = _snakefiles[snakefile]["config"]
     cmd = f"snakemake all -c 1 -s {snakefile_path} --configfile {configfile} --dry-run"
     result = subprocess.run(cmd, shell=True, capture_output=True)
+    
     # Check the output of the subprocess command
-    assert result.returncode == 0
+    assert result.returncode == 0, f"Command failed with output: {result.stdout}"

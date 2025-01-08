@@ -1,0 +1,8 @@
+{
+"type": "FeatureCollection",
+"name": "testloc",
+"features": [
+{ "type": "Feature", "properties": { "river_basin": "Kabul", "river": "Kabul", "station": "Tangi Saidan", "code": "1-0.000-8M", "river_code": "1", "river_reach_code": "1-0.000", "gage_type": "Recorder", "drainage_area": 1.625, "elevation": 1.875, "period_of_record": "1945-1980" }, "geometry": { "type": "Point", "coordinates": [ 69.05, 34.24 ] } },
+{ "type": "Feature", "properties": { "river_basin": "Kabul", "river": "Laghman", "station": "Pul-i-Qarghai", "code": "1-6.L00-1A", "river_code": "1", "river_reach_code": "1-6.L00", "gage_type": "Recorder", "drainage_area": 6.155, "elevation": 640.0, "period_of_record": "1945-1980" }, "geometry": { "type": "Point", "coordinates": [ 70.230414552643396, 34.567893642084513 ] } }
+]
+}

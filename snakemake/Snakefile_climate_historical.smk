@@ -2,7 +2,6 @@ import sys
 
 from get_config import get_config
 
-# Get the snake_config file from the command line
 args = sys.argv
 config_path = args[args.index("--configfile") + 1]
 
@@ -14,7 +13,6 @@ data_catalog = get_config(config, "data_sources", optional=False)
 rule all:
     input:
         f"{project_dir}/config/snake_config_climate_historical.yaml",
-        #f"{project_dir}/region/region.geojson",
         f"{project_dir}/plots/climate_historical/region_plot.png",
         expand((f"{project_dir}/climate_historical/raw_data/" + "extract_{source}.nc"), source=climate_sources),
         expand((f"{project_dir}/climate_historical/statistics/" + "basin_{source}.nc"), source=climate_sources),
@@ -32,6 +30,7 @@ rule copy_config:
         workflow_name = "climate_historical",
     output:
         config_snake_out = f"{project_dir}/config/snake_config_climate_historical.yaml",
+    localrule: True
     script:
         "../src/copy_config_files.py"
 
@@ -46,6 +45,7 @@ rule select_region:
     output:
         region_file = f"{project_dir}/region/region.geojson",
         region_buffer_file = f"{project_dir}/region/region_buffer.geojson",
+    localrule: True
     script:
         "../src/derive_region.py"
 
@@ -63,6 +63,7 @@ rule plot_region_and_location:
         legend_loc = get_config(config, "historical_climate_plots.basin_map.legend_loc", default="lower right"),
     output:
         region_plot = f"{project_dir}/plots/climate_historical/region_plot.png",
+    localrule: True
     script:
         "../src/plot_region_and_location.py"
 
@@ -81,6 +82,7 @@ rule extract_climate_historical_grid:
         add_source_to_coords = True,
     output:
         climate_nc = f"{project_dir}/climate_historical/raw_data/" + "extract_{source}.nc",
+    localrule: True
     script:
         "../src/extract_historical_climate.py"
 
@@ -99,6 +101,7 @@ rule sample_historical_climate:
     output:
         basin = f"{project_dir}/climate_historical/statistics/" + "basin_{source}.nc",
         point = f"{project_dir}/climate_historical/statistics/" + "point_{source}.nc",
+    localrule: True
     script:
         "../src/sample_climate_historical.py"
 
@@ -114,6 +117,7 @@ rule plot_basin_climate:
         temp_heat = get_config(config, "climate_thresholds.temp.heat", default=25),
     output:
         basin_plot_done = f"{project_dir}/plots/climate_historical/region/basin_climate.txt",
+    localrule: True
     script:
         "../src/plot_climate_basin.py"
 
@@ -135,6 +139,7 @@ rule plot_location_climate:
         max_nan_month = get_config(config, "historical_climate_plots.climate_per_location.max_nan_per_month", default=5),
     output:
         point_plot_done = f"{project_dir}/plots/climate_historical/point/point_climate.txt",
+    localrule: True
     script:
         "../src/plot_climate_location.py"
 
@@ -148,6 +153,7 @@ rule derive_trends_timeseries:
         point_observed = f"{project_dir}/climate_historical/statistics/point_observed.nc"
     output:
         trends_timeseries_done = f"{project_dir}/plots/climate_historical/trends/timeseries_trends.txt",
+    localrule: True
     script:
         "../src/derive_climate_trends.py"
 
@@ -164,5 +170,6 @@ rule derive_trends_gridded:
         fs_mean_precip = get_config(config, "historical_climate_plots.mean_precipitation.fontsize", default=8),
     output:
         trends_gridded_done = f"{project_dir}/plots/climate_historical/trends/gridded_trends.txt",
+    localrule: True
     script:
         "../src/derive_climate_trends_gridded.py"

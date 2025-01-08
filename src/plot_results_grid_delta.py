@@ -186,4 +186,4 @@ if __name__ == "__main__":
             with open(text_out, "w") as f:
                 f.write(f"Plotted gridded wflow results.\n")
     else:
-        print("This script should be run from a snakemake script.")
+        raise ValueError("This script should be run from a snakemake environment")

@@ -4,6 +4,7 @@
 
 # Path to where the wflow model will be stored (include the project name)
 project_dir: tests/test_cst
+experiment_name: "test_cst_experiment"
 
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
 data_sources: 
@@ -41,6 +42,17 @@ forcing_options:
     precip_fn: era5 # data source for precipitation
     color: blue
 
+# Data sources to analyse
+# Historical gridded climate data sources (name as available in the data_sources catalog file). Either [era5, chirps_global, chirps, eobs].
+clim_historical: 
+  - era5
+  - chirps_global
+#  - eobs
+
+clim_historical_colors:
+  - blue
+  - green
+#  - brown
 # If available, please put here the path to the available observation stations locations files
 # csv file containing four columns: station_ID, name, x, y
 output_locations: "tests/data/observations/discharge-locations-grdc.csv" # If set to None, will default to the wflow outlets
@@ -125,3 +137,10 @@ Tlow: 2
 Tpeak: 10
 # Aggregate realizations before computing statistics
 aggregate_rlz: TRUE
+
+# Parallelisation
+#TODO: make more dynamic, customizing rule based grouping
+#      for now all non-local rules are grouped as below
+total_mem: 32768 #Total memory available per node in MB
+group_modelruns: 4 #How many model runs to run in parallel per node
+threads_available: 4 #How many threads available per node
