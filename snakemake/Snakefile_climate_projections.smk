@@ -4,7 +4,8 @@ import sys
 
 from get_config import get_config
 
-config_path = str(config.get("config_path"))
+args = sys.argv
+config_path = args[args.index("--configfile") + 1]
 
 # Parsing the Snakemake config file (options for basins to build, data catalog, model output directory)
 project_dir = get_config(config, 'project_dir', optional=False)

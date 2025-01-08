@@ -4,7 +4,8 @@ import glob
 
 from get_config import get_config
 
-config_path = config.get("config_path")
+args = sys.argv
+config_path = args[args.index("--configfile") + 1]
 
 project_dir = get_config(config, 'project_dir', optional=False)
 basin_dir = f"{project_dir}/hydrology_model"
