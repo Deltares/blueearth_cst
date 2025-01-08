@@ -19,8 +19,12 @@ output_locations = get_config(config, "output_locations", default=None)
 observations_timeseries = get_config(config, "observations_timeseries", default=None)
 
 wflow_outvars = get_config(config, "wflow_outvars", default=['river discharge'])
-
 has_gridded_outputs = len(get_config(config, "wflow_outvars_gridded", default=[])) > 0
+
+#paralellisation on HPC
+total_mem = int(get_config(config, "total_mem", default=32768))
+group_modelruns = int(get_config(config, "group_modelruns", default=4))
+threads_available = int(get_config(config, "threads_available", default=4))
 
 ### Custom Python functions (here to access dictionnary elements from the config based on wildcards)
 def get_forcing_options(wildcards):
@@ -134,8 +138,8 @@ rule add_forcing:
         data_catalogs = [f"-d {cat} " for cat in DATA_SOURCES] 
     localrule: False
     resources:
-        mem_mb=32768,
-        threads=4
+        mem_mb=total_mem,
+        threads=threads_available #Fastest way to generate the fo
     shell:
         """hydromt update wflow "{basin_dir}" -i "{input.forcing_ini}" {params.data_catalogs} -vv"""
 
@@ -151,8 +155,8 @@ rule run_wflow:
     localrule: False
     group: "run_wflow"
     resources:
-        threads = 1,
-        mem_mb=8000
+        threads = int(threads_available/group_modelruns),
+        mem_mb= int(total_mem/group_modelruns)
     shell:
         """ julia --threads {resources.threads} -e "using Wflow; Wflow.run()" "{params.toml_fid}" """
 

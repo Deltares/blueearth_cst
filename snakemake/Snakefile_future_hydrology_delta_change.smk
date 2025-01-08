@@ -27,6 +27,11 @@ output_locations = get_config(config, "output_locations", default=None)
 wflow_outvars = get_config(config, "wflow_outvars", default=['river discharge'])
 has_gridded_outputs = len(get_config(config, "wflow_outvars_gridded", default=[])) > 0
 
+#paralellisation
+total_mem = int(get_config(config, "total_mem", default=32768))
+group_modelruns = int(get_config(config, "group_modelruns", default=4))
+threads_available = int(get_config(config, "threads_available", default=4))
+
 # Master rule: end with all model run and analysed with saving a output plot
 rule all:
     input: 
@@ -123,8 +128,8 @@ rule run_wflow_near:
     localrule: False
     group: "run_wflow_near"
     resources:
-        mem_mb = 8000, #8GB
-        threads = 1
+        mem_mb = int(total_mem/group_modelruns), #8GB
+        threads = int(threads_available/group_modelruns)
     shell:
         """ julia --threads {resources.threads} "./src/wflow/run_wflow_change_factors.jl" "{input.config_model_near}" """
 
@@ -166,8 +171,8 @@ rule run_wflow_far:
     localrule: False
     group: "run_wflow_far"
     resources:
-        mem_mb = 8000, #8GB
-        threads = 1
+        mem_mb = int(total_mem/group_modelruns), #8GB
+        threads = int(threads_available/group_modelruns)
     shell:
         """ julia --threads {resources.threads} "./src/wflow/run_wflow_change_factors.jl" "{input.config_model_far}" """
 

@@ -188,3 +188,10 @@ future_hydrology_plots:
     return_periods: [5, 10] # return periods to compute extreme rain and flow
     discharge_locations: "all" # locations to compute flow statistics: "outlets", "all", ["1", "3"]
     split_plot_per_scenario: FALSE # do one plot per SSP or combine all SSP in one plot
+
+# Parallelisation
+#TODO: make more dynamic, customizing rule based grouping
+#      for now all non-local rules are grouped as below
+total_mem: 32768 #Total memory available per node in MB
+group_modelruns: 4 #How many model runs to run in parallel per node
+threads_available: 4 #How many threads available per node

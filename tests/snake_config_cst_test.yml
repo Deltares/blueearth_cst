@@ -137,3 +137,10 @@ Tlow: 2
 Tpeak: 10
 # Aggregate realizations before computing statistics
 aggregate_rlz: TRUE
+
+# Parallelisation
+#TODO: make more dynamic, customizing rule based grouping
+#      for now all non-local rules are grouped as below
+total_mem: 32768 #Total memory available per node in MB
+group_modelruns: 4 #How many model runs to run in parallel per node
+threads_available: 4 #How many threads available per node
