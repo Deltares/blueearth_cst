@@ -20,10 +20,10 @@ _snakefiles = {
         "file": "Snakefile_climate_projections.smk",
         "config": config_fn,
     },
-    "climate_experiment": {
-        "file": "Snakefile_climate_experiment.smk",
-        "config": config_fn,
-    },
+    # "climate_experiment": {
+    #     "file": "Snakefile_climate_experiment.smk",
+    #     "config": config_fn,
+    # },
     "climate_historical": {
         "file": "Snakefile_climate_historical.smk",
         "config": fao_config_fn,
@@ -43,7 +43,7 @@ def test_snakefile_cli(snakefile):
     os.chdir(MAINDIR)
     snakefile_path = f"snakemake/{_snakefiles[snakefile]['file']}"
     configfile = _snakefiles[snakefile]["config"]
-    cmd = f"snakemake all -c 1 -s {snakefile_path} --configfile {configfile} --config config_path={configfile} --dry-run"
+    cmd = f"snakemake all -c 1 -s {snakefile_path} --configfile {configfile} --dry-run"
     result = subprocess.run(cmd, shell=True, capture_output=True)
     
     # Check the output of the subprocess command

@@ -211,7 +211,7 @@ rule plot_results_grid:
     output:
         output_txt = f"{project_dir}/plots/model_delta_runs/other/gridded_output.txt",
     localrule: True
-    script: "../src/plot_results_grid_delta.py"]
+    script: "../src/plot_results_grid_delta.py"
 
 rule compute_change_statistics:
     input:
