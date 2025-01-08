@@ -72,7 +72,7 @@ Rule to downscale the monthly delta change factor for the near future
 rule downscale_monthly_delta_change_grids_near:
     input:
         staticmaps_fid = ancient(f"{basin_dir}/staticmaps.nc"),
-        monthly_change_mean_grid = ancient(clim_project_dir + "/monthly_change_grid/{model}_{scenario}_near.nc"),
+        monthly_change_mean_grid = (clim_project_dir + "/monthly_change_grid/{model}_{scenario}_near.nc"),
     output:
         delta_change_downscale_near_nc = (clim_project_dir + "/monthly_change_grid/{model}_{scenario}_near_downscaled.nc"),
     localrule: True
@@ -107,13 +107,7 @@ rule setup_toml_near:
         config_model_out_fn = (basin_dir + "/run_delta_change/" + config_basename + "_delta_{model}_{scenario}_near.toml"),
     script: "../src/setup_config_future.py"
 
-#if the toml files are already created, we use the below rule
-# rule setup_toml_near:
-#     input:
-#         config_model_historical_fn = config_model_historical_fn,
-#         monthly_change_mean_grid = (clim_project_dir + "/monthly_change_grid/{model}_{scenario}_near_downscaled.nc"),
-#     output:
-#         touch(basin_dir + "/run_delta_change/" + config_basename + "_delta_{model}_{scenario}_near.toml")
+
 """
 Rule to run the wflow model for each additional forcing dataset 
 """
@@ -151,13 +145,7 @@ rule setup_toml_far:
     localrule: True
     script: "../src/setup_config_future.py"
     
-# rule setup_toml_far:
-#     input:
-#         config_model_historical_fn = (basin_dir + "/run_delta_change/" + config_basename + "_delta_{model}_{scenario}_near.toml"),
-#         state_near_nc = (basin_dir + "/run_delta_change/outstate/outstates_{model}_{scenario}_near.nc"),
-#         monthly_change_mean_grid = (clim_project_dir + "/monthly_change_grid/{model}_{scenario}_far_downscaled.nc"),
-#     output:
-#         touch(basin_dir + "/run_delta_change/" + config_basename + "_delta_{model}_{scenario}_far.toml")
+
 """
 Rule to run the wflow model for each additional forcing dataset 
 """

@@ -59,7 +59,7 @@ rule all:
 # Rule to copy config files to the project_dir/config folder
 rule copy_config:
     input:
-        config_build = model_build_config, 
+        config_build = model_build_config,
         config_snake = config_path,
         config_waterbodies = waterbodies_config,
     params:
@@ -100,7 +100,7 @@ rule add_reservoirs_lakes_glaciers:
 # Rule to add gauges to the built model
 rule add_gauges_and_outputs:
     input:
-        basin_nc = f"{basin_dir}/staticmaps.nc",
+        basin_nc = ancient(f"{basin_dir}/staticmaps.nc"),
         text = f"{basin_dir}/staticgeoms/reservoirs_lakes_glaciers.txt"
     output:
         gauges_fid = f"{basin_dir}/staticgeoms/gauges.geojson"
