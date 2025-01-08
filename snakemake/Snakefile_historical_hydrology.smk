@@ -147,15 +147,14 @@ rule run_wflow:
         csv_file = (basin_dir + "/run_default/output_{climate_source}.csv"),
         nc_file = (basin_dir + "/run_default/output_{climate_source}.nc") if has_gridded_outputs else []
     params:
-        toml_fid = (basin_dir + "/run_default/wflow_sbm_{climate_source}.toml"),
-        project = "wflow/project.toml"
+        toml_fid = (basin_dir + "/run_default/wflow_sbm_{climate_source}.toml")
     localrule: False
     group: "run_wflow"
     resources:
         threads = 1,
         mem_mb=8000
     shell:
-        """ julia --project={params.project} --threads {resources.threads} -e "using Wflow; Wflow.run()" "{params.toml_fid}" """
+        """ julia --threads {resources.threads} -e "using Wflow; Wflow.run()" "{params.toml_fid}" """
 
 # Rule to analyse and plot wflow model run results --> final output
 rule plot_results:

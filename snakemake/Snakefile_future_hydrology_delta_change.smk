@@ -120,15 +120,13 @@ rule run_wflow_near:
         csv_file_near = (basin_dir + "/run_delta_change/output_delta_{model}_{scenario}_near.csv"), 
         state_near_nc = (basin_dir + "/run_delta_change/outstate/outstates_{model}_{scenario}_near.nc"),
         nc_file_near = (basin_dir + "/run_delta_change/output_delta_{model}_{scenario}_near.nc") if has_gridded_outputs else []
-    params:
-        project = "wflow/project.toml"
     localrule: False
     group: "run_wflow_near"
     resources:
         mem_mb = 8000, #8GB
         threads = 1
     shell:
-        """ julia --project={params.project} --threads {resources.threads} "./src/wflow/run_wflow_change_factors.jl" "{input.config_model_near}" """
+        """ julia --threads {resources.threads} "./src/wflow/run_wflow_change_factors.jl" "{input.config_model_near}" """
 
 """
 Rule to prepare the yml for each clim dataset with time horizon 
@@ -165,15 +163,13 @@ rule run_wflow_far:
     output:
         csv_file_far = (basin_dir + "/run_delta_change/output_delta_{model}_{scenario}_far.csv"),
         nc_file_far = (basin_dir + "/run_delta_change/output_delta_{model}_{scenario}_far.nc") if has_gridded_outputs else [],
-    params: 
-        project = "wflow/project.toml"
     localrule: False
     group: "run_wflow_far"
     resources:
         mem_mb = 8000, #8GB
         threads = 1
     shell:
-        """ julia --project={params.project} --threads {resources.threads} "./src/wflow/run_wflow_change_factors.jl" "{input.config_model_far}" """
+        """ julia --threads {resources.threads} "./src/wflow/run_wflow_change_factors.jl" "{input.config_model_far}" """
 
 """
 Rule to analyse and plot wflow model run results --> final output

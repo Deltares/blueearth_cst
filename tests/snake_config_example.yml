@@ -2,7 +2,7 @@
 #################################### General settings ##################################
 
 # Path to where the wflow model will be stored (include the project name)
-project_dir: tests/test_project_sample
+project_dir: tests/test_project
 experiment_name: "test_experiment"
 # hydromt "region" for building the model, coordinates are in EPSG 4326
 # for more info on how to fill this, you can see the hydromt documentation: 
