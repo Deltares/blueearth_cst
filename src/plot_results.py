@@ -299,11 +299,11 @@ def analyse_wflow_historical(
         if has_observations:
             if station_id in qobs.index.values:
                 qobs_i = qobs.sel(index=station_id)
-            else:
-                print("no")
+
         else:
             print("No observations to plot")
-
+        
+        print(f"Plot hydrographs at wflow station {station_name}")
         # a) Plot hydrographs
         plot_hydro(
             qsim=qsim_i,

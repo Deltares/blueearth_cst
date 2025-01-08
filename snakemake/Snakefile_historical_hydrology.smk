@@ -142,7 +142,7 @@ rule add_forcing:
 #Rule to run the wflow model for each additional forcing dataset 
 rule run_wflow:
     input:
-        forcing_fid = ancient(project_dir + "/climate_historical/wflow_data/inmaps_historical_{climate_source}.nc")
+        forcing_fid = (project_dir + "/climate_historical/wflow_data/inmaps_historical_{climate_source}.nc")
     output:
         csv_file = (basin_dir + "/run_default/output_{climate_source}.csv"),
         nc_file = (basin_dir + "/run_default/output_{climate_source}.nc") if has_gridded_outputs else []
