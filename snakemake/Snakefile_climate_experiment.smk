@@ -6,7 +6,8 @@ from get_config import get_config
 # Parsing the Snakemake config file (options for basins to build, data catalog, model output directory)
 #configfile: "config/snake_config_test.yml"
 # read path of the config file to give to the weagen scripts
-config_path = config.get("config_path")
+args = sys.argv
+config_path = args[args.index("--configfile") + 1]
 
 project_dir = get_config(config, 'project_dir', optional=False)
 experiment = get_config(config, 'experiment_name', optional=False)

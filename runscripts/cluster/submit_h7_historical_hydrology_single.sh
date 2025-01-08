@@ -5,7 +5,7 @@
 #SBATCH --partition=4vcpu
 #SBATCH --ntasks=1
 #SBATCH --time=1-00:00:00
-#SBATCH --array=0-0%1
+#SBATCH --array=0-0%1           #change this to 0-3%1
 
 echo "current working directory: $PWD"
 # //////////////////////////////////////
@@ -14,20 +14,10 @@ script="scripts/A_historical_hydrology.sh"
 echo "RUNNING: $script"
 # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 
-stem= ## FOLDER WITH BUILD CONFIGS ##
-country=("afg" "bhu" "pak" "nep")
-basin=("ali" "dam" "swa" "set")
-
-yaml_files=(
-    # "$stem/wflow_build_model_${country[0]}_${basin[0]}.yml"
-    # "$stem/wflow_build_model_${country[1]}_${basin[1]}.yml"
-    "$stem/wflow_build_model_${country[2]}_${basin[2]}.yml"
-    # "$stem/wflow_build_model_${country[3]}_${basin[3]}.yml"
-)
-
-# Get the YAML file for this array task
-# this works by using the SLURM_ARRAY_TASK_ID to index into the yaml_files array
-yaml_file="${yaml_files[$SLURM_ARRAY_TASK_ID]}" #FOR USE WITH ARRAY JOBS
+stem=           ## STEM OF DIRECTORY WITH BUILD CONFIGS ##
+country="afg"
+basin="ali"
+yaml_file="$stem/wflow_build_model_${country}_${basin}.yml"
 
 cd "$cwd"
 chmod +x "$script"

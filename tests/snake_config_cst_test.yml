@@ -3,8 +3,8 @@
 #################################### General settings ######################################
 
 # Path to where the wflow model will be stored (include the project name)
-project_dir: tests/test_project
-experiment_name: "test_experiment"
+project_dir: tests/test_cst
+experiment_name: "test_cst_experiment"
 
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
 data_sources: 
