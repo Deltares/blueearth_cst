@@ -54,7 +54,8 @@ def update_wflow_gauges_outputs(
 
     # Instantiate wflow model
     mod = WflowModel(wflow_root, mode="r+", data_libs=data_catalog)
-
+    mod.read_config()
+    mod.read_grid()
     # Add outlets
     mod.setup_outlets(
         river_only=True,
@@ -63,7 +64,8 @@ def update_wflow_gauges_outputs(
     )
 
     # Add gauges
-    if gauges_fn is not None and os.path.isfile(gauges_fn):
+    if gauges_fn is not None:
+        import pdb; pdb.set_trace()
         mod.setup_gauges(
             gauges_fn=gauges_fn,
             snap_to_river=True,
@@ -72,7 +74,7 @@ def update_wflow_gauges_outputs(
             gauge_toml_header=["Q", "P"],
             gauge_toml_param=["lateral.river.q_av", "vertical.precipitation"],
         )
-
+    
     # Add additional outputs to the config
     # For now assumes basin-average timeseries apart for river.q_av which is saved
     # by default for all outlets and gauges

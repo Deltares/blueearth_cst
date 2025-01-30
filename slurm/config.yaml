@@ -9,7 +9,7 @@ restart-times: 1
 forceall: False
 max-jobs-per-second: 100
 max-status-checks-per-second: 1
-jobs: 14 # Max jobs per snakemake workflow (FAIR use is <= 4x60cpus) 18x4 is 72
+jobs: 10 # Max jobs per snakemake workflow (FAIR use is <= 240cpus (e.g. 4x60vcpu)) 
 rerun-triggers: mtime
 
 #GROUP optimized for snakemake-executor-plugin-cluster-generic  (1.0.9)
