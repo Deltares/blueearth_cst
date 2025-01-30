@@ -1,11 +1,11 @@
 import argparse as ap
 import numpy as np 
-
+from pathlib import Path
 from get_config import get_config
 
 args = sys.argv
 config_path = args[args.index("--configfile") + 1]
-
+config_dir = Path(config_path).parent
 project_dir = get_config(config, 'project_dir', optional=False)
 basin_dir = f"{project_dir}/hydrology_model"
 model_region = get_config(config, 'model_region', optional=False)
@@ -15,6 +15,7 @@ waterbodies_config = get_config(config, 'waterbodies_config', default='config/cs
 climate_sources = list(get_config(config, "forcing_options", optional=False).keys())
 DATA_SOURCES = get_config(config, "data_sources", optional=False)
 DATA_SOURCES = np.atleast_1d(DATA_SOURCES).tolist() #make sure DATA_SOURCES is a list format (even if only one DATA_SOURCE)
+DATA_SOURCES = [f"{project_dir}/{cat}" for cat in DATA_SOURCES]
 output_locations = get_config(config, "output_locations", default=None)
 observations_timeseries = get_config(config, "observations_timeseries", default=None)
 
@@ -53,20 +54,20 @@ rule all:
         f"{project_dir}/plots/wflow_model_performance/plot_results.txt",
         f"{project_dir}/plots/wflow_model_performance/basin_area.png",
         expand((project_dir + "/plots/wflow_model_performance/{climate_source}/precip.png"), climate_source = climate_sources),
-        f"{project_dir}/config/snake_config_model_creation.yml",
+        f"{basin_dir}/snake_config_model_creation.yml",
         f"{project_dir}/plots/wflow_model_performance/gridded_output.txt",
 
 # Rule to copy config files to the project_dir/config folder
 rule copy_config:
     input:
-        config_build = model_build_config,
+        config_build = f"{config_dir}/{model_build_config}",
+        config_waterbodies = f"{config_dir}/{waterbodies_config}",
         config_snake = config_path,
-        config_waterbodies = waterbodies_config,
     params:
         data_catalogs = DATA_SOURCES,
         workflow_name = "model_creation",
     output:
-        config_snake_out = f"{project_dir}/config/snake_config_model_creation.yml",
+        config_snake_out = f"{basin_dir}/wflow_build_model.yml",
     localrule: True
     script:
         "../src/copy_config_files.py"
@@ -74,11 +75,12 @@ rule copy_config:
 # Rule to build model hydromt build wflow
 rule create_model:
     input:
-        hydromt_ini = model_build_config,
+        hydromt_ini = f"{basin_dir}/wflow_build_model.yml",
     output:
         basin_nc = f"{basin_dir}/staticmaps.nc",
+        model_created = touch(f"{basin_dir}/model.created")
     params:
-        data_catalogs = [f"-d {cat} " for cat in DATA_SOURCES]  
+        data_catalogs = [f'-d "{cat}" ' for cat in DATA_SOURCES]  
     localrule: True
     shell:
         """hydromt build wflow "{basin_dir}" --region "{model_region}" --opt setup_basemaps.res="{model_resolution}" -i "{input.hydromt_ini}" {params.data_catalogs} --fo -vv"""
@@ -87,12 +89,14 @@ rule create_model:
 # Can be moved back to create_model rule when hydromt is updated
 rule add_reservoirs_lakes_glaciers:
     input:
-        basin_nc = ancient(f"{basin_dir}/staticmaps.nc")
+        basin_nc = ancient(f"{basin_dir}/staticmaps.nc"), #should be ancient as it is regularly updated
+        model_created = f"{basin_dir}/model.created" #let this timestamp control the rule
     output:
-        text_out = f"{basin_dir}/staticgeoms/reservoirs_lakes_glaciers.txt"
+        text_out = f"{basin_dir}/staticgeoms/reservoirs_lakes_glaciers.txt",
+        waterbodies_added = touch(f"{basin_dir}/waterbodies.added")
     params:
         data_catalog = DATA_SOURCES,
-        config = waterbodies_config,
+        config = f"{basin_dir}/{waterbodies_config}",
     localrule: True
     script:
         "../src/setup_reservoirs_lakes_glaciers.py"
@@ -101,9 +105,11 @@ rule add_reservoirs_lakes_glaciers:
 rule add_gauges_and_outputs:
     input:
         basin_nc = ancient(f"{basin_dir}/staticmaps.nc"),
-        text = f"{basin_dir}/staticgeoms/reservoirs_lakes_glaciers.txt"
+        text = f"{basin_dir}/staticgeoms/reservoirs_lakes_glaciers.txt",
+        waterbodies_added = f"{basin_dir}/waterbodies.added"
     output:
-        gauges_fid = f"{basin_dir}/staticgeoms/gauges.geojson"
+        gauges_fid = f"{basin_dir}/staticgeoms/gauges.geojson",
+        gauges_added = touch(f"{basin_dir}/gauges.added")
     params:
         output_locs = output_locations,
         outputs = wflow_outvars,
@@ -116,9 +122,10 @@ rule add_gauges_and_outputs:
 # Rule to prepare the yml for each clim dataset with time horizon 
 rule setup_runtime:
     input:
-        gauges_fid = f"{basin_dir}/staticgeoms/gauges.geojson"
+        gauges_fid = f"{basin_dir}/staticgeoms/gauges.geojson",
+        gauges_added = f"{basin_dir}/gauges.added"
     output:
-        forcing_yml = (project_dir + "/config/wflow_build_forcing_historical_{climate_source}.yml")
+        forcing_yml = (f"{basin_dir}"+"/wflow_build_forcing_historical_{climate_source}.yml")
     params:
         starttime = get_config(config, "starttime", optional=False),
         endtime = get_config(config, "endtime", optional=False),
@@ -131,11 +138,11 @@ rule setup_runtime:
 # Rule to update the model for each additional forcing dataset 
 rule add_forcing:
     input:
-        forcing_ini = ancient(project_dir + "/config/wflow_build_forcing_historical_{climate_source}.yml")
+        forcing_ini = ancient(f"{basin_dir}"+"/wflow_build_forcing_historical_{climate_source}.yml")
     output:
         forcing_fid = (project_dir + "/climate_historical/wflow_data/inmaps_historical_{climate_source}.nc")
     params:
-        data_catalogs = [f"-d {cat} " for cat in DATA_SOURCES] 
+        data_catalogs = [f'-d "{cat}" ' for cat in DATA_SOURCES] 
     localrule: False
     resources:
         mem_mb=total_mem,
@@ -143,10 +150,18 @@ rule add_forcing:
     shell:
         """hydromt update wflow "{basin_dir}" -i "{input.forcing_ini}" {params.data_catalogs} -vv"""
 
+# Make sure all the forcing files are updated before running the model
+rule confirm_forcing_update:
+    input:
+        forcing_fid = expand((project_dir + "/climate_historical/wflow_data/inmaps_historical_{climate_source}.nc"), climate_source = climate_sources)
+    output:
+        forcing_fid = touch(f"{basin_dir}/forcing.updated")
+
 #Rule to run the wflow model for each additional forcing dataset 
 rule run_wflow:
     input:
-        forcing_fid = (project_dir + "/climate_historical/wflow_data/inmaps_historical_{climate_source}.nc")
+        forcing_fid = (project_dir + "/climate_historical/wflow_data/inmaps_historical_{climate_source}.nc"),
+        forcing_updated = f"{basin_dir}/forcing.updated"
     output:
         csv_file = (basin_dir + "/run_default/output_{climate_source}.csv"),
         nc_file = (basin_dir + "/run_default/output_{climate_source}.nc") if has_gridded_outputs else []
@@ -168,9 +183,9 @@ rule plot_results:
        output_txt = f"{project_dir}/plots/wflow_model_performance/plot_results.txt",
    params:
        project_dir = f"{project_dir}",
-       observations_file = observations_timeseries,
-       gauges_output_fid = output_locations,
-       climate_sources = climate_sources,
+       observations_file = f"{project_dir}/{observations_timeseries}",
+       gauges_output_fid = f"{project_dir}/{output_locations}",
+       climate_sources = f"{project_dir}/{climate_sources}",
        climate_sources_colors = get_climate_sources_colors(config, climate_sources),
        add_budyko_plot = get_config(config, "historical_hydrology_plots.plot_budyko", default=False),
        max_nan_year = get_config(config, "historical_hydrology_plots.flow.max_nan_per_year", default=60),
