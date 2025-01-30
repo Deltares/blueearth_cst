@@ -45,6 +45,7 @@ def prep_hydromt_update_forcing_config(
     # Check if forcing options are provided
     precip_source = forcing_options.get("precip_fn", forcing_name)
     clim_source = forcing_options.get("temp_pet_fn", "era5")
+    p_correction = forcing_options.get("p_correction", None)
     pet_fn = forcing_options.get("pet_fn", None)
     oro_source = forcing_options.get("dem_forcing_fn", "era5_orography")
     pet_method = forcing_options.get("pet_method", "debruin")
@@ -73,7 +74,7 @@ def prep_hydromt_update_forcing_config(
             chunksize = 100
         else:
             chunksize = 365
-        config_root = os.path.join(wflow_root, "run_default")
+        config_root = f"{wflow_root}/run_default"
     else:
         chunksize = 30
         config_root = "run_default"
@@ -91,6 +92,7 @@ def prep_hydromt_update_forcing_config(
     }
     setup_precip_forcing = {
         "precip_fn": precip_source,
+        "precip_clim_fn": p_correction,
         "chunksize": chunksize,
     }
     setup_temp_pet_forcing = {
