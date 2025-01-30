@@ -65,7 +65,6 @@ def update_wflow_gauges_outputs(
 
     # Add gauges
     if gauges_fn is not None:
-        import pdb; pdb.set_trace()
         mod.setup_gauges(
             gauges_fn=gauges_fn,
             snap_to_river=True,
