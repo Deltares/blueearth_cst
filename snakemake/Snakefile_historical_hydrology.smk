@@ -184,7 +184,7 @@ rule plot_results:
    params:
        project_dir = f"{project_dir}",
        observations_file = f"{project_dir}/{observations_timeseries}",
-       gauges_output_fid = f"{project_dir}/{output_locations}",
+       gauges_output_fid = output_locations,
        climate_sources = f"{project_dir}/{climate_sources}",
        climate_sources_colors = get_climate_sources_colors(config, climate_sources),
        add_budyko_plot = get_config(config, "historical_hydrology_plots.plot_budyko", default=False),
