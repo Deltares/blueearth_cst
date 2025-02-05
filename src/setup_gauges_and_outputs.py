@@ -1,6 +1,7 @@
 """Function to update a wflow model and add gauges and outputs"""
 
 from hydromt_wflow import WflowModel
+from hydromt import DataCatalog
 import os
 from os.path import join
 from pathlib import Path
@@ -56,6 +57,7 @@ def update_wflow_gauges_outputs(
     mod = WflowModel(wflow_root, mode="r+", data_libs=data_catalog)
     mod.read_config()
     mod.read_grid()
+    
     # Add outlets
     mod.setup_outlets(
         river_only=True,
@@ -65,6 +67,7 @@ def update_wflow_gauges_outputs(
 
     # Add gauges
     if gauges_fn is not None:
+
         mod.setup_gauges(
             gauges_fn=gauges_fn,
             snap_to_river=True,

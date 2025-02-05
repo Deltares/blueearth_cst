@@ -10,8 +10,10 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 import hydromt
+from hydromt import DataCatalog
 from hydromt_wflow import WflowModel
 import seaborn as sns
+
 
 from typing import Union, List, Optional
 
@@ -55,6 +57,7 @@ def analyse_wflow_historical(
     wflow_root: Union[str, Path],
     climate_sources: List[str],
     plot_dir: Optional[Union[str, Path]] = None,
+    data_catalog: Optional[Union[Path, str]] = None,
     observations_fn: Optional[Union[Path, str]] = None,
     gauges_locs: Optional[Union[Path, str]] = None,
     wflow_config_fn_prefix: str = "wflow_sbm",
@@ -159,16 +162,26 @@ def analyse_wflow_historical(
     ### 2. Read the observations ###
     # check if user provided observations
     has_observations = False
-    if observations_fn is not None and os.path.exists(observations_fn):
+    if observations_fn is not None and gauges_locs is not None:
+        
         has_observations = True
         # Get wflow basins to clip observations
         wflow_config_fn = wflow_config_fn_prefix + f"_{climate_sources[0]}.toml"
         wflow = WflowModel(root=wflow_root, config_fn=wflow_config_fn, mode="r")
 
+        if data_catalog is not None:
+            data_catalog = DataCatalog(data_catalog)
+            gdf_obs = data_catalog.get_geodataframe(gauges_locs)
+        elif os.path.isfile(gauges_locs):
+            gdf_obs = hydromt.io.open_vector(
+                gauges_locs, crs=4326, sep=",", geom=wflow.basins
+            )
+        else:
+            raise ValueError(f"gauges_locs {gauges_locs} is not a valid file or data catalog entry")
+        
+        if "wflow_id" in gdf_obs.columns:
+            gdf_obs = gdf_obs.set_index("wflow_id")
         # Read
-        gdf_obs = hydromt.io.open_vector(
-            gauges_locs, crs=4326, sep=",", geom=wflow.basins
-        )
         da_ts_obs = hydromt.io.open_timeseries_from_table(
             observations_fn, name="Q", index_dim="wflow_id", sep=";"
         )
@@ -185,8 +198,10 @@ def analyse_wflow_historical(
     qsim = []
     ds_clim = []
     ds_basin = []
+    
     for climate_source in climate_sources:
         wflow_config_fn = wflow_config_fn_prefix + f"_{climate_source}.toml"
+        
         qsim_source, ds_clim_source, ds_basin_source = get_wflow_results(
             wflow_root=wflow_root,
             config_fn=wflow_config_fn,
@@ -420,6 +435,7 @@ if __name__ == "__main__":
             wflow_root=root,
             plot_dir=Folder_plots,
             observations_fn=sm.params.observations_file,
+            data_catalog=sm.params.data_catalog,
             gauges_locs=sm.params.gauges_output_fid,
             climate_sources=sm.params.climate_sources,
             climate_sources_colors=sm.params.climate_sources_colors,

@@ -54,7 +54,7 @@ rule all:
         f"{project_dir}/plots/wflow_model_performance/plot_results.txt",
         f"{project_dir}/plots/wflow_model_performance/basin_area.png",
         expand((project_dir + "/plots/wflow_model_performance/{climate_source}/precip.png"), climate_source = climate_sources),
-        f"{basin_dir}/snake_config_model_creation.yml",
+        f"{basin_dir}/wflow_build_model.yml",
         f"{project_dir}/plots/wflow_model_performance/gridded_output.txt",
 
 # Rule to copy config files to the project_dir/config folder
@@ -184,8 +184,9 @@ rule plot_results:
    params:
        project_dir = f"{project_dir}",
        observations_file = f"{project_dir}/{observations_timeseries}",
-       gauges_output_fid = f"{project_dir}/{output_locations}",
-       climate_sources = f"{project_dir}/{climate_sources}",
+       gauges_output_fid = output_locations,
+       data_catalog = DATA_SOURCES,
+       climate_sources = climate_sources,
        climate_sources_colors = get_climate_sources_colors(config, climate_sources),
        add_budyko_plot = get_config(config, "historical_hydrology_plots.plot_budyko", default=False),
        max_nan_year = get_config(config, "historical_hydrology_plots.flow.max_nan_per_year", default=60),
