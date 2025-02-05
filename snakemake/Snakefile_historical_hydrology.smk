@@ -60,9 +60,9 @@ rule all:
 # Rule to copy config files to the project_dir/config folder
 rule copy_config:
     input:
-        config_build = f"{config_dir}/{model_build_config}",
-        config_waterbodies = f"{config_dir}/{waterbodies_config}",
-        config_snake = config_path,
+        config_build = ancient(f"{config_dir}/{model_build_config}"),
+        config_waterbodies = ancient(f"{config_dir}/{waterbodies_config}"),
+        config_snake = ancient(config_path),
     params:
         data_catalogs = DATA_SOURCES,
         workflow_name = "model_creation",
@@ -75,7 +75,7 @@ rule copy_config:
 # Rule to build model hydromt build wflow
 rule create_model:
     input:
-        hydromt_ini = f"{basin_dir}/wflow_build_model.yml",
+        hydromt_ini = ancient(f"{basin_dir}/wflow_build_model.yml"),
     output:
         basin_nc = f"{basin_dir}/staticmaps.nc",
         model_created = touch(f"{basin_dir}/model.created")
@@ -111,7 +111,7 @@ rule add_gauges_and_outputs:
         gauges_fid = f"{basin_dir}/staticgeoms/gauges.geojson",
         gauges_added = touch(f"{basin_dir}/gauges.added")
     params:
-        output_locs = output_locations,
+        output_locs = f"{project_dir}/{output_locations}",
         outputs = wflow_outvars,
         outputs_gridded = get_config(config, "wflow_outvars_gridded", default=None),
         data_catalog = DATA_SOURCES,
@@ -160,6 +160,7 @@ rule confirm_forcing_update:
 #Rule to run the wflow model for each additional forcing dataset 
 rule run_wflow:
     input:
+        all_forcing_files = expand((project_dir + "/climate_historical/wflow_data/inmaps_historical_{climate_source}.nc"), climate_source = climate_sources),
         forcing_fid = (project_dir + "/climate_historical/wflow_data/inmaps_historical_{climate_source}.nc"),
         forcing_updated = f"{basin_dir}/forcing.updated"
     output:

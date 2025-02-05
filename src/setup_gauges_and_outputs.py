@@ -67,9 +67,11 @@ def update_wflow_gauges_outputs(
 
     # Add gauges
     if gauges_fn is not None:
-
+        print("GAUGES FN: ", gauges_fn)
+        
         mod.setup_gauges(
             gauges_fn=gauges_fn,
+            index_col="wflow_id",
             snap_to_river=True,
             derive_subcatch=True,
             toml_output="csv",
