@@ -162,8 +162,7 @@ def analyse_wflow_historical(
     ### 2. Read the observations ###
     # check if user provided observations
     has_observations = False
-    if observations_fn is not None and gauges_locs is not None:
-        
+    if observations_fn is not None:
         has_observations = True
         # Get wflow basins to clip observations
         wflow_config_fn = wflow_config_fn_prefix + f"_{climate_sources[0]}.toml"
@@ -198,7 +197,6 @@ def analyse_wflow_historical(
     qsim = []
     ds_clim = []
     ds_basin = []
-    
     for climate_source in climate_sources:
         wflow_config_fn = wflow_config_fn_prefix + f"_{climate_source}.toml"
         
