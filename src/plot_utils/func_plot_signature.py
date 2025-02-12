@@ -276,7 +276,6 @@ def plot_signatures(
         # Convert to pandas Series and ensure timestamps
         qobs_series = qobs.to_series()
         qsim_series = qsim.to_series()
-        import pdb; pdb.set_trace()
         # Get valid indices and convert to numpy datetime64
         start = pd.Timestamp(max(
             qsim_series.first_valid_index()[1],
