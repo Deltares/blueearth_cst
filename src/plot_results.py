@@ -168,15 +168,9 @@ def analyse_wflow_historical(
         wflow_config_fn = wflow_config_fn_prefix + f"_{climate_sources[0]}.toml"
         wflow = WflowModel(root=wflow_root, config_fn=wflow_config_fn, mode="r")
 
-        if data_catalog is not None:
-            data_catalog = DataCatalog(data_catalog)
-            gdf_obs = data_catalog.get_geodataframe(gauges_locs)
-        elif os.path.isfile(gauges_locs):
-            gdf_obs = hydromt.io.open_vector(
-                gauges_locs, crs=4326, sep=",", geom=wflow.basins
-            )
-        else:
-            raise ValueError(f"gauges_locs {gauges_locs} is not a valid file or data catalog entry")
+        gdf_obs = hydromt.io.open_vector(
+            gauges_locs, crs=4326, sep=",", geom=wflow.basins
+        )
         
         if "wflow_id" in gdf_obs.columns:
             gdf_obs = gdf_obs.set_index("wflow_id")
@@ -247,7 +241,6 @@ def analyse_wflow_historical(
     else:
         print("Simulation is less than a year so model warm-up period will be plotted in basin average variables.")
 
-
     ### 4. Plot climate data ###
     # No plots of climate data if wflow run is less than a year
     if len(ds_clim.time) <= 366:
@@ -312,10 +305,16 @@ def analyse_wflow_historical(
         if has_observations:
             if station_id in qobs.index.values:
                 qobs_i = qobs.sel(index=station_id)
-
+                
         else:
             print("No observations to plot")
         
+        try:
+            len(qobs_i)
+        except Exception as e:
+            print(f"Error selecting observations at wflow station {station_name}: {e}")
+            qobs_i = None
+            
         print(f"Plot hydrographs at wflow station {station_name}")
         # a) Plot hydrographs
         plot_hydro(
@@ -330,24 +329,27 @@ def analyse_wflow_historical(
             max_nan_month=max_nan_month,
         )
         plt.close()
-        
         # b) Signature plot and performance metrics
         if do_signatures and qobs_i is not None:
-            plot_signatures(
-                qsim=qsim_i,
-                qobs=qobs_i,
-                Folder_out=plot_dir,
-                station_name=station_name,
-                color=color,
-                linestyle=linestyle,
-                marker=marker,
-                fs=fs,
-                lw=lw,
-            )
-            plt.close()
-            # Compute performance metrics
-            df_perf = pd.DataFrame()
-            for climate_source in qsim.climate_source.values:
+            try:
+                plot_signatures(
+                    qsim=qsim_i,
+                    qobs=qobs_i,
+                    Folder_out=plot_dir,
+                    station_name=station_name,
+                    color=color,
+                    linestyle=linestyle,
+                    marker=marker,
+                    fs=fs,
+                    lw=lw,
+                )
+                plt.close()
+            except Exception as e:
+                print(f"Could not generate signature plots for station {station_name}: {e}")
+        # Compute performance metrics
+        df_perf = pd.DataFrame()
+        if qobs_i is not None:  # Check for observations first
+            for climate_source in qsim.climate_source.values:  # Then iterate over climate sources
                 df_perf_source = compute_metrics(
                     qsim=qsim_i.sel(climate_source=climate_source),
                     qobs=qobs_i,
@@ -355,15 +357,15 @@ def analyse_wflow_historical(
                     climate_source=climate_source,
                 )
                 df_perf = pd.concat([df_perf, df_perf_source])
-            # Join with other stations
-            if df_perf_all.empty:
-                df_perf_all = df_perf
-            else:
-                df_perf_all = df_perf_all.join(df_perf)
+        # Join with other stations
+        if df_perf_all.empty:
+            df_perf_all = df_perf
         else:
-            print(
-                "observed timeseries are not available " "no signature plots are made."
-            )
+            df_perf_all = df_perf_all.join(df_perf)
+    else:
+        print(
+            "observed timeseries are not available " "no signature plots are made."
+        )
 
     # Save performance metrics to csv
     df_perf_all.to_csv(os.path.join(plot_dir, "performance_metrics.csv"))

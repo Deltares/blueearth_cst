@@ -1,10 +1,8 @@
-import argparse as ap
 import numpy as np 
 from pathlib import Path
 from get_config import get_config
 
-args = sys.argv
-config_path = args[args.index("--configfile") + 1]
+config_path = get_config(config, "config_path", optional=False) #When running through SLURM, the sys.argv arguments are different.. argv and configfile not possible 
 config_dir = Path(config_path).parent
 project_dir = get_config(config, 'project_dir', optional=False)
 basin_dir = f"{project_dir}/hydrology_model"
@@ -60,9 +58,9 @@ rule all:
 # Rule to copy config files to the project_dir/config folder
 rule copy_config:
     input:
-        config_build = ancient(f"{config_dir}/{model_build_config}"),
+        config_build = ancient(config_path),
         config_waterbodies = ancient(f"{config_dir}/{waterbodies_config}"),
-        config_snake = ancient(config_path),
+        config_snake = ancient(f"{config_dir}/{model_build_config}"),
     params:
         data_catalogs = DATA_SOURCES,
         workflow_name = "model_creation",
@@ -185,7 +183,7 @@ rule plot_results:
    params:
        project_dir = f"{project_dir}",
        observations_file = f"{project_dir}/{observations_timeseries}",
-       gauges_output_fid = output_locations,
+       gauges_output_fid = f"{project_dir}/{output_locations}",
        data_catalog = DATA_SOURCES,
        climate_sources = climate_sources,
        climate_sources_colors = get_climate_sources_colors(config, climate_sources),

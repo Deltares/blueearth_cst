@@ -46,10 +46,14 @@ WFLOW_VARS = {
 
 
 def rsquared(x, y):
-    """Return R^2 and p_value where x and y are array-like."""
-
-    slope, intercept, r_value, p_value, std_err = stats.linregress(x, y)
-    return r_value**2, p_value
+    # Add check for constant x values
+    if len(np.unique(x)) <= 1:
+        return 0, 0  # Return 0 for R² and p-value when x is constant
+    try:
+        slope, intercept, r_value, p_value, std_err = stats.linregress(x, y)
+        return r_value**2, p_value
+    except ValueError:
+        return 0, 0  # Return 0 for any other ValueError
 
 
 def compute_metrics(
@@ -258,6 +262,41 @@ def plot_signatures(
     # Find the common period between obs and sim
     start = max(qsim.time.values[0], qobs.time.values[0])
     end = min(qsim.time.values[-1], qobs.time.values[-1])
+    
+    if qobs is not None:
+        # Convert negative values to NaN
+        qobs = qobs.where(qobs >= 0)
+        
+        # If all values are NaN after filtering negatives, set qobs to None
+        if qobs.isnull().all():
+            print(f"All observation values are NaN or negative for station {station_name}. Skipping signatures.")
+            qobs = None
+            return
+        
+        # Convert to pandas Series and ensure timestamps
+        qobs_series = qobs.to_series()
+        qsim_series = qsim.to_series()
+        import pdb; pdb.set_trace()
+        # Get valid indices and convert to numpy datetime64
+        start = pd.Timestamp(max(
+            qsim_series.first_valid_index()[1],
+            qobs_series.first_valid_index()
+        ))
+
+        end = pd.Timestamp(min(
+            qsim_series.last_valid_index()[1],
+            qobs_series.last_valid_index()
+        ))
+
+        
+        # make sure obs and sim have period in common
+        if start < end:
+            qsim = qsim.sel(time=slice(start, end))
+            qobs = qobs.sel(time=slice(start, end))
+        else:
+            print(f"No common period between obs and sim for {station_name}. Skipping signatures.")
+            return
+    
     # make sure obs and sim have period in common
     if start < end:
         qsim = qsim.sel(time=slice(start, end))
@@ -311,8 +350,13 @@ def plot_signatures(
     )
     # r2
     text_label = ""
-    for climate_source in qsim.climate_source.values:
-        r2_score = rsquared(qobs, qsim.sel(climate_source=climate_source))[0]
+    #all values the same 
+    if np.all(qobs.values == qobs.values[0]):
+        text_label = "All values the same"
+    else:
+        for climate_source in qsim.climate_source.values:
+            r2_score = rsquared(qobs, qsim.sel(climate_source=climate_source))[0]
+
         text_label += f"R$_2$ {climate_source} = {r2_score:.2f} \n"
     axes[0].text(0.05, 0.7, text_label, transform=axes[0].transAxes, fontsize=fs)
 
@@ -708,7 +752,17 @@ def plot_hydro(
     # Settings for obs
     labobs = "observed"
     colobs = "k"
-
+    
+    # Handle negative values and all-NaN cases in observations
+    if qobs is not None:
+        # Convert negative values to NaN
+        qobs = qobs.where(qobs >= 0)
+        
+        # If all values are NaN after filtering negatives, set qobs to None
+        if qobs.isnull().all():
+            print(f"All observation values are NaN or negative for station {station_name}. Skipping observations.")
+            qobs = None
+    
     # Find the common period between obs and sim
     if qobs is not None:
         start = max(qsim.time.values[0], qobs.time.values[0])

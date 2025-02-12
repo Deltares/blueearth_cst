@@ -6,6 +6,7 @@ from typing import Union, Optional, List
 
 import geopandas as gpd
 import xarray as xr
+import numpy as np #for time unique check
 
 import hydromt
 
@@ -85,6 +86,9 @@ def plot_historical_climate_region(
     geods_list = []
     for climate_file in climate_filenames:
         geods = hydromt.vector.GeoDataset.from_netcdf(climate_file)
+        if len(np.unique(geods.time)) != len(geods.time):
+            print(f"Warning: Time duplicates in {climate_file}. Removing duplicates.")
+            geods = geods.isel(time=np.unique(geods.time, return_index=True)[1])
         geods_list.append(geods)
 
     geods_region = xr.concat(geods_list, dim="source")

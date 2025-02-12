@@ -6,7 +6,7 @@ from typing import Union, Optional, List
 
 import xarray as xr
 import hydromt
-
+import numpy as np
 import sys
 
 parent_module = sys.modules[".".join(__name__.split(".")[:-1]) or "__main__"]
@@ -42,10 +42,31 @@ def derive_timeseries_trends(
     """
     # Read the different geodataset file and merge them
     geods_list = []
+    name_to_id = {}
+
     for climate_file in clim_filenames:
         geods = hydromt.vector.GeoDataset.from_netcdf(climate_file)
+        
+        if len(np.unique(geods.time)) != len(geods.time):
+            print(f"Warning: Time duplicates in {climate_file}. Removing duplicates.")
+            geods = geods.isel(time=np.unique(geods.time, return_index=True)[1])
+        
+        # Create name to station_ID mapping from first dataset
+        if not name_to_id and 'station_ID' in geods.coords:
+            name_to_id = dict(zip(geods.name.values, geods.station_ID.values))
+            reference_names = geods.name.values  # Save reference order
+        
+        # Add station_ID if missing using the mapping
+        if 'station_ID' not in geods.coords:
+            geods = geods.assign_coords(station_ID=("index", [name_to_id[name] for name in geods.name.values]))
+        
+        # Reindex to match first dataset's order
+        if len(geods_list) > 0:  # Not the first dataset
+            geods = geods.reindex(index=reference_names)
+        
         geods_list.append(geods)
 
+    import pdb; pdb.set_trace()
     geods = xr.concat(geods_list, dim="source")
 
     # Derive the anomalies and trends for each climate source

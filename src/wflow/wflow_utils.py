@@ -63,11 +63,23 @@ def get_wflow_results(
             ["wflow_" + x for x in list(qsim["index"].values.astype(str))],
         )
     )
-
+    
     # Discharge at the gauges_locs if present
     if gauges_locs is not None and os.path.exists(gauges_locs):
         # Get name of gauges dataset from the gauges locations file
         gauges_output_name = os.path.basename(gauges_locs).split(".")[0]
+        
+        if not f"Q_gauges_{gauges_output_name}" in mod.results:
+            print(f"Warning: Q_gauges_{gauges_output_name} not found in model results, expected one of {mod.results.keys()}")
+            #loose matching 
+            if "_" in gauges_output_name:
+                gauges_output_name = gauges_output_name.replace("_", "-")
+                print(f"Trying {gauges_output_name}")
+            if f"Q_gauges_{gauges_output_name}" in mod.results:
+                print(f"Found {gauges_output_name}")
+            else:
+                print(f"Q_gauges_{gauges_output_name} not found in model results, continuing")
+        
         if f"Q_gauges_{gauges_output_name}" in mod.results:
             qsim_gauges = mod.results[f"Q_gauges_{gauges_output_name}"].rename("Q")
             # Add station_name > bug for reading geoms if dir_input in toml is not None
@@ -87,6 +99,7 @@ def get_wflow_results(
                 .rename(columns={"wflow_id": "index"})
                 .set_index("index")
             )
+                
             qsim_gauges = qsim_gauges.assign_coords(
                 station_name=(
                     "index",

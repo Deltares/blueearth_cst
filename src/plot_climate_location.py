@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Union, Optional, List
 
 import geopandas as gpd
+import pandas as pd
 import numpy as np
 import xarray as xr
 
@@ -135,7 +136,12 @@ def plot_historical_climate_point(
     geods_list = []
     for climate_file in climate_filenames:
         geods = hydromt.vector.GeoDataset.from_netcdf(climate_file, lock=False)
+        #check time dupes and remove with warning
+        if len(np.unique(geods.time)) != len(geods.time):
+            print(f"Warning: Time duplicates in {climate_file}. Removing duplicates.")
+            geods = geods.isel(time=np.unique(geods.time, return_index=True)[1])
         geods_list.append(geods)
+
 
     geods_locs = xr.concat(geods_list, dim="source")
 
@@ -166,19 +172,54 @@ def plot_historical_climate_point(
         bbox=geods_locs.vector.bounds,
         buffer=1000,
     )
-
+    if locations is not None:
+        cols = locations.columns
+        if "station_ID" in cols:
+            locations = locations.set_index("station_ID")
+            
     if precip_observations_filename is not None:
         # Load the timeseries data
         if isfile(precip_observations_filename):
             # Direct dataframe file
-            ds_obs = hydromt.io.open_timeseries_from_table(
-                precip_observations_filename,
-                name="precip",
-                index_dim=locations.index.name,
-            )
+            try:
+                ds_obs = hydromt.io.open_timeseries_from_table(
+                    precip_observations_filename,
+                    name="precip",
+                    index_dim=locations.index.name,
+                )
+            except:
+                #for the data formatted "Date;STATION_NUM;STATION_NUM"
+                ds_obs = hydromt.io.open_timeseries_from_table(
+                    precip_observations_filename,
+                    name="precip",
+                    index_dim=locations.index.name,
+                    parse_dates=["Date"],
+                    dayfirst=True,
+                    sep=";"
+                )
             # Sel dates
-            ds_obs = ds_obs.sel(time=slice(geods_locs.time[0], geods_locs.time[-1]))
+            try:
+                ds_obs = ds_obs.sel(time=slice(geods_locs.time[0], geods_locs.time[-1]))
+            except:
+                # Get valid timestamps, avoiding NaT values
+                obs_start = ds_obs.time.values[0]
+                obs_end = ds_obs.time.values[~pd.isna(ds_obs.time.values)][-1]  # Get last valid timestamp
+                
+                # Get simulation timestamps as numpy datetime64
+                sim_start = geods_locs.time.values[0]
+                sim_end = geods_locs.time.values[-1]
+                
+                # Find overall range
+                min_date = min(obs_start, sim_start)
+                max_date = max(obs_end, sim_end)
+                
+                # Create new index and reindex
+                index = pd.date_range(start=min_date, end=max_date)
+                ds_obs = ds_obs.reindex(time=index)
+                import pdb; pdb.set_trace()
         else:  # dataset data catalog entry
+
+
             ds_obs = data_catalog.get_dataset(
                 precip_observations_filename,
                 time_tuple=(geods_locs.time[0], geods_locs.time[-1]),
