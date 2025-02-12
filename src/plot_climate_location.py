@@ -216,7 +216,6 @@ def plot_historical_climate_point(
                 # Create new index and reindex
                 index = pd.date_range(start=min_date, end=max_date)
                 ds_obs = ds_obs.reindex(time=index)
-                import pdb; pdb.set_trace()
         else:  # dataset data catalog entry
 
 

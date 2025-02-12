@@ -66,7 +66,6 @@ def derive_timeseries_trends(
         
         geods_list.append(geods)
 
-    import pdb; pdb.set_trace()
     geods = xr.concat(geods_list, dim="source")
 
     # Derive the anomalies and trends for each climate source
