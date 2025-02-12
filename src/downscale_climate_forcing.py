@@ -21,7 +21,7 @@ endyear = int(horizontime_climate + np.round(wflow_run_length / 2))
 starttime = f"{startyear}-01-01T00:00:00"
 endtime = f"{endyear}-12-31T00:00:00"
 
-oro_source = f"{precip_source}_orography"
+oro_source = snakemake.params.orography
 if precip_source == "eobs":
     pet_method = "makkink"
 else:  # (chirps is precip only so combined with era5)

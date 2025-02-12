@@ -164,6 +164,7 @@ rule downscale_climate_realization:
     params:
         model_dir = basin_dir,
         clim_source = clim_source,
+        orography=get_config(config, f"forcing_options.{precip_source}.dem_forcing_fn", default="era5"),
         horizontime_climate = horizontime_climate,
         run_length = wflow_run_length,
         data_sources = DATA_SOURCES_ALL,
