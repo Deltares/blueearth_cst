@@ -4,15 +4,16 @@ import sys
 
 from get_config import get_config
 
-args = sys.argv
-config_path = args[args.index("--configfile") + 1]
+config_path = get_config(config, "config_path", optional=False)
 
 # Parsing the Snakemake config file (options for basins to build, data catalog, model output directory)
 project_dir = get_config(config, 'project_dir', optional=False)
 # Data catalogs
-DATA_SOURCES = get_config(config, "data_sources", default=[])
+DATA_SOURCES = get_config(config, "data_sources", optional=False)
 DATA_SOURCES = np.atleast_1d(DATA_SOURCES).tolist() #make sure DATA_SOURCES is a list format (even if only one DATA_SOURCE)
+DATA_SOURCES = [f"{project_dir}/{cat}" for cat in DATA_SOURCES]
 DATA_SOURCES_CLIMATE = np.atleast_1d(get_config(config, "data_sources_climate", optional=False)).tolist()
+DATA_SOURCES_CLIMATE = [f"{project_dir}/{cat}" for cat in DATA_SOURCES_CLIMATE]
 data_catalogs = []
 data_catalogs.extend(DATA_SOURCES)
 data_catalogs.extend(DATA_SOURCES_CLIMATE)
