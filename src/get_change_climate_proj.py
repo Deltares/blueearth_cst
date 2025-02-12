@@ -206,13 +206,15 @@ def get_change_annual_clim_proj(
         end_hyd_year_clim = pd.to_datetime(
             f"{ds_clim_time['time.year'][-1].values}-{start_month_hyd_year}"
         ) - pd.DateOffset(months=1)
+        
+        short_mo_hyd_year = start_month_hyd_year.upper()[:3]
 
         if var in CLIMATE_VARS and CLIMATE_VARS[var]["resample"] == "sum":
             # multiplicative for precip and pet
             hist = (
                 ds_hist_time[var]
                 .sel(time=slice(start_hyd_year_hist, end_hyd_year_hist))
-                .resample(time=f"YS-{start_month_hyd_year}")
+                .resample(time=f"YS-{short_mo_hyd_year}")
                 .sum("time")
                 .sel(
                     scenario=ds_hist_time.scenario.values[0],
@@ -221,7 +223,7 @@ def get_change_annual_clim_proj(
             clim = (
                 ds_clim_time[var]
                 .sel(time=slice(start_hyd_year_clim, end_hyd_year_clim))
-                .resample(time=f"YS-{start_month_hyd_year}")
+                .resample(time=f"YS-{short_mo_hyd_year}")
                 .sum("time")
             )
         elif (
@@ -231,7 +233,7 @@ def get_change_annual_clim_proj(
             hist = (
                 ds_hist_time[var]
                 .sel(time=slice(start_hyd_year_hist, end_hyd_year_hist))
-                .resample(time=f"YS-{start_month_hyd_year}")
+                .resample(time=f"YS-{short_mo_hyd_year}")
                 .mean("time")
                 .sel(
                     scenario=ds_hist_time.scenario.values[0],
@@ -240,7 +242,7 @@ def get_change_annual_clim_proj(
             clim = (
                 ds_clim_time[var]
                 .sel(time=slice(start_hyd_year_clim, end_hyd_year_clim))
-                .resample(time=f"YS-{start_month_hyd_year}")
+                .resample(time=f"AS-{short_mo_hyd_year}")
                 .mean("time")
             )
         else:
