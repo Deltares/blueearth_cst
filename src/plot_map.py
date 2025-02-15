@@ -96,8 +96,11 @@ def plot_wflow_map(
             buffer=buffer_km * 1000,
             handle_nodata=NoDataStrategy.IGNORE,
         )
+        
         if locations is not None:
-            locations.index.name = "index"
+            index_name = [id for id in locations.columns if "id" in id.lower() or "index" in id.lower()]
+            # locations.index.name = index_name[0]
+            locations = locations.set_index(index_name[0])
     else:
         locations = None
 
@@ -125,7 +128,11 @@ if __name__ == "__main__":
         project_dir = sm.params.project_dir
         gauges_fn = sm.params.output_locations
         if gauges_fn is not None:
-            gauges_name = f'gauges_{basename(gauges_fn).split(".")[0]}'
+            station_name = basename(gauges_fn).split(".")[0]
+            #replace _ with -
+            if "_" in station_name:
+                station_name = station_name.replace("_", "-")
+            gauges_name = f'gauges_{station_name}'
         else:
             gauges_name = None
 
