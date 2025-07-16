@@ -20,17 +20,17 @@ _snakefiles = {
         "file": "Snakefile_climate_projections.smk",
         "config": config_fn,
     },
-    # "climate_experiment": {
-    #     "file": "Snakefile_climate_experiment.smk",
-    #     "config": config_fn,
-    # },
+    "climate_experiment": {
+        "file": "Snakefile_climate_experiment.smk",
+        "config": config_fn,
+    },
     "climate_historical": {
         "file": "Snakefile_climate_historical.smk",
-        "config": fao_config_fn,
+        "config": config_fn,
     },
     "future_hydrology_delta": {
         "file": "Snakefile_future_hydrology_delta_change.smk",
-        "config": fao_config_fn,
+        "config": config_fn,
     },
 }
 
