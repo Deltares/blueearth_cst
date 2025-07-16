@@ -18,6 +18,12 @@ docker-push = {cmd = [" docker push https://containers.deltares.nl/CST/cst_workf
 docker-publish = {depends-on = ["docker-push"]}
 docker-tag = {cmd = ["docker", "tag", "cst-workflow:0.0.1", "https://containers.deltares.nl/CST/cst_workflows:$CST_WORKFLOW_TAG"], env = {CST_WORKFLOW_TAG = "latest"}, depends-on = ["docker-build"]}
 
+test_cli = {cmd = ["pytest","-v","--log-file=tests/test_cli.log","tests/test_cli.py"]}
+test_climate_historic = {cmd = ["pytest","-v","--log-file=tests/test_climate_historic.log","tests/test_climate_historic.py"]}
+test_climate_projections = {cmd = ["pytest","-v","--log-file=tests/test_climate_projections.log","tests/test_climate_projections.py"]}
+test_future_hydrology = {cmd = ["pytest","-v","--log-file=tests/test_future_hydrology.log","tests/test_future_hydrology.py"]}
+test_historical_hydrology = {cmd = ["pytest","-v","tests/test_historical_hydrology.py"]}
+
 [dependencies]
 cartopy = "*"
 datrie = "*"
@@ -70,6 +76,7 @@ rich = ">=13.9.4,<14"
 snakemake = "==8.24"
 pulp = "<2.8"
 ipykernel = ">=6.29.5,<7"
+pytest = "*"
 
 [target.win-64.dependencies]
 rtools = "*"
