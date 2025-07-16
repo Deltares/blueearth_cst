@@ -9,10 +9,17 @@ version = "0.1.0"
 linux = "4.18"
 
 [tasks]
+model-creation = { cmd = ["snakemake","all","-c","1","-s","Snakefile_model_creation","--configfile","config/snake_config_model_test.yml"]}
+climate-projections = {cmd = ["snakemake","all","-c","1","-s","Snakefile_climate_projections","--configfile","config/snake_config_model_test.yml","--keep-going"]}
+climate-experiment = {cmd = ["snakemake","all","-c","1","-s","Snakefile_climate_experiment","--configfile","config/snake_config_model_test.yml"]}
+
+docker-build = {cmd = ["docker", "build", "-t", "cst-workflow:$CST_WORKFLOW_VERSION"], env = {CST_WORKFLOW_VERSION="0.0.1"}}
+docker-push = {cmd = [" docker push https://containers.deltares.nl/CST/cst_workflows:$CST_WORKFLOW_TAG"], env = {CST_WORKFLOW_TAG = "latest"}, depends-on = ["docker-tag"]}
+docker-publish = {depends-on = ["docker-push"]}
+docker-tag = {cmd = ["docker", "tag", "cst-workflow:0.0.1", "https://containers.deltares.nl/CST/cst_workflows:$CST_WORKFLOW_TAG"], env = {CST_WORKFLOW_TAG = "latest"}, depends-on = ["docker-build"]}
 
 [dependencies]
 cartopy = "*"
-configargparse = "==1.7"
 datrie = "*"
 dvc = "*"
 descartes = "*"
