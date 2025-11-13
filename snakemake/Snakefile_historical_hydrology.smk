@@ -109,7 +109,7 @@ rule add_gauges_and_outputs:
         gauges_fid = f"{basin_dir}/staticgeoms/gauges.geojson",
         gauges_added = touch(f"{basin_dir}/gauges.added")
     params:
-        output_locs = f"{project_dir}/{output_locations}",
+        output_locs = f"{project_dir}/{output_locations}" if output_locations is not None else None,
         outputs = wflow_outvars,
         outputs_gridded = get_config(config, "wflow_outvars_gridded", default=None),
         data_catalog = DATA_SOURCES,

@@ -17,11 +17,11 @@ rule all:
         f"{project_dir}/plots/climate_historical/region_plot.png",
         expand((f"{project_dir}/climate_historical/raw_data/" + "extract_{source}.nc"), source=climate_sources),
         expand((f"{project_dir}/climate_historical/statistics/" + "basin_{source}.nc"), source=climate_sources),
-        expand((f"{project_dir}/climate_historical/statistics/" + "point_{source}.nc"), source=climate_sources),
+        # expand((f"{project_dir}/climate_historical/statistics/" + "point_{source}.nc"), source=climate_sources),
         f"{project_dir}/plots/climate_historical/region/basin_climate.txt",
-        f"{project_dir}/plots/climate_historical/point/point_climate.txt",
+        # f"{project_dir}/plots/climate_historical/point/point_climate.txt",
         f"{project_dir}/plots/climate_historical/trends/gridded_trends.txt",
-        f"{project_dir}/plots/climate_historical/trends/timeseries_trends.txt",
+        # f"{project_dir}/plots/climate_historical/trends/timeseries_trends.txt",
 
 # Rule to copy config files to the project_dir/config folder
 rule copy_config:
@@ -102,7 +102,6 @@ rule sample_historical_climate:
         data_catalog = DATA_SOURCES,
     output:
         basin = f"{project_dir}/climate_historical/statistics/" + "basin_{source}.nc",
-        point = f"{project_dir}/climate_historical/statistics/" + "point_{source}.nc",
     localrule: True
     script:
         "../src/sample_climate_historical.py"
@@ -123,41 +122,40 @@ rule plot_basin_climate:
     script:
         "../src/plot_climate_basin.py"
 
-# Location specific plots
-rule plot_location_climate:
-    input:
-        point_climate = expand((f"{project_dir}/climate_historical/statistics/"+"point_{source}.nc"), source=climate_sources),
-    params:
-        location_file = get_config(config, "climate_locations", optional=False),
-        location_timeseries_precip = f"{project_dir}/{get_config(config, 'climate_locations_timeseries', default=None)}",
-        #location_timeseries_temp = get_config(config, "climate_locations_timeseries_temp", None),
-        climate_sources = climate_sources,
-        climate_sources_colors = get_config(config, "clim_historical_colors", default=None),
-        data_catalog = DATA_SOURCES,
-        precip_peak = get_config(config, "climate_thresholds.precip.peak", default=40),
-        precip_dry = get_config(config, "climate_thresholds.precip.dry", default=0.2),  
-        temp_heat = get_config(config, "climate_thresholds.temp.heat", default=25),
-        max_nan_year = get_config(config, "historical_climate_plots.climate_per_location.max_nan_per_year", default=60),
-        max_nan_month = get_config(config, "historical_climate_plots.climate_per_location.max_nan_per_month", default=5),
-    output:
-        point_plot_done = f"{project_dir}/plots/climate_historical/point/point_climate.txt",
-    localrule: True
-    script:
-        "../src/plot_climate_location.py"
+# # Location specific plots
+# rule plot_location_climate:
+#     input:
+#         point_climate = expand((f"{project_dir}/climate_historical/statistics/"+"point_{source}.nc"), source=climate_sources),
+#     params:
+#         location_file = get_config(config, "climate_locations", optional=False),
+#         location_timeseries_precip = f"{project_dir}/{get_config(config, 'climate_locations_timeseries', default=None)}",
+#         #location_timeseries_temp = get_config(config, "climate_locations_timeseries_temp", None),
+#         climate_sources = climate_sources,
+#         climate_sources_colors = get_config(config, "clim_historical_colors", default=None),
+#         data_catalog = DATA_SOURCES,
+#         precip_peak = get_config(config, "climate_thresholds.precip.peak", default=40),
+#         precip_dry = get_config(config, "climate_thresholds.precip.dry", default=0.2),  
+#         temp_heat = get_config(config, "climate_thresholds.temp.heat", default=25),
+#         max_nan_year = get_config(config, "historical_climate_plots.climate_per_location.max_nan_per_year", default=60),
+#         max_nan_month = get_config(config, "historical_climate_plots.climate_per_location.max_nan_per_month", default=5),
+#     output:
+#         point_plot_done = f"{project_dir}/plots/climate_historical/point/point_climate.txt",
+#     localrule: True
+#     script:
+#         "../src/plot_climate_location.py"
 
 # Rule to derive trends in the historical data
-rule derive_trends_timeseries:
-    input:
-        point_climate = expand((f"{project_dir}/climate_historical/statistics/"+"point_{source}.nc"), source=climate_sources),
-        point_plot_done = f"{project_dir}/plots/climate_historical/point/point_climate.txt",
-    params:
-        split_year = get_config(config, "historical_climate_plots.timeseries_trends.split_year", default=None),
-        point_observed = f"{project_dir}/climate_historical/statistics/point_observed.nc"
-    output:
-        trends_timeseries_done = f"{project_dir}/plots/climate_historical/trends/timeseries_trends.txt",
-    localrule: True
-    script:
-        "../src/derive_climate_trends.py"
+# rule derive_trends_timeseries:
+#     input:
+#         point_climate = expand((f"{project_dir}/climate_historical/statistics/"+"point_{source}.nc"), source=climate_sources),
+#         point_plot_done = f"{project_dir}/plots/climate_historical/point/point_climate.txt",
+#     params:
+#         split_year = get_config(config, "historical_climate_plots.timeseries_trends.split_year", default=None),
+#     output:
+#         trends_timeseries_done = f"{project_dir}/plots/climate_historical/trends/timeseries_trends.txt",
+#     localrule: True
+#     script:
+#         "../src/derive_climate_trends.py"
 
 rule derive_trends_gridded:
     input:
