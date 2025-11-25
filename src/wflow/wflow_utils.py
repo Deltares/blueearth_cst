@@ -15,6 +15,8 @@ def get_wflow_results(
     wflow_root: Union[str, Path],
     config_fn: str = "wflow_sbm.toml",
     gauges_locs: Optional[Union[Path, str]] = None,
+    area_locs: Optional[Union[str, List[str]]] = None,
+    data_catalog: Optional[Union[Path, str]] = None,
     remove_warmup: bool = True,
 ) -> Tuple[xr.Dataset, xr.Dataset, xr.Dataset]:
     """
@@ -51,6 +53,7 @@ def get_wflow_results(
     mod = WflowModel(
         root=wflow_root,
         mode="r",
+        data_libs=data_catalog,
         config_fn=config_fn,
     )
 
@@ -65,20 +68,9 @@ def get_wflow_results(
     )
     
     # Discharge at the gauges_locs if present
-    if gauges_locs is not None and os.path.exists(gauges_locs):
+    if gauges_locs is not None:
         # Get name of gauges dataset from the gauges locations file
-        gauges_output_name = os.path.basename(gauges_locs).split(".")[0]
-        
-        if not f"Q_gauges_{gauges_output_name}" in mod.results:
-            print(f"Warning: Q_gauges_{gauges_output_name} not found in model results, expected one of {mod.results.keys()}")
-            #loose matching 
-            if "_" in gauges_output_name:
-                gauges_output_name = gauges_output_name.replace("_", "-")
-                print(f"Trying {gauges_output_name}")
-            if f"Q_gauges_{gauges_output_name}" in mod.results:
-                print(f"Found {gauges_output_name}")
-            else:
-                print(f"Q_gauges_{gauges_output_name} not found in model results, continuing")
+        gauges_output_name = gauges_locs
         
         if f"Q_gauges_{gauges_output_name}" in mod.results:
             qsim_gauges = mod.results[f"Q_gauges_{gauges_output_name}"].rename("Q")
@@ -99,16 +91,15 @@ def get_wflow_results(
                 .rename(columns={"wflow_id": "index"})
                 .set_index("index")
             )
-                
             qsim_gauges = qsim_gauges.assign_coords(
                 station_name=(
                     "index",
-                    list(gdf_gauges["station_name"][qsim_gauges.index.values].values),
+                    list(gdf_gauges["name"][qsim_gauges.index.values].values),
                 )
             )
             # merge qsim and qsim_gauges
             qsim = xr.concat([qsim, qsim_gauges], dim="index")
-
+    
     # Climate data P, EP, T for wflow_subcatch
     if "P_subcatchment" in mod.results:
         ds_clim = xr.merge(
@@ -121,6 +112,38 @@ def get_wflow_results(
     else:
         ds_clim = None
 
+    if area_locs is not None:
+        try:
+            if isinstance(area_locs, str):  # Fixed: was "is str", should be "isinstance(area_locs, str)"
+                area_locs = [area_locs]
+            ds_aois = []
+            for area_loc in area_locs:
+                area_keys = [key for key in mod.results if f"_{area_loc}" in key]
+                gdf = mod.data_catalog.get_geodataframe(area_loc)
+                ds_aoi = xr.merge([mod.results[key] for key in area_keys])
+                rename_dict = {key: key.split("_avg_")[0] for key in area_keys}
+                ds_aoi = ds_aoi.rename(rename_dict)
+                
+                # Get index values from dataset and match to geodataframe
+                index_values = ds_aoi.index.values
+                # Create mapping from index value to name
+                # Assuming the geodataframe has the index values in a column matching area_loc
+                # and names in 'layer' column
+                name_mapping = dict(zip(gdf[area_loc].values, gdf["layer"].values))
+                # Get names in the same order as index values in dataset
+                names = [name_mapping[idx] for idx in index_values]
+                
+                # Assign as a non-index coordinate on the 'index' dimension
+                ds_aoi = ds_aoi.assign_coords(name=("index", names))
+                # import pdb; pdb.set_trace()
+                ds_aois.append(ds_aoi)
+            # import pdb; pdb.set_trace()
+            ds_aois = xr.merge(ds_aois)
+        except Exception as e:
+            print(f"AOIS provided to Wflow Result merging but failed: {e}")
+            ds_aois = None
+    else:
+        ds_aois = None
     # Other catchment average outputs
     ds_basin = xr.merge(
         [mod.results[dvar] for dvar in mod.results if "_basavg" in dvar]
@@ -154,7 +177,7 @@ def get_wflow_results(
             )
         )
 
-    return qsim, ds_clim, ds_basin
+    return qsim, ds_clim, ds_basin, ds_aois
 
 
 def get_wflow_results_delta(

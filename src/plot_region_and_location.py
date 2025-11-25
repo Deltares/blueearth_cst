@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import Union, Optional, List
 import numpy as np
 from hydromt import DataCatalog
+import geopandas as gpd
+from shapely.geometry import box
 
 import matplotlib.pyplot as plt
 from matplotlib import colors
@@ -18,13 +20,78 @@ if __name__ == "__main__" or parent_module.__name__ == "__main__":
 else:
     from .plot_utils.func_plot_map import plot_map
 
+def legend_columns(gdf):
+    if "name" in gdf.columns:
+        name_column = "name"
+    elif "layer" in gdf.columns:
+        name_column = "layer"
+    elif "value" in gdf.columns:
+        name_column = "value"
+    elif "index" in gdf.columns:
+        name_column = "index"
+    else:
+        name_column = None
+    return name_column
+
+
+def get_combined_bounds(subregions: dict, locations: dict, buffer_km: float = 2.0):
+    """
+    Calculate the combined bounding box from subregions and locations with a buffer.
+    
+    Parameters
+    ----------
+    subregions : dict
+        Dictionary of GeoDataFrames with subregion boundaries
+    locations : dict
+        Dictionary of GeoDataFrames with point locations
+    buffer_km : float
+        Buffer distance in kilometers to add around the bounds
+        
+    Returns
+    -------
+    tuple or None
+        Bounding box as (minx, miny, maxx, maxy) or None if no geometries found
+    """
+    all_bounds = []
+    
+    # Collect bounds from subregions
+    for gdf in subregions.values():
+        if len(gdf) > 0:
+            all_bounds.append(gdf.total_bounds)
+    
+    # Collect bounds from locations
+    for gdf in locations.values():
+        if len(gdf) > 0:
+            all_bounds.append(gdf.total_bounds)
+    
+    if len(all_bounds) == 0:
+        return None
+    
+    # Calculate overall bounds
+    all_bounds = np.array(all_bounds)
+    minx = np.min(all_bounds[:, 0])
+    miny = np.min(all_bounds[:, 1])
+    maxx = np.max(all_bounds[:, 2])
+    maxy = np.max(all_bounds[:, 3])
+    
+    # Add buffer
+    # Convert buffer from km to degrees (approximate: 1 degree ≈ 111 km)
+    buffer_deg = buffer_km / 111.0
+    minx -= buffer_deg
+    miny -= buffer_deg
+    maxx += buffer_deg
+    maxy += buffer_deg
+    
+    return (minx, miny, maxx, maxy)
+
 
 def plot_region_and_location(
     region_fn: Union[str, Path],
     fn_out: Union[str, Path],
     data_catalog: List[Union[str, Path]] = [],
-    subregions_fn: Optional[Union[str, Path]] = None,
+    subregions_fn: Optional[Union[str, Path, List[str]]] = None,
     locations_fn: Optional[Union[str, Path]] = None,
+    bounds_to_subregions: bool = False,
     hydrography_fn: Optional[Union[str, Path]] = None,
     rivers_fn: Optional[Union[str, Path]] = None,
     buffer_km: Optional[float] = 2.0,
@@ -50,45 +117,49 @@ def plot_region_and_location(
         of the location.
     hydrography_fn : str, Path, optional
         Path to the hydrography raster file or data catalog entry.
+    bounds_to_subregions : bool, optional
+        If True, clip the region to the combined bounds of subregions and locations
+        (with buffer) instead of using the full macro region. Default is False.
     rivers_fn : str, Path, optional
         Path to the rivers vector file or data catalog entry.
         Optional variables for plotting: "strord".
     buffer_km : float, optional
-        Buffer in km around the region to extract the data.
+        Buffer in km around the region to extract the data. Also used as buffer
+        when bounds_to_subregions is True.
     legend_loc : str, optional
         Location of the legend in the plot. Default is "lower right".
     """
 
     # Small function to set the index of the geodataframe
-    def _update_gdf_index(gdf, legend_column="value"):
-        if legend_column in gdf.columns:
+    def _update_gdf_index(gdf):
+        legend_column = legend_columns(gdf)
+        if legend_column is not None:
             if gdf[legend_column].dtype == float:
                 gdf[legend_column] = gdf[legend_column].astype(int)
-            # gdf.index = f"{prefix}_" + gdf[legend_column].astype(str)
             gdf.index = gdf[legend_column]
-
         gdf.index.name = "index"
-
         return gdf
-
     # Initialize data catalog
     data_catalog = DataCatalog(data_catalog)
 
     # Read the region
     print(f"Reading region from {region_fn}")
     region = data_catalog.get_geodataframe(region_fn)
-    region = _update_gdf_index(region, legend_column="value")
+    region = _update_gdf_index(region)
 
     # Read the subregions
     if subregions_fn is not None:
-        subregions = data_catalog.get_geodataframe(subregions_fn)
-        subregions = _update_gdf_index(subregions, legend_column="value")
-        subregions = {"subregion": subregions}
+        subregions_fn = [subregions_fn] if isinstance(subregions_fn, str) else subregions_fn
+        subregions = {f"{subregion}": data_catalog.get_geodataframe(subregion) for subregion in subregions_fn}
+        # Apply _update_gdf_index to each GeoDataFrame in the dictionary
+        subregions = {key: _update_gdf_index(gdf) for key, gdf in subregions.items()}
     else:
         subregions = {}
 
     # Read the locations
     if locations_fn is not None:
+        if isinstance(locations_fn, list):
+            raise NotImplementedError("Multifile point locations is not implemented yet")
         # If the locs are a direct file without a crs property, assume 4326
         if isfile(locations_fn):
             crs = 4326
@@ -103,9 +174,17 @@ def plot_region_and_location(
         )
     
         locations.index.name = "index"
-        locations = {"meteorological stations": locations}
+        locations = {"Hydrometeorological Locations": locations}
     else:
         locations = {}
+    
+    # If bounds_to_subregions is True, calculate bounds from subregions and locations
+    plot_bounds = None
+    if bounds_to_subregions:
+        combined_bounds = get_combined_bounds(subregions, locations, buffer_km=buffer_km)
+        if combined_bounds is not None:
+            plot_bounds = combined_bounds
+            print(f"Plot bounds set to subregions and locations bounds with {buffer_km} km buffer")
 
     # Read the hydrography
     if hydrography_fn is not None:
@@ -153,6 +232,7 @@ def plot_region_and_location(
         annotate_regions=True,
         shaded=True if hydrography is not None else False,
         legend_loc=legend_loc,
+        plot_bounds=plot_bounds,
         **kwargs,
     )
 
@@ -167,6 +247,7 @@ if __name__ == "__main__":
             data_catalog=sm.params.data_catalog,
             subregions_fn=sm.params.subregion_file,
             locations_fn=sm.params.location_file,
+            bounds_to_subregions=sm.params.bounds_to_subregions,
             hydrography_fn=sm.params.hydrography_fn,
             rivers_fn=sm.params.river_fn,
             buffer_km=sm.params.buffer_km,

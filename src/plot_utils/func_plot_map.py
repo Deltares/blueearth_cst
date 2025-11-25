@@ -30,7 +30,7 @@ def plot_map(
     basins: gpd.GeoDataFrame,
     da: Optional[xr.DataArray] = None,
     rivers: Optional[gpd.GeoDataFrame] = None,
-    subregions: Dict[str, gpd.GeoDataFrame] = {},
+    subregions: Union[Dict[str, gpd.GeoDataFrame], gpd.GeoDataFrame, None] = None,
     # outlets: Optional[gpd.GeoDataFrame] = None,
     gauges: Dict[str, gpd.GeoDataFrame] = {},
     lakes: Optional[gpd.GeoDataFrame] = None,
@@ -40,6 +40,7 @@ def plot_map(
     annotate_regions: bool = False,
     shaded: bool = False,
     legend_loc: str = "lower right",
+    plot_bounds: Optional[tuple] = None,
     **kwargs,
 ):
     """
@@ -61,9 +62,10 @@ def plot_map(
     rivers : gpd.GeoDataFrame
         GeoDataFrame with the river network. The stream order should be in the
         "strord" column.
-    subregions : dict of gpd.GeoDataFrame
-        Dict of GeoDataFrame with different subregion boundaries. The keys are used in
-        the legend. If `name` is in the columns, this will be used to annotate the regions.
+    subregions : dict of gpd.GeoDataFrame or gpd.GeoDataFrame, optional
+        Dict of GeoDataFrame with different subregion boundaries, or a single GeoDataFrame.
+        If a dict, the keys are used in the legend. If `name` is in the columns, this will
+        be used to annotate the regions.
     gauges : dict of gpd.GeoDataFrame
         Dict of GeoDataFrame with the different gauges/point locations. The keys are
         used in the legend. If `name` is in the columns and/or 'elevtn', this will be
@@ -83,6 +85,9 @@ def plot_map(
         (e.g.: larger basins).
     legend_loc : str
         Location of the legend in the plot. Default is "lower right".
+    plot_bounds : tuple, optional
+        Custom plot bounds as (minx, miny, maxx, maxy). If provided, this will
+        override the automatic extent calculation from da or basins.
     kwargs : dict
         Additional keyword arguments to pass to da.plot()
     """
@@ -94,18 +99,39 @@ def plot_map(
     proj = ccrs.PlateCarree()
     # adjust zoomlevel and figure size to your basis size & aspect
     zoom_level = 10
-    figsize = (10, 8)
+    if plot_bounds is not None:
+        figsize = (plot_bounds[2] - plot_bounds[0], plot_bounds[3] - plot_bounds[1])
+    else:
+        figsize = (10, 8)
 
     # initialize image with geoaxes
     fig = plt.figure(figsize=figsize)
     ax = fig.add_subplot(projection=proj)
-    extent = da.raster.box
-    extent = (
-        extent.to_crs(utm_crs(da.raster.bounds))
-        .buffer(buffer_km * 1000)
-        .to_crs(da.raster.crs)
-    )
-    extent = np.array(extent.total_bounds)[[0, 2, 1, 3]]
+    
+    # Determine plot extent
+    if plot_bounds is not None:
+        # Use provided bounds (minx, miny, maxx, maxy)
+        extent = np.array(plot_bounds)[[0, 2, 1, 3]]  # Reorder to [minx, maxx, miny, maxy]
+    elif da is not None:
+        extent = da.raster.box
+        extent = (
+            extent.to_crs(utm_crs(da.raster.bounds))
+            .buffer(buffer_km * 1000)
+            .to_crs(da.raster.crs)
+        )
+        extent = np.array(extent.total_bounds)[[0, 2, 1, 3]]
+    else:
+        # Fall back to basins bounds
+        extent = basins.total_bounds
+        # Add buffer in degrees (approximate: 1 degree ≈ 111 km)
+        buffer_deg = buffer_km / 111.0
+        extent = np.array([
+            extent[0] - buffer_deg,  # minx
+            extent[2] + buffer_deg,  # maxx
+            extent[1] - buffer_deg,  # miny
+            extent[3] + buffer_deg,  # maxy
+        ])
+    
     ax.set_extent(extent, crs=proj)
 
     # add sat background image
@@ -171,8 +197,15 @@ def plot_map(
 
     # plot various vector layers if present
     # subregions
-    if len(subregions) > 0:
-        for key, subregion in subregions.items():
+    if subregions is not None:
+        # Handle both dict and GeoDataFrame
+        if isinstance(subregions, dict):
+            subregions_iter = subregions.items()
+        else:
+            # Single GeoDataFrame - create a single-item dict-like structure
+            subregions_iter = [("subregions", subregions)]
+        
+        for key, subregion in subregions_iter:
             subregion.boundary.plot(
                 ax=ax, color="r", linewidth=0.5, zorder=5, label=key
             )

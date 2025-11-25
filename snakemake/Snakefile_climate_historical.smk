@@ -58,6 +58,7 @@ rule plot_region_and_location:
         data_catalog = DATA_SOURCES,
         subregion_file = get_config(config, "climate_subregions", default=None),
         location_file = get_config(config, "climate_locations", default=None),
+        bounds_to_subregions = get_config(config, "bounds_to_subregions", default=False),
         river_fn = get_config(config, "river_geom_fn", default=None),
         hydrography_fn = get_config(config, "hydrography_fn", default="merit_hydro"),
         buffer_km = get_config(config, "region_buffer", default=10),
@@ -164,6 +165,8 @@ rule derive_trends_gridded:
     params:
         project_dir = project_dir,
         data_catalog = DATA_SOURCES,
+        subregion_fn = get_config(config, "climate_subregions", default=None),
+        bounds_to_subregions = get_config(config, "bounds_to_subregions", default=False),
         river_fn = get_config(config, "river_geom_fn", default=None) if get_config(config, "historical_climate_plots.mean_precipitation.add_rivers", default=False) else None,
         year_per_line = get_config(config, "historical_climate_plots.climate_per_year.year_per_line", default=8),
         fs_yearly_plot = get_config(config, "historical_climate_plots.climate_per_year.fontsize", default=8),

@@ -1,0 +1,248 @@
+[ Info: Wflow version `v0.8.1`
+[ Info: Initialize model variables for model type `sbm`.
+[ Info: Cyclic parameters are provided by `ethiopia\hydrology_model\staticmaps.nc`.
+[ Info: Forcing parameters are provided by `ethiopia\climate_historical\wflow_data\inmaps_historical_era5.nc`.
+[ Info: Set `vertical.precipitation` using netCDF variable `precip` as forcing parameter.
+[ Info: Set `vertical.temperature` using netCDF variable `temp` as forcing parameter.
+[ Info: Set `vertical.potential_evaporation` using netCDF variable `pet` as forcing parameter.
+[ Info: Set `vertical.leaf_area_index` using netCDF variable `LAI` as cyclic parameter, with `12` timesteps.
+┌ Info: General model settings
+│   reservoirs = false
+│   lakes = false
+│   snow = true
+│   masswasting = true
+└   glacier = false
+[ Info: Set `subcatchment` using netCDF variable `wflow_subcatch`.
+[ Info: Set `river_location` using netCDF variable `wflow_river`.
+[ Info: Set `lateral.river.width` using netCDF variable `wflow_riverwidth`.
+[ Info: Set `lateral.river.length` using netCDF variable `wflow_riverlength`.
+[ Info: Set `vertical.cfmax` using netCDF variable `Cfmax`.
+[ Info: Set `vertical.tt` using netCDF variable `TT`.
+[ Info: Set `vertical.tti` using netCDF variable `TTI`.
+[ Info: Set `vertical.ttm` using netCDF variable `TTM`.
+[ Info: Set `vertical.whc` using default value `0.1`.
+[ Info: Set `vertical.w_soil` using default value `0.1125`.
+[ Info: Set `vertical.cf_soil` using netCDF variable `cf_soil`.
+[ Info: Set `vertical.g_tt` using default value `0.0`.
+[ Info: Set `vertical.g_cfmax` using default value `3.0`.
+[ Info: Set `vertical.g_sifrac` using default value `0.001`.
+[ Info: Set `vertical.glacierfrac` using default value `0.0`.
+[ Info: Set `vertical.glacierstore` using default value `5500.0`.
+[ Info: Set `vertical.theta_s` using netCDF variable `thetaS`.
+[ Info: Set `vertical.theta_r` using netCDF variable `thetaR`.
+[ Info: Set `vertical.kv_0` using netCDF variable `KsatVer`.
+[ Info: NetCDF parameter `f_` is modified with scale `1` and offset `0.0`.
+[ Info: Set `vertical.f` using netCDF variable `f_`.
+[ Info: Set `vertical.hb` using default value `-10.0`.
+[ Info: Set `vertical.h1` using netCDF variable `h1`.
+[ Info: Set `vertical.h2` using netCDF variable `h2`.
+[ Info: Set `vertical.h3_high` using netCDF variable `h3_high`.
+[ Info: Set `vertical.h3_low` using netCDF variable `h3_low`.
+[ Info: Set `vertical.h4` using netCDF variable `h4`.
+[ Info: Set `vertical.alpha_h1` using netCDF variable `alpha_h1`.
+[ Info: NetCDF parameter `SoilThickness` is modified with scale `1` and offset `0.0`.
+[ Info: Set `vertical.soilthickness` using netCDF variable `SoilThickness`.
+[ Info: Set `vertical.infiltcappath` using netCDF variable `InfiltCapPath`.
+[ Info: Set `vertical.infiltcapsoil` using netCDF variable `InfiltCapSoil`.
+[ Info: NetCDF parameter `MaxLeakage` is modified with scale `1` and offset `0.3`.
+[ Info: Set `vertical.maxleakage` using netCDF variable `MaxLeakage`.
+[ Info: Set `vertical.c` using netCDF variable `c`.
+[ Info: Set `vertical.kvfrac` using default value `1.0`.
+[ Info: Set `vertical.waterfrac` using netCDF variable `WaterFrac`.
+[ Info: Set `vertical.pathfrac` using netCDF variable `PathFrac`.
+[ Info: NetCDF parameter `RootingDepth` is modified with scale `1.5` and offset `0`.
+[ Info: Set `vertical.rootingdepth` using netCDF variable `RootingDepth`.
+[ Info: Set `vertical.rootdistpar` using netCDF variable `rootdistpar`.
+[ Info: Set `vertical.cap_hmax` using default value `2000.0`.
+[ Info: Set `vertical.cap_n` using default value `2.0`.
+[ Info: Set `vertical.kc` using netCDF variable `kc`.
+[ Info: Set `vertical.specific_leaf` using netCDF variable `Sl`.
+[ Info: Set `vertical.storage_wood` using netCDF variable `Swood`.
+[ Info: Set `vertical.kext` using netCDF variable `Kext`.
+[ Info: Set `ldd` using netCDF variable `wflow_ldd`.
+[ Info: Set `lateral.land.slope` using netCDF variable `Slope`.
+[ Info: NetCDF parameter `ksathorfrac_BRT_250` is modified with scale `2` and offset `0.0`.
+[ Info: Set `lateral.subsurface.ksathorfrac` using netCDF variable `ksathorfrac_BRT_250`.
+┌ Info: Kinematic wave approach is used for overland flow.
+└   iterate = true
+[ Info: Using a fixed sub-timestep (seconds) 3600 for kinematic wave overland flow.
+[ Info: Set `lateral.land.n` using netCDF variable `N`.
+┌ Info: Local inertial approach is used for river flow.
+│   alpha = 0.7
+│   h_thresh = 0.001
+│   froude_limit = true
+└   floodplain_1d = true
+┌ Warning: Providing the boundary condition `riverlength_bc` as part of the `[model]` setting in the TOML file has been deprecated as of Wflow v0.8.0.
+│  The boundary condition should be provided as part of the file `staticmaps.nc`.
+└ @ Wflow C:\Users\ohanrah\.julia\packages\Wflow\UKSXZ\src\flow.jl:585
+[ Info: Set `lateral.river.riverlength_bc` using default value `10000.0`.
+[ Info: Set `lateral.river.riverdepth_bc` using default value `0.0`.
+[ Info: Set `lateral.river.bankfull_elevation` using netCDF variable `hydrodem_subgrid`.
+[ Info: Set `lateral.river.bankfull_depth` using netCDF variable `RiverDepth`.
+[ Info: Set `lateral.river.n` using netCDF variable `N_River`.
+[ Info: Set `lateral.river.floodplain.n` using default value `0.072`.
+[ Info: NetCDF parameter `floodplain_volume` is modified with scale `2` and offset `0.0`.
+[ Info: Set `lateral.river.floodplain.volume` using netCDF variable `floodplain_volume`.
+┌ Info: Parallel execution of kinematic wave
+└   min_streamorder_land = 5
+[ Info: Create an output netCDF file `ethiopia\hydrology_model\run_default\output_era5.nc` for grid data, using compression level `1`.
+[ Info: Create a state output netCDF file `ethiopia\hydrology_model\run_default\outstate\outstates_era5.nc`.
+[ Info: Create an output CSV file `ethiopia\hydrology_model\run_default\output_era5.csv` for scalar data.
+[ Info: Set `gauges` using netCDF variable `wflow_gauges`.
+[ Info: Set `subcatchment` using netCDF variable `wflow_subcatch`.
+[ Info: Set `subcatchment` using netCDF variable `wflow_subcatch`.
+[ Info: Set `subcatchment` using netCDF variable `wflow_subcatch`.
+[ Info: Set `gauges_POIS` using netCDF variable `wflow_gauges_POIS`.
+[ Info: Set `gauges_POIS` using netCDF variable `wflow_gauges_POIS`.
+[ Info: Set `WBS` using netCDF variable `WBS`.
+[ Info: Set `WBS` using netCDF variable `WBS`.
+[ Info: Set `WBS` using netCDF variable `WBS`.
+[ Info: Set `WBS` using netCDF variable `WBS`.
+[ Info: Set `WBS` using netCDF variable `WBS`.
+[ Info: Set `AOIS` using netCDF variable `AOIS`.
+[ Info: Set `AOIS` using netCDF variable `AOIS`.
+[ Info: Set `AOIS` using netCDF variable `AOIS`.
+[ Info: Set `AOIS` using netCDF variable `AOIS`.
+[ Info: Set `AOIS` using netCDF variable `AOIS`.
+[ Info: Set `gauges` using netCDF variable `wflow_gauges`.
+┌ Info: Adding scalar output for a map with a reducer function.
+│   fileformat = "CSV"
+│   param = "lateral.river.q_av"
+│   mapname = "gauges"
+└   reducer_name = "only"
+[ Info: Set `subcatchment` using netCDF variable `wflow_subcatch`.
+┌ Info: Adding scalar output for a map with a reducer function.
+│   fileformat = "CSV"
+│   param = "vertical.precipitation"
+│   mapname = "subcatchment"
+└   reducer_name = "mean"
+[ Info: Set `subcatchment` using netCDF variable `wflow_subcatch`.
+┌ Info: Adding scalar output for a map with a reducer function.
+│   fileformat = "CSV"
+│   param = "vertical.potential_evaporation"
+│   mapname = "subcatchment"
+└   reducer_name = "mean"
+[ Info: Set `subcatchment` using netCDF variable `wflow_subcatch`.
+┌ Info: Adding scalar output for a map with a reducer function.
+│   fileformat = "CSV"
+│   param = "vertical.temperature"
+│   mapname = "subcatchment"
+└   reducer_name = "mean"
+[ Info: Set `gauges_POIS` using netCDF variable `wflow_gauges_POIS`.
+┌ Info: Adding scalar output for a map with a reducer function.
+│   fileformat = "CSV"
+│   param = "lateral.river.q_av"
+│   mapname = "gauges_POIS"
+└   reducer_name = "only"
+[ Info: Set `gauges_POIS` using netCDF variable `wflow_gauges_POIS`.
+┌ Info: Adding scalar output for a map with a reducer function.
+│   fileformat = "CSV"
+│   param = "vertical.precipitation"
+│   mapname = "gauges_POIS"
+└   reducer_name = "only"
+[ Info: Set `WBS` using netCDF variable `WBS`.
+┌ Info: Adding scalar output for a map with a reducer function.
+│   fileformat = "CSV"
+│   param = "lateral.river.q_av"
+│   mapname = "WBS"
+└   reducer_name = "mean"
+[ Info: Set `WBS` using netCDF variable `WBS`.
+┌ Info: Adding scalar output for a map with a reducer function.
+│   fileformat = "CSV"
+│   param = "vertical.precipitation"
+│   mapname = "WBS"
+└   reducer_name = "mean"
+[ Info: Set `WBS` using netCDF variable `WBS`.
+┌ Info: Adding scalar output for a map with a reducer function.
+│   fileformat = "CSV"
+│   param = "lateral.land.q_av"
+│   mapname = "WBS"
+└   reducer_name = "mean"
+[ Info: Set `WBS` using netCDF variable `WBS`.
+┌ Info: Adding scalar output for a map with a reducer function.
+│   fileformat = "CSV"
+│   param = "vertical.actevap"
+│   mapname = "WBS"
+└   reducer_name = "mean"
+[ Info: Set `WBS` using netCDF variable `WBS`.
+┌ Info: Adding scalar output for a map with a reducer function.
+│   fileformat = "CSV"
+│   param = "vertical.recharge"
+│   mapname = "WBS"
+└   reducer_name = "mean"
+[ Info: Set `AOIS` using netCDF variable `AOIS`.
+┌ Info: Adding scalar output for a map with a reducer function.
+│   fileformat = "CSV"
+│   param = "lateral.river.q_av"
+│   mapname = "AOIS"
+└   reducer_name = "mean"
+[ Info: Set `AOIS` using netCDF variable `AOIS`.
+┌ Info: Adding scalar output for a map with a reducer function.
+│   fileformat = "CSV"
+│   param = "vertical.precipitation"
+│   mapname = "AOIS"
+└   reducer_name = "mean"
+[ Info: Set `AOIS` using netCDF variable `AOIS`.
+┌ Info: Adding scalar output for a map with a reducer function.
+│   fileformat = "CSV"
+│   param = "lateral.land.q_av"
+│   mapname = "AOIS"
+└   reducer_name = "mean"
+[ Info: Set `AOIS` using netCDF variable `AOIS`.
+┌ Info: Adding scalar output for a map with a reducer function.
+│   fileformat = "CSV"
+│   param = "vertical.actevap"
+│   mapname = "AOIS"
+└   reducer_name = "mean"
+[ Info: Set `AOIS` using netCDF variable `AOIS`.
+┌ Info: Adding scalar output for a map with a reducer function.
+│   fileformat = "CSV"
+│   param = "vertical.recharge"
+│   mapname = "AOIS"
+└   reducer_name = "mean"
+┌ Info: Adding scalar output of all active cells with reducer function.
+│   fileformat = "CSV"
+│   param = "vertical.precipitation"
+└   reducer_name = "mean"
+┌ Info: Adding scalar output of all active cells with reducer function.
+│   fileformat = "CSV"
+│   param = "lateral.land.q_av"
+└   reducer_name = "mean"
+┌ Info: Adding scalar output of all active cells with reducer function.
+│   fileformat = "CSV"
+│   param = "vertical.actevap"
+└   reducer_name = "mean"
+┌ Info: Adding scalar output of all active cells with reducer function.
+│   fileformat = "CSV"
+│   param = "vertical.recharge"
+└   reducer_name = "mean"
+┌ Info: Adding scalar output of all active cells with reducer function.
+│   fileformat = "CSV"
+│   param = "vertical.precipitation"
+└   reducer_name = "mean"
+┌ Info: Adding scalar output of all active cells with reducer function.
+│   fileformat = "CSV"
+│   param = "lateral.land.q_av"
+└   reducer_name = "mean"
+┌ Info: Adding scalar output of all active cells with reducer function.
+│   fileformat = "CSV"
+│   param = "vertical.actevap"
+└   reducer_name = "mean"
+┌ Info: Adding scalar output of all active cells with reducer function.
+│   fileformat = "CSV"
+│   param = "vertical.recharge"
+└   reducer_name = "mean"
+[ Info: Set initial conditions from default values.
+[ Info: Initialized model
+┌ Warning: The definition of `starttime` has changed (equal to model state time).
+│  Please update your settings TOML file by subtracting one model timestep dt from the `starttime`, if it was used with a Wflow version up to v0.6.3.
+└ @ Wflow C:\Users\ohanrah\.julia\packages\Wflow\UKSXZ\src\Wflow.jl:222
+┌ Info: Run information
+│   model_type = "sbm"
+│   starttime = CFTime.DateTimeProlepticGregorian(1982-01-01T00:00:00)
+│   dt = 86400 seconds
+│   endtime = CFTime.DateTimeProlepticGregorian(2024-12-31T00:00:00)
+└   nthreads() = 4
+[ Info: Simulation duration: 5 minutes, 25 seconds, 738 milliseconds
+[ Info: Write output states to netCDF file `ethiopia\hydrology_model\run_default\outstate\outstates_era5.nc`.
+efault\outstate\outstates_chirps_global.nc`.

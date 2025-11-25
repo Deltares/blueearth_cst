@@ -17,17 +17,17 @@ from typing import Union, Optional, List
 
 # Supported wflow outputs
 WFLOW_VARS = {
-    "overland flow": {
+    "overland_flow_basavg": {
         "resample": "mean",
         "legend": "Overland Flow (m$^3$s$^{-1}$)",
         "legend_annual": "Overland Flow (m$^3$s$^{-1}$)",
     },
-    "actual evapotranspiration": {
+    "actual_evapotranspiration_basavg": {
         "resample": "sum",
         "legend": "Actual Evapotranspiration (mm month$^{-1}$)",
         "legend_annual": "Actual Evapotranspiration (mm year$^{-1}$)",
     },
-    "groundwater recharge": {
+    "groundwater_recharge_basavg": {
         "resample": "sum",
         "legend": "groundwater recharge (mm month$^{-1}$)",
         "legend_annual": "groundwater recharge (mm year$^{-1}$)",
@@ -1133,6 +1133,233 @@ def plot_clim(
     plt.close()
 
 
+def plot_clim_flexible(
+    ds: xr.Dataset,
+    Folder_out: Union[Path, str],
+    station_name: str,
+    period: str,
+    color: dict,
+    fs: int = 8,
+    skip_precip_sources: List[str] = [],
+    skip_temp_pet_sources: List[str] = [],
+):
+    """
+    Flexible plotting function for climate data with any available variables.
+    Creates yearly or monthly climatology plots for all variables in the dataset.
+
+    Parameters
+    ----------
+    ds : xr.Dataset
+        Climate data with any variables at model timestep.
+        Should include a coordinate named "climate_source"
+    Folder_out : Union[Path, str]
+        Output folder to save plots.
+    station_name : str
+        Station name
+    period : str
+        Either "month" or "year" for climatology plots
+    color : dict
+        Color to be used for each climate_source
+    fs : int, optional
+        Font size, by default 8
+    skip_precip_sources : List[str]
+        List of climate sources to skip for precipitation-like variables.
+    skip_temp_pet_sources : List[str]
+        List of climate sources to skip for temperature and potential evaporation-like variables.
+    """
+    if "climate_source" not in ds.coords and "climate_source" not in ds.dims:
+        raise ValueError("Dataset must have 'climate_source' coordinate or dimension")
+    
+    # Get available variables
+    data_vars = list(ds.data_vars)
+    if len(data_vars) == 0:
+        print(f"No data variables found in dataset for {station_name}")
+        return
+    
+    # Determine which variables are cumulative (precip-like) vs mean (temp-like)
+    # Variables that should be summed: precipitation, evapotranspiration, etc.
+    # Variables that should be averaged: temperature, etc.
+    cumulative_vars = []
+    mean_vars = []
+    
+    for var in data_vars:
+        var_lower = var.lower()
+        if any(x in var_lower for x in ["precip", "evap", "pet", "ep", "rain", "snowmelt"]):
+            cumulative_vars.append(var)
+        else:
+            mean_vars.append(var)
+    
+    # Create subplots - one for each variable
+    n_vars = len(data_vars)
+    fig, axes = plt.subplots(
+        n_vars, 1, figsize=(16 / 2.54, 5 * n_vars / 2.54), sharex=True
+    )
+    if n_vars == 1:
+        axes = [axes]
+    
+    # Add suptitle with formatted station name
+    # Clean up the name - remove redundant prefixes and format nicely
+    formatted_name = station_name
+    # Remove "aoi_" prefix if present
+    if formatted_name.lower().startswith("aoi_"):
+        formatted_name = formatted_name[4:]
+    # Replace underscores with spaces and title case
+    formatted_name = formatted_name.replace("_", " ").title()
+    fig.suptitle(formatted_name, fontsize=fs + 4, y=0.995, fontweight='bold')
+    
+    if period == "year":
+        resampleper = "YE"
+    else:
+        resampleper = "ME"
+    
+    # Plot each variable
+    for var_idx, var_name in enumerate(data_vars):
+        ax = axes[var_idx]
+        is_cumulative = var_name in cumulative_vars
+        
+        # Determine if we should skip this source for this variable
+        var_lower = var_name.lower()
+        is_precip_like = any(x in var_lower for x in ["precip", "rain"])
+        is_temp_pet_like = any(x in var_lower for x in ["temp", "pet", "ep", "evap"])
+        
+        for climate_source in ds.climate_source.values:
+            do_plot = True
+            if is_precip_like and climate_source in skip_precip_sources:
+                do_plot = False
+            if is_temp_pet_like and climate_source in skip_temp_pet_sources:
+                do_plot = False
+            
+            if not do_plot:
+                continue
+            
+            if period == "month":
+                # For monthly plots, first resample to monthly, then group by month across all years
+                if is_cumulative:
+                    var_monthly = ds[var_name].resample(time="ME").sum("time").sel(climate_source=climate_source)
+                else:
+                    var_monthly = ds[var_name].resample(time="ME").mean("time").sel(climate_source=climate_source)
+                
+                # Filter out negative values for variables that should be non-negative
+                # (overland flow, precipitation, evapotranspiration, etc.)
+                # Groundwater recharge can be negative (indicating discharge), so keep those
+                var_lower = var_name.lower()
+                if any(x in var_lower for x in ["overland", "precip", "evap", "flow", "discharge", "rain"]):
+                    var_monthly = var_monthly.where(var_monthly >= 0)
+                
+                # Group by month and compute statistics across all years
+                # Ensure all statistics are computed from the same grouped data and properly aligned
+                var_grouped = var_monthly.groupby("time.month")
+                var_mean = var_grouped.mean("time")
+                
+                # Check if we should skip error shading for this variable
+                skip_shading = any(x in var_lower for x in ["groundwater_recharge", "overland"])
+                
+                if not skip_shading:
+                    var_q25 = var_grouped.quantile(0.25, "time")
+                    var_q75 = var_grouped.quantile(0.75, "time")
+                
+                # Ensure all arrays are properly aligned and have the same month indices
+                months = var_mean.month.values
+                var_mean_values = var_mean.values
+                
+                # Plot mean line
+                if skip_shading:
+                    label = f"{climate_source}"
+                else:
+                    label = f"{climate_source} (25%-75%)"
+                
+                p = ax.plot(
+                    months,
+                    var_mean_values,
+                    color=color[climate_source],
+                    label=label,
+                )
+                if color[climate_source] == None:
+                    c = p[0].get_color()
+                else:
+                    c = color[climate_source]
+                
+                # Fill between q25 and q75 only if not skipping shading
+                if not skip_shading:
+                    var_q25_values = var_q25.sel(month=months).values
+                    var_q75_values = var_q75.sel(month=months).values
+                    ax.fill_between(
+                        months,
+                        var_q25_values,
+                        var_q75_values,
+                        color=c,
+                        alpha=0.5,
+                    )
+            else:
+                # For yearly plots, resample to yearly periods
+                if is_cumulative:
+                    var_data = ds[var_name].resample(time="YE").sum("time").sel(climate_source=climate_source)
+                else:
+                    var_data = ds[var_name].resample(time="YE").mean("time").sel(climate_source=climate_source)
+                
+                # Filter out negative values for variables that should be non-negative
+                var_lower = var_name.lower()
+                if any(x in var_lower for x in ["overland", "precip", "evap", "flow", "discharge", "rain"]):
+                    var_data = var_data.where(var_data >= 0)
+                
+                x = var_data.time.dt.year
+                # Only compute trend if we have valid data
+                valid_mask = ~np.isnan(var_data.values)
+                if np.sum(valid_mask) > 1:
+                    z = np.polyfit(x[valid_mask], var_data.values[valid_mask], 1)
+                    p = np.poly1d(z)
+                    r2_score, p_value = rsquared(p(x[valid_mask]), var_data.values[valid_mask])
+                else:
+                    # If insufficient data, skip trend calculation
+                    p = None
+                    r2_score, p_value = 0, 0
+                
+                im = var_data.plot(
+                    ax=ax,
+                    color=color[climate_source],
+                    label=f"{climate_source} ($R^2$ = {round(r2_score, 3)}, p = {round(p_value, 3)})",
+                )
+                if color[climate_source] == None:
+                    if isinstance(im, list):
+                        c = im[0].get_color()
+                    else:
+                        c = im.get_color()
+                else:
+                    c = color[climate_source]
+                
+                # Only plot trend line if we have valid data and trend
+                if p is not None and np.sum(valid_mask) > 1:
+                    ax.plot(
+                        var_data.time[valid_mask],
+                        p(x[valid_mask]),
+                        ls="--",
+                        color=c,
+                        alpha=0.5,
+                    )
+        
+        # Format axis
+        ax.tick_params(axis="both", labelsize=fs)
+        ax.set_xlabel("", fontsize=fs)
+        ax.set_title(var_name.replace("_", " ").title())
+        ax.grid(alpha=0.5)
+        
+        # Set ylabel based on variable type and period
+        if is_cumulative:
+            ylabel = f"{var_name.replace('_', ' ').title()} (mm {period}" + "$^{-1}$)"
+        else:
+            ylabel = f"{var_name.replace('_', ' ').title()} ({period}" + "$^{-1}$)"
+        ax.set_ylabel(ylabel, fontsize=fs)
+        ax.legend(fontsize=fs)
+        
+        if period == "month" and var_idx == len(data_vars) - 1:
+            month_labels = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
+            ax.set_xticks(ticks=np.arange(1, 13), labels=month_labels, fontsize=fs)
+    
+    plt.tight_layout()
+    plt.savefig(os.path.join(Folder_out, f"clim_{station_name}_{period}.png"), dpi=300)
+    plt.close()
+
+
 def plot_basavg(
     ds: xr.DataArray,
     Folder_out: Union[Path, str],
@@ -1163,7 +1390,7 @@ def plot_basavg(
 
     for i in range(n):
         dvar = dvars[i]
-
+        #e.g. "overland_flow_basavg" to "overland flow"
         # only plot annual trend if there are more than 3 years of data
         if nb_years < 3:
             fig, (ax1) = plt.subplots(1, 1, figsize=(11, 4))
@@ -1172,8 +1399,7 @@ def plot_basavg(
             fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(11, 8))
             axes = [ax1, ax2]
         # axes = [axes] if n == 1 else axes
-
-        if WFLOW_VARS[dvar.split("_")[0]]["resample"] == "sum":
+        if WFLOW_VARS[dvar]["resample"] == "sum":
             sum_monthly = ds[dvar].resample(time="ME").sum("time")
             sum_annual = ds[dvar].resample(time="YE").sum("time")
         else:  # assume mean
@@ -1228,10 +1454,10 @@ def plot_basavg(
                         label=f"trend {climate_source} $R^2$ = {round(r2_score, 3)}, p = {round(p_value, 3)}",
                     )
 
-                legend_annual = WFLOW_VARS[dvar.split("_")[0]]["legend_annual"]
+                legend_annual = WFLOW_VARS[dvar]["legend_annual"]
                 ax2.set_ylabel(legend_annual, fontsize=fs)
 
-        legend = WFLOW_VARS[dvar.split("_")[0]]["legend"]
+        legend = WFLOW_VARS[dvar]["legend"]
         ax1.set_ylabel(legend, fontsize=fs)
 
         for ax in axes:

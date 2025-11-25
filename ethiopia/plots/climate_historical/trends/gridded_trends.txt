@@ -1,0 +1,1 @@
+Gridded anomalies plots were made.

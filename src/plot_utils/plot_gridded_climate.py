@@ -72,6 +72,7 @@ def plot_gridded_precip(
     path_output: Union[str, Path],
     gdf_region: Optional[gpd.GeoDataFrame] = None,
     gdf_river: Optional[gpd.GeoDataFrame] = None,
+    plot_bounds: Optional[tuple] = None,
     fs: int = 8,
     colorbar_shrink: float = 0.9,
 ):
@@ -89,6 +90,9 @@ def plot_gridded_precip(
     gdf_river : gpd.GeoDataFrame, optional
         The river network of the project to add to the inset map if provided.
         Optional variable for styling: `strord`.
+    plot_bounds : tuple, optional
+        Custom plot bounds as (minx, miny, maxx, maxy). If provided, this will
+        override the automatic extent calculation from gdf_region.
     fs : int, optional
         Font size for the labels. Default is 8.
     colorbar_shrink : float, optional
@@ -139,7 +143,10 @@ def plot_gridded_precip(
     proj = ccrs.PlateCarree()
     # adjust zoomlevel and figure size to your basis size & aspect
     # zoom_level = 10
-    if gdf_region is not None:
+    if plot_bounds is not None:
+        # Use provided bounds (minx, miny, maxx, maxy) - reorder to [minx, maxx, miny, maxy]
+        extent = np.array(plot_bounds)[[0, 2, 1, 3]]
+    elif gdf_region is not None:
         extent = np.array(gdf_region.buffer(0.02).total_bounds)[[0, 2, 1, 3]]
     else:
         extent = None
@@ -167,6 +174,7 @@ def plot_gridded_precip(
             continue
         k = list(precip_dict.keys())[i]
         v = precip_dict[k]
+        # Set extent BEFORE plotting to prevent auto-scaling
         if extent is not None:
             ax[i].set_extent(extent, crs=proj)
             # add sat background image
@@ -187,6 +195,9 @@ def plot_gridded_precip(
         # add outline basin
         if gdf_region is not None:
             gdf_region.plot(ax=ax[i], facecolor="None")
+        # Ensure extent is set AFTER plotting as well (in case plot overrides it)
+        if extent is not None:
+            ax[i].set_extent(extent, crs=proj)
         # Add title in caps and bold font
         ax[i].set_title(k.upper(), fontsize=fs + 2, fontweight="bold")
         ax[i].xaxis.set_visible(True)

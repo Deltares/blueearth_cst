@@ -10,6 +10,18 @@ import numpy as np
 
 import hydromt
 
+def legend_columns(gdf):
+    if "name" in gdf.columns:
+        return "name"
+    elif "value" in gdf.columns:
+        return "value"
+    elif "layer" in gdf.columns:
+        return "layer"
+    elif "index" in gdf.columns:
+        return "index"
+    else:
+        return None
+
 
 def sample_climate_historical(
     clim_filename: Union[str, Path],
@@ -65,8 +77,8 @@ def sample_climate_historical(
     """
 
     # Small function to set the index of the geodataframe
-    def _update_gdf_index(gdf, prefix="region", legend_column="value"):
-        if legend_column in gdf.columns:
+    def _update_gdf_index(gdf, prefix="region", legend_column=None):
+        if legend_column is not None and legend_column in gdf.columns:
             if gdf[legend_column].dtype == float:
                 gdf[legend_column] = gdf[legend_column].astype(int)
             gdf.index = f"{prefix}_" + gdf[legend_column].astype(str)
@@ -85,15 +97,20 @@ def sample_climate_historical(
 
     # Read subregions
     if subregions_filename is not None:
-        subregions = data_catalog.get_geodataframe(subregions_filename)
-        if "name" in subregions.columns:
-            subregions.index = subregions["name"]
-            subregions.index.name = "index"
+        if isinstance(subregions_filename, list):
+            subregions_dict = {f"{subregion}": data_catalog.get_geodataframe(subregion) for subregion in subregions_filename}
         else:
-            subregions = _update_gdf_index(
-                subregions,
-                prefix="subregion",
-            )
+            subregions_dict = {f"{subregions_filename}": data_catalog.get_geodataframe(subregions_filename)}
+        
+        # Get legend column from first subregion GeoDataFrame
+        first_gdf = list(subregions_dict.values())[0]
+        legend_column = legend_columns(first_gdf)
+        
+        # Update indices for all subregions
+        subregions_dict = {key: _update_gdf_index(gdf, prefix="subregion", legend_column=legend_column) for key, gdf in subregions_dict.items()}
+        
+        # Concatenate all subregions into a single GeoDataFrame
+        subregions = gpd.GeoDataFrame(pd.concat(list(subregions_dict.values()), ignore_index=False))
 
     # Read locations
     if locations_filename is not None:
@@ -154,7 +171,7 @@ def sample_climate_historical(
 
         # Merge region and subregions datasets
         ds_region = xr.merge([ds_region, ds_subregions])
-        # Merge the gdf
+        # Merge the gdf (subregions is already a single GeoDataFrame)
         region_all = gpd.GeoDataFrame(
             pd.concat([region, subregions], ignore_index=False)
         )

@@ -1,0 +1,28 @@
+setup_config:
+  starttime: '1982-01-01T00:00:00'
+  endtime: '2024-12-31T00:00:00'
+  timestepsecs: 86400
+  dir_input: ..
+  input.path_forcing: ../climate_historical/wflow_data/inmaps_historical_era5.nc
+  output.path: output_era5.nc
+  output.compressionlevel: 1
+  csv.path: output_era5.csv
+  state.path_output: outstate/outstates_era5.nc
+setup_precip_forcing:
+  precip_fn: era5
+  precip_clim_fn: NONE
+  chunksize: 365
+setup_temp_pet_forcing:
+  temp_pet_fn: era5
+  press_correction: true
+  temp_correction: true
+  dem_forcing_fn: era5_orography
+  pet_method: debruin
+  skip_pet: false
+  chunksize: 365
+set_root:
+  root: run_default
+  mode: w+
+write_forcing: {}
+write_config:
+  config_name: wflow_sbm_era5.toml

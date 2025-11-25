@@ -63,7 +63,6 @@ if __name__ == "__main__":
         # Get the in and out path of the snake (main) config file
         config_snake = sm.input.config_snake
         config_snake_out = sm.output.config_snake_out
-
         # Derive output dir from the output path of the snake config file
         output_dir = dirname(config_snake_out)
         # Get new file name for the snake config file from config_snake_out
@@ -76,8 +75,9 @@ if __name__ == "__main__":
             # Get the in and out path of the model build config file
             config_build = sm.input.config_build
             config_wb = sm.input.config_waterbodies
+            template_path = sm.input.config_template
             data_sources = sm.params.data_catalogs
-            other_config_files.extend([config_build, config_wb])
+            other_config_files.extend([config_build, config_wb, template_path])
             other_config_files.extend(data_sources)  # data sources is already a list
         elif (
             workflow_name == "climate_projections"

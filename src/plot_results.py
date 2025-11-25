@@ -27,6 +27,7 @@ if __name__ == "__main__" or parent_module.__name__ == "__main__":
         plot_hydro,
         compute_metrics,
         plot_clim,
+        plot_clim_flexible,
         plot_basavg,
     )
     from plot_utils.plot_anomalies import plot_timeseries_anomalies
@@ -42,6 +43,7 @@ else:
         plot_hydro,
         compute_metrics,
         plot_clim,
+        plot_clim_flexible,
         plot_basavg,
     )
     from .plot_utils.plot_anomalies import plot_timeseries_anomalies
@@ -60,6 +62,7 @@ def analyse_wflow_historical(
     data_catalog: Optional[Union[Path, str]] = None,
     observations_fn: Optional[Union[Path, str]] = None,
     gauges_locs: Optional[Union[Path, str]] = None,
+    area_locs: Optional[Union[str, List[str]]] = None,
     wflow_config_fn_prefix: str = "wflow_sbm",
     climate_sources_colors: Optional[List[str]] = None,
     split_year: Optional[int] = None,
@@ -191,13 +194,16 @@ def analyse_wflow_historical(
     qsim = []
     ds_clim = []
     ds_basin = []
+    ds_aois = []
     for climate_source in climate_sources:
         wflow_config_fn = wflow_config_fn_prefix + f"_{climate_source}.toml"
         
-        qsim_source, ds_clim_source, ds_basin_source = get_wflow_results(
+        qsim_source, ds_clim_source, ds_basin_source, ds_aois_source = get_wflow_results(
             wflow_root=wflow_root,
             config_fn=wflow_config_fn,
             gauges_locs=gauges_locs,
+            area_locs=area_locs,
+            data_catalog=data_catalog,
             remove_warmup=False,
         )
         # Add discharge source to dimension
@@ -215,18 +221,28 @@ def analyse_wflow_historical(
             climate_source=(f"{climate_source}")
         ).expand_dims(["climate_source"])
 
+        if ds_aois_source is not None:
+            ds_aois_source = ds_aois_source.assign_coords(
+                climate_source=(f"{climate_source}")
+            ).expand_dims(["climate_source"])
+        else:
+            ds_aois_source = None
         qsim.append(qsim_source)
         ds_clim.append(ds_clim_source)
         ds_basin.append(ds_basin_source)
+        ds_aois.append(ds_aois_source)
 
     qsim = xr.concat(qsim, dim="climate_source")
     ds_clim = xr.concat(ds_clim, dim="climate_source")
     ds_basin = xr.concat(ds_basin, dim="climate_source")
-
+    ds_aois = xr.concat([ds for ds in ds_aois if ds is not None], dim="climate_source") if any(ds is not None for ds in ds_aois) else None
+    
     ### make sure the time period of all climate sources is the same for the subsequent plots.
     qsim = qsim.dropna("time")
     ds_clim = ds_clim.dropna("time")
     ds_basin = ds_basin.dropna("time")
+    if ds_aois is not None:
+        ds_aois = ds_aois.dropna("time")
 
     # If possible, skip the first year of the wflow run (warm-up period) for the basin average dataset
     if len(ds_basin.time) > 365:
@@ -265,6 +281,54 @@ def analyse_wflow_historical(
                 ds_clim_i,
                 Folder_out=plot_dir,
                 station_name=f"wflow_{index}",
+                period="month",
+                color=color,
+                skip_precip_sources=skip_precip_sources,
+                skip_temp_pet_sources=skip_temp_pet_sources,
+            )
+            plt.close()
+
+    ### 4b. Plot AOI climate data ###
+    if ds_aois is not None and len(ds_aois.time) > 366:
+        # Create output folder for AOI plots
+        aoi_plot_dir = os.path.join(plot_dir, "aois")
+        if not os.path.exists(aoi_plot_dir):
+            os.makedirs(aoi_plot_dir)
+        
+        # Plot all available variables in AOI dataset
+        for index in ds_aois.index.values:
+            # Get AOI name if available
+            ds_aoi_i = ds_aois.sel(index=index)
+            aoi_name = ds_aoi_i.get("name", None)
+            if aoi_name is not None:
+                try:
+                    # Use the actual name from the dataset, clean it up
+                    station_name = str(aoi_name.values.item())
+                    # Remove common prefixes and clean up
+                    station_name = station_name.replace("AOI_", "").replace("WB_", "WB ").replace("_", " ")
+                except:
+                    station_name = f"AOI {index}"
+            else:
+                station_name = f"AOI {index}"
+            
+            print(f"Plot AOI climate data for {station_name}")
+            
+            # Plot per year
+            plot_clim_flexible(
+                ds_aoi_i,
+                Folder_out=aoi_plot_dir,
+                station_name=station_name,
+                period="year",
+                color=color,
+                skip_precip_sources=skip_precip_sources,
+                skip_temp_pet_sources=skip_temp_pet_sources,
+            )
+            plt.close()
+            # Plot per month
+            plot_clim_flexible(
+                ds_aoi_i,
+                Folder_out=aoi_plot_dir,
+                station_name=station_name,
                 period="month",
                 color=color,
                 skip_precip_sources=skip_precip_sources,
@@ -437,6 +501,7 @@ if __name__ == "__main__":
             observations_fn=sm.params.observations_file,
             data_catalog=sm.params.data_catalog,
             gauges_locs=sm.params.gauges_output_fid,
+            area_locs=sm.params.area_locs,
             climate_sources=sm.params.climate_sources,
             climate_sources_colors=sm.params.climate_sources_colors,
             add_budyko_plot=sm.params.add_budyko_plot,

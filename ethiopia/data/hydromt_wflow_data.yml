@@ -1,0 +1,136 @@
+meta:
+  root: p:/wflow_global/hydromt_wflow
+  version: v2024.2
+  
+glcnmo:
+  crs: 4326
+  data_type: RasterDataset
+  driver: raster
+  kwargs:
+    chunks:
+      x: 3600
+      y: 3600
+  nodata: -9999
+  path: demand/glcnmo/GLCNMO_v3.vrt
+
+irrigated_areas:
+  crs: 4326
+  data_type: RasterDataset
+  driver: raster
+  kwargs:
+    chunks:
+      x: 3600
+      y: 3600
+  nodata: -9999
+  path: demand/meier/global_irrigated_areas.tif
+  
+ksathorfrac:
+  crs: 4326
+  data_type: RasterDataset
+  driver: zarr
+  driver_kwargs:
+    chunks: 
+      lon: 2400
+      lat: 2400
+  meta:
+    resolution: 250 metres
+  path: catalog/soil/ksathorfrac.zarr
+  
+lisflood_gwfrac:
+  crs: 4326
+  data_type: RasterDataset
+  driver: netcdf
+  driver_kwargs:
+    chunks:
+      lat: 2000
+      lon: 2000
+  meta: 
+    source_url: https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/CEMS-GLOFAS/LISFLOOD_static_and_parameter_maps_for_GloFAS/Water_demand/
+  path: demand/lisflood/fracgwused_Global_03min.nc
+  
+lisflood_gwbodies:
+  crs: 4326
+  data_type: RasterDataset
+  driver: netcdf
+  driver_kwargs:
+    chunks:
+      lat: 2000
+      lon: 2000
+  meta: 
+    source_url: https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/CEMS-GLOFAS/LISFLOOD_static_and_parameter_maps_for_GloFAS/Water_demand/
+  path: demand/lisflood/gwbodies_Global_03min.nc
+  
+lisflood_ncfrac:
+  crs: 4326
+  data_type: RasterDataset
+  driver: netcdf
+  driver_kwargs:
+    chunks:
+      lat: 2000
+      lon: 2000
+  meta: 
+    source_url: https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/CEMS-GLOFAS/LISFLOOD_static_and_parameter_maps_for_GloFAS/Water_demand/
+  path: demand/lisflood/fracncused_Global_03min.nc
+
+lisflood_waterregions:
+  crs: 4326
+  nodata: -9999
+  data_type: RasterDataset
+  driver: netcdf
+  driver_kwargs:
+    chunks:
+      lat: 2000
+      lon: 2000
+  meta: 
+    source_url: https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/CEMS-GLOFAS/LISFLOOD_static_and_parameter_maps_for_GloFAS/Water_demand/
+  path: demand/lisflood/waterregion_calpoints_regionalizedcatchments_GloFASv40.nc
+  
+mirca_crop_info:
+  data_type: DataFrame
+  driver: csv
+  kwargs:
+    index_col: 0
+  meta:
+    category: landuse
+  path: demand/mirca/crop_stages.csv
+  unit_mult:
+    rootingdepth_irrigated: 1000
+    rootingdepth_rainfed: 1000
+
+mirca_irrigated_data:
+  crs: 4326
+  data_type: RasterDataset
+  driver: netcdf
+  kwargs:
+    chunks:
+      x: 3600
+      y: 3600
+  path: demand/mirca/V3_crop_factor_irrigated_rice-excluded.nc
+  unit_mult:
+    rootingdepth: 1000
+
+mirca_rainfed_data:
+  crs: 4326
+  data_type: RasterDataset
+  driver: netcdf
+  kwargs:
+    chunks:
+      x: 3600
+      y: 3600
+  path: demand/mirca/V3_crop_factor_rainfed_rice-excluded.nc
+  unit_mult:
+    rootingdepth: 1000
+
+surfacewaterfrac_global:
+  crs: 4326
+  data_type: RasterDataset
+  driver: netcdf
+  kwargs:
+    chunks:
+      latitude: 3600
+      longitude: 3600
+  meta:
+    processing_script: setup_global_surfwfrac.py
+    source_author: Deltares
+  path: demand/deltares/surfacewaterfrac.nc
+    

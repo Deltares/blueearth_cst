@@ -146,3 +146,7 @@ pixi.lock
 
 #CST 
 all_toml_files.txt
+
+*.nc
+
+*output*

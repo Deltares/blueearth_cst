@@ -1,0 +1,11 @@
+{
+"type": "FeatureCollection",
+"name": "gauges_POIS",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{ "type": "Feature", "properties": { "wflow_id": 21, "name": "Omo_At_Kangaten", "x": 36.091077985892056, "y": 5.1784054186168582 }, "geometry": { "type": "Point", "coordinates": [ 36.066667, 5.133333 ] } },
+{ "type": "Feature", "properties": { "wflow_id": 22, "name": "Kibish_At_Turkana", "x": 35.838567709772818, "y": 5.27226129831954 }, "geometry": { "type": "Point", "coordinates": [ 35.866667, 5.233333 ] } },
+{ "type": "Feature", "properties": { "wflow_id": 23, "name": "Omo_At_Chare", "x": 35.96171916035847, "y": 5.3423632131273946 }, "geometry": { "type": "Point", "coordinates": [ 35.966667, 5.333333 ] } },
+{ "type": "Feature", "properties": { "wflow_id": 24, "name": "Kibish_at_Naruomoe", "x": 35.618950743441289, "y": 5.3902288000836505 }, "geometry": { "type": "Point", "coordinates": [ 35.666667, 5.433333 ] } }
+]
+}

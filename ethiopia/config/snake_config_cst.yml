@@ -5,11 +5,14 @@
 # Path to where the wflow model will be stored (include the project name)
 project_dir: ethiopia
 config_path: ethiopia/config/snake_config_cst.yml
+template_fn: wflow_sbm.toml
 
 
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
 data_sources: 
   - "data/deltares_data.yml"
+  - "data/project_data.yml"
+  - "data/hydromt_wflow_data.yml"
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
 #data_sources_climate: config/deltares_data_climate_projections.yml
 data_sources_climate: config/cmip6_data.yml
@@ -21,10 +24,9 @@ endtime: "2024-12-31T00:00:00"
 
 # List of wflow output variables to save
 wflow_outvars: ['river discharge', 'precipitation', 'overland flow', 'actual evapotranspiration', 'groundwater recharge']
-wflow_outvars_gridded: ['groundwater recharge', 'actual evapotranspiration', 'overland flow']
+wflow_outvars_gridded: ['groundwater recharge', 'actual evapotranspiration', 'overland flow', 'precipitation']
 ###########################################################################################
 #################################### Model building #######################################
-
 # hydromt "region" for building the model, coordinates are in EPSG 4326
 # for more info on how to fill this, see the hydromt documentation: 
 # https://deltares.github.io/hydromt/latest/user_guide/cli.html#region-options
@@ -32,7 +34,7 @@ wflow_outvars_gridded: ['groundwater recharge', 'actual evapotranspiration', 'ov
 model_region: "{'subbasin': [[35.83458, 35.88792, 36.07875, 35.78958], [4.93208, 4.98375, 4.98958, 5.05292]], 'bounds':[34.2350, 4.3908, 39.8342, 10.1], 'uparea': 30}"
 
 # Grid resolution of the model in degrees
-model_resolution: 0.0166666
+model_resolution: 0.1
 # Path to model build configuration
 model_build_config: "wflow_build_model.yml"
 waterbodies_config: "wflow_update_waterbodies.yml"
@@ -41,20 +43,21 @@ waterbodies_config: "wflow_update_waterbodies.yml"
 forcing_options:
   era5: # clim/precip source name
     precip_fn: era5 # data source for precipitation
-    color: blue
+    color: '#2ca02c'
     temp_pet_fn: era5
     pet_method: debruin
     press_correction: True
   chirps_global: # clim/precip source name
     precip_fn: chirps_global # data source for precipitation
-    color: blue
+    color: '#ff7f0e'
     temp_pet_fn: era5
     pet_method: debruin
     press_correction: True
 
 # If available, please put here the path to the available observation stations locations files
 # csv file containing four columns: station_ID, name, x, y
-output_locations: None # If set to None, will default to the wflow outlets
+output_point_locations: POIS # If set to None, will default to the wflow outlets
+output_area_locations: [WBS,AOIS] # If set to None, will default to the wflow outlets
 # Path to the file with observed discharge timeseries per station 
 observations_timeseries: None
 #### -- NEW -- ####
@@ -85,18 +88,21 @@ clim_historical:
   - chirps_global
 
 clim_historical_colors:
-  - blue
-  - green
+  - '#2ca02c'
+  - '#ff7f0e'
 
 # Buffer in km to apply to the region for the climate analysis
-region_buffer: 25
+region_buffer: 15
 # Hydrography dataset to use to derive region from (sub)basin
 hydrography_fn: merit_hydro_ihu
+# River geometry dataset to add to plots
+river_geom_fn: river_geom
 # Additional sub-basins or sub-regions to include in the analysis
-#climate_subregions: p:/11210673-fao/13 Models/Bhutan/hydrology_model/staticgeoms/subcatch_discharge-stations-large.shp
+climate_subregions: [AOIS, WBS]
+bounds_to_subregions: True
 # If available, please here put the path to the available climate observation stations locations files
 # csv file containing three columns: station_ID, name, x, y
-climate_locations: None
+climate_locations: snapped_POIS
 # Path to the file with observed discharge timeseries per station 
 climate_locations_timeseries: None
 # Thresholds for the climate analysis
@@ -122,6 +128,35 @@ historical_climate_plots:
     fontsize: 8
 
 config_model_historical: "run_default/wflow_sbm_era5.toml"
+###########################################################################################
+################################## Climate projections ####################################
+# climate models and scenarios
+clim_project: cmip6
+# Available models: ['NOAA-GFDL_GFDL-ESM4', 'INM_INM-CM4-8' ,'INM_INM-CM5-0','NIMS-KMA_KACE-1-0-G','NCC_NorESM2-MM','NCC_NorESM2-LM','CMCC_CMCC-CM2-SR5','CMCC_CMCC-ESM2']
+models: ['NOAA-GFDL_GFDL-ESM4', 'INM_INM-CM5-0']
+# Available scenarios: [ssp126, ssp245, ssp370, ssp585]
+scenarios: [ssp370]
+members: [r1i1p1f1]
+
+# Climate projections for the following variables
+variables: [precip, temp]
+
+# Method to compute PET if not available in the climate data - None to use pet in the climate data
+# Available methods: 'None', 'makkink' 'debruin', 'penman-monteith_rh_simple', 'penman-monteith_tdew'
+# Required variables are: 'temp' [°C], 'press_msl' [hPa], 'kin'[W/m2] for makkink
+# 'temp' [°C], 'press_msl' [hPa], 'kin' [W/m2], 'kout' [W/m2] for debruin
+pet_method: makkink
+
+# time horizons of the climate projections
+start_month_hyd_year: JAN
+historical: 2000, 2010
+future_horizons: 
+  near: 2050, 2060
+  far: 2090, 2100
+
+# Additional gridded outputs (else only basin average)
+save_grids: true
+
 ###########################################################################################
 ################################## Climate Experiment #####################################
 # Name of the experiment
@@ -186,32 +221,5 @@ aggregate_rlz: TRUE
 #     split_plot_per_scenario: FALSE # do one plot per SSP or combine all SSP in one plot
 
 
-###########################################################################################
-################################## Climate projections ####################################
-# climate models and scenarios
-clim_project: cmip6
-# Available models: ['NOAA-GFDL_GFDL-ESM4', 'INM_INM-CM4-8' ,'INM_INM-CM5-0','NIMS-KMA_KACE-1-0-G','NCC_NorESM2-MM','NCC_NorESM2-LM','CMCC_CMCC-CM2-SR5','CMCC_CMCC-ESM2']
-models: ['NOAA-GFDL_GFDL-ESM4', 'INM_INM-CM5-0', 'CSIRO-ARCCSS_ACCESS-CM2']
-# Available scenarios: [ssp126, ssp245, ssp370, ssp585]
-scenarios: [ssp245, ssp585]
-members: [r1i1p1f1]
 
-# Climate projections for the following variables
-variables: [precip, temp]
-
-# Method to compute PET if not available in the climate data - None to use pet in the climate data
-# Available methods: 'None', 'makkink' 'debruin', 'penman-monteith_rh_simple', 'penman-monteith_tdew'
-# Required variables are: 'temp' [°C], 'press_msl' [hPa], 'kin'[W/m2] for makkink
-# 'temp' [°C], 'press_msl' [hPa], 'kin' [W/m2], 'kout' [W/m2] for debruin
-pet_method: makkink
-
-# time horizons of the climate projections
-start_month_hyd_year: JAN
-historical: 2000, 2010
-future_horizons: 
-  near: 2050, 2060
-  far: 2090, 2100
-
-# Additional gridded outputs (else only basin average)
-save_grids: FALSE
 

@@ -1,0 +1,21 @@
+meta:
+  root: C:\git\cuhemo_cst\data
+  version: v2024.2
+  
+WBS:
+  crs: 4326
+  data_type: GeoDataFrame
+  driver: vector
+  path: C:\git\cuhemo_cst\data\AOIS\WBS.geojson
+
+AOIS:
+  crs: 4326
+  data_type: GeoDataFrame
+  driver: vector
+  path: C:\git\cuhemo_cst\data\AOIS\merged_aois.geojson
+
+POIS: #points of interest for river monitoring
+  crs: 4326
+  data_type: GeoDataFrame
+  driver: vector
+  path: C:\git\cuhemo_cst\data\POIS\river_POIS.geojson

@@ -6,6 +6,7 @@ config_path = get_config(config, "config_path", optional=False) #When running th
 config_dir = Path(config_path).parent
 project_dir = get_config(config, 'project_dir', optional=False)
 basin_dir = f"{project_dir}/hydrology_model"
+template_fn = get_config(config, 'template_fn', optional=False)
 model_region = get_config(config, 'model_region', optional=False)
 model_resolution = get_config(config, 'model_resolution', default=0.00833333)
 model_build_config = get_config(config, 'model_build_config', default='config/cst_api/wflow_build_model.yml')
@@ -14,7 +15,8 @@ climate_sources = list(get_config(config, "forcing_options", optional=False).key
 DATA_SOURCES = get_config(config, "data_sources", optional=False)
 DATA_SOURCES = np.atleast_1d(DATA_SOURCES).tolist() #make sure DATA_SOURCES is a list format (even if only one DATA_SOURCE)
 DATA_SOURCES = [f"{project_dir}/{cat}" for cat in DATA_SOURCES]
-output_locations = get_config(config, "output_locations", default=None)
+output_point_locations = get_config(config, "output_point_locations", default=None)
+output_area_locations = get_config(config, "output_area_locations", default=None)
 observations_timeseries = get_config(config, "observations_timeseries", default=None)
 
 wflow_outvars = get_config(config, "wflow_outvars", default=['river discharge'])
@@ -53,6 +55,7 @@ rule all:
         f"{project_dir}/plots/wflow_model_performance/basin_area.png",
         expand((project_dir + "/plots/wflow_model_performance/{climate_source}/precip.png"), climate_source = climate_sources),
         f"{basin_dir}/wflow_build_model.yml",
+        f"{basin_dir}/{template_fn}",
         f"{project_dir}/plots/wflow_model_performance/gridded_output.txt",
 
 # Rule to copy config files to the project_dir/config folder
@@ -60,12 +63,14 @@ rule copy_config:
     input:
         config_build = ancient(config_path),
         config_waterbodies = ancient(f"{config_dir}/{waterbodies_config}"),
+        config_template = ancient(f"{config_dir}/{template_fn}"),
         config_snake = ancient(f"{config_dir}/{model_build_config}"),
     params:
         data_catalogs = DATA_SOURCES,
         workflow_name = "model_creation",
     output:
         config_snake_out = f"{basin_dir}/wflow_build_model.yml",
+        config_template_out = f"{basin_dir}/{template_fn}",
     localrule: True
     script:
         "../src/copy_config_files.py"
@@ -87,7 +92,7 @@ rule create_model:
 # Can be moved back to create_model rule when hydromt is updated
 rule add_reservoirs_lakes_glaciers:
     input:
-        basin_nc = ancient(f"{basin_dir}/staticmaps.nc"), #should be ancient as it is regularly updated
+        basin_nc = f"{basin_dir}/staticmaps.nc", #should be ancient as it is regularly updated
         model_created = f"{basin_dir}/model.created" #let this timestamp control the rule
     output:
         text_out = f"{basin_dir}/staticgeoms/reservoirs_lakes_glaciers.txt",
@@ -102,14 +107,15 @@ rule add_reservoirs_lakes_glaciers:
 # Rule to add gauges to the built model
 rule add_gauges_and_outputs:
     input:
-        basin_nc = ancient(f"{basin_dir}/staticmaps.nc"),
+        basin_nc = f"{basin_dir}/staticmaps.nc",
         text = f"{basin_dir}/staticgeoms/reservoirs_lakes_glaciers.txt",
         waterbodies_added = f"{basin_dir}/waterbodies.added"
     output:
         gauges_fid = f"{basin_dir}/staticgeoms/gauges.geojson",
         gauges_added = touch(f"{basin_dir}/gauges.added")
     params:
-        output_locs = f"{project_dir}/{output_locations}" if output_locations is not None else None,
+        output_point_locations = output_point_locations if output_point_locations is not None else None,
+        output_area_locations = output_area_locations if output_area_locations is not None else None,
         outputs = wflow_outvars,
         outputs_gridded = get_config(config, "wflow_outvars_gridded", default=None),
         data_catalog = DATA_SOURCES,
@@ -136,7 +142,7 @@ rule setup_runtime:
 # Rule to update the model for each additional forcing dataset 
 rule add_forcing:
     input:
-        forcing_ini = ancient(f"{basin_dir}"+"/wflow_build_forcing_historical_{climate_source}.yml")
+        forcing_ini = f"{basin_dir}"+"/wflow_build_forcing_historical_{climate_source}.yml"
     output:
         forcing_fid = (project_dir + "/climate_historical/wflow_data/inmaps_historical_{climate_source}.nc")
     params:
@@ -182,8 +188,9 @@ rule plot_results:
        output_txt = f"{project_dir}/plots/wflow_model_performance/plot_results.txt",
    params:
        project_dir = f"{project_dir}",
-       observations_file = f"{project_dir}/{observations_timeseries}",
-       gauges_output_fid = f"{project_dir}/{output_locations}",
+       observations_file = f"{project_dir}/{observations_timeseries}" if observations_timeseries is not None else None,
+       gauges_output_fid = output_point_locations if output_point_locations is not None else None,
+       area_locs = output_area_locations if output_area_locations is not None else None,
        data_catalog = DATA_SOURCES,
        climate_sources = climate_sources,
        climate_sources_colors = get_climate_sources_colors(config, climate_sources),
@@ -203,7 +210,7 @@ rule plot_map:
         output_map_png = f"{project_dir}/plots/wflow_model_performance/basin_area.png",
     params:
         project_dir = f"{project_dir}",
-        output_locations = output_locations,
+        output_locations = output_point_locations if output_point_locations is not None else None,
         output_locations_legend = get_config(config, "historical_hydrology_plots.basin_map.output_locations_legend", default="output locations"),
         data_catalog = DATA_SOURCES,
         meteo_locations = get_config(config, "climate_locations", default=None),
@@ -221,7 +228,7 @@ rule plot_forcing:
         output_forcing_map = (project_dir + "/plots/wflow_model_performance/{climate_source}/precip.png"),
     params:
         project_dir = f"{project_dir}",
-        gauges_fid = output_locations,
+        gauges_fid = output_point_locations if output_point_locations is not None else None,
         config_fn=("wflow_sbm_{climate_source}.toml"),
         climate_source="{climate_source}",
     localrule: True

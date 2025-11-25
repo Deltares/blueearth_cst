@@ -139,11 +139,14 @@ def plot_scalar_climate_statistics(
         # Loop over the index of geods
         for st in geods.index.values:
             print(f"Plotting precipitation for {st}")
-            prec_st = geods.precip.sel(index=[st])
+            # Select the full dataset subset to preserve geometry information
+            geods_st = geods.sel(index=[st])
+            prec_st = geods_st["precip"]
 
             # Plot the precipitation per location
             plot_precipitation_per_location(
                 geoda=prec_st,
+                geods_parent=geods_st,
                 path_output=path_output,
                 colors=colors,
                 peak_threshold=precip_peak_threshold,
@@ -171,11 +174,14 @@ def plot_scalar_climate_statistics(
         # Loop over the index of geods
         for st in geods.index.values:
             print(f"Plotting temperature for {st}")
-            temp_st = geods.temp.sel(index=[st])
+            # Select the full dataset subset to preserve geometry information
+            geods_st = geods.sel(index=[st])
+            temp_st = geods_st["temp"]
 
             # Plot the temperature per location
             plot_temperature_per_location(
                 geoda=temp_st,
+                geods_parent=geods_st,
                 path_output=path_output,
                 colors=colors,
                 heat_threshold=heat_threshold,
@@ -196,14 +202,24 @@ def plot_precipitation_per_location(
     add_map: bool = True,
     max_nan_year: int = 60,
     max_nan_month: int = 5,
+    geods_parent: Optional[xr.Dataset] = None,
 ):
     """Plot the precipitation per location."""
     # Get index value of geoda
     st = geoda["index"].values[0]
     # Remove source for which there is no data
     geoda = geoda.dropna(dim="source", how="all")
-    # Get the geoda geometry now before reducing st and loading
-    gdf = geoda.vector.geometry
+    
+    # Check if there's any data left after dropping NaN sources
+    if len(geoda.source) == 0 or len(geoda.index) == 0:
+        print(f"Warning: No precipitation data available for {st} after filtering. Skipping plot.")
+        return
+    
+    # Get the geometry from parent Dataset if available, otherwise from DataArray
+    if geods_parent is not None:
+        gdf = geods_parent.vector.geometry
+    else:
+        gdf = geoda.vector.geometry
     geoda = geoda.sel(index=st).load()
 
     # Remove the years with missing data
@@ -522,14 +538,24 @@ def plot_temperature_per_location(
     heat_threshold: float = 25,
     gdf_region: Optional[gpd.GeoDataFrame] = None,
     add_map: bool = True,
+    geods_parent: Optional[xr.Dataset] = None,
 ):
     """Plot the temperature per location."""
     # Get index value of geoda
     st = geoda["index"].values[0]
     # Remove source for which there is no data
     geoda = geoda.dropna(dim="source", how="all")
-    # Get the geoda geometry now before reducing st and loading
-    gdf = geoda.vector.geometry
+    
+    # Check if there's any data left after dropping NaN sources
+    if len(geoda.source) == 0 or len(geoda.index) == 0:
+        print(f"Warning: No temperature data available for {st} after filtering. Skipping plot.")
+        return
+    
+    # Get the geometry from parent Dataset if available, otherwise from DataArray
+    if geods_parent is not None:
+        gdf = geods_parent.vector.geometry
+    else:
+        gdf = geoda.vector.geometry
     geoda = geoda.sel(index=st).load()
 
     # Start the subplots for temperature

@@ -96,6 +96,7 @@ def plot_gridded_anomalies(
     clim_dict: Dict[str, xr.DataArray],
     path_output: Union[str, Path],
     gdf_region: Optional[gpd.GeoDataFrame] = None,
+    plot_bounds: Optional[tuple] = None,
     year_per_line: int = 5,
     fs: float = 6,
 ):
@@ -113,6 +114,9 @@ def plot_gridded_anomalies(
         Path to the output directory where the plots are stored.
     gdf_region : gpd.GeoDataFrame, optional
         The total region of the project to add to the inset map if provided.
+    plot_bounds : tuple, optional
+        Custom plot bounds as (minx, miny, maxx, maxy). If provided, this will
+        override the automatic extent calculation from gdf_region.
     year_per_line : int, optional
         Number of years to plot per line. Default is 5.
     fs : int, optional
@@ -143,7 +147,11 @@ def plot_gridded_anomalies(
 
     # Proj, extent
     proj = ccrs.PlateCarree()
-    if gdf_region is not None:
+    if plot_bounds is not None:
+        # Use provided bounds (minx, miny, maxx, maxy) - reorder to [minx, maxx, miny, maxy]
+        extent = np.array(plot_bounds)[[0, 2, 1, 3]]
+    elif gdf_region is not None:
+        # Add small buffer in degrees
         extent = np.array(gdf_region.buffer(0.01).total_bounds)[[0, 2, 1, 3]]
     else:
         extent = None
@@ -175,6 +183,9 @@ def plot_gridded_anomalies(
             ax[i].axis("off")
             if i >= nb_years:
                 continue
+            # Set extent BEFORE plotting to prevent auto-scaling
+            if extent is not None:
+                ax[i].set_extent(extent, crs=proj)
             im = da_yr_anom.isel(year=i).plot(
                 ax=ax[i],
                 cmap="bwr" if da_yr_anom.name == "temp" else "bwr_r",
@@ -189,7 +200,9 @@ def plot_gridded_anomalies(
                 fontsize=fs + 1,
                 fontweight="bold",
             )
-            ax[i].set_extent(extent, crs=proj)
+            # Ensure extent is set AFTER plotting as well (in case plot overrides it)
+            if extent is not None:
+                ax[i].set_extent(extent, crs=proj)
             # Add title in caps and bold font
             ax[i].xaxis.set_visible(True)
             ax[i].yaxis.set_visible(True)

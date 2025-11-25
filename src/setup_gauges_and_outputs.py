@@ -23,7 +23,8 @@ WFLOW_VARS = {
 def update_wflow_gauges_outputs(
     wflow_root: Union[str, Path],
     data_catalog: Union[str, Path] = "deltares_data",
-    gauges_fn: Union[str, Path, None] = None,
+    output_point_locations: str = None,
+    output_area_locations: Union[str, List[str]] = None,
     outputs: List[str] = ["river discharge"],
     outputs_gridded: Optional[List[str]] = None,
 ):
@@ -66,11 +67,10 @@ def update_wflow_gauges_outputs(
     )
 
     # Add gauges
-    if gauges_fn is not None:
-        print("GAUGES FN: ", gauges_fn)
+    if output_point_locations is not None:
         
         mod.setup_gauges(
-            gauges_fn=gauges_fn,
+            gauges_fn=output_point_locations, #was gauges_fn
             index_col="wflow_id",
             snap_to_river=True,
             derive_subcatch=True,
@@ -78,6 +78,23 @@ def update_wflow_gauges_outputs(
             gauge_toml_header=["Q", "P"],
             gauge_toml_param=["lateral.river.q_av", "vertical.precipitation"],
         )
+    
+    if output_area_locations is not None:
+        oal = output_area_locations
+        if isinstance(oal, str):
+            oal = [oal]
+        for oal_fn in oal:
+            mod.setup_areamap(
+                area_fn=oal_fn,
+                col2raster=oal_fn, #just name the unique int column the same as the entry in the datacatalog
+            )
+            mod.setup_config_output_timeseries(
+                mapname=oal_fn,
+                toml_output="csv",
+                header=[f"{var.replace(' ', '_')}_area_avg" for var in outputs],
+                param=[WFLOW_VARS[var] for var in outputs],
+                reducer=["mean"]*len(outputs),
+            )
     
     # Add additional outputs to the config
     # For now assumes basin-average timeseries apart for river.q_av which is saved
@@ -98,7 +115,7 @@ def update_wflow_gauges_outputs(
         if var in WFLOW_VARS:
             mod.config["csv"]["column"].append(
                 {
-                    "header": f"{var}_basavg",
+                    "header": f"{var.replace(' ', '_')}_basavg",
                     "reducer": "mean",
                     "parameter": WFLOW_VARS[var],
                 }
@@ -120,7 +137,8 @@ if __name__ == "__main__":
         update_wflow_gauges_outputs(
             wflow_root=os.path.dirname(sm.input.basin_nc),
             data_catalog=sm.params.data_catalog,
-            gauges_fn=sm.params.output_locs,
+            output_point_locations=sm.params.output_point_locations, #was gauges_fn
+            output_area_locations=sm.params.output_area_locations,
             outputs=sm.params.outputs,
             outputs_gridded=sm.params.outputs_gridded,
         )
