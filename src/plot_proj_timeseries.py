@@ -451,12 +451,17 @@ def plot_climate_projections(
             bbox=[xmin, ymin, xmax, ymax], res=0.25, align=True
         )
 
-        # Loop over rcp and horizon
-        ds_rcp_hz = []
+        # Process all files and organize by scenario/horizon/model for proper concatenation
+        ds_by_sc_hz = {}  # Nested dict: {scenario: {horizon: [datasets]}}
         for sc in scenarios:
             for hz in horizons:
                 print(f"Preparing change map plots for {sc} and horizon {hz}")
                 fns_rcp_hz = [fn for fn in nc_grid_projections if sc in fn and hz in fn]
+                if sc not in ds_by_sc_hz:
+                    ds_by_sc_hz[sc] = {}
+                if hz not in ds_by_sc_hz[sc]:
+                    ds_by_sc_hz[sc][hz] = []
+                
                 for fn in fns_rcp_hz:
                     ds = xr.open_dataset(fn, lock=False)
                     if len(ds) == 0 or ds is None:
@@ -465,27 +470,89 @@ def plot_climate_projections(
                         if ds.indexes["time"].dtype == "O":
                             ds["time"] = ds.indexes["time"].to_datetimeindex()
                     # Reproject to regular grid
-                    # drop extra dimensions for reprojection
                     ds_reproj = ds.squeeze(drop=True)
                     ds_reproj = ds_reproj.raster.reproject_like(
                         ds_grid, method="nearest"
                     )
-                    # Re-add the extra dims
-                    ds_reproj = ds_reproj.expand_dims(
-                        {
-                            "clim_project": ds["clim_project"].values,
-                            "model": ds["model"].values,
-                            "scenario": ds["scenario"].values,
-                            "horizon": ds["horizon"].values,
-                            "member": ds["member"].values,
-                        }
-                    )
-                    ds_rcp_hz.append(ds_reproj)
+                    # Extract metadata from attributes or use known values from loop/filename
+                    fn_basename = os.path.basename(fn).replace(".nc", "")
+                    parts = fn_basename.split("_")
+                    model_from_fn = "_".join(parts[:len(parts)-2]) if len(parts) >= 3 else parts[0]
+                    
+                    # Get metadata from attributes or use filename/loop values
+                    clim_project_val = ds.attrs.get("clim_project", "unknown")
+                    model_val = ds.attrs.get("model", model_from_fn)
+                    scenario_val = ds.attrs.get("scenario", sc)
+                    horizon_val = ds["horizon"].values[0] if "horizon" in ds.coords else hz
+                    member_val = ds.attrs.get("member", "r1i1p1f1")
+                    
+                    # Assign coordinates and expand dimensions
+                    ds_reproj = ds_reproj.assign_coords({
+                        "clim_project": clim_project_val,
+                        "model": model_val,
+                        "scenario": scenario_val,
+                        "horizon": horizon_val,
+                        "member": member_val,
+                    }).expand_dims(["clim_project", "model", "scenario", "horizon", "member"])
+                    
+                    ds_by_sc_hz[sc][hz].append(ds_reproj)
 
-        # Merge all datasets to find the total min and max values for color scaling
-        ds_rcp_hz = xr.merge(ds_rcp_hz)
-        # Compute the median over the models
-        ds_rcp_hz_med = ds_rcp_hz.median(dim="model").squeeze(drop=True)
+        # Combine datasets: concatenate along model, then horizon, then scenario
+        # This ensures scenario and horizon become proper dimensions
+        if len(ds_by_sc_hz) > 0:
+            # Step 1: Concatenate models for each scenario/horizon combination
+            ds_by_sc_hz_combined = {}
+            for sc in scenarios:
+                ds_by_sc_hz_combined[sc] = {}
+                for hz in horizons:
+                    if sc in ds_by_sc_hz and hz in ds_by_sc_hz[sc] and len(ds_by_sc_hz[sc][hz]) > 0:
+                        # Concatenate models - this creates model dimension
+                        ds_sc_hz = xr.concat(ds_by_sc_hz[sc][hz], dim="model", coords="minimal", combine_attrs="drop")
+                        ds_by_sc_hz_combined[sc][hz] = ds_sc_hz
+            
+            # Step 2: For each scenario, concatenate along horizon dimension
+            ds_by_sc = {}
+            for sc in scenarios:
+                if sc in ds_by_sc_hz_combined and len(ds_by_sc_hz_combined[sc]) > 0:
+                    ds_hz_list = []
+                    for hz in horizons:
+                        if hz in ds_by_sc_hz_combined[sc]:
+                            ds_hz_list.append(ds_by_sc_hz_combined[sc][hz])
+                    if len(ds_hz_list) > 0:
+                        # Concatenate along horizon - this creates horizon dimension
+                        # Need to ensure horizon coordinate exists and can be used as concat dim
+                        ds_sc = xr.concat(ds_hz_list, dim="horizon", coords="minimal", combine_attrs="drop")
+                        ds_by_sc[sc] = ds_sc
+            
+            # Step 3: Concatenate along scenario dimension
+            if len(ds_by_sc) > 0:
+                # Ensure scenario coordinate exists in each dataset before concatenating
+                ds_sc_list = []
+                for sc in scenarios:
+                    if sc in ds_by_sc:
+                        # Make sure scenario is a coordinate (it should be from expand_dims earlier)
+                        if "scenario" not in ds_by_sc[sc].coords:
+                            ds_by_sc[sc] = ds_by_sc[sc].assign_coords(scenario=sc)
+                        ds_sc_list.append(ds_by_sc[sc])
+                
+                # Concatenate along scenario - this creates scenario dimension
+                ds_rcp_hz = xr.concat(ds_sc_list, dim="scenario", coords="minimal", combine_attrs="drop")
+                
+                # Compute the median over the models
+                ds_rcp_hz_med = ds_rcp_hz.median(dim="model", keep_attrs=True)
+                
+                # Verify scenario and horizon are dimensions (they should be now)
+                if "scenario" not in ds_rcp_hz_med.dims:
+                    if "scenario" in ds_rcp_hz_med.coords:
+                        ds_rcp_hz_med = ds_rcp_hz_med.expand_dims("scenario")
+                if "horizon" not in ds_rcp_hz_med.dims:
+                    if "horizon" in ds_rcp_hz_med.coords:
+                        ds_rcp_hz_med = ds_rcp_hz_med.expand_dims("horizon")
+            else:
+                raise ValueError("No valid datasets found for gridded plots")
+        else:
+            raise ValueError("No valid datasets found for gridded plots")
+            
         vmin_m_pr = ds_rcp_hz_med["precip"].min().values
         vmax_m_pr = ds_rcp_hz_med["precip"].max().values
         vmin_m_tas = ds_rcp_hz_med["temp"].min().values

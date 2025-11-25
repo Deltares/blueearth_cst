@@ -356,8 +356,20 @@ def get_df_seaborn(
             df_1 = ds_delta.sel(
                 horizon="near", model=model, scenario=scenario
             ).to_dataframe()
-            df_1["month"] = df_1.index.month
-            df_delta_near = pd.concat([df_delta_near, df_1[["scenario", "month", var]]])
+            # Reset index to avoid duplicate labels - extract time from index or columns
+            df_1 = df_1.reset_index()
+            if "time" in df_1.columns:
+                df_1["month"] = pd.to_datetime(df_1["time"]).dt.month
+            elif isinstance(df_1.index, pd.DatetimeIndex):
+                df_1["month"] = df_1.index.month
+            else:
+                # Try to get month from index if it's a MultiIndex with time
+                time_col = [col for col in df_1.columns if "time" in str(col).lower()]
+                if time_col:
+                    df_1["month"] = pd.to_datetime(df_1[time_col[0]]).dt.month
+                else:
+                    raise ValueError("Could not find time information in dataframe")
+            df_delta_near = pd.concat([df_delta_near, df_1[["scenario", "month", var]]], ignore_index=True)
     # far fut
     df_delta_far = pd.DataFrame()
     for model in ds_delta.model.values:
@@ -365,8 +377,20 @@ def get_df_seaborn(
             df_1 = ds_delta.sel(
                 horizon="far", model=model, scenario=scenario
             ).to_dataframe()
-            df_1["month"] = df_1.index.month
-            df_delta_far = pd.concat([df_delta_far, df_1[["scenario", "month", var]]])
+            # Reset index to avoid duplicate labels - extract time from index or columns
+            df_1 = df_1.reset_index()
+            if "time" in df_1.columns:
+                df_1["month"] = pd.to_datetime(df_1["time"]).dt.month
+            elif isinstance(df_1.index, pd.DatetimeIndex):
+                df_1["month"] = df_1.index.month
+            else:
+                # Try to get month from index if it's a MultiIndex with time
+                time_col = [col for col in df_1.columns if "time" in str(col).lower()]
+                if time_col:
+                    df_1["month"] = pd.to_datetime(df_1[time_col[0]]).dt.month
+                else:
+                    raise ValueError("Could not find time information in dataframe")
+            df_delta_far = pd.concat([df_delta_far, df_1[["scenario", "month", var]]], ignore_index=True)
 
     return df_delta_near, df_delta_far
 

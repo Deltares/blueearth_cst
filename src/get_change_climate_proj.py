@@ -464,10 +464,26 @@ def get_expected_change_grid(
                 "horizon": f"{name_horizon}",
             }
         ).expand_dims(["horizon"])
-        # Reorder dims
-        monthly_change_mean_grid = monthly_change_mean_grid.transpose(
-            ..., "clim_project", "model", "scenario", "horizon", "member"
-        )
+        
+        # Extract metadata from input datasets for attributes
+        clim_project_attr = ds_fut.attrs.get("clim_project", None)
+        if clim_project_attr is None and "clim_project" in ds_fut.coords:
+            clim_project_attr = str(ds_fut["clim_project"].values[0])
+        model_attr = ds_fut.attrs.get("model", name_model)
+        if model_attr == name_model and "model" in ds_fut.coords:
+            model_attr = str(ds_fut["model"].values[0])
+        member_attr = ds_fut.attrs.get("member", "r1i1p1f1")
+        if member_attr == "r1i1p1f1" and "member" in ds_fut.coords:
+            member_attr = str(ds_fut["member"].values[0])
+        
+        # Add metadata as global attributes
+        monthly_change_mean_grid.attrs.update({
+            "clim_project": clim_project_attr if clim_project_attr else "unknown",
+            "model": model_attr,
+            "scenario": name_scenario,
+            "horizon": name_horizon,
+            "member": member_attr,
+        })
 
         # write to netcdf files
         print(f"writing netcdf files monthly_change_grid")

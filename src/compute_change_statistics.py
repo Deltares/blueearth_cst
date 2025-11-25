@@ -153,7 +153,7 @@ def compute_statistics_delta_run(
     # read model results for historical
     root = dirname(wflow_hist_run_config)
     config_fn = basename(wflow_hist_run_config)
-    qsim_hist, ds_clim_hist, ds_basin_hist = get_wflow_results(
+    qsim_hist, ds_clim_hist, ds_basin_hist, ds_aois_hist = get_wflow_results(
         root, config_fn, gauges_locs
     )
 
@@ -174,11 +174,26 @@ def compute_statistics_delta_run(
 
     # Update units for use with xclim and drop unnecessary coords for the clim
     def simplify_ds_clim(ds):
+        if ds is None:
+            return None
         # Units
-        ds["P_subcatchment"].attrs["units"] = "mm/day"
-        ds["T_subcatchment"].attrs["units"] = "degC"
-        # Drop index
-        ds = ds.squeeze("index")
+        if "P_subcatchment" in ds:
+            ds["P_subcatchment"].attrs["units"] = "mm/day"
+        if "T_subcatchment" in ds:
+            ds["T_subcatchment"].attrs["units"] = "degC"
+        # Drop index dimension if it exists and has length 1, otherwise drop it as a coordinate
+        if "index" in ds.dims:
+            if ds.sizes["index"] == 1:
+                ds = ds.squeeze("index", drop=True)
+            else:
+                # If index has multiple values, take mean and preserve units
+                # Store units before mean operation
+                units_dict = {var: ds[var].attrs.get("units") for var in ds.data_vars if "units" in ds[var].attrs}
+                ds = ds.mean("index") if ds.sizes["index"] > 1 else ds.isel(index=0)
+                # Restore units after mean operation
+                for var, units in units_dict.items():
+                    if var in ds.data_vars and units is not None:
+                        ds[var].attrs["units"] = units
         # Drop unnecessary other coordinates
         ds = ds.drop_vars(
             ["value", "geometry", "spatial_ref", "index"], errors="ignore"

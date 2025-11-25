@@ -18,7 +18,7 @@ def get_wflow_results(
     area_locs: Optional[Union[str, List[str]]] = None,
     data_catalog: Optional[Union[Path, str]] = None,
     remove_warmup: bool = True,
-) -> Tuple[xr.Dataset, xr.Dataset, xr.Dataset]:
+) -> Tuple[xr.Dataset, xr.Dataset, xr.Dataset, Optional[xr.Dataset]]:
     """
     Get wflow results as xarray.Dataset from the output csv file.
 
@@ -48,6 +48,8 @@ def get_wflow_results(
         basin average precipitation, temperature and potential evaporation.
     ds_basin: xr.Dataset
         basin average flux and state variables
+    ds_aois: Optional[xr.Dataset]
+        area of interest average variables if area_locs is provided, None otherwise
 
     """
     mod = WflowModel(
@@ -225,7 +227,7 @@ def get_wflow_results_delta(
         horizon = basename(delta_config).split(".")[0].split("_")[-1]
         root = dirname(delta_config)
         config_fn = basename(delta_config)
-        qsim_delta_run, ds_clim_delta_run, ds_basin_delta_run = get_wflow_results(
+        qsim_delta_run, ds_clim_delta_run, ds_basin_delta_run, ds_aois_delta_run = get_wflow_results(
             root, config_fn, gauges_locs, remove_warmup=remove_warmup
         )
         qsim_delta_run = qsim_delta_run.assign_coords(

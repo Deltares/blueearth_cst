@@ -79,10 +79,10 @@ rule select_region:
 # also calculate monthly time series averaged over the grid.
 rule monthly_stats_hist:
     input:
-        region_fid = ancient(f"{project_dir}/region/region.geojson"),
+        region_fid = f"{project_dir}/region/region.geojson",
     output:
-        stats_time_nc_hist = temp(clim_project_dir + "/historical_stats_time_{model}.nc"),
-        stats_grid_nc_hist = temp(clim_project_dir + "/historical_stats_{model}.nc") if save_grids else [],
+        stats_time_nc_hist = (clim_project_dir + "/historical_stats_time_{model}.nc"),
+        stats_grid_nc_hist = (clim_project_dir + "/historical_stats_{model}.nc") if save_grids else [],
     params:
         yml_fid = DATA_SOURCES_CLIMATE,
         project_dir = f"{project_dir}",
@@ -102,12 +102,12 @@ rule monthly_stats_hist:
 # also calculate monthly time series averaged over the grid.
 rule monthly_stats_fut:
     input:
-        region_fid = ancient(f"{project_dir}/region/region.geojson"),
+        region_fid = f"{project_dir}/region/region.geojson",
         stats_time_nc_hist = (clim_project_dir + "/historical_stats_time_{model}.nc"), #make sure starts with previous job
         stats_grid_nc_hist = (clim_project_dir + "/historical_stats_{model}.nc") if save_grids else [],
     output:
-        stats_time_nc = temp(clim_project_dir + "/stats_time-{model}_{scenario}.nc"),
-        stats_grid_nc = temp(clim_project_dir + "/stats-{model}_{scenario}.nc") if save_grids else [],
+        stats_time_nc = (clim_project_dir + "/stats_time-{model}_{scenario}.nc"),
+        stats_grid_nc = (clim_project_dir + "/stats-{model}_{scenario}.nc") if save_grids else [],
     params:
         yml_fid = DATA_SOURCES_CLIMATE,
         project_dir = f"{project_dir}",
@@ -126,12 +126,12 @@ rule monthly_stats_fut:
 # Rule to calculate change stats over the grid
 rule monthly_change:
     input:
-        stats_time_nc_hist = ancient(clim_project_dir + "/historical_stats_time_{model}.nc"),
-        stats_time_nc = ancient(clim_project_dir + "/stats_time-{model}_{scenario}.nc"),
-        stats_grid_nc_hist = ancient(clim_project_dir + "/historical_stats_{model}.nc") if save_grids else [],
-        stats_grid_nc = ancient(clim_project_dir + "/stats-{model}_{scenario}.nc") if save_grids else [],
+        stats_time_nc_hist = (clim_project_dir + "/historical_stats_time_{model}.nc"),
+        stats_time_nc = (clim_project_dir + "/stats_time-{model}_{scenario}.nc"),
+        stats_grid_nc_hist = (clim_project_dir + "/historical_stats_{model}.nc") if save_grids else [],
+        stats_grid_nc = (clim_project_dir + "/stats-{model}_{scenario}.nc") if save_grids else [],
     output:
-        stats_nc_change = temp(clim_project_dir + "/annual_change_scalar_stats-{model}_{scenario}_{horizon}.nc"),
+        stats_nc_change = (clim_project_dir + "/annual_change_scalar_stats-{model}_{scenario}_{horizon}.nc"),
         monthly_change_mean_grid = (clim_project_dir + "/monthly_change_grid/{model}_{scenario}_{horizon}.nc") if save_grids else [],
     params:
         clim_project_dir = f"{clim_project_dir}",
@@ -149,8 +149,8 @@ rule monthly_change:
 #rule to merge results in one netcdf
 rule monthly_change_scalar_merge:
     input:
-        stats_nc_change = ancient(expand((clim_project_dir + "/annual_change_scalar_stats-{model}_{scenario}_{horizon}.nc"), model = models, scenario = scenarios, horizon = future_horizons)),
-    output:
+        stats_nc_change = expand((clim_project_dir + "/annual_change_scalar_stats-{model}_{scenario}_{horizon}.nc"), model = models, scenario = scenarios, horizon = future_horizons),
+    output:     
         stats_change_summary = (clim_project_dir + "/annual_change_scalar_stats_summary.nc"),
         stats_change_summary_csv = (clim_project_dir + "/annual_change_scalar_stats_summary.csv"),
         stats_change_summary_csv_mean = (clim_project_dir + "/annual_change_scalar_stats_summary_mean.csv"),

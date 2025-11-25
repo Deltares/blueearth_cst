@@ -1,0 +1,305 @@
+casename = "wflow_sbm"
+calendar = "proleptic_gregorian"
+starttime = "2000-01-01T00:00:00"
+endtime = "2010-12-31T00:00:00"
+time_units = "days since 1900-01-01 00:00:00"
+timestepsecs = 86400
+dir_input = ".."
+dir_output = ""
+
+[state]
+path_input = "run_default\\outstate\\outstates_era5.nc"
+path_output = "outstate/outstates_NOAA-GFDL_GFDL-ESM4_ssp370_near.nc"
+
+[input]
+path_forcing = "../climate_historical/wflow_data/inmaps_historical_era5.nc"
+path_static = "staticmaps.nc"
+gauges = "wflow_gauges"
+ldd = "wflow_ldd"
+river_location = "wflow_river"
+subcatchment = "wflow_subcatch"
+forcing = [ "vertical.precipitation", "vertical.temperature", "vertical.potential_evaporation",]
+cyclic = [ "vertical.leaf_area_index",]
+gauges_POIS = "wflow_gauges_POIS"
+WBS = "WBS"
+AOIS = "AOIS"
+path_forcing_scale = "..\\climate_projections\\cmip6\\monthly_change_grid\\NOAA-GFDL_GFDL-ESM4_ssp370_near_downscaled.nc"
+
+[model]
+type = "sbm"
+masswasting = true
+snow = true
+reinit = false
+reservoirs = false
+lakes = false
+glacier = false
+kin_wave_iteration = true
+kw_river_tstep = 900
+kw_land_tstep = 3600
+thicknesslayers = [ 100, 300, 800,]
+river_routing = "local-inertial"
+floodplain_1d = true
+land_routing = "kinematic-wave"
+
+[csv]
+path = "output_delta_NOAA-GFDL_GFDL-ESM4_ssp370_near.csv"
+[[csv.column]]
+header = "Q"
+map = "gauges"
+parameter = "lateral.river.q_av"
+
+[[csv.column]]
+header = "P"
+map = "subcatchment"
+parameter = "vertical.precipitation"
+reducer = "mean"
+
+[[csv.column]]
+header = "EP"
+map = "subcatchment"
+parameter = "vertical.potential_evaporation"
+reducer = "mean"
+
+[[csv.column]]
+header = "T"
+map = "subcatchment"
+parameter = "vertical.temperature"
+reducer = "mean"
+
+[[csv.column]]
+header = "Q"
+map = "gauges_POIS"
+parameter = "lateral.river.q_av"
+
+[[csv.column]]
+header = "P"
+map = "gauges_POIS"
+parameter = "vertical.precipitation"
+
+[[csv.column]]
+header = "river_discharge_area_avg"
+map = "WBS"
+parameter = "lateral.river.q_av"
+reducer = "mean"
+
+[[csv.column]]
+header = "precipitation_area_avg"
+map = "WBS"
+parameter = "vertical.precipitation"
+reducer = "mean"
+
+[[csv.column]]
+header = "overland_flow_area_avg"
+map = "WBS"
+parameter = "lateral.land.q_av"
+reducer = "mean"
+
+[[csv.column]]
+header = "actual_evapotranspiration_area_avg"
+map = "WBS"
+parameter = "vertical.actevap"
+reducer = "mean"
+
+[[csv.column]]
+header = "groundwater_recharge_area_avg"
+map = "WBS"
+parameter = "vertical.recharge"
+reducer = "mean"
+
+[[csv.column]]
+header = "river_discharge_area_avg"
+map = "AOIS"
+parameter = "lateral.river.q_av"
+reducer = "mean"
+
+[[csv.column]]
+header = "precipitation_area_avg"
+map = "AOIS"
+parameter = "vertical.precipitation"
+reducer = "mean"
+
+[[csv.column]]
+header = "overland_flow_area_avg"
+map = "AOIS"
+parameter = "lateral.land.q_av"
+reducer = "mean"
+
+[[csv.column]]
+header = "actual_evapotranspiration_area_avg"
+map = "AOIS"
+parameter = "vertical.actevap"
+reducer = "mean"
+
+[[csv.column]]
+header = "groundwater_recharge_area_avg"
+map = "AOIS"
+parameter = "vertical.recharge"
+reducer = "mean"
+
+[[csv.column]]
+header = "precipitation_basavg"
+reducer = "mean"
+parameter = "vertical.precipitation"
+
+[[csv.column]]
+header = "overland_flow_basavg"
+reducer = "mean"
+parameter = "lateral.land.q_av"
+
+[[csv.column]]
+header = "actual_evapotranspiration_basavg"
+reducer = "mean"
+parameter = "vertical.actevap"
+
+[[csv.column]]
+header = "groundwater_recharge_basavg"
+reducer = "mean"
+parameter = "vertical.recharge"
+
+[[csv.column]]
+header = "precipitation_basavg"
+reducer = "mean"
+parameter = "vertical.precipitation"
+
+[[csv.column]]
+header = "overland_flow_basavg"
+reducer = "mean"
+parameter = "lateral.land.q_av"
+
+[[csv.column]]
+header = "actual_evapotranspiration_basavg"
+reducer = "mean"
+parameter = "vertical.actevap"
+
+[[csv.column]]
+header = "groundwater_recharge_basavg"
+reducer = "mean"
+parameter = "vertical.recharge"
+
+[output]
+path = "output_delta_NOAA-GFDL_GFDL-ESM4_ssp370_near.nc"
+compressionlevel = 1
+
+[state.vertical]
+satwaterdepth = "satwaterdepth"
+snow = "snow"
+tsoil = "tsoil"
+ustorelayerdepth = "ustorelayerdepth"
+snowwater = "snowwater"
+canopystorage = "canopystorage"
+
+[input.vertical]
+altitude = "wflow_dem"
+c = "c"
+cf_soil = "cf_soil"
+cfmax = "Cfmax"
+e_r = "EoverR"
+infiltcappath = "InfiltCapPath"
+infiltcapsoil = "InfiltCapSoil"
+kext = "Kext"
+kv_0 = "KsatVer"
+leaf_area_index = "LAI"
+m = "M_"
+pathfrac = "PathFrac"
+potential_evaporation = "pet"
+precipitation = "precip"
+rootdistpar = "rootdistpar"
+specific_leaf = "Sl"
+storage_wood = "Swood"
+temperature = "temp"
+tt = "TT"
+tti = "TTI"
+ttm = "TTM"
+water_holding_capacity = "WHC"
+waterfrac = "WaterFrac"
+theta_r = "thetaR"
+theta_s = "thetaS"
+kc = "kc"
+alpha_h1 = "alpha_h1"
+h1 = "h1"
+h2 = "h2"
+h3_high = "h3_high"
+h3_low = "h3_low"
+h4 = "h4"
+
+[output.vertical]
+recharge = "groundwater recharge"
+actevap = "actual evapotranspiration"
+precipitation = "precipitation"
+
+[state.lateral.river]
+q = "q_river"
+h = "h_river"
+h_av = "h_av_river"
+
+[state.lateral.subsurface]
+ssf = "ssf"
+
+[state.lateral.land]
+q = "q_land"
+h = "h_land"
+h_av = "h_av_land"
+
+[input.vertical.f]
+scale = 1
+
+[input.vertical.maxleakage]
+scale = 1
+offset = 0.3
+
+[input.vertical.rootingdepth]
+scale = 1.5
+offset = 0
+
+[input.vertical.soilminthickness]
+scale = 1
+offset = 0
+
+[input.vertical.soilthickness]
+scale = 1
+
+[input.lateral.river]
+length = "wflow_riverlength"
+n = "N_River"
+slope = "RiverSlope"
+width = "wflow_riverwidth"
+bankfull_depth = "RiverDepth"
+bankfull_elevation = "hydrodem_subgrid"
+
+[input.lateral.land]
+n = "N"
+slope = "Slope"
+
+[output.lateral.land]
+q_av = "overland flow"
+
+[state.lateral.river.floodplain]
+q = "q_floodplain"
+h = "h_floodplain"
+
+[input.lateral.subsurface.ksathorfrac]
+scale = 2
+
+[input.vertical.f.netcdf.variable]
+name = "f_"
+
+[input.vertical.maxleakage.netcdf.variable]
+name = "MaxLeakage"
+
+[input.vertical.rootingdepth.netcdf.variable]
+name = "RootingDepth"
+
+[input.vertical.soilminthickness.netcdf.variable]
+name = "SoilMinThickness"
+
+[input.vertical.soilthickness.netcdf.variable]
+name = "SoilThickness"
+
+[input.lateral.river.floodplain.volume]
+scale = 2
+
+[input.lateral.subsurface.ksathorfrac.netcdf.variable]
+name = "ksathorfrac_BRT_250"
+
+[input.lateral.river.floodplain.volume.netcdf.variable]
+name = "floodplain_volume"

@@ -34,7 +34,7 @@ wflow_outvars_gridded: ['groundwater recharge', 'actual evapotranspiration', 'ov
 model_region: "{'subbasin': [[35.83458, 35.88792, 36.07875, 35.78958], [4.93208, 4.98375, 4.98958, 5.05292]], 'bounds':[34.2350, 4.3908, 39.8342, 10.1], 'uparea': 30}"
 
 # Grid resolution of the model in degrees
-model_resolution: 0.1
+model_resolution: 0.0833333
 # Path to model build configuration
 model_build_config: "wflow_build_model.yml"
 waterbodies_config: "wflow_update_waterbodies.yml"

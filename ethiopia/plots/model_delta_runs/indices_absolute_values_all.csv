@@ -1,0 +1,29 @@
+Indices,Historical,far_ssp370_GFDL-ESM4,far_ssp370_INM-CM5-0,far_ssp370_mean,near_ssp370_GFDL-ESM4,near_ssp370_INM-CM5-0,near_ssp370_mean
+Days with high rainfall (P > 20 mm/day) [days/year],1,3.0,3.0,3.0,2.0,1.0,1.5
+Extreme precipitation (RP 5) [mm/day],28.6,37.1,36.8,36.95,32.7,29.5,31.1
+Extreme precipitation (RP 10) [mm/day],30.2,43.5,40.7,42.1,33.6,31.2,32.4
+Annual maximum discharge at outlet_1 [m3/s],11.7,32.8,122.2,77.5,18.8,24.5,21.65
+Extreme discharge (RP 5) at outlet_1 [m3/s],30593.5,62522.4,183.4,31352.9,22.0,92705.8,46363.9
+Extreme discharge (RP 10) at outlet_1 [m3/s],15066019.0,21887547.1,443.2,10943995.15,166.6,26365384.9,13182775.75
+Annual maximum discharge at outlet_2 [m3/s],11.3,23.2,57.0,40.1,15.3,25.8,20.55
+Extreme discharge (RP 5) at outlet_2 [m3/s],16.5,34.4,75.6,55.0,22.7,36.3,29.5
+Extreme discharge (RP 10) at outlet_2 [m3/s],19.3,41.2,94.1,67.65,28.6,48.9,38.75
+Annual maximum discharge at outlet_3 [m3/s],3658.3,4001.0,5014.5,4507.75,3942.0,4336.5,4139.25
+Extreme discharge (RP 5) at outlet_3 [m3/s],3883.9,4271.1,5376.2,4823.65,4191.0,4570.7,4380.85
+Extreme discharge (RP 10) at outlet_3 [m3/s],4006.7,4664.9,5425.9,5045.4,4360.4,4775.3,4567.85
+Annual maximum discharge at outlet_4 [m3/s],0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Extreme discharge (RP 5) at outlet_4 [m3/s],0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Extreme discharge (RP 10) at outlet_4 [m3/s],0.0,0.0,0.1,0.05,0.0,0.0,0.0
+Annual precipitation [mm/year],795.7,911.0,998.3,954.65,833.0,885.7,859.35
+Dry days (P < 0.2mm/d) [days/year],66,60.0,58.0,59.0,69.0,61.0,65.0
+Longest Dry spell (P < 0.8mm/d) [days/year],27,26.0,25.0,25.5,27.0,25.0,26.0
+Freezing days (T < 0 degC) [days/year],0,0.0,0.0,0.0,0.0,0.0,0.0
+Warm days (T > 25 degC) [days/year],346,363.0,364.0,363.5,360.0,359.0,359.5
+Mean annual discharge at outlet_1 [m3/s],0.9,3.3,7.8,5.55,1.5,2.3,1.9
+Minimum 7-day average flow at outlet_1 [m3/s],-0.0,-0.0,0.0,0.0,-0.0,-0.0,0.0
+Mean annual discharge at outlet_2 [m3/s],2.5,7.5,13.4,10.45,4.2,6.2,5.2
+Minimum 7-day average flow at outlet_2 [m3/s],-0.0,-0.0,0.1,0.05,-0.0,0.0,0.0
+Mean annual discharge at outlet_3 [m3/s],1851.3,2154.1,2459.6,2306.85,2020.8,2165.5,2093.15
+Minimum 7-day average flow at outlet_3 [m3/s],33.6,51.1,55.8,53.45,27.6,45.7,36.650000000000006
+Mean annual discharge at outlet_4 [m3/s],0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Minimum 7-day average flow at outlet_4 [m3/s],-0.0,-0.0,-0.0,0.0,-0.0,-0.0,0.0

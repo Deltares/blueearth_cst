@@ -149,7 +149,7 @@ def analyse_wflow_delta(
     # read model results for historical
     root = dirname(wflow_hist_run_config)
     config_fn = basename(wflow_hist_run_config)
-    qsim_hist, ds_clim_hist, ds_basin_hist = get_wflow_results(
+    qsim_hist, ds_clim_hist, ds_basin_hist, ds_aois_hist = get_wflow_results(
         root, config_fn, gauges_locs
     )
 
@@ -162,7 +162,7 @@ def analyse_wflow_delta(
         horizon = basename(delta_config).split(".")[0].split("_")[-1]
         root = dirname(delta_config)
         config_fn = basename(delta_config)
-        qsim_delta_run, ds_clim_delta_run, ds_basin_delta_run = get_wflow_results(
+        qsim_delta_run, ds_clim_delta_run, ds_basin_delta_run, ds_aois_delta_run = get_wflow_results(
             root, config_fn, gauges_locs
         )
         qsim_delta_run = qsim_delta_run.assign_coords(
@@ -506,7 +506,21 @@ def analyse_wflow_delta(
     # plot basinavg monthly and annual
     for dvar in ds_basin_delta.data_vars:
         print(dvar)
-        resample = WFLOW_VARS[dvar.split("_")[0]]["resample"]
+        # Map variable name to WFLOW_VARS key
+        # Variable names are like "overland_flow_basavg", "actual_evapotranspiration_basavg", etc.
+        # Dictionary keys are like "overland flow", "actual evapotranspiration", etc.
+        var_parts = dvar.split("_")
+        # Remove "basavg" suffix if present
+        var_parts = [p for p in var_parts if p != "basavg"]
+        # Join parts with space to match dictionary keys
+        var_key = " ".join(var_parts)
+        # Fallback: try first part if exact match not found
+        if var_key not in WFLOW_VARS:
+            var_key = var_parts[0] if var_parts else dvar.split("_")[0]
+        if var_key not in WFLOW_VARS:
+            print(f"Warning: Variable {dvar} not found in WFLOW_VARS, skipping")
+            continue
+        resample = WFLOW_VARS[var_key]["resample"]
         sum_monthly_delta, sum_annual_delta, mean_monthly_delta = (
             get_sum_annual_and_monthly(ds_basin_delta, dvar, resample=resample)
         )
@@ -526,7 +540,7 @@ def analyse_wflow_delta(
             mean_monthly_delta,
             mean_monthly_hist,
             plot_dir=plot_dir_other,
-            ylabel=WFLOW_VARS[dvar.split("_")[0]]["legend"],
+            ylabel=WFLOW_VARS[var_key]["legend"],
             figname_prefix=f"mean_monthly_{dvar}",
             fs=fs,
             lw=lw,
@@ -538,7 +552,7 @@ def analyse_wflow_delta(
                 mean_monthly_delta,
                 mean_monthly_hist,
                 plot_dir=plot_dir_other,
-                ylabel=WFLOW_VARS[dvar.split("_")[0]]["legend"],
+                ylabel=WFLOW_VARS[var_key]["legend"],
                 figname_prefix=f"mean_monthly_{dvar}_all_lines",
                 fs=fs,
                 lw=lw,
@@ -552,7 +566,7 @@ def analyse_wflow_delta(
             sum_annual_delta,
             sum_annual_hist,
             plot_dir=plot_dir_other,
-            ylabel=WFLOW_VARS[dvar.split("_")[0]]["legend_annual"],
+            ylabel=WFLOW_VARS[var_key]["legend_annual"],
             figname_prefix=f"sum_annual_{dvar}",
             fs=fs,
             lw=lw,
@@ -564,7 +578,7 @@ def analyse_wflow_delta(
                 sum_annual_delta,
                 sum_annual_hist,
                 plot_dir=plot_dir_other,
-                ylabel=WFLOW_VARS[dvar.split("_")[0]]["legend_annual"],
+                ylabel=WFLOW_VARS[var_key]["legend_annual"],
                 figname_prefix=f"sum_annual_{dvar}_all_lines",
                 fs=fs,
                 lw=lw,
