@@ -716,12 +716,23 @@ future steps.
 
 **Tag.** `p32b-interchange-contracts`.
 
-### P3-3 — Performance passes (not scoped)
+### P3-3 — Performance passes (scoped 2026-07-24)
 
-Profiling-driven per-workflow efficiency work (memory, speed, chunking,
-R vectorization; the `RLZ_NUM × ST_NUM` loop is the prime suspect), with
-per-workflow baseline discipline à la R3–R5. Candidate input: the parked
-realization/stress-test data-structure redesign. Scope after P3-1/P3-2.
+Profiling-driven efficiency work targeting the wf3 stress-test sweep, with
+baseline discipline à la R3–R5. **Confirmed scope**
+(`dev/p33/performance-passes-intake.md`, the authoritative record): wf3
+sweep throughput only, value-identical — benchmark evidence puts ~84% of
+wall time in the `RLZ_NUM × ST_NUM` wflow runs, with per-invocation Julia
+startup/JIT the likeliest our-side lever; measure-first (a profiling probe
+decomposes startup vs simulation) with **structural latitude** (the
+`run_wflow` execution may be restructured, e.g. batched per Julia session;
+DAG shape may change, outputs may not); probe-set expectations, no a-priori
+speedup floor; milestone gate = user sign-off on measured before/after +
+value-identity evidence. The parked realization/stress-test file-format
+redesign stays parked (I/O non-dominant per the evidence); wf1/wf2 and
+memory-headroom work are out. Design cycle start is user-gated.
+
+**Tag.** `p33-performance`.
 
 ---
 
@@ -759,7 +770,7 @@ above. This section covers commit messages only.
 - Phase 2 (active): `r01:`, `r02:`, `r03:`, `r04:`, `r05:`, `r06:`.
 - Phase 3 (active): `p31:` (P3-1 experiment structure), `p32a:` (P3-2a
   model-independent climate analysis), `p32b:` (P3-2b model-swap
-  interchange contracts).
+  interchange contracts), `p33:` (P3-3 performance passes).
 - Repo housekeeping that doesn't belong to a milestone: `chore:`
   (e.g. updating this roadmap, `.gitignore`, fixing typos in
   unrelated docs).
