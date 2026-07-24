@@ -25,6 +25,10 @@ bbox: [8.5, -0.5, 11.0, 1.5]
 # netcdf_glob stages a directory of per-file netcdfs (one clipped .nc per source
 # file, mirrored) — for meteo sources whose catalog URI templates a {year}
 # (CHIRPS) or {variable} (E-OBS) axis, which the single-file netcdf type can't open.
+# Incremental: WIDENING a netcdf_glob time_range only stages the newly-in-range
+# files and leaves unchanged years untouched (per-file manifests track each
+# source file's natural span). Single-store zarr/netcdf still full-restage on a
+# time_range change.
 #
 # Performance: staging cost is dominated by TIME_RANGE, not bbox. Sources are
 # stored in coarse spatial chunks (era5 zarr ~250x480, CHIRPS ~320x300 cells),

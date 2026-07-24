@@ -193,8 +193,21 @@ def _zarr_complete(dst: Path) -> bool:
 # the current parameters to the stored manifest; if they differ, the cached
 # output is treated as stale and re-staged.  This is what makes "skip if
 # exists" actually safe across YAML edits.
+#
+# Two freshness strategies (see `staged`):
+#   - "exact"      : every fingerprint key must match (raster/vector/zarr/netcdf).
+#   - "time_cover" : bbox + variables must match exactly, but TIME is coverage-
+#                    based — used for per-file `netcdf_glob` members so that
+#                    WIDENING a time_range only stages the newly-in-range files
+#                    and leaves unchanged years untouched.  Each such manifest
+#                    also records the source file's natural time span
+#                    (`natural_time`) and the effective window written
+#                    (`clip_time`).  A file is fresh iff, recomputing the clip
+#                    window from the stored natural span and the NEW request, it
+#                    equals the stored `clip_time` — an exact test (no false
+#                    skips on partial boundary years) that needs no source read.
 
-MANIFEST_VERSION = 1
+MANIFEST_VERSION = 2
 DEFAULT_RASTER_GLOB_WORKERS = 4
 RASTER_TILE_SIZE = 256
 RASTER_TILE_MIN_SIZE = 16
@@ -234,6 +247,79 @@ def _is_fresh(dst: Path, fingerprint: dict, *, is_zarr: bool = False) -> bool:
     if m is None:
         return False
     return all(m.get(k) == v for k, v in fingerprint.items())
+
+
+def _as_day(value) -> str:
+    """Normalise any ISO date/datetime (or numpy datetime64 str) to YYYY-MM-DD.
+
+    Daily meteo data only needs day granularity, and truncated ISO dates compare
+    lexicographically, so `min`/`max` over these strings is correct without
+    parsing.
+    """
+    return str(value)[:10]
+
+
+def _clip_window(natural, time_range) -> list[str]:
+    """Return the effective [start, end] day-window a request clips out of a file.
+
+    `natural` is the source file's own [min, max] time span.  The window is the
+    intersection with the requested `time_range` (both clamped to the file's
+    span).  If the request misses the file entirely the result is inverted
+    (start > end), which callers treat as "no time overlap".
+    """
+    nmin, nmax = _as_day(natural[0]), _as_day(natural[1])
+    if not time_range:
+        return [nmin, nmax]
+    return [max(nmin, _as_day(time_range[0])), min(nmax, _as_day(time_range[1]))]
+
+
+def _time_cover_fresh(dst: Path, fingerprint: dict, *, is_zarr: bool = False) -> bool:
+    """Coverage-based freshness for per-file `netcdf_glob` members.
+
+    Fresh iff the output exists and, for a manifest matching src/bbox/variables
+    exactly, the clip window recomputed from the stored natural span and the NEW
+    request equals the stored `clip_time`.  Falls back to exact `time_range`
+    equality when the source has no time axis (or a pre-v2 manifest without a
+    recorded natural span), forcing a one-time restage that upgrades it.
+    """
+    if not dst.exists():
+        return False
+    m = _read_manifest(dst)
+    if m is None:
+        return False
+    if (m.get("src"), m.get("bbox"), m.get("variables")) != (
+        fingerprint["src"], fingerprint["bbox"], fingerprint["variables"],
+    ):
+        return False
+    natural = m.get("natural_time")
+    if natural is None:
+        return m.get("time_range") == fingerprint["time_range"]
+    return m.get("clip_time") == _clip_window(natural, fingerprint["time_range"])
+
+
+FRESHNESS = {"exact": _is_fresh, "time_cover": _time_cover_fresh}
+
+
+def _unpack_clip_result(result) -> tuple[str, str, dict]:
+    """Normalise a clip return to (status, detail, manifest_extras).
+
+    Clips may return (status, detail) or (status, detail, extras); the latter
+    lets a subsetter contribute extra manifest fields (e.g. the natural time
+    span for `time_cover` freshness).
+    """
+    if len(result) == 3:
+        return result
+    status, detail = result
+    return status, detail, {}
+
+
+def _natural_time(ds: xr.Dataset) -> list[str] | None:
+    """Return the source dataset's [min, max] day span, or None if no time axis."""
+    tdim = next((d for d in ds.dims if d.lower() in ("time", "t")), None)
+    if tdim is None or ds.sizes.get(tdim, 0) == 0:
+        return None
+    t = ds[tdim].values
+    return [_as_day(t.min()), _as_day(t.max())]
 
 
 def _fingerprint(
@@ -324,13 +410,24 @@ def _entry_detail(detail: str, size_bytes: int, status: str) -> str:
 #   - (SKIPPED, detail) for e.g. no overlap  -> wrapper writes no manifest.
 
 
-def staged(*, fingerprint_keys: tuple[str, ...] = (), is_zarr: bool = False):
+def staged(
+    *,
+    fingerprint_keys: tuple[str, ...] = (),
+    is_zarr: bool = False,
+    freshness: str = "exact",
+):
     """Wrap a clip function with the shared freshness/cleanup/manifest ritual.
 
     `fingerprint_keys` names the optional keyword args (e.g. ``time_range``,
     ``variables``, ``columns``) that participate in the cached-output
-    fingerprint alongside ``src`` and ``bbox``.
+    fingerprint alongside ``src`` and ``bbox``.  `freshness` selects the
+    cached-output test: ``"exact"`` (default) requires every fingerprint key to
+    match; ``"time_cover"`` treats time as coverage-based (see the manifest
+    notes).  A clip may return ``(status, detail)`` or
+    ``(status, detail, extras)`` to add fields to the manifest it writes.
     """
+    fresh_fn = FRESHNESS[freshness]
+
     def decorator(clip):
         def wrapper(src: Path, dst: Path, bbox, **kwargs) -> tuple[str, str]:
             fp = _fingerprint(
@@ -338,16 +435,18 @@ def staged(*, fingerprint_keys: tuple[str, ...] = (), is_zarr: bool = False):
                 bbox=bbox,
                 **{k: kwargs.get(k) for k in fingerprint_keys},
             )
-            if _is_fresh(dst, fp, is_zarr=is_zarr):
+            if fresh_fn(dst, fp, is_zarr=is_zarr):
                 return EXISTS, ""
             if dst.exists():
                 _remove(dst)
                 _remove(_manifest_path(dst))
             dst.parent.mkdir(parents=True, exist_ok=True)
             with _cleanup_on_error(dst):
-                status, detail = clip(src, dst, bbox, **kwargs)
+                status, detail, extras = _unpack_clip_result(
+                    clip(src, dst, bbox, **kwargs)
+                )
             if status == WRITTEN:
-                _write_manifest(dst, fp)
+                _write_manifest(dst, {**fp, **extras})
             return status, detail
         wrapper.__name__ = clip.__name__
         wrapper.__doc__ = clip.__doc__
@@ -674,6 +773,11 @@ def _clip_netcdf_to_file(
         # basin). Skip cleanly rather than letting an empty write raise.
         return SKIPPED, "no overlap"
     sub = _apply_time_range(sub, time_range)
+    tdim = next((d for d in sub.dims if d.lower() in ("time", "t")), None)
+    if tdim is not None and sub.sizes.get(tdim, 0) == 0:
+        # time_range misses this file's span (e.g. an out-of-range year in a
+        # netcdf_glob). Skip rather than writing an empty time axis.
+        return SKIPPED, "no time overlap"
     if show_progress:
         with _dask_progress():
             sub.to_netcdf(dst)
@@ -700,7 +804,7 @@ def subset_netcdf(
     )
 
 
-@staged(fingerprint_keys=("time_range", "variables"))
+@staged(fingerprint_keys=("time_range", "variables"), freshness="time_cover")
 def subset_netcdf_file(
     src: Path,
     dst: Path,
@@ -708,7 +812,7 @@ def subset_netcdf_file(
     *,
     time_range=None,
     variables=None,
-) -> tuple[str, str]:
+) -> tuple[str, str] | tuple[str, str, dict]:
     """Clip one netcdf file, opening it here (for the ``netcdf_glob`` path).
 
     Unlike `subset_netcdf` (whose `ds` is hoisted once by the dispatcher), each
@@ -716,12 +820,21 @@ def subset_netcdf_file(
     fully cached re-run never pays an SMB open per file.  The per-file dask bar
     is suppressed — the file-level tqdm bar in `_stage_netcdf_glob` carries the
     progress signal instead.
+
+    Uses ``time_cover`` freshness: the manifest records this file's natural time
+    span and the effective clip window, so widening a glob's `time_range` only
+    stages the newly-in-range files and leaves unchanged years untouched.
     """
     with xr.open_dataset(src, chunks="auto") as ds:
-        return _clip_netcdf_to_file(
+        natural = _natural_time(ds)
+        status, detail = _clip_netcdf_to_file(
             ds, dst, bbox,
             time_range=time_range, variables=variables, show_progress=False,
         )
+        if status != WRITTEN:
+            return status, detail
+        clip_time = _clip_window(natural, time_range) if natural else None
+        return status, detail, {"natural_time": natural, "clip_time": clip_time}
 
 
 SUBSETTERS = {

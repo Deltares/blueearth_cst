@@ -177,6 +177,68 @@ def test_netcdf_glob_type_dispatches_to_netcdf_glob_stager(monkeypatch) -> None:
     assert all(status != stage_data.FAILED for status, *_ in report.results)
 
 
+def test_clip_window_intersects_request_with_natural_span() -> None:
+    cw = stage_data._clip_window
+    # Interior full year: a wider request leaves the window unchanged (-> skip).
+    assert cw(["2005-01-01", "2005-12-31"], ["1990-01-01", "2020-12-31"]) == [
+        "2005-01-01", "2005-12-31",
+    ]
+    # Left-boundary partial year: request start clips into the file.
+    assert cw(["2000-01-01", "2000-12-31"], ["2000-06-01", "2020-12-31"]) == [
+        "2000-06-01", "2000-12-31",
+    ]
+    # Out-of-range file: inverted window (start > end) -> "no time overlap".
+    lo, hi = cw(["1995-01-01", "1995-12-31"], ["2000-01-01", "2020-12-31"])
+    assert lo > hi
+    # No request window: the file's full natural span.
+    assert cw(["2005-01-01", "2005-12-31"], None) == ["2005-01-01", "2005-12-31"]
+
+
+def test_time_cover_fresh_skips_interior_but_restages_on_real_change(tmp_path) -> None:
+    dst = tmp_path / "CHIRPS_rainfall_2005.nc"
+    dst.write_bytes(b"x")  # a time_cover output must exist to be considered fresh
+    natural = ["2005-01-01", "2005-12-31"]
+    fp0 = stage_data._fingerprint(
+        src=Path("s/2005.nc"), bbox=(0, 0, 2, 2),
+        time_range=["2000-01-01", "2010-12-31"], variables=None,
+    )
+    stage_data._write_manifest(
+        dst,
+        {**fp0, "natural_time": natural,
+         "clip_time": stage_data._clip_window(natural, fp0["time_range"])},
+    )
+
+    def fp(**over):
+        base = dict(src=Path("s/2005.nc"), bbox=(0, 0, 2, 2),
+                    time_range=["1990-01-01", "2020-12-31"], variables=None)
+        return stage_data._fingerprint(**{**base, **over})
+
+    # Widened request, interior year unchanged -> fresh (skip, no rewrite).
+    assert stage_data._time_cover_fresh(dst, fp()) is True
+    # Request clips into the file's own span -> stale (must restage exactly).
+    assert stage_data._time_cover_fresh(
+        dst, fp(time_range=["2005-06-01", "2020-12-31"])
+    ) is False
+    # Different bbox or variables -> stale regardless of time.
+    assert stage_data._time_cover_fresh(dst, fp(bbox=(0, 0, 3, 3))) is False
+    assert stage_data._time_cover_fresh(dst, fp(variables=["precip"])) is False
+
+
+def test_time_cover_fresh_requires_existing_output(tmp_path) -> None:
+    # No output file on disk -> never fresh even with a matching manifest.
+    dst = tmp_path / "missing.nc"
+    assert stage_data._time_cover_fresh(dst, stage_data._fingerprint(
+        src=Path("s.nc"), bbox=(0, 0, 1, 1), time_range=None, variables=None,
+    )) is False
+
+
+def test_unpack_clip_result_accepts_two_or_three_tuples() -> None:
+    assert stage_data._unpack_clip_result(("written", "d")) == ("written", "d", {})
+    assert stage_data._unpack_clip_result(
+        ("written", "d", {"natural_time": ["a", "b"]})
+    ) == ("written", "d", {"natural_time": ["a", "b"]})
+
+
 def test_completion_detail_appends_elapsed_time() -> None:
     # The wall-clock `completed:` stamp was dropped; the signature is now
     # (detail, elapsed, *, status). A WRITTEN entry always appends elapsed.
