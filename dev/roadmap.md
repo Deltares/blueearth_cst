@@ -730,7 +730,17 @@ DAG shape may change, outputs may not); probe-set expectations, no a-priori
 speedup floor; milestone gate = user sign-off on measured before/after +
 value-identity evidence. The parked realization/stress-test file-format
 redesign stays parked (I/O non-dominant per the evidence); wf1/wf2 and
-memory-headroom work are out. Design cycle start is user-gated.
+memory-headroom work are out.
+**Design ACCEPTED 2026-07-24** via design-review-loop run `p33-performance`
+(full variant, probe-grounded draft: measured F≈135 s per-process fixed vs
+S≈208 s cold sim; internal panel 1 blocking / 7 major / 10 minor → external
+GPT r1 revise (makespan model, resource contract, go/no-go criteria) →
+external GPT r2 reject (callable-output construct inexpressible,
+probe-confirmed) → round-cap user arbitration → stage-6a fix
+(probe-verified loop-generated batch rules); ledger 22/22 accepted):
+`dev/p33/performance-passes-design.md`, with the consolidated review
+record and landed probe evidence beside it. Next step: task-brief →
+implementation.
 
 **Tag.** `p33-performance`.
 

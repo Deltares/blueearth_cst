@@ -1,0 +1,18 @@
+# Probe B: parse-time loop-generated anonymous rules with STATIC per-batch
+# output lists (the candidate valid construct) — expected to dry-run clean
+batches = {0: [(1, 1), (1, 2)], 1: [(2, 1), (2, 2)]}
+
+rule all:
+    input:
+        [f"out/rlz_{r}_cst_{c}.csv" for b in batches for (r, c) in batches[b]]
+
+for _b, _members in batches.items():
+    rule:
+        name:
+            f"run_wflow_batch_{_b}"
+        output:
+            csvs = [f"out/rlz_{r}_cst_{c}.csv" for (r, c) in _members]
+        params:
+            members = _members
+        shell:
+            "echo batch {params.members} && echo {output.csvs}"

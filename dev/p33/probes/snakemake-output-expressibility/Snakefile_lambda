@@ -1,0 +1,12 @@
+# Probe A: callable output: entries (the v3 §6.1 construct) — expected to FAIL
+batches = {0: [(1, 1), (1, 2)], 1: [(2, 1), (2, 2)]}
+
+rule all:
+    input:
+        [f"out/rlz_{r}_cst_{c}.csv" for b in batches for (r, c) in batches[b]]
+
+rule run_batch:
+    output:
+        csvs = lambda w: [f"out/rlz_{r}_cst_{c}.csv" for (r, c) in batches[int(w.batch_id)]]
+    shell:
+        "echo done"
