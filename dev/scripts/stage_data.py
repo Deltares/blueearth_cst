@@ -38,10 +38,20 @@ import re
 import shutil
 import sys
 import traceback
+import warnings
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
 from pathlib import Path
 from time import perf_counter, sleep
+
+# zarr-python 3.x warns that consolidated metadata is not part of the Zarr v3
+# spec on every open/write.  We rely on it (fast open of the big era5 source;
+# consolidated output for the freshness check) and the caveat does not apply
+# here, so silence just this one message to keep the run log clean.
+warnings.filterwarnings(
+    "ignore",
+    message="Consolidated metadata is currently not part in the Zarr format 3",
+)
 
 # GDAL/SMB performance tuning. Set as defaults so a user-set env wins.
 # Must be set BEFORE geopandas/rasterio import — GDAL reads these once at
@@ -924,8 +934,8 @@ def _download(ds: xr.Dataset, tdim) -> xr.Dataset:
     """
     n = 0 if tdim is None else ds.sizes.get(tdim, 0)
     if tdim is None or tqdm is None or n <= DOWNLOAD_BLOCK_STEPS:
-        with _dask_progress():
-            return ds.load()
+        # No time axis (e.g. orography) or a short series: a quick load, no bar.
+        return ds.load()
     blocks = [
         ds.isel({tdim: slice(i, i + DOWNLOAD_BLOCK_STEPS)}).load()
         for i in tqdm(
@@ -1444,6 +1454,36 @@ def _run_glob(
         print(f"      {dim(summary)}")
 
 
+_YEAR_RE = re.compile(r"(?<!\d)((?:19|20)\d{2})(?!\d)")
+
+
+def _year_from_name(name: str) -> int | None:
+    """Return the single plausible year (19xx/20xx) in a per-year filename, else None.
+
+    Lets a `netcdf_glob` skip files whose year is entirely outside the requested
+    window without an SMB open each.  Only an unambiguous single year counts —
+    multiple distinct years (or none) return None so the file is kept and opened
+    (over-inclusive is safe; over-exclusive would silently lose data).
+    """
+    years = {int(m.group(1)) for m in _YEAR_RE.finditer(name)}
+    return years.pop() if len(years) == 1 else None
+
+
+def _filter_glob_years(files, time_range):
+    """Drop per-year files outside the requested window; return (kept, dropped)."""
+    if not time_range:
+        return files, 0
+    start_y, end_y = int(str(time_range[0])[:4]), int(str(time_range[1])[:4])
+    kept, dropped = [], 0
+    for f in files:
+        year = _year_from_name(f.name)
+        if year is not None and not (start_y <= year <= end_y):
+            dropped += 1
+        else:
+            kept.append(f)
+    return kept, dropped
+
+
 def _stage_netcdf_glob(
     entry: dict,
     name: str,
@@ -1470,8 +1510,18 @@ def _stage_netcdf_glob(
         report.print_entry(SKIPPED, name, f"no files match {pattern}")
         return
 
+    # Drop per-year files whose filename year is entirely outside the window,
+    # without opening them, so the progress bar counts only the files that will
+    # actually stage (and out-of-range years don't clutter the run).
+    time_range = entry.get("time_range")
+    files, dropped = _filter_glob_years(files, time_range)
+    if not files:
+        report.print_entry(SKIPPED, name, f"all files outside time_range {time_range}")
+        return
+
+    suffix = f"   ({dropped} outside time_range)" if dropped else ""
     _print_metadata([
-        f"{len(files)} files matching {pattern}   sample: {files[0].name}"
+        f"{len(files)} files matching {pattern}{suffix}   sample: {files[0].name}"
     ])
     # Describe the first file once so the run log shows grid/time/vars; a
     # describe-only failure must not abort staging.
@@ -1655,19 +1705,15 @@ def _print_total(report: RunReport) -> None:
         print()
         print(red(bold(f"FAILED — {counts[FAILED]} output(s) did not stage; see recap below.")))
 
+    # Only failures get a detailed recap — they need action. Skipped outputs
+    # (out-of-range files, no spatial overlap) are expected and only clutter the
+    # tail; their count stays in the pill above.
     failures = [(n, d) for s, n, d, _size in report.results if s == FAILED]
     if failures:
         print()
         print(f"{bold('failed')} ({len(failures)}):")
         for name, detail in failures:
             print(f"  {red('x')} {name}  {dim(detail)}")
-
-    skips = [(n, d) for s, n, d, _size in report.results if s == SKIPPED]
-    if skips:
-        print()
-        print(f"{bold('skipped')} ({len(skips)}):")
-        for name, detail in skips:
-            print(f"  {yellow('-')} {name}  {dim(detail)}")
 
 
 def main() -> None:

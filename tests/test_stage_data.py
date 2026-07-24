@@ -297,6 +297,32 @@ def test_write_zarr_reraises_after_exhausting_retries(tmp_path, monkeypatch) -> 
         raise AssertionError("expected PermissionError after exhausting retries")
 
 
+def test_year_from_name_extracts_single_plausible_year() -> None:
+    y = stage_data._year_from_name
+    assert y("CHIRPS_rainfall_1981.nc") == 1981
+    assert y("chirps-v2.0.2001.days_p05.nc") == 2001
+    # No year, a 2-digit version, or two distinct years -> None (keep + open).
+    assert y("rr_ens_mean_0.1deg_reg_v22.0e.nc") is None
+    assert y("merged_1990_2000.nc") is None
+    assert y("elev_ens_0.1deg.nc") is None
+
+
+def test_filter_glob_years_drops_out_of_range_years() -> None:
+    files = [Path(f"CHIRPS_rainfall_{yr}.nc") for yr in (1988, 1990, 2005, 2020, 2023)]
+    kept, dropped = stage_data._filter_glob_years(files, ["1990-01-01", "2020-12-31"])
+    assert [f.name for f in kept] == [
+        "CHIRPS_rainfall_1990.nc", "CHIRPS_rainfall_2005.nc", "CHIRPS_rainfall_2020.nc",
+    ]
+    assert dropped == 2  # 1988 (before) and 2023 (after)
+    # No time_range -> keep everything.
+    kept_all, dropped_none = stage_data._filter_glob_years(files, None)
+    assert len(kept_all) == 5 and dropped_none == 0
+    # A yearless file is always kept (falls through to open-then-check).
+    mixed = [Path("rr_v22.0e.nc"), Path("CHIRPS_rainfall_1985.nc")]
+    kept_mixed, _ = stage_data._filter_glob_years(mixed, ["2000-01-01", "2010-12-31"])
+    assert [f.name for f in kept_mixed] == ["rr_v22.0e.nc"]
+
+
 def test_print_filters_shows_only_applied_selection(capsys) -> None:
     stage_data._print_filters(["1970-01-01", "2020-12-31"], ["tp", "t2m"])
     out = capsys.readouterr().out
