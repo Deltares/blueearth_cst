@@ -25,6 +25,12 @@ bbox: [8.5, -0.5, 11.0, 1.5]
 # netcdf_glob stages a directory of per-file netcdfs (one clipped .nc per source
 # file, mirrored) — for meteo sources whose catalog URI templates a {year}
 # (CHIRPS) or {variable} (E-OBS) axis, which the single-file netcdf type can't open.
+#
+# Performance: staging cost is dominated by TIME_RANGE, not bbox. Sources are
+# stored in coarse spatial chunks (era5 zarr ~250x480, CHIRPS ~320x300 cells),
+# so a small bbox still reads whole spatial chunks — tightening time_range is the
+# effective lever. netcdf_glob `workers>1` gives little speed-up (the netCDF-C
+# library serializes concurrent reads); it mainly helps raster_glob.
 datasets:
   - name: vito
     type: raster
@@ -65,7 +71,7 @@ datasets:
     # Coverage: daily, ~1950 -> present (the full "~73-year" zarr). The wflow
     # forcing build only uses 2000-2020 (see snake config); limiting the time
     # slice avoids streaming the whole zarr over SMB.
-    time_range: ["2000-01-01", "2020-12-31"]
+    time_range: ["1970-01-01", "2020-12-31"]
     # `variables:` takes the zarr's NATIVE ERA5 short names (filtered BEFORE
     # hydromt applies its rename). native -> wflow (deltares_data.yml `era5`):
     #   tp -> precip   t2m -> temp   tmin -> temp_min   tmax -> temp_max
@@ -81,7 +87,7 @@ datasets:
     # native -> wflow (deltares_data.yml `chirps`): precipitation -> precip
     # NOTE: CHIRPS carries precipitation ONLY (no temperature), so it cannot be
     # a standalone wflow forcing source — pair it with temp from era5/E-OBS.
-    time_range: ["2000-01-01", "2020-12-31"]
+    time_range: ["1990-01-01", "2020-12-31"]
     #variables: [precipitation]   # native source name (single var; optional)
 
   # E-OBS stores each variable as its own single file under an upper-case subdir
