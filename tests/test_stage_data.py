@@ -297,6 +297,22 @@ def test_write_zarr_reraises_after_exhausting_retries(tmp_path, monkeypatch) -> 
         raise AssertionError("expected PermissionError after exhausting retries")
 
 
+def test_print_filters_shows_only_applied_selection(capsys) -> None:
+    stage_data._print_filters(["1970-01-01", "2020-12-31"], ["tp", "t2m"])
+    out = capsys.readouterr().out
+    assert "time_range filter: 1970-01-01 -> 2020-12-31" in out
+    assert "variables filter:" in out and "tp, t2m" in out
+
+
+def test_print_filters_omits_absent_filters(capsys) -> None:
+    # time_range only -> no variables line; nothing at all when both absent.
+    stage_data._print_filters(["1990-01-01", "2020-12-31"], None)
+    out = capsys.readouterr().out
+    assert "time_range filter:" in out and "variables filter:" not in out
+    stage_data._print_filters(None, None)
+    assert capsys.readouterr().out == ""
+
+
 def test_unpack_clip_result_accepts_two_or_three_tuples() -> None:
     assert stage_data._unpack_clip_result(("written", "d")) == ("written", "d", {})
     assert stage_data._unpack_clip_result(

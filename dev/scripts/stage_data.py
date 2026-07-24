@@ -1194,6 +1194,24 @@ def _print_metadata(lines) -> None:
             print(f"      {dim(line)}")
 
 
+def _print_filters(time_range=None, variables=None) -> None:
+    """Print the applied selection, emphasised below the dim source features.
+
+    Only the filters actually in effect are shown (an omitted time_range or
+    variables keeps everything, so nothing is printed for it).  Rendered in
+    bold cyan with a `->` marker so the kept subset stands out from the plain
+    dataset features above it.
+    """
+    rows = []
+    if time_range:
+        rows.append(("time_range filter", f"{time_range[0]} -> {time_range[1]}"))
+    if variables:
+        rows.append(("variables filter", ", ".join(str(v) for v in variables)))
+    for label, value in rows:
+        head = f"-> {label}:".ljust(22)   # pad plain text before colouring (aligns values)
+        print(f"      {cyan(head)}{bold(cyan(value))}")
+
+
 def _fmt_bbox(w, s, e, n) -> str:
     return f"{w:.3f}..{e:.3f} lon, {s:.3f}..{n:.3f} lat"
 
@@ -1229,7 +1247,13 @@ def _describe_vector(src: Path) -> list[str]:
         return [f"(could not read vector metadata: {exc})"]
 
 
-def _describe_xarray(ds: xr.Dataset, *, time_range=None) -> list[str]:
+def _describe_xarray(ds: xr.Dataset) -> list[str]:
+    """Describe a source dataset's own features (grid, extent, time, variables).
+
+    The applied selection (time_range / variables) is printed separately and
+    emphasised by `_print_filters`, so source features and what we keep from
+    them read as two distinct blocks.
+    """
     out = []
     try:
         lat_name = next((c for c in ds.coords if c.lower() in ("lat", "latitude", "y")), None)
@@ -1262,8 +1286,6 @@ def _describe_xarray(ds: xr.Dataset, *, time_range=None) -> list[str]:
             except Exception:
                 freq = "?"
             out.append(f"time: {t0} -> {t1}   ({n} steps, freq: {freq})")
-            if time_range:
-                out.append(f"time_range filter: {time_range[0]} -> {time_range[1]}")
 
         vars_ = list(ds.data_vars)
         sample = ", ".join(vars_[:8]) + (f", ... ({len(vars_)} total)" if len(vars_) > 8 else "")
@@ -1455,11 +1477,10 @@ def _stage_netcdf_glob(
     # describe-only failure must not abort staging.
     try:
         with _open_xarray("netcdf", files[0]) as ds0:
-            _print_metadata(
-                _describe_xarray(ds0, time_range=entry.get("time_range"))
-            )
+            _print_metadata(_describe_xarray(ds0))
     except Exception as exc:
         _print_metadata([f"(could not read metadata: {str(exc).splitlines()[0][:80]})"])
+    _print_filters(entry.get("time_range"), entry.get("variables"))
 
     extra = {k: entry[k] for k in ("time_range", "variables") if k in entry}
     workers = _raster_glob_workers(entry, file_count=len(files))
@@ -1516,9 +1537,8 @@ def _stage_dataset(
             )
             return
         try:
-            _print_metadata(
-                DESCRIBERS[kind](ds, time_range=extra.get("time_range"))
-            )
+            _print_metadata(DESCRIBERS[kind](ds))
+            _print_filters(extra.get("time_range"), extra.get("variables"))
             _run_worker(report, rel.name, fn, src, dst, bbox, ds=ds, **extra)
         finally:
             ds.close()
