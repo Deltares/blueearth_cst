@@ -232,6 +232,35 @@ def test_time_cover_fresh_requires_existing_output(tmp_path) -> None:
     )) is False
 
 
+def test_reusable_requires_matching_src_and_bbox(tmp_path) -> None:
+    dst = tmp_path / "store.nc"
+    dst.write_bytes(b"x")
+    fp = stage_data._fingerprint(
+        src=Path("s/f.nc"), bbox=(0, 0, 2, 2),
+        time_range=["2000-01-01", "2010-12-31"], variables=["a"],
+    )
+    stage_data._write_manifest(dst, fp)
+
+    def fp2(**over):
+        base = dict(src=Path("s/f.nc"), bbox=(0, 0, 2, 2),
+                    time_range=["1990-01-01", "2020-12-31"], variables=["a", "b"])
+        return stage_data._fingerprint(**{**base, **over})
+
+    # Same src+bbox but different time/vars -> reusable (those are the deltas).
+    assert stage_data._reusable(dst, fp2()) is True
+    # Changed bbox or src -> not reusable (must full-restage).
+    assert stage_data._reusable(dst, fp2(bbox=(0, 0, 3, 3))) is False
+    assert stage_data._reusable(dst, fp2(src=Path("s/other.nc"))) is False
+
+
+def test_reusable_false_without_output_or_manifest(tmp_path) -> None:
+    fp = stage_data._fingerprint(src=Path("s.nc"), bbox=(0, 0, 1, 1))
+    assert stage_data._reusable(tmp_path / "missing.nc", fp) is False
+    # Output present but no manifest -> not reusable.
+    (tmp_path / "orphan.nc").write_bytes(b"x")
+    assert stage_data._reusable(tmp_path / "orphan.nc", fp) is False
+
+
 def test_unpack_clip_result_accepts_two_or_three_tuples() -> None:
     assert stage_data._unpack_clip_result(("written", "d")) == ("written", "d", {})
     assert stage_data._unpack_clip_result(

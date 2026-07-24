@@ -349,6 +349,22 @@ def _dask_progress():
         yield
 
 
+@contextmanager
+def _serial_dask():
+    """Force the synchronous dask scheduler for the enclosed writes.
+
+    A rebuilt output is small and already in memory; writing it single-threaded
+    avoids concurrent zarr metadata renames that are flaky on Windows.
+    """
+    try:
+        import dask
+    except ImportError:
+        yield
+        return
+    with dask.config.set(scheduler="synchronous"):
+        yield
+
+
 def _format_elapsed(seconds: float) -> str:
     """Return a compact human-readable duration."""
     if seconds < 60:
@@ -444,6 +460,64 @@ def staged(
             with _cleanup_on_error(dst):
                 status, detail, extras = _unpack_clip_result(
                     clip(src, dst, bbox, **kwargs)
+                )
+            if status == WRITTEN:
+                _write_manifest(dst, {**fp, **extras})
+            return status, detail
+        wrapper.__name__ = clip.__name__
+        wrapper.__doc__ = clip.__doc__
+        return wrapper
+    return decorator
+
+
+def _reusable(dst: Path, fingerprint: dict, *, is_zarr: bool = False) -> bool:
+    """True if an existing output can seed an incremental rebuild.
+
+    Requires a complete output whose manifest was produced from the same source
+    and bbox.  Time-range / variable differences are fine — those are exactly
+    the deltas the rebuild resolves; only a bbox (or source) change forces a
+    full re-stage.
+    """
+    exists = _zarr_complete(dst) if is_zarr else dst.exists()
+    if not exists:
+        return False
+    m = _read_manifest(dst)
+    if m is None:
+        return False
+    return m.get("src") == fingerprint["src"] and m.get("bbox") == fingerprint["bbox"]
+
+
+def staged_rebuild(*, fingerprint_keys: tuple[str, ...] = (), is_zarr: bool = False):
+    """Like `staged` (exact freshness) but rebuilds an expanded output in place.
+
+    When the request differs from a valid existing output only by a wider (or
+    narrower) time_range and/or a changed variable set at the same bbox, the
+    wrapped clip is handed that output's path (``existing=``) so it can reuse the
+    already-staged LOCAL data and read only the missing pieces from the source.
+    The clip materialises the reused data (closing the old output), removes it,
+    and writes the fresh one — non-atomic, like the exact `staged` path, but a
+    failed rebuild simply restages from scratch next run (the source is intact).
+    The clip receives the source dataset as ``ds`` (opened once by the
+    dispatcher) and returns ``(status, detail[, extras])``.
+    """
+    def decorator(clip):
+        def wrapper(src: Path, dst: Path, bbox, *, ds, **kwargs) -> tuple[str, str]:
+            fp = _fingerprint(
+                src=src,
+                bbox=bbox,
+                **{k: kwargs.get(k) for k in fingerprint_keys},
+            )
+            if _is_fresh(dst, fp, is_zarr=is_zarr):
+                return EXISTS, ""
+            existing = dst if _reusable(dst, fp, is_zarr=is_zarr) else None
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            if existing is None and dst.exists():
+                # Stale and not reusable (e.g. bbox changed): clear before write.
+                _remove(dst)
+                _remove(_manifest_path(dst))
+            with _cleanup_on_error(dst):
+                status, detail, extras = _unpack_clip_result(
+                    clip(src, dst, bbox, ds=ds, existing=existing, **kwargs)
                 )
             if status == WRITTEN:
                 _write_manifest(dst, {**fp, **extras})
@@ -726,28 +800,151 @@ def _zarr_subset_write_plan(ds: xr.Dataset) -> tuple[xr.Dataset, dict]:
     return rechunked, _zarr_subset_encoding(rechunked, chunks)
 
 
-@staged(fingerprint_keys=("time_range", "variables"), is_zarr=True)
+# --- Incremental single-store rebuild (zarr / single netcdf) -----------------
+#
+# When a single-store output already exists at the same bbox and the request
+# only widens the time_range and/or changes the variable set, the result is
+# assembled from the already-staged LOCAL output plus only the missing
+# (variable, time) pieces read from the source.  The combined dataset is
+# value-identical to a from-scratch clip: reused cells equal the source (the
+# local output was itself a correct clip), and the final reindex to the source's
+# request-time axis fixes ordering (so a prepend lands in the right place).
+
+
+def _time_dim(ds: xr.Dataset):
+    return next((d for d in ds.dims if d.lower() in ("time", "t")), None)
+
+
+def _align_spatial(existing: xr.Dataset, want: xr.Dataset) -> xr.Dataset:
+    """Snap the existing output's spatial coords onto the source's.
+
+    Same bbox + same source grid means identical coordinates, but a float
+    round-trip through the local store could drift them by an ULP and break the
+    concat/merge alignment.  Assigning the source coords (guarded on equal size)
+    makes the join exact.
+    """
+    spatial = ("lat", "latitude", "y", "lon", "longitude", "x")
+    for dim in list(existing.dims):
+        if dim.lower() in spatial and dim in want.dims and existing.sizes[dim] == want.sizes[dim]:
+            existing = existing.assign_coords({dim: want[dim].values})
+    return existing
+
+
+# CF packing / compression keys carried from the source onto a rebuilt result
+# so an incrementally-staged output is stored as compactly as a from-scratch one
+# (concat/merge drop `.encoding`).  Shape-dependent keys (chunksizes) are NOT
+# carried — the rebuilt time length differs from the source.
+PACK_ENCODING_KEYS = {
+    "dtype", "scale_factor", "add_offset", "_FillValue", "zlib", "complevel",
+}
+
+
+def _carry_packing(result: xr.Dataset, source: xr.Dataset) -> xr.Dataset:
+    """Reattach the source's CF packing/compression encoding to result vars."""
+    for name in result.data_vars:
+        if name in source.data_vars:
+            result[name].encoding = {
+                k: v for k, v in source[name].encoding.items()
+                if k in PACK_ENCODING_KEYS
+            }
+    return result
+
+
+def _combine_reuse(want: xr.Dataset, existing: xr.Dataset, tdim: str) -> xr.Dataset:
+    """Assemble `want` (source over the request) reusing `existing` local data.
+
+    Source is read only for variables absent from `existing` and for time steps
+    `existing` does not already hold; everything else comes from the local copy.
+    """
+    want_times = want[tdim]
+    have_vars = [v for v in want.data_vars if v in existing.data_vars]
+    add_vars = [v for v in want.data_vars if v not in existing.data_vars]
+    existing = _align_spatial(existing, want)
+    is_have = want_times.isin(existing[tdim])
+    reuse_times = want_times.where(is_have, drop=True)
+    missing_times = want_times.where(~is_have, drop=True)
+
+    pieces = []
+    if have_vars:
+        kept = existing[have_vars].sel({tdim: reuse_times})
+        if missing_times.size:
+            delta = want[have_vars].sel({tdim: missing_times})  # source: delta only
+            kept = xr.concat([kept, delta], dim=tdim)
+        pieces.append(kept)
+    if add_vars:
+        pieces.append(want[add_vars])                            # source: new vars
+
+    result = xr.merge(pieces) if len(pieces) > 1 else pieces[0]
+    result = result.sortby(tdim).sel({tdim: want_times})
+    # concat/merge dropped encoding; restore packing so the rebuilt store is as
+    # compact as a from-scratch stage (value-identical either way).
+    return _carry_packing(result, want)
+
+
+def _resolve_incremental(
+    src_spatial: xr.Dataset,
+    existing_path,
+    time_range,
+    variables,
+    *,
+    is_zarr: bool,
+):
+    """Return ``(dataset_to_write, reused)``, reusing an existing output if able.
+
+    `src_spatial` is the source already clipped to bbox and the requested
+    variables.  The dataset is None when the request has no time overlap with
+    the source (caller emits SKIPPED).  `reused` is True only when existing
+    local data was folded in (a materialised, in-memory result).  With no
+    existing output (or a source without a time axis) this is the plain source
+    clip — identical to a full stage — and `reused` is False.
+    """
+    tdim = _time_dim(src_spatial)
+    want = _apply_time_range(src_spatial, time_range)
+    if tdim is not None and want.sizes.get(tdim, 0) == 0:
+        return None, False
+    if existing_path is None or tdim is None:
+        return want, False
+    existing = (
+        xr.open_zarr(existing_path, consolidated=True)
+        if is_zarr
+        else xr.open_dataset(existing_path)
+    )
+    try:
+        # Materialise before closing the source of the reused cells.
+        return _combine_reuse(want, existing, tdim).load(), True
+    finally:
+        existing.close()
+
+
+@staged_rebuild(fingerprint_keys=("time_range", "variables"), is_zarr=True)
 def subset_zarr(
     src: Path,
     dst: Path,
     bbox,
     *,
     ds: xr.Dataset,
+    existing=None,
     time_range=None,
     variables=None,
 ) -> tuple[str, str]:
     # `ds` is opened once by the dispatcher (shared with the describe block) and
-    # closed there; this function must not close it.
+    # closed there; this function must not close it.  `existing` (or None) is the
+    # prior output to reuse; the wrapper writes `dst` as a temp store and swaps.
     ds = _apply_variables(ds, variables)
     lat, lon, lat_slice, lon_slice = _spatial_slices(ds, bbox)
     sub = ds.sel({lat: lat_slice, lon: lon_slice})
     if sub.sizes.get(lat, 0) == 0 or sub.sizes.get(lon, 0) == 0:
         return SKIPPED, "no overlap"
-    sub = _apply_time_range(sub, time_range)
-    sub, encoding = _zarr_subset_write_plan(sub)
-    with _dask_progress():
-        sub.to_zarr(dst, mode="w", consolidated=True, encoding=encoding)
-    return WRITTEN, "x".join(f"{sub.sizes[d]}" for d in sub.sizes)
+    result, reused = _resolve_incremental(sub, existing, time_range, variables, is_zarr=True)
+    if result is None:
+        return SKIPPED, "no time overlap"
+    if reused:
+        _remove(dst)  # the reused store is closed and in memory; clear before write
+    result, encoding = _zarr_subset_write_plan(result)
+    write = _serial_dask if reused else _dask_progress
+    with write():
+        result.to_zarr(dst, mode="w", consolidated=True, encoding=encoding)
+    return WRITTEN, "x".join(f"{result.sizes[d]}" for d in result.sizes)
 
 
 def _clip_netcdf_to_file(
@@ -786,22 +983,34 @@ def _clip_netcdf_to_file(
     return WRITTEN, ""
 
 
-@staged(fingerprint_keys=("time_range", "variables"))
+@staged_rebuild(fingerprint_keys=("time_range", "variables"))
 def subset_netcdf(
     src: Path,
     dst: Path,
     bbox,
     *,
     ds: xr.Dataset,
+    existing=None,
     time_range=None,
     variables=None,
 ) -> tuple[str, str]:
-    # `ds` is opened once by the dispatcher with `chunks="auto"` (dask-backed,
-    # so the `_dask_progress` bar around `to_netcdf` is meaningful) and closed
-    # there; this function must not close it.
-    return _clip_netcdf_to_file(
-        ds, dst, bbox, time_range=time_range, variables=variables
-    )
+    # `ds` is opened once by the dispatcher with `chunks="auto"` and closed
+    # there; this function must not close it.  `existing` (or None) is the prior
+    # output to reuse; the wrapper writes `dst` as a temp file and swaps it in.
+    ds = _apply_variables(ds, variables)
+    lat, lon, lat_slice, lon_slice = _spatial_slices(ds, bbox)
+    sub = ds.sel({lat: lat_slice, lon: lon_slice})
+    if sub.sizes.get(lat, 0) == 0 or sub.sizes.get(lon, 0) == 0:
+        return SKIPPED, "no overlap"
+    result, reused = _resolve_incremental(sub, existing, time_range, variables, is_zarr=False)
+    if result is None:
+        return SKIPPED, "no time overlap"
+    if reused:
+        _remove(dst)  # the reused file is closed and in memory; clear before write
+    write = _serial_dask if reused else _dask_progress
+    with write():
+        result.to_netcdf(dst)
+    return WRITTEN, ""
 
 
 @staged(fingerprint_keys=("time_range", "variables"), freshness="time_cover")
