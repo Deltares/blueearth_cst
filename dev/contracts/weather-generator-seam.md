@@ -303,9 +303,47 @@ realization × cst fan-out rule 3.09 depends on.
 
 ### `--notemp` capture procedure (temp() on-disk validators)
 
-> **Placeholder — filled by the temp-layer commit (design §8 commit 4).** This
-> subsection will document the `--notemp` run that captures the `temp()`
-> artifacts WG-4 and WG-6 so their *on-disk* integration checks flip from
-> skip-until-captured to green. Not run in this milestone (it would modify the
-> `examples/test_local` fixture). Until then, WG-4 / WG-6 logic is proven every
-> suite by their Layer-1 synthetic pass/fail pairs.
+The `temp()`-content validators `validate_wg4` (WG-4) and `validate_wg6` (WG-6)
+have **no on-disk integration check on the default fixture**: both artifacts are
+wrapped in Snakemake `temp()` and deleted after their consumers finish, so no
+`rlz_<n>_cst_<m>.nc` / `inmaps_rlz_<n>_cst_<m>.nc` survive a completed run. Their
+Layer-2 integration cases (`test_wg4_integration`, `test_wg6_integration`) carry
+**both** the `_FIXTURE_ABSENT` skipif and a runtime
+`pytest.skip("temp() artifact absent; capture via --notemp")` guarding on the
+NC's presence. Their logic is proven on **every** checkout by their Layer-1
+synthetic pass/fail pairs regardless.
+
+**This milestone does NOT run the capture** — passing `--notemp` and letting the
+artifacts persist would modify the untracked `examples/test_local` fixture, which
+is out of a contracts-only milestone. The procedure below is the one-command lift
+a **future run** performs when full on-disk coverage is wanted (design OQ-4).
+
+**Capture sketch** (run from the repo root inside `pixi shell`, after the wf1
+model exists — wf3 needs `hydrology_model/` artifacts):
+
+```bash
+snakemake all -c 3 -s Snakefile_climate_experiment \
+  --configfile config/workflows/snake_config_model_test.yml --notemp
+```
+
+`--notemp` tells Snakemake **not** to delete `temp()`-flagged outputs after their
+consuming jobs complete, so the run leaves the intermediate netCDFs on disk.
+
+**Paths that then appear** under `examples/test_local` (the paths the
+skip-guards test for):
+
+| validator | artifact captured | fixture path (`<exp>` = `experiments/experiment`) |
+|---|---|---|
+| `validate_wg4` | WG-4 generator output NC | `<exp>/realization_<n>/rlz_<n>_cst_<m>.nc` |
+| `validate_wg6` | WG-6 downscaled forcing NC | `<exp>/realization_<n>/inmaps_rlz_<n>_cst_<m>.nc` |
+
+(HM-6b's `outstates_rlz_<n>_cst_<m>.nc` is captured by the same run — documented
+in the hydrological-model seam doc.)
+
+**Which cases un-skip:** with these artifacts present, `test_wg4_integration` and
+`test_wg6_integration` here (plus `test_hm6b_integration` in the other seam doc)
+stop hitting their `pytest.skip` and run their on-disk assertion — the **three**
+temp validators' *on-disk* integration checks flip from skip-until-captured to
+green. No test code or validator changes; the guards resolve to the real-artifact
+path automatically once the files exist. Re-running **without** `--notemp` (or a
+`snakemake --delete-temp-output`) restores the default temp-deleted fixture state.
