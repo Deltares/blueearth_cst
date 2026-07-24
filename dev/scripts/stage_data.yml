@@ -13,11 +13,18 @@ bbox: [8.5, -0.5, 11.0, 1.5]
 
 # Each dataset entry has:
 #   name : friendly label used in logs
-#   type : raster | raster_glob | vector | zarr | netcdf
+#   type : raster | raster_glob | vector | zarr | netcdf | netcdf_glob
 #   path : path relative to source_root (mirrored under target_root)
-#   pattern : glob, only for type=raster_glob (defaults to "*.tif")
-#   workers : optional parallel file workers for raster_glob (default: 4 for >5 files)
+#   pattern : glob, for raster_glob (default "*.tif") / netcdf_glob (default "*.nc")
+#   workers : optional parallel file workers for *_glob (default: 4 for >5 files)
 #   columns : optional vector columns to read/write for type=vector
+#   time_range : optional [start, end] date clip for zarr | netcdf | netcdf_glob
+#   variables : optional NATIVE var names to keep for zarr | netcdf | netcdf_glob
+#                (filtered BEFORE hydromt applies its rename -> use source names)
+#
+# netcdf_glob stages a directory of per-file netcdfs (one clipped .nc per source
+# file, mirrored) — for meteo sources whose catalog URI templates a {year}
+# (CHIRPS) or {variable} (E-OBS) axis, which the single-file netcdf type can't open.
 datasets:
   - name: vito
     type: raster
@@ -46,18 +53,60 @@ datasets:
     type: vector
     path: hydrography/rivers_lin2019/rivers_ge30m.gpkg
 
+  # --- Meteo / climate forcing sources ---------------------------------------
+  # Source coverage + native->wflow variable names are noted per dataset. wflow
+  # historical forcing here is `clim_historical: era5` with `variables:
+  # [precip, temp]` over 2000-2020 (see config/workflows/snake_config_*.yml);
+  # CHIRPS/E-OBS are staged as alternative forcing sources for the same window.
+
   - name: era5_daily
     type: zarr
     path: meteo/era5_daily.zarr
-    # The wflow forcing build only uses 2000-2020 (see snake config).
-    # Limiting the time slice avoids streaming the full ~73-year zarr over SMB.
+    # Coverage: daily, ~1950 -> present (the full "~73-year" zarr). The wflow
+    # forcing build only uses 2000-2020 (see snake config); limiting the time
+    # slice avoids streaming the whole zarr over SMB.
     time_range: ["2000-01-01", "2020-12-31"]
-    # Only stage the variables the wflow forcing actually uses. Cuts both
-    # download bytes and the size of the staged zarr. Names are the zarr's
-    # native ERA5 short names: tp = total precip, t2m = 2m mean temp,
-    # tmin/tmax = 2m daily min/max temp.
+    # `variables:` takes the zarr's NATIVE ERA5 short names (filtered BEFORE
+    # hydromt applies its rename). native -> wflow (deltares_data.yml `era5`):
+    #   tp -> precip   t2m -> temp   tmin -> temp_min   tmax -> temp_max
+    #   msl -> press_msl   ssrd -> kin   tisr -> kout
+    # wflow forcing here needs precip + temp; the rest are optional PET inputs.
     #variables: [tp, t2m, tmin, tmax]
+
+  - name: chirps_africa_daily_v2.0   # precip-only (catalog default `chirps`)
+    type: netcdf_glob
+    path: meteo/chirps_africa_daily_v2.0
+    pattern: "CHIRPS_rainfall_*.nc"
+    # Coverage: daily, per-year files 1981 -> 2023.
+    # native -> wflow (deltares_data.yml `chirps`): precipitation -> precip
+    # NOTE: CHIRPS carries precipitation ONLY (no temperature), so it cannot be
+    # a standalone wflow forcing source — pair it with temp from era5/E-OBS.
+    time_range: ["2000-01-01", "2020-12-31"]
+    #variables: [precipitation]   # native source name (single var; optional)
+
+  # E-OBS stores each variable as its own single file under an upper-case subdir
+  # (RR, TG, ...). One entry per variable; both mirror to `meteo/eobs/<VAR>/...`
+  # so the catalog glob `meteo/eobs/*/{variable}_..._v22.0e.nc` resolves locally.
+  # DOMAIN: Europe only (~25-72°N, 25°W-45°E) — these entries cleanly SKIP
+  # ("no overlap") for non-European bboxes such as the current African test basin.
+  # Coverage (v22.0e): daily, 1950-01-01 -> 2020-06-30 (series ends mid-2020).
+  # native -> wflow (deltares_data.yml `eobs`): rr -> precip, tg -> temp,
+  #   pp -> press_msl, qq -> kin  (tn/tx/hu/fg exist but are not renamed).
+  - name: eobs_rr_v22.0e            # precip (rr)
+    type: netcdf
+    path: meteo/eobs/RR/rr_ens_mean_0.1deg_reg_v22.0e.nc
+    time_range: ["2000-01-01", "2020-06-30"]
+    #variables: [rr]
+
+  - name: eobs_tg_v22.0e            # temp (tg)
+    type: netcdf
+    path: meteo/eobs/TG/tg_ens_mean_0.1deg_reg_v22.0e.nc
+    time_range: ["2000-01-01", "2020-06-30"]
+    #variables: [tg]
 
   - name: era5_orography
     type: netcdf
     path: meteo/era5/meta/era5_orography_2018.nc
+    # Static single-time (2018) surface geopotential; native var `z`, no time
+    # axis to slice. Elevation metadata for temperature lapse correction during
+    # the build (hydromt derives elevtn from z), not a forcing variable.

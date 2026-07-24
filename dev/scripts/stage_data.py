@@ -20,6 +20,8 @@ All knobs live in a YAML file (default: ``dev/scripts/stage_data.yml``):
          columns: [geometry, id]}
       - {name: era5,  type: zarr,        path: meteo/era5_daily.zarr}
       - {name: orog,  type: netcdf,      path: meteo/.../era5_orography_2018.nc}
+      - {name: chirps, type: netcdf_glob, path: meteo/chirps_africa_daily_v2.0,
+         pattern: "CHIRPS_rainfall_*.nc", time_range: [...], variables: [...]}
 
 Usage
 -----
@@ -640,11 +642,44 @@ def subset_zarr(
     ds = _apply_variables(ds, variables)
     lat, lon, lat_slice, lon_slice = _spatial_slices(ds, bbox)
     sub = ds.sel({lat: lat_slice, lon: lon_slice})
+    if sub.sizes.get(lat, 0) == 0 or sub.sizes.get(lon, 0) == 0:
+        return SKIPPED, "no overlap"
     sub = _apply_time_range(sub, time_range)
     sub, encoding = _zarr_subset_write_plan(sub)
     with _dask_progress():
         sub.to_zarr(dst, mode="w", consolidated=True, encoding=encoding)
     return WRITTEN, "x".join(f"{sub.sizes[d]}" for d in sub.sizes)
+
+
+def _clip_netcdf_to_file(
+    ds: xr.Dataset,
+    dst: Path,
+    bbox,
+    *,
+    time_range=None,
+    variables=None,
+    show_progress: bool = True,
+) -> tuple[str, str]:
+    """Clip an open dataset spatially/temporally and write it as a netcdf.
+
+    Shared clip body for the single-file (`subset_netcdf`) and per-file-glob
+    (`subset_netcdf_file`) paths.  `show_progress` is suppressed on the glob
+    path, where many small per-file writes would each spawn a dask bar.
+    """
+    ds = _apply_variables(ds, variables)
+    lat, lon, lat_slice, lon_slice = _spatial_slices(ds, bbox)
+    sub = ds.sel({lat: lat_slice, lon: lon_slice})
+    if sub.sizes.get(lat, 0) == 0 or sub.sizes.get(lon, 0) == 0:
+        # bbox misses the dataset extent (e.g. Europe-only E-OBS vs an African
+        # basin). Skip cleanly rather than letting an empty write raise.
+        return SKIPPED, "no overlap"
+    sub = _apply_time_range(sub, time_range)
+    if show_progress:
+        with _dask_progress():
+            sub.to_netcdf(dst)
+    else:
+        sub.to_netcdf(dst)
+    return WRITTEN, ""
 
 
 @staged(fingerprint_keys=("time_range", "variables"))
@@ -660,13 +695,33 @@ def subset_netcdf(
     # `ds` is opened once by the dispatcher with `chunks="auto"` (dask-backed,
     # so the `_dask_progress` bar around `to_netcdf` is meaningful) and closed
     # there; this function must not close it.
-    ds = _apply_variables(ds, variables)
-    lat, lon, lat_slice, lon_slice = _spatial_slices(ds, bbox)
-    sub = ds.sel({lat: lat_slice, lon: lon_slice})
-    sub = _apply_time_range(sub, time_range)
-    with _dask_progress():
-        sub.to_netcdf(dst)
-    return WRITTEN, ""
+    return _clip_netcdf_to_file(
+        ds, dst, bbox, time_range=time_range, variables=variables
+    )
+
+
+@staged(fingerprint_keys=("time_range", "variables"))
+def subset_netcdf_file(
+    src: Path,
+    dst: Path,
+    bbox,
+    *,
+    time_range=None,
+    variables=None,
+) -> tuple[str, str]:
+    """Clip one netcdf file, opening it here (for the ``netcdf_glob`` path).
+
+    Unlike `subset_netcdf` (whose `ds` is hoisted once by the dispatcher), each
+    glob member is opened lazily *after* the `@staged` freshness check, so a
+    fully cached re-run never pays an SMB open per file.  The per-file dask bar
+    is suppressed — the file-level tqdm bar in `_stage_netcdf_glob` carries the
+    progress signal instead.
+    """
+    with xr.open_dataset(src, chunks="auto") as ds:
+        return _clip_netcdf_to_file(
+            ds, dst, bbox,
+            time_range=time_range, variables=variables, show_progress=False,
+        )
 
 
 SUBSETTERS = {
@@ -909,10 +964,34 @@ def _stage_raster_glob(
         f"sample: {files[0].name}"
     ])
     _print_metadata(_describe_raster(files[0]))
-    # Emit per-file glyphs only on the slow path (verbose) or when there
-    # are few files; otherwise let tqdm carry the progress signal and
-    # only break out for failures/skips.
     workers = _raster_glob_workers(entry, file_count=len(files))
+    _run_glob(
+        name, files, subset_raster, dst, bbox, report,
+        workers=workers, dataset_started=dataset_started,
+    )
+
+
+def _run_glob(
+    name: str,
+    files: list[Path],
+    fn,
+    dst: Path,
+    bbox,
+    report: RunReport,
+    *,
+    workers: int,
+    dataset_started: float,
+    extra: dict | None = None,
+) -> None:
+    """Run a clip `fn` over each glob member with bounded workers + a tqdm bar.
+
+    Shared executor/summary tail for `raster_glob` and `netcdf_glob`.  Emits
+    per-file glyphs only on the slow path (verbose, i.e. single-worker with few
+    files); otherwise tqdm carries the progress signal and only failures/skips
+    break out.  `extra` holds per-type keyword args (e.g. time_range/variables)
+    forwarded to `fn`.
+    """
+    extra = extra or {}
     verbose = workers == 1 and (tqdm is None or len(files) <= 5)
     progress_items = files if workers == 1 else range(len(files))
     bar = (
@@ -924,19 +1003,14 @@ def _stage_raster_glob(
     if workers == 1:
         for f in bar:
             _run_worker(
-                report, f.name, subset_raster, f, dst / f.name, bbox,
-                _verbose=verbose, _counts=counts,
+                report, f.name, fn, f, dst / f.name, bbox,
+                _verbose=verbose, _counts=counts, **extra,
             )
     else:
         with ThreadPoolExecutor(max_workers=workers) as executor:
             futures = [
                 executor.submit(
-                    _worker_result,
-                    f.name,
-                    subset_raster,
-                    f,
-                    dst / f.name,
-                    bbox,
+                    _worker_result, f.name, fn, f, dst / f.name, bbox, **extra,
                 )
                 for f in files
             ]
@@ -967,6 +1041,53 @@ def _stage_raster_glob(
         print(f"      {dim(summary)}")
 
 
+def _stage_netcdf_glob(
+    entry: dict,
+    name: str,
+    src: Path,
+    dst: Path,
+    bbox,
+    report: RunReport,
+) -> None:
+    """Stage a directory of per-file netcdfs, one clipped .nc per source file.
+
+    The xarray analogue of `_stage_raster_glob`: used for meteo datasets whose
+    catalog URI templates a `{year}` (CHIRPS) or `{variable}` axis across many
+    single files, which the single-file `netcdf` type cannot open.  Each source
+    file is mirrored under `dst` so the catalog's templated URI still resolves
+    against the local copy.  Supports optional `time_range`/`variables` clips.
+    """
+    dataset_started = perf_counter()
+    pattern = entry.get("pattern", "*.nc")
+    if not src.exists():
+        report.print_entry(FAILED, name, f"source dir missing: {fmt_path(src)}")
+        return
+    files = sorted(src.glob(pattern))
+    if not files:
+        report.print_entry(SKIPPED, name, f"no files match {pattern}")
+        return
+
+    _print_metadata([
+        f"{len(files)} files matching {pattern}   sample: {files[0].name}"
+    ])
+    # Describe the first file once so the run log shows grid/time/vars; a
+    # describe-only failure must not abort staging.
+    try:
+        with _open_xarray("netcdf", files[0]) as ds0:
+            _print_metadata(
+                _describe_xarray(ds0, time_range=entry.get("time_range"))
+            )
+    except Exception as exc:
+        _print_metadata([f"(could not read metadata: {str(exc).splitlines()[0][:80]})"])
+
+    extra = {k: entry[k] for k in ("time_range", "variables") if k in entry}
+    workers = _raster_glob_workers(entry, file_count=len(files))
+    _run_glob(
+        name, files, subset_netcdf_file, dst, bbox, report,
+        workers=workers, dataset_started=dataset_started, extra=extra,
+    )
+
+
 def _stage_dataset(
     entry: dict,
     source_root: Path,
@@ -988,6 +1109,10 @@ def _stage_dataset(
 
     if kind == "raster_glob":
         _stage_raster_glob(entry, name, src, dst, bbox, report)
+        return
+
+    if kind == "netcdf_glob":
+        _stage_netcdf_glob(entry, name, src, dst, bbox, report)
         return
 
     fn = SUBSETTERS.get(kind)

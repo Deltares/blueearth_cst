@@ -148,6 +148,35 @@ def test_raster_glob_workers_are_bounded_and_configurable() -> None:
     assert stage_data._raster_glob_workers({}, file_count=2) == 1
 
 
+def test_netcdf_glob_type_dispatches_to_netcdf_glob_stager(monkeypatch) -> None:
+    # A `netcdf_glob` entry must route to `_stage_netcdf_glob` (the per-file
+    # xarray path) and NOT fall through to the SUBSETTERS unknown-type failure.
+    calls = []
+    monkeypatch.setattr(
+        stage_data,
+        "_stage_netcdf_glob",
+        lambda entry, name, src, dst, bbox, report: calls.append(
+            (name, str(src), str(dst))
+        ),
+    )
+    report = stage_data.RunReport()
+    entry = {
+        "name": "chirps",
+        "type": "netcdf_glob",
+        "path": "meteo/chirps_africa_daily_v2.0",
+    }
+    stage_data._stage_dataset(
+        entry, Path("/src"), Path("/dst"), (0, 0, 1, 1), report
+    )
+
+    assert len(calls) == 1
+    name, src, dst = calls[0]
+    assert name == "chirps"
+    assert src.replace("\\", "/").endswith("meteo/chirps_africa_daily_v2.0")
+    assert dst.replace("\\", "/").endswith("meteo/chirps_africa_daily_v2.0")
+    assert all(status != stage_data.FAILED for status, *_ in report.results)
+
+
 def test_completion_detail_appends_elapsed_time() -> None:
     # The wall-clock `completed:` stamp was dropped; the signature is now
     # (detail, elapsed, *, status). A WRITTEN entry always appends elapsed.
