@@ -907,6 +907,35 @@ def _combine_reuse(want: xr.Dataset, existing: xr.Dataset, tdim: str) -> xr.Data
     return _carry_packing(result, want)
 
 
+# Timesteps per download block.  A block ~= one era5 store chunk (365 days), so
+# the read is chunk-aligned and the tqdm bar advances (with an ETA) per block.
+DOWNLOAD_BLOCK_STEPS = 365
+
+
+def _download(ds: xr.Dataset, tdim) -> xr.Dataset:
+    """Materialise `ds` (the slow SMB read), showing per-block download progress.
+
+    dask's own ProgressBar is unreliable for this — graph fusion and parallel
+    chunk reads collapse it into a single 0->100 jump — so for a long time series
+    we load in `DOWNLOAD_BLOCK_STEPS` blocks under a tqdm bar that advances once
+    per block (reads still parallelise *within* a block).  Short series, no time
+    axis, or no tqdm fall back to a plain dask-progress load.  The block concat
+    drops encoding, so packing is re-attached from the source.
+    """
+    n = 0 if tdim is None else ds.sizes.get(tdim, 0)
+    if tdim is None or tqdm is None or n <= DOWNLOAD_BLOCK_STEPS:
+        with _dask_progress():
+            return ds.load()
+    blocks = [
+        ds.isel({tdim: slice(i, i + DOWNLOAD_BLOCK_STEPS)}).load()
+        for i in tqdm(
+            range(0, n, DOWNLOAD_BLOCK_STEPS),
+            desc="    downloading", unit="blk", leave=False,
+        )
+    ]
+    return _carry_packing(xr.concat(blocks, dim=tdim), ds)
+
+
 def _resolve_incremental(
     src_spatial: xr.Dataset,
     existing_path,
@@ -920,24 +949,29 @@ def _resolve_incremental(
     `src_spatial` is the source already clipped to bbox and the requested
     variables.  The dataset is None when the request has no time overlap with
     the source (caller emits SKIPPED).  `reused` is True only when existing
-    local data was folded in (a materialised, in-memory result).  With no
-    existing output (or a source without a time axis) this is the plain source
-    clip — identical to a full stage — and `reused` is False.
+    local data was folded in.  With no existing output (or a source without a
+    time axis) the result is the plain source clip — identical to a full stage —
+    and `reused` is False.
+
+    In every case the result is **materialised under a dask progress bar**: this
+    is where the (slow, SMB) download happens, so the bar advances per source
+    chunk read — the meaningful "downloading" signal for large grids like era5.
+    The result is small (a bbox clip) and is written from memory by the caller.
     """
     tdim = _time_dim(src_spatial)
     want = _apply_time_range(src_spatial, time_range)
     if tdim is not None and want.sizes.get(tdim, 0) == 0:
         return None, False
     if existing_path is None or tdim is None:
-        return want, False
+        return _download(want, tdim), False
     existing = (
         xr.open_zarr(existing_path, consolidated=True)
         if is_zarr
         else xr.open_dataset(existing_path)
     )
     try:
-        # Materialise before closing the source of the reused cells.
-        return _combine_reuse(want, existing, tdim).load(), True
+        # Materialise (download the delta) before closing the reused source.
+        return _download(_combine_reuse(want, existing, tdim), tdim), True
     finally:
         existing.close()
 
@@ -955,7 +989,8 @@ def subset_zarr(
 ) -> tuple[str, str]:
     # `ds` is opened once by the dispatcher (shared with the describe block) and
     # closed there; this function must not close it.  `existing` (or None) is the
-    # prior output to reuse; the wrapper writes `dst` as a temp store and swaps.
+    # prior output to reuse.  `_resolve_incremental` downloads (materialises) the
+    # result under the progress bar, so the write below is from memory.
     ds = _apply_variables(ds, variables)
     lat, lon, lat_slice, lon_slice = _spatial_slices(ds, bbox)
     sub = ds.sel({lat: lat_slice, lon: lon_slice})
@@ -967,7 +1002,7 @@ def subset_zarr(
     if reused:
         _remove(dst)  # the reused store is closed and in memory; clear before write
     result, encoding = _zarr_subset_write_plan(result)
-    _write_zarr(result, dst, encoding, serial=reused)
+    _write_zarr(result, dst, encoding, serial=True)  # from memory (already downloaded)
     return WRITTEN, "x".join(f"{result.sizes[d]}" for d in result.sizes)
 
 
@@ -1020,7 +1055,8 @@ def subset_netcdf(
 ) -> tuple[str, str]:
     # `ds` is opened once by the dispatcher with `chunks="auto"` and closed
     # there; this function must not close it.  `existing` (or None) is the prior
-    # output to reuse; the wrapper writes `dst` as a temp file and swaps it in.
+    # output to reuse.  `_resolve_incremental` downloads (materialises) the result
+    # under the progress bar, so the write below is from memory.
     ds = _apply_variables(ds, variables)
     lat, lon, lat_slice, lon_slice = _spatial_slices(ds, bbox)
     sub = ds.sel({lat: lat_slice, lon: lon_slice})
@@ -1031,9 +1067,8 @@ def subset_netcdf(
         return SKIPPED, "no time overlap"
     if reused:
         _remove(dst)  # the reused file is closed and in memory; clear before write
-    write = _serial_dask if reused else _dask_progress
-    with write():
-        result.to_netcdf(dst)
+    with _serial_dask():
+        result.to_netcdf(dst)  # from memory (already downloaded)
     return WRITTEN, ""
 
 

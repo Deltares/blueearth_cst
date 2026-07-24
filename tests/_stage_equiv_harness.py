@@ -247,6 +247,37 @@ def _rebuild_preserves_packing(work: Path) -> None:
         db.close()
 
 
+def _chunked_download_equiv(work: Path) -> None:
+    """The block-wise download path == a single load, and preserves packing."""
+    src = work / "src"
+    rel = "meteo/chunked.nc"
+    ds = _source_ds(range(1999, 2003))  # 16 timesteps
+    ds["precip"].encoding = {
+        "dtype": "int16", "scale_factor": 0.1, "_FillValue": -9999, "zlib": True,
+    }
+    _write_source(src / rel, ds, as_zarr=False)
+    a, b = work / "A", work / "B"
+
+    orig = sd.DOWNLOAD_BLOCK_STEPS
+    try:
+        sd.DOWNLOAD_BLOCK_STEPS = 10_000  # single-load reference
+        _stage(_cfg(src, b, rel, "netcdf", ["1999-01-01", "2002-12-31"]))
+        sd.DOWNLOAD_BLOCK_STEPS = 3       # force a multi-block chunked download
+        _stage(_cfg(src, a, rel, "netcdf", ["1999-01-01", "2002-12-31"]))
+    finally:
+        sd.DOWNLOAD_BLOCK_STEPS = orig
+
+    da, db = xr.open_dataset(a / rel), xr.open_dataset(b / rel)
+    try:
+        xr.testing.assert_identical(da, db)
+        assert da["precip"].encoding.get("dtype") == np.dtype("int16"), (
+            "chunked download lost int16 packing"
+        )
+    finally:
+        da.close()
+        db.close()
+
+
 def main(workdir: str) -> None:
     work = Path(workdir)
     scenario_glob(work / "glob")
@@ -255,6 +286,7 @@ def main(workdir: str) -> None:
         _rebuild_provenance(work / f"pv_{typ}", typ, as_zarr)
     _rebuild_add_variable(work / "addvar")
     _rebuild_preserves_packing(work / "packed")
+    _chunked_download_equiv(work / "chunked")
     print("PASS")
 
 
