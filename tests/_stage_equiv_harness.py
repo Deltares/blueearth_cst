@@ -35,10 +35,11 @@ import stage_data as sd  # noqa: E402
 
 
 def _stage(cfg):
-    # Force the synchronous dask scheduler: the fixtures are tiny, so serial is
-    # instant, and it avoids the concurrent zarr-v3 metadata renames that are
-    # flaky on Windows (a pre-existing property of the from-scratch write path,
-    # independent of the incremental logic under test).
+    # Force the synchronous dask scheduler so this end-to-end test is fast and
+    # deterministic: the fixtures are tiny, and it sidesteps the concurrent
+    # zarr-v3 metadata renames that are flaky on Windows. This test targets the
+    # incremental logic (scheduler-independent); the production write path's
+    # retry against that flakiness is covered by a dedicated unit test.
     with dask.config.set(scheduler="synchronous"):
         return sd.stage(cfg)
 

@@ -261,6 +261,42 @@ def test_reusable_false_without_output_or_manifest(tmp_path) -> None:
     assert stage_data._reusable(tmp_path / "orphan.nc", fp) is False
 
 
+def test_write_zarr_retries_transient_permission_error(tmp_path, monkeypatch) -> None:
+    # zarr-v3's atomic metadata rename intermittently raises PermissionError on
+    # Windows; `_write_zarr` must clear the partial store and retry, succeeding
+    # once the transient lock clears.
+    calls = {"to_zarr": 0, "remove": 0, "sleep": 0}
+
+    class _FakeResult:
+        def to_zarr(self, dst, **kwargs):
+            calls["to_zarr"] += 1
+            if calls["to_zarr"] < 3:  # fail twice, then succeed
+                raise PermissionError("[WinError 5] Access is denied")
+
+    monkeypatch.setattr(stage_data, "_remove", lambda p: calls.__setitem__("remove", calls["remove"] + 1))
+    monkeypatch.setattr(stage_data, "sleep", lambda s: calls.__setitem__("sleep", calls["sleep"] + 1))
+
+    stage_data._write_zarr(_FakeResult(), tmp_path / "s.zarr", {}, serial=True)
+    assert calls["to_zarr"] == 3      # two failures + one success
+    assert calls["remove"] == 2       # partial store cleared before each retry
+    assert calls["sleep"] == 2
+
+
+def test_write_zarr_reraises_after_exhausting_retries(tmp_path, monkeypatch) -> None:
+    class _AlwaysFails:
+        def to_zarr(self, dst, **kwargs):
+            raise PermissionError("[WinError 5] Access is denied")
+
+    monkeypatch.setattr(stage_data, "_remove", lambda p: None)
+    monkeypatch.setattr(stage_data, "sleep", lambda s: None)
+    try:
+        stage_data._write_zarr(_AlwaysFails(), tmp_path / "s.zarr", {}, serial=True)
+    except PermissionError:
+        pass
+    else:
+        raise AssertionError("expected PermissionError after exhausting retries")
+
+
 def test_unpack_clip_result_accepts_two_or_three_tuples() -> None:
     assert stage_data._unpack_clip_result(("written", "d")) == ("written", "d", {})
     assert stage_data._unpack_clip_result(

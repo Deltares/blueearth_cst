@@ -41,7 +41,7 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
 from pathlib import Path
-from time import perf_counter
+from time import perf_counter, sleep
 
 # GDAL/SMB performance tuning. Set as defaults so a user-set env wins.
 # Must be set BEFORE geopandas/rasterio import — GDAL reads these once at
@@ -363,6 +363,32 @@ def _serial_dask():
         return
     with dask.config.set(scheduler="synchronous"):
         yield
+
+
+ZARR_WRITE_ATTEMPTS = 3
+
+
+def _write_zarr(result: xr.Dataset, dst: Path, encoding: dict, *, serial: bool) -> None:
+    """Write a zarr store, retrying transient Windows metadata-rename failures.
+
+    zarr-v3's LocalStore commits metadata with an atomic ``.partial -> zarr.json``
+    rename that intermittently raises ``PermissionError [WinError 5]`` on Windows
+    (an antivirus/indexer briefly locking the file).  A bounded retry — clearing
+    the partial store first — absorbs it in our code, without patching zarr or
+    serialising large from-scratch writes.  `serial` writes the (small, already
+    materialised) rebuilt result single-threaded to avoid the race outright.
+    """
+    ctx = _serial_dask if serial else _dask_progress
+    for attempt in range(ZARR_WRITE_ATTEMPTS):
+        try:
+            with ctx():
+                result.to_zarr(dst, mode="w", consolidated=True, encoding=encoding)
+            return
+        except (PermissionError, OSError):
+            if attempt == ZARR_WRITE_ATTEMPTS - 1:
+                raise
+            _remove(dst)  # drop the partial store before retrying
+            sleep(0.25 * (attempt + 1))
 
 
 def _format_elapsed(seconds: float) -> str:
@@ -941,9 +967,7 @@ def subset_zarr(
     if reused:
         _remove(dst)  # the reused store is closed and in memory; clear before write
     result, encoding = _zarr_subset_write_plan(result)
-    write = _serial_dask if reused else _dask_progress
-    with write():
-        result.to_zarr(dst, mode="w", consolidated=True, encoding=encoding)
+    _write_zarr(result, dst, encoding, serial=reused)
     return WRITTEN, "x".join(f"{result.sizes[d]}" for d in result.sizes)
 
 
