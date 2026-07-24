@@ -681,7 +681,7 @@ on the first chirps basin.
 
 **Tag.** `p32a-climate-analysis`.
 
-### P3-2b — Model-swap interchange contracts (scoped 2026-07-24)
+### P3-2b — Model-swap interchange contracts (sealed 2026-07-24)
 
 Second half of the former P3-2: pins the interchange contracts (netCDF
 handoffs, forcing/state shapes) as explicit interfaces so an alternative
@@ -700,8 +700,19 @@ zone source, entry point).
 all-skip-green) → Fable-escalated revision → external GPT r2 **approve,
 zero findings**; converged inside the cap, no arbitration; ledger 18/18
 accepted): `dev/p32b/interchange-contracts-design.md`, with the
-consolidated review record beside it. Next step: task-brief →
-implementation (Opus-default / Fable-gate-review pattern).
+consolidated review record beside it.
+**Sealed 2026-07-24**: 4 `p32b:` implementation commits (two seam docs →
+validators+tests (§8 commits 3+4 merged as sanctioned) → contracts README)
+off the task brief (`dev/p32b/interchange-contracts-task-brief.md`),
+user-signed milestone gate. Deliverables: `dev/contracts/{README,
+weather-generator-seam, hydrological-model-seam}.md`,
+`blueearth_cst/shared/interchange_contracts.py` (15 validators),
+`tests/test_interchange_contracts.py` (30 synthetic + 15 integration).
+Evidence: suite 357/6/1 purely additive over 304/3/1; `pytest -rs` split
+matches the §5.5 counting axis (12 green + 3 documented temp skips);
+milestone diff = 5 new files, 2279 insertions, zero pipeline edits. The
+`--notemp` capture and chirps fixture-verification remain documented
+future steps.
 
 **Tag.** `p32b-interchange-contracts`.
 
