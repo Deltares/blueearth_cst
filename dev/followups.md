@@ -9,6 +9,38 @@ context so future-you can confirm the issue still applies before fixing.
 
 ---
 
+## Post-P3-3 (surfaced 2026-07-25 during the P3-3 batching milestone)
+
+- **Make the wf3 batch-size default genuinely disk-aware.** Design §6.1 names
+  three ceilings on `B` and calls the **disk ceiling the BINDING constraint** on
+  large `RLZ_NUM×ST_NUM` runs, capped so `p × B × (forcing_size + state_size)`
+  stays inside a stated headroom. The landed default implements only the
+  *parallelism* ceiling (`ceil(K / -c N)`), which scales `B` **up** with sweep
+  size and therefore grows peak temp disk as the sweep grows — backwards from
+  what §6.1 asks. Commit `<clamp>` bounds it with an overridable
+  `batch_size_max` (default 8); that caps the blast radius but is a constant, not
+  a disk computation. A real cap needs (a) a stated disk-headroom config key and
+  (b) a per-run forcing+state size estimate, and (b) is the hard part: at parse
+  time the forcing NCs are `temp()` and do not exist yet, so the estimate has to
+  come from the wflow grid dimensions × run length × variable count, or from a
+  measured prior run recorded in config. Verified 2026-07-25: fixture (K=12,
+  `-c 3`) is unaffected — `min(ceil(12/3), 8) = 4`, so every P3-3 measurement
+  stands; the clamp only binds from K > 24 at `-c 3`. Confirm the hazard still
+  applies before fixing (it is scale-dependent and invisible on the seed
+  fixture, whose peak footprint is 120 MB).
+- **Consider recovering per-cst persistence isolation under batching.** C5 is
+  DEGRADED by design (blast radius `B`): one failing cst causes Snakemake to
+  delete the `B−1` completed sibling CSVs and re-run the whole batch, and rule
+  3.11 is blocked sweep-wide until it succeeds. Measured exactly as documented
+  (`dev/p33/batching-results.md` GN-4). §6.1 names the mechanism worth probing:
+  the `--keep-incomplete` ↔ `--keep-going` interaction (does `--keep-incomplete`
+  preserve successfully-written sibling CSVs across a failed batch job, and does
+  the sweep then re-run only the failed cst?), with **accept-the-degradation as
+  the explicit fallback** if the probe fails. Only worth doing if the blast
+  radius actually bites in practice.
+
+---
+
 ## Post-R6 (surfaced 2026-07-23 during the R6 milestone validation)
 
 - **Make the projections summary CSV column order deterministic.**

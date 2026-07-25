@@ -375,15 +375,36 @@ try:
     _cores = int(workflow.cores) if workflow.cores else 1
 except Exception:
     _cores = 1
-# B default from -c N (the §6.1 parallelism ceiling, B ≈ ceil(K/N));
-# workflows.climate_experiment.batch_size overrides (B=1 → today's behavior).
-batch_size = int(get_config(my_cfg, "batch_size",
-                            max(1, -(-len(_k_members) // max(1, _cores)))))
-if batch_size < 1:
-    # Fail at parse time with the key named, rather than deep inside range().
-    raise ValueError(
-        f"workflows.climate_experiment.batch_size must be >= 1, got {batch_size}"
-    )
+# B default from -c N (the §6.1 parallelism ceiling, B ≈ ceil(K/N)), then CLAMPED
+# by the §6.1 DISK ceiling. Peak temp() footprint is p × B × (forcing + state) —
+# both the 3.09 forcing NC and the 3.10 outstates NC are held per batch, and all p
+# concurrent batches are resident — so an unclamped ceil(K/N) default scales B UP
+# with sweep size, making peak disk grow as the sweep grows. That is backwards:
+# §6.1 calls disk "the BINDING constraint" that forces B small on large
+# RLZ_NUM×ST_NUM runs. The true cap needs a stated disk headroom and a per-run
+# size estimate, neither available at parse time (the forcing NCs are temp() and
+# do not exist yet) — see dev/followups.md § Post-P3-3. Until then batch_size_max
+# bounds the blast radius and the footprint; both keys are overridable, and
+# batch_size set explicitly still wins outright.
+def _positive_batch_key(key, value):
+    """Fail at parse time naming the offending key, not deep inside range()."""
+    value = int(value)
+    if value < 1:
+        raise ValueError(
+            f"workflows.climate_experiment.{key} must be >= 1, got {value}"
+        )
+    return value
+
+
+# Validate the clamp BEFORE it feeds the default, so a bad batch_size_max is
+# reported as batch_size_max rather than as the batch_size it silently zeroed.
+batch_size_max = _positive_batch_key("batch_size_max",
+                                     get_config(my_cfg, "batch_size_max", 8))
+batch_size = _positive_batch_key(
+    "batch_size",
+    get_config(my_cfg, "batch_size",
+               min(batch_size_max, max(1, -(-len(_k_members) // max(1, _cores))))),
+)
 _batches = {bid: _k_members[i:i + batch_size]
             for bid, i in enumerate(range(0, len(_k_members), batch_size))}
 _batch_driver = str(Path(workflow.basedir) / "blueearth_cst" / "experiment" / "run_wflow_batch.jl")

@@ -173,6 +173,20 @@ saturated by construction. At 120 MB it is harmless; on a production
 `RLZ_NUM × ST_NUM` sweep this is the ceiling that binds first and forces `B` down,
 exactly as §6.1 says.
 
+**The default `B` is now clamped, because the fixture hid a scale hazard.** GN-3
+passes here, but it passes on a sweep where the cap and the whole-sweep footprint
+coincide *and* the footprint is 120 MB. The landed default was `ceil(K / -c N)`,
+which implements only §6.1's **parallelism** ceiling — so `B`, and therefore peak
+disk (`p × B × …`), scale **up** with sweep size, the opposite of what §6.1 asks
+when it calls the disk ceiling "the BINDING constraint" that forces `B` small on
+large runs. The fixture cannot surface this: `K=12` at `-c 3` gives `B=4` either
+way. An overridable `batch_size_max` (default 8) now bounds it; a genuinely
+disk-aware cap needs a headroom config key plus a per-run size estimate that is
+not available at parse time (the forcing NCs are `temp()` and do not exist yet),
+so it is recorded in `dev/followups.md` § Post-P3-3. **Every measurement in this
+note is unaffected** — `min(ceil(12/3), 8) = 4`, verified — and the clamp only
+binds from `K > 24` at `-c 3` (verified: `K=60` yields 8 batch rules, not 3).
+
 **Outstates reclamation verified, not assumed** (the §6.1 verify-in-commit-2 item):
 the sampler shows both `temp()` classes dropping in **B-sized groups** — 12 → 8 → 4
 → 0 at 11:20:39 / 11:20:49 / 11:21:03, ending at **0 MB**. Nothing leaks; deletion
