@@ -43,8 +43,31 @@ context so future-you can confirm the issue still applies before fixing.
 
 ## Post-R6 (surfaced 2026-07-23 during the R6 milestone validation)
 
-- **Make the projections summary CSV column order deterministic.**
-  **CODE FIX LANDED 2026-07-25; MANIFEST RE-RECORD STILL OPEN (user-gated).**
+- ~~**Make the projections summary CSV column order deterministic.**~~
+  **CLOSED 2026-07-25 — code fix landed AND manifest re-recorded.** wf2 was run
+  to completion (12/12 jobs, 140 s), the delta was proven column-order-only, and
+  `record --workflow climate_projections` updated exactly the two affected rows.
+  Evidence, in the order it was established:
+  - **Delta is ordering, nothing else.** Both CSVs: identical column *set*,
+    identical shape (48×9 and 6×9), header moved `temp,precip` →
+    `precip,temp`, and **every value identical when matched by label**
+    (`DataFrame.equals` after realigning the after-frame to the before-frame's
+    column order). Checked before recording, because a value change would have
+    meant `sorted()` did more than reorder — that would have blocked the record.
+  - **Scope was exactly the 2 predicted rows.** `check` pre-record reported
+    `FAIL - 2 target(s)`, both summary CSVs; the sibling
+    `annual_change_scalar_stats_summary.nc` and the other five wf2 targets were
+    unaffected.
+  - **Manifest diff is 2 lines.** `git diff dev/baseline/manifest.json` = 2
+    insertions / 2 deletions, both `sha256` values, `size_bytes` unchanged
+    (a pure column swap preserves total width).
+  - **Post-state:** full `check_baseline check` **OK 18/18**, and wf2 dry-runs
+    to "Nothing to be done" — the queued-jobs tripwire left by the earlier
+    killed run is gone.
+
+  Historical detail retained below.
+
+  **CODE FIX LANDED 2026-07-25; MANIFEST RE-RECORD (now done, see above).**
   `intersection()` in `blueearth_cst/projections/get_change_climate_proj.py`
   returned `list(set(lst1) & set(lst2))` — hash-order dependent, so
   `annual_change_scalar_stats_summary{,_mean}.csv` flipped `precip`/`temp`

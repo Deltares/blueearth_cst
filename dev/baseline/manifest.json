@@ -12,7 +12,7 @@
       "type": "csv"
     },
     "examples/test_local/climate_projections/cmip6/annual_change_scalar_stats_summary.csv": {
-      "sha256": "c6e15e7dcd90a82887a80c52e4339baa4479432d69a0de007ab511b762cf9f8d",
+      "sha256": "33831c15dcc0b10f456ce39cd9fd0ead4299dce3ab99da1d4ddf0a191ef59eaa",
       "size_bytes": 4306,
       "type": "csv"
     },
@@ -169,7 +169,7 @@
       "type": "netcdf"
     },
     "examples/test_local/climate_projections/cmip6/annual_change_scalar_stats_summary_mean.csv": {
-      "sha256": "90a57ec1f7619756da6895826fcdcf7ec8841ff29a30414573d0c6d97b714582",
+      "sha256": "176e7ee4079d8f72ad8bf9625e68127b0792c9d146368f76d465970e56238e4c",
       "size_bytes": 598,
       "type": "csv"
     },
