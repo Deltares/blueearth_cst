@@ -63,4 +63,12 @@ jobs:
       - name: Run the unit suite
         # -rs prints every skip reason, so the expected-skip set stays visible in
         # the log rather than silently drifting. A new skip is a signal.
+        #
+        # Observed baselines (first green run, 2026-07-25):
+        #   windows-latest : 386 passed / 30 skipped / 1 xfailed  (~100 s suite)
+        #   ubuntu-latest  : 385 passed / 31 skipped / 1 xfailed  (~50 s suite)
+        # Both total 416 + 1 xfail. The one-test difference is legitimate and
+        # expected: tests/test_snake_utils.py::test_patch_psutil_exposes_pss
+        # covers a Windows-only psutil shim and skips itself off win32. Any OTHER
+        # divergence between the two legs is worth investigating.
         run: pixi run pytest tests/ -q -rs
