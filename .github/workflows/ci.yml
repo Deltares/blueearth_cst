@@ -1,0 +1,66 @@
+# CI — runs the unit suite on both supported pixi platforms.
+#
+# Scope, and why it is this narrow: only the tests that pass on a BARE CHECKOUT
+# can run here. Measured on a clean worktree with no untracked fixture and no
+# local data: 386 passed / 30 skipped / 1 xfailed in ~100 s. All 30 skips are
+# principled and expected on a runner —
+#   * ~27 need the untracked `examples/test_local` fixture tree (the
+#     interchange-contract integration layer + one wf1 extraction case), and
+#   * 3 are end-to-end workflow tests already behind the repo's own
+#     `--run-integration` opt-in flag (tests/conftest.py).
+# Nothing in the suite invokes Rscript or Julia outside those skipped tests, so
+# CI deliberately does NOT run `pixi run install` (weathergenr + the Julia env):
+# Julia is juliaup-managed and absent from pixi by design (AGENTS.md Hard
+# Constraints), and weathergenr is only needed at Snakemake runtime.
+#
+# Consequently the following gates CANNOT run here and remain local-only:
+# `check_baseline.py` and `semantic_tree_diff.py` as whole-tree gates (both need
+# the untracked fixture), and any real workflow execution (needs the Deltares
+# catalog and CMIP6 GCS access). `semantic_tree_diff`'s own unit tests DO run.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Supersede an in-flight run when the same ref is pushed again.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      # Both legs always report: a win-64-only failure must not mask the
+      # linux-64 result, and vice versa. The two platforms fail differently here
+      # (Windows owns the cp1252/CRLF/file-locking class of defect; linux-64 is
+      # the platform the lock has never been resolved on).
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the pixi environment
+        uses: prefix-dev/setup-pixi@v0.10.0
+        with:
+          # `locked` defaults to true when a lockfile is present; set explicitly
+          # because it is load-bearing — it fails the run if pixi.lock has
+          # drifted from pixi.toml, so lock drift becomes a CI failure instead of
+          # a surprise on someone's next `pixi install`. This is also the first
+          # place the linux-64 half of pixi.lock has ever been resolved at all
+          # (no Linux machine has been available — see dev/roadmap.md
+          # "Deferred: Linux replication"), so the ubuntu leg doubles as the
+          # de-risking step for that parked work.
+          locked: true
+          cache: true
+
+      - name: Run the unit suite
+        # -rs prints every skip reason, so the expected-skip set stays visible in
+        # the log rather than silently drifting. A new skip is a signal.
+        run: pixi run pytest tests/ -q -rs
