@@ -36,6 +36,23 @@
 - Job-count asymmetry (58 vs 49) is the construct itself: 12 `run_wflow` jobs
   collapse to 3 `run_wflow_batch_<b>` jobs. Everything else is identical.
 
+**"B is the only moved knob" — measured, not asserted.** The two runs are minutes
+apart on a machine whose cache state was changing (the era5 zarr was cold for the
+baseline's 3.02 and warm for the batched one), so upstream parity is checked rather
+than assumed. Summing every non-3.10 row of both runs' `wf3_benchmarks.md`:
+
+| | non-3.10 rows | upstream total |
+|---|---|---|
+| baseline B=1 | 43 | 342.59 s |
+| batched B=4 | 43 | 359.50 s |
+
+Identical row counts (the same upstream work ran in both), and the batched run's
+upstream was **+16.91 s / +4.9 % SLOWER**. The residual drift therefore works
+**against** the lever: with identical upstream the batched sweep would have landed
+near 383 s (−38.2 %), not 400.2 s. Combined with the adverse run ordering, −35.4 %
+is a conservative figure on both counts. The directly-measured 3.10-stage numbers
+(464 s → 228 s makespan) carry the claim independently of any upstream drift.
+
 ## Why the before-number had to be re-measured
 
 The committed commit-1 baseline (2242.9 s) was contaminated by the concurrent
@@ -196,9 +213,13 @@ rather than asserted.
 **Incidental finding (not a criterion).** Forcing one batch cascades wider than the
 batch: `--forcerun run_wflow_batch_0` re-ran all three batches, because the batch's
 `temp()` forcing inputs were already reclaimed, so 3.09 → 3.07 → 3.06 had to
-regenerate, and 3.06 emits **all** realizations, invalidating every batch. This is
-the pre-existing `temp()` cascade, not a batching effect (B=1 behaves the same), but
-it is worth knowing before anyone plans a surgical re-run of one batch.
+regenerate, and 3.06 emits **all** realizations, invalidating every batch. Worth
+knowing before anyone plans a surgical re-run of one batch. **Attribution is
+REASONED, NOT MEASURED:** the same 3.09 → 3.07 → 3.06 chain and the same all-
+realizations 3.06 output exist at B=1, so this should be a pre-existing `temp()`
+cascade rather than a batching effect — but that was not tested here, and it is
+flagged as reasoning so it does not read with the same authority as the measured
+rows above.
 
 ## Tooling defects found and fixed (in `dev/scripts/estimate_batch_makespan.py`)
 
