@@ -1,15 +1,33 @@
 BlueEarth Climate Stress Test toolbox
 #####################################
 
+.. image:: https://github.com/tanerumit/blueearth_cst/actions/workflows/ci.yml/badge.svg
+   :target: https://github.com/tanerumit/blueearth_cst/actions/workflows/ci.yml
+   :alt: CI
+
 .. note::
 
-   **Fork status (v0.2.0-alpha).** This is a personal fork of
-   `Deltares/blueearth_cst <https://github.com/Deltares/blueearth_cst>`_
-   under active refactoring. Foundation work — replication baseline,
-   pixi-based env, library upgrades (hydromt 1.x, Wflow.jl 1.0.x),
-   Python 3.14, and unit-test coverage — is sealed at ``v0.2.0-alpha``.
-   Workflow refactoring (R1–R6) starts after this release. See
-   ``dev/roadmap.md`` and ``CHANGELOG.md`` for the full picture.
+   **Fork status.** This is a personal fork of
+   `Deltares/blueearth_cst <https://github.com/Deltares/blueearth_cst>`_.
+   Three planned phases are complete:
+
+   - **Phase 1 — Foundation** (sealed, ``v0.2.0-alpha``): replication
+     baseline, pixi-based env, library upgrades (hydromt 1.x,
+     Wflow.jl 1.0.x), unit-test coverage.
+   - **Phase 2 — Refactor** (sealed 2026-07-23, R1–R6): modularity
+     contracts, naming conventions, one milestone per workflow, then the
+     structural refactor that moved ``src/`` to the ``blueearth_cst``
+     package and split ``config/`` into ``workflows`` / ``catalogs`` /
+     ``templates``.
+   - **Phase 3 — Usability & flexibility** (sealed 2026-07-25, P3-1…P3-3):
+     project/experiment structure, model-independent climate analysis,
+     model-swap interchange contracts, and performance work (the wf3
+     stress-test sweep is ~35 % faster, value-identical).
+
+   Phase 4 is open; CI was its first item. ``dev/roadmap.md`` is the
+   authoritative status record — this note summarises it and may lag.
+   See also ``CHANGELOG.md``, which tracks releases rather than
+   milestones.
 
 The BlueEarth Climate Stress Test toolbox (``blueearth_cst``) is a
 free, open-source toolkit for interactive climate risk assessment
@@ -49,7 +67,9 @@ For a step-by-step walkthrough of a fresh install, see
 Prerequisites
 -------------
 
-1. **pixi** (manages Python 3.14 + R 4.5 via conda-forge).
+1. **pixi** (manages Python 3.12 + R 4.4 via conda-forge; the exact pins
+   live in ``pixi.toml`` — R is held at 4.4 because conda-forge's 4.5
+   ``r-waveslim`` build is broken on win-64).
 
    Windows (PowerShell):
 
@@ -280,6 +300,38 @@ discharge statistics.
     $ snakemake all -c 1 -s Snakefile_climate_experiment --configfile config/workflows/snake_config_model_test.yml
 
 
+Testing
+=======
+
+The cheapest useful check is the dry-run gate, which parses all three
+Snakefiles and validates their DAGs without running anything:
+
+.. code-block:: console
+
+    $ pixi run pytest tests/test_cli.py
+
+The full unit suite takes a couple of minutes:
+
+.. code-block:: console
+
+    $ pixi run pytest tests/
+
+Notes on what the suite does and does not cover:
+
+- Tests that need the untracked ``examples/test_local`` fixture tree
+  **skip** when it is absent, as do three end-to-end workflow tests that
+  are opt-in behind ``--run-integration``. Run ``pytest -rs`` to see every
+  skip reason. On a clean checkout expect ~385 passed and ~30 skipped.
+- ``dev/scripts/check_baseline.py check`` and
+  ``dev/scripts/semantic_tree_diff.py`` compare a produced output tree
+  against a recorded baseline. They are **local-only gates** — they need
+  that fixture tree, so CI cannot run them. **A green CI badge does not
+  mean the baseline was checked.**
+- CI (``.github/workflows/ci.yml``) runs the unit suite on
+  ``ubuntu-latest`` and ``windows-latest`` for every push to ``main`` and
+  every pull request.
+
+
 Documentation
 =============
 
@@ -298,9 +350,16 @@ Fork-specific (development):
 - ``docs/install.md`` — step-by-step install walkthrough.
 - ``dev/phase-1/`` — sealed foundation milestone artifacts (audits,
   plans, baseline diffs).
-- ``dev/r01/``, ``dev/r02/`` — active Phase 2 milestone designs
-  (modularity contracts, naming conventions).
-- ``CHANGELOG.md`` — release history.
+- ``dev/r01/`` … ``dev/r06/`` — sealed Phase 2 milestone designs and
+  review records (modularity contracts, naming, the three workflows,
+  structural refactor).
+- ``dev/p31/``, ``dev/p32a/``, ``dev/p32b/``, ``dev/p33/`` — sealed
+  Phase 3 milestone designs, review records and evidence notes.
+- ``dev/followups.md`` — the open backlog, with closed items retained
+  and dated.
+- ``MIGRATION.md`` — the R6 rename map (old path → new path).
+- ``CHANGELOG.md`` — release history (release-level; milestone detail
+  lives in ``dev/roadmap.md``).
 
 
 Publishing
@@ -313,10 +372,13 @@ Docker
 
    **v0.1.0-alpha only.** The build / tag / push instructions below
    describe the upstream Deltares container registry workflow for
-   the conda-based stack. Docker publishing is **deferred** in the
-   v0.2.0-alpha pixi-based fork — see "Deferred: Linux replication"
-   in ``dev/roadmap.md``. It will be re-introduced in a later Phase 2
-   milestone.
+   the conda-based stack. Docker publishing is **still deferred** in the
+   pixi-based fork — see "Deferred: Linux replication" in
+   ``dev/roadmap.md``. It was *not* re-introduced during Phase 2 or 3, and
+   is not currently scheduled. It remains blocked on the same thing as
+   Linux replication (no Linux machine), though CI's green
+   ``ubuntu-latest`` leg now shows the linux-64 half of ``pixi.lock``
+   resolves and installs, which removes the largest unknown.
 
 The entire workflow is contained in one Docker image. Build it:
 
