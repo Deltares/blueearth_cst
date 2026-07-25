@@ -72,6 +72,46 @@ context so future-you can confirm the issue still applies before fixing.
   contaminated window, so likely faster), confirm the delta is column order
   only, then `check_baseline.py record --workflow climate_projections`. That is
   a deliberate manifest update per the roadmap's "no silent updates" rule.
+
+  **STATE AS LEFT 2026-07-25 — read before the next wf2 run.** A forced wf2
+  re-run (`--forcerun monthly_change monthly_change_scalar_merge`, 22 jobs) was
+  started and **killed at 10/22**, deliberately not retried. Consequences:
+  - The 2 summary CSVs are **still the original bytes** (`…,temp,precip,…`) —
+    rule 2.05 never ran. The manifest was **not** touched; `check_baseline`
+    reports **OK 18/18**.
+  - The workdir was left locked and has since been **unlocked** (no locks
+    remain).
+  - **A partial regeneration is now QUEUED.** wf2 went from "Nothing to be
+    done" to **12 pending jobs** (3 `monthly_stats_fut`, 3 `monthly_change`,
+    `monthly_change_scalar_merge`, `plot_climate_proj_timeseries`, the log/
+    benchmark gathers, `all`), because 6 of the 9 stats jobs completed and their
+    `temp()` intermediates were reclaimed. So **the next wf2 invocation — any
+    invocation, not just a forced one — will complete the merge and rewrite the
+    two CSVs in the new `…,precip,temp,…` order**, at which point those 2
+    manifest rows go red until re-recorded. That is expected, not a regression.
+  - Cost note: wf2's 2.02/2.03 read CMIP6 **over the network** from
+    `gs://cmip6/...`, so its wall time is bandwidth-bound, not CPU-bound. The
+    killed run managed 10/22 jobs in ~3.5 min. An earlier "3-6 min from the
+    1172 s summed benchmark" estimate was wrong in kind for that reason.
+  - Snakemake may also require `--rerun-incomplete` if it flags any output left
+    half-written by the kill.
+
+- **Snakemake's `code` rerun-trigger does NOT reach wf2's rule 2.04.**
+  Discovered 2026-07-25 while trying to propagate the `intersection()` fix.
+  Rule 2.04 `monthly_change` names `get_change_climate_proj.py` directly as its
+  `script:`, so an edit to it should have re-run the rule — it did not, even
+  under an explicit `--rerun-triggers code`. Cause is structural: 2.04's output
+  is `temp()` (already reclaimed) and rule 2.05's inputs are wrapped in
+  `ancient(...)`, which tells Snakemake to ignore their timestamps; once 2.05's
+  outputs exist the whole 2.04 layer leaves the DAG, so there is no job whose
+  code hash could be compared. Same family as the P3-3 finding that
+  `--forcerun generate_weather_realization` does not cascade the wf3 sweep.
+  **Practical rule: after fixing computational code in this repo, `--dry-run`
+  first to confirm the affected rules are actually in the DAG, and reach for an
+  explicit `--forcerun <rule>` rather than trusting the code trigger.** Worth
+  considering whether the `ancient()` wrappers on 2.05's inputs are still
+  earning their keep, or whether they are over-broad insurance that now hides
+  real staleness.
 - ~~**`semantic_tree_diff.py` exclusion refinement.**~~ **CLOSED 2026-07-25 —
   already fixed, no action taken.** The cited defect (stray `.log`/`.txt` under
   `hydrology_model/` reaching the hash comparator as benign FAILs) was resolved
