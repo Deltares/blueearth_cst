@@ -66,6 +66,14 @@ Method context that changes how code here should be edited (full rationale:
   hydromt / hydromt-wflow / wflow user guides, the technical note, example configs).
 - `tests/` — `test_cli.py` is the cheap dry-run gate; `test_model_creation.py`
   is a heavy full build.
+- `.github/workflows/ci.yml` — runs `pytest tests/` on push to `main` and on PRs,
+  on `ubuntu-latest` + `windows-latest`, with `locked: true` (so `pixi.lock`
+  drift fails CI). **It only covers what a bare checkout can run**: the
+  fixture-dependent integration layer and the three `--run-integration` tests
+  skip there by design, and `check_baseline.py` / whole-tree `semantic_tree_diff`
+  cannot run in CI at all because they need the untracked `examples/test_local`
+  tree. Those stay **local** gates — CI being green does not mean the baseline
+  was checked.
 - Outputs land under `project_dir` (set in the config). **Production `project_dir`
   lives outside the repository tree** — a run writes generated model + result
   artifacts to a location distinct from the toolbox source. The in-repo untracked

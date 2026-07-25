@@ -880,8 +880,19 @@ cleaned`).
 Small decisions that don't justify a section of their own. Resolve
 in passing as the relevant milestone starts.
 
-- **CI.** No GitHub Actions today. `check_baseline.py` is a natural
-  fit once it exists. Deferred alongside the Linux work.
+- ~~**CI.**~~ **DONE 2026-07-25 (first Phase-4 item)** —
+  `.github/workflows/ci.yml` runs the unit suite on push to `main` and on PRs,
+  across both supported pixi platforms (`ubuntu-latest` + `windows-latest`,
+  `fail-fast: false`), with `locked: true` so `pixi.lock` drift fails the run.
+  Scope set by measurement: a bare checkout gives 386 passed / 30 skipped /
+  1 xfailed in ~100 s, every skip principled (~27 need the untracked
+  `examples/test_local` fixture, 3 are the `--run-integration` end-to-end
+  tests). **`check_baseline.py` turned out NOT to be the natural fit this entry
+  assumed** — it fingerprints targets inside that untracked fixture tree, so it
+  cannot run on a runner and stays a local gate, as does `semantic_tree_diff`
+  whole-tree diffing. The ubuntu leg is also the first time the linux-64 half of
+  `pixi.lock` has been resolved anywhere, so it de-risks the parked Linux work
+  below.
 - **R testthat coverage.** Decided at the start of R5 — Python
   helpers only by default; adding R testing infrastructure is a
   separate call.
