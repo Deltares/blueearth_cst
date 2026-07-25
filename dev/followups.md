@@ -81,11 +81,24 @@ context so future-you can confirm the issue still applies before fixing.
   touched in m02b (`95c4163`), predating the R6 config split. Removed rather than
   wired up: a second build template would be a duplicate maintenance surface with
   no consumer. Full suite green after removal.
-- **`scripts/run_snake_test.cmd` modernization.** Uses `conda activate`, needs
-  graphviz `dot`, ends in `pause` — hostile to non-interactive/pixi use; both
-  R6 e2e runs substituted direct `snakemake`/wrapper invocations. Either port
-  it to `pixi run` + no `pause`, or fold its role into
-  `scripts/run_workflows.py` docs and retire it.
+- ~~**`scripts/run_snake_test.cmd` modernization.**~~ **CLOSED 2026-07-25 —
+  ported, not retired.** `scripts/` is a documented user-facing entry point
+  (`AGENTS.md` Repo Map), so the default was to preserve the surface and fix the
+  hostility rather than delete it. Changes: every call goes through `pixi run`
+  (drops `call activate cst`, and incidentally fixes the graphviz complaint —
+  `dot` resolves from the pixi env, verified graphviz 14.1.2, all three DAGs
+  render); `pause` removed; stops on the first failing workflow with a nonzero
+  exit, matching `run_workflows.py`'s contract; arguments forward to every
+  `snakemake all` call, so `scripts\run_snake_test.cmd --dry-run` validates the
+  whole script in seconds; DAG renders moved out of the repo root into a
+  gitignored `dag/`, and the render step is best-effort so a graphviz failure
+  cannot abort a run. Verified: `--dry-run` exits 0 across all three workflows
+  in the required order; a bogus flag exits 1 after workflow 1 and never reaches
+  2 or 3. Two cmd.exe traps hit and documented in-file while porting — an
+  unescaped `)` inside a parenthesised `if/else` block, and `shift` **not**
+  rebasing `%*` (forwarded args are captured once into `%FWD%` instead).
+  A stale `dag_model.png` from the old script may still sit in the repo root;
+  it is gitignored and safe to delete by hand.
 
 ---
 
