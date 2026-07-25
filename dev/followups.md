@@ -17,7 +17,7 @@ context so future-you can confirm the issue still applies before fixing.
   stays inside a stated headroom. The landed default implements only the
   *parallelism* ceiling (`ceil(K / -c N)`), which scales `B` **up** with sweep
   size and therefore grows peak temp disk as the sweep grows — backwards from
-  what §6.1 asks. Commit `<clamp>` bounds it with an overridable
+  what §6.1 asks. Commit `3392587` bounds it with an overridable
   `batch_size_max` (default 8); that caps the blast radius but is a constant, not
   a disk computation. A real cap needs (a) a stated disk-headroom config key and
   (b) a per-run forcing+state size estimate, and (b) is the hard part: at parse
