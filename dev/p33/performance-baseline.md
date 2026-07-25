@@ -1,5 +1,52 @@
 # P3-3 — wf3 performance baseline (commit 1)
 
+> ## ⚠ SUPERSESSION (2026-07-25) — READ BEFORE CITING ANY NUMBER BELOW
+>
+> **Every wall-clock number in this note is superseded.** The 2026-07-24
+> measurements were taken while a **concurrent workstream (`stage_data`, a parallel
+> Codex session in this same worktree) was rebuilding the era5 / CHIRPS / E-OBS
+> stores**, saturating the box. The note's "otherwise idle machine" premise
+> (§"Machine state") was false. The re-measured, genuinely-quiet numbers are in
+> `dev/p33/batching-results.md`; the corrected before-number is **619.9 s**, not
+> 2242.9 s.
+>
+> **How the contamination was proven** (not inferred): a per-process re-run of
+> `rlz_1_cst_1` on 2026-07-25 produced a **byte-identical** `output_rlz_1_cst_1.csv`
+> and `wflow_sbm_rlz_1_cst_1.toml` — provably identical work — at a fraction of the
+> cost. `cpu_time`, which cannot be inflated by I/O waiting or by another process
+> stealing wall clock, fell 6.4×; that isolates the cause to clock throttling /
+> core contention rather than measurement error.
+>
+> | quantity | 2026-07-24 (contaminated) | 2026-07-25 (quiet) | ratio |
+> |---|---|---|---|
+> | wf3 sweep wall, B=1, 58 jobs | 2242.9 s | **619.9 s** | 3.6× |
+> | 3.10 `run_wflow` per job | 403–443 s (cpu 356–413) | 114–117 s (cpu ~105) | 4.9× (cpu 6.4×) |
+> | 3.06 `generate_weather_realization` | 149.8 s | 29.0 s | 5.2× |
+> | 3.09 `downscale` (rlz_1_cst_1) | 71.7 s | 15.8 s | 4.5× |
+> | 3.02 `extract_climate_grid` | 39.6 s | 9.0 s | 4.4× |
+>
+> **What this invalidates:** the §5.1 sweep wall (2242.9 s), the §5.2 re-measured
+> decomposition (357.7 s fresh-process point and the `F ≈ 135 s` carried term), the
+> §"Gap attribution" table, and — because the estimator terms `F=135 / S_cold=208 /
+> S_warm=124` came from the same probe window — the **absolute** integers of the
+> §5.5 LPT table. The estimator's *ranking* role survives; its scale did not. The
+> corrected terms are `F ≈ 24 s`, `S_cold ≈ 92 s`, `S_warm ≈ 35 s` (all measured,
+> `batching-results.md` §"Decomposition, corrected").
+>
+> **What this does NOT invalidate:** the §5.6 resource contract, the metric
+> discipline (wall-at-fixed-cores, never summed rule time — §5.1), the `--forceall`
+> 58-job scope decision and its reproducibility-anchor role, the §"`--threads 4`
+> buys nothing on the fixture" finding, and the estimator's LPT/Graham machinery
+> (26 unit tests, unchanged and green). Those are structural, not scale-dependent.
+>
+> **Process lesson, recorded deliberately:** a shared worktree with a concurrent
+> agent session is not a quiet machine, and "AC power online" is not evidence of an
+> unthrottled CPU. Any future wall measurement in this repo must record `cpu_time`
+> alongside wall — the ratio is what caught this — and must confirm no sibling
+> session is active. This is why the design's own machine-quiet requirement exists;
+> it was stated and still missed, because the contending process was invisible from
+> inside the measured session.
+
 > **Gate-1 material.** The durable record of the wf3 stress-test sweep's
 > performance baseline: the measured end-to-end sweep wall at the §5.6 resource
 > triple, the re-measured §5.2 cost decomposition against the design-time probe

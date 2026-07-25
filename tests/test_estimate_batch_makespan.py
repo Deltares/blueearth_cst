@@ -117,3 +117,33 @@ def test_bad_p_raises() -> None:
 
 def test_lpt_empty_is_zero() -> None:
     assert ebm.lpt_makespan([], 3) == 0.0
+
+
+# --- P3-3 commit-2 regressions: the table must honor --f, and --help must not
+# --- crash on a non-UTF-8 console. Both were latent defects in the commit-1 file.
+
+def test_table_honors_f(capsys: pytest.CaptureFixture[str]) -> None:
+    """--f must move every table row but the sysimage F->2 counterfactual.
+
+    Regression: print_table hardcoded F_DEFAULT, so `--table --f <x>` silently
+    reported the design-time fixed cost -- which would have mis-stated the
+    re-measured commit-2 table.
+    """
+    ebm.print_table(12, 3, 24.0, 92.0, 35.0)
+    out = capsys.readouterr().out
+    assert "F=24" in out
+    # today = 4 waves x (24 + 92); B=4 = one wave of (24 + 92 + 3*35)
+    assert str(int(ebm.estimate(12, 3, 1, 24.0, 92.0, 35.0).makespan)) in out
+    assert str(int(ebm.estimate(12, 3, 4, 24.0, 92.0, 35.0).makespan)) in out
+    # the sysimage row keeps its own F=2 override, independent of --f
+    assert str(int(ebm.estimate(12, 3, 1, 2.0, 92.0, 35.0).makespan)) in out
+
+
+def test_help_text_is_console_encodable() -> None:
+    """The --help payload must survive a cp1252 console (Windows default).
+
+    Regression: the module docstring carried floor/ceil glyphs, so `--help`
+    died with UnicodeEncodeError under the default Windows code page.
+    """
+    assert ebm.__doc__ is not None
+    ebm.__doc__.encode("cp1252")

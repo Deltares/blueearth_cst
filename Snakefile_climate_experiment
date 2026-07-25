@@ -357,21 +357,60 @@ rule downscale_climate_realization:
     script:
         "blueearth_cst/experiment/downscale_climate_forcing.py"
 
-# 3.10  run_wflow — run Wflow.jl for every rlz/cst forcing
-rule run_wflow:
-    message: rule_banner("3.10", "run_wflow")
-    input:
-        forcing_path = f"{exp_dir}/realization_"+"{rlz_num}"+"/inmaps_rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc",
-        toml_path = f"{exp_dir}/model_runs/wflow_sbm_rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".toml"
-    output:
-        csv_file = f"{exp_dir}/model_runs/output_rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".csv",
-        state_file = temp(f"{exp_dir}/model_runs/outstates_rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc")
-    log:
-        f"{exp_dir}/logs/3.10_run_wflow/" + "rlz_{rlz_num}_cst_{st_num}.log",
-    benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.10_run_wflow/" + "rlz_{rlz_num}_cst_{st_num}.tsv",
-    shell:
-        """python -u "{run_logged}" "{log}" -- julia +1.11.7 --project=. --threads 4 -e "using Wflow; Wflow.run()" "{input.toml_path}" """
+# 3.10  run_wflow — run Wflow.jl for every rlz/cst forcing, B runs batched per
+# Julia session (P3-3 design §6.1: parse-time loop-generated anonymous rules —
+# one rule per batch with STATIC per-cst input/output lists, members via
+# params:, no input function, no checkpoint; probe-verified construct,
+# dev/p33/probes/snakemake-output-expressibility/). Per-cst output paths and
+# content are byte-identical to the per-job shape (HM-5 contract). C5
+# persistence isolation is DEGRADED to batch granularity by design (blast
+# radius = the batch); per-cst visibility lives in the driver-written log
+# lines. batch_size=1 restores one job per cst (verified: 12 single-member batch
+# rules, 58 jobs — today's job granularity, per-run isolation and per-run disk
+# behavior), though the rule NAMES stay run_wflow_batch_<b> and the log/benchmark
+# files stay keyed by batch id rather than rlz/cst.
+_k_members = [(int(r), int(c)) for r in np.arange(1, RLZ_NUM + 1)
+              for c in np.arange(ST_START, ST_NUM + 1)]
+try:
+    _cores = int(workflow.cores) if workflow.cores else 1
+except Exception:
+    _cores = 1
+# B default from -c N (the §6.1 parallelism ceiling, B ≈ ceil(K/N));
+# workflows.climate_experiment.batch_size overrides (B=1 → today's behavior).
+batch_size = int(get_config(my_cfg, "batch_size",
+                            max(1, -(-len(_k_members) // max(1, _cores)))))
+if batch_size < 1:
+    # Fail at parse time with the key named, rather than deep inside range().
+    raise ValueError(
+        f"workflows.climate_experiment.batch_size must be >= 1, got {batch_size}"
+    )
+_batches = {bid: _k_members[i:i + batch_size]
+            for bid, i in enumerate(range(0, len(_k_members), batch_size))}
+_batch_driver = str(Path(workflow.basedir) / "blueearth_cst" / "experiment" / "run_wflow_batch.jl")
+
+for _b, _members in _batches.items():
+    rule:
+        name: f"run_wflow_batch_{_b}"
+        message: rule_banner("3.10", f"run_wflow_batch_{_b}")
+        input:
+            forcing = [f"{exp_dir}/realization_{r}/inmaps_rlz_{r}_cst_{c}.nc"
+                       for (r, c) in _members],
+            tomls = [f"{exp_dir}/model_runs/wflow_sbm_rlz_{r}_cst_{c}.toml"
+                     for (r, c) in _members],
+        output:
+            csvs = [f"{exp_dir}/model_runs/output_rlz_{r}_cst_{c}.csv"
+                    for (r, c) in _members],
+            states = [temp(f"{exp_dir}/model_runs/outstates_rlz_{r}_cst_{c}.nc")
+                      for (r, c) in _members],
+        params:
+            members = _members,
+            driver = _batch_driver,
+        log:
+            f"{exp_dir}/logs/3.10_run_wflow/batch_{_b}.log",
+        benchmark:
+            f"{exp_dir}/benchmarks/_parts/3.10_run_wflow/batch_{_b}.tsv",
+        shell:
+            """python -u "{run_logged}" "{log}" -- julia +1.11.7 --project=. --threads 4 "{params.driver}" {input.tomls}"""
 
 # 3.11  export_wflow_results — reduce runs to Qstats + basin indicators
 rule export_wflow_results:
