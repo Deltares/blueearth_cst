@@ -52,11 +52,23 @@ context so future-you can confirm the issue still applies before fixing.
   read by name, so harmless today). Fix: `sorted(set(lst1) & set(lst2))`.
   One-line, but touches a computational-path file — needs a baseline-gated
   commit, hence deferred out of R6.
-- **`semantic_tree_diff.py` exclusion refinement.** `EXCLUDED_DIR_NAMES`
-  excludes by directory *name* only (`logs`/`benchmarks`/`.snakemake`); stray
-  `.log`/`.txt` under `hydrology_model/` fall through to the hash comparator
-  and surface as benign FAILs (3 rows in the R6 rung-4 diff). Add an
-  extension-level volatile class or per-tree exclude globs.
+- ~~**`semantic_tree_diff.py` exclusion refinement.**~~ **CLOSED 2026-07-25 —
+  already fixed, no action taken.** The cited defect (stray `.log`/`.txt` under
+  `hydrology_model/` reaching the hash comparator as benign FAILs) was resolved
+  by P3-1 commit `576b6a6` ("exclude run-log files (5b)"), which added a
+  file-level rule to `_is_excluded`: `rel.suffix == ".log" or rel.name ==
+  "log.txt"`. Verified 2026-07-25 by calling `_is_excluded` directly on the
+  three exact paths — `hydrology_model/hydromt.log`,
+  `hydrology_model/run_default/log.txt`,
+  `experiments/experiment/model_runs/log.txt` — all three EXCLUDED. The only
+  other non-standard-extension file in the tree,
+  `hydrology_model/staticgeoms/reservoirs_lakes_glaciers.txt`, is correctly
+  hash-compared: it is content-bearing and deterministic, and passed as one of
+  the 102 CLEAN files in the P3-3 value-identity gate. **The residual
+  suggestion (a generic extension-level volatile class / per-tree exclude
+  globs) is deliberately NOT implemented:** this is a *gate* tool, and widening
+  its exclusions without a demonstrated false FAIL trades real detection for
+  nothing. Reopen only with a concrete benign-FAIL case.
 - **Dead-fixture audit: `tests/wflow_build_model.yml`.** No config value points
   at it (design §2, confirmed in R6); its own `config_fn:` line was the only
   reference to the now-moved `config/wflow_sbm.toml`. Confirm dead and remove,
