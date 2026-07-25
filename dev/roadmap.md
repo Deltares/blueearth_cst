@@ -739,8 +739,29 @@ external GPT r2 reject (callable-output construct inexpressible,
 probe-confirmed) → round-cap user arbitration → stage-6a fix
 (probe-verified loop-generated batch rules); ledger 22/22 accepted):
 `dev/p33/performance-passes-design.md`, with the consolidated review
-record and landed probe evidence beside it. Next step: task-brief →
-implementation.
+record and landed probe evidence beside it.
+**Implementation complete 2026-07-25 — AWAITING the milestone gate** (user
+sign-off on the measured before/after + GN outcome + value-identity evidence;
+floor-free by intake decision 3). Two `p33:` commits off the task brief
+(`dev/p33/performance-passes-task-brief.md`): the baseline/decomposition +
+LPT estimator, then the batching lever.
+**Headline: 619.9 s → 400.2 s (−35.4 %)** on the seed fixture wf3 sweep, at a
+frozen `(-c 3, --threads 4)` budget with `B` the only moved knob, `--forceall`
+scope. **No output value changed** — `semantic_tree_diff` per-process vs
+batched on identical inputs is CLEAN (102 files, 0 failed, tolerance 0),
+`check_baseline` OK, P3-2b validators 53 passed, suite 397/6/1. Deliverables:
+rule 3.10 as loop-generated `run_wflow_batch_<b>` rules + the `batch_size`
+knob, `blueearth_cst/experiment/run_wflow_batch.jl`,
+`dev/scripts/estimate_batch_makespan.py`. GN-1..4 all pass → batching stands,
+the PackageCompiler sysimage stays dormant (no dependency ask triggered), and
+the corrected cost terms independently weaken it (−19 % vs batching's −52 %).
+C5 failure isolation is DEGRADED by design (blast radius `B`), measured to be
+exactly the documented cost. Evidence: `dev/p33/batching-results.md`.
+**Caveat carried forward:** the commit-1 baseline (2242.9 s) was contaminated
+by the concurrent `stage_data` workstream and is superseded in place — see the
+supersession block in `dev/p33/performance-baseline.md`. Any future performance
+measurement in this repo must record `cpu_time` alongside wall and confirm no
+sibling agent session is active.
 
 **Tag.** `p33-performance`.
 
