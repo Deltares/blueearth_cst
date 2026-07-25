@@ -69,10 +69,18 @@ context so future-you can confirm the issue still applies before fixing.
   globs) is deliberately NOT implemented:** this is a *gate* tool, and widening
   its exclusions without a demonstrated false FAIL trades real detection for
   nothing. Reopen only with a concrete benign-FAIL case.
-- **Dead-fixture audit: `tests/wflow_build_model.yml`.** No config value points
-  at it (design §2, confirmed in R6); its own `config_fn:` line was the only
-  reference to the now-moved `config/wflow_sbm.toml`. Confirm dead and remove,
-  or wire it up intentionally.
+- ~~**Dead-fixture audit: `tests/wflow_build_model.yml`.**~~ **CLOSED 2026-07-25
+  — confirmed dead, removed.** Evidence: (1) no config points at it — every
+  `model_build_config:` in the repo, **including `tests/snake_config_model_test.yml`
+  and `tests/test_project/`**, resolves to `config/templates/wflow_build_model.yml`
+  in the shared config tree (the R6 review already established this as finding
+  arch-1); (2) no test loads it by name and nothing globs `tests/*.yml`; (3) it
+  was itself **broken** — its `read_config.config_fn: "../config/wflow_sbm.toml"`
+  dangles, since R6 moved that file to `config/templates/wflow_sbm.toml` and the
+  fixture was never updated, so anything that *did* load it would fail; (4) last
+  touched in m02b (`95c4163`), predating the R6 config split. Removed rather than
+  wired up: a second build template would be a duplicate maintenance surface with
+  no consumer. Full suite green after removal.
 - **`scripts/run_snake_test.cmd` modernization.** Uses `conda activate`, needs
   graphviz `dot`, ends in `pause` — hostile to non-interactive/pixi use; both
   R6 e2e runs substituted direct `snakemake`/wrapper invocations. Either port
