@@ -710,9 +710,17 @@ weather-generator-seam, hydrological-model-seam}.md`,
 `tests/test_interchange_contracts.py` (30 synthetic + 15 integration).
 Evidence: suite 357/6/1 purely additive over 304/3/1; `pytest -rs` split
 matches the §5.5 counting axis (12 green + 3 documented temp skips);
-milestone diff = 5 new files, 2279 insertions, zero pipeline edits. The
-`--notemp` capture and chirps fixture-verification remain documented
-future steps.
+milestone diff = 5 new files, 2279 insertions, zero pipeline edits. chirps
+fixture-verification remains a documented future step.
+**`--notemp` capture DONE 2026-07-25** (the deferred OQ-4 lift): all three
+`temp()` validators ran against real artifacts. WG-6 and HM-6b passed
+unchanged; **WG-4 FAILED and the contract was wrong, not the pipeline** — it
+required `crs=4326`/`category=meteo` as netCDF global attrs, but the real
+generator NC carries **empty** global attrs (CRS travels CF-style in
+`spatial_ref`'s `crs_wkt`, and crs/category are catalog metadata that
+`validate_wg5` already pins). Corrected to asserted-if-present, +4 synthetic
+tests, seam doc updated with the measured procedure (19 jobs / 247.7 s) and its
+`--delete-temp-output` restore. Fixture verified byte-identical after restore.
 
 **Tag.** `p32b-interchange-contracts`.
 
@@ -778,8 +786,11 @@ radius) in `dev/followups.md` § Post-P3-3.
 Phase 1–3 programme is complete. Next step is a short scoping conversation:
 close the roadmap, or open Phase 4 from the recorded backlog (P3-2c PoC seam
 swap, in-pipeline validator guard lift, OQ-3 store, OQ-8 zone source, the 4th
-Snakefile entry point, `--notemp` capture, the chirps ext2-2 ladder + gate-8
-smoke — still data-blocked, plus the two Post-P3-3 items above).
+Snakefile entry point, the chirps ext2-2 ladder + gate-8 smoke — still
+data-blocked, plus the two Post-P3-3 items above). The `--notemp` capture is
+**done** (2026-07-25, see the P3-2b entry) and two Post-R6 items were closed
+the same day (`semantic_tree_diff` exclusions — stale; dead
+`tests/wflow_build_model.yml` — removed).
 
 ---
 

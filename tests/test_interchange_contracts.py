@@ -400,6 +400,34 @@ def test_wg4_synthetic_fail():
     assert ic.validate_wg4(ds) != []
 
 
+def test_wg4_crs_category_absent_is_ok():
+    """Empty global attrs must PASS — the real artifact's actual shape.
+
+    Corrected 2026-07-25 on the first --notemp capture: the generator NC carries
+    no global attrs at all. Its CRS lives in the spatial_ref coord (CF/rioxarray)
+    and crs/category are catalog metadata that validate_wg5 pins. Requiring them
+    here asserted the right values on the wrong surface.
+    """
+    ds = _wg4_good()
+    ds.attrs = {}
+    assert ic.validate_wg4(ds) == []
+
+
+@pytest.mark.parametrize(
+    "attrs",
+    [
+        {"crs": 3857},                          # contradictory crs
+        {"category": "hydro"},                   # contradictory category
+        {"crs": 4326, "category": "hydro"},      # one right, one wrong
+    ],
+)
+def test_wg4_contradictory_crs_category_still_fails(attrs):
+    """Asserted-if-present keeps its teeth: a PRESENT wrong value is a violation."""
+    ds = _wg4_good()
+    ds.attrs = attrs
+    assert ic.validate_wg4(ds) != []
+
+
 def test_wg6_synthetic_pass():
     # WG-6 shares HM-2's contract — reuse the conforming HM-2 object.
     assert ic.validate_wg6(_hm2_good()) == []

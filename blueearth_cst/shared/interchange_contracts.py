@@ -129,6 +129,26 @@ def _check_global_attr(ds: Any, key: str, value: Any, label: str) -> list[str]:
     return []
 
 
+def _check_global_attr_if_present(
+    ds: Any, key: str, value: Any, label: str
+) -> list[str]:
+    """Report a global attr only when it is PRESENT and unequal to ``value``.
+
+    The asserted-if-present form (the units precedent, design §5.2): absence is
+    not a violation because the value's authority lives elsewhere, but a present
+    contradictory value still is. Use this where a sibling contract already pins
+    the field on the surface that actually carries it.
+    """
+    attrs = getattr(ds, "attrs", {})
+    if key not in attrs:
+        return []
+    if str(attrs[key]) != str(value):
+        return [
+            f"{label}: global attr {key!r}={attrs[key]!r} != expected {value!r}"
+        ]
+    return []
+
+
 def _columns(df: Any) -> list[str]:
     """Return a DataFrame's column labels as a plain list of str."""
     return [str(c) for c in getattr(df, "columns", [])]
@@ -660,9 +680,8 @@ def validate_wg4(ds: Any) -> list[str]:
 
     Pinned surface (design §5.2): a ``(time, lat, lon)`` raster the hydromt
     catalog (WG-5) reads — at least ``precip`` and ``temp`` on an EPSG:4326 grid
-    with ``crs=4326`` / ``category=meteo`` metadata (so ``raster_xarray`` +
-    ``harmonise_dims`` load it). The exact variable superset and internal attrs
-    are deliberately unpinned.
+    carrying a ``spatial_ref`` CRS descriptor. The exact variable superset and
+    internal attrs are deliberately unpinned.
 
     ``temp()`` content — absent on the completed fixture (skip-until-captured on
     disk); this logic is proven every suite by a synthetic pass/fail pair.
@@ -670,6 +689,18 @@ def validate_wg4(ds: Any) -> list[str]:
     Grid axes are accepted as either ``(latitude, longitude)`` or the shorter
     ``(lat, lon)`` a swap may emit — the contract is the raster (time, y, x)
     shape + the minimal variable set, not the axis spelling.
+
+    ``crs`` / ``category`` are asserted-IF-PRESENT, not required (corrected
+    2026-07-25 on the first ``--notemp`` capture, which is what this contract was
+    always waiting on). The real generator artifact carries **empty** global
+    attrs: its CRS travels the CF/rioxarray way, in the ``spatial_ref``
+    coordinate's ``crs_wkt`` (``ID["EPSG",4326]``), while ``crs: 4326`` and
+    ``category: meteo`` are supplied by the generated **data catalog** —
+    ``data_catalog_climate_experiment.yml``, which is exactly where hydromt reads
+    them and exactly what ``validate_wg5`` already pins
+    (``metadata.crs`` / ``metadata.category``). Requiring them as file-level
+    global attrs asserted the right values on the wrong surface; the pipeline
+    was never non-conformant.
     """
     label = "WG-4"
     diffs: list[str] = []
@@ -684,8 +715,10 @@ def validate_wg4(ds: Any) -> list[str]:
         diffs.append(f"{label}: no longitude/lon dimension (have {sorted(dims)})")
     diffs += _check_data_vars(ds, ("precip", "temp"), label)
     diffs += _check_crs_4326(ds, label)
-    diffs += _check_global_attr(ds, "crs", 4326, label)
-    diffs += _check_global_attr(ds, "category", "meteo", label)
+    # WG-5 owns crs/category on the catalog, the surface hydromt actually reads;
+    # here they are only checked for contradiction (see the docstring).
+    diffs += _check_global_attr_if_present(ds, "crs", 4326, label)
+    diffs += _check_global_attr_if_present(ds, "category", "meteo", label)
     return diffs
 
 

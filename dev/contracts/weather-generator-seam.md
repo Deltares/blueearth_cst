@@ -152,20 +152,31 @@ WG-3 is the *current* generator's contract, not a universal one.
   `downscale_climate_realization`.
 - **shape:** the **generator OUTPUT contract** — a raster netCDF the hydromt
   catalog reads: `(time, lat, lon)` daily grid with **at least `precip`, `temp`**
-  (+ `pet` if present) on an EPSG:4326 grid, `crs=4326` / `category=meteo`
-  metadata (so `raster_xarray` + `harmonise_dims` load it — WG-5).
+  (+ `pet` if present) on an EPSG:4326 grid carrying a `spatial_ref` CRS
+  descriptor (so `raster_xarray` + `harmonise_dims` load it — WG-5).
 - **naming pattern:** `rlz_<n>_cst_<m>.nc` — a **DAG-globbed pattern**
   (rule 3.08 `expand`, `Snakefile_climate_experiment:318-319`; rule 3.09
   wildcards).
 - **temp() lifecycle:** **`temp()`** (both cst_0 and cst_m). Deleted after
   consumers finish — **absent on the completed fixture**.
 - **pinned surface:** the `(time, lat, lon)` raster shape, the minimal
-  `{precip, temp}` variable set, the EPSG:4326 grid + `crs`/`category` metadata,
-  the DAG-globbed naming pattern.
+  `{precip, temp}` variable set, the `spatial_ref` CRS descriptor, the
+  DAG-globbed naming pattern.
 - **deliberately unpinned:** exact variable superset, internal attrs.
-- **validator:** `validate_wg4` — **skip-until-captured on disk** (temp()
-  content absent by default); logic proven every suite by a synthetic pass/fail
-  pair. See the `--notemp` capture procedure below.
+- **`crs` / `category`: asserted-IF-PRESENT, NOT required — corrected 2026-07-25
+  by the first `--notemp` capture.** This contract was written expecting them as
+  netCDF **global attrs**; the real artifact carries **empty global attrs**. Its
+  CRS travels the CF/rioxarray way — the `spatial_ref` coordinate's `crs_wkt`,
+  ending `ID["EPSG",4326]` — and `crs: 4326` / `category: meteo` are supplied by
+  the generated **data catalog** (WG-5's `metadata.crs` / `metadata.category`),
+  which is the surface hydromt actually reads and which `validate_wg5` already
+  pins. So the original wording asserted the right values on the wrong surface:
+  **the pipeline was never non-conformant — the contract was.** `validate_wg4`
+  now flags a *present but contradictory* value and accepts absence.
+- **validator:** `validate_wg4` — **captured and green** as of 2026-07-25 (see
+  the `--notemp` capture procedure below); logic also proven every suite by
+  synthetic pass/fail pairs, including absence-is-ok and
+  contradiction-still-fails cases.
 
 ## WG-5 — hydromt climate data catalog (side channel)
 
@@ -283,10 +294,10 @@ executes on **every** checkout, fixture or not.
 | `validate_wg1` | WG-1 | `climate_historical/<key>/extract_historical.nc` | **yes** (persists); chirps facts **not fixture-verified (no chirps fixture)** |
 | `validate_wg2` | WG-2 | `<exp>/stress_test/cst_<m>.csv` | **yes** (persists) |
 | `validate_wg3` | WG-3 | `<exp>/weathergen_config.yml`, `<exp>/realization_<n>/weathergen_config_rlz_<n>_cst_<m>.yml` | **yes** (persists) |
-| `validate_wg4` | WG-4 | `<exp>/realization_<n>/rlz_<n>_cst_<m>.nc` | **no** — `temp()` content absent; skip-until-captured on disk, synthetic-proven every suite |
+| `validate_wg4` | WG-4 | `<exp>/realization_<n>/rlz_<n>_cst_<m>.nc` | **captured 2026-07-25** — `temp()` content, absent until a `--notemp` capture; green on the real artifact **after** the `crs`/`category` correction; synthetic-proven every suite |
 | `validate_wg5` | WG-5 | `<exp>/data_catalog_climate_experiment.yml` | **yes** (catalog persists) |
 | `validate_wg5_catalog_grid` (relational) | WG-5 entry-key grid vs intended `rlz × cst` (incl. `cst_0`) | `<exp>/data_catalog_climate_experiment.yml` + the run's config snapshot | **yes** (all inputs persist) |
-| `validate_wg6` | WG-6 | `<exp>/realization_<n>/inmaps_rlz_<n>_cst_<m>.nc` | **no** — `temp()` content absent; skip-until-captured on disk, synthetic-proven every suite |
+| `validate_wg6` | WG-6 | `<exp>/realization_<n>/inmaps_rlz_<n>_cst_<m>.nc` | **captured 2026-07-25** — `temp()` content, absent until a `--notemp` capture; green on the real artifact unchanged; synthetic-proven every suite |
 
 `validate_wg5_catalog_grid(catalog_cfg, rlz_num, st_num) -> list[str]` checks the
 WG-5 entry-key set against the **intended** grid: expected keys exactly
@@ -313,10 +324,30 @@ Layer-2 integration cases (`test_wg4_integration`, `test_wg6_integration`) carry
 NC's presence. Their logic is proven on **every** checkout by their Layer-1
 synthetic pass/fail pairs regardless.
 
-**This milestone does NOT run the capture** — passing `--notemp` and letting the
-artifacts persist would modify the untracked `examples/test_local` fixture, which
-is out of a contracts-only milestone. The procedure below is the one-command lift
-a **future run** performs when full on-disk coverage is wanted (design OQ-4).
+**The capture WAS RUN 2026-07-25** (the P3-2b milestone deferred it as
+out-of-scope for a contracts-only milestone; it was executed later as the
+Post-R6/OQ-4 lift). **Outcome: 2 of the 3 validators passed on the real artifacts
+unchanged; WG-4 FAILED and the contract — not the pipeline — was wrong.** See the
+WG-4 `crs`/`category` note above: it demanded catalog metadata as netCDF global
+attrs, and the real artifact carries none. Corrected to asserted-if-present. This
+is precisely the class of error only a capture can find, which is the argument for
+having run it. The procedure below is the repeatable lift.
+
+**Cheaper targeted form.** The full-sweep command below works, but only three
+artifact paths are actually needed (`rlz_1_cst_1`), so naming them as targets is
+enough and avoids re-running the batches that are already up to date:
+
+```bash
+snakemake -c 3 -s Snakefile_climate_experiment \
+  --configfile config/workflows/snake_config_model_test.yml --notemp \
+  examples/test_local/experiments/experiment/realization_1/rlz_1_cst_1.nc \
+  examples/test_local/experiments/experiment/realization_1/inmaps_rlz_1_cst_1.nc \
+  examples/test_local/experiments/experiment/model_runs/outstates_rlz_1_cst_1.nc
+```
+
+Measured 2026-07-25: **19 jobs, 247.7 s**. Note the `temp()` cascade — asking for
+one intermediate re-runs 3.06 (which emits **all** realizations) and therefore all
+twelve 3.07 jobs plus `run_wflow_batch_0`; there is no cheaper single-cst path.
 
 **Capture sketch** (run from the repo root inside `pixi shell`, after the wf1
 model exists — wf3 needs `hydrology_model/` artifacts):
@@ -344,6 +375,17 @@ in the hydrological-model seam doc.)
 `test_wg6_integration` here (plus `test_hm6b_integration` in the other seam doc)
 stop hitting their `pytest.skip` and run their on-disk assertion — the **three**
 temp validators' *on-disk* integration checks flip from skip-until-captured to
-green. No test code or validator changes; the guards resolve to the real-artifact
-path automatically once the files exist. Re-running **without** `--notemp` (or a
-`snakemake --delete-temp-output`) restores the default temp-deleted fixture state.
+green. The guards resolve to the real-artifact path automatically once the files
+exist.
+
+**Correction (2026-07-25):** this section used to promise "**no test code or
+validator changes**". That held for WG-6 and HM-6b but **not** for WG-4, whose
+`crs`/`category` global-attr requirement did not survive contact with the real
+artifact (above). The honest statement: the *guards* need no change, but a
+capture can — and here did — reveal that a validator encoded an assumption the
+artifact never satisfied. Budget for that when running a capture; a first-contact
+failure is a likely outcome, not a surprise.
+
+**Restore** the default temp-deleted fixture state with
+`snakemake --delete-temp-output` (verified 2026-07-25 to return the tree to a
+byte-identical state, checked with `dev/scripts/semantic_tree_diff.py`).
