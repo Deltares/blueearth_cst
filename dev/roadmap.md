@@ -128,7 +128,7 @@ state: 45 passed, 4 xfailed. Artifacts:
 
 ---
 
-## Phase 2 — Refactor (active)
+## Phase 2 — Refactor (COMPLETE 2026-07-23)
 
 Goal of Phase 2: clean up workflow internals, scripts, and config
 contracts so the pipeline is maintainable and extensible. Six
@@ -610,11 +610,22 @@ config rather than by user discipline.
 
 ---
 
-## Phase 3 — Usability & flexibility (planned)
+## Phase 3 — Usability & flexibility (COMPLETE 2026-07-25)
 
 Sequenced so each milestone eases the next: the experiment tree settles
 where per-model artifacts live (P3-2), and both precede performance work
 (P3-3) so profiling targets the final structure.
+
+**All four milestones sealed** (P3-1, P3-2a, P3-2b, P3-3). **P3-3 was the last
+planned milestone in this roadmap**, so the planned programme — Phase 1
+foundation, Phase 2 refactor, Phase 3 usability/flexibility — is now complete.
+Nothing further is scheduled. The open question is whether to close the roadmap
+or open a Phase 4; the candidate pool is recorded across `dev/followups.md`,
+the "Minor open items" section below (CI, R testthat, a naming linter), the
+"Deferred: Linux replication" section below, and the deferred items named in the
+P3-2a/P3-2b/P3-3 designs (OQ-3 store, OQ-8 zone source, the 4th Snakefile entry
+point, P3-2c PoC seam swap, the in-pipeline validator guard lift). No item in
+that pool has been scoped or committed to.
 
 ### P3-1 — Project/experiment structure (sealed 2026-07-24)
 
