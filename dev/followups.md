@@ -44,14 +44,34 @@ context so future-you can confirm the issue still applies before fixing.
 ## Post-R6 (surfaced 2026-07-23 during the R6 milestone validation)
 
 - **Make the projections summary CSV column order deterministic.**
-  `blueearth_cst/projections/get_change_climate_proj.py` `intersection()`
-  returns `list(set(lst1) & set(lst2))` — hash-order dependent with unpinned
-  `PYTHONHASHSEED`, so `annual_change_scalar_stats_summary{,_mean}.csv` flip
-  `precip`/`temp` column order run-to-run (demonstrated via a 15× hash-seed
-  experiment; values identical by label, sibling `.nc` unaffected; consumers
-  read by name, so harmless today). Fix: `sorted(set(lst1) & set(lst2))`.
-  One-line, but touches a computational-path file — needs a baseline-gated
-  commit, hence deferred out of R6.
+  **CODE FIX LANDED 2026-07-25; MANIFEST RE-RECORD STILL OPEN (user-gated).**
+  `intersection()` in `blueearth_cst/projections/get_change_climate_proj.py`
+  returned `list(set(lst1) & set(lst2))` — hash-order dependent, so
+  `annual_change_scalar_stats_summary{,_mean}.csv` flipped `precip`/`temp`
+  column order run-to-run (values identical by label, sibling `.nc` unaffected,
+  consumers read by name). Now `sorted(...)`, with 7 regression tests including
+  a sub-process `PYTHONHASHSEED` sweep — the only form that actually catches
+  hash-order dependence, since the seed is fixed for an interpreter's life.
+  Verified: all 7 fail on the pre-fix line, pass on the fixed one.
+
+  **Chose alphabetical over "preserve the first sequence's order"** so the
+  guarantee is self-contained rather than silently dependent on upstream
+  dataset-variable ordering. On the seed config the two coincide
+  (`variables: [precip, temp]`).
+
+  **Outstanding — the baseline gate the R6 note anticipated.** The recorded
+  fixture CSVs carry the columns as `…,temp,precip,…`, which is *neither*
+  candidate deterministic order, so the next wf2 run will emit
+  `…,precip,temp,…` and the **2 manifested CSV rows will mismatch**
+  (`check_baseline` fingerprints them by sha256 of normalized bytes —
+  `check_baseline.py` `fingerprint_csv`). `check` is green **18/18 today** only
+  because a code change cannot move on-disk outputs. So this fix has planted a
+  guaranteed, expected failure that will look like a regression to whoever next
+  runs wf2. To close: re-run wf2 (`~1172 s` summed job time, so roughly 3–6 min
+  wall at `-c 3` on a quiet box — and that figure was measured during the
+  contaminated window, so likely faster), confirm the delta is column order
+  only, then `check_baseline.py record --workflow climate_projections`. That is
+  a deliberate manifest update per the roadmap's "no silent updates" rule.
 - ~~**`semantic_tree_diff.py` exclusion refinement.**~~ **CLOSED 2026-07-25 —
   already fixed, no action taken.** The cited defect (stray `.log`/`.txt` under
   `hydrology_model/` reaching the hash comparator as benign FAILs) was resolved

@@ -22,6 +22,7 @@ correctness defect on the production path, not a synthetic artefact. The rows
 are wired strict-xfail and routed to a split task; the norm they assert is the
 correct (calendar-invariant) 20.0 / 2.0 answer.
 """
+import os
 import sys
 from os.path import join, dirname, realpath
 
@@ -38,6 +39,7 @@ from blueearth_cst.projections.get_change_climate_proj import (  # noqa: E402
     _to_str_tuple,
     get_change_annual_clim_proj,
     get_change_clim_projections,
+    intersection,
 )
 
 
@@ -228,6 +230,72 @@ def test_to_str_tuple_list_and_string(value, expected):
 def test_to_str_tuple_empty_list():
     """Falsey/empty list -> empty tuple (no crash)."""
     assert _to_str_tuple([]) == ()
+
+
+# --------------------------------------------------------------------------- #
+# intersection() determinism (Post-R6 followup)
+#
+# intersection() drives the variable iteration order that becomes the COLUMN
+# order of annual_change_scalar_stats_summary{,_mean}.csv. It used to return
+# list(set(a) & set(b)), so the order rode string hash randomization and the
+# CSVs flipped temp/precip between runs -- values identical, bytes not, which
+# made the two manifested CSV rows unreproducible under check_baseline's
+# sha256 fingerprint.
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    "a, b",
+    [
+        (["precip", "temp"], ["precip", "temp"]),
+        (["temp", "precip"], ["temp", "precip"]),
+        (["temp", "precip"], ["precip", "temp"]),   # inputs disagree on order
+        (["precip", "temp"], ["temp", "precip"]),
+    ],
+)
+def test_intersection_order_is_input_order_independent(a, b):
+    """Same members in any input order -> the same output order, always."""
+    assert intersection(a, b) == ["precip", "temp"]
+
+
+def test_intersection_is_sorted_and_deduplicated():
+    out = intersection(["temp", "precip", "temp", "kin"], ["kin", "precip", "temp"])
+    assert out == sorted(out), "output must be sorted"
+    assert out == ["kin", "precip", "temp"]
+
+
+def test_intersection_drops_non_shared_members():
+    """Still a true intersection -- determinism must not widen the result."""
+    assert intersection(["precip", "temp", "pet"], ["precip", "temp"]) == [
+        "precip",
+        "temp",
+    ]
+
+
+def test_intersection_stable_across_hash_seeds():
+    """The real regression: identical order under different PYTHONHASHSEEDs.
+
+    A same-process assertion cannot catch hash-order dependence, because the
+    seed is fixed for the life of the interpreter. Sub-processes with explicit
+    differing seeds are what actually distinguishes sorted() from
+    list(set(...)); this test failed on the pre-fix code.
+    """
+    import subprocess
+
+    snippet = (
+        "from blueearth_cst.projections.get_change_climate_proj import intersection;"
+        "print(intersection(['temp','precip','kin'], ['kin','temp','precip']))"
+    )
+    seen = set()
+    for seed in ("0", "1", "42", "12345"):
+        env = {**os.environ, "PYTHONHASHSEED": seed}
+        res = subprocess.run(
+            [sys.executable, "-c", snippet],
+            capture_output=True, text=True, env=env, cwd=SNAKEDIR,
+        )
+        assert res.returncode == 0, res.stderr
+        seen.add(res.stdout.strip())
+    assert seen == {"['kin', 'precip', 'temp']"}, f"order varied by seed: {seen}"
 
 
 # --------------------------------------------------------------------------- #

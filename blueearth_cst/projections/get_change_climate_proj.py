@@ -18,7 +18,24 @@ from blueearth_cst.shared.snake_utils import log_row
 
 
 def intersection(lst1, lst2):
-    return list(set(lst1) & set(lst2))
+    """Shared members of two sequences, in a DETERMINISTIC (sorted) order.
+
+    ``sorted`` is load-bearing, not cosmetic. This function drives the variable
+    iteration order in ``get_change_annual_clim_proj`` /
+    ``get_change_scalar_clim_proj``, which becomes the **column order** of
+    ``annual_change_scalar_stats_summary{,_mean}.csv``. Returning a bare
+    ``list(set(...) & set(...))`` made that order depend on string hash
+    randomization, so the summary CSVs flipped ``temp``/``precip`` between runs
+    with no change in values — harmless to consumers, which read by label, but it
+    made the two manifested CSV rows unreproducible (``check_baseline``
+    fingerprints them by sha256 of the bytes).
+
+    Alphabetical rather than "preserve the first sequence's order": it is
+    self-contained, so the guarantee does not silently depend on upstream
+    dataset-variable ordering. On the seed config the two coincide anyway —
+    ``variables: [precip, temp]``.
+    """
+    return sorted(set(lst1) & set(lst2))
 
 
 def _to_datetime_index(ds):
