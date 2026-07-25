@@ -1,0 +1,29 @@
+ WARN ignoring `SSL_CERT_DIR`: no certificates found in C:\Users\taner\workspace\blueearth_cst\.pixi\envs\default\Library\ssl\certs
+Using workflow specific profile profiles\default for setting default command line arguments.
+host: WSU-5CG4013KNZ
+Building DAG of jobs...
+Job stats:
+job                     count
+--------------------  -------
+extract_climate_grid        1
+total                       1
+
+
+[Fri Jul 24 21:14:49 2026]
+Job 1: 3.02  extract_climate_grid
+Job stats:
+job                     count
+--------------------  -------
+extract_climate_grid        1
+total                       1
+
+Reasons:
+    (check individual jobs above for details)
+    code has changed since last execution:
+        extract_climate_grid
+Some jobs were triggered by provenance information, see 'reason' section in the rule displays above.
+If you prefer that only modification time is used to determine whether a job shall be executed, use the command line option '--rerun-triggers mtime' (also see --help).
+If you are sure that a change for a certain output file (say, <outfile>) won't change the result (e.g. because you just changed the formatting of a script or environment definition), you can also wipe its metadata to skip such a trigger via 'snakemake --cleanup-metadata <outfile>'. 
+Rules with provenance triggered jobs: extract_climate_grid
+
+This was a dry-run (flag -n). The order of jobs does not reflect the order of execution.

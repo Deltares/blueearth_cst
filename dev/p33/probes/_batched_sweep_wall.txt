@@ -1,0 +1,26 @@
+# P3-3 wf3 sweep wall measurements. Frozen §5.6 triple unless stated: -c 3 / --threads 4.
+# Invocation (identical for every MEASUREMENT row, B the only moved knob):
+#   snakemake all -s Snakefile_climate_experiment \
+#     --configfile config/workflows/snake_config_model_test.yml -c 3 --forceall
+
+## ABORTED ATTEMPTS -- NOT MEASUREMENTS (2026-07-24, exit=1)
+# Both died in rule 3.02 extract_climate_grid: the era5_daily.zarr store had been
+# removed/rebuilt underneath the run by the concurrent stage_data workstream. The
+# numbers below are time-to-failure, NOT sweep walls. Kept only as the audit trail
+# for why commit 2 stalled overnight. Do not cite them.
+ABORTED: 42 s    (exit=1, -c 3 / --threads 4 / B=4, --forceall) -- era5 store missing
+ABORTED: 70.4 s  (exit=1, -c 3 / --threads 4 / B=4, --forceall) -- era5 store partially restored
+
+## MEASUREMENTS (2026-07-25, quiet AC-powered box, exit=0)
+# Both rows on the SAME machine state, ~3 min apart, B the only moved knob.
+# The 2026-07-24 baseline of 2242.9 s is SUPERSEDED -- it was measured while the
+# concurrent stage_data workstream saturated the box (see performance-baseline.md
+# "Supersession" block: identical work, byte-identical outputs, 2-6x the cost).
+BASELINE  (B=1, per-process, 58 jobs):   619.9 s   11:01:17 -> 11:11:37
+BATCHED   (B=4, 3 batch rules, 49 jobs): 400.2 s   11:14:31 -> 11:21:11
+DELTA: -219.7 s = -35.4 %   (GN-1 floor is 15 % -> PASS)
+
+# Per-batch benchmark walls (batched run): batch_0 228.14 s, batch_1 217.12 s,
+# batch_2 220.65 s -> realized makespan 228.1 s vs the estimator's 221 s prediction
+# at measured terms (F=24, S_cold=92, S_warm=35): 3.2 % over.
+# Per-process per-job walls (baseline run): 114.17-117.09 s, cpu_time ~105 s.

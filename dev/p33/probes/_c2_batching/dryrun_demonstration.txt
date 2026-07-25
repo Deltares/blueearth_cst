@@ -1,0 +1,121 @@
+# P3-3 commit-2 arbitration-mandated dry-run demonstration (design §9)
+# Recorded 2026-07-25 BEFORE the batched sweep was executed.
+# Snakemake 9.6.2 (pinned), profiles/default, config/workflows/snake_config_model_test.yml, -c 3.
+#
+# Claim under test: every per-cst output_rlz_<r>_cst_<c>.csv target resolves to the
+# generated run_wflow_batch_<b> rule whose STATIC output list declares it.
+#
+# Method: each of the K=12 per-cst CSV targets was dry-run ALONE (not via ll),
+# and the rule-3.10 variant Snakemake selected was recorded. Single-target dry-runs
+# are used deliberately: rule 3.10 carries a message:, so Snakemake prints the
+# banner instead of the per-job input/output table and a whole-DAG dry-run cannot
+# show the mapping. B=4 = ceil(K / -c 3) -> partition 4+4+4.
+
+
+target                 resolved_rule
+------                 -------------
+output_rlz_1_cst_1.csv run_wflow_batch_0
+output_rlz_1_cst_2.csv run_wflow_batch_0
+output_rlz_1_cst_3.csv run_wflow_batch_0
+output_rlz_1_cst_4.csv run_wflow_batch_0
+output_rlz_1_cst_5.csv run_wflow_batch_1
+output_rlz_1_cst_6.csv run_wflow_batch_1
+output_rlz_2_cst_1.csv run_wflow_batch_1
+output_rlz_2_cst_2.csv run_wflow_batch_1
+output_rlz_2_cst_3.csv run_wflow_batch_2
+output_rlz_2_cst_4.csv run_wflow_batch_2
+output_rlz_2_cst_5.csv run_wflow_batch_2
+output_rlz_2_cst_6.csv run_wflow_batch_2
+
+
+# RESULT: 12/12 per-cst targets resolved; each to exactly ONE batch rule; partition 4+4+4.
+
+# Whole-DAG --forceall --dry-run job stats under the batched rules (49 jobs; 12 run_wflow -> 3 batch rules):
+#   Job stats:
+#   job                              count
+#   -----------------------------  -------
+#   all                                  1
+#   check_project_consistency            1
+#   climate_data_catalog                 1
+#   climate_stress_parameters            1
+#   copy_config                          1
+#   downscale_climate_realization       12
+#   export_wflow_results                 1
+#   extract_climate_grid                 1
+#   gather_benchmarks                    1
+#   generate_climate_stress_test        12
+#   generate_weather_realization         1
+#   prepare_weagen_config                1
+#   prepare_weagen_config_st            12
+#   run_wflow_batch_0                    1
+#   run_wflow_batch_1                    1
+#   run_wflow_batch_2                    1
+#   total                               49
+#   Job 7: 3.00b  check_project_consistency
+#   Job 19: 3.05  prepare_weagen_config_st
+#   Job 9: 3.03  climate_stress_parameters
+#   Job 23: 3.05  prepare_weagen_config_st
+#   Job 15: 3.05  prepare_weagen_config_st
+#   Job 33: 3.05  prepare_weagen_config_st
+#   Job 29: 3.05  prepare_weagen_config_st
+#   Job 8: 3.04  prepare_weagen_config
+#   Job 17: 3.05  prepare_weagen_config_st
+#   Job 47: 3.01  copy_config
+#   Job 21: 3.05  prepare_weagen_config_st
+#   Job 13: 3.05  prepare_weagen_config_st
+#   Job 27: 3.05  prepare_weagen_config_st
+#   Job 10: 3.05  prepare_weagen_config_st
+#   Job 25: 3.05  prepare_weagen_config_st
+#   Job 6: 3.02  extract_climate_grid
+#   Job 31: 3.05  prepare_weagen_config_st
+#   Job 5: 3.06  generate_weather_realization
+#   Job 28: 3.07  generate_climate_stress_test
+#   Job 14: 3.07  generate_climate_stress_test
+#   Job 32: 3.07  generate_climate_stress_test
+#   Job 18: 3.07  generate_climate_stress_test
+#   Job 22: 3.07  generate_climate_stress_test
+#   Job 26: 3.07  generate_climate_stress_test
+#   Job 12: 3.07  generate_climate_stress_test
+#   Job 30: 3.07  generate_climate_stress_test
+#   Job 16: 3.07  generate_climate_stress_test
+#   Job 20: 3.07  generate_climate_stress_test
+#   Job 4: 3.07  generate_climate_stress_test
+#   Job 24: 3.07  generate_climate_stress_test
+#   Job 11: 3.08  climate_data_catalog
+#   Job 41: 3.09  downscale_climate_realization
+#   Job 39: 3.09  downscale_climate_realization
+#   Job 35: 3.09  downscale_climate_realization
+#   Job 43: 3.09  downscale_climate_realization
+#   Job 38: 3.09  downscale_climate_realization
+#   Job 3: 3.09  downscale_climate_realization
+#   Job 45: 3.09  downscale_climate_realization
+#   Job 36: 3.09  downscale_climate_realization
+#   Job 40: 3.09  downscale_climate_realization
+#   Job 34: 3.09  downscale_climate_realization
+#   Job 44: 3.09  downscale_climate_realization
+#   Job 46: 3.09  downscale_climate_realization
+#   Job 42: 3.10  run_wflow_batch_2
+#   Job 37: 3.10  run_wflow_batch_1
+#   Job 2: 3.10  run_wflow_batch_0
+#   Job 1: 3.11  export_wflow_results
+#   Job 48: 3.12  gather_benchmarks
+#   Job stats:
+#   job                              count
+#   -----------------------------  -------
+#   all                                  1
+#   check_project_consistency            1
+#   climate_data_catalog                 1
+#   climate_stress_parameters            1
+#   copy_config                          1
+#   downscale_climate_realization       12
+#   export_wflow_results                 1
+#   extract_climate_grid                 1
+#   gather_benchmarks                    1
+#   generate_climate_stress_test        12
+#   generate_weather_realization         1
+#   prepare_weagen_config                1
+#   prepare_weagen_config_st            12
+#   run_wflow_batch_0                    1
+#   run_wflow_batch_1                    1
+#   run_wflow_batch_2                    1
+#   total                               49
