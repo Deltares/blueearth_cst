@@ -253,7 +253,20 @@ context so future-you can confirm the issue still applies before fixing.
 
 ## R3 — Workflow 1: model builder
 
-- **Resolve test_cli xfails.** Two of the three parametrizations in
+- ~~**Resolve test_cli xfails.**~~ **CLOSED 2026-07-25 — both resolved, each by
+  one of the options this entry proposed.** Verified on the current tree:
+  `tests/test_cli.py` contains **no `xfail` marker at all**; all three cases
+  assert `returncode == 0` and the file runs **4 passed**. The
+  `MissingInputException` case was fixed the fixture way — `test_snakefile_cli_
+  climate_projections` takes the `config_with_staged_region` fixture (R3), so
+  `region.geojson` is pre-staged rather than the Snakefile being refactored. The
+  `CyclicGraphException` case was fixed the `wildcard_constraints` way in R5, and
+  the fix is self-documenting at `Snakefile_climate_experiment:297` — a
+  rule-local `st_num=r"[1-9][0-9]*"` constraint whose comment names this exact
+  exception and explains why `cst_0` must not be resolvable by rule 3.07. No
+  `ruleorder` was needed. Original entry retained below for provenance.
+
+  Two of the three parametrizations in
   `tests/test_cli.py` are marked `xfail` since M2:
   - `Snakefile_climate_projections`: dry-run trips
     `MissingInputException` because the workflow expects
@@ -537,12 +550,23 @@ for the full M2b record.
   stable; R3 should pick a consistent project-wide convention (real
   subcatchment IDs vs `1..N` rebuild) and document it.
 
-- **Retire the "CMIP6 GCS throughput regression" follow-up.** The original
+- ~~**Retire the "CMIP6 GCS throughput regression" follow-up.**~~ **CLOSED
+  2026-07-25 — retired, and independently re-confirmed.** The original
   M2b mid-flight estimate was ~6 h for the full 3-model × 2-scenario fetch;
   the as-shipped run completed in 24 min after the eager `.load()` patch
-  in `src/get_stats_climate_proj.py`. The followup line item was based on
-  the slow path and no longer applies. (No file currently lists it
-  separately — leaving this here as a reminder if it resurfaces.)
+  in `src/get_stats_climate_proj.py` (now
+  `blueearth_cst/projections/get_stats_climate_proj.py`). The followup line item
+  was based on the slow path and no longer applies; no file lists it separately,
+  so this entry was the last trace and is now closed rather than carried
+  indefinitely as a "reminder if it resurfaces".
+
+  **Fresh corroboration 2026-07-25:** a wf2 run observed 2.02/2.03 reading
+  `gs://cmip6/CMIP6/ScenarioMIP/...` live and clearing **10 of 22 jobs in ~3.5
+  min** at `-c 3` — i.e. ~100 s per model-scenario stats job, entirely
+  consistent with the fast path and nowhere near the regressed one. Recorded
+  because it also corrects a cost-model error made the same day: wf2's wall is
+  **bandwidth-bound on GCS**, not CPU-bound, so estimates derived from its summed
+  CPU benchmark (1172 s) are wrong in kind. See the Post-R6 CSV-determinism entry.
 
 ## R6 — Functional modularization (capability boundaries)
 
