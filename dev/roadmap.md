@@ -739,10 +739,47 @@ external GPT r2 reject (callable-output construct inexpressible,
 probe-confirmed) → round-cap user arbitration → stage-6a fix
 (probe-verified loop-generated batch rules); ledger 22/22 accepted):
 `dev/p33/performance-passes-design.md`, with the consolidated review
-record and landed probe evidence beside it. Next step: task-brief →
-implementation.
+record and landed probe evidence beside it.
+**Sealed 2026-07-25**: user-signed milestone gate (floor-free by intake
+decision 3 — sign-off on the measured before/after + GN outcome +
+value-identity evidence, no threshold imposed). 6 `p33:` commits off the task
+brief (`dev/p33/performance-passes-task-brief.md`): baseline/decomposition +
+LPT estimator (`6402db6`), the batching lever (`92f9080`), roadmap status
+(`0c797db`), upstream-parity measurement + reasoned-claim labelling
+(`fac689e`), the batch-size disk clamp (`3392587`), followups SHA
+(`293ff4e`).
+**Headline: 619.9 s → 400.2 s (−35.4 %)** on the seed fixture wf3 sweep, at a
+frozen `(-c 3, --threads 4)` budget with `B` the only moved knob, `--forceall`
+scope. **No output value changed** — `semantic_tree_diff` per-process vs
+batched on identical inputs is CLEAN (102 files, 0 failed, tolerance 0),
+`check_baseline` OK, P3-2b validators 53 passed, suite 397/6/1. Deliverables:
+rule 3.10 as loop-generated `run_wflow_batch_<b>` rules + the `batch_size`
+knob, `blueearth_cst/experiment/run_wflow_batch.jl`,
+`dev/scripts/estimate_batch_makespan.py`, plus the `batch_size_max` disk clamp
+(the `ceil(K / -c N)` default implemented only §6.1's parallelism ceiling and
+scaled `B` — hence peak temp disk — up with sweep size; invisible on the
+fixture, where `min(ceil(12/3), 8) = 4`). GN-1..4 all pass → batching stands,
+the PackageCompiler sysimage stays dormant (no dependency ask triggered), and
+the corrected cost terms independently weaken it (−19 % vs batching's −52 %).
+C5 failure isolation is DEGRADED by design (blast radius `B`), measured to be
+exactly the documented cost. Evidence: `dev/p33/batching-results.md`.
+**Caveat carried forward:** the commit-1 baseline (2242.9 s) was contaminated
+by the concurrent `stage_data` workstream and is superseded in place — see the
+supersession block in `dev/p33/performance-baseline.md`. Any future performance
+measurement in this repo must record `cpu_time` alongside wall and confirm no
+sibling agent session is active.
+Post-P3-3 followups (genuinely disk-aware batch-size cap; the
+`--keep-incomplete` ↔ `--keep-going` probe that could narrow the C5 blast
+radius) in `dev/followups.md` § Post-P3-3.
 
 **Tag.** `p33-performance`.
+
+**P3-3 was the last planned roadmap milestone.** With it sealed, the planned
+Phase 1–3 programme is complete. Next step is a short scoping conversation:
+close the roadmap, or open Phase 4 from the recorded backlog (P3-2c PoC seam
+swap, in-pipeline validator guard lift, OQ-3 store, OQ-8 zone source, the 4th
+Snakefile entry point, `--notemp` capture, the chirps ext2-2 ladder + gate-8
+smoke — still data-blocked, plus the two Post-P3-3 items above).
 
 ---
 

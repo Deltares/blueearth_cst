@@ -1,7 +1,7 @@
 """LPT makespan estimator for the wf3 batching lever (P3-3 design §5.5).
 
 The estimator of record for the batch-size choice. Given a sweep of `K` Wflow
-runs partitioned into batches of size `B` (⌊K/B⌋ full batches plus one REMAINDER
+runs partitioned into batches of size `B` (floor(K/B) full batches plus one REMAINDER
 batch of `r = K mod B` when `B` does not divide `K`), each batch runs in one
 Julia session at per-batch duration::
 
@@ -56,7 +56,7 @@ class MakespanEstimate:
 
 
 def batch_sizes(k: int, b: int) -> list[int]:
-    """Partition K runs into batches of B: ⌊K/B⌋ full + one remainder if B ∤ K.
+    """Partition K runs into batches of B: floor(K/B) full + one remainder if B does not divide K.
 
     The remainder batch (size `K mod B`) is first-class -- it is shorter than a
     full batch and shifts the LPT packing (design §5.5, the K=13 demonstration).
@@ -97,7 +97,7 @@ def lpt_makespan(durations: list[float], p: int) -> float:
 
 
 def graham_bounds(durations: list[float], p: int) -> tuple[float, float]:
-    """Graham list-scheduling bracket [max(D_max, ΣD/p), ΣD/p + (1-1/p)·D_max]."""
+    """Graham list-scheduling bracket [max(D_max, sum(D)/p), sum(D)/p + (1-1/p)*D_max]."""
     if p <= 0:
         raise ValueError(f"p must be positive, got {p}")
     if not durations:
@@ -140,8 +140,11 @@ P_DEFAULT = 3
 
 # The §5.5 fixture comparison table rows: (label, B, F-override).
 # "today" and "sysimage" are B=1 with different fixed cost; the rest are batching.
+# A None F-override means "use the table's F" (the --f value), so re-running the
+# table with re-measured terms moves every row EXCEPT the sysimage one, whose
+# whole point is the F->~2 counterfactual.
 _TABLE_ROWS: list[tuple[str, int, float | None]] = [
-    ("today (per-process, cold)", 1, F_DEFAULT),
+    ("today (per-process, cold)", 1, None),
     ("sysimage (F->~2, always cold)", 1, 2.0),
     ("batching B=2", 2, None),
     ("batching B=3", 3, None),
@@ -154,16 +157,16 @@ def _fmt_sizes(sizes: list[int]) -> str:
     return "+".join(str(s) for s in sizes)
 
 
-def print_table(k: int, p: int, s_cold: float, s_warm: float) -> None:
+def print_table(k: int, p: int, f: float, s_cold: float, s_warm: float) -> None:
     """Print the §5.5 per-B fixture comparison (LPT makespan + Graham bracket)."""
-    today = estimate(k, p, 1, F_DEFAULT, s_cold, s_warm).makespan
-    print(f"# LPT makespan table  (K={k}, p={p}, S_cold={s_cold:g}, S_warm={s_warm:g})")
+    today = estimate(k, p, 1, f, s_cold, s_warm).makespan
+    print(f"# LPT makespan table  (K={k}, p={p}, F={f:g}, S_cold={s_cold:g}, S_warm={s_warm:g})")
     header = f"{'lever / B':<32} {'batches':>12} {'makespan':>10} {'vs today':>9}  {'Graham [lo, hi]':>22}"
     print(header)
     print("-" * len(header))
     for label, b, f_override in _TABLE_ROWS:
-        f = F_DEFAULT if f_override is None else f_override
-        est = estimate(k, p, b, f, s_cold, s_warm)
+        row_f = f if f_override is None else f_override
+        est = estimate(k, p, b, row_f, s_cold, s_warm)
         vs = "--" if abs(est.makespan - today) < 1e-9 else f"{(est.makespan / today - 1) * 100:+.0f}%"
         bracket = f"[{est.graham_lower:.0f}, {est.graham_upper:.0f}]"
         print(f"{label:<32} {_fmt_sizes(est.batch_sizes):>12} {est.makespan:>10.0f} {vs:>9}  {bracket:>22}")
@@ -189,7 +192,8 @@ def main() -> None:
     p.add_argument("--b", type=int, default=4,
                    help="Batch size B (ignored in --table mode) (default 4)")
     p.add_argument("--f", type=float, default=F_DEFAULT,
-                   help=f"Per-process fixed cost F, s (default {F_DEFAULT})")
+                   help=f"Per-process fixed cost F, s (default {F_DEFAULT}); honored "
+                        f"in --table mode for every row but the sysimage counterfactual")
     p.add_argument("--s-cold", type=float, default=S_COLD_DEFAULT,
                    help=f"Per-run cold simulation S_cold, s (default {S_COLD_DEFAULT})")
     p.add_argument("--s-warm", type=float, default=S_WARM_DEFAULT,
@@ -199,7 +203,7 @@ def main() -> None:
     args = p.parse_args()
 
     if args.table:
-        print_table(args.k, args.p, args.s_cold, args.s_warm)
+        print_table(args.k, args.p, args.f, args.s_cold, args.s_warm)
         return
     est = estimate(args.k, args.p, args.b, args.f, args.s_cold, args.s_warm)
     _print_single(est, args.k, args.p, args.b)
