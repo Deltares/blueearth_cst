@@ -793,15 +793,94 @@ radius) in `dev/followups.md` § Post-P3-3.
 
 **Tag.** `p33-performance`.
 
-**P3-3 was the last planned roadmap milestone.** With it sealed, the planned
-Phase 1–3 programme is complete. Next step is a short scoping conversation:
-close the roadmap, or open Phase 4 from the recorded backlog (P3-2c PoC seam
-swap, in-pipeline validator guard lift, OQ-3 store, OQ-8 zone source, the 4th
+**P3-3 was the last planned Phase 1–3 milestone.** With it sealed, the planned
+Phase 1–3 programme is complete. The scoping conversation happened on
+2026-07-26 (owner's post-R6 assessment) and **opened Phase 4** — see below.
+The remaining Phase 3 backlog is unchanged and unclaimed (P3-2c PoC seam swap,
+in-pipeline validator guard lift, OQ-3 store, OQ-8 zone source, the 4th
 Snakefile entry point, the chirps ext2-2 ladder + gate-8 smoke — still
 data-blocked, plus the two Post-P3-3 items above). The `--notemp` capture is
 **done** (2026-07-25, see the P3-2b entry) and two Post-R6 items were closed
 the same day (`semantic_tree_diff` exclusions — stale; dead
 `tests/wflow_build_model.yml` — removed).
+
+---
+
+## Phase 4 — Layout consolidation (in design)
+
+Opened 2026-07-26 out of the owner's post-R6 assessment. Phase 2 (R6) settled
+the *repository* layout and Phase 3 (P3-1) settled the *experiment* layout;
+neither could see the residue the other left, and R6's own lock list deferred
+the artifact tree explicitly ("5. Output layout under `project_dir/` already
+mostly clean — leave alone unless a concrete pain point emerges"). Pain points
+have now emerged, and they span both halves.
+
+### R7 — Project layout (design DRAFT 2026-07-26)
+
+**Status.** Design **DRAFT**, not accepted, not built:
+`dev/r07/project-layout-design.md`, with the `naming.md` §7 path map at
+`dev/r07/migration_project-layout.md`. Authored interactively with the owner
+across the 2026-07-26 review — **no design-review-loop run**, so there is no
+external round or finding ledger behind it; what it carries instead is a
+16-ruling question log with rationale. Provenance of the findings:
+`dev/reviews/2026-07-25_post-r6-assessment.md` (O-01 … O-24), which carries a
+routing note for which observations R7 owns.
+
+**Goal.** One coherent layout across both halves, governed by stated principles
+rather than accretion: the **toolbox** holds source, config and templates — no
+basin data, no run artifacts; the **artifacts** under `project_dir` are
+organised by producer and by engine, so a reader can tell what made a file from
+where it sits, and a second modelling engine can be added without inventing a
+new layout.
+
+**Four principles.** P1 figures attach to their producer (no project-level
+`plots/`). P2 one producer per artifact. P3 engine-shaped artifacts live inside
+their engine's subtree, every engine subtree sharing the shape
+`config/ output/ plots/ _work/`. P4 a full climate analysis must be possible
+with no wflow setup or run.
+
+**Scope — repository half.** Retire `data/` for schema templates (O-01); DAG
+renders to `<project_dir>/dag/` (O-02); delete the `docs/config/` mirror
+(O-05); `examples/` → `test_case/` (O-20); fix the template's `project_dir`
+default (O-21); add a parse-time in-repo-`project_dir` warning (O-22); declare
+the missing plot outputs on rules 1.11/1.13 (O-24). Recorded as **kept
+as-is with reasoning**: the nested `blueearth_cst/` package, the three homes
+for executable files, and the Snakefiles at the repo root.
+
+**Scope — artifact half.** Collapse the duplicate climate stores into one
+region-keyed store (B1); move wflow forcing into the engine subtree (B2); tier
+`climate_projections/` (B3); climate figures from the climate store, never from
+wflow forcing (B4); two symmetric engine subtrees in the experiment —
+`weather_generator/` and `hydrology_runs/` (B5); demote `stress_test/` to
+`_work/` (B6); `model_results/` → `indicators/` (B7); auto-*suggest*
+`experiment_id`, never auto-generate (B8).
+
+**Behaviour-preserving, but NOT re-record-free** — unlike R6. No computational
+path changes, but 17 of the 18 baseline targets move path (4 of them also
+change content, embedding `project_dir`). The manifest is re-recorded **exactly
+once**, at the end; `check_baseline.py` TARGETS and `semantic_tree_diff.py`'s
+path map + TOML comparator update alongside. Batching the two halves into one
+milestone is what buys the single re-record — split, it costs two.
+
+**Exit criteria.** Design accepted; 13 `r07:` commits landed off a task brief;
+all three Snakefiles `--dry-run` clean and `pytest tests/` green; a full
+three-workflow run on the seed config completes; full-`project_dir`
+`semantic_tree_diff` against the R7 path map clean modulo a written
+MISSING/EXTRA allowlist; the P4 assertion demonstrated (climate figures
+produced with no `hydrology_model/` present); manifest re-recorded once and
+`check_baseline` green.
+
+**Open questions carried into the milestone.** Engine-named subtrees
+(`models/wflow/`) — parked, non-gating. `MIGRATION.md`'s home (O-12).
+`blueearth_cst.Rproj`'s fate (O-13). Where the weathergen date CSVs settle.
+
+**Out of scope.** The tooling-contract decisions (O-14 `pyproject.toml`, O-15
+`ruff`, O-16 `flit`) — unrelated to layout, still open. Docker (O-06) and Linux
+end-to-end (O-18/O-19) stay parked. Promoting climate analysis to a fourth
+Snakefile is a separate milestone; R7 only ensures the layout does not obstruct
+it.
+
+**Tag.** `r07-layout` (on seal).
 
 ---
 
