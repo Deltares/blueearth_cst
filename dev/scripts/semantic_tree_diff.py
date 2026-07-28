@@ -58,6 +58,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -106,6 +107,27 @@ COPIED_CONFIG_PATH_MAP: dict[str, dict[str, str]] = {
     "waterbodies_config": {
         "config/wflow_update_waterbodies.yml":
             "config/templates/wflow_update_waterbodies.yml",
+    },
+    # --- R07 additions (migration_project-layout.md §2d) -------------------
+    # Without these the phase-B gate goes red on the copied config snapshots
+    # for pure path bookkeeping, which is indistinguishable from a real
+    # content regression (repo-6, arch-11a).
+    "project_dir": {
+        "examples/test_local": "test_case/test_local",   # O-20
+        "examples/Gabon": "test_case/gabon",             # O-20
+        # O-21 retargets snake_config.template.yml to an outside-the-tree
+        # placeholder in commit 6. That template is not a copied *snapshot*
+        # (no run writes it into project_dir), so it needs no entry here;
+        # add one only if a snapshot of it ever appears in a reference tree.
+    },
+    # O-01 retires the tracked data/ tree; both observation keys fall back to
+    # the "None" STRING sentinel (unquoted None in YAML -> Python str, never
+    # YAML null -- the existence guards downstream depend on that).
+    "output_locations": {
+        "data/observations/output-locations-test.csv": "None",
+    },
+    "observations_timeseries": {
+        "data/observations/observations_timeseries_test.csv": "None",
     },
 }
 
@@ -173,13 +195,196 @@ def build_p31_allowlist(
     return allow
 
 
-def apply_path_map(rel: str, path_map: list[tuple[str, str]] | None) -> str:
-    """Translate one project-root-relative path through the ordered rule list."""
+# ---------------------------------------------------------------------------
+# R07 path map / allowlist / merge class (dev/r07/migration_project-layout.md
+# §2a, §2b, §2e, §4 -- that map is the path authority; this is its executable
+# form and `check_baseline.TARGETS` is rewritten from the same source).
+# ---------------------------------------------------------------------------
+
+def build_r07_path_map(
+    experiment_name: str,
+    dataset_key: str | None,
+    clim_project: str = "cmip6",
+) -> list[tuple[str | re.Pattern, str]]:
+    """The R07 old->new relocation rules (migration map §2a + §2b).
+
+    Excludes B1's climate-store collapse: that is many-to-one and CANNOT be a
+    path-map rule (it would raise the path-map collision `diff_trees` guards
+    against). It is declared separately -- see `build_r07_merges`.
+    """
+    e = experiment_name
+    rules: list[tuple[str | re.Pattern, str]] = [
+        # -- B9: the project config snapshot splits four ways (commit 10) ----
+        ("config/snake_config_model_creation.yml",
+         "config/runs/snake_config_model_creation.yml"),
+        ("config/snake_config_climate_projections.yml",
+         "config/runs/snake_config_climate_projections.yml"),
+        ("config/deltares_data.yml", "config/catalogs/deltares_data.yml"),
+        ("config/cmip6_data.yml", "config/catalogs/cmip6_data.yml"),
+        ("config/wflow_build_model.yml",
+         "config/templates/wflow_build_model.yml"),
+        ("config/wflow_update_waterbodies.yml",
+         "config/templates/wflow_update_waterbodies.yml"),
+        # generated at run time, not verbatim template snapshots (P3 rule)
+        ("config/wflow_build_model_run.yml",
+         "config/generated/wflow_build_model_run.yml"),
+        ("config/wflow_build_forcing_historical.yml",
+         "config/generated/wflow_build_forcing_historical.yml"),
+        # -- B2: wflow forcing into the engine subtree (commit 8) ------------
+        ("climate_historical/wflow_data/", "hydrology_model/forcing/"),
+        # -- B10: wf1 figures leave the project-level plots/ tree (commit 12) -
+        # Split by DEPICTED subject (P1), so these are per-file, not a prefix.
+        ("plots/wflow_model_performance/precip.png",
+         "hydrology_model/forcing/plots/precip.png"),
+        ("plots/wflow_model_performance/temp.png",
+         "hydrology_model/forcing/plots/temp.png"),
+        ("plots/wflow_model_performance/pet.png",
+         "hydrology_model/forcing/plots/pet.png"),
+        ("plots/wflow_model_performance/hydro_wflow_1.png",
+         "hydrology_model/evaluation/plots/hydro_wflow_1.png"),
+        ("plots/wflow_model_performance/clim_wflow_1_month.png",
+         "hydrology_model/evaluation/plots/clim_wflow_1_month.png"),
+        ("plots/wflow_model_performance/clim_wflow_1_year.png",
+         "hydrology_model/evaluation/plots/clim_wflow_1_year.png"),
+        # depicts the MODEL, not its evaluation
+        ("plots/wflow_model_performance/basin_area.png",
+         "hydrology_model/plots/basin_area.png"),
+        # a CSV leaves plots/ entirely (P1: plots/ holds figures only)
+        ("plots/wflow_model_performance/performance_metrics.csv",
+         "hydrology_model/evaluation/performance_metrics.csv"),
+        # -- B3: only the THREE summary files move; the PNGs stay (commit 9) -
+        (f"climate_projections/{clim_project}/gcm_timeseries.nc",
+         f"climate_projections/{clim_project}/timeseries/gcm_timeseries.nc"),
+        (f"climate_projections/{clim_project}/annual_change_scalar_stats_summary.nc",
+         f"climate_projections/{clim_project}/summary/annual_change_scalar_stats_summary.nc"),
+        (f"climate_projections/{clim_project}/annual_change_scalar_stats_summary.csv",
+         f"climate_projections/{clim_project}/summary/annual_change_scalar_stats_summary.csv"),
+        (f"climate_projections/{clim_project}/annual_change_scalar_stats_summary_mean.csv",
+         f"climate_projections/{clim_project}/summary/annual_change_scalar_stats_summary_mean.csv"),
+        # -- B7: model_results/ -> indicators/ (commit 11) -------------------
+        (f"experiments/{e}/model_results/", f"experiments/{e}/indicators/"),
+        # -- B5/B6: the experiment splits into two engine subtrees (commit 11)
+        # realization_<r>/ dissolves; the index migrates from the FILENAME into
+        # a DIRECTORY for the wflow-side artifacts, so these must be regexes.
+        (re.compile(rf"experiments/{re.escape(e)}/realization_(\d+)/"
+                    rf"inmaps_rlz_\1_cst_(\d+)\.nc"),
+         rf"experiments/{e}/hydrology_runs/rlz_\1/forcing/inmaps_cst_\2.nc"),
+        (re.compile(rf"experiments/{re.escape(e)}/realization_(\d+)/"
+                    rf"weathergen_config_rlz_\1_cst_(\d+)\.yml"),
+         rf"experiments/{e}/weather_generator/_work/"
+         rf"weathergen_config_rlz_\1_cst_\2.yml"),
+        (re.compile(rf"experiments/{re.escape(e)}/realization_(\d+)/(.+)"),
+         rf"experiments/{e}/weather_generator/output/\2"),
+        (re.compile(rf"experiments/{re.escape(e)}/model_runs/"
+                    rf"wflow_sbm_rlz_(\d+)_cst_(\d+)\.toml"),
+         rf"experiments/{e}/hydrology_runs/rlz_\1/config/cst_\2.toml"),
+        (re.compile(rf"experiments/{re.escape(e)}/model_runs/"
+                    rf"output_rlz_(\d+)_cst_(\d+)\.csv"),
+         rf"experiments/{e}/hydrology_runs/rlz_\1/output/cst_\2.csv"),
+        (re.compile(rf"experiments/{re.escape(e)}/model_runs/"
+                    rf"outstates_rlz_(\d+)_cst_(\d+)\.nc"),
+         rf"experiments/{e}/hydrology_runs/rlz_\1/output/outstates_cst_\2.nc"),
+        # cst_*.csv is RETAINED under _work/, not deleted -- it is the only
+        # record of precip_variance and of monthly structure (B6 note).
+        (f"experiments/{e}/stress_test/",
+         f"experiments/{e}/weather_generator/_work/"),
+        (f"experiments/{e}/weathergen_config.yml",
+         f"experiments/{e}/weather_generator/config/weathergen_config.yml"),
+        (f"experiments/{e}/resampled_dates.csv",
+         f"experiments/{e}/weather_generator/output/resampled_dates.csv"),
+        (f"experiments/{e}/sim_dates.csv",
+         f"experiments/{e}/weather_generator/output/sim_dates.csv"),
+    ]
+    for png in ("obs_power_spectra", "warm_annual_precip",
+                "warm_annual_stats", "warm_annual_wavelet"):
+        rules.append((f"experiments/{e}/{png}.png",
+                      f"experiments/{e}/weather_generator/plots/{png}.png"))
+    return rules
+
+
+def build_r07_allowlist(
+    experiment_name: str, dataset_key: str | None
+) -> list[str]:
+    """EXTRA-by-design relpaths for R07 (migration map §4).
+
+    A FULL set per gate invocation, not an increment: R07 retires none of
+    P3-1's entries, so they are carried forward here. Every entry is
+    justified in the migration map; an entry not listed fails the gate.
+    """
+    allow = list(build_p31_allowlist(experiment_name, dataset_key))
+    if dataset_key:
+        # B1's second declared output -- the model-free delineation the store
+        # bbox came from; no pre-R07 counterpart.
+        allow.append(f"climate_historical/{dataset_key}/store_region.geojson")
+        # B4's new producer (rule 1.15). Additive; source-grid PET did not
+        # previously exist. Named source_* so a file copied out of its
+        # directory is still distinguishable from the model-grid figures.
+        allow += [
+            f"climate_historical/{dataset_key}/plots/source_precip.png",
+            f"climate_historical/{dataset_key}/plots/source_temp.png",
+            f"climate_historical/{dataset_key}/plots/source_pet.png",
+        ]
+    return allow
+
+
+def build_r07_merges(
+    dataset_key: str | None, clim_source: str | None = None
+) -> list[tuple[str, list[str]]]:
+    """B1's declared many-to-one collapse (migration map §2e).
+
+    Returns (survivor_relpath, [source_relpath, ...]) in the CURRENT and
+    REFERENCE namespaces respectively. The survivor is compared against EVERY
+    source and the merge passes only if ALL comparisons pass -- allowlisting
+    one side as MISSING was rejected, because it lets the gate go green while
+    proving nothing about the store that disappeared.
+    """
+    if not dataset_key:
+        return []
+    merges = [(
+        f"climate_historical/{dataset_key}/extract_historical.nc",
+        [
+            "climate_historical/wf1_raw/extract_historical.nc",
+            f"climate_historical/{dataset_key}/extract_historical.nc",
+        ],
+    )]
+    if clim_source in ("chirps", "chirps_global"):
+        # The sidecar exists only on this branch, and the two stores name it
+        # differently -- the collapse standardises on the clim_source-
+        # independent `orography.nc` (repo-1).
+        merges.append((
+            f"climate_historical/{dataset_key}/orography.nc",
+            [
+                "climate_historical/wf1_raw/orography.nc",
+                f"climate_historical/{dataset_key}/{clim_source}_orography.nc",
+            ],
+        ))
+    return merges
+
+
+def apply_path_map(
+    rel: str, path_map: list[tuple[str | re.Pattern, str]] | None
+) -> str:
+    """Translate one project-root-relative path through the ordered rule list.
+
+    Three rule kinds, first match wins:
+      - regex rule: `old` is a compiled pattern -- `new` is an expansion
+        template (`\\1` backrefs). R07 needs this for B5, where the
+        realization index migrates from the FILENAME into a DIRECTORY
+        (`realization_2/inmaps_rlz_2_cst_3.nc` ->
+        `hydrology_runs/rlz_2/forcing/inmaps_cst_3.nc`), which neither a
+        prefix nor an exact rule can express;
+      - directory-prefix rule: `old` ends with "/";
+      - exact-file rule: otherwise.
+    """
     rel = rel.replace("\\", "/")
     if not path_map:
         return rel
     for old, new in path_map:
-        if old.endswith("/"):
+        if isinstance(old, re.Pattern):
+            m = old.fullmatch(rel)
+            if m:
+                return m.expand(new)
+        elif old.endswith("/"):
             if rel.startswith(old):
                 return new + rel[len(old):]
         elif rel == old:
@@ -618,8 +823,9 @@ def diff_trees(
     ref_root: str,
     cur_root: str,
     tol: float = DEFAULT_TOLERANCE,
-    path_map: list[tuple[str, str]] | None = None,
+    path_map: list[tuple[str | re.Pattern, str]] | None = None,
     allowlist: list[str] | None = None,
+    merges: list[tuple[str, list[str]]] | None = None,
 ) -> dict:
     """Compare two output trees file-by-file. Returns a report dict with
     `failures` (list of (relpath, [reasons])), `missing`, `extra`, `allowed`,
@@ -636,20 +842,33 @@ def diff_trees(
     ref_files = _list_files(ref)
     cur_files = _list_files(cur)
 
+    # Declared many-to-one merges are handled out of band: their sources are
+    # withheld from `translated` (so they neither collide nor read as MISSING)
+    # and their survivor from `raw_extra`. A merge is proven by comparing the
+    # survivor against EVERY source -- see the merge block below.
+    merges = list(merges or [])
+    merge_sources = {src for _, srcs in merges for src in srcs}
+    merge_survivors = {survivor for survivor, _ in merges}
+
     # Translate ref relpaths old->new (POSIX keys); keep the original for I/O.
     translated: dict[str, Path] = {}
     for p in ref_files:
-        key = apply_path_map(p.as_posix(), path_map)
+        posix = p.as_posix()
+        if posix in merge_sources:
+            continue
+        key = apply_path_map(posix, path_map)
         if key in translated:  # two ref files mapping onto one target
             raise ValueError(
-                f"path map collision: {translated[key]} and {p} both map to {key}"
+                f"path map collision: {translated[key]} and {p} both map to "
+                f"{key} -- if this is a deliberate many-to-one collapse, "
+                f"declare it with --merge {key}={translated[key].as_posix()},{posix}"
             )
         translated[key] = p
     cur_keys = {p.as_posix(): p for p in cur_files}
 
     allow = set(allowlist or [])
     raw_missing = sorted(set(translated) - set(cur_keys))
-    raw_extra = sorted(set(cur_keys) - set(translated))
+    raw_extra = sorted(set(cur_keys) - set(translated) - merge_survivors)
     allowed = sorted(
         [f"MISSING allowed: {k}" for k in raw_missing if k in allow]
         + [f"EXTRA allowed: {k}" for k in raw_extra if k in allow]
@@ -674,14 +893,42 @@ def diff_trees(
                      else f"{rel_ref.as_posix()} -> {key}")
             failures.append((label, reasons))
 
+    # -- Declared merges: the survivor must match EVERY collapsed source -----
+    merged: list[str] = []
+    n_merge_compared = 0
+    for survivor, sources in merges:
+        if survivor not in cur_keys:
+            failures.append((f"merge {survivor}",
+                             [f"survivor missing from current tree: {survivor}"]))
+            continue
+        for src in sources:
+            src_path = Path(src)
+            if src_path not in ref_files:
+                failures.append(
+                    (f"merge {survivor} <- {src}",
+                     [f"declared merge source missing from reference tree: {src}"])
+                )
+                continue
+            n_merge_compared += 1
+            reasons = dispatch(
+                cur_keys[survivor], str(ref / src_path),
+                str(cur / cur_keys[survivor]), tol,
+                ref_root=ref_root, cur_root=cur_root, path_map=path_map,
+            )
+            if reasons:
+                failures.append((f"merge {survivor} <- {src}", reasons))
+            else:
+                merged.append(f"merge OK: {survivor} <- {src}")
+
     passed = not (missing or extra or failures)
     return {
         "passed": passed,
         "missing": missing,
         "extra": extra,
         "allowed": allowed,
+        "merged": merged,
         "failures": failures,
-        "n_compared": len(set(translated) & set(cur_keys)),
+        "n_compared": len(set(translated) & set(cur_keys)) + n_merge_compared,
     }
 
 
@@ -693,6 +940,8 @@ def format_report(report: dict) -> str:
         lines.append(f"EXTRA (in cur, not ref): {path}")
     for entry in report.get("allowed", []):
         lines.append(f"ALLOWED ({entry})")
+    for entry in report.get("merged", []):
+        lines.append(entry)
     for path, reasons in report["failures"]:
         lines.append(f"FAIL {path}")
         for r in reasons:
@@ -735,15 +984,69 @@ def main(argv: list[str] | None = None) -> int:
         help="extra allowlisted MISSING/EXTRA relpath (repeatable; every entry "
              "must be justified in the migration note)",
     )
+    ap.add_argument(
+        "--milestone", choices=("p31", "r07"), default="p31",
+        help="which built-in path map + allowlist to use (default: p31)",
+    )
+    ap.add_argument(
+        "--clim-project", default="cmip6",
+        help="clim_project subdir under climate_projections/ (r07 B3 rules)",
+    )
+    ap.add_argument(
+        "--clim-source", default=None,
+        help="clim_source, e.g. era5 or chirps; the r07 orography merge is "
+             "declared only on the chirps / chirps_global branch",
+    )
+    ap.add_argument(
+        "--map", action="append", default=[], metavar="OLD=NEW",
+        help="extra path-map rule, appended after the built-in rules "
+             "(repeatable). A trailing '/' on OLD makes it a directory-prefix "
+             "rule; otherwise it is an exact-file rule",
+    )
+    ap.add_argument(
+        "--merge", action="append", default=[],
+        metavar="SURVIVOR=SRC1,SRC2",
+        help="declare a many-to-one collapse (repeatable): SURVIVOR is a "
+             "current-tree relpath, SRC* are reference-tree relpaths. The "
+             "survivor is compared against EVERY source and the merge passes "
+             "only if all comparisons pass",
+    )
     args = ap.parse_args(argv)
+
+    extra_rules: list[tuple[str | re.Pattern, str]] = []
+    for spec in args.map:
+        if "=" not in spec:
+            ap.error(f"--map expects OLD=NEW, got: {spec!r}")
+        old, new = spec.split("=", 1)
+        extra_rules.append((old, new))
+
+    merges: list[tuple[str, list[str]]] = []
+    for spec in args.merge:
+        if "=" not in spec:
+            ap.error(f"--merge expects SURVIVOR=SRC1,SRC2, got: {spec!r}")
+        survivor, srcs = spec.split("=", 1)
+        sources = [s for s in srcs.split(",") if s]
+        if len(sources) < 2:
+            ap.error(f"--merge needs at least two sources, got: {spec!r}")
+        merges.append((survivor, sources))
+
     if args.no_path_map:
-        path_map, allowlist = None, list(args.allow)
+        path_map, allowlist = (extra_rules or None), list(args.allow)
+    elif args.milestone == "r07":
+        path_map = build_r07_path_map(
+            args.experiment_name, args.dataset_key, args.clim_project
+        ) + extra_rules
+        allowlist = build_r07_allowlist(args.experiment_name, args.dataset_key)
+        allowlist += list(args.allow)
+        merges = build_r07_merges(args.dataset_key, args.clim_source) + merges
     else:
-        path_map = build_p31_path_map(args.experiment_name, args.dataset_key)
+        path_map = build_p31_path_map(
+            args.experiment_name, args.dataset_key
+        ) + extra_rules
         allowlist = build_p31_allowlist(args.experiment_name, args.dataset_key)
         allowlist += list(args.allow)
     report = diff_trees(args.ref, args.cur, args.tolerance,
-                        path_map=path_map, allowlist=allowlist)
+                        path_map=path_map, allowlist=allowlist, merges=merges)
     print(format_report(report))
     return 0 if report["passed"] else 1
 

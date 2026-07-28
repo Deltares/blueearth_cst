@@ -579,6 +579,32 @@ Distinct old→new path mappings across §1, §2a, and §2b: **65**.
 | Exception 3 outcome — merge comparison pass/fail, and **per-edge coordinate deltas if it fails** | commit 7 (per-slice diff) | open |
 | Which of §3d's 8 candidates entered `TARGETS` / the manifest | commit 14 | open |
 
+### 7a. Holding artifacts captured in commit 1 — preserve for the whole milestone
+
+`check_baseline check` is red by construction from commit 4 to commit 14, so
+these two are the **only** regression detectors in that window. If the reference
+tree is lost, commits 4–14 have none. Recorded here because a resuming session
+cannot otherwise find them.
+
+| Artifact | Location | Captured |
+| --- | --- | --- |
+| Pre-R07 reference tree (219 files) | `C:/Users/taner/workspace/.r07-reference/test_local_preR07/` | commit 1, 2026-07-28 |
+| Discharge anchor (`hydrology_model/run_default/output.csv`) | `C:/Users/taner/workspace/.r07-reference/discharge_preR07.csv`, sha1 `7e1e9cac1eecfc88458affc231416d5b20720363` | commit 1, 2026-07-28 |
+
+Deliberately **outside** the repository tree: the fixture root itself is renamed
+in commit 4, and a holding path inside the repo would be swept by that rename or
+by a `git clean`.
+
+**Early result — the merge comparison already passes on the pre-R07 tree.** Run
+at commit 1 with `--milestone r07 --dataset-key era5_20000101_20201231
+--clim-source era5`, both sides of §2e's declared merge report `merge OK`:
+today's `wf1_raw/extract_historical.nc` and today's `<key>/extract_historical.nc`
+are element-wise identical under `compare_nc`. That is the retired `allclose`
+check's claim, re-proved with a stricter comparator, and it is the precondition
+B1's collapse rests on. It is **not** yet exception 3's proof — that requires the
+post-commit-7 survivor — but a failure here would have falsified B1 before any
+code moved.
+
 ## 8. Judgement calls this map made
 
 Recorded so a reader can see where the accepted design underdetermined the map.

@@ -486,3 +486,182 @@ def test_diff_trees_excludes_run_log_files(tmp_path):
     report = std.diff_trees(str(ref), str(cur), tol=0.0)
     assert report["passed"], std.format_report(report)
     assert report["n_compared"] == 0
+
+
+# ---------------------------------------------------------------------------
+# R07: the declared many-to-one merge class (design B1 / migration map 2e).
+#
+# B1 collapses two climate stores into one. `diff_trees` keys the reference
+# tree by MAPPED relpath, so a prefix rule expressing that collapse makes two
+# reference files land on one key and raises -- the gate aborts before it can
+# report. The merge class is the fix, and its contract is that the survivor
+# must match EVERY collapsed source: allowlisting one side as MISSING was
+# rejected because it lets the gate go green while proving nothing about the
+# store that disappeared.
+# ---------------------------------------------------------------------------
+
+def _merge_trees(tmp_path, wf1_data, key_data, survivor_data):
+    """Two ref stores (wf1_raw + <key>) collapsing to one current store."""
+    ref = tmp_path / "ref"
+    cur = tmp_path / "cur"
+    (ref / "climate_historical" / "wf1_raw").mkdir(parents=True)
+    (ref / "climate_historical" / "k1").mkdir(parents=True)
+    (cur / "climate_historical" / "k1").mkdir(parents=True)
+    _write_nc(ref / "climate_historical" / "wf1_raw" / "extract_historical.nc",
+              wf1_data)
+    _write_nc(ref / "climate_historical" / "k1" / "extract_historical.nc",
+              key_data)
+    _write_nc(cur / "climate_historical" / "k1" / "extract_historical.nc",
+              survivor_data)
+    return ref, cur
+
+
+_MERGE = [(
+    "climate_historical/k1/extract_historical.nc",
+    ["climate_historical/wf1_raw/extract_historical.nc",
+     "climate_historical/k1/extract_historical.nc"],
+)]
+
+
+def test_merge_passes_when_survivor_matches_every_source(tmp_path):
+    ref, cur = _merge_trees(tmp_path, [1.0, 2.0, 3.0], [1.0, 2.0, 3.0],
+                            [1.0, 2.0, 3.0])
+    rep = std.diff_trees(str(ref), str(cur), tol=0.0, merges=_MERGE)
+    assert rep["passed"], std.format_report(rep)
+    # Both sides are compared, not just the one that happens to share a path.
+    assert len(rep["merged"]) == 2
+    assert rep["missing"] == [] and rep["extra"] == []
+
+
+def test_merge_fails_when_only_one_source_matches(tmp_path):
+    """The property arch-2 / risk-2 were about: a merge is proven by BOTH
+    comparisons. The survivor here is bit-identical to the <key> store but
+    differs from wf1_raw -- a one-sided check would call this clean."""
+    ref, cur = _merge_trees(tmp_path, [9.0, 9.0, 9.0], [1.0, 2.0, 3.0],
+                            [1.0, 2.0, 3.0])
+    rep = std.diff_trees(str(ref), str(cur), tol=0.0, merges=_MERGE)
+    assert not rep["passed"], std.format_report(rep)
+    labels = [lbl for lbl, _ in rep["failures"]]
+    assert any("wf1_raw" in lbl for lbl in labels), labels
+    # ...and the side that DID match is still reported OK, so a reader can
+    # tell which half of the collapse moved (the 2e asymmetry read).
+    assert any("k1/extract_historical.nc" in m for m in rep["merged"])
+
+
+def test_merge_sources_are_not_reported_missing(tmp_path):
+    """Without the merge class, wf1_raw/* reads as MISSING and the survivor as
+    EXTRA -- the failure mode the stale migration map papered over."""
+    ref, cur = _merge_trees(tmp_path, [1.0, 2.0, 3.0], [1.0, 2.0, 3.0],
+                            [1.0, 2.0, 3.0])
+    bare = std.diff_trees(str(ref), str(cur), tol=0.0)
+    assert any("wf1_raw" in m for m in bare["missing"])
+    merged = std.diff_trees(str(ref), str(cur), tol=0.0, merges=_MERGE)
+    assert merged["missing"] == [] and merged["extra"] == []
+
+
+def test_merge_survivor_absent_fails(tmp_path):
+    ref, cur = _merge_trees(tmp_path, [1.0, 2.0, 3.0], [1.0, 2.0, 3.0], [1.0, 2.0, 3.0])
+    (cur / "climate_historical" / "k1" / "extract_historical.nc").unlink()
+    rep = std.diff_trees(str(ref), str(cur), tol=0.0, merges=_MERGE)
+    assert not rep["passed"]
+    assert any("survivor missing" in r
+               for _, rs in rep["failures"] for r in rs)
+
+
+def test_merge_declared_source_absent_fails(tmp_path):
+    """A merge declared against a source that is not in the reference tree is
+    a mis-declaration, not a silent pass."""
+    ref, cur = _merge_trees(tmp_path, [1.0, 2.0, 3.0], [1.0, 2.0, 3.0], [1.0, 2.0, 3.0])
+    (ref / "climate_historical" / "wf1_raw" / "extract_historical.nc").unlink()
+    rep = std.diff_trees(str(ref), str(cur), tol=0.0, merges=_MERGE)
+    assert not rep["passed"]
+    assert any("declared merge source missing" in r
+               for _, rs in rep["failures"] for r in rs)
+
+
+def test_path_map_collision_still_raises_and_names_the_merge_fix(tmp_path):
+    """The guard stays: an UNdeclared many-to-one is still a hard error, and
+    the message now names the escape hatch."""
+    ref, cur = _merge_trees(tmp_path, [1.0, 2.0, 3.0], [1.0, 2.0, 3.0], [1.0, 2.0, 3.0])
+    collide = [("climate_historical/wf1_raw/", "climate_historical/k1/")]
+    with pytest.raises(ValueError, match="path map collision"):
+        std.diff_trees(str(ref), str(cur), tol=0.0, path_map=collide)
+    with pytest.raises(ValueError, match="--merge "):
+        std.diff_trees(str(ref), str(cur), tol=0.0, path_map=collide)
+
+
+# ---------------------------------------------------------------------------
+# R07: regex path-map rules (B5 -- the realization index migrates from the
+# filename into a directory, which no prefix or exact rule can express).
+# ---------------------------------------------------------------------------
+
+def test_r07_regex_rules_move_index_from_filename_to_directory():
+    m = std.build_r07_path_map("experiment", "k1")
+    got = std.apply_path_map(
+        "experiments/experiment/realization_2/inmaps_rlz_2_cst_3.nc", m)
+    assert got == (
+        "experiments/experiment/hydrology_runs/rlz_2/forcing/inmaps_cst_3.nc")
+    got = std.apply_path_map(
+        "experiments/experiment/model_runs/wflow_sbm_rlz_4_cst_7.toml", m)
+    assert got == (
+        "experiments/experiment/hydrology_runs/rlz_4/config/cst_7.toml")
+    got = std.apply_path_map(
+        "experiments/experiment/model_runs/outstates_rlz_1_cst_2.nc", m)
+    assert got == (
+        "experiments/experiment/hydrology_runs/rlz_1/output/outstates_cst_2.nc")
+
+
+def test_r07_weathergen_artifacts_split_output_vs_work():
+    m = std.build_r07_path_map("experiment", "k1")
+    # generator products -> output/ (G1 ruling OQ-4)
+    assert std.apply_path_map(
+        "experiments/experiment/realization_1/rlz_1_cst_2.nc", m
+    ) == "experiments/experiment/weather_generator/output/rlz_1_cst_2.nc"
+    assert std.apply_path_map(
+        "experiments/experiment/sim_dates.csv", m
+    ) == "experiments/experiment/weather_generator/output/sim_dates.csv"
+    # per-member configs -> _work/
+    assert std.apply_path_map(
+        "experiments/experiment/realization_1/weathergen_config_rlz_1_cst_2.yml",
+        m,
+    ) == ("experiments/experiment/weather_generator/_work/"
+          "weathergen_config_rlz_1_cst_2.yml")
+    # cst_*.csv is RETAINED under _work/, not deleted (B6)
+    assert std.apply_path_map(
+        "experiments/experiment/stress_test/cst_3.csv", m
+    ) == "experiments/experiment/weather_generator/_work/cst_3.csv"
+
+
+def test_r07_explicit_non_moves_stay_put():
+    """The review REMOVED work as well as adding it; moving any of these
+    blows the semantic diff (brief section Explicit non-moves)."""
+    m = std.build_r07_path_map("experiment", "k1", clim_project="cmip6")
+    for rel in (
+        "climate_projections/cmip6/plots/projected_climate_statistics.png",
+        "climate_projections/cmip6/plots/temperature_anomaly_projections_abs.png",
+        "experiments/experiment/config/snake_config_climate_experiment.yml",
+        "hydrology_model/staticmaps.nc",
+        "hydrology_model/run_default/output.csv",
+        "experiments/experiment/data_catalog_climate_experiment.yml",
+    ):
+        assert std.apply_path_map(rel, m) == rel, rel
+
+
+def test_r07_allowlist_carries_p31_entries_forward():
+    """Section 4: the allowlist is a FULL set per invocation, not an increment."""
+    p31 = set(std.build_p31_allowlist("experiment", "k1"))
+    r07 = set(std.build_r07_allowlist("experiment", "k1"))
+    assert p31 <= r07
+    assert "climate_historical/k1/store_region.geojson" in r07
+    assert "climate_historical/k1/plots/source_pet.png" in r07
+
+
+def test_r07_orography_merge_only_on_the_chirps_branch():
+    """The sidecar exists only on chirps; the seed config is era5, which is
+    why repo-1's filename mismatch was invisible to every gate in the repo."""
+    assert len(std.build_r07_merges("k1", "era5")) == 1
+    chirps = std.build_r07_merges("k1", "chirps")
+    assert len(chirps) == 2
+    survivor, sources = chirps[1]
+    assert survivor == "climate_historical/k1/orography.nc"
+    assert "climate_historical/k1/chirps_orography.nc" in sources
