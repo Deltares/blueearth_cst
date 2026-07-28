@@ -4,7 +4,6 @@ docker_root='/root/work'
 volumeargs=(
     "-v $(pwd)/config:${docker_root}/config"
     "-v $(pwd)/examples:${docker_root}/examples"
-    "-v $(pwd)/data:${docker_root}/data"
     "-v /mnt/p/wflow_global/hydromt:/mnt/p/wflow_global/hydromt"
     "-v $(pwd)/.snakemake:${docker_root}/.snakemake"
 )

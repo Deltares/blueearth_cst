@@ -22,8 +22,12 @@ shared:
 workflows:
   model_creation:
     enabled: true
-    output_locations: data/observations/output-locations-test.csv
-    observations_timeseries: data/observations/observations_timeseries_test.csv
+    # Unquoted None -> the Python string "None", never YAML null. The
+    # consumers guard on file existence; real basin data lives outside the
+    # repository and is referenced by absolute path. Schemas to copy:
+    # config/templates/observations/
+    output_locations: None
+    observations_timeseries: None
 
   climate_projections:
     enabled: true

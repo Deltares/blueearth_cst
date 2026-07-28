@@ -12,6 +12,9 @@ TESTDIR = dirname(realpath(__file__))
 SNAKEDIR = join(TESTDIR, "..")
 
 config_fn = join(TESTDIR, "snake_config_model_test.yml")
+linux_config_fn = join(
+    SNAKEDIR, "config", "workflows", "snake_config_model_test_linux.yml"
+)
 
 # Minimal valid GeoJSON standing in for the workflow-1 region output that
 # climate_projections consumes as a cross-workflow input (see the fixture).
@@ -75,6 +78,39 @@ def test_snakefile_cli_model_creation():
     """Workflow 1 dry-run builds a clean DAG on the test config."""
     result = _dry_run("Snakefile_model_creation")
     assert result.returncode == 0, (result.stdout or "") + (result.stderr or "")
+
+
+def test_snakefile_cli_model_creation_linux_config():
+    """The Linux config must still build a DAG after O-01 retired `data/`.
+
+    R07 deletes the tracked `data/` tree, whose only live consumers were this
+    config and the Docker runner. Linux *end-to-end* validation stays parked
+    (no Linux machine), but parse-level consistency is cheap and is exactly
+    what a silently-broken config would fail: DAG build resolves every
+    config-declared path, so a dangling `output_locations` would surface here.
+    Runs on both CI legs.
+    """
+    result = _dry_run("Snakefile_model_creation", cfg=linux_config_fn)
+    assert result.returncode == 0, (result.stdout or "") + (result.stderr or "")
+
+
+def test_observation_configs_use_the_string_sentinel():
+    """Every shipped config leaves the observation keys at the STRING "None".
+
+    Unquoted None parses to the Python string, not YAML null; both consumers
+    read `if X is not None and os.path.<exists>(X)`, so a real null takes a
+    different branch. O-04: the test config previously pointed at
+    `tests/data/observations/`, a tree that has never existed -- and passed,
+    which is the empirical proof that the guards are existence-based. Pin the
+    sentinel's type so a later "cleanup" to `null` or `~` fails loudly.
+    """
+    for cfg_path in (config_fn, linux_config_fn):
+        with open(cfg_path) as f:
+            cfg = yaml.safe_load(f)
+        mc = cfg["workflows"]["model_creation"]
+        for key in ("output_locations", "observations_timeseries"):
+            assert mc[key] == "None", f"{cfg_path}:{key} is {mc[key]!r}"
+            assert isinstance(mc[key], str), f"{cfg_path}:{key} is not a str"
 
 
 def test_snakefile_cli_climate_projections(config_with_staged_region):
