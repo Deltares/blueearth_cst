@@ -85,8 +85,8 @@ chartered output-neutral fix; recorded here as current state.)
 **Direct `rule all` targets** (Snakefile lines 47–51). **These 3 are the manifest
 slice** (`dev/scripts/check_baseline.py` TARGETS lines 70–72):
 
-- `{exp_dir}/model_results/Qstats.csv` (normalized-content CSV hash)
-- `{exp_dir}/model_results/basin.csv` (normalized-content CSV hash)
+- `{exp_dir}/indicators/Qstats.csv` (normalized-content CSV hash)
+- `{exp_dir}/indicators/basin.csv` (normalized-content CSV hash)
 - `{exp_dir}/config/snake_config_climate_experiment.yml` (verbatim snapshot;
   moved from `{project_dir}/config/` by P3-1)
 

@@ -111,7 +111,7 @@ def test_climate_experiment_end_to_end():
     )
     for name in ("Qstats.csv", "basin.csv"):
         out = join(
-            SNAKEDIR, project_dir, "experiments", experiment, "model_results", name
+            SNAKEDIR, project_dir, "experiments", experiment, "indicators", name
         )
         assert exists(out), f"expected output not created: {out}"
         assert getsize(out) > 0, f"output is empty: {out}"

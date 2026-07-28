@@ -222,9 +222,9 @@ def test_chirps_source_adds_orography_entry(tmp_path, chirps_like_catalog):
     """Chirps branch adds an extra '<source>_orography' entry whose uri is the
     caller-passed oro_path (design §4a: the sidecar under the keyed store dir,
     no ../.. reconstruction). The realization dir depth is now irrelevant."""
-    # Realization NC under the deeper experiments/<name>/realization_N/ layout —
-    # the rewritten lookup must NOT walk relative to this file.
-    rlz_dir = tmp_path / "experiments" / "expa" / "realization_1"
+    # Realization NC under the R07 experiments/<name>/weather_generator/output/
+    # layout — the rewritten lookup must NOT walk relative to this file.
+    rlz_dir = tmp_path / "experiments" / "expa" / "weather_generator" / "output"
     rlz_dir.mkdir(parents=True)
     rlz_nc = rlz_dir / "rlz_1_cst_0.nc"
     rlz_nc.write_bytes(b"")
@@ -257,7 +257,7 @@ def test_chirps_source_adds_orography_entry(tmp_path, chirps_like_catalog):
 def test_chirps_source_requires_oro_path(tmp_path, chirps_like_catalog):
     """Omitting oro_path for a chirps source raises (design §4a — no silent
     fallback to a reconstructed path)."""
-    rlz_dir = tmp_path / "experiments" / "expa" / "realization_1"
+    rlz_dir = tmp_path / "experiments" / "expa" / "weather_generator" / "output"
     rlz_dir.mkdir(parents=True)
     rlz_nc = rlz_dir / "rlz_1_cst_0.nc"
     rlz_nc.write_bytes(b"")

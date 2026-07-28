@@ -105,6 +105,32 @@ basin_dir = f"{project_dir}/hydrology_model"
 # are hand-edited to experiments/<name>/ below.
 exp_dir = f"{project_dir}/experiments/{experiment}"
 
+# --- The two symmetric engine subtrees inside the experiment (R07 B5/B6/B7) ---
+# weather_generator/ mirrors hydrology_runs/: each engine owns its own config,
+# working, and product directories, and the per-realization/per-cst indices live
+# where they belong. realization_<r>/, model_runs/ and stress_test/ all dissolve.
+#   weather_generator/config/  the generator's own config snapshot (rule 3.04)
+#   weather_generator/_work/   per-member configs (3.05) + the cst_<c>.csv
+#                              perturbation grid (3.03) -- demoted for
+#                              legibility, RETAINED on disk: it is the only
+#                              record of the precip_variance axis and of the
+#                              monthly structure the reduction collapses.
+#   weather_generator/output/  the generator's products: the realization NCs
+#                              and weathergenr's two date CSVs
+#   weather_generator/plots/   weathergenr's diagnostic figures
+#   hydrology_runs/rlz_<r>/{config,forcing,output}/  one wflow run dir per
+#                              realization; the realization index migrates from
+#                              the FILENAME into the directory, so the per-cst
+#                              filenames lose their rlz_<r> component.
+# inmaps_rlz_* are wflow-GRID downscaled forcing (rule 3.09) -- the per-
+# realization twin of hydrology_model/forcing/inmaps_historical.nc -- so they
+# belong to the hydrology side, not to weather_generator/output/.
+wg_dir = f"{exp_dir}/weather_generator"
+runs_dir = f"{exp_dir}/hydrology_runs"
+# B7: "indicators" is the CST term for the reduction's response-surface tables.
+# "outputs" was rejected -- hydrology_runs/ also holds outputs.
+indicators_dir = f"{exp_dir}/indicators"
+
 # --- Drift-guard comparands (dev/p31/experiment-structure-design.md §3b/§3c) ---
 # Rule 3.00b check_project_consistency compares this experiment config's
 # project-level sections against the wf1/wf2 project snapshots. Snakemake's
@@ -144,7 +170,7 @@ guarded_sections_digest = hashlib.sha256(
 # case (b)), while keeping a fresh project parse/--dry-run/--unlock clean
 # (ext2-2).
 wf1_snapshot_path = f"{project_dir}/config/runs/snake_config_model_creation.yml"
-wf2_snapshot_path = f"{project_dir}/config/snake_config_climate_projections.yml"
+wf2_snapshot_path = f"{project_dir}/config/runs/snake_config_climate_projections.yml"
 wf1_snapshot_digest = file_digest_or_absent(wf1_snapshot_path)
 wf2_snapshot_digest = file_digest_or_absent(wf2_snapshot_path)
 
@@ -156,8 +182,8 @@ wf2_snapshot_digest = file_digest_or_absent(wf2_snapshot_path)
 # 3.00  all — target aggregator: stress-test Qstats + basin indicators
 rule all:
     input:
-        Qstats = f"{exp_dir}/model_results/Qstats.csv",
-        basin = f"{exp_dir}/model_results/basin.csv",
+        Qstats = f"{indicators_dir}/Qstats.csv",
+        basin = f"{indicators_dir}/basin.csv",
         snake_config = f"{exp_dir}/config/snake_config_climate_experiment.yml",
         benchmarks = f"{exp_dir}/benchmarks/wf3_benchmarks.md",
 
@@ -250,7 +276,7 @@ rule climate_stress_parameters:
         config = ancient(config_path),
         consistency_ok = f"{exp_dir}/.project_consistency_ok",
     output:
-        st_csv_fns = [f"{exp_dir}/stress_test/cst_{st_num}.csv" for st_num in np.arange(1, ST_NUM+1)]
+        st_csv_fns = [f"{wg_dir}/_work/cst_{st_num}.csv" for st_num in np.arange(1, ST_NUM+1)]
     log:
         f"{exp_dir}/logs/3.03_climate_stress_parameters.log",
     benchmark:
@@ -264,12 +290,16 @@ rule prepare_weagen_config:
     input:
         consistency_ok = f"{exp_dir}/.project_consistency_ok",
     output:
-        weagen_config = f"{exp_dir}/weathergen_config.yml",
+        weagen_config = f"{wg_dir}/config/weathergen_config.yml",
     params:
         cftype = "generate",
         snake_config = config_path,
         default_config = "config/templates/weathergen_config.yml",
-        output_path = f"{exp_dir}/", 
+        # The generator ROOT, not a write dir: generate_weather.R derives
+        # output/ (products) and plots/ (figures) from it, because
+        # weathergenr::generate_weather writes both classes into ONE out_dir
+        # and the R07 layout separates them (map §2b).
+        output_path = f"{wg_dir}/",
         middle_year = horizontime_climate,
         sim_years = wflow_run_length,
         nc_file_prefix = "rlz"
@@ -286,11 +316,11 @@ rule prepare_weagen_config_st:
     input:
         consistency_ok = f"{exp_dir}/.project_consistency_ok",
     output:
-        weagen_config = f"{exp_dir}/realization_"+"{rlz_num}"+"/weathergen_config_rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".yml",
+        weagen_config = f"{wg_dir}/_work/weathergen_config_rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".yml",
     params:
         cftype = "stress_test",
         snake_config = config_path,
-        output_path = f"{exp_dir}/realization_"+"{rlz_num}"+"/",
+        output_path = f"{wg_dir}/output/",
         nc_file_prefix = "rlz_"+"{rlz_num}"+"_cst",
         nc_file_suffix = "{st_num}",
     log:
@@ -305,9 +335,9 @@ rule generate_weather_realization:
     message: rule_banner("3.06", "generate_weather_realization")
     input:
         climate_nc = ancient(f"{store_dir}/extract_historical.nc"),
-        weagen_config = f"{exp_dir}/weathergen_config.yml",
+        weagen_config = f"{wg_dir}/config/weathergen_config.yml",
     output:
-        temp([f"{exp_dir}/realization_{rlz_num}/rlz_{rlz_num}_cst_0.nc" for rlz_num in np.arange(1, RLZ_NUM+1)])
+        temp([f"{wg_dir}/output/rlz_{rlz_num}_cst_0.nc" for rlz_num in np.arange(1, RLZ_NUM+1)])
     log:
         f"{exp_dir}/logs/3.06_generate_weather_realization.log",
     benchmark:
@@ -328,11 +358,11 @@ rule generate_climate_stress_test:
     wildcard_constraints:
         st_num=r"[1-9][0-9]*",
     input:
-        rlz_nc = f"{exp_dir}/realization_"+"{rlz_num}"+"/rlz_"+"{rlz_num}"+"_cst_0.nc",
-        st_csv = f"{exp_dir}/stress_test/cst_"+"{st_num}"+".csv",
-        weagen_config = f"{exp_dir}/realization_"+"{rlz_num}"+"/weathergen_config_rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".yml",
+        rlz_nc = f"{wg_dir}/output/rlz_"+"{rlz_num}"+"_cst_0.nc",
+        st_csv = f"{wg_dir}/_work/cst_"+"{st_num}"+".csv",
+        weagen_config = f"{wg_dir}/_work/weathergen_config_rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".yml",
     output:
-        rlz_st_nc = temp(f"{exp_dir}/realization_"+"{rlz_num}"+"/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc")
+        rlz_st_nc = temp(f"{wg_dir}/output/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc")
     log:
         f"{exp_dir}/logs/3.07_generate_climate_stress_test/" + "rlz_{rlz_num}_cst_{st_num}.log",
     benchmark:
@@ -344,8 +374,8 @@ rule generate_climate_stress_test:
 rule climate_data_catalog:
     message: rule_banner("3.08", "climate_data_catalog")
     input:
-        cst_nc = expand((f"{exp_dir}/realization_"+"{rlz_num}"+"/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc"), rlz_num = np.arange(1, RLZ_NUM+1), st_num = np.arange(1, ST_NUM+1)),
-        rlz_nc = [f"{exp_dir}/realization_{rlz_num}/rlz_{rlz_num}_cst_0.nc" for rlz_num in np.arange(1, RLZ_NUM+1)]
+        cst_nc = expand((f"{wg_dir}/output/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc"), rlz_num = np.arange(1, RLZ_NUM+1), st_num = np.arange(1, ST_NUM+1)),
+        rlz_nc = [f"{wg_dir}/output/rlz_{rlz_num}_cst_0.nc" for rlz_num in np.arange(1, RLZ_NUM+1)]
     output:
         clim_data = f"{exp_dir}/data_catalog_climate_experiment.yml"
     params:
@@ -357,7 +387,8 @@ rule climate_data_catalog:
         # the filename; it is rule 1.10/3.02's declared oro_nc output). Passed
         # explicitly (design §4a) so the catalog builder no longer reconstructs
         # it by fragile ../.. walking from a realization NC — which broke on both
-        # the store move and the deeper experiments/<name>/realization_N/ dir.
+        # the store move and every subsequent change to the realization NC dir
+        # (now weather_generator/output/, R07 B5).
         oro_path = f"{store_dir}/orography.nc",
     log:
         f"{exp_dir}/logs/3.08_climate_data_catalog.log",
@@ -369,12 +400,18 @@ rule climate_data_catalog:
 # 3.09  downscale_climate_realization — downscale climate forcing to wflow grid
 rule downscale_climate_realization:
     message: rule_banner("3.09", "downscale_climate_realization")
+    # R07 B5 puts rlz_num in a DIRECTORY position for the first time. Snakemake's
+    # default wildcard regex is `.+`, which matches "/" -- constrain both indices
+    # to digits so a path can never be split across the rlz_<r>/ boundary.
+    wildcard_constraints:
+        rlz_num=r"\d+",
+        st_num=r"\d+",
     input:
-        nc = f"{exp_dir}/realization_"+"{rlz_num}"+"/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc",
+        nc = f"{wg_dir}/output/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc",
         data_sources = [f"{exp_dir}/data_catalog_climate_experiment.yml", DATA_SOURCES]
     output:
-        nc = temp(f"{exp_dir}/realization_"+"{rlz_num}"+"/inmaps_rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc"),
-        toml = f"{exp_dir}/model_runs/wflow_sbm_rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".toml"
+        nc = temp(f"{runs_dir}/rlz_"+"{rlz_num}"+"/forcing/inmaps_cst_"+"{st_num}"+".nc"),
+        toml = f"{runs_dir}/rlz_"+"{rlz_num}"+"/config/cst_"+"{st_num}"+".toml"
     params:
         model_dir = basin_dir,
         clim_source = clim_source,
@@ -444,14 +481,14 @@ for _b, _members in _batches.items():
         name: f"run_wflow_batch_{_b}"
         message: rule_banner("3.10", f"run_wflow_batch_{_b}")
         input:
-            forcing = [f"{exp_dir}/realization_{r}/inmaps_rlz_{r}_cst_{c}.nc"
+            forcing = [f"{runs_dir}/rlz_{r}/forcing/inmaps_cst_{c}.nc"
                        for (r, c) in _members],
-            tomls = [f"{exp_dir}/model_runs/wflow_sbm_rlz_{r}_cst_{c}.toml"
+            tomls = [f"{runs_dir}/rlz_{r}/config/cst_{c}.toml"
                      for (r, c) in _members],
         output:
-            csvs = [f"{exp_dir}/model_runs/output_rlz_{r}_cst_{c}.csv"
+            csvs = [f"{runs_dir}/rlz_{r}/output/cst_{c}.csv"
                     for (r, c) in _members],
-            states = [temp(f"{exp_dir}/model_runs/outstates_rlz_{r}_cst_{c}.nc")
+            states = [temp(f"{runs_dir}/rlz_{r}/output/outstates_cst_{c}.nc")
                       for (r, c) in _members],
         params:
             members = _members,
@@ -467,12 +504,17 @@ for _b, _members in _batches.items():
 rule export_wflow_results:
     message: rule_banner("3.11", "export_wflow_results")
     input:
-        rlz_csv_fns = expand((f"{exp_dir}/model_runs/output_rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".csv"), rlz_num=np.arange(1, RLZ_NUM+1), st_num=np.arange(ST_START, ST_NUM+1)),
+        rlz_csv_fns = expand((f"{runs_dir}/rlz_"+"{rlz_num}"+"/output/cst_"+"{st_num}"+".csv"), rlz_num=np.arange(1, RLZ_NUM+1), st_num=np.arange(ST_START, ST_NUM+1)),
+        # R07 B6: the perturbation grid was an UNDECLARED runtime read
+        # (export_wflow_results.py reconstructed the path from exp_dir), so it
+        # was invisible to --dry-run. It is enumerable from ST_NUM, so declare
+        # it -- the same correction rule 3.08's oro_path got.
+        st_csv_fns = [f"{wg_dir}/_work/cst_{st_num}.csv" for st_num in np.arange(1, ST_NUM+1)],
     output:
-        Qstats = f"{exp_dir}/model_results/Qstats.csv",
-        basin = f"{exp_dir}/model_results/basin.csv",
+        Qstats = f"{indicators_dir}/Qstats.csv",
+        basin = f"{indicators_dir}/basin.csv",
     params:
-        exp_dir = exp_dir,
+        indicators_dir = indicators_dir,
         aggr_rlz = get_config(my_cfg, "aggregate_rlz", True),
         st_num = ST_NUM,
         Tlow = get_config(my_cfg, "Tlow", 2),
@@ -491,8 +533,8 @@ rule export_wflow_results:
 rule gather_benchmarks:
     message: rule_banner("3.12", "gather_benchmarks")
     input:
-        f"{exp_dir}/model_results/Qstats.csv",
-        f"{exp_dir}/model_results/basin.csv",
+        f"{indicators_dir}/Qstats.csv",
+        f"{indicators_dir}/basin.csv",
     output:
         f"{exp_dir}/benchmarks/wf3_benchmarks.md",
     params:

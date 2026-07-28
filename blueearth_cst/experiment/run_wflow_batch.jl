@@ -10,7 +10,10 @@ using Wflow
 exitcode = 0
 for t in ARGS
     global exitcode
-    tag = basename(t)
+    # R07 B5 moved the realization index out of the toml NAME and into its run
+    # directory, so basename alone (cst_1.toml) no longer identifies a member
+    # within a batch. Tag with rlz_<n>/cst_<m>.toml.
+    tag = joinpath(basename(dirname(dirname(t))), basename(t))
     try
         dt = @elapsed Wflow.run(t)
         println("BATCH-RUN OK   $(tag)  $(round(dt; digits=1)) s")

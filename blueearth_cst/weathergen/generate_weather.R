@@ -20,7 +20,14 @@ yaml <- yaml::read_yaml(weagen_config_path)
 
 # Parse global parameters from the yaml configuration file
 historical_realizations_num <- yaml$generateWeatherSeries$realizations_num
-weathergen_output_path <- yaml$generateWeatherSeries$output.path
+# R07 B5: `output.path` is the weather_generator/ ROOT, not a write directory.
+# weathergenr::generate_weather writes BOTH its diagnostic figures and its two
+# date CSVs into a single out_dir; the R07 layout separates products from
+# figures, so the split is done here -- on our side of the seam -- rather than
+# by asking upstream for two output directories.
+weathergen_root <- yaml$generateWeatherSeries$output.path
+weathergen_output_path <- paste0(weathergen_root, "output/")
+weathergen_plots_path <- paste0(weathergen_root, "plots/")
 
 # Step 1) Read weather data from the netcdf file
 message("[generate_weather] Reading weather netcdf: ", climate_nc_path)
@@ -51,6 +58,20 @@ stochastic_weather <- weathergenr::generate_weather(
     parallel         = yaml$generateWeatherSeries$compute.parallel
 )
 
+# Step 2b) Move the generator's diagnostic figures into plots/. The two date
+# CSVs (sim_dates.csv, resampled_dates.csv) are generator PRODUCTS and stay in
+# output/, where generate_weather already wrote them. Each ggsave upstream sits
+# in its own tryCatch, so a missing figure is a legitimate state, not an error.
+weathergen_figures <- c("obs_power_spectra.png", "warm_annual_precip.png",
+                        "warm_annual_stats.png", "warm_annual_wavelet.png")
+dir.create(weathergen_plots_path, recursive = TRUE, showWarnings = FALSE)
+for (fig in weathergen_figures) {
+  src <- file.path(weathergen_output_path, fig)
+  if (file.exists(src)) {
+    file.rename(src, file.path(weathergen_plots_path, fig))
+  }
+}
+
 # STEP 3) Save each stochastic realization back to a netcdf file
 for (n in 1:historical_realizations_num) {
 
@@ -64,8 +85,9 @@ for (n in 1:historical_realizations_num) {
   # Obtain stochastic series by re-ordering historical data
   stochastic_rlz <- lapply(ncdata$data, function(x) x[day_order, ])
 
-  # save to netcdf
-  rlz_out_dir <- paste0(weathergen_output_path, "realization_", n, "/")
+  # save to netcdf. R07 B5 dissolves realization_<n>/: every realization NC
+  # lands flat in weather_generator/output/, its index carried by the file name.
+  rlz_out_dir <- weathergen_output_path
   weathergenr::write_netcdf(
         data          = stochastic_rlz,
         grid          = ncdata$grid,
@@ -89,8 +111,10 @@ for (n in 1:historical_realizations_num) {
   # write_netcdf propagates spatial_ref (and its ncatt_get check asserts
   # hasatt=TRUE) — tracked in dev/followups.md § R5. Removing it before the
   # upstream fix lands breaks the pipeline.
+  # Match THIS realization only: all realizations now share one output dir, so
+  # an index-free pattern would re-patch realization 1 on every iteration.
   rlz_files <- list.files(
-    rlz_out_dir, pattern = "_cst_0\\.nc$", full.names = TRUE
+    rlz_out_dir, pattern = paste0("_", n, "_cst_0\\.nc$"), full.names = TRUE
   )
   if (length(rlz_files) >= 1) {
     src <- ncdf4::nc_open(climate_nc_path)

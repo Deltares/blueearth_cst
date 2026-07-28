@@ -595,6 +595,29 @@ Deliberately **outside** the repository tree: the fixture root itself is renamed
 in commit 4, and a holding path inside the repo would be swept by that rename or
 by a `git clean`.
 
+**Gate invocation — the reference tree must be read at its RECORDED root token.**
+O-20 renamed the fixture, so every root-embedded value inside the pre-R07
+reference still says `examples/test_local`, wherever the tree is now held. The
+diff normalizes each side's project root out of written values before comparing;
+without the recorded token the reference side never normalizes and **every**
+root-embedded leaf fails for a reason unrelated to the change under test (12
+per-member weathergen configs plus the experiment data catalog, measured at
+commit 11). `semantic_tree_diff.py` therefore takes `--ref-token`, and the
+canonical invocation is:
+
+```
+python dev/scripts/semantic_tree_diff.py \
+  --ref C:/Users/taner/workspace/.r07-reference/examples/test_local \
+  --cur test_case/test_local \
+  --milestone r07 --dataset-key era5_20000101_20201231 --clim-source era5 \
+  --ref-token examples/test_local \
+  --ref-token C:/Users/taner/workspace/blueearth_cst/examples/test_local
+```
+
+Both tokens are needed: configs record the project-relative form, while the
+experiment data catalog records absolute URIs. A copy of the reference is held
+at `.r07-reference/examples/test_local/` so the path tail matches the token too.
+
 **Early result — the merge comparison already passes on the pre-R07 tree.** Run
 at commit 1 with `--milestone r07 --dataset-key era5_20000101_20201231
 --clim-source era5`, both sides of §2e's declared merge report `merge OK`:

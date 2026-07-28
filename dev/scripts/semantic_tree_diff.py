@@ -129,6 +129,15 @@ COPIED_CONFIG_PATH_MAP: dict[str, dict[str, str]] = {
     "observations_timeseries": {
         "data/observations/observations_timeseries_test.csv": "None",
     },
+    # B2 (commit 8) moved the wflow forcing into the engine subtree, so the
+    # GENERATED forcing build config carries a new pointer. It lives under
+    # config/generated/, which `_is_copied_config` sweeps, so it is normalized
+    # here rather than allowlisted -- the value change is documented and
+    # expected, and normalizing keeps a REAL content regression detectable.
+    "input.path_forcing": {
+        "../climate_historical/wflow_data/inmaps_historical.nc":
+            "forcing/inmaps_historical.nc",
+    },
 }
 
 # Directories whose contents are compared as ABSENT (non-deterministic wall
@@ -276,6 +285,13 @@ def build_r07_path_map(
          f"climate_projections/{clim_project}/summary/annual_change_scalar_stats_summary_mean.csv"),
         # -- B7: model_results/ -> indicators/ (commit 11) -------------------
         (f"experiments/{e}/model_results/", f"experiments/{e}/indicators/"),
+        # B5 moved the weathergen root down one level. This is a LEAF value
+        # inside weathergen_config.yml (generateWeatherSeries.output.path), not
+        # a file path -- so it must match the experiment dir EXACTLY. A prefix
+        # rule here would swallow the whole experiment subtree; a regex rule
+        # uses fullmatch, so it fires on this one value and on no real file.
+        (re.compile(rf"experiments/{re.escape(e)}/"),
+         f"experiments/{e}/weather_generator/"),
         # -- B5/B6: the experiment splits into two engine subtrees (commit 11)
         # realization_<r>/ dissolves; the index migrates from the FILENAME into
         # a DIRECTORY for the wflow-side artifacts, so these must be regexes.
@@ -286,7 +302,13 @@ def build_r07_path_map(
                     rf"weathergen_config_rlz_\1_cst_(\d+)\.yml"),
          rf"experiments/{e}/weather_generator/_work/"
          rf"weathergen_config_rlz_\1_cst_\2.yml"),
-        (re.compile(rf"experiments/{re.escape(e)}/realization_(\d+)/(.+)"),
+        # `(.*)`, not `(.+)`: the same rule has to translate the BARE directory
+        # string `experiments/<id>/realization_<r>/`, which is what the
+        # per-member weagen configs carry as `imposeClimateChanges.output.path`
+        # and which `compare_yaml`'s cross-root leaf normalization feeds through
+        # this map. With `(.+)` that leaf maps to itself and reads as a content
+        # regression.
+        (re.compile(rf"experiments/{re.escape(e)}/realization_(\d+)/(.*)"),
          rf"experiments/{e}/weather_generator/output/\2"),
         (re.compile(rf"experiments/{re.escape(e)}/model_runs/"
                     rf"wflow_sbm_rlz_(\d+)_cst_(\d+)\.toml"),
@@ -529,6 +551,14 @@ TOML_PATH_FIELDS: tuple[tuple[str, ...], ...] = (
     ("state", "path_input"),
     ("state", "path_output"),
     ("csv", "path"),
+    # R07 B5 correction. `("csv", "path")` above targets the wflow v0 layout;
+    # every toml this repo writes on the pinned Wflow.jl carries the output CSV
+    # pointer at `[output.csv] path`, so that tuple never resolves and the field
+    # silently fell through to the RAW string diff. That was invisible while the
+    # value was an unmoved bare filename; B5 moves its target into the run's
+    # output/ dir, so without this entry a correct repoint reads as a content
+    # regression. Both tuples are kept -- the stale one is inert.
+    ("output", "csv", "path"),
 )
 
 
@@ -684,16 +714,26 @@ def compare_copied_config(ref_path: str, cur_path: str) -> list[str]:
 # still FAILs.
 # ---------------------------------------------------------------------------
 
-def _root_token_variants(root: str) -> list[str]:
+def _root_token_variants(root: str, extra: list[str] | None = None) -> list[str]:
     """Forward-slash string forms under which a tree's own project root can
-    appear inside a written value: as given, and absolute. Longest first so
-    the absolute form wins when both would match."""
+    appear inside a written value: as given, absolute, plus any RECORDED
+    tokens supplied by the caller. Longest first so the absolute form wins
+    when both would match.
+
+    `extra` exists because a reference tree can be READ from one location
+    while the values inside it record a different project_dir -- which is
+    exactly what a milestone that renames project_dir produces. R07's O-20
+    renamed examples/ to test_case/, so the pre-R07 reference embeds
+    `examples/test_local/...` no matter where the tree is now held. Without
+    the recorded token, every root-embedded leaf fails the equality step for
+    a reason that has nothing to do with the change under test."""
     p = Path(root)
     forms = {p.as_posix()}
     try:
         forms.add(p.resolve().as_posix())
     except OSError:
         pass
+    forms.update(t.replace("\\", "/").rstrip("/") for t in (extra or []))
     return sorted(forms, key=len, reverse=True)
 
 
@@ -733,6 +773,7 @@ def compare_yaml(
     ref_root: str | None = None,
     cur_root: str | None = None,
     path_map: list[tuple[str, str]] | None = None,
+    ref_root_tokens: list[str] | None = None,
 ) -> list[str]:
     """Structural YAML compare: reflexivity guard, then the R6 directional
     copied-config normalization (config-dir snapshots only), then -- when both
@@ -747,7 +788,8 @@ def compare_yaml(
         if ref == cur:
             return []
     if ref_root is not None and cur_root is not None:
-        ref = _normalize_tree_root_paths(ref, _root_token_variants(ref_root), path_map)
+        ref = _normalize_tree_root_paths(
+            ref, _root_token_variants(ref_root, ref_root_tokens), path_map)
         cur = _normalize_tree_root_paths(cur, _root_token_variants(cur_root), None)
     if ref != cur:
         return _dict_diff(ref, cur, prefix="")
@@ -862,6 +904,7 @@ def dispatch(
     ref_root: str | None = None,
     cur_root: str | None = None,
     path_map: list[tuple[str, str]] | None = None,
+    ref_root_tokens: list[str] | None = None,
 ) -> list[str]:
     suffix = rel.suffix.lower()
     name = rel.name
@@ -870,7 +913,8 @@ def dispatch(
     if suffix == ".toml":
         return compare_toml(ref_path, cur_path, ref_root, cur_root, path_map)
     if suffix in (".yml", ".yaml"):
-        return compare_yaml(ref_path, cur_path, rel, ref_root, cur_root, path_map)
+        return compare_yaml(ref_path, cur_path, rel, ref_root, cur_root,
+                            path_map, ref_root_tokens)
     if suffix == ".png":
         return compare_png(ref_path, cur_path)
     if suffix == ".csv":
@@ -899,6 +943,7 @@ def diff_trees(
     path_map: list[tuple[str | re.Pattern, str]] | None = None,
     allowlist: list[str] | None = None,
     merges: list[tuple[str, list[str]]] | None = None,
+    ref_root_tokens: list[str] | None = None,
 ) -> dict:
     """Compare two output trees file-by-file. Returns a report dict with
     `failures` (list of (relpath, [reasons])), `missing`, `extra`, `allowed`,
@@ -960,6 +1005,7 @@ def diff_trees(
         reasons = dispatch(
             rel_cur, str(ref / rel_ref), str(cur / rel_cur), tol,
             ref_root=ref_root, cur_root=cur_root, path_map=path_map,
+            ref_root_tokens=ref_root_tokens,
         )
         if reasons:
             label = (key if rel_ref.as_posix() == key
@@ -987,6 +1033,7 @@ def diff_trees(
                 cur_keys[survivor], str(ref / src_path),
                 str(cur / cur_keys[survivor]), tol,
                 ref_root=ref_root, cur_root=cur_root, path_map=path_map,
+                ref_root_tokens=ref_root_tokens,
             )
             if reasons:
                 failures.append((f"merge {survivor} <- {src}", reasons))
@@ -1058,6 +1105,14 @@ def main(argv: list[str] | None = None) -> int:
              "must be justified in the migration note)",
     )
     ap.add_argument(
+        "--ref-token", action="append", default=[], metavar="TOKEN",
+        help="project_dir token as RECORDED inside the reference tree's own "
+             "files, when it differs from where the tree is now read from "
+             "(repeatable). R07's fixture rename makes this necessary: the "
+             "pre-R07 reference embeds 'examples/test_local' wherever it is "
+             "held",
+    )
+    ap.add_argument(
         "--milestone", choices=("p31", "r07"), default="p31",
         help="which built-in path map + allowlist to use (default: p31)",
     )
@@ -1119,7 +1174,8 @@ def main(argv: list[str] | None = None) -> int:
         allowlist = build_p31_allowlist(args.experiment_name, args.dataset_key)
         allowlist += list(args.allow)
     report = diff_trees(args.ref, args.cur, args.tolerance,
-                        path_map=path_map, allowlist=allowlist, merges=merges)
+                        path_map=path_map, allowlist=allowlist, merges=merges,
+                        ref_root_tokens=list(args.ref_token))
     print(format_report(report))
     return 0 if report["passed"] else 1
 

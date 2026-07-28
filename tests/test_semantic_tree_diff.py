@@ -656,6 +656,77 @@ def test_r07_allowlist_carries_p31_entries_forward():
     assert "climate_historical/k1/plots/source_pet.png" in r07
 
 
+def test_r07_bare_realization_dir_maps_to_the_generator_output_dir():
+    """The realization rule also has to translate the BARE directory string.
+
+    The per-member weagen configs carry `imposeClimateChanges.output.path` as a
+    directory (`.../realization_<r>/`), and `compare_yaml`'s cross-root leaf
+    normalization feeds that remainder through the same map. A `(.+)` suffix
+    group would leave it unmapped and the leaf would read as a content
+    regression rather than the pointer move it is.
+    """
+    m = std.build_r07_path_map("experiment", "k1")
+    assert std.apply_path_map(
+        "experiments/experiment/realization_3/", m
+    ) == "experiments/experiment/weather_generator/output/"
+
+
+def test_r07_run_toml_output_pointers_repoint_into_the_run_output_dir(tmp_path):
+    """B5's run TOML: config/ and output/ are siblings under rlz_<r>/.
+
+    Covers the two pointers §2c's table omits. `[output.csv] path` is where the
+    real wflow toml carries the CSV pointer -- the stale `("csv", "path")` tuple
+    never resolved, so before this it fell through to the raw string diff and a
+    correct repoint would have failed the gate.
+    """
+    ref_root = tmp_path / "ref"
+    cur_root = tmp_path / "cur"
+    ref_toml = ref_root / "experiments" / "experiment" / "model_runs" / \
+        "wflow_sbm_rlz_1_cst_2.toml"
+    cur_toml = cur_root / "experiments" / "experiment" / "hydrology_runs" / \
+        "rlz_1" / "config" / "cst_2.toml"
+    for p, forcing, outstates, csv in (
+        (ref_toml, "../realization_1/inmaps_rlz_1_cst_2.nc",
+         "outstates_rlz_1_cst_2.nc", "output_rlz_1_cst_2.csv"),
+        (cur_toml, "../forcing/inmaps_cst_2.nc",
+         "../output/outstates_cst_2.nc", "../output/cst_2.csv"),
+    ):
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(
+            "[input]\n"
+            f'path_forcing = "{forcing}"\n'
+            "[state]\n"
+            f'path_output = "{outstates}"\n'
+            "[output.csv]\n"
+            f'path = "{csv}"\n'
+        )
+    m = std.build_r07_path_map("experiment", "k1")
+    diffs = std.compare_toml(str(ref_toml), str(cur_toml),
+                             ref_root=str(ref_root), cur_root=str(cur_root),
+                             path_map=m)
+    assert diffs == [], diffs
+
+
+def test_r07_run_toml_mis_repointed_csv_still_fails(tmp_path):
+    """The new field entry pairs the moved pointer; it does not mask a wrong
+    one (risk-4)."""
+    ref_root = tmp_path / "ref"
+    cur_root = tmp_path / "cur"
+    ref_toml = ref_root / "experiments" / "experiment" / "model_runs" / \
+        "wflow_sbm_rlz_1_cst_2.toml"
+    cur_toml = cur_root / "experiments" / "experiment" / "hydrology_runs" / \
+        "rlz_1" / "config" / "cst_2.toml"
+    ref_toml.parent.mkdir(parents=True, exist_ok=True)
+    cur_toml.parent.mkdir(parents=True, exist_ok=True)
+    ref_toml.write_text('[output.csv]\npath = "output_rlz_1_cst_2.csv"\n')
+    # left in config/ instead of the sibling output/
+    cur_toml.write_text('[output.csv]\npath = "cst_2.csv"\n')
+    diffs = std.compare_toml(str(ref_toml), str(cur_toml),
+                             ref_root=str(ref_root), cur_root=str(cur_root),
+                             path_map=std.build_r07_path_map("experiment", "k1"))
+    assert diffs and "output.csv.path" in diffs[0]
+
+
 def test_r07_orography_merge_only_on_the_chirps_branch():
     """The sidecar exists only on chirps; the seed config is era5, which is
     why repo-1's filename mismatch was invisible to every gate in the repo."""

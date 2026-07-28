@@ -80,7 +80,9 @@ def staged_project(tmp_path):
     region.write_text(_MINIMAL_REGION_GEOJSON, encoding="utf-8")
 
     # Project snapshots the guard compares against (identical to live -> pass).
-    snap_dir = pdir / "config"
+    # R07 B9 (commit 10) split the project config snapshot by kind: the snake
+    # config snapshots live under config/runs/.
+    snap_dir = pdir / "config" / "runs"
     snap_dir.mkdir(parents=True, exist_ok=True)
     wf1 = snap_dir / "snake_config_model_creation.yml"
     wf2 = snap_dir / "snake_config_climate_projections.yml"

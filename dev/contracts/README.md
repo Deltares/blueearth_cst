@@ -19,7 +19,7 @@ walkthrough (the exact repo files a swap touches), and a validator index.
 divergence reports; wired into no pipeline rule) and are exercised by
 `tests/test_interchange_contracts.py`. Coverage follows the design's §5.5
 counting axis verbatim: 15 validators / 30 always-run synthetic pass-fail
-tests; with the `examples/test_local` fixture present, 12 integration checks
+tests; with the `test_case/test_local` fixture present, 12 integration checks
 are green and 3 temp()-content cases are skip-until-captured (`--notemp`
 procedure in each doc's validator index); on a fixtureless checkout all
 integration cases skip under the named `_FIXTURE_ABSENT` reason — a visible
