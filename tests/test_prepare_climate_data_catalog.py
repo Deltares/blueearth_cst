@@ -332,3 +332,36 @@ def test_hydromt_to_yml_round_trip_preserves_preprocess(tmp_path):
         written["test_source"]["driver"]["options"]["preprocess"]
         == "harmonise_dims"
     )
+
+
+def test_orography_entry_points_at_the_standardised_sidecar(tmp_path, chirps_like_catalog):
+    """R07 B1: the emitted sidecar is `orography.nc`, not `<source>_orography.nc`.
+
+    The CATALOG ENTRY key stays `<source>_orography` — downstream consumers
+    (plot_results, the parity transform, weathergenr's downscaling) look it up
+    by that name. Only the on-disk FILENAME standardises, so producer
+    (rule 1.10/3.02's declared `oro_nc`) and consumer (rule 3.08's `oro_path`)
+    finally agree. The seed config is era5, so nothing else in this repo would
+    catch the pre-R07 mismatch.
+    """
+    rlz_nc = tmp_path / "rlz_1_cst_0.nc"
+    rlz_nc.write_bytes(b"")
+    store_dir = tmp_path / "climate_historical" / "chirps_global_20000101_20201231"
+    store_dir.mkdir(parents=True)
+    oro_fn = store_dir / "orography.nc"  # the R07 filename
+    oro_fn.write_bytes(b"")
+    fn_out = tmp_path / "catalog.yml"
+
+    pcdc.prepare_clim_data_catalog(
+        fns=[rlz_nc],
+        data_libs_like="dummy_catalog.yml",
+        source_like="chirps_global",
+        fn_out=fn_out,
+        oro_path=oro_fn,
+    )
+
+    written = yaml.safe_load(fn_out.read_text())
+    entry = written["chirps_global_orography"]
+    assert Path(entry["uri"]).name == "orography.nc"
+    assert Path(entry["uri"]).resolve() == oro_fn.resolve()
+    assert Path(entry["uri"]).exists()

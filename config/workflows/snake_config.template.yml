@@ -33,6 +33,12 @@ shared:
     region: "{'subbasin': [9.666, 0.4476], 'uparea': 100}"
     # Grid resolution in degrees (≥ source hydrography res, e.g. merit_hydro_ihu = 0.00833)
     resolution: 0.00833
+    # Optional: catalog ENTRY NAMES (not paths) used to delineate the basin for
+    # the shared historical-climate store. Defaults are shown; they must match
+    # setup_basemaps in the model_build_config template below, or rule 1.02
+    # fails loud naming both files and both values. Uncomment only to override.
+    #hydrography: merit_hydro_ihu
+    #basin_index: merit_hydro_index
   historical_window:
     # ISO datetime strings — wflow forcing window
     starttime: "2000-01-01T00:00:00"

@@ -10,7 +10,7 @@
 - **Layer 2 — real-fixture integration, skipped VISIBLY when the fixture is
   absent.** Each case opens an artifact under the untracked ``test_case/test_local``
   tree and carries the repo fixture-absent guard (mirroring
-  ``tests/test_extract_climate_wf1.py``): a module-level ``_FIXTURE_ABSENT``
+  ``tests/test_store_region_bbox.py``): a module-level ``_FIXTURE_ABSENT``
   reason constant + ``@pytest.mark.skipif``. Absence is a NAMED, reported
   condition (read via ``pytest -rs``), never silence. The three temp() content
   validators (WG-4/WG-6/HM-6b) additionally skip with a documented reason when

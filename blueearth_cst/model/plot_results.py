@@ -49,7 +49,8 @@ def analyse_wflow_historical(
     To be read, model should be stored in ``project_dir``/hydrology_model.
     Model results should include the discharge keys Q_outlets and, if gauges are
     provided, Q_gauges_{basename(gauges_locs)}. The climate plots (P/T/EP) are
-    derived from the RAW gridded climate extraction (``climate_nc``, rule 1.10)
+    derived from the shared store's gridded climate extraction (``climate_nc``,
+    rule 1.10 ``extract_climate_grid``)
     brought to model parity (the build's own regrid + corrections + PET method)
     and aggregated per subcatchment — decoupled from the model's stored inmaps
     forcing artifact (P3-2a re-source; supersedes the ADR-0002 interim
@@ -87,12 +88,13 @@ def analyse_wflow_historical(
         Values in wflow_id column should match column names in ``observations_fn``.
         Separator is , and decimal is .
     climate_nc : Union[Path, str], optional
-        Path to the wf1 raw climate extraction
-        (``climate_historical/wf1_raw/extract_historical.nc``). When absent the
-        climate plots are skipped.
+        Path to the shared store's climate extraction
+        (``climate_historical/<key>/extract_historical.nc``, R07 B1). When absent
+        the climate plots are skipped.
     oro_nc : Union[Path, str], optional
         chirps/chirps_global only: the extraction's orography sidecar (the
-        declared rule-1.10 ``oro_nc`` output). Mandatory on that branch — it is
+        declared rule-1.10/3.02 ``oro_nc`` output, ``<key>/orography.nc``).
+        Mandatory on that branch — it is
         the DEM the parity transform must reference to invert the extraction's
         embedded lapse correction (design ext1-1). None on era5, where the
         orography comes from the data catalog instead.

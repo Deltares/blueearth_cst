@@ -55,8 +55,13 @@ per artifact (a literal 14-column table is illegible).
 
 - **path pattern:** `climate_historical/<key>/extract_historical.nc`, where
   `<key> = <clim_source>_<startYYYYMMDD>_<endYYYYMMDD>` (P3-1 keyed store).
-- **producer:** rule 3.02 `extract_climate_grid`
-  (`blueearth_cst/climate_analysis/extract_historical_climate.py`).
+- **producer:** rule `extract_climate_grid`
+  (`blueearth_cst/climate_analysis/extract_historical_climate.py`) — ONE rule,
+  declared identically in `Snakefile_climate_experiment` (3.02) and
+  `Snakefile_model_creation` (1.10) from `snake_utils.climate_store_spec`
+  (R07 B1). Its only input is the data catalog; the extent is delineated
+  model-free from `shared.basin` and recorded beside the extraction as
+  `store_region.geojson`.
 - **consumer:** rule 3.06 `generate_weather_realization` (weathergenr
   `generate_weather.R`), passed in as `climate_nc`.
 - **dims:** `(time, latitude, longitude)`.
@@ -245,9 +250,12 @@ inventory is intentional, not an oversight (design §5.2, risk-5 / arch-7):
 - `experiments/<exp>/{sim_dates.csv, resampled_dates.csv}` —
   weathergenr-internal run diagnostics. Verified: neither name appears as a
   produced or consumed path in any Snakefile, Python module, or R script.
-- `climate_historical/wf1_raw/extract_historical.nc` (rule 1.10
-  `extract_climate_grid_wf1`) — shares WG-1's extraction schema but feeds the
-  wf1 model-parity **plots**, not either substitution seam.
+- `climate_historical/<key>/store_region.geojson` (rule `extract_climate_grid`,
+  R07 B1) — the delineated polygon the extraction bbox came from. Provenance
+  for WG-1, with no downstream DAG-tracked consumer.
+  *(The pre-R07 `climate_historical/wf1_raw/extract_historical.nc`, rule 1.10
+  `extract_climate_grid_wf1`, was retired by B1: wf1's model-parity plots now
+  read WG-1 itself.)*
 
 The completeness audit (both rule graphs walked) otherwise **confirms**
 WG-1..WG-6 cover every interchange handoff at this seam; pipeline-internal

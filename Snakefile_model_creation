@@ -5,7 +5,7 @@ from pathlib import Path
 # directory by prepending this Snakefile's own directory to sys.path.
 # See dev/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
-from blueearth_cst.shared.snake_utils import get_config, patch_psutil_windows_benchmark, rule_banner, warn_if_project_dir_in_repo
+from blueearth_cst.shared.snake_utils import DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_spec, get_config, patch_psutil_windows_benchmark, rule_banner, warn_if_project_dir_in_repo
 
 # Windows: make Snakemake's benchmark memory/IO/CPU metrics work (else all NA).
 patch_psutil_windows_benchmark()
@@ -34,11 +34,18 @@ static_dir = get_config(project_cfg, "static_dir", optional=False)
 DATA_SOURCES = get_config(project_cfg, "data_sources", optional=False)
 
 # Shared — multi-workflow scientific knobs
-model_region = get_config(shared_cfg["basin"], "region", optional=False)
-model_resolution = get_config(shared_cfg["basin"], "resolution", 0.00833333)
+basin_cfg = shared_cfg["basin"]
+model_region = get_config(basin_cfg, "region", optional=False)
+model_resolution = get_config(basin_cfg, "resolution", 0.00833333)
+# Catalog ENTRY NAMES for the model-free basin delineation the shared climate
+# store uses (R07 B1 / ext1-01). Both OPTIONAL: the defaults equal the shipped
+# build template's setup_basemaps values, so a config that declares neither is
+# unaffected and rule 3.00b's guard digest stays byte-identical. Rule 1.02
+# cross-checks them against the template and fails loud on a disagreement.
+basin_hydrography = get_config(basin_cfg, "hydrography", DEFAULT_HYDROGRAPHY)
+basin_index = get_config(basin_cfg, "basin_index", DEFAULT_BASIN_INDEX)
+historical_window = get_config(shared_cfg, "historical_window", optional=False)
 clim_source = get_config(shared_cfg, "clim_historical", optional=False)
-hist_starttime = get_config(shared_cfg["historical_window"], "starttime", optional=False)
-hist_endtime = get_config(shared_cfg["historical_window"], "endtime", optional=False)
 
 # P3-2a bounded support (design ext2-3): the wf1 raw-climate path (rule 1.10 +
 # the model-parity plot re-source) supports era5, chirps and chirps_global
@@ -58,6 +65,24 @@ output_locations = get_config(my_cfg, "output_locations", None)
 observations_timeseries = get_config(my_cfg, "observations_timeseries", None)
 
 basin_dir = f"{project_dir}/hydrology_model"
+
+# --- The shared historical-climate store (R07 B1) -----------------------------
+# ONE producer contract, built here and identically in
+# Snakefile_climate_experiment, and splatted into rule 1.10 / rule 3.02 below.
+# Everything content- or execution-determining (script, the single catalog
+# input, outputs, params) comes from this object; only message/log/benchmark are
+# workflow-local. tests/test_climate_store_contract.py parses both workflows and
+# fails on ANY other difference.
+CLIMATE_STORE = climate_store_spec(
+    project_dir=project_dir,
+    model_region=model_region,
+    clim_source=clim_source,
+    historical_window=historical_window,
+    data_sources=DATA_SOURCES,
+    hydrography=basin_hydrography,
+    basin_index=basin_index,
+)
+store_dir = CLIMATE_STORE.store_dir
 
 # Rule numbering (comment headers + log/benchmark filenames) uses `W.NN` =
 # workflow.step in DEFINITION order — a reading and reference aid ("Rule 1.3" =
@@ -102,6 +127,13 @@ rule prepare_build_config:
     params:
         model_resolution = model_resolution,
         model_region = model_region,
+        # R07 B1: agreement between the build template's setup_basemaps datasets
+        # and shared.basin is ENFORCED here (RuntimeError naming both files and
+        # both values), not shared-sourced — the template stays the
+        # hydromt-conventional home of build datasets and is never overwritten.
+        hydrography = basin_hydrography,
+        basin_index = basin_index,
+        snake_config = config_path,
     log:
         f"{project_dir}/logs/1.02_prepare_build_config.log",
     benchmark:
@@ -222,48 +254,43 @@ rule run_wflow:
     shell:
         """python -u "{run_logged}" "{log}" -- julia +1.11.7 --project=. --threads 4 -e "using Wflow; Wflow.run()" "{params.toml_path}" """
 
-# 1.10  extract_climate_grid_wf1 — extract raw gridded climate for the wf1
-# climate plots (P3-2a): the bbox comes from staticmaps.nc (the declared
-# rule-1.03 producer edge, design arch-1), the grid is catalog-native, and the
-# output path is wf1-owned — distinct from both the wf3 keyed store
-# (climate_historical/<key>/) and the wf1 forcing (wflow_data/). On
-# chirps/chirps_global the extraction's orography sidecar is a declared rule
-# output with a stable, clim_source-independent filename (design ext2-1); the
-# branch is resolved at DAG-parse time from clim_historical, so there are no
-# dynamic outputs.
-_wf1_raw_dir = f"{project_dir}/climate_historical/wf1_raw"
-_wf1_raw_outputs = {"climate_nc": f"{_wf1_raw_dir}/extract_historical.nc"}
-if clim_source in ("chirps", "chirps_global"):
-    _wf1_raw_outputs["oro_nc"] = f"{_wf1_raw_dir}/orography.nc"
-
-rule extract_climate_grid_wf1:
-    message: rule_banner("1.10", "extract_climate_grid_wf1")
+# 1.10  extract_climate_grid — the SHARED historical-climate store producer
+# (R07 B1). This declaration and rule 3.02 in Snakefile_climate_experiment are
+# the same rule: identical name, script, single catalog input, outputs and
+# params, all splatted from CLIMATE_STORE. Only message/log/benchmark are
+# workflow-local. wf1's old `climate_historical/wf1_raw/` store and its
+# ancient(staticmaps.nc) edge are retired — the extent is now a pure function of
+# shared.basin + the catalog, so this rule needs no built model, and a region
+# change re-extracts via Snakemake's params rerun-trigger.
+#
+# DO NOT add a workflow-local input or param here: an asymmetric input set
+# re-creates the wf1<->wf3 re-extraction oscillation (design P2(b), ext1-02) and
+# is forbidden. The catalog input is deliberately PLAIN, not ancient(): it is
+# the store's freshness boundary (ext2-01).
+rule extract_climate_grid:
+    message: rule_banner("1.10", "extract_climate_grid")
     input:
-        basin_nc = ancient(f"{basin_dir}/staticmaps.nc"),
+        **CLIMATE_STORE.inputs,
     params:
-        data_sources = DATA_SOURCES,
-        clim_source = clim_source,
-        starttime = hist_starttime,
-        endtime = hist_endtime,
+        **CLIMATE_STORE.params,
     output:
-        **_wf1_raw_outputs,
+        **CLIMATE_STORE.outputs,
     log:
-        f"{project_dir}/logs/1.10_extract_climate_grid_wf1.log",
+        f"{project_dir}/logs/1.10_extract_climate_grid.log",
     benchmark:
-        f"{project_dir}/benchmarks/_parts/1.10_extract_climate_grid_wf1.tsv",
+        f"{project_dir}/benchmarks/_parts/1.10_extract_climate_grid.tsv",
     script:
-        "blueearth_cst/model/extract_climate_wf1.py"
+        CLIMATE_STORE.script
 
 # 1.11  plot_results — analyse + plot the wflow run (parallel leaf with 1.12/1.13)
-# The climate plots read the wf1 raw extraction (rule 1.10) at model parity —
-# not the inmaps forcing (P3-2a re-source; was ADR 0002). On chirps/
+# The climate plots read the shared store's extraction (rule 1.10) at model
+# parity — not the inmaps forcing (P3-2a re-source; was ADR 0002). On chirps/
 # chirps_global the extraction's orography sidecar is a declared input with a
-# real producer edge (ext2-1); both rules resolve that branch at DAG-parse
-# time from the same clim_historical key, so producer and consumer cannot
-# disagree.
-_wf1_plot_clim_inputs = {"climate_nc": _wf1_raw_outputs["climate_nc"]}
+# real producer edge (ext2-1); producer and consumer resolve that branch from
+# the same clim_historical key via CLIMATE_STORE, so they cannot disagree.
+_wf1_plot_clim_inputs = {"climate_nc": CLIMATE_STORE.outputs["climate_nc"]}
 if clim_source in ("chirps", "chirps_global"):
-    _wf1_plot_clim_inputs["oro_nc"] = _wf1_raw_outputs["oro_nc"]
+    _wf1_plot_clim_inputs["oro_nc"] = CLIMATE_STORE.outputs["oro_nc"]
 
 rule plot_results:
    message: rule_banner("1.11", "plot_results")

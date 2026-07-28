@@ -17,6 +17,7 @@ import threading
 import time
 import warnings
 from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -372,6 +373,147 @@ def slugify_window(start, end) -> str:
         return dt.strftime("%Y%m%d")
 
     return f"{_day_slug(start, 'starttime')}_{_day_slug(end, 'endtime')}"
+
+
+#: Catalog ENTRY NAMES the model-free basin delineation defaults to. Equal to
+#: the shipped ``config/templates/wflow_build_model.yml`` ``setup_basemaps``
+#: values, so an existing config that declares neither key keeps building the
+#: same basin (and rule 3.00b's guard digest stays byte-identical, since the
+#: digest serializes the config dict as-is).
+DEFAULT_HYDROGRAPHY = "merit_hydro_ihu"
+DEFAULT_BASIN_INDEX = "merit_hydro_index"
+
+#: The store producer's script, relative to the declaring Snakefile. Both
+#: Snakefiles sit at the repository root, so one relative path serves both
+#: (``script:`` resolves against ``workflow.basedir``).
+CLIMATE_STORE_SCRIPT = "blueearth_cst/climate_analysis/extract_historical_climate.py"
+
+
+@dataclass(frozen=True)
+class ClimateStoreSpec:
+    """The complete producer contract for the shared historical-climate store.
+
+    Attribute-accessible and dict-splattable: a Snakefile writes
+
+    ``input: **SPEC.inputs`` / ``output: **SPEC.outputs`` /
+    ``params: **SPEC.params`` / ``script: SPEC.script``
+
+    so every content- or execution-determining field of the two declarations
+    comes from one object rather than from two hand-maintained rule bodies.
+    """
+
+    store_dir: str
+    script: str
+    inputs: Mapping
+    outputs: Mapping
+    params: Mapping
+
+
+def climate_store_spec(
+    project_dir,
+    model_region,
+    clim_source,
+    historical_window: Mapping,
+    data_sources,
+    hydrography=DEFAULT_HYDROGRAPHY,
+    basin_index=DEFAULT_BASIN_INDEX,
+) -> ClimateStoreSpec:
+    """Build the one producer contract for ``climate_historical/<key>/`` (R07 B1).
+
+    ONE rule definition, declared in **both** ``Snakefile_model_creation``
+    (rule 1.10) and ``Snakefile_climate_experiment`` (rule 3.02), over the
+    model-independent region specification + data catalog. wf1's `wf1_raw/`
+    store and its `staticmaps.nc`-derived bbox are retired: the extent is now a
+    pure function of ``shared.basin`` + the catalog, so a climate-only run needs
+    no ``hydrology_model/`` on disk and a region change re-extracts through
+    Snakemake's params rerun-trigger (design § B1).
+
+    **The input set is exactly one entry — the catalog — in both DAGs.** An
+    asymmetric input set re-creates the wf1<->wf3 re-extraction oscillation
+    (design P2(b) / ext1-02); the catalog **file** is the store's freshness
+    boundary (ext2-01), so it is declared plain, never ``ancient()``. Data
+    *behind* an unchanged catalog entry is out of scope — edit the entry, or use
+    ``snakemake --forcerun extract_climate_grid``
+    (``dev/r07/migration_project-layout.md`` §2f).
+
+    Parameters
+    ----------
+    project_dir : str
+        ``project.project_dir``; the store lands under
+        ``<project_dir>/climate_historical/``.
+    model_region : str | Mapping
+        ``shared.basin.region`` — the hydromt region specification (usually a
+        Python-dict-literal string). Carried in ``params``, never resolved here.
+    clim_source : str
+        ``shared.clim_historical``. Selects the chirps orography branch.
+    historical_window : Mapping
+        The ``shared.historical_window`` section, with ``starttime`` and
+        ``endtime``. Keyed at day resolution by ``slugify_window``.
+    data_sources : str
+        ``project.data_sources`` — the hydromt catalog path. The single
+        declared input.
+    hydrography, basin_index : str
+        ``shared.basin.hydrography`` / ``shared.basin.basin_index`` — catalog
+        ENTRY NAMES for the delineation, not paths. Optional config keys; the
+        defaults equal the shipped build template's ``setup_basemaps`` values,
+        and rule 1.02 fails loud if the two ever disagree.
+
+    Returns
+    -------
+    ClimateStoreSpec
+        ``store_dir``, ``script``, ``inputs``, ``outputs``, ``params``.
+
+    Raises
+    ------
+    TypeError
+        If ``historical_window`` is not a mapping.
+    ValueError
+        If either window endpoint is missing, or carries a sub-day component
+        the day-resolution store key cannot represent (``slugify_window``).
+    """
+    if not isinstance(historical_window, Mapping):
+        raise TypeError(
+            "climate_store_spec: historical_window must be the shared."
+            "historical_window mapping with 'starttime'/'endtime', got "
+            f"{type(historical_window).__name__}"
+        )
+    starttime = get_config(historical_window, "starttime", optional=False)
+    endtime = get_config(historical_window, "endtime", optional=False)
+
+    # Byte-for-byte the key wf3 built inline before R07 (P3-1 §4/§4c/§4d): two
+    # experiments sharing clim_historical + historical_window resolve to the
+    # same dir and reuse the extraction.
+    store_key = f"{clim_source}_{slugify_window(starttime, endtime)}"
+    store_dir = f"{project_dir}/climate_historical/{store_key}"
+
+    outputs = {
+        "climate_nc": f"{store_dir}/extract_historical.nc",
+        # The delineated polygon, on disk as the record of where the bbox came
+        # from (design § B1). Safe inside the guarded store dir: rule 3.00b
+        # compares config digests and writes two *named* sentinels; it never
+        # enumerates the directory.
+        "region_geojson": f"{store_dir}/store_region.geojson",
+    }
+    if clim_source in ("chirps", "chirps_global"):
+        # Resolved at parse time from clim_historical, so there are no dynamic
+        # outputs. The filename is clim_source-INDEPENDENT (R07 standardises the
+        # two pre-R07 spellings on `orography.nc`).
+        outputs["oro_nc"] = f"{store_dir}/orography.nc"
+
+    return ClimateStoreSpec(
+        store_dir=store_dir,
+        script=CLIMATE_STORE_SCRIPT,
+        inputs={"catalog": data_sources},
+        outputs=outputs,
+        params={
+            "model_region": model_region,
+            "clim_source": clim_source,
+            "starttime": starttime,
+            "endtime": endtime,
+            "hydrography": hydrography,
+            "basin_index": basin_index,
+        },
+    )
 
 
 def _require_step_num(axis_cfg, axis_name):

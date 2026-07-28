@@ -159,6 +159,31 @@ def test_observation_configs_use_the_string_sentinel():
             assert isinstance(mc[key], str), f"{cfg_path}:{key} is not a str"
 
 
+def test_eobs_config_fails_wf1_dry_run_at_parse_time(tmp_path):
+    """`clim_historical: eobs` must red the wf1 dry-run at DAG-parse time.
+
+    Rehomed from the retired `tests/test_extract_climate_wf1.py` (R07 commit 7
+    retired rule 1.10's wf1-only wrapper, but NOT this guard): the rejection
+    exists because rule 1.11's model-parity transform maps eobs to a different
+    PET method, which B1 does not touch. The other test in that module compared
+    the two pre-R07 bbox derivations and is superseded by
+    `tests/test_store_region_bbox.py`.
+    """
+    with open(config_fn) as f:
+        cfg = yaml.safe_load(f)
+    cfg["shared"]["clim_historical"] = "eobs"
+    cfg_path = tmp_path / "snake_config_eobs.yml"
+    cfg_path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+
+    result = _dry_run("Snakefile_model_creation", cfg=str(cfg_path))
+    combined = (result.stdout or "") + (result.stderr or "")
+    assert result.returncode != 0, "eobs config must fail the wf1 dry-run"
+    assert (
+        "clim_historical: eobs is not supported by the P3-2a wf1 raw-climate "
+        "path; supported sources: era5, chirps, chirps_global"
+    ) in combined, combined
+
+
 def test_snakefile_cli_climate_projections(config_with_staged_region):
     """Workflow 2 dry-run builds a clean DAG once its WF1 region input is staged.
 
