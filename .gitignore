@@ -121,7 +121,7 @@ dask-worker-space/
 .snakemake/
 
 # Examples
-examples/
+test_case/
 .Rproj.user
 
 # R-related files

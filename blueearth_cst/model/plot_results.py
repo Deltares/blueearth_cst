@@ -370,7 +370,7 @@ if __name__ == "__main__":
             )
     else:
         analyse_wflow_historical(
-            project_dir=join(os.getcwd(), "examples", "my_project"),
+            project_dir=join(os.getcwd(), "test_case", "my_project"),
             observations_fn=None,
             gauges_locs=None,
         )

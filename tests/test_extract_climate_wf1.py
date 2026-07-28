@@ -3,7 +3,7 @@
 - bbox derivation (design ext1-5): the staticmaps-derived bounds must sit
   within 2 x model_resolution of the region file's tight bounds per edge
   (outward snapping of the model grid). Fixture-dependent: skipped when the
-  untracked examples/test_local tree is absent.
+  untracked test_case/test_local tree is absent.
 - eobs exclusion (design ext2-3): `clim_historical: eobs` must red the wf1
   dry-run at DAG-parse time with the named configuration error.
 """
@@ -21,16 +21,16 @@ from blueearth_cst.model.extract_climate_wf1 import staticmaps_bbox  # noqa: E40
 TESTDIR = dirname(realpath(__file__))
 SNAKEDIR = join(TESTDIR, "..")
 
-_FIXTURE_STATICMAPS = join(SNAKEDIR, "examples", "test_local", "hydrology_model", "staticmaps.nc")
+_FIXTURE_STATICMAPS = join(SNAKEDIR, "test_case", "test_local", "hydrology_model", "staticmaps.nc")
 _FIXTURE_REGION = join(
-    SNAKEDIR, "examples", "test_local", "hydrology_model", "staticgeoms", "region.geojson"
+    SNAKEDIR, "test_case", "test_local", "hydrology_model", "staticgeoms", "region.geojson"
 )
 _FIXTURE_CONFIG = join(SNAKEDIR, "config", "workflows", "snake_config_model_test.yml")
 
 
 @pytest.mark.skipif(
     not (os.path.exists(_FIXTURE_STATICMAPS) and os.path.exists(_FIXTURE_REGION)),
-    reason="untracked examples/test_local fixture tree not present",
+    reason="untracked test_case/test_local fixture tree not present",
 )
 def test_staticmaps_bbox_within_two_cells_of_region_bounds():
     import geopandas as gpd

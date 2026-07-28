@@ -73,13 +73,13 @@ Method context that changes how code here should be edited (full rationale:
   drift fails CI). **It only covers what a bare checkout can run**: the
   fixture-dependent integration layer and the three `--run-integration` tests
   skip there by design, and `check_baseline.py` / whole-tree `semantic_tree_diff`
-  cannot run in CI at all because they need the untracked `examples/test_local`
+  cannot run in CI at all because they need the untracked `test_case/test_local`
   tree. Those stay **local** gates — CI being green does not mean the baseline
   was checked.
 - Outputs land under `project_dir` (set in the config). **Production `project_dir`
   lives outside the repository tree** — a run writes generated model + result
   artifacts to a location distinct from the toolbox source. The in-repo untracked
-  `examples/test_local` dir is a dev/test convention only (used by the baseline
+  `test_case/test_local` dir is a dev/test convention only (used by the baseline
   gate), explicitly exempt from that rule.
 
 ## Key Commands

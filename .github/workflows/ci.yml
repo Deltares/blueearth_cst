@@ -4,7 +4,7 @@
 # can run here. Measured on a clean worktree with no untracked fixture and no
 # local data: 386 passed / 30 skipped / 1 xfailed in ~100 s. All 30 skips are
 # principled and expected on a runner —
-#   * ~27 need the untracked `examples/test_local` fixture tree (the
+#   * ~27 need the untracked `test_case/test_local` fixture tree (the
 #     interchange-contract integration layer + one wf1 extraction case), and
 #   * 3 are end-to-end workflow tests already behind the repo's own
 #     `--run-integration` opt-in flag (tests/conftest.py).

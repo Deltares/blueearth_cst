@@ -1,7 +1,7 @@
 # Canonical example config for blueearth_cst — R01 sectioned schema.
 # Doubles as the TRACKED baseline seed: dev/baseline/manifest.json is
 # recorded from a fresh run of this config into project.project_dir
-# (examples/test_local). Keep it reproducible — never point the baseline
+# (test_case/test_local). Keep it reproducible — never point the baseline
 # at an untracked *_local.yml again.
 #
 # Small/fast test setup: 3 CMIP6 models, a single "far" horizon, matched
@@ -9,7 +9,7 @@
 # config/snake_config.template.yml.
 
 project:
-  project_dir: examples/test_local
+  project_dir: test_case/test_local
   static_dir: config
   data_sources: config/catalogs/deltares_data.yml
   data_sources_climate: config/catalogs/cmip6_data.yml

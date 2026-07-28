@@ -171,7 +171,7 @@ Each run writes its generated model and result artifacts to the
 ``project_dir`` set in the config. For production use, point
 ``project_dir`` at a location **outside the repository tree** so outputs
 are kept separate from the toolbox source. (The in-repo
-``examples/test_local`` directory is a dev/test convention only.)
+``test_case/test_local`` directory is a dev/test convention only.)
 
 Running from pixi shell
 -----------------------
@@ -318,7 +318,7 @@ The full unit suite takes a couple of minutes:
 
 Notes on what the suite does and does not cover:
 
-- Tests that need the untracked ``examples/test_local`` fixture tree
+- Tests that need the untracked ``test_case/test_local`` fixture tree
   **skip** when it is absent, as do three end-to-end workflow tests that
   are opt-in behind ``--run-integration``. Run ``pytest -rs`` to see every
   skip reason. On a clean checkout expect ~385 passed and ~30 skipped.

@@ -208,5 +208,5 @@ if __name__ == "__main__":
             )
     else:
         plot_forcing(
-            wflow_root=join(os.getcwd(), "examples", "my_project", "hydrology_model")
+            wflow_root=join(os.getcwd(), "test_case", "my_project", "hydrology_model")
         )

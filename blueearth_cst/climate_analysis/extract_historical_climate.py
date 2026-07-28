@@ -213,7 +213,7 @@ if __name__ == "__main__":
         prep_historical_climate(
             region_fn=join(
                 os.getcwd(),
-                "examples",
+                "test_case",
                 "my_project",
                 "hydrology_model",
                 "staticgeoms",
@@ -221,7 +221,7 @@ if __name__ == "__main__":
             ),
             fn_out=join(
                 os.getcwd(),
-                "examples",
+                "test_case",
                 "my_project",
                 "climate_historical",
                 "raw_data",

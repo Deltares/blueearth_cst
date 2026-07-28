@@ -15,7 +15,7 @@ project:
   # Output root for this run. For production use, point this OUTSIDE the
   # repository tree so generated model + result artifacts stay separate from
   # the toolbox source. (In-repo examples/* paths are a dev/test convention.)
-  project_dir: examples/test
+  project_dir: test_case/test
   # Static config dir (templates referenced by workflows)
   static_dir: config
   # Hydromt data catalog (era5, merit_hydro, etc.)

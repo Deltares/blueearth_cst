@@ -5,7 +5,7 @@
 # validation is deferred per dev/roadmap.md; this file must parse cleanly.
 
 project:
-  project_dir: examples/Gabon
+  project_dir: test_case/gabon
   static_dir: config
   data_sources: config/catalogs/deltares_data_linux.yml
   data_sources_climate: config/catalogs/cmip6_data.yml

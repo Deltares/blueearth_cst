@@ -99,7 +99,7 @@ if __name__ == "__main__":
             )
     else:
         update_wflow_gauges_outputs(
-            wflow_root=join(os.getcwd(), "examples", "my_project", "hydrology_model"),
+            wflow_root=join(os.getcwd(), "test_case", "my_project", "hydrology_model"),
             data_catalog="deltares_data",
             gauges_fn=None,
             outputs=["river discharge"],

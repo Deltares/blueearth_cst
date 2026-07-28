@@ -10,7 +10,7 @@ cells = 12 Wflow runs, so expect a long wall-clock time (tens of minutes).
 
 It needs:
   * the local Deltares data mirror referenced by ``config/deltares_data.yml``
-  * workflow 1 artifacts under ``examples/test/hydrology_model`` (run the
+  * workflow 1 artifacts under ``test_case/test/hydrology_model`` (run the
     model-creation workflow or its smoke test first)
   * juliaup-managed Julia 1.11.7 with the project instantiated
   * the weathergenr R package in the pixi R library (``pixi run install``)

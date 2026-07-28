@@ -19,7 +19,7 @@ class FakeResult:
         self.returncode = returncode
 
 
-def _write_cfg(path, flags, project_dir="examples/test"):
+def _write_cfg(path, flags, project_dir="test_case/test"):
     """Write a full-orchestration config with the given enabled flags dict.
 
     ``flags`` values are inserted verbatim into YAML so a caller can pass a raw

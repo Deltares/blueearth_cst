@@ -8,7 +8,7 @@
   AND fail path. "Green" is never indistinguishable from "nothing checked".
 
 - **Layer 2 — real-fixture integration, skipped VISIBLY when the fixture is
-  absent.** Each case opens an artifact under the untracked ``examples/test_local``
+  absent.** Each case opens an artifact under the untracked ``test_case/test_local``
   tree and carries the repo fixture-absent guard (mirroring
   ``tests/test_extract_climate_wf1.py``): a module-level ``_FIXTURE_ABSENT``
   reason constant + ``@pytest.mark.skipif``. Absence is a NAMED, reported
@@ -36,11 +36,11 @@ from blueearth_cst.shared.snake_utils import stress_test_grid  # noqa: E402
 
 TESTDIR = dirname(realpath(__file__))
 SNAKEDIR = join(TESTDIR, "..")
-_FIXTURE = join(SNAKEDIR, "examples", "test_local")
+_FIXTURE = join(SNAKEDIR, "test_case", "test_local")
 _EXP = join(_FIXTURE, "experiments", "experiment")
 
 _FIXTURE_ABSENT = (
-    "untracked examples/test_local fixture tree not present "
+    "untracked test_case/test_local fixture tree not present "
     "(interchange-contract integration layer skipped)"
 )
 

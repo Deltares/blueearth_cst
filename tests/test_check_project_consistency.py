@@ -27,7 +27,7 @@ from blueearth_cst.experiment.check_project_consistency import (  # noqa: E402
 # deliberately NOT guarded.
 _BASE_CFG = {
     "project": {
-        "project_dir": "examples/test_local",
+        "project_dir": "test_case/test_local",
         "static_dir": "config",
         "data_sources": "config/catalogs/deltares_data.yml",
         "data_sources_climate": "config/catalogs/cmip6_data.yml",
