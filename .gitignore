@@ -133,7 +133,6 @@ test_case/
 *.png
 
 # Rendered workflow DAGs (scripts/run_snake_test.cmd writes .dot + .png here)
-dag/
 
 # Tests
 tests/test_project

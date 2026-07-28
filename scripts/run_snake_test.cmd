@@ -29,7 +29,10 @@ setlocal
 
 set CFG=config/workflows/snake_config_model_test.yml
 set CORES=3
-set DAGDIR=dag
+rem O-02: DAG renders belong with the artifacts of the config that produced
+rem them, not at the repository root. Backslashes are required -- cmd.exe's
+rem mkdir rejects forward slashes. Tracks project_dir in %CFG%.
+set DAGDIR=test_case\test_local\dag
 
 where pixi >nul 2>&1
 if errorlevel 1 (
