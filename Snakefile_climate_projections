@@ -53,9 +53,9 @@ def get_horizon(wildcards):
 # 2.00  all — target aggregator: change-factor summaries + projection plots
 rule all:
     input:
-        (clim_project_dir + "/annual_change_scalar_stats_summary.nc"),
-        (clim_project_dir + "/annual_change_scalar_stats_summary.csv"),
-        (clim_project_dir + "/annual_change_scalar_stats_summary_mean.csv"),
+        (clim_project_dir + "/summary/annual_change_scalar_stats_summary.nc"),
+        (clim_project_dir + "/summary/annual_change_scalar_stats_summary.csv"),
+        (clim_project_dir + "/summary/annual_change_scalar_stats_summary_mean.csv"),
         stats_change_plt = (clim_project_dir + "/plots/projected_climate_statistics.png"),
         precip_plt = (clim_project_dir + "/plots/precipitation_anomaly_projections_abs.png"),
         temp_plt = (clim_project_dir + "/plots/temperature_anomaly_projections_abs.png"),
@@ -164,9 +164,9 @@ rule monthly_change_scalar_merge:
     input:
         stats_nc_change = ancient(expand((clim_project_dir + "/annual_change_scalar_stats-{model}_{scenario}_{horizon}.nc"), model = models, scenario = scenarios, horizon = future_horizons)),
     output:
-        stats_change_summary = (clim_project_dir + "/annual_change_scalar_stats_summary.nc"),
-        stats_change_summary_csv = (clim_project_dir + "/annual_change_scalar_stats_summary.csv"),
-        stats_change_summary_csv_mean = (clim_project_dir + "/annual_change_scalar_stats_summary_mean.csv"),
+        stats_change_summary = (clim_project_dir + "/summary/annual_change_scalar_stats_summary.nc"),
+        stats_change_summary_csv = (clim_project_dir + "/summary/annual_change_scalar_stats_summary.csv"),
+        stats_change_summary_csv_mean = (clim_project_dir + "/summary/annual_change_scalar_stats_summary_mean.csv"),
         stats_change_plt = (clim_project_dir + "/plots/projected_climate_statistics.png"),
     params:
         clim_project_dir = f"{clim_project_dir}",
@@ -181,7 +181,7 @@ rule monthly_change_scalar_merge:
 rule plot_climate_proj_timeseries:
     message: rule_banner("2.06", "plot_climate_proj_timeseries")
     input:
-        stats_change_summary = (clim_project_dir + "/annual_change_scalar_stats_summary.nc"),
+        stats_change_summary = (clim_project_dir + "/summary/annual_change_scalar_stats_summary.nc"),
         stats_time_nc_hist =[(clim_project_dir + f"/historical_stats_time_{mod}.nc") for mod in models],
         stats_time_nc = expand((clim_project_dir + "/stats_time-{model}_{scenario}.nc"), model = models, scenario = scenarios),
     params:
@@ -193,7 +193,7 @@ rule plot_climate_proj_timeseries:
     output:
         precip_plt = (clim_project_dir + "/plots/precipitation_anomaly_projections_abs.png"),
         temp_plt = (clim_project_dir + "/plots/temperature_anomaly_projections_abs.png"),
-        timeseries_csv = (clim_project_dir + "/gcm_timeseries.nc"),
+        timeseries_csv = (clim_project_dir + "/timeseries/gcm_timeseries.nc"),
     log:
         f"{project_dir}/logs/2.06_plot_climate_proj_timeseries.log",
     benchmark:
@@ -262,7 +262,7 @@ rule gather_change_logs:
 rule gather_benchmarks:
     message: rule_banner("2.10", "gather_benchmarks")
     input:
-        (clim_project_dir + "/annual_change_scalar_stats_summary.nc"),
+        (clim_project_dir + "/summary/annual_change_scalar_stats_summary.nc"),
         (clim_project_dir + "/plots/projected_climate_statistics.png"),
         (clim_project_dir + "/plots/precipitation_anomaly_projections_abs.png"),
     output:

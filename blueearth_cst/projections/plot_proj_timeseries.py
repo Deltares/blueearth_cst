@@ -220,7 +220,10 @@ if __name__ == "__main__":
             ds_all["precip"] = ds_all["precip"].round(decimals=2)
             ds_all["temp"] = ds_all["temp"].round(decimals=2)
             # write to netcdf
-            ds_all.to_netcdf(os.path.join(clim_project_dir, "gcm_timeseries.nc"))
+            # R07 B3: the processed timeseries tier
+            timeseries_dir = os.path.join(clim_project_dir, "timeseries")
+            os.makedirs(timeseries_dir, exist_ok=True)
+            ds_all.to_netcdf(os.path.join(timeseries_dir, "gcm_timeseries.nc"))
 
             # %% Plots
             if not os.path.exists(os.path.join(clim_project_dir, "plots")):

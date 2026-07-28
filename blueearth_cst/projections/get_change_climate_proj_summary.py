@@ -52,7 +52,8 @@ def summary_climate_proj(
 
     Also prepare response surface plot.
 
-    Output in ``clim_dir``:
+    Output under ``clim_dir`` (R07 B3: summary artifacts in ``summary/``,
+    figures in ``plots/``):
     - annual_change_scalar_stats_summary.nc/.csv: all change statistics (netcdf or csv)
     - annual_change_scalar_stats_summary_mean.csv: only mean change
     - plots/projected_climate_statistics.png: surface response plot
@@ -77,20 +78,27 @@ def summary_climate_proj(
         list_files_not_empty, coords="minimal", preprocess=preprocess_coords
     )
     dvars = ds.raster.vars
+    # R07 B3: processed-vs-summary tiering. The three summary artifacts live
+    # under summary/; the figures stay in plots/ (only these three move).
+    summary_dir = os.path.join(clim_dir, "summary")
+    os.makedirs(summary_dir, exist_ok=True)
+
     name_nc_out = f"{prefix}_summary.nc"
     ds.to_netcdf(
-        os.path.join(clim_dir, name_nc_out),
+        os.path.join(summary_dir, name_nc_out),
         encoding={k: {"zlib": True} for k in dvars},
     )
 
     # write as a csv
     ds.to_dataframe().to_csv(
-        os.path.join(clim_dir, "annual_change_scalar_stats_summary.csv")
+        os.path.join(summary_dir, "annual_change_scalar_stats_summary.csv")
     )
 
     # just keep mean for temp and precip for response surface plots
     df = ds.sel(stats="mean").to_dataframe()
-    df.to_csv(os.path.join(clim_dir, "annual_change_scalar_stats_summary_mean.csv"))
+    df.to_csv(
+        os.path.join(summary_dir, "annual_change_scalar_stats_summary_mean.csv")
+    )
 
     # plot change
     if not os.path.exists(os.path.join(clim_dir, "plots")):
