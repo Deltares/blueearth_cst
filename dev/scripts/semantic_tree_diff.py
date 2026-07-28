@@ -232,6 +232,19 @@ def build_r07_path_map(
          "config/generated/wflow_build_forcing_historical.yml"),
         # -- B2: wflow forcing into the engine subtree (commit 8) ------------
         ("climate_historical/wflow_data/", "hydrology_model/forcing/"),
+        # The run_default TOML is a copy of the model TOML placed one level
+        # deeper, but wflow resolves `path_forcing` against the MODEL ROOT, not
+        # against the toml's own directory -- which is why the pointer works at
+        # runtime (proved: the run completes and discharge is bit-identical).
+        # `compare_toml` resolves lexically against the toml's own dir, so for
+        # this one file it produces a FICTIONAL target on both sides: pre-R07
+        # `hydrology_model/climate_historical/wflow_data/...`, post-R07
+        # `hydrology_model/run_default/forcing/...`. Neither exists; they only
+        # matched before because both sides were equally fictional. This rule
+        # keeps the two namespaces aligned so the comparator still catches a
+        # REAL mis-repoint of this pointer instead of failing on the artifact.
+        ("hydrology_model/climate_historical/wflow_data/",
+         "hydrology_model/run_default/forcing/"),
         # -- B10: wf1 figures leave the project-level plots/ tree (commit 12) -
         # Split by DEPICTED subject (P1), so these are per-file, not a prefix.
         ("plots/wflow_model_performance/precip.png",
@@ -760,6 +773,64 @@ def compare_discharge_csv(ref_path: str, cur_path: str) -> list[str]:
     return [] if report.get("ok") else cb._discharge_report_lines(report)
 
 
+def compare_geojson(ref_path: str, cur_path: str, tol: float = DEFAULT_TOLERANCE) -> list[str]:
+    """Compare two GeoJSON files by GEOMETRY, not by bytes.
+
+    `.geojson` previously fell through to `compare_hashed`, which is
+    byte-exact. That is wrong for this format: regenerating an identical
+    model re-serializes the vectors with different coordinate formatting, so
+    a byte hash reports a difference where the geometry is provably the same.
+    Observed at R07 commit 8 -- `staticgeoms/basins.geojson` and
+    `meta_basins_highres.geojson` differed in bytes while `geom_equals` was
+    True, the symmetric-difference area was exactly 0.0, and both carried the
+    same 65 vertices and the same attribute values. The byte hash only ever
+    passed before because the reference tree and the current tree were the
+    same never-regenerated files.
+
+    Compares CRS, row count, non-geometry columns and their values, and then
+    geometry via shapely's `equals` (topological, order-insensitive) with a
+    symmetric-difference-area fallback so a shape difference is reported with
+    its magnitude rather than as an opaque hash mismatch.
+    """
+    try:
+        import geopandas as gpd
+    except ImportError:  # pragma: no cover - geopandas is a hard dep here
+        return compare_hashed(ref_path, cur_path)
+
+    ref = gpd.read_file(ref_path)
+    cur = gpd.read_file(cur_path)
+    out: list[str] = []
+
+    if str(ref.crs) != str(cur.crs):
+        out.append(f"crs: {ref.crs} vs {cur.crs}")
+    if len(ref) != len(cur):
+        out.append(f"feature count: {len(ref)} vs {len(cur)}")
+        return out
+
+    ref_cols = [c for c in ref.columns if c != "geometry"]
+    cur_cols = [c for c in cur.columns if c != "geometry"]
+    if ref_cols != cur_cols:
+        out.append(f"columns: {ref_cols} vs {cur_cols}")
+    else:
+        for col in ref_cols:
+            if not ref[col].equals(cur[col]):
+                out.append(f"column {col!r}: values differ")
+
+    for i, (g_ref, g_cur) in enumerate(zip(ref.geometry, cur.geometry)):
+        if g_ref is None or g_cur is None:
+            if g_ref is not g_cur:
+                out.append(f"feature {i}: one geometry is null")
+            continue
+        if g_ref.equals(g_cur):
+            continue
+        area = g_ref.symmetric_difference(g_cur).area
+        out.append(
+            f"feature {i}: geometry differs "
+            f"(symmetric difference area {area:.6g}; ref area {g_ref.area:.6g})"
+        )
+    return out
+
+
 def compare_hashed(ref_path: str, cur_path: str) -> list[str]:
     """Fallback for unrecognized extensions: normalized-hash (CRLF-stripped) compare."""
     return cb.diff_hashed(cb.fingerprint_csv(ref_path), cb.fingerprint_csv(cur_path))
@@ -806,6 +877,8 @@ def dispatch(
         if name == "output.csv" and "run_default" in rel.parts:
             return compare_discharge_csv(ref_path, cur_path)
         return compare_csv(ref_path, cur_path)
+    if suffix == ".geojson":
+        return compare_geojson(ref_path, cur_path, tol)
     return compare_hashed(ref_path, cur_path)
 
 

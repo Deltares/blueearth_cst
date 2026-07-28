@@ -526,7 +526,7 @@ def test_hm1_integration():
 
 @pytest.mark.skipif(not _fixture_present(), reason=_FIXTURE_ABSENT)
 def test_hm2_integration():
-    path = join(_FIXTURE, "climate_historical", "wflow_data", "inmaps_historical.nc")
+    path = join(_FIXTURE, "hydrology_model", "forcing", "inmaps_historical.nc")
     with _open_ds(path) as ds:
         assert ic.validate_hm2(ds) == []
 

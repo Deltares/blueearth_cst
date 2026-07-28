@@ -71,7 +71,7 @@ Rendered one subsection per artifact.
 
 ## HM-2 — Wflow forcing (inmaps)
 
-- **path pattern:** `climate_historical/wflow_data/inmaps_historical.nc` (wf1
+- **path pattern:** `hydrology_model/forcing/inmaps_historical.nc` (wf1
   forcing); wf3 twin `<exp>/realization_<n>/inmaps_rlz_<n>_cst_<m>.nc` (= WG-6 on
   the weather-generator seam).
 - **producer → consumer:** rule 1.08 `add_forcing` (hydromt update) → rule 1.09
@@ -350,7 +350,7 @@ executes on **every** checkout, fixture or not. HM-2 unit attrs are asserted
 | validator | artifact(s) | fixture path (era5) | continuously verified? |
 |---|---|---|---|
 | `validate_hm1` | HM-1 | `hydrology_model/staticmaps.nc` | **yes** (persists) |
-| `validate_hm2` | HM-2 (+ WG-6 twin) | `climate_historical/wflow_data/inmaps_historical.nc`; wf3 twin `inmaps_rlz_<n>_cst_<m>.nc` | **yes** for wf1 `inmaps_historical.nc`; wf3 twin (WG-6) `temp()` → skip-until-captured |
+| `validate_hm2` | HM-2 (+ WG-6 twin) | `hydrology_model/forcing/inmaps_historical.nc`; wf3 twin `inmaps_rlz_<n>_cst_<m>.nc` | **yes** for wf1 `inmaps_historical.nc`; wf3 twin (WG-6) `temp()` → skip-until-captured |
 | `validate_hm3` | HM-3 | `hydrology_model/staticgeoms/{region.geojson, outlets.geojson, outlet_index.csv}` | **yes** (persists) |
 | `validate_hm4` | HM-4 | `hydrology_model/wflow_sbm.toml`; `<exp>/model_runs/wflow_sbm_rlz_<n>_cst_<m>.toml` | **yes** (both base + per-cst TOMLs persist) |
 | `validate_hm5` | HM-5 | wf1 `run_default/output.csv`; wf3 `<exp>/model_runs/output_rlz_<n>_cst_<m>.csv` | **yes** (both persist; wf3 `output_rlz_*` NOT `temp()`) |

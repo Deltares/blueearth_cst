@@ -576,7 +576,7 @@ Distinct old→new path mappings across §1, §2a, and §2b: **65**.
 | --- | --- | --- |
 | Milestone tip SHA (header) | landing | open |
 | Final MISSING/EXTRA allowlist confirmed against the milestone diff, in `CLEAN: N files compared, …` form | commit 14 | open |
-| Exception 3 outcome — merge comparison pass/fail, and **per-edge coordinate deltas if it fails** | commit 7 (per-slice diff) | open |
+| Exception 3 outcome — merge comparison pass/fail, and **per-edge coordinate deltas if it fails** | commit 7 (per-slice diff) | **CLOSED 2026-07-28 — passed on both sides; see §7b** |
 | Which of §3d's 8 candidates entered `TARGETS` / the manifest | commit 14 | open |
 
 ### 7a. Holding artifacts captured in commit 1 — preserve for the whole milestone
@@ -604,6 +604,56 @@ check's claim, re-proved with a stricter comparator, and it is the precondition
 B1's collapse rests on. It is **not** yet exception 3's proof — that requires the
 post-commit-7 survivor — but a failure here would have falsified B1 before any
 code moved.
+
+### 7b. Exception 3 outcome — CLOSED, no-change branch (commit 7, 2026-07-28)
+
+The bbox derivation change is proven behaviour-neutral on the seed-fixture
+class. **Gate 2 did not fire; the §2e failure branch (a–d) is not invoked.**
+
+| Proof | Result |
+| --- | --- |
+| Delineation bounds vs `staticmaps.nc` raster bounds | **bit-identical**, max edge delta `0.0` on all four edges |
+| Delineation bounds vs pre-R07 `region.geojson` | 3.333e-07 — GeoJSON 6-dp rounding, as predicted |
+| Merge: survivor vs `wf1_raw/extract_historical.nc` | **`merge OK`** (element-wise `compare_nc`) |
+| Merge: survivor vs pre-R07 `<key>/extract_historical.nc` | **`merge OK`** — the side §2e flags as carrying the risk |
+| Discharge anchor, freshly recomputed vs commit-1 capture | **0/7670 timesteps over tolerance; max \|dQ\|/mean = 0** |
+
+The discharge result is stronger than the gate required: commit 7 re-fires
+`create_model`, so `run_default/output.csv` was **regenerated from scratch**
+rather than left untouched, and still compares bit-identical. Exception 3(d)
+("confirm discharge is unmoved") is satisfied by recomputation, not by absence
+of change.
+
+Residual at this slice, both expected: one `FAIL` on
+`hydrology_model/wflow_sbm.toml` `input.path_forcing` — the R07 map already
+expects B2's destination while B2 lands in commit 8, so the *map* is ahead of
+the tree and the current value still equals the reference value — and 73
+MISSING/73 EXTRA, the moves B2/B3/B5/B9/B10 have not made yet.
+
+### 7c. Latent defect found at commit 7 — the wflow TOML is written by five rules and declared by one
+
+**Pre-existing; not an R07 regression; not fixed here.** Recorded because the
+milestone triggered it and the next milestone will too.
+
+`hydrology_model/wflow_sbm.toml` is created by rule 1.03 `create_model` and
+then **updated in place** by later wf1 rules (waterbodies, gauges/outputs,
+forcing, runtime), but only `create_model` declares it as an output. Those
+later rules take `ancient(f"{basin_dir}/staticmaps.nc")`, which suppresses
+exactly the mtime trigger a rebuilt staticmaps would otherwise fire.
+
+Consequence: **any change that re-fires `create_model` alone leaves the TOML
+stripped of every section the later rules added.** Observed live — commit 7
+adds params to rule 1.02 (the design-mandated hydrography cross-check), which
+re-fired 1.02 → 1.03; Snakemake scheduled 7 jobs, none of them the
+TOML-updating chain; the rebuilt TOML lost `[input.forcing]` and
+`[output.csv]`, and rule 1.11 died on `KeyError: 'output'` inside
+hydromt_wflow. A `--forceall` rerun (15/15 steps) restored it.
+
+Same shape as ext2-01's catalog staleness: a gap R07 reveals rather than
+introduces. Out of scope for a behaviour-preserving milestone — the fix is a
+rule-shape change (declare the TOML on every rule that writes it, or make the
+update chain depend on it) — so it is flagged for a follow-up rather than
+folded in here.
 
 ## 8. Judgement calls this map made
 

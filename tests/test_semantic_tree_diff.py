@@ -665,3 +665,63 @@ def test_r07_orography_merge_only_on_the_chirps_branch():
     survivor, sources = chirps[1]
     assert survivor == "climate_historical/k1/orography.nc"
     assert "climate_historical/k1/chirps_orography.nc" in sources
+
+
+# ---------------------------------------------------------------------------
+# R07 commit 8: .geojson is compared by GEOMETRY, not by bytes.
+#
+# `.geojson` fell through to compare_hashed, which is byte-exact. Regenerating
+# an identical model re-serializes the vectors with different coordinate
+# formatting, so the byte hash reported a difference where the geometry was
+# provably the same -- it only ever passed because the reference tree and the
+# current tree were the same never-regenerated files.
+# ---------------------------------------------------------------------------
+
+def _write_geojson(path, coords, value=1):
+    import geopandas as gpd
+    from shapely.geometry import Polygon
+    gpd.GeoDataFrame(
+        {"value": [value]}, geometry=[Polygon(coords)], crs="EPSG:4326"
+    ).to_file(path, driver="GeoJSON")
+
+
+_SQUARE = [(0, 0), (0, 1), (1, 1), (1, 0), (0, 0)]
+
+
+def test_geojson_reserialization_passes(tmp_path):
+    """Same shape, different serialization -> PASS (the commit-8 case)."""
+    a, b = tmp_path / "a.geojson", tmp_path / "b.geojson"
+    _write_geojson(a, _SQUARE)
+    # same polygon, different starting vertex + closing repeat: byte-different,
+    # topologically equal -- exactly what a model rebuild produces.
+    _write_geojson(b, [(1, 1), (1, 0), (0, 0), (0, 1), (1, 1)])
+    assert a.read_bytes() != b.read_bytes(), "fixture must differ in bytes"
+    assert std.compare_geojson(str(a), str(b)) == []
+
+
+def test_geojson_real_shape_change_fails_with_magnitude(tmp_path):
+    """A genuine geometry change still fails -- and reports how much."""
+    a, b = tmp_path / "a.geojson", tmp_path / "b.geojson"
+    _write_geojson(a, _SQUARE)
+    _write_geojson(b, [(0, 0), (0, 2), (1, 2), (1, 0), (0, 0)])
+    reasons = std.compare_geojson(str(a), str(b))
+    assert reasons and "geometry differs" in reasons[0]
+    assert "symmetric difference area 1" in reasons[0], reasons
+
+
+def test_geojson_attribute_change_fails(tmp_path):
+    """Geometry alone is not the contract -- attributes are compared too."""
+    a, b = tmp_path / "a.geojson", tmp_path / "b.geojson"
+    _write_geojson(a, _SQUARE, value=1)
+    _write_geojson(b, _SQUARE, value=99)
+    reasons = std.compare_geojson(str(a), str(b))
+    assert any("value" in r for r in reasons), reasons
+
+
+def test_geojson_dispatches_by_suffix(tmp_path):
+    """dispatch() routes .geojson to the semantic comparator, not the hash."""
+    from pathlib import Path as _P
+    a, b = tmp_path / "a.geojson", tmp_path / "b.geojson"
+    _write_geojson(a, _SQUARE)
+    _write_geojson(b, [(1, 1), (1, 0), (0, 0), (0, 1), (1, 1)])
+    assert std.dispatch(_P("staticgeoms/a.geojson"), str(a), str(b), 0.0) == []

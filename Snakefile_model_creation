@@ -230,7 +230,7 @@ rule add_forcing:
     input:
         forcing_ini = f"{project_dir}/config/wflow_build_forcing_historical.yml"
     output:
-        forcing_path = f"{project_dir}/climate_historical/wflow_data/inmaps_historical.nc"
+        forcing_path = f"{basin_dir}/forcing/inmaps_historical.nc"
     log:
         f"{project_dir}/logs/1.08_add_forcing.log",
     benchmark:
@@ -242,7 +242,7 @@ rule add_forcing:
 rule run_wflow:
     message: rule_banner("1.09", "run_wflow")
     input:
-        forcing_path = f"{project_dir}/climate_historical/wflow_data/inmaps_historical.nc"
+        forcing_path = f"{basin_dir}/forcing/inmaps_historical.nc"
     output:
         csv_path = f"{basin_dir}/run_default/output.csv"
     params:
@@ -332,7 +332,7 @@ rule plot_map:
 rule plot_forcing:
     message: rule_banner("1.13", "plot_forcing")
     input:
-        forcing_path = f"{project_dir}/climate_historical/wflow_data/inmaps_historical.nc",
+        forcing_path = f"{basin_dir}/forcing/inmaps_historical.nc",
     output:
         output_forcing_map = f"{project_dir}/plots/wflow_model_performance/precip.png",
     params:
