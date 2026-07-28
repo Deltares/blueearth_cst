@@ -169,8 +169,9 @@ The rewritten keys (old flat → new binned path), applied in the workflow confi
 included above. This table is kept **in lockstep** with
 `dev/scripts/semantic_tree_diff.py`'s `COPIED_CONFIG_PATH_MAP` (same four keys, same
 old→new values) — that map is what the run-relative baseline and full-tree diffs use
-to normalize the copied-config snapshots. Also mirrored (path-only) in the stale
-`docs/config/` example copies.
+to normalize the copied-config snapshots. (The stale `docs/config/` mirror that
+also carried these paths was deleted in R07 / O-05 — `config/` is now the single
+source.)
 
 Snakefile changes tied to the config split: the `static_dir`-based template default
 expressions gained `/templates/` (`static_dir` itself stays `config`); the
