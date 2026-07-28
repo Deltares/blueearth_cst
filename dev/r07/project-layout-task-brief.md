@@ -19,7 +19,7 @@ Constraints bind this task.
   preservation stance", exceptions 1–3). Non-seed divergence is the GA-1-accepted
   derivation change, not a regression. Inventory: `check_baseline.TARGETS` holds
   **15 live templates** (the 18-row manifest carries 3 orphans); all 15 change
-  manifest key, 14 also change path, 3 change content. **One re-record, at the
+  manifest key, 10 also change path, 3 change content. **One re-record, at the
   end.**
 - **`check_baseline check` is red by construction from commit 4 to commit 14.**
   This is expected, not a regression signal — say so in those commit messages.

@@ -10,10 +10,18 @@ minor) followed by two external cross-vendor rounds (7 findings, then 3). The
 external round cap of 2 was exhausted with round 2 unconverged, so the owner
 arbitrated its three surviving findings **accepted, fix required**, and those
 rulings stand in place of the reviewer verdict the cap forecloses.
-**The final version's changes therefore carry no external reviewer verdict** —
-their legitimacy rests on the arbitration record. The full audit trail — verdict
-table, the internal panel's aggregated index, both external rounds verbatim, the
-44-row finding ledger, and every gate and arbitration ruling — is
+The arbitration revision's changes therefore carried **no external reviewer
+verdict** when this document was accepted. **A post-acceptance verification pass
+has since closed that gap** (2026-07-28): an external reviewer confirmed two of
+the three arbitrated fixes resolved and both post-acceptance editorial
+corrections correct, found the third fix sound but under-specified, and returned
+four findings — all accepted and folded in, see the revision log. That pass was
+**not** a further review round; the cap stands and its findings were owner
+rulings, not automatic rework.
+
+The full audit trail — verdict table, the internal panel's aggregated index, both
+external rounds verbatim, the 44-row finding ledger, the verification pass, and
+every gate and arbitration ruling — is
 `dev/r07/project-layout-design-review-record.md`. The framing the run was
 approved against is `dev/r07/project-layout-intake.md`.
 
@@ -373,9 +381,18 @@ specification + catalog, declared in both `Snakefile_model_creation` and
   in the verification plan, which parses both workflows and compares the full
   normalized contract: rule name, script, input set, output paths, params,
   **and — per the arbitrated ext2-02 fix — every content- or
-  execution-affecting directive**: `conda`, `container`, `envmodules`,
-  `wrapper`/`notebook`, `shadow`, `threads`, `resources`, `priority`,
-  `retries`, `group`, `cache`, `wildcard_constraints`. The allowed-local set is
+  execution-affecting directive**: `conda`, `container`, `containerized`,
+  `envmodules`, `wrapper`/`notebook`, `shadow`, `threads`, `resources`,
+  `priority`, `retries`, `group`, `cache`, `wildcard_constraints`, `handover`,
+  `localrule`, `default_target`, `template_engine`, `cwl`. *The last six were
+  added 2026-07-28 (pv-3): they exist in the pinned Snakemake 9.6.2 grammar and
+  were missing from the enumeration, so the "every directive" claim was
+  unsubstantiated. The deny-by-default rule below would have caught a symmetric
+  use of one of them — but by **failing** it rather than normalizing and
+  comparing it, which is a false red on legitimate use.* Build the universe
+  against `RuleInfo`'s field set and the effective workflow-level rule state
+  rather than from this list alone, so the enumeration is a check on the
+  derivation and not its source. The allowed-local set is
   **deny-by-default**: exactly `message:`, `log:`, and `benchmark:` may differ
   — none content-determining, none participating in any rerun trigger
   (Snakemake records the log list but compares only code, input, params, mtime,
@@ -1018,7 +1035,7 @@ pipeline-preparation step (O-23's invocation-model taxonomy), the logic in
 | Output-tree moves (B2–B10) | All three Snakefiles `--dry-run` clean; `pytest tests/` green; a full three-workflow run on the seed config completes. | `semantic_tree_diff.py` full-`project_dir` pre/post comparison with the R07 path map + merge class: **MISSING/EXTRA empty modulo a written allowlist**, every value identical. Run **per slice** after each of commits 7, 8, 11, 12 — not once at the end. |
 | Climate plot producer (B4) | New figures produced from `<key>/extract_historical.nc` + the catalog with **no `hydrology_model/` and no `config/templates/wflow_build_model.yml` present** — the P4 assertion, now covering the template decoupling ext1-01 demanded (the store producer reads `shared.basin` + catalog only). Existing forcing figures unchanged. | Additive; no existing target changes value. `store_region.geojson` and the three `source_*.png` are allowlisted EXTRA-by-design. |
 | Declaration fixes (O-24) | `snakemake --delete-all-output` removes `temp.png` / `pet.png` / `clim_wflow_1_*` / `performance_metrics.csv`, which it cannot do today — claimed for the **seed-config class** only (repo-10). | Newly-declared targets are added to the manifest in the single re-record. |
-| Baseline re-record (commit 14) | — | One re-record at the end; the diff against the pre-R07 manifest is path-and-snapshot-only **plus three stated orphan deletions**, adjudicated by the normalize-then-compare policy R6 established (`ext2-01`). Conditional on exception 3 landing on the no-change branch; otherwise the branch above rewrites this row. |
+| Baseline re-record (commit 14) | — | One re-record at the end. The diff against the pre-R07 manifest has **four expected classes, all of which must be present and none other**: (a) path changes, (b) snapshot content changes, (c) the three stated orphan deletions, and (d) **additions for the newly-declared targets** — the O-24 declarations and B4's figures, per the row above. Adjudicated by the normalize-then-compare policy R6 established (`ext2-01`). *Class (d) added 2026-07-28 (pv-2): this row previously asserted "path-and-snapshot-only plus three deletions" while the declaration-fixes row required the new targets to be added — the two could not both hold, so an implementer would have had to either fail the exit assertion or leave the newly-declared outputs without the baseline coverage O-24 exists to give them.* The **exact** membership stays an implementation decision at commit 14, as `dev/r07/migration_project-layout.md` §3d plans: it enumerates 8 candidates and flags the rule-declaration-vs-rule-`all`-membership discrimination as unresolved. Commit 14 resolves it, records the resulting list, and the adjudication checks the diff against that list rather than against a count fixed here. Conditional on exception 3 landing on the no-change branch; otherwise the branch above rewrites this row. |
 
 **The discharge anchor (repo-3).** Because O-20 changes the manifest key *and* the
 `sha1(resolved_path)[:16]` sidecar name, `record` would regenerate the reference
@@ -1144,11 +1161,22 @@ manifest is untouched until commit 14, abandoning mid-flight means reverting
 the landed `r07:` commits, after which the pre-R07 manifest is valid against
 the reverted tree — no re-record needed in either direction.
 
-Drive-by fixes accepted into this milestone but independent of it, to be landed as
-their own small commits: O-07 (`prepare_cst_parameters.py` sys.path depth), O-09
-(`plot_results.py` separator docstring), O-10 (`MIGRATION.md` `__init__.py` list).
+Drive-by fixes accepted into this milestone but independent of it. Each rides in
+the numbered commit whose files it already touches, so **the plan stays exactly 15
+commits** (corrected 2026-07-28, pv-1 — this paragraph previously said "their own
+small commits" while assigning none, which read literally gives 18 commits and
+read against the numbered plan silently drops three accepted fixes):
+
+| Drive-by | Rides in | Why there |
+|---|---|---|
+| O-07 (`prepare_cst_parameters.py` sys.path depth) | **commit 11** | that commit already restructures the experiment (B5/B6/B7) and touches this module's tree |
+| O-09 (`plot_results.py` separator docstring) | **commit 12** | that commit already edits `plot_results.py` for B10 + O-24 |
+| O-10 (`MIGRATION.md` `__init__.py` list) | **commit 15** | the docs commit, which already moves `MIGRATION.md` to `docs/migration-r06.md` |
+
 **O-08 is no longer a drive-by** — it is the real sentinel defect and rides in
-commit 12.
+commit 12. **O-13** (`blueearth_cst.Rproj` deletion, ruled at G1) likewise had no
+assigned commit; it rides in **commit 15** with the other documentation and
+repository-hygiene changes.
 
 ## Alternatives considered
 
@@ -1393,6 +1421,7 @@ by making the store model-free.
 
 | Date | Change |
 |---|---|
+| 2026-07-28 | **Owner-ruled corrections after a post-acceptance verification pass.** The owner commissioned an external pass (recorded in `dev/r07/project-layout-design-review-record.md` § Post-acceptance verification pass) specifically to close the audit gap the round cap created — the arbitration revision's changes had never been externally verified. **That gap is now closed in substance:** ext2-01 and ext2-03 were confirmed resolved, and both editorial corrections below were confirmed correct, the reviewer independently deriving the same ten within-tree movers. The pass also returned four findings, all accepted and fixed here. Logged as **owner-ruled, not editorial**, because two touch the commit plan and the exit gate. **pv-1** (major): the plan required exactly 15 commits while directing three drive-bys (O-07, O-09, O-10) into "their own small commits" and assigning none — read literally, 18 commits; read against the numbers, three accepted fixes silently dropped. Each is now assigned to the numbered commit whose files it already touches (11 / 12 / 15), and O-13 — ruled at G1 but likewise unassigned — rides in commit 15. **pv-2** (major): the declaration-fixes row required newly-declared targets in the manifest while the commit-14 row asserted a "path-and-snapshot-only plus three deletions" diff; both could not hold, so the implementer would have had to fail the exit assertion or leave O-24's new declarations without baseline coverage. The commit-14 diff now has four expected classes including additions, with exact membership resolved at commit 14 as the migration map already plans. **pv-3** (minor): six directives present in the pinned Snakemake 9.6.2 grammar (`containerized`, `handover`, `localrule`, `default_target`, `template_engine`, `cwl`) were missing from the "every directive" enumeration; added, and the universe is now to be derived from `RuleInfo` rather than from the list. **pv-4** (minor): the 14 → 10 correction had not propagated to the task brief and the migration map's note read present-tense; both fixed, so design, map, and brief agree. |
 | 2026-07-28 | **Editorial corrections after acceptance**, applied at stage 7 under the owner's G2 authority and logged here. Two internal inconsistencies, both surfaced by regenerating the derived artifacts from this document rather than by any review round — neither the internal panel nor either external round caught them. **(a)** § "Behaviour-preservation stance": the within-tree mover count corrected **14 → 10**; 14 presupposed two facts the resolution of arch-10 had already corrected elsewhere in this document, and `dev/r07/migration_project-layout.md` §3a — which `check_baseline.TARGETS` is rewritten from — is authoritative. **(b)** § "Verification plan", O-22 row: the CI assertion was pinned to absolute counts (386/30/1, 385/31/1) in the same row that adds four tests, making it unsatisfiable; restated as the invariant **zero failures, no new skips** against a pre-R07 reference. Neither correction changes a decision, interface, stage, or contract — both bring arithmetic into line with decisions the document had already made. |
 | 2026-07-26 | Initial draft. Consolidates the repository-side observation register (O-01 … O-24) and the artifact-side working note into one milestone design. Sixteen owner rulings incorporated; P3 rewritten after the owner's challenge to the first-draft "upstream-governed" claim; §9 bbox recommendation reversed after the P4 ruling; `stress_test/` provenance argument withdrawn on evidence from `Qstats.csv`. |
 | 2026-07-28 | **Revision r2** against external round 1 (7 findings, all accepted; `dev/r07/project-layout-design-review-record.md` § Finding ledger ext1-01 … ext1-07). **B1's producer decoupled from the build template** (ext1-01): the delineation datasets move to two new optional `shared.basin` keys (`hydrography`, `basin_index`; catalog entry names, defaults = the shipped template's values), `build_config` leaves the spec signature, agreement with the build is enforced by a loud cross-check in rule 1.02's merge script, and cross-workflow agreement rides the existing `shared.basin` guard digest — arch-1's template pin is recorded as a rejected alternative. **The `ancient(guard_ok)` mechanism corrected** (ext1-02, verified against the pinned Snakemake 9.6.2 source: `persistence._input()` keeps ancient files in the recorded input set, so `ancient()` suppresses only mtime-triggering): the producer now has **no inputs in either DAG**, P2(b) is tightened to forbid per-workflow edge asymmetry, wf3's guard edge is removed, store integrity moves to the params trigger, and experiment gating is shown already enforced by the per-experiment sentinel chain; `.guard_ok` stays as the guard's store-level receipt. **The spec becomes a complete producer contract** (ext1-04): script, rule name, empty input set, outputs, params — with a full-contract equality test replacing the paths-and-params check. **Claim 1 scoped to the baseline fixture class** (ext1-03), shown lossless under GA-2, with non-seed divergence classified as the GA-1-accepted derivation change. **The Linux entry path gets an explicit support decision** (ext1-05): Linux config observations → `None`, Docker runner mounts retargeted, Linux-config dry-run added to `test_cli.py`/CI; validation stays parked. **Commit 6 demoted from safe cut to pause point** (ext1-06; the interim-re-record horn rejected against the re-record-once constraint) and the revert-based abandonment path stated. **Contract inventory completed** (ext1-07): B3, B4 (rule 1.15 `plot_climate_source`, named producer), and B8 (helper + `scripts/` CLI with a pinned invocation contract) gain rows; B7's tests cell corrected. Seven alternatives added. |

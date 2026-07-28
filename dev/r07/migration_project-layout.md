@@ -380,11 +380,12 @@ change, which applies to **all** of them.
 **Derived counts: 15 live targets; 15 change manifest key; 10 move within the
 tree; 3 change content (the config snapshots); 5 prefix-only.**
 
-> The design's prose says "14 of them also changing path within the tree". That
-> count is not reconstructible from `TARGETS` and appears to be residue from a
-> draft in which the three wf2 PNGs moved; B3/arch-10 fixes them in place. The
-> per-target derivation above gives **10**, and `check_baseline.TARGETS` must be
-> written from this table, not from the "14".
+> *Resolved 2026-07-28.* The design's prose said "14 of them also changing path
+> within the tree" — residue from a draft in which the three wf2 PNGs moved, which
+> B3/arch-10 fixes in place. That count was never reconstructible from `TARGETS`.
+> The design was corrected to **10** on 2026-07-28, and the post-acceptance
+> verification pass independently derived the same ten. Design, map, and task brief
+> now agree; `check_baseline.TARGETS` is written from the table above.
 
 ### 3b. Three stale rows — expected deletions at the re-record
 
@@ -591,8 +592,13 @@ Recorded so a reader can see where the accepted design underdetermined the map.
    `dev/r06/structural-refactor-design.md`.
 3. **Manifest additions at the re-record** — 8 candidates enumerated in §3d, with
    the rule-`all`-vs-rule-declaration ambiguity flagged rather than resolved.
-4. **"14 within-tree movers" superseded by 10** (§3a), derived per-target from
-   `check_baseline.TARGETS`.
+4. **Within-tree movers: 10**, derived per-target from `check_baseline.TARGETS`
+   (§3a). This map's 10 originally superseded a "14" in the design prose; that
+   figure was corrected to 10 in the design on 2026-07-28 (editorial) and
+   independently confirmed by the post-acceptance verification pass, which
+   enumerated the same ten — three wf1 plots, two project-level config snapshots,
+   three wf2 summaries, two wf3 indicators. Design, map, and task brief now agree;
+   this entry is historical.
 5. **Run-TOML `input.path_forcing`** is written as `../forcing/inmaps_cst_<c>.nc`
    in §2c — the depth-consistent form for
    `hydrology_runs/rlz_<r>/config/` → `hydrology_runs/rlz_<r>/forcing/`. The

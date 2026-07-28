@@ -1857,3 +1857,70 @@ shared-rule route, as required — the route survives; its contract is repaired.
 `blueearth_cst/model/get_region_preview.py` raises `ModuleNotFoundError` on
 import under hydromt 1.3.1 (`hydromt.cli.api` was removed in hydromt 1.x), has no
 rule, no test, and no other module referencing it. It is retired in commit 7.
+
+
+---
+
+# Post-acceptance verification pass — 2026-07-28
+
+*Dispatched after acceptance, at the owner's request, to close the audit gap the
+round cap created: the accepted version's final changes were made under owner
+arbitration and no external reviewer had verified them. **Not external round 3** —
+the cap stands; this pass had no author waiting to revise and its findings are
+owner decisions, not automatic rework.*
+
+*Reviewer: the same headless `codex exec` (`gpt-5.6-sol`) that ran rounds 1 and 2,
+read-only sandbox. Scoped to three priorities: verify the three arbitrated fixes,
+check the two post-acceptance editorial corrections nobody had reviewed, and make
+a fresh pass for the failure mode that produced those corrections — counts and
+inventories that do not reconcile.*
+
+**Outcome.** The arbitration delta is substantially verified: ext2-01 and ext2-03
+confirmed resolved, and both editorial corrections confirmed correct (the reviewer
+independently enumerated the same ten within-tree movers). ext2-02's fix is sound
+in principle but its enumerated directive universe is incomplete (pv-3). Two new
+`major` findings surfaced — a commit-count contradiction (pv-1) and a manifest
+inventory contradiction (pv-2) — both of the same class as the defects that
+survived the full loop, and neither previously raised by any round.
+
+**Disposition of pv-4:** accepted and fixed immediately — the 14 → 10 editorial
+correction had not been propagated to `project-layout-task-brief.md`, and this
+map's note read present-tense. Both corrected 2026-07-28; design, map, and task
+brief now agree.
+
+## Verdict
+verdict: revise
+doc_version: dev/r07/project-layout-design.md (accepted 2026-07-28)
+
+## Arbitration-delta verification
+- ext2-01: verified resolved. Both workflows resolve the same `project.data_sources` path, and identical plain inputs cannot reproduce the prior input-set oscillation. The catalog-file freshness boundary is coherent and explicitly excludes unchanged backing data.
+- ext2-02: defective — see pv-3. Deny-by-default is sound in principle, but the stated pinned-Snakemake directive universe is incomplete.
+- ext2-03: verified resolved. Commit 1 leaves `check_baseline.py` untouched; commit 4 solely and atomically owns its retarget with the fixture rename. Nothing else in commits 1–3 starts the blackout.
+- editorial 14->10: correct. The 10 movers are three wf1 plots, two project-level config snapshots, three wf2 summaries, and two wf3 indicators.
+- editorial CI invariant: correct. Added tests invalidate fixed pass counts; zero failures plus comparison of skip counts/reasons against the `-rs` pre-R07 reference is checkable on both CI legs.
+
+## Findings
+
+### pv-1  [major]
+- section: Commit plan
+- finding: The plan requires exactly 15 commits, but after enumerating commits 1–15 it says O-07, O-09, and O-10 must be landed as “their own small commits.” None is assigned to an enumerated commit.
+- rationale: The implementation cannot simultaneously preserve the settled 15-commit framing and give all three drive-bys separate commits. Following the prose literally produces 18 commits; following the numbered plan silently omits the accepted fixes.
+- suggested_fix: Assign O-07 to commit 11, O-09 to commit 12, and O-10 to commit 15, or explicitly defer them; remove the “own small commits” instruction.
+
+### pv-2  [major]
+- section: Verification plan
+- finding: The declaration-fixes row requires newly declared targets to be added to the manifest, while the commit-14 row says the manifest diff is “path-and-snapshot-only plus three stated orphan deletions.” These cannot both hold. The migration map exposes the unresolved scope: five O-24 outputs and three B4 figures are still only “candidates,” with `TARGETS` membership left to implementation.
+- rationale: If the new rows are added, the stated commit-14 diff assertion fails; if they are omitted, the newly declared outputs receive no promised baseline coverage. The implementer also lacks an exact post-R07 `TARGETS` inventory.
+- suggested_fix: Specify the exact new `TARGETS` and manifest rows, then amend the commit-14 expected diff to include those additions alongside path changes, snapshot-content changes, and the three deletions.
+
+### pv-3  [minor]
+- section: The substantive moves
+- finding: Snakemake 9.6.2’s rule grammar includes execution-affecting directives absent from the claimed complete universe: `containerized`, `handover`, `localrule`, `default_target`, `template_engine`, and `cwl`. The generic unknown-non-default rejection still prevents silent asymmetry if implemented exactly as stated, but these fields would be forbidden rather than normalized and compared.
+- rationale: A legitimate symmetric use of one of these pinned directives would fail the contract test, and an implementation derived only from the enumerated fields could miss it. The document therefore does not substantiate its “every directive” claim.
+- suggested_fix: Extend the normalized universe to the omitted pinned directives and define unknown detection against `RuleInfo` defaults plus effective workflow-level rule state.
+
+### pv-4  [minor]
+- section: Behaviour-preservation stance and baseline consequence
+- finding: The corrected value 10 was not propagated to the implementation handoff: `project-layout-task-brief.md` still says 14 within-tree movers. The supposedly authoritative migration map also still says the design prose reports 14.
+- rationale: An implementer using the committed task brief receives contradictory inventory totals and may report or validate against the superseded count.
+- suggested_fix: Change the task brief’s 14 to 10 and rewrite the migration-map note as historical rather than present-tense.
