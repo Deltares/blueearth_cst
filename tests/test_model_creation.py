@@ -23,6 +23,6 @@ def test_copy_config(project_dir, data_sources, model_build_config):
     )
 
     # Check if config files are copied to project_dir/config folder
-    assert os.path.exists(f"{project_dir}/config/snake_config_model_creation.yml")
+    assert os.path.exists(f"{project_dir}/config/runs/snake_config_model_creation.yml")
     assert os.path.exists(f"{project_dir}/config/wflow_build_model.yml")
     assert os.path.exists(f"{project_dir}/config/tests_data_catalog.yml")

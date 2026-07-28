@@ -51,7 +51,7 @@ def config_with_staged_region(tmp_path):
 
     Since P3-1 commit 1, climate_experiment's drift guard (rule
     check_project_consistency) additionally declares the wf1 config snapshot
-    `{project_dir}/config/snake_config_model_creation.yml` as a mandatory
+    `{project_dir}/config/runs/snake_config_model_creation.yml` as a mandatory
     `ancient(...)` input — the same class of cross-workflow contract, staged
     the same way. The staged snapshot is serialized from the SAME parsed
     config the dry-run consumes, so the guard's comparands match by
@@ -65,7 +65,7 @@ def config_with_staged_region(tmp_path):
     region.parent.mkdir(parents=True)
     region.write_text(_MINIMAL_REGION_GEOJSON, encoding="utf-8")
 
-    wf1_snapshot = tmp_path / "config" / "snake_config_model_creation.yml"
+    wf1_snapshot = tmp_path / "config" / "runs" / "snake_config_model_creation.yml"
     wf1_snapshot.parent.mkdir(parents=True)
     wf1_snapshot.write_text(yaml.safe_dump(cfg), encoding="utf-8")
 

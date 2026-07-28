@@ -97,7 +97,7 @@ rule all:
         f"{project_dir}/plots/wflow_model_performance/hydro_wflow_1.png",
         f"{project_dir}/plots/wflow_model_performance/basin_area.png",
         f"{project_dir}/plots/wflow_model_performance/precip.png",
-        f"{project_dir}/config/snake_config_model_creation.yml",
+        f"{project_dir}/config/runs/snake_config_model_creation.yml",
         f"{basin_dir}/staticgeoms/outlet_index.csv",
         f"{project_dir}/benchmarks/wf1_benchmarks.md",
 
@@ -111,8 +111,9 @@ rule copy_config:
     params:
         data_catalogs = DATA_SOURCES,
         workflow_name = "model_creation",
+        config_dir = f"{project_dir}/config",
     output:
-        config_snake_out = f"{project_dir}/config/snake_config_model_creation.yml",
+        config_snake_out = f"{project_dir}/config/runs/snake_config_model_creation.yml",
     script:
         "blueearth_cst/model/copy_config_files.py"
 
@@ -123,7 +124,7 @@ rule prepare_build_config:
     input:
         template = model_build_config,
     output:
-        merged = f"{project_dir}/config/wflow_build_model_run.yml",
+        merged = f"{project_dir}/config/generated/wflow_build_model_run.yml",
     params:
         model_resolution = model_resolution,
         model_region = model_region,
@@ -145,7 +146,7 @@ rule prepare_build_config:
 rule create_model:
     message: rule_banner("1.03", "create_model")
     input:
-        hydromt_ini = f"{project_dir}/config/wflow_build_model_run.yml",
+        hydromt_ini = f"{project_dir}/config/generated/wflow_build_model_run.yml",
     output:
         basin_nc = f"{basin_dir}/staticmaps.nc",
     log:
@@ -212,7 +213,7 @@ rule setup_runtime:
     input:
         gauges_path = f"{basin_dir}/staticgeoms/outlets.geojson"
     output:
-        forcing_yml = f"{project_dir}/config/wflow_build_forcing_historical.yml"
+        forcing_yml = f"{project_dir}/config/generated/wflow_build_forcing_historical.yml"
     params:
         starttime = get_config(shared_cfg["historical_window"], "starttime", optional=False),
         endtime = get_config(shared_cfg["historical_window"], "endtime", optional=False),
@@ -228,7 +229,7 @@ rule setup_runtime:
 rule add_forcing:
     message: rule_banner("1.08", "add_forcing")
     input:
-        forcing_ini = f"{project_dir}/config/wflow_build_forcing_historical.yml"
+        forcing_ini = f"{project_dir}/config/generated/wflow_build_forcing_historical.yml"
     output:
         forcing_path = f"{basin_dir}/forcing/inmaps_historical.nc"
     log:

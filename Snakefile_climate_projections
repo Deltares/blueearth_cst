@@ -59,7 +59,7 @@ rule all:
         stats_change_plt = (clim_project_dir + "/plots/projected_climate_statistics.png"),
         precip_plt = (clim_project_dir + "/plots/precipitation_anomaly_projections_abs.png"),
         temp_plt = (clim_project_dir + "/plots/temperature_anomaly_projections_abs.png"),
-        snake_config = f"{project_dir}/config/snake_config_climate_projections.yml",
+        snake_config = f"{project_dir}/config/runs/snake_config_climate_projections.yml",
         # one merged log per fan-out rule (gathered from the per-model _parts logs)
         stats_hist_log = f"{project_dir}/logs/2.02_monthly_stats_hist.log",
         stats_fut_log = f"{project_dir}/logs/2.03_monthly_stats_fut.log",
@@ -80,8 +80,9 @@ rule copy_config:
     params:
         data_catalogs = DATA_SOURCES,
         workflow_name = "climate_projections",
+        config_dir = f"{project_dir}/config",
     output:
-        config_snake_out = f"{project_dir}/config/snake_config_climate_projections.yml",
+        config_snake_out = f"{project_dir}/config/runs/snake_config_climate_projections.yml",
     script:
         "blueearth_cst/model/copy_config_files.py"
 

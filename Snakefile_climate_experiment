@@ -143,7 +143,7 @@ guarded_sections_digest = hashlib.sha256(
 # snapshot-only content change re-trigger the guard despite ancient() (§3c
 # case (b)), while keeping a fresh project parse/--dry-run/--unlock clean
 # (ext2-2).
-wf1_snapshot_path = f"{project_dir}/config/snake_config_model_creation.yml"
+wf1_snapshot_path = f"{project_dir}/config/runs/snake_config_model_creation.yml"
 wf2_snapshot_path = f"{project_dir}/config/snake_config_climate_projections.yml"
 wf1_snapshot_digest = file_digest_or_absent(wf1_snapshot_path)
 wf2_snapshot_digest = file_digest_or_absent(wf2_snapshot_path)
@@ -204,6 +204,9 @@ rule copy_config:
     params:
         data_catalogs = DATA_SOURCES,
         workflow_name = "climate_experiment",
+        # arch-10: the wf3 snapshot does NOT join config/runs/ -- it stays
+        # inside the experiment. Only its CONTENT changes.
+        config_dir = f"{exp_dir}/config",
     output:
         config_snake_out = f"{exp_dir}/config/snake_config_climate_experiment.yml",
     script:
