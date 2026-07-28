@@ -806,7 +806,7 @@ the same day (`semantic_tree_diff` exclusions — stale; dead
 
 ---
 
-## Phase 4 — Layout consolidation (in design)
+## Phase 4 — Layout consolidation (design accepted, awaiting implementation)
 
 Opened 2026-07-26 out of the owner's post-R6 assessment. Phase 2 (R6) settled
 the *repository* layout and Phase 3 (P3-1) settled the *experiment* layout;
