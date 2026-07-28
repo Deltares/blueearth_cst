@@ -15,8 +15,10 @@ import subprocess
 import sys
 import threading
 import time
+import warnings
 from collections.abc import Mapping
 from datetime import datetime
+from pathlib import Path
 
 
 # hydromt formats every log record as
@@ -176,6 +178,66 @@ def file_digest_or_absent(path) -> str:
             return hashlib.sha256(f.read()).hexdigest()
     except OSError:
         return "ABSENT"
+
+
+# Directory names under the repository root that are EXEMPT from the
+# in-repo project_dir warning. Only the tracked test fixture: the baseline seed
+# config is version-controlled and a tracked config cannot carry a
+# machine-specific absolute path (design § "Two-tier project_dir rule").
+_PROJECT_DIR_EXEMPT_NAMES = frozenset({"test_case"})
+
+
+def warn_if_project_dir_in_repo(project_dir, repo_root) -> bool:
+    """Warn when ``project_dir`` resolves inside the repository tree.
+
+    Makes the two-tier rule mechanical instead of documentary: production runs
+    write outside the toolbox source, and the one exemption is the in-repo
+    ``test_case/`` fixture. Called at parse time from all three Snakefiles with
+    ``workflow.basedir`` as ``repo_root``.
+
+    Warns; never raises. An in-repo project_dir is a smell, not an error --
+    raising would break the fixture-driven baseline gate and anyone who
+    deliberately keeps a scratch run inside a checkout.
+
+    ``repo_root`` is a parameter rather than derived from ``__file__``:
+    deriving it inside the module silently breaks if the package is ever
+    installed rather than imported from the checkout, and an absolute constant
+    is not portable across machines. The call sites already hold the value.
+
+    Returns True when a warning was emitted, so callers and tests can assert on
+    the decision rather than on captured output.
+    """
+    try:
+        pd_resolved = Path(project_dir).expanduser().resolve()
+        root_resolved = Path(repo_root).expanduser().resolve()
+    except (OSError, ValueError):  # unresolvable path: nothing to warn about
+        return False
+
+    # commonpath, not startswith: "test_caseX" must not read as inside
+    # "test_case", and str-prefix comparisons get that wrong.
+    try:
+        inside = os.path.commonpath([pd_resolved, root_resolved]) == str(
+            root_resolved
+        )
+    except ValueError:  # different drives on Windows -> definitively outside
+        return False
+    if not inside:
+        return False
+
+    rel = pd_resolved.relative_to(root_resolved)
+    if rel.parts and rel.parts[0] in _PROJECT_DIR_EXEMPT_NAMES:
+        return False
+
+    warnings.warn(
+        f"project_dir resolves inside the repository tree "
+        f"({rel.as_posix()!r} under {root_resolved}). Generated model and "
+        f"result artifacts should be written OUTSIDE the toolbox source; set "
+        f"project_dir to an absolute path elsewhere. Exempt: "
+        f"{'/'.join(sorted(_PROJECT_DIR_EXEMPT_NAMES))}/.",
+        UserWarning,
+        stacklevel=2,
+    )
+    return True
 
 
 _EXPERIMENT_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_]*$")

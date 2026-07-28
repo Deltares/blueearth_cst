@@ -94,6 +94,52 @@ def test_snakefile_cli_model_creation_linux_config():
     assert result.returncode == 0, (result.stdout or "") + (result.stderr or "")
 
 
+def test_in_repo_project_dir_warning_reaches_the_stream(tmp_path):
+    """O-22 end to end: the parse-time warning is actually surfaced.
+
+    The unit cases in test_snake_utils.py pin the decision; this pins that a
+    real `snakemake` invocation shows it, which is the only thing a user sees.
+    project_dir points at an in-repo scratch dir (NOT test_case/, the one
+    exemption), so the warning must fire -- and the run must still succeed,
+    because O-22 warns and never raises.
+    """
+    scratch = Path(SNAKEDIR, "_o22_probe_project")
+    scratch.mkdir(exist_ok=True)
+    try:
+        with open(config_fn) as f:
+            cfg = yaml.safe_load(f)
+        cfg["project"]["project_dir"] = "_o22_probe_project"
+        cfg_path = tmp_path / "snake_config_in_repo.yml"
+        cfg_path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+
+        result = _dry_run("Snakefile_model_creation", cfg=str(cfg_path))
+        combined = (result.stdout or "") + (result.stderr or "")
+        assert "inside the repository tree" in combined, combined[-3000:]
+        assert result.returncode == 0, combined[-3000:]
+    finally:
+        for leftover in sorted(scratch.rglob("*"), reverse=True):
+            leftover.unlink() if leftover.is_file() else leftover.rmdir()
+        scratch.rmdir()
+
+
+def test_baseline_seed_config_does_not_warn():
+    """The exemption holds for the config the baseline gate actually runs.
+
+    That is config/workflows/snake_config_model_test.yml (project_dir:
+    test_case/test_local) -- NOT tests/snake_config_model_test.yml, which
+    points at tests/test_project and therefore warns correctly: it is an
+    in-repo project_dir outside the single exemption. The exemption exists
+    because the baseline seed config is TRACKED and a tracked config cannot
+    carry a machine-specific absolute path; it does not extend to every
+    convenient in-repo scratch dir.
+    """
+    seed_cfg = join(SNAKEDIR, "config", "workflows", "snake_config_model_test.yml")
+    result = _dry_run("Snakefile_model_creation", cfg=seed_cfg)
+    combined = (result.stdout or "") + (result.stderr or "")
+    assert "inside the repository tree" not in combined, combined[-3000:]
+    assert result.returncode == 0, combined[-3000:]
+
+
 def test_observation_configs_use_the_string_sentinel():
     """Every shipped config leaves the observation keys at the STRING "None".
 

@@ -8,7 +8,7 @@ from pathlib import Path
 # directory by prepending this Snakefile's own directory to sys.path.
 # See dev/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
-from blueearth_cst.shared.snake_utils import file_digest_or_absent, get_config, patch_psutil_windows_benchmark, rule_banner, slugify_window, stress_test_grid, validate_experiment_name
+from blueearth_cst.shared.snake_utils import file_digest_or_absent, get_config, patch_psutil_windows_benchmark, rule_banner, slugify_window, stress_test_grid, validate_experiment_name, warn_if_project_dir_in_repo
 
 # Windows: make Snakemake's benchmark memory/IO/CPU metrics work (else all NA).
 patch_psutil_windows_benchmark()
@@ -30,6 +30,9 @@ shared_cfg = config["shared"]
 my_cfg = config["workflows"]["climate_experiment"]
 
 project_dir = get_config(project_cfg, "project_dir", optional=False)
+# O-22: make the two-tier project_dir rule mechanical rather than
+# documentary. Warns, never raises; test_case/ is the one exemption.
+warn_if_project_dir_in_repo(project_dir, workflow.basedir)
 static_dir = get_config(project_cfg, "static_dir", optional=False)
 DATA_SOURCES = get_config(project_cfg, "data_sources", optional=False)
 

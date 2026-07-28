@@ -9,6 +9,7 @@ import io
 import os
 import sys
 import time
+import warnings
 from pathlib import Path
 
 import pytest
@@ -16,6 +17,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import re
 
+import blueearth_cst.shared.snake_utils as su  # noqa: E402
 from blueearth_cst.shared.snake_utils import (  # noqa: E402
     _Heartbeat,
     _compact_log_line,
@@ -416,3 +418,63 @@ def test_tee_to_log_heartbeat_goes_to_console_not_log(tmp_path, capsys):
     logged = log.read_text(encoding="utf-8")
     assert "still running" in err and "done in" in err  # console got them
     assert "still running" not in logged and "done in" not in logged  # log stayed clean
+
+
+# ---------------------------------------------------------------------------
+# O-22: warn_if_project_dir_in_repo
+#
+# The design's stated verification for this feature was "tests/test_cli.py
+# matches on combined stdout+stderr -- confirm its assertions are undisturbed".
+# Review found that false: no test in test_cli.py asserts on output text (the
+# three CLI tests assert only returncode == 0, using the combined stream as the
+# assertion MESSAGE). The feature would have shipped with zero coverage, and
+# the exemption branch -- the case most likely to regress -- would never have
+# been exercised. These are the replacement.
+# ---------------------------------------------------------------------------
+
+def test_warn_in_repo_project_dir_warns(tmp_path):
+    repo = tmp_path / "repo"
+    (repo / "scratch_run").mkdir(parents=True)
+    with pytest.warns(UserWarning, match="inside the repository tree"):
+        fired = su.warn_if_project_dir_in_repo(repo / "scratch_run", repo)
+    assert fired is True
+
+
+def test_warn_exempt_test_case_is_silent(tmp_path):
+    """The fixture exemption: the baseline seed config is TRACKED, and a
+    tracked config cannot carry a machine-specific absolute path."""
+    repo = tmp_path / "repo"
+    (repo / "test_case" / "test_local").mkdir(parents=True)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # any warning becomes a failure
+        fired = su.warn_if_project_dir_in_repo(
+            repo / "test_case" / "test_local", repo
+        )
+    assert fired is False
+
+
+def test_warn_absolute_out_of_tree_is_silent(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    outside = tmp_path / "elsewhere" / "my_project"
+    outside.mkdir(parents=True)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        fired = su.warn_if_project_dir_in_repo(outside, repo)
+    assert fired is False
+
+
+def test_warn_uses_containment_not_string_prefix(tmp_path):
+    """`test_caseX` must not read as inside `test_case`, and a sibling repo
+    directory must not read as inside the repo. A startswith() implementation
+    passes the three cases above and fails both of these."""
+    repo = tmp_path / "repo"
+    (repo / "test_caseX").mkdir(parents=True)
+    with pytest.warns(UserWarning):
+        assert su.warn_if_project_dir_in_repo(repo / "test_caseX", repo) is True
+
+    sibling = tmp_path / "repo_other"
+    sibling.mkdir()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert su.warn_if_project_dir_in_repo(sibling, repo) is False
