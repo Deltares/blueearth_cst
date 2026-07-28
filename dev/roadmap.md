@@ -815,14 +815,20 @@ the artifact tree explicitly ("5. Output layout under `project_dir/` already
 mostly clean — leave alone unless a concrete pain point emerges"). Pain points
 have now emerged, and they span both halves.
 
-### R7 — Project layout (design DRAFT 2026-07-26)
+### R7 — Project layout (design ACCEPTED 2026-07-28)
 
-**Status.** Design **DRAFT**, not accepted, not built:
-`dev/r07/project-layout-design.md`, with the `naming.md` §7 path map at
-`dev/r07/migration_project-layout.md`. Authored interactively with the owner
-across the 2026-07-26 review — **no design-review-loop run**, so there is no
-external round or finding ledger behind it; what it carries instead is a
-16-ruling question log with rationale. Provenance of the findings:
+**Status.** Design **ACCEPTED**, not yet built:
+`dev/r07/project-layout-design.md`, approved by the owner at gate G2 of a
+`design-review-loop` run on 2026-07-28. Drafted interactively with the owner
+across the 2026-07-26 review (a 16-ruling question log), then put through the
+loop: a three-lens internal panel and two external cross-vendor rounds, **44
+findings, all dispositioned, none rejected**, across four versions. The external
+round cap was reached with round 2 unconverged, so the owner arbitrated the three
+surviving findings — meaning the final version's changes carry no external
+verdict, which the design states on its face. Full audit trail:
+`dev/r07/project-layout-design-review-record.md`; approved framing:
+`dev/r07/project-layout-intake.md`; `naming.md` §7 path map:
+`dev/r07/migration_project-layout.md`. Provenance of the findings:
 `dev/reviews/2026-07-25_post-r6-assessment.md` (O-01 … O-24), which carries a
 routing note for which observations R7 owns.
 
@@ -830,8 +836,12 @@ routing note for which observations R7 owns.
 rather than accretion: the **toolbox** holds source, config and templates — no
 basin data, no run artifacts; the **artifacts** under `project_dir` are
 organised by producer and by engine, so a reader can tell what made a file from
-where it sits, and a second modelling engine can be added without inventing a
-new layout.
+where it sits, and engine-shaped artifacts are **separable** from generic ones,
+so an engine's subtree can be relocated, rebuilt, or replaced without moving
+generic climate data. *(Narrowed from extensibility at review — the delivered
+tree does not support adding a second hydrology engine without a placement rule,
+and writing that rule would decide the engine-naming question parked at G1.
+Recorded as a stated limitation, ruling GB-1.)*
 
 **Four principles.** P1 figures attach to their producer (no project-level
 `plots/`). P2 one producer per artifact. P3 engine-shaped artifacts live inside
@@ -862,17 +872,34 @@ once**, at the end; `check_baseline.py` TARGETS and `semantic_tree_diff.py`'s
 path map + TOML comparator update alongside. Batching the two halves into one
 milestone is what buys the single re-record — split, it costs two.
 
-**Exit criteria.** Design accepted; 13 `r07:` commits landed off a task brief;
-all three Snakefiles `--dry-run` clean and `pytest tests/` green; a full
-three-workflow run on the seed config completes; full-`project_dir`
-`semantic_tree_diff` against the R7 path map clean modulo a written
-MISSING/EXTRA allowlist; the P4 assertion demonstrated (climate figures
-produced with no `hydrology_model/` present); manifest re-recorded once and
+**Exit criteria.** ~~Design accepted~~ **done 2026-07-28**; 15 `r07:` commits
+landed off a task brief; all three Snakefiles `--dry-run` clean and
+`pytest tests/` green; a full three-workflow run on the seed config completes;
+full-`project_dir` `semantic_tree_diff` against the R7 path map clean modulo a
+written MISSING/EXTRA allowlist; the P4 assertion demonstrated (climate figures
+produced with **neither** `hydrology_model/` **nor the wflow build template** on
+disk — strengthened at review, ext1-01); manifest re-recorded once and
 `check_baseline` green.
 
-**Open questions carried into the milestone.** Engine-named subtrees
-(`models/wflow/`) — parked, non-gating. `MIGRATION.md`'s home (O-12).
-`blueearth_cst.Rproj`'s fate (O-13). Where the weathergen date CSVs settle.
+*Commit count 13 → 15 at review (ruling GB-2): content scope unchanged, the delta
+being a machinery-first commit so the regression gate exists before the moves it
+polices, plus two moves the draft drew in the tree but assigned to no commit.*
+
+**Open questions — all ruled at G1, 2026-07-27.** Engine-named subtrees
+(`models/wflow/`) — **parked**, non-gating, deferred beyond R07 (and at review
+the *structural* half of the question was deferred with it, ruling GB-1).
+`MIGRATION.md`'s home (O-12) — **`docs/`**, with `naming.md` §7 amended to
+distinguish a required internal rename record from an optional user-facing
+guide. `blueearth_cst.Rproj` (O-13) — **deleted**. Weathergen date CSVs —
+**`weather_generator/output/`** as designed.
+
+**Ruled during the review run.** Pre-R07 `project_dir` trees are **unsupported**
+— a fresh run is required and no `mv` migration script ships (ruling GA-2; no
+production trees exist and no CST-API/frontend consumer reads artifact paths).
+The B1 climate store has **one producer definition declared in both Snakefiles**
+over region + catalog (ruling GA-1); its bbox derivation genuinely changes, which
+is a named third exception to the behaviour-preservation stance and must be
+proven by the `semantic_tree_diff` merge class, not assumed.
 
 **Out of scope.** The tooling-contract decisions (O-14 `pyproject.toml`, O-15
 `ruff`, O-16 `flit`) — unrelated to layout, still open. Docker (O-06) and Linux
