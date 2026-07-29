@@ -7,8 +7,6 @@ chirps-style extraction correction with the sidecar-DEM parity step must land
 on the same value — a stacked (double) correction misses by
 ``lapse_rate * dem_chirps``-scale (°C), far outside tolerance.
 """
-import os
-import sys
 
 import numpy as np
 import pandas as pd

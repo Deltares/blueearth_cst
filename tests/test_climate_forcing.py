@@ -2,8 +2,6 @@
 
 Synthetic 2x2 grids keep these OS- and data-independent (no hydromt/wflow).
 """
-import os
-import sys
 
 import numpy as np
 import xarray as xr

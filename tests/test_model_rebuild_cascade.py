@@ -15,7 +15,6 @@ would make each re-trigger on its own execution forever.
 
 import re
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest

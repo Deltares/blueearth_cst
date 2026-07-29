@@ -1,7 +1,6 @@
 """Tests for blueearth_cst/model/setup_gauges_and_outputs.py (R3 sections 7.1, 8)."""
 
 import sys
-from pathlib import Path
 
 import pytest
 

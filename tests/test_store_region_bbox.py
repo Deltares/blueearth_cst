@@ -19,7 +19,6 @@ Fixture-gated exactly as its predecessor was: it needs a completed run under
 """
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import pytest

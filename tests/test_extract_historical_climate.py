@@ -7,10 +7,8 @@ warning xfail captures the R3 followup bug from dev/followups.md.
 """
 from __future__ import annotations
 
-import sys
 import types
 import warnings
-from pathlib import Path
 
 import numpy as np
 import pytest

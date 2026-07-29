@@ -5,10 +5,8 @@ Created on Tue Feb  1 14:34:58 2022
 @author: bouaziz
 """
 
-import hydromt
+import hydromt  # noqa: F401 -- registers the xarray .raster accessor (.raster.vars below)
 import os
-import glob
-import matplotlib.pyplot as plt
 import pandas as pd
 import xarray as xr
 

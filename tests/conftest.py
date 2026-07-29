@@ -1,9 +1,6 @@
 """Global test attributes and fixtures"""
 
-import os
-import sys
 from os.path import join, dirname, realpath
-from pathlib import Path
 import yaml
 import pytest
 

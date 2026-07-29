@@ -1,6 +1,4 @@
 """Tests for the WF2 log-gather concatenation (blueearth_cst/shared/merge_logs.py)."""
-import os
-import sys
 
 from blueearth_cst.shared.merge_logs import merge_logs  # noqa: E402
 

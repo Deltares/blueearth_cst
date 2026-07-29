@@ -4,8 +4,6 @@ Hermetic: exercises method dispatch + no-data capture + structured sentinel
 without hydromt (the heavy import is lazy inside the main function).
 """
 
-import sys
-from pathlib import Path
 
 from blueearth_cst.model.setup_reservoirs_lakes_glaciers import (  # noqa: E402
     _run_waterbody_methods,

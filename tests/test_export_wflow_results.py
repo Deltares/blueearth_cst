@@ -9,8 +9,6 @@ the one place in the move where a path rename breaks logic rather than a
 pointer, so it gets direct coverage.
 """
 
-import sys
-from os.path import dirname, join, realpath
 
 import pytest
 

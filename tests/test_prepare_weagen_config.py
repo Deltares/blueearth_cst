@@ -7,7 +7,6 @@ function extraction (commit 3) — no snakemake global, no heavy deps.
 
 import math
 import os
-import sys
 
 import pytest
 import yaml

@@ -6,8 +6,6 @@ a nonzero time-of-day fails loud rather than colliding onto a shared day key.
 """
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 
 import pytest
 

@@ -8,7 +8,6 @@ import-clean (guarded), no heavy-dep stub, no sys.modules pollution risk.
 
 import glob
 import os
-import sys
 
 import numpy as np
 import pandas as pd

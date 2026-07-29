@@ -10,7 +10,6 @@ fresh against the real geopandas.
 
 import importlib
 import sys
-from pathlib import Path
 
 import pytest
 

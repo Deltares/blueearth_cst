@@ -3,8 +3,6 @@
 The merged output is a Markdown table (per-rule parts stay TSV = Snakemake's
 fixed benchmark format).
 """
-import os
-import sys
 
 from blueearth_cst.shared.merge_benchmarks import merge_benchmarks  # noqa: E402
 

@@ -8,8 +8,6 @@ pairs — NO Snakemake, no rerun-triggers (that is gate 2b,
 from __future__ import annotations
 
 import copy
-import os
-import sys
 from pathlib import Path
 
 import yaml

@@ -61,7 +61,6 @@ def staged_store(tmp_path):
     cfg_path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
 
     # Store key exactly as climate_store_spec builds it.
-    import sys
 
     from blueearth_cst.shared.snake_utils import climate_store_spec
 

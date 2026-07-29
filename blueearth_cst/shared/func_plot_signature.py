@@ -6,7 +6,6 @@ Created on Wed Jul 14 09:18:38 2021
 """
 
 # %%
-import hydromt
 from hydromt.stats import skills
 import numpy as np
 import matplotlib.pyplot as plt
@@ -16,7 +15,7 @@ import scipy.stats as stats
 import pandas as pd
 import xarray as xr
 
-from typing import List, Union
+from typing import Union
 
 from blueearth_cst.shared.snake_utils import save_figure
 

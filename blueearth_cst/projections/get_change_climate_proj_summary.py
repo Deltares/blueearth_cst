@@ -2,7 +2,7 @@
 Open monthly change files for all models/scenarios/horizon and compute/plot statistics
 """
 
-import hydromt
+import hydromt  # noqa: F401 -- registers the xarray .raster accessor (ds.raster.vars below)
 import os
 from pathlib import Path
 import seaborn as sns

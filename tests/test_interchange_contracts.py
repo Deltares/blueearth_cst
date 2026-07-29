@@ -21,7 +21,6 @@ Source of record: ``dev/p32b/interchange-contracts-design.md`` §5.5 and the two
 seam docs ``dev/contracts/*-seam.md``.
 """
 import os
-import sys
 from os.path import dirname, join, realpath
 
 import pandas as pd

@@ -7,14 +7,12 @@ Created on Thu Jan 13 16:23:11 2022
 
 # plot map
 
-import xarray as xr
 import numpy as np
 from os.path import basename, join
 import os
 from pathlib import Path
 from typing import Union
 import matplotlib.pyplot as plt
-from matplotlib import colors
 
 # plot maps dependencies
 import matplotlib.patches as mpatches

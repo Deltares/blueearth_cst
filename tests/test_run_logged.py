@@ -5,7 +5,6 @@ The contract that matters: the wrapper returns the *child's* exit code (a bare
 output into the log file. Child commands are ``python -c`` snippets so the tests
 are OS-independent and need no hydromt/julia.
 """
-import os
 import sys
 
 from blueearth_cst.shared.snake_utils import run_and_tee

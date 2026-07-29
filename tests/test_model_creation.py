@@ -2,7 +2,6 @@
 
 import os
 from os.path import join, dirname, realpath
-import pytest
 
 from blueearth_cst.model import copy_config_files
 

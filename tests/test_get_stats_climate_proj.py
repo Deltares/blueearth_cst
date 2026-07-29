@@ -8,7 +8,6 @@ It also auto-detects the x/y dims from XDIMS/YDIMS and averages over the grid
 to produce the scalar (``mean_stats_time``) series. Synthetic constant grids
 make every expected value self-evidently correct.
 """
-import sys
 from os.path import join, dirname, realpath
 
 import numpy as np

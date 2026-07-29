@@ -5,8 +5,6 @@ pollution risk. Pins the strict contract both call sites (the Snakefile and
 ``prepare_cst_parameters.py``) now share.
 """
 
-import os
-import sys
 
 import pytest
 

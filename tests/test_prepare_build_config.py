@@ -1,6 +1,5 @@
 """Tests for blueearth_cst/model/prepare_build_config.py (R3 section 8). Hermetic (yaml only)."""
 
-import sys
 from pathlib import Path
 
 import pytest

@@ -14,9 +14,6 @@ import os
 os.environ.setdefault("GCSFS_EXPERIMENTAL_ZB_HNS_SUPPORT", "false")
 
 import hydromt
-import glob
-import matplotlib.pyplot as plt
-import pandas as pd
 import geopandas as gpd
 import xarray as xr
 

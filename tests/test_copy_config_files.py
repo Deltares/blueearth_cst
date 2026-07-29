@@ -6,8 +6,6 @@ beside it, so it could not serve four destinations (runs/, catalogs/,
 templates/, generated/). These pin the new contract.
 """
 
-import sys
-from pathlib import Path
 
 import pytest
 

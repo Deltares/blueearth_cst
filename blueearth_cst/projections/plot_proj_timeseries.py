@@ -5,13 +5,12 @@ Created on Tue Feb  1 14:34:58 2022
 @author: bouaziz
 """
 # %%
-import hydromt
+import hydromt  # noqa: F401 -- registers the xarray .raster accessor (pr/tas.raster.box below)
 import os
-import glob
 import matplotlib.pyplot as plt
 import pandas as pd
 import xarray as xr
-from matplotlib import cm, colors
+from matplotlib import colors
 import cartopy.crs as ccrs
 import cartopy.io.img_tiles as cimgt
 import numpy as np

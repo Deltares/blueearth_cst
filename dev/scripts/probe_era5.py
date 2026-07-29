@@ -6,7 +6,6 @@ staged data and we need to look at chunk-level integrity.
 """
 import numpy as np
 import xarray as xr
-import zarr
 
 SRC = "P:/wflow_global/hydromt/meteo/era5_daily.zarr"
 DST = "C:/data/wflow_global/hydromt/meteo/era5_daily.zarr"

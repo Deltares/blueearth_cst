@@ -4,7 +4,6 @@ Plot wflow results and compare to observations if any
 """
 
 import xarray as xr
-import numpy as np
 import os
 from os.path import join
 from pathlib import Path

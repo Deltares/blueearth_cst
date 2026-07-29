@@ -11,8 +11,6 @@ Testing pattern (M02c convention; see dev/phase-1/m02c/test-coverage-design.md):
 """
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
