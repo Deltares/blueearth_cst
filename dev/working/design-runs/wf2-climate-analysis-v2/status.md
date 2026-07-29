@@ -5,14 +5,14 @@ genre: workflow-spec
 author-binding: generic
 started: 2026-07-29
 variant: lite  # PROMOTION TRIGGERED -> full (blocking findings)
-stage: G2-pending
+stage: CLOSED
 external-rounds-completed: 2
 dispatches:
   opus: 0
   fable: 2
 gates:
   G1: approved 2026-07-29
-  G2: pending
+  G2: approved 2026-07-29
 flags: [owner-requested-fable-lens, promoted-lite-to-full, blocking-findings-open, external-cap-reached, fable-escalation-r2]
 ---
 
@@ -64,8 +64,25 @@ flags: [owner-requested-fable-lens, promoted-lite-to-full, blocking-findings-ope
   **Scope check: PASSED** — every new section maps to an arbitrated ID
   (D9/§6.14 = ext2-01; D10/§6.15 = ext2-02; D11/§6.16 = ext2-03; D12/§6.12
   = ext2-04); no unrelated restructuring.
-- [open] G2 — owner approval under arbitration authority (cap stands; no third
-  external round)
+- [done] G2 — **approved 2026-07-29** by the owner, no editorial edits
+  requested. Lean finalize path: no author spawn; the driver landed the doc
+  mechanically and the DRAFT->ACCEPTED status swap is a logged editorial edit.
+- [done] 7-finalize — landed `dev/workflows/wf2-climate-analysis-v2-design.md`
+  (from design-v4.md, status swapped, run-artifact citations repointed to the
+  review record; grep for `design-runs/`, `ledger.md`, `external-review-`,
+  `internal-review-` returns no dangling citation). Emitted
+  `dev/workflows/wf2-climate-analysis-v2-design-review-record.md` (714 lines:
+  run summary, verdict table, all owner rulings, driver premise verification,
+  known deviations, process observations, the intake, both aggregation indexes,
+  all three verbatim reviews, and the final 28-row ledger). Re-checked the
+  derived artifact: `dev/working/2026-07-29_wf2-v2-decouple-and-cache.md`
+  rewritten for steps 1 / 2a / 2b (D9 made the region a plain input; D12 added
+  step 2a; the digest is richer).
+
+**RUN CLOSED.** The consolidated review record is the durable audit trail. This
+run directory is prunable — its contents are preserved in git history
+(`5d953e4`, `f7db117`, `a9a1bc4`). Pruning deferred to an explicit owner
+decision rather than performed automatically.
 
 ## Fable escalation — round 2 (skill rule, now triggered)
 
