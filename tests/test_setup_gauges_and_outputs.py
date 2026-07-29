@@ -5,7 +5,6 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from blueearth_cst.model.setup_gauges_and_outputs import update_wflow_gauges_outputs  # noqa: E402
 
 

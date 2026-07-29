@@ -63,7 +63,6 @@ def staged_store(tmp_path):
     # Store key exactly as climate_store_spec builds it.
     import sys
 
-    sys.path.insert(0, str(SNAKEDIR))
     from blueearth_cst.shared.snake_utils import climate_store_spec
 
     spec = climate_store_spec(

@@ -14,7 +14,6 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from hydromt.model.processes.meteo import temp as meteo_temp  # noqa: E402
 from blueearth_cst.shared.climate_parity import model_parity_climate  # noqa: E402
 

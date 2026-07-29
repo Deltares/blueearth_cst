@@ -26,7 +26,6 @@ import pytest
 import yaml
 
 SNAKEDIR = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(SNAKEDIR))
 from blueearth_cst.shared.snake_utils import climate_store_spec  # noqa: E402
 
 SEED_CONFIG = SNAKEDIR / "config" / "workflows" / "snake_config_model_test.yml"

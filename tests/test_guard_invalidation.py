@@ -25,9 +25,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-import sys as _sys
-_sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from blueearth_cst.shared.snake_utils import slugify_window  # noqa: E402
+from blueearth_cst.shared.snake_utils import slugify_window
 
 TESTDIR = Path(__file__).resolve().parent
 SNAKEDIR = TESTDIR.parent

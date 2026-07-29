@@ -16,7 +16,6 @@ import xarray as xr
 
 TESTDIR = dirname(realpath(__file__))
 SNAKEDIR = join(TESTDIR, "..")
-sys.path.insert(0, SNAKEDIR)
 
 from blueearth_cst.projections.get_change_climate_proj_summary import (  # noqa: E402
     filter_nonempty,

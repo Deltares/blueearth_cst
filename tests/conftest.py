@@ -7,8 +7,14 @@ from pathlib import Path
 import yaml
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from blueearth_cst.shared.snake_utils import get_config  # noqa: E402  shared helper (R3 §3)
+# The repo root is on sys.path via `pythonpath = ["."]` in pyproject.toml
+# [tool.pytest.ini_options] (O-14 decision 1), applied before conftest is
+# imported -- which is why this module-level import resolves with no
+# sys.path.insert shim. 34 such inserts were removed from tests/ once the
+# declarative setting replaced them. The remaining inserts in this directory
+# point at dev/scripts/ and scripts/, which are NOT packages and are not
+# shipped; those stay.
+from blueearth_cst.shared.snake_utils import get_config  # shared helper (R3 §3)
 
 TESTDIR = dirname(realpath(__file__))
 SNAKEDIR = join(TESTDIR, "..")

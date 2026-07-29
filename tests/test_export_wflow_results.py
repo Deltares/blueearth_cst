@@ -14,7 +14,6 @@ from os.path import dirname, join, realpath
 
 import pytest
 
-sys.path.insert(0, join(dirname(realpath(__file__)), ".."))
 
 from blueearth_cst.experiment.export_wflow_results import (  # noqa: E402
     analyze_wflow_results,

@@ -38,7 +38,6 @@ TESTDIR = Path(__file__).resolve().parent
 SNAKEDIR = TESTDIR.parent
 CONFIG_FN = TESTDIR / "snake_config_model_test.yml"
 
-sys.path.insert(0, str(SNAKEDIR))
 
 # The synthetic domain: a small era5-like grid around the test basin.
 _XS = np.arange(9.00, 10.51, 0.25)

@@ -8,7 +8,6 @@ import sys
 import numpy as np
 import xarray as xr
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from blueearth_cst.climate_analysis.subcatchment_climate import climate_forcing_by_subcatchment  # noqa: E402
 
 

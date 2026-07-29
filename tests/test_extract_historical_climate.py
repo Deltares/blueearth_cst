@@ -133,7 +133,6 @@ _geopandas_stub = types.SimpleNamespace(
 # is in the env (pixi-installed), and dask.diagnostics.ProgressBar is a
 # cheap context manager — let the real one run.
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from blueearth_cst.climate_analysis import extract_historical_climate as ehc  # noqa: E402
 
 

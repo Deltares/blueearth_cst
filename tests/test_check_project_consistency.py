@@ -15,7 +15,6 @@ from pathlib import Path
 import yaml
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from blueearth_cst.experiment.check_project_consistency import (  # noqa: E402
     compare_project_consistency,
 )

@@ -10,7 +10,6 @@ import sys
 
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from blueearth_cst.shared.snake_utils import stress_test_grid
 
 

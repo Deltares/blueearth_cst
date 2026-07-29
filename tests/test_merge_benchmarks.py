@@ -6,7 +6,6 @@ fixed benchmark format).
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from blueearth_cst.shared.merge_benchmarks import merge_benchmarks  # noqa: E402
 
 _HEADER = "s\th:m:s\tmax_rss\tio_in\tcpu_time\tmean_load\n"

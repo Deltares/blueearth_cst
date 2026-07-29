@@ -6,7 +6,6 @@ from pathlib import Path
 import pytest
 import yaml
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from blueearth_cst.model.prepare_build_config import merge_build_config  # noqa: E402
 
 

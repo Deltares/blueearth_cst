@@ -28,7 +28,6 @@ import pandas as pd
 import pytest
 import yaml
 
-sys.path.insert(0, join(dirname(__file__), ".."))
 from blueearth_cst.shared import interchange_contracts as ic  # noqa: E402
 from blueearth_cst.shared.snake_utils import stress_test_grid  # noqa: E402
 

@@ -7,7 +7,6 @@ without hydromt (the heavy import is lazy inside the main function).
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from blueearth_cst.model.setup_reservoirs_lakes_glaciers import (  # noqa: E402
     _run_waterbody_methods,
     write_sentinel,

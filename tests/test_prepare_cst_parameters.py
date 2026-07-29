@@ -15,7 +15,6 @@ import pandas as pd
 import pytest
 import yaml
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from blueearth_cst.experiment.prepare_cst_parameters import prep_cst_parameters
 
 

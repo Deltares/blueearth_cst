@@ -9,7 +9,6 @@ import pytest
 
 TESTDIR = dirname(realpath(__file__))
 SNAKEDIR = join(TESTDIR, "..")
-sys.path.insert(0, SNAKEDIR)
 
 CONFIG = join(TESTDIR, "snake_config_model_test.yml")
 
