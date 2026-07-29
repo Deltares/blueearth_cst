@@ -101,6 +101,15 @@ select = ["E4", "E7", "E9", "F"]
 # should be DELETED, not extended, when it is converted (see dev/followups.md R7-22).
 "blueearth_cst/experiment/downscale_climate_forcing.py" = ["F821"]
 
+# E402 (import not at top) is load-bearing here, not an oversight: the module
+# sets GDAL_CACHEMAX / VSI_CACHE / GDAL_DISABLE_READDIR_ON_OPEN via
+# os.environ.setdefault, and GDAL reads those ONCE when rasterio is imported.
+# Hoisting the imports above the setdefaults would silently discard the tuning
+# (the comment block at the top of the file explains why it matters on SMB).
+# A file-level ignore rather than five inline noqas, because the reason is a
+# property of the file, not of any one line.
+"dev/scripts/stage_data.py" = ["E402"]
+
 [tool.ruff.format]
 # Settings only -- `ruff format` is NOT a gate. 118 of 262 files would be
 # reformatted (~7.8k diff lines), which is a churn decision on its own merits and

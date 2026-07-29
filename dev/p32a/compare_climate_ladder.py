@@ -186,7 +186,7 @@ def main(argv=None):
             - s0[var].sel(time=times).where(mask)
         )
         mean, maxabs, rmse = _stats(d)
-        g_rows.append((f"G (S3-S0 grid, masked)", var, mean, maxabs, rmse))
+        g_rows.append(("G (S3-S0 grid, masked)", var, mean, maxabs, rmse))
         if maxabs > TOL[var]:
             failures.append(
                 f"G exceeds tolerance for {var}: max-abs {maxabs:.4g} > {TOL[var]}"

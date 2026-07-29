@@ -292,7 +292,7 @@ def test_tee_to_log_compacts_hydromt_format(tmp_path):
         print("plain progress line")
     text = log.read_text(encoding="utf-8")
     # the record row is exactly the compacted form: HH:MM:SS, no date/ms/name
-    row = next(l for l in text.splitlines() if "INFO - built" in l)
+    row = next(line for line in text.splitlines() if "INFO - built" in line)
     assert row == "18:03:38 - model - INFO - built"
     assert "hydromt.model.model" not in text  # dotted name dropped
     assert "plain progress line" in text  # non-hydromt line untouched

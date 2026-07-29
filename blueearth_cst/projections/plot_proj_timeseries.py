@@ -351,7 +351,7 @@ if __name__ == "__main__":
                     qprhist = q_pr_mnanom
                     y_label = "Anomaly (%)"
                 plt.figure(figsize=(8, 6))
-                plt.title(f"Average precipitation")
+                plt.title("Average precipitation")
                 plt.fill_between(
                     x=qprhist.index,
                     y1=qprhist[0.95],
@@ -398,7 +398,7 @@ if __name__ == "__main__":
                     y_label = "Anomaly (degC)"
 
                 plt.figure(figsize=(8, 6))
-                plt.title(f"Average monthly temperature")
+                plt.title("Average monthly temperature")
                 plt.fill_between(
                     x=qtashist.index,
                     y1=qtashist[0.95],
@@ -531,8 +531,8 @@ if __name__ == "__main__":
                         )  # norm=divnorm) # **kwargs)
                         ax.xaxis.set_visible(True)
                         ax.yaxis.set_visible(True)
-                        ax.set_ylabel(f"latitude [degree north]")
-                        ax.set_xlabel(f"longitude [degree east]")
+                        ax.set_ylabel("latitude [degree north]")
+                        ax.set_xlabel("longitude [degree east]")
                         _ = ax.set_title(
                             f"Annual mean precipitation change for {rcp} and time horizon {hz}"
                         )
@@ -574,8 +574,8 @@ if __name__ == "__main__":
                         )  # **kwargs)
                         ax.xaxis.set_visible(True)
                         ax.yaxis.set_visible(True)
-                        ax.set_ylabel(f"latitude [degree north]")
-                        ax.set_xlabel(f"longitude [degree east]")
+                        ax.set_ylabel("latitude [degree north]")
+                        ax.set_xlabel("longitude [degree east]")
                         _ = ax.set_title(
                             f"Annual mean temperature change for {rcp} and time horizon {hz}"
                         )

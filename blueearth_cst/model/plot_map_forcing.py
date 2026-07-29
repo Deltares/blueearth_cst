@@ -40,9 +40,6 @@ def plot_map_model(mod, da, figname, gauges_name):
     # adjust zoomlevel and figure size to your basis size & aspect
     zoom_level = 10
     figsize = (10, 8)
-    shaded = (
-        False  # shaded elevation (looks nicer with more pixels (e.g.: larger basins))!
-    )
 
     # initialize image with geoaxes
     fig = plt.figure(figsize=figsize)
@@ -59,23 +56,15 @@ def plot_map_model(mod, da, figname, gauges_name):
         ax=ax,
         zorder=1,
         cbar_kwargs=dict(aspect=30, shrink=0.8),
-    )  # **kwargs)
-    # plot elevation with shades
-    if shaded:
-        ls = colors.LightSource(azdeg=315, altdeg=45)
-        dx, dy = da.raster.res
-        _rgb = ls.shade(
-            da.fillna(0).values,
-            norm=kwargs["norm"],
-            cmap=kwargs["cmap"],
-            blend_mode="soft",
-            dx=dx,
-            dy=dy,
-            vert_exag=200,
-        )
-        rgb = xr.DataArray(dims=("y", "x", "rgb"), data=_rgb, coords=da.raster.coords)
-        rgb = xr.where(np.isnan(da), np.nan, rgb)
-        rgb.plot.imshow(transform=proj, ax=ax, zorder=2)
+    )
+    # NOTE: an `if shaded:` hillshade block sat here, carried over from the
+    # hydromt example notebook this function was adapted from. It was dead and
+    # broken on both counts: `shaded` was hardcoded False just above, and the
+    # body read `kwargs["norm"]` / `kwargs["cmap"]` although this function has
+    # never taken **kwargs (the upstream original did). Ruff F821 surfaced it.
+    # Removed rather than repaired -- reviving it would mean inventing a
+    # colormap the caller never supplied. Reinstate from upstream if hillshading
+    # is ever actually wanted.
 
     # plot rivers with increasing width with stream order
     gdf_riv.plot(
@@ -119,10 +108,10 @@ def plot_map_model(mod, da, figname, gauges_name):
 
     ax.xaxis.set_visible(True)
     ax.yaxis.set_visible(True)
-    ax.set_ylabel(f"latitude [degree north]")
-    ax.set_xlabel(f"longitude [degree east]")
-    _ = ax.set_title(f"wflow base map")
-    legend = ax.legend(
+    ax.set_ylabel("latitude [degree north]")
+    ax.set_xlabel("longitude [degree east]")
+    _ = ax.set_title("wflow base map")
+    ax.legend(
         handles=[*ax.get_legend_handles_labels()[0], *patches],
         title="Legend",
         loc="lower right",

@@ -85,7 +85,7 @@ except ImportError:
 
 # Make `console.py` importable when running from the repo root.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from console import banner, bold, cyan, dim, fmt_path, green, pad, red, yellow  # noqa: E402
+from console import banner, bold, cyan, dim, fmt_path, green, pad, red, yellow
 
 CONFIG_DEFAULT = Path(__file__).resolve().parent / "stage_data.yml"
 
@@ -785,12 +785,16 @@ def _zarr_subset_chunks(ds: xr.Dataset) -> dict[str, int]:
     """Return output chunk sizes suited to a clipped daily meteo subset."""
     chunks = {}
     for array in ds.data_vars.values():
-        for dim in array.dims:
-            dim_lower = dim.lower()
+        # `dim_name`, not `dim`: the module imports console's dim() styler at the
+        # top, and a loop variable named `dim` shadows it for the rest of the
+        # function (F402) -- anyone adding a dim(...) call inside would get a
+        # TypeError with no obvious cause.
+        for dim_name in array.dims:
+            dim_lower = dim_name.lower()
             if dim_lower in ("time", "t"):
-                chunks[dim] = min(array.sizes[dim], ZARR_TIME_CHUNK)
+                chunks[dim_name] = min(array.sizes[dim_name], ZARR_TIME_CHUNK)
             elif dim_lower in ("lat", "latitude", "y", "lon", "longitude", "x"):
-                chunks[dim] = array.sizes[dim]
+                chunks[dim_name] = array.sizes[dim_name]
     return chunks
 
 
@@ -860,9 +864,14 @@ def _align_spatial(existing: xr.Dataset, want: xr.Dataset) -> xr.Dataset:
     makes the join exact.
     """
     spatial = ("lat", "latitude", "y", "lon", "longitude", "x")
-    for dim in list(existing.dims):
-        if dim.lower() in spatial and dim in want.dims and existing.sizes[dim] == want.sizes[dim]:
-            existing = existing.assign_coords({dim: want[dim].values})
+    # `dim_name`, not `dim` -- see _zarr_subset_chunks: `dim` is console's styler.
+    for dim_name in list(existing.dims):
+        if (
+            dim_name.lower() in spatial
+            and dim_name in want.dims
+            and existing.sizes[dim_name] == want.sizes[dim_name]
+        ):
+            existing = existing.assign_coords({dim_name: want[dim_name].values})
     return existing
 
 

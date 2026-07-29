@@ -82,7 +82,6 @@ def _print_table(label: str, stats: dict[str, dict[int, tuple[int, int]]]) -> No
         cells = []
         for v in vars_:
             n, total = stats[v].get(y, (0, 0))
-            pct = (n / total * 100) if total else 0.0
             cells.append(f"{n:>7d}/{total:<6d}" if total else "       —      ")
         flag = "  <<<" if any(stats[v].get(y, (0, 0))[0] > 0 for v in vars_) else ""
         print(f"{y}   " + "  ".join(cells) + flag)
