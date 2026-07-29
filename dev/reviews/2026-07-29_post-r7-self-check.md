@@ -44,6 +44,7 @@ once the conversation that produced it is gone.
 | ID | Challenge | Area | Status | Created | Updated | Disposition |
 |---|---|---|---|---|---|---|
 | S7-01 | wf1 figures are scattered across three `plots/` dirs; consolidate to one per product area | layout | discussed | 2026-07-29 | 2026-07-29 | Owner proposes 2 buckets; recommendation = adopt as a pure path/name move. Pending ruling |
+| S7-02 | Rule numbers do not follow the DAG — the terminal gather rule is numbered before a rule it consumes | workflow | discussed | 2026-07-29 | 2026-07-29 | wf1-only defect; recommendation = 5-rule tail renumber + reserved `x.99` bookkeeping band. Pending ruling |
 
 ---
 
@@ -204,6 +205,100 @@ recommendation is to dissolve, with that expectation recorded as the tripwire
 that would justify reinstating it.
 
 **Disposition.** Pending owner ruling on Core / Optional A / Optional B.
+
+---
+
+### S7-02 — Rule numbers do not follow the DAG
+
+- **Area:** workflow
+- **Status:** discussed
+- **Created / Updated:** 2026-07-29 / 2026-07-29
+- **Rev:** `43f8dfa`
+
+**Challenge.** The benchmark report should list rules in **logical (DAG) order**,
+not in the order Snakemake happened to call them. Owner's read: the `W.NN`
+numbers themselves were assigned in call/authoring order and need revising so
+the ordinal follows the dependency graph.
+
+**Findings (verified, and they narrow the problem).**
+
+1. *The report is already sorted by number, not by execution.*
+   `merge_benchmarks.py` sorts the parts lexicographically by the `W.NN_rule`
+   filename (`sorted(tsvs)`, `merge_benchmarks.py:56`). So row order tracks the
+   numbering exactly — **the fix is renumbering alone**; the gather script needs
+   no change. (Rows for cached rules are simply absent, which is why a partial
+   run shows gaps.)
+2. *wf2 and wf3 are already in DAG order.* `2.01…2.10` and `3.01…3.12` each run
+   producer-before-consumer with the gather last. **The defect is wf1-only.**
+3. *wf1 has a real contradiction, not just an aesthetic one.* Rule **1.14**
+   `gather_benchmarks` takes rule **1.15** `plot_climate_source`'s three PNGs as
+   gather inputs (`Snakefile_model_creation:412-414`) — the terminal aggregator
+   is numbered **before** a rule it waits on. Secondarily, **1.10**
+   `extract_climate_grid` is a source node (its only input is the data catalog;
+   it needs no built model) yet sorts after `1.09 run_wflow`.
+4. *Root cause is insertion pressure.* R07 added the climate store (1.10) and its
+   figure producer (1.15) by **appending to the end of the number space**,
+   because inserting them in DAG position would have renumbered everything after.
+   The same pressure produced wf3's `3.00b` — a letter-suffixed rule wedged in
+   ahead of `3.01`. Left alone, the next rule added repeats it.
+
+**What we decided, and why.** Nothing ever decided that `W.NN` must be
+topological. The numbers were introduced as human-facing ordinals in rule
+banners, log filenames (`logs/1.08_add_forcing.log`) and benchmark part paths,
+and were assigned in authoring order. The scheme is being used as **both an
+ordinal and a stable ID**, and those roles conflict the moment a rule is
+inserted: an ordinal must be re-sequenced, an ID must never be. That unstated
+conflict is the actual finding here.
+
+**Alternatives.**
+
+1. **Renumber wf1's tail; keep numbers as ordinals** (recommended). Five rules
+   change: `1.15→1.11`, `1.11→1.12`, `1.12→1.13`, `1.13→1.14`, `1.14→1.15`.
+   Restores producer-before-consumer and puts the gather last. Leaves
+   `extract_climate_grid` at 1.10, which is topologically legal (source node —
+   any position is valid) and groups it with its consumer as a "climate store"
+   stage. *Standard practice.*
+2. **Strict ASAP/level order.** Move `extract_climate_grid` to 1.02 and shift the
+   build chain by one — 13 rules churn instead of 5, for an order that is not
+   obviously more readable (it interleaves an independent branch into the build
+   sequence). *Rejected on cost/benefit.*
+3. **Treat `W.NN` as an opaque stable ID; never renumber.** Add a separate `step`
+   column to the benchmark table carrying DAG position. Zero path churn, but the
+   number still reads out of order in banners and log filenames, so it only
+   half-fixes what was asked. *Rejected.*
+
+**Recommendation.** Alternative 1, plus one structural change that stops
+recurrence:
+
+*Reserve a bookkeeping band.* Number `gather_benchmarks` **`1.99` / `2.99` /
+`3.99`** across the three workflows (and wf2's three `gather_*_logs` as
+`2.96–2.98`). The terminal aggregator then cannot be displaced by any future
+rule, and new analysis rules append into free space without renumbering
+anything. This is the direct fix for finding 4 — without it, alternative 1 is a
+one-time cleanup that decays again on the next rule added.
+
+*Not proposed:* normalizing wf3's `3.00b`. It is ugly but already in DAG order,
+and regularizing it shifts all twelve wf3 rules. Flagged, not recommended.
+
+*Verified edit surface* (grep, 2026-07-29 — smaller than expected):
+
+| File | What changes |
+|---|---|
+| `Snakefile_model_creation` | 5 `rule_banner()` calls + their `log:` and `benchmark:` paths (both embed the number) |
+| `blueearth_cst/` | ~10 comment/docstring refs to renumbered rules — `plot_climate_source.py:21,116,277`, `plot_results.py:52,111,190`, `snake_utils.py:473` |
+| `tests/test_snake_utils.py:234` | fixture string `1.10_plot_results.log` — already stale (plot_results is 1.11); fix in passing |
+| `dev/scripts/` | 5 refs in `check_baseline.py` / `semantic_tree_diff.py` — confirm before editing |
+
+**No baseline re-record needed:** `dev/baseline/manifest.json` fingerprints no
+log or benchmark paths (a grep for `logs`/`benchmarks` entries returns nothing).
+Validation is `pytest tests/test_cli.py` + `tests/test_merge_benchmarks.py`
+(whose fixtures use 1.03/1.09, both unchanged).
+
+**Caveat to record with the change.** Sealed `dev/` milestone docs reference the
+old numbers throughout and **must not be rewritten** — they are historical
+records. The change should carry an old→new mapping table (in the decision
+record or `dev/roadmap.md`) so a future reader of the R07 design can resolve
+"rule 1.15" against current code.
 
 **Disposition.** Pending owner ruling.
 
