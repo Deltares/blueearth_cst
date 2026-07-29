@@ -1,9 +1,9 @@
 {
   "project_dir": "test_case/test_local",
   "recorded_by": {
-    "branch": "r07-project-layout",
-    "commit": "55883f64c222c9ff6ac64bff8b3f526e7d046fab",
-    "dirty": true
+    "branch": "milestone/r07-layout",
+    "commit": "ed15ac8004c37f141ab14aad06005603e8360fa1",
+    "dirty": false
   },
   "targets": {
     "test_case/test_local/climate_projections/cmip6/plots/precipitation_anomaly_projections_abs.png": {

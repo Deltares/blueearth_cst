@@ -817,7 +817,7 @@ have now emerged, and they span both halves.
 
 ### R7 — Project layout (BUILT 2026-07-29 — awaiting merge + tag)
 
-**Status.** **Implementation complete** on branch `r07-project-layout` —
+**Status.** **Implementation complete** on branch `milestone/r07-layout` —
 15 `r07:` commits, every acceptance criterion met (evidence below). **Not yet
 merged to `main` and not yet tagged**; both are owner decisions, and the tag
 `r07-layout` is reserved for the seal.

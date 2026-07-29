@@ -232,7 +232,7 @@ Provenance: `dev/r07/migration_project-layout.md` §§7a–7d,
 
 ### Milestone housekeeping
 
-- **[R7-19]** Branch `r07-project-layout` is **unmerged and unpushed**; the
+- **[R7-19]** Branch `milestone/r07-layout` is **unmerged and unpushed**; the
   `r07-layout` tag is unapplied and `dev/roadmap.md` still reads *design
   accepted, awaiting implementation*. Sealing is an owner decision.
 - **[R7-20]** The pre-R7 reference tree at
