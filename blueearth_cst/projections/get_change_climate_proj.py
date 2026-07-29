@@ -10,6 +10,7 @@ import os
 import pandas as pd
 import xarray as xr
 
+from blueearth_cst.projections import series_identity
 from blueearth_cst.shared.snake_utils import log_row
 
 # %%
@@ -268,6 +269,25 @@ if __name__ == "__main__":
 
             time_tuple_hist = _to_str_tuple(sm.params.time_horizon_hist)
             time_tuple_fut = _to_str_tuple(sm.params.time_horizon_fut)
+
+            # --- step 2b backstop: the series must match the current inputs -----
+            # Design D9 route (b) / risk-03 mechanism 2. This is an assertion
+            # INSIDE the job, not a scheduling property, so it holds however
+            # Snakemake was invoked -- a series restored from a backup, produced by
+            # an older checkout, or surviving a non-default --rerun-triggers still
+            # fails the run instead of quietly entering the change factors. The
+            # polygon fingerprint is recomputed here from the polygon on disk, so a
+            # series derived against a different region cannot be reused.
+            region_fp = series_identity.region_fingerprint(sm.input.region_path)
+            for label, path, components in (
+                ("historical", stats_time_nc_hist, dict(sm.params.digest_components_hist)),
+                (name_scenario, stats_time_nc, dict(sm.params.digest_components_fut)),
+            ):
+                series_identity.assert_series_identity(
+                    path,
+                    series_identity.series_digest(components, region_fp),
+                    f"{name_model} {label}",
+                )
 
             # open datasets and slice times
             ds_hist_time = xr.open_dataset(stats_time_nc_hist)

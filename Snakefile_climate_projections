@@ -1,3 +1,4 @@
+import functools
 import itertools
 import sys
 from pathlib import Path
@@ -78,6 +79,68 @@ CLIMATE_STORE = climate_store_spec(
     basin_index=basin_index,
 )
 region_path = CLIMATE_STORE.outputs["region_geojson"]
+
+# --- series identity (migration step 2b; design §5.3, D9, D12) ----------------
+# The series files below stop being temp() and become a persistent product, so
+# they need an identity: "was this derived from exactly the inputs the current
+# config implies?" Everything knowable at PARSE time goes into the rules' params,
+# where Snakemake's params rerun-trigger can see it. The polygon fingerprint is
+# deliberately NOT here — on a fresh project the polygon does not exist yet, and
+# a param flipping from absent to a real value on the second invocation would
+# re-derive every series once for nothing (design §6.14). The reduce job folds it
+# in and stamps the result on what it writes.
+from blueearth_cst.projections import series_identity as _si
+
+# The store index sits beside the catalog that generated it; both come from one
+# crawl and carry an equal crawled_on (D12). Derived rather than configured: a
+# separately-configurable path would let the two drift.
+STORE_INDEX = str(Path(DATA_SOURCES).parent / "cmip6_store_index.json")
+
+# ENUMERATED reducer modules, not "all of blueearth_cst" (risk-03): Snakemake's
+# code trigger tracks the rule's script body, not the modules it imports, so a
+# change to the reduction logic would otherwise reuse every cached series. Listed
+# here so the enumeration is reviewable in a diff.
+REDUCER_MODULES = [
+    str(Path(workflow.basedir) / "blueearth_cst" / "projections" / "get_stats_climate_proj.py"),
+    str(Path(workflow.basedir) / "blueearth_cst" / "projections" / "series_identity.py"),
+]
+REDUCER_HASH = _si.module_hash(REDUCER_MODULES)
+
+
+#: WF2's spatial buffer around the region bbox, in degrees. Previously a bare
+#: `buffer = 1` inside the script; named here because it is a digest component
+#: (design §5.3 item 4) and a documented sampling choice, not an accident.
+REGION_BUFFER_DEGREES = 1.0
+
+
+@functools.lru_cache(maxsize=None)
+def series_digest_components(model, experiment):
+    """Parse-time digest components for one (model, experiment) series.
+
+    Memoized: the generated catalog is ~3 900 lines and Snakemake evaluates a
+    params callable once per job per param, so an unmemoized parse would re-read
+    it on every lookup. Keyed on (model, experiment) — every other input is
+    module-level and fixed for the run.
+
+    ``members`` is the config LIST, not one member: at step 2b it is still looped
+    inside one job, so a single output covers every member and the identity spans
+    all of them. Step 3 makes it a wildcard, at which point the list has one
+    element and this shape is unchanged.
+    """
+    catalog_entry = f"{clim_project}_{model}_{experiment}_{{member}}"
+    entry = _si.load_catalog_entry(DATA_SOURCES, catalog_entry)
+    return _si.digest_components(
+        catalog_entry=catalog_entry,
+        entry=entry,
+        members=members,
+        pins_by_member={
+            m: _si.load_pins(STORE_INDEX, catalog_entry, m) for m in members
+        },
+        buffer_degrees=REGION_BUFFER_DEGREES,
+        variable_spec=variables,
+        experiment=experiment,
+        reducer_module_hash=REDUCER_HASH,
+    )
 
 ### Dictionary elements from the config based on wildcards
 def get_horizon(wildcards):
@@ -160,7 +223,10 @@ rule monthly_stats_hist:
         region_path = region_path,
     output:
         #stats_nc_hist = (clim_project_dir + "/historical_stats_{model}.nc"),
-        stats_time_nc_hist = temp(clim_project_dir + "/historical_stats_time_{model}.nc"),
+        # PERSISTENT (step 2b): no longer temp(). The series is a product, and the
+        # run that produced it may have cost hours while the file is ~17 KB. Its
+        # reuse is gated on the cst_series_digest attribute, not on its presence.
+        stats_time_nc_hist = (clim_project_dir + "/historical_stats_time_{model}.nc"),
     params:
         catalog_path = DATA_SOURCES,
         project_dir = f"{project_dir}",
@@ -170,6 +236,12 @@ rule monthly_stats_hist:
         name_clim_project = clim_project,
         variables = variables,
         save_grids = save_grids,
+        # step 2b identity: parse-time digest components + the declared
+        # acquisition window. future_horizons is deliberately absent (goal G5).
+        digest_components = lambda wildcards: series_digest_components(wildcards.model, "historical"),
+        acquisition_window = list(_si.acquisition_window("historical")),
+        store_index = STORE_INDEX,
+        buffer_degrees = REGION_BUFFER_DEGREES,
     log:
         project_dir + "/logs/_parts/2.02_monthly_stats_hist/{model}.log",
     benchmark:
@@ -181,10 +253,15 @@ rule monthly_stats_hist:
 rule monthly_stats_fut:
     message: rule_banner("2.03", "monthly_stats_fut")
     input:
+        # The hist->fut ordering edge is GONE (step 2b). get_stats_climate_proj.py
+        # never opened that file -- it reads only input.region_path -- so the edge
+        # serialized the whole fan-out for no data reason. The real reason for it
+        # was almost certainly the unguarded os.mkdir it protected; the script now
+        # uses makedirs(exist_ok=True).
         region_path = region_path,
-        stats_time_nc_hist = (clim_project_dir + "/historical_stats_time_{model}.nc"), #make sure starts with previous job
     output:
-        stats_time_nc = temp(clim_project_dir + "/stats_time-{model}_{scenario}.nc"),
+        # PERSISTENT (step 2b): see the note on rule 2.02.
+        stats_time_nc = (clim_project_dir + "/stats_time-{model}_{scenario}.nc"),
     params:
         catalog_path = DATA_SOURCES,
         project_dir = f"{project_dir}",
@@ -194,6 +271,10 @@ rule monthly_stats_fut:
         name_clim_project = clim_project,
         variables = variables,
         save_grids = save_grids,
+        digest_components = lambda wildcards: series_digest_components(wildcards.model, wildcards.scenario),
+        acquisition_window = lambda wildcards: list(_si.acquisition_window(wildcards.scenario)),
+        store_index = STORE_INDEX,
+        buffer_degrees = REGION_BUFFER_DEGREES,
     log:
         project_dir + "/logs/_parts/2.03_monthly_stats_fut/{model}_{scenario}.log",
     benchmark:
@@ -204,12 +285,24 @@ rule monthly_stats_fut:
 rule monthly_change:
     message: rule_banner("2.04", "monthly_change")
     input:
-        stats_time_nc_hist = ancient(clim_project_dir + "/historical_stats_time_{model}.nc"),
-        stats_time_nc = ancient(clim_project_dir + "/stats_time-{model}_{scenario}.nc"),
+        # ancient() DROPPED (step 2b, design D9): with a persistent series store,
+        # suppressing the mtime trigger here is exactly the hole ext2-01 found --
+        # a re-derived series would not re-trigger its consumer. The consumer also
+        # asserts each series' digest in-job, which is the backstop that holds
+        # regardless of how Snakemake was invoked.
+        stats_time_nc_hist = (clim_project_dir + "/historical_stats_time_{model}.nc"),
+        stats_time_nc = (clim_project_dir + "/stats_time-{model}_{scenario}.nc"),
+        # D9: stage B recomputes every expected digest INCLUDING the current
+        # polygon fingerprint, so it needs the polygon itself.
+        region_path = region_path,
     output:
         stats_nc_change = temp(clim_project_dir + "/annual_change_scalar_stats-{model}_{scenario}_{horizon}.nc"),
     params:
         clim_project_dir = f"{clim_project_dir}",
+        # step 2b backstop: the expected digest of each input series, recomputed
+        # from the same parse-time components the producer used.
+        digest_components_hist = lambda wildcards: series_digest_components(wildcards.model, "historical"),
+        digest_components_fut = lambda wildcards: series_digest_components(wildcards.model, wildcards.scenario),
         start_month_hyd_year = start_month_hyd_year, 
         name_model = "{model}",
         name_scenario = "{scenario}",

@@ -5,6 +5,7 @@ Created on Tue Feb  1 14:34:58 2022
 @author: bouaziz
 """
 
+import json
 import os
 
 # gcsfs >= 2026.4 enables an experimental Extended filesystem by default that
@@ -19,6 +20,7 @@ import xarray as xr
 
 from dask.diagnostics import ProgressBar
 
+from blueearth_cst.projections import series_identity
 from blueearth_cst.shared.snake_utils import log_row
 
 # %%
@@ -149,14 +151,22 @@ if __name__ == "__main__":
             variables = sm.params.variables
             save_grids = sm.params.save_grids
 
-            # Time tuple for timeseries
+            # step 2b identity params (design §5.3, D9, D12). Read BEFORE the time
+            # tuple below, which consumes acquisition_window.
+            digest_components = dict(sm.params.digest_components)
+            acquisition_window = tuple(sm.params.acquisition_window)
+            store_index = sm.params.store_index
+            buffer = float(sm.params.buffer_degrees)
+
+            # Time tuple for timeseries.
+            # cmip6 now comes from the DECLARED acquisition contract in params
+            # (design §5.3) rather than from this branch: it is a digest component,
+            # and it must be identical to what the Snakefile hashed. The values are
+            # byte-identical to the cmip6 literals this branch used to carry, so
+            # this is behaviour-preserving. cmip5/isimip3 keep their local branches
+            # — WF2 v2.0 targets cmip6 and those spans have no declared contract.
             if name_clim_project == "cmip6":
-                if name_scenario == "historical":
-                    # cmip6 historical 1850-2014
-                    time_tuple_all = ("1950-01-01", "2014-12-31")
-                else:
-                    # cmip6 future 2015-2100+ depending on models
-                    time_tuple_all = ("2015-01-01", "2100-12-31")
+                time_tuple_all = acquisition_window
             elif name_clim_project == "cmip5":
                 if name_scenario == "historical":
                     # cmip5 historical 1850-2005
@@ -176,13 +186,42 @@ if __name__ == "__main__":
             folder_model = os.path.join(project_dir, "hydrology_model")
             folder_out = os.path.join(project_dir, "climate_projections", name_clim_project)
 
-            if not os.path.exists(folder_out):
-                os.mkdir(folder_out)
+            # makedirs, not mkdir-if-absent: the guarded mkdir raced whenever two
+            # reduce jobs started together, which is almost certainly why rule 2.03
+            # carried an ordering edge on 2.02's output that it never read. The edge
+            # is gone (step 2b), so this must be race-free.
+            os.makedirs(folder_out, exist_ok=True)
 
             # initialize model and region properties
             geom = gpd.read_file(region_path)
             bbox = list(geom.geometry.bounds.values[0])
-            buffer = 1
+
+            # --- D9 revalidation: decide BEFORE touching the network -----------
+            # The polygon fingerprint cannot be a parse-time param (it does not
+            # exist on a fresh project), so the digest is completed here from the
+            # polygon just read. When every declared output already carries this
+            # digest, the job is a no-op: the polygon was rewritten byte-identically
+            # (a WF1 rerun), or a param changed that does not affect what was read.
+            # This is what preserves the property ancient() used to buy, while
+            # checking content instead of assuming it.
+            region_fp = series_identity.region_fingerprint(region_path)
+            expected_digest = series_identity.series_digest(digest_components, region_fp)
+            declared_outputs = [str(p) for p in sm.output]
+
+            if series_identity.cache_hit(declared_outputs, expected_digest):
+                log_row(
+                    f"cache_hit digest={expected_digest[:12]} "
+                    f"({len(declared_outputs)} output(s) already current)",
+                    module="stats",
+                )
+                for path in declared_outputs:
+                    os.utime(path, None)  # refresh mtime so Snakemake sees it done
+                raise SystemExit(0)
+
+            log_row(
+                f"deriving digest={expected_digest[:12]} region_fp={region_fp[:12]}",
+                module="stats",
+            )
 
             # initialize data_catalog from yml file
             data_catalog = hydromt.DataCatalog(data_libs=catalog_path)
@@ -275,6 +314,42 @@ if __name__ == "__main__":
             else:
                 name_nc_out = f"stats-{name_model}_{name_scenario}.nc"
                 name_nc_out_time = f"stats_time-{name_model}_{name_scenario}.nc"
+
+            # --- step 2b: stamp the identity onto the product -------------------
+            # These attributes are what make the persistent series self-describing
+            # and what the consumer asserts against (design §5.3 schema table).
+            # Without them a file on disk is indistinguishable from one derived
+            # against a different polygon, catalog entry or reducer.
+            entry_meta = digest_components.get("entry_identity", {})
+            nc_mean_stats_time.attrs.update(
+                {
+                    "cst_schema_version": series_identity.SCHEMA_VERSION,
+                    "cst_series_digest": expected_digest,
+                    "cst_catalog_entry": digest_components.get("catalog_entry", ""),
+                    "cst_acquisition_window": " / ".join(acquisition_window),
+                    "cst_region_bounds": ", ".join(f"{b:.9g}" for b in bbox),
+                    "cst_region_fingerprint": region_fp,
+                    "cst_buffer_degrees": buffer,
+                    "cst_reducer_module_hash": digest_components.get(
+                        "reducer_module_hash", ""
+                    ),
+                    "cst_members": ", ".join(digest_components.get("members", [])),
+                    # D12: the physical stores this series actually read, per
+                    # member -- the identity the entry name alone cannot carry
+                    # because {variable}/*/* globs grid label and version.
+                    "cst_source_paths": json.dumps(
+                        digest_components.get("pins", {}), sort_keys=True
+                    ),
+                    "cst_crs": str(
+                        (entry_meta.get(digest_components.get("members", [""])[0], {})
+                         if entry_meta else {}).get("metadata", {}).get("crs", "")
+                    ),
+                    # Today's unweighted spatial mean. Becomes spherical cell-area
+                    # weighting at step 5a (D10); recorded now so a series always
+                    # says which scheme produced it.
+                    "cst_weighting_scheme": "unweighted_mean_pre_5a",
+                }
+            )
 
             log_row("writing stats over time to nc", module="stats")
             delayed_obj = nc_mean_stats_time.to_netcdf(
