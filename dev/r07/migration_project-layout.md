@@ -499,7 +499,7 @@ as well as R07's four new ones — R07 retires none of them.
 | `experiments/<id>/indicators/plots/` | *(not an entry)* | Reserved with no producer — empty on both sides |
 | `experiments/<name>/.project_consistency_ok` | EXTRA | **Carried forward from P3-1** (`dev/p31/migration_experiment-structure.md` §2), unchanged by R07 |
 | `climate_historical/<key>/.guard_ok` | EXTRA | **Carried forward from P3-1**, unchanged by R07 — B1 retires its *DAG edge*, not the artifact, and the path does not move |
-| `experiments/<name>/config/<data_catalog>.yml` (via `--allow`; `deltares_data.yml` on the seed config) | EXTRA | **Carried forward from P3-1**, unchanged by R07 |
+| `experiments/<name>/config/catalogs/<data_catalog>.yml` (via `--allow`; `deltares_data.yml` on the seed config) | EXTRA | **Carried forward from P3-1** — but the **path changed under R07**: B9 routes the wf3 snapshot's catalog into `config/catalogs/`, so the entry gains that segment. Unchanged in kind: the experiment's catalog snapshot has no pre-R07 counterpart. Confirmed at Gate 3, where it was the only unexplained EXTRA in the full-tree diff |
 | `<project_dir>/dag/` | *(not an entry, unless the gate capture rendered DAGs)* | O-02's destination has no pre-R07 counterpart, and `dag` is **not** in `EXCLUDED_DIR_NAMES` (`{logs, benchmarks, .snakemake}`). It is not produced by `snakemake all` — only by the explicit `--dag` renders in `scripts/run_snake_test.cmd:32,39` and the README / notebook cells — so a reference tree captured from a plain workflow run will not contain it. **If** a gate capture is taken after a DAG render, allowlist it as EXTRA rather than treating it as a regression |
 
 **MISSING — the stale map's "none by design" line is retracted.**
