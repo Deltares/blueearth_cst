@@ -1,4 +1,4 @@
-# External review brief — WF2 v2.0 climate data & projections analysis, round 1
+# External review brief — WF2 v2.0 GCM projections analysis, round 2
 
 ## Role
 
@@ -12,7 +12,7 @@ not copyedit prose.
 
 Review exactly one document:
 
-- `C:\Users\taner\workspace\blueearth_cst\dev\working\design-runs\wf2-climate-analysis-v2\design-v1.md`
+- `C:\Users\taner\workspace\blueearth_cst\dev\working\design-runs\wf2-climate-analysis-v2\design-v3.md`
 
 The repository is **BlueEarth Climate Stress Test** — a Snakemake-orchestrated
 scientific toolbox (Python + R + Julia) with three workflow entry points run in
@@ -21,40 +21,68 @@ datasets via hydromt; workflow 2 (the subject of this design) computes CMIP6
 change factors as a *plausibility overlay*; workflow 3 is the bottom-up climate
 stress test, where a stochastic weather generator produces realizations
 perturbed across a temperature × precipitation grid and run through Wflow. The
-design under review proposes restructuring workflow 2 and widening it from a
-change-factor calculator into a general climate data and projections analysis
-workflow. It is a **draft**: the owner has asked for review before finalizing.
+design under review proposes restructuring workflow 2 into a **monthly GCM
+projections analysis** workflow with an optional gridded branch (ruling R4
+below narrowed an earlier, broader "climate data & projections analysis"
+ambition). It is a **draft**: the owner has asked for review before finalizing.
 
-**Settled framing — out of scope for your review.**
+**Settled framing - out of scope for your review.** Every item below is an
+owner ruling recorded in `status.md`. Round 1 reviewed an earlier version; these
+rulings were made in response to it.
 
-1. Workflow 2 is a plausibility overlay only. Workflow 3 is never driven by
-   CMIP6 scenarios (repository hard constraint). The design's §5.8 slot S5 is a
-   one-way advisory that emits a figure and a warning and never writes workflow
-   3 config; do not argue for a tighter coupling.
-2. `plot_climate_source` (workflow 1's rule 1.15) stays where it is and workflow
-   2 composes rather than relocates it (§6.2). A sealed milestone's test
-   (`tests/test_plot_climate_source.py`) pins the assertion those figures build
-   without a hydrological model on disk; relocating invalidates it.
-3. No new third-party dependency is adopted in this design. `xclim`,
-   `regionmask`, `intake-esm` are recorded as owner asks (OQ-7), not as
-   proposals.
-4. hydromt / hydromt_wflow / Wflow conventions are consumed verbatim; the design
-   does not re-engineer upstream behavior.
-5. Two facts were measured, not assumed, and you may rely on them: (a) the two
-   candidate region polygons have identical bounds `[9.658333, 0.35, 9.858333,
-   0.483333]` on the test fixture; (b) the CMIP6 catalog sources are `Amon`
-   (monthly), so the current `resample("MS").sum()` vs `.mean()` dispatch is a
-   no-op.
+1. Workflow 2 is a plausibility overlay. Workflow 3 is never driven by CMIP6
+   scenarios (repository hard constraint).
+2. `plot_climate_source` (workflow 1 rule 1.15) stays where it is; workflow 2
+   composes rather than relocates it. A sealed milestone's test pins it.
+3. No new third-party dependency is adopted.
+4. hydromt / hydromt_wflow / Wflow conventions are consumed verbatim.
+5. **R1 - clip, never splice.** The GCM reference window clips to the CMIP6
+   historical experiment (ends 2014); the 2015-2020 gap is never filled from
+   scenario data. The workflow warns when a configured period overruns 2014.
+   The overlay reference period and the project's stress-test baseline remain
+   different periods, and the owner accepts that.
+6. **R2 - the gridded option is retained, default off**, with declared outputs.
+7. **R3' - no aggregation at any level.** Members are never averaged. Each
+   (model, scenario, member) is a single data point with its own dT and dP. No
+   aggregation across models, scenarios, or members. Member availability is a
+   union of what the store publishes; differing member counts and missing SSP
+   scenarios are normal, not errors.
+8. **R3'' - cross-combination statistics are ex-post**, computed downstream and
+   out of v2.0 scope. Per-series statistics (computed within one
+   (model, scenario, member, horizon)) remain in scope - they are what the
+   change factor is.
+9. **R4 - v2.0 is monthly GCM projections analysis**, with a gridded expansion.
+   No comparison against observed data at this stage; `extract_historical.nc` is
+   not reduced.
+10. **R5 - the basin-averaged monthly series per run is a declared
+    deliverable**, alongside the change-factor table and the composition record.
+11. **D2 -> A1** - WF2 declares the full `climate_store_spec`, accepting the
+    gridded observed extraction on a fresh projections-only run.
+12. **OQ-4 -> 30 years, 1985-2014** for the reference window.
 
 Do not spend findings arguing these should have been decided differently; **do**
 raise a finding if a ruling creates a downstream inconsistency in the document,
 or if the document's implementation of a ruling does not actually satisfy it.
 
-**Explicitly open — input wanted.** §10 records OQ-1 through OQ-8 as unresolved
-(entry point, roadmap placement, output layout, window length, extremes data,
-ensemble weighting, dependencies, `save_grids`). These are *not* settled framing;
-substantive input on them is welcome and should be filed as findings at whatever
-severity you judge.
+Also read, **after** forming your own view of the design:
+
+- `ledger.md` - dispositions of all 19 round-1 findings plus round-2 rows
+- `review-index.md` - the round-1 aggregation, including driver premise checks
+
+**Regression duty.** Verify that findings marked resolved are actually resolved
+in this version, that no accepted fix introduced a new defect, and that
+rejections' rationales hold. Re-raise anything that fails.
+
+**Explicitly open - input wanted.** Section 10's remaining open questions
+(including OQ-12 config-key naming, OQ-13 expressing many members without a
+fan-out surprise, OQ-14 catalog snapshot cadence, OQ-15 guaranteed-variable
+coverage) are *not* settled framing; substantive input is welcome, filed as
+findings at whatever severity you judge.
+
+One context fact the design relies on: `config/catalogs/cmip6_data.yml` is now
+**generated** from a live `gs://cmip6` crawl - 289 entries, one per
+(model, scenario), each listing the members that exist with both `pr` and `tas`
+at Amon; 2426 sources total. It is never hand-edited.
 
 ## Authority boundary
 
@@ -90,10 +118,10 @@ Return ONLY a markdown document with this structure — no preamble:
 
     ## Verdict
     verdict: approve | revise | reject
-    doc_version: design-v1.md
+    doc_version: design-v3.md
 
     ## Findings
-    ### ext1-<seq>  [blocking | major | minor]
+    ### ext2-<seq>  [blocking | major | minor]
     - section: <design heading the finding targets>
     - finding: <one-paragraph claim>
     - rationale: <why it matters — observable consequence>
