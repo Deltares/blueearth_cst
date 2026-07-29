@@ -157,13 +157,27 @@ Provenance: `dev/r07/migration_project-layout.md` §§7a–7d,
 
 ### Cosmetic / low priority
 
-- **[R7-8] wflow writes `log.txt` beside the run TOML**, not under `dir_output`
-  — so it now lands in `hydrology_runs/rlz_<r>/config/log.txt`, one per
+- **[R7-8] wflow writes `log.txt` beside the run TOML**, not under
+  `dir_output` — so it lands in `hydrology_runs/rlz_<r>/config/log.txt`, one per
   realization instead of one per experiment. Gate-invisible (`_is_excluded`
   drops `log.txt`), but `config/` holding a log is a small P3 wart.
-- **[R7-9] Stale benchmark parts survive a rule rename.** `merge_benchmarks`
-  globs `benchmarks/_parts/`, so a renamed rule leaves a phantom row in the
-  gathered markdown. Inside `EXCLUDED_DIR_NAMES`, so no gate impact.
+  **Mechanism confirmed 2026-07-29:** `path_log` is a *documented, optional*
+  wflow TOML key under `[logging]`, default `"log.txt"`
+  (`docs/wflow-user-guide/03-toml-file.md:47`) — so relocating it is consuming
+  an upstream convention, not re-engineering one, and is in scope. Set it beside
+  the other run-TOML pointers in `downscale_climate_forcing.py`.
+  **Deferred deliberately:** verifying where wflow actually resolves `path_log`
+  (TOML dir vs `dir_output`) needs a real wf3 run, which is a poor trade for a
+  gate-invisible cosmetic. Recorded here so the next person does not have to
+  rediscover the key.
+- **[R7-9] ~~Stale benchmark parts survive a rule rename.~~ CLOSED — NO ACTION,
+  2026-07-29.** Investigated: `merge_benchmarks` deletes every part it merges
+  (`_remove_parts`, called at the end of the merge), so a stale part from a
+  renamed rule is consumed and removed on the **first** merge after the rename.
+  The phantom row therefore appears exactly once, in one report, and the
+  condition is self-healing. Adding a rule-name guard would mean teaching
+  `merge_benchmarks` the current rule list, which it has no other reason to
+  know. Not worth the coupling.
 - **[R7-10] ~~Old-path references in documents commit 15 did not own.~~
   FIXED 2026-07-29.** `dev/workflows/model_creation.md`'s `rule all` target list
   repointed to the B10 homes (and gains B4's three `source_*` figures, which it
@@ -174,10 +188,17 @@ Provenance: `dev/r07/migration_project-layout.md` §§7a–7d,
   the ladder existed to characterise the difference between `wf1_raw` and the
   keyed store, and R07's merge comparison proved those two element-wise
   identical, so re-pointing it would leave it comparing a store against itself.
-- **[R7-11] `plot_map_forcing.py:199`** carries the same `"None"`-string shape as
-  O-08 but is benign in its current use. Left alone deliberately; worth guarding
-  if that code path ever grows a layer name.
-- **[R7-12] The tests config warns on every dry-run.**
+- **[R7-11] ~~`plot_map_forcing.py:199` carries the same `"None"`-string
+  shape as O-08.~~ CLOSED — NO ACTION, 2026-07-29.** Two independent reasons,
+  both checked. The derived name is consumed by `if gauges_name in geoms:`
+  (`plot_map_forcing.py:91`) — a *membership test*, which is itself the guard: a
+  bogus `"None"` simply is not in `geoms` and nothing is drawn. And rule 1.13
+  passes `{basin_dir}/staticgeoms/outlets.geojson`, a real declared path, never
+  the sentinel, so the case cannot arise from the workflow at all. This is the
+  structural difference from O-08, where `plot_map.py` *built a layer name and
+  used it* with no membership check.
+- **[R7-12] CLOSED — WORKING AS INTENDED, 2026-07-29. The tests config warns on
+  every dry-run.**
   `tests/snake_config_model_test.yml` uses `project_dir: tests/test_project`,
   which is in-repo and outside the single `test_case/` exemption, so O-22's
   warning fires correctly but routinely. Not widened to silence it — the
