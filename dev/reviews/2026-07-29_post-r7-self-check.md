@@ -133,35 +133,65 @@ rest of the tree already follows**: *one `plots/` per product area.*
    product. *Speculative; not recommended as part of this change.* Separable,
    and should be ruled on its own merits after (2) lands.
 
-**Recommendation.** Alternative 2. Target layout:
+**Recommendation.** Alternative 2, split into the core move (what was asked) and
+two optional additions (proposed here, not requested — rule on each separately).
+
+*Core — two buckets, no renames.* Move `forcing/plots/{precip,temp,pet}.png` and
+`evaluation/plots/{clim_wflow_1_month,clim_wflow_1_year,hydro_wflow_1}.png`
+(plus the undeclared `signatures_*`, `basavg_*`) into `hydrology_model/plots/`.
+**No filename collisions:** `source_*` stays in the other bucket, and
+`clim_wflow_1_*` / `hydro_wflow_1` / `basin_area` are already distinct. So the
+core move needs no renames at all.
 
 ```text
-climate_historical/<key>/plots/          source_precip.png  source_temp.png  source_pet.png
-hydrology_model/plots/                   basin_area.png
-                                         forcing_precip.png  forcing_temp.png  forcing_pet.png
-                                         clim_wflow_1_month.png  clim_wflow_1_year.png
-                                         hydro_wflow_1.png
-                                         signatures_<station>.png  basavg_<var>.png   (undeclared)
-hydrology_model/performance_metrics.csv  (evaluation/ dissolves — one CSV left)
+climate_historical/<key>/plots/   source_precip.png  source_temp.png  source_pet.png
+hydrology_model/plots/            basin_area.png
+                                  precip.png  temp.png  pet.png
+                                  clim_wflow_1_month.png  clim_wflow_1_year.png
+                                  hydro_wflow_1.png
+                                  signatures_<station>.png  basavg_<var>.png  (undeclared)
+hydrology_model/evaluation/       performance_metrics.csv
 ```
 
-Rationale for the two renames: R07 disambiguated only one of three families.
-`source_precip.png` and `clim_wflow_1_month.png` are self-describing; bare
-`precip.png` is not, and once the families share a directory the risk-9
-argument applies to it with full force.
+*Optional A — the `forcing_` prefix.* Rename the three model-grid maps to
+`forcing_{precip,temp,pet}.png`. R07 disambiguated only one of three families;
+`source_precip.png` and `clim_wflow_1_month.png` are self-describing, bare
+`precip.png` is not, and once the families share a directory the risk-9 argument
+(a figure copied out of its directory loses its parent) applies to it with full
+force. Costs a rename on top of the move.
 
-Edit surface (all wf1): rules 1.11, 1.12, 1.13 outputs; rule `all` and rule
-1.14's gather inputs; `plot_results.py:116` (`Folder_plots = f"{Folder_eval}/plots"`)
-and `plot_map_forcing.py`'s `Folder_plots` module global — note both scripts set
-the directory internally, so the rule declaration alone does not move the files.
-Then `pytest tests/test_cli.py`, a baseline re-record, and a docs pass.
-`tests/test_plot_climate_source.py` and the P4 assertion are unaffected (bucket 1
-does not move).
+*Optional B — dissolve `evaluation/`.* With the figures gone it holds one CSV;
+move `performance_metrics.csv` to the model root. **This reverses an explicit
+R07 P1 decision** (`plots/` holds figures only, the table sits one level up in
+`evaluation/`) that was not part of the challenge — hence optional.
 
-**Open question blocking sign-off.** CST is the engine of a three-part platform;
-if the CST-API backend or the frontend GUI collects figures by path or filename,
-these renames are a **breaking change for a consumer outside this repo**. That
-must be confirmed before implementation — it cannot be checked from here.
+*Verified edit surface* (grep over `tests/ dev/ docs/ scripts/ blueearth_cst/`,
+2026-07-29 — larger than the rule declarations):
+
+| File | What pins the paths |
+|---|---|
+| `Snakefile_model_creation` | rules 1.11, 1.13 outputs; rule `all` and 1.14's gather inputs |
+| `blueearth_cst/model/plot_results.py:116` | `Folder_plots = f"{Folder_eval}/plots"` — the script decides the directory, not the rule |
+| `blueearth_cst/model/plot_map_forcing.py:193` | `Folder_plots` module global — same |
+| `tests/test_wf1_plot_outputs.py:35-42,78` | hard-codes all 8 paths incl. the undeclared `signatures_wflow_1.png` |
+| `dev/scripts/check_baseline.py:162-164` | comparator table entries |
+| `dev/scripts/semantic_tree_diff.py:260-273` | the pre-R7 → post-R7 rename map; a second move makes it a 2-hop map unless updated |
+| `dev/baseline/manifest.json` | 3 hits + a full re-record |
+| `plot_climate_source.py:14-22`, `plot_results.py:113-118,358` | the three-family docstring table and P1 comments |
+
+Validation: `pytest tests/test_cli.py`, then `tests/test_wf1_plot_outputs.py`, a
+`check_baseline` run, and a baseline re-record.
+`tests/test_plot_climate_source.py` and the P4 assertion are unaffected — bucket
+1 does not move.
+
+**Open question blocking sign-off — asymmetric across the three parts.** CST is
+the engine of a three-part platform. If the CST-API backend or the frontend GUI
+collects figures **by glob** (`hydrology_model/**/plots/*.png`), the core move is
+harmless and only Optional A breaks it. If it reads **exact paths**, the core
+move breaks it too. Optional A is blocked hard either way; the core move is
+blocked only under exact-path collection. This cannot be checked from this repo.
+
+**Disposition.** Pending owner ruling on Core / Optional A / Optional B.
 
 **Disposition.** Pending owner ruling.
 
