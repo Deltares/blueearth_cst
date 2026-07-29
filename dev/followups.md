@@ -223,6 +223,17 @@ Provenance: `dev/r07/migration_project-layout.md` §§7a–7d,
   precisely because the tree cannot honour the stronger claim without that rule.
 - **[R7-16] Tooling contract**: O-14 `pyproject.toml`, O-15 `ruff`, O-16 `flit`
   — open decisions, unrelated to layout.
+  **O-14 decision 1 RESOLVED** (ab781a5): tool-config-only `pyproject.toml`, no
+  `[build-system]` / `[project]` / `[tool.pixi]`. Decision 2 (real packaging)
+  still needs a superseding record in `dev/decisions/`.
+  **O-15 RESOLVED** (85d3178 → 81e0096): ruff adopted as the lint gate,
+  `select = ["E4","E7","E9","F"]`, all 96 findings cleared, and the PR
+  template's unfounded "Black formatting pass" checkbox now names
+  `pixi run ruff check .` — a command that exists. Two things worth carrying
+  forward: ruff 0.16's *default* selection is ~415 rules (409 findings here
+  under `--isolated`), so `select` is pinned explicitly and must stay pinned;
+  and `ruff format` is configured but deliberately **not** enforced — see
+  R7-23. **O-16 still open** and still gated on O-14 decision 2.
 - **[R7-17] Docker (O-06) and Linux end-to-end (O-18, O-19)** — parked, no Linux
   machine. Linux *parse-level* consistency is now covered: the Linux config
   dry-runs on both CI legs.
@@ -235,6 +246,27 @@ Provenance: `dev/r07/migration_project-layout.md` §§7a–7d,
 - **[R7-19]** Branch `milestone/r07-layout` is **unmerged and unpushed**; the
   `r07-layout` tag is unapplied and `dev/roadmap.md` still reads *design
   accepted, awaiting implementation*. Sealing is an owner decision.
+- **[R7-22] `downscale_climate_forcing.py` is the last module that reads the
+  bare `snakemake` global at import time.** The other 22 `script:`-invoked
+  modules use the guarded `if "snakemake" in globals(): sm = globals()["snakemake"]`
+  idiom, which keeps them importable for unit tests; `prepare_weagen_config.py`'s
+  docstring records that conversion as a deliberate past fix ("made it
+  un-importable for unit tests"). Surfaced by ruff F821, and confirmed
+  independently: a `pkgutil.walk_packages` sweep imports every module under
+  `blueearth_cst/` cleanly **except** this one, which raises `NameError`.
+  It currently carries an F821 per-file-ignore in `pyproject.toml` — that entry
+  should be **deleted, not extended**, once the module is converted. Converting
+  it would also make it unit-testable, which is the actual prize; note the whole
+  module body sits inside a `with tee_to_log(...)` block, so the conversion is
+  not purely mechanical.
+- **[R7-23] `ruff format` is configured but not enforced.** 118 of 262 files
+  would be reformatted, ~7.8k diff lines. That is a churn decision on its own
+  merits and was deliberately kept out of the O-15 lint adoption. If it is ever
+  taken, it should be a single mechanical commit with no other change in it, so
+  the diff stays reviewable — and note it would rewrite files the baseline gate
+  reads, so re-record afterwards. Likewise, the rule families left out of
+  `select` (`I` import sorting, `UP` pyupgrade, `B`/`SIM`/`PERF`/`RUF`) can each
+  be added later as its own reviewable commit; `I` alone is ~62 files.
 - **[R7-20]** The pre-R7 reference tree at
   `C:/Users/taner/workspace/.r07-reference/` (219 files + the discharge anchor)
   can be retired once the milestone seals — the re-recorded manifest is the
