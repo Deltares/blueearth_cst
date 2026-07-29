@@ -34,10 +34,51 @@ flags: [owner-requested-fable-lens, promoted-lite-to-full, blocking-findings-ope
 - [done] 5-convergence-r1 — NOT converged. 3 distinct blocking defects
   (risk-01 = ext1-01; ext1-02; ext1-03). Promotion trigger fired: lite -> full,
   external cap now 2. Index: review-index.md
-- [open] G1-return — four findings are owner decisions, not author fixes
-  (review-index.md § "Findings that are owner decisions"); a ruling on the
-  reference-series construction or the v2 scope claim changes the selected
-  alternative and must precede any revision spawn.
+- [done] G1-return — re-approved 2026-07-29 with four owner rulings (below).
+  Rulings R1 and R4 change the selected alternative; the revision is authored
+  against them as settled framing.
+- [open] 6-revision-r1 — author spawn (Opus) → design-v2.md + ledger.md
+
+## G1 rulings — 2026-07-29 (owner)
+
+**R1 — reference series: clip, never splice.** Do not modify historical or
+scenario runs; no processing of the 2015–2020 gap. The GCM reference window is
+clipped to the historical experiment (≤2014) and the workflow **warns/disclaims**
+when the user selects a historical period extending past 2014. Consequence
+accepted: the overlay's reference period and the project's stress-test baseline
+(`shared.historical_window`, 2000–2020) remain different periods; the disclaimer
+is what surfaces that, replacing the design's "equal by construction" claim.
+G3 is restated as an alignment **check with a warning**, not a structural
+guarantee. Closes risk-01 / ext1-01 as an owner-ruled design change.
+
+**R2 — `save_grids` is retained as an option, default OFF.** Raw grids from the
+model runs are saved on request, for advanced analysis at a later stage. This
+requires a first-class **optional gridded branch with declared outputs** — not
+the current undeclared, params-passed file layer. Closes OQ-8 / ext1-09.
+
+**R3 — ensemble treatment: adopt the reviewer's fix.** Driver's reading, stated
+for correction: thresholds defined on **unique models**; members shown
+hierarchically; members averaged **within** a model before equal-model
+summaries; and until the ensemble is large enough, emit individual model/member
+traces **without an aggregate envelope**. Closes OQ-6 / ext1-07.
+
+**R4 — v2.0 scope narrows to GCM projections analysis.** For now: **monthly GCM
+projections output analysis**, with room to expand to **gridded** results for
+plotting and analysis (consistent with R2). **No comparison against observed
+data at this stage.** Consequences: the "one reducer over observed + GCM"
+premise of §5.2 narrows to "one reducer over all GCM sources"; extension slots
+S1/S2/S3 (observed climatology, multi-dataset comparison, bias diagnostics)
+become documented future architecture changes rather than free reads; and
+ext1-03 (daily-observed vs monthly-`Amon` reduction) is dissolved for v2 — the
+design must state explicitly that `extract_historical.nc` is not reduced in
+v2.0. Closes ext1-06 by taking its narrow option.
+
+**Open consequence of R4 the revision must address.** With observed analysis out
+of scope, declaring `extract_climate_grid` buys only the model-free region
+polygon, while C1 forbids a region-only asymmetric declaration — so the full
+observed extraction stays on WF2's critical path with no analytical payoff
+(risk-07 becomes load-bearing, not a footnote). The revision must either
+justify that cost explicitly or propose an alternative that does not break C1.
 
 ## Driver premise verification (2026-07-29)
 
