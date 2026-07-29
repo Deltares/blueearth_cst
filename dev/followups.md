@@ -243,9 +243,11 @@ Provenance: `dev/r07/migration_project-layout.md` §§7a–7d,
 
 ### Milestone housekeeping
 
-- **[R7-19]** Branch `milestone/r07-layout` is **unmerged and unpushed**; the
-  `r07-layout` tag is unapplied and `dev/roadmap.md` still reads *design
-  accepted, awaiting implementation*. Sealing is an owner decision.
+- **[R7-19] ~~Branch unmerged, tag unapplied, roadmap stale.~~ RESOLVED
+  2026-07-29.** Merged `--no-ff` (`0ea3918`), tagged `r07-layout`, and both
+  pushed to `origin`. `dev/roadmap.md` Phase 4 now reads SEALED. CI green on
+  both legs for the sealed tree (run 30450296441) — which was also the first
+  CI run to see any of R7, since the milestone sat unpushed until the seal.
 - **[R7-22] `downscale_climate_forcing.py` is the last module that reads the
   bare `snakemake` global at import time.** The other 22 `script:`-invoked
   modules use the guarded `if "snakemake" in globals(): sm = globals()["snakemake"]`

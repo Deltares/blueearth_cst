@@ -806,7 +806,7 @@ the same day (`semantic_tree_diff` exclusions — stale; dead
 
 ---
 
-## Phase 4 — Layout consolidation (design accepted, awaiting implementation)
+## Phase 4 — Layout consolidation (R7 SEALED 2026-07-29)
 
 Opened 2026-07-26 out of the owner's post-R6 assessment. Phase 2 (R6) settled
 the *repository* layout and Phase 3 (P3-1) settled the *experiment* layout;
@@ -815,12 +815,22 @@ the artifact tree explicitly ("5. Output layout under `project_dir/` already
 mostly clean — leave alone unless a concrete pain point emerges"). Pain points
 have now emerged, and they span both halves.
 
-### R7 — Project layout (BUILT 2026-07-29 — awaiting merge + tag)
+### R7 — Project layout (SEALED 2026-07-29)
 
-**Status.** **Implementation complete** on branch `milestone/r07-layout` —
-15 `r07:` commits, every acceptance criterion met (evidence below). **Not yet
-merged to `main` and not yet tagged**; both are owner decisions, and the tag
-`r07-layout` is reserved for the seal.
+**Status.** **Sealed.** Implemented as 15 `r07:` commits on
+`milestone/r07-layout`, every acceptance criterion met (evidence below), merged
+to `main` via `--no-ff` (`0ea3918`), tagged **`r07-layout`**, and pushed —
+`main` and the tag are both on `origin` as of 2026-07-29.
+
+CI is green on both platform legs for the sealed tree (run 30450296441,
+windows 499/31/1 and ubuntu 498/32/1, totalling 530 + 1 xfail). That run is
+also the first time CI had seen *any* of R7: the whole milestone plus the
+follow-on tooling sat unpushed until the seal, so every prior gate on this work
+was local-only. The `ci.yml` baselines were refreshed to match.
+
+Post-seal tooling landed on `main` after the tag (not part of R7 proper):
+O-14 decision 1 — a tool-config-only `pyproject.toml` (`ab781a5`) — and O-15 —
+ruff adopted as the lint gate and enforced in CI (`85d3178`…`518151b`).
 
 Design **ACCEPTED** 2026-07-28: `dev/r07/project-layout-design.md`, approved by
 the owner at gate G2 of a
