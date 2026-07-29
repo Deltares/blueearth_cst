@@ -1,8 +1,22 @@
+# GENERATED FILE — do not hand-edit.
+# Regenerate with: python dev/scripts/generate_cmip6_catalog.py
+#
+# One entry per (model, scenario). The `member` placeholder lists exactly the
+# members that exist in the bucket with both `pr` and `tas` at Amon, so a
+# source name resolving means the store is really there — which is what
+# get_stats_climate_proj.py's `if entry in data_catalog.sources` guard relies
+# on. Consumers of `kin` (rsds) or `press_msl` (psl) may find a listed member
+# lacks those variables; only pr/tas presence is guaranteed.
 meta:
-  version: 2022.12
-cmip6_{model}_historical_{member}:
+  version: 2026.07
+  generated_by: dev/scripts/generate_cmip6_catalog.py
+  crawled_on: 2026-07-29
+  source: gs://cmip6 (live directory listing, not pangeo-cmip6.csv)
+  entries: 289
+  sources: 2426
+cmip6_AS-RCEC/TaiESM1_historical_{member}: &cmip6_amon
   data_type: RasterDataset
-  uri: gs://cmip6/CMIP6/CMIP/{model}/historical/{member}/Amon/{variable}/*/*
+  uri: gs://cmip6/CMIP6/CMIP/AS-RCEC/TaiESM1/historical/{member}/Amon/{variable}/*/*
   driver:
     name: raster_xarray
     options:
@@ -32,352 +46,3874 @@ cmip6_{model}_historical_{member}:
     paper_doi: 10.1175/BAMS-D-11-00094.1
     paper_ref: Taylor et al. 2012
     source_license: CC BY 4.0
-    source_url: https://console.cloud.google.com/marketplace/details/noaa-public/cmip6?_ga=2.136097265.-1784288694.1541379221&pli=1
+    source_url: https://console.cloud.google.com/marketplace/details/noaa-public/cmip6
     source_version: 1.3.1
     crs: 4326
   placeholders:
-    model:
-    - IPSL/IPSL-CM6A-LR
-    - SNU/SAM0-UNICON
-    - NCAR/CESM2
-    - NCAR/CESM2-WACCM
-    - INM/INM-CM4-8
-    - INM/INM-CM5-0
-    - NOAA-GFDL/GFDL-ESM4
-    - NCC/NorESM2-LM
-    - NIMS-KMA/KACE-1-0-G
-    - CAS/FGOALS-f3-L
-    - CSIRO-ARCCSS/ACCESS-CM2
-    - NCC/NorESM2-MM
-    - CSIRO/ACCESS-ESM1-5
-    - NCAR/CESM2-WACCM-FV2
-    - NCAR/CESM2-FV2
-    - CMCC/CMCC-CM2-SR5
-    - AS-RCEC/TaiESM1
-    - NCC/NorCPM1
-    - IPSL/IPSL-CM5A2-INCA
-    - CMCC/CMCC-CM2-HR4
-    - CMCC/CMCC-ESM2
-    - IPSL/IPSL-CM6A-LR-INCA
-    - E3SM-Project/E3SM-1-0
     member:
     - r1i1p1f1
-cmip6_{model}_ssp119_{member}:
-  data_type: RasterDataset
-  uri: gs://cmip6/CMIP6/ScenarioMIP/{model}/ssp119/{member}/Amon/{variable}/*/*
-  driver:
-    name: raster_xarray
-    options:
-      drop_variables:
-      - time_bnds
-      - lat_bnds
-      - lon_bnds
-      - bnds
-      decode_times: true
-      preprocess: harmonise_dims
-      consolidated: true
-      ext_override: .zarr
-    filesystem: gcs
-  data_adapter:
-    unit_add:
-      temp: -273.15
-    unit_mult:
-      precip: 86400
-      press_msl: 0.01
-    rename:
-      pr: precip
-      tas: temp
-      rsds: kin
-      psl: press_msl
-  metadata:
-    category: climate
-    paper_doi: 10.1175/BAMS-D-11-00094.1
-    paper_ref: Taylor et al. 2012
-    source_license: CC BY 4.0
-    source_url: https://console.cloud.google.com/marketplace/details/noaa-public/cmip6?_ga=2.136097265.-1784288694.1541379221&pli=1
-    source_version: 1.3.1
-    crs: 4326
+    - r2i1p1f1
+cmip6_AWI/AWI-CM-1-1-MR_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/AWI/AWI-CM-1-1-MR/historical/{member}/Amon/{variable}/*/*
   placeholders:
-    model:
-    - NOAA-GFDL/GFDL-ESM4
-    - IPSL/IPSL-CM6A-LR
     member:
     - r1i1p1f1
-cmip6_{model}_ssp126_{member}:
-  data_type: RasterDataset
-  uri: gs://cmip6/CMIP6/ScenarioMIP/{model}/ssp126/{member}/Amon/{variable}/*/*
-  driver:
-    name: raster_xarray
-    options:
-      drop_variables:
-      - time_bnds
-      - lat_bnds
-      - lon_bnds
-      - bnds
-      decode_times: true
-      preprocess: harmonise_dims
-      consolidated: true
-      ext_override: .zarr
-    filesystem: gcs
-  data_adapter:
-    unit_add:
-      temp: -273.15
-    unit_mult:
-      precip: 86400
-      press_msl: 0.01
-    rename:
-      pr: precip
-      tas: temp
-      rsds: kin
-      psl: press_msl
-  metadata:
-    category: climate
-    paper_doi: 10.1175/BAMS-D-11-00094.1
-    paper_ref: Taylor et al. 2012
-    source_license: CC BY 4.0
-    source_url: https://console.cloud.google.com/marketplace/details/noaa-public/cmip6?_ga=2.136097265.-1784288694.1541379221&pli=1
-    source_version: 1.3.1
-    crs: 4326
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+cmip6_AWI/AWI-ESM-1-1-LR_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/AWI/AWI-ESM-1-1-LR/historical/{member}/Amon/{variable}/*/*
   placeholders:
-    model:
-    - NOAA-GFDL/GFDL-ESM4
-    - INM/INM-CM4-8
-    - INM/INM-CM5-0
-    - IPSL/IPSL-CM6A-LR
-    - NIMS-KMA/KACE-1-0-G
-    - NCC/NorESM2-MM
-    - CMCC/CMCC-CM2-SR5
-    - IPSL/IPSL-CM5A2-INCA
-    - CMCC/CMCC-ESM2
     member:
     - r1i1p1f1
-cmip6_{model}_ssp245_{member}:
-  data_type: RasterDataset
-  uri: gs://cmip6/CMIP6/ScenarioMIP/{model}/ssp245/{member}/Amon/{variable}/*/*
-  driver:
-    name: raster_xarray
-    options:
-      drop_variables:
-      - time_bnds
-      - lat_bnds
-      - lon_bnds
-      - bnds
-      decode_times: true
-      preprocess: harmonise_dims
-      consolidated: true
-      ext_override: .zarr
-    filesystem: gcs
-  data_adapter:
-    unit_add:
-      temp: -273.15
-    unit_mult:
-      precip: 86400
-      press_msl: 0.01
-    rename:
-      pr: precip
-      tas: temp
-      rsds: kin
-      psl: press_msl
-  metadata:
-    category: climate
-    paper_doi: 10.1175/BAMS-D-11-00094.1
-    paper_ref: Taylor et al. 2012
-    source_license: CC BY 4.0
-    source_url: https://console.cloud.google.com/marketplace/details/noaa-public/cmip6?_ga=2.136097265.-1784288694.1541379221&pli=1
-    source_version: 1.3.1
-    crs: 4326
+cmip6_BCC/BCC-CSM2-MR_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/BCC/BCC-CSM2-MR/historical/{member}/Amon/{variable}/*/*
   placeholders:
-    model:
-    - NOAA-GFDL/GFDL-ESM4
-    - IPSL/IPSL-CM6A-LR
-    - INM/INM-CM4-8
-    - INM/INM-CM5-0
-    - NCAR/CESM2-WACCM
-    - NCC/NorESM2-LM
-    - CSIRO-ARCCSS/ACCESS-CM2
-    - NCC/NorESM2-MM
-    - NIMS-KMA/KACE-1-0-G
-    - CMCC/CMCC-CM2-SR5
-    - CMCC/CMCC-ESM2
-    - AS-RCEC/TaiESM1
     member:
     - r1i1p1f1
-cmip6_{model}_ssp370_{member}:
-  data_type: RasterDataset
-  uri: gs://cmip6/CMIP6/ScenarioMIP/{model}/ssp370/{member}/Amon/{variable}/*/*
-  driver:
-    name: raster_xarray
-    options:
-      drop_variables:
-      - time_bnds
-      - lat_bnds
-      - lon_bnds
-      - bnds
-      decode_times: true
-      preprocess: harmonise_dims
-      consolidated: true
-      ext_override: .zarr
-    filesystem: gcs
-  data_adapter:
-    unit_add:
-      temp: -273.15
-    unit_mult:
-      precip: 86400
-      press_msl: 0.01
-    rename:
-      pr: precip
-      tas: temp
-      rsds: kin
-      psl: press_msl
-  metadata:
-    category: climate
-    paper_doi: 10.1175/BAMS-D-11-00094.1
-    paper_ref: Taylor et al. 2012
-    source_license: CC BY 4.0
-    source_url: https://console.cloud.google.com/marketplace/details/noaa-public/cmip6?_ga=2.136097265.-1784288694.1541379221&pli=1
-    source_version: 1.3.1
-    crs: 4326
+    - r2i1p1f1
+    - r3i1p1f1
+cmip6_BCC/BCC-ESM1_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/BCC/BCC-ESM1/historical/{member}/Amon/{variable}/*/*
   placeholders:
-    model:
-    - NOAA-GFDL/GFDL-ESM4
-    - IPSL/IPSL-CM6A-LR
-    - INM/INM-CM4-8
-    - INM/INM-CM5-0
-    - NCAR/CESM2-WACCM
-    - CSIRO-ARCCSS/ACCESS-CM2
-    - NCC/NorESM2-MM
-    - NCC/NorESM2-LM
-    - NIMS-KMA/KACE-1-0-G
-    - CMCC/CMCC-CM2-SR5
-    - IPSL/IPSL-CM5A2-INCA
-    - CMCC/CMCC-ESM2
     member:
     - r1i1p1f1
-cmip6_{model}_ssp434_{member}:
-  data_type: RasterDataset
-  uri: gs://cmip6/CMIP6/ScenarioMIP/{model}/ssp434/{member}/Amon/{variable}/*/*
-  driver:
-    name: raster_xarray
-    options:
-      drop_variables:
-      - time_bnds
-      - lat_bnds
-      - lon_bnds
-      - bnds
-      decode_times: true
-      preprocess: harmonise_dims
-      consolidated: true
-      ext_override: .zarr
-    filesystem: gcs
-  data_adapter:
-    unit_add:
-      temp: -273.15
-    unit_mult:
-      precip: 86400
-      press_msl: 0.01
-    rename:
-      pr: precip
-      tas: temp
-      rsds: kin
-      psl: press_msl
-  metadata:
-    category: climate
-    paper_doi: 10.1175/BAMS-D-11-00094.1
-    paper_ref: Taylor et al. 2012
-    source_license: CC BY 4.0
-    source_url: https://console.cloud.google.com/marketplace/details/noaa-public/cmip6?_ga=2.136097265.-1784288694.1541379221&pli=1
-    source_version: 1.3.1
-    crs: 4326
+    - r2i1p1f1
+    - r3i1p1f1
+cmip6_CAMS/CAMS-CSM1-0_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/CAMS/CAMS-CSM1-0/historical/{member}/Amon/{variable}/*/*
   placeholders:
-    model:
-    - IPSL/IPSL-CM6A-LR
     member:
     - r1i1p1f1
-cmip6_{model}_ssp460_{member}:
-  data_type: RasterDataset
-  uri: gs://cmip6/CMIP6/ScenarioMIP/{model}/ssp460/{member}/Amon/{variable}/*/*
-  driver:
-    name: raster_xarray
-    options:
-      drop_variables:
-      - time_bnds
-      - lat_bnds
-      - lon_bnds
-      - bnds
-      decode_times: true
-      preprocess: harmonise_dims
-      consolidated: true
-      ext_override: .zarr
-    filesystem: gcs
-  data_adapter:
-    unit_add:
-      temp: -273.15
-    unit_mult:
-      precip: 86400
-      press_msl: 0.01
-    rename:
-      pr: precip
-      tas: temp
-      rsds: kin
-      psl: press_msl
-  metadata:
-    category: climate
-    paper_doi: 10.1175/BAMS-D-11-00094.1
-    paper_ref: Taylor et al. 2012
-    source_license: CC BY 4.0
-    source_url: https://console.cloud.google.com/marketplace/details/noaa-public/cmip6?_ga=2.136097265.-1784288694.1541379221&pli=1
-    source_version: 1.3.1
-    crs: 4326
+    - r1i1p1f2
+    - r2i1p1f1
+cmip6_CAS/CAS-ESM2-0_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/CAS/CAS-ESM2-0/historical/{member}/Amon/{variable}/*/*
   placeholders:
-    model:
-    - IPSL/IPSL-CM6A-LR
     member:
     - r1i1p1f1
-cmip6_{model}_ssp585_{member}:
-  data_type: RasterDataset
-  uri: gs://cmip6/CMIP6/ScenarioMIP/{model}/ssp585/{member}/Amon/{variable}/*/*
-  driver:
-    name: raster_xarray
-    options:
-      drop_variables:
-      - time_bnds
-      - lat_bnds
-      - lon_bnds
-      - bnds
-      decode_times: true
-      preprocess: harmonise_dims
-      consolidated: true
-      ext_override: .zarr
-    filesystem: gcs
-  data_adapter:
-    unit_add:
-      temp: -273.15
-    unit_mult:
-      precip: 86400
-      press_msl: 0.01
-    rename:
-      pr: precip
-      tas: temp
-      rsds: kin
-      psl: press_msl
-  metadata:
-    category: climate
-    paper_doi: 10.1175/BAMS-D-11-00094.1
-    paper_ref: Taylor et al. 2012
-    source_license: CC BY 4.0
-    source_url: https://console.cloud.google.com/marketplace/details/noaa-public/cmip6?_ga=2.136097265.-1784288694.1541379221&pli=1
-    source_version: 1.3.1
-    crs: 4326
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+cmip6_CAS/FGOALS-f3-L_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/CAS/FGOALS-f3-L/historical/{member}/Amon/{variable}/*/*
   placeholders:
-    model:
-    - NOAA-GFDL/GFDL-ESM4
-    - INM/INM-CM4-8
-    - INM/INM-CM5-0
-    - NIMS-KMA/KACE-1-0-G
-    - NCC/NorESM2-MM
-    - NCC/NorESM2-LM
-    - CMCC/CMCC-CM2-SR5
-    - AS-RCEC/TaiESM1
-    - CMCC/CMCC-ESM2
     member:
     - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+cmip6_CAS/FGOALS-g3_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/CAS/FGOALS-g3/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+    - r6i1p1f1
+cmip6_CCCR-IITM/IITM-ESM_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/CCCR-IITM/IITM-ESM/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_CCCma/CanESM5_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/CCCma/CanESM5/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r1i1p2f1
+    - r2i1p1f1
+    - r2i1p2f1
+    - r3i1p1f1
+    - r3i1p2f1
+    - r4i1p1f1
+    - r4i1p2f1
+    - r5i1p1f1
+    - r5i1p2f1
+    - r6i1p1f1
+    - r6i1p2f1
+    - r7i1p1f1
+    - r7i1p2f1
+    - r8i1p1f1
+    - r8i1p2f1
+    - r9i1p1f1
+    - r9i1p2f1
+    - r10i1p1f1
+    - r10i1p2f1
+    - r11i1p1f1
+    - r11i1p2f1
+    - r12i1p1f1
+    - r12i1p2f1
+    - r13i1p1f1
+    - r13i1p2f1
+    - r14i1p1f1
+    - r14i1p2f1
+    - r15i1p1f1
+    - r15i1p2f1
+    - r16i1p1f1
+    - r16i1p2f1
+    - r17i1p1f1
+    - r17i1p2f1
+    - r18i1p1f1
+    - r18i1p2f1
+    - r19i1p1f1
+    - r19i1p2f1
+    - r20i1p1f1
+    - r20i1p2f1
+    - r21i1p1f1
+    - r21i1p2f1
+    - r22i1p1f1
+    - r22i1p2f1
+    - r23i1p1f1
+    - r23i1p2f1
+    - r24i1p1f1
+    - r24i1p2f1
+    - r25i1p1f1
+    - r25i1p2f1
+    - r26i1p2f1
+    - r27i1p2f1
+    - r28i1p2f1
+    - r29i1p2f1
+    - r30i1p2f1
+    - r31i1p2f1
+    - r32i1p2f1
+    - r33i1p2f1
+    - r34i1p2f1
+    - r35i1p2f1
+    - r36i1p2f1
+    - r37i1p2f1
+    - r38i1p2f1
+    - r39i1p2f1
+    - r40i1p2f1
+cmip6_CCCma/CanESM5-CanOE_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/CCCma/CanESM5-CanOE/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p2f1
+    - r2i1p2f1
+    - r3i1p2f1
+cmip6_CMCC/CMCC-CM2-HR4_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/CMCC/CMCC-CM2-HR4/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_CMCC/CMCC-CM2-SR5_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/CMCC/CMCC-CM2-SR5/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p2f1
+    - r3i1p2f1
+cmip6_CMCC/CMCC-ESM2_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/CMCC/CMCC-ESM2/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_CNRM-CERFACS/CNRM-CM6-1_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/CNRM-CERFACS/CNRM-CM6-1/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r2i1p1f2
+    - r3i1p1f2
+    - r4i1p1f2
+    - r5i1p1f2
+    - r6i1p1f2
+    - r7i1p1f2
+    - r8i1p1f2
+    - r9i1p1f2
+    - r10i1p1f2
+    - r11i1p1f2
+    - r12i1p1f2
+    - r13i1p1f2
+    - r14i1p1f2
+    - r15i1p1f2
+    - r16i1p1f2
+    - r17i1p1f2
+    - r18i1p1f2
+    - r19i1p1f2
+    - r20i1p1f2
+    - r21i1p1f2
+    - r22i1p1f2
+    - r24i1p1f2
+    - r25i1p1f2
+    - r26i1p1f2
+    - r27i1p1f2
+    - r28i1p1f2
+    - r29i1p1f2
+    - r30i1p1f2
+cmip6_CNRM-CERFACS/CNRM-CM6-1-HR_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/CNRM-CERFACS/CNRM-CM6-1-HR/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+cmip6_CNRM-CERFACS/CNRM-ESM2-1_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/CNRM-CERFACS/CNRM-ESM2-1/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r2i1p1f2
+    - r3i1p1f2
+    - r4i1p1f2
+    - r5i1p1f2
+    - r7i1p1f2
+    - r8i1p1f2
+    - r9i1p1f2
+    - r10i1p1f2
+    - r11i1p1f2
+cmip6_CSIRO-ARCCSS/ACCESS-CM2_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/CSIRO-ARCCSS/ACCESS-CM2/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+cmip6_CSIRO/ACCESS-ESM1-5_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/CSIRO/ACCESS-ESM1-5/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+    - r6i1p1f1
+    - r7i1p1f1
+    - r8i1p1f1
+    - r9i1p1f1
+    - r10i1p1f1
+    - r11i1p1f1
+    - r12i1p1f1
+    - r13i1p1f1
+    - r14i1p1f1
+    - r15i1p1f1
+    - r16i1p1f1
+    - r17i1p1f1
+    - r18i1p1f1
+    - r19i1p1f1
+    - r20i1p1f1
+    - r21i1p1f1
+    - r22i1p1f1
+    - r23i1p1f1
+    - r24i1p1f1
+    - r25i1p1f1
+    - r26i1p1f1
+    - r27i1p1f1
+    - r28i1p1f1
+    - r29i1p1f1
+    - r30i1p1f1
+    - r31i1p1f1
+    - r32i1p1f1
+    - r33i1p1f1
+    - r34i1p1f1
+    - r35i1p1f1
+    - r36i1p1f1
+    - r37i1p1f1
+    - r38i1p1f1
+    - r39i1p1f1
+    - r40i1p1f1
+cmip6_E3SM-Project/E3SM-1-0_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/E3SM-Project/E3SM-1-0/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+cmip6_E3SM-Project/E3SM-1-1_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/E3SM-Project/E3SM-1-1/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_E3SM-Project/E3SM-1-1-ECA_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/E3SM-Project/E3SM-1-1-ECA/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_EC-Earth-Consortium/EC-Earth3_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/EC-Earth-Consortium/EC-Earth3/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r6i1p1f1
+    - r7i1p1f1
+    - r9i1p1f1
+    - r10i1p1f1
+    - r11i1p1f1
+    - r12i1p1f1
+    - r13i1p1f1
+    - r14i1p1f1
+    - r15i1p1f1
+    - r16i1p1f1
+    - r17i1p1f1
+    - r18i1p1f1
+    - r19i1p1f1
+    - r21i1p1f1
+    - r22i1p1f1
+    - r23i1p1f1
+    - r24i1p1f1
+    - r25i1p1f1
+    - r101i1p1f1
+    - r102i1p1f1
+    - r103i1p1f1
+    - r104i1p1f1
+    - r105i1p1f1
+    - r106i1p1f1
+    - r107i1p1f1
+    - r108i1p1f1
+    - r109i1p1f1
+    - r110i1p1f1
+    - r111i1p1f1
+    - r112i1p1f1
+    - r113i1p1f1
+    - r114i1p1f1
+    - r115i1p1f1
+    - r116i1p1f1
+    - r117i1p1f1
+    - r118i1p1f1
+    - r119i1p1f1
+    - r120i1p1f1
+    - r121i1p1f1
+    - r122i1p1f1
+    - r123i1p1f1
+    - r124i1p1f1
+    - r125i1p1f1
+    - r126i1p1f1
+    - r127i1p1f1
+    - r128i1p1f1
+    - r129i1p1f1
+    - r130i1p1f1
+    - r131i1p1f1
+    - r132i1p1f1
+    - r133i1p1f1
+    - r134i1p1f1
+    - r135i1p1f1
+    - r136i1p1f1
+    - r137i1p1f1
+    - r138i1p1f1
+    - r139i1p1f1
+    - r140i1p1f1
+    - r141i1p1f1
+    - r142i1p1f1
+    - r143i1p1f1
+    - r144i1p1f1
+    - r145i1p1f1
+    - r146i1p1f1
+    - r147i1p1f1
+    - r148i1p1f1
+    - r149i1p1f1
+    - r150i1p1f1
+cmip6_EC-Earth-Consortium/EC-Earth3-AerChem_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/EC-Earth-Consortium/EC-Earth3-AerChem/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r4i1p1f1
+cmip6_EC-Earth-Consortium/EC-Earth3-CC_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/EC-Earth-Consortium/EC-Earth3-CC/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_EC-Earth-Consortium/EC-Earth3-Veg_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/EC-Earth-Consortium/EC-Earth3-Veg/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+    - r6i1p1f1
+    - r12i1p1f1
+    - r14i1p1f1
+cmip6_EC-Earth-Consortium/EC-Earth3-Veg-LR_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/EC-Earth-Consortium/EC-Earth3-Veg-LR/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+cmip6_FIO-QLNM/FIO-ESM-2-0_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/FIO-QLNM/FIO-ESM-2-0/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+cmip6_HAMMOZ-Consortium/MPI-ESM-1-2-HAM_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/HAMMOZ-Consortium/MPI-ESM-1-2-HAM/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+cmip6_INM/INM-CM4-8_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/INM/INM-CM4-8/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_INM/INM-CM5-0_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/INM/INM-CM5-0/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+    - r6i1p1f1
+    - r7i1p1f1
+    - r8i1p1f1
+    - r9i1p1f1
+    - r10i1p1f1
+cmip6_IPSL/IPSL-CM5A2-INCA_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/IPSL/IPSL-CM5A2-INCA/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_IPSL/IPSL-CM6A-LR_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/IPSL/IPSL-CM6A-LR/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+    - r6i1p1f1
+    - r7i1p1f1
+    - r8i1p1f1
+    - r9i1p1f1
+    - r10i1p1f1
+    - r11i1p1f1
+    - r12i1p1f1
+    - r13i1p1f1
+    - r14i1p1f1
+    - r15i1p1f1
+    - r16i1p1f1
+    - r17i1p1f1
+    - r18i1p1f1
+    - r19i1p1f1
+    - r20i1p1f1
+    - r21i1p1f1
+    - r22i1p1f1
+    - r23i1p1f1
+    - r24i1p1f1
+    - r25i1p1f1
+    - r26i1p1f1
+    - r27i1p1f1
+    - r28i1p1f1
+    - r29i1p1f1
+    - r30i1p1f1
+    - r31i1p1f1
+    - r32i1p1f1
+cmip6_IPSL/IPSL-CM6A-LR-INCA_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/IPSL/IPSL-CM6A-LR-INCA/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_KIOST/KIOST-ESM_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/KIOST/KIOST-ESM/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_MIROC/MIROC-ES2H_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/MIROC/MIROC-ES2H/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r1i1p2f2
+    - r1i1p3f2
+cmip6_MIROC/MIROC-ES2L_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/MIROC/MIROC-ES2L/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r1i1000p1f2
+    - r2i1p1f2
+    - r3i1p1f2
+    - r4i1p1f2
+    - r5i1p1f2
+    - r6i1p1f2
+    - r7i1p1f2
+    - r8i1p1f2
+    - r9i1p1f2
+    - r10i1p1f2
+    - r11i1p1f2
+    - r12i1p1f2
+    - r13i1p1f2
+    - r14i1p1f2
+    - r15i1p1f2
+    - r16i1p1f2
+    - r17i1p1f2
+    - r18i1p1f2
+    - r19i1p1f2
+    - r20i1p1f2
+    - r21i1p1f2
+    - r22i1p1f2
+    - r23i1p1f2
+    - r24i1p1f2
+    - r25i1p1f2
+    - r26i1p1f2
+    - r27i1p1f2
+    - r28i1p1f2
+    - r29i1p1f2
+    - r30i1p1f2
+cmip6_MIROC/MIROC6_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/MIROC/MIROC6/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+    - r6i1p1f1
+    - r7i1p1f1
+    - r8i1p1f1
+    - r9i1p1f1
+    - r10i1p1f1
+    - r11i1p1f1
+    - r12i1p1f1
+    - r13i1p1f1
+    - r14i1p1f1
+    - r15i1p1f1
+    - r16i1p1f1
+    - r17i1p1f1
+    - r18i1p1f1
+    - r19i1p1f1
+    - r20i1p1f1
+    - r21i1p1f1
+    - r22i1p1f1
+    - r23i1p1f1
+    - r24i1p1f1
+    - r25i1p1f1
+    - r26i1p1f1
+    - r27i1p1f1
+    - r28i1p1f1
+    - r29i1p1f1
+    - r30i1p1f1
+    - r31i1p1f1
+    - r32i1p1f1
+    - r33i1p1f1
+    - r34i1p1f1
+    - r35i1p1f1
+    - r36i1p1f1
+    - r37i1p1f1
+    - r38i1p1f1
+    - r39i1p1f1
+    - r40i1p1f1
+    - r41i1p1f1
+    - r42i1p1f1
+    - r43i1p1f1
+    - r44i1p1f1
+    - r45i1p1f1
+    - r46i1p1f1
+    - r47i1p1f1
+    - r48i1p1f1
+    - r49i1p1f1
+    - r50i1p1f1
+cmip6_MOHC/HadGEM3-GC31-LL_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/MOHC/HadGEM3-GC31-LL/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f3
+    - r2i1p1f3
+    - r3i1p1f3
+    - r4i1p1f3
+    - r5i1p1f3
+cmip6_MOHC/HadGEM3-GC31-MM_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/MOHC/HadGEM3-GC31-MM/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f3
+    - r2i1p1f3
+    - r3i1p1f3
+    - r4i1p1f3
+cmip6_MOHC/UKESM1-0-LL_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/MOHC/UKESM1-0-LL/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r2i1p1f2
+    - r3i1p1f2
+    - r4i1p1f2
+    - r5i1p1f3
+    - r6i1p1f3
+    - r7i1p1f3
+    - r8i1p1f2
+    - r9i1p1f2
+    - r10i1p1f2
+    - r11i1p1f2
+    - r12i1p1f2
+    - r16i1p1f2
+    - r17i1p1f2
+    - r18i1p1f2
+    - r19i1p1f2
+cmip6_MPI-M/ICON-ESM-LR_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/MPI-M/ICON-ESM-LR/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+cmip6_MPI-M/MPI-ESM1-2-HR_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/MPI-M/MPI-ESM1-2-HR/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+    - r6i1p1f1
+    - r7i1p1f1
+    - r8i1p1f1
+    - r9i1p1f1
+    - r10i1p1f1
+cmip6_MPI-M/MPI-ESM1-2-LR_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/MPI-M/MPI-ESM1-2-LR/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+    - r6i1p1f1
+    - r7i1p1f1
+    - r8i1p1f1
+    - r9i1p1f1
+    - r10i1p1f1
+cmip6_MRI/MRI-ESM2-0_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/MRI/MRI-ESM2-0/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r1i2p1f1
+    - r1i1000p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+    - r6i1p1f1
+    - r7i1p1f1
+    - r8i1p1f1
+    - r9i1p1f1
+    - r10i1p1f1
+cmip6_NASA-GISS/GISS-E2-1-G_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/NASA-GISS/GISS-E2-1-G/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r1i1p1f2
+    - r1i1p1f3
+    - r1i1p3f1
+    - r1i1p5f1
+    - r2i1p1f1
+    - r2i1p1f2
+    - r2i1p1f3
+    - r2i1p3f1
+    - r2i1p5f1
+    - r3i1p1f1
+    - r3i1p1f2
+    - r3i1p1f3
+    - r3i1p3f1
+    - r3i1p5f1
+    - r4i1p1f1
+    - r4i1p1f2
+    - r4i1p1f3
+    - r4i1p3f1
+    - r4i1p5f1
+    - r5i1p1f1
+    - r5i1p1f2
+    - r5i1p1f3
+    - r5i1p3f1
+    - r6i1p1f1
+    - r6i1p1f2
+    - r6i1p3f1
+    - r6i1p5f1
+    - r7i1p1f1
+    - r7i1p1f2
+    - r7i1p5f1
+    - r8i1p1f1
+    - r8i1p1f2
+    - r8i1p3f1
+    - r8i1p5f1
+    - r9i1p1f1
+    - r9i1p1f2
+    - r9i1p3f1
+    - r9i1p5f1
+    - r10i1p1f1
+    - r10i1p1f2
+    - r10i1p3f1
+    - r10i1p5f1
+    - r11i1p1f2
+    - r101i1p1f1
+    - r102i1p1f1
+cmip6_NASA-GISS/GISS-E2-1-G-CC_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/NASA-GISS/GISS-E2-1-G-CC/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_NASA-GISS/GISS-E2-1-H_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/NASA-GISS/GISS-E2-1-H/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r1i1p1f2
+    - r1i1p3f1
+    - r1i1p5f1
+    - r2i1p1f1
+    - r2i1p1f2
+    - r2i1p3f1
+    - r2i1p5f1
+    - r3i1p1f1
+    - r3i1p1f2
+    - r3i1p3f1
+    - r3i1p5f1
+    - r4i1p1f1
+    - r4i1p1f2
+    - r4i1p3f1
+    - r4i1p5f1
+    - r5i1p1f1
+    - r5i1p1f2
+    - r5i1p3f1
+    - r5i1p5f1
+    - r6i1p1f1
+    - r7i1p1f1
+    - r8i1p1f1
+    - r9i1p1f1
+    - r10i1p1f1
+cmip6_NASA-GISS/GISS-E2-2-H_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/NASA-GISS/GISS-E2-2-H/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+cmip6_NCAR/CESM2_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/NCAR/CESM2/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+    - r6i1p1f1
+    - r7i1p1f1
+    - r8i1p1f1
+    - r9i1p1f1
+    - r10i1p1f1
+    - r11i1p1f1
+cmip6_NCAR/CESM2-FV2_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/NCAR/CESM2-FV2/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+cmip6_NCAR/CESM2-WACCM_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/NCAR/CESM2-WACCM/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+cmip6_NCAR/CESM2-WACCM-FV2_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/NCAR/CESM2-WACCM-FV2/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+cmip6_NCC/NorCPM1_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/NCC/NorCPM1/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+    - r6i1p1f1
+    - r7i1p1f1
+    - r8i1p1f1
+    - r9i1p1f1
+    - r10i1p1f1
+    - r11i1p1f1
+    - r12i1p1f1
+    - r13i1p1f1
+    - r14i1p1f1
+    - r15i1p1f1
+    - r16i1p1f1
+    - r17i1p1f1
+    - r18i1p1f1
+    - r19i1p1f1
+    - r20i1p1f1
+    - r21i1p1f1
+    - r22i1p1f1
+    - r23i1p1f1
+    - r24i1p1f1
+    - r25i1p1f1
+    - r26i1p1f1
+    - r27i1p1f1
+    - r28i1p1f1
+    - r29i1p1f1
+    - r30i1p1f1
+cmip6_NCC/NorESM2-LM_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/NCC/NorESM2-LM/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+cmip6_NCC/NorESM2-MM_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/NCC/NorESM2-MM/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+cmip6_NIMS-KMA/KACE-1-0-G_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/NIMS-KMA/KACE-1-0-G/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+cmip6_NIMS-KMA/UKESM1-0-LL_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/NIMS-KMA/UKESM1-0-LL/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r13i1p1f2
+    - r14i1p1f2
+    - r15i1p1f2
+cmip6_NOAA-GFDL/GFDL-CM4_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/NOAA-GFDL/GFDL-CM4/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_NOAA-GFDL/GFDL-ESM4_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/NOAA-GFDL/GFDL-ESM4/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+cmip6_NUIST/NESM3_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/NUIST/NESM3/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+cmip6_SNU/SAM0-UNICON_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/SNU/SAM0-UNICON/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_THU/CIESM_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/THU/CIESM/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+cmip6_UA/MCM-UA-1-0_historical_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/CMIP/UA/MCM-UA-1-0/historical/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r1i1p1f2
+cmip6_AS-RCEC/TaiESM1_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/AS-RCEC/TaiESM1/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_AS-RCEC/TaiESM1_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/AS-RCEC/TaiESM1/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_AS-RCEC/TaiESM1_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/AS-RCEC/TaiESM1/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_AS-RCEC/TaiESM1_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/AS-RCEC/TaiESM1/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_AWI/AWI-CM-1-1-MR_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/AWI/AWI-CM-1-1-MR/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_AWI/AWI-CM-1-1-MR_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/AWI/AWI-CM-1-1-MR/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_AWI/AWI-CM-1-1-MR_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/AWI/AWI-CM-1-1-MR/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+cmip6_AWI/AWI-CM-1-1-MR_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/AWI/AWI-CM-1-1-MR/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_BCC/BCC-CSM2-MR_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/BCC/BCC-CSM2-MR/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_BCC/BCC-CSM2-MR_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/BCC/BCC-CSM2-MR/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_BCC/BCC-CSM2-MR_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/BCC/BCC-CSM2-MR/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_BCC/BCC-CSM2-MR_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/BCC/BCC-CSM2-MR/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_CAMS/CAMS-CSM1-0_ssp119_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CAMS/CAMS-CSM1-0/ssp119/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+cmip6_CAMS/CAMS-CSM1-0_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CAMS/CAMS-CSM1-0/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+cmip6_CAMS/CAMS-CSM1-0_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CAMS/CAMS-CSM1-0/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+cmip6_CAMS/CAMS-CSM1-0_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CAMS/CAMS-CSM1-0/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+cmip6_CAMS/CAMS-CSM1-0_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CAMS/CAMS-CSM1-0/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+cmip6_CAS/CAS-ESM2-0_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CAS/CAS-ESM2-0/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r3i1p1f1
+cmip6_CAS/CAS-ESM2-0_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CAS/CAS-ESM2-0/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r3i1p1f1
+cmip6_CAS/CAS-ESM2-0_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CAS/CAS-ESM2-0/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r3i1p1f1
+cmip6_CAS/CAS-ESM2-0_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CAS/CAS-ESM2-0/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r3i1p1f1
+cmip6_CAS/FGOALS-f3-L_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CAS/FGOALS-f3-L/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_CAS/FGOALS-f3-L_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CAS/FGOALS-f3-L/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_CAS/FGOALS-f3-L_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CAS/FGOALS-f3-L/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_CAS/FGOALS-f3-L_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CAS/FGOALS-f3-L/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_CAS/FGOALS-g3_ssp119_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CAS/FGOALS-g3/ssp119/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_CAS/FGOALS-g3_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CAS/FGOALS-g3/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+cmip6_CAS/FGOALS-g3_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CAS/FGOALS-g3/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+cmip6_CAS/FGOALS-g3_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CAS/FGOALS-g3/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+cmip6_CAS/FGOALS-g3_ssp434_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CAS/FGOALS-g3/ssp434/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_CAS/FGOALS-g3_ssp460_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CAS/FGOALS-g3/ssp460/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_CAS/FGOALS-g3_ssp534-over_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CAS/FGOALS-g3/ssp534-over/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_CAS/FGOALS-g3_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CAS/FGOALS-g3/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+cmip6_CCCR-IITM/IITM-ESM_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CCCR-IITM/IITM-ESM/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_CCCR-IITM/IITM-ESM_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CCCR-IITM/IITM-ESM/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_CCCR-IITM/IITM-ESM_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CCCR-IITM/IITM-ESM/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_CCCR-IITM/IITM-ESM_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CCCR-IITM/IITM-ESM/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_CCCma/CanESM5_ssp119_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CCCma/CanESM5/ssp119/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r1i1p2f1
+    - r2i1p1f1
+    - r2i1p2f1
+    - r3i1p1f1
+    - r3i1p2f1
+    - r4i1p1f1
+    - r4i1p2f1
+    - r5i1p1f1
+    - r5i1p2f1
+    - r6i1p1f1
+    - r6i1p2f1
+    - r7i1p1f1
+    - r7i1p2f1
+    - r8i1p1f1
+    - r8i1p2f1
+    - r9i1p1f1
+    - r9i1p2f1
+    - r10i1p1f1
+    - r10i1p2f1
+    - r11i1p1f1
+    - r11i1p2f1
+    - r12i1p1f1
+    - r12i1p2f1
+    - r13i1p1f1
+    - r13i1p2f1
+    - r14i1p1f1
+    - r14i1p2f1
+    - r15i1p1f1
+    - r15i1p2f1
+    - r16i1p1f1
+    - r16i1p2f1
+    - r17i1p1f1
+    - r17i1p2f1
+    - r18i1p1f1
+    - r18i1p2f1
+    - r19i1p1f1
+    - r19i1p2f1
+    - r20i1p1f1
+    - r20i1p2f1
+    - r21i1p1f1
+    - r21i1p2f1
+    - r22i1p1f1
+    - r22i1p2f1
+    - r23i1p1f1
+    - r23i1p2f1
+    - r24i1p1f1
+    - r24i1p2f1
+    - r25i1p1f1
+    - r25i1p2f1
+cmip6_CCCma/CanESM5_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CCCma/CanESM5/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r1i1p2f1
+    - r2i1p1f1
+    - r2i1p2f1
+    - r3i1p1f1
+    - r3i1p2f1
+    - r4i1p1f1
+    - r4i1p2f1
+    - r5i1p1f1
+    - r5i1p2f1
+    - r6i1p1f1
+    - r6i1p2f1
+    - r7i1p1f1
+    - r7i1p2f1
+    - r8i1p1f1
+    - r8i1p2f1
+    - r9i1p1f1
+    - r9i1p2f1
+    - r10i1p1f1
+    - r10i1p2f1
+    - r11i1p1f1
+    - r11i1p2f1
+    - r12i1p1f1
+    - r12i1p2f1
+    - r13i1p1f1
+    - r13i1p2f1
+    - r14i1p1f1
+    - r14i1p2f1
+    - r15i1p1f1
+    - r15i1p2f1
+    - r16i1p1f1
+    - r16i1p2f1
+    - r17i1p1f1
+    - r17i1p2f1
+    - r18i1p1f1
+    - r18i1p2f1
+    - r19i1p1f1
+    - r19i1p2f1
+    - r20i1p1f1
+    - r20i1p2f1
+    - r21i1p1f1
+    - r21i1p2f1
+    - r22i1p1f1
+    - r22i1p2f1
+    - r23i1p1f1
+    - r23i1p2f1
+    - r24i1p1f1
+    - r24i1p2f1
+    - r25i1p1f1
+    - r25i1p2f1
+cmip6_CCCma/CanESM5_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CCCma/CanESM5/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r1i1p2f1
+    - r2i1p1f1
+    - r2i1p2f1
+    - r3i1p1f1
+    - r3i1p2f1
+    - r4i1p1f1
+    - r4i1p2f1
+    - r5i1p1f1
+    - r5i1p2f1
+    - r6i1p1f1
+    - r6i1p2f1
+    - r7i1p1f1
+    - r7i1p2f1
+    - r8i1p1f1
+    - r8i1p2f1
+    - r9i1p1f1
+    - r9i1p2f1
+    - r10i1p1f1
+    - r10i1p2f1
+    - r11i1p1f1
+    - r11i1p2f1
+    - r12i1p1f1
+    - r12i1p2f1
+    - r13i1p1f1
+    - r13i1p2f1
+    - r14i1p1f1
+    - r14i1p2f1
+    - r15i1p1f1
+    - r15i1p2f1
+    - r16i1p1f1
+    - r16i1p2f1
+    - r17i1p1f1
+    - r17i1p2f1
+    - r18i1p1f1
+    - r18i1p2f1
+    - r19i1p1f1
+    - r19i1p2f1
+    - r20i1p1f1
+    - r20i1p2f1
+    - r21i1p1f1
+    - r21i1p2f1
+    - r22i1p1f1
+    - r22i1p2f1
+    - r23i1p1f1
+    - r23i1p2f1
+    - r24i1p1f1
+    - r24i1p2f1
+    - r25i1p1f1
+    - r25i1p2f1
+cmip6_CCCma/CanESM5_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CCCma/CanESM5/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r1i1p2f1
+    - r2i1p1f1
+    - r2i1p2f1
+    - r3i1p1f1
+    - r3i1p2f1
+    - r4i1p1f1
+    - r4i1p2f1
+    - r5i1p1f1
+    - r5i1p2f1
+    - r6i1p1f1
+    - r6i1p2f1
+    - r7i1p1f1
+    - r7i1p2f1
+    - r8i1p1f1
+    - r8i1p2f1
+    - r9i1p1f1
+    - r9i1p2f1
+    - r10i1p1f1
+    - r10i1p2f1
+    - r11i1p1f1
+    - r11i1p2f1
+    - r12i1p1f1
+    - r12i1p2f1
+    - r13i1p1f1
+    - r13i1p2f1
+    - r14i1p1f1
+    - r14i1p2f1
+    - r15i1p1f1
+    - r15i1p2f1
+    - r16i1p1f1
+    - r16i1p2f1
+    - r17i1p1f1
+    - r17i1p2f1
+    - r18i1p1f1
+    - r18i1p2f1
+    - r19i1p1f1
+    - r19i1p2f1
+    - r20i1p1f1
+    - r20i1p2f1
+    - r21i1p1f1
+    - r21i1p2f1
+    - r22i1p1f1
+    - r22i1p2f1
+    - r23i1p1f1
+    - r23i1p2f1
+    - r24i1p1f1
+    - r24i1p2f1
+    - r25i1p1f1
+    - r25i1p2f1
+cmip6_CCCma/CanESM5_ssp434_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CCCma/CanESM5/ssp434/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+cmip6_CCCma/CanESM5_ssp460_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CCCma/CanESM5/ssp460/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+cmip6_CCCma/CanESM5_ssp534-over_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CCCma/CanESM5/ssp534-over/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+cmip6_CCCma/CanESM5_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CCCma/CanESM5/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r1i1p2f1
+    - r2i1p1f1
+    - r2i1p2f1
+    - r3i1p1f1
+    - r3i1p2f1
+    - r4i1p1f1
+    - r4i1p2f1
+    - r5i1p1f1
+    - r5i1p2f1
+    - r6i1p1f1
+    - r6i1p2f1
+    - r7i1p1f1
+    - r7i1p2f1
+    - r8i1p1f1
+    - r8i1p2f1
+    - r9i1p1f1
+    - r9i1p2f1
+    - r10i1p1f1
+    - r10i1p2f1
+    - r11i1p1f1
+    - r11i1p2f1
+    - r12i1p1f1
+    - r12i1p2f1
+    - r13i1p1f1
+    - r13i1p2f1
+    - r14i1p1f1
+    - r14i1p2f1
+    - r15i1p1f1
+    - r15i1p2f1
+    - r16i1p1f1
+    - r16i1p2f1
+    - r17i1p1f1
+    - r17i1p2f1
+    - r18i1p1f1
+    - r18i1p2f1
+    - r19i1p1f1
+    - r19i1p2f1
+    - r20i1p1f1
+    - r20i1p2f1
+    - r21i1p1f1
+    - r21i1p2f1
+    - r22i1p1f1
+    - r22i1p2f1
+    - r23i1p1f1
+    - r23i1p2f1
+    - r24i1p1f1
+    - r24i1p2f1
+    - r25i1p1f1
+    - r25i1p2f1
+cmip6_CCCma/CanESM5-CanOE_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CCCma/CanESM5-CanOE/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p2f1
+    - r2i1p2f1
+    - r3i1p2f1
+cmip6_CCCma/CanESM5-CanOE_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CCCma/CanESM5-CanOE/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p2f1
+    - r2i1p2f1
+    - r3i1p2f1
+cmip6_CCCma/CanESM5-CanOE_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CCCma/CanESM5-CanOE/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p2f1
+    - r2i1p2f1
+    - r3i1p2f1
+cmip6_CCCma/CanESM5-CanOE_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CCCma/CanESM5-CanOE/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p2f1
+    - r2i1p2f1
+    - r3i1p2f1
+cmip6_CMCC/CMCC-CM2-SR5_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CMCC/CMCC-CM2-SR5/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_CMCC/CMCC-CM2-SR5_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CMCC/CMCC-CM2-SR5/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_CMCC/CMCC-CM2-SR5_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CMCC/CMCC-CM2-SR5/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_CMCC/CMCC-CM2-SR5_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CMCC/CMCC-CM2-SR5/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_CMCC/CMCC-ESM2_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CMCC/CMCC-ESM2/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_CMCC/CMCC-ESM2_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CMCC/CMCC-ESM2/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_CMCC/CMCC-ESM2_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CMCC/CMCC-ESM2/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_CMCC/CMCC-ESM2_ssp534-over_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CMCC/CMCC-ESM2/ssp534-over/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_CMCC/CMCC-ESM2_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CMCC/CMCC-ESM2/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_CNRM-CERFACS/CNRM-CM6-1_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CNRM-CERFACS/CNRM-CM6-1/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r2i1p1f2
+    - r3i1p1f2
+    - r4i1p1f2
+    - r5i1p1f2
+    - r6i1p1f2
+cmip6_CNRM-CERFACS/CNRM-CM6-1_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CNRM-CERFACS/CNRM-CM6-1/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r2i1p1f2
+    - r3i1p1f2
+    - r4i1p1f2
+    - r5i1p1f2
+    - r6i1p1f2
+    - r7i1p1f2
+    - r8i1p1f2
+    - r9i1p1f2
+    - r10i1p1f2
+cmip6_CNRM-CERFACS/CNRM-CM6-1_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CNRM-CERFACS/CNRM-CM6-1/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r2i1p1f2
+    - r3i1p1f2
+    - r4i1p1f2
+    - r5i1p1f2
+    - r6i1p1f2
+cmip6_CNRM-CERFACS/CNRM-CM6-1_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CNRM-CERFACS/CNRM-CM6-1/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r2i1p1f2
+    - r3i1p1f2
+    - r4i1p1f2
+    - r5i1p1f2
+    - r6i1p1f2
+cmip6_CNRM-CERFACS/CNRM-CM6-1-HR_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CNRM-CERFACS/CNRM-CM6-1-HR/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+cmip6_CNRM-CERFACS/CNRM-CM6-1-HR_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CNRM-CERFACS/CNRM-CM6-1-HR/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+cmip6_CNRM-CERFACS/CNRM-CM6-1-HR_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CNRM-CERFACS/CNRM-CM6-1-HR/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+cmip6_CNRM-CERFACS/CNRM-CM6-1-HR_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CNRM-CERFACS/CNRM-CM6-1-HR/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+cmip6_CNRM-CERFACS/CNRM-ESM2-1_ssp119_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CNRM-CERFACS/CNRM-ESM2-1/ssp119/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r2i1p1f2
+    - r3i1p1f2
+    - r4i1p1f2
+    - r5i1p1f2
+cmip6_CNRM-CERFACS/CNRM-ESM2-1_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CNRM-CERFACS/CNRM-ESM2-1/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r2i1p1f2
+    - r3i1p1f2
+    - r4i1p1f2
+    - r5i1p1f2
+cmip6_CNRM-CERFACS/CNRM-ESM2-1_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CNRM-CERFACS/CNRM-ESM2-1/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r2i1p1f2
+    - r3i1p1f2
+    - r4i1p1f2
+    - r5i1p1f2
+    - r6i1p1f2
+    - r7i1p1f2
+    - r8i1p1f2
+    - r9i1p1f2
+    - r10i1p1f2
+cmip6_CNRM-CERFACS/CNRM-ESM2-1_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CNRM-CERFACS/CNRM-ESM2-1/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r2i1p1f2
+    - r3i1p1f2
+    - r4i1p1f2
+    - r5i1p1f2
+cmip6_CNRM-CERFACS/CNRM-ESM2-1_ssp434_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CNRM-CERFACS/CNRM-ESM2-1/ssp434/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r2i1p1f2
+    - r3i1p1f2
+    - r4i1p1f2
+    - r5i1p1f2
+cmip6_CNRM-CERFACS/CNRM-ESM2-1_ssp460_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CNRM-CERFACS/CNRM-ESM2-1/ssp460/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r2i1p1f2
+    - r3i1p1f2
+    - r4i1p1f2
+    - r5i1p1f2
+cmip6_CNRM-CERFACS/CNRM-ESM2-1_ssp534-over_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CNRM-CERFACS/CNRM-ESM2-1/ssp534-over/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r2i1p1f2
+    - r3i1p1f2
+    - r4i1p1f2
+    - r5i1p1f2
+cmip6_CNRM-CERFACS/CNRM-ESM2-1_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CNRM-CERFACS/CNRM-ESM2-1/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r2i1p1f2
+    - r3i1p1f2
+    - r4i1p1f2
+    - r5i1p1f2
+cmip6_CSIRO-ARCCSS/ACCESS-CM2_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CSIRO-ARCCSS/ACCESS-CM2/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+cmip6_CSIRO-ARCCSS/ACCESS-CM2_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CSIRO-ARCCSS/ACCESS-CM2/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+cmip6_CSIRO-ARCCSS/ACCESS-CM2_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CSIRO-ARCCSS/ACCESS-CM2/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+cmip6_CSIRO-ARCCSS/ACCESS-CM2_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CSIRO-ARCCSS/ACCESS-CM2/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+cmip6_CSIRO/ACCESS-ESM1-5_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CSIRO/ACCESS-ESM1-5/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+    - r6i1p1f1
+    - r7i1p1f1
+    - r8i1p1f1
+    - r9i1p1f1
+    - r10i1p1f1
+    - r11i1p1f1
+    - r12i1p1f1
+    - r13i1p1f1
+    - r14i1p1f1
+    - r15i1p1f1
+    - r16i1p1f1
+    - r17i1p1f1
+    - r18i1p1f1
+    - r19i1p1f1
+    - r20i1p1f1
+    - r21i1p1f1
+    - r22i1p1f1
+    - r23i1p1f1
+    - r24i1p1f1
+    - r25i1p1f1
+    - r26i1p1f1
+    - r27i1p1f1
+    - r28i1p1f1
+    - r29i1p1f1
+    - r30i1p1f1
+    - r31i1p1f1
+    - r32i1p1f1
+    - r33i1p1f1
+    - r34i1p1f1
+    - r35i1p1f1
+    - r36i1p1f1
+    - r37i1p1f1
+    - r38i1p1f1
+    - r39i1p1f1
+    - r40i1p1f1
+cmip6_CSIRO/ACCESS-ESM1-5_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CSIRO/ACCESS-ESM1-5/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+    - r6i1p1f1
+    - r7i1p1f1
+    - r8i1p1f1
+    - r9i1p1f1
+    - r10i1p1f1
+    - r11i1p1f1
+    - r12i1p1f1
+    - r13i1p1f1
+    - r14i1p1f1
+    - r15i1p1f1
+    - r16i1p1f1
+    - r17i1p1f1
+    - r18i1p1f1
+    - r19i1p1f1
+    - r20i1p1f1
+    - r21i1p1f1
+    - r22i1p1f1
+    - r23i1p1f1
+    - r24i1p1f1
+    - r25i1p1f1
+    - r26i1p1f1
+    - r27i1p1f1
+    - r28i1p1f1
+    - r29i1p1f1
+    - r30i1p1f1
+    - r31i1p1f1
+    - r32i1p1f1
+    - r33i1p1f1
+    - r34i1p1f1
+    - r35i1p1f1
+    - r36i1p1f1
+    - r37i1p1f1
+    - r38i1p1f1
+    - r39i1p1f1
+    - r40i1p1f1
+cmip6_CSIRO/ACCESS-ESM1-5_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CSIRO/ACCESS-ESM1-5/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+    - r6i1p1f1
+    - r7i1p1f1
+    - r8i1p1f1
+    - r9i1p1f1
+    - r10i1p1f1
+    - r11i1p1f1
+    - r12i1p1f1
+    - r13i1p1f1
+    - r14i1p1f1
+    - r15i1p1f1
+    - r16i1p1f1
+    - r17i1p1f1
+    - r18i1p1f1
+    - r19i1p1f1
+    - r20i1p1f1
+    - r21i1p1f1
+    - r22i1p1f1
+    - r23i1p1f1
+    - r24i1p1f1
+    - r25i1p1f1
+    - r26i1p1f1
+    - r27i1p1f1
+    - r28i1p1f1
+    - r29i1p1f1
+    - r30i1p1f1
+    - r31i1p1f1
+    - r32i1p1f1
+    - r33i1p1f1
+    - r34i1p1f1
+    - r35i1p1f1
+    - r36i1p1f1
+    - r37i1p1f1
+    - r38i1p1f1
+    - r39i1p1f1
+    - r40i1p1f1
+cmip6_CSIRO/ACCESS-ESM1-5_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/CSIRO/ACCESS-ESM1-5/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+    - r6i1p1f1
+    - r7i1p1f1
+    - r8i1p1f1
+    - r9i1p1f1
+    - r10i1p1f1
+    - r11i1p1f1
+    - r12i1p1f1
+    - r13i1p1f1
+    - r14i1p1f1
+    - r15i1p1f1
+    - r16i1p1f1
+    - r17i1p1f1
+    - r18i1p1f1
+    - r19i1p1f1
+    - r20i1p1f1
+    - r21i1p1f1
+    - r22i1p1f1
+    - r23i1p1f1
+    - r24i1p1f1
+    - r25i1p1f1
+    - r27i1p1f1
+    - r28i1p1f1
+    - r29i1p1f1
+    - r30i1p1f1
+    - r32i1p1f1
+    - r33i1p1f1
+    - r34i1p1f1
+    - r35i1p1f1
+    - r36i1p1f1
+    - r37i1p1f1
+    - r38i1p1f1
+    - r39i1p1f1
+    - r40i1p1f1
+cmip6_DKRZ/MPI-ESM1-2-HR_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/DKRZ/MPI-ESM1-2-HR/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_DKRZ/MPI-ESM1-2-HR_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/DKRZ/MPI-ESM1-2-HR/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+cmip6_DKRZ/MPI-ESM1-2-HR_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/DKRZ/MPI-ESM1-2-HR/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+    - r6i1p1f1
+    - r7i1p1f1
+    - r8i1p1f1
+    - r9i1p1f1
+    - r10i1p1f1
+cmip6_DKRZ/MPI-ESM1-2-HR_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/DKRZ/MPI-ESM1-2-HR/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_DWD/MPI-ESM1-2-HR_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/DWD/MPI-ESM1-2-HR/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r2i1p1f1
+cmip6_DWD/MPI-ESM1-2-HR_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/DWD/MPI-ESM1-2-HR/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r2i1p1f1
+cmip6_E3SM-Project/E3SM-1-1_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/E3SM-Project/E3SM-1-1/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+    - r6i1p1f1
+    - r7i1p1f1
+    - r8i1p1f1
+    - r9i1p1f1
+    - r10i1p1f1
+cmip6_E3SM-Project/E3SM-1-1_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/E3SM-Project/E3SM-1-1/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_EC-Earth-Consortium/EC-Earth3_ssp119_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/EC-Earth-Consortium/EC-Earth3/ssp119/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r4i1p1f1
+    - r101i1p1f1
+    - r102i1p1f1
+    - r103i1p1f1
+    - r104i1p1f1
+    - r105i1p1f1
+    - r106i1p1f1
+    - r107i1p1f1
+    - r108i1p1f1
+    - r109i1p1f1
+    - r110i1p1f1
+    - r111i1p1f1
+    - r112i1p1f1
+    - r113i1p1f1
+    - r114i1p1f1
+    - r115i1p1f1
+    - r116i1p1f1
+    - r117i1p1f1
+    - r118i1p1f1
+    - r119i1p1f1
+    - r120i1p1f1
+    - r121i1p1f1
+    - r122i1p1f1
+    - r123i1p1f1
+    - r124i1p1f1
+    - r125i1p1f1
+    - r126i1p1f1
+    - r127i1p1f1
+    - r128i1p1f1
+    - r129i1p1f1
+    - r130i1p1f1
+    - r131i1p1f1
+    - r132i1p1f1
+    - r133i1p1f1
+    - r134i1p1f1
+    - r135i1p1f1
+    - r136i1p1f1
+    - r137i1p1f1
+    - r138i1p1f1
+    - r139i1p1f1
+    - r140i1p1f1
+    - r141i1p1f1
+    - r142i1p1f1
+    - r143i1p1f1
+    - r144i1p1f1
+    - r145i1p1f1
+    - r146i1p1f1
+    - r147i1p1f1
+    - r148i1p1f1
+    - r149i1p1f1
+    - r150i1p1f1
+cmip6_EC-Earth-Consortium/EC-Earth3_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/EC-Earth-Consortium/EC-Earth3/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r4i1p1f1
+    - r6i1p1f1
+    - r9i1p1f1
+    - r11i1p1f1
+    - r13i1p1f1
+    - r15i1p1f1
+    - r101i1p1f1
+    - r102i1p1f1
+    - r103i1p1f1
+    - r104i1p1f1
+    - r105i1p1f1
+    - r106i1p1f1
+    - r107i1p1f1
+    - r108i1p1f1
+    - r109i1p1f1
+    - r110i1p1f1
+    - r111i1p1f1
+    - r112i1p1f1
+    - r113i1p1f1
+    - r114i1p1f1
+    - r115i1p1f1
+    - r116i1p1f1
+    - r117i1p1f1
+    - r118i1p1f1
+    - r119i1p1f1
+    - r120i1p1f1
+    - r121i1p1f1
+    - r122i1p1f1
+    - r123i1p1f1
+    - r124i1p1f1
+    - r125i1p1f1
+    - r126i1p1f1
+    - r127i1p1f1
+    - r128i1p1f1
+    - r129i1p1f1
+    - r130i1p1f1
+    - r131i1p1f1
+    - r132i1p1f1
+    - r133i1p1f1
+    - r134i1p1f1
+    - r135i1p1f1
+    - r136i1p1f1
+    - r137i1p1f1
+    - r138i1p1f1
+    - r139i1p1f1
+    - r140i1p1f1
+    - r141i1p1f1
+    - r142i1p1f1
+    - r143i1p1f1
+    - r144i1p1f1
+    - r145i1p1f1
+    - r146i1p1f1
+    - r147i1p1f1
+    - r148i1p1f1
+    - r149i1p1f1
+    - r150i1p1f1
+cmip6_EC-Earth-Consortium/EC-Earth3_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/EC-Earth-Consortium/EC-Earth3/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r1i1p1f2
+    - r2i1p1f1
+    - r2i1p1f2
+    - r4i1p1f1
+    - r4i1p1f2
+    - r6i1p1f1
+    - r7i1p1f1
+    - r7i1p1f2
+    - r8i1p1f2
+    - r9i1p1f1
+    - r10i1p1f1
+    - r10i1p1f2
+    - r11i1p1f1
+    - r12i1p1f1
+    - r12i1p1f2
+    - r13i1p1f1
+    - r13i1p1f2
+    - r14i1p1f1
+    - r15i1p1f1
+    - r15i1p1f2
+    - r16i1p1f1
+    - r16i1p1f2
+    - r17i1p1f1
+    - r17i1p1f2
+    - r18i1p1f1
+    - r18i1p1f2
+    - r19i1p1f1
+    - r19i1p1f2
+    - r20i1p1f1
+    - r20i1p1f2
+    - r21i1p1f1
+    - r21i1p1f2
+    - r22i1p1f1
+    - r22i1p1f2
+    - r23i1p1f1
+    - r23i1p1f2
+    - r24i1p1f1
+    - r24i1p1f2
+    - r25i1p1f1
+    - r25i1p1f2
+    - r26i1p1f2
+    - r27i1p1f2
+    - r28i1p1f2
+    - r29i1p1f2
+    - r30i1p1f2
+    - r101i1p1f1
+    - r102i1p1f1
+    - r103i1p1f1
+    - r104i1p1f1
+    - r105i1p1f1
+    - r106i1p1f1
+    - r107i1p1f1
+    - r108i1p1f1
+    - r109i1p1f1
+    - r110i1p1f1
+    - r111i1p1f1
+    - r112i1p1f1
+    - r113i1p1f1
+    - r114i1p1f1
+    - r115i1p1f1
+    - r116i1p1f1
+    - r117i1p1f1
+    - r118i1p1f1
+    - r119i1p1f1
+    - r120i1p1f1
+    - r121i1p1f1
+    - r122i1p1f1
+    - r123i1p1f1
+    - r124i1p1f1
+    - r125i1p1f1
+    - r126i1p1f1
+    - r127i1p1f1
+    - r128i1p1f1
+    - r129i1p1f1
+    - r130i1p1f1
+    - r131i1p1f1
+    - r132i1p1f1
+    - r133i1p1f1
+    - r134i1p1f1
+    - r135i1p1f1
+    - r136i1p1f1
+    - r137i1p1f1
+    - r138i1p1f1
+    - r139i1p1f1
+    - r140i1p1f1
+    - r141i1p1f1
+    - r142i1p1f1
+    - r143i1p1f1
+    - r144i1p1f1
+    - r145i1p1f1
+    - r146i1p1f1
+    - r147i1p1f1
+    - r148i1p1f1
+    - r149i1p1f1
+    - r150i1p1f1
+cmip6_EC-Earth-Consortium/EC-Earth3_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/EC-Earth-Consortium/EC-Earth3/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r4i1p1f1
+    - r6i1p1f1
+    - r9i1p1f1
+    - r11i1p1f1
+    - r13i1p1f1
+    - r15i1p1f1
+    - r101i1p1f1
+    - r102i1p1f1
+    - r103i1p1f1
+    - r104i1p1f1
+    - r105i1p1f1
+    - r106i1p1f1
+    - r107i1p1f1
+    - r108i1p1f1
+    - r109i1p1f1
+    - r110i1p1f1
+    - r111i1p1f1
+    - r112i1p1f1
+    - r113i1p1f1
+    - r114i1p1f1
+    - r115i1p1f1
+    - r116i1p1f1
+    - r117i1p1f1
+    - r118i1p1f1
+    - r119i1p1f1
+    - r120i1p1f1
+    - r121i1p1f1
+    - r122i1p1f1
+    - r123i1p1f1
+    - r124i1p1f1
+    - r125i1p1f1
+    - r126i1p1f1
+    - r127i1p1f1
+    - r128i1p1f1
+    - r129i1p1f1
+    - r130i1p1f1
+    - r131i1p1f1
+    - r132i1p1f1
+    - r133i1p1f1
+    - r134i1p1f1
+    - r135i1p1f1
+    - r136i1p1f1
+    - r137i1p1f1
+    - r138i1p1f1
+    - r139i1p1f1
+    - r140i1p1f1
+    - r141i1p1f1
+    - r142i1p1f1
+    - r143i1p1f1
+    - r144i1p1f1
+    - r145i1p1f1
+    - r146i1p1f1
+    - r147i1p1f1
+    - r148i1p1f1
+    - r149i1p1f1
+    - r150i1p1f1
+cmip6_EC-Earth-Consortium/EC-Earth3_ssp434_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/EC-Earth-Consortium/EC-Earth3/ssp434/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r101i1p1f1
+    - r102i1p1f1
+    - r103i1p1f1
+    - r104i1p1f1
+    - r105i1p1f1
+    - r106i1p1f1
+    - r107i1p1f1
+    - r108i1p1f1
+    - r109i1p1f1
+    - r110i1p1f1
+    - r111i1p1f1
+    - r112i1p1f1
+    - r113i1p1f1
+    - r114i1p1f1
+    - r115i1p1f1
+    - r116i1p1f1
+    - r117i1p1f1
+    - r118i1p1f1
+    - r119i1p1f1
+    - r120i1p1f1
+    - r121i1p1f1
+    - r122i1p1f1
+    - r123i1p1f1
+    - r124i1p1f1
+    - r125i1p1f1
+    - r126i1p1f1
+    - r127i1p1f1
+    - r128i1p1f1
+    - r129i1p1f1
+    - r130i1p1f1
+    - r131i1p1f1
+    - r132i1p1f1
+    - r133i1p1f1
+    - r134i1p1f1
+    - r135i1p1f1
+    - r136i1p1f1
+    - r137i1p1f1
+    - r138i1p1f1
+    - r139i1p1f1
+    - r140i1p1f1
+    - r141i1p1f1
+    - r142i1p1f1
+    - r143i1p1f1
+    - r144i1p1f1
+    - r145i1p1f1
+    - r146i1p1f1
+    - r147i1p1f1
+    - r148i1p1f1
+    - r149i1p1f1
+    - r150i1p1f1
+cmip6_EC-Earth-Consortium/EC-Earth3_ssp534-over_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/EC-Earth-Consortium/EC-Earth3/ssp534-over/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r101i1p1f1
+    - r102i1p1f1
+    - r103i1p1f1
+    - r104i1p1f1
+    - r105i1p1f1
+    - r106i1p1f1
+    - r107i1p1f1
+    - r108i1p1f1
+    - r109i1p1f1
+    - r110i1p1f1
+    - r111i1p1f1
+    - r112i1p1f1
+    - r113i1p1f1
+    - r114i1p1f1
+    - r115i1p1f1
+    - r116i1p1f1
+    - r117i1p1f1
+    - r118i1p1f1
+    - r119i1p1f1
+    - r120i1p1f1
+    - r121i1p1f1
+    - r122i1p1f1
+    - r123i1p1f1
+    - r124i1p1f1
+    - r125i1p1f1
+    - r126i1p1f1
+    - r127i1p1f1
+    - r128i1p1f1
+    - r129i1p1f1
+    - r130i1p1f1
+    - r131i1p1f1
+    - r132i1p1f1
+    - r133i1p1f1
+    - r134i1p1f1
+    - r135i1p1f1
+    - r136i1p1f1
+    - r137i1p1f1
+    - r138i1p1f1
+    - r139i1p1f1
+    - r140i1p1f1
+    - r141i1p1f1
+    - r142i1p1f1
+    - r143i1p1f1
+    - r144i1p1f1
+    - r145i1p1f1
+    - r146i1p1f1
+    - r147i1p1f1
+    - r148i1p1f1
+    - r149i1p1f1
+    - r150i1p1f1
+cmip6_EC-Earth-Consortium/EC-Earth3_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/EC-Earth-Consortium/EC-Earth3/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r6i1p1f1
+    - r9i1p1f1
+    - r11i1p1f1
+    - r13i1p1f1
+    - r15i1p1f1
+    - r101i1p1f1
+    - r102i1p1f1
+    - r103i1p1f1
+    - r104i1p1f1
+    - r105i1p1f1
+    - r106i1p1f1
+    - r107i1p1f1
+    - r108i1p1f1
+    - r109i1p1f1
+    - r110i1p1f1
+    - r111i1p1f1
+    - r112i1p1f1
+    - r113i1p1f1
+    - r114i1p1f1
+    - r115i1p1f1
+    - r116i1p1f1
+    - r117i1p1f1
+    - r118i1p1f1
+    - r119i1p1f1
+    - r120i1p1f1
+    - r121i1p1f1
+    - r122i1p1f1
+    - r123i1p1f1
+    - r124i1p1f1
+    - r125i1p1f1
+    - r126i1p1f1
+    - r127i1p1f1
+    - r128i1p1f1
+    - r129i1p1f1
+    - r130i1p1f1
+    - r131i1p1f1
+    - r132i1p1f1
+    - r133i1p1f1
+    - r134i1p1f1
+    - r135i1p1f1
+    - r136i1p1f1
+    - r137i1p1f1
+    - r138i1p1f1
+    - r139i1p1f1
+    - r140i1p1f1
+    - r141i1p1f1
+    - r142i1p1f1
+    - r143i1p1f1
+    - r144i1p1f1
+    - r145i1p1f1
+    - r146i1p1f1
+    - r147i1p1f1
+    - r148i1p1f1
+    - r149i1p1f1
+    - r150i1p1f1
+cmip6_EC-Earth-Consortium/EC-Earth3-AerChem_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/EC-Earth-Consortium/EC-Earth3-AerChem/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r4i1p1f1
+cmip6_EC-Earth-Consortium/EC-Earth3-CC_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/EC-Earth-Consortium/EC-Earth3-CC/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_EC-Earth-Consortium/EC-Earth3-CC_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/EC-Earth-Consortium/EC-Earth3-CC/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_EC-Earth-Consortium/EC-Earth3-Veg_ssp119_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/EC-Earth-Consortium/EC-Earth3-Veg/ssp119/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+cmip6_EC-Earth-Consortium/EC-Earth3-Veg_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/EC-Earth-Consortium/EC-Earth3-Veg/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r6i1p1f1
+    - r12i1p1f1
+    - r14i1p1f1
+cmip6_EC-Earth-Consortium/EC-Earth3-Veg_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/EC-Earth-Consortium/EC-Earth3-Veg/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+    - r6i1p1f1
+    - r12i1p1f1
+    - r14i1p1f1
+cmip6_EC-Earth-Consortium/EC-Earth3-Veg_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/EC-Earth-Consortium/EC-Earth3-Veg/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r12i1p1f1
+    - r14i1p1f1
+cmip6_EC-Earth-Consortium/EC-Earth3-Veg_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/EC-Earth-Consortium/EC-Earth3-Veg/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r6i1p1f1
+    - r10i1p1f1
+    - r12i1p1f1
+    - r14i1p1f1
+cmip6_EC-Earth-Consortium/EC-Earth3-Veg-LR_ssp119_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/EC-Earth-Consortium/EC-Earth3-Veg-LR/ssp119/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+cmip6_EC-Earth-Consortium/EC-Earth3-Veg-LR_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/EC-Earth-Consortium/EC-Earth3-Veg-LR/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+cmip6_EC-Earth-Consortium/EC-Earth3-Veg-LR_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/EC-Earth-Consortium/EC-Earth3-Veg-LR/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+cmip6_EC-Earth-Consortium/EC-Earth3-Veg-LR_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/EC-Earth-Consortium/EC-Earth3-Veg-LR/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+cmip6_EC-Earth-Consortium/EC-Earth3-Veg-LR_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/EC-Earth-Consortium/EC-Earth3-Veg-LR/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+cmip6_FIO-QLNM/FIO-ESM-2-0_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/FIO-QLNM/FIO-ESM-2-0/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+cmip6_FIO-QLNM/FIO-ESM-2-0_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/FIO-QLNM/FIO-ESM-2-0/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+cmip6_FIO-QLNM/FIO-ESM-2-0_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/FIO-QLNM/FIO-ESM-2-0/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+cmip6_HAMMOZ-Consortium/MPI-ESM-1-2-HAM_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/HAMMOZ-Consortium/MPI-ESM-1-2-HAM/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+cmip6_INM/INM-CM4-8_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/INM/INM-CM4-8/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_INM/INM-CM4-8_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/INM/INM-CM4-8/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_INM/INM-CM4-8_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/INM/INM-CM4-8/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_INM/INM-CM4-8_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/INM/INM-CM4-8/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_INM/INM-CM5-0_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/INM/INM-CM5-0/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_INM/INM-CM5-0_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/INM/INM-CM5-0/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_INM/INM-CM5-0_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/INM/INM-CM5-0/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+cmip6_INM/INM-CM5-0_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/INM/INM-CM5-0/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_IPSL/IPSL-CM5A2-INCA_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/IPSL/IPSL-CM5A2-INCA/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_IPSL/IPSL-CM5A2-INCA_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/IPSL/IPSL-CM5A2-INCA/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_IPSL/IPSL-CM6A-LR_ssp119_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/IPSL/IPSL-CM6A-LR/ssp119/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r6i1p1f1
+    - r14i1p1f1
+cmip6_IPSL/IPSL-CM6A-LR_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/IPSL/IPSL-CM6A-LR/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r6i1p1f1
+    - r14i1p1f1
+cmip6_IPSL/IPSL-CM6A-LR_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/IPSL/IPSL-CM6A-LR/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+    - r6i1p1f1
+    - r10i1p1f1
+    - r11i1p1f1
+    - r14i1p1f1
+    - r22i1p1f1
+    - r25i1p1f1
+cmip6_IPSL/IPSL-CM6A-LR_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/IPSL/IPSL-CM6A-LR/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+    - r6i1p1f1
+    - r7i1p1f1
+    - r8i1p1f1
+    - r9i1p1f1
+    - r10i1p1f1
+    - r14i1p1f1
+cmip6_IPSL/IPSL-CM6A-LR_ssp434_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/IPSL/IPSL-CM6A-LR/ssp434/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r1i1p1f2
+cmip6_IPSL/IPSL-CM6A-LR_ssp460_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/IPSL/IPSL-CM6A-LR/ssp460/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r1i1p1f2
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r6i1p1f1
+    - r14i1p1f1
+cmip6_IPSL/IPSL-CM6A-LR_ssp534-over_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/IPSL/IPSL-CM6A-LR/ssp534-over/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_IPSL/IPSL-CM6A-LR_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/IPSL/IPSL-CM6A-LR/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r6i1p1f1
+    - r14i1p1f1
+cmip6_KIOST/KIOST-ESM_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/KIOST/KIOST-ESM/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_KIOST/KIOST-ESM_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/KIOST/KIOST-ESM/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_KIOST/KIOST-ESM_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/KIOST/KIOST-ESM/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_MIROC/MIROC-ES2L_ssp119_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MIROC/MIROC-ES2L/ssp119/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r2i1p1f2
+    - r3i1p1f2
+    - r4i1p1f2
+    - r5i1p1f2
+    - r6i1p1f2
+    - r7i1p1f2
+    - r8i1p1f2
+    - r9i1p1f2
+    - r10i1p1f2
+cmip6_MIROC/MIROC-ES2L_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MIROC/MIROC-ES2L/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r2i1p1f2
+    - r3i1p1f2
+    - r4i1p1f2
+    - r5i1p1f2
+    - r6i1p1f2
+    - r7i1p1f2
+    - r8i1p1f2
+    - r9i1p1f2
+    - r10i1p1f2
+cmip6_MIROC/MIROC-ES2L_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MIROC/MIROC-ES2L/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r2i1p1f2
+    - r3i1p1f2
+    - r4i1p1f2
+    - r5i1p1f2
+    - r6i1p1f2
+    - r7i1p1f2
+    - r8i1p1f2
+    - r9i1p1f2
+    - r10i1p1f2
+    - r11i1p1f2
+    - r12i1p1f2
+    - r13i1p1f2
+    - r14i1p1f2
+    - r15i1p1f2
+    - r16i1p1f2
+    - r17i1p1f2
+    - r18i1p1f2
+    - r19i1p1f2
+    - r20i1p1f2
+    - r21i1p1f2
+    - r22i1p1f2
+    - r23i1p1f2
+    - r24i1p1f2
+    - r25i1p1f2
+    - r26i1p1f2
+    - r27i1p1f2
+    - r28i1p1f2
+    - r29i1p1f2
+    - r30i1p1f2
+cmip6_MIROC/MIROC-ES2L_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MIROC/MIROC-ES2L/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r2i1p1f2
+    - r3i1p1f2
+    - r4i1p1f2
+    - r5i1p1f2
+    - r6i1p1f2
+    - r7i1p1f2
+    - r8i1p1f2
+    - r9i1p1f2
+    - r10i1p1f2
+cmip6_MIROC/MIROC-ES2L_ssp534-over_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MIROC/MIROC-ES2L/ssp534-over/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+cmip6_MIROC/MIROC-ES2L_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MIROC/MIROC-ES2L/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r2i1p1f2
+    - r3i1p1f2
+    - r4i1p1f2
+    - r5i1p1f2
+    - r6i1p1f2
+    - r7i1p1f2
+    - r8i1p1f2
+    - r9i1p1f2
+    - r10i1p1f2
+cmip6_MIROC/MIROC6_ssp119_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MIROC/MIROC6/ssp119/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_MIROC/MIROC6_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MIROC/MIROC6/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+    - r6i1p1f1
+    - r7i1p1f1
+    - r8i1p1f1
+    - r9i1p1f1
+    - r10i1p1f1
+    - r11i1p1f1
+    - r12i1p1f1
+    - r13i1p1f1
+    - r14i1p1f1
+    - r15i1p1f1
+    - r16i1p1f1
+    - r17i1p1f1
+    - r18i1p1f1
+    - r19i1p1f1
+    - r20i1p1f1
+    - r21i1p1f1
+    - r22i1p1f1
+    - r23i1p1f1
+    - r24i1p1f1
+    - r25i1p1f1
+    - r26i1p1f1
+    - r27i1p1f1
+    - r28i1p1f1
+    - r29i1p1f1
+    - r30i1p1f1
+    - r31i1p1f1
+    - r32i1p1f1
+    - r33i1p1f1
+    - r34i1p1f1
+    - r35i1p1f1
+    - r36i1p1f1
+    - r37i1p1f1
+    - r38i1p1f1
+    - r39i1p1f1
+    - r40i1p1f1
+    - r41i1p1f1
+    - r42i1p1f1
+    - r43i1p1f1
+    - r44i1p1f1
+    - r45i1p1f1
+    - r46i1p1f1
+    - r47i1p1f1
+    - r48i1p1f1
+    - r49i1p1f1
+    - r50i1p1f1
+cmip6_MIROC/MIROC6_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MIROC/MIROC6/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+    - r6i1p1f1
+    - r7i1p1f1
+    - r8i1p1f1
+    - r9i1p1f1
+    - r10i1p1f1
+    - r11i1p1f1
+    - r12i1p1f1
+    - r13i1p1f1
+    - r14i1p1f1
+    - r15i1p1f1
+    - r16i1p1f1
+    - r17i1p1f1
+    - r18i1p1f1
+    - r19i1p1f1
+    - r20i1p1f1
+    - r21i1p1f1
+    - r22i1p1f1
+    - r23i1p1f1
+    - r24i1p1f1
+    - r25i1p1f1
+    - r26i1p1f1
+    - r27i1p1f1
+    - r28i1p1f1
+    - r29i1p1f1
+    - r30i1p1f1
+    - r31i1p1f1
+    - r32i1p1f1
+    - r33i1p1f1
+    - r34i1p1f1
+    - r35i1p1f1
+    - r36i1p1f1
+    - r37i1p1f1
+    - r38i1p1f1
+    - r39i1p1f1
+    - r40i1p1f1
+    - r41i1p1f1
+    - r42i1p1f1
+    - r43i1p1f1
+    - r44i1p1f1
+    - r45i1p1f1
+    - r46i1p1f1
+    - r47i1p1f1
+    - r48i1p1f1
+    - r49i1p1f1
+    - r50i1p1f1
+cmip6_MIROC/MIROC6_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MIROC/MIROC6/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+cmip6_MIROC/MIROC6_ssp434_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MIROC/MIROC6/ssp434/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_MIROC/MIROC6_ssp460_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MIROC/MIROC6/ssp460/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_MIROC/MIROC6_ssp534-over_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MIROC/MIROC6/ssp534-over/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_MIROC/MIROC6_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MIROC/MIROC6/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+    - r6i1p1f1
+    - r7i1p1f1
+    - r8i1p1f1
+    - r9i1p1f1
+    - r10i1p1f1
+    - r11i1p1f1
+    - r12i1p1f1
+    - r13i1p1f1
+    - r14i1p1f1
+    - r15i1p1f1
+    - r16i1p1f1
+    - r17i1p1f1
+    - r18i1p1f1
+    - r19i1p1f1
+    - r20i1p1f1
+    - r21i1p1f1
+    - r22i1p1f1
+    - r23i1p1f1
+    - r24i1p1f1
+    - r25i1p1f1
+    - r26i1p1f1
+    - r27i1p1f1
+    - r28i1p1f1
+    - r29i1p1f1
+    - r30i1p1f1
+    - r31i1p1f1
+    - r32i1p1f1
+    - r33i1p1f1
+    - r34i1p1f1
+    - r35i1p1f1
+    - r36i1p1f1
+    - r37i1p1f1
+    - r38i1p1f1
+    - r39i1p1f1
+    - r40i1p1f1
+    - r41i1p1f1
+    - r42i1p1f1
+    - r43i1p1f1
+    - r44i1p1f1
+    - r45i1p1f1
+    - r46i1p1f1
+    - r47i1p1f1
+    - r48i1p1f1
+    - r49i1p1f1
+    - r50i1p1f1
+cmip6_MOHC/HadGEM3-GC31-LL_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MOHC/HadGEM3-GC31-LL/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f3
+cmip6_MOHC/HadGEM3-GC31-LL_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MOHC/HadGEM3-GC31-LL/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f3
+    - r2i1p1f3
+    - r3i1p1f3
+    - r4i1p1f3
+cmip6_MOHC/HadGEM3-GC31-LL_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MOHC/HadGEM3-GC31-LL/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f3
+    - r2i1p1f3
+    - r3i1p1f3
+    - r4i1p1f3
+cmip6_MOHC/HadGEM3-GC31-MM_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MOHC/HadGEM3-GC31-MM/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f3
+cmip6_MOHC/HadGEM3-GC31-MM_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MOHC/HadGEM3-GC31-MM/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f3
+    - r2i1p1f3
+    - r3i1p1f3
+    - r4i1p1f3
+cmip6_MOHC/UKESM1-0-LL_ssp119_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MOHC/UKESM1-0-LL/ssp119/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r2i1p1f2
+    - r3i1p1f2
+    - r4i1p1f2
+    - r8i1p1f2
+cmip6_MOHC/UKESM1-0-LL_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MOHC/UKESM1-0-LL/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r2i1p1f2
+    - r3i1p1f2
+    - r4i1p1f2
+    - r5i1p1f2
+    - r6i1p1f2
+    - r7i1p1f2
+    - r8i1p1f2
+    - r9i1p1f2
+    - r10i1p1f2
+    - r11i1p1f2
+    - r12i1p1f2
+    - r16i1p1f2
+    - r17i1p1f2
+    - r18i1p1f2
+    - r19i1p1f2
+cmip6_MOHC/UKESM1-0-LL_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MOHC/UKESM1-0-LL/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r2i1p1f2
+    - r3i1p1f2
+    - r4i1p1f2
+    - r5i1p1f2
+    - r6i1p1f2
+    - r7i1p1f2
+    - r8i1p1f2
+    - r9i1p1f2
+    - r10i1p1f2
+    - r11i1p1f2
+    - r12i1p1f2
+    - r16i1p1f2
+    - r17i1p1f2
+    - r18i1p1f2
+    - r19i1p1f2
+cmip6_MOHC/UKESM1-0-LL_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MOHC/UKESM1-0-LL/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r2i1p1f2
+    - r3i1p1f2
+    - r4i1p1f2
+    - r5i1p1f2
+    - r6i1p1f2
+    - r7i1p1f2
+    - r8i1p1f2
+    - r9i1p1f2
+    - r10i1p1f2
+    - r11i1p1f2
+    - r12i1p1f2
+    - r16i1p1f2
+    - r17i1p1f2
+    - r18i1p1f2
+    - r19i1p1f2
+cmip6_MOHC/UKESM1-0-LL_ssp434_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MOHC/UKESM1-0-LL/ssp434/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r2i1p1f2
+    - r3i1p1f2
+    - r4i1p1f2
+    - r8i1p1f2
+cmip6_MOHC/UKESM1-0-LL_ssp534-over_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MOHC/UKESM1-0-LL/ssp534-over/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r2i1p1f2
+    - r3i1p1f2
+    - r4i1p1f2
+    - r8i1p1f2
+cmip6_MOHC/UKESM1-0-LL_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MOHC/UKESM1-0-LL/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r2i1p1f2
+    - r3i1p1f2
+    - r4i1p1f2
+    - r8i1p1f2
+cmip6_MPI-M/MPI-ESM1-2-LR_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MPI-M/MPI-ESM1-2-LR/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+    - r6i1p1f1
+    - r7i1p1f1
+    - r8i1p1f1
+    - r9i1p1f1
+    - r10i1p1f1
+cmip6_MPI-M/MPI-ESM1-2-LR_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MPI-M/MPI-ESM1-2-LR/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+    - r6i1p1f1
+    - r7i1p1f1
+    - r8i1p1f1
+    - r9i1p1f1
+    - r10i1p1f1
+cmip6_MPI-M/MPI-ESM1-2-LR_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MPI-M/MPI-ESM1-2-LR/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+    - r6i1p1f1
+    - r7i1p1f1
+    - r8i1p1f1
+    - r9i1p1f1
+    - r10i1p1f1
+cmip6_MPI-M/MPI-ESM1-2-LR_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MPI-M/MPI-ESM1-2-LR/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+    - r6i1p1f1
+    - r7i1p1f1
+    - r8i1p1f1
+    - r9i1p1f1
+    - r10i1p1f1
+cmip6_MRI/MRI-ESM2-0_ssp119_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MRI/MRI-ESM2-0/ssp119/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_MRI/MRI-ESM2-0_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MRI/MRI-ESM2-0/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+cmip6_MRI/MRI-ESM2-0_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MRI/MRI-ESM2-0/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r1i3p1f1
+    - r2i1p1f1
+    - r2i3p1f1
+    - r3i1p1f1
+    - r3i3p1f1
+    - r4i1p1f1
+    - r4i3p1f1
+    - r5i1p1f1
+    - r5i3p1f1
+cmip6_MRI/MRI-ESM2-0_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MRI/MRI-ESM2-0/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+cmip6_MRI/MRI-ESM2-0_ssp434_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MRI/MRI-ESM2-0/ssp434/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_MRI/MRI-ESM2-0_ssp460_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MRI/MRI-ESM2-0/ssp460/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_MRI/MRI-ESM2-0_ssp534-over_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MRI/MRI-ESM2-0/ssp534-over/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_MRI/MRI-ESM2-0_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/MRI/MRI-ESM2-0/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r1i2p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+cmip6_NASA-GISS/GISS-E2-1-G_ssp119_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NASA-GISS/GISS-E2-1-G/ssp119/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r1i1p3f1
+    - r2i1p1f2
+    - r3i1p1f2
+    - r4i1p1f2
+    - r5i1p1f2
+cmip6_NASA-GISS/GISS-E2-1-G_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NASA-GISS/GISS-E2-1-G/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r1i1p3f1
+    - r1i1p5f1
+    - r2i1p1f2
+    - r2i1p3f1
+    - r3i1p1f2
+    - r3i1p3f1
+    - r4i1p1f2
+    - r4i1p3f1
+    - r5i1p1f2
+    - r5i1p3f1
+cmip6_NASA-GISS/GISS-E2-1-G_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NASA-GISS/GISS-E2-1-G/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r1i1p3f1
+    - r1i1p5f1
+    - r1i1p5f2
+    - r2i1p1f2
+    - r2i1p3f1
+    - r2i1p5f1
+    - r2i1p5f2
+    - r3i1p1f2
+    - r3i1p3f1
+    - r3i1p5f1
+    - r3i1p5f2
+    - r4i1p1f2
+    - r4i1p3f1
+    - r4i1p5f1
+    - r4i1p5f2
+    - r5i1p1f2
+    - r5i1p3f1
+    - r5i1p5f1
+    - r5i1p5f2
+    - r6i1p1f2
+    - r6i1p5f2
+    - r7i1p1f2
+    - r7i1p5f2
+    - r8i1p1f2
+    - r8i1p5f2
+    - r9i1p1f2
+    - r9i1p5f2
+    - r10i1p1f2
+    - r10i1p5f2
+cmip6_NASA-GISS/GISS-E2-1-G_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NASA-GISS/GISS-E2-1-G/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r1i1p3f1
+    - r1i1p3f2
+    - r1i1p5f1
+    - r2i1p1f2
+    - r2i1p3f1
+    - r2i1p3f2
+    - r2i1p5f1
+    - r3i1p1f2
+    - r3i1p3f1
+    - r3i1p3f2
+    - r3i1p5f1
+    - r4i1p1f2
+    - r4i1p3f1
+    - r4i1p5f1
+    - r5i1p1f2
+    - r5i1p5f1
+    - r6i1p1f2
+    - r6i1p5f1
+    - r7i1p1f2
+    - r7i1p5f1
+    - r8i1p1f2
+    - r8i1p5f1
+    - r9i1p1f2
+    - r9i1p5f1
+    - r10i1p1f2
+    - r10i1p5f1
+cmip6_NASA-GISS/GISS-E2-1-G_ssp434_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NASA-GISS/GISS-E2-1-G/ssp434/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r1i1p3f1
+    - r2i1p1f2
+    - r3i1p1f2
+    - r4i1p1f2
+    - r5i1p1f2
+cmip6_NASA-GISS/GISS-E2-1-G_ssp460_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NASA-GISS/GISS-E2-1-G/ssp460/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r1i1p3f1
+    - r2i1p1f2
+    - r3i1p1f2
+    - r4i1p1f2
+    - r5i1p1f2
+cmip6_NASA-GISS/GISS-E2-1-G_ssp534-over_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NASA-GISS/GISS-E2-1-G/ssp534-over/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r1i1p3f1
+    - r1i1p5f1
+    - r2i1p1f2
+    - r2i1p3f1
+    - r3i1p1f2
+    - r3i1p3f1
+    - r4i1p1f2
+    - r4i1p3f1
+    - r5i1p1f2
+    - r5i1p3f1
+cmip6_NASA-GISS/GISS-E2-1-G_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NASA-GISS/GISS-E2-1-G/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r1i1p3f1
+    - r1i1p5f1
+    - r2i1p1f2
+    - r2i1p3f1
+    - r3i1p1f2
+    - r3i1p3f1
+    - r4i1p1f2
+    - r4i1p3f1
+    - r5i1p1f2
+    - r5i1p3f1
+cmip6_NASA-GISS/GISS-E2-1-H_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NASA-GISS/GISS-E2-1-H/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r2i1p1f2
+    - r3i1p1f2
+    - r4i1p1f2
+    - r5i1p1f2
+cmip6_NASA-GISS/GISS-E2-1-H_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NASA-GISS/GISS-E2-1-H/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r1i1p3f1
+    - r2i1p1f2
+    - r2i1p3f1
+    - r3i1p1f2
+    - r3i1p3f1
+    - r4i1p1f2
+    - r4i1p3f1
+    - r5i1p1f2
+    - r5i1p3f1
+cmip6_NASA-GISS/GISS-E2-1-H_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NASA-GISS/GISS-E2-1-H/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r1i1p3f1
+    - r2i1p1f2
+    - r3i1p1f2
+    - r4i1p1f2
+    - r5i1p1f2
+cmip6_NASA-GISS/GISS-E2-1-H_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NASA-GISS/GISS-E2-1-H/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+    - r2i1p1f2
+    - r4i1p1f2
+    - r5i1p1f2
+cmip6_NCAR/CESM2_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NCAR/CESM2/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r4i1p1f1
+    - r10i1p1f1
+    - r11i1p1f1
+cmip6_NCAR/CESM2_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NCAR/CESM2/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r10i1p1f1
+    - r11i1p1f1
+cmip6_NCAR/CESM2_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NCAR/CESM2/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+    - r6i1p1f1
+    - r10i1p1f1
+    - r11i1p1f1
+cmip6_NCAR/CESM2_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NCAR/CESM2/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r4i1p1f1
+    - r10i1p1f1
+    - r11i1p1f1
+cmip6_NCAR/CESM2-WACCM_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NCAR/CESM2-WACCM/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_NCAR/CESM2-WACCM_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NCAR/CESM2-WACCM/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+cmip6_NCAR/CESM2-WACCM_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NCAR/CESM2-WACCM/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+cmip6_NCAR/CESM2-WACCM_ssp534-over_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NCAR/CESM2-WACCM/ssp534-over/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r5i1p1f1
+cmip6_NCAR/CESM2-WACCM_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NCAR/CESM2-WACCM/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+    - r4i1p1f1
+    - r5i1p1f1
+cmip6_NCC/NorESM2-LM_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NCC/NorESM2-LM/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_NCC/NorESM2-LM_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NCC/NorESM2-LM/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r1i1p1f2
+    - r2i1p1f1
+    - r2i1p1f2
+    - r3i1p1f1
+    - r3i1p1f2
+    - r4i1p1f2
+    - r5i1p1f2
+    - r6i1p1f2
+    - r7i1p1f2
+    - r8i1p1f2
+    - r9i1p1f2
+    - r10i1p1f2
+cmip6_NCC/NorESM2-LM_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NCC/NorESM2-LM/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+cmip6_NCC/NorESM2-LM_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NCC/NorESM2-LM/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_NCC/NorESM2-MM_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NCC/NorESM2-MM/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_NCC/NorESM2-MM_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NCC/NorESM2-MM/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+cmip6_NCC/NorESM2-MM_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NCC/NorESM2-MM/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_NCC/NorESM2-MM_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NCC/NorESM2-MM/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_NIMS-KMA/KACE-1-0-G_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NIMS-KMA/KACE-1-0-G/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+cmip6_NIMS-KMA/KACE-1-0-G_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NIMS-KMA/KACE-1-0-G/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+cmip6_NIMS-KMA/KACE-1-0-G_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NIMS-KMA/KACE-1-0-G/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+cmip6_NIMS-KMA/KACE-1-0-G_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NIMS-KMA/KACE-1-0-G/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+cmip6_NIMS-KMA/UKESM1-0-LL_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NIMS-KMA/UKESM1-0-LL/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r13i1p1f2
+cmip6_NOAA-GFDL/GFDL-CM4_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NOAA-GFDL/GFDL-CM4/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_NOAA-GFDL/GFDL-CM4_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NOAA-GFDL/GFDL-CM4/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_NOAA-GFDL/GFDL-ESM4_ssp119_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NOAA-GFDL/GFDL-ESM4/ssp119/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_NOAA-GFDL/GFDL-ESM4_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NOAA-GFDL/GFDL-ESM4/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_NOAA-GFDL/GFDL-ESM4_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NOAA-GFDL/GFDL-ESM4/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+    - r3i1p1f1
+cmip6_NOAA-GFDL/GFDL-ESM4_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NOAA-GFDL/GFDL-ESM4/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_NOAA-GFDL/GFDL-ESM4_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NOAA-GFDL/GFDL-ESM4/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_NUIST/NESM3_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NUIST/NESM3/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+cmip6_NUIST/NESM3_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NUIST/NESM3/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+cmip6_NUIST/NESM3_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/NUIST/NESM3/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+    - r2i1p1f1
+cmip6_THU/CIESM_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/THU/CIESM/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_THU/CIESM_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/THU/CIESM/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_THU/CIESM_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/THU/CIESM/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f1
+cmip6_UA/MCM-UA-1-0_ssp126_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/UA/MCM-UA-1-0/ssp126/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+cmip6_UA/MCM-UA-1-0_ssp245_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/UA/MCM-UA-1-0/ssp245/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+cmip6_UA/MCM-UA-1-0_ssp370_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/UA/MCM-UA-1-0/ssp370/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2
+cmip6_UA/MCM-UA-1-0_ssp585_{member}:
+  <<: *cmip6_amon
+  uri: gs://cmip6/CMIP6/ScenarioMIP/UA/MCM-UA-1-0/ssp585/{member}/Amon/{variable}/*/*
+  placeholders:
+    member:
+    - r1i1p1f2

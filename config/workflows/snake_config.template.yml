@@ -71,7 +71,14 @@ workflows:
       - INM/INM-CM5-0
       - CMCC/CMCC-ESM2
     scenarios: [ssp245, ssp585]
-    members: [r1i1p1f1]
+    # Ensemble members, tried against every model in `models:`. Not every model
+    # publishes r1i1p1f1 — CNRM-*, MIROC-ES2L, UKESM1-0-LL and MCM-UA-1-0 use
+    # f2, HadGEM3-GC31-* use f3, CanESM5-CanOE uses p2f1 — so listing only
+    # r1i1p1f1 silently drops them. This is the union of first-realization
+    # labels; a member a model does not have is skipped (the catalog declares
+    # exactly what exists). GISS-E2-1-G has three physics variants and will
+    # therefore contribute three members. NorCPM1 needs r1i1000p1f1.
+    members: [r1i1p1f1, r1i1p1f2, r1i1p1f3, r1i1p2f1, r1i1p3f1, r1i1p5f1]
     variables: [precip, temp]
     start_month_hyd_year: Jan
     # CMIP6 monthly stats historical year range (different precision than

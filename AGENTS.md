@@ -55,7 +55,9 @@ Method context that changes how code here should be edited (full rationale:
   `from blueearth_cst.<stage>.<module> import ...`.
 - `config/` — split into three bins: `workflows/` (`snake_config_*.yml` — the
   `--configfile` targets), `catalogs/` (hydromt data catalogs — `deltares_data*.yml`,
-  `cmip6_data.yml` — the `-d` targets), and `templates/` (hydromt/wflow/weathergen
+  `cmip6_data.yml` — the `-d` targets; `cmip6_data.yml` is **generated** by
+  `dev/scripts/generate_cmip6_catalog.py` from a live `gs://cmip6` listing, never
+  hand-edited), and `templates/` (hydromt/wflow/weathergen
   build templates — `wflow_build_model.yml`, `wflow_update_waterbodies.yml`,
   `weathergen_config.yml`, plus the tracked `wflow_sbm.toml`, and
   `templates/observations/` — header-only schemas for the two optional

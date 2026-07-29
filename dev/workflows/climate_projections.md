@@ -50,10 +50,20 @@ Read at `Snakefile_climate_projections` lines 20–21:
 - **External CMIP6 catalog sources** required in `data_sources_climate`. Each
   script builds the source name `{clim_project}_{model}_{scenario}_{member}`
   (`get_stats_climate_proj.py` line 181), matching the
-  `cmip6_{model}_{scenario}_{member}` entries in `config/cmip6_data.yml`. For
-  the seed config: `cmip6_{model}_historical_r1i1p1f1` and
+  `cmip6_{model}_{scenario}_{member}` entries in
+  `config/catalogs/cmip6_data.yml`. For the seed config:
+  `cmip6_{model}_historical_r1i1p1f1` and
   `cmip6_{model}_{ssp245,ssp585}_r1i1p1f1` over the three models. A source
   absent from the catalog yields a dummy empty dataset, skipped at merge.
+  Since 2026-07 the catalog is **generated** by
+  `dev/scripts/generate_cmip6_catalog.py` from a live listing of `gs://cmip6`:
+  one entry per (model, scenario), 289 entries / 2 426 sources, each declaring
+  exactly the members that exist with both `pr` and `tas` at `Amon`. That
+  exactness is what makes the empty-dataset branch safe to rely on — a member
+  label a model does not publish is skipped, so `members:` can carry the union
+  of variant labels (`r1i1p1f2`, `r1i1p1f3`, `r1i1p2f1`, …) needed to reach
+  models that have no `r1i1p1f1`. Inventory and rationale:
+  `dev/workflows/wf2-cmip6-store-inventory.md`.
 
 ## Output contract (by role — not all are `rule all` targets)
 
