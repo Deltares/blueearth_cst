@@ -109,6 +109,41 @@ Consequences for `design-v2.md`, all in §5.6 unless noted:
   availability per (model, scenario)*, which bears on §5.7's DAG-build
   validation and on the `members:` key's meaning.
 
+**R3″ — downstream/ensemble statistics are out of v2.0 scope entirely (owner,
+2026-07-29, addendum to R3′).** Cross-combination statistics — including
+`min_models_for_envelope` and anything else computed *over* the set of data
+points — are computed **ex-post**, downstream of the ΔT/ΔP values, and are not a
+v2.0 concern.
+
+**WF2 v2.0's deliverable is the data points themselves**: one (ΔT, ΔP) per
+(model, scenario, member, horizon), in a tidy table, plus the composition
+record. Anything that reduces *across* those rows is deferred.
+
+Driver's reading of the boundary, stated explicitly because the two senses of
+"statistic" are easy to conflate — correct this if wrong:
+
+- **IN scope (per-series, defines the data point):** the statistics computed on
+  the annual series *within* one (model, scenario, member, horizon) — `mean`,
+  `median`, `std`, and the tail quantiles — since these are what the change
+  factor *is*. §5.5, §8 step 5d and OQ-4 remain live.
+- **OUT of scope (cross-combination, ex-post):** anything reducing over the set
+  of data points — envelopes, percentile bands, ±σ, model-count thresholds,
+  weighting, de-duplication.
+
+Consequences beyond R3′:
+- **Delete the `ensemble.min_models_for_envelope` config key**, the envelope
+  suppression rule, and the min–max range from §5.6. §5.6 reduces to: compute
+  per-combination change factors, emit the tidy table, report composition.
+- **N9 restated** — institution de-duplication and performance weighting are not
+  "not applied", they are *downstream concerns*, along with every other
+  cross-combination statistic.
+- **Report figures** show one point/trace per combination; the multi-model
+  percentile envelopes in today's `plot_proj_timeseries.py` are not carried
+  forward.
+- **Slot S5 (grid-vs-cloud advisory) is itself an ex-post statistic** — it
+  compares the cloud's extent against the perturbation grid — so it defers with
+  the rest rather than being a v2.0 read.
+
 **R4 — v2.0 scope narrows to GCM projections analysis.** For now: **monthly GCM
 projections output analysis**, with room to expand to **gridded** results for
 plotting and analysis (consistent with R2). **No comparison against observed
