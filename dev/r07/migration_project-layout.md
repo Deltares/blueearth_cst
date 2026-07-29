@@ -228,12 +228,36 @@ needs no change** — it already covers all five pointer fields generically
 | `state.path_input` (run TOMLs) | `../../../hydrology_model/instate/instates.nc` | `../../../../hydrology_model/instate/instates.nc` | B5 | 11 |
 | `input.path_forcing` (run TOMLs) | `../realization_<r>/inmaps_rlz_<r>_cst_<c>.nc` | `../forcing/inmaps_cst_<c>.nc` | B5 | 11 |
 
-Depth derivation: run TOMLs move from `experiments/<id>/model_runs/` (3 levels
-below the project root) to `experiments/<id>/hydrology_runs/rlz_<r>/config/` (4
-levels), so every pointer that escapes the experiment gains one `../`; the forcing
-pointer instead becomes a sibling-directory hop inside `rlz_<r>/`. hydromt
-re-relativizes on write, so the comparator — not this map — is authoritative; the
-strings above are the expected values, given for reviewability.
+Depth derivation — **corrected 2026-07-29 against the emitted TOMLs (R7-13).**
+Run TOMLs move from `experiments/<id>/model_runs/` (3 levels below the project
+root) to `experiments/<id>/hydrology_runs/rlz_<r>/config/` — **5 levels, not 4**:
+one directory is replaced by three, so every pointer that escapes the experiment
+gains **two** `../`, not one. The forcing pointer instead becomes a
+sibling-directory hop inside `rlz_<r>/`.
+
+This paragraph originally predicted one extra level and
+`../../../../hydrology_model/staticmaps.nc`. hydromt emitted five:
+
+| Key | Emitted value (verified on disk) |
+| --- | --- |
+| `input.path_static` | `../../../../../hydrology_model/staticmaps.nc` |
+| `state.path_input` | `../../../../../hydrology_model/instate/instates.nc` |
+| `input.path_forcing` | `../forcing/inmaps_cst_<c>.nc` |
+| `state.path_output` | `../output/outstates_cst_<c>.nc` |
+
+The **tree was right and this map was wrong** — which is exactly why the
+paragraph already deferred to the comparator: hydromt re-relativizes on write,
+the path-aware TOML comparator passed on all 12 run TOMLs, and the strings here
+are for reviewability only. Recorded rather than quietly amended, because a map
+that silently corrects itself teaches nobody that the derivation is the
+comparator's job.
+
+Two further pointers the original table omitted, both of which do change value:
+`state.path_output` and `output.csv.path` (`output_rlz_<r>_cst_<c>.csv` →
+`../output/cst_<c>.csv`). `dir_output` stays `"."` deliberately — the comparator
+resolves these fields lexically against the toml's own directory and does not
+read `dir_output`, so putting the hop in the pointers keeps a functionally
+correct TOML from reading as a gate failure.
 
 ### 2d. `COPIED_CONFIG_PATH_MAP` additions (`semantic_tree_diff.py:90-110`)
 

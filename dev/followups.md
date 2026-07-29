@@ -27,9 +27,10 @@ Provenance: `dev/r07/migration_project-layout.md` §§7a–7d,
   The obvious fix — dropping the `ancient()` on staticmaps — was **wrong**:
   1.04/1.05 commit writes back into staticmaps themselves via
   `mod.write()`/`mod.close()`, so a plain edge would re-trigger them on their
-  own execution forever. Regression test falsified both ways. Diagnosis kept
-  below for the record.
-  (map §7c.) Rule 1.03 `create_model` creates it; rules 1.04–1.09 update it
+  own execution forever. Regression test falsified both ways.
+
+  *Original diagnosis, kept for the record* (map §7c): rule 1.03 `create_model`
+  creates it; rules 1.04–1.09 update it
   **in place** while taking `ancient(f"{basin_dir}/staticmaps.nc")`, which
   suppresses exactly the mtime trigger a rebuilt staticmaps would fire. So
   **anything that re-fires `create_model` alone leaves the TOML stripped** of
@@ -99,7 +100,8 @@ Provenance: `dev/r07/migration_project-layout.md` §§7a–7d,
   `tests/test_check_baseline_provenance.py`. The underlying *sharing* is
   unchanged — candidates (b) branch-derived fixture paths and (c) per-branch
   regeneration remain open if misattribution recurs despite the warning.
-  Original diagnosis kept below. `test_case/test_local` is
+
+  *Original diagnosis, kept for the record.* `test_case/test_local` is
   **untracked**, so it is not part of any branch: every branch, worktree and
   session that runs a workflow writes into the *same* tree. Consequences, all
   observed rather than hypothesised:
@@ -162,12 +164,16 @@ Provenance: `dev/r07/migration_project-layout.md` §§7a–7d,
 - **[R7-9] Stale benchmark parts survive a rule rename.** `merge_benchmarks`
   globs `benchmarks/_parts/`, so a renamed rule leaves a phantom row in the
   gathered markdown. Inside `EXCLUDED_DIR_NAMES`, so no gate impact.
-- **[R7-10] Old-path references in documents commit 15 did not own**:
-  `dev/workflows/model_creation.md:45-47` (the three
-  `plots/wflow_model_performance/` targets), `docs/notebooks/Model building.ipynb`
-  (2 hits), and `dev/p32a/compare_climate_ladder.py:8,26` (`wf1_raw`). The p32a
-  probe is a historical record and arguably correct as-is; the other two are
-  live and stale.
+- **[R7-10] ~~Old-path references in documents commit 15 did not own.~~
+  FIXED 2026-07-29.** `dev/workflows/model_creation.md`'s `rule all` target list
+  repointed to the B10 homes (and gains B4's three `source_*` figures, which it
+  never listed); two notebook figure paths repointed.
+  `dev/p32a/compare_climate_ladder.py` turned out to be a **live** probe, not a
+  historical note — it opens `wf1_raw/`, which B1 retired, so it raises
+  `FileNotFoundError`. Marked SUPERSEDED with the reason rather than repointed:
+  the ladder existed to characterise the difference between `wf1_raw` and the
+  keyed store, and R07's merge comparison proved those two element-wise
+  identical, so re-pointing it would leave it comparing a store against itself.
 - **[R7-11] `plot_map_forcing.py:199`** carries the same `"None"`-string shape as
   O-08 but is benign in its current use. Left alone deliberately; worth guarding
   if that code path ever grows a layer name.
@@ -177,10 +183,12 @@ Provenance: `dev/r07/migration_project-layout.md` §§7a–7d,
   warning fires correctly but routinely. Not widened to silence it — the
   exemption exists because the *baseline seed* config is tracked, not as a
   general licence for in-repo scratch dirs.
-- **[R7-13] Map §2c's depth arithmetic is off by one.** It predicts run-TOML
-  pointers gain one `../`; the move replaces one directory with three, so they
-  gain two. hydromt emitted the correct five-level pointers and the comparator
-  passes — the map's stated strings are what is wrong, not the tree.
+- **[R7-13] ~~Map §2c's depth arithmetic is off by one.~~ FIXED 2026-07-29** —
+  corrected against the emitted TOMLs, with the four verified pointer values
+  tabulated and the two the original omitted (`state.path_output`,
+  `output.csv.path`) added. Recorded as a correction rather than quietly
+  amended: the map deferring to the comparator is precisely what kept the wrong
+  arithmetic harmless, and that lesson is worth more than a tidy table.
 - **[R7-14] `tests/test_stage_data_incremental.py` fails intermittently** under
   some orderings; passes in isolation and on re-run. Another workstream's
   module, predates the R7 branch. Test-isolation issue, not a product defect.
