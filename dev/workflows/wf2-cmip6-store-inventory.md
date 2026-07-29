@@ -205,16 +205,43 @@ Verified on regeneration: all 69 previously declared sources resolve under the
 new catalog with byte-identical URIs, so existing configs are unaffected
 (`pytest tests/test_cli.py`: 9 passed).
 
-**Member selection is a config-side decision.** `Snakefile_climate_projections`
-reads a single global `members:` list and passes it to every model job, so the
-catalog alone does not remove the `r1i1p1f1` pin. `snake_config.template.yml`
-now ships the union of first-realization labels
-(`r1i1p1f1, r1i1p1f2, r1i1p1f3, r1i1p2f1, r1i1p3f1, r1i1p5f1`). Confirmed
-empirically against the real store — GFDL-ESM4 (only `f1`) and UKESM1-0-LL (only
-`f2`) run with the same union list and each output carries only its own member
-on the `member` coordinate, no all-NaN phantom slice. The small
-`snake_config_model_test*.yml` fixtures stay pinned to `r1i1p1f1`: their three
-models all publish it, and the gate is meant to stay minimal.
+**Member selection is a config-side decision, and a global list cannot be
+optimal.** `Snakefile_climate_projections` reads one `members:` list and passes
+it to every model job, so the catalog alone does not remove the `r1i1p1f1` pin.
+Two facts constrain the default:
+
+1. A label a model does not publish is skipped cleanly. Verified against the
+   real store: GFDL-ESM4 (`f1` only) and UKESM1-0-LL (`f2` only) run with the
+   same list, and each output carries only its own member on the `member`
+   coordinate — no all-NaN phantom slice.
+2. But `get_change_climate_proj.py` raises `asymmetric hist/clim members` when a
+   model's historical and future member sets differ (guard added at t260720d,
+   D-MEM, precisely to stop xarray's inner join from silently shrinking the
+   ensemble). Widening the list widens that mismatch.
+
+Measured over the generated catalog, across the four tier-1 SSPs:
+
+| `members:` | usable (model, scenario) pairs | models reached | pairs that raise |
+|---|---:|---:|---:|
+| `[r1i1p1f1]` (old) | 134 | 38 | 0 |
+| `+ r1i1p1f2` | 148 | 42 | 18 |
+| `+ r1i1p1f3` | 153 | 44 | 18 |
+| `+ r1i1p2f1` | **157** | **45** | 18 |
+| full 11-label union | 149 | 43 | 26 |
+
+`snake_config.template.yml` therefore ships
+`[r1i1p1f1, r1i1p1f2, r1i1p1f3, r1i1p2f1]` — the maximum. The wider union is
+strictly worse: the extra physics variants (`p3f1`, `p5f1`, `r1i1000p1f1`, …)
+create more asymmetry than coverage. The 18 raising pairs are CAMS-CSM1-0,
+CanESM5 (tier-2 only), EC-Earth3 (ssp245), GISS-E2-1-G, GISS-E2-1-H,
+IPSL-CM6A-LR (ssp434/460), MCM-UA-1-0, NorESM2-LM (ssp245); they fail loud with
+the unshared labels named, and the fix is to narrow `members:` for that run.
+
+A per-model `members:` mapping would remove the tradeoff entirely — it is a
+config-schema plus script change, so it is recorded here for v2 rather than done.
+
+The small `snake_config_model_test*.yml` fixtures stay pinned to `r1i1p1f1`:
+their three models all publish it, and the gate is meant to stay minimal.
 
 ## 5. Overview B — temporal resolutions
 
@@ -344,9 +371,79 @@ experiments in the index. Neither table was crawled, so a zero here means
 
 ## 7. Reproducing this inventory
 
-The crawl and report scripts are not committed (one-off probes). To regenerate:
-list `cmip6/CMIP6/{CMIP,ScenarioMIP}/*/*/{experiment}/*/{table}/` with
+The catalog generator (`dev/scripts/generate_cmip6_catalog.py`) performs the same
+crawl and is the maintained entry point; run it with `--dry-run` for the counts
+without rewriting the catalog. The wider crawl behind §5 (adding `day` and `3hr`)
+was a one-off probe: list
+`cmip6/CMIP6/{CMIP,ScenarioMIP}/*/*/{experiment}/*/{table}/` with
 `gcsfs.GCSFileSystem(token="anon")` and pivot member counts per
 `(institution, source, experiment)` filtered on the required variable set. Set
 `GCSFS_EXPERIMENTAL_ZB_HNS_SUPPORT=false` first (same reason as
 `get_stats_climate_proj.py:14`).
+
+## 8. Glossary
+
+### Projects and infrastructure
+
+| term | meaning |
+|---|---|
+| CMIP6 | Coupled Model Intercomparison Project, phase 6 — the coordinated multi-model climate experiment protocol whose output this store holds. |
+| activity_id | The MIP sub-project an experiment belongs to. WF2 touches two: `CMIP` (the DECK/historical core, which owns `historical`) and `ScenarioMIP` (which owns every `ssp*`). |
+| Pangeo / `gs://cmip6` | The Google Cloud public mirror of CMIP6 as zarr stores, maintained by the Pangeo project. Path layout: `CMIP6/{activity}/{institution}/{source}/{experiment}/{member}/{table}/{variable}/{grid}/{version}/`. |
+| `pangeo-cmip6.csv` | The published flat index of that bucket. Incomplete at store level (§1) — do not treat as authoritative. |
+| zarr | Chunked array format used by the mirror; read remotely over `gcsfs` without downloading whole files. |
+| hydromt | The data-catalog and model-building library WF2 reads the store through. A *catalog entry* maps a source name to a URI plus unit/rename handling. |
+| placeholder | A hydromt catalog mechanism that expands `{...}` in an entry name and URI into concrete sources — as a **cross-product** over all listed values, which is why per-model member lists matter (§4). |
+
+### Identifiers in a store path
+
+| term | meaning |
+|---|---|
+| institution_id | The modelling centre that published the run (`NOAA-GFDL`, `MOHC`, `NCC`). Not fixed per model — see the `MPI-ESM1-2-HR` / `UKESM1-0-LL` trap in §3. |
+| source_id | The climate model itself (`GFDL-ESM4`, `CanESM5`). "Model" in this document means source_id. |
+| experiment_id | The forcing scenario the run applies: `historical` (1850–2014, observed forcings) or an SSP (2015 onward). |
+| member_id / variant label | One ensemble member, formatted `r<N>i<N>p<N>f<N>`: **r**ealization (initial-condition perturbation), **i**nitialization method, **p**hysics variant, **f**orcing variant. `r1i1p1f2` is the first realization under an alternative forcing dataset. Models with no `r1i1p1f1` (CNRM-\*, UKESM1-0-LL, HadGEM3-\*) publish only a variant. |
+| table_id | Frequency + realm of the output (§5.1). `Amon` = atmosphere, monthly. |
+| grid_label | `gn` = native model grid; `gr`/`gr1` = regridded to a common grid by the publisher. |
+| version | Publication date directory (`v20190726`). The catalog's `*/*` glob spans grid and version and assumes exactly one of each (§2). |
+
+### Scenarios
+
+| term | meaning |
+|---|---|
+| SSP | Shared Socioeconomic Pathway — the socioeconomic storyline. In `sspXYZ`, `X` is the SSP narrative and `YZ` the ~2100 radiative forcing in W m⁻² × 10. |
+| ssp126 / ssp245 / ssp370 / ssp585 | The four tier-1 SSPs: strong mitigation (~1.9–2.6 W m⁻²), middle-of-the-road, regional rivalry / high aerosol, fossil-fuelled high end (8.5 W m⁻²). Best-populated, hence the practical ensemble basis. |
+| ssp119 / ssp434 / ssp460 | Tier-2: 1.5 °C-compatible, and two intermediate forcing levels. Thin (7–14 models). |
+| ssp534-over | Overshoot — follows ssp585 to ~2040 then declines to 3.4 W m⁻². Absent from the pre-2026-07 catalog. |
+| historical | The 1850–2014 forced run every scenario branches from; WF2's reference period. |
+| tier-1 / tier-2 | ScenarioMIP's own priority split, which is why coverage differs so sharply between them. |
+
+### Variables (CMIP6 name → WF2 name)
+
+| CMIP6 | WF2 | quantity | units in store → after adapter |
+|---|---|---|---|
+| `pr` | `precip` | precipitation flux | kg m⁻² s⁻¹ → mm day⁻¹ (`unit_mult: 86400`) |
+| `tas` | `temp` | near-surface (2 m) air temperature | K → °C (`unit_add: -273.15`) |
+| `rsds` | `kin` | surface downwelling shortwave radiation | W m⁻² |
+| `psl` | `press_msl` | sea-level pressure | Pa → hPa (`unit_mult: 0.01`) |
+| `tasmax` / `tasmin` | — | daily max / min near-surface temperature | K |
+| `sfcWind` | — | near-surface wind speed | m s⁻¹ |
+| `huss` / `hurs` | — | near-surface specific / relative humidity | 1 / % |
+| `evspsbl` | — | evaporation including sublimation | kg m⁻² s⁻¹ |
+| `mrro` | — | total runoff (a land-realm variable, hence absent from `Amon`) | kg m⁻² s⁻¹ |
+| `ps` | — | surface air pressure | Pa |
+
+Only the first four are reachable through the catalog today; the rest are listed
+because §5.3 reports their coverage as input to a PET- or weather-generator-facing
+v2.
+
+### Terms specific to this workflow
+
+| term | meaning |
+|---|---|
+| WF1 / WF2 / WF3 | The three Snakemake workflows: model creation, climate projections, climate experiment (the stress test). |
+| change factor | The per-(model, scenario, horizon) shift between the reference and future window — multiplicative for precipitation, additive for temperature. WF2's product. |
+| plausibility overlay | The role those change factors play: they locate the WF3 perturbation grid in projection space. They never drive stress-test runs. |
+| horizon | A named future window (`near: [2030, 2060]`, `far: [2070, 2100]`) over which a change factor is computed. |
+| ensemble | Here, the set of (model, scenario, member) combinations a run aggregates over. "Ragged" means members differ in number per model (§6). |
+| response surface | WF3's map of system performance over the temperature × precipitation perturbation grid; the surface the overlay is drawn on. |
