@@ -5,11 +5,11 @@ genre: workflow-spec
 author-binding: generic
 started: 2026-07-29
 variant: lite  # PROMOTION TRIGGERED -> full (blocking findings)
-stage: 6a-arbitration-revision
+stage: G2-pending
 external-rounds-completed: 2
 dispatches:
   opus: 0
-  fable: 1
+  fable: 2
 gates:
   G1: approved 2026-07-29
   G2: pending
@@ -56,9 +56,16 @@ flags: [owner-requested-fable-lens, promoted-lite-to-full, blocking-findings-ope
 - [done] arbitration — 2026-07-29. All nine round-2 findings **accepted, fix
   required**; none rejected. Three owner rulings A1–A3 below settle the
   decision-shaped ones.
-- [open] 6a-arbitration-revision — **routes to Fable** (see below), confined to
-  the arbitrated finding IDs
-- [open] G2 — owner approval under arbitration authority
+- [done] 6a-arbitration-revision — outputs: design-v4.md (2579 lines), ledger.md
+  (Round-2 arbitration section, 9 rows). Author: `cst-architect` on **Fable**
+  (escalation rule). All 9 round-2 findings accepted at filed severity. New
+  decisions D9 (region content identity), D10 (spherical cell-area weights),
+  D11 (gridded-change schema + compatibility gate), D12 (store-index sidecar).
+  **Scope check: PASSED** — every new section maps to an arbitrated ID
+  (D9/§6.14 = ext2-01; D10/§6.15 = ext2-02; D11/§6.16 = ext2-03; D12/§6.12
+  = ext2-04); no unrelated restructuring.
+- [open] G2 — owner approval under arbitration authority (cap stands; no third
+  external round)
 
 ## Fable escalation — round 2 (skill rule, now triggered)
 
@@ -312,3 +319,22 @@ naming the tier and the read-time risk; `composition.csv` records which tier eac
 resolved combination used. Generator-side per-variable availability stays the
 proper fix — **OQ-15** remains open as the route to promoting a variable from
 best-effort to certified.
+
+
+## Driver verification of stage 6a (2026-07-29)
+
+- **Write scope held.** Exactly `design-v4.md` (new) and `ledger.md` (appended);
+  no other repo file touched, `design-v3.md` intact.
+- **D10's identity checked numerically, not taken on trust.** The claim that the
+  new weight reduces to cos-latitude on a uniform grid rests on
+  `sin(φ+d/2) − sin(φ−d/2) = 2·sin(d/2)·cos φ`. Evaluated at
+  φ ∈ {0°, 45°, 80°, −67°} for d ∈ {1.25°, 2.5°, 0.9375°}: residual ≤ 3e−17
+  (machine precision), and `lhs/cos φ` equals `2 sin(d/2)` exactly in every
+  case. So D10 is a strict generalization — identical to the old scheme where
+  the old scheme was valid, and correct on the non-uniform grids where it was
+  not. This is the finding whose round-1 fix failed; the round-2 fix changes the
+  scheme so the tested condition *is* the validity condition, rather than
+  patching the test.
+- **Editorial fix (logged).** §11 carried two entries marked "(this file)" —
+  revision 3's marker was stale from `design-v3.md`. Repointed to
+  `(design-v3.md)`. No design content touched.
