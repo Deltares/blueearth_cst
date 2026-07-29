@@ -653,6 +653,38 @@ expects B2's destination while B2 lands in commit 8, so the *map* is ahead of
 the tree and the current value still equals the reference value — and 73
 MISSING/73 EXTRA, the moves B2/B3/B5/B9/B10 have not made yet.
 
+### 7d. Known-bad reference row — `basin_area.png` (owner-ruled 2026-07-28)
+
+**Pre-existing fixture/manifest inconsistency; not an R07 regression.** The
+retained pre-R07 reference tree carries a `basin_area.png` that disagrees with
+the baseline manifest's own record of the same file:
+
+| Source | `basin_area.png` size |
+| --- | --- |
+| `dev/baseline/manifest.json` (the baseline authority) | **286,022 B** |
+| Post-R07 output (commit 12) | **286,031 B** — 0.003% from the manifest, far inside `PNG_TOLERANCE_FRAC = 0.10` |
+| Pre-R07 reference tree copy | **134,828 B** — agrees with neither |
+
+The reference copy is visually a different figure altogether — a "Model domain
+— 220 km²" rendering with a north arrow, scalebar and YlOrBr palette that the
+current `plot_map.py` cannot produce, and `plot_map.py` has not changed since
+R06. Every **other** reference figure matches its manifest row byte-for-byte
+(`hydro_wflow_1.png` 299,993; `precip.png` 302,700). So the fixture on disk had
+drifted from its own recorded baseline for this one file **before R07 began**,
+and the commit-1 capture faithfully preserved that drift.
+
+**Ruling: record, do not amend.** The reference tree stays byte-for-byte as
+captured — amending it would make the milestone's only regression detector for
+commits 4–14 something other than a pristine pre-R07 capture, with no way for a
+later reader to tell which files were touched. This one file is allowlisted at
+the per-slice gate with the evidence above; nothing about R07 is left unproven,
+because the manifest — the actual baseline authority — agrees with the post-R07
+output to 0.003%.
+
+Follow-up (outside R07): find out which change produced the 134,828-byte
+rendering and why the manifest was never updated. The commit-14 re-record will
+overwrite the row regardless.
+
 ### 7c. Latent defect found at commit 7 — the wflow TOML is written by five rules and declared by one
 
 **Pre-existing; not an R07 regression; not fixed here.** Recorded because the

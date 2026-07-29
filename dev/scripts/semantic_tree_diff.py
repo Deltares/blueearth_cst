@@ -944,6 +944,7 @@ def diff_trees(
     allowlist: list[str] | None = None,
     merges: list[tuple[str, list[str]]] | None = None,
     ref_root_tokens: list[str] | None = None,
+    allow_content: list[str] | None = None,
 ) -> dict:
     """Compare two output trees file-by-file. Returns a report dict with
     `failures` (list of (relpath, [reasons])), `missing`, `extra`, `allowed`,
@@ -985,6 +986,7 @@ def diff_trees(
     cur_keys = {p.as_posix(): p for p in cur_files}
 
     allow = set(allowlist or [])
+    allow_content_set = set(allow_content or [])
     raw_missing = sorted(set(translated) - set(cur_keys))
     raw_extra = sorted(set(cur_keys) - set(translated) - merge_survivors)
     allowed = sorted(
@@ -1010,7 +1012,13 @@ def diff_trees(
         if reasons:
             label = (key if rel_ref.as_posix() == key
                      else f"{rel_ref.as_posix()} -> {key}")
-            failures.append((label, reasons))
+            if key in allow_content_set:
+                # An ADJUDICATED content difference: the reference side is
+                # known-bad for this file and the exception is written down.
+                # Reported, never silent -- a reader of the report sees it.
+                allowed.append(f"CONTENT allowed: {label} ({len(reasons)} reason(s))")
+            else:
+                failures.append((label, reasons))
 
     # -- Declared merges: the survivor must match EVERY collapsed source -----
     merged: list[str] = []
@@ -1105,6 +1113,14 @@ def main(argv: list[str] | None = None) -> int:
              "must be justified in the migration note)",
     )
     ap.add_argument(
+        "--allow-content", action="append", default=[], metavar="RELPATH",
+        help="adjudicated CONTENT difference (repeatable): the file is still "
+             "compared and the exception is printed in the report, but it does "
+             "not fail the gate. Distinct from --allow, which covers "
+             "MISSING/EXTRA presence. Every entry must be justified in the "
+             "migration note",
+    )
+    ap.add_argument(
         "--ref-token", action="append", default=[], metavar="TOKEN",
         help="project_dir token as RECORDED inside the reference tree's own "
              "files, when it differs from where the tree is now read from "
@@ -1175,7 +1191,8 @@ def main(argv: list[str] | None = None) -> int:
         allowlist += list(args.allow)
     report = diff_trees(args.ref, args.cur, args.tolerance,
                         path_map=path_map, allowlist=allowlist, merges=merges,
-                        ref_root_tokens=list(args.ref_token))
+                        ref_root_tokens=list(args.ref_token),
+                        allow_content=list(args.allow_content))
     print(format_report(report))
     return 0 if report["passed"] else 1
 

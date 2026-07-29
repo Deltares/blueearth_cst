@@ -21,17 +21,33 @@ import cartopy.io.img_tiles as cimgt
 from blueearth_cst.shared.snake_utils import save_figure
 
 
+def gauges_layer_name(gauges_fn):
+    """Staticgeoms layer name for ``output_locations``, or None when unset.
+
+    R07 O-08. ``output_locations`` is "unset" in two spellings: YAML ``null``
+    (Python ``None``) and the repo's unquoted ``None`` sentinel, which
+    ``yaml.safe_load`` parses to the **string** ``"None"``. The pre-R07 guard
+    tested only the former and then derived ``gauges_None`` from the latter — a
+    layer name that can never exist in ``geoms``, so the gauges were silently
+    dropped from the map instead of being deliberately omitted. Both spellings
+    now return None. The sentinel's on-disk spelling is unchanged; only this
+    reader learns to recognise it.
+    """
+    if gauges_fn is None or str(gauges_fn) == "None":
+        return None
+    return f'gauges_{basename(str(gauges_fn)).split(".")[0]}'
+
+
 def plot_basin_map(project_dir, gauges_fn, plot_dir=None):
     """Render basin_area.png (DEM + rivers + basin + outlets/gauges/waterbodies)."""
     from hydromt_wflow import WflowSbmModel
 
-    if gauges_fn is not None:
-        gauges_name = f'gauges_{basename(gauges_fn).split(".")[0]}'
-    else:
-        gauges_name = None
+    gauges_name = gauges_layer_name(gauges_fn)
 
     if plot_dir is None:
-        plot_dir = f"{project_dir}/plots/wflow_model_performance"
+        # R07 B10: basin_area.png depicts the MODEL, not its evaluation, so it
+        # sits at the model root's plots/ — not under evaluation/ (P1).
+        plot_dir = f"{project_dir}/hydrology_model/plots"
     root = f"{project_dir}/hydrology_model"
 
     mod = WflowSbmModel(root, mode="r")

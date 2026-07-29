@@ -93,10 +93,16 @@ store_dir = CLIMATE_STORE.store_dir
 
 # 1.00  all — target aggregator: full historical build + performance plots
 rule all:
-    input: 
-        f"{project_dir}/plots/wflow_model_performance/hydro_wflow_1.png",
-        f"{project_dir}/plots/wflow_model_performance/basin_area.png",
-        f"{project_dir}/plots/wflow_model_performance/precip.png",
+    input:
+        f"{basin_dir}/evaluation/plots/hydro_wflow_1.png",
+        f"{basin_dir}/plots/basin_area.png",
+        f"{basin_dir}/forcing/plots/precip.png",
+        # R07 B4: the source-grid climate figures are rule-`all` members by
+        # design — they are a product of the workflow, not an incidental
+        # by-product, and their subgraph needs no built model.
+        f"{store_dir}/plots/source_precip.png",
+        f"{store_dir}/plots/source_temp.png",
+        f"{store_dir}/plots/source_pet.png",
         f"{project_dir}/config/runs/snake_config_model_creation.yml",
         f"{basin_dir}/staticgeoms/outlet_index.csv",
         f"{project_dir}/benchmarks/wf1_benchmarks.md",
@@ -299,8 +305,32 @@ rule plot_results:
        csv_path = f"{basin_dir}/run_default/output.csv",
        **_wf1_plot_clim_inputs,
        script = "blueearth_cst/model/plot_results.py"
+   # R07 B10 + O-24. The artifacts move into the engine subtree, split by KIND
+   # (P1): figures under evaluation/plots/, the metrics table one level up in
+   # evaluation/, because plots/ holds figures only.
+   #
+   # O-24 declares the CONFIG-INVARIANT SUBSET only, and deliberately stops
+   # there. plot_results.py also drives plot_basavg (one PNG per basin-average
+   # entry in wflow_outvars), plot_signatures (signatures_{station}.png, only
+   # when observations exist and nb_years >= 5), and clim_{station}_{period}.png
+   # is per-station -- so a config with real gauges writes clim_wflow_2..N_*.
+   # Those stay knowingly undeclared: deriving the list at parse time from
+   # wflow_outvars / output_locations is a rule-shape change beyond this
+   # milestone (design § "O-24 scope, stated"). `--delete-all-output`
+   # completeness is therefore claimed for the seed-config class only.
+   #
+   # KNOWN CONSEQUENCE of declaring the two clim_wflow_1_* figures: they are
+   # written only when the store's extraction is present AND covers >= 365
+   # days (plot_results.py's climate branch). A config with a sub-year
+   # historical_window now fails here with MissingOutputException instead of
+   # logging a skip. Every shipped config spans years, so no shipped config is
+   # affected; recorded because it is a NEW failure mode, not just a
+   # declaration.
    output:
-       output_png = f"{project_dir}/plots/wflow_model_performance/hydro_wflow_1.png",
+       output_png = f"{basin_dir}/evaluation/plots/hydro_wflow_1.png",
+       clim_month_png = f"{basin_dir}/evaluation/plots/clim_wflow_1_month.png",
+       clim_year_png = f"{basin_dir}/evaluation/plots/clim_wflow_1_year.png",
+       metrics_csv = f"{basin_dir}/evaluation/performance_metrics.csv",
    params:
        project_dir = f"{project_dir}",
        observations_file = observations_timeseries,
@@ -318,8 +348,10 @@ rule plot_map:
     message: rule_banner("1.12", "plot_map")
     input:
         gauges_path = f"{basin_dir}/staticgeoms/outlets.geojson"
+    # R07 B10: basin_area.png depicts the MODEL, not its evaluation (P1), so it
+    # sits at the model root's plots/.
     output:
-        output_map_png = f"{project_dir}/plots/wflow_model_performance/basin_area.png",
+        output_map_png = f"{basin_dir}/plots/basin_area.png",
     params:
         project_dir = f"{project_dir}",
         output_locations = output_locations,
@@ -334,8 +366,14 @@ rule plot_forcing:
     message: rule_banner("1.13", "plot_forcing")
     input:
         forcing_path = f"{basin_dir}/forcing/inmaps_historical.nc",
+    # R07 B10 + O-24: the forcing/model-input QA figures move beside the forcing
+    # they describe, and all three of plot_map_forcing's PNGs are declared (the
+    # variable list at plot_map_forcing.py:168-172 is config-invariant, so the
+    # subset here is complete).
     output:
-        output_forcing_map = f"{project_dir}/plots/wflow_model_performance/precip.png",
+        output_forcing_map = f"{basin_dir}/forcing/plots/precip.png",
+        temp_map = f"{basin_dir}/forcing/plots/temp.png",
+        pet_map = f"{basin_dir}/forcing/plots/pet.png",
     params:
         project_dir = f"{project_dir}",
         gauges_path = f"{basin_dir}/staticgeoms/outlets.geojson"
@@ -352,9 +390,12 @@ rule plot_forcing:
 rule gather_benchmarks:
     message: rule_banner("1.14", "gather_benchmarks")
     input:
-        f"{project_dir}/plots/wflow_model_performance/hydro_wflow_1.png",
-        f"{project_dir}/plots/wflow_model_performance/basin_area.png",
-        f"{project_dir}/plots/wflow_model_performance/precip.png",
+        f"{basin_dir}/evaluation/plots/hydro_wflow_1.png",
+        f"{basin_dir}/plots/basin_area.png",
+        f"{basin_dir}/forcing/plots/precip.png",
+        f"{store_dir}/plots/source_precip.png",
+        f"{store_dir}/plots/source_temp.png",
+        f"{store_dir}/plots/source_pet.png",
         f"{basin_dir}/staticgeoms/outlet_index.csv",
     output:
         f"{project_dir}/benchmarks/wf1_benchmarks.md",
@@ -362,3 +403,41 @@ rule gather_benchmarks:
         parts_dir = f"{project_dir}/benchmarks/_parts",
         workflow_num = 1,
     script: "blueearth_cst/shared/merge_benchmarks.py"
+
+# 1.15  plot_climate_source — source-grid climate figures from the shared store
+# (R07 B4 / P4). Declared HERE ONLY: unlike rule 1.10 this is a single
+# declaration, so none of B1's two-DAG symmetry machinery applies.
+#
+# The whole subgraph of these three PNGs is rule 1.10 (whose sole input is the
+# tracked data catalog) plus this rule, so they build with NEITHER
+# hydrology_model/ NOR config/templates/wflow_build_model.yml on disk — the P4
+# assertion, pinned by tests/test_plot_climate_source.py.
+#
+# The data catalog rides in `params`, not `input`: the era5 branch resolves
+# `era5_orography` through it, but the store's freshness boundary is rule 1.10's
+# catalog edge (ext2-01) and duplicating it here would re-plot on every catalog
+# touch without the extraction having changed.
+_source_plot_inputs = {"climate_nc": CLIMATE_STORE.outputs["climate_nc"]}
+if clim_source in ("chirps", "chirps_global"):
+    # Same branch split as rule 1.11: on chirps the store carries an orography
+    # sidecar and it is a declared input; on era5 there is none and the
+    # orography comes from the catalog instead.
+    _source_plot_inputs["oro_nc"] = CLIMATE_STORE.outputs["oro_nc"]
+
+rule plot_climate_source:
+    message: rule_banner("1.15", "plot_climate_source")
+    input:
+        **_source_plot_inputs,
+    output:
+        precip_png = f"{store_dir}/plots/source_precip.png",
+        temp_png = f"{store_dir}/plots/source_temp.png",
+        pet_png = f"{store_dir}/plots/source_pet.png",
+    params:
+        plot_dir = f"{store_dir}/plots",
+        data_sources = DATA_SOURCES,
+        clim_source = clim_source,
+    log:
+        f"{project_dir}/logs/1.15_plot_climate_source.log",
+    benchmark:
+        f"{project_dir}/benchmarks/_parts/1.15_plot_climate_source.tsv",
+    script: "blueearth_cst/climate_analysis/plot_climate_source.py"

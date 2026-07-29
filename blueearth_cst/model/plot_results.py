@@ -106,11 +106,17 @@ def analyse_wflow_historical(
     """
     ### 1. Prepare output and plotting options ###
 
-    # Create output folders
-    Folder_plots = f"{project_dir}/plots/wflow_model_performance"
+    # Create output folders. R07 B10: the project-level
+    # plots/wflow_model_performance/ tree is retired; rule 1.11's artifacts
+    # live inside the engine subtree, split by KIND (P1) — figures under
+    # evaluation/plots/, the metrics table one level up in evaluation/,
+    # because plots/ holds figures only.
+    Folder_eval = f"{project_dir}/hydrology_model/evaluation"
+    Folder_plots = f"{Folder_eval}/plots"
 
-    if not os.path.isdir(Folder_plots):
-        os.mkdir(Folder_plots)
+    # makedirs, not mkdir: evaluation/plots/ is two levels deep, and only the
+    # DECLARED outputs get their parents pre-created by Snakemake.
+    os.makedirs(Folder_plots, exist_ok=True)
 
     # Plotting options
     fs = 7
@@ -348,8 +354,8 @@ def analyse_wflow_historical(
                 "observed timeseries are not available " "no signature plots are made."
             )
 
-    # Save performance metrics to csv
-    df_perf_all.to_csv(os.path.join(Folder_plots, "performance_metrics.csv"))
+    # Save performance metrics to csv (evaluation/, not evaluation/plots/ — P1)
+    df_perf_all.to_csv(os.path.join(Folder_eval, "performance_metrics.csv"))
 
     ### End of the function ###
 

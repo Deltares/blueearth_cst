@@ -198,7 +198,12 @@ if __name__ == "__main__":
             gauges_fn = sm.params.gauges_path
             gauges_name = basename(gauges_fn).split(".")[0]
 
-            Folder_plots = f"{project_dir}/plots/wflow_model_performance"
+            # R07 B10: forcing / model-input QA figures live beside the forcing
+            # they describe, inside the engine subtree. NOTE: plot_map_model()
+            # reads this as a module global (its `plot_dir` argument is only
+            # used to mkdir), so this assignment is what actually decides where
+            # the three PNGs land.
+            Folder_plots = f"{project_dir}/hydrology_model/forcing/plots"
             root = f"{project_dir}/hydrology_model"
 
             plot_forcing(
