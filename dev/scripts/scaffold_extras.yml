@@ -1,0 +1,33 @@
+# Undeclared artifacts overlaid on the `--summary`-derived scaffold tree.
+#
+# `snakemake --summary` lists DECLARED outputs only. Everything below is written
+# by a script or an engine without being declared as a rule output, so the DAG
+# cannot see it — dry-runs are blind to `params:`-string paths and to R `shell:`
+# bodies (dev/r07/project-layout-design.md). Keeping the guesses in one explicit
+# file makes them reviewable instead of baked into the scaffolder.
+#
+# Paths are project_dir-relative. Wildcards are NOT expanded — write the one or
+# two instances that make the shape legible, not the full fan-out.
+#
+# Provenance: seeded 2026-07-29 from the real completed run in
+# test_case/test_local. Re-check against a fresh run before trusting it.
+
+wf1:
+  # plot_results' config-dependent figures — O-24 declares only the
+  # config-invariant subset (Snakefile_model_creation, rule plot_results).
+  - hydrology_model/evaluation/plots/signatures_wflow_1.png
+  # Wflow.jl's own run outputs; only run_default/output.csv is declared.
+  - hydrology_model/run_default/outstates.nc
+  - hydrology_model/run_default/output_scalar.nc
+  # hydromt build artifacts alongside the declared staticmaps.nc.
+  - hydrology_model/staticgeoms/basins.geojson
+  - hydrology_model/staticgeoms/rivers.geojson
+  - hydrology_model/wflow_sbm.toml
+  - hydrology_model/hydromt.log
+
+wf2: []
+
+wf3:
+  # weathergenr's R-written diagnostics (Rscript shell: body — invisible to the DAG).
+  - experiments/{experiment}/weather_generator/plots/weathergen_diagnostics.png
+  - experiments/{experiment}/weather_generator/_work/rlz_1_config.yml
