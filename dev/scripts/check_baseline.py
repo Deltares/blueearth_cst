@@ -44,6 +44,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import subprocess
 import sys
 from math import floor, log10
 from pathlib import Path
@@ -68,8 +69,59 @@ MANIFEST_PATH_DEFAULT = Path("dev/baseline/manifest.json")
 # v2 adds the workflow-1 discharge target (type "discharge"): a stored reference
 # series under dev/baseline/discharge_ref/ compared with a tolerance comparator
 # rather than a byte hash (ADR 0001 step 6).
-MANIFEST_VERSION = 2
+MANIFEST_VERSION = 3
 SIG_FIGS = 10
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def git_provenance(repo_root: Path = REPO_ROOT) -> dict | None:
+    """Which branch/commit is writing this manifest, and is the tree dirty?
+
+    R7-21. The baseline fixture (`project_dir`) is **untracked**, so it belongs
+    to no branch: every branch, worktree and session that runs a workflow writes
+    into the same tree. `check` therefore answers "does the tree match the
+    manifest" for whichever branch ran LAST, not for the branch you are on -- a
+    green check can mean someone else's code is consistent with your manifest.
+
+    Observed, not hypothetical: a `basin_area.png` produced on
+    `feat/outputs-figures` sat in the fixture for days and was read as the
+    pre-R07 baseline reference, until a byte-size mismatch at the R07 gate
+    forced the question (see dev/followups.md R7-3 / R7-21).
+
+    Best-effort by design: a missing `git`, a non-repository checkout or a
+    detached HEAD returns None rather than raising. Provenance is an aid to
+    attribution, and must never be the reason a baseline command fails.
+    """
+    def _git(*args: str) -> str | None:
+        try:
+            out = subprocess.run(
+                ["git", "-C", str(repo_root), *args],
+                capture_output=True, text=True, timeout=15,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return None
+        return out.stdout.strip() if out.returncode == 0 else None
+
+    commit = _git("rev-parse", "HEAD")
+    if commit is None:
+        return None
+    branch = _git("rev-parse", "--abbrev-ref", "HEAD")
+    status = _git("status", "--porcelain")
+    return {
+        "branch": branch or "(unknown)",
+        "commit": commit,
+        # A dirty tree means the recorded artifacts were produced by code that
+        # matches no commit -- worth knowing when a later check disagrees.
+        "dirty": bool(status),
+    }
+
+
+def format_provenance(prov: dict | None) -> str:
+    if not prov:
+        return "(unrecorded)"
+    return (f"{prov.get('branch')}@{str(prov.get('commit'))[:12]}"
+            f"{' +dirty' if prov.get('dirty') else ''}")
 PNG_TOLERANCE_FRAC = 0.10
 
 # Discharge comparator tolerances (ADR 0001 step 6). ATOL is set per-comparison
@@ -551,6 +603,10 @@ def cmd_record(args: argparse.Namespace) -> int:
     payload = {
         "version": MANIFEST_VERSION,
         "project_dir": args.project_dir,
+        # R7-21: who wrote this. The fixture is branch-shared mutable state, so
+        # without provenance a later `check` cannot tell "my code drifted" from
+        # "another branch last wrote this tree".
+        "recorded_by": git_provenance(),
         "targets": targets,
     }
     args.manifest.parent.mkdir(parents=True, exist_ok=True)
@@ -567,6 +623,39 @@ def cmd_check(args: argparse.Namespace) -> int:
     recorded = json.loads(args.manifest.read_text())
     rec_targets = recorded["targets"]
     ref_dir = args.manifest.parent
+
+    # R7-21: provenance is advisory and printed BEFORE the verdict, so a
+    # disagreement frames whatever follows. It never changes the exit code --
+    # the failure mode it guards against is silent MISATTRIBUTION (someone
+    # else's branch last wrote the shared fixture), not corruption, and a
+    # cross-branch check is a legitimate thing to do deliberately.
+    rec_prov = recorded.get("recorded_by")
+    cur_prov = git_provenance()
+    if rec_prov is None:
+        print(
+            "note: this manifest predates provenance stamping; cannot tell "
+            "which branch produced the recorded artifacts. Re-record to stamp it."
+        )
+    elif cur_prov is not None:
+        if rec_prov.get("commit") != cur_prov.get("commit"):
+            same_branch = rec_prov.get("branch") == cur_prov.get("branch")
+            print(
+                f"WARNING: manifest recorded by {format_provenance(rec_prov)}, "
+                f"checking from {format_provenance(cur_prov)}."
+            )
+            print(
+                "         The baseline fixture is untracked and therefore "
+                "SHARED BY EVERY BRANCH, so a pass here may mean the tree "
+                "matches another branch's code."
+                if not same_branch else
+                "         Same branch, different commit -- expected if the "
+                "recorded run predates your latest commits."
+            )
+        elif cur_prov.get("dirty") and not rec_prov.get("dirty"):
+            print(
+                "note: manifest recorded from a clean tree; checking from a "
+                "dirty one. Uncommitted changes are not in the recorded code."
+            )
 
     selected = set(args.workflow) if args.workflow else None
     current, missing = compute_manifest(args.project_dir, workflows=selected)

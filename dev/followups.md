@@ -88,8 +88,18 @@ Provenance: `dev/r07/migration_project-layout.md` §§7a–7d,
   already restored agreement. Generalised as R7-21 below, which is the part that
   matters.
 
-- **[R7-21] The baseline fixture is branch-shared mutable state.** Generalised
-  from R7-3, and the more important half of it. `test_case/test_local` is
+- **[R7-21] ~~The baseline fixture is branch-shared mutable state.~~
+  MITIGATED 2026-07-29** — candidate (a) implemented: `record` stamps
+  `recorded_by` (branch, commit, dirty) into the manifest and `check` prints a
+  provenance line **before** the verdict, warning loudly when the recording
+  branch differs from the checking one. Advisory only: it never changes the exit
+  code, because the failure mode is silent misattribution rather than
+  corruption, and a deliberate cross-branch check is legitimate. A pre-stamp
+  manifest says so rather than pretending. The R7-3 scenario is simulated in
+  `tests/test_check_baseline_provenance.py`. The underlying *sharing* is
+  unchanged — candidates (b) branch-derived fixture paths and (c) per-branch
+  regeneration remain open if misattribution recurs despite the warning.
+  Original diagnosis kept below. `test_case/test_local` is
   **untracked**, so it is not part of any branch: every branch, worktree and
   session that runs a workflow writes into the *same* tree. Consequences, all
   observed rather than hypothesised:
