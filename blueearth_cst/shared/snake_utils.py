@@ -253,6 +253,55 @@ _WINDOWS_RESERVED_NAMES = frozenset(
 )
 
 
+def suggest_experiment_name(project_dir, today: str) -> str:
+    """Suggest an ``experiment_name`` from ``project_dir`` and a date stamp.
+
+    R07 B8. A *suggestion writer*, never a runtime generator: a name derived at
+    run time would make every invocation target a fresh ``experiments/<id>/``,
+    so nothing would ever be up to date, incremental reruns would be
+    impossible, ``--dry-run`` would mislead, and the baseline gate would have
+    no fixed path. The helper is invoked once, deliberately, and the value it
+    writes is then read as an ordinary config key.
+
+    ``project_dir``'s basename is **slugified**, because it is not guaranteed
+    to satisfy the grammar ``validate_experiment_name`` enforces (repo-7):
+    ``examples/Gabon`` was live in six shipped configs, and production
+    ``project_dir`` values routinely carry uppercase, hyphens or spaces. The
+    slug is lowercased, every character outside ``[a-z0-9]`` becomes ``_``,
+    runs of ``_`` collapse, leading non-alphanumerics are stripped, and the
+    result is truncated to fit the length limit once the date suffix is added.
+
+    This deliberately differs from ``validate_experiment_name``'s
+    never-silently-lowercase stance: that function VALIDATES a value a human
+    chose, where a silent case change would be a surprise; this one PROPOSES a
+    value from a path the user did not write as a slug. The proposal is passed
+    back through ``validate_experiment_name`` before being returned, so the two
+    can never disagree.
+
+    Parameters
+    ----------
+    project_dir : str | Path
+        the run's output root; only its basename is used
+    today : str
+        date stamp to append, ``YYYYMMDD``. Passed in rather than read from the
+        clock so the helper stays deterministic and testable.
+
+    Returns the validated suggestion, or raises ``ValueError`` if no valid slug
+    can be derived (e.g. a basename with no alphanumerics at all).
+    """
+    base = os.path.basename(str(project_dir).replace("\\", "/").rstrip("/"))
+    slug = re.sub(r"[^a-z0-9]+", "_", base.lower())
+    slug = re.sub(r"_+", "_", slug).strip("_")
+    if not slug:
+        raise ValueError(
+            f"cannot derive an experiment_name from project_dir basename "
+            f"{base!r}: it contains no alphanumeric characters"
+        )
+    suffix = f"_{today}" if today else ""
+    slug = slug[: _EXPERIMENT_NAME_MAX_LEN - len(suffix)].rstrip("_")
+    return validate_experiment_name(f"{slug}{suffix}", project_dir)
+
+
 def validate_experiment_name(name: str, project_dir) -> str:
     """Validate ``experiment_name`` as a safe ``experiments/<name>/`` path segment.
 
