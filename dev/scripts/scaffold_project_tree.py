@@ -173,7 +173,7 @@ def _apply_renames(rel: str, renames: list[tuple[str, str]]) -> str:
     return rel
 
 
-_RULE_SEP = "# " + "═" * 72
+_RULE_SEP = "# " + "=" * 72
 
 
 def _merged_log(project_dir: Path, part_logs: list[str]) -> str:
@@ -192,7 +192,7 @@ def _merged_log(project_dir: Path, part_logs: list[str]) -> str:
         f"# BlueEarth-CST | project: {project_dir.name} | <date>",
         f"# project dir: {project_dir.as_posix()}",
         f"# log: wf1_run.log | {len(rules)} rules, {len(rules)} ran / 0 cached"
-        " | <hh:mm:ss> → <hh:mm:ss> | total <h:mm:ss>",
+        " | <hh:mm:ss> -> <hh:mm:ss> | total <h:mm:ss>",
         "#",
         "# contents",
     ]
@@ -205,9 +205,9 @@ def _merged_log(project_dir: Path, part_logs: list[str]) -> str:
     for number, name in rules:
         lines += [
             _RULE_SEP,
-            f"# {number}  {name:<32} <hh:mm:ss> → <hh:mm:ss>   <s>  ok",
+            f"# {number}  {name:<32} <hh:mm:ss> -> <hh:mm:ss>   <s>  ok",
             _RULE_SEP,
-            "<scaffold placeholder — this rule's captured output>",
+            "<scaffold placeholder - this rule's captured output>",
             "",
         ]
     return "\n".join(lines) + "\n"
