@@ -5,7 +5,7 @@ genre: workflow-spec
 author-binding: generic
 started: 2026-07-29
 variant: lite  # PROMOTION TRIGGERED -> full (blocking findings)
-stage: arbitration (external cap reached)
+stage: 6a-arbitration-revision
 external-rounds-completed: 2
 dispatches:
   opus: 0
@@ -53,8 +53,9 @@ flags: [owner-requested-fable-lens, promoted-lite-to-full, blocking-findings-ope
   codex-transcript-r2.txt
 - [done] 5-convergence-r2 — NOT converged; **external cap (2) reached** →
   owner arbitration. Index: review-index-r2.md
-- [open] arbitration — owner rules on ext2-01..09; three are decision-shaped
-  (ext2-05, ext2-06, ext2-07), six are author-fixable
+- [done] arbitration — 2026-07-29. All nine round-2 findings **accepted, fix
+  required**; none rejected. Three owner rulings A1–A3 below settle the
+  decision-shaped ones.
 - [open] 6a-arbitration-revision — **routes to Fable** (see below), confined to
   the arbitrated finding IDs
 - [open] G2 — owner approval under arbitration authority
@@ -278,3 +279,36 @@ overrides the default. Counted honestly: `fable: 1`.
 -m gpt-5.6-sol` — banner verified 2026-07-29: `approval: never`,
 `sandbox: read-only`, `model: gpt-5.6-sol`. Fail-closed control confirmed
 before dispatch.
+
+
+## Arbitration rulings — 2026-07-29 (owner, round-cap authority)
+
+The external cap (2) is spent, so these rulings stand in for the verdict a third
+round would have produced. All nine round-2 findings are **accepted, fix
+required**; stage 6a is confined to `ext2-01` … `ext2-09`.
+
+**A1 — ext2-05: 30 CALENDAR years.** "30 years, 1985–2014" means 30 calendar
+years. When `start_month_hyd_year` is not January the window yields 29 complete
+hydrological years; that is accepted, and the **effective** hydrological-year
+count and date bounds must be reported (series attributes, `composition.csv`,
+report) rather than silently differing from the nominal window. The acceptance
+test must assert the effective values, not merely that no warning fires.
+
+**A2 — ext2-06: pick the defaults.** `relative_change.min_reference` and
+`relative_change.max_flagged_months` get explicit per-variable default values,
+chosen and justified in the document rather than left to the implementer.
+**OQ-9 closes** on the chosen number, remaining revisable by the measurement it
+already names. (The owner chose a default over the driver's
+make-it-required suggestion.)
+
+**A3 — ext2-07: other variables stay selectable; the default is `precip` +
+`temp` only.** Do **not** reject non-`pr`/`tas` variables at DAG build. Instead
+the design must be honest about the tier difference the generated catalog
+creates: `pr`/`tas` are **catalog-certified** (membership implies the store
+exists), while `kin`/`press_msl` are **best-effort** — nameable but unverified,
+so they can fail at read time under D4. Requirements: shipped configs default to
+`[precip, temp]`; selecting a non-certified variable emits a DAG-build warning
+naming the tier and the read-time risk; `composition.csv` records which tier each
+resolved combination used. Generator-side per-variable availability stays the
+proper fix — **OQ-15** remains open as the route to promoting a variable from
+best-effort to certified.
