@@ -173,9 +173,51 @@ def _apply_renames(rel: str, renames: list[tuple[str, str]]) -> str:
     return rel
 
 
-def _placeholder(rel: str, project_dir: Path) -> str:
+_RULE_SEP = "# " + "═" * 72
+
+
+def _merged_log(project_dir: Path, part_logs: list[str]) -> str:
+    """Render the merged per-workflow log: contents index + one block per rule.
+
+    The separator line *is* the index — `grep "^# 1\\."` reproduces the contents —
+    and carries the status, so failures are one grep away.
+    """
+    rules = []
+    for rel in sorted(part_logs):
+        stem = Path(rel).stem
+        number, _, name = stem.partition("_")
+        rules.append((number, name))
+
+    lines = [
+        f"# BlueEarth-CST | project: {project_dir.name} | <date>",
+        f"# project dir: {project_dir.as_posix()}",
+        f"# log: wf1_run.log | {len(rules)} rules, {len(rules)} ran / 0 cached"
+        " | <hh:mm:ss> → <hh:mm:ss> | total <h:mm:ss>",
+        "#",
+        "# contents",
+    ]
+    line_no = len(lines) + len(rules) + 2
+    for number, name in rules:
+        lines.append(f"#   {number}  {name:<32} <s>   line {line_no:>5}")
+        line_no += 8  # each block: blank + 3 separator lines + ~4 lines of output
+    lines.append("")
+
+    for number, name in rules:
+        lines += [
+            _RULE_SEP,
+            f"# {number}  {name:<32} <hh:mm:ss> → <hh:mm:ss>   <s>  ok",
+            _RULE_SEP,
+            "<scaffold placeholder — this rule's captured output>",
+            "",
+        ]
+    return "\n".join(lines) + "\n"
+
+
+def _placeholder(rel: str, project_dir: Path, part_logs: list[str]) -> str:
     """Content for files whose shape is under review; everything else stays empty."""
     name = Path(rel).name
+    if re.fullmatch(r"wf\d+_run(\.partial)?\.log", name):
+        return _merged_log(project_dir, part_logs)
     if rel.startswith("logs/") and name.endswith(".log"):
         return _LOG_PLACEHOLDER.format(
             project=project_dir.name, project_dir=project_dir.as_posix(), name=name
@@ -241,7 +283,8 @@ def main(argv: list[str] | None = None) -> int:
             raw.extend(overlay.get(f"wf{w}", []) or [])
 
     renames, drops, adds = _load_delta(args.rename_map)
-    rels = set()
+    rels: set[str] = set()
+    renamed: set[str] = set()
     for p in raw:
         rel = Path(p).as_posix()
         prefix = project_dir.as_posix() + "/"
@@ -249,16 +292,21 @@ def main(argv: list[str] | None = None) -> int:
         # Rename first, then drop: a drop names the POST-move location, so a
         # delta can move files into a transient area and then retire the area.
         rel = _apply_renames(rel, renames)
+        renamed.add(rel)
         if any(rel == d or (d.endswith("/") and rel.startswith(d)) for d in drops):
             continue
         rels.add(rel)
     rels.update(adds)
 
+    # Captured BEFORE drops: a merged log is rendered from the per-rule parts a
+    # successful run consumed, so it must survive the drop that retires them.
+    part_logs = [r for r in renamed if "/_parts/" in r and r.endswith(".log")]
+
     for rel in sorted(rels):
         target = project_dir / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         if not target.exists():
-            target.write_text(_placeholder(rel, project_dir), encoding="utf-8")
+            target.write_text(_placeholder(rel, project_dir, part_logs), encoding="utf-8")
 
     print(f"scaffolded {len(rels)} paths under {project_dir}", file=sys.stderr)
     if args.print_tree:
