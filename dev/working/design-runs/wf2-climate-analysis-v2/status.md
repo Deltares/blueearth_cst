@@ -5,7 +5,7 @@ genre: workflow-spec
 author-binding: generic
 started: 2026-07-29
 variant: lite  # PROMOTION TRIGGERED -> full (blocking findings)
-stage: 5-convergence-r1
+stage: G2-pending
 external-rounds-completed: 1
 dispatches:
   opus: 0
@@ -37,7 +37,28 @@ flags: [owner-requested-fable-lens, promoted-lite-to-full, blocking-findings-ope
 - [done] G1-return — re-approved 2026-07-29 with four owner rulings (below).
   Rulings R1 and R4 change the selected alternative; the revision is authored
   against them as settled framing.
-- [open] 6-revision-r1 — author spawn (Opus) → design-v2.md + ledger.md
+- [done] 6-revision-r1 — outputs: design-v2.md (1357 lines), ledger.md.
+  Author: `cst-architect` (Opus). All 19 findings dispositioned **accepted**;
+  0 rejected / deferred / withdrawn, so **no G2 ratification is owed**.
+  New decisions D1 (clip), D2 (store cost), D3 (keep output root, closes OQ-3),
+  D4 (fail-fast), D5 (entry point). New open questions OQ-9/10/11.
+- [open] G2 — owner approval of design-v2.md, or spend external round 2
+  (cap is 2; one used).
+
+## Driver editorial fixes to stage-6 outputs (logged)
+
+- **Stray tool markup stripped.** Both `design-v2.md` and `ledger.md` ended with
+  leaked `</content>` / `</invoke>` lines. Removed mechanically; no design
+  content touched. Logged as an editorial-classified edit per the skill's
+  single-writer rule.
+- **Driver artifact corrected, not the author's.** The stage-6 author caught a
+  factual error in this file's premise-verification block and in
+  `review-index.md`: the manifest's 7 WF2 targets are **not** all under
+  `climate_projections/cmip6/` — 6 are, the 7th is
+  `config/runs/snake_config_climate_projections.yml`, pinned by
+  `{"sha256": …, "type": "yaml"}` (verified). Corrected in `review-index.md`
+  with the reason it matters: a config-key addition breaks `check_baseline`
+  with no computed number moving.
 
 ## G1 rulings — 2026-07-29 (owner)
 
@@ -93,10 +114,12 @@ against the repo before arbitration:
   2020-12-31, overrunning the source by six years. The *current* code's
   `historical_year_range: [1990, 2010]` fits inside the historical experiment,
   so this defect is introduced by the design's G3, not inherited.
-- **risk-04 — HOLDS.** `dev/baseline/manifest.json` pins exactly 7 WF2 targets,
-  all under `climate_projections/cmip6/`: 3 PNGs, `annual_change_scalar_stats_summary.{nc,csv}`,
-  `..._summary_mean.csv`, and the config snapshot. No monthly intermediates are
-  covered, so a green `check_baseline` constrains the final scalar summary only.
+- **risk-04 — HOLDS.** `dev/baseline/manifest.json` pins exactly 7 WF2 targets:
+  **6** under `climate_projections/cmip6/` (3 PNGs,
+  `annual_change_scalar_stats_summary.{nc,csv}`, `..._summary_mean.csv`) **plus**
+  `config/runs/snake_config_climate_projections.yml`. No monthly intermediates
+  are covered, so a green `check_baseline` constrains the final scalar summary
+  only. *(Corrected 2026-07-29 — see the editorial-fix note below.)*
 - **risk-09 — HOLDS.** 1+9+1+1+1+1 = 14, not the 13 stated in §5.1/§7; and the
   reduce count omits the observed series that §5.2 routes through stage A.
 

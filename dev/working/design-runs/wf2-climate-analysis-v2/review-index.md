@@ -82,7 +82,17 @@ arbitration:
 |---|---|---|
 | risk-01 / ext1-01 | **HOLDS — regression, not pre-existing** | `get_stats_climate_proj.py:156` hardcodes `("1950-01-01","2014-12-31")` for cmip6 historical; catalog resolves historical under `CMIP/{model}/historical/`. `shared.historical_window` ends 2020-12-31. Current `[1990,2010]` fits; the design's G3 does not |
 | ext1-03 | **HOLDS — stronger than filed** | `climate_historical/era5_20000101_20201231/extract_historical.nc`: `freq: D`, 7671 steps, precip `mm d**-1`, temp **`K`**, 7 variables. CMIP6 Amon is monthly, temp °C, 2 variables. The mismatch is temporal **and** unit **and** variable-coverage |
-| risk-04 | **HOLDS** | `dev/baseline/manifest.json` pins exactly 7 WF2 targets, all under `climate_projections/cmip6/`: 3 PNGs, `annual_change_scalar_stats_summary.{nc,csv}`, `..._summary_mean.csv`, config snapshot. No monthly intermediates |
+| risk-04 | **HOLDS** | `dev/baseline/manifest.json` pins exactly 7 WF2 targets: **6** under `climate_projections/cmip6/` (3 PNGs, `annual_change_scalar_stats_summary.{nc,csv}`, `..._summary_mean.csv`) **plus** `config/runs/snake_config_climate_projections.yml`. No monthly intermediates |
+
+> **Driver correction, 2026-07-29 (caught by the stage-6 author).** This row
+> originally read "all under `climate_projections/cmip6/` … config snapshot" —
+> self-contradictory, since the config snapshot is not under that path. The
+> distinction is load-bearing, not cosmetic: the 7th target is pinned as
+> `{"sha256": …, "type": "yaml"}`, a hash of the config file's bytes (verified).
+> **Any config-key addition breaks `check_baseline` with no computed number
+> moving** — so *value-neutral* and *manifest-clean* are different properties,
+> and a migration step that adds a config key cannot be gated on a clean
+> manifest alone. `design-v2.md` §4 criterion 1 now separates them.
 | risk-09 / ext1-10 | **HOLDS** | 1+9+1+1+1+1 = 14, not 13; with the observed series, reduce is 10 → 15 |
 | ext1-02 | **HOLDS on Snakemake semantics** | A rule whose declared output is absent after a failed job halts the DAG; no downstream rule can then write a failure record. Not separately probed — the semantics are not in dispute |
 
