@@ -5,7 +5,7 @@ genre: workflow-spec
 author-binding: generic
 started: 2026-07-29
 variant: lite  # PROMOTION TRIGGERED -> full (blocking findings)
-stage: G2-pending
+stage: 6-revision-r2
 external-rounds-completed: 1
 dispatches:
   opus: 0
@@ -42,8 +42,12 @@ flags: [owner-requested-fable-lens, promoted-lite-to-full, blocking-findings-ope
   0 rejected / deferred / withdrawn, so **no G2 ratification is owed**.
   New decisions D1 (clip), D2 (store cost), D3 (keep output root, closes OQ-3),
   D4 (fail-fast), D5 (entry point). New open questions OQ-9/10/11.
-- [open] G2 — owner approval of design-v2.md, or spend external round 2
-  (cap is 2; one used).
+- [done] G1-return-2 — re-approved 2026-07-29. Owner rulings R3', R3'', R5 and
+  confirmations D2->A1, OQ-4->30yr, revise-then-round-2. R3'/R3''/R5 change the
+  output contract and the selected alternative, so a revision precedes round 2.
+- [open] 6-revision-r2 — author spawn (Opus) → design-v3.md + ledger rows
+- [open] 4-external-r2 — after v3 lands (cap 2; one used)
+- [open] G2 — owner approval
 
 ## Driver editorial fixes to stage-6 outputs (logged)
 
@@ -143,6 +147,53 @@ Consequences beyond R3′:
 - **Slot S5 (grid-vs-cloud advisory) is itself an ex-post statistic** — it
   compares the cloud's extent against the perturbation grid — so it defers with
   the rest rather than being a v2.0 read.
+
+**R5 — the monthly series is a deliverable, not just a cache (owner,
+2026-07-29).** v2.0's declared outputs are:
+
+1. the tidy change-factor table — one (ΔT, ΔP) per (model, scenario, member,
+   horizon);
+2. **basin-averaged monthly time series per run** — one per (model, scenario,
+   member);
+3. the composition record;
+4. **gridded series** for each run when the gridded option is on, default off.
+
+Consequences:
+- **`series/{series_key}.nc` is promoted from internal cache to user-facing
+  product.** design-v2 §5.3 treats it purely as a cache whose only consumer is
+  stage B. It now needs a documented schema, stable naming, and a retention
+  rule, and it must appear in §2's output contract — the cache *is* the
+  deliverable, which is a strengthening of the architecture, not a conflict
+  with it.
+- **The gridded option's content changes.** design-v2 §5.8 carries forward the
+  three existing families (`historical_stats_{model}.nc`,
+  `stats-{model}_{scenario}.nc`, `monthly_change_mean_grid-*.nc`), of which the
+  first two are 12-month *climatologies*, not series. R5 asks for the gridded
+  counterpart of deliverable 2 — the **monthly series on the source grid**
+  (time × lat × lon), retained before spatial reduction. Driver's reading;
+  correct if the existing climatology grids were meant instead.
+- **Volume is not a concern at Amon resolution.** The seed basin's bbox
+  (~0.2° × 0.13°) plus the 1° buffer spans ~2.2° × 2.1°, which at CMIP6 Amon
+  resolution is single-digit grid cells. A full 2015–2100 scenario span is
+  ~1032 months × <10 cells × 2 variables — well under a megabyte per run. The
+  gridded option is cheap either way; default-off is a tidiness choice, not a
+  cost one.
+- **Naming.** The owner wrote `save_gridded`; the existing config key is
+  `save_grids`. Driver keeps `save_grids` for continuity with the current config
+  and `dev/workflows/climate_projections.md`; flag if a rename is wanted.
+
+## Owner confirmations — 2026-07-29
+
+- **D2 → A1.** Declare the full `climate_store_spec` in WF2, accepting the
+  gridded observed extraction on a fresh projections-only run. G2 (WF2 runs with
+  no `hydrology_model/`) is preserved. `design-v2.md` §5.4/§6.4 already selects
+  A1; confirmed, not changed.
+- **OQ-4 → 30 years, 1985–2014.** Under R1's clip this sits entirely inside the
+  historical experiment, so no clip warning fires. Value-changing; gates step 5e.
+  OQ-4 is now **CLOSED**.
+- **Process → revise to v3 first, then external round 2.** Round 2 is capped and
+  single-use; reviewing a document whose §5.6 contradicts R3′/R3″ and whose §5.7
+  predates the generated catalog would spend it confirming known-stale content.
 
 **R4 — v2.0 scope narrows to GCM projections analysis.** For now: **monthly GCM
 projections output analysis**, with room to expand to **gridded** results for
