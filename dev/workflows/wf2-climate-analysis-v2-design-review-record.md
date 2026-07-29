@@ -111,7 +111,7 @@ repository before arbitration:
 | `DKRZ/MPI-ESM1-2-HR` has SSP entries and no historical | HOLDS — generated catalog |
 | `EC-Earth3_ssp245` publishes 96 members | HOLDS — 2426 sources total |
 | `historical_year_range` is `optional=False` | HOLDS — `Snakefile_climate_projections:36`; so OQ-4's closure is template-only |
-| Region polygons have identical bounds on the fixture | HOLDS — both `[9.658333, 0.35, 9.858333, 0.483333]` |
+| Region polygons have identical bounds on the fixture | **PARTIALLY — corrected 2026-07-29 during step-1 implementation.** Bounds agree to 6 dp but differ by 3.33e-07° (~3.7 cm); the model polygon is stored rounded, the store polygon is full precision. The conclusion survives on a bound rather than equality: across 36 (resolution, origin) combinations spanning CMIP6 Amon grids, none changes cell selection. The original check compared rounded values |
 | D10's weights reduce to cos-latitude on a uniform grid | HOLDS — residual <= 3e-17 at phi in {0, 45, 80, -67} degrees |
 
 ## Known deviations carried into the accepted design

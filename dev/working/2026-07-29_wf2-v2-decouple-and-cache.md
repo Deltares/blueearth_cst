@@ -25,8 +25,11 @@ than choosing.
   produces a model-free `store_region.geojson` and is declared identically in
   `Snakefile_model_creation` (1.10) and `Snakefile_climate_experiment` (3.02).
 - **Measured 2026-07-29 on `test_case/test_local`:** both polygons bound
-  `[9.658333, 0.35, 9.858333, 0.483333]` — identical. On this fixture the swap
-  selects the same GCM cell set and cannot move a number.
+  `[9.658333, 0.35, 9.858333, 0.483333]` to 6 dp, but they are **not** bit
+  identical: max component difference **3.33e-07°** (~3.7 cm). Checked across 36
+  (resolution, origin) combinations spanning CMIP6 Amon grids — none changes
+  which cell a bound falls in, so the swap cannot move a number on this fixture.
+  *(Corrected 2026-07-29: the original "identical" compared rounded values.)*
 - All three WF2 intermediate netCDF families are `temp()`, so a re-run with one
   changed horizon re-downloads the whole archive slice.
 - `Snakefile_climate_projections:119` makes `monthly_stats_fut` depend on

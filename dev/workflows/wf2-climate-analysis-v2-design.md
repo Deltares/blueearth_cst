@@ -1014,12 +1014,26 @@ accept the cost**, because:
 *is a first-run gridded observed extraction acceptable on a projections-only
 run?* — ever be answered differently; the owner answered **yes**.
 
-**Region-equality evidence (2026-07-29, seed fixture).** The two polygons have
-identical bounds `[9.658333, 0.35, 9.858333, 0.483333]`, and WF2 consumes only
-`geom.geometry.bounds`, so on this fixture the swap selects the identical GCM
-cell set and cannot move a number. This is a fixture-level result; the migration
-gate in §9 re-checks it rather than assuming it generalizes to a basin whose
-hydromt_wflow delineation at `resolution: 0.00833` diverges from
+**Region-equality evidence (2026-07-29, seed fixture; CORRECTED 2026-07-29
+during step-1 implementation).** The two polygons' bounds agree **to six
+decimal places** — `[9.658333, 0.35, 9.858333, 0.483333]` — but are **not bit
+identical**: the model polygon is stored rounded to 6 dp while the store polygon
+carries full precision (`9.65833333316084`, …). The maximum component
+difference is **3.33e-07°**, about 3.7 cm at the equator.
+
+The original claim in revisions 1–4 said "identical", which was measured with a
+6-dp rounding in the comparison and was therefore overstated. The *conclusion*
+is unchanged but now rests on a bound rather than on equality: WF2 consumes only
+`geom.geometry.bounds`, and a 3.3e-07° shift changes which grid cell a bound
+falls in only if a cell edge lies inside that interval. Checked across 36
+(resolution, origin) combinations spanning the CMIP6 Amon grids
+(0.9375°–2.8125°, origins at 0, −180, and half-cell offsets): **zero** produce a
+different cell selection. The swap is therefore value-neutral on this fixture by
+a margin of roughly six orders of magnitude, not by exact equality.
+
+This is a fixture-level result; the migration gate in §9 re-checks it rather
+than assuming it generalizes to a basin whose hydromt_wflow delineation at
+`resolution: 0.00833` diverges from
 `parse_region_basin`.
 
 ### 5.5 Variable specification — declaring the quantity, not the aggregator
@@ -2127,7 +2141,7 @@ commit's expected set.
 
 | # | Commit | Value-neutral? | Manifest-clean? | Gate |
 | --- | --- | --- | --- | --- |
-| 1 | Declare `extract_climate_grid` in WF2 from `climate_store_spec` (D2/A1); read `store_region.geojson` as a **plain input** (D9 — the revalidating cache that makes this cheap arrives with 2b; until then a store rerun re-runs the still-`temp()` pipeline, which is today's behavior anyway) | **Yes** (bounds measured identical on the fixture, §5.4) | Yes | `check_baseline`; re-verify bounds equality; identical-input-set test (R1) |
+| 1 | Declare `extract_climate_grid` in WF2 from `climate_store_spec` (D2/A1); read `store_region.geojson` as a **plain input** (D9 — the revalidating cache that makes this cheap arrives with 2b; until then a store rerun re-runs the still-`temp()` pipeline, which is today's behavior anyway) | **Yes** (bounds agree to 3.3e-07° on the fixture — below any CMIP6 cell edge; §5.4) | Yes | `check_baseline`; re-verify bounds equality; identical-input-set test (R1) |
 | 2a | Generator: emit `config/catalogs/cmip6_store_index.json` (**D12**) — observed `{grid_label}/{version}` per (entry, member, certified variable) — and regenerate catalog + index in one crawl | **Yes** (nothing reads the index yet) | Yes | index and catalog carry equal `crawled_on`; index covers every (entry, member); pins spot-checked against `wf2-cmip6-store-inventory.md` §2 |
 | 2b | Persistent `series/`: drop `temp()`, add the digest (entry + pinned physical paths + driver/adapter/**metadata** maps + **polygon content fingerprint** + module hash; D9/D12) and the `cst_series_digest` / `cst_schema_version` / `cst_region_fingerprint` / `cst_source_paths` attributes, the §5.3 schema, the **revalidating reduce-job entry check**, the read-time pin verification, the stage-B fingerprint/digest backstop, `makedirs(exist_ok=True)`, drop the hist→fut ordering edge, fix the acquisition-window contract | **Yes** (same values, different lifetime and metadata) | Yes | `check_baseline`; second run schedules zero reduce jobs; cache tests (a)–(k) (§9) incl. catalog-regeneration invariance, pin re-derivation, and the D9 revalidation cases; the series-schema test |
 | 3 | Collapse `monthly_stats_hist`/`monthly_stats_fut` into `reduce_gcm_series` over `{series_key}`; `members` becomes a wildcard; collapse the three log gathers into one. Intermediate filenames change; **no manifest-pinned path moves** | **Yes** | Yes | `check_baseline`; `pytest tests/test_cli.py`; `semantic_tree_diff` with an explicit old→new map for intermediates |
@@ -2437,7 +2451,8 @@ gates.
   `blueearth_cst/climate_analysis/*.py`, `blueearth_cst/shared/snake_utils.py`
   (`climate_store_spec`), `config/catalogs/cmip6_data.yml`, and
   `config/workflows/snake_config_model_test.yml`. Two facts measured rather than
-  assumed: the two region polygons have identical bounds on the seed fixture, and
+  assumed: the two region polygons' bounds agree to 3.3e-07° on the seed fixture
+  (corrected from "identical" during step-1 implementation — §5.4), and
   the CMIP6 sources are `Amon` so the monthly sum/mean dispatch is a no-op.
 - **2026-07-29 — revision 2** (`design-v2.md`). Authored against G1 rulings R1–R4
   following round-1 internal (Fable / `critical-thinker`) and external
