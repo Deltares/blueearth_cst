@@ -1,0 +1,59 @@
+# Tool-configuration host only.
+#
+# This file exists so Python tooling has somewhere to declare settings. It is
+# DELIBERATELY NOT a packaging manifest: there is no [build-system] and no
+# [project] table, nothing is installed from it, and `blueearth_cst` remains a
+# plain importable directory rather than an installed distribution.
+#
+# That restraint is the point. Real packaging (O-14 decision 2) would reverse a
+# reviewed decision recorded in dev/r06/structural-refactor-design.md:368-376,
+# so it needs a superseding record in dev/decisions/ rather than arriving as a
+# side effect of wanting pytest settings. Decision 1 -- this file -- costs one
+# root file, adds no dependency, and reverses no contract.
+#
+# Also deliberately absent: [tool.pixi]. `pixi.toml` stays the pixi manifest
+# (verified: pixi still resolves pixi.toml with this file present). Migrating
+# the manifest here was assessed and rejected -- it churns a 100+ line manifest
+# and buys nothing.
+#
+# Assessment: dev/reviews/2026-07-25_post-r6-assessment.md § O-14.
+
+[tool.pytest.ini_options]
+# Where tests live, so a bare `pytest` behaves like the documented `pytest tests/`.
+testpaths = ["tests"]
+
+# Repo root on sys.path. This is the supported declarative replacement for the
+# 29 `sys.path.insert(0, <repo root>)` lines in tests/ -- pytest prepends these
+# before collection, so `import blueearth_cst...` resolves without each module
+# re-deriving the path. The inserts remain in place for now: they are idempotent
+# and harmless, and removing 29 of them is a separate, independently verifiable
+# change (five further inserts point at dev/scripts/, which is not a package and
+# is not shipped -- those stay regardless).
+pythonpath = ["."]
+
+# Declared here rather than registered programmatically in tests/conftest.py, so
+# the marker is visible to `pytest --markers` and to anyone reading the repo
+# config. conftest.py keeps the --run-integration option and the skip logic --
+# only the marker's DECLARATION moves.
+markers = [
+    "integration: end-to-end workflow test; opt-in via --run-integration",
+]
+
+# -ra shows the reason for every non-passing outcome, skips included. CI already
+# passes -rs on its run line; putting it here means a skip is equally visible
+# locally, which is the point of the CI comment that "a new skip is a signal".
+addopts = "-ra"
+
+# An xfail that starts passing is a silent regression in the other direction:
+# the documented bug got fixed and nobody noticed the marker is now a lie.
+# strict=True was already set per-marker at
+# tests/test_prepare_climate_data_catalog.py:292; this makes it the default so a
+# future xfail cannot opt out by omission.
+xfail_strict = true
+
+# Keep collection out of trees that are not source: the untracked run fixture
+# (renamed from examples/ in R07), the pixi env, and build scratch.
+norecursedirs = [
+    ".git", ".pixi", ".snakemake", "test_case", "examples",
+    "docs", "dev", "*.egg-info", "__pycache__",
+]

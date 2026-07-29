@@ -25,11 +25,12 @@ def pytest_addoption(parser):
     )
 
 
-def pytest_configure(config):
-    config.addinivalue_line(
-        "markers",
-        "integration: end-to-end workflow test; opt-in via --run-integration",
-    )
+# The `integration` marker is DECLARED in pyproject.toml [tool.pytest.ini_options]
+# (O-14 decision 1), not registered programmatically here — one source of truth,
+# and visible to `pytest --markers` and to anyone reading the repo config.
+# Registering it in both places produced a duplicate entry in --markers output.
+# The --run-integration option and the skip logic below stay here: they are
+# behaviour, not configuration.
 
 
 def pytest_collection_modifyitems(config, items):
