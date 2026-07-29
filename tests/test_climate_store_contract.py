@@ -1,7 +1,8 @@
-"""R07 B1: the two ``extract_climate_grid`` declarations are ONE rule.
+"""R07 B1: the three ``extract_climate_grid`` declarations are ONE rule.
 
-The store producer is declared in ``Snakefile_model_creation`` (rule 1.10) and
-``Snakefile_climate_experiment`` (rule 3.02) from the same
+The store producer is declared in ``Snakefile_model_creation`` (rule 1.10),
+``Snakefile_climate_experiment`` (rule 3.02) and — since WF2 v2.0 migration
+step 1 — ``Snakefile_climate_projections`` (rule 2.11), all from the same
 ``snake_utils.climate_store_spec`` object. Nothing in the rule grammar enforces
 that they stay identical, and a per-workflow difference re-creates the
 wf1<->wf3 re-extraction oscillation the design forbids (P2(b), ext1-02/ext2-01).
@@ -222,6 +223,7 @@ def declarations(request, config_variants):
     out = {"_variant": request.param}
     for label, snakefile in (
         ("wf1", "Snakefile_model_creation"),
+        ("wf2", "Snakefile_climate_projections"),
         ("wf3", "Snakefile_climate_experiment"),
     ):
         workflow = _parse_workflow(snakefile, config_path)
@@ -241,7 +243,7 @@ def test_optional_basin_keys_are_read_from_the_config_by_both(declarations):
         if declarations["_variant"] == "custom_basin"
         else {"hydrography": "merit_hydro_ihu", "basin_index": "merit_hydro_index"}
     )
-    for label in ("wf1", "wf3"):
+    for label in ("wf1", "wf2", "wf3"):
         _workflow, rule = declarations[label]
         for key, value in expected.items():
             assert rule.params[key] == value, (
@@ -250,27 +252,37 @@ def test_optional_basin_keys_are_read_from_the_config_by_both(declarations):
 
 
 def test_rule_exists_in_both_workflows(declarations):
-    for label in ("wf1", "wf3"):
+    for label in ("wf1", "wf2", "wf3"):
         _workflow, rule = declarations[label]
         assert rule is not None, f"{label} has no {RULE_NAME} rule"
         assert rule.name == RULE_NAME
 
 
 def test_declarations_are_identical(declarations):
-    """Every compared directive matches between the two declarations."""
-    wf1_workflow, wf1_rule = declarations["wf1"]
-    wf3_workflow, wf3_rule = declarations["wf3"]
+    """Every compared directive matches across ALL declarations.
 
+    Compared pairwise against wf1 as the reference: with three declarations a
+    single left/right comparison would let two agree while the third drifted.
+    """
+    import itertools
+
+    labels = ("wf1", "wf2", "wf3")
     differences = []
-    for field, extract in sorted(_COMPARED.items()):
-        left = extract(wf1_workflow, wf1_rule)
-        right = extract(wf3_workflow, wf3_rule)
-        if left != right:
-            differences.append(f"{field}:\n    wf1 = {left}\n    wf3 = {right}")
+    for left_label, right_label in itertools.combinations(labels, 2):
+        left_workflow, left_rule = declarations[left_label]
+        right_workflow, right_rule = declarations[right_label]
+        for field, extract in sorted(_COMPARED.items()):
+            left = extract(left_workflow, left_rule)
+            right = extract(right_workflow, right_rule)
+            if left != right:
+                differences.append(
+                    f"{field} ({left_label} vs {right_label}):\n"
+                    f"    {left_label} = {left}\n    {right_label} = {right}"
+                )
     assert not differences, (
-        f"{RULE_NAME} differs between the two workflows on "
-        f"{len(differences)} directive(s). Only message/log/benchmark may "
-        "differ; everything else must come from climate_store_spec.\n"
+        f"{RULE_NAME} differs across the three workflows on "
+        f"{len(differences)} directive comparison(s). Only message/log/benchmark "
+        "may differ; everything else must come from climate_store_spec.\n"
         + "\n".join(differences)
     )
 
@@ -281,7 +293,7 @@ def test_the_single_input_is_the_catalog(declarations):
     An asymmetric or absent input set is what the oscillation needs; the catalog
     file is the store's declared freshness boundary.
     """
-    for label in ("wf1", "wf3"):
+    for label in ("wf1", "wf2", "wf3"):
         _workflow, rule = declarations[label]
         assert list(rule.input.keys()) == ["catalog"], (
             f"{label}: {RULE_NAME} inputs are {list(rule.input.keys())}, "
@@ -297,7 +309,7 @@ def test_the_single_input_is_the_catalog(declarations):
 
 def test_outputs_are_the_store_artifacts(declarations):
     """The era5 seed branch declares the extraction plus its region record."""
-    for label in ("wf1", "wf3"):
+    for label in ("wf1", "wf2", "wf3"):
         _workflow, rule = declarations[label]
         keys = sorted(rule.output.keys())
         assert keys == ["climate_nc", "region_geojson"], f"{label}: {keys}"

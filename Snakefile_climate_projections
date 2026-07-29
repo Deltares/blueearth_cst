@@ -6,7 +6,7 @@ from pathlib import Path
 # directory by prepending this Snakefile's own directory to sys.path.
 # See dev/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
-from blueearth_cst.shared.snake_utils import get_config, patch_psutil_windows_benchmark, rule_banner, warn_if_project_dir_in_repo
+from blueearth_cst.shared.snake_utils import DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_spec, get_config, patch_psutil_windows_benchmark, rule_banner, warn_if_project_dir_in_repo
 
 # Windows: make Snakemake's benchmark memory/IO/CPU metrics work (else all NA).
 patch_psutil_windows_benchmark()
@@ -18,6 +18,7 @@ config_path = workflow.configfiles[0]
 
 # R01 schema
 project_cfg = config["project"]
+shared_cfg = config["shared"]
 my_cfg = config["workflows"]["climate_projections"]
 
 project_dir = get_config(project_cfg, "project_dir", optional=False)
@@ -25,6 +26,20 @@ project_dir = get_config(project_cfg, "project_dir", optional=False)
 # documentary. Warns, never raises; test_case/ is the one exemption.
 warn_if_project_dir_in_repo(project_dir, workflow.basedir)
 DATA_SOURCES = get_config(project_cfg, "data_sources_climate", optional=False)
+
+# The shared climate store's catalog is project.data_sources (deltares), NOT the
+# CMIP6 catalog above: the store is a hydrography/meteo extraction, not a
+# projections read. WF2 therefore reads BOTH catalogs — a divergence from the
+# pre-v2.0 workflow, which read only data_sources_climate.
+STORE_DATA_SOURCES = get_config(project_cfg, "data_sources", optional=False)
+
+# Shared — the model-free basin delineation the climate store extracts against.
+basin_cfg = shared_cfg["basin"]
+model_region = get_config(basin_cfg, "region", optional=False)
+basin_hydrography = get_config(basin_cfg, "hydrography", DEFAULT_HYDROGRAPHY)
+basin_index = get_config(basin_cfg, "basin_index", DEFAULT_BASIN_INDEX)
+historical_window = get_config(shared_cfg, "historical_window", optional=False)
+clim_source = get_config(shared_cfg, "clim_historical", optional=False)
 
 clim_project = get_config(my_cfg, "clim_project", optional=False)
 models = get_config(my_cfg, "models", optional=False)
@@ -38,8 +53,31 @@ future_horizons = get_config(my_cfg, "future_horizons", optional=False)
 
 save_grids = get_config(my_cfg, "save_grids", False)
 
-basin_dir = f"{project_dir}/hydrology_model"
 clim_project_dir = f"{project_dir}/climate_projections/{clim_project}"
+
+# ONE producer contract, built here and identically in Snakefile_model_creation
+# and Snakefile_climate_experiment, and splatted into rule 2.11 / 1.10 / 3.02.
+# Everything content- or execution-determining (script, the single catalog
+# input, outputs, params) comes from this object; only message/log/benchmark are
+# workflow-local. tests/test_climate_store_contract.py parses all three
+# workflows and fails on ANY other difference.
+#
+# WF2 declares this producer to obtain store_region.geojson — a model-free
+# delineated polygon — so the workflow no longer depends on wf1's
+# hydrology_model/staticgeoms/region.geojson (design D2/A1, goal G2). The
+# gridded extraction it also produces is NOT read by wf2 v2.0 (design N7); that
+# cost is the accepted, stated price of A1, and it is a no-op whenever wf1 or
+# wf3 has already built the store.
+CLIMATE_STORE = climate_store_spec(
+    project_dir=project_dir,
+    model_region=model_region,
+    clim_source=clim_source,
+    historical_window=historical_window,
+    data_sources=STORE_DATA_SOURCES,
+    hydrography=basin_hydrography,
+    basin_index=basin_index,
+)
+region_path = CLIMATE_STORE.outputs["region_geojson"]
 
 ### Dictionary elements from the config based on wildcards
 def get_horizon(wildcards):
@@ -72,6 +110,34 @@ rule all:
 # to a task that first encodes the ambiguity-sensitive config shapes as regression tests.
 ruleorder: monthly_stats_hist > monthly_stats_fut > monthly_change > monthly_change_scalar_merge
 
+# 2.11  extract_climate_grid — the SHARED historical-climate store producer
+# (R07 B1). This declaration and rule 1.10 (Snakefile_model_creation) / rule
+# 3.02 (Snakefile_climate_experiment) are the same rule: identical name, script,
+# single catalog input, outputs and params, all splatted from CLIMATE_STORE.
+# Only message/log/benchmark are workflow-local.
+#
+# WF2 consumes only `store_region.geojson` from it (design D2/A1). The gridded
+# extraction is not read here — see the CLIMATE_STORE comment above.
+#
+# DO NOT add a workflow-local input or param here: an asymmetric input set
+# re-creates the wf1<->wf3 re-extraction oscillation (design P2(b), ext1-02) and
+# is forbidden. The catalog input is deliberately PLAIN, not ancient(): it is
+# the store's freshness boundary (ext2-01).
+rule extract_climate_grid:
+    message: rule_banner("2.11", "extract_climate_grid")
+    input:
+        **CLIMATE_STORE.inputs,
+    params:
+        **CLIMATE_STORE.params,
+    output:
+        **CLIMATE_STORE.outputs,
+    log:
+        f"{project_dir}/logs/2.11_extract_climate_grid.log",
+    benchmark:
+        f"{project_dir}/benchmarks/_parts/2.11_extract_climate_grid.tsv",
+    script:
+        CLIMATE_STORE.script
+
 # 2.01  copy_config — copy snake config into project_dir/config
 rule copy_config:
     message: rule_banner("2.01", "copy_config")
@@ -91,7 +157,7 @@ rule copy_config:
 rule monthly_stats_hist:
     message: rule_banner("2.02", "monthly_stats_hist")
     input:
-        region_path = ancient(f"{basin_dir}/staticgeoms/region.geojson"),
+        region_path = region_path,
     output:
         #stats_nc_hist = (clim_project_dir + "/historical_stats_{model}.nc"),
         stats_time_nc_hist = temp(clim_project_dir + "/historical_stats_time_{model}.nc"),
@@ -115,7 +181,7 @@ rule monthly_stats_hist:
 rule monthly_stats_fut:
     message: rule_banner("2.03", "monthly_stats_fut")
     input:
-        region_path = ancient(f"{basin_dir}/staticgeoms/region.geojson"),
+        region_path = region_path,
         stats_time_nc_hist = (clim_project_dir + "/historical_stats_time_{model}.nc"), #make sure starts with previous job
     output:
         stats_time_nc = temp(clim_project_dir + "/stats_time-{model}_{scenario}.nc"),
