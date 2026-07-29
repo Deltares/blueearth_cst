@@ -9,6 +9,146 @@ context so future-you can confirm the issue still applies before fixing.
 
 ---
 
+## Post-R7 (surfaced 2026-07-28/29 during the R7 project-layout milestone)
+
+R7 landed as 15 `r07:` commits with a clean full-tree diff, a green
+`check_baseline`, and the P4 assertion demonstrated. The items below are what it
+deliberately did **not** fix, plus what implementation surfaced along the way.
+Provenance: `dev/r07/migration_project-layout.md` §§7a–7d,
+`dev/r07/project-layout-design.md`, and the `r07:` commit messages.
+
+### Defects — worth fixing
+
+- **[R7-1] ~~`wflow_sbm.toml` is written by five rules and declared by one.~~
+  FIXED 2026-07-29** — rule 1.03 now emits a `touch()` completion sentinel
+  (`hydrology_model/.model_built`) that rule 1.04 consumes as a **non-ancient**
+  input, so a rebuild re-fires the whole toml-writing chain
+  (1.04 → `.txt` → 1.05 → `outlets.geojson` → 1.07 → forcing yml → 1.08).
+  The obvious fix — dropping the `ancient()` on staticmaps — was **wrong**:
+  1.04/1.05 commit writes back into staticmaps themselves via
+  `mod.write()`/`mod.close()`, so a plain edge would re-trigger them on their
+  own execution forever. Regression test falsified both ways. Diagnosis kept
+  below for the record.
+  (map §7c.) Rule 1.03 `create_model` creates it; rules 1.04–1.09 update it
+  **in place** while taking `ancient(f"{basin_dir}/staticmaps.nc")`, which
+  suppresses exactly the mtime trigger a rebuilt staticmaps would fire. So
+  **anything that re-fires `create_model` alone leaves the TOML stripped** of
+  every section the later rules added, and the next wflow run dies on the
+  missing key. Bit three times during R7 (commits 7, 10, and once more during
+  the config split); each recovery needed `--forceall`. Pre-existing, not an R7
+  regression — R7 is simply the first thing in a while to re-fire the build.
+  Fix is a rule-shape change (declare the TOML on every rule that writes it, or
+  make the update chain depend on it), which is why a behaviour-preserving
+  milestone could not take it. **Highest-value item in this list.**
+
+- **[R7-2] The store's freshness boundary stops at the catalog file.** Editing
+  the catalog now mtime-triggers exactly one re-extraction (R7 closed that gap),
+  but data *behind* an unchanged catalog entry — a local file the entry points
+  at, or a remote store — participates in no trigger. Documented with the
+  `snakemake --forcerun extract_climate_grid` escape hatch (map §2f). Closing it
+  properly would mean parsing hydromt catalog semantics at DAG-parse time, which
+  is outside CST's automation scope, so it may simply stay documented.
+
+- **[R7-3] `basin_area.png`: which change produced the 134,828-byte figure?**
+  (map §7d.) The pre-R7 fixture carried a `basin_area.png` that matched neither
+  the manifest (286,022 B) nor what the current `plot_map.py` produces
+  (286,031 B) — visually a different figure entirely, though `plot_map.py` has
+  not changed since R6. Owner-ruled at Gate 3 as a known-bad reference row and
+  allowlisted. The commit-14 re-record overwrote the manifest row, so the
+  inconsistency is gone from the live baseline; the open question is only *how*
+  it arose, which matters because it means a fixture drifted from its own
+  baseline undetected.
+
+### Design debt accepted knowingly
+
+- **[R7-4] Import direction in the model-free producer.**
+  `blueearth_cst/climate_analysis/plot_climate_source.py` imports
+  `blueearth_cst.model.climate_parity` to reuse the PET transform. Functionally
+  clean (that module is pure xarray in/out) and it avoids a second PET
+  implementation, but the direction is backwards for the one module whose
+  headline claim is model-independence. Carries a `# DEV NOTE:`. The fix is to
+  lift the parity transform into `shared/`.
+
+- **[R7-5] O-24 is deliberately incomplete.** `plot_basavg` (one PNG per
+  `wflow_outvars` entry), `signatures_{station}.png` and per-station
+  `clim_{station}_{period}.png` remain **knowingly undeclared** — they are
+  config-dependent, and deriving the list at parse time is a rule-shape change
+  R7 rejected as out of scope. Consequence: on a config with gauges,
+  observations or basin-average outvars, `--delete-all-output` still cannot
+  clean them and stale figures survive a rerun.
+
+- **[R7-6] Declaring `clim_wflow_1_*` made rule 1.11 newly able to fail.** Those
+  figures are written only when the extraction spans ≥365 days, so a config with
+  a sub-year `historical_window` now dies with `MissingOutputException` instead
+  of logging a skip. Owner-ruled to stand: failing loudly beats silently
+  producing an incomplete figure set, and no shipped config is affected.
+
+- **[R7-7] The contract-equality test pins Snakemake 9.6.2's directive set.** It
+  asserts the compared / allowed-local / structural buckets partition
+  `RuleInfo`'s fields exactly, so a Snakemake upgrade fails it loudly rather
+  than silently widening the hole. Intended — but it makes the pin a
+  maintenance touchpoint at every version bump.
+
+### Cosmetic / low priority
+
+- **[R7-8] wflow writes `log.txt` beside the run TOML**, not under `dir_output`
+  — so it now lands in `hydrology_runs/rlz_<r>/config/log.txt`, one per
+  realization instead of one per experiment. Gate-invisible (`_is_excluded`
+  drops `log.txt`), but `config/` holding a log is a small P3 wart.
+- **[R7-9] Stale benchmark parts survive a rule rename.** `merge_benchmarks`
+  globs `benchmarks/_parts/`, so a renamed rule leaves a phantom row in the
+  gathered markdown. Inside `EXCLUDED_DIR_NAMES`, so no gate impact.
+- **[R7-10] Old-path references in documents commit 15 did not own**:
+  `dev/workflows/model_creation.md:45-47` (the three
+  `plots/wflow_model_performance/` targets), `docs/notebooks/Model building.ipynb`
+  (2 hits), and `dev/p32a/compare_climate_ladder.py:8,26` (`wf1_raw`). The p32a
+  probe is a historical record and arguably correct as-is; the other two are
+  live and stale.
+- **[R7-11] `plot_map_forcing.py:199`** carries the same `"None"`-string shape as
+  O-08 but is benign in its current use. Left alone deliberately; worth guarding
+  if that code path ever grows a layer name.
+- **[R7-12] The tests config warns on every dry-run.**
+  `tests/snake_config_model_test.yml` uses `project_dir: tests/test_project`,
+  which is in-repo and outside the single `test_case/` exemption, so O-22's
+  warning fires correctly but routinely. Not widened to silence it — the
+  exemption exists because the *baseline seed* config is tracked, not as a
+  general licence for in-repo scratch dirs.
+- **[R7-13] Map §2c's depth arithmetic is off by one.** It predicts run-TOML
+  pointers gain one `../`; the move replaces one directory with three, so they
+  gain two. hydromt emitted the correct five-level pointers and the comparator
+  passes — the map's stated strings are what is wrong, not the tree.
+- **[R7-14] `tests/test_stage_data_incremental.py` fails intermittently** under
+  some orderings; passes in isolation and on re-run. Another workstream's
+  module, predates the R7 branch. Test-isolation issue, not a product defect.
+
+### Parked by ruling — not defects
+
+- **[R7-15] Engine-named subtrees** (`models/wflow/` vs `hydrology_model/`) —
+  parked at G1, explicitly deferred beyond R7. Per arch-8 the **structural** half
+  goes with it: how a second engine's build subtree and run subtree are placed.
+  The Goal was narrowed from extensibility to **separability** (ruling GB-1)
+  precisely because the tree cannot honour the stronger claim without that rule.
+- **[R7-16] Tooling contract**: O-14 `pyproject.toml`, O-15 `ruff`, O-16 `flit`
+  — open decisions, unrelated to layout.
+- **[R7-17] Docker (O-06) and Linux end-to-end (O-18, O-19)** — parked, no Linux
+  machine. Linux *parse-level* consistency is now covered: the Linux config
+  dry-runs on both CI legs.
+- **[R7-18] Climate analysis as a fourth Snakefile** — a separate milestone. R7
+  only ensured the layout does not obstruct it, and the model-free store plus
+  rule 1.15 are the enabling pieces.
+
+### Milestone housekeeping
+
+- **[R7-19]** Branch `r07-project-layout` is **unmerged and unpushed**; the
+  `r07-layout` tag is unapplied and `dev/roadmap.md` still reads *design
+  accepted, awaiting implementation*. Sealing is an owner decision.
+- **[R7-20]** The pre-R7 reference tree at
+  `C:/Users/taner/workspace/.r07-reference/` (219 files + the discharge anchor)
+  can be retired once the milestone seals — the re-recorded manifest is the
+  regression detector again.
+
+---
+
 ## Post-P3-3 (surfaced 2026-07-25 during the P3-3 batching milestone)
 
 - **Make the wf3 batch-size default genuinely disk-aware.** Design §6.1 names

@@ -155,6 +155,18 @@ rule create_model:
         hydromt_ini = f"{project_dir}/config/generated/wflow_build_model_run.yml",
     output:
         basin_nc = f"{basin_dir}/staticmaps.nc",
+        # Completion sentinel (R7-1). `wflow_sbm.toml` is CREATED here and then
+        # updated IN PLACE by rules 1.04-1.08, but only this rule declares it,
+        # so a re-fire of create_model alone used to leave the toml stripped of
+        # every section the later rules add -- and the next wflow run died on
+        # the missing key. The obvious fix (drop the ancient() on staticmaps in
+        # those rules) is WRONG: they mutate staticmaps themselves via
+        # mod.write()/mod.close(), so a plain input would make each one
+        # re-trigger on its own execution forever. This sentinel is written by
+        # nothing else, so it re-fires rule 1.04 without any self-trigger, and
+        # the chain cascades from there (1.04 -> .txt -> 1.05 ->
+        # outlets.geojson -> 1.07 -> forcing yml -> 1.08).
+        built = touch(f"{basin_dir}/.model_built"),
     log:
         f"{project_dir}/logs/1.03_create_model.log",
     benchmark:
@@ -167,7 +179,11 @@ rule create_model:
 rule add_reservoirs_lakes_glaciers:
     message: rule_banner("1.04", "add_reservoirs_lakes_glaciers")
     input:
-        basin_nc = ancient(f"{basin_dir}/staticmaps.nc")
+        # ancient(): this rule COMMITS writes back into staticmaps.nc, so a
+        # plain input would re-trigger it on its own output. Ordering and
+        # rebuild-detection come from the sentinel below instead (R7-1).
+        basin_nc = ancient(f"{basin_dir}/staticmaps.nc"),
+        model_built = f"{basin_dir}/.model_built"
     output:
         text_out = f"{basin_dir}/staticgeoms/reservoirs_lakes_glaciers.txt"
     params:

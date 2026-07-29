@@ -347,6 +347,11 @@ def build_r07_allowlist(
     justified in the migration map; an entry not listed fails the gate.
     """
     allow = list(build_p31_allowlist(experiment_name, dataset_key))
+    # Rule 1.03's completion sentinel (R7-1). A gate artifact with no
+    # scientific content, same class as P3-1's .guard_ok and
+    # .project_consistency_ok: it exists so a rebuild of the model re-fires the
+    # rules that write wflow_sbm.toml in place. No pre-R07 counterpart.
+    allow.append("hydrology_model/.model_built")
     if dataset_key:
         # B1's second declared output -- the model-free delineation the store
         # bbox came from; no pre-R07 counterpart.
