@@ -226,7 +226,16 @@ rule monthly_stats_hist:
         # PERSISTENT (step 2b): no longer temp(). The series is a product, and the
         # run that produced it may have cost hours while the file is ~17 KB. Its
         # reuse is gated on the cst_series_digest attribute, not on its presence.
-        stats_time_nc_hist = (clim_project_dir + "/historical_stats_time_{model}.nc"),
+        #
+        # update() is LOAD-BEARING, not cosmetic. Snakemake's Job.prepare() calls
+        # remove_existing_output() before every job ("Clean up output before rules
+        # actually run", jobs.py), which deletes the very file D9's revalidation
+        # needs to inspect -- so without this flag a scheduled reduce job can
+        # NEVER cache-hit and always re-downloads. The flag's own docstring is the
+        # semantics we want: "an output file that shall be updated instead of
+        # overwritten". Verified empirically: without it, a forced rerun logged
+        # `deriving` on a series whose digest already matched.
+        stats_time_nc_hist = update(clim_project_dir + "/historical_stats_time_{model}.nc"),
     params:
         catalog_path = DATA_SOURCES,
         project_dir = f"{project_dir}",
@@ -260,8 +269,9 @@ rule monthly_stats_fut:
         # uses makedirs(exist_ok=True).
         region_path = region_path,
     output:
-        # PERSISTENT (step 2b): see the note on rule 2.02.
-        stats_time_nc = (clim_project_dir + "/stats_time-{model}_{scenario}.nc"),
+        # PERSISTENT + update() (step 2b): see the note on rule 2.02 for why the
+        # flag is required rather than decorative.
+        stats_time_nc = update(clim_project_dir + "/stats_time-{model}_{scenario}.nc"),
     params:
         catalog_path = DATA_SOURCES,
         project_dir = f"{project_dir}",
