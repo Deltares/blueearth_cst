@@ -15,8 +15,14 @@ with that model's exact member list keeps the guard meaningful.
 
 Usage (from the repo root, inside pixi)::
 
-    python dev/scripts/generate_cmip6_catalog.py --out config/catalogs/cmip6_data.yml
-    python dev/scripts/generate_cmip6_catalog.py --dry-run      # report only
+    python dev/scripts/generate_cmip6_catalog.py     # catalog + store index
+    python dev/scripts/generate_cmip6_catalog.py --dry-run   # report only
+
+Two artifacts, ONE crawl: ``config/catalogs/cmip6_data.yml`` (which sources
+exist) and ``config/catalogs/cmip6_store_index.json`` (which physical
+``{grid_label}/{version}`` each resolves to, since the catalog URI globs both
+away). They carry an equal ``crawled_on``; a consumer asserts that equality
+rather than trusting them to be in step.
 
 Not part of a run: this is repository maintenance (see AGENTS.md, "Three homes
 for executables").
@@ -25,6 +31,7 @@ for executables").
 from __future__ import annotations
 
 import argparse
+import json
 import os
 from collections import defaultdict
 from datetime import date
@@ -145,6 +152,71 @@ def member_sort_key(member: str) -> tuple:
     return (0, *map(int, m.groups())) if m else (1, 0, 0, 0, 0, member)
 
 
+def pin_stores(
+    fs: gcsfs.GCSFileSystem,
+    inventory: dict[tuple[str, str, str], list[str]],
+) -> dict:
+    """Resolve the physical ``{grid_label}/{version}`` behind each catalog source.
+
+    The catalog URI ends ``/{variable}/*/*`` — grid label and version are a glob,
+    so the *entry name* identifies a logical source, not the bytes read (design
+    ext2-04 / D12). This walks the two levels the glob hides and records what the
+    crawl actually observed, for every (entry, member, certified variable).
+
+    Two facts the index must carry honestly:
+
+    * **The glob is not guaranteed to match exactly one store.** The inventory
+      (`dev/workflows/wf2-cmip6-store-inventory.md` §2) found `NCC/NorCPM1`
+      historical `tas` publishing two versions. Every matching pair is recorded,
+      newest last; a consumer that needs one store asserts ``len == 1``.
+    * **Only ``pr``/``tas`` are certified** (``REQUIRED_VARS``); the crawl proved
+      those present. Nothing else is pinned, because nothing else was checked —
+      see the design's certified/best-effort tier split.
+
+    Returns the index payload; ``crawled_on`` is stamped by the caller so the
+    catalog and the index provably come from one crawl.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    def ls(path: str) -> list[str]:
+        try:
+            return sorted(p.split("/")[-1] for p in fs.ls(path))
+        except FileNotFoundError:
+            return []
+
+    targets = [
+        (activity, model, experiment, member, variable)
+        for (activity, model, experiment), members in inventory.items()
+        for member in members
+        for variable in sorted(REQUIRED_VARS)
+    ]
+    print(f"(entry, member, variable) stores to pin: {len(targets)}", flush=True)
+
+    def resolve(target):
+        activity, model, experiment, member, variable = target
+        base = f"cmip6/CMIP6/{activity}/{model}/{experiment}/{member}/{TABLE}/{variable}"
+        pairs = [
+            f"{grid}/{version}"
+            for grid in ls(base)
+            for version in ls(f"{base}/{grid}")
+        ]
+        return target, pairs
+
+    with ThreadPoolExecutor(24) as pool:
+        resolved = list(pool.map(resolve, targets))
+
+    sources: dict[str, dict] = {}
+    multi = 0
+    for (_activity, model, experiment, member, variable), pairs in resolved:
+        entry = f"cmip6_{model}_{experiment}_{{member}}"
+        sources.setdefault(entry, {}).setdefault(member, {})[variable] = pairs
+        if len(pairs) > 1:
+            multi += 1
+    print(f"stores whose glob matches more than one {{grid}}/{{version}}: {multi}")
+
+    return {"sources": sources, "multi_match_count": multi}
+
+
 def render(inventory: dict[tuple[str, str, str], list[str]], crawled_on: str) -> str:
     total = sum(len(v) for v in inventory.values())
     lines = [
@@ -196,8 +268,26 @@ def main() -> None:
         default=Path("config/catalogs/cmip6_data.yml"),
         help="catalog to write (default: config/catalogs/cmip6_data.yml)",
     )
+    parser.add_argument(
+        "--index-out",
+        type=Path,
+        default=Path("config/catalogs/cmip6_store_index.json"),
+        help=(
+            "store index to write (default: config/catalogs/cmip6_store_index.json). "
+            "Written from the SAME crawl as the catalog, with an equal crawled_on."
+        ),
+    )
+    parser.add_argument(
+        "--no-index",
+        action="store_true",
+        help="skip the store-index pass (catalog only; leaves any existing index STALE)",
+    )
     parser.add_argument("--dry-run", action="store_true", help="report, write nothing")
     args = parser.parse_args()
+
+    # One crawl date for both artifacts: the equal-`crawled_on` assertion is what
+    # lets a consumer treat catalog and index as one observation (design R14).
+    crawled_on = date.today().isoformat()
 
     fs = gcsfs.GCSFileSystem(token="anon")
     inventory = crawl(fs)
@@ -215,12 +305,36 @@ def main() -> None:
     print(f"\ndistinct member labels: {len(union)}")
     print(f"first-realization labels (config `members:` union): {first_realizations}")
 
-    text = render(inventory, crawled_on=date.today().isoformat())
+    text = render(inventory, crawled_on=crawled_on)
     print(f"\nrendered {len(inventory)} entries / {text.count(chr(10))} lines")
+
+    index = None
+    if not args.no_index:
+        print()
+        payload = pin_stores(fs, inventory)
+        index = {
+            "generated_by": "dev/scripts/generate_cmip6_catalog.py",
+            "crawled_on": crawled_on,
+            "table": TABLE,
+            "certified_variables": sorted(REQUIRED_VARS),
+            "catalog": str(args.out).replace("\\", "/"),
+            **payload,
+        }
+
     if args.dry_run:
         return
     args.out.write_text(text, encoding="utf-8")
     print(f"wrote {args.out}")
+    if index is not None:
+        args.index_out.write_text(
+            json.dumps(index, indent=1, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        print(f"wrote {args.index_out}")
+    else:
+        print(
+            f"NOTE: --no-index given; {args.index_out} is now STALE relative to "
+            f"{args.out} (unequal crawled_on)"
+        )
 
 
 if __name__ == "__main__":
