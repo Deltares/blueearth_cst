@@ -184,12 +184,24 @@ Validation: `pytest tests/test_cli.py`, then `tests/test_wf1_plot_outputs.py`, a
 `tests/test_plot_climate_source.py` and the P4 assertion are unaffected — bucket
 1 does not move.
 
-**Open question blocking sign-off — asymmetric across the three parts.** CST is
-the engine of a three-part platform. If the CST-API backend or the frontend GUI
-collects figures **by glob** (`hydrology_model/**/plots/*.png`), the core move is
-harmless and only Optional A breaks it. If it reads **exact paths**, the core
-move breaks it too. Optional A is blocked hard either way; the core move is
-blocked only under exact-path collection. This cannot be checked from this repo.
+**~~Open question blocking sign-off.~~ RESOLVED 2026-07-29 — not a constraint.**
+The question raised was whether the CST-API backend or the frontend GUI collects
+figures by glob or by exact path, since renames break the former and moves break
+the latter. **Owner ruling: this work is independent of the web application, and
+its existing design does not bind us.** `AGENTS.md`'s "the GUI drives these
+Snakefiles server-side" is a description of deployment, not a compatibility
+contract; reading it as one produced a false blocker. Standing constraint —
+do not re-raise web-app compatibility as a gate on any decision in this repo.
+(The separate `AGENTS.md` rule that no web/API *code* belongs here is about
+scope and is unaffected.)
+
+With the blocker gone, **Optional A is unblocked** and joins the recommendation.
+Optional B stays a judgment call: dissolving `evaluation/` removes a
+single-file directory, but keeps no semantic slot if Phase 3 later adds
+evaluation products (multi-station metrics, calibration diagnostics). Given
+CST's no-calibration, first-order scope, few such products are expected — so the
+recommendation is to dissolve, with that expectation recorded as the tripwire
+that would justify reinstating it.
 
 **Disposition.** Pending owner ruling on Core / Optional A / Optional B.
 
