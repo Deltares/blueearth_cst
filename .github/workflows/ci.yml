@@ -60,6 +60,20 @@ jobs:
           locked: true
           cache: true
 
+      - name: Lint (ruff)
+        # ~1 s, so it runs before the suite for fast feedback, and on BOTH legs
+        # despite ruff being platform-independent — the cost is negligible and a
+        # single-leg lint is a foot-gun the first time someone edits the matrix.
+        #
+        # The rule set is pinned in pyproject.toml [tool.ruff.lint] and must stay
+        # pinned: ruff's DEFAULT selection is ~415 rules (409 findings in this
+        # repo under `ruff check --isolated`), so an unpinned `select` would turn
+        # a routine ruff version bump into a red CI on an untouched tree.
+        #
+        # `ruff format` is deliberately NOT checked here — see dev/followups.md
+        # R7-23. Adding --check would fail on 118 of 262 files today.
+        run: pixi run ruff check .
+
       - name: Run the unit suite
         # -rs prints every skip reason, so the expected-skip set stays visible in
         # the log rather than silently drifting. A new skip is a signal.
