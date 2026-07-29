@@ -7,6 +7,10 @@ Authors:    tanerumit (with Claude Code)
 Supersedes: none
 Revisions:
   - 2026-07-29: initial draft
+  - 2026-07-29: corrected §5.3 — retiring `historical_year_range` moves the
+    reference window by a decade and is value-CHANGING; it belongs in migration
+    step 5, not the value-neutral step 1. G3 is available-by-construction after
+    step 1, realized at step 5. Linked the steps 1–2 task brief from §8.
 ```
 
 Companion documents:
@@ -253,16 +257,23 @@ WF2 declares `extract_climate_grid` from `climate_store_spec` (identically —
 **C1**) and reads `store_region.geojson` instead of
 `hydrology_model/staticgeoms/region.geojson`. Two consequences:
 
-- **G2 falls out.** The store's extent is a pure function of `shared.basin` +
-  catalog; WF2 stops depending on WF1 entirely.
-- **G3 falls out.** The store key is `{clim_historical}_{slugify_window(...)}`
-  built from `shared.historical_window`. If the observed reference series comes
-  from that store, WF2's reference window **is** the project baseline window by
-  construction. Today's `historical_year_range: [1990, 2010]` versus
+- **G2 falls out immediately, and is value-neutral.** The store's extent is a
+  pure function of `shared.basin` + catalog; WF2 stops depending on WF1 entirely.
+- **G3 becomes available, but is not free.** The store key is
+  `{clim_historical}_{slugify_window(...)}` built from
+  `shared.historical_window`, so once the observed reference series comes from
+  the store, WF2's reference window **is** the project baseline window by
+  construction, and today's `historical_year_range: [1990, 2010]` versus
   `shared.historical_window: 2000-01-01 … 2020-12-31` mismatch — roughly 0.3 °C
   of global warming between window midpoints, displacing the overlay from the
-  response surface — cannot recur. `historical_year_range` is retired, not
-  cross-checked.
+  response surface — cannot recur.
+
+  **Retiring `historical_year_range` changes every change factor**, because the
+  reference window moves by a decade. It is therefore *not* part of the
+  value-neutral decoupling: the store declaration lands in migration step 1, and
+  the window switch lands in step 5 with the other methodological changes, under
+  a documented re-record. Structural-by-construction describes the end state,
+  not a free step.
 
 **Measured (2026-07-29, seed fixture).** The two polygons have identical bounds
 `[9.658333, 0.35, 9.858333, 0.483333]`. WF2 consumes only
@@ -500,12 +511,13 @@ numbers deliberately.
 | 2 | Persistent `series/` store: drop `temp()`, add the params digest, `makedirs(exist_ok=True)`, drop the hist→fut ordering edge | **Yes** (same values, different lifetime) | `check_baseline.py`; second run performs no network reads |
 | 3 | Collapse `monthly_stats_hist`/`monthly_stats_fut` into one `reduce_climate_series` over `{series_key}`; unify output naming; make `members` a wildcard | **Yes** | `check_baseline.py`; `pytest tests/test_cli.py` |
 | 4 | Collapse `monthly_change` + `monthly_change_scalar_merge` into one `derive_change_factors` job; source validation at DAG build; delete the dummy-netCDF path | **Yes** for present sources; **behavior change** for absent ones (consequence 4) | `check_baseline.py`; new unit tests for the catalog validator |
-| 5 | Variable spec; area weighting; month-length weighting; 30-year window default | **No — value-changing** | Documented re-record + characterized diff; user sign-off on OQ-4 |
+| 5 | Variable spec; area weighting; month-length weighting; retire `historical_year_range` in favour of `shared.historical_window` (§5.3); 30-year window default | **No — value-changing** | Documented re-record + characterized diff; user sign-off on OQ-4 |
 | 6 | Monthly change-factor table; tidy CSV schema; `provenance.json` | Additive | Schema tests; row-count assertions |
 | 7 | Report stage; declare all figures; retire the loose-PNG set | Additive + layout | Visual QA; migration note |
 
 Steps 1–2 are independently useful and could ship alone: together they deliver
-G2, G3, and G5 without touching a single computed value.
+G2 and G5, and put G3 within reach, without touching a single computed value.
+Task brief: `dev/working/2026-07-29_wf2-v2-decouple-and-cache.md`.
 
 ---
 
