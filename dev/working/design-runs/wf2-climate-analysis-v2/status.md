@@ -77,11 +77,37 @@ model runs are saved on request, for advanced analysis at a later stage. This
 requires a first-class **optional gridded branch with declared outputs** — not
 the current undeclared, params-passed file layer. Closes OQ-8 / ext1-09.
 
-**R3 — ensemble treatment: adopt the reviewer's fix.** Driver's reading, stated
-for correction: thresholds defined on **unique models**; members shown
-hierarchically; members averaged **within** a model before equal-model
-summaries; and until the ensemble is large enough, emit individual model/member
-traces **without an aggregate envelope**. Closes OQ-6 / ext1-07.
+**R3 — SUPERSEDED by R3′ below.** ~~Driver's reading: thresholds on unique
+models; members averaged **within** a model before equal-model summaries;
+no aggregate envelope below the threshold.~~ The within-model averaging half was
+a driver mis-reading of the owner's "agreed", corrected 2026-07-29.
+
+**R3′ — no aggregation, at any level (owner, 2026-07-29).** Members are **never
+averaged** in pre-processing. **Each (model, scenario, member) combination is a
+single data point** with its own ΔT and ΔP, carried distinctly end to end and
+displayed as its own trace/row/point. **No aggregation across models, scenarios,
+or members** — no percentile envelope, no ±σ, no model-level collapse.
+Interpretation of model similarity and correlation is explicitly **outside this
+scope**, handled by the owner downstream.
+
+Member availability is a **union, not a fixed list**: some (model, scenario)
+combinations publish three members, others one; some models are missing SSP
+scenarios entirely. That is normal and must not be an error — the workflow
+collects as many data points as the store actually offers.
+
+Consequences for `design-v2.md`, all in §5.6 unless noted:
+- **Delete** "Members are averaged within a model first …". It contradicts R3′.
+- **`ensemble.min_models_for_envelope` becomes moot** — with no aggregation at
+  any level there is no envelope to gate, so the threshold, the min–max range,
+  and N9's "institution de-duplication not applied" all collapse into a simpler
+  rule: report composition, plot points, aggregate nothing.
+- **ext1-07's disposition changes** from wholly `accepted` to **partially
+  accepted / partially rejected by owner ruling**: its "average members within
+  each model" half is rejected. A rejected `major` requires owner ratification
+  at G2 — R3′ **is** that ratification, recorded here.
+- The member config contract becomes a *requested set intersected with
+  availability per (model, scenario)*, which bears on §5.7's DAG-build
+  validation and on the `members:` key's meaning.
 
 **R4 — v2.0 scope narrows to GCM projections analysis.** For now: **monthly GCM
 projections output analysis**, with room to expand to **gridded** results for
