@@ -81,7 +81,9 @@ def analyse_wflow_historical(
     observations_fn : Union[Path, str], optional
         Path to observations timeseries file, by default None
         Required columns: time, wflow_id IDs of the locations as in ``gauges_locs``.
-        Separator is , and decimal is .
+        Separator is **;** and decimal is . -- deliberately different from
+        ``gauges_locs`` below, which is comma-separated. Both are read with an
+        explicit ``sep=``; see ``config/templates/observations/README.md``.
     gauges_locs : Union[Path, str], optional
         Path to gauges/observations locations file, by default None
         Required columns: wflow_id, station_name, x, y.

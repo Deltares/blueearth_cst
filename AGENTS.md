@@ -56,14 +56,20 @@ Method context that changes how code here should be edited (full rationale:
   `--configfile` targets), `catalogs/` (hydromt data catalogs — `deltares_data*.yml`,
   `cmip6_data.yml` — the `-d` targets), and `templates/` (hydromt/wflow/weathergen
   build templates — `wflow_build_model.yml`, `wflow_update_waterbodies.yml`,
-  `weathergen_config.yml`, plus the tracked `wflow_sbm.toml`).
+  `weathergen_config.yml`, plus the tracked `wflow_sbm.toml`, and
+  `templates/observations/` — header-only schemas for the two optional
+  observation inputs; real basin data lives in the project folder, referenced
+  by absolute path).
 - `scripts/` — user-facing runners: `run_snake_test.cmd` (Windows), `run_snake_docker.sh`
-  (Linux/Docker), and `run_workflows.py` (the `enabled:`-aware wrapper, §"Key Commands").
+  (Linux/Docker), `run_workflows.py` (the `enabled:`-aware wrapper, §"Key Commands"),
+  and `suggest_experiment_name.py` (writes `experiment_name` into a config once,
+  never at run time — a runtime value would break Snakemake idempotence).
 - `dev/` — planning, audits, design docs, conventions, roadmap, the baseline
   manifest, and dev-process helpers under `dev/scripts/` (`check_baseline.py`,
   `semantic_tree_diff.py`, probes). Not user-facing; not shipped.
 - `docs/` — user-facing reference (`install.md`, `env_setup_notes.md`, the vendored
-  hydromt / hydromt-wflow / wflow user guides, the technical note, notebooks).
+  hydromt / hydromt-wflow / wflow user guides, the technical note, notebooks,
+  and `migration-r06.md`).
   **Configs are not mirrored here** — `config/` is the single source; the former
   `docs/config/` copies were kept byte-identical by hand and drifted anyway.
 - `tests/` — `test_cli.py` is the cheap dry-run gate; `test_model_creation.py`
@@ -81,6 +87,13 @@ Method context that changes how code here should be edited (full rationale:
   artifacts to a location distinct from the toolbox source. The in-repo untracked
   `test_case/test_local` dir is a dev/test convention only (used by the baseline
   gate), explicitly exempt from that rule.
+
+**Three homes for executables, split by INVOCATION MODEL — not by audience**
+(O-23). `blueearth_cst/` is executed **by Snakemake** (`script:` directives and
+`Rscript` `shell:` bodies; never runnable standalone). `scripts/` **executes the
+pipeline** — a user runs these. `dev/scripts/` **inspects or maintains the
+repository** (`check_baseline.py`, `semantic_tree_diff.py`, probes) and is never
+part of a run.
 
 ## Key Commands
 

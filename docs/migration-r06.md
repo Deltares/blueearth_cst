@@ -96,7 +96,10 @@ internal `source("./src/weathergen/global.R")` calls were rewritten to
 - `src/__init__.py` (empty) is **removed**; the package now carries a marker per
   subpackage: `blueearth_cst/__init__.py`, `blueearth_cst/shared/__init__.py`,
   `blueearth_cst/model/__init__.py`, `blueearth_cst/projections/__init__.py`,
-  `blueearth_cst/experiment/__init__.py` (all empty). (Git paired
+  `blueearth_cst/experiment/__init__.py`, and
+  `blueearth_cst/climate_analysis/__init__.py` (all empty; the last was
+  omitted from this list until R07 / O-10). `blueearth_cst/weathergen/` has no
+  marker -- it holds R sources, not an importable Python subpackage. (Git paired
   `src/__init__.py` with `blueearth_cst/experiment/__init__.py` by byte identity —
   again a detection artifact.)
 
