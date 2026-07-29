@@ -2150,7 +2150,7 @@ commit's expected set.
 | 5b | Calendar-aware month-length weighting on annual aggregates | **No — value-changing** | Yes | Re-record; diff is the calendar effect; 360-day vs standard synthetic tests |
 | 5c | Drop the stage-A 2-decimal rounding | **No — value-changing** | Yes | Re-record; diff is the rounding floor |
 | 5d | Default statistic set (`mean`, `median`, `std`; tail quantiles opt-in and sample-size-labelled) | **No — output-set change** | **No** — the summary CSVs lose columns | Re-record of the two summary CSVs with the column diff shown |
-| 5e | Variable spec (`canonical`/`change`); reference-window clip + per-condition warnings + alignment check | Output-neutral on the seed (`[1990, 2010]` needs no clip) | **No** — adds config keys → config-target re-record | Reference-window tests; property tests |
+| 5e | Variable spec (`canonical`/`change`); reference-window clip + per-condition warnings + alignment check; **rename `save_grids` → `save_gridded` (OQ-12, owner 2026-07-29) failing loud on the old key** | Output-neutral on the seed (`[1990, 2010]` needs no clip; the gridded default is unchanged) | **No** — adds and renames config keys → config-target re-record | Reference-window tests; property tests; old-key-raises test |
 | 5f | **OQ-4's 30-year reference window (1985–2014) in `snake_config.template.yml` only**; documentation states the recommendation. Test fixtures unchanged | **Yes** — the seed fixture keeps `[1990, 2010]`, so no number moves | **Yes** — the manifest pins the *seed* config, not the template (§8 fact 2) | `check_baseline`; the **A1 acceptance test**: effective values asserted (`n_hyd_years`, effective bounds, per-end dropped months) for January and non-January `start_month_hyd_year`, plus the no-clip/no-short-window check |
 | 6a | Monthly change-factor table; tidy CSV schema (no `n_models_in_summary`); `provenance.json` | Additive | No | Schema and row-count tests |
 | 6b | Dry-month rule (A2 defaults) + coverage/partial-year policy | **No — value-changing** (partial years now dropped) | No | Near-zero-reference, missing-month, partial-year synthetic tests; **threshold boundary tests below/at/above `min_reference` and `max_flagged_months` (A2)** |
@@ -2368,24 +2368,41 @@ gates.
 
 ## 10. Open questions
 
-- **OQ-1 (D5).** Extend `Snakefile_climate_projections` in place, or open a 4th
-  entry point? *Recommendation: extend in place for v2.0 (§6.3).*
-- **OQ-2.** Does this open **Phase 4**, or land as an unnumbered milestone?
+- **OQ-1 — CLOSED by the owner, 2026-07-29: extend
+  `Snakefile_climate_projections` in place** for v2.0 (§6.3 / D5). The platform
+  surface stays at three entry points and `run_workflows.py`'s `enabled:`
+  contract is untouched. A standalone `Snakefile_climate_analysis` remains a
+  separable follow-up, not part of this design.
+- **OQ-2 — CLOSED by the owner, 2026-07-29: numbered phase work, landing as
+  Phase 5 / milestone R8.** The owner first answered "Phase 4", then — on being
+  told that Phase 4 already existed for layout consolidation (opened 2026-07-26,
+  R7 sealed 2026-07-29) — chose a clean theme boundary instead: Phase 4 stays
+  layout-only and the WF2 rework opens **Phase 5**. Milestone IDs continue the
+  `R##` series across the boundary (R7 → R8), as Phase 4 continued it from Phase
+  2's R1–R6. `dev/roadmap.md` § Phase 5 carries the definition and this document
+  is R8's accepted design.
 - **OQ-3 — CLOSED by D3 (§6.10).** WF2 output stays at
   `climate_projections/{clim_project}/` for v2.0.
 - **OQ-4 — CLOSED by the owner, 2026-07-29: 30 years, 1985–2014.** Lands in
   `snake_config.template.yml` (step 5f); the test fixtures deliberately keep
   `[1990, 2010]` (§5.4, with the reading flagged for correction).
-- **OQ-5.** Whether a daily CMIP6 branch (S4) is ever in scope given ~30× the
-  volume and the 11 monthly-only models it would drop (inventory §5.2).
+- **OQ-5 — CLOSED by the owner, 2026-07-29: no daily branch for v2.0.** Revisit
+  only against a concrete extremes question. The cost is measured, not assumed:
+  restricted to WF2's combination the store offers **46 models monthly vs 35
+  daily** (inventory §5.2), ~30× the volume, and daily `rsds` is present for a
+  single model in ssp126 and ssp370 — so a PET-capable *daily* branch would be
+  viable for ssp245/ssp585 only. S4 stays a documented future architecture
+  change.
 - **OQ-6 — CLOSED by rulings R3′ and R3″.** The residual policy design-v2 recorded
   as N9 (institution de-duplication, performance weighting) is not "not applied";
   it is **downstream** (S6, N10).
-- **OQ-7 (dependencies — asks, C5/N4). None is adopted.** `intake-esm` is
-  **withdrawn** — catalog generation landed via a repo-owned `gcsfs` crawler with
-  no new dependency (§6.6). Standing candidates: `xclim` (calendar/unit handling
-  and standard indicators — relevant to S4); `regionmask` (fractional-area polygon
-  masking — relevant if §5.3's regional sampling choice is revisited).
+- **OQ-7 — CLOSED for v2.0 by the owner, 2026-07-29: nothing adopted.**
+  `intake-esm` is **withdrawn** — catalog generation landed via a repo-owned
+  `gcsfs` crawler with no new dependency (§6.6). The two remaining candidates are
+  now *conditional on decisions already taken*, not standing asks: `xclim` becomes
+  live only under a daily branch (OQ-5, declined), and `regionmask` only if
+  OQ-10's measurement shows midpoint-derived cell edges are not good enough.
+  Neither is a v2.0 question any more.
 - **OQ-8 — CLOSED by ruling R2**, and reinforced by R5: `save_grids` is retained,
   default off, with declared outputs including the gridded series.
 - **OQ-9 — CLOSED by arbitration ruling A2 (2026-07-29).**
@@ -2409,21 +2426,46 @@ gates.
 - **OQ-11.** Revisit fail-fast (D4) in favour of §6.8's status-artifact /
   checkpoint contract? *Evidence:* the observed remote-read failure rate across
   real runs, from `logs/` and `benchmarks/`.
-- **OQ-12 (new).** Rename `save_grids` → `save_gridded`, as the owner's R5 wording
-  used? The design keeps `save_grids` for continuity with the config, the current
-  behavioral contract doc, and every shipped config file. *Cost if taken:* one
-  config key, one docs line — but it breaks the manifest's seed-config sha256
-  (R10), so it should ride with another config-key commit (5e) rather than land
-  alone. Owner call; no evidence needed.
-- **OQ-13 (new).** How should a user express "many members" without a fan-out
-  surprise? v2.0 takes explicit lists only (§5.7). Two candidates: an `all` token
-  paired with a mandatory per-run job cap, and a **per-model `members:` mapping**
-  (which `wf2-cmip6-store-inventory.md` §4 already records as a config-schema plus
-  script change, deliberately not done). *Evidence that settles it:* whether real
-  use asks for large single-model ensembles (favours the cap) or for maximal model
-  coverage at one member each (favours the per-model mapping — the inventory
-  measures the four-label list reaching 45 models with 18 unpairable pairs, which
-  a per-model mapping would reduce to zero).
+- **OQ-12 — CLOSED by the owner, 2026-07-29: RENAME to `save_gridded`.** The
+  owner's R5 spelling wins over continuity with the current key (the driver had
+  recommended keeping `save_grids`; overridden). Scheduling constraint stands:
+  the rename breaks the manifest's seed-config sha256 (R10), so it **rides with
+  step 5e**, the config-key commit, and must not land alone.
+
+  Scope of the rename at 5e: the config key in every shipped config and the
+  template; `Snakefile_climate_projections`'s `get_config(my_cfg, "save_grids",
+  False)` read and the `save_grids` params it forwards; the three consuming
+  scripts' `sm.params.save_grids`; `dev/workflows/climate_projections.md`'s
+  `save_grids` gating section; and this design's own prose. **This document's
+  body still says `save_grids` throughout** — deliberately, because it describes
+  the key as it exists until 5e lands; treat `save_gridded` as the target name
+  and `save_grids` as the current one. No compatibility shim: the key is
+  read through `get_config` with a default, so an old config silently loses the
+  setting rather than erroring — 5e must therefore fail loud on the old key
+  rather than ignoring it.
+- **OQ-13 — CLOSED by the owner, 2026-07-29: breadth over depth; the chosen
+  mechanism is the per-model `members:` mapping, and the `all` token is
+  rejected.**
+
+  Resolved on principle rather than on projected usage. Because ruling R3′
+  forbids aggregation at every level, the value of the point cloud is how much
+  *plausible space* it spans — and 50 members of one model contribute 50 nearly
+  identical points (one model's physics, differing only by internal variability)
+  where 46 models at one member each span genuine model uncertainty. **Breadth
+  dominates depth for a plausibility overlay**, so the sensible default is one
+  member per model across as many models as resolve.
+
+  This also bounds R3′'s "collect as many data points as possible": taken
+  literally against `ssp245`'s 469 published members it would swamp a run with
+  redundant points. Breadth-first yields more information per network-bound job.
+
+  **No v2.0 work follows.** The existing contract — a global `members:` list
+  intersected with per-(model, scenario) availability (§5.7) — *already* delivers
+  breadth: every model publishing a listed label resolves. The per-model mapping
+  is the chosen mechanism for the **tail** only (a model that publishes no listed
+  label; the inventory §4 measures a four-label list reaching 45 models with 18
+  unpairable pairs, which a mapping would reduce to zero). It stays a bounded
+  follow-on — a config-schema plus script change — not one of v2.0's commits.
 - **OQ-14 *(pinning half CLOSED by D12; cadence half open)*.** Physical pins
   now live in the generated store index and participate in the digest, the
   read-time verification, and provenance (§5.3 D12); pinning inside the URIs
@@ -2431,16 +2473,43 @@ gates.
   `{member}` and `{variable}` (§6.12). What stays open is **cadence**: how
   often `generate_cmip6_catalog.py` re-runs. *Evidence:* the observed rate of
   pin-mismatch raises and resolve-then-fail events (R11) across real runs.
-- **OQ-15 (open; kept open by arbitration ruling A3).** Should the generator's
-  `REQUIRED_VARS` widen beyond `{pr, tas}`? The catalog renames `rsds → kin`
-  and `psl → press_msl`, so those variables are nameable but **best-effort**
-  (§5.5): unverified for a listed member, failing at read time rather than
-  skipping at resolution. A3 names widening `REQUIRED_VARS` — with the crawl
-  then certifying and pinning those stores — as the promotion route from
-  best-effort to certified. *Evidence:* whether any planned product needs
-  `kin` or `press_msl`; the inventory §5.3 already measures coverage (57 of
-  64 historical models for `rsds`, 64 for `psl`), so the cost of requiring
-  them is a known reduction in the model set.
+- **OQ-15 — DEFERRED by the owner, 2026-07-29: `kin`/`press_msl` stay
+  best-effort for v2.0; certification is the trigger for the projected-PET
+  follow-on (§10a below).** The catalog renames `rsds → kin` and `psl →
+  press_msl`, so both are nameable but unverified for a listed member, failing at
+  read time rather than skipping at resolution (§5.5, ruling A3). Widening
+  `REQUIRED_VARS` to `{pr, tas, rsds, psl}` — so the crawl certifies *and* pins
+  those stores (D12) — is the promotion route, and its cost is measured:
+  historical coverage falls **64 → 57 models**, with `rsds` the binding
+  constraint (`psl` is on all 64). Nothing in v2.0 needs them, so nothing widens
+  yet.
+
+---
+
+## 10a. Direction after v2.0 (owner, 2026-07-29)
+
+Recorded because it makes several deferrals above conditional rather than
+open-ended, and because it tells a future reader which extension was *chosen*
+rather than merely possible.
+
+**v2.0 ships narrow** — monthly, `precip` + `temp`, exactly as specified here.
+
+**The first follow-on is projected PET**, not extremes. Rationale: WF1 already
+derives PET from the observed store via `hydromt.model.processes.meteo`
+(debruin) — `blueearth_cst/climate_analysis/plot_climate_source.py` and
+`shared/climate_parity.py` — so computing the same quantity on the GCM side makes
+*projected* PET comparable to observed PET. That matters for water balance in a
+way temperature-as-a-proxy does not, and it reuses machinery already in the repo
+rather than adding any.
+
+What it requires, all bounded and all already anticipated here: widen
+`REQUIRED_VARS` to certify and pin `rsds`/`psl` (OQ-15), accepting 64 → 57
+models; declare the two extra variables through §5.5's `canonical:` spec, which
+was built to absorb exactly this; no new dependency (OQ-7).
+
+**Extremes (S4) is explicitly not the next step** — it needs a daily branch that
+costs 11 of 46 models and ~30× the volume, and it is declined until a concrete
+extremes question exists (OQ-5).
 
 ---
 

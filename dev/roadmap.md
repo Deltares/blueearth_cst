@@ -1,6 +1,6 @@
 # Fork Roadmap
 
-Source of truth for the personal fork of `blueearth_cst`. Three phases:
+Source of truth for the personal fork of `blueearth_cst`. Five phases:
 
 **Phase 1 — Foundation (sealed 2026-05-08).** Replicated upstream,
 formalized the pixi env, upgraded load-bearing libraries, and added
@@ -12,10 +12,20 @@ code, config contracts, and repo structure. Six milestones running from R1
 (modularity contracts) through R6 (structural refactor), in deliberate
 single-purpose steps. Phase 2 dev artifacts under `dev/r##/`.
 
-**Phase 3 — Usability & flexibility (planned).** Driven by the user
+**Phase 3 — Usability & flexibility (complete 2026-07-25).** Driven by the user
 expectations mapped 2026-07-23 at the R6 handoff: project/experiment
 tracking, model flexibility, and performance. Milestones P3-1..P3-3;
 dev artifacts under `dev/p3#/`. See § Phase 3 below.
+
+**Phase 4 — Layout consolidation (R7 sealed 2026-07-29).** Opened 2026-07-26 out
+of the post-R6 assessment: R6 settled the repository layout and P3-1 the
+experiment layout, and neither could see the residue the other left. One
+milestone, R7; dev artifacts under `dev/r07/`. See § Phase 4 below.
+
+**Phase 5 — Workflow rework (R8 in progress, opened 2026-07-29).** The first
+phase to change what a workflow *computes* and how its rule graph is shaped,
+starting with workflow 2. Milestone R8; design and audit trail under
+`dev/workflows/`. See § Phase 5 below.
 
 ```text
 Phase 1 — Foundation (sealed)
@@ -616,16 +626,23 @@ Sequenced so each milestone eases the next: the experiment tree settles
 where per-model artifacts live (P3-2), and both precede performance work
 (P3-3) so profiling targets the final structure.
 
-**All four milestones sealed** (P3-1, P3-2a, P3-2b, P3-3). **P3-3 was the last
-planned milestone in this roadmap**, so the planned programme — Phase 1
-foundation, Phase 2 refactor, Phase 3 usability/flexibility — is now complete.
-Nothing further is scheduled. The open question is whether to close the roadmap
-or open a Phase 4; the candidate pool is recorded across `dev/followups.md`,
-the "Minor open items" section below (CI, R testthat, a naming linter), the
-"Deferred: Linux replication" section below, and the deferred items named in the
+**All four milestones sealed** (P3-1, P3-2a, P3-2b, P3-3). P3-3 was the last
+milestone of the *originally* planned programme — Phase 1 foundation, Phase 2
+refactor, Phase 3 usability/flexibility.
+
+**RESOLVED 2026-07-29 (owner):** the roadmap is **not** closed. This paragraph's
+original question ("whether to close the roadmap or open a Phase 4") was already
+overtaken by events — Phase 4 opened 2026-07-26 for layout consolidation (§ Phase
+4) — and the owner has now ruled that the WF2 v2.0 rework is **numbered phase
+work**, landing as **Phase 5 / R8** (§ Phase 5) rather than unnumbered.
+
+The former candidate pool stays recorded across `dev/followups.md`, the "Minor
+open items" section below (CI, R testthat, a naming linter), the "Deferred: Linux
+replication" section below, and the deferred items named in the
 P3-2a/P3-2b/P3-3 designs (OQ-3 store, OQ-8 zone source, the 4th Snakefile entry
-point, P3-2c PoC seam swap, the in-pipeline validator guard lift). No item in
-that pool has been scoped or committed to.
+point, P3-2c PoC seam swap, the in-pipeline validator guard lift). Of those, only
+the 4th Snakefile entry point is touched by the WF2 milestone — and it is
+explicitly **not** taken (OQ-1: extend in place).
 
 ### P3-1 — Project/experiment structure (sealed 2026-07-24)
 
@@ -815,6 +832,10 @@ the artifact tree explicitly ("5. Output layout under `project_dir/` already
 mostly clean — leave alone unless a concrete pain point emerges"). Pain points
 have now emerged, and they span both halves.
 
+Phase 4 stays **layout-only**: the WF2 v2.0 rework that follows it is Phase 5
+(owner, 2026-07-29), keeping this phase's theme clean even though R8 builds on
+R7's output tree.
+
 ### R7 — Project layout (SEALED 2026-07-29)
 
 **Status.** **Sealed.** Implemented as 15 `r07:` commits on
@@ -948,6 +969,90 @@ Snakefile is a separate milestone; R7 only ensures the layout does not obstruct
 it.
 
 **Tag.** `r07-layout` (on seal).
+
+---
+
+## Phase 5 — Workflow rework (R8 IN PROGRESS)
+
+Opened 2026-07-29 (owner). Phases 1–4 worked on the repository, its contracts and
+its layout; Phase 5 is the first phase to rework what a workflow *computes* and
+how its rule graph is shaped. It starts with workflow 2, whose structure was
+mapped in detail once R7's output tree settled.
+
+Kept separate from Phase 4 deliberately: R8 builds on R7's output tree, but
+"consolidate the layout" and "rework the workflow" are different kinds of work
+and the owner chose a clean theme boundary over the sequencing convenience of
+one phase.
+
+Milestone IDs continue the `R##` series across the phase boundary (R7 → R8), as
+Phase 4 continued it from Phase 2's R1–R6.
+
+### R8 — WF2 v2.0: GCM projections analysis (design ACCEPTED 2026-07-29; implementation started)
+
+**Goal.** Restructure workflow 2 from a change-factor calculator whose rule graph
+fights its own cost profile into a monthly GCM projections analysis workflow:
+three stages with fan-out only where the network is, a persistent series store
+that is *also* a declared product, and per-(model, scenario, member, horizon)
+data points with no cross-combination aggregation.
+
+**Design ACCEPTED 2026-07-29** at gate G2 of a `design-review-loop` run
+(`wf2-climate-analysis-v2`): one internal lens (Fable) + two external
+cross-vendor rounds, **28 findings across 4 versions, all dispositioned, one
+partially rejected by owner ruling**. The external cap was reached with round 2
+unconverged, so the owner arbitrated all nine surviving findings — the final
+version's changes therefore carry no external verdict, which the design states on
+its face. Accepted design: `dev/workflows/wf2-climate-analysis-v2-design.md`;
+audit trail: `dev/workflows/wf2-climate-analysis-v2-design-review-record.md`;
+current-state map: `dev/workflows/wf2_climate_projections_overview.md`; store
+inventory: `dev/workflows/wf2-cmip6-store-inventory.md`.
+
+**Owner rulings that shaped it.** Clip the GCM reference to the 2014 end of the
+CMIP6 historical experiment rather than splicing scenario data (R1); retain the
+gridded option, default off, with declared outputs (R2); **no aggregation at any
+level** — each (model, scenario, member) is one data point, and cross-combination
+statistics are ex-post (R3′/R3″); v2.0 is monthly GCM projections analysis with
+no observed-data comparison (R4); the basin-averaged monthly series per run is a
+declared deliverable (R5). Arbitration: 30 calendar years 1985–2014 (A1), picked
+dry-month defaults (A2), non-`pr`/`tas` variables selectable but best-effort
+(A3). Open questions settled 2026-07-29: extend `Snakefile_climate_projections`
+in place rather than opening a 4th entry point (OQ-1); rename `save_grids` →
+`save_gridded` at step 5e (OQ-12).
+
+**Status.** Commits 1 and 2a landed on `main` (`dcd5459`, `04013fc`, `37b2e1f`):
+WF2 declares the shared climate store and no longer depends on
+`hydrology_model/` (goal G2, verified by a DAG build with the model tree absent),
+and the catalog generator now pins physical store identity in a generated index.
+Commit 2b (persistent series cache) is blocked pending the empirical baseline
+re-run and the catalog crawl. Task brief:
+`dev/working/2026-07-29_wf2-v2-decouple-and-cache.md`.
+
+**Not yet done:** the empirical value-neutrality proof. A full WF2 re-run reached
+12 of 24 jobs and was killed externally; `extract_climate_grid` and all three
+`monthly_stats_hist` completed against the live archive, but the merge/plot jobs
+did not, so the manifest-pinned outputs are still pre-change artifacts and
+`check_baseline` has not yet been a meaningful gate on this work.
+
+**Scope settled 2026-07-29 (owner).** The four scope-cluster questions closed
+together: **no daily branch** (OQ-5 — 46 models monthly vs 35 daily, ~30×
+volume); **no new dependency** (OQ-7 — `xclim` was conditional on the daily
+branch, `regionmask` on OQ-10's measurement); **breadth over depth for members**
+(OQ-13 — since nothing aggregates, model diversity spans more plausible space
+than member depth, so one member per model across as many models as resolve; the
+existing global-list mechanism already delivers this and the per-model mapping is
+a tail-only follow-on); **`kin`/`press_msl` stay best-effort** (OQ-15).
+
+**Direction after v2.0:** projected PET, not extremes — WF1 already derives PET
+from the observed store via `hydromt.model.processes.meteo`, so doing the same on
+the GCM side makes projected PET comparable to observed with no new dependency.
+It needs `rsds`/`psl` certified (64 → 57 models) and two more entries in §5.5's
+`canonical:` spec. Recorded as design §10a.
+
+**Genuinely still open:** OQ-10 (true vs midpoint cell edges — one measurement),
+OQ-11 (revisit fail-fast — needs observed failure rates), OQ-14 cadence (needs
+observed pin-mismatch rates). All three need operational data that does not exist
+yet.
+
+**Tag.** `r08-wf2-projections` *(planned; not yet cut)*.
 
 ---
 
