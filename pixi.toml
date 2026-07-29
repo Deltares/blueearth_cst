@@ -27,6 +27,7 @@ numpy = "*"
 pandas = ">=2.0.0"
 pytest = "*"        # tests/ — was missing from environment.yml
 pyyaml = "*"        # `import yaml` in many src/ + tests + dev scripts
+ruff = ">=0.16,<0.17"  # lint + format; config in pyproject.toml [tool.ruff] (O-15)
 rasterio = "*"      # direct import in dev/scripts/stage_data.py
 scipy = "*"
 seaborn = "*"

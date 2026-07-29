@@ -57,3 +57,53 @@ norecursedirs = [
     ".git", ".pixi", ".snakemake", "test_case", "examples",
     "docs", "dev", "*.egg-info", "__pycache__",
 ]
+
+
+# ---------------------------------------------------------------------------
+# ruff -- lint (and formatter settings; formatting is NOT yet enforced, see below)
+# ---------------------------------------------------------------------------
+[tool.ruff]
+# Set EXPLICITLY because this file deliberately has no [project] table (see the
+# header): with no `requires-python` to infer from, ruff falls back to its own
+# default, and every pyupgrade-style rule keys off this value. The pin matches
+# `python = ">=3.12,<3.13"` in pixi.toml -- keep the two in step.
+target-version = "py312"
+
+# Added to ruff's built-in excludes (.git, build/, dist/, ...), which do NOT
+# cover these. Mirrors the pytest `norecursedirs` above, minus `dev` -- dev/scripts/
+# is our code and is linted (it is where the F402 shadowing below was found).
+#   docs/      vendored hydromt / hydromt-wflow / wflow guides and the user
+#              notebooks. AGENTS.md forbids patching vendored upstream material,
+#              so linting it could only produce findings we are not allowed to act on.
+#   test_case/ untracked run fixture, not source.
+extend-exclude = ["docs", "test_case", ".pixi", ".snakemake"]
+
+[tool.ruff.lint]
+# Pinned explicitly rather than inherited. Ruff 0.16's DEFAULT selection is ~415
+# rules (verified with `ruff check --isolated`: 409 findings here, vs 96 for the
+# set below) and has broadened across releases -- an unpinned `select` would make
+# a routine ruff upgrade a repo-wide lint failure.
+#
+# This is the classic pyflakes + pycodestyle-essentials core: the rules that
+# find defects rather than express taste. Deliberately NOT enabled:
+#   I    (import sorting)  -- 62 files of churn, zero correctness value
+#   UP   (pyupgrade)       -- style; also rewrites annotations wholesale
+#   B/SIM/PERF/RUF/...     -- opinion, and the repo predates them
+# Any of these can be added later as its own reviewable commit.
+select = ["E4", "E7", "E9", "F"]
+
+[tool.ruff.lint.per-file-ignores]
+# Snakemake `script:` modules are executed with a `snakemake` object injected
+# into their globals, so a bare top-level reference is legitimate -- but 22 of
+# the 23 such modules already access it via the guarded
+# `if "snakemake" in globals()` idiom, which keeps them importable for unit
+# tests and does not trip F821. This entry covers the one remaining holdout and
+# should be DELETED, not extended, when it is converted (see dev/followups.md R7-22).
+"blueearth_cst/experiment/downscale_climate_forcing.py" = ["F821"]
+
+[tool.ruff.format]
+# Settings only -- `ruff format` is NOT a gate. 118 of 262 files would be
+# reformatted (~7.8k diff lines), which is a churn decision on its own merits and
+# is not what "adopt a linter" bought. Recorded so that if anyone does run the
+# formatter, it runs Black-compatible and consistently.
+quote-style = "double"
