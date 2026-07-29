@@ -152,6 +152,24 @@ note listing the old → new mapping:
 Tier-1 identifiers (§6) are not renameable at all, so they are omitted
 here.
 
+**Two artifact classes, distinguished (R07).** The rename note above and a
+user-facing migration guide are different documents with different audiences,
+and conflating them is what made `MIGRATION.md`'s home ambiguous:
+
+| Class | Location | Required? | Audience |
+| --- | --- | --- | --- |
+| Internal rename record | `dev/<milestone>/migration_<topic>.md` | **Required** for every rename listed above | Whoever implements or audits the milestone: the old → new table, the machinery to update, the gate evidence |
+| User-facing migration guide | `docs/migration-<milestone>.md` | **Optional** — write one only when users must act | Someone with an existing install or project folder |
+
+A milestone that changes nothing a user must act on ships the internal record
+and no guide. R07 is such a milestone: it declares pre-R07 `project_dir` trees
+unsupported and requires a fresh run, so there is nothing for a user to
+migrate, and it publishes no guide.
+
+**The mandated `migration_<topic>.md` filename overrides §8's kebab-case rule
+for `dev/` markdown.** The form is fixed by this section; §8 does not apply to
+it. (Stated because two consecutive milestones hit the ambiguity.)
+
 **Scientific abbreviations in user-facing output filenames are allowed**
 even though they break the acronym-lowercase rule: `Qstats.csv`, `Tlow`,
 `Tpeak`, return-period `T2` / `T10`, `BFI`. These are established domain

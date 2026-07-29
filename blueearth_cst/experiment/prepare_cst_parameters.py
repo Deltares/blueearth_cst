@@ -11,7 +11,10 @@ from typing import Union, List
 # Import the shared grid helper regardless of the working directory. The
 # Snakefile prepends its basedir to sys.path before invoking script: rules, but
 # guard here so the module is import-clean for unit tests too.
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+# parents[2] is the REPO ROOT (file -> experiment/ -> blueearth_cst/ ->
+# root); parent.parent stopped at the package dir, from which
+# `import blueearth_cst.shared...` cannot resolve (O-07).
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from blueearth_cst.shared.snake_utils import stress_test_grid
 
 

@@ -1,6 +1,6 @@
 # Path to where the wflow model will be stored (include the project name)
 project_name: Gabon
-project_dir: examples/Gabon
+project_dir: test_case/gabon
 
 # Path to the data catalog to use (can be different for Linux/Windows/data stored on P drive or other)
 data_sources: config/catalogs/deltares_data_climate_projections_linux.yml

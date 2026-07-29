@@ -37,13 +37,14 @@ Usage:
     python dev/scripts/check_baseline.py check
     python dev/scripts/check_baseline.py check --workflow model_creation
     python dev/scripts/check_baseline.py compare --ref A/output.csv --cur B/output.csv
-    python dev/scripts/check_baseline.py {record,check} --project-dir examples/test
+    python dev/scripts/check_baseline.py {record,check} --project-dir test_case/test
 """
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
+import subprocess
 import sys
 from math import floor, log10
 from pathlib import Path
@@ -60,7 +61,7 @@ import pandas as pd
 import xarray as xr
 import yaml
 
-PROJECT_DIR_DEFAULT = "examples/test_local"
+PROJECT_DIR_DEFAULT = "test_case/test_local"
 CLIM_PROJECT = "cmip6"
 EXPERIMENT_NAME = "experiment"
 
@@ -68,8 +69,59 @@ MANIFEST_PATH_DEFAULT = Path("dev/baseline/manifest.json")
 # v2 adds the workflow-1 discharge target (type "discharge"): a stored reference
 # series under dev/baseline/discharge_ref/ compared with a tolerance comparator
 # rather than a byte hash (ADR 0001 step 6).
-MANIFEST_VERSION = 2
+MANIFEST_VERSION = 3
 SIG_FIGS = 10
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def git_provenance(repo_root: Path = REPO_ROOT) -> dict | None:
+    """Which branch/commit is writing this manifest, and is the tree dirty?
+
+    R7-21. The baseline fixture (`project_dir`) is **untracked**, so it belongs
+    to no branch: every branch, worktree and session that runs a workflow writes
+    into the same tree. `check` therefore answers "does the tree match the
+    manifest" for whichever branch ran LAST, not for the branch you are on -- a
+    green check can mean someone else's code is consistent with your manifest.
+
+    Observed, not hypothetical: a `basin_area.png` produced on
+    `feat/outputs-figures` sat in the fixture for days and was read as the
+    pre-R07 baseline reference, until a byte-size mismatch at the R07 gate
+    forced the question (see dev/followups.md R7-3 / R7-21).
+
+    Best-effort by design: a missing `git`, a non-repository checkout or a
+    detached HEAD returns None rather than raising. Provenance is an aid to
+    attribution, and must never be the reason a baseline command fails.
+    """
+    def _git(*args: str) -> str | None:
+        try:
+            out = subprocess.run(
+                ["git", "-C", str(repo_root), *args],
+                capture_output=True, text=True, timeout=15,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return None
+        return out.stdout.strip() if out.returncode == 0 else None
+
+    commit = _git("rev-parse", "HEAD")
+    if commit is None:
+        return None
+    branch = _git("rev-parse", "--abbrev-ref", "HEAD")
+    status = _git("status", "--porcelain")
+    return {
+        "branch": branch or "(unknown)",
+        "commit": commit,
+        # A dirty tree means the recorded artifacts were produced by code that
+        # matches no commit -- worth knowing when a later check disagrees.
+        "dirty": bool(status),
+    }
+
+
+def format_provenance(prov: dict | None) -> str:
+    if not prov:
+        return "(unrecorded)"
+    return (f"{prov.get('branch')}@{str(prov.get('commit'))[:12]}"
+            f"{' +dirty' if prov.get('dirty') else ''}")
 PNG_TOLERANCE_FRAC = 0.10
 
 # Discharge comparator tolerances (ADR 0001 step 6). ATOL is set per-comparison
@@ -93,26 +145,41 @@ VOLATILE_NC_ATTRS = frozenset({
 # and current sides. Mirrors `rule all` across Snakefile_model_creation,
 # Snakefile_climate_projections, Snakefile_climate_experiment — plus the one
 # beyond-`rule all` discharge target (see module docstring / ADR 0001).
+# R07 (dev/r07/migration_project-layout.md §3a is the authority; this list is
+# written FROM that table). 15 live targets: all 15 change manifest key via the
+# examples/ -> test_case/ rename, 10 also move within the tree, 3 change
+# content. Retargeted here, in the fixture-rename commit, as the SOLE owner of
+# this edit -- so "the baseline blackout starts at commit 4" is literally true
+# rather than reworded. `check_baseline check` is therefore RED by construction
+# from this commit until the commit-14 re-record: the templates below describe
+# the post-R07 tree, which commits 7-12 have not yet produced. That is expected,
+# not a regression signal. The substitute gates for the window are the per-slice
+# semantic_tree_diff runs against the retained pre-R07 reference tree and the
+# comparator-based discharge anchor (migration map §7a).
 TARGETS: list[tuple[str, str, str]] = [
-    # Snakefile_model_creation
-    ("model_creation", "png",  "{project_dir}/plots/wflow_model_performance/hydro_wflow_1.png"),
-    ("model_creation", "png",  "{project_dir}/plots/wflow_model_performance/basin_area.png"),
-    ("model_creation", "png",  "{project_dir}/plots/wflow_model_performance/precip.png"),
-    ("model_creation", "yaml", "{project_dir}/config/snake_config_model_creation.yml"),
+    # Snakefile_model_creation -- B10 (commit 12) splits the project-level
+    # plots/ tree by DEPICTED subject: model inputs, the model, the run.
+    ("model_creation", "png",  "{project_dir}/hydrology_model/evaluation/plots/hydro_wflow_1.png"),
+    ("model_creation", "png",  "{project_dir}/hydrology_model/plots/basin_area.png"),
+    ("model_creation", "png",  "{project_dir}/hydrology_model/forcing/plots/precip.png"),
+    ("model_creation", "yaml", "{project_dir}/config/runs/snake_config_model_creation.yml"),
+    # Unmoved within the tree (prefix change only) -- and exception 3(d)
+    # requires it to stay that way: if discharge moves at all, stop.
     ("model_creation", "discharge", "{project_dir}/hydrology_model/run_default/output.csv"),
-    # Snakefile_climate_projections
-    ("climate_projections", "nc",   "{clim_project_dir}/annual_change_scalar_stats_summary.nc"),
-    ("climate_projections", "csv",  "{clim_project_dir}/annual_change_scalar_stats_summary.csv"),
-    ("climate_projections", "csv",  "{clim_project_dir}/annual_change_scalar_stats_summary_mean.csv"),
+    # Snakefile_climate_projections -- B3 (commit 9) tiers ONLY the three
+    # summary files; the three PNGs deliberately stay put (arch-10).
+    ("climate_projections", "nc",   "{clim_project_dir}/summary/annual_change_scalar_stats_summary.nc"),
+    ("climate_projections", "csv",  "{clim_project_dir}/summary/annual_change_scalar_stats_summary.csv"),
+    ("climate_projections", "csv",  "{clim_project_dir}/summary/annual_change_scalar_stats_summary_mean.csv"),
     ("climate_projections", "png",  "{clim_project_dir}/plots/projected_climate_statistics.png"),
     ("climate_projections", "png",  "{clim_project_dir}/plots/precipitation_anomaly_projections_abs.png"),
     ("climate_projections", "png",  "{clim_project_dir}/plots/temperature_anomaly_projections_abs.png"),
-    ("climate_projections", "yaml", "{project_dir}/config/snake_config_climate_projections.yml"),
-    # Snakefile_climate_experiment (P3-1 layout: exp_dir = experiments/<name>/;
-    # the wf3 config snapshot moved from {project_dir}/config/ to {exp_dir}/config/
-    # -- two DISTINCT repoints, design §1a C2 / arch-6)
-    ("climate_experiment", "csv",  "{exp_dir}/model_results/Qstats.csv"),
-    ("climate_experiment", "csv",  "{exp_dir}/model_results/basin.csv"),
+    ("climate_projections", "yaml", "{project_dir}/config/runs/snake_config_climate_projections.yml"),
+    # Snakefile_climate_experiment -- B7 (commit 11) renames model_results/ to
+    # indicators/, the CST term. The wf3 config snapshot does NOT join
+    # config/runs/: it stays inside the experiment (arch-10), content only.
+    ("climate_experiment", "csv",  "{exp_dir}/indicators/Qstats.csv"),
+    ("climate_experiment", "csv",  "{exp_dir}/indicators/basin.csv"),
     ("climate_experiment", "yaml", "{exp_dir}/config/snake_config_climate_experiment.yml"),
 ]
 
@@ -536,6 +603,10 @@ def cmd_record(args: argparse.Namespace) -> int:
     payload = {
         "version": MANIFEST_VERSION,
         "project_dir": args.project_dir,
+        # R7-21: who wrote this. The fixture is branch-shared mutable state, so
+        # without provenance a later `check` cannot tell "my code drifted" from
+        # "another branch last wrote this tree".
+        "recorded_by": git_provenance(),
         "targets": targets,
     }
     args.manifest.parent.mkdir(parents=True, exist_ok=True)
@@ -552,6 +623,39 @@ def cmd_check(args: argparse.Namespace) -> int:
     recorded = json.loads(args.manifest.read_text())
     rec_targets = recorded["targets"]
     ref_dir = args.manifest.parent
+
+    # R7-21: provenance is advisory and printed BEFORE the verdict, so a
+    # disagreement frames whatever follows. It never changes the exit code --
+    # the failure mode it guards against is silent MISATTRIBUTION (someone
+    # else's branch last wrote the shared fixture), not corruption, and a
+    # cross-branch check is a legitimate thing to do deliberately.
+    rec_prov = recorded.get("recorded_by")
+    cur_prov = git_provenance()
+    if rec_prov is None:
+        print(
+            "note: this manifest predates provenance stamping; cannot tell "
+            "which branch produced the recorded artifacts. Re-record to stamp it."
+        )
+    elif cur_prov is not None:
+        if rec_prov.get("commit") != cur_prov.get("commit"):
+            same_branch = rec_prov.get("branch") == cur_prov.get("branch")
+            print(
+                f"WARNING: manifest recorded by {format_provenance(rec_prov)}, "
+                f"checking from {format_provenance(cur_prov)}."
+            )
+            print(
+                "         The baseline fixture is untracked and therefore "
+                "SHARED BY EVERY BRANCH, so a pass here may mean the tree "
+                "matches another branch's code."
+                if not same_branch else
+                "         Same branch, different commit -- expected if the "
+                "recorded run predates your latest commits."
+            )
+        elif cur_prov.get("dirty") and not rec_prov.get("dirty"):
+            print(
+                "note: manifest recorded from a clean tree; checking from a "
+                "dirty one. Uncommitted changes are not in the recorded code."
+            )
 
     selected = set(args.workflow) if args.workflow else None
     current, missing = compute_manifest(args.project_dir, workflows=selected)

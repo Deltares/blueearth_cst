@@ -12,10 +12,14 @@
 # the opening of R3/R4/R5, not in R01 (2026-07-17 amendment).
 
 project:
-  # Output root for this run. For production use, point this OUTSIDE the
-  # repository tree so generated model + result artifacts stay separate from
-  # the toolbox source. (In-repo examples/* paths are a dev/test convention.)
-  project_dir: examples/test
+  # Output root for this run. Point this OUTSIDE the repository tree so
+  # generated model + result artifacts stay separate from the toolbox source
+  # -- an absolute path is expected here, and the workflows warn at parse time
+  # if project_dir resolves inside the repo. The single exemption is the
+  # in-repo `test_case/` fixture, which exists because the baseline seed config
+  # is tracked and a tracked config cannot carry a machine-specific absolute
+  # path. Replace the placeholder below with your own location.
+  project_dir: /path/to/my_project
   # Static config dir (templates referenced by workflows)
   static_dir: config
   # Hydromt data catalog (era5, merit_hydro, etc.)
@@ -29,6 +33,12 @@ shared:
     region: "{'subbasin': [9.666, 0.4476], 'uparea': 100}"
     # Grid resolution in degrees (≥ source hydrography res, e.g. merit_hydro_ihu = 0.00833)
     resolution: 0.00833
+    # Optional: catalog ENTRY NAMES (not paths) used to delineate the basin for
+    # the shared historical-climate store. Defaults are shown; they must match
+    # setup_basemaps in the model_build_config template below, or rule 1.02
+    # fails loud naming both files and both values. Uncomment only to override.
+    #hydrography: merit_hydro_ihu
+    #basin_index: merit_hydro_index
   historical_window:
     # ISO datetime strings — wflow forcing window
     starttime: "2000-01-01T00:00:00"

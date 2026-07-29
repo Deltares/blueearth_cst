@@ -1,5 +1,22 @@
 """P3-2a acceptance-gate comparison ladder (design §5.5, ext1-3).
 
+.. warning::
+
+   **SUPERSEDED AND NON-RUNNABLE SINCE R07.** This probe opens
+   ``climate_historical/wf1_raw/``, which R07's B1 retired: the two climate
+   stores were collapsed into one, so S1 below no longer exists on disk and
+   this module now raises ``FileNotFoundError``.
+
+   It is kept as the P3-2a milestone record, not as a tool. Deliberately NOT
+   repointed at the surviving store -- doing so would silently change what it
+   computes: the ladder's whole purpose was to characterise the difference
+   between ``wf1_raw`` and the keyed store, and R07 proved those two
+   element-wise identical via the declared merge comparison
+   (``dev/r07/migration_project-layout.md`` §2e). The question this probe was
+   built to answer has been answered; re-pointing it would leave it comparing a
+   store against itself.
+
+
 Computes the named, persisted ladder states and the component-decomposed
 characterized diff for the wf1 subcatchment-climate re-source — the
 milestone's single sanctioned value change:

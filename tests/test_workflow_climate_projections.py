@@ -72,6 +72,7 @@ def test_climate_projections_end_to_end():
         project_dir,
         "climate_projections",
         clim_project,
+        "summary",
         "annual_change_scalar_stats_summary.csv",
     )
     if not exists(region):

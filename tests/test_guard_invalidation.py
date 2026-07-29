@@ -71,13 +71,18 @@ def staged_project(tmp_path):
     base["project"]["project_dir"] = str(pdir).replace("\\", "/")
     experiment = base["workflows"]["climate_experiment"]["experiment_name"]
 
-    # The wf1 region output wf3's extraction consumes (ancient input).
+    # R07 B1 retired the extraction's ancient(region.geojson) input (it now
+    # delineates model-free from shared.basin + the catalog), but wf3's DAG is
+    # built in full for --unlock, so a project that looks like a completed wf1
+    # run keeps the 2c(ii) leaf-input reasoning below intact.
     region = pdir / "hydrology_model" / "staticgeoms" / "region.geojson"
     region.parent.mkdir(parents=True)
     region.write_text(_MINIMAL_REGION_GEOJSON, encoding="utf-8")
 
     # Project snapshots the guard compares against (identical to live -> pass).
-    snap_dir = pdir / "config"
+    # R07 B9 (commit 10) split the project config snapshot by kind: the snake
+    # config snapshots live under config/runs/.
+    snap_dir = pdir / "config" / "runs"
     snap_dir.mkdir(parents=True, exist_ok=True)
     wf1 = snap_dir / "snake_config_model_creation.yml"
     wf2 = snap_dir / "snake_config_climate_projections.yml"
@@ -190,11 +195,11 @@ def test_2c_fresh_project_missing_wf1_snapshot(staged_project):
     # 2c(ii), documented in dev/p31/phase-a-report.md: on the pinned Snakemake
     # 9.6.2, Workflow.unlock() calls _build_dag() before cleanup_locks()
     # (workflow.py:917), so --unlock fails on ANY missing leaf input — the
-    # guard's wf1 snapshot behaves exactly like the pre-existing
-    # ancient(region.geojson) on extract_climate_grid (verified: identical
-    # MissingInputException with the guard inputs present and region.geojson
-    # absent). The guard therefore does not degrade --unlock beyond baseline
-    # behavior; what the absence-tolerant digest helper buys is that the
+    # guard's wf1 snapshot behaves exactly like any other unbuilt leaf input
+    # (pre-R07 this was demonstrated against extract_climate_grid's
+    # ancient(region.geojson), which B1 retired; the guard's own snapshot is
+    # now the leaf that shows it). The guard therefore does not degrade
+    # --unlock beyond baseline behavior; what the digest helper buys is that the
     # failure is the clean rule-level MissingInputException, never a
     # parse-time digest traceback. Pin exactly that:
     unlock = _run("--unlock", cfg_path)

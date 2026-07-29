@@ -38,6 +38,22 @@ with tee_to_log(snakemake.log[0]):
     config_out_root = os.path.dirname(config_out_fn)
     config_out_name = os.path.basename(config_out_fn)
 
+    # R07 B5: the run TOML now lives in hydrology_runs/rlz_<r>/config/ and
+    # wflow's own products belong in the sibling output/. Both are derived from
+    # the DECLARED toml path -- never hardcoded, so the layout stays owned by
+    # the rule. `run_name` is the toml stem (cst_<m>): the realization index has
+    # migrated into the run directory, so it is no longer part of any file name
+    # on this side.
+    run_name = config_out_fn.stem
+    run_output_dir = Path(config_out_root).parent / "output"
+    # Relative, POSIX, with a trailing separator: wflow resolves output pointers
+    # against dirname(toml) + `dir_output`, and `dir_output` stays "." so the
+    # sibling hop rides in the two pointers themselves. Keeping the hop out of
+    # `dir_output` also keeps semantic_tree_diff's TOML comparator correct --
+    # it resolves these fields lexically against the toml's own directory and
+    # does not read `dir_output`.
+    out_prefix = Path(os.path.relpath(run_output_dir, config_out_root)).as_posix() + "/"
+
     # Instantiate model in r+ on the source root, then redirect writes to the
     # per-realization run directory by rebinding root.
     mod = WflowSbmModel(root=model_root, mode="r+", data_libs=data_libs)
@@ -63,24 +79,25 @@ with tee_to_log(snakemake.log[0]):
             "time.starttime": starttime,
             "time.endtime": endtime,
             "time.timestepsecs": 86400,
-            # Snakefile_climate_experiment expects per-stress-test outputs
-            # flat under run_climate_<experiment>/ (no run_default subdir),
-            # so override Wflow.jl's default dir_output.
+            # Wflow.jl resolves output pointers against dirname(toml) +
+            # dir_output; keep dir_output at the toml's own dir and carry the
+            # config/ -> output/ hop in the pointers (see out_prefix above).
             "dir_output": ".",
             # Absolute paths into the wf1 model dir (staticmaps + instates).
-            # The run dir moved from hydrology_model/run_climate_<exp>/ to
-            # experiments/<name>/model_runs/ (design §5), so the old "../"
-            # literals no longer walk to hydrology_model/. Pass ABSOLUTE paths:
-            # hydromt_wflow's config.write re-relativizes any absolute same-mount
-            # value against the new toml's own directory on write, emitting the
-            # correct relative pointer (verified against the vendored
-            # make_config_paths_relative; design §5/§5a). state.path_input is
-            # inert under reinit=true but set for future warm-state safety.
+            # The run dir moved to experiments/<name>/hydrology_runs/rlz_<r>/
+            # (R07 B5), one level deeper than the old model_runs/, so the "../"
+            # depth is no longer a literal anyone should maintain by hand. Pass
+            # ABSOLUTE paths: hydromt_wflow's config.write re-relativizes any
+            # absolute same-mount value against the new toml's own directory on
+            # write, emitting the correct relative pointer (verified against the
+            # vendored make_config_paths_relative; design §5/§5a).
+            # state.path_input is inert under reinit=true but set for future
+            # warm-state safety.
             "state.path_input": str(Path(model_root, "instate", "instates.nc").resolve()),
-            "state.path_output": f"outstates_{climate_name}.nc",
+            "state.path_output": f"{out_prefix}outstates_{run_name}.nc",
             "input.path_static": str(Path(model_root, "staticmaps.nc").resolve()),
-            "input.path_forcing": os.path.relpath(fn_out.resolve(), Path(config_out_root).resolve()),
-            "output.csv.path": f"output_{climate_name}.csv",
+            "input.path_forcing": str(fn_out.resolve()),
+            "output.csv.path": f"{out_prefix}{run_name}.csv",
         }
     )
 

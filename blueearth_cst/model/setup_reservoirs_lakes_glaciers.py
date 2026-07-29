@@ -108,7 +108,7 @@ if __name__ == "__main__":
             )
     else:
         update_wflow_waterbodies_glaciers(
-            wflow_root=join(os.getcwd(), "examples", "my_project", "hydrology_model"),
+            wflow_root=join(os.getcwd(), "test_case", "my_project", "hydrology_model"),
             data_catalog="deltares_data",
             config_fn=join(os.getcwd(), "config", "wflow_update_waterbodies.yml"),
         )

@@ -28,11 +28,11 @@ import pytest
 TESTDIR = dirname(realpath(__file__))
 SNAKEDIR = join(TESTDIR, "..")
 
-# The config that actually runs end-to-end (project_dir: examples/test,
+# The config that actually runs end-to-end (project_dir: test_case/test,
 # data_sources: the full config/deltares_data.yml mirror).
 CONFIG = "config/snake_config_model_test.yml"
 OUTPUT_CSV = join(
-    SNAKEDIR, "examples", "test", "hydrology_model", "run_default", "output.csv"
+    SNAKEDIR, "test_case", "test", "hydrology_model", "run_default", "output.csv"
 )
 
 pytestmark = pytest.mark.integration

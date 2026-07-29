@@ -42,10 +42,15 @@ change. Grounded in `Snakefile_model_creation`, `config/wflow_build_model.yml`,
 ## Output contract (by role — not all are `rule all` targets)
 
 **Direct `rule all` targets** (named statically by this workflow's `rule all`):
-- `{project_dir}/plots/wflow_model_performance/hydro_wflow_1.png`
-- `{project_dir}/plots/wflow_model_performance/basin_area.png`
-- `{project_dir}/plots/wflow_model_performance/precip.png`
-- `{project_dir}/config/snake_config_model_creation.yml` (verbatim snake-config snapshot)
+- `{basin_dir}/evaluation/plots/hydro_wflow_1.png` (the run)
+- `{basin_dir}/plots/basin_area.png` (the model)
+- `{basin_dir}/forcing/plots/precip.png` (model inputs)
+- `{project_dir}/climate_historical/<key>/plots/source_{precip,temp,pet}.png`
+  (R07 B4 — source-grid figures from the shared store; produced with no model)
+- `{project_dir}/config/runs/snake_config_model_creation.yml` (verbatim snake-config snapshot)
+
+*R07 retired the project-level `plots/` tree: figures now attach to what they
+DEPICT (P1), so they sit beside the subtree whose artifacts they show.*
 
 **Downstream-contract artifacts** (produced by intermediate rules; consumed by
 workflows 2/3; not in this `rule all`):

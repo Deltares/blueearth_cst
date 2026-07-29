@@ -13,9 +13,28 @@ import blueearth_cst.shared.metrics_definition as md
 from blueearth_cst.shared.snake_utils import log_row
 
 
+def realization_from_run_csv(csv_fn: Union[str, Path]) -> int:
+    """Realization index of a wflow run CSV, from its ``rlz_<n>`` run directory.
+
+    R07 B5 moved the realization index out of the filename and into the run
+    directory: ``hydrology_runs/rlz_<n>/output/cst_<m>.csv``. The old
+    ``output_rlz_<n>_cst_<m>.csv`` name could be split on ``_``; the new one
+    cannot, so the index is read from the grandparent directory instead.
+    """
+    run_dir = Path(csv_fn).parent.parent.name  # rlz_<n>
+    try:
+        return int(run_dir.split("_")[-1])
+    except ValueError:
+        raise ValueError(
+            f"cannot derive the realization index from {csv_fn!r}: expected a "
+            f"'rlz_<n>' run directory, got {run_dir!r}"
+        ) from None
+
+
 def analyze_wflow_results(
     csv_fns: List[Union[str, Path]],
-    exp_dir: Union[str, Path],
+    st_csv_fns: List[Union[str, Path]],
+    indicators_dir: Union[str, Path],
     st_num: int,
     qstats_fn: Union[str, Path] = None,
     bas_fn: Union[str, Path] = None,
@@ -30,19 +49,23 @@ def analyze_wflow_results(
     ----------
     csv_fns : List[Union[str, Path]]
         List of csv files containing the wflow results for each realization/stress test
-    exp_dir : Union[str, Path]
-        Path to the experiment directory with the definition of each stress test for
-        precip and temp changes.
+    st_csv_fns : List[Union[str, Path]]
+        Paths to the per-stress-test ``cst_<m>.csv`` perturbation files (the temp
+        and precip changes each stress test imposes). Passed in from the rule's
+        declared inputs rather than reconstructed from a directory convention
+        (R07 B6), so the read is on the DAG and visible to ``--dry-run``.
+    indicators_dir : Union[str, Path]
+        Directory the response-surface tables are written to (``indicators/``).
     st_num : int
         Number of stress tests (increments) per realization
     qstats_fn : Union[str, Path], optional
         Path to the output csv file with the discharge statistics for each
         realization/stress test.
-        If None will be saved in `exp_dir/Qstats.csv`.
+        If None will be saved in `indicators_dir/Qstats.csv`.
     bas_fn : Union[str, Path], optional
         Path to the output csv file with the basin average statistics for each
         realization/stress test.
-        If None will be saved in `exp_dir/basin.csv`.
+        If None will be saved in `indicators_dir/basin.csv`.
     Tpeak : int, optional
         Return period for high flows (in years), by default 10
     Tlow : int, optional
@@ -52,9 +75,21 @@ def analyze_wflow_results(
     """
     # Output file paths
     if qstats_fn is None:
-        qstats_fn = f"{exp_dir}/Qstats.csv"
+        qstats_fn = f"{indicators_dir}/Qstats.csv"
     if bas_fn is None:
-        bas_fn = f"{exp_dir}/basin.csv"
+        bas_fn = f"{indicators_dir}/basin.csv"
+
+    # cst_<m>.csv lookup, keyed by the stress-test index in the file name.
+    # cst_0 is the reserved unperturbed baseline and has no file (naming.md §4),
+    # so the declared set is exactly 1..st_num. Check it here rather than letting
+    # a Snakefile/script disagreement surface as a KeyError deep in the loop.
+    st_csv_by_num = {Path(p).stem.split("_")[-1]: p for p in st_csv_fns}
+    expected = {str(n) for n in range(1, st_num + 1)}
+    if set(st_csv_by_num) != expected:
+        raise ValueError(
+            f"stress-test parameter files do not cover 1..{st_num}: got "
+            f"{sorted(st_csv_by_num)}, expected {sorted(expected)}"
+        )
 
     # Get output discharge columns
     sim = pd.read_csv(csv_fns[0], index_col=0, parse_dates=True)
@@ -153,12 +188,12 @@ def analyze_wflow_results(
         df_BFI = md.BFI(sim)
 
         # Get stress test stats
-        rlz_nb = int(os.path.basename(csv_fns[i]).split(".")[0].split("_")[2])
+        rlz_nb = realization_from_run_csv(csv_fns[i])
         if st_nb == "0":
             tavg = 0
             prcp = 0
         else:
-            df_st = pd.read_csv(f"{exp_dir}/stress_test/cst_{st_nb}.csv")
+            df_st = pd.read_csv(st_csv_by_num[str(st_nb)])
             tavg = df_st["temp_mean"].iloc[0]
             prcp = df_st["precip_mean"].iloc[0] * 100 - 100  # change in %
         if not aggr_rlz:
@@ -277,9 +312,7 @@ def analyze_wflow_results(
             cols = cols[-2:] + cols[:-2]
         df_rp = df_rp[cols]
         # Save to csv
-        df_rp.to_csv(
-            os.path.join(f"{exp_dir}/model_results", f"RT_{v}.csv"), index=False
-        )
+        df_rp.to_csv(os.path.join(indicators_dir, f"RT_{v}.csv"), index=False)
 
 
 if __name__ == "__main__":
@@ -290,7 +323,8 @@ if __name__ == "__main__":
         with tee_to_log(sm.log[0]):
             analyze_wflow_results(
                 csv_fns=sm.input.rlz_csv_fns,
-                exp_dir=sm.params.exp_dir,
+                st_csv_fns=sm.input.st_csv_fns,
+                indicators_dir=sm.params.indicators_dir,
                 st_num=sm.params.st_num,
                 qstats_fn=sm.output.Qstats,
                 bas_fn=sm.output.basin,

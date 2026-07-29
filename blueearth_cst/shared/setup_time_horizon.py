@@ -48,7 +48,9 @@ def prep_hydromt_update_forcing_config(
                         "time.starttime": starttime,
                         "time.endtime": endtime,
                         "time.timestepsecs": 86400,
-                        "input.path_forcing": "../climate_historical/wflow_data/inmaps_historical.nc",
+                        # B2: forcing now lives INSIDE the hydromt model root, so the pointer
+                        # is a plain relative path with no ../ hop out of it.
+                        "input.path_forcing": "forcing/inmaps_historical.nc",
                     }
                 }
             },

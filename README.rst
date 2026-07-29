@@ -171,7 +171,7 @@ Each run writes its generated model and result artifacts to the
 ``project_dir`` set in the config. For production use, point
 ``project_dir`` at a location **outside the repository tree** so outputs
 are kept separate from the toolbox source. (The in-repo
-``examples/test_local`` directory is a dev/test convention only.)
+``test_case/test_local`` directory is a dev/test convention only.)
 
 Running from pixi shell
 -----------------------
@@ -266,12 +266,15 @@ historical period.
 
 .. code-block:: console
 
-    $ snakemake -s Snakefile_model_creation --configfile config/workflows/snake_config_model_test.yml --dag | dot -Tpng > dag_model.png
+    $ snakemake -s Snakefile_model_creation --configfile config/workflows/snake_config_model_test.yml --dag | dot -Tpng > test_case/test_local/dag/dag_model.png
     $ snakemake --unlock -s Snakefile_model_creation --configfile config/workflows/snake_config_model_test.yml
     $ snakemake all -c 1 -s Snakefile_model_creation --configfile config/workflows/snake_config_model_test.yml
 
 The first command generates a DAG visualization (requires Graphviz's
-``dot``). The second clears any leftover working-directory lock from
+``dot``). It writes under the config's ``project_dir`` -- the DAG is a
+function of the config, so it belongs with that config's artifacts, not
+at the repository root. Create ``<project_dir>/dag/`` first if it does
+not exist. The second clears any leftover working-directory lock from
 a prior crash. The third runs the workflow.
 
 Snakefile_climate_projections
@@ -282,7 +285,7 @@ precipitation change) for selected CMIP scenarios and GCMs.
 
 .. code-block:: console
 
-    $ snakemake -s Snakefile_climate_projections --configfile config/workflows/snake_config_model_test.yml --dag | dot -Tpng > dag_projections.png
+    $ snakemake -s Snakefile_climate_projections --configfile config/workflows/snake_config_model_test.yml --dag | dot -Tpng > test_case/test_local/dag/dag_projections.png
     $ snakemake --unlock -s Snakefile_climate_projections --configfile config/workflows/snake_config_model_test.yml
     $ snakemake all -c 1 -s Snakefile_climate_projections --configfile config/workflows/snake_config_model_test.yml --keep-going
 
@@ -295,7 +298,7 @@ discharge statistics.
 
 .. code-block:: console
 
-    $ snakemake -s Snakefile_climate_experiment --configfile config/workflows/snake_config_model_test.yml --dag | dot -Tpng > dag_experiment.png
+    $ snakemake -s Snakefile_climate_experiment --configfile config/workflows/snake_config_model_test.yml --dag | dot -Tpng > test_case/test_local/dag/dag_experiment.png
     $ snakemake --unlock -s Snakefile_climate_experiment --configfile config/workflows/snake_config_model_test.yml
     $ snakemake all -c 1 -s Snakefile_climate_experiment --configfile config/workflows/snake_config_model_test.yml
 
@@ -318,7 +321,7 @@ The full unit suite takes a couple of minutes:
 
 Notes on what the suite does and does not cover:
 
-- Tests that need the untracked ``examples/test_local`` fixture tree
+- Tests that need the untracked ``test_case/test_local`` fixture tree
   **skip** when it is absent, as do three end-to-end workflow tests that
   are opt-in behind ``--run-integration``. Run ``pytest -rs`` to see every
   skip reason. On a clean checkout expect ~385 passed and ~30 skipped.
@@ -357,7 +360,7 @@ Fork-specific (development):
   Phase 3 milestone designs, review records and evidence notes.
 - ``dev/followups.md`` — the open backlog, with closed items retained
   and dated.
-- ``MIGRATION.md`` — the R6 rename map (old path → new path).
+- ``docs/migration-r06.md`` — the R6 rename map (old path → new path).
 - ``CHANGELOG.md`` — release history (release-level; milestone detail
   lives in ``dev/roadmap.md``).
 

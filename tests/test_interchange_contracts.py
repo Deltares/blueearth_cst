@@ -8,9 +8,9 @@
   AND fail path. "Green" is never indistinguishable from "nothing checked".
 
 - **Layer 2 — real-fixture integration, skipped VISIBLY when the fixture is
-  absent.** Each case opens an artifact under the untracked ``examples/test_local``
+  absent.** Each case opens an artifact under the untracked ``test_case/test_local``
   tree and carries the repo fixture-absent guard (mirroring
-  ``tests/test_extract_climate_wf1.py``): a module-level ``_FIXTURE_ABSENT``
+  ``tests/test_store_region_bbox.py``): a module-level ``_FIXTURE_ABSENT``
   reason constant + ``@pytest.mark.skipif``. Absence is a NAMED, reported
   condition (read via ``pytest -rs``), never silence. The three temp() content
   validators (WG-4/WG-6/HM-6b) additionally skip with a documented reason when
@@ -36,11 +36,11 @@ from blueearth_cst.shared.snake_utils import stress_test_grid  # noqa: E402
 
 TESTDIR = dirname(realpath(__file__))
 SNAKEDIR = join(TESTDIR, "..")
-_FIXTURE = join(SNAKEDIR, "examples", "test_local")
+_FIXTURE = join(SNAKEDIR, "test_case", "test_local")
 _EXP = join(_FIXTURE, "experiments", "experiment")
 
 _FIXTURE_ABSENT = (
-    "untracked examples/test_local fixture tree not present "
+    "untracked test_case/test_local fixture tree not present "
     "(interchange-contract integration layer skipped)"
 )
 
@@ -488,13 +488,13 @@ def test_wg1_integration():
 
 @pytest.mark.skipif(not _fixture_present(), reason=_FIXTURE_ABSENT)
 def test_wg2_integration():
-    df = pd.read_csv(join(_EXP, "stress_test", "cst_1.csv"))
+    df = pd.read_csv(join(_EXP, "weather_generator", "_work", "cst_1.csv"))
     assert ic.validate_wg2(df) == []
 
 
 @pytest.mark.skipif(not _fixture_present(), reason=_FIXTURE_ABSENT)
 def test_wg3_integration():
-    with open(join(_EXP, "weathergen_config.yml")) as f:
+    with open(join(_EXP, "weather_generator", "config", "weathergen_config.yml")) as f:
         cfg = yaml.safe_load(f)
     assert ic.validate_wg3(cfg) == []
 
@@ -526,7 +526,7 @@ def test_hm1_integration():
 
 @pytest.mark.skipif(not _fixture_present(), reason=_FIXTURE_ABSENT)
 def test_hm2_integration():
-    path = join(_FIXTURE, "climate_historical", "wflow_data", "inmaps_historical.nc")
+    path = join(_FIXTURE, "hydrology_model", "forcing", "inmaps_historical.nc")
     with _open_ds(path) as ds:
         assert ic.validate_hm2(ds) == []
 
@@ -550,7 +550,7 @@ def test_hm4_integration():
         base = tomllib.load(f)
     assert ic.validate_hm4(base) == []
     with open(
-        join(_EXP, "model_runs", "wflow_sbm_rlz_1_cst_1.toml"), "rb"
+        join(_EXP, "hydrology_runs", "rlz_1", "config", "cst_1.toml"), "rb"
     ) as f:
         percst = tomllib.load(f)
     assert ic.validate_hm4(percst) == []
@@ -561,14 +561,14 @@ def test_hm5_integration():
     # wf1 output.csv + a wf3 per-cst output_rlz — both persist.
     wf1 = pd.read_csv(join(_FIXTURE, "hydrology_model", "run_default", "output.csv"))
     assert ic.validate_hm5(wf1) == []
-    wf3 = pd.read_csv(join(_EXP, "model_runs", "output_rlz_1_cst_1.csv"))
+    wf3 = pd.read_csv(join(_EXP, "hydrology_runs", "rlz_1", "output", "cst_1.csv"))
     assert ic.validate_hm5(wf3) == []
 
 
 @pytest.mark.skipif(not _fixture_present(), reason=_FIXTURE_ABSENT)
 def test_hm7_integration():
-    qstats = pd.read_csv(join(_EXP, "model_results", "Qstats.csv"))
-    basin = pd.read_csv(join(_EXP, "model_results", "basin.csv"))
+    qstats = pd.read_csv(join(_EXP, "indicators", "Qstats.csv"))
+    basin = pd.read_csv(join(_EXP, "indicators", "basin.csv"))
     assert ic.validate_hm7(qstats, basin) == []
 
 
@@ -583,13 +583,13 @@ def test_gauge_identity_integration(rlz, cst):
     import tomllib
 
     with open(
-        join(_EXP, "model_runs", f"wflow_sbm_rlz_{rlz}_cst_{cst}.toml"), "rb"
+        join(_EXP, "hydrology_runs", f"rlz_{rlz}", "config", f"cst_{cst}.toml"), "rb"
     ) as f:
         toml_cfg = tomllib.load(f)
     output_rlz = pd.read_csv(
-        join(_EXP, "model_runs", f"output_rlz_{rlz}_cst_{cst}.csv")
+        join(_EXP, "hydrology_runs", f"rlz_{rlz}", "output", f"cst_{cst}.csv")
     )
-    qstats = pd.read_csv(join(_EXP, "model_results", "Qstats.csv"))
+    qstats = pd.read_csv(join(_EXP, "indicators", "Qstats.csv"))
     assert ic.validate_hm_gauge_column_identity(toml_cfg, output_rlz, qstats) == []
 
 
@@ -604,9 +604,9 @@ def test_gauge_identity_integration(rlz, cst):
 _TEMP_ABSENT = "temp() artifact absent; capture via --notemp"
 
 # Fixture temp() paths (present only after a --notemp capture run).
-_WG4_NC = join(_EXP, "realization_1", "rlz_1_cst_1.nc")
-_WG6_NC = join(_EXP, "realization_1", "inmaps_rlz_1_cst_1.nc")
-_HM6B_NC = join(_EXP, "model_runs", "outstates_rlz_1_cst_1.nc")
+_WG4_NC = join(_EXP, "weather_generator", "output", "rlz_1_cst_1.nc")
+_WG6_NC = join(_EXP, "hydrology_runs", "rlz_1", "forcing", "inmaps_cst_1.nc")
+_HM6B_NC = join(_EXP, "hydrology_runs", "rlz_1", "output", "outstates_cst_1.nc")
 
 
 @pytest.mark.skipif(not _fixture_present(), reason=_FIXTURE_ABSENT)

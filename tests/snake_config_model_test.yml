@@ -29,8 +29,12 @@ workflows:
       - actual evapotranspiration
       - groundwater recharge
       - snow
-    output_locations: tests/data/observations/output-locations-test.csv
-    observations_timeseries: tests/data/observations/observations_timeseries_test.csv
+    # O-04: these pointed at tests/data/observations/, a tree that has never
+    # existed. The suite passed anyway -- empirical proof that both consumers
+    # guard on file EXISTENCE, not on the value. Made honest here rather than
+    # left as an accidental pass.
+    output_locations: None
+    observations_timeseries: None
 
   climate_projections:
     enabled: true

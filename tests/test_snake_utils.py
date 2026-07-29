@@ -9,6 +9,7 @@ import io
 import os
 import sys
 import time
+import warnings
 from pathlib import Path
 
 import pytest
@@ -16,6 +17,9 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import re
 
+import yaml  # noqa: E402
+
+import blueearth_cst.shared.snake_utils as su  # noqa: E402
 from blueearth_cst.shared.snake_utils import (  # noqa: E402
     _Heartbeat,
     _compact_log_line,
@@ -416,3 +420,173 @@ def test_tee_to_log_heartbeat_goes_to_console_not_log(tmp_path, capsys):
     logged = log.read_text(encoding="utf-8")
     assert "still running" in err and "done in" in err  # console got them
     assert "still running" not in logged and "done in" not in logged  # log stayed clean
+
+
+# ---------------------------------------------------------------------------
+# O-22: warn_if_project_dir_in_repo
+#
+# The design's stated verification for this feature was "tests/test_cli.py
+# matches on combined stdout+stderr -- confirm its assertions are undisturbed".
+# Review found that false: no test in test_cli.py asserts on output text (the
+# three CLI tests assert only returncode == 0, using the combined stream as the
+# assertion MESSAGE). The feature would have shipped with zero coverage, and
+# the exemption branch -- the case most likely to regress -- would never have
+# been exercised. These are the replacement.
+# ---------------------------------------------------------------------------
+
+def test_warn_in_repo_project_dir_warns(tmp_path):
+    repo = tmp_path / "repo"
+    (repo / "scratch_run").mkdir(parents=True)
+    with pytest.warns(UserWarning, match="inside the repository tree"):
+        fired = su.warn_if_project_dir_in_repo(repo / "scratch_run", repo)
+    assert fired is True
+
+
+def test_warn_exempt_test_case_is_silent(tmp_path):
+    """The fixture exemption: the baseline seed config is TRACKED, and a
+    tracked config cannot carry a machine-specific absolute path."""
+    repo = tmp_path / "repo"
+    (repo / "test_case" / "test_local").mkdir(parents=True)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # any warning becomes a failure
+        fired = su.warn_if_project_dir_in_repo(
+            repo / "test_case" / "test_local", repo
+        )
+    assert fired is False
+
+
+def test_warn_absolute_out_of_tree_is_silent(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    outside = tmp_path / "elsewhere" / "my_project"
+    outside.mkdir(parents=True)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        fired = su.warn_if_project_dir_in_repo(outside, repo)
+    assert fired is False
+
+
+def test_warn_uses_containment_not_string_prefix(tmp_path):
+    """`test_caseX` must not read as inside `test_case`, and a sibling repo
+    directory must not read as inside the repo. A startswith() implementation
+    passes the three cases above and fails both of these."""
+    repo = tmp_path / "repo"
+    (repo / "test_caseX").mkdir(parents=True)
+    with pytest.warns(UserWarning):
+        assert su.warn_if_project_dir_in_repo(repo / "test_caseX", repo) is True
+
+    sibling = tmp_path / "repo_other"
+    sibling.mkdir()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert su.warn_if_project_dir_in_repo(sibling, repo) is False
+
+
+# --- climate_store_spec (R07 B1) ---------------------------------------------
+
+_WINDOW = {"starttime": "2000-01-01T00:00:00", "endtime": "2020-12-31T00:00:00"}
+
+
+def _spec(**overrides):
+    kwargs = dict(
+        project_dir="/proj",
+        model_region="{'subbasin': [9.666, 0.4476], 'uparea': 100}",
+        clim_source="era5",
+        historical_window=_WINDOW,
+        data_sources="config/catalogs/deltares_data.yml",
+    )
+    kwargs.update(overrides)
+    return su.climate_store_spec(**kwargs)
+
+
+def test_climate_store_spec_key_matches_the_pre_r07_wf3_construction():
+    """The store dir must be byte-identical to the key wf3 built inline."""
+    spec = _spec()
+    assert spec.store_dir == "/proj/climate_historical/era5_20000101_20201231"
+    assert spec.outputs["climate_nc"] == f"{spec.store_dir}/extract_historical.nc"
+    assert spec.outputs["region_geojson"] == f"{spec.store_dir}/store_region.geojson"
+
+
+def test_climate_store_spec_declares_exactly_one_catalog_input():
+    """ext2-01: one input, the catalog. Asymmetry is what the oscillation needs."""
+    spec = _spec()
+    assert spec.inputs == {"catalog": "config/catalogs/deltares_data.yml"}
+
+
+def test_climate_store_spec_params_carry_the_content_surface():
+    spec = _spec()
+    assert set(spec.params) == {
+        "model_region",
+        "clim_source",
+        "starttime",
+        "endtime",
+        "hydrography",
+        "basin_index",
+    }
+    # The catalog moved OUT of params and into the declared input.
+    assert "data_sources" not in spec.params
+    assert spec.params["starttime"] == _WINDOW["starttime"]
+    assert spec.params["endtime"] == _WINDOW["endtime"]
+
+
+def test_climate_store_spec_hydrography_defaults_match_the_build_template():
+    """Absent config keys default to the shipped template's setup_basemaps values."""
+    spec = _spec()
+    assert spec.params["hydrography"] == "merit_hydro_ihu"
+    assert spec.params["basin_index"] == "merit_hydro_index"
+
+    template = yaml.safe_load(
+        (Path(__file__).resolve().parents[1]
+         / "config" / "templates" / "wflow_build_model.yml").read_text(encoding="utf-8")
+    )
+    basemaps = next(
+        step["setup_basemaps"] for step in template["steps"] if "setup_basemaps" in step
+    )
+    assert basemaps["hydrography_fn"] == spec.params["hydrography"]
+    assert basemaps["basin_index_fn"] == spec.params["basin_index"]
+
+
+def test_climate_store_spec_overrides_are_carried_through():
+    spec = _spec(hydrography="merit_hydro_1k", basin_index="my_index")
+    assert spec.params["hydrography"] == "merit_hydro_1k"
+    assert spec.params["basin_index"] == "my_index"
+
+
+@pytest.mark.parametrize("source", ["chirps", "chirps_global"])
+def test_chirps_branch_declares_the_standardised_orography_sidecar(source):
+    """R07 standardises on `orography.nc` (was `<clim_source>_orography.nc`)."""
+    spec = _spec(clim_source=source)
+    assert spec.outputs["oro_nc"] == f"{spec.store_dir}/orography.nc"
+    assert list(spec.outputs) == ["climate_nc", "region_geojson", "oro_nc"]
+
+
+def test_no_orography_output_outside_the_chirps_branch():
+    assert "oro_nc" not in _spec(clim_source="era5").outputs
+
+
+def test_climate_store_spec_script_is_relative_to_the_repo_root():
+    """One relative path serves both Snakefiles (`script:` resolves to basedir)."""
+    spec = _spec()
+    assert spec.script == "blueearth_cst/climate_analysis/extract_historical_climate.py"
+    assert (Path(__file__).resolve().parents[1] / spec.script).is_file()
+
+
+def test_climate_store_spec_rejects_a_non_mapping_window():
+    with pytest.raises(TypeError, match="historical_window"):
+        _spec(historical_window=("2000-01-01T00:00:00", "2020-12-31T00:00:00"))
+
+
+def test_climate_store_spec_rejects_a_sub_day_window():
+    """The day-resolution store key cannot represent a sub-day window."""
+    with pytest.raises(ValueError, match="time-of-day"):
+        _spec(historical_window={
+            "starttime": "2000-01-01T06:00:00",
+            "endtime": "2020-12-31T00:00:00",
+        })
+
+
+def test_climate_store_spec_is_frozen():
+    """The two Snakefiles share one contract object; it must not be mutable."""
+    spec = _spec()
+    with pytest.raises(Exception):
+        spec.store_dir = "/elsewhere"

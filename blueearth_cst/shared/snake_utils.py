@@ -15,8 +15,11 @@ import subprocess
 import sys
 import threading
 import time
+import warnings
 from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 
 
 # hydromt formats every log record as
@@ -178,6 +181,66 @@ def file_digest_or_absent(path) -> str:
         return "ABSENT"
 
 
+# Directory names under the repository root that are EXEMPT from the
+# in-repo project_dir warning. Only the tracked test fixture: the baseline seed
+# config is version-controlled and a tracked config cannot carry a
+# machine-specific absolute path (design § "Two-tier project_dir rule").
+_PROJECT_DIR_EXEMPT_NAMES = frozenset({"test_case"})
+
+
+def warn_if_project_dir_in_repo(project_dir, repo_root) -> bool:
+    """Warn when ``project_dir`` resolves inside the repository tree.
+
+    Makes the two-tier rule mechanical instead of documentary: production runs
+    write outside the toolbox source, and the one exemption is the in-repo
+    ``test_case/`` fixture. Called at parse time from all three Snakefiles with
+    ``workflow.basedir`` as ``repo_root``.
+
+    Warns; never raises. An in-repo project_dir is a smell, not an error --
+    raising would break the fixture-driven baseline gate and anyone who
+    deliberately keeps a scratch run inside a checkout.
+
+    ``repo_root`` is a parameter rather than derived from ``__file__``:
+    deriving it inside the module silently breaks if the package is ever
+    installed rather than imported from the checkout, and an absolute constant
+    is not portable across machines. The call sites already hold the value.
+
+    Returns True when a warning was emitted, so callers and tests can assert on
+    the decision rather than on captured output.
+    """
+    try:
+        pd_resolved = Path(project_dir).expanduser().resolve()
+        root_resolved = Path(repo_root).expanduser().resolve()
+    except (OSError, ValueError):  # unresolvable path: nothing to warn about
+        return False
+
+    # commonpath, not startswith: "test_caseX" must not read as inside
+    # "test_case", and str-prefix comparisons get that wrong.
+    try:
+        inside = os.path.commonpath([pd_resolved, root_resolved]) == str(
+            root_resolved
+        )
+    except ValueError:  # different drives on Windows -> definitively outside
+        return False
+    if not inside:
+        return False
+
+    rel = pd_resolved.relative_to(root_resolved)
+    if rel.parts and rel.parts[0] in _PROJECT_DIR_EXEMPT_NAMES:
+        return False
+
+    warnings.warn(
+        f"project_dir resolves inside the repository tree "
+        f"({rel.as_posix()!r} under {root_resolved}). Generated model and "
+        f"result artifacts should be written OUTSIDE the toolbox source; set "
+        f"project_dir to an absolute path elsewhere. Exempt: "
+        f"{'/'.join(sorted(_PROJECT_DIR_EXEMPT_NAMES))}/.",
+        UserWarning,
+        stacklevel=2,
+    )
+    return True
+
+
 _EXPERIMENT_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_]*$")
 _EXPERIMENT_NAME_MAX_LEN = 64
 # Windows reserved device names (compared case-insensitively, incl. any
@@ -188,6 +251,55 @@ _WINDOWS_RESERVED_NAMES = frozenset(
     + [f"com{i}" for i in range(1, 10)]
     + [f"lpt{i}" for i in range(1, 10)]
 )
+
+
+def suggest_experiment_name(project_dir, today: str) -> str:
+    """Suggest an ``experiment_name`` from ``project_dir`` and a date stamp.
+
+    R07 B8. A *suggestion writer*, never a runtime generator: a name derived at
+    run time would make every invocation target a fresh ``experiments/<id>/``,
+    so nothing would ever be up to date, incremental reruns would be
+    impossible, ``--dry-run`` would mislead, and the baseline gate would have
+    no fixed path. The helper is invoked once, deliberately, and the value it
+    writes is then read as an ordinary config key.
+
+    ``project_dir``'s basename is **slugified**, because it is not guaranteed
+    to satisfy the grammar ``validate_experiment_name`` enforces (repo-7):
+    ``examples/Gabon`` was live in six shipped configs, and production
+    ``project_dir`` values routinely carry uppercase, hyphens or spaces. The
+    slug is lowercased, every character outside ``[a-z0-9]`` becomes ``_``,
+    runs of ``_`` collapse, leading non-alphanumerics are stripped, and the
+    result is truncated to fit the length limit once the date suffix is added.
+
+    This deliberately differs from ``validate_experiment_name``'s
+    never-silently-lowercase stance: that function VALIDATES a value a human
+    chose, where a silent case change would be a surprise; this one PROPOSES a
+    value from a path the user did not write as a slug. The proposal is passed
+    back through ``validate_experiment_name`` before being returned, so the two
+    can never disagree.
+
+    Parameters
+    ----------
+    project_dir : str | Path
+        the run's output root; only its basename is used
+    today : str
+        date stamp to append, ``YYYYMMDD``. Passed in rather than read from the
+        clock so the helper stays deterministic and testable.
+
+    Returns the validated suggestion, or raises ``ValueError`` if no valid slug
+    can be derived (e.g. a basename with no alphanumerics at all).
+    """
+    base = os.path.basename(str(project_dir).replace("\\", "/").rstrip("/"))
+    slug = re.sub(r"[^a-z0-9]+", "_", base.lower())
+    slug = re.sub(r"_+", "_", slug).strip("_")
+    if not slug:
+        raise ValueError(
+            f"cannot derive an experiment_name from project_dir basename "
+            f"{base!r}: it contains no alphanumeric characters"
+        )
+    suffix = f"_{today}" if today else ""
+    slug = slug[: _EXPERIMENT_NAME_MAX_LEN - len(suffix)].rstrip("_")
+    return validate_experiment_name(f"{slug}{suffix}", project_dir)
 
 
 def validate_experiment_name(name: str, project_dir) -> str:
@@ -310,6 +422,147 @@ def slugify_window(start, end) -> str:
         return dt.strftime("%Y%m%d")
 
     return f"{_day_slug(start, 'starttime')}_{_day_slug(end, 'endtime')}"
+
+
+#: Catalog ENTRY NAMES the model-free basin delineation defaults to. Equal to
+#: the shipped ``config/templates/wflow_build_model.yml`` ``setup_basemaps``
+#: values, so an existing config that declares neither key keeps building the
+#: same basin (and rule 3.00b's guard digest stays byte-identical, since the
+#: digest serializes the config dict as-is).
+DEFAULT_HYDROGRAPHY = "merit_hydro_ihu"
+DEFAULT_BASIN_INDEX = "merit_hydro_index"
+
+#: The store producer's script, relative to the declaring Snakefile. Both
+#: Snakefiles sit at the repository root, so one relative path serves both
+#: (``script:`` resolves against ``workflow.basedir``).
+CLIMATE_STORE_SCRIPT = "blueearth_cst/climate_analysis/extract_historical_climate.py"
+
+
+@dataclass(frozen=True)
+class ClimateStoreSpec:
+    """The complete producer contract for the shared historical-climate store.
+
+    Attribute-accessible and dict-splattable: a Snakefile writes
+
+    ``input: **SPEC.inputs`` / ``output: **SPEC.outputs`` /
+    ``params: **SPEC.params`` / ``script: SPEC.script``
+
+    so every content- or execution-determining field of the two declarations
+    comes from one object rather than from two hand-maintained rule bodies.
+    """
+
+    store_dir: str
+    script: str
+    inputs: Mapping
+    outputs: Mapping
+    params: Mapping
+
+
+def climate_store_spec(
+    project_dir,
+    model_region,
+    clim_source,
+    historical_window: Mapping,
+    data_sources,
+    hydrography=DEFAULT_HYDROGRAPHY,
+    basin_index=DEFAULT_BASIN_INDEX,
+) -> ClimateStoreSpec:
+    """Build the one producer contract for ``climate_historical/<key>/`` (R07 B1).
+
+    ONE rule definition, declared in **both** ``Snakefile_model_creation``
+    (rule 1.10) and ``Snakefile_climate_experiment`` (rule 3.02), over the
+    model-independent region specification + data catalog. wf1's `wf1_raw/`
+    store and its `staticmaps.nc`-derived bbox are retired: the extent is now a
+    pure function of ``shared.basin`` + the catalog, so a climate-only run needs
+    no ``hydrology_model/`` on disk and a region change re-extracts through
+    Snakemake's params rerun-trigger (design § B1).
+
+    **The input set is exactly one entry — the catalog — in both DAGs.** An
+    asymmetric input set re-creates the wf1<->wf3 re-extraction oscillation
+    (design P2(b) / ext1-02); the catalog **file** is the store's freshness
+    boundary (ext2-01), so it is declared plain, never ``ancient()``. Data
+    *behind* an unchanged catalog entry is out of scope — edit the entry, or use
+    ``snakemake --forcerun extract_climate_grid``
+    (``dev/r07/migration_project-layout.md`` §2f).
+
+    Parameters
+    ----------
+    project_dir : str
+        ``project.project_dir``; the store lands under
+        ``<project_dir>/climate_historical/``.
+    model_region : str | Mapping
+        ``shared.basin.region`` — the hydromt region specification (usually a
+        Python-dict-literal string). Carried in ``params``, never resolved here.
+    clim_source : str
+        ``shared.clim_historical``. Selects the chirps orography branch.
+    historical_window : Mapping
+        The ``shared.historical_window`` section, with ``starttime`` and
+        ``endtime``. Keyed at day resolution by ``slugify_window``.
+    data_sources : str
+        ``project.data_sources`` — the hydromt catalog path. The single
+        declared input.
+    hydrography, basin_index : str
+        ``shared.basin.hydrography`` / ``shared.basin.basin_index`` — catalog
+        ENTRY NAMES for the delineation, not paths. Optional config keys; the
+        defaults equal the shipped build template's ``setup_basemaps`` values,
+        and rule 1.02 fails loud if the two ever disagree.
+
+    Returns
+    -------
+    ClimateStoreSpec
+        ``store_dir``, ``script``, ``inputs``, ``outputs``, ``params``.
+
+    Raises
+    ------
+    TypeError
+        If ``historical_window`` is not a mapping.
+    ValueError
+        If either window endpoint is missing, or carries a sub-day component
+        the day-resolution store key cannot represent (``slugify_window``).
+    """
+    if not isinstance(historical_window, Mapping):
+        raise TypeError(
+            "climate_store_spec: historical_window must be the shared."
+            "historical_window mapping with 'starttime'/'endtime', got "
+            f"{type(historical_window).__name__}"
+        )
+    starttime = get_config(historical_window, "starttime", optional=False)
+    endtime = get_config(historical_window, "endtime", optional=False)
+
+    # Byte-for-byte the key wf3 built inline before R07 (P3-1 §4/§4c/§4d): two
+    # experiments sharing clim_historical + historical_window resolve to the
+    # same dir and reuse the extraction.
+    store_key = f"{clim_source}_{slugify_window(starttime, endtime)}"
+    store_dir = f"{project_dir}/climate_historical/{store_key}"
+
+    outputs = {
+        "climate_nc": f"{store_dir}/extract_historical.nc",
+        # The delineated polygon, on disk as the record of where the bbox came
+        # from (design § B1). Safe inside the guarded store dir: rule 3.00b
+        # compares config digests and writes two *named* sentinels; it never
+        # enumerates the directory.
+        "region_geojson": f"{store_dir}/store_region.geojson",
+    }
+    if clim_source in ("chirps", "chirps_global"):
+        # Resolved at parse time from clim_historical, so there are no dynamic
+        # outputs. The filename is clim_source-INDEPENDENT (R07 standardises the
+        # two pre-R07 spellings on `orography.nc`).
+        outputs["oro_nc"] = f"{store_dir}/orography.nc"
+
+    return ClimateStoreSpec(
+        store_dir=store_dir,
+        script=CLIMATE_STORE_SCRIPT,
+        inputs={"catalog": data_sources},
+        outputs=outputs,
+        params={
+            "model_region": model_region,
+            "clim_source": clim_source,
+            "starttime": starttime,
+            "endtime": endtime,
+            "hydrography": hydrography,
+            "basin_index": basin_index,
+        },
+    )
 
 
 def _require_step_num(axis_cfg, axis_name):

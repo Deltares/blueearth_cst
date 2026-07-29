@@ -1,6 +1,7 @@
 """Model-parity transform of raw gridded climate (P3-2a design §5.2).
 
-Reproduces, on the wf1 raw extraction, exactly the regrid + corrections + PET
+Reproduces, on the shared historical-climate store, exactly the regrid +
+corrections + PET
 the forcing build applies (``setup_precip_forcing`` / ``setup_temp_pet_forcing``
 under our config: ``temp_correction=True``, ``press_correction=True``,
 ``pet_method`` from the setup_time_horizon mapping), via the same public
@@ -9,6 +10,14 @@ under our config: ``temp_correction=True``, ``press_correction=True``,
 model object (criterion C1) — the callers load ``staticmaps.nc`` variables and
 persist results. The corrections-off variant backs the commit-5 QA ladder's
 regrid-only state S2 (design §5.5).
+
+Lives in ``shared/`` because it is genuinely engine-neutral: two callers now
+use it from opposite sides — ``model/plot_results.py`` at model parity, and
+``climate_analysis/plot_climate_source.py`` on the source grid, where passing
+the SAME dem for ``dem_model`` and ``dem_forcing`` makes both model-specific
+steps degenerate. It sat under ``model/`` until R7-1's follow-up (R7-4); the
+import direction was backwards for the one module whose headline claim is
+model-independence.
 
 The build's final ``where(mask)`` (basins mask) is deliberately not
 reproduced: the downstream per-subcatchment groupby restricts to exactly those
@@ -40,7 +49,8 @@ def model_parity_climate(
     Parameters
     ----------
     ds_raw : xr.Dataset
-        Raw extraction (``wf1_raw/extract_historical.nc``): ``precip``,
+        Extraction from the shared store
+        (``climate_historical/<key>/extract_historical.nc``): ``precip``,
         ``temp``, ``kin``, ``press_msl`` (+ ``kout`` for debruin), daily,
         on the extraction grid.
     dem_model : xr.DataArray

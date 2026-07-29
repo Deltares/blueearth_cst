@@ -33,8 +33,9 @@ def prepare_clim_data_catalog(
         the historical extraction, under the dataset+window keyed store dir. Used
         only for the chirps/chirps_global branch. Passed explicitly by the caller
         (design §4a) so the path is not reconstructed by fragile ``../..``
-        walking from a realization NC — which broke on the store keying and the
-        deeper ``experiments/<name>/realization_N/`` realization dir. Required
+        walking from a realization NC — which broke on the store keying and on
+        every subsequent move of the realization NC dir (now
+        ``experiments/<name>/weather_generator/output/``, R07 B5). Required
         when ``source_like`` is chirps/chirps_global.
 
     Returns

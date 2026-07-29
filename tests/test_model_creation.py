@@ -13,16 +13,22 @@ config_fn = join(TESTDIR, "snake_config_model_test.yml")
 
 
 def test_copy_config(project_dir, data_sources, model_build_config):
-    """Test if config files are copied to project_dir/config folder"""
-    # Call the copy file function
+    """Config files are snapshotted into the bin their KIND belongs in.
+
+    R07 B9 replaced the single derived ``output_dir`` with explicit per-file
+    routing -- a signature change, because one directory cannot serve
+    runs/catalogs/templates/generated.
+    """
+    cfg = join(project_dir, "config")
     copy_config_files.copy_config_files(
         config=config_fn,
-        output_dir=join(project_dir, "config"),
-        config_out_name="snake_config_model_creation.yml",
-        other_config_files=[data_sources, model_build_config],
+        config_out_path=join(cfg, "runs", "snake_config_model_creation.yml"),
+        other_config_files={
+            data_sources: join(cfg, "catalogs"),
+            model_build_config: join(cfg, "templates"),
+        },
     )
 
-    # Check if config files are copied to project_dir/config folder
-    assert os.path.exists(f"{project_dir}/config/snake_config_model_creation.yml")
-    assert os.path.exists(f"{project_dir}/config/wflow_build_model.yml")
-    assert os.path.exists(f"{project_dir}/config/tests_data_catalog.yml")
+    assert os.path.exists(f"{project_dir}/config/runs/snake_config_model_creation.yml")
+    assert os.path.exists(f"{project_dir}/config/templates/wflow_build_model.yml")
+    assert os.path.exists(f"{project_dir}/config/catalogs/tests_data_catalog.yml")

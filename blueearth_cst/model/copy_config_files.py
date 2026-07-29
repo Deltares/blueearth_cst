@@ -1,61 +1,59 @@
-"""Copy snake config and other config files to the output directory."""
+"""Snapshot the snake config and its referenced config files into project_dir."""
 import os
 from os.path import join, dirname
 from pathlib import Path
-from typing import Union, List
+from typing import Union, Mapping, Optional
 
 from blueearth_cst.shared.snake_utils import log_row
 
 
 def copy_config_files(
     config: Union[str, Path],
-    output_dir: Union[str, Path],
-    config_out_name: str = None,
-    other_config_files: List[Union[str, Path]] = [],
+    config_out_path: Union[str, Path],
+    other_config_files: Optional[Mapping[Union[str, Path], Union[str, Path]]] = None,
 ):
     """
-    Copy snake config and other config files to the output directory.
+    Snapshot the snake config and its referenced config files into project_dir.
 
-    If config_out_name is provided, the name of the output config will be changed.
+    R07 B9 changed this from "one derived output directory" to explicit
+    per-file routing, because the project config snapshot is now split by
+    KIND -- runs/, catalogs/, templates/, generated/. That is a signature
+    change, not a rename: one output_dir cannot serve four destinations.
 
     Parameters
     ----------
     config : Union[str, Path]
         path to the snake config file
-    output_dir : Union[str, Path]
-        path to the output directory
-    config_out_name : str, optional
-        name of the output snake config file, by default None to use the same name
-        as the input config
-    other_config_files : List[Union[str, Path]], optional
-        list of paths to other config files to copy, by default []
+    config_out_path : Union[str, Path]
+        FULL destination path for the snake config snapshot (the rule declares
+        it, so the bin choice lives in the Snakefile rather than here)
+    other_config_files : Mapping[src, dest_dir], optional
+        each referenced config file mapped to the directory its kind belongs
+        in. Missing files are skipped -- hydromt's predefined catalogs have no
+        path on disk.
 
     """
-    # Create output directory if it does not exist
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
-    # Get the name of the output snake config file
-    if config_out_name is None:
-        config_out_name = os.path.basename(config)
-    # Copy the snake config file to the output directory
-    log_row(f"Copying {config_out_name} to {output_dir}", module="config")
+    # Copy the snake config file to its declared destination
+    os.makedirs(dirname(config_out_path), exist_ok=True)
+    log_row(f"Copying {os.path.basename(config_out_path)} to "
+            f"{dirname(config_out_path)}", module="config")
     with open(config, "r") as f:
         snake_config = f.read()
-    with open(join(output_dir, config_out_name), "w") as f:
+    with open(config_out_path, "w") as f:
         f.write(snake_config)
 
-    # Copy other config files to the output directory
-    for config_file in other_config_files:
+    # Copy every other config file into the bin its KIND belongs in
+    for config_file, dest_dir in (other_config_files or {}).items():
         # Check if the file does exist
         # (eg predefined catalogs of hydromt do not have a path)
         if os.path.isfile(config_file):
             with open(config_file, "r") as f:
-                config = f.read()
+                content = f.read()
             config_name = os.path.basename(config_file)
-            log_row(f"Copying {config_name} to {output_dir}", module="config")
-            with open(join(output_dir, config_name), "w") as f:
-                f.write(config)
+            os.makedirs(dest_dir, exist_ok=True)
+            log_row(f"Copying {config_name} to {dest_dir}", module="config")
+            with open(join(dest_dir, config_name), "w") as f:
+                f.write(content)
 
 
 if __name__ == "__main__":
@@ -65,39 +63,42 @@ if __name__ == "__main__":
         config_snake = sm.input.config_snake
         config_snake_out = sm.output.config_snake_out
 
-        # Derive output dir from the output path of the snake config file
-        output_dir = dirname(config_snake_out)
-        # Get new file name for the snake config file from config_snake_out
-        config_snake_out_name = os.path.basename(config_snake_out)
+        # R07 B9: the project config snapshot is split by KIND, so this is a
+        # signature change rather than a rename -- one derived output_dir can
+        # no longer serve. The snake config lands where the rule declared it
+        # (config/runs/, or the experiment dir for wf3); catalogs go to
+        # config/catalogs/; verbatim snapshots of shipped templates go to
+        # config/templates/. Generated run-time configs live in
+        # config/generated/, written by their own rules, not copied here.
+        config_dir = sm.params.config_dir
+        catalogs_dir = join(config_dir, "catalogs")
+        templates_dir = join(config_dir, "templates")
 
-        # Get other config files to copy based on workflow name
+        # Get other config files to copy based on workflow name, each routed
+        # to the bin its KIND belongs in.
         workflow_name = sm.params.workflow_name
-        other_config_files = []
+        other_config_files = {}
+        data_sources = sm.params.data_catalogs
         if workflow_name == "model_creation":
-            # Get the in and out path of the model build config file
-            config_build = sm.input.config_build
-            config_wb = sm.input.config_waterbodies
-            data_sources = sm.params.data_catalogs
-            other_config_files.extend([config_build, config_wb, data_sources])
-        elif (
-            workflow_name == "climate_projections"
-            or workflow_name == "climate_experiment"
-        ):
-            data_sources = sm.params.data_catalogs
-            other_config_files.extend([data_sources])
+            other_config_files[sm.input.config_build] = templates_dir
+            other_config_files[sm.input.config_waterbodies] = templates_dir
+        if isinstance(data_sources, (list, tuple)):
+            for src in data_sources:
+                other_config_files[src] = catalogs_dir
+        else:
+            other_config_files[data_sources] = catalogs_dir
 
         # Call the main function
         copy_config_files(
             config=config_snake,
-            output_dir=output_dir,
-            config_out_name=config_snake_out_name,
+            config_out_path=config_snake_out,
             other_config_files=other_config_files,
         )
 
     else:
         copy_config_files(
             config="config/snake_config_model_test.yml",
-            output_dir="examples/test/config",
+            output_dir="test_case/test/config",
             config_out_name=None,
             other_config_files=[],
         )

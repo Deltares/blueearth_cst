@@ -25,7 +25,7 @@ from blueearth_cst.shared.func_plot_signature import (
     plot_basavg,
 )
 from blueearth_cst.climate_analysis.subcatchment_climate import climate_forcing_by_subcatchment
-from blueearth_cst.model.climate_parity import model_parity_climate
+from blueearth_cst.shared.climate_parity import model_parity_climate
 from blueearth_cst.shared.snake_utils import log_row
 
 
@@ -49,7 +49,8 @@ def analyse_wflow_historical(
     To be read, model should be stored in ``project_dir``/hydrology_model.
     Model results should include the discharge keys Q_outlets and, if gauges are
     provided, Q_gauges_{basename(gauges_locs)}. The climate plots (P/T/EP) are
-    derived from the RAW gridded climate extraction (``climate_nc``, rule 1.10)
+    derived from the shared store's gridded climate extraction (``climate_nc``,
+    rule 1.10 ``extract_climate_grid``)
     brought to model parity (the build's own regrid + corrections + PET method)
     and aggregated per subcatchment — decoupled from the model's stored inmaps
     forcing artifact (P3-2a re-source; supersedes the ADR-0002 interim
@@ -80,19 +81,22 @@ def analyse_wflow_historical(
     observations_fn : Union[Path, str], optional
         Path to observations timeseries file, by default None
         Required columns: time, wflow_id IDs of the locations as in ``gauges_locs``.
-        Separator is , and decimal is .
+        Separator is **;** and decimal is . -- deliberately different from
+        ``gauges_locs`` below, which is comma-separated. Both are read with an
+        explicit ``sep=``; see ``config/templates/observations/README.md``.
     gauges_locs : Union[Path, str], optional
         Path to gauges/observations locations file, by default None
         Required columns: wflow_id, station_name, x, y.
         Values in wflow_id column should match column names in ``observations_fn``.
         Separator is , and decimal is .
     climate_nc : Union[Path, str], optional
-        Path to the wf1 raw climate extraction
-        (``climate_historical/wf1_raw/extract_historical.nc``). When absent the
-        climate plots are skipped.
+        Path to the shared store's climate extraction
+        (``climate_historical/<key>/extract_historical.nc``, R07 B1). When absent
+        the climate plots are skipped.
     oro_nc : Union[Path, str], optional
         chirps/chirps_global only: the extraction's orography sidecar (the
-        declared rule-1.10 ``oro_nc`` output). Mandatory on that branch — it is
+        declared rule-1.10/3.02 ``oro_nc`` output, ``<key>/orography.nc``).
+        Mandatory on that branch — it is
         the DEM the parity transform must reference to invert the extraction's
         embedded lapse correction (design ext1-1). None on era5, where the
         orography comes from the data catalog instead.
@@ -104,11 +108,17 @@ def analyse_wflow_historical(
     """
     ### 1. Prepare output and plotting options ###
 
-    # Create output folders
-    Folder_plots = f"{project_dir}/plots/wflow_model_performance"
+    # Create output folders. R07 B10: the project-level
+    # plots/wflow_model_performance/ tree is retired; rule 1.11's artifacts
+    # live inside the engine subtree, split by KIND (P1) — figures under
+    # evaluation/plots/, the metrics table one level up in evaluation/,
+    # because plots/ holds figures only.
+    Folder_eval = f"{project_dir}/hydrology_model/evaluation"
+    Folder_plots = f"{Folder_eval}/plots"
 
-    if not os.path.isdir(Folder_plots):
-        os.mkdir(Folder_plots)
+    # makedirs, not mkdir: evaluation/plots/ is two levels deep, and only the
+    # DECLARED outputs get their parents pre-created by Snakemake.
+    os.makedirs(Folder_plots, exist_ok=True)
 
     # Plotting options
     fs = 7
@@ -346,8 +356,8 @@ def analyse_wflow_historical(
                 "observed timeseries are not available " "no signature plots are made."
             )
 
-    # Save performance metrics to csv
-    df_perf_all.to_csv(os.path.join(Folder_plots, "performance_metrics.csv"))
+    # Save performance metrics to csv (evaluation/, not evaluation/plots/ — P1)
+    df_perf_all.to_csv(os.path.join(Folder_eval, "performance_metrics.csv"))
 
     ### End of the function ###
 
@@ -370,7 +380,7 @@ if __name__ == "__main__":
             )
     else:
         analyse_wflow_historical(
-            project_dir=join(os.getcwd(), "examples", "my_project"),
+            project_dir=join(os.getcwd(), "test_case", "my_project"),
             observations_fn=None,
             gauges_locs=None,
         )

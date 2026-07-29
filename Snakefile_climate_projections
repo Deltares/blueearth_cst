@@ -6,7 +6,7 @@ from pathlib import Path
 # directory by prepending this Snakefile's own directory to sys.path.
 # See dev/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
-from blueearth_cst.shared.snake_utils import get_config, patch_psutil_windows_benchmark, rule_banner
+from blueearth_cst.shared.snake_utils import get_config, patch_psutil_windows_benchmark, rule_banner, warn_if_project_dir_in_repo
 
 # Windows: make Snakemake's benchmark memory/IO/CPU metrics work (else all NA).
 patch_psutil_windows_benchmark()
@@ -21,6 +21,9 @@ project_cfg = config["project"]
 my_cfg = config["workflows"]["climate_projections"]
 
 project_dir = get_config(project_cfg, "project_dir", optional=False)
+# O-22: make the two-tier project_dir rule mechanical rather than
+# documentary. Warns, never raises; test_case/ is the one exemption.
+warn_if_project_dir_in_repo(project_dir, workflow.basedir)
 DATA_SOURCES = get_config(project_cfg, "data_sources_climate", optional=False)
 
 clim_project = get_config(my_cfg, "clim_project", optional=False)
@@ -50,13 +53,13 @@ def get_horizon(wildcards):
 # 2.00  all — target aggregator: change-factor summaries + projection plots
 rule all:
     input:
-        (clim_project_dir + "/annual_change_scalar_stats_summary.nc"),
-        (clim_project_dir + "/annual_change_scalar_stats_summary.csv"),
-        (clim_project_dir + "/annual_change_scalar_stats_summary_mean.csv"),
+        (clim_project_dir + "/summary/annual_change_scalar_stats_summary.nc"),
+        (clim_project_dir + "/summary/annual_change_scalar_stats_summary.csv"),
+        (clim_project_dir + "/summary/annual_change_scalar_stats_summary_mean.csv"),
         stats_change_plt = (clim_project_dir + "/plots/projected_climate_statistics.png"),
         precip_plt = (clim_project_dir + "/plots/precipitation_anomaly_projections_abs.png"),
         temp_plt = (clim_project_dir + "/plots/temperature_anomaly_projections_abs.png"),
-        snake_config = f"{project_dir}/config/snake_config_climate_projections.yml",
+        snake_config = f"{project_dir}/config/runs/snake_config_climate_projections.yml",
         # one merged log per fan-out rule (gathered from the per-model _parts logs)
         stats_hist_log = f"{project_dir}/logs/2.02_monthly_stats_hist.log",
         stats_fut_log = f"{project_dir}/logs/2.03_monthly_stats_fut.log",
@@ -77,8 +80,9 @@ rule copy_config:
     params:
         data_catalogs = DATA_SOURCES,
         workflow_name = "climate_projections",
+        config_dir = f"{project_dir}/config",
     output:
-        config_snake_out = f"{project_dir}/config/snake_config_climate_projections.yml",
+        config_snake_out = f"{project_dir}/config/runs/snake_config_climate_projections.yml",
     script:
         "blueearth_cst/model/copy_config_files.py"
 
@@ -161,9 +165,9 @@ rule monthly_change_scalar_merge:
     input:
         stats_nc_change = ancient(expand((clim_project_dir + "/annual_change_scalar_stats-{model}_{scenario}_{horizon}.nc"), model = models, scenario = scenarios, horizon = future_horizons)),
     output:
-        stats_change_summary = (clim_project_dir + "/annual_change_scalar_stats_summary.nc"),
-        stats_change_summary_csv = (clim_project_dir + "/annual_change_scalar_stats_summary.csv"),
-        stats_change_summary_csv_mean = (clim_project_dir + "/annual_change_scalar_stats_summary_mean.csv"),
+        stats_change_summary = (clim_project_dir + "/summary/annual_change_scalar_stats_summary.nc"),
+        stats_change_summary_csv = (clim_project_dir + "/summary/annual_change_scalar_stats_summary.csv"),
+        stats_change_summary_csv_mean = (clim_project_dir + "/summary/annual_change_scalar_stats_summary_mean.csv"),
         stats_change_plt = (clim_project_dir + "/plots/projected_climate_statistics.png"),
     params:
         clim_project_dir = f"{clim_project_dir}",
@@ -178,7 +182,7 @@ rule monthly_change_scalar_merge:
 rule plot_climate_proj_timeseries:
     message: rule_banner("2.06", "plot_climate_proj_timeseries")
     input:
-        stats_change_summary = (clim_project_dir + "/annual_change_scalar_stats_summary.nc"),
+        stats_change_summary = (clim_project_dir + "/summary/annual_change_scalar_stats_summary.nc"),
         stats_time_nc_hist =[(clim_project_dir + f"/historical_stats_time_{mod}.nc") for mod in models],
         stats_time_nc = expand((clim_project_dir + "/stats_time-{model}_{scenario}.nc"), model = models, scenario = scenarios),
     params:
@@ -190,7 +194,7 @@ rule plot_climate_proj_timeseries:
     output:
         precip_plt = (clim_project_dir + "/plots/precipitation_anomaly_projections_abs.png"),
         temp_plt = (clim_project_dir + "/plots/temperature_anomaly_projections_abs.png"),
-        timeseries_csv = (clim_project_dir + "/gcm_timeseries.nc"),
+        timeseries_csv = (clim_project_dir + "/timeseries/gcm_timeseries.nc"),
     log:
         f"{project_dir}/logs/2.06_plot_climate_proj_timeseries.log",
     benchmark:
@@ -259,7 +263,7 @@ rule gather_change_logs:
 rule gather_benchmarks:
     message: rule_banner("2.10", "gather_benchmarks")
     input:
-        (clim_project_dir + "/annual_change_scalar_stats_summary.nc"),
+        (clim_project_dir + "/summary/annual_change_scalar_stats_summary.nc"),
         (clim_project_dir + "/plots/projected_climate_statistics.png"),
         (clim_project_dir + "/plots/precipitation_anomaly_projections_abs.png"),
     output:

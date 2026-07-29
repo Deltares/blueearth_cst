@@ -111,7 +111,7 @@ def test_selected_missing_target_fails(project, capsys):
     """A selected target missing on disk -> non-zero, and named."""
     project_dir, manifest_path = project
     victim = cb.resolve(
-        "{clim_project_dir}/annual_change_scalar_stats_summary.csv", project_dir
+        "{clim_project_dir}/summary/annual_change_scalar_stats_summary.csv", project_dir
     )
     Path(victim).unlink()
 
@@ -128,7 +128,7 @@ def test_unselected_missing_target_ignored(project, capsys):
     """An unselected (workflow-3) target missing on disk is ignored by a scoped
     check -> returns 0, count stays 12."""
     project_dir, manifest_path = project
-    victim = cb.resolve("{exp_dir}/model_results/Qstats.csv", project_dir)
+    victim = cb.resolve("{exp_dir}/indicators/Qstats.csv", project_dir)
     Path(victim).unlink()
 
     rc = cb.cmd_check(
@@ -155,9 +155,9 @@ def test_record_workflow_merges_and_preserves_other_slices(project):
     before = json.loads(Path(manifest_path).read_text())["targets"]
 
     cp_path = cb.resolve(
-        "{clim_project_dir}/annual_change_scalar_stats_summary.csv", project_dir
+        "{clim_project_dir}/summary/annual_change_scalar_stats_summary.csv", project_dir
     )
-    exp_path = cb.resolve("{exp_dir}/model_results/Qstats.csv", project_dir)
+    exp_path = cb.resolve("{exp_dir}/indicators/Qstats.csv", project_dir)
     cp_before, exp_before = before[cp_path], before[exp_path]
 
     # Mutate a wf1 target AND a wf2 target on disk; then merge-record only wf1.

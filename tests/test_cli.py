@@ -12,6 +12,9 @@ TESTDIR = dirname(realpath(__file__))
 SNAKEDIR = join(TESTDIR, "..")
 
 config_fn = join(TESTDIR, "snake_config_model_test.yml")
+linux_config_fn = join(
+    SNAKEDIR, "config", "workflows", "snake_config_model_test_linux.yml"
+)
 
 # Minimal valid GeoJSON standing in for the workflow-1 region output that
 # climate_projections consumes as a cross-workflow input (see the fixture).
@@ -48,7 +51,7 @@ def config_with_staged_region(tmp_path):
 
     Since P3-1 commit 1, climate_experiment's drift guard (rule
     check_project_consistency) additionally declares the wf1 config snapshot
-    `{project_dir}/config/snake_config_model_creation.yml` as a mandatory
+    `{project_dir}/config/runs/snake_config_model_creation.yml` as a mandatory
     `ancient(...)` input — the same class of cross-workflow contract, staged
     the same way. The staged snapshot is serialized from the SAME parsed
     config the dry-run consumes, so the guard's comparands match by
@@ -62,7 +65,7 @@ def config_with_staged_region(tmp_path):
     region.parent.mkdir(parents=True)
     region.write_text(_MINIMAL_REGION_GEOJSON, encoding="utf-8")
 
-    wf1_snapshot = tmp_path / "config" / "snake_config_model_creation.yml"
+    wf1_snapshot = tmp_path / "config" / "runs" / "snake_config_model_creation.yml"
     wf1_snapshot.parent.mkdir(parents=True)
     wf1_snapshot.write_text(yaml.safe_dump(cfg), encoding="utf-8")
 
@@ -75,6 +78,110 @@ def test_snakefile_cli_model_creation():
     """Workflow 1 dry-run builds a clean DAG on the test config."""
     result = _dry_run("Snakefile_model_creation")
     assert result.returncode == 0, (result.stdout or "") + (result.stderr or "")
+
+
+def test_snakefile_cli_model_creation_linux_config():
+    """The Linux config must still build a DAG after O-01 retired `data/`.
+
+    R07 deletes the tracked `data/` tree, whose only live consumers were this
+    config and the Docker runner. Linux *end-to-end* validation stays parked
+    (no Linux machine), but parse-level consistency is cheap and is exactly
+    what a silently-broken config would fail: DAG build resolves every
+    config-declared path, so a dangling `output_locations` would surface here.
+    Runs on both CI legs.
+    """
+    result = _dry_run("Snakefile_model_creation", cfg=linux_config_fn)
+    assert result.returncode == 0, (result.stdout or "") + (result.stderr or "")
+
+
+def test_in_repo_project_dir_warning_reaches_the_stream(tmp_path):
+    """O-22 end to end: the parse-time warning is actually surfaced.
+
+    The unit cases in test_snake_utils.py pin the decision; this pins that a
+    real `snakemake` invocation shows it, which is the only thing a user sees.
+    project_dir points at an in-repo scratch dir (NOT test_case/, the one
+    exemption), so the warning must fire -- and the run must still succeed,
+    because O-22 warns and never raises.
+    """
+    scratch = Path(SNAKEDIR, "_o22_probe_project")
+    scratch.mkdir(exist_ok=True)
+    try:
+        with open(config_fn) as f:
+            cfg = yaml.safe_load(f)
+        cfg["project"]["project_dir"] = "_o22_probe_project"
+        cfg_path = tmp_path / "snake_config_in_repo.yml"
+        cfg_path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+
+        result = _dry_run("Snakefile_model_creation", cfg=str(cfg_path))
+        combined = (result.stdout or "") + (result.stderr or "")
+        assert "inside the repository tree" in combined, combined[-3000:]
+        assert result.returncode == 0, combined[-3000:]
+    finally:
+        for leftover in sorted(scratch.rglob("*"), reverse=True):
+            leftover.unlink() if leftover.is_file() else leftover.rmdir()
+        scratch.rmdir()
+
+
+def test_baseline_seed_config_does_not_warn():
+    """The exemption holds for the config the baseline gate actually runs.
+
+    That is config/workflows/snake_config_model_test.yml (project_dir:
+    test_case/test_local) -- NOT tests/snake_config_model_test.yml, which
+    points at tests/test_project and therefore warns correctly: it is an
+    in-repo project_dir outside the single exemption. The exemption exists
+    because the baseline seed config is TRACKED and a tracked config cannot
+    carry a machine-specific absolute path; it does not extend to every
+    convenient in-repo scratch dir.
+    """
+    seed_cfg = join(SNAKEDIR, "config", "workflows", "snake_config_model_test.yml")
+    result = _dry_run("Snakefile_model_creation", cfg=seed_cfg)
+    combined = (result.stdout or "") + (result.stderr or "")
+    assert "inside the repository tree" not in combined, combined[-3000:]
+    assert result.returncode == 0, combined[-3000:]
+
+
+def test_observation_configs_use_the_string_sentinel():
+    """Every shipped config leaves the observation keys at the STRING "None".
+
+    Unquoted None parses to the Python string, not YAML null; both consumers
+    read `if X is not None and os.path.<exists>(X)`, so a real null takes a
+    different branch. O-04: the test config previously pointed at
+    `tests/data/observations/`, a tree that has never existed -- and passed,
+    which is the empirical proof that the guards are existence-based. Pin the
+    sentinel's type so a later "cleanup" to `null` or `~` fails loudly.
+    """
+    for cfg_path in (config_fn, linux_config_fn):
+        with open(cfg_path) as f:
+            cfg = yaml.safe_load(f)
+        mc = cfg["workflows"]["model_creation"]
+        for key in ("output_locations", "observations_timeseries"):
+            assert mc[key] == "None", f"{cfg_path}:{key} is {mc[key]!r}"
+            assert isinstance(mc[key], str), f"{cfg_path}:{key} is not a str"
+
+
+def test_eobs_config_fails_wf1_dry_run_at_parse_time(tmp_path):
+    """`clim_historical: eobs` must red the wf1 dry-run at DAG-parse time.
+
+    Rehomed from the retired `tests/test_extract_climate_wf1.py` (R07 commit 7
+    retired rule 1.10's wf1-only wrapper, but NOT this guard): the rejection
+    exists because rule 1.11's model-parity transform maps eobs to a different
+    PET method, which B1 does not touch. The other test in that module compared
+    the two pre-R07 bbox derivations and is superseded by
+    `tests/test_store_region_bbox.py`.
+    """
+    with open(config_fn) as f:
+        cfg = yaml.safe_load(f)
+    cfg["shared"]["clim_historical"] = "eobs"
+    cfg_path = tmp_path / "snake_config_eobs.yml"
+    cfg_path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+
+    result = _dry_run("Snakefile_model_creation", cfg=str(cfg_path))
+    combined = (result.stdout or "") + (result.stderr or "")
+    assert result.returncode != 0, "eobs config must fail the wf1 dry-run"
+    assert (
+        "clim_historical: eobs is not supported by the P3-2a wf1 raw-climate "
+        "path; supported sources: era5, chirps, chirps_global"
+    ) in combined, combined
 
 
 def test_snakefile_cli_climate_projections(config_with_staged_region):

@@ -61,7 +61,7 @@ if __name__ == "__main__":
         write_outlet_index(
             os.path.join(
                 os.getcwd(),
-                "examples",
+                "test_case",
                 "my_project",
                 "hydrology_model",
                 "staticgeoms",
@@ -69,7 +69,7 @@ if __name__ == "__main__":
             ),
             os.path.join(
                 os.getcwd(),
-                "examples",
+                "test_case",
                 "my_project",
                 "hydrology_model",
                 "staticgeoms",

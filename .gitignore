@@ -121,7 +121,7 @@ dask-worker-space/
 .snakemake/
 
 # Examples
-examples/
+test_case/
 .Rproj.user
 
 # R-related files
@@ -133,7 +133,6 @@ examples/
 *.png
 
 # Rendered workflow DAGs (scripts/run_snake_test.cmd writes .dot + .png here)
-dag/
 
 # Tests
 tests/test_project

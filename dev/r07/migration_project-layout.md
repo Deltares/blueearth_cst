@@ -228,12 +228,36 @@ needs no change** — it already covers all five pointer fields generically
 | `state.path_input` (run TOMLs) | `../../../hydrology_model/instate/instates.nc` | `../../../../hydrology_model/instate/instates.nc` | B5 | 11 |
 | `input.path_forcing` (run TOMLs) | `../realization_<r>/inmaps_rlz_<r>_cst_<c>.nc` | `../forcing/inmaps_cst_<c>.nc` | B5 | 11 |
 
-Depth derivation: run TOMLs move from `experiments/<id>/model_runs/` (3 levels
-below the project root) to `experiments/<id>/hydrology_runs/rlz_<r>/config/` (4
-levels), so every pointer that escapes the experiment gains one `../`; the forcing
-pointer instead becomes a sibling-directory hop inside `rlz_<r>/`. hydromt
-re-relativizes on write, so the comparator — not this map — is authoritative; the
-strings above are the expected values, given for reviewability.
+Depth derivation — **corrected 2026-07-29 against the emitted TOMLs (R7-13).**
+Run TOMLs move from `experiments/<id>/model_runs/` (3 levels below the project
+root) to `experiments/<id>/hydrology_runs/rlz_<r>/config/` — **5 levels, not 4**:
+one directory is replaced by three, so every pointer that escapes the experiment
+gains **two** `../`, not one. The forcing pointer instead becomes a
+sibling-directory hop inside `rlz_<r>/`.
+
+This paragraph originally predicted one extra level and
+`../../../../hydrology_model/staticmaps.nc`. hydromt emitted five:
+
+| Key | Emitted value (verified on disk) |
+| --- | --- |
+| `input.path_static` | `../../../../../hydrology_model/staticmaps.nc` |
+| `state.path_input` | `../../../../../hydrology_model/instate/instates.nc` |
+| `input.path_forcing` | `../forcing/inmaps_cst_<c>.nc` |
+| `state.path_output` | `../output/outstates_cst_<c>.nc` |
+
+The **tree was right and this map was wrong** — which is exactly why the
+paragraph already deferred to the comparator: hydromt re-relativizes on write,
+the path-aware TOML comparator passed on all 12 run TOMLs, and the strings here
+are for reviewability only. Recorded rather than quietly amended, because a map
+that silently corrects itself teaches nobody that the derivation is the
+comparator's job.
+
+Two further pointers the original table omitted, both of which do change value:
+`state.path_output` and `output.csv.path` (`output_rlz_<r>_cst_<c>.csv` →
+`../output/cst_<c>.csv`). `dir_output` stays `"."` deliberately — the comparator
+resolves these fields lexically against the toml's own directory and does not
+read `dir_output`, so putting the hop in the pointers keeps a functionally
+correct TOML from reading as a gate failure.
 
 ### 2d. `COPIED_CONFIG_PATH_MAP` additions (`semantic_tree_diff.py:90-110`)
 
@@ -499,7 +523,7 @@ as well as R07's four new ones — R07 retires none of them.
 | `experiments/<id>/indicators/plots/` | *(not an entry)* | Reserved with no producer — empty on both sides |
 | `experiments/<name>/.project_consistency_ok` | EXTRA | **Carried forward from P3-1** (`dev/p31/migration_experiment-structure.md` §2), unchanged by R07 |
 | `climate_historical/<key>/.guard_ok` | EXTRA | **Carried forward from P3-1**, unchanged by R07 — B1 retires its *DAG edge*, not the artifact, and the path does not move |
-| `experiments/<name>/config/<data_catalog>.yml` (via `--allow`; `deltares_data.yml` on the seed config) | EXTRA | **Carried forward from P3-1**, unchanged by R07 |
+| `experiments/<name>/config/catalogs/<data_catalog>.yml` (via `--allow`; `deltares_data.yml` on the seed config) | EXTRA | **Carried forward from P3-1** — but the **path changed under R07**: B9 routes the wf3 snapshot's catalog into `config/catalogs/`, so the entry gains that segment. Unchanged in kind: the experiment's catalog snapshot has no pre-R07 counterpart. Confirmed at Gate 3, where it was the only unexplained EXTRA in the full-tree diff |
 | `<project_dir>/dag/` | *(not an entry, unless the gate capture rendered DAGs)* | O-02's destination has no pre-R07 counterpart, and `dag` is **not** in `EXCLUDED_DIR_NAMES` (`{logs, benchmarks, .snakemake}`). It is not produced by `snakemake all` — only by the explicit `--dag` renders in `scripts/run_snake_test.cmd:32,39` and the README / notebook cells — so a reference tree captured from a plain workflow run will not contain it. **If** a gate capture is taken after a DAG render, allowlist it as EXTRA rather than treating it as a regression |
 
 **MISSING — the stale map's "none by design" line is retracted.**
@@ -576,8 +600,155 @@ Distinct old→new path mappings across §1, §2a, and §2b: **65**.
 | --- | --- | --- |
 | Milestone tip SHA (header) | landing | open |
 | Final MISSING/EXTRA allowlist confirmed against the milestone diff, in `CLEAN: N files compared, …` form | commit 14 | open |
-| Exception 3 outcome — merge comparison pass/fail, and **per-edge coordinate deltas if it fails** | commit 7 (per-slice diff) | open |
+| Exception 3 outcome — merge comparison pass/fail, and **per-edge coordinate deltas if it fails** | commit 7 (per-slice diff) | **CLOSED 2026-07-28 — passed on both sides; see §7b** |
 | Which of §3d's 8 candidates entered `TARGETS` / the manifest | commit 14 | open |
+
+### 7a. Holding artifacts captured in commit 1 — preserve for the whole milestone
+
+`check_baseline check` is red by construction from commit 4 to commit 14, so
+these two are the **only** regression detectors in that window. If the reference
+tree is lost, commits 4–14 have none. Recorded here because a resuming session
+cannot otherwise find them.
+
+| Artifact | Location | Captured |
+| --- | --- | --- |
+| Pre-R07 reference tree (219 files) | `C:/Users/taner/workspace/.r07-reference/test_local_preR07/` | commit 1, 2026-07-28 |
+| Discharge anchor (`hydrology_model/run_default/output.csv`) | `C:/Users/taner/workspace/.r07-reference/discharge_preR07.csv`, sha1 `7e1e9cac1eecfc88458affc231416d5b20720363` | commit 1, 2026-07-28 |
+
+Deliberately **outside** the repository tree: the fixture root itself is renamed
+in commit 4, and a holding path inside the repo would be swept by that rename or
+by a `git clean`.
+
+**Gate invocation — the reference tree must be read at its RECORDED root token.**
+O-20 renamed the fixture, so every root-embedded value inside the pre-R07
+reference still says `examples/test_local`, wherever the tree is now held. The
+diff normalizes each side's project root out of written values before comparing;
+without the recorded token the reference side never normalizes and **every**
+root-embedded leaf fails for a reason unrelated to the change under test (12
+per-member weathergen configs plus the experiment data catalog, measured at
+commit 11). `semantic_tree_diff.py` therefore takes `--ref-token`, and the
+canonical invocation is:
+
+```
+python dev/scripts/semantic_tree_diff.py \
+  --ref C:/Users/taner/workspace/.r07-reference/examples/test_local \
+  --cur test_case/test_local \
+  --milestone r07 --dataset-key era5_20000101_20201231 --clim-source era5 \
+  --ref-token examples/test_local \
+  --ref-token C:/Users/taner/workspace/blueearth_cst/examples/test_local
+```
+
+Both tokens are needed: configs record the project-relative form, while the
+experiment data catalog records absolute URIs. A copy of the reference is held
+at `.r07-reference/examples/test_local/` so the path tail matches the token too.
+
+**Early result — the merge comparison already passes on the pre-R07 tree.** Run
+at commit 1 with `--milestone r07 --dataset-key era5_20000101_20201231
+--clim-source era5`, both sides of §2e's declared merge report `merge OK`:
+today's `wf1_raw/extract_historical.nc` and today's `<key>/extract_historical.nc`
+are element-wise identical under `compare_nc`. That is the retired `allclose`
+check's claim, re-proved with a stricter comparator, and it is the precondition
+B1's collapse rests on. It is **not** yet exception 3's proof — that requires the
+post-commit-7 survivor — but a failure here would have falsified B1 before any
+code moved.
+
+### 7b. Exception 3 outcome — CLOSED, no-change branch (commit 7, 2026-07-28)
+
+The bbox derivation change is proven behaviour-neutral on the seed-fixture
+class. **Gate 2 did not fire; the §2e failure branch (a–d) is not invoked.**
+
+| Proof | Result |
+| --- | --- |
+| Delineation bounds vs `staticmaps.nc` raster bounds | **bit-identical**, max edge delta `0.0` on all four edges |
+| Delineation bounds vs pre-R07 `region.geojson` | 3.333e-07 — GeoJSON 6-dp rounding, as predicted |
+| Merge: survivor vs `wf1_raw/extract_historical.nc` | **`merge OK`** (element-wise `compare_nc`) |
+| Merge: survivor vs pre-R07 `<key>/extract_historical.nc` | **`merge OK`** — the side §2e flags as carrying the risk |
+| Discharge anchor, freshly recomputed vs commit-1 capture | **0/7670 timesteps over tolerance; max \|dQ\|/mean = 0** |
+
+The discharge result is stronger than the gate required: commit 7 re-fires
+`create_model`, so `run_default/output.csv` was **regenerated from scratch**
+rather than left untouched, and still compares bit-identical. Exception 3(d)
+("confirm discharge is unmoved") is satisfied by recomputation, not by absence
+of change.
+
+Residual at this slice, both expected: one `FAIL` on
+`hydrology_model/wflow_sbm.toml` `input.path_forcing` — the R07 map already
+expects B2's destination while B2 lands in commit 8, so the *map* is ahead of
+the tree and the current value still equals the reference value — and 73
+MISSING/73 EXTRA, the moves B2/B3/B5/B9/B10 have not made yet.
+
+### 7d. Known-bad reference row — `basin_area.png` (owner-ruled 2026-07-28)
+
+**Pre-existing fixture/manifest inconsistency; not an R07 regression.** The
+retained pre-R07 reference tree carries a `basin_area.png` that disagrees with
+the baseline manifest's own record of the same file:
+
+| Source | `basin_area.png` size |
+| --- | --- |
+| `dev/baseline/manifest.json` (the baseline authority) | **286,022 B** |
+| Post-R07 output (commit 12) | **286,031 B** — 0.003% from the manifest, far inside `PNG_TOLERANCE_FRAC = 0.10` |
+| Pre-R07 reference tree copy | **134,828 B** — agrees with neither |
+
+The reference copy is visually a different figure altogether — a "Model domain
+— 220 km²" rendering with a north arrow, scalebar and YlOrBr palette that the
+current `plot_map.py` cannot produce, and `plot_map.py` has not changed since
+R06. Every **other** reference figure matches its manifest row byte-for-byte
+(`hydro_wflow_1.png` 299,993; `precip.png` 302,700). So the fixture on disk had
+drifted from its own recorded baseline for this one file **before R07 began**,
+and the commit-1 capture faithfully preserved that drift.
+
+**Ruling: record, do not amend.** The reference tree stays byte-for-byte as
+captured — amending it would make the milestone's only regression detector for
+commits 4–14 something other than a pristine pre-R07 capture, with no way for a
+later reader to tell which files were touched. This one file is allowlisted at
+the per-slice gate with the evidence above; nothing about R07 is left unproven,
+because the manifest — the actual baseline authority — agrees with the post-R07
+output to 0.003%.
+
+**Answered 2026-07-29 (follow-up R7-3).** The 134,828-byte rendering was written
+by a **different branch**. `feat/outputs-figures` carries `e917a8e` *"redesign
+basin_area.png as a self-contained basin map"* and `c2f4881` *"degree-aware
+gridline locators in plot_map"*, both dated 2026-07-25 and **neither in `main`'s
+history**. That branch's `plot_map.py` defines `_add_scale_bar`,
+`_add_north_arrow`, an `area_km2` title and a `YlOrBr` colormap — exactly the
+figure found in the fixture; HEAD's `plot_map.py` contains none of them and
+cannot produce it.
+
+The premise above was therefore wrong: `plot_map.py` **has** changed since R6,
+just not on this line of history. Nobody's figure was corrupt — someone ran wf1
+from that branch into the shared untracked fixture, and the artifact outlived
+the checkout. The manifest (recorded from main-line code) and the fixture
+(written by feature-branch code) then disagreed, exactly as observed.
+
+Not a defect, then, but a **provenance gap in the fixture** — generalised as
+follow-up **R7-21**: `test_case/test_local` is untracked and therefore shared by
+every branch and worktree, so `check_baseline check` answers for whichever
+branch ran last, not for the branch you are on.
+
+### 7c. Latent defect found at commit 7 — the wflow TOML is written by five rules and declared by one
+
+**Pre-existing; not an R07 regression; not fixed here.** Recorded because the
+milestone triggered it and the next milestone will too.
+
+`hydrology_model/wflow_sbm.toml` is created by rule 1.03 `create_model` and
+then **updated in place** by later wf1 rules (waterbodies, gauges/outputs,
+forcing, runtime), but only `create_model` declares it as an output. Those
+later rules take `ancient(f"{basin_dir}/staticmaps.nc")`, which suppresses
+exactly the mtime trigger a rebuilt staticmaps would otherwise fire.
+
+Consequence: **any change that re-fires `create_model` alone leaves the TOML
+stripped of every section the later rules added.** Observed live — commit 7
+adds params to rule 1.02 (the design-mandated hydrography cross-check), which
+re-fired 1.02 → 1.03; Snakemake scheduled 7 jobs, none of them the
+TOML-updating chain; the rebuilt TOML lost `[input.forcing]` and
+`[output.csv]`, and rule 1.11 died on `KeyError: 'output'` inside
+hydromt_wflow. A `--forceall` rerun (15/15 steps) restored it.
+
+Same shape as ext2-01's catalog staleness: a gap R07 reveals rather than
+introduces. Out of scope for a behaviour-preserving milestone — the fix is a
+rule-shape change (declare the TOML on every rule that writes it, or make the
+update chain depend on it) — so it is flagged for a follow-up rather than
+folded in here.
 
 ## 8. Judgement calls this map made
 
