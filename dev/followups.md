@@ -61,13 +61,15 @@ Provenance: `dev/r07/migration_project-layout.md` §§7a–7d,
 
 ### Design debt accepted knowingly
 
-- **[R7-4] Import direction in the model-free producer.**
-  `blueearth_cst/climate_analysis/plot_climate_source.py` imports
-  `blueearth_cst.model.climate_parity` to reuse the PET transform. Functionally
-  clean (that module is pure xarray in/out) and it avoids a second PET
-  implementation, but the direction is backwards for the one module whose
-  headline claim is model-independence. Carries a `# DEV NOTE:`. The fix is to
-  lift the parity transform into `shared/`.
+- **[R7-4] ~~Import direction in the model-free producer.~~ FIXED 2026-07-29** —
+  `climate_parity.py` moved `model/` → `shared/`, where it belongs: it imports
+  only `typing`/`pandas`/`xarray`/`hydromt`, never touches a model object (the
+  P3-2a C1 criterion its own docstring claims), and now has two callers on
+  opposite sides — `model/plot_results.py` at model parity and
+  `climate_analysis/plot_climate_source.py` on the source grid. It was misfiled,
+  not miscoupled. `climate_analysis/` now imports nothing from
+  `blueearth_cst.model`, pinned by a test that walks the package's ASTs so the
+  convention cannot drift back silently.
 
 - **[R7-5] O-24 is deliberately incomplete.** `plot_basavg` (one PNG per
   `wflow_outvars` entry), `signatures_{station}.png` and per-station

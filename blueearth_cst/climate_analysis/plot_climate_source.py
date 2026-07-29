@@ -37,13 +37,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
 
-# DEV NOTE: the parity transform lives under blueearth_cst/model/ but is pure
-# xarray-in/xarray-out (it never touches a model object -- P3-2a criterion C1),
-# so importing it here couples nothing. The import DIRECTION is nonetheless
-# backwards for the one module whose headline claim is model-independence;
-# relocating climate_parity.py to a neutral home is a follow-up, deliberately
-# not folded into a behaviour-preserving milestone.
-from blueearth_cst.model.climate_parity import model_parity_climate
+from blueearth_cst.shared.climate_parity import model_parity_climate
 from blueearth_cst.shared.snake_utils import log_row, save_figure
 
 #: Variables the parity/PET machinery needs off the extraction.

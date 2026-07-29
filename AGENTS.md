@@ -47,7 +47,8 @@ Method context that changes how code here should be edited (full rationale:
   order.
 - `blueearth_cst/` — the analysis/orchestration package, split by workflow stage:
   `model/`, `projections/`, `experiment/` (one submodule per workflow), plus
-  `shared/` for cross-cutting helpers (`snake_utils.py`, `run_logged.py`, plotting
+  `shared/` for cross-cutting helpers (`snake_utils.py`, `run_logged.py`,
+  `climate_parity.py` — the engine-neutral regrid/PET transform — plotting
   primitives, log/benchmark reducers) and `weathergen/` for the R weather
   generator. Modules are invoked from Snakemake `script:` directives (Python) or
   `Rscript --vanilla` `shell:` bodies (R); none is a standalone CLI. Imports are
