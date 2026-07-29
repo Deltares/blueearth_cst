@@ -815,10 +815,15 @@ the artifact tree explicitly ("5. Output layout under `project_dir/` already
 mostly clean — leave alone unless a concrete pain point emerges"). Pain points
 have now emerged, and they span both halves.
 
-### R7 — Project layout (design ACCEPTED 2026-07-28)
+### R7 — Project layout (BUILT 2026-07-29 — awaiting merge + tag)
 
-**Status.** Design **ACCEPTED**, not yet built:
-`dev/r07/project-layout-design.md`, approved by the owner at gate G2 of a
+**Status.** **Implementation complete** on branch `r07-project-layout` —
+15 `r07:` commits, every acceptance criterion met (evidence below). **Not yet
+merged to `main` and not yet tagged**; both are owner decisions, and the tag
+`r07-layout` is reserved for the seal.
+
+Design **ACCEPTED** 2026-07-28: `dev/r07/project-layout-design.md`, approved by
+the owner at gate G2 of a
 `design-review-loop` run on 2026-07-28. Drafted interactively with the owner
 across the 2026-07-26 review (a 16-ruling question log), then put through the
 loop: a three-lens internal panel and two external cross-vendor rounds, **44
@@ -831,6 +836,31 @@ verdict, which the design states on its face. Full audit trail:
 `dev/r07/migration_project-layout.md`. Provenance of the findings:
 `dev/reviews/2026-07-25_post-r6-assessment.md` (O-01 … O-24), which carries a
 routing note for which observations R7 owns.
+
+**Exit criteria — met.** Verified on the seed fixture, 2026-07-29:
+
+| Criterion | Evidence |
+| --- | --- |
+| 15 `r07:` commits, each leaving the tree runnable | `5b532cd`…`7b1fe11` |
+| All three Snakefiles `--dry-run` clean; `pytest tests/` green | 524 passed, 6 skipped, 1 xfailed, 0 failed |
+| Full three-workflow run on the seed config completes | wf1, wf2 and wf3 all run for real |
+| Full-`project_dir` `semantic_tree_diff` clean modulo a written allowlist | `CLEAN: 102 files compared, 0 failed, 0 missing, 0 extra, 7 allowlisted` |
+| **P4 assertion demonstrated** | source figures build with **neither** `hydrology_model/` **nor** the wflow build template on disk — a real `snakemake` invocation, not a dry-run |
+| B1 merge comparison passes on **both** sides | survivor vs `wf1_raw/` and vs the pre-R07 keyed store, element-wise |
+| Discharge anchor before the re-record | `0/7670` timesteps over tolerance, max \|dQ\|/mean = **0**, after a full rebuild |
+| Manifest re-recorded exactly once; `check_baseline` green | 18 → 15 rows at commit 14; `OK - 15 target(s) match manifest` |
+
+**Scope delivered.** 109 files changed (+5,196 / −13,256): 22 deletions
+(`data/`'s two tracked CSVs, the 16-file `docs/config/` mirror, three retired
+modules, the `.Rproj`), 17 additions, 3 renames. The large deletion count is the
+milestone's point — the toolbox stopped carrying basin data and duplicated
+configs.
+
+**Post-milestone follow-ups.** `dev/followups.md` § Post-R7 — 21 items, 11
+resolved (4 fixed, 1 mitigated, 1 answered, 4 closed with reasons). Six further
+commits after the milestone fixed the latent wflow-TOML rebuild defect (R7-1),
+moved the parity transform out of the model package (R7-4), added manifest
+branch provenance (R7-21), and closed the documentation and cosmetic items.
 
 **Goal.** One coherent layout across both halves, governed by stated principles
 rather than accretion: the **toolbox** holds source, config and templates — no
