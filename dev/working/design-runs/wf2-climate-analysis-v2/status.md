@@ -5,15 +5,15 @@ genre: workflow-spec
 author-binding: generic
 started: 2026-07-29
 variant: lite  # PROMOTION TRIGGERED -> full (blocking findings)
-stage: 6-revision-r2
-external-rounds-completed: 1
+stage: arbitration (external cap reached)
+external-rounds-completed: 2
 dispatches:
   opus: 0
   fable: 1
 gates:
   G1: approved 2026-07-29
   G2: pending
-flags: [owner-requested-fable-lens, promoted-lite-to-full, blocking-findings-open]
+flags: [owner-requested-fable-lens, promoted-lite-to-full, blocking-findings-open, external-cap-reached, fable-escalation-r2]
 ---
 
 ## Stage log
@@ -45,9 +45,29 @@ flags: [owner-requested-fable-lens, promoted-lite-to-full, blocking-findings-ope
 - [done] G1-return-2 — re-approved 2026-07-29. Owner rulings R3', R3'', R5 and
   confirmations D2->A1, OQ-4->30yr, revise-then-round-2. R3'/R3''/R5 change the
   output contract and the selected alternative, so a revision precedes round 2.
-- [open] 6-revision-r2 — author spawn (Opus) → design-v3.md + ledger rows
-- [open] 4-external-r2 — after v3 lands (cap 2; one used)
-- [open] G2 — owner approval
+- [done] 6-revision-r2 — outputs: design-v3.md (2031 lines), ledger.md
+  (Round-2 section, ext1-07 amended, 6 rows appended). Author: `cst-architect`
+  (Opus). New decisions D6/D7/D8; OQ-4/6/8 closed, OQ-12..15 opened.
+- [done] 4-external-r2 — outputs: external-review-r2.md (doc_version:
+  design-v3.md; verdict: revise; 3 blocking, 4 major, 2 minor),
+  codex-transcript-r2.txt
+- [done] 5-convergence-r2 — NOT converged; **external cap (2) reached** →
+  owner arbitration. Index: review-index-r2.md
+- [open] arbitration — owner rules on ext2-01..09; three are decision-shaped
+  (ext2-05, ext2-06, ext2-07), six are author-fixable
+- [open] 6a-arbitration-revision — **routes to Fable** (see below), confined to
+  the arbitrated finding IDs
+- [open] G2 — owner approval under arbitration authority
+
+## Fable escalation — round 2 (skill rule, now triggered)
+
+Round 2's regression duty re-raised exactly one round-1 disposition:
+`ext1-08` (area weighting), via **ext2-02**, on the ground that the accepted fix
+does not establish the validity condition it claims. The skill routes the
+revision spawn *answering an external review that faults a prior fix* to Fable —
+the Opus revision did not satisfy the reviewer. Routing is per-spawn, so the
+whole 6a revision runs on Fable (single-writer invariant), and `dispatches.fable`
+increments when it is dispatched.
 
 ## Driver editorial fixes to stage-6 outputs (logged)
 
