@@ -681,9 +681,25 @@ the per-slice gate with the evidence above; nothing about R07 is left unproven,
 because the manifest — the actual baseline authority — agrees with the post-R07
 output to 0.003%.
 
-Follow-up (outside R07): find out which change produced the 134,828-byte
-rendering and why the manifest was never updated. The commit-14 re-record will
-overwrite the row regardless.
+**Answered 2026-07-29 (follow-up R7-3).** The 134,828-byte rendering was written
+by a **different branch**. `feat/outputs-figures` carries `e917a8e` *"redesign
+basin_area.png as a self-contained basin map"* and `c2f4881` *"degree-aware
+gridline locators in plot_map"*, both dated 2026-07-25 and **neither in `main`'s
+history**. That branch's `plot_map.py` defines `_add_scale_bar`,
+`_add_north_arrow`, an `area_km2` title and a `YlOrBr` colormap — exactly the
+figure found in the fixture; HEAD's `plot_map.py` contains none of them and
+cannot produce it.
+
+The premise above was therefore wrong: `plot_map.py` **has** changed since R6,
+just not on this line of history. Nobody's figure was corrupt — someone ran wf1
+from that branch into the shared untracked fixture, and the artifact outlived
+the checkout. The manifest (recorded from main-line code) and the fixture
+(written by feature-branch code) then disagreed, exactly as observed.
+
+Not a defect, then, but a **provenance gap in the fixture** — generalised as
+follow-up **R7-21**: `test_case/test_local` is untracked and therefore shared by
+every branch and worktree, so `check_baseline check` answers for whichever
+branch ran last, not for the branch you are on.
 
 ### 7c. Latent defect found at commit 7 — the wflow TOML is written by five rules and declared by one
 

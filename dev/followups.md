@@ -41,23 +41,75 @@ Provenance: `dev/r07/migration_project-layout.md` §§7a–7d,
   make the update chain depend on it), which is why a behaviour-preserving
   milestone could not take it. **Highest-value item in this list.**
 
-- **[R7-2] The store's freshness boundary stops at the catalog file.** Editing
-  the catalog now mtime-triggers exactly one re-extraction (R7 closed that gap),
-  but data *behind* an unchanged catalog entry — a local file the entry points
-  at, or a remote store — participates in no trigger. Documented with the
-  `snakemake --forcerun extract_climate_grid` escape hatch (map §2f). Closing it
-  properly would mean parsing hydromt catalog semantics at DAG-parse time, which
-  is outside CST's automation scope, so it may simply stay documented.
+- **[R7-2] ~~The store's freshness boundary stops at the catalog file.~~
+  CLOSED — WON'T FIX, 2026-07-29 (owner-ruled).** Editing the catalog
+  mtime-triggers exactly one re-extraction (R7 closed *that* gap, which
+  pre-dated the milestone). Data *behind* an unchanged catalog entry — a local
+  file the entry points at, or a remote store — participates in no trigger, and
+  it is staying that way. Three reasons, and the ruling records them so this is
+  not re-opened as an oversight:
 
-- **[R7-3] `basin_area.png`: which change produced the 134,828-byte figure?**
-  (map §7d.) The pre-R7 fixture carried a `basin_area.png` that matched neither
-  the manifest (286,022 B) nor what the current `plot_map.py` produces
-  (286,031 B) — visually a different figure entirely, though `plot_map.py` has
-  not changed since R6. Owner-ruled at Gate 3 as a known-bad reference row and
-  allowlisted. The commit-14 re-record overwrote the manifest row, so the
-  inconsistency is gone from the live baseline; the open question is only *how*
-  it arose, which matters because it means a fixture drifted from its own
-  baseline undetected.
+  1. **It is outside CST's automation scope.** Enumerating catalog-resolved
+     sources as DAG inputs means parsing hydromt catalog semantics at
+     DAG-parse time — re-implementing how hydromt resolves data. `AGENTS.md`
+     Hard Constraints put that off-limits: consume hydromt conventions
+     verbatim, never re-engineer them.
+  2. **It is not implementable for the general case anyway.** Remote sources
+     (the CMIP6 GCS store, any URI-backed entry) expose no usable mtime, so
+     even a correct implementation would cover only local-file entries and
+     silently miss the rest — a gate that looks complete and is not, which is
+     worse than a documented gap.
+  3. **The catalog-conventional signal already exists.** The supported way to
+     record a data change behind a stable entry is to edit the entry (path,
+     version, or meta), which the R7 input edge now picks up. For a genuine
+     in-place data mutation the escape hatch is
+     `snakemake --forcerun extract_climate_grid`, documented in
+     `dev/r07/migration_project-layout.md` §2f.
+
+  Revisit only if hydromt gains a first-class "resolve this entry to its
+  concrete sources" API — at which point this becomes consuming an upstream
+  convention rather than re-implementing one.
+
+- **[R7-3] ~~`basin_area.png`: which change produced the 134,828-byte figure?~~
+  ANSWERED 2026-07-29.** It was written by a **different branch**.
+  `feat/outputs-figures` carries `e917a8e` *"redesign basin_area.png as a
+  self-contained basin map"* and `c2f4881` *"degree-aware gridline locators"*,
+  both dated 2026-07-25 and **neither in `main`'s history**. That branch's
+  `plot_map.py` defines `_add_scale_bar`, `_add_north_arrow`, an `area_km2`
+  title and a `YlOrBr` colormap — precisely the figure found in the fixture;
+  HEAD's `plot_map.py` contains none of them and cannot produce it.
+
+  So the earlier reading was wrong in its premise: `plot_map.py` **has** changed
+  since R6, just not on this line of history. Nobody's figure was corrupt —
+  someone ran wf1 from `feat/outputs-figures` into the shared fixture, and the
+  artifact outlived the branch checkout. The manifest (recorded from main-line
+  code) and the fixture (written by feature-branch code) then disagreed, exactly
+  as observed. Closed as **explained, not a defect**; the commit-14 re-record
+  already restored agreement. Generalised as R7-21 below, which is the part that
+  matters.
+
+- **[R7-21] The baseline fixture is branch-shared mutable state.** Generalised
+  from R7-3, and the more important half of it. `test_case/test_local` is
+  **untracked**, so it is not part of any branch: every branch, worktree and
+  session that runs a workflow writes into the *same* tree. Consequences, all
+  observed rather than hypothesised:
+
+  - A figure produced by `feat/outputs-figures` sat in the fixture for days and
+    was read as the pre-R7 baseline reference (R7-3).
+  - `check_baseline check` therefore answers "does the tree match the manifest"
+    for **whichever branch ran last**, not for the branch you are on. A green
+    check can mean someone else's code is consistent with your manifest.
+  - The R7 milestone's own gate captured that contamination into its
+    pre-R07 reference tree at commit 1 and had to allowlist it at Gate 3.
+
+  Nothing here is a bug in the gate's logic — it is a scoping gap: the fixture
+  has no owner and no provenance. Candidate fixes, cheapest first:
+  **(a)** have `record`/`check` stamp the writing branch + commit into the
+  manifest and warn when they disagree with `HEAD`; **(b)** make the fixture
+  path branch-derived, so branches cannot collide; **(c)** treat it as
+  disposable and regenerate per branch, accepting the runtime. (a) is probably
+  enough, since the failure mode is silent misattribution rather than
+  corruption. **Worth doing before the next milestone runs a gate.**
 
 ### Design debt accepted knowingly
 
