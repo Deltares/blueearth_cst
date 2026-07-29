@@ -807,7 +807,9 @@ def _zarr_subset_encoding(ds: xr.Dataset, chunks: dict[str, int]) -> dict:
             for key, value in array.encoding.items()
             if key in ZARR_ENCODING_KEYS
         }
-        var_chunks = tuple(chunks[dim] for dim in array.dims if dim in chunks)
+        var_chunks = tuple(
+            chunks[dim_name] for dim_name in array.dims if dim_name in chunks
+        )
         if len(var_chunks) == len(array.dims) and var_chunks:
             var_encoding["chunks"] = var_chunks
         if var_encoding:
