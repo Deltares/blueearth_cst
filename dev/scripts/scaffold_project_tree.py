@@ -129,23 +129,38 @@ def _summary(snakefile: str, config_path: Path) -> list[str]:
     return paths
 
 
-def _log_paths(snakefile: str) -> list[str]:
-    """Synthesize `logs/<W.NN>_<rule>.log` from the Snakefile's rule_banner() calls.
+def _log_paths(snakefile: str, experiment: str) -> list[str]:
+    """Read each rule's `log:` path straight out of the Snakefile.
 
     `--summary`'s log column reports only logs that already EXIST on disk (it
-    prints `-` otherwise), so it is useless against a fresh project_dir. The
-    numbered log filename is a repo convention (`rule_banner`'s docstring: the
-    W.NN matches the rule's log/benchmark filenames), so reading the banners
-    reproduces it — and keeps the scaffold honest when the numbering changes.
+    prints `-` otherwise), so it is useless against a fresh project_dir. Reading
+    the declarations instead keeps the scaffold honest about BOTH the numbering
+    and the root: WF3 writes under ``{exp_dir}``, not the project root, so
+    synthesizing ``logs/<W.NN>_<rule>.log`` would have misplaced all 13 of them.
     """
     text = (REPO_ROOT / snakefile).read_text(encoding="utf-8")
-    pattern = re.compile(r"""rule_banner\(\s*["']([^"']+)["']\s*,\s*f?["']([^"']+)["']""")
+    roots = {"project_dir": "", "exp_dir": f"experiments/{experiment}/"}
+
     logs = []
-    for number, name in pattern.findall(text):
-        # wf3 builds batch rule names by f-string: run_wflow_batch_{_b}. Show one.
-        name = re.sub(r"\{[^}]*\}", "1", name)
-        logs.append(f"logs/{number}_{name}.log")
-    return logs
+    # Three declaration forms are in use across the Snakefiles and all three
+    # must be read, or a workflow silently loses logs from the scaffold:
+    #   f"{project_dir}/logs/2.05_….log"                       (plain f-string)
+    #   f"{exp_dir}/logs/3.05_…/" + "rlz_{rlz_num}_….log"      (f-string + concat)
+    #   project_dir + "/logs/_parts/2.02_…/{model}.log"        (bare concat)
+    patterns = (
+        r"""f["']\{(\w+)\}/(logs/[^"']*?)["'](?:\s*\+\s*["']([^"']+)["'])?""",
+        r"""\b(\w+)\s*\+\s*["']/(logs/[^"']+)["']()""",
+    )
+    for pattern in patterns:
+        for var, tail, extra in re.findall(pattern, text):
+            if var not in roots:
+                continue
+            rel = roots[var] + tail + extra
+            if not rel.endswith(".log"):
+                continue
+            # Wildcards ({rlz_num}, {_b}) stand in for a fan-out; show one instance.
+            logs.append(re.sub(r"\{[^}]*\}", "1", rel))
+    return sorted(set(logs))
 
 
 def _load_delta(path: Path | None) -> tuple[list[tuple[str, str]], list[str], list[str]]:
@@ -264,6 +279,13 @@ def main(argv: list[str] | None = None) -> int:
         shutil.rmtree(project_dir)
     project_dir.mkdir(parents=True, exist_ok=True)
 
+    experiment = (
+        yaml.safe_load(args.config.read_text(encoding="utf-8"))
+        .get("workflows", {})
+        .get("climate_experiment", {})
+        .get("experiment_name", "experiment")
+    )
+
     scratch_cfg = _scratch_config(
         args.config, project_dir, project_dir.parent / "_scaffold_config.yml"
     )
@@ -272,7 +294,7 @@ def main(argv: list[str] | None = None) -> int:
     raw: list[str] = []
     for w in workflows:
         found = _summary(SNAKEFILES[w], scratch_cfg)
-        logs = _log_paths(SNAKEFILES[w])
+        logs = _log_paths(SNAKEFILES[w], experiment)
         print(f"wf{w}: {len(found)} declared outputs, {len(logs)} logs", file=sys.stderr)
         raw.extend(found)
         raw.extend(logs)

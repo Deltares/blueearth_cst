@@ -29,5 +29,5 @@ wf2: []
 
 wf3:
   # weathergenr's R-written diagnostics (Rscript shell: body — invisible to the DAG).
-  - experiments/{experiment}/weather_generator/plots/weathergen_diagnostics.png
-  - experiments/{experiment}/weather_generator/_work/rlz_1_config.yml
+  - experiments/experiment/weather_generator/plots/weathergen_diagnostics.png
+  - experiments/experiment/weather_generator/_work/rlz_1_config.yml
