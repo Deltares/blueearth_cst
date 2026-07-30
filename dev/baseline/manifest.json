@@ -1,8 +1,8 @@
 {
   "project_dir": "test_case/test_local",
   "recorded_by": {
-    "branch": "milestone/r07-layout",
-    "commit": "ed15ac8004c37f141ab14aad06005603e8360fa1",
+    "branch": "main",
+    "commit": "ca80d382ce1edaf498a6250c82727eef792721c5",
     "dirty": false
   },
   "targets": {
