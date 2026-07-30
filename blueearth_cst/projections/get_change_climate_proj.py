@@ -257,6 +257,7 @@ if __name__ == "__main__":
 
             # Snakemake options
             clim_project_dir = sm.params.clim_project_dir
+            change_nc_out = str(sm.output.stats_nc_change)
             stats_path_hist = sm.params.stats_path_hist
             stats_path = sm.params.stats_path
             stats_time_nc_hist = sm.input.stats_time_nc_hist
@@ -356,25 +357,22 @@ if __name__ == "__main__":
                     ..., "clim_project", "model", "scenario", "horizon", "member"
                 )
 
-                # write to netcdf files
+                # write to netcdf files. Step 4b: the path comes from the rule,
+                # not rebuilt from (model, scenario, horizon) -- the rule now fans
+                # out over an opaque point_key whose sanitized model name cannot be
+                # reconstructed here.
                 dvars = stats_annual_change.raster.vars
-                name_model = stats_annual_change.model.values[0]
-                name_scenario = stats_annual_change.scenario.values[0]
-                name_horizon = stats_annual_change.horizon.values[0]
-                name_nc_out = (
-                    f"annual_change_scalar_stats-{name_model}_{name_scenario}_{name_horizon}.nc"
-                )
                 stats_annual_change.to_netcdf(
-                    os.path.join(clim_project_dir, name_nc_out),
+                    change_nc_out,
                     encoding={k: {"zlib": True} for k in dvars},
                 )
 
             else:  # create a dummy netcdf
-                name_nc_out = (
-                    f"annual_change_scalar_stats-{name_model}_{name_scenario}_{name_horizon}.nc"
-                )
+                # Unreachable once step 4c lands: with DAG-build resolution an
+                # unresolved combination never becomes a job, so there is nothing
+                # to write a placeholder for.
                 ds_dummy = xr.Dataset()
-                ds_dummy.to_netcdf(os.path.join(clim_project_dir, name_nc_out))
+                ds_dummy.to_netcdf(change_nc_out)
 
             if save_grids:
                 if len(ds_clim) > 0:

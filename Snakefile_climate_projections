@@ -221,23 +221,59 @@ for _var in _res.best_effort_variables(variables, _rename):
 # References are distinct (model, member) pairs: a reference is reduced once
 # however many scenarios share it, which is why the seed config is 6 + 3 = 9
 # rather than 12.
-_needed = {(c.dataset, "historical") for c in COMBINATIONS if c.resolved}
-_needed |= {(c.dataset, c.scenario) for c in COMBINATIONS if c.resolved}
+# Step 4b: the member is now part of the key, so the fan-out is one job per
+# (model, experiment, member) and the `members:` loop leaves the script. This is
+# what D7's strict same-member pairing makes meaningful -- a scenario point's
+# reference is the SAME member label's historical series, never a substitute,
+# because the label encodes forcing variant as well as realization.
+#
+# References are DISTINCT (model, member) pairs: one historical series serves
+# every scenario that shares it, which is why the seed config is 6 + 3 = 9.
+_needed = {(c.dataset, "historical", c.member) for c in COMBINATIONS if c.resolved}
+_needed |= {(c.dataset, c.scenario, c.member) for c in COMBINATIONS if c.resolved}
 
 SERIES = {
-    f"{clim_project}_{model.replace('/', '_')}_{experiment}": (model, experiment)
-    for model, experiment in sorted(_needed)
+    f"{clim_project}_{model.replace('/', '_')}_{experiment}_{member}": (
+        model,
+        experiment,
+        member,
+    )
+    for model, experiment, member in sorted(_needed)
 }
 
 
-def series_file(model, experiment):
-    """Path of the series for one (model, experiment)."""
-    key = f"{clim_project}_{model.replace('/', '_')}_{experiment}"
+def series_file(model, experiment, member):
+    """Path of the series for one (model, experiment, member)."""
+    key = f"{clim_project}_{model.replace('/', '_')}_{experiment}_{member}"
     return f"{clim_project_dir}/series/{key}.nc"
 
 
+# The resolved data points: one per (model, scenario, member). Under N10 nothing
+# aggregates across them, so each is its own change-factor row (design R3').
+POINTS = sorted(
+    (c.dataset, c.scenario, c.member) for c in COMBINATIONS if c.resolved
+)
+
+
+# Keyed like SERIES, and for the same reason (step 3's lesson): the sanitized
+# model name cannot be parsed back out of a wildcard, because `/` becomes `_` and
+# CMIP6 model names already contain both `-` and `_`. A first attempt at step 4b
+# let {model} capture `INM_INM-CM4-8` and then looked up a catalog entry under
+# that name, which does not exist. Look the key up; never reconstruct from it.
+POINT_KEYS = {
+    f"{model.replace('/', '_')}_{scenario}_{member}": (model, scenario, member)
+    for (model, scenario, member) in POINTS
+}
+
+
+def change_file(model, scenario, member, horizon):
+    """Path of the change-factor netCDF for one data point and horizon."""
+    key = f"{model.replace('/', '_')}_{scenario}_{member}"
+    return f"{clim_project_dir}/annual_change_scalar_stats-{key}_{horizon}.nc"
+
+
 @functools.lru_cache(maxsize=None)
-def series_digest_components(model, experiment):
+def series_digest_components(model, experiment, member):
     """Parse-time digest components for one (model, experiment) series.
 
     Memoized: the generated catalog is ~3 900 lines and Snakemake evaluates a
@@ -245,20 +281,17 @@ def series_digest_components(model, experiment):
     it on every lookup. Keyed on (model, experiment) — every other input is
     module-level and fixed for the run.
 
-    ``members`` is the config LIST, not one member: at step 2b it is still looped
-    inside one job, so a single output covers every member and the identity spans
-    all of them. Step 3 makes it a wildcard, at which point the list has one
-    element and this shape is unchanged.
+    Step 4b: the member is a wildcard, so the sequence has exactly one element.
+    The recipe is unchanged from step 2b -- it always took a member SEQUENCE, so
+    turning the loop into a fan-out did not change the digest shape.
     """
     catalog_entry = f"{clim_project}_{model}_{experiment}_{{member}}"
     entry = _si.load_catalog_entry(DATA_SOURCES, catalog_entry)
     return _si.digest_components(
         catalog_entry=catalog_entry,
         entry=entry,
-        members=members,
-        pins_by_member={
-            m: _si.load_pins(STORE_INDEX, catalog_entry, m) for m in members
-        },
+        members=[member],
+        pins_by_member={member: _si.load_pins(STORE_INDEX, catalog_entry, member)},
         buffer_degrees=REGION_BUFFER_DEGREES,
         variable_spec=variables,
         experiment=experiment,
@@ -369,7 +402,8 @@ rule reduce_gcm_series:
         catalog_path = DATA_SOURCES,
         project_dir = f"{project_dir}",
         name_scenario = lambda wildcards: SERIES[wildcards.series_key][1],
-        name_members = members,
+        # ONE member per job now (step 4b), not the config list.
+        name_members = lambda wildcards: [SERIES[wildcards.series_key][2]],
         name_model = lambda wildcards: SERIES[wildcards.series_key][0],
         name_clim_project = clim_project,
         variables = variables,
@@ -388,45 +422,70 @@ rule reduce_gcm_series:
 # 2.04  monthly_change — change factors per {model}_{scenario}_{horizon}
 rule monthly_change:
     message: rule_banner("2.04", "monthly_change")
+    wildcard_constraints:
+        point_key = "|".join(re.escape(k) for k in POINT_KEYS),
     input:
         # ancient() DROPPED (step 2b, design D9): with a persistent series store,
         # suppressing the mtime trigger here is exactly the hole ext2-01 found --
         # a re-derived series would not re-trigger its consumer. The consumer also
         # asserts each series' digest in-job, which is the backstop that holds
         # regardless of how Snakemake was invoked.
-        stats_time_nc_hist = lambda wildcards: series_file(wildcards.model, "historical"),
-        stats_time_nc = lambda wildcards: series_file(wildcards.model, wildcards.scenario),
+        stats_time_nc_hist = lambda wildcards: series_file(
+            POINT_KEYS[wildcards.point_key][0], "historical", POINT_KEYS[wildcards.point_key][2]
+        ),
+        stats_time_nc = lambda wildcards: series_file(*POINT_KEYS[wildcards.point_key]),
         # D9: stage B recomputes every expected digest INCLUDING the current
         # polygon fingerprint, so it needs the polygon itself.
         region_path = region_path,
     output:
-        stats_nc_change = temp(clim_project_dir + "/annual_change_scalar_stats-{model}_{scenario}_{horizon}.nc"),
+        # {member} is now a wildcard: under D7 each (model, scenario, member,
+        # horizon) is a distinct data point, referenced against the SAME member's
+        # historical series.
+        stats_nc_change = temp(clim_project_dir + "/annual_change_scalar_stats-{point_key}_{horizon}.nc"),
     params:
         clim_project_dir = f"{clim_project_dir}",
         # step 2b backstop: the expected digest of each input series, recomputed
         # from the same parse-time components the producer used.
-        digest_components_hist = lambda wildcards: series_digest_components(wildcards.model, "historical"),
-        digest_components_fut = lambda wildcards: series_digest_components(wildcards.model, wildcards.scenario),
+        digest_components_hist = lambda wildcards: series_digest_components(
+            POINT_KEYS[wildcards.point_key][0], "historical", POINT_KEYS[wildcards.point_key][2]
+        ),
+        digest_components_fut = lambda wildcards: series_digest_components(*POINT_KEYS[wildcards.point_key]),
         start_month_hyd_year = start_month_hyd_year, 
-        name_model = "{model}",
-        name_scenario = "{scenario}",
+        name_model = lambda wildcards: POINT_KEYS[wildcards.point_key][0],
+        name_scenario = lambda wildcards: POINT_KEYS[wildcards.point_key][1],
+        name_member = lambda wildcards: POINT_KEYS[wildcards.point_key][2],
         name_horizon = "{horizon}",
         time_horizon_hist = time_horizon_hist,
         time_horizon_fut = get_horizon,
         save_grids = save_grids,
-        stats_path_hist = (clim_project_dir + "/historical_stats_{model}.nc"),
-        stats_path = (clim_project_dir + "/stats-{model}_{scenario}.nc"),
+        # save_grids-only legacy grid paths (undeclared; R2/D11 restructure them
+        # at step 7). Lambdas because {model}/{scenario} are no longer wildcards
+        # of this rule -- it fans out over the opaque point_key.
+        stats_path_hist = lambda wildcards: (
+            f"{clim_project_dir}/historical_stats_{POINT_KEYS[wildcards.point_key][0]}.nc"
+        ),
+        stats_path = lambda wildcards: (
+            f"{clim_project_dir}/stats-{POINT_KEYS[wildcards.point_key][0]}"
+            f"_{POINT_KEYS[wildcards.point_key][1]}.nc"
+        ),
     log:
-        project_dir + "/logs/_parts/2.04_monthly_change/{model}_{scenario}_{horizon}.log",
+        project_dir + "/logs/_parts/2.04_monthly_change/{point_key}_{horizon}.log",
     benchmark:
-        project_dir + "/benchmarks/_parts/2.04_monthly_change/{model}_{scenario}_{horizon}.tsv",
+        project_dir + "/benchmarks/_parts/2.04_monthly_change/{point_key}_{horizon}.tsv",
     script: "blueearth_cst/projections/get_change_climate_proj.py"
 
 # 2.05  monthly_change_scalar_merge — merge all change factors into one summary
 rule monthly_change_scalar_merge:
     message: rule_banner("2.05", "monthly_change_scalar_merge")
     input:
-        stats_nc_change = ancient(expand((clim_project_dir + "/annual_change_scalar_stats-{model}_{scenario}_{horizon}.nc"), model = models, scenario = scenarios, horizon = future_horizons)),
+        # EXPLICIT expanded list from resolution (risk-06), never a glob and
+        # never a config cross-product: a combination that did not resolve has no
+        # file and must not be demanded.
+        stats_nc_change = [
+            change_file(m, sc, mem, hz)
+            for (m, sc, mem) in POINTS
+            for hz in future_horizons
+        ],
     output:
         stats_change_summary = (clim_project_dir + "/summary/annual_change_scalar_stats_summary.nc"),
         stats_change_summary_csv = (clim_project_dir + "/summary/annual_change_scalar_stats_summary.csv"),
@@ -446,8 +505,8 @@ rule plot_climate_proj_timeseries:
     message: rule_banner("2.06", "plot_climate_proj_timeseries")
     input:
         stats_change_summary = (clim_project_dir + "/summary/annual_change_scalar_stats_summary.nc"),
-        stats_time_nc_hist = [series_file(mod, "historical") for mod in models],
-        stats_time_nc = [series_file(mod, sc) for mod in models for sc in scenarios],
+        stats_time_nc_hist = sorted({series_file(m, "historical", mem) for (m, _sc, mem) in POINTS}),
+        stats_time_nc = sorted({series_file(m, sc, mem) for (m, sc, mem) in POINTS}),
     params:
         clim_project_dir = f"{clim_project_dir}",
         scenarios = scenarios,
@@ -491,17 +550,15 @@ rule gather_series_logs:
 rule gather_change_logs:
     message: rule_banner("2.09", "gather_change_logs")
     input:
-        expand(
-            clim_project_dir + "/annual_change_scalar_stats-{model}_{scenario}_{horizon}.nc",
-            model=models, scenario=scenarios, horizon=future_horizons,
-        ),
+        [change_file(m, sc, mem, hz) for (m, sc, mem) in POINTS for hz in future_horizons],
     output:
         f"{project_dir}/logs/2.04_monthly_change.log",
     params:
-        parts = expand(
-            project_dir + "/logs/_parts/2.04_monthly_change/{model}_{scenario}_{horizon}.log",
-            model=models, scenario=scenarios, horizon=future_horizons,
-        ),
+        parts = [
+            f"{project_dir}/logs/_parts/2.04_monthly_change/{key}_{hz}.log"
+            for key in POINT_KEYS
+            for hz in future_horizons
+        ],
     script: "blueearth_cst/shared/merge_logs.py"
 
 # --- benchmark gather ---------------------------------------------------------
