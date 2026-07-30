@@ -119,8 +119,10 @@ pinned by `tests/test_run_workflows.py`.
 
 ## Conventions
 
-- Name new identifiers and files per `dev/conventions/naming.md`. Existing names are
-  grandfathered; rename a contract surface only with a migration note.
+- Name new identifiers and files per `dev/conventions/naming.md` (snake_case,
+  lowercase acronyms, `_path`/`_dir` for paths vs `_ds`/`_df`/`_cfg` for objects,
+  three-tier domain-identifier exemptions). Existing names are grandfathered; rename
+  a contract surface only with a migration note.
 - Snakefiles are config-driven: each parses one `--configfile` YAML via a shared
   `get_config(config, key, default, optional)` helper. A new config key must mirror
   that contract (raise on missing required, return the default for optional).
@@ -175,8 +177,8 @@ pinned by `tests/test_run_workflows.py`.
   env activation misbehaves.
 - `docs/hydromt-user-guide/00-index.md`, `docs/hydromt-architecture.md` — read when
   editing model-build config, data catalogs, or region setup.
-- `docs/hydromt-wflow/getting-started.md`, `user-guide.md`, `api.md` — read when a
-  build/update/clip step touches the hydromt_wflow plugin (`api.md` for exact
-  signatures).
+- `docs/hydromt-wflow/getting-started.md`, `docs/hydromt-wflow/user-guide.md`,
+  `docs/hydromt-wflow/api.md` — read when a build/update/clip step touches the
+  hydromt_wflow plugin (`api.md` for exact signatures).
 - `docs/wflow-user-guide/00-index.md` — read when editing `wflow_sbm.toml`, warm
   states, or Wflow run config.
