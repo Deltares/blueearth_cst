@@ -58,7 +58,7 @@ workflows:
     historical_year_range: [1990, 2010]
     future_horizons:
       far:  [2070, 2090]
-    save_grids: false
+    save_gridded: false
 
   climate_experiment:
     enabled: true

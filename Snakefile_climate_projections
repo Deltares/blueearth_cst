@@ -58,7 +58,26 @@ start_month_hyd_year = get_config(my_cfg, "start_month_hyd_year", "Jan")
 time_horizon_hist = get_config(my_cfg, "historical_year_range", optional=False)
 future_horizons = get_config(my_cfg, "future_horizons", optional=False)
 
-save_grids = get_config(my_cfg, "save_grids", False)
+# Step 5e / OQ-12 (owner ruling, 2026-07-29): the key is `save_gridded`.
+#
+# The old `save_grids` RAISES rather than being ignored. Ignoring it is the worse
+# failure by far: a user who set `save_grids: true` would silently get `false`
+# behaviour and no signal that their config had stopped being read. Raising here,
+# at DAG build, also means a config error costs nothing to discover -- no jobs are
+# scheduled first.
+if "save_grids" in my_cfg:
+    raise WorkflowError(
+        "climate_projections: `save_grids` was renamed to `save_gridded` "
+        "(OQ-12). Rename the key in your config. Refusing rather than ignoring "
+        "it, because ignoring a set-to-true key would silently disable the "
+        "gridded outputs you asked for."
+    )
+save_gridded = get_config(my_cfg, "save_gridded", False)
+# Internal name kept: `save_grids` threads through params, scripts and the
+# gridded branch, and renaming the CONFIG key is what OQ-12 ruled on. Renaming
+# the internal variable too would enlarge this commit's diff without changing a
+# contract anyone outside the workflow can see.
+save_grids = save_gridded
 
 # Step 5d: the statistic set. OPTIONAL and unset in every shipped config, so the
 # config snapshot -- one of the 15 manifest targets, fingerprinted by sha256 --
