@@ -36,6 +36,7 @@ Invoked from ``Snakefile_climate_projections`` via ``script:``; reads
 # catch it (it never executes a script body); the other `script:` modules in this
 # repo omit it for the same reason.
 
+import csv
 import os
 import tempfile
 
@@ -46,6 +47,7 @@ from blueearth_cst.projections.get_change_climate_proj import (
     _to_str_tuple,
     get_change_annual_clim_proj,
     get_change_clim_projections,
+    hydrological_year_bounds,
 )
 from blueearth_cst.projections.get_change_climate_proj_summary import (
     summary_climate_proj,
@@ -85,6 +87,11 @@ def derive_one_point(
 
     The body is the former ``monthly_change`` job, moved verbatim apart from
     taking its inputs as arguments instead of reading ``snakemake.params``.
+
+    Returns the **effective reference window** it used — ``(start, end, n_years)``
+    from :func:`hydrological_year_bounds`, the same call the change arithmetic
+    makes — so the composition record annotates the numbers with the window that
+    produced them rather than with a recomputed guess.
     """
     # --- step 2b backstop: the series must match the current inputs -----------
     # Design D9 route (b) / risk-03 mechanism 2. An assertion INSIDE the job, not
@@ -121,6 +128,20 @@ def derive_one_point(
 
     ds_hist_time = ds_hist_time.sel(time=slice(*time_tuple_hist))
     ds_clim_time = ds_clim_time.sel(time=slice(*time_tuple_fut))
+    # Read the effective reference window off the SAME helper the change
+    # arithmetic uses, after the same slice. Not a recomputation: one function,
+    # called twice on one dataset.
+    #
+    # Deliberately called with the DEFAULT start month, matching the line below:
+    # `get_change_annual_clim_proj` is invoked without `start_month_hyd_year`, so
+    # the arithmetic always uses "Jan" regardless of the config key. That looks
+    # like a pre-existing defect (the rule reads the key and the old job never
+    # forwarded it), but 4d is value-neutral, so this reports the window actually
+    # used rather than the one the config asks for. Forwarding the key would change
+    # results for any non-Jan config and belongs in its own commit with its own
+    # gate. Recorded in the composition record's own terms: `reference_window_
+    # nominal` is what was requested, `_effective` is what was used.
+    ref_start, ref_end, ref_n_years = hydrological_year_bounds(ds_hist_time)
     stats_annual_change = get_change_annual_clim_proj(ds_hist_time, ds_clim_time)
     stats_annual_change = stats_annual_change.assign_coords(
         {"horizon": f"{name_horizon}"}
@@ -163,6 +184,78 @@ def derive_one_point(
 
     ds_hist_time.close()
     ds_clim_time.close()
+    return ref_start, ref_end, ref_n_years
+
+
+#: Columns of ``composition.csv``, in design §5.7 order. One row per REQUESTED
+#: (model, scenario, member) — not per resolved one, which is the point: the skips
+#: are what make the record auditable.
+COMPOSITION_COLUMNS = [
+    "dataset",
+    "institution",
+    "source_id",
+    "scenario",
+    "member",
+    "status",
+    "reason",
+    "series_key",
+    "reference_series_key",
+    "catalog_entry",
+    "catalog_crawled_on",
+    "tier",
+    "reference_window_nominal",
+    "reference_window_effective",
+    "n_hyd_years_reference",
+]
+
+
+def composition_rows(combinations, resolved, *, catalog_crawled_on, window_nominal):
+    """Build the composition record from the resolution ladder plus run facts.
+
+    ``combinations`` is every REQUESTED triple with its ladder status, as decided
+    at DAG build. ``resolved`` maps ``point_key`` to the facts only the job knows —
+    series keys, tier, and the effective window `derive_one_point` reported.
+
+    Rows for non-resolved combinations carry the status and reason and leave every
+    resolved-only column empty; that asymmetry is the record's whole purpose.
+    """
+    rows = []
+    for combo in combinations:
+        combo = dict(combo)
+        point_key = combo.get("point_key", "")
+        row = dict.fromkeys(COMPOSITION_COLUMNS, "")
+        row.update(
+            dataset=combo.get("dataset", ""),
+            institution=combo.get("institution", ""),
+            source_id=combo.get("source_id", ""),
+            scenario=combo.get("scenario", ""),
+            member=combo.get("member", ""),
+            status=combo.get("status", ""),
+            reason=combo.get("detail", ""),
+            catalog_entry=combo.get("catalog_entry", ""),
+            catalog_crawled_on=catalog_crawled_on,
+        )
+        extra = resolved.get(point_key)
+        if extra is not None:
+            row.update(extra)
+            row["reference_window_nominal"] = window_nominal
+        rows.append(row)
+    return rows
+
+
+def write_composition(path, rows):
+    """Write ``composition.csv``. Stage-B output: it describes a COMPLETED run.
+
+    ext2-08 / D4: the record is written here and not at DAG build, because a DAG
+    build that writes an output file makes parsing side-effecting — a dry run that
+    writes is not a dry run. A failed run therefore leaves the DAG-build stderr
+    summary and the job logs, and no composition artifact.
+    """
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    with open(path, "w", newline="", encoding="utf-8") as fh:
+        writer = csv.DictWriter(fh, fieldnames=COMPOSITION_COLUMNS)
+        writer.writeheader()
+        writer.writerows(rows)
 
 
 if "snakemake" in globals():
@@ -203,6 +296,7 @@ if "snakemake" in globals():
         # The per-point files were `temp()` rule outputs; they are job-internal
         # now, with the same lifetime. TemporaryDirectory removes them even if the
         # merge raises, which the old temp() could not promise mid-DAG.
+        resolved_facts = {}
         with tempfile.TemporaryDirectory(prefix="cst_change_") as work_dir:
             change_files = []
             for point in points:
@@ -212,7 +306,7 @@ if "snakemake" in globals():
                         f"annual_change_scalar_stats-{point['point_key']}"
                         f"_{horizon_name}.nc",
                     )
-                    derive_one_point(
+                    ref_start, ref_end, ref_n_years = derive_one_point(
                         series_path_hist=point["series_path_hist"],
                         series_path=point["series_path"],
                         change_nc_out=out_nc,
@@ -230,6 +324,18 @@ if "snakemake" in globals():
                         clim_project_dir=clim_project_dir,
                     )
                     change_files.append(out_nc)
+                    # Same for every horizon of a point (the reference window does
+                    # not depend on the horizon), so recording it repeatedly is
+                    # harmless and keeps the loop single-pass.
+                    resolved_facts[point["point_key"]] = {
+                        "series_key": point["series_key"],
+                        "reference_series_key": point["reference_series_key"],
+                        "tier": point["tier"],
+                        "reference_window_effective": (
+                            f"{ref_start:%Y-%m-%d} / {ref_end:%Y-%m-%d}"
+                        ),
+                        "n_hyd_years_reference": ref_n_years,
+                    }
 
             log_row(
                 f"merging {len(change_files)} change file(s) into the summary",
@@ -240,3 +346,20 @@ if "snakemake" in globals():
                 clim_files=change_files,
                 horizons=horizons,
             )
+
+        # Written AFTER the merge: a stage-B output describes a completed run
+        # (ext2-08). If the merge raises, there is no composition artifact -- which
+        # is the contract, not an omission.
+        rows = composition_rows(
+            sm.params.combinations,
+            resolved_facts,
+            catalog_crawled_on=sm.params.catalog_crawled_on,
+            window_nominal=" / ".join(_to_str_tuple(sm.params.time_horizon_hist)),
+        )
+        write_composition(str(sm.output.composition_csv), rows)
+        n_resolved = sum(1 for r in rows if r["status"] == "resolved")
+        log_row(
+            f"composition record: {len(rows)} requested, {n_resolved} resolved "
+            f"-> {os.path.basename(str(sm.output.composition_csv))}",
+            module="change",
+        )

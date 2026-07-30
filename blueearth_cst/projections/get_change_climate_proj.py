@@ -104,6 +104,30 @@ def get_change_clim_projections(ds_hist, ds_clim):
     return monthly_change_mean_grid
 
 
+def hydrological_year_bounds(ds_time, start_month_hyd_year="Jan"):
+    """First/last timestamp of the COMPLETE hydrological years in ``ds_time``.
+
+    Extracted verbatim from :func:`get_change_annual_clim_proj`, which recomputed
+    it identically on every pass of its per-variable loop. One definition, because
+    the composition record (migration step 4d) reports the *effective* reference
+    window and must report the window the change factors actually used — a second
+    implementation would eventually disagree with the numbers it annotates.
+
+    The count is exact by construction rather than by date arithmetic: ``end`` is
+    the start month of the final year minus one month, so the span is precisely
+    ``last_year - first_year`` complete hydrological years.
+
+    Returns ``(start, end, n_hydrological_years)``.
+    """
+    first_year = ds_time["time.year"][0].values
+    last_year = ds_time["time.year"][-1].values
+    start = pd.to_datetime(f"{first_year}-{start_month_hyd_year}")
+    end = pd.to_datetime(
+        f"{last_year}-{start_month_hyd_year}"
+    ) - pd.DateOffset(months=1)
+    return start, end, int(last_year) - int(first_year)
+
+
 def get_change_annual_clim_proj(
     ds_hist_time,
     ds_clim_time,
@@ -158,23 +182,20 @@ def get_change_annual_clim_proj(
                 f"one dataset (hist={sorted(hist_mem)}, clim={sorted(clim_mem)})"
             )
 
+    # Hoisted out of the per-variable loop, where these four were recomputed
+    # identically on every iteration. Same expressions, same values -- the point of
+    # the hoist is that `hydrological_year_bounds` becomes the SINGLE definition of
+    # "the complete hydrological years this change factor used", so the composition
+    # record (step 4d) can report that window instead of a second copy that drifts.
+    start_hyd_year_hist, end_hyd_year_hist, _ = hydrological_year_bounds(
+        ds_hist_time, start_month_hyd_year
+    )
+    start_hyd_year_clim, end_hyd_year_clim, _ = hydrological_year_bounds(
+        ds_clim_time, start_month_hyd_year
+    )
+
     ds = []
     for var in intersection(ds_hist_time.data_vars, ds_clim_time.data_vars):
-        # only keep full hydrological years
-        start_hyd_year_hist = pd.to_datetime(
-            f"{ds_hist_time['time.year'][0].values}-{start_month_hyd_year}"
-        )
-        end_hyd_year_hist = pd.to_datetime(
-            f"{ds_hist_time['time.year'][-1].values}-{start_month_hyd_year}"
-        ) - pd.DateOffset(months=1)
-        # same for clim
-        start_hyd_year_clim = pd.to_datetime(
-            f"{ds_clim_time['time.year'][0].values}-{start_month_hyd_year}"
-        )
-        end_hyd_year_clim = pd.to_datetime(
-            f"{ds_clim_time['time.year'][-1].values}-{start_month_hyd_year}"
-        ) - pd.DateOffset(months=1)
-
         if var == "precip":
             # multiplicative for precip
             hist = (

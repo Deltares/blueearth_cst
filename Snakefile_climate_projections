@@ -284,6 +284,20 @@ POINT_KEYS = {
 
 
 @functools.lru_cache(maxsize=None)
+def point_tier(model, scenario):
+    """`certified` | `best_effort` for one data point (ruling A3).
+
+    The weakest tier among the variables this run reads. The crawl proved only
+    `pr`/`tas` present per listed member, so a config naming `kin` or `press_msl`
+    gets a point that is nameable but unverified — an honest tier difference the
+    composition record carries rather than silently accepting.
+    """
+    entry = _si.load_catalog_entry(DATA_SOURCES, _res.entry_key(clim_project, model, scenario))
+    rename = (entry.get("data_adapter", {}) or {}).get("rename", {}) or {}
+    return "best_effort" if _res.best_effort_variables(variables, rename) else "certified"
+
+
+@functools.lru_cache(maxsize=None)
 def series_digest_components(model, experiment, member):
     """Parse-time digest components for one (model, experiment) series.
 
@@ -325,6 +339,9 @@ rule all:
         (clim_project_dir + "/summary/annual_change_scalar_stats_summary.nc"),
         (clim_project_dir + "/summary/annual_change_scalar_stats_summary.csv"),
         (clim_project_dir + "/summary/annual_change_scalar_stats_summary_mean.csv"),
+        # R5 deliverable 3 — demanded explicitly, not left as an incidental
+        # by-product of derive_change_factors' other outputs.
+        (clim_project_dir + "/summary/composition.csv"),
         stats_change_plt = (clim_project_dir + "/plots/projected_climate_statistics.png"),
         precip_plt = (clim_project_dir + "/plots/precipitation_anomaly_projections_abs.png"),
         temp_plt = (clim_project_dir + "/plots/temperature_anomaly_projections_abs.png"),
@@ -512,12 +529,34 @@ rule derive_change_factors:
         stats_change_summary_csv = (clim_project_dir + "/summary/annual_change_scalar_stats_summary.csv"),
         stats_change_summary_csv_mean = (clim_project_dir + "/summary/annual_change_scalar_stats_summary_mean.csv"),
         stats_change_plt = (clim_project_dir + "/plots/projected_climate_statistics.png"),
+        # R5 deliverable 3. A stage-B output, so it describes a COMPLETED run
+        # (ext2-08): a failed run leaves the DAG-build stderr summary and the job
+        # logs, and no composition artifact.
+        composition_csv = (clim_project_dir + "/summary/composition.csv"),
     params:
         clim_project_dir = f"{clim_project_dir}",
         horizons = future_horizons,
         start_month_hyd_year = start_month_hyd_year,
         time_horizon_hist = time_horizon_hist,
         save_grids = save_grids,
+        catalog_crawled_on = _res._as_date_string((_INDEX or {}).get("crawled_on", "")),
+        # EVERY requested combination with its ladder status -- not just the
+        # resolved ones. The skips are what make the record auditable, and they
+        # exist only here: an unresolved combination never becomes a job.
+        combinations = [
+            {
+                "point_key": f"{c.dataset.replace('/', '_')}_{c.scenario}_{c.member}",
+                "dataset": c.dataset,
+                "institution": c.institution,
+                "source_id": c.source_id,
+                "scenario": c.scenario,
+                "member": c.member,
+                "status": c.status,
+                "detail": c.detail,
+                "catalog_entry": _res.entry_key(clim_project, c.dataset, c.scenario),
+            }
+            for c in COMBINATIONS
+        ],
         # One record per resolved data point. Built HERE because the sanitized
         # model name cannot be parsed back out of a key (step 4b's lesson), so the
         # job is handed the tuple rather than reconstructing it.
@@ -531,6 +570,12 @@ rule derive_change_factors:
                 "series_path": series_file(model, scenario, member),
                 "digest_components_hist": series_digest_components(model, "historical", member),
                 "digest_components_fut": series_digest_components(model, scenario, member),
+                "series_key": f"{clim_project}_{model.replace('/', '_')}_{scenario}_{member}",
+                "reference_series_key": f"{clim_project}_{model.replace('/', '_')}_historical_{member}",
+                # A3: the WEAKEST tier among the variables read. `pr`/`tas` are the
+                # only two the crawl proved present, so anything else is nameable
+                # but unverified for a listed member.
+                "tier": point_tier(model, scenario),
                 # save_grids-only legacy grid paths (undeclared; R2/D11 restructure
                 # them at step 7).
                 "stats_path_hist": f"{clim_project_dir}/historical_stats_{model}.nc",
