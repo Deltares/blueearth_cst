@@ -41,7 +41,14 @@ from typing import Iterable, Mapping, Sequence
 #: Bumped when the series schema changes in a way a reader must notice — the
 #: attribute set, the digest recipe, or the key grammar. A consumer that meets a
 #: version it does not know must FAIL rather than guess (design §5.3).
-SCHEMA_VERSION = "1"
+#:
+#: ``"2"`` (revision 6, the fetch/reduce split): the attribute set changed in both
+#: layers — a series gains ``cst_raw_digest`` naming the slice it was reduced from,
+#: and raw slices are a new artifact class carrying ``cst_raw_digest`` and no
+#: ``cst_series_digest``. Bumping is what makes the existing v1 series re-derive
+#: instead of being silently accepted without the new provenance; it is nearly free
+#: now that a re-reduction reads local disk.
+SCHEMA_VERSION = "2"
 
 #: Acquisition span per experiment class, lifted out of
 #: ``get_stats_climate_proj.py``'s ``time_tuple_all`` branch into a declared
@@ -354,6 +361,33 @@ def digest_components(
     }
 
 
+def raw_components(components: Mapping) -> dict:
+    """The digest components the RAW slice depends on: everything but the reducer.
+
+    The stage-A split (design revision 6) separates *fetching* a slice of the
+    remote store from *reducing* it. What the raw bytes are determined by — catalog
+    entry, entry identity, pins, members, acquisition window, buffer, variable spec,
+    polygon — is exactly the series' component set minus ``reducer_module_hash``:
+    changing the reduction cannot change what was downloaded.
+
+    That exclusion is the whole point of the split, and it has to hold in **two**
+    places to pay off: here, and in the fetch rule's ``params`` (the Snakefile must
+    not pass the reducer hash to the fetch job, or Snakemake's params trigger
+    re-downloads on a formula edit no matter what this function returns).
+    """
+    return {k: v for k, v in components.items() if k != "reducer_module_hash"}
+
+
+def raw_digest(components: Mapping, region_fingerprint_hex: str) -> str:
+    """Identity of a raw slice: :func:`raw_components` plus the polygon content.
+
+    Same canonicalization as :func:`series_digest`, over the reducer-free subset, so
+    a raw slice and the series derived from it are checkable against each other
+    without re-reading the store.
+    """
+    return series_digest(raw_components(components), region_fingerprint_hex)
+
+
 def series_digest(components: Mapping, region_fingerprint_hex: str) -> str:
     """The full series digest: parse-time components + the polygon's content.
 
@@ -415,13 +449,22 @@ def read_series_attrs(path: str | os.PathLike) -> dict:
         return {}
 
 
-def cache_hit(paths: Iterable[str | os.PathLike], expected_digest: str) -> bool:
+def cache_hit(
+    paths: Iterable[str | os.PathLike],
+    expected_digest: str,
+    digest_attr: str = "cst_series_digest",
+) -> bool:
     """True when every declared output already carries ``expected_digest``.
 
     The revalidation gate of design D9 item 3. Every path must exist, carry a
     schema version this code knows, and match the digest — so a newly-enabled
     gridded output (a missing declared path) correctly forces re-derivation
     rather than being masked by the other files being current.
+
+    ``digest_attr`` selects which identity to check, because the stage-A split
+    (revision 6) gives the two layers different ones: a raw slice carries
+    ``cst_raw_digest`` and no series digest, a series carries
+    ``cst_series_digest``. Defaulted so existing callers are unaffected.
     """
     paths = list(paths)
     if not paths:
@@ -432,9 +475,110 @@ def cache_hit(paths: Iterable[str | os.PathLike], expected_digest: str) -> bool:
         attrs = read_series_attrs(path)
         if attrs.get("cst_schema_version") != SCHEMA_VERSION:
             return False
-        if attrs.get("cst_series_digest") != expected_digest:
+        if attrs.get(digest_attr) != expected_digest:
             return False
     return True
+
+
+def write_netcdf_atomic(ds, path: str | os.PathLike) -> None:
+    """Write a dataset so an interrupted write cannot leave a valid-looking file.
+
+    A cached artifact that another job trusts must never exist half-written: the
+    reader checks attributes, and a truncated netCDF either fails to open (recovered
+    by re-derivation) or — worse, if the header landed — opens with the right
+    attributes and short data. Write to a sibling temp path and ``os.replace``,
+    which is atomic within a filesystem.
+
+    Motivated by measurement, not theory: three killed runs in the R8 session left
+    manifest-pinned targets half-written, and one left a still-held handle that
+    blocked every fixture gate.
+    """
+    path = os.fspath(path)
+    tmp = f"{path}.tmp-{os.getpid()}"
+    try:
+        ds.to_netcdf(tmp)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+
+
+def assert_raw_identity(
+    path: str | os.PathLike,
+    expected_raw_digest: str,
+    raw_label: str,
+) -> None:
+    """Raise unless the local raw slice is the one this configuration implies.
+
+    The reduce stage's whole safety argument: it reads a **local** file and never
+    reopens the store, so this check is the only thing standing between a stale or
+    hand-planted slice and change factors computed from the wrong data. Fail loud,
+    naming both digests and the fix.
+    """
+    attrs = read_series_attrs(path)
+    if not attrs:
+        raise RuntimeError(
+            f"raw slice {raw_label} at {path} is unreadable or empty. Delete it and "
+            "re-run: the fetch rule will re-acquire it."
+        )
+    version = attrs.get("cst_schema_version")
+    if version != SCHEMA_VERSION:
+        raise RuntimeError(
+            f"raw slice {raw_label} carries schema version {version!r}, this code "
+            f"knows {SCHEMA_VERSION!r}. Refusing to guess — delete the slice and "
+            "re-run to re-acquire it under the current schema."
+        )
+    found = attrs.get("cst_raw_digest")
+    if found != expected_raw_digest:
+        raise RuntimeError(
+            f"raw slice {raw_label} has cst_raw_digest {found!r}, expected "
+            f"{expected_raw_digest!r}. The slice was acquired under a different "
+            "catalog entry, pin, acquisition window, buffer, variable set or region. "
+            "Delete it and re-run so the fetch rule re-acquires it; do NOT reduce it."
+        )
+
+
+def assert_raw_coverage(
+    ds,
+    expected_window: Sequence[str],
+    expected_variables: Sequence[str],
+    raw_label: str,
+) -> None:
+    """Raise when a raw slice's shape is not what the reduction assumes.
+
+    Identity (:func:`assert_raw_identity`) proves the slice was acquired for this
+    configuration; coverage proves it is still *usable*: the variables are present,
+    the time axis exists and carries no duplicate step (D8's assertion, which must
+    hold on the cached path too), and the recorded acquisition window is the one the
+    reduction expects. Deliberately not an equality check on the time span — a store
+    that legitimately starts after the requested window is a data condition, not a
+    fault, and the recorded window is what says which request produced the slice.
+    """
+    missing = [v for v in expected_variables if v not in ds.data_vars]
+    if missing:
+        raise RuntimeError(
+            f"raw slice {raw_label} is missing variable(s) {missing}; it holds "
+            f"{sorted(ds.data_vars)}. Delete the slice and re-run to re-acquire it."
+        )
+    index = ds.indexes.get("time") if hasattr(ds, "indexes") else None
+    if index is None or len(index) == 0:
+        raise RuntimeError(
+            f"raw slice {raw_label} has no time axis. Delete it and re-run."
+        )
+    duplicates = len(index) - len(set(index))
+    if duplicates:
+        raise RuntimeError(
+            f"raw slice {raw_label} has {duplicates} duplicate time step(s), so the "
+            "slice was built from an ambiguous store match. Pin the version in the "
+            "catalog, delete the slice, and re-run."
+        )
+    recorded = ds.attrs.get("cst_acquisition_window", "")
+    expected = " / ".join(expected_window)
+    if recorded != expected:
+        raise RuntimeError(
+            f"raw slice {raw_label} records acquisition window {recorded!r}, the "
+            f"reduction expects {expected!r}. Delete the slice and re-run."
+        )
 
 
 def assert_series_identity(

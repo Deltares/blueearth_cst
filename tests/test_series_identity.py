@@ -617,3 +617,167 @@ def test_kernel_hash_is_order_independent_but_name_sensitive():
 
     # same body, different qualname -> moving logic between functions invalidates
     assert si.kernel_hash([a]) != si.kernel_hash([a_renamed])
+
+
+# --------------------------------------------------------------------------
+# revision 6 — the fetch/reduce split: two cache layers, one identity each
+# --------------------------------------------------------------------------
+
+def _split_components(reducer_hash="deadbeef"):
+    """A digest-component set shaped like the Snakefile's, cheap to build."""
+    return {
+        "schema_version": si.SCHEMA_VERSION,
+        "catalog_entry": "cmip6_INM/INM-CM4-8_ssp245_{member}",
+        "members": ["r1i1p1f1"],
+        "entry_identity": {"r1i1p1f1": {"driver": {"name": "raster_xarray"}}},
+        "pins": {"r1i1p1f1": {"pr": ["gr1/v20190603"], "tas": ["gr1/v20190603"]}},
+        "buffer_degrees": 1.0,
+        "variable_spec": ["precip", "temp"],
+        "acquisition_window": ["2015-01-01", "2100-12-31"],
+        "reducer_module_hash": reducer_hash,
+    }
+
+
+REGION_FP = "a" * 64
+
+
+def test_raw_digest_ignores_the_reducer_but_series_digest_does_not():
+    """The property the whole split rests on: a formula edit must not re-download.
+
+    If this ever fails, a reduction change invalidates the RAW layer and the split
+    buys nothing -- the exact failure mode the split exists to prevent.
+    """
+    before, after = _split_components("hash-a"), _split_components("hash-b")
+
+    assert si.raw_digest(before, REGION_FP) == si.raw_digest(after, REGION_FP)
+    assert si.series_digest(before, REGION_FP) != si.series_digest(after, REGION_FP)
+
+
+def test_raw_digest_tracks_everything_else():
+    """Anything that changes the downloaded bytes must change the raw digest."""
+    base = _split_components()
+    baseline = si.raw_digest(base, REGION_FP)
+
+    for field, value in [
+        ("catalog_entry", "cmip6_INM/INM-CM5-0_ssp245_{member}"),
+        ("members", ["r2i1p1f1"]),
+        ("pins", {"r1i1p1f1": {"pr": ["gr1/v20200101"], "tas": ["gr1/v20190603"]}}),
+        ("buffer_degrees", 2.0),
+        ("variable_spec", ["precip"]),
+        ("acquisition_window", ["1950-01-01", "2014-12-31"]),
+        ("entry_identity", {"r1i1p1f1": {"driver": {"name": "zarr"}}}),
+    ]:
+        changed = dict(base)
+        changed[field] = value
+        assert si.raw_digest(changed, REGION_FP) != baseline, field
+
+    # the polygon is not a component but is folded in
+    assert si.raw_digest(base, "b" * 64) != baseline
+
+
+def test_raw_components_drops_only_the_reducer_hash():
+    assert set(si.raw_components(_split_components())) == set(_split_components()) - {
+        "reducer_module_hash"
+    }
+
+
+def _write_raw(path, digest, *, window=("2015-01-01", "2100-12-31"), variables=("precip", "temp"),
+               schema=None, times=None):
+    """A minimal raw-slice netCDF carrying the attributes the reduce stage checks."""
+    import numpy as np
+    import pandas as pd
+    import xarray as xr
+
+    times = pd.date_range("2015-01-01", periods=3, freq="MS") if times is None else times
+    ds = xr.Dataset(
+        {v: ("time", np.arange(len(times), dtype="float32")) for v in variables},
+        coords={"time": times},
+        attrs={
+            "cst_schema_version": si.SCHEMA_VERSION if schema is None else schema,
+            "cst_raw_digest": digest,
+            "cst_acquisition_window": " / ".join(window),
+        },
+    )
+    ds.to_netcdf(path)
+    return ds
+
+
+def test_assert_raw_identity_accepts_a_matching_slice(tmp_path):
+    path = tmp_path / "raw.nc"
+    _write_raw(path, "expected-digest")
+    si.assert_raw_identity(path, "expected-digest", "label")  # must not raise
+
+
+def test_assert_raw_identity_rejects_a_poisoned_slice(tmp_path):
+    """The falsifier for the reduce stage's whole safety argument.
+
+    The reduce stage never reopens the store, so a hand-planted or stale slice is
+    only caught here. Without this check the split would compute change factors
+    from whatever bytes happen to sit at the path.
+    """
+    path = tmp_path / "raw.nc"
+    _write_raw(path, "some-other-digest")
+
+    with pytest.raises(RuntimeError, match="cst_raw_digest"):
+        si.assert_raw_identity(path, "expected-digest", "label")
+
+
+def test_assert_raw_identity_rejects_an_unknown_schema_and_an_unreadable_file(tmp_path):
+    stale = tmp_path / "stale.nc"
+    _write_raw(stale, "expected-digest", schema="99")
+    with pytest.raises(RuntimeError, match="schema version"):
+        si.assert_raw_identity(stale, "expected-digest", "label")
+
+    truncated = tmp_path / "truncated.nc"
+    truncated.write_bytes(b"not a netcdf")
+    with pytest.raises(RuntimeError, match="unreadable or empty"):
+        si.assert_raw_identity(truncated, "expected-digest", "label")
+
+
+def test_assert_raw_coverage_checks_variables_window_and_duplicate_time(tmp_path):
+    import pandas as pd
+
+    window = ("2015-01-01", "2100-12-31")
+
+    ds = _write_raw(tmp_path / "ok.nc", "d", window=window)
+    si.assert_raw_coverage(ds, window, ["precip", "temp"], "label")  # must not raise
+
+    with pytest.raises(RuntimeError, match="missing variable"):
+        si.assert_raw_coverage(ds, window, ["precip", "temp", "kin"], "label")
+
+    with pytest.raises(RuntimeError, match="acquisition window"):
+        si.assert_raw_coverage(ds, ("1950-01-01", "2014-12-31"), ["precip"], "label")
+
+    duplicated = _write_raw(
+        tmp_path / "dup.nc",
+        "d",
+        window=window,
+        times=pd.to_datetime(["2015-01-01", "2015-02-01", "2015-02-01"]),
+    )
+    with pytest.raises(RuntimeError, match="duplicate time step"):
+        si.assert_raw_coverage(duplicated, window, ["precip"], "label")
+
+
+def test_cache_hit_reads_the_digest_attribute_it_is_told_to(tmp_path):
+    """A raw slice carries no series digest, so the layers must not check each other's."""
+    path = tmp_path / "raw.nc"
+    _write_raw(path, "raw-digest")
+
+    assert si.cache_hit([path], "raw-digest", digest_attr="cst_raw_digest")
+    assert not si.cache_hit([path], "raw-digest")  # default attr = cst_series_digest
+
+
+def test_write_netcdf_atomic_leaves_no_temp_file_and_replaces_in_place(tmp_path):
+    import numpy as np
+    import xarray as xr
+
+    path = tmp_path / "out.nc"
+    xr.Dataset({"a": ("x", np.arange(3.0))}).to_netcdf(path)
+    original = path.read_bytes()
+
+    si.write_netcdf_atomic(xr.Dataset({"a": ("x", np.arange(6.0))}), path)
+
+    assert not list(tmp_path.glob("*.tmp-*")), "temp file survived the write"
+    assert path.read_bytes() != original
+    with xr.open_dataset(path) as ds:
+        assert ds.sizes["x"] == 6

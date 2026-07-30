@@ -336,6 +336,7 @@ rule all:
         snake_config = f"{project_dir}/config/runs/snake_config_climate_projections.yml",
         # ONE merged log per fan-out stage. Step 3 collapses two stage-A rules
         # into one, so the two stage-A gathers collapse with them.
+        raw_log = f"{project_dir}/logs/2.01_fetch_gcm_raw.log",
         series_log = f"{project_dir}/logs/2.02_reduce_gcm_series.log",
         change_log = f"{project_dir}/logs/2.04_monthly_change.log",
         benchmarks = f"{project_dir}/benchmarks/wf2_benchmarks.md",
@@ -392,6 +393,47 @@ rule copy_config:
     script:
         "blueearth_cst/model/copy_config_files.py"
 
+# 2.01  fetch_gcm_raw — acquire ONE raw slice; the only rule that reads the store.
+#
+# Stage A splits into fetch -> reduce (design revision 6) because the two have
+# wildly different costs and different invalidation causes. Measured 2026-07-30
+# (dev/working/2026-07-30_wf2-fetch-reduce-benchmark.md): opening one remote source
+# ~1142 s, transferring its data ~19 s, reducing it ~0.2 s, raw slice 0.07 MB. So a
+# reduction edit used to cost a full re-download of nine sources; now it re-reads
+# local disk.
+#
+# THE LOAD-BEARING DETAIL: these params must NOT include the reducer hash. They
+# carry `raw_digest_components` (series_identity.raw_components -- the component set
+# minus reducer_module_hash), so Snakemake's params trigger cannot re-download on a
+# formula edit. Passing `digest_components` here instead would silently undo the
+# entire split while every test still passed.
+rule fetch_gcm_raw:
+    message: rule_banner("2.01", "fetch_gcm_raw")
+    wildcard_constraints:
+        series_key = "|".join(re.escape(k) for k in SERIES),
+    input:
+        region_path = region_path,
+    output:
+        # PERSISTENT + update(), for the same reason as the series below: Snakemake
+        # removes outputs in Job.prepare(), so a revalidate-and-skip cache silently
+        # never fires without the flag.
+        raw_nc = update(clim_project_dir + "/raw/{series_key}.nc"),
+    params:
+        catalog_path = DATA_SOURCES,
+        catalog_entry = lambda wildcards: f"{clim_project}_{SERIES[wildcards.series_key][0]}_{SERIES[wildcards.series_key][1]}_{{member}}",
+        member = lambda wildcards: SERIES[wildcards.series_key][2],
+        variables = variables,
+        buffer_degrees = REGION_BUFFER_DEGREES,
+        acquisition_window = lambda wildcards: list(_si.acquisition_window(SERIES[wildcards.series_key][1])),
+        raw_digest_components = lambda wildcards: _si.raw_components(
+            series_digest_components(*SERIES[wildcards.series_key])
+        ),
+    log:
+        project_dir + "/logs/_parts/2.01_fetch_gcm_raw/{series_key}.log",
+    benchmark:
+        project_dir + "/benchmarks/_parts/2.01_fetch_gcm_raw/{series_key}.tsv",
+    script: "blueearth_cst/projections/fetch_gcm_raw.py"
+
 # 2.02  reduce_gcm_series — ONE stage-A rule over {series_key} (step 3).
 # Collapses monthly_stats_hist + monthly_stats_fut: they ran the same script with
 # different params, and the only structural difference was their output naming
@@ -400,6 +442,7 @@ rule copy_config:
 #
 # The hist->fut ordering edge is gone (step 2b) and there is now no edge between
 # series at all: every series is independent, so the stage fans out at full width.
+# Since revision 6 it reads the local raw slice above and makes NO network call.
 rule reduce_gcm_series:
     message: rule_banner("2.02", "reduce_gcm_series")
     wildcard_constraints:
@@ -408,6 +451,8 @@ rule reduce_gcm_series:
         series_key = "|".join(re.escape(k) for k in SERIES),
     input:
         region_path = region_path,
+        # revision 6: the reduction's input is a LOCAL slice, not the remote store.
+        raw_nc = clim_project_dir + "/raw/{series_key}.nc",
     output:
         # PERSISTENT + update(): the flag is load-bearing. Snakemake's
         # Job.prepare() removes existing outputs before every job, which would
@@ -559,6 +604,23 @@ rule gather_series_logs:
     params:
         parts = [
             f"{project_dir}/logs/_parts/2.02_reduce_gcm_series/{key}.log"
+            for key in SERIES
+        ],
+    script: "blueearth_cst/shared/merge_logs.py"
+
+# gather 2.01 per-series fetch logs -> 2.01_fetch_gcm_raw.log
+# One merged log per fan-out stage (the convention above); the raw stage is a
+# fan-out of its own since revision 6, so it gets its own gather rather than being
+# folded into 2.02's.
+rule gather_raw_logs:
+    message: rule_banner("2.08", "gather_raw_logs")
+    input:
+        [f"{clim_project_dir}/raw/{key}.nc" for key in SERIES],
+    output:
+        f"{project_dir}/logs/2.01_fetch_gcm_raw.log",
+    params:
+        parts = [
+            f"{project_dir}/logs/_parts/2.01_fetch_gcm_raw/{key}.log"
             for key in SERIES
         ],
     script: "blueearth_cst/shared/merge_logs.py"

@@ -2733,3 +2733,29 @@ extremes question exists (OQ-5).
   environment classes are pinned as tests that fail against the prior
   implementation (`tests/test_series_identity.py`; probe output in the r2 review
   §2). No other section is touched; no new dependency (N4).
+
+- **2026-07-30 — revision 6** (amendment to the ACCEPTED document, post-G2).
+  **Scope:** §5.1-5.3's stage-A contract. Authority: owner-approved, gated on the
+  measurement both external critiques required
+  (`dev/working/2026-07-30_wf2-fetch-reduce-benchmark.md`). **Stage A splits into
+  `fetch_gcm_raw` -> `reduce_gcm_series`.** The fetch rule is the only module that
+  opens the remote store; the reduce rule reads a local raw slice and makes **zero**
+  network calls. Two identities: `raw_digest` (every digest component **except**
+  `reducer_module_hash`, plus the polygon) on the raw slice, and the unchanged
+  `series_digest` on the series, which also records `cst_raw_digest` so the layers
+  are checkable offline. **Why the exclusion is the whole design:** it must hold in
+  `series_identity.raw_components` *and* in the fetch rule's `params` — passing
+  `digest_components` there would re-download on a formula edit while every test
+  still passed. Raw writes are atomic; the reduce stage asserts identity, schema,
+  variables, a duplicate-free time axis (D8 on the cached path) and the recorded
+  window before reducing, and refuses anything else rather than reducing it.
+  `SCHEMA_VERSION` 1 -> 2 per its own contract (the attribute set changed in both
+  layers). **Measured consequence:** a re-reduction of all 9 series costs ~4.6 min
+  against ~18 min for a full re-derivation — the r2 review's "~15 min -> seconds"
+  was right in direction and wrong in magnitude, because process startup, not
+  arithmetic, dominates a reduce job (~31 s of which ~0.6 s is the reduction).
+  **Falsifier:** `tests/test_series_identity.py` pins that a changed reducer hash
+  leaves `raw_digest` identical while changing `series_digest`, and that a poisoned,
+  stale-schema, unreadable, variable-short, duplicate-time or wrong-window slice is
+  refused. No new dependency (N4).
+

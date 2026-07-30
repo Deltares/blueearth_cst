@@ -14,7 +14,7 @@ import os
 # warning per call before falling back. Disable the probe; reads still work.
 os.environ.setdefault("GCSFS_EXPERIMENTAL_ZB_HNS_SUPPORT", "false")
 
-import hydromt
+import hydromt  # noqa: F401 -- registers the xarray .raster accessor used below
 import geopandas as gpd
 import xarray as xr
 
@@ -143,7 +143,9 @@ if __name__ == "__main__":
             # Snakemake options
             project_dir = sm.params.project_dir
             region_path = sm.input.region_path
-            catalog_path = sm.params.catalog_path
+            # Kept as a param read for provenance only: since revision 6 this
+            # stage never opens the catalog. fetch_gcm_raw.py owns that.
+            catalog_path = sm.params.catalog_path  # noqa: F841
             name_scenario = sm.params.name_scenario
             name_members = sm.params.name_members
             name_model = sm.params.name_model
@@ -223,106 +225,61 @@ if __name__ == "__main__":
                 module="stats",
             )
 
-            # initialize data_catalog from yml file
-            data_catalog = hydromt.DataCatalog(data_libs=catalog_path)
-
-            # check if model really exists from data catalog entry - else skip and provide empty ds??
+            # --- revision 6: the reduce stage reads LOCAL raw slices only -------
+            # No DataCatalog, no get_rasterdataset, no network. Measured on
+            # 2026-07-30: opening one remote source costs ~1142 s against ~19 s to
+            # transfer its data and ~0.2 s to reduce it, so a cache that still asked
+            # the catalog anything would save nothing
+            # (dev/working/2026-07-30_wf2-fetch-reduce-benchmark.md). What used to be
+            # here -- catalog construction, the entry-presence check, the
+            # get_rasterdataset call and its per-variable fallback -- now lives in
+            # fetch_gcm_raw.py, which is the only module that opens the store.
+            #
+            # The identity checks below are what replace "we just read it ourselves":
+            # a raw slice is trusted only if it carries the raw digest this
+            # configuration implies, a schema version this code knows, the expected
+            # variables, a duplicate-free time axis (D8 on the cached path) and the
+            # acquisition window the reduction assumes.
+            raw_paths = (
+                [str(p) for p in sm.input.raw_nc]
+                if isinstance(sm.input.raw_nc, (list, tuple))
+                else [str(sm.input.raw_nc)]
+            )
+            expected_raw_digest = series_identity.raw_digest(digest_components, region_fp)
 
             ds_members_mean_stats = []
             ds_members_mean_stats_time = []
 
-            for name_member in name_members:
+            for name_member, raw_path in zip(name_members, raw_paths):
                 log_row(f"{name_member}", module="stats")
                 entry = f"{name_clim_project}_{name_model}_{name_scenario}_{name_member}"
-                # D4 fail-fast (step 4c). The old `if entry in
-                # data_catalog.sources: ... else: xr.Dataset()` guard silently
-                # produced an EMPTY dataset for an absent source, which then
-                # travelled downstream as a dummy netCDF and was filtered out at
-                # merge -- a silent ensemble shrink. Since 4a, resolution decides
-                # membership at DAG BUILD, so an absent entry never becomes a job
-                # and reaching this point with one is a bug, not a data condition.
-                if entry not in data_catalog.sources:
-                    raise RuntimeError(
-                        f"catalog entry {entry!r} is absent from {catalog_path} but a "
-                        "reduce job was scheduled for it. DAG-build resolution "
-                        "should have skipped this combination -- the catalog was "
-                        "probably regenerated mid-run. Re-run to re-resolve."
-                    )
-                if True:
-                    try:  # todo can this be replaced by if statement?
-                        data = data_catalog.get_rasterdataset(
-                            entry,
-                            bbox=bbox,
-                            buffer=buffer,
-                            time_range=time_tuple_all,
-                            variables=variables,
-                        )
-                        # needed for cmip5/cmip6 cftime.Datetime360Day which is not picked up before.
-                        data = data.sel(time=slice(*time_tuple_all))
-                        # hydromt 1.x leaves get_rasterdataset lazy-backed by the remote
-                        # GCS chunks; without an eager .load() the downstream resample +
-                        # to_netcdf round-trip rechunks via dask and ran for ~5 h per
-                        # source on M2b. After bbox/time slicing the residual is small,
-                        # so loading into memory is fine.
-                        data = data.load()
-                        # D8: the catalog URI globs {grid_label}/{version}, and
-                        # ~6% of pinned stores match more than one. Two stores
-                        # concatenated would give a DUPLICATED time axis, which a
-                        # silent drop_duplicates would paper over while halving the
-                        # effective record. Assert instead.
-                        _t = data.indexes.get("time")
-                        if _t is not None and len(_t) != len(set(_t)):
-                            raise RuntimeError(
-                                f"{entry}: time axis has {len(_t) - len(set(_t))} "
-                                "duplicate step(s), so the catalog glob matched more "
-                                "than one store. Pin the version in the catalog "
-                                "rather than reading an ambiguous source."
-                            )
-                    except Exception:  # narrowed from bare `except:` — catches the same
-                        # normal data-load errors; only BaseException
-                        # (KeyboardInterrupt/SystemExit/GeneratorExit) now propagates
-                        # instead of being swallowed, so this is output-neutral on any
-                        # completing run (a run never raises those during a data load).
-                        # if it is not possible to open all variables at once, loop over each one, remove duplicates and then merge:
-                        ds_list = []
-                        for var in variables:
-                            try:
-                                data_ = data_catalog.get_rasterdataset(
-                                    entry,
-                                    bbox=bbox,
-                                    buffer=buffer,
-                                    time_range=time_tuple_all,
-                                    variables=[var],
-                                )
-                                # drop duplicates if any
-                                data_ = data_.drop_duplicates(dim="time", keep="first").load()
-                                ds_list.append(data_)
-                            except Exception as exc:
-                                # D4 fail-fast (step 4c): previously this logged
-                                # "<var> not found" and CONTINUED, so a failed read
-                                # silently dropped a variable and the run produced
-                                # change factors from an incomplete set. A published
-                                # source that cannot be read is a failure, not an
-                                # absence -- absence is decided at DAG build (4a).
-                                raise RuntimeError(
-                                    f"reading {var!r} from {entry} failed: {exc}. "
-                                    "This is a read failure, not an unpublished "
-                                    "source -- resolution already confirmed the "
-                                    "source exists. Re-run to retry; the series "
-                                    "cache makes a retry cheap."
-                                ) from exc
-                        # merge all variables back to data
-                        data = xr.merge(ds_list)
+                raw_label = f"{entry} ({os.path.basename(raw_path)})"
 
-                    # calculate statistics
-                    mean_stats, mean_stats_time = get_stats_clim_projections(
-                        data,
-                        name_clim_project,
-                        name_model,
-                        name_scenario,
-                        name_member,
-                        save_grids=save_grids,
-                    )
+                series_identity.assert_raw_identity(
+                    raw_path, expected_raw_digest, raw_label
+                )
+                # Eager: a lazy read feeding the merge + to_netcdf below deadlocks
+                # dask's thread pool on the HDF5 lock (measured, commit bf1f4a5).
+                data = xr.open_dataset(raw_path).load()
+                series_identity.assert_raw_coverage(
+                    data, acquisition_window, variables, raw_label
+                )
+                log_row(
+                    f"reducing local raw {os.path.basename(raw_path)} "
+                    f"digest={expected_raw_digest[:12]}",
+                    module="stats",
+                )
+
+                # calculate statistics
+                mean_stats, mean_stats_time = get_stats_clim_projections(
+                    data,
+                    name_clim_project,
+                    name_model,
+                    name_scenario,
+                    name_member,
+                    save_grids=save_grids,
+                )
+                data.close()
 
                 # merge members results
                 ds_members_mean_stats.append(mean_stats)
@@ -370,6 +327,9 @@ if __name__ == "__main__":
                     "cst_reducer_module_hash": digest_components.get(
                         "reducer_module_hash", ""
                     ),
+                    # revision 6: which raw slice this was reduced from, so the two
+                    # cache layers are checkable against each other offline.
+                    "cst_raw_digest": expected_raw_digest,
                     "cst_members": ", ".join(digest_components.get("members", [])),
                     # D12: the physical stores this series actually read, per
                     # member -- the identity the entry name alone cannot carry
