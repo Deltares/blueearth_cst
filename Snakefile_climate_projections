@@ -667,6 +667,9 @@ rule derive_change_factors:
         # (ext2-08): a failed run leaves the DAG-build stderr summary and the job
         # logs, and no composition artifact.
         composition_csv = (clim_project_dir + "/summary/composition.csv"),
+        # Step 6a-i: the tidy long-format table (design 5.9). Additive --
+        # the wide summary CSVs stay until step 7 retires them.
+        change_factors_annual = (clim_project_dir + "/change_factors/annual.csv"),
     params:
         clim_project_dir = f"{clim_project_dir}",
         horizons = future_horizons,

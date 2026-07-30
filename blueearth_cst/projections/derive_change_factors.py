@@ -44,6 +44,7 @@ import xarray as xr
 
 from blueearth_cst.projections import series_identity
 from blueearth_cst.projections.calendar_weights import CalendarError, assert_weightable
+from blueearth_cst.projections.change_factor_table import tidy_rows, write_table
 from blueearth_cst.projections.variable_spec import VariableSpec
 from blueearth_cst.projections.get_change_climate_proj import (
     _to_str_tuple,
@@ -385,6 +386,62 @@ if "snakemake" in globals():
                 clim_files=change_files,
                 horizons=horizons,
             )
+
+        # --- step 6a-i: the tidy annual change-factor table (design §5.9) ----
+        # Read back from the summary the merge just wrote, rather than threading
+        # the in-memory dataset out of summary_climate_proj: the table must
+        # describe what was PERSISTED, so a reshape can never disagree with the
+        # artifact it claims to reshape.
+        summary_nc = os.path.join(
+            clim_project_dir, "summary", "annual_change_scalar_stats_summary.nc"
+        )
+        with xr.open_dataset(summary_nc) as _merged:
+            merged = _merged.load()
+        window_facts = {
+            "reference_window_nominal": sm.params.reference_record.get(
+                "reference_window_requested", ""
+            ),
+            "reference_window_effective": sm.params.reference_record.get(
+                "reference_window_effective", ""
+            ),
+            "n_years": sm.params.reference_record.get("reference_window_years", ""),
+            # Per-end dropped months are known per SERIES, not per run; until
+            # provenance.json (6a-iii) carries them per source, the run-level
+            # figure is left empty rather than filled with a guess.
+            "n_years_dropped": "",
+            "horizon_window_nominal": {
+                name: " / ".join(_to_str_tuple(window))
+                for name, window in horizons.items()
+            },
+            "horizon_window_effective": {},
+            "units": {
+                name: fields[3] for name, fields in dict(sm.params.variable_spec).items()
+            },
+        }
+        series_keys = {
+            (p["model"], p["scenario"], p["member"]): p["reference_series_key"]
+            for p in points
+        }
+        # The SAME numbers composition.csv reports, keyed per combination, so the
+        # two artifacts cannot disagree about one run's reference window.
+        row_facts = {
+            (p["model"], p["scenario"], p["member"]): {
+                "reference_window_effective": resolved_facts[p["point_key"]][
+                    "reference_window_effective"
+                ],
+                "n_years": resolved_facts[p["point_key"]]["n_hyd_years_reference"],
+            }
+            for p in points
+            if p["point_key"] in resolved_facts
+        }
+        rows = tidy_rows(merged, period="annual", window_facts=window_facts,
+                         series_keys=series_keys, row_facts=row_facts)
+        write_table(str(sm.output.change_factors_annual), rows)
+        log_row(
+            f"tidy annual change-factor table: {len(rows)} rows "
+            f"-> {os.path.basename(str(sm.output.change_factors_annual))}",
+            module="change",
+        )
 
         # Written AFTER the merge: a stage-B output describes a completed run
         # (ext2-08). If the merge raises, there is no composition artifact -- which
