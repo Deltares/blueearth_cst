@@ -341,7 +341,18 @@ if __name__ == "__main__":
             # only calc statistics if netcdf is filled (for snake all the files are made, even dummy when no data)
             # create dummy netcdf otherwise as this is the file snake is checking:
 
-            if len(ds_clim_time) > 0:
+            # Step 4c: the `if len(ds_clim_time) > 0` guard and its dummy-netCDF
+            # else-branch are gone. They existed because stage A wrote an empty
+            # dataset for an absent source; since 4a an unresolved combination
+            # never becomes a job, so an empty series here means a real defect and
+            # must not be papered over with a placeholder.
+            if len(ds_clim_time) == 0:
+                raise RuntimeError(
+                    f"{stats_time_nc} holds no data variables. Resolution admitted "
+                    "this combination, so an empty series is a defect rather than an "
+                    "unpublished source -- delete the series and re-run to re-derive."
+                )
+            if True:
                 ds_hist_time = ds_hist_time.sel(time=slice(*time_tuple_hist))
                 ds_clim_time = ds_clim_time.sel(time=slice(*time_tuple_fut))
                 # calculate statistics (mean, std, 0.1 0.25 0.50 0.75 0.90 quantiles of annual precip sum and mean temp)
@@ -367,12 +378,7 @@ if __name__ == "__main__":
                     encoding={k: {"zlib": True} for k in dvars},
                 )
 
-            else:  # create a dummy netcdf
-                # Unreachable once step 4c lands: with DAG-build resolution an
-                # unresolved combination never becomes a job, so there is nothing
-                # to write a placeholder for.
-                ds_dummy = xr.Dataset()
-                ds_dummy.to_netcdf(change_nc_out)
+
 
             if save_grids:
                 if len(ds_clim) > 0:

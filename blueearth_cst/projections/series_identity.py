@@ -119,6 +119,12 @@ def module_hash(module_paths: Sequence[str | os.PathLike]) -> str:
     Files are hashed in sorted basename order with their basename mixed in, so
     the value does not depend on the absolute path the workflow happens to run
     from, but does change if a file is renamed.
+
+    **Prefer :func:`kernel_hash` for the cache key.** Hashing whole files means a
+    comment, a docstring or an error message invalidates every cached series and
+    forces a full network re-derivation — observed at step 4c, where an
+    error-handling-only change cost 9 remote reads. This function is retained for
+    callers that genuinely want file-level identity.
     """
     digest = hashlib.sha256()
     for path in sorted(module_paths, key=lambda p: os.path.basename(str(p))):
@@ -126,6 +132,49 @@ def module_hash(module_paths: Sequence[str | os.PathLike]) -> str:
         with open(path, "rb") as handle:
             digest.update(handle.read())
     return digest.hexdigest()
+
+
+def kernel_hash(functions) -> str:
+    """sha256 over the COMPILED BYTECODE of the numerical reduction functions.
+
+    This is the cache key risk-03 actually wants. ``module_hash`` tracks file
+    bytes, so it cannot tell a changed formula from a reworded error message — at
+    step 4c an error-handling-only edit invalidated all 9 series and cost a full
+    network re-derivation. Bytecode tracks *behaviour*: comments, docstrings,
+    formatting and error strings do not appear in ``co_code``, while any change to
+    the computation does.
+
+    What it deliberately still catches: a changed constant (constants live in
+    ``co_consts``), a renamed variable that changes lookups (``co_names``), and a
+    different call sequence. What it deliberately misses: a change in a *callee*
+    that is not itself listed — so the enumeration must name every function whose
+    arithmetic matters, exactly as ``module_hash``'s file list had to.
+
+    Each function contributes its qualified name too, so moving logic between
+    functions invalidates rather than cancelling out.
+    """
+    digest = hashlib.sha256()
+    for func in sorted(functions, key=lambda f: f.__qualname__):
+        code = func.__code__
+        digest.update(func.__qualname__.encode("utf-8"))
+        digest.update(code.co_code)
+        # Constants and names: a changed threshold or a swapped attribute lookup
+        # is a behaviour change that co_code alone may not reflect.
+        digest.update(repr(tuple(c for c in code.co_consts if not _is_docstring(c))).encode("utf-8"))
+        digest.update(repr(code.co_names).encode("utf-8"))
+    return digest.hexdigest()
+
+
+def _is_docstring(const) -> bool:
+    """True for the constant that is (probably) a docstring.
+
+    ``co_consts[0]`` holds the docstring when present, but filtering by position
+    is fragile across Python versions, so this filters by type: no *string*
+    constant is allowed to affect the hash. That is deliberate — a reworded error
+    message is a string constant and must NOT invalidate the cache, which is the
+    whole point of moving off ``module_hash``. A numerical constant still does.
+    """
+    return isinstance(const, str)
 
 
 def load_catalog_entry(catalog_path: str | os.PathLike, catalog_entry: str) -> dict:

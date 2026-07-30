@@ -430,3 +430,87 @@ def test_member_order_does_not_change_the_identity(catalog):
     a = _components(catalog, members=["r1i1p1f1", "r2i1p1f1"])
     b = _components(catalog, members=["r2i1p1f1", "r1i1p1f1"])
     assert si.series_digest(a, "fp") == si.series_digest(b, "fp")
+
+
+# --------------------------------------------------------------------------
+# kernel_hash — invalidation tracks BEHAVIOUR, not file bytes (efficiency fix 2)
+# --------------------------------------------------------------------------
+
+def test_kernel_hash_ignores_comments_docstrings_and_error_strings():
+    """The step-4c lesson: an error-handling-only edit must not cost 9 remote reads.
+
+    module_hash could not distinguish a reworded message from a changed formula,
+    so an error-path edit invalidated every cached series.
+
+    Both versions compile under the SAME function name, because the hash is
+    deliberately name-sensitive (see the qualname test below) -- comparing two
+    differently-named functions would conflate the two properties.
+    """
+    q = chr(34) * 3  # triple quote, built to avoid nesting it in this file
+    src_before = chr(10).join([
+        "def reduce(x):",
+        "    " + q + "One docstring." + q,
+        "    # a comment",
+        "    if x < 0:",
+        "        raise ValueError('negative')",
+        "    return x * 2",
+    ])
+    src_after = chr(10).join([
+        "def reduce(x):",
+        "    " + q + "A completely different and much longer docstring." + q,
+        "    # an entirely different comment, and more of it",
+        "    if x < 0:",
+        "        raise ValueError('the value must not be negative, see the docs')",
+        "    return x * 2",
+    ])
+    ns_before, ns_after = {}, {}
+    exec(compile(src_before, "<before>", "exec"), ns_before)
+    exec(compile(src_after, "<after>", "exec"), ns_after)
+
+    assert si.kernel_hash([ns_before["reduce"]]) == si.kernel_hash([ns_after["reduce"]])
+
+def test_kernel_hash_changes_when_the_formula_changes():
+    def before(x):
+        return x * 2
+
+    def after(x):
+        return x * 3
+
+    assert si.kernel_hash([before]) != si.kernel_hash([after])
+
+
+def test_kernel_hash_changes_when_a_numeric_threshold_changes():
+    """A changed constant is a behaviour change even if the code shape is identical."""
+    def before(x):
+        return x > 0.1
+
+    def after(x):
+        return x > 0.5
+
+    assert si.kernel_hash([before]) != si.kernel_hash([after])
+
+
+def test_kernel_hash_changes_when_an_attribute_lookup_changes():
+    def before(ds):
+        return ds.mean()
+
+    def after(ds):
+        return ds.sum()
+
+    assert si.kernel_hash([before]) != si.kernel_hash([after])
+
+
+def test_kernel_hash_is_order_independent_but_name_sensitive():
+    def a(x):
+        return x + 1
+
+    def b(x):
+        return x + 2
+
+    assert si.kernel_hash([a, b]) == si.kernel_hash([b, a])
+
+    def a_renamed(x):
+        return x + 1
+
+    # same body, different qualname -> moving logic between functions invalidates
+    assert si.kernel_hash([a]) != si.kernel_hash([a_renamed])

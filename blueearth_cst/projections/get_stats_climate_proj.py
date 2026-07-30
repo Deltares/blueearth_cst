@@ -234,7 +234,21 @@ if __name__ == "__main__":
             for name_member in name_members:
                 log_row(f"{name_member}", module="stats")
                 entry = f"{name_clim_project}_{name_model}_{name_scenario}_{name_member}"
-                if entry in data_catalog.sources:
+                # D4 fail-fast (step 4c). The old `if entry in
+                # data_catalog.sources: ... else: xr.Dataset()` guard silently
+                # produced an EMPTY dataset for an absent source, which then
+                # travelled downstream as a dummy netCDF and was filtered out at
+                # merge -- a silent ensemble shrink. Since 4a, resolution decides
+                # membership at DAG BUILD, so an absent entry never becomes a job
+                # and reaching this point with one is a bug, not a data condition.
+                if entry not in data_catalog.sources:
+                    raise RuntimeError(
+                        f"catalog entry {entry!r} is absent from {catalog_path} but a "
+                        "reduce job was scheduled for it. DAG-build resolution "
+                        "should have skipped this combination -- the catalog was "
+                        "probably regenerated mid-run. Re-run to re-resolve."
+                    )
+                if True:
                     try:  # todo can this be replaced by if statement?
                         data = data_catalog.get_rasterdataset(
                             entry,
@@ -251,6 +265,19 @@ if __name__ == "__main__":
                         # source on M2b. After bbox/time slicing the residual is small,
                         # so loading into memory is fine.
                         data = data.load()
+                        # D8: the catalog URI globs {grid_label}/{version}, and
+                        # ~6% of pinned stores match more than one. Two stores
+                        # concatenated would give a DUPLICATED time axis, which a
+                        # silent drop_duplicates would paper over while halving the
+                        # effective record. Assert instead.
+                        _t = data.indexes.get("time")
+                        if _t is not None and len(_t) != len(set(_t)):
+                            raise RuntimeError(
+                                f"{entry}: time axis has {len(_t) - len(set(_t))} "
+                                "duplicate step(s), so the catalog glob matched more "
+                                "than one store. Pin the version in the catalog "
+                                "rather than reading an ambiguous source."
+                            )
                     except Exception:  # narrowed from bare `except:` — catches the same
                         # normal data-load errors; only BaseException
                         # (KeyboardInterrupt/SystemExit/GeneratorExit) now propagates
@@ -270,12 +297,20 @@ if __name__ == "__main__":
                                 # drop duplicates if any
                                 data_ = data_.drop_duplicates(dim="time", keep="first").load()
                                 ds_list.append(data_)
-                            except Exception:  # narrowed from bare `except:` — catches the
-                                # same normal data-load errors; only BaseException
-                                # (KeyboardInterrupt/SystemExit/GeneratorExit) now
-                                # propagates instead of being swallowed, so this is
-                                # output-neutral on any completing run.
-                                log_row(f"{name_scenario} {name_model} {var} not found", module="stats")
+                            except Exception as exc:
+                                # D4 fail-fast (step 4c): previously this logged
+                                # "<var> not found" and CONTINUED, so a failed read
+                                # silently dropped a variable and the run produced
+                                # change factors from an incomplete set. A published
+                                # source that cannot be read is a failure, not an
+                                # absence -- absence is decided at DAG build (4a).
+                                raise RuntimeError(
+                                    f"reading {var!r} from {entry} failed: {exc}. "
+                                    "This is a read failure, not an unpublished "
+                                    "source -- resolution already confirmed the "
+                                    "source exists. Re-run to retry; the series "
+                                    "cache makes a retry cheap."
+                                ) from exc
                         # merge all variables back to data
                         data = xr.merge(ds_list)
 
@@ -288,10 +323,6 @@ if __name__ == "__main__":
                         name_member,
                         save_grids=save_grids,
                     )
-
-                else:
-                    mean_stats = xr.Dataset()
-                    mean_stats_time = xr.Dataset()
 
                 # merge members results
                 ds_members_mean_stats.append(mean_stats)

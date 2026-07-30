@@ -1,0 +1,88 @@
+# FAST DEV CONFIG — for iterating on WF2 code, not for recording anything.
+#
+# Why this exists: the seed config resolves 9 series (3 models x {historical,
+# ssp245, ssp585}), and any edit to an enumerated reducer module invalidates all
+# of them, so a code change costs a full network re-derivation. Two of those reads
+# (the ssp585 pair) individually exceed a 10-minute tool timeout. This config
+# resolves **2** series, which makes an iteration loop minutes instead of tens of
+# minutes.
+#
+# Differences from config/workflows/snake_config_model_test.yml, and ONLY these:
+#   - project_dir: test_case/test_dev   (its own tree; never touches the
+#     baseline fixture, whose manifested summary/plots are derived from all
+#     3 models and would be wrong if regenerated from 1)
+#   - models:    one model  (NOAA-GFDL/GFDL-ESM4)
+#   - scenarios: one scenario (ssp245)
+#
+# NOT a baseline seed. `dev/baseline/manifest.json` is recorded from
+# snake_config_model_test.yml and nothing else; never point check_baseline here.
+# The first run pays a one-off climate-store extraction for the new project_dir.
+
+project:
+  project_dir: test_case/test_dev
+  static_dir: config
+  data_sources: config/catalogs/deltares_data.yml
+  data_sources_climate: config/catalogs/cmip6_data.yml
+
+shared:
+  basin:
+    region: "{'subbasin': [9.666, 0.4476], 'uparea': 100}"
+    resolution: 0.00833
+  historical_window:
+    starttime: "2000-01-01T00:00:00"
+    endtime: "2020-12-31T00:00:00"
+  clim_historical: era5
+
+workflows:
+  model_creation:
+    enabled: true
+    model_build_config: config/templates/wflow_build_model.yml
+    waterbodies_config: config/templates/wflow_update_waterbodies.yml
+    # Kept discharge-only on purpose: this is the baseline-recording seed, and
+    # extra outputs would only churn the copied-config fingerprint without adding
+    # any fingerprinted target. The shipped default (template / Snakefile) does
+    # include 'actual evapotranspiration'.
+    wflow_outvars: ['river discharge']
+    output_locations: None
+    observations_timeseries: None
+
+  climate_projections:
+    enabled: true
+    clim_project: cmip6
+    models:
+      - NOAA-GFDL/GFDL-ESM4
+    scenarios: [ssp245]
+    members: [r1i1p1f1]
+    variables: [precip, temp]
+    start_month_hyd_year: Jan
+    historical_year_range: [1990, 2010]
+    future_horizons:
+      far:  [2070, 2090]
+    save_grids: false
+
+  climate_experiment:
+    enabled: true
+    experiment_name: experiment
+    realizations_num: 2
+    horizontime_climate: 2080
+    run_length: 20
+    run_historical: false
+    stress_test:
+      temp:
+        step_num: 1
+        transient_change: true
+        mean:
+          min: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+          max: [3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0]
+      precip:
+        step_num: 2
+        transient_change: true
+        mean:
+          min: [0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7]
+          max: [1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3]
+        variance:
+          min: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+          max: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+    Tlow: 2
+    Tpeak: 10
+    aggregate_rlz: true

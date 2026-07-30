@@ -23,25 +23,6 @@ def preprocess_coords(ds: xr.Dataset) -> xr.Dataset:
     return ds
 
 
-def filter_nonempty(clim_files):
-    """Return the subset of ``clim_files`` whose netCDF holds data variables.
-
-    Producers write a dummy empty dataset (``xr.Dataset()``) for absent
-    (model, scenario, horizon) combinations so Snakemake sees the target on
-    disk; those must be dropped before the merge. A file is kept iff its
-    dataset has at least one data variable (``len(ds) > 0``). Extracted from
-    ``summary_climate_proj`` (R4 §7 row D) as a small, output-neutral helper so
-    the dummy-skip decision has a unit-level entry point.
-    """
-    list_files_not_empty = []
-    for file in clim_files:
-        ds_f = xr.open_dataset(file)
-        # don't read in the dummy datasets
-        if len(ds_f) > 0:
-            list_files_not_empty.append(file)
-    return list_files_not_empty
-
-
 def summary_climate_proj(
     clim_dir: Union[Path, str],
     clim_files: List[Union[Path, str]],
@@ -72,11 +53,11 @@ def summary_climate_proj(
     prefix = "annual_change_scalar_stats"
     # for prefix in prefixes:
     log_row(f"merging netcdf files {prefix}", module="change")
-    # open annual scalar summary and merge (dummy empty files dropped first)
-    list_files_not_empty = filter_nonempty(clim_files)
-    ds = xr.open_mfdataset(
-        list_files_not_empty, coords="minimal", preprocess=preprocess_coords
-    )
+    # Step 4c: filter_nonempty is GONE. It existed to drop the dummy empty
+    # netCDFs stage A used to write for absent sources; since 4a an unresolved
+    # combination never becomes a job, so every file in this list carries data and
+    # dropping any of them would be silently shrinking the ensemble.
+    ds = xr.open_mfdataset(clim_files, coords="minimal", preprocess=preprocess_coords)
     dvars = ds.raster.vars
     # R07 B3: processed-vs-summary tiering. The three summary artifacts live
     # under summary/; the figures stay in plots/ (only these three move).

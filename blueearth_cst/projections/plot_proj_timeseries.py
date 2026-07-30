@@ -52,13 +52,14 @@ if __name__ == "__main__":
             log_row("Opening historical gcm timeseries", module="plot")
 
 
-            # open historical datasets
-            fns_hist = stats_time_nc_hist.copy()
-            for fn in stats_time_nc_hist:
-                ds = xr.open_dataset(fn)
-                if len(ds) == 0 or ds is None:
-                    fns_hist.remove(fn)
-            ds_hist = xr.open_mfdataset(fns_hist, preprocess=todatetimeindex_dropvars)
+            # Step 4c: the three "did this file have data?" loops are gone. They
+            # removed the dummy empty netCDFs stage A used to write for absent
+            # sources; since 4a an unresolved combination never becomes a job, so
+            # every path here carries data and dropping any would silently shrink
+            # the ensemble (D4).
+            ds_hist = xr.open_mfdataset(
+                list(stats_time_nc_hist), preprocess=todatetimeindex_dropvars
+            )
 
             # convert to df and compute anomalies
             log_row("Computing historical gcm timeseries anomalies", module="plot")
@@ -100,12 +101,7 @@ if __name__ == "__main__":
             q_tas_anom = gcm_tas_anom.quantile([0.05, 0.5, 0.95], axis=1).transpose()
 
             # %% Future
-            # remove files containing empty dataset
-            fns_future = stats_time_nc.copy()
-            for fn in stats_time_nc:
-                ds = xr.open_dataset(fn)
-                if len(ds) == 0 or ds is None:
-                    fns_future.remove(fn)
+            fns_future = list(stats_time_nc)
 
             # Initialise list of future df per rcp
             pr_fut = []
@@ -215,6 +211,15 @@ if __name__ == "__main__":
             # %% Merge and write all timeseries to a single netcdf file
             ds_fut.append(ds_hist)
             ds_all = xr.merge(ds_fut)
+            # xarray's merge propagates global attrs from the FIRST dataset, so a
+            # merged multi-source product would silently inherit one arbitrary
+            # series' cst_* identity -- claiming a single digest, region
+            # fingerprint and source pin for a file built from nine series. Strip
+            # them: an identity that describes one input is worse than none.
+            # (Found by semantic_tree_diff at step 4c; a per-source provenance
+            # record is the report stage's job at step 7.)
+            for _attr in [k for k in ds_all.attrs if k.startswith("cst_")]:
+                del ds_all.attrs[_attr]
             # make sure we have two digits still
             ds_all["precip"] = ds_all["precip"].round(decimals=2)
             ds_all["temp"] = ds_all["temp"].round(decimals=2)
@@ -441,11 +446,7 @@ if __name__ == "__main__":
             # %%
             # Map plots of gridded change per scenario / horizon
             if save_grids:
-                fns_grids = change_grids_nc.copy()
-                for fn in change_grids_nc:
-                    ds = xr.open_dataset(fn)
-                    if len(ds) == 0 or ds is None:
-                        fns_grids.remove(fn)
+                fns_grids = list(change_grids_nc)
 
                 # Loop over rcp and horizon
                 for rcp in rcps:
