@@ -50,7 +50,54 @@ problem. It does not invalidate the *values* computed so far (nothing has used t
 calendar yet), but it does invalidate the `cst_calendar` field and anything that
 would trust it.
 
-## Where it is lost — not yet pinned
+## PINNED 2026-07-30 — and it is our own catalog's doing
+
+Two measurements settle it:
+
+1. **Plain xarray preserves the calendar.** Opening the same zarr with
+   `xr.open_zarr(consolidated=True)`, no hydromt, gives `CFTimeIndex` with
+   `calendar='noleap'`.
+2. **`harmonise_dims` destroys it.** `hydromt/data_catalog/drivers/preprocessing.py:66`:
+
+   ```python
+   # Time
+   if ds.indexes["time"].dtype == "O":
+       ds = to_datetimeindex(ds)
+   ```
+
+`preprocess: harmonise_dims` is requested by **our** generated catalog, in the
+shared defaults anchor, on all 289 entries
+(`dev/scripts/generate_cmip6_catalog.py`, `DEFAULTS_BLOCK`). So this is not an
+upstream defect to work around — it is our configuration selecting a preprocess
+that bundles a lossy time conversion with the lon/lat harmonisation we do want
+(0–360 → −180–180, and S→N → N→S orientation).
+
+**What is NOT corrupted.** `to_datetimeindex` maps monthly midpoints one-to-one
+and order-preserving; no step is dropped and no value is touched. Year and month
+survive exactly. Only the *calendar identity* is lost. That matters because month
+length is a function of (calendar, year, month) — so recovering the calendar NAME
+is sufficient; the converted axis can still supply year and month.
+
+### Preferred implementation: A3
+
+| | Approach | Why not |
+|---|---|---|
+| A1 | Drop `harmonise_dims`, reimplement lon/lat harmonisation ourselves | Gives up two corrections we rely on, to fix a third |
+| A2 | Capture the calendar before the preprocess runs | Not reachable — the preprocess runs inside the driver |
+| **A3** | **Read the calendar from the store's `.zmetadata` at fetch and stamp `cst_calendar` truthfully; derive month lengths from (calendar, year, month), not from the axis** | — |
+
+A3 costs one extra metadata read per source (~0.3 s, the same `.zmetadata` read
+used to produce the table above), keeps `harmonise_dims`' benefits, and gives 5b
+exactly what it needs.
+
+**One-time cost.** Existing raw slices carry `cst_calendar = ''`, and the raw
+digest does not include the calendar, so a cache hit would skip re-stamping them.
+Either fold the calendar into the raw digest components or bump
+`series_identity.SCHEMA_VERSION` — both invalidate the 9 slices and re-fetch them
+once (~10 min, 9 remote opens). That is the honest price of having recorded a
+false value; there is no way to correct an artifact without rewriting it.
+
+## Where it is lost — superseded by the section above
 
 The conversion happens upstream of `fetch_gcm_raw`'s `.load()`: the index is
 already `DatetimeIndex` when that module sees it. Candidates, in order of
