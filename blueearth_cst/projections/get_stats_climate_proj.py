@@ -308,12 +308,18 @@ if __name__ == "__main__":
             # use hydromt function instead to write to netcdf?
             dvars = nc_mean_stats_time.raster.vars
 
+            # Step 3: the series path comes from the rule, not from a filename
+            # convention rebuilt here. One stage-A rule fans out over {series_key},
+            # so the job is told where to write rather than inferring it from
+            # (model, scenario) -- which is what forced two rules before.
+            series_nc_out = sm.params.series_nc_out
+
+            # The gridded families keep their legacy names for now: they are
+            # save_grids-only, undeclared, and R2/D11 restructure them at step 7.
             if name_scenario == "historical":
                 name_nc_out = f"historical_stats_{name_model}.nc"
-                name_nc_out_time = f"historical_stats_time_{name_model}.nc"
             else:
                 name_nc_out = f"stats-{name_model}_{name_scenario}.nc"
-                name_nc_out_time = f"stats_time-{name_model}_{name_scenario}.nc"
 
             # --- step 2b: stamp the identity onto the product -------------------
             # These attributes are what make the persistent series self-describing
@@ -351,9 +357,10 @@ if __name__ == "__main__":
                 }
             )
 
-            log_row("writing stats over time to nc", module="stats")
+            log_row(f"writing series to {os.path.basename(series_nc_out)}", module="stats")
+            os.makedirs(os.path.dirname(series_nc_out), exist_ok=True)
             delayed_obj = nc_mean_stats_time.to_netcdf(
-                os.path.join(folder_out, name_nc_out_time),
+                series_nc_out,
                 encoding={k: {"zlib": True} for k in dvars},
                 compute=False,
             )
