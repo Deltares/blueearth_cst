@@ -2,28 +2,28 @@
   "project_dir": "test_case/test_local",
   "recorded_by": {
     "branch": "main",
-    "commit": "76190433af684a026a8ce6e83583506017aa2710",
+    "commit": "3bdf3fa8ea5639f39732b5535a9554a9e5a1412a",
     "dirty": true
   },
   "targets": {
     "test_case/test_local/climate_projections/cmip6/plots/precipitation_anomaly_projections_abs.png": {
       "exists": true,
-      "size_bytes": 562783,
+      "size_bytes": 562849,
       "type": "png"
     },
     "test_case/test_local/climate_projections/cmip6/plots/projected_climate_statistics.png": {
       "exists": true,
-      "size_bytes": 40230,
+      "size_bytes": 40239,
       "type": "png"
     },
     "test_case/test_local/climate_projections/cmip6/plots/temperature_anomaly_projections_abs.png": {
       "exists": true,
-      "size_bytes": 324377,
+      "size_bytes": 324309,
       "type": "png"
     },
     "test_case/test_local/climate_projections/cmip6/summary/annual_change_scalar_stats_summary.csv": {
-      "sha256": "5f01c2f99dc0e626fec55e119eeb9487a5d121f59ee6a0617cb0f1fe95e9c976",
-      "size_bytes": 4308,
+      "sha256": "bb010d7ab511cb377c92120afe9dcbfa49f961a50ba4b99323e3f79279197c3a",
+      "size_bytes": 4313,
       "type": "csv"
     },
     "test_case/test_local/climate_projections/cmip6/summary/annual_change_scalar_stats_summary.nc": {
@@ -88,9 +88,9 @@
           },
           "count_non_nan": 48,
           "dtype": "float64",
-          "max": 83.18949878,
-          "mean": 12.57397183,
-          "min": -39.14043845,
+          "max": 83.28164803,
+          "mean": 12.58119636,
+          "min": -39.14600386,
           "shape": [
             8,
             1,
@@ -99,7 +99,7 @@
             1,
             1
           ],
-          "std": 19.87138831
+          "std": 19.89058556
         },
         "scenario": {
           "attrs": {},
@@ -161,9 +161,9 @@
           },
           "count_non_nan": 48,
           "dtype": "float64",
-          "max": 2.827911074,
-          "mean": 1.332215015,
-          "min": -0.09582946723,
+          "max": 2.82715382,
+          "mean": 1.332230102,
+          "min": -0.09577921371,
           "shape": [
             8,
             1,
@@ -172,15 +172,15 @@
             1,
             1
           ],
-          "std": 0.9241833714
+          "std": 0.9241247791
         }
       },
-      "summary_sha256": "2b350fc1236ecd898b9b54dd08e004c96071b5c8f6ee78c42d1e4cd0d12341a3",
+      "summary_sha256": "6fbdd7026b81ce767a2d78bd6d3e52fd6b2ce141cfa16e5d9dbb3f338243d330",
       "type": "netcdf"
     },
     "test_case/test_local/climate_projections/cmip6/summary/annual_change_scalar_stats_summary_mean.csv": {
-      "sha256": "0d4d573d72899723770a3f14ed8695182dd0e8f50c8853a59d3fbff3806d401b",
-      "size_bytes": 601,
+      "sha256": "6c8279da01ca893b54a123ad6d59ad63460ae0981ee15d52704ec54fe1127cfd",
+      "size_bytes": 600,
       "type": "csv"
     },
     "test_case/test_local/config/runs/snake_config_climate_projections.yml": {

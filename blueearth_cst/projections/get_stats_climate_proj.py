@@ -125,16 +125,28 @@ def get_stats_clim_projections(
         # grid whose cells happen to be equal in area -- an equatorial,
         # latitude-symmetric bbox, which is this repo's fixture -- the two agree
         # exactly, so this change is invisible there by construction, not by luck.
+        # Step 5c: the `.round(decimals=2)` that used to end this expression is
+        # GONE. On a mm/day precipitation rate two decimals is a 0.005 mm/day
+        # floor -- about 0.15 mm/month -- quantising the series that every change
+        # factor is built from. Dropping it moves each value by at most 0.005,
+        # which is the exact bound the step's falsifier checks (H2).
+        # NOT changed here, deliberately: the float32 dtype. Promoting precision
+        # and removing quantisation in one commit would leave the diff
+        # attributable to neither.
         var_m_scalar = weighted_spatial_mean(
             var_m, x_dim, y_dim, source=f"{name_model} {name_scenario}"
-        ).round(decimals=2)
+        )
         ds_scalar.append(var_m_scalar.to_dataset())
 
         # get grid average over time for each month
         if save_grids:
             # slice over time_tuple to save minimal required info for the grid
             # var_m = var_m.sel(time=slice(*time_tuple))
-            var_mm = var_m.groupby("time.month").mean("time").round(decimals=2)
+            # Step 5c: rounding dropped here too. Cold on shipped configs
+            # (`save_grids: false`), so no diff evidence comes from this line --
+            # changed for consistency with the scalar path above rather than
+            # because a gate can see it.
+            var_mm = var_m.groupby("time.month").mean("time")
             ds.append(var_mm.to_dataset())
 
     # mean stats over grid and time
