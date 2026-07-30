@@ -159,6 +159,46 @@ def module_hash(module_paths: Sequence[str | os.PathLike]) -> str:
     return digest.hexdigest()
 
 
+def _consts_repr(consts) -> str:
+    """Deterministic text for a code object's constants, across PROCESSES.
+
+    `repr()` alone is not deterministic here, and the failure is subtle. A nested
+    function's **code object** is a constant of its parent, and `repr(code_object)`
+    embeds the object's memory address:
+
+        <code object _annual at 0x000001B2C4E10930, file "...", line 203>
+
+    So any hashed function containing a nested `def` or `lambda` produced a
+    different digest in every process. Observed 2026-07-31: `STAGE_B_HASH` moved
+    on every invocation because `get_change_annual_clim_proj` gained the `_annual`
+    closure at step 5b, which made Snakemake re-run stage B forever with
+    "params have changed since last execution". `REDUCER_HASH` was unaffected only
+    because none of its functions happens to nest one.
+
+    Code constants are therefore rendered from their own behaviour -- name,
+    bytecode, and their constants in turn -- rather than from their identity. A
+    changed closure still changes the digest, which is the point; an unchanged one
+    no longer does.
+    """
+    from types import CodeType
+
+    def render(value):
+        if isinstance(value, CodeType):
+            return (
+                f"<code {value.co_name} {value.co_code!r} "
+                f"{_consts_repr(value.co_consts)} {value.co_names!r}>"
+            )
+        if isinstance(value, (frozenset, set)):
+            # Set literals compile to (frozen)set constants, whose iteration order
+            # varies with string-hash randomization. Sort for stability.
+            return "{" + ", ".join(sorted(repr(v) for v in value)) + "}"
+        if isinstance(value, tuple):
+            return "(" + ", ".join(render(v) for v in value) + ")"
+        return repr(value)
+
+    return render(tuple(consts))
+
+
 def kernel_hash(functions, env_fingerprint: str | None = None) -> str:
     """sha256 over the BEHAVIOUR of the numerical reduction functions.
 
@@ -210,7 +250,9 @@ def kernel_hash(functions, env_fingerprint: str | None = None) -> str:
         # changed dimension name or resample code are all behaviour changes that
         # co_code alone does not reflect.
         digest.update(
-            repr(tuple(c for c in code.co_consts if not _is_own_docstring(c, func))).encode("utf-8")
+            _consts_repr(
+                tuple(c for c in code.co_consts if not _is_own_docstring(c, func))
+            ).encode("utf-8")
         )
         digest.update(repr(code.co_names).encode("utf-8"))
         # Defaults live on the function object, not in the code object: a changed

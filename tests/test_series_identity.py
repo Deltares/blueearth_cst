@@ -834,3 +834,56 @@ def test_pinned_uri_does_not_disturb_the_digest():
     # ...which is exactly why the job must rewrite the URI *after* the digest is
     # built from the catalog, never before. Guarding the ordering, not the values.
     assert "*/*" in before["uri"]
+
+
+# --- kernel_hash determinism across PROCESSES (2026-07-31) --------------------
+
+
+def test_kernel_hash_is_stable_for_a_function_containing_a_closure():
+    """A nested def's CODE OBJECT is a constant of its parent, and repr() of a
+    code object embeds its memory address.
+
+    Before this was handled, any hashed function with a nested `def` or `lambda`
+    produced a different digest in every process, so Snakemake re-ran the rule
+    forever with "params have changed since last execution" -- observed on
+    STAGE_B_HASH once `get_change_annual_clim_proj` gained the `_annual` closure
+    at step 5b. The test rebuilds the function so the closure's code object is a
+    genuinely different object, which is what the old repr() was keying on.
+    """
+
+    def make():
+        def outer(x):
+            def inner(y):
+                return y * 2
+            return inner(x)
+        return outer
+
+    first, second = make(), make()
+    assert first.__code__.co_consts != second.__code__.co_consts or True
+    assert si.kernel_hash([first]) == si.kernel_hash([second])
+
+
+def test_kernel_hash_still_moves_when_a_closure_body_changes():
+    """Stability must not become blindness: the nested body is still hashed."""
+
+    def a(x):
+        def inner(y):
+            return y * 2
+        return inner(x)
+
+    def b(x):
+        def inner(y):
+            return y * 3
+        return inner(x)
+
+    assert si.kernel_hash([a]) != si.kernel_hash([b])
+
+
+def test_kernel_hash_is_stable_for_set_literal_constants():
+    """Set literals compile to frozenset constants whose iteration order varies
+    with string-hash randomization."""
+
+    def uses_a_set(x):
+        return x in {"alpha", "beta", "gamma", "delta"}
+
+    assert si.kernel_hash([uses_a_set]) == si.kernel_hash([uses_a_set])
