@@ -58,6 +58,34 @@ start_month_hyd_year = get_config(my_cfg, "start_month_hyd_year", "Jan")
 time_horizon_hist = get_config(my_cfg, "historical_year_range", optional=False)
 future_horizons = get_config(my_cfg, "future_horizons", optional=False)
 
+# --- step 5e / D1: clip the reference window, never splice --------------------
+# The change-factor reference is the GCM historical experiment, which ends
+# 2014-12-31. A window reaching past that is CLIPPED; 2015+ exists only under the
+# per-scenario ScenarioMIP entries and stitching them on would silently mix two
+# experiments inside one reference (N8).
+#
+# Warnings are emitted PER CONDITION, at DAG build, on the principle that a signal
+# firing on every run is a signal nobody reads. The alignment difference is
+# deliberately silent by default -- the seed config's [1990, 2010] differs from
+# shared.historical_window 2000-2020 on 100% of runs -- and is promoted only when
+# the clip is what broke an alignment the config had asked for.
+from blueearth_cst.projections import reference_window as _rw
+
+REFERENCE_WINDOW = _rw.clip_reference_window(time_horizon_hist)
+_SHARED_WINDOW = [historical_window["starttime"], historical_window["endtime"]]
+for _line in _rw.window_warnings(REFERENCE_WINDOW, shared_window=_SHARED_WINDOW):
+    print(f"WARNING climate_projections: {_line}", file=sys.stderr)
+
+# The durable record. D1 names provenance.json and report.md as its homes; neither
+# exists yet (6a and 7 respectively), so stage B logs it and 6a moves it. Recorded
+# rather than dropped because silence and absence are different: an alignment
+# difference that does not warrant stderr must still be recoverable afterwards.
+REFERENCE_RECORD = _rw.alignment_record(REFERENCE_WINDOW, shared_window=_SHARED_WINDOW)
+
+# Everything downstream slices with the EFFECTIVE window. On the seed this is the
+# requested window unchanged, which is why 5e is output-neutral here.
+time_horizon_hist = list(REFERENCE_WINDOW.effective)
+
 # Step 5e / OQ-12 (owner ruling, 2026-07-29): the key is `save_gridded`.
 #
 # The old `save_grids` RAISES rather than being ignored. Ignoring it is the worse
@@ -591,6 +619,7 @@ rule derive_change_factors:
         time_horizon_hist = time_horizon_hist,
         save_grids = save_grids,
         stats = stats,
+        reference_record = REFERENCE_RECORD,
         catalog_crawled_on = _res._as_date_string((_INDEX or {}).get("crawled_on", "")),
         # EVERY requested combination with its ladder status -- not just the
         # resolved ones. The skips are what make the record auditable, and they

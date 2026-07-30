@@ -311,6 +311,12 @@ if "snakemake" in globals():
             f"{len(horizons)} horizon(s)",
             module="change",
         )
+        # Step 5e / D1: the durable reference-window record. Its designated homes
+        # -- provenance.json (6a) and report.md (7) -- do not exist yet, so it
+        # lands in this log and 6a relocates it. Logged as one line per fact so a
+        # later reader can grep a single condition rather than parse a blob.
+        for _key, _value in sorted(dict(sm.params.reference_record).items()):
+            log_row(f"reference_window {_key}={_value}", module="change")
 
         # The per-point files were `temp()` rule outputs; they are job-internal
         # now, with the same lifetime. TemporaryDirectory removes them even if the
