@@ -96,24 +96,71 @@ The second is the one worth watching: it is the failure that looks like caution.
 degenerate weight 1. A single-cell basin is the *common* case at `Amon` resolution
 on a small catchment — this is not an edge case here, it is the small-basin path.
 
-## F6 — the step must actually change values, and change only what it should
+## F6 — REWRITTEN 2026-07-30, before wiring: the fixture cannot gate this step
 
-5a is value-changing by declaration. Two failure directions again:
+**As first written, F6 said "falsified (no-op) if the diff reports CLEAN". That is
+wrong for this fixture, and acting on it would have condemned a correct 5a.**
 
-**Falsified (no-op) if:**
+Measured on `test_case/test_local`'s actual grid before writing any wiring:
 
-```bash
-pixi run python dev/scripts/semantic_tree_diff.py \
-  --ref test_case/ref_wf2_pre_5a --cur test_case/test_local
+```
+lat = [ 0.75, -0.75 ]      lon = [ 8.0, 10.0 ]
+normalised cell-area weights = [[0.25, 0.25],
+                                [0.25, 0.25]]
+max deviation from uniform   = 0.0      (exactly, not approximately)
 ```
 
-reports **CLEAN**. Identical outputs mean the weighting never reached the
-reduction — the most likely cause being a cached series that was not re-derived.
+The basin is equatorial and its two latitude rows are **symmetric about the
+equator**. `sin` is odd, so `|sin φ_n − sin φ_s|` is identical for both rows and
+the area weights are exactly equal. The weighted mean *is* the unwe- ighted mean
+here — bit for bit, not within tolerance. Confirmed on the data: `precip` and
+`temp` basin means move by `+0.0000%` / `−0.0000%` (float noise).
 
-**Falsified (contaminated) if:** the diff shows changes in artifacts that spatial
-reduction cannot touch — `raw/` slices, the config snapshot, `composition.csv`'s
-resolution columns. The diff **is** the weighting effect only if nothing else moved,
-and 5a's whole gate is that attribution.
+The same 2×2 shape at other latitudes, for contrast:
+
+| basin centre | weight spread |
+|---|---|
+| 0.75° (this fixture) | 8.6e-05 |
+| 30° | 3.8e-03 |
+| 45° | 6.5e-03 |
+| 60° | 1.1e-02 |
+
+**Consequences, and they are not small:**
+
+1. The design's §8 row for 5a says "Re-record; diff **is** the weighting effect".
+   On this fixture there is **no weighting effect to be the diff**. That row
+   assumes a fixture the repo does not have.
+2. A CLEAN value diff after 5a is the **correct** result here, not evidence the
+   weighting failed to reach the reduction. F6's original form would have read
+   correctness as failure.
+3. Conversely — and this is now the real risk — a CLEAN diff proves *nothing*
+   about D10. The fixture cannot distinguish a correct implementation from one
+   that ignores latitude entirely.
+
+**So 5a's correctness is carried by F1–F5 (unit tests, no fixture), not by the
+tree diff.** The tree diff degrades from a correctness gate to a contamination
+check.
+
+**Restated F6:**
+
+- **Falsified (contaminated) if** the diff shows changes in artifacts spatial
+  reduction cannot touch — `raw/` slices, the config snapshot, `composition.csv`'s
+  resolution columns.
+- **Expected and required:** the series' `cst_weighting_scheme` attribute changes
+  from `unweighted_mean_pre_5a` to `spherical_cell_area_midpoint_edges`, and the
+  geometry-check result appears. Attributes move; values do not.
+- **Falsified if VALUES move** on this fixture by more than float noise. Given
+  exactly-equal weights, a value change means the reduction did something other
+  than an area-weighted mean.
+
+That last one is the useful inversion: on this fixture the strong test is that
+5a changes **nothing numeric**, which is a sharper assertion than "something
+changed".
+
+**Carry-forward.** Gating 5a's actual effect needs a non-equatorial fixture. Either
+add a synthetic mid-latitude case to the unit tests (cheap, done — F1/F2 cover the
+arithmetic), or accept that no end-to-end evidence of the weighting exists in this
+repo and say so rather than implying the tree diff supplies it.
 
 ## F7 — provenance must record what was done
 
