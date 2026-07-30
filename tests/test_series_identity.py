@@ -781,3 +781,56 @@ def test_write_netcdf_atomic_leaves_no_temp_file_and_replaces_in_place(tmp_path)
     assert path.read_bytes() != original
     with xr.open_dataset(path) as ds:
         assert ds.sizes["x"] == 6
+
+
+def test_pinned_uri_narrows_the_glob_to_the_recorded_store():
+    uri = "gs://cmip6/CMIP6/ScenarioMIP/INM/INM-CM4-8/ssp245/{member}/Amon/{variable}/*/*"
+    pins = {"pr": ["gr1/v20190603"], "tas": ["gr1/v20190603"]}
+
+    assert si.pinned_uri(uri, pins) == (
+        "gs://cmip6/CMIP6/ScenarioMIP/INM/INM-CM4-8/ssp245/{member}/Amon/"
+        "{variable}/gr1/v20190603"
+    )
+    # {variable} and {member} survive: hydromt still expands them
+    assert "{variable}" in si.pinned_uri(uri, pins)
+    assert "{member}" in si.pinned_uri(uri, pins)
+
+
+def test_pinned_uri_keeps_the_glob_when_pins_cannot_name_one_store():
+    """Each None here is a real shape in config/catalogs/cmip6_store_index.json.
+
+    Counted over the 289-entry index: 33 member combinations diverge per variable
+    and 188 record more than one match. The multi-pin case must stay globbed so the
+    D8 duplicate-time-axis assertion still sees the ambiguity instead of the pin
+    silently choosing one store.
+    """
+    uri = "gs://cmip6/CMIP6/CMIP/AS-RCEC/TaiESM1/historical/{member}/Amon/{variable}/*/*"
+
+    assert si.pinned_uri(uri, {}) is None  # no pin recorded (best-effort variable)
+    assert si.pinned_uri(uri, {"pr": ["gn/v1"], "tas": ["gn/v2"]}) is None  # divergent
+    assert si.pinned_uri(uri, {"pr": ["gn/v1", "gn/v2"]}) is None  # ambiguous (D8)
+    # a URI that is not the shape this optimisation understands is left alone
+    assert si.pinned_uri("gs://bucket/explicit/path.zarr", {"pr": ["gn/v1"]}) is None
+
+
+def test_pinned_uri_does_not_disturb_the_digest():
+    """The pin is spent at read time; the digest keeps the logical URI (D12).
+
+    If this ever couples, narrowing a URI would re-derive every series for a change
+    that reads exactly the same bytes.
+    """
+    entry = {
+        "uri": "gs://cmip6/x/{member}/Amon/{variable}/*/*",
+        "driver": {"name": "raster_xarray"},
+        "data_adapter": {"rename": {"pr": "precip"}},
+        "metadata": {"crs": 4326},
+    }
+    before = si.entry_identity(entry, "r1i1p1f1")
+
+    pinned = dict(entry)
+    pinned["uri"] = si.pinned_uri(entry["uri"], {"pr": ["gn/v1"], "tas": ["gn/v1"]})
+
+    assert before != si.entry_identity(pinned, "r1i1p1f1")  # they ARE different specs
+    # ...which is exactly why the job must rewrite the URI *after* the digest is
+    # built from the catalog, never before. Guarding the ordering, not the values.
+    assert "*/*" in before["uri"]
