@@ -90,8 +90,8 @@ untracked and shared by every branch).
 **`semantic_tree_diff --ref test_case/ref_wf2_pre_valuechange` → 125 compared,
 1 failed, 0 missing, 9 extra.** Both differences are accounted for:
 
-- **9 EXTRA** — the step-4b series key generation (`…_r1i1p1f1` suffix). Expected;
-  recorded in the handoff.
+- **9 EXTRA** — the step-4b series key generation (`…_r1i1p1f1` suffix). Expected,
+  but **see §4a: "expected" is not the whole story.**
 - **1 FAIL** — `timeseries/gcm_timeseries.nc`: `dataset attrs {} vs {cst_…}`. The
   print order is `cur vs ref` (`semantic_tree_diff.py:539`), so **current is
   stripped and the reference carries the attrs**. This is step 4c's intended fix:
@@ -106,8 +106,59 @@ This is the **characterized diff step 4c owed** — its README lists 4c's cause 
 
 **The reference tree was deliberately NOT refreshed.** It is the baseline for
 5a–5e, whose gates are per-cause characterized diffs; re-snapshotting now would
-discard exactly what those steps compare against. A fresh snapshot is taken
-before 5a, per the handoff.
+discard exactly what those steps compare against.
+
+## 4a. The monthly series have ZERO gate coverage today
+
+Found by pressing on why the 9 EXTRA entries are "fine". They are not merely
+cosmetic — they mean the live artifacts were never compared. Measured:
+
+| Tree | Series files | Names |
+|---|---|---|
+| `ref_wf2_pre_valuechange` | 9 | pre-4b only (`…_ssp245.nc`) |
+| `test_local` | 18 | 9 pre-4b **orphans** (mtime 04:17–04:19, nothing writes them) + 9 **live** (`…_ssp245_r1i1p1f1.nc`, mtime 12:30–12:34, just re-derived) |
+
+So `125 compared, 9 extra` means the gate compared the nine **orphans** — trivially
+identical, because no rule has written them since step 4b — and classified the nine
+**live** series as EXTRA, which is not a comparison. `check_baseline` does not cover
+them either: its WF2 slice is 3 PNGs by size, two summary CSVs, the summary `.nc`
+and the config snapshot. **No gate fingerprints a monthly series.**
+
+Tolerable for 4b/4c, whose claims were about other files. **Fatal for 5a/5b/5c**,
+whose entire gate *is* a per-cause characterized diff on these series (spherical
+weighting, calendar weighting, rounding). Run today, 5a's diff would report the
+changed series as EXTRA and the untouched orphans as identical — a green-looking
+gate containing none of the change. The handoff sentence "'extra' entries are the
+renamed series generations and are fine" is what hid this.
+
+**Required sequence before 5a** (not before item 3, which is value-neutral):
+
+1. Prune the 9 orphans — `dev/scripts/prune_series_cache.py` already finds them and
+   defaults to a dry run; deleting is an explicit owner action. Pruning **after** a
+   snapshot would bake 18 files into the new reference and preserve the muddle, so
+   prune first.
+2. *Then* snapshot the fresh reference tree, so ref and cur hold the same 9 live
+   names and a 5a diff lands on the files 5a changes.
+
+This is a gate-materialization finding of exactly the class the r2 review's §3.2
+names: a gate specified in the plan that cannot yet do the job the plan assigns it.
+
+## 4b. `pixi.lock` is now an attribution hazard, not only a cost
+
+The lock digest feeds the cache key as of `3dc8fa5`. If the lock changes for any
+unrelated reason during 5a–5c, every series' `cst_reducer_module_hash` moves and the
+per-cause diff becomes unexplainable — destroying the very property those steps are
+split to preserve.
+
+**Freeze point, recorded so a change is detectable rather than silently mixed in:**
+
+```
+pixi.lock  sha256 dc6f27f0146c5a121239629ddfe4952db9941f2e6172c1480de736c732946288
+           640501 bytes, 2026-07-30
+```
+
+Treat the lock as frozen until R8 seals. Verify with
+`python -c "import hashlib,pathlib; print(hashlib.sha256(pathlib.Path('pixi.lock').read_bytes()).hexdigest())"`.
 
 ## 5. Carry-forwards
 
