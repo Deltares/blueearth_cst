@@ -309,6 +309,16 @@ if __name__ == "__main__":
                 # whichever member the loop ended on, which is true today only
                 # because every member shares one bbox. Recording it explicitly
                 # keeps the attribute honest if that ever stops holding.
+                # The model's true calendar, put on the raw slice by fetch (A3).
+                # Propagated because STAGE B reads the series, not the raw slice,
+                # and step 5b weights months by their length in this calendar --
+                # which cannot be recovered from the series' own time axis, since
+                # harmonise_dims converted it to datetime64 upstream of here.
+                raw_calendar = str(
+                    data.attrs.get("cst_calendar", series_identity.CALENDAR_UNKNOWN)
+                    or series_identity.CALENDAR_UNKNOWN
+                )
+
                 geometry_check = geometry_check_label(
                     data[_spatial_dim(data, YDIMS)].values,
                     data[_spatial_dim(data, XDIMS)].values,
@@ -393,6 +403,7 @@ if __name__ == "__main__":
                     # afterwards.
                     "cst_weighting_scheme": WEIGHTING_SCHEME,
                     "cst_geometry_check": geometry_check,
+                    "cst_calendar": raw_calendar,
                 }
             )
 

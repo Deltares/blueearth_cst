@@ -70,4 +70,4 @@ def test_schema_version_was_bumped_to_invalidate_the_false_calendars():
     forces slices written with the false calendar to be re-fetched. If this ever
     reverts to "2", every one of those slices silently becomes valid again.
     """
-    assert SCHEMA_VERSION == "3"
+    assert SCHEMA_VERSION == "4"

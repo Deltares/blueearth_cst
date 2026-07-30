@@ -48,7 +48,18 @@ from typing import Iterable, Mapping, Sequence
 #: ``cst_series_digest``. Bumping is what makes the existing v1 series re-derive
 #: instead of being silently accepted without the new provenance; it is nearly free
 #: now that a re-reduction reads local disk.
-SCHEMA_VERSION = "3"
+SCHEMA_VERSION = "4"
+#: Bumped 3->4 at step 5b: the SERIES schema gained `cst_calendar`, propagated
+#: from the raw slice so stage B can weight months without re-reading the store.
+#: The bump is required, not tidiness: the stamping lives in the snakemake body,
+#: OUTSIDE the functions `kernel_hash` enumerates, so `REDUCER_HASH` does not move
+#: and every reduce job would hit its internal cache and skip -- Snakemake
+#: schedules the job, the job revalidates and returns, and the new attribute is
+#: never written. Observed exactly that before this bump: series rewritten at
+#: 21:19 with schema 3 and no `cst_calendar`.
+#: Side effect stated plainly: raw slices carry the version too, so they re-fetch
+#: as well even though they are already correct. Accepted over splitting the raw
+#: and series schemas, which would be a contract change to save one dev re-fetch.
 #: Bumped 2->3 at step 5b's prerequisite: raw slices and series written before
 #: this carry `cst_calendar = ""` while their `time.attrs` assert
 #: `proleptic_gregorian`, which is FALSE for every noleap/360_day model

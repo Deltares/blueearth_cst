@@ -43,6 +43,7 @@ import tempfile
 import xarray as xr
 
 from blueearth_cst.projections import series_identity
+from blueearth_cst.projections.calendar_weights import CalendarError, assert_weightable
 from blueearth_cst.projections.get_change_climate_proj import (
     _to_str_tuple,
     get_change_annual_clim_proj,
@@ -142,7 +143,24 @@ def derive_one_point(
     # gate. Recorded in the composition record's own terms: `reference_window_
     # nominal` is what was requested, `_effective` is what was used.
     ref_start, ref_end, ref_n_years = hydrological_year_bounds(ds_hist_time)
-    stats_annual_change = get_change_annual_clim_proj(ds_hist_time, ds_clim_time)
+    # Step 5b: weight each month by its length in the MODEL's calendar. Read off
+    # the series (propagated there from the raw slice, which got it from the store
+    # -- the axis itself cannot say, having been converted to datetime64 upstream).
+    # Both series must agree: a change factor differencing two calendars would be
+    # comparing incomparable annual aggregates.
+    calendar = str(ds_hist_time.attrs.get("cst_calendar", "") or "")
+    clim_calendar = str(ds_clim_time.attrs.get("cst_calendar", "") or "")
+    if calendar != clim_calendar:
+        raise CalendarError(
+            f"{name_model} {name_scenario}: reference and scenario series carry "
+            f"different calendars ({calendar!r} vs {clim_calendar!r}). Their annual "
+            "aggregates are not comparable."
+        )
+    assert_weightable(calendar, source=f"{name_model} {name_scenario}")
+
+    stats_annual_change = get_change_annual_clim_proj(
+        ds_hist_time, ds_clim_time, calendar=calendar
+    )
     stats_annual_change = stats_annual_change.assign_coords(
         {"horizon": f"{name_horizon}"}
     ).expand_dims(["horizon"])

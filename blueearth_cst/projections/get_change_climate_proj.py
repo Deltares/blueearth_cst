@@ -11,6 +11,7 @@ import pandas as pd
 import xarray as xr
 
 from blueearth_cst.projections import series_identity
+from blueearth_cst.projections.calendar_weights import month_length_weights
 from blueearth_cst.shared.snake_utils import log_row
 
 # %%
@@ -133,6 +134,7 @@ def get_change_annual_clim_proj(
     ds_clim_time,
     stats=["mean", "std", "var", "median", "q_90", "q_75", "q_10", "q_25"],
     start_month_hyd_year="Jan",
+    calendar=None,
 ):
     """
 
@@ -194,42 +196,86 @@ def get_change_annual_clim_proj(
         ds_clim_time, start_month_hyd_year
     )
 
+    # Step 5b: month-length weights in the MODEL's calendar. `calendar=None` keeps
+    # the pre-5b unweighted behaviour, which is what the existing unit tests
+    # exercise -- they construct synthetic series with no calendar to speak of.
+    # Production always passes one: derive_change_factors reads `cst_calendar` off
+    # the series and stage B refuses an unknown one (falsifier G5).
+    def _annual(da, freq, how):
+        """Annual aggregate of a monthly series, month-length weighted."""
+        if calendar is None:
+            return getattr(da.resample(time=freq), how)("time")
+        w = xr.DataArray(
+            month_length_weights(da, calendar),
+            dims="time",
+            coords={"time": da["time"]},
+        )
+        # `.rename` on BOTH branches. xarray drops the name on any binary op
+        # between differently-named operands, so `da * w` is already unnamed --
+        # the multiplication loses it, not just the division. The caller does
+        # `change.to_dataset()`, which raises "unable to convert unnamed
+        # DataArray"; a first fix that renamed only the division branch left
+        # precip still failing, because precip never divides.
+        weighted = (da * w).resample(time=freq).sum("time").rename(da.name)
+        if how == "sum":
+            # precip is a RATE; the annual total is the duration integral, so the
+            # weighted sum IS the answer. Its units become mm/year rather than a
+            # sum of daily rates -- immaterial downstream, since precip's change
+            # factor is relative and unit-invariant.
+            return weighted
+        # temp is intensive: a duration-weighted MEAN, not an integral.
+        # `.rename` is load-bearing: dividing two DataArrays drops the name, and
+        # the caller's `change.to_dataset()` then raises "unable to convert
+        # unnamed DataArray". The sum branch keeps its name because it never
+        # divides.
+        return (weighted / w.resample(time=freq).sum("time")).rename(da.name)
+
     ds = []
     for var in intersection(ds_hist_time.data_vars, ds_clim_time.data_vars):
         if var == "precip":
             # multiplicative for precip
             hist = (
-                ds_hist_time[var]
-                .sel(time=slice(start_hyd_year_hist, end_hyd_year_hist))
-                .resample(time=f"YS-{start_month_hyd_year.upper()[:3]}")
-                .sum("time")
-                .sel(
+                _annual(
+                    ds_hist_time[var].sel(
+                        time=slice(start_hyd_year_hist, end_hyd_year_hist)
+                    ),
+                    f"YS-{start_month_hyd_year.upper()[:3]}",
+                    "sum",
+                ).sel(
                     scenario=ds_hist_time.scenario.values[0],
                 )
             )
             clim = (
-                ds_clim_time[var]
-                .sel(time=slice(start_hyd_year_clim, end_hyd_year_clim))
-                .resample(time=f"YS-{start_month_hyd_year.upper()[:3]}")
-                .sum("time")
+                _annual(
+                    ds_clim_time[var].sel(
+                        time=slice(start_hyd_year_clim, end_hyd_year_clim)
+                    ),
+                    f"YS-{start_month_hyd_year.upper()[:3]}",
+                    "sum",
+                )
             )
             # change = (ds_clim[var] - ds_hist[var].sel(horizon = ds_hist.horizon.values[0], scenario = ds_hist.scenario.values[0])) / ds_hist[var].sel(horizon = ds_hist.horizon.values[0], scenario = ds_hist.scenario.values[0]) * 100
         else:  # for temp
             # additive for temp
             hist = (
-                ds_hist_time[var]
-                .sel(time=slice(start_hyd_year_hist, end_hyd_year_hist))
-                .resample(time=f"YS-{start_month_hyd_year.upper()[:3]}")
-                .mean("time")
-                .sel(
+                _annual(
+                    ds_hist_time[var].sel(
+                        time=slice(start_hyd_year_hist, end_hyd_year_hist)
+                    ),
+                    f"YS-{start_month_hyd_year.upper()[:3]}",
+                    "mean",
+                ).sel(
                     scenario=ds_hist_time.scenario.values[0],
                 )
             )
             clim = (
-                ds_clim_time[var]
-                .sel(time=slice(start_hyd_year_clim, end_hyd_year_clim))
-                .resample(time=f"YS-{start_month_hyd_year.upper()[:3]}")
-                .mean("time")
+                _annual(
+                    ds_clim_time[var].sel(
+                        time=slice(start_hyd_year_clim, end_hyd_year_clim)
+                    ),
+                    f"YS-{start_month_hyd_year.upper()[:3]}",
+                    "mean",
+                )
             )
 
         # calc statistics

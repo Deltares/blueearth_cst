@@ -111,6 +111,44 @@ only after the diff is characterized.
 job. That would mean the change leaked into the series identity, and 5b would be
 paying a re-derivation it has no reason to pay.
 
+## Outcome — 2026-07-30, all nine discharged
+
+| | Result |
+|---|---|
+| G0 | series now carry `cst_calendar='noleap'` at schema 4 |
+| G1–G6 | 16 unit tests pass, no fixture, no network |
+| G7 | 126 compared, 21 failed: 18 **attrs only** (9 raw + 9 series), 3 summary with **real value changes** |
+| G8 | dry-run scheduled **zero** `fetch_gcm_raw` from the 5b logic itself |
+| `check_baseline` | **FAILED on 3 targets** as predicted, then re-recorded OK 15/15 |
+
+The measured effect, which is what 5b is for:
+
+```
+precip mean  12.57397183 -> 12.54277532
+precip std   19.87138831 -> 20.00744164
+temp   mean   1.332215015 ->  1.332610508
+```
+
+### Three defects the falsifier caught, none of which were the weighting
+
+1. **The test helper lied.** `pd.date_range("2001-01-15", freq="MS")` snaps
+   FORWARD to the next month start, so every synthetic axis began in February and
+   each index assertion was off by one. Surfaced as G1 reporting "February = 31".
+2. **`.rename` twice.** xarray drops the name on any binary op between
+   differently-named operands, so `da * w` is already unnamed — the
+   *multiplication* loses it, not just the division. The first fix renamed only
+   the division branch and precip still failed, because precip never divides.
+3. **The schema bump was mandatory, not tidiness.** The attribute stamping lives
+   in the snakemake body, OUTSIDE the functions `kernel_hash` enumerates, so
+   `REDUCER_HASH` did not move. Snakemake scheduled all 9 reduce jobs (it saw the
+   script change), each revalidated its own cache, found the digest unmoved, and
+   returned — `utime`-ing the file without rewriting it. Observed directly: series
+   "rewritten" at 21:19 still carrying schema 3 and no calendar. `SCHEMA_VERSION`
+   3→4 is what actually applied the change.
+
+Defect 3 is the same class as 5a's `REDUCER_KERNEL` omission: **a change outside
+the hashed surface is invisible to the cache**, and the failure is silent success.
+
 ## Order of work
 
 1. Propagate `cst_calendar` raw → series (G0). Costs a series re-derivation —
