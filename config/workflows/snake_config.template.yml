@@ -87,7 +87,9 @@ workflows:
     # narrow `members:` to the one label the model shares across your scenarios.
     # Per-model member lists: dev/workflows/wf2-cmip6-monthly-members.csv.
     members: [r1i1p1f1, r1i1p1f2, r1i1p1f3, r1i1p2f1]
-    variables: [precip, temp]
+    variables:
+      precip: {source: precip, canonical: rate, units: mm/day, change: relative}
+      temp: {source: temp, canonical: state, units: degC, change: absolute}
     start_month_hyd_year: Jan
     # CMIP6 monthly stats historical year range (different precision than
     # shared.historical_window — that one uses ISO datetimes for wflow forcing)

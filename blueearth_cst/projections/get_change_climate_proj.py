@@ -12,6 +12,7 @@ import xarray as xr
 
 from blueearth_cst.projections import series_identity
 from blueearth_cst.projections.calendar_weights import month_length_weights
+from blueearth_cst.projections.variable_spec import canonical_kind, change_kind
 from blueearth_cst.shared.snake_utils import log_row
 
 # %%
@@ -160,6 +161,7 @@ def get_change_annual_clim_proj(
     stats=None,
     start_month_hyd_year="Jan",
     calendar=None,
+    variable_spec=None,
 ):
     """
 
@@ -264,8 +266,11 @@ def get_change_annual_clim_proj(
 
     ds = []
     for var in intersection(ds_hist_time.data_vars, ds_clim_time.data_vars):
-        if var == "precip":
-            # multiplicative for precip
+        # Step 5e-iii: the AGGREGATION follows `canonical`, the change arithmetic
+        # below follows `change`. Both used to hang off `var == "precip"`, so two
+        # independent properties could never disagree.
+        if canonical_kind(variable_spec, var) == "rate":
+            # a rate integrates over the year
             hist = (
                 _annual(
                     ds_hist_time[var].sel(
@@ -320,7 +325,7 @@ def get_change_annual_clim_proj(
                 hist_stat = getattr(hist, stat_name)("time")
                 clim_stat = getattr(clim, stat_name)("time")
 
-            if var == "precip":
+            if change_kind(variable_spec, var) == "relative":
                 change = (clim_stat - hist_stat) / hist_stat * 100
             else:
                 change = clim_stat - hist_stat

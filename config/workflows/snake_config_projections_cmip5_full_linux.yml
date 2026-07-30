@@ -21,8 +21,15 @@ models: ['IPSL-CM5A-LR', 'ACCESS1-0', 'ACCESS1-3', 'BNU-ESM', 'CCSM4', 'CESM1-BG
 scenarios: [rcp26, rcp45, rcp60, rcp85]
 members: [r1i1p1]
 
-variables: [precip, temp, temp_min, temp_max]
+variables:
 
+  precip: {source: precip, canonical: rate, units: mm/day, change: relative}
+
+  temp: {source: temp, canonical: state, units: degC, change: absolute}
+
+  temp_min: {source: temp_min, canonical: state, units: degC, change: absolute}
+
+  temp_max: {source: temp_max, canonical: state, units: degC, change: absolute}
 # time horizons
 start_month_hyd_year: Jan
 historical: 1960, 2000

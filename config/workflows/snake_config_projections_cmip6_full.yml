@@ -15,8 +15,11 @@ models: ['IPSL/IPSL-CM6A-LR','SNU/SAM0-UNICON','NCAR/CESM2','NCAR/CESM2-WACCM','
 scenarios: [ssp126, ssp245, ssp370, ssp585]
 members: [r1i1p1f1]
 
-variables: [precip, temp]
+variables:
 
+  precip: {source: precip, canonical: rate, units: mm/day, change: relative}
+
+  temp: {source: temp, canonical: state, units: degC, change: absolute}
 # time horizons
 start_month_hyd_year: Jan
 historical: 1970, 2010

@@ -112,3 +112,44 @@ passing against a config nobody uses.
 3. Commit iii — the variable spec.
 4. One gate at the end: K8 by diff, K9 by manifest, then re-record and snapshot
    `ref_wf2_pre_5f`.
+
+---
+
+## Outcome — 2026-07-30, all nine discharged across three commits
+
+| | Result |
+|---|---|
+| K1 | old key raises at DAG build, naming both keys (`-n` never runs a job, so a nonzero exit there is necessarily parse-time) |
+| K2 | new key: identical DAG; only `copy_config` re-ran |
+| K3/K4 | 16 unit tests; clip names requested AND effective; entirely-after raises; ending exactly at 2014 does not |
+| K5 | seed emits **no** alignment warning; record shows `reference_alignment=differs`; promotion case covered |
+| K6 | exactly 20 years silent, 19 warns |
+| K7 | 14 unit tests; a `rainfall` variable declared `relative` IS relative; a `precip` declared `absolute` IS absolute |
+| K8 | 126 compared, **1 failed** — no value moved |
+| K9 | that one file is the config snapshot |
+| `check_baseline` | FAILED on the config target only, re-recorded OK 15/15 |
+
+### The mistake worth recording
+
+5e-iii first folded the **whole** variable spec into the digest components, and
+the dry-run answered immediately: **9 `fetch_gcm_raw` jobs**. `canonical`, `units`
+and `change` cannot change a cached byte — they are read by stage B, which has no
+cache — so a `change: relative → absolute` edit would have re-fetched every slice
+over the network for arithmetic that touches no stored value.
+
+That is the same over-invalidation the design faulted file-level hashing for at
+4c, arrived at from the opposite direction: 4c hashed too much of the *code*, this
+hashed too much of the *config*. The digest now carries the source names only —
+what was actually fetched — and the semantic fields reach stage B alone.
+
+Worth noting the dry-run caught it in seconds, before any network cost, purely
+because K-J7's "which jobs get scheduled" question is asked before every run.
+
+### A second variable family the fixture never shows
+
+Migrating the configs surfaced `snake_config_projections_cmip5_full.yml`, which
+declares `temp_min` / `temp_max` — renamed from `tmin`/`tmax` with a −273.15
+offset. They needed specs (`state`, degC, absolute) that the seed's two variables
+would never have prompted. Under the old list form they were silently treated as
+absolute *because they are not named `precip`*, which happened to be right; under
+the spec it is stated.

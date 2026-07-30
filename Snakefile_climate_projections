@@ -52,7 +52,17 @@ clim_project = get_config(my_cfg, "clim_project", optional=False)
 models = get_config(my_cfg, "models", optional=False)
 scenarios = get_config(my_cfg, "scenarios", optional=False)
 members = get_config(my_cfg, "members", optional=False)
-variables = get_config(my_cfg, "variables", optional=False)
+# Step 5e-iii / §5.5: `variables` is a MAPPING declaring each variable's canonical
+# quantity and change semantics. The bare list it replaces made stage B infer
+# `relative` from the literal name "precip", so any other relative variable was
+# silently differenced as though it were a temperature. Nothing infers anything
+# from a name now.
+from blueearth_cst.projections import variable_spec as _vs
+
+VARIABLE_SPEC = _vs.parse(get_config(my_cfg, "variables", optional=False))
+# The post-rename source names, for the catalog read. Sorted, because this list
+# reaches the digest components.
+variables = _vs.source_names(VARIABLE_SPEC)
 
 start_month_hyd_year = get_config(my_cfg, "start_month_hyd_year", "Jan")
 time_horizon_hist = get_config(my_cfg, "historical_year_range", optional=False)
@@ -397,6 +407,13 @@ def series_digest_components(model, experiment, member):
         members=[member],
         pins_by_member={member: _si.load_pins(STORE_INDEX, catalog_entry, member)},
         buffer_degrees=REGION_BUFFER_DEGREES,
+        # The digest carries the SOURCE NAMES only -- what was actually fetched
+        # and reduced. `canonical`, `units` and `change` are deliberately NOT in
+        # the cache key: they cannot change a cached byte, they are read by stage
+        # B, and stage B has no cache. Folding them in re-fetched all 9 slices
+        # over the network for a `change: relative -> absolute` edit that touches
+        # no stored value -- the same over-invalidation the design faulted
+        # file-level hashing for at 4c.
         variable_spec=variables,
         experiment=experiment,
         reducer_module_hash=REDUCER_HASH,
@@ -619,6 +636,7 @@ rule derive_change_factors:
         time_horizon_hist = time_horizon_hist,
         save_grids = save_grids,
         stats = stats,
+        variable_spec = {k: list(v) for k, v in VARIABLE_SPEC.items()},
         reference_record = REFERENCE_RECORD,
         catalog_crawled_on = _res._as_date_string((_INDEX or {}).get("crawled_on", "")),
         # EVERY requested combination with its ladder status -- not just the

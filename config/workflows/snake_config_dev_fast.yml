@@ -53,7 +53,9 @@ workflows:
       - NOAA-GFDL/GFDL-ESM4
     scenarios: [ssp245]
     members: [r1i1p1f1]
-    variables: [precip, temp]
+    variables:
+      precip: {source: precip, canonical: rate, units: mm/day, change: relative}
+      temp: {source: temp, canonical: state, units: degC, change: absolute}
     start_month_hyd_year: Jan
     historical_year_range: [1990, 2010]
     future_horizons:

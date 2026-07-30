@@ -44,6 +44,7 @@ import xarray as xr
 
 from blueearth_cst.projections import series_identity
 from blueearth_cst.projections.calendar_weights import CalendarError, assert_weightable
+from blueearth_cst.projections.variable_spec import VariableSpec
 from blueearth_cst.projections.get_change_climate_proj import (
     _to_str_tuple,
     get_change_annual_clim_proj,
@@ -81,6 +82,7 @@ def derive_one_point(
     digest_components_fut,
     save_grids=False,
     stats=None,
+    variable_spec=None,
     stats_path_hist=None,
     stats_path=None,
     clim_project_dir=None,
@@ -160,7 +162,11 @@ def derive_one_point(
     assert_weightable(calendar, source=f"{name_model} {name_scenario}")
 
     stats_annual_change = get_change_annual_clim_proj(
-        ds_hist_time, ds_clim_time, calendar=calendar, stats=stats
+        ds_hist_time,
+        ds_clim_time,
+        calendar=calendar,
+        stats=stats,
+        variable_spec=variable_spec,
     )
     stats_annual_change = stats_annual_change.assign_coords(
         {"horizon": f"{name_horizon}"}
@@ -321,6 +327,12 @@ if "snakemake" in globals():
         # The per-point files were `temp()` rule outputs; they are job-internal
         # now, with the same lifetime. TemporaryDirectory removes them even if the
         # merge raises, which the old temp() could not promise mid-DAG.
+        # Snakemake params carry plain data; rebuild the typed spec here so the
+        # aggregation looks up fields by name rather than by list position.
+        VARIABLE_SPEC = {
+            name: VariableSpec(*fields)
+            for name, fields in dict(sm.params.variable_spec).items()
+        }
         resolved_facts = {}
         with tempfile.TemporaryDirectory(prefix="cst_change_") as work_dir:
             change_files = []
@@ -345,6 +357,7 @@ if "snakemake" in globals():
                         digest_components_fut=point["digest_components_fut"],
                         save_grids=save_grids,
                         stats=sm.params.stats,
+                        variable_spec=VARIABLE_SPEC,
                         stats_path_hist=point.get("stats_path_hist"),
                         stats_path=point.get("stats_path"),
                         clim_project_dir=clim_project_dir,
