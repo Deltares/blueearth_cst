@@ -57,9 +57,19 @@ if __name__ == "__main__":
             # sources; since 4a an unresolved combination never becomes a job, so
             # every path here carries data and dropping any would silently shrink
             # the ensemble (D4).
+            # .load() is load-bearing, not a tidy-up: open_mfdataset returns a
+            # dask-backed lazy dataset, and the merge + to_netcdf round-trip below
+            # then reads nine netCDFs from dask's thread pool. netCDF4/HDF5 reads
+            # take a global lock, so that write DEADLOCKS -- measured twice on
+            # win-64 (14 threads parked in Wait/UserRequest, ~6 s CPU over 15 min,
+            # output file created and never written), while the same job with
+            # DASK_SCHEDULER=synchronous finishes in 42 s. Loading eagerly here
+            # makes every read serial; the sliced data is a few hundred KB, so the
+            # memory cost is nil. Same reason get_stats_climate_proj.py loads
+            # eagerly after slicing.
             ds_hist = xr.open_mfdataset(
                 list(stats_time_nc_hist), preprocess=todatetimeindex_dropvars
-            )
+            ).load()
 
             # convert to df and compute anomalies
             log_row("Computing historical gcm timeseries anomalies", module="plot")
@@ -140,7 +150,12 @@ if __name__ == "__main__":
             for i in range(len(rcps)):
                 log_row(f"Opening future gcm timeseries for rcp {rcps[i]}", module="plot")
                 fns_rcp = [fn for fn in fns_future if rcps[i] in fn]
-                ds_rcp = xr.open_mfdataset(fns_rcp, preprocess=todatetimeindex_dropvars)
+                # Eager for the same reason as ds_hist above: these datasets are
+                # what `xr.merge` + `to_netcdf` write, and a lazy merge of several
+                # netCDFs deadlocks dask's thread pool on the HDF5 lock.
+                ds_rcp = xr.open_mfdataset(
+                    fns_rcp, preprocess=todatetimeindex_dropvars
+                ).load()
                 ds_fut.append(ds_rcp)
                 ds_rcp_pr = ds_rcp["precip"].squeeze(drop=True)
                 ds_rcp_tas = ds_rcp["temp"].squeeze(drop=True)
