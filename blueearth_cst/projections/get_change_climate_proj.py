@@ -121,13 +121,46 @@ def hydrological_year_bounds(ds_time, start_month_hyd_year="Jan"):
 
     Returns ``(start, end, n_hydrological_years)``.
     """
-    first_year = ds_time["time.year"][0].values
-    last_year = ds_time["time.year"][-1].values
-    start = pd.to_datetime(f"{first_year}-{start_month_hyd_year}")
-    end = pd.to_datetime(
-        f"{last_year}-{start_month_hyd_year}"
-    ) - pd.DateOffset(months=1)
-    return start, end, int(last_year) - int(first_year)
+    data_start = pd.Timestamp(ds_time["time"].values[0])
+    data_end = pd.Timestamp(ds_time["time"].values[-1])
+
+    def year_start(year):
+        return pd.to_datetime(f"{year}-{start_month_hyd_year}")
+
+    # First complete year: the earliest whose START lies inside the data. A window
+    # beginning mid-year has a leading partial year, which is dropped.
+    first = int(ds_time["time.year"].values[0])
+    if year_start(first) < data_start:
+        first += 1
+
+    # Last complete year: the latest whose END lies inside the data. This is the
+    # off-by-one that was fixed on 2026-07-30 (see
+    # dev/working/2026-07-30_wf2-5f-hydyear-offbyone.md). The previous form ended
+    # the window at `{last_year}-{month} - 1 month` unconditionally, i.e. it
+    # assumed the year STARTING in the data's final calendar year is always
+    # incomplete. That holds when the data stops mid-year -- an October start over
+    # data ending in December -- and fails when the data runs through that year's
+    # end, which is exactly a January start over data ending in December. The
+    # final complete year was silently discarded, so a configured 30-year
+    # reference delivered 29 and the seed's [1990, 2010] delivered 20 of 21.
+    #
+    # The condition is "does the data cover this year's end", NOT "add one": a
+    # naive +1 would break the October case, which was already correct.
+    last = int(ds_time["time.year"].values[-1])
+    while last >= first and year_start(last + 1) - pd.DateOffset(months=1) > data_end:
+        last -= 1
+
+    n_years = last - first + 1
+    if n_years <= 0:
+        raise ValueError(
+            f"no complete hydrological year (start month {start_month_hyd_year}) "
+            f"between {data_start.date()} and {data_end.date()}. An empty "
+            "reference would propagate as an empty denominator into every "
+            "relative change factor."
+        )
+    start = year_start(first)
+    end = year_start(last + 1) - pd.DateOffset(months=1)
+    return start, end, n_years
 
 
 #: Step 5d: what a run emits unless it opts into more. Today's eight statistics

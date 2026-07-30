@@ -219,6 +219,44 @@ REDUCER_HASH = _si.kernel_hash(
 )
 
 
+# Stage B's arithmetic identity. Snakemake's code trigger tracks a rule's SCRIPT
+# body, not the modules it imports, so an edit to the change arithmetic in
+# `get_change_climate_proj.py` left `derive_change_factors` reporting "Nothing to
+# be done" and its outputs silently stale. Stage A has `REDUCER_HASH` for exactly
+# this; stage B had nothing, on the mistaken belief that it "re-runs every
+# invocation" -- it re-runs when its script, inputs or params change, and an
+# imported module is none of those.
+#
+# Found 2026-07-30 by the hydrological-year fix: the fix was correct, its unit
+# tests passed, and the workflow would not have applied it.
+#
+# Same enumeration discipline as REDUCER_KERNEL: name every function whose
+# ARITHMETIC matters, because kernel_hash follows no call graph.
+from blueearth_cst.projections.get_change_climate_proj import (
+    get_change_annual_clim_proj,
+    get_change_clim_projections,
+    hydrological_year_bounds,
+    quantile_label,
+)
+from blueearth_cst.projections.calendar_weights import (
+    days_in_month,
+    month_length_weights,
+)
+
+STAGE_B_KERNEL = [
+    get_change_annual_clim_proj,
+    get_change_clim_projections,
+    hydrological_year_bounds,
+    quantile_label,
+    month_length_weights,
+    days_in_month,
+]
+STAGE_B_HASH = _si.kernel_hash(
+    STAGE_B_KERNEL,
+    env_fingerprint=_si.file_digest(Path(workflow.basedir) / "pixi.lock"),
+)
+
+
 #: WF2's spatial buffer around the region bbox, in degrees. Previously a bare
 #: `buffer = 1` inside the script; named here because it is a digest component
 #: (design §5.3 item 4) and a documented sampling choice, not an accident.
@@ -636,6 +674,7 @@ rule derive_change_factors:
         time_horizon_hist = time_horizon_hist,
         save_grids = save_grids,
         stats = stats,
+        stage_b_hash = STAGE_B_HASH,
         variable_spec = {k: list(v) for k, v in VARIABLE_SPEC.items()},
         reference_record = REFERENCE_RECORD,
         catalog_crawled_on = _res._as_date_string((_INDEX or {}).get("crawled_on", "")),
