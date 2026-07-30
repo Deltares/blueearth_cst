@@ -57,7 +57,24 @@ def summary_climate_proj(
     # netCDFs stage A used to write for absent sources; since 4a an unresolved
     # combination never becomes a job, so every file in this list carries data and
     # dropping any of them would be silently shrinking the ensemble.
-    ds = xr.open_mfdataset(clim_files, coords="minimal", preprocess=preprocess_coords)
+    # Eager, and closed — for two reasons, both learned the hard way on win-64.
+    #
+    # 1. HANDLES. Lazily-opened members stay open until the dataset is collected,
+    #    so the caller cannot delete the files it just passed in. Step 4d made the
+    #    per-point files job-internal (a TemporaryDirectory instead of Snakemake
+    #    temp()), and its cleanup died with WinError 32 on exactly that. The leak
+    #    predates 4d; it was invisible only because Snakemake deleted those files
+    #    after the process had exited.
+    # 2. DEADLOCK. `open_mfdataset` + `to_netcdf` reading from dask's thread pool
+    #    parks forever on the HDF5 global lock — the failure diagnosed in bf1f4a5
+    #    for plot_climate_proj_timeseries, fixed there the same way. This call site
+    #    has the identical shape and had not been fixed.
+    #
+    # Value-neutral: `.load()` changes when the bytes are read, not what they are.
+    with xr.open_mfdataset(
+        clim_files, coords="minimal", preprocess=preprocess_coords
+    ) as _ds_lazy:
+        ds = _ds_lazy.load()
     dvars = ds.raster.vars
     # R07 B3: processed-vs-summary tiering. The three summary artifacts live
     # under summary/; the figures stay in plots/ (only these three move).
