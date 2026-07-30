@@ -8,6 +8,42 @@
 > **Delivery.** Artifact. Write one markdown file (path in *Output
 > requirements*). Nothing else is expected of you.
 
+### Intended dispatch (for whoever runs this)
+
+Run the two reviewers **independently, in a clean session**, so neither inherits
+this milestone's conversational context — the brief is written to be
+self-contained precisely so that holds.
+
+**Reviewer A — Fable, at `xhigh` reasoning effort.**
+
+```
+Agent(subagent_type="critical-thinker", model="fable", prompt=<this brief>)
+```
+
+Effort: `~/.claude/settings.json` already sets `"effortLevel": "xhigh"`, and a
+subagent inherits the session effort unless its own definition overrides it.
+`.claude/agents/critical-thinker.md` sets only `model:`, so it inherits `xhigh`
+and nothing extra is required. Note the plain `Agent` tool exposes `model` but
+**not** `effort` — for a genuine per-call override (e.g. `max` for one spawn) use
+a Workflow script: `agent(prompt, {model: 'fable', effort: 'xhigh'})`.
+
+**Reviewer B — GPT-5.6 via headless `codex exec`.**
+
+```
+codex exec --sandbox read-only --ephemeral -c approval_policy=never -m gpt-5.6-sol \
+  - < dev/working/2026-07-30_design-loop-efficiency-review-brief.md \
+  > <transcript> 2>&1
+```
+
+Keep codex **read-only** and land its output file yourself from stdout, rather
+than granting it write access for one deliverable. Verify the banner reads
+`approval: never` and `sandbox: read-only` before trusting the posture — the
+project default is `on-request`, under which a write escalates outside the sandbox
+silently. Expect a long stream; run it with a generous timeout or in the
+background, and confirm `git status --short` is clean afterwards.
+
+Neither reviewer should see the other's output.
+
 ### Context
 
 Canonical repo ruleset: `AGENTS.md` at the repo root. Read it first — it defines
