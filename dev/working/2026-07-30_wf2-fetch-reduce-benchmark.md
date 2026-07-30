@@ -147,6 +147,71 @@ pathology removed, resolving `{grid_label}/{version}` is still a real cost, and
 `config/catalogs/cmip6_store_index.json` already records the pin that would
 remove it. Two independent fixes, not one.
 
+## 3.2 The glob is a minor cost; per-job imports are a major one
+
+§3.1's residual said "resolve the pin, it is the other half". Measured 2026-07-30,
+same source, one process per arm, **pinned first** so warming worked against the
+arm expected to win:
+
+| Arm | uri tail | open |
+|---|---|---|
+| PINNED | `/{variable}/gr1/v20190603` | **52.9 s** |
+| GLOBBED | `/{variable}/*/*` | **59.6 s** |
+
+So the glob costs **~6.7 s of a ~57 s open, ≈ 11 %** — real, and a lower bound
+given the ordering, but not where the time goes. Treat this as **provisional**:
+n = 1 per arm, and the pre-open phase of these same runs varied by ~23 s between
+sessions, so a 6.7 s gap is not safely outside the noise this setup shows.
+Resolving it needs repeated samples, which is only worth doing if the fix is
+otherwise attractive.
+
+**What the catalog-shape blocker actually costs.** §3.1 implied the pin needs a
+redesign. Restricted to the member WF2 actually reads it is far smaller — every
+non-template config sets `members: [r1i1p1f1]`:
+
+| Restricted to | entries | one pinned uri suffices |
+|---|---|---|
+| all members | 289 | 158 (54.7 %) |
+| `r1i1p1f1` | 219 | **186 (84.9 %)** |
+| `r1i1p1f2` | 59 | 59 (100 %) |
+
+Still not 100 %, so pinning stays a hybrid — 33 entries keep the glob, and the D8
+duplicate-time-axis guard stays regardless.
+
+**The bigger number nobody was looking at.** A probe process reaches its first
+remote call ~57 s after start. Measured directly in a cold process:
+`import geopandas` 7.5 s, `import hydromt` 17.7 s — **25.2 s of imports**, paid
+once per Snakemake job. Counting that in, the glob is ~6 % of a *source's whole
+job* (imports + open), against the ~11 % of the *open alone* above; the two
+percentages differ only in denominator.
+
+**A narrow-import fix was tried and does not work — recorded so nobody retries
+it.** Four projection modules import `hydromt` **only** to register the `.raster`
+xarray accessor (their own `# noqa: F401` comments say so), and
+`hydromt.gis.raster` does register it — a documented path, not a private one
+(`docs/hydromt-user-guide/06-migration-guide.md:293` maps `hydromt.raster` →
+`hydromt.gis.raster`). Both methods WF2 uses survive it (`.raster.vars`, 7 uses,
+Dataset-only; `.raster.box`, 3 uses). But the saving is **zero**:
+
+| measured after `import xarray, pandas, numpy` (the prelude these modules load anyway) | marginal cost |
+|---|---|
+| `import hydromt.gis.raster` | 4.8 s |
+| `import hydromt` | **4.8 s** |
+
+`hydromt`'s apparent 17.7 s is almost entirely xarray/pandas/rasterio, which the
+modules import regardless. Measuring the narrow import in a *bare* process
+attributed that shared cost to hydromt and overstated the saving as ~13 s. The
+lesson generalises: time an import against the prelude it will actually run in.
+
+**Consequence for the split's own path.** After the split
+`get_stats_climate_proj.py` is the reduce stage and makes no remote call at all
+(its line 229: "No DataCatalog, no get_rasterdataset, no network") — yet a
+re-reduction still pays ~25 s of imports before its 0.6 s of arithmetic. That
+floor is real, but it is xarray/pandas/geopandas, not hydromt, so no import edit
+removes it. The only structural lever left is **fewer processes** (batching
+sources per job), which trades directly against the per-series caching the split
+exists to provide. Not recommended without a separate design pass.
+
 ## 4. Carry-forwards
 
 - The split is **cleared to build**, with §2's zero-network acceptance criterion
@@ -164,9 +229,15 @@ remove it. Two independent fixes, not one.
   remote at run A's open) — but every absolute figure in them, 1142 s above all,
   is inflated by §3.1's bug. Restate them against a corrected open, or a later
   reader will find §1 and §3.1 in contradiction.
-- Two follow-ups fall out of §3.1, independent of each other and of very different
-  size: declaring the switch (one line, ≥14× measured) and replacing the `/*/*`
-  glob with the `cmip6_store_index.json` pin (a catalog-shape design question —
-  the index pins per (entry, member, variable), the catalog entry is per
-  (model, scenario), and `pin_stores` exists because the two disagree; payoff
-  unmeasured).
+- Of the two follow-ups §3.1 named, only the first was worth doing. Declaring the
+  switch: **done**, ≥14× measured, landed as `6b98b15`. Pinning the `/*/*` glob:
+  **closed as not worth doing** — §3.2 measures it at ≤11 % of the open at n = 1
+  inside visible noise, still needs a hybrid for 33 entries even restricted to
+  `r1i1p1f1`, and leaves the D8 duplicate-time-axis guard in place regardless.
+  Repeat sampling would only pay if the fix were otherwise attractive; it is not.
+- **The open is now understood and is not cheaply reducible.** ~53–60 s per
+  source, of which the glob is ~6 s; the rest is zarr metadata reads, the hydromt
+  resolver and round-trip latency. The raw cache built in `347638d` is the right
+  mitigation — further micro-optimisation of the open has no target left.
+- Do not re-open the import angle without reading §3.2's second table: the
+  narrow-import fix measures to a zero saving.
