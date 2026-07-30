@@ -141,3 +141,47 @@ def cell_area_weights(lat, lon, source=""):
         latitude_weights(lat, source=source),
         longitude_weights(lon, source=source),
     )
+
+
+def geometry_check_label(lat, lon, source=""):
+    """The geometry-check result, for ``cst_geometry_check`` on the series.
+
+    Recorded because "which grid was accepted, and on what basis" is not
+    recoverable from the numbers afterwards. Raises for a refused grid, so a
+    series can only ever carry a passing label.
+    """
+    lat_arr = check_axis(lat, "latitude", source)
+    lon_arr = check_axis(lon, "longitude", source)
+    return f"1d_strictly_monotonic; lat={lat_arr.size} lon={lon_arr.size}"
+
+
+def weighted_spatial_mean(da, x_dim, y_dim, source=""):
+    """Area-weighted basin mean over the two spatial dims of ``da``.
+
+    Uses xarray's ``.weighted()`` rather than a hand-rolled ``(da*w).sum()/w.sum()``
+    for one reason that matters: it renormalises over the **valid** cells, so a
+    masked or NaN cell drops out of both numerator and denominator. The hand-rolled
+    form silently biases toward zero wherever the field has gaps.
+
+    On a grid whose weights happen to be equal — the equatorial, latitude-symmetric
+    case of this repo's fixture — this returns the unweighted mean exactly, which
+    is the property step 5a's tree diff asserts (falsifier F6).
+    """
+    import xarray as xr
+
+    weights = xr.DataArray(
+        cell_area_weights(da[y_dim].values, da[x_dim].values, source=source),
+        dims=(y_dim, x_dim),
+        coords={y_dim: da[y_dim], x_dim: da[x_dim]},
+    )
+    reduced = da.weighted(weights).mean((y_dim, x_dim))
+
+    # Preserve the input dtype. The weights are float64, so `.weighted()` upcasts
+    # a float32 field and the series changes dtype -- which the step-5a tree diff
+    # caught as 13 failing files reading `dtype float64 vs float32` and
+    # `2.38 vs 2.380000114440918`. Those are the same number at two precisions,
+    # not a weighting effect, but a silent schema change is exactly what a
+    # value-neutral-on-this-fixture step must not smuggle in. Whether the series
+    # should be float64 at all is a precision question, and it belongs to step 5c
+    # (which drops the 2-decimal rounding), not here.
+    return reduced.astype(da.dtype) if reduced.dtype != da.dtype else reduced

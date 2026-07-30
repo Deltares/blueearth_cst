@@ -122,8 +122,29 @@ STORE_INDEX = str(Path(DATA_SOURCES).parent / "cmip6_store_index.json")
 # purpose -- any dependency change re-derives, which is the safe direction for a
 # cache whose failure mode is silently wrong numbers.
 from blueearth_cst.projections.get_stats_climate_proj import get_stats_clim_projections
+from blueearth_cst.projections.grid_weights import (
+    cell_area_weights,
+    latitude_weights,
+    longitude_weights,
+    midpoint_edges,
+    weighted_spatial_mean,
+)
 
-REDUCER_KERNEL = [get_stats_clim_projections]
+# Step 5a: the spatial reduction is no longer a single `.mean()` inside
+# get_stats_clim_projections -- it is a weighted mean whose weights come from the
+# five functions below. They MUST be enumerated here. `kernel_hash` hashes the
+# behaviour of the functions it is given and follows no call graph, so a changed
+# edge derivation or area formula in an unlisted callee would be invisible and
+# every cached series would be silently reused across a weighting change. That is
+# the exact failure the enumeration exists to prevent.
+REDUCER_KERNEL = [
+    get_stats_clim_projections,
+    weighted_spatial_mean,
+    cell_area_weights,
+    latitude_weights,
+    longitude_weights,
+    midpoint_edges,
+]
 REDUCER_HASH = _si.kernel_hash(
     REDUCER_KERNEL,
     env_fingerprint=_si.file_digest(Path(workflow.basedir) / "pixi.lock"),

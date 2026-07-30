@@ -191,6 +191,36 @@ If 5a's re-derivation *does* hit the network, the split did not deliver what
 
 ---
 
+## Outcome — 2026-07-30, all seven discharged
+
+| | Result |
+|---|---|
+| F1–F5 | 19 unit tests pass, no fixture, no network (`tests/test_grid_weights.py`) |
+| F6 | 126 compared, **9 failed, 0 missing, 0 extra** — the 9 series, **attrs only** |
+| F7 | `cst_weighting_scheme = spherical_cell_area_midpoint_edges`, `cst_geometry_check = "1d_strictly_monotonic; lat=2 lon=2"` |
+| `check_baseline` | **OK 15/15** |
+| free cross-check | **zero `fetch_gcm_raw` jobs** on a full 9-series re-derivation |
+
+Values did not move anywhere; the summary `.nc`, both summary CSVs and
+`gcm_timeseries.nc` are bit-identical. The only differences are on the series:
+`cst_weighting_scheme`, the new `cst_geometry_check`, and the two digests that
+must move when the reducer changes.
+
+**F6 earned its keep on the first run.** The initial wiring produced **13** failing
+files, not 9, reading `dtype float64 vs float32` and `2.38 vs 2.380000114440918` —
+the same number at two precisions. `.weighted()` upcasts a float32 field because
+the weights are float64, so the series silently changed dtype. That is a schema
+change, not a weighting effect, and it would have shipped invisibly under a step
+whose whole claim is that values do not move. Fixed by preserving the input dtype;
+whether the series should be float64 at all belongs to 5c.
+
+**The split's acceptance criterion is now tested, not just claimed.** Benchmark
+note §2 required that a full re-derivation issue zero network requests, with the
+stated falsifier "run it with the network unavailable". 5a re-derived all 9 series
+from local raw slices with **no `fetch_gcm_raw` job in the DAG at all** — a
+stronger result than the falsifier asked for, since the jobs were not merely
+network-free but absent.
+
 ## Order of work
 
 1. Write the grid-geometry tests from F1–F5 against the new weighting function,

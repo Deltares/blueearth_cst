@@ -21,9 +21,42 @@ import xarray as xr
 from dask.diagnostics import ProgressBar
 
 from blueearth_cst.projections import series_identity
+from blueearth_cst.projections.grid_weights import (
+    WEIGHTING_SCHEME,
+    geometry_check_label,
+    weighted_spatial_mean,
+)
 from blueearth_cst.shared.snake_utils import log_row
 
 # %%
+
+
+#: Candidate spatial coordinate names, in preference order. Module scope since
+#: step 5a: the snakemake body needs them too, to record the geometry check
+#: against the dataset the reduction saw.
+XDIMS = ("x", "longitude", "lon", "long")
+YDIMS = ("y", "latitude", "lat")
+
+
+def _spatial_dim(ds, candidates):
+    """The coordinate this reduction treats as an axis, or raise naming both.
+
+    **LAST match wins, not first.** The inline loops this replaces had no
+    ``break``, so a dataset carrying both ``x`` and ``lon`` resolved to ``lon``.
+    Returning the first match instead would be a silent behaviour change smuggled
+    into a step whose entire gate is "values must not move" — so the traversal
+    order is preserved deliberately, not inherited by accident.
+
+    The one intentional difference: those loops left the name UNBOUND when nothing
+    matched, failing later with a NameError far from the cause. This names the
+    dataset's actual coordinates instead.
+    """
+    found = [name for name in candidates if name in ds.coords]
+    if not found:
+        raise KeyError(
+            f"none of {candidates} present; coordinates are {tuple(ds.coords)}"
+        )
+    return found[-1]
 
 
 def get_stats_clim_projections(
@@ -61,14 +94,8 @@ def get_stats_clim_projections(
     """
 
     # get lat lon name of data
-    XDIMS = ("x", "longitude", "lon", "long")
-    YDIMS = ("y", "latitude", "lat")
-    for dim in XDIMS:
-        if dim in data.coords:
-            x_dim = dim
-    for dim in YDIMS:
-        if dim in data.coords:
-            y_dim = dim
+    x_dim = _spatial_dim(data, XDIMS)
+    y_dim = _spatial_dim(data, YDIMS)
 
     ds = []
     ds_scalar = []
@@ -93,7 +120,14 @@ def get_stats_clim_projections(
             var_m = data[var].resample(time="MS").mean("time")
 
         # get scalar average over grid for each month
-        var_m_scalar = var_m.mean([x_dim, y_dim]).round(decimals=2)
+        # Step 5a / D10: area-weighted, not `.mean([x_dim, y_dim])`. The old form
+        # gave a cell at 60 degrees the same weight as one at the equator. On a
+        # grid whose cells happen to be equal in area -- an equatorial,
+        # latitude-symmetric bbox, which is this repo's fixture -- the two agree
+        # exactly, so this change is invisible there by construction, not by luck.
+        var_m_scalar = weighted_spatial_mean(
+            var_m, x_dim, y_dim, source=f"{name_model} {name_scenario}"
+        ).round(decimals=2)
         ds_scalar.append(var_m_scalar.to_dataset())
 
         # get grid average over time for each month
@@ -270,6 +304,17 @@ if __name__ == "__main__":
                     module="stats",
                 )
 
+                # Captured HERE, from the dataset the reduction actually saw,
+                # rather than re-derived at the attrs site: `data` there would be
+                # whichever member the loop ended on, which is true today only
+                # because every member shares one bbox. Recording it explicitly
+                # keeps the attribute honest if that ever stops holding.
+                geometry_check = geometry_check_label(
+                    data[_spatial_dim(data, YDIMS)].values,
+                    data[_spatial_dim(data, XDIMS)].values,
+                    source=raw_label,
+                )
+
                 # calculate statistics
                 mean_stats, mean_stats_time = get_stats_clim_projections(
                     data,
@@ -341,10 +386,13 @@ if __name__ == "__main__":
                         (entry_meta.get(digest_components.get("members", [""])[0], {})
                          if entry_meta else {}).get("metadata", {}).get("crs", "")
                     ),
-                    # Today's unweighted spatial mean. Becomes spherical cell-area
-                    # weighting at step 5a (D10); recorded now so a series always
-                    # says which scheme produced it.
-                    "cst_weighting_scheme": "unweighted_mean_pre_5a",
+                    # Step 5a (D10): spherical cell-area weighting from midpoint
+                    # edges, replacing "unweighted_mean_pre_5a". A series always
+                    # says which scheme produced it, and the geometry check that
+                    # admitted its grid -- neither is recoverable from the numbers
+                    # afterwards.
+                    "cst_weighting_scheme": WEIGHTING_SCHEME,
+                    "cst_geometry_check": geometry_check,
                 }
             )
 
