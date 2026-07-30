@@ -1,8 +1,13 @@
 import functools
 import itertools
+import json
+import os
 import re
 import sys
 from pathlib import Path
+
+import yaml
+from snakemake.exceptions import WorkflowError
 
 # Shared helpers live in blueearth_cst/; make them importable regardless of the working
 # directory by prepending this Snakefile's own directory to sys.path.
@@ -127,12 +132,101 @@ REGION_BUFFER_DEGREES = 1.0
 # §5.7 resolution ladder that gives per-member fan-out meaning, and appends
 # `_{member}` to the grammar then. Two renames of an unmanifested intermediate is
 # the price of not regressing multi-member configs for a step.
-EXPERIMENTS = ["historical"] + list(scenarios)
+# --- source resolution (migration step 4a; design §5.7, D6, D7, D12) ----------
+# Which requested combinations can actually be reduced, decided HERE at DAG build
+# from a plain YAML read -- no hydromt import, no network. Unresolved combinations
+# never become jobs, which is what lets the dummy-empty-netCDF pattern and
+# `filter_nonempty` go away (step 4c).
+#
+# Absence and failure are different classes (design §4 criterion 7): almost every
+# non-resolution is a NORMAL skip recorded for the composition record, because
+# under R3' a model publishing no ssp370, or one member where another publishes
+# three, is the expected shape of a correct run. Only two conditions stop the DAG
+# build: a model absent from the catalog entirely, and a run where nothing
+# resolves.
+from blueearth_cst.projections import resolution as _res
+
+_CATALOG = yaml.safe_load(Path(DATA_SOURCES).read_text(encoding="utf-8"))
+_INDEX = (
+    json.loads(Path(STORE_INDEX).read_text(encoding="utf-8"))
+    if os.path.isfile(STORE_INDEX)
+    else None
+)
+
+# D12/R14: the catalog and the index must be one observation, not two crawls.
+_res.assert_index_matches_catalog(_CATALOG, _INDEX)
+
+COMBINATIONS = _res.resolve(
+    _CATALOG,
+    clim_project=clim_project,
+    models=models,
+    scenarios=scenarios,
+    members=members,
+)
+
+# The one model-level error (C7): absent from the generated catalog means absent
+# from the store, so this is a typo or a stale config rather than thin data.
+_unknown = _res.unknown_models(COMBINATIONS)
+if _unknown:
+    raise WorkflowError(
+        "climate_projections: model(s) not present in "
+        f"{DATA_SOURCES} under any experiment: {', '.join(_unknown)}. "
+        "The catalog is generated from a live crawl of the store, so a name "
+        "absent from it is absent from the store. Check for a typo, or "
+        "regenerate with dev/scripts/generate_cmip6_catalog.py."
+    )
+
+# D6: replaces the `ensemble.min_sources` key, which conflated a store property
+# with a configuration failure. Non-configurable -- ensemble ADEQUACY is a
+# downstream judgement (S6, N10), not a threshold this workflow encodes.
+if not any(c.resolved for c in COMBINATIONS):
+    raise WorkflowError(
+        "climate_projections: no requested combination resolved against "
+        f"{DATA_SOURCES}.\n" + _res.format_status_report(COMBINATIONS)
+    )
+
+# Normal skips are reported, never silent -- this is what replaces the run-time
+# `asymmetric hist/clim members` raise D7 supersedes (design D7 table).
+_skip_report = _res.format_status_report(COMBINATIONS)
+if _skip_report:
+    logger.warning(_skip_report)
+
+# D8/D12: a glob matching more than one {grid}/{version} means the read is not a
+# single identifiable store. Measured at ~6% of pinned stores, so this is live.
+_ambiguous = _res.ambiguous_pins(_INDEX, COMBINATIONS, clim_project)
+if _ambiguous:
+    raise WorkflowError(
+        "climate_projections: ambiguous store pins -- the catalog's "
+        "/{variable}/*/* glob matches more than one {grid_label}/{version} for:\n  "
+        + "\n  ".join(_ambiguous)
+        + "\nThe read would not be a single identifiable store. Pin the version "
+        "in the catalog or drop the affected combination."
+    )
+
+# A3: the certified/best-effort tier difference, warned once per variable.
+_rename = {}
+for _key, _entry in _CATALOG.items():
+    if isinstance(_entry, dict) and _entry.get("data_adapter"):
+        _rename = (_entry["data_adapter"] or {}).get("rename") or {}
+        break
+for _var in _res.best_effort_variables(variables, _rename):
+    logger.warning(
+        f"climate_projections: variable {_var!r} is BEST-EFFORT, not "
+        "catalog-certified. The crawl proved only pr/tas present, so a listed "
+        f"member may not publish {_var!r} -- it will fail at read time rather "
+        "than skip at resolution (design §5.5, ruling A3)."
+    )
+
+# The series set is DERIVED from resolution, not from the config cross-product.
+# References are distinct (model, member) pairs: a reference is reduced once
+# however many scenarios share it, which is why the seed config is 6 + 3 = 9
+# rather than 12.
+_needed = {(c.dataset, "historical") for c in COMBINATIONS if c.resolved}
+_needed |= {(c.dataset, c.scenario) for c in COMBINATIONS if c.resolved}
 
 SERIES = {
     f"{clim_project}_{model.replace('/', '_')}_{experiment}": (model, experiment)
-    for model in models
-    for experiment in EXPERIMENTS
+    for model, experiment in sorted(_needed)
 }
 
 
