@@ -9,6 +9,12 @@ Trigger: owner question -- "is there a more efficient way? did we overengineer
 Status:  mid-milestone; steps 4d, 5a-5f, 6a-6c, 7 and the seal remain
 ```
 
+> **SUPERSEDED IN PART.** Two independent critiques (Fable, GPT-5.6) refuted this
+> document's headline. Sections **1, 3 and 5** are superseded by
+> `2026-07-30_wf2-v2-process-review-r2.md` — read that first: §1 there is the
+> errata list, and §2 records that the `kernel_hash` fix credited in §2.1 below is
+> **unsafe as landed**. Sections 2, 4 and 6 here stand, with those corrections.
+
 Written while the evidence is fresh rather than at the seal, because three of the
 findings change how the *remaining* steps should be run.
 
