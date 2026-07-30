@@ -3,7 +3,8 @@
 ```
 Date:       2026-07-30
 Supersedes: sections 1, 3 and 5 of dev/reviews/2026-07-30_wf2-v2-process-review.md
-            (sections 2, 4, 6 stand, with the corrections in section 1 below)
+            (sections 2, 4, 6 stand, corrected by sections 1 and 2 below — §2
+            here retracts the cache fix that §2.1 there credits)
 Inputs:     that review, plus two independent critiques of it —
               dev/working/2026-07-30_process-review-critique-fable.md  (Fable, xhigh)
               dev/working/2026-07-30_process-review-critique-gpt.md    (GPT-5.6)
@@ -75,8 +76,13 @@ is not safety-versus-speed, it is **ordering**. Sequence:
    `pixi.lock` sha256 into the digest (closes a dependency-upgrade hole *file*
    hashing never closed either). Add the five probe cases above as tests — they
    fail today, which makes them the falsification experiment for the guard
-   itself. Record as a design amendment against risk-03's disposition and fix §9
-   test (e)'s wording. Accepted cost: error-string edits invalidate again.
+   itself. **Split `test_kernel_hash_ignores_comments_docstrings_and_error_strings`
+   (`tests/test_series_identity.py:439`) in the same commit**: comments and
+   docstrings stay free, but its error-message assertion inverts — that test goes
+   red under the fix, and a future session that "repairs" it by restoring the
+   type-based filter would reinstate the defect. Record as a design amendment
+   against risk-03's disposition and fix §9 test (e)'s wording. Accepted cost:
+   error-string edits invalidate again.
 2. **Then** the fetch → reduce split, at which point re-reduction is seconds and
    that cost stops mattering.
 3. **Then, optional** — promote to a docstring-stripped module AST hash (`ast`,
