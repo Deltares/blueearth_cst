@@ -106,19 +106,28 @@ STORE_INDEX = str(Path(DATA_SOURCES).parent / "cmip6_store_index.json")
 # tracks the rule's script body, not the modules it imports, so a change to the
 # reduction logic would otherwise reuse every cached series.
 #
-# Hashed by BYTECODE of the enumerated reduction functions, not by file bytes.
+# Hashed by BEHAVIOUR of the enumerated reduction functions, not by file bytes.
 # File-level hashing was the first implementation and it was too blunt: at step 4c
 # an error-handling-only edit -- no formula touched -- invalidated all 9 series and
-# cost a full network re-derivation. `kernel_hash` ignores comments, docstrings
-# and error strings while still catching a changed formula, a changed numeric
-# constant, or a changed attribute lookup.
+# cost a full network re-derivation. `kernel_hash` ignores comments, docstrings and
+# formatting while catching a changed formula, a changed constant of any type
+# (INCLUDING strings -- `resample(time="MS")` -> `("YS")` is a string-only edit),
+# a changed default argument, and a swapped attribute lookup.
 #
 # The enumeration must name every function whose ARITHMETIC matters; a change in
 # an unlisted callee is invisible, exactly as an unlisted file was before.
+#
+# `pixi.lock` is folded in as the environment fingerprint: the reduction's numbers
+# depend on xarray/pandas behaviour, which no source hash can see. Coarse on
+# purpose -- any dependency change re-derives, which is the safe direction for a
+# cache whose failure mode is silently wrong numbers.
 from blueearth_cst.projections.get_stats_climate_proj import get_stats_clim_projections
 
 REDUCER_KERNEL = [get_stats_clim_projections]
-REDUCER_HASH = _si.kernel_hash(REDUCER_KERNEL)
+REDUCER_HASH = _si.kernel_hash(
+    REDUCER_KERNEL,
+    env_fingerprint=_si.file_digest(Path(workflow.basedir) / "pixi.lock"),
+)
 
 
 #: WF2's spatial buffer around the region bbox, in degrees. Previously a bare

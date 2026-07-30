@@ -771,11 +771,26 @@ body, not the `blueearth_cst` modules it imports, so a hand-bumped constant is a
 silent-wrong-numbers path with no failure signal. Two mechanisms, both stdlib:
 
 1. **Mechanical version.** At DAG-build time the Snakefile hashes an
-   **explicitly enumerated** list of reducer module files (the stage-A script and
-   the reduction/weighting helpers it imports — named in the rule's params, so
-   the enumeration is reviewable) with `hashlib.sha256`, and folds the result
-   into the digest. Enumerated, not "all of `blueearth_cst`", so an unrelated
-   edit does not invalidate the cache.
+   **explicitly enumerated** list of reduction functions (the stage-A reducer and
+   any helper whose arithmetic matters — named in the Snakefile, so the
+   enumeration is reviewable) with `hashlib.sha256`, and folds the result into the
+   digest. Enumerated, not "all of `blueearth_cst`", so an unrelated edit does not
+   invalidate the cache.
+
+   **Amendment, 2026-07-30 (revision 5).** The unit is a function's *behaviour*,
+   not a file's bytes: bytecode, constants of **every** type, `co_names`
+   lookups, and default arguments, plus the `pixi.lock` digest as an environment
+   fingerprint. Comments, docstrings and formatting are free; an error-message
+   edit is not. Rationale: file-level hashing charged a full network
+   re-derivation for an error-string edit (step 4c), but the first narrowing
+   excluded string constants *by type*, which silently made five real edit
+   classes invisible — `resample(time="MS")→("YS")`, `groupby("time.month")`,
+   `keep="first"`, `ds["pr"]→ds["tas"]`, and any date bound, all of which have
+   byte-identical `co_code` because a constant is referenced by index (measured;
+   `dev/reviews/2026-07-30_wf2-v2-process-review-r2.md` §2). The environment
+   fingerprint closes a hole neither mechanism had: the numbers depend on
+   xarray/pandas behaviour, which no source hash sees. `cst_reducer_module_hash`
+   keeps its name and now denotes code-plus-environment identity.
 2. **Fail-loud on stale reads.** Each series carries its digest as the
    `cst_series_digest` attribute. Stage B recomputes the expected digest for each
    series key and **raises** on mismatch, naming the series and both digests. A
@@ -1974,9 +1989,10 @@ overlay's role (C2) says it is not.
    re-derives exactly that entry's series; regenerating after a store
    **re-publication** changes that series' pinned path in the store index and
    re-derives exactly the affected series (D12).
-5. Editing an enumerated reducer module re-derives **every** series without any
-   manual version bump; editing an unrelated `blueearth_cst` module re-derives
-   none.
+5. A behaviour-changing edit to an enumerated reduction function — or a changed
+   `pixi.lock` — re-derives **every** series without any manual version bump;
+   editing an unrelated `blueearth_cst` module, or only comments/docstrings/
+   formatting in an enumerated one, re-derives none *(amended revision 5)*.
 6. A series file whose `cst_series_digest` or `cst_schema_version` does not match
    the expected value makes stage B **fail**, naming the series and both values.
 7. A config naming a model absent from the catalog fails at **DAG build** naming
@@ -2253,8 +2269,14 @@ the new step **2a** (store-index generator change) that step 2b depends on.
 - **Cache correctness (step 2b).** Eleven cases: (a) run, touch nothing, re-run →
   zero reduce jobs; (b) change a `future_horizons` entry → zero reduce jobs;
   (c) edit an unused catalog entry → zero reduce jobs; (d) edit a used entry's
-  URI → exactly that series re-derives; (e) edit an enumerated reducer module →
-  all series re-derive; (f) hand-plant a series whose `cst_series_digest` or
+  URI → exactly that series re-derives; (e) make a behaviour-changing edit to an
+  enumerated reduction function — formula, constant of any type (**including a
+  string**: a dimension name, resample code, subscript key or date bound), default
+  argument — or change `pixi.lock` → all series re-derive, while a
+  comment/docstring/formatting-only edit re-derives none *(amended revision 5;
+  five string-constant classes and the default-argument class are pinned by
+  `tests/test_series_identity.py`)*; (f) hand-plant a series whose
+  `cst_series_digest` or
   `cst_schema_version` is wrong → stage B fails; (g) add a member to a used
   entry's `placeholders.member` and bump `meta.crawled_on` → zero reduce jobs
   re-derive, while a change to the shared driver/adapter block re-derives all;
@@ -2691,3 +2713,23 @@ extremes question exists (OQ-5).
     per-series values over pairwise-distinct sentinels.
   No section outside the arbitrated findings' reach is restructured; no new
   third-party dependency is adopted (N4).
+
+- **2026-07-30 — revision 5** (amendment to the ACCEPTED document, post-G2).
+  **Scope:** the risk-03 mechanism only — §7 risk-03 item 1, §9 cache test (e),
+  and the §2 goal-list item 5 that restates it. Authority: owner-approved fix
+  arising from `dev/reviews/2026-07-30_wf2-v2-process-review-r2.md` §2, which
+  measured that the step-4c efficiency change (`b9e8556`) had narrowed cache
+  invalidation too far. **What changed:** the reducer's identity is the
+  *behaviour* of enumerated reduction functions — bytecode, constants of every
+  type including strings, `co_names`, `__defaults__`/`__kwdefaults__` — plus the
+  `pixi.lock` digest as an environment fingerprint; only the function's own
+  docstring is excluded, by identity rather than by type. **Why:** excluding
+  string constants by type made five real edit classes invisible (dimension name,
+  resample code, subscript key, `keep=`, date bound), each with byte-identical
+  `co_code`; the date-bound class is the same class as the 2014 reference-window
+  defect round 1 caught. The accepted cost — an error-message edit invalidates
+  again — is the honest price and shrinks to seconds once the fetch/reduce split
+  lands. **Falsifier:** the five classes plus the default-argument and
+  environment classes are pinned as tests that fail against the prior
+  implementation (`tests/test_series_identity.py`; probe output in the r2 review
+  §2). No other section is touched; no new dependency (N4).

@@ -134,21 +134,44 @@ def module_hash(module_paths: Sequence[str | os.PathLike]) -> str:
     return digest.hexdigest()
 
 
-def kernel_hash(functions) -> str:
-    """sha256 over the COMPILED BYTECODE of the numerical reduction functions.
+def kernel_hash(functions, env_fingerprint: str | None = None) -> str:
+    """sha256 over the BEHAVIOUR of the numerical reduction functions.
 
     This is the cache key risk-03 actually wants. ``module_hash`` tracks file
-    bytes, so it cannot tell a changed formula from a reworded error message — at
-    step 4c an error-handling-only edit invalidated all 9 series and cost a full
-    network re-derivation. Bytecode tracks *behaviour*: comments, docstrings,
-    formatting and error strings do not appear in ``co_code``, while any change to
-    the computation does.
+    bytes, so it cannot tell a changed formula from a reformatted one — at step 4c
+    an error-handling-only edit invalidated all 9 series and cost a full network
+    re-derivation. Bytecode plus constants tracks behaviour: comments, docstrings
+    and formatting never appear in ``co_code`` or in the hashed constants, while
+    any change to the computation does.
 
-    What it deliberately still catches: a changed constant (constants live in
-    ``co_consts``), a renamed variable that changes lookups (``co_names``), and a
-    different call sequence. What it deliberately misses: a change in a *callee*
-    that is not itself listed — so the enumeration must name every function whose
-    arithmetic matters, exactly as ``module_hash``'s file list had to.
+    What it catches: a changed formula, a changed constant of **any type**
+    including strings (``co_consts``), a swapped attribute or global lookup
+    (``co_names``), a changed default argument (``__defaults__`` /
+    ``__kwdefaults__``), a different call sequence, and — when
+    ``env_fingerprint`` is supplied — a changed dependency environment.
+
+    **String constants are load-bearing and are hashed.** In xarray-style
+    reduction code the difference between ``resample(time="MS")`` and ``("YS")``,
+    between ``ds["pr"]`` and ``ds["tas"]``, between ``keep="first"`` and
+    ``"last"``, or between two date bounds is *only* a string constant: ``co_code``
+    is byte-identical because the constant is referenced by index. An earlier
+    revision of this function excluded every string constant so that reworded
+    error messages stayed free, which silently made all five of those edit classes
+    invisible — a stale-cache path of exactly the kind risk-03 was filed against
+    (measured; process review r2 §2). Only the function's own docstring is
+    excluded now, by identity rather than by type. The price is that an
+    error-message edit costs one invalidation again; the fetch/reduce split
+    (design amendment pending) makes that re-reduction local and cheap.
+
+    What it still deliberately misses: a change in a *callee* that is not itself
+    listed — so the enumeration must name every function whose arithmetic matters,
+    exactly as ``module_hash``'s file list had to.
+
+    ``env_fingerprint`` folds the environment into the same digest: the reduction's
+    output depends on xarray/pandas behaviour, which no source hash can see. Pass
+    the lock-file digest (:func:`file_digest`). It is deliberately coarse — any
+    dependency change re-derives — which is the conservative direction for a cache
+    whose failure mode is silently wrong numbers.
 
     Each function contributes its qualified name too, so moving logic between
     functions invalidates rather than cancelling out.
@@ -158,23 +181,47 @@ def kernel_hash(functions) -> str:
         code = func.__code__
         digest.update(func.__qualname__.encode("utf-8"))
         digest.update(code.co_code)
-        # Constants and names: a changed threshold or a swapped attribute lookup
-        # is a behaviour change that co_code alone may not reflect.
-        digest.update(repr(tuple(c for c in code.co_consts if not _is_docstring(c))).encode("utf-8"))
+        # Constants and names: a changed threshold, a swapped attribute lookup, a
+        # changed dimension name or resample code are all behaviour changes that
+        # co_code alone does not reflect.
+        digest.update(
+            repr(tuple(c for c in code.co_consts if not _is_own_docstring(c, func))).encode("utf-8")
+        )
         digest.update(repr(code.co_names).encode("utf-8"))
+        # Defaults live on the function object, not in the code object: a changed
+        # default is a changed computation with identical bytecode.
+        digest.update(repr(func.__defaults__).encode("utf-8"))
+        digest.update(repr(sorted((func.__kwdefaults__ or {}).items())).encode("utf-8"))
+    if env_fingerprint is not None:
+        digest.update(b"env:")
+        digest.update(env_fingerprint.encode("utf-8"))
     return digest.hexdigest()
 
 
-def _is_docstring(const) -> bool:
-    """True for the constant that is (probably) a docstring.
+def _is_own_docstring(const, func) -> bool:
+    """True only for the constant that IS this function's docstring.
 
-    ``co_consts[0]`` holds the docstring when present, but filtering by position
-    is fragile across Python versions, so this filters by type: no *string*
-    constant is allowed to affect the hash. That is deliberate — a reworded error
-    message is a string constant and must NOT invalidate the cache, which is the
-    whole point of moving off ``module_hash``. A numerical constant still does.
+    Filtered by identity against ``func.__doc__`` rather than by position
+    (``co_consts[0]`` is fragile across Python versions) or by type (excluding
+    every string is what made string-constant behaviour changes invisible). A
+    docstring edit is documentation; every other string constant is code.
     """
-    return isinstance(const, str)
+    return func.__doc__ is not None and const is func.__doc__
+
+
+def file_digest(path: str | os.PathLike) -> str:
+    """sha256 of one file's bytes — the environment fingerprint for the cache key.
+
+    Used with ``pixi.lock`` so a dependency upgrade re-derives the series rather
+    than reusing numbers produced by a different xarray. Separate from
+    :func:`module_hash` because this file is not source we hash for logic; it is
+    an opaque environment identity.
+    """
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for block in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
 
 
 def load_catalog_entry(catalog_path: str | os.PathLike, catalog_entry: str) -> dict:
