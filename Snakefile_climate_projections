@@ -283,12 +283,6 @@ POINT_KEYS = {
 }
 
 
-def change_file(model, scenario, member, horizon):
-    """Path of the change-factor netCDF for one data point and horizon."""
-    key = f"{model.replace('/', '_')}_{scenario}_{member}"
-    return f"{clim_project_dir}/annual_change_scalar_stats-{key}_{horizon}.nc"
-
-
 @functools.lru_cache(maxsize=None)
 def series_digest_components(model, experiment, member):
     """Parse-time digest components for one (model, experiment) series.
@@ -320,8 +314,9 @@ def get_horizon(wildcards):
     return config["workflows"]["climate_projections"]["future_horizons"][wildcards.horizon]
 
 # Rule numbering (comment headers + log/benchmark filenames) uses `W.NN` =
-# workflow.step in DEFINITION order — a reference aid ("Rule 2.4" = monthly_change),
-# not execution order (the DAG fans out over {model}/{scenario}/{horizon}).
+# workflow.step in DEFINITION order — a reference aid ("Rule 2.4" =
+# derive_change_factors), not execution order (stage A still fans out over
+# {series_key}; stage B no longer fans out at all since step 4d).
 # Convention: dev/conventions/naming.md.
 
 # 2.00  all — target aggregator: change-factor summaries + projection plots
@@ -338,18 +333,24 @@ rule all:
         # into one, so the two stage-A gathers collapse with them.
         raw_log = f"{project_dir}/logs/2.01_fetch_gcm_raw.log",
         series_log = f"{project_dir}/logs/2.02_reduce_gcm_series.log",
-        change_log = f"{project_dir}/logs/2.04_monthly_change.log",
+        # Step 4d: stage B is one job, so its log is written directly by the rule
+        # -- there is no per-part fan-out left to gather (rule 2.09 removed).
+        change_log = f"{project_dir}/logs/2.04_derive_change_factors.log",
         benchmarks = f"{project_dir}/benchmarks/wf2_benchmarks.md",
 
-# Retained as stale insurance pending removal task; dry-run on the current pinned
-# Snakemake shows this directive constrains nothing on the tests fixture and a
-# reduced config (see dev/r04/climate-projections-design.md §3). Removal deferred
-# to a task that first encodes the ambiguity-sensitive config shapes as regression tests.
-# Step 3 collapsed monthly_stats_hist/monthly_stats_fut into reduce_gcm_series, so
-# the directive can no longer name them (an unknown rule name is a parse error).
-# Reduced rather than deleted: removal is still deferred to a task that first
-# encodes the ambiguity-sensitive config shapes as regression tests.
-ruleorder: reduce_gcm_series > monthly_change > monthly_change_scalar_merge
+# The `ruleorder:` directive is GONE as of step 4d, and not by choice: it named
+# `monthly_change` and `monthly_change_scalar_merge`, which 4d merges into
+# `derive_change_factors`, and an unknown rule name is a parse error. A directive
+# naming only `reduce_gcm_series` would be a no-op (ruleorder needs two rules to
+# order).
+#
+# This settles a deferral rather than skipping it. AGENTS.md and
+# dev/r04/climate-projections-design.md §3 recorded it as "stale insurance,
+# removal deferred to a task that first encodes the ambiguity-sensitive config
+# shapes as regression tests". The 2026-07 dry-run evidence stands (it constrained
+# nothing on the tests fixture or a reduced config), and the merge removes the
+# ambiguity it was insuring against: there is no longer a second stage-B rule that
+# could claim the same output.
 
 # 2.11  extract_climate_grid — the SHARED historical-climate store producer
 # (R07 B1). This declaration and rule 1.10 (Snakefile_model_creation) / rule
@@ -481,73 +482,31 @@ rule reduce_gcm_series:
         project_dir + "/benchmarks/_parts/2.02_reduce_gcm_series/{series_key}.tsv",
     script: "blueearth_cst/projections/get_stats_climate_proj.py"
 
-# 2.04  monthly_change — change factors per {model}_{scenario}_{horizon}
-rule monthly_change:
-    message: rule_banner("2.04", "monthly_change")
-    wildcard_constraints:
-        point_key = "|".join(re.escape(k) for k in POINT_KEYS),
+# 2.04  derive_change_factors — stage B, ONE job (step 4d, design §5 "B. Derive")
+# Replaces monthly_change (fanned out per point_key x horizon) + its aggregator
+# monthly_change_scalar_merge. The design gives stage B one job with no fan-out.
+# The per-point change netCDFs were temp() outputs of the fan-out; they are now
+# job-internal intermediates with the same lifetime (the script uses a
+# TemporaryDirectory), so nothing durable changed shape.
+rule derive_change_factors:
+    message: rule_banner("2.04", "derive_change_factors")
     input:
+        # EXPLICIT expanded list (risk-06 / revision 4), never a glob and never a
+        # config cross-product: exactly the series the resolved combination set
+        # names. The script asserts the set it opens equals this list, so a model
+        # dropped from the config cannot rejoin through a leftover file.
+        #
         # ancient() DROPPED (step 2b, design D9): with a persistent series store,
-        # suppressing the mtime trigger here is exactly the hole ext2-01 found --
-        # a re-derived series would not re-trigger its consumer. The consumer also
-        # asserts each series' digest in-job, which is the backstop that holds
-        # regardless of how Snakemake was invoked.
-        stats_time_nc_hist = lambda wildcards: series_file(
-            POINT_KEYS[wildcards.point_key][0], "historical", POINT_KEYS[wildcards.point_key][2]
+        # suppressing the mtime trigger is exactly the hole ext2-01 found -- a
+        # re-derived series would not re-trigger its consumer. The in-job digest
+        # assertion is the backstop that holds regardless of invocation.
+        series_nc = sorted(
+            {series_file(m, "historical", mem) for (m, sc, mem) in POINTS}
+            | {series_file(m, sc, mem) for (m, sc, mem) in POINTS}
         ),
-        stats_time_nc = lambda wildcards: series_file(*POINT_KEYS[wildcards.point_key]),
         # D9: stage B recomputes every expected digest INCLUDING the current
         # polygon fingerprint, so it needs the polygon itself.
         region_path = region_path,
-    output:
-        # {member} is now a wildcard: under D7 each (model, scenario, member,
-        # horizon) is a distinct data point, referenced against the SAME member's
-        # historical series.
-        stats_nc_change = temp(clim_project_dir + "/annual_change_scalar_stats-{point_key}_{horizon}.nc"),
-    params:
-        clim_project_dir = f"{clim_project_dir}",
-        # step 2b backstop: the expected digest of each input series, recomputed
-        # from the same parse-time components the producer used.
-        digest_components_hist = lambda wildcards: series_digest_components(
-            POINT_KEYS[wildcards.point_key][0], "historical", POINT_KEYS[wildcards.point_key][2]
-        ),
-        digest_components_fut = lambda wildcards: series_digest_components(*POINT_KEYS[wildcards.point_key]),
-        start_month_hyd_year = start_month_hyd_year, 
-        name_model = lambda wildcards: POINT_KEYS[wildcards.point_key][0],
-        name_scenario = lambda wildcards: POINT_KEYS[wildcards.point_key][1],
-        name_member = lambda wildcards: POINT_KEYS[wildcards.point_key][2],
-        name_horizon = "{horizon}",
-        time_horizon_hist = time_horizon_hist,
-        time_horizon_fut = get_horizon,
-        save_grids = save_grids,
-        # save_grids-only legacy grid paths (undeclared; R2/D11 restructure them
-        # at step 7). Lambdas because {model}/{scenario} are no longer wildcards
-        # of this rule -- it fans out over the opaque point_key.
-        stats_path_hist = lambda wildcards: (
-            f"{clim_project_dir}/historical_stats_{POINT_KEYS[wildcards.point_key][0]}.nc"
-        ),
-        stats_path = lambda wildcards: (
-            f"{clim_project_dir}/stats-{POINT_KEYS[wildcards.point_key][0]}"
-            f"_{POINT_KEYS[wildcards.point_key][1]}.nc"
-        ),
-    log:
-        project_dir + "/logs/_parts/2.04_monthly_change/{point_key}_{horizon}.log",
-    benchmark:
-        project_dir + "/benchmarks/_parts/2.04_monthly_change/{point_key}_{horizon}.tsv",
-    script: "blueearth_cst/projections/get_change_climate_proj.py"
-
-# 2.05  monthly_change_scalar_merge — merge all change factors into one summary
-rule monthly_change_scalar_merge:
-    message: rule_banner("2.05", "monthly_change_scalar_merge")
-    input:
-        # EXPLICIT expanded list from resolution (risk-06), never a glob and
-        # never a config cross-product: a combination that did not resolve has no
-        # file and must not be demanded.
-        stats_nc_change = [
-            change_file(m, sc, mem, hz)
-            for (m, sc, mem) in POINTS
-            for hz in future_horizons
-        ],
     output:
         stats_change_summary = (clim_project_dir + "/summary/annual_change_scalar_stats_summary.nc"),
         stats_change_summary_csv = (clim_project_dir + "/summary/annual_change_scalar_stats_summary.csv"),
@@ -556,11 +515,34 @@ rule monthly_change_scalar_merge:
     params:
         clim_project_dir = f"{clim_project_dir}",
         horizons = future_horizons,
+        start_month_hyd_year = start_month_hyd_year,
+        time_horizon_hist = time_horizon_hist,
+        save_grids = save_grids,
+        # One record per resolved data point. Built HERE because the sanitized
+        # model name cannot be parsed back out of a key (step 4b's lesson), so the
+        # job is handed the tuple rather than reconstructing it.
+        points = [
+            {
+                "point_key": key,
+                "model": model,
+                "scenario": scenario,
+                "member": member,
+                "series_path_hist": series_file(model, "historical", member),
+                "series_path": series_file(model, scenario, member),
+                "digest_components_hist": series_digest_components(model, "historical", member),
+                "digest_components_fut": series_digest_components(model, scenario, member),
+                # save_grids-only legacy grid paths (undeclared; R2/D11 restructure
+                # them at step 7).
+                "stats_path_hist": f"{clim_project_dir}/historical_stats_{model}.nc",
+                "stats_path": f"{clim_project_dir}/stats-{model}_{scenario}.nc",
+            }
+            for key, (model, scenario, member) in POINT_KEYS.items()
+        ],
     log:
-        f"{project_dir}/logs/2.05_monthly_change_scalar_merge.log",
+        f"{project_dir}/logs/2.04_derive_change_factors.log",
     benchmark:
-        f"{project_dir}/benchmarks/_parts/2.05_monthly_change_scalar_merge.tsv",
-    script: "blueearth_cst/projections/get_change_climate_proj_summary.py"
+        f"{project_dir}/benchmarks/_parts/2.04_derive_change_factors.tsv",
+    script: "blueearth_cst/projections/derive_change_factors.py"
 
 # 2.06  plot_climate_proj_timeseries — plot projected anomaly time series
 rule plot_climate_proj_timeseries:
@@ -625,20 +607,10 @@ rule gather_raw_logs:
         ],
     script: "blueearth_cst/shared/merge_logs.py"
 
-# gather 2.04 per-model logs -> 2.04_monthly_change.log
-rule gather_change_logs:
-    message: rule_banner("2.09", "gather_change_logs")
-    input:
-        [change_file(m, sc, mem, hz) for (m, sc, mem) in POINTS for hz in future_horizons],
-    output:
-        f"{project_dir}/logs/2.04_monthly_change.log",
-    params:
-        parts = [
-            f"{project_dir}/logs/_parts/2.04_monthly_change/{key}_{hz}.log"
-            for key in POINT_KEYS
-            for hz in future_horizons
-        ],
-    script: "blueearth_cst/shared/merge_logs.py"
+# Step 4d: `gather_change_logs` (2.09) is REMOVED. It merged the per-part logs of
+# the monthly_change fan-out; stage B is now one job that writes
+# logs/2.04_derive_change_factors.log directly, so there is nothing to gather. The
+# stage-A gathers stay -- fetch/reduce still fan out per series.
 
 # --- benchmark gather ---------------------------------------------------------
 # Merge WF2's per-rule benchmark parts (benchmarks/_parts/2.*) into one

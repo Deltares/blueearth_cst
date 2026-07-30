@@ -131,22 +131,9 @@ def summary_climate_proj(
     g.savefig(os.path.join(clim_dir, "plots", "projected_climate_statistics.png"))
 
 
-if __name__ == "__main__":
-    if "snakemake" in globals():
-        sm = globals()["snakemake"]
-        # Snakemake options
-        clim_project_dir = sm.params.clim_project_dir
-        list_files = sm.input.stats_nc_change
-        horizons = sm.params.horizons
-
-        from blueearth_cst.shared.snake_utils import tee_to_log
-
-        # Call the main function
-        with tee_to_log(sm.log[0]):
-            summary_climate_proj(
-                clim_dir=clim_project_dir,
-                clim_files=list_files,
-                horizons=horizons,
-            )
-    else:
-        raise ValueError("This script should be run from a snakemake environment")
+# NOTE: this module no longer runs as a Snakemake `script:`. Step 4d merged rules
+# 2.04/2.05 into `derive_change_factors`, which imports the functions above and
+# owns the orchestration. The former `__main__` block is deleted rather than left
+# dead: it was a second copy of the per-point procedure, and two copies of the
+# same arithmetic is how they drift apart. The functions stay here — they are the
+# tested surface (tests/test_get_change_climate_proj*.py).

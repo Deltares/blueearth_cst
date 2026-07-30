@@ -129,11 +129,15 @@ pinned by `tests/test_run_workflows.py`.
 - Each Snakefile takes the `--configfile` path from `workflow.configfiles[0]` and
   forwards it as `config_path` to downstream R scripts — keep that forwarding even
   though the Snakefile itself reads the parsed `config`.
-- The `ruleorder:` in `Snakefile_climate_projections` is retained as stale insurance,
-  not confirmed load-bearing: a 2026-07 dry-run on the pinned Snakemake showed it
-  constrains nothing on the tests fixture and a reduced config. Removal is deferred
-  to a task that first encodes ambiguity-sensitive config shapes as regression tests
-  (see `dev/r04/climate-projections-design.md` §3).
+- `Snakefile_climate_projections` no longer carries a `ruleorder:`. It was retained
+  as stale insurance — a 2026-07 dry-run on the pinned Snakemake showed it
+  constrained nothing on the tests fixture or a reduced config — with removal
+  deferred to a task that first encoded ambiguity-sensitive config shapes as
+  regression tests (`dev/r04/climate-projections-design.md` §3). WF2 migration step
+  4d removed it without that task: it named `monthly_change` and
+  `monthly_change_scalar_merge`, which 4d merges into `derive_change_factors`, and
+  an unknown rule name is a parse error. The merge also removes what it insured
+  against — there is no second stage-B rule left that could claim the same output.
 - Register new data sources in a `config/catalogs/*_data*.yml` catalog and pass it to
   hydromt via `-d`. Never hardcode data paths in a Snakefile.
 - `dev/` vs `docs/`: put a new file where its audience is — design notes and one-off
