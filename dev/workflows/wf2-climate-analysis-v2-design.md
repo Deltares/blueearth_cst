@@ -716,6 +716,29 @@ D9 closes it with three coupled changes:
    `save_grids` newly on), does it verify the store-index pins (D12) and
    perform the network read.
 
+   > **Implementation requirement, added 2026-07-30 from step-2b validation:
+   > the series outputs MUST be flagged `update(...)`.** As originally written,
+   > item 3 was **unimplementable**. Snakemake's `Job.prepare()` calls
+   > `remove_existing_output()` before every job — *"Clean up output before rules
+   > actually run"* (`snakemake/jobs.py:789`) — so the file the revalidation
+   > inspects is deleted before the job body runs, `cache_hit` always sees a
+   > missing output, and the job always re-downloads. Observed directly: a forced
+   > rerun of a series whose `cst_series_digest` already matched still logged
+   > `deriving` and re-read the archive.
+   >
+   > `remove_existing_output()` skips outputs flagged `"update"`, whose docstring
+   > is exactly this semantics — *"an output file that shall be updated instead
+   > of overwritten"*. The flag is registered into the Snakefile global namespace
+   > by `snakemake.ioflags.register_in_globals`; its only other DAG effect
+   > concerns `before_update` **input** priorities (`dag.py:2358`), unused here,
+   > so on an output it purely prevents removal. Measured with
+   > `--forcerun extract_climate_grid`: without the flag 9 deriving / 0
+   > cache_hit; with it 0 deriving / 9 cache_hit. Landed in `b7698b9`.
+   >
+   > **This carries forward.** Any persistent, revalidated Snakemake output needs
+   > the flag. Step 3 renames these outputs to `series/{series_key}.nc` and must
+   > preserve it.
+
 **Why this closes the hole rather than auditing it.** A stale series can enter
 a product only through stage B, and both routes there are now gated on content
 equality. (a) The Snakemake route: a polygon rewrite bumps mtime, the reduce
