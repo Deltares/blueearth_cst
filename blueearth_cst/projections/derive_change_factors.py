@@ -80,6 +80,7 @@ def derive_one_point(
     digest_components_hist,
     digest_components_fut,
     save_grids=False,
+    stats=None,
     stats_path_hist=None,
     stats_path=None,
     clim_project_dir=None,
@@ -159,7 +160,7 @@ def derive_one_point(
     assert_weightable(calendar, source=f"{name_model} {name_scenario}")
 
     stats_annual_change = get_change_annual_clim_proj(
-        ds_hist_time, ds_clim_time, calendar=calendar
+        ds_hist_time, ds_clim_time, calendar=calendar, stats=stats
     )
     stats_annual_change = stats_annual_change.assign_coords(
         {"horizon": f"{name_horizon}"}
@@ -337,6 +338,7 @@ if "snakemake" in globals():
                         digest_components_hist=point["digest_components_hist"],
                         digest_components_fut=point["digest_components_fut"],
                         save_grids=save_grids,
+                        stats=sm.params.stats,
                         stats_path_hist=point.get("stats_path_hist"),
                         stats_path=point.get("stats_path"),
                         clim_project_dir=clim_project_dir,

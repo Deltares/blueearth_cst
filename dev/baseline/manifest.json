@@ -2,7 +2,7 @@
   "project_dir": "test_case/test_local",
   "recorded_by": {
     "branch": "main",
-    "commit": "3bdf3fa8ea5639f39732b5535a9554a9e5a1412a",
+    "commit": "d564dbd418a7418f05d5f4db26f9271b4182973b",
     "dirty": true
   },
   "targets": {
@@ -22,8 +22,8 @@
       "type": "png"
     },
     "test_case/test_local/climate_projections/cmip6/summary/annual_change_scalar_stats_summary.csv": {
-      "sha256": "bb010d7ab511cb377c92120afe9dcbfa49f961a50ba4b99323e3f79279197c3a",
-      "size_bytes": 4313,
+      "sha256": "ac0b814c65b2531fe6b56aa9a39037f2de94d48b14df15720d42845725f1bb61",
+      "size_bytes": 1673,
       "type": "csv"
     },
     "test_case/test_local/climate_projections/cmip6/summary/annual_change_scalar_stats_summary.nc": {
@@ -86,20 +86,20 @@
             "standard_name": "precipitation_flux",
             "units": "kg m-2 s-1"
           },
-          "count_non_nan": 48,
+          "count_non_nan": 18,
           "dtype": "float64",
-          "max": 83.28164803,
-          "mean": 12.58119636,
-          "min": -39.14600386,
+          "max": 35.38155267,
+          "mean": 10.52910918,
+          "min": -21.99102863,
           "shape": [
-            8,
+            3,
             1,
             3,
             2,
             1,
             1
           ],
-          "std": 19.89058556
+          "std": 15.33375297
         },
         "scenario": {
           "attrs": {},
@@ -139,13 +139,13 @@
         },
         "stats": {
           "attrs": {},
-          "count_non_nan": 8,
+          "count_non_nan": 3,
           "dtype": "<U6",
           "max": null,
           "mean": null,
           "min": null,
           "shape": [
-            8
+            3
           ],
           "std": null
         },
@@ -159,23 +159,23 @@
             "standard_name": "air_temperature",
             "units": "K"
           },
-          "count_non_nan": 48,
+          "count_non_nan": 18,
           "dtype": "float64",
-          "max": 2.82715382,
-          "mean": 1.332230102,
+          "max": 2.734062498,
+          "mean": 1.177779839,
           "min": -0.09577921371,
           "shape": [
-            8,
+            3,
             1,
             3,
             2,
             1,
             1
           ],
-          "std": 0.9241247791
+          "std": 0.9666834368
         }
       },
-      "summary_sha256": "6fbdd7026b81ce767a2d78bd6d3e52fd6b2ce141cfa16e5d9dbb3f338243d330",
+      "summary_sha256": "6d3ec76b2373af2198a4c26b8ab6e18811de8ee65c80dfb29130d0efc335f0b9",
       "type": "netcdf"
     },
     "test_case/test_local/climate_projections/cmip6/summary/annual_change_scalar_stats_summary_mean.csv": {

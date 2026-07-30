@@ -60,6 +60,17 @@ future_horizons = get_config(my_cfg, "future_horizons", optional=False)
 
 save_grids = get_config(my_cfg, "save_grids", False)
 
+# Step 5d: the statistic set. OPTIONAL and unset in every shipped config, so the
+# config snapshot -- one of the 15 manifest targets, fingerprinted by sha256 --
+# stays byte-identical and 5d does not touch a config contract. Adding and
+# renaming config keys is 5e's job; batching the two would make neither
+# attributable.
+#
+# `None` means the v2.0 default (mean, median, std). A config that opts into tail
+# quantiles gets them labelled with the effective sample size, because `q_90` over
+# a ~20-year window is the second-highest of 20 values and should say so.
+stats = get_config(my_cfg, "stats", None, optional=True)
+
 clim_project_dir = f"{project_dir}/climate_projections/{clim_project}"
 
 # ONE producer contract, built here and identically in Snakefile_model_creation
@@ -560,6 +571,7 @@ rule derive_change_factors:
         start_month_hyd_year = start_month_hyd_year,
         time_horizon_hist = time_horizon_hist,
         save_grids = save_grids,
+        stats = stats,
         catalog_crawled_on = _res._as_date_string((_INDEX or {}).get("crawled_on", "")),
         # EVERY requested combination with its ladder status -- not just the
         # resolved ones. The skips are what make the record auditable, and they

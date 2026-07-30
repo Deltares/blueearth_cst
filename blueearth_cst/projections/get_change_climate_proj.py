@@ -129,10 +129,35 @@ def hydrological_year_bounds(ds_time, start_month_hyd_year="Jan"):
     return start, end, int(last_year) - int(first_year)
 
 
+#: Step 5d: what a run emits unless it opts into more. Today's eight statistics
+#: were computed over a ~20-year window, which makes `q_90` "effectively the
+#: second-highest of 20 values" (design §5.6) -- a number the window cannot
+#: support, shipped as though it could.
+DEFAULT_STATS = ("mean", "median", "std")
+
+
+def quantile_label(stat_name, n_years):
+    """Label an emitted quantile with the sample size it was computed over.
+
+    The design requires tail quantiles, once opted into, to be "labelled with
+    their effective sample size in both the CSV and the report". The label is the
+    `stats` coordinate value, so it reaches both without either having to know
+    about sample sizes: `q_90` over 20 years reads `q_90[n=20]`, which makes "the
+    second-highest of 20" self-evident at the point of use rather than in a
+    footnote nobody reaches.
+
+    Non-quantile statistics are returned unchanged -- `mean[n=20]` would be noise,
+    since a mean over 20 years is not a claim the sample size undermines.
+    """
+    if not str(stat_name).startswith("q_") or not n_years:
+        return stat_name
+    return f"{stat_name}[n={int(n_years)}]"
+
+
 def get_change_annual_clim_proj(
     ds_hist_time,
     ds_clim_time,
-    stats=["mean", "std", "var", "median", "q_90", "q_75", "q_10", "q_25"],
+    stats=None,
     start_month_hyd_year="Jan",
     calendar=None,
 ):
@@ -145,7 +170,10 @@ def get_change_annual_clim_proj(
     ds_clim_time : xarray dataset
         monthly averages of variables over time horizon period, spatially averaged over the grid (projection).
     stats : list of strings of statistics
-        quantiles should be provided as q_xx. The default is ["mean", "std", "var", "median", "q_90", "q_75", "q_10", "q_25"]
+        Quantiles are given as ``q_xx`` and are OPT-IN as of step 5d: the
+        default is ``DEFAULT_STATS`` (``mean``, ``median``, ``std``). An
+        emitted quantile is labelled with its effective sample size, so a
+        ``q_90`` over a 20-year window reads ``q_90[n=20]``.
     start_month_hyd_year : str, optional
         Month start of hydrological year. The default is "Jan".
 
@@ -155,6 +183,10 @@ def get_change_annual_clim_proj(
         annual statistics per each models/scenario/horizon.
 
     """
+    # Step 5d: `stats=None` means the v2.0 default set, not "all eight".
+    # Passed explicitly by callers that opt into tail quantiles.
+    stats = list(DEFAULT_STATS) if stats is None else list(stats)
+
     # cftime-safe slicing: convert any CMIP6-native cftime index up front so the
     # pd.Timestamp hydrological-year bounds below apply to a pandas-native index
     # (t260720c / D-CAL).
@@ -189,7 +221,7 @@ def get_change_annual_clim_proj(
     # the hoist is that `hydrological_year_bounds` becomes the SINGLE definition of
     # "the complete hydrological years this change factor used", so the composition
     # record (step 4d) can report that window instead of a second copy that drifts.
-    start_hyd_year_hist, end_hyd_year_hist, _ = hydrological_year_bounds(
+    start_hyd_year_hist, end_hyd_year_hist, n_ref_years = hydrological_year_bounds(
         ds_hist_time, start_month_hyd_year
     )
     start_hyd_year_clim, end_hyd_year_clim, _ = hydrological_year_bounds(
@@ -292,7 +324,9 @@ def get_change_annual_clim_proj(
                 change = (clim_stat - hist_stat) / hist_stat * 100
             else:
                 change = clim_stat - hist_stat
-            change = change.assign_coords({"stats": stat_name}).expand_dims("stats")
+            change = change.assign_coords(
+                {"stats": quantile_label(stat_name, n_ref_years)}
+            ).expand_dims("stats")
 
             if "quantile" in change.coords:
                 change = change.drop("quantile")
