@@ -97,7 +97,6 @@ if "snakemake" in globals():
         )
 
         os.makedirs(os.path.dirname(raw_nc_out) or ".", exist_ok=True)
-        data_catalog = hydromt.DataCatalog(data_libs=catalog_path)
 
         # The generated catalog expands placeholders at generation time, so the
         # member is part of the entry NAME (get_stats_climate_proj.py:236). Use the
@@ -107,6 +106,38 @@ if "snakemake" in globals():
             if "{member}" in catalog_entry
             else f"{catalog_entry}_{member}"
         )
+
+        # --- spend the D12 pin instead of listing the bucket ------------------
+        # The URI ends /{variable}/*/* , so resolving it lists the store to expand
+        # {grid_label}/{version}. The index already records that location, so
+        # substitute it and address the store directly.
+        # Worth ~10 s per source: open 49.9 s pinned vs 60.0 s globbed, 3 samples
+        # per arm, non-overlapping (benchmark note 3.2). But gcsfs answers the same
+        # patterns in 0.41 s, so what this removes is hydromt's resolver overhead on
+        # a wildcard URI, NOT a slow network listing -- describe it that way. The
+        # second reason to keep it is determinism: one known store rather than a
+        # pattern whose match set can change under the job.
+        # Falls back to the globbed catalog whenever the pins cannot name one
+        # location (per-variable divergence, or >1 match, which is D8's ambiguity and
+        # must stay globbed so the duplicate-time assertion still fires).
+        entry_spec = series_identity.load_catalog_entry(catalog_path, catalog_entry)
+        pin_uri = series_identity.pinned_uri(
+            str(entry_spec.get("uri", "")),
+            (components.get("pins") or {}).get(member, {}),
+        )
+        if pin_uri is None:
+            log_row("no single pin for this source; keeping the URI glob", module="fetch")
+            data_catalog = hydromt.DataCatalog(data_libs=catalog_path)
+        else:
+            pinned_spec = dict(entry_spec)
+            pinned_spec["uri"] = pin_uri
+            # Registered through hydromt's own dict schema -- same driver, adapter and
+            # metadata, only the URI narrowed. from_dict rather than a YAML round-trip:
+            # hydromt 1.3's to_yml drops driver.options.preprocess (see
+            # prepare_climate_data_catalog.py).
+            data_catalog = hydromt.DataCatalog()
+            data_catalog.from_dict({catalog_entry: pinned_spec})
+            log_row(f"pinned URI (no bucket listing): {pin_uri}", module="fetch")
         data = data_catalog.get_rasterdataset(
             entry,
             bbox=bbox,

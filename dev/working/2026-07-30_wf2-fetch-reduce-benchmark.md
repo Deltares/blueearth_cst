@@ -158,12 +158,40 @@ arm expected to win:
 | PINNED | `/{variable}/gr1/v20190603` | **52.9 s** |
 | GLOBBED | `/{variable}/*/*` | **59.6 s** |
 
-So the glob costs **~6.7 s of a ~57 s open, ≈ 11 %** — real, and a lower bound
-given the ordering, but not where the time goes. Treat this as **provisional**:
-n = 1 per arm, and the pre-open phase of these same runs varied by ~23 s between
-sessions, so a 6.7 s gap is not safely outside the noise this setup shows.
-Resolving it needs repeated samples, which is only worth doing if the fix is
-otherwise attractive.
+The single pair above suggested ~6.7 s and I called it "inside the noise".
+**Repeating it refuted that**, three alternating samples per arm:
+
+| arm | samples | mean |
+|---|---|---|
+| PINNED | 48.8, 50.2, 50.7 | **49.9 s** |
+| GLOBBED | 57.8, 59.5, 62.7 | **60.0 s** |
+
+The ranges do not overlap. The glob costs **~10 s of a ~60 s open, ≈ 17 %** —
+a real, reproducible effect, and larger than the first pair showed. Two lessons
+land here at once: a single pair was not enough to call the effect either way,
+and "inside the noise" was as wrong as "dominant".
+
+**The mechanism settles it where the end-to-end timing cannot.** Timed directly
+against the bucket:
+
+| operation | cost |
+|---|---|
+| `fs.glob(…/Amon/pr/*/*)` | 0.27 s |
+| `fs.glob(…/Amon/tas/*/*)` | 0.14 s |
+| `ls` of the pinned store | 0.00 s |
+
+**The listing the glob triggers is 0.41 s.** So essentially none of the ~10 s gap
+is bucket latency — it is **hydromt's resolver overhead on a wildcard URI**,
+~24× what answering the same pattern costs `gcsfs` directly. That is the accurate
+attribution: the pin is worth ~10 s per source (~1.5 min across 9), and the cost
+it removes lives in the resolver, not in the network.
+
+> **Correcting a number that briefly propagated.** `series_identity.pinned_uri`'s
+> first docstring called the listing "the dominant cost of a read — ~28 s per
+> source". That 28 s is this note's own §1 correction block — "fetch 28 s + reduce
+> 31 s **per series**" — i.e. a whole fetch job, mis-attributed to the listing
+> inside it. Both the docstring and `fetch_gcm_raw.py`'s comment now carry the
+> 0.41 s figure and an explicit "do not re-justify this as a performance fix".
 
 **What the catalog-shape blocker actually costs.** §3.1 implied the pin needs a
 redesign. Restricted to the member WF2 actually reads it is far smaller — every
@@ -229,12 +257,20 @@ exists to provide. Not recommended without a separate design pass.
   remote at run A's open) — but every absolute figure in them, 1142 s above all,
   is inflated by §3.1's bug. Restate them against a corrected open, or a later
   reader will find §1 and §3.1 in contradiction.
-- Of the two follow-ups §3.1 named, only the first was worth doing. Declaring the
-  switch: **done**, ≥14× measured, landed as `6b98b15`. Pinning the `/*/*` glob:
-  **closed as not worth doing** — §3.2 measures it at ≤11 % of the open at n = 1
-  inside visible noise, still needs a hybrid for 33 entries even restricted to
-  `r1i1p1f1`, and leaves the D8 duplicate-time-axis guard in place regardless.
-  Repeat sampling would only pay if the fix were otherwise attractive; it is not.
+- Of the two follow-ups §3.1 named, the first is done and the second is **kept on
+  different grounds than it was proposed on**. Declaring the switch: **done**,
+  ≥14× measured, landed as `6b98b15`. Pinning the `/*/*` glob: **implemented and
+  retained** (`series_identity.pinned_uri` + `fetch_gcm_raw` wiring, 55 tests
+  green) — worth **~10 s per source**, ~17 % of the open, ~1.5 min across the 9
+  series (§3.2, n = 3 per arm, non-overlapping). Size the claim correctly in any
+  future write-up: the saving is hydromt resolver overhead, not network latency
+  (`fs.glob` answers the same patterns in 0.41 s), and it is nowhere near the
+  "~28 s, dominant" the first docstring claimed. It also buys determinism — the
+  job addresses one known store rather than a pattern whose match set can change
+  under it. The hybrid
+  fallback stays (33 entries diverge per variable, 188 member-combinations
+  multi-match), and the D8 duplicate-time-axis guard stays regardless — the
+  fallback is what keeps that guard reachable.
 - **The open is now understood and is not cheaply reducible.** ~53–60 s per
   source, of which the glob is ~6 s; the rest is zarr metadata reads, the hydromt
   resolver and round-trip latency. The raw cache built in `347638d` is the right

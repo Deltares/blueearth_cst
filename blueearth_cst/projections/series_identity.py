@@ -309,6 +309,59 @@ def load_pins(
     return index.get("sources", {}).get(catalog_entry, {}).get(member, {}) or {}
 
 
+#: Trailing glob a generated CMIP6 URI ends with: ``{grid_label}/{version}``.
+STORE_GLOB_SUFFIX = "/*/*"
+
+
+def pinned_uri(uri: str, pins: Mapping[str, Sequence[str]]) -> str | None:
+    """Narrow a catalog URI's trailing ``/*/*`` to the pin the index recorded.
+
+    The generated catalog ends every URI ``/{variable}/*/*``, so resolving one
+    source means listing the bucket to expand ``{grid_label}/{version}`` — while
+    the physical location that listing discovers is **already recorded** in
+    ``cmip6_store_index.json`` (D12). Substituting the pin replaces a listing with
+    a direct address.
+
+    **Worth ~10 s per source — a modest win, not a dominant one.** Measured on
+    this source, three alternating samples per arm
+    (``dev/working/2026-07-30_wf2-fetch-reduce-benchmark.md`` §3.2):
+
+    * open, pinned **49.9 s** vs globbed **60.0 s**, non-overlapping ranges —
+      ~17 % of the open, ~1.5 min across the 9 series;
+    * but ``fs.glob`` answers the same two patterns in **0.41 s**, so what the pin
+      removes is **hydromt's resolver overhead on a wildcard URI**, not bucket
+      latency. Do not describe it as avoiding a slow network listing.
+
+    An earlier version of this docstring called the listing "the dominant cost of a
+    read — ~28 s per source". That mis-attributed a whole fetch job to the listing
+    inside it: the note's 28 s is "fetch 28 s + reduce 31 s **per series**".
+
+    The second, non-timing reason to keep this: the job addresses one known store
+    instead of resolving a pattern whose match set can change under it.
+
+    Returns ``None`` — meaning "keep the glob" — whenever the pins cannot name one
+    physical location. Measured against the 289-entry index (2 426 member
+    combinations): 2 205 share one pin and take this path, 33 differ per variable,
+    188 record more than one match per variable. The last group is D8's ambiguity
+    and must stay globbed so the duplicate-time assertion still sees it.
+
+    This does **not** change the series digest, and must not: the digest is built at
+    DAG build from the *catalog* entry, whose URI is the logical template, while the
+    pin it also records is the physical identity (D12's own framing). Rewriting the
+    URI inside the job spends the pin the digest already carries; it adds no
+    component and re-derives nothing.
+    """
+    if not pins or not uri.endswith(STORE_GLOB_SUFFIX):
+        return None
+    distinct = {tuple(paths) for paths in pins.values()}
+    if len(distinct) != 1:
+        return None
+    (only,) = distinct
+    if len(only) != 1:
+        return None
+    return uri[: -len(STORE_GLOB_SUFFIX)] + "/" + only[0]
+
+
 def digest_components(
     *,
     catalog_entry: str,
