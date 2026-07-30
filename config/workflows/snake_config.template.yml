@@ -92,8 +92,25 @@ workflows:
       temp: {source: temp, canonical: state, units: degC, change: absolute}
     start_month_hyd_year: Jan
     # CMIP6 monthly stats historical year range (different precision than
-    # shared.historical_window — that one uses ISO datetimes for wflow forcing)
-    historical_year_range: [1980, 2010]
+    # shared.historical_window — that one uses ISO datetimes for wflow forcing).
+    #
+    # RECOMMENDED: 1985–2014, thirty years ending at the last year the CMIP6
+    # historical experiment covers (owner ruling OQ-4, 2026-07-29).
+    #
+    # Why these bounds specifically:
+    #   * 30 years is the WMO climatological normal, and the workflow warns below
+    #     20 — a shorter reference makes every statistic derived from it noisier,
+    #     and the tail quantiles unsupportable (which is why they are opt-in).
+    #   * 2014 is the end of the historical experiment. Asking for more is not an
+    #     error — the window is CLIPPED to 2014 and the run says so on stderr —
+    #     but scenario data is never spliced in to fill the gap, so the extra
+    #     years simply do not arrive.
+    #   * The range is INCLUSIVE: 1985–2014 is thirty calendar years, and with the
+    #     default `start_month_hyd_year: Jan` that is thirty complete
+    #     hydrological years. Any other start month yields 29, the partial years
+    #     at both ends dropped; every artifact reports the effective window and
+    #     count beside the nominal one, so the difference is never silent.
+    historical_year_range: [1985, 2014]
     future_horizons:
       near: [2030, 2060]
       far:  [2070, 2100]

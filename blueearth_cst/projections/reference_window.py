@@ -137,6 +137,28 @@ def window_warnings(window: ReferenceWindow, shared_window=None) -> list[str]:
     return lines
 
 
+def dropped_months(data_start, data_end, effective_start, effective_end) -> tuple[int, int]:
+    """Months discarded at each end by the complete-hydrological-year policy.
+
+    A1 requires artifacts stating an analysis window to state the **per-end
+    dropped-month counts** alongside nominal and effective bounds — because
+    "29 years from a 30-year window" is not self-explaining, and "9 dropped at the
+    front, 3 at the back" is.
+
+    Returns ``(leading, trailing)`` in whole months.
+    """
+    import pandas as pd
+
+    def months_between(a, b):
+        a, b = pd.Timestamp(a), pd.Timestamp(b)
+        return max(0, (b.year - a.year) * 12 + (b.month - a.month))
+
+    return (
+        months_between(data_start, effective_start),
+        months_between(effective_end, data_end),
+    )
+
+
 def alignment_record(window: ReferenceWindow, shared_window=None) -> dict:
     """The durable facts, for the composition record (and `provenance.json` at 6a).
 
