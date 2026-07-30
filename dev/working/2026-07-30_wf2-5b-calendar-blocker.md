@@ -2,7 +2,11 @@
 
 ```
 Found:  2026-07-30, while drafting step 5b's falsifier (before any 5b code)
-Status: OPEN — needs an owner decision; 5b cannot proceed as designed
+Status: RESOLVED 2026-07-30 by A3 (owner-chosen). 5b is unblocked.
+        All 9 raw slices now record `cst_calendar = noleap`, read from the store.
+        Gates after the corrective re-fetch: check_baseline OK 15/15;
+        semantic_tree_diff 126 compared, 18 failed, 0 missing, 0 extra — the 18
+        being the 9 raw + 9 series, ATTRS ONLY (zero value or dtype differences).
 Scope:  larger than 5b. Existing raw slices and series carry a wrong calendar.
 ```
 

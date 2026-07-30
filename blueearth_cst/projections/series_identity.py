@@ -48,7 +48,14 @@ from typing import Iterable, Mapping, Sequence
 #: ``cst_series_digest``. Bumping is what makes the existing v1 series re-derive
 #: instead of being silently accepted without the new provenance; it is nearly free
 #: now that a re-reduction reads local disk.
-SCHEMA_VERSION = "2"
+SCHEMA_VERSION = "3"
+#: Bumped 2->3 at step 5b's prerequisite: raw slices and series written before
+#: this carry `cst_calendar = ""` while their `time.attrs` assert
+#: `proleptic_gregorian`, which is FALSE for every noleap/360_day model
+#: (dev/working/2026-07-30_wf2-5b-calendar-blocker.md). The calendar cannot join
+#: the digest components -- reading it needs the store, and DAG build is
+#: deliberately network-free -- so the version bump is the invalidation lever, and
+#: `cache_hit` already rejects on a schema mismatch. Costs one re-derivation.
 
 #: Acquisition span per experiment class, lifted out of
 #: ``get_stats_climate_proj.py``'s ``time_tuple_all`` branch into a declared
@@ -360,6 +367,61 @@ def pinned_uri(uri: str, pins: Mapping[str, Sequence[str]]) -> str | None:
     if len(only) != 1:
         return None
     return uri[: -len(STORE_GLOB_SUFFIX)] + "/" + only[0]
+
+
+#: Recorded when the store's calendar could not be determined. A sentinel, not an
+#: empty string: "" is what the pre-3 schema wrote when it read `.calendar` off a
+#: DatetimeIndex that never had one, and an absent value is indistinguishable from
+#: a value nobody looked for. Anything weighting by month length must refuse this.
+CALENDAR_UNKNOWN = "unknown"
+
+
+def parse_store_calendar(zmetadata: Mapping) -> str:
+    """Calendar name from a zarr store's consolidated metadata.
+
+    Split from the fetch for testability: this is pure, and the network read that
+    feeds it lives at the single call site allowed to touch the store.
+
+    Returns :data:`CALENDAR_UNKNOWN` rather than guessing. The stores are not
+    uniform across 289 entries, and a wrong calendar recorded confidently is the
+    exact defect this function exists to end.
+    """
+    meta = (zmetadata or {}).get("metadata", zmetadata) or {}
+    attrs = meta.get("time/.zattrs") or {}
+    calendar = str(attrs.get("calendar", "")).strip()
+    return calendar or CALENDAR_UNKNOWN
+
+
+def read_store_calendar(store_uri: str) -> str:
+    """The model's true calendar, read from the store itself.
+
+    **Only ``fetch_gcm_raw`` may call this** — it makes a remote request, and the
+    reduce stage's contract is zero network calls (benchmark note §2).
+
+    Necessary because the calendar does not survive the read path: our generated
+    catalog requests ``preprocess: harmonise_dims``, whose time branch
+    (``hydromt/data_catalog/drivers/preprocessing.py:66``) converts a ``CFTimeIndex``
+    to a ``DatetimeIndex``, after which ``noleap`` is indistinguishable from
+    ``proleptic_gregorian`` — and is in fact written out AS ``proleptic_gregorian``.
+
+    Cheap on purpose: one consolidated-metadata read (~0.3 s), not a store open.
+    Values are unaffected by the conversion, so only the calendar NAME must be
+    recovered; month length is a function of (calendar, year, month) and the
+    converted axis still carries year and month.
+    """
+    import json
+
+    import fsspec
+
+    try:
+        fs, path = fsspec.core.url_to_fs(store_uri, token="anon")
+        with fs.open(f"{path.rstrip('/')}/.zmetadata", "rb") as fh:
+            return parse_store_calendar(json.loads(fh.read()))
+    except Exception:
+        # Never fail a fetch over provenance: the slice's DATA is valid regardless.
+        # The unknown sentinel propagates, and the step that needs a calendar
+        # refuses there instead -- loudly, and naming the series.
+        return CALENDAR_UNKNOWN
 
 
 def digest_components(

@@ -163,6 +163,41 @@ if "snakemake" in globals():
                 "version in the catalog rather than reading an ambiguous source."
             )
 
+        # --- the model's TRUE calendar, read from the store ---------------------
+        # `index` is a DatetimeIndex by now and has no `.calendar`: our catalog
+        # requests `preprocess: harmonise_dims`, whose time branch converts a
+        # CFTimeIndex away (hydromt .../drivers/preprocessing.py:66). Reading
+        # `.calendar` off it recorded "" while the file was written asserting
+        # `proleptic_gregorian` -- false for every noleap/360_day model. So ask the
+        # store, which is the only place that still knows.
+        # One consolidated-metadata read, ~0.3 s; see the blocker note.
+        pins_for_member = (components.get("pins") or {}).get(member, {})
+        # Prefer a CERTIFIED variable: the crawl proved pr/tas present, and any
+        # other name is best-effort (A3), so its store may not exist.
+        calendar_var = next(
+            (v for v in ("tas", "pr") if v in pins_for_member),
+            next(iter(pins_for_member), ""),
+        )
+        store_uri = ""
+        if calendar_var:
+            template = pin_uri or str(entry_spec.get("uri", ""))
+            store_uri = template.format(member=member, variable=calendar_var)
+            if store_uri.endswith(series_identity.STORE_GLOB_SUFFIX):
+                matches = pins_for_member.get(calendar_var) or []
+                store_uri = (
+                    store_uri[: -len(series_identity.STORE_GLOB_SUFFIX)]
+                    + "/"
+                    + matches[-1]
+                    if matches
+                    else ""
+                )
+        store_calendar = (
+            series_identity.read_store_calendar(store_uri)
+            if store_uri
+            else series_identity.CALENDAR_UNKNOWN
+        )
+        log_row(f"store calendar={store_calendar} ({calendar_var or 'no pin'})", module="fetch")
+
         entry_meta = (components.get("entry_identity") or {}).get(member, {})
         first, last = (str(index[0]), str(index[-1])) if index is not None else ("", "")
         data.attrs.update(
@@ -173,7 +208,8 @@ if "snakemake" in globals():
                 "cst_acquisition_window": " / ".join(acquisition_window),
                 "cst_time_first": first,
                 "cst_time_last": last,
-                "cst_calendar": str(getattr(index, "calendar", "") or ""),
+                # From the STORE, not from the index -- the index no longer knows.
+                "cst_calendar": store_calendar,
                 "cst_region_bounds": ", ".join(f"{b:.9g}" for b in bbox),
                 "cst_region_fingerprint": region_fp,
                 "cst_buffer_degrees": buffer,
