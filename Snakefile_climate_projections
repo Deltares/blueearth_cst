@@ -128,6 +128,22 @@ save_grids = save_gridded
 # a ~20-year window is the second-highest of 20 values and should say so.
 stats = get_config(my_cfg, "stats", None, optional=True)
 
+# --- step 6b / A2: the dry-month rule ----------------------------------------
+# Resolved HERE, at DAG build, so a `change: relative` variable with no threshold
+# fails before any job is scheduled -- same argument as 5e-i's save_grids. The
+# shipped default (precip: 0.1 mm/day) lives in code; a variable outside the
+# shipped set must supply its own, because borrowing precipitation's number would
+# apply a rainfall threshold to an unrelated quantity in unrelated units.
+from blueearth_cst.projections import dry_month as _dm
+
+_relative_cfg = get_config(my_cfg, "relative_change", {}, optional=True) or {}
+MIN_REFERENCE = _dm.resolve_thresholds(
+    VARIABLE_SPEC, _relative_cfg.get("min_reference")
+)
+MAX_FLAGGED_MONTHS = _relative_cfg.get(
+    "max_flagged_months", _dm.DEFAULT_MAX_FLAGGED_MONTHS
+)
+
 clim_project_dir = f"{project_dir}/climate_projections/{clim_project}"
 
 # ONE producer contract, built here and identically in Snakefile_model_creation
@@ -683,6 +699,8 @@ rule derive_change_factors:
         save_grids = save_grids,
         stats = stats,
         stage_b_hash = STAGE_B_HASH,
+        min_reference = MIN_REFERENCE,
+        max_flagged_months = MAX_FLAGGED_MONTHS,
         variable_spec = {k: list(v) for k, v in VARIABLE_SPEC.items()},
         reference_record = REFERENCE_RECORD,
         catalog_crawled_on = _res._as_date_string((_INDEX or {}).get("crawled_on", "")),

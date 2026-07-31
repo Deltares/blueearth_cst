@@ -12,6 +12,7 @@ import xarray as xr
 
 from blueearth_cst.projections import series_identity
 from blueearth_cst.projections.calendar_weights import month_length_weights
+from blueearth_cst.projections.dry_month import FLAGGED_STATUS, is_flagged
 from blueearth_cst.projections.variable_spec import canonical_kind, change_kind
 from blueearth_cst.shared.snake_utils import log_row
 
@@ -188,12 +189,20 @@ def quantile_label(stat_name, n_years):
     return f"{stat_name}[n={int(n_years)}]"
 
 
+def _labelled(da, stat_name, n_ref_years):
+    """Attach the `stats` coordinate a change factor is keyed by."""
+    return da.assign_coords(
+        {"stats": quantile_label(stat_name, n_ref_years)}
+    ).expand_dims("stats")
+
+
 def get_change_monthly_clim_proj(
     ds_hist_time,
     ds_clim_time,
     stats=None,
     start_month_hyd_year="Jan",
     variable_spec=None,
+    min_reference=None,
 ):
     """Change factors per CALENDAR MONTH (design §5.6, step 6a-ii).
 
@@ -246,15 +255,28 @@ def get_change_monthly_clim_proj(
                 hist_stat = getattr(hist_by_month, stat_name)("time")
                 clim_stat = getattr(clim_by_month, stat_name)("time")
 
+            absolute = (clim_stat - hist_stat).rename(var)
             if change_kind(variable_spec, var) == "relative":
-                change = (clim_stat - hist_stat) / hist_stat * 100
+                change = ((clim_stat - hist_stat) / hist_stat * 100).rename(var)
+                # Step 6b / A2: a near-zero reference makes the RATIO meaningless
+                # while the difference stays informative, so the ratio is dropped
+                # and the difference kept -- never both. `is_flagged` is strict, so
+                # a reference exactly at the threshold survives.
+                threshold = (min_reference or {}).get(var)
+                if threshold is not None:
+                    flagged = hist_stat < threshold
+                    change = change.where(~flagged)
+                    ds.append(
+                        _labelled(flagged.astype("int8").rename(f"{var}__flagged"),
+                                  stat_name, n_ref_years).to_dataset()
+                    )
+                    ds.append(
+                        _labelled(absolute.rename(f"{var}__absolute"),
+                                  stat_name, n_ref_years).to_dataset()
+                    )
             else:
-                change = clim_stat - hist_stat
-            change = change.rename(var)
-            change = change.assign_coords(
-                {"stats": quantile_label(stat_name, n_ref_years)}
-            ).expand_dims("stats")
-            ds.append(change.to_dataset())
+                change = absolute
+            ds.append(_labelled(change, stat_name, n_ref_years).to_dataset())
 
     return xr.merge(ds)
 

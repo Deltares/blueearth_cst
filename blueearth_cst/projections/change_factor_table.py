@@ -24,6 +24,8 @@ implemented — there is nothing to remove.
 """
 from __future__ import annotations
 
+from blueearth_cst.projections.dry_month import FLAGGED_STATUS
+
 #: Column order of `change_factors/{annual,monthly}.csv`, per §5.9.
 #: `period` is `annual` for the annual table and the month number for the
 #: monthly one, so both tables share one schema and can be concatenated.
@@ -53,6 +55,11 @@ TABLE_COLUMNS = [
 #: Coordinates that are not part of the key and must not become columns.
 #: `spatial_ref` is a CRS artifact, not a change factor (falsifier M2).
 DROPPED_COORDS = ("spatial_ref",)
+
+#: Step 6b companions: `precip__absolute` and `precip__flagged` ride alongside
+#: `precip` so the dry-month verdict survives the per-point netCDF round trip.
+#: They are COLUMNS of the variable they qualify, never rows of their own.
+COMPANION_SEP = "__"
 
 
 def tidy_rows(ds, *, period="annual", window_facts=None, series_keys=None, row_facts=None):
@@ -84,9 +91,20 @@ def tidy_rows(ds, *, period="annual", window_facts=None, series_keys=None, row_f
     per_row = dict(row_facts or {})
     rows = []
 
-    for variable in sorted(v for v in ds.data_vars if v not in DROPPED_COORDS):
+    base_variables = sorted(
+        v
+        for v in ds.data_vars
+        if v not in DROPPED_COORDS and COMPANION_SEP not in str(v)
+    )
+    for variable in base_variables:
         da = ds[variable]
+        absolute_da = ds.get(f"{variable}{COMPANION_SEP}absolute")
+        flagged_da = ds.get(f"{variable}{COMPANION_SEP}flagged")
         stacked = da.stack(_row=[d for d in da.dims])
+        if absolute_da is not None:
+            absolute_da = absolute_da.stack(_row=[d for d in absolute_da.dims])
+        if flagged_da is not None:
+            flagged_da = flagged_da.stack(_row=[d for d in flagged_da.dims])
         for idx in range(stacked.sizes["_row"]):
             point = stacked.isel(_row=idx)
             coords = {k: _scalar(point[k].values) for k in point.coords if k != "_row"}
@@ -124,6 +142,16 @@ def tidy_rows(ds, *, period="annual", window_facts=None, series_keys=None, row_f
                 reference_series_key=keys.get((dataset, scenario, member), ""),
             )
             row.update(per_row.get((dataset, scenario, member), {}))
+            # Step 6b: a flagged month lost its ratio and kept its difference.
+            # Both are read from the companions rather than recomputed, so the
+            # table cannot disagree with the computation about which months were
+            # flagged -- the drift that has now bitten four times.
+            if flagged_da is not None:
+                flagged = bool(_scalar(flagged_da.isel(_row=idx).values))
+                if flagged:
+                    row["status"] = FLAGGED_STATUS
+            if absolute_da is not None:
+                row["absolute_value"] = _scalar(absolute_da.isel(_row=idx).values)
             rows.append(row)
 
     # Deterministic order: the CSV is fingerprinted by sha256, so an unstable row

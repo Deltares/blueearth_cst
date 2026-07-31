@@ -45,6 +45,7 @@ import xarray as xr
 from blueearth_cst.projections import series_identity
 from blueearth_cst.projections.calendar_weights import CalendarError, assert_weightable
 from blueearth_cst.projections.change_factor_table import tidy_rows, write_table
+from blueearth_cst.projections.dry_month import FLAGGED_STATUS, combination_is_flagged
 from blueearth_cst.projections import provenance as _prov
 from blueearth_cst.projections.variable_spec import VariableSpec
 from blueearth_cst.projections.get_change_climate_proj import (
@@ -86,6 +87,7 @@ def derive_one_point(
     save_grids=False,
     stats=None,
     variable_spec=None,
+    min_reference=None,
     stats_path_hist=None,
     stats_path=None,
     clim_project_dir=None,
@@ -187,7 +189,8 @@ def derive_one_point(
     # the annual file rather than returned, so the merge step handles both the
     # same way and a failure leaves neither half-written.
     monthly_change = get_change_monthly_clim_proj(
-        ds_hist_time, ds_clim_time, stats=stats, variable_spec=variable_spec
+        ds_hist_time, ds_clim_time, stats=stats, variable_spec=variable_spec,
+        min_reference=min_reference,
     )
     monthly_change = monthly_change.assign_coords(
         {"horizon": f"{name_horizon}"}
@@ -376,6 +379,7 @@ if "snakemake" in globals():
                         save_grids=save_grids,
                         stats=sm.params.stats,
                         variable_spec=VARIABLE_SPEC,
+                        min_reference=sm.params.min_reference,
                         stats_path_hist=point.get("stats_path_hist"),
                         stats_path=point.get("stats_path"),
                         clim_project_dir=clim_project_dir,
@@ -545,6 +549,23 @@ if "snakemake" in globals():
                 (a.get("cst_weighting_scheme", "") for a in series_attrs.values()), ""
             ),
         )
+        # Step 6b: counted from the rows the monthly table wrote, not by a second
+        # traversal -- a value recorded twice has disagreed four times in this
+        # milestone, and this is the fifth chance.
+        flagged_counts = {}
+        for row in monthly_rows:
+            if row["status"] == FLAGGED_STATUS:
+                key = (row["dataset"], row["scenario"], row["member"],
+                       row["horizon"], row["variable"])
+                flagged_counts[key] = flagged_counts.get(key, 0) + 1
+        document["flagged_months"] = [
+            {
+                "dataset": k[0], "scenario": k[1], "member": k[2],
+                "horizon": k[3], "variable": k[4], "n_flagged_months": n,
+                "exceeds_max": combination_is_flagged(n, sm.params.max_flagged_months),
+            }
+            for k, n in sorted(flagged_counts.items())
+        ]
         _prov.write(str(sm.output.provenance_json), document)
         log_row(
             f"provenance: {len(document['sources'])} sources, "
