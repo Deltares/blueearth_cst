@@ -12,6 +12,7 @@ import xarray as xr
 from blueearth_cst.projections.change_factor_table import (
     TABLE_COLUMNS_ANNUAL,
     TABLE_COLUMNS_MONTHLY,
+    csv_value,
     tidy_rows,
     write_table,
 )
@@ -263,3 +264,61 @@ def test_dead_columns_are_gone(wide):
                  "n_years_dropped", "n_years", "reference_series_key"):
         assert dead not in TABLE_COLUMNS_ANNUAL
         assert dead not in TABLE_COLUMNS_MONTHLY
+
+
+# --- CSV number formatting ----------------------------------------------------
+# The written cell is fixed to CSV_DECIMALS places. Two goals, one change: Excel
+# stops prompting to convert (a full float64 repr runs to 17 significant digits),
+# and the tables carry the 3 dp the results are meaningful to.
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (9.331056256303583, "9.331"),
+        (-1.8660387707268327, "-1.866"),
+        (1.9014461250814094, "1.901"),
+        (0.0, "0.000"),
+        (2.0, "2.000"),
+        # never an exponent: str() would render these 1e-06 / 1.5e-07, the form
+        # Excel converts most eagerly
+        (0.000001, "0.000"),
+        (1.5e-07, "0.000"),
+        # a negative value rounded away must not keep its sign
+        (-0.0001, "0.000"),
+        (-1e-09, "0.000"),
+    ],
+)
+def test_floats_are_written_fixed_to_three_places(value, expected):
+    assert csv_value(value) == expected
+
+
+def test_non_floats_pass_through_untouched():
+    """Integer columns stay integral and text stays text."""
+    for value in (21, 1, "ok", "mm/day", "", "1990-01-01 / 2010-12-01", True):
+        assert csv_value(value) is value
+
+
+def test_nan_is_unchanged():
+    """Whether a flagged ratio should be an empty cell is a separate question
+    about missing-vs-undefined; this is number formatting."""
+    nan = float("nan")
+    assert csv_value(nan) != csv_value(nan) or csv_value(nan) == "nan"
+    assert str(csv_value(nan)) == "nan"
+
+
+def test_written_cells_carry_no_long_float(wide, tmp_path):
+    """The end-to-end property: no cell in a written table exceeds 3 decimals,
+    and none is in scientific notation."""
+    import csv as _csv
+    import re
+
+    out = tmp_path / "cmip6_change_factors_monthly.csv"
+    write_table(str(out), _rows(wide, month=3), columns=TABLE_COLUMNS_MONTHLY)
+    with out.open(encoding="utf-8", newline="") as fh:
+        cells = [c for row in _csv.DictReader(fh) for c in row.values()]
+    assert cells, "fixture wrote no rows"
+    for cell in cells:
+        assert "e" not in cell.lower() or not re.match(r"^[+-]?[\d.]+e", cell, re.I)
+        if re.match(r"^[+-]?\d+\.\d+$", cell):
+            assert len(cell.split(".")[1]) <= 3, cell

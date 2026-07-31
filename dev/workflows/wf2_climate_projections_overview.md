@@ -135,6 +135,14 @@ change factors for every `(point, horizon)`, and writes every result artifact.
   `annual_change_scalar_stats_summary.nc` live in a `TemporaryDirectory`. The wide
   file is written and read back so the tidy table describes what was persisted;
   it is not an artifact (S8-05).
+- **CSV number format:** all three CSVs go through `change_factor_table.csv_value`
+  — floats fixed to `CSV_DECIMALS` (3) places, non-floats untouched. Serialization
+  only: the rows stay exact in memory and `scalar/*.nc` keeps full precision, so
+  this is not a partial revert of 5c's stored-series de-quantisation. It removes
+  the 17-significant-digit reprs that made Excel prompt to convert the file on
+  every open, and guarantees no cell is ever in exponent form. Both change-factor
+  CSVs are `check_baseline.py` targets, so the format change required a scoped
+  `record --workflow climate_projections`.
 
 ### 2.06 `plot_climate_proj_timeseries` — gather
 

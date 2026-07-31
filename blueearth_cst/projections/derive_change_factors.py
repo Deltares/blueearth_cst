@@ -47,6 +47,7 @@ from blueearth_cst.projections.calendar_weights import CalendarError, assert_wei
 from blueearth_cst.projections.change_factor_table import (
     TABLE_COLUMNS_ANNUAL,
     TABLE_COLUMNS_MONTHLY,
+    csv_value,
     tidy_rows,
     write_table,
 )
@@ -295,6 +296,11 @@ def write_composition(path, rows):
 
     S8-05: the in-memory record is wider than the file. Projected here rather than
     trimmed at construction, because `provenance.py` reads the full rows.
+
+    Cells go through `csv_value` for the same reason the tidy tables do — one
+    number format across every WF2 CSV. Today this file carries no float column
+    (`n_reference_years` is an int and passes through untouched); applying it here
+    is what keeps that true if one is ever added.
     """
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     columns = [name for name, _ in COMPOSITION_CSV_COLUMNS]
@@ -303,7 +309,10 @@ def write_composition(path, rows):
         writer.writeheader()
         for row in rows:
             writer.writerow(
-                {name: row.get(field, "") for name, field in COMPOSITION_CSV_COLUMNS}
+                {
+                    name: csv_value(row.get(field, ""))
+                    for name, field in COMPOSITION_CSV_COLUMNS
+                }
             )
 
 

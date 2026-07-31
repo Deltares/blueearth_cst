@@ -82,7 +82,7 @@ deliberate changes. Each landed as its own commit with its own gate.
 | --- | --- |
 | **Spherical cell-area weighting** (5a) | The basin mean weights each cell by its true area. **No effect on an equatorial, latitude-symmetric basin** — where the weights are exactly uniform — and a growing effect with latitude. |
 | **Calendar-aware month weighting** (5b) | Annual aggregates weight each month by its length *in the model's own calendar*. Zero effect on a `360_day` model; real on `noleap` and standard. |
-| **Rounding dropped** (5c) | Stage A no longer rounds to 2 decimals — that was a 0.005 mm/day floor on every monthly value. |
+| **Rounding dropped** (5c) | Stage A no longer rounds to 2 decimals — that was a 0.005 mm/day floor on every monthly value. Distinct from the 3 dp the summary CSVs are *written* at (see "Number formatting in the CSVs"): that is presentation, this was the stored series. |
 | **Reference window off-by-one fixed** | A configured `[1990, 2010]` now yields **21** complete hydrological years, not 20. The final complete year was being discarded. This is the largest of the four. |
 
 Two provenance corrections also landed: series now record the model's **true
@@ -144,11 +144,37 @@ reference_value,absolute_value,units,relative_value,relative_units,
 status,reference_window,horizon_window
 ```
 
-- **`reference_value`** is the **baseline level** — e.g. `25.0567` degC — in `units`.
-- **`absolute_value`** is the **future level** — e.g. `26.2354` degC — in `units`.
+- **`reference_value`** is the **baseline level** — e.g. `25.057` degC — in `units`.
+- **`absolute_value`** is the **future level** — e.g. `26.235` degC — in `units`.
 - **`relative_value`** is the change **against the reference window**, in
   `relative_units`: a difference for a variable declared `change: absolute`
-  (`+1.1787` degC), a percent for one declared `change: relative` (`+10.95`).
+  (`+1.179` degC), a percent for one declared `change: relative` (`+10.950`).
+
+### Number formatting in the CSVs
+
+Every float in every WF2 CSV is written **fixed to 3 decimal places**; integer
+columns (`month`, `n_reference_years`) stay integral and text is untouched. This
+replaces the full float64 representation, which ran to 17 significant digits
+(`9.331056256303583`).
+
+Two things it fixes. Excel prompted *"By default, Excel will perform the
+following data conversion"* every time one of these files was opened — the long
+floats were the only conversion trigger the files carried. And fixed-point never
+emits an exponent, so a near-zero ratio can no longer arrive as `1.2345e-06`, the
+form Excel converts most eagerly.
+
+**This does not undo "Rounding dropped (5c)" above.** 5c removed quantisation from
+the **stored** monthly series (`scalar/*.nc`), because that fed every downstream
+calculation and put a 0.005 mm/day floor under it. This rounds only the
+**presentation** CSV, at write time. The netCDFs keep full precision, and nothing
+in the workflow reads these CSVs back (`plot_climate_proj_timeseries` declares the
+annual table as an ordering edge and never opens it).
+
+3 dp is 100× finer than the default `relative_change.min_reference` of
+0.1 mm/day, so it cannot interact with the dry-month threshold. If you declare a
+variable whose units make its values small in absolute terms, that is the case to
+revisit — `CSV_DECIMALS` in `blueearth_cst/projections/change_factor_table.py` is
+the single knob.
 
 **Two corrections you should know about, because they change numbers you may
 already have:**

@@ -198,6 +198,48 @@ def _scalar(value):
         return value
 
 
+#: Decimal places every float carries into a WF2 CSV.
+#:
+#: Three is 100x finer than the default `relative_change.min_reference`
+#: (0.1 mm/day), so the rounding cannot interact with the dry-month threshold: a
+#: reference small enough to be quantised here was already flagged and its ratio
+#: already `NaN`. Revisit only if a user declares a variable whose units make its
+#: values small in absolute terms — the threshold is per-variable, this is not.
+CSV_DECIMALS = 3
+
+
+def csv_value(value):
+    """Render one cell for a WF2 CSV: floats fixed to `CSV_DECIMALS`, rest as-is.
+
+    Two reasons, one change. Excel prompts "By default, Excel will perform the
+    following data conversion" on these files because a full float64 repr runs to
+    17 significant digits (108 such cells in the annual table, 1296 in the
+    monthly); fixed-point output is the only conversion trigger these files carry,
+    and it removes it. And fixed-point never emits an exponent, so a near-zero
+    ratio cannot arrive as `1.2345e-06` — the form Excel converts most eagerly.
+
+    This is a SERIALIZATION concern only. The rows stay exact in memory and the
+    `scalar/*.nc` series keep full precision; R8 step 5c deliberately removed
+    quantisation from the STORED series because it fed downstream arithmetic, and
+    nothing downstream reads these CSVs (`plot_climate_proj_timeseries` declares
+    the annual table as an ordering edge and never opens it).
+
+    Non-floats pass through untouched, which is what keeps the integer columns
+    integral: `n_reference_years` stays `21`, not `21.000`, and the monthly
+    table's `month` stays `1`. `NaN` also passes through, rendering `nan` exactly
+    as before — whether a flagged ratio should instead be an empty cell is a
+    question about missing-vs-undefined, not about number formatting.
+    """
+    if not isinstance(value, float) or value != value:  # non-float, or NaN
+        return value
+    text = f"{value:.{CSV_DECIMALS}f}"
+    # -0.000: a negative value rounded away still carries its sign, which reads
+    # as a real (tiny, negative) change rather than as zero.
+    if not text.lstrip("-0."):
+        return text.lstrip("-")
+    return text
+
+
 def write_table(path, rows, *, columns):
     """Write one tidy table. Header always present, even with zero rows."""
     import csv
@@ -207,4 +249,6 @@ def write_table(path, rows, *, columns):
     with open(path, "w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=columns)
         writer.writeheader()
-        writer.writerows(rows)
+        writer.writerows(
+            {name: csv_value(value) for name, value in row.items()} for row in rows
+        )
