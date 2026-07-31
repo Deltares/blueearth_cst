@@ -99,3 +99,43 @@ positively before the diff is trusted.
 2. 6a-ii: monthly table; M5; gate.
 3. 6a-iii: `provenance.json`; M6; gate.
 4. M7 checked at each; re-record once per commit, snapshot at the end.
+
+---
+
+## Outcome — 2026-07-31, all seven discharged across three commits
+
+| | Result |
+|---|---|
+| M1 | 36 annual rows (6×1×2×3); variables are rows |
+| M2 | `spatial_ref` dropped |
+| M3 | all 36 rows **joined** against the wide table, 0 mismatched |
+| M4 | caught a live drift — see below |
+| M5 | 432 monthly rows; −1.76 % (Mar) to +29.34 % (Dec) against 10.98 % annual |
+| M6 | 18 unit tests; every required fact present and **sourced, not recomputed** |
+| M7 | 3 EXTRA files, no value moved, `check_baseline` OK 15/15 throughout |
+
+### One quantity, three homes, three chances to disagree
+
+M4 was written because the seed makes nominal and effective year counts coincide.
+It caught the drift **twice more than expected**:
+
+1. **6a-i** — the tidy table took `n_years` from the run-level reference record
+   and reported **20** beside a `composition.csv` reporting **21**.
+2. **6a-iii** — `provenance.json` reported `reference_window_effective =
+   1990-2010` (the calendar span) where the other two say
+   `1990-01-01 / 2010-12-01`.
+
+Both have the same root: **`reference_window.n_years` is a calendar span
+(`end − start`) while `hydrological_year_bounds` counts complete hydrological
+years.** Two correct functions, two different quantities, one name.
+
+The fix in both cases was to take the value the composition record already used
+rather than compute a fresh one — and in `provenance.json` to move it to the
+**source** level, because the effective window depends on the data each
+combination has and a run-level field would have been a third definition.
+
+Counting the calendar defect at 5b and the `n_years` mismatch here, **a value
+recorded in two places has disagreed four times in this milestone.** The pattern
+is not carelessness in any one commit; it is that every new artifact is a new
+opportunity, and the only reliable defence has been to pass values rather than
+recompute them.

@@ -45,6 +45,7 @@ import xarray as xr
 from blueearth_cst.projections import series_identity
 from blueearth_cst.projections.calendar_weights import CalendarError, assert_weightable
 from blueearth_cst.projections.change_factor_table import tidy_rows, write_table
+from blueearth_cst.projections import provenance as _prov
 from blueearth_cst.projections.variable_spec import VariableSpec
 from blueearth_cst.projections.get_change_climate_proj import (
     _to_str_tuple,
@@ -499,6 +500,58 @@ if "snakemake" in globals():
             window_nominal=" / ".join(_to_str_tuple(sm.params.time_horizon_hist)),
         )
         write_composition(str(sm.output.composition_csv), rows)
+
+        # --- step 6a-iii: provenance.json -----------------------------------
+        # ASSEMBLED, not derived. Every value below already exists: on a series
+        # attribute, in the composition record, or in the reference-window record.
+        # Recomputing any of them would create a second definition, and this
+        # milestone has watched that go wrong three times -- the calendar recorded
+        # twice and disagreeing, n_years as a calendar span beside n_years as a
+        # hydrological count, and the effective window reported two ways.
+        series_attrs = {}
+        for point in points:
+            for path in (point["series_path_hist"], point["series_path"]):
+                key = os.path.splitext(os.path.basename(path))[0]
+                if key not in series_attrs:
+                    with xr.open_dataset(path) as _s:
+                        series_attrs[key] = dict(_s.attrs)
+        document = _prov.build(
+            clim_project=os.path.basename(clim_project_dir),
+            reference_record=sm.params.reference_record,
+            variable_spec=sm.params.variable_spec,
+            composition_rows=rows,
+            series_attrs=series_attrs,
+            # The SAME per-combination windows composition.csv and the
+            # change-factor tables use, keyed by the SCENARIO series.
+            effective_windows={
+                p["series_key"]: {
+                    "effective": resolved_facts[p["point_key"]][
+                        "reference_window_effective"
+                    ],
+                    "n_years": resolved_facts[p["point_key"]][
+                        "n_hyd_years_reference"
+                    ],
+                }
+                for p in points
+                if p["point_key"] in resolved_facts
+            },
+            catalog_crawled_on=sm.params.catalog_crawled_on,
+            reducer_module_hash=next(
+                (a.get("cst_reducer_module_hash", "") for a in series_attrs.values()), ""
+            ),
+            region_fingerprint=region_fp,
+            horizons={k: " / ".join(_to_str_tuple(v)) for k, v in horizons.items()},
+            weighting_scheme=next(
+                (a.get("cst_weighting_scheme", "") for a in series_attrs.values()), ""
+            ),
+        )
+        _prov.write(str(sm.output.provenance_json), document)
+        log_row(
+            f"provenance: {len(document['sources'])} sources, "
+            f"{document['composition']['resolved']}/{document['composition']['requested']} resolved "
+            f"-> {os.path.basename(str(sm.output.provenance_json))}",
+            module="change",
+        )
         n_resolved = sum(1 for r in rows if r["status"] == "resolved")
         log_row(
             f"composition record: {len(rows)} requested, {n_resolved} resolved "

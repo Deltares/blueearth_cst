@@ -673,6 +673,8 @@ rule derive_change_factors:
         # Step 6a-ii: change per calendar month -- the seasonal shift the
         # annual figure averages away.
         change_factors_monthly = (clim_project_dir + "/change_factors/monthly.csv"),
+        # Step 6a-iii: everything needed to reconstruct the run (design 5.9).
+        provenance_json = (clim_project_dir + "/provenance.json"),
     params:
         clim_project_dir = f"{clim_project_dir}",
         horizons = future_horizons,
