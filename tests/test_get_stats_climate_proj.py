@@ -45,8 +45,8 @@ def test_stats_precip_sum_temp_mean_monthly():
     31 + 28 = 59 days spans exactly Jan+Feb (no partial March month).
     """
     ds = _make_daily_grid(precip_day=2.0, temp_day=5.0, periods=59)  # Jan+Feb
-    mean_stats, mean_stats_time = get_stats_clim_projections(
-        ds, "cmip6", "MODEL", "ssp245", "r1i1p1f1", save_grids=False
+    mean_stats_time = get_stats_clim_projections(
+        ds, "cmip6", "MODEL", "ssp245", "r1i1p1f1"
     )
 
     precip = mean_stats_time["precip"].values.ravel()
@@ -59,8 +59,8 @@ def test_stats_precip_sum_temp_mean_monthly():
 def test_stats_scalar_carries_traceability_coords():
     """The scalar output expands the project/model/scenario/member coords."""
     ds = _make_daily_grid(precip_day=1.0, temp_day=3.0, periods=31)  # Jan only
-    _, mean_stats_time = get_stats_clim_projections(
-        ds, "cmip6", "GFDL", "ssp585", "r1i1p1f1", save_grids=False
+    mean_stats_time = get_stats_clim_projections(
+        ds, "cmip6", "GFDL", "ssp585", "r1i1p1f1"
     )
     assert str(mean_stats_time["clim_project"].values[0]) == "cmip6"
     assert str(mean_stats_time["model"].values[0]) == "GFDL"
@@ -68,13 +68,18 @@ def test_stats_scalar_carries_traceability_coords():
     assert str(mean_stats_time["member"].values[0]) == "r1i1p1f1"
 
 
-def test_stats_mean_stats_empty_when_no_grids():
-    """save_grids=False -> gridded stats dataset is empty."""
+def test_stats_returns_only_the_scalar_series():
+    """S8-08(c): the gridded branch is gone, so there is ONE return value.
+
+    It used to return `(mean_stats, mean_stats_time)`, the first empty on every
+    shipped config. `raw/{series_key}.nc` is the basin slice on the source grid
+    and is always written, so the gridded product was a near-duplicate of a file
+    every run already produces.
+    """
     ds = _make_daily_grid(precip_day=1.0, temp_day=3.0, periods=31)
-    mean_stats, _ = get_stats_clim_projections(
-        ds, "cmip6", "M", "ssp245", "r1i1p1f1", save_grids=False
-    )
-    assert len(mean_stats) == 0
+    result = get_stats_clim_projections(ds, "cmip6", "M", "ssp245", "r1i1p1f1")
+    assert isinstance(result, xr.Dataset)
+    assert set(result.data_vars) == {"precip", "temp"}
 
 
 def test_stats_dim_detection_alternate_names():
@@ -87,19 +92,10 @@ def test_stats_dim_detection_alternate_names():
         ds = _make_daily_grid(
             precip_day=2.0, temp_day=5.0, periods=31, xname=xname, yname=yname
         )
-        _, mean_stats_time = get_stats_clim_projections(
-            ds, "cmip6", "M", "ssp245", "r1i1p1f1", save_grids=False
+        mean_stats_time = get_stats_clim_projections(
+            ds, "cmip6", "M", "ssp245", "r1i1p1f1"
         )
         assert mean_stats_time["precip"].values.ravel().tolist() == [62.0], xname
         assert mean_stats_time["temp"].values.ravel().tolist() == [5.0], yname
 
 
-def test_stats_save_grids_true_returns_monthly_climatology():
-    """save_grids=True -> gridded monthly climatology is populated."""
-    ds = _make_daily_grid(precip_day=2.0, temp_day=5.0, periods=31)
-    mean_stats, _ = get_stats_clim_projections(
-        ds, "cmip6", "M", "ssp245", "r1i1p1f1", save_grids=True
-    )
-    assert len(mean_stats) > 0
-    # constant field -> gridded monthly-mean precip total for Jan = 62 everywhere
-    assert float(np.unique(mean_stats["precip"].values)[0]) == 62.0

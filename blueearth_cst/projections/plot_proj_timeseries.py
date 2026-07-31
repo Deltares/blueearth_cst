@@ -10,9 +10,8 @@ import os
 import matplotlib.pyplot as plt
 import pandas as pd
 import xarray as xr
-from matplotlib import colors
-import cartopy.crs as ccrs
-import cartopy.io.img_tiles as cimgt
+# S8-08(c): cartopy and matplotlib.colors went with the gridded map
+# figures. This script now draws only the eight scalar figures.
 import numpy as np
 
 from blueearth_cst.shared.snake_utils import log_row
@@ -72,13 +71,11 @@ if __name__ == "__main__":
             stats_time_nc = sm.input.stats_time_nc
             rcps = sm.params.scenarios
             horizons = sm.params.horizons
-            save_grids = sm.params.save_grids
             # S8-07: figures are named `{proj}_{variable}_{view}_{quantity}.png`.
             # `abs`/`anom` map to `absolute`/`change` -- the same distinction the
             # change-factor tables draw with absolute_value/relative_value.
             clim_project = os.path.basename(clim_project_dir)
             QUANTITY = {"abs": "absolute", "anom": "change"}
-            change_grids_nc = sm.params.change_grids
 
 
             # %% Historical
@@ -403,150 +400,6 @@ if __name__ == "__main__":
 
 
             # %%
-            # Map plots of gridded change per scenario / horizon
-            if save_grids:
-                fns_grids = list(change_grids_nc)
-
-                # Loop over rcp and horizon
-                for rcp in rcps:
-                    for hz in horizons:
-                        log_row(f"Preparing change map plots for {rcp} and horizon {hz}", module="plot")
-                        fns_rcp_hz = [fn for fn in fns_grids if rcp in fn and hz in fn]
-                        ds_rcp_hz = []
-                        for fn in fns_rcp_hz:
-                            ds = xr.open_dataset(fn)
-                            if "time" in ds.coords:
-                                if ds.indexes["time"].dtype == "O":
-                                    ds["time"] = ds.indexes["time"].to_datetimeindex()
-                            ds_rcp_hz.append(ds)
-                        ds_rcp_hz = xr.merge(ds_rcp_hz)
-                        ds_rcp_hz_med = ds_rcp_hz.median(dim="model").squeeze(drop=True)
-
-                        # Facetplots
-                        # precip
-                        plt.figure(0)
-                        pr = ds_rcp_hz_med["precip"]
-                        pr.attrs.update(
-                            long_name="Precipitation Change (median over GCMs)", units="%"
-                        )
-                        g = pr.plot(x="lon", y="lat", col="month", col_wrap=3)
-                        g.set_axis_labels("longitude [degree east]", "latitude [degree north]")
-                        plt.savefig(
-                            os.path.join(
-                                clim_project_dir,
-                                "plots",
-                                f"{clim_project}_precip_monthly_change_grid_{rcp}_{hz}.png",
-                            )
-                        )
-                        # temp
-                        plt.figure(1)
-                        tas = ds_rcp_hz_med["temp"]
-                        tas.attrs.update(
-                            long_name="Temperature Change (median over GCMs)", units="degC"
-                        )
-                        g = tas.plot(x="lon", y="lat", col="month", col_wrap=3)
-                        g.set_axis_labels("longitude [degree east]", "latitude [degree north]")
-                        plt.savefig(
-                            os.path.join(
-                                clim_project_dir,
-                                "plots",
-                                f"{clim_project}_temp_monthly_change_grid_{rcp}_{hz}.png",
-                            )
-                        )
-
-                        # Average maps
-                        grids = ds_rcp_hz_med.mean(dim="month")
-                        plt.style.use("seaborn-v0_8-whitegrid")  # set nice style
-                        # we assume the model maps are in the geographic CRS EPSG:4326
-                        proj = ccrs.PlateCarree()
-                        # adjust zoomlevel and figure size to your basis size & aspect
-                        zoom_level = 8
-                        figsize = (10, 8)
-
-                        # precip
-                        pr = grids["precip"]
-                        # minmax = max(abs(np.amin(pr.values)), np.amax(pr.values))
-                        # divnorm=colors.TwoSlopeNorm(vmin=-minmax, vcenter=0., vmax=minmax)
-
-                        # initialize image with geoaxes
-                        fig = plt.figure(figsize=figsize)
-                        ax = fig.add_subplot(projection=proj)
-                        extent = np.array(pr.raster.box.buffer(0.5).total_bounds)[[0, 2, 1, 3]]
-                        ax.set_extent(extent, crs=proj)
-                        # add sat background image
-                        ax.add_image(cimgt.QuadtreeTiles(), zoom_level, alpha=0.5)
-
-                        # plot da variables.
-                        pr.plot(
-                            transform=proj,
-                            ax=ax,
-                            zorder=1,
-                            cbar_kwargs=dict(
-                                aspect=30,
-                                shrink=0.8,
-                                label="Precipitation Change (median over GCMs) [%]",
-                            ),
-                            cmap="bwr",
-                        )  # norm=divnorm) # **kwargs)
-                        ax.xaxis.set_visible(True)
-                        ax.yaxis.set_visible(True)
-                        ax.set_ylabel("latitude [degree north]")
-                        ax.set_xlabel("longitude [degree east]")
-                        _ = ax.set_title(
-                            f"Annual mean precipitation change for {rcp} and time horizon {hz}"
-                        )
-                        plt.savefig(
-                            os.path.join(
-                                clim_project_dir,
-                                "plots",
-                                f"{clim_project}_precip_annual_change_grid_{rcp}_{hz}.png",
-                            ),
-                            dpi=300,
-                            bbox_inches="tight",
-                        )
-
-                        # temp
-                        tas = grids["temp"]
-                        minmax = max(abs(np.amin(tas.values)), np.amax(tas.values))
-                        divnorm = colors.TwoSlopeNorm(vmin=-minmax, vcenter=0.0, vmax=minmax)
-
-                        # initialize image with geoaxes
-                        fig = plt.figure(figsize=figsize)
-                        ax = fig.add_subplot(projection=proj)
-                        extent = np.array(tas.raster.box.buffer(0.5).total_bounds)[[0, 2, 1, 3]]
-                        ax.set_extent(extent, crs=proj)
-                        # add sat background image
-                        ax.add_image(cimgt.QuadtreeTiles(), zoom_level, alpha=0.5)
-
-                        # plot da variables.
-                        tas.plot(
-                            transform=proj,
-                            ax=ax,
-                            zorder=1,
-                            cbar_kwargs=dict(
-                                aspect=30,
-                                shrink=0.8,
-                                label="Temperature Change (median over GCMs) [degC]",
-                            ),
-                            cmap="bwr",
-                            norm=divnorm,
-                        )  # **kwargs)
-                        ax.xaxis.set_visible(True)
-                        ax.yaxis.set_visible(True)
-                        ax.set_ylabel("latitude [degree north]")
-                        ax.set_xlabel("longitude [degree east]")
-                        _ = ax.set_title(
-                            f"Annual mean temperature change for {rcp} and time horizon {hz}"
-                        )
-                        plt.savefig(
-                            os.path.join(
-                                clim_project_dir,
-                                "plots",
-                                f"{clim_project}_temp_annual_change_grid_{rcp}_{hz}.png",
-                            ),
-                            dpi=300,
-                            bbox_inches="tight",
-                        )
     else:
         raise RuntimeError(
             "plot_proj_timeseries.py runs only as a Snakemake script:"

@@ -7,7 +7,7 @@ The design's rule table gives stage B **1 job** with no fan-out
 expanded series list.
 
 **This step is value-neutral by construction.** The arithmetic is not reimplemented
-here: `get_change_annual_clim_proj`, `get_change_clim_projections` and
+here: `get_change_annual_clim_proj` and
 `summary_climate_proj` are imported from the two modules that already held them,
 unchanged. Only the orchestration moves. A non-zero characterized diff on the
 summary artifacts is therefore a defect in this file, not a judgement call — which
@@ -58,7 +58,6 @@ from blueearth_cst.projections.get_change_climate_proj import (
     _to_str_tuple,
     get_change_annual_clim_proj,
     get_change_monthly_clim_proj,
-    get_change_clim_projections,
     hydrological_year_bounds,
 )
 from blueearth_cst.projections.get_change_climate_proj_summary import (
@@ -90,12 +89,9 @@ def derive_one_point(
     region_fp,
     digest_components_hist,
     digest_components_fut,
-    save_grids=False,
     stats=None,
     variable_spec=None,
     min_reference=None,
-    stats_path_hist=None,
-    stats_path=None,
     clim_project_dir=None,
 ):
     """Change factors for one (model, scenario, member) at one horizon.
@@ -126,10 +122,6 @@ def derive_one_point(
 
     ds_hist_time = xr.open_dataset(series_path_hist)
     ds_clim_time = xr.open_dataset(series_path)
-
-    if save_grids:
-        ds_hist = xr.open_dataset(stats_path_hist)
-        ds_clim = xr.open_dataset(stats_path)
 
     # Step 4c: the `if len(ds_clim_time) > 0` guard and its dummy-netCDF
     # else-branch are gone. Since 4a an unresolved combination never becomes a
@@ -205,43 +197,6 @@ def derive_one_point(
         str(change_nc_out).replace(".nc", "_monthly.nc"),
         encoding={k: {"zlib": True} for k in monthly_change.raster.vars},
     )
-
-    if save_grids:
-        # Cold branch: shipped configs set `save_grids: false`, and step 5e is
-        # where it is restructured (`save_grids` -> `save_gridded`, OQ-12). Moved
-        # as-is rather than tidied, so 4d stays value-neutral.
-        if len(ds_clim) > 0:
-            monthly_change_mean_grid = get_change_clim_projections(ds_hist, ds_clim)
-            monthly_change_mean_grid = monthly_change_mean_grid.assign_coords(
-                {"horizon": f"{name_horizon}"}
-            ).expand_dims(["horizon"])
-            log_row("writing netcdf files monthly_change_mean_grid", module="change")
-            dvars = monthly_change_mean_grid.raster.vars
-            grid_model = monthly_change_mean_grid.model.values[0]
-            grid_scenario = monthly_change_mean_grid.scenario.values[0]
-            grid_horizon = monthly_change_mean_grid.horizon.values[0]
-            # Step 7-iii / D11: `grids/change/{series_key}_{horizon}.nc` -- the
-            # cellwise counterpart of the tabular product, addressable by the same
-            # key. The legacy `monthly_change_mean_grid-{model}_{scenario}_{horizon}`
-            # embedded an unsanitized model name and matched nothing else.
-            series_key_for_grid = os.path.splitext(os.path.basename(series_path))[0]
-            name_nc_out = os.path.join(
-                "grids", "change", f"{series_key_for_grid}_{name_horizon}.nc"
-            )
-            os.makedirs(
-                os.path.join(clim_project_dir, "grids", "change"), exist_ok=True
-            )
-            monthly_change_mean_grid.to_netcdf(
-                os.path.join(clim_project_dir, name_nc_out),
-                encoding={k: {"zlib": True} for k in dvars},
-            )
-        else:
-            raise RuntimeError(
-                f"{name_model} {name_scenario}: save_gridded is on but the gridded "
-                "scenario dataset is empty. Step 4c removed the dummy-netCDF path "
-                "from the scalar branch for the same reason -- a placeholder that "
-                "looks like a product is worse than a failure."
-            )
 
     ds_hist_time.close()
     ds_clim_time.close()
@@ -358,7 +313,6 @@ if "snakemake" in globals():
     with tee_to_log(sm.log[0]):
         clim_project_dir = sm.params.clim_project_dir
         horizons = sm.params.horizons
-        save_grids = sm.params.save_grids
         points = [dict(p) for p in sm.params.points]
 
         # D9: every expected digest is recomputed against the polygon ON DISK, so
@@ -425,12 +379,9 @@ if "snakemake" in globals():
                         region_fp=region_fp,
                         digest_components_hist=point["digest_components_hist"],
                         digest_components_fut=point["digest_components_fut"],
-                        save_grids=save_grids,
                         stats=sm.params.stats,
                         variable_spec=VARIABLE_SPEC,
                         min_reference=sm.params.min_reference,
-                        stats_path_hist=point.get("stats_path_hist"),
-                        stats_path=point.get("stats_path"),
                         clim_project_dir=clim_project_dir,
                     )
                     change_files.append(out_nc)

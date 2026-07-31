@@ -2,7 +2,7 @@
   "project_dir": "test_case/test_local",
   "recorded_by": {
     "branch": "main",
-    "commit": "d2d9dbe44f11a87953349832e7fbe0707761bdeb",
+    "commit": "74b8aab31f66429808325c970423650bf7572afa",
     "dirty": true
   },
   "targets": {
@@ -32,7 +32,7 @@
       "type": "csv"
     },
     "test_case/test_local/config/runs/snake_config_climate_projections.yml": {
-      "sha256": "070589141c2ab16166bff05ecb7abdae48ec77608762da139695c4b70ebfcdcc",
+      "sha256": "9f4c59b97102cc25d41e23ee699150259d2f01ea93d6b1c9d459a18331a0eee7",
       "type": "yaml"
     },
     "test_case/test_local/config/runs/snake_config_model_creation.yml": {

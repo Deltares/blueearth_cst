@@ -58,54 +58,10 @@ def _to_datetime_index(ds):
     return ds
 
 
-def get_change_clim_projections(ds_hist, ds_clim):
-    """
-    Parameters
-    ----------
-    ds_hist : xarray dataset
-        Mean monthly values of variables (precip and temp) over the grid (12 maps) for historical climate simulation.
-    ds_clim : xarray dataset
-        Mean monthly values of variables (precip and temp) over the grid (12 maps) for projected climate data.
-
-    Returns
-    -------
-    Writes netcdf files with mean monthly (12 maps) change for the grid.
-    Also writes scalar mean monthly values averaged over the grid.
-
-    Returns
-    -------
-    monthly_change_mean_grid : xarray dataset
-        mean monthly change over the grid.
-    monthly_change_mean_scalar : xarray dataset
-        mean monthly change averaged over the grid.
-
-    """
-    ds = []
-    for var in intersection(ds_hist.data_vars, ds_clim.data_vars):
-        if var == "precip":
-            # multiplicative for precip
-            change = (
-                (
-                    ds_clim[var]
-                    - ds_hist[var].sel(
-                        scenario=ds_hist.scenario.values[0],
-                    )
-                )
-                / ds_hist[var].sel(
-                    scenario=ds_hist.scenario.values[0],
-                )
-                * 100
-            )
-        else:  # for temp
-            # additive for temp
-            change = ds_clim[var] - ds_hist[var].sel(
-                scenario=ds_hist.scenario.values[0]
-            )
-        ds.append(change.to_dataset())
-
-    monthly_change_mean_grid = xr.merge(ds)
-
-    return monthly_change_mean_grid
+# `get_change_clim_projections` -- the CELLWISE change used only by the
+# gridded branch -- was removed at S8-08(c) with that branch. It dispatched on
+# the literal name "precip" for its multiplicative/additive choice, so it was
+# also the last unconverted 5e site outside stage A's resample.
 
 
 def hydrological_year_bounds(ds_time, start_month_hyd_year="Jan"):

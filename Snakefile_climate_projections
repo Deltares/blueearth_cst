@@ -96,26 +96,34 @@ REFERENCE_RECORD = _rw.alignment_record(REFERENCE_WINDOW, shared_window=_SHARED_
 # requested window unchanged, which is why 5e is output-neutral here.
 time_horizon_hist = list(REFERENCE_WINDOW.effective)
 
-# Step 5e / OQ-12 (owner ruling, 2026-07-29): the key is `save_gridded`.
+# S8-08(c) (owner ruling, 2026-07-31): the gridded branch is GONE, and with it
+# both spellings of its config key.
 #
-# The old `save_grids` RAISES rather than being ignored. Ignoring it is the worse
-# failure by far: a user who set `save_grids: true` would silently get `false`
-# behaviour and no signal that their config had stopped being read. Raising here,
-# at DAG build, also means a config error costs nothing to discover -- no jobs are
-# scheduled first.
-if "save_grids" in my_cfg:
-    raise WorkflowError(
-        "climate_projections: `save_grids` was renamed to `save_gridded` "
-        "(OQ-12). Rename the key in your config. Refusing rather than ignoring "
-        "it, because ignoring a set-to-true key would silently disable the "
-        "gridded outputs you asked for."
-    )
-save_gridded = get_config(my_cfg, "save_gridded", False)
-# Internal name kept: `save_grids` threads through params, scripts and the
-# gridded branch, and renaming the CONFIG key is what OQ-12 ruled on. Renaming
-# the internal variable too would enlarge this commit's diff without changing a
-# contract anyone outside the workflow can see.
-save_grids = save_gridded
+# The option promised gridded products but `raw/{series_key}.nc` already IS the
+# basin slice on the source grid -- and for an `Amon` source the monthly resample
+# between them is the identity, so `grids/series/` would have been a near-copy of
+# a file every run already writes. `grids/change/` was the only genuinely new
+# artifact, and it was never declared to Snakemake by any rule.
+#
+# A config that asks for it RAISES rather than being ignored: silently dropping a
+# `true` would hand back the `false` behaviour with no signal, which is the exact
+# failure the 5e rename was written to avoid. `false` is accepted with a warning,
+# because it requests precisely what the workflow now always does -- there is no
+# point breaking every shipped config over a key that agreed with us.
+for _dead_key in ("save_grids", "save_gridded"):
+    if _dead_key in my_cfg:
+        if my_cfg[_dead_key]:
+            raise WorkflowError(
+                f"climate_projections: `{_dead_key}: true` -- the gridded outputs "
+                "were removed (S8-08c). `raw/{series_key}.nc` is the basin slice on "
+                "the source grid and is always written, so the gridded series was a "
+                "near-duplicate of it. Remove the key from your config."
+            )
+        print(
+            f"WARNING climate_projections: `{_dead_key}` is obsolete and ignored "
+            "(S8-08c); the gridded outputs were removed. Delete the key.",
+            file=sys.stderr,
+        )
 
 # Step 5d: the statistic set. OPTIONAL and unset in every shipped config, so the
 # config snapshot -- one of the 15 manifest targets, fingerprinted by sha256 --
@@ -250,7 +258,6 @@ REDUCER_HASH = _si.kernel_hash(
 # ARITHMETIC matters, because kernel_hash follows no call graph.
 from blueearth_cst.projections.get_change_climate_proj import (
     get_change_annual_clim_proj,
-    get_change_clim_projections,
     hydrological_year_bounds,
     quantile_label,
 )
@@ -261,7 +268,6 @@ from blueearth_cst.projections.calendar_weights import (
 
 STAGE_B_KERNEL = [
     get_change_annual_clim_proj,
-    get_change_clim_projections,
     hydrological_year_bounds,
     quantile_label,
     month_length_weights,
@@ -556,9 +562,15 @@ rule extract_climate_grid:
     script:
         CLIMATE_STORE.script
 
-# 2.01  copy_config — copy snake config into project_dir/config
+# 2.03  copy_config — copy snake config into project_dir/config
+#
+# S8-08(d): was 2.01, colliding with fetch_gcm_raw. The numbers are a reference
+# aid, so two rules answering to "2.01" is exactly the confusion they exist to
+# prevent -- and the rule map already listed copy_config as 2.03. No path moves:
+# this rule names its output explicitly and has no banner-derived log or
+# benchmark, so the collision only ever showed in the console message.
 rule copy_config:
-    message: rule_banner("2.01", "copy_config")
+    message: rule_banner("2.03", "copy_config")
     input:
         config_snake = config_path,
     params:
@@ -600,6 +612,12 @@ rule fetch_gcm_raw:
         catalog_entry = lambda wildcards: f"{clim_project}_{SERIES[wildcards.series_key][0]}_{SERIES[wildcards.series_key][1]}_{{member}}",
         member = lambda wildcards: SERIES[wildcards.series_key][2],
         variables = variables,
+        # S8-08(a): the units the STORED values are in, keyed by post-rename source
+        # name. The catalog's data_adapter converts on read but leaves the `units`
+        # attribute describing the pre-conversion quantity, so every array claimed
+        # `kg m-2 s-1` over mm/day. Not a digest component -- it labels the values,
+        # it does not change them.
+        variable_units = {v.source: v.units for v in VARIABLE_SPEC.values()},
         buffer_degrees = REGION_BUFFER_DEGREES,
         acquisition_window = lambda wildcards: list(_si.acquisition_window(SERIES[wildcards.series_key][1])),
         raw_digest_components = lambda wildcards: _si.raw_components(
@@ -646,7 +664,8 @@ rule reduce_gcm_series:
         name_model = lambda wildcards: SERIES[wildcards.series_key][0],
         name_clim_project = clim_project,
         variables = variables,
-        save_grids = save_grids,
+        # S8-08(a): see rule 2.01.
+        variable_units = {v.source: v.units for v in VARIABLE_SPEC.values()},
         series_nc_out = lambda wildcards: f"{clim_project_dir}/scalar/{wildcards.series_key}.nc",
         digest_components = lambda wildcards: series_digest_components(*SERIES[wildcards.series_key]),
         acquisition_window = lambda wildcards: list(_si.acquisition_window(SERIES[wildcards.series_key][1])),
@@ -715,7 +734,6 @@ rule derive_change_factors:
         horizons = future_horizons,
         start_month_hyd_year = start_month_hyd_year,
         time_horizon_hist = time_horizon_hist,
-        save_grids = save_grids,
         stats = stats,
         stage_b_hash = STAGE_B_HASH,
         min_reference = MIN_REFERENCE,
@@ -773,10 +791,6 @@ rule derive_change_factors:
                 # only two the crawl proved present, so anything else is nameable
                 # but unverified for a listed member.
                 "tier": point_tier(model, scenario),
-                # save_grids-only legacy grid paths (undeclared; R2/D11 restructure
-                # them at step 7).
-                "stats_path_hist": f"{clim_project_dir}/historical_stats_{model}.nc",
-                "stats_path": f"{clim_project_dir}/stats-{model}_{scenario}.nc",
             }
             for key, (model, scenario, member) in POINT_KEYS.items()
         ],
@@ -800,8 +814,6 @@ rule plot_climate_proj_timeseries:
         clim_project_dir = f"{clim_project_dir}",
         scenarios = scenarios,
         horizons = future_horizons,
-        save_grids = save_grids,
-        change_grids = [(clim_project_dir + f"/monthly_change_mean_grid-{mod}_{sc}_{hz}.nc") for mod,sc,hz in list(itertools.product(models,scenarios,future_horizons))],
     output:
         # Step 7-i: ALL EIGHT figures declared. Three were declared and eight were
         # written, so five were invisible to Snakemake -- not cleaned on failure,

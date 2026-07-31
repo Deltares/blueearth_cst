@@ -1,6 +1,6 @@
 # Linux example config for blueearth_cst — R01 sectioned schema.
 # Value-preserving restructure of the Linux variant. Keys absent here
-# (wflow_outvars, model_build_config, waterbodies_config, save_gridded)
+# (wflow_outvars, model_build_config, waterbodies_config)
 # stay absent so the Snakefile defaults apply. Linux end-to-end
 # validation is deferred per dev/roadmap.md; this file must parse cleanly.
 

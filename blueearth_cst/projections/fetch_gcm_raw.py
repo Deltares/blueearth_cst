@@ -69,6 +69,9 @@ if "snakemake" in globals():
         catalog_entry = sm.params.catalog_entry
         member = sm.params.member
         variables = list(sm.params.variables)
+        # S8-08(a): see get_stats_climate_proj.py. The adapter converts the values
+        # and leaves the `units` attribute describing the pre-conversion quantity.
+        variable_units = dict(sm.params.variable_units)
         buffer = sm.params.buffer_degrees
         acquisition_window = tuple(sm.params.acquisition_window)
         # NOTE: raw_digest_components carries NO reducer hash. See
@@ -87,6 +90,33 @@ if "snakemake" in globals():
                 f"raw cache_hit digest={expected_raw_digest[:12]} ({raw_nc_out})",
                 module="fetch",
             )
+            # S8-08(a): a slice cached BEFORE the units fix still claims the
+            # pre-conversion units. Repair it in place rather than leaving the two
+            # tiers disagreeing -- `scalar/` is stamped on every reduce, so
+            # skipping this would make `raw/` the only artifact still lying about
+            # its own values, and only on projects old enough to have a cache.
+            #
+            # Safe against the identity: `units` is a VARIABLE attribute and the
+            # digest covers neither it nor the values. Paid once per stale file;
+            # a slice already carrying the right units takes the fast path.
+            import xarray as _xr
+
+            with _xr.open_dataset(raw_nc_out) as _cached:
+                stale = {
+                    name: units
+                    for name, units in variable_units.items()
+                    if name in _cached and _cached[name].attrs.get("units") != units
+                }
+                repaired = _cached.load() if stale else None
+            if stale:
+                for name, units in stale.items():
+                    repaired[name].attrs["units"] = units
+                series_identity.write_netcdf_atomic(repaired, raw_nc_out)
+                repaired.close()
+                log_row(
+                    f"repaired stale units on the cached slice: {sorted(stale)}",
+                    module="fetch",
+                )
             os.utime(raw_nc_out, None)
             raise SystemExit(0)
 
@@ -200,6 +230,10 @@ if "snakemake" in globals():
 
         entry_meta = (components.get("entry_identity") or {}).get(member, {})
         first, last = (str(index[0]), str(index[-1])) if index is not None else ("", "")
+        for _name, _units in variable_units.items():
+            if _name in data:
+                data[_name].attrs["units"] = _units
+
         data.attrs.update(
             {
                 "cst_schema_version": series_identity.SCHEMA_VERSION,

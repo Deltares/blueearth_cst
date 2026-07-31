@@ -11,19 +11,7 @@ Step-by-step evidence: the falsifier notes under `dev/working/2026-07-3*`.
 
 ## Breaking config changes
 
-### 1. `save_grids` → `save_gridded`
-
-```yaml
-# before
-save_grids: false
-# after
-save_gridded: false
-```
-
-The old key **raises** rather than being ignored. Ignoring it would silently give
-a user who set `save_grids: true` the `false` behaviour with no signal.
-
-### 2. `variables` is a mapping, not a list
+### 1. `variables` is a mapping, not a list
 
 ```yaml
 # before
@@ -42,7 +30,26 @@ the literal name `"precip"`, so any other relative variable was silently
 differenced as if it were a temperature.
 
 A `change: relative` variable outside the shipped set must also declare a
-near-zero threshold (see 4 below).
+near-zero threshold (see the `relative_change` keys below).
+
+### 2. `save_grids` / `save_gridded` are removed
+
+```yaml
+# delete this line, whichever spelling you have
+save_gridded: false
+```
+
+The key was renamed `save_grids` → `save_gridded` during this milestone and then
+removed outright; if you are migrating from before R8, skip the rename and just
+delete the line. The gridded outputs are gone. `raw/{series_key}.nc` **is** the basin slice on the
+source grid and is written on every run, so `grids/series/` would have been a
+near-duplicate of a file you already have; `grids/change/` was never declared to
+Snakemake by any rule.
+
+`save_gridded: true` (or the older `save_grids: true`) now **raises** — it asks
+for an output that no longer exists. `false` is accepted with a warning, because
+it requests exactly what the workflow now always does; delete the key at your
+convenience.
 
 ### 3. A model absent from the catalog now fails at DAG build
 
@@ -94,7 +101,6 @@ reported consistently everywhere it appears.
 | `summary/composition.csv` | Every **requested** combination and how it resolved, including the ones that do not exist in the store. |
 | `summary/provenance.json` | Sources with verified physical store paths, digests, windows, settings — enough to reconstruct the run. |
 | `report.md` | The run with a disclaimer block: window clipping, alignment, weighting scheme and its approximation, the dry-month rule, catalog snapshot date, unresolved combinations. |
-| `grids/series/`, `grids/change/` | The gridded products, when `save_gridded: true`. Same key as their reduced counterparts. |
 
 The wide `summary/annual_change_scalar_stats_summary*` files are **no longer
 produced** — see "Rebuilt tables" below.
@@ -181,6 +187,14 @@ carried no digest, region fingerprint or calendar and could not be traced.
 If you were reading it, use `scalar/*.nc` for the full monthly timeseries (same
 values, unrounded, with provenance) or the change-factor tables above.
 
+## Fixed: the `units` attribute on the netCDFs
+
+`raw/*.nc` and `scalar/*.nc` used to carry `units = "kg m-2 s-1"` on `precip` and
+`"K"` on `temp` while the values were already mm/day and °C — the catalog's
+`data_adapter` converts on read and does not rewrite the attribute. Both tiers now
+carry the units declared in your `variables:` block. A `raw/` slice cached before
+this change is repaired in place the next time the run touches it; no re-download.
+
 ## Post-migration cleanup
 
 Snakemake cannot clean an output it no longer declares, so a project directory
@@ -194,6 +208,7 @@ climate_projections/<proj>/provenance.json  # moved into summary/
 climate_projections/<proj>/summary/annual_change_scalar_stats_summary*
 climate_projections/<proj>/plots/{precipitation,temperature}_*_projections_*.png
 climate_projections/<proj>/plots/projected_climate_statistics.png
+climate_projections/<proj>/grids/                # if you ever set save_gridded: true
 logs/2.0{2,3,4,5}_{monthly_stats_hist,monthly_stats_fut,monthly_change,monthly_change_scalar_merge}.log
 ```
 

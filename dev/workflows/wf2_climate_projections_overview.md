@@ -54,9 +54,12 @@ What went, and where it went:
 | `gather_change_logs` | nothing — stage B is one job and writes its own log (step 4d) |
 | the `ruleorder:` directive | nothing — it named two rules that no longer exist (step 4d) |
 
-**Job count on the seed config** (3 models × 2 scenarios × 1 horizon):
-1 (`copy_config`) + 3 (2.02) + 6 (2.03) + 6 (2.04) + 1 (2.05) + 1 (2.06)
-+ 3 (2.07–2.09) + 1 (2.10) = **22 jobs**, plus `all`.
+**Job count on the seed config** (3 models × 2 scenarios × 1 horizon = 9 series):
+1 (2.03 `copy_config`) + 9 (2.01) + 9 (2.02) + 1 (2.04) + 1 (2.06)
++ 2 (2.07/2.08) + 1 (2.10) + 1 (2.11) = **25 jobs**, plus `all`.
+
+Stage A dominates the count and is where the parallelism is; everything from
+stage B down is single-job.
 
 ---
 
@@ -74,214 +77,150 @@ until 2.07–2.10 have run.
 | in | `{CPD}/plots/{proj}_change_factor_cloud.png` | 2.04 |
 | in | `{CPD}/plots/{proj}_{precip,temp}_annual_absolute.png` | 2.06 |
 | in | `{PD}/config/runs/snake_config_climate_projections.yml` | 2.01 |
-| in | `{PD}/logs/2.02_monthly_stats_hist.log`, `2.03_monthly_stats_fut.log`, `2.04_monthly_change.log` | 2.07/2.08/2.09 |
+| in | `{PD}/logs/2.01_fetch_gcm_raw.log`, `2.02_reduce_gcm_series.log`, `2.04_derive_change_factors.log` | 2.08/2.07/2.04 |
 | in | `{PD}/benchmarks/wf2_benchmarks.md` | 2.10 |
 
-### 2.01 `copy_config`
+### 2.01 `fetch_gcm_raw` — `{series_key}`
 
-Snapshots the run's `--configfile` YAML plus the CMIP6 data catalog into the
-project's config bins, so a finished project records what produced it.
+The **only** rule that opens the remote store. Acquires one bbox+buffer, time-
+windowed slice per `(model, experiment, member)` and writes it to local disk.
 
-- **In:** `config_path` (the `--configfile` YAML, from `workflow.configfiles[0]`).
-- **Params:** `data_catalogs = project.data_sources_climate`, `workflow_name`,
-  `config_dir = {PD}/config`.
-- **Out:** `{PD}/config/runs/snake_config_climate_projections.yml` (YAML,
-  verbatim copy). Side effect, **not declared as output**: each catalog in
-  `data_sources_climate` copied to `{PD}/config/catalogs/`.
-- **Connections:** none — an isolated leaf consumed only by `all`. No other WF2
-  rule depends on it, so it never gates the compute chain.
+- **In:** `{CPD}/store_region.geojson` (the model-free delineated polygon).
+- **Params:** `catalog_path`, `catalog_entry`, `member`, `variables`,
+  `variable_units`, `buffer_degrees`, `acquisition_window`,
+  `raw_digest_components`.
+- **Out:** `update({CPD}/raw/{series_key}.nc)` — dims `(time, lat, lon)`, PERSISTENT.
+- **Why the split exists:** measured 2026-07-30 — opening one source ~1142 s,
+  transferring ~19 s, reducing ~0.2 s. `raw_digest_components` deliberately
+  **excludes** the reducer hash, so editing a formula re-reads local disk instead
+  of re-downloading nine sources.
+- **Consumed by:** 2.02, 2.08.
 
-### 2.02 `monthly_stats_hist`
+### 2.02 `reduce_gcm_series` — `{series_key}`
 
-Per `{model}`: opens the CMIP6 **historical** source from the hydromt catalog,
-clips it to the basin bbox (+1° buffer), resamples to monthly
-(`precip`→sum, else→mean), and averages over the grid into a monthly scalar
-time series. Loops over `members` **inside the script** and merges them.
+Collapses the slice to a basin scalar: area-weighted spatial mean per month.
+Makes **no** network call — it reads 2.01's local file and checks the digest
+recorded on it.
 
-- **In:** `ancient({BD}/staticgeoms/region.geojson)` — GeoJSON clip mask from WF1.
-- **Params:** `catalog_path`, `project_dir`, `name_scenario="historical"`,
-  `name_members`, `name_model={model}`, `name_clim_project`, `variables`,
-  `save_grids`.
-- **External input (not in the DAG):** catalog source
-  `{clim_project}_{model}_historical_{member}` — remote GCS/zarr. Absent source
-  ⇒ empty `xr.Dataset()` written, not an error.
-- **Out:** `temp({CPD}/historical_stats_time_{model}.nc)` — netCDF, dims
-  `(clim_project, model, scenario, member, time)`, monthly, zlib.
-- **Out, undeclared** (only when `save_grids: true`): `{CPD}/historical_stats_{model}.nc`
-  (12-month climatology grid). The Snakefile's output line for it is commented
-  out (line 96).
-- **Log/benchmark:** `logs/_parts/2.02_monthly_stats_hist/{model}.log`,
-  `benchmarks/_parts/2.02_monthly_stats_hist/{model}.tsv`.
-- **Consumed by:** 2.03 (ordering only — see §3), 2.04 (`ancient`), 2.06, 2.07.
+- **In:** `{CPD}/store_region.geojson`, `{CPD}/raw/{series_key}.nc`.
+- **Params:** the identity set (`digest_components`, `acquisition_window`,
+  `store_index`, `buffer_degrees`), plus `variables`, `variable_units`,
+  `series_nc_out`.
+- **Out:** `update({CPD}/scalar/{series_key}.nc)` — dims
+  `(clim_project, model, scenario, member, time)`, PERSISTENT. Same filename as
+  its raw slice: the directory carries the tier, the filename the identity.
+- **Consumed by:** 2.04, 2.06, 2.07.
 
-### 2.03 `monthly_stats_fut`
+### 2.03 `copy_config`
 
-Same script and same computation as 2.02, per `{model}×{scenario}`, on the
-future (SSP) sources instead of historical.
+Snapshots the run's `--configfile` YAML plus the CMIP6 data catalog, so a finished
+project records what produced it.
 
-- **In:** `ancient({BD}/staticgeoms/region.geojson)`;
-  `{CPD}/historical_stats_time_{model}.nc` — commented in the Snakefile as
-  *"make sure starts with previous job"*.
-- **Params:** as 2.02 with `name_scenario={scenario}`.
-- **External input:** catalog source `{clim_project}_{model}_{scenario}_{member}`.
-- **Out:** `temp({CPD}/stats_time-{model}_{scenario}.nc)` — netCDF, same shape as
-  2.02's output.
-- **Out, undeclared** (`save_grids: true`): `{CPD}/stats-{model}_{scenario}.nc`.
-- **Log/benchmark:** `logs/_parts/2.03_monthly_stats_fut/{model}_{scenario}.log`,
-  matching `.tsv`.
-- **Consumed by:** 2.04 (`ancient`), 2.06, 2.08.
+- **In:** `config_path`. **Out:** `{PD}/config/runs/snake_config_climate_projections.yml`.
+- Side effect, not declared: each catalog copied to `{PD}/config/catalogs/`.
+- **Connections:** an isolated leaf consumed only by `all`; never gates compute.
 
-### 2.04 `monthly_change`
+### 2.04 `derive_change_factors` — ONE job, no fan-out
 
-Per `{model}×{scenario}×{horizon}`: slices the hist series to
-`historical_year_range` and the future series to that horizon's window,
-aggregates each to hydrological years (`YS-{start_month_hyd_year}`), and reduces
-to 8 statistics (`mean, std, var, median, q_90, q_75, q_10, q_25`) as
-**change factors** — multiplicative % for `precip`, additive degC for `temp`.
+Stage B. Reads the explicit expanded scalar list, derives annual and monthly
+change factors for every `(point, horizon)`, and writes every result artifact.
 
-- **In:** `ancient({CPD}/historical_stats_time_{model}.nc)`,
-  `ancient({CPD}/stats_time-{model}_{scenario}.nc)`.
-- **Params:** `clim_project_dir`, `start_month_hyd_year`, `name_{model,scenario,horizon}`,
-  `time_horizon_hist`, `time_horizon_fut` (via the `get_horizon` wildcard
-  function), `save_grids`, plus the two **grid paths passed as params, not
-  inputs**: `stats_path_hist`, `stats_path`.
-- **Out:** `temp({CPD}/annual_change_scalar_stats-{model}_{scenario}_{horizon}.nc)`
-  — netCDF, dims `(stats, clim_project, model, scenario, horizon, member)`.
-  Empty future series ⇒ **dummy empty netCDF** so Snakemake sees the target.
-- **Out, undeclared** (`save_grids: true`):
-  `{CPD}/monthly_change_mean_grid-{model}_{scenario}_{horizon}.nc`.
-- **Log/benchmark:** `logs/_parts/2.04_monthly_change/{model}_{scenario}_{horizon}.log`,
-  matching `.tsv`.
-- **Consumed by:** 2.05, 2.09; the undeclared grid netCDF by 2.06 (via params).
-- **Raises** (fail-loud guards, t260720d) on asymmetric hist/clim variable sets
-  or member sets.
+- **In:** the expanded `{CPD}/scalar/*.nc` set (never a glob — a model dropped
+  from the config cannot rejoin through a leftover file), plus `store_region.geojson`.
+- **Out:** `{CPD}/summary/{proj}_change_factors_{annual,monthly}.csv`,
+  `{CPD}/summary/composition.csv`, `{CPD}/summary/provenance.json`,
+  `{CPD}/report.md`, `{CPD}/plots/{proj}_change_factor_cloud.png`.
+- **Job-internal:** the per-point change netCDFs and the wide
+  `annual_change_scalar_stats_summary.nc` live in a `TemporaryDirectory`. The wide
+  file is written and read back so the tidy table describes what was persisted;
+  it is not an artifact (S8-05).
 
-### 2.05 `monthly_change_scalar_merge`
+### 2.06 `plot_climate_proj_timeseries` — gather
 
-Merges every per-(model, scenario, horizon) change netCDF into one summary
-dataset (dropping the dummy empties), writes it as netCDF + two CSVs, and draws
-the joint precip/temp scatter used as the plausibility overlay.
-
-- **In:** `ancient(expand(annual_change_scalar_stats-{model}_{scenario}_{horizon}.nc, ...))`
-  — the full 2.04 fan-out (seed: 6 files).
-- **Params:** `clim_project_dir`, `horizons` (used to relabel each horizon by its
-  mid-year in the plot).
-- **Out:** `{CPD}/plots/{proj}_change_factor_cloud.png` (seaborn `JointGrid`) —
-  the only artifact this step still writes. S8-05 retired the three wide
-  `annual_change_scalar_stats_summary*` files; the wide `.nc` survives as a
-  job-internal intermediate in stage B's TemporaryDirectory, read back by the
-  tidy reshape and never shipped.
-- **Log/benchmark:** `logs/2.05_monthly_change_scalar_merge.log` (**unmerged** —
-  single job, so no `_parts`), `benchmarks/_parts/2.05_....tsv`.
-- **Consumed by:** `all`; the summary `.nc` is also an input to 2.06 (declared,
-  but the script never opens it — a pure ordering edge) and to 2.10.
-
-### 2.06 `plot_climate_proj_timeseries`
-
-Reopens all the monthly scalar series (hist + future), computes multi-model
-5/50/95 percentile envelopes of absolute values and anomalies (annual and
-monthly climatology), writes one merged timeseries netCDF, and renders the
-projection figures.
+Reopens all scalar series and renders the eight figures. Figure-only since S8-02.
 
 - **In:** `{CPD}/summary/{proj}_change_factors_annual.csv` (declared, unread — an
-  ordering edge, repointed at S8-05 from the retired wide summary);
-  all `historical_stats_time_{model}.nc`; all `stats_time-{model}_{scenario}.nc`.
-- **Params:** `clim_project_dir`, `scenarios`, `horizons`, `save_grids`,
-  `change_grids` (the undeclared 2.04 grid netCDFs, referenced by path).
-- **Out (declared):** all eight `{CPD}/plots/{proj}_{precip,temp}_{annual,monthly}_{absolute,change}.png`,
-  (`{CPD}/timeseries/gcm_timeseries.nc` was a third declared output until S8-02
-  deleted it — see `dev/reviews/2026-07-31_post-r8-self-check.md`.)
-- **Out (undeclared):** 6 further PNGs from the same loops —
-  `precipitation_anomaly_projections_anom`, `temperature_anomaly_projections_anom.png`,
-  `precipitation_monthly_projections_{abs,anom}.png`,
-  `temperature_monthly_projections_{abs,anom}.png`; plus, when `save_grids: true`,
-  4 gridded map PNGs per `{scenario}×{horizon}`.
-- **Log/benchmark:** `logs/2.06_plot_climate_proj_timeseries.log`,
-  `benchmarks/_parts/2.06_....tsv`.
-- **Consumed by:** `all` (2 PNGs), 2.10 (one PNG as an ordering barrier).
+  ordering edge), all historical and scenario `scalar/*.nc`.
+- **Out (all declared since 7-i):** the eight
+  `{CPD}/plots/{proj}_{precip,temp}_{annual,monthly}_{absolute,change}.png`.
 
-### 2.07 / 2.08 / 2.09 `gather_*_logs`
+### 2.07 / 2.08 `gather_*_logs`
 
-Three structurally identical rules, one per fan-out stage. Each concatenates that
-stage's per-job part logs into a single merged log, regenerated fresh each run.
-The `.nc` inputs are **sync barriers only** — `merge_logs.py` reads
-`params.parts`, never `input`.
-
-| Rule | Banner | Input barrier (`.nc`) | `params.parts` | Output |
-| --- | --- | --- | --- | --- |
-| `gather_stats_hist_logs` | 2.07 | all 2.02 outputs | `logs/_parts/2.02_.../{model}.log` | `{PD}/logs/2.02_monthly_stats_hist.log` |
-| `gather_stats_fut_logs` | 2.08 | all 2.03 outputs | `logs/_parts/2.03_.../{model}_{scenario}.log` | `{PD}/logs/2.03_monthly_stats_fut.log` |
-| `gather_change_logs` | 2.09 | all 2.04 outputs | `logs/_parts/2.04_.../{model}_{scenario}_{horizon}.log` | `{PD}/logs/2.04_monthly_change.log` |
-
-**Banner ≠ output filename here**: the rule's banner is 2.07/2.08/2.09 but the
-merged log it writes is named after the *gathered* stage (2.02/2.03/2.04).
-
-- These rules declare **no `log:` and no `benchmark:`** — they never appear in
-  `wf2_benchmarks.md`.
-- **Consumed by:** `all`.
+`gather_series_logs` concatenates `logs/_parts/2.02_reduce_gcm_series/*.log` into
+`logs/2.02_reduce_gcm_series.log`; `gather_raw_logs` does the same for 2.01. Part
+paths come from params so stale parts are excluded. One gather per fan-out stage —
+stage B needs none, being a single job that writes its own log.
 
 ### 2.10 `gather_benchmarks`
 
-Globs `benchmarks/_parts/2.*` (prefix-filtered — all three workflows share
-`_parts`), concatenates the per-job TSVs into one Markdown table with a `rule`
-column and a `TOTAL` row (sum for time/IO/CPU, peak for memory, mean for load),
-then **deletes the merged parts** and prunes empty part dirs.
+Merges `benchmarks/_parts/**.tsv` into `benchmarks/wf2_benchmarks.md` (Markdown
+table, `rule` column + `TOTAL` row). Takes a summary CSV and two figures as inputs
+so it runs after everything else.
 
-- **In (barriers only):** `{CPD}/summary/annual_change_scalar_stats_summary.nc`,
-  `{CPD}/plots/projected_climate_statistics.png`,
-  `{CPD}/plots/precipitation_anomaly_projections_abs.png`.
-- **Params:** `parts_dir = {PD}/benchmarks/_parts`, `workflow_num = 2`.
-- **Out:** `{PD}/benchmarks/wf2_benchmarks.md` (Markdown).
-- **Consumed by:** `all`.
+### 2.11 `extract_climate_grid`
+
+The shared climate-store producer, declared identically in all three workflows and
+pinned by `tests/test_climate_store_contract.py`. WF2 declares it to obtain
+`store_region.geojson`, so the workflow no longer depends on wf1's model build.
 
 ---
 
 ## 3. DAG shape
 
 ```
-config_path ─► 2.01 copy_config ─────────────────────────────────► all
-                                                                    ▲
-region.geojson (WF1, ancient)                                       │
-   │                                                                │
-   ├─► 2.02 monthly_stats_hist  {model}         ──┬──► 2.07 ────────┤
-   │        │  historical_stats_time_{model}.nc  │                  │
-   │        │ (ordering edge only)               │                  │
-   │        ▼                                    │                  │
-   └─► 2.03 monthly_stats_fut  {model,scenario} ─┼──► 2.08 ─────────┤
-            │  stats_time-{model}_{scenario}.nc  │                  │
-            ▼                                    │                  │
-        2.04 monthly_change {model,scen,horizon}─┴──► 2.09 ─────────┤
-            │  annual_change_scalar_stats-*.nc                      │
-            ▼                                                       │
-        2.05 monthly_change_scalar_merge ──► summary/*.nc,csv ──────┤
-            │                             └─► plots/projected_*.png │
-            ▼ (ordering edge; file unread)                          │
-        2.06 plot_climate_proj_timeseries ─► plots/*.png, ──────────┤
-            │                                timeseries/*.nc        │
-            ▼                                                       │
-        2.10 gather_benchmarks ─► benchmarks/wf2_benchmarks.md ─────┘
+        2.03 copy_config ──────────────────────────────────────────────┐
+                                                                       │
+        2.11 extract_climate_grid ─► store_region.geojson              │
+                     │                                                 │
+                     ▼                                                 │
+   ┌─► 2.01 fetch_gcm_raw {series_key} ─► raw/{key}.nc ──► 2.08 ───────┤
+   │        (the ONLY remote read)                                     │
+   │             │                                                     │
+   │             ▼                                                     │
+   └─► 2.02 reduce_gcm_series {series_key} ─► scalar/{key}.nc ─► 2.07 ─┤
+                 │                                                     │
+                 ▼                                                     │
+        2.04 derive_change_factors  (ONE job)                          │
+                 ├─► summary/{proj}_change_factors_{annual,monthly}.csv│
+                 ├─► summary/composition.csv, summary/provenance.json  │
+                 ├─► report.md                                         │
+                 └─► plots/{proj}_change_factor_cloud.png              │
+                 │                                                     │
+                 ▼ (ordering edge; the CSV is declared, unread)        │
+        2.06 plot_climate_proj_timeseries ─► plots/*.png ──────────────┤
+                                                                       │
+        2.10 gather_benchmarks ─► benchmarks/wf2_benchmarks.md ────────┘
 ```
 
-Effective parallel width on the seed config: 3 (2.02) → 6 (2.03) → 6 (2.04),
-then everything downstream is single-job.
+**Fan-out width on the seed config** (3 models × 3 experiments = 9 series):
+9 (2.01) → 9 (2.02) → 1 (2.04) → 1 (2.06). Stage A fans out at full width — since
+step 2b there is **no edge between series at all**, so the historical→future
+ordering constraint is gone.
 
-**`temp()` lifetime.** All three intermediate netCDF families are `temp(...)`,
-so Snakemake deletes each only after *every* declared consumer has finished.
-For `historical_stats_time_{model}.nc` that means 2.03, 2.04, 2.06 **and** 2.07;
-for `stats_time-*.nc`, 2.04, 2.06 and 2.08. Because 2.06 sits at the very end of
-the DAG, the full set of monthly series stays on disk for the whole run.
+**No `temp()` intermediates remain in WF2.** `raw/` and `scalar/` are both
+PERSISTENT with `update()`, which is load-bearing: Snakemake's `Job.prepare()`
+removes existing outputs before every job, so without the flag the revalidate-and-
+skip cache could never fire and every scheduled job would re-download. Stage B's
+per-point files are job-internal (a `TemporaryDirectory`), not `temp()`.
 
-**`ruleorder`.** `monthly_stats_hist > monthly_stats_fut > monthly_change >
-monthly_change_scalar_merge` is retained as stale insurance, not confirmed
-load-bearing; a 2026-07 dry-run showed it constrains nothing on the tests
-fixture. Status and removal conditions: `AGENTS.md` § Conventions and
-`dev/r04/climate-projections-design.md` §3.
+**No `ruleorder:`.** It named two rules that no longer exist, and the merge that
+retired them also removed what it insured against.
 
 ---
 
 ## 4. Observations relevant to efficiency / modularity
 
-Findings from the code as it stands — recorded to think against, not proposals.
+> **Historical.** These were written **before** the v2.0 rework, against the rule
+> set §1's "what went, and where it went" table now lists as retired. Several
+> describe rules that no longer exist (2.03 `monthly_stats_fut`, 2.05
+> `monthly_change_scalar_merge`) or problems the rework fixed — the hist→fut
+> ordering edge, the two-scripts-one-computation duplication, the `temp()`
+> lifetimes. Kept as the record of what motivated the rework, **not** as a
+> description of current behaviour: §§1–3 above are that. Do not read a rule
+> number in this section as a live one.
+
+Findings from the code as it stood pre-v2.0 — recorded to think against, not
+proposals.
 
 1. **2.03's dependency on 2.02's output is ordering-only.** The `__main__` block
    of `get_stats_climate_proj.py` reads only `input.region_path`; the historical

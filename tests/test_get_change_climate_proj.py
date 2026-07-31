@@ -2,7 +2,7 @@
 
 Realizes the R4 §7 audit-evidence matrix for ``get_change_annual_clim_proj``
 (rows U, C1-C3, H, V, P) plus unit tests for ``_to_str_tuple`` and
-``get_change_clim_projections``.
+the annual and monthly change paths.
 
 Design contract: `dev/r04/climate-projections-design.md` §7.
 
@@ -37,7 +37,6 @@ SNAKEDIR = join(TESTDIR, "..")
 from blueearth_cst.projections.get_change_climate_proj import (  # noqa: E402
     _to_str_tuple,
     get_change_annual_clim_proj,
-    get_change_clim_projections,
     intersection,
 )
 
@@ -303,35 +302,8 @@ def test_intersection_stable_across_hash_seeds():
 
 
 # --------------------------------------------------------------------------- #
-# Unit: get_change_clim_projections (grid-branch multiplicative/additive)
+
 # --------------------------------------------------------------------------- #
-def _make_grid_ds(precip, temp, scenario="historical"):
-    """A 12-month x 2x2 constant grid with a scenario dim (as the func selects
-    scenario[0])."""
-    shape = (12, 1, 2, 2)
-    return xr.Dataset(
-        {
-            "precip": (("month", "scenario", "y", "x"), np.full(shape, precip, float)),
-            "temp": (("month", "scenario", "y", "x"), np.full(shape, temp, float)),
-        },
-        coords={
-            "month": np.arange(1, 13),
-            "scenario": [scenario],
-            "y": [0, 1],
-            "x": [0, 1],
-        },
-    )
+# `test_get_change_clim_projections_grid_change` stood here. S8-08(c) removed
+# the cellwise grid change it exercised, together with the gridded branch.
 
-
-def test_get_change_clim_projections_grid_change():
-    """Grid change: precip multiplicative, temp additive, constant fields.
-
-    hist precip==10, clim precip==12 -> 20.0 everywhere.
-    hist temp==5,    clim temp==7    -> 2.0 everywhere.
-    """
-    ds_hist = _make_grid_ds(10.0, 5.0)
-    ds_clim = _make_grid_ds(12.0, 7.0)
-    res = get_change_clim_projections(ds_hist, ds_clim)
-    assert float(np.unique(res["precip"].values)[0]) == 20.0
-    assert float(np.unique(res["temp"].values)[0]) == 2.0
-    assert set(res.data_vars) == {"precip", "temp"}

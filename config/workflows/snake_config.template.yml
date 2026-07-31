@@ -115,7 +115,6 @@ workflows:
       near: [2030, 2060]
       far:  [2070, 2100]
     # Save gridded outputs in addition to basin averages
-    save_gridded: false
 
   climate_experiment:
     enabled: true

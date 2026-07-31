@@ -49,7 +49,7 @@ once the conversation that produced it is gone.
 | S8-05 | `summary/` carries three wide files the tidy tables supersede | WF2 stage B | resolved | 2026-07-31 | 2026-07-31 | Wide files deleted; tables move into `summary/`; manifest 15 → 14 |
 | S8-06 | `provenance.json` clutters the run root | WF2 layout | resolved | 2026-07-31 | 2026-07-31 | → `summary/provenance.json` |
 | S8-07 | Figure filenames are contradictory (`..._anomaly_..._abs.png` is the absolute plot) | WF2 stage C | resolved | 2026-07-31 | 2026-07-31 | `{proj}_{var}_{view}_{quantity}.png`; precip forced to mm/day |
-| S8-08 | Four residual inconsistencies noticed in passing, none blocking | WF2 / docs | open | 2026-07-31 | 2026-07-31 | Logged for a later pass; see detail |
+| S8-08 | Four residual inconsistencies noticed in passing, none blocking | WF2 / docs | resolved | 2026-07-31 | 2026-07-31 | All four fixed; (c) removed the gridded branch and its config key |
 
 ---
 
@@ -498,5 +498,43 @@ rewriting a whole document inside a rename commit destroys attributability.
 A doc that contradicts itself one section apart is worse than a stale one: the
 inventory says these rules are gone and the detail section explains how they work.
 
-**Disposition.** `open`. Candidates for a single follow-up pass; (a) and (c) are
-the two with correctness consequences, (b) and (d) are documentation.
+**Disposition.** `resolved` — all four fixed, 2026-07-31.
+
+**(a) Units stamped where the values are converted.** The declared units from the
+spec are written onto the arrays in both writers, keyed by post-rename source
+name. A slice cached *before* the fix is repaired in place on its next cache hit
+rather than left alone: `scalar/` is stamped on every reduce, so skipping the
+repair would have made `raw/` the only artifact still misdescribing its own
+values, and only on projects old enough to have a cache. Safe against identity —
+`units` is a variable attribute and the digest covers neither it nor the values.
+
+**(b) Comment rewritten** to say what is true: the dispatch is the last
+name-reading site in stage A, it is inert because `Amon` is already monthly (one
+element per `MS` group, so sum and mean agree), and it must move to
+`canonical_kind` the day a sub-monthly source is added.
+
+**(c) The gridded branch and its config key are gone.** Owner ruling: `raw/` is
+already the basin slice on the source grid, so `grids/series/` would have been a
+near-copy of a file every run writes. Removed: the branch in the reducer, stage B
+and the plot script; `get_change_clim_projections` (the cellwise change — also the
+last unconverted 5e site outside stage A's resample); the cartopy imports; the
+`change_grids` and `stats_path*` params; and `save_gridded` from every shipped
+config. Both spellings now **raise on `true`** and **warn on `false`** — a `true`
+asks for something that no longer exists, a `false` asks for exactly what the
+workflow always does, so breaking every config over it would be ceremony.
+
+**(d) Rule detail and DAG diagram rewritten** to the end state. §4 gains a banner
+marking it as pre-rework observations rather than current behaviour — it describes
+rules §1's own table lists as retired, which is worse than merely stale.
+
+**A collision found while fixing (d):** `copy_config` and `fetch_gcm_raw` both
+answered to banner `2.01`. The numbers exist to disambiguate, so two rules sharing
+one is self-defeating; the rule map already listed `copy_config` as 2.03, which it
+is now. No path moved — that rule names its output explicitly and has no
+banner-derived log or benchmark, so the collision only ever showed in the console.
+
+**Verification.** `pytest tests/` 819 passed; wf2 ran end to end (25 jobs, the
+count §1 now states); `check_baseline` FAILED on exactly one target — the config
+snapshot, a verbatim copy of the seed config that lost the `save_gridded` line —
+and every computed target matched, which is the signal that the removal is
+output-neutral. Re-recorded, 14/14.

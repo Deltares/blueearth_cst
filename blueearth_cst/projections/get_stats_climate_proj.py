@@ -65,7 +65,6 @@ def get_stats_clim_projections(
     name_model,
     name_scenario,
     name_member,
-    save_grids=False,
 ):
     """
     Parameters
@@ -83,9 +82,6 @@ def get_stats_clim_projections(
         member name of the climate model (e.g. r1i1p1f1).
     time_tuple : tuple
         time period over which to calculate statistics.
-    save_grids : bool
-        save gridded stats as well as scalar stats. False by default.
-
     Returns
     -------
     Writes a netcdf file with mean monthly precipitation and temperature regime (12 maps) over the geom.
@@ -102,16 +98,24 @@ def get_stats_clim_projections(
     # filter variables for precip and temp
     # data_vars = list(data.data_vars)
     # var_list = [str for str in data_vars if any(sub in str for sub in variables)]
-    # Units handling: the monthly aggregator is dispatched by variable NAME.
-    # - "precip" is resampled with .sum("time") -> monthly TOTAL (a flux
-    #   accumulated over the month); summing conserves the monthly water volume.
-    # - every other variable (the else branch, i.e. "temp") is resampled with
-    #   .mean("time") -> monthly MEAN (an intensive state; a total would be
-    #   meaningless).
-    # Because the dispatch keys on the string "precip", a catalog that names the
-    # precipitation variable anything else is silently aggregated as temp (mean,
-    # not sum) and its units are wrong. The required config is
-    # `variables: [precip, temp]` (see dev/workflows/climate_projections.md).
+    # The monthly aggregator is dispatched by variable NAME -- the LAST place in
+    # stage A that reads one. "precip" resamples with .sum("time"), everything
+    # else with .mean("time").
+    #
+    # INERT under v2.0, and inert by design rather than by luck: the only source
+    # frequency is `Amon`, which is already monthly, so each `MS` group holds
+    # exactly one element and sum and mean return that same element. See
+    # `variable_spec`'s module docstring -- converting a source's native frequency
+    # to the canonical quantity is a property of the SOURCE, and in v2.0 it is the
+    # identity.
+    #
+    # It would bite the day a sub-monthly source is added, at which point the
+    # dispatch must move to `canonical_kind(variable_spec, var)` like the annual
+    # aggregation already has (5e-iii). Logged as S8-08(b).
+    #
+    # (The comment that stood here told readers the required config was
+    # `variables: [precip, temp]` -- the bare-list form `variable_spec.parse` has
+    # raised on since 5e.)
     for var in data.data_vars:  # var_list:
         if var == "precip":
             var_m = data[var].resample(time="MS").sum("time")
@@ -138,17 +142,6 @@ def get_stats_clim_projections(
         )
         ds_scalar.append(var_m_scalar.to_dataset())
 
-        # get grid average over time for each month
-        if save_grids:
-            # slice over time_tuple to save minimal required info for the grid
-            # var_m = var_m.sel(time=slice(*time_tuple))
-            # Step 5c: rounding dropped here too. Cold on shipped configs
-            # (`save_grids: false`), so no diff evidence comes from this line --
-            # changed for consistency with the scalar path above rather than
-            # because a gate can see it.
-            var_mm = var_m.groupby("time.month").mean("time")
-            ds.append(var_mm.to_dataset())
-
     # mean stats over grid and time
     mean_stats_time = xr.merge(ds_scalar)
     # add coordinate on project, model, scenario, realization to later merge all files
@@ -161,22 +154,7 @@ def get_stats_clim_projections(
         }
     ).expand_dims(["clim_project", "model", "scenario", "member"])
 
-    if save_grids:
-        mean_stats = xr.merge(ds)
-        # add coordinate on project, model, scenario, realization to later merge all files
-        mean_stats = mean_stats.assign_coords(
-            {
-                "clim_project": f"{name_clim_project}",
-                "model": f"{name_model}",
-                "scenario": f"{name_scenario}",
-                "member": f"{name_member}",
-            }
-        ).expand_dims(["clim_project", "model", "scenario", "member"])
-
-    else:
-        mean_stats = xr.Dataset()
-
-    return mean_stats, mean_stats_time
+    return mean_stats_time
 
 
 if __name__ == "__main__":
@@ -197,7 +175,13 @@ if __name__ == "__main__":
             name_model = sm.params.name_model
             name_clim_project = sm.params.name_clim_project
             variables = sm.params.variables
-            save_grids = sm.params.save_grids
+            # S8-08(a): units of the STORED values, keyed by post-rename source
+            # name. The catalog's data_adapter converts on read (unit_mult
+            # precip 86400, unit_add temp -273.15) but does NOT rewrite the
+            # `units` attribute, so every array claimed `kg m-2 s-1` / `K` over
+            # values that were mm/day / degC. The spec is the only place that
+            # knows what the stored quantity is, so it is what gets stamped.
+            variable_units = dict(sm.params.variable_units)
 
             # step 2b identity params (design §5.3, D9, D12). Read BEFORE the time
             # tuple below, which consumes acquisition_window.
@@ -293,7 +277,6 @@ if __name__ == "__main__":
             )
             expected_raw_digest = series_identity.raw_digest(digest_components, region_fp)
 
-            ds_members_mean_stats = []
             ds_members_mean_stats_time = []
 
             for name_member, raw_path in zip(name_members, raw_paths):
@@ -338,25 +321,22 @@ if __name__ == "__main__":
                 )
 
                 # calculate statistics
-                mean_stats, mean_stats_time = get_stats_clim_projections(
+                mean_stats_time = get_stats_clim_projections(
                     data,
                     name_clim_project,
                     name_model,
                     name_scenario,
                     name_member,
-                    save_grids=save_grids,
                 )
                 data.close()
 
                 # merge members results
-                ds_members_mean_stats.append(mean_stats)
                 ds_members_mean_stats_time.append(mean_stats_time)
 
-            if save_grids:
-                nc_mean_stats = xr.merge(ds_members_mean_stats)
-            else:
-                nc_mean_stats = xr.Dataset()
             nc_mean_stats_time = xr.merge(ds_members_mean_stats_time)
+            for _name, _units in variable_units.items():
+                if _name in nc_mean_stats_time:
+                    nc_mean_stats_time[_name].attrs["units"] = _units
 
             # write netcdf:
 
@@ -368,16 +348,6 @@ if __name__ == "__main__":
             # so the job is told where to write rather than inferring it from
             # (model, scenario) -- which is what forced two rules before.
             series_nc_out = sm.params.series_nc_out
-
-            # Step 7-iii / R2-D11: `grids/series/{series_key}.nc`. The legacy names
-            # (`historical_stats_{model}.nc`, `stats-{model}_{scenario}.nc`) put a
-            # `/` from the model name into the path, so they nested under
-            # `stats_time-INM/` -- the same defect the series key grammar fixed at
-            # step 3. The key is already sanitized, so reusing it fixes the nesting
-            # and makes the gridded product addressable by the same name as its
-            # reduced counterpart.
-            series_key_value = os.path.splitext(os.path.basename(series_nc_out))[0]
-            name_nc_out = os.path.join("grids", "series", f"{series_key_value}.nc")
 
             # --- step 2b: stamp the identity onto the product -------------------
             # These attributes are what make the persistent series self-describing
@@ -432,15 +402,6 @@ if __name__ == "__main__":
             with ProgressBar():
                 delayed_obj.compute()
 
-            if save_grids:
-                log_row("writing stats over grid to nc", module="stats")
-                delayed_obj = nc_mean_stats.to_netcdf(
-                    os.path.join(folder_out, name_nc_out),
-                    encoding={k: {"zlib": True} for k in dvars},
-                    compute=False,
-                )
-                with ProgressBar():
-                    delayed_obj.compute()
     else:
         raise RuntimeError(
             "get_stats_climate_proj.py runs only as a Snakemake script:"
