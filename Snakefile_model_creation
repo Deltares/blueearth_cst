@@ -91,6 +91,37 @@ store_dir = CLIMATE_STORE.store_dir
 # three workflows share project_dir/logs, so the leading digit keeps them
 # disambiguated and globally sortable. Convention: dev/conventions/naming.md.
 
+# --- log layout ---------------------------------------------------------------
+# EVERY WF1 rule that logs writes a PART under logs/_parts/, and rule 1.16 merges
+# the parts into ONE logs/wf1_model_creation.log, then deletes them. So the only
+# WF1 file left in logs/ after a full run is that merged log — matching WF2 (2.07)
+# and WF3 (3.13), and the deal benchmarks/wf1_benchmarks.md already had.
+#
+# LOG_RULES is the merge order: rule LABELS, not part paths. merge_logs lists each
+# label's part dir to find its members, so a fan-out width lives only in the rule
+# that owns it (WF1 has no fan-out today; WF3 does). Naming the labels rather than
+# globbing `_parts/` keeps an orphan dir from a renamed rule out of the file.
+# Order is by RULE NUMBER, matching the rule map and benchmarks/wf1_benchmarks.md,
+# not execution order (1.11–1.13 are parallel leaves). 1.01 copy_config declares
+# no `log:` and so has no section.
+WORKFLOW_LOG_NAME = "wf1_model_creation.log"
+LOG_PARTS_DIR = f"{project_dir}/logs/_parts"
+LOG_RULES = [
+    "1.02_prepare_build_config",
+    "1.03_create_model",
+    "1.04_add_reservoirs_lakes_glaciers",
+    "1.05_add_gauges_and_outputs",
+    "1.06_write_outlet_index",
+    "1.07_setup_runtime",
+    "1.08_add_forcing",
+    "1.09_run_wflow",
+    "1.10_extract_climate_grid",
+    "1.11_plot_results",
+    "1.12_plot_map",
+    "1.13_plot_forcing",
+    "1.15_plot_climate_source",
+]
+
 # 1.00  all — target aggregator: full historical build + performance plots
 rule all:
     input:
@@ -105,6 +136,7 @@ rule all:
         f"{store_dir}/plots/source_pet.png",
         f"{project_dir}/config/runs/snake_config_model_creation.yml",
         f"{basin_dir}/staticgeoms/outlet_index.csv",
+        f"{project_dir}/logs/{WORKFLOW_LOG_NAME}",
         f"{project_dir}/benchmarks/wf1_benchmarks.md",
 
 # 1.01  copy_config — copy build/snake/waterbodies configs into project_dir/config
@@ -142,7 +174,7 @@ rule prepare_build_config:
         basin_index = basin_index,
         snake_config = config_path,
     log:
-        f"{project_dir}/logs/1.02_prepare_build_config.log",
+        f"{LOG_PARTS_DIR}/1.02_prepare_build_config.log",
     benchmark:
         f"{project_dir}/benchmarks/_parts/1.02_prepare_build_config.tsv",
     script:
@@ -168,7 +200,7 @@ rule create_model:
         # outlets.geojson -> 1.07 -> forcing yml -> 1.08).
         built = touch(f"{basin_dir}/.model_built"),
     log:
-        f"{project_dir}/logs/1.03_create_model.log",
+        f"{LOG_PARTS_DIR}/1.03_create_model.log",
     benchmark:
         f"{project_dir}/benchmarks/_parts/1.03_create_model.tsv",
     shell:
@@ -190,7 +222,7 @@ rule add_reservoirs_lakes_glaciers:
         data_catalog = DATA_SOURCES,
         config = waterbodies_config,
     log:
-        f"{project_dir}/logs/1.04_add_reservoirs_lakes_glaciers.log",
+        f"{LOG_PARTS_DIR}/1.04_add_reservoirs_lakes_glaciers.log",
     benchmark:
         f"{project_dir}/benchmarks/_parts/1.04_add_reservoirs_lakes_glaciers.tsv",
     script:
@@ -209,7 +241,7 @@ rule add_gauges_and_outputs:
         outputs = wflow_outvars,
         data_catalog = DATA_SOURCES
     log:
-        f"{project_dir}/logs/1.05_add_gauges_and_outputs.log",
+        f"{LOG_PARTS_DIR}/1.05_add_gauges_and_outputs.log",
     benchmark:
         f"{project_dir}/benchmarks/_parts/1.05_add_gauges_and_outputs.tsv",
     script:
@@ -223,7 +255,7 @@ rule write_outlet_index:
     output:
         outlet_index_path = f"{basin_dir}/staticgeoms/outlet_index.csv"
     log:
-        f"{project_dir}/logs/1.06_write_outlet_index.log",
+        f"{LOG_PARTS_DIR}/1.06_write_outlet_index.log",
     benchmark:
         f"{project_dir}/benchmarks/_parts/1.06_write_outlet_index.tsv",
     script:
@@ -242,7 +274,7 @@ rule setup_runtime:
         clim_source = get_config(shared_cfg, "clim_historical", optional=False),
         basin_dir = basin_dir,
     log:
-        f"{project_dir}/logs/1.07_setup_runtime.log",
+        f"{LOG_PARTS_DIR}/1.07_setup_runtime.log",
     benchmark:
         f"{project_dir}/benchmarks/_parts/1.07_setup_runtime.tsv",
     script: "blueearth_cst/shared/setup_time_horizon.py"
@@ -255,7 +287,7 @@ rule add_forcing:
     output:
         forcing_path = f"{basin_dir}/forcing/inmaps_historical.nc"
     log:
-        f"{project_dir}/logs/1.08_add_forcing.log",
+        f"{LOG_PARTS_DIR}/1.08_add_forcing.log",
     benchmark:
         f"{project_dir}/benchmarks/_parts/1.08_add_forcing.tsv",
     shell:
@@ -271,7 +303,7 @@ rule run_wflow:
     params:
         toml_path = f"{basin_dir}/wflow_sbm.toml"
     log:
-        f"{project_dir}/logs/1.09_run_wflow.log",
+        f"{LOG_PARTS_DIR}/1.09_run_wflow.log",
     benchmark:
         f"{project_dir}/benchmarks/_parts/1.09_run_wflow.tsv",
     shell:
@@ -299,7 +331,7 @@ rule extract_climate_grid:
     output:
         **CLIMATE_STORE.outputs,
     log:
-        f"{project_dir}/logs/1.10_extract_climate_grid.log",
+        f"{LOG_PARTS_DIR}/1.10_extract_climate_grid.log",
     benchmark:
         f"{project_dir}/benchmarks/_parts/1.10_extract_climate_grid.tsv",
     script:
@@ -354,7 +386,7 @@ rule plot_results:
        data_sources = DATA_SOURCES,
        clim_source = clim_source,
    log:
-       f"{project_dir}/logs/1.11_plot_results.log",
+       f"{LOG_PARTS_DIR}/1.11_plot_results.log",
    benchmark:
        f"{project_dir}/benchmarks/_parts/1.11_plot_results.tsv",
    script: "blueearth_cst/model/plot_results.py"
@@ -372,7 +404,7 @@ rule plot_map:
         project_dir = f"{project_dir}",
         output_locations = output_locations,
     log:
-        f"{project_dir}/logs/1.12_plot_map.log",
+        f"{LOG_PARTS_DIR}/1.12_plot_map.log",
     benchmark:
         f"{project_dir}/benchmarks/_parts/1.12_plot_map.tsv",
     script: "blueearth_cst/shared/plot_map.py"
@@ -394,7 +426,7 @@ rule plot_forcing:
         project_dir = f"{project_dir}",
         gauges_path = f"{basin_dir}/staticgeoms/outlets.geojson"
     log:
-        f"{project_dir}/logs/1.13_plot_forcing.log",
+        f"{LOG_PARTS_DIR}/1.13_plot_forcing.log",
     benchmark:
         f"{project_dir}/benchmarks/_parts/1.13_plot_forcing.tsv",
     script: "blueearth_cst/model/plot_map_forcing.py"
@@ -419,6 +451,36 @@ rule gather_benchmarks:
         parts_dir = f"{project_dir}/benchmarks/_parts",
         workflow_num = 1,
     script: "blueearth_cst/shared/merge_benchmarks.py"
+
+# 1.16  gather_logs — merge every WF1 log part into ONE workflow log.
+#
+# Same rule as WF2's 2.07 and WF3's 3.13, against the same script; only the label
+# list, the parts dir and the output name differ. `input:` is the terminal
+# artifact set (identical to gather_benchmarks), which is what schedules it LAST:
+# every logging rule is upstream of it. The parts stay in `params:` — they are
+# `log:` files, and Snakemake does not track those in the DAG, so naming them as
+# `input:` would demand them as buildable targets.
+#
+# The merge DELETES the parts it consumed and prunes the emptied dirs, so a clean
+# full run leaves no logs/_parts/ at all. After a PARTIAL re-run only the re-run
+# rules have parts, so the rewritten log marks the rest "no part from this run" —
+# the same trade `merge_benchmarks` makes (dev/followups.md R7-9).
+rule gather_logs:
+    message: rule_banner("1.16", "gather_logs")
+    input:
+        f"{basin_dir}/evaluation/plots/hydro_wflow_1.png",
+        f"{basin_dir}/plots/basin_area.png",
+        f"{basin_dir}/forcing/plots/precip.png",
+        f"{store_dir}/plots/source_precip.png",
+        f"{store_dir}/plots/source_temp.png",
+        f"{store_dir}/plots/source_pet.png",
+        f"{basin_dir}/staticgeoms/outlet_index.csv",
+    output:
+        f"{project_dir}/logs/{WORKFLOW_LOG_NAME}",
+    params:
+        rules = LOG_RULES,
+        parts_dir = LOG_PARTS_DIR,
+    script: "blueearth_cst/shared/merge_logs.py"
 
 # 1.15  plot_climate_source — source-grid climate figures from the shared store
 # (R07 B4 / P4). Declared HERE ONLY: unlike rule 1.10 this is a single
@@ -453,7 +515,7 @@ rule plot_climate_source:
         data_sources = DATA_SOURCES,
         clim_source = clim_source,
     log:
-        f"{project_dir}/logs/1.15_plot_climate_source.log",
+        f"{LOG_PARTS_DIR}/1.15_plot_climate_source.log",
     benchmark:
         f"{project_dir}/benchmarks/_parts/1.15_plot_climate_source.tsv",
     script: "blueearth_cst/climate_analysis/plot_climate_source.py"

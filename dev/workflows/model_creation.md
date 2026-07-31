@@ -64,10 +64,14 @@ workflows 2/3; not in this `rule all`):
 **Side-effect artifacts** (bookkeeping / traceability; no downstream reader):
 - `{basin_dir}/staticgeoms/reservoirs_lakes_glaciers.txt` — waterbodies sentinel.
 - `{basin_dir}/staticgeoms/outlet_index.csv` — position→subcatchment-ID map (R3 §4).
-- `{project_dir}/logs/1.NN_{rule}.log`, `{project_dir}/benchmarks/_parts/1.NN_{rule}.tsv`
-  (per-rule benchmarks live under `_parts/`; a `gather_benchmarks` rule merges
-  them into one `benchmarks/wf1_benchmarks.md` (Markdown table, `rule` column +
-  `TOTAL` row), via `src/merge_benchmarks.py`)
+- `{project_dir}/logs/_parts/1.NN_{rule}.log`, `{project_dir}/benchmarks/_parts/1.NN_{rule}.tsv`
+  (per-rule logs AND benchmarks live under `_parts/`; `gather_logs` (1.16) merges
+  the logs into one `logs/wf1_model_creation.log` via
+  `blueearth_cst/shared/merge_logs.py` and then **deletes** the parts, and
+  `gather_benchmarks` (1.14) merges the benchmarks into one
+  `benchmarks/wf1_benchmarks.md` (Markdown table, `rule` column + `TOTAL` row)
+  via `merge_benchmarks.py`. All three workflows follow this scheme — WF2 2.07,
+  WF3 3.13.)
   — ephemeral run artifacts (R3 §6); not manifest targets, not committed. The
   `1.NN_` prefix is the `W.NN` rule-numbering scheme (naming.md §9).
 

@@ -220,22 +220,26 @@ snapshot, or the snapshot bakes in files the workflow no longer produces.
 
 ---
 
-## One log per workflow
+## One log per workflow (all three workflows)
 
-WF2 used to leave five log files in `logs/` — two merged per-fan-out-stage logs
-plus three written directly by the single-job rules — so following one run meant
-opening five files and knowing the order to read them in. It now writes exactly
-one:
+Every workflow used to scatter its run across many log files — WF2 left five in
+`logs/`, WF1 thirteen, and WF3 wrote hundreds (3.05/3.07/3.09 log one file per
+`(realization, stress-test)` combination and 3.10 one per batch). Following a
+single run meant opening all of them and knowing the order to read them in.
 
-```
-logs/wf2_climate_projections.log
-```
+Each workflow now writes exactly one log:
 
-Every rule logs into `logs/_parts/` and rule 2.07 `gather_logs` merges the parts,
-then deletes them and prunes the emptied directories — so after a clean full run
-there is no `logs/_parts/` either. The merged file carries **one** provenance
-header at the top (the per-part `# BlueEarth-CST | project: … | log: … | started …`
-blocks are stripped), then one section per rule:
+| Workflow | Merged log | Gather rule |
+| --- | --- | --- |
+| `Snakefile_model_creation` | `logs/wf1_model_creation.log` | 1.16 `gather_logs` |
+| `Snakefile_climate_projections` | `logs/wf2_climate_projections.log` | 2.07 `gather_logs` |
+| `Snakefile_climate_experiment` | `<exp_dir>/logs/wf3_climate_experiment.log` | 3.13 `gather_logs` |
+
+Every rule logs into `logs/_parts/`, the gather rule merges the parts, then
+deletes them and prunes the emptied directories — so after a clean full run there
+is no `logs/_parts/` either. Each merged file carries **one** provenance header at
+the top (the per-part `# BlueEarth-CST | project: … | log: … | started …` blocks
+are stripped), then one section per rule:
 
 ```
 ================================================================================
@@ -246,12 +250,26 @@ blocks are stripped), then one section per rule:
 19:39:26 - fetch - INFO - raw cache_hit digest=b352f7bd93d0 (…)
 ```
 
-Sections are in rule-number order (matching `benchmarks/wf2_benchmarks.md`), and a
-fan-out rule gets one `--` sub-header per series. After a **partial** re-run only
-the rules that actually re-ran have parts, so the rewritten log marks the others
-`# (no part from this run — rule was already up to date)` — the log describes the run that produced it,
-not an accumulated history. WF1 and WF3 still write one file per rule; they are
-unchanged.
+Sections are in rule-number order (matching the workflow's `benchmarks/*.md`), and
+a fan-out rule gets one `--` sub-header per member — the CMIP6 series above, or
+WF3's `rlz_2_cst_1` / `batch_0`. Members sort naturally, so `rlz_2` precedes
+`rlz_10`.
+
+Two behaviours to know:
+
+- After a **partial** re-run only the rules that actually re-ran have parts, so
+  the rewritten log marks the others
+  `# (no part from this run — rule was already up to date)`. The log describes the
+  run that produced it, not an accumulated history.
+- `extract_climate_grid` is one rule shared by all three workflows (1.10 = 2.11 =
+  3.02). Run in order, WF1 builds the shared climate store and the others find it
+  current, so that section normally carries the same marker in WF2's and WF3's
+  logs — the work is recorded in `wf1_model_creation.log`, not missing.
+
+Snakemake cannot clean logs it no longer declares, so an existing project keeps
+the old per-rule files. Delete them once (they are listed under "Post-migration
+cleanup" above for WF2; for WF1 and WF3 remove `logs/1.*.log` and
+`<exp_dir>/logs/3.*` respectively).
 
 ---
 

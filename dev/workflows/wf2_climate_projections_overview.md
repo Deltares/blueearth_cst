@@ -158,12 +158,19 @@ stripped: a near-identical three-line block per rule was bulk, not information),
 then one `== W.NN  rule_name` banner per rule, and inside a fan-out rule's section
 one `-- {series_key}` sub-header per member.
 
-Part paths come from `params.parts` — an explicit list in rule order, not a glob,
-so an orphan dir from a renamed rule (`test_local` still holds
-`2.04_monthly_change/`) is neither merged as a phantom section nor deleted.
-Section order is **rule number**, matching the rule map and the benchmark table,
-not execution order (2.11 runs first). `input:` is the terminal artifact set, so
-the rule is scheduled after every logging rule.
+`params.rules` is an ordered list of rule **labels**, not part paths; `merge_logs`
+lists each label's part dir to find its members, so a fan-out width lives only in
+the rule that owns it. Scoping discovery to the label list is what keeps it from
+being a glob: an orphan dir from a renamed rule (`test_local` still holds
+`2.04_monthly_change/`) is not a label, so it is neither merged as a phantom
+section nor deleted. Section order is **rule number**, matching the rule map and
+the benchmark table, not execution order (2.11 runs first). `input:` is the
+terminal artifact set, so the rule is scheduled after every logging rule.
+
+The rule is shared verbatim by all three workflows — WF1 1.16
+(`logs/wf1_model_creation.log`), WF3 3.13
+(`{exp_dir}/logs/wf3_climate_experiment.log`) — differing only in the label list,
+the parts dir and the output name.
 
 Same partial-re-run caveat as 2.10: only the rules that re-ran have parts, so the
 rewritten log marks the rest `# (no part from this run — rule was already up to date)`. The artifact
@@ -286,8 +293,9 @@ proposals.
 
 6. **~~The three `gather_*_logs` rules are identical modulo wildcards.~~
    RESOLVED.** They were the same script and shape differing only in which
-   `expand()` fed the barrier and which `_parts` dir fed `params.parts` — which
-   is why they collapsed into the single `gather_logs` (2.07).
+   `expand()` fed the barrier and which `_parts` dir fed their part list — which
+   is why they collapsed into the single `gather_logs` (2.07), now shared by all
+   three workflows.
 
 7. **Both gather rules are invisible in the cost picture.** 2.07 and 2.10 declare
    neither `log:` nor `benchmark:`, so their contribution never reaches

@@ -179,12 +179,48 @@ wf2_snapshot_digest = file_digest_or_absent(wf2_snapshot_path)
 # not execution order (the DAG fans out over RLZ_NUM x ST_NUM realizations).
 # Convention: dev/conventions/naming.md.
 
+# --- log layout ---------------------------------------------------------------
+# EVERY WF3 rule that logs writes a PART under <exp_dir>/logs/_parts/, and rule
+# 3.13 merges the parts into ONE <exp_dir>/logs/wf3_climate_experiment.log, then
+# deletes them. So the only file left in the experiment's logs/ after a full run
+# is that merged log — matching WF1 (1.16) and WF2 (2.07), and the deal
+# benchmarks/wf3_benchmarks.md already had.
+#
+# LOG_RULES is the merge order: rule LABELS, not part paths. merge_logs lists each
+# label's part dir to find its members, which matters most here: 3.05/3.07/3.09
+# fan out over RLZ_NUM x ST_NUM and 3.10 over the batch split, so an explicit part
+# list would re-derive ST_START, RLZ_NUM and the `_batches` arithmetic in a second
+# place that could drift from the rules that own it. Discovery is scoped to these
+# labels, so it is not a blind glob: an orphan dir from a renamed rule is not a
+# label and is never read. Order is by RULE NUMBER, matching the rule map and
+# benchmarks/wf3_benchmarks.md. 3.01 copy_config declares no `log:`.
+WORKFLOW_LOG_NAME = "wf3_climate_experiment.log"
+LOG_PARTS_DIR = f"{exp_dir}/logs/_parts"
+LOG_RULES = [
+    "3.00b_check_project_consistency",
+    # 3.02 is the SHARED store rule (= WF1's 1.10). Run in pipeline order WF1
+    # builds the store and WF3 finds it current, so this section usually reads
+    # "no part from this run". Listed anyway: WF3 standalone does build it, and
+    # an unlisted part would be neither merged nor cleaned up.
+    "3.02_extract_climate_grid",
+    "3.03_climate_stress_parameters",
+    "3.04_prepare_weagen_config",
+    "3.05_prepare_weagen_config_st",
+    "3.06_generate_weather_realization",
+    "3.07_generate_climate_stress_test",
+    "3.08_climate_data_catalog",
+    "3.09_downscale_climate_realization",
+    "3.10_run_wflow",
+    "3.11_export_wflow_results",
+]
+
 # 3.00  all — target aggregator: stress-test Qstats + basin indicators
 rule all:
     input:
         Qstats = f"{indicators_dir}/Qstats.csv",
         basin = f"{indicators_dir}/basin.csv",
         snake_config = f"{exp_dir}/config/snake_config_climate_experiment.yml",
+        workflow_log = f"{exp_dir}/logs/{WORKFLOW_LOG_NAME}",
         benchmarks = f"{exp_dir}/benchmarks/wf3_benchmarks.md",
 
 # 3.00b check_project_consistency — drift guard: fail loud if this experiment
@@ -215,7 +251,7 @@ rule check_project_consistency:
         sentinel = f"{exp_dir}/.project_consistency_ok",
         guard_ok = f"{store_dir}/.guard_ok",
     log:
-        f"{exp_dir}/logs/3.00b_check_project_consistency.log",
+        f"{LOG_PARTS_DIR}/3.00b_check_project_consistency.log",
     benchmark:
         f"{exp_dir}/benchmarks/_parts/3.00b_check_project_consistency.tsv",
     script:
@@ -263,7 +299,7 @@ rule extract_climate_grid:
     output:
         **CLIMATE_STORE.outputs,
     log:
-        f"{exp_dir}/logs/3.02_extract_climate_grid.log",
+        f"{LOG_PARTS_DIR}/3.02_extract_climate_grid.log",
     benchmark:
         f"{exp_dir}/benchmarks/_parts/3.02_extract_climate_grid.tsv",
     script:
@@ -278,7 +314,7 @@ rule climate_stress_parameters:
     output:
         st_csv_fns = [f"{wg_dir}/_work/cst_{st_num}.csv" for st_num in np.arange(1, ST_NUM+1)]
     log:
-        f"{exp_dir}/logs/3.03_climate_stress_parameters.log",
+        f"{LOG_PARTS_DIR}/3.03_climate_stress_parameters.log",
     benchmark:
         f"{exp_dir}/benchmarks/_parts/3.03_climate_stress_parameters.tsv",
     script:
@@ -304,7 +340,7 @@ rule prepare_weagen_config:
         sim_years = wflow_run_length,
         nc_file_prefix = "rlz"
     log:
-        f"{exp_dir}/logs/3.04_prepare_weagen_config.log",
+        f"{LOG_PARTS_DIR}/3.04_prepare_weagen_config.log",
     benchmark:
         f"{exp_dir}/benchmarks/_parts/3.04_prepare_weagen_config.tsv",
     script:
@@ -324,7 +360,7 @@ rule prepare_weagen_config_st:
         nc_file_prefix = "rlz_"+"{rlz_num}"+"_cst",
         nc_file_suffix = "{st_num}",
     log:
-        f"{exp_dir}/logs/3.05_prepare_weagen_config_st/" + "rlz_{rlz_num}_cst_{st_num}.log",
+        f"{LOG_PARTS_DIR}/3.05_prepare_weagen_config_st/" + "rlz_{rlz_num}_cst_{st_num}.log",
     benchmark:
         f"{exp_dir}/benchmarks/_parts/3.05_prepare_weagen_config_st/" + "rlz_{rlz_num}_cst_{st_num}.tsv",
     script:
@@ -339,7 +375,7 @@ rule generate_weather_realization:
     output:
         temp([f"{wg_dir}/output/rlz_{rlz_num}_cst_0.nc" for rlz_num in np.arange(1, RLZ_NUM+1)])
     log:
-        f"{exp_dir}/logs/3.06_generate_weather_realization.log",
+        f"{LOG_PARTS_DIR}/3.06_generate_weather_realization.log",
     benchmark:
         f"{exp_dir}/benchmarks/_parts/3.06_generate_weather_realization.tsv",
     shell:
@@ -364,7 +400,7 @@ rule generate_climate_stress_test:
     output:
         rlz_st_nc = temp(f"{wg_dir}/output/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc")
     log:
-        f"{exp_dir}/logs/3.07_generate_climate_stress_test/" + "rlz_{rlz_num}_cst_{st_num}.log",
+        f"{LOG_PARTS_DIR}/3.07_generate_climate_stress_test/" + "rlz_{rlz_num}_cst_{st_num}.log",
     benchmark:
         f"{exp_dir}/benchmarks/_parts/3.07_generate_climate_stress_test/" + "rlz_{rlz_num}_cst_{st_num}.tsv",
     shell:
@@ -391,7 +427,7 @@ rule climate_data_catalog:
         # (now weather_generator/output/, R07 B5).
         oro_path = f"{store_dir}/orography.nc",
     log:
-        f"{exp_dir}/logs/3.08_climate_data_catalog.log",
+        f"{LOG_PARTS_DIR}/3.08_climate_data_catalog.log",
     benchmark:
         f"{exp_dir}/benchmarks/_parts/3.08_climate_data_catalog.tsv",
     script:
@@ -418,7 +454,7 @@ rule downscale_climate_realization:
         horizontime_climate = horizontime_climate,
         run_length = wflow_run_length,
     log:
-        f"{exp_dir}/logs/3.09_downscale_climate_realization/" + "rlz_{rlz_num}_cst_{st_num}.log",
+        f"{LOG_PARTS_DIR}/3.09_downscale_climate_realization/" + "rlz_{rlz_num}_cst_{st_num}.log",
     benchmark:
         f"{exp_dir}/benchmarks/_parts/3.09_downscale_climate_realization/" + "rlz_{rlz_num}_cst_{st_num}.tsv",
     script:
@@ -494,7 +530,7 @@ for _b, _members in _batches.items():
             members = _members,
             driver = _batch_driver,
         log:
-            f"{exp_dir}/logs/3.10_run_wflow/batch_{_b}.log",
+            f"{LOG_PARTS_DIR}/3.10_run_wflow/batch_{_b}.log",
         benchmark:
             f"{exp_dir}/benchmarks/_parts/3.10_run_wflow/batch_{_b}.tsv",
         shell:
@@ -520,7 +556,7 @@ rule export_wflow_results:
         Tlow = get_config(my_cfg, "Tlow", 2),
         Tpeak = get_config(my_cfg, "Tpeak", 10),
     log:
-        f"{exp_dir}/logs/3.11_export_wflow_results.log",
+        f"{LOG_PARTS_DIR}/3.11_export_wflow_results.log",
     benchmark:
         f"{exp_dir}/benchmarks/_parts/3.11_export_wflow_results.tsv",
     script:
@@ -541,3 +577,31 @@ rule gather_benchmarks:
         parts_dir = f"{exp_dir}/benchmarks/_parts",
         workflow_num = 3,
     script: "blueearth_cst/shared/merge_benchmarks.py"
+
+# --- log gather ---------------------------------------------------------------
+# 3.13  gather_logs — merge every WF3 log part into ONE workflow log.
+#
+# Same rule as WF1's 1.16 and WF2's 2.07, against the same script; only the label
+# list, the parts dir and the output name differ. `input:` is the final indicator
+# set (identical to gather_benchmarks), which is what schedules it LAST: every
+# logging rule is upstream of it. The parts stay in `params:` — they are `log:`
+# files, and Snakemake does not track those in the DAG, so naming them as `input:`
+# would demand them as buildable targets.
+#
+# This is the workflow where the merge earns most: 3.05/3.07/3.09 write one part
+# per (rlz, cst) and 3.10 one per batch, so the experiment's logs/ held hundreds
+# of files across four subdirectories. The merge DELETES the parts it consumed and
+# prunes the emptied dirs, so a clean full run leaves one file. After a PARTIAL
+# re-run only the re-run rules have parts, so the rewritten log marks the rest
+# "no part from this run" — the same trade `merge_benchmarks` makes (R7-9).
+rule gather_logs:
+    message: rule_banner("3.13", "gather_logs")
+    input:
+        f"{indicators_dir}/Qstats.csv",
+        f"{indicators_dir}/basin.csv",
+    output:
+        f"{exp_dir}/logs/{WORKFLOW_LOG_NAME}",
+    params:
+        rules = LOG_RULES,
+        parts_dir = LOG_PARTS_DIR,
+    script: "blueearth_cst/shared/merge_logs.py"

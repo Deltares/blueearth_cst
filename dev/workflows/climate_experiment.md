@@ -107,11 +107,15 @@ manifest targets):
 - `extract_historical.nc` (line 73) — NOT `temp`, but consumed as `ancient(...)`
   (line 117), so grandfathered-stale.
 
-**Side-effect artifacts:** `{exp_dir}/logs/3.NN_{rule}[/…].log`,
+**Side-effect artifacts:** `{exp_dir}/logs/_parts/3.NN_{rule}[/…].log`,
 `{exp_dir}/benchmarks/_parts/3.NN_{rule}[/…].tsv` (per-experiment since P3-1;
-per-rule benchmarks under
-`_parts/`; `gather_benchmarks` merges WF3's into one `{exp_dir}/benchmarks/wf3_benchmarks.md`
-(Markdown table, `rule` column + `TOTAL` row)) — ephemeral once the R3
+per-rule logs AND benchmarks under `_parts/`; `gather_logs` (3.13) merges the
+logs into one `{exp_dir}/logs/wf3_climate_experiment.log` and then **deletes**
+the parts, `gather_benchmarks` (3.12) merges the benchmarks into one
+`{exp_dir}/benchmarks/wf3_benchmarks.md` (Markdown table, `rule` column +
+`TOTAL` row). All three workflows follow this scheme — WF1 1.16, WF2 2.07.
+WF3 is where it earns most: 3.05/3.07/3.09 write one log part per (rlz, cst)
+and 3.10 one per batch.) — ephemeral once the R3
 log/benchmark convention reaches this workflow (R5 code commits); gitignored,
 never fingerprinted or committed. The `3.NN_` prefix is the `W.NN`
 rule-numbering scheme (naming.md §9); wildcard rules keep their

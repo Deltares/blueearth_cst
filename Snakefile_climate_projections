@@ -503,31 +503,31 @@ def get_horizon(wildcards):
 # only WF2 file left in logs/ after a full run is that merged log — the same deal
 # benchmarks/wf2_benchmarks.md already gets from `gather_benchmarks`.
 #
-# LOG_PARTS is the merge order, and it is written out here rather than globbed:
-# a glob would sweep in orphan part dirs left by renamed rules (test_local still
-# holds `2.02_monthly_stats_hist`, `2.03_monthly_stats_fut`, `2.04_monthly_change`
-# from the pre-step-4d names) and show them as phantom sections of a run they had
-# no part in. An explicit list also fixes the section order as rule order, which
-# a directory walk would not. Order is by RULE NUMBER, matching the rule map and
-# benchmarks/wf2_benchmarks.md — not execution order (2.11 builds the store stage
-# A reads, so it runs first). Each section carries its own timestamps, so
-# chronology stays readable inside a section without reordering the file.
+# LOG_RULES is the merge order: rule LABELS, not part paths. merge_logs lists
+# each label's part dir to find its members, so the fan-out width lives in one
+# place — the rule that owns it. Naming the labels rather than globbing `_parts/`
+# is what keeps an orphan dir from a renamed rule out of the file (test_local
+# still holds `2.02_monthly_stats_hist`, `2.03_monthly_stats_fut`,
+# `2.04_monthly_change` from the pre-step-4d names): not a label, never read.
+#
+# Order is by RULE NUMBER, matching the rule map and benchmarks/wf2_benchmarks.md
+# — not execution order (2.11 builds the store stage A reads, so it runs first).
+# Each section carries its own timestamps, so chronology stays readable inside a
+# section without reordering the file.
 WORKFLOW_LOG_NAME = "wf2_climate_projections.log"
 LOG_PARTS_DIR = f"{project_dir}/logs/_parts"
-LOG_PARTS = (
-    [f"{LOG_PARTS_DIR}/2.01_fetch_gcm_raw/{key}.log" for key in SERIES]
-    + [f"{LOG_PARTS_DIR}/2.02_reduce_gcm_series/{key}.log" for key in SERIES]
-    + [
-        f"{LOG_PARTS_DIR}/2.04_derive_change_factors.log",
-        f"{LOG_PARTS_DIR}/2.06_plot_climate_proj_timeseries.log",
-        # 2.11 is the SHARED store rule (= WF1's 1.10). Run in pipeline order,
-        # WF1 builds the store and WF2 finds it current, so 2.11 does not re-run
-        # and its section reads "no part from this run" on most runs. Listed
-        # anyway: when WF2 *is* run standalone it does build the store, and an
-        # unlisted part would be neither merged nor cleaned up.
-        f"{LOG_PARTS_DIR}/2.11_extract_climate_grid.log",
-    ]
-)
+LOG_RULES = [
+    "2.01_fetch_gcm_raw",
+    "2.02_reduce_gcm_series",
+    "2.04_derive_change_factors",
+    "2.06_plot_climate_proj_timeseries",
+    # 2.11 is the SHARED store rule (= WF1's 1.10). Run in pipeline order, WF1
+    # builds the store and WF2 finds it current, so 2.11 does not re-run and its
+    # section reads "no part from this run" on most runs. Listed anyway: when WF2
+    # *is* run standalone it does build the store, and an unlisted part would be
+    # neither merged nor cleaned up.
+    "2.11_extract_climate_grid",
+]
 
 # 2.00  all — target aggregator: change-factor summaries + projection plots
 rule all:
@@ -895,10 +895,13 @@ rule plot_climate_proj_timeseries:
 # The merge DELETES the parts it consumed and prunes the emptied dirs, so a clean
 # full run leaves no logs/_parts/ at all. Consequence to know: after a PARTIAL
 # re-run only the re-run rules have parts, so the merged log rewrites with the
-# untouched sections marked "no part from this run" rather than
-# resurrecting text it no longer has. That is the same trade `merge_benchmarks`
-# already makes (dev/followups.md R7-9) — the artifact describes the run that
-# produced it, not an accumulated history.
+# untouched sections marked "no part from this run" rather than resurrecting text
+# it no longer has. That is the same trade `merge_benchmarks` already makes
+# (dev/followups.md R7-9) — the artifact describes the run that produced it, not
+# an accumulated history.
+#
+# WF1 (1.16) and WF3 (3.13) declare the same rule against the same script; only
+# the label list, the parts dir and the output name differ.
 rule gather_logs:
     message: rule_banner("2.07", "gather_logs")
     input:
@@ -908,7 +911,7 @@ rule gather_logs:
     output:
         f"{project_dir}/logs/{WORKFLOW_LOG_NAME}",
     params:
-        parts = LOG_PARTS,
+        rules = LOG_RULES,
         parts_dir = LOG_PARTS_DIR,
     script: "blueearth_cst/shared/merge_logs.py"
 
