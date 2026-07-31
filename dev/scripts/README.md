@@ -30,6 +30,13 @@ re-run when a similar symptom appears. Not part of any workflow.
 | [`inspect_spatial_ref.py`](inspect_spatial_ref.py) | Whether `spatial_ref.x_dim` / `y_dim` attrs propagate through weathergenr's `write_netcdf` (they don't — see the weathergenr items in `dev/followups.md` R5 section). |
 | [`inspect_weathergenr.R`](inspect_weathergenr.R) | Lists the installed weathergenr's exported API and the signatures of functions called by `src/weathergen/generate_weather.R`. Used to detect signature drift between the package and the workflow. |
 
+## Workflow inspection
+
+| Script | What it does |
+|---|---|
+| [`rule_dag_levels.py`](rule_dag_levels.py) | Print a Snakefile's rules in **DAG order** with per-rule job counts (runnable vs already up to date). Snakemake's own `Job stats:` table is alphabetical and no flag re-sorts it, so it never shows what runs before what. Reads `--rulegraph dot` (structure) + `--dag dot` (job counts); executes nothing. Use `dot` and not `--d3dag` — on snakemake 9.6.2 the D3 JSON drops edges (48 vs the DOT graph's 73 on WF2), and `--rulegraph mermaid-js` emits self-edges. |
+| [`prune_series_cache.py`](prune_series_cache.py) | Report (and with `--delete`, remove) orphaned WF2 series left behind by a key-grammar or config change. Dry run by default. Must run **before** any reference snapshot, or the snapshot bakes the orphans in. |
+
 ## Baseline / regression
 
 | Script | What it does |
