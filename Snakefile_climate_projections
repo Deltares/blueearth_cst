@@ -767,9 +767,21 @@ rule plot_climate_proj_timeseries:
         save_grids = save_grids,
         change_grids = [(clim_project_dir + f"/monthly_change_mean_grid-{mod}_{sc}_{hz}.nc") for mod,sc,hz in list(itertools.product(models,scenarios,future_horizons))],
     output:
-        precip_plt = (clim_project_dir + "/plots/precipitation_anomaly_projections_abs.png"),
-        temp_plt = (clim_project_dir + "/plots/temperature_anomaly_projections_abs.png"),
-        timeseries_csv = (clim_project_dir + "/timeseries/gcm_timeseries.nc"),
+        # Step 7-i: ALL EIGHT figures declared. Three were declared and eight were
+        # written, so five were invisible to Snakemake -- not cleaned on failure,
+        # not remade when deleted, and unusable as a dependency. Declaring them is
+        # what makes them artifacts rather than side effects.
+        precip_anom_abs_plt = (clim_project_dir + "/plots/precipitation_anomaly_projections_abs.png"),
+        precip_anom_rel_plt = (clim_project_dir + "/plots/precipitation_anomaly_projections_anom.png"),
+        precip_monthly_abs_plt = (clim_project_dir + "/plots/precipitation_monthly_projections_abs.png"),
+        precip_monthly_rel_plt = (clim_project_dir + "/plots/precipitation_monthly_projections_anom.png"),
+        temp_anom_abs_plt = (clim_project_dir + "/plots/temperature_anomaly_projections_abs.png"),
+        temp_anom_rel_plt = (clim_project_dir + "/plots/temperature_anomaly_projections_anom.png"),
+        temp_monthly_abs_plt = (clim_project_dir + "/plots/temperature_monthly_projections_abs.png"),
+        temp_monthly_rel_plt = (clim_project_dir + "/plots/temperature_monthly_projections_anom.png"),
+        # Step 7-i: was `timeseries_csv`, on a netCDF. A wrong name on a declared
+        # output is worse than an undeclared one, because it reads as deliberate.
+        timeseries_nc = (clim_project_dir + "/timeseries/gcm_timeseries.nc"),
     log:
         f"{project_dir}/logs/2.06_plot_climate_proj_timeseries.log",
     benchmark:
