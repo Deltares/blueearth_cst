@@ -497,6 +497,33 @@ def get_horizon(wildcards):
 # {series_key}; stage B no longer fans out at all since step 4d).
 # Convention: dev/conventions/naming.md.
 
+# --- log layout ---------------------------------------------------------------
+# EVERY WF2 rule that logs writes a PART under logs/_parts/, and rule 2.07 merges
+# the parts into ONE logs/wf2_climate_projections.log, then deletes them. So the
+# only WF2 file left in logs/ after a full run is that merged log — the same deal
+# benchmarks/wf2_benchmarks.md already gets from `gather_benchmarks`.
+#
+# LOG_PARTS is the merge order, and it is written out here rather than globbed:
+# a glob would sweep in orphan part dirs left by renamed rules (test_local still
+# holds `2.02_monthly_stats_hist`, `2.03_monthly_stats_fut`, `2.04_monthly_change`
+# from the pre-step-4d names) and show them as phantom sections of a run they had
+# no part in. An explicit list also fixes the section order as rule order, which
+# a directory walk would not. Order is by RULE NUMBER, matching the rule map and
+# benchmarks/wf2_benchmarks.md — not execution order (2.11 builds the store stage
+# A reads, so it runs first). Each section carries its own timestamps, so
+# chronology stays readable inside a section without reordering the file.
+WORKFLOW_LOG_NAME = "wf2_climate_projections.log"
+LOG_PARTS_DIR = f"{project_dir}/logs/_parts"
+LOG_PARTS = (
+    [f"{LOG_PARTS_DIR}/2.01_fetch_gcm_raw/{key}.log" for key in SERIES]
+    + [f"{LOG_PARTS_DIR}/2.02_reduce_gcm_series/{key}.log" for key in SERIES]
+    + [
+        f"{LOG_PARTS_DIR}/2.04_derive_change_factors.log",
+        f"{LOG_PARTS_DIR}/2.06_plot_climate_proj_timeseries.log",
+        f"{LOG_PARTS_DIR}/2.11_extract_climate_grid.log",
+    ]
+)
+
 # 2.00  all — target aggregator: change-factor summaries + projection plots
 rule all:
     input:
@@ -511,13 +538,11 @@ rule all:
         precip_plt = (clim_project_dir + f"/plots/{clim_project}_precip_annual_absolute.png"),
         temp_plt = (clim_project_dir + f"/plots/{clim_project}_temp_annual_absolute.png"),
         snake_config = f"{project_dir}/config/runs/snake_config_climate_projections.yml",
-        # ONE merged log per fan-out stage. Step 3 collapses two stage-A rules
-        # into one, so the two stage-A gathers collapse with them.
-        raw_log = f"{project_dir}/logs/2.01_fetch_gcm_raw.log",
-        series_log = f"{project_dir}/logs/2.02_reduce_gcm_series.log",
-        # Step 4d: stage B is one job, so its log is written directly by the rule
-        # -- there is no per-part fan-out left to gather (rule 2.09 removed).
-        change_log = f"{project_dir}/logs/2.04_derive_change_factors.log",
+        # ONE merged log for the whole workflow (was: one per fan-out stage,
+        # alongside four rules writing logs/2.NN_*.log directly -- five files a
+        # reader had to open in the right order to follow one run). Every rule
+        # now logs into logs/_parts/ and rule 2.07 merges the lot.
+        workflow_log = f"{project_dir}/logs/{WORKFLOW_LOG_NAME}",
         benchmarks = f"{project_dir}/benchmarks/wf2_benchmarks.md",
 
 # The `ruleorder:` directive is GONE as of step 4d, and not by choice: it named
@@ -556,7 +581,7 @@ rule extract_climate_grid:
     output:
         **CLIMATE_STORE.outputs,
     log:
-        f"{project_dir}/logs/2.11_extract_climate_grid.log",
+        f"{LOG_PARTS_DIR}/2.11_extract_climate_grid.log",
     benchmark:
         f"{project_dir}/benchmarks/_parts/2.11_extract_climate_grid.tsv",
     script:
@@ -624,7 +649,7 @@ rule fetch_gcm_raw:
             series_digest_components(*SERIES[wildcards.series_key])
         ),
     log:
-        project_dir + "/logs/_parts/2.01_fetch_gcm_raw/{series_key}.log",
+        LOG_PARTS_DIR + "/2.01_fetch_gcm_raw/{series_key}.log",
     benchmark:
         project_dir + "/benchmarks/_parts/2.01_fetch_gcm_raw/{series_key}.tsv",
     script: "blueearth_cst/projections/fetch_gcm_raw.py"
@@ -672,7 +697,7 @@ rule reduce_gcm_series:
         store_index = STORE_INDEX,
         buffer_degrees = REGION_BUFFER_DEGREES,
     log:
-        project_dir + "/logs/_parts/2.02_reduce_gcm_series/{series_key}.log",
+        LOG_PARTS_DIR + "/2.02_reduce_gcm_series/{series_key}.log",
     benchmark:
         project_dir + "/benchmarks/_parts/2.02_reduce_gcm_series/{series_key}.tsv",
     script: "blueearth_cst/projections/get_stats_climate_proj.py"
@@ -795,7 +820,7 @@ rule derive_change_factors:
             for key, (model, scenario, member) in POINT_KEYS.items()
         ],
     log:
-        f"{project_dir}/logs/2.04_derive_change_factors.log",
+        f"{LOG_PARTS_DIR}/2.04_derive_change_factors.log",
     benchmark:
         f"{project_dir}/benchmarks/_parts/2.04_derive_change_factors.tsv",
     script: "blueearth_cst/projections/derive_change_factors.py"
@@ -841,55 +866,46 @@ rule plot_climate_proj_timeseries:
         # of the tier it duplicated. The durable timeseries tier is `scalar/`;
         # `summary/*_change_factors_*.csv` is the analysis-ready form.
     log:
-        f"{project_dir}/logs/2.06_plot_climate_proj_timeseries.log",
+        f"{LOG_PARTS_DIR}/2.06_plot_climate_proj_timeseries.log",
     benchmark:
         f"{project_dir}/benchmarks/_parts/2.06_plot_climate_proj_timeseries.tsv",
     script: "blueearth_cst/projections/plot_proj_timeseries.py"
 
 # --- log gather ---------------------------------------------------------------
-# 2.02/2.03/2.04 run one job per model (parallel-safe per-model logs under
-# logs/_parts/). These gather steps run once per stage, after all that stage's
-# jobs, concatenating the per-model parts into a single logs/<rule>.log,
-# regenerated fresh each run. Inputs are the stage's .nc outputs (all model jobs
-# done); the exact part paths are passed via params so stale parts are excluded.
-
-# gather the stage-A per-series logs -> 2.02_reduce_gcm_series.log
-# ONE gather, because one rule fans out (step 3). The two stage-A gathers
-# collapsed with the two rules they served.
-rule gather_series_logs:
-    message: rule_banner("2.07", "gather_series_logs")
+# 2.07  gather_logs — merge every WF2 log part into ONE workflow log.
+#
+# Replaces the two per-stage gathers (`gather_series_logs` 2.07 /
+# `gather_raw_logs` 2.08). Those merged only the fan-out rules, each into its own
+# logs/2.NN_<rule>.log, while the four single-job rules wrote their logs straight
+# to logs/ — so following one run meant opening five files and knowing their
+# order. One workflow log with `==` rule banners is the same information in
+# reading order.
+#
+# `input:` is the terminal artifact set (identical to `gather_benchmarks`), which
+# is what schedules this LAST: every logging rule is upstream of it. The parts
+# themselves stay in `params:` — they are `log:` files, and Snakemake does not
+# track those in the DAG, so naming them as `input:` would demand them as
+# buildable targets.
+#
+# The merge DELETES the parts it consumed and prunes the emptied dirs, so a clean
+# full run leaves no logs/_parts/ at all. Consequence to know: after a PARTIAL
+# re-run only the re-run rules have parts, so the merged log rewrites with the
+# untouched sections marked "did not run in this invocation" rather than
+# resurrecting text it no longer has. That is the same trade `merge_benchmarks`
+# already makes (dev/followups.md R7-9) — the artifact describes the run that
+# produced it, not an accumulated history.
+rule gather_logs:
+    message: rule_banner("2.07", "gather_logs")
     input:
-        [f"{clim_project_dir}/scalar/{key}.nc" for key in SERIES],
+        (clim_project_dir + f"/summary/{clim_project}_change_factors_annual.csv"),
+        (clim_project_dir + f"/plots/{clim_project}_change_factor_cloud.png"),
+        (clim_project_dir + f"/plots/{clim_project}_precip_annual_absolute.png"),
     output:
-        f"{project_dir}/logs/2.02_reduce_gcm_series.log",
+        f"{project_dir}/logs/{WORKFLOW_LOG_NAME}",
     params:
-        parts = [
-            f"{project_dir}/logs/_parts/2.02_reduce_gcm_series/{key}.log"
-            for key in SERIES
-        ],
+        parts = LOG_PARTS,
+        parts_dir = LOG_PARTS_DIR,
     script: "blueearth_cst/shared/merge_logs.py"
-
-# gather 2.01 per-series fetch logs -> 2.01_fetch_gcm_raw.log
-# One merged log per fan-out stage (the convention above); the raw stage is a
-# fan-out of its own since revision 6, so it gets its own gather rather than being
-# folded into 2.02's.
-rule gather_raw_logs:
-    message: rule_banner("2.08", "gather_raw_logs")
-    input:
-        [f"{clim_project_dir}/raw/{key}.nc" for key in SERIES],
-    output:
-        f"{project_dir}/logs/2.01_fetch_gcm_raw.log",
-    params:
-        parts = [
-            f"{project_dir}/logs/_parts/2.01_fetch_gcm_raw/{key}.log"
-            for key in SERIES
-        ],
-    script: "blueearth_cst/shared/merge_logs.py"
-
-# Step 4d: `gather_change_logs` (2.09) is REMOVED. It merged the per-part logs of
-# the monthly_change fan-out; stage B is now one job that writes
-# logs/2.04_derive_change_factors.log directly, so there is nothing to gather. The
-# stage-A gathers stay -- fetch/reduce still fan out per series.
 
 # --- benchmark gather ---------------------------------------------------------
 # Merge WF2's per-rule benchmark parts (benchmarks/_parts/2.*) into one

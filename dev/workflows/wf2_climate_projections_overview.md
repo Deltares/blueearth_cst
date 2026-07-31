@@ -35,14 +35,14 @@ names — **definition order, not execution order**.
 | 2.03 | `copy_config` | `model/copy_config_files.py` | — |
 | 2.04 | `derive_change_factors` | `projections/derive_change_factors.py` | — (one job) |
 | 2.06 | `plot_climate_proj_timeseries` | `projections/plot_proj_timeseries.py` | — (gather) |
-| 2.07 | `gather_series_logs` | `shared/merge_logs.py` | — (gather) |
-| 2.08 | `gather_raw_logs` | `shared/merge_logs.py` | — (gather) |
+| 2.07 | `gather_logs` | `shared/merge_logs.py` | — (gather) |
 | 2.10 | `gather_benchmarks` | `shared/merge_benchmarks.py` | — (gather) |
 | 2.11 | `extract_climate_grid` | `model/extract_historical_climate.py` | — (shared store) |
 
-**Nine rules plus `all`, not the eight the design's §8 predicted.** The extra one
-is `gather_raw_logs`, which arrived with the fetch/reduce split (design revision
-6) after that count was written. Recorded rather than quietly reconciled.
+**Eight rules plus `all`**, matching the design's §8 count again. It briefly ran
+to nine: `gather_raw_logs` arrived with the fetch/reduce split (design revision
+6) after that count was written, and left when the two per-stage log gathers
+collapsed into the single workflow-level `gather_logs`.
 
 What went, and where it went:
 
@@ -52,11 +52,12 @@ What went, and where it went:
 | `monthly_change`, `monthly_change_scalar_merge` | `derive_change_factors`, one job (step 4d) |
 | `gather_stats_hist_logs`, `gather_stats_fut_logs` | `gather_series_logs` (step 3) |
 | `gather_change_logs` | nothing — stage B is one job and writes its own log (step 4d) |
+| `gather_series_logs`, `gather_raw_logs` | `gather_logs`, one merge for the whole workflow |
 | the `ruleorder:` directive | nothing — it named two rules that no longer exist (step 4d) |
 
 **Job count on the seed config** (3 models × 2 scenarios × 1 horizon = 9 series):
 1 (2.03 `copy_config`) + 9 (2.01) + 9 (2.02) + 1 (2.04) + 1 (2.06)
-+ 2 (2.07/2.08) + 1 (2.10) + 1 (2.11) = **25 jobs**, plus `all`.
++ 1 (2.07) + 1 (2.10) + 1 (2.11) = **24 jobs**, plus `all`.
 
 Stage A dominates the count and is where the parallelism is; everything from
 stage B down is single-job.
@@ -67,9 +68,9 @@ stage B down is single-job.
 
 ### 2.00 `all` — target aggregator
 
-Declares the workflow's terminal targets. Note that the merged logs and the
+Declares the workflow's terminal targets. Note that the merged log and the
 benchmark table are **targets**, not optional bookkeeping — WF2 is not complete
-until 2.07–2.10 have run.
+until 2.07 and 2.10 have run.
 
 | Direction | Item | Producer |
 | --- | --- | --- |
@@ -77,7 +78,7 @@ until 2.07–2.10 have run.
 | in | `{CPD}/plots/{proj}_change_factor_cloud.png` | 2.04 |
 | in | `{CPD}/plots/{proj}_{precip,temp}_annual_absolute.png` | 2.06 |
 | in | `{PD}/config/runs/snake_config_climate_projections.yml` | 2.01 |
-| in | `{PD}/logs/2.01_fetch_gcm_raw.log`, `2.02_reduce_gcm_series.log`, `2.04_derive_change_factors.log` | 2.08/2.07/2.04 |
+| in | `{PD}/logs/wf2_climate_projections.log` | 2.07 |
 | in | `{PD}/benchmarks/wf2_benchmarks.md` | 2.10 |
 
 ### 2.01 `fetch_gcm_raw` — `{series_key}`
@@ -94,7 +95,7 @@ windowed slice per `(model, experiment, member)` and writes it to local disk.
   transferring ~19 s, reducing ~0.2 s. `raw_digest_components` deliberately
   **excludes** the reducer hash, so editing a formula re-reads local disk instead
   of re-downloading nine sources.
-- **Consumed by:** 2.02, 2.08.
+- **Consumed by:** 2.02.
 
 ### 2.02 `reduce_gcm_series` — `{series_key}`
 
@@ -144,12 +145,29 @@ Reopens all scalar series and renders the eight figures. Figure-only since S8-02
 - **Out (all declared since 7-i):** the eight
   `{CPD}/plots/{proj}_{precip,temp}_{annual,monthly}_{absolute,change}.png`.
 
-### 2.07 / 2.08 `gather_*_logs`
+### 2.07 `gather_logs`
 
-`gather_series_logs` concatenates `logs/_parts/2.02_reduce_gcm_series/*.log` into
-`logs/2.02_reduce_gcm_series.log`; `gather_raw_logs` does the same for 2.01. Part
-paths come from params so stale parts are excluded. One gather per fan-out stage —
-stage B needs none, being a single job that writes its own log.
+**Every** WF2 rule that logs writes a part under `logs/_parts/`; this rule merges
+all of them into ONE `logs/wf2_climate_projections.log` and then deletes the
+parts, pruning the emptied dirs (so a clean full run leaves no `logs/_parts/`).
+That is the only WF2 file left in `logs/` — the deal `benchmarks/wf2_benchmarks.md`
+already had.
+
+The merged file carries **one** provenance header (the per-part headers are
+stripped: a near-identical three-line block per rule was bulk, not information),
+then one `== W.NN  rule_name` banner per rule, and inside a fan-out rule's section
+one `-- {series_key}` sub-header per member.
+
+Part paths come from `params.parts` — an explicit list in rule order, not a glob,
+so an orphan dir from a renamed rule (`test_local` still holds
+`2.04_monthly_change/`) is neither merged as a phantom section nor deleted.
+Section order is **rule number**, matching the rule map and the benchmark table,
+not execution order (2.11 runs first). `input:` is the terminal artifact set, so
+the rule is scheduled after every logging rule.
+
+Same partial-re-run caveat as 2.10: only the rules that re-ran have parts, so the
+rewritten log marks the rest `# (did not run in this invocation)`. The artifact
+describes the run that produced it, not an accumulated history.
 
 ### 2.10 `gather_benchmarks`
 
@@ -173,11 +191,11 @@ pinned by `tests/test_climate_store_contract.py`. WF2 declares it to obtain
         2.11 extract_climate_grid ─► store_region.geojson              │
                      │                                                 │
                      ▼                                                 │
-   ┌─► 2.01 fetch_gcm_raw {series_key} ─► raw/{key}.nc ──► 2.08 ───────┤
+   ┌─► 2.01 fetch_gcm_raw {series_key} ─► raw/{key}.nc                 │
    │        (the ONLY remote read)                                     │
    │             │                                                     │
    │             ▼                                                     │
-   └─► 2.02 reduce_gcm_series {series_key} ─► scalar/{key}.nc ─► 2.07 ─┤
+   └─► 2.02 reduce_gcm_series {series_key} ─► scalar/{key}.nc          │
                  │                                                     │
                  ▼                                                     │
         2.04 derive_change_factors  (ONE job)                          │
@@ -188,9 +206,18 @@ pinned by `tests/test_climate_store_contract.py`. WF2 declares it to obtain
                  │                                                     │
                  ▼ (ordering edge; the CSV is declared, unread)        │
         2.06 plot_climate_proj_timeseries ─► plots/*.png ──────────────┤
+                 │                                                     │
+                 ├─► 2.07 gather_logs ─► logs/wf2_climate_projections.log
+                 │        (+ deletes logs/_parts/)                     │
+                 │                                                     │
+                 └─► 2.10 gather_benchmarks ─► benchmarks/wf2_benchmarks.md
                                                                        │
-        2.10 gather_benchmarks ─► benchmarks/wf2_benchmarks.md ────────┘
+        (2.07 and 2.10 are `all` inputs too) ──────────────────────────┘
 ```
+
+Both gathers hang off the same terminal artifact set, which is what schedules
+them last; neither takes the parts it merges as `input:` (a `log:`/`benchmark:`
+file is not a DAG node).
 
 **Fan-out width on the seed config** (3 models × 3 experiments = 9 series):
 9 (2.01) → 9 (2.02) → 1 (2.04) → 1 (2.06). Stage A fans out at full width — since
@@ -257,14 +284,15 @@ proposals.
    schedules, tracks, nor cleans them, and a missing one fails at runtime rather
    than at DAG build.
 
-6. **The three `gather_*_logs` rules are identical modulo wildcards** — same
-   script, same shape, differing only in which `expand()` feeds the barrier and
-   which `_parts` dir feeds `params.parts`.
+6. **~~The three `gather_*_logs` rules are identical modulo wildcards.~~
+   RESOLVED.** They were the same script and shape differing only in which
+   `expand()` fed the barrier and which `_parts` dir fed `params.parts` — which
+   is why they collapsed into the single `gather_logs` (2.07).
 
-7. **Gather rules are invisible in the cost picture.** 2.07–2.09 declare neither
-   `log:` nor `benchmark:`, so their contribution never reaches
-   `wf2_benchmarks.md`. 2.10 deletes the parts it merged, so a later partial
-   re-run produces a table covering only the rules that re-ran.
+7. **Both gather rules are invisible in the cost picture.** 2.07 and 2.10 declare
+   neither `log:` nor `benchmark:`, so their contribution never reaches
+   `wf2_benchmarks.md`. Both delete the parts they merged, so a later partial
+   re-run produces a table — and now a log — covering only the rules that re-ran.
 
 8. **`{model}` contains a `/`** (e.g. `NOAA-GFDL/GFDL-ESM4`), so the vendor
    becomes a real path segment in every output filename, log part, and benchmark

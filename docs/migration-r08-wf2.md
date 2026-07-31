@@ -210,11 +210,48 @@ climate_projections/<proj>/plots/{precipitation,temperature}_*_projections_*.png
 climate_projections/<proj>/plots/projected_climate_statistics.png
 climate_projections/<proj>/grids/                # if you ever set save_gridded: true
 logs/2.0{2,3,4,5}_{monthly_stats_hist,monthly_stats_fut,monthly_change,monthly_change_scalar_merge}.log
+logs/2.0{1,2,4,6}_*.log, logs/2.11_extract_climate_grid.log   # see "One log per workflow"
+logs/_parts/2.0{2,3,4}_{monthly_stats_hist,monthly_stats_fut,monthly_change}/
 ```
 
 `dev/scripts/prune_series_cache.py` reports the stale `series/` generation;
 the rest are a manual delete. Do this **before** recording any reference
 snapshot, or the snapshot bakes in files the workflow no longer produces.
+
+---
+
+## One log per workflow
+
+WF2 used to leave five log files in `logs/` — two merged per-fan-out-stage logs
+plus three written directly by the single-job rules — so following one run meant
+opening five files and knowing the order to read them in. It now writes exactly
+one:
+
+```
+logs/wf2_climate_projections.log
+```
+
+Every rule logs into `logs/_parts/` and rule 2.07 `gather_logs` merges the parts,
+then deletes them and prunes the emptied directories — so after a clean full run
+there is no `logs/_parts/` either. The merged file carries **one** provenance
+header at the top (the per-part `# BlueEarth-CST | project: … | log: … | started …`
+blocks are stripped), then one section per rule:
+
+```
+================================================================================
+== 2.01  fetch_gcm_raw
+================================================================================
+
+-- cmip6_INM_INM-CM4-8_historical_r1i1p1f1 -------------------------------------
+19:39:26 - fetch - INFO - raw cache_hit digest=b352f7bd93d0 (…)
+```
+
+Sections are in rule-number order (matching `benchmarks/wf2_benchmarks.md`), and a
+fan-out rule gets one `--` sub-header per series. After a **partial** re-run only
+the rules that actually re-ran have parts, so the rewritten log marks the others
+`# (did not run in this invocation)` — the log describes the run that produced it,
+not an accumulated history. WF1 and WF3 still write one file per rule; they are
+unchanged.
 
 ---
 
