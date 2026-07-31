@@ -660,11 +660,28 @@ def write_netcdf_atomic(ds, path: str | os.PathLike) -> None:
     Motivated by measurement, not theory: three killed runs in the R8 session left
     manifest-pinned targets half-written, and one left a still-held handle that
     blocked every fixture gate.
+
+    Data variables are zlib-compressed, matching every other netCDF this workflow
+    writes (`get_stats_climate_proj`, `derive_change_factors`,
+    `get_change_climate_proj_summary`, `extract_historical_climate` all pass
+    ``{"zlib": True}``). The raw tier was the one that did not, for no reason
+    anyone recorded. Measured on the nine fixture slices: 638 KB -> 617 KB, 3%.
+    Small, because a raw slice is bbox- and time-sliced to well under a megabyte
+    by design — this is consistency, not a space win. Compression is LOSSLESS, so
+    it is not a precision change: the stored values are bit-identical.
+
+    Scalars are skipped: HDF5 compresses only chunked datasets and a 0-d variable
+    (``spatial_ref``) cannot be chunked.
     """
     path = os.fspath(path)
     tmp = f"{path}.tmp-{os.getpid()}"
+    encoding = {
+        str(name): {"zlib": True}
+        for name, var in ds.data_vars.items()
+        if var.ndim
+    }
     try:
-        ds.to_netcdf(tmp)
+        ds.to_netcdf(tmp, encoding=encoding or None)
         os.replace(tmp, path)
     finally:
         if os.path.exists(tmp):

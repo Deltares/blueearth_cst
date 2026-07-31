@@ -783,6 +783,48 @@ def test_write_netcdf_atomic_leaves_no_temp_file_and_replaces_in_place(tmp_path)
         assert ds.sizes["x"] == 6
 
 
+def test_write_netcdf_atomic_compresses_the_data_variables(tmp_path):
+    """The raw tier is the only WF2 netCDF that used to be written uncompressed.
+
+    Every other writer passes ``{"zlib": True}``; this is consistency, not a
+    space win (measured 3% on the fixture slices). Compression is LOSSLESS, so
+    the assertion that matters is that the values survive bit-for-bit.
+    """
+    import numpy as np
+    import xarray as xr
+
+    rng = np.random.default_rng(0)
+    values = rng.normal(size=(200, 4, 4)).astype("float32")
+    ds = xr.Dataset({"precip": (("time", "y", "x"), values)})
+    path = tmp_path / "slice.nc"
+    si.write_netcdf_atomic(ds, path)
+
+    with xr.open_dataset(path) as back:
+        assert back["precip"].encoding["zlib"] is True
+        assert np.array_equal(back["precip"].values, values)
+
+
+def test_write_netcdf_atomic_skips_scalars(tmp_path):
+    """HDF5 compresses only chunked datasets, and a 0-d var cannot be chunked.
+
+    A raw slice carries `spatial_ref` as exactly that, so encoding it would make
+    the write raise instead of producing a slice.
+    """
+    import numpy as np
+    import xarray as xr
+
+    ds = xr.Dataset(
+        {"precip": (("time",), np.arange(8.0, dtype="float32")),
+         "spatial_ref": ((), np.int64(0))}
+    )
+    path = tmp_path / "slice.nc"
+    si.write_netcdf_atomic(ds, path)  # must not raise
+
+    with xr.open_dataset(path) as back:
+        assert back["precip"].encoding["zlib"] is True
+        assert "spatial_ref" in back.variables
+
+
 def test_pinned_uri_narrows_the_glob_to_the_recorded_store():
     uri = "gs://cmip6/CMIP6/ScenarioMIP/INM/INM-CM4-8/ssp245/{member}/Amon/{variable}/*/*"
     pins = {"pr": ["gr1/v20190603"], "tas": ["gr1/v20190603"]}
