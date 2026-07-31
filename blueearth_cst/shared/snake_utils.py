@@ -1144,3 +1144,30 @@ def rule_banner(number, name):
     if sys.stderr.isatty() and not os.environ.get("NO_COLOR"):
         return f"\033[1;36m{tag}\033[0m"  # bold cyan
     return tag
+
+
+def target_banner(number, name, targets):
+    """Return a `rule all` ``message:``: the banner, then one target per line.
+
+    Snakemake joins a job's ``input:`` with ``", "``, which collapses a target
+    aggregator's whole product list onto one unreadable line — nine absolute
+    paths in a single wrap-around blob on WF2. No CLI flag changes that joiner;
+    a rule's ``message:`` is the only lever, and it REPLACES the default block
+    (``rule``/``input``/``output``/``jobid``/``resources``) rather than
+    reformatting part of it.
+
+    That trade is free for `rule all` specifically, which is why this helper is
+    scoped to it: a target aggregator has no ``output:``, its jobid is always the
+    root, and it declares no resources, so the replaced block carried nothing
+    the target list does not. Do NOT reach for this on a working rule — there it
+    would hide the output paths and the jobid a failure report needs.
+
+    Indented four spaces to sit where Snakemake's own ``input:`` values sit.
+    Paths are printed as given (absolute under `project_dir`), because the
+    reason to read this list is usually to copy one.
+
+    Evaluated once at Snakefile parse time, like :func:`rule_banner`.
+    """
+    listed = "\n".join(f"    {target}" for target in targets)
+    banner = rule_banner(number, name)
+    return f"{banner}\n{listed}" if listed else banner

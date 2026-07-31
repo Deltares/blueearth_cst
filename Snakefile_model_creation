@@ -5,7 +5,7 @@ from pathlib import Path
 # directory by prepending this Snakefile's own directory to sys.path.
 # See dev/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
-from blueearth_cst.shared.snake_utils import DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_spec, get_config, patch_psutil_windows_benchmark, rule_banner, warn_if_project_dir_in_repo
+from blueearth_cst.shared.snake_utils import DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_spec, get_config, patch_psutil_windows_benchmark, rule_banner, target_banner, warn_if_project_dir_in_repo
 
 # Windows: make Snakemake's benchmark memory/IO/CPU metrics work (else all NA).
 patch_psutil_windows_benchmark()
@@ -123,21 +123,30 @@ LOG_RULES = [
 ]
 
 # 1.00  all — target aggregator: full historical build + performance plots
+#
+# Hoisted into a list so `message:` can print one target per line without
+# restating them. Snakemake flattens a list argument, so `input: WF1_TARGETS`
+# declares exactly the same ten files the literals did.
+WF1_TARGETS = [
+    f"{basin_dir}/evaluation/plots/hydro_wflow_1.png",
+    f"{basin_dir}/plots/basin_area.png",
+    f"{basin_dir}/forcing/plots/precip.png",
+    # R07 B4: the source-grid climate figures are rule-`all` members by
+    # design — they are a product of the workflow, not an incidental
+    # by-product, and their subgraph needs no built model.
+    f"{store_dir}/plots/source_precip.png",
+    f"{store_dir}/plots/source_temp.png",
+    f"{store_dir}/plots/source_pet.png",
+    f"{project_dir}/config/runs/snake_config_model_creation.yml",
+    f"{basin_dir}/staticgeoms/outlet_index.csv",
+    f"{project_dir}/logs/{WORKFLOW_LOG_NAME}",
+    f"{project_dir}/benchmarks/wf1_benchmarks.md",
+]
+
 rule all:
+    message: target_banner("1.00", "all", WF1_TARGETS)
     input:
-        f"{basin_dir}/evaluation/plots/hydro_wflow_1.png",
-        f"{basin_dir}/plots/basin_area.png",
-        f"{basin_dir}/forcing/plots/precip.png",
-        # R07 B4: the source-grid climate figures are rule-`all` members by
-        # design — they are a product of the workflow, not an incidental
-        # by-product, and their subgraph needs no built model.
-        f"{store_dir}/plots/source_precip.png",
-        f"{store_dir}/plots/source_temp.png",
-        f"{store_dir}/plots/source_pet.png",
-        f"{project_dir}/config/runs/snake_config_model_creation.yml",
-        f"{basin_dir}/staticgeoms/outlet_index.csv",
-        f"{project_dir}/logs/{WORKFLOW_LOG_NAME}",
-        f"{project_dir}/benchmarks/wf1_benchmarks.md",
+        WF1_TARGETS,
 
 # 1.01  copy_config — copy build/snake/waterbodies configs into project_dir/config
 rule copy_config:

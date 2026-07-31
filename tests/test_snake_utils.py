@@ -31,6 +31,7 @@ from blueearth_cst.shared.snake_utils import (  # noqa: E402
     patch_psutil_windows_benchmark,
     rule_banner,
     save_figure,
+    target_banner,
     tee_to_log,
 )
 
@@ -193,6 +194,54 @@ def test_rule_banner_respects_no_color_env(monkeypatch):
     monkeypatch.setattr(sys, "stderr", _FakeTTY())
     monkeypatch.setenv("NO_COLOR", "1")
     assert rule_banner("2.04", "monthly_change") == "2.04  monthly_change"
+
+
+# --- target_banner (rule `all` message) --------------------------------------
+
+
+def test_target_banner_puts_one_target_per_line(monkeypatch):
+    """The whole point: Snakemake's own `input:` joins with ", "; this does not."""
+    import io
+
+    monkeypatch.setattr(sys, "stderr", io.StringIO())  # isatty() -> False
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    out = target_banner("2.00", "all", ["a/x.csv", "b/y.png"])
+    assert out == "2.00  all\n    a/x.csv\n    b/y.png"
+    assert ", " not in out
+
+
+def test_target_banner_keeps_the_rule_banner_colouring(monkeypatch):
+    """The banner half is rule_banner's, escape codes and all -- only the banner.
+
+    A target path must never be wrapped in escape codes: the message is what a
+    reader copies a path out of.
+    """
+    monkeypatch.setattr(sys, "stderr", _FakeTTY())
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    out = target_banner("1.00", "all", ["p/q.nc"])
+    assert out.startswith("\033[1;36m1.00  all\033[0m\n")
+    assert "\033" not in out.split("\n", 1)[1]
+
+
+def test_target_banner_accepts_a_dict_values_view(monkeypatch):
+    """WF2 and WF3 pass `TARGETS.values()`, not a list."""
+    import io
+
+    monkeypatch.setattr(sys, "stderr", io.StringIO())
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    targets = {"a": "one.csv", "b": "two.csv"}
+    assert target_banner("3.00", "all", targets.values()) == (
+        "3.00  all\n    one.csv\n    two.csv"
+    )
+
+
+def test_target_banner_with_no_targets_is_just_the_banner(monkeypatch):
+    """No trailing blank line -- an empty list must not print an empty row."""
+    import io
+
+    monkeypatch.setattr(sys, "stderr", io.StringIO())
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    assert target_banner("1.00", "all", []) == "1.00  all"
 
 
 # --- path relativization -----------------------------------------------------

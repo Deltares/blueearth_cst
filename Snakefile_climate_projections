@@ -13,7 +13,7 @@ from snakemake.exceptions import WorkflowError
 # directory by prepending this Snakefile's own directory to sys.path.
 # See dev/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
-from blueearth_cst.shared.snake_utils import DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_spec, get_config, patch_psutil_windows_benchmark, rule_banner, warn_if_project_dir_in_repo
+from blueearth_cst.shared.snake_utils import DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_spec, get_config, patch_psutil_windows_benchmark, rule_banner, target_banner, warn_if_project_dir_in_repo
 
 # Windows: make Snakemake's benchmark memory/IO/CPU metrics work (else all NA).
 patch_psutil_windows_benchmark()
@@ -530,25 +530,36 @@ LOG_RULES = [
 ]
 
 # 2.00  all — target aggregator: change-factor summaries + projection plots
+#
+# Hoisted into a dict so `message:` can print one target per line without
+# restating them. A dict rather than a list because five of these were already
+# NAMED inputs and the names document what each file is; `**` splats them back
+# as the same keyword arguments. The three that were positional gain a name,
+# which changes nothing -- no script reads `rule all`'s inputs, by name or index.
+WF2_TARGETS = {
+    # S8-04/05: the tidy tables are the result surface now; the three wide
+    # `annual_change_scalar_stats_summary*` files they replaced are gone.
+    "change_factors_annual": (clim_project_dir + f"/summary/{clim_project}_change_factors_annual.csv"),
+    "change_factors_monthly": (clim_project_dir + f"/summary/{clim_project}_change_factors_monthly.csv"),
+    # R5 deliverable 3 — demanded explicitly, not left as an incidental
+    # by-product of derive_change_factors' other outputs.
+    "composition": (clim_project_dir + "/summary/composition.csv"),
+    "stats_change_plt": (clim_project_dir + f"/plots/{clim_project}_change_factor_cloud.png"),
+    "precip_plt": (clim_project_dir + f"/plots/{clim_project}_precip_annual_absolute.png"),
+    "temp_plt": (clim_project_dir + f"/plots/{clim_project}_temp_annual_absolute.png"),
+    "snake_config": f"{project_dir}/config/runs/snake_config_climate_projections.yml",
+    # ONE merged log for the whole workflow (was: one per fan-out stage,
+    # alongside four rules writing logs/2.NN_*.log directly -- five files a
+    # reader had to open in the right order to follow one run). Every rule
+    # now logs into logs/_parts/ and rule 2.07 merges the lot.
+    "workflow_log": f"{project_dir}/logs/{WORKFLOW_LOG_NAME}",
+    "benchmarks": f"{project_dir}/benchmarks/wf2_benchmarks.md",
+}
+
 rule all:
+    message: target_banner("2.00", "all", WF2_TARGETS.values())
     input:
-        # S8-04/05: the tidy tables are the result surface now; the three wide
-        # `annual_change_scalar_stats_summary*` files they replaced are gone.
-        (clim_project_dir + f"/summary/{clim_project}_change_factors_annual.csv"),
-        (clim_project_dir + f"/summary/{clim_project}_change_factors_monthly.csv"),
-        # R5 deliverable 3 — demanded explicitly, not left as an incidental
-        # by-product of derive_change_factors' other outputs.
-        (clim_project_dir + "/summary/composition.csv"),
-        stats_change_plt = (clim_project_dir + f"/plots/{clim_project}_change_factor_cloud.png"),
-        precip_plt = (clim_project_dir + f"/plots/{clim_project}_precip_annual_absolute.png"),
-        temp_plt = (clim_project_dir + f"/plots/{clim_project}_temp_annual_absolute.png"),
-        snake_config = f"{project_dir}/config/runs/snake_config_climate_projections.yml",
-        # ONE merged log for the whole workflow (was: one per fan-out stage,
-        # alongside four rules writing logs/2.NN_*.log directly -- five files a
-        # reader had to open in the right order to follow one run). Every rule
-        # now logs into logs/_parts/ and rule 2.07 merges the lot.
-        workflow_log = f"{project_dir}/logs/{WORKFLOW_LOG_NAME}",
-        benchmarks = f"{project_dir}/benchmarks/wf2_benchmarks.md",
+        **WF2_TARGETS,
 
 # The `ruleorder:` directive is GONE as of step 4d, and not by choice: it named
 # `monthly_change` and `monthly_change_scalar_merge`, which 4d merges into

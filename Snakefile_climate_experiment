@@ -8,7 +8,7 @@ from pathlib import Path
 # directory by prepending this Snakefile's own directory to sys.path.
 # See dev/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
-from blueearth_cst.shared.snake_utils import DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_spec, file_digest_or_absent, get_config, patch_psutil_windows_benchmark, rule_banner, stress_test_grid, validate_experiment_name, warn_if_project_dir_in_repo
+from blueearth_cst.shared.snake_utils import DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_spec, file_digest_or_absent, get_config, patch_psutil_windows_benchmark, rule_banner, stress_test_grid, target_banner, validate_experiment_name, warn_if_project_dir_in_repo
 
 # Windows: make Snakemake's benchmark memory/IO/CPU metrics work (else all NA).
 patch_psutil_windows_benchmark()
@@ -215,13 +215,22 @@ LOG_RULES = [
 ]
 
 # 3.00  all — target aggregator: stress-test Qstats + basin indicators
+#
+# Hoisted into a dict so `message:` can print one target per line without
+# restating them; `**` splats it back as the same keyword arguments these
+# inputs already used.
+WF3_TARGETS = {
+    "Qstats": f"{indicators_dir}/Qstats.csv",
+    "basin": f"{indicators_dir}/basin.csv",
+    "snake_config": f"{exp_dir}/config/snake_config_climate_experiment.yml",
+    "workflow_log": f"{exp_dir}/logs/{WORKFLOW_LOG_NAME}",
+    "benchmarks": f"{exp_dir}/benchmarks/wf3_benchmarks.md",
+}
+
 rule all:
+    message: target_banner("3.00", "all", WF3_TARGETS.values())
     input:
-        Qstats = f"{indicators_dir}/Qstats.csv",
-        basin = f"{indicators_dir}/basin.csv",
-        snake_config = f"{exp_dir}/config/snake_config_climate_experiment.yml",
-        workflow_log = f"{exp_dir}/logs/{WORKFLOW_LOG_NAME}",
-        benchmarks = f"{exp_dir}/benchmarks/wf3_benchmarks.md",
+        **WF3_TARGETS,
 
 # 3.00b check_project_consistency — drift guard: fail loud if this experiment
 # config's project-level sections (project, shared.basin,
