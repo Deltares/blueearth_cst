@@ -173,6 +173,21 @@ Each run writes its generated model and result artifacts to the
 are kept separate from the toolbox source. (The in-repo
 ``test_case/test_local`` directory is a dev/test convention only.)
 
+Each workflow records itself in **one log and one benchmark table**, both
+regenerated on every run:
+
+- **Snakefile_model_creation** — ``logs/wf1_model_creation.log``
+- **Snakefile_climate_projections** — ``logs/wf2_climate_projections.log``
+- **Snakefile_climate_experiment** —
+  ``experiments/<name>/logs/wf3_climate_experiment.log``
+
+Rules log to ``logs/_parts/`` while they run; a final ``gather_logs`` rule
+merges the parts into the single log — one ``== W.NN  rule_name`` section
+per rule — then deletes them. Benchmarks work the same way, into
+``benchmarks/wf<N>_benchmarks.md``. See
+``docs/migration-r08-wf2.md`` ("One log per workflow") for the format and
+for cleaning up per-rule logs left by earlier runs.
+
 Running from pixi shell
 -----------------------
 
