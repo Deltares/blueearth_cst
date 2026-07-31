@@ -2,7 +2,7 @@
   "project_dir": "test_case/test_local",
   "recorded_by": {
     "branch": "main",
-    "commit": "4021cfa2aa56c6018ecff82bf619122b558f1195",
+    "commit": "95da3646de533f864bb8f9a9df630c3053f9498b",
     "dirty": true
   },
   "targets": {
@@ -22,13 +22,13 @@
       "type": "png"
     },
     "test_case/test_local/climate_projections/cmip6/summary/cmip6_change_factors_annual.csv": {
-      "sha256": "5b4d201fd5b296894d348a9093a16e59aad9f0ef7cc2c3f5d20c0572042121f9",
-      "size_bytes": 4046,
+      "sha256": "a85e3d49efc50c1c89c22e77490e97ef1f802fe2caefc0a30444f83ef6e73f8e",
+      "size_bytes": 4550,
       "type": "csv"
     },
     "test_case/test_local/climate_projections/cmip6/summary/cmip6_change_factors_monthly.csv": {
-      "sha256": "e633ccd2bbef86d64059baabd07b6073ba69ba529b901ef7380b6da45dcc8f69",
-      "size_bytes": 47887,
+      "sha256": "7c1d173406fef2648930f9c804ff88b96be0fb068f8146797fae0cedb3c85f1b",
+      "size_bytes": 53935,
       "type": "csv"
     },
     "test_case/test_local/config/runs/snake_config_climate_projections.yml": {

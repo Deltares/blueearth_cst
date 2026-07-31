@@ -173,7 +173,8 @@ def test_an_unknown_variable_falls_back_without_claiming_units(wide):
 # --- M4: the window column carries the EFFECTIVE window -----------------------
 
 
-def test_M4_reference_window_is_the_run_level_effective_window(wide):
+def test_M4_run_level_facts_fill_both_window_columns(wide):
+    """The run-level fallback: what a row carries when nothing resolved it."""
     facts = {
         "reference_window": "1986-01-01 / 2014-09-01",
         "horizon_window": {"far": "2070-2090"},
@@ -183,12 +184,12 @@ def test_M4_reference_window_is_the_run_level_effective_window(wide):
     assert row["horizon_window"] == "2070-2090"
 
 
-def test_M4_a_per_series_window_overrides_the_run_level_one(wide):
+def test_M4_a_per_row_window_overrides_the_run_level_one(wide):
     """The effective bounds are a property of a SERIES, not of the run — a model
     with a short record reports its own."""
     facts = {"reference_window": "1990-01-01 / 2010-12-01", "horizon_window": {}}
     row_facts = {
-        ("NOAA-GFDL/GFDL-ESM4", "ssp245", "r1i1p1f1"): {
+        ("NOAA-GFDL/GFDL-ESM4", "ssp245", "r1i1p1f1", "far"): {
             "reference_window": "1995-01-01 / 2010-12-01",
         }
     }
@@ -200,6 +201,50 @@ def test_M4_a_per_series_window_overrides_the_run_level_one(wide):
     assert all(r["reference_window"] == "1995-01-01 / 2010-12-01" for r in overridden)
     others = [r for r in rows if r["model"] == "INM-CM4-8"]
     assert all(r["reference_window"] == "1990-01-01 / 2010-12-01" for r in others)
+
+
+def test_M4_both_windows_read_in_the_same_effective_form(wide):
+    """`horizon_window` used to be the config's nominal years (`2070-2090`) while
+    `reference_window` was the effective span — two meanings, two formats, in
+    adjacent columns. Both are now the effective bounds from
+    `hydrological_year_bounds`, in one `%Y-%m-%d / %Y-%m-%d` form."""
+    facts = {"reference_window": "nominal-fallback", "horizon_window": {"far": "2070-2090"}}
+    row_facts = {
+        (model, scenario, "r1i1p1f1", "far"): {
+            "reference_window": "1990-01-01 / 2010-12-01",
+            "horizon_window": "2070-01-01 / 2090-12-01",
+        }
+        for model in ("INM/INM-CM4-8", "NOAA-GFDL/GFDL-ESM4")
+        for scenario in ("ssp245", "ssp585")
+    }
+    rows = _rows(wide, window_facts=facts, row_facts=row_facts)
+    assert rows
+    for r in rows:
+        assert r["reference_window"] == "1990-01-01 / 2010-12-01"
+        assert r["horizon_window"] == "2070-01-01 / 2090-12-01"
+        # the property the user asked for: one shape, both columns
+        for column in ("reference_window", "horizon_window"):
+            start, sep, end = r[column].partition(" / ")
+            assert sep, f"{column} is not a two-sided window: {r[column]!r}"
+            for side in (start, end):
+                assert len(side) == 10 and side[4] == side[7] == "-", side
+
+
+def test_M4_the_horizon_window_varies_with_the_horizon(wide):
+    """Unlike the reference window, it depends on the horizon — which is why the
+    override key carries one."""
+    two = wide.reindex(horizon=["far"]).copy()
+    facts = {"reference_window": "", "horizon_window": {"far": "2070-2090"}}
+    row_facts = {
+        ("INM/INM-CM4-8", "ssp245", "r1i1p1f1", "far"): {
+            "horizon_window": "2070-01-01 / 2090-12-01",
+        }
+    }
+    rows = _rows(two, window_facts=facts, row_facts=row_facts)
+    hit = [r for r in rows if r["model"] == "INM-CM4-8" and r["scenario"] == "ssp245"]
+    miss = [r for r in rows if r["scenario"] == "ssp585"]
+    assert all(r["horizon_window"] == "2070-01-01 / 2090-12-01" for r in hit)
+    assert all(r["horizon_window"] == "2070-2090" for r in miss)
 
 
 def test_M4_status_column_exists_and_defaults_to_ok(wide):

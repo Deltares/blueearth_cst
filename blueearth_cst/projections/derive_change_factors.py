@@ -150,6 +150,16 @@ def derive_one_point(
     # gate. Recorded in the composition record's own terms: `reference_window_
     # nominal` is what was requested, `_effective` is what was used.
     ref_start, ref_end, ref_n_years = hydrological_year_bounds(ds_hist_time)
+    # The SAME call on the scenario slice. `get_change_annual_clim_proj` already
+    # makes it internally (it needs the bounds to aggregate) and then discards the
+    # result, which is why `horizon_window` used to report the config's nominal
+    # years while `reference_window` reported the window the arithmetic used. Two
+    # columns, two meanings, two formats. Now both report the effective window.
+    # DEFAULT start month here too, for the reason given above: forwarding the
+    # config key belongs in the commit that fixes the arithmetic. Reporting a
+    # window under a start month the arithmetic did not use would be a worse
+    # defect than the one being held.
+    hor_start, hor_end, _ = hydrological_year_bounds(ds_clim_time)
     # Step 5b: weight each month by its length in the MODEL's calendar. Read off
     # the series (propagated there from the raw slice, which got it from the store
     # -- the axis itself cannot say, having been converted to datetime64 upstream).
@@ -201,7 +211,7 @@ def derive_one_point(
 
     ds_hist_time.close()
     ds_clim_time.close()
-    return ref_start, ref_end, ref_n_years
+    return ref_start, ref_end, ref_n_years, hor_start, hor_end
 
 
 #: Fields of the IN-MEMORY composition record, in design §5.7 order. One row per
@@ -366,6 +376,10 @@ if "snakemake" in globals():
             for name, fields in dict(sm.params.variable_spec).items()
         }
         resolved_facts = {}
+        # Keyed by (point_key, horizon) — unlike the reference window, the
+        # effective horizon window is a property of a series AND the horizon it
+        # was sliced to.
+        horizon_facts = {}
         with tempfile.TemporaryDirectory(prefix="cst_change_") as work_dir:
             change_files = []
             monthly_files = []
@@ -376,7 +390,7 @@ if "snakemake" in globals():
                         f"annual_change_scalar_stats-{point['point_key']}"
                         f"_{horizon_name}.nc",
                     )
-                    ref_start, ref_end, ref_n_years = derive_one_point(
+                    ref_start, ref_end, ref_n_years, hor_start, hor_end = derive_one_point(
                         series_path_hist=point["series_path_hist"],
                         series_path=point["series_path"],
                         change_nc_out=out_nc,
@@ -407,6 +421,9 @@ if "snakemake" in globals():
                         ),
                         "n_hyd_years_reference": ref_n_years,
                     }
+                    horizon_facts[(point["point_key"], horizon_name)] = (
+                        f"{hor_start:%Y-%m-%d} / {hor_end:%Y-%m-%d}"
+                    )
 
             log_row(
                 f"merging {len(change_files)} change file(s) into the summary",
@@ -460,21 +477,30 @@ if "snakemake" in globals():
             "reference_window": sm.params.reference_record.get(
                 "reference_window_effective", ""
             ),
+            # The NOMINAL config years, as a fallback only: every row a run
+            # resolves gets the effective window from `row_facts` below. This is
+            # what a row would carry if its combination never resolved, and it is
+            # the run-level answer report.md and provenance.json also give.
             "horizon_window": {
                 name: "-".join(_to_str_tuple(window))
                 for name, window in horizons.items()
             },
         }
         # The SAME numbers composition.csv reports, keyed per combination, so the
-        # two artifacts cannot disagree about one run's reference window.
+        # two artifacts cannot disagree about one run's reference window. Keyed by
+        # the row's FULL identity, horizon included, because the effective horizon
+        # window varies with it where the reference window does not.
         row_facts = {
-            (p["model"], p["scenario"], p["member"]): {
+            (p["model"], p["scenario"], p["member"], horizon_name): {
                 "reference_window": resolved_facts[p["point_key"]][
                     "reference_window_effective"
                 ],
+                "horizon_window": horizon_facts[(p["point_key"], horizon_name)],
             }
             for p in points
+            for horizon_name in horizons
             if p["point_key"] in resolved_facts
+            and (p["point_key"], horizon_name) in horizon_facts
         }
         rows = tidy_rows(merged, window_facts=window_facts, row_facts=row_facts,
                          variable_spec=VARIABLE_SPEC)

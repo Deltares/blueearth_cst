@@ -15,6 +15,9 @@ S8-04 rebuilt the column set. Three things were wrong with the first cut:
 * **Three columns were structurally dead.** `horizon_window_effective` and
   `n_years_dropped` were hardcoded empty, and `absolute_value` was never populated
   in the annual table because the companion only existed on the monthly path.
+  (The *effective horizon window* itself is no longer dead: `horizon_window` now
+  carries it, in the same form as `reference_window` — see below. What was removed
+  was a second, permanently-empty column beside a nominal one, not the concept.)
 * **Eight columns were constant or redundant.** `dataset` was literally
   `institution + "/" + source_id`, split apart again on read.
 
@@ -28,6 +31,13 @@ The schema now carries three values per row, each with fixed semantics:
 
 Nothing is inferred from a variable name, and there is no column whose meaning
 depends on which row you are reading.
+
+The two window columns report the SAME kind of thing in the SAME form:
+``reference_window`` and ``horizon_window`` are both the effective bounds from
+``hydrological_year_bounds`` — the complete hydrological years the arithmetic
+actually used — written ``%Y-%m-%d / %Y-%m-%d``. ``horizon_window`` used to be the
+config's nominal year pair (``2070-2090``) beside an effective reference span,
+which made two adjacent columns disagree about both meaning and format.
 
 The dry-month rule (6b) falls out natively: a flagged month has ``relative_value``
 empty, both levels present, and ``status = reference_below_threshold``. Shipping
@@ -100,10 +110,12 @@ def tidy_rows(ds, *, month=None, window_facts=None, row_facts=None, variable_spe
     rather than recomputed so the table cannot disagree with `composition.csv` or
     `provenance.json` about the same run.
 
-    ``row_facts`` maps `(model, scenario, member)` to per-combination overrides.
-    It exists because the reference window's **effective** bounds are a property
-    of a series, not of the run: they come from ``hydrological_year_bounds``,
-    applied to the data each combination actually has.
+    ``row_facts`` maps `(model, scenario, member, horizon)` to per-row overrides.
+    It exists because the **effective** window bounds are a property of a series,
+    not of the run: they come from ``hydrological_year_bounds``, applied to the
+    data each combination actually has. The horizon is part of the key because the
+    effective *horizon* window depends on it; the reference window does not, and
+    is simply repeated across a point's horizons.
 
     ``variable_spec`` maps variable name to a spec exposing ``.units`` and
     ``.change``. It is what decides whether ``relative_value`` is a percent or a
@@ -168,10 +180,15 @@ def tidy_rows(ds, *, month=None, window_facts=None, row_facts=None, variable_spe
             )
             if month is not None:
                 row["month"] = month
-            # The effective reference window is per-series, not per-run.
-            overrides = per_row.get((dataset, scenario, member), {})
-            if "reference_window" in overrides:
-                row["reference_window"] = overrides["reference_window"]
+            # Both windows are EFFECTIVE — the bounds the arithmetic actually
+            # used, from `hydrological_year_bounds`, in one `%Y-%m-%d / %Y-%m-%d`
+            # form. Keyed by the row's full identity: the reference window does not
+            # depend on the horizon, but the horizon window does, and one key that
+            # covers both beats two lookup shapes.
+            overrides = per_row.get((dataset, scenario, member, horizon), {})
+            for column in ("reference_window", "horizon_window"):
+                if column in overrides:
+                    row[column] = overrides[column]
             if level_da is not None:
                 row["absolute_value"] = _scalar(level_da.isel(_row=idx).values)
             if reference_da is not None:

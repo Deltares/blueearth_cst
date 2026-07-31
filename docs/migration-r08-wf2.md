@@ -149,6 +149,18 @@ status,reference_window,horizon_window
 - **`relative_value`** is the change **against the reference window**, in
   `relative_units`: a difference for a variable declared `change: absolute`
   (`+1.179` degC), a percent for one declared `change: relative` (`+10.950`).
+- **`reference_window`** and **`horizon_window`** are both the **effective**
+  bounds — the complete hydrological years the arithmetic actually used, from
+  `hydrological_year_bounds` — in one form:
+  `1990-01-01 / 2010-12-01` and `2070-01-01 / 2090-12-01`.
+
+  `horizon_window` previously reported the config's **nominal** year pair
+  (`2070-2090`) beside an effective reference span, so two adjacent columns
+  disagreed about both meaning and format. The effective horizon bounds were being
+  computed all along (`get_change_annual_clim_proj` needs them to aggregate) and
+  then discarded. If you parse this column, the value shape changed. The nominal
+  horizons are unchanged in `report.md` and `provenance.json`, which is where the
+  config echo belongs.
 
 ### Number formatting in the CSVs
 
