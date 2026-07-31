@@ -144,7 +144,7 @@ WF1_TARGETS = [
 ]
 
 rule all:
-    message: target_banner("1.00", "all", WF1_TARGETS)
+    message: target_banner("1.00", "all", WF1_TARGETS, project_dir)
     input:
         WF1_TARGETS,
 

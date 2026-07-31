@@ -557,7 +557,7 @@ WF2_TARGETS = {
 }
 
 rule all:
-    message: target_banner("2.00", "all", WF2_TARGETS.values())
+    message: target_banner("2.00", "all", WF2_TARGETS.values(), project_dir)
     input:
         **WF2_TARGETS,
 

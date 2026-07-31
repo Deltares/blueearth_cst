@@ -1146,7 +1146,7 @@ def rule_banner(number, name):
     return tag
 
 
-def target_banner(number, name, targets):
+def target_banner(number, name, targets, project_dir=None):
     """Return a `rule all` ``message:``: the banner, then one target per line.
 
     Snakemake joins a job's ``input:`` with ``", "``, which collapses a target
@@ -1163,11 +1163,26 @@ def target_banner(number, name, targets):
     would hide the output paths and the jobid a failure report needs.
 
     Indented four spaces to sit where Snakemake's own ``input:`` values sit.
-    Paths are printed as given (absolute under `project_dir`), because the
-    reason to read this list is usually to copy one.
+
+    With ``project_dir`` the targets print RELATIVE to it, which is what makes a
+    deep tree legible — ``climate_projections/cmip6/summary/x.csv`` rather than
+    the same path behind 40 characters of absolute prefix. The root is then
+    appended to the banner in brackets, because a relative path with no stated
+    root is ambiguous: the reader must still be able to reconstruct the full
+    path, and one root on one line beats repeating it nine times. Without
+    ``project_dir`` the targets print exactly as given.
+
+    Relativization is :func:`_relativize_paths`, so it strips the root in both
+    native and forward-slash form — Snakefiles build these paths with ``/``
+    while ``project_dir`` may arrive either way.
 
     Evaluated once at Snakefile parse time, like :func:`rule_banner`.
     """
-    listed = "\n".join(f"    {target}" for target in targets)
     banner = rule_banner(number, name)
-    return f"{banner}\n{listed}" if listed else banner
+    listed = [os.fspath(target) for target in targets]
+    if project_dir:
+        root = os.path.normpath(os.fspath(project_dir))
+        listed = [_relativize_paths(target, root) for target in listed]
+        banner = f"{banner}  [{root.replace(os.sep, '/')}]"
+    body = "\n".join(f"    {target}" for target in listed)
+    return f"{banner}\n{body}" if body else banner

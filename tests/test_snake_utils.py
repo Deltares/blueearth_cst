@@ -244,6 +244,59 @@ def test_target_banner_with_no_targets_is_just_the_banner(monkeypatch):
     assert target_banner("1.00", "all", []) == "1.00  all"
 
 
+def test_target_banner_relativizes_against_project_dir(monkeypatch):
+    """The root moves to the banner; the paths below it lose the prefix."""
+    import io
+
+    monkeypatch.setattr(sys, "stderr", io.StringIO())
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    out = target_banner(
+        "2.00",
+        "all",
+        ["C:/TESTS/CST/gabonx/climate_projections/cmip6/summary/x.csv"],
+        "C:/TESTS/CST/gabonx",
+    )
+    assert out == (
+        "2.00  all  [C:/TESTS/CST/gabonx]\n"
+        "    climate_projections/cmip6/summary/x.csv"
+    )
+
+
+def test_target_banner_relativizes_a_native_separator_root(monkeypatch):
+    """Snakefiles build targets with `/`; project_dir may arrive either way."""
+    import io
+
+    monkeypatch.setattr(sys, "stderr", io.StringIO())
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    out = target_banner(
+        "1.00", "all", ["proj/logs/wf1.log"], os.path.join("proj")
+    )
+    assert out.endswith("    logs/wf1.log")
+
+
+def test_target_banner_leaves_a_path_outside_the_project_absolute(monkeypatch):
+    """Only the project prefix is stripped -- a catalog elsewhere stays whole."""
+    import io
+
+    monkeypatch.setattr(sys, "stderr", io.StringIO())
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    out = target_banner(
+        "2.00", "all", ["D:/data/catalog.yml"], "C:/TESTS/CST/gabonx"
+    )
+    assert "    D:/data/catalog.yml" in out
+
+
+def test_target_banner_without_project_dir_keeps_paths_verbatim(monkeypatch):
+    """The default is unchanged: no root given, nothing stripped, no bracket."""
+    import io
+
+    monkeypatch.setattr(sys, "stderr", io.StringIO())
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    out = target_banner("3.00", "all", ["C:/p/q.csv"])
+    assert out == "3.00  all\n    C:/p/q.csv"
+    assert "[" not in out
+
+
 # --- path relativization -----------------------------------------------------
 
 
