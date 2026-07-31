@@ -188,6 +188,77 @@ def quantile_label(stat_name, n_years):
     return f"{stat_name}[n={int(n_years)}]"
 
 
+def get_change_monthly_clim_proj(
+    ds_hist_time,
+    ds_clim_time,
+    stats=None,
+    start_month_hyd_year="Jan",
+    variable_spec=None,
+):
+    """Change factors per CALENDAR MONTH (design §5.6, step 6a-ii).
+
+    The annual product answers "how much wetter is the year"; this answers "how
+    much wetter is each January", which is what a seasonal shift looks like and
+    what the annual figure averages away.
+
+    Same formulas as the annual table, applied per month: the statistic is
+    computed over the per-year values **for that month**, and the `change:`
+    arithmetic is then applied to the statistic.
+
+    Two deliberate differences from the annual path:
+
+    * **No month-length weighting.** Calendar weighting (5b) exists to make a
+      year's twelve unequal months comparable *within* an aggregate. Comparing
+      January to January is already like-for-like, and weighting both sides by 31
+      would cancel exactly.
+    * **The same complete-hydrological-year window is used**, so every month draws
+      on the same set of years. Slicing only by the raw window would give January
+      one more sample than December whenever the window starts mid-year, and a
+      seasonal pattern assembled from unequal samples is not a pattern.
+    """
+    stats = list(DEFAULT_STATS) if stats is None else list(stats)
+    ds_hist_time = _to_datetime_index(ds_hist_time)
+    ds_clim_time = _to_datetime_index(ds_clim_time)
+
+    hist_start, hist_end, n_ref_years = hydrological_year_bounds(
+        ds_hist_time, start_month_hyd_year
+    )
+    clim_start, clim_end, _ = hydrological_year_bounds(ds_clim_time, start_month_hyd_year)
+
+    ds = []
+    for var in intersection(ds_hist_time.data_vars, ds_clim_time.data_vars):
+        hist = ds_hist_time[var].sel(time=slice(hist_start, hist_end))
+        clim = ds_clim_time[var].sel(time=slice(clim_start, clim_end))
+        if "scenario" in hist.coords and hist.coords["scenario"].size > 0:
+            try:
+                hist = hist.sel(scenario=ds_hist_time.scenario.values[0])
+            except (KeyError, IndexError):
+                pass
+        hist_by_month = hist.groupby("time.month")
+        clim_by_month = clim.groupby("time.month")
+
+        for stat_name in stats:
+            if "q_" in stat_name:
+                q = int(stat_name.split("_")[1]) / 100
+                hist_stat = hist_by_month.quantile(q, "time")
+                clim_stat = clim_by_month.quantile(q, "time")
+            else:
+                hist_stat = getattr(hist_by_month, stat_name)("time")
+                clim_stat = getattr(clim_by_month, stat_name)("time")
+
+            if change_kind(variable_spec, var) == "relative":
+                change = (clim_stat - hist_stat) / hist_stat * 100
+            else:
+                change = clim_stat - hist_stat
+            change = change.rename(var)
+            change = change.assign_coords(
+                {"stats": quantile_label(stat_name, n_ref_years)}
+            ).expand_dims("stats")
+            ds.append(change.to_dataset())
+
+    return xr.merge(ds)
+
+
 def get_change_annual_clim_proj(
     ds_hist_time,
     ds_clim_time,

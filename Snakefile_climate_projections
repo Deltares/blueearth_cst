@@ -670,6 +670,9 @@ rule derive_change_factors:
         # Step 6a-i: the tidy long-format table (design 5.9). Additive --
         # the wide summary CSVs stay until step 7 retires them.
         change_factors_annual = (clim_project_dir + "/change_factors/annual.csv"),
+        # Step 6a-ii: change per calendar month -- the seasonal shift the
+        # annual figure averages away.
+        change_factors_monthly = (clim_project_dir + "/change_factors/monthly.csv"),
     params:
         clim_project_dir = f"{clim_project_dir}",
         horizons = future_horizons,

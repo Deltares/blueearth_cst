@@ -49,6 +49,7 @@ from blueearth_cst.projections.variable_spec import VariableSpec
 from blueearth_cst.projections.get_change_climate_proj import (
     _to_str_tuple,
     get_change_annual_clim_proj,
+    get_change_monthly_clim_proj,
     get_change_clim_projections,
     hydrological_year_bounds,
 )
@@ -179,6 +180,20 @@ def derive_one_point(
     dvars = stats_annual_change.raster.vars
     stats_annual_change.to_netcdf(
         change_nc_out, encoding={k: {"zlib": True} for k in dvars}
+    )
+
+    # Step 6a-ii: the same combination's change per CALENDAR MONTH. Written beside
+    # the annual file rather than returned, so the merge step handles both the
+    # same way and a failure leaves neither half-written.
+    monthly_change = get_change_monthly_clim_proj(
+        ds_hist_time, ds_clim_time, stats=stats, variable_spec=variable_spec
+    )
+    monthly_change = monthly_change.assign_coords(
+        {"horizon": f"{name_horizon}"}
+    ).expand_dims(["horizon"])
+    monthly_change.to_netcdf(
+        str(change_nc_out).replace(".nc", "_monthly.nc"),
+        encoding={k: {"zlib": True} for k in monthly_change.raster.vars},
     )
 
     if save_grids:
@@ -337,6 +352,7 @@ if "snakemake" in globals():
         resolved_facts = {}
         with tempfile.TemporaryDirectory(prefix="cst_change_") as work_dir:
             change_files = []
+            monthly_files = []
             for point in points:
                 for horizon_name, horizon_window in horizons.items():
                     out_nc = os.path.join(
@@ -364,6 +380,7 @@ if "snakemake" in globals():
                         clim_project_dir=clim_project_dir,
                     )
                     change_files.append(out_nc)
+                    monthly_files.append(out_nc.replace(".nc", "_monthly.nc"))
                     # Same for every horizon of a point (the reference window does
                     # not depend on the horizon), so recording it repeatedly is
                     # harmless and keeps the loop single-pass.
@@ -386,6 +403,17 @@ if "snakemake" in globals():
                 clim_files=change_files,
                 horizons=horizons,
             )
+
+            # Step 6a-ii: merge the per-point MONTHLY files. Done inside the temp
+            # directory, because that is where they live -- reading them after the
+            # context exits would be reading deleted files. Eager and closed, for
+            # the reason bf1f4a5 and e592ec3 both landed on: a lazy multi-file read
+            # feeding a write parks dask's pool on the HDF5 lock, and open handles
+            # stop the directory being removed.
+            with xr.open_mfdataset(
+                monthly_files, coords="minimal", combine="by_coords"
+            ) as _lazy:
+                monthly_merged = _lazy.load()
 
         # --- step 6a-i: the tidy annual change-factor table (design §5.9) ----
         # Read back from the summary the merge just wrote, rather than threading
@@ -437,6 +465,24 @@ if "snakemake" in globals():
         rows = tidy_rows(merged, period="annual", window_facts=window_facts,
                          series_keys=series_keys, row_facts=row_facts)
         write_table(str(sm.output.change_factors_annual), rows)
+
+        monthly_rows = []
+        for month in sorted(int(m) for m in monthly_merged["month"].values):
+            monthly_rows.extend(
+                tidy_rows(
+                    monthly_merged.sel(month=month).drop_vars("month"),
+                    period=str(month),
+                    window_facts=window_facts,
+                    series_keys=series_keys,
+                    row_facts=row_facts,
+                )
+            )
+        write_table(str(sm.output.change_factors_monthly), monthly_rows)
+        log_row(
+            f"tidy monthly change-factor table: {len(monthly_rows)} rows "
+            f"-> {os.path.basename(str(sm.output.change_factors_monthly))}",
+            module="change",
+        )
         log_row(
             f"tidy annual change-factor table: {len(rows)} rows "
             f"-> {os.path.basename(str(sm.output.change_factors_annual))}",
