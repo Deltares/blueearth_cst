@@ -18,9 +18,10 @@ benchmark tables):
   per-series part) -- those are the parts a reader has to tell apart, and the
   member id is what the stripped header used to carry.
 
-A part listed but absent is reported as a section that did not run rather than
-silently skipped: after a *partial* re-run only the rules that re-ran have parts,
-so the merged log says which sections its run actually covers.
+A part listed but absent is reported rather than silently skipped, so the merged
+log says which sections its run actually covers. Absent is NORMAL, not a fault:
+a rule already up to date does not re-run and writes no part, and a rule shared
+with another workflow (WF2's 2.11 is WF1's 1.10) usually logged over there.
 """
 import os
 
@@ -94,6 +95,12 @@ def _remove_parts(part_paths, parts_dir):
     merged nor deleted, so it never shows up as a phantom section. Directory
     pruning only ever removes *empty* dirs, ``parts_dir`` itself included, which
     is what makes ``logs/_parts/`` disappear on a clean full run.
+
+    That last part DIVERGES from ``merge_benchmarks._remove_parts``, which
+    pointedly keeps its ``parts_dir``: ``benchmarks/_parts/`` is shared by all
+    three workflows, while ``logs/_parts/`` has exactly one owner (WF1 logs flat;
+    WF3's fan-out logs live under ``<exp_dir>/logs/3.NN_<rule>/``). Give
+    ``logs/_parts/`` a second writer and that guard has to come back.
     """
     for path in part_paths:
         try:
@@ -143,7 +150,7 @@ def merge_logs(part_paths, out_path, parts_dir=None, remove_parts=False):
                     with open(path, encoding="utf-8", errors="replace") as f:
                         out.write(_strip_part_header(f.read()))
                 else:
-                    out.write("# (did not run in this invocation)\n")
+                    out.write("# (no part from this run — rule was already up to date)\n")
                 out.write("\n")
     if remove_parts:
         _remove_parts(part_paths, parts_dir)

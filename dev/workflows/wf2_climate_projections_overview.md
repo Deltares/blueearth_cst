@@ -166,7 +166,7 @@ not execution order (2.11 runs first). `input:` is the terminal artifact set, so
 the rule is scheduled after every logging rule.
 
 Same partial-re-run caveat as 2.10: only the rules that re-ran have parts, so the
-rewritten log marks the rest `# (did not run in this invocation)`. The artifact
+rewritten log marks the rest `# (no part from this run — rule was already up to date)`. The artifact
 describes the run that produced it, not an accumulated history.
 
 ### 2.10 `gather_benchmarks`

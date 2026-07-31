@@ -249,7 +249,7 @@ blocks are stripped), then one section per rule:
 Sections are in rule-number order (matching `benchmarks/wf2_benchmarks.md`), and a
 fan-out rule gets one `--` sub-header per series. After a **partial** re-run only
 the rules that actually re-ran have parts, so the rewritten log marks the others
-`# (did not run in this invocation)` — the log describes the run that produced it,
+`# (no part from this run — rule was already up to date)` — the log describes the run that produced it,
 not an accumulated history. WF1 and WF3 still write one file per rule; they are
 unchanged.
 

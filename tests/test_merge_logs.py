@@ -89,7 +89,7 @@ def test_absent_part_is_reported_not_skipped(tmp_path):
     merge_logs([str(missing)], str(out), parts_dir=str(parts_dir))
     text = out.read_text(encoding="utf-8")
     assert "== 2.06  plot_climate_proj_timeseries" in text
-    assert "did not run in this invocation" in text
+    assert "no part from this run" in text
 
 
 def test_remove_parts_clears_the_parts_tree(tmp_path):

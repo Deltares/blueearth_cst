@@ -520,6 +520,11 @@ LOG_PARTS = (
     + [
         f"{LOG_PARTS_DIR}/2.04_derive_change_factors.log",
         f"{LOG_PARTS_DIR}/2.06_plot_climate_proj_timeseries.log",
+        # 2.11 is the SHARED store rule (= WF1's 1.10). Run in pipeline order,
+        # WF1 builds the store and WF2 finds it current, so 2.11 does not re-run
+        # and its section reads "no part from this run" on most runs. Listed
+        # anyway: when WF2 *is* run standalone it does build the store, and an
+        # unlisted part would be neither merged nor cleaned up.
         f"{LOG_PARTS_DIR}/2.11_extract_climate_grid.log",
     ]
 )
@@ -890,7 +895,7 @@ rule plot_climate_proj_timeseries:
 # The merge DELETES the parts it consumed and prunes the emptied dirs, so a clean
 # full run leaves no logs/_parts/ at all. Consequence to know: after a PARTIAL
 # re-run only the re-run rules have parts, so the merged log rewrites with the
-# untouched sections marked "did not run in this invocation" rather than
+# untouched sections marked "no part from this run" rather than
 # resurrecting text it no longer has. That is the same trade `merge_benchmarks`
 # already makes (dev/followups.md R7-9) — the artifact describes the run that
 # produced it, not an accumulated history.
