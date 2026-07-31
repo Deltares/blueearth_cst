@@ -60,6 +60,21 @@ if "snakemake" in globals():
     sm = globals()["snakemake"]
 
     with tee_to_log(sm.log[0]):
+        # Report the switch above rather than enforce it. `setdefault` is correct:
+        # it fixes the UNSET case, which is what the 57.7 s vs >836 s benchmark
+        # actually measured, while leaving a deliberate export intact -- the opt-in
+        # a future HNS-backed catalog would need. What was missing is legibility:
+        # an inherited "true" turned a 58 s job into a 14-minute one with nothing in
+        # the log to say why. One row, WARNING when the effective value is not the
+        # one this module needs, so a slow run explains itself.
+        _hns = os.environ.get("GCSFS_EXPERIMENTAL_ZB_HNS_SUPPORT", "")
+        log_row(
+            f"gcsfs extended-filesystem switch = {_hns!r}"
+            + ("" if _hns == "false" else "  <-- expect ~14x slower remote opens"),
+            module="fetch",
+            level="INFO" if _hns == "false" else "WARNING",
+        )
+
         region_path = sm.input.region_path
         raw_nc_out = str(sm.output.raw_nc)
         catalog_path = sm.params.catalog_path

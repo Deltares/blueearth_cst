@@ -970,6 +970,24 @@ def _restore_log_handlers(saved):
         _set_handler_stream(handler, stream)
 
 
+def _is_clean_exit(exc) -> bool:
+    """True for a deliberate ``SystemExit(0)`` — a SUCCESS, not a failure.
+
+    ``sys.exc_info()`` is populated during *any* unwinding, including the clean
+    early return a ``script:`` module makes with ``raise SystemExit(0)``. That is
+    how every WF2 cache-hit job leaves its body (``fetch_gcm_raw.py``,
+    ``get_stats_climate_proj.py``), so the previous "any exception is a failure"
+    test printed ``... <rule>: failed after Ns`` to the console for jobs Snakemake
+    then reported as ``Finished`` — on the most common path in the workflow.
+    Observed 2026-07-31 on a forced cached fetch.
+
+    Only the exit CODE decides: ``SystemExit(1)`` is still a failure, and so is
+    every other exception. The log file is unaffected either way (the heartbeat
+    writes to the console only) — this is the status line a user actually watches.
+    """
+    return isinstance(exc, SystemExit) and exc.code in (None, 0)
+
+
 @contextlib.contextmanager
 def tee_to_log(log_path, heartbeat_interval=60.0):
     """Tee ``sys.stdout``/``sys.stderr`` to ``log_path`` for a ``script:`` rule.
@@ -1034,7 +1052,8 @@ def tee_to_log(log_path, heartbeat_interval=60.0):
             # while ``handle`` is open, then restore the streams — all always run,
             # even if the body raised.
             _restore_log_handlers(saved_handlers)
-            heartbeat.stop(failed=sys.exc_info()[0] is not None)
+            _exc = sys.exc_info()[1]
+            heartbeat.stop(failed=_exc is not None and not _is_clean_exit(_exc))
             for tee in (stdout_tee, stderr_tee):
                 tee.close()
             sys.stdout, sys.stderr = orig_out, orig_err

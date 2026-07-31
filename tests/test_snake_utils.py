@@ -410,6 +410,31 @@ def test_heartbeat_disabled_when_interval_zero():
     assert stream.getvalue() == ""  # nothing at all, not even a summary
 
 
+def test_heartbeat_reports_systemexit_zero_as_done(tmp_path, capsys):
+    # A `script:` module ends its cache-hit path with `raise SystemExit(0)`, which
+    # IS a success -- Snakemake reports the job Finished. The console summary must
+    # agree; it used to print "failed after" on every cached WF2 fetch.
+    log = tmp_path / "rule.log"
+    with pytest.raises(SystemExit):
+        with tee_to_log(log, heartbeat_interval=0.05):
+            raise SystemExit(0)
+    err = capsys.readouterr().err
+    assert "done in" in err and "failed after" not in err
+
+
+def test_heartbeat_still_reports_real_failures(tmp_path, capsys):
+    # The other half of the same test: only exit code 0 is forgiven.
+    log = tmp_path / "rule.log"
+    with pytest.raises(SystemExit):
+        with tee_to_log(log, heartbeat_interval=0.05):
+            raise SystemExit(1)
+    with pytest.raises(RuntimeError):
+        with tee_to_log(tmp_path / "rule2.log", heartbeat_interval=0.05):
+            raise RuntimeError("boom")
+    err = capsys.readouterr().err
+    assert err.count("failed after") == 2 and "done in" not in err
+
+
 def test_tee_to_log_heartbeat_goes_to_console_not_log(tmp_path, capsys):
     # THE key requirement: the heartbeat must not populate the log file
     log = tmp_path / "rule.log"
