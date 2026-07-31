@@ -274,6 +274,12 @@ def build_r07_path_map(
         # a CSV leaves plots/ entirely (P1: plots/ holds figures only)
         ("plots/wflow_model_performance/performance_metrics.csv",
          "hydrology_model/evaluation/performance_metrics.csv"),
+        # -- S8-03: the reduced tier is `scalar/`, not `series/`. A DIRECTORY
+        # prefix rule -- the filename grammar is unchanged, so every key maps
+        # one-to-one and a pre-rename reference tree still compares element-wise
+        # instead of reporting nine deletions and nine additions.
+        (f"climate_projections/{clim_project}/series/",
+         f"climate_projections/{clim_project}/scalar/"),
         # -- B3: only the THREE summary files move; the PNGs stay (commit 9) -
         (f"climate_projections/{clim_project}/gcm_timeseries.nc",
          f"climate_projections/{clim_project}/timeseries/gcm_timeseries.nc"),

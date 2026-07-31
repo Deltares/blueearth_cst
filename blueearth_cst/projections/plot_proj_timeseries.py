@@ -237,10 +237,10 @@ if __name__ == "__main__":
 
             # S8-02: the merge-and-write of `timeseries/gcm_timeseries.nc` stood
             # here. Removed: nothing read it, and what it wrote was strictly worse
-            # than the `series/` tier it merged -- rounded to 2 dp (re-imposing the
+            # than the `scalar/` tier it merged -- rounded to 2 dp (re-imposing the
             # 0.005 mm/day floor step 5c had just removed) and stripped of every
             # `cst_*` attr, so it carried no digest, region fingerprint or calendar
-            # and could not be validated. `series/*.nc` is the durable timeseries
+            # and could not be validated. `scalar/*.nc` is the durable timeseries
             # tier; `change_factors/*.csv` is the analysis-ready long form.
 
             # %% Plots

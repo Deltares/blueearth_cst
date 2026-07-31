@@ -11,7 +11,8 @@ follow-up.
 Two things make orphans routine rather than exceptional:
 
 * **Key-grammar changes.** Steps 2b, 3 and 4b each changed the series filename
-  (``historical_stats_time_{model}`` → ``series/{key}`` → ``series/{key}_{member}``),
+  (``historical_stats_time_{model}`` → ``series/{key}`` → ``series/{key}_{member}``
+  → ``scalar/{key}``),
   leaving the previous generation behind each time.
 * **Config changes.** Dropping a model or a scenario from the config removes it
   from resolution, so its series stops being referenced but stays on disk.
@@ -100,24 +101,27 @@ def main() -> None:
         print(f"nothing to do: {clim_dir} does not exist")
         return
 
-    series_dir = clim_dir / "series"
+    # S8-03: the tier directory is `scalar/`. The filename grammar is unchanged.
+    series_dir = clim_dir / "scalar"
     current = {p for p in series_dir.glob("*.nc")} if series_dir.is_dir() else set()
     expected = {series_dir / f"{k}.nc" for k in keys}
 
     orphans_current_grammar = sorted(current - expected)
     # Pre-4b generations, which lived directly under the clim dir rather than in
-    # series/. Matched by their old prefixes so this helper stays useful for a
-    # project that has not been re-run since.
+    # a tier directory. Matched by their old prefixes so this helper stays useful
+    # for a project that has not been re-run since. `series/` joins them at S8-03:
+    # a project last run before the rename has a full generation stranded there,
+    # and Snakemake cannot clean a directory it no longer declares.
     legacy = sorted(
         p
         for pattern in ("historical_stats_time_*", "stats_time-*")
         for p in clim_dir.glob(f"{pattern}/*.nc")
-    )
+    ) + sorted((clim_dir / "series").glob("*.nc"))
 
     missing = sorted(p for p in expected if not p.exists())
 
     print(f"project        : {project_dir}")
-    print(f"series dir     : {series_dir}")
+    print(f"scalar dir     : {series_dir}")
     print(f"expected keys  : {len(expected)}")
     print(f"present        : {len(current)}")
     print(f"missing        : {len(missing)}  (will be derived on the next run)")

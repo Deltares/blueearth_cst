@@ -25,7 +25,7 @@ What changes shape:
 Stage B's input set is explicit (design risk-06 / revision 4): the rule declares
 exactly the expanded `{series_key}` list built from the resolved combination set,
 and this job **asserts that the set it opened equals that list**. A model removed
-from the config cannot rejoin the run through a leftover file in `series/`.
+from the config cannot rejoin the run through a leftover file in `scalar/`.
 
 Invoked from ``Snakefile_climate_projections`` via ``script:``; reads
 ``snakemake.input/output/params``, never ``sys.argv``.
@@ -328,7 +328,7 @@ if "snakemake" in globals():
         region_fp = series_identity.region_fingerprint(sm.input.region_path)
 
         # risk-06 / revision 4: the set opened must equal the set declared. A
-        # leftover file in series/ cannot rejoin a run whose config dropped it.
+        # leftover file in scalar/ cannot rejoin a run whose config dropped it.
         declared = {os.path.abspath(str(p)) for p in sm.input.series_nc}
         opened = {
             os.path.abspath(str(path))

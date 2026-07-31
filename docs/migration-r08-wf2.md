@@ -99,6 +99,22 @@ reported consistently everywhere it appears.
 The wide `summary/annual_change_scalar_stats_summary*` files are unchanged and
 still produced.
 
+## Renamed paths
+
+| Before | After | Why |
+| --- | --- | --- |
+| `series/{key}.nc` | `scalar/{key}.nc` | `series` said nothing about the files being spatially averaged. `scalar` is the word this codebase already uses for the quantity (`var_m_scalar` in the reducer; `annual_change_scalar_stats_summary*`), on the axis it already asserts — scalar vs grid. |
+
+`raw/` is unchanged, and **filenames are identical across both tiers**: the
+directory carries the tier, the filename carries the identity. `grids/series/`
+also keeps its name — it is the *gridded* counterpart, so `grids/scalar/` would
+be a contradiction.
+
+An existing project directory strands its old `series/` folder, since Snakemake
+cannot clean a path it no longer declares. `dev/scripts/prune_series_cache.py`
+now reports it as a legacy generation; delete it once (see "Post-migration
+cleanup" below).
+
 ## Removed output
 
 `timeseries/gcm_timeseries.nc` is **no longer written**. A project directory from
