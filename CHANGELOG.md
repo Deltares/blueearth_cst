@@ -8,6 +8,57 @@ lives in `dev/roadmap.md` and `dev/phase-1/<milestone>/` /
 `dev/r0N/<milestone>/` artifacts. This file captures release-level
 summaries.
 
+## [Unreleased] — workflow 2 v2.0 (milestone R8)
+
+Workflow 2 restructured from a model/scenario fan-out into a monthly GCM
+projections analysis. **Breaking config changes** — see
+`docs/migration-r08-wf2.md`.
+
+### Breaking
+
+- `save_grids` renamed to `save_gridded`; the old key raises rather than being
+  silently ignored.
+- `variables` is a mapping declaring `canonical` and `change` per variable, not a
+  list. Change semantics are no longer inferred from the literal name `"precip"`.
+- A model absent from the generated catalog fails at DAG build. A model that does
+  not publish a requested scenario or member is a recorded skip, not an error.
+
+### Added
+
+- `change_factors/annual.csv` and `change_factors/monthly.csv` — long-format
+  tables, one row per (dataset, scenario, member, horizon, variable, statistic).
+  The monthly table is new: it shows the seasonal shift an annual figure averages
+  away.
+- `summary/composition.csv` — every **requested** combination and how it resolved.
+- `provenance.json` — sources with verified physical store paths, digests,
+  windows and settings.
+- `report.md` — with the disclaimer block: window clipping, alignment, weighting
+  scheme and its approximation, the dry-month rule, catalog snapshot date, and
+  unresolved combinations by status.
+- A persistent series cache with content-addressed identity, and a fetch/reduce
+  split so re-deriving from a formula change costs **zero network requests**.
+- Optional `stats` and `relative_change` config keys.
+
+### Changed — values move
+
+- Spatial reduction is spherical cell-area weighted (D10); annual aggregates are
+  weighted by month length in the model's own calendar; stage A no longer rounds
+  to 2 decimals; the default statistic set is `mean, median, std` with tail
+  quantiles opt-in and sample-size-labelled.
+- **A reference-window off-by-one is fixed**: `[1990, 2010]` now yields 21
+  complete hydrological years, not 20. The final complete year was discarded.
+- Figures show **one trace per combination** — no multi-model median, no 5–95 %
+  envelope. Each `(model, scenario, member)` is one data point.
+
+### Fixed
+
+- Series recorded `proleptic_gregorian` for every model, which is false for
+  `noleap` and `360_day` ones. The true calendar is now read from the store.
+- `kernel_hash` was not reproducible across processes for any function containing
+  a closure, so a cache key moved on every invocation.
+- Stage B had no hashed kernel, so an edit to imported change arithmetic left its
+  outputs silently stale.
+
 ## [v0.2.0-alpha] — 2026-05-09
 
 Foundation phase sealed; Phase 2 (workflow refactor) designed and

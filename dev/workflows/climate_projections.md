@@ -1,5 +1,25 @@
 # Workflow: climate_projections
 
+> **SUPERSEDED — this describes WF2 *before* the R8 rework (sealed 2026-07-31).**
+>
+> It is kept unedited because it is the **baseline the R4 commits were checked
+> against**; rewriting it would destroy the record it exists to be. Nothing below
+> describes the current workflow.
+>
+> For the current state:
+>
+> | | |
+> |---|---|
+> | Rule map | `dev/workflows/wf2_climate_projections_overview.md` |
+> | Design + rationale | `dev/workflows/wf2-climate-analysis-v2-design.md` |
+> | Config migration | `docs/migration-r08-wf2.md` |
+> | Per-step evidence | `dev/working/2026-07-3*-wf2-*.md` |
+>
+> The largest divergences: eleven rules became nine plus `all`; `variables` is a
+> mapping; `save_grids` is `save_gridded`; the series store is persistent and
+> content-addressed; and change factors carry per-row provenance.
+
+
 Contract for `Snakefile_climate_projections` (workflow 2). Format per
 `dev/r01/modularity-contracts-design.md` §4, mirroring
 `dev/workflows/model_creation.md` (R3's contract doc). Records **current**

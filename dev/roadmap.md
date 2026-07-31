@@ -22,7 +22,7 @@ of the post-R6 assessment: R6 settled the repository layout and P3-1 the
 experiment layout, and neither could see the residue the other left. One
 milestone, R7; dev artifacts under `dev/r07/`. See § Phase 4 below.
 
-**Phase 5 — Workflow rework (R8 in progress, opened 2026-07-29).** The first
+**Phase 5 — Workflow rework (R8 sealed 2026-07-31, opened 2026-07-29).** The first
 phase to change what a workflow *computes* and how its rule graph is shaped,
 starting with workflow 2. Milestone R8; design and audit trail under
 `dev/workflows/`. See § Phase 5 below.
@@ -972,7 +972,7 @@ it.
 
 ---
 
-## Phase 5 — Workflow rework (R8 IN PROGRESS)
+## Phase 5 — Workflow rework (R8 SEALED 2026-07-31)
 
 Opened 2026-07-29 (owner). Phases 1–4 worked on the repository, its contracts and
 its layout; Phase 5 is the first phase to rework what a workflow *computes* and
@@ -987,7 +987,47 @@ one phase.
 Milestone IDs continue the `R##` series across the phase boundary (R7 → R8), as
 Phase 4 continued it from Phase 2's R1–R6.
 
-### R8 — WF2 v2.0: GCM projections analysis (design ACCEPTED 2026-07-29; implementation started)
+### R8 — WF2 v2.0: GCM projections analysis (SEALED 2026-07-31)
+
+All seven steps of the design's §8 migration table are implemented. Tagged
+`r08-wf2-projections`; user migration note in `docs/migration-r08-wf2.md`.
+
+**Method discipline that shaped the outcome.** Every value-changing step wrote its
+falsifier *before* its code — the observation that would disprove the step, plus
+the command producing it — and characterized its diff before any baseline
+re-record. That order caught, among others: a dtype upcast smuggled into a
+"values must not move" step; a traversal-order change in a helper extraction; a
+naive fix that would have broken the case already working; and a rule that had
+never run at all.
+
+**Four findings worth carrying forward.**
+
+1. **A value recorded in two places disagreed five times** — the model calendar,
+   `n_years` twice, the effective reference window twice. Each was caught only
+   because something compared them. The reliable defence was passing values
+   between artifacts rather than recomputing them, and it is why `report.md`
+   reads `provenance.json` instead of deriving its own disclaimer.
+2. **Four cache defects shared one signature**: the change is right, the tests
+   pass, and the artifacts silently do not move. Unlisted `REDUCER_KERNEL`
+   callees; attribute stamping outside the hashed kernel; stage B having no
+   hashed kernel; and `kernel_hash` itself being non-reproducible across
+   processes for any function containing a closure.
+3. **The fixture cannot see most of what was built.** Its basin is equatorial and
+   latitude-symmetric (so area weighting is exactly inert), wet year-round (so the
+   dry-month rule never fires), and all three models share one calendar. Green
+   fixture gates are necessary and never sufficient — see
+   `docs/migration-r08-wf2.md` and the per-step falsifier notes.
+4. **`check_baseline` compares PNGs by size with a 10 % tolerance.** A figure whose
+   content changed completely passes if its compressed size lands within 10 %.
+   "3 PNGs pinned" reads as stronger coverage than it is. Not changed here —
+   altering the comparator is its own decision.
+
+**Two defects found and fixed that predate the milestone:** the pipeline recorded
+`proleptic_gregorian` for every model (false for every `noleap`/`360_day` one),
+and the reference window was one complete hydrological year short whenever the
+start month was January.
+
+
 
 **Goal.** Restructure workflow 2 from a change-factor calculator whose rule graph
 fights its own cost profile into a monthly GCM projections analysis workflow:

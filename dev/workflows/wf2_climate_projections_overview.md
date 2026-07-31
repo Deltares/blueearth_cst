@@ -30,16 +30,29 @@ names — **definition order, not execution order**.
 | Banner | Rule | Script | Fan-out |
 | --- | --- | --- | --- |
 | 2.00 | `all` | — | — |
-| 2.01 | `copy_config` | `model/copy_config_files.py` | — |
-| 2.02 | `monthly_stats_hist` | `projections/get_stats_climate_proj.py` | `{model}` |
-| 2.03 | `monthly_stats_fut` | `projections/get_stats_climate_proj.py` | `{model}×{scenario}` |
-| 2.04 | `monthly_change` | `projections/get_change_climate_proj.py` | `{model}×{scenario}×{horizon}` |
-| 2.05 | `monthly_change_scalar_merge` | `projections/get_change_climate_proj_summary.py` | — (gather) |
+| 2.01 | `fetch_gcm_raw` | `projections/fetch_gcm_raw.py` | `{series_key}` |
+| 2.02 | `reduce_gcm_series` | `projections/get_stats_climate_proj.py` | `{series_key}` |
+| 2.03 | `copy_config` | `model/copy_config_files.py` | — |
+| 2.04 | `derive_change_factors` | `projections/derive_change_factors.py` | — (one job) |
 | 2.06 | `plot_climate_proj_timeseries` | `projections/plot_proj_timeseries.py` | — (gather) |
-| 2.07 | `gather_stats_hist_logs` | `shared/merge_logs.py` | — (gather) |
-| 2.08 | `gather_stats_fut_logs` | `shared/merge_logs.py` | — (gather) |
-| 2.09 | `gather_change_logs` | `shared/merge_logs.py` | — (gather) |
+| 2.07 | `gather_series_logs` | `shared/merge_logs.py` | — (gather) |
+| 2.08 | `gather_raw_logs` | `shared/merge_logs.py` | — (gather) |
 | 2.10 | `gather_benchmarks` | `shared/merge_benchmarks.py` | — (gather) |
+| 2.11 | `extract_climate_grid` | `model/extract_historical_climate.py` | — (shared store) |
+
+**Nine rules plus `all`, not the eight the design's §8 predicted.** The extra one
+is `gather_raw_logs`, which arrived with the fetch/reduce split (design revision
+6) after that count was written. Recorded rather than quietly reconciled.
+
+What went, and where it went:
+
+| Retired | Replaced by |
+| --- | --- |
+| `monthly_stats_hist`, `monthly_stats_fut` | `reduce_gcm_series` over `{series_key}` (step 3) |
+| `monthly_change`, `monthly_change_scalar_merge` | `derive_change_factors`, one job (step 4d) |
+| `gather_stats_hist_logs`, `gather_stats_fut_logs` | `gather_series_logs` (step 3) |
+| `gather_change_logs` | nothing — stage B is one job and writes its own log (step 4d) |
+| the `ruleorder:` directive | nothing — it named two rules that no longer exist (step 4d) |
 
 **Job count on the seed config** (3 models × 2 scenarios × 1 horizon):
 1 (`copy_config`) + 3 (2.02) + 6 (2.03) + 6 (2.04) + 1 (2.05) + 1 (2.06)
