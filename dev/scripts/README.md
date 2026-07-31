@@ -1,7 +1,7 @@
 # dev/scripts/
 
 One-off and recurring helpers used outside the Snakemake workflows. Nothing
-here is invoked by `Snakefile_*` rules — those live in `src/`.
+here is invoked by `Snakefile_*` rules — those live in `blueearth_cst/`.
 
 ## Env / install
 
