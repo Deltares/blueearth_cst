@@ -2,13 +2,13 @@
   "project_dir": "test_case/test_local",
   "recorded_by": {
     "branch": "main",
-    "commit": "ed3c50a53ed203b71d027592ecf930ddcdb8e2bc",
+    "commit": "88203eab4006f39d9279dcab1d582b673eba628e",
     "dirty": true
   },
   "targets": {
     "test_case/test_local/climate_projections/cmip6/plots/precipitation_anomaly_projections_abs.png": {
       "exists": true,
-      "size_bytes": 562849,
+      "size_bytes": 609649,
       "type": "png"
     },
     "test_case/test_local/climate_projections/cmip6/plots/projected_climate_statistics.png": {
@@ -18,7 +18,7 @@
     },
     "test_case/test_local/climate_projections/cmip6/plots/temperature_anomaly_projections_abs.png": {
       "exists": true,
-      "size_bytes": 324309,
+      "size_bytes": 386751,
       "type": "png"
     },
     "test_case/test_local/climate_projections/cmip6/summary/annual_change_scalar_stats_summary.csv": {

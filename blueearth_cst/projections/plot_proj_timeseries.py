@@ -19,6 +19,34 @@ from blueearth_cst.shared.snake_utils import log_row
 
 
 
+def plot_combination_traces(frame, colors=None, label_prefix="", alpha=0.85):
+    """One line per COMBINATION — rulings R3'/R3'' (step 6c).
+
+    This replaces a 5-95% band plus a line labelled "multi-model median". That
+    label was the clearest statement of the claim R3' withdraws: a median across
+    models asserts an ensemble the design does not construct. Under R3'/R3'' each
+    (model, scenario, member) is one data point, so the figure shows the points.
+
+    Every trace is labelled with its combination. A legend naming none of them is
+    how "one trace per combination" becomes a hairball, which is the failure this
+    step trades the envelope for.
+
+    Returns the number of traces drawn, so a caller can assert it equals the
+    number of resolved combinations.
+    """
+    columns = list(frame.columns)
+    for index, column in enumerate(columns):
+        plt.plot(
+            frame.index,
+            frame[column],
+            color=colors[index % len(colors)] if colors else None,
+            alpha=alpha,
+            linewidth=1.0,
+            label=f"{label_prefix}{column}",
+        )
+    return len(columns)
+
+
 def todatetimeindex_dropvars(ds):
     if "time" in ds.coords:
         if ds.indexes["time"].dtype == "O":
@@ -81,16 +109,16 @@ if __name__ == "__main__":
             # %%
             # monthly mean
             gcm_pr_mnmn = gcm_pr.groupby(gcm_pr.index.month).mean()
-            q_pr_mnmn = gcm_pr_mnmn.quantile([0.05, 0.5, 0.95], axis=1).transpose()
+            q_pr_mnmn = gcm_pr_mnmn  # 6c: per-combination, no cross-model reduction
             gcm_pr_mnref = gcm_pr_mnmn.mean()
             gcm_pr_mnanom = (gcm_pr_mnmn - gcm_pr_mnref) / gcm_pr_mnref * 100
-            q_pr_mnanom = gcm_pr_mnanom.quantile([0.05, 0.5, 0.95], axis=1).transpose()
+            q_pr_mnanom = gcm_pr_mnanom  # 6c: per-combination, no cross-model reduction
             # annual mean
             gcm_pr_annmn = gcm_pr.resample("YE").mean()
-            q_pr_annmn = gcm_pr_annmn.quantile([0.05, 0.5, 0.95], axis=1).transpose()
+            q_pr_annmn = gcm_pr_annmn  # 6c: per-combination, no cross-model reduction
             gcm_pr_ref = gcm_pr_annmn.mean()
             gcm_pr_anom = (gcm_pr_annmn - gcm_pr_ref) / gcm_pr_ref * 100
-            q_pr_anom = gcm_pr_anom.quantile([0.05, 0.5, 0.95], axis=1).transpose()
+            q_pr_anom = gcm_pr_anom  # 6c: per-combination, no cross-model reduction
 
             # temp
             gcm_tas = ds_hist["temp"].squeeze(drop=True).transpose().to_pandas()
@@ -99,16 +127,16 @@ if __name__ == "__main__":
                 gcm_tas = gcm_tas.to_frame()
             # monthly mean
             gcm_tas_mnmn = gcm_tas.groupby(gcm_tas.index.month).mean()
-            q_tas_mnmn = gcm_tas_mnmn.quantile([0.05, 0.5, 0.95], axis=1).transpose()
+            q_tas_mnmn = gcm_tas_mnmn  # 6c: per-combination, no cross-model reduction
             gcm_tas_mnref = gcm_tas_mnmn.mean()
             gcm_tas_mnanom = gcm_tas_mnmn - gcm_tas_mnref
-            q_tas_mnanom = gcm_tas_mnanom.quantile([0.05, 0.5, 0.95], axis=1).transpose()
+            q_tas_mnanom = gcm_tas_mnanom  # 6c: per-combination, no cross-model reduction
             # annual mean
             gcm_tas_annmn = gcm_tas.resample("YE").mean()
-            q_tas_annmn = gcm_tas_annmn.quantile([0.05, 0.5, 0.95], axis=1).transpose()
+            q_tas_annmn = gcm_tas_annmn  # 6c: per-combination, no cross-model reduction
             gcm_tas_ref = gcm_tas_annmn.mean()
             gcm_tas_anom = gcm_tas_annmn - gcm_tas_ref
-            q_tas_anom = gcm_tas_anom.quantile([0.05, 0.5, 0.95], axis=1).transpose()
+            q_tas_anom = gcm_tas_anom  # 6c: per-combination, no cross-model reduction
 
             # %% Future
             fns_future = list(stats_time_nc)
@@ -193,35 +221,23 @@ if __name__ == "__main__":
             # monthly
             for i in range(len(qpr_futmonth)):
                 pr_futmonth = pr_fut[i].groupby(pr_fut[i].index.month).mean()
-                qpr_futmonth[i] = pr_futmonth.quantile([0.05, 0.5, 0.95], axis=1).transpose()
+                qpr_futmonth[i] = pr_futmonth  # 6c: per-combination
                 pr_futmonth_anom = (pr_futmonth - fut_pr_ref) / fut_pr_ref * 100
-                qpr_futmonth_anom[i] = (
-                    pr_futmonth_anom.dropna(axis=1, how="all")
-                    .quantile([0.05, 0.5, 0.95], axis=1)
-                    .transpose()
-                )
+                qpr_futmonth_anom[i] = pr_futmonth_anom.dropna(axis=1, how="all")  # 6c: per-combination
 
                 tas_futmonth = tas_fut[i].groupby(tas_fut[i].index.month).mean()
-                qtas_futmonth[i] = tas_futmonth.quantile([0.05, 0.5, 0.95], axis=1).transpose()
+                qtas_futmonth[i] = tas_futmonth  # 6c: per-combination
                 tas_futmonth_anom = tas_futmonth - fut_tas_ref
-                qtas_futmonth_anom[i] = (
-                    tas_futmonth_anom.dropna(axis=1, how="all")
-                    .quantile([0.05, 0.5, 0.95], axis=1)
-                    .transpose()
-                )
+                qtas_futmonth_anom[i] = tas_futmonth_anom.dropna(axis=1, how="all")  # 6c: per-combination
             # annual
             for i in range(len(anom_pr_fut)):
-                qpr_fut[i] = (
-                    pr_fut[i].resample("YE").mean().quantile([0.05, 0.5, 0.95], axis=1).transpose()
-                )
+                qpr_fut[i] = pr_fut[i].resample("YE").mean()  # 6c: per-combination
                 anom_pr_fut[i] = (pr_fut[i].resample("YE").mean() - fut_pr_ref) / fut_pr_ref * 100
-                qanom_pr_fut[i] = anom_pr_fut[i].quantile([0.05, 0.5, 0.95], axis=1).transpose()
+                qanom_pr_fut[i] = anom_pr_fut[i]  # 6c: per-combination
 
-                qtas_fut[i] = (
-                    tas_fut[i].resample("YE").mean().quantile([0.05, 0.5, 0.95], axis=1).transpose()
-                )
+                qtas_fut[i] = tas_fut[i].resample("YE").mean()  # 6c: per-combination
                 anom_tas_fut[i] = tas_fut[i].resample("YE").mean() - fut_tas_ref
-                qanom_tas_fut[i] = anom_tas_fut[i].quantile([0.05, 0.5, 0.95], axis=1).transpose()
+                qanom_tas_fut[i] = anom_tas_fut[i]  # 6c: per-combination
 
             # %% Merge and write all timeseries to a single netcdf file
             ds_fut.append(ds_hist)
@@ -270,32 +286,12 @@ if __name__ == "__main__":
                     y_label = "Anomaly (%)"
                 plt.figure(figsize=(8, 6))
                 plt.title("Annual precipitation")
-                plt.fill_between(
-                    x=data_hist.index,
-                    y1=data_hist[0.95],
-                    y2=data_hist[0.05],
-                    color="lightgrey",
-                    alpha=0.5,
-                )
-                plt.plot(
-                    data_hist[0.5].index,
-                    data_hist[0.5],
-                    color="darkgrey",
-                    label="historical multi-model median",
+                plot_combination_traces(
+                    data_hist, colors=["darkgrey"], label_prefix="historical "
                 )
                 for i in range(len(data_fut)):
-                    plt.fill_between(
-                        x=data_fut[i].index,
-                        y1=data_fut[i][0.95],
-                        y2=data_fut[i][0.05],
-                        alpha=0.5,
-                        color=clrs[i],
-                    )
-                    plt.plot(
-                        data_fut[i].index,
-                        data_fut[i][0.50],
-                        color=clrs[i],
-                        label=rcps[i] + " multi-model median",
+                    plot_combination_traces(
+                        data_fut[i], colors=[clrs[i]], label_prefix=rcps[i] + " "
                     )
                 plt.ylabel(y_label)
                 plt.legend()
@@ -320,32 +316,12 @@ if __name__ == "__main__":
                     y_label = "Anomaly (degC)"
                 plt.figure(figsize=(8, 6))
                 plt.title("Average annual temperature")
-                plt.fill_between(
-                    x=data_hist.index,
-                    y1=data_hist[0.95],
-                    y2=data_hist[0.05],
-                    color="lightgrey",
-                    alpha=0.5,
-                )
-                plt.plot(
-                    data_hist[0.5].index,
-                    data_hist[0.5],
-                    color="darkgrey",
-                    label="historical multi-model median",
+                plot_combination_traces(
+                    data_hist, colors=["darkgrey"], label_prefix="historical "
                 )
                 for i in range(len(data_fut)):
-                    plt.fill_between(
-                        x=data_fut[i].index,
-                        y1=data_fut[i][0.95],
-                        y2=data_fut[i][0.05],
-                        alpha=0.5,
-                        color=clrs[i],
-                    )
-                    plt.plot(
-                        data_fut[i].index,
-                        data_fut[i][0.50],
-                        color=clrs[i],
-                        label=rcps[i] + " multi-model median",
+                    plot_combination_traces(
+                        data_fut[i], colors=[clrs[i]], label_prefix=rcps[i] + " "
                     )
                 plt.ylabel(y_label)
                 plt.legend()
@@ -371,26 +347,13 @@ if __name__ == "__main__":
                     y_label = "Anomaly (%)"
                 plt.figure(figsize=(8, 6))
                 plt.title("Average precipitation")
-                plt.fill_between(
-                    x=qprhist.index,
-                    y1=qprhist[0.95],
-                    y2=qprhist[0.05],
-                    color="lightgrey",
-                    alpha=0.5,
-                )
-                plt.plot(
-                    qprhist.index, qprhist[0.5], color="k", label="historical multi-model median"
+                plot_combination_traces(
+                    qprhist, colors=["k"], label_prefix="historical "
                 )
 
                 for i in range(len(qpr)):
-                    plt.fill_between(
-                        x=qpr[i].index, y1=qpr[i][0.95], y2=qpr[i][0.05], alpha=0.5, color=clrs[i]
-                    )
-                    plt.plot(
-                        qpr[i].index,
-                        qpr[i][0.50],
-                        color=clrs[i],
-                        label=rcps[i] + " multi-model median",
+                    plot_combination_traces(
+                        qpr[i], colors=[clrs[i]], label_prefix=rcps[i] + " "
                     )
                 plt.ylabel(y_label)
                 plt.xticks(
@@ -418,33 +381,16 @@ if __name__ == "__main__":
 
                 plt.figure(figsize=(8, 6))
                 plt.title("Average monthly temperature")
-                plt.fill_between(
-                    x=qtashist.index,
-                    y1=qtashist[0.95],
-                    y2=qtashist[0.05],
-                    color="lightgrey",
-                    alpha=0.5,
-                )
-                plt.plot(
-                    qtashist.index, qtashist[0.5], color="k", label="historical multi-model median"
+                plot_combination_traces(
+                    qtashist, colors=["k"], label_prefix="historical "
                 )
                 plt.ylabel(f"{y_label}")
                 plt.xticks(
                     np.arange(1, 13), ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
                 )
                 for i in range(len(qtas)):
-                    plt.fill_between(
-                        x=qtas[i].index,
-                        y1=qtas[i][0.95],
-                        y2=qtas[i][0.05],
-                        alpha=0.5,
-                        color=clrs[i],
-                    )
-                    plt.plot(
-                        qtas[i].index,
-                        qtas[i][0.50],
-                        color=clrs[i],
-                        label=rcps[i] + " multi-model median",
+                    plot_combination_traces(
+                        qtas[i], colors=[clrs[i]], label_prefix=rcps[i] + " "
                     )
                 plt.legend()
                 plt.grid()
