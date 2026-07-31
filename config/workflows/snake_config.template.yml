@@ -57,12 +57,11 @@ workflows:
     # 'river discharge' are written as basin-average <var>_basavg columns and
     # plotted by plot_results (valid: overland flow, actual evapotranspiration,
     # groundwater recharge, snow).
-    wflow_outvars: ['river discharge', 'actual evapotranspiration']
+    wflow_outvars: ["river discharge", "actual evapotranspiration"]
     # Optional: csv with three cols (station_ID, x, y); None defaults to wflow outlets
-    output_locations: None
+    output_locations: null
     # Optional: csv with observed discharge timeseries per station
-    observations_timeseries: None
-
+    observations_timeseries: null
   climate_projections:
     enabled: true
     clim_project: cmip6
@@ -113,7 +112,7 @@ workflows:
     historical_year_range: [1985, 2014]
     future_horizons:
       near: [2030, 2060]
-      far:  [2070, 2100]
+      far: [2070, 2100]
     # Save gridded outputs in addition to basin averages
 
   climate_experiment:

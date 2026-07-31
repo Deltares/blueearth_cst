@@ -32,10 +32,9 @@ workflows:
     # extra outputs would only churn the copied-config fingerprint without adding
     # any fingerprinted target. The shipped default (template / Snakefile) does
     # include 'actual evapotranspiration'.
-    wflow_outvars: ['river discharge']
-    output_locations: None
-    observations_timeseries: None
-
+    wflow_outvars: ["river discharge"]
+    output_locations: null
+    observations_timeseries: null
   climate_projections:
     enabled: true
     clim_project: cmip6
@@ -51,7 +50,7 @@ workflows:
     start_month_hyd_year: Jan
     historical_year_range: [1990, 2010]
     future_horizons:
-      far:  [2070, 2090]
+      far: [2070, 2090]
 
   climate_experiment:
     enabled: true

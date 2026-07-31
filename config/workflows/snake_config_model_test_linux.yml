@@ -26,9 +26,8 @@ workflows:
     # consumers guard on file existence; real basin data lives outside the
     # repository and is referenced by absolute path. Schemas to copy:
     # config/templates/observations/
-    output_locations: None
-    observations_timeseries: None
-
+    output_locations: null
+    observations_timeseries: null
   climate_projections:
     enabled: true
     clim_project: cmip6
@@ -45,7 +44,7 @@ workflows:
     historical_year_range: [1980, 2010]
     future_horizons:
       near: [2030, 2060]
-      far:  [2070, 2100]
+      far: [2070, 2100]
 
   climate_experiment:
     enabled: true
