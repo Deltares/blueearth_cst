@@ -197,14 +197,14 @@ if "snakemake" in globals():
         )
         # cmip6/cmip5 cftime calendars are not always honoured by time_range alone.
         data = data.sel(time=slice(*acquisition_window))
-        # Eager, and not only for speed: a lazy slice written by to_netcdf reads from
-        # dask's thread pool and deadlocks on the HDF5 lock (measured, commit
-        # bf1f4a5). After bbox/time slicing this is well under a megabyte.
-        data = data.load()
 
         # D8: the catalog URI globs {grid_label}/{version} and ~6% of pinned stores
         # match more than one. Two concatenated stores give a duplicated time axis,
         # which halves the effective record while looking fine.
+        # Checked BEFORE `.load()`: coordinates are read at open, so this costs
+        # nothing lazily, and an ambiguous source now fails without first
+        # transferring every selected chunk (~19 s on the benchmark source). Kept
+        # AFTER `.sel()` so duplicates outside the acquisition window stay out of it.
         index = data.indexes.get("time")
         if index is not None and len(index) != len(set(index)):
             raise RuntimeError(
@@ -212,6 +212,11 @@ if "snakemake" in globals():
                 "step(s), so the catalog glob matched more than one store. Pin the "
                 "version in the catalog rather than reading an ambiguous source."
             )
+
+        # Eager, and not only for speed: a lazy slice written by to_netcdf reads from
+        # dask's thread pool and deadlocks on the HDF5 lock (measured, commit
+        # bf1f4a5). After bbox/time slicing this is well under a megabyte.
+        data = data.load()
 
         # --- the model's TRUE calendar, read from the store ---------------------
         # `index` is a DatetimeIndex by now and has no `.calendar`: our catalog
