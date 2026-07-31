@@ -10,6 +10,89 @@ looks questionable in hindsight. Each entry records the challenge, the reasoning
 behind the original choice, the alternatives, and where it landed. Entries are
 worked one at a time, in conversation, and written up here as they are resolved.
 
+**This register is CLOSED.** The conventions below describe how it was run and
+remain the template for the next one; the entries are a finished record, not a
+live queue.
+
+## Outcome — read this first
+
+**Closed 2026-07-31.** All eight entries are `resolved` or `no-change`; nothing is
+carried forward. This section is a derived overview, not a substitute for the
+entries — every claim below is argued in the block it names.
+
+The register began as one question about two same-sized files and ended as an
+overhaul of everything WF2 hands a reader. The through-line: the output tree was
+built for the workflow, not for whoever receives it. Directories named after
+implementation stages, columns that were constant or empty or wrong, filenames
+that contradicted their contents.
+
+**The tree, before → after:**
+
+```
+climate_projections/cmip6/          climate_projections/cmip6/
+├── raw/                            ├── raw/
+├── series/                         ├── scalar/                    S8-03
+├── timeseries/          ──┐        ├── plots/                     S8-07
+├── change_factors/        │        │   └── 9 renamed figures
+├── plots/                 │        ├── summary/
+│   └── 9 contradictory    │        │   ├── cmip6_change_factors_annual.csv    S8-04
+│       filenames          │        │   ├── cmip6_change_factors_monthly.csv
+├── summary/               │ gone   │   ├── composition.csv        15 → 10 cols
+│   ├── 3 wide files     ──┘ S8-02  │   └── provenance.json        S8-06
+│   └── composition.csv      S8-05  └── report.md
+├── provenance.json
+└── report.md
+```
+
+| | Entry | Outcome |
+|---|---|---|
+| S8-01 | `raw/` ≈ `series/` in size | `no-change` — 2×2 cells on a coarse grid, and ~34 kB of identical HDF5 overhead. The split was never justified on payload; it is justified on **open cost** (1142 s vs 0.2 s) via the digest asymmetry. |
+| S8-02 | Is `gcm_timeseries.nc` needed? | Deleted. Nothing read it, and it was a lossier, identity-stripped, ~48 % NaN copy of the tier it merged. |
+| S8-03 | `series/` says nothing | → `scalar/`, the codebase's own word for the quantity (`var_m_scalar`). `raw/` kept by ruling. |
+| S8-04 | Tables bloated, one column wrong | 20 → 14/15 columns, and a **correctness fix**: `units` labelled a percent as `mm/day` on every relative row. |
+| S8-05 | Three wide files the tables supersede | Deleted; wide `.nc` becomes job-internal. Manifest **swapped**, not subtracted — 14 targets, better coverage. |
+| S8-06 | `provenance.json` clutters the root | → `summary/`, beside `composition.csv`. |
+| S8-07 | Figure names contradict contents | `{proj}_{var}_{view}_{quantity}.png`; precipitation forced to mm/day everywhere. |
+| S8-08 | Four residuals | Units attribute fixed; stale comment rewritten; **the gridded branch and `save_gridded` removed**; rule detail and DAG diagram brought to the end state. |
+
+**Five defects surfaced that nothing was looking for.** None was introduced by
+this work; each was found by checking an artifact against what it claimed:
+
+1. **Model names silently truncated** — `NOAA-GFDL/GFDL-ESM4` → `NOAA-GFDL/GFD`,
+   because concatenating fixed-width numpy string coords truncates to the first
+   file's width. It had been corrupting the wide summary's `dataset` column all
+   along, and truncated rows also missed their per-combination window override.
+2. **The annual level was in mm/year** while `units` said mm/day — a `rate`
+   variable's annual aggregation is a duration-weighted *sum*.
+3. **A baseline landing under the wrong scenario** — a companion emitted directly
+   keeps the scalar `scenario='historical'` coord that arithmetic would have
+   dropped; dropping it instead removed the *dimension*. Both stages produced
+   plausible numbers.
+4. **`report.md` advertised two figures that were never written** — the param
+   feeding the report's listing is not an output declaration, so nothing failed.
+5. **Two rules answering to banner `2.01`.**
+
+**What caught them, and what did not.** Not the unit tests, and not
+`check_baseline` — the wrong baseline and the truncated name are both *plausible*
+values in the right shape. What caught them was checking each artifact against a
+claim it makes: recompute the change from the two levels and compare it to the
+change column (468/468); assert every figure `report.md` names exists on disk
+(9/9); compare a column against the series it summarises. Worth reusing.
+
+**Gates at close:** `pytest tests/` 819 passed · `check_baseline` 14/14 ·
+`semantic_tree_diff --milestone r07` resolves every rename element-wise · wf2
+runs end to end in 25 jobs.
+
+**Residue cleared** from both project directories (20 superseded paths each). Note
+for the next reference snapshot: pruning must happen *before* recording, or the
+snapshot bakes in files the workflow no longer produces.
+
+**One correction on the record:** the S8-02 entry originally claimed its
+tree-diff row was "verified". That run used the tool's default `--milestone p31`,
+under which the map is never built. Corrected in place.
+
+---
+
 **Scope and boundary.**
 
 - **In scope:** any decision or implementation from Phase 2 (R1–R8) that the
@@ -34,7 +117,9 @@ stands — with the sharper reason recorded).
 
 **How to add an entry.** Append the next `S8-nn` index row, then add the matching
 detail block below with all five headings filled in. A block must read standalone
-once the conversation that produced it is gone.
+once the conversation that produced it is gone. (Detail blocks appear in the order
+they were worked, not in ID order — S8-03…07 first, because they were decided as
+one set. The index is the map.)
 
 ---
 
