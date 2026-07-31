@@ -85,16 +85,16 @@ if __name__ == "__main__":
             # sources; since 4a an unresolved combination never becomes a job, so
             # every path here carries data and dropping any would silently shrink
             # the ensemble (D4).
-            # .load() is load-bearing, not a tidy-up: open_mfdataset returns a
-            # dask-backed lazy dataset, and the merge + to_netcdf round-trip below
-            # then reads nine netCDFs from dask's thread pool. netCDF4/HDF5 reads
-            # take a global lock, so that write DEADLOCKS -- measured twice on
-            # win-64 (14 threads parked in Wait/UserRequest, ~6 s CPU over 15 min,
-            # output file created and never written), while the same job with
-            # DASK_SCHEDULER=synchronous finishes in 42 s. Loading eagerly here
-            # makes every read serial; the sliced data is a few hundred KB, so the
-            # memory cost is nil. Same reason get_stats_climate_proj.py loads
-            # eagerly after slicing.
+            # .load() was added for a deadlock that S8-02 has since removed: the
+            # merge + to_netcdf round-trip that used to follow read nine netCDFs
+            # from dask's thread pool, netCDF4/HDF5 reads take a global lock, and
+            # the write DEADLOCKED -- measured twice on win-64 (14 threads parked
+            # in Wait/UserRequest, ~6 s CPU over 15 min, output file created and
+            # never written), while the same job with DASK_SCHEDULER=synchronous
+            # finished in 42 s. RETAINED anyway: every one of these datasets is
+            # converted straight to pandas below, so laziness buys nothing here,
+            # and the sliced data is a few hundred KB. Same reason
+            # get_stats_climate_proj.py loads eagerly after slicing.
             ds_hist = xr.open_mfdataset(
                 list(stats_time_nc_hist), preprocess=todatetimeindex_dropvars
             ).load()
@@ -148,7 +148,6 @@ if __name__ == "__main__":
             anom_tas_fut = []
             qanom_pr_fut = []
             qanom_tas_fut = []
-            ds_fut = []
             qpr_fut = []
             qtas_fut = []
             qpr_futmonth = []
@@ -178,13 +177,10 @@ if __name__ == "__main__":
             for i in range(len(rcps)):
                 log_row(f"Opening future gcm timeseries for rcp {rcps[i]}", module="plot")
                 fns_rcp = [fn for fn in fns_future if rcps[i] in fn]
-                # Eager for the same reason as ds_hist above: these datasets are
-                # what `xr.merge` + `to_netcdf` write, and a lazy merge of several
-                # netCDFs deadlocks dask's thread pool on the HDF5 lock.
+                # Eager for the same reason as ds_hist above.
                 ds_rcp = xr.open_mfdataset(
                     fns_rcp, preprocess=todatetimeindex_dropvars
                 ).load()
-                ds_fut.append(ds_rcp)
                 ds_rcp_pr = ds_rcp["precip"].squeeze(drop=True)
                 ds_rcp_tas = ds_rcp["temp"].squeeze(drop=True)
                 # if len(ds_rcp.horizon) > 1:
@@ -239,26 +235,13 @@ if __name__ == "__main__":
                 anom_tas_fut[i] = tas_fut[i].resample("YE").mean() - fut_tas_ref
                 qanom_tas_fut[i] = anom_tas_fut[i]  # 6c: per-combination
 
-            # %% Merge and write all timeseries to a single netcdf file
-            ds_fut.append(ds_hist)
-            ds_all = xr.merge(ds_fut)
-            # xarray's merge propagates global attrs from the FIRST dataset, so a
-            # merged multi-source product would silently inherit one arbitrary
-            # series' cst_* identity -- claiming a single digest, region
-            # fingerprint and source pin for a file built from nine series. Strip
-            # them: an identity that describes one input is worse than none.
-            # (Found by semantic_tree_diff at step 4c; a per-source provenance
-            # record is the report stage's job at step 7.)
-            for _attr in [k for k in ds_all.attrs if k.startswith("cst_")]:
-                del ds_all.attrs[_attr]
-            # make sure we have two digits still
-            ds_all["precip"] = ds_all["precip"].round(decimals=2)
-            ds_all["temp"] = ds_all["temp"].round(decimals=2)
-            # write to netcdf
-            # R07 B3: the processed timeseries tier
-            timeseries_dir = os.path.join(clim_project_dir, "timeseries")
-            os.makedirs(timeseries_dir, exist_ok=True)
-            ds_all.to_netcdf(os.path.join(timeseries_dir, "gcm_timeseries.nc"))
+            # S8-02: the merge-and-write of `timeseries/gcm_timeseries.nc` stood
+            # here. Removed: nothing read it, and what it wrote was strictly worse
+            # than the `series/` tier it merged -- rounded to 2 dp (re-imposing the
+            # 0.005 mm/day floor step 5c had just removed) and stripped of every
+            # `cst_*` attr, so it carried no digest, region fingerprint or calendar
+            # and could not be validated. `series/*.nc` is the durable timeseries
+            # tier; `change_factors/*.csv` is the analysis-ready long form.
 
             # %% Plots
             if not os.path.exists(os.path.join(clim_project_dir, "plots")):

@@ -796,9 +796,12 @@ rule plot_climate_proj_timeseries:
         temp_anom_rel_plt = (clim_project_dir + "/plots/temperature_anomaly_projections_anom.png"),
         temp_monthly_abs_plt = (clim_project_dir + "/plots/temperature_monthly_projections_abs.png"),
         temp_monthly_rel_plt = (clim_project_dir + "/plots/temperature_monthly_projections_anom.png"),
-        # Step 7-i: was `timeseries_csv`, on a netCDF. A wrong name on a declared
-        # output is worse than an undeclared one, because it reads as deliberate.
-        timeseries_nc = (clim_project_dir + "/timeseries/gcm_timeseries.nc"),
+        # S8-02: `timeseries/gcm_timeseries.nc` is GONE. It merged the nine series
+        # into one cube that nothing read -- not `all`, not WF3, not any script --
+        # while rounding to 2 dp (the quantisation step 5c removed from the series)
+        # and stripping every `cst_*` attr, so it was a lossier, untraceable copy
+        # of the tier it duplicated. The durable timeseries tier is `series/`;
+        # `change_factors/*.csv` is the analysis-ready form.
     log:
         f"{project_dir}/logs/2.06_plot_climate_proj_timeseries.log",
     benchmark:

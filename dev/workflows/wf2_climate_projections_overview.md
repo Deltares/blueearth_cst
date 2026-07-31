@@ -188,8 +188,8 @@ projection figures.
   `change_grids` (the undeclared 2.04 grid netCDFs, referenced by path).
 - **Out (declared):** `{CPD}/plots/precipitation_anomaly_projections_abs.png`,
   `{CPD}/plots/temperature_anomaly_projections_abs.png`,
-  `{CPD}/timeseries/gcm_timeseries.nc` (netCDF, declared under the misleading
-  output label `timeseries_csv`).
+  (`{CPD}/timeseries/gcm_timeseries.nc` was a third declared output until S8-02
+  deleted it — see `dev/reviews/2026-07-31_post-r8-self-check.md`.)
 - **Out (undeclared):** 6 further PNGs from the same loops —
   `precipitation_anomaly_projections_anom`, `temperature_anomaly_projections_anom.png`,
   `precipitation_monthly_projections_{abs,anom}.png`,
@@ -331,13 +331,13 @@ Findings from the code as it stands — recorded to think against, not proposals
    part. Relevant to any change touching path templates or wildcard constraints.
 
 9. **2.06 is a monolith.** One script does: reopen all series → anomaly
-   statistics → write the merged timeseries netCDF → render 8 PNGs → optionally
-   render the gridded maps. It declares 3 of those artifacts, and it is the last
-   consumer of the `temp()` series (see §3). It is also the natural split point
-   if figure generation should become independently re-runnable.
+   statistics → render 8 PNGs → optionally render the gridded maps. It is the
+   last consumer of the `temp()` series (see §3), and the natural split point if
+   figure generation should become independently re-runnable. It no longer writes
+   a merged timeseries netCDF — S8-02 deleted `gcm_timeseries.nc`, leaving 2.06 a
+   figure-only rule.
 
-10. **Undeclared / mislabeled outputs.** `gcm_timeseries.nc` is declared under
-    the label `timeseries_csv`; the precip anomaly figure is saved without an
+10. **Mislabeled outputs.** The precip anomaly figure is saved without an
     extension (`plots/precipitation_anomaly_projections_{n}`, matplotlib appends
     `.png`), while its temp counterpart passes `.png` explicitly.
 

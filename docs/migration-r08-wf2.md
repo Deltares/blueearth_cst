@@ -99,6 +99,20 @@ reported consistently everywhere it appears.
 The wide `summary/annual_change_scalar_stats_summary*` files are unchanged and
 still produced.
 
+## Removed output
+
+`timeseries/gcm_timeseries.nc` is **no longer written**. A project directory from
+an earlier run keeps its stale copy — Snakemake cannot clean an output no longer
+declared — so delete `climate_projections/<proj>/timeseries/` by hand once; fresh
+runs never create it. It merged the nine `series/*.nc` into one cube that
+nothing consumed, while rounding to 2 decimals — re-imposing the quantisation
+"Rounding dropped" above removes — and stripping every `cst_*` attribute, so it
+carried no digest, region fingerprint or calendar and could not be traced.
+
+If you were reading it, use `series/*.nc` for the full monthly timeseries (same
+values, unrounded, with provenance) or `change_factors/annual.csv` /
+`monthly.csv` for the analysis-ready long form.
+
 ---
 
 ## Figures
