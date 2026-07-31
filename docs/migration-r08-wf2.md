@@ -89,15 +89,15 @@ reported consistently everywhere it appears.
 
 | Path | What it is |
 | --- | --- |
-| `change_factors/annual.csv` | Long format: one row per (dataset, scenario, member, horizon, variable, statistic). |
-| `change_factors/monthly.csv` | The same, per calendar month — the seasonal shift an annual figure averages away. |
+| `summary/cmip6_change_factors_annual.csv` | Long format: one row per (model, scenario, member, horizon, variable, statistic). Schema below. |
+| `summary/cmip6_change_factors_monthly.csv` | The same, per calendar month — the seasonal shift an annual figure averages away. |
 | `summary/composition.csv` | Every **requested** combination and how it resolved, including the ones that do not exist in the store. |
-| `provenance.json` | Sources with verified physical store paths, digests, windows, settings — enough to reconstruct the run. |
+| `summary/provenance.json` | Sources with verified physical store paths, digests, windows, settings — enough to reconstruct the run. |
 | `report.md` | The run with a disclaimer block: window clipping, alignment, weighting scheme and its approximation, the dry-month rule, catalog snapshot date, unresolved combinations. |
 | `grids/series/`, `grids/change/` | The gridded products, when `save_gridded: true`. Same key as their reduced counterparts. |
 
-The wide `summary/annual_change_scalar_stats_summary*` files are unchanged and
-still produced.
+The wide `summary/annual_change_scalar_stats_summary*` files are **no longer
+produced** — see "Rebuilt tables" below.
 
 ## Renamed paths
 
@@ -130,14 +130,15 @@ cleanup" below).
 the three wide `summary/annual_change_scalar_stats_summary{,_mean}.{nc,csv}`
 files, which are **no longer written**. Nothing outside the workflow read them.
 
-Twenty columns became thirteen (fourteen for monthly, which adds `month`):
+Twenty columns became fourteen (fifteen for monthly, which adds `month`):
 
 ```
 model,scenario,member,horizon,variable,statistic,
-absolute_value,units,relative_value,relative_units,
+reference_value,absolute_value,units,relative_value,relative_units,
 status,reference_window,horizon_window
 ```
 
+- **`reference_value`** is the **baseline level** — e.g. `25.0567` degC — in `units`.
 - **`absolute_value`** is the **future level** — e.g. `26.2354` degC — in `units`.
 - **`relative_value`** is the change **against the reference window**, in
   `relative_units`: a difference for a variable declared `change: absolute`
@@ -152,6 +153,12 @@ already have:**
    wide summary — `NOAA-GFDL/GFDL-ESM4` became `NOAA-GFDL/GFD`. The old `dataset`
    column carried the truncated name. Fixed; `model` now reports the full
    `source_id`.
+
+Both levels are shipped so that every number in a row is recoverable from that
+row: the change is `absolute_value - reference_value` (or that over
+`reference_value`, as a percent). This also keeps the dry-month rule exact — a
+flagged month drops the meaningless ratio and still carries the informative
+difference.
 
 `composition.csv` drops from 15 columns to 10 on the same principles: `model`
 replaces `dataset`/`institution`/`source_id`, and the constant `catalog_crawled_on`

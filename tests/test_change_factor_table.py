@@ -43,6 +43,8 @@ def wide():
             "temp": (tuple(coords), rng * -1.5),
             "precip__level": (tuple(coords), rng + 100.0),
             "temp__level": (tuple(coords), rng + 200.0),
+            "precip__reference": (tuple(coords), rng + 10.0),
+            "temp__reference": (tuple(coords), rng + 20.0),
             # the CRS coordinate that leaks into today's CSV
             "spatial_ref": ((), 0),
         },
@@ -70,7 +72,9 @@ def test_M1_variables_become_rows_not_columns(wide):
 
 def test_M1_companions_are_columns_never_rows(wide):
     """`__level` qualifies its variable; it is not a variable of its own."""
-    assert "precip__level" not in {r["variable"] for r in _rows(wide)}
+    variables = {r["variable"] for r in _rows(wide)}
+    assert "precip__level" not in variables
+    assert "precip__reference" not in variables
 
 
 def test_M1_the_key_fields_are_all_present(wide):
@@ -115,6 +119,10 @@ def test_M3_every_value_matches_the_wide_dataset(wide):
         assert (
             row["absolute_value"]
             == wide[f"{row['variable']}__level"].sel(**sel).values.item()
+        )
+        assert (
+            row["reference_value"]
+            == wide[f"{row['variable']}__reference"].sel(**sel).values.item()
         )
 
 
@@ -208,7 +216,13 @@ def test_a_flagged_month_keeps_its_level_and_says_why(wide):
     rows = [r for r in _rows(ds) if r["variable"] == "precip"]
     assert rows
     assert all(r["status"] == FLAGGED_STATUS for r in rows)
+    # S8-08: 6b drops the meaningless ratio and KEEPS the informative difference.
+    # Both levels survive, so the difference is exactly recoverable from the row.
     assert all(r["absolute_value"] != "" for r in rows)
+    assert all(r["reference_value"] != "" for r in rows)
+    assert all(
+        r["absolute_value"] - r["reference_value"] == pytest.approx(90.0) for r in rows
+    )
     # temp carries no companion, so it is untouched
     assert all(r["status"] == "ok" for r in _rows(ds) if r["variable"] == "temp")
 
@@ -231,6 +245,7 @@ def test_written_csv_has_the_design_columns_in_order(wide, tmp_path):
         reader = csv.reader(fh)
         assert next(reader) == TABLE_COLUMNS_ANNUAL
         assert len(list(reader)) == 24
+    assert "reference_value" in TABLE_COLUMNS_ANNUAL
 
 
 def test_the_month_column_exists_only_in_the_monthly_table(wide):

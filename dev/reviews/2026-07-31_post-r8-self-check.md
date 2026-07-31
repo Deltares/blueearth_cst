@@ -49,6 +49,7 @@ once the conversation that produced it is gone.
 | S8-05 | `summary/` carries three wide files the tidy tables supersede | WF2 stage B | resolved | 2026-07-31 | 2026-07-31 | Wide files deleted; tables move into `summary/`; manifest 15 → 14 |
 | S8-06 | `provenance.json` clutters the run root | WF2 layout | resolved | 2026-07-31 | 2026-07-31 | → `summary/provenance.json` |
 | S8-07 | Figure filenames are contradictory (`..._anomaly_..._abs.png` is the absolute plot) | WF2 stage C | resolved | 2026-07-31 | 2026-07-31 | `{proj}_{var}_{view}_{quantity}.png`; precip forced to mm/day |
+| S8-08 | Four residual inconsistencies noticed in passing, none blocking | WF2 / docs | open | 2026-07-31 | 2026-07-31 | Logged for a later pass; see detail |
 
 ---
 
@@ -100,14 +101,16 @@ Three columns were structurally dead: `horizon_window_effective` (hardcoded `{}`
 `n_years_dropped` (hardcoded `""`), and `absolute_value` in the annual table (the
 `__absolute` companion was only ever produced on the monthly path).
 
-New schema — annual 13 columns, monthly 14 (from 20):
+New schema — annual 14 columns, monthly 15 (from 20). `reference_value` was
+added after the first cut, see "the 6b consequence, closed" below:
 
 ```
 model,scenario,member,horizon,[month,]variable,statistic,
-absolute_value,units,relative_value,relative_units,
+reference_value,absolute_value,units,relative_value,relative_units,
 status,reference_window,horizon_window
 ```
 
+- `reference_value` = the **baseline level** (25.0567 degC), in `units`.
 - `absolute_value` = the **future level** (26.2354 degC), in `units`.
 - `relative_value` = **relative to baseline**, per the spec's `change` field:
   a difference for `absolute` variables (+1.1787 degC), a percent for `relative`
@@ -265,16 +268,36 @@ nine old figures, and four logs from rules retired before v2.0. Enumerated in
 action — deleting fixture state is not something a task should do implicitly, and
 it must happen before the next reference snapshot.
 
-### Known consequence, not yet resolved
+### `reference_value` — the 6b consequence, closed
 
-The 6b dry-month rule promised that a flagged month "loses its ratio and keeps its
-difference". Under the two-value schema a flagged month has `relative_value` empty
-and `absolute_value` (the future level) present — so the *difference* is no longer
-directly represented, only recoverable if the reader also knows the baseline. For
-a near-zero reference the level approximates the difference closely, and `status`
-says why the ratio is absent, so nothing is misleading. Adding a
-`reference_value` column would close it exactly, at the cost of one column. Raised
-for the owner rather than decided here.
+The first cut of the schema weakened the 6b dry-month rule. The rule drops the
+meaningless ratio and **keeps the informative difference**; under a two-value
+layout a flagged month had `relative_value` empty and only the future level
+present, so the difference was no longer representable.
+
+**Owner ruled: add `reference_value`** (the baseline level, in the same `units`).
+Annual 14 columns, monthly 15. The difference is now
+`absolute_value - reference_value` on every row, flagged or not, and every number
+in a row is recoverable from that row alone.
+
+Emitting it exposed a two-stage trap worth recording, because both stages produce
+plausible numbers:
+
+1. The historical source carries a scalar `scenario='historical'` coordinate from
+   its `.sel`. `change` never shows it — DataArray arithmetic drops conflicting
+   scalar coords — but a companion emitted **directly** keeps it and merges onto
+   the `historical` label instead of the scenario it is the reference for.
+2. Simply dropping that coordinate removes the scenario **dimension**, leaving the
+   companion one rank short of its siblings, which the multi-file merge then
+   mangles differently.
+
+`broadcast_like(level_stat)` fixes both: identical dims, identical labels.
+
+The check that caught it, and that neither the unit tests nor `check_baseline`
+would have: **recompute the change from the two levels and compare it against the
+change column, on every row.** The first version put `6.489` where `9.331`
+belonged for GFDL-ESM4 precipitation — a wrong baseline that still looked like a
+precipitation rate. 468/468 rows now agree.
 
 ---
 
@@ -415,3 +438,65 @@ and every later whole-tree diff compares against a file the workflow no longer
 produces. **Delete `test_case/test_local/climate_projections/cmip6/timeseries/`
 before recording the next reference tree.** Left to the owner: deleting fixture
 state is an explicit owner action, same principle as `prune_series_cache.py`.
+
+---
+
+## S8-08 — four residual inconsistencies
+
+Noticed while working S8-01…S8-07. None blocks anything; each is logged here
+rather than fixed in passing, so the commits that fixed the surfaces around them
+stay attributable.
+
+### a. The `units` netCDF attribute contradicts its own values
+
+`raw/*.nc` and `scalar/*.nc` both carry `units = "kg m-2 s-1"` on `precip` and
+`"K"` on `temp`, while the values are plainly mm/day and °C. The conversion is
+done by the catalog's `data_adapter` (`unit_mult: precip: 86400`,
+`unit_add: temp: -273.15`), which does not rewrite the attribute.
+
+The units that reach `provenance.json` and the change-factor tables come from the
+`variables:` spec and are correct — only the netCDF attribute disagrees. Not
+verified whether anything downstream reads it. Fixing it means stamping the
+declared units onto the arrays after the adapter runs; per the repo's hard
+constraint, the fix belongs in our code, never in a vendored hydromt.
+
+### b. A stale comment tells readers to use the config form that now raises
+
+`get_stats_climate_proj.py:105-119` explains the monthly resample dispatch and
+ends: *"The required config is `variables: [precip, temp]`"* — the bare list that
+`variable_spec.parse` has raised on since 5e.
+
+The code it documents is also the last place in stage A that reads a **name**:
+the dispatch branches on the literal string `"precip"` to choose sum vs mean.
+Inert today and documented as such (`variable_spec`'s docstring: one source
+frequency, `Amon`, so the conversion is the identity — with one step per `MS`
+group, sum and mean return the same element). It would bite the day a sub-monthly
+source is added. The comment is the part that is actively wrong now.
+
+### c. `grids/series/` will duplicate `raw/` for `Amon` sources
+
+`grids/` is declared but never produced — the Snakefile has no `grids/` path at
+all; only `get_stats_climate_proj.py` builds one, under `save_gridded`. If it is
+ever switched on, `grids/series/{key}.nc` will be near-identical to
+`raw/{key}.nc` for `Amon` input: same grid, same monthly steps, differing only in
+attributes, because the monthly resample between them is the identity.
+
+Worth deciding **before** enabling the gridded branch, not after — the same
+question S8-02 answered for `gcm_timeseries.nc`.
+
+### d. The overview's DAG diagram still describes the pre-v2.0 rule set
+
+`dev/workflows/wf2_climate_projections_overview.md` opens by claiming it records
+**current** behavior, and its §1 rule inventory was corrected at the v2.0 seal.
+But the §2 detail blocks and the DAG diagram still describe `monthly_stats_hist`,
+`monthly_stats_fut`, `monthly_change`, `monthly_change_scalar_merge` and the
+`ruleorder:` directive — all retired, and all listed as retired in that same
+file's own "what went, and where it went" table. The `all` target table and rules
+2.04/2.06 were brought to the end state at S8-04…07; the rest was left, because
+rewriting a whole document inside a rename commit destroys attributability.
+
+A doc that contradicts itself one section apart is worse than a stale one: the
+inventory says these rules are gone and the detail section explains how they work.
+
+**Disposition.** `open`. Candidates for a single follow-up pass; (a) and (c) are
+the two with correctness consequences, (b) and (d) are documentation.

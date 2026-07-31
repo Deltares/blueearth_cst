@@ -261,10 +261,15 @@ def get_change_monthly_clim_proj(
             # `relative_value` is measured against and stage B used to compute it
             # and throw it away. A companion, so it rides with its variable
             # through the merge instead of becoming a row of its own.
-            level = clim_stat.rename(f"{var}{COMPANION_SEP}level")
-            if "quantile" in level.coords:
-                level = level.drop_vars("quantile")
-            ds.append(_labelled(level, stat_name, n_ref_years).to_dataset())
+            reference_stat = hist_stat.drop_vars(
+                "scenario", errors="ignore"
+            ).broadcast_like(clim_stat)
+            for stat, suffix in ((clim_stat, "level"), (reference_stat, "reference")):
+                # Same shape contract as the annual path above.
+                companion = stat.rename(f"{var}{COMPANION_SEP}{suffix}")
+                if "quantile" in companion.coords:
+                    companion = companion.drop_vars("quantile")
+                ds.append(_labelled(companion, stat_name, n_ref_years).to_dataset())
 
             absolute = (clim_stat - hist_stat).rename(var)
             if change_kind(variable_spec, var) == "relative":
@@ -440,6 +445,13 @@ def get_change_annual_clim_proj(
                 f"YS-{start_month_hyd_year.upper()[:3]}",
                 "mean",
             )
+            hist_level = _annual(
+                ds_hist_time[var].sel(
+                    time=slice(start_hyd_year_hist, end_hyd_year_hist)
+                ),
+                f"YS-{start_month_hyd_year.upper()[:3]}",
+                "mean",
+            ).sel(scenario=ds_hist_time.scenario.values[0])
         else:  # for temp
             # additive for temp
             hist = (
@@ -464,6 +476,7 @@ def get_change_annual_clim_proj(
             )
             # A state is already a duration-weighted mean in its own units.
             clim_level = clim
+            hist_level = hist
 
         # calc statistics
         for stat_name in stats:  # , stat_props in stats_dic.items():
@@ -490,16 +503,41 @@ def get_change_annual_clim_proj(
             # S8-04: the future level, same contract as the monthly path above.
             # The annual table's `absolute_value` was a dead column until now --
             # the companion only ever existed on the monthly side.
-            if "q_" in stat_name:
-                level_stat = clim_level.quantile(int(stat_name.split("_")[1]) / 100, "time")
-            else:
-                level_stat = getattr(clim_level, stat_name)("time")
-            level = level_stat.rename(f"{var}{COMPANION_SEP}level").assign_coords(
-                {"stats": quantile_label(stat_name, n_ref_years)}
-            ).expand_dims("stats")
-            if "quantile" in level.coords:
-                level = level.drop_vars("quantile")
-            ds.append(level.to_dataset())
+            # S8-08 companions: the two LEVELS the change is built from. Shipping
+            # both makes every number in a row recoverable from the row -- the
+            # difference, which a flagged relative month keeps under 6b but the
+            # ratio column cannot express, is `absolute_value - reference_value`.
+            def _stat_of(source):
+                if "q_" in stat_name:
+                    return source.quantile(int(stat_name.split("_")[1]) / 100, "time")
+                return getattr(source, stat_name)("time")
+
+            level_stat = _stat_of(clim_level)
+            # The BASELINE must be shaped exactly like the level it sits beside.
+            # Two traps, both hit before this landed:
+            #   1. the historical source carries a scalar `scenario='historical'`
+            #      from its `.sel`, which `change` never shows because DataArray
+            #      arithmetic drops conflicting scalar coords -- but a companion
+            #      emitted directly keeps it and merges onto the wrong label;
+            #   2. simply dropping that coord removes the scenario DIMENSION, so
+            #      the companion is one rank short of its siblings and the
+            #      multi-file merge mangles it.
+            # `broadcast_like` fixes both: identical dims, identical labels, the
+            # historical values carried across the scenarios they are the
+            # reference for. Caught by recomputing the change from the two levels
+            # and comparing it against the change column, on every row.
+            reference_stat = (
+                _stat_of(hist_level)
+                .drop_vars("scenario", errors="ignore")
+                .broadcast_like(level_stat)
+            )
+            for stat, suffix in ((level_stat, "level"), (reference_stat, "reference")):
+                companion = stat.rename(f"{var}{COMPANION_SEP}{suffix}").assign_coords(
+                    {"stats": quantile_label(stat_name, n_ref_years)}
+                ).expand_dims("stats")
+                if "quantile" in companion.coords:
+                    companion = companion.drop_vars("quantile")
+                ds.append(companion.to_dataset())
 
     stats_annual_change = xr.merge(ds)
     return stats_annual_change

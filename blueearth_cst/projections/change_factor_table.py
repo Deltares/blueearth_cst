@@ -18,8 +18,9 @@ S8-04 rebuilt the column set. Three things were wrong with the first cut:
 * **Eight columns were constant or redundant.** `dataset` was literally
   `institution + "/" + source_id`, split apart again on read.
 
-The schema now carries two values per row, each with fixed semantics:
+The schema now carries three values per row, each with fixed semantics:
 
+* ``reference_value`` — the **baseline level** (25.0567), in ``units``.
 * ``absolute_value`` — the **future level** (26.2354), in ``units``.
 * ``relative_value`` — **relative to the baseline**, per the spec's ``change``
   field: a difference for an `absolute` variable (+1.1787 degC), a percent for a
@@ -29,7 +30,10 @@ Nothing is inferred from a variable name, and there is no column whose meaning
 depends on which row you are reading.
 
 The dry-month rule (6b) falls out natively: a flagged month has ``relative_value``
-empty, ``absolute_value`` present, and ``status = reference_below_threshold``.
+empty, both levels present, and ``status = reference_below_threshold``. Shipping
+the reference is what keeps 6b's promise exactly — the rule drops the meaningless
+ratio and keeps the informative difference, and the difference is
+``absolute_value - reference_value`` on every row, flagged or not.
 
 This module is a **reshape, not a recomputation** — every value it emits comes
 from the dataset stage B persisted (falsifier M3).
@@ -44,6 +48,7 @@ _IDENTITY = ["model", "scenario", "member", "horizon"]
 _TAIL = [
     "variable",
     "statistic",
+    "reference_value",
     "absolute_value",
     "units",
     "relative_value",
@@ -64,8 +69,9 @@ DROPPED_COORDS = ("spatial_ref",)
 
 #: Companions ride alongside the variable they qualify and are COLUMNS of that
 #: variable, never rows of their own:
-#:   `{var}__level`   the future level        -> `absolute_value`
-#:   `{var}__flagged` the dry-month verdict   -> `status`
+#:   `{var}__reference` the baseline level     -> `reference_value`
+#:   `{var}__level`     the future level       -> `absolute_value`
+#:   `{var}__flagged`   the dry-month verdict  -> `status`
 COMPANION_SEP = "__"
 
 #: Units of `relative_value` when the variable's change is a ratio.
@@ -83,7 +89,7 @@ def tidy_rows(ds, *, month=None, window_facts=None, row_facts=None, variable_spe
 
     ``ds`` carries data variables per climate variable (`precip`, `temp`) over
     coordinates `(clim_project, model, scenario, horizon, member, stats)`, plus
-    the `__level` and `__flagged` companions.
+    the `__reference`, `__level` and `__flagged` companions.
 
     ``month`` is ``None`` for the annual table and the month number for the
     monthly one. The two tables no longer share a schema — the `period` column
@@ -117,10 +123,13 @@ def tidy_rows(ds, *, month=None, window_facts=None, row_facts=None, variable_spe
     for variable in base_variables:
         da = ds[variable]
         level_da = ds.get(f"{variable}{COMPANION_SEP}level")
+        reference_da = ds.get(f"{variable}{COMPANION_SEP}reference")
         flagged_da = ds.get(f"{variable}{COMPANION_SEP}flagged")
         stacked = da.stack(_row=[d for d in da.dims])
         if level_da is not None:
             level_da = level_da.stack(_row=[d for d in level_da.dims])
+        if reference_da is not None:
+            reference_da = reference_da.stack(_row=[d for d in reference_da.dims])
         if flagged_da is not None:
             flagged_da = flagged_da.stack(_row=[d for d in flagged_da.dims])
 
@@ -165,6 +174,8 @@ def tidy_rows(ds, *, month=None, window_facts=None, row_facts=None, variable_spe
                 row["reference_window"] = overrides["reference_window"]
             if level_da is not None:
                 row["absolute_value"] = _scalar(level_da.isel(_row=idx).values)
+            if reference_da is not None:
+                row["reference_value"] = _scalar(reference_da.isel(_row=idx).values)
             # Step 6b: a flagged month lost its ratio. Read from the companion
             # rather than recomputed, so the table cannot disagree with the
             # computation about which months were flagged.

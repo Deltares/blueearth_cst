@@ -634,17 +634,52 @@ def test_r07_weathergen_artifacts_split_output_vs_work():
 
 def test_r07_explicit_non_moves_stay_put():
     """The review REMOVED work as well as adding it; moving any of these
-    blows the semantic diff (brief section Explicit non-moves)."""
+    blows the semantic diff (brief section Explicit non-moves).
+
+    The two `climate_projections/.../plots/*.png` entries this list used to carry
+    are GONE from it. They were genuine R07 non-moves, but the map is a CUMULATIVE
+    rename ledger, not a record of one milestone: S8-07 renamed every WF2 figure,
+    so asserting they still resolve to themselves would pin the map to a state the
+    tree no longer has. `test_s8_figure_renames_resolve` below is what covers them
+    now.
+    """
     m = std.build_r07_path_map("experiment", "k1", clim_project="cmip6")
     for rel in (
-        "climate_projections/cmip6/plots/projected_climate_statistics.png",
-        "climate_projections/cmip6/plots/temperature_anomaly_projections_abs.png",
         "experiments/experiment/config/snake_config_climate_experiment.yml",
         "hydrology_model/staticmaps.nc",
         "hydrology_model/run_default/output.csv",
         "experiments/experiment/data_catalog_climate_experiment.yml",
     ):
         assert std.apply_path_map(rel, m) == rel, rel
+
+
+def test_s8_figure_renames_resolve():
+    """S8-03/04/06/07 moved most of the WF2 result surface. Without these rows a
+    whole-tree diff against a pre-S8 reference reports deletions plus additions
+    instead of comparing element-wise, i.e. it stops discriminating exactly where
+    the most changed."""
+    m = std.build_r07_path_map("experiment", "k1", clim_project="cmip6")
+    cp = "climate_projections/cmip6"
+    cases = {
+        f"{cp}/plots/projected_climate_statistics.png":
+            f"{cp}/plots/cmip6_change_factor_cloud.png",
+        # "anomaly" was the ANNUAL view, not the anomaly quantity -- the
+        # contradiction S8-07 fixed, so the mapping is not name-for-name.
+        f"{cp}/plots/precipitation_anomaly_projections_abs.png":
+            f"{cp}/plots/cmip6_precip_annual_absolute.png",
+        f"{cp}/plots/temperature_anomaly_projections_anom.png":
+            f"{cp}/plots/cmip6_temp_annual_change.png",
+        f"{cp}/plots/precipitation_monthly_projections_anom.png":
+            f"{cp}/plots/cmip6_precip_monthly_change.png",
+        f"{cp}/change_factors/annual.csv":
+            f"{cp}/summary/cmip6_change_factors_annual.csv",
+        f"{cp}/provenance.json": f"{cp}/summary/provenance.json",
+        # a DIRECTORY prefix rule: the filename grammar is unchanged
+        f"{cp}/series/cmip6_INM_INM-CM4-8_ssp245_r1i1p1f1.nc":
+            f"{cp}/scalar/cmip6_INM_INM-CM4-8_ssp245_r1i1p1f1.nc",
+    }
+    for old, expected in cases.items():
+        assert std.apply_path_map(old, m) == expected, old
 
 
 def test_r07_allowlist_carries_p31_entries_forward():
