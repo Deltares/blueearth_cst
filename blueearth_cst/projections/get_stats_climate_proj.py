@@ -369,12 +369,15 @@ if __name__ == "__main__":
             # (model, scenario) -- which is what forced two rules before.
             series_nc_out = sm.params.series_nc_out
 
-            # The gridded families keep their legacy names for now: they are
-            # save_grids-only, undeclared, and R2/D11 restructure them at step 7.
-            if name_scenario == "historical":
-                name_nc_out = f"historical_stats_{name_model}.nc"
-            else:
-                name_nc_out = f"stats-{name_model}_{name_scenario}.nc"
+            # Step 7-iii / R2-D11: `grids/series/{series_key}.nc`. The legacy names
+            # (`historical_stats_{model}.nc`, `stats-{model}_{scenario}.nc`) put a
+            # `/` from the model name into the path, so they nested under
+            # `stats_time-INM/` -- the same defect the series key grammar fixed at
+            # step 3. The key is already sanitized, so reusing it fixes the nesting
+            # and makes the gridded product addressable by the same name as its
+            # reduced counterpart.
+            series_key_value = os.path.splitext(os.path.basename(series_nc_out))[0]
+            name_nc_out = os.path.join("grids", "series", f"{series_key_value}.nc")
 
             # --- step 2b: stamp the identity onto the product -------------------
             # These attributes are what make the persistent series self-describing

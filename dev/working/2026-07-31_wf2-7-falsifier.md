@@ -79,3 +79,44 @@ Any figure claim in this step is checked by sha256 and mtime, as 6c's O4 was.
 1. 7-i: declare the eight figures; rename the mislabelled output; P1/P2/P6.
 2. 7-ii: `report.md` reading the durable records; P3/P4.
 3. 7-iii: gridded declaration; P5.
+
+---
+
+## Outcome — 2026-07-31
+
+| | Result |
+|---|---|
+| P1 | 8 figures + the netCDF declared; a forced run completing IS the proof, since Snakemake fails on a missing declared output |
+| P2 | `timeseries_csv` → `timeseries_nc` |
+| P3 | all seven disclaimer elements present; 21 tests |
+| P4 | every line prints its negative — "no clip", "at or above the 20-year floor", "no months flagged", "none skipped" |
+| P5 | **26 jobs either way** — `save_gridded` changes declarations, not job count |
+| P6 | `check_baseline` OK 15/15; no value moved |
+
+### P5 needed the right question
+
+The first measurement compared `--dry-run` totals for the two configs and got
+14 vs 15 — an apparent extra job. That was an artifact: the two runs started from
+different up-to-date states, so the counts measured *what remained to do*, not the
+job graph. `--forceall` measures the graph, and it is **26 either way**.
+
+Worth recording because "declares-not-adds-jobs" is a claim about the DAG, and the
+obvious way to test it measures something else.
+
+### The gridded rename fixed an old defect on the way past
+
+The legacy names (`historical_stats_{model}.nc`, `stats-{model}_{scenario}.nc`,
+`monthly_change_mean_grid-{model}_{scenario}_{horizon}.nc`) embedded an
+**unsanitized** model name, so `INM/INM-CM4-8` made them nest under `stats_time-INM/`
+— the same defect the series-key grammar fixed at step 3 and which the prune
+script has been cleaning up ever since. The D11 layout reuses the sanitized series
+key, so the gridded product is addressable by the same name as its reduced
+counterpart.
+
+The dummy-netCDF fallback in the gridded branch is also gone, replaced by a raise:
+step 4c removed exactly that pattern from the scalar branch, and a placeholder that
+looks like a product is worse than a failure.
+
+**Limitation, stated:** `save_gridded: false` in every shipped config, so none of
+the gridded path is exercised by any gate here. P5 checks the DAG; the file
+contents have no runtime evidence in this repo.

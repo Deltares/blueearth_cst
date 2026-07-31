@@ -215,18 +215,28 @@ def derive_one_point(
             grid_model = monthly_change_mean_grid.model.values[0]
             grid_scenario = monthly_change_mean_grid.scenario.values[0]
             grid_horizon = monthly_change_mean_grid.horizon.values[0]
-            name_nc_out = (
-                f"monthly_change_mean_grid-{grid_model}_{grid_scenario}_{grid_horizon}.nc"
+            # Step 7-iii / D11: `grids/change/{series_key}_{horizon}.nc` -- the
+            # cellwise counterpart of the tabular product, addressable by the same
+            # key. The legacy `monthly_change_mean_grid-{model}_{scenario}_{horizon}`
+            # embedded an unsanitized model name and matched nothing else.
+            series_key_for_grid = os.path.splitext(os.path.basename(series_path))[0]
+            name_nc_out = os.path.join(
+                "grids", "change", f"{series_key_for_grid}_{name_horizon}.nc"
+            )
+            os.makedirs(
+                os.path.join(clim_project_dir, "grids", "change"), exist_ok=True
             )
             monthly_change_mean_grid.to_netcdf(
                 os.path.join(clim_project_dir, name_nc_out),
                 encoding={k: {"zlib": True} for k in dvars},
             )
         else:
-            name_nc_out = (
-                f"monthly_change_mean_grid-{name_model}_{name_scenario}_{name_horizon}.nc"
+            raise RuntimeError(
+                f"{name_model} {name_scenario}: save_gridded is on but the gridded "
+                "scenario dataset is empty. Step 4c removed the dummy-netCDF path "
+                "from the scalar branch for the same reason -- a placeholder that "
+                "looks like a product is worse than a failure."
             )
-            xr.Dataset().to_netcdf(os.path.join(clim_project_dir, name_nc_out))
 
     ds_hist_time.close()
     ds_clim_time.close()
