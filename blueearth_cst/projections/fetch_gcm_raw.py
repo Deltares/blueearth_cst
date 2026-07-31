@@ -60,9 +60,6 @@ if "snakemake" in globals():
     sm = globals()["snakemake"]
 
     with tee_to_log(sm.log[0]):
-        import geopandas as gpd
-        import hydromt
-
         region_path = sm.input.region_path
         raw_nc_out = str(sm.output.raw_nc)
         catalog_path = sm.params.catalog_path
@@ -79,8 +76,6 @@ if "snakemake" in globals():
         # formula edit re-downloads and the split buys nothing.
         components = sm.params.raw_digest_components
 
-        geom = gpd.read_file(region_path)
-        bbox = list(geom.geometry.bounds.values[0])
         region_fp = series_identity.region_fingerprint(region_path)
         expected_raw_digest = series_identity.raw_digest(components, region_fp)
 
@@ -127,6 +122,31 @@ if "snakemake" in globals():
         )
 
         os.makedirs(os.path.dirname(raw_nc_out) or ".", exist_ok=True)
+
+        # --- everything below the cache exit is MISS-ONLY work -----------------
+        # hydromt is imported here, not with the module: it is used first at the
+        # DataCatalog below, and a cache hit is the common case. Fresh-process
+        # measurement, external review 2026-07-31: geopandas + xarray 2.7-3.0 s /
+        # 118 MiB RSS versus geopandas + hydromt + xarray 6.7-7.4 s / 311 MiB, so a
+        # cached job stops paying ~4 s and ~193 MiB peak (against the 9.98-10.24 s /
+        # ~327 MiB the nine cached fetch jobs cost in wf2_benchmarks.md).
+        # The `.raster` accessor hydromt registers is not used here -- this module
+        # reads through DataCatalog, unlike get_stats_climate_proj.py.
+        # It stays INSIDE the tee: `tee_to_log` repoints library handlers bound
+        # before entry, so an import that lands after entry must keep landing after
+        # entry, or hydromt's StreamHandler binds to the real stdout and bypasses
+        # the log file.
+        import geopandas as gpd
+        import hydromt
+
+        # The region is read here too, not before the cache check: `bbox` is
+        # consumed only by the read below and by the attrs at the end, both on this
+        # path, so a cache hit now opens the polygon once (inside
+        # `region_fingerprint`) instead of twice. Deliberately NOT folded into
+        # `region_fingerprint` -- that function is a cache-identity contract
+        # (design D9), not a place to hang a bounds helper.
+        geom = gpd.read_file(region_path)
+        bbox = list(geom.geometry.bounds.values[0])
 
         # The generated catalog expands placeholders at generation time, so the
         # member is part of the entry NAME (get_stats_climate_proj.py:236). Use the
