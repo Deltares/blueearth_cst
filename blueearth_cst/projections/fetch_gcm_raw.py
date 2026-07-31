@@ -195,6 +195,10 @@ if "snakemake" in globals():
             time_range=acquisition_window,
             variables=variables,
         )
+        # Kept for the empty-window error below: `time_range` is applied by the
+        # driver and `.sel` narrows it again, so "the driver returned 1850..2014"
+        # is the diagnostic that tells the two apart.
+        driver_index = data.indexes.get("time")
         # cmip6/cmip5 cftime calendars are not always honoured by time_range alone.
         data = data.sel(time=slice(*acquisition_window))
 
@@ -211,6 +215,26 @@ if "snakemake" in globals():
                 f"{entry}: time axis has {len(index) - len(set(index))} duplicate "
                 "step(s), so the catalog glob matched more than one store. Pin the "
                 "version in the catalog rather than reading an ambiguous source."
+            )
+
+        # A window that does not overlap the store leaves ZERO steps, and every
+        # check downstream passes it: `.load()` succeeds, the duplicate test is
+        # trivially true (0 == 0), and the attrs block then dies on `index[0]` with
+        # a bare IndexError naming neither the source nor the window. Reachable on
+        # real input -- a historical run starting after 1950, or a truncated ssp
+        # store -- and invisible to the fixture gate, whose three models all cover
+        # their windows. Raised here, so it also costs no transfer.
+        if index is not None and len(index) == 0:
+            covered = (
+                f"{driver_index[0]}..{driver_index[-1]}"
+                if driver_index is not None and len(driver_index)
+                else "no steps at all"
+            )
+            raise RuntimeError(
+                f"{entry}: no time steps inside the acquisition window "
+                f"{acquisition_window[0]}..{acquisition_window[1]} (the driver "
+                f"returned {covered}). This store does not cover the window this "
+                "experiment acquires, so it cannot produce a raw slice."
             )
 
         # Eager, and not only for speed: a lazy slice written by to_netcdf reads from
