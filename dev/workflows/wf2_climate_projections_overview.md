@@ -70,9 +70,9 @@ until 2.07–2.10 have run.
 
 | Direction | Item | Producer |
 | --- | --- | --- |
-| in | `{CPD}/summary/annual_change_scalar_stats_summary.{nc,csv}`, `..._summary_mean.csv` | 2.05 |
-| in | `{CPD}/plots/projected_climate_statistics.png` | 2.05 |
-| in | `{CPD}/plots/precipitation_anomaly_projections_abs.png`, `temperature_anomaly_projections_abs.png` | 2.06 |
+| in | `{CPD}/summary/{proj}_change_factors_{annual,monthly}.csv` | 2.04 |
+| in | `{CPD}/plots/{proj}_change_factor_cloud.png` | 2.04 |
+| in | `{CPD}/plots/{proj}_{precip,temp}_annual_absolute.png` | 2.06 |
 | in | `{PD}/config/runs/snake_config_climate_projections.yml` | 2.01 |
 | in | `{PD}/logs/2.02_monthly_stats_hist.log`, `2.03_monthly_stats_fut.log`, `2.04_monthly_change.log` | 2.07/2.08/2.09 |
 | in | `{PD}/benchmarks/wf2_benchmarks.md` | 2.10 |
@@ -166,10 +166,11 @@ the joint precip/temp scatter used as the plausibility overlay.
   — the full 2.04 fan-out (seed: 6 files).
 - **Params:** `clim_project_dir`, `horizons` (used to relabel each horizon by its
   mid-year in the plot).
-- **Out:** `{CPD}/summary/annual_change_scalar_stats_summary.nc` (netCDF, zlib),
-  `.../annual_change_scalar_stats_summary.csv`,
-  `.../annual_change_scalar_stats_summary_mean.csv` (`stats="mean"` slice only),
-  `{CPD}/plots/projected_climate_statistics.png` (seaborn `JointGrid`).
+- **Out:** `{CPD}/plots/{proj}_change_factor_cloud.png` (seaborn `JointGrid`) —
+  the only artifact this step still writes. S8-05 retired the three wide
+  `annual_change_scalar_stats_summary*` files; the wide `.nc` survives as a
+  job-internal intermediate in stage B's TemporaryDirectory, read back by the
+  tidy reshape and never shipped.
 - **Log/benchmark:** `logs/2.05_monthly_change_scalar_merge.log` (**unmerged** —
   single job, so no `_parts`), `benchmarks/_parts/2.05_....tsv`.
 - **Consumed by:** `all`; the summary `.nc` is also an input to 2.06 (declared,
@@ -182,12 +183,12 @@ Reopens all the monthly scalar series (hist + future), computes multi-model
 monthly climatology), writes one merged timeseries netCDF, and renders the
 projection figures.
 
-- **In:** `{CPD}/summary/annual_change_scalar_stats_summary.nc` (declared, unread);
+- **In:** `{CPD}/summary/{proj}_change_factors_annual.csv` (declared, unread — an
+  ordering edge, repointed at S8-05 from the retired wide summary);
   all `historical_stats_time_{model}.nc`; all `stats_time-{model}_{scenario}.nc`.
 - **Params:** `clim_project_dir`, `scenarios`, `horizons`, `save_grids`,
   `change_grids` (the undeclared 2.04 grid netCDFs, referenced by path).
-- **Out (declared):** `{CPD}/plots/precipitation_anomaly_projections_abs.png`,
-  `{CPD}/plots/temperature_anomaly_projections_abs.png`,
+- **Out (declared):** all eight `{CPD}/plots/{proj}_{precip,temp}_{annual,monthly}_{absolute,change}.png`,
   (`{CPD}/timeseries/gcm_timeseries.nc` was a third declared output until S8-02
   deleted it — see `dev/reviews/2026-07-31_post-r8-self-check.md`.)
 - **Out (undeclared):** 6 further PNGs from the same loops —

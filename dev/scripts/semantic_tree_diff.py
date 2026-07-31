@@ -274,6 +274,29 @@ def build_r07_path_map(
         # a CSV leaves plots/ entirely (P1: plots/ holds figures only)
         ("plots/wflow_model_performance/performance_metrics.csv",
          "hydrology_model/evaluation/performance_metrics.csv"),
+        # -- S8-04/05/06/07: the result surface moved. Without these rows a
+        # whole-tree diff against any pre-S8-04 reference reports ~14 deletions
+        # plus ~14 additions instead of comparing element-wise -- the gate still
+        # runs but stops discriminating exactly where the most changed.
+        (f"climate_projections/{clim_project}/change_factors/annual.csv",
+         f"climate_projections/{clim_project}/summary/{clim_project}_change_factors_annual.csv"),
+        (f"climate_projections/{clim_project}/change_factors/monthly.csv",
+         f"climate_projections/{clim_project}/summary/{clim_project}_change_factors_monthly.csv"),
+        (f"climate_projections/{clim_project}/provenance.json",
+         f"climate_projections/{clim_project}/summary/provenance.json"),
+        (f"climate_projections/{clim_project}/plots/projected_climate_statistics.png",
+         f"climate_projections/{clim_project}/plots/{clim_project}_change_factor_cloud.png"),
+        # The eight scalar figures: {precipitation,temperature} x {anomaly,monthly}
+        # x {abs,anom} -> {precip,temp} x {annual,monthly} x {absolute,change}.
+        # "anomaly" was the ANNUAL view, not the anomaly quantity -- which is the
+        # contradiction S8-07 fixed, so the mapping is not name-for-name.
+        *[
+            (f"climate_projections/{clim_project}/plots/{old_var}_{old_view}_projections_{old_q}.png",
+             f"climate_projections/{clim_project}/plots/{clim_project}_{new_var}_{new_view}_{new_q}.png")
+            for old_var, new_var in (("precipitation", "precip"), ("temperature", "temp"))
+            for old_view, new_view in (("anomaly", "annual"), ("monthly", "monthly"))
+            for old_q, new_q in (("abs", "absolute"), ("anom", "change"))
+        ],
         # -- S8-03: the reduced tier is `scalar/`, not `series/`. A DIRECTORY
         # prefix rule -- the filename grammar is unchanged, so every key maps
         # one-to-one and a pre-rename reference tree still compares element-wise

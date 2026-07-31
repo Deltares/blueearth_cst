@@ -240,6 +240,20 @@ the tables, not just the figures.
   summary files and three renamed figures out, two tidy tables and three renamed
   figures in. Coverage improves: the change factors are fingerprinted for the
   first time.
+- `semantic_tree_diff --milestone r07` against `ref_wf2_pre_5f_fixed`, on a
+  cleaned copy of the fixture: **all nine figure renames and `series/` → `scalar/`
+  resolve element-wise**, leaving `4 missing` (exactly the three wide summary
+  files plus `gcm_timeseries.nc` — the deletions) and `4 extra` (`report.md`,
+  the two tables, `summary/provenance.json` — 6a/7 artifacts that postdate this
+  reference). Without the added rows the same diff reported ~14 deletions plus
+  ~14 additions and stopped discriminating where the most had changed.
+- Every figure `report.md` advertises exists on disk (9/9), asserted directly.
+  This caught a real miss: the Snakefile's `figures` param still named two
+  pre-S8-07 figures, so `report.md` was advertising files that were never
+  written. Nothing else would have caught it — that param feeds only the report's
+  listing, not an output declaration, so the run succeeded; `check_baseline`
+  fingerprints three PNGs, none of them the two; and `test_report.py` passes
+  synthetic names.
 
 ### Residue
 
@@ -361,20 +375,24 @@ Landed as one commit. Surfaces changed:
 **Deliberately not changed:** `dev/scripts/semantic_tree_diff.py:278-279` keeps
 its `gcm_timeseries.nc` rename row. That row asserts a *historical* path
 equivalence for the R7 layout move; it is not a claim that the file is still
-produced. **Verified, not assumed** — run against `ref_wf2_pre_5f_fixed` with a
-copy of the fixture whose `timeseries/` was removed, the tool reports exactly:
+produced. Run against `ref_wf2_pre_5f_fixed` with a copy of the fixture whose
+`timeseries/` was removed, the tool reports the file as one clean deletion:
 
 ```
 > MISSING (in ref, not cur): climate_projections/cmip6/timeseries/gcm_timeseries.nc
-> MISMATCH: 125 files compared, 15 failed, 1 missing, 4 extra, 0 allowlisted
 ```
 
-The control run against the untouched fixture gives `126 files compared, 15
-failed, 0 missing, 4 extra` — identical but for the one file. So the row resolves
-the old path correctly and this change contributes one clean deletion and nothing
-else. (The 15 failed / 4 extra are pre-existing deltas against a reference that
-predates 5f's value change and 6a's new outputs; they are present with and
-without this commit.)
+The control run against the untouched fixture reports it missing zero times, with
+otherwise identical counts — so this change contributes one deletion and nothing
+else.
+
+> **Correction (same day).** That first run used the tool's **default
+> `--milestone p31`**, under which `build_r07_path_map` is never built — so the
+> rename row was not actually exercised, and the entry originally claimed
+> "verified, not assumed" on the strength of it. The rows live inside
+> `build_r07_path_map` and require `--milestone r07`. Re-run with the flag during
+> S8-04..07 (below), the whole map resolves as intended. The observed behaviour
+> above was correct either way; the claim about *why* was not.
 
 **Verification.** wf2 dry-run clean; rule 2.06 executed for real on both the
 Gabon project and the tracked fixture; `pytest tests/test_cli.py` 9 passed;
