@@ -691,6 +691,9 @@ rule derive_change_factors:
         change_factors_monthly = (clim_project_dir + "/change_factors/monthly.csv"),
         # Step 6a-iii: everything needed to reconstruct the run (design 5.9).
         provenance_json = (clim_project_dir + "/provenance.json"),
+        # Step 7-ii: the run told in the order a reader needs it, with the
+        # 5.9 disclaimer block. Reads provenance.json; derives nothing.
+        report_md = (clim_project_dir + "/report.md"),
     params:
         clim_project_dir = f"{clim_project_dir}",
         horizons = future_horizons,
@@ -700,6 +703,20 @@ rule derive_change_factors:
         stats = stats,
         stage_b_hash = STAGE_B_HASH,
         min_reference = MIN_REFERENCE,
+        # The figure set, by NAME. Stage B runs before the plot rule, so it
+        # cannot take them as inputs -- but they are declared, so naming them
+        # is a promise the plot rule is required to keep.
+        figure_names = [
+            "precipitation_anomaly_projections_abs.png",
+            "precipitation_anomaly_projections_anom.png",
+            "precipitation_monthly_projections_abs.png",
+            "precipitation_monthly_projections_anom.png",
+            "temperature_anomaly_projections_abs.png",
+            "temperature_anomaly_projections_anom.png",
+            "temperature_monthly_projections_abs.png",
+            "temperature_monthly_projections_anom.png",
+            "projected_climate_statistics.png",
+        ],
         max_flagged_months = MAX_FLAGGED_MONTHS,
         variable_spec = {k: list(v) for k, v in VARIABLE_SPEC.items()},
         reference_record = REFERENCE_RECORD,

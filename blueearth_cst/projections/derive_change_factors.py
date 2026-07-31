@@ -47,6 +47,7 @@ from blueearth_cst.projections.calendar_weights import CalendarError, assert_wei
 from blueearth_cst.projections.change_factor_table import tidy_rows, write_table
 from blueearth_cst.projections.dry_month import FLAGGED_STATUS, combination_is_flagged
 from blueearth_cst.projections import provenance as _prov
+from blueearth_cst.projections import report as _report
 from blueearth_cst.projections.variable_spec import VariableSpec
 from blueearth_cst.projections.get_change_climate_proj import (
     _to_str_tuple,
@@ -567,6 +568,21 @@ if "snakemake" in globals():
             for k, n in sorted(flagged_counts.items())
         ]
         _prov.write(str(sm.output.provenance_json), document)
+
+        # --- step 7-ii: report.md ---------------------------------------------
+        # READS the provenance document just written; recomputes nothing. A value
+        # recorded in two places has disagreed five times in this milestone, and a
+        # report deriving its own disclaimer would be the sixth chance.
+        _report.write(
+            str(sm.output.report_md),
+            _report.build(
+                document,
+                thresholds=sm.params.min_reference,
+                max_flagged_months=sm.params.max_flagged_months,
+                figures=list(sm.params.figure_names),
+            ),
+        )
+        log_row(f"report -> {os.path.basename(str(sm.output.report_md))}", module="change")
         log_row(
             f"provenance: {len(document['sources'])} sources, "
             f"{document['composition']['resolved']}/{document['composition']['requested']} resolved "
