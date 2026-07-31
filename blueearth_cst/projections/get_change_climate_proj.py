@@ -12,6 +12,7 @@ import xarray as xr
 
 from blueearth_cst.projections import series_identity
 from blueearth_cst.projections.calendar_weights import month_length_weights
+from blueearth_cst.projections.change_factor_table import COMPANION_SEP
 from blueearth_cst.projections.dry_month import FLAGGED_STATUS, is_flagged
 from blueearth_cst.projections.variable_spec import canonical_kind, change_kind
 from blueearth_cst.shared.snake_utils import log_row
@@ -255,6 +256,16 @@ def get_change_monthly_clim_proj(
                 hist_stat = getattr(hist_by_month, stat_name)("time")
                 clim_stat = getattr(clim_by_month, stat_name)("time")
 
+            # S8-04: the FUTURE LEVEL, for the table's `absolute_value`. Emitted
+            # for every variable and every statistic, because it is what
+            # `relative_value` is measured against and stage B used to compute it
+            # and throw it away. A companion, so it rides with its variable
+            # through the merge instead of becoming a row of its own.
+            level = clim_stat.rename(f"{var}{COMPANION_SEP}level")
+            if "quantile" in level.coords:
+                level = level.drop_vars("quantile")
+            ds.append(_labelled(level, stat_name, n_ref_years).to_dataset())
+
             absolute = (clim_stat - hist_stat).rename(var)
             if change_kind(variable_spec, var) == "relative":
                 change = ((clim_stat - hist_stat) / hist_stat * 100).rename(var)
@@ -417,7 +428,18 @@ def get_change_annual_clim_proj(
                     "sum",
                 )
             )
-            # change = (ds_clim[var] - ds_hist[var].sel(horizon = ds_hist.horizon.values[0], scenario = ds_hist.scenario.values[0])) / ds_hist[var].sel(horizon = ds_hist.horizon.values[0], scenario = ds_hist.scenario.values[0]) * 100
+            # S8-07 (owner ruling: mm/day everywhere): the change above is a ratio
+            # of annual INTEGRALS, but the LEVEL reported beside it must be in the
+            # variable's declared units. A duration-weighted mean is that same
+            # integral divided by the year's length, so the ratio is untouched --
+            # only the level's scale changes, from mm/year to mm/day.
+            clim_level = _annual(
+                ds_clim_time[var].sel(
+                    time=slice(start_hyd_year_clim, end_hyd_year_clim)
+                ),
+                f"YS-{start_month_hyd_year.upper()[:3]}",
+                "mean",
+            )
         else:  # for temp
             # additive for temp
             hist = (
@@ -440,6 +462,8 @@ def get_change_annual_clim_proj(
                     "mean",
                 )
             )
+            # A state is already a duration-weighted mean in its own units.
+            clim_level = clim
 
         # calc statistics
         for stat_name in stats:  # , stat_props in stats_dic.items():
@@ -462,6 +486,20 @@ def get_change_annual_clim_proj(
             if "quantile" in change.coords:
                 change = change.drop("quantile")
             ds.append(change.to_dataset())
+
+            # S8-04: the future level, same contract as the monthly path above.
+            # The annual table's `absolute_value` was a dead column until now --
+            # the companion only ever existed on the monthly side.
+            if "q_" in stat_name:
+                level_stat = clim_level.quantile(int(stat_name.split("_")[1]) / 100, "time")
+            else:
+                level_stat = getattr(clim_level, stat_name)("time")
+            level = level_stat.rename(f"{var}{COMPANION_SEP}level").assign_coords(
+                {"stats": quantile_label(stat_name, n_ref_years)}
+            ).expand_dims("stats")
+            if "quantile" in level.coords:
+                level = level.drop_vars("quantile")
+            ds.append(level.to_dataset())
 
     stats_annual_change = xr.merge(ds)
     return stats_annual_change

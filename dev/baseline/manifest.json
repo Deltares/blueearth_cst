@@ -2,185 +2,33 @@
   "project_dir": "test_case/test_local",
   "recorded_by": {
     "branch": "main",
-    "commit": "88203eab4006f39d9279dcab1d582b673eba628e",
+    "commit": "dc41da04efb86c32d445d78ec32f9db4a3354ef0",
     "dirty": true
   },
   "targets": {
-    "test_case/test_local/climate_projections/cmip6/plots/precipitation_anomaly_projections_abs.png": {
-      "exists": true,
-      "size_bytes": 609649,
-      "type": "png"
-    },
-    "test_case/test_local/climate_projections/cmip6/plots/projected_climate_statistics.png": {
+    "test_case/test_local/climate_projections/cmip6/plots/cmip6_change_factor_cloud.png": {
       "exists": true,
       "size_bytes": 39870,
       "type": "png"
     },
-    "test_case/test_local/climate_projections/cmip6/plots/temperature_anomaly_projections_abs.png": {
+    "test_case/test_local/climate_projections/cmip6/plots/cmip6_precip_annual_absolute.png": {
+      "exists": true,
+      "size_bytes": 606180,
+      "type": "png"
+    },
+    "test_case/test_local/climate_projections/cmip6/plots/cmip6_temp_annual_absolute.png": {
       "exists": true,
       "size_bytes": 386751,
       "type": "png"
     },
-    "test_case/test_local/climate_projections/cmip6/summary/annual_change_scalar_stats_summary.csv": {
-      "sha256": "b3d2bc822cff49baa51dd8d08f2ca495f597d369f30419e4c16b52995a73502e",
-      "size_bytes": 1674,
+    "test_case/test_local/climate_projections/cmip6/summary/cmip6_change_factors_annual.csv": {
+      "sha256": "d93e1c24e761607f2cf0aba3d7e4b4e4f396a72758bac5e9ce810b9558c17e96",
+      "size_bytes": 4703,
       "type": "csv"
     },
-    "test_case/test_local/climate_projections/cmip6/summary/annual_change_scalar_stats_summary.nc": {
-      "summary": {
-        "clim_project": {
-          "attrs": {},
-          "count_non_nan": 1,
-          "dtype": "<U5",
-          "max": null,
-          "mean": null,
-          "min": null,
-          "shape": [
-            1
-          ],
-          "std": null
-        },
-        "horizon": {
-          "attrs": {},
-          "count_non_nan": 1,
-          "dtype": "<U3",
-          "max": null,
-          "mean": null,
-          "min": null,
-          "shape": [
-            1
-          ],
-          "std": null
-        },
-        "member": {
-          "attrs": {},
-          "count_non_nan": 1,
-          "dtype": "<U8",
-          "max": null,
-          "mean": null,
-          "min": null,
-          "shape": [
-            1
-          ],
-          "std": null
-        },
-        "model": {
-          "attrs": {},
-          "count_non_nan": 3,
-          "dtype": "<U13",
-          "max": null,
-          "mean": null,
-          "min": null,
-          "shape": [
-            3
-          ],
-          "std": null
-        },
-        "precip": {
-          "attrs": {
-            "cell_measures": "area: areacella",
-            "cell_methods": "area: time: mean (interval: 1 month)",
-            "comment": "includes both liquid and solid phases",
-            "long_name": "Precipitation",
-            "original_name": "pr",
-            "standard_name": "precipitation_flux",
-            "units": "kg m-2 s-1"
-          },
-          "count_non_nan": 18,
-          "dtype": "float64",
-          "max": 32.31510083,
-          "mean": 9.944362636,
-          "min": -22.39390957,
-          "shape": [
-            3,
-            1,
-            3,
-            2,
-            1,
-            1
-          ],
-          "std": 14.31968366
-        },
-        "scenario": {
-          "attrs": {},
-          "count_non_nan": 2,
-          "dtype": "<U6",
-          "max": null,
-          "mean": null,
-          "min": null,
-          "shape": [
-            2
-          ],
-          "std": null
-        },
-        "spatial_ref": {
-          "attrs": {
-            "crs_wkt": "GEOGCRS[\"WGS 84\",ENSEMBLE[\"World Geodetic System 1984 ensemble\",MEMBER[\"World Geodetic System 1984 (Transit)\"],MEMBER[\"World Geodetic System 1984 (G730)\"],MEMBER[\"World Geodetic System 1984 (G873)\"],MEMBER[\"World Geodetic System 1984 (G1150)\"],MEMBER[\"World Geodetic System 1984 (G1674)\"],MEMBER[\"World Geodetic System 1984 (G1762)\"],MEMBER[\"World Geodetic System 1984 (G2139)\"],MEMBER[\"World Geodetic System 1984 (G2296)\"],ELLIPSOID[\"WGS 84\",6378137,298.257223563,LENGTHUNIT[\"metre\",1]],ENSEMBLEACCURACY[2.0]],PRIMEM[\"Greenwich\",0,ANGLEUNIT[\"degree\",0.0174532925199433]],CS[ellipsoidal,2],AXIS[\"geodetic latitude (Lat)\",north,ORDER[1],ANGLEUNIT[\"degree\",0.0174532925199433]],AXIS[\"geodetic longitude (Lon)\",east,ORDER[2],ANGLEUNIT[\"degree\",0.0174532925199433]],USAGE[SCOPE[\"Horizontal component of 3D system.\"],AREA[\"World.\"],BBOX[-90,-180,90,180]],ID[\"EPSG\",4326]]",
-            "geographic_crs_name": "WGS 84",
-            "grid_mapping_name": "latitude_longitude",
-            "horizontal_datum_name": "World Geodetic System 1984 ensemble",
-            "inverse_flattening": "298.257223563",
-            "longitude_of_prime_meridian": "0.0",
-            "prime_meridian_name": "Greenwich",
-            "reference_ellipsoid_name": "WGS 84",
-            "semi_major_axis": "6378137.0",
-            "semi_minor_axis": "6356752.314245179",
-            "spatial_ref": "GEOGCRS[\"WGS 84\",ENSEMBLE[\"World Geodetic System 1984 ensemble\",MEMBER[\"World Geodetic System 1984 (Transit)\"],MEMBER[\"World Geodetic System 1984 (G730)\"],MEMBER[\"World Geodetic System 1984 (G873)\"],MEMBER[\"World Geodetic System 1984 (G1150)\"],MEMBER[\"World Geodetic System 1984 (G1674)\"],MEMBER[\"World Geodetic System 1984 (G1762)\"],MEMBER[\"World Geodetic System 1984 (G2139)\"],MEMBER[\"World Geodetic System 1984 (G2296)\"],ELLIPSOID[\"WGS 84\",6378137,298.257223563,LENGTHUNIT[\"metre\",1]],ENSEMBLEACCURACY[2.0]],PRIMEM[\"Greenwich\",0,ANGLEUNIT[\"degree\",0.0174532925199433]],CS[ellipsoidal,2],AXIS[\"geodetic latitude (Lat)\",north,ORDER[1],ANGLEUNIT[\"degree\",0.0174532925199433]],AXIS[\"geodetic longitude (Lon)\",east,ORDER[2],ANGLEUNIT[\"degree\",0.0174532925199433]],USAGE[SCOPE[\"Horizontal component of 3D system.\"],AREA[\"World.\"],BBOX[-90,-180,90,180]],ID[\"EPSG\",4326]]",
-            "x_dim": "lon",
-            "y_dim": "lat"
-          },
-          "count_non_nan": 1,
-          "dtype": "int64",
-          "max": 0.0,
-          "mean": 0.0,
-          "min": 0.0,
-          "shape": [],
-          "std": 0.0
-        },
-        "stats": {
-          "attrs": {},
-          "count_non_nan": 3,
-          "dtype": "<U6",
-          "max": null,
-          "mean": null,
-          "min": null,
-          "shape": [
-            3
-          ],
-          "std": null
-        },
-        "temp": {
-          "attrs": {
-            "cell_measures": "area: areacella",
-            "cell_methods": "area: time: mean (interval: 1 month)",
-            "comment": "near-surface (usually, 2 meter) air temperature",
-            "long_name": "Near-Surface Air Temperature",
-            "original_name": "tas",
-            "standard_name": "air_temperature",
-            "units": "K"
-          },
-          "count_non_nan": 18,
-          "dtype": "float64",
-          "max": 2.736975913,
-          "mean": 1.181718702,
-          "min": -0.08352237714,
-          "shape": [
-            3,
-            1,
-            3,
-            2,
-            1,
-            1
-          ],
-          "std": 0.9663208741
-        }
-      },
-      "summary_sha256": "6d08f956a5c91b5c5badb0a4765d5f59443c6176b500197bfd3ddbc6ce89edc6",
-      "type": "netcdf"
-    },
-    "test_case/test_local/climate_projections/cmip6/summary/annual_change_scalar_stats_summary_mean.csv": {
-      "sha256": "3b8eab851d5c3efbc340b839bf9c9d2e50b1680bce85bece3afc443166d4456e",
-      "size_bytes": 599,
+    "test_case/test_local/climate_projections/cmip6/summary/cmip6_change_factors_monthly.csv": {
+      "sha256": "63fdb2b0ec1bb68066ed9435d7ac885b55ca09a237f014606cb856b5cad9ac50",
+      "size_bytes": 55764,
       "type": "csv"
     },
     "test_case/test_local/config/runs/snake_config_climate_projections.yml": {

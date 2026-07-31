@@ -168,12 +168,18 @@ TARGETS: list[tuple[str, str, str]] = [
     ("model_creation", "discharge", "{project_dir}/hydrology_model/run_default/output.csv"),
     # Snakefile_climate_projections -- B3 (commit 9) tiers ONLY the three
     # summary files; the three PNGs deliberately stay put (arch-10).
-    ("climate_projections", "nc",   "{clim_project_dir}/summary/annual_change_scalar_stats_summary.nc"),
-    ("climate_projections", "csv",  "{clim_project_dir}/summary/annual_change_scalar_stats_summary.csv"),
-    ("climate_projections", "csv",  "{clim_project_dir}/summary/annual_change_scalar_stats_summary_mean.csv"),
-    ("climate_projections", "png",  "{clim_project_dir}/plots/projected_climate_statistics.png"),
-    ("climate_projections", "png",  "{clim_project_dir}/plots/precipitation_anomaly_projections_abs.png"),
-    ("climate_projections", "png",  "{clim_project_dir}/plots/temperature_anomaly_projections_abs.png"),
+    # S8-05: a SWAP, not a subtraction. The three wide
+    # `annual_change_scalar_stats_summary*` files were retired, and dropping them
+    # without replacement would have taken coverage from 15 targets to 12 and left
+    # the change factors unfingerprinted. The two tidy tables take their place and
+    # carry strictly more -- both values per row, per-row provenance, and the
+    # future level the wide form never held.
+    ("climate_projections", "csv",  "{clim_project_dir}/summary/{clim_project}_change_factors_annual.csv"),
+    ("climate_projections", "csv",  "{clim_project_dir}/summary/{clim_project}_change_factors_monthly.csv"),
+    # S8-07 renamed all three figures.
+    ("climate_projections", "png",  "{clim_project_dir}/plots/{clim_project}_change_factor_cloud.png"),
+    ("climate_projections", "png",  "{clim_project_dir}/plots/{clim_project}_precip_annual_absolute.png"),
+    ("climate_projections", "png",  "{clim_project_dir}/plots/{clim_project}_temp_annual_absolute.png"),
     ("climate_projections", "yaml", "{project_dir}/config/runs/snake_config_climate_projections.yml"),
     # Snakefile_climate_experiment -- B7 (commit 11) renames model_results/ to
     # indicators/, the CST term. The wf3 config snapshot does NOT join
@@ -190,6 +196,9 @@ def resolve(template: str, project_dir: str) -> str:
     return template.format(
         project_dir=project_dir,
         clim_project_dir=f"{project_dir}/climate_projections/{CLIM_PROJECT}",
+        # S8-04/07: artifact names carry the archive as a prefix, so the templates
+        # need the bare project name as well as the directory built from it.
+        clim_project=CLIM_PROJECT,
         exp_dir=f"{project_dir}/experiments/{EXPERIMENT_NAME}",
     )
 

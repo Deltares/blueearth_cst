@@ -153,15 +153,29 @@ def build(provenance, *, thresholds=None, max_flagged_months=None, figures=None)
         lines.append(f"- `plots/{name}`")
     lines.append("")
 
+    # S8-04/05/06: every result artifact now lives under summary/, and the tables
+    # carry two values per row -- the future level and the change relative to the
+    # baseline. Naming both here matters: `relative_value` mixes units across rows
+    # by design (a difference for temperature, a percent for precipitation), and
+    # `relative_units` is what says which.
+    proj = provenance.get("clim_project", "?")
     lines += [
         "## Tables",
         "",
-        "- `change_factors/annual.csv` — one row per "
-        "(dataset, scenario, member, horizon, variable, statistic).",
-        "- `change_factors/monthly.csv` — the same, per calendar month.",
+        f"- `summary/{proj}_change_factors_annual.csv` — one row per "
+        "(model, scenario, member, horizon, variable, statistic). "
+        "`absolute_value` is the future level in `units`; `relative_value` is the "
+        "change against the reference window, in `relative_units` — a difference "
+        "for an absolute variable, a percent for a relative one.",
+        f"- `summary/{proj}_change_factors_monthly.csv` — the same, per calendar "
+        "month.",
         "- `summary/composition.csv` — every **requested** combination and how it "
         "resolved.",
-        "- `provenance.json` — sources, digests, windows and settings for this run.",
+        "- `summary/provenance.json` — sources, digests, windows and settings for "
+        "this run.",
+        "",
+        "Precipitation is reported in **mm/day** in every artifact, figures "
+        "included.",
         "",
     ]
     return "\n".join(lines) + "\n"

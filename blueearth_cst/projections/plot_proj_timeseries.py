@@ -73,6 +73,11 @@ if __name__ == "__main__":
             rcps = sm.params.scenarios
             horizons = sm.params.horizons
             save_grids = sm.params.save_grids
+            # S8-07: figures are named `{proj}_{variable}_{view}_{quantity}.png`.
+            # `abs`/`anom` map to `absolute`/`change` -- the same distinction the
+            # change-factor tables draw with absolute_value/relative_value.
+            clim_project = os.path.basename(clim_project_dir)
+            QUANTITY = {"abs": "absolute", "anom": "change"}
             change_grids_nc = sm.params.change_grids
 
 
@@ -260,9 +265,13 @@ if __name__ == "__main__":
             # precip anomaly and absolute series
             for n in ["abs", "anom"]:
                 if n == "abs":
-                    data_hist = q_pr_annmn * 365  # q_pr_anom_abs
-                    data_fut = [data * 365 for data in qpr_fut]  # qpr_fut_abs
-                    y_label = "mm/year"
+                    # S8-07 (owner ruling): mm/day, not mm/year. The *365 here
+                    # made this the ONE artifact reporting a different unit for the
+                    # same quantity, so a reader comparing the figure against
+                    # `*_change_factors_annual.csv` saw ~2210 beside ~6.05.
+                    data_hist = q_pr_annmn
+                    data_fut = list(qpr_fut)
+                    y_label = "mm/day"
                 else:
                     data_hist = q_pr_anom
                     data_fut = qanom_pr_fut
@@ -281,7 +290,9 @@ if __name__ == "__main__":
                 plt.grid()
                 plt.savefig(
                     os.path.join(
-                        clim_project_dir, "plots", f"precipitation_anomaly_projections_{n}"
+                        clim_project_dir,
+                        "plots",
+                        f"{clim_project}_precip_annual_{QUANTITY[n]}.png",
                     ),
                     dpi=300,
                     bbox_inches="tight",
@@ -311,7 +322,9 @@ if __name__ == "__main__":
                 plt.grid()
                 plt.savefig(
                     os.path.join(
-                        clim_project_dir, "plots", f"temperature_anomaly_projections_{n}.png"
+                        clim_project_dir,
+                        "plots",
+                        f"{clim_project}_temp_annual_{QUANTITY[n]}.png",
                     ),
                     dpi=300,
                     bbox_inches="tight",
@@ -344,7 +357,7 @@ if __name__ == "__main__":
                 )
                 plt.legend()
                 plt.grid()
-                figname = f"precipitation_monthly_projections_{n}.png"
+                figname = f"{clim_project}_precip_monthly_{QUANTITY[n]}.png"
                 plt.savefig(
                     os.path.join(clim_project_dir, "plots", figname),
                     dpi=300,
@@ -380,7 +393,9 @@ if __name__ == "__main__":
 
                 plt.savefig(
                     os.path.join(
-                        clim_project_dir, "plots", f"temperature_monthly_projections_{n}.png"
+                        clim_project_dir,
+                        "plots",
+                        f"{clim_project}_temp_monthly_{QUANTITY[n]}.png",
                     ),
                     dpi=300,
                     bbox_inches="tight",
@@ -420,7 +435,7 @@ if __name__ == "__main__":
                             os.path.join(
                                 clim_project_dir,
                                 "plots",
-                                f"gridded_monthly_precipitation_change_{rcp}_{hz}-future-horizon.png",
+                                f"{clim_project}_precip_monthly_change_grid_{rcp}_{hz}.png",
                             )
                         )
                         # temp
@@ -435,7 +450,7 @@ if __name__ == "__main__":
                             os.path.join(
                                 clim_project_dir,
                                 "plots",
-                                f"gridded_monthly_temperature_change_{rcp}_{hz}-future-horizon.png",
+                                f"{clim_project}_temp_monthly_change_grid_{rcp}_{hz}.png",
                             )
                         )
 
@@ -484,7 +499,7 @@ if __name__ == "__main__":
                             os.path.join(
                                 clim_project_dir,
                                 "plots",
-                                f"gridded_precipitation_change_{rcp}_{hz}-future-horizon.png",
+                                f"{clim_project}_precip_annual_change_grid_{rcp}_{hz}.png",
                             ),
                             dpi=300,
                             bbox_inches="tight",
@@ -527,7 +542,7 @@ if __name__ == "__main__":
                             os.path.join(
                                 clim_project_dir,
                                 "plots",
-                                f"gridded_temperature_change_{rcp}_{hz}-future-horizon.png",
+                                f"{clim_project}_temp_annual_change_grid_{rcp}_{hz}.png",
                             ),
                             dpi=300,
                             bbox_inches="tight",

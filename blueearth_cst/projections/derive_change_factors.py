@@ -44,7 +44,12 @@ import xarray as xr
 
 from blueearth_cst.projections import series_identity
 from blueearth_cst.projections.calendar_weights import CalendarError, assert_weightable
-from blueearth_cst.projections.change_factor_table import tidy_rows, write_table
+from blueearth_cst.projections.change_factor_table import (
+    TABLE_COLUMNS_ANNUAL,
+    TABLE_COLUMNS_MONTHLY,
+    tidy_rows,
+    write_table,
+)
 from blueearth_cst.projections.dry_month import FLAGGED_STATUS, combination_is_flagged
 from blueearth_cst.projections import provenance as _prov
 from blueearth_cst.projections import report as _report
@@ -243,10 +248,14 @@ def derive_one_point(
     return ref_start, ref_end, ref_n_years
 
 
-#: Columns of ``composition.csv``, in design §5.7 order. One row per REQUESTED
-#: (model, scenario, member) — not per resolved one, which is the point: the skips
-#: are what make the record auditable.
-COMPOSITION_COLUMNS = [
+#: Fields of the IN-MEMORY composition record, in design §5.7 order. One row per
+#: REQUESTED (model, scenario, member) — not per resolved one, which is the point:
+#: the skips are what make the record auditable.
+#:
+#: This is wider than the CSV. `provenance.py` builds its institution roll-up from
+#: these rows, so the record keeps `institution`/`source_id` even though S8-05
+#: collapsed them to one `model` column on disk.
+COMPOSITION_FIELDS = [
     "dataset",
     "institution",
     "source_id",
@@ -264,6 +273,28 @@ COMPOSITION_COLUMNS = [
     "n_hyd_years_reference",
 ]
 
+#: What `composition.csv` actually carries, as `(csv_column, record_field)`.
+#: S8-05, 15 -> 10. Dropped: `dataset`/`institution` (collapsed into `model`;
+#: `source_id` is globally unique in the CMIP6 controlled vocabulary, so the
+#: institution is recoverable), `catalog_crawled_on` (constant, and already in
+#: `provenance.json`), and both `reference_window_*` columns — the change-factor
+#: tables now carry the window, so one artifact owns the fact instead of three.
+#:
+#: `n_reference_years` is KEPT: it is a property of a series, not of the run, so a
+#: model with a short record genuinely reports fewer complete hydrological years.
+COMPOSITION_CSV_COLUMNS = [
+    ("model", "source_id"),
+    ("scenario", "scenario"),
+    ("member", "member"),
+    ("status", "status"),
+    ("reason", "reason"),
+    ("tier", "tier"),
+    ("series_key", "series_key"),
+    ("reference_series_key", "reference_series_key"),
+    ("catalog_entry", "catalog_entry"),
+    ("n_reference_years", "n_hyd_years_reference"),
+]
+
 
 def composition_rows(combinations, resolved, *, catalog_crawled_on, window_nominal):
     """Build the composition record from the resolution ladder plus run facts.
@@ -279,7 +310,7 @@ def composition_rows(combinations, resolved, *, catalog_crawled_on, window_nomin
     for combo in combinations:
         combo = dict(combo)
         point_key = combo.get("point_key", "")
-        row = dict.fromkeys(COMPOSITION_COLUMNS, "")
+        row = dict.fromkeys(COMPOSITION_FIELDS, "")
         row.update(
             dataset=combo.get("dataset", ""),
             institution=combo.get("institution", ""),
@@ -306,12 +337,19 @@ def write_composition(path, rows):
     build that writes an output file makes parsing side-effecting — a dry run that
     writes is not a dry run. A failed run therefore leaves the DAG-build stderr
     summary and the job logs, and no composition artifact.
+
+    S8-05: the in-memory record is wider than the file. Projected here rather than
+    trimmed at construction, because `provenance.py` reads the full rows.
     """
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    columns = [name for name, _ in COMPOSITION_CSV_COLUMNS]
     with open(path, "w", newline="", encoding="utf-8") as fh:
-        writer = csv.DictWriter(fh, fieldnames=COMPOSITION_COLUMNS)
+        writer = csv.DictWriter(fh, fieldnames=columns)
         writer.writeheader()
-        writer.writerows(rows)
+        for row in rows:
+            writer.writerow(
+                {name: row.get(field, "") for name, field in COMPOSITION_CSV_COLUMNS}
+            )
 
 
 if "snakemake" in globals():
@@ -418,7 +456,21 @@ if "snakemake" in globals():
                 clim_dir=clim_project_dir,
                 clim_files=change_files,
                 horizons=horizons,
+                # S8-05: the wide merge lands here, not in summary/.
+                wide_dir=work_dir,
             )
+
+            # Read the wide merge back INSIDE the temp scope -- it is deleted with
+            # the directory, so the old post-block read would be reading a deleted
+            # file. Eager, same as monthly_merged below and for the same reason.
+            #
+            # The read-back itself is deliberate and unchanged: the tidy table must
+            # describe what was PERSISTED, so a reshape can never disagree with the
+            # artifact it claims to reshape.
+            with xr.open_dataset(
+                os.path.join(work_dir, "annual_change_scalar_stats_summary.nc")
+            ) as _merged:
+                merged = _merged.load()
 
             # Step 6a-ii: merge the per-point MONTHLY files. Done inside the temp
             # directory, because that is where they live -- reading them after the
@@ -432,68 +484,56 @@ if "snakemake" in globals():
                 monthly_merged = _lazy.load()
 
         # --- step 6a-i: the tidy annual change-factor table (design §5.9) ----
-        # Read back from the summary the merge just wrote, rather than threading
-        # the in-memory dataset out of summary_climate_proj: the table must
-        # describe what was PERSISTED, so a reshape can never disagree with the
-        # artifact it claims to reshape.
-        summary_nc = os.path.join(
-            clim_project_dir, "summary", "annual_change_scalar_stats_summary.nc"
-        )
-        with xr.open_dataset(summary_nc) as _merged:
-            merged = _merged.load()
+        # `merged` was read back inside the temp scope above. S8-05 made the wide
+        # file a job-internal intermediate: the tidy tables supersede it, and
+        # nothing outside this job ever read it.
+        #
+        # S8-04: two facts, both varying. Everything else this dict used to carry
+        # was constant across every row (the nominal windows, n_years), hardcoded
+        # empty (n_years_dropped, horizon_window_effective), or actively wrong
+        # (`units`, which labelled a percent as mm/day). Units now come from the
+        # spec inside tidy_rows, where the change kind that decides them lives.
         window_facts = {
-            "reference_window_nominal": sm.params.reference_record.get(
-                "reference_window_requested", ""
-            ),
-            "reference_window_effective": sm.params.reference_record.get(
+            # The EFFECTIVE window -- what actually backed the arithmetic. The
+            # nominal config echo is report.md's job; it is constant and already
+            # recorded there and in provenance.json.
+            "reference_window": sm.params.reference_record.get(
                 "reference_window_effective", ""
             ),
-            "n_years": sm.params.reference_record.get("reference_window_years", ""),
-            # Per-end dropped months are known per SERIES, not per run; until
-            # provenance.json (6a-iii) carries them per source, the run-level
-            # figure is left empty rather than filled with a guess.
-            "n_years_dropped": "",
-            "horizon_window_nominal": {
-                name: " / ".join(_to_str_tuple(window))
+            "horizon_window": {
+                name: "-".join(_to_str_tuple(window))
                 for name, window in horizons.items()
             },
-            "horizon_window_effective": {},
-            "units": {
-                name: fields[3] for name, fields in dict(sm.params.variable_spec).items()
-            },
-        }
-        series_keys = {
-            (p["model"], p["scenario"], p["member"]): p["reference_series_key"]
-            for p in points
         }
         # The SAME numbers composition.csv reports, keyed per combination, so the
         # two artifacts cannot disagree about one run's reference window.
         row_facts = {
             (p["model"], p["scenario"], p["member"]): {
-                "reference_window_effective": resolved_facts[p["point_key"]][
+                "reference_window": resolved_facts[p["point_key"]][
                     "reference_window_effective"
                 ],
-                "n_years": resolved_facts[p["point_key"]]["n_hyd_years_reference"],
             }
             for p in points
             if p["point_key"] in resolved_facts
         }
-        rows = tidy_rows(merged, period="annual", window_facts=window_facts,
-                         series_keys=series_keys, row_facts=row_facts)
-        write_table(str(sm.output.change_factors_annual), rows)
+        rows = tidy_rows(merged, window_facts=window_facts, row_facts=row_facts,
+                         variable_spec=VARIABLE_SPEC)
+        write_table(str(sm.output.change_factors_annual), rows,
+                    columns=TABLE_COLUMNS_ANNUAL)
 
         monthly_rows = []
         for month in sorted(int(m) for m in monthly_merged["month"].values):
             monthly_rows.extend(
                 tidy_rows(
                     monthly_merged.sel(month=month).drop_vars("month"),
-                    period=str(month),
+                    month=month,
                     window_facts=window_facts,
-                    series_keys=series_keys,
                     row_facts=row_facts,
+                    variable_spec=VARIABLE_SPEC,
                 )
             )
-        write_table(str(sm.output.change_factors_monthly), monthly_rows)
+        write_table(str(sm.output.change_factors_monthly), monthly_rows,
+                    columns=TABLE_COLUMNS_MONTHLY)
         log_row(
             f"tidy monthly change-factor table: {len(monthly_rows)} rows "
             f"-> {os.path.basename(str(sm.output.change_factors_monthly))}",

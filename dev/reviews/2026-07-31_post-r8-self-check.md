@@ -201,7 +201,66 @@ plot mm/year while every other artifact reports mm/day, so a reader comparing th
 figure against the table saw ~2210 versus ~6.05 for one quantity. Forced to
 **mm/day everywhere**.
 
-**Disposition.** All five `resolved`; implementation follows in this session.
+**Disposition.** All five `resolved` and implemented in this session — S8-03 as
+its own commit, S8-04/05/06/07 together (they touch overlapping surfaces and
+splitting them would have produced commits that do not run).
+
+### Two bugs the overhaul uncovered
+
+Neither was introduced here; both were exposed by looking at the columns.
+
+**String truncation in the wide merge.** `model` read `GFD` on the first run of
+the new schema. The per-point netCDFs carry string coords as numpy fixed-width
+dtypes whose width is set by the longest value *in that file*, and concatenating
+files of different widths truncates every value to the FIRST file's width:
+`NOAA-GFDL/GFDL-ESM4` (19) became `NOAA-GFDL/GFD` (13) whenever an
+`INM/INM-CM4-8` file merged first. Silent, because a truncated model name is
+still a plausible string. It had been corrupting the wide summary's `dataset`
+column all along, and — because the per-combination window lookup is keyed on
+that name — truncated rows also missed their effective-window override and
+silently fell back to the run-level one. Fixed in `preprocess_coords` by casting
+string coords to object dtype.
+
+**The annual level was in mm/year.** For a `canonical: rate` variable the annual
+aggregation is a duration-weighted **sum**, so the future level came out as an
+annual total while `units` said `mm/day`. The level is now drawn from a
+duration-weighted **mean** — the same integral divided by the year's length, so
+the ratio that feeds `relative_value` is untouched and only the level's scale
+changes. This is also what makes the owner's "mm/day everywhere" ruling true of
+the tables, not just the figures.
+
+### Verification
+
+- `pytest tests/` (excluding the slow `test_model_creation.py`): **815 passed**,
+  6 skipped, 1 xfailed. `test_change_factor_table.py` and
+  `test_derive_change_factors.py` were rewritten for the new schema (26 tests);
+  `test_get_change_climate_proj.py` and `test_report.py` had assertions updated.
+- wf2 executed for real on the fixture after every change.
+- `check_baseline`: **14 targets, OK**. The swap landed as planned — three wide
+  summary files and three renamed figures out, two tidy tables and three renamed
+  figures in. Coverage improves: the change factors are fingerprinted for the
+  first time.
+
+### Residue
+
+Every superseded path is stranded in existing project directories, because
+Snakemake cannot clean an output it no longer declares: `series/`, `timeseries/`,
+`change_factors/`, the root `provenance.json`, the three wide summary files, the
+nine old figures, and four logs from rules retired before v2.0. Enumerated in
+`docs/migration-r08-wf2.md` under "Post-migration cleanup", and left as an owner
+action — deleting fixture state is not something a task should do implicitly, and
+it must happen before the next reference snapshot.
+
+### Known consequence, not yet resolved
+
+The 6b dry-month rule promised that a flagged month "loses its ratio and keeps its
+difference". Under the two-value schema a flagged month has `relative_value` empty
+and `absolute_value` (the future level) present — so the *difference* is no longer
+directly represented, only recoverable if the reader also knows the baseline. For
+a near-zero reference the level approximates the difference closely, and `status`
+says why the ratio is absent, so nothing is misleading. Adding a
+`reference_value` column would close it exactly, at the cost of one column. Raised
+for the owner rather than decided here.
 
 ---
 

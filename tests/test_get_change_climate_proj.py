@@ -102,8 +102,13 @@ def test_row_U_change_precip_multiplicative_temp_additive():
 
     assert float(res["precip"].values.ravel()[0]) == 20.0
     assert float(res["temp"].values.ravel()[0]) == 2.0
-    # both variables survive when hist/fut share {precip, temp}
-    assert set(res.data_vars) == {"precip", "temp"}
+    # both variables survive when hist/fut share {precip, temp}. S8-04 added the
+    # `__level` companions -- COLUMNS of their variable, never variables of their
+    # own, which is exactly what the base-variable filter asserts.
+    base = {v for v in res.data_vars if "__" not in str(v)}
+    assert base == {"precip", "temp"}
+    # and the level is the FUTURE level, in the variable's own units
+    assert float(res["temp__level"].values.ravel()[0]) == 7.0
 
 
 # --------------------------------------------------------------------------- #

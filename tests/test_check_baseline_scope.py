@@ -69,7 +69,7 @@ def _check_ns(project_dir, manifest_path, workflow=None, tolerance=0.0):
 
 @pytest.fixture
 def project(tmp_path):
-    """A synthetic project dir with all 15 targets present + a recorded manifest.
+    """A synthetic project dir with all 14 targets present + a recorded manifest.
 
     Returns (project_dir, manifest_path). Both point under tmp_path.
     """
@@ -84,19 +84,19 @@ def project(tmp_path):
 
 
 def test_targets_tagged_with_expected_cardinality():
-    """The shipping TARGETS carry the 5/7/3 workflow tags the count math relies on
+    """The shipping TARGETS carry the 5/6/3 workflow tags the count math relies on
     (model_creation gained the beyond-`rule all` discharge target)."""
     counts = Counter(workflow for workflow, _kind, _template in cb.TARGETS)
     assert counts == {
         "model_creation": 5,
-        "climate_projections": 7,
+        "climate_projections": 6,
         "climate_experiment": 3,
     }
 
 
 def test_scoped_count_is_selected_not_full(project, capsys):
     """`--workflow model_creation --workflow climate_projections` reports 12
-    targets (5 + 7), not the full 15."""
+    targets (5 + 6), not the full 14."""
     project_dir, manifest_path = project
     rc = cb.cmd_check(
         _check_ns(project_dir, manifest_path,
@@ -104,14 +104,14 @@ def test_scoped_count_is_selected_not_full(project, capsys):
     )
     out = capsys.readouterr().out
     assert rc == 0
-    assert "OK - 12 target(s)" in out
+    assert "OK - 11 target(s)" in out
 
 
 def test_selected_missing_target_fails(project, capsys):
     """A selected target missing on disk -> non-zero, and named."""
     project_dir, manifest_path = project
     victim = cb.resolve(
-        "{clim_project_dir}/summary/annual_change_scalar_stats_summary.csv", project_dir
+        "{clim_project_dir}/summary/{clim_project}_change_factors_annual.csv", project_dir
     )
     Path(victim).unlink()
 
@@ -137,14 +137,14 @@ def test_unselected_missing_target_ignored(project, capsys):
     )
     out = capsys.readouterr().out
     assert rc == 0
-    assert "OK - 12 target(s)" in out
+    assert "OK - 11 target(s)" in out
 
 
 def test_unscoped_record_writes_all_targets(project):
-    """An unscoped record writes all 15 targets (overwrite semantics)."""
+    """An unscoped record writes all 14 targets (overwrite semantics)."""
     project_dir, manifest_path = project
     written = json.loads(Path(manifest_path).read_text())
-    assert len(written["targets"]) == 15
+    assert len(written["targets"]) == 14
     assert written["version"] == cb.MANIFEST_VERSION
 
 
@@ -155,7 +155,7 @@ def test_record_workflow_merges_and_preserves_other_slices(project):
     before = json.loads(Path(manifest_path).read_text())["targets"]
 
     cp_path = cb.resolve(
-        "{clim_project_dir}/summary/annual_change_scalar_stats_summary.csv", project_dir
+        "{clim_project_dir}/summary/{clim_project}_change_factors_annual.csv", project_dir
     )
     exp_path = cb.resolve("{exp_dir}/indicators/Qstats.csv", project_dir)
     cp_before, exp_before = before[cp_path], before[exp_path]
@@ -177,7 +177,7 @@ def test_record_workflow_merges_and_preserves_other_slices(project):
     assert rc == 0
     after = json.loads(Path(manifest_path).read_text())["targets"]
 
-    assert len(after) == 15                       # nothing dropped
+    assert len(after) == 14                       # nothing dropped
     assert after[cp_path] == cp_before            # wf2 row preserved verbatim
     assert after[exp_path] == exp_before          # wf3 row preserved verbatim
     # wf1 discharge row re-recorded against the mutated series.
@@ -186,9 +186,9 @@ def test_record_workflow_merges_and_preserves_other_slices(project):
 
 
 def test_unscoped_check_spans_all_targets(project, capsys):
-    """`check` with no `--workflow` operates over all 15 targets."""
+    """`check` with no `--workflow` operates over all 14 targets."""
     project_dir, manifest_path = project
     rc = cb.cmd_check(_check_ns(project_dir, manifest_path, workflow=None))
     out = capsys.readouterr().out
     assert rc == 0
-    assert "OK - 15 target(s)" in out
+    assert "OK - 14 target(s)" in out

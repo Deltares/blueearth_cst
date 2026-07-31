@@ -15,11 +15,31 @@ from blueearth_cst.shared.snake_utils import log_row
 
 
 def preprocess_coords(ds: xr.Dataset) -> xr.Dataset:
-    """Preprocess function to remove unwanted coords"""
+    """Preprocess function to remove unwanted coords, and stop string TRUNCATION.
+
+    The string coords arrive as numpy fixed-width dtypes (`<U13`, `<U19`, …) whose
+    width is set by the longest value in *that one file*. Concatenating files with
+    different widths silently truncates every value to the FIRST file's width:
+    `NOAA-GFDL/GFDL-ESM4` (19) became `NOAA-GFDL/GFD` (13) whenever an
+    `INM/INM-CM4-8` file was merged first. Silent, because a truncated model name
+    is still a plausible-looking string.
+
+    It corrupted the wide summary's `model` coordinate, and through it the tidy
+    table's `model` column — and, because the per-combination window lookup is
+    keyed on that name, the truncated rows also missed their effective-window
+    override and fell back to the run-level one. Found at S8-04 when the column
+    read `GFD`; the truncation predates it and was already in the `dataset` column
+    of the wide summary.
+
+    Casting to object dtype makes each value independent of the others' lengths.
+    """
     coords_to_remove = ["height"]
     for coord in coords_to_remove:
         if coord in ds.coords:
             ds = ds.drop_vars(coord)
+    for name, coord in ds.coords.items():
+        if coord.dtype.kind in ("U", "S"):
+            ds = ds.assign_coords({name: coord.astype(object)})
     return ds
 
 
@@ -27,17 +47,19 @@ def summary_climate_proj(
     clim_dir: Union[Path, str],
     clim_files: List[Union[Path, str]],
     horizons: Dict,
+    wide_dir: Union[Path, str, None] = None,
 ):
     """
     Compute climate change statitistics for all models/scenario/horizons.
 
     Also prepare response surface plot.
 
-    Output under ``clim_dir`` (R07 B3: summary artifacts in ``summary/``,
-    figures in ``plots/``):
-    - annual_change_scalar_stats_summary.nc/.csv: all change statistics (netcdf or csv)
-    - annual_change_scalar_stats_summary_mean.csv: only mean change
-    - plots/projected_climate_statistics.png: surface response plot
+    Output:
+    - ``{wide_dir}/annual_change_scalar_stats_summary.nc`` — the wide merge, a
+      JOB-INTERNAL intermediate since S8-05 (the caller's TemporaryDirectory).
+      Read back by the tidy reshape, never shipped.
+    - ``{clim_dir}/plots/`` — the ΔT/ΔP figure, the only artifact this
+      function still produces.
 
     Parameters
     ----------
@@ -76,27 +98,33 @@ def summary_climate_proj(
     ) as _ds_lazy:
         ds = _ds_lazy.load()
     dvars = ds.raster.vars
-    # R07 B3: processed-vs-summary tiering. The three summary artifacts live
-    # under summary/; the figures stay in plots/ (only these three move).
-    summary_dir = os.path.join(clim_dir, "summary")
-    os.makedirs(summary_dir, exist_ok=True)
+    # S8-05: the wide merge is a JOB-INTERNAL intermediate, not an artifact.
+    #
+    # It used to land as three files under summary/ --
+    # `annual_change_scalar_stats_summary.{nc,csv}` and `_mean.csv`. The tidy
+    # `{clim_project}_change_factors_{annual,monthly}.csv` supersede them: same
+    # numbers, long format, per-row provenance, plus the future level the wide
+    # form never carried. Verified before removal that nothing outside this
+    # workflow read them -- `Snakefile_climate_experiment` and
+    # `blueearth_cst/experiment/` reference them zero times, and rule 2.06
+    # declared the `.nc` as an input it never opened.
+    #
+    # The `.nc` survives as an intermediate because the tidy reshape reads it
+    # back: the table must describe what was PERSISTED, so a reshape can never
+    # disagree with the artifact it claims to reshape. `wide_dir` is the caller's
+    # TemporaryDirectory. The two CSVs are simply gone -- nothing read them and
+    # nothing reads them back.
+    wide_dir = wide_dir or os.path.join(clim_dir, "summary")
+    os.makedirs(wide_dir, exist_ok=True)
 
     name_nc_out = f"{prefix}_summary.nc"
     ds.to_netcdf(
-        os.path.join(summary_dir, name_nc_out),
+        os.path.join(wide_dir, name_nc_out),
         encoding={k: {"zlib": True} for k in dvars},
-    )
-
-    # write as a csv
-    ds.to_dataframe().to_csv(
-        os.path.join(summary_dir, "annual_change_scalar_stats_summary.csv")
     )
 
     # just keep mean for temp and precip for response surface plots
     df = ds.sel(stats="mean").to_dataframe()
-    df.to_csv(
-        os.path.join(summary_dir, "annual_change_scalar_stats_summary_mean.csv")
-    )
 
     # plot change
     if not os.path.exists(os.path.join(clim_dir, "plots")):
@@ -145,7 +173,13 @@ def summary_climate_proj(
     )
     g.ax_joint.grid()
     g.ax_joint.legend(loc="right", bbox_to_anchor=(1.5, 0.5))
-    g.savefig(os.path.join(clim_dir, "plots", "projected_climate_statistics.png"))
+    # S8-07: `{proj}_change_factor_cloud.png`. "projected_climate_statistics" said
+    # almost nothing about what is plotted; this is the DeltaT/DeltaP cloud, one
+    # point per combination, and the design's own phrase for it.
+    clim_project = os.path.basename(os.path.normpath(str(clim_dir)))
+    g.savefig(
+        os.path.join(clim_dir, "plots", f"{clim_project}_change_factor_cloud.png")
+    )
 
 
 # NOTE: this module no longer runs as a Snakemake `script:`. Step 4d merged rules

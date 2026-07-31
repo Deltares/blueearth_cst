@@ -10,7 +10,8 @@ columns populated only when the point actually resolved.
 import csv
 
 from blueearth_cst.projections.derive_change_factors import (
-    COMPOSITION_COLUMNS,
+    COMPOSITION_CSV_COLUMNS,
+    COMPOSITION_FIELDS,
     composition_rows,
     write_composition,
 )
@@ -109,7 +110,42 @@ def test_written_csv_has_the_design_columns_in_order(tmp_path):
         header = next(reader)
         body = list(reader)
 
-    assert header == COMPOSITION_COLUMNS
+    assert header == [name for name, _ in COMPOSITION_CSV_COLUMNS]
     assert len(body) == 2
     # Created its parent: stage B writes into summary/ which need not exist yet.
     assert out.parent.is_dir()
+
+
+# --- S8-05: the FILE is leaner than the in-memory record ----------------------
+
+
+def test_the_csv_is_a_projection_of_the_wider_record(tmp_path):
+    """`provenance.py` builds its institution roll-up from the full rows, so the
+    record keeps fields the CSV drops. Projected on write, not at construction."""
+    for field in ("institution", "source_id", "dataset", "catalog_crawled_on"):
+        assert field in COMPOSITION_FIELDS
+    written = {name for name, _ in COMPOSITION_CSV_COLUMNS}
+    for dropped in ("institution", "dataset", "catalog_crawled_on",
+                    "reference_window_nominal", "reference_window_effective"):
+        assert dropped not in written
+
+
+def test_the_csv_reports_the_source_id_under_the_name_model(tmp_path):
+    out = tmp_path / "composition.csv"
+    write_composition(str(out), _rows())
+    with out.open(encoding="utf-8", newline="") as fh:
+        rows = list(csv.DictReader(fh))
+    assert rows[0]["model"] == "INM-CM4-8"
+    assert rows[0]["n_reference_years"] == "40"
+
+
+def test_a_skip_row_stays_empty_in_the_projected_csv(tmp_path):
+    out = tmp_path / "composition.csv"
+    write_composition(str(out), _rows())
+    with out.open(encoding="utf-8", newline="") as fh:
+        rows = list(csv.DictReader(fh))
+    skip = rows[1]
+    assert skip["status"] == "scenario_not_published"
+    for column in ("series_key", "reference_series_key", "tier",
+                   "n_reference_years"):
+        assert skip[column] == ""

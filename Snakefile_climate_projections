@@ -494,15 +494,16 @@ def get_horizon(wildcards):
 # 2.00  all — target aggregator: change-factor summaries + projection plots
 rule all:
     input:
-        (clim_project_dir + "/summary/annual_change_scalar_stats_summary.nc"),
-        (clim_project_dir + "/summary/annual_change_scalar_stats_summary.csv"),
-        (clim_project_dir + "/summary/annual_change_scalar_stats_summary_mean.csv"),
+        # S8-04/05: the tidy tables are the result surface now; the three wide
+        # `annual_change_scalar_stats_summary*` files they replaced are gone.
+        (clim_project_dir + f"/summary/{clim_project}_change_factors_annual.csv"),
+        (clim_project_dir + f"/summary/{clim_project}_change_factors_monthly.csv"),
         # R5 deliverable 3 — demanded explicitly, not left as an incidental
         # by-product of derive_change_factors' other outputs.
         (clim_project_dir + "/summary/composition.csv"),
-        stats_change_plt = (clim_project_dir + "/plots/projected_climate_statistics.png"),
-        precip_plt = (clim_project_dir + "/plots/precipitation_anomaly_projections_abs.png"),
-        temp_plt = (clim_project_dir + "/plots/temperature_anomaly_projections_abs.png"),
+        stats_change_plt = (clim_project_dir + f"/plots/{clim_project}_change_factor_cloud.png"),
+        precip_plt = (clim_project_dir + f"/plots/{clim_project}_precip_annual_absolute.png"),
+        temp_plt = (clim_project_dir + f"/plots/{clim_project}_temp_annual_absolute.png"),
         snake_config = f"{project_dir}/config/runs/snake_config_climate_projections.yml",
         # ONE merged log per fan-out stage. Step 3 collapses two stage-A rules
         # into one, so the two stage-A gathers collapse with them.
@@ -683,22 +684,29 @@ rule derive_change_factors:
         # polygon fingerprint, so it needs the polygon itself.
         region_path = region_path,
     output:
-        stats_change_summary = (clim_project_dir + "/summary/annual_change_scalar_stats_summary.nc"),
-        stats_change_summary_csv = (clim_project_dir + "/summary/annual_change_scalar_stats_summary.csv"),
-        stats_change_summary_csv_mean = (clim_project_dir + "/summary/annual_change_scalar_stats_summary_mean.csv"),
-        stats_change_plt = (clim_project_dir + "/plots/projected_climate_statistics.png"),
+        # S8-05: the three wide `annual_change_scalar_stats_summary*` files are
+        # GONE. The tidy tables below supersede them -- same numbers, long format,
+        # per-row provenance, plus the future level the wide form never carried.
+        # Verified before removal: Snakefile_climate_experiment and
+        # blueearth_cst/experiment/ referenced them zero times, and rule 2.06
+        # declared the `.nc` as an input it never opened. The `.nc` survives as a
+        # job-internal intermediate, because the tidy reshape reads it back.
+        stats_change_plt = (clim_project_dir + "/plots/cmip6_change_factor_cloud.png"),
         # R5 deliverable 3. A stage-B output, so it describes a COMPLETED run
         # (ext2-08): a failed run leaves the DAG-build stderr summary and the job
         # logs, and no composition artifact.
         composition_csv = (clim_project_dir + "/summary/composition.csv"),
-        # Step 6a-i: the tidy long-format table (design 5.9). Additive --
-        # the wide summary CSVs stay until step 7 retires them.
-        change_factors_annual = (clim_project_dir + "/change_factors/annual.csv"),
+        # Step 6a-i / S8-04: the tidy long-format table. Now the PRIMARY result
+        # rather than an addition beside the wide files, so it moves into summary/
+        # and its name says what it is when detached from the tree.
+        change_factors_annual = (clim_project_dir + f"/summary/{clim_project}_change_factors_annual.csv"),
         # Step 6a-ii: change per calendar month -- the seasonal shift the
         # annual figure averages away.
-        change_factors_monthly = (clim_project_dir + "/change_factors/monthly.csv"),
+        change_factors_monthly = (clim_project_dir + f"/summary/{clim_project}_change_factors_monthly.csv"),
         # Step 6a-iii: everything needed to reconstruct the run (design 5.9).
-        provenance_json = (clim_project_dir + "/provenance.json"),
+        # S8-06: beside composition.csv -- both are run-level records rather than
+        # results, and report.md stays at the root as the one human entry point.
+        provenance_json = (clim_project_dir + "/summary/provenance.json"),
         # Step 7-ii: the run told in the order a reader needs it, with the
         # 5.9 disclaimer block. Reads provenance.json; derives nothing.
         report_md = (clim_project_dir + "/report.md"),
@@ -717,13 +725,13 @@ rule derive_change_factors:
         figure_names = [
             "precipitation_anomaly_projections_abs.png",
             "precipitation_anomaly_projections_anom.png",
-            "precipitation_monthly_projections_abs.png",
-            "precipitation_monthly_projections_anom.png",
-            "temperature_anomaly_projections_abs.png",
-            "temperature_anomaly_projections_anom.png",
-            "temperature_monthly_projections_abs.png",
-            "temperature_monthly_projections_anom.png",
-            "projected_climate_statistics.png",
+            f"{clim_project}_precip_monthly_absolute.png",
+            f"{clim_project}_precip_monthly_change.png",
+            f"{clim_project}_temp_annual_absolute.png",
+            f"{clim_project}_temp_annual_change.png",
+            f"{clim_project}_temp_monthly_absolute.png",
+            f"{clim_project}_temp_monthly_change.png",
+            f"{clim_project}_change_factor_cloud.png",
         ],
         max_flagged_months = MAX_FLAGGED_MONTHS,
         variable_spec = {k: list(v) for k, v in VARIABLE_SPEC.items()},
@@ -782,7 +790,10 @@ rule derive_change_factors:
 rule plot_climate_proj_timeseries:
     message: rule_banner("2.06", "plot_climate_proj_timeseries")
     input:
-        stats_change_summary = (clim_project_dir + "/summary/annual_change_scalar_stats_summary.nc"),
+        # Ordering edge only -- 2.06 never opens this. Repointed at S8-05 from the
+        # retired wide summary to the tidy annual table, which is the stage-B
+        # artifact that now plays the same "stage B finished" role.
+        stats_change_summary = (clim_project_dir + f"/summary/{clim_project}_change_factors_annual.csv"),
         stats_time_nc_hist = sorted({series_file(m, "historical", mem) for (m, _sc, mem) in POINTS}),
         stats_time_nc = sorted({series_file(m, sc, mem) for (m, sc, mem) in POINTS}),
     params:
@@ -796,20 +807,27 @@ rule plot_climate_proj_timeseries:
         # written, so five were invisible to Snakemake -- not cleaned on failure,
         # not remade when deleted, and unusable as a dependency. Declaring them is
         # what makes them artifacts rather than side effects.
-        precip_anom_abs_plt = (clim_project_dir + "/plots/precipitation_anomaly_projections_abs.png"),
-        precip_anom_rel_plt = (clim_project_dir + "/plots/precipitation_anomaly_projections_anom.png"),
-        precip_monthly_abs_plt = (clim_project_dir + "/plots/precipitation_monthly_projections_abs.png"),
-        precip_monthly_rel_plt = (clim_project_dir + "/plots/precipitation_monthly_projections_anom.png"),
-        temp_anom_abs_plt = (clim_project_dir + "/plots/temperature_anomaly_projections_abs.png"),
-        temp_anom_rel_plt = (clim_project_dir + "/plots/temperature_anomaly_projections_anom.png"),
-        temp_monthly_abs_plt = (clim_project_dir + "/plots/temperature_monthly_projections_abs.png"),
-        temp_monthly_rel_plt = (clim_project_dir + "/plots/temperature_monthly_projections_anom.png"),
+        #
+        # S8-07: `{proj}_{variable}_{view}_{quantity}.png`. The old names
+        # contradicted their contents -- `precipitation_anomaly_projections_abs`
+        # carried `plt.title("Annual precipitation")` and plotted absolute levels,
+        # so "anomaly" sat in the filename of the non-anomaly figure. The three
+        # axes are variable x view x quantity, and `absolute`/`change` are the
+        # same distinction the tables' absolute_value/relative_value draw.
+        precip_annual_abs_plt = (clim_project_dir + f"/plots/{clim_project}_precip_annual_absolute.png"),
+        precip_annual_chg_plt = (clim_project_dir + f"/plots/{clim_project}_precip_annual_change.png"),
+        precip_monthly_abs_plt = (clim_project_dir + f"/plots/{clim_project}_precip_monthly_absolute.png"),
+        precip_monthly_chg_plt = (clim_project_dir + f"/plots/{clim_project}_precip_monthly_change.png"),
+        temp_annual_abs_plt = (clim_project_dir + f"/plots/{clim_project}_temp_annual_absolute.png"),
+        temp_annual_chg_plt = (clim_project_dir + f"/plots/{clim_project}_temp_annual_change.png"),
+        temp_monthly_abs_plt = (clim_project_dir + f"/plots/{clim_project}_temp_monthly_absolute.png"),
+        temp_monthly_chg_plt = (clim_project_dir + f"/plots/{clim_project}_temp_monthly_change.png"),
         # S8-02: `timeseries/gcm_timeseries.nc` is GONE. It merged the nine series
         # into one cube that nothing read -- not `all`, not WF3, not any script --
         # while rounding to 2 dp (the quantisation step 5c removed from the series)
         # and stripping every `cst_*` attr, so it was a lossier, untraceable copy
         # of the tier it duplicated. The durable timeseries tier is `scalar/`;
-        # `change_factors/*.csv` is the analysis-ready form.
+        # `summary/*_change_factors_*.csv` is the analysis-ready form.
     log:
         f"{project_dir}/logs/2.06_plot_climate_proj_timeseries.log",
     benchmark:
@@ -868,9 +886,9 @@ rule gather_raw_logs:
 rule gather_benchmarks:
     message: rule_banner("2.10", "gather_benchmarks")
     input:
-        (clim_project_dir + "/summary/annual_change_scalar_stats_summary.nc"),
-        (clim_project_dir + "/plots/projected_climate_statistics.png"),
-        (clim_project_dir + "/plots/precipitation_anomaly_projections_abs.png"),
+        (clim_project_dir + f"/summary/{clim_project}_change_factors_annual.csv"),
+        (clim_project_dir + f"/plots/{clim_project}_change_factor_cloud.png"),
+        (clim_project_dir + f"/plots/{clim_project}_precip_annual_absolute.png"),
     output:
         f"{project_dir}/benchmarks/wf2_benchmarks.md",
     params:

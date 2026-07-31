@@ -103,7 +103,16 @@ still produced.
 
 | Before | After | Why |
 | --- | --- | --- |
-| `series/{key}.nc` | `scalar/{key}.nc` | `series` said nothing about the files being spatially averaged. `scalar` is the word this codebase already uses for the quantity (`var_m_scalar` in the reducer; `annual_change_scalar_stats_summary*`), on the axis it already asserts — scalar vs grid. |
+| `series/{key}.nc` | `scalar/{key}.nc` | `series` said nothing about the files being spatially averaged. `scalar` is the word this codebase already uses for the quantity (`var_m_scalar` in the reducer), on the axis it already asserts — scalar vs grid. |
+| `change_factors/annual.csv` | `summary/cmip6_change_factors_annual.csv` | Every result now lives under `summary/`, and the name identifies the file when it is detached from the tree. |
+| `change_factors/monthly.csv` | `summary/cmip6_change_factors_monthly.csv` | |
+| `provenance.json` | `summary/provenance.json` | Beside `composition.csv` — both are run-level records rather than results. `report.md` stays at the root as the single entry point. |
+| `projected_climate_statistics.png` | `plots/cmip6_change_factor_cloud.png` | It is the ΔT/ΔP cloud, one point per combination. |
+| `{precipitation,temperature}_{anomaly,monthly}_projections_{abs,anom}.png` | `plots/cmip6_{precip,temp}_{annual,monthly}_{absolute,change}.png` | The old names contradicted their contents — `precipitation_anomaly_projections_abs.png` plots absolute levels, so "anomaly" sat in the filename of the non-anomaly figure. |
+
+The figure scheme is `{clim_project}_{variable}_{view}_{quantity}`, using the same
+`precip`/`temp` names as the config and the tables, and the same
+`absolute`/`change` distinction the tables draw.
 
 `raw/` is unchanged, and **filenames are identical across both tiers**: the
 directory carries the tier, the filename carries the identity. `grids/series/`
@@ -115,19 +124,75 @@ cannot clean a path it no longer declares. `dev/scripts/prune_series_cache.py`
 now reports it as a legacy generation; delete it once (see "Post-migration
 cleanup" below).
 
+## Rebuilt tables
+
+`summary/cmip6_change_factors_{annual,monthly}.csv` replace the long tables *and*
+the three wide `summary/annual_change_scalar_stats_summary{,_mean}.{nc,csv}`
+files, which are **no longer written**. Nothing outside the workflow read them.
+
+Twenty columns became thirteen (fourteen for monthly, which adds `month`):
+
+```
+model,scenario,member,horizon,variable,statistic,
+absolute_value,units,relative_value,relative_units,
+status,reference_window,horizon_window
+```
+
+- **`absolute_value`** is the **future level** — e.g. `26.2354` degC — in `units`.
+- **`relative_value`** is the change **against the reference window**, in
+  `relative_units`: a difference for a variable declared `change: absolute`
+  (`+1.1787` degC), a percent for one declared `change: relative` (`+10.95`).
+
+**Two corrections you should know about, because they change numbers you may
+already have:**
+
+1. The old `units` column was **wrong for every relative variable** — it reported
+   the underlying variable's units (`mm/day`) beside a value that was a percent.
+2. Model names longer than the first-merged one were **silently truncated** in the
+   wide summary — `NOAA-GFDL/GFDL-ESM4` became `NOAA-GFDL/GFD`. The old `dataset`
+   column carried the truncated name. Fixed; `model` now reports the full
+   `source_id`.
+
+`composition.csv` drops from 15 columns to 10 on the same principles: `model`
+replaces `dataset`/`institution`/`source_id`, and the constant `catalog_crawled_on`
+and reference-window columns move to the artifacts that own them.
+
+**Precipitation is now reported in mm/day everywhere, figures included.** The
+annual precipitation figure previously plotted mm/year, so it disagreed with every
+table by a factor of 365.
+
 ## Removed output
 
 `timeseries/gcm_timeseries.nc` is **no longer written**. A project directory from
 an earlier run keeps its stale copy — Snakemake cannot clean an output no longer
 declared — so delete `climate_projections/<proj>/timeseries/` by hand once; fresh
-runs never create it. It merged the nine `series/*.nc` into one cube that
+runs never create it. It merged the nine `scalar/*.nc` into one cube that
 nothing consumed, while rounding to 2 decimals — re-imposing the quantisation
 "Rounding dropped" above removes — and stripping every `cst_*` attribute, so it
 carried no digest, region fingerprint or calendar and could not be traced.
 
-If you were reading it, use `series/*.nc` for the full monthly timeseries (same
-values, unrounded, with provenance) or `change_factors/annual.csv` /
-`monthly.csv` for the analysis-ready long form.
+If you were reading it, use `scalar/*.nc` for the full monthly timeseries (same
+values, unrounded, with provenance) or the change-factor tables above.
+
+## Post-migration cleanup
+
+Snakemake cannot clean an output it no longer declares, so a project directory
+from an earlier run keeps every superseded path. Delete these once, per project:
+
+```
+climate_projections/<proj>/series/          # renamed to scalar/
+climate_projections/<proj>/timeseries/      # removed entirely
+climate_projections/<proj>/change_factors/  # moved into summary/
+climate_projections/<proj>/provenance.json  # moved into summary/
+climate_projections/<proj>/summary/annual_change_scalar_stats_summary*
+climate_projections/<proj>/plots/{precipitation,temperature}_*_projections_*.png
+climate_projections/<proj>/plots/projected_climate_statistics.png
+logs/2.0{2,3,4,5}_{monthly_stats_hist,monthly_stats_fut,monthly_change,monthly_change_scalar_merge}.log
+```
+
+`dev/scripts/prune_series_cache.py` reports the stale `series/` generation;
+the rest are a manual delete. Do this **before** recording any reference
+snapshot, or the snapshot bakes in files the workflow no longer produces.
 
 ---
 
