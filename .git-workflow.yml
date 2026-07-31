@@ -1,0 +1,39 @@
+# Controls the git-workflow skill's ceremony for THIS repo.
+# Read at Pre-flight. Schema + resolution:
+# ~/workspace/brain/artifacts/skills/git-workflow/references/configuration.md
+#
+#   full — branch risky/multi-session work; auto-commit verified work.  (current)
+#   lite — trunk only (no feature branches); auto-commit verified work.
+mode: full
+
+# Every modifying task starts in its own task branch + linked worktree at
+# <workspace>/.worktrees/blueearth_cst/<task>; this primary checkout is reserved
+# for integration (merging, landing, read-only work).
+#
+# Set because this repo is routinely worked by SEVERAL CONCURRENT SESSIONS.
+# Without it they share one index and HEAD, and the collisions are real rather
+# than theoretical: on 2026-07-31 two sessions in this checkout interleaved six
+# commits and four dirty files, and a rule moved 32 lines under a read that was
+# already in flight. Strict pathspecs contained it; isolation removes the class.
+#
+# This setting is AGENT-HONORED, not a git-level block. The enforcement floor is
+# the launcher, which starts the client already inside the task worktree:
+#
+#   python ~/workspace/brain/artifacts/skills/git-workflow/scripts/worktree-session.py \
+#       start --task <slug> --type <fix|feat|refactor|docs|test|chore> -- claude
+#
+# `... worktree-session.py check` returns 2 when a session is sitting in this
+# primary checkout under this policy. An optional PreToolUse guard hook can deny
+# native edit tools there as defense in depth — see the skill's
+# references/worktree-enforcement.md.
+worktree_policy: always
+
+# Branches created solely to isolate concurrent work auto-land after rebase and
+# verification, so isolation costs nothing at the end of a task. Feature branches
+# and explicitly held isolation branches still wait for a decision.
+isolation_landing: auto
+
+# No automatic push, including the backup checkpoint. This repo's trunk is pushed
+# deliberately, not as a side effect of finishing a task; flip to `true` to
+# re-enable the >24h / 25-commit backup trigger.
+auto_push: false
