@@ -144,8 +144,20 @@ Landed as one commit. Surfaces changed:
 **Deliberately not changed:** `dev/scripts/semantic_tree_diff.py:278-279` keeps
 its `gcm_timeseries.nc` rename row. That row asserts a *historical* path
 equivalence for the R7 layout move; it is not a claim that the file is still
-produced. Keeping it makes a comparison against a pre-R7 reference tree report
-one clean deletion instead of an unmatched old path.
+produced. **Verified, not assumed** — run against `ref_wf2_pre_5f_fixed` with a
+copy of the fixture whose `timeseries/` was removed, the tool reports exactly:
+
+```
+> MISSING (in ref, not cur): climate_projections/cmip6/timeseries/gcm_timeseries.nc
+> MISMATCH: 125 files compared, 15 failed, 1 missing, 4 extra, 0 allowlisted
+```
+
+The control run against the untouched fixture gives `126 files compared, 15
+failed, 0 missing, 4 extra` — identical but for the one file. So the row resolves
+the old path correctly and this change contributes one clean deletion and nothing
+else. (The 15 failed / 4 extra are pre-existing deltas against a reference that
+predates 5f's value change and 6a's new outputs; they are present with and
+without this commit.)
 
 **Verification.** wf2 dry-run clean; rule 2.06 executed for real on both the
 Gabon project and the tracked fixture; `pytest tests/test_cli.py` 9 passed;
@@ -155,7 +167,16 @@ green gate proves the deletion is output-neutral for everything the baseline
 constrains. `gcm_timeseries.nc` was never a manifest target, so nothing needed
 re-recording.
 
-**Known residue.** A project directory from an earlier run keeps its stale
-`timeseries/gcm_timeseries.nc` — Snakemake cannot clean an output that is no
-longer declared. Present in both `test_case/test_local/` and `C:/TESTS/CST/gabonx/`
-at time of writing. Documented in the migration note as a one-time manual delete.
+**Known residue — action required before the next snapshot.** A project directory
+from an earlier run keeps its stale `timeseries/gcm_timeseries.nc`; Snakemake
+cannot clean an output that is no longer declared. Present in both
+`test_case/test_local/` and `C:/TESTS/CST/gabonx/` at time of writing, and
+documented in the migration note as a one-time manual delete for users.
+
+The fixture copy is the one that matters. `check_baseline` does not fingerprint
+it (never a manifest target), so nothing fails today — but AGENTS.md requires
+pruning **before** any reference snapshot, or the snapshot bakes the orphan in
+and every later whole-tree diff compares against a file the workflow no longer
+produces. **Delete `test_case/test_local/climate_projections/cmip6/timeseries/`
+before recording the next reference tree.** Left to the owner: deleting fixture
+state is an explicit owner action, same principle as `prune_series_cache.py`.
