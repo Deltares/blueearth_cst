@@ -94,7 +94,7 @@ if __name__ == "__main__":
             update_wflow_gauges_outputs(
                 wflow_root=os.path.dirname(sm.input.basin_nc),
                 data_catalog=sm.params.data_catalog,
-                gauges_fn=sm.params.output_locs,
+                gauges_fn=getattr(sm.input, "output_locations", None),
                 outputs=sm.params.outputs,
             )
     else:

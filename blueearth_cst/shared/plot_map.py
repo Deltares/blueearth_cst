@@ -175,5 +175,5 @@ if __name__ == "__main__":
         with tee_to_log(sm.log[0]):
             plot_basin_map(
                 project_dir=sm.params.project_dir,
-                gauges_fn=sm.params.output_locations,
+                gauges_fn=getattr(sm.input, "output_locations", None),
             )
