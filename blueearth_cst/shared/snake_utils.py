@@ -361,21 +361,112 @@ def validate_experiment_name(name: str, project_dir) -> str:
     return name
 
 
-#: Hard floor on the historical window, in days. Rule 1.11 ``plot_results``
-#: DECLARES ``clim_wflow_1_{month,year}.png`` as outputs but writes them only
-#: when the extraction carries at least a year, so a shorter window cannot
-#: produce a green WF1 run at all — it dies with ``MissingOutputException`` deep
-#: in the DAG (dev/followups.md R7-6). The floor is stated once here and checked
-#: twice: against the REQUESTED window at parse time, and against the ACTUAL
-#: extracted span in ``extract_historical_climate``.
-MIN_HISTORICAL_DAYS = 365
+#: THE minimum historical window, in whole calendar years — one floor for the
+#: whole toolbox, enforced identically wherever the window is checked (owner
+#: ruling 2026-08-01). It is set by the most demanding consumer: weathergenr's
+#: wavelet decomposition needs >= 16 annual observations (``wavelet_cwt.R``),
+#: and a project whose observed record cannot support a stress test is
+#: misconfigured for what this toolbox is for, whether or not the current
+#: invocation happens to be WF3.
+#:
+#: Deliberately NOT a per-workflow floor. An earlier revision enforced 365 days
+#: hard and warned at 16 years, so WF1 could build a model on a record WF3 would
+#: later reject — the failure simply moved to the workflow least able to explain
+#: it. One number, one message, checked in both places a different fact is
+#: knowable: the REQUESTED window at parse time
+#: (``validate_historical_window``) and the ACTUAL extracted span in
+#: ``extract_historical_climate._check_window_coverage``.
+#:
+#: It subsumes the other length requirement in the tree: rule 1.11
+#: ``plot_results`` writes ``clim_wflow_1_{month,year}.png`` only from >= 365
+#: TIMESTEPS, which 16 years clears for any daily source (dev/followups.md
+#: R7-6).
+MIN_HISTORICAL_YEARS = 16
 
-#: Advisory floor, in years: weathergenr's wavelet decomposition needs >= 16
-#: annual observations (``wavelet_cwt.R``). Not enforced here — WF1 alone on a
-#: 10-year record is legitimate; only a stress test needs this much. Used to
-#: warn early rather than let WF3 fail later with ``'series' must have at least
-#: 16 observations``, which names neither years nor the remedy.
-WEATHERGEN_MIN_YEARS = 16
+
+#: juliaup version selector for every Julia invocation a workflow makes. Julia
+#: is NOT in the pixi env (conda-forge has no win-64 build) — it is juliaup-
+#: managed and must already be on PATH, and the ``+<version>`` prefix is how the
+#: juliaup shim picks a toolchain. Stated here rather than inline in a shell
+#: body so the pin is greppable and reviewable.
+#:
+#: THREE places must agree, and ``tests/test_julia_runtime.py`` asserts it:
+#: this constant, ``pixi.toml``'s ``install-julia`` task (which instantiates the
+#: env), and ``Manifest.toml``'s ``julia_version`` (what the lock was resolved
+#: against). ``Project.toml``'s ``julia = "1.11"`` compat bound is deliberately
+#: looser and is not compared.
+JULIA_VERSION = "1.11.7"
+
+#: Default ``--threads`` for Wflow.jl. Config-overridable via
+#: ``shared.julia_threads`` (P3-3 design §6.3, which sanctions exactly this:
+#: "optionally promote --threads to a config value so a deployment can tune it
+#: to its basin without a Snakefile edit").
+#:
+#: The default stays 4 because it is one leg of P3-3's frozen resource triple
+#: ``(-c N, --threads t, B)`` = (3, 4, 1) that every recorded performance
+#: baseline was measured at (dev/p33/performance-baseline.md §5.6). Changing it
+#: silently would invalidate those comparisons.
+#:
+#: Deliberately NOT wired to Snakemake's ``threads:`` directive. Snakemake CAPS
+#: a rule's threads at ``--cores``, so ``-c 3`` would quietly hand Wflow 3
+#: threads instead of 4 — a thread-allocation change disguised as a refactor,
+#: and precisely what §5.6 forbids. The two numbers are independent by design:
+#: the nominal budget is ``N x t <= C_logical``.
+#:
+#: Note the flag buys nothing on the 384-cell test fixture (Wflow's Polyester
+#: threading parallelizes over grid CELLS), but a production basin of 10^4-10^6
+#: cells is where it pays; the fixture cannot measure that.
+DEFAULT_JULIA_THREADS = 4
+
+
+def validate_julia_threads(value) -> int:
+    """Validate ``shared.julia_threads`` as a positive whole number of threads.
+
+    Parse-time, like the other config validators here: the value lands in a
+    ``shell:`` body, so a bad one would otherwise surface as a Julia usage error
+    inside a rule rather than as a config problem.
+    """
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(
+            f"shared.julia_threads must be an integer, got {value!r}"
+        )
+    if value < 1:
+        raise ValueError(
+            f"shared.julia_threads must be >= 1, got {value}"
+        )
+    return value
+
+
+def julia_prefix(threads=DEFAULT_JULIA_THREADS) -> str:
+    """The ``julia ... `` prefix both Wflow-running rules share.
+
+    ``--project=.`` resolves against Snakemake's working directory, which is the
+    repository root — where ``Project.toml``/``Manifest.toml`` live.
+    """
+    return f"julia +{JULIA_VERSION} --project=. --threads {validate_julia_threads(threads)}"
+
+
+def _shift_years(moment, years):
+    """``moment`` shifted by whole calendar years; Feb 29 clamps to Feb 28.
+
+    Duck-typed on ``.replace()``/``.year`` so it accepts both ``datetime`` (the
+    parse-time path, from config strings) and ``pandas.Timestamp`` (the
+    extraction path, from the data's own time axis).
+    """
+    try:
+        return moment.replace(year=moment.year + years)
+    except ValueError:  # 29 Feb -> a non-leap year
+        return moment.replace(year=moment.year + years, month=2, day=28)
+
+
+def meets_min_historical_years(start, end) -> bool:
+    """Does ``start..end`` span at least ``MIN_HISTORICAL_YEARS`` calendar years?
+
+    Calendar arithmetic, not ``days / 365.25``: the requirement is on ANNUAL
+    observations, so "16 years later, same date" is the honest comparison and it
+    stays exact across leap years.
+    """
+    return end >= _shift_years(start, MIN_HISTORICAL_YEARS)
 
 
 def historical_window_days(historical_window) -> int:
@@ -405,38 +496,58 @@ def historical_window_days(historical_window) -> int:
     return (bounds["endtime"] - bounds["starttime"]).days
 
 
+def historical_window_bounds(historical_window):
+    """``(starttime, endtime)`` of a ``shared.historical_window``, as datetimes.
+
+    Same parsing and same fail-loud errors as ``historical_window_days``, which
+    is written in terms of this.
+    """
+    if not isinstance(historical_window, Mapping):
+        raise ValueError(
+            f"historical_window must be a mapping with starttime/endtime, got "
+            f"{historical_window!r}"
+        )
+    bounds = []
+    for key in ("starttime", "endtime"):
+        if key not in historical_window:
+            raise ValueError(f"historical_window is missing {key!r}")
+        try:
+            bounds.append(datetime.fromisoformat(str(historical_window[key]).strip()))
+        except ValueError:
+            raise ValueError(
+                f"historical_window.{key} is not an ISO datetime: "
+                f"{historical_window[key]!r}"
+            ) from None
+    return tuple(bounds)
+
+
 def validate_historical_window(historical_window) -> int:
-    """Reject a ``shared.historical_window`` too short for WF1 to complete.
+    """Reject a ``shared.historical_window`` shorter than ``MIN_HISTORICAL_YEARS``.
 
     Called at ``Snakefile_model_creation`` parse time, so a window that cannot
-    yield a green run is rejected BEFORE any rule executes — the same
+    support a full CST run is rejected BEFORE any rule executes — the same
     parse-time stance as ``clim_historical: eobs`` and
     ``validate_experiment_name``, and for the same reason: no execution can
     rescue it, so the earliest possible failure is the most legible one.
 
     This checks what the config REQUESTS. Whether the staged source actually
-    covers it is unknowable until extraction, and is checked there
-    (``extract_historical_climate._check_window_coverage``).
+    covers it is unknowable until extraction, and is checked against the same
+    floor there (``extract_historical_climate._check_window_coverage``).
 
-    The floor is a calendar span, while rule 1.11's real condition is a
-    TIMESTEP COUNT (``len(ds_clim.time) < 365``). The two coincide because
-    every source this path supports — era5, chirps, chirps_global — is daily;
-    a sub-daily or monthly source would need this proxy revisited rather than
-    reused.
-
-    Returns the span in days, or raises ``ValueError`` naming both the
-    requested window and the floor.
+    Returns the span in days, or raises ``ValueError`` naming the requested
+    window, its length and the floor.
     """
+    start, end = historical_window_bounds(historical_window)
     days = historical_window_days(historical_window)
-    if days < MIN_HISTORICAL_DAYS:
+    if not meets_min_historical_years(start, end):
         raise ValueError(
-            f"historical_window spans {days} days "
-            f"({historical_window.get('starttime')} .. "
-            f"{historical_window.get('endtime')}), below the "
-            f"{MIN_HISTORICAL_DAYS}-day minimum workflow 1 needs: rule 1.11 "
-            f"plot_results declares yearly climate figures it cannot write "
-            f"from less than a year of data, so the run would fail mid-DAG. "
-            f"Widen the window to at least one year"
+            f"historical_window {start.date()} .. {end.date()} spans "
+            f"{days / 365.25:.1f} years, below the "
+            f"{MIN_HISTORICAL_YEARS}-year minimum this toolbox requires: "
+            f"weathergenr's wavelet decomposition needs at least "
+            f"{MIN_HISTORICAL_YEARS} annual observations, so a shorter record "
+            f"cannot support a climate stress test. Widen "
+            f"shared.historical_window to >= {MIN_HISTORICAL_YEARS} years"
             + (
                 ""
                 if days >= 0

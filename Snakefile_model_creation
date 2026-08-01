@@ -5,7 +5,7 @@ from pathlib import Path
 # directory by prepending this Snakefile's own directory to sys.path.
 # See dev/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
-from blueearth_cst.shared.snake_utils import DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_spec, get_config, patch_psutil_windows_benchmark, rule_banner, target_banner, validate_historical_window, warn_if_project_dir_in_repo
+from blueearth_cst.shared.snake_utils import DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, DEFAULT_JULIA_THREADS, climate_store_spec, get_config, julia_prefix, patch_psutil_windows_benchmark, rule_banner, target_banner, validate_historical_window, warn_if_project_dir_in_repo
 
 # Windows: make Snakemake's benchmark memory/IO/CPU metrics work (else all NA).
 patch_psutil_windows_benchmark()
@@ -45,14 +45,25 @@ model_resolution = get_config(basin_cfg, "resolution", 0.00833333)
 basin_hydrography = get_config(basin_cfg, "hydrography", DEFAULT_HYDROGRAPHY)
 basin_index = get_config(basin_cfg, "basin_index", DEFAULT_BASIN_INDEX)
 historical_window = get_config(shared_cfg, "historical_window", optional=False)
-# A window shorter than a year cannot produce a green WF1 run: rule 1.11
-# declares yearly climate figures it will not write from a sub-year extraction,
-# so the run dies with MissingOutputException nine rules in (dev/followups.md
-# R7-6). Reject it HERE instead — parse time, before any rule executes, same
-# stance as the eobs rejection below. Coverage of the requested window by the
-# staged source is a separate question, checked at extraction (rule 1.10).
+# ONE minimum window for the whole toolbox — snake_utils.MIN_HISTORICAL_YEARS
+# (16), set by weathergenr's wavelet minimum and enforced identically here and
+# at extraction. WF1 rejects it too, deliberately: a record too short for a
+# stress test is a misconfigured project, and letting WF1 build a model on it
+# only moves the failure to the workflow least able to explain it
+# (dev/followups.md R7-6, R3). Parse time, before any rule executes — same
+# stance as the eobs rejection below. Whether the staged source actually COVERS
+# the requested window is a different question, checked at rule 1.10.
 validate_historical_window(historical_window)
 clim_source = get_config(shared_cfg, "clim_historical", optional=False)
+# Wflow.jl thread count for rule 1.09. OPTIONAL — the default is P3-3's frozen
+# baseline value, so an existing config is unaffected. Config-driven rather than
+# inline so a deployment can tune it to its basin (a production basin has the
+# cell-parallelism the 384-cell test fixture lacks) without a Snakefile edit.
+# NOT Snakemake's `threads:`, which caps at --cores: see DEFAULT_JULIA_THREADS.
+julia_threads = get_config(shared_cfg, "julia_threads", DEFAULT_JULIA_THREADS)
+# Carries the juliaup version pin too; both are validated at parse time, before
+# any rule can put them in a shell body.
+wflow_julia = julia_prefix(julia_threads)
 
 # P3-2a bounded support (design ext2-3): the wf1 raw-climate path (rule 1.10 +
 # the model-parity plot re-source) supports era5, chirps and chirps_global
@@ -338,7 +349,7 @@ rule run_wflow:
     benchmark:
         f"{project_dir}/benchmarks/_parts/1.09_run_wflow.tsv",
     shell:
-        """python -u "{run_logged}" "{log}" -- julia +1.11.7 --project=. --threads 4 -e "using Wflow; Wflow.run()" "{params.toml_path}" """
+        """python -u "{run_logged}" "{log}" -- {wflow_julia} -e "using Wflow; Wflow.run()" "{params.toml_path}" """
 
 # 1.10  extract_climate_grid — the SHARED historical-climate store producer
 # (R07 B1). This declaration and rule 3.02 in Snakefile_climate_experiment are
