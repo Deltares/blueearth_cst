@@ -97,6 +97,10 @@ snakemake all -c 3 -s Snakefile_climate_experiment  --configfile config/workflow
 # Or drive all enabled workflows through the wrapper:
 pixi run python scripts/run_workflows.py --config config/workflows/snake_config_model_test.yml
 
+# Render a workflow's DAG into the config's own project_dir, as
+# <project_name>_wf<N>_dag.png (never into the repo root):
+pixi run python scripts/plot_workflow_dag.py -s Snakefile_model_creation --configfile <cfg>
+
 snakemake ... --dry-run           # inspect the DAG before running or after editing rules
 snakemake --unlock -s <Snakefile> --configfile <cfg>   # Snakemake locks the workdir on crash
 
