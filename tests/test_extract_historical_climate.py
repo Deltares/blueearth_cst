@@ -68,6 +68,16 @@ class _FakeDataset:
     def to_dataset(self):
         return self
 
+    def close(self):
+        """Real xr.Datasets always have this; the fake did not.
+
+        prep_historical_climate closes the store deterministically after
+        writing, which broke all seven tests that drive this fake through it --
+        a gap in the double, not in the product. Recorded because the fake will
+        keep drifting from xarray unless each addition says why it exists.
+        """
+        self.closed = True
+
     def squeeze(self):
         return self
 
