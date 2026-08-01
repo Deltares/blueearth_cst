@@ -145,6 +145,38 @@ def _footer(fig, caveat: Optional[str]) -> None:
         fig.tight_layout()
 
 
+#: Column carrying a point's human-readable label, if the layer has one.
+_LABEL_COLUMN = "station_name"
+
+
+def _label_points(ax, gdf) -> None:
+    """Annotate a point overlay with its station names.
+
+    A marker with no name answers "something is here" but not "which one",
+    which is the question a reader brings to a multi-gauge basin. Rule 1.12's
+    basin_area.png has labelled its gauges since R07; this brings the canonical
+    climate maps into line rather than leaving one figure family mute.
+
+    Silently does nothing for a layer without the column (the model's own
+    ``outlets`` has none) — those markers are self-explanatory in context.
+    """
+    if _LABEL_COLUMN not in getattr(gdf, "columns", []):
+        return
+    for _, row in gdf.iterrows():
+        geometry = row.geometry
+        if geometry is None or geometry.is_empty:
+            continue
+        ax.annotate(
+            text=str(row[_LABEL_COLUMN]),
+            xy=(geometry.x, geometry.y),
+            xytext=(3.0, 3.0),
+            textcoords="offset points",
+            fontsize=5,
+            fontweight="bold",
+            zorder=6,
+        )
+
+
 def _render_map(da, spec, title, caveat, overlays):
     """Climatological field as a raster map, with optional vector overlays."""
     how, label, unit = spec["how"], spec["label"], spec["unit"]
@@ -162,7 +194,11 @@ def _render_map(da, spec, title, caveat, overlays):
         elif name == "basins":
             gdf.boundary.plot(ax=ax, color="k", linewidth=0.5, zorder=4)
         else:
-            gdf.plot(ax=ax, marker="d", markersize=18, facecolor="k", zorder=5)
+            # Point layers: outlets in black, user gauges in blue, matching
+            # rule 1.12's basin_area.png so the two read as one family.
+            colour = "blue" if name == "gauges" else "k"
+            gdf.plot(ax=ax, marker="d", markersize=18, facecolor=colour, zorder=5)
+            _label_points(ax, gdf)
     ax.set_title(f"{label} — climatological mean\n{title}", fontsize=9)
     ax.set_xlabel("longitude [degree east]")
     ax.set_ylabel("latitude [degree north]")
