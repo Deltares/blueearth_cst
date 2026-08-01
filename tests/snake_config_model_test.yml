@@ -13,7 +13,11 @@ shared:
     region: "{'subbasin': [9.738, 0.4212], 'uparea': 70}"
     resolution: 0.0062475
   historical_window:
-    starttime: "2015-01-01T00:00:00"
+    # >= snake_utils.MIN_HISTORICAL_YEARS (16), or every dry-run test in this
+    # suite reds at parse time. Was 2015..2020 (6 years) until 2026-08-01, when
+    # the floor became a hard error; nothing here asserts the window's value,
+    # only that the DAG builds, so widening it is inert for these tests.
+    starttime: "2000-01-01T00:00:00"
     endtime: "2020-12-31T00:00:00"
   clim_historical: era5
 

@@ -336,7 +336,10 @@ def test_warns_when_extracted_window_is_shorter_than_requested(
     class _NarrowDataCatalog(_RecordingDataCatalog):
         def get_rasterdataset(self, source, **kwargs):
             self.get_rasterdataset_calls.append({"source": source, **kwargs})
-            return _FakeDataset(kwargs.get("variables", ["precip"]), time_size=10)
+            # 20 yearly steps from 1980: ends ~1999, so it falls short of the
+            # 2000..2020 request (the advisory) while still clearing the
+            # 16-year floor (which would otherwise raise before the warning).
+            return _FakeDataset(kwargs.get("variables", ["precip"]), time_size=20)
 
     monkeypatch.setattr(ehc.hydromt, "DataCatalog", _NarrowDataCatalog)
 
@@ -392,38 +395,33 @@ def _run_with_span(monkeypatch, tmp_path, time_size, catalog_cls):
     return caught
 
 
-def test_sub_year_extraction_raises_instead_of_warning(
+def test_short_extraction_raises_naming_the_unified_floor(
     tmp_path, fake_era5_catalog, monkeypatch
 ):
-    """A single timestep spans 0 days -- under the hard floor.
+    """Ten yearly steps = ~9 years, under the 16-year floor.
 
-    This is the case that used to reach rule 1.11 and die there with
-    MissingOutputException; the producer now names the cause.
+    The UNIFIED floor (owner ruling 2026-08-01) makes this fatal in the
+    producer. Before, it warned here and then failed either at rule 1.11 with
+    MissingOutputException or a whole workflow away inside weathergenr.
     """
     with pytest.raises(ValueError) as excinfo:
-        _run_with_span(monkeypatch, tmp_path, 1, _RecordingDataCatalog)
+        _run_with_span(monkeypatch, tmp_path, 10, _RecordingDataCatalog)
     message = str(excinfo.value)
-    assert str(ehc.MIN_HISTORICAL_DAYS) in message
+    assert f"{ehc.MIN_HISTORICAL_YEARS}-year minimum" in message
     assert "historical_window" in message
     assert "era5" in message
+    assert "weathergenr" in message
 
 
-def test_short_but_year_plus_extraction_warns_about_weathergenr(
-    tmp_path, fake_era5_catalog, monkeypatch
-):
-    """Nine years: WF1 completes, WF3 would not. Advisory, never fatal."""
-    caught = _run_with_span(monkeypatch, tmp_path, 10, _RecordingDataCatalog)
-    weathergen = [w for w in caught if "weathergenr" in str(w.message)]
-    assert weathergen, [str(w.message) for w in caught]
-    assert str(ehc.WEATHERGEN_MIN_YEARS) in str(weathergen[0].message)
+def test_a_single_timestep_raises_too(tmp_path, fake_era5_catalog, monkeypatch):
+    """The degenerate end of the same check -- no separate code path."""
+    with pytest.raises(ValueError, match=f"{ehc.MIN_HISTORICAL_YEARS}-year minimum"):
+        _run_with_span(monkeypatch, tmp_path, 1, _RecordingDataCatalog)
 
 
 def test_long_enough_extraction_is_silent(tmp_path, fake_era5_catalog, monkeypatch):
     """The default 100-year fake covers the request: no coverage warning at all,
-    so the advisories stay meaningful rather than becoming background noise."""
+    so the shortfall advisory stays meaningful rather than background noise."""
     caught = _run_with_span(monkeypatch, tmp_path, 100, _RecordingDataCatalog)
-    noisy = [
-        w for w in caught
-        if "weathergenr" in str(w.message) or "shorter than the requested" in str(w.message)
-    ]
+    noisy = [w for w in caught if "shorter than the requested" in str(w.message)]
     assert not noisy, [str(w.message) for w in noisy]

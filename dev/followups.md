@@ -145,11 +145,12 @@ Provenance: `dev/r07/migration_project-layout.md` §§7a–7d,
 
 - **[R7-6] ~~Declaring `clim_wflow_1_*` made rule 1.11 newly able to fail.~~
   FIXED 2026-08-01** — the failure still happens, but no longer at rule 1.11 and
-  no longer as `MissingOutputException`. The ≥365-day requirement is now stated
-  once as `snake_utils.MIN_HISTORICAL_DAYS` and checked twice: against the
-  REQUESTED window at WF1 parse time (`validate_historical_window`, so a
-  sub-year config reds the dry-run before any rule executes) and against the
-  ACTUAL extracted span in the shared store producer
+  no longer as `MissingOutputException`. Rule 1.11's ≥365-timestep requirement
+  is subsumed by `snake_utils.MIN_HISTORICAL_YEARS` (16) — ONE floor for the
+  whole toolbox (owner ruling 2026-08-01) — checked twice: against the
+  REQUESTED window at WF1 parse time (`validate_historical_window`, so a short
+  config reds the dry-run before any rule executes) and against the ACTUAL
+  extracted span in the shared store producer
   (`extract_historical_climate._check_window_coverage`, which raises naming the
   requested window, the covered span and the floor). The owner ruling that
   failing loudly beats an incomplete figure set is preserved — only *where* and
@@ -615,18 +616,23 @@ Provenance: `dev/r07/migration_project-layout.md` §§7a–7d,
   short of the requested window. *Config staleness* resolved 2026-07-21
   (t260716a′, see the nested entry below — R5 wired the window in as `params`,
   so Snakemake's default rerun-trigger re-extracts on an edit). *The
-  "optionally, fail the rule" half of the fix below* landed 2026-08-01: the
-  advisory is now a three-level check
-  (`extract_historical_climate._check_window_coverage`) — shortfall vs
-  requested stays advisory with its 31-day tolerance; below
-  `WEATHERGEN_MIN_YEARS` (16) warns naming weathergenr and the remedy, since
-  WF1 alone on a short record is legitimate; below `MIN_HISTORICAL_DAYS` (365)
-  RAISES, because no consumer of the shared store can complete under a year.
-  A WF1 parse-time guard (`snake_utils.validate_historical_window`) rejects a
-  requested window under the same floor before any rule runs. **Still open, and
-  tracked separately:** the hard 16-year gate in WF3 where weathergenr is
-  actually invoked — see "weathergenr's wavelet minimum surfaces as a cryptic
-  error" in the R5 section.*
+  "optionally, fail the rule" half of the fix below* landed 2026-08-01, as a
+  UNIFIED floor rather than a per-workflow one (owner ruling, same day):
+  `extract_historical_climate._check_window_coverage` keeps shortfall-vs-
+  requested advisory with its 31-day tolerance, and RAISES below
+  `snake_utils.MIN_HISTORICAL_YEARS` (16). A WF1 parse-time guard
+  (`validate_historical_window`) applies the same floor to the requested window
+  before any rule runs. The floor is set by the most demanding consumer
+  (weathergenr's wavelet minimum) and enforced in WF1 and WF2 too: a first
+  revision enforced 365 days hard and 16 years advisory, which let WF1 build a
+  model on a record WF3 would reject — moving the failure to the workflow least
+  able to explain it. **Consequence:** two shipped configs held windows under
+  the new floor and were widened to 2000–2020 — `snake_config.template.yml` (was
+  6 years) and `tests/snake_config_model_test.yml` (was 6). **Still open, and
+  tracked separately:** the 16-year gate in WF3 itself, where weathergenr is
+  invoked — a store built before this change can still reach it. See
+  "weathergenr's wavelet minimum surfaces as a cryptic error" in the R5
+  section.*
   When the snake config's `historical:` window asks for years that the
   staged source doesn't cover, the rule produces a shorter `extract_historical.nc`
   without any warning. Downstream rules then fail in cryptic ways far from
