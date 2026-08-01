@@ -111,7 +111,7 @@ if __name__ == "__main__":
             plot_forcing(
                 wflow_root=f"{project_dir}/hydrology_model",
                 plot_dir=f"{project_dir}/hydrology_model/forcing/plots",
-                gauges_fn=sm.params.output_locations,
+                gauges_fn=getattr(sm.input, "output_locations", None),
             )
     else:
         plot_forcing(

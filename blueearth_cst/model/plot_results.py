@@ -377,8 +377,8 @@ if __name__ == "__main__":
         with tee_to_log(sm.log[0]):
             analyse_wflow_historical(
                 project_dir=sm.params.project_dir,
-                observations_fn=sm.params.observations_file,
-                gauges_locs=sm.params.gauges_output_path,
+                observations_fn=getattr(sm.input, "observations_timeseries", None),
+                gauges_locs=getattr(sm.input, "output_locations", None),
                 climate_nc=sm.input.climate_nc,
                 # declared only on the chirps/chirps_global branch (ext2-1)
                 oro_nc=getattr(sm.input, "oro_nc", None),

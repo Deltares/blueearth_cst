@@ -129,18 +129,15 @@ if __name__ == "__main__":
         # that cost this workflow its whole evaluation output once already
         # (dev/followups.md, the gauge-name entry).
         if workflow_name == "model_creation":
+            # sm.INPUT, not sm.params: both keys became declared inputs on
+            # 2026-08-02 so a file EDIT retriggers the rules that read them.
+            # An unset key contributes no entry at all, so getattr's default is
+            # the no-observations case; a configured-but-missing file never
+            # reaches here, because Snakemake refuses to run the rule.
             for key in ("output_locations", "observations_timeseries"):
-                path = getattr(sm.params, key, None)
+                path = getattr(sm.input, key, None)
                 if is_unset(path):
                     continue
-                if not os.path.isfile(str(path)):
-                    raise ValueError(
-                        f"{key} is set to {path!r} but no such file exists. "
-                        f"Leave the key at `null` to run without observations, "
-                        f"or fix the path -- it is read by rule 1.05 (gauges) "
-                        f"and rule 1.11 (evaluation), both of which would "
-                        f"otherwise skip it without saying so."
-                    )
                 other_config_files[str(path)] = observations_dir
                 if key == "output_locations":
                     _warn_on_low_gauge_ids(path)
