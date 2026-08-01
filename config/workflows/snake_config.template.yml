@@ -41,18 +41,20 @@ shared:
     #basin_index: merit_hydro_index
   historical_window:
     # ISO datetime strings — wflow forcing window.
-    # MINIMUM 16 YEARS, enforced at WF1 parse time and again at extraction
-    # (snake_utils.MIN_HISTORICAL_YEARS): weathergenr's wavelet decomposition
-    # needs at least 16 annual observations, so a shorter record cannot support
-    # a climate stress test. This window was 6 years until 2026-08-01 and would
-    # now be rejected.
+    # MINIMUM 16 YEARS, enforced at WF1 parse time and again at extraction:
+    # weathergenr's wavelet decomposition needs at least 16 annual
+    # observations, so a shorter record cannot support a climate stress test.
+    # The floor is `constraints.min_historical_years` in
+    # config/advanced_settings.yml and is NOT overridable per project.
+    # This window was 6 years until 2026-08-01 and would now be rejected.
     starttime: "2000-01-01T00:00:00"
     endtime: "2020-12-31T00:00:00"
   # Historical climate source (must exist in project.data_sources catalog)
   clim_historical: era5
-  # Optional: Wflow.jl `--threads` (default 4). Wflow parallelizes over grid
-  # CELLS, so raising this pays on a large basin and does nothing on a small
-  # one. It is NOT Snakemake's --cores: the two multiply, so keep
+  # Optional: Wflow.jl `--threads`. Overrides `defaults.julia_threads` in
+  # config/advanced_settings.yml (4). Wflow parallelizes over grid CELLS, so
+  # raising this pays on a large basin and does nothing on a small one. It is
+  # NOT Snakemake's --cores: the two multiply, so keep
   # `--cores N x julia_threads <= logical CPUs` (dev/p33 §5.6).
   #julia_threads: 4
 

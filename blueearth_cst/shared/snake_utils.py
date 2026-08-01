@@ -21,6 +21,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+import yaml
+
 
 # hydromt formats every log record as
 # ``<ts> - <name> - <module> - <LEVEL> - <message>`` (its hardcoded
@@ -361,13 +363,103 @@ def validate_experiment_name(name: str, project_dir) -> str:
     return name
 
 
+#: The advanced-settings file: toolbox-wide constraints and defaults that no
+#: normal project edits. Repo root is two levels up from
+#: ``blueearth_cst/shared/``. NOT a ``--configfile`` target — the Snakefiles
+#: take a per-project ``config/workflows/snake_config_*.yml``; this one is read
+#: once, here, and applies to every project.
+ADVANCED_SETTINGS_PATH = (
+    Path(__file__).resolve().parents[2] / "config" / "advanced_settings.yml"
+)
+
+#: The closed schema: section -> {key: validator}. Closed on purpose — an
+#: unknown section or key is REJECTED rather than ignored, so a typo in the
+#: settings file fails loudly instead of silently leaving the built-in value in
+#: force (the same fail-loud stance ``get_config`` takes for project configs).
+#: A new setting is added HERE and in the file together.
+_ADVANCED_SETTINGS_SCHEMA = {
+    "constraints": {"min_historical_years": "positive_int"},
+    "defaults": {"julia_threads": "positive_int"},
+}
+
+
+def _positive_int(value, where: str) -> int:
+    """A whole number >= 1, rejecting the bool that ``isinstance(x, int)`` admits."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{where} must be an integer, got {value!r}")
+    if value < 1:
+        raise ValueError(f"{where} must be >= 1, got {value}")
+    return value
+
+
+_VALIDATORS = {"positive_int": _positive_int}
+
+
+def load_advanced_settings(path=None) -> dict:
+    """Read and validate ``config/advanced_settings.yml``.
+
+    Returns ``{section: {key: value}}``. Raises ``ValueError`` naming the
+    offending section or key on anything the schema does not admit: a missing
+    section, a missing key, an unknown section, an unknown key, or a value that
+    fails its validator.
+
+    Deliberately has NO built-in fallback. A silent fallback would mean a
+    deleted or mistyped settings file changes what the toolbox enforces without
+    saying so — exactly the failure mode the closed schema exists to prevent.
+    The file is tracked; if it is absent the checkout is broken, and that should
+    be said plainly at import.
+    """
+    settings_path = Path(path) if path is not None else ADVANCED_SETTINGS_PATH
+    try:
+        raw = yaml.safe_load(settings_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        raise FileNotFoundError(
+            f"advanced settings file not found at {settings_path}. It is "
+            f"tracked in the repository; a checkout without it cannot state "
+            f"what the toolbox enforces"
+        ) from None
+    if not isinstance(raw, Mapping):
+        raise ValueError(f"{settings_path} is not a YAML mapping")
+
+    unknown_sections = sorted(set(raw) - set(_ADVANCED_SETTINGS_SCHEMA))
+    if unknown_sections:
+        raise ValueError(
+            f"{settings_path}: unknown section(s) {unknown_sections}; expected "
+            f"{sorted(_ADVANCED_SETTINGS_SCHEMA)}"
+        )
+
+    resolved = {}
+    for section, keys in _ADVANCED_SETTINGS_SCHEMA.items():
+        if section not in raw:
+            raise ValueError(f"{settings_path}: missing section {section!r}")
+        body = raw[section]
+        if not isinstance(body, Mapping):
+            raise ValueError(f"{settings_path}: section {section!r} is not a mapping")
+        unknown_keys = sorted(set(body) - set(keys))
+        if unknown_keys:
+            raise ValueError(
+                f"{settings_path}: unknown key(s) {unknown_keys} in section "
+                f"{section!r}; expected {sorted(keys)}"
+            )
+        resolved[section] = {}
+        for key, validator in keys.items():
+            if key not in body:
+                raise ValueError(
+                    f"{settings_path}: missing {section}.{key}"
+                )
+            resolved[section][key] = _VALIDATORS[validator](
+                body[key], f"{section}.{key}"
+            )
+    return resolved
+
+
+ADVANCED_SETTINGS = load_advanced_settings()
+
 #: THE minimum historical window, in whole calendar years — one floor for the
 #: whole toolbox, enforced identically wherever the window is checked (owner
-#: ruling 2026-08-01). It is set by the most demanding consumer: weathergenr's
-#: wavelet decomposition needs >= 16 annual observations (``wavelet_cwt.R``),
-#: and a project whose observed record cannot support a stress test is
-#: misconfigured for what this toolbox is for, whether or not the current
-#: invocation happens to be WF3.
+#: ruling 2026-08-01). The VALUE lives in
+#: ``config/advanced_settings.yml`` under ``constraints:``, with the reasoning
+#: for the number itself; what follows is why the check is shaped this way.
 #:
 #: Deliberately NOT a per-workflow floor. An earlier revision enforced 365 days
 #: hard and warned at 16 years, so WF1 could build a model on a record WF3 would
@@ -381,7 +473,7 @@ def validate_experiment_name(name: str, project_dir) -> str:
 #: ``plot_results`` writes ``clim_wflow_1_{month,year}.png`` only from >= 365
 #: TIMESTEPS, which 16 years clears for any daily source (dev/followups.md
 #: R7-6).
-MIN_HISTORICAL_YEARS = 16
+MIN_HISTORICAL_YEARS = ADVANCED_SETTINGS["constraints"]["min_historical_years"]
 
 
 #: juliaup version selector for every Julia invocation a workflow makes. Julia
@@ -397,26 +489,18 @@ MIN_HISTORICAL_YEARS = 16
 #: looser and is not compared.
 JULIA_VERSION = "1.11.7"
 
-#: Default ``--threads`` for Wflow.jl. Config-overridable via
-#: ``shared.julia_threads`` (P3-3 design §6.3, which sanctions exactly this:
-#: "optionally promote --threads to a config value so a deployment can tune it
-#: to its basin without a Snakefile edit").
-#:
-#: The default stays 4 because it is one leg of P3-3's frozen resource triple
-#: ``(-c N, --threads t, B)`` = (3, 4, 1) that every recorded performance
-#: baseline was measured at (dev/p33/performance-baseline.md §5.6). Changing it
-#: silently would invalidate those comparisons.
+#: Default ``--threads`` for Wflow.jl. The VALUE lives in
+#: ``config/advanced_settings.yml`` under ``defaults:``; a project may override
+#: it with ``shared.julia_threads`` (P3-3 design §6.3, which sanctions exactly
+#: this: "optionally promote --threads to a config value so a deployment can
+#: tune it to its basin without a Snakefile edit").
 #:
 #: Deliberately NOT wired to Snakemake's ``threads:`` directive. Snakemake CAPS
 #: a rule's threads at ``--cores``, so ``-c 3`` would quietly hand Wflow 3
 #: threads instead of 4 — a thread-allocation change disguised as a refactor,
 #: and precisely what §5.6 forbids. The two numbers are independent by design:
 #: the nominal budget is ``N x t <= C_logical``.
-#:
-#: Note the flag buys nothing on the 384-cell test fixture (Wflow's Polyester
-#: threading parallelizes over grid CELLS), but a production basin of 10^4-10^6
-#: cells is where it pays; the fixture cannot measure that.
-DEFAULT_JULIA_THREADS = 4
+DEFAULT_JULIA_THREADS = ADVANCED_SETTINGS["defaults"]["julia_threads"]
 
 
 def validate_julia_threads(value) -> int:
@@ -424,17 +508,10 @@ def validate_julia_threads(value) -> int:
 
     Parse-time, like the other config validators here: the value lands in a
     ``shell:`` body, so a bad one would otherwise surface as a Julia usage error
-    inside a rule rather than as a config problem.
+    inside a rule rather than as a config problem. Same predicate the settings
+    file's own ``defaults.julia_threads`` is held to.
     """
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise ValueError(
-            f"shared.julia_threads must be an integer, got {value!r}"
-        )
-    if value < 1:
-        raise ValueError(
-            f"shared.julia_threads must be >= 1, got {value}"
-        )
-    return value
+    return _positive_int(value, "shared.julia_threads")
 
 
 def julia_prefix(threads=DEFAULT_JULIA_THREADS) -> str:

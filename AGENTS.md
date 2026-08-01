@@ -54,6 +54,13 @@ The tree is self-explanatory; these are the parts that are not.
   `config/templates/observations/` holds header-only schemas for the two optional
   observation inputs — real basin data lives in the project folder, referenced by
   absolute path, never in this repository.
+  Beside the three bins sits `config/advanced_settings.yml` — toolbox-wide
+  `constraints:` (hard limits no project config can relax, e.g.
+  `min_historical_years`) and `defaults:` (starting values a project config may
+  override, e.g. `julia_threads` ← `shared.julia_threads`). It is **not** a
+  `--configfile` target: `snake_utils` reads it once, for every project. Its
+  schema is closed, so an unknown section or key is rejected at parse time; add
+  a setting to the file and to `snake_utils._ADVANCED_SETTINGS_SCHEMA` together.
 - `scripts/` — user-facing runners. `suggest_experiment_name.py` writes
   `experiment_name` into a config once, never at run time: a runtime value would
   break Snakemake idempotence.

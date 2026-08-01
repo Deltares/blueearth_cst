@@ -1,0 +1,53 @@
+# Advanced settings — toolbox-wide knobs a normal project never touches.
+#
+# NOT a `--configfile` target. The three Snakefiles are driven by
+# `config/workflows/snake_config_*.yml`, one per project; THIS file is read
+# once by `blueearth_cst/shared/snake_utils.py` and applies to every project
+# and every workflow. Editing it changes the toolbox, not a run.
+#
+# Two sections, and the split is the point:
+#
+#   constraints/ — hard limits. No project config can relax one; a value that
+#                  violates a constraint is rejected before any rule executes.
+#                  Change one only with a reason you would write down.
+#   defaults/    — starting values a project config MAY override. The key that
+#                  overrides each one is named in its comment.
+#
+# Unknown sections and unknown keys are REJECTED, so a typo fails loudly at
+# parse time rather than silently keeping the built-in value.
+#
+# Adding a setting: put it in the right section here, add it to the schema in
+# `snake_utils._ADVANCED_SETTINGS_SCHEMA`, and give it a test in
+# `tests/test_advanced_settings.py`. The schema is what makes the rejection
+# above possible, so the two must stay in step.
+
+constraints:
+
+  # Minimum historical window, in whole calendar years.
+  #
+  # Set by the most demanding consumer: weathergenr's wavelet decomposition
+  # needs at least this many ANNUAL observations (`wavelet_cwt.R`), so a
+  # shorter observed record cannot support a climate stress test — and a
+  # project that cannot support one is misconfigured for what this toolbox is
+  # for, whatever workflow happens to be running.
+  #
+  # Enforced in two places, against two different facts: the window a config
+  # REQUESTS (workflow 1, at parse time) and the span the staged source
+  # ACTUALLY delivers (the shared climate-store producer, so workflows 2 and 3
+  # too). Lowering it does not make weathergenr work on less data; it only
+  # moves the failure later and makes it harder to read.
+  min_historical_years: 16
+
+defaults:
+
+  # Wflow.jl `--threads`. Overridable per project via `shared.julia_threads`.
+  #
+  # Wflow parallelizes over grid CELLS, so raising this pays on a large basin
+  # and does nothing on a small one. It is NOT Snakemake's `--cores`: the two
+  # multiply, so keep `--cores N x julia_threads <= logical CPUs`.
+  #
+  # 4 is one leg of the frozen resource triple `(-c 3, --threads 4, B=1)` that
+  # every recorded performance baseline was measured at
+  # (dev/p33/performance-baseline.md §5.6). Changing it here silently
+  # invalidates those comparisons — prefer the per-project override.
+  julia_threads: 4
