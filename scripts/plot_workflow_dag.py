@@ -6,10 +6,22 @@ The hand-rolled one-liner everyone reaches for::
 
 writes ``dag_model.png`` wherever the shell happens to be -- in practice the
 repo root -- and names it after nothing in particular. The graph describes ONE
-project's run, so it belongs beside that run's outputs, under the config's own
-``project_dir``, carrying the project name and the workflow number:
+project's run, so it belongs under that config's own ``project_dir``, carrying
+the project name and the workflow number:
 
-    <project_dir>/<project_name>_wf<N>_dag.png
+    <project_dir>/config/dag/<project_name>_wf<N>_dag.png
+
+``config/`` because a run is determined by exactly two things -- the config and
+the Snakefile -- and ``<project_dir>/config/`` is already "provenance snapshots,
+split by kind" (``runs/ catalogs/ templates/ generated/``,
+dev/r07/project-layout-design.md §B). ``config/runs/`` snapshots the first half;
+this is a rendering of the second, so it joins as a fifth kind rather than
+sitting loose in the project root, in ``logs/`` (merged run narrative, text), or
+under a new top-level directory minted for one file.
+
+Nothing digests the project's ``config/`` tree by listing it -- the copier and
+the consistency guard compare NAMED config digests -- so an extra file here
+cannot churn a fingerprint or trigger a rebuild.
 
 Lives in ``scripts/`` rather than ``dev/scripts/`` because it writes a
 user-facing artifact into a production ``project_dir`` from a user's project
@@ -60,6 +72,10 @@ WORKFLOW_NUMBER = {
     "Snakefile_climate_projections": 2,
     "Snakefile_climate_experiment": 3,
 }
+
+# Where under project_dir the graph lands -- a fifth kind beside the config
+# snapshot's runs/ catalogs/ templates/ generated/ (see the module docstring).
+PLOT_SUBDIR = Path("config") / "dag"
 
 
 class DagPlotError(Exception):
@@ -198,7 +214,8 @@ def main() -> int:
         number = workflow_number(args.snakefile)
         project_dir, project_name = read_project(args.configfile)
         output_path = (
-            project_dir / f"{project_name}_wf{number}_{args.mode}.{args.image_format}"
+            project_dir / PLOT_SUBDIR
+            / f"{project_name}_wf{number}_{args.mode}.{args.image_format}"
         )
         dot_text = build_graph(
             args.mode, args.snakefile, args.configfile, args.target, args.extra

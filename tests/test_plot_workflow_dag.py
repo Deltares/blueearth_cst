@@ -110,7 +110,7 @@ def test_missing_config_file_is_a_hard_error(tmp_path):
 
 # --- end-to-end output path ------------------------------------------------
 
-def test_output_lands_in_the_project_dir_named_project_wfN(tmp_path, monkeypatch, capsys):
+def test_output_lands_in_config_dag_named_project_wfN(tmp_path, monkeypatch, capsys):
     cfg = tmp_path / "cfg.yml"
     project_dir = tmp_path / "gabon_0108"
     _write_r01_cfg(cfg, project_dir.as_posix())
@@ -134,10 +134,13 @@ def test_output_lands_in_the_project_dir_named_project_wfN(tmp_path, monkeypatch
     )
 
     assert pwd.main() == 0
-    expected = project_dir / "gabon_0108_wf1_dag.png"
+    expected = project_dir / "config" / "dag" / "gabon_0108_wf1_dag.png"
     assert rendered["argv"] == ["dot-stub", "-Tpng", "-o", str(expected)]
     assert rendered["dot"].startswith("digraph")
     assert capsys.readouterr().out.strip() == str(expected)
+    # render() creates the subdir; the project root stays free of the plot.
+    assert expected.parent.is_dir()
+    assert not list(project_dir.glob("*.png"))
 
 
 def test_rulegraph_mode_and_format_reach_the_filename(tmp_path, monkeypatch):
@@ -164,7 +167,9 @@ def test_rulegraph_mode_and_format_reach_the_filename(tmp_path, monkeypatch):
 
     assert pwd.main() == 0
     assert "--rulegraph" in seen["snakemake"]
-    assert seen["out"].endswith("gabon_0108_wf3_rulegraph.svg")
+    assert seen["out"] == str(
+        project_dir / "config" / "dag" / "gabon_0108_wf3_rulegraph.svg"
+    )
 
 
 def test_missing_graphviz_reports_how_to_get_it(monkeypatch):
