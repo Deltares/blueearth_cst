@@ -122,12 +122,17 @@ LOG_RULES = [
     "1.15_plot_climate_source",
 ]
 
-# 1.00  all — target aggregator: full historical build + performance plots
+# WF1_TERMINALS — the artifacts with no WF1 consumer: every producing rule is
+# upstream of them and none of them feeds another rule. That is exactly the
+# input set the two gather rules (1.14 benchmarks, 1.16 logs) need, which is
+# what schedules each one LAST; both restated these seven literals before, so a
+# new terminal had to be added in three places or a gather would run early and
+# merge an incomplete set of parts.
 #
-# Hoisted into a list so `message:` can print one target per line without
-# restating them. Snakemake flattens a list argument, so `input: WF1_TARGETS`
-# declares exactly the same ten files the literals did.
-WF1_TARGETS = [
+# NOT terminals, and so not in this list: the config snapshot (1.01 runs
+# independently of the build and needs no gather waiting on it) and the two
+# gather outputs themselves.
+WF1_TERMINALS = [
     f"{basin_dir}/evaluation/plots/hydro_wflow_1.png",
     f"{basin_dir}/plots/basin_area.png",
     f"{basin_dir}/forcing/plots/precip.png",
@@ -137,8 +142,18 @@ WF1_TARGETS = [
     f"{store_dir}/plots/source_precip.png",
     f"{store_dir}/plots/source_temp.png",
     f"{store_dir}/plots/source_pet.png",
-    f"{project_dir}/config/runs/snake_config_model_creation.yml",
     f"{basin_dir}/staticgeoms/outlet_index.csv",
+]
+
+# 1.00  all — target aggregator: full historical build + performance plots
+#
+# Hoisted into a list so `message:` can print one target per line without
+# restating them. Snakemake flattens a list argument, so `input: WF1_TARGETS`
+# declares exactly the same ten files the literals did — the terminals, plus
+# the config snapshot and the two gathered artifacts.
+WF1_TARGETS = [
+    *WF1_TERMINALS,
+    f"{project_dir}/config/runs/snake_config_model_creation.yml",
     f"{project_dir}/logs/{WORKFLOW_LOG_NAME}",
     f"{project_dir}/benchmarks/wf1_benchmarks.md",
 ]
@@ -447,13 +462,7 @@ rule plot_forcing:
 rule gather_benchmarks:
     message: rule_banner("1.14", "gather_benchmarks")
     input:
-        f"{basin_dir}/evaluation/plots/hydro_wflow_1.png",
-        f"{basin_dir}/plots/basin_area.png",
-        f"{basin_dir}/forcing/plots/precip.png",
-        f"{store_dir}/plots/source_precip.png",
-        f"{store_dir}/plots/source_temp.png",
-        f"{store_dir}/plots/source_pet.png",
-        f"{basin_dir}/staticgeoms/outlet_index.csv",
+        WF1_TERMINALS,
     output:
         f"{project_dir}/benchmarks/wf1_benchmarks.md",
     params:
@@ -502,9 +511,9 @@ rule plot_climate_source:
 # 1.16  gather_logs — merge every WF1 log part into ONE workflow log.
 #
 # Same rule as WF2's 2.07 and WF3's 3.13, against the same script; only the label
-# list, the parts dir and the output name differ. `input:` is the terminal
-# artifact set (identical to gather_benchmarks), which is what schedules it LAST:
-# every logging rule is upstream of it. The parts stay in `params:` — they are
+# list, the parts dir and the output name differ. `input:` is WF1_TERMINALS, the
+# same set gather_benchmarks takes, which is what schedules it LAST: every
+# logging rule is upstream of it. The parts stay in `params:` — they are
 # `log:` files, and Snakemake does not track those in the DAG, so naming them as
 # `input:` would demand them as buildable targets.
 #
@@ -515,13 +524,7 @@ rule plot_climate_source:
 rule gather_logs:
     message: rule_banner("1.16", "gather_logs")
     input:
-        f"{basin_dir}/evaluation/plots/hydro_wflow_1.png",
-        f"{basin_dir}/plots/basin_area.png",
-        f"{basin_dir}/forcing/plots/precip.png",
-        f"{store_dir}/plots/source_precip.png",
-        f"{store_dir}/plots/source_temp.png",
-        f"{store_dir}/plots/source_pet.png",
-        f"{basin_dir}/staticgeoms/outlet_index.csv",
+        WF1_TERMINALS,
     output:
         f"{project_dir}/logs/{WORKFLOW_LOG_NAME}",
     params:
