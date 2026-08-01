@@ -4,6 +4,7 @@ from os.path import join, dirname
 from pathlib import Path
 from typing import Union, Mapping, Optional
 
+from blueearth_cst.shared.gauges import is_unset
 from blueearth_cst.shared.snake_utils import log_row
 
 
@@ -73,6 +74,13 @@ if __name__ == "__main__":
         config_dir = sm.params.config_dir
         catalogs_dir = join(config_dir, "catalogs")
         templates_dir = join(config_dir, "templates")
+        # Fifth bin (2026-08-01). The two OPTIONAL observation inputs live
+        # outside the repository AND outside project_dir, referenced by
+        # absolute path (R07 O-01), so without this the finished project cannot
+        # say what it was evaluated against -- the metrics table would cite
+        # gauges and observations that exist only on the machine that ran it.
+        # Same provenance role as config/catalogs/, hence the same home.
+        observations_dir = join(config_dir, "observations")
 
         # Get other config files to copy based on workflow name, each routed
         # to the bin its KIND belongs in.
@@ -87,6 +95,28 @@ if __name__ == "__main__":
                 other_config_files[src] = catalogs_dir
         else:
             other_config_files[data_sources] = catalogs_dir
+
+        # The observation inputs, when configured. Checked EXPLICITLY rather
+        # than routed through the skip-missing loop above: that skip exists for
+        # hydromt's predefined catalogs, which legitimately have no path on
+        # disk, whereas a configured observations path that is not a file is a
+        # typo -- and a silently skipped typo is precisely the failure mode
+        # that cost this workflow its whole evaluation output once already
+        # (dev/followups.md, the gauge-name entry).
+        if workflow_name == "model_creation":
+            for key in ("output_locations", "observations_timeseries"):
+                path = getattr(sm.params, key, None)
+                if is_unset(path):
+                    continue
+                if not os.path.isfile(str(path)):
+                    raise ValueError(
+                        f"{key} is set to {path!r} but no such file exists. "
+                        f"Leave the key at `null` to run without observations, "
+                        f"or fix the path -- it is read by rule 1.05 (gauges) "
+                        f"and rule 1.11 (evaluation), both of which would "
+                        f"otherwise skip it without saying so."
+                    )
+                other_config_files[str(path)] = observations_dir
 
         # Call the main function
         copy_config_files(

@@ -28,18 +28,40 @@ from hydromt.model.processes.region import parse_region_basin
 from blueearth_cst.shared.snake_utils import (
     DEFAULT_BASIN_INDEX,
     DEFAULT_HYDROGRAPHY,
+    MIN_HISTORICAL_YEARS,
     log_row,
+    meets_min_historical_years,
 )
 
 
-def _warn_if_window_truncated(ds, starttime, endtime, clim_source):
-    """Warn when the extracted data covers a shorter span than requested.
+def _check_window_coverage(ds, starttime, endtime, clim_source):
+    """Check what the extraction ACTUALLY covers against three expectations.
 
-    A silently-truncated window -- the staged source lacks the full requested
-    range -- otherwise surfaces far downstream as a cryptic failure, e.g.
-    weathergenr's 16-year wavelet minimum ('series' must have at least 16
-    observations). Advisory only; never blocks extraction. (t260716a,
-    dev/followups.md R3)
+    The parse-time guard (``snake_utils.validate_historical_window``) can only
+    check what the config REQUESTS. What the staged source holds is knowable
+    only here, and a silently-truncated record is the original defect: a config
+    asking 1980..2010 against an era5 staging that starts in 2000 yielded 11
+    years with no signal, and WF3 then died on weathergenr's wavelet minimum
+    twenty rules away (dev/followups.md R3, observed 2026-05-07).
+
+    Two deliberately separate comparisons:
+
+    * **shortfall vs requested** -- advisory, with a 31-day tolerance. A source
+      that begins three weeks late is normal, not an error, and this says
+      nothing about whether what arrived is long enough.
+    * **below MIN_HISTORICAL_YEARS** -- ``ValueError``. The same floor the
+      parse-time guard applies to the requested window, applied here to what was
+      actually delivered. Failing in the producer names the cause; failing in a
+      consumer does not.
+
+    The tolerance belongs to the first check only -- a floor with a tolerance is
+    not a floor.
+
+    This runs in the SHARED store producer, so the floor applies to WF2's rule
+    2.11 and WF3's rule 3.02 as well as WF1's 1.10. That is the point of a
+    unified floor: the store is one artifact serving all three, and a record too
+    short for a stress test is a misconfigured project regardless of which
+    workflow happens to be running.
     """
     try:
         time_vals = ds.time.values
@@ -48,16 +70,31 @@ def _warn_if_window_truncated(ds, starttime, endtime, clim_source):
         req_start = pd.Timestamp(pd.to_datetime(starttime))
         req_end = pd.Timestamp(pd.to_datetime(endtime))
     except (AttributeError, ValueError, TypeError):
-        return  # cannot introspect the time axis -> skip the advisory check
+        return  # cannot introspect the time axis -> skip the checks
+    actual_days = (actual_end - actual_start).days
+
     tol = pd.Timedelta(days=31)
     if actual_start > req_start + tol or actual_end < req_end - tol:
         warnings.warn(
             f"Extracted {clim_source} window "
             f"{actual_start.date()}..{actual_end.date()} is shorter than the "
             f"requested {req_start.date()}..{req_end.date()}; the staged source "
-            f"may not cover the full period. Downstream steps (e.g. weathergenr's "
-            f"16-year minimum) can fail on a truncated record.",
+            f"may not cover the full period.",
             stacklevel=2,
+        )
+
+    if not meets_min_historical_years(actual_start, actual_end):
+        raise ValueError(
+            f"Extracted {clim_source} record covers "
+            f"{actual_start.date()}..{actual_end.date()} "
+            f"(~{actual_days / 365.25:.1f} years) for the requested "
+            f"{req_start.date()}..{req_end.date()}, below the "
+            f"{MIN_HISTORICAL_YEARS}-year minimum this toolbox requires "
+            f"(weathergenr's wavelet decomposition needs at least "
+            f"{MIN_HISTORICAL_YEARS} annual observations). The staged "
+            f"{clim_source} source does not cover the configured "
+            f"historical_window. Either stage data for that period, or move "
+            f"shared.historical_window onto the years the source actually holds"
         )
 
 
@@ -275,7 +312,7 @@ def prep_historical_climate(
             ],
         )
 
-    _warn_if_window_truncated(ds, starttime, endtime, clim_source)
+    _check_window_coverage(ds, starttime, endtime, clim_source)
 
     dvars = ds.raster.vars
     encoding = {k: {"zlib": True} for k in dvars}
@@ -284,6 +321,19 @@ def prep_historical_climate(
     delayed_obj = ds.to_netcdf(fn_out, encoding=encoding, mode="w", compute=False)
     with ProgressBar():
         delayed_obj.compute()
+    # Release the store handles deterministically rather than leaving them to
+    # the garbage collector. Good practice on its own terms.
+    #
+    # It does NOT silence the "Error in sys.excepthook: / Original exception
+    # was:" cascade that follows this rule under Snakemake -- measured, 14 lines
+    # before and after. Recorded so nobody retries it: the cascade reproduces
+    # ONLY under Snakemake's `script:` execution (0 lines standalone, same data
+    # and same tee), and a probe excepthook installed to capture the original
+    # exception never fired -- which is itself the diagnosis. By the time these
+    # fire, CPython finalization has already torn module globals down, so any
+    # excepthook fails and the interpreter prints the bare marker pair. It is
+    # post-success noise from interpreter shutdown, not from this workflow.
+    ds.close()
 
 
 if __name__ == "__main__":

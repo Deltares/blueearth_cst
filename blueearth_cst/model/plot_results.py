@@ -25,6 +25,7 @@ from blueearth_cst.shared.func_plot_signature import (
 )
 from blueearth_cst.climate_analysis.subcatchment_climate import climate_forcing_by_subcatchment
 from blueearth_cst.shared.climate_parity import model_parity_climate
+from blueearth_cst.shared.gauges import gauges_layer_name, gauges_variable_name
 from blueearth_cst.shared.snake_utils import log_row
 
 
@@ -168,13 +169,20 @@ def analyse_wflow_historical(
     # Map subcatchment id -> positional station_name (wflow_1..N) so the climate
     # plots share the discharge station labels instead of raw subcatchment ids.
     station_by_id = dict(zip(qsim["index"].values, qsim["station_name"].values))
-    # Discharge at the gauges_locs if present
+    # Discharge at the gauges_locs if present. Both names are resolved from the
+    # MODEL rather than from the filename: hydromt_wflow renames
+    # output_locations -> output-locations, so deriving them here found neither
+    # the variable nor the layer, and the membership tests turned that into
+    # silence -- no gauge hydrographs, no signatures, and an EMPTY
+    # performance_metrics.csv on a config that supplied observations
+    # (2026-08-01). See blueearth_cst/shared/gauges.py.
     if gauges_locs is not None and os.path.exists(gauges_locs):
-        gauges_output_name = os.path.basename(gauges_locs).split(".")[0]
-        if f"Q_gauges_{gauges_output_name}" in results:
-            qsim_gauges = results[f"Q_gauges_{gauges_output_name}"].rename("Q")
+        gauges_var = gauges_variable_name(results, gauges_locs, "Q")
+        gauges_layer = gauges_layer_name(geoms, gauges_locs)
+        if gauges_var is not None and gauges_layer is not None:
+            qsim_gauges = results[gauges_var].rename("Q")
             gdf_gauges = (
-                geoms[f"gauges_{gauges_output_name}"]
+                geoms[gauges_layer]
                 .rename(columns={"wflow_id": "index"})
                 .set_index("index")
             )

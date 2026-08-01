@@ -1,0 +1,84 @@
+# Advanced settings — toolbox-wide knobs a normal project never touches.
+#
+# NOT a `--configfile` target. The three Snakefiles are driven by
+# `config/workflows/snake_config_*.yml`, one per project; THIS file is read
+# once by `blueearth_cst/shared/snake_utils.py` and applies to every project
+# and every workflow. Editing it changes the toolbox, not a run.
+#
+# Three sections, and the split is the point:
+#
+#   constraints/ — hard limits. No project config can relax one; a value that
+#                  violates a constraint is rejected before any rule executes.
+#                  Change one only with a reason you would write down.
+#   defaults/    — starting values a project config MAY override. The key that
+#                  overrides each one is named in its comment.
+#   runtime/     — external toolchain pins. Not limits and not overridable:
+#                  they must match the environment the workflows actually run
+#                  in, so changing one here without changing it there breaks
+#                  the run rather than tuning it.
+#
+# Unknown sections and unknown keys are REJECTED, so a typo fails loudly at
+# parse time rather than silently keeping the built-in value.
+#
+# Adding a setting: put it in the right section here, add it to the schema in
+# `snake_utils._ADVANCED_SETTINGS_SCHEMA`, and give it a test in
+# `tests/test_advanced_settings.py`. The schema is what makes the rejection
+# above possible, so the two must stay in step.
+
+constraints:
+
+  # Minimum historical window, in whole calendar years.
+  #
+  # Set by the most demanding consumer: weathergenr's wavelet decomposition
+  # needs at least this many ANNUAL observations (`wavelet_cwt.R`), so a
+  # shorter observed record cannot support a climate stress test — and a
+  # project that cannot support one is misconfigured for what this toolbox is
+  # for, whatever workflow happens to be running.
+  #
+  # Enforced in two places, against two different facts: the window a config
+  # REQUESTS (workflow 1, at parse time) and the span the staged source
+  # ACTUALLY delivers (the shared climate-store producer, so workflows 2 and 3
+  # too). Lowering it does not make weathergenr work on less data; it only
+  # moves the failure later and makes it harder to read.
+  min_historical_years: 16
+
+defaults:
+
+  # Wflow.jl `--threads`. Overridable per project via `shared.julia_threads`.
+  #
+  # Wflow parallelizes over grid CELLS, so raising this pays on a large basin
+  # and does nothing on a small one. It is NOT Snakemake's `--cores`: the two
+  # multiply, so keep `--cores N x julia_threads <= logical CPUs`.
+  #
+  # 4 is one leg of the frozen resource triple `(-c 3, --threads 4, B=1)` that
+  # every recorded performance baseline was measured at
+  # (dev/p33/performance-baseline.md §5.6). Changing it here silently
+  # invalidates those comparisons — prefer the per-project override.
+  julia_threads: 4
+
+runtime:
+
+  # The juliaup version selector every workflow Julia invocation carries
+  # (`julia +<version> ...`). Julia is deliberately NOT in the pixi env —
+  # conda-forge has no win-64 build — so it is juliaup-managed, must already be
+  # on PATH, and the `+` prefix is how the shim picks a toolchain. Install it
+  # with `juliaup add <version>`.
+  #
+  # THREE files declare this version and they must agree. This one is the
+  # human-facing declaration and the only one the workflows read; the other two
+  # cannot read YAML, so equality is enforced by
+  # `tests/test_julia_runtime.py` rather than by single-sourcing:
+  #
+  #   pixi.toml        `install-julia` task — instantiates the Julia env.
+  #                    Hand-edit it to match.
+  #   Manifest.toml    `julia_version` — machine-generated, records what the
+  #                    lock was actually resolved against. Do not hand-edit;
+  #                    re-run `pixi run install-julia` to regenerate.
+  #
+  # `Project.toml`'s `julia = "1.11"` compat bound is deliberately looser (and
+  # documents why 1.12.x is excluded); it is only checked for compatibility.
+  #
+  # Must be a QUOTED three-part string. Unquoted `1.11` is a YAML float, and a
+  # two-part selector lets juliaup resolve a different patch than the manifest
+  # was built against.
+  julia_version: "1.11.7"

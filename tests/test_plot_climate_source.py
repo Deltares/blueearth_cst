@@ -41,7 +41,11 @@ CONFIG_FN = TESTDIR / "snake_config_model_test.yml"
 # The synthetic domain: a small era5-like grid around the test basin.
 _XS = np.arange(9.00, 10.51, 0.25)
 _YS = np.arange(0.00, 1.26, 0.25)
-_START, _END = "2018-01-01", "2019-12-31"
+# >= snake_utils.MIN_HISTORICAL_YEARS (16), or WF1 rejects the generated config
+# at parse time and the --touch step below never runs. Was 2018..2019 until
+# 2026-08-01; only the store KEY derives from these dates (the synthetic grid
+# carries a single timestamp), so widening the window is inert here.
+_START, _END = "2000-01-01", "2019-12-31"
 
 
 def _set_crs(obj):
@@ -257,7 +261,9 @@ def _snakemake(args, cfg_path):
 def test_source_figures_build_without_a_model(modelfree_project):
     """P4: the three source figures build with no model and no build template."""
     cfg_path, project_dir, store, absent_template = modelfree_project
-    targets = [store / "plots" / f"source_{v}.png" for v in ("precip", "temp", "pet")]
+    from blueearth_cst.climate_analysis.climate_figures import figure_names
+
+    targets = [store / "plots" / name for name in figure_names("source")]
     quoted = " ".join(f'"{t.as_posix()}"' for t in targets)
 
     # Seed the store's provenance so the producer is not re-run (it would fetch

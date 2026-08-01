@@ -140,23 +140,54 @@ def test_baseline_seed_config_does_not_warn():
     assert result.returncode == 0, combined[-3000:]
 
 
-def test_observation_configs_use_the_string_sentinel():
-    """Every shipped config leaves the observation keys at the STRING "None".
+def test_observation_configs_use_yaml_null():
+    """Every shipped config spells "not provided" as a real YAML null.
 
-    Unquoted None parses to the Python string, not YAML null; both consumers
-    read `if X is not None and os.path.<exists>(X)`, so a real null takes a
-    different branch. O-04: the test config previously pointed at
-    `tests/data/observations/`, a tree that has never existed -- and passed,
-    which is the empirical proof that the guards are existence-based. Pin the
-    sentinel's type so a later "cleanup" to `null` or `~` fails loudly.
+    This reverses an earlier ratchet that pinned the STRING "None". Unquoted
+    `None` parses to the Python string, not to null -- it reads as a null
+    without being one, and that gap is what produced the `gauges_None`
+    layer-name bug (O-08). ec92ae6 converted all four config/workflows/*.yml in
+    one sweep; this finishes the job and pins the direction.
+
+    The legacy spelling stays TOLERATED -- see
+    `test_both_sentinel_spellings_are_treated_as_unset` -- because project
+    configs in the wild still carry it. Tolerated on the way in, not emitted on
+    the way out.
     """
     for cfg_path in (config_fn, linux_config_fn):
         with open(cfg_path) as f:
             cfg = yaml.safe_load(f)
         mc = cfg["workflows"]["model_creation"]
         for key in ("output_locations", "observations_timeseries"):
-            assert mc[key] == "None", f"{cfg_path}:{key} is {mc[key]!r}"
-            assert isinstance(mc[key], str), f"{cfg_path}:{key} is not a str"
+            assert mc[key] is None, (
+                f"{cfg_path}:{key} is {mc[key]!r}; shipped configs use YAML "
+                f"null, not the legacy 'None' string"
+            )
+
+
+def test_both_sentinel_spellings_are_treated_as_unset():
+    """The guards must accept `null` AND the legacy string, identically.
+
+    This is what makes the migration above safe rather than merely tidy: an
+    existing project config saying `output_locations: None` has to keep
+    working. Each consumer is checked against the predicate it actually uses --
+    plot_map derives a layer NAME (an explicit string check, O-08), while the
+    other two guard on file existence.
+    """
+    from blueearth_cst.shared.gauges import gauges_layer_name
+
+    geoms = {"basins", "outlets", "gauges_my-stations"}
+    for unset in (None, "None"):
+        assert gauges_layer_name(geoms, unset) is None, unset
+        # The existence-based guards: neither spelling names a real file, so
+        # both take the skip branch. `os.path.isfile(None)` would raise, which
+        # is why the `is not None` half has to come first in those callers.
+        assert not (unset is not None and os.path.isfile(unset)), unset
+
+    # And a real path is still recognised, so the assertions above are not just
+    # "everything is falsy".
+    # And a configured file still resolves — hydromt spells it with a HYPHEN.
+    assert gauges_layer_name(geoms, "gauges/my_stations.csv") == "gauges_my-stations"
 
 
 def test_eobs_config_fails_wf1_dry_run_at_parse_time(tmp_path):
@@ -182,6 +213,42 @@ def test_eobs_config_fails_wf1_dry_run_at_parse_time(tmp_path):
         "clim_historical: eobs is not supported by the P3-2a wf1 raw-climate "
         "path; supported sources: era5, chirps, chirps_global"
     ) in combined, combined
+
+
+@pytest.mark.parametrize(
+    "endtime, label",
+    [
+        ("2000-06-01T00:00:00", "sub-year"),
+        # The case the UNIFIED floor added: WF1 used to build a model happily on
+        # ten years and let WF3 discover the problem inside weathergenr.
+        ("2010-01-01T00:00:00", "ten-year"),
+    ],
+)
+def test_short_window_fails_wf1_dry_run_at_parse_time(tmp_path, endtime, label):
+    """A historical_window under MIN_HISTORICAL_YEARS must red the dry-run.
+
+    Same parse-time stance, and same test shape, as the eobs rejection above:
+    no execution can rescue the config, so the earliest failure is the most
+    legible one. Pre-guard, a sub-year window reached rule 1.11 and died with
+    MissingOutputException nine rules and one hydromt build past the cause
+    (dev/followups.md R7-6), and a ten-year window ran WF1 to completion before
+    failing a whole workflow away.
+    """
+    with open(config_fn) as f:
+        cfg = yaml.safe_load(f)
+    cfg["shared"]["historical_window"] = {
+        "starttime": "2000-01-01T00:00:00",
+        "endtime": endtime,
+    }
+    cfg_path = tmp_path / f"snake_config_{label}.yml"
+    cfg_path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+
+    result = _dry_run("Snakefile_model_creation", cfg=str(cfg_path))
+    combined = (result.stdout or "") + (result.stderr or "")
+    assert result.returncode != 0, f"{label} window must fail the wf1 dry-run"
+    assert "16-year minimum" in combined, combined[-3000:]
+    # The message must be actionable without opening the Snakefile.
+    assert "weathergenr" in combined, combined[-3000:]
 
 
 def test_snakefile_cli_climate_projections(config_with_staged_region):

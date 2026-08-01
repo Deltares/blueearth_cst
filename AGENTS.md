@@ -54,6 +54,16 @@ The tree is self-explanatory; these are the parts that are not.
   `config/templates/observations/` holds header-only schemas for the two optional
   observation inputs — real basin data lives in the project folder, referenced by
   absolute path, never in this repository.
+  Beside the three bins sits `config/advanced_settings.yml` — toolbox-wide
+  `constraints:` (hard limits no project config can relax, e.g.
+  `min_historical_years`), `defaults:` (starting values a project config may
+  override, e.g. `julia_threads` ← `shared.julia_threads`), and `runtime:`
+  (external toolchain pins, e.g. `julia_version`, which `pixi.toml` and
+  `Manifest.toml` must match — `tests/test_julia_runtime.py` enforces it, since
+  neither can read YAML). It is **not** a
+  `--configfile` target: `snake_utils` reads it once, for every project. Its
+  schema is closed, so an unknown section or key is rejected at parse time; add
+  a setting to the file and to `snake_utils._ADVANCED_SETTINGS_SCHEMA` together.
 - `scripts/` — user-facing runners. `suggest_experiment_name.py` writes
   `experiment_name` into a config once, never at run time: a runtime value would
   break Snakemake idempotence.
@@ -96,6 +106,10 @@ snakemake all -c 3 -s Snakefile_climate_experiment  --configfile config/workflow
 
 # Or drive all enabled workflows through the wrapper:
 pixi run python scripts/run_workflows.py --config config/workflows/snake_config_model_test.yml
+
+# Render a workflow's DAG into the config's own project_dir, as
+# config/dag/<project_name>_wf<N>_dag.png (never into the repo root):
+pixi run python scripts/plot_workflow_dag.py -s Snakefile_model_creation --configfile <cfg>
 
 snakemake ... --dry-run           # inspect the DAG before running or after editing rules
 snakemake --unlock -s <Snakefile> --configfile <cfg>   # Snakemake locks the workdir on crash

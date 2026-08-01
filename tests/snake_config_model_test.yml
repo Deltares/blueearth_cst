@@ -13,7 +13,11 @@ shared:
     region: "{'subbasin': [9.738, 0.4212], 'uparea': 70}"
     resolution: 0.0062475
   historical_window:
-    starttime: "2015-01-01T00:00:00"
+    # >= snake_utils.MIN_HISTORICAL_YEARS (16), or every dry-run test in this
+    # suite reds at parse time. Was 2015..2020 (6 years) until 2026-08-01, when
+    # the floor became a hard error; nothing here asserts the window's value,
+    # only that the DAG builds, so widening it is inert for these tests.
+    starttime: "2000-01-01T00:00:00"
     endtime: "2020-12-31T00:00:00"
   clim_historical: era5
 
@@ -29,12 +33,14 @@ workflows:
       - actual evapotranspiration
       - groundwater recharge
       - snow
-    # O-04: these pointed at tests/data/observations/, a tree that has never
-    # existed. The suite passed anyway -- empirical proof that both consumers
-    # guard on file EXISTENCE, not on the value. Made honest here rather than
-    # left as an accidental pass.
-    output_locations: None
-    observations_timeseries: None
+    # Both observation inputs are optional; `null` means "not provided".
+    #
+    # O-04: these once pointed at tests/data/observations/, a tree that has
+    # never existed. The suite passed anyway -- empirical proof that both
+    # consumers guard on file EXISTENCE, not on the value. Made honest here
+    # rather than left as an accidental pass.
+    output_locations: null
+    observations_timeseries: null
 
   climate_projections:
     enabled: true

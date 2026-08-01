@@ -21,6 +21,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+import yaml
+
 
 # hydromt formats every log record as
 # ``<ts> - <name> - <module> - <LEVEL> - <message>`` (its hardcoded
@@ -74,20 +76,53 @@ def _log_path_parts(log_path):
     return "", os.path.basename(log_path)
 
 
-def _relativize_paths(text, project_root):
-    """Rewrite absolute project paths in ``text`` as project-relative.
+#: Repo root — three levels up from ``blueearth_cst/shared/snake_utils.py``.
+#: Used only to shorten log lines, never to resolve anything.
+_REPO_ROOT = str(Path(__file__).resolve().parents[2])
 
-    Strips the ``project_root`` prefix (in both native and forward-slash forms,
-    since hydromt emits either) so a log line like
-    ``Writing geoms to C:\\...\\gabon\\hydrology_model\\...\\basins.geojson``
-    reads ``Writing geoms to hydrology_model\\...\\basins.geojson``. Paths
-    outside the project (data catalogs, the pixi env) are left absolute.
-    """
-    if not project_root:
+#: Everything up to and including a ``site-packages`` component. An installed
+#: dependency's own file (hydromt_wflow's ``parameters_data.yml``) says nothing
+#: useful in its first hundred characters, and those characters differ per
+#: machine and per environment.
+_SITE_PACKAGES_RE = re.compile(r"[A-Za-z]:[\\/](?:[^\\/\s]+[\\/])*?site-packages[\\/]")
+
+
+def _strip_prefix(text, prefix, replacement=""):
+    """Drop ``prefix`` from ``text`` in both native and forward-slash spellings."""
+    if not prefix:
         return text
-    text = text.replace(project_root + os.sep, "")
-    text = text.replace(project_root.replace(os.sep, "/") + "/", "")
-    return text
+    text = text.replace(prefix + os.sep, replacement)
+    return text.replace(prefix.replace(os.sep, "/") + "/", replacement)
+
+
+def _relativize_paths(text, project_root):
+    """Shorten the three absolute prefixes that dominate a log line.
+
+    Every rule log is full of paths whose leading two-thirds are the same on
+    one machine and different on the next, which buries the part that carries
+    information. Three prefixes are rewritten, in decreasing specificity:
+
+    * the **project** — dropped, so ``C:\\...\\gabon\\hydrology_model\\...\\
+      basins.geojson`` reads ``hydrology_model\\...\\basins.geojson``. The
+      project root is stated once in the log header, so no information is lost.
+    * the **repository** — dropped and marked, so a config or script under the
+      checkout reads ``<repo>/config/catalogs/deltares_data.yml``. Marked rather
+      than bare because a repo-relative path and a project-relative one would
+      otherwise be indistinguishable in the same line.
+    * an installed **dependency** — everything up to ``site-packages`` becomes
+      ``<site-packages>/``, so hydromt_wflow's own
+      ``.../envs/default/Lib/site-packages/hydromt_wflow/data/parameters_data.yml``
+      reads ``<site-packages>/hydromt_wflow/data/parameters_data.yml``. What
+      matters is which package the file came from, not where pixi put the env.
+
+    Order matters: the repo contains the pixi env, so ``site-packages`` is
+    matched FIRST or a repo-relative rewrite would hide it. A path in none of
+    the three (a data catalog under ``C:\\data\\``) is left absolute — its
+    location is the information.
+    """
+    text = _SITE_PACKAGES_RE.sub("<site-packages>/", text)
+    text = _strip_prefix(text, project_root)
+    return _strip_prefix(text, _REPO_ROOT, "<repo>/")
 
 
 def _log_header_lines(path, kind="log", time_label="started", markdown=False):
@@ -359,6 +394,298 @@ def validate_experiment_name(name: str, project_dir) -> str:
             f"{experiments_root!r}"
         )
     return name
+
+
+#: The advanced-settings file: toolbox-wide constraints and defaults that no
+#: normal project edits. Repo root is two levels up from
+#: ``blueearth_cst/shared/``. NOT a ``--configfile`` target — the Snakefiles
+#: take a per-project ``config/workflows/snake_config_*.yml``; this one is read
+#: once, here, and applies to every project.
+ADVANCED_SETTINGS_PATH = (
+    Path(__file__).resolve().parents[2] / "config" / "advanced_settings.yml"
+)
+
+#: The closed schema: section -> {key: validator}. Closed on purpose — an
+#: unknown section or key is REJECTED rather than ignored, so a typo in the
+#: settings file fails loudly instead of silently leaving the built-in value in
+#: force (the same fail-loud stance ``get_config`` takes for project configs).
+#: A new setting is added HERE and in the file together.
+_ADVANCED_SETTINGS_SCHEMA = {
+    "constraints": {"min_historical_years": "positive_int"},
+    "defaults": {"julia_threads": "positive_int"},
+    "runtime": {"julia_version": "version_string"},
+}
+
+#: Three-part ``X.Y.Z``. Two parts would let juliaup resolve a different patch
+#: than ``Manifest.toml`` was built against.
+_VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
+
+
+def _positive_int(value, where: str) -> int:
+    """A whole number >= 1, rejecting the bool that ``isinstance(x, int)`` admits."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{where} must be an integer, got {value!r}")
+    if value < 1:
+        raise ValueError(f"{where} must be >= 1, got {value}")
+    return value
+
+
+def _version_string(value, where: str) -> str:
+    """A quoted three-part version.
+
+    The non-string rejection is load-bearing rather than defensive: unquoted
+    ``1.11`` in YAML parses to the FLOAT 1.11, which would silently become the
+    selector ``+1.11`` and let juliaup pick whatever patch it likes.
+    """
+    if not isinstance(value, str):
+        raise ValueError(
+            f"{where} must be a quoted string like \"1.11.7\", got {value!r} "
+            f"({type(value).__name__}) — an unquoted X.Y is parsed as a number"
+        )
+    if not _VERSION_RE.match(value):
+        raise ValueError(
+            f"{where} must be a three-part version X.Y.Z, got {value!r}"
+        )
+    return value
+
+
+_VALIDATORS = {"positive_int": _positive_int, "version_string": _version_string}
+
+
+def load_advanced_settings(path=None) -> dict:
+    """Read and validate ``config/advanced_settings.yml``.
+
+    Returns ``{section: {key: value}}``. Raises ``ValueError`` naming the
+    offending section or key on anything the schema does not admit: a missing
+    section, a missing key, an unknown section, an unknown key, or a value that
+    fails its validator.
+
+    Deliberately has NO built-in fallback. A silent fallback would mean a
+    deleted or mistyped settings file changes what the toolbox enforces without
+    saying so — exactly the failure mode the closed schema exists to prevent.
+    The file is tracked; if it is absent the checkout is broken, and that should
+    be said plainly at import.
+    """
+    settings_path = Path(path) if path is not None else ADVANCED_SETTINGS_PATH
+    try:
+        raw = yaml.safe_load(settings_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        raise FileNotFoundError(
+            f"advanced settings file not found at {settings_path}. It is "
+            f"tracked in the repository; a checkout without it cannot state "
+            f"what the toolbox enforces"
+        ) from None
+    if not isinstance(raw, Mapping):
+        raise ValueError(f"{settings_path} is not a YAML mapping")
+
+    unknown_sections = sorted(set(raw) - set(_ADVANCED_SETTINGS_SCHEMA))
+    if unknown_sections:
+        raise ValueError(
+            f"{settings_path}: unknown section(s) {unknown_sections}; expected "
+            f"{sorted(_ADVANCED_SETTINGS_SCHEMA)}"
+        )
+
+    resolved = {}
+    for section, keys in _ADVANCED_SETTINGS_SCHEMA.items():
+        if section not in raw:
+            raise ValueError(f"{settings_path}: missing section {section!r}")
+        body = raw[section]
+        if not isinstance(body, Mapping):
+            raise ValueError(f"{settings_path}: section {section!r} is not a mapping")
+        unknown_keys = sorted(set(body) - set(keys))
+        if unknown_keys:
+            raise ValueError(
+                f"{settings_path}: unknown key(s) {unknown_keys} in section "
+                f"{section!r}; expected {sorted(keys)}"
+            )
+        resolved[section] = {}
+        for key, validator in keys.items():
+            if key not in body:
+                raise ValueError(
+                    f"{settings_path}: missing {section}.{key}"
+                )
+            resolved[section][key] = _VALIDATORS[validator](
+                body[key], f"{section}.{key}"
+            )
+    return resolved
+
+
+ADVANCED_SETTINGS = load_advanced_settings()
+
+#: THE minimum historical window, in whole calendar years — one floor for the
+#: whole toolbox, enforced identically wherever the window is checked (owner
+#: ruling 2026-08-01). The VALUE lives in
+#: ``config/advanced_settings.yml`` under ``constraints:``, with the reasoning
+#: for the number itself; what follows is why the check is shaped this way.
+#:
+#: Deliberately NOT a per-workflow floor. An earlier revision enforced 365 days
+#: hard and warned at 16 years, so WF1 could build a model on a record WF3 would
+#: later reject — the failure simply moved to the workflow least able to explain
+#: it. One number, one message, checked in both places a different fact is
+#: knowable: the REQUESTED window at parse time
+#: (``validate_historical_window``) and the ACTUAL extracted span in
+#: ``extract_historical_climate._check_window_coverage``.
+#:
+#: It subsumes the other length requirement in the tree: rule 1.11
+#: ``plot_results`` writes ``clim_wflow_1_{month,year}.png`` only from >= 365
+#: TIMESTEPS, which 16 years clears for any daily source (dev/followups.md
+#: R7-6).
+MIN_HISTORICAL_YEARS = ADVANCED_SETTINGS["constraints"]["min_historical_years"]
+
+
+#: juliaup version selector for every Julia invocation a workflow makes. The
+#: VALUE lives in ``config/advanced_settings.yml`` under ``runtime:``, together
+#: with why Julia sits outside pixi at all.
+#:
+#: THREE files declare it and must agree — the settings file, ``pixi.toml``'s
+#: ``install-julia`` task, and ``Manifest.toml``'s ``julia_version``. Only the
+#: first is readable from here; the other two cannot read YAML, so the equality
+#: is enforced by ``tests/test_julia_runtime.py`` rather than by single-sourcing.
+JULIA_VERSION = ADVANCED_SETTINGS["runtime"]["julia_version"]
+
+#: Default ``--threads`` for Wflow.jl. The VALUE lives in
+#: ``config/advanced_settings.yml`` under ``defaults:``; a project may override
+#: it with ``shared.julia_threads`` (P3-3 design §6.3, which sanctions exactly
+#: this: "optionally promote --threads to a config value so a deployment can
+#: tune it to its basin without a Snakefile edit").
+#:
+#: Deliberately NOT wired to Snakemake's ``threads:`` directive. Snakemake CAPS
+#: a rule's threads at ``--cores``, so ``-c 3`` would quietly hand Wflow 3
+#: threads instead of 4 — a thread-allocation change disguised as a refactor,
+#: and precisely what §5.6 forbids. The two numbers are independent by design:
+#: the nominal budget is ``N x t <= C_logical``.
+DEFAULT_JULIA_THREADS = ADVANCED_SETTINGS["defaults"]["julia_threads"]
+
+
+def validate_julia_threads(value) -> int:
+    """Validate ``shared.julia_threads`` as a positive whole number of threads.
+
+    Parse-time, like the other config validators here: the value lands in a
+    ``shell:`` body, so a bad one would otherwise surface as a Julia usage error
+    inside a rule rather than as a config problem. Same predicate the settings
+    file's own ``defaults.julia_threads`` is held to.
+    """
+    return _positive_int(value, "shared.julia_threads")
+
+
+def julia_prefix(threads=DEFAULT_JULIA_THREADS) -> str:
+    """The ``julia ... `` prefix both Wflow-running rules share.
+
+    ``--project=.`` resolves against Snakemake's working directory, which is the
+    repository root — where ``Project.toml``/``Manifest.toml`` live.
+    """
+    return f"julia +{JULIA_VERSION} --project=. --threads {validate_julia_threads(threads)}"
+
+
+def _shift_years(moment, years):
+    """``moment`` shifted by whole calendar years; Feb 29 clamps to Feb 28.
+
+    Duck-typed on ``.replace()``/``.year`` so it accepts both ``datetime`` (the
+    parse-time path, from config strings) and ``pandas.Timestamp`` (the
+    extraction path, from the data's own time axis).
+    """
+    try:
+        return moment.replace(year=moment.year + years)
+    except ValueError:  # 29 Feb -> a non-leap year
+        return moment.replace(year=moment.year + years, month=2, day=28)
+
+
+def meets_min_historical_years(start, end) -> bool:
+    """Does ``start..end`` span at least ``MIN_HISTORICAL_YEARS`` calendar years?
+
+    Calendar arithmetic, not ``days / 365.25``: the requirement is on ANNUAL
+    observations, so "16 years later, same date" is the honest comparison and it
+    stays exact across leap years.
+    """
+    return end >= _shift_years(start, MIN_HISTORICAL_YEARS)
+
+
+def historical_window_days(historical_window) -> int:
+    """Calendar days spanned by a ``shared.historical_window`` mapping.
+
+    Endpoints are the ISO ``starttime``/``endtime`` every config carries. Raises
+    ``ValueError`` naming the offending key when either is missing or
+    unparseable — the same fail-loud stance ``slugify_window`` takes on the same
+    two values.
+    """
+    if not isinstance(historical_window, Mapping):
+        raise ValueError(
+            f"historical_window must be a mapping with starttime/endtime, got "
+            f"{historical_window!r}"
+        )
+    bounds = {}
+    for key in ("starttime", "endtime"):
+        if key not in historical_window:
+            raise ValueError(f"historical_window is missing {key!r}")
+        try:
+            bounds[key] = datetime.fromisoformat(str(historical_window[key]).strip())
+        except ValueError:
+            raise ValueError(
+                f"historical_window.{key} is not an ISO datetime: "
+                f"{historical_window[key]!r}"
+            ) from None
+    return (bounds["endtime"] - bounds["starttime"]).days
+
+
+def historical_window_bounds(historical_window):
+    """``(starttime, endtime)`` of a ``shared.historical_window``, as datetimes.
+
+    Same parsing and same fail-loud errors as ``historical_window_days``, which
+    is written in terms of this.
+    """
+    if not isinstance(historical_window, Mapping):
+        raise ValueError(
+            f"historical_window must be a mapping with starttime/endtime, got "
+            f"{historical_window!r}"
+        )
+    bounds = []
+    for key in ("starttime", "endtime"):
+        if key not in historical_window:
+            raise ValueError(f"historical_window is missing {key!r}")
+        try:
+            bounds.append(datetime.fromisoformat(str(historical_window[key]).strip()))
+        except ValueError:
+            raise ValueError(
+                f"historical_window.{key} is not an ISO datetime: "
+                f"{historical_window[key]!r}"
+            ) from None
+    return tuple(bounds)
+
+
+def validate_historical_window(historical_window) -> int:
+    """Reject a ``shared.historical_window`` shorter than ``MIN_HISTORICAL_YEARS``.
+
+    Called at ``Snakefile_model_creation`` parse time, so a window that cannot
+    support a full CST run is rejected BEFORE any rule executes — the same
+    parse-time stance as ``clim_historical: eobs`` and
+    ``validate_experiment_name``, and for the same reason: no execution can
+    rescue it, so the earliest possible failure is the most legible one.
+
+    This checks what the config REQUESTS. Whether the staged source actually
+    covers it is unknowable until extraction, and is checked against the same
+    floor there (``extract_historical_climate._check_window_coverage``).
+
+    Returns the span in days, or raises ``ValueError`` naming the requested
+    window, its length and the floor.
+    """
+    start, end = historical_window_bounds(historical_window)
+    days = historical_window_days(historical_window)
+    if not meets_min_historical_years(start, end):
+        raise ValueError(
+            f"historical_window {start.date()} .. {end.date()} spans "
+            f"{days / 365.25:.1f} years, below the "
+            f"{MIN_HISTORICAL_YEARS}-year minimum this toolbox requires: "
+            f"weathergenr's wavelet decomposition needs at least "
+            f"{MIN_HISTORICAL_YEARS} annual observations, so a shorter record "
+            f"cannot support a climate stress test. Widen "
+            f"shared.historical_window to >= {MIN_HISTORICAL_YEARS} years"
+            + (
+                ""
+                if days >= 0
+                else " (endtime is BEFORE starttime — check the order)"
+            )
+        )
+    return days
 
 
 def slugify_window(start, end) -> str:

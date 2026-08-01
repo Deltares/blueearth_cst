@@ -91,3 +91,57 @@ def test_destination_dirs_are_created(tmp_path, sources):
         other_config_files={str(catalog): str(cfg / "catalogs")},
     )
     assert (cfg / "runs").is_dir() and (cfg / "catalogs").is_dir()
+
+
+# --------------------------------------------------------------------------- #
+# The observations bin (2026-08-01)
+# --------------------------------------------------------------------------- #
+
+
+def test_observations_land_in_their_own_bin(tmp_path, sources):
+    """The two observation inputs are a fifth KIND, routed like the rest.
+
+    They live outside the repo AND outside project_dir, referenced by absolute
+    path (R07 O-01), so without this snapshot a finished project cannot say
+    what it was evaluated against.
+    """
+    snake, _, _ = sources
+    cfg = tmp_path / "project" / "config"
+    locations = tmp_path / "src" / "output_locations.csv"
+    locations.write_text("wflow_id,station_name,x,y\n", encoding="utf-8")
+    series = tmp_path / "src" / "observations_timeseries.csv"
+    series.write_text("time;101;102\n", encoding="utf-8")
+
+    copy_config_files(
+        config=snake,
+        config_out_path=cfg / "runs" / "snake_config_model_creation.yml",
+        other_config_files={
+            str(locations): str(cfg / "observations"),
+            str(series): str(cfg / "observations"),
+        },
+    )
+
+    assert (cfg / "observations" / "output_locations.csv").is_file()
+    assert (cfg / "observations" / "observations_timeseries.csv").is_file()
+    # Routed, not duplicated into the other bins.
+    assert not (cfg / "catalogs").exists()
+    assert not (cfg / "templates").exists()
+
+
+def test_the_snapshot_is_a_faithful_copy(tmp_path, sources):
+    """A snapshot that silently truncated would be worse than none."""
+    snake, _, _ = sources
+    cfg = tmp_path / "project" / "config"
+    series = tmp_path / "src" / "observations_timeseries.csv"
+    body = "time;101;102\n2000-01-01T00:00:00;1.5;2.5\n2000-01-02T00:00:00;;3.0\n"
+    series.write_text(body, encoding="utf-8")
+
+    copy_config_files(
+        config=snake,
+        config_out_path=cfg / "runs" / "snake.yml",
+        other_config_files={str(series): str(cfg / "observations")},
+    )
+    copied = (cfg / "observations" / "observations_timeseries.csv").read_text(
+        encoding="utf-8"
+    )
+    assert copied == body

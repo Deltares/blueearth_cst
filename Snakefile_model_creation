@@ -5,7 +5,11 @@ from pathlib import Path
 # directory by prepending this Snakefile's own directory to sys.path.
 # See dev/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
-from blueearth_cst.shared.snake_utils import DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_spec, get_config, patch_psutil_windows_benchmark, rule_banner, target_banner, warn_if_project_dir_in_repo
+from blueearth_cst.shared.snake_utils import DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, DEFAULT_JULIA_THREADS, climate_store_spec, get_config, julia_prefix, patch_psutil_windows_benchmark, rule_banner, target_banner, validate_historical_window, warn_if_project_dir_in_repo
+# The canonical climate figure set (rules 1.13 and 1.15 both draw it). Imported
+# for figure_names() ONLY, so every figure is declared from the same list the
+# plotter writes from and the two cannot drift.
+from blueearth_cst.climate_analysis.climate_figures import figure_names
 
 # Windows: make Snakemake's benchmark memory/IO/CPU metrics work (else all NA).
 patch_psutil_windows_benchmark()
@@ -45,7 +49,25 @@ model_resolution = get_config(basin_cfg, "resolution", 0.00833333)
 basin_hydrography = get_config(basin_cfg, "hydrography", DEFAULT_HYDROGRAPHY)
 basin_index = get_config(basin_cfg, "basin_index", DEFAULT_BASIN_INDEX)
 historical_window = get_config(shared_cfg, "historical_window", optional=False)
+# ONE minimum window for the whole toolbox — snake_utils.MIN_HISTORICAL_YEARS
+# (16), set by weathergenr's wavelet minimum and enforced identically here and
+# at extraction. WF1 rejects it too, deliberately: a record too short for a
+# stress test is a misconfigured project, and letting WF1 build a model on it
+# only moves the failure to the workflow least able to explain it
+# (dev/followups.md R7-6, R3). Parse time, before any rule executes — same
+# stance as the eobs rejection below. Whether the staged source actually COVERS
+# the requested window is a different question, checked at rule 1.10.
+validate_historical_window(historical_window)
 clim_source = get_config(shared_cfg, "clim_historical", optional=False)
+# Wflow.jl thread count for rule 1.09. OPTIONAL — the default is P3-3's frozen
+# baseline value, so an existing config is unaffected. Config-driven rather than
+# inline so a deployment can tune it to its basin (a production basin has the
+# cell-parallelism the 384-cell test fixture lacks) without a Snakefile edit.
+# NOT Snakemake's `threads:`, which caps at --cores: see DEFAULT_JULIA_THREADS.
+julia_threads = get_config(shared_cfg, "julia_threads", DEFAULT_JULIA_THREADS)
+# Carries the juliaup version pin too; both are validated at parse time, before
+# any rule can put them in a shell body.
+wflow_julia = julia_prefix(julia_threads)
 
 # P3-2a bounded support (design ext2-3): the wf1 raw-climate path (rule 1.10 +
 # the model-parity plot re-source) supports era5, chirps and chirps_global
@@ -65,6 +87,13 @@ output_locations = get_config(my_cfg, "output_locations", None)
 observations_timeseries = get_config(my_cfg, "observations_timeseries", None)
 
 basin_dir = f"{project_dir}/hydrology_model"
+
+# The canonical climate figure set, one directory per dataset (rule 1.13 draws
+# the forcing, 1.15 the source). variable x kind is a fixed cross-product, so
+# unlike rule 1.11's per-station figures these are fully knowable at parse time
+# and ALL of them are declared — see climate_figures' module docstring.
+FORCING_PLOTS_DIR = f"{basin_dir}/forcing/plots"
+_forcing_climate_pngs = [f"{FORCING_PLOTS_DIR}/{name}" for name in figure_names("forcing")]
 
 # --- The shared historical-climate store (R07 B1) -----------------------------
 # ONE producer contract, built here and identically in
@@ -122,23 +151,38 @@ LOG_RULES = [
     "1.15_plot_climate_source",
 ]
 
+# WF1_TERMINALS — the artifacts with no WF1 consumer: every producing rule is
+# upstream of them and none of them feeds another rule. That is exactly the
+# input set the two gather rules (1.14 benchmarks, 1.16 logs) need, which is
+# what schedules each one LAST; both restated these seven literals before, so a
+# new terminal had to be added in three places or a gather would run early and
+# merge an incomplete set of parts.
+#
+# NOT terminals, and so not in this list: the config snapshot (1.01 runs
+# independently of the build and needs no gather waiting on it) and the two
+# gather outputs themselves.
+WF1_TERMINALS = [
+    f"{basin_dir}/evaluation/plots/hydro_wflow_1.png",
+    f"{basin_dir}/plots/basin_area.png",
+    # One representative of each canonical climate set: the rules produce their
+    # nine figures as a unit, so naming every one here would add no edge.
+    f"{FORCING_PLOTS_DIR}/forcing_precip_map.png",
+    # R07 B4: the source-grid climate figures are rule-`all` members by
+    # design — they are a product of the workflow, not an incidental
+    # by-product, and their subgraph needs no built model.
+    f"{store_dir}/plots/source_precip_map.png",
+    f"{basin_dir}/staticgeoms/outlet_index.csv",
+]
+
 # 1.00  all — target aggregator: full historical build + performance plots
 #
 # Hoisted into a list so `message:` can print one target per line without
 # restating them. Snakemake flattens a list argument, so `input: WF1_TARGETS`
-# declares exactly the same ten files the literals did.
+# declares exactly the same ten files the literals did — the terminals, plus
+# the config snapshot and the two gathered artifacts.
 WF1_TARGETS = [
-    f"{basin_dir}/evaluation/plots/hydro_wflow_1.png",
-    f"{basin_dir}/plots/basin_area.png",
-    f"{basin_dir}/forcing/plots/precip.png",
-    # R07 B4: the source-grid climate figures are rule-`all` members by
-    # design — they are a product of the workflow, not an incidental
-    # by-product, and their subgraph needs no built model.
-    f"{store_dir}/plots/source_precip.png",
-    f"{store_dir}/plots/source_temp.png",
-    f"{store_dir}/plots/source_pet.png",
+    *WF1_TERMINALS,
     f"{project_dir}/config/runs/snake_config_model_creation.yml",
-    f"{basin_dir}/staticgeoms/outlet_index.csv",
     f"{project_dir}/logs/{WORKFLOW_LOG_NAME}",
     f"{project_dir}/benchmarks/wf1_benchmarks.md",
 ]
@@ -159,6 +203,13 @@ rule copy_config:
         data_catalogs = DATA_SOURCES,
         workflow_name = "model_creation",
         config_dir = f"{project_dir}/config",
+        # Snapshotted into config/observations/ so the finished project can say
+        # what it was evaluated against: both live outside the repo AND outside
+        # project_dir, referenced by absolute path (R07 O-01). params, not
+        # input:, because both are optional — an unset `null` is normal, while
+        # a configured path that is not a file raises in the script.
+        output_locations = output_locations,
+        observations_timeseries = observations_timeseries,
     output:
         config_snake_out = f"{project_dir}/config/runs/snake_config_model_creation.yml",
     script:
@@ -316,7 +367,7 @@ rule run_wflow:
     benchmark:
         f"{project_dir}/benchmarks/_parts/1.09_run_wflow.tsv",
     shell:
-        """python -u "{run_logged}" "{log}" -- julia +1.11.7 --project=. --threads 4 -e "using Wflow; Wflow.run()" "{params.toml_path}" """
+        """python -u "{run_logged}" "{log}" -- {wflow_julia} -e "using Wflow; Wflow.run()" "{params.toml_path}" """
 
 # 1.10  extract_climate_grid — the SHARED historical-climate store producer
 # (R07 B1). This declaration and rule 3.02 in Snakefile_climate_experiment are
@@ -356,6 +407,26 @@ _wf1_plot_clim_inputs = {"climate_nc": CLIMATE_STORE.outputs["climate_nc"]}
 if clim_source in ("chirps", "chirps_global"):
     _wf1_plot_clim_inputs["oro_nc"] = CLIMATE_STORE.outputs["oro_nc"]
 
+# O-24, basin-average half. The ONE plot_results family that is a pure function
+# of config, so it is declared rather than left undeclared.
+#
+# Two exclusions, both load-bearing — do not "simplify" either away:
+#  - "river discharge" never gets a basavg column at all. Rule 1.05 covers it
+#    via setup_outlets/setup_gauges and filters it out of the basin-average
+#    setup (setup_gauges_and_outputs.py, `extras`).
+#  - "precipitation" DOES get a column, and plot_results drops it before
+#    plotting (plot_results.py, `drop_vars("precipitation_basavg")`), so the
+#    figure is never written.
+# The filename is the CSV column name verbatim (func_plot_signature.plot_basavg
+# writes f"{dvar}.png"), which is why it carries the config's spelling, spaces
+# included.
+_WFLOW_OUTVARS_WITHOUT_BASAVG_PLOT = ("river discharge", "precipitation")
+_basavg_pngs = [
+    f"{basin_dir}/evaluation/plots/{var}_basavg.png"
+    for var in wflow_outvars
+    if var not in _WFLOW_OUTVARS_WITHOUT_BASAVG_PLOT
+]
+
 rule plot_results:
    message: rule_banner("1.11", "plot_results")
    input:
@@ -366,15 +437,25 @@ rule plot_results:
    # (P1): figures under evaluation/plots/, the metrics table one level up in
    # evaluation/, because plots/ holds figures only.
    #
-   # O-24 declares the CONFIG-INVARIANT SUBSET only, and deliberately stops
-   # there. plot_results.py also drives plot_basavg (one PNG per basin-average
-   # entry in wflow_outvars), plot_signatures (signatures_{station}.png, only
-   # when observations exist and nb_years >= 5), and clim_{station}_{period}.png
-   # is per-station -- so a config with real gauges writes clim_wflow_2..N_*.
-   # Those stay knowingly undeclared: deriving the list at parse time from
-   # wflow_outvars / output_locations is a rule-shape change beyond this
-   # milestone (design § "O-24 scope, stated"). `--delete-all-output`
-   # completeness is therefore claimed for the seed-config class only.
+   # O-24, restated 2026-08-01 after checking what is actually derivable.
+   #
+   # DECLARED: the config-invariant subset below, plus `_basavg_pngs` — one PNG
+   # per basin-average entry in wflow_outvars, a pure function of config.
+   #
+   # STILL UNDECLARED, and NOT for want of effort: hydro_{station}.png,
+   # clim_{station}_{month,year}.png and signatures_{station}.png. R7-5 assumed
+   # these could be derived at parse time "from wflow_outvars /
+   # output_locations". They cannot. Their count is the number of model OUTLETS
+   # and SUBCATCHMENTS, which is a product of the model build (rule 1.03, read
+   # back through Q_outlets / the subcatchment map) — unknown until rule 1.03
+   # has run, and output_locations contributes only the extra gauge stations on
+   # top. signatures_* is narrower still: it also requires observations AND a
+   # run longer than a year (plot_results.py `do_signatures`), so it is
+   # data-conditional, not merely config-conditional.
+   #
+   # Closing those needs a checkpoint or a directory() output, i.e. a real
+   # rule-shape change, not the enumeration R7-5 imagined. `--delete-all-output`
+   # completeness therefore still holds only for configs without extra gauges.
    #
    # KNOWN CONSEQUENCE of declaring the two clim_wflow_1_* figures: they are
    # written only when the store's extraction is present AND covers >= 365
@@ -388,6 +469,7 @@ rule plot_results:
        clim_month_png = f"{basin_dir}/evaluation/plots/clim_wflow_1_month.png",
        clim_year_png = f"{basin_dir}/evaluation/plots/clim_wflow_1_year.png",
        metrics_csv = f"{basin_dir}/evaluation/performance_metrics.csv",
+       basavg_pngs = _basavg_pngs,
    params:
        project_dir = f"{project_dir}",
        observations_file = observations_timeseries,
@@ -418,22 +500,26 @@ rule plot_map:
         f"{project_dir}/benchmarks/_parts/1.12_plot_map.tsv",
     script: "blueearth_cst/shared/plot_map.py"
 
-# 1.13  plot_forcing — plot the forcing on a map (parallel leaf)
+# 1.13  plot_forcing — the canonical climate set for the wflow forcing
+# (parallel leaf). Same figures as rule 1.15 draws for the source grid, so the
+# two directories answer "what did the downscaling change?" side by side.
 rule plot_forcing:
     message: rule_banner("1.13", "plot_forcing")
     input:
         forcing_path = f"{basin_dir}/forcing/inmaps_historical.nc",
-    # R07 B10 + O-24: the forcing/model-input QA figures move beside the forcing
-    # they describe, and all three of plot_map_forcing's PNGs are declared (the
-    # variable list at plot_map_forcing.py:168-172 is config-invariant, so the
-    # subset here is complete).
+    # R07 B10 + O-24: the forcing/model-input QA figures sit beside the forcing
+    # they describe, and ALL of them are declared — variable x kind is a fixed
+    # cross-product, so the list comes from climate_figures.figure_names()
+    # rather than being restated here.
     output:
-        output_forcing_map = f"{basin_dir}/forcing/plots/precip.png",
-        temp_map = f"{basin_dir}/forcing/plots/temp.png",
-        pet_map = f"{basin_dir}/forcing/plots/pet.png",
+        _forcing_climate_pngs,
     params:
         project_dir = f"{project_dir}",
-        gauges_path = f"{basin_dir}/staticgeoms/outlets.geojson"
+        # The USER's gauges, not the model's outlets. This passed
+        # staticgeoms/outlets.geojson until 2026-08-01, so the overlay only
+        # ever re-drew the outlets and a configured output_locations was never
+        # even attempted here.
+        output_locations = output_locations,
     log:
         f"{LOG_PARTS_DIR}/1.13_plot_forcing.log",
     benchmark:
@@ -447,13 +533,7 @@ rule plot_forcing:
 rule gather_benchmarks:
     message: rule_banner("1.14", "gather_benchmarks")
     input:
-        f"{basin_dir}/evaluation/plots/hydro_wflow_1.png",
-        f"{basin_dir}/plots/basin_area.png",
-        f"{basin_dir}/forcing/plots/precip.png",
-        f"{store_dir}/plots/source_precip.png",
-        f"{store_dir}/plots/source_temp.png",
-        f"{store_dir}/plots/source_pet.png",
-        f"{basin_dir}/staticgeoms/outlet_index.csv",
+        WF1_TERMINALS,
     output:
         f"{project_dir}/benchmarks/wf1_benchmarks.md",
     params:
@@ -465,7 +545,7 @@ rule gather_benchmarks:
 # (R07 B4 / P4). Declared HERE ONLY: unlike rule 1.10 this is a single
 # declaration, so none of B1's two-DAG symmetry machinery applies.
 #
-# The whole subgraph of these three PNGs is rule 1.10 (whose sole input is the
+# The whole subgraph of these figures is rule 1.10 (whose sole input is the
 # tracked data catalog) plus this rule, so they build with NEITHER
 # hydrology_model/ NOR config/templates/wflow_build_model.yml on disk — the P4
 # assertion, pinned by tests/test_plot_climate_source.py.
@@ -486,9 +566,7 @@ rule plot_climate_source:
     input:
         **_source_plot_inputs,
     output:
-        precip_png = f"{store_dir}/plots/source_precip.png",
-        temp_png = f"{store_dir}/plots/source_temp.png",
-        pet_png = f"{store_dir}/plots/source_pet.png",
+        [f"{store_dir}/plots/{name}" for name in figure_names("source")],
     params:
         plot_dir = f"{store_dir}/plots",
         data_sources = DATA_SOURCES,
@@ -502,9 +580,9 @@ rule plot_climate_source:
 # 1.16  gather_logs — merge every WF1 log part into ONE workflow log.
 #
 # Same rule as WF2's 2.07 and WF3's 3.13, against the same script; only the label
-# list, the parts dir and the output name differ. `input:` is the terminal
-# artifact set (identical to gather_benchmarks), which is what schedules it LAST:
-# every logging rule is upstream of it. The parts stay in `params:` — they are
+# list, the parts dir and the output name differ. `input:` is WF1_TERMINALS, the
+# same set gather_benchmarks takes, which is what schedules it LAST: every
+# logging rule is upstream of it. The parts stay in `params:` — they are
 # `log:` files, and Snakemake does not track those in the DAG, so naming them as
 # `input:` would demand them as buildable targets.
 #
@@ -515,13 +593,7 @@ rule plot_climate_source:
 rule gather_logs:
     message: rule_banner("1.16", "gather_logs")
     input:
-        f"{basin_dir}/evaluation/plots/hydro_wflow_1.png",
-        f"{basin_dir}/plots/basin_area.png",
-        f"{basin_dir}/forcing/plots/precip.png",
-        f"{store_dir}/plots/source_precip.png",
-        f"{store_dir}/plots/source_temp.png",
-        f"{store_dir}/plots/source_pet.png",
-        f"{basin_dir}/staticgeoms/outlet_index.csv",
+        WF1_TERMINALS,
     output:
         f"{project_dir}/logs/{WORKFLOW_LOG_NAME}",
     params:

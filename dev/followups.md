@@ -135,19 +135,45 @@ Provenance: `dev/r07/migration_project-layout.md` §§7a–7d,
   `blueearth_cst.model`, pinned by a test that walks the package's ASTs so the
   convention cannot drift back silently.
 
-- **[R7-5] O-24 is deliberately incomplete.** `plot_basavg` (one PNG per
-  `wflow_outvars` entry), `signatures_{station}.png` and per-station
-  `clim_{station}_{period}.png` remain **knowingly undeclared** — they are
-  config-dependent, and deriving the list at parse time is a rule-shape change
-  R7 rejected as out of scope. Consequence: on a config with gauges,
-  observations or basin-average outvars, `--delete-all-output` still cannot
-  clean them and stale figures survive a rerun.
+- **[R7-5] O-24 is partially closed; its premise was wrong.** *Basin-average
+  half FIXED 2026-08-01.* Rule 1.11 now derives `plot_basavg`'s PNGs from
+  `wflow_outvars` and declares them — excluding `river discharge` (rule 1.05
+  filters it out of the basin-average setup) and `precipitation` (whose column
+  `plot_results` drops before plotting). Verified reaching
+  `--delete-all-output`, including the fact that the derived filename carries
+  the config's spelling **with spaces** (`actual evapotranspiration_basavg.png`)
+  and that Snakemake handles it as a declared output and an explicit target.
 
-- **[R7-6] Declaring `clim_wflow_1_*` made rule 1.11 newly able to fail.** Those
-  figures are written only when the extraction spans ≥365 days, so a config with
-  a sub-year `historical_window` now dies with `MissingOutputException` instead
-  of logging a skip. Owner-ruled to stand: failing loudly beats silently
-  producing an incomplete figure set, and no shipped config is affected.
+  **The rest cannot be closed the way this entry assumed.** It claimed all
+  three families were derivable "at parse time from `wflow_outvars` /
+  `output_locations`". They are not: `hydro_{station}.png` and
+  `clim_{station}_{period}.png` are counted by the model's OUTLETS and
+  SUBCATCHMENTS — a rule-1.03 product read back through `Q_outlets` / the
+  subcatchment map, unknown until the model is built, with `output_locations`
+  contributing only the extra gauge stations on top. `signatures_{station}.png`
+  is narrower still: it also needs observations AND a run longer than a year
+  (`plot_results.do_signatures`), so it is data-conditional, not merely
+  config-conditional. Closing those needs a `checkpoint` or a `directory()`
+  output — a real rule-shape change, not the enumeration this entry imagined.
+  Consequence, unchanged for those families: on a config with extra gauges or
+  observations, `--delete-all-output` still cannot clean them and stale figures
+  survive a rerun.
+
+- **[R7-6] ~~Declaring `clim_wflow_1_*` made rule 1.11 newly able to fail.~~
+  FIXED 2026-08-01** — the failure still happens, but no longer at rule 1.11 and
+  no longer as `MissingOutputException`. Rule 1.11's ≥365-timestep requirement
+  is subsumed by `snake_utils.MIN_HISTORICAL_YEARS` (16) — ONE floor for the
+  whole toolbox (owner ruling 2026-08-01) — checked twice: against the
+  REQUESTED window at WF1 parse time (`validate_historical_window`, so a short
+  config reds the dry-run before any rule executes) and against the ACTUAL
+  extracted span in the shared store producer
+  (`extract_historical_climate._check_window_coverage`, which raises naming the
+  requested window, the covered span and the floor). The owner ruling that
+  failing loudly beats an incomplete figure set is preserved — only *where* and
+  *how legibly* it fails changed. Original entry: those figures are written only
+  when the extraction spans ≥365 days, so a config with a sub-year
+  `historical_window` died with `MissingOutputException` instead of logging a
+  skip.
 
 - **[R7-7] The contract-equality test pins Snakemake 9.6.2's directive set.** It
   asserts the compared / allowed-local / structural buckets partition
@@ -494,6 +520,43 @@ Provenance: `dev/r07/migration_project-layout.md` §§7a–7d,
 
 ## Cross-cutting — workflow ergonomics
 
+- **[FIXED 2026-08-01] The user's gauges were dropped in silence, everywhere.**
+  *Found on a real basin run (`C:/TESTS/CST/gabon_0108`), reported by Ümit as
+  "output locations missing from the spatial plots".* hydromt_wflow's
+  `setup_gauges` normalizes the basename — `.replace("_", "-")`,
+  `wflow_base.py` — so `output_locations.csv` becomes `output-locations` in the
+  staticgeoms layer, the wflow TOML `map`, and the parsed output columns. Three
+  of our readers derived that name from the FILENAME and missed the
+  substitution; every lookup was a membership test used as a guard
+  (`if name in geoms:`), so all three failed **silently**. Damage: gauges absent
+  from `basin_area.png`, no gauge hydrographs, no signature plots, and an EMPTY
+  `performance_metrics.csv` on a config that supplied observations — while
+  `output.csv` held all four stations correctly, because wflow reads the TOML
+  instead of guessing. Rule 1.13 had a second, independent instance: it passed
+  `staticgeoms/outlets.geojson` as its gauges param, so a configured
+  `output_locations` was never even attempted there.
+  *Fixed* by `blueearth_cst/shared/gauges.py`: resolve the layer and variable
+  from the MODEL, and WARN (never skip) when a configured file cannot be
+  resolved. **This is the second instance of the class** — R07 O-08 was the
+  same shape with a different cause (the `"None"` sentinel). Both times a
+  membership test doubled as a guard. Worth a sweep: any `if <derived name> in
+  <mapping>:` where the name comes from config is a silent-drop candidate.
+
+- **`tee_to_log` does not capture the traceback of a failing `script:` rule.**
+  *Surfaced 2026-08-01 while landing the canonical climate figure set.* A rule
+  that raises writes every `log_row`/INFO line to
+  `logs/_parts/<W.NN>_<rule>.log` and then stops **without the exception**. The
+  merged workflow log therefore ends mid-rule with no reason, and
+  `check log file(s) for error details` — which is the only thing Snakemake
+  prints — points at a file that does not contain them. The traceback does reach
+  Snakemake's own captured stderr, so it is visible on an interactive console
+  run and invisible in the artifact a user would send you. Cost a full
+  reproduce-outside-pytest cycle to recover a one-line `KeyError`.
+  *Fix:* have `tee_to_log` catch, write the formatted traceback into the log
+  part, and re-raise. Cheap and self-contained (`snake_utils.tee_to_log`), and
+  it improves every `script:` rule in all three workflows at once. Owner:
+  `python-engineer`. Activation: next time WF logging is touched.
+
 - **[PARKED 2026-07-19] Per-rule progress messages.** Add `message:`
   directives to the long-running rules so each announces itself in plain
   language when it starts (e.g. "Building Wflow model from global data…"),
@@ -599,11 +662,30 @@ Provenance: `dev/r07/migration_project-layout.md` §§7a–7d,
   logs that use the same wrapper). No code changes. Full re-triage recorded in
   `dev/phase-1/m01/warnings.md` § "Exhaustive re-triage — 2026-07-21".
 
-- **`extract_climate_grid` silently truncates the historical range.**
-  *[Truncation WARNING resolved 2026-07-21, commit `ce56bc3` (t260716a,
-  `fix/pre-r6-followups`): `prep_historical_climate` now emits an advisory
-  warning when the extracted span falls short of the requested window. The
-  config-staleness half below remains OPEN.]*
+- **~~`extract_climate_grid` silently truncates the historical range.~~
+  CLOSED 2026-08-01.** Both halves are now resolved. *Truncation WARNING*
+  resolved 2026-07-21, commit `ce56bc3` (t260716a, `fix/pre-r6-followups`):
+  `prep_historical_climate` emits an advisory when the extracted span falls
+  short of the requested window. *Config staleness* resolved 2026-07-21
+  (t260716a′, see the nested entry below — R5 wired the window in as `params`,
+  so Snakemake's default rerun-trigger re-extracts on an edit). *The
+  "optionally, fail the rule" half of the fix below* landed 2026-08-01, as a
+  UNIFIED floor rather than a per-workflow one (owner ruling, same day):
+  `extract_historical_climate._check_window_coverage` keeps shortfall-vs-
+  requested advisory with its 31-day tolerance, and RAISES below
+  `snake_utils.MIN_HISTORICAL_YEARS` (16). A WF1 parse-time guard
+  (`validate_historical_window`) applies the same floor to the requested window
+  before any rule runs. The floor is set by the most demanding consumer
+  (weathergenr's wavelet minimum) and enforced in WF1 and WF2 too: a first
+  revision enforced 365 days hard and 16 years advisory, which let WF1 build a
+  model on a record WF3 would reject — moving the failure to the workflow least
+  able to explain it. **Consequence:** two shipped configs held windows under
+  the new floor and were widened to 2000–2020 — `snake_config.template.yml` (was
+  6 years) and `tests/snake_config_model_test.yml` (was 6). **Still open, and
+  tracked separately:** the 16-year gate in WF3 itself, where weathergenr is
+  invoked — a store built before this change can still reach it. See
+  "weathergenr's wavelet minimum surfaces as a cryptic error" in the R5
+  section.*
   When the snake config's `historical:` window asks for years that the
   staged source doesn't cover, the rule produces a shorter `extract_historical.nc`
   without any warning. Downstream rules then fail in cryptic ways far from

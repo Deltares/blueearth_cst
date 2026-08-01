@@ -716,3 +716,67 @@ def test_climate_store_spec_is_frozen():
     spec = _spec()
     with pytest.raises(Exception):
         spec.store_dir = "/elsewhere"
+
+
+# --------------------------------------------------------------------------- #
+# Log-line path compaction (2026-08-01)
+# --------------------------------------------------------------------------- #
+
+
+def _rel(text, project_root=r"C:\TESTS\CST\gabon_0108"):
+    from blueearth_cst.shared.snake_utils import _relativize_paths
+
+    return _relativize_paths(text, project_root)
+
+
+def test_an_installed_dependency_path_collapses_to_its_package():
+    """The reported case. Which package the file came from is the information;
+    where pixi put the env is not, and it differs per machine."""
+    line = (
+        r"Parsing data catalog from C:\Users\x\workspace\blueearth_cst\.pixi"
+        r"\envs\default\Lib\site-packages\hydromt_wflow\data\parameters_data.yml"
+    )
+    assert _rel(line) == (
+        "Parsing data catalog from <site-packages>/hydromt_wflow\data"
+        "\parameters_data.yml"
+    )
+
+
+def test_a_project_path_becomes_project_relative():
+    line = r"Writing geoms to C:\TESTS\CST\gabon_0108\hydrology_model\basins.geojson"
+    assert _rel(line) == r"Writing geoms to hydrology_model\basins.geojson"
+
+
+def test_a_repo_path_is_marked_rather_than_bared():
+    """Marked so a repo-relative path and a project-relative one stay
+    distinguishable in the same line."""
+    from blueearth_cst.shared.snake_utils import _REPO_ROOT
+
+    line = f"script at {_REPO_ROOT}{os.sep}blueearth_cst{os.sep}shared{os.sep}x.py"
+    assert _rel(line) == f"script at <repo>/blueearth_cst{os.sep}shared{os.sep}x.py"
+
+
+def test_a_path_outside_all_three_is_left_alone():
+    """A staged data path's location IS the information — never shorten it."""
+    line = r"Reading era5 from C:\data\wflow_global\hydromt\meteo\era5_daily.zarr"
+    assert _rel(line) == line
+
+
+def test_site_packages_is_matched_before_the_repo():
+    """The pixi env lives INSIDE the repo, so the order is load-bearing: a
+    repo-relative rewrite would otherwise hide the package name."""
+    from blueearth_cst.shared.snake_utils import _REPO_ROOT
+
+    line = f"x {_REPO_ROOT}{os.sep}.pixi{os.sep}envs{os.sep}default{os.sep}Lib{os.sep}site-packages{os.sep}hydromt{os.sep}a.py"
+    assert _rel(line) == f"x <site-packages>/hydromt{os.sep}a.py"
+
+
+def test_forward_slash_spelling_is_handled_too():
+    """hydromt emits either separator."""
+    line = "Writing to C:/TESTS/CST/gabon_0108/hydrology_model/basins.geojson"
+    assert _rel(line) == "Writing to hydrology_model/basins.geojson"
+
+
+def test_an_already_relative_line_is_untouched():
+    line = "Parsing data catalog from config/catalogs/deltares_data.yml"
+    assert _rel(line) == line

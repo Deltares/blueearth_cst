@@ -336,7 +336,10 @@ def test_warns_when_extracted_window_is_shorter_than_requested(
     class _NarrowDataCatalog(_RecordingDataCatalog):
         def get_rasterdataset(self, source, **kwargs):
             self.get_rasterdataset_calls.append({"source": source, **kwargs})
-            return _FakeDataset(kwargs.get("variables", ["precip"]), time_size=10)
+            # 20 yearly steps from 1980: ends ~1999, so it falls short of the
+            # 2000..2020 request (the advisory) while still clearing the
+            # 16-year floor (which would otherwise raise before the warning).
+            return _FakeDataset(kwargs.get("variables", ["precip"]), time_size=20)
 
     monkeypatch.setattr(ehc.hydromt, "DataCatalog", _NarrowDataCatalog)
 
@@ -359,3 +362,66 @@ def test_warns_when_extracted_window_is_shorter_than_requested(
         "truncat" in str(w.message).lower() or "shorter" in str(w.message).lower()
         for w in caught
     ), "Expected a warning about time-window truncation; got none."
+
+
+# --- Layer B: the hard floor and the weathergenr advisory --------------------
+# The parse-time half (what the config REQUESTS) is
+# tests/test_validate_historical_window.py; these cover what the staged source
+# ACTUALLY delivers, which is knowable only here.
+
+def _run_with_span(monkeypatch, tmp_path, time_size, catalog_cls):
+    """Drive prep_historical_climate against a fake catalog of ``time_size``
+    YEARLY steps, returning the warnings it raised."""
+
+    class _SpanDataCatalog(catalog_cls):
+        def get_rasterdataset(self, source, **kwargs):
+            self.get_rasterdataset_calls.append({"source": source, **kwargs})
+            return _FakeDataset(kwargs.get("variables", ["precip"]), time_size=time_size)
+
+    monkeypatch.setattr(ehc.hydromt, "DataCatalog", _SpanDataCatalog)
+    region = tmp_path / "region.geojson"
+    region.write_text("{}")
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        ehc.prep_historical_climate(
+            region_fn=region,
+            fn_out=tmp_path / "out.nc",
+            data_libs="dummy.yml",
+            clim_source="era5",
+            starttime="2000-01-01T00:00:00",
+            endtime="2020-12-31T00:00:00",
+        )
+    return caught
+
+
+def test_short_extraction_raises_naming_the_unified_floor(
+    tmp_path, fake_era5_catalog, monkeypatch
+):
+    """Ten yearly steps = ~9 years, under the 16-year floor.
+
+    The UNIFIED floor (owner ruling 2026-08-01) makes this fatal in the
+    producer. Before, it warned here and then failed either at rule 1.11 with
+    MissingOutputException or a whole workflow away inside weathergenr.
+    """
+    with pytest.raises(ValueError) as excinfo:
+        _run_with_span(monkeypatch, tmp_path, 10, _RecordingDataCatalog)
+    message = str(excinfo.value)
+    assert f"{ehc.MIN_HISTORICAL_YEARS}-year minimum" in message
+    assert "historical_window" in message
+    assert "era5" in message
+    assert "weathergenr" in message
+
+
+def test_a_single_timestep_raises_too(tmp_path, fake_era5_catalog, monkeypatch):
+    """The degenerate end of the same check -- no separate code path."""
+    with pytest.raises(ValueError, match=f"{ehc.MIN_HISTORICAL_YEARS}-year minimum"):
+        _run_with_span(monkeypatch, tmp_path, 1, _RecordingDataCatalog)
+
+
+def test_long_enough_extraction_is_silent(tmp_path, fake_era5_catalog, monkeypatch):
+    """The default 100-year fake covers the request: no coverage warning at all,
+    so the shortfall advisory stays meaningful rather than background noise."""
+    caught = _run_with_span(monkeypatch, tmp_path, 100, _RecordingDataCatalog)
+    noisy = [w for w in caught if "shorter than the requested" in str(w.message)]
+    assert not noisy, [str(w.message) for w in noisy]
