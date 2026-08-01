@@ -6,6 +6,10 @@ from pathlib import Path
 # See dev/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
 from blueearth_cst.shared.snake_utils import DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, DEFAULT_JULIA_THREADS, climate_store_spec, get_config, julia_prefix, patch_psutil_windows_benchmark, rule_banner, target_banner, validate_historical_window, warn_if_project_dir_in_repo
+# The canonical climate figure set (rules 1.13 and 1.15 both draw it). Imported
+# for figure_names() ONLY, so every figure is declared from the same list the
+# plotter writes from and the two cannot drift.
+from blueearth_cst.climate_analysis.climate_figures import figure_names
 
 # Windows: make Snakemake's benchmark memory/IO/CPU metrics work (else all NA).
 patch_psutil_windows_benchmark()
@@ -84,6 +88,13 @@ observations_timeseries = get_config(my_cfg, "observations_timeseries", None)
 
 basin_dir = f"{project_dir}/hydrology_model"
 
+# The canonical climate figure set, one directory per dataset (rule 1.13 draws
+# the forcing, 1.15 the source). variable x kind is a fixed cross-product, so
+# unlike rule 1.11's per-station figures these are fully knowable at parse time
+# and ALL of them are declared — see climate_figures' module docstring.
+FORCING_PLOTS_DIR = f"{basin_dir}/forcing/plots"
+_forcing_climate_pngs = [f"{FORCING_PLOTS_DIR}/{name}" for name in figure_names("forcing")]
+
 # --- The shared historical-climate store (R07 B1) -----------------------------
 # ONE producer contract, built here and identically in
 # Snakefile_climate_experiment, and splatted into rule 1.10 / rule 3.02 below.
@@ -153,13 +164,13 @@ LOG_RULES = [
 WF1_TERMINALS = [
     f"{basin_dir}/evaluation/plots/hydro_wflow_1.png",
     f"{basin_dir}/plots/basin_area.png",
-    f"{basin_dir}/forcing/plots/precip.png",
+    # One representative of each canonical climate set: the rules produce their
+    # nine figures as a unit, so naming every one here would add no edge.
+    f"{FORCING_PLOTS_DIR}/forcing_precip_map.png",
     # R07 B4: the source-grid climate figures are rule-`all` members by
     # design — they are a product of the workflow, not an incidental
     # by-product, and their subgraph needs no built model.
-    f"{store_dir}/plots/source_precip.png",
-    f"{store_dir}/plots/source_temp.png",
-    f"{store_dir}/plots/source_pet.png",
+    f"{store_dir}/plots/source_precip_map.png",
     f"{basin_dir}/staticgeoms/outlet_index.csv",
 ]
 
@@ -482,19 +493,19 @@ rule plot_map:
         f"{project_dir}/benchmarks/_parts/1.12_plot_map.tsv",
     script: "blueearth_cst/shared/plot_map.py"
 
-# 1.13  plot_forcing — plot the forcing on a map (parallel leaf)
+# 1.13  plot_forcing — the canonical climate set for the wflow forcing
+# (parallel leaf). Same figures as rule 1.15 draws for the source grid, so the
+# two directories answer "what did the downscaling change?" side by side.
 rule plot_forcing:
     message: rule_banner("1.13", "plot_forcing")
     input:
         forcing_path = f"{basin_dir}/forcing/inmaps_historical.nc",
-    # R07 B10 + O-24: the forcing/model-input QA figures move beside the forcing
-    # they describe, and all three of plot_map_forcing's PNGs are declared (the
-    # variable list at plot_map_forcing.py:168-172 is config-invariant, so the
-    # subset here is complete).
+    # R07 B10 + O-24: the forcing/model-input QA figures sit beside the forcing
+    # they describe, and ALL of them are declared — variable x kind is a fixed
+    # cross-product, so the list comes from climate_figures.figure_names()
+    # rather than being restated here.
     output:
-        output_forcing_map = f"{basin_dir}/forcing/plots/precip.png",
-        temp_map = f"{basin_dir}/forcing/plots/temp.png",
-        pet_map = f"{basin_dir}/forcing/plots/pet.png",
+        _forcing_climate_pngs,
     params:
         project_dir = f"{project_dir}",
         gauges_path = f"{basin_dir}/staticgeoms/outlets.geojson"
@@ -523,7 +534,7 @@ rule gather_benchmarks:
 # (R07 B4 / P4). Declared HERE ONLY: unlike rule 1.10 this is a single
 # declaration, so none of B1's two-DAG symmetry machinery applies.
 #
-# The whole subgraph of these three PNGs is rule 1.10 (whose sole input is the
+# The whole subgraph of these figures is rule 1.10 (whose sole input is the
 # tracked data catalog) plus this rule, so they build with NEITHER
 # hydrology_model/ NOR config/templates/wflow_build_model.yml on disk — the P4
 # assertion, pinned by tests/test_plot_climate_source.py.
@@ -544,9 +555,7 @@ rule plot_climate_source:
     input:
         **_source_plot_inputs,
     output:
-        precip_png = f"{store_dir}/plots/source_precip.png",
-        temp_png = f"{store_dir}/plots/source_temp.png",
-        pet_png = f"{store_dir}/plots/source_pet.png",
+        [f"{store_dir}/plots/{name}" for name in figure_names("source")],
     params:
         plot_dir = f"{store_dir}/plots",
         data_sources = DATA_SOURCES,

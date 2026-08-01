@@ -520,6 +520,21 @@ Provenance: `dev/r07/migration_project-layout.md` §§7a–7d,
 
 ## Cross-cutting — workflow ergonomics
 
+- **`tee_to_log` does not capture the traceback of a failing `script:` rule.**
+  *Surfaced 2026-08-01 while landing the canonical climate figure set.* A rule
+  that raises writes every `log_row`/INFO line to
+  `logs/_parts/<W.NN>_<rule>.log` and then stops **without the exception**. The
+  merged workflow log therefore ends mid-rule with no reason, and
+  `check log file(s) for error details` — which is the only thing Snakemake
+  prints — points at a file that does not contain them. The traceback does reach
+  Snakemake's own captured stderr, so it is visible on an interactive console
+  run and invisible in the artifact a user would send you. Cost a full
+  reproduce-outside-pytest cycle to recover a one-line `KeyError`.
+  *Fix:* have `tee_to_log` catch, write the formatted traceback into the log
+  part, and re-raise. Cheap and self-contained (`snake_utils.tee_to_log`), and
+  it improves every `script:` rule in all three workflows at once. Owner:
+  `python-engineer`. Activation: next time WF logging is touched.
+
 - **[PARKED 2026-07-19] Per-rule progress messages.** Add `message:`
   directives to the long-running rules so each announces itself in plain
   language when it starts (e.g. "Building Wflow model from global data…"),

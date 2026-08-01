@@ -261,7 +261,9 @@ def _snakemake(args, cfg_path):
 def test_source_figures_build_without_a_model(modelfree_project):
     """P4: the three source figures build with no model and no build template."""
     cfg_path, project_dir, store, absent_template = modelfree_project
-    targets = [store / "plots" / f"source_{v}.png" for v in ("precip", "temp", "pet")]
+    from blueearth_cst.climate_analysis.climate_figures import figure_names
+
+    targets = [store / "plots" / name for name in figure_names("source")]
     quoted = " ".join(f'"{t.as_posix()}"' for t in targets)
 
     # Seed the store's provenance so the producer is not re-run (it would fetch

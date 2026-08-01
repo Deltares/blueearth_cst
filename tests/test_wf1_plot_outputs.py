@@ -33,21 +33,25 @@ from pathlib import Path
 import pytest
 import yaml
 
+from blueearth_cst.climate_analysis.climate_figures import figure_names as _figure_names
+
 TESTDIR = Path(__file__).resolve().parent
 SNAKEDIR = TESTDIR.parent
 CONFIG_FN = TESTDIR / "snake_config_model_test.yml"
 
 
-#: The config-invariant subset O-24 declares, project-root-relative.
+#: The config-invariant subset O-24 declares, project-root-relative. The
+#: forcing entries come from climate_figures rather than being restated, so a
+#: change to the canonical set cannot leave this list quietly behind.
 DECLARED_PLOT_OUTPUTS = (
     "hydrology_model/evaluation/plots/hydro_wflow_1.png",
     "hydrology_model/evaluation/plots/clim_wflow_1_month.png",
     "hydrology_model/evaluation/plots/clim_wflow_1_year.png",
     "hydrology_model/evaluation/performance_metrics.csv",
     "hydrology_model/plots/basin_area.png",
-    "hydrology_model/forcing/plots/precip.png",
-    "hydrology_model/forcing/plots/temp.png",
-    "hydrology_model/forcing/plots/pet.png",
+) + tuple(
+    f"hydrology_model/forcing/plots/{name}"
+    for name in _figure_names("forcing")
 )
 
 
@@ -79,7 +83,7 @@ def fabricated_project(tmp_path):
     )
     store_plots = Path(spec.store_dir, "plots")
     expected = [project_dir / rel for rel in DECLARED_PLOT_OUTPUTS]
-    expected += [store_plots / f"source_{v}.png" for v in ("precip", "temp", "pet")]
+    expected += [store_plots / name for name in _figure_names("source")]
     # Knowingly UNDECLARED (config-dependent): it must survive, which is what
     # makes the assertion below a discriminating check rather than a tautology
     # about an emptied directory.

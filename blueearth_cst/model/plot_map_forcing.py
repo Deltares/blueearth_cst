@@ -1,177 +1,96 @@
-# -*- coding: utf-8 -*-
+"""Canonical climate figures for the wflow FORCING (rule 1.13).
+
+The model-grid half of the pair: ``hydrology_model/forcing/inmaps_historical.nc``
+is the same climate as the shared store's extraction, after the build's regrid,
+lapse/pressure corrections and PET derivation. Drawing it with the SAME figure
+set as the source grid (``climate_analysis.climate_figures``) is what makes
+"what did the downscaling change?" answerable by putting two directories side by
+side, which is why this module is now a thin caller rather than a plotter.
+
+This module owns only what is model-specific: loading the model, masking to the
+basin, and handing over the basin/river geometries as map overlays.
+
+Two things changed with the canonical set (2026-08), both deliberate:
+
+* **No more cartopy basemap tiles.** The previous ``plot_map_model`` called
+  ``cartopy.io.img_tiles.QuadtreeTiles``, i.e. a live tile request in the middle
+  of WF1. Rule 1.13 now needs no NETWORK. The basin/river context it bought is
+  drawn from the model's own geometries instead, and rule 1.12's
+  ``basin_area.png`` still provides the full satellite-backed map for anyone who
+  wants it (that rule keeps its cartopy dependency).
+* **Filenames carry the dataset.** ``precip.png`` became
+  ``forcing_precip_map.png`` and friends — see ``climate_figures.figure_names``.
 """
-Created on Thu Jan 13 16:23:11 2022
 
-@author: bouaziz
-"""
-
-# plot map
-
-import numpy as np
-from os.path import basename, join
 import os
+from os.path import basename, join
 from pathlib import Path
-from typing import Union
-import matplotlib.pyplot as plt
+from typing import Optional, Union
 
-# plot maps dependencies
-import matplotlib.patches as mpatches
-import cartopy.crs as ccrs
+from blueearth_cst.climate_analysis.climate_figures import (
+    CLIMATE_VARS,
+    plot_climate_figures,
+)
 
-# import descartes  # required to plot polygons
-import cartopy.io.img_tiles as cimgt
-
-from hydromt_wflow import WflowSbmModel
-
-from blueearth_cst.shared.snake_utils import save_figure
-
-
-def plot_map_model(mod, da, figname, gauges_name):
-    # read/derive river geometries
-    gdf_riv = mod.rivers
-    # read/derive model basin boundary
-    gdf_bas = mod.basins
-    geoms = mod.geoms.data
-    plt.style.use("seaborn-v0_8-whitegrid")  # set nice style
-    # we assume the model maps are in the geographic CRS EPSG:4326
-    proj = ccrs.PlateCarree()
-    # adjust zoomlevel and figure size to your basis size & aspect
-    zoom_level = 10
-    figsize = (10, 8)
-
-    # initialize image with geoaxes
-    fig = plt.figure(figsize=figsize)
-    ax = fig.add_subplot(projection=proj)
-    extent = np.array(da.raster.box.buffer(0.02).total_bounds)[[0, 2, 1, 3]]
-    ax.set_extent(extent, crs=proj)
-
-    # add sat background image
-    ax.add_image(cimgt.QuadtreeTiles(), zoom_level, alpha=0.5)
-
-    # plot da variables.
-    da.plot(
-        transform=proj,
-        ax=ax,
-        zorder=1,
-        cbar_kwargs=dict(aspect=30, shrink=0.8),
-    )
-    # NOTE: an `if shaded:` hillshade block sat here, carried over from the
-    # hydromt example notebook this function was adapted from. It was dead and
-    # broken on both counts: `shaded` was hardcoded False just above, and the
-    # body read `kwargs["norm"]` / `kwargs["cmap"]` although this function has
-    # never taken **kwargs (the upstream original did). Ruff F821 surfaced it.
-    # Removed rather than repaired -- reviving it would mean inventing a
-    # colormap the caller never supplied. Reinstate from upstream if hillshading
-    # is ever actually wanted.
-
-    # plot rivers with increasing width with stream order
-    gdf_riv.plot(
-        ax=ax, linewidth=gdf_riv["strord"] / 2, color="blue", zorder=3, label="river"
-    )
-    # plot the basin boundary
-    gdf_bas.boundary.plot(ax=ax, color="k", linewidth=0.3)
-    # plot various vector layers if present
-    if "outlets" in geoms:
-        geoms["outlets"].plot(
-            ax=ax, marker="d", markersize=25, facecolor="k", zorder=5, label="outlets"
-        )
-    if gauges_name in geoms:
-        geoms[gauges_name].plot(
-            ax=ax,
-            marker="d",
-            markersize=25,
-            facecolor="blue",
-            zorder=5,
-            label="output locs",
-        )
-    patches = (
-        []
-    )  # manual patches for legend, see https://github.com/geopandas/geopandas/issues/660
-    if "lakes" in geoms:
-        kwargs = dict(
-            facecolor="lightblue", edgecolor="black", linewidth=1, label="lakes"
-        )
-        geoms["lakes"].plot(ax=ax, zorder=4, **kwargs)
-        patches.append(mpatches.Patch(**kwargs))
-    if "reservoirs" in geoms:
-        kwargs = dict(
-            facecolor="blue", edgecolor="black", linewidth=1, label="reservoirs"
-        )
-        geoms["reservoirs"].plot(ax=ax, zorder=4, **kwargs)
-        patches.append(mpatches.Patch(**kwargs))
-    if "glaciers" in geoms:
-        kwargs = dict(facecolor="grey", edgecolor="grey", linewidth=1, label="glaciers")
-        geoms["glaciers"].plot(ax=ax, zorder=4, **kwargs)
-        patches.append(mpatches.Patch(**kwargs))
-
-    ax.xaxis.set_visible(True)
-    ax.yaxis.set_visible(True)
-    ax.set_ylabel("latitude [degree north]")
-    ax.set_xlabel("longitude [degree east]")
-    _ = ax.set_title("wflow base map")
-    ax.legend(
-        handles=[*ax.get_legend_handles_labels()[0], *patches],
-        title="Legend",
-        loc="lower right",
-        frameon=True,
-        framealpha=0.7,
-        edgecolor="k",
-        facecolor="white",
-    )
-
-    # save figure
-    save_figure(
-        os.path.join(Folder_plots, f"{figname}.png"), dpi=300, bbox_inches="tight"
-    )
+#: Rendered on every forcing figure, so it survives the file being copied out.
+_CAVEAT = (
+    "Wflow forcing on the model grid: the build's regrid, lapse/pressure "
+    "corrections and PET. Compare against the source_* figures to see what "
+    "downscaling changed."
+)
 
 
 def plot_forcing(
     wflow_root: Union[str, Path],
-    plot_dir=None,
-    gauges_name: str = None,
+    plot_dir: Optional[Union[str, Path]] = None,
+    gauges_name: Optional[str] = None,
 ):
-    """
-    Plot the wflow forcing in separate maps.
+    """Write the canonical climate figure set for the wflow forcing.
 
     Parameters
     ----------
-    wflow_root : Union[str, Path]
-        Path to the wflow model root folder
-    plot_dir : str, optional
-        Path to the output folder. If None (default), create a folder "plots"
-        in the wflow_root folder.
+    wflow_root : str | Path
+        The wflow model root (``hydrology_model/``).
+    plot_dir : str | Path, optional
+        Destination. Defaults to ``<wflow_root>/plots``; rule 1.13 passes
+        ``hydrology_model/forcing/plots`` so the figures sit beside the forcing
+        they describe (R07 B10).
     gauges_name : str, optional
-        Name of the gauges to plot. If None (default), no gauges are plot.
+        Staticgeoms layer name for the output locations, drawn on the map
+        figures when present. Absent or unresolvable simply means no markers.
     """
-    mod = WflowSbmModel(wflow_root, mode="r")
+    from hydromt_wflow import WflowSbmModel
 
-    # If plotting dir is None, create
+    mod = WflowSbmModel(str(wflow_root), mode="r")
     if plot_dir is None:
-        plot_dir = os.path.join(wflow_root, "plots")
-    if not os.path.exists(plot_dir):
-        os.makedirs(plot_dir)
+        plot_dir = os.path.join(str(wflow_root), "plots")
 
-    # Forcing variables to plot
-    forcing_vars = {
-        "precip": {"long_name": "precipitation", "unit": "mm y$^{-1}$"},
-        "pet": {"long_name": "potential evap.", "unit": "mm y$^{-1}$"},
-        "temp": {"long_name": "temperature", "unit": "degC"},
-    }
-
-    forcing_data = mod.forcing.data
+    forcing = mod.forcing.data
     staticmaps = mod.staticmaps.data
+    geoms = mod.geoms.data
 
-    # plot mean annual precip temp and potential evap.
-    for forcing_var, forcing_char in forcing_vars.items():
-        if forcing_var == "temp":
-            da = forcing_data[forcing_var].resample(time="YE").mean("time").mean("time")
-        else:
-            da = forcing_data[forcing_var].resample(time="YE").sum("time").mean("time")
-            da = da.where(da > 0)
-        da = da.where(staticmaps["subcatchment"] >= 0)
-        da.attrs.update(long_name=forcing_char["long_name"], units=forcing_char["unit"])
-        figname = f"{forcing_var}"
-        plot_map_model(mod, da, figname, gauges_name)
+    missing = [var for var in CLIMATE_VARS if var not in forcing]
+    if missing:
+        raise ValueError(
+            f"plot_forcing: {wflow_root} forcing is missing {missing}; the "
+            f"canonical climate set needs {list(CLIMATE_VARS)}"
+        )
+
+    # Mask to the modelled basin. Cells outside it carry forcing values (the
+    # forcing grid is rectangular) that are not part of the model's climate, and
+    # including them shifts every domain mean.
+    inside = staticmaps["subcatchment"] >= 0
+    ds = forcing[list(CLIMATE_VARS)].where(inside)
+
+    overlays = {"basins": mod.basins, "rivers": mod.rivers}
+    if "outlets" in geoms:
+        overlays["outlets"] = geoms["outlets"]
+    if gauges_name and gauges_name in geoms:
+        overlays["gauges"] = geoms[gauges_name]
+
+    return plot_climate_figures(
+        ds, plot_dir, "forcing", caveat=_CAVEAT, overlays=overlays
+    )
 
 
 if __name__ == "__main__":
@@ -180,22 +99,15 @@ if __name__ == "__main__":
         from blueearth_cst.shared.snake_utils import tee_to_log
 
         with tee_to_log(sm.log[0]):
-            # Parse snake options
             project_dir = sm.params.project_dir
             gauges_fn = sm.params.gauges_path
-            gauges_name = basename(gauges_fn).split(".")[0]
+            gauges_name = basename(str(gauges_fn)).split(".")[0]
 
             # R07 B10: forcing / model-input QA figures live beside the forcing
-            # they describe, inside the engine subtree. NOTE: plot_map_model()
-            # reads this as a module global (its `plot_dir` argument is only
-            # used to mkdir), so this assignment is what actually decides where
-            # the three PNGs land.
-            Folder_plots = f"{project_dir}/hydrology_model/forcing/plots"
-            root = f"{project_dir}/hydrology_model"
-
+            # they describe, inside the engine subtree.
             plot_forcing(
-                wflow_root=root,
-                plot_dir=Folder_plots,
+                wflow_root=f"{project_dir}/hydrology_model",
+                plot_dir=f"{project_dir}/hydrology_model/forcing/plots",
                 gauges_name=gauges_name,
             )
     else:

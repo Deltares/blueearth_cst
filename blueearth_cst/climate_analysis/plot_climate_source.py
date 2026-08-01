@@ -8,24 +8,29 @@ itself: the three figures build with **neither** ``hydrology_model/`` **nor**
 ``config/templates/wflow_build_model.yml`` on disk. That is the P4 assertion,
 pinned by ``tests/test_plot_climate_source.py``.
 
-Three climate-figure families now coexist (design § B4); this module owns the
-first, and its filenames are prefixed ``source_`` deliberately — a ``pet.png``
-copied into a report or picked up by a GUI collector loses its parent directory,
-and the ``hydrology_model/forcing/plots/pet.png`` it would collide with is a
-**deliberately different** value:
+Three climate-figure families coexist (design § B4). This module owns the first
+and rule 1.13 owns the second, and since 2026-08 BOTH are drawn by the same
+canonical set (``climate_figures``) so the two are directly comparable — every
+filename is prefixed by its dataset, because a bare ``pet.png`` copied into a
+report or picked up by a GUI collector loses its parent directory and the two
+are **deliberately different** values:
 
 ===============================  ======  ==================================
 Product                          Grid    Home
 ===============================  ======  ==================================
 source climate (this module)     source  ``climate_historical/<key>/plots/``
-model-parity climate (rule 1.11) model   ``hydrology_model/evaluation/plots/``
 forcing / model-input QA (1.13)  model   ``hydrology_model/forcing/plots/``
+model-parity climate (rule 1.11) model   ``hydrology_model/evaluation/plots/``
 ===============================  ======  ==================================
+
+The third stays outside the canonical set: it is keyed by STATION rather than by
+grid and answers a different question (climate beside the discharge it drove).
 
 **Source-grid PET need not match the build's PET, by design.** These are
 approximate quick assessments computed on the extraction grid against the
 *source* orography; the build's PET is the refined model input, derived on the
-model grid. The figures say so on their face.
+model grid. The figures say so on their face — which is exactly what the
+canonical set makes readable, since the same figure now exists on both sides.
 
 Plain matplotlib only: no cartopy basemap tiles, so the rule needs no network.
 """
@@ -33,12 +38,11 @@ Plain matplotlib only: no cartopy basemap tiles, so the rule needs no network.
 from pathlib import Path
 from typing import Optional, Union
 
-import matplotlib.pyplot as plt
-import numpy as np
 import xarray as xr
 
+from blueearth_cst.climate_analysis.climate_figures import plot_climate_figures
 from blueearth_cst.shared.climate_parity import model_parity_climate
-from blueearth_cst.shared.snake_utils import log_row, save_figure
+from blueearth_cst.shared.snake_utils import log_row
 
 #: Variables the parity/PET machinery needs off the extraction.
 PARITY_VARS = ("precip", "temp", "press_msl", "kin", "kout")
@@ -53,20 +57,6 @@ _PET_CAVEAT = (
     "Source-grid PET: differs from the model's PET input by design — that one "
     "is derived on the model grid from the model DEM."
 )
-
-#: One spec per figure: (variable, stem, label, unit, how to aggregate in time).
-#: "sum" reports a climatological annual total; "mean" a climatological mean.
-_FIGURES = (
-    ("precip", "source_precip", "precipitation", "mm y$^{-1}$", "sum"),
-    ("temp", "source_temp", "air temperature", "$\\degree$C", "mean"),
-    ("pet", "source_pet", "potential evaporation", "mm y$^{-1}$", "sum"),
-)
-
-
-def _space_dims(da: xr.DataArray):
-    """The non-time dimensions of ``da`` (the spatial ones, on this grid)."""
-    return [d for d in da.dims if d != "time"]
-
 
 def _drop_nonspatial(dem: xr.DataArray) -> xr.DataArray:
     """Strip scalar leftovers (notably ``time``) from a DEM, keeping ``spatial_ref``.
@@ -164,48 +154,6 @@ def source_grid_climate(
     )
 
 
-def _plot_variable(da: xr.DataArray, out_path, label: str, unit: str, how: str, extra=None):
-    """Render one figure: climatological map + monthly climatology."""
-    space = _space_dims(da)
-    yearly = da.resample(time="YE")
-    field = (yearly.sum("time") if how == "sum" else yearly.mean("time")).mean("time")
-    if how == "sum":
-        field = field.where(field > 0)
-    field = field.compute()
-
-    domain = da.mean(dim=space)
-    monthly = domain.resample(time="ME")
-    monthly = monthly.sum("time") if how == "sum" else monthly.mean("time")
-    monthly = monthly.groupby("time.month").mean("time").compute()
-
-    fig, (ax_map, ax_clim) = plt.subplots(1, 2, figsize=(11, 4.2))
-
-    field.attrs.update(long_name=label, units=unit)
-    field.plot(ax=ax_map, cbar_kwargs=dict(aspect=30, shrink=0.85, label=f"{label} [{unit}]"))
-    ax_map.set_title("climatological mean")
-    ax_map.set_xlabel("longitude [degree east]")
-    ax_map.set_ylabel("latitude [degree north]")
-
-    months = np.arange(1, 13)
-    values = monthly.reindex(month=months).values
-    if how == "sum":
-        ax_clim.bar(months, values, color="steelblue")
-        ax_clim.set_ylabel(f"{label} [mm month$^{{-1}}$]")
-    else:
-        ax_clim.plot(months, values, color="firebrick", marker="o", lw=0.9, ms=3)
-        ax_clim.set_ylabel(f"{label} [{unit}]")
-    ax_clim.set_xticks(months)
-    ax_clim.set_xlabel("month")
-    ax_clim.set_title("monthly climatology, domain mean")
-    ax_clim.grid(alpha=0.3)
-
-    caveat = _CAVEAT if extra is None else f"{_CAVEAT}\n{extra}"
-    fig.text(0.01, 0.01, caveat, fontsize=6.5, color="dimgray", va="bottom")
-    fig.tight_layout(rect=(0, 0.07, 1, 1))
-    save_figure(out_path, dpi=300)
-    plt.close(fig)
-
-
 def plot_climate_source(
     climate_nc: Union[str, Path],
     plot_dir: Union[str, Path],
@@ -213,7 +161,11 @@ def plot_climate_source(
     data_sources: Optional[Union[str, Path]] = None,
     clim_source: str = "era5",
 ):
-    """Write ``source_{precip,temp,pet}.png`` from the shared climate store.
+    """Write the canonical climate figure set from the shared climate store.
+
+    Derives ``precip``/``temp``/``pet`` on the extraction grid, then hands them
+    to ``climate_figures.plot_climate_figures`` as dataset ``source``. The file
+    names are that module's to define (``climate_figures.figure_names``).
 
     Parameters
     ----------
@@ -251,17 +203,17 @@ def plot_climate_source(
     # (era5/chirps/chirps_global) to debruin; eobs is rejected at DAG-parse time.
     ds_src = source_grid_climate(ds_raw, dem_source, pet_method="debruin")
 
-    plot_dir = Path(plot_dir)
-    for var, stem, label, unit, how in _FIGURES:
-        log_row(f"Plot source-grid {label}", module="plot")
-        _plot_variable(
-            ds_src[var],
-            plot_dir / f"{stem}.png",
-            label=label,
-            unit=unit,
-            how=how,
-            extra=_PET_CAVEAT if var == "pet" else None,
-        )
+    # The canonical set (climate_figures) draws these; this module's job ends at
+    # producing the dataset. The PET caveat rides along on every figure rather
+    # than only on the pet ones -- one caveat block per figure, and a reader
+    # comparing precip across the two directories should also know the PET on
+    # this side is source-grid.
+    return plot_climate_figures(
+        ds_src,
+        plot_dir,
+        "source",
+        caveat=f"{_CAVEAT}\n{_PET_CAVEAT}",
+    )
 
 
 if __name__ == "__main__":
