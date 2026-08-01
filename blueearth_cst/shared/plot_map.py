@@ -7,7 +7,6 @@ importable.
 """
 
 import os
-from os.path import basename
 
 import xarray as xr
 import numpy as np
@@ -21,28 +20,17 @@ import cartopy.io.img_tiles as cimgt
 from blueearth_cst.shared.snake_utils import save_figure
 
 
-def gauges_layer_name(gauges_fn):
-    """Staticgeoms layer name for ``output_locations``, or None when unset.
-
-    R07 O-08. ``output_locations`` is "unset" in two spellings: YAML ``null``
-    (Python ``None``) and the repo's unquoted ``None`` sentinel, which
-    ``yaml.safe_load`` parses to the **string** ``"None"``. The pre-R07 guard
-    tested only the former and then derived ``gauges_None`` from the latter — a
-    layer name that can never exist in ``geoms``, so the gauges were silently
-    dropped from the map instead of being deliberately omitted. Both spellings
-    now return None. The sentinel's on-disk spelling is unchanged; only this
-    reader learns to recognise it.
-    """
-    if gauges_fn is None or str(gauges_fn) == "None":
-        return None
-    return f'gauges_{basename(str(gauges_fn)).split(".")[0]}'
-
-
 def plot_basin_map(project_dir, gauges_fn, plot_dir=None):
-    """Render basin_area.png (DEM + rivers + basin + outlets/gauges/waterbodies)."""
+    """Render basin_area.png (DEM + rivers + basin + outlets/gauges/waterbodies).
+
+    The gauge layer is resolved from the MODEL (``shared.gauges``), not from the
+    configured filename: hydromt_wflow renames ``output_locations`` to
+    ``output-locations``, and deriving the name here is what silently dropped
+    the gauges from this figure (2026-08-01).
+    """
     from hydromt_wflow import WflowSbmModel
 
-    gauges_name = gauges_layer_name(gauges_fn)
+    from blueearth_cst.shared.gauges import gauges_layer_name
 
     if plot_dir is None:
         # R07 B10: basin_area.png depicts the MODEL, not its evaluation, so it
@@ -112,11 +100,14 @@ def plot_basin_map(project_dir, gauges_fn, plot_dir=None):
     gdf_bas.boundary.plot(ax=ax, color="k", linewidth=0.3)
     # plot various vector layers if present
     geoms = mod.geoms.data
+    # Resolved against what the model actually holds; warns loudly (never
+    # skips silently) when output_locations is set but no layer matches.
+    gauges_name = gauges_layer_name(geoms, gauges_fn)
     if "outlets" in geoms:
         geoms["outlets"].plot(
             ax=ax, marker="d", markersize=25, facecolor="k", zorder=5, label="outlets"
         )
-    if gauges_name is not None and gauges_name in geoms:
+    if gauges_name is not None:
         geoms[gauges_name].plot(
             ax=ax,
             marker="d",

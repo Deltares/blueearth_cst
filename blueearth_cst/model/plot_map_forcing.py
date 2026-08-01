@@ -23,7 +23,7 @@ Two things changed with the canonical set (2026-08), both deliberate:
 """
 
 import os
-from os.path import basename, join
+from os.path import join
 from pathlib import Path
 from typing import Optional, Union
 
@@ -43,7 +43,7 @@ _CAVEAT = (
 def plot_forcing(
     wflow_root: Union[str, Path],
     plot_dir: Optional[Union[str, Path]] = None,
-    gauges_name: Optional[str] = None,
+    gauges_fn: Optional[Union[str, Path]] = None,
 ):
     """Write the canonical climate figure set for the wflow forcing.
 
@@ -55,11 +55,15 @@ def plot_forcing(
         Destination. Defaults to ``<wflow_root>/plots``; rule 1.13 passes
         ``hydrology_model/forcing/plots`` so the figures sit beside the forcing
         they describe (R07 B10).
-    gauges_name : str, optional
-        Staticgeoms layer name for the output locations, drawn on the map
-        figures when present. Absent or unresolvable simply means no markers.
+    gauges_fn : str | Path, optional
+        The config's ``output_locations`` PATH. The staticgeoms layer is
+        resolved from the model (``shared.gauges``) rather than derived from
+        this name, and a configured file whose layer cannot be found warns
+        instead of skipping quietly.
     """
     from hydromt_wflow import WflowSbmModel
+
+    from blueearth_cst.shared.gauges import gauges_layer_name
 
     mod = WflowSbmModel(str(wflow_root), mode="r")
     if plot_dir is None:
@@ -85,8 +89,9 @@ def plot_forcing(
     overlays = {"basins": mod.basins, "rivers": mod.rivers}
     if "outlets" in geoms:
         overlays["outlets"] = geoms["outlets"]
-    if gauges_name and gauges_name in geoms:
-        overlays["gauges"] = geoms[gauges_name]
+    gauges_layer = gauges_layer_name(geoms, gauges_fn)
+    if gauges_layer is not None:
+        overlays["gauges"] = geoms[gauges_layer]
 
     return plot_climate_figures(
         ds, plot_dir, "forcing", caveat=_CAVEAT, overlays=overlays
@@ -100,15 +105,13 @@ if __name__ == "__main__":
 
         with tee_to_log(sm.log[0]):
             project_dir = sm.params.project_dir
-            gauges_fn = sm.params.gauges_path
-            gauges_name = basename(str(gauges_fn)).split(".")[0]
 
             # R07 B10: forcing / model-input QA figures live beside the forcing
             # they describe, inside the engine subtree.
             plot_forcing(
                 wflow_root=f"{project_dir}/hydrology_model",
                 plot_dir=f"{project_dir}/hydrology_model/forcing/plots",
-                gauges_name=gauges_name,
+                gauges_fn=sm.params.output_locations,
             )
     else:
         plot_forcing(

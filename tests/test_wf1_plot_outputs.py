@@ -35,6 +35,11 @@ import yaml
 
 from blueearth_cst.climate_analysis.climate_figures import figure_names as _figure_names
 
+#: A model's staticgeoms layers, spelled as hydromt_wflow actually writes them
+#: (`output_locations.csv` -> `gauges_output-locations`, note the HYPHEN).
+_GAUGES_LAYER = "gauges_output-locations"
+_GEOMS = {"basins", "rivers", "outlets", _GAUGES_LAYER}
+
 TESTDIR = Path(__file__).resolve().parent
 SNAKEDIR = TESTDIR.parent
 CONFIG_FN = TESTDIR / "snake_config_model_test.yml"
@@ -209,17 +214,25 @@ def test_river_discharge_alone_derives_no_basavg_figure():
 
 
 def test_gauges_layer_name_rejects_both_unset_spellings():
-    from blueearth_cst.shared.plot_map import gauges_layer_name
+    from blueearth_cst.shared.gauges import gauges_layer_name
 
-    assert gauges_layer_name(None) is None
-    assert gauges_layer_name("None") is None
+    assert gauges_layer_name(_GEOMS, None) is None
+    assert gauges_layer_name(_GEOMS, "None") is None
 
 
-def test_gauges_layer_name_derives_a_real_layer():
-    from blueearth_cst.shared.plot_map import gauges_layer_name
+def test_gauges_layer_name_resolves_a_real_layer():
+    """Resolved against the model, NOT derived from the filename.
 
-    assert gauges_layer_name("d/output_locations.csv") == "gauges_output_locations"
-    assert gauges_layer_name(Path("d/output_locations.csv")) == "gauges_output_locations"
+    This asserted ``gauges_output_locations`` until 2026-08-01 — the underscore
+    spelling hydromt never produces. The test agreed with the code and both were
+    wrong, which is why the real basin found the bug and the suite did not.
+    ``tests/test_gauges.py`` owns the resolution rules; this keeps the O-08
+    entry point covered from here.
+    """
+    from blueearth_cst.shared.gauges import gauges_layer_name
+
+    assert gauges_layer_name(_GEOMS, "d/output_locations.csv") == _GAUGES_LAYER
+    assert gauges_layer_name(_GEOMS, Path("d/output_locations.csv")) == _GAUGES_LAYER
 
 
 def test_the_shipped_sentinel_yields_no_layer():
@@ -233,7 +246,7 @@ def test_the_shipped_sentinel_yields_no_layer():
     for the string; if a real null ever stopped short-circuiting, it fires for
     that.
     """
-    from blueearth_cst.shared.plot_map import gauges_layer_name
+    from blueearth_cst.shared.gauges import gauges_layer_name
 
     cfg = yaml.safe_load(CONFIG_FN.read_text(encoding="utf-8"))
     sentinel = cfg["workflows"]["model_creation"]["output_locations"]
@@ -241,4 +254,4 @@ def test_the_shipped_sentinel_yields_no_layer():
         f"unexpected output_locations sentinel {sentinel!r} — if the config now "
         f"names a real file this test needs rethinking, not relaxing"
     )
-    assert gauges_layer_name(sentinel) is None
+    assert gauges_layer_name(_GEOMS, sentinel) is None

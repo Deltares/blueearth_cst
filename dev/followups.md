@@ -520,6 +520,28 @@ Provenance: `dev/r07/migration_project-layout.md` §§7a–7d,
 
 ## Cross-cutting — workflow ergonomics
 
+- **[FIXED 2026-08-01] The user's gauges were dropped in silence, everywhere.**
+  *Found on a real basin run (`C:/TESTS/CST/gabon_0108`), reported by Ümit as
+  "output locations missing from the spatial plots".* hydromt_wflow's
+  `setup_gauges` normalizes the basename — `.replace("_", "-")`,
+  `wflow_base.py` — so `output_locations.csv` becomes `output-locations` in the
+  staticgeoms layer, the wflow TOML `map`, and the parsed output columns. Three
+  of our readers derived that name from the FILENAME and missed the
+  substitution; every lookup was a membership test used as a guard
+  (`if name in geoms:`), so all three failed **silently**. Damage: gauges absent
+  from `basin_area.png`, no gauge hydrographs, no signature plots, and an EMPTY
+  `performance_metrics.csv` on a config that supplied observations — while
+  `output.csv` held all four stations correctly, because wflow reads the TOML
+  instead of guessing. Rule 1.13 had a second, independent instance: it passed
+  `staticgeoms/outlets.geojson` as its gauges param, so a configured
+  `output_locations` was never even attempted there.
+  *Fixed* by `blueearth_cst/shared/gauges.py`: resolve the layer and variable
+  from the MODEL, and WARN (never skip) when a configured file cannot be
+  resolved. **This is the second instance of the class** — R07 O-08 was the
+  same shape with a different cause (the `"None"` sentinel). Both times a
+  membership test doubled as a guard. Worth a sweep: any `if <derived name> in
+  <mapping>:` where the name comes from config is a silent-drop candidate.
+
 - **`tee_to_log` does not capture the traceback of a failing `script:` rule.**
   *Surfaced 2026-08-01 while landing the canonical climate figure set.* A rule
   that raises writes every `log_row`/INFO line to

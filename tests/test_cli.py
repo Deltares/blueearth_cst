@@ -174,10 +174,11 @@ def test_both_sentinel_spellings_are_treated_as_unset():
     plot_map derives a layer NAME (an explicit string check, O-08), while the
     other two guard on file existence.
     """
-    from blueearth_cst.shared.plot_map import gauges_layer_name
+    from blueearth_cst.shared.gauges import gauges_layer_name
 
+    geoms = {"basins", "outlets", "gauges_my-stations"}
     for unset in (None, "None"):
-        assert gauges_layer_name(unset) is None, unset
+        assert gauges_layer_name(geoms, unset) is None, unset
         # The existence-based guards: neither spelling names a real file, so
         # both take the skip branch. `os.path.isfile(None)` would raise, which
         # is why the `is not None` half has to come first in those callers.
@@ -185,7 +186,8 @@ def test_both_sentinel_spellings_are_treated_as_unset():
 
     # And a real path is still recognised, so the assertions above are not just
     # "everything is falsy".
-    assert gauges_layer_name("gauges/my_stations.csv") == "gauges_my_stations"
+    # And a configured file still resolves — hydromt spells it with a HYPHEN.
+    assert gauges_layer_name(geoms, "gauges/my_stations.csv") == "gauges_my-stations"
 
 
 def test_eobs_config_fails_wf1_dry_run_at_parse_time(tmp_path):
