@@ -4,11 +4,17 @@
   R07, rule 1.13 wrote three PNGs and declared one, and rule 1.11 wrote
   ``clim_wflow_1_{month,year}.png`` + ``performance_metrics.csv`` and declared
   none of them; undeclared outputs survive ``--delete-all-output`` and are
-  invisible to the baseline. The claim is scoped to the **seed-config class**:
-  ``plot_basavg``'s per-``wflow_outvars`` PNGs, ``signatures_{station}.png`` and
-  the per-station ``clim_{station}_{period}.png`` stay knowingly undeclared
-  (design § "O-24 scope, stated"), so this asserts the config-invariant subset
-  and nothing wider.
+  invisible to the baseline. The claim is scoped to configs without extra
+  gauges: ``signatures_{station}.png`` and the per-station
+  ``clim_{station}_{period}.png`` stay undeclared because their COUNT is the
+  model's outlet/subcatchment count — a rule-1.03 product, unknown at parse
+  time — so this asserts the config-invariant subset and nothing wider.
+
+* ``test_delete_all_output_removes_a_basavg_figure`` — the half of O-24 that
+  IS derivable. ``plot_basavg``'s PNGs are a pure function of
+  ``wflow_outvars``, so rule 1.11 declares them (2026-08-01); this proves the
+  derivation reaches ``--delete-all-output`` for a config that has one, and the
+  seed config (``wflow_outvars: ["river discharge"]``) still declares none.
 
 * ``test_gauges_layer_name_*`` — O-08. ``output_locations: None`` in the shipped
   configs is unquoted YAML, i.e. the Python **string** ``"None"``. The pre-R07
@@ -107,6 +113,88 @@ def test_delete_all_output_removes_the_declared_plot_outputs(fabricated_project)
         "the knowingly-undeclared control file was removed too — the assertion "
         "above no longer discriminates declared from undeclared outputs"
     )
+
+
+#: What rule 1.11 derives from wflow_outvars: the CSV column name verbatim,
+#: spaces and all (func_plot_signature.plot_basavg writes f"{dvar}.png").
+_BASAVG_REL = (
+    "hydrology_model/evaluation/plots/actual evapotranspiration_basavg.png"
+)
+
+
+@pytest.fixture()
+def project_with_basavg_outvar(tmp_path):
+    """A project whose wflow_outvars asks for a basin-average output.
+
+    The seed config is discharge-only, so nothing in the suite would otherwise
+    exercise the derivation — or the fact that the derived filename contains a
+    SPACE, which every consumer of a declared output has to survive.
+    """
+    cfg = yaml.safe_load(CONFIG_FN.read_text(encoding="utf-8"))
+    project_dir = tmp_path / "proj"
+    project_dir.mkdir()
+    cfg["project"]["project_dir"] = project_dir.as_posix()
+    cfg["workflows"]["model_creation"]["wflow_outvars"] = [
+        "river discharge",
+        "actual evapotranspiration",
+    ]
+    cfg_path = tmp_path / "snake_config_basavg.yml"
+    cfg_path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+
+    basavg = project_dir / _BASAVG_REL
+    basavg.parent.mkdir(parents=True, exist_ok=True)
+    basavg.write_bytes(b"placeholder")
+    # Same control as the fixture above: an undeclared sibling must survive.
+    undeclared = project_dir / "hydrology_model/evaluation/plots/signatures_wflow_1.png"
+    undeclared.write_bytes(b"placeholder")
+    return cfg_path, basavg, undeclared
+
+
+@pytest.mark.skipif(shutil.which("snakemake") is None, reason="snakemake not on PATH")
+def test_delete_all_output_removes_a_basavg_figure(project_with_basavg_outvar):
+    cfg_path, basavg, undeclared = project_with_basavg_outvar
+
+    result = subprocess.run(
+        "snakemake all --delete-all-output --workflow-profile none -c 1 "
+        f'-s Snakefile_model_creation --configfile "{cfg_path}"',
+        shell=True,
+        capture_output=True,
+        text=True,
+        cwd=str(SNAKEDIR),
+    )
+    combined = (result.stdout or "") + (result.stderr or "")
+    assert result.returncode == 0, combined[-4000:]
+    assert not basavg.exists(), (
+        f"{basavg.name} survived --delete-all-output, so rule 1.11 is not "
+        "really declaring the wflow_outvars-derived figures"
+    )
+    assert undeclared.is_file(), (
+        "the undeclared control file was removed too — the assertion above no "
+        "longer discriminates declared from undeclared outputs"
+    )
+
+
+def test_river_discharge_alone_derives_no_basavg_figure():
+    """The exclusions are load-bearing, so pin them without a snakemake run.
+
+    'river discharge' never gets a basavg column (rule 1.05 filters it out of
+    the basin-average setup), and 'precipitation' gets one that plot_results
+    drops before plotting — so neither may contribute a declared output.
+    """
+    source = (SNAKEDIR / "Snakefile_model_creation").read_text(encoding="utf-8")
+    # Read the derivation out of the Snakefile rather than restating it here,
+    # so a change to the exclusion tuple is caught instead of duplicated.
+    namespace = {}
+    for line in source.splitlines():
+        if line.startswith("_WFLOW_OUTVARS_WITHOUT_BASAVG_PLOT"):
+            exec(line, namespace)  # noqa: S102 - a literal tuple from our own tree
+            break
+    excluded = namespace["_WFLOW_OUTVARS_WITHOUT_BASAVG_PLOT"]
+    assert set(excluded) == {"river discharge", "precipitation"}
+    assert [v for v in ["river discharge"] if v not in excluded] == []
+    assert [
+        v for v in ["river discharge", "actual evapotranspiration"] if v not in excluded
+    ] == ["actual evapotranspiration"]
 
 
 # --------------------------------------------------------------------------- #

@@ -135,13 +135,29 @@ Provenance: `dev/r07/migration_project-layout.md` §§7a–7d,
   `blueearth_cst.model`, pinned by a test that walks the package's ASTs so the
   convention cannot drift back silently.
 
-- **[R7-5] O-24 is deliberately incomplete.** `plot_basavg` (one PNG per
-  `wflow_outvars` entry), `signatures_{station}.png` and per-station
-  `clim_{station}_{period}.png` remain **knowingly undeclared** — they are
-  config-dependent, and deriving the list at parse time is a rule-shape change
-  R7 rejected as out of scope. Consequence: on a config with gauges,
-  observations or basin-average outvars, `--delete-all-output` still cannot
-  clean them and stale figures survive a rerun.
+- **[R7-5] O-24 is partially closed; its premise was wrong.** *Basin-average
+  half FIXED 2026-08-01.* Rule 1.11 now derives `plot_basavg`'s PNGs from
+  `wflow_outvars` and declares them — excluding `river discharge` (rule 1.05
+  filters it out of the basin-average setup) and `precipitation` (whose column
+  `plot_results` drops before plotting). Verified reaching
+  `--delete-all-output`, including the fact that the derived filename carries
+  the config's spelling **with spaces** (`actual evapotranspiration_basavg.png`)
+  and that Snakemake handles it as a declared output and an explicit target.
+
+  **The rest cannot be closed the way this entry assumed.** It claimed all
+  three families were derivable "at parse time from `wflow_outvars` /
+  `output_locations`". They are not: `hydro_{station}.png` and
+  `clim_{station}_{period}.png` are counted by the model's OUTLETS and
+  SUBCATCHMENTS — a rule-1.03 product read back through `Q_outlets` / the
+  subcatchment map, unknown until the model is built, with `output_locations`
+  contributing only the extra gauge stations on top. `signatures_{station}.png`
+  is narrower still: it also needs observations AND a run longer than a year
+  (`plot_results.do_signatures`), so it is data-conditional, not merely
+  config-conditional. Closing those needs a `checkpoint` or a `directory()`
+  output — a real rule-shape change, not the enumeration this entry imagined.
+  Consequence, unchanged for those families: on a config with extra gauges or
+  observations, `--delete-all-output` still cannot clean them and stale figures
+  survive a rerun.
 
 - **[R7-6] ~~Declaring `clim_wflow_1_*` made rule 1.11 newly able to fail.~~
   FIXED 2026-08-01** — the failure still happens, but no longer at rule 1.11 and

@@ -389,6 +389,26 @@ _wf1_plot_clim_inputs = {"climate_nc": CLIMATE_STORE.outputs["climate_nc"]}
 if clim_source in ("chirps", "chirps_global"):
     _wf1_plot_clim_inputs["oro_nc"] = CLIMATE_STORE.outputs["oro_nc"]
 
+# O-24, basin-average half. The ONE plot_results family that is a pure function
+# of config, so it is declared rather than left undeclared.
+#
+# Two exclusions, both load-bearing — do not "simplify" either away:
+#  - "river discharge" never gets a basavg column at all. Rule 1.05 covers it
+#    via setup_outlets/setup_gauges and filters it out of the basin-average
+#    setup (setup_gauges_and_outputs.py, `extras`).
+#  - "precipitation" DOES get a column, and plot_results drops it before
+#    plotting (plot_results.py, `drop_vars("precipitation_basavg")`), so the
+#    figure is never written.
+# The filename is the CSV column name verbatim (func_plot_signature.plot_basavg
+# writes f"{dvar}.png"), which is why it carries the config's spelling, spaces
+# included.
+_WFLOW_OUTVARS_WITHOUT_BASAVG_PLOT = ("river discharge", "precipitation")
+_basavg_pngs = [
+    f"{basin_dir}/evaluation/plots/{var}_basavg.png"
+    for var in wflow_outvars
+    if var not in _WFLOW_OUTVARS_WITHOUT_BASAVG_PLOT
+]
+
 rule plot_results:
    message: rule_banner("1.11", "plot_results")
    input:
@@ -399,15 +419,25 @@ rule plot_results:
    # (P1): figures under evaluation/plots/, the metrics table one level up in
    # evaluation/, because plots/ holds figures only.
    #
-   # O-24 declares the CONFIG-INVARIANT SUBSET only, and deliberately stops
-   # there. plot_results.py also drives plot_basavg (one PNG per basin-average
-   # entry in wflow_outvars), plot_signatures (signatures_{station}.png, only
-   # when observations exist and nb_years >= 5), and clim_{station}_{period}.png
-   # is per-station -- so a config with real gauges writes clim_wflow_2..N_*.
-   # Those stay knowingly undeclared: deriving the list at parse time from
-   # wflow_outvars / output_locations is a rule-shape change beyond this
-   # milestone (design § "O-24 scope, stated"). `--delete-all-output`
-   # completeness is therefore claimed for the seed-config class only.
+   # O-24, restated 2026-08-01 after checking what is actually derivable.
+   #
+   # DECLARED: the config-invariant subset below, plus `_basavg_pngs` — one PNG
+   # per basin-average entry in wflow_outvars, a pure function of config.
+   #
+   # STILL UNDECLARED, and NOT for want of effort: hydro_{station}.png,
+   # clim_{station}_{month,year}.png and signatures_{station}.png. R7-5 assumed
+   # these could be derived at parse time "from wflow_outvars /
+   # output_locations". They cannot. Their count is the number of model OUTLETS
+   # and SUBCATCHMENTS, which is a product of the model build (rule 1.03, read
+   # back through Q_outlets / the subcatchment map) — unknown until rule 1.03
+   # has run, and output_locations contributes only the extra gauge stations on
+   # top. signatures_* is narrower still: it also requires observations AND a
+   # run longer than a year (plot_results.py `do_signatures`), so it is
+   # data-conditional, not merely config-conditional.
+   #
+   # Closing those needs a checkpoint or a directory() output, i.e. a real
+   # rule-shape change, not the enumeration R7-5 imagined. `--delete-all-output`
+   # completeness therefore still holds only for configs without extra gauges.
    #
    # KNOWN CONSEQUENCE of declaring the two clim_wflow_1_* figures: they are
    # written only when the store's extraction is present AND covers >= 365
@@ -421,6 +451,7 @@ rule plot_results:
        clim_month_png = f"{basin_dir}/evaluation/plots/clim_wflow_1_month.png",
        clim_year_png = f"{basin_dir}/evaluation/plots/clim_wflow_1_year.png",
        metrics_csv = f"{basin_dir}/evaluation/performance_metrics.csv",
+       basavg_pngs = _basavg_pngs,
    params:
        project_dir = f"{project_dir}",
        observations_file = observations_timeseries,
