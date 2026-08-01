@@ -48,6 +48,53 @@ OUTLETS_LAYER = "outlets"
 #: Prefix hydromt_wflow gives every gauge-derived staticgeoms layer.
 GAUGES_PREFIX = "gauges_"
 
+#: Lowest ``wflow_id`` a user gauge should carry
+#: (``config/templates/observations/README.md``). These ids become wflow output
+#: columns (``Q_101``) and burned-in values in the derived
+#: ``subcatchment_<name>`` map, sharing a namespace with the model's own outlet
+#: subcatchment ids (large, from the hydrography) and with the positional
+#: ``wflow_1``/``wflow_2`` labels the evaluation figures generate for outlets.
+#: A small id makes ``Q_1`` ambiguous with the first positional outlet on sight.
+#:
+#: A CONVENTION, not a constraint: lower ids work, so an existing dataset keeps
+#: running. Only the silence was the problem — a user who renumbers the template
+#: and not their data has no way to notice.
+MIN_GAUGE_ID = 100
+
+
+def warn_if_low_gauge_ids(ids, source) -> list:
+    """Warn about gauge ids below :data:`MIN_GAUGE_ID`; return the offenders.
+
+    Parameters
+    ----------
+    ids : iterable
+        The ``wflow_id`` values. Non-integer entries are ignored rather than
+        raising — this is an advisory read of user data, not a schema check.
+    source : str | Path
+        The file they came from, named in the warning so it is actionable.
+    """
+    low = []
+    for value in ids:
+        try:
+            number = int(value)
+        except (TypeError, ValueError):
+            continue
+        if number < MIN_GAUGE_ID:
+            low.append(number)
+    if low:
+        warnings.warn(
+            f"{source} carries wflow_id values below {MIN_GAUGE_ID}: "
+            f"{sorted(low)}. The convention is to start at {MIN_GAUGE_ID} "
+            f"(100, 101, 102, ...) so a gauge id cannot be read as one of the "
+            f"positional wflow_N outlet labels — a column named Q_1 is "
+            f"ambiguous, Q_101 is not. Nothing rejects these ids; renumbering "
+            f"means changing output_locations AND the timeseries column "
+            f"headers together, then rebuilding from rule 1.05, because "
+            f"setup_gauges writes the ids into the model.",
+            stacklevel=2,
+        )
+    return low
+
 
 def is_unset(gauges_fn) -> bool:
     """Is ``output_locations`` "not provided"?

@@ -4,7 +4,7 @@ from os.path import join, dirname
 from pathlib import Path
 from typing import Union, Mapping, Optional
 
-from blueearth_cst.shared.gauges import is_unset
+from blueearth_cst.shared.gauges import is_unset, warn_if_low_gauge_ids
 from blueearth_cst.shared.snake_utils import log_row
 
 
@@ -55,6 +55,31 @@ def copy_config_files(
             log_row(f"Copying {config_name} to {dest_dir}", module="config")
             with open(join(dest_dir, config_name), "w") as f:
                 f.write(content)
+
+
+def _warn_on_low_gauge_ids(locations_path):
+    """Advisory read of ``output_locations`` for the wflow_id convention.
+
+    Rule 1.01 is the earliest point that sees this file, so a warning here
+    reaches the user BEFORE rule 1.05 writes the ids into the model and a
+    renumbering would cost a rebuild.
+
+    CSV only, and every failure is swallowed: hydromt accepts several formats
+    (GeoJSON, a catalog entry name) and owns the actual reading. Re-implementing
+    that here would be exactly the "re-engineer how hydromt handles data" this
+    repo forbids. A format we cannot cheaply parse simply goes unchecked --
+    an advisory that skips is fine; one that breaks a valid run is not.
+    """
+    if os.path.splitext(str(locations_path))[1].lower() != ".csv":
+        return
+    try:
+        import pandas as pd
+
+        frame = pd.read_csv(locations_path)
+        if "wflow_id" in frame.columns:
+            warn_if_low_gauge_ids(frame["wflow_id"].tolist(), locations_path)
+    except Exception:  # noqa: BLE001 - advisory only; never fail the rule
+        return
 
 
 if __name__ == "__main__":
@@ -117,6 +142,8 @@ if __name__ == "__main__":
                         f"otherwise skip it without saying so."
                     )
                 other_config_files[str(path)] = observations_dir
+                if key == "output_locations":
+                    _warn_on_low_gauge_ids(path)
 
         # Call the main function
         copy_config_files(

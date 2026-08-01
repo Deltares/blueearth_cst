@@ -111,3 +111,45 @@ def test_an_ambiguous_set_warns_rather_than_guessing():
 def test_a_missing_variable_warns_too():
     with pytest.warns(UserWarning, match="Q variable"):
         assert gauges_variable_name({"Q_outlets"}, CONFIGURED) is None
+
+
+# --- the wflow_id convention -----------------------------------------------
+
+def test_low_gauge_ids_warn_and_are_returned():
+    """A CONVENTION, not a constraint -- so it warns and names the offenders
+    rather than rejecting a dataset that works."""
+    from blueearth_cst.shared.gauges import warn_if_low_gauge_ids
+
+    with pytest.warns(UserWarning, match="below 100"):
+        low = warn_if_low_gauge_ids([1, 2, 3, 4], "output_locations.csv")
+    assert low == [1, 2, 3, 4]
+
+
+def test_the_warning_says_what_renumbering_costs():
+    """Renumbering without a rebuild silently desyncs the ids from the model,
+    so the warning has to say so or it invites exactly that mistake."""
+    from blueearth_cst.shared.gauges import warn_if_low_gauge_ids
+
+    with pytest.warns(UserWarning) as caught:
+        warn_if_low_gauge_ids([1], "obs/output_locations.csv")
+    message = str(caught[0].message)
+    assert "obs/output_locations.csv" in message
+    assert "rule 1.05" in message
+    assert "timeseries column" in message
+
+
+def test_conforming_ids_are_silent():
+    from blueearth_cst.shared.gauges import warn_if_low_gauge_ids
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert warn_if_low_gauge_ids([100, 101, 102], "x.csv") == []
+
+
+def test_non_integer_ids_are_ignored_rather_than_raising():
+    """An advisory read of user data must not become a schema check."""
+    from blueearth_cst.shared.gauges import warn_if_low_gauge_ids
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert warn_if_low_gauge_ids([None, "", "abc", 101], "x.csv") == []
