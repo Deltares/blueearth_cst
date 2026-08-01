@@ -22,10 +22,11 @@ shared:
 workflows:
   model_creation:
     enabled: true
-    # Unquoted None -> the Python string "None", never YAML null. The
-    # consumers guard on file existence; real basin data lives outside the
-    # repository and is referenced by absolute path. Schemas to copy:
-    # config/templates/observations/
+    # Both optional; `null` means "not provided". A legacy config may spell it
+    # as an unquoted `None` (the Python STRING, not YAML null) -- still
+    # tolerated, because every consumer guards on file existence. Real basin
+    # data lives outside the repository and is referenced by absolute path.
+    # Schemas to copy: config/templates/observations/
     output_locations: null
     observations_timeseries: null
   climate_projections:

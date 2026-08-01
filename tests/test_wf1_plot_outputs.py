@@ -16,11 +16,13 @@
   derivation reaches ``--delete-all-output`` for a config that has one, and the
   seed config (``wflow_outvars: ["river discharge"]``) still declares none.
 
-* ``test_gauges_layer_name_*`` — O-08. ``output_locations: None`` in the shipped
-  configs is unquoted YAML, i.e. the Python **string** ``"None"``. The pre-R07
-  guard tested only ``is not None`` and derived the layer name ``gauges_None``,
-  which can never exist in ``geoms`` — so the gauges were dropped silently
-  rather than deliberately.
+* ``test_gauges_layer_name_*`` — O-08. An unquoted ``output_locations: None``
+  is YAML for the Python **string** ``"None"``. The pre-R07 guard tested only
+  ``is not None`` and derived the layer name ``gauges_None``, which can never
+  exist in ``geoms`` — so the gauges were dropped silently rather than
+  deliberately. The shipped configs moved to a real ``null`` in 2026-08, but the
+  string stays tolerated for project configs still carrying it, so both
+  spellings must keep resolving to "unset".
 """
 from __future__ import annotations
 
@@ -216,15 +218,23 @@ def test_gauges_layer_name_derives_a_real_layer():
     assert gauges_layer_name(Path("d/output_locations.csv")) == "gauges_output_locations"
 
 
-def test_shipped_sentinel_is_the_string_none_and_yields_no_layer():
-    """The sentinel's on-disk spelling is unchanged; only the reader learned it.
+def test_the_shipped_sentinel_yields_no_layer():
+    """Whatever spelling the shipped config uses, it must resolve to "unset".
 
-    Guards both halves at once: if someone "fixes" the config to YAML ``null``
-    the first assertion fires, and if someone reverts the guard the second does.
+    Was pinned to the STRING "None" until 2026-08; the shipped configs now use a
+    real YAML null and the string survives only as a tolerated legacy spelling
+    (tests/test_cli.py owns both halves of that). What matters HERE is narrower
+    and does not care which spelling won: the value the config actually carries
+    must not produce a layer name. If someone reverts the O-08 guard, this fires
+    for the string; if a real null ever stopped short-circuiting, it fires for
+    that.
     """
     from blueearth_cst.shared.plot_map import gauges_layer_name
 
     cfg = yaml.safe_load(CONFIG_FN.read_text(encoding="utf-8"))
     sentinel = cfg["workflows"]["model_creation"]["output_locations"]
-    assert sentinel == "None" and isinstance(sentinel, str)
+    assert sentinel in (None, "None"), (
+        f"unexpected output_locations sentinel {sentinel!r} — if the config now "
+        f"names a real file this test needs rethinking, not relaxing"
+    )
     assert gauges_layer_name(sentinel) is None

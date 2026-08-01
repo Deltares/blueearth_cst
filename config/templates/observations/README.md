@@ -6,19 +6,22 @@ config at the copies by **absolute path** — real basin data lives in the proje
 folder, never in this repository (see `AGENTS.md` § Repo Map, the two-tier
 `project_dir` rule).
 
-Both inputs are optional. To run without them, leave the config keys at the
-`None` sentinel:
+Both inputs are optional. To run without them, set the config keys to `null`:
 
 ```yaml
 workflows:
   model_creation:
-    output_locations: None
-    observations_timeseries: None
+    output_locations: null
+    observations_timeseries: null
 ```
 
-**Write `None` unquoted and exactly so.** Unquoted `None` parses to the Python
-string `"None"`, not YAML `null`; the consumers guard on file existence, and a
-real `null` is a different code path. Do not "fix" it to `null` or `~`.
+**Legacy spelling.** Older configs write an unquoted `None`, which YAML parses
+to the Python **string** `"None"` rather than to null. That still works and is
+not something you need to migrate: every consumer guards on file existence, so
+a path that is not a file is skipped either way, and `plot_map.py` recognises
+the string explicitly. Prefer `null` in new configs — it means what it looks
+like, whereas a bare `None` reads as a null and is not one. That gap is what
+produced the `gauges_None` layer-name bug the explicit check now guards.
 
 ## `output_locations.csv`
 
@@ -48,6 +51,6 @@ own `wflow_id` values and add one column per station.
 
 `blueearth_cst/model/setup_gauges_and_outputs.py` (gauge setup) and
 `blueearth_cst/model/plot_results.py` (evaluation figures and
-`performance_metrics.csv`). Both check file existence before reading, so an
-absent or `None`-sentinel path skips the observation-dependent outputs rather
-than failing the run.
+`performance_metrics.csv`). Both check file existence before reading, so a
+`null`, a legacy `None`, or a path that simply is not there all skip the
+observation-dependent outputs rather than failing the run.
