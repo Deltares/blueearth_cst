@@ -5,7 +5,8 @@ from pathlib import Path
 # directory by prepending this Snakefile's own directory to sys.path.
 # See dev/milestones/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
-from blueearth_cst.shared.snake_utils import DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, DEFAULT_JULIA_THREADS, climate_store_spec, get_config, julia_prefix, patch_psutil_windows_benchmark, rule_banner, target_banner, validate_historical_window, warn_if_project_dir_in_repo
+from blueearth_cst.shared.snake_utils import DEFAULT_JULIA_THREADS, climate_store_spec, get_config, julia_prefix, patch_psutil_windows_benchmark, rule_banner, target_banner, validate_historical_window, warn_if_project_dir_in_repo
+from blueearth_cst.spatial.config import parse_spatial_config
 # The canonical climate figure set (rules 1.13 and 1.15 both draw it). Imported
 # for figure_names() ONLY, so every figure is declared from the same list the
 # plotter writes from and the two cannot drift.
@@ -42,15 +43,16 @@ DATA_SOURCES = get_config(project_cfg, "data_sources", optional=False)
 
 # Shared — multi-workflow scientific knobs
 basin_cfg = shared_cfg["basin"]
+spatial_cfg = parse_spatial_config(basin_cfg, my_cfg)
 model_region = get_config(basin_cfg, "region", optional=False)
-model_resolution = get_config(basin_cfg, "resolution", 0.00833333)
+model_resolution = spatial_cfg.resolution
 # Catalog ENTRY NAMES for the model-free basin delineation the shared climate
 # store uses (R07 B1 / ext1-01). Both OPTIONAL: the defaults equal the shipped
 # build template's setup_basemaps values, so a config that declares neither is
 # unaffected and rule 3.00b's guard digest stays byte-identical. Rule 1.02
 # cross-checks them against the template and fails loud on a disagreement.
-basin_hydrography = get_config(basin_cfg, "hydrography", DEFAULT_HYDROGRAPHY)
-basin_index = get_config(basin_cfg, "basin_index", DEFAULT_BASIN_INDEX)
+basin_hydrography = spatial_cfg.hydrography
+basin_index = spatial_cfg.basin_index
 historical_window = get_config(shared_cfg, "historical_window", optional=False)
 # ONE minimum window for the whole toolbox — snake_utils.MIN_HISTORICAL_YEARS
 # (16), set by weathergenr's wavelet minimum and enforced identically here and
@@ -86,15 +88,16 @@ if clim_source == "eobs":
 wflow_outvars = get_config(my_cfg, "wflow_outvars", ['river discharge', 'actual evapotranspiration'])
 model_build_config = get_config(my_cfg, "model_build_config", f"{static_dir}/templates/wflow_build_model.yml")
 waterbodies_config = get_config(my_cfg, "waterbodies_config", f"{static_dir}/templates/wflow_update_waterbodies.yml")
-output_locations = get_config(my_cfg, "output_locations", None)
+output_locations = spatial_cfg.gauge_points_path
 observations_timeseries = get_config(my_cfg, "observations_timeseries", None)
 
 # The two OPTIONAL observation inputs, declared as real `input:` entries when
-# configured and omitted entirely when not.
+# configured and omitted entirely when not. `output_locations` is the internal
+# compatibility name; its canonical config source is shared.basin.gauge_points.
 #
 # They were `params:` until 2026-08-02, carrying the PATH. Snakemake's params
 # trigger compares the value, so editing the FILE changed nothing it could see:
-# renumbering output_locations left rule 1.05's model gauges on the old ids
+# renumbering the gauge-point file left rule 1.05's model gauges on the old ids
 # while the observations moved to the new ones, the join then matched nothing,
 # and performance_metrics.csv emptied without a word. As `input:` the content
 # mtime-triggers 1.05 (which writes the ids into the model) and 1.11 (which

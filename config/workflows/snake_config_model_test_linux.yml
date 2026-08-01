@@ -14,6 +14,9 @@ shared:
   basin:
     region: "{'subbasin': [9.666, 0.4476], 'uparea': 100}"
     resolution: 0.0062475
+    gauge_points: null
+    automatic_subbasins:
+      max_count: 20
   historical_window:
     starttime: "2000-01-01T00:00:00"
     endtime: "2020-12-31T00:00:00"
@@ -22,12 +25,8 @@ shared:
 workflows:
   model_creation:
     enabled: true
-    # Both optional; `null` means "not provided". A legacy config may spell it
-    # as an unquoted `None` (the Python STRING, not YAML null) -- still
-    # tolerated, because every consumer guards on file existence. Real basin
-    # data lives outside the repository and is referenced by absolute path.
-    # Schemas to copy: config/templates/observations/
-    output_locations: null
+    # Optional observed-discharge series. Gauge/control points live at
+    # shared.basin.gauge_points; schemas: config/templates/observations/.
     observations_timeseries: null
   climate_projections:
     enabled: true

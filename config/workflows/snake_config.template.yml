@@ -39,6 +39,23 @@ shared:
     # fails loud naming both files and both values. Uncomment only to override.
     #hydrography: merit_hydro_ihu
     #basin_index: merit_hydro_index
+    # Optional gauge/control locations. Internal points define subbasins;
+    # parents without usable internal points use the automatic fallback.
+    # Use an absolute path for real project data.
+    gauge_points: null
+    automatic_subbasins:
+      # Global ceiling for automatically generated subbasins. User-directed
+      # gauge subbasins are not silently pruned by this limit.
+      max_count: 20
+    # Maximum point-to-river snapping distance [m].
+    gauge_snap_tolerance_m: 10000
+    # Upstream-area threshold [km2] for the analysis river mask.
+    river_uparea_km2: 32
+    spatial_sources:
+      rivers: rivers_lin2019_v1
+      lulc: vito
+      lai: modis_lai
+      soil: soilgrids
   historical_window:
     # ISO datetime strings — wflow forcing window.
     # MINIMUM 16 YEARS, enforced at WF1 parse time and again at extraction:
@@ -70,8 +87,6 @@ workflows:
     # plotted by plot_results (valid: overland flow, actual evapotranspiration,
     # groundwater recharge, snow).
     wflow_outvars: ["river discharge", "actual evapotranspiration"]
-    # Optional: csv with three cols (station_ID, x, y); None defaults to wflow outlets
-    output_locations: null
     # Optional: csv with observed discharge timeseries per station
     observations_timeseries: null
   climate_projections:

@@ -9,19 +9,23 @@ folder, never in this repository (see `AGENTS.md` § Repo Map, the two-tier
 Both inputs are optional. To run without them, set the config keys to `null`:
 
 ```yaml
+shared:
+  basin:
+    gauge_points: null
 workflows:
   model_creation:
-    output_locations: null
     observations_timeseries: null
 ```
 
-**Legacy spelling.** Older configs write an unquoted `None`, which YAML parses
-to the Python **string** `"None"` rather than to null. That still works and is
-not something you need to migrate: every consumer guards on file existence, so
-a path that is not a file is skipped either way, and `plot_map.py` recognises
-the string explicitly. Prefer `null` in new configs — it means what it looks
-like, whereas a bare `None` reads as a null and is not one. That gap is what
-produced the `gauges_None` layer-name bug the explicit check now guards.
+**Config migration.** `shared.basin.gauge_points` replaces
+`workflows.model_creation.output_locations` because the points now control the
+model-neutral basin/subbasin layout as well as Wflow outputs. The old key is
+accepted for one compatibility release with a warning. If both keys are set,
+they must name the same path; conflicting values fail at parse time.
+
+Older configs may also write an unquoted `None`, which YAML parses to the Python
+**string** `"None"` rather than to null. That remains an accepted unset spelling
+during the compatibility release. Prefer a real YAML `null` in new configs.
 
 ## `output_locations.csv`
 
@@ -29,19 +33,17 @@ Gauge/output locations, **comma**-separated:
 
 | Column | Meaning |
 | --- | --- |
-| `wflow_id` | integer station id — **start at 100** (100, 101, 102, …); the column names in the timeseries file must match these |
+| `wflow_id` | optional integer station id; when supplied it must exactly match the deterministic ID generated from the resolved basin/subbasin hierarchy |
 | `station_name` | free-text label used in figure titles and metric tables |
 | `x`, `y` | longitude, latitude in EPSG:4326 |
+| `location_role` | optional role: `control` (default) defines a subbasin; `observation` is tracked without controlling delineation |
 
-**Why `wflow_id` starts at 100.** These ids end up as wflow output columns
-(`Q_101`) and as burned-in values in the derived
-`staticgeoms/subcatchment_<name>.geojson`, sharing a namespace with two other
-numbering schemes: the model's own outlet subcatchment ids (large, from the
-hydrography — e.g. `130000086`) and the positional station labels the evaluation
-figures generate for outlets (`wflow_1`, `wflow_2`, …). Small ids make `Q_1`
-ambiguous with the first positional outlet on sight. Starting at 100 keeps a
-user gauge visibly a user gauge. It is a convention, not a validated
-constraint — nothing rejects lower ids, so an existing dataset keeps working.
+Primary locations inherit their subbasin ID: basin 1 subbasins are 101, 102,
+and so on, giving location codes such as `B001-S01-L01`. Additional
+non-controlling locations use a reserved range beginning at 1,000,000. The
+current Gabon IDs 101–104 remain valid only when the resolved hierarchy assigns
+the same stations to `B001-S01` through `B001-S04`; otherwise preparation emits
+a migration crosswalk rather than silently preserving stale IDs.
 
 ## `observations_timeseries.csv`
 
@@ -50,8 +52,8 @@ separator from `output_locations.csv`; both are read with explicit `sep=`
 arguments, so keep each file's separator as shipped.
 
 - First column `time`, ISO-8601 timestamps (`2000-01-01T00:00:00`).
-- One further column per station, named by the **`wflow_id`** value from
-  `output_locations.csv` — not by `station_name`.
+- One further column per station, named by the resolved **`wflow_id`** value in
+  `spatial/location_registry.csv` — not by `station_name`.
 - Missing values: leave the field empty.
 
 The shipped header (`time;101;102`) is illustrative — replace `101` and `102`
@@ -61,13 +63,11 @@ station from the metrics without failing the run.
 
 ## What consumes these
 
-`blueearth_cst/model/setup_gauges_and_outputs.py` (gauge setup) and
-`blueearth_cst/model/plot_results.py` (evaluation figures and
-`performance_metrics.csv`). Both check file existence before reading, so a
-`null` or a legacy `None` skips the observation-dependent outputs rather than
-failing the run. A configured path that is not a file is a different case and
-now RAISES in rule 1.01 — a typo used to be skipped in silence, taking the
-gauges, the signature plots and the metrics table with it.
+The spatial-preparation phase reads gauge points to control subbasin
+delineation and writes `spatial/location_registry.csv`. The Wflow adapter then
+uses that registry for gauge/output IDs; `plot_results.py` uses the same IDs for
+observation joins. A configured path is a declared Snakemake input, so a typo
+fails as a missing input instead of silently dropping observation outputs.
 
 ## Where they end up
 

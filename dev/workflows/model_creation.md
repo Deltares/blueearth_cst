@@ -12,12 +12,21 @@ change. Grounded in `Snakefile_model_creation`, `config/wflow_build_model.yml`,
 - `wflow_outvars` — Wflow output variables to emit (default `['river discharge']`).
 - `model_build_config` — path to the hydromt build config (default `{static_dir}/wflow_build_model.yml`).
 - `waterbodies_config` — path to the reservoirs/lakes/glaciers update config (default `{static_dir}/wflow_update_waterbodies.yml`).
-- `output_locations` — optional gauge-locations file; when set, adds `setup_gauges` (Q, P at gauges). Default `None`.
 - `observations_timeseries` — optional observed-discharge file for `plot_results`. Default `None`.
 
 ## Reads from `shared`
 
 - `shared.basin.region`, `shared.basin.resolution` — basin delineation + model resolution.
+- `shared.basin.gauge_points` — optional canonical gauge/control-point file.
+  The former `workflows.model_creation.output_locations` key is accepted for
+  one compatibility release; conflicting populated values fail at parse time.
+- `shared.basin.automatic_subbasins.max_count` — global automatic-fallback
+  ceiling (default 20; valid range 1–99).
+- `shared.basin.gauge_snap_tolerance_m` — point-to-river snapping tolerance
+  (default 10,000 m).
+- `shared.basin.river_uparea_km2` — analysis river threshold (default 32 km²).
+- `shared.basin.spatial_sources.{rivers,lulc,lai,soil}` — catalog entries for
+  the model-neutral thematic products.
 - `shared.historical_window.starttime`, `shared.historical_window.endtime` — forcing time range.
 - `shared.clim_historical` — historical climate source (e.g. `era5`).
 

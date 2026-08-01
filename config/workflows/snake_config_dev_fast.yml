@@ -28,6 +28,9 @@ shared:
   basin:
     region: "{'subbasin': [9.666, 0.4476], 'uparea': 100}"
     resolution: 0.00833
+    gauge_points: null
+    automatic_subbasins:
+      max_count: 20
   historical_window:
     starttime: "2000-01-01T00:00:00"
     endtime: "2020-12-31T00:00:00"
@@ -43,7 +46,6 @@ workflows:
     # any fingerprinted target. The shipped default (template / Snakefile) does
     # include 'actual evapotranspiration'.
     wflow_outvars: ["river discharge"]
-    output_locations: null
     observations_timeseries: null
   climate_projections:
     enabled: true
