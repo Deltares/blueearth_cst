@@ -76,20 +76,53 @@ def _log_path_parts(log_path):
     return "", os.path.basename(log_path)
 
 
-def _relativize_paths(text, project_root):
-    """Rewrite absolute project paths in ``text`` as project-relative.
+#: Repo root — three levels up from ``blueearth_cst/shared/snake_utils.py``.
+#: Used only to shorten log lines, never to resolve anything.
+_REPO_ROOT = str(Path(__file__).resolve().parents[2])
 
-    Strips the ``project_root`` prefix (in both native and forward-slash forms,
-    since hydromt emits either) so a log line like
-    ``Writing geoms to C:\\...\\gabon\\hydrology_model\\...\\basins.geojson``
-    reads ``Writing geoms to hydrology_model\\...\\basins.geojson``. Paths
-    outside the project (data catalogs, the pixi env) are left absolute.
-    """
-    if not project_root:
+#: Everything up to and including a ``site-packages`` component. An installed
+#: dependency's own file (hydromt_wflow's ``parameters_data.yml``) says nothing
+#: useful in its first hundred characters, and those characters differ per
+#: machine and per environment.
+_SITE_PACKAGES_RE = re.compile(r"[A-Za-z]:[\\/](?:[^\\/\s]+[\\/])*?site-packages[\\/]")
+
+
+def _strip_prefix(text, prefix, replacement=""):
+    """Drop ``prefix`` from ``text`` in both native and forward-slash spellings."""
+    if not prefix:
         return text
-    text = text.replace(project_root + os.sep, "")
-    text = text.replace(project_root.replace(os.sep, "/") + "/", "")
-    return text
+    text = text.replace(prefix + os.sep, replacement)
+    return text.replace(prefix.replace(os.sep, "/") + "/", replacement)
+
+
+def _relativize_paths(text, project_root):
+    """Shorten the three absolute prefixes that dominate a log line.
+
+    Every rule log is full of paths whose leading two-thirds are the same on
+    one machine and different on the next, which buries the part that carries
+    information. Three prefixes are rewritten, in decreasing specificity:
+
+    * the **project** — dropped, so ``C:\\...\\gabon\\hydrology_model\\...\\
+      basins.geojson`` reads ``hydrology_model\\...\\basins.geojson``. The
+      project root is stated once in the log header, so no information is lost.
+    * the **repository** — dropped and marked, so a config or script under the
+      checkout reads ``<repo>/config/catalogs/deltares_data.yml``. Marked rather
+      than bare because a repo-relative path and a project-relative one would
+      otherwise be indistinguishable in the same line.
+    * an installed **dependency** — everything up to ``site-packages`` becomes
+      ``<site-packages>/``, so hydromt_wflow's own
+      ``.../envs/default/Lib/site-packages/hydromt_wflow/data/parameters_data.yml``
+      reads ``<site-packages>/hydromt_wflow/data/parameters_data.yml``. What
+      matters is which package the file came from, not where pixi put the env.
+
+    Order matters: the repo contains the pixi env, so ``site-packages`` is
+    matched FIRST or a repo-relative rewrite would hide it. A path in none of
+    the three (a data catalog under ``C:\\data\\``) is left absolute — its
+    location is the information.
+    """
+    text = _SITE_PACKAGES_RE.sub("<site-packages>/", text)
+    text = _strip_prefix(text, project_root)
+    return _strip_prefix(text, _REPO_ROOT, "<repo>/")
 
 
 def _log_header_lines(path, kind="log", time_label="started", markdown=False):

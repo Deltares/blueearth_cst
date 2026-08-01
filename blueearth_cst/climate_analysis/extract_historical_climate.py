@@ -321,6 +321,19 @@ def prep_historical_climate(
     delayed_obj = ds.to_netcdf(fn_out, encoding=encoding, mode="w", compute=False)
     with ProgressBar():
         delayed_obj.compute()
+    # Release the store handles deterministically rather than leaving them to
+    # the garbage collector. Good practice on its own terms.
+    #
+    # It does NOT silence the "Error in sys.excepthook: / Original exception
+    # was:" cascade that follows this rule under Snakemake -- measured, 14 lines
+    # before and after. Recorded so nobody retries it: the cascade reproduces
+    # ONLY under Snakemake's `script:` execution (0 lines standalone, same data
+    # and same tee), and a probe excepthook installed to capture the original
+    # exception never fired -- which is itself the diagnosis. By the time these
+    # fire, CPython finalization has already torn module globals down, so any
+    # excepthook fails and the interpreter prints the bare marker pair. It is
+    # post-success noise from interpreter shutdown, not from this workflow.
+    ds.close()
 
 
 if __name__ == "__main__":
