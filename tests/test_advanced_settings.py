@@ -21,6 +21,7 @@ def _write(tmp_path, payload):
 VALID = {
     "constraints": {"min_historical_years": 16},
     "defaults": {"julia_threads": 4},
+    "runtime": {"julia_version": "1.11.7"},
 }
 
 
@@ -42,10 +43,12 @@ def test_the_shipped_file_lives_under_config():
 
 
 def test_the_shipped_values_are_the_documented_ones():
-    """A bare-eyes check on the two numbers other work is anchored to: 16 is
-    weathergenr's wavelet minimum, 4 is P3-3's frozen baseline thread count."""
+    """A bare-eyes check on the values other work is anchored to: 16 is
+    weathergenr's wavelet minimum, 4 is P3-3's frozen baseline thread count,
+    1.11.7 is what Manifest.toml was resolved against."""
     assert su.MIN_HISTORICAL_YEARS == 16
     assert su.DEFAULT_JULIA_THREADS == 4
+    assert su.JULIA_VERSION == "1.11.7"
 
 
 def test_schema_and_file_cover_exactly_the_same_keys():
@@ -95,9 +98,33 @@ def test_missing_key_is_rejected(tmp_path):
 
 @pytest.mark.parametrize("bad", [0, -1, "16", 16.0, True, None])
 def test_non_positive_or_non_integer_values_are_rejected(tmp_path, bad):
-    payload = {"constraints": {"min_historical_years": bad}, "defaults": VALID["defaults"]}
+    payload = {**VALID, "constraints": {"min_historical_years": bad}}
     with pytest.raises(ValueError, match="constraints.min_historical_years"):
         su.load_advanced_settings(_write(tmp_path, payload))
+
+
+@pytest.mark.parametrize("bad", ["1.11", "v1.11.7", "1.11.7-rc1", "", 1.11, 111, None])
+def test_a_malformed_julia_version_is_rejected(tmp_path, bad):
+    """`1.11` is the dangerous one twice over: as a bare YAML scalar it is a
+    FLOAT, and even as a string it is a two-part selector juliaup may resolve to
+    a patch the manifest was never built against."""
+    payload = {**VALID, "runtime": {"julia_version": bad}}
+    with pytest.raises(ValueError, match="runtime.julia_version"):
+        su.load_advanced_settings(_write(tmp_path, payload))
+
+
+def test_an_unquoted_two_part_version_reaches_the_validator_as_a_float(tmp_path):
+    """The failure mode the quoting rule exists for, exercised through YAML
+    rather than asserted about it."""
+    path = tmp_path / "advanced_settings.yml"
+    path.write_text(
+        "constraints:\n  min_historical_years: 16\n"
+        "defaults:\n  julia_threads: 4\n"
+        "runtime:\n  julia_version: 1.11\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="float"):
+        su.load_advanced_settings(path)
 
 
 def test_a_missing_file_is_an_error_not_a_silent_fallback(tmp_path):

@@ -380,7 +380,12 @@ ADVANCED_SETTINGS_PATH = (
 _ADVANCED_SETTINGS_SCHEMA = {
     "constraints": {"min_historical_years": "positive_int"},
     "defaults": {"julia_threads": "positive_int"},
+    "runtime": {"julia_version": "version_string"},
 }
+
+#: Three-part ``X.Y.Z``. Two parts would let juliaup resolve a different patch
+#: than ``Manifest.toml`` was built against.
+_VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
 
 
 def _positive_int(value, where: str) -> int:
@@ -392,7 +397,26 @@ def _positive_int(value, where: str) -> int:
     return value
 
 
-_VALIDATORS = {"positive_int": _positive_int}
+def _version_string(value, where: str) -> str:
+    """A quoted three-part version.
+
+    The non-string rejection is load-bearing rather than defensive: unquoted
+    ``1.11`` in YAML parses to the FLOAT 1.11, which would silently become the
+    selector ``+1.11`` and let juliaup pick whatever patch it likes.
+    """
+    if not isinstance(value, str):
+        raise ValueError(
+            f"{where} must be a quoted string like \"1.11.7\", got {value!r} "
+            f"({type(value).__name__}) — an unquoted X.Y is parsed as a number"
+        )
+    if not _VERSION_RE.match(value):
+        raise ValueError(
+            f"{where} must be a three-part version X.Y.Z, got {value!r}"
+        )
+    return value
+
+
+_VALIDATORS = {"positive_int": _positive_int, "version_string": _version_string}
 
 
 def load_advanced_settings(path=None) -> dict:
@@ -476,18 +500,15 @@ ADVANCED_SETTINGS = load_advanced_settings()
 MIN_HISTORICAL_YEARS = ADVANCED_SETTINGS["constraints"]["min_historical_years"]
 
 
-#: juliaup version selector for every Julia invocation a workflow makes. Julia
-#: is NOT in the pixi env (conda-forge has no win-64 build) — it is juliaup-
-#: managed and must already be on PATH, and the ``+<version>`` prefix is how the
-#: juliaup shim picks a toolchain. Stated here rather than inline in a shell
-#: body so the pin is greppable and reviewable.
+#: juliaup version selector for every Julia invocation a workflow makes. The
+#: VALUE lives in ``config/advanced_settings.yml`` under ``runtime:``, together
+#: with why Julia sits outside pixi at all.
 #:
-#: THREE places must agree, and ``tests/test_julia_runtime.py`` asserts it:
-#: this constant, ``pixi.toml``'s ``install-julia`` task (which instantiates the
-#: env), and ``Manifest.toml``'s ``julia_version`` (what the lock was resolved
-#: against). ``Project.toml``'s ``julia = "1.11"`` compat bound is deliberately
-#: looser and is not compared.
-JULIA_VERSION = "1.11.7"
+#: THREE files declare it and must agree — the settings file, ``pixi.toml``'s
+#: ``install-julia`` task, and ``Manifest.toml``'s ``julia_version``. Only the
+#: first is readable from here; the other two cannot read YAML, so the equality
+#: is enforced by ``tests/test_julia_runtime.py`` rather than by single-sourcing.
+JULIA_VERSION = ADVANCED_SETTINGS["runtime"]["julia_version"]
 
 #: Default ``--threads`` for Wflow.jl. The VALUE lives in
 #: ``config/advanced_settings.yml`` under ``defaults:``; a project may override

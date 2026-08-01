@@ -5,13 +5,17 @@
 # once by `blueearth_cst/shared/snake_utils.py` and applies to every project
 # and every workflow. Editing it changes the toolbox, not a run.
 #
-# Two sections, and the split is the point:
+# Three sections, and the split is the point:
 #
 #   constraints/ — hard limits. No project config can relax one; a value that
 #                  violates a constraint is rejected before any rule executes.
 #                  Change one only with a reason you would write down.
 #   defaults/    — starting values a project config MAY override. The key that
 #                  overrides each one is named in its comment.
+#   runtime/     — external toolchain pins. Not limits and not overridable:
+#                  they must match the environment the workflows actually run
+#                  in, so changing one here without changing it there breaks
+#                  the run rather than tuning it.
 #
 # Unknown sections and unknown keys are REJECTED, so a typo fails loudly at
 # parse time rather than silently keeping the built-in value.
@@ -51,3 +55,30 @@ defaults:
   # (dev/p33/performance-baseline.md §5.6). Changing it here silently
   # invalidates those comparisons — prefer the per-project override.
   julia_threads: 4
+
+runtime:
+
+  # The juliaup version selector every workflow Julia invocation carries
+  # (`julia +<version> ...`). Julia is deliberately NOT in the pixi env —
+  # conda-forge has no win-64 build — so it is juliaup-managed, must already be
+  # on PATH, and the `+` prefix is how the shim picks a toolchain. Install it
+  # with `juliaup add <version>`.
+  #
+  # THREE files declare this version and they must agree. This one is the
+  # human-facing declaration and the only one the workflows read; the other two
+  # cannot read YAML, so equality is enforced by
+  # `tests/test_julia_runtime.py` rather than by single-sourcing:
+  #
+  #   pixi.toml        `install-julia` task — instantiates the Julia env.
+  #                    Hand-edit it to match.
+  #   Manifest.toml    `julia_version` — machine-generated, records what the
+  #                    lock was actually resolved against. Do not hand-edit;
+  #                    re-run `pixi run install-julia` to regenerate.
+  #
+  # `Project.toml`'s `julia = "1.11"` compat bound is deliberately looser (and
+  # documents why 1.12.x is excluded); it is only checked for compatibility.
+  #
+  # Must be a QUOTED three-part string. Unquoted `1.11` is a YAML float, and a
+  # two-part selector lets juliaup resolve a different patch than the manifest
+  # was built against.
+  julia_version: "1.11.7"

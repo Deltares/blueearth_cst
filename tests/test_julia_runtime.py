@@ -7,6 +7,12 @@ independently and a drift between them is silent until a run picks up the wrong
 toolchain: the env gets instantiated at one version while the workflows run at
 another.
 
+``config/advanced_settings.yml`` (``runtime.julia_version``) is the human-facing
+declaration and the only one the workflows read. ``pixi.toml`` and
+``Manifest.toml`` cannot read YAML, so this module is what keeps them in step —
+single-sourcing is not available here, and pretending otherwise would leave the
+drift undetected.
+
 ``Project.toml``'s ``julia = "1.11"`` compat bound is deliberately looser (a
 range, and the reason for the range is documented there) and is NOT compared.
 """
@@ -24,6 +30,24 @@ from blueearth_cst.shared.snake_utils import (
 )
 
 REPO = Path(__file__).resolve().parents[1]
+
+
+def test_the_settings_file_is_where_the_constant_comes_from():
+    """Read independently of the module-level load, so a value left hardcoded
+    in snake_utils would show up here rather than pass silently."""
+    import yaml
+
+    from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS_PATH
+
+    on_disk = yaml.safe_load(ADVANCED_SETTINGS_PATH.read_text(encoding="utf-8"))
+    assert JULIA_VERSION == on_disk["runtime"]["julia_version"]
+
+
+def test_the_version_is_a_quoted_three_part_string():
+    """Unquoted 1.11 would be a YAML float and would silently become the
+    selector `+1.11`, letting juliaup pick a patch the manifest never saw."""
+    assert isinstance(JULIA_VERSION, str)
+    assert len(JULIA_VERSION.split(".")) == 3
 
 
 def test_pixi_install_task_pins_the_same_version():
