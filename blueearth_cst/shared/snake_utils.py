@@ -361,6 +361,91 @@ def validate_experiment_name(name: str, project_dir) -> str:
     return name
 
 
+#: Hard floor on the historical window, in days. Rule 1.11 ``plot_results``
+#: DECLARES ``clim_wflow_1_{month,year}.png`` as outputs but writes them only
+#: when the extraction carries at least a year, so a shorter window cannot
+#: produce a green WF1 run at all — it dies with ``MissingOutputException`` deep
+#: in the DAG (dev/followups.md R7-6). The floor is stated once here and checked
+#: twice: against the REQUESTED window at parse time, and against the ACTUAL
+#: extracted span in ``extract_historical_climate``.
+MIN_HISTORICAL_DAYS = 365
+
+#: Advisory floor, in years: weathergenr's wavelet decomposition needs >= 16
+#: annual observations (``wavelet_cwt.R``). Not enforced here — WF1 alone on a
+#: 10-year record is legitimate; only a stress test needs this much. Used to
+#: warn early rather than let WF3 fail later with ``'series' must have at least
+#: 16 observations``, which names neither years nor the remedy.
+WEATHERGEN_MIN_YEARS = 16
+
+
+def historical_window_days(historical_window) -> int:
+    """Calendar days spanned by a ``shared.historical_window`` mapping.
+
+    Endpoints are the ISO ``starttime``/``endtime`` every config carries. Raises
+    ``ValueError`` naming the offending key when either is missing or
+    unparseable — the same fail-loud stance ``slugify_window`` takes on the same
+    two values.
+    """
+    if not isinstance(historical_window, Mapping):
+        raise ValueError(
+            f"historical_window must be a mapping with starttime/endtime, got "
+            f"{historical_window!r}"
+        )
+    bounds = {}
+    for key in ("starttime", "endtime"):
+        if key not in historical_window:
+            raise ValueError(f"historical_window is missing {key!r}")
+        try:
+            bounds[key] = datetime.fromisoformat(str(historical_window[key]).strip())
+        except ValueError:
+            raise ValueError(
+                f"historical_window.{key} is not an ISO datetime: "
+                f"{historical_window[key]!r}"
+            ) from None
+    return (bounds["endtime"] - bounds["starttime"]).days
+
+
+def validate_historical_window(historical_window) -> int:
+    """Reject a ``shared.historical_window`` too short for WF1 to complete.
+
+    Called at ``Snakefile_model_creation`` parse time, so a window that cannot
+    yield a green run is rejected BEFORE any rule executes — the same
+    parse-time stance as ``clim_historical: eobs`` and
+    ``validate_experiment_name``, and for the same reason: no execution can
+    rescue it, so the earliest possible failure is the most legible one.
+
+    This checks what the config REQUESTS. Whether the staged source actually
+    covers it is unknowable until extraction, and is checked there
+    (``extract_historical_climate._check_window_coverage``).
+
+    The floor is a calendar span, while rule 1.11's real condition is a
+    TIMESTEP COUNT (``len(ds_clim.time) < 365``). The two coincide because
+    every source this path supports — era5, chirps, chirps_global — is daily;
+    a sub-daily or monthly source would need this proxy revisited rather than
+    reused.
+
+    Returns the span in days, or raises ``ValueError`` naming both the
+    requested window and the floor.
+    """
+    days = historical_window_days(historical_window)
+    if days < MIN_HISTORICAL_DAYS:
+        raise ValueError(
+            f"historical_window spans {days} days "
+            f"({historical_window.get('starttime')} .. "
+            f"{historical_window.get('endtime')}), below the "
+            f"{MIN_HISTORICAL_DAYS}-day minimum workflow 1 needs: rule 1.11 "
+            f"plot_results declares yearly climate figures it cannot write "
+            f"from less than a year of data, so the run would fail mid-DAG. "
+            f"Widen the window to at least one year"
+            + (
+                ""
+                if days >= 0
+                else " (endtime is BEFORE starttime — check the order)"
+            )
+        )
+    return days
+
+
 def slugify_window(start, end) -> str:
     """Render a window ``(start, end)`` to a compact ``YYYYMMDD_YYYYMMDD`` slug.
 

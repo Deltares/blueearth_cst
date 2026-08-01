@@ -5,7 +5,7 @@ from pathlib import Path
 # directory by prepending this Snakefile's own directory to sys.path.
 # See dev/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
-from blueearth_cst.shared.snake_utils import DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_spec, get_config, patch_psutil_windows_benchmark, rule_banner, target_banner, warn_if_project_dir_in_repo
+from blueearth_cst.shared.snake_utils import DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_spec, get_config, patch_psutil_windows_benchmark, rule_banner, target_banner, validate_historical_window, warn_if_project_dir_in_repo
 
 # Windows: make Snakemake's benchmark memory/IO/CPU metrics work (else all NA).
 patch_psutil_windows_benchmark()
@@ -45,6 +45,13 @@ model_resolution = get_config(basin_cfg, "resolution", 0.00833333)
 basin_hydrography = get_config(basin_cfg, "hydrography", DEFAULT_HYDROGRAPHY)
 basin_index = get_config(basin_cfg, "basin_index", DEFAULT_BASIN_INDEX)
 historical_window = get_config(shared_cfg, "historical_window", optional=False)
+# A window shorter than a year cannot produce a green WF1 run: rule 1.11
+# declares yearly climate figures it will not write from a sub-year extraction,
+# so the run dies with MissingOutputException nine rules in (dev/followups.md
+# R7-6). Reject it HERE instead — parse time, before any rule executes, same
+# stance as the eobs rejection below. Coverage of the requested window by the
+# staged source is a separate question, checked at extraction (rule 1.10).
+validate_historical_window(historical_window)
 clim_source = get_config(shared_cfg, "clim_historical", optional=False)
 
 # P3-2a bounded support (design ext2-3): the wf1 raw-climate path (rule 1.10 +

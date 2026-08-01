@@ -28,18 +28,41 @@ from hydromt.model.processes.region import parse_region_basin
 from blueearth_cst.shared.snake_utils import (
     DEFAULT_BASIN_INDEX,
     DEFAULT_HYDROGRAPHY,
+    MIN_HISTORICAL_DAYS,
+    WEATHERGEN_MIN_YEARS,
     log_row,
 )
 
 
-def _warn_if_window_truncated(ds, starttime, endtime, clim_source):
-    """Warn when the extracted data covers a shorter span than requested.
+def _check_window_coverage(ds, starttime, endtime, clim_source):
+    """Check what the extraction ACTUALLY covers against three expectations.
 
-    A silently-truncated window -- the staged source lacks the full requested
-    range -- otherwise surfaces far downstream as a cryptic failure, e.g.
-    weathergenr's 16-year wavelet minimum ('series' must have at least 16
-    observations). Advisory only; never blocks extraction. (t260716a,
-    dev/followups.md R3)
+    The parse-time guard (``snake_utils.validate_historical_window``) can only
+    check what the config REQUESTS. What the staged source holds is knowable
+    only here, and a silently-truncated record is the original defect: a config
+    asking 1980..2010 against an era5 staging that starts in 2000 yielded 11
+    years with no signal, and WF3 then died on weathergenr's wavelet minimum
+    twenty rules away (dev/followups.md R3, observed 2026-05-07).
+
+    Three deliberately separate comparisons, in increasing severity:
+
+    * **shortfall vs requested** -- advisory, with a 31-day tolerance. A source
+      that begins three weeks late is normal, not an error.
+    * **below the WEATHERGEN_MIN_YEARS advisory floor** -- advisory, naming
+      weathergenr and the remedy. NOT an error: WF1 alone on a 10-year record
+      is legitimate, only a stress test needs 16 years.
+    * **below the MIN_HISTORICAL_DAYS hard floor** -- ``ValueError``. Under a
+      year, no consumer of this store can complete: WF1's rule 1.11 would fail
+      with ``MissingOutputException``, and WF3 needs 16x more. Failing in the
+      producer names the cause; failing in the consumer does not.
+
+    The tolerance belongs to the first check only -- a floor with a tolerance is
+    not a floor.
+
+    This runs in the SHARED store producer, so the hard floor applies to WF2's
+    rule 2.11 and WF3's rule 3.02 as well as WF1's 1.10. That is intended: every
+    consumer needs at least a year, so there is no workflow for which a sub-year
+    store is usable.
     """
     try:
         time_vals = ds.time.values
@@ -48,15 +71,41 @@ def _warn_if_window_truncated(ds, starttime, endtime, clim_source):
         req_start = pd.Timestamp(pd.to_datetime(starttime))
         req_end = pd.Timestamp(pd.to_datetime(endtime))
     except (AttributeError, ValueError, TypeError):
-        return  # cannot introspect the time axis -> skip the advisory check
+        return  # cannot introspect the time axis -> skip the checks
+    actual_days = (actual_end - actual_start).days
+
+    if actual_days < MIN_HISTORICAL_DAYS:
+        raise ValueError(
+            f"Extracted {clim_source} record spans {actual_days} days "
+            f"({actual_start.date()}..{actual_end.date()}) for the requested "
+            f"{req_start.date()}..{req_end.date()}, below the "
+            f"{MIN_HISTORICAL_DAYS}-day minimum every consumer of this store "
+            f"needs. The staged source does not cover the configured "
+            f"historical_window. Either stage data for that period or move "
+            f"shared.historical_window onto the years the source actually holds"
+        )
+
     tol = pd.Timedelta(days=31)
     if actual_start > req_start + tol or actual_end < req_end - tol:
         warnings.warn(
             f"Extracted {clim_source} window "
             f"{actual_start.date()}..{actual_end.date()} is shorter than the "
             f"requested {req_start.date()}..{req_end.date()}; the staged source "
-            f"may not cover the full period. Downstream steps (e.g. weathergenr's "
-            f"16-year minimum) can fail on a truncated record.",
+            f"may not cover the full period.",
+            stacklevel=2,
+        )
+
+    actual_years = actual_days / 365.25
+    if actual_years < WEATHERGEN_MIN_YEARS:
+        warnings.warn(
+            f"Extracted {clim_source} record covers ~{actual_years:.1f} years "
+            f"({actual_start.date()}..{actual_end.date()}), below the "
+            f"{WEATHERGEN_MIN_YEARS} years weathergenr's wavelet decomposition "
+            f"requires. Workflow 1 completes on this record, but a climate "
+            f"stress test (workflow 3) will fail with 'series' must have at "
+            f"least {WEATHERGEN_MIN_YEARS} observations. Widen "
+            f"shared.historical_window to >= {WEATHERGEN_MIN_YEARS} years "
+            f"before running workflow 3.",
             stacklevel=2,
         )
 
@@ -275,7 +324,7 @@ def prep_historical_climate(
             ],
         )
 
-    _warn_if_window_truncated(ds, starttime, endtime, clim_source)
+    _check_window_coverage(ds, starttime, endtime, clim_source)
 
     dvars = ds.raster.vars
     encoding = {k: {"zlib": True} for k in dvars}

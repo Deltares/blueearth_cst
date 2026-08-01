@@ -359,3 +359,71 @@ def test_warns_when_extracted_window_is_shorter_than_requested(
         "truncat" in str(w.message).lower() or "shorter" in str(w.message).lower()
         for w in caught
     ), "Expected a warning about time-window truncation; got none."
+
+
+# --- Layer B: the hard floor and the weathergenr advisory --------------------
+# The parse-time half (what the config REQUESTS) is
+# tests/test_validate_historical_window.py; these cover what the staged source
+# ACTUALLY delivers, which is knowable only here.
+
+def _run_with_span(monkeypatch, tmp_path, time_size, catalog_cls):
+    """Drive prep_historical_climate against a fake catalog of ``time_size``
+    YEARLY steps, returning the warnings it raised."""
+
+    class _SpanDataCatalog(catalog_cls):
+        def get_rasterdataset(self, source, **kwargs):
+            self.get_rasterdataset_calls.append({"source": source, **kwargs})
+            return _FakeDataset(kwargs.get("variables", ["precip"]), time_size=time_size)
+
+    monkeypatch.setattr(ehc.hydromt, "DataCatalog", _SpanDataCatalog)
+    region = tmp_path / "region.geojson"
+    region.write_text("{}")
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        ehc.prep_historical_climate(
+            region_fn=region,
+            fn_out=tmp_path / "out.nc",
+            data_libs="dummy.yml",
+            clim_source="era5",
+            starttime="2000-01-01T00:00:00",
+            endtime="2020-12-31T00:00:00",
+        )
+    return caught
+
+
+def test_sub_year_extraction_raises_instead_of_warning(
+    tmp_path, fake_era5_catalog, monkeypatch
+):
+    """A single timestep spans 0 days -- under the hard floor.
+
+    This is the case that used to reach rule 1.11 and die there with
+    MissingOutputException; the producer now names the cause.
+    """
+    with pytest.raises(ValueError) as excinfo:
+        _run_with_span(monkeypatch, tmp_path, 1, _RecordingDataCatalog)
+    message = str(excinfo.value)
+    assert str(ehc.MIN_HISTORICAL_DAYS) in message
+    assert "historical_window" in message
+    assert "era5" in message
+
+
+def test_short_but_year_plus_extraction_warns_about_weathergenr(
+    tmp_path, fake_era5_catalog, monkeypatch
+):
+    """Nine years: WF1 completes, WF3 would not. Advisory, never fatal."""
+    caught = _run_with_span(monkeypatch, tmp_path, 10, _RecordingDataCatalog)
+    weathergen = [w for w in caught if "weathergenr" in str(w.message)]
+    assert weathergen, [str(w.message) for w in caught]
+    assert str(ehc.WEATHERGEN_MIN_YEARS) in str(weathergen[0].message)
+
+
+def test_long_enough_extraction_is_silent(tmp_path, fake_era5_catalog, monkeypatch):
+    """The default 100-year fake covers the request: no coverage warning at all,
+    so the advisories stay meaningful rather than becoming background noise."""
+    caught = _run_with_span(monkeypatch, tmp_path, 100, _RecordingDataCatalog)
+    noisy = [
+        w for w in caught
+        if "weathergenr" in str(w.message) or "shorter than the requested" in str(w.message)
+    ]
+    assert not noisy, [str(w.message) for w in noisy]

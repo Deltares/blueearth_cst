@@ -184,6 +184,34 @@ def test_eobs_config_fails_wf1_dry_run_at_parse_time(tmp_path):
     ) in combined, combined
 
 
+def test_sub_year_window_fails_wf1_dry_run_at_parse_time(tmp_path):
+    """A historical_window under a year must red the dry-run at DAG build.
+
+    Rule 1.11 DECLARES clim_wflow_1_{month,year}.png but writes them only from
+    >= 1 year of climate data, so a sub-year window cannot produce a green run
+    -- pre-guard it reached 1.11 and died there with MissingOutputException,
+    nine rules and one hydromt build past the actual cause (dev/followups.md
+    R7-6). Same parse-time stance, and same test shape, as the eobs rejection
+    above: no execution can rescue the config, so the earliest failure is the
+    most legible one.
+    """
+    with open(config_fn) as f:
+        cfg = yaml.safe_load(f)
+    cfg["shared"]["historical_window"] = {
+        "starttime": "2000-01-01T00:00:00",
+        "endtime": "2000-06-01T00:00:00",
+    }
+    cfg_path = tmp_path / "snake_config_short_window.yml"
+    cfg_path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+
+    result = _dry_run("Snakefile_model_creation", cfg=str(cfg_path))
+    combined = (result.stdout or "") + (result.stderr or "")
+    assert result.returncode != 0, "sub-year window must fail the wf1 dry-run"
+    assert "below the 365-day minimum" in combined, combined[-3000:]
+    # The message must be actionable without opening the Snakefile.
+    assert "plot_results" in combined, combined[-3000:]
+
+
 def test_snakefile_cli_climate_projections(config_with_staged_region):
     """Workflow 2 dry-run builds a clean DAG once its WF1 region input is staged.
 
