@@ -74,12 +74,14 @@ def config_with_staged_region(tmp_path):
     return cfg_path
 
 
+@pytest.mark.workflow_contract
 def test_snakefile_cli_model_creation():
     """Workflow 1 dry-run builds a clean DAG on the test config."""
     result = _dry_run("Snakefile_model_creation")
     assert result.returncode == 0, (result.stdout or "") + (result.stderr or "")
 
 
+@pytest.mark.workflow_contract
 def test_snakefile_cli_model_creation_linux_config():
     """The Linux config must still build a DAG after O-01 retired `data/`.
 
@@ -94,6 +96,7 @@ def test_snakefile_cli_model_creation_linux_config():
     assert result.returncode == 0, (result.stdout or "") + (result.stderr or "")
 
 
+@pytest.mark.workflow_contract
 def test_in_repo_project_dir_warning_reaches_the_stream(tmp_path):
     """O-22 end to end: the parse-time warning is actually surfaced.
 
@@ -122,6 +125,7 @@ def test_in_repo_project_dir_warning_reaches_the_stream(tmp_path):
         scratch.rmdir()
 
 
+@pytest.mark.workflow_contract
 def test_baseline_seed_config_does_not_warn():
     """The exemption holds for the config the baseline gate actually runs.
 
@@ -197,6 +201,7 @@ def test_both_sentinel_spellings_are_treated_as_unset():
     assert gauges_layer_name(geoms, "gauges/my_stations.csv") == "gauges_my-stations"
 
 
+@pytest.mark.workflow_contract
 def test_eobs_config_fails_wf1_dry_run_at_parse_time(tmp_path):
     """`clim_historical: eobs` must red the wf1 dry-run at DAG-parse time.
 
@@ -231,6 +236,7 @@ def test_eobs_config_fails_wf1_dry_run_at_parse_time(tmp_path):
         ("2010-01-01T00:00:00", "ten-year"),
     ],
 )
+@pytest.mark.workflow_contract
 def test_short_window_fails_wf1_dry_run_at_parse_time(tmp_path, endtime, label):
     """A historical_window under MIN_HISTORICAL_YEARS must red the dry-run.
 
@@ -258,6 +264,7 @@ def test_short_window_fails_wf1_dry_run_at_parse_time(tmp_path, endtime, label):
     assert "weathergenr" in combined, combined[-3000:]
 
 
+@pytest.mark.workflow_contract
 def test_snakefile_cli_climate_projections(config_with_staged_region):
     """Workflow 2 dry-run builds a clean DAG once its WF1 region input is staged.
 
@@ -285,6 +292,7 @@ def test_climate_projections_declares_wf1_region_input():
     assert "staticgeoms/region.geojson" in text
 
 
+@pytest.mark.workflow_contract
 def test_snakefile_cli_climate_experiment(config_with_staged_region):
     """Workflow 3 dry-run builds a clean DAG on the test config (R5 fixed the cycle).
 

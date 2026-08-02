@@ -11,6 +11,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.process_isolation
+
 HARNESS = Path(__file__).resolve().parent / "_stage_equiv_harness.py"
 
 

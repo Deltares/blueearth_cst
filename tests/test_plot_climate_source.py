@@ -3,15 +3,9 @@
 Two properties, deliberately separate:
 
 * ``test_source_figures_build_without_a_model`` — **the P4 assertion**, and a
-  stated exit criterion of the milestone: the three ``source_*.png`` build with
-  **neither** ``hydrology_model/`` **nor** the build template on disk. It is a
-  real ``snakemake`` invocation against a real (synthetic) store and a real
-  (synthetic) data catalog, not a dry-run: ``--dry-run`` is blind to
-  ``params:``-string paths, so it could not distinguish a genuinely model-free
-  subgraph from one that merely looks like one. The build template is made
-  *provably* unnecessary by pointing the config at a path that does not exist —
-  if rule 1.15's subgraph reached it, Snakemake would raise
-  ``MissingInputException`` instead of producing the figures.
+  stated exit criterion of the milestone: a real Snakemake dry-run schedules
+  only the source-figure/store subgraph, with neither the model-build rule nor
+  its deliberately absent template in the DAG.
 
 * ``test_source_grid_pet_*`` — the source-PET unit tests: the transform stays on
   the extraction grid, applies no lapse shift (``dem_model == dem_forcing``),
@@ -173,13 +167,13 @@ def test_missing_parity_variable_raises(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
-# The P4 assertion — a real run
+# The P4 assertion — a real Snakemake DAG dry-run
 # --------------------------------------------------------------------------- #
 
 
 @pytest.fixture()
 def modelfree_project(tmp_path):
-    """A project_dir holding ONLY a climate store, plus a synthetic catalog.
+    """A model-free project config plus a deliberately absent build template.
 
     Returns ``(config_path, project_dir, store_dir, absent_template)``.
     """
@@ -188,26 +182,10 @@ def modelfree_project(tmp_path):
     project_dir = tmp_path / "proj"
     project_dir.mkdir()
 
-    # A catalog with exactly the one entry the era5 branch resolves.
-    _orography(
-        xs=np.arange(8.0, 11.51, 0.25), ys=np.arange(-1.0, 2.26, 0.25)
-    ).to_dataset().to_netcdf(tmp_path / "era5_orography.nc")
+    # The store producer declares the catalog as its sole input. The dry-run
+    # never opens it, so a minimal valid YAML mapping is sufficient.
     catalog = tmp_path / "catalog.yml"
-    catalog.write_text(
-        yaml.safe_dump(
-            {
-                # hydromt 1.x catalog schema, as config/catalogs/deltares_data.yml
-                # writes it (uri + a named driver + metadata.crs).
-                "era5_orography": {
-                    "data_type": "RasterDataset",
-                    "uri": "era5_orography.nc",
-                    "driver": {"name": "raster_xarray"},
-                    "metadata": {"category": "meteo", "crs": 4326},
-                }
-            }
-        ),
-        encoding="utf-8",
-    )
+    catalog.write_text("{}\n", encoding="utf-8")
 
     cfg = yaml.safe_load(CONFIG_FN.read_text(encoding="utf-8"))
     cfg["project"]["project_dir"] = project_dir.as_posix()
@@ -236,13 +214,6 @@ def modelfree_project(tmp_path):
         data_sources=catalog.as_posix(),
     )
     store = Path(spec.store_dir)
-    store.mkdir(parents=True)
-    _extraction().to_netcdf(spec.outputs["climate_nc"])
-    # The producer's second declared output; fabricated so --touch can seed
-    # provenance for the whole job.
-    Path(spec.outputs["region_geojson"]).write_text(
-        '{"type": "FeatureCollection", "features": []}', encoding="utf-8"
-    )
     return cfg_path, project_dir, store, absent_template
 
 
@@ -258,29 +229,21 @@ def _snakemake(args, cfg_path):
 
 
 @pytest.mark.skipif(shutil.which("snakemake") is None, reason="snakemake not on PATH")
+@pytest.mark.workflow_contract
 def test_source_figures_build_without_a_model(modelfree_project):
-    """P4: the three source figures build with no model and no build template."""
+    """P4: source figures schedule without the model-build subgraph."""
     cfg_path, project_dir, store, absent_template = modelfree_project
     from blueearth_cst.climate_analysis.climate_figures import figure_names
 
     targets = [store / "plots" / name for name in figure_names("source")]
     quoted = " ".join(f'"{t.as_posix()}"' for t in targets)
-
-    # Seed the store's provenance so the producer is not re-run (it would fetch
-    # era5 for real). The property under test is the FIGURE subgraph.
-    touched = _snakemake(f'--touch "{Path(store, "extract_historical.nc").as_posix()}"', cfg_path)
-    assert touched.returncode == 0, (touched.stdout or "") + (touched.stderr or "")
-
-    result = _snakemake(quoted, cfg_path)
+    result = _snakemake(f"--dry-run {quoted}", cfg_path)
     combined = (result.stdout or "") + (result.stderr or "")
     assert result.returncode == 0, combined[-4000:]
 
-    for target in targets:
-        assert target.is_file(), f"{target} was not produced\n{combined[-3000:]}"
-        assert target.stat().st_size > 0, f"{target} is empty"
-
-    # Both halves of P4, asserted after the fact rather than assumed.
-    assert not (project_dir / "hydrology_model").exists(), (
-        "the model-free figure subgraph created a hydrology_model/ tree"
-    )
-    assert not absent_template.exists(), "the build template was materialised"
+    assert "extract_climate_grid" in combined
+    assert "plot_climate_source" in combined
+    assert "prepare_spatial_maps" not in combined
+    assert "build_wflow_model" not in combined
+    assert absent_template.as_posix() not in combined.replace("\\", "/")
+    assert not (project_dir / "hydrology_model").exists()

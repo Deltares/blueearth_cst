@@ -20,6 +20,11 @@ from pathlib import Path
 import pytest
 import yaml
 
+from blueearth_cst.projections.gridded_outputs import (
+    RemovedGriddedOutputsError,
+    validate_removed_gridded_options,
+)
+
 REPO = Path(__file__).resolve().parents[1]
 
 
@@ -48,40 +53,37 @@ def _write(tmp_path, cfg, name="cfg.yml"):
 
 
 @pytest.mark.parametrize("key", ["save_grids", "save_gridded"])
-def test_a_true_gridded_key_raises_at_dag_build(tmp_path, seed_config, key):
-    """Asking for a removed output must fail loudly, not be ignored.
-
-    Both spellings, because a config predating 5e is exactly as likely to be
-    lying around as one predating S8-08.
-    """
-    cfg = dict(seed_config)
-    proj = dict(cfg["workflows"]["climate_projections"])
-    proj.pop("save_grids", None)
-    proj.pop("save_gridded", None)
-    proj[key] = True
-    cfg["workflows"] = dict(cfg["workflows"], climate_projections=proj)
-
-    result = _dry_run(_write(tmp_path, cfg))
-    assert result.returncode != 0, "a true gridded key must stop the run"
-    combined = result.stdout + result.stderr
-    assert key in combined
-    assert "removed" in combined.lower()
+def test_a_true_gridded_key_is_rejected(key):
+    """Asking for a removed output must fail loudly, not be ignored."""
+    with pytest.raises(RemovedGriddedOutputsError, match=rf"`{key}: true`"):
+        validate_removed_gridded_options({key: True})
 
 
 @pytest.mark.parametrize("key", ["save_grids", "save_gridded"])
-def test_a_false_gridded_key_warns_but_runs(tmp_path, seed_config, key):
-    """`false` requests what the workflow now always does, so breaking every
-    config that carries it would be ceremony, not safety."""
+def test_a_false_gridded_key_returns_a_warning(key):
+    """A stale false key agrees with current behaviour and is only warned."""
+    warnings = validate_removed_gridded_options({key: False})
+
+    assert warnings == [
+        f"WARNING climate_projections: `{key}` is obsolete and ignored "
+        "(S8-08c); the gridded outputs were removed. Delete the key."
+    ]
+
+
+@pytest.mark.workflow_contract
+def test_snakefile_rejects_a_removed_gridded_key(tmp_path, seed_config):
+    """The WF2 Snakefile applies the directly tested removal policy."""
     cfg = dict(seed_config)
-    proj = dict(cfg["workflows"]["climate_projections"])
-    proj.pop("save_grids", None)
-    proj.pop("save_gridded", None)
-    proj[key] = False
-    cfg["workflows"] = dict(cfg["workflows"], climate_projections=proj)
+    projection_cfg = dict(cfg["workflows"]["climate_projections"])
+    projection_cfg.pop("save_grids", None)
+    projection_cfg["save_gridded"] = True
+    cfg["workflows"] = dict(cfg["workflows"], climate_projections=projection_cfg)
 
     result = _dry_run(_write(tmp_path, cfg))
-    assert result.returncode == 0, result.stdout + result.stderr
-    assert "obsolete" in (result.stdout + result.stderr).lower()
+    combined = result.stdout + result.stderr
+    assert result.returncode != 0, "a true gridded key must stop the run"
+    assert "`save_gridded: true`" in combined
+    assert "gridded outputs were removed" in combined
 
 
 def test_no_shipped_config_carries_a_gridded_key():

@@ -68,6 +68,7 @@ def test_staticmaps_edges_stay_ancient():
     not (SNAKEDIR / "test_case" / "test_local" / "hydrology_model").is_dir(),
     reason="untracked test_case/test_local fixture tree not present",
 )
+@pytest.mark.workflow_contract
 def test_rerunning_build_wflow_model_reschedules_the_whole_toml_chain():
     """THE REGRESSION. If build_wflow_model re-fires, every rule that writes into
     wflow_sbm.toml must come with it. Before the fix the DAG scheduled

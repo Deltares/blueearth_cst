@@ -355,25 +355,43 @@ discharge statistics.
 Testing
 =======
 
-The cheapest useful check is the dry-run gate, which parses all three
-Snakefiles and validates their DAGs without running anything:
+The test suite has three explicit tiers. For normal development, run the fast
+tier; it keeps all pure/unit coverage and excludes only tests that invoke real
+Snakemake workflows or require fresh Python processes:
 
 .. code-block:: console
 
-    $ pixi run pytest tests/test_cli.py
+    $ pixi run test-fast
 
-The full unit suite takes a couple of minutes:
+Run the workflow/process contracts after changing a Snakefile, a workflow
+boundary, or process-isolated behaviour:
 
 .. code-block:: console
 
+    $ pixi run test-contract
+
+The authoritative full non-integration suite remains the unfiltered run. The
+Pixi task is only a memorable alias; bare ``pytest tests/`` has the same
+meaning:
+
+.. code-block:: console
+
+    $ pixi run test-full
     $ pixi run pytest tests/
+
+``workflow_contract`` marks real Snakemake CLI/API/DAG and lifecycle checks;
+``process_isolation`` marks non-Snakemake proofs that need fresh interpreters.
+The markers partition execution cost, not coverage: the full tier runs both.
+In the August 2026 clean-Windows measurement, the fast tier ran in about one
+minute and the contract tier in about five minutes (roughly 1,070 tests total).
 
 Notes on what the suite does and does not cover:
 
 - Tests that need the untracked ``test_case/test_local`` fixture tree
   **skip** when it is absent, as do three end-to-end workflow tests that
   are opt-in behind ``--run-integration``. Run ``pytest -rs`` to see every
-  skip reason. On a clean checkout expect ~385 passed and ~30 skipped.
+  skip reason. The August 2026 clean-checkout profile had 31 skips: 28
+  fixture-dependent checks and the three opt-in integrations.
 - ``dev/scripts/check_baseline.py check`` and
   ``dev/scripts/semantic_tree_diff.py`` compare a produced output tree
   against a recorded baseline. They are **local-only gates** — they need

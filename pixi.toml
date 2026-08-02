@@ -115,3 +115,9 @@ install-rdeps = { cmd = "Rscript --vanilla dev/scripts/install_weathergenr.R", d
 # CA (share/julia/cert.pem). Task-scoped so Python/hydromt TLS keep their certs.
 install-julia = { cmd = "julia +1.11.7 --project=. -e 'using Pkg; Pkg.instantiate()'", description = "Instantiate the Julia env from Manifest.toml (needs juliaup-managed Julia 1.11.7 on PATH: `juliaup add 1.11.7`; conda-forge has no win-64 julia build)", env = { SSL_CERT_DIR = "", SSL_CERT_FILE = "" } }
 install       = { depends-on = ["install-rdeps", "install-julia"], description = "Install weathergenr + instantiate Julia env on top of pixi install" }
+
+# Pytest tiers. The unfiltered task remains the authoritative default suite;
+# integration-marked end-to-end runs stay opt-in via --run-integration.
+test-fast = { cmd = "pytest tests/ -m \"not workflow_contract and not process_isolation\"", description = "Run the fast non-integration suite without workflow/process contracts" }
+test-contract = { cmd = "pytest tests/ -m \"workflow_contract or process_isolation\"", description = "Run the expensive workflow and fresh-process contract tier" }
+test-full = { cmd = "pytest tests/", description = "Run the authoritative full non-integration suite" }
