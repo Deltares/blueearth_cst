@@ -70,27 +70,35 @@ is gitignored and one `git clean -fdX` from gone.
 
 ## The retention rule
 
-Only `reviews/` is prunable, and it is meant to be pruned. A process review or
-a post-milestone self-check is a snapshot of a system that keeps moving; left
-alone the folder accumulates thousands of lines that describe a repository
-that no longer exists.
+Only `reviews/` is prunable. A process review or a post-milestone self-check is
+a snapshot of a system that keeps moving, so the folder would otherwise
+accumulate thousands of lines describing a repository that no longer exists.
 
-- **A closed register collapses to its outcome.** Once every item is
-  dispositioned, keep the outcome summary and drop the working detail. Keep the
-  filename — citations point at the path, not the contents.
-- **A superseded review is folded, not kept.** If a later revision states what
-  it supersedes, fold the survivor and delete the original.
-- **Raw inputs are spent once their output stands.** Reviewer critiques and
-  review briefs exist to produce a review; when it lands, they go.
-- **A process lesson's home is the skill, not this folder.** If the durable
-  output is a change to a skill or role in `brain`, make that change; the
-  review that prompted it is then spent.
+A review may be deleted when **all three** hold:
 
-Nothing else here is prunable. `decisions/` is permanent by construction,
-`milestones/` and `tasks/` are identity-indexed records, and `reference/`
-describes the current system. Before deleting any review, confirm its items
-landed somewhere durable — `followups.md`, `TODO.md`, or a decision — and check
-whether anything cites it.
+1. **Nothing cites it** — including other reviews. Check with
+   `git grep -l <filename>`, not intuition.
+2. **Its items are dispositioned**, and anything carried forward has landed in
+   `followups.md`, `TODO.md`, or a decision.
+3. **Its durable output has left** — if the review produced skill or role
+   candidates, those changes are committed in `brain`. The lesson's home is the
+   skill; the review that prompted it is then spent.
+
+Delete whole files. **Do not collapse a register to its outcome summary** — that
+rule was tried on 2026-08-02 and fails in practice, twice over: the post-R6
+assessment is cited by 23 individual `O-` numbers from R7 docs, `roadmap.md`,
+and `pyproject.toml`, and the post-R8 register's own summary states it is "a
+derived overview, not a substitute". Citers reference the detail, not just the
+path.
+
+**Partial supersession means annotate, not delete.** A later revision often
+supersedes only some sections — `wf2-v2-process-review-r2.md` replaces sections
+1, 3 and 5 of its predecessor while 2, 4 and 6 stand. Put a banner in the
+superseded file saying exactly which sections went and where; keep both.
+
+Nothing outside `reviews/` is prunable. `decisions/` is permanent by
+construction, `milestones/` and `tasks/` are identity-indexed records, and
+`reference/` describes the current system.
 
 ## Milestone records
 

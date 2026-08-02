@@ -68,7 +68,7 @@ Suite before: 119 passed / 3 skipped / 7 xfailed. After: **123 / 3 / 1**
   [ADR 0001](../decisions/0001-restore-wflow-constant-parameters.md)** via a full
   `design-review-loop` (internal risk/architecture/repo-fit panel + 2 external
   GPT rounds via codex + user arbitration at the cap; 26 findings all resolved;
-  consolidated record `dev/reviews/2026-07-21_adr-0001-constant-pars.md`). The
+  consolidated record `dev/decisions/0001-restore-wflow-constant-parameters/review-record.md`). The
   review caught two class-of-error bugs before any build compute: the protocol
   targeted `staticmaps.nc` but constants land as TOML scalars, and a
   build-sequence identity-comparison trap. **Implementation is the remaining,
