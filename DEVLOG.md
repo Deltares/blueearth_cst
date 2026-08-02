@@ -25,6 +25,12 @@ completed before landing.
   legacy conflict detection and validated spatial defaults.
 - Implemented deterministic basin, subbasin, location-code, and `wflow_id`
   assignment with row-order invariance tests.
+- Implemented model-neutral D8 hydrography/topography preparation, global-ceiling
+  automatic fallback, gauge-controlled incremental subbasins, full contributing
+  catchments, thematic-map resampling, the location registry, explicit vector
+  products, and a portable HydroMT spatial catalog.
+- Validated the spatial product with 43 focused tests and Ruff, including a
+  write/read round trip through the generated catalog.
 
 **Pending:**
 - Build and wire the remaining P1 spatial products, then stop at the

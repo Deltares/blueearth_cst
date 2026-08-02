@@ -91,7 +91,7 @@ Add a targetable Snakemake rule named `prepare_spatial_maps` that creates analys
 
 - [x] Reconciled and landed the overlapping `feat/wf1-improvements` branch.
 - [x] Define and validate the neutral config and deterministic identity contract.
-- [ ] Build the engine-neutral spatial products.
+- [x] Build the engine-neutral spatial products.
 - [ ] Add and validate the `prepare_spatial_maps` rule.
 - [ ] Produce the adapter proof and pause at master Gate 1.
 
