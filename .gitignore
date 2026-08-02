@@ -152,3 +152,9 @@ tests/test_project
 # dev-process scratch (disposable machine-local outputs)
 dev/tmp/*
 !dev/tmp/.gitkeep
+
+# dev/ is the process record: prose, tables, and small tabular evidence only.
+# netCDF probe/QA states belong outside the repo -- the two that reached
+# dev/p32a/qa/ were 68 MB, the largest blobs in this history. Record the
+# finding in Markdown and the artifact's SHA256, not the artifact.
+dev/**/*.nc
