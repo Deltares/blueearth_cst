@@ -46,6 +46,7 @@ def _doc(**over):
         series_attrs=SERIES_ATTRS,
         catalog_crawled_on="2026-07-29",
         reducer_module_hash="hash789",
+        effective_config_sha256="effective123",
         region_fingerprint="fingerprint000",
         horizons={"far": "2070 / 2090"},
         weighting_scheme="spherical_cell_area_midpoint_edges",
@@ -59,7 +60,8 @@ def _doc(**over):
 
 @pytest.mark.parametrize(
     "key",
-    ["reference_window", "region_fingerprint", "reducer_module_hash", "variable_spec",
+    ["reference_window", "region_fingerprint", "reducer_module_hash",
+     "effective_config_sha256", "variable_spec",
      "catalog_crawled_on", "sources", "composition", "weighting_scheme",
      "horizon_windows", "flagged_months", "schema_version"],
 )
@@ -71,6 +73,13 @@ def test_M6_store_paths_are_structure_not_a_string():
     """D12's verified physical paths must be queryable, not a JSON blob to re-parse."""
     src = _doc()["sources"][0]
     assert src["store_paths"]["r1i1p1f1"]["tas"] == ["gr1/v20190530"]
+
+
+def test_M6_effective_config_digest_is_the_supplied_workflow_identity():
+    """Result provenance points to the exact merged configuration snapshot."""
+    assert _doc(effective_config_sha256="abc123")["effective_config_sha256"] == (
+        "abc123"
+    )
 
 
 def test_M6_the_effective_window_is_PER_SOURCE_not_run_level():

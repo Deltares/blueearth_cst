@@ -580,6 +580,7 @@ if "snakemake" in globals():
             reducer_module_hash=next(
                 (a.get("cst_reducer_module_hash", "") for a in series_attrs.values()), ""
             ),
+            effective_config_sha256=sm.params.effective_config_sha256,
             region_fingerprint=region_fp,
             horizons={k: " / ".join(_to_str_tuple(v)) for k, v in horizons.items()},
             weighting_scheme=next(

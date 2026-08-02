@@ -35,6 +35,7 @@ def build(
     effective_windows=None,
     catalog_crawled_on,
     reducer_module_hash,
+    effective_config_sha256,
     region_fingerprint,
     horizons,
     weighting_scheme,
@@ -108,6 +109,7 @@ def build(
         # --- identity
         "region_fingerprint": region_fingerprint,
         "reducer_module_hash": reducer_module_hash,
+        "effective_config_sha256": effective_config_sha256,
         "weighting_scheme": weighting_scheme,
         "variable_spec": {
             name: dict(zip(("name", "source", "canonical", "units", "change"), fields))

@@ -1,10 +1,20 @@
-"""Snapshot the snake config and its referenced config files into project_dir."""
+"""Snapshot source and effective workflow configuration into ``project_dir``."""
+import json
 import os
-from os.path import join, dirname
+from os.path import join
 from pathlib import Path
-from typing import Union, Mapping, Optional
+import shutil
+from typing import Mapping, Optional, Union
+
+import yaml
 
 from blueearth_cst.shared.gauges import is_unset, warn_if_low_gauge_ids
+from blueearth_cst.shared.provenance import (
+    effective_config_digest,
+    effective_config_document,
+    file_sha256,
+    snapshot_bundle_digest,
+)
 from blueearth_cst.shared.snake_utils import log_row
 
 
@@ -12,6 +22,10 @@ def copy_config_files(
     config: Union[str, Path],
     config_out_path: Union[str, Path],
     other_config_files: Optional[Mapping[Union[str, Path], Union[str, Path]]] = None,
+    snapshot_dir: Union[str, Path, None] = None,
+    effective_config: Optional[Mapping] = None,
+    advanced_settings: Optional[Mapping] = None,
+    workflow_name: Optional[str] = None,
 ):
     """
     Snapshot the snake config and its referenced config files into project_dir.
@@ -32,29 +46,156 @@ def copy_config_files(
         each referenced config file mapped to the directory its kind belongs
         in. Missing files are skipped -- hydromt's predefined catalogs have no
         path on disk.
+    snapshot_dir : path-like, optional
+        content-addressed bundle directory. When supplied, ``effective_config``,
+        ``advanced_settings``, and ``workflow_name`` are required.
+    effective_config : Mapping, optional
+        Snakemake's merged config dictionary, after command-line overrides.
+    advanced_settings : Mapping, optional
+        Resolved toolbox-wide settings applied outside the project config.
+    workflow_name : str, optional
+        Workflow recorded in the immutable bundle manifest.
 
     """
-    # Copy the snake config file to its declared destination
-    os.makedirs(dirname(config_out_path), exist_ok=True)
-    log_row(f"Copying {os.path.basename(config_out_path)} to "
-            f"{dirname(config_out_path)}", module="config")
-    with open(config, "r") as f:
-        snake_config = f.read()
-    with open(config_out_path, "w") as f:
-        f.write(snake_config)
+    source_config_path = Path(config)
+    current_config_path = Path(config_out_path)
+    current_config_path.parent.mkdir(parents=True, exist_ok=True)
+    log_row(
+        f"Copying {current_config_path.name} to {current_config_path.parent}",
+        module="config",
+    )
+    shutil.copyfile(source_config_path, current_config_path)
 
     # Copy every other config file into the bin its KIND belongs in
-    for config_file, dest_dir in (other_config_files or {}).items():
+    references = dict(other_config_files or {})
+    for config_file, dest_dir in references.items():
         # Check if the file does exist
         # (eg predefined catalogs of hydromt do not have a path)
-        if os.path.isfile(config_file):
-            with open(config_file, "r") as f:
-                content = f.read()
-            config_name = os.path.basename(config_file)
-            os.makedirs(dest_dir, exist_ok=True)
-            log_row(f"Copying {config_name} to {dest_dir}", module="config")
-            with open(join(dest_dir, config_name), "w") as f:
-                f.write(content)
+        source_path = Path(config_file)
+        if source_path.is_file():
+            destination_dir = Path(dest_dir)
+            destination_dir.mkdir(parents=True, exist_ok=True)
+            log_row(
+                f"Copying {source_path.name} to {destination_dir}", module="config"
+            )
+            shutil.copyfile(source_path, destination_dir / source_path.name)
+
+    snapshot_values = (
+        snapshot_dir,
+        effective_config,
+        advanced_settings,
+        workflow_name,
+    )
+    if any(value is not None for value in snapshot_values):
+        if any(value is None for value in snapshot_values):
+            raise ValueError(
+                "snapshot_dir, effective_config, advanced_settings, and "
+                "workflow_name must be provided together"
+            )
+        _write_snapshot_bundle(
+            source_config_path=source_config_path,
+            snapshot_dir=Path(snapshot_dir),
+            effective_config=effective_config,
+            advanced_settings=advanced_settings,
+            workflow_name=workflow_name,
+            referenced_files=references,
+        )
+
+
+def _write_snapshot_bundle(
+    *,
+    source_config_path: Path,
+    snapshot_dir: Path,
+    effective_config: Mapping,
+    advanced_settings: Mapping,
+    workflow_name: str,
+    referenced_files: Mapping[Union[str, Path], Union[str, Path]],
+) -> None:
+    """Write a deterministic bundle of resolved settings and referenced files."""
+    snapshot_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source_config_path, snapshot_dir / "source.yml")
+
+    effective_document = effective_config_document(
+        effective_config, advanced_settings
+    )
+    effective_document["effective_config_sha256"] = effective_config_digest(
+        effective_config, advanced_settings
+    )
+    with (snapshot_dir / "effective.yml").open("w", encoding="utf-8") as stream:
+        yaml.safe_dump(
+            effective_document,
+            stream,
+            sort_keys=True,
+            allow_unicode=True,
+        )
+
+    entries = []
+    reference_descriptors = []
+    for source, current_destination in sorted(
+        referenced_files.items(), key=lambda item: (str(item[1]), str(item[0]))
+    ):
+        source_text = str(source)
+        source_path = Path(source_text)
+        kind = Path(current_destination).name
+        if source_path.is_file():
+            reference_descriptors.append(
+                {"kind": kind, "identifier": source_text, "path": source_text}
+            )
+            digest = file_sha256(source_path)
+            archive_path = (
+                Path("files") / kind / f"{digest[:12]}-{source_path.name}"
+            )
+            archive_target = snapshot_dir / archive_path
+            archive_target.parent.mkdir(parents=True, exist_ok=True)
+            if not archive_target.exists():
+                shutil.copyfile(source_path, archive_target)
+            entries.append(
+                {
+                    "archived_path": archive_path.as_posix(),
+                    "kind": kind,
+                    "sha256": digest,
+                    "size_bytes": source_path.stat().st_size,
+                    "source": source_text,
+                    "status": "archived",
+                }
+            )
+        else:
+            reference_descriptors.append(
+                {"kind": kind, "identifier": source_text}
+            )
+            entries.append(
+                {
+                    "archived_path": None,
+                    "kind": kind,
+                    "sha256": None,
+                    "size_bytes": None,
+                    "source": source_text,
+                    "status": "logical_identifier",
+                }
+            )
+
+    bundle_digest = snapshot_bundle_digest(
+        effective_config,
+        advanced_settings,
+        source_config_path,
+        reference_descriptors,
+    )
+    manifest = {
+        "effective_config_sha256": effective_document["effective_config_sha256"],
+        "referenced_files": entries,
+        "schema_version": "1",
+        "snapshot_bundle_sha256": bundle_digest,
+        "source_config": {
+            "archived_path": "source.yml",
+            "sha256": file_sha256(source_config_path),
+            "source": str(source_config_path),
+        },
+        "workflow": workflow_name,
+    }
+    manifest_path = snapshot_dir / "referenced-files.json"
+    with manifest_path.open("w", encoding="utf-8") as stream:
+        json.dump(manifest, stream, indent=2, sort_keys=True)
+        stream.write("\n")
 
 
 def _warn_on_low_gauge_ids(locations_path):
@@ -147,12 +288,8 @@ if __name__ == "__main__":
             config=config_snake,
             config_out_path=config_snake_out,
             other_config_files=other_config_files,
-        )
-
-    else:
-        copy_config_files(
-            config="config/snake_config_model_test.yml",
-            output_dir="test_case/test/config",
-            config_out_name=None,
-            other_config_files=[],
+            snapshot_dir=sm.output.snapshot_bundle,
+            effective_config=sm.params.effective_config,
+            advanced_settings=sm.params.advanced_settings,
+            workflow_name=workflow_name,
         )

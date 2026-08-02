@@ -7,7 +7,10 @@ templates/, generated/). These pin the new contract.
 """
 
 
+import json
+
 import pytest
+import yaml
 
 from blueearth_cst.model.copy_config_files import copy_config_files  # noqa: E402
 
@@ -145,3 +148,94 @@ def test_the_snapshot_is_a_faithful_copy(tmp_path, sources):
         encoding="utf-8"
     )
     assert copied == body
+
+
+# --------------------------------------------------------------------------- #
+# Immutable effective-config bundle
+# --------------------------------------------------------------------------- #
+
+
+def test_writes_effective_config_bundle_and_archives_references(tmp_path, sources):
+    """The durable bundle records resolved settings and immutable file copies."""
+    snake, catalog, template = sources
+    cfg = tmp_path / "project" / "config"
+    snapshot_dir = cfg / "runs" / "model_creation" / "bundle-digest"
+    effective_config = {"project": {"project_dir": "somewhere"}, "values": [1, 2]}
+    advanced_settings = {
+        "constraints": {"min_historical_years": 16},
+        "defaults": {"julia_threads": 4},
+        "runtime": {"julia_version": "1.11.7"},
+    }
+
+    copy_config_files(
+        config=snake,
+        config_out_path=cfg / "runs" / "snake_config_model_creation.yml",
+        other_config_files={
+            str(catalog): str(cfg / "catalogs"),
+            str(template): str(cfg / "templates"),
+            "artifact_data": str(cfg / "catalogs"),
+        },
+        snapshot_dir=snapshot_dir,
+        effective_config=effective_config,
+        advanced_settings=advanced_settings,
+        workflow_name="model_creation",
+    )
+
+    assert (snapshot_dir / "source.yml").read_text(encoding="utf-8") == (
+        snake.read_text(encoding="utf-8")
+    )
+    effective = yaml.safe_load(
+        (snapshot_dir / "effective.yml").read_text(encoding="utf-8")
+    )
+    assert effective["project_config"] == effective_config
+    assert effective["advanced_settings"] == advanced_settings
+    assert len(effective["effective_config_sha256"]) == 64
+
+    manifest = json.loads(
+        (snapshot_dir / "referenced-files.json").read_text(encoding="utf-8")
+    )
+    assert manifest["workflow"] == "model_creation"
+    assert manifest["effective_config_sha256"] == effective[
+        "effective_config_sha256"
+    ]
+    assert manifest["source_config"]["sha256"]
+    assert manifest["source_config"]["archived_path"] == "source.yml"
+
+    by_source = {entry["source"]: entry for entry in manifest["referenced_files"]}
+    catalog_entry = by_source[str(catalog)]
+    assert catalog_entry["kind"] == "catalogs"
+    assert catalog_entry["status"] == "archived"
+    assert (snapshot_dir / catalog_entry["archived_path"]).read_text(
+        encoding="utf-8"
+    ) == catalog.read_text(encoding="utf-8")
+
+    logical_entry = by_source["artifact_data"]
+    assert logical_entry["status"] == "logical_identifier"
+    assert logical_entry["archived_path"] is None
+    assert logical_entry["sha256"] is None
+
+
+def test_snapshot_bundle_is_deterministic(tmp_path, sources):
+    """Writing the same snapshot twice produces byte-identical metadata."""
+    snake, catalog, _ = sources
+    cfg = tmp_path / "project" / "config"
+    kwargs = {
+        "config": snake,
+        "config_out_path": cfg / "runs" / "snake.yml",
+        "other_config_files": {str(catalog): str(cfg / "catalogs")},
+        "effective_config": {"b": 2, "a": 1},
+        "advanced_settings": {"defaults": {"threads": 4}},
+        "workflow_name": "model_creation",
+    }
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+
+    copy_config_files(snapshot_dir=first, **kwargs)
+    copy_config_files(snapshot_dir=second, **kwargs)
+
+    assert (first / "effective.yml").read_bytes() == (
+        second / "effective.yml"
+    ).read_bytes()
+    assert (first / "referenced-files.json").read_bytes() == (
+        second / "referenced-files.json"
+    ).read_bytes()

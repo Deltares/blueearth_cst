@@ -4,8 +4,10 @@ The six §7(g) assertions plus the ext1-03 enabled:false skip test. Every test
 monkeypatches subprocess.run to capture the argv list -- no real snakemake runs.
 """
 
+import json
 import os
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -14,15 +16,18 @@ import run_workflows as rw  # noqa: E402
 
 
 class FakeResult:
-    def __init__(self, returncode):
+    def __init__(self, returncode, stdout=""):
         self.returncode = returncode
+        self.stdout = stdout
 
 
-def _write_cfg(path, flags, project_dir="test_case/test"):
+def _write_cfg(path, flags, project_dir=None):
     """Write a full-orchestration config with the given enabled flags dict.
 
     ``flags`` values are inserted verbatim into YAML so a caller can pass a raw
     string (e.g. '"true"' or 'yes') to exercise the parsed-value contract."""
+    if project_dir is None:
+        project_dir = path.parent / "project"
     lines = [
         "project:",
         f"  project_dir: {project_dir}",
@@ -41,6 +46,9 @@ def capture_runs(monkeypatch):
     exits = {}  # index -> returncode override
 
     def fake_run(cmd, cwd=None, **kwargs):
+        if cmd[0] == "git":
+            stdout = "abc123\n" if "rev-parse" in cmd else ""
+            return FakeResult(0, stdout=stdout)
         idx = len(calls)
         calls.append(cmd)
         return FakeResult(exits.get(idx, 0))
@@ -56,6 +64,18 @@ def _snakefiles_invoked(calls):
         i = cmd.index("-s")
         out.append(cmd[i + 1])
     return out
+
+
+def _manifests(project_dir: Path) -> list[Path]:
+    """Return wrapper manifests in deterministic filename order."""
+    return sorted((project_dir / "provenance" / "runs").glob("*.json"))
+
+
+def _read_only_manifest(project_dir: Path) -> dict:
+    """Read the sole invocation manifest below a test project root."""
+    manifests = _manifests(project_dir)
+    assert len(manifests) == 1
+    return json.loads(manifests[0].read_text(encoding="utf-8"))
 
 
 # --- §7(g) assertion 1: all-true -> all three in fixed order -----------------
@@ -206,3 +226,151 @@ def test_all_enabled_inverse_all_invoked(tmp_path, capture_runs):
     _write_cfg(cfg, {n: "true" for n in rw.WORKFLOW_ORDER})
     rw.run(str(cfg), cores=3, extra=[])
     assert len(_snakefiles_invoked(calls)) == 3
+
+
+def test_success_manifest_is_initialized_before_first_workflow_and_finalized(
+    tmp_path, monkeypatch
+):
+    """The unique manifest exists as running before the child is launched."""
+    project_dir = tmp_path / "project"
+    cfg = tmp_path / "c.yml"
+    _write_cfg(cfg, {n: "true" for n in rw.WORKFLOW_ORDER}, project_dir)
+    calls = []
+
+    def fake_run(cmd, cwd=None, **kwargs):
+        if cmd[0] == "git":
+            return FakeResult(0, stdout="abc123\n" if "rev-parse" in cmd else "")
+        calls.append(cmd)
+        running = _read_only_manifest(project_dir)
+        assert running["status"] == "running"
+        assert running["ended_at_utc"] is None
+        return FakeResult(0)
+
+    monkeypatch.setattr(rw.subprocess, "run", fake_run)
+
+    assert rw.run(str(cfg), cores=5, extra=["--dry-run"]) == 0
+
+    manifest = _read_only_manifest(project_dir)
+    assert manifest["schema_version"] == 1
+    assert manifest["status"] == "succeeded"
+    assert manifest["exit_code"] == 0
+    assert manifest["ended_at_utc"].endswith("Z")
+    assert manifest["cores"] == 5
+    assert manifest["dry_run"] is True
+    assert manifest["source_config"]["sha256"] == rw.file_sha256(cfg)
+    assert manifest["effective_config"]["sha256"]
+    assert manifest["git"] == {"commit": "abc123", "dirty": False}
+    assert manifest["runtime"]["python"]
+    assert [item["status"] for item in manifest["workflows"].values()] == [
+        "succeeded",
+        "succeeded",
+        "succeeded",
+    ]
+    assert len(calls) == 3
+
+
+def test_no_op_invocations_each_get_an_immutable_manifest(tmp_path, capture_runs):
+    """Repeated all-disabled calls create separate finalized records."""
+    project_dir = tmp_path / "project"
+    cfg = tmp_path / "c.yml"
+    _write_cfg(cfg, {n: "false" for n in rw.WORKFLOW_ORDER}, project_dir)
+
+    assert rw.run(str(cfg), cores=3, extra=[]) == 0
+    assert rw.run(str(cfg), cores=3, extra=[]) == 0
+
+    manifests = _manifests(project_dir)
+    assert len(manifests) == 2
+    for path in manifests:
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        assert manifest["status"] == "succeeded"
+        assert manifest["no_op"] is True
+        assert {item["status"] for item in manifest["workflows"].values()} == {
+            "disabled"
+        }
+
+
+def test_failure_manifest_records_stop_boundary(tmp_path, capture_runs):
+    """A child failure finalizes its result and marks later work not run."""
+    _, exits = capture_runs
+    exits[0] = 9
+    project_dir = tmp_path / "project"
+    cfg = tmp_path / "c.yml"
+    _write_cfg(cfg, {n: "true" for n in rw.WORKFLOW_ORDER}, project_dir)
+
+    assert rw.run(str(cfg), cores=3, extra=[]) == 9
+
+    workflows = _read_only_manifest(project_dir)["workflows"]
+    assert workflows["model_creation"]["status"] == "failed"
+    assert workflows["model_creation"]["exit_code"] == 9
+    assert workflows["climate_projections"]["status"] == "not_run"
+    assert workflows["climate_experiment"]["status"] == "not_run"
+
+
+def test_subprocess_exception_finalizes_failure_manifest(tmp_path, monkeypatch):
+    """Launch errors leave a terminal record rather than a stale running one."""
+    project_dir = tmp_path / "project"
+    cfg = tmp_path / "c.yml"
+    _write_cfg(cfg, {n: "true" for n in rw.WORKFLOW_ORDER}, project_dir)
+
+    def fake_run(cmd, cwd=None, **kwargs):
+        if cmd[0] == "git":
+            return FakeResult(0, stdout="abc123\n" if "rev-parse" in cmd else "")
+        raise OSError("snakemake executable missing")
+
+    monkeypatch.setattr(rw.subprocess, "run", fake_run)
+
+    with pytest.raises(OSError, match="snakemake executable missing"):
+        rw.run(str(cfg), cores=3, extra=[])
+
+    manifest = _read_only_manifest(project_dir)
+    assert manifest["status"] == "failed"
+    assert manifest["exit_code"] is None
+    assert manifest["error_type"] == "OSError"
+    assert manifest["workflows"]["model_creation"]["status"] == "failed"
+    assert manifest["workflows"]["climate_projections"]["status"] == "not_run"
+
+
+def test_manifest_sanitizes_sensitive_extra_args(tmp_path, capture_runs):
+    """Sensitive flag and --config assignment values never reach the record."""
+    project_dir = tmp_path / "project"
+    cfg = tmp_path / "c.yml"
+    _write_cfg(cfg, {n: "false" for n in rw.WORKFLOW_ORDER}, project_dir)
+    extra = [
+        "--config",
+        "threshold=4",
+        "api_token=token-value",
+        "clientSecret=camel-secret-value",
+        "--password",
+        "password-value",
+    ]
+
+    rw.run(str(cfg), cores=3, extra=extra)
+
+    manifest_text = _manifests(project_dir)[0].read_text(encoding="utf-8")
+    manifest = json.loads(manifest_text)
+    assert "token-value" not in manifest_text
+    assert "camel-secret-value" not in manifest_text
+    assert "password-value" not in manifest_text
+    assert "threshold=4" in manifest["extra_args"]
+    assert "api_token=<redacted>" in manifest["extra_args"]
+    assert manifest["effective_config"]["includes_cli_config_overrides"] is False
+    assert manifest["snakemake_config_overrides"] == [
+        "threshold=4",
+        "api_token=<redacted>",
+        "clientSecret=<redacted>",
+    ]
+
+
+def test_sensitive_args_are_redacted_from_console(tmp_path, capture_runs, capsys):
+    """The wrapper's command echo does not defeat manifest sanitization."""
+    project_dir = tmp_path / "project"
+    cfg = tmp_path / "c.yml"
+    flags = {n: "false" for n in rw.WORKFLOW_ORDER}
+    flags["model_creation"] = "true"
+    _write_cfg(cfg, flags, project_dir)
+
+    rw.run(str(cfg), cores=3, extra=["--config", "api_token=visible-secret"])
+
+    output = capsys.readouterr().out
+    assert "visible-secret" not in output
+    assert "api_token=<redacted>" in output

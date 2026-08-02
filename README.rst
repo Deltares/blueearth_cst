@@ -173,6 +173,26 @@ Each run writes its generated model and result artifacts to the
 are kept separate from the toolbox source. (The in-repo
 ``test_case/test_local`` directory is a dev/test convention only.)
 
+Configuration and run provenance
+--------------------------------
+
+Each workflow keeps its established current config copy for project-consistency
+checks and also writes a content-addressed snapshot bundle. The bundle contains
+the original YAML, Snakemake's merged effective config, the resolved toolbox-wide
+advanced settings, and hashed copies of referenced catalogs, templates, and
+observation files. Project-level bundles live under
+``<project_dir>/config/runs/<workflow>/<snapshot-digest>/``; climate-experiment
+bundles live under the same path inside the experiment directory. Changing a
+setting or referenced file produces a new bundle instead of overwriting its
+history.
+
+Runs launched through ``scripts/run_workflows.py`` additionally write one
+immutable invocation manifest under ``<project_dir>/provenance/runs/``. It
+records enabled workflows, sanitized arguments, start/end status, config and
+lock-file digests, and Git/runtime identity. Direct ``snakemake`` invocations
+still receive the configuration snapshot, but only the wrapper can record the
+complete invocation lifecycle, including failures and no-op runs.
+
 Each workflow records itself in **one log and one benchmark table**, both
 regenerated on every run:
 
@@ -251,6 +271,11 @@ Contract:
 - ``--cores N`` and any arguments after a ``--`` sentinel forward to every
   invocation; each workflow keeps its own flags (``--keep-going`` on
   projections only).
+- Every valid wrapper invocation, including a dry-run, no-op, or failed child,
+  receives a unique atomically finalized manifest under
+  ``<project_dir>/provenance/runs/``. Passthrough ``--config`` overrides are
+  sanitized and recorded there; the workflow snapshot remains authoritative
+  for the merged Snakemake config.
 
 **Skip semantics.** ``enabled: false`` means the wrapper does not invoke
 that Snakefile, so its outputs are not produced. It does **not** delete
