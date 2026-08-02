@@ -19,11 +19,11 @@ and guards the two silent modes the ADR names:
 It is a diagnostic, NOT a standing test: `test_cli.py` is dry-run only and
 `test_model_creation.py` does not build, so this has no home in the suite (ADR
 step 3). Run it against a restored build during implementation and paste the
-report into dev/working/const-pars/baseline_diffs.md.
+report into dev/decisions/0001-restore-wflow-constant-parameters/baseline_diffs.md.
 
     python dev/scripts/verify_constant_pars.py \
         --model-dir examples/test_local/hydrology_model \
-        --config dev/working/const-pars/config_restored.yml
+        --config dev/decisions/0001-restore-wflow-constant-parameters/config_restored.yml
 
 Exit 0 iff every expected constant landed as a correct scalar with no shadowing.
 Run against the current (baseline) model it will report the 13 not-yet-restored
@@ -88,7 +88,7 @@ def main() -> int:
                    default=Path("examples/test_local/hydrology_model"),
                    help="Built model dir (holds wflow_sbm.toml + staticmaps.nc)")
     p.add_argument("--config", type=Path,
-                   default=Path("dev/working/const-pars/config_restored.yml"),
+                   default=Path("dev/decisions/0001-restore-wflow-constant-parameters/config_restored.yml"),
                    help="Build config whose setup_constant_pars block is the reference")
     args = p.parse_args()
 

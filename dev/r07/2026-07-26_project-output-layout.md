@@ -438,8 +438,14 @@ to a design document (see §6).
 
 ## 6. Promotion checklist
 
-This file is a `dev/working/` note — the convention deletes those at task closure,
-so the rationale above must move to a durable home before implementation:
+> **Executed.** The milestone was assigned R7 and the rationale below was
+> promoted to `dev/r07/project-layout-design.md`. This note moved from
+> `dev/working/` to `dev/r07/` alongside it — it is the R7 intake record, kept
+> because three tracked documents cite it. The checklist stays as written for
+> the historical trail.
+
+This file was a `dev/working/` note — the convention deletes those at task closure,
+so the rationale above had to move to a durable home before implementation:
 
 1. Promote to `dev/<milestone>/project-output-layout-design.md`; **milestone
    number to be assigned**.

@@ -6,8 +6,8 @@ Supersedes: sections 1, 3 and 5 of dev/reviews/2026-07-30_wf2-v2-process-review.
             (sections 2, 4, 6 stand, corrected by sections 1 and 2 below — §2
             here retracts the cache fix that §2.1 there credits)
 Inputs:     that review, plus two independent critiques of it —
-              dev/working/2026-07-30_process-review-critique-fable.md  (Fable, xhigh)
-              dev/working/2026-07-30_process-review-critique-gpt.md    (GPT-5.6)
+              dev/reviews/2026-07-30_process-review-critique-fable.md  (Fable, xhigh)
+              dev/reviews/2026-07-30_process-review-critique-gpt.md    (GPT-5.6)
 Written by: the driver being reviewed. Every concession below is argued from the
             critiques' evidence; every disagreement is argued from the repo.
 Status:     mid-milestone; steps 4d, 5a-5f, 6a-6c, 7 and the seal remain

@@ -29,7 +29,7 @@ principle (P3). Chain:
 - `dev/reviews/2026-07-25_post-r6-assessment.md` — observation register
   O-01 … O-24, repository-side, with a routing note for which observations R7
   owns.
-- `dev/working/2026-07-26_project-output-layout.md` — the working note the
+- `dev/r07/2026-07-26_project-output-layout.md` — the working note the
   design supersedes; artifact-side items, question log, cost analysis.
 - `dev/roadmap.md` § "Phase 4 — Layout consolidation" — the milestone entry,
   exit criteria, and tag reservation (`r07-layout`).

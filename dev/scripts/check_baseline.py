@@ -29,7 +29,7 @@ fingerprints if the sub-tolerance wf1 move (max|dQ|/mean ~ 1.7e-4) survives thei
 rounding. That is the DOCUMENTED residual, not a regression: follow the ADR 0001
 step-7 immaterial-branch recovery path (re-run wf3, confirm the movement is
 consistent with the recorded wf1 diff, then re-record the wf3 slice with a note;
-else stop and investigate) — see dev/working/const-pars/baseline_diffs.md.
+else stop and investigate) — see dev/decisions/0001-restore-wflow-constant-parameters/baseline_diffs.md.
 
 Usage:
     python dev/scripts/check_baseline.py record

@@ -15,9 +15,9 @@ All three built with `Snakefile_model_creation` targeting
 
 | build | project_dir (gitignored) | model_build_config | role |
 |---|---|---|---|
-| restored   | `examples/const_pars_restored`   | `dev/working/const-pars/config_restored.yml` (git `1d011c0`) | candidate (step 2) |
-| baseline_a | `examples/const_pars_baseline_a` | `dev/working/const-pars/config_baseline.yml` (snapshot of `config/wflow_build_model.yml` @ `48bc1d3`) | reference (step 4) |
-| baseline_b | `examples/const_pars_baseline_b` | `dev/working/const-pars/config_baseline.yml` (same) | reproducibility (step 4b) |
+| restored   | `examples/const_pars_restored`   | `dev/decisions/0001-restore-wflow-constant-parameters/config_restored.yml` (git `1d011c0`) | candidate (step 2) |
+| baseline_a | `examples/const_pars_baseline_a` | `dev/decisions/0001-restore-wflow-constant-parameters/config_baseline.yml` (snapshot of `config/wflow_build_model.yml` @ `48bc1d3`) | reference (step 4) |
+| baseline_b | `examples/const_pars_baseline_b` | `dev/decisions/0001-restore-wflow-constant-parameters/config_baseline.yml` (same) | reproducibility (step 4b) |
 
 Two separately-materialized configs (never the edited file against itself, per ADR
 ext2-2). All three build rc=0.
@@ -25,7 +25,7 @@ ext2-2). All three build rc=0.
 ## Step 3a/3b — landing + precedence (restored build) — PASS
 
 `verify_constant_pars.py --model-dir examples/const_pars_restored/hydrology_model
---config dev/working/const-pars/config_restored.yml` → exit 0.
+--config dev/decisions/0001-restore-wflow-constant-parameters/config_restored.yml` → exit 0.
 
 **14/14 constants landed as `input.static.<name>.value` scalars, no shadowing.**
 `snow__flag = True`, `glacier__flag = False`. Every value equals its

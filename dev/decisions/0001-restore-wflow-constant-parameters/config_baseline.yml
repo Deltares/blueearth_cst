@@ -6,7 +6,7 @@
 # this task; it exists so the restored-vs-reference discharge comparison is never
 # an edited file against itself. Body below is byte-identical to the pinned source.
 #
-# Build with: model_build_config: dev/working/const-pars/config_baseline.yml
+# Build with: model_build_config: dev/decisions/0001-restore-wflow-constant-parameters/config_baseline.yml
 modeltype: wflow_sbm
 
 steps:

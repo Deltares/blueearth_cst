@@ -93,7 +93,7 @@ def hydrological_year_bounds(ds_time, start_month_hyd_year="Jan"):
 
     # Last complete year: the latest whose END lies inside the data. This is the
     # off-by-one that was fixed on 2026-07-30 (see
-    # dev/working/2026-07-30_wf2-5f-hydyear-offbyone.md). The previous form ended
+    # dev/r08/2026-07-30_wf2-5f-hydyear-offbyone.md). The previous form ended
     # the window at `{last_year}-{month} - 1 month` unconditionally, i.e. it
     # assumed the year STARTING in the data's final calendar year is always
     # incomplete. That holds when the data stops mid-year -- an October start over

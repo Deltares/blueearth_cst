@@ -4,10 +4,10 @@
 # ONLY in the setup_constant_pars block: it restores the 13 gate-passing constants
 # under their Wflow.jl 1.x CSDMS Standard Names, alongside the retained KsatHorFrac.
 # All 13 passed the fail-closed two-sided equivalence gate
-# (dev/working/const-pars/equivalence-gate-log.md); none held out. The deprecated
+# (dev/decisions/0001-restore-wflow-constant-parameters/equivalence-gate-log.md); none held out. The deprecated
 # InfiltCapSoil (wflow_v1: None) stays dropped.
 #
-# Build with: model_build_config: dev/working/const-pars/config_restored.yml
+# Build with: model_build_config: dev/decisions/0001-restore-wflow-constant-parameters/config_restored.yml
 # This candidate is promoted to config/wflow_build_model.yml only after the ADR 0001
 # validation protocol blesses the discharge move (steps 4b/5/7).
 modeltype: wflow_sbm

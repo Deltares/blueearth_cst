@@ -247,7 +247,7 @@ escape-free text.
 ## 6. Carry-forwards already recorded elsewhere
 
 - `semantic_tree_diff` needs a fresh reference snapshot per value-changing step
-  (`dev/working/2026-07-30_wf2-step2b-validation.md`).
+  (`dev/r08/2026-07-30_wf2-step2b-validation.md`).
 - `update()` must be preserved across output renames (design D9's implementation
   note).
 - Long runs: bounded per-target foreground calls, **targets before the flags** —

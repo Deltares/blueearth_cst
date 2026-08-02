@@ -627,7 +627,7 @@ rule copy_config:
 #
 # Stage A splits into fetch -> reduce (design revision 6) because the two have
 # wildly different costs and different invalidation causes. Measured 2026-07-30
-# (dev/working/2026-07-30_wf2-fetch-reduce-benchmark.md): opening one remote source
+# (dev/r08/2026-07-30_wf2-fetch-reduce-benchmark.md): opening one remote source
 # ~1142 s, transferring its data ~19 s, reducing it ~0.2 s, raw slice 0.07 MB. So a
 # reduction edit used to cost a full re-download of nine sources; now it re-reads
 # local disk.

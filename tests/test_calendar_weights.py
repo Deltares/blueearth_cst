@@ -1,7 +1,7 @@
 """Month-length weighting tests for step 5b (design §5.6).
 
 Each test names the falsifier it discharges from
-``dev/working/2026-07-30_wf2-5b-falsifier.md``, written before any 5b code.
+``dev/r08/2026-07-30_wf2-5b-falsifier.md``, written before any 5b code.
 """
 
 import numpy as np

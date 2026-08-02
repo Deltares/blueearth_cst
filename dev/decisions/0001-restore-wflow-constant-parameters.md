@@ -48,7 +48,7 @@ Revisions:
     so it is the **9th proven default-equal pin** (drift-protection class), not a
     decision addendum. **Restored count = 13** (was "resolved (0–13), not
     promised"); + `KsatHorFrac` retained, `InfiltCapSoil` dropped. Full gate log:
-    `dev/working/const-pars/equivalence-gate-log.md`. Build-independent artifacts
+    `dev/decisions/0001-restore-wflow-constant-parameters/equivalence-gate-log.md`. Build-independent artifacts
     landed: `config_baseline.yml`/`config_restored.yml`, the step-6 discharge
     comparator + `record --workflow` merge semantics in `check_baseline.py` (v2
     manifest; tested), and the step-3a/3b landing/precedence script
@@ -70,7 +70,7 @@ Revisions:
     model_creation` — 5 wf1 targets incl. the new discharge target + sidecar
     reference series (`dev/baseline/discharge_ref/`); wf2/wf3 manifest rows
     preserved byte-identical (verified per-key). Full evidence:
-    `dev/working/const-pars/baseline_diffs.md`.
+    `dev/decisions/0001-restore-wflow-constant-parameters/baseline_diffs.md`.
 
 # ADR 0001 — Reconcile the dropped Wflow constant parameters via evidence-gated CSDMS restoration
 
@@ -369,11 +369,11 @@ Steps:
    never degenerate into an identity comparison:
    - **`config_baseline`** — the *unchanged* pre-restoration config: the current
      in-repo `config/wflow_build_model.yml`, snapshotted (copied to a distinct
-     path, e.g. `dev/working/const-pars/config_baseline.yml`) and pinned to the
+     path, e.g. `dev/decisions/0001-restore-wflow-constant-parameters/config_baseline.yml`) and pinned to the
      current git revision, recorded by that revision hash. This is the actual
      M2b baseline; it is **not edited** by this task.
    - **`config_restored`** — a *distinct* candidate config file (e.g.
-     `dev/working/const-pars/config_restored.yml`), derived from the baseline
+     `dev/decisions/0001-restore-wflow-constant-parameters/config_restored.yml`), derived from the baseline
      snapshot, that adds the **gate-passing subset** of the 13 CSDMS entries +
      `KsatHorFrac` to the `setup_constant_pars` block. Any gate-failed or
      unverified parameter stays out of the block and follows the fail-closed
@@ -760,7 +760,7 @@ Steps:
 ### Related
 
 - Task `t260719a` (`dev/TODO.md`); campaign tracker
-  `dev/working/2026-07-21_pre-r6-followups.md`.
+  `dev/tasks/2026-07-21_pre-r6-followups.md`.
 - M2b handoff decision #3 (`dev/phase-1/m02b/handoff.md`) — original drop + the
   first CSDMS mappings; `dev/phase-1/m02b/baseline_diffs.md`.
 - Baseline-manifest scope/staleness context and the **deferred general

@@ -408,7 +408,7 @@ netCDF4/HDF5 overhead (~34 kB, near-identical in both) swamps what is left; the
 is already half the series payload.
 
 **Resolution.** No change. The split was never justified on payload size — it was
-justified on **open cost**: per `dev/working/2026-07-30_wf2-fetch-reduce-benchmark.md`,
+justified on **open cost**: per `dev/r08/2026-07-30_wf2-fetch-reduce-benchmark.md`,
 opening one remote source costs 1142 s, transfer 19 s, and the reduction
 arithmetic 0.2 s. The load-bearing mechanism is the digest asymmetry: `raw/`
 carries `cst_raw_digest` and deliberately omits `cst_series_digest` /

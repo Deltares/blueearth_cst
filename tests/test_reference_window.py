@@ -3,7 +3,7 @@
 The seed config exercises **none** of the warning paths — `[1990, 2010]` needs no
 clip, is exactly 20 years, and differs from `shared.historical_window` in the way
 that must stay off stderr. So every condition D1 names lives here, not in the tree
-diff. Falsifiers K3–K6 of `dev/working/2026-07-30_wf2-5e-falsifier.md`.
+diff. Falsifiers K3–K6 of `dev/r08/2026-07-30_wf2-5e-falsifier.md`.
 """
 
 import pytest

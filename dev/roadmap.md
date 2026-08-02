@@ -1064,7 +1064,7 @@ WF2 declares the shared climate store and no longer depends on
 and the catalog generator now pins physical store identity in a generated index.
 Commit 2b (persistent series cache) is blocked pending the empirical baseline
 re-run and the catalog crawl. Task brief:
-`dev/working/2026-07-29_wf2-v2-decouple-and-cache.md`.
+`dev/r08/2026-07-29_wf2-v2-decouple-and-cache.md`.
 
 **Not yet done:** the empirical value-neutrality proof. A full WF2 re-run reached
 12 of 24 jobs and was killed externally; `extract_climate_grid` and all three
