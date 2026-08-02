@@ -82,9 +82,9 @@ Suite before: 119 passed / 3 skipped / 7 xfailed. After: **123 / 3 / 1**
   builds, staticmaps/TOML landing asserts, discharge materiality, manifest
   extension + re-record) is §"Validation protocol" of the ADR.
   - **Implementation — build-independent slice DONE 2026-07-21.** Artifacts under
-    `dev/working/const-pars/` + `dev/scripts/`:
+    `dev/decisions/0001-restore-wflow-constant-parameters/` + `dev/scripts/`:
     - **Equivalence gate (step 3c) — all 13 PASS, restored count = 13** (gate log
-      `dev/working/const-pars/equivalence-gate-log.md`). Two-sided authoritative
+      `dev/decisions/0001-restore-wflow-constant-parameters/equivalence-gate-log.md`). Two-sided authoritative
       evidence (Wflow.jl v0.8 params + glacier melt eqn / stable 1.x param ref /
       `naming.py`). `g_ttm`/`g_tt` collapse sound (`g_tt` is the melt threshold);
       `MaxLeakage` 1.x default = 0 → 9th default-equal pin. Nothing fails closed.
@@ -106,7 +106,7 @@ Suite before: 119 passed / 3 skipped / 7 xfailed. After: **123 / 3 / 1**
     → `config/wflow_build_model.yml`, `--forceall` rebuild of `examples/test_local`,
     `record --workflow model_creation` (wf1 slice incl. new discharge target +
     sidecar; wf2/wf3 preserved byte-identical). Evidence:
-    `dev/working/const-pars/baseline_diffs.md`. **t260719a COMPLETE.**
+    `dev/decisions/0001-restore-wflow-constant-parameters/baseline_diffs.md`. **t260719a COMPLETE.**
 - **Baseline manifest rebuild** — entangled with t260719a (both touch the
   manifest). The M2b manifest is still the contract of record (invariance-by-
   construction). ADR 0001 step 7 folds the clean re-record + fingerprint

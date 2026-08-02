@@ -2,7 +2,7 @@
 
 ```
 Written: 2026-07-30, BEFORE the fix
-Blocker: dev/working/2026-07-30_wf2-5f-hydyear-offbyone.md (owner chose A)
+Blocker: dev/r08/2026-07-30_wf2-5f-hydyear-offbyone.md (owner chose A)
 Design:  §5.4 A1 — "30 complete hydrological years only when start_month is
          January; for any other start month, 29"
 Ref:     test_case/ref_wf2_pre_5f  (post-5e; CLEAN against itself)

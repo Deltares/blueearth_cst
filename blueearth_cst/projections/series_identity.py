@@ -63,7 +63,7 @@ SCHEMA_VERSION = "4"
 #: Bumped 2->3 at step 5b's prerequisite: raw slices and series written before
 #: this carry `cst_calendar = ""` while their `time.attrs` assert
 #: `proleptic_gregorian`, which is FALSE for every noleap/360_day model
-#: (dev/working/2026-07-30_wf2-5b-calendar-blocker.md). The calendar cannot join
+#: (dev/r08/2026-07-30_wf2-5b-calendar-blocker.md). The calendar cannot join
 #: the digest components -- reading it needs the store, and DAG build is
 #: deliberately network-free -- so the version bump is the invalidation lever, and
 #: `cache_hit` already rejects on a schema mismatch. Costs one re-derivation.
@@ -384,7 +384,7 @@ def pinned_uri(uri: str, pins: Mapping[str, Sequence[str]]) -> str | None:
 
     **Worth ~10 s per source — a modest win, not a dominant one.** Measured on
     this source, three alternating samples per arm
-    (``dev/working/2026-07-30_wf2-fetch-reduce-benchmark.md`` §3.2):
+    (``dev/r08/2026-07-30_wf2-fetch-reduce-benchmark.md`` §3.2):
 
     * open, pinned **49.9 s** vs globbed **60.0 s**, non-overlapping ranges —
       ~17 % of the open, ~1.5 min across the 9 series;

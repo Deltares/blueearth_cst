@@ -202,7 +202,7 @@ without reopening P3-2a, and (c) resolves or explicitly defers OQ-1..OQ-8.
 ## Non-goals
 
 Implementation (a task brief for migration steps 1–2 already exists at
-`dev/working/2026-07-29_wf2-v2-decouple-and-cache.md`); a 4th Snakefile entry
+`dev/r08/2026-07-29_wf2-v2-decouple-and-cache.md`); a 4th Snakefile entry
 point; new dependencies; bias correction or downscaling.
 
 ## Genre mapping
@@ -217,7 +217,7 @@ What depends on this design, and what regenerates after G2:
 
 | Artifact | Relationship |
 |---|---|
-| `dev/working/2026-07-29_wf2-v2-decouple-and-cache.md` | Task brief for steps 1–2; **must be re-checked** if the review changes step ordering or the value-neutrality classification |
+| `dev/r08/2026-07-29_wf2-v2-decouple-and-cache.md` | Task brief for steps 1–2; **must be re-checked** if the review changes step ordering or the value-neutrality classification |
 | `dev/workflows/wf2_climate_projections_overview.md` | Current-state map; unaffected by the design, but its findings feed it |
 | `dev/workflows/climate_projections.md` | Current behavioral contract; §5.4 of the design records a contract/code discrepancy that lands here at implementation |
 | `dev/roadmap.md` | OQ-2 (Phase 4 or close) would add a section |

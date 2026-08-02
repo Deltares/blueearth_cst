@@ -1,6 +1,6 @@
 # WF2 v2.0 step 1 — validation record
 
-Deliverable required by `dev/working/2026-07-29_wf2-v2-decouple-and-cache.md`
+Deliverable required by `dev/r08/2026-07-29_wf2-v2-decouple-and-cache.md`
 § Output requirements. Covers **commit 1** (`dcd5459`, model-free region) and the
 generator capability of **commit 2a** (`37b2e1f`).
 

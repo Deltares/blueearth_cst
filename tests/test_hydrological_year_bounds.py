@@ -1,6 +1,6 @@
 """Complete-hydrological-year bounds (design §5.4 A1), after the 2026-07-30 fix.
 
-Falsifiers L1-L5 of `dev/working/2026-07-30_wf2-hydyear-fix-falsifier.md`. The
+Falsifiers L1-L5 of `dev/r08/2026-07-30_wf2-hydyear-fix-falsifier.md`. The
 October case is the one to watch: it was ALREADY correct before the fix, so a
 naive `+1` would have broken it.
 """

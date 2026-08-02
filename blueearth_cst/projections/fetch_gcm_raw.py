@@ -6,7 +6,7 @@ reduce in one job, so anything invalidating the *reduction* re-triggered the
 reduction edit re-read local disk instead.
 
 Why the split is worth its second cache, measured on 2026-07-30
-(`dev/working/2026-07-30_wf2-fetch-reduce-benchmark.md`):
+(`dev/r08/2026-07-30_wf2-fetch-reduce-benchmark.md`):
 
 * opening one source (catalog URI glob resolution + store metadata): **1142 s**
 * transferring its data (``.load()``): **19 s**

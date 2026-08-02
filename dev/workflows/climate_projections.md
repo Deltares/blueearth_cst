@@ -13,7 +13,7 @@
 > | Rule map | `dev/workflows/wf2_climate_projections_overview.md` |
 > | Design + rationale | `dev/workflows/wf2-climate-analysis-v2-design.md` |
 > | Config migration | `docs/migration-r08-wf2.md` |
-> | Per-step evidence | `dev/working/2026-07-3*-wf2-*.md` |
+> | Per-step evidence | `dev/r08/2026-07-3*-wf2-*.md` |
 >
 > The largest divergences: eleven rules became nine plus `all`; `variables` is a
 > mapping; `save_grids` is `save_gridded`; the series store is persistent and

@@ -13,7 +13,7 @@ periodic project-health review.
 - **Working note** -- optional link into `dev/working/`.
 
 **Active campaign:** pre-R6 followups (`fix/pre-r6-followups`), tracker at
-[`working/2026-07-21_pre-r6-followups.md`](working/2026-07-21_pre-r6-followups.md).
+[`tasks/2026-07-21_pre-r6-followups.md`](tasks/2026-07-21_pre-r6-followups.md).
 **All waves DONE 2026-07-21 — campaign complete; R6 (structural refactor) is next.**
 
 _No open backlog items._ (See the done list below; R6 has no task ID yet — it is
@@ -25,7 +25,7 @@ t260720d (D-VAR/D-MEM fail-loud, `735cc20`), t260716a truncation warning
 (`ce56bc3`), t260721a (wf1 tee wrapper, `d13ba37`), **t260719a** (CSDMS
 constant-params restoration via [ADR 0001](decisions/0001-restore-wflow-constant-parameters.md);
 gate all-13-PASS, discharge IMMATERIAL, wf1 baseline re-recorded; evidence
-`dev/working/const-pars/baseline_diffs.md`), **t260716a′** (M1 warnings
+`dev/decisions/0001-restore-wflow-constant-parameters/baseline_diffs.md`), **t260716a′** (M1 warnings
 re-triage — bucket 2/3 empty of defects; `extract_climate_grid` config-staleness
 resolved by R5 params-wiring + verified; docs-only), **t260720e** (D-ATTRS —
 confirmed does-not-reproduce under current pins: summary `.nc` + recorded manifest

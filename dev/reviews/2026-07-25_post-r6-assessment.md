@@ -783,7 +783,7 @@ each can be routed on its own merits.
   config can survive a rerun and be mistaken for current output.
 - **Notes:** independent of the output-layout restructure — fix regardless. It
   becomes more load-bearing under the 2026-07-26 ruling that forcing plots remain
-  a first-class product (`dev/working/2026-07-26_project-output-layout.md` §15a).
+  a first-class product (`dev/r07/2026-07-26_project-output-layout.md` §15a).
   Check the sibling plot rules (1.11 `plot_results`, 1.12 `plot_map`) for the same
   pattern while fixing: `plot_results` writes `clim_wflow_1_{month,year}.png` and
   `performance_metrics.csv`, of which only `hydro_wflow_1.png` is declared.

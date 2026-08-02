@@ -31,7 +31,7 @@ pattern under `dev/r0#/`.
 **Scope authority.**
 - `dev/reviews/2026-07-25_post-r6-assessment.md` — the observation register
   (O-01 … O-24) from the owner's post-R6 assessment. Repository-side items.
-- `dev/working/2026-07-26_project-output-layout.md` — the working note this design
+- `dev/r07/2026-07-26_project-output-layout.md` — the working note this design
   supersedes. Artifact-side items, the question log, and the cost analysis.
 - Prior accepted layouts this design revises: `dev/p31/experiment-structure-design.md`
   §2 (the `project_dir` tree), `dev/r06/structural-refactor-design.md` (the

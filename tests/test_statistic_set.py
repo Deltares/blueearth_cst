@@ -1,6 +1,6 @@
 """Statistic-set tests for step 5d (design §5.6 "Statistics").
 
-J4 and J5 from ``dev/working/2026-07-30_wf2-5d-falsifier.md`` are **not visible to
+J4 and J5 from ``dev/r08/2026-07-30_wf2-5d-falsifier.md`` are **not visible to
 the tree diff**, because shipped configs do not opt into tail quantiles. They live
 here so their absence from the gate is not mistaken for absence of the feature.
 """
