@@ -49,7 +49,7 @@ as its weather generator and Wflow_ for hydrological modelling.
 .. image:: docs/_images/CST_scheme.png
 
 .. _BlueEarth: https://blueearth.deltares.org/
-.. _weathergenr: https://github.com/Deltares/weathergenr
+.. _weathergenr: https://github.com/tanerumit/weathergenr
 .. _Wflow: https://github.com/Deltares/Wflow.jl
 
 
@@ -80,16 +80,18 @@ Prerequisites
    Or via winget: ``winget install prefix-dev.pixi``. Restart your
    shell after install.
 
-2. **Julia 1.11.x** via juliaup_. conda-forge has no win-64 Julia
-   build, and Wflow.jl 1.0.x deadlocks under Julia 1.12. After
+2. **Julia 1.11.7** via juliaup_. conda-forge has no win-64 Julia
+   build, and Wflow.jl 1.0.x deadlocks under Julia 1.12. The exact
+   patch is pinned: every Julia call the toolbox makes carries the
+   ``+1.11.7`` selector, so any other 1.11.x fails to start. After
    installing juliaup:
 
    .. code-block:: console
 
-       juliaup add 1.11
-       juliaup default 1.11
+       juliaup add 1.11.7
 
-   Verify with ``julia --version`` (expect ``1.11.x``).
+   Verify with ``julia +1.11.7 --version`` (expect ``1.11.7``). No
+   ``juliaup default`` is needed — the selector picks the version.
 
 3. Clone the repo:
 
@@ -110,7 +112,7 @@ The first command installs everything declared in ``pixi.toml`` into
 a local ``.pixi/`` env. The second runs
 ``dev/scripts/install_weathergenr.R`` (installs
 ``tanerumit/weathergenr@v1.2.0``) and
-``julia --project=. -e 'using Pkg; Pkg.instantiate()'`` (locks
+``julia +1.11.7 --project=. -e 'using Pkg; Pkg.instantiate()'`` (locks
 Wflow.jl and ~130 transitive Julia deps from ``Manifest.toml``).
 
 To activate the env in your shell:
