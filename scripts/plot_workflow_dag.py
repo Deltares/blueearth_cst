@@ -14,7 +14,7 @@ the project name and the workflow number:
 ``config/`` because a run is determined by exactly two things -- the config and
 the Snakefile -- and ``<project_dir>/config/`` is already "provenance snapshots,
 split by kind" (``runs/ catalogs/ templates/ generated/``,
-dev/r07/project-layout-design.md §B). ``config/runs/`` snapshots the first half;
+dev/milestones/r07/project-layout-design.md §B). ``config/runs/`` snapshots the first half;
 this is a rendering of the second, so it joins as a fifth kind rather than
 sitting loose in the project root, in ``logs/`` (merged run narrative, text), or
 under a new top-level directory minted for one file.

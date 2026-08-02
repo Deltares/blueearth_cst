@@ -83,7 +83,7 @@ HDF5_USE_FILE_LOCKING = "FALSE"
 # credentials, raises -- and the resulting UNKNOWN is deliberately NOT cached
 # (extended_gcsfs.py:155), so each listing during a `/*/*` glob repeats it.
 # Measured on gs://cmip6: one store open 57.7 s with this set, >836 s without
-# (dev/r08/2026-07-30_wf2-fetch-reduce-benchmark.md 3.1).
+# (dev/milestones/r08/2026-07-30_wf2-fetch-reduce-benchmark.md 3.1).
 # Declared here, not per module: the var is read at gcsfs IMPORT time, so a
 # module-level os.environ line is only correct while nobody reorders imports --
 # see the `# noqa: E402` holding that invariant up in

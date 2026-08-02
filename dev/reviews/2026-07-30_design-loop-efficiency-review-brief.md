@@ -104,8 +104,8 @@ repo-specific fixes.
 | `dev/reviews/2026-07-30_wf2-v2-process-review.md` | **The review you are evaluating.** Start here |
 | `dev/workflows/wf2-climate-analysis-v2-design.md` | The accepted design (2579 lines) — sample it; do not read end to end |
 | `dev/workflows/wf2-climate-analysis-v2-design-review-record.md` | The loop's audit trail: verdicts, all 28 findings, owner rulings, arbitration |
-| `dev/r08/2026-07-29_wf2-step1-validation.md` | Validation record, step 1 |
-| `dev/r08/2026-07-30_wf2-step2b-validation.md` | Validation record, step 2b — includes the `update()` finding |
+| `dev/milestones/r08/2026-07-29_wf2-step1-validation.md` | Validation record, step 1 |
+| `dev/milestones/r08/2026-07-30_wf2-step2b-validation.md` | Validation record, step 2b — includes the `update()` finding |
 | `.claude/skills/design-review-loop/` | The skill under evaluation (SKILL.md + `references/`) |
 | `~/.claude/skills/task-brief/`, `~/.claude/skills/design-document/` | The two skills it hands off to |
 | `git log --oneline` on `main` | The implementation commit sequence; messages record what each gate found |

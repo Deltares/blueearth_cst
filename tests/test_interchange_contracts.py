@@ -17,7 +17,7 @@
   the temp artifact is absent (the default fixture state) — see the commit-4
   temp layer.
 
-Source of record: ``dev/p32b/interchange-contracts-design.md`` §5.5 and the two
+Source of record: ``dev/milestones/p32b/interchange-contracts-design.md`` §5.5 and the two
 seam docs ``dev/contracts/*-seam.md``.
 """
 import os

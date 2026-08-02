@@ -48,7 +48,7 @@ Companion documents:
   from. **New input to revision 3.**
 - `dev/scripts/generate_cmip6_catalog.py` — the generator that now owns
   `config/catalogs/cmip6_data.yml`. **New input to revision 3.**
-- `dev/p32a/climate-analysis-design.md` — the sealed milestone that created
+- `dev/milestones/p32a/climate-analysis-design.md` — the sealed milestone that created
   `blueearth_cst/climate_analysis/` and the model-free climate store this design
   builds on.
 - `dev/workflows/wf2-climate-analysis-v2-design-review-record.md` — the
@@ -2229,7 +2229,7 @@ log file**, so this is a change to rule `all`'s input list and to `dev/workflows
 documentation.
 
 **Derived-artifact re-check.** The existing task brief
-`dev/r08/2026-07-29_wf2-v2-decouple-and-cache.md` covers steps 1–2 (now
+`dev/milestones/r08/2026-07-29_wf2-v2-decouple-and-cache.md` covers steps 1–2 (now
 numbered 1 and 2b; it does not cover the new step 2a) and
 **must be re-checked before dispatch** against: D2 (retained, cost accepted,
 owner-confirmed); the step-2b digest contract (entry + **pinned physical
@@ -2737,7 +2737,7 @@ extremes question exists (OQ-5).
 - **2026-07-30 — revision 6** (amendment to the ACCEPTED document, post-G2).
   **Scope:** §5.1-5.3's stage-A contract. Authority: owner-approved, gated on the
   measurement both external critiques required
-  (`dev/r08/2026-07-30_wf2-fetch-reduce-benchmark.md`). **Stage A splits into
+  (`dev/milestones/r08/2026-07-30_wf2-fetch-reduce-benchmark.md`). **Stage A splits into
   `fetch_gcm_raw` -> `reduce_gcm_series`.** The fetch rule is the only module that
   opens the remote store; the reduce rule reads a local raw slice and makes **zero**
   network calls. Two identities: `raw_digest` (every digest component **except**

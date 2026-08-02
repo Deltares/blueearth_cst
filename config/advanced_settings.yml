@@ -52,7 +52,7 @@ defaults:
   #
   # 4 is one leg of the frozen resource triple `(-c 3, --threads 4, B=1)` that
   # every recorded performance baseline was measured at
-  # (dev/p33/performance-baseline.md §5.6). Changing it here silently
+  # (dev/milestones/p33/performance-baseline.md §5.6). Changing it here silently
   # invalidates those comparisons — prefer the per-project override.
   julia_threads: 4
 

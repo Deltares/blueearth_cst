@@ -24,8 +24,8 @@ warm term is inert at B=1, so every run is cold by construction):
     sysimage             = (B=1, F=2)   # bakes ~all of the 135 s fixed cost
 
 Fixture terms are the measured probe values: F=135 s, S_cold=208 s (probe 1c),
-S_warm=124 s (probe 1d). See dev/p33/performance-passes-design.md §5.5 and
-dev/p33/probes/PROBE_RESULTS.md.
+S_warm=124 s (probe 1d). See dev/milestones/p33/performance-passes-design.md §5.5 and
+dev/milestones/p33/probes/PROBE_RESULTS.md.
 
 The `--table` mode reproduces the design's per-B fixture comparison table.
 

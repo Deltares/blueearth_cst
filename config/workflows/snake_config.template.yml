@@ -55,7 +55,7 @@ shared:
   # config/advanced_settings.yml (4). Wflow parallelizes over grid CELLS, so
   # raising this pays on a large basin and does nothing on a small one. It is
   # NOT Snakemake's --cores: the two multiply, so keep
-  # `--cores N x julia_threads <= logical CPUs` (dev/p33 §5.6).
+  # `--cores N x julia_threads <= logical CPUs` (dev/milestones/p33 §5.6).
   #julia_threads: 4
 
 workflows:

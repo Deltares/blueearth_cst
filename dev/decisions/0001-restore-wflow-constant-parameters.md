@@ -1,7 +1,7 @@
 Status: accepted
 Date: 2026-07-21
 Deciders: Ümit Taner
-Consulted: M2b handoff (dev/phase-1/m02b/handoff.md §3); advisor review 2026-07-21;
+Consulted: M2b handoff (dev/milestones/phase-1/m02b/handoff.md §3); advisor review 2026-07-21;
            design-review-loop 2026-07-21 (internal risk/architecture/repo-fit panel;
            external GPT rounds 1 & 2 via codex; user arbitration at the round cap)
 Supersedes: none
@@ -761,11 +761,11 @@ Steps:
 
 - Task `t260719a` (`dev/TODO.md`); campaign tracker
   `dev/tasks/2026-07-21_pre-r6-followups.md`.
-- M2b handoff decision #3 (`dev/phase-1/m02b/handoff.md`) — original drop + the
-  first CSDMS mappings; `dev/phase-1/m02b/baseline_diffs.md`.
+- M2b handoff decision #3 (`dev/milestones/phase-1/m02b/handoff.md`) — original drop + the
+  first CSDMS mappings; `dev/milestones/phase-1/m02b/baseline_diffs.md`.
 - Baseline-manifest scope/staleness context and the **deferred general
   staticmaps/TOML manifest expansion**: `dev/followups.md`
-  (§ cross-cutting — baseline manifest integrity) and `dev/r01/baseline_diffs.md`.
+  (§ cross-cutting — baseline manifest integrity) and `dev/milestones/r01/baseline_diffs.md`.
 - Roadmap cross-cutting rule "every milestone preserves the M1 baseline unless
   intentionally changing behavior" (`dev/roadmap.md`) — this task is a sanctioned
   wf1-slice (and, if material, wf3-slice) move.

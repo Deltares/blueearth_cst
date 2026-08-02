@@ -36,7 +36,7 @@ Tags are permanent rollback points; they never move.
 | `v0.2.0-alpha`    | 2026-05-09 | Release: foundation phase sealed, Phase 2 designed.                               |
 | `m02c-tests`      | 2026-07-17 | Phase 1 seal: unit-test coverage for 4 `src/` modules.                            |
 | `pre-r01`         | 2026-07-18 | Checkpoint before R1: last flat-config-schema commit; green suite (47/3/2); all three workflow smoke tests verified. |
-| `r01-contracts`   | 2026-07-18 | Phase 2 seal: sectioned config schema (project/shared/workflows); suite 51/3/2. Sealed on invariance-by-construction — M2b baseline left untouched (stale; see `dev/r01/baseline_diffs.md`). |
+| `r01-contracts`   | 2026-07-18 | Phase 2 seal: sectioned config schema (project/shared/workflows); suite 51/3/2. Sealed on invariance-by-construction — M2b baseline left untouched (stale; see `dev/milestones/r01/baseline_diffs.md`). |
 | `r02-naming`      | 2026-07-19 | Phase 2 seal: naming style guide (`dev/conventions/naming.md`). Docs-only; existing names grandfathered; suite 51/3/2. |
 | `r03-model-builder` | 2026-07-19 | Phase 2 seal: workflow-1 (model builder) cleanup — shared `snake_utils` (`get_config`/`tee_to_log`), per-rule log/benchmark, `outlet_index.csv`, gauges hardening, structured waterbodies sentinel. Behavior-preserving (14/14); suite 73/3/2. |
 

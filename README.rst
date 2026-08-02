@@ -366,12 +366,12 @@ Fork-specific (development):
 - ``dev/roadmap.md`` — milestone roadmap, branching / tagging
   conventions, commit strategy.
 - ``docs/install.md`` — step-by-step install walkthrough.
-- ``dev/phase-1/`` — sealed foundation milestone artifacts (audits,
+- ``dev/milestones/phase-1/`` — sealed foundation milestone artifacts (audits,
   plans, baseline diffs).
-- ``dev/r01/`` … ``dev/r06/`` — sealed Phase 2 milestone designs and
+- ``dev/milestones/r01/`` … ``dev/milestones/r06/`` — sealed Phase 2 milestone designs and
   review records (modularity contracts, naming, the three workflows,
   structural refactor).
-- ``dev/p31/``, ``dev/p32a/``, ``dev/p32b/``, ``dev/p33/`` — sealed
+- ``dev/milestones/p31/``, ``dev/milestones/p32a/``, ``dev/milestones/p32b/``, ``dev/milestones/p33/`` — sealed
   Phase 3 milestone designs, review records and evidence notes.
 - ``dev/followups.md`` — the open backlog, with closed items retained
   and dated.

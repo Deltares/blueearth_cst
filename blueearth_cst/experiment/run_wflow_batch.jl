@@ -1,4 +1,4 @@
-# P3-3 batching driver (design dev/p33/performance-passes-design.md §6.1):
+# P3-3 batching driver (design dev/milestones/p33/performance-passes-design.md §6.1):
 # run N Wflow simulations in ONE Julia session, amortizing package-load + JIT.
 # Per-TOML try/catch = COMPUTE-level isolation only — a failed member does not
 # stop the batch, but Snakemake still fails the job (nonzero exit) and deletes

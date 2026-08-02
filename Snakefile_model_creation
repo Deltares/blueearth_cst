@@ -3,7 +3,7 @@ from pathlib import Path
 
 # Shared helpers live in blueearth_cst/; make them importable regardless of the working
 # directory by prepending this Snakefile's own directory to sys.path.
-# See dev/r03/model-builder-design.md §3.
+# See dev/milestones/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
 from blueearth_cst.shared.snake_utils import DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, DEFAULT_JULIA_THREADS, climate_store_spec, get_config, julia_prefix, patch_psutil_windows_benchmark, rule_banner, target_banner, validate_historical_window, warn_if_project_dir_in_repo
 # The canonical climate figure set (rules 1.13 and 1.15 both draw it). Imported

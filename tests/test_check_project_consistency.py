@@ -2,7 +2,7 @@
 
 These call ``compare_project_consistency`` directly on staged config/snapshot
 pairs — NO Snakemake, no rerun-triggers (that is gate 2b,
-``test_guard_invalidation.py``). Design: dev/p31/experiment-structure-design.md
+``test_guard_invalidation.py``). Design: dev/milestones/p31/experiment-structure-design.md
 §7 gate 2, §3b.
 """
 from __future__ import annotations

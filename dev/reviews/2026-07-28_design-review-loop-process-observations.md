@@ -7,7 +7,7 @@ whole run.
 ## 2026-07-27 — stage 0/1: run seeded from a pre-existing interactive draft
 
 **Deviation, logged.** The skill's stage table has no contract for a run that
-begins from a design doc that already exists. `dev/r07/project-layout-design.md`
+begins from a design doc that already exists. `dev/milestones/r07/project-layout-design.md`
 was authored interactively with the owner on 2026-07-26 — 414 lines, sixteen
 recorded rulings, two logged reversals, one superseded principle — and the
 change request is to put *that document* through the loop, not to have an

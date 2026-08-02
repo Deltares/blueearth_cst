@@ -260,7 +260,7 @@ if __name__ == "__main__":
             # 2026-07-30: opening one remote source costs ~1142 s against ~19 s to
             # transfer its data and ~0.2 s to reduce it, so a cache that still asked
             # the catalog anything would save nothing
-            # (dev/r08/2026-07-30_wf2-fetch-reduce-benchmark.md). What used to be
+            # (dev/milestones/r08/2026-07-30_wf2-fetch-reduce-benchmark.md). What used to be
             # here -- catalog construction, the entry-presence check, the
             # get_rasterdataset call and its per-variable fallback -- now lives in
             # fetch_gcm_raw.py, which is the only module that opens the store.

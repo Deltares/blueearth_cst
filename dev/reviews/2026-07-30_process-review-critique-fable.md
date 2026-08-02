@@ -34,7 +34,7 @@ one.
 eight defects was caught before the milestone seal by an implementation-side
 gate: a unit test, a dry-run, a forced-rerun experiment, `semantic_tree_diff`,
 or re-reading (review §1 table, *Caught by* column). Tests grew 524 → 583 over
-six steps (measured: `dev/r08/2026-07-30_wf2-r8-handoff.md` §2). What was
+six steps (measured: `dev/milestones/r08/2026-07-30_wf2-r8-handoff.md` §2). What was
 missing was a *second reader*, not gates. The distinction matters because the
 remedy differs: the gates' catches came overwhelmingly from falsification
 experiments and tree-diffs (the review's own §4 ranking), so hardening those is

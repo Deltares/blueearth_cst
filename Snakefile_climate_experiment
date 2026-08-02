@@ -6,7 +6,7 @@ from pathlib import Path
 
 # Shared helpers live in blueearth_cst/; make them importable regardless of the working
 # directory by prepending this Snakefile's own directory to sys.path.
-# See dev/r03/model-builder-design.md §3.
+# See dev/milestones/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
 from blueearth_cst.shared.snake_utils import DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_spec, file_digest_or_absent, get_config, patch_psutil_windows_benchmark, rule_banner, stress_test_grid, target_banner, validate_experiment_name, warn_if_project_dir_in_repo
 
@@ -131,7 +131,7 @@ runs_dir = f"{exp_dir}/hydrology_runs"
 # "outputs" was rejected -- hydrology_runs/ also holds outputs.
 indicators_dir = f"{exp_dir}/indicators"
 
-# --- Drift-guard comparands (dev/p31/experiment-structure-design.md §3b/§3c) ---
+# --- Drift-guard comparands (dev/milestones/p31/experiment-structure-design.md §3b/§3c) ---
 # Rule 3.00b check_project_consistency compares this experiment config's
 # project-level sections against the wf1/wf2 project snapshots. Snakemake's
 # default params rerun-trigger re-runs the guard when any of these param values
@@ -473,7 +473,7 @@ rule downscale_climate_realization:
 # Julia session (P3-3 design §6.1: parse-time loop-generated anonymous rules —
 # one rule per batch with STATIC per-cst input/output lists, members via
 # params:, no input function, no checkpoint; probe-verified construct,
-# dev/p33/probes/snakemake-output-expressibility/). Per-cst output paths and
+# dev/milestones/p33/probes/snakemake-output-expressibility/). Per-cst output paths and
 # content are byte-identical to the per-job shape (HM-5 contract). C5
 # persistence isolation is DEGRADED to batch granularity by design (blast
 # radius = the batch); per-cst visibility lives in the driver-written log

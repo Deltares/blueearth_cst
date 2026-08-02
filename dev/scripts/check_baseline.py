@@ -145,7 +145,7 @@ VOLATILE_NC_ATTRS = frozenset({
 # and current sides. Mirrors `rule all` across Snakefile_model_creation,
 # Snakefile_climate_projections, Snakefile_climate_experiment — plus the one
 # beyond-`rule all` discharge target (see module docstring / ADR 0001).
-# R07 (dev/r07/migration_project-layout.md §3a is the authority; this list is
+# R07 (dev/milestones/r07/migration_project-layout.md §3a is the authority; this list is
 # written FROM that table). 15 live targets: all 15 change manifest key via the
 # examples/ -> test_case/ rename, 10 also move within the tree, 3 change
 # content. Retargeted here, in the fixture-rename commit, as the SOLE owner of

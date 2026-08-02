@@ -4,7 +4,7 @@ Background: our generated catalog requests ``preprocess: harmonise_dims``, whose
 time branch converts a ``CFTimeIndex`` to a ``DatetimeIndex``. After that a
 ``noleap`` model is indistinguishable from ``proleptic_gregorian`` — and was in
 fact being written out AS ``proleptic_gregorian``, with ``cst_calendar`` empty.
-See ``dev/r08/2026-07-30_wf2-5b-calendar-blocker.md``.
+See ``dev/milestones/r08/2026-07-30_wf2-5b-calendar-blocker.md``.
 
 These cover the pure parser. The network read that feeds it is exercised by the
 workflow, not here.

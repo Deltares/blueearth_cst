@@ -7,7 +7,7 @@ workflow-2 functions on a synthetic input carrying known non-empty CF attrs,
 recording ``.attrs`` after each step, so the first attr-dropping operation is
 pinnable without a real (temp-deleted) run.
 
-Design contract: `dev/r04/climate-projections-design.md` §5 "M2b attrs
+Design contract: `dev/milestones/r04/climate-projections-design.md` §5 "M2b attrs
 diagnostic probe". The checkpoint names (P0-P6 per-model, M1-M2 merge) match
 that section. A parallel upstream check covers the get_stats reduction, since
 P0 being clean routes the localization upstream (design P0 note).

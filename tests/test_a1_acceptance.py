@@ -6,7 +6,7 @@ bounds, per-end dropped months) for January and non-January
 
 This test exists because A1's claim is *arithmetic about a specific window*, and
 that arithmetic was wrong until 2026-07-30 — the January case returned 29 where
-A1 says 30 (`dev/r08/2026-07-30_wf2-5f-hydyear-offbyone.md`). Written after
+A1 says 30 (`dev/milestones/r08/2026-07-30_wf2-5f-hydyear-offbyone.md`). Written after
 the fix, deliberately, so it asserts the ruling rather than the behaviour.
 """
 

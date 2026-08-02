@@ -34,8 +34,8 @@ reproduce under current pins) · `by-design` (expected behaviour, not a defect).
 > **Routing note (2026-07-26).** The layout-bearing observations — O-01, O-02,
 > O-05, O-20, O-21, O-22, O-24, plus the recorded by-design rulings O-03, O-23 and
 > O-23a — are consolidated into milestone **R07**:
-> `dev/r07/project-layout-design.md`, with the old→new path map at
-> `dev/r07/migration_project-layout.md`. That design is the implementation
+> `dev/milestones/r07/project-layout-design.md`, with the old→new path map at
+> `dev/milestones/r07/migration_project-layout.md`. That design is the implementation
 > authority; this register remains the provenance record of how each item was
 > found and triaged. Items **not** in R07: O-06 (Docker, parked), O-18/O-19
 > (Linux, parked), O-12/O-13 (open decisions, surfaced in the R07 open questions),
@@ -57,7 +57,7 @@ reproduce under current pins) · `by-design` (expected behaviour, not a defect).
 | O-09 | `plot_results.py` docstring states the wrong separator for `observations_fn` | docs | docs | low | 2026-07-26 | 2026-07-26 | `75eb4d6` | triaged | Accepted into scope 2026-07-26 |
 | O-10 | `MIGRATION.md` `__init__.py` list omits `climate_analysis/` | docs | docs | low | 2026-07-26 | 2026-07-26 | `75eb4d6` | triaged | Accepted into scope 2026-07-26 |
 | O-11 | Can the root directory be tidied? — per-entry assessment | dev-tooling | question | low | 2026-07-26 | 2026-07-26 | `75eb4d6` | triaged | Assessed 2026-07-26: 13 of 17 tracked root files are contract-bound or convention-sanctioned; only O-12/O-13 are actionable |
-| O-12 | `MIGRATION.md` sits at the root against the repo's own migration-note convention | docs | usability | low | 2026-07-26 | 2026-07-26 | `75eb4d6` | open | Needs a target decision — `docs/` (audience) vs `dev/r06/` (naming.md §7) |
+| O-12 | `MIGRATION.md` sits at the root against the repo's own migration-note convention | docs | usability | low | 2026-07-26 | 2026-07-26 | `75eb4d6` | open | Needs a target decision — `docs/` (audience) vs `dev/milestones/r06/` (naming.md §7) |
 | O-13 | `blueearth_cst.Rproj` is an unreferenced RStudio project file | dev-tooling | usability | low | 2026-07-26 | 2026-07-26 | `75eb4d6` | open | Delete or scope to the R sources — needs owner input on whether it is used |
 | O-14 | The repo has no Python tool-config layer at all (no `pyproject.toml` / `pytest.ini` / `ruff.toml`) | dev-tooling | question | medium | 2026-07-26 | 2026-07-26 | `75eb4d6` | open | Assessed 2026-07-26 — three separable decisions; see detail |
 | O-15 | The PR template mandates a Black pass, but no formatter or linter is in the environment | ci | defect | medium | 2026-07-26 | 2026-07-26 | `75eb4d6` | open | Needs a new-dependency decision (`ruff`) before anything can be enforced |
@@ -175,7 +175,7 @@ each can be routed on its own merits.
     get_config` resolve. Bare modules at the repo root would lose namespacing and
     collide with the Snakefile/config bins; a `src/blueearth_cst/` layout needs an
     installed package, deliberately rejected in
-    `dev/r06/structural-refactor-design.md:368-376` (no `pyproject.toml`;
+    `dev/milestones/r06/structural-refactor-design.md:368-376` (no `pyproject.toml`;
     `pixi.toml` `[pypi-dependencies]` are third-party only). Imports resolve via
     explicit `sys.path` inserts of `workflow.basedir` at four entry-point classes:
     the three Snakefile headers, `tests/conftest.py:10`,
@@ -218,10 +218,10 @@ each can be routed on its own merits.
   prose, not a second copy of `config/`.
 - **Notes:** same class of inconsistency as O-01 — repo files duplicated where their
   audience does not need them. Referenced only by `MIGRATION.md:173` and the
-  historical `dev/phase-1/m02b/{audit,plan}.md`. `dev/phase-1/m02b/plan.md:250`
+  historical `dev/milestones/phase-1/m02b/{audit,plan}.md`. `dev/milestones/phase-1/m02b/plan.md:250`
   shows the mirror was once kept byte-identical by hand; the R01 config
   restructure ended that. **Decision 2026-07-26:** retire the directory; update the
-  `AGENTS.md` `docs/` description and `MIGRATION.md:173`; leave the `dev/phase-1`
+  `AGENTS.md` `docs/` description and `MIGRATION.md:173`; leave the `dev/milestones/phase-1`
   references as historical record.
 
 ### O-06 — `Dockerfile` stages the pre-R6 `src/` — **parked**
@@ -359,7 +359,7 @@ each can be routed on its own merits.
   a move to e.g. `julia/` is a two-line change plus `README.rst:113` and
   `docs/env_setup_notes.md:6-7`. Against: root `Project.toml` is the Julia
   ecosystem convention (`] activate .`, the VS Code Julia extension, Wflow.jl's own
-  docs); `dev/phase-1/m02/decisions.md:23` recorded "Project.toml stays where it
+  docs); `dev/milestones/phase-1/m02/decisions.md:23` recorded "Project.toml stays where it
   is" as part of the hybrid pixi+native-Julia decision, and the documented reversal
   path (going full-pixi) assumes root. The usual argument for moving — "group the
   env files together" — fails here because `pixi.toml` cannot follow. **Keep at
@@ -367,7 +367,7 @@ each can be routed on its own merits.
 - **The cache dirs are not worth relocating.** `.pytest_cache` / `.ruff_cache` can
   be redirected by config, but there is no `pyproject.toml`, `pytest.ini`, or
   `ruff.toml` to hold the setting — adding a root file to remove two ignored dirs
-  is a net loss. (`dev/phase-1/m02b/package_inventory.md:64` already flags the
+  is a net loss. (`dev/milestones/phase-1/m02b/package_inventory.md:64` already flags the
   pixi `flit` dep as unused for the same underlying reason: no build system.)
 - **Conclusion.** The root is close to as tidy as its tool contracts allow. Acting
   on O-12, O-13, plus the `dag_model.png` and `data/` removals already logged takes
@@ -380,19 +380,19 @@ each can be routed on its own merits.
   R06 structural refactor", git-ref-anchored to `e33ee45` (`:1-14`). Meanwhile
   `dev/conventions/naming.md:141-147` (§7) requires migration notes at
   `dev/<milestone>/migration_<topic>.md`, and the P3-1 design review (`repo-4`,
-  accepted — `dev/p31/experiment-structure-design-review-record.md:870`) explicitly
+  accepted — `dev/milestones/p31/experiment-structure-design-review-record.md:870`) explicitly
   declined to promote the root file into a multi-milestone index, routing its own
-  note to `dev/p31/migration_experiment-structure.md` instead.
+  note to `dev/milestones/p31/migration_experiment-structure.md` instead.
 - **Expected:** one home for migration notes.
 - **Notes:** the root file is therefore the only one of its kind — an R6 artifact
   that predates the convention it now sits outside of. It is referenced by no
-  README, no `AGENTS.md` entry, and no doc index; only `dev/p31/*` mentions it.
+  README, no `AGENTS.md` entry, and no doc index; only `dev/milestones/p31/*` mentions it.
   **Open decision, two defensible targets:**
   - `docs/migration-r06.md` — matches the stated audience ("rebase a downstream
     fork, a user-local config, or any script that imported `from src.`"), which is
     a *user*, and `AGENTS.md` defines `docs/` as the user-facing bin. Leaves
     §7-style notes under `dev/` inconsistent with this one.
-  - `dev/r06/migration_structural-refactor.md` — matches naming.md §7 literally and
+  - `dev/milestones/r06/migration_structural-refactor.md` — matches naming.md §7 literally and
     puts it beside the R6 design docs, but `dev/` is declared "not shipped, not
     user-facing", which contradicts who the document is for.
   A third option is to leave it and add a one-line exemption to §7; that is the
@@ -451,7 +451,7 @@ each can be routed on its own merits.
   unrepeatable, and makes `blueearth_cst` importable regardless of CWD — which
   currently only holds because Snakemake is always invoked from the repo root.
   *Cons, and they are real:*
-  - Reverses a reviewed decision (`dev/r06/structural-refactor-design.md:368-376`),
+  - Reverses a reviewed decision (`dev/milestones/r06/structural-refactor-design.md:368-376`),
     so it needs a superseding record in `dev/decisions/`, not a silent flip.
   - Does **not** simplify the Snakemake side: `script:` directives are path-based
     and resolve against `workflow.basedir` either way. The win is import-side only.
@@ -506,7 +506,7 @@ each can be routed on its own merits.
 - **Created:** 2026-07-26 · **Rev:** `75eb4d6` · **Status:** open
 - **Observed:** `pixi.toml:16` declares `flit = ">=3.2"`. There is no
   `pyproject.toml` and no `[build-system]`, so nothing invokes it.
-  `dev/phase-1/m02b/package_inventory.md:64` already flagged it: "Build tool with
+  `dev/milestones/phase-1/m02b/package_inventory.md:64` already flagged it: "Build tool with
   no consumer."
 - **Expected:** every declared dependency has a consumer.
 - **Notes:** resolution follows O-14. If (2) is declined, drop the dep. If (2) is
@@ -593,7 +593,7 @@ each can be routed on its own merits.
 - **Expected:** both parse against the pinned stack. `pixi.toml:21-22` pins
   `hydromt >=1.3,<2` and `hydromt_wflow >=1.0,<2`, so the v0 catalog would not load.
 - **Notes:** this is not drift from a missed sync — the file was never migrated
-  when the stack moved to hydromt v1 (the M2b bump, `dev/phase-1/m02b/audit.md`).
+  when the stack moved to hydromt v1 (the M2b bump, `dev/milestones/phase-1/m02b/audit.md`).
   It is masked because no Linux run has been attempted since. Same verdict as O-06:
   **rebuild at the Linux milestone, do not repair.** The right action now is a
   header comment marking it stale and a `roadmap.md` line adding "re-generate
@@ -736,7 +736,7 @@ each can be routed on its own merits.
 | `scripts/` | 3 runners | **A human**, to execute the pipeline | `scripts/run_workflows.py --config …`, `scripts\run_snake_test.cmd` |
 | `dev/scripts/` | 19 helpers | **A developer**, to inspect or maintain the repo | `dev/README.md` scopes it to "build, lint, profile, and exploratory one-offs" — `check_baseline.py`, `semantic_tree_diff.py`, probes, staging |
 
-- **This was deliberated, not accidental.** `dev/r06/structural-refactor-design.md:588-596`
+- **This was deliberated, not accidental.** `dev/milestones/r06/structural-refactor-design.md:588-596`
   records the decision to create a top-level `scripts/` *rather than* folding the
   runners into `dev/scripts/`, with the stated reason: "`dev/scripts/` is
   dev-process tooling … whereas `run_snake_test.cmd` / `run_snake_docker.sh` **are**
@@ -783,7 +783,7 @@ each can be routed on its own merits.
   config can survive a rerun and be mistaken for current output.
 - **Notes:** independent of the output-layout restructure — fix regardless. It
   becomes more load-bearing under the 2026-07-26 ruling that forcing plots remain
-  a first-class product (`dev/r07/2026-07-26_project-output-layout.md` §15a).
+  a first-class product (`dev/milestones/r07/2026-07-26_project-output-layout.md` §15a).
   Check the sibling plot rules (1.11 `plot_results`, 1.12 `plot_map`) for the same
   pattern while fixing: `plot_results` writes `clim_wflow_1_{month,year}.png` and
   `performance_metrics.csv`, of which only `hydro_wflow_1.png` is declared.

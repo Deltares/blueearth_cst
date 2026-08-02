@@ -36,22 +36,22 @@ Never let `working/` or `tmp/` hold the only copy of a primary source --
 ## Historical archive (pre-`project-system` convention)
 
 This project predates the type-folder grammar above. Sealed milestone artifacts
-keep their original roadmap-driven, milestone-grouped layout and are **not**
-refactored:
+keep their original roadmap-driven, milestone-grouped layout -- their *contents*
+are **not** refactored. On 2026-08-02 the thirteen milestone folders moved from
+the `dev/` root into `milestones/`, a path change only: no file was renamed,
+split, or edited beyond the path prefix.
 
 | Path | Holds |
 |---|---|
 | `roadmap.md` | Source-of-truth fork roadmap: phases, milestones, branching/tagging |
-| `followups.md` | Milestone-scoped backlog (R3/R5 items) with reproducible context; referenced by live tests |
+| `followups.md` | Milestone-scoped backlog with reproducible context; referenced by live tests |
 | `baseline/manifest.json` | M1 replication baseline fingerprints (read by `scripts/check_baseline.py`) |
-| `phase-1/m0x/` | Phase 1 (Foundation, sealed 2026-05-08) milestone records |
-| `r01/` .. `r08/` | Numbered milestone design / plan / review / evidence docs |
-| `p31/`, `p32a/`, `p32b/`, `p33/` | Phase-3 sub-milestone records |
+| `milestones/` | Every sealed milestone's design / plan / review / evidence docs -- see its `README.md` for the index |
 
 The type-folder grammar governs **new** work; these records stay as-is. A
 sealed milestone folder is the default home for that milestone's promoted
-working notes -- `r08/` holds the WF2 v2.0 falsifier and validation record
-(R8, sealed 2026-07-31).
+working notes -- `milestones/r08/` holds the WF2 v2.0 falsifier and validation
+record (R8, sealed 2026-07-31).
 
 ## Working rules
 
