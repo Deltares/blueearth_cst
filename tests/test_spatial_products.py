@@ -21,6 +21,7 @@ from blueearth_cst.spatial.products import (
     _delineate_spatial_units,
     _parent_basins,
     _snap_gauge_points,
+    _validate_flow_topology,
     prepare_spatial_products,
     validate_written_spatial_products,
     write_spatial_products,
@@ -100,6 +101,8 @@ class _FakeCatalog:
         template = self.source[["elevtn"]].rename({"elevtn": "value"})
         value = {"lulc": 2, "lai": 3.5, "soil": 0.4}[name]
         template["value"] = xr.full_like(template["value"], value)
+        if name == "lai":
+            template = template.expand_dims(dim0=np.arange(12))
         return template
 
     def get_geodataframe(self, name: str, **_kwargs):
@@ -236,6 +239,14 @@ def test_product_writer_round_trips_every_catalog_entry(tmp_path, monkeypatch):
     monkeypatch.setattr(products_module, "_region_geometry", lambda *_: region)
 
     product = prepare_spatial_products(_config(), _FakeCatalog(source, rivers))
+    assert product.subbasins.geometry.is_valid.all()
+    assert product.catchments.geometry.is_valid.all()
+    # Exercise CF decoding of integer nodata: xarray reopens _FillValue=0 as
+    # NaN, which must not be mistaken for another spatial-unit identifier.
+    ids, counts = np.unique(product.maps["subbasin_id"].values, return_counts=True)
+    multi_cell_id = int(ids[np.argmax(counts)])
+    row, col = np.argwhere(product.maps["subbasin_id"].values == multi_cell_id)[0]
+    product.maps["subbasin_id"].values[row, col] = 0
     output_dir = tmp_path / "spatial"
     write_spatial_products(product, output_dir)
     validate_written_spatial_products(output_dir)
@@ -253,6 +264,8 @@ def test_product_writer_round_trips_every_catalog_entry(tmp_path, monkeypatch):
     reopened = xr.open_dataset(output_dir / "spatial_maps.nc")
     assert reopened.attrs["spatial_contract"] == "blueearth-cst-spatial-v1"
     assert {"land_cover", "leaf_area_index", "soil_value"}.issubset(reopened)
+    assert reopened["leaf_area_index"].dims == ("month", "y", "x")
+    assert reopened["month"].values.tolist() == list(range(1, 13))
 
 
 def test_products_module_is_wflow_independent():
@@ -261,6 +274,20 @@ def test_products_module_is_wflow_independent():
     assert "hydromt_wflow" not in source
     assert "WflowSbmModel" not in source
     assert "wflow_sbm.toml" not in source
+
+
+def test_flow_validator_rejects_decreasing_downstream_accumulation():
+    """A spatial file cannot pass when accumulation contradicts its D8 graph."""
+    maps, flow, _, _ = _base_maps()
+    active = np.flatnonzero(maps["basin_id"].values.ravel() > 0)
+    upstream = next(index for index in active if flow.idxs_ds[index] != index)
+    downstream = int(flow.idxs_ds[upstream])
+    corrupted = maps.copy(deep=True)
+    corrupted["flow_accumulation"].values.ravel()[upstream] = 100
+    corrupted["flow_accumulation"].values.ravel()[downstream] = 1
+
+    with pytest.raises(ValueError, match="decreases"):
+        _validate_flow_topology(corrupted)
 
 
 def test_catalog_uris_are_relative_to_the_generated_catalog():

@@ -1,11 +1,10 @@
 # Workflow: model_creation
 
 Contract for `Snakefile_model_creation` (workflow 1). Format per
-`dev/milestones/r01/modularity-contracts-design.md` §4. Records **current** behavior
-(R3 opening act) — R3 is behavior-preserving, so this doc is the baseline
-the R3 code commits are checked against, not a description of intended
-change. Grounded in `Snakefile_model_creation`, `config/wflow_build_model.yml`,
-`config/wflow_update_waterbodies.yml`, and `src/setup_gauges_and_outputs.py`.
+`dev/milestones/r01/modularity-contracts-design.md` §4. Records current behavior
+and is grounded in `Snakefile_model_creation`, the templates under
+`config/templates/`, and the rule-called modules under `blueearth_cst/model/`
+and `blueearth_cst/spatial/`.
 
 ## Owned config keys (`workflows.model_creation.*`)
 
@@ -36,6 +35,53 @@ change. Grounded in `Snakefile_model_creation`, `config/wflow_build_model.yml`,
 - `project.static_dir` — location of the build/update config templates.
 - `project.data_sources` — hydromt data-catalog YAML (passed to `hydromt build/update -d`).
 
+## Rule 1.17: engine-neutral spatial foundation
+
+`prepare_spatial_maps` is a no-wildcard target and can be requested directly:
+
+```powershell
+snakemake prepare_spatial_maps -c 1 -s Snakefile_model_creation --configfile <config.yml>
+```
+
+It resolves every parent feature independently, snaps configured gauge/control
+points to the analysis river network, and uses internal controls where present.
+An outlet-only or absent control set selects deterministic automatic
+partitioning for that parent. The configured `automatic_subbasins.max_count`
+is one global ceiling shared between fallback parents. Incremental subbasins
+do not overlap; the separate catchment layer contains each control point's full
+contributing area and therefore may overlap or nest.
+
+The analysis grid comes from `shared.basin.hydrography` at the requested
+resolution (native or an integer upscale). Flow direction is ArcGIS D8, not a
+Wflow LDD map. Elevation and slope use average resampling; LULC uses nearest;
+LAI and soil variables use average. Each raster records its catalog source,
+resampling where applicable, resolution, units, nodata, and CRS.
+
+The rule's freshness boundary is the workflow config, the catalog YAML file(s),
+and the optional gauge file, all declared as Snakemake inputs. A change to a
+data file hidden behind an unchanged catalog URI is not detectable by
+Snakemake; touch/update the catalog or force this rule when refreshing such a
+source. The generated catalog uses relative URIs, so the complete `spatial/`
+directory is portable as a unit.
+
+At the current P1 gate this rule is independent of `create_model`: targeting it
+does not schedule Wflow or create `hydrology_model/`. The accepted P2 adapter
+will add the downstream dependency without moving Wflow constants or derived
+parameter maps into this product.
+
+The Gate 1 adapter proof selected a project-owned adapter over another
+`setup_basemaps` call. In the pinned `hydromt_wflow` version,
+`setup_basemaps` delineates from a hydrography source and would therefore
+repeat P1. The proof instead reads only `spatial_catalog.yml`, converts the
+neutral ArcGIS D8 map to Wflow LDD at the adapter boundary, loads the neutral
+base layers through the public `staticmaps.set`/`geoms.set` component APIs,
+and then uses public `setup_config`, `set_flwdir`, `setup_gauges`,
+`setup_outlets`, and `write` methods. A write/reopen check preserved the P1
+grid, subbasin IDs 101–120, and location IDs 101–120 and produced the standard
+Wflow `staticmaps.nc`, `wflow_sbm.toml`, and `staticgeoms/region.geojson`
+triplet. Phase 2 must implement and test this route rather than read the
+original global hydrography again.
+
 ## Input contract (external data — catalog sources required in `data_sources`)
 
 - **Build** (`wflow_build_model.yml`): `merit_hydro_ihu`, `merit_hydro_index`
@@ -57,6 +103,8 @@ change. Grounded in `Snakefile_model_creation`, `config/wflow_build_model.yml`,
 - `{project_dir}/climate_historical/<key>/plots/source_{precip,temp,pet}.png`
   (R07 B4 — source-grid figures from the shared store; produced with no model)
 - `{project_dir}/config/runs/snake_config_model_creation.yml` (verbatim snake-config snapshot)
+- `{project_dir}/spatial/spatial_catalog.yml` (representative target for the
+  complete rule-1.17 spatial product)
 
 *R07 retired the project-level `plots/` tree: figures now attach to what they
 DEPICT (P1), so they sit beside the subtree whose artifacts they show.*
@@ -70,6 +118,19 @@ workflows 2/3; not in this `rule all`):
 - `{project_dir}/climate_historical/wflow_data/inmaps_historical.nc`
 - `{basin_dir}/run_default/output.csv`
 
+**Spatial-foundation contract** (`blueearth-cst-spatial-v1`):
+
+- `{project_dir}/spatial/spatial_maps.nc`
+- `{project_dir}/spatial/geoms/{basins,subbasins,catchments,rivers,locations}.geojson`
+- `{project_dir}/spatial/location_registry.csv`
+- `{project_dir}/spatial/spatial_catalog.yml`
+- `{project_dir}/spatial/spatial_report.yml`
+
+The raster, vector, and registry identifiers are relational: basin IDs are
+`1..N`; subbasin IDs use `basin_id * 100 + local_number`; each primary location
+inherits its subbasin ID as `wflow_id`. The generated `spatial_catalog.yml`
+exposes every artifact through HydroMT without containing Wflow configuration.
+
 **Side-effect artifacts** (bookkeeping / traceability; no downstream reader):
 - `{basin_dir}/staticgeoms/reservoirs_lakes_glaciers.txt` — waterbodies sentinel.
 - `{basin_dir}/staticgeoms/outlet_index.csv` — position→subcatchment-ID map (R3 §4).
@@ -82,7 +143,8 @@ workflows 2/3; not in this `rule all`):
   via `merge_benchmarks.py`. All three workflows follow this scheme — WF2 2.07,
   WF3 3.13.)
   — ephemeral run artifacts (R3 §6); not manifest targets, not committed. The
-  `1.NN_` prefix is the `W.NN` rule-numbering scheme (naming.md §9).
+  `1.NN_` prefix is the `W.NN` rule-numbering scheme (naming.md §9). The
+  spatial rule uses `1.17_prepare_spatial_maps` during the P1 transition.
 
 ## Downstream consumers
 

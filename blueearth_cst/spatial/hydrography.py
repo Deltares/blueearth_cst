@@ -9,7 +9,7 @@ import numpy as np
 import pyflwdir
 import xarray as xr
 from hydromt.gis import flw
-from pyflwdir import FlwdirRaster, core_d8
+from pyflwdir import FlwdirRaster, core_d8, gis_utils
 
 
 def _validate_source(source_ds: xr.Dataset) -> None:
@@ -112,9 +112,11 @@ def prepare_hydrography(
         raise ValueError("resolution and river_uparea_km2 must be > 0")
 
     resolved_resolution, scale_ratio = _target_resolution(source_ds, resolution)
-    clipped = source_ds.raster.clip_geom(
-        region_geom, align=resolved_resolution, buffer=10
-    )
+    # The caller reads the source with an upstream-context buffer. The emitted
+    # contract itself is clipped to the resolved basin extent: retaining that
+    # read buffer here would enlarge the analysis grid by ten cells per side
+    # and make it disagree with HydroMT-Wflow's basin grid.
+    clipped = source_ds.raster.clip_geom(region_geom, align=resolved_resolution)
     source_mask = clipped.raster.geometry_mask(region_geom)
     if not bool(source_mask.any()):
         raise ValueError("region geometry selects no hydrography cells")
@@ -191,6 +193,18 @@ def prepare_hydrography(
         dims=flow_grid.raster.dims,
         attrs={"long_name": "upstream contributing cell count", "units": "cell", "_FillValue": 0},
     )
+    cell_area = gis_utils.area_grid(
+        flow_grid.raster.transform,
+        flow_grid.raster.shape,
+        latlon=bool(flow_grid.raster.crs.is_geographic),
+        unit="km2",
+    )
+    output_ds["cell_area"] = xr.DataArray(
+        np.where(mask_values, cell_area, -9999.0).astype("float32"),
+        coords=flow_grid.raster.coords,
+        dims=flow_grid.raster.dims,
+        attrs={"long_name": "grid-cell area", "units": "km2", "_FillValue": -9999.0},
+    )
     output_ds["river_order"] = xr.DataArray(
         np.where(mask_values, stream_order, 0),
         coords=flow_grid.raster.coords,
@@ -211,10 +225,25 @@ def prepare_hydrography(
     output_ds = xr.merge(
         [output_ds, _topography(clipped, flow_grid, active_mask)], compat="override"
     )
+    active_rows, active_cols = np.where(active_mask.values)
+    output_ds = output_ds.isel(
+        {
+            active_mask.raster.y_dim: slice(
+                int(active_rows.min()), int(active_rows.max()) + 1
+            ),
+            active_mask.raster.x_dim: slice(
+                int(active_cols.min()), int(active_cols.max()) + 1
+            ),
+        }
+    )
     output_ds.raster.set_crs(clipped.raster.crs)
     output_ds.attrs.update(
         spatial_contract="blueearth-cst-spatial-v1",
         flow_direction_encoding="ArcGIS D8",
         resolution=float(abs(output_ds.raster.res[0])),
+    )
+    final_mask = output_ds["flow_direction"] != core_d8._mv
+    flwdir_out = flw.flwdir_from_da(
+        output_ds["flow_direction"], ftype="d8", mask=final_mask
     )
     return output_ds, flwdir_out

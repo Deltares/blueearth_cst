@@ -187,6 +187,7 @@ LOG_RULES = [
     "1.12_plot_map",
     "1.13_plot_forcing",
     "1.15_plot_climate_source",
+    "1.17_prepare_spatial_maps",
 ]
 
 # WF1_TERMINALS — the artifacts with no WF1 consumer: every producing rule is
@@ -210,6 +211,9 @@ WF1_TERMINALS = [
     # by-product, and their subgraph needs no built model.
     f"{store_dir}/plots/source_precip_map.png",
     f"{basin_dir}/staticgeoms/outlet_index.csv",
+    # P1 spatial foundation. One representative output schedules the complete
+    # multi-output rule and makes both gather rules wait for its log/benchmark.
+    f"{project_dir}/spatial/spatial_catalog.yml",
 ]
 
 # 1.00  all — target aggregator: full historical build + performance plots
@@ -637,3 +641,35 @@ rule gather_logs:
         rules = LOG_RULES,
         parts_dir = LOG_PARTS_DIR,
     script: "blueearth_cst/shared/merge_logs.py"
+
+# 1.17  prepare_spatial_maps — engine-neutral spatial foundation
+#
+# This rule is deliberately independent from create_model: requesting it by
+# name schedules no hydromt_wflow call and creates nothing under
+# hydrology_model/. P2 will add the downstream spatial -> Wflow edge only after
+# the adapter proof passes Gate 1.
+rule prepare_spatial_maps:
+    message: rule_banner("1.17", "prepare_spatial_maps")
+    input:
+        config_snake = config_path,
+        data_catalogs = DATA_SOURCES,
+        **_locations_input,
+    output:
+        spatial_maps = f"{project_dir}/spatial/spatial_maps.nc",
+        basins = f"{project_dir}/spatial/geoms/basins.geojson",
+        subbasins = f"{project_dir}/spatial/geoms/subbasins.geojson",
+        catchments = f"{project_dir}/spatial/geoms/catchments.geojson",
+        rivers = f"{project_dir}/spatial/geoms/rivers.geojson",
+        locations = f"{project_dir}/spatial/geoms/locations.geojson",
+        location_registry = f"{project_dir}/spatial/location_registry.csv",
+        spatial_catalog = f"{project_dir}/spatial/spatial_catalog.yml",
+        spatial_report = f"{project_dir}/spatial/spatial_report.yml",
+    params:
+        basin_config = basin_cfg,
+        model_config = my_cfg,
+    log:
+        f"{LOG_PARTS_DIR}/1.17_prepare_spatial_maps.log",
+    benchmark:
+        f"{project_dir}/benchmarks/_parts/1.17_prepare_spatial_maps.tsv",
+    script:
+        "blueearth_cst/spatial/prepare_spatial_maps.py"

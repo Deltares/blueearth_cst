@@ -42,8 +42,9 @@ Primary locations inherit their subbasin ID: basin 1 subbasins are 101, 102,
 and so on, giving location codes such as `B001-S01-L01`. Additional
 non-controlling locations use a reserved range beginning at 1,000,000. The
 current Gabon IDs 101–104 remain valid only when the resolved hierarchy assigns
-the same stations to `B001-S01` through `B001-S04`; otherwise preparation emits
-a migration crosswalk rather than silently preserving stale IDs.
+the same stations to `B001-S01` through `B001-S04`; otherwise preparation fails
+with an explicit old-ID → resolved-ID crosswalk rather than silently preserving
+stale IDs.
 
 ## `observations_timeseries.csv`
 

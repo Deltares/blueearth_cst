@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -55,7 +56,11 @@ def _vectorize_ids(data: xr.DataArray, id_column: str) -> gpd.GeoDataFrame:
     vector = data.raster.vectorize().rename(columns={"value": id_column})
     vector[id_column] = vector[id_column].astype("int32")
     vector = vector.loc[vector[id_column] > 0]
-    return vector.dissolve(by=id_column, as_index=False).reset_index(drop=True)
+    dissolved = vector.dissolve(by=id_column, as_index=False).reset_index(drop=True)
+    # Corner-connected raster cells can polygonize as self-touching rings.
+    # Preserve their exact footprint as valid Polygon/MultiPolygon geometry.
+    dissolved.geometry = dissolved.geometry.make_valid()
+    return dissolved
 
 
 def _region_geometry(catalog: DataCatalog, config: SpatialConfig) -> gpd.GeoDataFrame:
@@ -270,7 +275,7 @@ def _catchment_geometry(
     data.raster.set_crs(maps.raster.crs)
     data.raster.set_nodata(0)
     vector = _vectorize_ids(data, "temporary_label")
-    return vector.dissolve(by="temporary_label", as_index=False)
+    return vector
 
 
 def _delineate_spatial_units(
@@ -535,6 +540,17 @@ def _resample_source(
     if source_ds.raster.crs is None:
         raise ValueError(f"catalog source {source_name!r} has no CRS")
     reprojected = source_ds.raster.reproject_like(grid, method=method)
+    if (
+        prefix == "leaf_area_index"
+        and "dim0" in reprojected.dims
+        and reprojected.sizes["dim0"] == 12
+    ):
+        reprojected = reprojected.rename(dim0="month").assign_coords(
+            month=np.arange(1, 13, dtype="int16")
+        )
+        reprojected["month"].attrs.update(
+            long_name="calendar month", units="1"
+        )
     renamed: dict[str, str] = {}
     names = list(reprojected.data_vars)
     for name in names:
@@ -745,6 +761,79 @@ def write_spatial_products(products: SpatialProducts, output_dir: str | Path) ->
         yaml.safe_dump(products.report, stream, sort_keys=False)
 
 
+def _validate_flow_topology(maps: xr.Dataset) -> None:
+    """Validate D8 codes and non-decreasing accumulation downstream."""
+    direction = np.asarray(maps["flow_direction"].values)
+    finite_direction = np.isfinite(direction)
+    codes = {int(value) for value in np.unique(direction[finite_direction])}
+    valid_codes = {0, 1, 2, 4, 8, 16, 32, 64, 128}
+    if not codes.issubset(valid_codes):
+        raise ValueError(f"flow_direction contains invalid ArcGIS D8 codes: {codes}")
+
+    basin_values = np.asarray(maps["basin_id"].values)
+    active = np.isfinite(basin_values) & (basin_values > 0)
+    if np.any(active & ~finite_direction):
+        raise ValueError("active basin cells contain missing flow direction")
+    flow_da = xr.DataArray(
+        np.where(finite_direction, direction, 247).astype("uint8"),
+        coords=maps["flow_direction"].coords,
+        dims=maps["flow_direction"].dims,
+    )
+    flow_da.raster.set_crs(maps.raster.crs)
+    flow_da.raster.set_nodata(247)
+    flow_network = flw.flwdir_from_da(
+        flow_da,
+        ftype="d8",
+        mask=xr.DataArray(active, coords=flow_da.coords, dims=flow_da.dims),
+    )
+    active_indices = np.flatnonzero(active.ravel())
+    downstream = flow_network.idxs_ds[active_indices]
+    internal = (downstream >= 0) & (downstream != active_indices)
+    internal &= active.ravel()[downstream]
+    accumulation = np.asarray(maps["flow_accumulation"].values).ravel()
+    if not np.isfinite(accumulation[active_indices]).all():
+        raise ValueError("active basin cells contain missing flow accumulation")
+    if np.any(accumulation[downstream[internal]] < accumulation[active_indices[internal]]):
+        raise ValueError("flow accumulation decreases along a downstream D8 edge")
+
+
+def _validate_vector_relations(geoms: Mapping[str, gpd.GeoDataFrame]) -> None:
+    """Validate incremental-unit disjointness and catchment containment."""
+    for name, frame in geoms.items():
+        if frame.empty or not frame.geometry.is_valid.all():
+            raise ValueError(f"written {name} geometry is empty or invalid")
+
+    subbasins = geoms["subbasins"].to_crs(6933)
+    catchments = geoms["catchments"].to_crs(6933)
+    if not subbasins["subbasin_id"].is_unique:
+        raise ValueError("subbasin vector identifiers are not unique")
+    if not catchments["subbasin_id"].is_unique:
+        raise ValueError("catchment vector identifiers are not unique")
+    union_area = float(subbasins.geometry.union_all().area)
+    summed_area = float(subbasins.geometry.area.sum())
+    tolerance = max(union_area * 1e-9, 0.01)
+    if summed_area - union_area > tolerance:
+        raise ValueError("incremental subbasin polygons overlap")
+
+    pairs = subbasins[["subbasin_id", "geometry"]].merge(
+        catchments[["subbasin_id", "geometry"]],
+        on="subbasin_id",
+        how="outer",
+        suffixes=("_subbasin", "_catchment"),
+        validate="one_to_one",
+        indicator=True,
+    )
+    if not pairs["_merge"].eq("both").all():
+        raise ValueError("subbasin and catchment vector identifiers disagree")
+    outside = [
+        int(row.subbasin_id)
+        for row in pairs.itertuples(index=False)
+        if not row.geometry_subbasin.covered_by(row.geometry_catchment.buffer(0.01))
+    ]
+    if outside:
+        raise ValueError(f"subbasins fall outside their full catchments: {outside}")
+
+
 def validate_written_spatial_products(output_dir: str | Path) -> None:
     """Open every generated catalog entry and verify the core ID joins."""
     output_dir = Path(output_dir)
@@ -763,6 +852,8 @@ def validate_written_spatial_products(output_dir: str | Path) -> None:
     unreadable = [name for name, frame in geoms.items() if frame is None or frame.crs is None]
     if unreadable:
         raise ValueError(f"written spatial geometries are unreadable: {unreadable}")
+    if any(frame.crs.to_epsg() != 4326 for frame in geoms.values()):
+        raise ValueError("written spatial geometries must use EPSG:4326")
     for name, data in maps.data_vars.items():
         missing = sorted(
             {"source", "resolution", "units"}.difference(data.attrs)
@@ -771,10 +862,37 @@ def validate_written_spatial_products(output_dir: str | Path) -> None:
             raise ValueError(f"written spatial map {name!r} lacks metadata: {missing}")
         if data.raster.nodata is None:
             raise ValueError(f"written spatial map {name!r} lacks nodata metadata")
-    raster_ids = set(np.unique(maps["subbasin_id"].values)) - {0}
+    raster_values = np.asarray(maps["subbasin_id"].values)
+    valid_raster_values = raster_values[
+        np.isfinite(raster_values) & (raster_values > 0)
+    ]
+    raster_ids = {int(value) for value in np.unique(valid_raster_values)}
     vector_ids = set(subbasins["subbasin_id"].astype(int))
     registry_ids = set(registry["subbasin_id"].astype(int))
     if raster_ids != vector_ids or not registry_ids.issubset(vector_ids):
         raise ValueError(
             "subbasin IDs disagree between raster, vector, and location registry"
         )
+    required_registry_columns = {
+        "basin_id",
+        "basin_code",
+        "basin_name",
+        "subbasin_id",
+        "subbasin_code",
+        "subbasin_name",
+        "location_id",
+        "location_code",
+        "station_name",
+        "wflow_id",
+        "location_role",
+        "original_x",
+        "original_y",
+        "snapped_x",
+        "snapped_y",
+    }
+    missing_registry = sorted(required_registry_columns.difference(registry.columns))
+    if missing_registry:
+        raise ValueError(f"location registry lacks columns: {missing_registry}")
+    _validate_flow_topology(maps)
+    _validate_vector_relations(geoms)
+    maps.close()

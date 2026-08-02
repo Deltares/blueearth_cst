@@ -54,6 +54,7 @@ def test_neutral_hydrography_contract_has_expected_maps_and_metadata():
     assert {
         "flow_direction",
         "flow_accumulation",
+        "cell_area",
         "upstream_area",
         "river_mask",
         "river_order",
@@ -63,6 +64,7 @@ def test_neutral_hydrography_contract_has_expected_maps_and_metadata():
     assert result.raster.crs.to_epsg() == 3857
     assert result["flow_direction"].attrs["encoding"].startswith("ArcGIS D8")
     assert result["upstream_area"].attrs["units"] == "km2"
+    assert result["cell_area"].attrs["units"] == "km2"
     assert result["elevation"].attrs["units"] == "m"
     assert result["slope"].attrs["units"] == "m m-1"
     assert "local_drain_direction" not in result
@@ -86,6 +88,20 @@ def test_non_integer_upscale_ratio_is_rejected():
 
     with pytest.raises(ValueError, match="integer multiple"):
         prepare_hydrography(source, region, 1600, 2.0)
+
+
+def test_analysis_grid_trims_inactive_alignment_border():
+    """Grid alignment cannot retain an empty row or column around the basin."""
+    source, _ = _source_dataset()
+    region = gpd.GeoDataFrame(
+        geometry=[box(1000, 1000, 6000, 6000)], crs=3857
+    )
+
+    result, flow = prepare_hydrography(source, region, 1000, 2.0)
+
+    assert result.raster.shape == (5, 5)
+    assert flow.shape == (5, 5)
+    assert result.raster.bounds == pytest.approx((1000, 1000, 6000, 6000))
 
 
 def test_spatial_hydrography_module_does_not_import_hydromt_wflow():
