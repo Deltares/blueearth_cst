@@ -15,10 +15,10 @@ import xarray as xr
 import yaml
 from hydromt import DataCatalog
 from hydromt.gis import flw
-from hydromt.model.processes.region import parse_region_basin
 from pyflwdir import FlwdirRaster
 
 from blueearth_cst.spatial.config import SpatialConfig
+from blueearth_cst.spatial.delineate_region import read_region
 from blueearth_cst.spatial.delineation import (
     allocate_automatic_subbasin_budgets,
     downstream_steps,
@@ -63,18 +63,20 @@ def _vectorize_ids(data: xr.DataArray, id_column: str) -> gpd.GeoDataFrame:
     return dissolved
 
 
-def _region_geometry(catalog: DataCatalog, config: SpatialConfig) -> gpd.GeoDataFrame:
-    """Resolve the configured hydrologic region with HydroMT core."""
-    geometry = parse_region_basin(
-        config.region.copy(),
-        data_catalog=catalog,
-        hydrography_path=config.hydrography,
-        basin_index_path=config.basin_index,
-    )
-    if geometry.empty:
-        raise ValueError("shared.basin.region resolved to no parent basins")
-    if geometry.crs is None:
-        raise ValueError("resolved parent-basin geometry has no CRS")
+def _region_geometry(region_fn: str | os.PathLike[str]) -> gpd.GeoDataFrame:
+    """Read the shared region artifact and split it into parent features.
+
+    This used to call ``parse_region_basin`` itself. Since ADR 0003 the
+    delineation happens once per project, in rule ``delineate_region``, and this
+    reads its declared output — so 1.02 and the climate store can no longer
+    disagree about the region, and WF2/WF3 can obtain the polygon without
+    running either producer.
+
+    Every validation stays: ``read_region`` rechecks non-empty and CRS, and the
+    explode + non-overlap check below is unchanged. This stopped delineating,
+    not checking.
+    """
+    geometry = read_region(region_fn)
     geometry = geometry.explode(index_parts=False).reset_index(drop=True)
     for left in range(len(geometry)):
         for right in range(left + 1, len(geometry)):
@@ -613,10 +615,14 @@ def _thematic_maps(
 
 
 def prepare_spatial_products(
-    config: SpatialConfig, catalog: DataCatalog
+    config: SpatialConfig, catalog: DataCatalog, region_fn: str | os.PathLike[str]
 ) -> SpatialProducts:
-    """Build the complete in-memory engine-neutral spatial contract."""
-    region = _region_geometry(catalog, config)
+    """Build the complete in-memory engine-neutral spatial contract.
+
+    ``region_fn`` is rule 1.02's declared ``region_geojson`` input — the one
+    project region artifact (ADR 0003), not a path this function derives.
+    """
+    region = _region_geometry(region_fn)
     source = catalog.get_rasterdataset(
         config.hydrography,
         geom=region,

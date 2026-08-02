@@ -223,12 +223,18 @@ def declarations(request, config_variants):
     out = {"_variant": request.param}
     for label, snakefile in (
         ("wf1", "Snakefile_model_creation"),
-        ("wf2", "Snakefile_climate_projections"),
         ("wf3", "Snakefile_climate_experiment"),
     ):
         workflow = _parse_workflow(snakefile, config_path)
         rule = workflow.get_rule(RULE_NAME)
         out[label] = (workflow, rule)
+    # WF2 keeps its workflow object but has no store rule since ADR 0003 — it
+    # declared the producer only to obtain the region polygon, and the region is
+    # now its own artifact. Kept here so the absence is ASSERTED rather than
+    # silently untested.
+    out["wf2_workflow"] = _parse_workflow(
+        "Snakefile_climate_projections", config_path
+    )
     return out
 
 
@@ -244,7 +250,7 @@ def test_optional_basin_keys_are_read_from_the_config_by_both(declarations):
         if declarations["_variant"] == "custom_basin"
         else {"hydrography": "merit_hydro_ihu", "basin_index": "merit_hydro_index"}
     )
-    for label in ("wf1", "wf2", "wf3"):
+    for label in ("wf1", "wf3"):
         _workflow, rule = declarations[label]
         for key, value in expected.items():
             assert rule.params[key] == value, (
@@ -254,10 +260,25 @@ def test_optional_basin_keys_are_read_from_the_config_by_both(declarations):
 
 @pytest.mark.workflow_contract
 def test_rule_exists_in_both_workflows(declarations):
-    for label in ("wf1", "wf2", "wf3"):
+    for label in ("wf1", "wf3"):
         _workflow, rule = declarations[label]
         assert rule is not None, f"{label} has no {RULE_NAME} rule"
         assert rule.name == RULE_NAME
+
+
+@pytest.mark.workflow_contract
+def test_wf2_declares_no_store_and_no_extraction(declarations):
+    """ADR 0003: a projections-only run does no climate extraction at all.
+
+    WF2 used to declare the whole store producer to obtain the delineated
+    polygon, and never read the gridded extraction it also wrote. The region is
+    now its own artifact, so the extraction is gone from this workflow — the
+    point of the change, and the thing most likely to be undone by someone
+    re-adding the rule "for symmetry".
+    """
+    rule_names = {rule.name for rule in declarations["wf2_workflow"].rules}
+    assert RULE_NAME not in rule_names
+    assert "delineate_region" in rule_names
 
 
 @pytest.mark.workflow_contract
@@ -269,7 +290,7 @@ def test_declarations_are_identical(declarations):
     """
     import itertools
 
-    labels = ("wf1", "wf2", "wf3")
+    labels = ("wf1", "wf3")
     differences = []
     for left_label, right_label in itertools.combinations(labels, 2):
         left_workflow, left_rule = declarations[left_label]
@@ -283,7 +304,7 @@ def test_declarations_are_identical(declarations):
                     f"    {left_label} = {left}\n    {right_label} = {right}"
                 )
     assert not differences, (
-        f"{RULE_NAME} differs across the three workflows on "
+        f"{RULE_NAME} differs across the declaring workflows on "
         f"{len(differences)} directive comparison(s). Only message/log/benchmark "
         "may differ; everything else must come from climate_store_spec.\n"
         + "\n".join(differences)
@@ -297,13 +318,13 @@ def test_the_single_input_is_the_catalog(declarations):
     An asymmetric or absent input set is what the oscillation needs; the catalog
     file is the store's declared freshness boundary.
     """
-    for label in ("wf1", "wf2", "wf3"):
+    for label in ("wf1", "wf3"):
         _workflow, rule = declarations[label]
-        assert list(rule.input.keys()) == ["catalog"], (
+        assert list(rule.input.keys()) == ["catalog", "region_geojson"], (
             f"{label}: {RULE_NAME} inputs are {list(rule.input.keys())}, "
-            "expected exactly ['catalog']"
+            "expected exactly ['catalog', 'region_geojson']"
         )
-        assert len(rule.input) == 1, f"{label}: extra positional inputs"
+        assert len(rule.input) == 2, f"{label}: extra positional inputs"
         ancient_paths = {str(f) for f in rule.input if getattr(f, "is_ancient", False)}
         assert not ancient_paths, (
             f"{label}: the catalog input must be plain, not ancient() — "
@@ -313,17 +334,22 @@ def test_the_single_input_is_the_catalog(declarations):
 
 @pytest.mark.workflow_contract
 def test_outputs_are_the_store_artifacts(declarations):
-    """The era5 seed branch declares the extraction plus its region record."""
-    for label in ("wf1", "wf2", "wf3"):
+    """The era5 seed branch declares the extraction and nothing else.
+
+    ADR 0003 retired the per-store-key ``store_region.geojson``: the polygon is
+    one project artifact, declared here as an INPUT, and the store's extent
+    provenance moved into the extraction's own attributes.
+    """
+    for label in ("wf1", "wf3"):
         _workflow, rule = declarations[label]
         keys = sorted(rule.output.keys())
-        assert keys == ["climate_nc", "region_geojson"], f"{label}: {keys}"
+        assert keys == ["climate_nc"], f"{label}: {keys}"
         assert str(rule.output.climate_nc).endswith(
             "/extract_historical.nc"
         ), label
-        assert str(rule.output.region_geojson).endswith(
-            "/store_region.geojson"
-        ), label
+        assert not [
+            str(path) for path in rule.output if "store_region" in str(path)
+        ], label
 
 
 @pytest.mark.workflow_contract
@@ -350,9 +376,20 @@ def test_guard_keeps_its_receipt_but_loses_its_edge(declarations):
     assert guard_outputs == ["guard_ok", "sentinel"], guard_outputs
     assert str(guard.output.guard_ok).endswith("/.guard_ok")
 
-    producer_inputs = {str(path) for path in producer.input}
+    producer_inputs = {str(path).replace("\\", "/") for path in producer.input}
     assert not any(".guard_ok" in path for path in producer_inputs)
-    assert not any("region.geojson" in path for path in producer_inputs)
+    # The retired edge is the MODEL's region, not any region. R07 B1 made the
+    # store model-free by dropping
+    # ancient(hydrology_model/staticgeoms/region.geojson); ADR 0003 gives it
+    # spatial/geoms/region.geojson instead, which is model-free by
+    # construction. Asserting "no path containing region.geojson" would forbid
+    # the replacement along with the thing it replaced, so the check now names
+    # the coupling it actually guards against.
+    assert not any("hydrology_model/" in path for path in producer_inputs)
+    assert not any("staticgeoms/" in path for path in producer_inputs)
+    assert any(
+        path.endswith("/spatial/geoms/region.geojson") for path in producer_inputs
+    ), producer_inputs
 
 
 @pytest.mark.workflow_contract

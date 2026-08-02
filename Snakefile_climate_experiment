@@ -9,7 +9,7 @@ from pathlib import Path
 # See dev/milestones/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
 from blueearth_cst.shared.provenance import short_digest, snapshot_bundle_digest
-from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_spec, file_digest_or_absent, get_config, patch_psutil_windows_benchmark, rule_banner, stress_test_grid, target_banner, validate_experiment_name, warn_if_project_dir_in_repo
+from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_spec, file_digest_or_absent, get_config, patch_psutil_windows_benchmark, region_spec, rule_banner, stress_test_grid, target_banner, validate_experiment_name, warn_if_project_dir_in_repo
 
 # Windows: make Snakemake's benchmark memory/IO/CPU metrics work (else all NA).
 patch_psutil_windows_benchmark()
@@ -92,6 +92,19 @@ CLIMATE_STORE = climate_store_spec(
     basin_index=basin_index,
 )
 store_dir = CLIMATE_STORE.store_dir
+
+# --- The one project region artifact (ADR 0003) -------------------------------
+# ONE producer contract, built here and identically in the other two workflows,
+# and splatted into rule 3.01b below. Only message/log/benchmark are
+# workflow-local; tests/test_region_spec.py parses all three workflows and fails
+# on ANY other difference.
+REGION = region_spec(
+    project_dir=project_dir,
+    model_region=model_region,
+    data_sources=DATA_SOURCES,
+    hydrography=basin_hydrography,
+    basin_index=basin_index,
+)
 
 horizontime_climate = get_config(my_cfg, "horizontime_climate", optional=False)
 wflow_run_length = get_config(my_cfg, "run_length", 20)
@@ -310,6 +323,22 @@ rule snapshot_config:
         snapshot_bundle = directory(CONFIG_SNAPSHOT_DIR),
     script:
         "blueearth_cst/model/copy_config_files.py"
+
+# 3.01b  delineate_region — the one project region artifact (ADR 0003).
+# Byte-identical to the other two declarations except message/log/benchmark.
+rule delineate_region:
+    message: rule_banner("3.01b", "delineate_region")
+    input:
+        **REGION.inputs,
+    params:
+        **REGION.params,
+    output:
+        **REGION.outputs,
+    log:
+        f"{LOG_PARTS_DIR}/3.01b_delineate_region.log",
+    benchmark:
+        f"{exp_dir}/benchmarks/_parts/3.01b_delineate_region.tsv",
+    script: REGION.script
 
 # 3.02  extract_climate_grid — the SHARED historical-climate store producer
 # (R07 B1). This declaration and rule 1.10 in Snakefile_model_creation are the

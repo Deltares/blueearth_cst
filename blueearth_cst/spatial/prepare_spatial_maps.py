@@ -28,11 +28,16 @@ def run_prepare_spatial_maps(
     model_config: Mapping[str, Any],
     data_catalogs: str | os.PathLike[str] | Sequence[object],
     output_dir: str | os.PathLike[str],
+    region_fn: str | os.PathLike[str],
 ) -> None:
-    """Build, write, and reopen the complete neutral spatial contract."""
+    """Build, write, and reopen the complete neutral spatial contract.
+
+    ``region_fn`` is the rule's declared ``region_geojson`` input — the one
+    project region artifact (ADR 0003), never re-delineated here.
+    """
     config = parse_spatial_config(basin_config, model_config)
     catalog = DataCatalog(data_libs=_catalog_paths(data_catalogs))
-    products = prepare_spatial_products(config, catalog)
+    products = prepare_spatial_products(config, catalog, region_fn)
     try:
         write_spatial_products(products, output_dir)
         validate_written_spatial_products(output_dir)
@@ -53,4 +58,5 @@ if __name__ == "__main__" and "snakemake" in globals():
             model_config=sm.params.model_config,
             data_catalogs=sm.input.data_catalogs,
             output_dir=Path(sm.output.spatial_maps).parent,
+            region_fn=sm.input.region_geojson,
         )

@@ -628,13 +628,36 @@ def test_climate_store_spec_key_matches_the_pre_r07_wf3_construction():
     spec = _spec()
     assert spec.store_dir == "/proj/climate_historical/era5_20000101_20201231"
     assert spec.outputs["climate_nc"] == f"{spec.store_dir}/extract_historical.nc"
-    assert spec.outputs["region_geojson"] == f"{spec.store_dir}/store_region.geojson"
+    # ADR 0003: the polygon is no longer a per-store-key output. It is the one
+    # project artifact, and the store declares it as an INPUT.
+    assert "region_geojson" not in spec.outputs
+    assert spec.inputs["region_geojson"] == "/proj/spatial/geoms/region.geojson"
 
 
-def test_climate_store_spec_declares_exactly_one_catalog_input():
-    """ext2-01: one input, the catalog. Asymmetry is what the oscillation needs."""
+def test_climate_store_spec_inputs_are_the_catalog_and_the_region():
+    """ext2-01 + ADR 0003: two inputs, and BOTH symmetric across the workflows.
+
+    The catalog stays the store's freshness boundary. The region joined it when
+    the delineation moved out of this producer; what ext2-01 forbids is a
+    workflow-LOCAL input, not a second shared one.
+    """
     spec = _spec()
-    assert spec.inputs == {"catalog": "config/catalogs/deltares_data.yml"}
+    assert spec.inputs == {
+        "catalog": "config/catalogs/deltares_data.yml",
+        "region_geojson": "/proj/spatial/geoms/region.geojson",
+    }
+
+
+def test_climate_store_region_input_is_the_region_spec_output():
+    """One owner for the path: the two helpers cannot disagree about it."""
+    spec = _spec()
+    region = su.region_spec(
+        project_dir="/proj",
+        model_region="{'subbasin': [9.666, 0.4476], 'uparea': 100}",
+        data_sources="config/catalogs/deltares_data.yml",
+    )
+    assert spec.inputs["region_geojson"] == region.region_geojson
+    assert region.outputs == {"region_geojson": region.region_geojson}
 
 
 def test_climate_store_spec_params_carry_the_content_surface():
@@ -675,7 +698,7 @@ def test_chirps_branch_declares_the_standardised_orography_sidecar(source):
     """R07 standardises on `orography.nc` (was `<clim_source>_orography.nc`)."""
     spec = _spec(clim_source=source)
     assert spec.outputs["oro_nc"] == f"{spec.store_dir}/orography.nc"
-    assert list(spec.outputs) == ["climate_nc", "region_geojson", "oro_nc"]
+    assert list(spec.outputs) == ["climate_nc", "oro_nc"]
 
 
 def test_no_orography_output_outside_the_chirps_branch():

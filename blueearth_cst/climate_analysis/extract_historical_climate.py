@@ -3,14 +3,18 @@
 Rule ``extract_climate_grid``'s script — the SINGLE producer of the shared
 ``climate_historical/<key>/`` store, declared identically in
 ``Snakefile_model_creation`` (1.10) and ``Snakefile_climate_experiment`` (3.02)
-from ``snake_utils.climate_store_spec`` (R07 B1). The extraction extent is
-derived **model-free**: the ``shared.basin`` region specification is delineated
-against the data catalog via hydromt's ``parse_region_basin``, so nothing here
-reads a built model. The delineated polygon is written as a declared output
-(``store_region.geojson``) — the on-disk record of where the bbox came from.
+from ``snake_utils.climate_store_spec`` (R07 B1). The extraction extent stays
+**model-free**: it comes from ``spatial/geoms/region.geojson``, the one project
+region artifact delineated from ``shared.basin`` + the catalog by rule
+``delineate_region`` (ADR 0003), so nothing here reads a built model.
+
+Until ADR 0003 this script delineated that polygon itself and wrote a
+per-store-key copy (``store_region.geojson``). The copy is gone; the store's
+extent provenance now travels *in* ``extract_historical.nc`` as the
+``region_bbox`` / ``region_geojson_sha256`` / ``region_source`` attributes,
+which cannot be separated from the data they describe.
 """
 
-import ast
 import os
 import warnings
 from os.path import join
@@ -23,15 +27,14 @@ from typing import Optional, Union
 
 from dask.diagnostics import ProgressBar
 from hydromt.model.processes.meteo import temp
-from hydromt.model.processes.region import parse_region_basin
 
+from blueearth_cst.shared.provenance import file_sha256
 from blueearth_cst.shared.snake_utils import (
-    DEFAULT_BASIN_INDEX,
-    DEFAULT_HYDROGRAPHY,
     MIN_HISTORICAL_YEARS,
     log_row,
     meets_min_historical_years,
 )
+from blueearth_cst.spatial.delineate_region import delineate_region, read_region
 
 
 def _check_window_coverage(ds, starttime, endtime, clim_source):
@@ -98,68 +101,6 @@ def _check_window_coverage(ds, starttime, endtime, clim_source):
         )
 
 
-def delineate_store_region(
-    model_region,
-    data_libs: Union[str, Path],
-    *,
-    hydrography: str = DEFAULT_HYDROGRAPHY,
-    basin_index: str = DEFAULT_BASIN_INDEX,
-    region_out: Optional[Union[str, Path]] = None,
-):
-    """Delineate the store's region from the region spec + catalog (R07 B1).
-
-    Model-free counterpart of the pre-R07 derivations, which read the extent
-    either from the built model's ``staticmaps.nc`` (wf1) or from its
-    ``staticgeoms/region.geojson`` (wf3). Both coupled a supposedly
-    model-independent climate artifact to a hydrology build; this reads only
-    ``shared.basin`` + the catalog, which is what lets one rule definition serve
-    both workflows.
-
-    ``hydrography``/``basin_index`` are catalog ENTRY NAMES, not paths —
-    hydromt resolves them against ``data_libs`` itself (verified on the pinned
-    hydromt 1.3.1). They default to the shipped build template's
-    ``setup_basemaps`` values; rule 1.02 raises if the two ever disagree.
-
-    Parameters
-    ----------
-    model_region : str | dict
-        ``shared.basin.region``. A Python-dict-literal string (the form the
-        snake config carries, e.g. ``"{'subbasin': [9.666, 0.4476],
-        'uparea': 100}"``) is parsed with ``ast.literal_eval``, matching
-        ``prepare_build_config.merge_build_config``.
-    data_libs : str | Path
-        Data catalog(s) to resolve the hydrography sources against.
-    hydrography, basin_index : str
-        Catalog entry names for the flow-direction data and its basin index.
-    region_out : str | Path, optional
-        When given, the delineated GeoDataFrame is written there as GeoJSON
-        (parents created) — the store's ``store_region.geojson`` output.
-
-    Returns
-    -------
-    geopandas.GeoDataFrame
-        The delineated region; ``.total_bounds`` is the extraction bbox.
-    """
-    if isinstance(model_region, str):
-        model_region = ast.literal_eval(model_region)
-
-    data_catalog = hydromt.DataCatalog(data_libs=data_libs)
-    log_row(f"Delineating store region {model_region} on {hydrography}", module="extract")
-    gdf = parse_region_basin(
-        model_region,
-        data_catalog=data_catalog,
-        hydrography_path=hydrography,
-        basin_index_path=basin_index,
-    )
-    if region_out is not None:
-        parent = os.path.dirname(os.fspath(region_out))
-        if parent:
-            os.makedirs(parent, exist_ok=True)
-        gdf.to_file(region_out, driver="GeoJSON")
-        log_row(f"Wrote store region: {region_out}", module="extract")
-    return gdf
-
-
 def prep_historical_climate(
     region_fn: Optional[Union[str, Path]],
     fn_out: Union[str, Path],
@@ -170,6 +111,8 @@ def prep_historical_climate(
     endtime: str,
     bbox=None,
     oro_out: Optional[Union[str, Path]] = None,
+    region_sha256: Optional[str] = None,
+    region_source: Optional[Union[str, Path]] = None,
 ):
     """
     Extract historical climate data for a given region and time period.
@@ -195,7 +138,7 @@ def prep_historical_climate(
     bbox : tuple of float, optional
         Extraction bounds (xmin, ymin, xmax, ymax) used instead of the region
         file's total bounds. The rule passes
-        ``delineate_store_region(...).total_bounds``; ``region_fn`` remains for
+        ``read_region(...).total_bounds``; ``region_fn`` remains for
         standalone/unit use.
     oro_out : str, Path, optional
         Destination for the chirps/chirps_global orography sidecar. The rule
@@ -204,6 +147,11 @@ def prep_historical_climate(
         co-provenance contract. Defaults to the historical
         ``<dirname(fn_out)>/<clim_source>_orography.nc`` when omitted. Ignored
         outside the chirps branch.
+    region_sha256 : str, optional
+        Content digest of the region artifact the ``bbox`` came from, stamped
+        on the extraction as ``region_geojson_sha256`` (ADR 0003).
+    region_source : str, Path, optional
+        Path of that artifact, stamped as ``region_source``.
     """
     if (region_fn is None) == (bbox is None):
         raise ValueError(
@@ -314,6 +262,18 @@ def prep_historical_climate(
 
     _check_window_coverage(ds, starttime, endtime, clim_source)
 
+    # The store's extent provenance, IN the extraction rather than beside it
+    # (ADR 0003). `store_region.geojson` used to sit in the store directory as
+    # the record of where the bbox came from; the region is now one shared
+    # project artifact, so a copy per store key would be a second source of
+    # truth that can drift. Attributes cannot be separated from the data they
+    # describe, and the sha256 says WHICH polygon, not merely which numbers.
+    ds.attrs["region_bbox"] = [float(value) for value in bbox]
+    if region_sha256 is not None:
+        ds.attrs["region_geojson_sha256"] = region_sha256
+    if region_source is not None:
+        ds.attrs["region_source"] = os.fspath(region_source)
+
     dvars = ds.raster.vars
     encoding = {k: {"zlib": True} for k in dvars}
 
@@ -342,16 +302,14 @@ if __name__ == "__main__":
         from blueearth_cst.shared.snake_utils import tee_to_log
 
         with tee_to_log(sm.log[0]):
-            # The catalog is the rule's single declared input (R07 ext2-01), so
-            # an in-place catalog edit mtime-triggers exactly one re-extraction.
+            # Two declared inputs (ADR 0003). The catalog is the store's
+            # freshness boundary (R07 ext2-01), so an in-place catalog edit
+            # mtime-triggers exactly one re-extraction; the region is the shared
+            # project artifact, delineated once by rule 1.01b/2.03b/3.01b rather
+            # than re-derived here per store key.
             catalog = sm.input.catalog
-            gdf = delineate_store_region(
-                sm.params.model_region,
-                catalog,
-                hydrography=sm.params.hydrography,
-                basin_index=sm.params.basin_index,
-                region_out=sm.output.region_geojson,
-            )
+            region_fn = sm.input.region_geojson
+            gdf = read_region(region_fn)
             prep_historical_climate(
                 region_fn=None,
                 fn_out=sm.output.climate_nc,
@@ -363,15 +321,17 @@ if __name__ == "__main__":
                 # Absent outside the chirps/chirps_global branch, where the spec
                 # declares no oro_nc output.
                 oro_out=getattr(sm.output, "oro_nc", None),
+                region_sha256=file_sha256(region_fn),
+                region_source=region_fn,
             )
     else:
         # Standalone demo (no Snakemake). Point the paths and the region at your
         # own project before running; the shape mirrors the rule above.
         demo_dir = join(os.getcwd(), "_climate_store_demo")
-        demo_gdf = delineate_store_region(
+        demo_gdf = delineate_region(
             "{'subbasin': [9.666, 0.4476], 'uparea': 100}",
             "deltares_data",
-            region_out=join(demo_dir, "store_region.geojson"),
+            region_out=join(demo_dir, "region.geojson"),
         )
         prep_historical_climate(
             region_fn=None,

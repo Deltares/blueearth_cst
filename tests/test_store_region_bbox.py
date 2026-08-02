@@ -7,7 +7,7 @@ the two *pre-R07* bbox derivations (``staticmaps.nc`` raster bounds vs
 which delineates model-free from ``shared.basin`` + the catalog.
 
 What survives it is the configuration-independent invariant: the store's
-delineated region (``store_region.geojson``) and the model grid
+delineated region (``spatial/geoms/region.geojson``) and the model grid
 (``staticmaps.nc``) must describe the same basin. Raster bounds are snapped
 outward to the model grid, so the tolerance is 2 x model resolution per edge —
 the same band the retired test used. On the seed fixture the two agree far more
@@ -25,25 +25,28 @@ import pytest
 import yaml
 
 SNAKEDIR = Path(__file__).resolve().parents[1]
-from blueearth_cst.shared.snake_utils import climate_store_spec  # noqa: E402
+from blueearth_cst.shared.snake_utils import region_spec  # noqa: E402
 
 SEED_CONFIG = SNAKEDIR / "config" / "workflows" / "snake_config_model_test.yml"
 
 
 def _seed_paths():
-    """(store_region.geojson, staticmaps.nc, resolution) for the seed fixture."""
+    """(region.geojson, staticmaps.nc, resolution) for the seed fixture.
+
+    ADR 0003: the polygon is the one project artifact under
+    ``spatial/geoms/``, not a per-store-key copy. The claim under test is
+    unchanged — the delineated region and the model grid must agree.
+    """
     cfg = yaml.safe_load(SEED_CONFIG.read_text(encoding="utf-8"))
     project_dir = SNAKEDIR / cfg["project"]["project_dir"]
     basin_cfg = cfg["shared"]["basin"]
-    spec = climate_store_spec(
+    spec = region_spec(
         project_dir=project_dir.as_posix(),
         model_region=basin_cfg["region"],
-        clim_source=cfg["shared"]["clim_historical"],
-        historical_window=cfg["shared"]["historical_window"],
         data_sources=cfg["project"]["data_sources"],
     )
     return (
-        Path(spec.outputs["region_geojson"]),
+        Path(spec.region_geojson),
         project_dir / "hydrology_model" / "staticmaps.nc",
         basin_cfg.get("resolution", 0.00833333),
     )
@@ -56,7 +59,7 @@ def test_store_region_agrees_with_the_model_grid():
     if not (region_fn.exists() and staticmaps_fn.exists()):
         pytest.skip(
             "needs a completed run under test_case/test_local "
-            "(store_region.geojson + staticmaps.nc)"
+            "(spatial/geoms/region.geojson + staticmaps.nc)"
         )
 
     import geopandas as gpd
