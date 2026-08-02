@@ -55,8 +55,8 @@ def test_nested_wildcard_parts_get_relative_rule_label(tmp_path):
     out = tmp_path / "wf2_benchmarks.md"
     merge_benchmarks(str(parts), "2", str(out))
     assert "2.02_monthly_stats_hist/INM/GFDL" in out.read_text(encoding="utf-8")
-    # nested parts are removed and their now-empty subdirs pruned
-    assert not (parts / "2.02_monthly_stats_hist").exists()
+    # merged parts and their now-empty _parts tree are removed
+    assert not parts.exists()
 
 
 def test_no_parts_writes_placeholder(tmp_path):

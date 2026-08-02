@@ -110,7 +110,8 @@ def _remove_parts(tsvs, parts_dir):
     The merged ``.md`` is the durable artifact; the per-rule TSV parts are
     scratch. Only ``tsvs`` (already prefix-filtered to this workflow) are
     removed — the three workflows share ``_parts`` — and directory pruning only
-    ever removes *empty* dirs, so another workflow's parts are never touched.
+    ever removes *empty* dirs. The shared root is therefore removed only after
+    its last workflow part is merged.
     Note: a later *partial* re-run regenerates parts only for the rules that
     re-ran, so its merged table reflects just those (a full run stays complete).
     """
@@ -120,8 +121,6 @@ def _remove_parts(tsvs, parts_dir):
         except OSError:
             pass
     for root, _dirs, _files in os.walk(parts_dir, topdown=False):
-        if os.path.normpath(root) == os.path.normpath(parts_dir):
-            continue  # keep the shared _parts dir itself
         try:
             if not os.listdir(root):
                 os.rmdir(root)
