@@ -149,9 +149,14 @@ tests/test_project
 # v0 → v1 catalog migration safety copies (left during M2b)
 *.v0bak
 
-# dev-process scratch (disposable machine-local outputs)
-dev/tmp/*
-!dev/tmp/.gitkeep
+# Scratch: ONE place for disposable machine-local output, at the repo root.
+# Anything a run, a probe, or a pytest --basetemp writes goes here and is never
+# committed. Consolidated 2026-08-02 from dev/tmp/ + an unignored .tmp/ that
+# held 1172 untracked files (60 MB) one `git add -A` from being staged.
+# Tool caches (.pytest_cache/, .ruff_cache/) stay at their conventional
+# defaults -- they are already ignored below, and redirecting them buys
+# nothing while surprising anyone who knows those tools.
+.tmp/
 
 # dev/ is the process record: prose, tables, and small tabular evidence only.
 # netCDF probe/QA states belong outside the repo -- the two that reached

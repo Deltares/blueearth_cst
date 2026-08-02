@@ -21,7 +21,7 @@ Usage
 -----
     pixi run python dev/scripts/scaffold_project_tree.py --print-tree
     pixi run python dev/scripts/scaffold_project_tree.py \
-        --rename-map dev/tmp/proposed_layout.yml --print-tree
+        --rename-map .tmp/dev-scratch/proposed_layout.yml --print-tree
 
 The rename map is a YAML file of prefix rewrites applied to project-relative
 paths, longest prefix first::
@@ -49,7 +49,7 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG = REPO_ROOT / "config/workflows/snake_config_model_test.yml"
 DEFAULT_EXTRAS = Path(__file__).resolve().parent / "scaffold_extras.yml"
-DEFAULT_OUT = REPO_ROOT / "dev/tmp/scaffold"
+DEFAULT_OUT = REPO_ROOT / ".tmp/scaffold"
 
 SNAKEFILES = {
     1: "Snakefile_model_creation",

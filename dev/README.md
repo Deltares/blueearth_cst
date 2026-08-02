@@ -45,7 +45,13 @@ code change, not a documentation change:
 |---|---|
 | `scripts/` | Developer scripts — inspect or maintain the repo, never part of a run (`scripts/README.md`). `check_baseline.py` derives the repo root from its own depth |
 | `baseline/` | Replication baseline fingerprints and the discharge reference series; `MANIFEST_PATH_DEFAULT` hardcodes `dev/baseline/manifest.json` |
-| `tmp/` | Disposable machine-local outputs (gitignored) |
+
+**Scratch lives outside `dev/`.** Disposable machine-local output goes in the
+repo-root `.tmp/` — one ignored directory for everything: probe output,
+`scaffold_project_tree.py`'s default target (`.tmp/scaffold`), and any
+`pytest --basetemp`. `dev/tmp/` was merged into it on 2026-08-02; there is no
+second scratch location, and nothing in `dev/` is a place to park disposables.
+Tool caches (`.pytest_cache/`, `.ruff_cache/`) stay at their own defaults.
 
 Shard `tasks/` or `reviews/` into `<year>/` subfolders only if a flat folder
 ever grows unwieldy. Generated results, figures, and model outputs go in the
