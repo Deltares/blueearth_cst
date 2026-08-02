@@ -12,12 +12,14 @@ periodic project-health review.
 - **Updated** -- ISO date of the last status change.
 - **Working note** -- optional link into `dev/working/`.
 
-**Active campaign:** pre-R6 followups (`fix/pre-r6-followups`), tracker at
-[`tasks/2026-07-21_pre-r6-followups.md`](tasks/2026-07-21_pre-r6-followups.md).
-**All waves DONE 2026-07-21 — campaign complete; R6 (structural refactor) is next.**
+**No active campaign.** The last one — pre-R6 followups (`fix/pre-r6-followups`),
+all waves DONE 2026-07-21 — is closed; its record moved to
+[`tasks/2026-07-21_pre-r6-followups.md`](tasks/2026-07-21_pre-r6-followups.md)
+on 2026-08-02. R6, R7, and R8 have since been sealed (`dev/roadmap.md`).
 
-_No open backlog items._ (See the done list below; R6 has no task ID yet — it is
-the next milestone, tracked in `dev/roadmap.md` § R6.)
+_No open backlog rows._ Note this board is **not** the whole picture:
+`dev/followups.md` § Post-R7 still carries unmarked defect items that have
+never been triaged into rows here. Reconciling the two is open work.
 
 **Done this campaign (2026-07-21, `fix/pre-r6-followups`):** t260720a
 (`variance.max` endpoint, `d2de843`), t260720c (D-CAL cftime, `c57eda0`),
