@@ -83,9 +83,16 @@ completed before landing.
 - The unscoped checker is not runnable against this isolated WF1-only fixture:
   it correctly reports the nine absent WF2/WF3 outputs. Their retained manifest
   entries were not modified by the scoped record.
+- Received explicit owner approval to land the branch at Gate 3.
+- Rebased all six task commits onto the current local `main`. The only manual
+  resolutions reconciled two moved `dev/milestones/` documentation paths; no
+  behavioral code conflicted.
+- Post-rebase validation passed the 94-test WF1/spatial/baseline landing batch
+  and the five-target scoped baseline check. The broader suite passed 1,022
+  tests; its 19 failures are fixture-dependent interchange checks for WF2/WF3
+  files absent from this WF1-only worktree.
 
 **Pending:**
-- Obtain explicit owner approval at Gate 3 before merging the isolated branch.
 - Apply the already-approved reusable Snakemake skill improvement only after the
   project task has landed.
 

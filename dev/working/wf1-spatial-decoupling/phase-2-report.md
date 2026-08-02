@@ -137,6 +137,11 @@ baseline update.
 - The unscoped checker reports the nine WF2/WF3 targets absent from this
   isolated WF1-only fixture. Those retained manifest entries were not changed;
   their DAG dry-runs are recorded above.
+- Post-rebase landing batch: 94 WF1, spatial, adapter, CLI/DAG, and baseline
+  tests passed; the five-target scoped baseline check also passed.
+- Post-rebase broader suite: 1,022 passed, six skipped, and one expected xfail.
+  Its 19 failures are confined to fixture-dependent interchange checks for
+  generated WF2/WF3 files absent from this WF1-only worktree.
 - Split-versus-reference comparator: FAIL (material), as quantified above.
 
 ## Remaining risks and gate decision
@@ -153,5 +158,6 @@ baseline update.
   build stalled during `staticmaps.nc` output. This affects operational
   concurrency on Windows, not the declared P1→P2 dependency or numerical result.
 
-Gate 2 is complete. Gate 3 must now approve or reject landing the isolated
-`feat/wf1-spatial-decoupling` branch. No merge or push has been performed.
+Gate 2 is complete and the owner explicitly approved Gate 3. Landing the
+isolated `feat/wf1-spatial-decoupling` branch is authorized; pushing remains a
+separate decision.
