@@ -6,12 +6,30 @@ from pathlib import Path
 import pytest
 
 from blueearth_cst.shared.provenance import (
+    SHORT_DIGEST_CHARS,
     canonical_data,
     canonical_sha256,
     effective_config_digest,
     file_sha256,
+    short_digest,
     snapshot_bundle_digest,
 )
+
+
+def test_short_digest_is_a_prefix_of_the_full_digest() -> None:
+    """The naming form must stay findable from the record it stands for."""
+    digest = canonical_sha256({"a": 1})
+
+    assert len(short_digest(digest)) == SHORT_DIGEST_CHARS
+    assert digest.startswith(short_digest(digest))
+
+
+def test_short_digest_rejects_a_value_that_is_not_a_digest() -> None:
+    """Truncating a non-digest would name an artifact after nothing."""
+    with pytest.raises(ValueError):
+        short_digest("abc")
+    with pytest.raises(TypeError):
+        short_digest(None)
 
 
 def test_canonical_digest_is_mapping_order_independent() -> None:

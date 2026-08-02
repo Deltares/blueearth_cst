@@ -13,6 +13,7 @@ from blueearth_cst.shared.provenance import (
     effective_config_digest,
     effective_config_document,
     file_sha256,
+    short_digest,
     snapshot_bundle_digest,
 )
 from blueearth_cst.shared.snake_utils import log_row
@@ -143,7 +144,7 @@ def _write_snapshot_bundle(
             )
             digest = file_sha256(source_path)
             archive_path = (
-                Path("files") / kind / f"{digest[:12]}-{source_path.name}"
+                Path("files") / kind / f"{short_digest(digest)}-{source_path.name}"
             )
             archive_target = snapshot_dir / archive_path
             archive_target.parent.mkdir(parents=True, exist_ok=True)
@@ -196,6 +197,17 @@ def _write_snapshot_bundle(
     with manifest_path.open("w", encoding="utf-8") as stream:
         json.dump(manifest, stream, indent=2, sort_keys=True)
         stream.write("\n")
+
+    # Every OTHER artifact this rule writes is announced; the bundle was
+    # written in silence, so the only way to learn it exists was to stumble
+    # into the directory. Both forms are named: the short one is what the
+    # directory is called, the full one is what the manifest records and what
+    # a second bundle would be compared against.
+    log_row(
+        f"Config snapshot bundle for {workflow_name}: {snapshot_dir} "
+        f"(sha256 {bundle_digest})",
+        module="config",
+    )
 
 
 def _warn_on_low_gauge_ids(locations_path):

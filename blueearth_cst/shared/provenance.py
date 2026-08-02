@@ -16,6 +16,51 @@ _CANONICAL_JSON_OPTIONS = {
     "sort_keys": True,
 }
 
+#: Characters kept when a digest is used as a NAME rather than as proof.
+#:
+#: A snapshot bundle's directory and each archived file inside it are named
+#: after their digest, and a full SHA-256 makes both unreadable — a 64-hex
+#: directory under ``config/runs/<workflow>/`` tells a user nothing except that
+#: something hashed it. Twelve hex is 48 bits: within one project, whose
+#: bundles number in the tens, a collision is not a practical concern, and the
+#: name is short enough to read, compare by eye, and type.
+#:
+#: The full digest is never lost — it is recorded INSIDE the artifact
+#: (``snapshot_bundle_sha256`` and the per-file ``sha256`` in a bundle's
+#: ``referenced-files.json``), so the short form is a handle and the long form
+#: stays the record. Both start with the same characters, so a short name is a
+#: prefix of the digest it stands for.
+#:
+#: ONE constant, because the bundle directory and the files inside it must not
+#: drift apart: a 64-character directory holding 12-character filenames is what
+#: this replaced.
+SHORT_DIGEST_CHARS = 12
+
+
+def short_digest(digest: str) -> str:
+    """Return the naming form of a hex digest.
+
+    Args:
+        digest: Full hex digest, as returned by the ``*_sha256`` helpers here.
+
+    Returns:
+        Its first :data:`SHORT_DIGEST_CHARS` characters.
+
+    Raises:
+        ValueError: If ``digest`` is too short to truncate, which means the
+            caller passed something that is not a digest — silently returning
+            it would name an artifact after a value with no collision
+            properties at all.
+    """
+    if not isinstance(digest, str):
+        raise TypeError("digest must be a string")
+    if len(digest) < SHORT_DIGEST_CHARS:
+        raise ValueError(
+            f"expected a hex digest of at least {SHORT_DIGEST_CHARS} "
+            f"characters, got {digest!r}"
+        )
+    return digest[:SHORT_DIGEST_CHARS]
+
 
 def canonical_data(value: Any) -> dict[str, Any]:
     """Return a deterministic, explicitly typed JSON-compatible value.

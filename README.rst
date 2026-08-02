@@ -186,6 +186,15 @@ bundles live under the same path inside the experiment directory. Changing a
 setting or referenced file produces a new bundle instead of overwriting its
 history.
 
+The directory is named by the first 12 characters of the bundle's SHA-256, the
+same short form used for the archived files inside it. The full digest is kept
+in the bundle's ``referenced-files.json`` as ``snapshot_bundle_sha256``, and
+the short name is a prefix of it. The name has to be derived from content: the
+bundle directory is a Snakemake output whose path is computed while the DAG is
+built, so a timestamp or a run counter would make every parse see a missing
+output and re-snapshot forever. Rule ``snapshot_config`` logs the bundle path
+and its full digest, so a run tells you where its configuration was recorded.
+
 Runs launched through ``scripts/run_workflows.py`` additionally write one
 immutable invocation manifest under ``<project_dir>/provenance/runs/``. It
 records enabled workflows, sanitized arguments, start/end status, config and
