@@ -33,7 +33,7 @@ Two consequences worth knowing before editing:
   ``drop_variables: [time_bnds, lat_bnds, lon_bnds, bnds]`` on every CMIP6 entry.
   So the residual is "true edges vs midpoints", not "cos φ vs area".
 
-Falsifiers for every claim above: ``dev/r08/2026-07-30_wf2-5a-falsifier.md``.
+Falsifiers for every claim above: ``dev/milestones/r08/2026-07-30_wf2-5a-falsifier.md``.
 """
 from __future__ import annotations
 

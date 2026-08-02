@@ -70,7 +70,7 @@ Two supporting claims were raised and are assessed below: (a) the
 (b) `clim_wflow_1_{month,year}.png` could be made from the forcing data and does
 not belong under `evaluation/`.
 
-**What we decided, and why.** R07 §B4 (`dev/r07/project-layout-design.md:611`)
+**What we decided, and why.** R07 §B4 (`dev/milestones/r07/project-layout-design.md:611`)
 recorded three figure families, each answering a different question, and R07
 principle **P1** placed each artifact beside the data it describes:
 

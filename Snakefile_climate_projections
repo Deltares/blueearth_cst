@@ -11,7 +11,7 @@ from snakemake.exceptions import WorkflowError
 
 # Shared helpers live in blueearth_cst/; make them importable regardless of the working
 # directory by prepending this Snakefile's own directory to sys.path.
-# See dev/r03/model-builder-design.md §3.
+# See dev/milestones/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
 from blueearth_cst.shared.snake_utils import DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_spec, get_config, patch_psutil_windows_benchmark, rule_banner, target_banner, warn_if_project_dir_in_repo
 
@@ -568,7 +568,7 @@ rule all:
 # order).
 #
 # This settles a deferral rather than skipping it. AGENTS.md and
-# dev/r04/climate-projections-design.md §3 recorded it as "stale insurance,
+# dev/milestones/r04/climate-projections-design.md §3 recorded it as "stale insurance,
 # removal deferred to a task that first encodes the ambiguity-sensitive config
 # shapes as regression tests". The 2026-07 dry-run evidence stands (it constrained
 # nothing on the tests fixture or a reduced config), and the merge removes the
@@ -627,7 +627,7 @@ rule copy_config:
 #
 # Stage A splits into fetch -> reduce (design revision 6) because the two have
 # wildly different costs and different invalidation causes. Measured 2026-07-30
-# (dev/r08/2026-07-30_wf2-fetch-reduce-benchmark.md): opening one remote source
+# (dev/milestones/r08/2026-07-30_wf2-fetch-reduce-benchmark.md): opening one remote source
 # ~1142 s, transferring its data ~19 s, reducing it ~0.2 s, raw slice 0.07 MB. So a
 # reduction edit used to cost a full re-download of nine sources; now it re-reads
 # local disk.

@@ -295,7 +295,7 @@ def test_era5_source_ignores_oro_path(tmp_path, era5_like_catalog):
         "blueearth_cst/climate_analysis/prepare_climate_data_catalog.py works around this with "
         "yaml.safe_dump. When upstream fixes to_yml, this test will pass, "
         "strict=True will fail CI, and the workaround can be removed. "
-        "See dev/phase-1/m02b/handoff.md for the upstream reproducer."
+        "See dev/milestones/phase-1/m02b/handoff.md for the upstream reproducer."
     ),
 )
 def test_hydromt_to_yml_round_trip_preserves_preprocess(tmp_path):

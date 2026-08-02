@@ -150,7 +150,7 @@ pinned by `tests/test_run_workflows.py`.
   as stale insurance — a 2026-07 dry-run on the pinned Snakemake showed it
   constrained nothing on the tests fixture or a reduced config — with removal
   deferred to a task that first encoded ambiguity-sensitive config shapes as
-  regression tests (`dev/r04/climate-projections-design.md` §3). WF2 migration step
+  regression tests (`dev/milestones/r04/climate-projections-design.md` §3). WF2 migration step
   4d removed it without that task: it named `monthly_change` and
   `monthly_change_scalar_merge`, which 4d merges into `derive_change_factors`, and
   an unknown rule name is a parse error. The merge also removes what it insured

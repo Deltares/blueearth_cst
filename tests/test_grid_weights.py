@@ -1,7 +1,7 @@
 """Grid-geometry tests for step 5a (design D10).
 
 Each test names the falsifier it discharges from
-``dev/r08/2026-07-30_wf2-5a-falsifier.md``, which was written before any 5a
+``dev/milestones/r08/2026-07-30_wf2-5a-falsifier.md``, which was written before any 5a
 code existed. The point of that ordering is that these can fail for the right
 reason: a test that merely exercises the code confirms it runs, while a test tied
 to a stated falsifier confirms a *claim*.

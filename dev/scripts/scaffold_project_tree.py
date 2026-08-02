@@ -12,7 +12,7 @@ Two gaps are covered deliberately rather than pretended away:
   wflow's own ``run_default/`` files, weathergenr's R-written outputs) come from
   an explicit overlay file, ``scaffold_extras.yml``, so what is guessed stays
   reviewable. Dry-runs being blind to ``params:``-string paths and R ``shell:``
-  bodies is a known property of this repo (``dev/r07/project-layout-design.md``).
+  bodies is a known property of this repo (``dev/milestones/r07/project-layout-design.md``).
 - WF2/WF3 declare wf1 leaves as `ancient(...)` cross-workflow inputs that
   Snakemake will not satisfy on its own. They are staged into the scratch tree
   first, exactly as ``tests/test_cli.py``'s ``config_with_staged_region`` does.

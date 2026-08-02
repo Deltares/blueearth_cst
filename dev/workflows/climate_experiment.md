@@ -1,7 +1,7 @@
 # Workflow: climate_experiment
 
 Contract for `Snakefile_climate_experiment` (workflow 3). Format per
-`dev/r01/modularity-contracts-design.md` §4, mirroring
+`dev/milestones/r01/modularity-contracts-design.md` §4, mirroring
 `dev/workflows/model_creation.md` and `dev/workflows/climate_projections.md`.
 Records **current** behavior — R5's opening act, written before any code change,
 so it is the baseline the R5 code commits are checked against, not a description
@@ -22,7 +22,7 @@ Read at `Snakefile_climate_experiment` lines 19–41 via `get_config`:
 - `experiment_name` — read as `experiment`; validated at parse
   (`validate_experiment_name`, grammar `^[a-z0-9][a-z0-9_]*$` ≤64) and drives
   `exp_dir = {project_dir}/experiments/{experiment}` (P3-1 layout; old→new map
-  in `dev/p31/migration_experiment-structure.md`). Required.
+  in `dev/milestones/p31/migration_experiment-structure.md`). Required.
 - `realizations_num` — number of stochastic realizations (→ `RLZ_NUM`). Default 1.
 - `stress_test.temp.step_num`, `stress_test.precip.step_num` — per-axis
   perturbation step counts; `ST_NUM = (temp.step_num+1)*(precip.step_num+1)`.

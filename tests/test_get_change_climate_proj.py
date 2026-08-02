@@ -4,7 +4,7 @@ Realizes the R4 §7 audit-evidence matrix for ``get_change_annual_clim_proj``
 (rows U, C1-C3, H, V, P) plus unit tests for ``_to_str_tuple`` and
 the annual and monthly change paths.
 
-Design contract: `dev/r04/climate-projections-design.md` §7.
+Design contract: `dev/milestones/r04/climate-projections-design.md` §7.
 
 Analytically-trivial synthetic inputs (constant fields) make every expected
 value self-evident: a constant precip 10 -> 12 gives a multiplicative change

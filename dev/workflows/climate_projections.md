@@ -13,7 +13,7 @@
 > | Rule map | `dev/workflows/wf2_climate_projections_overview.md` |
 > | Design + rationale | `dev/workflows/wf2-climate-analysis-v2-design.md` |
 > | Config migration | `docs/migration-r08-wf2.md` |
-> | Per-step evidence | `dev/r08/2026-07-3*-wf2-*.md` |
+> | Per-step evidence | `dev/milestones/r08/2026-07-3*-wf2-*.md` |
 >
 > The largest divergences: eleven rules became nine plus `all`; `variables` is a
 > mapping; `save_grids` is `save_gridded`; the series store is persistent and
@@ -21,7 +21,7 @@
 
 
 Contract for `Snakefile_climate_projections` (workflow 2). Format per
-`dev/r01/modularity-contracts-design.md` §4, mirroring
+`dev/milestones/r01/modularity-contracts-design.md` §4, mirroring
 `dev/workflows/model_creation.md` (R3's contract doc). Records **current**
 behavior — R4's opening act, written before any code change, so it is the
 baseline the R4 code commits are checked against, not a description of intended
@@ -164,4 +164,4 @@ stress-test forcing.
 
 _Reserved._ The `monthly_stats_hist → monthly_stats_fut → monthly_change`
 change-factor audit (unit/calendar/missing-data) is produced by a later R4
-commit (design §5); its findings table lands here or in `dev/r04/chain-audit.md`.
+commit (design §5); its findings table lands here or in `dev/milestones/r04/chain-audit.md`.

@@ -41,7 +41,7 @@ re-run when a similar symptom appears. Not part of any workflow.
 
 | Script | What it does |
 |---|---|
-| [`check_baseline.py`](check_baseline.py) | Record / check fingerprints for `rule all` targets across the three Snakefiles. Manifest at `dev/baseline/manifest.json`. `record` overwrites the manifest; `check` recomputes and diffs (exits non-zero on drift). Per-variable summary stats for netCDF, normalized SHA256 for CSV/YAML, size-only for PNG. See `dev/phase-1/m02b/baseline_diffs.md` for the as-shipped M2b drift report. |
+| [`check_baseline.py`](check_baseline.py) | Record / check fingerprints for `rule all` targets across the three Snakefiles. Manifest at `dev/baseline/manifest.json`. `record` overwrites the manifest; `check` recomputes and diffs (exits non-zero on drift). Per-variable summary stats for netCDF, normalized SHA256 for CSV/YAML, size-only for PNG. See `dev/milestones/phase-1/m02b/baseline_diffs.md` for the as-shipped M2b drift report. |
 
 ## Shared helpers
 

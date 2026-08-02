@@ -396,7 +396,7 @@ def test_diff_trees_self_compare_clean_with_p31_map(tmp_path):
 
 # ---------------------------------------------------------------------------
 # P3-1 commit 5b: cross-root YAML path normalization + run-log file exclusion
-# (adjudicated milestone-diff classes; dev/p31/baseline_diffs.md)
+# (adjudicated milestone-diff classes; dev/milestones/p31/baseline_diffs.md)
 # ---------------------------------------------------------------------------
 
 def test_yaml_cross_root_path_leaves_pass(tmp_path):

@@ -5,7 +5,7 @@ Source of truth for the personal fork of `blueearth_cst`. Five phases:
 **Phase 1 — Foundation (sealed 2026-05-08).** Replicated upstream,
 formalized the pixi env, upgraded load-bearing libraries, and added
 unit-test coverage. Four milestones, all tagged. Phase 1 dev artifacts
-under `dev/phase-1/`.
+under `dev/milestones/phase-1/`.
 
 **Phase 2 — Refactor (sealed 2026-07-23).** Major overhaul of the workflow
 code, config contracts, and repo structure. Six milestones running from R1
@@ -20,7 +20,7 @@ dev artifacts under `dev/p3#/`. See § Phase 3 below.
 **Phase 4 — Layout consolidation (R7 sealed 2026-07-29).** Opened 2026-07-26 out
 of the post-R6 assessment: R6 settled the repository layout and P3-1 the
 experiment layout, and neither could see the residue the other left. One
-milestone, R7; dev artifacts under `dev/r07/`. See § Phase 4 below.
+milestone, R7; dev artifacts under `dev/milestones/r07/`. See § Phase 4 below.
 
 **Phase 5 — Workflow rework (R8 sealed 2026-07-31, opened 2026-07-29).** The first
 phase to change what a workflow *computes* and how its rule graph is shaped,
@@ -91,10 +91,10 @@ series.
 
 ## Phase 1 — Foundation (summary)
 
-Sealed 2026-05-08. All artifacts under `dev/phase-1/`; baseline
+Sealed 2026-05-08. All artifacts under `dev/milestones/phase-1/`; baseline
 manifest at `dev/baseline/manifest.json`. The detailed scope and exit
 criteria for each Phase 1 milestone live in the corresponding sealed
-commits and `dev/phase-1/<milestone>/` docs; this section is a
+commits and `dev/milestones/phase-1/<milestone>/` docs; this section is a
 reference summary only.
 
 ### M01 — Replication baseline (sealed 2026-05-07; tag `m01-replication`)
@@ -104,7 +104,7 @@ config and recorded baseline output fingerprints. Established the
 fingerprint format (per-variable summary stats for netCDF; normalized
 SHA256 for CSV/YAML; size-only for PNG with ±10% tolerance). Built
 `dev/scripts/check_baseline.py` with `record` / `check` subcommands.
-Artifacts: `dev/phase-1/m01/setup.md`, `dev/phase-1/m01/warnings.md`,
+Artifacts: `dev/milestones/phase-1/m01/setup.md`, `dev/milestones/phase-1/m01/warnings.md`,
 `dev/baseline/manifest.json`.
 
 ### M02 — Pixi env + install (sealed 2026-05-07; tag `m02-pixi`)
@@ -113,7 +113,7 @@ Replaced the conda + ad-hoc R + Julia setup with a single declarative
 `pixi.toml`. weathergenr handled separately via `pixi run install` due
 to a Mingw-w64 byte-compile issue with conda r-base on Windows.
 Wflow.jl + Julia 1.11.x via juliaup outside pixi (conda-forge has no
-win-64 Julia build). Artifacts: `dev/phase-1/m02/decisions.md`,
+win-64 Julia build). Artifacts: `dev/milestones/phase-1/m02/decisions.md`,
 `pixi.toml`, `pixi.lock`.
 
 ### M02b — Library upgrades (sealed 2026-05-07; tag `m02b-upgrades`)
@@ -122,8 +122,8 @@ Bumped four load-bearing libraries: hydromt 0.x → 1.3, hydromt_wflow
 0.x → 1.0, Wflow.jl 0.7 → 1.0.2, plus lifted Python stack caps
 (numpy 2.x, xarray latest, python 3.12). Re-baselined the manifest
 under the "intentional drift, document deltas" policy. Artifacts:
-`dev/phase-1/m02b/audit.md`, `dev/phase-1/m02b/baseline_diffs.md`,
-`dev/phase-1/m02b/handoff.md`.
+`dev/milestones/phase-1/m02b/audit.md`, `dev/milestones/phase-1/m02b/baseline_diffs.md`,
+`dev/milestones/phase-1/m02b/handoff.md`.
 
 ### M02c — Test coverage (sealed 2026-05-08; tag `m02c-tests`)
 
@@ -133,8 +133,8 @@ Added unit-test coverage for four small, stable `src/` modules
 strict xfails for documented bugs. Established the
 `sys.modules.setdefault` mocking pattern that R3-R5 inherit. Suite
 state: 45 passed, 4 xfailed. Artifacts:
-`dev/phase-1/m02c/test-coverage-design.md`,
-`dev/phase-1/m02c/test-coverage-plan.md`.
+`dev/milestones/phase-1/m02c/test-coverage-design.md`,
+`dev/milestones/phase-1/m02c/test-coverage-plan.md`.
 
 ---
 
@@ -153,7 +153,7 @@ refactor.
 all 3 Snakefiles + 4 `src/` scripts + conftest + all three integration
 tests read sectioned config; config path via `workflow.configfiles[0]`;
 migration guide for user-local configs at
-`dev/r01/local-config-migration.md`. Per-workflow contract docs deferred
+`dev/milestones/r01/local-config-migration.md`. Per-workflow contract docs deferred
 to R3/R4/R5 (2026-07-17 amendment). Suite: 51 passed, 3 skipped, 2 xfailed
 (the pre-R01 47 plus 4 focused R01 reader/normalization tests). Scientific
 invariance established **by construction** (value-preservation on every
@@ -162,7 +162,7 @@ suite + clean dry-runs), **not** by a manifest re-record: Task 5 found the
 M2b `dev/baseline/manifest.json` stale (recorded from an untracked 3-model
 config while the canonical uses 8; plus model-independent drift), so it is
 left untouched and a clean rebuild is deferred. Full rationale + evidence:
-`dev/r01/baseline_diffs.md`.
+`dev/milestones/r01/baseline_diffs.md`.
 
 **Goal.** Establish per-workflow config contracts so workflows can be
 added, disabled, or replaced in the future without touching others.
@@ -210,7 +210,7 @@ plugin registry.
   `dev/baseline/manifest.json` is stale (recorded from an untracked
   3-model config while the canonical uses 8; plus model-independent
   drift), so it is left untouched and a clean rebuild is deferred to a
-  dedicated task. Full rationale + evidence: `dev/r01/baseline_diffs.md`.
+  dedicated task. Full rationale + evidence: `dev/milestones/r01/baseline_diffs.md`.
 - `pytest tests/`: 51 passed, 3 skipped, 2 xfailed (the pre-R01 47 plus
   4 focused R01 reader/normalization tests; no pre-existing test changes
   outcome).
@@ -232,14 +232,14 @@ cross-workflow data path decoupling (R6); Linux/Docker config rewrites
   early — R3's roadmap entry below reflects that.)
 
 **Tag.** `r01-contracts`. Full design lives in
-`dev/r01/modularity-contracts-design.md`.
+`dev/milestones/r01/modularity-contracts-design.md`.
 
 ### R2 — Naming conventions (sealed 2026-07-19)
 
 **Status.** Sealed 2026-07-19 — `dev/conventions/naming.md` (187 lines,
 < 250) authored and pointed to from `AGENTS.md`; the design was tightened
 after independent GPT-5.6 and Fable reviews
-(`dev/r02/naming-conventions-review-{gpt-20260718,fable-20260719}.md`).
+(`dev/milestones/r02/naming-conventions-review-{gpt-20260718,fable-20260719}.md`).
 Docs-only; suite unchanged (51/3/2); existing names grandfathered (zero
 code diffs).
 
@@ -300,7 +300,7 @@ guides (function lengths, comment conventions).
   will grow as new tools / workflows enter scope. Doc is living.
 
 **Tag.** `r02-naming`. Full design lives in
-`dev/r02/naming-conventions-design.md`.
+`dev/milestones/r02/naming-conventions-design.md`.
 
 ### R3 — Workflow 1: model builder (sealed 2026-07-19)
 
@@ -318,7 +318,7 @@ structured sentinel correct. Suite 73 passed, 3 skipped, 2 xfailed. Constant-
 parameter restoration split out to task `t260719a` (a scientific decision +
 baseline move); the workflow-3 `CyclicGraphException` `test_cli` ratchet is
 retained for R5. Full design, external GPT-5.6 review, and integration-
-verification record in `dev/r03/`. Merged to `main` 2026-07-19.
+verification record in `dev/milestones/r03/`. Merged to `main` 2026-07-19.
 
 **Goal.** Clean up `Snakefile_model_creation` and the scripts it
 calls — orchestration *and* analytical code. Establish the
@@ -336,7 +336,7 @@ cross-cutting Snakefile patterns that R4 and R5 inherit.
 **Workflow-1 deliverables.**
 - Opening act, before code changes: write
   `dev/workflows/model_creation.md` (contract doc deferred from R1;
-  format in `dev/r01/modularity-contracts-design.md` §4).
+  format in `dev/milestones/r01/modularity-contracts-design.md` §4).
 - Any load-bearing `ruleorder:` in `Snakefile_model_creation` either
   tightened (preferred) or commented in-place with the reason.
 - Per-rule `log:` and `benchmark:` directives on every non-trivial
@@ -355,7 +355,7 @@ cross-cutting Snakefile patterns that R4 and R5 inherit.
   all three Snakefiles.
 - The model-creation workflow runs end-to-end and matches its slice
   of the M1 baseline — preserved, or intentionally updated with a
-  documented diff in `dev/r03/baseline_diffs.md`.
+  documented diff in `dev/milestones/r03/baseline_diffs.md`.
 - New unit tests added and passing.
 - `dev/workflows/model_creation.md` contract doc committed.
 
@@ -372,7 +372,7 @@ cross-cutting Snakefile patterns that R4 and R5 inherit.
 **Status.** Sealed 2026-07-20 — `Snakefile_climate_projections` + its four
 `src/` scripts cleaned up, inheriting the R3 patterns. Design accepted via a
 `design-review-loop` run (3-lens internal panel + 3 external GPT rounds +
-round-cap arbitration; 24/24 findings closed) at `dev/r04/`. Landed in 11
+round-cap arbitration; 24/24 findings closed) at `dev/milestones/r04/`. Landed in 11
 commits (`1a8809e`..seal): contract doc `dev/workflows/climate_projections.md`;
 the load-bearing `ruleorder:` resolved as evidence-backed stale-insurance
 (dry-run refuted the `AGENTS.md` "load-bearing" claim — `AGENTS.md` corrected);
@@ -384,11 +384,11 @@ ordering); `_fid`/`_nc`→`_path` label renames; units docs + bare-`except:`→
 the workflow-2 end-to-end re-run matched its manifest slice on all data targets
 (the `.nc` summary at tolerance 0, all PNGs, wf1 targets); the 2 full-precision
 CSV byte-diffs are serialization non-determinism, not a value change
-(`dev/r04/baseline_diffs.md`) — **no manifest re-record**. Suite 102 passed, 3
+(`dev/milestones/r04/baseline_diffs.md`) — **no manifest re-record**. Suite 102 passed, 3
 skipped, 6 xfailed.
 
 **Audited, defects deferred (not "audited clean").** The chain audit
-(`dev/r04/chain-audit.md`) confirmed the change-factor formula, calendars C3,
+(`dev/milestones/r04/chain-audit.md`) confirmed the change-factor formula, calendars C3,
 and hydro-year windows, and surfaced four deferred defects, each with owner +
 activation condition: **D-CAL** — `get_change_annual_clim_proj` raises
 `TypeError` on cftime 360-day/noleap calendars (task `t260720c`, latent for the
@@ -397,7 +397,7 @@ strict-xfail fail-loud norms (task `t260720d`); **D-ATTRS** — the M2b CF-metad
 loss, probe-localized to the hydromt catalog read, a dependency op (task
 `t260720e`). The strict-xfail wiring is the tripwire: fixing any code defect
 flips its test xfail→xpass and fails the suite until the owning task removes the
-marker. Full design, reviews, audit, and probe in `dev/r04/`.
+marker. Full design, reviews, audit, and probe in `dev/milestones/r04/`.
 
 **Goal.** Clean up `Snakefile_climate_projections` and the scripts it
 calls. Inherit the patterns established in R3 (shared helper,
@@ -406,7 +406,7 @@ configfile mechanism, log/benchmark conventions).
 **Deliverables.**
 - Opening act, before code changes: write
   `dev/workflows/climate_projections.md` (contract doc deferred from
-  R1; format in `dev/r01/modularity-contracts-design.md` §4).
+  R1; format in `dev/milestones/r01/modularity-contracts-design.md` §4).
 - The load-bearing `ruleorder:` directive in
   `Snakefile_climate_projections` either tightened or commented
   in-place with the reason.
@@ -423,7 +423,7 @@ configfile mechanism, log/benchmark conventions).
 - `pytest tests/test_cli.py` still passes.
 - The projections workflow runs end-to-end and matches its slice of
   the M1 baseline — preserved, or intentionally updated with a
-  documented diff in `dev/r04/baseline_diffs.md`.
+  documented diff in `dev/milestones/r04/baseline_diffs.md`.
 - New unit tests added and passing.
 - `dev/workflows/climate_projections.md` contract doc committed.
 
@@ -440,7 +440,7 @@ configfile mechanism, log/benchmark conventions).
 scripts + the R weathergen layer (`src/weathergen/generate_weather.R`,
 `impose_climate_change.R`) cleaned up, inheriting the R3/R4 patterns. Design
 accepted via a `design-review-loop` run (3-lens internal panel + 2 external GPT
-rounds + round-cap arbitration; 21/21 findings closed) at `dev/r05/`. Landed in
+rounds + round-cap arbitration; 21/21 findings closed) at `dev/milestones/r05/`. Landed in
 12 commits (no commit 4; `8b356f3`..seal): contract doc
 `dev/workflows/climate_experiment.md`; `stress_test_grid` helper extracted to
 `snake_utils.py` (strict `step_num`, removing the Snakefile's silent default-1 —
@@ -504,7 +504,7 @@ R scripts are thin `weathergenr` adapters (scientific logic is upstream); the
 repo has no R test harness, and standing one up is R6-territory infra. The R
 layer is gated end-to-end by the milestone baseline run + the `test_cli` dry-run,
 with the §5a arity checks as the R-layer's correctness net. Full design, reviews,
-and dispositions in `dev/r05/`.
+and dispositions in `dev/milestones/r05/`.
 
 **Goal.** Clean up `Snakefile_climate_experiment` and the scripts it
 calls — including the R weathergen layer. Inherit the patterns from
@@ -513,7 +513,7 @@ R3.
 **Deliverables.**
 - Opening act, before code changes: write
   `dev/workflows/climate_experiment.md` (contract doc deferred from
-  R1; format in `dev/r01/modularity-contracts-design.md` §4).
+  R1; format in `dev/milestones/r01/modularity-contracts-design.md` §4).
 - Per-rule `log:` and `benchmark:` on every non-trivial rule in this
   Snakefile.
 - The R weathergen pipeline (`src/weathergen/*.R`): cleaner argument
@@ -532,7 +532,7 @@ R3.
 - `pytest tests/test_cli.py` still passes.
 - The experiment workflow runs end-to-end and matches its slice of
   the M1 baseline — preserved, or intentionally updated with a
-  documented diff in `dev/r05/baseline_diffs.md`.
+  documented diff in `dev/milestones/r05/baseline_diffs.md`.
 - New unit tests added and passing.
 - `dev/workflows/climate_experiment.md` contract doc committed.
 
@@ -552,7 +552,7 @@ package (per-stage submodules + `shared/`); `config/` three-bin split
 `enabled:`-aware `scripts/run_workflows.py` wrapper (pinned contract (a)–(g),
 23 contract/skip tests); `dev/` vs `docs/` boundary codified; `MIGRATION.md`
 (51 renames, git-mv-audited complete). Design accepted 2026-07-22 via the
-`r06-structural-refactor` design-review-loop (`dev/r06/`). Implementation run
+`r06-structural-refactor` design-review-loop (`dev/milestones/r06/`). Implementation run
 as a three-phase Opus handoff with Fable gate reviews (Gate 1 after the atomic
 move, Gate 2 pre-merge). **Behavior-preserving, verified run-relative** (no
 manifest re-record, `check_baseline.py` untouched): full e2e via the wrapper
@@ -663,11 +663,11 @@ design-review-loop (3-lens internal panel + 2 external GPT rounds +
 round-cap arbitration; 29/29 findings closed; key mechanisms probe-verified
 against pinned Snakemake — params rerun-trigger, ancient() input-set
 trigger, key-level guard artifact for store reuse). Accepted design:
-`dev/p31/experiment-structure-design.md`; audit trail:
-`dev/p31/experiment-structure-design-review-record.md`; scoping intake
+`dev/milestones/p31/experiment-structure-design.md`; audit trail:
+`dev/milestones/p31/experiment-structure-design-review-record.md`; scoping intake
 landed beside them. **Sealed 2026-07-24**: 8 `p31:` commits merged to
 `main` (`1a8cca9`, --no-ff) after both human gates; value-identical wf3
-re-record with semantic diff clean (evidence `dev/p31/baseline_diffs.md`
+re-record with semantic diff clean (evidence `dev/milestones/p31/baseline_diffs.md`
 + `migration_experiment-structure.md`); branch `milestone/p31-experiments`
 + tag at the tip; pushed.
 
@@ -682,8 +682,8 @@ efficiency redesign (user-parked 2026-07-23; candidate P3-3 input).
 First half of the former P3-2, split at scoping (the two halves touch
 different code and carry different risk classes). Absorbs the R6-deferred
 functional decomposition of climate analysis
-(`dev/r06/structural-refactor-design.md` §8; `modularization` direction).
-**Confirmed scope** (`dev/p32a/climate-analysis-intake.md`, the
+(`dev/milestones/r06/structural-refactor-design.md` §8; `modularization` direction).
+**Confirmed scope** (`dev/milestones/p32a/climate-analysis-intake.md`, the
 authoritative record): full re-source + lift — a
 `blueearth_cst/climate_analysis/` subpackage with strictly
 model-independent signatures (region + catalog + window in), the wf1
@@ -694,12 +694,12 @@ wf2/wf3 rewired mechanically. Subpackage now, standalone entry point
 deferred (no 4th Snakefile; platform surface unchanged).
 **Design ACCEPTED 2026-07-24** via design-review-loop run
 `p32a-climate-analysis` (internal panel + 2 external GPT rounds + user
-arbitration at the round cap): `dev/p32a/climate-analysis-design.md`, with
+arbitration at the round cap): `dev/milestones/p32a/climate-analysis-design.md`, with
 the consolidated review record and run observations beside it.
 **Sealed 2026-07-24**: 6 `p32a:` commits (subpackage+shims → wf3 rewire →
 wf1 extraction+parity → plot re-source → ladder QA → shim deletion) off
-the task brief (`dev/p32a/climate-analysis-task-brief.md`), user-signed
-milestone gate. Evidence: `dev/p32a/baseline_diffs.md` (ladder clean —
+the task brief (`dev/milestones/p32a/climate-analysis-task-brief.md`), user-signed
+milestone gate. Evidence: `dev/milestones/p32a/baseline_diffs.md` (ladder clean —
 era5 `A2−A0` ≈ 0, precip null-check exact, G within tolerance, bbox-swap
 closure allclose; wf3 semantic diff 101/0/0/0; manifested slice held; the
 `clim_*` plots are unmanifested — knowing divergence from intake decision
@@ -714,7 +714,7 @@ on the first chirps basin.
 Second half of the former P3-2: pins the interchange contracts (netCDF
 handoffs, forcing/state shapes) as explicit interfaces so an alternative
 weather generator or hydrological model becomes a bounded substitution.
-**Confirmed scope** (`dev/p32b/climate-interchange-intake.md`, the
+**Confirmed scope** (`dev/milestones/p32b/climate-interchange-intake.md`, the
 authoritative record): BOTH substitution seams (weather generator;
 hydrological model), **contracts-only** — per-seam contract docs +
 hand-rolled validators-as-tests against fixture artifacts; zero behavior
@@ -727,11 +727,11 @@ zone source, entry point).
 7 major / 9 minor → external GPT r1 revise (2 major: relational validators;
 all-skip-green) → Fable-escalated revision → external GPT r2 **approve,
 zero findings**; converged inside the cap, no arbitration; ledger 18/18
-accepted): `dev/p32b/interchange-contracts-design.md`, with the
+accepted): `dev/milestones/p32b/interchange-contracts-design.md`, with the
 consolidated review record beside it.
 **Sealed 2026-07-24**: 4 `p32b:` implementation commits (two seam docs →
 validators+tests (§8 commits 3+4 merged as sanctioned) → contracts README)
-off the task brief (`dev/p32b/interchange-contracts-task-brief.md`),
+off the task brief (`dev/milestones/p32b/interchange-contracts-task-brief.md`),
 user-signed milestone gate. Deliverables: `dev/contracts/{README,
 weather-generator-seam, hydrological-model-seam}.md`,
 `blueearth_cst/shared/interchange_contracts.py` (15 validators),
@@ -756,7 +756,7 @@ tests, seam doc updated with the measured procedure (19 jobs / 247.7 s) and its
 
 Profiling-driven efficiency work targeting the wf3 stress-test sweep, with
 baseline discipline à la R3–R5. **Confirmed scope**
-(`dev/p33/performance-passes-intake.md`, the authoritative record): wf3
+(`dev/milestones/p33/performance-passes-intake.md`, the authoritative record): wf3
 sweep throughput only, value-identical — benchmark evidence puts ~84% of
 wall time in the `RLZ_NUM × ST_NUM` wflow runs, with per-invocation Julia
 startup/JIT the likeliest our-side lever; measure-first (a profiling probe
@@ -774,12 +774,12 @@ GPT r1 revise (makespan model, resource contract, go/no-go criteria) →
 external GPT r2 reject (callable-output construct inexpressible,
 probe-confirmed) → round-cap user arbitration → stage-6a fix
 (probe-verified loop-generated batch rules); ledger 22/22 accepted):
-`dev/p33/performance-passes-design.md`, with the consolidated review
+`dev/milestones/p33/performance-passes-design.md`, with the consolidated review
 record and landed probe evidence beside it.
 **Sealed 2026-07-25**: user-signed milestone gate (floor-free by intake
 decision 3 — sign-off on the measured before/after + GN outcome +
 value-identity evidence, no threshold imposed). 6 `p33:` commits off the task
-brief (`dev/p33/performance-passes-task-brief.md`): baseline/decomposition +
+brief (`dev/milestones/p33/performance-passes-task-brief.md`): baseline/decomposition +
 LPT estimator (`6402db6`), the batching lever (`92f9080`), roadmap status
 (`0c797db`), upstream-parity measurement + reasoned-claim labelling
 (`fac689e`), the batch-size disk clamp (`3392587`), followups SHA
@@ -798,10 +798,10 @@ fixture, where `min(ceil(12/3), 8) = 4`). GN-1..4 all pass → batching stands,
 the PackageCompiler sysimage stays dormant (no dependency ask triggered), and
 the corrected cost terms independently weaken it (−19 % vs batching's −52 %).
 C5 failure isolation is DEGRADED by design (blast radius `B`), measured to be
-exactly the documented cost. Evidence: `dev/p33/batching-results.md`.
+exactly the documented cost. Evidence: `dev/milestones/p33/batching-results.md`.
 **Caveat carried forward:** the commit-1 baseline (2242.9 s) was contaminated
 by the concurrent `stage_data` workstream and is superseded in place — see the
-supersession block in `dev/p33/performance-baseline.md`. Any future performance
+supersession block in `dev/milestones/p33/performance-baseline.md`. Any future performance
 measurement in this repo must record `cpu_time` alongside wall and confirm no
 sibling agent session is active.
 Post-P3-3 followups (genuinely disk-aware batch-size cap; the
@@ -853,7 +853,7 @@ Post-seal tooling landed on `main` after the tag (not part of R7 proper):
 O-14 decision 1 — a tool-config-only `pyproject.toml` (`ab781a5`) — and O-15 —
 ruff adopted as the lint gate and enforced in CI (`85d3178`…`518151b`).
 
-Design **ACCEPTED** 2026-07-28: `dev/r07/project-layout-design.md`, approved by
+Design **ACCEPTED** 2026-07-28: `dev/milestones/r07/project-layout-design.md`, approved by
 the owner at gate G2 of a
 `design-review-loop` run on 2026-07-28. Drafted interactively with the owner
 across the 2026-07-26 review (a 16-ruling question log), then put through the
@@ -862,9 +862,9 @@ findings, all dispositioned, none rejected**, across four versions. The external
 round cap was reached with round 2 unconverged, so the owner arbitrated the three
 surviving findings — meaning the final version's changes carry no external
 verdict, which the design states on its face. Full audit trail:
-`dev/r07/project-layout-design-review-record.md`; approved framing:
-`dev/r07/project-layout-intake.md`; `naming.md` §7 path map:
-`dev/r07/migration_project-layout.md`. Provenance of the findings:
+`dev/milestones/r07/project-layout-design-review-record.md`; approved framing:
+`dev/milestones/r07/project-layout-intake.md`; `naming.md` §7 path map:
+`dev/milestones/r07/migration_project-layout.md`. Provenance of the findings:
 `dev/reviews/2026-07-25_post-r6-assessment.md` (O-01 … O-24), which carries a
 routing note for which observations R7 owns.
 
@@ -1064,7 +1064,7 @@ WF2 declares the shared climate store and no longer depends on
 and the catalog generator now pins physical store identity in a generated index.
 Commit 2b (persistent series cache) is blocked pending the empirical baseline
 re-run and the catalog crawl. Task brief:
-`dev/r08/2026-07-29_wf2-v2-decouple-and-cache.md`.
+`dev/milestones/r08/2026-07-29_wf2-v2-decouple-and-cache.md`.
 
 **Not yet done:** the empirical value-neutrality proof. A full WF2 re-run reached
 12 of 24 jobs and was killed externally; `extract_climate_grid` and all three
@@ -1109,7 +1109,7 @@ yet.
   milestone's tolerance / justification rules. No silent updates.
 - **No milestone touches the next milestone's territory.** If you
   find yourself wanting to fix a workflow-2 issue while in R3, write
-  it down in `dev/followups.md` (or `dev/r04/followups.md` once R4
+  it down in `dev/followups.md` (or `dev/milestones/r04/followups.md` once R4
   is open) and keep going.
 - **PRs back to upstream** (if any) are prepared from
   `pr/<NN>-<topic>` branches per the existing fork workflow guide —

@@ -1,6 +1,6 @@
 """Unit tests for blueearth_cst/shared/metrics_definition.py — pure-pandas streamflow metrics.
 
-Testing pattern (M02c convention; see dev/phase-1/m02c/test-coverage-design.md):
+Testing pattern (M02c convention; see dev/milestones/phase-1/m02c/test-coverage-design.md):
 - One test file per source module: tests/test_<module>.py
 - Heavy deps (hydromt, xarray, geopandas) stubbed via sys.modules.setdefault
   at the top of the file. See tests/test_stage_data.py for the canonical

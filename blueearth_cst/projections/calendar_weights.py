@@ -13,10 +13,10 @@ time axis.** The series' axis is `datetime64`: our catalog requests
 that axis returns **Gregorian** lengths — 29 for February in a leap year — for a
 model that has no such day. The calendar name is carried separately on the series
 (`cst_calendar`, put there by the fetch reading the store; see
-`dev/r08/2026-07-30_wf2-5b-calendar-blocker.md`), and the converted axis still
+`dev/milestones/r08/2026-07-30_wf2-5b-calendar-blocker.md`), and the converted axis still
 carries year and month exactly, which is all that is needed alongside it.
 
-Falsifiers: `dev/r08/2026-07-30_wf2-5b-falsifier.md`.
+Falsifiers: `dev/milestones/r08/2026-07-30_wf2-5b-falsifier.md`.
 """
 from __future__ import annotations
 

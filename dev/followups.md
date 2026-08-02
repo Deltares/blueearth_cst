@@ -46,8 +46,8 @@ context so future-you can confirm the issue still applies before fixing.
 R7 landed as 15 `r07:` commits with a clean full-tree diff, a green
 `check_baseline`, and the P4 assertion demonstrated. The items below are what it
 deliberately did **not** fix, plus what implementation surfaced along the way.
-Provenance: `dev/r07/migration_project-layout.md` §§7a–7d,
-`dev/r07/project-layout-design.md`, and the `r07:` commit messages.
+Provenance: `dev/milestones/r07/migration_project-layout.md` §§7a–7d,
+`dev/milestones/r07/project-layout-design.md`, and the `r07:` commit messages.
 
 ### Defects — worth fixing
 
@@ -97,7 +97,7 @@ Provenance: `dev/r07/migration_project-layout.md` §§7a–7d,
      version, or meta), which the R7 input edge now picks up. For a genuine
      in-place data mutation the escape hatch is
      `snakemake --forcerun extract_climate_grid`, documented in
-     `dev/r07/migration_project-layout.md` §2f.
+     `dev/milestones/r07/migration_project-layout.md` §2f.
 
   Revisit only if hydromt gains a first-class "resolve this entry to its
   concrete sources" API — at which point this becomes consuming an upstream
@@ -246,7 +246,7 @@ Provenance: `dev/r07/migration_project-layout.md` §§7a–7d,
   FIXED 2026-07-29.** `dev/workflows/model_creation.md`'s `rule all` target list
   repointed to the B10 homes (and gains B4's three `source_*` figures, which it
   never listed); two notebook figure paths repointed.
-  `dev/p32a/compare_climate_ladder.py` turned out to be a **live** probe, not a
+  `dev/milestones/p32a/compare_climate_ladder.py` turned out to be a **live** probe, not a
   historical note — it opens `wf1_raw/`, which B1 retired, so it raises
   `FileNotFoundError`. Marked SUPERSEDED with the reason rather than repointed:
   the ladder existed to characterise the difference between `wf1_raw` and the
@@ -370,7 +370,7 @@ Provenance: `dev/r07/migration_project-layout.md` §§7a–7d,
   DEGRADED by design (blast radius `B`): one failing cst causes Snakemake to
   delete the `B−1` completed sibling CSVs and re-run the whole batch, and rule
   3.11 is blocked sweep-wide until it succeeds. Measured exactly as documented
-  (`dev/p33/batching-results.md` GN-4). §6.1 names the mechanism worth probing:
+  (`dev/milestones/p33/batching-results.md` GN-4). §6.1 names the mechanism worth probing:
   the `--keep-incomplete` ↔ `--keep-going` interaction (does `--keep-incomplete`
   preserve successfully-written sibling CSVs across a failed batch job, and does
   the sweep then re-run only the failed cst?), with **accept-the-degradation as
@@ -545,7 +545,7 @@ Provenance: `dev/r07/migration_project-layout.md` §§7a–7d,
   before `pre-r01`. The two have been silently divergent since M2b — the
   workflow smoke tests never compare against the manifest, so nobody caught
   it. R01 Task 5 was the first `check_baseline check` against the canonical
-  model set and exposed the mismatch (see `dev/r01/baseline_diffs.md`).
+  model set and exposed the mismatch (see `dev/milestones/r01/baseline_diffs.md`).
 
   A fresh 8-model canonical run also shows **model-independent** drift on
   workflow-1 plots (`basin_area/hydro_wflow_1/precip.png`, 19–32% size) —
@@ -685,7 +685,7 @@ Provenance: `dev/r07/migration_project-layout.md` §§7a–7d,
   These are pre-M2 failures masked by the fact that M1 closure didn't
   actually run pytest.
 
-  *Split 2026-07-19 (`dev/r03/model-builder-design.md` §2), by where the fix
+  *Split 2026-07-19 (`dev/milestones/r03/model-builder-design.md` §2), by where the fix
   lives:* the `MissingInputException` is a workflow-2 **test-fixture** defect
   (dry-run against an empty project dir) — **fixed in R3** by pre-staging a
   minimal valid `region.geojson` and flipping that ratchet. The
@@ -705,7 +705,7 @@ Provenance: `dev/r07/migration_project-layout.md` §§7a–7d,
   `Error in sys.excepthook` shutdown cascade from `hydromt build -vv` (post-success;
   upstream subprocess, not our tee wrapper — absent from the Julia/hydromt-update
   logs that use the same wrapper). No code changes. Full re-triage recorded in
-  `dev/phase-1/m01/warnings.md` § "Exhaustive re-triage — 2026-07-21".
+  `dev/milestones/phase-1/m01/warnings.md` § "Exhaustive re-triage — 2026-07-21".
 
 - **~~`extract_climate_grid` silently truncates the historical range.~~
   CLOSED 2026-08-01.** Both halves are now resolved. *Truncation WARNING*
@@ -869,7 +869,7 @@ notes for R3-R5 to inherit when they add their own test files.
 ## R3+ — Surfaced during M2b (library upgrades)
 
 Items surfaced during the hydromt 0.x → 1.x / hydromt_wflow 0.x → 1.x /
-Wflow.jl 0.7 → 1.0.2 / pandas 3.x / Python 3.12 jump. See `dev/phase-1/m02b/`
+Wflow.jl 0.7 → 1.0.2 / pandas 3.x / Python 3.12 jump. See `dev/milestones/phase-1/m02b/`
 for the full M2b record.
 
 - **`hydromt 1.x` `to_dict` / `to_yml` silently strips `driver.options.preprocess`.**
@@ -878,7 +878,7 @@ for the full M2b record.
   *Workaround applied:* `src/prepare_climate_data_catalog.py` bypasses
   `to_yml` and uses `yaml.safe_dump` directly.
   *Proper fix:* file upstream against `hydromt`. Reproducer is the
-  three-line snippet in `dev/phase-1/m02b/handoff.md` decision section.
+  three-line snippet in `dev/milestones/phase-1/m02b/handoff.md` decision section.
 
 - **conda-forge does not ship `julia` for win-64 at all.** linux-64 / osx-64
   have 1.10.x and 1.12.x but skip 1.11.x; win-64 has nothing. This blocks the
@@ -929,7 +929,7 @@ for the full M2b record.
 
   Restoring physics parameters is a scientific decision, not a mechanical
   rename, so it is **out of R3** (which is a behavior-preserving refactor,
-  per `dev/r03/model-builder-design.md`). The dedicated task owns
+  per `dev/milestones/r03/model-builder-design.md`). The dedicated task owns
   `config/wflow_build_model.yml` and the resulting baseline move. Its scope
   must carry: a **parameter-reconciliation table** (per param: old value,
   Wflow 1.x effective default, units, semantics, storage location, observed
@@ -944,7 +944,7 @@ for the full M2b record.
   the manifest, since workflow 1's slice is currently only 3 size-only PNGs +
   a snake-config snapshot. CSDMS lookup tables in `hydromt_wflow.naming` and
   `hydromt_wflow.version_upgrade`. Concrete 8-mapping remap in
-  `dev/phase-1/m02b/handoff.md` decision #3.
+  `dev/milestones/phase-1/m02b/handoff.md` decision #3.
 
 - **[RESOLVED 2026-07-21, t260720e — does-not-reproduce, no fix.] CMIP6 `precip` /
   `temp` `.attrs` lost on `monthly_change_scalar_merge`.** Under the current pinned
@@ -956,7 +956,7 @@ for the full M2b record.
   `probe_attrs_chain.py` proved no wf2 code drops attrs, and the values are
   CMIP6-native, so the hydromt read preserves them. The M2b `{}` diagnosis no longer
   reproduces; original root cause not re-litigated (moot). Absorbed the old t260716c
-  "CMIP6 attr loss on merge" item. Full disposition: `dev/r04/chain-audit.md`
+  "CMIP6 attr loss on merge" item. Full disposition: `dev/milestones/r04/chain-audit.md`
   § D-ATTRS.
 
 - **Outlet station naming convention decision.** hydromt_wflow 1.x's

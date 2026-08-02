@@ -1,7 +1,7 @@
 # Workflow: model_creation
 
 Contract for `Snakefile_model_creation` (workflow 1). Format per
-`dev/r01/modularity-contracts-design.md` §4. Records **current** behavior
+`dev/milestones/r01/modularity-contracts-design.md` §4. Records **current** behavior
 (R3 opening act) — R3 is behavior-preserving, so this doc is the baseline
 the R3 code commits are checked against, not a description of intended
 change. Grounded in `Snakefile_model_creation`, `config/wflow_build_model.yml`,

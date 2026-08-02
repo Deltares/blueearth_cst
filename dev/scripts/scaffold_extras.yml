@@ -3,7 +3,7 @@
 # `snakemake --summary` lists DECLARED outputs only. Everything below is written
 # by a script or an engine without being declared as a rule output, so the DAG
 # cannot see it — dry-runs are blind to `params:`-string paths and to R `shell:`
-# bodies (dev/r07/project-layout-design.md). Keeping the guesses in one explicit
+# bodies (dev/milestones/r07/project-layout-design.md). Keeping the guesses in one explicit
 # file makes them reviewable instead of baked into the scaffolder.
 #
 # Paths are project_dir-relative. Wildcards are NOT expanded — write the one or

@@ -4,8 +4,8 @@ Personal fork of `Deltares/blueearth_cst`. Release history follows
 [Keep a Changelog](https://keepachangelog.com/) loosely.
 
 Milestone-level detail (Phase 1 sealed M01–M02c, Phase 2 active R1–R6)
-lives in `dev/roadmap.md` and `dev/phase-1/<milestone>/` /
-`dev/r0N/<milestone>/` artifacts. This file captures release-level
+lives in `dev/roadmap.md` and `dev/milestones/phase-1/<milestone>/` /
+`dev/milestones/r0N/<milestone>/` artifacts. This file captures release-level
 summaries.
 
 ## [Unreleased] — workflow 2 v2.0 (milestone R8)
@@ -85,11 +85,11 @@ testing additions that make Phase 2 possible.
 
 ### Phase 2 (Refactor) — designed, not yet executed
 
-- **R1 design** (`dev/r01/`): per-workflow modularity contracts.
+- **R1 design** (`dev/milestones/r01/`): per-workflow modularity contracts.
   Sectioned config schema (`project` / `shared` / `workflows.<name>`),
   per-workflow contract docs, atomic migration plan including
   `src/` script updates and baseline-snapshot policy.
-- **R2 design** (`dev/r02/`): prescriptive naming conventions style
+- **R2 design** (`dev/milestones/r02/`): prescriptive naming conventions style
   guide (snake_case, lowercase acronyms, `_path` canonical, suffix
   vocabulary split between paths and data objects, domain-identifier
   escape hatch, "do not rename without migration note" surfaces).
@@ -109,8 +109,8 @@ testing additions that make Phase 2 possible.
 
 - Roadmap restructured into Phase 1 (sealed) / Phase 2 (active)
   sections with clear visual break.
-- `dev/phase-1/{m01,m02,m02b,m02c}/` for sealed foundation milestones.
-- `dev/r01/`, `dev/r02/` for active Phase 2 milestones.
+- `dev/milestones/phase-1/{m01,m02,m02b,m02c}/` for sealed foundation milestones.
+- `dev/milestones/r01/`, `dev/milestones/r02/` for active Phase 2 milestones.
 - `dev/conventions/` reserved for R2 output.
 - Stale forward-looking M3-M6 references renamed to R3-R6 across docs,
   tests, and code comments.

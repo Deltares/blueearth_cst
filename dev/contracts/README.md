@@ -1,7 +1,7 @@
 # Interchange contracts (P3-2b)
 
 The pipeline's two substitution seams, pinned as explicit, machine-checked
-contracts (design: `dev/p32b/interchange-contracts-design.md`, ACCEPTED
+contracts (design: `dev/milestones/p32b/interchange-contracts-design.md`, ACCEPTED
 2026-07-24):
 
 - [`weather-generator-seam.md`](weather-generator-seam.md) — WG-1..WG-6: what

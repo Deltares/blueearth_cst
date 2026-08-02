@@ -25,7 +25,7 @@ reader to filter the channel. It is promoted to stderr only when the windows
 *would have been equal but for the clip* — the case where the user plausibly
 intended alignment and did not get it.
 
-Falsifiers: ``dev/r08/2026-07-30_wf2-5e-falsifier.md`` K3–K6.
+Falsifiers: ``dev/milestones/r08/2026-07-30_wf2-5e-falsifier.md`` K3–K6.
 """
 from __future__ import annotations
 

@@ -36,9 +36,9 @@ Suite before: 119 passed / 3 skipped / 7 xfailed. After: **123 / 3 / 1**
   climate_projections` passes on the `.nc`. With R4's probe having shown no wf2 code
   drops attrs and the values being CMIP6-native, hydromt 1.3.1's read preserves them;
   the M2b `{}` diagnosis no longer reproduces (root cause moot). No baseline move.
-  Disposition in `dev/r04/chain-audit.md` § D-ATTRS + `dev/followups.md` § M2b.
+  Disposition in `dev/milestones/r04/chain-audit.md` § D-ATTRS + `dev/followups.md` § M2b.
   (Aside: the same check flags the 2 wf2 summary **CSVs** as byte-diffs — the
-  **pre-existing R4 serialization non-determinism**, `dev/r04/baseline_diffs.md`,
+  **pre-existing R4 serialization non-determinism**, `dev/milestones/r04/baseline_diffs.md`,
   not D-ATTRS and not a regression.)
 
 ## Wave C — decision-gated code / sweeps
@@ -54,7 +54,7 @@ Suite before: 119 passed / 3 skipped / 7 xfailed. After: **123 / 3 / 1**
   Bucket 2:** one intended hydromt resolution-snap (won't-fix); **Bucket 1:** hydromt
   warnings + a captured 62× `sys.excepthook` shutdown cascade from `hydromt build
   -vv` (upstream, post-success, not our tee wrapper). No code changes. Recorded in
-  `dev/phase-1/m01/warnings.md` § "Exhaustive re-triage".
+  `dev/milestones/phase-1/m01/warnings.md` § "Exhaustive re-triage".
 - **`extract_climate_grid` config-staleness (t260716a′) — RESOLVED 2026-07-21, no
   new code.** The 2026-05-07 repro predated R5 (dates hardcoded, `historical:`
   unread). R5 wired `historical_window` as `params`; Snakemake 9.6.2's default

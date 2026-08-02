@@ -5,7 +5,7 @@ Gate 2b is a DAG/rerun-trigger INTEGRATION check, NOT a comparator unit test
 ``check_project_consistency`` rule through Snakemake against a staged
 ``project_dir`` and reads Snakemake's scheduling reason from ``--dry-run``
 after each comparand mutation, WITHOUT deleting the sentinel between
-mutations. Design: dev/p31/experiment-structure-design.md §7 gates 2b/2c, §3c.
+mutations. Design: dev/milestones/p31/experiment-structure-design.md §7 gates 2b/2c, §3c.
 
 Mechanics: "Params have changed since last execution" is reported only when
 the rule's outputs EXIST and the recorded params differ — from a cold dir a
@@ -190,7 +190,7 @@ def test_2c_fresh_project_missing_wf1_snapshot(staged_project):
     assert "Traceback" not in combined, combined
 
     # (ii) --unlock with the snapshot absent. DEVIATION from design gate
-    # 2c(ii), documented in dev/p31/phase-a-report.md: on the pinned Snakemake
+    # 2c(ii), documented in dev/milestones/p31/phase-a-report.md: on the pinned Snakemake
     # 9.6.2, Workflow.unlock() calls _build_dag() before cleanup_locks()
     # (workflow.py:917), so --unlock fails on ANY missing leaf input — the
     # guard's wf1 snapshot behaves exactly like any other unbuilt leaf input

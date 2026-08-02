@@ -5,7 +5,7 @@ tree, dispatching by extension to per-type comparators. This is the *un-manifest
 slice* gate: it covers wf2/wf3 staticmaps, `wflow_sbm.toml`, and change-factor
 NetCDFs that `check_baseline.py`'s thin `TARGETS` list never fingerprints.
 
-Design contract (dev/r06/structural-refactor-design.md §9, rows ext1-04 / ext2-01
+Design contract (dev/milestones/r06/structural-refactor-design.md §9, rows ext1-04 / ext2-01
 / ext2-02):
 
 - `.nc`  : ELEMENT-WISE comparator (dims; coordinate labels+order with NO
@@ -23,7 +23,7 @@ Design contract (dev/r06/structural-refactor-design.md §9, rows ext1-04 / ext2-
 TARGETS repoint, G1 scope amendment) live in that file, not here. The
 CSV/PNG/discharge comparators and `VOLATILE_NC_ATTRS` come from it by import.
 
-P3-1 layer (dev/p31/experiment-structure-design.md §6a, commit 5):
+P3-1 layer (dev/milestones/p31/experiment-structure-design.md §6a, commit 5):
 
 - **Path map** -- an ORDERED list of directory-prefix rewrite rules on
   project-root-relative paths (NOT a per-file table; the prefix form also covers
@@ -34,7 +34,7 @@ P3-1 layer (dev/p31/experiment-structure-design.md §6a, commit 5):
 - **Allowlist gate contract (risk-4)** -- after translation and content-diffing
   of translated pairs, the residual MISSING and EXTRA sets must be EMPTY modulo
   an explicitly enumerated allowlist (each entry justified in
-  dev/p31/migration_experiment-structure.md). A nonempty unexplained
+  dev/milestones/p31/migration_experiment-structure.md). A nonempty unexplained
   MISSING/EXTRA is a gate FAILURE, not a pass.
 - **Path-aware toml comparator (§6a step 3, ext1-3)** -- for each path-valued
   toml field: (1) lexical resolve against its own toml's dir (normpath+join,
@@ -193,7 +193,7 @@ def build_p31_allowlist(
 ) -> list[str]:
     """EXTRA-by-design current-tree relpaths (risk-4 presence exemptions ONLY).
 
-    Justifications live in dev/p31/migration_experiment-structure.md: the
+    Justifications live in dev/milestones/p31/migration_experiment-structure.md: the
     per-experiment guard sentinel and the key-level guard artifact are new
     gate outputs with no pre-P3-1 counterpart; neither carries scientific
     content. There is no wf3 plots producer, so nothing is MISSING-by-design.
@@ -205,7 +205,7 @@ def build_p31_allowlist(
 
 
 # ---------------------------------------------------------------------------
-# R07 path map / allowlist / merge class (dev/r07/migration_project-layout.md
+# R07 path map / allowlist / merge class (dev/milestones/r07/migration_project-layout.md
 # §2a, §2b, §2e, §4 -- that map is the path authority; this is its executable
 # form and `check_baseline.TARGETS` is rewritten from the same source).
 # ---------------------------------------------------------------------------
@@ -741,7 +741,7 @@ def compare_copied_config(ref_path: str, cur_path: str) -> list[str]:
 # such leaf differs by construction -- the same behavior-neutral pointer-move
 # class ext1-3 solved for the run tomls, in YAML. Parse-level adjudication of
 # the 2026-07-23 milestone diff confirmed ALL leaf diffs in these files are
-# path-only (dev/p31/baseline_diffs.md). Mechanism mirroring the toml
+# path-only (dev/milestones/p31/baseline_diffs.md). Mechanism mirroring the toml
 # comparator: each side's own root token becomes `<PROJECT_ROOT>` and the ref
 # side's project-relative remainder goes through the old->new path map; equal
 # normalized docs => behavior-neutral move (PASS); any non-path leaf diff

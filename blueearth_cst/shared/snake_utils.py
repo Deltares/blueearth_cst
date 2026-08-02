@@ -4,7 +4,7 @@ Imported by all three ``Snakefile_*`` entry points (and ``tests/conftest.py``)
 so the ``get_config`` contract lives in exactly one place. Each Snakefile makes
 this module importable regardless of the working directory by prepending its
 own directory to ``sys.path`` before importing — see
-``dev/r03/model-builder-design.md`` §3.
+``dev/milestones/r03/model-builder-design.md`` §3.
 """
 
 import contextlib
@@ -193,7 +193,7 @@ def file_digest_or_absent(path) -> str:
     """Return the SHA-256 hex digest of a file's bytes, or ``"ABSENT"``.
 
     Absence-tolerant digest helper for the wf3 drift guard's params
-    (dev/p31/experiment-structure-design.md §3b/§3c, ext2-2). Called at
+    (dev/milestones/p31/experiment-structure-design.md §3b/§3c, ext2-2). Called at
     Snakefile parse time for the wf1/wf2 project-snapshot digests, so a fresh
     project (no snapshot yet) still parses, ``--dry-run``s, and ``--unlock``s
     cleanly — snapshot absence surfaces at the guard *rule* via its
@@ -341,7 +341,7 @@ def validate_experiment_name(name: str, project_dir) -> str:
     """Validate ``experiment_name`` as a safe ``experiments/<name>/`` path segment.
 
     Centralized slug validation for the wf3 experiment subtree
-    (dev/p31/experiment-structure-design.md §2b). Called once at
+    (dev/milestones/p31/experiment-structure-design.md §2b). Called once at
     ``Snakefile_climate_experiment`` parse time, BEFORE ``exp_dir`` (and every
     derived output/params path) is built, so all paths are constructed only from
     a vetted value. Parse-time is correct here: a malformed name makes the entire
@@ -692,7 +692,7 @@ def slugify_window(start, end) -> str:
     """Render a window ``(start, end)`` to a compact ``YYYYMMDD_YYYYMMDD`` slug.
 
     Builds the dataset-store key component for the wf3 historical-climate store
-    (dev/p31/experiment-structure-design.md §4/§4c/§4d). The store dir is
+    (dev/milestones/p31/experiment-structure-design.md §4/§4c/§4d). The store dir is
     ``climate_historical/<clim_source>_<start>_<end>/`` where ``<start>``/``<end>``
     are this function's output. The window endpoints are ISO
     ``YYYY-MM-DDTHH:MM:SS``; ``:`` is illegal in Windows paths, so time-of-day and
@@ -810,7 +810,7 @@ def climate_store_spec(
     boundary (ext2-01), so it is declared plain, never ``ancient()``. Data
     *behind* an unchanged catalog entry is out of scope — edit the entry, or use
     ``snakemake --forcerun extract_climate_grid``
-    (``dev/r07/migration_project-layout.md`` §2f).
+    (``dev/milestones/r07/migration_project-layout.md`` §2f).
 
     Parameters
     ----------
@@ -1105,7 +1105,7 @@ class _Tee:
 # bodies *after* it has finished successfully (rc=0), when a stderr write fails
 # during interpreter finalization (many GDAL/rasterio datasets torn down at once
 # on Windows). It floods the tail of an otherwise-clean log. Triaged as cosmetic
-# in dev/phase-1/m01/warnings.md; ``run_and_tee`` collapses a *pure* trailing run
+# in dev/milestones/phase-1/m01/warnings.md; ``run_and_tee`` collapses a *pure* trailing run
 # of these into one summary line. A real traceback puts non-empty content
 # between the markers, so it is never collapsed (see ``_is_shutdown_noise``).
 _EXCEPTHOOK_MARKERS = ("Error in sys.excepthook:", "Original exception was:")

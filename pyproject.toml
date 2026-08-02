@@ -6,7 +6,7 @@
 # plain importable directory rather than an installed distribution.
 #
 # That restraint is the point. Real packaging (O-14 decision 2) would reverse a
-# reviewed decision recorded in dev/r06/structural-refactor-design.md:368-376,
+# reviewed decision recorded in dev/milestones/r06/structural-refactor-design.md:368-376,
 # so it needs a superseding record in dev/decisions/ rather than arriving as a
 # side effect of wanting pytest settings. Decision 1 -- this file -- costs one
 # root file, adds no dependency, and reverses no contract.
