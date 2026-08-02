@@ -9,6 +9,38 @@ context so future-you can confirm the issue still applies before fixing.
 
 ---
 
+## Post-R8 (surfaced 2026-08-02 during the Post-R7 triage)
+
+- **[R8-1] The ruff gate is red on `main`.** *Row `t260802a`.* `pixi run ruff
+  check .` reports **10 findings**, 7 of them auto-fixable:
+
+  | File | Finding |
+  |---|---|
+  | `projections/get_change_climate_proj.py` | F401 ×5 — `os`, `series_identity`, `dry_month.FLAGGED_STATUS`, `dry_month.is_flagged`, `snake_utils.log_row` |
+  | `projections/get_stats_climate_proj.py:96` | F841 — `ds` assigned, never used |
+  | `projections/resolution.py:29` | F401 — `os` |
+  | `tests/test_monthly_change.py:5` | F401 — `pytest` |
+  | `tests/test_variable_spec.py:77,99` | E702 ×2 — semicolon statements |
+
+  This is not cosmetic: `.github/workflows/ci.yml:75` runs exactly this command
+  on both legs, so **CI fails on an untouched checkout**. R7-16 recorded the
+  gate as adopted with "all 96 findings cleared" (`85d3178` → `81e0096`); every
+  finding above is in an R8-era file, so the gate went red during the WF2 v2.0
+  rework and the seal did not catch it.
+
+  Verified to predate this triage: the identical 10 findings reproduce at
+  `207c449`, the commit before any `dev/` tidy work. Most are dead imports left
+  by refactoring — likely `ruff check --fix` plus two hand edits, but the F841
+  in `get_stats_climate_proj.py` should be read before deleting, in case the
+  assignment was meant to be used.
+
+  Worth asking as part of the fix: the seal ran CI green (R7-19 cites run
+  30450296441), so either the gate was added after that run or a later red was
+  not acted on. The answer decides whether anything beyond the ten fixes is
+  needed.
+
+---
+
 ## Post-R7 (surfaced 2026-07-28/29 during the R7 project-layout milestone)
 
 R7 landed as 15 `r07:` commits with a clean full-tree diff, a green
@@ -135,7 +167,8 @@ Provenance: `dev/r07/migration_project-layout.md` §§7a–7d,
   `blueearth_cst.model`, pinned by a test that walks the package's ASTs so the
   convention cannot drift back silently.
 
-- **[R7-5] O-24 is partially closed; its premise was wrong.** *Basin-average
+- **[R7-5] O-24 is partially closed; its premise was wrong.** *Remaining half
+  is row `t260802b`.* *Basin-average
   half FIXED 2026-08-01.* Rule 1.11 now derives `plot_basavg`'s PNGs from
   `wflow_outvars` and declares them — excluding `river discharge` (rule 1.05
   filters it out of the basin-average setup) and `precipitation` (whose column
@@ -175,15 +208,20 @@ Provenance: `dev/r07/migration_project-layout.md` §§7a–7d,
   `historical_window` died with `MissingOutputException` instead of logging a
   skip.
 
-- **[R7-7] The contract-equality test pins Snakemake 9.6.2's directive set.** It
-  asserts the compared / allowed-local / structural buckets partition
-  `RuleInfo`'s fields exactly, so a Snakemake upgrade fails it loudly rather
-  than silently widening the hole. Intended — but it makes the pin a
-  maintenance touchpoint at every version bump.
+- **[R7-7] The contract-equality test pins Snakemake 9.6.2's directive set.**
+  **ACCEPTED — NO ACTION, 2026-08-02 (triage).** It asserts the compared /
+  allowed-local / structural buckets partition `RuleInfo`'s fields exactly, so a
+  Snakemake upgrade fails it loudly rather than silently widening the hole. That
+  is the designed behaviour: the maintenance touchpoint at every version bump is
+  the price of the loud failure, and paying it is cheaper than the silent hole.
+  No row — the work it implies is "read the failure when you bump Snakemake."
 
 ### Cosmetic / low priority
 
-- **[R7-8] wflow writes `log.txt` beside the run TOML**, not under
+- **[R7-8]** *(triaged 2026-08-02 — no row: the fix is known and small, but
+  verifying it needs a full wf3 run, which is a poor trade for a gate-invisible
+  cosmetic. Fold it into the next task that runs wf3 anyway.)* **wflow writes
+  `log.txt` beside the run TOML**, not under
   `dir_output` — so it lands in `hydrology_runs/rlz_<r>/config/log.txt`, one per
   realization instead of one per experiment. Gate-invisible (`_is_excluded`
   drops `log.txt`), but `config/` holding a log is a small P3 wart.
@@ -236,7 +274,8 @@ Provenance: `dev/r07/migration_project-layout.md` §§7a–7d,
   `output.csv.path`) added. Recorded as a correction rather than quietly
   amended: the map deferring to the comparator is precisely what kept the wrong
   arithmetic harmless, and that lesson is worth more than a tidy table.
-- **[R7-14] `tests/test_stage_data_incremental.py` fails intermittently** under
+- **[R7-14] `tests/test_stage_data_incremental.py` fails intermittently** *(row
+  `t260802c`; still present and still flaky, confirmed 2026-08-02)* under
   some orderings; passes in isolation and on re-run. Another workstream's
   module, predates the R7 branch. Test-isolation issue, not a product defect.
 
@@ -247,7 +286,7 @@ Provenance: `dev/r07/migration_project-layout.md` §§7a–7d,
   goes with it: how a second engine's build subtree and run subtree are placed.
   The Goal was narrowed from extensibility to **separability** (ruling GB-1)
   precisely because the tree cannot honour the stronger claim without that rule.
-- **[R7-16] Tooling contract**: O-14 `pyproject.toml`, O-15 `ruff`, O-16 `flit`
+- **[R7-16] Tooling contract** *(O-14 decision 2 + O-16 are row `t260802d`)*: O-14 `pyproject.toml`, O-15 `ruff`, O-16 `flit`
   — open decisions, unrelated to layout.
   **O-14 decision 1 RESOLVED** (ab781a5): tool-config-only `pyproject.toml`, no
   `[build-system]` / `[project]` / `[tool.pixi]`. Decision 2 (real packaging)
@@ -274,7 +313,8 @@ Provenance: `dev/r07/migration_project-layout.md` §§7a–7d,
   pushed to `origin`. `dev/roadmap.md` Phase 4 now reads SEALED. CI green on
   both legs for the sealed tree (run 30450296441) — which was also the first
   CI run to see any of R7, since the milestone sat unpushed until the seal.
-- **[R7-22] `downscale_climate_forcing.py` is the last module that reads the
+- **[R7-22]** *(row `t260802e`; re-confirmed 2026-08-02 — the bare reads and the
+  `F821` per-file-ignore are both still in place)* **`downscale_climate_forcing.py` is the last module that reads the
   bare `snakemake` global at import time.** The other 22 `script:`-invoked
   modules use the guarded `if "snakemake" in globals(): sm = globals()["snakemake"]`
   idiom, which keeps them importable for unit tests; `prepare_weagen_config.py`'s
@@ -287,7 +327,10 @@ Provenance: `dev/r07/migration_project-layout.md` §§7a–7d,
   it would also make it unit-testable, which is the actual prize; note the whole
   module body sits inside a `with tee_to_log(...)` block, so the conversion is
   not purely mechanical.
-- **[R7-23] `ruff format` is configured but not enforced.** 118 of 262 files
+- **[R7-23] `ruff format` is configured but not enforced.** *Row `t260802f`
+  (blocked on an owner ruling).* **Re-measured 2026-08-02: now 136 of 276 files**
+  would be reformatted (118 at R7) — the churn grows with every unformatted
+  commit, so deferring has a running cost. Original entry: 118 of 262 files
   would be reformatted, ~7.8k diff lines. That is a churn decision on its own
   merits and was deliberately kept out of the O-15 lint adoption. If it is ever
   taken, it should be a single mechanical commit with no other change in it, so
@@ -295,7 +338,9 @@ Provenance: `dev/r07/migration_project-layout.md` §§7a–7d,
   reads, so re-record afterwards. Likewise, the rule families left out of
   `select` (`I` import sorting, `UP` pyupgrade, `B`/`SIM`/`PERF`/`RUF`) can each
   be added later as its own reviewable commit; `I` alone is ~62 files.
-- **[R7-20]** The pre-R7 reference tree at
+- **[R7-20]** *(row `t260802g`)* **Precondition met — R7 sealed 2026-07-29, so
+  this is simply unexecuted; the tree is still on disk at 48 MB (checked
+  2026-08-02).** The pre-R7 reference tree at
   `C:/Users/taner/workspace/.r07-reference/` (219 files + the discharge anchor)
   can be retired once the milestone seals — the re-recorded manifest is the
   regression detector again.
