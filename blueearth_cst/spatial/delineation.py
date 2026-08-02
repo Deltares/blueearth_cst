@@ -116,7 +116,10 @@ def full_catchment(flwdir: FlwdirRaster, outlet_index: int) -> np.ndarray:
 
 
 def select_automatic_subbasins(
-    flwdir: FlwdirRaster, upstream_area: np.ndarray, max_count: int
+    flwdir: FlwdirRaster,
+    upstream_area: np.ndarray,
+    max_count: int,
+    outlet_mask: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Choose the most detailed area partition that respects ``max_count``.
 
@@ -132,9 +135,17 @@ def select_automatic_subbasins(
     if area.shape != flwdir.shape:
         raise ValueError("upstream area and flow direction must align")
     valid = flwdir.mask.reshape(flwdir.shape) & np.isfinite(area) & (area > 0)
+    if outlet_mask is not None:
+        eligible = np.asarray(outlet_mask, dtype=bool)
+        if eligible.shape != flwdir.shape:
+            raise ValueError("outlet mask and flow direction must align")
+        valid &= eligible
     thresholds = np.unique(area[valid])
     if thresholds.size == 0:
-        raise ValueError("automatic partitioning requires positive upstream area")
+        raise ValueError(
+            "automatic partitioning requires at least one eligible cell with "
+            "positive upstream area"
+        )
 
     selected_outlets = None
     low = 0

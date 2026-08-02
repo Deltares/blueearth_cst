@@ -1,14 +1,11 @@
 modeltype: wflow_sbm
 
 steps:
-  - setup_basemaps:
-      hydrography_fn: merit_hydro_ihu   # source hydrography data {merit_hydro, merit_hydro_1k}
-      basin_index_fn: merit_hydro_index # source of basin index corresponding to hydrography_fn
-      upscale_method: ihu               # upscaling method for flow direction data, by default 'ihu'
-
+  # Domain, grid, flow direction, subbasin IDs, and raw spatial inputs come
+  # from the generated blueearth-cst-spatial-v1 catalog. The project adapter
+  # supplies those objects to the public setup methods below; setup_basemaps is
+  # deliberately absent because it would delineate the basin a second time.
   - setup_rivers:
-      hydrography_fn: merit_hydro_ihu   # source hydrography data, should match basemaps source
-      river_geom_fn: rivers_lin2019_v1  # river source data with river width and bankfull discharge
       river_upa: 32                     # minimum upstream area threshold for the river map [km2]
       slope_len: 2000                   # length over which to calculate river slope [m]
       rivdph_method: powlaw             # method to estimate depth {'powlaw', 'manning', 'gvf'}

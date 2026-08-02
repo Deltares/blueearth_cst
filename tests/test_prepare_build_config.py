@@ -147,21 +147,12 @@ def test_absent_template_key_is_not_a_disagreement(tmp_path):
     assert out.exists()
 
 
-def test_shipped_template_agrees_with_the_snake_utils_defaults():
-    """The defaults exist to make the cross-check a no-op on a stock checkout."""
-    from blueearth_cst.shared.snake_utils import (
-        DEFAULT_BASIN_INDEX,
-        DEFAULT_HYDROGRAPHY,
-    )
-
+def test_shipped_template_excludes_competing_domain_setup():
+    """P2 consumes P1 and cannot independently delineate through basemaps."""
     repo = Path(__file__).resolve().parents[1]
     template = yaml.safe_load(
         (repo / "config" / "templates" / "wflow_build_model.yml").read_text(
             encoding="utf-8"
         )
     )
-    basemaps = next(
-        s["setup_basemaps"] for s in template["steps"] if "setup_basemaps" in s
-    )
-    assert basemaps["hydrography_fn"] == DEFAULT_HYDROGRAPHY
-    assert basemaps["basin_index_fn"] == DEFAULT_BASIN_INDEX
+    assert not any("setup_basemaps" in step for step in template["steps"])

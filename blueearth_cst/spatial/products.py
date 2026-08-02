@@ -331,6 +331,7 @@ def _delineate_spatial_units(
                 parent_flwdir,
                 maps["upstream_area"].values,
                 budgets[basin_id],
+                outlet_mask=maps["river_mask"].values,
             )
             if parent_outlet not in outlets:
                 raise RuntimeError(

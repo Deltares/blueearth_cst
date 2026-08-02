@@ -88,6 +88,20 @@ def test_automatic_partition_never_exceeds_ceiling(ceiling):
     assert len(np.unique(partition[partition > 0])) == outlets.size
 
 
+def test_automatic_partition_outlets_respect_eligibility_mask():
+    """Automatic locations can be constrained to active model river cells."""
+    flwdir = _flow_network()
+    area = flwdir.upstream_area("km2")
+    outlet_mask = area >= 6
+
+    _, outlets = select_automatic_subbasins(
+        flwdir, area, max_count=20, outlet_mask=outlet_mask
+    )
+
+    assert outlets.size < 20
+    assert outlet_mask.ravel()[outlets].all()
+
+
 def test_duplicate_control_cells_are_rejected():
     """Two controls cannot silently compete for the same spatial unit."""
     flwdir = _flow_network()

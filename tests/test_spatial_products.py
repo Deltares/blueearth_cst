@@ -140,6 +140,9 @@ def test_no_gauges_selects_automatic_fallback_and_complete_registry():
     assert len(registry) == len(subbasins)
     assert registry["is_primary"].all()
     assert (registry["wflow_id"] == registry["subbasin_id"]).all()
+    rows = registry["snapped_row"].astype(int).to_numpy()
+    cols = registry["snapped_col"].astype(int).to_numpy()
+    assert maps["river_mask"].values[rows, cols].all()
     assert set(np.unique(subbasin_map)) - {0} == set(subbasins["subbasin_id"])
     assert locations.crs.to_epsg() == 4326
 
