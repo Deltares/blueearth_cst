@@ -36,6 +36,64 @@ def _log(message):
     log_row(message, module="plot")
 
 
+def merge_outlet_and_gauge_series(qsim, qsim_gauges, log=_log):
+    """Combine the outlet and user-gauge discharge series into one station set.
+
+    Outlet ids and user gauge ids share ONE namespace — both are values burned
+    into wflow's output maps (``blueearth_cst/shared/gauges.py``, MIN_GAUGE_ID)
+    — and the two sets overlap whenever a gauge sits on the basin outlet. That
+    is not an exotic case: delineating the model as a subbasin at the outlet
+    gauge (`region: {'subbasin': [x, y]}`) is the normal way to build one, and
+    it makes the outlet's subcatchment id equal to that gauge's ``wflow_id``.
+
+    The two series then carry the same ``index`` with DIFFERENT ``station_name``
+    values — the synthetic ``wflow_1`` on the outlet side, the user's own name
+    on the gauge side — and ``xr.merge`` refuses to reconcile a coordinate that
+    disagrees ("conflicting values for variable 'station_name'", observed
+    2026-08-02 on a real basin whose outlet gauge is id 101).
+
+    The OUTLET label wins on a collision. It is not a matter of taste: rule
+    1.11 declares ``hydro_wflow_1.png`` and ``clim_wflow_1_{month,year}.png``
+    as Snakemake outputs, and every figure is written as
+    ``<kind>_{station_name}.png``. Letting the user's name win on the first
+    outlet trades a MergeError for a MissingOutputException. Nothing is lost
+    but the label — the colliding entries are the same model cell, so the two
+    series hold the same discharge.
+
+    Parameters
+    ----------
+    qsim, qsim_gauges : xr.DataArray
+        Discharge on dim ``index`` with a ``station_name`` coordinate.
+    log : callable
+        One-line reporter; the collision is announced rather than silent,
+        because the station a user named disappears from the figure filenames.
+    """
+    outlet_ids = set(qsim["index"].values.tolist())
+    keep = [i for i in qsim_gauges["index"].values if i not in outlet_ids]
+    dropped = [i for i in qsim_gauges["index"].values if i in outlet_ids]
+    if dropped:
+        # Plain Python in the message: numpy scalars render as np.int32(101),
+        # which is noise in a user-facing log line.
+        gauge_names = [str(n) for n in qsim_gauges["station_name"].sel(index=dropped).values]
+        outlet_names = [str(n) for n in qsim["station_name"].sel(index=dropped).values]
+        log(
+            f"Gauge(s) {[int(i) for i in dropped]} ({', '.join(gauge_names)}) "
+            f"sit on a model outlet and are already in Q_outlets; plotted "
+            f"under the outlet label(s) {outlet_names}."
+        )
+    if not keep:
+        return qsim
+    # Both kwargs are xarray's CURRENT defaults, spelled out because both are
+    # scheduled to change and this merge depends on both: the station sets are
+    # disjoint by construction, so it needs join="outer" (the announced
+    # "exact" would raise on unequal indexes), and it needs compat that FILLS
+    # across the alignment NaNs (the announced "override" would take the
+    # outlet side's station_name and blank every gauge label).
+    return xr.merge(
+        [qsim, qsim_gauges.sel(index=keep)], join="outer", compat="no_conflicts"
+    )["Q"]
+
+
 def analyse_wflow_historical(
     project_dir: Path,
     observations_fn: Union[Path, str] = None,
@@ -197,7 +255,7 @@ def analyse_wflow_historical(
                     list(gdf_gauges["station_name"][qsim_gauges.index.values].values),
                 )
             )
-            qsim = xr.merge([qsim, qsim_gauges])["Q"]
+            qsim = merge_outlet_and_gauge_series(qsim, qsim_gauges, log=_log)
 
     # Climate data (P/T/EP) per subcatchment, derived from the RAW gridded
     # climate extracted for the basin over the historical window (rule 1.10),
