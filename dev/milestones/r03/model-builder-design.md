@@ -601,7 +601,7 @@ output only, its manifest fingerprint deferred to `t260719a` (§4).
    rule folds away instead of gaining a structured sentinel)*
 10. `r03: add unit tests for workflow-1 helpers`
     *(gauges, reservoirs sentinel, prepare_build_config)*
-11. `r03: seal milestone — dev/roadmap.md R3 section + dev/reference/branches-and-tags.md`
+11. `r03: seal milestone — dev/roadmap.md R3 section + dev/reference/git-conventions.md`
     (+ tag `r03-model-builder`)
 
 R3 writes no `dev/milestones/r03/baseline_diffs.md` — it changes no baseline target,

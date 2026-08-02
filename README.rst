@@ -363,8 +363,10 @@ User-facing:
 
 Fork-specific (development):
 
-- ``dev/roadmap.md`` — milestone roadmap, branching / tagging
-  conventions, commit strategy.
+- ``dev/roadmap.md`` — milestone roadmap: what each phase set out to do
+  and how it landed.
+- ``dev/reference/git-conventions.md`` — branch / tag inventory plus the
+  branching, tagging, and commit-message conventions.
 - ``docs/install.md`` — step-by-step install walkthrough.
 - ``dev/milestones/phase-1/`` — sealed foundation milestone artifacts (audits,
   plans, baseline diffs).

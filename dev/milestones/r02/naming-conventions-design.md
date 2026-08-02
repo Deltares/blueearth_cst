@@ -309,10 +309,10 @@ guide's table sparse so the doc stays under 250 lines.
 - `pixi run pytest tests/` unchanged: 51 passed, 3 skipped, 2 xfailed
   (the sealed R01 state).
 - The R2 changeset touches documentation only — `dev/`, the new guide,
-  `AGENTS.md`, `dev/roadmap.md`, `dev/reference/branches-and-tags.md`. No
+  `AGENTS.md`, `dev/roadmap.md`, `dev/reference/git-conventions.md`. No
   `Snakefile_*`, `src/`, `tests/`, config YAML, lockfile, manifest, or
   generated output appears in the diff.
-- `dev/reference/branches-and-tags.md` records the `r02-naming` branch/tag at seal
+- `dev/reference/git-conventions.md` records the `r02-naming` branch/tag at seal
   (it currently lists `r02-naming` as planned).
 
 ## Migration notes for existing names
