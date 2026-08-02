@@ -6,40 +6,15 @@ Created on Tue Feb  1 14:34:58 2022
 """
 
 import hydromt  # noqa: F401 -- registers the xarray .raster accessor (.raster.vars below)
-import os
 import pandas as pd
 import xarray as xr
 
-from blueearth_cst.projections import series_identity
 from blueearth_cst.projections.calendar_weights import month_length_weights
 from blueearth_cst.projections.change_factor_table import COMPANION_SEP
-from blueearth_cst.projections.dry_month import FLAGGED_STATUS, is_flagged
 from blueearth_cst.projections.variable_spec import canonical_kind, change_kind
-from blueearth_cst.shared.snake_utils import log_row
+from blueearth_cst.shared.collection_utils import intersection
 
 # %%
-
-
-def intersection(lst1, lst2):
-    """Shared members of two sequences, in a DETERMINISTIC (sorted) order.
-
-    ``sorted`` is load-bearing, not cosmetic. This function drives the variable
-    iteration order in ``get_change_annual_clim_proj`` /
-    ``get_change_scalar_clim_proj``, which becomes the **column order** of
-    ``annual_change_scalar_stats_summary{,_mean}.csv``. Returning a bare
-    ``list(set(...) & set(...))`` made that order depend on string hash
-    randomization, so the summary CSVs flipped ``temp``/``precip`` between runs
-    with no change in values — harmless to consumers, which read by label, but it
-    made the two manifested CSV rows unreproducible (``check_baseline``
-    fingerprints them by sha256 of the bytes).
-
-    Alphabetical rather than "preserve the first sequence's order": it is
-    self-contained, so the guarantee does not silently depend on upstream
-    dataset-variable ordering. On the seed config the two coincide anyway —
-    ``variables: [precip, temp]``.
-    """
-    return sorted(set(lst1) & set(lst2))
-
 
 def _to_datetime_index(ds):
     """Convert an object-dtype (cftime) time index to a proleptic-Gregorian
@@ -232,8 +207,8 @@ def get_change_monthly_clim_proj(
                 change = ((clim_stat - hist_stat) / hist_stat * 100).rename(var)
                 # Step 6b / A2: a near-zero reference makes the RATIO meaningless
                 # while the difference stays informative, so the ratio is dropped
-                # and the difference kept -- never both. `is_flagged` is strict, so
-                # a reference exactly at the threshold survives.
+                # and the difference kept -- never both. The comparison is strict,
+                # so a reference exactly at the threshold survives.
                 threshold = (min_reference or {}).get(var)
                 if threshold is not None:
                     flagged = hist_stat < threshold

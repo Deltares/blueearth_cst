@@ -232,6 +232,7 @@ def declarations(request, config_variants):
     return out
 
 
+@pytest.mark.workflow_contract
 def test_optional_basin_keys_are_read_from_the_config_by_both(declarations):
     """Both declarations honour ``shared.basin.hydrography``/``basin_index``.
 
@@ -251,6 +252,7 @@ def test_optional_basin_keys_are_read_from_the_config_by_both(declarations):
             )
 
 
+@pytest.mark.workflow_contract
 def test_rule_exists_in_both_workflows(declarations):
     for label in ("wf1", "wf2", "wf3"):
         _workflow, rule = declarations[label]
@@ -258,6 +260,7 @@ def test_rule_exists_in_both_workflows(declarations):
         assert rule.name == RULE_NAME
 
 
+@pytest.mark.workflow_contract
 def test_declarations_are_identical(declarations):
     """Every compared directive matches across ALL declarations.
 
@@ -287,6 +290,7 @@ def test_declarations_are_identical(declarations):
     )
 
 
+@pytest.mark.workflow_contract
 def test_the_single_input_is_the_catalog(declarations):
     """Exactly one input, keyed ``catalog``, and NOT ancient() — ext2-01.
 
@@ -307,6 +311,7 @@ def test_the_single_input_is_the_catalog(declarations):
         )
 
 
+@pytest.mark.workflow_contract
 def test_outputs_are_the_store_artifacts(declarations):
     """The era5 seed branch declares the extraction plus its region record."""
     for label in ("wf1", "wf2", "wf3"):
@@ -321,6 +326,7 @@ def test_outputs_are_the_store_artifacts(declarations):
         ), label
 
 
+@pytest.mark.workflow_contract
 def test_retired_declarations_are_gone(declarations):
     """No wf1-only store, and no rule anywhere writes under ``wf1_raw/``."""
     wf1_workflow, _ = declarations["wf1"]
@@ -335,6 +341,7 @@ def test_retired_declarations_are_gone(declarations):
     assert not stale, f"rules still writing into the retired wf1_raw store: {stale}"
 
 
+@pytest.mark.workflow_contract
 def test_guard_keeps_its_receipt_but_loses_its_edge(declarations):
     """Rule 3.00b is untouched; only rule 3.02's DAG edge to ``.guard_ok`` retires."""
     wf3_workflow, producer = declarations["wf3"]
@@ -348,6 +355,7 @@ def test_guard_keeps_its_receipt_but_loses_its_edge(declarations):
     assert not any("region.geojson" in path for path in producer_inputs)
 
 
+@pytest.mark.workflow_contract
 def test_chirps_branch_declares_and_consumes_one_orography_path(tmp_path):
     """R07 standardises the sidecar on ``orography.nc``, producer and consumer.
 

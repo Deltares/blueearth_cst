@@ -3,7 +3,7 @@
 Unit-level, with no model and no snakemake: the module takes a plain
 ``xr.Dataset`` precisely so it can be tested this way, and that seam is what
 keeps the source side model-free (the P4 property
-``tests/test_plot_climate_source.py`` pins end to end).
+``tests/test_plot_climate_source.py`` pins in the real Snakemake DAG).
 """
 
 from __future__ import annotations

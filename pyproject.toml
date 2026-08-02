@@ -37,6 +37,8 @@ pythonpath = ["."]
 # only the marker's DECLARATION moves.
 markers = [
     "integration: end-to-end workflow test; opt-in via --run-integration",
+    "workflow_contract: Snakemake CLI/API/DAG or lifecycle contract test",
+    "process_isolation: non-Snakemake test that requires fresh Python processes",
 ]
 
 # -ra shows the reason for every non-passing outcome, skips included. CI already

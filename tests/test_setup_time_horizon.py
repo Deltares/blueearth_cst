@@ -7,7 +7,6 @@ R3 may rename the module; tests pin behavior, not names.
 """
 from __future__ import annotations
 
-import sys
 import types
 
 import pytest
@@ -38,12 +37,17 @@ class _FakeWflowSbmModel:
         self.staticmaps = _FakeStaticmaps(size)
 
 
-sys.modules.setdefault(
-    "hydromt_wflow",
-    types.SimpleNamespace(WflowSbmModel=_FakeWflowSbmModel),
-)
-
 from blueearth_cst.shared import setup_time_horizon  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _stub_wflow_model(monkeypatch):
+    """Keep the fake independent of whether another test imported Hydromt first."""
+    monkeypatch.setattr(
+        setup_time_horizon,
+        "WflowSbmModel",
+        _FakeWflowSbmModel,
+    )
 
 
 def _read_yaml(path):

@@ -100,6 +100,7 @@ def fabricated_project(tmp_path):
 
 
 @pytest.mark.skipif(shutil.which("snakemake") is None, reason="snakemake not on PATH")
+@pytest.mark.workflow_contract
 def test_delete_all_output_removes_the_declared_plot_outputs(fabricated_project):
     cfg_path, expected, undeclared = fabricated_project
     assert all(p.is_file() for p in expected)
@@ -162,6 +163,7 @@ def project_with_basavg_outvar(tmp_path):
 
 
 @pytest.mark.skipif(shutil.which("snakemake") is None, reason="snakemake not on PATH")
+@pytest.mark.workflow_contract
 def test_delete_all_output_removes_a_basavg_figure(project_with_basavg_outvar):
     cfg_path, basavg, undeclared = project_with_basavg_outvar
 

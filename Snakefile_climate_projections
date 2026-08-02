@@ -15,6 +15,7 @@ from snakemake.exceptions import WorkflowError
 sys.path.insert(0, str(Path(workflow.basedir)))
 from blueearth_cst.shared.provenance import effective_config_digest, short_digest, snapshot_bundle_digest
 from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_spec, get_config, patch_psutil_windows_benchmark, rule_banner, target_banner, warn_if_project_dir_in_repo
+from blueearth_cst.projections.gridded_outputs import RemovedGriddedOutputsError, validate_removed_gridded_options
 
 # Windows: make Snakemake's benchmark memory/IO/CPU metrics work (else all NA).
 patch_psutil_windows_benchmark()
@@ -136,20 +137,12 @@ time_horizon_hist = list(REFERENCE_WINDOW.effective)
 # failure the 5e rename was written to avoid. `false` is accepted with a warning,
 # because it requests precisely what the workflow now always does -- there is no
 # point breaking every shipped config over a key that agreed with us.
-for _dead_key in ("save_grids", "save_gridded"):
-    if _dead_key in my_cfg:
-        if my_cfg[_dead_key]:
-            raise WorkflowError(
-                f"climate_projections: `{_dead_key}: true` -- the gridded outputs "
-                "were removed (S8-08c). `raw/{series_key}.nc` is the basin slice on "
-                "the source grid and is always written, so the gridded series was a "
-                "near-duplicate of it. Remove the key from your config."
-            )
-        print(
-            f"WARNING climate_projections: `{_dead_key}` is obsolete and ignored "
-            "(S8-08c); the gridded outputs were removed. Delete the key.",
-            file=sys.stderr,
-        )
+try:
+    _gridded_warnings = validate_removed_gridded_options(my_cfg)
+except RemovedGriddedOutputsError as _error:
+    raise WorkflowError(str(_error)) from None
+for _warning in _gridded_warnings:
+    print(_warning, file=sys.stderr)
 
 # Step 5d: the statistic set. OPTIONAL and unset in every shipped config, so the
 # config snapshot -- one of the 15 manifest targets, fingerprinted by sha256 --

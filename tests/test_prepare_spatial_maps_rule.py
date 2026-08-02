@@ -6,6 +6,8 @@ import re
 import subprocess
 from pathlib import Path
 
+import pytest
+
 
 REPO = Path(__file__).resolve().parents[1]
 SNAKEFILE = REPO / "Snakefile_model_creation"
@@ -65,6 +67,7 @@ def test_prepare_spatial_maps_rule_and_script_are_wflow_independent():
     )
 
 
+@pytest.mark.workflow_contract
 def test_spatial_only_dry_run_has_no_wflow_edge():
     """A direct target schedules exactly P1, not the existing model build."""
     result = subprocess.run(
