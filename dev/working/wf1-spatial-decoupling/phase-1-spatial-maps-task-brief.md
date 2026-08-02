@@ -87,6 +87,14 @@ Add a targetable Snakemake rule named `prepare_spatial_maps` that creates analys
 | `feat(spatial): build the engine-neutral spatial products` | `blueearth_cst/spatial/**`, geospatial tests | Same inputs produce the same grid, partition, IDs, and registry independent of input row order |
 | `feat(wf1): add the prepare_spatial_maps rule` | `Snakefile_model_creation`, DAG tests, workflow contract | Spatial-only target is independently runnable and contains no Wflow edge |
 
+### Progress
+
+- [x] Reconciled and landed the overlapping `feat/wf1-improvements` branch.
+- [x] Define and validate the neutral config and deterministic identity contract.
+- [x] Build the engine-neutral spatial products.
+- [x] Add and validate the `prepare_spatial_maps` rule.
+- [x] Produce the adapter proof and pause at master Gate 1.
+
 ### Validation
 
 1. **Per edit — narrow:** unit tests for config parsing, point snapping, duplicate rejection, per-basin fallback selection, automatic ceiling, deterministic ordering, identity generation, and registry/schema validation.

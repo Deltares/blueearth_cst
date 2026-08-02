@@ -146,7 +146,7 @@ VOLATILE_NC_ATTRS = frozenset({
 # Snakefile_climate_projections, Snakefile_climate_experiment — plus the one
 # beyond-`rule all` discharge target (see module docstring / ADR 0001).
 # R07 (dev/milestones/r07/migration_project-layout.md §3a is the authority; this list is
-# written FROM that table). 15 live targets: all 15 change manifest key via the
+# written FROM that table). 14 live targets: all 14 change manifest key via the
 # examples/ -> test_case/ rename, 10 also move within the tree, 3 change
 # content. Retargeted here, in the fixture-rename commit, as the SOLE owner of
 # this edit -- so "the baseline blackout starts at commit 4" is literally true
@@ -161,7 +161,7 @@ TARGETS: list[tuple[str, str, str]] = [
     # plots/ tree by DEPICTED subject: model inputs, the model, the run.
     ("model_creation", "png",  "{project_dir}/hydrology_model/evaluation/plots/hydro_wflow_1.png"),
     ("model_creation", "png",  "{project_dir}/hydrology_model/plots/basin_area.png"),
-    ("model_creation", "png",  "{project_dir}/hydrology_model/forcing/plots/precip.png"),
+    ("model_creation", "png",  "{project_dir}/hydrology_model/forcing/plots/forcing_precip_map.png"),
     ("model_creation", "yaml", "{project_dir}/config/runs/snake_config_model_creation.yml"),
     # Unmoved within the tree (prefix change only) -- and exception 3(d)
     # requires it to stay that way: if discharge moves at all, stop.
@@ -313,8 +313,9 @@ def read_discharge_series(path: str) -> tuple[list[str], np.ndarray, str]:
     """Parse a Wflow `output.csv` (or a stored reduced reference series).
 
     Returns (time_strings, q_values, column_name). The first column is the time
-    index; the discharge column is the sole remaining column, or — if several are
-    present — the sole one named ``Q``/``Q_*``. Raises on ambiguity.
+    index; the discharge column is the sole remaining column, the sole one named
+    ``Q``/``Q_*``, or the primary outlet identified by the sibling deterministic
+    ``staticgeoms/outlet_index.csv`` crosswalk. Raises on ambiguity.
     """
     df = pd.read_csv(path)
     if df.shape[1] < 2:
@@ -324,11 +325,39 @@ def read_discharge_series(path: str) -> tuple[list[str], np.ndarray, str]:
         col = value_cols[0]
     else:
         q_cols = [c for c in value_cols if c == "Q" or str(c).startswith("Q_")]
-        if len(q_cols) != 1:
+        if not q_cols:
             raise ValueError(
                 f"{path}: cannot identify the discharge column among {value_cols}"
             )
-        col = q_cols[0]
+        if len(q_cols) == 1:
+            col = q_cols[0]
+        else:
+            model_root = Path(path).parent.parent
+            outlet_index_path = model_root / "staticgeoms" / "outlet_index.csv"
+            if not outlet_index_path.is_file():
+                raise ValueError(
+                    f"{path}: cannot identify the primary outlet discharge among "
+                    f"{q_cols}; missing {outlet_index_path}"
+                )
+            outlets = pd.read_csv(outlet_index_path)
+            required = {"compat_station_name", "subcatchment_id"}
+            missing = sorted(required.difference(outlets.columns))
+            if missing:
+                raise ValueError(
+                    f"{outlet_index_path}: missing primary-outlet columns {missing}"
+                )
+            primary = outlets.loc[outlets["compat_station_name"].eq("wflow_1")]
+            if len(primary) != 1:
+                raise ValueError(
+                    f"{outlet_index_path}: expected exactly one wflow_1 row"
+                )
+            expected = f"Q_{int(primary.iloc[0]['subcatchment_id'])}"
+            if expected not in q_cols:
+                raise ValueError(
+                    f"{path}: primary outlet {expected} from {outlet_index_path} "
+                    f"is absent from discharge columns {q_cols}"
+                )
+            col = expected
     times = df[df.columns[0]].astype(str).tolist()
     q = pd.to_numeric(df[col], errors="coerce").to_numpy(dtype=float)
     return times, q, str(col)

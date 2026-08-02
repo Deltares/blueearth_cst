@@ -87,7 +87,7 @@ def test_snakefile_cli_model_creation_linux_config():
     config and the Docker runner. Linux *end-to-end* validation stays parked
     (no Linux machine), but parse-level consistency is cheap and is exactly
     what a silently-broken config would fail: DAG build resolves every
-    config-declared path, so a dangling `output_locations` would surface here.
+    config-declared path, so a dangling `gauge_points` would surface here.
     Runs on both CI legs.
     """
     result = _dry_run("Snakefile_model_creation", cfg=linux_config_fn)
@@ -157,10 +157,17 @@ def test_observation_configs_use_yaml_null():
     for cfg_path in (config_fn, linux_config_fn):
         with open(cfg_path) as f:
             cfg = yaml.safe_load(f)
+        basin = cfg["shared"]["basin"]
         mc = cfg["workflows"]["model_creation"]
-        for key in ("output_locations", "observations_timeseries"):
-            assert mc[key] is None, (
-                f"{cfg_path}:{key} is {mc[key]!r}; shipped configs use YAML "
+        values = {
+            "shared.basin.gauge_points": basin["gauge_points"],
+            "workflows.model_creation.observations_timeseries": mc[
+                "observations_timeseries"
+            ],
+        }
+        for key, value in values.items():
+            assert value is None, (
+                f"{cfg_path}:{key} is {value!r}; shipped configs use YAML "
                 f"null, not the legacy 'None' string"
             )
 

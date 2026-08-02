@@ -249,9 +249,9 @@ def test_the_shipped_sentinel_yields_no_layer():
     from blueearth_cst.shared.gauges import gauges_layer_name
 
     cfg = yaml.safe_load(CONFIG_FN.read_text(encoding="utf-8"))
-    sentinel = cfg["workflows"]["model_creation"]["output_locations"]
+    sentinel = cfg["shared"]["basin"]["gauge_points"]
     assert sentinel in (None, "None"), (
-        f"unexpected output_locations sentinel {sentinel!r} — if the config now "
+        f"unexpected gauge_points sentinel {sentinel!r} — if the config now "
         f"names a real file this test needs rethinking, not relaxing"
     )
     assert gauges_layer_name(_GEOMS, sentinel) is None

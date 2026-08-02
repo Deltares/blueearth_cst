@@ -10,8 +10,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 import hydromt
-from hydromt.gis import GeoDataset
-from hydromt.readers import open_timeseries_from_table, open_vector
+from hydromt.readers import open_timeseries_from_table
 from hydromt_wflow import WflowSbmModel
 
 from typing import Union
@@ -27,6 +26,9 @@ from blueearth_cst.climate_analysis.subcatchment_climate import climate_forcing_
 from blueearth_cst.shared.climate_parity import model_parity_climate
 from blueearth_cst.shared.gauges import gauges_layer_name, gauges_variable_name
 from blueearth_cst.shared.snake_utils import log_row
+from blueearth_cst.model.observation_validation import (
+    validate_observation_station_ids,
+)
 
 
 def _log(message):
@@ -38,6 +40,7 @@ def analyse_wflow_historical(
     project_dir: Path,
     observations_fn: Union[Path, str] = None,
     gauges_locs: Union[Path, str] = None,
+    location_registry: Union[Path, str] = None,
     climate_nc: Union[Path, str] = None,
     oro_nc: Union[Path, str] = None,
     data_sources: Union[Path, str] = None,
@@ -89,6 +92,8 @@ def analyse_wflow_historical(
         Required columns: wflow_id, station_name, x, y.
         Values in wflow_id column should match column names in ``observations_fn``.
         Separator is , and decimal is .
+    location_registry : Union[Path, str], optional
+        Resolved P1 registry used to validate observation station IDs.
     climate_nc : Union[Path, str], optional
         Path to the shared store's climate extraction
         (``climate_historical/<key>/extract_historical.nc``, R07 B1). When absent
@@ -137,15 +142,15 @@ def analyse_wflow_historical(
     if observations_fn is not None and os.path.exists(observations_fn):
         has_observations = True
 
-        # Read
-        gdf_obs = open_vector(gauges_locs, crs=4326, sep=",")
+        if location_registry is None or not os.path.isfile(location_registry):
+            raise ValueError(
+                "configured observations require the resolved location_registry"
+            )
+        validate_observation_station_ids(observations_fn, location_registry)
         da_ts_obs = open_timeseries_from_table(
             observations_fn, name="Q", index_dim="wflow_id", sep=";"
         )
-        ds_obs = GeoDataset.from_gdf(gdf_obs, da_ts_obs, merge_index="inner")
-        # Rename wflow_id to index
-        ds_obs = ds_obs.rename({"wflow_id": "index"})
-        qobs = ds_obs["Q"].load()
+        qobs = da_ts_obs.rename({"wflow_id": "index"}).load()
 
     ### 3. Read the wflow model and results ###
     # Instantiate wflow model
@@ -379,6 +384,7 @@ if __name__ == "__main__":
                 project_dir=sm.params.project_dir,
                 observations_fn=getattr(sm.input, "observations_timeseries", None),
                 gauges_locs=getattr(sm.input, "output_locations", None),
+                location_registry=sm.input.location_registry,
                 climate_nc=sm.input.climate_nc,
                 # declared only on the chirps/chirps_global branch (ext2-1)
                 oro_nc=getattr(sm.input, "oro_nc", None),
@@ -390,4 +396,5 @@ if __name__ == "__main__":
             project_dir=join(os.getcwd(), "test_case", "my_project"),
             observations_fn=None,
             gauges_locs=None,
+            location_registry=None,
         )

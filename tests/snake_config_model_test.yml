@@ -12,6 +12,9 @@ shared:
   basin:
     region: "{'subbasin': [9.738, 0.4212], 'uparea': 70}"
     resolution: 0.0062475
+    gauge_points: null
+    automatic_subbasins:
+      max_count: 20
   historical_window:
     # >= snake_utils.MIN_HISTORICAL_YEARS (16), or every dry-run test in this
     # suite reds at parse time. Was 2015..2020 (6 years) until 2026-08-01, when
@@ -39,7 +42,6 @@ workflows:
     # never existed. The suite passed anyway -- empirical proof that both
     # consumers guard on file EXISTENCE, not on the value. Made honest here
     # rather than left as an accidental pass.
-    output_locations: null
     observations_timeseries: null
 
   climate_projections:

@@ -16,8 +16,6 @@ import pytest
 
 import re
 
-import yaml  # noqa: E402
-
 import blueearth_cst.shared.snake_utils as su  # noqa: E402
 from blueearth_cst.shared.snake_utils import (  # noqa: E402
     _Heartbeat,
@@ -655,21 +653,15 @@ def test_climate_store_spec_params_carry_the_content_surface():
     assert spec.params["endtime"] == _WINDOW["endtime"]
 
 
-def test_climate_store_spec_hydrography_defaults_match_the_build_template():
-    """Absent config keys default to the shipped template's setup_basemaps values."""
-    spec = _spec()
-    assert spec.params["hydrography"] == "merit_hydro_ihu"
-    assert spec.params["basin_index"] == "merit_hydro_index"
+def test_climate_store_spec_hydrography_defaults_match_the_spatial_contract():
+    """Climate extraction and P1 share one model-neutral source default."""
+    from blueearth_cst.spatial.config import parse_spatial_config
 
-    template = yaml.safe_load(
-        (Path(__file__).resolve().parents[1]
-         / "config" / "templates" / "wflow_build_model.yml").read_text(encoding="utf-8")
-    )
-    basemaps = next(
-        step["setup_basemaps"] for step in template["steps"] if "setup_basemaps" in step
-    )
-    assert basemaps["hydrography_fn"] == spec.params["hydrography"]
-    assert basemaps["basin_index_fn"] == spec.params["basin_index"]
+    spec = _spec()
+    spatial = parse_spatial_config({"region": {"basin": [0, 0]}}, {})
+
+    assert spec.params["hydrography"] == spatial.hydrography == "merit_hydro_ihu"
+    assert spec.params["basin_index"] == spatial.basin_index == "merit_hydro_index"
 
 
 def test_climate_store_spec_overrides_are_carried_through():

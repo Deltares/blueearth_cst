@@ -1,8 +1,8 @@
 {
   "project_dir": "test_case/test_local",
   "recorded_by": {
-    "branch": "main",
-    "commit": "95da3646de533f864bb8f9a9df630c3053f9498b",
+    "branch": "feat/wf1-spatial-decoupling",
+    "commit": "655301d00b40aa8a575ea436d2a42f22a6edd867",
     "dirty": true
   },
   "targets": {
@@ -36,7 +36,7 @@
       "type": "yaml"
     },
     "test_case/test_local/config/runs/snake_config_model_creation.yml": {
-      "sha256": "999549ea292f4f3d27dd6374c82ce88d837092723c815b13a49ddb5232b67a4b",
+      "sha256": "48242f483146c02ae16b0739cbea74d40593b21876c9f4d3d96294eb2d6f1c2d",
       "type": "yaml"
     },
     "test_case/test_local/experiments/experiment/config/snake_config_climate_experiment.yml": {
@@ -55,22 +55,22 @@
     },
     "test_case/test_local/hydrology_model/evaluation/plots/hydro_wflow_1.png": {
       "exists": true,
-      "size_bytes": 299993,
+      "size_bytes": 297819,
       "type": "png"
     },
-    "test_case/test_local/hydrology_model/forcing/plots/precip.png": {
+    "test_case/test_local/hydrology_model/forcing/plots/forcing_precip_map.png": {
       "exists": true,
-      "size_bytes": 302790,
+      "size_bytes": 145066,
       "type": "png"
     },
     "test_case/test_local/hydrology_model/plots/basin_area.png": {
       "exists": true,
-      "size_bytes": 285813,
+      "size_bytes": 287854,
       "type": "png"
     },
     "test_case/test_local/hydrology_model/run_default/output.csv": {
-      "column": "Q_130000086",
-      "mean_ref": 10.94602352,
+      "column": "Q_101",
+      "mean_ref": 10.94766158,
       "n_rows": 7670,
       "ref_series": "discharge_ref/98aacecbe4a5f235.csv",
       "type": "discharge"
