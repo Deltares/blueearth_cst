@@ -69,3 +69,25 @@ def test_snapshot_identity_includes_resolved_and_referenced_settings(snakefile_n
     assert "ADVANCED_SETTINGS" in text
     assert "config_path" in text
     assert "_config_snapshot_references" in text
+
+
+@pytest.mark.parametrize(
+    "snakefile_name",
+    [
+        "Snakefile_model_creation",
+        "Snakefile_climate_projections",
+        "Snakefile_climate_experiment",
+    ],
+)
+def test_bundle_directory_is_named_with_the_short_digest(snakefile_name):
+    """One naming length for the bundle dir and the files inside it.
+
+    The directory used to carry the full 64-hex digest while its own archived
+    files used 12 — unreadable on the outside, inconsistent on the inside. The
+    length now lives in ``provenance.SHORT_DIGEST_CHARS``; this keeps any one
+    workflow from drifting back to the raw digest.
+    """
+    text = (REPO / snakefile_name).read_text(encoding="utf-8")
+
+    assert "short_digest(CONFIG_SNAPSHOT_DIGEST)" in text
+    assert "{CONFIG_SNAPSHOT_DIGEST}" not in text

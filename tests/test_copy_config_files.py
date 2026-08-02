@@ -8,11 +8,13 @@ templates/, generated/). These pin the new contract.
 
 
 import json
+from pathlib import Path
 
 import pytest
 import yaml
 
 from blueearth_cst.model.copy_config_files import copy_config_files  # noqa: E402
+from blueearth_cst.shared.provenance import SHORT_DIGEST_CHARS  # noqa: E402
 
 
 @pytest.fixture()
@@ -213,6 +215,45 @@ def test_writes_effective_config_bundle_and_archives_references(tmp_path, source
     assert logical_entry["status"] == "logical_identifier"
     assert logical_entry["archived_path"] is None
     assert logical_entry["sha256"] is None
+
+    # An archived file is named by the SHARED naming length, not by a literal
+    # 12 that could drift away from the directory it sits in.
+    archived_name = Path(catalog_entry["archived_path"]).name
+    assert archived_name == (
+        f"{catalog_entry['sha256'][:SHORT_DIGEST_CHARS]}-{catalog.name}"
+    )
+
+
+def test_the_bundle_announces_itself(tmp_path, sources, capsys):
+    """The bundle used to be written in silence, so it was found by accident."""
+    snake, catalog, _template = sources
+    cfg = tmp_path / "project" / "config"
+    snapshot_dir = cfg / "runs" / "model_creation" / "bundle-digest"
+
+    copy_config_files(
+        config=snake,
+        config_out_path=cfg / "runs" / "snake_config_model_creation.yml",
+        other_config_files={str(catalog): str(cfg / "catalogs")},
+        snapshot_dir=snapshot_dir,
+        effective_config={"project": {"project_dir": "somewhere"}},
+        advanced_settings={"constraints": {}, "defaults": {}, "runtime": {}},
+        workflow_name="model_creation",
+    )
+
+    manifest = json.loads(
+        (snapshot_dir / "referenced-files.json").read_text(encoding="utf-8")
+    )
+    row = [
+        line
+        for line in capsys.readouterr().out.splitlines()
+        if "Config snapshot bundle" in line
+    ]
+    assert len(row) == 1
+    # Both forms: the path to go look at, and the full digest the manifest
+    # records — the short directory name alone cannot be compared to another
+    # bundle's identity.
+    assert str(snapshot_dir) in row[0]
+    assert manifest["snapshot_bundle_sha256"] in row[0]
 
 
 def test_snapshot_bundle_is_deterministic(tmp_path, sources):

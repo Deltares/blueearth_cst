@@ -8,7 +8,7 @@ from pathlib import Path
 # directory by prepending this Snakefile's own directory to sys.path.
 # See dev/milestones/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
-from blueearth_cst.shared.provenance import snapshot_bundle_digest
+from blueearth_cst.shared.provenance import short_digest, snapshot_bundle_digest
 from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_spec, file_digest_or_absent, get_config, patch_psutil_windows_benchmark, rule_banner, stress_test_grid, target_banner, validate_experiment_name, warn_if_project_dir_in_repo
 
 # Windows: make Snakemake's benchmark memory/IO/CPU metrics work (else all NA).
@@ -127,7 +127,7 @@ CONFIG_SNAPSHOT_DIGEST = snapshot_bundle_digest(
     _config_snapshot_references,
 )
 CONFIG_SNAPSHOT_DIR = (
-    f"{exp_dir}/config/runs/climate_experiment/{CONFIG_SNAPSHOT_DIGEST}"
+    f"{exp_dir}/config/runs/climate_experiment/{short_digest(CONFIG_SNAPSHOT_DIGEST)}"
 )
 
 # --- The two symmetric engine subtrees inside the experiment (R07 B5/B6/B7) ---
