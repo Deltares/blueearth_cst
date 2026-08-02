@@ -241,7 +241,11 @@ def test_product_writer_round_trips_every_catalog_entry(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(products_module, "_region_geometry", lambda *_: region)
 
-    product = prepare_spatial_products(_config(), _FakeCatalog(source, rivers))
+    # ADR 0003: the region arrives as a declared input path; _region_geometry
+    # is stubbed above, so the value is only passed through.
+    product = prepare_spatial_products(
+        _config(), _FakeCatalog(source, rivers), "region.geojson"
+    )
     assert product.subbasins.geometry.is_valid.all()
     assert product.catchments.geometry.is_valid.all()
     # Exercise CF decoding of integer nodata: xarray reopens _FillValue=0 as

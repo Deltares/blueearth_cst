@@ -59,9 +59,12 @@ per artifact (a literal 14-column table is illegible).
   (`blueearth_cst/climate_analysis/extract_historical_climate.py`) — ONE rule,
   declared identically in `Snakefile_climate_experiment` (3.02) and
   `Snakefile_model_creation` (1.10) from `snake_utils.climate_store_spec`
-  (R07 B1). Its only input is the data catalog; the extent is delineated
-  model-free from `shared.basin` and recorded beside the extraction as
-  `store_region.geojson`.
+  (R07 B1). Its inputs are the data catalog and the project region artifact
+  `spatial/geoms/region.geojson`; the extent is still model-free, but it is
+  delineated once per project by rule `delineate_region` (ADR 0003) rather
+  than per store key. The store records the extent it cut to in the
+  extraction's own attributes (`region_bbox`, `region_geojson_sha256`,
+  `region_source`).
 - **consumer:** rule 3.06 `generate_weather_realization` (weathergenr
   `generate_weather.R`), passed in as `climate_nc`.
 - **dims:** `(time, latitude, longitude)`.
@@ -257,9 +260,12 @@ inventory is intentional, not an oversight (design §5.2, risk-5 / arch-7):
 - `experiments/<exp>/weather_generator/output/{sim_dates.csv, resampled_dates.csv}` —
   weathergenr-internal run diagnostics. Verified: neither name appears as a
   produced or consumed path in any Snakefile, Python module, or R script.
-- `climate_historical/<key>/store_region.geojson` (rule `extract_climate_grid`,
-  R07 B1) — the delineated polygon the extraction bbox came from. Provenance
-  for WG-1, with no downstream DAG-tracked consumer.
+- `spatial/geoms/region.geojson` (rule `delineate_region`, ADR 0003) - the
+  delineated polygon the extraction bbox came from. Provenance for WG-1. It
+  IS a DAG-tracked input of `extract_climate_grid` and of rule 1.02; what
+  has no DAG-tracked consumer is the extraction's `region_*` attributes,
+  which record the same fact inside the data. Retired with ADR 0003: the
+  per-store-key `climate_historical/<key>/store_region.geojson`.
   *(The pre-R07 `climate_historical/wf1_raw/extract_historical.nc`, rule 1.10
   `extract_climate_grid_wf1`, was retired by B1: wf1's model-parity plots now
   read WG-1 itself.)*

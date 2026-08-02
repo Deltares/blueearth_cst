@@ -19,7 +19,8 @@ used from three places:
 
 Why the polygon is fingerprinted by **content** and not by the region
 specification (design D9 / finding ext2-01): a delineation-catalog change can
-rewrite ``store_region.geojson`` while ``shared.basin.region`` is unchanged, so a
+rewrite ``spatial/geoms/region.geojson`` while ``shared.basin.region`` is
+unchanged, so a
 specification-based digest recomputes to the same value and a series computed for
 the old polygon stays eligible for reuse.
 

@@ -56,6 +56,10 @@ class _FakeDataset:
             values=np.datetime64("1980-01-01") + np.arange(n) * np.timedelta64(365, "D"),
         )
         self._tonetcdf_calls = []
+        # ADR 0003: the producer stamps the extent provenance on the extraction
+        # (region_bbox / region_geojson_sha256 / region_source), so the fake has
+        # to carry an attrs mapping like a real Dataset.
+        self.attrs = {}
 
     def __getitem__(self, key):
         return _FakeDataArray(key)

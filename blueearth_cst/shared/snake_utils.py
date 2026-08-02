@@ -764,6 +764,84 @@ DEFAULT_BASIN_INDEX = "merit_hydro_index"
 #: (``script:`` resolves against ``workflow.basedir``).
 CLIMATE_STORE_SCRIPT = "blueearth_cst/climate_analysis/extract_historical_climate.py"
 
+#: The region producer's script (ADR 0003), same resolution rule as above.
+REGION_SCRIPT = "blueearth_cst/spatial/delineate_region.py"
+
+
+@dataclass(frozen=True)
+class RegionSpec:
+    """The producer contract for the one project region artifact (ADR 0003).
+
+    Same shape and same purpose as :class:`ClimateStoreSpec`: all three
+    workflows declare ``delineate_region`` from this object, so the three rule
+    bodies cannot drift apart.
+    """
+
+    region_geojson: str
+    script: str
+    inputs: Mapping
+    outputs: Mapping
+    params: Mapping
+
+
+def region_spec(
+    project_dir,
+    model_region,
+    data_sources,
+    hydrography=DEFAULT_HYDROGRAPHY,
+    basin_index=DEFAULT_BASIN_INDEX,
+) -> RegionSpec:
+    """Build the one producer contract for ``spatial/geoms/region.geojson``.
+
+    ONE rule definition, declared in all three workflows (``1.01b`` / ``2.03b``
+    / ``3.01b``), over the ONE delineation of ``shared.basin.region``. Before
+    ADR 0003 the polygon was derived twice — by rule 1.02 on its way to
+    ``basins.geojson``, and per climate-store key as ``store_region.geojson`` —
+    and WF2 ran the whole climate-store producer to obtain it.
+
+    The artifact lives in ``spatial/geoms/`` beside ``basins.geojson``,
+    ``catchments.geojson`` and ``locations.geojson``: that is where this project
+    keeps the vector description of where the model is.
+
+    Model-free by construction, which is the property R07 B1 bought for the
+    climate store and this must preserve — the single declared input is the data
+    catalog, and the params carry only the region specification and the two
+    catalog ENTRY NAMES (not paths) for the delineation.
+
+    Parameters
+    ----------
+    project_dir : str
+        ``project.project_dir``.
+    model_region : str | Mapping
+        ``shared.basin.region`` — the hydromt region specification (usually a
+        Python-dict-literal string). Carried in ``params``, never resolved here.
+    data_sources : str
+        ``project.data_sources`` — the hydromt catalog path. The single declared
+        input.
+    hydrography, basin_index : str
+        ``shared.basin.hydrography`` / ``shared.basin.basin_index`` — catalog
+        entry names for the delineation. The defaults equal the shipped build
+        template's ``setup_basemaps`` values; rule 1.02 fails loud if the two
+        ever disagree.
+
+    Returns
+    -------
+    RegionSpec
+        ``region_geojson``, ``script``, ``inputs``, ``outputs``, ``params``.
+    """
+    region_geojson = f"{project_dir}/spatial/geoms/region.geojson"
+    return RegionSpec(
+        region_geojson=region_geojson,
+        script=REGION_SCRIPT,
+        inputs={"catalog": data_sources},
+        outputs={"region_geojson": region_geojson},
+        params={
+            "model_region": model_region,
+            "hydrography": hydrography,
+            "basin_index": basin_index,
+        },
+    )
+
 
 @dataclass(frozen=True)
 class ClimateStoreSpec:
@@ -864,11 +942,6 @@ def climate_store_spec(
 
     outputs = {
         "climate_nc": f"{store_dir}/extract_historical.nc",
-        # The delineated polygon, on disk as the record of where the bbox came
-        # from (design § B1). Safe inside the guarded store dir: rule 3.00b
-        # compares config digests and writes two *named* sentinels; it never
-        # enumerates the directory.
-        "region_geojson": f"{store_dir}/store_region.geojson",
     }
     if clim_source in ("chirps", "chirps_global"):
         # Resolved at parse time from clim_historical, so there are no dynamic
@@ -879,7 +952,21 @@ def climate_store_spec(
     return ClimateStoreSpec(
         store_dir=store_dir,
         script=CLIMATE_STORE_SCRIPT,
-        inputs={"catalog": data_sources},
+        # Two declared inputs since ADR 0003. The catalog is the store's
+        # freshness boundary (ext2-01); the region is the extent it cuts to,
+        # produced once per project by `delineate_region` rather than
+        # re-delineated per store key. `region_spec` owns the path, so the two
+        # helpers cannot disagree about where the polygon lives.
+        inputs={
+            "catalog": data_sources,
+            "region_geojson": region_spec(
+                project_dir,
+                model_region,
+                data_sources,
+                hydrography=hydrography,
+                basin_index=basin_index,
+            ).region_geojson,
+        },
         outputs=outputs,
         params={
             "model_region": model_region,

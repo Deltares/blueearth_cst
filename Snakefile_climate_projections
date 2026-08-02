@@ -14,7 +14,7 @@ from snakemake.exceptions import WorkflowError
 # See dev/milestones/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
 from blueearth_cst.shared.provenance import effective_config_digest, short_digest, snapshot_bundle_digest
-from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_spec, get_config, patch_psutil_windows_benchmark, rule_banner, target_banner, warn_if_project_dir_in_repo
+from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, get_config, patch_psutil_windows_benchmark, region_spec, rule_banner, target_banner, warn_if_project_dir_in_repo
 from blueearth_cst.projections.gridded_outputs import RemovedGriddedOutputsError, validate_removed_gridded_options
 
 # Windows: make Snakemake's benchmark memory/IO/CPU metrics work (else all NA).
@@ -61,10 +61,11 @@ CONFIG_SNAPSHOT_DIR = (
     f"{project_dir}/config/runs/climate_projections/{short_digest(CONFIG_SNAPSHOT_DIGEST)}"
 )
 
-# The shared climate store's catalog is project.data_sources (deltares), NOT the
-# CMIP6 catalog above: the store is a hydrography/meteo extraction, not a
-# projections read. WF2 therefore reads BOTH catalogs — a divergence from the
-# pre-v2.0 workflow, which read only data_sources_climate.
+# The region delineation reads project.data_sources (deltares), NOT the CMIP6
+# catalog above: delineating a basin is a hydrography read, not a projections
+# read. WF2 therefore reads BOTH catalogs — a divergence from the pre-v2.0
+# workflow, which read only data_sources_climate. The name is historical: this
+# fed the climate store until ADR 0003 replaced it with the region rule.
 STORE_DATA_SOURCES = get_config(project_cfg, "data_sources", optional=False)
 
 # Shared — the model-free basin delineation the climate store extracts against.
@@ -174,28 +175,26 @@ MAX_FLAGGED_MONTHS = _relative_cfg.get(
 clim_project_dir = f"{project_dir}/climate_projections/{clim_project}"
 
 # ONE producer contract, built here and identically in Snakefile_model_creation
-# and Snakefile_climate_experiment, and splatted into rule 2.11 / 1.10 / 3.02.
-# Everything content- or execution-determining (script, the single catalog
-# input, outputs, params) comes from this object; only message/log/benchmark are
-# workflow-local. tests/test_climate_store_contract.py parses all three
-# workflows and fails on ANY other difference.
+# and Snakefile_climate_experiment, and splatted into rule 1.01b / 2.03b / 3.01b.
+# Everything content- or execution-determining comes from this object; only
+# message/log/benchmark are workflow-local. tests/test_region_spec.py parses all
+# three workflows and fails on ANY other difference.
 #
-# WF2 declares this producer to obtain store_region.geojson — a model-free
-# delineated polygon — so the workflow no longer depends on wf1's
-# hydrology_model/staticgeoms/region.geojson (design D2/A1, goal G2). The
-# gridded extraction it also produces is NOT read by wf2 v2.0 (design N7); that
-# cost is the accepted, stated price of A1, and it is a no-op whenever wf1 or
-# wf3 has already built the store.
-CLIMATE_STORE = climate_store_spec(
+# WF2 needs the model-free delineated polygon and nothing else — that is what
+# freed it from wf1's hydrology_model/staticgeoms/region.geojson (design D2/A1,
+# goal G2). Until ADR 0003 the only model-free source was the climate-store
+# producer, so WF2 declared the whole extraction to obtain a 3 kB outline and
+# the design recorded that as "the accepted, stated price of A1". The region is
+# now its own artifact, so WF2 declares this rule and no store: a
+# projections-only run does no climate extraction at all.
+REGION = region_spec(
     project_dir=project_dir,
     model_region=model_region,
-    clim_source=clim_source,
-    historical_window=historical_window,
     data_sources=STORE_DATA_SOURCES,
     hydrography=basin_hydrography,
     basin_index=basin_index,
 )
-region_path = CLIMATE_STORE.outputs["region_geojson"]
+region_path = REGION.region_geojson
 
 # --- series identity (migration step 2b; design §5.3, D9, D12) ----------------
 # The series files below stop being temp() and become a persistent product, so
@@ -594,33 +593,27 @@ rule all:
 # ambiguity it was insuring against: there is no longer a second stage-B rule that
 # could claim the same output.
 
-# 2.11  extract_climate_grid — the SHARED historical-climate store producer
-# (R07 B1). This declaration and rule 1.10 (Snakefile_model_creation) / rule
-# 3.02 (Snakefile_climate_experiment) are the same rule: identical name, script,
-# single catalog input, outputs and params, all splatted from CLIMATE_STORE.
-# Only message/log/benchmark are workflow-local.
+# 2.03b  delineate_region — the one project region artifact (ADR 0003).
+# Byte-identical to 1.01b and 3.01b except message/log/benchmark.
 #
-# WF2 consumes only `store_region.geojson` from it (design D2/A1). The gridded
-# extraction is not read here — see the CLIMATE_STORE comment above.
-#
-# DO NOT add a workflow-local input or param here: an asymmetric input set
-# re-creates the wf1<->wf3 re-extraction oscillation (design P2(b), ext1-02) and
-# is forbidden. The catalog input is deliberately PLAIN, not ancient(): it is
-# the store's freshness boundary (ext2-01).
-rule extract_climate_grid:
-    message: rule_banner("2.11", "extract_climate_grid")
+# This REPLACES rule 2.11 extract_climate_grid. WF2 declared the whole shared
+# climate-store producer to obtain the delineated polygon and never read the
+# gridded extraction it also wrote (design N7); a projections-only run paid for
+# a multi-decade extraction to learn a basin outline. The region is now its own
+# artifact, so WF2 declares the delineation alone.
+rule delineate_region:
+    message: rule_banner("2.03b", "delineate_region")
     input:
-        **CLIMATE_STORE.inputs,
+        **REGION.inputs,
     params:
-        **CLIMATE_STORE.params,
+        **REGION.params,
     output:
-        **CLIMATE_STORE.outputs,
+        **REGION.outputs,
     log:
-        f"{LOG_PARTS_DIR}/2.11_extract_climate_grid.log",
+        f"{LOG_PARTS_DIR}/2.03b_delineate_region.log",
     benchmark:
-        f"{project_dir}/benchmarks/_parts/2.11_extract_climate_grid.tsv",
-    script:
-        CLIMATE_STORE.script
+        f"{project_dir}/benchmarks/_parts/2.03b_delineate_region.tsv",
+    script: REGION.script
 
 # 2.03  snapshot_config — current copies + immutable effective-config bundle
 #

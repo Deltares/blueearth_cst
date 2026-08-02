@@ -6,7 +6,7 @@ from pathlib import Path
 # See dev/milestones/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
 from blueearth_cst.shared.provenance import short_digest, snapshot_bundle_digest
-from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_JULIA_THREADS, climate_store_spec, get_config, julia_prefix, patch_psutil_windows_benchmark, rule_banner, target_banner, validate_historical_window, warn_if_project_dir_in_repo
+from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_JULIA_THREADS, climate_store_spec, get_config, julia_prefix, patch_psutil_windows_benchmark, region_spec, rule_banner, target_banner, validate_historical_window, warn_if_project_dir_in_repo
 from blueearth_cst.spatial.config import parse_spatial_config
 # The canonical climate figure set (rules 1.13 and 1.15 both draw it). Imported
 # for figure_names() ONLY, so every figure is declared from the same list the
@@ -184,6 +184,22 @@ CLIMATE_STORE = climate_store_spec(
 )
 store_dir = CLIMATE_STORE.store_dir
 
+# --- The one project region artifact (ADR 0003) -------------------------------
+# Same pattern, same reason: ONE producer contract, built here and identically
+# in the other two workflows, splatted into rule 1.01b below. Only
+# message/log/benchmark are workflow-local, and
+# tests/test_region_spec.py parses all three workflows and fails on ANY other
+# difference. `shared.basin.region` used to be delineated twice per project —
+# here on the way to basins.geojson, and once per climate-store key — and WF2
+# ran the whole climate-store producer just to obtain the polygon.
+REGION = region_spec(
+    project_dir=project_dir,
+    model_region=model_region,
+    data_sources=DATA_SOURCES,
+    hydrography=basin_hydrography,
+    basin_index=basin_index,
+)
+
 # Rule numbering (comment headers + log/benchmark filenames) uses `W.NN` =
 # workflow.step in DEFINITION order — a reading and reference aid ("Rule 1.3" =
 # build_wflow_model), NOT guaranteed execution order. Snakemake resolves execution
@@ -291,12 +307,32 @@ rule snapshot_config:
     script:
         "blueearth_cst/model/copy_config_files.py"
 
+# 1.01b  delineate_region — the one project region artifact (ADR 0003).
+# Byte-identical to 2.03b and 3.01b except message/log/benchmark; everything
+# else is splatted from REGION so the three cannot drift.
+rule delineate_region:
+    message: rule_banner("1.01b", "delineate_region")
+    input:
+        **REGION.inputs,
+    params:
+        **REGION.params,
+    output:
+        **REGION.outputs,
+    log:
+        f"{LOG_PARTS_DIR}/1.01b_delineate_region.log",
+    benchmark:
+        f"{project_dir}/benchmarks/_parts/1.01b_delineate_region.tsv",
+    script: REGION.script
+
 # 1.02  prepare_spatial_maps — engine-neutral spatial foundation
 rule prepare_spatial_maps:
     message: rule_banner("1.02", "prepare_spatial_maps")
     input:
         config_snake = config_path,
         data_catalogs = DATA_SOURCES,
+        # ADR 0003: the delineation this rule used to do itself, now read from
+        # the one shared artifact so 1.02 and the climate store cannot disagree.
+        region_geojson = REGION.region_geojson,
         **_locations_input,
     output:
         spatial_maps = f"{project_dir}/spatial/spatial_maps.nc",
