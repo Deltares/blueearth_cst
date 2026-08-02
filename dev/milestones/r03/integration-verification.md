@@ -59,7 +59,7 @@ snakemake all -c 3 -s Snakefile_model_creation \
 ## Then seal (commit 11)
 
 - Update `dev/roadmap.md` R3 section to **sealed** with final suite counts.
-- Update `dev/reference/branches-and-tags.md` with the `r03-model-builder` branch/tag.
+- Update `dev/reference/git-conventions.md` with the `r03-model-builder` branch/tag.
 - Tag `r03-model-builder`.
 
 ## Not part of R3 (do not do here)

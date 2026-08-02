@@ -1,0 +1,154 @@
+# Git conventions — branches, tags, and commits
+
+Two things: an inventory of the repo's **durable** refs and what each one is
+for, then the conventions that govern new branches, tags, and commit messages.
+Transient branches (`exp/*`, `feat/*`, `pr/*`) don't belong in the inventory.
+
+The conventions below moved here from `dev/roadmap.md` on 2026-08-02 — this
+file used to point *back* at the roadmap for them, which meant the rules and
+the inventory lived apart. `roadmap.md` is now the phase narrative only.
+
+Inventory last updated: 2026-07-19.
+
+## Durable branches
+
+| Branch                           | Role                                                                                       |
+| -------------------------------- | ------------------------------------------------------------------------------------------ |
+| `main`                           | Moving trunk and GitHub default. All milestones merge here. The only branch that is pushed routinely. |
+| `upstream-deltares`              | Frozen upstream Deltares state at fork-renaming time. **Never commit to it.**              |
+| `base/v0.1.0-alpha`              | Frozen historical starting point of the fork.                                              |
+| `milestone/01-replication`       | Sealed Phase 1 milestone (kept alive for late patches / PR prep).                          |
+| `milestone/02-pixi-installation` | Sealed Phase 1 milestone.                                                                  |
+| `milestone/02b-library-upgrades` | Sealed Phase 1 milestone.                                                                  |
+| `milestone/02c-tests`            | Sealed Phase 1 milestone (local tip carries a late followups patch).                       |
+| `milestone/r01-contracts`        | **Sealed** 2026-07-18 (tag `r01-contracts`) — R1 config-contract migration; merged to `main` 2026-07-18. Kept alive as a durable phase marker. |
+| `milestone/r02-naming`           | **Sealed** 2026-07-19 (tag `r02-naming`) — R2 naming style guide; merged to `main` 2026-07-19. Kept alive as a durable phase marker. |
+| `milestone/r03-model-builder`    | **Sealed** 2026-07-19 (tag `r03-model-builder`) — R3 workflow-1 cleanup; behavior-preserving (14/14). Merged to `main` 2026-07-19. Kept alive as a durable phase marker. |
+| `origin/fao` (remote-only)       | Inherited upstream project branch (FAO / DCRM work, ~32 commits off-trunk). Not tracked locally; review before ever deleting. |
+
+## Tags
+
+Tags are permanent rollback points; they never move.
+
+| Tag               | Date       | Meaning                                                                          |
+| ----------------- | ---------- | -------------------------------------------------------------------------------- |
+| `v0.1.0-alpha`    | 2024-09-26 | Upstream release state at the fork point (same commit as `base/v0.1.0-alpha`).    |
+| `m01-replication` | 2026-05-07 | Phase 1 seal: replication baseline + fingerprint manifest.                        |
+| `m02-pixi`        | 2026-05-07 | Phase 1 seal: pixi env + install.                                                 |
+| `m02b-upgrades`   | 2026-05-08 | Phase 1 seal: hydromt/wflow/Python-stack library upgrades.                        |
+| `v0.2.0-alpha`    | 2026-05-09 | Release: foundation phase sealed, Phase 2 designed.                               |
+| `m02c-tests`      | 2026-07-17 | Phase 1 seal: unit-test coverage for 4 `src/` modules.                            |
+| `pre-r01`         | 2026-07-18 | Checkpoint before R1: last flat-config-schema commit; green suite (47/3/2); all three workflow smoke tests verified. |
+| `r01-contracts`   | 2026-07-18 | Phase 2 seal: sectioned config schema (project/shared/workflows); suite 51/3/2. Sealed on invariance-by-construction — M2b baseline left untouched (stale; see `dev/milestones/r01/baseline_diffs.md`). |
+| `r02-naming`      | 2026-07-19 | Phase 2 seal: naming style guide (`dev/reference/naming.md`). Docs-only; existing names grandfathered; suite 51/3/2. |
+| `r03-model-builder` | 2026-07-19 | Phase 2 seal: workflow-1 (model builder) cleanup — shared `snake_utils` (`get_config`/`tee_to_log`), per-rule log/benchmark, `outlet_index.csv`, gauges hardening, structured waterbodies sentinel. Behavior-preserving (14/14); suite 73/3/2. |
+
+Planned (cut at each Phase 2 milestone seal):
+`r04-projections`, `r05-experiment`, `r06-refactor`.
+
+## Using a checkpoint tag (e.g. `pre-r01`)
+
+```bash
+git diff pre-r01 -- <path>            # what changed since the checkpoint
+git checkout pre-r01 -- <path>        # restore one file from the checkpoint
+git reset --hard pre-r01              # throw away all commits on the current
+                                      # branch since the checkpoint (destructive)
+```
+
+Tags protect committed state only — not the working tree, and not run outputs
+under `project_dir` (the baseline manifest covers those).
+
+## Maintenance
+
+Update this file (and its date) whenever a durable branch or tag is created,
+sealed, or retired. Local tags/branches reach `origin` only on explicit push
+(`git push origin <tag>` / `--tags`).
+
+---
+## Branching and tagging conventions
+
+| Branch type   | Pattern                       | Purpose                                                                  |
+| ------------- | ----------------------------- | ------------------------------------------------------------------------ |
+| Frozen base   | `base/<start-point>`          | Historical starting point of the fork (e.g. `base/v0.1.0-alpha`).        |
+| Phase 1 milestone | `milestone/<NN>-<topic>`  | Sealed; pattern preserved on existing branches (`milestone/02c-tests`).  |
+| Phase 2 milestone | `milestone/r<NN>-<topic>` | Active; example `milestone/r01-contracts`, `milestone/r03-model-builder`. |
+| Experiment    | `exp/r<NN>-<topic>`           | Messy trial branch off a Phase 2 milestone.                              |
+| Feature       | `feat/r<NN>-<topic>`          | Cleaner implementation off a Phase 2 milestone, intended to be merged in. |
+| Pull request  | `pr/<NN>-<topic>`             | Clean branch prepared for upstream review.                               |
+
+**Tags.** Phase 1 tags use `m##-<topic>` and stay frozen
+(`m01-replication`, `m02-pixi`, `m02b-upgrades`, `m02c-tests`). Phase 2
+tags use `r##-<topic>` (`r01-contracts`, `r02-naming`,
+`r03-model-builder`, `r04-projections`, `r05-experiment`,
+`r06-refactor`). Tags are permanent rollback points; milestone branches
+stay alive after their tag for late patches or PR prep.
+
+**Stacked, not parallel.** Each milestone branches from the previous
+milestone's tip (not from `base/`). Phase 2 starts from the
+`m02c-tests` tag. R1, R2 are pre-workflow contracts and conventions
+that R3-R5 inherit; R6 is the cross-cutting structural refactor.
+
+**Remotes.**
+- `origin` — your fork (`github.com/tanerumit/blueearth_cst`).
+- `upstream` — the original Deltares repo
+  (`github.com/Deltares/blueearth_cst`), fetch-only.
+
+The branch `upstream-deltares` (formerly `main`) freezes the upstream
+Deltares state the fork tracked at renaming time; never commit to it.
+`main` is the moving trunk and the GitHub default branch.
+
+**PRs back to upstream** go from `pr/<NN>-<topic>` branches, not
+directly from milestone branches. One PR per milestone is the default;
+only stack PRs when maintainers explicitly agree to review them in
+series.
+
+---
+
+## Commit strategy
+
+Branch and tag naming live in "Branching and tagging conventions"
+above. This section covers commit messages only.
+
+**Subject format.** `<prefix>: <imperative subject, ≤72 chars>`. The
+`<prefix>` matches the milestone the commit belongs to:
+
+- Phase 1 (sealed): `m01:`, `m02:`, `m02b:`, `m02c:` — historical
+  prefix on existing commits, do not rewrite.
+- Phase 2 (active): `r01:`, `r02:`, `r03:`, `r04:`, `r05:`, `r06:`.
+- Phase 3 (active): `p31:` (P3-1 experiment structure), `p32a:` (P3-2a
+  model-independent climate analysis), `p32b:` (P3-2b model-swap
+  interchange contracts), `p33:` (P3-3 performance passes).
+- Repo housekeeping that doesn't belong to a milestone: `chore:`
+  (e.g. updating this roadmap, `.gitignore`, fixing typos in
+  unrelated docs).
+
+Examples:
+
+- `r01: migrate test config + 3 Snakefiles to sectioned schema`
+- `r02: add dev/reference/naming.md + CLAUDE.md pointer`
+- `r03: collapse get_config into src/snake_utils.py`
+- `r04: fix calendar handling in get_stats_climate_proj.py`
+- `r05: extract stress-test grid into tested helper`
+- `chore(dev): split roadmap into phase-1 / phase-2 sections`
+
+**Body.** Optional. Include only when the *why* isn't obvious from
+the diff. Wrap at ~72 chars. Don't restate what the diff shows.
+
+**Granularity.** One logical change per commit. If the subject needs
+the word "and", split it.
+
+**Never commit.**
+- Outputs under `project_dir/`.
+- Files matching `*_local.yml` or other local-only configs.
+- Secrets, credentials, large binary fixtures.
+- Generated baselines other than `dev/baseline/manifest.json` itself.
+
+If any of these slip in, update `.gitignore` first, then remove from
+history if the commit hasn't been pushed.
+
+**Merges and tags.** Default merge-commit messages are fine — don't
+hand-craft them. Tag messages should restate the milestone goal in
+one line (e.g. `r03-model-builder: model creation workflow + scripts
+cleaned`).
+
+---

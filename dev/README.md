@@ -20,9 +20,9 @@ it goes and when it may be deleted.
 
 | Path | Holds |
 |---|---|
-| `roadmap.md` | Source of truth: phases, milestones, branching/tagging conventions |
+| `roadmap.md` | The phase narrative: what each milestone set out to do and how it landed |
 | `followups.md` | Milestone-scoped backlog with reproducible context; cited by live tests. Detail store behind `TODO.md` |
-| `reference/` | The rules: `naming.md`, `agent-activation.md`, `branches-and-tags.md`, `contracts/`, `workflows/` — see its `README.md` |
+| `reference/` | The rules: `naming.md`, `agent-activation.md`, `git-conventions.md`, `contracts/`, `workflows/` — see its `README.md` |
 
 **Happened** — records of what was done, kept by identity:
 

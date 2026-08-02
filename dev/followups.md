@@ -9,6 +9,72 @@ context so future-you can confirm the issue still applies before fixing.
 
 ---
 
+## Carried over from the roadmap (moved 2026-08-02)
+
+These sat in `roadmap.md` as a third backlog, referenced by neither
+`TODO.md` nor this file. Content unchanged; only the location is new.
+
+### Minor open items
+
+Small decisions that don't justify a section of their own. Resolve
+in passing as the relevant milestone starts.
+
+- ~~**CI.**~~ **DONE 2026-07-25 (first Phase-4 item)** —
+  `.github/workflows/ci.yml` runs the unit suite on push to `main` and on PRs,
+  across both supported pixi platforms (`ubuntu-latest` + `windows-latest`,
+  `fail-fast: false`), with `locked: true` so `pixi.lock` drift fails the run.
+  Scope set by measurement: a bare checkout gives 386 passed / 30 skipped /
+  1 xfailed in ~100 s, every skip principled (~27 need the untracked
+  `examples/test_local` fixture, 3 are the `--run-integration` end-to-end
+  tests). **`check_baseline.py` turned out NOT to be the natural fit this entry
+  assumed** — it fingerprints targets inside that untracked fixture tree, so it
+  cannot run on a runner and stays a local gate, as does `semantic_tree_diff`
+  whole-tree diffing. The ubuntu leg is also the first time the linux-64 half of
+  `pixi.lock` has been resolved anywhere, so it de-risks the parked Linux work
+  below.
+- **R testthat coverage.** Decided at the start of R5 — Python
+  helpers only by default; adding R testing infrastructure is a
+  separate call.
+- **Linter for naming conventions.** R2 establishes the convention
+  but does not enforce it. A future linter (ruff custom rule, or a
+  small ad-hoc script) would mechanically catch drift. Add as an
+  R3+ followup if drift becomes a real problem.
+
+---
+
+### Deferred: Linux replication
+
+Currently parked because no Linux machine is available locally. Not
+abandoned — to be picked up when a Linux box, WSL setup, or Deltares
+P-drive mount becomes available.
+
+**What this covers when reactivated.**
+- Reproducing the M1 baseline on Linux using
+  `config/snake_config_model_test_linux.yml`.
+- Rebuilding the Docker image on top of the M2 env manager and
+  validating `run_snake_docker.sh`.
+- Confirming the M2 env file resolves cleanly on Linux (it was
+  authored cross-platform during M2).
+- Sorting out the Deltares P-drive mount
+  (`/mnt/p/wflow_global/hydromt`): whether the baseline is captured
+  natively or only inside the container.
+- Collapsing the OS-specific data catalog split (`*_linux.yml`) into
+  a single parameterized catalog or config selection.
+- Once green, recording Linux-specific fingerprints alongside the
+  Windows ones in `dev/baseline/` (separate manifest, not a
+  replacement).
+
+**Where it slots in.** Likely a small dedicated Phase 2 milestone
+when picked up (`r0X-linux-parity` between two existing R milestones)
+so that subsequent milestones can assume both platforms work.
+
+**Until then.** All milestone exit criteria refer to Windows only.
+Linux-specific files (`*_linux.yml`, `run_snake_docker.sh`, the
+Dockerfile) must continue to build / parse but are not exercised
+end-to-end. Don't delete them.
+
+---
+
 ## Post-R8 (surfaced 2026-08-02 during the Post-R7 triage)
 
 - **[R8-1] The ruff gate is red on `main`.** *Row `t260802a`.* `pixi run ruff

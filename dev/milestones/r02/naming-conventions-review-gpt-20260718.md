@@ -80,7 +80,7 @@ The following execution details should be made explicit:
    - `dev/reference/naming.md`
    - `AGENTS.md` and/or `CLAUDE.md`
    - `dev/roadmap.md`
-   - `dev/reference/branches-and-tags.md`
+   - `dev/reference/git-conventions.md`
 
    No `Snakefile_*`, `src/`, `tests/`, configuration YAML, lockfile, manifest, or generated output should appear.
 
@@ -88,7 +88,7 @@ The following execution details should be made explicit:
 
 3. **Make “suite unchanged” concrete.** The sealed R01 state is recorded as **51 passed, 3 skipped, 2 xfailed** in `dev/roadmap.md:137–142,199`. Use that as the expected comparison for `pixi run pytest tests/`. No Snakemake workflow or scientific baseline run is warranted for this docs-only milestone.
 
-4. **Update the durable-ref inventory at sealing.** `dev/reference/branches-and-tags.md:39–40` still lists `r02-naming` as planned. The sealing commit should record the branch/tag there as well as marking R2 sealed in `dev/roadmap.md`.
+4. **Update the durable-ref inventory at sealing.** `dev/reference/git-conventions.md:39–40` still lists `r02-naming` as planned. The sealing commit should record the branch/tag there as well as marking R2 sealed in `dev/roadmap.md`.
 
 5. **State the final mechanical gates.** Before tagging, confirm the guide exists, is under 250 lines, contains all nine specified sections, the suite matches the sealed R01 state, and the changed-path allowlist contains documentation only.
 

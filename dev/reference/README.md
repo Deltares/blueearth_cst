@@ -11,7 +11,7 @@ This is the **stays-true** tier. What happened lives in `../milestones/`,
 |---|---|
 | `naming.md` | Prescriptive style guide for identifiers and files, with `MUST` / `SHOULD` / `MAY` normative force |
 | `agent-activation.md` | How roles and skills become available to Claude Code and Codex here, and why the two runtimes differ |
-| `branches-and-tags.md` | Inventory of durable refs and what each is for; transient branches excluded |
+| `git-conventions.md` | Durable-ref inventory, plus the branching, tagging, and commit-message conventions |
 | `contracts/` | The two substitution seams — hydrological model, weather generator — pinned as machine-checked contracts (P3-2b) |
 | `workflows/` | Per-workflow contract docs for wf1 / wf2 / wf3, plus the WF2 v2.0 design and CMIP6 member inventories |
 
