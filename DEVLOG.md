@@ -65,12 +65,29 @@ completed before landing.
   three final DAG dry-runs (WF1 17 jobs, WF2 25, WF3 50).
 - Confirmed the existing five-target Workflow 1 baseline still matches its
   manifest. The split discharge fails the strict per-timestep comparator on
-  6,343/7,670 days, so Gate 2 is intentionally still open.
+  6,343/7,670 days.
+- Received explicit owner approval for the documented material delta at Gate 2.
+- Rebuilt the canonical relative Workflow 1 fixture from clean spatial/model
+  outputs. A parallel build stalled while writing `staticmaps.nc`; after stopping
+  only the identified Snakemake/build processes and unlocking the workdir, the
+  serial `--rerun-incomplete` build completed all 17 jobs successfully.
+- Corrected the stale baseline target from `forcing/plots/precip.png` to the
+  actual `forcing/plots/forcing_precip_map.png` path and passed its focused
+  validation batch (27 tests).
+- Recorded only the five approved Workflow 1 baseline targets. The resulting
+  manifest retains 14 total targets, and the post-record check confirms all five
+  Workflow 1 targets match.
+- Retired the renamed legacy `forcing/plots/precip.png` manifest entry that a
+  scoped merge cannot infer is obsolete; the manifest now matches the 14-target
+  table exactly.
+- The unscoped checker is not runnable against this isolated WF1-only fixture:
+  it correctly reports the nine absent WF2/WF3 outputs. Their retained manifest
+  entries were not modified by the scoped record.
 
 **Pending:**
-- Obtain owner approval at the scientific-delta gate before recording a new
-  baseline.
-- Stop again at the landing gate before merging.
+- Obtain explicit owner approval at Gate 3 before merging the isolated branch.
+- Apply the already-approved reusable Snakemake skill improvement only after the
+  project task has landed.
 
 **Issues / Notes:**
 - The prerequisite `feat/wf1-improvements` work was merged to `main` before
@@ -78,6 +95,9 @@ completed before landing.
 - Successful Windows runs can still print the repository's known benign empty
   `Error in sys.excepthook` cascade during GDAL/rasterio interpreter shutdown;
   the rule exits zero and all declared outputs validate.
+- The clean build is reliable at `-c 1`; concurrent NetCDF/HDF5 writes during
+  model construction can contend on Windows, so the serial retry is the recorded
+  baseline-generation path rather than evidence of a workflow dependency defect.
 - Improvement candidate captured for the `snakemake` skill: document that a
   Python file used by `script:` must not rely on a leading
   `from __future__ import ...`, because Snakemake prepends generated code before

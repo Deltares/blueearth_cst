@@ -2,10 +2,12 @@
 
 ## Result
 
-Phase 2 is implemented and paused at master Gate 2. Workflow 1 now has a
+Phase 2 is implemented and approved at master Gate 2. Workflow 1 now has a
 distinct `prepare_spatial_maps` rule (1.02) and `build_wflow_model` rule (1.03).
 The latter declares all nine P1 products as inputs and writes the standard
-Wflow triplet plus its rebuild sentinel. No baseline has been recorded.
+Wflow triplet plus its rebuild sentinel. The approved five-target Workflow 1
+baseline has been recorded and verified; the branch is paused at Gate 3 before
+landing.
 
 ## Selected adapter route
 
@@ -124,20 +126,32 @@ baseline update.
 - Real Gabon four-location check: P1 and P2 targets completed in a disposable
   latest-schema project; stations resolve to IDs 101–104 and the actual
   observation header validates exactly.
-- Existing Workflow 1 baseline fixture: all five recorded targets still match
-  its manifest. No record command was run.
+- Clean canonical relative fixture: all 17 Workflow 1 jobs completed serially
+  after a parallel `staticmaps.nc` write stalled because of Windows NetCDF/HDF5
+  contention.
+- Baseline path correction validation: 27 tests passed.
+- Approved Workflow 1 baseline: only its five targets were replaced, the
+  renamed legacy precipitation-plot entry was retired, the manifest retains 14
+  total targets, and the post-record check reports all five
+  targets match.
+- The unscoped checker reports the nine WF2/WF3 targets absent from this
+  isolated WF1-only fixture. Those retained manifest entries were not changed;
+  their DAG dry-runs are recorded above.
 - Split-versus-reference comparator: FAIL (material), as quantified above.
 
 ## Remaining risks and gate decision
 
-- The aggregate physics delta is small and explained, but the repository's
-  per-timestep gate classifies it as material. Owner approval is required
-  before the baseline is recorded.
+- The aggregate physics delta is small and explained, while the repository's
+  per-timestep gate classifies it as material. The owner explicitly approved
+  that delta at Gate 2 before the baseline was recorded.
 - The external Gabon config still uses the one-release compatibility key
   `workflows.model_creation.output_locations`; new configs should use
   `shared.basin.gauge_points`.
 - Windows HydroMT processes continue to print the known benign empty
   `Error in sys.excepthook` shutdown cascade while returning success.
+- The canonical baseline build was completed with `-c 1` after a parallel model
+  build stalled during `staticmaps.nc` output. This affects operational
+  concurrency on Windows, not the declared P1→P2 dependency or numerical result.
 
-Gate 2 should approve or reject the documented resampling and discharge delta.
-The branch must not record a baseline until that decision is explicit.
+Gate 2 is complete. Gate 3 must now approve or reject landing the isolated
+`feat/wf1-spatial-decoupling` branch. No merge or push has been performed.

@@ -118,7 +118,7 @@ waterbodies, outputs, runtime, and forcing.
 **Direct `rule all` targets** (named statically by this workflow's `rule all`):
 - `{basin_dir}/evaluation/plots/hydro_wflow_1.png` (the run)
 - `{basin_dir}/plots/basin_area.png` (the model)
-- `{basin_dir}/forcing/plots/precip.png` (model inputs)
+- `{basin_dir}/forcing/plots/forcing_precip_map.png` (model inputs)
 - `{project_dir}/climate_historical/<key>/plots/source_{precip,temp,pet}.png`
   (R07 B4 — source-grid figures from the shared store; produced with no model)
 - `{project_dir}/config/runs/snake_config_model_creation.yml` (verbatim snake-config snapshot)

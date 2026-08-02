@@ -146,7 +146,7 @@ VOLATILE_NC_ATTRS = frozenset({
 # Snakefile_climate_projections, Snakefile_climate_experiment — plus the one
 # beyond-`rule all` discharge target (see module docstring / ADR 0001).
 # R07 (dev/milestones/r07/migration_project-layout.md §3a is the authority; this list is
-# written FROM that table). 15 live targets: all 15 change manifest key via the
+# written FROM that table). 14 live targets: all 14 change manifest key via the
 # examples/ -> test_case/ rename, 10 also move within the tree, 3 change
 # content. Retargeted here, in the fixture-rename commit, as the SOLE owner of
 # this edit -- so "the baseline blackout starts at commit 4" is literally true
@@ -161,7 +161,7 @@ TARGETS: list[tuple[str, str, str]] = [
     # plots/ tree by DEPICTED subject: model inputs, the model, the run.
     ("model_creation", "png",  "{project_dir}/hydrology_model/evaluation/plots/hydro_wflow_1.png"),
     ("model_creation", "png",  "{project_dir}/hydrology_model/plots/basin_area.png"),
-    ("model_creation", "png",  "{project_dir}/hydrology_model/forcing/plots/precip.png"),
+    ("model_creation", "png",  "{project_dir}/hydrology_model/forcing/plots/forcing_precip_map.png"),
     ("model_creation", "yaml", "{project_dir}/config/runs/snake_config_model_creation.yml"),
     # Unmoved within the tree (prefix change only) -- and exception 3(d)
     # requires it to stay that way: if discharge moves at all, stop.
