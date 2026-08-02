@@ -32,7 +32,7 @@ WF2_RULEGRAPH = """digraph snakemake_dag {
     3[label = "extract_climate_grid", color = "0.20 0.6 0.85", style="rounded"];
     4[label = "fetch_gcm_raw", color = "0.27 0.6 0.85", style="rounded"];
     5[label = "plot_climate_proj_timeseries", color = "0.47 0.6 0.85", style="rounded"];
-    6[label = "copy_config", color = "0.07 0.6 0.85", style="rounded"];
+    6[label = "snapshot_config", color = "0.07 0.6 0.85", style="rounded"];
     7[label = "gather_raw_logs", color = "0.33 0.6 0.85", style="rounded"];
     8[label = "gather_series_logs", color = "0.40 0.6 0.85", style="rounded"];
     9[label = "gather_benchmarks", color = "0.53 0.6 0.85", style="rounded"];
@@ -129,7 +129,7 @@ def test_isolated_nodes_are_level_zero():
 
 def test_wf2_rule_levels_match_the_measured_topology():
     assert rdl.rule_levels(WF2_RULEGRAPH) == {
-        "copy_config": 0,
+        "snapshot_config": 0,
         "extract_climate_grid": 0,
         "fetch_gcm_raw": 1,
         "gather_raw_logs": 2,
@@ -169,7 +169,7 @@ def test_format_table_orders_by_level_then_name():
     counts = {"fetch_gcm_raw": (9, 0), "reduce_gcm_series": (9, 0)}
     body = [line for line in rdl.format_table(levels, counts) if line.strip()]
     rules = [line.split()[1] for line in body[2:]]
-    assert rules[0] in {"copy_config", "extract_climate_grid"}
+    assert rules[0] in {"snapshot_config", "extract_climate_grid"}
     assert rules.index("fetch_gcm_raw") < rules.index("reduce_gcm_series")
     assert rules[-1] == "all"
 

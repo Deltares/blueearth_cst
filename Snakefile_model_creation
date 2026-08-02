@@ -5,7 +5,8 @@ from pathlib import Path
 # directory by prepending this Snakefile's own directory to sys.path.
 # See dev/milestones/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
-from blueearth_cst.shared.snake_utils import DEFAULT_JULIA_THREADS, climate_store_spec, get_config, julia_prefix, patch_psutil_windows_benchmark, rule_banner, target_banner, validate_historical_window, warn_if_project_dir_in_repo
+from blueearth_cst.shared.provenance import snapshot_bundle_digest
+from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_JULIA_THREADS, climate_store_spec, get_config, julia_prefix, patch_psutil_windows_benchmark, rule_banner, target_banner, validate_historical_window, warn_if_project_dir_in_repo
 from blueearth_cst.spatial.config import parse_spatial_config
 # The canonical climate figure set (rules 1.13 and 1.15 both draw it). Imported
 # for figure_names() ONLY, so every figure is declared from the same list the
@@ -124,6 +125,38 @@ _observations_input = (
     else {"observations_timeseries": observations_timeseries}
 )
 
+
+def _snapshot_reference(kind, identifier):
+    """Describe a local file or logical catalog identifier for provenance."""
+    source = str(identifier)
+    reference = {"kind": kind, "identifier": source}
+    if Path(source).is_file():
+        reference["path"] = source
+    return reference
+
+
+_config_snapshot_references = [
+    _snapshot_reference("templates", model_build_config),
+    _snapshot_reference("templates", waterbodies_config),
+]
+_catalogs = DATA_SOURCES if isinstance(DATA_SOURCES, (list, tuple)) else [DATA_SOURCES]
+_config_snapshot_references.extend(
+    _snapshot_reference("catalogs", source) for source in _catalogs
+)
+_config_snapshot_references.extend(
+    _snapshot_reference("observations", source)
+    for source in (*_locations_input.values(), *_observations_input.values())
+)
+CONFIG_SNAPSHOT_DIGEST = snapshot_bundle_digest(
+    config,
+    ADVANCED_SETTINGS,
+    config_path,
+    _config_snapshot_references,
+)
+CONFIG_SNAPSHOT_DIR = (
+    f"{project_dir}/config/runs/model_creation/{CONFIG_SNAPSHOT_DIGEST}"
+)
+
 basin_dir = f"{project_dir}/hydrology_model"
 
 # The canonical climate figure set, one directory per dataset (rule 1.13 draws
@@ -169,7 +202,7 @@ store_dir = CLIMATE_STORE.store_dir
 # that owns it (WF1 has no fan-out today; WF3 does). Naming the labels rather than
 # globbing `_parts/` keeps an orphan dir from a renamed rule out of the file.
 # Order is by RULE NUMBER, matching the rule map and benchmarks/wf1_benchmarks.md,
-# not execution order (1.11–1.13 are parallel leaves). 1.01 copy_config declares
+# not execution order (1.11–1.13 are parallel leaves). 1.01 snapshot_config declares
 # no `log:` and so has no section.
 WORKFLOW_LOG_NAME = "wf1_model_creation.log"
 LOG_PARTS_DIR = f"{project_dir}/logs/_parts"
@@ -233,9 +266,9 @@ rule all:
     input:
         WF1_TARGETS,
 
-# 1.01  copy_config — copy build/snake/waterbodies configs into project_dir/config
-rule copy_config:
-    message: rule_banner("1.01", "copy_config")
+# 1.01  snapshot_config — current copies + immutable effective-config bundle
+rule snapshot_config:
+    message: rule_banner("1.01", "snapshot_config")
     input:
         config_build = model_build_config,
         config_snake = config_path,
@@ -250,8 +283,11 @@ rule copy_config:
         data_catalogs = DATA_SOURCES,
         workflow_name = "model_creation",
         config_dir = f"{project_dir}/config",
+        effective_config = config,
+        advanced_settings = ADVANCED_SETTINGS,
     output:
         config_snake_out = f"{project_dir}/config/runs/snake_config_model_creation.yml",
+        snapshot_bundle = directory(CONFIG_SNAPSHOT_DIR),
     script:
         "blueearth_cst/model/copy_config_files.py"
 

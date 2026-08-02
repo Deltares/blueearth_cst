@@ -13,7 +13,8 @@ from snakemake.exceptions import WorkflowError
 # directory by prepending this Snakefile's own directory to sys.path.
 # See dev/milestones/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
-from blueearth_cst.shared.snake_utils import DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_spec, get_config, patch_psutil_windows_benchmark, rule_banner, target_banner, warn_if_project_dir_in_repo
+from blueearth_cst.shared.provenance import effective_config_digest, snapshot_bundle_digest
+from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_spec, get_config, patch_psutil_windows_benchmark, rule_banner, target_banner, warn_if_project_dir_in_repo
 
 # Windows: make Snakemake's benchmark memory/IO/CPU metrics work (else all NA).
 patch_psutil_windows_benchmark()
@@ -33,6 +34,31 @@ project_dir = get_config(project_cfg, "project_dir", optional=False)
 # documentary. Warns, never raises; test_case/ is the one exemption.
 warn_if_project_dir_in_repo(project_dir, workflow.basedir)
 DATA_SOURCES = get_config(project_cfg, "data_sources_climate", optional=False)
+
+
+def _snapshot_reference(kind, identifier):
+    """Describe a local file or logical catalog identifier for provenance."""
+    source = str(identifier)
+    reference = {"kind": kind, "identifier": source}
+    if Path(source).is_file():
+        reference["path"] = source
+    return reference
+
+
+_catalogs = DATA_SOURCES if isinstance(DATA_SOURCES, (list, tuple)) else [DATA_SOURCES]
+_config_snapshot_references = [
+    _snapshot_reference("catalogs", source) for source in _catalogs
+]
+CONFIG_SNAPSHOT_DIGEST = snapshot_bundle_digest(
+    config,
+    ADVANCED_SETTINGS,
+    config_path,
+    _config_snapshot_references,
+)
+EFFECTIVE_CONFIG_DIGEST = effective_config_digest(config, ADVANCED_SETTINGS)
+CONFIG_SNAPSHOT_DIR = (
+    f"{project_dir}/config/runs/climate_projections/{CONFIG_SNAPSHOT_DIGEST}"
+)
 
 # The shared climate store's catalog is project.data_sources (deltares), NOT the
 # CMIP6 catalog above: the store is a hydrography/meteo extraction, not a
@@ -603,23 +629,26 @@ rule extract_climate_grid:
     script:
         CLIMATE_STORE.script
 
-# 2.03  copy_config — copy snake config into project_dir/config
+# 2.03  snapshot_config — current copies + immutable effective-config bundle
 #
 # S8-08(d): was 2.01, colliding with fetch_gcm_raw. The numbers are a reference
 # aid, so two rules answering to "2.01" is exactly the confusion they exist to
-# prevent -- and the rule map already listed copy_config as 2.03. No path moves:
+# prevent -- and the rule map already listed snapshot_config as 2.03. No path moves:
 # this rule names its output explicitly and has no banner-derived log or
 # benchmark, so the collision only ever showed in the console message.
-rule copy_config:
-    message: rule_banner("2.03", "copy_config")
+rule snapshot_config:
+    message: rule_banner("2.03", "snapshot_config")
     input:
         config_snake = config_path,
     params:
         data_catalogs = DATA_SOURCES,
         workflow_name = "climate_projections",
         config_dir = f"{project_dir}/config",
+        effective_config = config,
+        advanced_settings = ADVANCED_SETTINGS,
     output:
         config_snake_out = f"{project_dir}/config/runs/snake_config_climate_projections.yml",
+        snapshot_bundle = directory(CONFIG_SNAPSHOT_DIR),
     script:
         "blueearth_cst/model/copy_config_files.py"
 
@@ -777,6 +806,7 @@ rule derive_change_factors:
         time_horizon_hist = time_horizon_hist,
         stats = stats,
         stage_b_hash = STAGE_B_HASH,
+        effective_config_sha256 = EFFECTIVE_CONFIG_DIGEST,
         min_reference = MIN_REFERENCE,
         # The figure set, by NAME. Stage B runs before the plot rule, so it
         # cannot take them as inputs -- but they are declared, so naming them

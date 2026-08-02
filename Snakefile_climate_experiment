@@ -8,7 +8,8 @@ from pathlib import Path
 # directory by prepending this Snakefile's own directory to sys.path.
 # See dev/milestones/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
-from blueearth_cst.shared.snake_utils import DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_spec, file_digest_or_absent, get_config, patch_psutil_windows_benchmark, rule_banner, stress_test_grid, target_banner, validate_experiment_name, warn_if_project_dir_in_repo
+from blueearth_cst.shared.provenance import snapshot_bundle_digest
+from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_spec, file_digest_or_absent, get_config, patch_psutil_windows_benchmark, rule_banner, stress_test_grid, target_banner, validate_experiment_name, warn_if_project_dir_in_repo
 
 # Windows: make Snakemake's benchmark memory/IO/CPU metrics work (else all NA).
 patch_psutil_windows_benchmark()
@@ -105,6 +106,30 @@ basin_dir = f"{project_dir}/hydrology_model"
 # are hand-edited to experiments/<name>/ below.
 exp_dir = f"{project_dir}/experiments/{experiment}"
 
+
+def _snapshot_reference(kind, identifier):
+    """Describe a local file or logical catalog identifier for provenance."""
+    source = str(identifier)
+    reference = {"kind": kind, "identifier": source}
+    if Path(source).is_file():
+        reference["path"] = source
+    return reference
+
+
+_catalogs = DATA_SOURCES if isinstance(DATA_SOURCES, (list, tuple)) else [DATA_SOURCES]
+_config_snapshot_references = [
+    _snapshot_reference("catalogs", source) for source in _catalogs
+]
+CONFIG_SNAPSHOT_DIGEST = snapshot_bundle_digest(
+    config,
+    ADVANCED_SETTINGS,
+    config_path,
+    _config_snapshot_references,
+)
+CONFIG_SNAPSHOT_DIR = (
+    f"{exp_dir}/config/runs/climate_experiment/{CONFIG_SNAPSHOT_DIGEST}"
+)
+
 # --- The two symmetric engine subtrees inside the experiment (R07 B5/B6/B7) ---
 # weather_generator/ mirrors hydrology_runs/: each engine owns its own config,
 # working, and product directories, and the per-realization/per-cst indices live
@@ -193,7 +218,7 @@ wf2_snapshot_digest = file_digest_or_absent(wf2_snapshot_path)
 # place that could drift from the rules that own it. Discovery is scoped to these
 # labels, so it is not a blind glob: an orphan dir from a renamed rule is not a
 # label and is never read. Order is by RULE NUMBER, matching the rule map and
-# benchmarks/wf3_benchmarks.md. 3.01 copy_config declares no `log:`.
+# benchmarks/wf3_benchmarks.md. 3.01 snapshot_config declares no `log:`.
 WORKFLOW_LOG_NAME = "wf3_climate_experiment.log"
 LOG_PARTS_DIR = f"{exp_dir}/logs/_parts"
 LOG_RULES = [
@@ -238,7 +263,7 @@ rule all:
 # wf1/wf2 project snapshots. Runs at rule time (not parse) so --dry-run and
 # --unlock stay usable (design §3). Two outputs, one per sharing class (§3a,
 # ext2-1): the per-experiment sentinel is a FRESH input of the four
-# per-experiment roots (copy_config, climate_stress_parameters,
+# per-experiment roots (snapshot_config, climate_stress_parameters,
 # prepare_weagen_config, prepare_weagen_config_st); the guard artifact is
 # consumed ancient() by extract_climate_grid ONLY — its path is
 # experiment-invariant so the shared rule's input set never changes across
@@ -266,9 +291,9 @@ rule check_project_consistency:
     script:
         "blueearth_cst/experiment/check_project_consistency.py"
 
-# 3.01  copy_config — copy snake config into project_dir/config
-rule copy_config:
-    message: rule_banner("3.01", "copy_config")
+# 3.01  snapshot_config — current copies + immutable effective-config bundle
+rule snapshot_config:
+    message: rule_banner("3.01", "snapshot_config")
     input:
         config_snake = config_path,
         consistency_ok = f"{exp_dir}/.project_consistency_ok",
@@ -278,8 +303,11 @@ rule copy_config:
         # arch-10: the wf3 snapshot does NOT join config/runs/ -- it stays
         # inside the experiment. Only its CONTENT changes.
         config_dir = f"{exp_dir}/config",
+        effective_config = config,
+        advanced_settings = ADVANCED_SETTINGS,
     output:
         config_snake_out = f"{exp_dir}/config/snake_config_climate_experiment.yml",
+        snapshot_bundle = directory(CONFIG_SNAPSHOT_DIR),
     script:
         "blueearth_cst/model/copy_config_files.py"
 

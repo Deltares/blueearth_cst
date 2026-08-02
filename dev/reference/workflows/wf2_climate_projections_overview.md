@@ -32,7 +32,7 @@ names — **definition order, not execution order**.
 | 2.00 | `all` | — | — |
 | 2.01 | `fetch_gcm_raw` | `projections/fetch_gcm_raw.py` | `{series_key}` |
 | 2.02 | `reduce_gcm_series` | `projections/get_stats_climate_proj.py` | `{series_key}` |
-| 2.03 | `copy_config` | `model/copy_config_files.py` | — |
+| 2.03 | `snapshot_config` | `model/copy_config_files.py` | — |
 | 2.04 | `derive_change_factors` | `projections/derive_change_factors.py` | — (one job) |
 | 2.06 | `plot_climate_proj_timeseries` | `projections/plot_proj_timeseries.py` | — (gather) |
 | 2.07 | `gather_logs` | `shared/merge_logs.py` | — (gather) |
@@ -56,7 +56,7 @@ What went, and where it went:
 | the `ruleorder:` directive | nothing — it named two rules that no longer exist (step 4d) |
 
 **Job count on the seed config** (3 models × 2 scenarios × 1 horizon = 9 series):
-1 (2.03 `copy_config`) + 9 (2.01) + 9 (2.02) + 1 (2.04) + 1 (2.06)
+1 (2.03 `snapshot_config`) + 9 (2.01) + 9 (2.02) + 1 (2.04) + 1 (2.06)
 + 1 (2.07) + 1 (2.10) + 1 (2.11) = **24 jobs**, plus `all`.
 
 Stage A dominates the count and is where the parallelism is; everything from
@@ -112,12 +112,14 @@ recorded on it.
   its raw slice: the directory carries the tier, the filename the identity.
 - **Consumed by:** 2.04, 2.06, 2.07.
 
-### 2.03 `copy_config`
+### 2.03 `snapshot_config`
 
-Snapshots the run's `--configfile` YAML plus the CMIP6 data catalog, so a finished
-project records what produced it.
+Keeps the guard-compatible current YAML and writes a content-addressed bundle of
+the source YAML, Snakemake's merged config, advanced settings, and the CMIP6
+catalog snapshot.
 
-- **In:** `config_path`. **Out:** `{PD}/config/runs/snake_config_climate_projections.yml`.
+- **In:** `config_path`. **Out:** the current YAML plus
+  `{PD}/config/runs/climate_projections/{digest}/`.
 - Side effect, not declared: each catalog copied to `{PD}/config/catalogs/`.
 - **Connections:** an isolated leaf consumed only by `all`; never gates compute.
 
@@ -201,7 +203,7 @@ pinned by `tests/test_climate_store_contract.py`. WF2 declares it to obtain
 ## 3. DAG shape
 
 ```
-        2.03 copy_config ──────────────────────────────────────────────┐
+        2.03 snapshot_config ──────────────────────────────────────────┐
                                                                        │
         2.11 extract_climate_grid ─► store_region.geojson              │
                      │                                                 │
