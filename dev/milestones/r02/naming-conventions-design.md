@@ -5,7 +5,7 @@
 ## Goal
 
 Single prescriptive style guide for naming identifiers and files
-across the repo, delivered as `dev/conventions/naming.md`. Pure docs
+across the repo, delivered as `dev/reference/naming.md`. Pure docs
 addition. **No code refactoring in R2** — existing names are
 grandfathered. R3+ apply the conventions when touching code; R6 may
 do bulk file moves under the structural-refactor milestone.
@@ -61,7 +61,7 @@ external conventions take precedence. Two important framings:
 | Path-identifier suffix         | `_path` is canonical for new code; `_fn`, `_fid`, `_file` deprecated    |
 | File names by class            | See "File naming by class" section below                                |
 
-## Style guide outline (`dev/conventions/naming.md`)
+## Style guide outline (`dev/reference/naming.md`)
 
 The guide itself gets authored during R2 execution. Section list:
 
@@ -130,7 +130,7 @@ Wildcards used across Snakefiles MUST come from this list:
 | `st_num`      | active                  | stress test combination number. `1..stress_test_count` = perturbed combinations; `0` = reserved unperturbed baseline (`cst_0`), run through Wflow only when `run_historical` sets `ST_START = 0`. |
 | `member`      | reserved (CMIP ensemble)| ensemble member id (`r1i1p1f1`, ...). Currently config-only; will become a wildcard if ensemble per-member rules are added. |
 
-Adding a new wildcard requires updating `dev/conventions/naming.md`
+Adding a new wildcard requires updating `dev/reference/naming.md`
 in the same commit. The current `st_num2` variant in
 `Snakefile_climate_experiment` (it admits `0` under `run_historical`,
 where `st_num` starts at `1`) is a known inconsistency — fold into
@@ -297,22 +297,22 @@ guide's table sparse so the doc stays under 250 lines.
 - Linter or CI enforcement — manual review for now. A future linter
   is a possible R3+ followup.
 - Per-language style guides (e.g., function-length limits, comment
-  conventions). Future `dev/conventions/python-style.md`,
-  `dev/conventions/r-style.md` if needed.
+  conventions). Future `dev/reference/python-style.md`,
+  `dev/reference/r-style.md` if needed.
 
 ## Verification
 
-- `dev/conventions/naming.md` exists and is < 250 lines.
+- `dev/reference/naming.md` exists and is < 250 lines.
 - `AGENTS.md` has a one-line pointer to the naming doc (canonical
   instruction source; `CLAUDE.md` inherits it via its `@AGENTS.md`
   import — do not add the rule only to `CLAUDE.md`).
 - `pixi run pytest tests/` unchanged: 51 passed, 3 skipped, 2 xfailed
   (the sealed R01 state).
 - The R2 changeset touches documentation only — `dev/`, the new guide,
-  `AGENTS.md`, `dev/roadmap.md`, `dev/branches-and-tags.md`. No
+  `AGENTS.md`, `dev/roadmap.md`, `dev/reference/branches-and-tags.md`. No
   `Snakefile_*`, `src/`, `tests/`, config YAML, lockfile, manifest, or
   generated output appears in the diff.
-- `dev/branches-and-tags.md` records the `r02-naming` branch/tag at seal
+- `dev/reference/branches-and-tags.md` records the `r02-naming` branch/tag at seal
   (it currently lists `r02-naming` as planned).
 
 ## Migration notes for existing names
@@ -330,7 +330,7 @@ incidental renames from these to `_path` are acceptable under R3's
 ## Risks and open questions
 
 - **Style guide rot**: prescriptive guides drift if not enforced.
-  Mitigation: R3-R5 commit messages reference `dev/conventions/
+  Mitigation: R3-R5 commit messages reference `dev/reference/
   naming.md` when adding new identifiers. A future linter would
   catch drift mechanically; defer until needed.
 - **Domain-identifier boundary**: section 6's list will grow as new

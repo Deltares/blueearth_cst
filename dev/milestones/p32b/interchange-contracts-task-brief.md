@@ -16,7 +16,7 @@
   (hydromt/wflow/weathergenr); validators never assert upstream internals.
 - **Zero behavior change, absolutely:** no Snakefile/pipeline/module-runtime
   edit, no output change, no manifest re-record, no fixture modification.
-  `git diff` over the milestone touches ONLY `dev/contracts/**`,
+  `git diff` over the milestone touches ONLY `dev/reference/contracts/**`,
   `blueearth_cst/shared/interchange_contracts.py`,
   `tests/test_interchange_contracts.py` (+ this brief/roadmap/dev notes).
 - **Key design pins — implement exactly:** pure `-> list[str]` divergence
@@ -42,7 +42,7 @@
 ### Goal
 
 Land the accepted P3-2b design: two seam contract docs under
-`dev/contracts/`, the unwired 15-validator module + two-layer test file, and
+`dev/reference/contracts/`, the unwired 15-validator module + two-layer test file, and
 the close-out index — pinning both substitution seams as checkable contracts
 with zero pipeline behavior change.
 
@@ -57,7 +57,7 @@ with zero pipeline behavior change.
 
 ### Allowed scope
 
-**Permitted:** `dev/contracts/**` (new); `blueearth_cst/shared/interchange_contracts.py`
+**Permitted:** `dev/reference/contracts/**` (new); `blueearth_cst/shared/interchange_contracts.py`
 (new); `tests/test_interchange_contracts.py` (new); `dev/milestones/p32b/**`;
 `dev/roadmap.md` (status only).
 
@@ -73,11 +73,11 @@ packages; `pixi.lock`/`Manifest.toml`.
 The design §8 commit plan, verbatim — one `p32b:` commit each; every commit
 full-suite-green + three dry-runs clean:
 
-1. `dev/contracts/weather-generator-seam.md` — WG-1..WG-6 inventory per the
+1. `dev/reference/contracts/weather-generator-seam.md` — WG-1..WG-6 inventory per the
    §5.4 table schema + §5.6 walkthrough + validator index (incl.
    considered-and-excluded notes: sim_dates/resampled_dates,
    wf1_raw/extract_historical.nc; chirps facts marked not-fixture-verified).
-2. `dev/contracts/hydrological-model-seam.md` — HM-1..HM-5, HM-6a/HM-6b
+2. `dev/reference/contracts/hydrological-model-seam.md` — HM-1..HM-5, HM-6a/HM-6b
    split, HM-7 + walkthrough + index (HM-6a path derivation; HM-4
    rewrite-field set incl. time.timestepsecs + wf3 "standard"-calendar note;
    the HM-4→HM-5→HM-7 column-identity invariant; heterogeneous unit/units
@@ -92,7 +92,7 @@ full-suite-green + three dry-runs clean:
    real-artifact cases doubly skip-guarded) + `--notemp` capture procedure
    documented in both seam docs' validator indexes. Gate: 3 temp cases skip
    with the documented reason; all 30 synthetic pass.
-5. `dev/contracts/README.md` + roadmap close-out note, coverage stated by
+5. `dev/reference/contracts/README.md` + roadmap close-out note, coverage stated by
    REFERENCE to the §5.5 counting axis.
 
 ### Validation
@@ -134,7 +134,7 @@ asserts only tier-1/2 surfaces; every pinned fact names a consumer.
 ### Task constraints
 
 - Design §8 sequencing binding (docs → validators → temp layer → index).
-- Naming per `dev/conventions/naming.md`; docs kebab-case; validators
+- Naming per `dev/reference/naming.md`; docs kebab-case; validators
   snake_case `validate_<id>` matching the design's names exactly.
 - Every contract fact in the docs must trace to a Snakefile/script line or
   an observed fixture artifact (C4) — transcribe from the design, which is

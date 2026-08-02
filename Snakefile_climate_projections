@@ -495,7 +495,7 @@ def get_horizon(wildcards):
 # workflow.step in DEFINITION order — a reference aid ("Rule 2.4" =
 # derive_change_factors), not execution order (stage A still fans out over
 # {series_key}; stage B no longer fans out at all since step 4d).
-# Convention: dev/conventions/naming.md.
+# Convention: dev/reference/naming.md.
 
 # --- log layout ---------------------------------------------------------------
 # EVERY WF2 rule that logs writes a PART under logs/_parts/, and rule 2.07 merges

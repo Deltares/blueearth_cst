@@ -177,7 +177,7 @@ wf2_snapshot_digest = file_digest_or_absent(wf2_snapshot_path)
 # Rule numbering (comment headers + log/benchmark filenames) uses `W.NN` =
 # workflow.step in DEFINITION order — a reference aid ("Rule 3.10" = run_wflow),
 # not execution order (the DAG fans out over RLZ_NUM x ST_NUM realizations).
-# Convention: dev/conventions/naming.md.
+# Convention: dev/reference/naming.md.
 
 # --- log layout ---------------------------------------------------------------
 # EVERY WF3 rule that logs writes a PART under <exp_dir>/logs/_parts/, and rule

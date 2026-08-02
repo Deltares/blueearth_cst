@@ -4,7 +4,7 @@ Covers **commit 2b** (`891f583`, persistent series + content-based identity) and
 its follow-up fix (`b7698b9`, the `update()` output flag). Companion to
 `2026-07-29_wf2-step1-validation.md`.
 
-Design: `dev/workflows/wf2-climate-analysis-v2-design.md` §5.3, D9, D12, §8 row 2b.
+Design: `dev/reference/workflows/wf2-climate-analysis-v2-design.md` §5.3, D9, D12, §8 row 2b.
 Milestone: Phase 5 / R8.
 
 ## Validation ladder — outcomes

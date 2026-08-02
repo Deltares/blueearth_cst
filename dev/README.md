@@ -6,30 +6,46 @@ project; none of it ships. The lifecycle that fills these folders is the
 
 ## Layout
 
-Live process state — the type-folder grammar:
+Organised by **how long a thing stays true**, because that decides both where
+it goes and when it may be deleted.
+
+**Happening now** — small, churns constantly:
 
 | Path | Holds |
 |---|---|
 | `TODO.md` | Live task board — unfinished work only (`backlog` / `active` / `blocked`) |
-| `working/` | Working & handoff notes for **live** work; drained at task closure, but see the promotion rule below |
-| `tasks/` | One brief record per closed tracked task |
-| `decisions/` | Decision records (context, alternatives, consequences); bulky evidence in a `<adr-slug>/` sibling folder |
-| `reviews/` | Periodic and milestone review summaries, plus the critiques and briefs behind them |
-| `scripts/` | Runnable developer scripts — inspect or maintain the repo, never part of a run (`scripts/README.md`) |
-| `tmp/` | Disposable machine-local outputs (gitignored) |
+| `working/` | Working & handoff notes for **live** work; drained at closure, but see the promotion rule below |
 
-Durable reference — read, rarely rewritten:
+**Stays true** — consulted while working, rewritten rarely and deliberately:
 
 | Path | Holds |
 |---|---|
 | `roadmap.md` | Source of truth: phases, milestones, branching/tagging conventions |
 | `followups.md` | Milestone-scoped backlog with reproducible context; cited by live tests. Detail store behind `TODO.md` |
-| `branches-and-tags.md` | Inventory of durable refs and what each is for; transient branches excluded |
-| `conventions/` | `naming.md` (prescriptive identifier/file style) and `agent-activation.md` (how roles and skills load per runtime) |
-| `contracts/` | The two substitution seams — hydrological model, weather generator — pinned as machine-checked contracts (P3-2b) |
-| `workflows/` | Per-workflow contract docs (wf1/wf2/wf3) — **live**, cited from module docstrings and config templates |
-| `baseline/` | Replication baseline fingerprints (`manifest.json`) and the discharge reference series, read by `scripts/check_baseline.py` |
+| `reference/` | The rules: `naming.md`, `agent-activation.md`, `branches-and-tags.md`, `contracts/`, `workflows/` — see its `README.md` |
+
+**Happened** — records of what was done, kept by identity:
+
+| Path | Holds |
+|---|---|
+| `decisions/` | ADRs — **permanent**. Superseded ones stay with a pointer; evidence in a `<adr-slug>/` sibling folder |
 | `milestones/` | Every milestone's design / plan / review / evidence docs — see its own `README.md` for the index |
+| `tasks/` | One brief record per closed tracked task |
+
+**Decays** — snapshots of a system that keeps moving:
+
+| Path | Holds |
+|---|---|
+| `reviews/` | Process reviews and post-milestone self-check registers. **Prunable** — see the retention rule below |
+
+**Pinned by code** — these paths are constructed in Python, so moving them is a
+code change, not a documentation change:
+
+| Path | Holds |
+|---|---|
+| `scripts/` | Developer scripts — inspect or maintain the repo, never part of a run (`scripts/README.md`). `check_baseline.py` derives the repo root from its own depth |
+| `baseline/` | Replication baseline fingerprints and the discharge reference series; `MANIFEST_PATH_DEFAULT` hardcodes `dev/baseline/manifest.json` |
+| `tmp/` | Disposable machine-local outputs (gitignored) |
 
 Shard `tasks/` or `reviews/` into `<year>/` subfolders only if a flat folder
 ever grows unwieldy. Generated results, figures, and model outputs go in the
@@ -51,6 +67,30 @@ by shipped modules, `Snakefile_climate_projections`, and `pixi.toml`.
 
 Never let `working/` or `tmp/` hold the only copy of a primary source: `tmp/`
 is gitignored and one `git clean -fdX` from gone.
+
+## The retention rule
+
+Only `reviews/` is prunable, and it is meant to be pruned. A process review or
+a post-milestone self-check is a snapshot of a system that keeps moving; left
+alone the folder accumulates thousands of lines that describe a repository
+that no longer exists.
+
+- **A closed register collapses to its outcome.** Once every item is
+  dispositioned, keep the outcome summary and drop the working detail. Keep the
+  filename — citations point at the path, not the contents.
+- **A superseded review is folded, not kept.** If a later revision states what
+  it supersedes, fold the survivor and delete the original.
+- **Raw inputs are spent once their output stands.** Reviewer critiques and
+  review briefs exist to produce a review; when it lands, they go.
+- **A process lesson's home is the skill, not this folder.** If the durable
+  output is a change to a skill or role in `brain`, make that change; the
+  review that prompted it is then spent.
+
+Nothing else here is prunable. `decisions/` is permanent by construction,
+`milestones/` and `tasks/` are identity-indexed records, and `reference/`
+describes the current system. Before deleting any review, confirm its items
+landed somewhere durable — `followups.md`, `TODO.md`, or a decision — and check
+whether anything cites it.
 
 ## Milestone records
 

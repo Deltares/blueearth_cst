@@ -501,7 +501,7 @@ Method: read-only spot-checks against rule 3.10 shell body
 `profiles/default/config.yaml`, `blueearth_cst/shared/merge_benchmarks.py`,
 `tests/test_interchange_contracts.py`, `dev/scripts/check_baseline.py`,
 `dev/scripts/semantic_tree_diff.py`, `Wflow.jl` (installed pkg),
-`dev/conventions/naming.md`, the three Snakefiles, and
+`dev/reference/naming.md`, the three Snakefiles, and
 `dev/working/design-runs/p33-performance/status.md` (the G1 gate ruling).
 
 **Verified as SUPPORTING the design (no finding needed):** rule 3.10 shell body

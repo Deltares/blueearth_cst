@@ -4,7 +4,7 @@ Deliverable required by `dev/milestones/r08/2026-07-29_wf2-v2-decouple-and-cache
 § Output requirements. Covers **commit 1** (`dcd5459`, model-free region) and the
 generator capability of **commit 2a** (`37b2e1f`).
 
-Design: `dev/workflows/wf2-climate-analysis-v2-design.md` (ACCEPTED), §8 row 1.
+Design: `dev/reference/workflows/wf2-climate-analysis-v2-design.md` (ACCEPTED), §8 row 1.
 Milestone: Phase 5 / R8.
 
 ## Validation ladder — outcomes

@@ -929,7 +929,7 @@ from — so the map is authoritative and this section now agrees with it.*
    `tests/test_workflow_climate_experiment.py:114`,
    `tests/test_guard_invalidation.py:97`,
    `tests/test_check_project_consistency.py:30`.
-7. **`dev/contracts/*-seam.md`** (arch-4) — `hydrological-model-seam.md:74,353`
+7. **`dev/reference/contracts/*-seam.md`** (arch-4) — `hydrological-model-seam.md:74,353`
    and `weather-generator-seam.md:56,71,248,294` pin the same paths.
 
 **The many-to-one merge class (risk-2, arch-2 — blocking).** `diff_trees` keys the

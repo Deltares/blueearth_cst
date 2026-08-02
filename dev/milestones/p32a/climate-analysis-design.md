@@ -117,7 +117,7 @@ to build on, and "model-independent" remains aspirational rather than checkable.
   the one sanctioned value change (intake decision 4).
 - **Platform surface unchanged.** Three Snakefile entry points, `run_workflows.py`
   wrapper contract, config `workflows:` sections, GUI-facing surface — all unchanged.
-- **Naming** per `dev/conventions/naming.md`: snake_case modules, lowercase acronyms,
+- **Naming** per `dev/reference/naming.md`: snake_case modules, lowercase acronyms,
   `_path`/`_dir` vs `_ds`/`_df`/`_gdf`/`_cfg`. Existing module filenames are
   grandfathered; a moved file keeps its name. Renaming a §7 contract surface needs a
   migration note.
@@ -1243,7 +1243,7 @@ roadmap prefix list, `dev/roadmap.md`).
 ## 11. Revision log
 
 - **v1 (2026-07-24)** — initial draft for the G1 framing gate. Grounded against
-  `AGENTS.md`, `dev/conventions/naming.md`, ADR 0002, R6 §8 (the DEFER fork),
+  `AGENTS.md`, `dev/reference/naming.md`, ADR 0002, R6 §8 (the DEFER fork),
   P3-1 §3a/§3d/§4 (keyed store + `.guard_ok`), the three Snakefiles,
   `check_baseline.py` TARGETS, and the lift-candidate modules. Key framing decisions:
   separate wf1 extraction (store-reuse blocked by pipeline order); model-independence

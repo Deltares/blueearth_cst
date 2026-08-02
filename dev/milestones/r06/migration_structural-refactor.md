@@ -1,6 +1,6 @@
 # R06 — structural refactor — internal rename record
 
-**Reconstructed 2026-07-29 during R07.** `dev/conventions/naming.md` §7 requires
+**Reconstructed 2026-07-29 during R07.** `dev/reference/naming.md` §7 requires
 a `dev/<milestone>/migration_<topic>.md` rename record for every milestone that
 renames a contract surface. R06 renamed four classes of them but wrote its note
 as a root-level `MIGRATION.md` instead — the ambiguity R07's §7 amendment

@@ -13,7 +13,7 @@ alternative implementation:
   ``validate_hm_gauge_column_identity``.
 
 Source of record: ``dev/milestones/p32b/interchange-contracts-design.md`` (ACCEPTED
-2026-07-24, §5.5) and the two seam docs ``dev/contracts/*-seam.md``.
+2026-07-24, §5.5) and the two seam docs ``dev/reference/contracts/*-seam.md``.
 
 Design invariants this module obeys (do not relax without a design change):
 

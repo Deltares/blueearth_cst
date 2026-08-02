@@ -25,7 +25,7 @@ milestone, R7; dev artifacts under `dev/milestones/r07/`. See § Phase 4 below.
 **Phase 5 — Workflow rework (R8 sealed 2026-07-31, opened 2026-07-29).** The first
 phase to change what a workflow *computes* and how its rule graph is shaped,
 starting with workflow 2. Milestone R8; design and audit trail under
-`dev/workflows/`. See § Phase 5 below.
+`dev/reference/workflows/`. See § Phase 5 below.
 
 ```text
 Phase 1 — Foundation (sealed)
@@ -180,7 +180,7 @@ section as a forward-compat marker (documentary today; operational
 when R6 adds module composition or a wrapper script).
 
 > **Amended 2026-07-17.** The three per-workflow contract docs
-> (`dev/workflows/<name>.md`) are moved out of R1: each is written as
+> (`dev/reference/workflows/<name>.md`) are moved out of R1: each is written as
 > the opening act of the milestone that refactors that workflow
 > (R3 → model_creation, R4 → climate_projections, R5 →
 > climate_experiment). Rationale: a contract doc written when its
@@ -236,14 +236,14 @@ cross-workflow data path decoupling (R6); Linux/Docker config rewrites
 
 ### R2 — Naming conventions (sealed 2026-07-19)
 
-**Status.** Sealed 2026-07-19 — `dev/conventions/naming.md` (187 lines,
+**Status.** Sealed 2026-07-19 — `dev/reference/naming.md` (187 lines,
 < 250) authored and pointed to from `AGENTS.md`; the design was tightened
 after independent GPT-5.6 and Fable reviews
 (`dev/milestones/r02/naming-conventions-review-{gpt-20260718,fable-20260719}.md`).
 Docs-only; suite unchanged (51/3/2); existing names grandfathered (zero
 code diffs).
 
-**Goal.** Single prescriptive style guide at `dev/conventions/naming.md`
+**Goal.** Single prescriptive style guide at `dev/reference/naming.md`
 for naming identifiers and files across the repo. Pure docs; no code
 refactoring. R3+ apply the conventions when touching code; existing
 names are grandfathered. R3-R5 add new identifiers along the way
@@ -251,7 +251,7 @@ names are grandfathered. R3-R5 add new identifiers along the way
 convention first prevents each milestone from re-deciding naming on
 the fly.
 
-**Scope.** `dev/conventions/naming.md` (< 250 lines, prescriptive
+**Scope.** `dev/reference/naming.md` (< 250 lines, prescriptive
 `MUST` / `SHOULD` / `MAY` voice) + a one-line pointer in `AGENTS.md`
 (canonical; `CLAUDE.md` inherits via `@AGENTS.md`).
 Covers: universal case (snake_case, lowercase acronyms, true
@@ -268,7 +268,7 @@ class (Python/R = snake_case; `dev/*.md` = kebab-case; etc.), and a
 **Timing (added 2026-07-17).** R2 is pure docs and deliberately light —
 it must not become a scheduling gate. It may be drafted in parallel
 with R1's tail or as R3's opening act; the only hard requirement is
-that `dev/conventions/naming.md` is committed and tagged
+that `dev/reference/naming.md` is committed and tagged
 (`r02-naming`) before R3's first *code* commit, so R3–R5 mint new
 identifiers against a locked convention.
 
@@ -280,7 +280,7 @@ systems; (2) grandfathered today, applied tomorrow — R2 itself
 produces zero code diffs.
 
 **Exit criteria.**
-- `dev/conventions/naming.md` exists, < 250 lines, prescriptive.
+- `dev/reference/naming.md` exists, < 250 lines, prescriptive.
 - `AGENTS.md` has a one-line pointer to the naming doc (canonical;
   `CLAUDE.md` inherits it via `@AGENTS.md` — not a CLAUDE.md-only edit).
 - `pixi run pytest tests/` unchanged: 51 passed, 3 skipped, 2 xfailed.
@@ -294,7 +294,7 @@ guides (function lengths, comment conventions).
 
 **Risks / open questions.**
 - Style guide rot if not enforced. Mitigation: R3-R5 reference
-  `dev/conventions/naming.md` in commit messages when adding new
+  `dev/reference/naming.md` in commit messages when adding new
   identifiers; future linter is a possible followup.
 - Section 6 (domain identifiers) and section 4 (wildcard vocabulary)
   will grow as new tools / workflows enter scope. Doc is living.
@@ -311,7 +311,7 @@ every non-trivial rule, deprecated path labels renamed, `setup_gauges` hardened
 (raises on unknown `wflow_outvars`), the waterbodies rule encapsulated with a
 removal trigger + structured sentinel, and a new `outlet_index.csv` rule-all
 output settling the outlet-naming contract. R2 naming applied to workflow-1
-identifiers; the deferred R1 contract doc `dev/workflows/model_creation.md`
+identifiers; the deferred R1 contract doc `dev/reference/workflows/model_creation.md`
 written. **Behavior-preserving**, verified by a full `--forceall` WF1 rebuild:
 `check_baseline` 14/14, all per-rule logs written, `outlet_index.csv` and the
 structured sentinel correct. Suite 73 passed, 3 skipped, 2 xfailed. Constant-
@@ -335,7 +335,7 @@ cross-cutting Snakefile patterns that R4 and R5 inherit.
 
 **Workflow-1 deliverables.**
 - Opening act, before code changes: write
-  `dev/workflows/model_creation.md` (contract doc deferred from R1;
+  `dev/reference/workflows/model_creation.md` (contract doc deferred from R1;
   format in `dev/milestones/r01/modularity-contracts-design.md` §4).
 - Any load-bearing `ruleorder:` in `Snakefile_model_creation` either
   tightened (preferred) or commented in-place with the reason.
@@ -357,7 +357,7 @@ cross-cutting Snakefile patterns that R4 and R5 inherit.
   of the M1 baseline — preserved, or intentionally updated with a
   documented diff in `dev/milestones/r03/baseline_diffs.md`.
 - New unit tests added and passing.
-- `dev/workflows/model_creation.md` contract doc committed.
+- `dev/reference/workflows/model_creation.md` contract doc committed.
 
 **Out of scope.**
 - `Snakefile_climate_projections` content changes (R4) — except the
@@ -373,7 +373,7 @@ cross-cutting Snakefile patterns that R4 and R5 inherit.
 `src/` scripts cleaned up, inheriting the R3 patterns. Design accepted via a
 `design-review-loop` run (3-lens internal panel + 3 external GPT rounds +
 round-cap arbitration; 24/24 findings closed) at `dev/milestones/r04/`. Landed in 11
-commits (`1a8809e`..seal): contract doc `dev/workflows/climate_projections.md`;
+commits (`1a8809e`..seal): contract doc `dev/reference/workflows/climate_projections.md`;
 the load-bearing `ruleorder:` resolved as evidence-backed stale-insurance
 (dry-run refuted the `AGENTS.md` "load-bearing" claim — `AGENTS.md` corrected);
 per-rule `log:`/`benchmark:` + `tee_to_log` on all five non-trivial rules
@@ -405,7 +405,7 @@ configfile mechanism, log/benchmark conventions).
 
 **Deliverables.**
 - Opening act, before code changes: write
-  `dev/workflows/climate_projections.md` (contract doc deferred from
+  `dev/reference/workflows/climate_projections.md` (contract doc deferred from
   R1; format in `dev/milestones/r01/modularity-contracts-design.md` §4).
 - The load-bearing `ruleorder:` directive in
   `Snakefile_climate_projections` either tightened or commented
@@ -425,7 +425,7 @@ configfile mechanism, log/benchmark conventions).
   the M1 baseline — preserved, or intentionally updated with a
   documented diff in `dev/milestones/r04/baseline_diffs.md`.
 - New unit tests added and passing.
-- `dev/workflows/climate_projections.md` contract doc committed.
+- `dev/reference/workflows/climate_projections.md` contract doc committed.
 
 **Out of scope.**
 - Workflow-1 or workflow-3 changes (other than shared helper
@@ -442,7 +442,7 @@ scripts + the R weathergen layer (`src/weathergen/generate_weather.R`,
 accepted via a `design-review-loop` run (3-lens internal panel + 2 external GPT
 rounds + round-cap arbitration; 21/21 findings closed) at `dev/milestones/r05/`. Landed in
 12 commits (no commit 4; `8b356f3`..seal): contract doc
-`dev/workflows/climate_experiment.md`; `stress_test_grid` helper extracted to
+`dev/reference/workflows/climate_experiment.md`; `stress_test_grid` helper extracted to
 `snake_utils.py` (strict `step_num`, removing the Snakefile's silent default-1 —
 output-neutral hardening); `prepare_weagen_config.py` config assembly extracted
 into importable functions above a guard; the **CyclicGraphException** resolved
@@ -512,7 +512,7 @@ R3.
 
 **Deliverables.**
 - Opening act, before code changes: write
-  `dev/workflows/climate_experiment.md` (contract doc deferred from
+  `dev/reference/workflows/climate_experiment.md` (contract doc deferred from
   R1; format in `dev/milestones/r01/modularity-contracts-design.md` §4).
 - Per-rule `log:` and `benchmark:` on every non-trivial rule in this
   Snakefile.
@@ -534,7 +534,7 @@ R3.
   the M1 baseline — preserved, or intentionally updated with a
   documented diff in `dev/milestones/r05/baseline_diffs.md`.
 - New unit tests added and passing.
-- `dev/workflows/climate_experiment.md` contract doc committed.
+- `dev/reference/workflows/climate_experiment.md` contract doc committed.
 
 **Out of scope.**
 - Workflow-1 or workflow-2 changes (other than shared helper
@@ -732,7 +732,7 @@ consolidated review record beside it.
 **Sealed 2026-07-24**: 4 `p32b:` implementation commits (two seam docs →
 validators+tests (§8 commits 3+4 merged as sanctioned) → contracts README)
 off the task brief (`dev/milestones/p32b/interchange-contracts-task-brief.md`),
-user-signed milestone gate. Deliverables: `dev/contracts/{README,
+user-signed milestone gate. Deliverables: `dev/reference/contracts/{README,
 weather-generator-seam, hydrological-model-seam}.md`,
 `blueearth_cst/shared/interchange_contracts.py` (15 validators),
 `tests/test_interchange_contracts.py` (30 synthetic + 15 integration).
@@ -1041,10 +1041,10 @@ cross-vendor rounds, **28 findings across 4 versions, all dispositioned, one
 partially rejected by owner ruling**. The external cap was reached with round 2
 unconverged, so the owner arbitrated all nine surviving findings — the final
 version's changes therefore carry no external verdict, which the design states on
-its face. Accepted design: `dev/workflows/wf2-climate-analysis-v2-design.md`;
-audit trail: `dev/workflows/wf2-climate-analysis-v2-design-review-record.md`;
-current-state map: `dev/workflows/wf2_climate_projections_overview.md`; store
-inventory: `dev/workflows/wf2-cmip6-store-inventory.md`.
+its face. Accepted design: `dev/reference/workflows/wf2-climate-analysis-v2-design.md`;
+audit trail: `dev/reference/workflows/wf2-climate-analysis-v2-design-review-record.md`;
+current-state map: `dev/reference/workflows/wf2_climate_projections_overview.md`; store
+inventory: `dev/reference/workflows/wf2-cmip6-store-inventory.md`.
 
 **Owner rulings that shaped it.** Clip the GCM reference to the 2014 end of the
 CMIP6 historical experiment rather than splicing scenario data (R1); retain the
@@ -1138,7 +1138,7 @@ above. This section covers commit messages only.
 Examples:
 
 - `r01: migrate test config + 3 Snakefiles to sectioned schema`
-- `r02: add dev/conventions/naming.md + CLAUDE.md pointer`
+- `r02: add dev/reference/naming.md + CLAUDE.md pointer`
 - `r03: collapse get_config into src/snake_utils.py`
 - `r04: fix calendar handling in get_stats_climate_proj.py`
 - `r05: extract stress-test grid into tested helper`

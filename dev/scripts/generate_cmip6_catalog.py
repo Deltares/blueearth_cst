@@ -166,7 +166,7 @@ def pin_stores(
     Two facts the index must carry honestly:
 
     * **The glob is not guaranteed to match exactly one store.** The inventory
-      (`dev/workflows/wf2-cmip6-store-inventory.md` §2) found `NCC/NorCPM1`
+      (`dev/reference/workflows/wf2-cmip6-store-inventory.md` §2) found `NCC/NorCPM1`
       historical `tas` publishing two versions. Every matching pair is recorded,
       newest last; a consumer that needs one store asserts ``len == 1``.
     * **Only ``pr``/``tas`` are certified** (``REQUIRED_VARS``); the crawl proved

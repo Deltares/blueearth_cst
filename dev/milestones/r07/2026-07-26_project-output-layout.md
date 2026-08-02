@@ -363,7 +363,7 @@ Nearly every move touches the same two machines:
   path-aware toml comparator both need the new mapping.
 - `dev/scripts/check_baseline.py` — the `TARGETS` templates.
 - A `dev/<milestone>/migration_<topic>.md` note is **required** by
-  `dev/conventions/naming.md` §7 (rule-`all` output filenames + fixture paths read
+  `dev/reference/naming.md` §7 (rule-`all` output filenames + fixture paths read
   by `check_baseline.py`).
 
 Single re-record if batched; N re-records if not. **Recommendation: one milestone.**
@@ -450,7 +450,7 @@ so the rationale above had to move to a durable home before implementation:
 1. Promote to `dev/<milestone>/project-output-layout-design.md`; **milestone
    number to be assigned**.
 2. Write the `dev/<milestone>/migration_<topic>.md` old→new path map required by
-   `dev/conventions/naming.md` §7 — every path in §2 that moves, in the same form
+   `dev/reference/naming.md` §7 — every path in §2 that moves, in the same form
    as `dev/milestones/p31/migration_experiment-structure.md`.
 3. Decide whether the repository-side items from
    `dev/reviews/2026-07-25_post-r6-assessment.md` (notably O-20,

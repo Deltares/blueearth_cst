@@ -74,7 +74,7 @@ ADR 0002 (`dev/decisions/0002-revive-subcatchment-climate-plots.md`).
   value-identical (semantic-tree-diff + manifest discipline, R3/R5 style);
   the re-source is the milestone's single sanctioned value change, accepted
   per decision 4.
-- Naming per `dev/conventions/naming.md`; commit prefix `p32a:` (registered
+- Naming per `dev/reference/naming.md`; commit prefix `p32a:` (registered
   in the roadmap prefix list at scoping).
 
 ## Success criteria

@@ -2,7 +2,7 @@
 
 > **Revised 2026-07-29** after the `wf2-climate-analysis-v2` design review closed
 > at G2. The design this brief implements is
-> `dev/workflows/wf2-climate-analysis-v2-design.md` (**ACCEPTED**); the audit
+> `dev/reference/workflows/wf2-climate-analysis-v2-design.md` (**ACCEPTED**); the audit
 > trail is `…-design-review-record.md` beside it. Three review findings changed
 > this brief materially — see *What the review changed* below. The superseded
 > draft covered "steps 1–2"; the accepted plan splits that into **1, 2a, 2b**.
@@ -13,7 +13,7 @@ Canonical ruleset: `AGENTS.md`. **Authoritative spec: the accepted design** —
 §5.3 (series store, identity, caching), §5.4 (region and reference window),
 **D9** (region content identity), **D12** (store index), §8 (migration table
 rows 1 / 2a / 2b), §9 (validation plan, cache tests (a)–(k)). Current-state map:
-`dev/workflows/wf2_climate_projections_overview.md`.
+`dev/reference/workflows/wf2_climate_projections_overview.md`.
 
 This brief bounds the work and names the gates; **it does not restate the
 design**. Where the two differ, the design wins — report the discrepancy rather
@@ -177,7 +177,7 @@ dry-runs, reverts the offending commit before continuing.
 - `--dry-run` before running and after editing any rule.
 - `config/catalogs/cmip6_data.yml` is generated — never hand-edit it.
 - Do not commit run outputs under `project_dir`; do not hand-edit `pixi.lock`.
-- Follow `dev/conventions/naming.md` for any new identifier.
+- Follow `dev/reference/naming.md` for any new identifier.
 
 **Human gates**
 

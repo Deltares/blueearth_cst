@@ -337,7 +337,7 @@ find the moved paths are also hardcoded inside `script:`-directive Python module
 `export_wflow_results.py:161,281`, `setup_time_horizon.py:51`,
 `downscale_climate_forcing.py:72`, `generate_weather.R:68`) and across at least
 seven test modules that no commit touches — while "`pytest tests/` green" is a
-stated success criterion. **arch-4** additionally names the `dev/contracts/*-seam.md`
+stated success criterion. **arch-4** additionally names the `dev/reference/contracts/*-seam.md`
 documents, which pin the same paths and are unlisted.
 
 **Severity divergence, preserved:** `major` (architecture) vs `minor` (risk).
@@ -734,7 +734,7 @@ findings:
       The G1 ruling that `MIGRATION.md` moves to `docs/` (audience = users) creates two
       classes of migration document with no stated rule for which class a new note
       joins, and design-v1 does not address the divergence at all.
-      `dev/conventions/naming.md` §7 requires "a `dev/<milestone>/migration_<topic>.md`
+      `dev/reference/naming.md` §7 requires "a `dev/<milestone>/migration_<topic>.md`
       note" for renames of `rule all` output filenames and of "Test fixture paths read
       by `tests/conftest.py`, `dev/scripts/check_baseline.py`" — R07 triggers both — and
       the design duly files its map at `dev/milestones/r07/migration_project-layout.md`. But by the
@@ -950,7 +950,7 @@ findings:
       `tests/test_check_baseline_scope.py:131,160`, `tests/test_semantic_tree_diff.py:332-388`,
       `tests/test_workflow_climate_experiment.py:114`, `tests/test_guard_invalidation.py:97`,
       `tests/test_check_project_consistency.py:30` — none named in the commit plan, which
-      mentions `tests/` only as a "config fix" in commit 1. The `dev/contracts/*-seam.md`
+      mentions `tests/` only as a "config fix" in commit 1. The `dev/reference/contracts/*-seam.md`
       documents pin the same paths (`hydrological-model-seam.md:74,353`,
       `weather-generator-seam.md:56,71,248,294`) and are also unlisted.
     rationale: >-
@@ -1136,7 +1136,7 @@ findings:
       Relatedly, `_is_copied_config` (line 576) matches any YAML with a `config` path part, so
       the new `weather_generator/config/weathergen_config.yml` is newly swept into that
       directional policy. (b) The G1 ruling moves `MIGRATION.md` to `docs/` while
-      `dev/conventions/naming.md` §7 (lines 141-150) places migration notes under
+      `dev/reference/naming.md` §7 (lines 141-150) places migration notes under
       `dev/<milestone>/` — and R07 writes its own map to `dev/milestones/r07/migration_project-layout.md`,
       so the repo will hold two migration notes under two conventions. v1 addresses this
       nowhere; it lists the home as an open question and cites §7 only as a requirement it
@@ -1783,7 +1783,7 @@ every such case, so "accepted" is never read as "the suggested fix landed".
 | arch-1 | internal-panel | blocking | accepted | Same blocking group as risk-1/repo-2, resolved by GA-1's shared-rule route. **arch-1's own alternative — restating the P4 assertion as what R07 actually proves — was rejected at G1-return** and is now a recorded alternative, because it preserves scope by abandoning a named success criterion. Its first fix *is* adopted in full: B1 names the owning declarations, the exact inputs, and pins `hydrography_fn`/`basin_index_fn` to `config/templates/wflow_build_model.yml` `setup_basemaps`. arch-1's `get_region_preview.py` observation is not only confirmed but strengthened — verified this revision that the module **does not import** on the pinned hydromt 1.3.1 (`hydromt.cli.api` removed in hydromt 1.x); it is logged as O-25 and retired, and `hydromt.model.processes.region.parse_region_basin` replaces it. | design-v2.md |
 | arch-2 | internal-panel | blocking | accepted | Merge class adopted, `--retire` set rejected on the merits and recorded as a rejected alternative: retiring `wf1_raw/*` and allowlisting it as MISSING lets the gate go green while proving nothing about the store that disappeared — exactly where GA-1 demands proof. Verified against the code that `.nc` already dispatches to the element-wise `compare_nc` (`semantic_tree_diff.py:592`), so the merge class is simultaneously the fix for the `ValueError` and the executable form of GA-1's bbox proof; the design states this connection rather than treating them as two work items. | design-v2.md |
 | arch-3 | internal-panel | major | accepted | Resolves the index's preserved conflict (arch-3 vs the risk lens's explicit non-finding) **in the architecture lens's favour, by owner ruling GA-1**: the bbox change is now the third named exception to the behaviour-preservation stance. arch-3's suggested test is adopted, via the Group B merge class rather than as a separate mechanism. The risk lens's `buffer=1` reasoning is preserved as a reason to *expect* a match, not as a substitute for checking — and this revision adds a bounds probe on the seed fixture (R07 bbox bit-identical to today's wf1 bbox; ≤3.4e-07° from today's wf3 bbox, i.e. GeoJSON 6-dp rounding). The design also writes the **stated branch** if the coordinate arrays do *not* match, including the wf3-indicator tail arch-3 did not reach and a hard stop-and-escalate if discharge moves. | design-v2.md |
-| arch-4 | internal-panel | major | accepted | The `--dry-run` concession is replaced by a **contract inventory table**, exactly the shape arch-4 asked for: for each move, the rule(s), the script-module constant(s), the test modules, and the seam doc, with each row attached to a commit. All cited script constants and both `dev/contracts/*-seam.md` documents are listed. Filed `major` here and `minor` as risk-10; both dispositioned at their filed severity, one fix. | design-v2.md |
+| arch-4 | internal-panel | major | accepted | The `--dry-run` concession is replaced by a **contract inventory table**, exactly the shape arch-4 asked for: for each move, the rule(s), the script-module constant(s), the test modules, and the seam doc, with each row attached to a commit. All cited script constants and both `dev/reference/contracts/*-seam.md` documents are listed. Filed `major` here and `minor` as risk-10; both dispositioned at their filed severity, one fix. | design-v2.md |
 | arch-5 | internal-panel | major | accepted | Promoted to a numbered move, **B10**, with its own commit (12). It names rules 1.11, 1.12, 1.13 and 1.14, the three module constants (`plot_results.py:108`, `plot_map.py:34`, `plot_map_forcing.py:201`), and `performance_metrics.csv`, and gives a per-rule destination table. One deviation from the suggested fix, driven by P1's restatement: `basin_area.png` goes to `hydrology_model/plots/`, not `evaluation/plots/`, because it depicts the model rather than the run (risk-4's P1 half). | design-v2.md |
 | arch-6 | internal-panel | major | accepted | B4's table extended to three rows with a "question it answers" column, and the open decision arch-6 flags is **taken**: `clim_wflow_1_*` survives, on the same reasoning the owner used to retain the forcing/QA figures (it answers a model-parity question the source-grid family cannot). The disambiguating-filename decision the v1 risk deferred is also taken here rather than deferred again — the source-grid set is prefixed `source_*` (risk-9). | design-v2.md |
 | arch-7 | internal-panel | major | accepted | P3 restated with the exemption inline and `model_root` named as the reason, plus the optional-when-empty clause that makes `hydrology_runs/rlz_<r>/` conform. One addition beyond the finding, needed by repo-9's relocation: engine subtrees may **add** engine-mandated directories (`forcing/`, `run_default/`, `evaluation/`), which is what lets `hydrology_runs/rlz_<r>/forcing/` exist without re-breaking P3. The `climate_projections/` shape stays out of P3's scope, as arch-7 itself notes. | design-v2.md |

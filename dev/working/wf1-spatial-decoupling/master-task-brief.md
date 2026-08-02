@@ -27,7 +27,7 @@ P2 starts with a bounded HydroMT-Wflow adapter proof. It may proceed only after 
 - Do not modify generated run outputs, `pixi.lock`, `Manifest.toml`, or a production `project_dir`. Integration runs use a clean, dedicated test project directory.
 - Keep every cross-model identity explicit in attributes and the location registry. Never use a display name or file order as the sole join key.
 - Preserve existing plot filenames for this task; use the registry for identity. Redesigning data-dependent plot enumeration is a separate concern.
-- Update `dev/workflows/model_creation.md` and the clean config template when the public configuration or output contract changes.
+- Update `dev/reference/workflows/model_creation.md` and the clean config template when the public configuration or output contract changes.
 
 ### Human gates
 

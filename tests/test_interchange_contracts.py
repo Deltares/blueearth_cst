@@ -18,7 +18,7 @@
   temp layer.
 
 Source of record: ``dev/milestones/p32b/interchange-contracts-design.md`` §5.5 and the two
-seam docs ``dev/contracts/*-seam.md``.
+seam docs ``dev/reference/contracts/*-seam.md``.
 """
 import os
 from os.path import dirname, join, realpath

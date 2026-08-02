@@ -131,7 +131,7 @@ has no artifact it can point a third-party model author at.
   only.
 - **`blueearth_cst/weathergen/*.R` content untouched** (read-only for
   contract-derivation).
-- **Naming** per `dev/conventions/naming.md`: new identifiers snake_case, `_path`
+- **Naming** per `dev/reference/naming.md`: new identifiers snake_case, `_path`
   for path strings, `_ds`/`_df` for objects; contract-doc filenames kebab-case.
   Domain identifiers governed by an upstream tool or an established BlueEarth
   contract follow *that* contract, not local style (naming.md §2/§6) — the
@@ -307,17 +307,17 @@ a swap is not over-constrained by a property no consumer reads (R1).
 **Placement: `dev/`, not `docs/`.** The audience is future *swappers* and
 dev-process (a model/generator author, the R6 model-flexibility work), not the
 tool's end user — squarely the `dev/` side of the AGENTS.md `dev/`-vs-`docs/`
-boundary. Precedent: the R5 contract doc `dev/workflows/climate_experiment.md`
-records current-behavior contracts under `dev/workflows/`.
+boundary. Precedent: the R5 contract doc `dev/reference/workflows/climate_experiment.md`
+records current-behavior contracts under `dev/reference/workflows/`.
 
-**One file per seam** (two docs — matching the `dev/workflows/*.md`
+**One file per seam** (two docs — matching the `dev/reference/workflows/*.md`
 one-file-per-workflow precedent and intake decision 2's "per-seam contract
 documents"):
 
-- `dev/contracts/weather-generator-seam.md` — the WG-1..WG-6 inventory.
-- `dev/contracts/hydrological-model-seam.md` — the HM-1..HM-7 inventory.
+- `dev/reference/contracts/weather-generator-seam.md` — the WG-1..WG-6 inventory.
+- `dev/reference/contracts/hydrological-model-seam.md` — the HM-1..HM-7 inventory.
 
-(New `dev/contracts/` subdir; kebab-case filenames per naming.md. Rejected: one
+(New `dev/reference/contracts/` subdir; kebab-case filenames per naming.md. Rejected: one
 combined file — it buries the two independent substitution stories; per-artifact
 files — 13 fragments, over-decomposed, breaks the "one doc a swapper reads
 end-to-end" goal. §6.1.)
@@ -632,7 +632,7 @@ roadmap's "bounded substitution" made reviewable.
   a seam end-to-end, and cross-artifact invariants (the HM-4→HM-5→HM-7 column
   identity; WG-4↔WG-5 catalog coupling) live *between* artifacts, so per-file
   fragments hide exactly the couplings that matter.
-- **One file per seam (SELECTED).** Matches the `dev/workflows/*.md` precedent, keeps
+- **One file per seam (SELECTED).** Matches the `dev/reference/workflows/*.md` precedent, keeps
   each substitution story whole, and hosts the cross-artifact invariants in one
   place. Two docs.
 
@@ -769,7 +769,7 @@ indistinguishable from a real pass. Three repairs weighed:
 - The contract docs record a **snapshot** of current shapes; if a later,
   behavior-changing milestone alters an artifact, the doc + validator must be
   updated in that milestone (the contract is a living record, like
-  `dev/workflows/*.md`).
+  `dev/reference/workflows/*.md`).
 
 **Risks.**
 
@@ -813,11 +813,11 @@ changes).
 **Commit sequence (small, reviewable):**
 
 1. `p32b: weather-generator seam contract doc` — add
-   `dev/contracts/weather-generator-seam.md` (WG-1..WG-6 inventory + bounded-
+   `dev/reference/contracts/weather-generator-seam.md` (WG-1..WG-6 inventory + bounded-
    substitution walkthrough + validator index). Docs-only. Gate: three dry-runs
    clean (no code touched), `pytest` unchanged-green.
 2. `p32b: hydrological-model seam contract doc` — add
-   `dev/contracts/hydrological-model-seam.md` (HM-1..HM-5, **HM-6a/HM-6b split**,
+   `dev/reference/contracts/hydrological-model-seam.md` (HM-1..HM-5, **HM-6a/HM-6b split**,
    HM-7 + walkthrough + index), including the grounded warm-state finding (HM-6a/b
    unconsumed sink; HM-6a existence via HM-4, no validator), the HM-6a path
    derivation (`dir_output` + `[state].path_output`), the HM-4 rewrite-field set
@@ -847,7 +847,7 @@ changes).
    green (the three real-artifact cases **skip** with the documented reason;
    all 30 synthetic cases **pass**); three dry-runs clean.
 5. `p32b: seam-contract index + roadmap close-out note` — a short
-   `dev/contracts/README.md` (or roadmap § update) linking the two seam docs and
+   `dev/reference/contracts/README.md` (or roadmap § update) linking the two seam docs and
    stating coverage by **reference to the §5.5 counting axis** (15 validators;
    fixture present → 12 integration-green + 3 skip-until-captured on disk;
    fixtureless → 15 named skips + 30 synthetic tests still executed, an
@@ -920,7 +920,7 @@ statement, referenced, never re-quoted):
   §6.5).
 - **Zero behavior change** — three dry-runs + full suite green at every commit
   (fixtured and fixtureless); nothing re-recorded; `git diff` touches only
-  `dev/contracts/**`, `blueearth_cst/shared/interchange_contracts.py`,
+  `dev/reference/contracts/**`, `blueearth_cst/shared/interchange_contracts.py`,
   `tests/test_interchange_contracts.py`.
 - **Bounded-substitution walkthrough** — each seam doc names the exact repo files
   a swap touches and the contracts it must satisfy (§5.6).
@@ -931,9 +931,9 @@ statement, referenced, never re-quoted):
 
 - **OQ-1 — merge the docs/validator commits?** §8 splits into 5 commits for
   reviewability; a reviewer may prefer 2 (one docs, one validators). Taste call.
-- **OQ-2 — `dev/contracts/` vs `dev/workflows/` placement.** The seam docs are
-  contracts *across* workflows, not per-workflow, so a new `dev/contracts/` subdir
-  is proposed; a reviewer preferring to co-locate with `dev/workflows/*.md` may
+- **OQ-2 — `dev/reference/contracts/` vs `dev/reference/workflows/` placement.** The seam docs are
+  contracts *across* workflows, not per-workflow, so a new `dev/reference/contracts/` subdir
+  is proposed; a reviewer preferring to co-locate with `dev/reference/workflows/*.md` may
   fold them there. Recommend the new subdir (different axis: seam, not workflow).
 - **OQ-3 — chirps fixture for branch coverage (future).** The WG-1 chirps facts
   and orography sidecar are documented-not-verified. A chirps fixture would flip
@@ -966,7 +966,7 @@ statement, referenced, never re-quoted):
   `staticmaps.nc`; the base vs per-cst `wflow_sbm.toml` diff (the 8-field
   rewrite surface + the `cold_start__flag=true` warm-state finding); the
   weathergen R scripts (read-only); the rule-3.08 catalog YAML; the stress-test /
-  output / Qstats / basin CSVs; and `dev/workflows/climate_experiment.md` (contract-doc
+  output / Qstats / basin CSVs; and `dev/reference/workflows/climate_experiment.md` (contract-doc
   precedent). Key grounded corrections to the intake's hints: (1) **warm-state is
   an unconsumed named sink, not a chaining invariant** (cold_start stays true; no
   `instates` input on rule 3.10) — HM-6; (2) **`output.csv` column identity is
@@ -974,7 +974,7 @@ statement, referenced, never re-quoted):
   not a literal `*_basavg`/multi-gauge list — HM-5, flowing HM-4→HM-5→HM-7 as one
   degree of freedom; (3) **extraction temp is Kelvin**, model-grid forcing temp is
   °C — the conversion is HM-2's contract, correcting p32a's °C assumption. Load-
-  bearing decisions: contract docs under `dev/contracts/` one-file-per-seam;
+  bearing decisions: contract docs under `dev/reference/contracts/` one-file-per-seam;
   validators in an unwired liftable package module
   (`blueearth_cst/shared/interchange_contracts.py`); temp()-content contracts
   handled by skip-until-captured (all temp() NCs absent from the fixture) with an

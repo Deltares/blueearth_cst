@@ -192,7 +192,7 @@ layout refactor:
 
 **Target module tree.** Group the 27 `src/*.py` modules + `src/weathergen/` by
 workflow stage, with a `shared/` submodule for the cross-cutting helpers. Every
-module keeps its filename (grandfathered per `dev/conventions/naming.md`); only the
+module keeps its filename (grandfathered per `dev/reference/naming.md`); only the
 package prefix changes.
 
 ```

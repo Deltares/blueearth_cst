@@ -70,17 +70,17 @@
 
 ## 4. Completeness pass
 
-After the corrections above, the design is detailed enough to execute directly. Its nine-section outline is effectively a content specification for `dev/conventions/naming.md`, including normative voice, examples, exceptions, migration boundaries, and the 250-line target.
+After the corrections above, the design is detailed enough to execute directly. Its nine-section outline is effectively a content specification for `dev/reference/naming.md`, including normative voice, examples, exceptions, migration boundaries, and the 250-line target.
 
 The following execution details should be made explicit:
 
 1. **Add a changed-path allowlist.** “No code files modified” is weaker than the stated pure-docs boundary. At sealing, require the diff from `r01-contracts` to contain only the approved documentation paths, such as:
 
    - `dev/milestones/r02/naming-conventions-design.md`
-   - `dev/conventions/naming.md`
+   - `dev/reference/naming.md`
    - `AGENTS.md` and/or `CLAUDE.md`
    - `dev/roadmap.md`
-   - `dev/branches-and-tags.md`
+   - `dev/reference/branches-and-tags.md`
 
    No `Snakefile_*`, `src/`, `tests/`, configuration YAML, lockfile, manifest, or generated output should appear.
 
@@ -88,7 +88,7 @@ The following execution details should be made explicit:
 
 3. **Make “suite unchanged” concrete.** The sealed R01 state is recorded as **51 passed, 3 skipped, 2 xfailed** in `dev/roadmap.md:137–142,199`. Use that as the expected comparison for `pixi run pytest tests/`. No Snakemake workflow or scientific baseline run is warranted for this docs-only milestone.
 
-4. **Update the durable-ref inventory at sealing.** `dev/branches-and-tags.md:39–40` still lists `r02-naming` as planned. The sealing commit should record the branch/tag there as well as marking R2 sealed in `dev/roadmap.md`.
+4. **Update the durable-ref inventory at sealing.** `dev/reference/branches-and-tags.md:39–40` still lists `r02-naming` as planned. The sealing commit should record the branch/tag there as well as marking R2 sealed in `dev/roadmap.md`.
 
 5. **State the final mechanical gates.** Before tagging, confirm the guide exists, is under 250 lines, contains all nine specified sections, the suite matches the sealed R01 state, and the changed-path allowlist contains documentation only.
 

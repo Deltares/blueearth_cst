@@ -322,7 +322,7 @@ each can be routed on its own merits.
   seven untracked/ignored tool directories — enough that it reads as cluttered.
 - **Assessment.** Most of it is load-bearing. 13 of the 17 tracked files are fixed
   by an external tool contract or already sanctioned by
-  `dev/conventions/naming.md:170` ("Standard root-level files — upstream"). Only
+  `dev/reference/naming.md:170` ("Standard root-level files — upstream"). Only
   three are genuinely movable, and two of those are worth acting on (O-12, O-13).
 
 | Entry | Verdict | Reason |
@@ -378,7 +378,7 @@ each can be routed on its own merits.
 - **Created:** 2026-07-26 · **Rev:** `75eb4d6` · **Status:** open
 - **Observed:** root `MIGRATION.md` is a single-milestone document — "MIGRATION —
   R06 structural refactor", git-ref-anchored to `e33ee45` (`:1-14`). Meanwhile
-  `dev/conventions/naming.md:141-147` (§7) requires migration notes at
+  `dev/reference/naming.md:141-147` (§7) requires migration notes at
   `dev/<milestone>/migration_<topic>.md`, and the P3-1 design review (`repo-4`,
   accepted — `dev/milestones/p31/experiment-structure-design-review-record.md:870`) explicitly
   declined to promote the root file into a multi-milestone index, routing its own
@@ -613,7 +613,7 @@ each can be routed on its own merits.
   fixture as examples while the real examples sit under `docs/`.
 - **Expected:** the directory name states what it is.
 - **Is it cosmetic? No — but it is cheap.** Two concrete costs:
-  1. **A `naming.md` §7 rename.** §7 (`dev/conventions/naming.md:141-147`) names
+  1. **A `naming.md` §7 rename.** §7 (`dev/reference/naming.md:141-147`) names
      "test fixture paths read by `tests/conftest.py`, `dev/scripts/check_baseline.py`,
      or other scripts" as requiring a `dev/<milestone>/migration_<topic>.md` note.
      This is exactly that.
@@ -816,7 +816,7 @@ each can be routed on its own merits.
 - **R6 already made this call.** The refactor moved the runners into `scripts/`
   (`structural-refactor-design.md:588-612`) and deliberately left the Snakefiles at
   the root — `:432` notes `tests/test_cli.py` "locates Snakefiles by `SNAKEDIR` at
-  repo root — unaffected by the package move". `dev/conventions/naming.md:168` then
+  repo root — unaffected by the package move". `dev/reference/naming.md:168` then
   codified "Snakemake entry points" as their own sanctioned file class.
 - **Verdict: keep them at the root.** `AGENTS.md` calls them "the only entry
   points"; entry points at the front door is the conventional reading, and it is

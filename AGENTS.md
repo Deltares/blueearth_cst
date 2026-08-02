@@ -136,7 +136,7 @@ pinned by `tests/test_run_workflows.py`.
 
 ## Conventions
 
-- Name new identifiers and files per `dev/conventions/naming.md` (snake_case,
+- Name new identifiers and files per `dev/reference/naming.md` (snake_case,
   lowercase acronyms, `_path`/`_dir` for paths vs `_ds`/`_df`/`_cfg` for objects,
   three-tier domain-identifier exemptions). Existing names are grandfathered; rename
   a contract surface only with a migration note.

@@ -58,7 +58,7 @@ touching outputs, entry points, or the wrapper contract.
 - Platform surface (three entry points, `rule all` targets, wrapper contract,
   config `workflows:` sections) unchanged.
 - New-dependency approval gate.
-- Naming per `dev/conventions/naming.md`; commit prefix `p33:`; tag at close.
+- Naming per `dev/reference/naming.md`; commit prefix `p33:`; tag at close.
 - Fixture is the era5 test basin; production claims are a model, not measured.
 
 ## 4. Decision criteria

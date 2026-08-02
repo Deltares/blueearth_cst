@@ -433,7 +433,7 @@ series tier, produced as a side effect of the plotting rule:
    `Snakefile_climate_experiment`, not read by any script. The only other
    reference is `dev/scripts/semantic_tree_diff.py:278-279`, which maps its old
    path to its new one for baseline diffing — a tool that compares it, not a
-   consumer that needs it. `dev/workflows/climate_projections.md:105` already
+   consumer that needs it. `dev/reference/workflows/climate_projections.md:105` already
    classifies it as a "side-effect artifact (bookkeeping; no downstream reader)".
 2. **Not a manifest target.** The design states this explicitly under "Coverage
    is thin" (`wf2-climate-analysis-v2-design.md` §2156).
@@ -475,7 +475,7 @@ Landed as one commit. Surfaces changed:
   pandas anyway, so removing it would be an unrelated behaviour change. The stale
   justification comments were rewritten rather than left pointing at a write that
   no longer exists.
-- `dev/workflows/wf2_climate_projections_overview.md` — §2 output list and
+- `dev/reference/workflows/wf2_climate_projections_overview.md` — §2 output list and
   observations 9–10.
 - `docs/migration-r08-wf2.md` — a "Removed output" section naming the
   replacements (`series/*.nc`, `change_factors/*.csv`).
@@ -571,7 +571,7 @@ question S8-02 answered for `gcm_timeseries.nc`.
 
 ### d. The overview's DAG diagram still describes the pre-v2.0 rule set
 
-`dev/workflows/wf2_climate_projections_overview.md` opens by claiming it records
+`dev/reference/workflows/wf2_climate_projections_overview.md` opens by claiming it records
 **current** behavior, and its §1 rule inventory was corrected at the v2.0 seal.
 But the §2 detail blocks and the DAG diagram still describe `monthly_stats_hist`,
 `monthly_stats_fut`, `monthly_change`, `monthly_change_scalar_merge` and the

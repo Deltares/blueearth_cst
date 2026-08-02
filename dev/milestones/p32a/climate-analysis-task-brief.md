@@ -152,7 +152,7 @@ commit-4 wf1 e2e, commit-5 ladder run, commit-6
   check before shim deletion).
 - Preserve `workflow.configfiles[0]` forwarding, `get_config`, `tee_to_log`,
   and per-rule `log:`/`benchmark:` house patterns; naming per
-  `dev/conventions/naming.md` (OQ-1: rename file to `subcatchment_climate.py`,
+  `dev/reference/naming.md` (OQ-1: rename file to `subcatchment_climate.py`,
   keep the function name).
 - `--dry-run` never validates a `script:` body — the commit-6 execution check
   is mandatory, not optional.
