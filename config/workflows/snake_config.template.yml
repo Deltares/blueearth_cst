@@ -8,7 +8,7 @@
 # Each workflows.<name> section has an `enabled:` flag (documentary in
 # R01; will become operational at R6+ structural refactor).
 #
-# Per-workflow contract docs (dev/workflows/<name>.md) are written at
+# Per-workflow contract docs (dev/reference/workflows/<name>.md) are written at
 # the opening of R3/R4/R5, not in R01 (2026-07-17 amendment).
 
 project:
@@ -96,7 +96,7 @@ workflows:
     # CAMS-CSM1-0, CanESM5, EC-Earth3 (ssp245), GISS-E2-1-G, GISS-E2-1-H,
     # IPSL-CM6A-LR (ssp434/460), MCM-UA-1-0 and NorESM2-LM (ssp245) — for those,
     # narrow `members:` to the one label the model shares across your scenarios.
-    # Per-model member lists: dev/workflows/wf2-cmip6-monthly-members.csv.
+    # Per-model member lists: dev/reference/workflows/wf2-cmip6-monthly-members.csv.
     members: [r1i1p1f1, r1i1p1f2, r1i1p1f3, r1i1p2f1]
     variables:
       precip: {source: precip, canonical: rate, units: mm/day, change: relative}

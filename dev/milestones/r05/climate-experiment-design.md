@@ -16,7 +16,7 @@ fixed in R5**). Implementation is handed to `task-brief`.
 - v1 (2026-07-20) — initial draft against the R4 sealed state. Grounds every
   claim in `Snakefile_climate_experiment`, `src/`, `src/weathergen/*.R`,
   `src/snake_utils.py`, `tests/test_cli.py`, `dev/scripts/check_baseline.py`,
-  `dev/conventions/naming.md`, `dev/followups.md`, and
+  `dev/reference/naming.md`, `dev/followups.md`, and
   `config/snake_config_model_test.yml`. Mirrors the R4 design register:
   contract-first, behavior-preserving, split-don't-absorb audit policy,
   pre-committed finding-classification policy, rulings on all five candidate
@@ -177,12 +177,12 @@ indicators.
 Beyond the inherited hygiene, R5 delivers four workflow-3-specific items the
 roadmap names (`dev/roadmap.md` § R5, reproduced in intake.md):
 
-1. The **`dev/workflows/climate_experiment.md` contract doc** (deferred from R1;
+1. The **`dev/reference/workflows/climate_experiment.md` contract doc** (deferred from R1;
    format per `dev/milestones/r01/modularity-contracts-design.md` §4, mirroring
-   `dev/workflows/model_creation.md` and `dev/workflows/climate_projections.md`).
+   `dev/reference/workflows/model_creation.md` and `dev/reference/workflows/climate_projections.md`).
 2. The **`CyclicGraphException` resolution** — the workflow-3 `test_cli` ratchet
    that R3 deferred to R5, paired with the `st_num2 → st_num` wildcard fold that
-   `dev/conventions/naming.md` §4 assigns to R5. This flips a **live** ratchet, so
+   `dev/reference/naming.md` §4 assigns to R5. This flips a **live** ratchet, so
    it is IN scope (not a deferral). **v2 splits its delivery**: the cycle fix +
    ratchet flip (guaranteed) is one commit; the fold (contingent) is a separate
    commit (§4, commit plan 5a/5b).
@@ -260,7 +260,7 @@ schema, and R3 moved it onto the shared `get_config` import + `sys.path` bootstr
 get_config`, and `config_path = workflow.configfiles[0]` at line 14). But everything
 else in workflow 3 predates the Phase-2 discipline:
 
-- **No per-workflow contract doc** — `dev/workflows/climate_experiment.md` was
+- **No per-workflow contract doc** — `dev/reference/workflows/climate_experiment.md` was
   deferred from R1 to R5's opening act (roadmap R5 deliverables).
 - **Zero `log:`/`benchmark:` directives** on any rule in
   `Snakefile_climate_experiment` (verified: the file has none). The exhaustive M1
@@ -302,7 +302,7 @@ R-layer and cycle work.
 Same contract-first, behavior-preserving discipline R3/R4 used, applied to workflow
 3:
 
-1. **Contract before code.** `dev/workflows/climate_experiment.md` (format per
+1. **Contract before code.** `dev/reference/workflows/climate_experiment.md` (format per
    `dev/milestones/r01/modularity-contracts-design.md` §4, mirroring the two sibling contract
    docs) is R5's first commit, written against **current** behavior. Code commits
    then change behavior against a recorded contract, not from memory.
@@ -333,7 +333,7 @@ Same contract-first, behavior-preserving discipline R3/R4 used, applied to workf
    run correctly on success — see Risks) — but **wf3's new shell-rule logging does
    not inherit the `| tee` form**: it uses the exit-preserving `> {log} 2>&1`
    redirect (§2), so R5 introduces no new instance of the defect.
-5. **Naming: applied here.** `dev/conventions/naming.md` names R5 as the owning
+5. **Naming: applied here.** `dev/reference/naming.md` names R5 as the owning
    milestone for workflow-3 identifiers. The `st_num2 → st_num` fold (§4, the known
    inconsistency) and the `_fid` label renames (§3/§5) are R5's; §7 contract surfaces
    (output filenames `Qstats.csv`/`basin.csv`, config keys, catalog source names)
@@ -344,10 +344,10 @@ Same contract-first, behavior-preserving discipline R3/R4 used, applied to workf
 
 ## What changes
 
-### 1. Contract doc `dev/workflows/climate_experiment.md` (opening act)
+### 1. Contract doc `dev/reference/workflows/climate_experiment.md` (opening act)
 
 Format per `dev/milestones/r01/modularity-contracts-design.md` §4, mirroring
-`dev/workflows/climate_projections.md`, target < 130 lines (wf3 has more rules).
+`dev/reference/workflows/climate_projections.md`, target < 130 lines (wf3 has more rules).
 Content grounded in `Snakefile_climate_experiment` and
 `config/snake_config_model_test.yml`:
 
@@ -829,7 +829,7 @@ so `{basin_dir}/staticgeoms/region.geojson` is the **same path** wf2's
 `run_wflow`, and `export_wflow_results` (Snakefile lines 149–189) use a **separate
 wildcard `st_num2`** because they admit `0` under `run_historical` (where
 `ST_START = 0` and `expand(..., st_num2=np.arange(ST_START, ST_NUM+1))` at line 178
-includes `cst_0`). `dev/conventions/naming.md` §4 (lines 77–80) flags `st_num2` as
+includes `cst_0`). `dev/reference/naming.md` §4 (lines 77–80) flags `st_num2` as
 "a known inconsistency — fold into `st_num` during **R5**."
 
 - **The fold folds `st_num2 → st_num`** in the downstream rules
@@ -1051,7 +1051,7 @@ with a `dev/milestones/r05/baseline_diffs.md` entry.** Default disposition for a
 
 ### 7. Naming: `_fid` → `_path` in workflow-3 rules and scripts
 
-Per `dev/conventions/naming.md` §3/§5 (R5 owns wf3 identifiers), rename deprecated
+Per `dev/reference/naming.md` §3/§5 (R5 owns wf3 identifiers), rename deprecated
 `_fid` labels **inside this Snakefile's rules and the scripts it calls**, paired
 script reads updated in the same commit:
 
@@ -1385,7 +1385,7 @@ plan (no intentional-change commit).
 
 ## Commit plan (roadmap `r05:` prefix; one logical change per commit; tag `r05-experiment`)
 
-1. `r05: add dev/workflows/climate_experiment.md contract doc`
+1. `r05: add dev/reference/workflows/climate_experiment.md contract doc`
    (current behavior; owned keys, the `historical_window` gap flag, plausibility-
    overlay/method-invariant note, `temp()`/manifest-slice honesty, the `st_num2`
    inconsistency note).

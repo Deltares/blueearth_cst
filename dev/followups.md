@@ -243,7 +243,7 @@ Provenance: `dev/milestones/r07/migration_project-layout.md` §§7a–7d,
   `merge_benchmarks` the current rule list, which it has no other reason to
   know. Not worth the coupling.
 - **[R7-10] ~~Old-path references in documents commit 15 did not own.~~
-  FIXED 2026-07-29.** `dev/workflows/model_creation.md`'s `rule all` target list
+  FIXED 2026-07-29.** `dev/reference/workflows/model_creation.md`'s `rule all` target list
   repointed to the B10 homes (and gains B4's three `source_*` figures, which it
   never listed); two notebook figure paths repointed.
   `dev/milestones/p32a/compare_climate_ladder.py` turned out to be a **live** probe, not a
@@ -691,7 +691,7 @@ Provenance: `dev/milestones/r07/migration_project-layout.md` §§7a–7d,
   minimal valid `region.geojson` and flipping that ratchet. The
   `CyclicGraphException` fix is a `wildcard_constraints`/`ruleorder` edit
   **inside `Snakefile_climate_experiment`** (R5 territory, entangled with the
-  `st_num2 → st_num` fold that `dev/conventions/naming.md` §4 already assigns
+  `st_num2 → st_num` fold that `dev/reference/naming.md` §4 already assigns
   to R5) — **deferred to R5**; the ratchet is retained until then.
 
 - **[RESOLVED 2026-07-21, t260716a′ (`fix/pre-r6-followups`).] Redo M1 warnings

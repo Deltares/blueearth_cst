@@ -21,7 +21,7 @@ Replace `create_model` with a rule named `build_wflow_model` that consumes P1 pr
 
 ### Allowed scope
 
-**Permitted:** `Snakefile_model_creation`; `blueearth_cst/model/**` modules involved in build-config preparation, gauges/outlets, and outlet indexing; a project-owned adapter under `blueearth_cst/model/` or `blueearth_cst/spatial/`; `config/templates/wflow_build_model.yml` and new Wflow-adapter templates; relevant config examples; `tests/**`; `dev/workflows/model_creation.md`; this brief directory.
+**Permitted:** `Snakefile_model_creation`; `blueearth_cst/model/**` modules involved in build-config preparation, gauges/outlets, and outlet indexing; a project-owned adapter under `blueearth_cst/model/` or `blueearth_cst/spatial/`; `config/templates/wflow_build_model.yml` and new Wflow-adapter templates; relevant config examples; `tests/**`; `dev/reference/workflows/model_creation.md`; this brief directory.
 
 **Approval-gated:** new dependencies; changes to Workflow 2/3; baseline manifest recording; deletion or renaming of existing `hydrology_model/` contract files; accepting a physics/discharge delta.
 
@@ -62,7 +62,7 @@ Replace `create_model` with a rule named `build_wflow_model` that consumes P1 pr
 
 5. Preserve the produced HydroMT-Wflow handoff triplet and downstream contracts: `wflow_sbm.toml`, `staticmaps.nc`, and `staticgeoms/`, plus forcing/states when later rules add them. Keep the existing waterbody no-data behavior and close/write semantics.
 
-6. Update config migration notes, observation templates, `dev/workflows/model_creation.md`, rebuilding tests, interchange tests, map/ID tests, and any baseline target paths affected by the rule split. Do not record a baseline before Gate 2.
+6. Update config migration notes, observation templates, `dev/reference/workflows/model_creation.md`, rebuilding tests, interchange tests, map/ID tests, and any baseline target paths affected by the rule split. Do not record a baseline before Gate 2.
 
 ### Commit plan
 

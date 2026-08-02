@@ -48,7 +48,7 @@ before they are copied twice.
 
 Same contract-first discipline as R1/R2, applied to code:
 
-1. **Contract before code.** `dev/workflows/model_creation.md` (deferred
+1. **Contract before code.** `dev/reference/workflows/model_creation.md` (deferred
    from R1 by the 2026-07-17 amendment) is R3's first commit, written
    against the *current* behavior. Code commits then change behavior
    against a recorded contract, not from memory.
@@ -63,7 +63,7 @@ Same contract-first discipline as R1/R2, applied to code:
    invalid one. The outlet-index CSV is a new `rule all` output but is
    *not* added to the manifest in R3 (§4) — its fingerprint defers to
    `t260719a` — precisely so no commit needs a re-record.
-3. **Grandfathered vs applied.** Per `dev/conventions/naming.md`, R3 is
+3. **Grandfathered vs applied.** Per `dev/reference/naming.md`, R3 is
    the owning milestone for workflow-1 identifiers: deprecated suffixes
    *inside this workflow's rules and scripts* are renamed (§6); anything
    outside workflow 1, and every §7 contract surface (output filenames,
@@ -75,7 +75,7 @@ Same contract-first discipline as R1/R2, applied to code:
 
 ## What changes
 
-### 1. Contract doc `dev/workflows/model_creation.md` (opening act)
+### 1. Contract doc `dev/reference/workflows/model_creation.md` (opening act)
 
 Format per `dev/milestones/r01/modularity-contracts-design.md` §4, target < 100
 lines. Content, grounded in the current Snakefile:
@@ -152,7 +152,7 @@ not by where the symptom shows:
   `generate_climate_stress_test`) — deferred to R5, ratchet retained.**
   The only fix is a `wildcard_constraints`/`ruleorder` edit inside
   `Snakefile_climate_experiment` — R5 territory, and entangled with the
-  `st_num2 → st_num` fold that `dev/conventions/naming.md` §4 already
+  `st_num2 → st_num` fold that `dev/reference/naming.md` §4 already
   assigns to R5. Fixing the constraint in R3 and restructuring the same
   wildcards in R5 means two passes over one surface. R3 re-tags this
   followup from R3 to R5 in `dev/followups.md`. *Rejected alternative:*
@@ -216,7 +216,7 @@ missing-optional (returns the default), explicit default returned,
 and falsey values (`0`, `""`, `False`, `[]` returned as-is, not
 defaulted). This pins the semantics the old inline copies had so the
 move is provably identity-preserving, not just green on the smoke test.
-New identifiers in this module follow `dev/conventions/naming.md` (it is
+New identifiers in this module follow `dev/reference/naming.md` (it is
 the guide's first consumer).
 
 ### 4. Outlet station naming — decision (M2b carryover)
@@ -383,7 +383,7 @@ raised, which belong to the task that actually moves the baseline):
 - **Deprecated label renames (naming applied).** Within
   `Snakefile_model_creation` and the scripts it calls, `gauges_fid`,
   `forcing_fid`, `csv_file`, `toml_fid`, `gauges_output_fid` →
-  `_path`-style names per `dev/conventions/naming.md` §3/§5. These are
+  `_path`-style names per `dev/reference/naming.md` §3/§5. These are
   internal Snakemake labels and script params (not §7 contract
   surfaces); the paired script reads (`sm.input.*`/`sm.params.*`) are
   updated in the same commit. Exception: `gauges_fn` as a *hydromt_wflow
@@ -581,7 +581,7 @@ With constant restoration removed, R3 is behavior-preserving and there is
 stays 14/14 after every commit; the outlet-index CSV ships as a `rule all`
 output only, its manifest fingerprint deferred to `t260719a` (§4).
 
-1. `r03: add dev/workflows/model_creation.md contract doc` (current
+1. `r03: add dev/reference/workflows/model_creation.md contract doc` (current
    behavior; includes the output-role split and the wflow_outvars
    config-set discrepancy note)
 2. `r03: collapse get_config into src/snake_utils.py with basedir bootstrap`
@@ -601,7 +601,7 @@ output only, its manifest fingerprint deferred to `t260719a` (§4).
    rule folds away instead of gaining a structured sentinel)*
 10. `r03: add unit tests for workflow-1 helpers`
     *(gauges, reservoirs sentinel, prepare_build_config)*
-11. `r03: seal milestone — dev/roadmap.md R3 section + dev/branches-and-tags.md`
+11. `r03: seal milestone — dev/roadmap.md R3 section + dev/reference/branches-and-tags.md`
     (+ tag `r03-model-builder`)
 
 R3 writes no `dev/milestones/r03/baseline_diffs.md` — it changes no baseline target,
@@ -618,7 +618,7 @@ baseline-recording workflow run.
 
 - `dev/roadmap.md` — R3 section, cross-cutting principles, commit strategy.
 - `dev/milestones/r01/modularity-contracts-design.md` §4 — contract-doc format.
-- `dev/conventions/naming.md` — the applied naming contract (§3, §5, §6, §7).
+- `dev/reference/naming.md` — the applied naming contract (§3, §5, §6, §7).
 - `dev/followups.md` — R3 / R3+ / cross-cutting items absorbed or re-tagged here.
 - `dev/milestones/phase-1/m02b/handoff.md` — decisions #3 (CSDMS remap — note its
   prose miscount; the 15-name list controls), #4 (`mod.close()`), #5

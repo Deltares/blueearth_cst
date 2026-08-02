@@ -172,12 +172,12 @@ Keep the examples sparse so the final guide stays under 250 lines.
 ### 7. Decide what happens to `dev/conventions-review.md`
 
 The design references `dev/conventions-review.md` as pre-design feedback.
-That file currently says review was blocked because `dev/conventions/` did
+That file currently says review was blocked because `dev/reference/` did
 not exist. After this review, either:
 
 - supersede it with this file and remove the stale blocker reference from
   the final design, or
-- update it after `dev/conventions/naming.md` exists.
+- update it after `dev/reference/naming.md` exists.
 
 Leaving a stale "blocked" note as the main reference will confuse future
 readers.
@@ -215,7 +215,7 @@ Before R02 execution, update `dev/milestones/r02/naming-conventions-design.md` t
 ## Bottom line
 
 Proceed with R02, but tighten the guide boundaries before writing
-`dev/conventions/naming.md`. The naming guide should be strict for new
+`dev/reference/naming.md`. The naming guide should be strict for new
 BlueEarth-owned code and config keys, but careful not to normalize external
 schemas, generated products, or scientific identifiers that are already part
 of the workflow contract.

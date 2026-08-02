@@ -153,7 +153,7 @@ store_dir = CLIMATE_STORE.store_dir
 # create_model), NOT guaranteed execution order. Snakemake resolves execution
 # from the DAG: e.g. 1.10-1.12 are parallel plot leaves, not a sequence. All
 # three workflows share project_dir/logs, so the leading digit keeps them
-# disambiguated and globally sortable. Convention: dev/conventions/naming.md.
+# disambiguated and globally sortable. Convention: dev/reference/naming.md.
 
 # --- log layout ---------------------------------------------------------------
 # EVERY WF1 rule that logs writes a PART under logs/_parts/, and rule 1.16 merges

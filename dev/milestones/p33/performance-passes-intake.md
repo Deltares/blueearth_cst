@@ -73,7 +73,7 @@ Fixture wf3 run (2 rlz × 6 cst, 16×24 model grid, 20-year runs;
   clean pre/post; manifested targets unchanged; suite + three dry-runs
   green per commit; platform surface (three entry points, wrapper contract,
   config `workflows:` sections) unchanged.
-- Naming per `dev/conventions/naming.md`; commit prefix `p33:` (registered
+- Naming per `dev/reference/naming.md`; commit prefix `p33:` (registered
   at scoping); tag `p33-performance` at milestone close.
 - Fixture is the era5 test basin; production scaling claims must be stated
   as a model (extrapolation), not measured claims, unless a production

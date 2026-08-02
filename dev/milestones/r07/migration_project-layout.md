@@ -1,7 +1,7 @@
 # Migration — R07 project layout (old → new)
 
 > Companion to `dev/milestones/r07/project-layout-design.md` (**ACCEPTED 2026-07-28**; not
-> yet implemented). Required by `dev/conventions/naming.md` §7 — which commit 15
+> yet implemented). Required by `dev/reference/naming.md` §7 — which commit 15
 > **amends** to distinguish a *required* internal rename record under
 > `dev/<milestone>/` from an *optional* user-facing guide under `docs/`. This file
 > is R07's internal record. **R07 publishes no user-facing guide** (GA-2: pre-R07
@@ -106,10 +106,10 @@ the `data/` mount, commit 2) and `:6` (`examples` → `test_case` mount, commit 
 `AGENTS.md` (repo map, `docs/` description, the invocation-model line for O-23) ·
 `MIGRATION.md:173` (before its own move) · `docs/notebooks/*.ipynb` (six DAG
 cells) · `docs/cst-toolbox-technical-note-2025.md:1278-1279` ·
-`dev/workflows/model_creation.md:15-16,115` · `dev/scripts/check_baseline.py`
+`dev/reference/workflows/model_creation.md:15-16,115` · `dev/scripts/check_baseline.py`
 (commit 4) · `dev/scripts/semantic_tree_diff.py` (commit 1) ·
-`dev/followups.md:171-184` · `dev/contracts/hydrological-model-seam.md:74,353` ·
-`dev/contracts/weather-generator-seam.md:56,71,248,294`.
+`dev/followups.md:171-184` · `dev/reference/contracts/hydrological-model-seam.md:74,353` ·
+`dev/reference/contracts/weather-generator-seam.md:56,71,248,294`.
 
 `tests/` path bindings (all must move with their targets):
 `tests/test_model_creation.py:26-28` · `tests/test_interchange_contracts.py:39,484,529,570-571,592` ·
@@ -477,7 +477,7 @@ class only**.
 | 4 | `semantic_tree_diff.py` — `COPIED_CONFIG_PATH_MAP` (§2d) | 1 |
 | 5 | The TOML comparator — **no change needed** (§2c) | — |
 | 6 | `tests/` path bindings — at least eight modules (§1b) | with each move |
-| 7 | `dev/contracts/hydrological-model-seam.md`, `dev/contracts/weather-generator-seam.md` | with B1/B2/B5 |
+| 7 | `dev/reference/contracts/hydrological-model-seam.md`, `dev/reference/contracts/weather-generator-seam.md` | with B1/B2/B5 |
 
 The **Commit** column on every table above is what makes the per-slice diffs
 constructible: the path map for the slice after commit *N* is exactly the rows

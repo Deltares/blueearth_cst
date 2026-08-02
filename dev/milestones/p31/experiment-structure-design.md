@@ -69,7 +69,7 @@ Verification · Commit plan · Alternatives · Consequences · Related).
   are adopted as gate 2c.
 - **§2b (ext2-3):** the validation test-matrix fixture `experiment_A` contradicted
   the fixed grammar `^[a-z0-9][a-z0-9_]*$`; the fixture is corrected to
-  `experiment_a` (the grammar stands — it matches `dev/conventions/naming.md`),
+  `experiment_a` (the grammar stands — it matches `dev/reference/naming.md`),
   and the case policy is made explicit: uppercase is **rejected with a message**
   naming the grammar — no silent lowercasing.
 
@@ -101,7 +101,7 @@ digest and §3d):**
   commit-5's test set.
 - **§2b (ext1-4):** `experiment_name` gets **centralized slug validation** in a
   shared `snake_utils` helper called at Snakefile parse — conservative grammar
-  aligned to `dev/conventions/naming.md`, rejecting separators/`..`/absolute/Windows-
+  aligned to `dev/reference/naming.md`, rejecting separators/`..`/absolute/Windows-
   reserved/empty, and asserting the resolved dir is a direct child of `experiments/`.
   A fail on invalid config at parse is correct even under `--dry-run`; it does not
   break `--unlock` (verified reasoning in §2b). Validation test matrix added.
@@ -392,7 +392,7 @@ Snakefile parse.**
   `experiment = validate_experiment_name(experiment, project_dir)` — it returns the
   validated name (or raises), so `exp_dir` and all derived paths are built only from
   a vetted value.
-- **Grammar (conservative, portable slug — aligned to `dev/conventions/naming.md`).**
+- **Grammar (conservative, portable slug — aligned to `dev/reference/naming.md`).**
   Accept only `^[a-z0-9][a-z0-9_]*$` (lowercase alnum + underscore, must start with
   an alnum), nonempty, with a length cap (**64 chars** — comfortably under the
   Windows path-segment budget while allowing descriptive names). This is a strict
@@ -438,7 +438,7 @@ lowercase-only and the validator **never silently lowercases**: an uppercase nam
 and the grammar, exactly like any other grammar violation. (v3's test matrix
 listed `experiment_A` as a passing fixture, contradicting the grammar — a fixture
 error, corrected below; the grammar itself stands, fixed by ext1-4 and aligned to
-`dev/conventions/naming.md`.)
+`dev/reference/naming.md`.)
 
 **Test matrix (commit 2, `test_validate_experiment_name.py`):**
 **[v4: ext2-3]** `experiment_a` ⇒ pass (returns unchanged); `experiment_A` ⇒
@@ -1813,7 +1813,7 @@ fix introduce no new mechanism claims. No unverified assertion is introduced.
   `dev/scripts/semantic_tree_diff.py` — the baseline gates.
 - `dev/milestones/p31/migration_experiment-structure.md` — the P3-1 old→new output-path map +
   allowlist (repo-4; naming.md §7).
-- `dev/conventions/naming.md` §7 — migration-note placement; and the snake_case
+- `dev/reference/naming.md` §7 — migration-note placement; and the snake_case
   identifier rule the §2b `experiment_name` grammar subsets.
 - `.pixi/envs/default/lib/site-packages/hydromt_wflow/components/config.py` +
   `.../components/utils.py` — the `config.write` re-relativization behavior verified

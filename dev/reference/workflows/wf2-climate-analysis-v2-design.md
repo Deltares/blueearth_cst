@@ -39,11 +39,11 @@ Revisions:
 
 Companion documents:
 
-- `dev/workflows/wf2_climate_projections_overview.md` — rule-level map of WF2 **as
+- `dev/reference/workflows/wf2_climate_projections_overview.md` — rule-level map of WF2 **as
   it is today** (the baseline this design changes).
-- `dev/workflows/climate_projections.md` — the behavioral contract of WF2 as it is
+- `dev/reference/workflows/climate_projections.md` — the behavioral contract of WF2 as it is
   today (config keys, unit split, `save_grids`, downstream semantics).
-- `dev/workflows/wf2-cmip6-store-inventory.md` — the live crawl of `gs://cmip6`
+- `dev/reference/workflows/wf2-cmip6-store-inventory.md` — the live crawl of `gs://cmip6`
   behind the generated catalog; the availability numbers this revision reasons
   from. **New input to revision 3.**
 - `dev/scripts/generate_cmip6_catalog.py` — the generator that now owns
@@ -51,7 +51,7 @@ Companion documents:
 - `dev/milestones/p32a/climate-analysis-design.md` — the sealed milestone that created
   `blueearth_cst/climate_analysis/` and the model-free climate store this design
   builds on.
-- `dev/workflows/wf2-climate-analysis-v2-design-review-record.md` — the
+- `dev/reference/workflows/wf2-climate-analysis-v2-design-review-record.md` — the
   consolidated audit trail of the review that produced this document: the
   intake, every owner ruling (R1–R5, A1–A3), both verbatim external rounds and
   the internal lens review, the aggregation indexes, and the final 28-row
@@ -813,7 +813,7 @@ reference) pair (D11, §5.8).
 
 *New in revision 3, forced by the generated catalog's inventory.* Each
 entry's URI ends `.../Amon/{variable}/*/*`, where the two globbed segments are
-`{grid_label}/{version}`. `dev/workflows/wf2-cmip6-store-inventory.md` §2 checked
+`{grid_label}/{version}`. `dev/reference/workflows/wf2-cmip6-store-inventory.md` §2 checked
 this across all 69 previously declared combinations × {`pr`, `tas`}: 137 resolve
 to a single `{grid}/{version}` pair and **one does not** — `NCC/NorCPM1`
 historical `tas` publishes both `gn/v20190914` and `gn/v20200724`, so the glob
@@ -931,7 +931,7 @@ scenario data to fill 2015–2020 (**N8**).
 
 **G3 is an alignment check, not a construction.** WF2 keeps its own reference
 window key (`historical_year_range`, grandfathered per
-`dev/conventions/naming.md`); it is **not** retired in favour of
+`dev/reference/naming.md`); it is **not** retired in favour of
 `shared.historical_window`. At DAG build the workflow compares the effective
 reference window against `shared.historical_window` and records the result per
 the alignment row above, naming both windows and stating that the overlay's
@@ -1086,7 +1086,7 @@ renamed to `temp` and converted to °C (`unit_add: -273.15`). With one sample pe
 month, `resample("MS").sum()` and `.mean()` return the identical value: **the
 monthly aggregation dispatch is a no-op on `Amon` input.** The real split lives
 only in the change arithmetic downstream, and
-`dev/workflows/climate_projections.md` describes the dispatch key as controlling
+`dev/reference/workflows/climate_projections.md` describes the dispatch key as controlling
 something it does not control.
 
 design-v1 proposed replacing the name dispatch with an explicit
@@ -1348,7 +1348,7 @@ warning — the exact failure class §4 criterion 2 exists to prevent. R3′'s u
 semantics is about not *erroring* on raggedness; it is not an instruction to
 maximise the request. Two recorded alternatives, both **OQ-13**: an `all` token
 paired with a mandatory per-run cap, and a per-model `members:` mapping (which
-`dev/workflows/wf2-cmip6-store-inventory.md` §4 already records as "for v2 rather
+`dev/reference/workflows/wf2-cmip6-store-inventory.md` §4 already records as "for v2 rather
 than done"). Neither is built here.
 
 #### D7 — member pairing between a scenario point and its reference
@@ -1628,7 +1628,7 @@ is given rather than a bound because the cell count scales with basin extent; a
 is a tidiness choice, not a cost one.
 
 **Naming.** The owner wrote `save_gridded`; the existing config key, the current
-`dev/workflows/climate_projections.md` contract, and every shipped config use
+`dev/reference/workflows/climate_projections.md` contract, and every shipped config use
 `save_grids`. This design **keeps `save_grids`** for continuity. Flagged as
 **OQ-12**: the rename is one config key and a docs line, but it breaks the
 manifest's config-file sha256 (R10), so it should ride with another config-key
@@ -2225,7 +2225,7 @@ them.
 **Log paths.** Collapsing three `gather_*_logs` rules into one (step 3) changes
 which log files rule `all` requires. Log paths follow the rule declarations, not a
 filename convention (per commit `1c3013c`). **No baseline manifest target is a
-log file**, so this is a change to rule `all`'s input list and to `dev/workflows/`
+log file**, so this is a change to rule `all`'s input list and to `dev/reference/workflows/`
 documentation.
 
 **Derived-artifact re-check.** The existing task brief
@@ -2480,7 +2480,7 @@ gates.
   Scope of the rename at 5e: the config key in every shipped config and the
   template; `Snakefile_climate_projections`'s `get_config(my_cfg, "save_grids",
   False)` read and the `save_grids` params it forwards; the three consuming
-  scripts' `sm.params.save_grids`; `dev/workflows/climate_projections.md`'s
+  scripts' `sm.params.save_grids`; `dev/reference/workflows/climate_projections.md`'s
   `save_grids` gating section; and this design's own prose. **This document's
   body still says `save_grids` throughout** — deliberately, because it describes
   the key as it exists until 5e lands; treat `save_gridded` as the target name

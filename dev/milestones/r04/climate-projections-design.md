@@ -92,7 +92,7 @@ R1 sectioned this Snakefile's config and R3 moved it onto the shared
 `Snakefile_climate_projections`, lines 1–34 — verified). But everything else
 in workflow 2 predates the Phase-2 discipline:
 
-- No per-workflow contract doc — `dev/workflows/climate_projections.md` was
+- No per-workflow contract doc — `dev/reference/workflows/climate_projections.md` was
   deferred from R1 to R4's opening act (roadmap R4 deliverables).
 - **Zero** `log:`/`benchmark:` directives on any rule in
   `Snakefile_climate_projections` (verified: the file has none). The exhaustive
@@ -121,9 +121,9 @@ mechanical.
 Same contract-first, behavior-preserving discipline R3 used, applied to
 workflow 2:
 
-1. **Contract before code.** `dev/workflows/climate_projections.md` (format per
+1. **Contract before code.** `dev/reference/workflows/climate_projections.md` (format per
    `dev/milestones/r01/modularity-contracts-design.md` §4, mirroring the R3-authored
-   `dev/workflows/model_creation.md`) is R4's first commit, written against
+   `dev/reference/workflows/model_creation.md`) is R4's first commit, written against
    *current* behavior. Code commits then change behavior against a recorded
    contract, not from memory.
 2. **Behavior-preserving throughout; `check_baseline check` stays clean, zero
@@ -155,7 +155,7 @@ workflow 2:
    is tooling territory, allowed. Both are instruction/tooling-surface changes,
    not workflow-content changes, and both are scoped explicitly rather than
    smuggled in.
-5. **Naming: applied here.** `dev/conventions/naming.md` names R4 as the owning
+5. **Naming: applied here.** `dev/reference/naming.md` names R4 as the owning
    milestone for workflow-2 identifiers. Deprecated `_fid` labels *inside this
    Snakefile's rules and its scripts* (`region_fid`, `yml_fid`, `stats_nc_hist`
    as a *path* param) rename to `_path` per naming §3/§5 (lines 57–60, 103–104);
@@ -166,10 +166,10 @@ workflow 2:
 
 ## What changes
 
-### 1. Contract doc `dev/workflows/climate_projections.md` (opening act)
+### 1. Contract doc `dev/reference/workflows/climate_projections.md` (opening act)
 
 Format per `dev/milestones/r01/modularity-contracts-design.md` §4, mirroring
-`dev/workflows/model_creation.md`, target < 100 lines. Content grounded in
+`dev/reference/workflows/model_creation.md`, target < 100 lines. Content grounded in
 `Snakefile_climate_projections` and `config/snake_config_model_test.yml`:
 
 - **Owned config keys** (`workflows.climate_projections.*`, verified against the
@@ -637,7 +637,7 @@ a manifest-touching commit.
 
 ### 6. Naming: `_fid` → `_path` in workflow-2 rules and scripts
 
-Per `dev/conventions/naming.md` §3/§5 (R4 is the owning milestone), rename
+Per `dev/reference/naming.md` §3/§5 (R4 is the owning milestone), rename
 deprecated `_fid`/path-as-`_nc` labels **inside this Snakefile's rules and the
 scripts it calls**, with the paired script reads updated in the same commit:
 
@@ -648,7 +648,7 @@ scripts it calls**, with the paired script reads updated in the same commit:
 - Path-valued `params` currently suffixed `_nc` that are *paths* not datasets
   (`get_change_climate_proj.py` `stats_nc_hist`/`stats_nc` params, lines
   179–180) — reviewed against naming §5's path/object rule
-  (`dev/conventions/naming.md` line 181 explicitly lists `stats_nc` (a path) →
+  (`dev/reference/naming.md` line 181 explicitly lists `stats_nc` (a path) →
   `stats_path`). Renamed where they are paths; left where they are the netCDF
   *input* labels the DAG keys on (those are §7-adjacent contract labels the
   merge/plot rules match on — grandfathered unless the rename is proven not to
@@ -1190,7 +1190,7 @@ files under a `tmp_path` project dir), asserts:
 
 ## Commit plan (roadmap `r04:` prefix; one logical change per commit; tag `r04-projections`)
 
-1. `r04: add dev/workflows/climate_projections.md contract doc`
+1. `r04: add dev/reference/workflows/climate_projections.md contract doc`
    (current behavior; owned keys, save_grids gating, plausibility-overlay note,
    the documented M2b attrs regression flag, the chain-audit findings table with
    its `Evidence`/`Outcome` columns if it fits else a pointer to
@@ -1516,10 +1516,10 @@ the sealed R3 state).
 - `dev/milestones/r03/model-builder-design.md` — the sibling design R4 mirrors
   (log/benchmark convention §6, `tee_to_log` contract, split-don't-absorb
   precedent §5, behavior-preservation posture).
-- `dev/workflows/model_creation.md` — the R3-authored contract-doc precedent
+- `dev/reference/workflows/model_creation.md` — the R3-authored contract-doc precedent
   R4's opening act mirrors.
 - `dev/milestones/r01/modularity-contracts-design.md` §4 — contract-doc format.
-- `dev/conventions/naming.md` — §3/§5 path-suffix rules (R4 is the owning
+- `dev/reference/naming.md` — §3/§5 path-suffix rules (R4 is the owning
   milestone for workflow-2 identifiers); §7 grandfathering.
 - `dev/followups.md` — M2b attrs item (lines 316–322), parked `message:`
   directives (lines 54–64), the resolved workflow-2 `test_cli` ratchet (lines

@@ -22,7 +22,7 @@ The revised plan addresses much of the 2026-05-09 feedback, especially the three
 
 1. **The plan contradicts the amended R01 scope.**
 
-   `dev/milestones/r01/modularity-contracts-design.md`, §4, and `dev/roadmap.md:146–158,179–183` defer the three `dev/workflows/*.md` documents to R3–R5. The plan still:
+   `dev/milestones/r01/modularity-contracts-design.md`, §4, and `dev/roadmap.md:146–158,179–183` defer the three `dev/reference/workflows/*.md` documents to R3–R5. The plan still:
 
    - creates them in Task 2;
    - describes them as R01 architecture and deliverables;

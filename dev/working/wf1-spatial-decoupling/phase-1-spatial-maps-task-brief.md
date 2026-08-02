@@ -21,7 +21,7 @@ Add a targetable Snakemake rule named `prepare_spatial_maps` that creates analys
 
 ### Allowed scope
 
-**Permitted:** `Snakefile_model_creation`; a new `blueearth_cst/spatial/**` package; `blueearth_cst/shared/snake_utils.py` only for genuinely shared parsing/validation; `config/workflows/**`; observation templates under `config/templates/observations/**`; relevant `tests/**`; `dev/workflows/model_creation.md`; this brief directory.
+**Permitted:** `Snakefile_model_creation`; a new `blueearth_cst/spatial/**` package; `blueearth_cst/shared/snake_utils.py` only for genuinely shared parsing/validation; `config/workflows/**`; observation templates under `config/templates/observations/**`; relevant `tests/**`; `dev/reference/workflows/model_creation.md`; this brief directory.
 
 **Approval-gated:** catalog edits under `config/catalogs/**`; changes to Workflow 2/3; `dev/baseline/manifest.json`; changing an existing public output path rather than adding the new `spatial/` contract.
 

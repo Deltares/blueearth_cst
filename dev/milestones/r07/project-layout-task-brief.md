@@ -57,8 +57,8 @@ full-tree semantic diff.
 **Permitted.** `Snakefile_*`, `blueearth_cst/**`, `config/**`, `scripts/**`,
 `tests/**`, `docs/**` (notebook DAG cells; the new `docs/migration-r06.md`),
 `README.rst`, `AGENTS.md`, `MIGRATION.md`, `.gitignore`, `dev/scripts/check_baseline.py`,
-`dev/scripts/semantic_tree_diff.py`, `dev/contracts/*-seam.md`,
-`dev/conventions/naming.md` (§ 7 amendment, commit 15), `dev/milestones/r06/**` (the
+`dev/scripts/semantic_tree_diff.py`, `dev/reference/contracts/*-seam.md`,
+`dev/reference/naming.md` (§ 7 amendment, commit 15), `dev/milestones/r06/**` (the
 reconstructed rename record, commit 15).
 
 **Scoped write.** `dev/milestones/r07/migration_project-layout.md` — **append only**: the
@@ -87,7 +87,7 @@ authority; the notes below carry the details the review forced.
 **Binding list.** `dev/milestones/r07/project-layout-design.md` § "Contract inventory" is the
 authoritative per-move table of rules, script modules, **tests**, and **seam
 docs**. Update every row's Tests and Seam doc cells **in that move's own commit** —
-`tests/` bindings and `dev/contracts/*-seam.md` pins are not optional follow-up.
+`tests/` bindings and `dev/reference/contracts/*-seam.md` pins are not optional follow-up.
 
 - [ ] **1. `r07: prepare the baseline machinery for the layout move`** —
   `build_r07_path_map()` / `build_r07_allowlist()`, a generic `--map old=new`
@@ -226,7 +226,7 @@ docs**. Update every row's Tests and Seam doc cells **in that move's own commit*
 - [ ] **15. `r07: docs`** — `AGENTS.md` repo map + the invocation-model line
   (`blueearth_cst/` is executed *by Snakemake*; `scripts/` executes the pipeline;
   `dev/scripts/` inspects or maintains the repository); `README.rst`;
-  `MIGRATION.md` → `docs/migration-r06.md`; the `dev/conventions/naming.md` § 7
+  `MIGRATION.md` → `docs/migration-r06.md`; the `dev/reference/naming.md` § 7
   amendment (two artifact classes — a **required** internal
   `dev/<milestone>/migration_<topic>.md` rename record, and an **optional**
   user-facing guide under `docs/`; the mandated form overrides § 8's kebab-case

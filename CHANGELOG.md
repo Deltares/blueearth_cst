@@ -111,7 +111,7 @@ testing additions that make Phase 2 possible.
   sections with clear visual break.
 - `dev/milestones/phase-1/{m01,m02,m02b,m02c}/` for sealed foundation milestones.
 - `dev/milestones/r01/`, `dev/milestones/r02/` for active Phase 2 milestones.
-- `dev/conventions/` reserved for R2 output.
+- `dev/reference/` reserved for R2 output.
 - Stale forward-looking M3-M6 references renamed to R3-R6 across docs,
   tests, and code comments.
 - New tag prefix convention: `r##-<topic>` for Phase 2 (e.g.

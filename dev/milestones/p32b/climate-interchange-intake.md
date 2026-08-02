@@ -94,7 +94,7 @@ are positional-args + YAML (P3-1/R5 conventions).
 - **Zero behavior change**: no Snakefile/pipeline edits, no output changes,
   no manifest re-record. (Contracts-only means the per-commit gates are
   cheap: suite + dry-runs.)
-- Naming per `dev/conventions/naming.md`; commit prefix `p32b:`
+- Naming per `dev/reference/naming.md`; commit prefix `p32b:`
   (registered in the roadmap prefix list at scoping); tag
   `p32b-interchange-contracts`.
 

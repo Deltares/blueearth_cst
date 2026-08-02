@@ -57,7 +57,7 @@
 # Each workflows.<name> section has an `enabled:` flag (documentary in
 # R01; will become operational at R6+ structural refactor).
 #
-# Per-workflow contract docs (dev/workflows/<name>.md) are written at
+# Per-workflow contract docs (dev/reference/workflows/<name>.md) are written at
 # the opening of R3/R4/R5, not in R01 (2026-07-17 amendment).
 
 project:
@@ -1575,7 +1575,7 @@ EOF
   - Baseline: pre-rebaseline scientific fingerprints unchanged; only the three documented config snapshots changed; post-rebaseline check clean.
   - **Files added:** `config/snake_config.template.yml`, `tests/test_r01_config_readers.py`, `dev/milestones/r01/local-config-migration.md`, `dev/milestones/r01/baseline_diffs.md`.
   - **Files modified:** `tests/snake_config_model_test.yml`, `config/snake_config_model_test.yml`, `config/snake_config_model_test_linux.yml`, `tests/conftest.py`, `tests/test_workflow_model_creation.py`, `tests/test_workflow_climate_projections.py`, `Snakefile_model_creation`, `Snakefile_climate_projections`, `Snakefile_climate_experiment`, `src/prepare_cst_parameters.py`, `src/prepare_weagen_config.py`, `src/get_change_climate_proj.py`, `dev/baseline/manifest.json`, `dev/roadmap.md`, `AGENTS.md`.
-  - Contract docs deferred to R3/R4/R5 (no `dev/workflows/` deliverable in R01).
+  - Contract docs deferred to R3/R4/R5 (no `dev/reference/workflows/` deliverable in R01).
 
 ---
 
@@ -1586,7 +1586,7 @@ EOF
 - **The string → list format change** for `historical_year_range` and `future_horizons` is intentional. `src/get_change_climate_proj.py` accepts both forms via `_to_str_tuple`. If other downstream Python parses these as strings, that's a separate bug to flag (not fix in R01).
 - **Don't migrate `*_local.yml` files into git.** They're gitignored. Task 4's guide is what the user follows manually, and Task 5's `examples/test_local` seed config is untracked.
 - **The `enabled: true` flag is documentary in R01.** Don't add Snakefile-side logic that respects it; that's R6+ work.
-- **Per-workflow contract docs are NOT an R01 deliverable.** They are written at the opening of R3 (model_creation), R4 (climate_projections), R5 (climate_experiment) per the 2026-07-17 amendment. Do not create `dev/workflows/` here.
+- **Per-workflow contract docs are NOT an R01 deliverable.** They are written at the opening of R3 (model_creation), R4 (climate_projections), R5 (climate_experiment) per the 2026-07-17 amendment. Do not create `dev/reference/workflows/` here.
 
 ## Quick reference: file inventory
 

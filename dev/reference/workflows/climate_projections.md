@@ -10,8 +10,8 @@
 >
 > | | |
 > |---|---|
-> | Rule map | `dev/workflows/wf2_climate_projections_overview.md` |
-> | Design + rationale | `dev/workflows/wf2-climate-analysis-v2-design.md` |
+> | Rule map | `dev/reference/workflows/wf2_climate_projections_overview.md` |
+> | Design + rationale | `dev/reference/workflows/wf2-climate-analysis-v2-design.md` |
 > | Config migration | `docs/migration-r08-wf2.md` |
 > | Per-step evidence | `dev/milestones/r08/2026-07-3*-wf2-*.md` |
 >
@@ -22,7 +22,7 @@
 
 Contract for `Snakefile_climate_projections` (workflow 2). Format per
 `dev/milestones/r01/modularity-contracts-design.md` §4, mirroring
-`dev/workflows/model_creation.md` (R3's contract doc). Records **current**
+`dev/reference/workflows/model_creation.md` (R3's contract doc). Records **current**
 behavior — R4's opening act, written before any code change, so it is the
 baseline the R4 code commits are checked against, not a description of intended
 change. Grounded in `Snakefile_climate_projections`,
@@ -83,7 +83,7 @@ Read at `Snakefile_climate_projections` lines 20–21:
   label a model does not publish is skipped, so `members:` can carry the union
   of variant labels (`r1i1p1f2`, `r1i1p1f3`, `r1i1p2f1`, …) needed to reach
   models that have no `r1i1p1f1`. Inventory and rationale:
-  `dev/workflows/wf2-cmip6-store-inventory.md`.
+  `dev/reference/workflows/wf2-cmip6-store-inventory.md`.
 
 ## Output contract (by role — not all are `rule all` targets)
 
