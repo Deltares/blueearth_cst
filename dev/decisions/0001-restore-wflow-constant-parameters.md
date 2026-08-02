@@ -32,7 +32,7 @@ Revisions:
   - 2026-07-21: **accepted at G2** (= design-v4) after the design-review-loop
     converged under arbitration. 26 findings total (2 internal blocking, 3
     external blocking across 2 rounds), all resolved. Consolidated review record:
-    `dev/reviews/2026-07-21_adr-0001-constant-pars.md`. Implementation (t260719a)
+    `dev/decisions/0001-restore-wflow-constant-parameters/review-record.md`. Implementation (t260719a)
     is a separate, build-heavy task.
   - 2026-07-21: **implementation — equivalence gate resolved (build-independent
     slice).** The step-3c gate ran against authoritative two-sided sources
