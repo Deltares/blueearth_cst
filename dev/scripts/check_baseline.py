@@ -313,8 +313,9 @@ def read_discharge_series(path: str) -> tuple[list[str], np.ndarray, str]:
     """Parse a Wflow `output.csv` (or a stored reduced reference series).
 
     Returns (time_strings, q_values, column_name). The first column is the time
-    index; the discharge column is the sole remaining column, or — if several are
-    present — the sole one named ``Q``/``Q_*``. Raises on ambiguity.
+    index; the discharge column is the sole remaining column, the sole one named
+    ``Q``/``Q_*``, or the primary outlet identified by the sibling deterministic
+    ``staticgeoms/outlet_index.csv`` crosswalk. Raises on ambiguity.
     """
     df = pd.read_csv(path)
     if df.shape[1] < 2:
@@ -324,11 +325,39 @@ def read_discharge_series(path: str) -> tuple[list[str], np.ndarray, str]:
         col = value_cols[0]
     else:
         q_cols = [c for c in value_cols if c == "Q" or str(c).startswith("Q_")]
-        if len(q_cols) != 1:
+        if not q_cols:
             raise ValueError(
                 f"{path}: cannot identify the discharge column among {value_cols}"
             )
-        col = q_cols[0]
+        if len(q_cols) == 1:
+            col = q_cols[0]
+        else:
+            model_root = Path(path).parent.parent
+            outlet_index_path = model_root / "staticgeoms" / "outlet_index.csv"
+            if not outlet_index_path.is_file():
+                raise ValueError(
+                    f"{path}: cannot identify the primary outlet discharge among "
+                    f"{q_cols}; missing {outlet_index_path}"
+                )
+            outlets = pd.read_csv(outlet_index_path)
+            required = {"compat_station_name", "subcatchment_id"}
+            missing = sorted(required.difference(outlets.columns))
+            if missing:
+                raise ValueError(
+                    f"{outlet_index_path}: missing primary-outlet columns {missing}"
+                )
+            primary = outlets.loc[outlets["compat_station_name"].eq("wflow_1")]
+            if len(primary) != 1:
+                raise ValueError(
+                    f"{outlet_index_path}: expected exactly one wflow_1 row"
+                )
+            expected = f"Q_{int(primary.iloc[0]['subcatchment_id'])}"
+            if expected not in q_cols:
+                raise ValueError(
+                    f"{path}: primary outlet {expected} from {outlet_index_path} "
+                    f"is absent from discharge columns {q_cols}"
+                )
+            col = expected
     times = df[df.columns[0]].astype(str).tolist()
     q = pd.to_numeric(df[col], errors="coerce").to_numpy(dtype=float)
     return times, q, str(col)

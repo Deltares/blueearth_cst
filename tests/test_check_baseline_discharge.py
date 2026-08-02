@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "dev" / "scripts"))
@@ -125,6 +126,46 @@ def test_reordered_current_is_aligned_not_flagged():
     q_rev = q[order]
     rep = cb.compare_discharge(t, q, t_rev, q_rev)
     assert rep["ok"], rep
+
+
+def test_reader_uses_outlet_crosswalk_when_registry_adds_q_columns(tmp_path):
+    model_root = tmp_path / "hydrology_model"
+    output = model_root / "run_default" / "output.csv"
+    output.parent.mkdir(parents=True)
+    pd.DataFrame(
+        {
+            "time": _times(2),
+            "Q_101": [1.0, 2.0],
+            "Q_102": [8.0, 9.0],
+            "Q_101.1": [1.0, 2.0],
+            "P_101": [3.0, 4.0],
+        }
+    ).to_csv(output, index=False)
+    staticgeoms = model_root / "staticgeoms"
+    staticgeoms.mkdir()
+    pd.DataFrame(
+        {
+            "compat_station_name": ["wflow_1"],
+            "subcatchment_id": [101],
+        }
+    ).to_csv(staticgeoms / "outlet_index.csv", index=False)
+
+    times, q, column = cb.read_discharge_series(str(output))
+
+    assert times == _times(2)
+    assert q.tolist() == [1.0, 2.0]
+    assert column == "Q_101"
+
+
+def test_reader_rejects_multiple_q_columns_without_outlet_crosswalk(tmp_path):
+    output = tmp_path / "hydrology_model" / "run_default" / "output.csv"
+    output.parent.mkdir(parents=True)
+    pd.DataFrame(
+        {"time": _times(2), "Q_101": [1.0, 2.0], "Q_102": [3.0, 4.0]}
+    ).to_csv(output, index=False)
+
+    with pytest.raises(ValueError, match="missing .*outlet_index.csv"):
+        cb.read_discharge_series(str(output))
 
 
 # --- record -> check roundtrip + compare subcommand ------------------------

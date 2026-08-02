@@ -47,5 +47,5 @@ P2 starts with a bounded HydroMT-Wflow adapter proof. It may proceed only after 
 
 ### Phase brief index
 
-- [P1 — engine-neutral spatial maps](phase-1-spatial-maps-task-brief.md) — complete; Gate 1 review pending
-- [P2 — Wflow-SBM model build](phase-2-wflow-build-task-brief.md) — not started
+- [P1 — engine-neutral spatial maps](phase-1-spatial-maps-task-brief.md) — complete; Gate 1 approved
+- [P2 — Wflow-SBM model build](phase-2-wflow-build-task-brief.md) — implemented; Gate 2 review pending

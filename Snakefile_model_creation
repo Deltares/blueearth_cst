@@ -153,7 +153,7 @@ store_dir = CLIMATE_STORE.store_dir
 
 # Rule numbering (comment headers + log/benchmark filenames) uses `W.NN` =
 # workflow.step in DEFINITION order — a reading and reference aid ("Rule 1.3" =
-# create_model), NOT guaranteed execution order. Snakemake resolves execution
+# build_wflow_model), NOT guaranteed execution order. Snakemake resolves execution
 # from the DAG: e.g. 1.10-1.12 are parallel plot leaves, not a sequence. All
 # three workflows share project_dir/logs, so the leading digit keeps them
 # disambiguated and globally sortable. Convention: dev/conventions/naming.md.
@@ -174,8 +174,8 @@ store_dir = CLIMATE_STORE.store_dir
 WORKFLOW_LOG_NAME = "wf1_model_creation.log"
 LOG_PARTS_DIR = f"{project_dir}/logs/_parts"
 LOG_RULES = [
-    "1.02_prepare_build_config",
-    "1.03_create_model",
+    "1.02_prepare_spatial_maps",
+    "1.03_build_wflow_model",
     "1.04_add_reservoirs_lakes_glaciers",
     "1.05_add_gauges_and_outputs",
     "1.06_write_outlet_index",
@@ -187,7 +187,6 @@ LOG_RULES = [
     "1.12_plot_map",
     "1.13_plot_forcing",
     "1.15_plot_climate_source",
-    "1.17_prepare_spatial_maps",
 ]
 
 # WF1_TERMINALS — the artifacts with no WF1 consumer: every producing rule is
@@ -256,41 +255,55 @@ rule copy_config:
     script:
         "blueearth_cst/model/copy_config_files.py"
 
-# 1.02  prepare_build_config — merge snake-config values (model_resolution) into
-# the build config. hydromt 1.3 dropped `--opt`, so we generate a runtime config.
-rule prepare_build_config:
-    message: rule_banner("1.02", "prepare_build_config")
+# 1.02  prepare_spatial_maps — engine-neutral spatial foundation
+rule prepare_spatial_maps:
+    message: rule_banner("1.02", "prepare_spatial_maps")
     input:
-        template = model_build_config,
+        config_snake = config_path,
+        data_catalogs = DATA_SOURCES,
+        **_locations_input,
     output:
-        merged = f"{project_dir}/config/generated/wflow_build_model_run.yml",
+        spatial_maps = f"{project_dir}/spatial/spatial_maps.nc",
+        basins = f"{project_dir}/spatial/geoms/basins.geojson",
+        subbasins = f"{project_dir}/spatial/geoms/subbasins.geojson",
+        catchments = f"{project_dir}/spatial/geoms/catchments.geojson",
+        rivers = f"{project_dir}/spatial/geoms/rivers.geojson",
+        locations = f"{project_dir}/spatial/geoms/locations.geojson",
+        location_registry = f"{project_dir}/spatial/location_registry.csv",
+        spatial_catalog = f"{project_dir}/spatial/spatial_catalog.yml",
+        spatial_report = f"{project_dir}/spatial/spatial_report.yml",
     params:
-        model_resolution = model_resolution,
-        model_region = model_region,
-        # R07 B1: agreement between the build template's setup_basemaps datasets
-        # and shared.basin is ENFORCED here (RuntimeError naming both files and
-        # both values), not shared-sourced — the template stays the
-        # hydromt-conventional home of build datasets and is never overwritten.
-        hydrography = basin_hydrography,
-        basin_index = basin_index,
-        snake_config = config_path,
+        basin_config = basin_cfg,
+        model_config = my_cfg,
     log:
-        f"{LOG_PARTS_DIR}/1.02_prepare_build_config.log",
+        f"{LOG_PARTS_DIR}/1.02_prepare_spatial_maps.log",
     benchmark:
-        f"{project_dir}/benchmarks/_parts/1.02_prepare_build_config.tsv",
-    script:
-        "blueearth_cst/model/prepare_build_config.py"
+        f"{project_dir}/benchmarks/_parts/1.02_prepare_spatial_maps.tsv",
+    script: "blueearth_cst/spatial/prepare_spatial_maps.py"
 
-# 1.03  create_model — build the Wflow-SBM model (hydromt build wflow_sbm)
-rule create_model:
-    message: rule_banner("1.03", "create_model")
+# 1.03  build_wflow_model — parameterize Wflow-SBM on the P1 spatial foundation
+rule build_wflow_model:
+    message: rule_banner("1.03", "build_wflow_model")
     input:
-        hydromt_ini = f"{project_dir}/config/generated/wflow_build_model_run.yml",
+        parameter_template = model_build_config,
+        spatial_maps = f"{project_dir}/spatial/spatial_maps.nc",
+        basins = f"{project_dir}/spatial/geoms/basins.geojson",
+        subbasins = f"{project_dir}/spatial/geoms/subbasins.geojson",
+        catchments = f"{project_dir}/spatial/geoms/catchments.geojson",
+        rivers = f"{project_dir}/spatial/geoms/rivers.geojson",
+        locations = f"{project_dir}/spatial/geoms/locations.geojson",
+        location_registry = f"{project_dir}/spatial/location_registry.csv",
+        spatial_catalog = f"{project_dir}/spatial/spatial_catalog.yml",
+        spatial_report = f"{project_dir}/spatial/spatial_report.yml",
+        data_catalogs = DATA_SOURCES,
     output:
-        basin_nc = f"{basin_dir}/staticmaps.nc",
+        staticmaps = f"{basin_dir}/staticmaps.nc",
+        wflow_toml = f"{basin_dir}/wflow_sbm.toml",
+        region = f"{basin_dir}/staticgeoms/region.geojson",
+        outlets = f"{basin_dir}/staticgeoms/outlets.geojson",
         # Completion sentinel (R7-1). `wflow_sbm.toml` is CREATED here and then
         # updated IN PLACE by rules 1.04-1.08, but only this rule declares it,
-        # so a re-fire of create_model alone used to leave the toml stripped of
+        # so a re-fire of the build rule alone used to leave the toml stripped of
         # every section the later rules add -- and the next wflow run died on
         # the missing key. The obvious fix (drop the ancient() on staticmaps in
         # those rules) is WRONG: they mutate staticmaps themselves via
@@ -298,17 +311,16 @@ rule create_model:
         # re-trigger on its own execution forever. This sentinel is written by
         # nothing else, so it re-fires rule 1.04 without any self-trigger, and
         # the chain cascades from there (1.04 -> .txt -> 1.05 ->
-        # outlets.geojson -> 1.07 -> forcing yml -> 1.08).
+        # .outputs_configured -> 1.07 -> forcing yml -> 1.08).
         built = touch(f"{basin_dir}/.model_built"),
     log:
-        f"{LOG_PARTS_DIR}/1.03_create_model.log",
+        f"{LOG_PARTS_DIR}/1.03_build_wflow_model.log",
     benchmark:
-        f"{project_dir}/benchmarks/_parts/1.03_create_model.tsv",
-    shell:
-        """python -u "{run_logged}" "{log}" -- hydromt build wflow_sbm "{basin_dir}" -i "{input.hydromt_ini}" -d "{DATA_SOURCES}" --fo -vv"""
+        f"{project_dir}/benchmarks/_parts/1.03_build_wflow_model.tsv",
+    script: "blueearth_cst/model/build_wflow_model.py"
 
 # 1.04  add_reservoirs_lakes_glaciers — add waterbodies to the built model
-# (temporary hydromt fix; can fold back into create_model when hydromt is updated)
+# (temporary hydromt fix; can fold back into build_wflow_model when supported)
 rule add_reservoirs_lakes_glaciers:
     message: rule_banner("1.04", "add_reservoirs_lakes_glaciers")
     input:
@@ -335,11 +347,11 @@ rule add_gauges_and_outputs:
     input:
         basin_nc = ancient(f"{basin_dir}/staticmaps.nc"),
         text = f"{basin_dir}/staticgeoms/reservoirs_lakes_glaciers.txt",
-        # Plain (NOT ancient): this rule writes the gauge ids and positions into
-        # the model, so an edit to the file must rebuild them.
-        **_locations_input,
+        # P2 already created gauge/outlet maps from this registry. This rule
+        # only adds output declarations and verifies those identities.
+        location_registry = f"{project_dir}/spatial/location_registry.csv",
     output:
-        gauges_path = f"{basin_dir}/staticgeoms/outlets.geojson"
+        configured = touch(f"{basin_dir}/.outputs_configured"),
     params:
         outputs = wflow_outvars,
         data_catalog = DATA_SOURCES
@@ -354,7 +366,8 @@ rule add_gauges_and_outputs:
 rule write_outlet_index:
     message: rule_banner("1.06", "write_outlet_index")
     input:
-        outlets_path = f"{basin_dir}/staticgeoms/outlets.geojson"
+        outlets_path = f"{basin_dir}/staticgeoms/outlets.geojson",
+        location_registry = f"{project_dir}/spatial/location_registry.csv",
     output:
         outlet_index_path = f"{basin_dir}/staticgeoms/outlet_index.csv"
     log:
@@ -368,7 +381,8 @@ rule write_outlet_index:
 rule setup_runtime:
     message: rule_banner("1.07", "setup_runtime")
     input:
-        gauges_path = f"{basin_dir}/staticgeoms/outlets.geojson"
+        gauges_path = f"{basin_dir}/staticgeoms/outlets.geojson",
+        outputs_configured = f"{basin_dir}/.outputs_configured",
     output:
         forcing_yml = f"{project_dir}/config/generated/wflow_build_forcing_historical.yml"
     params:
@@ -479,6 +493,7 @@ rule plot_results:
        # positions AND the observed series, so either changing must re-evaluate.
        **_locations_input,
        **_observations_input,
+       location_registry = f"{project_dir}/spatial/location_registry.csv",
        script = "blueearth_cst/model/plot_results.py"
    # R07 B10 + O-24. The artifacts move into the engine subtree, split by KIND
    # (P1): figures under evaluation/plots/, the metrics table one level up in
@@ -641,35 +656,3 @@ rule gather_logs:
         rules = LOG_RULES,
         parts_dir = LOG_PARTS_DIR,
     script: "blueearth_cst/shared/merge_logs.py"
-
-# 1.17  prepare_spatial_maps — engine-neutral spatial foundation
-#
-# This rule is deliberately independent from create_model: requesting it by
-# name schedules no hydromt_wflow call and creates nothing under
-# hydrology_model/. P2 will add the downstream spatial -> Wflow edge only after
-# the adapter proof passes Gate 1.
-rule prepare_spatial_maps:
-    message: rule_banner("1.17", "prepare_spatial_maps")
-    input:
-        config_snake = config_path,
-        data_catalogs = DATA_SOURCES,
-        **_locations_input,
-    output:
-        spatial_maps = f"{project_dir}/spatial/spatial_maps.nc",
-        basins = f"{project_dir}/spatial/geoms/basins.geojson",
-        subbasins = f"{project_dir}/spatial/geoms/subbasins.geojson",
-        catchments = f"{project_dir}/spatial/geoms/catchments.geojson",
-        rivers = f"{project_dir}/spatial/geoms/rivers.geojson",
-        locations = f"{project_dir}/spatial/geoms/locations.geojson",
-        location_registry = f"{project_dir}/spatial/location_registry.csv",
-        spatial_catalog = f"{project_dir}/spatial/spatial_catalog.yml",
-        spatial_report = f"{project_dir}/spatial/spatial_report.yml",
-    params:
-        basin_config = basin_cfg,
-        model_config = my_cfg,
-    log:
-        f"{LOG_PARTS_DIR}/1.17_prepare_spatial_maps.log",
-    benchmark:
-        f"{project_dir}/benchmarks/_parts/1.17_prepare_spatial_maps.tsv",
-    script:
-        "blueearth_cst/spatial/prepare_spatial_maps.py"

@@ -48,9 +48,17 @@ def test_prepare_spatial_maps_rule_and_script_are_wflow_independent():
     script = (REPO / "blueearth_cst" / "spatial" / "prepare_spatial_maps.py").read_text(
         encoding="utf-8"
     )
-    forbidden = ("hydromt_wflow", "WflowSbmModel", "wflow_sbm.toml", "create_model")
+    forbidden = (
+        "hydromt_wflow",
+        "WflowSbmModel",
+        "wflow_sbm.toml",
+        "build_wflow_model",
+    )
+    executable_block = "\n".join(
+        line for line in block.splitlines() if not line.lstrip().startswith("#")
+    )
 
-    assert not any(token in block for token in forbidden)
+    assert not any(token in executable_block for token in forbidden)
     assert not any(token in script for token in forbidden)
     assert "from __future__" not in script, (
         "Snakemake prepends a script preamble, so future imports are not first"
@@ -80,8 +88,7 @@ def test_spatial_only_dry_run_has_no_wflow_edge():
     assert result.returncode == 0, combined[-3000:]
     assert "prepare_spatial_maps" in combined
     for forbidden_rule in (
-        "prepare_build_config",
-        "create_model",
+        "build_wflow_model",
         "add_reservoirs_lakes_glaciers",
         "add_gauges_and_outputs",
     ):

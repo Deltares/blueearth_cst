@@ -119,3 +119,14 @@ Approve Phase 2 only if the adapter route and the intentional result delta
 above are accepted. Phase 2 must consume the declared P1 files, preserve their
 grid and identities, derive Wflow-only parameters/constants downstream, and
 must not rerun basin delineation from the original hydrography source.
+
+## Phase 2 correction
+
+Gate 1 was approved. The first full Wflow runtime check then showed that the
+automatic area partition could select subbasin outlets below the configured
+`river_mask` threshold: all twenty IDs were spatially valid, but fifteen were
+inactive for Wflow river discharge. Automatic outlet selection is now bounded
+by both `automatic_subbasins.max_count` and the P1 river mask. Re-running the
+same integration case therefore produces five subbasins/primary locations
+(IDs 101–105), all on active river cells. This narrows the earlier automatic
+fallback contract without changing gauge-driven partitions.

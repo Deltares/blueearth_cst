@@ -1,8 +1,11 @@
 """Tests for blueearth_cst/model/setup_gauges_and_outputs.py (R3 sections 7.1, 8)."""
 
 import sys
+from types import SimpleNamespace
 
+import numpy as np
 import pytest
+import xarray as xr
 
 from blueearth_cst.model.setup_gauges_and_outputs import update_wflow_gauges_outputs  # noqa: E402
 
@@ -28,16 +31,14 @@ def test_extras_selection_and_csdms_mapping(monkeypatch):
 
     class _FakeMod:
         def __init__(self, *a, **k):
-            pass
-
-        def setup_outlets(self, **k):
-            calls["outlets"] = k
-
-        def setup_gauges(self, **k):
-            calls["gauges"] = k
+            self.staticmaps = SimpleNamespace(
+                data=xr.Dataset(
+                    {"outlets": (("y", "x"), np.array([[101.0]]))}
+                )
+            )
 
         def setup_config_output_timeseries(self, **k):
-            calls["extras"] = k
+            calls.setdefault("timeseries", []).append(k)
 
         def write(self):
             calls["write"] = True
@@ -53,13 +54,15 @@ def test_extras_selection_and_csdms_mapping(monkeypatch):
         wflow_root="x", outputs=["river discharge", "snow", "overland flow"]
     )
 
-    # river discharge always goes to outlets, mapped to its CSDMS name
-    assert calls["outlets"]["gauge_toml_param"] == [WFLOW_VARS["river discharge"]]
-    # no gauges file was passed -> setup_gauges is skipped
-    assert "gauges" not in calls
+    # river discharge uses the inherited outlets map, without recreating it.
+    assert calls["timeseries"][0]["mapname"] == "outlets"
+    assert calls["timeseries"][0]["param"] == [WFLOW_VARS["river discharge"]]
     # extras drop river discharge; header + param stay in order and are mapped
-    assert calls["extras"]["header"] == ["snow_basavg", "overland flow_basavg"]
-    assert calls["extras"]["param"] == [
+    assert calls["timeseries"][1]["header"] == [
+        "snow_basavg",
+        "overland flow_basavg",
+    ]
+    assert calls["timeseries"][1]["param"] == [
         WFLOW_VARS["snow"],
         WFLOW_VARS["overland flow"],
     ]

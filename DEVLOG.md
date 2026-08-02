@@ -44,10 +44,33 @@ completed before landing.
 - Passed Ruff, 45 focused spatial tests, 15 rule/DAG tests, the targeted
   one-job spatial dry-run, the 17-job Workflow 1 dry-run, and the full suite
   (1,004 passed, 31 skipped, 1 expected xfail).
+- Received owner approval at Gate 1 and implemented the project-owned Wflow
+  adapter. Rule 1.03 initializes the P1 grid/geometries/IDs, converts D8 to
+  LDD, and runs only Wflow-owned parameter setup methods.
+- Removed independent `setup_basemaps`/river-source configuration from the
+  Wflow build template while retaining Wflow constants and soil pedotransfer.
+- Rewired gauge/output and outlet-index steps to the resolved registry and
+  added explicit pre-plot observation-header validation.
+- Found and fixed automatic outlets below the Wflow river threshold by
+  constraining fallback selection to the P1 river mask; the integration case
+  now has five valid automatic outlets rather than twenty nominal cells.
+- Completed a clean seven-rule P1→P2→Wflow run for 2000–2020. The primary
+  discharge series has +0.015% mean bias, 1.48% mean-normalized RMSE, and
+  0.99990 correlation against the pre-split run.
+- Validated the actual Gabon observation header against a disposable
+  latest-schema P1/P2 build: all four stations retain IDs 101–104.
+- Extended the baseline discharge reader to select the primary outlet through
+  `outlet_index.csv` when registry gauges add multiple Q columns.
+- Passed the full suite (1,014 passed, 31 skipped, 1 expected xfail) and all
+  three final DAG dry-runs (WF1 17 jobs, WF2 25, WF3 50).
+- Confirmed the existing five-target Workflow 1 baseline still matches its
+  manifest. The split discharge fails the strict per-timestep comparator on
+  6,343/7,670 days, so Gate 2 is intentionally still open.
 
 **Pending:**
-- Obtain owner approval at the spatial-to-Wflow adapter gate.
-- Execute P2 only after that Gate 1 approval.
+- Obtain owner approval at the scientific-delta gate before recording a new
+  baseline.
+- Stop again at the landing gate before merging.
 
 **Issues / Notes:**
 - The prerequisite `feat/wf1-improvements` work was merged to `main` before

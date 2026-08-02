@@ -112,3 +112,12 @@ Falsifiers:
 - Keep all plugin-touching steps before the produced Wflow triplet separate from Wflow.jl execution and model validation.
 - Pair partial HydroMT updates that touch TOML state with the required config write/close behavior.
 - Stop for the three master human gates; do not record baselines, accept physics changes, or merge without approval.
+
+### Progress
+
+- Gate 1 approved; selected the project-owned public-API adapter route.
+- Implemented `build_wflow_model`, removed `setup_basemaps` from the Wflow
+  parameter template, and wired the P1 products as declared inputs.
+- Completed the clean P1→P2→Wflow integration run and identity checks.
+- Paused at Gate 2 with the map/TOML/discharge comparison in
+  [phase-2-report.md](phase-2-report.md). No baseline has been recorded.

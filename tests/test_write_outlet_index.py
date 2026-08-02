@@ -37,12 +37,32 @@ def _tiny_outlets(path):
     gdf.to_file(path, driver="GeoJSON")
 
 
+def _registry(path):
+    import pandas as pd
+
+    pd.DataFrame(
+        {
+            "basin_code": ["B001", "B001"],
+            "subbasin_id": [130000086, 5],
+            "subbasin_code": ["B001-S01", "B001-S02"],
+            "location_id": [1, 1],
+            "location_code": ["B001-S01-L01", "B001-S02-L01"],
+            "station_name": ["outlet_a", "outlet_b"],
+            "wflow_id": [130000086, 5],
+        }
+    ).to_csv(path, index=False)
+
+
 def test_build_outlet_index_positional_naming(tmp_path, woi):
     outlets = tmp_path / "outlets.geojson"
     _tiny_outlets(outlets)
-    df = woi.build_outlet_index(outlets)
-    assert list(df["station_name"]) == ["wflow_1", "wflow_2"]
+    registry = tmp_path / "registry.csv"
+    _registry(registry)
+    df = woi.build_outlet_index(outlets, registry)
+    assert list(df["compat_station_name"]) == ["wflow_1", "wflow_2"]
     assert list(df["subcatchment_id"]) == [130000086, 5]
+    assert list(df["station_name"]) == ["outlet_a", "outlet_b"]
+    assert list(df["wflow_id"]) == [130000086, 5]
     assert df["x"].tolist() == pytest.approx([9.6625, 10.0])
     assert df["y"].tolist() == pytest.approx([0.44583, 1.0])
 
@@ -50,7 +70,12 @@ def test_build_outlet_index_positional_naming(tmp_path, woi):
 def test_write_outlet_index_creates_csv(tmp_path, woi):
     outlets = tmp_path / "outlets.geojson"
     _tiny_outlets(outlets)
+    registry = tmp_path / "registry.csv"
+    _registry(registry)
     out = tmp_path / "sub" / "outlet_index.csv"  # parent does not exist yet
-    woi.write_outlet_index(outlets, out)
+    woi.write_outlet_index(outlets, registry, out)
     header = out.read_text(encoding="utf-8").splitlines()[0]
-    assert header == "station_name,subcatchment_id,x,y"
+    assert header == (
+        "compat_station_name,subcatchment_id,x,y,basin_code,subbasin_id,"
+        "subbasin_code,location_code,station_name,wflow_id"
+    )

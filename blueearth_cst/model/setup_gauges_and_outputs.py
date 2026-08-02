@@ -4,6 +4,9 @@ from os.path import join
 from pathlib import Path
 from typing import List, Union
 
+import numpy as np
+import pandas as pd
+
 
 # Map user-facing semantic names to Wflow.jl 1.x CSDMS variable names.
 # Mapping derived from
@@ -21,11 +24,11 @@ WFLOW_VARS = {
 def update_wflow_gauges_outputs(
     wflow_root: Union[str, Path],
     data_catalog: Union[str, Path] = "deltares_data",
-    gauges_fn: Union[str, Path, None] = None,
+    location_registry: Union[str, Path, None] = None,
     outputs: List[str] = ["river discharge"],
 ):
     """
-    Update wflow model with output and optionally gauges locations
+    Add output declarations to registry-indexed maps created by P2.
     """
     # Validate up front: an unknown output name used to be silently dropped
     # (the `extras` filter skipped it), producing no output and no error. Fail
@@ -45,21 +48,39 @@ def update_wflow_gauges_outputs(
     mod = WflowSbmModel(wflow_root, mode="r+", data_libs=data_catalog)
 
     river_q_csdms = WFLOW_VARS["river discharge"]
-
-    mod.setup_outlets(
-        river_only=True,
-        gauge_toml_header=["Q"],
-        gauge_toml_param=[river_q_csdms],
+    staticmaps = mod.staticmaps.data
+    if "outlets" not in staticmaps:
+        raise ValueError("Built Wflow model lacks the P1-inherited outlets map")
+    mod.setup_config_output_timeseries(
+        mapname="outlets",
+        toml_output="csv",
+        header=["Q"],
+        param=[river_q_csdms],
     )
 
-    if gauges_fn is not None and os.path.isfile(gauges_fn):
-        mod.setup_gauges(
-            gauges_fn=gauges_fn,
-            snap_to_river=True,
-            derive_subcatch=True,
+    if location_registry is not None and os.path.isfile(location_registry):
+        registry = pd.read_csv(location_registry)
+        if registry["wflow_id"].duplicated().any():
+            raise ValueError("location_registry contains duplicate wflow_id values")
+        if "gauges_locations" not in staticmaps:
+            raise ValueError("Built Wflow model lacks the registry-indexed gauge map")
+        gauge_values = np.asarray(staticmaps["gauges_locations"].values)
+        gauge_ids = {
+            int(value)
+            for value in np.unique(
+                gauge_values[np.isfinite(gauge_values) & (gauge_values > 0)]
+            )
+        }
+        registry_ids = set(registry["wflow_id"].astype(int))
+        if gauge_ids != registry_ids:
+            raise ValueError(
+                "Wflow gauges_locations IDs disagree with location_registry"
+            )
+        mod.setup_config_output_timeseries(
+            mapname="gauges_locations",
             toml_output="csv",
-            gauge_toml_header=["Q", "P"],
-            gauge_toml_param=[
+            header=["Q", "P"],
+            param=[
                 river_q_csdms,
                 WFLOW_VARS["precipitation"],
             ],
@@ -94,13 +115,13 @@ if __name__ == "__main__":
             update_wflow_gauges_outputs(
                 wflow_root=os.path.dirname(sm.input.basin_nc),
                 data_catalog=sm.params.data_catalog,
-                gauges_fn=getattr(sm.input, "output_locations", None),
+                location_registry=sm.input.location_registry,
                 outputs=sm.params.outputs,
             )
     else:
         update_wflow_gauges_outputs(
             wflow_root=join(os.getcwd(), "test_case", "my_project", "hydrology_model"),
             data_catalog="deltares_data",
-            gauges_fn=None,
+            location_registry=None,
             outputs=["river discharge"],
         )

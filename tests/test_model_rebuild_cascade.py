@@ -1,6 +1,6 @@
-"""R7-1: re-firing create_model must rebuild the whole toml-writing chain.
+"""R7-1: re-firing build_wflow_model must rebuild the TOML-writing chain.
 
-`hydrology_model/wflow_sbm.toml` is CREATED by rule 1.03 `create_model` and then
+`hydrology_model/wflow_sbm.toml` is CREATED by rule 1.03 `build_wflow_model` and then
 updated IN PLACE by rules 1.04-1.08 (waterbodies, gauges/outputs, runtime,
 forcing) -- but only 1.03 declares it. Before this fix, anything that re-fired
 1.03 alone left the toml stripped of every section the later rules add, and the
@@ -31,9 +31,9 @@ def _rule_block(name: str) -> str:
     return m.group(1)
 
 
-def test_create_model_declares_a_completion_sentinel():
+def test_build_wflow_model_declares_a_completion_sentinel():
     """Only 1.03 may write it -- that is what makes it a safe trigger."""
-    out = _rule_block("create_model")
+    out = _rule_block("build_wflow_model")
     assert ".model_built" in out
     assert "touch(" in out, "the sentinel should use Snakemake's touch() output"
     # nothing else writes it
@@ -68,29 +68,29 @@ def test_staticmaps_edges_stay_ancient():
     not (SNAKEDIR / "test_case" / "test_local" / "hydrology_model").is_dir(),
     reason="untracked test_case/test_local fixture tree not present",
 )
-def test_rerunning_create_model_reschedules_the_whole_toml_chain():
-    """THE REGRESSION. If create_model re-fires, every rule that writes into
+def test_rerunning_build_wflow_model_reschedules_the_whole_toml_chain():
+    """THE REGRESSION. If build_wflow_model re-fires, every rule that writes into
     wflow_sbm.toml must come with it. Before the fix the DAG scheduled
-    create_model and stopped, leaving the toml stripped of [output] and
+    build_wflow_model and stopped, leaving the toml stripped of [output] and
     [input.forcing], and the next wflow run died on the missing key.
 
     Uses --forcerun rather than touching an input: mtime state is shared
     fixture state that other tests disturb, so a touch-based version passed in
     isolation and reported "Nothing to be done" inside the full suite. The
-    property under test is "when create_model runs, does the chain follow?",
+    property under test is "when build_wflow_model runs, does the chain follow?",
     which --forcerun expresses directly and deterministically.
     """
     res = subprocess.run(
         f"snakemake all -c 1 -s {SNAKEFILE} --configfile {CFG} "
-        f"--dry-run --forcerun create_model",
+        f"--dry-run --forcerun build_wflow_model",
         shell=True, capture_output=True, text=True, cwd=SNAKEDIR,
     )
     combined = (res.stdout or "") + (res.stderr or "")
     assert res.returncode == 0, combined[-2000:]
-    assert "create_model" in combined, combined[-2000:]
+    assert "build_wflow_model" in combined, combined[-2000:]
     for rule in ("add_reservoirs_lakes_glaciers", "add_gauges_and_outputs",
                  "setup_runtime", "add_forcing"):
         assert rule in combined, (
-            f"{rule} was NOT rescheduled alongside create_model -- the toml "
+            f"{rule} was NOT rescheduled alongside build_wflow_model -- the toml "
             f"would be left stripped\n{combined[-2000:]}"
         )

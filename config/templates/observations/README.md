@@ -59,8 +59,11 @@ arguments, so keep each file's separator as shipped.
 
 The shipped header (`time;101;102`) is illustrative — replace `101` and `102`
 with your own `wflow_id` values and add one column per station. The two files
-must be changed **together**: the join is on these ids, and a mismatch drops the
-station from the metrics without failing the run.
+must be changed **together**. Before plotting, Workflow 1 checks the raw header
+against `spatial/location_registry.csv`: duplicate or unknown IDs fail
+explicitly, as does a missing series for any user-provided control or
+observation location. Automatically generated outlets may be included but do
+not require an observation series.
 
 ## What consumes these
 
