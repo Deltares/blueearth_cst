@@ -7,6 +7,7 @@ Every layer is read from its own file — the DEM from a netCDF, the vectors fro
 GeoJSON — so any of them can be swapped for a file that never came from wflow.
 """
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -19,10 +20,32 @@ sys.path.insert(0, str(REPO_ROOT))
 from blueearth_cst.shared import plot_map  # noqa: E402
 from blueearth_cst.shared.plot_map import plot_basin_map  # noqa: E402
 
+
+def primary_checkout():
+    """The main working tree, which is where test_case/ lives.
+
+    A git worktree does not have test_case/, so resolving the default model
+    against the current directory alone leaves it dead exactly where figure
+    work happens. Only matters for the default below.
+    """
+    try:
+        common = subprocess.run(
+            ["git", "rev-parse", "--git-common-dir"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return REPO_ROOT
+    return (REPO_ROOT / common).resolve().parent
+
+
 # --- input files -----------------------------------------------------------
+# Point MODEL_DIR at any folder holding staticmaps.nc and staticgeoms/.
 # Set any of the optional vector paths to None to leave that layer off the map.
 
-MODEL_DIR = REPO_ROOT / "test_case" / "basin_map_fixture" / "hydrology_model"
+MODEL_DIR = primary_checkout() / "test_case" / "basin_map_fixture" / "hydrology_model"
 GEOMS_DIR = MODEL_DIR / "staticgeoms"
 
 STATICMAPS_PATH = MODEL_DIR / "staticmaps.nc"
