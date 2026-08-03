@@ -118,6 +118,25 @@ pytest tests/test_cli.py          # cheapest sanity check: dry-runs all three Sn
 pytest tests/                     # full suite (test_model_creation.py is slow)
 ```
 
+**Run the workflows from the PRIMARY checkout, not from a task worktree.**
+Snakemake keeps its "what is up to date" metadata in `.snakemake/` under the
+*working directory*, so one `project_dir` driven from two checkouts gets two
+independent stores and they disagree — measured 2026-08-02, the same config and
+the same project planned 12 jobs from one checkout and 2 from the other.
+Snakemake also locks its working directory, so two checkouts running against one
+`project_dir` each hold their own lock while writing the same outputs: a
+corruption risk, not just confusion. Worktrees are for editing code and running
+`pytest`; pipeline runs belong in the one checkout `worktree_policy: always`
+already reserves for integration.
+
+The **pixi env is shared on purpose**. `.pixi/envs/default` is ~4.7 GB and a
+worktree resolves to the primary's copy instead of building its own. The cost:
+a task that changes `pixi.toml`/`pixi.lock` would silently test the OLD
+environment, so such a task must build its own env in its worktree
+(`pixi install` there) rather than inherit. Both `.pixi/` and `.ruff_cache/`
+self-ignore through a `.gitignore` the tools write themselves, so neither needs
+a repo rule.
+
 Use `config/workflows/*_linux.yml` + `config/catalogs/*_linux.yml` variants on
 Linux — data-catalog paths differ from Windows. `scripts/run_snake_test.cmd`
 (Windows) and `scripts/run_snake_docker.sh` (Linux/Docker) wrap the test config.
