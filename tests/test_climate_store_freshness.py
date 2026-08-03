@@ -119,6 +119,7 @@ def _seed_provenance(cfg_path, target):
         assert result.returncode == 0, (result.stdout or "") + (result.stderr or "")
 
 
+@pytest.mark.slow
 def test_catalog_edit_schedules_extraction_exactly_once(staged_store):
     cfg_path, catalog, target = staged_store
     _seed_provenance(cfg_path, target)
@@ -152,6 +153,7 @@ def test_catalog_edit_schedules_extraction_exactly_once(staged_store):
         )
 
 
+@pytest.mark.slow
 def test_alternating_workflows_never_reextract(staged_store):
     """wf1 -> wf3 -> wf1 -> wf3 on an unchanged store schedules nothing.
 
