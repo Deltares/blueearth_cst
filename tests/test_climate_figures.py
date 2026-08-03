@@ -62,6 +62,7 @@ def test_unknown_dataset_is_rejected():
 
 # --- writing the set -------------------------------------------------------
 
+@pytest.mark.slow
 def test_writes_exactly_the_declared_names(tmp_path):
     written = cf.plot_climate_figures(_dataset(), tmp_path, "source")
     assert [p.name for p in written] == cf.figure_names("source")
@@ -70,6 +71,7 @@ def test_writes_exactly_the_declared_names(tmp_path):
     assert all(p.stat().st_size > 0 for p in written)
 
 
+@pytest.mark.slow
 def test_a_dask_backed_dataset_works(tmp_path):
     """The regression this module shipped with: PET arrives dask-backed from the
     meteo workflow while precip and temp come straight off the netCDF, and
@@ -89,6 +91,7 @@ def test_a_missing_variable_is_loud(tmp_path):
         cf.plot_climate_figures(ds, tmp_path, "source")
 
 
+@pytest.mark.slow
 def test_overlays_are_optional_and_absent_entries_are_skipped(tmp_path):
     """A caller with no model passes nothing; a caller with a partial set passes
     what it has."""

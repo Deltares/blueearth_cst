@@ -53,6 +53,8 @@ DECLARED_PLOT_OUTPUTS = (
     "hydrology_model/evaluation/plots/clim_wflow_1_month.png",
     "hydrology_model/evaluation/plots/clim_wflow_1_year.png",
     "hydrology_model/evaluation/performance_metrics.csv",
+    # Rule 1.12 renders once and writes both: PDF for publication, PNG preview.
+    "hydrology_model/plots/basin_area.pdf",
     "hydrology_model/plots/basin_area.png",
 ) + tuple(
     f"hydrology_model/forcing/plots/{name}"
@@ -99,6 +101,7 @@ def fabricated_project(tmp_path):
     return cfg_path, expected, undeclared
 
 
+@pytest.mark.slow
 @pytest.mark.skipif(shutil.which("snakemake") is None, reason="snakemake not on PATH")
 @pytest.mark.workflow_contract
 def test_delete_all_output_removes_the_declared_plot_outputs(fabricated_project):
@@ -162,6 +165,7 @@ def project_with_basavg_outvar(tmp_path):
     return cfg_path, basavg, undeclared
 
 
+@pytest.mark.slow
 @pytest.mark.skipif(shutil.which("snakemake") is None, reason="snakemake not on PATH")
 @pytest.mark.workflow_contract
 def test_delete_all_output_removes_a_basavg_figure(project_with_basavg_outvar):

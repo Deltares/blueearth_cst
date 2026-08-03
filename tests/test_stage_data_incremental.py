@@ -18,6 +18,7 @@ pytestmark = pytest.mark.process_isolation
 HARNESS = Path(__file__).resolve().parent / "_stage_equiv_harness.py"
 
 
+@pytest.mark.slow
 def test_netcdf_glob_widening_is_incremental_and_value_identical(tmp_path) -> None:
     env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
     result = subprocess.run(

@@ -80,7 +80,10 @@ The tree is self-explanatory; these are the parts that are not.
   checkout can run: the fixture-dependent layer and the `--run-integration` tests
   skip, and `check_baseline.py` / whole-tree `semantic_tree_diff.py` cannot run
   there at all (they need the untracked `test_case/test_local` tree). **CI green
-  does not mean the baseline was checked** — those stay local gates.
+  does not mean the baseline was checked** — those stay local gates. The baseline
+  covers DATA, not figures: `FIGURE_KINDS` targets are excluded by default
+  because a figure is fingerprinted by byte size, so any cosmetic edit fails the
+  gate without indicating a defect (see the validation ladder under Workflow).
 - Outputs land under `project_dir` (set in the config). Production `project_dir`
   lives **outside the repository tree**; the in-repo untracked `test_case/test_local`
   is a dev/test convention only, explicitly exempt from that rule.
@@ -186,9 +189,43 @@ pinned by `tests/test_run_workflows.py`.
 
 ## Workflow
 
+### Validation ladder — match the check to the blast radius
+
+Every task runs in its own branch and worktree, so a mistake is contained and
+cheap to revert. Spend validation time accordingly: **unit tests while
+iterating, broader checks once, at the commit.** Re-running the full suite after
+each incremental edit is the failure mode to avoid — it costs ~8 min a turn and
+re-proves what the previous run already proved.
+
+| When | Run |
+|---|---|
+| While iterating | Only the tests covering the file you changed (`pytest tests/test_<module>.py`). Nothing else. |
+| Before a commit | Add `pytest tests/test_cli.py` **if** a Snakefile or a `script:` signature changed; otherwise the module's own tests are the gate. |
+| Before merging the branch | `pytest tests/` once. |
+| Before a milestone seal / after touching numeric outputs | `check_baseline.py check`, plus `semantic_tree_diff.py` if the tree shape moved. |
+
 - `--dry-run` before running and after editing any rule, to validate the DAG.
-- After editing a Snakefile or a script signature, run `pytest tests/test_cli.py`.
 - If a run crashed and the workdir reports as locked, `--unlock` before retrying.
+
+### Figures are terminal artifacts
+
+No rule consumes a `.png`/`.pdf` under `project_dir`, so a figure change cannot
+propagate into a number. Do **not** run the validation suite or the baseline for
+a figure-only change — verify it by *rendering it and looking at it*, which is
+the only check that can actually catch a bad figure. `check_baseline.py` excludes
+figure targets by default (`--include-figures` restores them).
+
+For the basin map, render it WITHOUT a WF1 run:
+`dev/scripts/preview_basin_map.py` drives `plot_map.py`'s tunable block from the
+command line against a model already on disk (`--list`, `--set NAME=VALUE`,
+`--sweep NAME=V1,V2,...`). Anything assembled from those tunables must be derived
+in a function, not frozen into a module constant — a constant snapshots its
+inputs at import, so the override would silently do nothing.
+
+**The trap:** "I changed it for a figure" is not the same as "it is a
+figure-only change". A shared helper edited in service of a plot
+(`shared/snake_utils.py`, `shared/plot_utils.py`) is a contract surface with
+other callers, and takes the normal ladder above.
 
 ## Hard Constraints
 

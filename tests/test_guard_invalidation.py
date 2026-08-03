@@ -116,6 +116,7 @@ def _dry_run_output(cfg_path, sentinel):
     return (result.stdout or "") + (result.stderr or "")
 
 
+@pytest.mark.slow
 def test_guard_invalidation_i_to_l(staged_project):
     """Gate 2b: each comparand mutation schedules the guard; revert does not."""
     cfg_path, pdir, wf1, wf2, sentinel, guard_ok = staged_project
@@ -174,6 +175,7 @@ def _unpack5(staged_project):
     return cfg_path, pdir, wf1, wf2, sentinel
 
 
+@pytest.mark.slow
 def test_2c_fresh_project_missing_wf1_snapshot(staged_project):
     """Gate 2c: a fresh project (no wf1 snapshot) parses, dry-runs, unlocks."""
     cfg_path, pdir, wf1, wf2, sentinel = _unpack5(staged_project)

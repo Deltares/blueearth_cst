@@ -37,6 +37,12 @@ re-run when a similar symptom appears. Not part of any workflow.
 | [`rule_dag_levels.py`](rule_dag_levels.py) | Print a Snakefile's rules in **DAG order** with per-rule job counts (runnable vs already up to date). Snakemake's own `Job stats:` table is alphabetical and no flag re-sorts it, so it never shows what runs before what. Reads `--rulegraph dot` (structure) + `--dag dot` (job counts); executes nothing. Use `dot` and not `--d3dag` — on snakemake 9.6.2 the D3 JSON drops edges (48 vs the DOT graph's 73 on WF2), and `--rulegraph mermaid-js` emits self-edges. |
 | [`prune_series_cache.py`](prune_series_cache.py) | Report (and with `--delete`, remove) orphaned WF2 series left behind by a key-grammar or config change. Dry run by default. Must run **before** any reference snapshot, or the snapshot bakes the orphans in. |
 
+## Figure tuning
+
+| Script | What it does |
+|---|---|
+| [`preview_basin_map.py`](preview_basin_map.py) | Render rule 1.12's basin figure against a model already on disk, with any constant in `plot_map.py`'s TUNABLE block overridden from the command line — no WF1 run. `--list` prints every tunable with its current value and its own comment; `--set NAME=VALUE` overrides one; `--sweep NAME=V1,V2,...` renders one figure per value, named after it, for side-by-side comparison (repeat `--sweep` for the cross-product). Writes only to `--out-dir` (gitignored `.tmp/basin_map_preview` by default), never into a project's `plots/`. Renders against `test_case/basin_map_fixture` by default — a kept five-subcatchment model with gauges (see its README); override with `--project-dir` or `$BASIN_MAP_PROJECT_DIR`. **A figure is verified by looking at it** — this is the tool the "figures are terminal artifacts" clause in `AGENTS.md` points at. |
+
 ## Baseline / regression
 
 | Script | What it does |

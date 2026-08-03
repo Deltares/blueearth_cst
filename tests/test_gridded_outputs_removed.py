@@ -70,6 +70,7 @@ def test_a_false_gridded_key_returns_a_warning(key):
     ]
 
 
+@pytest.mark.slow
 @pytest.mark.workflow_contract
 def test_snakefile_rejects_a_removed_gridded_key(tmp_path, seed_config):
     """The WF2 Snakefile applies the directly tested removal policy."""

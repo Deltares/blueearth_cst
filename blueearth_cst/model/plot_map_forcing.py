@@ -15,9 +15,13 @@ Two things changed with the canonical set (2026-08), both deliberate:
 * **No more cartopy basemap tiles.** The previous ``plot_map_model`` called
   ``cartopy.io.img_tiles.QuadtreeTiles``, i.e. a live tile request in the middle
   of WF1. Rule 1.13 now needs no NETWORK. The basin/river context it bought is
-  drawn from the model's own geometries instead, and rule 1.12's
-  ``basin_area.png`` still provides the full satellite-backed map for anyone who
-  wants it (that rule keeps its cartopy dependency).
+  drawn from the model's own geometries instead. Rule 1.12's ``basin_area``
+  dropped the same tiles in 2026-08 for the same reason plus two more —
+  licence/attribution on a submitted figure, and a basemap that the server can
+  re-render out from under a "reproducible" run — so NO rule in WF1 fetches
+  tiles any more. It draws its terrain context as a hillshade of the model's own
+  DEM (``shared.plot_map``), which is offline, reproducible, and finer than the
+  tiles were at the zoom level that rule had hardcoded.
 * **Filenames carry the dataset.** ``precip.png`` became
   ``forcing_precip_map.png`` and friends — see ``climate_figures.figure_names``.
 """

@@ -191,6 +191,43 @@ TARGETS: list[tuple[str, str, str]] = [
 
 WORKFLOWS = ("model_creation", "climate_projections", "climate_experiment")
 
+#: Fingerprint kinds that are FIGURES rather than data. Excluded by default.
+#:
+#: A figure is a terminal artifact: no rule consumes it, so a change to one
+#: cannot propagate into a number anywhere downstream. And `fingerprint_png`
+#: compares only `size_bytes`, so ANY cosmetic edit -- a font size, a legend
+#: corner, a line weight -- turns the gate red while telling you nothing about
+#: whether the model still produces the same results. That cost lands on every
+#: figure refactor and buys no signal, which is why the default flipped
+#: (2026-08-03).
+#:
+#: What still covers figures: `rule all` fails if one is not produced, and
+#: `tests/test_wf1_plot_outputs.py` pins the declared output set. What is NOT
+#: covered is their content -- inspect a changed figure by looking at it.
+#:
+#: Pass `--include-figures` to either subcommand when the figures themselves are
+#: what is under review. Record and check must AGREE: a manifest recorded
+#: without figures and checked with them reports them as missing.
+FIGURE_KINDS = frozenset({"png"})
+
+
+def active_targets(
+    workflows: set[str] | None = None, include_figures: bool = False
+) -> list[tuple[str, str, str]]:
+    """TARGETS after the workflow and figure filters.
+
+    The SINGLE place both filters are applied. `compute_manifest`,
+    `record_discharge` and the two manifest-prune loops all read from here, so a
+    row can never be fingerprinted by one and pruned by another -- which is how
+    a merge would silently drop rows it never re-recorded.
+    """
+    return [
+        (workflow, kind, template)
+        for workflow, kind, template in TARGETS
+        if (workflows is None or workflow in workflows)
+        and (include_figures or kind not in FIGURE_KINDS)
+    ]
+
 
 def resolve(template: str, project_dir: str) -> str:
     return template.format(
@@ -285,17 +322,17 @@ FINGERPRINTERS = {
 
 
 def compute_manifest(
-    project_dir: str, workflows: set[str] | None = None
+    project_dir: str,
+    workflows: set[str] | None = None,
+    include_figures: bool = False,
 ) -> tuple[dict, list[str]]:
     """Fingerprint every non-discharge target. Discharge targets are handled by
     record_discharge / check_discharge (they need a stored reference series and a
     tolerance comparator, not a self-contained fingerprint)."""
     out: dict[str, dict] = {}
     missing: list[str] = []
-    for workflow, kind, template in TARGETS:
+    for _workflow, kind, template in active_targets(workflows, include_figures):
         if kind == "discharge":
-            continue
-        if workflows is not None and workflow not in workflows:
             continue
         path = resolve(template, project_dir)
         if not Path(path).exists():
@@ -497,10 +534,10 @@ def record_discharge(
     return their manifest rows plus any missing target paths."""
     rows: dict[str, dict] = {}
     missing: list[str] = []
-    for workflow, kind, template in TARGETS:
+    # Discharge is never a FIGURE_KIND, so the figure filter cannot touch it —
+    # include_figures=True keeps this loop's universe identical either way.
+    for _workflow, kind, template in active_targets(workflows, include_figures=True):
         if kind != "discharge":
-            continue
-        if workflows is not None and workflow not in workflows:
             continue
         path = resolve(template, project_dir)
         if not Path(path).exists():
@@ -602,6 +639,15 @@ def diff_records(rec: dict, cur: dict, tolerance: float = 0.0) -> list[str]:
     return diff_hashed(rec, cur)
 
 
+def _want_figures(args: argparse.Namespace) -> bool:
+    """Read the flag defensively.
+
+    `cmd_record`/`cmd_check` are called directly from tests with a hand-built
+    Namespace that predates this option, exactly as `--workflow` already is.
+    """
+    return bool(getattr(args, "include_figures", False))
+
+
 def cmd_record(args: argparse.Namespace) -> int:
     """Record fingerprints. With `--workflow`, record ONLY the selected
     workflow(s) and MERGE into the existing manifest (preserve the other rows);
@@ -609,7 +655,9 @@ def cmd_record(args: argparse.Namespace) -> int:
     selected = set(args.workflow) if getattr(args, "workflow", None) else None
     ref_dir = args.manifest.parent
 
-    manifest, missing = compute_manifest(args.project_dir, workflows=selected)
+    manifest, missing = compute_manifest(
+        args.project_dir, workflows=selected, include_figures=_want_figures(args)
+    )
     disch_rows, disch_missing = record_discharge(args.project_dir, ref_dir, workflows=selected)
     missing = missing + disch_missing
     if missing:
@@ -626,10 +674,14 @@ def cmd_record(args: argparse.Namespace) -> int:
         # Merge: keep every recorded row NOT owned by a selected workflow, then
         # overlay the freshly-recorded selected rows. Never clobber wf2/wf3.
         existing = json.loads(args.manifest.read_text()).get("targets", {})
+        # Prune exactly what was re-recorded — same filter, so an excluded
+        # figure row is left alone rather than deleted by a merge that never
+        # intended to touch it.
         selected_paths = {
             resolve(template, args.project_dir)
-            for workflow, _kind, template in TARGETS
-            if workflow in selected
+            for _workflow, _kind, template in active_targets(
+                selected, include_figures=_want_figures(args)
+            )
         }
         targets = {p: r for p, r in existing.items() if p not in selected_paths}
         targets.update(new_rows)
@@ -696,17 +748,22 @@ def cmd_check(args: argparse.Namespace) -> int:
             )
 
     selected = set(args.workflow) if args.workflow else None
-    current, missing = compute_manifest(args.project_dir, workflows=selected)
-    if selected is not None:
-        # Apply the selected universe symmetrically: filter the recorded side to
-        # the same resolved paths so the missing/diff/orphan/count logic all
-        # operate on one reduced target set (design ext2-1).
-        selected_paths = {
-            resolve(template, args.project_dir)
-            for workflow, _kind, template in TARGETS
-            if workflow in selected
-        }
-        rec_targets = {p: rec for p, rec in rec_targets.items() if p in selected_paths}
+    current, missing = compute_manifest(
+        args.project_dir, workflows=selected, include_figures=_want_figures(args)
+    )
+    # Apply the in-scope universe symmetrically: filter the recorded side to the
+    # same resolved paths so the missing/diff/orphan/count logic all operate on
+    # one target set (design ext2-1). This now covers the FIGURE filter as well
+    # as `--workflow`: without it, a manifest recorded before figures were
+    # excluded keeps reporting its stale png rows in the "N target(s) match"
+    # count while nothing actually compares them.
+    in_scope_paths = {
+        resolve(template, args.project_dir)
+        for _workflow, _kind, template in active_targets(
+            selected, include_figures=_want_figures(args)
+        )
+    }
+    rec_targets = {p: rec for p, rec in rec_targets.items() if p in in_scope_paths}
 
     failures: list[tuple[str, list[str]]] = []
     for p in missing:
@@ -762,6 +819,14 @@ def _add_common(parser: argparse.ArgumentParser) -> None:
                         help=f"Project directory (default: {PROJECT_DIR_DEFAULT})")
     parser.add_argument("--manifest", type=Path, default=MANIFEST_PATH_DEFAULT,
                         help=f"Manifest path (default: {MANIFEST_PATH_DEFAULT})")
+    # Only `record` and `check` take this — `compare` does not read TARGETS.
+    parser.add_argument("--include-figures", action="store_true",
+                        help="Include figure targets "
+                             f"({'/'.join(sorted(FIGURE_KINDS))}). Excluded by default: "
+                             "a figure is a terminal artifact nothing downstream reads, "
+                             "and it is fingerprinted by BYTE SIZE, so any cosmetic edit "
+                             "fails the gate without indicating a defect. Record and "
+                             "check must pass this flag identically.")
 
 
 def main() -> None:

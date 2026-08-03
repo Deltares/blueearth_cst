@@ -17,6 +17,7 @@ series lands under `<manifest_dir>/discharge_ref/`. No real Snakemake run.
 from __future__ import annotations
 
 import argparse
+import pathlib
 import json
 import sys
 from collections import Counter
@@ -51,19 +52,26 @@ def _write_target(path: str, kind: str) -> None:
         raise ValueError(f"unhandled kind: {kind}")
 
 
-def _record_ns(project_dir, manifest_path, workflow=None):
+def _record_ns(project_dir, manifest_path, workflow=None, include_figures=False):
     return argparse.Namespace(
-        cmd="record", project_dir=project_dir, manifest=manifest_path, workflow=workflow
+        cmd="record",
+        project_dir=project_dir,
+        manifest=manifest_path,
+        workflow=workflow,
+        include_figures=include_figures,
     )
 
 
-def _check_ns(project_dir, manifest_path, workflow=None, tolerance=0.0):
+def _check_ns(
+    project_dir, manifest_path, workflow=None, tolerance=0.0, include_figures=False
+):
     return argparse.Namespace(
         cmd="check",
         project_dir=project_dir,
         manifest=manifest_path,
         tolerance=tolerance,
         workflow=workflow,
+        include_figures=include_figures,
     )
 
 
@@ -78,7 +86,9 @@ def project(tmp_path):
         _write_target(cb.resolve(template, project_dir), kind)
 
     manifest_path = tmp_path / "manifest.json"
-    rc = cb.cmd_record(_record_ns(project_dir, manifest_path))
+    # Recorded WITH figures so the fixture still exercises every target kind;
+    # the default-exclusion behaviour gets its own tests below.
+    rc = cb.cmd_record(_record_ns(project_dir, manifest_path, include_figures=True))
     assert rc == 0  # fixture sanity: all synthetic targets recorded
     return project_dir, manifest_path
 
@@ -95,12 +105,13 @@ def test_targets_tagged_with_expected_cardinality():
 
 
 def test_scoped_count_is_selected_not_full(project, capsys):
-    """`--workflow model_creation --workflow climate_projections` reports 12
-    targets (5 + 6), not the full 14."""
+    """`--workflow model_creation --workflow climate_projections` reports 11
+    of the 14 targets, not the full set."""
     project_dir, manifest_path = project
     rc = cb.cmd_check(
         _check_ns(project_dir, manifest_path,
-                  workflow=["model_creation", "climate_projections"])
+                  workflow=["model_creation", "climate_projections"],
+                  include_figures=True)
     )
     out = capsys.readouterr().out
     assert rc == 0
@@ -117,7 +128,8 @@ def test_selected_missing_target_fails(project, capsys):
 
     rc = cb.cmd_check(
         _check_ns(project_dir, manifest_path,
-                  workflow=["model_creation", "climate_projections"])
+                  workflow=["model_creation", "climate_projections"],
+                  include_figures=True)
     )
     out = capsys.readouterr().out
     assert rc == 1
@@ -133,7 +145,8 @@ def test_unselected_missing_target_ignored(project, capsys):
 
     rc = cb.cmd_check(
         _check_ns(project_dir, manifest_path,
-                  workflow=["model_creation", "climate_projections"])
+                  workflow=["model_creation", "climate_projections"],
+                  include_figures=True)
     )
     out = capsys.readouterr().out
     assert rc == 0
@@ -141,7 +154,7 @@ def test_unselected_missing_target_ignored(project, capsys):
 
 
 def test_unscoped_record_writes_all_targets(project):
-    """An unscoped record writes all 14 targets (overwrite semantics)."""
+    """An unscoped record with --include-figures writes all 14 (overwrite)."""
     project_dir, manifest_path = project
     written = json.loads(Path(manifest_path).read_text())
     assert len(written["targets"]) == 14
@@ -186,9 +199,66 @@ def test_record_workflow_merges_and_preserves_other_slices(project):
 
 
 def test_unscoped_check_spans_all_targets(project, capsys):
-    """`check` with no `--workflow` operates over all 14 targets."""
+    """`check --include-figures` with no `--workflow` spans all 14 targets."""
     project_dir, manifest_path = project
-    rc = cb.cmd_check(_check_ns(project_dir, manifest_path, workflow=None))
+    rc = cb.cmd_check(
+        _check_ns(project_dir, manifest_path, workflow=None, include_figures=True)
+    )
     out = capsys.readouterr().out
     assert rc == 0
     assert "OK - 14 target(s)" in out
+
+
+# --- figure targets are excluded by default (2026-08-03) ----------------------
+# A figure is a terminal artifact and is fingerprinted by byte SIZE, so any
+# cosmetic edit reddens the gate without indicating a defect.
+
+
+def test_figure_targets_are_excluded_by_default():
+    """The default universe drops every FIGURE_KINDS row and keeps the rest."""
+    default = cb.active_targets()
+    assert default, "the filter must not empty the target list"
+    assert all(kind not in cb.FIGURE_KINDS for _w, kind, _t in default)
+    assert len(default) == len(cb.TARGETS) - sum(
+        1 for _w, kind, _t in cb.TARGETS if kind in cb.FIGURE_KINDS
+    )
+
+
+def test_include_figures_restores_the_full_universe():
+    assert cb.active_targets(include_figures=True) == cb.TARGETS
+
+
+def test_the_workflow_and_figure_filters_compose():
+    scoped = cb.active_targets({"model_creation"})
+    assert {w for w, _k, _t in scoped} == {"model_creation"}
+    assert all(kind not in cb.FIGURE_KINDS for _w, kind, _t in scoped)
+
+
+def test_default_check_ignores_recorded_figure_rows(project, capsys):
+    """A manifest recorded WITH figures still checks clean without them.
+
+    The recorded side is filtered to the same universe, so the stale rows are
+    neither compared nor counted -- rather than being reported as missing.
+    """
+    project_dir, manifest_path = project
+    rc = cb.cmd_check(_check_ns(project_dir, manifest_path))
+    out = capsys.readouterr().out
+    assert rc == 0, out
+    figures = sum(1 for _w, kind, _t in cb.TARGETS if kind in cb.FIGURE_KINDS)
+    assert f"OK - {len(cb.TARGETS) - figures} target(s)" in out
+
+
+def test_a_changed_figure_does_not_fail_the_default_check(project, capsys):
+    """The whole point: repaint a figure, gate stays green."""
+    project_dir, manifest_path = project
+    for _workflow, kind, template in cb.TARGETS:
+        if kind in cb.FIGURE_KINDS:
+            path = pathlib.Path(cb.resolve(template, project_dir))
+            path.write_bytes(path.read_bytes() + b"x" * 5000)
+
+    assert cb.cmd_check(_check_ns(project_dir, manifest_path)) == 0
+    capsys.readouterr()
+    # ... and --include-figures still catches it, so the signal is not lost.
+    rc = cb.cmd_check(_check_ns(project_dir, manifest_path, include_figures=True))
+    assert rc == 1
+    assert "size" in capsys.readouterr().out

@@ -228,6 +228,7 @@ def _snakemake(args, cfg_path):
     )
 
 
+@pytest.mark.slow
 @pytest.mark.skipif(shutil.which("snakemake") is None, reason="snakemake not on PATH")
 @pytest.mark.workflow_contract
 def test_source_figures_build_without_a_model(modelfree_project):

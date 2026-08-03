@@ -238,6 +238,7 @@ def declarations(request, config_variants):
     return out
 
 
+@pytest.mark.slow
 @pytest.mark.workflow_contract
 def test_optional_basin_keys_are_read_from_the_config_by_both(declarations):
     """Both declarations honour ``shared.basin.hydrography``/``basin_index``.

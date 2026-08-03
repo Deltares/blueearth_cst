@@ -128,6 +128,7 @@ def declarations():
     }
 
 
+@pytest.mark.slow
 @pytest.mark.workflow_contract
 def test_every_workflow_declares_the_rule(declarations):
     for label, rule in declarations.items():
