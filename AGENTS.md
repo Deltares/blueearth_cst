@@ -283,6 +283,18 @@ a figure-only change — verify it by *rendering it and looking at it*, which is
 the only check that can actually catch a bad figure. `check_baseline.py` excludes
 figure targets by default (`--include-figures` restores them).
 
+**The gate for a figure change, in full:** (1) the unit tests of the changed
+module, (2) the figure renders without an exception, (3) the rendered PNG is
+published as an **Artifact** — a self-contained HTML page with the image
+embedded as a base64 `data:` URI — so the owner inspects it in a browser. Never
+byte-compare renders, scrub timestamps to force reproducible bytes, or run the
+baseline or the full suite to "confirm" a figure. Renders here are ~0.3 MB, so
+embedding needs no downscaling; side-by-side before/after panels are welcome,
+being visual comparison rather than a byte check. Render the LAYER-RICH fixture
+(`test_case/basin_map_fixture`, five subcatchments + gauges), not
+`test_case/test_local` — the latter has one outlet and no gauges, so most layers
+are simply absent from the image and cannot be judged.
+
 For the basin map, render it WITHOUT a WF1 run:
 `dev/scripts/preview_basin_map.py` drives `plot_map.py`'s tunable block from the
 command line against a model already on disk (`--list`, `--set NAME=VALUE`,
