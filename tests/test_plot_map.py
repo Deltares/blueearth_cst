@@ -25,7 +25,9 @@ from blueearth_cst.shared.plot_map import (
     _colorbar_inset,
     _corner_occupancy,
     _elevation_colormap,
+    _elevation_levels,
     _figure_size,
+    _nice_step_up,
     _mask_nodata,
     _publication_rc,
     _scale_bar_corner,
@@ -293,6 +295,76 @@ def test_ramp_endpoints_are_distinguishable_under_dichromacy():
 
 def test_colormap_is_a_matplotlib_colormap():
     assert isinstance(_elevation_colormap(), colors.Colormap)
+
+
+def test_the_ramp_can_be_cut_into_discrete_classes():
+    assert _elevation_colormap(6).N == 6
+
+
+# --- elevation classes --------------------------------------------------------
+# The bar is stepped, its boundaries are round numbers, and both ends are
+# labelled. The trap is the zero baseline: it must not flatten a highland basin.
+
+
+@pytest.mark.parametrize(
+    "value, expected", [(0.9, 1.0), (1.0, 1.0), (1.7, 2.0), (3.0, 5.0), (16.9, 20.0)]
+)
+def test_a_class_width_rounds_UP_to_one_two_or_five(value, expected):
+    """Down would give MORE classes than asked for -- the opposite of the point."""
+    assert _nice_step_up(value) == expected
+
+
+def _dem_spanning(low, high):
+    values = np.linspace(low, high, 400)
+    side = 20
+    return xr.DataArray(values.reshape(side, side), dims=("latitude", "longitude"))
+
+
+def test_a_lowland_basin_gets_a_ramp_starting_at_zero():
+    levels = _elevation_levels(_dem_spanning(4.0, 137.0))
+    assert levels[0] == 0.0
+    assert levels[-1] >= 137.0
+
+
+def test_a_plateau_basin_keeps_its_own_baseline():
+    """Zeroed, a 1900-1960 m basin lands entirely in ONE class and goes flat."""
+    levels = _elevation_levels(_dem_spanning(1900.0, 1960.0))
+    assert levels[0] > 0.0
+    # the basin must span most of the ramp, not a single band of it
+    assert (1960.0 - 1900.0) / (levels[-1] - levels[0]) > 0.5
+
+
+def test_a_mountain_basin_still_zeroes_because_it_can_afford_to():
+    levels = _elevation_levels(_dem_spanning(800.0, 6200.0))
+    assert levels[0] == 0.0
+
+
+def test_the_top_class_contains_the_highest_cell_rather_than_ending_at_it():
+    """A boundary exactly at the summit renders the summit as nodata."""
+    assert _elevation_levels(_dem_spanning(0.0, 100.0))[-1] >= 100.0
+
+
+def test_boundaries_sit_on_multiples_of_the_class_width():
+    """A floor of 1903 m must label as 1900, not carry itself up the bar."""
+    levels = _elevation_levels(_dem_spanning(1903.0, 2410.0))
+    step = levels[1] - levels[0]
+    assert np.allclose(np.mod(levels, step), 0.0)
+
+
+def test_classes_are_evenly_spaced_and_increasing():
+    levels = _elevation_levels(_dem_spanning(4.0, 137.0))
+    assert np.all(np.diff(levels) > 0)
+    assert np.allclose(np.diff(levels), levels[1] - levels[0])
+
+
+def test_a_flat_dem_does_not_produce_a_degenerate_ramp():
+    levels = _elevation_levels(_dem_spanning(12.0, 12.0))
+    assert len(levels) >= 2 and np.all(np.diff(levels) > 0)
+
+
+def test_a_below_sea_level_basin_is_not_clipped_at_zero():
+    levels = _elevation_levels(_dem_spanning(-30.0, 90.0))
+    assert levels[0] <= -30.0
 
 
 # --- the tunable block stays live ---------------------------------------------

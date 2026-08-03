@@ -220,6 +220,29 @@ _COLORBAR_LABEL_POSITIONS = ("right", "top")
 #: single high pixel flattening the rest of the basin to one colour.
 _ELEVATION_CLIP_QUANTILES = (0.0, 0.98)
 
+#: Target number of colour CLASSES. The ramp is stepped rather than continuous:
+#: a reader cannot resolve a shade back to a number off a smooth ramp, but can
+#: off a class, and stepped classes survive the greyscale print that a
+#: continuous ramp turns to mush. The count is a target — the class WIDTH is
+#: rounded to a 1/2/5 value first, so the boundaries are numbers worth printing
+#: and the count lands near this rather than on it.
+_COLORBAR_LEVELS = 7
+
+#: Start the ramp at 0 m rather than at the basin's own lowest cell. Elevation
+#: is measured from a datum, so a bar starting at 4 m invites the reader to
+#: treat the basin floor as the zero of the scale. Set False to always spend the
+#: whole ramp on the basin's actual range.
+_ELEVATION_STARTS_AT_ZERO = True
+
+#: ...but not when it would cost the map its resolution. A 1900-1960 m plateau
+#: zeroed gets classes 0/500/1000/1500/2000 — the ENTIRE basin lands in one of
+#: them and the map renders as a single flat colour. So the baseline drops to
+#: zero only while the basin's own range stays at least this fraction of the
+#: zero-based range; below it, the ramp starts at the basin's floor instead.
+#: CST runs on lowland deltas and Himalayan headwaters from the same code, and
+#: a rule tuned on one of them is not a rule.
+_ZERO_BASELINE_MIN_SPAN_FRACTION = 0.35
+
 #: Top of the legend box, in axes fractions — just below the colourbar's lower
 #: end (``_COLORBAR_BOTTOM``). Lower it to open a gap between the two.
 _LEGEND_TOP = 0.44
@@ -264,8 +287,10 @@ _DEM_ANCHORS = ("#f6f2ea", "#e3d5ba", "#c9aa7d", "#a07f52", "#6f5533", "#46351f"
 #: River width scales with Strahler stream order, between these two bounds. The
 #: minimum is what a headwater gets, the maximum the trunk — widen the gap for a
 #: more dramatic network, narrow it for a flatter, more uniform one.
-RIVER_WIDTH_MIN = 0.2
-RIVER_WIDTH_MAX = 1.2
+#: 0.2 pt is below what most printers hold and vanishes on screen at any
+#: reasonable zoom, so the headwaters of the network simply were not there.
+RIVER_WIDTH_MIN = 0.5
+RIVER_WIDTH_MAX = 1.4
 #: Used when every river shares one stream order, so there is nothing to scale.
 RIVER_WIDTH_UNIFORM = 0.6
 
@@ -283,10 +308,20 @@ HALO_WIDTH_GAUGE_LABEL = 1.8
 
 # --- markers ---------------------------------------------------------------
 
-MARKER_SHAPE = "d"  #: diamond, for both outlets and gauges
-MARKER_SIZE = 18  #: matplotlib points-squared, as geopandas expects
-#: Offset of a gauge's label from its marker, in points (x, y).
-GAUGE_LABEL_OFFSET = (2.5, 2.5)
+#: Separate shapes for the two point layers. They were both thin diamonds,
+#: separated by colour alone — which fails in greyscale, fails for a
+#: dichromat, and is hard to tell apart at 5 pt anyway. Shape is the redundant
+#: channel that fixes all three. Circle reads as a measurement point, square as
+#: a structural one; swap them if a convention says otherwise.
+MARKER_SHAPE_GAUGE = "o"
+MARKER_SHAPE_OUTLET = "s"
+#: matplotlib points-squared, as geopandas expects. 18 was ~4.2 pt across at
+#: 180 mm, which disappears against the relief; 44 is ~6.6 pt.
+MARKER_SIZE = 44
+#: Offset of a gauge's label from its marker, in points (x, y). Must clear the
+#: marker's RADIUS: at MARKER_SIZE 44 that is ~3.3 pt, and the old (2.5, 2.5)
+#: put the text inside the symbol.
+GAUGE_LABEL_OFFSET = (4.5, 3.5)
 
 # --- graticule -------------------------------------------------------------
 
@@ -317,7 +352,9 @@ _SCALE_BAR_EDGE_WIDTH = 0.5
 
 #: Arrow position in axes fractions: (x, tip y, tail y). The "N" sits at the
 #: tail. Exactly vertical is correct here because PlateCarree's north is up.
-_NORTH_ARROW_POSITION = (0.955, 0.94, 0.83)
+#: Tucked into the map's own top-right CORNER — it used to float short of it,
+#: which read as an artist adrift over the basin rather than as furniture.
+_NORTH_ARROW_POSITION = (0.975, 0.985, 0.885)
 _NORTH_ARROW_STYLE = "-|>"
 _NORTH_ARROW_WIDTH = 0.8
 #: The arrow's corner, kept clear of the scale bar. With the legend in the side
@@ -502,9 +539,53 @@ def _nice_round_length(value_km):
     return float(step * 10.0**exponent)
 
 
-def _elevation_colormap():
-    """The CVD-safe elevation ramp as a matplotlib colormap."""
-    return colors.LinearSegmentedColormap.from_list("dem_cvd", _DEM_ANCHORS, N=256)
+def _elevation_colormap(levels=None):
+    """The CVD-safe elevation ramp, continuous or cut into ``levels`` classes."""
+    ramp = colors.LinearSegmentedColormap.from_list("dem_cvd", _DEM_ANCHORS, N=256)
+    return ramp if levels is None else ramp.resampled(levels)
+
+
+def _nice_step_up(value):
+    """Round a class width UP to the nearest 1/2/5 x 10^n.
+
+    Up, not down: ``_nice_round_length`` rounds down, which for a class width
+    means MORE classes than asked for, and a bar of twelve near-identical
+    browns is the thing the discretisation exists to avoid.
+    """
+    if value <= 0:
+        return 1.0
+    exponent = np.floor(np.log10(value))
+    fraction = value / 10.0**exponent
+    step = 1.0 if fraction <= 1.0 else (2.0 if fraction <= 2.0 else (5.0 if fraction <= 5.0 else 10.0))
+    return float(step * 10.0**exponent)
+
+
+def _elevation_levels(dem):
+    """Class boundaries for the ramp: round numbers, first and last included.
+
+    The lowest is 0 by default (``_ELEVATION_STARTS_AT_ZERO``) and the highest
+    is the first round boundary at or above the clipped top of the DEM, so the
+    bar's two end labels are real bounds rather than the basin's own extremes
+    printed to a decimal.
+    """
+    lower, upper = (
+        float(value)
+        for value in dem.quantile(list(_ELEVATION_CLIP_QUANTILES)).compute()
+    )
+    if not np.isfinite(upper) or not np.isfinite(lower) or upper <= lower:
+        upper = lower + 1.0
+    if _ELEVATION_STARTS_AT_ZERO and lower > 0.0:
+        # Only while the basin still gets most of the ramp; see the constant.
+        if (upper - lower) / upper >= _ZERO_BASELINE_MIN_SPAN_FRACTION:
+            lower = 0.0
+    step = _nice_step_up((upper - lower) / max(_COLORBAR_LEVELS, 1))
+    # Put the boundaries on multiples of the step, so a basin floor of 1903 m
+    # labels as 1900 rather than carrying its own arbitrary value up the bar.
+    lower = float(np.floor(lower / step) * step)
+    # ceil, then +1 boundary: the top class must CONTAIN the highest cell, not
+    # end at it, or the summit renders as nodata.
+    count = int(np.ceil((upper - lower) / step))
+    return lower + step * np.arange(count + 1)
 
 
 def _vertical_exaggeration(elevation, dx_metres, dy_metres, valid=None):
@@ -942,12 +1023,9 @@ def _river_linewidths(gdf_riv, column=RIVER_ORDER_COLUMN):
 
 def _draw_relief(fig, ax, dem, centre_latitude, elevation_label):
     """Shaded relief plus its colourbar in the side panel."""
-    vmin, vmax = (
-        float(value)
-        for value in dem.quantile(list(_ELEVATION_CLIP_QUANTILES)).compute()
-    )
-    cmap = _elevation_colormap()
-    norm = colors.Normalize(vmin=vmin, vmax=vmax)
+    levels = _elevation_levels(dem)
+    cmap = _elevation_colormap(len(levels) - 1)
+    norm = colors.BoundaryNorm(levels, cmap.N)
     x_dim, y_dim = spatial_dim_names(dem)
     _shaded_relief(dem, cmap, norm, centre_latitude).plot.imshow(
         ax=ax,
@@ -968,7 +1046,14 @@ def _draw_relief(fig, ax, dem, centre_latitude, elevation_label):
     # ``rect`` already reserves the panel's room, so it must not be counted
     # twice.
     colorbar_axes.set_in_layout(False)
-    colorbar = fig.colorbar(ScalarMappable(norm=norm, cmap=cmap), cax=colorbar_axes)
+    # ``ticks=levels`` labels every class BOUNDARY, which is what puts the first
+    # and the last on the bar; matplotlib's own locator drops both ends.
+    colorbar = fig.colorbar(
+        ScalarMappable(norm=norm, cmap=cmap),
+        cax=colorbar_axes,
+        ticks=levels,
+        spacing="proportional",
+    )
     if _colorbar_label_position() == "top":
         # A TITLE, not the label: ``set_label`` on a vertical bar always lands
         # alongside it, rotated. ``loc="left"`` is what keeps a label wider than
@@ -986,13 +1071,13 @@ def _draw_relief(fig, ax, dem, centre_latitude, elevation_label):
     colorbar_axes.tick_params(labelsize=FONT_SIZE_TICK, length=TICK_LENGTH, pad=TICK_PAD)
 
 
-def _draw_points(ax, layer, facecolor, label, label_column=None):
+def _draw_points(ax, layer, facecolor, label, marker, label_column=None):
     """One point layer, optionally annotated with a column's values."""
     if layer is None or len(layer) == 0:
         return
     layer.plot(
         ax=ax,
-        marker=MARKER_SHAPE,
+        marker=marker,
         markersize=MARKER_SIZE,
         facecolor=facecolor,
         edgecolor=COLOR_MARKER_EDGE,
@@ -1157,8 +1242,11 @@ def plot_basin_map(
             zorder=Z_BASIN_OUTLINE,
         )
 
-        _draw_points(ax, outlets, COLOR_OUTLET, "outlets")
-        _draw_points(ax, gauges, COLOR_GAUGE, "output locs", gauge_label_column)
+        _draw_points(ax, outlets, COLOR_OUTLET, "outlets", MARKER_SHAPE_OUTLET)
+        _draw_points(
+            ax, gauges, COLOR_GAUGE, "output locs", MARKER_SHAPE_GAUGE,
+            gauge_label_column,
+        )
 
         # --- waterbodies ------------------------------------------------------
         patches = _draw_waterbodies(

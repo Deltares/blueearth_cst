@@ -173,6 +173,26 @@ DPI = 300
 #   Upper and lower quantiles of the DEM the ramp spans. The upper clip stops
 #   a single high pixel flattening the rest of the basin to one colour.
 # plot_map._ELEVATION_CLIP_QUANTILES = (0.0, 0.98)
+#   Target number of colour CLASSES. The ramp is stepped rather than
+#   continuous: a reader cannot resolve a shade back to a number off a smooth
+#   ramp, but can off a class, and stepped classes survive the greyscale print
+#   that a continuous ramp turns to mush. The count is a target — the class
+#   WIDTH is rounded to a 1/2/5 value first, so the boundaries are numbers
+#   worth printing and the count lands near this rather than on it.
+# plot_map._COLORBAR_LEVELS = 7
+#   Start the ramp at 0 m rather than at the basin's own lowest cell.
+#   Elevation is measured from a datum, so a bar starting at 4 m invites the
+#   reader to treat the basin floor as the zero of the scale. Set False to
+#   always spend the whole ramp on the basin's actual range.
+# plot_map._ELEVATION_STARTS_AT_ZERO = True
+#   ...but not when it would cost the map its resolution. A 1900-1960 m
+#   plateau zeroed gets classes 0/500/1000/1500/2000 — the ENTIRE basin lands
+#   in one of them and the map renders as a single flat colour. So the
+#   baseline drops to zero only while the basin's own range stays at least
+#   this fraction of the zero-based range; below it, the ramp starts at the
+#   basin's floor instead. CST runs on lowland deltas and Himalayan headwaters
+#   from the same code, and a rule tuned on one of them is not a rule.
+# plot_map._ZERO_BASELINE_MIN_SPAN_FRACTION = 0.35
 #   Top of the legend box, in axes fractions — just below the colourbar's
 #   lower end (_COLORBAR_BOTTOM). Lower it to open a gap between the two.
 # plot_map._LEGEND_TOP = 0.44
@@ -217,9 +237,10 @@ DPI = 300
 #   River width scales with Strahler stream order, between these two bounds.
 #   The minimum is what a headwater gets, the maximum the trunk — widen the
 #   gap for a more dramatic network, narrow it for a flatter, more uniform
-#   one.
-# plot_map.RIVER_WIDTH_MIN = 0.2
-# plot_map.RIVER_WIDTH_MAX = 1.2
+#   one. 0.2 pt is below what most printers hold and vanishes on screen at any
+#   reasonable zoom, so the headwaters of the network simply were not there.
+# plot_map.RIVER_WIDTH_MIN = 0.5
+# plot_map.RIVER_WIDTH_MAX = 1.4
 #   Used when every river shares one stream order, so there is nothing to
 #   scale.
 # plot_map.RIVER_WIDTH_UNIFORM = 0.6
@@ -238,12 +259,21 @@ DPI = 300
 # plot_map.HALO_WIDTH_GAUGE_LABEL = 1.8
 
 # -- markers ------------------------------------------------------------------
-#   diamond, for both outlets and gauges
-# plot_map.MARKER_SHAPE = 'd'
-#   matplotlib points-squared, as geopandas expects
-# plot_map.MARKER_SIZE = 18
-#   Offset of a gauge's label from its marker, in points (x, y).
-# plot_map.GAUGE_LABEL_OFFSET = (2.5, 2.5)
+#   Separate shapes for the two point layers. They were both thin diamonds,
+#   separated by colour alone — which fails in greyscale, fails for a
+#   dichromat, and is hard to tell apart at 5 pt anyway. Shape is the
+#   redundant channel that fixes all three. Circle reads as a measurement
+#   point, square as a structural one; swap them if a convention says
+#   otherwise.
+# plot_map.MARKER_SHAPE_GAUGE = 'o'
+# plot_map.MARKER_SHAPE_OUTLET = 's'
+#   matplotlib points-squared, as geopandas expects. 18 was ~4.2 pt across at
+#   180 mm, which disappears against the relief; 44 is ~6.6 pt.
+# plot_map.MARKER_SIZE = 44
+#   Offset of a gauge's label from its marker, in points (x, y). Must clear
+#   the marker's RADIUS: at MARKER_SIZE 44 that is ~3.3 pt, and the old (2.5,
+#   2.5) put the text inside the symbol.
+# plot_map.GAUGE_LABEL_OFFSET = (4.5, 3.5)
 
 # -- graticule ----------------------------------------------------------------
 # plot_map.GRATICULE_ALPHA = 0.5
@@ -274,7 +304,9 @@ DPI = 300
 # -- north arrow --------------------------------------------------------------
 #   Arrow position in axes fractions: (x, tip y, tail y). The "N" sits at the
 #   tail. Exactly vertical is correct here because PlateCarree's north is up.
-# plot_map._NORTH_ARROW_POSITION = (0.955, 0.94, 0.83)
+#   Tucked into the map's own top-right CORNER — it used to float short of it,
+#   which read as an artist adrift over the basin rather than as furniture.
+# plot_map._NORTH_ARROW_POSITION = (0.975, 0.985, 0.885)
 # plot_map._NORTH_ARROW_STYLE = '-|>'
 # plot_map._NORTH_ARROW_WIDTH = 0.8
 #   The arrow's corner, kept clear of the scale bar. With the legend in the
