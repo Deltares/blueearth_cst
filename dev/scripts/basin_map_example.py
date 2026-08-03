@@ -1,25 +1,42 @@
 # -*- coding: utf-8 -*-
-"""Render a basin map. Edit the values below, then run:
+"""Render a basin map from files on disk. Edit the values below, then run:
 
     pixi run python dev/scripts/basin_map_example.py
+
+Every layer is read from its own file — the DEM from a netCDF, the vectors from
+GeoJSON — so any of them can be swapped for a file that never came from wflow.
 """
 
 import sys
 from pathlib import Path
 
+import geopandas as gpd
+import xarray as xr
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
 from blueearth_cst.shared import plot_map  # noqa: E402
-from blueearth_cst.shared.plot_map import (  # noqa: E402
-    _basin_outline,
-    load_basin_layers,
-    plot_basin_map,
-)
+from blueearth_cst.shared.plot_map import plot_basin_map  # noqa: E402
 
-# --- inputs ----------------------------------------------------------------
+# --- input files -----------------------------------------------------------
+# Set any of the optional vector paths to None to leave that layer off the map.
 
 MODEL_DIR = REPO_ROOT / "test_case" / "basin_map_fixture" / "hydrology_model"
+GEOMS_DIR = MODEL_DIR / "staticgeoms"
+
+STATICMAPS_PATH = MODEL_DIR / "staticmaps.nc"
+DEM_VARIABLE = "land_elevation"
+
+RIVERS_PATH = GEOMS_DIR / "rivers.geojson"
+BASINS_PATH = GEOMS_DIR / "basins.geojson"  # one polygon per subcatchment
+SUBBASINS_PATH = GEOMS_DIR / "subbasins.geojson"
+GAUGES_PATH = GEOMS_DIR / "gauges_locations.geojson"
+OUTLETS_PATH = GEOMS_DIR / "outlets.geojson"
+LAKES_PATH = None
+RESERVOIRS_PATH = None
+GLACIERS_PATH = None
+
 OUT_PATH = REPO_ROOT / ".tmp" / "basin_map.png"
 DPI = 200
 
@@ -33,20 +50,35 @@ plot_map.RIVER_WIDTH_MIN = 0.2
 plot_map.RIVER_WIDTH_MAX = 1.2
 plot_map.MARKER_SIZE = 18
 
-# --- render ----------------------------------------------------------------
+# --- read the files --------------------------------------------------------
 
-dem, rivers, basins, geoms = load_basin_layers(MODEL_DIR)
+
+def read_vector(path):
+    return gpd.read_file(path) if path is not None else None
+
+
+# load() before the file closes -- the render touches the values repeatedly.
+with xr.open_dataset(STATICMAPS_PATH) as dataset:
+    dem = dataset[DEM_VARIABLE].load()
+
+rivers = read_vector(RIVERS_PATH)
+# The map wants ONE outer boundary at its heaviest weight; basins.geojson holds
+# one polygon per subcatchment, so dissolve them. The divides come in
+# separately, lighter and dashed.
+basin = read_vector(BASINS_PATH).dissolve()
+
+# --- render ----------------------------------------------------------------
 
 fig, ax = plot_basin_map(
     dem,
     rivers,
-    _basin_outline(basins),
-    subbasins=basins,
-    gauges=geoms.get("gauges_locations"),
-    outlets=geoms.get("outlets"),
-    lakes=geoms.get("lakes"),
-    reservoirs=geoms.get("reservoirs"),
-    glaciers=geoms.get("glaciers"),
+    basin,
+    subbasins=read_vector(SUBBASINS_PATH),
+    gauges=read_vector(GAUGES_PATH),
+    outlets=read_vector(OUTLETS_PATH),
+    lakes=read_vector(LAKES_PATH),
+    reservoirs=read_vector(RESERVOIRS_PATH),
+    glaciers=read_vector(GLACIERS_PATH),
     extent=None,  # [lon_min, lon_max, lat_min, lat_max]
     gauge_label_column="wflow_id",
     river_order_column="strord",
