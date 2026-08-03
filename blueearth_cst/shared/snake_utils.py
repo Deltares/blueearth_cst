@@ -1486,24 +1486,30 @@ def log_row(message, module="cst", level="INFO"):
     print(f"{datetime.now():%H:%M:%S} - {module} - {level} - {message}")
 
 
-def save_figure(path, module="plot", **kwargs):
-    """Save the current matplotlib figure to ``path`` and announce it cleanly.
+def save_figure(path, module="plot", fig=None, **kwargs):
+    """Save a matplotlib figure to ``path`` and announce it cleanly.
 
     Centralizes the "write a figure + log one line" pattern for the plotting
     ``script:`` rules: every produced map/plot appears in the rule's log as a
     standard row ``HH:MM:SS - <module> - INFO - Saved figure: <path>`` (via
     ``log_row``) instead of the log being empty or showing only upstream
     library chatter. Parent directories are created. ``kwargs`` pass through to
-    ``matplotlib.pyplot.savefig`` (e.g. ``dpi``, ``bbox_inches``). matplotlib is
+    ``Figure.savefig`` (e.g. ``dpi``, ``bbox_inches``). matplotlib is
     imported lazily so this module stays light for the Snakefiles that import it
     only for ``get_config`` / ``stress_test_grid``.
+
+    ``fig`` defaults to the current figure, which is what every historical
+    caller relies on. Pass it explicitly when one plot writes MORE THAN ONE
+    file (a vector deliverable plus a raster preview): two saves that both
+    resolve "current figure" through global pyplot state are a silent
+    correctness trap the moment any intervening code creates a figure.
     """
     import matplotlib.pyplot as plt
 
     parent = os.path.dirname(path)
     if parent:
         os.makedirs(parent, exist_ok=True)
-    plt.savefig(path, **kwargs)
+    (fig if fig is not None else plt.gcf()).savefig(path, **kwargs)
     log_row(f"Saved figure: {path}", module=module)
 
 

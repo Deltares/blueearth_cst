@@ -620,9 +620,12 @@ rule plot_map:
     input:
         gauges_path = f"{basin_dir}/staticgeoms/outlets.geojson",
         **_locations_input,
-    # R07 B10: basin_area.png depicts the MODEL, not its evaluation (P1), so it
-    # sits at the model root's plots/.
+    # R07 B10: basin_area depicts the MODEL, not its evaluation (P1), so it
+    # sits at the model root's plots/. Two formats, one render: the PDF is the
+    # publication deliverable (vector line art, embedded TrueType), the PNG the
+    # preview every other consumer reads (baseline fingerprint, quick review).
     output:
+        output_map_pdf = f"{basin_dir}/plots/basin_area.pdf",
         output_map_png = f"{basin_dir}/plots/basin_area.png",
     params:
         project_dir = f"{project_dir}",

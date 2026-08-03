@@ -53,6 +53,8 @@ DECLARED_PLOT_OUTPUTS = (
     "hydrology_model/evaluation/plots/clim_wflow_1_month.png",
     "hydrology_model/evaluation/plots/clim_wflow_1_year.png",
     "hydrology_model/evaluation/performance_metrics.csv",
+    # Rule 1.12 renders once and writes both: PDF for publication, PNG preview.
+    "hydrology_model/plots/basin_area.pdf",
     "hydrology_model/plots/basin_area.png",
 ) + tuple(
     f"hydrology_model/forcing/plots/{name}"

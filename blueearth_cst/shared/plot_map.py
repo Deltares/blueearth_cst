@@ -1,27 +1,357 @@
 # -*- coding: utf-8 -*-
-"""Plot the wflow basin, rivers, gauges/outlets and DEM on a map.
+"""Plot the wflow basin, rivers, gauges/outlets and DEM on a map (rule 1.12).
 
 Created 2022-01-13 (@author: bouaziz); refactored in R3 into a guarded
 function so the rule's output can be tee'd to its log and the module stays
-importable.
+importable; rebuilt in 2026-08 as a publication-grade figure.
+
+What changed in the 2026-08 pass, and why each was a defect rather than a
+matter of taste:
+
+* **No basemap tiles.** ``cartopy.io.img_tiles.QuadtreeTiles`` fetched live
+  satellite tiles mid-run. That is a NETWORK dependency inside WF1, a tile
+  licence/attribution question for anything submitted to a journal, and — since
+  the server may re-render at any time — a figure that cannot be reproduced.
+  The terrain context it bought is now drawn from the model's OWN DEM as a
+  hillshade, which is reproducible, offline, and higher-resolution than the
+  tiles were at the zoom level we hardcoded.
+* **Final physical size.** Width is a declared millimetre constant, not a
+  guessed ``figsize``, and height follows the basin's own aspect ratio — so the
+  figure lands at a journal column width for ANY basin instead of being tuned
+  to one.
+* **A colourblind-safe elevation ramp.** ``plt.cm.terrain`` is not CVD-safe and
+  its green-to-brown reads as land cover, which elevation is not.
+* **A vector deliverable.** PDF (embedded TrueType, editable text) alongside
+  the PNG preview: a 300-dpi raster of a line-art map is not a submittable
+  figure.
+* **Cartographic furniture.** A graticule, a latitude-corrected scale bar and a
+  north arrow, replacing a ``seaborn-whitegrid`` panel grid — gridlines behind
+  a map are a cartographic error, not a style.
+
+The figure still depicts the MODEL, and is still read from ``WflowSbmModel``.
+Rendering it from the engine-neutral ``spatial/`` products instead was
+considered and rejected: waterbodies come from rule 1.04 and the gauge layer
+from 1.05, and ``SpatialProducts`` carries neither, so an artifact-driven
+version would silently drop layers this figure exists to show.
 """
 
 import os
 
-import xarray as xr
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib import colors
-import matplotlib.patheffects as pe
 import matplotlib.patches as mpatches
+import matplotlib.patheffects as pe
+import matplotlib.pyplot as plt
+import numpy as np
+import xarray as xr
+from matplotlib import colors, rc_context
+from matplotlib.cm import ScalarMappable
+from matplotlib.ticker import MaxNLocator
 import cartopy.crs as ccrs
-import cartopy.io.img_tiles as cimgt
+from cartopy.mpl.ticker import LatitudeFormatter, LongitudeFormatter
 
 from blueearth_cst.shared.snake_utils import save_figure
 
+#: Figure width in MILLIMETRES — converted once, here, and never re-guessed
+#: downstream. 180 mm is the double-column width that Elsevier (190), AGU (190)
+#: and Copernicus (170) all accept without downscaling.
+FIGURE_WIDTH_MM = 180.0
+MM_PER_INCH = 25.4
+
+#: Vertical room (inches) constrained layout needs for the x tick labels and
+#: the axes furniture, on top of the map panel itself.
+_FURNITURE_HEIGHT_IN = 0.55
+
+#: Horizontal room (inches) the y tick labels take on the left.
+_TICK_LABEL_WIDTH_IN = 0.5
+
+#: Constrained layout owns the figure only up to here; the strip to the right
+#: is the colourbar's. A GeoAxes has a LOCKED aspect, so it does not fill its
+#: layout cell vertically — and ``fig.colorbar(ax=ax)`` sizes to the CELL, which
+#: is what made the bar overhang the map top and bottom. The bar is therefore an
+#: inset of the map axes (so it tracks the map exactly) and this rect is what
+#: keeps it from colliding with the figure edge.
+_LAYOUT_RIGHT = 0.88
+#: [x0, y0, width, height] in axes coordinates.
+_COLORBAR_INSET = (1.03, 0.0, 0.025, 1.0)
+
+#: Keep pathological basin shapes from producing an unusable page. A basin
+#: narrower or taller than these renders with whitespace rather than being
+#: squashed or running off the figure.
+_MIN_MAP_ASPECT, _MAX_MAP_ASPECT = 0.45, 1.45
+
+#: Raster preview resolution. The PDF is the deliverable; the PNG is what the
+#: workflow's other consumers (baseline fingerprint, quick review) read.
+PREVIEW_DPI = 400
+
+#: Hillshade illumination: light from the north-west at 45 deg, the convention
+#: readers' relief perception is calibrated to (lit NW = ridge, shaded SE =
+#: valley; reverse it and terrain inverts).
+_AZIMUTH_DEG, _ALTITUDE_DEG = 315.0, 45.0
+
+#: Target 90th-percentile terrain slope AFTER exaggeration, ~19 deg — steep
+#: enough to read as relief, shallow enough not to fabricate mountains. The
+#: exaggeration factor is derived per basin: CST runs on lowland deltas and on
+#: Himalayan headwaters from the same code, and any FIXED factor renders one of
+#: them featureless (a flat basin at exag 3) or blown out (an alpine basin at
+#: exag 200).
+_TARGET_SLOPE = 0.35
+_MAX_VERT_EXAG = 500.0
+
+_EARTH_RADIUS_M = 6_371_000.0
+
+#: A monotonic-lightness elevation ramp, hand-built rather than imported: the
+#: perceptually-uniform terrain colormaps (cmcrameri, cmocean) are not in the
+#: pixi env and adding a dependency for one figure is not warranted. Lightness
+#: falls monotonically from low to high ground, so the ramp survives greyscale
+#: printing AND every dichromacy — the two failure modes `terrain` had.
+_DEM_ANCHORS = ("#f6f2ea", "#e3d5ba", "#c9aa7d", "#a07f52", "#6f5533", "#46351f")
+
+#: Publication typography and line weights, applied through rc_context so the
+#: process-wide rcParams the other plotting rules inherit are left untouched.
+_RC_PUBLICATION = {
+    "font.size": 8.0,
+    "axes.titlesize": 9.0,
+    "axes.labelsize": 8.0,
+    "xtick.labelsize": 7.0,
+    "ytick.labelsize": 7.0,
+    "legend.fontsize": 7.0,
+    "legend.title_fontsize": 7.0,
+    "axes.linewidth": 0.6,
+    "xtick.major.width": 0.6,
+    "ytick.major.width": 0.6,
+    # 42 = TrueType. The default (Type 3) is not editable in Illustrator and is
+    # rejected outright by several publishers' preflight.
+    "pdf.fonttype": 42,
+    "ps.fonttype": 42,
+}
+
+
+def _metres_per_degree(latitude_deg):
+    """Metres per degree of longitude and of latitude at ``latitude_deg``.
+
+    Both the hillshade and the scale bar need this. The model grid is
+    EPSG:4326, where a cell's ``dx`` is an ANGLE: feeding degrees to a gradient
+    that expects metres exaggerates relief by ~10^5, and a scale bar drawn as a
+    fixed number of degrees is wrong everywhere except the equator.
+    """
+    metres_per_degree_lat = np.pi * _EARTH_RADIUS_M / 180.0
+    metres_per_degree_lon = metres_per_degree_lat * np.cos(np.radians(latitude_deg))
+    return float(metres_per_degree_lon), float(metres_per_degree_lat)
+
+
+def _nice_round_length(value_km):
+    """Round a scale-bar length down to the nearest 1/2/5 x 10^n."""
+    if value_km <= 0:
+        return 1.0
+    exponent = np.floor(np.log10(value_km))
+    fraction = value_km / 10.0**exponent
+    step = 5.0 if fraction >= 5.0 else (2.0 if fraction >= 2.0 else 1.0)
+    return float(step * 10.0**exponent)
+
+
+def _elevation_colormap():
+    """The CVD-safe elevation ramp as a matplotlib colormap."""
+    return colors.LinearSegmentedColormap.from_list("dem_cvd", _DEM_ANCHORS, N=256)
+
+
+def _vertical_exaggeration(elevation, dx_metres, dy_metres, valid=None):
+    """Exaggeration that renders THIS basin's relief legibly.
+
+    Scales the DEM's own 90th-percentile slope onto ``_TARGET_SLOPE``, so the
+    hillshade reads the same whether the basin drops 130 m over 24 km or
+    3000 m over 20 km.
+
+    ``valid`` masks the cells INSIDE the basin. Measuring the slope over the
+    whole bounding box instead would let the same basin shade differently
+    depending on how much nodata its box happens to contain — the flat fill
+    drags the percentile down, and the exaggeration up.
+    """
+    gradient_y, gradient_x = np.gradient(elevation, dy_metres, dx_metres)
+    slope = np.hypot(gradient_x, gradient_y)
+    if valid is not None:
+        slope = np.where(valid, slope, np.nan)
+        if not np.any(np.isfinite(slope)):
+            return 1.0
+    typical_slope = float(np.nanpercentile(slope, 90))
+    if not np.isfinite(typical_slope) or typical_slope <= 0.0:
+        return 1.0
+    return float(np.clip(_TARGET_SLOPE / typical_slope, 1.0, _MAX_VERT_EXAG))
+
+
+def _shaded_relief(da, cmap, norm, latitude_deg):
+    """Drape the elevation ramp over a hillshade of the same DEM.
+
+    Returns an RGBA ``DataArray``: this replaces the satellite basemap, so it
+    has to carry the terrain context on its own.
+    """
+    # LightSource reads the array as (row, column) = (y, x) and takes dx/dy in
+    # that order, so put the DEM in y-major order before touching it rather than
+    # assuming the model wrote it that way.
+    da = da.transpose(da.raster.y_dim, da.raster.x_dim)
+    resolution_x, resolution_y = (abs(float(value)) for value in da.raster.res)
+    metres_per_degree_lon, metres_per_degree_lat = _metres_per_degree(latitude_deg)
+    light = colors.LightSource(azdeg=_AZIMUTH_DEG, altdeg=_ALTITUDE_DEG)
+    # LightSource cannot see NaN; fill with the basin minimum so the boundary
+    # does not shade as a cliff, then restore the mask through alpha.
+    values = da.values
+    inside_basin = ~np.isnan(values)
+    filled = np.where(inside_basin, values, float(np.nanmin(values)))
+    dx_metres = resolution_x * metres_per_degree_lon
+    dy_metres = resolution_y * metres_per_degree_lat
+    rgba = light.shade(
+        filled,
+        cmap=cmap,
+        norm=norm,
+        blend_mode="soft",
+        dx=dx_metres,
+        dy=dy_metres,
+        vert_exag=_vertical_exaggeration(filled, dx_metres, dy_metres, inside_basin),
+    )
+    rgba[..., 3] = inside_basin.astype(float)
+    # Carry the DEM's OWN dimension names through: hydromt spells them
+    # latitude/longitude here, not y/x, and hardcoding y/x raises KeyError.
+    return xr.DataArray(
+        rgba,
+        dims=(*da.dims, "band"),
+        coords={dim: da[dim] for dim in da.dims if dim in da.coords},
+    )
+
+
+def _figure_size(extent):
+    """Figure size in inches: declared width, height from the basin's aspect."""
+    lon_min, lon_max, lat_min, lat_max = extent
+    width_in = FIGURE_WIDTH_MM / MM_PER_INCH
+    # cartopy locks a PlateCarree panel to equal DEGREES, so the rendered map
+    # aspect is the extent's own ratio -- not the true ground aspect.
+    span_lon = max(float(lon_max - lon_min), 1e-9)
+    aspect = float(lat_max - lat_min) / span_lon
+    aspect = float(np.clip(aspect, _MIN_MAP_ASPECT, _MAX_MAP_ASPECT))
+    # Height follows the MAP PANEL, not the full page: sizing off the figure
+    # width leaves the aspect-locked panel floating in an over-tall cell.
+    panel_width_in = width_in * _LAYOUT_RIGHT - _TICK_LABEL_WIDTH_IN
+    return width_in, panel_width_in * aspect + _FURNITURE_HEIGHT_IN
+
+
+def _coordinate_format(span_degrees):
+    """Decimal places that suit the basin's size, not every basin's."""
+    if span_degrees > 5.0:
+        return ".0f"
+    return ".1f" if span_degrees > 1.0 else ".2f"
+
+
+def _graticule_ticks(extent, max_ticks=6):
+    """Shared tick positions for the grid LINES and the axis LABELS."""
+    lon_min, lon_max, lat_min, lat_max = extent
+    locator = MaxNLocator(nbins=max_ticks, steps=[1, 2, 2.5, 5, 10])
+    inside = lambda ticks, low, high: [t for t in ticks if low <= t <= high]
+    return (
+        inside(locator.tick_values(lon_min, lon_max), lon_min, lon_max),
+        inside(locator.tick_values(lat_min, lat_max), lat_min, lat_max),
+    )
+
+
+def _add_graticule(ax, extent):
+    """A light graticule, labelled through the normal tick machinery.
+
+    The labels are REAL matplotlib ticks rather than ``gridlines(draw_labels=
+    True)``. Cartopy's Gridliner labels are invisible to constrained layout,
+    which reserves no room for them: observed here as latitude labels placed at
+    x = -160 px, i.e. silently clipped off the canvas, on a figure whose
+    longitude labels rendered fine. Ticks report their extent to the layout
+    engine, so the room is reserved. Both consume the same tick list, so the
+    lines and the labels cannot drift apart.
+    """
+    lon_ticks, lat_ticks = _graticule_ticks(extent)
+    ax.gridlines(
+        xlocs=lon_ticks,
+        ylocs=lat_ticks,
+        draw_labels=False,
+        linewidth=0.3,
+        color="0.4",
+        alpha=0.5,
+        linestyle=":",
+    )
+    plate_carree = ccrs.PlateCarree()
+    ax.set_xticks(lon_ticks, crs=plate_carree)
+    ax.set_yticks(lat_ticks, crs=plate_carree)
+    lon_min, lon_max, lat_min, lat_max = extent
+    ax.xaxis.set_major_formatter(
+        LongitudeFormatter(number_format=_coordinate_format(lon_max - lon_min))
+    )
+    ax.yaxis.set_major_formatter(
+        LatitudeFormatter(number_format=_coordinate_format(lat_max - lat_min))
+    )
+    # The formatters already spell out E/N, so an axis label would only repeat
+    # them — the panel grid and the "longitude [degree east]" labels this
+    # replaces were the two things making the old figure read as a plot of
+    # coordinates rather than a map.
+    ax.tick_params(length=2.5, pad=2.0)
+
+
+def _add_scale_bar(ax, extent):
+    """A scale bar in kilometres, corrected for the basin's latitude."""
+    lon_min, lon_max, lat_min, lat_max = extent
+    metres_per_degree_lon, _ = _metres_per_degree(0.5 * (lat_min + lat_max))
+    span_lon, span_lat = lon_max - lon_min, lat_max - lat_min
+    map_width_km = span_lon * metres_per_degree_lon / 1000.0
+    length_km = _nice_round_length(0.25 * map_width_km)
+    length_deg = length_km * 1000.0 / metres_per_degree_lon
+
+    x_start = lon_min + 0.06 * span_lon
+    y_bar = lat_min + 0.06 * span_lat
+    halo = [pe.withStroke(linewidth=3.0, foreground="white")]
+    ax.plot(
+        [x_start, x_start + length_deg],
+        [y_bar, y_bar],
+        color="k",
+        linewidth=1.6,
+        solid_capstyle="butt",
+        zorder=8,
+        path_effects=halo,
+    )
+    ax.text(
+        x_start + 0.5 * length_deg,
+        y_bar + 0.018 * span_lat,
+        f"{length_km:g} km",
+        ha="center",
+        va="bottom",
+        fontsize=6.5,
+        zorder=8,
+        path_effects=halo,
+    )
+
+
+def _add_north_arrow(ax):
+    """A north arrow — exactly vertical, which PlateCarree guarantees."""
+    ax.annotate(
+        "N",
+        xy=(0.955, 0.94),
+        xytext=(0.955, 0.83),
+        xycoords="axes fraction",
+        ha="center",
+        va="bottom",
+        fontsize=7.5,
+        fontweight="bold",
+        zorder=8,
+        arrowprops=dict(arrowstyle="-|>", facecolor="k", edgecolor="k", linewidth=0.8),
+        path_effects=[pe.withStroke(linewidth=2.5, foreground="white")],
+    )
+
+
+def _river_linewidths(gdf_riv):
+    """Stream order rescaled to publication line weights.
+
+    ``strord / 2`` was tuned to a 10x8-inch canvas; at 180 mm it draws an
+    8th-order river as a 4 pt band that swallows the basin.
+    """
+    order = gdf_riv["strord"].astype(float).to_numpy()
+    lowest, highest = float(np.nanmin(order)), float(np.nanmax(order))
+    if not np.isfinite(lowest) or highest <= lowest:
+        return np.full(order.shape, 0.6)
+    return 0.2 + 1.0 * (order - lowest) / (highest - lowest)
+
 
 def plot_basin_map(project_dir, gauges_fn, plot_dir=None):
-    """Render basin_area.png (DEM + rivers + basin + outlets/gauges/waterbodies).
+    """Render basin_area.{pdf,png} (DEM + rivers + basin + outlets/waterbodies).
 
     The gauge layer is resolved from the MODEL (``shared.gauges``), not from the
     configured filename: hydromt_wflow renames ``output_locations`` to
@@ -33,7 +363,7 @@ def plot_basin_map(project_dir, gauges_fn, plot_dir=None):
     from blueearth_cst.shared.gauges import gauges_layer_name
 
     if plot_dir is None:
-        # R07 B10: basin_area.png depicts the MODEL, not its evaluation, so it
+        # R07 B10: basin_area depicts the MODEL, not its evaluation, so it
         # sits at the model root's plots/ — not under evaluation/ (P1).
         plot_dir = f"{project_dir}/hydrology_model/plots"
     root = f"{project_dir}/hydrology_model"
@@ -47,124 +377,140 @@ def plot_basin_map(project_dir, gauges_fn, plot_dir=None):
     gdf_riv = mod.rivers
     # read/derive model basin boundary
     gdf_bas = mod.basins
-    plt.style.use("seaborn-v0_8-whitegrid")  # set nice style
+    geoms = mod.geoms.data
     # we assume the model maps are in the geographic CRS EPSG:4326
     proj = ccrs.PlateCarree()
-    # adjust zoomlevel and figure size to your basis size & aspect
-    zoom_level = 10
-    figsize = (10, 8)
-    shaded = False  # shaded elevation (looks nicer with more pixels)
-
-    # initialize image with geoaxes
-    fig = plt.figure(figsize=figsize)
-    ax = fig.add_subplot(projection=proj)
     extent = np.array(da.raster.box.buffer(0.02).total_bounds)[[0, 2, 1, 3]]
-    ax.set_extent(extent, crs=proj)
+    centre_latitude = 0.5 * float(extent[2] + extent[3])
 
-    # add sat background image
-    ax.add_image(cimgt.QuadtreeTiles(), zoom_level, alpha=0.5)
+    with rc_context(_RC_PUBLICATION):
+        fig = plt.figure(figsize=_figure_size(extent), layout="constrained")
+        fig.get_layout_engine().set(rect=(0.0, 0.0, _LAYOUT_RIGHT, 1.0))
+        ax = fig.add_subplot(projection=proj)
+        ax.set_extent(extent, crs=proj)
 
-    ## plot elevation
-    # create nice colormap
-    vmin, vmax = da.quantile([0.0, 0.98]).compute()
-    c_dem = plt.cm.terrain(np.linspace(0.25, 1, 256))
-    cmap = colors.LinearSegmentedColormap.from_list("dem", c_dem)
-    norm = colors.Normalize(vmin=vmin, vmax=vmax)
-    kwargs = dict(cmap=cmap, norm=norm)
-    # plot 'normal' elevation
-    da.plot(
-        transform=proj, ax=ax, zorder=1, cbar_kwargs=dict(aspect=30, shrink=0.8), **kwargs
-    )
-    # plot elevation with shades
-    if shaded:
-        ls = colors.LightSource(azdeg=315, altdeg=45)
-        dx, dy = da.raster.res
-        _rgb = ls.shade(
-            da.fillna(0).values,
-            norm=kwargs["norm"],
-            cmap=kwargs["cmap"],
-            blend_mode="soft",
-            dx=dx,
-            dy=dy,
-            vert_exag=200,
-        )
-        rgb = xr.DataArray(dims=("y", "x", "rgb"), data=_rgb, coords=da.raster.coords)
-        rgb = xr.where(np.isnan(da), np.nan, rgb)
-        rgb.plot.imshow(transform=proj, ax=ax, zorder=2)
-
-    # plot rivers with increasing width with stream order
-    gdf_riv.plot(
-        ax=ax, linewidth=gdf_riv["strord"] / 2, color="blue", zorder=3, label="river"
-    )
-    # plot the basin boundary
-    gdf_bas.boundary.plot(ax=ax, color="k", linewidth=0.3)
-    # plot various vector layers if present
-    geoms = mod.geoms.data
-    # Resolved against what the model actually holds; warns loudly (never
-    # skips silently) when output_locations is set but no layer matches.
-    gauges_name = gauges_layer_name(geoms, gauges_fn)
-    if "outlets" in geoms:
-        geoms["outlets"].plot(
-            ax=ax, marker="d", markersize=25, facecolor="k", zorder=5, label="outlets"
-        )
-    if gauges_name is not None:
-        geoms[gauges_name].plot(
+        # --- elevation, as shaded relief -------------------------------------
+        vmin, vmax = (float(value) for value in da.quantile([0.0, 0.98]).compute())
+        cmap = _elevation_colormap()
+        norm = colors.Normalize(vmin=vmin, vmax=vmax)
+        _shaded_relief(da, cmap, norm, centre_latitude).plot.imshow(
             ax=ax,
-            marker="d",
-            markersize=25,
-            facecolor="blue",
-            zorder=5,
-            label="output locs",
+            x=da.raster.x_dim,
+            y=da.raster.y_dim,
+            transform=proj,
+            zorder=1,
+            add_labels=False,
         )
-        if "station_name" in geoms[gauges_name].columns:
-            geoms[gauges_name].apply(
-                lambda x: ax.annotate(
-                    text=x["station_name"],
-                    xy=x.geometry.coords[0],
-                    xytext=(2.0, 2.0),
-                    textcoords="offset points",
-                    fontsize=5,
-                    fontweight="bold",
-                    color="black",
-                    path_effects=[pe.withStroke(linewidth=2, foreground="white")],
-                ),
-                axis=1,
+        # imshow of an RGBA array carries no mappable, so the colourbar needs an
+        # explicit one — the ramp is the same object either way.
+        colorbar = fig.colorbar(
+            ScalarMappable(norm=norm, cmap=cmap),
+            cax=ax.inset_axes(_COLORBAR_INSET),
+        )
+        colorbar.set_label("elevation [m a.s.l.]")
+        colorbar.outline.set_linewidth(0.5)
+
+        # --- hydrography ------------------------------------------------------
+        gdf_riv.plot(
+            ax=ax,
+            linewidth=_river_linewidths(gdf_riv),
+            color="#2c6fad",
+            zorder=3,
+            label="river",
+        )
+        gdf_bas.boundary.plot(ax=ax, color="k", linewidth=0.7, zorder=6)
+
+        # Resolved against what the model actually holds; warns loudly (never
+        # skips silently) when output_locations is set but no layer matches.
+        gauges_name = gauges_layer_name(geoms, gauges_fn)
+        if "outlets" in geoms:
+            geoms["outlets"].plot(
+                ax=ax,
+                marker="d",
+                markersize=18,
+                facecolor="k",
+                edgecolor="white",
+                linewidth=0.4,
+                zorder=7,
+                label="outlets",
             )
+        if gauges_name is not None:
+            geoms[gauges_name].plot(
+                ax=ax,
+                marker="d",
+                markersize=18,
+                facecolor="#2c6fad",
+                edgecolor="white",
+                linewidth=0.4,
+                zorder=7,
+                label="output locs",
+            )
+            if "station_name" in geoms[gauges_name].columns:
+                geoms[gauges_name].apply(
+                    lambda x: ax.annotate(
+                        text=x["station_name"],
+                        xy=x.geometry.coords[0],
+                        xytext=(2.5, 2.5),
+                        textcoords="offset points",
+                        fontsize=5.5,
+                        fontweight="bold",
+                        color="black",
+                        zorder=7,
+                        path_effects=[pe.withStroke(linewidth=1.8, foreground="white")],
+                    ),
+                    axis=1,
+                )
 
-    # manual patches for legend (geopandas/geopandas#660)
-    patches = []
-    if "lakes" in geoms:
-        kwargs = dict(facecolor="lightblue", edgecolor="black", linewidth=1, label="lakes")
-        geoms["lakes"].plot(ax=ax, zorder=4, **kwargs)
-        patches.append(mpatches.Patch(**kwargs))
-    if "reservoirs" in geoms:
-        kwargs = dict(facecolor="blue", edgecolor="black", linewidth=1, label="reservoirs")
-        geoms["reservoirs"].plot(ax=ax, zorder=4, **kwargs)
-        patches.append(mpatches.Patch(**kwargs))
-    if "glaciers" in geoms:
-        kwargs = dict(facecolor="grey", edgecolor="grey", linewidth=1, label="glaciers")
-        geoms["glaciers"].plot(ax=ax, zorder=4, **kwargs)
-        patches.append(mpatches.Patch(**kwargs))
+        # --- waterbodies ------------------------------------------------------
+        # manual patches for legend (geopandas/geopandas#660)
+        patches = []
+        for name, face, edge in (
+            ("lakes", "#a8d0e6", "#3d5a6c"),
+            ("reservoirs", "#2c6fad", "#173d5e"),
+            ("glaciers", "#d9d9d9", "#8c8c8c"),
+        ):
+            if name not in geoms:
+                continue
+            kwargs = dict(facecolor=face, edgecolor=edge, linewidth=0.5, label=name)
+            geoms[name].plot(ax=ax, zorder=4, **kwargs)
+            patches.append(mpatches.Patch(**kwargs))
 
-    ax.xaxis.set_visible(True)
-    ax.yaxis.set_visible(True)
-    ax.set_ylabel("latitude [degree north]")
-    ax.set_xlabel("longitude [degree east]")
-    _ = ax.set_title("")
-    ax.legend(
-        handles=[*ax.get_legend_handles_labels()[0], *patches],
-        title="Legend",
-        loc="lower right",
-        frameon=True,
-        framealpha=0.7,
-        edgecolor="k",
-        facecolor="white",
-    )
+        # --- cartographic furniture -------------------------------------------
+        _add_graticule(ax, extent)
+        _add_scale_bar(ax, extent)
+        _add_north_arrow(ax)
+        ax.set_title("")
+        ax.legend(
+            handles=[*ax.get_legend_handles_labels()[0], *patches],
+            title="Legend",
+            loc="lower right",
+            frameon=True,
+            framealpha=0.85,
+            edgecolor="k",
+            facecolor="white",
+            borderpad=0.4,
+            handlelength=1.4,
+        ).get_frame().set_linewidth(0.5)
 
-    # save figure
-    save_figure(
-        os.path.join(plot_dir, "basin_area.png"), dpi=300, bbox_inches="tight"
-    )
+        # --- deliverables ------------------------------------------------------
+        # No bbox_inches="tight": it re-crops to the drawn content, which throws
+        # away the declared 180 mm width. Constrained layout already fits the
+        # furniture inside that width.
+        save_figure(
+            os.path.join(plot_dir, "basin_area.pdf"),
+            fig=fig,
+            # Drop the timestamp so two identical runs produce identical bytes.
+            metadata={"CreationDate": None},
+        )
+        save_figure(
+            os.path.join(plot_dir, "basin_area.png"),
+            fig=fig,
+            dpi=PREVIEW_DPI,
+            # Same reason: the default embeds the matplotlib version, which
+            # would move the baseline fingerprint on every env bump.
+            metadata={"Software": None},
+        )
+        plt.close(fig)
 
 
 if __name__ == "__main__":
