@@ -121,3 +121,21 @@ install       = { depends-on = ["install-rdeps", "install-julia"], description =
 test-fast = { cmd = "pytest tests/ -m \"not workflow_contract and not process_isolation\"", description = "Run the fast non-integration suite without workflow/process contracts" }
 test-contract = { cmd = "pytest tests/ -m \"workflow_contract or process_isolation\"", description = "Run the expensive workflow and fresh-process contract tier" }
 test-full = { cmd = "pytest tests/", description = "Run the authoritative full non-integration suite" }
+
+# Editor-facing tasks. These exist so an IDE task file stays a one-line
+# `pixi run <name>` shim instead of duplicating the command: VS Code's
+# tasks.json and Zed's .zed/tasks.json use incompatible schemas and variable
+# syntaxes, but both can invoke pixi, so the command itself is defined once here
+# and every editor -- and the bare CLI -- runs the identical thing. Invoking the
+# env's interpreter directly instead would drop [activation.env] above
+# (HDF5_USE_FILE_LOCKING, GCSFS_EXPERIMENTAL_ZB_HNS_SUPPORT) and, on win-64, the
+# graphviz alias script.
+test-cli = { cmd = "pytest tests/test_cli.py", description = "Dry-run all three Snakefiles -- the cheapest sanity check after editing a rule or script signature" }
+lint = { cmd = "ruff check .", description = "Lint the repo with the [tool.ruff] config in pyproject.toml" }
+
+# DAG validation, one per workflow. `--configfile` is pinned to the tracked test
+# config so the task is runnable from a fresh clone; pass a different one on the
+# CLI when working against another project config (see config/workflows/).
+dag-wf1 = { cmd = "snakemake all -c 3 -s Snakefile_model_creation --configfile config/workflows/snake_config_model_test.yml --dry-run", description = "Dry-run wf1 (model creation) to validate the DAG" }
+dag-wf2 = { cmd = "snakemake all -c 3 -s Snakefile_climate_projections --configfile config/workflows/snake_config_model_test.yml --dry-run", description = "Dry-run wf2 (climate projections) to validate the DAG" }
+dag-wf3 = { cmd = "snakemake all -c 3 -s Snakefile_climate_experiment --configfile config/workflows/snake_config_model_test.yml --dry-run", description = "Dry-run wf3 (climate experiment) to validate the DAG" }

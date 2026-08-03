@@ -1,0 +1,102 @@
+// Zed project tasks for blueearth-cst.  Run with `task: spawn`.
+//
+// Named tasks are thin shims over `pixi.toml [tasks]` -- the command itself is
+// defined once there, so Zed, VS Code, and the bare CLI run the identical thing.
+// Add a new named task to pixi.toml, then a two-line entry here and in
+// .vscode/tasks.json.
+//
+// The file/cursor-scoped tasks at the bottom cannot live in pixi.toml (they need
+// editor variables), so they spell out `pixi run <tool>` instead. Never invoke
+// .pixi/envs/default/python.exe directly: the interpreter alone loses pixi.toml's
+// [activation.env] (HDF5_USE_FILE_LOCKING=FALSE, without which netCDF4 reads
+// fail on network shares; GCSFS_EXPERIMENTAL_ZB_HNS_SUPPORT=false, worth 58 s vs
+// >836 s per gs://cmip6 store open) and, on win-64, dev/scripts/pixi_activate.bat.
+[
+  // --- shims over pixi.toml [tasks] ---
+  {
+    "label": "pytest: CLI dry-run (cheapest sanity check)",
+    "command": "pixi",
+    "args": ["run", "test-cli"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always"
+  },
+  {
+    "label": "pytest: fast suite",
+    "command": "pixi",
+    "args": ["run", "test-fast"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always"
+  },
+  {
+    "label": "pytest: full suite",
+    "command": "pixi",
+    "args": ["run", "test-full"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always"
+  },
+  {
+    "label": "pytest: workflow + process contracts",
+    "command": "pixi",
+    "args": ["run", "test-contract"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always"
+  },
+  {
+    "label": "ruff: lint repo",
+    "command": "pixi",
+    "args": ["run", "lint"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always"
+  },
+  {
+    "label": "snakemake: dry-run wf1 (model creation)",
+    "command": "pixi",
+    "args": ["run", "dag-wf1"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always"
+  },
+  {
+    "label": "snakemake: dry-run wf2 (climate projections)",
+    "command": "pixi",
+    "args": ["run", "dag-wf2"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always"
+  },
+  {
+    "label": "snakemake: dry-run wf3 (climate experiment)",
+    "command": "pixi",
+    "args": ["run", "dag-wf3"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always"
+  },
+
+  // --- editor-scoped: need $ZED_* variables, so not shareable via pixi.toml ---
+  {
+    "label": "pytest: current file",
+    "command": "pixi",
+    "args": ["run", "pytest", "$ZED_RELATIVE_FILE", "-v"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always"
+  },
+  {
+    "label": "pytest: test at cursor",
+    "command": "pixi",
+    "args": ["run", "pytest", "$ZED_RELATIVE_FILE", "-k", "$ZED_SYMBOL", "-v"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always"
+  },
+  {
+    "label": "python: run current file",
+    "command": "pixi",
+    "args": ["run", "python", "$ZED_RELATIVE_FILE"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always"
+  },
+  {
+    "label": "ruff: check current file",
+    "command": "pixi",
+    "args": ["run", "ruff", "check", "$ZED_RELATIVE_FILE"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always"
+  }
+]

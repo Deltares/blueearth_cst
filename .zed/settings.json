@@ -1,0 +1,63 @@
+// Zed project settings for blueearth-cst -- per-editor ergonomics ONLY.
+//
+// Everything shareable lives in tracked, IDE-agnostic config and is NOT repeated
+// here: lint in pyproject.toml [tool.ruff], type checking in [tool.pyright]
+// (basedpyright reads that table, so strictness matches VS Code), tests in
+// [tool.pytest.ini_options], whitespace in .editorconfig, line endings in
+// .gitattributes, commands in pixi.toml [tasks]. .vscode/settings.json is the
+// same shim for VS Code -- keep the two in step.
+{
+  // Keep the .pixi env (tens of thousands of files), Snakemake's state dir, the
+  // untracked run fixture, and caches out of the file tree, project search, and
+  // the file finder. `.pixi` self-ignores via .pixi/.gitignore, but that only
+  // hides it -- it is still scanned without this.
+  "file_scan_exclusions": [
+    "**/.git",
+    "**/.svn",
+    "**/.hg",
+    "**/.jj",
+    "**/CVS",
+    "**/.DS_Store",
+    "**/Thumbs.db",
+    "**/.classpath",
+    "**/.settings",
+    "**/.pixi",
+    "**/.snakemake",
+    "**/.pytest_cache",
+    "**/.ruff_cache",
+    "**/__pycache__",
+    "**/test_case"
+  ],
+
+  // The three Snakefiles are extensionless (`Snakefile_model_creation`, ...), so
+  // the Snakemake extension's own path_suffixes (`Snakefile`, `snakefile`,
+  // `smk`) do not match them. Requires the `snakemake` extension; without it
+  // these open as plain text.
+  "file_types": {
+    "Snakemake": ["Snakefile_*", "*.smk"]
+  },
+
+  "languages": {
+    // Format-on-save is DELIBERATELY OFF. `ruff format` is not a gate in this
+    // repo: per pyproject.toml [tool.ruff.format], 118 of 262 files would be
+    // reformatted (~7.8k diff lines), so format-on-save would turn every
+    // one-line tweak into a whole-file reformat in the diff. `formatter` is
+    // still declared so an explicit ctrl-shift-i uses ruff and honours the
+    // repo's [tool.ruff.format] settings. .vscode/settings.json mirrors this.
+    "Python": {
+      "format_on_save": "off",
+      "formatter": { "language_server": { "name": "ruff" } }
+    },
+    "R": { "format_on_save": "off" },
+    "Snakemake": { "format_on_save": "off" }
+  },
+
+  "terminal": {
+    "shell": { "program": "pwsh" },
+    "working_directory": "current_project_directory",
+    // Off on purpose: pixi envs are conda-style prefixes, not the venv layouts
+    // this setting probes for. Run `pixi shell` once per terminal instead --
+    // or use the tasks, which go through `pixi run` and need no activation.
+    "detect_venv": "off"
+  }
+}
