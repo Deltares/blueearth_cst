@@ -247,7 +247,7 @@ def _warn_if_transient(path: Path) -> None:
         )
 
 
-def _resolve_project_dir(requested: str | None) -> Path:
+def resolve_project_dir(requested: str | None) -> Path:
     """``--project-dir``, then the env var, then the first candidate present."""
     explicit = requested or os.environ.get("BASIN_MAP_PROJECT_DIR")
     if explicit:
@@ -271,7 +271,7 @@ def _resolve_project_dir(requested: str | None) -> Path:
     )
 
 
-def _gauges_fn(project_dir: Path) -> str | None:
+def gauges_fn_for(project_dir: Path) -> str | None:
     """A value for ``output_locations`` that resolves to this model's gauges.
 
     The figure takes the config's filename and lets ``gauges_layer_name`` map it
@@ -317,7 +317,7 @@ def render(project_dir: Path, out_dir: Path, values: dict, suffix: str) -> list:
         # model on disk, with tunables overridden.
         plot_map.plot_basin_map_from_model(
             project_dir=str(project_dir),
-            gauges_fn=_gauges_fn(project_dir),
+            gauges_fn=gauges_fn_for(project_dir),
             plot_dir=str(out_dir),
         )
     written = []
@@ -406,7 +406,7 @@ def main(argv=None) -> int:
         for name, value in (_parse_assignment(item, "--sweep") for item in args.sweep)
     ]
 
-    project_dir = _resolve_project_dir(args.project_dir)
+    project_dir = resolve_project_dir(args.project_dir)
     out_dir = Path(args.out_dir).expanduser().resolve()
     if out_dir.is_relative_to(project_dir):
         raise SystemExit(
