@@ -1,0 +1,56 @@
+# EditorConfig -- https://editorconfig.org
+#
+# The IDE-agnostic half of this repo's editor setup: whitespace conventions that
+# every editor applies identically. Behavioural config lives elsewhere and is
+# equally shared -- lint in pyproject.toml [tool.ruff], type checking in
+# [tool.pyright], tests in [tool.pytest.ini_options], commands in pixi.toml
+# [tasks]. Only genuinely per-editor ergonomics (search exclusions, theme,
+# keybindings) remain in .zed/ and .vscode/.
+#
+# DELIBERATELY ABSENT: `end_of_line`. .gitattributes already owns line endings
+# and does it better -- it distinguishes *.sh (must be LF, runs in Docker) from
+# *.cmd/*.bat (must be CRLF, Windows-only) from everything else (LF in the repo,
+# native on checkout). A blanket end_of_line here would fight that per-type
+# policy on save. Zed applies .editorconfig's end_of_line as a hard override, so
+# adding it is not a no-op.
+#
+# Native in Zed; VS Code needs the EditorConfig.EditorConfig extension.
+
+root = true
+
+[*]
+charset = utf-8
+indent_style = space
+indent_size = 4
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+# Snakefiles are extensionless (Snakefile_model_creation, ...) and are Python.
+[{*.py,Snakefile*,*.smk}]
+indent_size = 4
+max_line_length = 88
+
+[*.R]
+indent_size = 2
+
+[*.{yml,yaml,json,jsonc,toml}]
+indent_size = 2
+
+[*.{md,rst}]
+indent_size = 2
+# Two trailing spaces are a hard line break in Markdown; stripping them silently
+# reflows the rendered output.
+trim_trailing_whitespace = false
+
+# Generated / vendored -- never rewritten by an editor save.
+[{pixi.lock,Manifest.toml,config/catalogs/cmip6_data.yml,config/catalogs/cmip6_store_index.json}]
+trim_trailing_whitespace = false
+insert_final_newline = false
+
+[docs/**]
+trim_trailing_whitespace = false
+insert_final_newline = false
+
+# Makefiles require literal tabs.
+[Makefile]
+indent_style = tab

@@ -118,3 +118,56 @@ select = ["E4", "E7", "E9", "F"]
 # is not what "adopt a linter" bought. Recorded so that if anyone does run the
 # formatter, it runs Black-compatible and consistently.
 quote-style = "double"
+
+
+# ---------------------------------------------------------------------------
+# pyright -- type-checking language server config, shared across editors
+# ---------------------------------------------------------------------------
+# NOT a gate and NOT a dependency: nothing in tests/ or CI runs pyright. This
+# section exists so that whichever editor is open reports the SAME diagnostics,
+# instead of each one applying its own defaults to an untyped scientific
+# codebase.
+#
+# Table name is `[tool.pyright]`, not `[tool.basedpyright]`, on purpose:
+# basedpyright reads both (the latter preferred, the former kept for backwards
+# compatibility), but pyright and VS Code's Pylance read only `[tool.pyright]`.
+# One table therefore covers Zed (basedpyright), VS Code, PyCharm, and nvim; the
+# `[tool.basedpyright]` spelling would silently do nothing outside Zed.
+#
+# A `pyrightconfig.json` would take precedence over everything here -- do not add
+# one without deleting this section, or the two will disagree.
+[tool.pyright]
+# Pinned because the two servers disagree by default: pyright defaults to
+# "standard", basedpyright to the much stricter "recommended" (which reports
+# missing annotations, implicit Any, and unknown member types across the whole
+# untyped stack). Stating it explicitly makes both report the same thing, and
+# keeps the signal to real errors rather than absent-typing noise. Measured on
+# blueearth_cst/shared/plot_map.py: "recommended" 75 errors + 287 warnings,
+# "standard" 75 errors + 0 warnings.
+typeCheckingMode = "standard"
+
+# Matches `python = ">=3.12,<3.13"` in pixi.toml and ruff's `target-version`
+# above -- keep all three in step.
+pythonVersion = "3.12"
+
+# Resolve imports against the pixi env, so `import hydromt` resolves without each
+# editor being pointed at an interpreter by hand. Relative to this file, and each
+# git worktree carries its own `.pixi/envs/default`, so this is correct in all of
+# them. An interpreter selected in the editor UI still wins where one is set;
+# this is the fallback that makes a fresh checkout work with no UI step.
+venvPath = ".pixi/envs"
+venv = "default"
+
+# Setting `exclude` REPLACES pyright's built-in default
+# (`**/node_modules`, `**/__pycache__`, `**/.*`), so those are restated here
+# rather than dropped. Beyond them this mirrors ruff's `extend-exclude`:
+#   docs/      vendored hydromt / hydromt-wflow / wflow guides and notebooks;
+#              AGENTS.md forbids patching vendored upstream material.
+#   test_case/ untracked run fixture, not source.
+exclude = [
+    "**/node_modules",
+    "**/__pycache__",
+    "**/.*",
+    "docs",
+    "test_case",
+]
