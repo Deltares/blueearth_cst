@@ -20,6 +20,7 @@ from blueearth_cst.shared.plot_map import (
     _CORNERS,
     _EXTENT_BUFFER_DEG,
     _NORTH_ARROW_CORNER,
+    RIVER_WIDTH_UNIFORM,
     _basin_outline,
     _colorbar_inset,
     _corner_occupancy,
@@ -34,6 +35,7 @@ from blueearth_cst.shared.plot_map import (
     load_basin_layers,
     map_extent,
     pixel_resolution,
+    plot_basin_map,
     spatial_dim_names,
 )
 
@@ -233,11 +235,13 @@ def test_a_single_basin_survives_the_dissolve_unchanged():
 class _FakeRivers:
     """Minimal stand-in for the ``strord`` column ``_river_linewidths`` reads."""
 
-    def __init__(self, orders):
+    def __init__(self, orders, column="strord"):
         self._orders = np.asarray(orders, dtype=float)
+        self.columns = [column] if column is not None else []
+        self._column = column
 
     def __getitem__(self, key):
-        assert key == "strord"
+        assert key == self._column
         return self
 
     def astype(self, dtype):
@@ -257,6 +261,17 @@ def test_river_widths_are_publication_scale_and_increase_with_order():
 def test_uniform_stream_order_does_not_divide_by_zero():
     widths = _river_linewidths(_FakeRivers([3, 3, 3]))
     assert np.all(np.isfinite(widths)) and np.all(widths > 0)
+
+
+def test_a_river_layer_without_an_order_column_still_draws():
+    """Rivers from outside wflow carry no `strord`; that is not an error."""
+    assert _river_linewidths(_FakeRivers([1, 2], column="order")) == RIVER_WIDTH_UNIFORM
+    assert _river_linewidths(_FakeRivers([1, 2]), None) == RIVER_WIDTH_UNIFORM
+
+
+def test_an_alternative_order_column_is_honoured():
+    widths = _river_linewidths(_FakeRivers([1, 4], column="order"), "order")
+    assert np.all(np.diff(widths) > 0)
 
 
 # --- the figure is still colour-independent -----------------------------------
@@ -419,3 +434,201 @@ def test_an_absent_elevation_variable_lists_what_the_file_does_hold(tmp_path):
     (tmp_path / plot_map.STATICGEOMS_DIRNAME).mkdir()
     with pytest.raises(KeyError, match="something_else"):
         load_basin_layers(tmp_path)
+
+
+# --- the layer-in plotting function -------------------------------------------
+# `plot_basin_map` takes each map layer as its own argument and returns the
+# figure. What needs covering is the OPTIONALITY: every layer but the first
+# three may be absent, and an absent layer must drop out of the drawing AND out
+# of the legend rather than raising or leaving a dangling entry. The figure's
+# appearance is not asserted here -- it is verified by rendering it and looking
+# at it (AGENTS.md, "Figures are terminal artifacts").
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _headless_backend():
+    """No display in CI, and no interactive window locally."""
+    import matplotlib
+
+    matplotlib.use("Agg", force=True)
+
+
+def _frame(geometries):
+    import geopandas as gpd
+
+    return gpd.GeoDataFrame(
+        {"value": list(range(len(geometries)))},
+        geometry=list(geometries),
+        crs="EPSG:4326",
+    )
+
+
+def _layers():
+    """A DEM and one of every vector layer, in one geographic neighbourhood."""
+    import geopandas as gpd
+    from shapely.geometry import LineString, Point, box
+
+    dem = _dem(nx=12, ny=10, res=0.01)
+    rivers = gpd.GeoDataFrame(
+        {"strord": [1, 3]},
+        geometry=[
+            LineString([(0.01, -0.01), (0.05, -0.05)]),
+            LineString([(0.05, -0.05), (0.10, -0.08)]),
+        ],
+        crs="EPSG:4326",
+    )
+    gauges = gpd.GeoDataFrame(
+        {"wflow_id": [101, 102]},
+        geometry=[Point(0.05, -0.05), Point(0.09, -0.07)],
+        crs="EPSG:4326",
+    )
+    return dict(
+        dem=dem,
+        rivers=rivers,
+        basin=_frame([box(0.0, -0.09, 0.11, 0.0)]),
+        subbasins=_frame([box(0.0, -0.05, 0.11, 0.0), box(0.0, -0.09, 0.11, -0.05)]),
+        gauges=gauges,
+        outlets=_frame([Point(0.10, -0.08)]),
+        lakes=_frame([box(0.02, -0.03, 0.04, -0.01)]),
+        reservoirs=_frame([box(0.06, -0.07, 0.08, -0.05)]),
+        glaciers=_frame([box(0.01, -0.085, 0.03, -0.065)]),
+    )
+
+
+def _legend_labels(ax):
+    return [text.get_text() for text in ax.get_legend().get_texts()]
+
+
+def test_the_minimal_call_draws_a_figure_and_writes_nothing(tmp_path):
+    """DEM + rivers + basin is the whole requirement; the rest is optional."""
+    import matplotlib.pyplot as plt
+
+    layers = _layers()
+    fig, ax = plot_basin_map(layers["dem"], layers["rivers"], layers["basin"])
+    try:
+        assert fig is not None and ax is not None
+        assert _legend_labels(ax) == ["river"]
+        assert not list(tmp_path.iterdir())  # saving is the caller's decision
+    finally:
+        plt.close(fig)
+
+
+def test_every_layer_together_renders():
+    import matplotlib.pyplot as plt
+
+    layers = _layers()
+    fig, ax = plot_basin_map(
+        layers.pop("dem"), layers.pop("rivers"), layers.pop("basin"), **layers
+    )
+    try:
+        # A list, not a set: a duplicated entry is exactly the defect the
+        # hand-built waterbody patches caused until 2026-08-03.
+        assert _legend_labels(ax) == [
+            "river",
+            "outlets",
+            "output locs",
+            "subcatchments",
+            "lakes",
+            "reservoirs",
+            "glaciers",
+        ]
+    finally:
+        plt.close(fig)
+
+
+def test_omitting_subbasins_drops_the_divides_and_their_legend_entry():
+    """The split's whole point: an outline without divides is a valid map."""
+    import matplotlib.pyplot as plt
+
+    layers = _layers()
+    common = (layers["dem"], layers["rivers"], layers["basin"])
+    with_divides, ax_with = plot_basin_map(*common, subbasins=layers["subbasins"])
+    without, ax_without = plot_basin_map(*common, subbasins=None)
+    try:
+        assert "subcatchments" in _legend_labels(ax_with)
+        assert "subcatchments" not in _legend_labels(ax_without)
+    finally:
+        plt.close(with_divides)
+        plt.close(without)
+
+
+def test_an_empty_layer_is_treated_as_an_absent_one():
+    """An empty frame must not leave a legend entry for something undrawn."""
+    import matplotlib.pyplot as plt
+
+    layers = _layers()
+    fig, ax = plot_basin_map(
+        layers["dem"],
+        layers["rivers"],
+        layers["basin"],
+        subbasins=layers["subbasins"].iloc[:0],
+        lakes=layers["lakes"].iloc[:0],
+        outlets=layers["outlets"].iloc[:0],
+    )
+    try:
+        assert _legend_labels(ax) == ["river"]
+    finally:
+        plt.close(fig)
+
+
+def test_each_waterbody_enters_on_its_own_argument():
+    import matplotlib.pyplot as plt
+
+    layers = _layers()
+    fig, ax = plot_basin_map(
+        layers["dem"], layers["rivers"], layers["basin"], reservoirs=layers["reservoirs"]
+    )
+    try:
+        assert _legend_labels(ax) == ["river", "reservoirs"]
+    finally:
+        plt.close(fig)
+
+
+def test_gauge_labels_can_be_switched_off_without_dropping_the_markers():
+    import matplotlib.pyplot as plt
+
+    layers = _layers()
+    fig, ax = plot_basin_map(
+        layers["dem"],
+        layers["rivers"],
+        layers["basin"],
+        gauges=layers["gauges"],
+        gauge_label_column=None,
+    )
+    try:
+        assert "output locs" in _legend_labels(ax)
+        assert not [text for text in ax.texts if text.get_text() in {"101", "102"}]
+    finally:
+        plt.close(fig)
+
+
+def test_the_returned_figure_is_already_laid_out():
+    """One savefig must be enough — the caller does not owe the figure a draw.
+
+    Constrained layout is iterative: before this was settled inside the
+    function, the first draw left the y tick labels at x0 < 0, i.e. off the
+    canvas, so "0.45°N" saved as "45°N". The workflow path hid it by saving
+    twice (PDF then PNG).
+    """
+    import matplotlib.pyplot as plt
+
+    layers = _layers()
+    fig, ax = plot_basin_map(layers["dem"], layers["rivers"], layers["basin"])
+    try:
+        assert min(t.get_window_extent().x0 for t in ax.get_yticklabels()) >= 0.0
+    finally:
+        plt.close(fig)
+
+
+def test_an_explicit_extent_overrides_the_dem_bounding_box():
+    import matplotlib.pyplot as plt
+
+    layers = _layers()
+    extent = [0.0, 0.05, -0.04, 0.0]
+    fig, ax = plot_basin_map(
+        layers["dem"], layers["rivers"], layers["basin"], extent=extent
+    )
+    try:
+        assert list(ax.get_extent(crs=ax.projection)) == pytest.approx(extent)
+    finally:
+        plt.close(fig)

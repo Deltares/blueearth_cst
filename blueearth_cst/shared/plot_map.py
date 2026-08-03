@@ -28,6 +28,22 @@ matter of taste:
   north arrow, replacing a ``seaborn-whitegrid`` panel grid — gridlines behind
   a map are a cartographic error, not a style.
 
+Two entry points, split along reading-vs-drawing:
+
+* ``plot_basin_map(dem, rivers, basin, *, subbasins=..., gauges=..., ...)`` takes
+  each map layer as its OWN argument, touches no filesystem, and returns
+  ``(fig, ax)`` without saving. Every layer but the DEM, the rivers and the
+  basin outline is optional. It has no wflow in it: any DEM and any set of
+  GeoDataFrames plots, so the function is usable in another project — or
+  shareable on its own — rather than only against a model directory.
+* ``plot_basin_map_from_model(project_dir, gauges_fn, plot_dir)`` resolves a
+  wflow model on disk into those arguments and writes ``basin_area.{pdf,png}``.
+  This is what the Snakemake rule runs.
+
+The split is what keeps the wflow-specific knowledge — where ``staticmaps.nc``
+lives, that ``basins`` holds one polygon per subcatchment, that hydromt_wflow
+renames ``output_locations`` — in ONE function, out of the drawing code.
+
 The figure still depicts the MODEL, but it no longer needs ``hydromt`` to read
 one. ``load_basin_layers`` opens the model's own files directly — ``xarray`` for
 ``staticmaps.nc``, ``geopandas`` for ``staticgeoms/*.geojson`` — so the whole
@@ -159,6 +175,11 @@ _LAYOUT_RIGHT = 0.78
 #: narrower or taller than these renders with whitespace rather than being
 #: squashed or running off the figure.
 _MIN_MAP_ASPECT, _MAX_MAP_ASPECT = 0.45, 1.45
+
+#: Draw passes run before the figure is returned, so its layout is already
+#: settled. Constrained layout converges in two here (measured); a third costs
+#: ~0.2 s and changes nothing. Raise it only if a label still lands off-canvas.
+_LAYOUT_SETTLE_PASSES = 2
 
 # --- side panel: colourbar and legend --------------------------------------
 
@@ -313,13 +334,23 @@ _MAX_VERT_EXAG = 500.0
 _SHADE_BLEND_MODE = "soft"
 
 # --- data / labels ---------------------------------------------------------
+# These three are the DEFAULTS of ``plot_basin_map`` parameters, so a caller
+# overrides them per call rather than by patching the module.
 
 #: Gauge marker label. ``wflow_id`` is what the wflow output columns
 #: (``Q_101``) and the observation file's rows are keyed on, so it is the label
 #: that lets a reader join this map to a hydrograph. ``station_name`` is longer,
 #: collides more, and answers a question the caption can answer instead — swap
 #: it here if the names matter more than the join.
-_GAUGE_LABEL_COLUMN = "wflow_id"
+GAUGE_LABEL_COLUMN = "wflow_id"
+
+#: Column whose values scale the river line weights. ``strord`` is wflow's
+#: Strahler stream order. Any numeric column works; ``None``, or a column the
+#: frame does not carry, draws every reach at ``RIVER_WIDTH_UNIFORM``.
+RIVER_ORDER_COLUMN = "strord"
+
+#: Colourbar label. Units are the DEM's, so change it with the DEM.
+ELEVATION_LABEL = "elevation [m a.s.l.]"
 
 #: Padding around the model's own bounding box, in degrees, so the basin does
 #: not touch the frame.
@@ -839,13 +870,21 @@ def _basin_outline(gdf_bas):
     return gdf_bas.dissolve()
 
 
-def _river_linewidths(gdf_riv):
+def _river_linewidths(gdf_riv, column=RIVER_ORDER_COLUMN):
     """Stream order rescaled to publication line weights.
 
     ``strord / 2`` was tuned to a 10x8-inch canvas; at 180 mm it draws an
     8th-order river as a 4 pt band that swallows the basin.
+
+    A river layer from outside wflow may carry no order column at all, so a
+    missing (or ``None``) ``column`` falls back to one uniform weight rather
+    than raising: a network drawn at a single width is a legitimate map, and
+    refusing to plot it would be the wrong answer for the commonest
+    non-wflow input.
     """
-    order = gdf_riv["strord"].astype(float).to_numpy()
+    if column is None or column not in gdf_riv.columns:
+        return RIVER_WIDTH_UNIFORM
+    order = gdf_riv[column].astype(float).to_numpy()
     lowest, highest = float(np.nanmin(order)), float(np.nanmax(order))
     if not np.isfinite(lowest) or highest <= lowest:
         return np.full(order.shape, RIVER_WIDTH_UNIFORM)
@@ -853,30 +892,170 @@ def _river_linewidths(gdf_riv):
     return RIVER_WIDTH_MIN + span * (order - lowest) / (highest - lowest)
 
 
-def plot_basin_map(project_dir, gauges_fn, plot_dir=None, model_dir=None):
-    """Render basin_area.{pdf,png} (DEM + rivers + basin + outlets/waterbodies).
+def _draw_relief(fig, ax, dem, centre_latitude, elevation_label):
+    """Shaded relief plus its colourbar in the side panel."""
+    vmin, vmax = (
+        float(value)
+        for value in dem.quantile(list(_ELEVATION_CLIP_QUANTILES)).compute()
+    )
+    cmap = _elevation_colormap()
+    norm = colors.Normalize(vmin=vmin, vmax=vmax)
+    x_dim, y_dim = spatial_dim_names(dem)
+    _shaded_relief(dem, cmap, norm, centre_latitude).plot.imshow(
+        ax=ax,
+        x=x_dim,
+        y=y_dim,
+        transform=ccrs.PlateCarree(),
+        zorder=Z_RELIEF,
+        add_labels=False,
+    )
+    # imshow of an RGBA array carries no mappable, so the colourbar needs an
+    # explicit one — the ramp is the same object either way.
+    colorbar_axes = ax.inset_axes(_colorbar_inset())
+    # The side panel lives OUTSIDE the map axes but is anchored to it. Left
+    # in the layout, its footprint inflates the axes' tight bbox, and
+    # constrained layout answers by shrinking the map — in BOTH directions,
+    # because the aspect is locked. Measured cost before this line: 0.69 in
+    # of dead space above AND below a map 1.2 in narrower than its cell.
+    # ``rect`` already reserves the panel's room, so it must not be counted
+    # twice.
+    colorbar_axes.set_in_layout(False)
+    colorbar = fig.colorbar(ScalarMappable(norm=norm, cmap=cmap), cax=colorbar_axes)
+    colorbar.set_label(elevation_label, fontsize=FONT_SIZE_COLORBAR_LABEL)
+    colorbar.outline.set_linewidth(_COLORBAR_OUTLINE_WIDTH)
+    colorbar_axes.tick_params(labelsize=FONT_SIZE_TICK, length=TICK_LENGTH, pad=TICK_PAD)
 
-    The gauge layer is resolved from the MODEL (``shared.gauges``), not from the
-    configured filename: hydromt_wflow renames ``output_locations`` to
-    ``output-locations``, and deriving the name here is what silently dropped
-    the gauges from this figure (2026-08-01).
+
+def _draw_points(ax, layer, facecolor, label, label_column=None):
+    """One point layer, optionally annotated with a column's values."""
+    if layer is None or len(layer) == 0:
+        return
+    layer.plot(
+        ax=ax,
+        marker=MARKER_SHAPE,
+        markersize=MARKER_SIZE,
+        facecolor=facecolor,
+        edgecolor=COLOR_MARKER_EDGE,
+        linewidth=WIDTH_MARKER_EDGE,
+        zorder=Z_MARKER,
+        label=label,
+    )
+    if label_column is None or label_column not in layer.columns:
+        return
+    layer.apply(
+        lambda row: ax.annotate(
+            text=str(row[label_column]),
+            xy=row.geometry.coords[0],
+            xytext=GAUGE_LABEL_OFFSET,
+            textcoords="offset points",
+            fontsize=FONT_SIZE_GAUGE_LABEL,
+            fontweight="bold",
+            color=COLOR_BASIN_OUTLINE,
+            zorder=Z_MARKER,
+            path_effects=[
+                pe.withStroke(linewidth=HALO_WIDTH_GAUGE_LABEL, foreground=COLOR_HALO)
+            ],
+        ),
+        axis=1,
+    )
+
+
+def _draw_waterbodies(ax, layers):
+    """Fill each present waterbody layer; return its legend patches.
+
+    geopandas' polygon handle does not survive into a legend usably
+    (geopandas/geopandas#660), so the patches are built by hand.
+
+    The ``label`` goes on the PATCH ONLY, never on the ``plot`` call. Passing it
+    to both — which this did until 2026-08-03 — put each waterbody in the legend
+    twice: geopandas does register the labelled collection, so
+    ``get_legend_handles_labels`` returns it AND the hand-built patch.
     """
-    from blueearth_cst.shared.gauges import gauges_layer_name
+    patches = []
+    for name, layer in layers.items():
+        if layer is None or len(layer) == 0:
+            continue
+        face, edge = WATERBODY_COLORS[name]
+        style = dict(facecolor=face, edgecolor=edge, linewidth=WIDTH_WATERBODY_EDGE)
+        layer.plot(ax=ax, zorder=Z_WATERBODY, **style)
+        patches.append(mpatches.Patch(label=name, **style))
+    return patches
 
-    # The model root is the RULE's fact when a rule is calling; the constant is
-    # the fallback for standalone callers (R9 P2 commit 1).
-    root = str(model_dir) if model_dir else f"{project_dir}/{MODEL_DIRNAME}"
-    if plot_dir is None:
-        # basin_area depicts the MODEL, not its evaluation, so it sits at the
-        # model root's plots/ -- not under evaluation/ (P1).
-        plot_dir = f"{root}/plots"
 
-    # Read straight off disk -- no model object, no hydromt (see module docstring).
-    da, gdf_riv, gdf_bas, geoms = load_basin_layers(root)
-    da.attrs.update(long_name="elevation", units="m")
-    # we assume the model maps are in the geographic CRS EPSG:4326
+def plot_basin_map(
+    dem,
+    rivers,
+    basin,
+    *,
+    subbasins=None,
+    gauges=None,
+    outlets=None,
+    lakes=None,
+    reservoirs=None,
+    glaciers=None,
+    extent=None,
+    gauge_label_column=GAUGE_LABEL_COLUMN,
+    river_order_column=RIVER_ORDER_COLUMN,
+    elevation_label=ELEVATION_LABEL,
+):
+    """Draw a basin map: shaded relief, rivers, boundaries, points, waterbodies.
+
+    Every layer is its own argument, and every argument but the first three is
+    optional — so this plots ANY basin, from any source, not only a wflow model
+    on disk. It reads no files, writes no files and returns the figure; saving
+    is the caller's decision. ``plot_basin_map_from_model`` is the wrapper that
+    supplies these arguments from a wflow model directory.
+
+    Parameters
+    ----------
+    dem : xarray.DataArray
+        2-D elevation on a GEOGRAPHIC grid (EPSG:4326). Its coordinates set the
+        default extent and its values drive both the colour ramp and the
+        hillshade, whose vertical exaggeration is derived per basin. Cells
+        outside the basin should be NaN — they are drawn transparent.
+    rivers : geopandas.GeoDataFrame
+        The river network (LineStrings). Line weight scales with
+        ``river_order_column`` when the frame carries it.
+    basin : geopandas.GeoDataFrame
+        The OUTER boundary, already dissolved to what should be drawn as the
+        map's heaviest line. Pass ``_basin_outline(subcatchments)`` if you hold
+        one polygon per subcatchment — drawing those at boundary weight makes an
+        internal divide indistinguishable from the basin outline, which is the
+        one line on this figure a reader has to be able to trust.
+    subbasins : geopandas.GeoDataFrame, optional
+        Internal subcatchment divides, drawn lighter and dashed beneath the
+        outline. Omit for a basin with no meaningful internal division; nothing
+        is drawn and no legend entry appears.
+    gauges, outlets : geopandas.GeoDataFrame, optional
+        Point layers. Gauges take the river colour (they sit on the network);
+        outlets stay black (they belong to the model). Gauges are annotated with
+        ``gauge_label_column`` when the frame has it.
+    lakes, reservoirs, glaciers : geopandas.GeoDataFrame, optional
+        Filled polygon layers, each with its own colours from
+        ``WATERBODY_COLORS``.
+    extent : sequence of float, optional
+        ``[lon_min, lon_max, lat_min, lat_max]``. Defaults to the DEM's own
+        bounding box plus ``_EXTENT_BUFFER_DEG``. Set it to frame several basins
+        alike, or to crop.
+    gauge_label_column : str or None
+        Column annotated beside each gauge; ``None`` draws the markers unlabelled.
+    river_order_column : str or None
+        Numeric column scaling the river widths; ``None`` or an absent column
+        draws every reach at ``RIVER_WIDTH_UNIFORM``.
+    elevation_label : str
+        Colourbar label. Change it with the DEM's units.
+
+    Returns
+    -------
+    (matplotlib.figure.Figure, cartopy.mpl.geoaxes.GeoAxes)
+        Nothing has been saved. The figure is sized in millimetres
+        (``FIGURE_WIDTH_MM``), so ``savefig`` without ``bbox_inches="tight"``
+        preserves the declared width.
+    """
+    if extent is None:
+        extent = map_extent(dem)
+    # we assume the layers are in the geographic CRS EPSG:4326
     proj = ccrs.PlateCarree()
-    extent = map_extent(da)
     centre_latitude = 0.5 * float(extent[2] + extent[3])
 
     with rc_context(_publication_rc()):
@@ -886,43 +1065,14 @@ def plot_basin_map(project_dir, gauges_fn, plot_dir=None, model_dir=None):
         ax.set_extent(extent, crs=proj)
 
         # --- elevation, as shaded relief -------------------------------------
-        vmin, vmax = (
-            float(value)
-            for value in da.quantile(list(_ELEVATION_CLIP_QUANTILES)).compute()
-        )
-        cmap = _elevation_colormap()
-        norm = colors.Normalize(vmin=vmin, vmax=vmax)
-        elevation_x_dim, elevation_y_dim = spatial_dim_names(da)
-        _shaded_relief(da, cmap, norm, centre_latitude).plot.imshow(
-            ax=ax,
-            x=elevation_x_dim,
-            y=elevation_y_dim,
-            transform=proj,
-            zorder=Z_RELIEF,
-            add_labels=False,
-        )
-        # imshow of an RGBA array carries no mappable, so the colourbar needs an
-        # explicit one — the ramp is the same object either way.
-        colorbar_axes = ax.inset_axes(_colorbar_inset())
-        # The side panel lives OUTSIDE the map axes but is anchored to it. Left
-        # in the layout, its footprint inflates the axes' tight bbox, and
-        # constrained layout answers by shrinking the map — in BOTH directions,
-        # because the aspect is locked. Measured cost before this line: 0.69 in
-        # of dead space above AND below a map 1.2 in narrower than its cell.
-        # ``rect`` already reserves the panel's room, so it must not be counted
-        # twice.
-        colorbar_axes.set_in_layout(False)
-        colorbar = fig.colorbar(ScalarMappable(norm=norm, cmap=cmap), cax=colorbar_axes)
-        colorbar.set_label("elevation [m a.s.l.]", fontsize=FONT_SIZE_COLORBAR_LABEL)
-        colorbar.outline.set_linewidth(_COLORBAR_OUTLINE_WIDTH)
-        colorbar_axes.tick_params(
-            labelsize=FONT_SIZE_TICK, length=TICK_LENGTH, pad=TICK_PAD
-        )
+        _draw_relief(fig, ax, dem, centre_latitude, elevation_label)
 
         # --- hydrography ------------------------------------------------------
-        gdf_riv.plot(
+        # The draw order below IS the legend order: handles come back from
+        # ``get_legend_handles_labels`` in the order their artists were added.
+        rivers.plot(
             ax=ax,
-            linewidth=_river_linewidths(gdf_riv),
+            linewidth=_river_linewidths(rivers, river_order_column),
             color=COLOR_RIVER,
             zorder=Z_RIVER,
             label="river",
@@ -930,89 +1080,36 @@ def plot_basin_map(project_dir, gauges_fn, plot_dir=None, model_dir=None):
         # Subcatchment divides first and lighter, then the outline over them, so
         # the two are never confusable at the same weight.
         subcatchment_handles = []
-        if len(gdf_bas) > 1:
+        if subbasins is not None and len(subbasins) > 0:
             divide_style = dict(
                 color=COLOR_SUBCATCHMENT,
                 linewidth=WIDTH_SUBCATCHMENT,
                 linestyle=DASH_SUBCATCHMENT,
             )
-            gdf_bas.boundary.plot(ax=ax, zorder=Z_SUBCATCHMENT, **divide_style)
+            subbasins.boundary.plot(ax=ax, zorder=Z_SUBCATCHMENT, **divide_style)
             subcatchment_handles.append(
                 Line2D([], [], label="subcatchments", **divide_style)
             )
-        _basin_outline(gdf_bas).boundary.plot(
+        basin.boundary.plot(
             ax=ax,
             color=COLOR_BASIN_OUTLINE,
             linewidth=WIDTH_BASIN_OUTLINE,
             zorder=Z_BASIN_OUTLINE,
         )
 
-        # Resolved against what the model actually holds; warns loudly (never
-        # skips silently) when output_locations is set but no layer matches.
-        gauges_name = gauges_layer_name(geoms, gauges_fn)
-        if "outlets" in geoms:
-            geoms["outlets"].plot(
-                ax=ax,
-                marker=MARKER_SHAPE,
-                markersize=MARKER_SIZE,
-                facecolor=COLOR_OUTLET,
-                edgecolor=COLOR_MARKER_EDGE,
-                linewidth=WIDTH_MARKER_EDGE,
-                zorder=Z_MARKER,
-                label="outlets",
-            )
-        if gauges_name is not None:
-            geoms[gauges_name].plot(
-                ax=ax,
-                marker=MARKER_SHAPE,
-                markersize=MARKER_SIZE,
-                facecolor=COLOR_GAUGE,
-                edgecolor=COLOR_MARKER_EDGE,
-                linewidth=WIDTH_MARKER_EDGE,
-                zorder=Z_MARKER,
-                label="output locs",
-            )
-            if _GAUGE_LABEL_COLUMN in geoms[gauges_name].columns:
-                geoms[gauges_name].apply(
-                    lambda x: ax.annotate(
-                        text=str(x[_GAUGE_LABEL_COLUMN]),
-                        xy=x.geometry.coords[0],
-                        xytext=GAUGE_LABEL_OFFSET,
-                        textcoords="offset points",
-                        fontsize=FONT_SIZE_GAUGE_LABEL,
-                        fontweight="bold",
-                        color=COLOR_BASIN_OUTLINE,
-                        zorder=Z_MARKER,
-                        path_effects=[
-                            pe.withStroke(
-                                linewidth=HALO_WIDTH_GAUGE_LABEL,
-                                foreground=COLOR_HALO,
-                            )
-                        ],
-                    ),
-                    axis=1,
-                )
+        _draw_points(ax, outlets, COLOR_OUTLET, "outlets")
+        _draw_points(ax, gauges, COLOR_GAUGE, "output locs", gauge_label_column)
 
         # --- waterbodies ------------------------------------------------------
-        # manual patches for legend (geopandas/geopandas#660)
-        patches = []
-        for name, (face, edge) in WATERBODY_COLORS.items():
-            if name not in geoms:
-                continue
-            kwargs = dict(
-                facecolor=face,
-                edgecolor=edge,
-                linewidth=WIDTH_WATERBODY_EDGE,
-                label=name,
-            )
-            geoms[name].plot(ax=ax, zorder=Z_WATERBODY, **kwargs)
-            patches.append(mpatches.Patch(**kwargs))
+        patches = _draw_waterbodies(
+            ax, {"lakes": lakes, "reservoirs": reservoirs, "glaciers": glaciers}
+        )
 
         # --- cartographic furniture -------------------------------------------
         # The legend sits in the side panel, so it no longer competes for a map
         # corner. The scale bar is placed against the basin's ACTUAL footprint,
         # so it does not land on a basin that reaches into a bottom corner.
-        bar_corner = _scale_bar_corner(gdf_bas.union_all(), extent)
+        bar_corner = _scale_bar_corner(basin.union_all(), extent)
         _add_graticule(ax, extent)
         _add_scale_bar(ax, extent, bar_corner)
         _add_north_arrow(ax)
@@ -1042,25 +1139,81 @@ def plot_basin_map(project_dir, gauges_fn, plot_dir=None, model_dir=None):
         # so letting the layout engine also see the legend costs the map size.
         legend.set_in_layout(False)
 
-        # --- deliverables ------------------------------------------------------
-        # No bbox_inches="tight": it re-crops to the drawn content, which throws
-        # away the declared 180 mm width. Constrained layout already fits the
-        # furniture inside that width.
-        save_figure(
-            os.path.join(plot_dir, "basin_area.pdf"),
-            fig=fig,
-            # Drop the timestamp so two identical runs produce identical bytes.
-            metadata={"CreationDate": None},
-        )
-        save_figure(
-            os.path.join(plot_dir, "basin_area.png"),
-            fig=fig,
-            dpi=PREVIEW_DPI,
-            # Same reason: the default embeds the matplotlib version, which
-            # would move the baseline fingerprint on every env bump.
-            metadata={"Software": None},
-        )
-        plt.close(fig)
+        # Constrained layout is ITERATIVE, and one pass is not enough here: the
+        # first draw leaves the y tick labels at x0 = -7.7 px — off the canvas,
+        # so "0.45°N" prints as "45°N" — and the second settles them at +4.2.
+        # The workflow path never saw this because it saves twice (PDF, then
+        # PNG) and the second save inherits a settled layout. A caller doing one
+        # savefig would not, so the figure is settled BEFORE it is handed back.
+        for _ in range(_LAYOUT_SETTLE_PASSES):
+            fig.draw_without_rendering()
+
+    return fig, ax
+
+
+def plot_basin_map_from_model(project_dir, gauges_fn, plot_dir=None, model_dir=None):
+    """Render basin_area.{pdf,png} for a wflow model on disk.
+
+    The file-reading half of the figure: it resolves a model directory into the
+    layers ``plot_basin_map`` takes, then saves the result. This is what the
+    Snakemake rule calls; anything that already holds the layers should call
+    ``plot_basin_map`` directly.
+
+    The gauge layer is resolved from the MODEL (``shared.gauges``), not from the
+    configured filename: hydromt_wflow renames ``output_locations`` to
+    ``output-locations``, and deriving the name here is what silently dropped
+    the gauges from this figure (2026-08-01).
+    """
+    from blueearth_cst.shared.gauges import gauges_layer_name
+
+    # The model root is the RULE's fact when a rule is calling; the constant is
+    # the fallback for standalone callers (R9 P2 commit 1).
+    root = str(model_dir) if model_dir else f"{project_dir}/{MODEL_DIRNAME}"
+    if plot_dir is None:
+        # basin_area depicts the MODEL, not its evaluation, so it sits at the
+        # model root's plots/ -- not under evaluation/ (P1).
+        plot_dir = f"{root}/plots"
+
+    # Read straight off disk -- no model object, no hydromt (see module docstring).
+    dem, rivers, basins, geoms = load_basin_layers(root)
+    # ``basins`` is one polygon PER SUBCATCHMENT once gauges are burned into the
+    # subcatchment map, and a single polygon otherwise. Split it into the two
+    # roles the figure draws: a dissolved outline, and the divides — which exist
+    # only when there is more than one subcatchment to divide.
+    gauges_name = gauges_layer_name(geoms, gauges_fn)
+    fig, _ = plot_basin_map(
+        dem,
+        rivers,
+        _basin_outline(basins),
+        subbasins=basins if len(basins) > 1 else None,
+        # Resolved against what the model actually holds; ``gauges_layer_name``
+        # warns loudly (never skips silently) when output_locations is set but
+        # no layer matches.
+        gauges=geoms.get(gauges_name) if gauges_name is not None else None,
+        outlets=geoms.get("outlets"),
+        lakes=geoms.get("lakes"),
+        reservoirs=geoms.get("reservoirs"),
+        glaciers=geoms.get("glaciers"),
+    )
+
+    # No bbox_inches="tight": it re-crops to the drawn content, which throws
+    # away the declared 180 mm width. Constrained layout already fits the
+    # furniture inside that width.
+    save_figure(
+        os.path.join(plot_dir, "basin_area.pdf"),
+        fig=fig,
+        # Drop the timestamp so two identical runs produce identical bytes.
+        metadata={"CreationDate": None},
+    )
+    save_figure(
+        os.path.join(plot_dir, "basin_area.png"),
+        fig=fig,
+        dpi=PREVIEW_DPI,
+        # Same reason: the default embeds the matplotlib version, which
+        # would move the baseline fingerprint on every env bump.
+        metadata={"Software": None},
+    )
+    plt.close(fig)
 
 
 if __name__ == "__main__":
@@ -1069,7 +1222,7 @@ if __name__ == "__main__":
         from blueearth_cst.shared.snake_utils import tee_to_log
 
         with tee_to_log(sm.log[0]):
-            plot_basin_map(
+            plot_basin_map_from_model(
                 project_dir=sm.params.project_dir,
                 model_dir=sm.params.model_dir,
                 gauges_fn=getattr(sm.input, "output_locations", None),

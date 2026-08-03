@@ -312,7 +312,10 @@ def render(project_dir: Path, out_dir: Path, values: dict, suffix: str) -> list:
     """Render one figure into ``out_dir``, returning the files written."""
     out_dir.mkdir(parents=True, exist_ok=True)
     with _overridden(values):
-        plot_map.plot_basin_map(
+        # The model-reading wrapper, not the layer-in ``plot_basin_map``: this
+        # script's whole point is to render what the WORKFLOW renders, from a
+        # model on disk, with tunables overridden.
+        plot_map.plot_basin_map_from_model(
             project_dir=str(project_dir),
             gauges_fn=_gauges_fn(project_dir),
             plot_dir=str(out_dir),
