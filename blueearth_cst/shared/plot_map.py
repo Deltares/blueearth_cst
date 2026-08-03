@@ -58,27 +58,36 @@ from blueearth_cst.shared.snake_utils import save_figure
 FIGURE_WIDTH_MM = 180.0
 MM_PER_INCH = 25.4
 
-#: Vertical room (inches) constrained layout needs for the x tick labels and
-#: the axes furniture, on top of the map panel itself.
-_FURNITURE_HEIGHT_IN = 0.55
+#: Vertical room (inches) constrained layout needs for the x tick labels and the
+#: axes furniture, on top of the map panel itself. Measured need is ~0.16 in of
+#: tick labels; the rest is margin. Over-allowing here shows up directly as dead
+#: space above and below an aspect-locked map.
+_FURNITURE_HEIGHT_IN = 0.32
 
 #: Horizontal room (inches) the y tick labels take on the left.
 _TICK_LABEL_WIDTH_IN = 0.5
 
-#: Constrained layout owns the figure only up to here; the strip to the right
-#: is the colourbar's. A GeoAxes has a LOCKED aspect, so it does not fill its
-#: layout cell vertically — and ``fig.colorbar(ax=ax)`` sizes to the CELL, which
-#: is what made the bar overhang the map top and bottom. The bar is therefore an
-#: inset of the map axes (so it tracks the map exactly) and this rect is what
-#: keeps it from colliding with the figure edge.
-_LAYOUT_RIGHT = 0.88
-#: [x0, y0, width, height] in axes coordinates. Half height, anchored to the
-#: TOP, so the legend sits directly beneath it in the bottom-right.
-_COLORBAR_INSET = (1.03, 0.5, 0.025, 0.5)
+#: Constrained layout owns the figure only up to here; the strip to the right is
+#: a SIDE PANEL holding the colourbar and, beneath it, the legend. A GeoAxes has
+#: a LOCKED aspect, so it does not fill its layout cell vertically — and
+#: ``fig.colorbar(ax=ax)`` sizes to the CELL, which is what made the bar overhang
+#: the map top and bottom. Both panel items are therefore anchored in AXES
+#: coordinates (so they track the map exactly) and this rect reserves the room.
+#: Widened from 0.88 when the legend moved out of the map to join the colourbar.
+_LAYOUT_RIGHT = 0.78
 
-#: The legend's corner is fixed rather than chosen: it belongs directly under
-#: the colourbar. Only the scale bar is still placed against the basin.
-_LEGEND_LOC = "lower right"
+#: Left edge of the side panel, in axes coordinates. The colourbar and the
+#: legend BOTH start here — one value, so they cannot drift out of alignment.
+_PANEL_LEFT = 1.03
+#: Colourbar [x0, y0, width, height] in axes coordinates: half height, anchored
+#: to the top of the panel.
+_COLORBAR_INSET = (_PANEL_LEFT, 0.5, 0.025, 0.5)
+#: Top of the legend, just below the colourbar's lower end.
+_LEGEND_TOP = 0.44
+
+#: The north arrow's corner, kept clear of the scale bar. With the legend now
+#: outside the map, this is the only reserved corner left.
+_NORTH_ARROW_CORNER = "upper right"
 
 #: Alternating filled/open segments, the conventional cartographic scale bar.
 _SCALE_BAR_SEGMENTS = 4
@@ -353,10 +362,13 @@ def _corner_occupancy(basin_geometry, extent):
     return occupancy
 
 
-def _scale_bar_corner(basin_geometry, extent, excluded=_LEGEND_LOC):
+def _scale_bar_corner(basin_geometry, extent, excluded=_NORTH_ARROW_CORNER):
     """The emptiest corner left for the scale bar, ties broken toward the bottom.
 
-    ``excluded`` is the legend's fixed corner, which the bar must not share.
+    ``excluded`` is the north arrow's corner. The legend used to be excluded too,
+    but it now lives in the side panel rather than on the map, which gives the
+    bar back a lower corner it previously had to yield.
+
     Ties are rounded before ranking so "equally empty" really does fall through
     to the bottom preference, and the corner name breaks the last tie so the
     figure never depends on dict iteration order.
@@ -527,10 +539,16 @@ def plot_basin_map(project_dir, gauges_fn, plot_dir=None):
         )
         # imshow of an RGBA array carries no mappable, so the colourbar needs an
         # explicit one — the ramp is the same object either way.
-        colorbar = fig.colorbar(
-            ScalarMappable(norm=norm, cmap=cmap),
-            cax=ax.inset_axes(_COLORBAR_INSET),
-        )
+        colorbar_axes = ax.inset_axes(_COLORBAR_INSET)
+        # The side panel lives OUTSIDE the map axes but is anchored to it. Left
+        # in the layout, its footprint inflates the axes' tight bbox, and
+        # constrained layout answers by shrinking the map — in BOTH directions,
+        # because the aspect is locked. Measured cost before this line: 0.69 in
+        # of dead space above AND below a map 1.2 in narrower than its cell.
+        # ``rect`` already reserves the panel's room, so it must not be counted
+        # twice.
+        colorbar_axes.set_in_layout(False)
+        colorbar = fig.colorbar(ScalarMappable(norm=norm, cmap=cmap), cax=colorbar_axes)
         colorbar.set_label("elevation [m a.s.l.]")
         colorbar.outline.set_linewidth(0.5)
 
@@ -609,29 +627,38 @@ def plot_basin_map(project_dir, gauges_fn, plot_dir=None):
             patches.append(mpatches.Patch(**kwargs))
 
         # --- cartographic furniture -------------------------------------------
-        # The legend's corner is fixed, directly under the colourbar. The scale
-        # bar is still placed against the basin's ACTUAL footprint, so it does
-        # not land on a basin that reaches into a bottom corner.
+        # The legend sits in the side panel, so it no longer competes for a map
+        # corner. The scale bar is placed against the basin's ACTUAL footprint,
+        # so it does not land on a basin that reaches into a bottom corner.
         bar_corner = _scale_bar_corner(gdf_bas.union_all(), extent)
         _add_graticule(ax, extent)
         _add_scale_bar(ax, extent, bar_corner)
         _add_north_arrow(ax)
         ax.set_title("")
-        ax.legend(
+        legend = ax.legend(
             handles=[
                 *ax.get_legend_handles_labels()[0],
                 *subcatchment_handles,
                 *patches,
             ],
             title="Legend",
-            loc=_LEGEND_LOC,
+            # Anchored to the SAME x as the colourbar, in axes coordinates, so
+            # their left edges align by construction rather than by tuning.
+            loc="upper left",
+            bbox_to_anchor=(_PANEL_LEFT, _LEGEND_TOP),
+            borderaxespad=0.0,
+            alignment="left",
             frameon=True,
             framealpha=0.85,
             edgecolor="k",
             facecolor="white",
             borderpad=0.4,
             handlelength=1.4,
-        ).get_frame().set_linewidth(0.5)
+        )
+        legend.get_frame().set_linewidth(0.5)
+        # Same reason as the colourbar: the panel's room is reserved by ``rect``,
+        # so letting the layout engine also see the legend costs the map size.
+        legend.set_in_layout(False)
 
         # --- deliverables ------------------------------------------------------
         # No bbox_inches="tight": it re-crops to the drawn content, which throws

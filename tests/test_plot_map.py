@@ -16,7 +16,7 @@ from blueearth_cst.shared.plot_map import (
     FIGURE_WIDTH_MM,
     MM_PER_INCH,
     _CORNERS,
-    _LEGEND_LOC,
+    _NORTH_ARROW_CORNER,
     _basin_outline,
     _coordinate_format,
     _corner_occupancy,
@@ -136,13 +136,10 @@ def test_scale_bar_avoids_the_occupied_corner():
     assert _scale_bar_corner(basin, _UNIT_EXTENT) != "lower left"
 
 
-def test_scale_bar_never_takes_the_legend_corner():
-    """The legend's corner is fixed, so the bar must treat it as unavailable."""
-    basin = _basin_covering(0.0, 0.0, 0.45, 0.45)
-    assert _scale_bar_corner(basin, _UNIT_EXTENT) != _LEGEND_LOC
-    # even when that corner is the emptiest one available
-    empty_sw_only = _basin_covering(0.0, 0.0, 0.2, 0.2)
-    assert _scale_bar_corner(empty_sw_only, _UNIT_EXTENT) != _LEGEND_LOC
+def test_scale_bar_never_takes_the_north_arrow_corner():
+    """The arrow's corner is reserved, even when it is the emptiest."""
+    basin = _basin_covering(0.0, 0.0, 0.9, 0.9)  # leaves only upper right free
+    assert _scale_bar_corner(basin, _UNIT_EXTENT) != _NORTH_ARROW_CORNER
 
 
 def test_scale_bar_prefers_a_lower_corner_among_EQUALLY_empty_ones():
@@ -152,13 +149,13 @@ def test_scale_bar_prefers_a_lower_corner_among_EQUALLY_empty_ones():
 
 
 def test_emptiness_outranks_the_bottom_preference():
-    """With the legend on lower right and the basin on lower left, go up.
+    """A basin on lower left sends the bar to the OTHER lower corner.
 
-    Both remaining lower corners are unusable, so a bar drawn "conventionally"
-    along the bottom would sit on the basin. Staying off the data wins.
+    The legend used to occupy lower right, which forced the bar upward here.
+    Now that the legend sits in the side panel, the bar keeps a bottom corner.
     """
     basin = _basin_covering(0.0, 0.0, 0.45, 0.45)
-    assert _scale_bar_corner(basin, _UNIT_EXTENT).startswith("upper")
+    assert _scale_bar_corner(basin, _UNIT_EXTENT) == "lower right"
 
 
 def test_placement_is_deterministic_for_a_symmetric_basin():
