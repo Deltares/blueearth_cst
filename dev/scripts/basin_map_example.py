@@ -313,6 +313,58 @@ DPI = 300
 #   side panel, this is the only reserved corner left on the map.
 # plot_map._NORTH_ARROW_CORNER = 'upper right'
 
+# -- locator inset ------------------------------------------------------------
+#   Draw it at all. The layers come from a vendored Natural Earth extract
+#   (config/basemap/); with that file absent the inset is skipped and a note
+#   is printed, so a copy of this module taken to another project still
+#   renders.
+# plot_map.LOCATOR_ENABLED = True
+#   Half-width of the locator's window, in degrees, around the basin's centre.
+#   8 deg is roughly national-to-regional: big enough to reach a coast or a
+#   capital in most of the world, small enough that the basin mark is not a
+#   speck. Raise it for a continental frame, lower it for a provincial one.
+# plot_map._LOCATOR_SPAN_DEG = 8.0
+#   The inset's width as a fraction of the map panel's width, and its inset
+#   from the corner. Its HEIGHT is derived so the box comes out square on the
+#   page — a square window drawn into a non-square box would otherwise
+#   letterbox.
+# plot_map._LOCATOR_WIDTH = 0.22
+# plot_map._LOCATOR_MARGIN = 0.025
+#   Which corner it sits in, or "auto" for the emptiest one the north arrow is
+#   not using. Auto by default and it matters more here than for the scale
+#   bar: the inset is OPAQUE, so a fixed corner does not merely crowd the
+#   basin, it hides part of it — observed covering a gauge on the first
+#   render. Ties go to an upper corner, where a locator is conventionally
+#   read.
+# plot_map._LOCATOR_CORNER = 'auto'
+#   sea; the palest thing on the figure
+# plot_map.COLOR_LOCATOR_OCEAN = '#eef2f5'
+#   land, a shade darker so the coast reads
+# plot_map.COLOR_LOCATOR_LAND = '#dcdcd8'
+#   the land polygons' own edge IS the coastline
+# plot_map.COLOR_LOCATOR_COAST = '0.55'
+#   country lines, lighter still
+# plot_map.COLOR_LOCATOR_BORDER = '0.7'
+# plot_map.COLOR_LOCATOR_CITY = '0.35'
+#   The "you are here" mark. The one warm accent on the figure, and the only
+#   place red appears — it has to win against grey without competing with the
+#   elevation ramp, which owns every brown.
+# plot_map.COLOR_LOCATOR_BASIN = '#c0392b'
+# plot_map.WIDTH_LOCATOR_COAST = 0.35
+# plot_map.WIDTH_LOCATOR_BORDER = 0.3
+# plot_map.WIDTH_LOCATOR_FRAME = 0.6
+#   Cities are filtered by Natural Earth's own prominence rank (0 = most
+#   prominent), then the largest few by population are kept. Both limits
+#   matter: the rank keeps towns out, the count keeps a dense region from
+#   filling up.
+# plot_map._LOCATOR_CITY_MAX_SCALERANK = 3
+# plot_map._LOCATOR_MAX_CITIES = 5
+# plot_map._LOCATOR_CITY_MARKER_SIZE = 5
+# plot_map.FONT_SIZE_LOCATOR_CITY = 4.5
+#   Basin mark size in points-squared, and the label offset for a city name.
+# plot_map._LOCATOR_BASIN_MARKER_SIZE = 26
+# plot_map._LOCATOR_CITY_LABEL_OFFSET = (2.5, -1.0)
+
 # -- furniture placement ------------------------------------------------------
 #   Lower-left corner of each candidate furniture box, as a fraction of the
 #   map extent. Names are matplotlib legend(loc=...) values verbatim.

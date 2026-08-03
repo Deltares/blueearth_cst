@@ -192,6 +192,123 @@ def test_a_basin_filling_its_box_still_yields_a_valid_corner():
     assert _scale_bar_corner(_basin_covering(0, 0, 1, 1), _UNIT_EXTENT) in _CORNERS
 
 
+def test_the_scale_bar_yields_the_corner_the_locator_took():
+    """Two artists in one corner is the collision this budgeting prevents."""
+    central = _basin_covering(0.35, 0.35, 0.65, 0.65)  # every corner equally free
+    taken = _scale_bar_corner(central, _UNIT_EXTENT, {_NORTH_ARROW_CORNER})
+    assert _scale_bar_corner(central, _UNIT_EXTENT, {_NORTH_ARROW_CORNER, taken}) != taken
+
+
+def test_reserving_every_corner_still_returns_one():
+    """Better a crowded bar than a crash: the fallback must not empty the list."""
+    assert _scale_bar_corner(
+        _basin_covering(0.35, 0.35, 0.65, 0.65), _UNIT_EXTENT, set(_CORNERS)
+    ) in _CORNERS
+
+
+# --- locator inset ------------------------------------------------------------
+# The "where in the world is this" panel. Its window and its box are pure
+# geometry and testable; whether it LOOKS right is a question for the render.
+
+
+@pytest.fixture
+def restore_locator():
+    names = ("LOCATOR_ENABLED", "_LOCATOR_CORNER", "_LOCATOR_WIDTH")
+    original = {name: getattr(plot_map, name) for name in names}
+    yield
+    for name, value in original.items():
+        setattr(plot_map, name, value)
+
+
+def test_the_locator_window_is_square_and_centred_on_the_basin():
+    window = plot_map._locator_window([9.65, 9.86, 0.35, 0.50])
+    assert (window[1] - window[0]) == pytest.approx(window[3] - window[2])
+    assert 0.5 * (window[0] + window[1]) == pytest.approx(9.755)
+
+
+def test_a_polar_basin_gets_a_full_window_rather_than_half_of_one():
+    """Clipping at the pole would leave the inset half empty; re-centre instead."""
+    window = plot_map._locator_window([20.0, 21.0, 88.0, 89.5])
+    assert (window[1] - window[0]) == pytest.approx(window[3] - window[2])
+    assert window[3] <= 90.0
+
+
+@pytest.mark.parametrize(
+    "extent", [(0.0, 1.0, 0.0, 1.0), (0.0, 4.0, 0.0, 1.0), (0.0, 1.0, 0.0, 3.0)]
+)
+def test_the_locator_box_comes_out_square_on_the_page(extent):
+    """Equal fractions in a non-square panel would render a slot, not a square."""
+    lon_span, lat_span = extent[1] - extent[0], extent[3] - extent[2]
+    _, _, width, height = plot_map._locator_box(np.asarray(extent), "upper left")
+    assert width * lon_span == pytest.approx(height * lat_span)
+    assert 0 < width <= 1 and 0 < height <= 1
+
+
+@pytest.mark.parametrize(
+    ("corner", "expect_left", "expect_upper"),
+    [
+        ("upper left", True, True),
+        ("lower right", False, False),
+        ("upper right", False, True),
+        ("lower left", True, False),
+    ],
+)
+def test_the_locator_box_lands_in_the_corner_it_is_given(
+    corner, expect_left, expect_upper
+):
+    x0, y0, width, height = plot_map._locator_box(
+        np.array([0.0, 1.0, 0.0, 1.0]), corner
+    )
+    assert (x0 < 0.5) is expect_left
+    assert (y0 + height > 0.5) is expect_upper
+
+
+def test_no_corner_is_reserved_when_the_locator_is_off(restore_locator):
+    plot_map.LOCATOR_ENABLED = False
+    assert plot_map._locator_corner(_basin_covering(0, 0, 1, 1), _UNIT_EXTENT) is None
+
+
+def test_the_locator_never_takes_the_north_arrow_corner(restore_locator):
+    plot_map.LOCATOR_ENABLED = True
+    plot_map._LOCATOR_CORNER = "auto"
+    basin = _basin_covering(0.0, 0.0, 0.9, 0.9)  # only upper right is free
+    assert plot_map._locator_corner(basin, _UNIT_EXTENT) != _NORTH_ARROW_CORNER
+
+
+def test_an_explicit_locator_corner_is_honoured(restore_locator):
+    plot_map.LOCATOR_ENABLED = True
+    plot_map._LOCATOR_CORNER = "lower right"
+    assert (
+        plot_map._locator_corner(_basin_covering(0, 0, 1, 1), _UNIT_EXTENT)
+        == "lower right"
+    )
+
+
+# --- the vendored basemap -----------------------------------------------------
+# It is committed rather than downloaded, so the thing to check is that the
+# committed file is intact and holds what the inset asks it for.
+
+
+def test_the_vendored_basemap_is_present():
+    assert plot_map.BASEMAP_PATH.is_file(), (
+        f"{plot_map.BASEMAP_PATH} is missing; see config/basemap/README.md"
+    )
+
+
+@pytest.mark.parametrize("layer", ["land", "borders", "places"])
+def test_each_basemap_layer_is_readable_and_not_empty(layer):
+    import geopandas as gpd
+
+    assert len(gpd.read_file(plot_map.BASEMAP_PATH, layer=layer)) > 0
+
+
+def test_the_places_layer_carries_the_columns_the_inset_filters_on():
+    import geopandas as gpd
+
+    places = gpd.read_file(plot_map.BASEMAP_PATH, layer="places")
+    assert {"name", "pop_max", "scalerank"} <= set(places.columns)
+
+
 # --- basin outline vs subcatchment divides ------------------------------------
 # `mod.basins` returns one polygon per SUBCATCHMENT once gauges are burned in.
 

@@ -361,6 +361,63 @@ _NORTH_ARROW_WIDTH = 0.8
 #: panel, this is the only reserved corner left on the map.
 _NORTH_ARROW_CORNER = "upper right"
 
+# --- locator inset ---------------------------------------------------------
+# A small map in a corner saying WHERE this basin is: land and sea, country
+# lines, a few major cities, and a mark on the basin. It is an INSET rather
+# than a widened frame on purpose — the elevation map keeps the whole panel and
+# its own scale, and a basin with nothing within 500 km still gets an answer,
+# which a zoomed-out background could not give.
+
+#: Draw it at all. The layers come from a vendored Natural Earth extract
+#: (``config/basemap/``); with that file absent the inset is skipped and a note
+#: is printed, so a copy of this module taken to another project still renders.
+LOCATOR_ENABLED = True
+
+#: Half-width of the locator's window, in degrees, around the basin's centre.
+#: 8 deg is roughly national-to-regional: big enough to reach a coast or a
+#: capital in most of the world, small enough that the basin mark is not a
+#: speck. Raise it for a continental frame, lower it for a provincial one.
+_LOCATOR_SPAN_DEG = 8.0
+
+#: The inset's width as a fraction of the map panel's width, and its inset from
+#: the corner. Its HEIGHT is derived so the box comes out square on the page —
+#: a square window drawn into a non-square box would otherwise letterbox.
+_LOCATOR_WIDTH = 0.22
+_LOCATOR_MARGIN = 0.025
+
+#: Which corner it sits in, or ``"auto"`` for the emptiest one the north arrow
+#: is not using. Auto by default and it matters more here than for the scale
+#: bar: the inset is OPAQUE, so a fixed corner does not merely crowd the basin,
+#: it hides part of it — observed covering a gauge on the first render. Ties go
+#: to an upper corner, where a locator is conventionally read.
+_LOCATOR_CORNER = "auto"
+
+COLOR_LOCATOR_OCEAN = "#eef2f5"  #: sea; the palest thing on the figure
+COLOR_LOCATOR_LAND = "#dcdcd8"  #: land, a shade darker so the coast reads
+COLOR_LOCATOR_COAST = "0.55"  #: the land polygons' own edge IS the coastline
+COLOR_LOCATOR_BORDER = "0.7"  #: country lines, lighter still
+COLOR_LOCATOR_CITY = "0.35"
+#: The "you are here" mark. The one warm accent on the figure, and the only
+#: place red appears — it has to win against grey without competing with the
+#: elevation ramp, which owns every brown.
+COLOR_LOCATOR_BASIN = "#c0392b"
+
+WIDTH_LOCATOR_COAST = 0.35
+WIDTH_LOCATOR_BORDER = 0.3
+WIDTH_LOCATOR_FRAME = 0.6
+
+#: Cities are filtered by Natural Earth's own prominence rank (0 = most
+#: prominent), then the largest few by population are kept. Both limits matter:
+#: the rank keeps towns out, the count keeps a dense region from filling up.
+_LOCATOR_CITY_MAX_SCALERANK = 3
+_LOCATOR_MAX_CITIES = 5
+_LOCATOR_CITY_MARKER_SIZE = 5
+FONT_SIZE_LOCATOR_CITY = 4.5
+
+#: Basin mark size in points-squared, and the label offset for a city name.
+_LOCATOR_BASIN_MARKER_SIZE = 26
+_LOCATOR_CITY_LABEL_OFFSET = (2.5, -1.0)
+
 # --- furniture placement ---------------------------------------------------
 
 #: Lower-left corner of each candidate furniture box, as a fraction of the map
@@ -434,6 +491,11 @@ STATICMAPS_FILENAME = "staticmaps.nc"
 STATICGEOMS_DIRNAME = "staticgeoms"
 #: The DEM variable inside ``staticmaps.nc`` (a CSDMS Standard Name).
 ELEVATION_VARIABLE = "land_elevation"
+
+#: The vendored Natural Earth extract the locator inset draws. Provenance,
+#: licence and the rebuild recipe are in that folder's README. Committed rather
+#: than fetched so the figure needs no network — see the module docstring.
+BASEMAP_PATH = Path(__file__).resolve().parents[2] / "config" / "basemap" / "natural_earth_50m.gpkg"
 #: Layers the figure cannot be drawn without; everything else is optional.
 REQUIRED_GEOM_LAYERS = ("rivers", "basins")
 
@@ -883,19 +945,50 @@ def _corner_occupancy(basin_geometry, extent):
     return occupancy
 
 
-def _scale_bar_corner(basin_geometry, extent, excluded=_NORTH_ARROW_CORNER):
+def _locator_drawn():
+    """Whether the inset will actually be drawn, so corners can be budgeted."""
+    return LOCATOR_ENABLED and BASEMAP_PATH.is_file()
+
+
+def _locator_corner(basin_geometry, extent):
+    """The corner the locator takes: the emptiest, or the configured one.
+
+    Returns ``None`` when there is no inset, which hands the corner back to the
+    scale bar rather than reserving it for something that never appears.
+    """
+    if not _locator_drawn():
+        return None
+    if _LOCATOR_CORNER != "auto":
+        return _LOCATOR_CORNER
+    occupancy = _corner_occupancy(basin_geometry, extent)
+    candidates = [name for name in _CORNERS if name != _NORTH_ARROW_CORNER]
+    return min(
+        candidates,
+        key=lambda name: (
+            round(occupancy[name], 3),
+            0 if name.startswith("upper") else 1,
+            name,
+        ),
+    )
+
+
+def _scale_bar_corner(basin_geometry, extent, excluded=None):
     """The emptiest corner left for the scale bar, ties broken toward the bottom.
 
-    ``excluded`` is the north arrow's corner. The legend used to be excluded too,
-    but it now lives in the side panel rather than on the map, which gives the
-    bar back a lower corner it previously had to yield.
+    ``excluded`` defaults to the corners the north arrow and the locator inset
+    hold. The legend is not among them — it lives in the side panel rather than
+    on the map, which gives the bar back a lower corner it used to yield.
 
     Ties are rounded before ranking so "equally empty" really does fall through
     to the bottom preference, and the corner name breaks the last tie so the
     figure never depends on dict iteration order.
     """
+    if excluded is None:
+        excluded = {_NORTH_ARROW_CORNER}
+    elif isinstance(excluded, str):
+        excluded = {excluded}
     occupancy = _corner_occupancy(basin_geometry, extent)
-    candidates = [name for name in _CORNERS if name != excluded]
+    candidates = [name for name in _CORNERS if name not in excluded] or list(_CORNERS)
     return min(
         candidates,
         key=lambda name: (
@@ -957,6 +1050,153 @@ def _add_scale_bar(ax, extent, corner="lower left"):
             zorder=Z_FURNITURE,
             path_effects=halo,
         )
+
+
+def _locator_window(extent):
+    """The locator's own extent: a square window centred on the basin.
+
+    Square in DEGREES, so the inset box can be made square on the page and the
+    window fills it without letterboxing. Clamped to the world, and re-centred
+    rather than clipped at the poles so a high-latitude basin still gets a full
+    window rather than a half-empty one.
+    """
+    centre_lon = 0.5 * (extent[0] + extent[1])
+    centre_lat = 0.5 * (extent[2] + extent[3])
+    span = _LOCATOR_SPAN_DEG
+    centre_lat = float(np.clip(centre_lat, -90.0 + span, 90.0 - span))
+    return [
+        centre_lon - span,
+        centre_lon + span,
+        max(centre_lat - span, -90.0),
+        min(centre_lat + span, 90.0),
+    ]
+
+
+def _locator_box(extent, corner):
+    """[x0, y0, w, h] in axes fractions, square ON THE PAGE, in its corner.
+
+    The map axes is not square — PlateCarree locks it to the extent's own
+    degree ratio — so a box with equal fractional width and height comes out
+    as stretched as the panel is. Correcting by that ratio is what makes the
+    inset a square rather than a slot.
+    """
+    lon_span = max(float(extent[1] - extent[0]), 1e-9)
+    lat_span = max(float(extent[3] - extent[2]), 1e-9)
+    width = _LOCATOR_WIDTH
+    height = width * lon_span / lat_span
+    # A tall, narrow basin makes the panel tall: the square would then overflow
+    # the map vertically, so cap it and take the width back down to match.
+    if height > 1.0 - 2.0 * _LOCATOR_MARGIN:
+        height = 1.0 - 2.0 * _LOCATOR_MARGIN
+        width = height * lat_span / lon_span
+    left = (
+        _LOCATOR_MARGIN if corner.endswith("left") else 1.0 - _LOCATOR_MARGIN - width
+    )
+    bottom = (
+        1.0 - _LOCATOR_MARGIN - height
+        if corner.startswith("upper")
+        else _LOCATOR_MARGIN
+    )
+    return [left, bottom, width, height]
+
+
+def _read_basemap(layer, window):
+    """One vendored Natural Earth layer, clipped to the locator's window.
+
+    ``bbox`` pushes the filter down into the driver, so a render reads the few
+    hundred features it draws rather than the global layer.
+    """
+    return gpd.read_file(BASEMAP_PATH, layer=layer, bbox=tuple(
+        (window[0], window[2], window[1], window[3])
+    ))
+
+
+def _locator_cities(window):
+    """The few most prominent cities inside the window, largest first."""
+    places = _read_basemap("places", window)
+    if places.empty:
+        return places
+    places = places[places["scalerank"] <= _LOCATOR_CITY_MAX_SCALERANK]
+    return places.sort_values("pop_max", ascending=False).head(_LOCATOR_MAX_CITIES)
+
+
+def _add_locator_inset(ax, extent, basin, corner):
+    """A small "where is this" map: land, sea, borders, cities, and the basin.
+
+    Skips itself, with a note, when the vendored basemap is absent — a copy of
+    this module taken to another project should still render a basin map, just
+    without the inset. Silence would be worse: an inset that quietly never
+    appears reads as a layout bug.
+    """
+    if not LOCATOR_ENABLED:
+        return None
+    if corner is None or not BASEMAP_PATH.is_file():
+        if LOCATOR_ENABLED:
+            print(f"note: locator inset skipped, no basemap at {BASEMAP_PATH}")
+        return None
+
+    window = _locator_window(extent)
+    inset = ax.inset_axes(_locator_box(extent, corner), projection=ccrs.PlateCarree())
+    # Outside the layout for the same reason as the side panel: its footprint
+    # would inflate the map's tight bbox and shrink the map to make room for
+    # something drawn INSIDE the map.
+    inset.set_in_layout(False)
+    inset.set_extent(window, crs=ccrs.PlateCarree())
+    inset.set_facecolor(COLOR_LOCATOR_OCEAN)  # sea is whatever land is not
+
+    land = _read_basemap("land", window)
+    if not land.empty:
+        land.plot(
+            ax=inset,
+            facecolor=COLOR_LOCATOR_LAND,
+            edgecolor=COLOR_LOCATOR_COAST,
+            linewidth=WIDTH_LOCATOR_COAST,
+        )
+    borders = _read_basemap("borders", window)
+    if not borders.empty:
+        borders.plot(
+            ax=inset, color=COLOR_LOCATOR_BORDER, linewidth=WIDTH_LOCATOR_BORDER
+        )
+
+    halo = [pe.withStroke(linewidth=HALO_WIDTH_GAUGE_LABEL, foreground=COLOR_HALO)]
+    for _, city in _locator_cities(window).iterrows():
+        inset.plot(
+            city.geometry.x,
+            city.geometry.y,
+            marker="o",
+            markersize=_LOCATOR_CITY_MARKER_SIZE ** 0.5,
+            color=COLOR_LOCATOR_CITY,
+            transform=ccrs.PlateCarree(),
+        )
+        inset.annotate(
+            city["name"],
+            xy=(city.geometry.x, city.geometry.y),
+            xytext=_LOCATOR_CITY_LABEL_OFFSET,
+            textcoords="offset points",
+            fontsize=FONT_SIZE_LOCATOR_CITY,
+            color=COLOR_LOCATOR_CITY,
+            va="center",
+            path_effects=halo,
+        )
+
+    # The basin itself. At an 8 deg window a basin is a fraction of a degree, so
+    # a mark reads where the outline would be a dot of noise.
+    centroid = basin.union_all().centroid
+    inset.plot(
+        centroid.x,
+        centroid.y,
+        marker="o",
+        markersize=_LOCATOR_BASIN_MARKER_SIZE ** 0.5,
+        markerfacecolor=COLOR_LOCATOR_BASIN,
+        markeredgecolor=COLOR_MARKER_EDGE,
+        markeredgewidth=WIDTH_MARKER_EDGE,
+        transform=ccrs.PlateCarree(),
+        zorder=Z_FURNITURE,
+    )
+
+    inset.spines["geo"].set_linewidth(WIDTH_LOCATOR_FRAME)
+    inset.spines["geo"].set_edgecolor(COLOR_BASIN_OUTLINE)
+    return inset
 
 
 def _add_north_arrow(ax):
@@ -1257,10 +1497,19 @@ def plot_basin_map(
         # The legend sits in the side panel, so it no longer competes for a map
         # corner. The scale bar is placed against the basin's ACTUAL footprint,
         # so it does not land on a basin that reaches into a bottom corner.
-        bar_corner = _scale_bar_corner(basin.union_all(), extent)
+        footprint = basin.union_all()
+        # Corners are budgeted in one place, in priority order: the arrow's is
+        # fixed, the locator takes the emptiest of what is left because it is
+        # opaque, and the scale bar — which is see-through — takes the emptiest
+        # of the remainder.
+        locator_corner = _locator_corner(footprint, extent)
+        bar_corner = _scale_bar_corner(
+            footprint, extent, {_NORTH_ARROW_CORNER, locator_corner}
+        )
         _add_graticule(ax, extent)
         _add_scale_bar(ax, extent, bar_corner)
         _add_north_arrow(ax)
+        _add_locator_inset(ax, extent, basin, locator_corner)
         ax.set_title("")
         legend = ax.legend(
             handles=[
