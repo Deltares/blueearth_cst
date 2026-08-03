@@ -10,6 +10,7 @@ defect in the pre-2026-08 figure.
 
 import numpy as np
 import pytest
+import xarray as xr
 from matplotlib import colors
 
 from blueearth_cst.shared import plot_map
@@ -17,6 +18,7 @@ from blueearth_cst.shared.plot_map import (
     FIGURE_WIDTH_MM,
     MM_PER_INCH,
     _CORNERS,
+    _EXTENT_BUFFER_DEG,
     _NORTH_ARROW_CORNER,
     _basin_outline,
     _colorbar_inset,
@@ -24,6 +26,7 @@ from blueearth_cst.shared.plot_map import (
     _corner_occupancy,
     _elevation_colormap,
     _figure_size,
+    _mask_nodata,
     _publication_rc,
     _scale_bar_corner,
     _graticule_ticks,
@@ -31,7 +34,22 @@ from blueearth_cst.shared.plot_map import (
     _nice_round_length,
     _river_linewidths,
     _vertical_exaggeration,
+    load_basin_layers,
+    map_extent,
+    pixel_resolution,
+    spatial_dim_names,
 )
+
+
+def _dem(x_name="longitude", y_name="latitude", res=0.01, nx=4, ny=3):
+    """A minimal north-up geographic DEM, as wflow writes them."""
+    x = np.arange(nx) * res
+    y = -np.arange(ny) * res
+    return xr.DataArray(
+        np.arange(ny * nx, dtype="float32").reshape(ny, nx),
+        dims=(y_name, x_name),
+        coords={y_name: y, x_name: x},
+    )
 
 
 # --- the EPSG:4326 correction ------------------------------------------------
@@ -298,3 +316,107 @@ def test_colorbar_inset_follows_the_panel_position(restore_tunables):
 def test_the_pdf_stays_truetype_whatever_the_sizes_are():
     """Type 3 is rejected by several publishers' preflight; 42 is TrueType."""
     assert _publication_rc()["pdf.fonttype"] == 42
+
+
+# --- reading the model without hydromt ---------------------------------------
+# These four replace what hydromt's ``.raster`` accessor and ``WflowSbmModel``
+# used to do. The accessor sniffed dimension names and computed the bounding box
+# for us; doing it here means the sniffing needs its own tests, because a wrong
+# axis silently transposes the map rather than raising.
+
+
+@pytest.mark.parametrize(
+    ("x_name", "y_name"),
+    [("longitude", "latitude"), ("lon", "lat"), ("x", "y"), ("LONGITUDE", "LATITUDE")],
+)
+def test_spatial_dims_are_found_under_every_accepted_spelling(x_name, y_name):
+    assert spatial_dim_names(_dem(x_name, y_name)) == (x_name, y_name)
+
+
+def test_unrecognised_dims_raise_rather_than_guess():
+    """A guessed axis transposes the map silently; an exception does not."""
+    with pytest.raises(ValueError, match="cannot identify the spatial dimensions"):
+        spatial_dim_names(_dem("easting", "northing"))
+
+
+def test_resolution_is_signed_and_matches_the_coordinate_spacing():
+    """``.raster.res`` is signed: negative y for the north-up order wflow writes."""
+    res_x, res_y = pixel_resolution(_dem(res=0.25))
+    assert res_x == pytest.approx(0.25)
+    assert res_y == pytest.approx(-0.25)
+
+
+def test_a_single_cell_axis_raises_instead_of_returning_nonsense():
+    with pytest.raises(ValueError, match="length 1"):
+        pixel_resolution(_dem(nx=1))
+
+
+def test_extent_reaches_half_a_cell_beyond_the_outermost_centres():
+    """Coordinates are cell CENTRES; dropping the half-cell crops a row and column."""
+    res = 0.01
+    dem = _dem(res=res, nx=4, ny=3)
+    lon_min, lon_max, lat_min, lat_max = map_extent(dem, buffer_deg=0.0)
+    assert lon_min == pytest.approx(0.0 - res / 2)
+    assert lon_max == pytest.approx(3 * res + res / 2)
+    assert lat_min == pytest.approx(-2 * res - res / 2)
+    assert lat_max == pytest.approx(0.0 + res / 2)
+
+
+def test_extent_buffer_pads_every_side_and_defaults_to_the_constant():
+    dem = _dem()
+    tight = map_extent(dem, buffer_deg=0.0)
+    padded = map_extent(dem)
+    assert padded[0] == pytest.approx(tight[0] - _EXTENT_BUFFER_DEG)
+    assert padded[1] == pytest.approx(tight[1] + _EXTENT_BUFFER_DEG)
+    assert padded[2] == pytest.approx(tight[2] - _EXTENT_BUFFER_DEG)
+    assert padded[3] == pytest.approx(tight[3] + _EXTENT_BUFFER_DEG)
+
+
+def test_an_undecoded_fill_value_is_masked_to_nan():
+    """xarray usually decodes _FillValue for us; mask_and_scale=False does not."""
+    dem = _dem()
+    dem.values[0, 0] = -9999.0
+    dem.attrs["_FillValue"] = -9999.0
+    assert np.isnan(_mask_nodata(dem).values[0, 0])
+
+
+def test_a_nan_fill_value_leaves_the_array_untouched():
+    dem = _dem()
+    dem.attrs["_FillValue"] = np.nan
+    assert not np.isnan(_mask_nodata(dem).values).any()
+
+
+def test_a_missing_staticmaps_names_the_file(tmp_path):
+    (tmp_path / "staticgeoms").mkdir()
+    with pytest.raises(FileNotFoundError, match="staticmaps.nc"):
+        load_basin_layers(tmp_path)
+
+
+def test_a_missing_staticgeoms_names_the_directory(tmp_path):
+    (tmp_path / "staticmaps.nc").write_bytes(b"")
+    with pytest.raises(FileNotFoundError, match="staticgeoms"):
+        load_basin_layers(tmp_path)
+
+
+def test_missing_required_layers_are_named_because_hydromt_would_have_derived_them(
+    tmp_path,
+):
+    """The one behavioural loss versus ``mod.rivers``/``mod.basins`` -- say so."""
+    _dem().to_dataset(name=plot_map.ELEVATION_VARIABLE).to_netcdf(
+        tmp_path / plot_map.STATICMAPS_FILENAME
+    )
+    (tmp_path / plot_map.STATICGEOMS_DIRNAME).mkdir()
+    with pytest.raises(FileNotFoundError) as excinfo:
+        load_basin_layers(tmp_path)
+    message = str(excinfo.value)
+    assert "rivers" in message and "basins" in message
+    assert "derive" in message
+
+
+def test_an_absent_elevation_variable_lists_what_the_file_does_hold(tmp_path):
+    _dem().to_dataset(name="something_else").to_netcdf(
+        tmp_path / plot_map.STATICMAPS_FILENAME
+    )
+    (tmp_path / plot_map.STATICGEOMS_DIRNAME).mkdir()
+    with pytest.raises(KeyError, match="something_else"):
+        load_basin_layers(tmp_path)

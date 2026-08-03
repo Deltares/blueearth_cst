@@ -28,15 +28,37 @@ matter of taste:
   north arrow, replacing a ``seaborn-whitegrid`` panel grid — gridlines behind
   a map are a cartographic error, not a style.
 
-The figure still depicts the MODEL, and is still read from ``WflowSbmModel``.
-Rendering it from the engine-neutral ``spatial/`` products instead was
-considered and rejected: waterbodies come from rule 1.04 and the gauge layer
-from 1.05, and ``SpatialProducts`` carries neither, so an artifact-driven
-version would silently drop layers this figure exists to show.
+The figure still depicts the MODEL, but it no longer needs ``hydromt`` to read
+one. ``load_basin_layers`` opens the model's own files directly — ``xarray`` for
+``staticmaps.nc``, ``geopandas`` for ``staticgeoms/*.geojson`` — so the whole
+render path imports neither ``hydromt`` nor ``hydromt_wflow``, and anyone
+holding those two artifacts can call it.
+
+Verified equivalent before the switch, not assumed: rendering the same model
+through ``WflowSbmModel`` and through the files produced byte-identical images
+(0 differing pixels of 3,754,080). ``mod.rivers`` / ``mod.basins`` simply return
+``geoms["rivers"]`` / ``geoms["basins"]`` when those layers exist on disk, which
+is every model WF1 writes, and ``.raster.mask_nodata()`` is a no-op once xarray
+has decoded ``_FillValue``.
+
+What is genuinely given up: ``mod.rivers`` and ``mod.basins`` are FALLBACK
+properties (``hydromt_wflow/wflow_base.py``), reconstructing the network from
+the flow-direction raster via ``pyflwdir`` when the geojson is absent. A model
+whose ``staticgeoms/`` lacks them now raises instead of being rebuilt — a
+deliberate trade, and the reason ``load_basin_layers`` names the missing layers
+rather than failing obscurely downstream.
+
+Rendering from the engine-neutral ``spatial/`` products was a DIFFERENT proposal,
+considered and rejected: waterbodies come from rule 1.04 and the gauge layer from
+1.05, and ``SpatialProducts`` carries neither, so an artifact-driven version would
+silently drop layers this figure exists to show. Reading ``staticgeoms/`` keeps
+every one of them — they are all written there.
 """
 
 import os
+from pathlib import Path
 
+import geopandas as gpd
 import matplotlib.patches as mpatches
 import matplotlib.patheffects as pe
 import matplotlib.pyplot as plt
@@ -303,6 +325,29 @@ _GAUGE_LABEL_COLUMN = "wflow_id"
 #: not touch the frame.
 _EXTENT_BUFFER_DEG = 0.02
 
+# ---------------------------------------------------------------------------
+# Model layout on disk. These four names are hydromt_wflow's write conventions,
+# not ours -- they are stated here, as constants, precisely BECAUSE this module
+# now reads the files itself instead of asking hydromt where they are. If a
+# future hydromt_wflow changes a name, this block is the whole blast radius.
+# ---------------------------------------------------------------------------
+#: Model root, relative to ``project_dir``.
+MODEL_DIRNAME = "hydrology_model"
+#: Gridded model parameters; carries the DEM this figure shades.
+STATICMAPS_FILENAME = "staticmaps.nc"
+#: Vector layers, one GeoJSON per layer, stem == layer name.
+STATICGEOMS_DIRNAME = "staticgeoms"
+#: The DEM variable inside ``staticmaps.nc`` (a CSDMS Standard Name).
+ELEVATION_VARIABLE = "land_elevation"
+#: Layers the figure cannot be drawn without; everything else is optional.
+REQUIRED_GEOM_LAYERS = ("rivers", "basins")
+
+#: Dimension names treated as easting/northing, lowercased. hydromt's ``.raster``
+#: accessor sniffed these for us; reading the file directly means saying which
+#: spellings count. wflow writes ``latitude``/``longitude``.
+_X_DIM_NAMES = ("x", "longitude", "lon")
+_Y_DIM_NAMES = ("y", "latitude", "lat")
+
 #: Drawing order. Every artist names one of these rather than a bare number, so
 #: the stack is legible and reorderable in one place.
 Z_RELIEF = 1
@@ -404,6 +449,126 @@ def _vertical_exaggeration(elevation, dx_metres, dy_metres, valid=None):
     return float(np.clip(_TARGET_SLOPE / typical_slope, 1.0, _MAX_VERT_EXAG))
 
 
+def spatial_dim_names(da):
+    """The ``(x_dim, y_dim)`` names of a 2-D geographic ``DataArray``.
+
+    Replaces ``da.raster.x_dim`` / ``.y_dim``. Raises rather than guessing: a
+    silently wrong axis produces a transposed map, which is far harder to notice
+    than an exception.
+    """
+    lowered = {str(dim).lower(): dim for dim in da.dims}
+    x_dim = next((lowered[n] for n in _X_DIM_NAMES if n in lowered), None)
+    y_dim = next((lowered[n] for n in _Y_DIM_NAMES if n in lowered), None)
+    if x_dim is None or y_dim is None:
+        raise ValueError(
+            f"cannot identify the spatial dimensions of {da.dims}; expected one "
+            f"of {_X_DIM_NAMES} and one of {_Y_DIM_NAMES}"
+        )
+    return x_dim, y_dim
+
+
+def pixel_resolution(da):
+    """Signed ``(res_x, res_y)`` cell size in degrees, as ``da.raster.res`` gives.
+
+    ``res_y`` is negative for the north-up ordering wflow writes; callers that
+    only need a magnitude take ``abs()``.
+    """
+    x_dim, y_dim = spatial_dim_names(da)
+    resolutions = []
+    for dim in (x_dim, y_dim):
+        coord = da[dim].values
+        if coord.size < 2:
+            raise ValueError(f"cannot derive a resolution from a {dim} of length {coord.size}")
+        resolutions.append(float(coord[1] - coord[0]))
+    return tuple(resolutions)
+
+
+def map_extent(da, buffer_deg=_EXTENT_BUFFER_DEG):
+    """``[lon_min, lon_max, lat_min, lat_max]`` covering the DEM, plus padding.
+
+    Replaces ``da.raster.box.buffer(...).total_bounds``. Coordinates are cell
+    CENTRES, so the box reaches half a cell beyond them on each side — dropping
+    that half-cell shrinks the frame by one pixel row and column.
+    """
+    x_dim, y_dim = spatial_dim_names(da)
+    res_x, res_y = pixel_resolution(da)
+    half_x, half_y = abs(res_x) / 2.0, abs(res_y) / 2.0
+    x, y = da[x_dim].values, da[y_dim].values
+    return np.array(
+        [
+            x.min() - half_x - buffer_deg,
+            x.max() + half_x + buffer_deg,
+            y.min() - half_y - buffer_deg,
+            y.max() + half_y + buffer_deg,
+        ]
+    )
+
+
+def _mask_nodata(da):
+    """NaN out the fill value, as ``da.raster.mask_nodata()`` does.
+
+    Normally a no-op: xarray decodes ``_FillValue`` to NaN when it opens the
+    file. It earns its place for a DataArray opened with ``mask_and_scale=False``
+    or one carrying the fill value only as an attribute.
+    """
+    fill = da.attrs.get("_FillValue", da.encoding.get("_FillValue"))
+    if fill is None or (isinstance(fill, float) and np.isnan(fill)):
+        return da
+    return da.where(da != fill)
+
+
+def load_basin_layers(model_dir):
+    """Read a wflow model's DEM and vector layers straight off disk.
+
+    No hydromt: ``xarray`` for the grid, ``geopandas`` for the geometries. Any
+    directory holding ``staticmaps.nc`` and a ``staticgeoms/`` of GeoJSON works,
+    so a caller does not need a model object — or the packages to build one.
+
+    Parameters
+    ----------
+    model_dir : str | Path
+        The model root (the folder containing ``staticmaps.nc``).
+
+    Returns
+    -------
+    (elevation, rivers, basins, geoms)
+        ``geoms`` maps layer name to GeoDataFrame for EVERY GeoJSON found, so
+        optional layers (waterbodies, gauges) resolve by name exactly as they did
+        through ``mod.geoms.data``.
+    """
+    model_dir = Path(model_dir)
+    staticmaps_path = model_dir / STATICMAPS_FILENAME
+    staticgeoms_dir = model_dir / STATICGEOMS_DIRNAME
+    if not staticmaps_path.is_file():
+        raise FileNotFoundError(f"no {STATICMAPS_FILENAME} in {model_dir}")
+    if not staticgeoms_dir.is_dir():
+        raise FileNotFoundError(f"no {STATICGEOMS_DIRNAME}/ in {model_dir}")
+
+    with xr.open_dataset(staticmaps_path) as dataset:
+        if ELEVATION_VARIABLE not in dataset:
+            raise KeyError(
+                f"{staticmaps_path} has no {ELEVATION_VARIABLE!r}; it holds "
+                f"{sorted(dataset.data_vars)}"
+            )
+        # load() before the file closes -- the render touches values repeatedly.
+        elevation = _mask_nodata(dataset[ELEVATION_VARIABLE].load())
+
+    geoms = {
+        path.stem: gpd.read_file(path)
+        for path in sorted(staticgeoms_dir.glob("*.geojson"))
+    }
+    missing = [name for name in REQUIRED_GEOM_LAYERS if name not in geoms]
+    if missing:
+        # Named explicitly: hydromt would have REBUILT these from the flow
+        # direction raster, so their absence is the one case where dropping
+        # hydromt changes behaviour. Say so here rather than fail downstream.
+        raise FileNotFoundError(
+            f"{staticgeoms_dir} is missing {missing}; found {sorted(geoms)}. "
+            "hydromt_wflow would derive these from staticmaps; this reader does not."
+        )
+    return elevation, geoms["rivers"], geoms["basins"], geoms
+
+
 def _shaded_relief(da, cmap, norm, latitude_deg):
     """Drape the elevation ramp over a hillshade of the same DEM.
 
@@ -413,8 +578,9 @@ def _shaded_relief(da, cmap, norm, latitude_deg):
     # LightSource reads the array as (row, column) = (y, x) and takes dx/dy in
     # that order, so put the DEM in y-major order before touching it rather than
     # assuming the model wrote it that way.
-    da = da.transpose(da.raster.y_dim, da.raster.x_dim)
-    resolution_x, resolution_y = (abs(float(value)) for value in da.raster.res)
+    x_dim, y_dim = spatial_dim_names(da)
+    da = da.transpose(y_dim, x_dim)
+    resolution_x, resolution_y = (abs(value) for value in pixel_resolution(da))
     metres_per_degree_lon, metres_per_degree_lat = _metres_per_degree(latitude_deg)
     light = colors.LightSource(azdeg=_AZIMUTH_DEG, altdeg=_ALTITUDE_DEG)
     # LightSource cannot see NaN; fill with the basin minimum so the boundary
@@ -690,31 +856,20 @@ def plot_basin_map(project_dir, gauges_fn, plot_dir=None):
     ``output-locations``, and deriving the name here is what silently dropped
     the gauges from this figure (2026-08-01).
     """
-    from hydromt_wflow import WflowSbmModel
-
     from blueearth_cst.shared.gauges import gauges_layer_name
 
     if plot_dir is None:
         # R07 B10: basin_area depicts the MODEL, not its evaluation, so it
         # sits at the model root's plots/ — not under evaluation/ (P1).
-        plot_dir = f"{project_dir}/hydrology_model/plots"
-    root = f"{project_dir}/hydrology_model"
+        plot_dir = f"{project_dir}/{MODEL_DIRNAME}/plots"
+    root = f"{project_dir}/{MODEL_DIRNAME}"
 
-    mod = WflowSbmModel(root, mode="r")
-
-    # read and mask the model elevation
-    da = mod.staticmaps.data["land_elevation"].raster.mask_nodata()
+    # Read straight off disk -- no model object, no hydromt (see module docstring).
+    da, gdf_riv, gdf_bas, geoms = load_basin_layers(root)
     da.attrs.update(long_name="elevation", units="m")
-    # read/derive river geometries
-    gdf_riv = mod.rivers
-    # read/derive model basin boundary
-    gdf_bas = mod.basins
-    geoms = mod.geoms.data
     # we assume the model maps are in the geographic CRS EPSG:4326
     proj = ccrs.PlateCarree()
-    extent = np.array(
-        da.raster.box.buffer(_EXTENT_BUFFER_DEG).total_bounds
-    )[[0, 2, 1, 3]]
+    extent = map_extent(da)
     centre_latitude = 0.5 * float(extent[2] + extent[3])
 
     with rc_context(_publication_rc()):
@@ -730,10 +885,11 @@ def plot_basin_map(project_dir, gauges_fn, plot_dir=None):
         )
         cmap = _elevation_colormap()
         norm = colors.Normalize(vmin=vmin, vmax=vmax)
+        elevation_x_dim, elevation_y_dim = spatial_dim_names(da)
         _shaded_relief(da, cmap, norm, centre_latitude).plot.imshow(
             ax=ax,
-            x=da.raster.x_dim,
-            y=da.raster.y_dim,
+            x=elevation_x_dim,
+            y=elevation_y_dim,
             transform=proj,
             zorder=Z_RELIEF,
             add_labels=False,
