@@ -72,8 +72,24 @@ _TICK_LABEL_WIDTH_IN = 0.5
 #: inset of the map axes (so it tracks the map exactly) and this rect is what
 #: keeps it from colliding with the figure edge.
 _LAYOUT_RIGHT = 0.88
-#: [x0, y0, width, height] in axes coordinates.
-_COLORBAR_INSET = (1.03, 0.0, 0.025, 1.0)
+#: [x0, y0, width, height] in axes coordinates. Half height, anchored to the
+#: TOP, so the legend sits directly beneath it in the bottom-right.
+_COLORBAR_INSET = (1.03, 0.5, 0.025, 0.5)
+
+#: The legend's corner is fixed rather than chosen: it belongs directly under
+#: the colourbar. Only the scale bar is still placed against the basin.
+_LEGEND_LOC = "lower right"
+
+#: Alternating filled/open segments, the conventional cartographic scale bar.
+_SCALE_BAR_SEGMENTS = 4
+#: Bar height as a fraction of the map's latitude span.
+_SCALE_BAR_HEIGHT = 0.011
+
+#: Gauge marker label. ``wflow_id`` is what the wflow output columns
+#: (``Q_101``) and the observation file's rows are keyed on, so it is the label
+#: that lets a reader join this map to a hydrograph. ``station_name`` is longer,
+#: collides more, and answers a question the caption can answer instead.
+_GAUGE_LABEL_COLUMN = "wflow_id"
 
 #: Lower-left corner of each candidate furniture box, as a fraction of the map
 #: extent. Names are matplotlib ``legend(loc=...)`` values verbatim.
@@ -298,6 +314,19 @@ def _add_graticule(ax, extent):
     # coordinates rather than a map.
     ax.tick_params(length=2.5, pad=2.0)
 
+    # An L-frame on the labelled sides only. A GeoAxes draws its box through the
+    # single ``geo`` spine, so hiding that is what lets the four ordinary spines
+    # be controlled individually — setting top/right invisible while ``geo`` is
+    # still on leaves the full box drawn.
+    ax.spines["geo"].set_visible(False)
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+    for side in ("left", "bottom"):
+        spine = ax.spines[side]
+        spine.set_visible(True)
+        spine.set_linewidth(0.6)
+        spine.set_color("k")
+
 
 def _corner_occupancy(basin_geometry, extent):
     """Fraction of each corner box the basin covers.
@@ -324,31 +353,24 @@ def _corner_occupancy(basin_geometry, extent):
     return occupancy
 
 
-def _furniture_corners(basin_geometry, extent):
-    """Pick where the legend and the scale bar go: ``(legend_loc, bar_corner)``.
+def _scale_bar_corner(basin_geometry, extent, excluded=_LEGEND_LOC):
+    """The emptiest corner left for the scale bar, ties broken toward the bottom.
 
-    The BAR chooses first. It is the one with a conventional home — readers look
-    for it along the bottom — and it has the weaker fallback: a legend reads
-    fine in any corner, a scale bar in an upper one does not. So the bar takes
-    the emptiest corner, ties broken toward the bottom, and the legend takes the
-    emptiest of what is left. Letting the legend choose first is what put it in
-    the only free lower corner of a south-west basin and pushed the bar onto the
-    basin itself.
-
-    Ties are rounded before ranking so that "equally empty" really does fall
-    through to the bottom preference, and the name breaks the last tie so the
+    ``excluded`` is the legend's fixed corner, which the bar must not share.
+    Ties are rounded before ranking so "equally empty" really does fall through
+    to the bottom preference, and the corner name breaks the last tie so the
     figure never depends on dict iteration order.
     """
     occupancy = _corner_occupancy(basin_geometry, extent)
-    ranked = sorted(
-        _CORNERS,
+    candidates = [name for name in _CORNERS if name != excluded]
+    return min(
+        candidates,
         key=lambda name: (
             round(occupancy[name], 3),
             0 if name.startswith("lower") else 1,
             name,
         ),
     )
-    return ranked[1], ranked[0]
 
 
 def _add_scale_bar(ax, extent, corner="lower left"):
@@ -365,37 +387,52 @@ def _add_scale_bar(ax, extent, corner="lower left"):
     else:
         x_start = lon_min + 0.06 * span_lon
     if corner.startswith("upper"):
-        y_bar = lat_max - 0.09 * span_lat
+        y_bar = lat_max - 0.10 * span_lat
     else:
         y_bar = lat_min + 0.06 * span_lat
-    halo = [pe.withStroke(linewidth=3.0, foreground="white")]
-    ax.plot(
-        [x_start, x_start + length_deg],
-        [y_bar, y_bar],
-        color="k",
-        linewidth=1.6,
-        solid_capstyle="butt",
-        zorder=8,
-        path_effects=halo,
-    )
-    ax.text(
-        x_start + 0.5 * length_deg,
-        y_bar + 0.018 * span_lat,
-        f"{length_km:g} km",
-        ha="center",
-        va="bottom",
-        fontsize=6.5,
-        zorder=8,
-        path_effects=halo,
-    )
+
+    # Alternating filled and open segments — the conventional bar, which lets a
+    # reader step off a distance rather than only read the total.
+    height = _SCALE_BAR_HEIGHT * span_lat
+    segment_deg = length_deg / _SCALE_BAR_SEGMENTS
+    halo = [pe.withStroke(linewidth=2.5, foreground="white")]
+    for index in range(_SCALE_BAR_SEGMENTS):
+        ax.add_patch(
+            mpatches.Rectangle(
+                (x_start + index * segment_deg, y_bar),
+                segment_deg,
+                height,
+                facecolor="k" if index % 2 == 0 else "white",
+                edgecolor="k",
+                linewidth=0.5,
+                zorder=8,
+            )
+        )
+
+    segment_km = length_km / _SCALE_BAR_SEGMENTS
+    # Label the ends and the midpoint only: a tick under every segment boundary
+    # crowds at this size, and the midpoint is what makes the segments countable.
+    for step in (0, _SCALE_BAR_SEGMENTS // 2, _SCALE_BAR_SEGMENTS):
+        value = step * segment_km
+        ax.text(
+            x_start + step * segment_deg,
+            y_bar + height + 0.008 * span_lat,
+            f"{value:g}" if step < _SCALE_BAR_SEGMENTS else f"{value:g} km",
+            ha="center",
+            va="bottom",
+            fontsize=6.0,
+            zorder=8,
+            path_effects=halo,
+        )
 
 
-def _add_north_arrow(ax, legend_loc="lower right"):
+def _add_north_arrow(ax):
     """A north arrow — exactly vertical, which PlateCarree guarantees.
 
-    Sits top-right unless the legend claimed that corner.
+    Top-right is always free: the legend is pinned bottom-right and the scale
+    bar never takes an upper corner unless both lower ones are occupied.
     """
-    x_fraction = 0.045 if legend_loc == "upper right" else 0.955
+    x_fraction = 0.955
     ax.annotate(
         "N",
         xy=(x_fraction, 0.94),
@@ -541,10 +578,10 @@ def plot_basin_map(project_dir, gauges_fn, plot_dir=None):
                 zorder=7,
                 label="output locs",
             )
-            if "station_name" in geoms[gauges_name].columns:
+            if _GAUGE_LABEL_COLUMN in geoms[gauges_name].columns:
                 geoms[gauges_name].apply(
                     lambda x: ax.annotate(
-                        text=x["station_name"],
+                        text=str(x[_GAUGE_LABEL_COLUMN]),
                         xy=x.geometry.coords[0],
                         xytext=(2.5, 2.5),
                         textcoords="offset points",
@@ -572,13 +609,13 @@ def plot_basin_map(project_dir, gauges_fn, plot_dir=None):
             patches.append(mpatches.Patch(**kwargs))
 
         # --- cartographic furniture -------------------------------------------
-        # Placed against the basin's ACTUAL footprint, not fixed corners: the
-        # fixture basin leaves both bottom corners empty, and a basin that does
-        # not would get the legend frame drawn over its own rivers.
-        legend_loc, bar_corner = _furniture_corners(gdf_bas.union_all(), extent)
+        # The legend's corner is fixed, directly under the colourbar. The scale
+        # bar is still placed against the basin's ACTUAL footprint, so it does
+        # not land on a basin that reaches into a bottom corner.
+        bar_corner = _scale_bar_corner(gdf_bas.union_all(), extent)
         _add_graticule(ax, extent)
         _add_scale_bar(ax, extent, bar_corner)
-        _add_north_arrow(ax, legend_loc)
+        _add_north_arrow(ax)
         ax.set_title("")
         ax.legend(
             handles=[
@@ -587,7 +624,7 @@ def plot_basin_map(project_dir, gauges_fn, plot_dir=None):
                 *patches,
             ],
             title="Legend",
-            loc=legend_loc,
+            loc=_LEGEND_LOC,
             frameon=True,
             framealpha=0.85,
             edgecolor="k",

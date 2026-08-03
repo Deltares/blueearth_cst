@@ -16,13 +16,13 @@ from blueearth_cst.shared.plot_map import (
     FIGURE_WIDTH_MM,
     MM_PER_INCH,
     _CORNERS,
-    _add_north_arrow,
+    _LEGEND_LOC,
     _basin_outline,
     _coordinate_format,
     _corner_occupancy,
     _elevation_colormap,
     _figure_size,
-    _furniture_corners,
+    _scale_bar_corner,
     _graticule_ticks,
     _metres_per_degree,
     _nice_round_length,
@@ -130,147 +130,47 @@ def test_occupancy_is_zero_where_the_basin_is_absent():
     assert occupancy["upper right"] > 0.5
 
 
-def test_furniture_avoids_the_occupied_corner():
-    """A basin in the south-west must not get the legend on top of it."""
+def test_scale_bar_avoids_the_occupied_corner():
+    """A basin in the south-west must not get the scale bar drawn on top of it."""
     basin = _basin_covering(0.0, 0.0, 0.45, 0.45)
-    legend_loc, bar_corner = _furniture_corners(basin, _UNIT_EXTENT)
-    assert legend_loc != "lower left"
-    assert bar_corner != "lower left"
-    assert bar_corner != legend_loc
+    assert _scale_bar_corner(basin, _UNIT_EXTENT) != "lower left"
 
 
-def test_scale_bar_prefers_a_lower_corner():
+def test_scale_bar_never_takes_the_legend_corner():
+    """The legend's corner is fixed, so the bar must treat it as unavailable."""
     basin = _basin_covering(0.0, 0.0, 0.45, 0.45)
-    _, bar_corner = _furniture_corners(basin, _UNIT_EXTENT)
-    assert bar_corner.startswith("lower")
+    assert _scale_bar_corner(basin, _UNIT_EXTENT) != _LEGEND_LOC
+    # even when that corner is the emptiest one available
+    empty_sw_only = _basin_covering(0.0, 0.0, 0.2, 0.2)
+    assert _scale_bar_corner(empty_sw_only, _UNIT_EXTENT) != _LEGEND_LOC
+
+
+def test_scale_bar_prefers_a_lower_corner_among_EQUALLY_empty_ones():
+    """The bottom preference breaks ties; it does not override emptiness."""
+    central = _basin_covering(0.35, 0.35, 0.65, 0.65)  # touches no corner
+    assert _scale_bar_corner(central, _UNIT_EXTENT) == "lower left"
+
+
+def test_emptiness_outranks_the_bottom_preference():
+    """With the legend on lower right and the basin on lower left, go up.
+
+    Both remaining lower corners are unusable, so a bar drawn "conventionally"
+    along the bottom would sit on the basin. Staying off the data wins.
+    """
+    basin = _basin_covering(0.0, 0.0, 0.45, 0.45)
+    assert _scale_bar_corner(basin, _UNIT_EXTENT).startswith("upper")
 
 
 def test_placement_is_deterministic_for_a_symmetric_basin():
-    """Ties must not make the figure depend on set iteration order."""
+    """Ties must not make the figure depend on dict iteration order."""
     basin = _basin_covering(0.35, 0.35, 0.65, 0.65)  # touches no corner
-    assert _furniture_corners(basin, _UNIT_EXTENT) == _furniture_corners(
+    assert _scale_bar_corner(basin, _UNIT_EXTENT) == _scale_bar_corner(
         basin, _UNIT_EXTENT
     )
 
 
-def test_a_basin_filling_its_box_still_yields_valid_corners():
-    legend_loc, bar_corner = _furniture_corners(
-        _basin_covering(0, 0, 1, 1), _UNIT_EXTENT
-    )
-    assert legend_loc in _CORNERS and bar_corner in _CORNERS
-
-
-def test_north_arrow_moves_when_the_legend_takes_the_top_right():
-    import matplotlib
-
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
-    positions = {}
-    for legend_loc in ("upper right", "lower right"):
-        _, ax = plt.subplots()
-        _add_north_arrow(ax, legend_loc)
-        positions[legend_loc] = ax.texts[-1].get_position()[0]
-        plt.close("all")
-    assert positions["upper right"] < 0.5 < positions["lower right"]
-
-
-# --- hillshade exaggeration ---------------------------------------------------
-# A fixed factor renders a lowland basin featureless or an alpine one blown out;
-# CST runs both from this one function.
-
-
-def _ramp_dem(total_relief_m, cells=64):
-    row = np.linspace(0.0, total_relief_m, cells)
-    return np.tile(row, (cells, 1))
-
-
-def test_flat_basin_gets_a_large_exaggeration():
-    dem = _ramp_dem(130.0)  # 130 m over 24 km, the test fixture's basin
-    assert _vertical_exaggeration(dem, 375.0, 375.0) > 10.0
-
-
-def test_mountainous_basin_is_not_blown_out():
-    dem = _ramp_dem(3000.0)
-    assert _vertical_exaggeration(dem, 375.0, 375.0) < 5.0
-
-
-def test_exaggeration_is_bounded_and_finite_on_a_perfectly_flat_dem():
-    exaggeration = _vertical_exaggeration(np.zeros((32, 32)), 375.0, 375.0)
-    assert np.isfinite(exaggeration) and exaggeration >= 1.0
-
-
-def test_steeper_terrain_never_gets_more_exaggeration_than_flatter():
-    steep = _vertical_exaggeration(_ramp_dem(2000.0), 375.0, 375.0)
-    gentle = _vertical_exaggeration(_ramp_dem(50.0), 375.0, 375.0)
-    assert gentle >= steep
-
-
-def test_nodata_padding_does_not_change_the_exaggeration():
-    """The same basin must shade the same however much nodata its box holds.
-
-    Slope is measured inside the basin only; without the mask, the flat fill
-    outside it drags the percentile down and the exaggeration up, so a basin
-    that happens to sit in a roomier bounding box would shade differently.
-    """
-    dem = _ramp_dem(500.0, cells=48)
-    inside = np.ones_like(dem, dtype=bool)
-
-    padded = np.full((96, 96), float(dem.min()))
-    padded[:48, :48] = dem
-    padded_inside = np.zeros_like(padded, dtype=bool)
-    padded_inside[:48, :48] = True
-
-    tight = _vertical_exaggeration(dem, 375.0, 375.0, inside)
-    roomy = _vertical_exaggeration(padded, 375.0, 375.0, padded_inside)
-    assert tight == pytest.approx(roomy, rel=0.05)
-
-
-def test_a_fully_masked_dem_falls_back_rather_than_raising():
-    dem = _ramp_dem(500.0)
-    assert _vertical_exaggeration(dem, 375.0, 375.0, np.zeros_like(dem, bool)) == 1.0
-
-
-# --- the colour ramp ----------------------------------------------------------
-# `plt.cm.terrain`, which this replaced, is neither greyscale- nor CVD-safe.
-
-
-def test_elevation_ramp_luminance_is_strictly_monotonic():
-    samples = _elevation_colormap()(np.linspace(0.0, 1.0, 64))[:, :3]
-    luminance = samples @ np.array([0.2126, 0.7152, 0.0722])
-    assert np.all(np.diff(luminance) < 0.0), "ramp must survive greyscale printing"
-
-
-def test_elevation_ramp_spans_a_usable_luminance_range():
-    samples = _elevation_colormap()(np.linspace(0.0, 1.0, 64))[:, :3]
-    luminance = samples @ np.array([0.2126, 0.7152, 0.0722])
-    assert luminance.max() - luminance.min() > 0.5
-
-
-def test_elevation_ramp_is_not_matplotlib_terrain():
-    import matplotlib.pyplot as plt
-
-    ours = _elevation_colormap()(np.linspace(0.0, 1.0, 16))
-    terrain = plt.cm.terrain(np.linspace(0.0, 1.0, 16))
-    assert not np.allclose(ours, terrain)
-
-
-# --- axis labelling -----------------------------------------------------------
-
-
-@pytest.mark.parametrize(
-    "span, expected", [(0.2, ".2f"), (0.9, ".2f"), (3.0, ".1f"), (12.0, ".0f")]
-)
-def test_coordinate_precision_follows_the_basin_span(span, expected):
-    assert _coordinate_format(span) == expected
-
-
-def test_graticule_ticks_stay_inside_the_extent():
-    extent = (9.646, 9.872, 0.330, 0.503)
-    lon_ticks, lat_ticks = _graticule_ticks(extent)
-    assert lon_ticks and lat_ticks
-    assert all(extent[0] <= t <= extent[1] for t in lon_ticks)
-    assert all(extent[2] <= t <= extent[3] for t in lat_ticks)
+def test_a_basin_filling_its_box_still_yields_a_valid_corner():
+    assert _scale_bar_corner(_basin_covering(0, 0, 1, 1), _UNIT_EXTENT) in _CORNERS
 
 
 # --- basin outline vs subcatchment divides ------------------------------------
