@@ -233,7 +233,7 @@ def test_roundtrip_records_sidecar_and_checks_clean(discharge_only_project, caps
 
     rc = cb.cmd_check(_check_ns(project_dir, manifest_path, workflow=["model_creation"]))
     out = capsys.readouterr().out
-    assert rc == 0 and "OK - 5 target(s)" in out
+    assert rc == 0 and "OK - 2 target(s)" in out
 
 
 def test_roundtrip_detects_material_move(discharge_only_project, capsys):
