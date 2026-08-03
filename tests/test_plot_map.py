@@ -15,9 +15,13 @@ from matplotlib import colors
 from blueearth_cst.shared.plot_map import (
     FIGURE_WIDTH_MM,
     MM_PER_INCH,
+    _CORNERS,
+    _add_north_arrow,
     _coordinate_format,
+    _corner_occupancy,
     _elevation_colormap,
     _figure_size,
+    _furniture_corners,
     _graticule_ticks,
     _metres_per_degree,
     _nice_round_length,
@@ -89,6 +93,85 @@ def test_a_taller_basin_yields_a_taller_figure():
 def test_degenerate_extent_does_not_divide_by_zero():
     width_in, height_in = _figure_size(np.array([5.0, 5.0, 45.0, 45.0]))
     assert np.isfinite(width_in) and np.isfinite(height_in)
+
+
+@pytest.mark.parametrize("aspect", [0.05, 0.15, 3.0, 12.0])
+def test_extreme_basin_shapes_stay_inside_the_aspect_clamps(aspect):
+    """A ribbon delta and a narrow headwater must both give a usable page."""
+    width_in, height_in = _figure_size(np.array([0.0, 1.0, 0.0, aspect]))
+    assert np.isfinite(height_in) and height_in > 0
+    assert height_in < 2.0 * width_in
+
+
+# --- furniture placement ------------------------------------------------------
+# Fixed corners are only safe for the basin shape they were tuned on.
+
+
+def _basin_covering(x0, y0, x1, y1):
+    from shapely.geometry import box
+
+    return box(x0, y0, x1, y1)
+
+
+_UNIT_EXTENT = (0.0, 1.0, 0.0, 1.0)
+
+
+def test_occupancy_is_one_for_a_basin_filling_the_box():
+    occupancy = _corner_occupancy(_basin_covering(0, 0, 1, 1), _UNIT_EXTENT)
+    assert set(occupancy) == set(_CORNERS)
+    assert all(value == pytest.approx(1.0) for value in occupancy.values())
+
+
+def test_occupancy_is_zero_where_the_basin_is_absent():
+    # basin hugging the top-right only
+    occupancy = _corner_occupancy(_basin_covering(0.75, 0.75, 1, 1), _UNIT_EXTENT)
+    assert occupancy["lower left"] == pytest.approx(0.0)
+    assert occupancy["upper right"] > 0.5
+
+
+def test_furniture_avoids_the_occupied_corner():
+    """A basin in the south-west must not get the legend on top of it."""
+    basin = _basin_covering(0.0, 0.0, 0.45, 0.45)
+    legend_loc, bar_corner = _furniture_corners(basin, _UNIT_EXTENT)
+    assert legend_loc != "lower left"
+    assert bar_corner != "lower left"
+    assert bar_corner != legend_loc
+
+
+def test_scale_bar_prefers_a_lower_corner():
+    basin = _basin_covering(0.0, 0.0, 0.45, 0.45)
+    _, bar_corner = _furniture_corners(basin, _UNIT_EXTENT)
+    assert bar_corner.startswith("lower")
+
+
+def test_placement_is_deterministic_for_a_symmetric_basin():
+    """Ties must not make the figure depend on set iteration order."""
+    basin = _basin_covering(0.35, 0.35, 0.65, 0.65)  # touches no corner
+    assert _furniture_corners(basin, _UNIT_EXTENT) == _furniture_corners(
+        basin, _UNIT_EXTENT
+    )
+
+
+def test_a_basin_filling_its_box_still_yields_valid_corners():
+    legend_loc, bar_corner = _furniture_corners(
+        _basin_covering(0, 0, 1, 1), _UNIT_EXTENT
+    )
+    assert legend_loc in _CORNERS and bar_corner in _CORNERS
+
+
+def test_north_arrow_moves_when_the_legend_takes_the_top_right():
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    positions = {}
+    for legend_loc in ("upper right", "lower right"):
+        _, ax = plt.subplots()
+        _add_north_arrow(ax, legend_loc)
+        positions[legend_loc] = ax.texts[-1].get_position()[0]
+        plt.close("all")
+    assert positions["upper right"] < 0.5 < positions["lower right"]
 
 
 # --- hillshade exaggeration ---------------------------------------------------

@@ -47,6 +47,7 @@ from matplotlib.cm import ScalarMappable
 from matplotlib.ticker import MaxNLocator
 import cartopy.crs as ccrs
 from cartopy.mpl.ticker import LatitudeFormatter, LongitudeFormatter
+from shapely.geometry import box as shapely_box
 
 from blueearth_cst.shared.snake_utils import save_figure
 
@@ -72,6 +73,16 @@ _TICK_LABEL_WIDTH_IN = 0.5
 _LAYOUT_RIGHT = 0.88
 #: [x0, y0, width, height] in axes coordinates.
 _COLORBAR_INSET = (1.03, 0.0, 0.025, 1.0)
+
+#: Lower-left corner of each candidate furniture box, as a fraction of the map
+#: extent. Names are matplotlib ``legend(loc=...)`` values verbatim.
+_CORNERS = {
+    "lower left": (0.0, 0.0),
+    "lower right": (1.0 - 0.30, 0.0),
+    "upper left": (0.0, 1.0 - 0.30),
+    "upper right": (1.0 - 0.30, 1.0 - 0.30),
+}
+_CORNER_BOX = 0.30
 
 #: Keep pathological basin shapes from producing an unusable page. A basin
 #: narrower or taller than these renders with whitespace rather than being
@@ -287,7 +298,59 @@ def _add_graticule(ax, extent):
     ax.tick_params(length=2.5, pad=2.0)
 
 
-def _add_scale_bar(ax, extent):
+def _corner_occupancy(basin_geometry, extent):
+    """Fraction of each corner box the basin covers.
+
+    Fixed corners are only safe for basins shaped like the one they were tuned
+    on. A basin that fills its bounding box, or simply carries mass in the
+    south-west, gets the scale bar and the opaque legend frame drawn over its
+    own rivers.
+    """
+    lon_min, lon_max, lat_min, lat_max = extent
+    span_lon, span_lat = lon_max - lon_min, lat_max - lat_min
+    occupancy = {}
+    for name, (x_fraction, y_fraction) in _CORNERS.items():
+        corner = shapely_box(
+            lon_min + x_fraction * span_lon,
+            lat_min + y_fraction * span_lat,
+            lon_min + (x_fraction + _CORNER_BOX) * span_lon,
+            lat_min + (y_fraction + _CORNER_BOX) * span_lat,
+        )
+        area = corner.area
+        occupancy[name] = (
+            corner.intersection(basin_geometry).area / area if area > 0 else 1.0
+        )
+    return occupancy
+
+
+def _furniture_corners(basin_geometry, extent):
+    """Pick where the legend and the scale bar go: ``(legend_loc, bar_corner)``.
+
+    The BAR chooses first. It is the one with a conventional home — readers look
+    for it along the bottom — and it has the weaker fallback: a legend reads
+    fine in any corner, a scale bar in an upper one does not. So the bar takes
+    the emptiest corner, ties broken toward the bottom, and the legend takes the
+    emptiest of what is left. Letting the legend choose first is what put it in
+    the only free lower corner of a south-west basin and pushed the bar onto the
+    basin itself.
+
+    Ties are rounded before ranking so that "equally empty" really does fall
+    through to the bottom preference, and the name breaks the last tie so the
+    figure never depends on dict iteration order.
+    """
+    occupancy = _corner_occupancy(basin_geometry, extent)
+    ranked = sorted(
+        _CORNERS,
+        key=lambda name: (
+            round(occupancy[name], 3),
+            0 if name.startswith("lower") else 1,
+            name,
+        ),
+    )
+    return ranked[1], ranked[0]
+
+
+def _add_scale_bar(ax, extent, corner="lower left"):
     """A scale bar in kilometres, corrected for the basin's latitude."""
     lon_min, lon_max, lat_min, lat_max = extent
     metres_per_degree_lon, _ = _metres_per_degree(0.5 * (lat_min + lat_max))
@@ -296,8 +359,14 @@ def _add_scale_bar(ax, extent):
     length_km = _nice_round_length(0.25 * map_width_km)
     length_deg = length_km * 1000.0 / metres_per_degree_lon
 
-    x_start = lon_min + 0.06 * span_lon
-    y_bar = lat_min + 0.06 * span_lat
+    if corner.endswith("right"):
+        x_start = lon_max - 0.06 * span_lon - length_deg
+    else:
+        x_start = lon_min + 0.06 * span_lon
+    if corner.startswith("upper"):
+        y_bar = lat_max - 0.09 * span_lat
+    else:
+        y_bar = lat_min + 0.06 * span_lat
     halo = [pe.withStroke(linewidth=3.0, foreground="white")]
     ax.plot(
         [x_start, x_start + length_deg],
@@ -320,12 +389,16 @@ def _add_scale_bar(ax, extent):
     )
 
 
-def _add_north_arrow(ax):
-    """A north arrow — exactly vertical, which PlateCarree guarantees."""
+def _add_north_arrow(ax, legend_loc="lower right"):
+    """A north arrow — exactly vertical, which PlateCarree guarantees.
+
+    Sits top-right unless the legend claimed that corner.
+    """
+    x_fraction = 0.045 if legend_loc == "upper right" else 0.955
     ax.annotate(
         "N",
-        xy=(0.955, 0.94),
-        xytext=(0.955, 0.83),
+        xy=(x_fraction, 0.94),
+        xytext=(x_fraction, 0.83),
         xycoords="axes fraction",
         ha="center",
         va="bottom",
@@ -476,14 +549,18 @@ def plot_basin_map(project_dir, gauges_fn, plot_dir=None):
             patches.append(mpatches.Patch(**kwargs))
 
         # --- cartographic furniture -------------------------------------------
+        # Placed against the basin's ACTUAL footprint, not fixed corners: the
+        # fixture basin leaves both bottom corners empty, and a basin that does
+        # not would get the legend frame drawn over its own rivers.
+        legend_loc, bar_corner = _furniture_corners(gdf_bas.union_all(), extent)
         _add_graticule(ax, extent)
-        _add_scale_bar(ax, extent)
-        _add_north_arrow(ax)
+        _add_scale_bar(ax, extent, bar_corner)
+        _add_north_arrow(ax, legend_loc)
         ax.set_title("")
         ax.legend(
             handles=[*ax.get_legend_handles_labels()[0], *patches],
             title="Legend",
-            loc="lower right",
+            loc=legend_loc,
             frameon=True,
             framealpha=0.85,
             edgecolor="k",
