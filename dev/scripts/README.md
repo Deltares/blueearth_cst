@@ -41,7 +41,7 @@ re-run when a similar symptom appears. Not part of any workflow.
 
 | Script | What it does |
 |---|---|
-| [`preview_basin_map.py`](preview_basin_map.py) | Render rule 1.12's basin figure against a model already on disk, with any constant in `plot_map.py`'s TUNABLE block overridden from the command line — no WF1 run. `--list` prints every tunable with its current value and its own comment; `--set NAME=VALUE` overrides one; `--sweep NAME=V1,V2,...` renders one figure per value, named after it, for side-by-side comparison (repeat `--sweep` for the cross-product). Writes only to `--out-dir` (gitignored `.tmp/basin_map_preview` by default), never into a project's `plots/`. **A figure is verified by looking at it** — this is the tool the "figures are terminal artifacts" clause in `AGENTS.md` points at. |
+| [`preview_basin_map.py`](preview_basin_map.py) | Render rule 1.12's basin figure against a model already on disk, with any constant in `plot_map.py`'s TUNABLE block overridden from the command line — no WF1 run. `--list` prints every tunable with its current value and its own comment; `--set NAME=VALUE` overrides one; `--sweep NAME=V1,V2,...` renders one figure per value, named after it, for side-by-side comparison (repeat `--sweep` for the cross-product). Writes only to `--out-dir` (gitignored `.tmp/basin_map_preview` by default), never into a project's `plots/`. Renders against `test_case/basin_map_fixture` by default — a kept five-subcatchment model with gauges (see its README); override with `--project-dir` or `$BASIN_MAP_PROJECT_DIR`. **A figure is verified by looking at it** — this is the tool the "figures are terminal artifacts" clause in `AGENTS.md` points at. |
 
 ## Baseline / regression
 

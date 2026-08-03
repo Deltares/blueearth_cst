@@ -65,13 +65,19 @@ from blueearth_cst.shared import plot_map  # noqa: E402
 _TUNABLE_PATTERN = re.compile(r"^_?[A-Z][A-Z0-9_]*$")
 
 #: Project directories tried, in order, when neither ``--project-dir`` nor
-#: ``$BASIN_MAP_PROJECT_DIR`` is given. The first is a five-subcatchment model
-#: with a gauge layer, which exercises the divides, the gauge labels and a
-#: full-length legend; ``test_local`` has one outlet and no gauges, so it
-#: exercises far less of the figure. Both are resolved against the PRIMARY
-#: checkout as well as the current one — a worktree has no ``test_case/``.
+#: ``$BASIN_MAP_PROJECT_DIR`` is given.
+#:
+#: ``basin_map_fixture`` is a five-subcatchment model with a gauge layer, kept
+#: for exactly this purpose (its README says so, and says not to delete it): it
+#: exercises the subcatchment divides, the dissolved outline, the gauge labels
+#: and a legend long enough to size the side panel against. ``test_local`` is
+#: the fallback and has one outlet and no gauges — the figure renders, but half
+#: the tunables have nothing to act on, which is why it is not first.
+#:
+#: Both are resolved against the PRIMARY checkout as well as the current one:
+#: ``test_case/`` exists only there, so a worktree finds neither otherwise.
 _CANDIDATE_PROJECT_DIRS = (
-    ".tmp/wf1-wflow-p2-integration-v3-20260802",
+    "test_case/basin_map_fixture",
     "test_case/test_local",
 )
 
@@ -224,6 +230,23 @@ def _primary_checkout() -> Path:
     return (REPO_ROOT / common).resolve().parent
 
 
+def _warn_if_transient(path: Path) -> None:
+    """Say so when the model being rendered lives in a tree that gets swept.
+
+    Applied to the resolved path WHEREVER it came from, not just to the built-in
+    candidates: pointing ``$BASIN_MAP_PROJECT_DIR`` at a scratch run is the easy
+    thing to do, and when that tree is cleaned the resolution quietly falls
+    through to a one-outlet basin. Rendering a weaker figure without saying so is
+    how a tunable gets written off as having no effect.
+    """
+    if ".tmp" in path.parts:
+        print(
+            f"note: {path} is a transient scratch tree and may be swept. "
+            "Point at test_case/basin_map_fixture, or another project you keep.",
+            file=sys.stderr,
+        )
+
+
 def _resolve_project_dir(requested: str | None) -> Path:
     """``--project-dir``, then the env var, then the first candidate present."""
     explicit = requested or os.environ.get("BASIN_MAP_PROJECT_DIR")
@@ -231,22 +254,13 @@ def _resolve_project_dir(requested: str | None) -> Path:
         path = Path(explicit).expanduser().resolve()
         if not (path / "hydrology_model" / "staticmaps.nc").is_file():
             raise SystemExit(f"{path} does not hold a hydrology_model/staticmaps.nc")
+        _warn_if_transient(path)
         return path
     roots = dict.fromkeys((_primary_checkout(), REPO_ROOT))  # ordered, deduped
     for root, candidate in itertools.product(roots, _CANDIDATE_PROJECT_DIRS):
         path = root / candidate
         if (path / "hydrology_model" / "staticmaps.nc").is_file():
-            # A scratch tree is the RICHEST fixture available but the least
-            # durable one, and when it is swept the fallback is a one-outlet
-            # basin that exercises neither the gauge labels nor the divides.
-            # Silently rendering a weaker figure is how a knob gets written off
-            # as ineffective, so say it out loud.
-            if ".tmp" in path.parts:
-                print(
-                    f"note: {path} is a transient scratch tree and may be swept. "
-                    "Set $BASIN_MAP_PROJECT_DIR to a project you keep.",
-                    file=sys.stderr,
-                )
+            _warn_if_transient(path)
             return path.resolve()
     raise SystemExit(
         "No project directory found. Pass --project-dir <dir> (the folder "
