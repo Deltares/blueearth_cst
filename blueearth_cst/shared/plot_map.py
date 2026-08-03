@@ -92,7 +92,12 @@ PREVIEW_DPI = 400
 #: ``rc_context`` so the process-wide rcParams the other plotting rules inherit
 #: are left untouched. Raise every value together to scale the labelling; raise
 #: one to re-balance it.
-FONT_SIZE_BASE = 8.0  #: fallback for anything not named below
+#: Fallback for anything not named below — which, as the figure currently
+#: stands, is NOTHING: every text element carries its own size, the title is
+#: empty and the axes have no labels. Changing it alone therefore renders
+#: identical bytes. It matters only once a text element is added without a size
+#: of its own. Verified 2026-08-03 with ``dev/scripts/preview_basin_map.py``.
+FONT_SIZE_BASE = 8.0
 FONT_SIZE_TICK = 7.0  #: coordinate tick labels
 FONT_SIZE_LEGEND = 7.0  #: legend entries and its title
 FONT_SIZE_COLORBAR_LABEL = 8.0  #: "elevation [m a.s.l.]"
@@ -145,8 +150,6 @@ _PANEL_LEFT = 1.03
 _COLORBAR_BOTTOM = 0.5
 _COLORBAR_WIDTH = 0.025
 _COLORBAR_HEIGHT = 0.5
-#: Assembled [x0, y0, width, height] passed to ``ax.inset_axes``.
-_COLORBAR_INSET = (_PANEL_LEFT, _COLORBAR_BOTTOM, _COLORBAR_WIDTH, _COLORBAR_HEIGHT)
 _COLORBAR_OUTLINE_WIDTH = 0.5
 #: Upper and lower quantiles of the DEM the ramp spans. The upper clip stops a
 #: single high pixel flattening the rest of the basin to one colour.
@@ -312,25 +315,41 @@ Z_FURNITURE = 8
 
 _EARTH_RADIUS_M = 6_371_000.0
 
-#: Assembled rcParams. Do not edit this dict — change the FONT_SIZE_* and
-#: WIDTH_* constants above, which feed it.
-_RC_PUBLICATION = {
-    "font.size": FONT_SIZE_BASE,
-    "axes.titlesize": FONT_SIZE_BASE + 1.0,
-    "axes.labelsize": FONT_SIZE_BASE,
-    "xtick.labelsize": FONT_SIZE_TICK,
-    "ytick.labelsize": FONT_SIZE_TICK,
-    "legend.fontsize": FONT_SIZE_LEGEND,
-    "legend.title_fontsize": FONT_SIZE_LEGEND,
-    "axes.linewidth": WIDTH_AXES_SPINE,
-    "xtick.major.width": WIDTH_AXES_SPINE,
-    "ytick.major.width": WIDTH_AXES_SPINE,
-    # 42 = TrueType. The default (Type 3) is not editable in Illustrator and is
-    # rejected outright by several publishers' preflight.
-    "pdf.fonttype": 42,
-    "ps.fonttype": 42,
-    **({"font.family": FONT_FAMILY} if FONT_FAMILY else {}),
-}
+# ===========================================================================
+# DERIVED VALUES
+# ===========================================================================
+# Anything assembled FROM the block above is derived in a function, never
+# frozen into a module-level constant. A constant would snapshot its inputs at
+# import time, so overriding e.g. FONT_SIZE_BASE afterwards would change
+# nothing — which is precisely how `dev/scripts/preview_basin_map.py` drives
+# this module. Keep that property when adding a value: derive it here.
+# ---------------------------------------------------------------------------
+
+
+def _colorbar_inset():
+    """[x0, y0, width, height] for ``ax.inset_axes``, in axes fractions."""
+    return (_PANEL_LEFT, _COLORBAR_BOTTOM, _COLORBAR_WIDTH, _COLORBAR_HEIGHT)
+
+
+def _publication_rc():
+    """The rcParams the figure is drawn under, from the FONT_SIZE_*/WIDTH_*."""
+    return {
+        "font.size": FONT_SIZE_BASE,
+        "axes.titlesize": FONT_SIZE_BASE + 1.0,
+        "axes.labelsize": FONT_SIZE_BASE,
+        "xtick.labelsize": FONT_SIZE_TICK,
+        "ytick.labelsize": FONT_SIZE_TICK,
+        "legend.fontsize": FONT_SIZE_LEGEND,
+        "legend.title_fontsize": FONT_SIZE_LEGEND,
+        "axes.linewidth": WIDTH_AXES_SPINE,
+        "xtick.major.width": WIDTH_AXES_SPINE,
+        "ytick.major.width": WIDTH_AXES_SPINE,
+        # 42 = TrueType. The default (Type 3) is not editable in Illustrator and
+        # is rejected outright by several publishers' preflight.
+        "pdf.fonttype": 42,
+        "ps.fonttype": 42,
+        **({"font.family": FONT_FAMILY} if FONT_FAMILY else {}),
+    }
 
 
 def _metres_per_degree(latitude_deg):
@@ -698,7 +717,7 @@ def plot_basin_map(project_dir, gauges_fn, plot_dir=None):
     )[[0, 2, 1, 3]]
     centre_latitude = 0.5 * float(extent[2] + extent[3])
 
-    with rc_context(_RC_PUBLICATION):
+    with rc_context(_publication_rc()):
         fig = plt.figure(figsize=_figure_size(extent), layout="constrained")
         fig.get_layout_engine().set(rect=(0.0, 0.0, _LAYOUT_RIGHT, 1.0))
         ax = fig.add_subplot(projection=proj)
@@ -721,7 +740,7 @@ def plot_basin_map(project_dir, gauges_fn, plot_dir=None):
         )
         # imshow of an RGBA array carries no mappable, so the colourbar needs an
         # explicit one — the ramp is the same object either way.
-        colorbar_axes = ax.inset_axes(_COLORBAR_INSET)
+        colorbar_axes = ax.inset_axes(_colorbar_inset())
         # The side panel lives OUTSIDE the map axes but is anchored to it. Left
         # in the layout, its footprint inflates the axes' tight bbox, and
         # constrained layout answers by shrinking the map — in BOTH directions,

@@ -12,16 +12,19 @@ import numpy as np
 import pytest
 from matplotlib import colors
 
+from blueearth_cst.shared import plot_map
 from blueearth_cst.shared.plot_map import (
     FIGURE_WIDTH_MM,
     MM_PER_INCH,
     _CORNERS,
     _NORTH_ARROW_CORNER,
     _basin_outline,
+    _colorbar_inset,
     _coordinate_format,
     _corner_occupancy,
     _elevation_colormap,
     _figure_size,
+    _publication_rc,
     _scale_bar_corner,
     _graticule_ticks,
     _metres_per_degree,
@@ -258,3 +261,40 @@ def test_ramp_endpoints_are_distinguishable_under_dichromacy():
 
 def test_colormap_is_a_matplotlib_colormap():
     assert isinstance(_elevation_colormap(), colors.Colormap)
+
+
+# --- the tunable block stays live ---------------------------------------------
+# Anything assembled from the tunables is derived in a function, not frozen into
+# a module constant. A constant would snapshot its inputs at import, so
+# `dev/scripts/preview_basin_map.py` would set a value and change nothing — the
+# worst failure mode for a tuning tool, because the figure still renders.
+
+
+@pytest.fixture
+def restore_tunables():
+    """Put the module globals back, whatever a test does to them."""
+    names = ("FONT_SIZE_TICK", "WIDTH_AXES_SPINE", "_PANEL_LEFT", "_COLORBAR_WIDTH")
+    original = {name: getattr(plot_map, name) for name in names}
+    yield
+    for name, value in original.items():
+        setattr(plot_map, name, value)
+
+
+def test_rcparams_follow_a_font_size_override(restore_tunables):
+    plot_map.FONT_SIZE_TICK = 99.0
+    plot_map.WIDTH_AXES_SPINE = 3.0
+    assert _publication_rc()["xtick.labelsize"] == 99.0
+    assert _publication_rc()["ytick.labelsize"] == 99.0
+    assert _publication_rc()["axes.linewidth"] == 3.0
+
+
+def test_colorbar_inset_follows_the_panel_position(restore_tunables):
+    plot_map._PANEL_LEFT = 1.5
+    plot_map._COLORBAR_WIDTH = 0.1
+    left, _, width, _ = _colorbar_inset()
+    assert (left, width) == (1.5, 0.1)
+
+
+def test_the_pdf_stays_truetype_whatever_the_sizes_are():
+    """Type 3 is rejected by several publishers' preflight; 42 is TrueType."""
+    assert _publication_rc()["pdf.fonttype"] == 42

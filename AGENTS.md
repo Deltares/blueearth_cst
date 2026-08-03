@@ -196,6 +196,13 @@ a figure-only change — verify it by *rendering it and looking at it*, which is
 the only check that can actually catch a bad figure. `check_baseline.py` excludes
 figure targets by default (`--include-figures` restores them).
 
+For the basin map, render it WITHOUT a WF1 run:
+`dev/scripts/preview_basin_map.py` drives `plot_map.py`'s tunable block from the
+command line against a model already on disk (`--list`, `--set NAME=VALUE`,
+`--sweep NAME=V1,V2,...`). Anything assembled from those tunables must be derived
+in a function, not frozen into a module constant — a constant snapshots its
+inputs at import, so the override would silently do nothing.
+
 **The trap:** "I changed it for a figure" is not the same as "it is a
 figure-only change". A shared helper edited in service of a plot
 (`shared/snake_utils.py`, `shared/plot_utils.py`) is a contract surface with
