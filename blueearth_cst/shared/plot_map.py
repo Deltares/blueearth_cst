@@ -44,6 +44,7 @@ import numpy as np
 import xarray as xr
 from matplotlib import colors, rc_context
 from matplotlib.cm import ScalarMappable
+from matplotlib.lines import Line2D
 from matplotlib.ticker import MaxNLocator
 import cartopy.crs as ccrs
 from cartopy.mpl.ticker import LatitudeFormatter, LongitudeFormatter
@@ -410,6 +411,19 @@ def _add_north_arrow(ax, legend_loc="lower right"):
     )
 
 
+def _basin_outline(gdf_bas):
+    """The basin's OUTER boundary, dissolved to a single polygon.
+
+    ``mod.basins`` returns one polygon PER SUBCATCHMENT once gauges are burned
+    into the subcatchment map — four for a four-gauge model, one for a model
+    with no user gauges. Drawing them all at boundary weight makes an internal
+    divide indistinguishable from the basin outline, which is the one line on
+    this figure a reader has to be able to trust. Observed 2026-08-03 on a real
+    four-gauge project; the single-basin fixture cannot surface it.
+    """
+    return gdf_bas.dissolve()
+
+
 def _river_linewidths(gdf_riv):
     """Stream order rescaled to publication line weights.
 
@@ -491,7 +505,16 @@ def plot_basin_map(project_dir, gauges_fn, plot_dir=None):
             zorder=3,
             label="river",
         )
-        gdf_bas.boundary.plot(ax=ax, color="k", linewidth=0.7, zorder=6)
+        # Subcatchment divides first and lighter, then the outline over them, so
+        # the two are never confusable at the same weight.
+        subcatchment_handles = []
+        if len(gdf_bas) > 1:
+            divide_style = dict(color="0.45", linewidth=0.35, linestyle=(0, (4, 2)))
+            gdf_bas.boundary.plot(ax=ax, zorder=5, **divide_style)
+            subcatchment_handles.append(
+                Line2D([], [], label="subcatchments", **divide_style)
+            )
+        _basin_outline(gdf_bas).boundary.plot(ax=ax, color="k", linewidth=0.9, zorder=6)
 
         # Resolved against what the model actually holds; warns loudly (never
         # skips silently) when output_locations is set but no layer matches.
@@ -558,7 +581,11 @@ def plot_basin_map(project_dir, gauges_fn, plot_dir=None):
         _add_north_arrow(ax, legend_loc)
         ax.set_title("")
         ax.legend(
-            handles=[*ax.get_legend_handles_labels()[0], *patches],
+            handles=[
+                *ax.get_legend_handles_labels()[0],
+                *subcatchment_handles,
+                *patches,
+            ],
             title="Legend",
             loc=legend_loc,
             frameon=True,

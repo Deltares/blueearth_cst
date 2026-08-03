@@ -17,6 +17,7 @@ from blueearth_cst.shared.plot_map import (
     MM_PER_INCH,
     _CORNERS,
     _add_north_arrow,
+    _basin_outline,
     _coordinate_format,
     _corner_occupancy,
     _elevation_colormap,
@@ -270,6 +271,45 @@ def test_graticule_ticks_stay_inside_the_extent():
     assert lon_ticks and lat_ticks
     assert all(extent[0] <= t <= extent[1] for t in lon_ticks)
     assert all(extent[2] <= t <= extent[3] for t in lat_ticks)
+
+
+# --- basin outline vs subcatchment divides ------------------------------------
+# `mod.basins` returns one polygon per SUBCATCHMENT once gauges are burned in.
+
+
+def _basins_frame(*boxes):
+    import geopandas as gpd
+    from shapely.geometry import box
+
+    return gpd.GeoDataFrame(
+        {"value": list(range(len(boxes)))},
+        geometry=[box(*bounds) for bounds in boxes],
+        crs="EPSG:4326",
+    )
+
+
+def test_a_multi_gauge_model_dissolves_to_one_outline():
+    """Four gauge subcatchments must still draw ONE basin boundary."""
+    four = _basins_frame(
+        (0, 0, 1, 1), (1, 0, 2, 1), (0, 1, 1, 2), (1, 1, 2, 2)
+    )
+    assert len(four) == 4
+    assert len(_basin_outline(four)) == 1
+
+
+def test_the_dissolved_outline_drops_the_internal_divides():
+    two = _basins_frame((0, 0, 1, 1), (1, 0, 2, 1))
+    outline = _basin_outline(two).geometry.iloc[0]
+    # the shared edge at x == 1 is interior to the union, so the ring is the
+    # 0..2 rectangle rather than the two squares' perimeters
+    assert outline.bounds == (0.0, 0.0, 2.0, 1.0)
+    assert outline.boundary.length == pytest.approx(6.0)
+
+
+def test_a_single_basin_survives_the_dissolve_unchanged():
+    one = _basins_frame((0, 0, 1, 1))
+    assert len(_basin_outline(one)) == 1
+    assert _basin_outline(one).geometry.iloc[0].bounds == (0.0, 0.0, 1.0, 1.0)
 
 
 # --- river line weights -------------------------------------------------------
