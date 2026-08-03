@@ -52,11 +52,61 @@ from shapely.geometry import box as shapely_box
 
 from blueearth_cst.shared.snake_utils import save_figure
 
+# ===========================================================================
+# TUNABLE CONSTANTS
+# ===========================================================================
+# Everything a reader might want to adjust lives in this block; nothing below
+# it hardcodes a size, weight, colour or position. Values are grouped by what
+# they control, and each says what it affects so a change can be made without
+# reading the drawing code.
+#
+# Two rules the whole block depends on, worth knowing before changing anything:
+#
+# * Lengths are in PHYSICAL units (mm / inches / points), not pixels. The
+#   figure is built at its final printed size, so a font size is the size it
+#   will be on the page. Raising PREVIEW_DPI makes the PNG bigger, NOT the type
+#   smaller.
+# * Positions inside the map are AXES FRACTIONS (0 = left/bottom, 1 =
+#   right/top) and can exceed 1 to sit outside the map — that is how the side
+#   panel works. Positions of map furniture drawn in data space (the scale bar)
+#   are fractions of the map's own extent, so they hold for any basin.
+# ---------------------------------------------------------------------------
+
+# --- page and export -------------------------------------------------------
+
 #: Figure width in MILLIMETRES — converted once, here, and never re-guessed
 #: downstream. 180 mm is the double-column width that Elsevier (190), AGU (190)
-#: and Copernicus (170) all accept without downscaling.
+#: and Copernicus (170) all accept without downscaling. Set this to your target
+#: journal's column width; every other size is chosen to work at it.
 FIGURE_WIDTH_MM = 180.0
 MM_PER_INCH = 25.4
+
+#: Raster preview resolution. The PDF is the deliverable; the PNG is what the
+#: workflow's other consumers (baseline fingerprint, quick review) read. 300 is
+#: the usual journal minimum for raster figures.
+PREVIEW_DPI = 400
+
+# --- typography ------------------------------------------------------------
+
+#: Type sizes in POINTS at the printed width above. Applied through
+#: ``rc_context`` so the process-wide rcParams the other plotting rules inherit
+#: are left untouched. Raise every value together to scale the labelling; raise
+#: one to re-balance it.
+FONT_SIZE_BASE = 8.0  #: fallback for anything not named below
+FONT_SIZE_TICK = 7.0  #: coordinate tick labels
+FONT_SIZE_LEGEND = 7.0  #: legend entries and its title
+FONT_SIZE_COLORBAR_LABEL = 8.0  #: "elevation [m a.s.l.]"
+FONT_SIZE_GAUGE_LABEL = 5.5  #: the wflow_id beside each gauge marker
+FONT_SIZE_SCALE_BAR = 6.0  #: the 0 / 2.5 / 5 km numbers
+FONT_SIZE_NORTH_ARROW = 7.5  #: the "N"
+
+#: Font family. ``None`` keeps matplotlib's default (DejaVu Sans, which embeds
+#: cleanly in the PDF). Set e.g. ``"Arial"`` or ``["Helvetica", "Arial"]`` to
+#: match a manuscript — but check the exported PDF, because a missing family
+#: falls back SILENTLY.
+FONT_FAMILY = None
+
+# --- layout ----------------------------------------------------------------
 
 #: Vertical room (inches) constrained layout needs for the x tick labels and the
 #: axes furniture, on top of the map panel itself. Measured need is ~0.16 in of
@@ -64,7 +114,8 @@ MM_PER_INCH = 25.4
 #: space above and below an aspect-locked map.
 _FURNITURE_HEIGHT_IN = 0.32
 
-#: Horizontal room (inches) the y tick labels take on the left.
+#: Horizontal room (inches) the y tick labels take on the left. Raise it if a
+#: basin's coordinates need more decimal places than the default formatting.
 _TICK_LABEL_WIDTH_IN = 0.5
 
 #: Constrained layout owns the figure only up to here; the strip to the right is
@@ -73,55 +124,155 @@ _TICK_LABEL_WIDTH_IN = 0.5
 #: ``fig.colorbar(ax=ax)`` sizes to the CELL, which is what made the bar overhang
 #: the map top and bottom. Both panel items are therefore anchored in AXES
 #: coordinates (so they track the map exactly) and this rect reserves the room.
-#: Widened from 0.88 when the legend moved out of the map to join the colourbar.
+#: LOWER it to widen the panel (a longer legend entry needs more), RAISE it to
+#: give the map more width.
 _LAYOUT_RIGHT = 0.78
-
-#: Left edge of the side panel, in axes coordinates. The colourbar and the
-#: legend BOTH start here — one value, so they cannot drift out of alignment.
-_PANEL_LEFT = 1.03
-#: Colourbar [x0, y0, width, height] in axes coordinates: half height, anchored
-#: to the top of the panel.
-_COLORBAR_INSET = (_PANEL_LEFT, 0.5, 0.025, 0.5)
-#: Top of the legend, just below the colourbar's lower end.
-_LEGEND_TOP = 0.44
-
-#: The north arrow's corner, kept clear of the scale bar. With the legend now
-#: outside the map, this is the only reserved corner left.
-_NORTH_ARROW_CORNER = "upper right"
-
-#: Alternating filled/open segments, the conventional cartographic scale bar.
-_SCALE_BAR_SEGMENTS = 4
-#: Bar height as a fraction of the map's latitude span.
-_SCALE_BAR_HEIGHT = 0.011
-
-#: Gauge marker label. ``wflow_id`` is what the wflow output columns
-#: (``Q_101``) and the observation file's rows are keyed on, so it is the label
-#: that lets a reader join this map to a hydrograph. ``station_name`` is longer,
-#: collides more, and answers a question the caption can answer instead.
-_GAUGE_LABEL_COLUMN = "wflow_id"
-
-#: Lower-left corner of each candidate furniture box, as a fraction of the map
-#: extent. Names are matplotlib ``legend(loc=...)`` values verbatim.
-_CORNERS = {
-    "lower left": (0.0, 0.0),
-    "lower right": (1.0 - 0.30, 0.0),
-    "upper left": (0.0, 1.0 - 0.30),
-    "upper right": (1.0 - 0.30, 1.0 - 0.30),
-}
-_CORNER_BOX = 0.30
 
 #: Keep pathological basin shapes from producing an unusable page. A basin
 #: narrower or taller than these renders with whitespace rather than being
 #: squashed or running off the figure.
 _MIN_MAP_ASPECT, _MAX_MAP_ASPECT = 0.45, 1.45
 
-#: Raster preview resolution. The PDF is the deliverable; the PNG is what the
-#: workflow's other consumers (baseline fingerprint, quick review) read.
-PREVIEW_DPI = 400
+# --- side panel: colourbar and legend --------------------------------------
 
-#: Hillshade illumination: light from the north-west at 45 deg, the convention
-#: readers' relief perception is calibrated to (lit NW = ridge, shaded SE =
-#: valley; reverse it and terrain inverts).
+#: Left edge of the side panel, in axes fractions (>1 = outside the map). The
+#: colourbar and the legend BOTH start here — ONE value, so they cannot drift
+#: out of alignment. Raise it to push the panel further from the map.
+_PANEL_LEFT = 1.03
+
+#: Colourbar geometry in axes fractions: (bottom, width, height). Height 0.5
+#: spans the upper half of the map's height; the legend occupies the rest.
+_COLORBAR_BOTTOM = 0.5
+_COLORBAR_WIDTH = 0.025
+_COLORBAR_HEIGHT = 0.5
+#: Assembled [x0, y0, width, height] passed to ``ax.inset_axes``.
+_COLORBAR_INSET = (_PANEL_LEFT, _COLORBAR_BOTTOM, _COLORBAR_WIDTH, _COLORBAR_HEIGHT)
+_COLORBAR_OUTLINE_WIDTH = 0.5
+#: Upper and lower quantiles of the DEM the ramp spans. The upper clip stops a
+#: single high pixel flattening the rest of the basin to one colour.
+_ELEVATION_CLIP_QUANTILES = (0.0, 0.98)
+
+#: Top of the legend box, in axes fractions — just below the colourbar's lower
+#: end (``_COLORBAR_BOTTOM``). Lower it to open a gap between the two.
+_LEGEND_TOP = 0.44
+_LEGEND_FRAME_ALPHA = 0.85  #: 1.0 = opaque, 0.0 = no fill
+_LEGEND_FRAME_WIDTH = 0.5  #: border weight, points
+_LEGEND_BORDER_PAD = 0.4  #: padding inside the frame, in font units
+_LEGEND_HANDLE_LENGTH = 1.4  #: length of the sample line/marker, in font units
+_LEGEND_TITLE = "Legend"  #: set to None to drop the title row
+
+# --- colours ---------------------------------------------------------------
+
+#: One place for every hue on the figure. The blue is used for BOTH the rivers
+#: and the user's gauges, which is deliberate: it ties a gauge to the network it
+#: sits on and separates it from the model's own outlets, which stay black.
+COLOR_RIVER = "#2c6fad"
+COLOR_GAUGE = "#2c6fad"
+COLOR_OUTLET = "k"
+COLOR_BASIN_OUTLINE = "k"
+COLOR_SUBCATCHMENT = "0.45"
+COLOR_GRATICULE = "0.4"
+COLOR_MARKER_EDGE = "white"
+#: Halo drawn behind furniture text so it stays legible over any terrain.
+COLOR_HALO = "white"
+
+#: Waterbody fills, as (facecolor, edgecolor). Keyed by the staticgeoms layer.
+WATERBODY_COLORS = {
+    "lakes": ("#a8d0e6", "#3d5a6c"),
+    "reservoirs": ("#2c6fad", "#173d5e"),
+    "glaciers": ("#d9d9d9", "#8c8c8c"),
+}
+
+#: A monotonic-lightness elevation ramp, hand-built rather than imported: the
+#: perceptually-uniform terrain colormaps (cmcrameri, cmocean) are not in the
+#: pixi env and adding a dependency for one figure is not warranted. Lightness
+#: falls monotonically from low to high ground, so the ramp survives greyscale
+#: printing AND every dichromacy — the two failure modes `terrain` had. Replace
+#: it only with another ramp whose lightness is monotonic; a test enforces that.
+_DEM_ANCHORS = ("#f6f2ea", "#e3d5ba", "#c9aa7d", "#a07f52", "#6f5533", "#46351f")
+
+# --- line weights (points) -------------------------------------------------
+
+#: River width scales with Strahler stream order, between these two bounds. The
+#: minimum is what a headwater gets, the maximum the trunk — widen the gap for a
+#: more dramatic network, narrow it for a flatter, more uniform one.
+RIVER_WIDTH_MIN = 0.2
+RIVER_WIDTH_MAX = 1.2
+#: Used when every river shares one stream order, so there is nothing to scale.
+RIVER_WIDTH_UNIFORM = 0.6
+
+WIDTH_BASIN_OUTLINE = 0.9  #: the dissolved outer boundary — the map's key line
+WIDTH_SUBCATCHMENT = 0.35  #: internal divides, deliberately much lighter
+WIDTH_WATERBODY_EDGE = 0.5
+WIDTH_MARKER_EDGE = 0.4
+WIDTH_AXES_SPINE = 0.6
+WIDTH_GRATICULE = 0.3
+#: Dash pattern for the subcatchment divides, matplotlib ``(offset, (on, off))``.
+DASH_SUBCATCHMENT = (0, (4, 2))
+#: Halo stroke widths, points. The halo must exceed the line it protects.
+HALO_WIDTH_TEXT = 2.5
+HALO_WIDTH_GAUGE_LABEL = 1.8
+
+# --- markers ---------------------------------------------------------------
+
+MARKER_SHAPE = "d"  #: diamond, for both outlets and gauges
+MARKER_SIZE = 18  #: matplotlib points-squared, as geopandas expects
+#: Offset of a gauge's label from its marker, in points (x, y).
+GAUGE_LABEL_OFFSET = (2.5, 2.5)
+
+# --- graticule -------------------------------------------------------------
+
+GRATICULE_ALPHA = 0.5
+GRATICULE_LINESTYLE = ":"
+#: Upper bound on tick count per axis; the locator picks round values under it.
+GRATICULE_MAX_TICKS = 6
+TICK_LENGTH = 2.5  #: points
+TICK_PAD = 2.0  #: gap between tick and label, points
+
+# --- scale bar -------------------------------------------------------------
+
+#: Alternating filled/open segments, the conventional cartographic scale bar.
+#: Must be EVEN for the midpoint label to land on a segment boundary.
+_SCALE_BAR_SEGMENTS = 4
+#: Bar height as a fraction of the map's latitude span.
+_SCALE_BAR_HEIGHT = 0.011
+#: Target bar length as a fraction of the map width, before rounding to a 1/2/5
+#: value. Raise it for a longer, more precisely readable bar.
+_SCALE_BAR_WIDTH_FRACTION = 0.25
+#: Inset of the bar from its chosen corner, as a fraction of the map extent.
+_SCALE_BAR_INSET = 0.06
+#: Gap between the bar and its numbers, as a fraction of the latitude span.
+_SCALE_BAR_LABEL_GAP = 0.008
+_SCALE_BAR_EDGE_WIDTH = 0.5
+
+# --- north arrow -----------------------------------------------------------
+
+#: Arrow position in axes fractions: (x, tip y, tail y). The "N" sits at the
+#: tail. Exactly vertical is correct here because PlateCarree's north is up.
+_NORTH_ARROW_POSITION = (0.955, 0.94, 0.83)
+_NORTH_ARROW_STYLE = "-|>"
+_NORTH_ARROW_WIDTH = 0.8
+#: The arrow's corner, kept clear of the scale bar. With the legend in the side
+#: panel, this is the only reserved corner left on the map.
+_NORTH_ARROW_CORNER = "upper right"
+
+# --- furniture placement ---------------------------------------------------
+
+#: Lower-left corner of each candidate furniture box, as a fraction of the map
+#: extent. Names are matplotlib ``legend(loc=...)`` values verbatim.
+_CORNER_BOX = 0.30
+_CORNERS = {
+    "lower left": (0.0, 0.0),
+    "lower right": (1.0 - _CORNER_BOX, 0.0),
+    "upper left": (0.0, 1.0 - _CORNER_BOX),
+    "upper right": (1.0 - _CORNER_BOX, 1.0 - _CORNER_BOX),
+}
+
+# --- hillshade -------------------------------------------------------------
+
+#: Illumination: light from the north-west at 45 deg, the convention readers'
+#: relief perception is calibrated to (lit NW = ridge, shaded SE = valley;
+#: reverse it and terrain visually inverts).
 _AZIMUTH_DEG, _ALTITUDE_DEG = 315.0, 45.0
 
 #: Target 90th-percentile terrain slope AFTER exaggeration, ~19 deg — steep
@@ -129,36 +280,56 @@ _AZIMUTH_DEG, _ALTITUDE_DEG = 315.0, 45.0
 #: exaggeration factor is derived per basin: CST runs on lowland deltas and on
 #: Himalayan headwaters from the same code, and any FIXED factor renders one of
 #: them featureless (a flat basin at exag 3) or blown out (an alpine basin at
-#: exag 200).
+#: exag 200). Raise for more dramatic relief, lower for a flatter, calmer map.
 _TARGET_SLOPE = 0.35
 _MAX_VERT_EXAG = 500.0
+#: How the ramp and the shading combine. "soft" keeps colour; "overlay" is
+#: higher contrast; "hsv" is the most dramatic and the least faithful.
+_SHADE_BLEND_MODE = "soft"
+
+# --- data / labels ---------------------------------------------------------
+
+#: Gauge marker label. ``wflow_id`` is what the wflow output columns
+#: (``Q_101``) and the observation file's rows are keyed on, so it is the label
+#: that lets a reader join this map to a hydrograph. ``station_name`` is longer,
+#: collides more, and answers a question the caption can answer instead — swap
+#: it here if the names matter more than the join.
+_GAUGE_LABEL_COLUMN = "wflow_id"
+
+#: Padding around the model's own bounding box, in degrees, so the basin does
+#: not touch the frame.
+_EXTENT_BUFFER_DEG = 0.02
+
+#: Drawing order. Every artist names one of these rather than a bare number, so
+#: the stack is legible and reorderable in one place.
+Z_RELIEF = 1
+Z_RIVER = 3
+Z_WATERBODY = 4
+Z_SUBCATCHMENT = 5
+Z_BASIN_OUTLINE = 6
+Z_MARKER = 7
+Z_FURNITURE = 8
 
 _EARTH_RADIUS_M = 6_371_000.0
 
-#: A monotonic-lightness elevation ramp, hand-built rather than imported: the
-#: perceptually-uniform terrain colormaps (cmcrameri, cmocean) are not in the
-#: pixi env and adding a dependency for one figure is not warranted. Lightness
-#: falls monotonically from low to high ground, so the ramp survives greyscale
-#: printing AND every dichromacy — the two failure modes `terrain` had.
-_DEM_ANCHORS = ("#f6f2ea", "#e3d5ba", "#c9aa7d", "#a07f52", "#6f5533", "#46351f")
-
-#: Publication typography and line weights, applied through rc_context so the
-#: process-wide rcParams the other plotting rules inherit are left untouched.
+#: Assembled rcParams. Do not edit this dict — change the FONT_SIZE_* and
+#: WIDTH_* constants above, which feed it.
 _RC_PUBLICATION = {
-    "font.size": 8.0,
-    "axes.titlesize": 9.0,
-    "axes.labelsize": 8.0,
-    "xtick.labelsize": 7.0,
-    "ytick.labelsize": 7.0,
-    "legend.fontsize": 7.0,
-    "legend.title_fontsize": 7.0,
-    "axes.linewidth": 0.6,
-    "xtick.major.width": 0.6,
-    "ytick.major.width": 0.6,
+    "font.size": FONT_SIZE_BASE,
+    "axes.titlesize": FONT_SIZE_BASE + 1.0,
+    "axes.labelsize": FONT_SIZE_BASE,
+    "xtick.labelsize": FONT_SIZE_TICK,
+    "ytick.labelsize": FONT_SIZE_TICK,
+    "legend.fontsize": FONT_SIZE_LEGEND,
+    "legend.title_fontsize": FONT_SIZE_LEGEND,
+    "axes.linewidth": WIDTH_AXES_SPINE,
+    "xtick.major.width": WIDTH_AXES_SPINE,
+    "ytick.major.width": WIDTH_AXES_SPINE,
     # 42 = TrueType. The default (Type 3) is not editable in Illustrator and is
     # rejected outright by several publishers' preflight.
     "pdf.fonttype": 42,
     "ps.fonttype": 42,
+    **({"font.family": FONT_FAMILY} if FONT_FAMILY else {}),
 }
 
 
@@ -238,7 +409,7 @@ def _shaded_relief(da, cmap, norm, latitude_deg):
         filled,
         cmap=cmap,
         norm=norm,
-        blend_mode="soft",
+        blend_mode=_SHADE_BLEND_MODE,
         dx=dx_metres,
         dy=dy_metres,
         vert_exag=_vertical_exaggeration(filled, dx_metres, dy_metres, inside_basin),
@@ -275,7 +446,7 @@ def _coordinate_format(span_degrees):
     return ".1f" if span_degrees > 1.0 else ".2f"
 
 
-def _graticule_ticks(extent, max_ticks=6):
+def _graticule_ticks(extent, max_ticks=GRATICULE_MAX_TICKS):
     """Shared tick positions for the grid LINES and the axis LABELS."""
     lon_min, lon_max, lat_min, lat_max = extent
     locator = MaxNLocator(nbins=max_ticks, steps=[1, 2, 2.5, 5, 10])
@@ -302,10 +473,10 @@ def _add_graticule(ax, extent):
         xlocs=lon_ticks,
         ylocs=lat_ticks,
         draw_labels=False,
-        linewidth=0.3,
-        color="0.4",
-        alpha=0.5,
-        linestyle=":",
+        linewidth=WIDTH_GRATICULE,
+        color=COLOR_GRATICULE,
+        alpha=GRATICULE_ALPHA,
+        linestyle=GRATICULE_LINESTYLE,
     )
     plate_carree = ccrs.PlateCarree()
     ax.set_xticks(lon_ticks, crs=plate_carree)
@@ -321,7 +492,7 @@ def _add_graticule(ax, extent):
     # them — the panel grid and the "longitude [degree east]" labels this
     # replaces were the two things making the old figure read as a plot of
     # coordinates rather than a map.
-    ax.tick_params(length=2.5, pad=2.0)
+    ax.tick_params(length=TICK_LENGTH, pad=TICK_PAD)
 
     # An L-frame on the labelled sides only. A GeoAxes draws its box through the
     # single ``geo`` spine, so hiding that is what lets the four ordinary spines
@@ -333,8 +504,8 @@ def _add_graticule(ax, extent):
     for side in ("left", "bottom"):
         spine = ax.spines[side]
         spine.set_visible(True)
-        spine.set_linewidth(0.6)
-        spine.set_color("k")
+        spine.set_linewidth(WIDTH_AXES_SPINE)
+        spine.set_color(COLOR_BASIN_OUTLINE)
 
 
 def _corner_occupancy(basin_geometry, extent):
@@ -391,33 +562,33 @@ def _add_scale_bar(ax, extent, corner="lower left"):
     metres_per_degree_lon, _ = _metres_per_degree(0.5 * (lat_min + lat_max))
     span_lon, span_lat = lon_max - lon_min, lat_max - lat_min
     map_width_km = span_lon * metres_per_degree_lon / 1000.0
-    length_km = _nice_round_length(0.25 * map_width_km)
+    length_km = _nice_round_length(_SCALE_BAR_WIDTH_FRACTION * map_width_km)
     length_deg = length_km * 1000.0 / metres_per_degree_lon
 
     if corner.endswith("right"):
-        x_start = lon_max - 0.06 * span_lon - length_deg
+        x_start = lon_max - _SCALE_BAR_INSET * span_lon - length_deg
     else:
-        x_start = lon_min + 0.06 * span_lon
+        x_start = lon_min + _SCALE_BAR_INSET * span_lon
     if corner.startswith("upper"):
-        y_bar = lat_max - 0.10 * span_lat
+        y_bar = lat_max - (_SCALE_BAR_INSET + 0.04) * span_lat
     else:
-        y_bar = lat_min + 0.06 * span_lat
+        y_bar = lat_min + _SCALE_BAR_INSET * span_lat
 
     # Alternating filled and open segments — the conventional bar, which lets a
     # reader step off a distance rather than only read the total.
     height = _SCALE_BAR_HEIGHT * span_lat
     segment_deg = length_deg / _SCALE_BAR_SEGMENTS
-    halo = [pe.withStroke(linewidth=2.5, foreground="white")]
+    halo = [pe.withStroke(linewidth=HALO_WIDTH_TEXT, foreground=COLOR_HALO)]
     for index in range(_SCALE_BAR_SEGMENTS):
         ax.add_patch(
             mpatches.Rectangle(
                 (x_start + index * segment_deg, y_bar),
                 segment_deg,
                 height,
-                facecolor="k" if index % 2 == 0 else "white",
-                edgecolor="k",
-                linewidth=0.5,
-                zorder=8,
+                facecolor=COLOR_BASIN_OUTLINE if index % 2 == 0 else "white",
+                edgecolor=COLOR_BASIN_OUTLINE,
+                linewidth=_SCALE_BAR_EDGE_WIDTH,
+                zorder=Z_FURNITURE,
             )
         )
 
@@ -428,12 +599,12 @@ def _add_scale_bar(ax, extent, corner="lower left"):
         value = step * segment_km
         ax.text(
             x_start + step * segment_deg,
-            y_bar + height + 0.008 * span_lat,
+            y_bar + height + _SCALE_BAR_LABEL_GAP * span_lat,
             f"{value:g}" if step < _SCALE_BAR_SEGMENTS else f"{value:g} km",
             ha="center",
             va="bottom",
-            fontsize=6.0,
-            zorder=8,
+            fontsize=FONT_SIZE_SCALE_BAR,
+            zorder=Z_FURNITURE,
             path_effects=halo,
         )
 
@@ -444,19 +615,24 @@ def _add_north_arrow(ax):
     Top-right is always free: the legend is pinned bottom-right and the scale
     bar never takes an upper corner unless both lower ones are occupied.
     """
-    x_fraction = 0.955
+    x_fraction, tip_y, tail_y = _NORTH_ARROW_POSITION
     ax.annotate(
         "N",
-        xy=(x_fraction, 0.94),
-        xytext=(x_fraction, 0.83),
+        xy=(x_fraction, tip_y),
+        xytext=(x_fraction, tail_y),
         xycoords="axes fraction",
         ha="center",
         va="bottom",
-        fontsize=7.5,
+        fontsize=FONT_SIZE_NORTH_ARROW,
         fontweight="bold",
-        zorder=8,
-        arrowprops=dict(arrowstyle="-|>", facecolor="k", edgecolor="k", linewidth=0.8),
-        path_effects=[pe.withStroke(linewidth=2.5, foreground="white")],
+        zorder=Z_FURNITURE,
+        arrowprops=dict(
+            arrowstyle=_NORTH_ARROW_STYLE,
+            facecolor=COLOR_BASIN_OUTLINE,
+            edgecolor=COLOR_BASIN_OUTLINE,
+            linewidth=_NORTH_ARROW_WIDTH,
+        ),
+        path_effects=[pe.withStroke(linewidth=HALO_WIDTH_TEXT, foreground=COLOR_HALO)],
     )
 
 
@@ -482,8 +658,9 @@ def _river_linewidths(gdf_riv):
     order = gdf_riv["strord"].astype(float).to_numpy()
     lowest, highest = float(np.nanmin(order)), float(np.nanmax(order))
     if not np.isfinite(lowest) or highest <= lowest:
-        return np.full(order.shape, 0.6)
-    return 0.2 + 1.0 * (order - lowest) / (highest - lowest)
+        return np.full(order.shape, RIVER_WIDTH_UNIFORM)
+    span = RIVER_WIDTH_MAX - RIVER_WIDTH_MIN
+    return RIVER_WIDTH_MIN + span * (order - lowest) / (highest - lowest)
 
 
 def plot_basin_map(project_dir, gauges_fn, plot_dir=None):
@@ -516,7 +693,9 @@ def plot_basin_map(project_dir, gauges_fn, plot_dir=None):
     geoms = mod.geoms.data
     # we assume the model maps are in the geographic CRS EPSG:4326
     proj = ccrs.PlateCarree()
-    extent = np.array(da.raster.box.buffer(0.02).total_bounds)[[0, 2, 1, 3]]
+    extent = np.array(
+        da.raster.box.buffer(_EXTENT_BUFFER_DEG).total_bounds
+    )[[0, 2, 1, 3]]
     centre_latitude = 0.5 * float(extent[2] + extent[3])
 
     with rc_context(_RC_PUBLICATION):
@@ -526,7 +705,10 @@ def plot_basin_map(project_dir, gauges_fn, plot_dir=None):
         ax.set_extent(extent, crs=proj)
 
         # --- elevation, as shaded relief -------------------------------------
-        vmin, vmax = (float(value) for value in da.quantile([0.0, 0.98]).compute())
+        vmin, vmax = (
+            float(value)
+            for value in da.quantile(list(_ELEVATION_CLIP_QUANTILES)).compute()
+        )
         cmap = _elevation_colormap()
         norm = colors.Normalize(vmin=vmin, vmax=vmax)
         _shaded_relief(da, cmap, norm, centre_latitude).plot.imshow(
@@ -534,7 +716,7 @@ def plot_basin_map(project_dir, gauges_fn, plot_dir=None):
             x=da.raster.x_dim,
             y=da.raster.y_dim,
             transform=proj,
-            zorder=1,
+            zorder=Z_RELIEF,
             add_labels=False,
         )
         # imshow of an RGBA array carries no mappable, so the colourbar needs an
@@ -549,27 +731,39 @@ def plot_basin_map(project_dir, gauges_fn, plot_dir=None):
         # twice.
         colorbar_axes.set_in_layout(False)
         colorbar = fig.colorbar(ScalarMappable(norm=norm, cmap=cmap), cax=colorbar_axes)
-        colorbar.set_label("elevation [m a.s.l.]")
-        colorbar.outline.set_linewidth(0.5)
+        colorbar.set_label("elevation [m a.s.l.]", fontsize=FONT_SIZE_COLORBAR_LABEL)
+        colorbar.outline.set_linewidth(_COLORBAR_OUTLINE_WIDTH)
+        colorbar_axes.tick_params(
+            labelsize=FONT_SIZE_TICK, length=TICK_LENGTH, pad=TICK_PAD
+        )
 
         # --- hydrography ------------------------------------------------------
         gdf_riv.plot(
             ax=ax,
             linewidth=_river_linewidths(gdf_riv),
-            color="#2c6fad",
-            zorder=3,
+            color=COLOR_RIVER,
+            zorder=Z_RIVER,
             label="river",
         )
         # Subcatchment divides first and lighter, then the outline over them, so
         # the two are never confusable at the same weight.
         subcatchment_handles = []
         if len(gdf_bas) > 1:
-            divide_style = dict(color="0.45", linewidth=0.35, linestyle=(0, (4, 2)))
-            gdf_bas.boundary.plot(ax=ax, zorder=5, **divide_style)
+            divide_style = dict(
+                color=COLOR_SUBCATCHMENT,
+                linewidth=WIDTH_SUBCATCHMENT,
+                linestyle=DASH_SUBCATCHMENT,
+            )
+            gdf_bas.boundary.plot(ax=ax, zorder=Z_SUBCATCHMENT, **divide_style)
             subcatchment_handles.append(
                 Line2D([], [], label="subcatchments", **divide_style)
             )
-        _basin_outline(gdf_bas).boundary.plot(ax=ax, color="k", linewidth=0.9, zorder=6)
+        _basin_outline(gdf_bas).boundary.plot(
+            ax=ax,
+            color=COLOR_BASIN_OUTLINE,
+            linewidth=WIDTH_BASIN_OUTLINE,
+            zorder=Z_BASIN_OUTLINE,
+        )
 
         # Resolved against what the model actually holds; warns loudly (never
         # skips silently) when output_locations is set but no layer matches.
@@ -577,23 +771,23 @@ def plot_basin_map(project_dir, gauges_fn, plot_dir=None):
         if "outlets" in geoms:
             geoms["outlets"].plot(
                 ax=ax,
-                marker="d",
-                markersize=18,
-                facecolor="k",
-                edgecolor="white",
-                linewidth=0.4,
-                zorder=7,
+                marker=MARKER_SHAPE,
+                markersize=MARKER_SIZE,
+                facecolor=COLOR_OUTLET,
+                edgecolor=COLOR_MARKER_EDGE,
+                linewidth=WIDTH_MARKER_EDGE,
+                zorder=Z_MARKER,
                 label="outlets",
             )
         if gauges_name is not None:
             geoms[gauges_name].plot(
                 ax=ax,
-                marker="d",
-                markersize=18,
-                facecolor="#2c6fad",
-                edgecolor="white",
-                linewidth=0.4,
-                zorder=7,
+                marker=MARKER_SHAPE,
+                markersize=MARKER_SIZE,
+                facecolor=COLOR_GAUGE,
+                edgecolor=COLOR_MARKER_EDGE,
+                linewidth=WIDTH_MARKER_EDGE,
+                zorder=Z_MARKER,
                 label="output locs",
             )
             if _GAUGE_LABEL_COLUMN in geoms[gauges_name].columns:
@@ -601,13 +795,18 @@ def plot_basin_map(project_dir, gauges_fn, plot_dir=None):
                     lambda x: ax.annotate(
                         text=str(x[_GAUGE_LABEL_COLUMN]),
                         xy=x.geometry.coords[0],
-                        xytext=(2.5, 2.5),
+                        xytext=GAUGE_LABEL_OFFSET,
                         textcoords="offset points",
-                        fontsize=5.5,
+                        fontsize=FONT_SIZE_GAUGE_LABEL,
                         fontweight="bold",
-                        color="black",
-                        zorder=7,
-                        path_effects=[pe.withStroke(linewidth=1.8, foreground="white")],
+                        color=COLOR_BASIN_OUTLINE,
+                        zorder=Z_MARKER,
+                        path_effects=[
+                            pe.withStroke(
+                                linewidth=HALO_WIDTH_GAUGE_LABEL,
+                                foreground=COLOR_HALO,
+                            )
+                        ],
                     ),
                     axis=1,
                 )
@@ -615,15 +814,16 @@ def plot_basin_map(project_dir, gauges_fn, plot_dir=None):
         # --- waterbodies ------------------------------------------------------
         # manual patches for legend (geopandas/geopandas#660)
         patches = []
-        for name, face, edge in (
-            ("lakes", "#a8d0e6", "#3d5a6c"),
-            ("reservoirs", "#2c6fad", "#173d5e"),
-            ("glaciers", "#d9d9d9", "#8c8c8c"),
-        ):
+        for name, (face, edge) in WATERBODY_COLORS.items():
             if name not in geoms:
                 continue
-            kwargs = dict(facecolor=face, edgecolor=edge, linewidth=0.5, label=name)
-            geoms[name].plot(ax=ax, zorder=4, **kwargs)
+            kwargs = dict(
+                facecolor=face,
+                edgecolor=edge,
+                linewidth=WIDTH_WATERBODY_EDGE,
+                label=name,
+            )
+            geoms[name].plot(ax=ax, zorder=Z_WATERBODY, **kwargs)
             patches.append(mpatches.Patch(**kwargs))
 
         # --- cartographic furniture -------------------------------------------
@@ -641,7 +841,7 @@ def plot_basin_map(project_dir, gauges_fn, plot_dir=None):
                 *subcatchment_handles,
                 *patches,
             ],
-            title="Legend",
+            title=_LEGEND_TITLE,
             # Anchored to the SAME x as the colourbar, in axes coordinates, so
             # their left edges align by construction rather than by tuning.
             loc="upper left",
@@ -649,13 +849,13 @@ def plot_basin_map(project_dir, gauges_fn, plot_dir=None):
             borderaxespad=0.0,
             alignment="left",
             frameon=True,
-            framealpha=0.85,
-            edgecolor="k",
+            framealpha=_LEGEND_FRAME_ALPHA,
+            edgecolor=COLOR_BASIN_OUTLINE,
             facecolor="white",
-            borderpad=0.4,
-            handlelength=1.4,
+            borderpad=_LEGEND_BORDER_PAD,
+            handlelength=_LEGEND_HANDLE_LENGTH,
         )
-        legend.get_frame().set_linewidth(0.5)
+        legend.get_frame().set_linewidth(_LEGEND_FRAME_WIDTH)
         # Same reason as the colourbar: the panel's room is reserved by ``rect``,
         # so letting the layout engine also see the legend costs the map size.
         legend.set_in_layout(False)
