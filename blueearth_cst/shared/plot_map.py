@@ -194,6 +194,28 @@ _COLORBAR_BOTTOM = 0.5
 _COLORBAR_WIDTH = 0.025
 _COLORBAR_HEIGHT = 0.5
 _COLORBAR_OUTLINE_WIDTH = 0.5
+
+#: Where the colourbar's label goes. ``"right"`` is matplotlib's own placement
+#: for a vertical bar: alongside it, rotated 90°. ``"top"`` puts it above the
+#: bar, HORIZONTAL and left-aligned to the bar's left edge — which is
+#: ``_PANEL_LEFT``, the legend's anchor too, so the two line up. Prefer "top"
+#: for a long label: rotated text is slower to read and a unit string in
+#: brackets reads badly on its side.
+COLORBAR_LABEL_POSITION = "top"
+
+#: Gap between the bar and a "top" label, in points.
+_COLORBAR_TITLE_PAD = 5.0
+
+#: Height given up to a "top" label, in axes fractions PER LINE of it. The
+#: bar's BOTTOM is pinned (``_COLORBAR_BOTTOM``), so this shortens it from
+#: above — without it the bar reaches 1.0 and the label renders off the canvas.
+#: Per line, because the label wraps: a two-line label needs twice the room, and
+#: a fixed value would either clip the second line or leave a gap above a
+#: one-line one.
+_COLORBAR_TOP_LABEL_HEADROOM = 0.055
+
+#: The values ``COLORBAR_LABEL_POSITION`` accepts.
+_COLORBAR_LABEL_POSITIONS = ("right", "top")
 #: Upper and lower quantiles of the DEM the ramp spans. The upper clip stops a
 #: single high pixel flattening the rest of the basin to one colour.
 _ELEVATION_CLIP_QUANTILES = (0.0, 0.98)
@@ -349,8 +371,10 @@ GAUGE_LABEL_COLUMN = "wflow_id"
 #: frame does not carry, draws every reach at ``RIVER_WIDTH_UNIFORM``.
 RIVER_ORDER_COLUMN = "strord"
 
-#: Colourbar label. Units are the DEM's, so change it with the DEM.
-ELEVATION_LABEL = "elevation [m a.s.l.]"
+#: Colourbar label. Units are the DEM's, so change it with the DEM. Broken over
+#: two lines: on top of a 0.025-wide bar, one long line runs far past the side
+#: panel; the quantity above its unit is also the conventional way to set it.
+ELEVATION_LABEL = "elevation\n[m a.s.l.]"
 
 #: Padding around the model's own bounding box, in degrees, so the basin does
 #: not touch the frame.
@@ -405,9 +429,33 @@ _EARTH_RADIUS_M = 6_371_000.0
 # ---------------------------------------------------------------------------
 
 
-def _colorbar_inset():
-    """[x0, y0, width, height] for ``ax.inset_axes``, in axes fractions."""
-    return (_PANEL_LEFT, _COLORBAR_BOTTOM, _COLORBAR_WIDTH, _COLORBAR_HEIGHT)
+def _colorbar_label_position():
+    """``COLORBAR_LABEL_POSITION``, validated.
+
+    Raises rather than falling back: a typo that silently keeps the default
+    placement is the failure mode a tuning knob must not have — the figure
+    still renders, so nothing tells you the value did nothing.
+    """
+    if COLORBAR_LABEL_POSITION not in _COLORBAR_LABEL_POSITIONS:
+        raise ValueError(
+            f"COLORBAR_LABEL_POSITION={COLORBAR_LABEL_POSITION!r}; expected one "
+            f"of {_COLORBAR_LABEL_POSITIONS}"
+        )
+    return COLORBAR_LABEL_POSITION
+
+
+def _colorbar_inset(label_lines=1):
+    """[x0, y0, width, height] for ``ax.inset_axes``, in axes fractions.
+
+    A "top" label is drawn ABOVE the bar, so the bar gives up the room for it.
+    The bottom edge is pinned, so the height shrinks and the top comes down.
+    ``label_lines`` is how many lines that label wraps to, since each one costs
+    the same again.
+    """
+    height = _COLORBAR_HEIGHT
+    if _colorbar_label_position() == "top":
+        height -= _COLORBAR_TOP_LABEL_HEADROOM * label_lines
+    return (_PANEL_LEFT, _COLORBAR_BOTTOM, _COLORBAR_WIDTH, height)
 
 
 def _publication_rc():
@@ -911,7 +959,7 @@ def _draw_relief(fig, ax, dem, centre_latitude, elevation_label):
     )
     # imshow of an RGBA array carries no mappable, so the colourbar needs an
     # explicit one — the ramp is the same object either way.
-    colorbar_axes = ax.inset_axes(_colorbar_inset())
+    colorbar_axes = ax.inset_axes(_colorbar_inset(elevation_label.count("\n") + 1))
     # The side panel lives OUTSIDE the map axes but is anchored to it. Left
     # in the layout, its footprint inflates the axes' tight bbox, and
     # constrained layout answers by shrinking the map — in BOTH directions,
@@ -921,7 +969,19 @@ def _draw_relief(fig, ax, dem, centre_latitude, elevation_label):
     # twice.
     colorbar_axes.set_in_layout(False)
     colorbar = fig.colorbar(ScalarMappable(norm=norm, cmap=cmap), cax=colorbar_axes)
-    colorbar.set_label(elevation_label, fontsize=FONT_SIZE_COLORBAR_LABEL)
+    if _colorbar_label_position() == "top":
+        # A TITLE, not the label: ``set_label`` on a vertical bar always lands
+        # alongside it, rotated. ``loc="left"`` is what keeps a label wider than
+        # the 0.025-wide bar from hanging off both of its sides — it starts at
+        # the bar's left edge, which is the legend's anchor too.
+        colorbar_axes.set_title(
+            elevation_label,
+            fontsize=FONT_SIZE_COLORBAR_LABEL,
+            pad=_COLORBAR_TITLE_PAD,
+            loc="left",
+        )
+    else:
+        colorbar.set_label(elevation_label, fontsize=FONT_SIZE_COLORBAR_LABEL)
     colorbar.outline.set_linewidth(_COLORBAR_OUTLINE_WIDTH)
     colorbar_axes.tick_params(labelsize=FONT_SIZE_TICK, length=TICK_LENGTH, pad=TICK_PAD)
 

@@ -327,6 +327,53 @@ def test_colorbar_inset_follows_the_panel_position(restore_tunables):
     assert (left, width) == (1.5, 0.1)
 
 
+@pytest.fixture
+def restore_colorbar_label_position():
+    original = plot_map.COLORBAR_LABEL_POSITION
+    yield
+    plot_map.COLORBAR_LABEL_POSITION = original
+
+
+def test_a_right_label_leaves_the_colorbar_at_full_height(
+    restore_colorbar_label_position,
+):
+    plot_map.COLORBAR_LABEL_POSITION = "right"
+    assert _colorbar_inset()[3] == pytest.approx(plot_map._COLORBAR_HEIGHT)
+
+
+def test_a_top_label_shortens_the_bar_to_make_room(restore_colorbar_label_position):
+    """Without this the bar reaches 1.0 and the label renders off the canvas."""
+    plot_map.COLORBAR_LABEL_POSITION = "top"
+    assert _colorbar_inset()[3] == pytest.approx(
+        plot_map._COLORBAR_HEIGHT - plot_map._COLORBAR_TOP_LABEL_HEADROOM
+    )
+
+
+def test_each_extra_label_line_costs_the_bar_the_same_again(
+    restore_colorbar_label_position,
+):
+    """A fixed headroom would clip a two-line label or gap above a one-line one."""
+    plot_map.COLORBAR_LABEL_POSITION = "top"
+    one, two = _colorbar_inset(1)[3], _colorbar_inset(2)[3]
+    assert one - two == pytest.approx(plot_map._COLORBAR_TOP_LABEL_HEADROOM)
+
+
+def test_label_lines_do_not_shorten_a_right_hand_label(
+    restore_colorbar_label_position,
+):
+    plot_map.COLORBAR_LABEL_POSITION = "right"
+    assert _colorbar_inset(1)[3] == _colorbar_inset(3)[3]
+
+
+def test_an_unknown_label_position_raises_rather_than_silently_defaulting(
+    restore_colorbar_label_position,
+):
+    """A knob that reads as set but does nothing is the worst failure here."""
+    plot_map.COLORBAR_LABEL_POSITION = "above"
+    with pytest.raises(ValueError, match="COLORBAR_LABEL_POSITION"):
+        _colorbar_inset()
+
+
 def test_the_pdf_stays_truetype_whatever_the_sizes_are():
     """Type 3 is rejected by several publishers' preflight; 42 is TrueType."""
     assert _publication_rc()["pdf.fonttype"] == 42
@@ -616,6 +663,29 @@ def test_the_returned_figure_is_already_laid_out():
     fig, ax = plot_basin_map(layers["dem"], layers["rivers"], layers["basin"])
     try:
         assert min(t.get_window_extent().x0 for t in ax.get_yticklabels()) >= 0.0
+    finally:
+        plt.close(fig)
+
+
+@pytest.mark.parametrize(
+    ("position", "expect_title", "expect_ylabel"),
+    [("top", True, False), ("right", False, True)],
+)
+def test_the_colorbar_label_is_drawn_where_the_position_says(
+    position, expect_title, expect_ylabel, restore_colorbar_label_position
+):
+    """"top" is a horizontal title above the bar; "right" is the rotated label."""
+    import matplotlib.pyplot as plt
+
+    plot_map.COLORBAR_LABEL_POSITION = position
+    layers = _layers()
+    fig, ax = plot_basin_map(
+        layers["dem"], layers["rivers"], layers["basin"], elevation_label="depth [m]"
+    )
+    try:
+        colorbar_axes = ax.child_axes[0]  # an inset axes, so NOT in fig.axes
+        assert (colorbar_axes.get_title(loc="left") == "depth [m]") is expect_title
+        assert (colorbar_axes.get_ylabel() == "depth [m]") is expect_ylabel
     finally:
         plt.close(fig)
 

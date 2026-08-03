@@ -61,7 +61,7 @@ RESERVOIRS_PATH = None
 GLACIERS_PATH = None
 
 OUT_PATH = REPO_ROOT / ".tmp" / "basin_map.png"
-DPI = 200
+DPI = 300
 
 # --- plotting parameters ---------------------------------------------------
 # EVERY tunable constant in plot_map.py, with its default. Uncomment one and
@@ -154,6 +154,22 @@ DPI = 200
 # plot_map._COLORBAR_WIDTH = 0.025
 # plot_map._COLORBAR_HEIGHT = 0.5
 # plot_map._COLORBAR_OUTLINE_WIDTH = 0.5
+#   Where the colourbar's label goes. "right" is matplotlib's own placement
+#   for a vertical bar: alongside it, rotated 90°. "top" puts it above the
+#   bar, HORIZONTAL and left-aligned to the bar's left edge — which is
+#   _PANEL_LEFT, the legend's anchor too, so the two line up. Prefer "top" for
+#   a long label: rotated text is slower to read and a unit string in brackets
+#   reads badly on its side.
+# plot_map.COLORBAR_LABEL_POSITION = 'top'
+#   Gap between the bar and a "top" label, in points.
+# plot_map._COLORBAR_TITLE_PAD = 5.0
+#   Height given up to a "top" label, in axes fractions PER LINE of it. The
+#   bar's BOTTOM is pinned (_COLORBAR_BOTTOM), so this shortens it from above
+#   — without it the bar reaches 1.0 and the label renders off the canvas. Per
+#   line, because the label wraps: a two-line label needs twice the room, and
+#   a fixed value would either clip the second line or leave a gap above a
+#   one-line one.
+# plot_map._COLORBAR_TOP_LABEL_HEADROOM = 0.055
 #   Upper and lower quantiles of the DEM the ramp spans. The upper clip stops
 #   a single high pixel flattening the rest of the basin to one colour.
 # plot_map._ELEVATION_CLIP_QUANTILES = (0.0, 0.98)
@@ -338,7 +354,7 @@ fig, ax = plot_basin_map(
     extent=None,  # [lon_min, lon_max, lat_min, lat_max]
     gauge_label_column="wflow_id",
     river_order_column="strord",
-    elevation_label="elevation [m a.s.l.]",
+    elevation_label="elevation\n[m a.s.l.]",  # \n wraps it; the bar makes room
 )
 
 OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
