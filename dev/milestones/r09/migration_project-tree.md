@@ -1,9 +1,8 @@
 # Migration — project tree (R9)
 
-Status: **DRAFT — `config/` unblocked (2026-08-04), three items still open.**
-Finding 1 is ruled and its rows are mapped. Outstanding: the three tree-shape
-mismatches in Finding 3, five unplaced artifact classes, and the provisional WF1
-rows pending the spatial work's Gate 2.
+Status: **DRAFT — Findings 1 and 3 ruled (2026-08-04).** Outstanding: four
+unplaced artifact classes, and the provisional WF1 rows pending the spatial
+work's Gate 2 (Finding 2).
 
 Date: 2026-08-04
 
@@ -107,16 +106,17 @@ Gate 2 review pending**. P2 changes `Snakefile_model_creation` and the model
 build. The WF1 half of this map is therefore provisional and must be re-derived
 after Gate 2 closes.
 
-## Finding 3 — three tree-shape mismatches with v4
+## Finding 3 — RULED: three tree shapes did not match what the code emits
 
-Not blocking, but the v4 tree is drawn from intent rather than from the emitted
-set, and three parts do not correspond:
+All three resolved **toward the code** at design v7, so none costs an
+implementation change. Every one turned out to encode a prior decision, which is
+what design principle P9 now generalises.
 
-| v4 draws | Code emits | Issue |
+| v4 drew | Code emits | Ruling |
 | --- | --- | --- |
-| `data/climate/historical/era5/` | `climate_historical/era5_<start>_<end>/` | The store is keyed by dataset **and window**. v4's "no window-ID directory" is a code change, not a move. The key must stay experiment-invariant either way. |
-| `cmip6/timeseries/` | `cmip6/raw/` **and** `cmip6/scalar/` | Two directories, one target. Needs a split ruling or a rename of both. |
-| `cmip6/change_factors/` | `cmip6/summary/cmip6_change_factors_{annual,monthly}.csv` | v4 draws a directory; the code writes two files inside `summary/`. |
+| `data/climate/historical/<source>_<window>/` | `climate_historical/<source>_<window>/` | **Key kept** — it is a cache key (P3-1 §4), not multi-window support. Framing reworded. New obligation: prune orphaned store dirs. |
+| `cmip6/timeseries/` | `cmip6/raw/` **and** `cmip6/scalar/` | **Both kept.** Two tiers of one identity; `scalar/` over `series/` is R8 ruling S8-03; `prune_series_cache.py` is keyed to the grammar. |
+| `cmip6/change_factors/` | two files in `cmip6/summary/` | **Kept in `summary/`.** A directory for two files violates P5. |
 
 ---
 
@@ -155,17 +155,17 @@ from; the design routes generated build YAML to the model root.
 | `<P>/spatial/spatial_report.yml` | `data/spatial/spatial_report.yml` |
 | `<P>/spatial/location_registry.csv` | `data/spatial/location_registry.csv` |
 | `<P>/spatial/geoms/{basins,catchments,locations,rivers,subbasins}.geojson` | `data/spatial/geoms/…` |
-| `<P>/climate_historical/<store_key>/extract_historical.nc` | `data/climate/historical/era5/extract_historical.nc` † |
-| `<P>/climate_historical/<store_key>/store_region.geojson` | `data/climate/historical/era5/store_region.geojson` † |
-| `<P>/climate_historical/<store_key>/plots/source_*.png` | `data/climate/historical/era5/plots/source_*.png` † |
-| `<P>/climate_historical/<store_key>/.guard_ok` | `data/climate/historical/era5/.guard_ok` † |
-| `<P>/climate_projections/cmip6/raw/{series_key}.nc` | unresolved — Finding 3 |
-| `<P>/climate_projections/cmip6/scalar/{series_key}.nc` | unresolved — Finding 3 |
+| `<P>/climate_historical/<store_key>/extract_historical.nc` | `data/climate/historical/<source>_<window>/extract_historical.nc` † |
+| `<P>/climate_historical/<store_key>/store_region.geojson` | `data/climate/historical/<source>_<window>/store_region.geojson` † |
+| `<P>/climate_historical/<store_key>/plots/source_*.png` | `data/climate/historical/<source>_<window>/plots/source_*.png` † |
+| `<P>/climate_historical/<store_key>/.guard_ok` | `data/climate/historical/<source>_<window>/.guard_ok` † |
+| `<P>/climate_projections/cmip6/raw/{series_key}.nc` | `data/climate/projections/cmip6/raw/{series_key}.nc` |
+| `<P>/climate_projections/cmip6/scalar/{series_key}.nc` | `data/climate/projections/cmip6/scalar/{series_key}.nc` |
 | `<P>/climate_projections/cmip6/summary/*` | `data/climate/projections/cmip6/summary/*` |
 | `<P>/climate_projections/cmip6/plots/*.png` | `data/climate/projections/cmip6/plots/*.png` |
-| `<P>/climate_projections/cmip6/report.md` | **unplaced** — see gaps |
+| `<P>/climate_projections/cmip6/report.md` | `data/climate/projections/cmip6/report.md` |
 
-† depends on the window-key ruling in Finding 3.
+† the store key is retained; see Finding 3.
 
 `{series_key}` embeds verbatim CMIP model IDs (`NOAA-GFDL_GFDL-ESM4`) — tier-1,
 never normalized by the naming rule.
@@ -224,7 +224,6 @@ never normalized by the naming rule.
 
 Each needs a home before the task brief:
 
-1. `climate_projections/cmip6/report.md` — a WF2 human-readable summary.
 2. `weather_generator/output/{sim_dates,resampled_dates}.csv` — generator
    products that are not per-member series; `series/` or `_work/`?
 4. `hydrology_runs/rlz_<r>/config/log.txt` — written by the Wflow driver, not by
@@ -252,7 +251,7 @@ orphans are not covered by it.
 ## Next steps
 
 1. ~~Rule Finding 1~~ **done 2026-08-04** — option (A), design v6.
-2. Rule Finding 3's three mismatches (window key, `raw`/`scalar`, `change_factors`).
+2. ~~Rule Finding 3's three mismatches~~ **done 2026-08-04** — design v7.
 3. Place the six unplaced artifact classes.
 4. Re-derive the WF1/spatial rows after Gate 2 closes (Finding 2).
 5. Materialize a **clean** fixture from current code — the existing one cannot

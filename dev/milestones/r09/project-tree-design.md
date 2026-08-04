@@ -2,7 +2,7 @@
 
 Status: ACCEPTED by the owner, 2026-08-04. External review waived at this stage.
 
-Document version: v6
+Document version: v7
 
 Date: 2026-08-04
 
@@ -34,13 +34,15 @@ than assumed:
    it, which is the outcome an external review is normally relied on to produce.
 2. **The reviewer contract below is intact and unexercised.** It is held in
    reserve, not deleted: a later review can run against this document without
-   rework, and would target `doc_version: v6`.
+   rework, and would target `doc_version: v7`.
 
 Acceptance covers the placement contract, the naming rule, the four v2
 decisions, and the nine v4 rulings. It does not substitute for the validation
 expectations, which remain obligations on whatever implementation follows.
 
-## Correction (v5–v6) — `config/` was wrong, and is now ruled
+## Corrections from the artifact inventory (v5–v7)
+
+### `config/` was wrong, and is now ruled (v5–v6)
 
 The artifact inventory (`migration_project-tree.md`, Finding 1) found this
 document wrong about `config/`. v5 recorded the error; **v6 rules it.**
@@ -80,8 +82,23 @@ Adopting it moves config ownership from toolbox to project and touches
 It remains settled framing and is not reopened here — but R9 must budget for it
 as new capability rather than as a move.
 
-Nothing else in this document was affected: `models/`, `data/`, `experiments/`,
-`logs/`, and `benchmarks/` were all confirmed against declared outputs.
+### Three tree shapes did not match what the code emits (v7)
+
+The inventory found three places where the tree was drawn from intent and the
+code disagreed. All three are resolved **toward the code**, so none costs an
+implementation change; they cost three corrections here. P9 is the rule
+generalised from them.
+
+| Was drawn | Code emits | Ruling |
+| --- | --- | --- |
+| `data/climate/historical/era5/` | `climate_historical/<source>_<window>/` | **Keep the key.** It is a cache key from P3-1 §4 — *"two experiments sharing clim_historical + historical_window resolve to the same dir and reuse the extraction"* — not multi-window support. Collapsing it turns a content-addressed cache into a mutable slot whose refill is a network fetch. Settled framing reworded to say what it means. |
+| `cmip6/timeseries/` | `cmip6/raw/` **and** `cmip6/scalar/` | **Keep both.** They are two tiers of one identity — raw slice and spatially reduced series, same filename — and `scalar/` over `series/` is R8's recorded ruling **S8-03**. Both are persistent caches, and `prune_series_cache.py` is keyed to that path grammar; its own record shows three prior key-grammar changes each stranding a generation of orphans. |
+| `cmip6/change_factors/` | two files under `cmip6/summary/` | **Keep them in `summary/`.** A directory for two files violates P5, and `summary/` is coherent as WF2's reduced products — composition, provenance, and the change-factor tables. Splitting them out leaves `summary/` holding only metadata. |
+
+`report.md` is placed at the `cmip6/` root by the same pass.
+
+Nothing else in this document was affected: `models/`, `experiments/`, `logs/`,
+and `benchmarks/` were all confirmed against declared outputs.
 
 ## Review purpose
 
@@ -161,8 +178,10 @@ inconsistently or makes it operationally unsafe.
 - There is one live Wflow model, updated in place when required.
 - `models/hydrology/wflow/` is itself the HydroMT model root. There is no
   `<model-id>/` or `model/` wrapper.
-- There is one retained ERA5 historical-climate window. There is no window-ID
-  directory.
+- One historical-climate window is **active** at a time. The store directory is
+  keyed by source and window as a **cache key**, not as multi-window support:
+  nothing enumerates or selects among windows, and no rule fans out over them.
+  A superseded store directory is an orphan, removed by explicit owner action.
 - There is no project-level `runs/` directory at this stage.
 - `config/project.yml` is the editable project source of truth. **Not built
   today** — see *Correction (v5–v6)*; adopting it is new capability, and the rest
@@ -221,6 +240,15 @@ two scopes, not a root-level exception.
 established identifiers are exempt (see *Naming rule*), so the convention never
 competes with an external contract.
 
+**P9 — Where this tree differs from what the code emits, the emitted structure
+wins unless a stated reason overrides it.** Added at v7 after the third instance.
+This document was drawn from intent, and every divergence the artifact inventory
+found so far turned out to encode a prior decision: the climate store's cache key
+(P3-1 §4), the `scalar/` naming (R8 ruling S8-03), the `config/` snapshot
+(rule 1.01), and the grouping of the change-factor tables under `summary/`. A
+divergence is therefore a finding against this document first, and against the
+code only with an argument.
+
 ## Proposed folder tree
 
 ```text
@@ -243,19 +271,23 @@ competes with an external contract.
 │   │   └── ...
 │   ├── climate/
 │   │   ├── historical/
-│   │   │   └── era5/                     # the single active time window;
-│   │   │       │                         # path MUST stay experiment-invariant
+│   │   │   └── <source>_<window>/        # CACHE KEY (source + window), NOT
+│   │   │       │                         # multi-window support. Path MUST stay
+│   │   │       │                         # experiment-invariant
 │   │   │       ├── extract_historical.nc
-│   │   │       ├── orography.nc
+│   │   │       ├── store_region.geojson
 │   │   │       ├── .guard_ok             # sentinel, beside what it guards
 │   │   │       └── plots/                # source-data diagnostics
 │   │   ├── observations/
 │   │   │   └── ...
 │   │   └── projections/
 │   │       └── cmip6/                    # plausibility overlay, never WF3 forcing
-│   │           ├── timeseries/           # keyed by verbatim CMIP model ID
-│   │           ├── change_factors/
-│   │           ├── summary/
+│   │           ├── raw/                  # CACHE   as-fetched GCM slices
+│   │           ├── scalar/               # CACHE   spatially reduced series (S8-03);
+│   │           │                         #         both keyed by verbatim CMIP model ID
+│   │           ├── summary/              # reduced products, incl.
+│   │           │                         #   <proj>_change_factors_{annual,monthly}.csv
+│   │           ├── report.md
 │   │           └── plots/
 │   └── hydrology/
 │       └── observations/
@@ -564,6 +596,10 @@ Neutral obligations:
   rename record (old → new mapping) and a re-recorded baseline manifest;
 - exact catalog/template names and all undeclared artifacts must be resolved
   during implementation inventory;
+- the pruning tooling must learn to report **orphaned climate-store directories**.
+  Keeping the store's cache key means a changed window strands its predecessor on
+  disk, and `prune_series_cache.py` covers the WF2 series class only, so "one
+  active window" is true of the workflow but not of the directory;
 - generated directories should be created only when their producer runs;
 - an existing interchange validator asserts that the basin table's header is
   exactly the two perturbation-axis columns, which holds only when no
@@ -665,7 +701,7 @@ Return only Markdown with this structure:
 ```text
 ## Verdict
 verdict: approve | revise | reject
-doc_version: v6
+doc_version: v7
 
 ## Findings
 ### ext1-01 [blocking | major | minor]
@@ -699,6 +735,21 @@ List findings in severity order. An empty findings section with
   unexercised. Versioned rather than edited in place so that document version
   and document content stay one-to-one, which the reviewer response schema
   depends on.
+- 2026-08-04, v7: Three tree shapes corrected toward the code, none costing an
+  implementation change. The climate store keeps its source+window **cache key**
+  (P3-1 §4) rather than collapsing to a fixed `era5/`, and the settled framing is
+  reworded from "no window-ID directory" to what it actually means — one *active*
+  window, a cache key, no enumeration. `cmip6/timeseries/` is replaced by the
+  `raw/` and `scalar/` pair the code emits: two tiers of one identity, with
+  `scalar/` over `series/` already ruled by R8's S8-03, and both keyed to
+  `prune_series_cache.py`'s path grammar. `change_factors/` is dropped as a
+  directory; the two tables stay under `summary/` with WF2's other reduced
+  products. `report.md` placed. **P9 added** — where this tree differs from what
+  the code emits, the emitted structure wins unless a stated reason overrides it;
+  generalised after the fourth divergence (`config/`, catalogs, the store key,
+  `scalar/`) each turned out to encode a prior decision. New obligation: the
+  pruning tooling must report orphaned climate-store directories, since keeping
+  the cache key means a changed window strands its predecessor.
 - 2026-08-04, v6: Ruled the question v5 raised. The generated config snapshot
   **stays under `config/`**, with editable and generated subtrees distinguished
   inside it; a dedicated `provenance/` root and filing it under `logs/` were both
