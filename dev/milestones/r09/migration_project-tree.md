@@ -234,6 +234,14 @@ All closed at design v8 (and v6/v7 for two of them). One is not a pure move:
 | `spatial/*` | `data/spatial/**` | none, but **provisional** (Finding 2) |
 | Wflow's `log.txt` | `hydrology/wflow/output/rlz_<r>_cst_<c>.log` | **one-line code change** |
 
+**Scope of the mandated rename record.** `naming.md` §7 requires an internal
+rename note for `rule all` output filenames. Across this whole map that is
+**exactly two files** — `Qstats.csv` → `q_indicators.csv` and `basin.csv` →
+`basin_indicators.csv`. Everything else moving here is either a directory
+relocation or a non-`rule all` artifact, and `series/` → `output/` is a directory
+rename, so §7 does not extend to it. Stated so the implementer does not re-derive
+the scope.
+
 **The `log.txt` row is a defect, not a move.** Wflow's `[logging] path_log`
 defaults to `log.txt` beside the TOML, so removing the `rlz_<r>/` level puts every
 member's log at one path — and rule 3.10 batches members concurrently, making it a

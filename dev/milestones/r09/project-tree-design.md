@@ -690,10 +690,14 @@ An implementation design should include at least these falsifiers:
     error naming the existing experiment, while a same-day generated default
     collides into `_v2`; and that `experiment.yml` is writable before the first
     successful run and refused after it.
-15. Run two stress-test members concurrently in one batch and assert that each
-    writes its own Wflow log — two distinct, non-empty files under
-    `hydrology/wflow/output/`. This is the falsifier for the `path_log` fix; the
-    defect it guards is a race, so a single-member run cannot detect it.
+15. Run two stress-test members concurrently in one batch and assert **content
+    attribution**: each member's Wflow log must describe that member's own run
+    and no other — its forcing and run identity matching its own
+    `rlz_<r>_cst_<c>`. Counting files is NOT sufficient: after the fix every
+    member has a distinct `path_log` by construction, so a file-count assertion
+    passes unconditionally and would also pass with `path_log` unset if the batch
+    happened to serialize. Attribution fails both ways the defect can manifest —
+    one file overwritten by the winner, or two files with interleaved content.
 16. Build the model and then run a HydroMT `update` against it; confirm the
     generated `config/` subdirectory and its contents survive. This is the
     empirical check that HydroMT asserts no ownership over unknown
