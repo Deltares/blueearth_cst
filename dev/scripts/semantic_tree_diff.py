@@ -577,6 +577,23 @@ def build_r09_path_map(
          f"experiments/{e}/climate/weathergenr/_work/"),
         (f"experiments/{e}/weather_generator/plots/",
          f"experiments/{e}/climate/weathergenr/plots/"),
+        # The BARE directory string, registered AFTER the four subdirectory
+        # rules so it can only catch what they do not.
+        #
+        # Not a file path -- it is a directory-valued LEAF inside
+        # weathergen_config.yml (`generateWeatherSeries.output.path`), and
+        # `compare_yaml`'s cross-root normalization feeds such leaves through
+        # this map. Without the rule the leaf falls through unmapped and reads
+        # as a content regression on a file whose every other value matches.
+        #
+        # R07 hit exactly this and carries
+        # `test_r07_bare_realization_dir_maps_to_the_generator_output_dir` for
+        # it; R9's equivalent was missing until the P2 whole-tree gate found it
+        # (phase-2 report F3). A prefix, not a regex: `apply_path_map` matches
+        # prefixes on the raw string, so this fires on the bare directory and,
+        # harmlessly, on anything else directly beneath it.
+        (f"experiments/{e}/weather_generator/",
+         f"experiments/{e}/climate/weathergenr/"),
     ]
 
     # -- 6. experiments/<id>/ identity rows, ONE RULE PER MAP ROW -------------

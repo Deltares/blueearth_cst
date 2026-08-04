@@ -615,3 +615,32 @@ def test_declared_tier_reports_moved_identity_and_deleted_separately():
     text = std.format_path_map_report(rows)
     assert "identity (by rule)" in text
     assert "MAP CLEAN" in text
+
+
+def test_the_bare_weathergenr_directory_maps_too():
+    """The map must translate the BARE directory string, not only files under it.
+
+    `weathergen_config.yml` carries `generateWeatherSeries.output.path` as a
+    DIRECTORY, and `compare_yaml`'s cross-root leaf normalization feeds such
+    leaves through this map. With only the four subdirectory prefixes the leaf
+    fell through unmapped and read as a content regression on a file whose every
+    other value matched -- found by P2's whole-tree gate (phase-2 report F3).
+
+    R07 carries the same case for its own layout, in
+    `test_r07_bare_realization_dir_maps_to_the_generator_output_dir`.
+    """
+    assert _map(f"experiments/{E}/weather_generator/") == \
+        f"experiments/{E}/climate/weathergenr/"
+    # ...and the four subdirectory rules still win, because they are registered
+    # first. If the bare rule ever moved above them it would still produce the
+    # right string here, so assert a case where the order is observable: these
+    # must resolve through their own rule, not by prefix-substitution accident.
+    for sub in ("output", "config", "_work", "plots"):
+        assert _map(f"experiments/{E}/weather_generator/{sub}/x.nc") == \
+            f"experiments/{E}/climate/weathergenr/{sub}/x.nc"
+
+
+def test_the_experiment_catalog_moves_under_config_catalogs():
+    """The v6 row P2 had not implemented until the tree gate reported it."""
+    assert _map(f"experiments/{E}/data_catalog_climate_experiment.yml") == \
+        f"experiments/{E}/config/catalogs/data_catalog_climate_experiment.yml"
