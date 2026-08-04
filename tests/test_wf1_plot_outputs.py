@@ -49,15 +49,15 @@ CONFIG_FN = TESTDIR / "snake_config_model_test.yml"
 #: forcing entries come from climate_figures rather than being restated, so a
 #: change to the canonical set cannot leave this list quietly behind.
 DECLARED_PLOT_OUTPUTS = (
-    "hydrology_model/evaluation/plots/hydro_wflow_1.png",
-    "hydrology_model/evaluation/plots/clim_wflow_1_month.png",
-    "hydrology_model/evaluation/plots/clim_wflow_1_year.png",
-    "hydrology_model/evaluation/performance_metrics.csv",
+    "models/hydrology/wflow/evaluation/plots/hydro_wflow_1.png",
+    "models/hydrology/wflow/evaluation/plots/clim_wflow_1_month.png",
+    "models/hydrology/wflow/evaluation/plots/clim_wflow_1_year.png",
+    "models/hydrology/wflow/evaluation/performance_metrics.csv",
     # Rule 1.12 renders once and writes both: PDF for publication, PNG preview.
-    "hydrology_model/plots/basin_area.pdf",
-    "hydrology_model/plots/basin_area.png",
+    "models/hydrology/wflow/plots/basin_area.pdf",
+    "models/hydrology/wflow/plots/basin_area.png",
 ) + tuple(
-    f"hydrology_model/forcing/plots/{name}"
+    f"models/hydrology/wflow/forcing/plots/{name}"
     for name in _figure_names("forcing")
 )
 
@@ -94,7 +94,7 @@ def fabricated_project(tmp_path):
     # Knowingly UNDECLARED (config-dependent): it must survive, which is what
     # makes the assertion below a discriminating check rather than a tautology
     # about an emptied directory.
-    undeclared = project_dir / "hydrology_model/evaluation/plots/signatures_wflow_1.png"
+    undeclared = project_dir / "models/hydrology/wflow/evaluation/plots/signatures_wflow_1.png"
     for path in [*expected, undeclared]:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b"placeholder")
@@ -133,7 +133,7 @@ def test_delete_all_output_removes_the_declared_plot_outputs(fabricated_project)
 #: What rule 1.11 derives from wflow_outvars: the CSV column name verbatim,
 #: spaces and all (func_plot_signature.plot_basavg writes f"{dvar}.png").
 _BASAVG_REL = (
-    "hydrology_model/evaluation/plots/actual evapotranspiration_basavg.png"
+    "models/hydrology/wflow/evaluation/plots/actual evapotranspiration_basavg.png"
 )
 
 
@@ -160,7 +160,7 @@ def project_with_basavg_outvar(tmp_path):
     basavg.parent.mkdir(parents=True, exist_ok=True)
     basavg.write_bytes(b"placeholder")
     # Same control as the fixture above: an undeclared sibling must survive.
-    undeclared = project_dir / "hydrology_model/evaluation/plots/signatures_wflow_1.png"
+    undeclared = project_dir / "models/hydrology/wflow/evaluation/plots/signatures_wflow_1.png"
     undeclared.write_bytes(b"placeholder")
     return cfg_path, basavg, undeclared
 

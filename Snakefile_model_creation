@@ -157,7 +157,16 @@ CONFIG_SNAPSHOT_DIR = (
     f"{project_dir}/config/runs/model_creation/{short_digest(CONFIG_SNAPSHOT_DIGEST)}"
 )
 
-basin_dir = f"{project_dir}/hydrology_model"
+# R9 P2 commit 1: the live HydroMT model root moves under `models/`, the tree's
+# home for engine-shaped model artifacts (design v10). ONE definition per
+# workflow — every model-internal path below is built from it, and WF3 derives
+# the same string from the same shape, so the two cannot drift.
+#
+# Not a config value and not part of rule 3.00b's guard digest, which serializes
+# `project`, `shared.basin`, `workflows.model_creation` and
+# `workflows.climate_projections` only — so this move does not flip the digest
+# and cannot make an existing project's drift guard refuse to run.
+basin_dir = f"{project_dir}/models/hydrology/wflow"
 
 # The canonical climate figure set, one directory per dataset (rule 1.13 draws
 # the forcing, 1.15 the source). variable x kind is a fixed cross-product, so
@@ -467,7 +476,12 @@ rule setup_runtime:
         gauges_path = f"{basin_dir}/staticgeoms/outlets.geojson",
         outputs_configured = f"{basin_dir}/.outputs_configured",
     output:
-        forcing_yml = f"{project_dir}/config/generated/wflow_build_forcing_historical.yml"
+        # Generated build YAML is provenance OF THE MODEL IT BUILT, so it lives
+        # in the model's own config/ rather than a project-level generated/
+        # (design v10). `config/generated/wflow_build_model_run.yml` had a row
+        # in the migration map beside this one; nothing writes it any more, and
+        # R9 P1 retired that row (phase-1 report G2).
+        forcing_yml = f"{basin_dir}/config/build_historical_forcing.yml"
     params:
         starttime = get_config(shared_cfg["historical_window"], "starttime", optional=False),
         endtime = get_config(shared_cfg["historical_window"], "endtime", optional=False),
@@ -483,7 +497,7 @@ rule setup_runtime:
 rule add_forcing:
     message: rule_banner("1.08", "add_forcing")
     input:
-        forcing_ini = f"{project_dir}/config/generated/wflow_build_forcing_historical.yml"
+        forcing_ini = f"{basin_dir}/config/build_historical_forcing.yml"
     output:
         forcing_path = f"{basin_dir}/forcing/inmaps_historical.nc"
     log:
@@ -617,6 +631,11 @@ rule plot_results:
        basavg_pngs = _basavg_pngs,
    params:
        project_dir = f"{project_dir}",
+       # The model root is OWNED BY THE RULE, not rebuilt inside the script.
+       # plot_results.py used to derive `{project_dir}/hydrology_model` itself,
+       # which made the model's location a fact spelled in two places; this move
+       # is what forced the question, and passing it is the answer.
+       model_dir = basin_dir,
        data_sources = DATA_SOURCES,
        clim_source = clim_source,
    log:
@@ -662,6 +681,8 @@ rule plot_forcing:
         _forcing_climate_pngs,
     params:
         project_dir = f"{project_dir}",
+        # Rule-owned model root; see rule 1.11's note.
+        model_dir = basin_dir,
     log:
         f"{LOG_PARTS_DIR}/1.13_plot_forcing.log",
     benchmark:

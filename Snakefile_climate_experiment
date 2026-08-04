@@ -109,7 +109,11 @@ REGION = region_spec(
 horizontime_climate = get_config(my_cfg, "horizontime_climate", optional=False)
 wflow_run_length = get_config(my_cfg, "run_length", 20)
 
-basin_dir = f"{project_dir}/hydrology_model"
+# R9 P2 commit 1: must match WF1's definition exactly — WF3 READS the model root
+# WF1 wrote, so the two move in the same commit or the cross-workflow contract
+# breaks mid-migration. Not a config value, so rule 3.00b's guard digest (which
+# serializes config sections only) is unaffected.
+basin_dir = f"{project_dir}/models/hydrology/wflow"
 # Per-experiment root (design §2/§2a): every wf3-owned output that was
 # project-global moves under experiments/<name>/. Redefining this one binding
 # carries all exp_dir-derived output/params paths (incl. the three params paths
