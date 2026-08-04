@@ -139,3 +139,16 @@ lint = { cmd = "ruff check .", description = "Lint the repo with the [tool.ruff]
 dag-wf1 = { cmd = "snakemake all -c 3 -s Snakefile_model_creation --configfile config/workflows/snake_config_model_test.yml --dry-run", description = "Dry-run wf1 (model creation) to validate the DAG" }
 dag-wf2 = { cmd = "snakemake all -c 3 -s Snakefile_climate_projections --configfile config/workflows/snake_config_model_test.yml --dry-run", description = "Dry-run wf2 (climate projections) to validate the DAG" }
 dag-wf3 = { cmd = "snakemake all -c 3 -s Snakefile_climate_experiment --configfile config/workflows/snake_config_model_test.yml --dry-run", description = "Dry-run wf3 (climate experiment) to validate the DAG" }
+
+# Project-tree inspection (R09). Same shape as the dag-* tasks: `--config` is
+# pinned to the tracked test config so the task runs from a fresh clone, and a
+# `--config` passed on the CLI wins (argparse takes the last occurrence, as
+# snakemake does above).
+#
+# A relative `project_dir` resolves against the CURRENT DIRECTORY, the way
+# Snakemake resolves it -- so when the tree sits beside a DIFFERENT checkout
+# from the one this task runs in (the observed-tier runbook has the workflows
+# run in the primary checkout while the comparator lives in a task worktree),
+# pass `--project-dir` with an absolute path. See
+# dev/milestones/r09/observed-tier-runbook.md.
+tree-check = { cmd = "python dev/scripts/snapshot_project_tree.py --config config/workflows/snake_config_model_test.yml", description = "Snapshot a project_dir as a path list and check every path against the R09 path map (add --out to record it; nothing is written otherwise)" }

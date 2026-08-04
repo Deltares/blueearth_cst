@@ -33,11 +33,16 @@ pixi shell
 Two paths are used throughout:
 
 ```powershell
-$P    = "test_case/test_local"                                        # project_dir
+$P    = "test_case/test_local"                                        # project_dir, for the prune step
 $CFG  = "config/workflows/snake_config_model_test.yml"                # the seed config
 $WT   = "C:\Users\taner\workspace\.worktrees\blueearth_cst\r09-p1-comparator"
+$TREE = "C:\Users\taner\workspace\blueearth_cst\test_case\test_local" # the same tree, absolute
 $SNAP = "$WT\dev\milestones\r09\observed_inventory.txt"
 ```
+
+`$P` is relative and `$TREE` absolute on purpose: the prune commands run **in**
+the primary checkout, while `pixi run tree-check` runs in the worktree that
+holds the tool and therefore needs the tree named absolutely.
 
 ---
 
@@ -52,18 +57,24 @@ Snapshot the tree **as it is now** and run the falsifier — every `UNMAPPED` li
 is either a real map gap or a leftover:
 
 ```powershell
-pixi run python "$WT\dev\scripts\snapshot_project_tree.py" --config $CFG --quiet
+cd $WT
+pixi run tree-check --project-dir $TREE --quiet
 ```
 
 No `--out`, so **nothing is written** — this only inspects. The experiment name,
-the historical store key and `clim_project` are derived from `$CFG`, so there is
-no `--dataset-key` to mistype (a wrong key turns a mapped store into an unmapped
-one, which reads as a map gap that is not there).
+the historical store key and `clim_project` are derived from the config, so
+there is no `--dataset-key` to mistype (a wrong key turns a mapped store into an
+unmapped one, which reads as a map gap that is not there).
 
-The script lives in the task worktree while the tree lives beside the primary
-checkout; a relative `project_dir` resolves against the **current directory**,
-as Snakemake resolves it, so run it from the primary checkout as above. Pass
-`--project-dir` if you need to point it somewhere else.
+`--project-dir` is passed **absolute and explicitly** because the tool and the
+tree are in different checkouts until this branch merges: a relative
+`project_dir` resolves against the current directory, the way Snakemake resolves
+it, and here that would be the worktree rather than the primary checkout. After
+the merge, `pixi run tree-check` from the primary checkout needs no override.
+
+The task pins `--config` to the tracked test config; pass a different `--config`
+on the CLI to override it (argparse takes the last occurrence), exactly as the
+`dag-wf*` tasks do with `--configfile`.
 
 Read the `UNMAPPED` lines. Each is one of:
 
@@ -156,7 +167,8 @@ store key — and the map check runs over the same path list, so the recorded fi
 and the checked list cannot disagree.
 
 ```powershell
-pixi run python "$WT\dev\scripts\snapshot_project_tree.py" --config $CFG --out $SNAP
+cd $WT
+pixi run tree-check --project-dir $TREE --out $SNAP
 echo "exit=$LASTEXITCODE"
 ```
 
@@ -171,7 +183,7 @@ exist at all, which is the only thing still blocking those two rows from being
 ruled.
 
 ```powershell
-pixi run python "$WT\dev\scripts\snapshot_project_tree.py" --config $CFG --gap-rules --quiet
+pixi run tree-check --project-dir $TREE --gap-rules --quiet
 ```
 
 <details>
