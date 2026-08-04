@@ -1,15 +1,45 @@
-# BlueEarth CST project folder tree — external review draft
+# BlueEarth CST project folder tree — owner-accepted design proposal
 
-Status: proposed for external review
+Status: ACCEPTED by the owner, 2026-08-04. External review waived at this stage.
 
-Document version: v2
+Document version: v3
 
 Date: 2026-08-04
 
 Decider: Ümit Taner
 
 Normative body budget: fewer than 550 lines including the tree and review
-contract (raised from v1's 450 to carry v2's four decisions)
+contract (raised from v1's 450 to carry v2's four decisions). Measured over the
+normative body only — the *Review status* note and the revision log are document
+metadata and are excluded, so the budget constrains the design rather than
+inflating each time the status changes. At v3: 525 normative, 574 total.
+
+## Review status
+
+This design was drafted for external review and **carries no external verdict.**
+The owner accepted it on 2026-08-04 after a four-decision working pass (see the
+revision log) and waived the review at this stage. Stated on the document's face
+rather than left implicit, because the distinction matters to anyone auditing
+the milestone later: every claim below rests on owner judgment plus the
+code-grounded checks cited during the working pass, and none of it has been
+challenged by an independent reviewer.
+
+Two consequences follow, and they are the reason the waiver is recorded rather
+than assumed:
+
+1. **The open questions did not get ruled by the review.** The review was the
+   mechanism that would have forced them. They remain open, listed below, and
+   they are owner decisions now. Several are implementation-blocking — the
+   fingerprint-sufficiency question in particular, since that mechanism is the
+   one that can silently admit a wrong result.
+2. **The reviewer contract below is intact and unexercised.** It is held in
+   reserve, not deleted: a later review can run against this document without
+   rework, and would target `doc_version: v3`.
+
+Acceptance covers the placement contract, the naming rule, and the four v2
+decisions. It does **not** constitute a ruling on the open questions, and it does
+not substitute for the validation expectations, which remain obligations on
+whatever implementation follows.
 
 ## Review purpose
 
@@ -487,7 +517,11 @@ An implementation design should include at least these falsifiers:
 - Does flattening the Wflow run subtree create a directory-size or tooling
   problem at production grid sizes that the depth saving does not justify?
 
-## External reviewer instructions
+## External reviewer instructions (held in reserve — not exercised)
+
+*This contract was not run for v1, v2, or v3. It is retained verbatim so a later
+review can be dispatched against the current document without rework; see*
+*Review status.*
 
 You are an independent design reviewer. Challenge operational feasibility,
 missing failure modes, over-engineering, ambiguous ownership, reproducibility,
@@ -504,7 +538,7 @@ Return only Markdown with this structure:
 ```text
 ## Verdict
 verdict: approve | revise | reject
-doc_version: v2
+doc_version: v3
 
 ## Findings
 ### ext1-01 [blocking | major | minor]
@@ -531,3 +565,10 @@ List findings in severity order. An empty findings section with
   rule is adopted for locally minted names, with upstream identifiers exempt.
   Alternatives, consequences, obligations, falsifiers, and open questions
   updated accordingly.
+- 2026-08-04, v3: Status only — no normative change to the tree, the placement
+  contract, the naming rule, or the falsifiers. The owner accepted the design
+  and waived external review at this stage; the waiver and its two consequences
+  are recorded under *Review status*, and the reviewer contract is retained
+  unexercised. Versioned rather than edited in place so that document version
+  and document content stay one-to-one, which the reviewer response schema
+  depends on.
