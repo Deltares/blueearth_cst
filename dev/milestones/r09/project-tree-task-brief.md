@@ -15,7 +15,7 @@ scientific value. Five phases, each independently verifiable.
 |---|---|---|---|
 | P1 — Comparator and tooling | `python-engineer` | the path map | `build_r09_path_map` in `dev/scripts/semantic_tree_diff.py` + orphan-store reporting in the prune tooling; unit-tested, no `project_dir` touched |
 | P2 — Tree migration | `python-engineer` | P1's comparator | all three workflows write the v10 tree; three clean `--dry-run`s; `semantic_tree_diff` clean against the R9 map |
-| P3 — Result tables and rule rename | `python-engineer` | P2's tree | `q_indicators.csv` / `basin_indicators.csv`, `RT_*.csv` gone, rule 3.11 renamed, `validate_hm7` fixed, baseline re-recorded exactly once |
+| P3 — Result tables and rule 3.11 | `python-engineer` | P2's tree | `q_indicators.csv` / `basin_indicators.csv`, `RT_*.csv` gone, rule 3.11 renamed, `validate_hm7` fixed, baseline re-recorded exactly once |
 | P4 — Fingerprint and experiment lifecycle | `python-engineer` | P2's tree | pointer-derived `model_reference.yml` + WF3 pre-simulation check; experiment ID collision and immutability rules |
 | P5 — Conventions and docs | `technical-writer` | P1–P4 landed | `naming.md` §8 gains a generated-outputs rule and §7 is narrowed; `README.rst`, `AGENTS.md`, `docs/` updated |
 
@@ -45,9 +45,13 @@ they are not to be run in parallel worktrees.
 - Follow design principle **P9**: where the design differs from what the code
   emits, the emitted structure wins unless the design states a reason. Four such
   divergences were already found and corrected; assume more exist.
-- Rule identifiers are frozen except rule 3.11 (`export_wflow_results` →
-  `derive_wflow_indicators`). The other nine renames are **R10** and must not be
-  smuggled in.
+- **Exactly one rule identifier changes in this whole program**: rule 3.11,
+  `export_wflow_results` → `derive_wflow_indicators`. R9 renames that rule's
+  outputs to `q_indicators.csv` / `basin_indicators.csv`, so both halves of its
+  old name become wrong — a milestone renames what it falsifies. Every other rule
+  identifier is **frozen**. The nine-rename sweep and its verb vocabulary are
+  **R10** (`dev/milestones/r10/rule-naming-design.md`), a separate milestone, and
+  must not be smuggled into any phase here.
 - Every rule rename or log-path change updates `LOG_RULES` in the **same edit**.
   An unlisted label is not an error — `merge_logs` silently drops the section and
   strands its parts.
@@ -101,6 +105,6 @@ Whole-program checks no single phase can perform:
 
 - P1 — Comparator and tooling — `<PLACEHOLDER: phase-1 brief>` — not started
 - P2 — Tree migration — `<PLACEHOLDER: phase-2 brief>` — not started
-- P3 — Result tables and rule rename — `<PLACEHOLDER: phase-3 brief>` — not started
+- P3 — Result tables and rule 3.11 — `<PLACEHOLDER: phase-3 brief>` — not started
 - P4 — Fingerprint and experiment lifecycle — `<PLACEHOLDER: phase-4 brief>` — not started
 - P5 — Conventions and docs — `<PLACEHOLDER: phase-5 brief>` — not started
