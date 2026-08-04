@@ -85,6 +85,6 @@ def test_incomplete_stress_test_grid_fails_loudly(tmp_path):
         analyze_wflow_results(
             csv_fns=[str(run_csv)],
             st_csv_fns=[str(tmp_path / "cst_1.csv"), str(tmp_path / "cst_2.csv")],
-            indicators_dir=str(tmp_path),
+            results_dir=str(tmp_path),
             st_num=3,
         )

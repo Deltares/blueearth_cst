@@ -47,7 +47,7 @@ def realization_from_run_csv(csv_fn: Union[str, Path]) -> int:
 def analyze_wflow_results(
     csv_fns: List[Union[str, Path]],
     st_csv_fns: List[Union[str, Path]],
-    indicators_dir: Union[str, Path],
+    results_dir: Union[str, Path],
     st_num: int,
     qstats_fn: Union[str, Path] = None,
     bas_fn: Union[str, Path] = None,
@@ -67,18 +67,18 @@ def analyze_wflow_results(
         and precip changes each stress test imposes). Passed in from the rule's
         declared inputs rather than reconstructed from a directory convention
         (R07 B6), so the read is on the DAG and visible to ``--dry-run``.
-    indicators_dir : Union[str, Path]
+    results_dir : Union[str, Path]
         Directory the response-surface tables are written to (``indicators/``).
     st_num : int
         Number of stress tests (increments) per realization
     qstats_fn : Union[str, Path], optional
         Path to the output csv file with the discharge statistics for each
         realization/stress test.
-        If None will be saved in `indicators_dir/q_indicators.csv`.
+        If None will be saved in `results_dir/q_indicators.csv`.
     bas_fn : Union[str, Path], optional
         Path to the output csv file with the basin average statistics for each
         realization/stress test.
-        If None will be saved in `indicators_dir/basin_indicators.csv`.
+        If None will be saved in `results_dir/basin_indicators.csv`.
     Tpeak : int, optional
         Return period for high flows (in years), by default 10
     Tlow : int, optional
@@ -88,9 +88,9 @@ def analyze_wflow_results(
     """
     # Output file paths
     if qstats_fn is None:
-        qstats_fn = f"{indicators_dir}/q_indicators.csv"
+        qstats_fn = f"{results_dir}/q_indicators.csv"
     if bas_fn is None:
-        bas_fn = f"{indicators_dir}/basin_indicators.csv"
+        bas_fn = f"{results_dir}/basin_indicators.csv"
 
     # cst_<m>.csv lookup, keyed by the stress-test index in the file name.
     # cst_0 is the reserved unperturbed baseline and has no file (naming.md §4),
@@ -325,7 +325,7 @@ def analyze_wflow_results(
             cols = cols[-2:] + cols[:-2]
         df_rp = df_rp[cols]
         # Save to csv
-        df_rp.to_csv(os.path.join(indicators_dir, f"RT_{v}.csv"), index=False)
+        df_rp.to_csv(os.path.join(results_dir, f"RT_{v}.csv"), index=False)
 
 
 if __name__ == "__main__":
@@ -337,7 +337,7 @@ if __name__ == "__main__":
             analyze_wflow_results(
                 csv_fns=sm.input.rlz_csv_fns,
                 st_csv_fns=sm.input.st_csv_fns,
-                indicators_dir=sm.params.indicators_dir,
+                results_dir=sm.params.results_dir,
                 st_num=sm.params.st_num,
                 qstats_fn=sm.output.q_indicators,
                 bas_fn=sm.output.basin_indicators,
