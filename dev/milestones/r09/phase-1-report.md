@@ -4,9 +4,10 @@ Date: 2026-08-04. Branch: `feat/r09-p1-comparator` (cut from
 `milestone/r09-project-tree`). Brief:
 [`phase-1-comparator-task-brief.md`](phase-1-comparator-task-brief.md).
 
-**Status: complete. Findings F1a–F1c ruled by the owner 2026-08-04 and folded
-into the map; PAUSED at master Gate 1 on the observed tier.** No P2 work has
-begun. The phase itself moved no files and wrote to no `project_dir`.
+**Status: complete. All three Gate 1 items closed 2026-08-04 — the declared
+tier, the owner's F1a–F1c rulings, and the observed tier (192 paths, zero
+unmapped).** No P2 work has begun. The phase itself moved no files and wrote to
+no `project_dir`.
 
 One qualification, so the sentence above is not read too broadly: **after** the
 phase closed, on an explicit owner instruction, the fixture tree
@@ -23,28 +24,30 @@ F5 and the runbook.
 | --- | --- |
 | `semantic_tree_diff.build_r09_path_map` | The migration map's rows as executable rules |
 | `semantic_tree_diff.apply_path_map_matched` | The fall-through signal the falsifier needs |
-| `semantic_tree_diff.build_r09_gap_rules` / `R09_MAP_GAPS` | Candidate rows for artifacts the map does not cover — **opt-in**; down to the two unruled ones |
+| `semantic_tree_diff.build_r09_gap_rules` / `R09_MAP_GAPS` | Candidate rows for artifacts the map does not cover — **opt-in**; now empty, all five candidates closed |
 | `semantic_tree_diff.build_r09_deletions` | `indicators/RT_*.csv`, deleted rather than migrated |
 | `semantic_tree_diff --check-map` | The falsifier: classify a path list, exit 1 on any UNMAPPED |
 | `dev/scripts/prune_climate_store.py` | Orphaned `climate_historical/<source>_<window>/` reporting |
 | `dev/scripts/snapshot_project_tree.py` | Snapshot a tree + run the map check in one command, every map parameter derived from the config |
 | `pixi run tree-check` | Task wrapping the above, shaped like the existing `dag-wf*` tasks |
 | `dev/milestones/r09/declared_inventory.txt` | The declared-tier inventory, 176 paths, with its provenance |
+| `dev/milestones/r09/observed_inventory.txt` | The observed-tier inventory, 192 paths, from one clean three-workflow run |
+| `dev/milestones/r09/observed-tier-runbook.md` | How the observed tier was produced, executed end to end |
 | `tests/test_r09_path_map.py`, `tests/test_prune_climate_store.py`, `tests/test_snapshot_project_tree.py` | 118 new tests (plus 5 added to `tests/test_semantic_tree_diff.py`) |
 
 ## Rule count by class
 
-`build_r09_path_map("experiment", "era5_20000101_20201231")` — **60 rules**,
-after the F1a–F1c amendment:
+`build_r09_path_map("experiment", "era5_20000101_20201231")` — **59 rules**,
+after the F1a–F1c amendment and the F8 removal:
 
 | Kind | Count | Of which identity |
 | --- | ---: | ---: |
 | regex (`fullmatch` + expansion template) | 9 | 3 |
 | directory prefix (`old` ends `/`) | 24 | 8 |
-| exact file | 27 | 6 |
-| **total** | **60** | **17** |
+| exact file | 26 | 6 |
+| **total** | **59** | **17** |
 
-43 rules relocate; 17 resolve a path to itself. The 17 are enumerated **per map
+42 rules relocate; 17 resolve a path to itself. The 17 are enumerated **per map
 row** — never as a catch-all — because `apply_path_map` returns its input
 unchanged on fall-through, so one broad `config/` → `config/` rule would satisfy
 every `config/` row at once and empty the unmapped-path report by construction.
@@ -56,9 +59,12 @@ Registered **narrower source pattern first** (`apply_path_map` is first match
 wins). `test_narrower_source_pattern_is_registered_first` asserts the ordering as
 an index property over five (narrow, general) pairs, not just as outcomes.
 
-Separately: 2 opt-in gap rules (F2, both directory prefixes, both relocations)
-and 1 deletion pattern. Three of the original five became map rows when F1a–F1c
-were ruled.
+Separately: **zero** opt-in gap rules and 1 deletion pattern. Five candidates
+were raised and all five are closed — three became map rows when F1a–F1c were
+ruled, two were settled negatively by the observed tier (F2). The mechanism is
+kept, empty, because the next inventory may raise a sixth; it is what lets the
+falsifier report "N unmapped" and "0 once accepted" as two numbers rather than
+quietly reporting 0.
 
 ## Falsifier — declared tier
 
@@ -87,32 +93,48 @@ The inventory header records this and the falsifier's assertions normalize the
 digest segment, so a faithful regeneration cannot fail for a reason unrelated to
 the map.
 
-## Falsifier — observed tier: **UNVERIFIED**
+## Falsifier — observed tier: **VERIFIED**
 
-One clean three-workflow run from the primary checkout, snapshotted as a sorted
-path list, does not exist. Producing it is an owner action outside this phase's
-scope (map doc, *Sequencing*), and it is the only tier carrying undeclared engine
-artifacts — `--dry-run` structurally cannot see them. P1 completes with it
-unverified; **Gate 1 may not close that way.**
+`dev/milestones/r09/observed_inventory.txt`. One clean three-workflow run from
+the primary checkout on 2026-08-04, all three green: wf1 18/18 (4m51s), wf2 24/24
+(2m07s), wf3 49/49 (6m46s).
 
-Two obligations attach to producing it, both from the map doc:
+```
+MAP CLEAN: 192 paths, 154 moved, 32 identity (by rule),
+           6 deleted-by-design, 0 unmapped
+```
 
-1. **Prune before snapshotting**, or the snapshot bakes the fixture's orphans
-   into the contract. Not one command: `prune_series_cache.py --delete` covers
-   the WF2 series class, the new `prune_climate_store.py --delete` covers stale
-   climate stores, and the log-part and superseded-config orphans are removed by
-   hand.
-2. Run it from the **primary checkout**, never a worktree.
+Identical with `--gap-rules`, which is itself the evidence for F2.
 
-The undeclared classes the observed tier will exercise, none of which the
-declared tier reaches: `hydromt.log`, `hydromt_data.yml`, `staticgeoms/*` beyond
-the four declared files, `run_default/*` beyond `output.csv`, `evaluation/*`,
-weathergenr's `plots/*.png` and `output/{sim_dates,resampled_dates}.csv`,
-`config/generated/wflow_build_model_run.yml`, `store_region.geojson`, and
-Wflow's `log.txt`. Each has a map row **and a case in the row-driven test's
-`MAP_ROWS` table**; the observed tier is what proves those rows match reality.
-`instate/` is the exception and is F2 below — no map row, and not observed
-either.
+**The two expected asymmetries against the declared tier both hold**, and
+neither is a defect:
+
+- **66 observed-only paths** — the undeclared engine artifacts the tier exists
+  for. `hydromt.log`, `hydromt_data.yml`, seven `staticgeoms/` layers,
+  `run_default/{log.txt,wflow_sbm.toml,outstate/}`, the digest bundles' internal
+  structure (`effective.yml`, `source.yml`, `referenced-files.json`, `files/**`),
+  weathergenr's four plots and two date tables, six `RT_Q_*.csv`, ten per-gauge
+  evaluation figures, and Wflow's `log.txt`.
+- **41 declared-only paths**, every one a `temp()` artifact deleted once consumed
+  (12 inmaps, 12 outstates, 14 weathergen series) or a bundle directory that
+  exists only as its contents.
+
+**F3 confirmed empirically.** Exactly two `log.txt` files —
+`hydrology_runs/rlz_1/config/` and `rlz_2/config/` — for twelve members. One log
+per realization, shared by six concurrently-batched runs: the race the map
+predicted, now observed rather than argued.
+
+**Two rounds of pruning, and the second is the interesting one.** Round 1 (102
+files) came from the runbook's hand list. Round 2 (8 files) came from an **mtime
+sweep** of the finished tree, and every one of the eight sits under a directory
+the map routes wholesale — so the falsifier reported none of them. See F5. The
+snapshot was committed *before* round 2 deliberately, so the commit diff is the
+exact stale-file list rather than a prose claim.
+
+**One caveat, stated so it is not read as drift.** The snapshot is `main` **plus**
+the one-line `LOG_RULES` fix this branch carries (F7). Run from `main` as it
+stands today, the tree would carry one extra path,
+`logs/_parts/1.01b_delineate_region.log`.
 
 ---
 
@@ -162,23 +184,62 @@ design differs from what the code emits, the emitted structure wins). The map
 gains the row now; whether the design tree should absorb the line is **P4/P5**
 territory, since P4 is the phase that touches `experiments/<id>/config/`.
 
-### F2 — two further map gaps, observed-tier only
+### F2 — two candidate rows — **CLOSED NEGATIVELY by the observed tier**
 
-Neither appears in the declared inventory, so neither reds the falsifier; both
-would surface the moment the observed tier is snapshotted. Also carried in
-`build_r09_gap_rules`.
+Both were inferred from the design tree and neither had ever been observed, so
+both were held opt-in rather than folded into the map. The observed-tier run
+settled them, and in both directions the answer was *no change*:
 
-- **`hydrology_model/instate/`** — Wflow's warm states. The design tree has
-  `models/hydrology/wflow/instate/` and the map's models section has no row.
-  **Not observed, only inferred**: it appears in no `output:` declaration, and
-  the only other evidence in the repository is a path string in an existing
-  test fixture. Whether Wflow.jl writes that directory at that path under the
-  pinned version is unconfirmed — confirm against the observed tier before
-  ruling on the row. The proposed rule is inert if the directory never exists.
-- **`hydrology_model/plots/` as a directory** — the map row names
-  `basin_area.{png,pdf}` as two files, not a glob. The strict map encodes exactly
-  those two exact rules; the prefix that would generalise them is the same class
-  of judgment as F1 and is therefore flagged, not folded in.
+- **`hydrology_model/instate/`** — **does not exist.** Zero paths under it in a
+  tree from a complete WF1 run including `run_wflow`. The design tree names it,
+  Wflow.jl does not write it at that path under the pinned version, and the map's
+  silence was correct.
+- **`hydrology_model/plots/` as a directory** — the tree holds **exactly**
+  `basin_area.png` and `basin_area.pdf`. The map's two-file row is right as
+  written; the prefix that would have generalised it was unnecessary.
+
+Both rules are removed, and `R09_MAP_GAPS` is now empty. This is the case for
+having held them opt-in: had they been folded into the map on design-tree
+authority, the map would now carry two rows for artifacts that do not exist —
+and the `--gap-rules` run being byte-identical to the strict one is the evidence
+that they never fired.
+
+### F7 — WF1's `LOG_RULES` was missing `1.01b_delineate_region` — **FIXED**
+
+Rule `1.01b` declares a `log:` part like every other WF1 rule, but its label was
+never added to `LOG_RULES`. **An unlisted label is not an error**: `merge_logs`
+only looks up the labels it is given, so the region-delineation section was
+silently absent from every merged `wf1_model_creation.log` and its part was
+stranded under `logs/_parts/` on every run. Latent since the ADR 0003 spatial
+work landed.
+
+The benchmark gather does not share the failure mode — `wf1_benchmarks.md` has
+listed `1.01b_delineate_region` (18.00 s) all along. **The two artifacts
+disagreeing is what makes this diagnosable at all**, and it is why a file-count
+check would not have caught it.
+
+This is precisely the failure mode the master brief names as unreachable by the
+suite ("a missed `LOG_RULES` entry (silent, not an error)"), and it was found by
+the observed-tier run rather than by a test. Fixed on owner instruction in its
+own commit — P1's brief forbids `Snakefile_*` edits, so the exception is
+recorded rather than buried. Verified empirically: after the fix WF1 planned
+exactly 2 jobs (`merge_logs`, its params having changed, plus `all`),
+`logs/_parts/` is gone because the part was finally consumed, and the merged log
+opens at `== 1.01b delineate_region`.
+
+### F8 — the map carried a row for a retired artifact — **ROW DROPPED**
+
+Nothing in the current codebase writes `config/generated/wflow_build_model_run.yml`;
+only `wflow_build_forcing_historical.yml` is generated. The copy in the tree was
+dated 07-29 and survived a complete WF1 run untouched.
+
+The row mattered more than a stale row usually would: it was **one of the map
+doc's two named precedence hazards**, so the hazard guarded a file that cannot
+appear. Row, rule, row-driven test case and hazard note are all removed; the
+remaining hazard (`log.txt`, F3) is unaffected and keeps its ordering test. A
+replacement assertion pins that the retired path now **falls through** rather
+than resolving, so an old `project_dir` that still holds the file gets it
+reported instead of silently migrated to a destination with no producer.
 
 For contrast, the prefixes used for `staticgeoms/`, `run_default/`,
 `evaluation/`, `forcing/plots/`, `config/catalogs/`, `config/templates/` and
@@ -229,9 +290,11 @@ either way.
 
 ### F5 — an identity-mapped directory hides orphans from the falsifier
 
-Found while staging the fixture tree for the observed-tier run. The falsifier
-reported 23 unmapped paths there; the actual orphan set was **102 files**. The
-79 it did not name sit under two directories the map routes *wholesale*:
+Found twice, which is what makes it a property rather than an incident.
+
+**Round 1**, staging the tree: the falsifier reported 23 unmapped paths; the
+actual orphan set was **102 files**. The 79 it did not name sit under two
+directories the map routes *wholesale*:
 
 | Orphan group | Files | Why the falsifier is blind to it |
 | --- | ---: | --- |
@@ -243,12 +306,21 @@ project-root rows really are narrow (`logs/wf{1,2}_*.log`, `_parts/**`,
 `dag/`), which is exactly why the 22 project-scope rule logs *were* caught. The
 asymmetry is in the map, not in the comparator.
 
+**Round 2**, after the run: an **mtime sweep** of the finished tree found 9
+files predating it. One (`store_region.geojson`) was legitimate — a declared
+output of the persistent store rule that Snakemake correctly found up to date.
+The other 8 were stale, and **the falsifier reported none of them**: six
+pre-split figures under `climate_historical/<key>/plots/` and
+`hydrology_model/forcing/plots/` (both prefix-mapped), an orphan `RT_Q_*.csv`
+(classified DELETED by design), and the retired build config of F8.
+
 The consequence is operational and worth stating plainly: **the hand-prune list
-in the runbook cannot be replaced by the comparator.** Anything under an
-identity-mapped directory has to be adjudicated by eye. Narrowing the two rows
-to match the project-root precision would close it, but that is a map amendment
-on no evidence of a real defect — the wholesale rows are what the map says — so
-it is recorded rather than done.
+in the runbook cannot be replaced by the comparator, and mtime is the instrument
+the comparator is not.** Anything under an identity- or prefix-mapped directory
+has to be adjudicated some other way. Narrowing the wholesale rows to match the
+project-root precision would close the log case, but that is a map amendment on
+no evidence of a real defect — those rows are what the map says — so it is
+recorded rather than done. The runbook now carries the mtime sweep as a step.
 
 ### F6 — no path map row proved unexpressible
 
@@ -309,8 +381,9 @@ Snakefile or `script:` signature changed); rungs 4–5 belong to the program.
 
 | Rung | Command | Result |
 | --- | --- | --- |
-| 1 Narrow | `pytest tests/test_semantic_tree_diff.py tests/test_r09_path_map.py tests/test_prune_climate_store.py tests/test_snapshot_project_tree.py` | **171 passed** |
-| 3 Phase gate | `pixi run test-fast` | **1203 passed**, 30 skipped, 42 deselected, 1 xfailed (41 s) |
+| 1 Narrow | `pytest tests/test_semantic_tree_diff.py tests/test_r09_path_map.py tests/test_prune_climate_store.py tests/test_snapshot_project_tree.py` | **170 passed** |
+| 3 Phase gate | `pixi run test-fast` | **1202 passed**, 30 skipped, 42 deselected, 1 xfailed (60 s) |
+| 2 Integration | `pixi run test-cli` | **12 passed** — fired because F7 changed a Snakefile |
 
 WF1/WF2/WF3 suites were not run: this phase touches no workflow.
 
@@ -320,9 +393,9 @@ WF1/WF2/WF3 suites were not run: this phase touches no workflow.
 
 | # | Item | Status |
 | --- | --- | --- |
-| 1 | The three declared-tier gaps (F1a–F1c) | **RULED 2026-08-04** — map amended, rules folded in, strict map now reports 0 unmapped |
-| 2 | The two unruled gaps (F2) | **Open, not blocking** — neither appears in any declaration; carried opt-in in `build_r09_gap_rules` until the observed tier shows whether they exist |
-| 3 | The observed tier | **UNVERIFIED** — an owner action; **this is what keeps Gate 1 open**. Runbook step 1 is done: the tree is pruned and staged (`MAP CLEAN: 138 paths, 0 unmapped`), so only the three-workflow run and the snapshot remain |
+| 1 | The three declared-tier gaps (F1a–F1c) | **RULED 2026-08-04** — map amended, rules folded in, strict map reports 0 unmapped |
+| 2 | The two unruled gaps (F2) | **CLOSED NEGATIVELY** — the observed tier shows `instate/` does not exist and `plots/` holds exactly the two named files. Both rules removed |
+| 3 | The observed tier | **VERIFIED** — one clean three-workflow run, snapshotted and committed: `MAP CLEAN: 192 paths, 0 unmapped` |
 
 Item 1's rulings were taken on the falsifier's own output: the map's `data/` row
 enumerated five geoms layers where the code writes six, its `config/runs/` row
@@ -330,9 +403,18 @@ transcribed one workflow where the design says `<workflow>`, and no row covered
 WF3's experiment-scoped bundle. All three are amended in
 `migration_project-tree.md`, dated and cross-referenced to this report.
 
-**Gate 1 does not close on the declared tier alone**, and P2 does not begin until
-it does. The remaining action is the observed tier: prune first
-(`prune_series_cache.py --delete`, `prune_climate_store.py --delete`, and the
-log-part and superseded-config orphans by hand), then one clean three-workflow
-run from the primary checkout, snapshotted as a sorted path list under
-`dev/milestones/r09/`, then `--check-map` against it with zero unmapped.
+Item 3 is what Gate 1 could not close without, and it earned its place: the
+observed tier is the only thing that could settle F2 (both negatively), retire
+F8's row, and surface F7 — none of which any declaration or unit test reaches.
+
+**Two items the owner should note before P2 begins**, neither of them blocking:
+
+1. **F7 is a `Snakefile_model_creation` edit on this branch**, outside P1's
+   stated scope, in its own commit so it can be reverted or cherry-picked
+   independently. `main`'s working tree is clean and carries no part of it.
+2. **The observed snapshot is `main` plus that fix.** Regenerating it from `main`
+   as it stands yields one extra path. P2 should merge or carry the fix before
+   using the snapshot as its pre-migration reference, or subtract that one path.
+
+Everything Gate 1 asked for is present: the map applied to a pre-migration tree
+showing the intended post-migration paths, in both tiers, with zero unmapped.

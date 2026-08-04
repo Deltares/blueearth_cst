@@ -189,6 +189,19 @@ Keep the full table (no `--quiet`): the `MOVED` and `IDENTITY (rule)` rows *are*
 Gate 1's evidence — the map applied to a pre-migration tree, showing the intended
 post-migration paths.
 
+> **DONE 2026-08-04.** `MAP CLEAN: 192 paths, 0 unmapped`, exit 0, committed as
+> `observed_inventory.txt`. Two things the run itself found: a stranded
+> `LOG_RULES` entry (phase-1 report F7) and a map row for a retired artifact
+> (F8). An **mtime sweep** afterwards found 8 more stale files that the
+> falsifier structurally could not report — add that sweep to any future
+> snapshot, before trusting a clean result:
+>
+> ```powershell
+> Get-ChildItem $TREE -Recurse -File |
+>   Where-Object { $_.LastWriteTime -lt $runStart } |
+>   ForEach-Object { $_.FullName.Substring($TREE.Length + 1) }
+> ```
+
 **Exit 0 and `MAP CLEAN` closes Gate 1 item 3.** Then run it once more with
 `--gap-rules`: the difference between the two runs is the answer to **F2** —
 whether `hydrology_model/instate/` and a directory-wide `hydrology_model/plots/`

@@ -16,10 +16,19 @@ being corrected by the instrument built to test it, which is what gate 1 is for.
 | F1b | `config/runs/climate_projections/<digest>/` | `config/` row generalised from `model_creation` to `<workflow>` |
 | F1c | `experiments/<id>/config/runs/climate_experiment/<digest>/` | new identity row in the experiments section, under P9 |
 
-Two further gaps (`hydrology_model/instate/`, and `hydrology_model/plots/` as a
-directory rather than two named files) appear in no declaration and are **not
-ruled**; they are carried in `semantic_tree_diff.build_r09_gap_rules` until the
-observed tier confirms whether they exist.
+**Second amendment 2026-08-04 — the observed tier.** One clean three-workflow
+run from the primary checkout settled the two gaps that no declaration could
+reach, and retired a row:
+
+| # | Artifact | Ruling |
+| --- | --- | --- |
+| F2 | `hydrology_model/instate/` | **No row.** The directory does not exist; the candidate was inferred from the design tree and never observed |
+| F2 | `hydrology_model/plots/` as a directory | **No change.** The tree holds exactly `basin_area.{png,pdf}`, so the two-file row is right as written |
+| G2 | `config/generated/wflow_build_model_run.yml` | **Row dropped.** Nothing in the codebase writes it any more — only `wflow_build_forcing_historical.yml` is generated — so the row, and the second *named precedence hazard* built on it, described an artifact that cannot appear |
+
+`semantic_tree_diff.R09_MAP_GAPS` is now empty: every candidate is closed, three
+into the map and two out of it. The observed tier is
+`observed_inventory.txt` — 201 paths, zero unmapped.
 
 Date: 2026-08-04
 
@@ -185,7 +194,7 @@ swallows a specific destination:
 
 | Narrow rule | General rule it must precede |
 | --- | --- |
-| `<P>/config/generated/wflow_build_model_run.yml` → `models/hydrology/wflow/config/build_model.yml` | the `config/**` identity rows |
+| ~~`<P>/config/generated/wflow_build_model_run.yml`~~ | **RETIRED 2026-08-04** — nothing writes the file any more, so this hazard guarded an artifact that cannot appear (phase-1 report G2) |
 | `experiments/<id>/hydrology_runs/rlz_<r>/config/log.txt` → `hydrology/wflow/output/rlz_<r>_cst_<c>.log` | any `hydrology_runs/rlz_(\d+)/config/(.*)` regex, which consumes the log row |
 
 The first hazard is why `config/generated/*` appears twice below — once under its
@@ -214,7 +223,7 @@ signalling that section order and rule order are different things.
 | `<P>/hydrology_model/plots/basin_area.{png,pdf}` | `models/hydrology/wflow/plots/basin_area.{png,pdf}` |
 | `<P>/hydrology_model/.model_built` | `models/hydrology/wflow/.model_built` (sentinel rule) |
 | `<P>/hydrology_model/.outputs_configured` | `models/hydrology/wflow/.outputs_configured` |
-| `<P>/config/generated/wflow_build_model_run.yml` | `models/hydrology/wflow/config/build_model.yml` |
+| ~~`<P>/config/generated/wflow_build_model_run.yml`~~ | **row dropped 2026-08-04** — no current rule writes it; only `wflow_build_forcing_historical.yml` is generated (phase-1 report G2) |
 | `<P>/config/generated/wflow_build_forcing_historical.yml` | `models/hydrology/wflow/config/build_historical_forcing.yml` |
 
 The last two are also listed under `config/` below, since that is where they come
@@ -278,7 +287,7 @@ never normalized by the naming rule.
 | `<P>/config/catalogs/*.yml` | unchanged |
 | `<P>/config/templates/*.yml` | unchanged — snapshots, **not** the editable inputs v4 drew |
 | `<P>/config/observations/*` | unchanged |
-| `<P>/config/generated/wflow_build_model_run.yml` | `models/hydrology/wflow/config/build_model.yml` |
+| ~~`<P>/config/generated/wflow_build_model_run.yml`~~ | **row dropped 2026-08-04** — no current rule writes it; only `wflow_build_forcing_historical.yml` is generated (phase-1 report G2) |
 | `<P>/config/generated/wflow_build_forcing_historical.yml` | `models/hydrology/wflow/config/build_historical_forcing.yml` |
 | *(not built)* | `config/project.yml` — new capability, see scope note |
 

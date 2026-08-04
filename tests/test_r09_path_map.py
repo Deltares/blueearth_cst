@@ -215,11 +215,20 @@ def test_a_catch_all_config_prefix_would_empty_the_report():
 # ---------------------------------------------------------------------------
 
 def test_hazard_generated_build_yaml_beats_the_config_identity_rows():
-    """`config/generated/*` is routed to the MODEL root, not left under config/."""
-    assert _map("config/generated/wflow_build_model_run.yml") == \
-        "models/hydrology/wflow/config/build_model.yml"
+    """`config/generated/*` is routed to the MODEL root, not left under config/.
+
+    Only the FORCING config remains. `wflow_build_model_run.yml` had a row here
+    until the 2026-08-04 observed-tier run showed that nothing writes it any
+    more -- so the map doc's second named hazard guarded a retired file
+    (phase-1 report G2). Its row, its rule and its row-driven case are gone.
+    """
     assert _map("config/generated/wflow_build_forcing_historical.yml") == \
         "models/hydrology/wflow/config/build_historical_forcing.yml"
+    # The retired one must now FALL THROUGH rather than resolve: an old
+    # project_dir that still holds the file gets it REPORTED, not silently
+    # migrated to a destination the design no longer has a producer for.
+    assert std.classify_path_map(
+        ["config/generated/wflow_build_model_run.yml"], MAP)[0][2] == "UNMAPPED"
 
 
 def test_hazard_wflow_log_beats_the_run_config_regex():
@@ -307,8 +316,6 @@ MAP_ROWS: dict[str, list[tuple[str, str]]] = {
          "models/hydrology/wflow/.model_built"),
         ("hydrology_model/.outputs_configured",
          "models/hydrology/wflow/.outputs_configured"),
-        ("config/generated/wflow_build_model_run.yml",
-         "models/hydrology/wflow/config/build_model.yml"),
         ("config/generated/wflow_build_forcing_historical.yml",
          "models/hydrology/wflow/config/build_historical_forcing.yml"),
     ],
@@ -413,8 +420,6 @@ MAP_ROWS: dict[str, list[tuple[str, str]]] = {
          "config/templates/wflow_build_model.yml"),
         ("config/observations/output_locations.csv",
          "config/observations/output_locations.csv"),
-        ("config/generated/wflow_build_model_run.yml",
-         "models/hydrology/wflow/config/build_model.yml"),
         ("config/generated/wflow_build_forcing_historical.yml",
          "models/hydrology/wflow/config/build_historical_forcing.yml"),
     ],

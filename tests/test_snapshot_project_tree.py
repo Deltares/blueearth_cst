@@ -183,15 +183,43 @@ def test_no_check_skips_the_gate_and_always_exits_zero(tmp_path, capsys):
     assert "UNMAPPED" not in capsys.readouterr().out
 
 
-def test_gap_rules_are_off_by_default(tmp_path, capsys):
-    """`hydrology_model/instate/` is an UNRULED candidate: unmapped by default,
-    mapped only when the caller opts in."""
+def test_the_gap_rule_set_is_empty_and_the_flag_is_a_no_op(tmp_path, capsys):
+    """Every candidate is closed, so `--gap-rules` currently changes nothing.
+
+    Three were ruled into the map (phase-1 report F1a-F1c) and two were settled
+    negatively by the observed-tier run (F2). Asserted rather than assumed: a
+    non-empty set here would mean an unruled row had crept back in.
+    """
+    assert spt.std.build_r09_gap_rules("experiment") == []
+    assert spt.std.R09_MAP_GAPS == ()
+
     proj = tmp_path / "proj"
-    _touch(proj, "hydrology_model/instate/instates.nc")
+    _touch(proj, "hydrology_model/staticmaps.nc")
+    cfg = _write_config(tmp_path, _config(proj))
+    assert spt.main(["--config", str(cfg)]) == 0
+    assert spt.main(["--config", str(cfg), "--gap-rules"]) == 0
+
+
+def test_gap_rules_still_wire_through_when_the_set_is_non_empty(
+    tmp_path, capsys, monkeypatch
+):
+    """The MECHANISM, pinned independently of any particular candidate.
+
+    The set is empty today; the next inventory may raise a sixth candidate, and
+    what must keep working is that an opt-in rule is off by default and applied
+    on the flag. Tested against a stand-in so this cannot rot the way the old
+    `instate/` case did when its candidate was retired.
+    """
+    monkeypatch.setattr(
+        spt.std, "build_r09_gap_rules",
+        lambda _e: [("some_future_dir/", "data/some_future_dir/")],
+    )
+    proj = tmp_path / "proj"
+    _touch(proj, "some_future_dir/thing.nc")
     cfg = _write_config(tmp_path, _config(proj))
 
     assert spt.main(["--config", str(cfg)]) == 1
-    assert "UNMAPPED hydrology_model/instate/instates.nc" in capsys.readouterr().out
+    assert "UNMAPPED some_future_dir/thing.nc" in capsys.readouterr().out
 
     assert spt.main(["--config", str(cfg), "--gap-rules"]) == 0
     assert "MAP CLEAN" in capsys.readouterr().out

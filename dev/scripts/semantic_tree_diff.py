@@ -495,15 +495,18 @@ def build_r09_path_map(
     ident: list[tuple[str | re.Pattern, str]] = []
 
     rules: list[tuple[str | re.Pattern, str]] = [
-        # -- 1. The two named precedence hazards, registered first ------------
+        # -- 1. The named precedence hazard, registered first -----------------
         # `config/generated/*` appears twice in the map doc -- once under its
         # destination root and once under its source root -- precisely to signal
-        # that these must precede the `config/**` rows. They are LATENT hazards
-        # in this encoding (there is no `config/` catch-all below, by design),
-        # but the order is kept so that widening a later rule cannot silently
-        # reopen them.
-        ("config/generated/wflow_build_model_run.yml",
-         "models/hydrology/wflow/config/build_model.yml"),
+        # that it must precede the `config/**` rows. A LATENT hazard in this
+        # encoding (there is no `config/` catch-all below, by design), but the
+        # order is kept so that widening a later rule cannot silently reopen it.
+        #
+        # `wflow_build_model_run.yml` had a row here until 2026-08-04. The
+        # observed-tier run showed nothing in the codebase writes it any more --
+        # only the forcing config is generated -- so the row described an
+        # artifact that cannot appear, and the map doc's SECOND named hazard was
+        # a hazard about a retired file. Dropped (phase-1 report, G2).
         ("config/generated/wflow_build_forcing_historical.yml",
          "models/hydrology/wflow/config/build_historical_forcing.yml"),
         # Wflow's own `log.txt`, which `[logging] path_log` writes beside the
@@ -683,55 +686,46 @@ def build_r09_path_map(
 
 
 #: Candidate map rows for artifacts the migration map does not cover, found by
-#: applying `build_r09_path_map` to the declared-tier inventory. Kept OUT of the
-#: map so the falsifier reports them; amending the map is an owner decision
-#: (phase-1 brief, *Task constraints*). Each entry: (artifact, producing rule,
-#: authority for the destination).
+#: applying `build_r09_path_map` to an inventory. Kept OUT of the map so the
+#: falsifier reports them; amending the map is an owner decision (phase-1 brief,
+#: *Task constraints*). Each entry: (artifact, producing rule, authority).
 #:
-#: THE THREE DECLARED-TIER GAPS ARE GONE FROM THIS TUPLE. They were ruled by the
-#: owner on 2026-08-04 (phase-1 report F1a-F1c), the migration map was amended,
-#: and the rules now live in `build_r09_path_map` where they belong. What is
-#: left is the pair that appears in NO declaration: neither has been observed,
-#: so neither can be ruled until the observed tier exists.
-R09_MAP_GAPS: tuple[tuple[str, str, str], ...] = (
-    (
-        "hydrology_model/instate/",
-        "Wflow.jl warm-state output (undeclared engine artifact)",
-        "Design tree v10 `models/hydrology/wflow/instate/`; the map's models "
-        "section has no row. INFERRED, NOT OBSERVED: the directory appears in "
-        "no `output:` declaration and has not been seen on disk, so whether "
-        "Wflow.jl writes it at that path under the pinned version is "
-        "unconfirmed. The rule is inert if it never exists.",
-    ),
-    (
-        "hydrology_model/plots/ (as a directory)",
-        "rule plot_map",
-        "The map row names basin_area.{png,pdf} as two files, not a glob, and "
-        "the declared tier emits exactly those two. A prefix rule would widen "
-        "the row on no evidence, so it is flagged rather than folded in.",
-    ),
-)
+#: **EMPTY, and that is a result rather than an absence.** Five candidates were
+#: raised and all five are closed:
+#:
+#: * three declared-tier gaps -- `spatial/geoms/region.geojson`,
+#:   `config/runs/climate_projections/<digest>/`, and WF3's experiment-scoped
+#:   bundle -- ruled by the owner on 2026-08-04 (phase-1 report F1a-F1c). The
+#:   migration map was amended and the rules moved into `build_r09_path_map`;
+#: * two more -- `hydrology_model/instate/` and a directory-wide
+#:   `hydrology_model/plots/` -- were inferred from the design tree and never
+#:   observed. The 2026-08-04 observed-tier run settled both NEGATIVELY:
+#:   `instate/` does not exist, and `plots/` holds exactly
+#:   `basin_area.{png,pdf}`, so the map's two-file row is right as written.
+#:   Their rules matched nothing and were removed (phase-1 report F2).
+#:
+#: The mechanism is kept, empty, because the next inventory may raise a sixth:
+#: it is what lets the falsifier report "N unmapped" and "0 once accepted" as
+#: two numbers instead of quietly reporting 0.
+R09_MAP_GAPS: tuple[tuple[str, str, str], ...] = ()
 
 
 def build_r09_gap_rules(
     experiment_name: str,
 ) -> list[tuple[str | re.Pattern, str]]:
-    """Proposed rules for the artifacts in `R09_MAP_GAPS` -- OPT-IN.
+    """Proposed rules for the artifacts in `R09_MAP_GAPS` -- OPT-IN, now empty.
 
-    APPENDED to `build_r09_path_map`, never interleaved: every rule here is
-    either disjoint from, or strictly broader than, every map rule, so
-    appending cannot change how a map row resolves. `test_r09_path_map.py`
-    pins that property against the declared-tier inventory.
+    APPENDED to `build_r09_path_map`, never interleaved: any rule here must be
+    either disjoint from, or strictly broader than, every map rule, so appending
+    cannot change how a map row resolves. `test_r09_path_map.py` pins that
+    property against the declared-tier inventory.
 
-    `experiment_name` is unused since the F1c ruling folded the only
-    experiment-scoped candidate into the map; the parameter is kept so the
-    call signature does not change under the caller.
+    `experiment_name` is unused now that every candidate is closed; the
+    parameter is kept so the call signature does not change under the caller,
+    and so a future experiment-scoped candidate needs no signature change.
     """
     del experiment_name
-    return [
-        ("hydrology_model/instate/", "models/hydrology/wflow/instate/"),
-        ("hydrology_model/plots/", "models/hydrology/wflow/plots/"),
-    ]
+    return []
 
 
 def build_r09_deletions(experiment_name: str) -> list[re.Pattern]:

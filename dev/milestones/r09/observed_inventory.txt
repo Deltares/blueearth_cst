@@ -8,14 +8,14 @@
 #
 # PROVENANCE
 #   generated   2026-08-04 by dev/scripts/snapshot_project_tree.py
-#   run commit  b6b86d4  (C:/Users/taner/workspace/.worktrees/blueearth_cst/r09-p1-comparator)
-#   tool commit b6b86d4  (C:/Users/taner/workspace/.worktrees/blueearth_cst/r09-p1-comparator)
+#   run commit  a011546  (C:/Users/taner/workspace/.worktrees/blueearth_cst/r09-p1-comparator)
+#   tool commit a011546  (C:/Users/taner/workspace/.worktrees/blueearth_cst/r09-p1-comparator)
 #   config      config/workflows/snake_config_model_test.yml
 #   project_dir test_case/test_local
 #   experiment  experiment
 #   store key   era5_20000101_20201231
 #   clim_project cmip6
-#   paths       201
+#   paths       192
 #
 # POSIX separators, sorted, deduplicated. `.snakemake/` is excluded:
 # Snakemake bookkeeping, not a project artifact. Everything else is
@@ -28,15 +28,12 @@ benchmarks/wf1_benchmarks.md
 benchmarks/wf2_benchmarks.md
 climate_historical/era5_20000101_20201231/.guard_ok
 climate_historical/era5_20000101_20201231/extract_historical.nc
-climate_historical/era5_20000101_20201231/plots/source_pet.png
 climate_historical/era5_20000101_20201231/plots/source_pet_annual.png
 climate_historical/era5_20000101_20201231/plots/source_pet_map.png
 climate_historical/era5_20000101_20201231/plots/source_pet_monthly.png
-climate_historical/era5_20000101_20201231/plots/source_precip.png
 climate_historical/era5_20000101_20201231/plots/source_precip_annual.png
 climate_historical/era5_20000101_20201231/plots/source_precip_map.png
 climate_historical/era5_20000101_20201231/plots/source_precip_monthly.png
-climate_historical/era5_20000101_20201231/plots/source_temp.png
 climate_historical/era5_20000101_20201231/plots/source_temp_annual.png
 climate_historical/era5_20000101_20201231/plots/source_temp_map.png
 climate_historical/era5_20000101_20201231/plots/source_temp_monthly.png
@@ -76,7 +73,6 @@ climate_projections/cmip6/summary/provenance.json
 config/catalogs/cmip6_data.yml
 config/catalogs/deltares_data.yml
 config/generated/wflow_build_forcing_historical.yml
-config/generated/wflow_build_model_run.yml
 config/runs/climate_projections/7d2b336f42e1/.snakemake_timestamp
 config/runs/climate_projections/7d2b336f42e1/effective.yml
 config/runs/climate_projections/7d2b336f42e1/files/catalogs/768a349a9c8e-cmip6_data.yml
@@ -136,7 +132,6 @@ experiments/experiment/indicators/RT_Q_102.csv
 experiments/experiment/indicators/RT_Q_103.csv
 experiments/experiment/indicators/RT_Q_104.csv
 experiments/experiment/indicators/RT_Q_105.csv
-experiments/experiment/indicators/RT_Q_130000086.csv
 experiments/experiment/indicators/basin.csv
 experiments/experiment/logs/wf3_climate_experiment.log
 experiments/experiment/weather_generator/_work/cst_1.csv
@@ -188,9 +183,6 @@ hydrology_model/forcing/plots/forcing_precip_monthly.png
 hydrology_model/forcing/plots/forcing_temp_annual.png
 hydrology_model/forcing/plots/forcing_temp_map.png
 hydrology_model/forcing/plots/forcing_temp_monthly.png
-hydrology_model/forcing/plots/pet.png
-hydrology_model/forcing/plots/precip.png
-hydrology_model/forcing/plots/temp.png
 hydrology_model/hydromt.log
 hydrology_model/hydromt_data.yml
 hydrology_model/plots/basin_area.pdf
@@ -212,7 +204,6 @@ hydrology_model/staticgeoms/rivers.geojson
 hydrology_model/staticgeoms/subbasins.geojson
 hydrology_model/staticmaps.nc
 hydrology_model/wflow_sbm.toml
-logs/_parts/1.01b_delineate_region.log
 logs/wf1_model_creation.log
 logs/wf2_climate_projections.log
 spatial/geoms/basins.geojson
