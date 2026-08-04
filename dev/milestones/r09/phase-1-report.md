@@ -20,8 +20,9 @@ begun. This phase moved no files and wrote to no `project_dir`.
 | `semantic_tree_diff.build_r09_deletions` | `indicators/RT_*.csv`, deleted rather than migrated |
 | `semantic_tree_diff --check-map` | The falsifier: classify a path list, exit 1 on any UNMAPPED |
 | `dev/scripts/prune_climate_store.py` | Orphaned `climate_historical/<source>_<window>/` reporting |
+| `dev/scripts/snapshot_project_tree.py` | Snapshot a tree + run the map check in one command, every map parameter derived from the config |
 | `dev/milestones/r09/declared_inventory.txt` | The declared-tier inventory, 176 paths, with its provenance |
-| `tests/test_r09_path_map.py`, `tests/test_prune_climate_store.py` | 102 new tests (plus 5 added to `tests/test_semantic_tree_diff.py`) |
+| `tests/test_r09_path_map.py`, `tests/test_prune_climate_store.py`, `tests/test_snapshot_project_tree.py` | 118 new tests (plus 5 added to `tests/test_semantic_tree_diff.py`) |
 
 ## Rule count by class
 
@@ -268,8 +269,8 @@ Snakefile or `script:` signature changed); rungs 4–5 belong to the program.
 
 | Rung | Command | Result |
 | --- | --- | --- |
-| 1 Narrow | `pytest tests/test_semantic_tree_diff.py tests/test_r09_path_map.py tests/test_prune_climate_store.py` | **155 passed** (after the F1a–F1c amendment) |
-| 3 Phase gate | `pixi run test-fast` | **1187 passed**, 30 skipped, 42 deselected, 1 xfailed (42 s) |
+| 1 Narrow | `pytest tests/test_semantic_tree_diff.py tests/test_r09_path_map.py tests/test_prune_climate_store.py tests/test_snapshot_project_tree.py` | **171 passed** |
+| 3 Phase gate | `pixi run test-fast` | **1203 passed**, 30 skipped, 42 deselected, 1 xfailed (55 s) |
 
 WF1/WF2/WF3 suites were not run: this phase touches no workflow.
 

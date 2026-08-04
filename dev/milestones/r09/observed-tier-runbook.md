@@ -52,20 +52,18 @@ Snapshot the tree **as it is now** and run the falsifier — every `UNMAPPED` li
 is either a real map gap or a leftover:
 
 ```powershell
-# a throwaway snapshot, for adjudication only
-$ROOT = (Resolve-Path $P).Path
-Get-ChildItem -Path $P -Recurse -File -Force |
-  ForEach-Object { $_.FullName.Substring($ROOT.Length + 1).Replace('\','/') } |
-  Where-Object { $_ -notlike '.snakemake/*' } |
-  Sort-Object -Unique |
-  Set-Content -Encoding utf8 "$env:TEMP\pre_prune_inventory.txt"
-
-cd $WT
-pixi run python dev/scripts/semantic_tree_diff.py `
-    --check-map "$env:TEMP\pre_prune_inventory.txt" --milestone r09 `
-    --experiment-name experiment --dataset-key era5_20000101_20201231
-cd C:\Users\taner\workspace\blueearth_cst
+pixi run python "$WT\dev\scripts\snapshot_project_tree.py" --config $CFG --quiet
 ```
+
+No `--out`, so **nothing is written** — this only inspects. The experiment name,
+the historical store key and `clim_project` are derived from `$CFG`, so there is
+no `--dataset-key` to mistype (a wrong key turns a mapped store into an unmapped
+one, which reads as a map gap that is not there).
+
+The script lives in the task worktree while the tree lives beside the primary
+checkout; a relative `project_dir` resolves against the **current directory**,
+as Snakemake resolves it, so run it from the primary checkout as above. Pass
+`--project-dir` if you need to point it somewhere else.
 
 Read the `UNMAPPED` lines. Each is one of:
 
@@ -150,51 +148,57 @@ If a run crashes and the workdir reports as locked:
 
 Order matters — `climate_experiment` consumes `model_creation` artifacts.
 
-## Step 3 — snapshot
+## Steps 3 and 4 — snapshot and check
+
+Same command as step 0, now with `--out`. The snapshot is written with a
+provenance header — both commits, the config, the derived experiment name and
+store key — and the map check runs over the same path list, so the recorded file
+and the checked list cannot disagree.
 
 ```powershell
-$ROOT = (Resolve-Path $P).Path
-# single-quoted here-string: backtick is an escape character in a double-quoted
-# one, and the closing '@ must sit at column 0
-$header = @'
-# R09 observed-tier inventory --- one clean three-workflow run.
-#
-# Ruled in migration_project-tree.md, *The inventory the map is validated
-# against*. This is the tier that carries UNDECLARED engine artifacts, which
-# appear in no `output:` declaration and which --dry-run cannot see.
-#
-# PROVENANCE
-#   checkout    C:\Users\taner\workspace\blueearth_cst (primary), branch main
-#   commit      <fill in: git rev-parse --short HEAD>
-#   config      config/workflows/snake_config_model_test.yml
-#   project_dir test_case/test_local, pruned per observed-tier-runbook.md step 1
-#   date        <fill in>
-#
-# Paths are project-root-relative, POSIX separators, sorted, deduplicated.
-# `.snakemake/` is excluded: Snakemake bookkeeping, not a project artifact.
-'@
-$files = Get-ChildItem -Path $P -Recurse -File -Force |
-  ForEach-Object { $_.FullName.Substring($ROOT.Length + 1).Replace('\','/') } |
-  Where-Object { $_ -notlike '.snakemake/*' } |
-  Sort-Object -Unique
-Set-Content -Encoding utf8 -Path $SNAP -Value ($header, $files)
-"$($files.Count) paths -> $SNAP"
-```
-
-## Step 4 — run the falsifier against it
-
-```powershell
-cd $WT
-pixi run python dev/scripts/semantic_tree_diff.py `
-    --check-map dev/milestones/r09/observed_inventory.txt --milestone r09 `
-    --experiment-name experiment --dataset-key era5_20000101_20201231
+pixi run python "$WT\dev\scripts\snapshot_project_tree.py" --config $CFG --out $SNAP
 echo "exit=$LASTEXITCODE"
 ```
 
-**Exit 0 and `MAP CLEAN` closes Gate 1 item 3.** Add `--r09-gap-rules` as a
-second run: the difference between the two is the answer to **F2** — whether
-`hydrology_model/instate/` and a directory-wide `hydrology_model/plots/` exist,
-which is the only thing still blocking those two rows from being ruled.
+Keep the full table (no `--quiet`): the `MOVED` and `IDENTITY (rule)` rows *are*
+Gate 1's evidence — the map applied to a pre-migration tree, showing the intended
+post-migration paths.
+
+**Exit 0 and `MAP CLEAN` closes Gate 1 item 3.** Then run it once more with
+`--gap-rules`: the difference between the two runs is the answer to **F2** —
+whether `hydrology_model/instate/` and a directory-wide `hydrology_model/plots/`
+exist at all, which is the only thing still blocking those two rows from being
+ruled.
+
+```powershell
+pixi run python "$WT\dev\scripts\snapshot_project_tree.py" --config $CFG --gap-rules --quiet
+```
+
+<details>
+<summary>Doing it without the wrapper</summary>
+
+The wrapper is `Get-ChildItem` plus `semantic_tree_diff --check-map`. If you
+need the pieces separately — a different exclusion, a tree with no config
+beside it — the equivalent is:
+
+```powershell
+$ROOT = (Resolve-Path $P).Path
+Get-ChildItem -Path $P -Recurse -File -Force |
+  ForEach-Object { $_.FullName.Substring($ROOT.Length + 1).Replace('\','/') } |
+  Where-Object { $_ -notlike '.snakemake/*' } |
+  Sort-Object -Unique |
+  Set-Content -Encoding utf8 $SNAP
+
+cd $WT
+pixi run python dev/scripts/semantic_tree_diff.py `
+    --check-map $SNAP --milestone r09 `
+    --experiment-name experiment --dataset-key era5_20000101_20201231
+```
+
+`--dataset-key` is the one to get right by hand: a wrong key turns a mapped
+store into an unmapped one, which reads as a map gap that is not there. That is
+the argument the wrapper exists to derive.
+</details>
 
 ---
 
