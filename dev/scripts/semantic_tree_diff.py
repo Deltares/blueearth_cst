@@ -52,6 +52,18 @@ CLI (self-contained; no snakemake global)::
 Exit 0 = clean (every file equal under its comparator, residual MISSING/EXTRA
 empty modulo the allowlist), 1 = at least one FAIL or unexplained
 missing/extra file. A clean self-comparison (`--ref X --cur X`) is the smoke.
+
+Path-map falsifier mode (R09 phase 1) -- no trees, one path list::
+
+    python dev/scripts/semantic_tree_diff.py --check-map <pathlist> \
+        --milestone r09 --experiment-name experiment \
+        --dataset-key era5_20000101_20201231 [--r09-gap-rules]
+
+Classifies every project-relative path as MOVED / IDENTITY / DELETED /
+UNMAPPED and exits 1 if anything is UNMAPPED. This is what makes the claim
+"the map covers every artifact" testable: `apply_path_map` alone cannot
+distinguish an identity rule from a fall-through, so `apply_path_map_matched`
+reports whether a rule actually fired.
 """
 
 from __future__ import annotations
@@ -430,6 +442,385 @@ def build_r07_merges(
     return merges
 
 
+# ---------------------------------------------------------------------------
+# R09 path map (dev/milestones/r09/migration_project-tree.md -- that map is the
+# path authority; this is its executable form). Target tree:
+# dev/milestones/r09/project-tree-design.md v10.
+#
+# Direction is the INVERSE of R07's: R07 moved the realization index out of the
+# filename and into a directory (`rlz_<r>/output/cst_<c>.csv`); R09 moves it
+# back into the filename (`output/rlz_<r>_cst_<c>.csv`) and drops the per-
+# realization directory level.
+#
+# RULE ORDER IS NOT SECTION ORDER. The map doc groups its tables by destination
+# root because that is how a human reads them; `apply_path_map` is first match
+# wins, so the rules below are registered NARROWER SOURCE PATTERN FIRST (map
+# doc, *Rule precedence -- the tables are not the rule order*).
+#
+# IDENTITY IS ENUMERATED PER ROW, never as a catch-all prefix. A broad
+# `config/` -> `config/` rule would satisfy every `config/` row at once and
+# empty the unmapped-path report by construction, since a fall-through and an
+# identity match would then look the same to `apply_path_map_matched`.
+# ---------------------------------------------------------------------------
+
+def build_r09_path_map(
+    experiment_name: str,
+    dataset_key: str | None = None,
+    clim_project: str = "cmip6",
+) -> list[tuple[str | re.Pattern, str]]:
+    """The R09 old->new relocation rules, one per row of the migration map.
+
+    ONLY rows the map doc states are encoded here. Artifacts the map does not
+    cover fall through and are reported as UNMAPPED -- that is the phase-1
+    falsifier, and finding one is a finding against the map, not a licence to
+    improvise. Candidate additions live in `build_r09_gap_rules`, which the
+    caller opts into explicitly.
+
+    Parameters
+    ----------
+    experiment_name : str
+        `workflows.climate_experiment.experiment_name` -- the `<id>` in
+        `experiments/<id>/`.
+    dataset_key : str | None
+        The historical climate-store key, `<clim_source>_<start>_<end>`. Only
+        registers a narrower keyed prefix ahead of the generic store rule; the
+        map is complete without it (the row is keyed by a variable).
+    clim_project : str
+        `workflows.climate_projections.clim_project` -- the subdirectory under
+        `climate_projections/`.
+    """
+    e = experiment_name
+    exp = re.escape(e)
+    cp = clim_project
+    ident: list[tuple[str | re.Pattern, str]] = []
+
+    rules: list[tuple[str | re.Pattern, str]] = [
+        # -- 1. The named precedence hazard, registered first -----------------
+        # `config/generated/*` appears twice in the map doc -- once under its
+        # destination root and once under its source root -- precisely to signal
+        # that it must precede the `config/**` rows. A LATENT hazard in this
+        # encoding (there is no `config/` catch-all below, by design), but the
+        # order is kept so that widening a later rule cannot silently reopen it.
+        #
+        # `wflow_build_model_run.yml` had a row here until 2026-08-04. The
+        # observed-tier run showed nothing in the codebase writes it any more --
+        # only the forcing config is generated -- so the row described an
+        # artifact that cannot appear, and the map doc's SECOND named hazard was
+        # a hazard about a retired file. Dropped (phase-1 report, G2).
+        ("config/generated/wflow_build_forcing_historical.yml",
+         "models/hydrology/wflow/config/build_historical_forcing.yml"),
+        # Wflow's own `log.txt`, which `[logging] path_log` writes beside the
+        # TOML. It must precede any `hydrology_runs/rlz_(\d+)/config/(.*)`
+        # rule, which would otherwise consume it and route it to `config/`.
+        #
+        # THE MEMBER INDEX IS NOT RECOVERABLE FROM THE OLD PATH. One old
+        # `log.txt` per realization becomes N per-member logs after P2 sets
+        # `path_log` per member, so this row is a one-to-many SPLIT -- the
+        # inverse of `build_r07_merges` -- and no path-map rule can express it
+        # as a function. The destination therefore keeps the map doc's own
+        # `<c>` placeholder verbatim. This never reaches `diff_trees`:
+        # `_is_excluded` drops `.log` and `log.txt` before mapping.
+        (re.compile(rf"experiments/{exp}/hydrology_runs/rlz_(\d+)/config/log\.txt"),
+         rf"experiments/{e}/hydrology/wflow/output/rlz_\1_cst_<c>.log"),
+
+        # -- 2. The index relocation: directory -> filename -------------------
+        (re.compile(rf"experiments/{exp}/hydrology_runs/rlz_(\d+)/config/"
+                    rf"cst_(\d+)\.toml"),
+         rf"experiments/{e}/hydrology/wflow/config/rlz_\1_cst_\2.toml"),
+        (re.compile(rf"experiments/{exp}/hydrology_runs/rlz_(\d+)/forcing/"
+                    rf"inmaps_cst_(\d+)\.nc"),
+         rf"experiments/{e}/hydrology/wflow/forcing/inmaps_rlz_\1_cst_\2.nc"),
+        # `outstates_` before the bare output rule: same directory, narrower
+        # source pattern.
+        (re.compile(rf"experiments/{exp}/hydrology_runs/rlz_(\d+)/output/"
+                    rf"outstates_cst_(\d+)\.nc"),
+         rf"experiments/{e}/hydrology/wflow/output/outstates_rlz_\1_cst_\2.nc"),
+        (re.compile(rf"experiments/{exp}/hydrology_runs/rlz_(\d+)/output/"
+                    rf"cst_(\d+)\.csv"),
+         rf"experiments/{e}/hydrology/wflow/output/rlz_\1_cst_\2.csv"),
+
+        # -- 3. Rule 3.11's rename, before the `_parts/` identity rows --------
+        # `export_wflow_results` -> `derive_wflow_indicators`. Transient parts
+        # only; both are merged and deleted every run. Registered at experiment
+        # scope (where WF3's parts live) and at project root (the scope the map
+        # doc's table writes them at).
+        (f"experiments/{e}/logs/_parts/3.11_export_wflow_results.log",
+         f"experiments/{e}/logs/_parts/3.11_derive_wflow_indicators.log"),
+        (f"experiments/{e}/benchmarks/_parts/3.11_export_wflow_results.tsv",
+         f"experiments/{e}/benchmarks/_parts/3.11_derive_wflow_indicators.tsv"),
+        ("logs/_parts/3.11_export_wflow_results.log",
+         "logs/_parts/3.11_derive_wflow_indicators.log"),
+        ("benchmarks/_parts/3.11_export_wflow_results.tsv",
+         "benchmarks/_parts/3.11_derive_wflow_indicators.tsv"),
+
+        # -- 4. The experiment result surface + its catalog -------------------
+        # The only two `rule all` filename renames in the whole map (naming.md
+        # §7 rename record). `indicators/RT_*.csv` is NOT migrated -- see
+        # `build_r09_deletions`.
+        (f"experiments/{e}/indicators/Qstats.csv",
+         f"experiments/{e}/results/q_indicators.csv"),
+        (f"experiments/{e}/indicators/basin.csv",
+         f"experiments/{e}/results/basin_indicators.csv"),
+        (f"experiments/{e}/data_catalog_climate_experiment.yml",
+         f"experiments/{e}/config/catalogs/data_catalog_climate_experiment.yml"),
+
+        # -- 5. weather_generator/ -> climate/weathergenr/ --------------------
+        # One prefix per map row's directory. These are RELOCATIONS, not
+        # identities, so a prefix cannot be confused with a fall-through.
+        # `output/` carries both the generated series and the date tables
+        # (two map rows, one destination directory).
+        (f"experiments/{e}/weather_generator/output/",
+         f"experiments/{e}/climate/weathergenr/output/"),
+        (f"experiments/{e}/weather_generator/config/",
+         f"experiments/{e}/climate/weathergenr/config/"),
+        (f"experiments/{e}/weather_generator/_work/",
+         f"experiments/{e}/climate/weathergenr/_work/"),
+        (f"experiments/{e}/weather_generator/plots/",
+         f"experiments/{e}/climate/weathergenr/plots/"),
+    ]
+
+    # -- 6. experiments/<id>/ identity rows, ONE RULE PER MAP ROW -------------
+    for same in (
+        f"experiments/{e}/.project_consistency_ok",
+        f"experiments/{e}/config/snake_config_climate_experiment.yml",
+        f"experiments/{e}/config/catalogs/",   # row: `config/catalogs/*`
+        # Row added 2026-08-04 by the P1 falsifier's F1c ruling: WF3 emits an
+        # experiment-scoped digest bundle that no row and no design-tree line
+        # covered. Ruled toward the code under principle P9.
+        f"experiments/{e}/config/runs/",       # row: `config/runs/<workflow>/<digest>/**`
+        f"experiments/{e}/logs/",              # rows: `logs/*` + new `logs/dag/`
+        f"experiments/{e}/benchmarks/",        # row: `benchmarks/*`
+    ):
+        ident.append((same, same))
+
+    # -- 7. hydrology_model/ -> models/hydrology/wflow/ -----------------------
+    wflow = "models/hydrology/wflow"
+    rules += [
+        (f"hydrology_model/{leaf}", f"{wflow}/{leaf}")
+        for leaf in (
+            "staticmaps.nc",
+            "wflow_sbm.toml",
+            "hydromt.log",
+            "hydromt_data.yml",
+            ".model_built",          # sentinel rule
+            ".outputs_configured",
+            "forcing/inmaps_historical.nc",
+            "plots/basin_area.png",
+            "plots/basin_area.pdf",
+        )
+    ]
+    rules += [
+        # `forcing/plots/` before `forcing/`'s file row is immaterial (they are
+        # disjoint), but the directory rows below are each a `*`/`**` row in the
+        # map doc, so a prefix IS the faithful per-row encoding.
+        ("hydrology_model/staticgeoms/", f"{wflow}/staticgeoms/"),
+        ("hydrology_model/forcing/plots/", f"{wflow}/forcing/plots/"),
+        ("hydrology_model/run_default/", f"{wflow}/run_default/"),
+        ("hydrology_model/evaluation/", f"{wflow}/evaluation/"),
+    ]
+
+    # -- 8. data/ -------------------------------------------------------------
+    rules += [
+        (f"spatial/{leaf}", f"data/spatial/{leaf}")
+        for leaf in (
+            "spatial_maps.nc",
+            "spatial_catalog.yml",
+            "spatial_report.yml",
+            "location_registry.csv",
+        )
+    ]
+    # A DIRECTORY row since the F1a ruling of 2026-08-04: it enumerated the five
+    # layers rule `prepare_spatial_maps` writes, which missed `region.geojson`
+    # from rule `delineate_region` (ADR 0003). A sixth layer would have reopened
+    # the same gap, so the row is now the directory.
+    rules.append(("spatial/geoms/", "data/spatial/geoms/"))
+    if dataset_key:
+        # Narrower than the generic store rule below, so it is registered first.
+        rules.append((f"climate_historical/{dataset_key}/",
+                      f"data/climate/historical/{dataset_key}/"))
+    # The store key is RETAINED (map doc, Finding 3): it is a cache key, not
+    # multi-window support. The row is keyed by a variable, so the rule is too;
+    # this covers extract_historical.nc, store_region.geojson, plots/* and
+    # .guard_ok in one go, which is exactly the four rows' shared destination.
+    rules.append((re.compile(r"climate_historical/([^/]+)/(.*)"),
+                  r"data/climate/historical/\1/\2"))
+    proj = f"data/climate/projections/{cp}"
+    rules += [
+        (f"climate_projections/{cp}/raw/", f"{proj}/raw/"),
+        (f"climate_projections/{cp}/scalar/", f"{proj}/scalar/"),
+        (f"climate_projections/{cp}/summary/", f"{proj}/summary/"),
+        (f"climate_projections/{cp}/plots/", f"{proj}/plots/"),
+        (f"climate_projections/{cp}/report.md", f"{proj}/report.md"),
+    ]
+
+    # -- 9. config/ identity rows, ONE RULE PER MAP ROW -----------------------
+    # The two `config/runs/snake_config_*.yml` entries are CONTRACT PATHS --
+    # declared inputs of WF3's rule 3.00b drift guard -- which is why option (A)
+    # kept the snapshot under `config/` at all (map doc, Finding 1).
+    for same in (
+        "config/runs/snake_config_model_creation.yml",
+        "config/runs/snake_config_climate_projections.yml",
+        "config/catalogs/",              # row: `config/catalogs/*.yml`
+        "config/templates/",             # row: `config/templates/*.yml`
+        "config/observations/",          # row: `config/observations/*`
+    ):
+        ident.append((same, same))
+    # Row: `config/runs/<workflow>/<digest>/**`. Generalised from
+    # `model_creation` by the F1b ruling of 2026-08-04 — WF2 emits
+    # `climate_projections/<digest>/` from the same producer class, and design
+    # tree v10 already reads `<workflow>`. A regex, not a `config/runs/` prefix:
+    # the prefix form would also swallow the two `snake_config_*.yml` CONTRACT
+    # PATHS above, collapsing three enumerated rows into one catch-all. The
+    # pattern needs the second `/`, so those two files cannot match it.
+    ident.append((re.compile(r"(config/runs/[a-z_]+/.*)"), r"\1"))
+
+    # -- 10. project root identity rows ---------------------------------------
+    ident += [
+        ("logs/_parts/", "logs/_parts/"),
+        ("logs/dag/", "logs/dag/"),
+        (re.compile(r"(logs/wf[12]_[^/]*\.log)"), r"\1"),
+        ("benchmarks/_parts/", "benchmarks/_parts/"),
+        (re.compile(r"(benchmarks/wf[12]_benchmarks\.md)"), r"\1"),
+    ]
+    return rules + ident
+
+
+#: Candidate map rows for artifacts the migration map does not cover, found by
+#: applying `build_r09_path_map` to an inventory. Kept OUT of the map so the
+#: falsifier reports them; amending the map is an owner decision (phase-1 brief,
+#: *Task constraints*). Each entry: (artifact, producing rule, authority).
+#:
+#: **EMPTY, and that is a result rather than an absence.** Five candidates were
+#: raised and all five are closed:
+#:
+#: * three declared-tier gaps -- `spatial/geoms/region.geojson`,
+#:   `config/runs/climate_projections/<digest>/`, and WF3's experiment-scoped
+#:   bundle -- ruled by the owner on 2026-08-04 (phase-1 report F1a-F1c). The
+#:   migration map was amended and the rules moved into `build_r09_path_map`;
+#: * two more -- `hydrology_model/instate/` and a directory-wide
+#:   `hydrology_model/plots/` -- were inferred from the design tree and never
+#:   observed. The 2026-08-04 observed-tier run settled both NEGATIVELY:
+#:   `instate/` does not exist, and `plots/` holds exactly
+#:   `basin_area.{png,pdf}`, so the map's two-file row is right as written.
+#:   Their rules matched nothing and were removed (phase-1 report F2).
+#:
+#: The mechanism is kept, empty, because the next inventory may raise a sixth:
+#: it is what lets the falsifier report "N unmapped" and "0 once accepted" as
+#: two numbers instead of quietly reporting 0.
+R09_MAP_GAPS: tuple[tuple[str, str, str], ...] = ()
+
+
+def build_r09_gap_rules(
+    experiment_name: str,
+) -> list[tuple[str | re.Pattern, str]]:
+    """Proposed rules for the artifacts in `R09_MAP_GAPS` -- OPT-IN, now empty.
+
+    APPENDED to `build_r09_path_map`, never interleaved: any rule here must be
+    either disjoint from, or strictly broader than, every map rule, so appending
+    cannot change how a map row resolves. `test_r09_path_map.py` pins that
+    property against the declared-tier inventory.
+
+    `experiment_name` is unused now that every candidate is closed; the
+    parameter is kept so the call signature does not change under the caller,
+    and so a future experiment-scoped candidate needs no signature change.
+    """
+    del experiment_name
+    return []
+
+
+def build_r09_deletions(experiment_name: str) -> list[re.Pattern]:
+    """Paths the migration deliberately does NOT carry forward.
+
+    `indicators/RT_*.csv` is deleted, not migrated (map doc, v2 decision 3).
+    Encoding that as a path-map rule would invent a destination; classifying it
+    separately keeps the row covered without polluting the map.
+    """
+    return [re.compile(rf"experiments/{re.escape(experiment_name)}/"
+                       rf"indicators/RT_.*\.csv")]
+
+
+def classify_path_map(
+    paths, path_map, deleted: list[re.Pattern] | None = None
+) -> list[tuple[str, str, str]]:
+    """Classify every path as MOVED / IDENTITY / DELETED / UNMAPPED.
+
+    IDENTITY means a rule fired and resolved the path to itself -- a
+    deliberately unchanged artifact. UNMAPPED means no rule fired. The two are
+    the same STRING and are only distinguishable through
+    `apply_path_map_matched`, which is the whole reason that sibling exists.
+    """
+    deleted = list(deleted or [])
+    out: list[tuple[str, str, str]] = []
+    for rel in paths:
+        rel = rel.replace("\\", "/")
+        if any(p.fullmatch(rel) for p in deleted):
+            out.append((rel, "", "DELETED"))
+            continue
+        new, matched = apply_path_map_matched(rel, path_map)
+        if not matched:
+            out.append((rel, new, "UNMAPPED"))
+        elif new == rel:
+            out.append((rel, new, "IDENTITY"))
+        else:
+            out.append((rel, new, "MOVED"))
+    return out
+
+
+def format_path_map_report(rows: list[tuple[str, str, str]]) -> str:
+    """Render `classify_path_map` output: the old->new table, then the counts."""
+    lines = [f"{kind:<8} {old}" + (f"  ->  {new}" if kind == "MOVED" else "")
+             for old, new, kind in rows]
+    counts = {k: sum(1 for _, _, kind in rows if kind == k)
+              for k in ("MOVED", "IDENTITY", "DELETED", "UNMAPPED")}
+    unmapped = counts["UNMAPPED"]
+    lines.append("")
+    lines.append(
+        f"{'MAP CLEAN' if not unmapped else 'UNMAPPED PATHS'}: {len(rows)} paths, "
+        f"{counts['MOVED']} moved, {counts['IDENTITY']} identity (by rule), "
+        f"{counts['DELETED']} deleted-by-design, {unmapped} unmapped"
+    )
+    return "\n".join(lines)
+
+
+def apply_path_map_matched(
+    rel: str, path_map: list[tuple[str | re.Pattern, str]] | None
+) -> tuple[str, bool]:
+    """`apply_path_map`, plus WHETHER a rule fired -- the R9 falsifier's basis.
+
+    `apply_path_map` returns its input unchanged both when an identity rule
+    fires and when nothing matches, so a fall-through is indistinguishable from
+    a deliberate non-move. The R9 phase-1 brief authorizes this sibling because
+    that ambiguity makes the property "the map covers every artifact"
+    inexpressible: a map with NO rules would report every path as mapped.
+
+    This function is the implementation; `apply_path_map` is a thin
+    `[0]` projection of it, so the two can never drift apart. Behaviour for
+    every existing caller (`build_r07_path_map` users, `compare_yaml`,
+    `_normalize_tree_root_paths`) is unchanged bit-for-bit, including the
+    backslash normalization applied to `rel` before matching.
+
+    Returns
+    -------
+    (translated, matched)
+        `matched` is False for an empty/None map and for a fall-through; True
+        only when one of the three rule kinds actually fired.
+    """
+    rel = rel.replace("\\", "/")
+    if not path_map:
+        return rel, False
+    for old, new in path_map:
+        if isinstance(old, re.Pattern):
+            m = old.fullmatch(rel)
+            if m:
+                return m.expand(new), True
+        elif old.endswith("/"):
+            if rel.startswith(old):
+                return new + rel[len(old):], True
+        elif rel == old:
+            return new, True
+    return rel, False
+
+
 def apply_path_map(
     rel: str, path_map: list[tuple[str | re.Pattern, str]] | None
 ) -> str:
@@ -444,21 +835,11 @@ def apply_path_map(
         prefix nor an exact rule can express;
       - directory-prefix rule: `old` ends with "/";
       - exact-file rule: otherwise.
+
+    A path no rule matches is returned unchanged. When the caller needs to tell
+    that apart from an identity rule, use `apply_path_map_matched`.
     """
-    rel = rel.replace("\\", "/")
-    if not path_map:
-        return rel
-    for old, new in path_map:
-        if isinstance(old, re.Pattern):
-            m = old.fullmatch(rel)
-            if m:
-                return m.expand(new)
-        elif old.endswith("/"):
-            if rel.startswith(old):
-                return new + rel[len(old):]
-        elif rel == old:
-            return new
-    return rel
+    return apply_path_map_matched(rel, path_map)[0]
 
 
 # ---------------------------------------------------------------------------
@@ -1120,8 +1501,15 @@ def format_report(report: dict) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--ref", required=True, help="reference (pre-move) project_dir tree")
-    ap.add_argument("--cur", required=True, help="current (post-move) project_dir tree")
+    ap.add_argument("--ref", help="reference (pre-move) project_dir tree")
+    ap.add_argument("--cur", help="current (post-move) project_dir tree")
+    ap.add_argument(
+        "--check-map", metavar="PATHLIST",
+        help="path-map falsifier mode: read project-relative paths (one per "
+             "line, '#' comments ignored) and classify each as MOVED / "
+             "IDENTITY / DELETED / UNMAPPED instead of diffing two trees. "
+             "Exit 1 if any path is UNMAPPED. --ref/--cur are not used",
+    )
     ap.add_argument(
         "--tolerance", type=float, default=DEFAULT_TOLERANCE,
         help="relative tolerance for element-wise numeric compare (0 = exact)",
@@ -1163,8 +1551,15 @@ def main(argv: list[str] | None = None) -> int:
              "held",
     )
     ap.add_argument(
-        "--milestone", choices=("p31", "r07"), default="p31",
+        "--milestone", choices=("p31", "r07", "r09"), default="p31",
         help="which built-in path map + allowlist to use (default: p31)",
+    )
+    ap.add_argument(
+        "--r09-gap-rules", action="store_true",
+        help="append the PROPOSED rules for artifacts the R09 migration map "
+             "does not cover (semantic_tree_diff.R09_MAP_GAPS). Default OFF: "
+             "the strict map is what the phase-1 falsifier reports against, "
+             "and amending the map is an owner decision",
     )
     ap.add_argument(
         "--clim-project", default="cmip6",
@@ -1210,6 +1605,14 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.no_path_map:
         path_map, allowlist = (extra_rules or None), list(args.allow)
+    elif args.milestone == "r09":
+        path_map = build_r09_path_map(
+            args.experiment_name, args.dataset_key, args.clim_project
+        )
+        if args.r09_gap_rules:
+            path_map = path_map + build_r09_gap_rules(args.experiment_name)
+        path_map += extra_rules
+        allowlist = list(args.allow)
     elif args.milestone == "r07":
         path_map = build_r07_path_map(
             args.experiment_name, args.dataset_key, args.clim_project
@@ -1223,6 +1626,27 @@ def main(argv: list[str] | None = None) -> int:
         ) + extra_rules
         allowlist = build_p31_allowlist(args.experiment_name, args.dataset_key)
         allowlist += list(args.allow)
+    if args.check_map:
+        paths = [
+            line.strip()
+            for line in Path(args.check_map).read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+        absolute = [p for p in paths
+                    if p.startswith("/") or re.match(r"^[A-Za-z]:[\\/]", p)]
+        if absolute:
+            ap.error(
+                f"--check-map expects PROJECT-RELATIVE paths; {len(absolute)} "
+                f"absolute path(s) found, first: {absolute[0]!r}"
+            )
+        deleted = (build_r09_deletions(args.experiment_name)
+                   if args.milestone == "r09" and not args.no_path_map else None)
+        rows = classify_path_map(paths, path_map, deleted)
+        print(format_path_map_report(rows))
+        return 0 if not any(kind == "UNMAPPED" for _, _, kind in rows) else 1
+
+    if not (args.ref and args.cur):
+        ap.error("--ref and --cur are required unless --check-map is given")
     report = diff_trees(args.ref, args.cur, args.tolerance,
                         path_map=path_map, allowlist=allowlist, merges=merges,
                         ref_root_tokens=list(args.ref_token),

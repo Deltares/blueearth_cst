@@ -147,7 +147,7 @@ change what `pytest tests/` means, which is a contract. R9 **uses** the existing
 
 ### Phase brief index
 
-- P1 — Comparator and tooling — [`phase-1-comparator-task-brief.md`](phase-1-comparator-task-brief.md) — not started
+- P1 — Comparator and tooling — [`phase-1-comparator-task-brief.md`](phase-1-comparator-task-brief.md) — **implemented 2026-08-04 on `feat/r09-p1-comparator`; PAUSED at Gate 1.** Report: [`phase-1-report.md`](phase-1-report.md). Declared tier clean modulo three map gaps (F1); observed tier **unverified**, so the gate is open
 - P2 — Tree migration — [`phase-2-tree-migration-task-brief.md`](phase-2-tree-migration-task-brief.md) — not started
 - P3 — Result tables and rule 3.11 — [`phase-3-result-tables-task-brief.md`](phase-3-result-tables-task-brief.md) — not started
 - P4 — Fingerprint and experiment lifecycle — [`phase-4-fingerprint-task-brief.md`](phase-4-fingerprint-task-brief.md) — not started

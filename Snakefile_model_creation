@@ -220,9 +220,20 @@ REGION = region_spec(
 # Order is by RULE NUMBER, matching the rule map and benchmarks/wf1_benchmarks.md,
 # not execution order (1.11–1.13 are parallel leaves). 1.01 snapshot_config declares
 # no `log:` and so has no section.
+#
+# 1.01b was MISSING from this list until 2026-08-04. It declares a `log:` part
+# like every other rule here, but an unlisted label is not an error: merge_logs
+# only looks up the labels it is given, so the region-delineation section was
+# silently absent from every merged log and its part was stranded under
+# logs/_parts/ on every run. The benchmark gather does not share that failure
+# mode -- wf1_benchmarks.md has listed 1.01b_delineate_region all along -- which
+# is why the two disagreed. Found by the R09 observed-tier run
+# (dev/milestones/r09/phase-1-report.md, G1); latent since the ADR 0003 spatial
+# work landed.
 WORKFLOW_LOG_NAME = "wf1_model_creation.log"
 LOG_PARTS_DIR = f"{project_dir}/logs/_parts"
 LOG_RULES = [
+    "1.01b_delineate_region",
     "1.02_prepare_spatial_maps",
     "1.03_build_wflow_model",
     "1.04_add_reservoirs_lakes_glaciers",
