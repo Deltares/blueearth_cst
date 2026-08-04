@@ -2,7 +2,7 @@
 
 Status: ACCEPTED by the owner, 2026-08-04. External review waived at this stage.
 
-Document version: v8
+Document version: v9
 
 Date: 2026-08-04
 
@@ -34,7 +34,7 @@ than assumed:
    it, which is the outcome an external review is normally relied on to produce.
 2. **The reviewer contract below is intact and unexercised.** It is held in
    reserve, not deleted: a later review can run against this document without
-   rework, and would target `doc_version: v8`.
+   rework, and would target `doc_version: v9`.
 
 Acceptance covers the placement contract, the naming rule, the four v2
 decisions, and the nine v4 rulings. It does not substitute for the validation
@@ -743,7 +743,7 @@ Return only Markdown with this structure:
 ```text
 ## Verdict
 verdict: approve | revise | reject
-doc_version: v8
+doc_version: v9
 
 ## Findings
 ### ext1-01 [blocking | major | minor]
@@ -777,6 +777,15 @@ List findings in severity order. An empty findings section with
   unexercised. Versioned rather than edited in place so that document version
   and document content stay one-to-one, which the reviewer response schema
   depends on.
+- 2026-08-04, v9: The spatial rows are **final, not provisional** — the v8 marker
+  is withdrawn. It rested on `master-task-brief.md`'s phase index reading "Gate 2
+  review pending"; the git history shows Gates 2 and 3 were approved and
+  `feat/wf1-spatial-decoupling` merged on 2026-08-02 (`29ccce9`), with `ad9702d`
+  closing the gates in the phase report but never updating the index. The WF1
+  rows were derived from `main`, so they already described the landed work. Tree
+  comment and placement table corrected; the stale index line was corrected at
+  source. No other change — the v8 entry below is left as written, since it
+  accurately records what v8 did.
 - 2026-08-04, v8: Placed the four remaining unplaced artifact classes, closing
   the path map except the WF1/spatial rows. `series/` renamed **`output/`** — the
   generator's date tables are products under R7's G1 ruling OQ-4, and `output/`
