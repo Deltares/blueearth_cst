@@ -379,9 +379,12 @@ that produced them.
   meaningful user labels.
 - **Use content-addressed experiment IDs.** Strong identity but less readable
   and more machinery than the present requirements warrant.
-- **Adopt kebab-case for generated filenames.** Rejected: every engine-owned
-  name in the tree is already `snake_case`, so kebab-case would maximize rather
-  than minimize the mixed-convention surface.
+- **Adopt kebab-case for generated filenames.** Rejected *for this class*:
+  every engine-owned name inside `project_dir` is already `snake_case`, so
+  kebab-case would maximize rather than minimize the mixed-convention surface.
+  The rule is deliberately class-scoped and does not propose a repository-wide
+  convention: the source repository's `dev/` markdown keeps its existing
+  kebab-case convention, which this proposal leaves untouched.
 
 ## Consequences
 
@@ -412,9 +415,10 @@ Negative:
   the configured `Tlow`/`Tpeak`, so recovering a frequency curve requires a
   rerun rather than a re-read;
 - flattening the Wflow run subtree puts one file per member in each of
-  `config/` and `output/`. At a production grid (for example twenty
-  realizations over a nine-by-seven perturbation grid) that is on the order of
-  1,300 files per directory.
+  `config/` and `output/`, where the member count is realizations × grid
+  points. Twenty realizations over a nine-by-seven perturbation grid gives
+  1,260 files per directory, or 1,280 when the unperturbed baseline run is
+  enabled.
 
 Neutral obligations:
 
@@ -441,7 +445,7 @@ An implementation design should include at least these falsifiers:
    engine artifacts and compare it against this contract.
 2. Dry-run all three workflows independently and through the orchestration
    wrapper.
-3. Run the repository's CLI dry-run test and the full unit suite.
+3. Run `pytest tests/test_cli.py` and the full unit suite.
 4. Compare a pre/post full workflow output tree through an explicit path map;
    every moved scientific artifact must remain value-equivalent. The flattened
    Wflow subtree and the renamed result tables need a real run, not a dry run,
@@ -482,8 +486,6 @@ An implementation design should include at least these falsifiers:
   consumer relies on them?
 - Does flattening the Wflow run subtree create a directory-size or tooling
   problem at production grid sizes that the depth saving does not justify?
-- Is losing the return-period curves acceptable, or should a single merged
-  frequency table become a declared output of the reduction rule?
 
 ## External reviewer instructions
 
