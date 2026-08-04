@@ -4,10 +4,9 @@ Date: 2026-08-04. Branch: `feat/r09-p2-tree-migration` (cut from
 `milestone/r09-project-tree` at the P1 merge). Brief:
 [`phase-2-tree-migration-task-brief.md`](phase-2-tree-migration-task-brief.md).
 
-**Status: the four planned rows are landed and the tree is migrated. Two
-decisions are open before the phase can be called complete**, both listed under
-*Open decisions*. `check_baseline` is red by construction from commit 1 until
-P3 re-records.
+**Status: complete. The four planned rows are landed, the tree is migrated, and
+both open decisions were ruled and implemented on 2026-08-04.**
+`check_baseline` is red by construction from commit 1 until P3 re-records.
 
 ---
 
@@ -61,7 +60,7 @@ python dev/scripts/semantic_tree_diff.py --milestone r09 \
     --experiment-name experiment --dataset-key era5_20000101_20201231 \
     --ref-token test_case/test_local
 
-MISMATCH: 160 files compared, 31 failed, 22 missing, 20 extra
+MISMATCH: 161 files compared, 30 failed, 21 missing, 20 extra
 ```
 
 Every residual was classified, not skimmed:
@@ -71,11 +70,11 @@ Every residual was classified, not skimmed:
 | **NUMERIC** — values, tolerance, NaN masks | **0** | — |
 | **STRUCTURE** — dims, coords, variable sets | **0** | — |
 | CMIP6 global attrs | 29 | allowlisted — not migration-caused |
-| Path strings inside content | 2 | one is a real map gap (F3) |
+| Path strings inside content | 1 | provenance attr; F3's second one is FIXED |
 | Digest bundles missing+extra | 17 + 17 | allowlisted — `project_dir` in the digest |
 | Stale in the REFERENCE | 2 | allowlisted |
 | Deferred to P3 | 2 + 2 | allowlisted — explicit P2 non-goal |
-| Possible P2 gap | 1 + 1 | **open decision** |
+| Stale in the CURRENT tree | 1 | the pre-move catalog copy, left by Snakemake |
 
 **Zero numeric and zero structure failures is the program's premise holding.**
 No moved artifact changed value.
@@ -230,15 +229,32 @@ work deferred to P3 by design — each allowlisted above with its reason.
 `check_baseline` is **red from commit 1 until P3 re-records**, by design.
 Reported, not fixed.
 
-## Open decisions
+## Decisions ruled 2026-08-04
 
-1. **`data_catalog_climate_experiment.yml`** — the map routes it to
-   `experiments/<id>/config/catalogs/`, and the tree still has it at the
-   experiment root. It appears in no P2 checklist item. Implement in P2, or
-   assign it?
-2. **F3's map gap** — the bare `weather_generator/` directory needs a rule.
-   Amending the map is an owner decision and `semantic_tree_diff.py` is outside
-   P2's permitted scope.
+1. **`data_catalog_climate_experiment.yml` — implemented in P2.** Ruled into
+   this phase rather than deferred: a pure path move of a WF3-written artifact,
+   the same class as the four landed rows, and P2 owns the Snakefile. One
+   binding (`exp_catalog`) replaces both spellings — rule 3.08's output and rule
+   3.09's `data_sources` input — so the producer and its consumer cannot drift.
+   That pairing is exactly what F2 got wrong earlier in this phase.
+2. **F3's map gap — fixed, as a scope exception.** `semantic_tree_diff.py` is
+   outside P2's permitted scope; fixed here because P2's own instrument found it
+   and P3/P4 run against that instrument. The bare-directory rule is registered
+   AFTER the four subdirectory rules so it can only catch what they do not, and
+   the test asserts both halves.
 
-Neither blocks the four landed rows; both block calling the tree gate clean
-without an allowlist entry that says "known gap".
+After both: the gate improved from 31 failures to 30 and from 22 MISSING to 21,
+`weathergen_config.yml` no longer appears, and the catalog pairs at its mapped
+destination. The one residual EXTRA for the catalog is its **pre-move copy**,
+left in the run tree because Snakemake does not delete files it no longer
+declares — a property of re-running into an existing `project_dir`, not a
+migration defect.
+
+## Still outstanding
+
+- **The falsifier has not been shown to FAIL** with `path_log` unset in the
+  flattened layout. P1's observed tier is partial evidence only.
+- **F4** — WF2's nondeterministic raw-fetch provenance attrs. A follow-up:
+  either normalise them or extend `VOLATILE_NC_ATTRS`.
+- **F5's root cause** — rule 1.04's undeclared write to `staticmaps.nc`.
+- **F6** — `AGENTS.md`'s incorrect claim about the shared pixi env (P5).
