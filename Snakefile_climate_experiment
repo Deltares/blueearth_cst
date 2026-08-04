@@ -177,6 +177,11 @@ wg_dir = f"{exp_dir}/climate/weathergenr"
 # hydrology/wflow/{config,forcing,output}/rlz_<r>_cst_<c>.*  -- so one member is
 # one filename in three flat directories.
 runs_dir = f"{exp_dir}/hydrology/wflow"
+# The experiment's generated climate catalog joins the experiment's own config
+# snapshot rather than sitting loose at the experiment root (migration map, v6
+# ruling). It DESCRIBES data this experiment produced, so it is a catalog
+# snapshot in the same sense as the project-scope config/catalogs/.
+exp_catalog = f"{exp_dir}/config/catalogs/data_catalog_climate_experiment.yml"
 # B7: "indicators" is the CST term for the reduction's response-surface tables.
 # "outputs" was rejected -- hydrology_runs/ also holds outputs.
 indicators_dir = f"{exp_dir}/indicators"
@@ -491,7 +496,7 @@ rule climate_data_catalog:
         cst_nc = expand((f"{wg_dir}/output/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc"), rlz_num = np.arange(1, RLZ_NUM+1), st_num = np.arange(1, ST_NUM+1)),
         rlz_nc = [f"{wg_dir}/output/rlz_{rlz_num}_cst_0.nc" for rlz_num in np.arange(1, RLZ_NUM+1)]
     output:
-        clim_data = f"{exp_dir}/data_catalog_climate_experiment.yml"
+        clim_data = exp_catalog
     params:
         data_sources = DATA_SOURCES,
         clim_source = clim_source,
@@ -522,7 +527,7 @@ rule downscale_climate_realization:
         st_num=r"\d+",
     input:
         nc = f"{wg_dir}/output/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc",
-        data_sources = [f"{exp_dir}/data_catalog_climate_experiment.yml", DATA_SOURCES]
+        data_sources = [exp_catalog, DATA_SOURCES]
     output:
         nc = temp(f"{runs_dir}/forcing/inmaps_rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc"),
         toml = f"{runs_dir}/config/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".toml"
