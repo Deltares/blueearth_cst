@@ -2,13 +2,14 @@
 
 Status: proposed for external review
 
-Document version: v1
+Document version: v2
 
-Date: 2026-08-02
+Date: 2026-08-04
 
 Decider: Ümit Taner
 
-Normative body budget: fewer than 450 lines including the tree and review contract
+Normative body budget: fewer than 550 lines including the tree and review
+contract (raised from v1's 450 to carry v2's four decisions)
 
 ## Review purpose
 
@@ -54,6 +55,7 @@ In scope:
 - placement of project configuration, reusable data, model artifacts, and
   experiment artifacts;
 - the boundary between engine diagnostics and final experiment figures;
+- the filename convention for generated artifacts;
 - experiment-ID allocation and collision behavior;
 - experiment-to-model reproducibility checks.
 
@@ -74,8 +76,9 @@ Adopt `config/`, `data/`, `models/`, and `experiments/` as the stable semantic
 roots of every CST project directory. Keep one live Wflow model at
 `models/hydrology/wflow/`; keep reusable, engine-independent inputs and derived
 datasets under `data/`; and make every stress-test experiment self-contained
-under an allocated experiment ID. Retain project-root `logs/` and
-`benchmarks/` for WF1/WF2 as explicit cross-cutting exceptions.
+under an allocated experiment ID. Place each workflow's run log and benchmark at
+the scope of what that run produces — project root for WF1/WF2, the experiment
+for WF3 — and name every locally minted artifact in lowercase `snake_case`.
 
 ## Settled framing
 
@@ -94,12 +97,16 @@ inconsistently or makes it operationally unsafe.
 - Experiments retain explicit `weathergenr/` and `wflow/` engine directories.
 - Experiment-level `climate/` and `hydrology/` sit directly below the
   experiment root; there is no intermediate `simulations/` directory.
+- Within an experiment's engine subtrees, fan-out members are keyed in the
+  FILENAME (`rlz_<r>_cst_<c>`), never in a directory level.
 - Machine-readable experiment products live in `results/`.
 - Final experiment figures live in an experiment-root `plots/`; engine
   diagnostics remain beside their engine.
 - Users may name experiments. When no name is supplied, the default base is
   `stress_test_<YYYYMMDD>`.
 - Existing experiment directories are never overwritten.
+- Locally minted file and directory names are lowercase `snake_case`;
+  identifiers owned upstream pass through verbatim.
 
 ## Design principles
 
@@ -112,7 +119,8 @@ under `models/hydrology/wflow/` or the experiment's `hydrology/wflow/` subtree.
 
 **P3 — Keep each experiment self-contained.** Its configuration, climate
 series, hydrological simulations, machine-readable results, final figures,
-logs, and benchmarks are colocated under one experiment ID.
+logs, and benchmarks are colocated under one experiment ID, so the experiment
+directory can be copied, archived, or deleted as a unit.
 
 **P4 — Separate editable intent from generated provenance.** Project-owned
 configuration is edited under the root `config/`; generated model-build
@@ -126,6 +134,16 @@ directories are introduced only where more than one instance must coexist.
 the engine; final figures interpreting the whole experiment are promoted to
 the experiment root.
 
+**P7 — A run's log and benchmark live at the scope of what the run produces.**
+WF1 and WF2 produce project-scoped artifacts (the one live model, the one
+projection set), so their logs sit at the project root. WF3 produces an
+experiment, so its log sits inside that experiment. This is one rule applied to
+two scopes, not a root-level exception.
+
+**P8 — Name locally minted artifacts in lowercase `snake_case`.** Upstream and
+established identifiers are exempt (see *Naming rule*), so the convention never
+competes with an external contract.
+
 ## Proposed folder tree
 
 ```text
@@ -136,8 +154,8 @@ the experiment root.
 │   │   ├── hydrography.yml
 │   │   └── climate.yml
 │   └── templates/
-│       ├── wflow-build.yml
-│       └── wflow-waterbodies.yml
+│       ├── wflow_build.yml
+│       └── wflow_waterbodies.yml
 │
 ├── data/                                  # reusable, engine-independent data
 │   ├── spatial/
@@ -154,8 +172,8 @@ the experiment root.
 │   │   │   └── ...
 │   │   └── projections/
 │   │       └── cmip6/                    # plausibility overlay, never WF3 forcing
-│   │           ├── timeseries/
-│   │           ├── change-factors/
+│   │           ├── timeseries/           # keyed by verbatim CMIP model ID
+│   │           ├── change_factors/
 │   │           ├── summary/
 │   │           └── plots/
 │   └── hydrology/
@@ -166,8 +184,8 @@ the experiment root.
 │   └── hydrology/
 │       └── wflow/                         # the single live HydroMT model root
 │           ├── config/                    # generated HydroMT build configs
-│           │   ├── build-model.yml
-│           │   └── build-historical-forcing.yml
+│           │   ├── build_model.yml
+│           │   └── build_historical_forcing.yml
 │           ├── staticgeoms/
 │           ├── instate/
 │           ├── forcing/
@@ -177,17 +195,17 @@ the experiment root.
 │           │   ├── performance_metrics.csv
 │           │   └── plots/                # historical-run evaluation
 │           ├── plots/                    # figures depicting the model itself
-│           ├── wflow_sbm.toml
+│           ├── wflow_sbm.toml            # engine-owned names, verbatim
 │           ├── staticmaps.nc
 │           ├── hydromt_data.yml
 │           └── hydromt.log
 │
 ├── experiments/
-│   └── <experiment-id>/
+│   └── <experiment_id>/
 │       ├── config/
 │       │   ├── experiment.yml
-│       │   ├── project-snapshot.yml
-│       │   └── model-reference.yml
+│       │   ├── project_snapshot.yml
+│       │   └── model_reference.yml
 │       ├── climate/
 │       │   └── weathergenr/
 │       │       ├── config/
@@ -197,21 +215,23 @@ the experiment root.
 │       │       ├── plots/                # generator diagnostics only
 │       │       └── _work/                # retained engine intermediates
 │       ├── hydrology/
-│       │   └── wflow/
-│       │       └── rlz_<r>/
-│       │           ├── config/
-│       │           ├── forcing/
-│       │           └── output/
+│       │   └── wflow/                    # members keyed by filename, as above
+│       │       ├── config/
+│       │       │   └── rlz_<r>_cst_<c>.toml
+│       │       ├── forcing/
+│       │       │   └── inmaps_rlz_<r>_cst_<c>.nc
+│       │       └── output/
+│       │           ├── rlz_<r>_cst_<c>.csv
+│       │           └── outstates_rlz_<r>_cst_<c>.nc
 │       ├── results/                      # machine-readable experiment products
-│       │   ├── Qstats.csv
-│       │   ├── basin.csv
-│       │   └── RT_*.csv
+│       │   ├── q_indicators.csv          # gauge-point discharge statistics
+│       │   └── basin_indicators.csv      # basin-averaged fluxes and states
 │       ├── plots/                        # final experiment-level figures
 │       ├── logs/
 │       └── benchmarks/
 │
-├── logs/                                  # WF1/WF2 logs
-└── benchmarks/                            # WF1/WF2 benchmarks
+├── logs/                                  # WF1/WF2 logs (P7)
+└── benchmarks/                            # WF1/WF2 benchmarks (P7)
 ```
 
 ## Placement contract
@@ -227,10 +247,37 @@ the experiment root.
 | Wflow `staticmaps.nc`, TOML, states, forcing, and historical run | `models/hydrology/wflow/` | Engine-shaped live model artifacts |
 | Generated HydroMT build YAML | `models/hydrology/wflow/config/` | Provenance of the model it built |
 | Generated and perturbed weather series | `experiments/<id>/climate/weathergenr/series/` | Experiment-specific climate simulation |
-| Wflow stress-test simulation artifacts | `experiments/<id>/hydrology/wflow/` | Experiment-specific hydrological simulation |
-| Tables used to construct response surfaces | `experiments/<id>/results/` | Machine-readable final products |
+| Wflow stress-test configs, forcing, and outputs | `experiments/<id>/hydrology/wflow/{config,forcing,output}/` | Experiment-specific hydrological simulation, one member per file |
+| Discharge statistics at gauge points (mean, min, max, q95, 7-day extremes, BFI, return intervals) | `experiments/<id>/results/q_indicators.csv` | Point-support response-surface input |
+| Basin-averaged fluxes and states (evapotranspiration, recharge, overland flow, peak snow water equivalent; mm/yr, set by `wflow_outvars`) | `experiments/<id>/results/basin_indicators.csv` | Areal-support response-surface input |
 | Response surfaces, vulnerability figures, and projection-overlay figures | `experiments/<id>/plots/` | Final experiment interpretation |
 | Weathergenr/Wflow diagnostic figures | Beside the relevant engine | Avoid mixing diagnostics with final figures |
+| WF1/WF2 run log and benchmark | `logs/`, `benchmarks/` at the project root | P7 — project-scoped producers |
+| WF3 run log and benchmark | `experiments/<id>/logs/`, `.../benchmarks/` | P7 — experiment-scoped producer |
+
+## Naming rule for generated artifacts
+
+Locally minted file and directory names under `project_dir` are lowercase
+`snake_case`: no hyphens, no capitals, no spaces. Two exemptions, both
+narrow and both stated so a reader does not "correct" them:
+
+1. **Upstream-owned names pass through verbatim.** Engine-mandated filenames
+   (`wflow_sbm.toml`, `staticmaps.nc`, `instates.nc`, `hydromt_data.yml`) and
+   upstream identifiers embedded in a path — CMIP model IDs such as
+   `NOAA-GFDL/GFDL-ESM4`, which carry hyphens, slashes, and mixed case — are
+   never normalized.
+2. **Established config keys and data labels are unaffected.** The rule governs
+   filenames and directory names only. Column and row labels (`Tlow`, `Tpeak`,
+   `BFI`) and config keys keep their domain spelling.
+
+Experiment IDs already satisfy the rule by construction (slugified to lowercase
+letters, numbers, and underscores).
+
+This closes a gap the repository left open deliberately: the naming guide
+currently assigns generated outputs to the "owning workflow contract" and
+declines to unify them. Adopting this proposal therefore requires amending that
+guide's file-naming table in the same change, or the tree and the convention
+will drift.
 
 ## Experiment creation and ID allocation
 
@@ -265,7 +312,7 @@ name when supplied, the creation timestamp, and the allocation sequence.
 ## Model reproducibility contract
 
 There is one mutable live Wflow model, but each experiment records which model
-state it used. `config/model-reference.yml` contains the relative model path and
+state it used. `config/model_reference.yml` contains the relative model path and
 a deterministic SHA-256 fingerprint over the minimal WF3 runtime model inputs:
 
 - `wflow_sbm.toml`;
@@ -279,7 +326,7 @@ model therefore requires creation of a new experiment version; the old
 experiment is not silently rerun against different model physics or state.
 
 The model is not copied into each experiment. Project-level settings are
-captured separately in `config/project-snapshot.yml`.
+captured separately in `config/project_snapshot.yml`.
 
 ## Figure policy
 
@@ -301,14 +348,40 @@ that produced them.
   but the project intentionally keeps one active window.
 - **Use `simulations/{climate,hydrology}/` inside experiments.** Explicit but
   redundant because the experiment root already supplies simulation context.
+- **Merge experiment logs and benchmarks into the project-root `logs/` and
+  `benchmarks/`, disambiguated by experiment ID in the filename.** Rejected on
+  a mechanical failure, not on taste: each workflow's per-rule log and benchmark
+  *parts* are written under its own `_parts/` tree with member keys that carry no
+  experiment ID, and the gather step discovers members by listing the part
+  directory and then deletes what it merged. Pointing several experiments at one
+  part tree makes concurrent runs write identical paths and lets one experiment's
+  gather consume and delete another's in-flight parts. Promoting only the merged
+  file avoids that but splits an experiment's logs across two locations during a
+  run and orphans root-level files when an experiment directory is deleted.
+- **Keep a `rlz_<r>/` directory inside the experiment's Wflow subtree.**
+  Rejected: it keyed one fan-out dimension by directory and the other by
+  filename, while the climate side keys the identical `RLZ_NUM × ST_NUM` fan-out
+  entirely by filename. Flattening completes the two-engine symmetry rather than
+  reversing it, and removes one level of depth.
+- **Retain the per-location `RT_*.csv` return-period side tables.** Rejected:
+  they have no consumer, they are written to a directory the producing rule does
+  not declare as an output (invisible to a dry run), and they are already marked
+  unpinned by the interchange contract.
 - **Use `indicators/` instead of `results/`.** Precise for current outputs but
   too narrow for future vulnerability, overlay, and adaptation products.
+- **Name the two result tables by spatial support** (`gauge_indicators.csv` /
+  `basin_indicators.csv`). Rejected in favour of `q_indicators.csv`, which names
+  the variable; the placement contract above states the point-versus-areal
+  distinction explicitly so the pairing remains legible.
 - **Put every figure in the experiment-root `plots/`.** Easy to browse but
   conflates engine diagnostics with final scientific interpretation.
 - **Use only generated experiment IDs.** Avoids naming collisions but removes
   meaningful user labels.
 - **Use content-addressed experiment IDs.** Strong identity but less readable
   and more machinery than the present requirements warrant.
+- **Adopt kebab-case for generated filenames.** Rejected: every engine-owned
+  name in the tree is already `snake_case`, so kebab-case would maximize rather
+  than minimize the mixed-convention surface.
 
 ## Consequences
 
@@ -317,10 +390,12 @@ Positive:
 - project configuration, reusable data, live model state, and experiments have
   explicit and stable boundaries;
 - the project remains shallow for the one-model, one-window case;
-- experiments are self-contained without copying the Wflow model;
+- experiments are self-contained without copying the Wflow model, and remain
+  deletable and archivable as a unit;
 - CMIP6 projections remain visibly separate from stress-test forcing;
 - the GUI can present final plots separately from engine diagnostics;
-- experiment creation cannot overwrite prior work.
+- experiment creation cannot overwrite prior work;
+- one filename convention replaces a mixed one, with two stated exemptions.
 
 Negative:
 
@@ -331,16 +406,32 @@ Negative:
 - fingerprint computation adds startup IO, dominated by hashing
   `staticmaps.nc` and optional states;
 - `_vN` communicates allocation order, not scientific lineage; display names
-  and configuration remain necessary for interpretation.
+  and configuration remain necessary for interpretation;
+- dropping `RT_*.csv` discards the full discharge-versus-return-period curve.
+  `q_indicators.csv` retains only the two scalar return-interval statistics at
+  the configured `Tlow`/`Tpeak`, so recovering a frequency curve requires a
+  rerun rather than a re-read;
+- flattening the Wflow run subtree puts one file per member in each of
+  `config/` and `output/`. At a production grid (for example twenty
+  realizations over a nine-by-seven perturbation grid) that is on the order of
+  1,300 files per directory.
 
 Neutral obligations:
 
 - the path migration must be atomic with its reference rewrites or use a
   deliberate compatibility bridge;
-- root `logs/` and `benchmarks/` remain a cross-cutting WF1/WF2 exception;
+- the repository naming guide must gain a real rule for generated outputs in
+  the same change that adopts this tree;
+- renaming the two result tables touches `rule all` output filenames and a
+  grandfathered user-facing name, so it requires the repository's internal
+  rename record (old → new mapping) and a re-recorded baseline manifest;
 - exact catalog/template names and all undeclared artifacts must be resolved
   during implementation inventory;
-- generated directories should be created only when their producer runs.
+- generated directories should be created only when their producer runs;
+- an existing interchange validator asserts that the basin table's header is
+  exactly the two perturbation-axis columns, which holds only when no
+  basin-average outputs are configured and is therefore false under the shipped
+  default. The rename must not inherit that assertion unfixed.
 
 ## Validation expectations
 
@@ -350,9 +441,12 @@ An implementation design should include at least these falsifiers:
    engine artifacts and compare it against this contract.
 2. Dry-run all three workflows independently and through the orchestration
    wrapper.
-3. Run `pytest tests/test_cli.py` and the full unit suite.
+3. Run the repository's CLI dry-run test and the full unit suite.
 4. Compare a pre/post full workflow output tree through an explicit path map;
-   every moved scientific artifact must remain value-equivalent.
+   every moved scientific artifact must remain value-equivalent. The flattened
+   Wflow subtree and the renamed result tables need a real run, not a dry run,
+   because the emitted Wflow TOML pointer strings change with run-directory
+   depth.
 5. Test user names, default IDs, invalid slugs, collisions through `_v3`, and
    create-versus-resume behavior.
 6. Test atomic ID reservation under competing creators.
@@ -361,6 +455,13 @@ An implementation design should include at least these falsifiers:
 8. Verify that an old experiment fails before simulation after the live model
    changes and that a newly created experiment succeeds.
 9. Verify final plots and engine diagnostics land in their distinct homes.
+10. Run two experiments concurrently and verify that neither one's log or
+    benchmark parts are visible to, consumed by, or deleted by the other's
+    gather step.
+11. Verify `q_indicators.csv` and `basin_indicators.csv` are value-identical to
+    the tables they replace, and that no `RT_*.csv` is produced.
+12. Scan the materialized tree for names violating the naming rule, with the
+    two exemptions encoded rather than hand-waved.
 
 ## Open questions for review
 
@@ -370,8 +471,6 @@ An implementation design should include at least these falsifiers:
   or does WF3 consume another model-root artifact transitively?
 - Does placing generated HydroMT build configuration inside the model root
   conflict with any HydroMT/Wflow directory ownership assumption?
-- Are project-root WF1/WF2 logs and benchmarks a tolerable exception, or do
-  they undermine the modularity goal?
 - Where should workflow DAG renders and small guard/sentinel artifacts live?
 - When should `config/experiment.yml` become immutable, and how should a user
   intentionally revise an existing experiment?
@@ -381,6 +480,10 @@ An implementation design should include at least these falsifiers:
   not necessarily scientific revisions of one another?
 - Which current artifact paths cannot move atomically because an external
   consumer relies on them?
+- Does flattening the Wflow run subtree create a directory-size or tooling
+  problem at production grid sizes that the depth saving does not justify?
+- Is losing the return-period curves acceptable, or should a single merged
+  frequency table become a declared output of the reduction rule?
 
 ## External reviewer instructions
 
@@ -399,7 +502,7 @@ Return only Markdown with this structure:
 ```text
 ## Verdict
 verdict: approve | revise | reject
-doc_version: v1
+doc_version: v2
 
 ## Findings
 ### ext1-01 [blocking | major | minor]
@@ -416,3 +519,13 @@ List findings in severity order. An empty findings section with
 
 - 2026-08-02, v1: Initial external-review draft from owner-confirmed scoping
   decisions.
+- 2026-08-04, v2: Owner review pass, four decisions. (1) Experiment logs and
+  benchmarks stay under the experiment; the root/experiment split is restated as
+  scope rule P7 rather than an exception, closing v1's open question on that
+  point. (2) The `rlz_<r>/` directory is removed from the experiment's Wflow
+  subtree; fan-out members are keyed by filename on both engine sides. (3)
+  `Qstats.csv` → `q_indicators.csv`, `basin.csv` → `basin_indicators.csv`, and
+  the `RT_*.csv` side tables are dropped. (4) A lowercase `snake_case` naming
+  rule is adopted for locally minted names, with upstream identifiers exempt.
+  Alternatives, consequences, obligations, falsifiers, and open questions
+  updated accordingly.
