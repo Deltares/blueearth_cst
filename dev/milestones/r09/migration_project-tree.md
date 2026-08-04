@@ -1,8 +1,8 @@
 # Migration — project tree (R9)
 
-Status: **COMPLETE** (2026-08-04). All three findings resolved and every artifact
-class placed. The map is ready to be encoded as regex rules and to feed the task
-brief.
+Status: **COMPLETE** (2026-08-04). All three findings resolved, every artifact
+class placed, rule precedence stated, and the validating inventory ruled. The map
+is ready to be encoded as regex rules and to feed the task brief.
 
 Date: 2026-08-04
 
@@ -128,6 +128,41 @@ what design principle P9 now generalises.
 | `data/climate/historical/<source>_<window>/` | `climate_historical/<source>_<window>/` | **Key kept** — it is a cache key (P3-1 §4), not multi-window support. Framing reworded. New obligation: prune orphaned store dirs. |
 | `cmip6/timeseries/` | `cmip6/raw/` **and** `cmip6/scalar/` | **Both kept.** Two tiers of one identity; `scalar/` over `series/` is R8 ruling S8-03; `prune_series_cache.py` is keyed to the grammar. |
 | `cmip6/change_factors/` | two files in `cmip6/summary/` | **Kept in `summary/`.** A directory for two files violates P5. |
+
+---
+
+## Rule precedence — the tables are not the rule order
+
+`apply_path_map` is **first match wins** (`dev/scripts/semantic_tree_diff.py:438`).
+The tables below are grouped by destination root because that is how a human reads
+them; that grouping is **not** the order the rules are registered in. Encoding the
+tables top-to-bottom yields a map that is wrong on exactly the rows that matter.
+
+**The invariant: the narrower source pattern is registered first.** Narrowness is a
+property of the *old* side, not of the rule kind — a `fullmatch` regex is narrower
+than a directory prefix by construction, but an exact rule placed after a prefix
+that covers it never fires. `build_r07_path_map` interleaves its three kinds for
+this reason and stays the template; do not read the invariant as a fixed
+exact-before-regex-before-prefix ordering.
+
+**Identity rules are enumerated per row, never written as a catch-all prefix.**
+`apply_path_map` returns its input unchanged on fall-through, so a broad
+`config/` → `config/` prefix rule is indistinguishable from no rule at all: it
+would satisfy every `config/` row at once and empty the unmapped-path report by
+construction, making the phase's falsifier pass unconditionally. Enumerating
+identity per row is what preserves the fall-through signal that report depends on.
+
+Two rows are live hazards. In both, a general rule for one source directory
+swallows a specific destination:
+
+| Narrow rule | General rule it must precede |
+| --- | --- |
+| `<P>/config/generated/wflow_build_model_run.yml` → `models/hydrology/wflow/config/build_model.yml` | the `config/**` identity rows |
+| `experiments/<id>/hydrology_runs/rlz_<r>/config/log.txt` → `hydrology/wflow/output/rlz_<r>_cst_<c>.log` | any `hydrology_runs/rlz_(\d+)/config/(.*)` regex, which consumes the log row |
+
+The first hazard is why `config/generated/*` appears twice below — once under its
+destination root and once under its source root. That duplication is the map
+signalling that section order and rule order are different things.
 
 ---
 
@@ -287,6 +322,40 @@ reference snapshot, or the gate will compare against them:
 `dev/scripts/prune_series_cache.py` covers the WF2 series class only; the log-part
 orphans are not covered by it.
 
+## The inventory the map is validated against — RULED (two tiers)
+
+Step 5 asked for a clean materialized fixture, on the correct grounds that the
+existing one cannot validate this map. **RULED 2026-08-04: two tiers, validated at
+different times by different actors.** One instrument cannot satisfy both binding
+constraints — P1 must be completable with no `project_dir` write and no
+primary-checkout run, while Gate 1 must remain unable to close on declarations
+alone, since undeclared engine artifacts are precisely the class `--dry-run`
+structurally cannot see.
+
+**Declared tier** — the path inventory derived from the three Snakefiles' `output:`
+declarations, expanded over the seed config's wildcards. Regenerable inside a task
+worktree, costs seconds, writes nothing under `project_dir`. This is what P1's
+falsifier runs against, and it is sufficient for P1 to complete.
+
+**Observed tier** — one clean three-workflow run from the **primary checkout**,
+snapshotted **once** as a sorted list of project-relative paths committed under
+`dev/milestones/r09/`. Not a tree copy: the map is a function over paths, so a path
+list is the whole input. This is an owner action, and it is the only tier that
+carries the undeclared engine artifacts.
+
+**Sequencing.** If the observed tier does not yet exist when P1 starts, P1 runs
+against the declared tier and **names the observed tier as unverified in its phase
+report**. Gate 1 does not close until the map has been applied to the observed tier
+with zero unmapped paths. This keeps P1 unblocked without softening the gate, and
+matches the master brief's own split: the full three-workflow run is already
+classed as cross-cutting, a check no single phase can perform.
+
+**Prune before snapshotting, or the snapshot bakes the orphans into the contract.**
+A run into an existing `project_dir` inherits whatever is already there. This is
+not one command: `dev/scripts/prune_series_cache.py --delete` covers the WF2 series
+class only, and the log-part and superseded-config orphans listed above are removed
+by hand before the run is snapshotted.
+
 ## Next steps
 
 1. ~~Rule Finding 1~~ **done 2026-08-04** — option (A), design v6.
@@ -295,6 +364,8 @@ orphans are not covered by it.
 4. ~~Re-derive the WF1/spatial rows after Gate 2 closes~~ **not required** —
    Finding 2 withdrawn 2026-08-04; the rows were already derived from the landed
    work.
-5. Materialize a **clean** fixture from current code — the existing one cannot
-   validate this map — and diff it against the completed map.
-6. Encode the map as regex rules alongside `build_r07_path_map`.
+5. ~~Materialize a **clean** fixture from current code~~ **done 2026-08-04** —
+   ruled as a two-tier inventory (declared + observed); see *The inventory the map
+   is validated against*.
+6. Encode the map as regex rules alongside `build_r07_path_map`, in the precedence
+   order stated above.

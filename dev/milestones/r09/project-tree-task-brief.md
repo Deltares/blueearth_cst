@@ -75,11 +75,17 @@ they are not to be run in parallel worktrees.
 
 ### Human gates
 
-1. **Comparator gate — PAUSE after P1.** Present the R9 path map applied to a
-   materialized pre-migration tree, showing the intended post-migration paths.
-   Do not begin moving files until the owner confirms the map reproduces the
-   design's tree. A map that is wrong in the same direction as the migration is
-   undetectable afterwards.
+1. **Comparator gate — PAUSE after P1.** Present the R9 path map applied to the
+   two-tier inventory ruled in the map doc (*The inventory the map is validated
+   against*), showing the intended post-migration paths: the **declared tier**
+   from the Snakefiles' `output:` declarations, which P1 produces, and the
+   **observed tier** — one clean three-workflow run from the primary checkout,
+   snapshotted as a sorted path list. Both must show zero unmapped paths. P1 may
+   complete with the observed tier unverified; **this gate may not close that
+   way**, because undeclared engine artifacts appear in no declaration and
+   `--dry-run` structurally cannot see them. Do not begin moving files until the
+   owner confirms the map reproduces the design's tree. A map that is wrong in the
+   same direction as the migration is undetectable afterwards.
 2. **Scientific-delta gate — PAUSE before recording any new baseline.** Present
    the discharge comparison and any map-level differences. The program's premise
    is that nothing changes value; a non-zero delta means either a defect or a
