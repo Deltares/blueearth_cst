@@ -1117,7 +1117,7 @@ emit, and the **old → new path map** built from it. The map is needed three ti
 over — by `semantic_tree_diff` to gate the migration, by `naming.md` §7 as the
 mandated internal rename record, and by the brief itself to be actionable.
 
-**Status: run, and BLOCKED** (2026-08-04) —
+**Status: run, and COMPLETE except the WF1/spatial rows** (2026-08-04) —
 `dev/milestones/r09/migration_project-tree.md`. Built from the Snakefiles'
 declared outputs rather than from `test_case/test_local`, which is a mixed-era
 tree carrying orphans from at least three code generations and no `spatial/`
@@ -1128,21 +1128,33 @@ paths with opposite semantics. The v4 tree also asserts that toolbox catalogs ar
 "referenced, not copied", which is false; they are both. Design corrected to v5;
 ruling 6 marked superseded.
 
-**One ruling unblocks the map:** where the generated config snapshot
-(`config/runs/`, the digest-keyed bundle, `catalogs/`, `templates/`,
-`observations/`) lives under the new tree, whose six roots contain no provenance
-root. Every `config/` row is withheld until then. Separately noted as a scope
-note, not a blocker: `config/project.yml` does not exist and nothing writes one,
-so adopting it moves config ownership from the toolbox into the project rather
-than relocating a file.
+**Resolved across design v6–v8**, all toward what the code emits: the config
+snapshot **stays under `config/`** (the decider being that
+`config/runs/snake_config_model_creation.yml` is a declared `input:` of WF3's
+drift guard, so it is a consumed contract artifact rather than an archive); the
+climate store **keeps its source+window cache key**; `cmip6/raw/` and `scalar/`
+are both kept, `scalar/` being R8's ruling S8-03; `change_factors/` stays as two
+files under `summary/`; and the last four unplaced artifact classes are placed.
+P4 was restated from *separate* to *distinguishable*, and **P9 added** — where
+the tree differs from what the code emits, the emitted structure wins unless a
+stated reason overrides it. Four divergences were found and every one encoded a
+prior decision.
 
-Also outstanding from the inventory: three v4 tree shapes that do not match what
-the code emits (the climate store is keyed by dataset **and** window; `cmip6/raw/`
-and `cmip6/scalar/` collapse into one drawn `timeseries/`; `change_factors/` is
-drawn as a directory but written as two files under `summary/`), six artifact
-classes with no home in the design, and provisional WF1 rows — the
-`wf1-spatial-decoupling` P2 work is implemented with **Gate 2 review pending**
-and changes `Snakefile_model_creation`.
+**The map is complete except the WF1/spatial rows**, which wait on the
+`wf1-spatial-decoupling` P2 Gate 2 review — that work is implemented, changes
+`Snakefile_model_creation`, and would move those rows under R9's feet.
+
+**Two obligations the inventory added to the milestone.** First, a real defect:
+Wflow's `[logging] path_log` defaults to `log.txt` beside the TOML, so removing
+the `rlz_<r>/` level puts every concurrently-batched member's log at one path —
+a race. The directory removal and the per-member `path_log` must land in the
+same commit, with a two-member concurrency falsifier. Second, keeping the store's
+cache key means a changed window strands its predecessor on disk, so the pruning
+tooling must learn to report orphaned store directories.
+
+**Scope note, not a blocker.** `config/project.yml` does not exist and nothing
+writes one; adopting it moves config ownership from the toolbox into the project
+rather than relocating a file, and R9 must budget it as new capability.
 
 **Exit criteria.** Design accepted *(done 2026-08-04)*; inventory and path map
 complete; task brief written; commits landed leaving the tree runnable at each
