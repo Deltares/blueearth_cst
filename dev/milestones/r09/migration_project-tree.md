@@ -1,8 +1,9 @@
 # Migration — project tree (R9)
 
-Status: **DRAFT — blocked.** One finding invalidates a settled-framing decision of
-`project-tree-design.md` v4 and needs an owner ruling before the map can be
-completed. The map below is recorded as far as it is sound.
+Status: **DRAFT — `config/` unblocked (2026-08-04), three items still open.**
+Finding 1 is ruled and its rows are mapped. Outstanding: the three tree-shape
+mismatches in Finding 3, five unplaced artifact classes, and the provisional WF1
+rows pending the spatial work's Gate 2.
 
 Date: 2026-08-04
 
@@ -31,7 +32,7 @@ Anything mapped from the fixture alone would bake those orphans into the contrac
 
 ---
 
-## Finding 1 — BLOCKING: the project's `config/` is generated, not editable
+## Finding 1 — RULED: the project's `config/` is generated, not editable
 
 The design's settled framing states *"`config/project.yml` is the editable
 project source of truth"* and the tree labels `config/` **"editable project
@@ -53,8 +54,11 @@ There is no `project.yml` anywhere, and nothing writes one.
 paths* with *opposite semantics* in the two documents: v4 labels them per-basin
 editable overrides; `copy_config_files.py` writes generated snapshots there.
 
-**The ruling that unblocks the map is one question: where does the generated
-config snapshot live under the v4 tree?** The snapshot is a real, sizeable
+**RULED 2026-08-04 — option (A): the snapshot stays under `config/`**, with
+editable and generated subtrees distinguished inside it. Recorded in
+`project-tree-design.md` v6, which also restates P4 from *separate* to
+*distinguishable*. The question was: where does the generated config snapshot
+live under the v4 tree? The snapshot is a real, sizeable
 artifact set — `config/runs/snake_config_<workflow>.yml`,
 `config/runs/model_creation/<digest>/`, `config/catalogs/`, `config/templates/`,
 `config/observations/` — and the v4 tree has **no provenance root** to receive
@@ -62,24 +66,33 @@ it. The six roots are `config/`, `data/`, `models/`, `experiments/`, `logs/`,
 `benchmarks/`, and under P4 none of them is a home for per-run generated
 provenance at project scope.
 
-Candidate homes, for the owner to rule between:
+Options considered:
 
-- **(A)** keep it under `config/` and drop the "editable project source" label
-  from the subdirectories that are generated, distinguishing editable from
-  snapshot *inside* `config/`;
-- **(B)** give the snapshot its own project-scope root beside `logs/` and
-  `benchmarks/`, which are already the project's generated run-record pair; or
-- **(C)** treat it as a run record and place it under `logs/`, applying P7.
+- **(A)** keep it under `config/`, distinguishing editable from snapshot inside
+  it — **adopted**;
+- **(B)** its own project-scope root beside `logs/` and `benchmarks/`;
+- **(C)** under `logs/`, applying P7.
 
-Every `config/` row in the map below is withheld pending this ruling.
+**Why (A).** `config/runs/snake_config_model_creation.yml` is a declared `input:`
+of WF3's rule 3.00b drift guard (`Snakefile_climate_experiment:210, 290`), so the
+snapshot is a consumed cross-workflow contract artifact, not an archive. (A) is
+the only option that leaves that path untouched. (B) a `provenance/` root would
+break it, add a seventh root, and leave project and experiment scopes disagreeing
+about where the same artifact class lives. (C) `logs/` is disqualified outright:
+it is what a user deletes to reclaim space, and its parts are merged-then-deleted
+by design, while this bundle is immutable, retained, and read by a downstream
+workflow.
+
+The `config/` rows are mapped below. They are almost all **identity** — which is
+the point: the cheapest correct answer was the one that moved nothing.
 
 **Two related notes, neither of which blocks the map:**
 
 1. **The Q6 ruling is wrong in its conclusion, not just its reasoning.** I ruled
    that toolbox catalogs are "referenced, never copied". They are referenced as
    inputs **and copied as provenance**. v4's tree now carries the comment
-   *"toolbox catalogs are referenced, not copied"* — that line is false in the
-   accepted design of record and is corrected in v5.
+   *"toolbox catalogs are referenced, not copied"* — that line was false in the
+   accepted design of record; corrected at v5 and re-ruled at v6.
 2. **`config/project.yml` is new capability, not a relocation.** Nothing writes
    one; the source of truth is the `--configfile` in the toolbox. Introducing it
    moves config ownership from toolbox to project, touching `run_workflows.py`,
@@ -109,7 +122,7 @@ set, and three parts do not correspond:
 
 ## Path map — sound portions
 
-`<P>` = `project_dir`. Withheld rows are marked. Ordered by destination root.
+`<P>` = `project_dir`. Ordered by destination root.
 
 ### → `models/hydrology/wflow/`
 
@@ -130,8 +143,8 @@ set, and three parts do not correspond:
 | `<P>/config/generated/wflow_build_model_run.yml` | `models/hydrology/wflow/config/build_model.yml` |
 | `<P>/config/generated/wflow_build_forcing_historical.yml` | `models/hydrology/wflow/config/build_historical_forcing.yml` |
 
-The last two are the only `config/` rows not withheld: the design already routes
-generated build YAML to the model root, which Finding 1 does not disturb.
+The last two are also listed under `config/` below, since that is where they come
+from; the design routes generated build YAML to the model root.
 
 ### → `data/` — PROVISIONAL, see Finding 2
 
@@ -177,8 +190,23 @@ never normalized by the naming rule.
 | `data_catalog_climate_experiment.yml` | **unplaced** — generated catalog at the experiment root |
 | `.project_consistency_ok` | `.project_consistency_ok` (unchanged) |
 | `logs/*`, `benchmarks/*` | `logs/*`, `benchmarks/*` (unchanged) |
-| `config/snake_config_climate_experiment.yml` | **withheld** — Finding 1 |
-| `config/catalogs/*`, `config/*.yml` | **withheld** — Finding 1 |
+| `config/snake_config_climate_experiment.yml` | unchanged (identity) |
+| `config/catalogs/*` | unchanged (identity) |
+| `data_catalog_climate_experiment.yml` | `config/catalogs/data_catalog_climate_experiment.yml` — resolved by the v6 ruling |
+
+### → `config/` — RULED (A), identity except where noted
+
+| Old | New |
+| --- | --- |
+| `<P>/config/runs/snake_config_model_creation.yml` | unchanged — **contract path**, declared input of WF3 rule 3.00b |
+| `<P>/config/runs/snake_config_climate_projections.yml` | unchanged — contract path |
+| `<P>/config/runs/model_creation/<digest>/**` | unchanged |
+| `<P>/config/catalogs/*.yml` | unchanged |
+| `<P>/config/templates/*.yml` | unchanged — snapshots, **not** the editable inputs v4 drew |
+| `<P>/config/observations/*` | unchanged |
+| `<P>/config/generated/wflow_build_model_run.yml` | `models/hydrology/wflow/config/build_model.yml` |
+| `<P>/config/generated/wflow_build_forcing_historical.yml` | `models/hydrology/wflow/config/build_historical_forcing.yml` |
+| *(not built)* | `config/project.yml` — new capability, see scope note |
 
 ### → project root
 
@@ -199,9 +227,6 @@ Each needs a home before the task brief:
 1. `climate_projections/cmip6/report.md` — a WF2 human-readable summary.
 2. `weather_generator/output/{sim_dates,resampled_dates}.csv` — generator
    products that are not per-member series; `series/` or `_work/`?
-3. `experiments/<id>/data_catalog_climate_experiment.yml` — a generated catalog.
-   The Q6 ruling says generated catalogs travel with their producer, which
-   implies `climate/weathergenr/` or `climate/`, not the experiment root.
 4. `hydrology_runs/rlz_<r>/config/log.txt` — written by the Wflow driver, not by
    a Snakemake `log:`. Undeclared. With the `rlz_<r>/` level gone it has no
    obvious home and would collide across members if left in `config/`.
@@ -226,8 +251,7 @@ orphans are not covered by it.
 
 ## Next steps
 
-1. **Rule Finding 1** — where the generated config snapshot lives. This gates
-   everything under `config/`.
+1. ~~Rule Finding 1~~ **done 2026-08-04** — option (A), design v6.
 2. Rule Finding 3's three mismatches (window key, `raw`/`scalar`, `change_factors`).
 3. Place the six unplaced artifact classes.
 4. Re-derive the WF1/spatial rows after Gate 2 closes (Finding 2).

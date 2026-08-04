@@ -2,7 +2,7 @@
 
 Status: ACCEPTED by the owner, 2026-08-04. External review waived at this stage.
 
-Document version: v5
+Document version: v6
 
 Date: 2026-08-04
 
@@ -34,37 +34,53 @@ than assumed:
    it, which is the outcome an external review is normally relied on to produce.
 2. **The reviewer contract below is intact and unexercised.** It is held in
    reserve, not deleted: a later review can run against this document without
-   rework, and would target `doc_version: v5`.
+   rework, and would target `doc_version: v6`.
 
 Acceptance covers the placement contract, the naming rule, the four v2
 decisions, and the nine v4 rulings. It does not substitute for the validation
 expectations, which remain obligations on whatever implementation follows.
 
-## Correction (v5) — `config/` is contested
+## Correction (v5–v6) — `config/` was wrong, and is now ruled
 
-The artifact inventory (`migration_project-tree.md`, Finding 1) found that this
-document is **wrong about `config/`**, and the correction is recorded here rather
-than silently applied, because the fix needs an owner ruling.
+The artifact inventory (`migration_project-tree.md`, Finding 1) found this
+document wrong about `config/`. v5 recorded the error; **v6 rules it.**
 
-- The tree labels `config/` **"editable project source"**. In the current code,
-  `<project_dir>/config/` is written *in its entirety* by rule 1.01
-  `snapshot_config` (`blueearth_cst/model/copy_config_files.py`): `catalogs/`,
-  `templates/`, `observations/`, `runs/`, and a digest-keyed bundle. All of it is
-  generated provenance for inputs that live outside `project_dir`.
-- The v4 tree comment *"toolbox catalogs are referenced, not copied"* is
-  **false**. They are referenced as inputs **and** copied as provenance. Ruling 6
-  in *Questions ruled at acceptance* is wrong in its conclusion.
-- `config/project.yml` does not exist and nothing writes one. Introducing it is
-  new capability — moving config ownership from the toolbox into the project —
-  not the relocation this document implies. That remains settled framing and is
-  not reopened; it is recorded as a scope note on the milestone.
+**What was wrong.** The tree labelled `config/` "editable project source" and
+claimed toolbox catalogs are "referenced, not copied". In the current code
+`<project_dir>/config/` is written *in its entirety* by rule 1.01
+`snapshot_config` (`blueearth_cst/model/copy_config_files.py`) — `catalogs/`,
+`templates/`, `observations/`, `runs/`, and a digest-keyed bundle — all of it
+generated provenance for inputs that live outside `project_dir`. Catalogs are
+referenced **and** copied. The per-basin override directory v4 described does not
+exist.
 
-**Open ruling:** the generated snapshot needs a home, and the six roots below
-contain no provenance root. Options are set out in the migration document; until
-one is chosen, every `config/` row of the path map is withheld and the tree's
-`config/` subtree below should be read as provisional.
+**The ruling.** The generated snapshot **stays under `config/`**, with editable
+and generated subtrees distinguished inside it rather than split across roots.
+P4 is restated accordingly. Two alternatives were rejected:
 
-Nothing else in this document is affected: `models/`, `data/`, `experiments/`,
+- *A dedicated `provenance/` root.* Breaks a cross-workflow contract path (see
+  below), adds a seventh root against P5, and would leave project scope using
+  `provenance/` while experiment scope keeps `config/` for the same artifact
+  class.
+- *Filing it under `logs/` by P7.* Disqualified: `logs/` is what a user deletes
+  to reclaim space, and its parts are merged-then-deleted by design, whereas this
+  bundle is immutable and retained — and consumed.
+
+**Why the contract path decides it.**
+`config/runs/snake_config_model_creation.yml` is a **declared `input:`** of WF3's
+rule 3.00b drift guard, with its digest taken at parse time
+(`Snakefile_climate_experiment:210, 290`). The snapshot is not an archive; it is
+an artifact WF1/WF2 produce and WF3 consumes. Moving it is a code change to a
+cross-workflow contract, not a relocation.
+
+**Scope note, not a design change.** `config/project.yml` does not exist and
+nothing writes one; the source of truth is the `--configfile` in the toolbox.
+Adopting it moves config ownership from toolbox to project and touches
+`run_workflows.py`, the `--configfile` contract, and `suggest_experiment_name.py`.
+It remains settled framing and is not reopened here — but R9 must budget for it
+as new capability rather than as a move.
+
+Nothing else in this document was affected: `models/`, `data/`, `experiments/`,
 `logs/`, and `benchmarks/` were all confirmed against declared outputs.
 
 ## Review purpose
@@ -148,7 +164,9 @@ inconsistently or makes it operationally unsafe.
 - There is one retained ERA5 historical-climate window. There is no window-ID
   directory.
 - There is no project-level `runs/` directory at this stage.
-- `config/project.yml` is the editable project source of truth.
+- `config/project.yml` is the editable project source of truth. **Not built
+  today** — see *Correction (v5–v6)*; adopting it is new capability, and the rest
+  of `config/` is generated provenance.
 - Generated HydroMT build configurations travel with the live Wflow model.
 - Experiments retain explicit `weathergenr/` and `wflow/` engine directories.
 - Experiment-level `climate/` and `hydrology/` sit directly below the
@@ -178,10 +196,13 @@ series, hydrological simulations, machine-readable results, final figures,
 logs, and benchmarks are colocated under one experiment ID, so the experiment
 directory can be copied, archived, or deleted as a unit.
 
-**P4 — Separate editable intent from generated provenance.** Project-owned
-configuration is edited under the root `config/`; generated model-build
-configuration stays with the model; immutable experiment references stay with
-the experiment.
+**P4 — Editable intent and generated provenance must be DISTINGUISHABLE.**
+Restated at v6. The original wording required them to be *separated* into
+different roots, which the code contradicts: `config/` is written entirely by the
+build as provenance, and one of its files is a declared cross-workflow input.
+Where the two share a root, the generated subtrees are named and documented as
+such. Generated model-build configuration still travels with the model, and
+immutable experiment references still stay with the experiment.
 
 **P5 — Prefer the shallowest sufficient hierarchy.** IDs and wrapper
 directories are introduced only where more than one instance must coexist.
@@ -204,13 +225,15 @@ competes with an external contract.
 
 ```text
 <project_dir>/                              # e.g. gabon/
-├── config/                                # editable project source
-│   ├── project.yml                        # canonical project configuration
-│   ├── catalogs/                          # ⚠ CONTESTED — see Correction (v5)
-│   │   └── <override>.yml                 # code writes GENERATED snapshots here
-│   └── templates/
-│       ├── wflow_build.yml
-│       └── wflow_waterbodies.yml
+├── config/                                # editable + GENERATED, distinguished (P4)
+│   ├── project.yml                        # editable — NOT BUILT, see scope note
+│   ├── runs/                              # GENERATED  resolved configs +
+│   │   ├── snake_config_<workflow>.yml    #            digest-keyed bundles.
+│   │   └── <workflow>/<digest>/           #  ⚠ snake_config_model_creation.yml is a
+│   │                                      #    DECLARED INPUT of WF3's drift guard
+│   ├── catalogs/                          # GENERATED  snapshots of catalogs used
+│   ├── templates/                         # GENERATED  snapshots of templates used
+│   └── observations/                      # GENERATED  snapshots of obs inputs
 │
 ├── data/                                  # reusable, engine-independent data
 │   ├── spatial/
@@ -300,8 +323,9 @@ competes with an external contract.
 | Artifact | Required home | Reason |
 | --- | --- | --- |
 | Editable basin, model-build, and projection settings | `config/project.yml` | One project source of truth |
-| Build templates, and per-basin catalog **overrides** only | `config/templates/`, `config/catalogs/` | Project inputs, not generated state. Toolbox catalogs are referenced by path, never copied, so `config/catalogs/` is frequently absent |
-| Generated data catalogs | Beside their producer's output (`data/spatial/spatial_catalog.yml`, the experiment's climate catalog) | Generated provenance, not editable intent (P4) |
+| Snapshots of the catalogs, templates and observation inputs a run used | `config/catalogs/`, `config/templates/`, `config/observations/` | Generated provenance. The originals live outside `project_dir` and are referenced by path; these copies let a finished project state what it was evaluated against |
+| Resolved run configuration and its digest-keyed bundle | `config/runs/` | Generated. `snake_config_model_creation.yml` and `snake_config_climate_projections.yml` are **declared inputs** of WF3's drift guard — contract paths, not archives |
+| Generated catalogs that DESCRIBE produced data | Beside the data they describe (`data/spatial/spatial_catalog.yml`) | A descriptor of an output, not a snapshot of an input — a different artifact class from `config/catalogs/` |
 | Region, gauges, and other engine-neutral geometry | `data/spatial/` | Reusable across engines and workflows |
 | ERA5 extraction | `data/climate/historical/era5/` | One active source and window |
 | CMIP6 change factors | `data/climate/projections/cmip6/` | Plausibility overlay, independent of experiments |
@@ -615,7 +639,7 @@ two of the nine changed the design rather than confirming it.
 | 3 | Does HydroMT claim ownership of the model root? | No evidence of a conflict in anything vendored here; a `config/` subdirectory is not a reserved name. Settled empirically by falsifier 7b rather than by assertion. |
 | 4 | Where do DAG renders and sentinels live? | Sentinels stay beside what they guard (already the case). DAG renders move OUT of `config/`, which would violate P4, into `logs/dag/` at the producing run's scope. |
 | 5 | When does `experiment.yml` become immutable? | At the first successful run, not at creation. Revision afterwards means a new experiment, mirroring the model-fingerprint rule. |
-| 6 | Which catalogs must be copied into the project? | ⚠ **Ruled wrong; superseded at v5.** Toolbox catalogs are referenced *and* copied as provenance snapshots into `config/catalogs/`. See *Correction (v5)*. |
+| 6 | Which catalogs must be copied into the project? | **Re-ruled at v6.** The v4 answer ("none") was wrong: catalogs are referenced as inputs *and* copied as provenance into `config/catalogs/`, as are templates and observation inputs. The per-basin override directory v4 described does not exist and is dropped. |
 | 7 | Is `_vN` right when two same-named experiments are unrelated? | Split by provenance: a colliding user-supplied name is rejected; only the generated default is auto-suffixed. |
 | 8 | Which paths cannot move atomically? | None. R7's ruling GA-2 restated: pre-existing trees unsupported, fresh run required, no external path consumer. |
 | 9 | Does flattening create a directory-size problem? | No. ~1,260 files per directory is a browsing annoyance, not a limit; the two places an OS argument limit could bite (the batched Wflow shell call, the reduction rule's input list) are both bounded or passed in-process. |
@@ -641,7 +665,7 @@ Return only Markdown with this structure:
 ```text
 ## Verdict
 verdict: approve | revise | reject
-doc_version: v5
+doc_version: v6
 
 ## Findings
 ### ext1-01 [blocking | major | minor]
@@ -675,6 +699,22 @@ List findings in severity order. An empty findings section with
   unexercised. Versioned rather than edited in place so that document version
   and document content stay one-to-one, which the reviewer response schema
   depends on.
+- 2026-08-04, v6: Ruled the question v5 raised. The generated config snapshot
+  **stays under `config/`**, with editable and generated subtrees distinguished
+  inside it; a dedicated `provenance/` root and filing it under `logs/` were both
+  rejected. The deciding fact is that
+  `config/runs/snake_config_model_creation.yml` is a declared `input:` of WF3's
+  drift guard, so the snapshot is a consumed cross-workflow contract artifact
+  rather than an archive, and moving it would be a code change rather than a
+  relocation. **P4 restated** from "separate" to "distinguishable", since the
+  original wording is what the code contradicts. The tree's `config/` block now
+  marks each subtree generated or editable and flags the contract path; the
+  placement contract gains rows for the input snapshots, the resolved run
+  configs, and the separate class of generated catalogs that describe produced
+  data; ruling 6 is re-ruled rather than merely marked wrong. Two further v4
+  errors of the same kind corrected: `config/templates/` was drawn as an editable
+  input when it is a snapshot, and the per-basin catalog override directory does
+  not exist and is dropped.
 - 2026-08-04, v5: Correction, not a redesign. The artifact inventory found this
   document wrong about `config/`: the project's `config/` is written in full by
   rule 1.01 as generated provenance, not authored as editable source, and v4's
