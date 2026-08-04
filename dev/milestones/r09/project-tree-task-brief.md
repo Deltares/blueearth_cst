@@ -147,8 +147,8 @@ change what `pytest tests/` means, which is a contract. R9 **uses** the existing
 
 ### Phase brief index
 
-- P1 — Comparator and tooling — [`phase-1-comparator-task-brief.md`](phase-1-comparator-task-brief.md) — **implemented 2026-08-04 on `feat/r09-p1-comparator`; PAUSED at Gate 1.** Report: [`phase-1-report.md`](phase-1-report.md). Declared tier clean modulo three map gaps (F1); observed tier **unverified**, so the gate is open
-- P2 — Tree migration — [`phase-2-tree-migration-task-brief.md`](phase-2-tree-migration-task-brief.md) — not started
+- P1 — Comparator and tooling — [`phase-1-comparator-task-brief.md`](phase-1-comparator-task-brief.md) — **COMPLETE 2026-08-04; Gate 1 CLOSED; merged to `milestone/r09-project-tree`.** Report: [`phase-1-report.md`](phase-1-report.md). Both tiers zero-unmapped (declared 176, observed 192). Eight findings; F1a–F1c amended the map, F2 closed negatively, F7 fixed a stranded `LOG_RULES` entry, F8 retired a map row
+- P2 — Tree migration — [`phase-2-tree-migration-task-brief.md`](phase-2-tree-migration-task-brief.md) — **released by Gate 1**; branch `feat/r09-p2-tree-migration` and worktree created 2026-08-04 from the merged milestone tip; no P2 edit made yet
 - P3 — Result tables and rule 3.11 — [`phase-3-result-tables-task-brief.md`](phase-3-result-tables-task-brief.md) — not started
 - P4 — Fingerprint and experiment lifecycle — [`phase-4-fingerprint-task-brief.md`](phase-4-fingerprint-task-brief.md) — not started
 - P5 — Conventions and docs — [`phase-5-conventions-docs-task-brief.md`](phase-5-conventions-docs-task-brief.md) — not started
