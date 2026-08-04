@@ -1,6 +1,6 @@
 Master Brief — R9 generated project tree
 
-Revision: 2026-08-04, initial.
+Revision: 2026-08-04, initial; phase briefs linked same day.
 
 ### Goal
 
@@ -103,8 +103,8 @@ Whole-program checks no single phase can perform:
 
 ### Phase brief index
 
-- P1 — Comparator and tooling — `<PLACEHOLDER: phase-1 brief>` — not started
-- P2 — Tree migration — `<PLACEHOLDER: phase-2 brief>` — not started
-- P3 — Result tables and rule 3.11 — `<PLACEHOLDER: phase-3 brief>` — not started
-- P4 — Fingerprint and experiment lifecycle — `<PLACEHOLDER: phase-4 brief>` — not started
-- P5 — Conventions and docs — `<PLACEHOLDER: phase-5 brief>` — not started
+- P1 — Comparator and tooling — [`phase-1-comparator-task-brief.md`](phase-1-comparator-task-brief.md) — not started
+- P2 — Tree migration — [`phase-2-tree-migration-task-brief.md`](phase-2-tree-migration-task-brief.md) — not started
+- P3 — Result tables and rule 3.11 — [`phase-3-result-tables-task-brief.md`](phase-3-result-tables-task-brief.md) — not started
+- P4 — Fingerprint and experiment lifecycle — [`phase-4-fingerprint-task-brief.md`](phase-4-fingerprint-task-brief.md) — not started
+- P5 — Conventions and docs — [`phase-5-conventions-docs-task-brief.md`](phase-5-conventions-docs-task-brief.md) — not started

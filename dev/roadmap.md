@@ -1179,8 +1179,8 @@ exists has no regression detector. Three human gates: comparator, scientific
 delta before any baseline re-record, and landing.
 
 **Exit criteria.** Design accepted *(done 2026-08-04)*; inventory and path map
-complete *(done 2026-08-04)*; master brief written *(done 2026-08-04)*; five
-phase briefs written; commits landed leaving the tree runnable at each
+complete *(done 2026-08-04)*; master brief and five phase briefs written
+*(done 2026-08-04)*; commits landed leaving the tree runnable at each
 step; all three Snakefiles `--dry-run` clean and `pytest tests/` green; a full
 three-workflow run on the seed config completes; `semantic_tree_diff` clean
 against the R9 path map modulo a written allowlist; the fifteen falsifiers in
