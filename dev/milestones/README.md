@@ -35,12 +35,13 @@ milestone's record stays as it was written.
 | `r07/` | R7 — Project layout | 2026-07-29 | `r07-layout` |
 | `r08/` | R8 — WF2 v2.0: GCM projections analysis | 2026-07-31 | `r08-wf2-projections` |
 | `r09/` | R9 — Generated project tree | — *(open)* | `r09-project-tree` |
+| `r10/` | R10 — Rule naming | — *(open)* | `r10-rule-naming` |
 
 Phase grouping: `phase-1/` is Phase 1 (Foundation); `r01`–`r06` are Phase 2
 (Refactor, complete 2026-07-23); `p31`–`p33` are Phase 3 (Usability &
 flexibility, complete 2026-07-25); `r07` is Phase 4 (Layout consolidation);
 `r08` is Phase 5 (Workflow rework); `r09` is Phase 6 (Project tree redesign,
-open).
+open); `r10` is Phase 7 (Naming coherence, open).
 
 `p33` carries a tag but no `sealed` line in `roadmap.md` — it is recorded there
 as *scoped 2026-07-24*, so the date column is left blank rather than guessed.

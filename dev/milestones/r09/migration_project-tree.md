@@ -259,6 +259,21 @@ race rather than an overwrite. Set `path_log` per member from the existing
 layout-derived pointers, **in the same commit that removes the directory level**.
 Falsifier 15 in the design is the concurrency check.
 
+## Rule rename carried by R9
+
+`export_wflow_results` → `derive_wflow_indicators` (rule 3.11). R9 renames its
+outputs, so the old name is falsified by this milestone; the other nine rule
+renames are R10. Path effect is confined to transient parts:
+
+| Old | New |
+| --- | --- |
+| `logs/_parts/3.11_export_wflow_results.log` | `logs/_parts/3.11_derive_wflow_indicators.log` |
+| `benchmarks/_parts/3.11_export_wflow_results.tsv` | `benchmarks/_parts/3.11_derive_wflow_indicators.tsv` |
+
+Both are merged and deleted every run and are not baseline-pinned, so no durable
+path or value changes. `LOG_RULES` must be updated in the same edit — an unlisted
+label is not an error, it is a silently missing log section plus orphaned parts.
+
 ## Orphans in the fixture — do NOT map
 
 Present on disk, produced by no current rule. They must be pruned before any

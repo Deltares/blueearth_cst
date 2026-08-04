@@ -1,6 +1,6 @@
 # Fork Roadmap
 
-Source of truth for the personal fork of `blueearth_cst`. Six phases:
+Source of truth for the personal fork of `blueearth_cst`. Seven phases:
 
 **Phase 1 — Foundation (sealed 2026-05-08).** Replicated upstream,
 formalized the pixi env, upgraded load-bearing libraries, and added
@@ -33,6 +33,13 @@ starting with workflow 2. Milestone R8; design and audit trail under
 filename convention for generated artifacts, a pointer-derived model fingerprint,
 and an experiment lifecycle. One milestone, R9; dev artifacts under
 `dev/milestones/r09/`. See § Phase 6 below.
+
+**Phase 7 — Naming coherence (R10 open, registered 2026-08-04).** Brings the
+twenty-eight Snakemake rule identifiers onto one verb-and-noun scheme. Split from
+Phase 6 for the same reason Phase 5 was split from Phase 4: rule names are a CLI
+contract surface, not part of the artifact tree, and no durable artifact path
+carries one. One milestone, R10; dev artifacts under `dev/milestones/r10/`. See
+§ Phase 7 below.
 
 ```text
 Phase 1 — Foundation (sealed)
@@ -1107,6 +1114,7 @@ pointer-derived model fingerprint that WF3 re-checks before simulating.
 | Run records | Log and benchmark live at the scope of what the run produces (P7) — project root for WF1/WF2, the experiment for WF3. Merging them was rejected on `_parts` collision, not taste. |
 | Wflow run subtree | `rlz_<r>/` removed; members are `rlz_<r>_cst_<c>` filenames, matching the climate side. |
 | Result tables | `Qstats.csv` → `q_indicators.csv`, `basin.csv` → `basin_indicators.csv`, `RT_*.csv` dropped. |
+| Rule 3.11 | `export_wflow_results` → `derive_wflow_indicators`. The one rule rename R9 carries, on the principle that a milestone renames what it falsifies — R9 makes the outputs indicators, so "export…results" would be a mismatch R9 itself created. The other nine renames are R10. |
 | Naming | Lowercase `snake_case` for locally minted names; upstream identifiers and engine filenames exempt. Closes the gap `naming.md` §8 left open. |
 | Fingerprint | Pointer-derived: the TOML plus every model-root file its path-valued keys resolve to. |
 | Catalogs | Referenced, never copied. Only generated catalogs live in a project. |
@@ -1186,6 +1194,69 @@ GA-2 on the same grounds — no production trees exist and no external consumer
 reads artifact paths.
 
 **Tag.** `r09-project-tree` *(on seal)*.
+
+---
+
+## Phase 7 — Naming coherence (R10 OPEN)
+
+Registered 2026-08-04, out of the R9 inventory: mapping every rule's outputs made
+the rules' own names hard to ignore. Phases 4–6 worked on artifacts; Phase 7
+works on the identifiers that produce them.
+
+Split from Phase 6 rather than folded into it, for the reason Phase 5 was split
+from Phase 4. Rule identifiers are a **CLI contract surface** (`naming.md` §9),
+not part of the artifact tree, and no durable artifact path carries one — rule
+names reach `project_dir` only through transient log/benchmark part directories
+and as section labels inside two merged files. There is no shared cost to
+capture, and R9 is already carrying six kinds of change.
+
+### R10 — Rule naming (OPEN)
+
+**Status.** Design **ACCEPTED** by the owner 2026-08-04:
+`dev/milestones/r10/rule-naming-design.md`. Not implemented; no task brief, no
+branch.
+
+**Goal.** Every rule reads `<verb>_<noun>`, verb first, drawn from a controlled
+verb list so that two rules doing the same kind of work read the same. Ten of
+twenty-eight rules move; eighteen already conform and are named explicitly as
+not-to-touch.
+
+**The distinction that needed care.** `reduce_` and `derive_` both turn many
+inputs into few outputs. They are split by **position, not operation**:
+`reduce_` is an intermediate aggregation feeding a later rule
+(`reduce_gcm_series`), `derive_` computes a workflow's terminal product
+(`derive_change_factors`, `derive_wflow_indicators`). WF2's and WF3's final rules
+therefore read alike, which they should.
+
+**Defects being fixed.** Two rules carry no verb at all
+(`climate_stress_parameters`, `climate_data_catalog`); one verb is actively wrong
+(`export_wflow_results` — folded into R9); `setup_` duplicates `prepare_`;
+`weagen` and `proj` are contractions that appear in no path or directory; `_st`
+reads as a truncation; and `plot_results` / `plot_map` are vague beside their
+specific siblings.
+
+**The implementation trap.** Each rename touches three call sites — the `rule`
+identifier, its `log:`/`benchmark:` prefix, and its `LOG_RULES` entry. A missed
+`LOG_RULES` entry is **not an error**: `merge_logs` is deliberately scoped to that
+list, so the section silently vanishes from the merged log while its parts stay
+on disk forever.
+
+**Also in scope, independently landable.** `naming.md` §9 says `NN` is the step
+in *definition order*; WF2 defines 2.00, 2.03b, 2.03, 2.01, 2.02, … out of order,
+with gaps at 1.14, 2.05, 3.12. The recommendation is to **amend §9** — the number
+is a stable identifier assigned at creation, not a position — rather than
+renumber, which would churn every part path across all three workflows for
+nothing. `naming.md` should also gain the verb vocabulary; it has no rule-naming
+section today.
+
+**Exit criteria.** Design accepted *(done 2026-08-04)*; ten renames landed with
+`LOG_RULES` updated in the same edit; `migration_rule-names.md` recorded per §7;
+`pytest tests/` green; a full three-workflow run showing a merged-log section for
+every rule and no surviving `_parts/`; a repository-wide grep for each old name
+returning nothing outside the migration record; and `check_baseline check`
+passing **unchanged** — no renamed rule alters an output path or value.
+
+**Tag.** `r10-rule-naming` *(on seal)*.
 
 ---
 

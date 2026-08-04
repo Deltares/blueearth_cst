@@ -2,7 +2,7 @@
 
 Status: ACCEPTED by the owner, 2026-08-04. External review waived at this stage.
 
-Document version: v9
+Document version: v10
 
 Date: 2026-08-04
 
@@ -34,7 +34,7 @@ than assumed:
    it, which is the outcome an external review is normally relied on to produce.
 2. **The reviewer contract below is intact and unexercised.** It is held in
    reserve, not deleted: a later review can run against this document without
-   rework, and would target `doc_version: v9`.
+   rework, and would target `doc_version: v10`.
 
 Acceptance covers the placement contract, the naming rule, the four v2
 decisions, and the nine v4 rulings. It does not substitute for the validation
@@ -96,6 +96,28 @@ generalised from them.
 | `cmip6/change_factors/` | two files under `cmip6/summary/` | **Keep them in `summary/`.** A directory for two files violates P5, and `summary/` is coherent as WF2's reduced products — composition, provenance, and the change-factor tables. Splitting them out leaves `summary/` holding only metadata. |
 
 `report.md` is placed at the `cmip6/` root by the same pass.
+
+### One rule rename carried by R9 (v10)
+
+R9 renames rule 3.11's outputs to `q_indicators.csv` and `basin_indicators.csv`,
+which falsifies the rule's own name: `export_wflow_results` exports nothing, and
+after R9 it does not produce "results" either. It becomes
+**`derive_wflow_indicators`**.
+
+This is the *only* rule rename R9 carries, on the principle that a milestone
+renames what it falsifies. The other nine rule renames — and the verb vocabulary
+they follow — are R10 (`dev/milestones/r10/rule-naming-design.md`), because rule
+identifiers are a CLI contract surface rather than part of the artifact tree.
+
+`derive_` is R10's verb for a workflow's **terminal product**, matching WF2's
+`derive_change_factors`; `reduce_` is reserved for intermediate aggregation that
+feeds a later rule. Rule 3.11 both aggregates and computes, and it is terminal,
+so `derive_` is correct and `reduce_` would not be.
+
+The rename moves this rule's transient log and benchmark part paths. It changes
+no artifact path and no value, so the baseline is unaffected. `LOG_RULES` must be
+updated in the same edit — an unlisted label is silently dropped from the merged
+log rather than erroring.
 
 ### Four unplaced artifact classes, and a defect the flattening would introduce (v8)
 
@@ -743,7 +765,7 @@ Return only Markdown with this structure:
 ```text
 ## Verdict
 verdict: approve | revise | reject
-doc_version: v9
+doc_version: v10
 
 ## Findings
 ### ext1-01 [blocking | major | minor]
@@ -777,6 +799,16 @@ List findings in severity order. An empty findings section with
   unexercised. Versioned rather than edited in place so that document version
   and document content stay one-to-one, which the reviewer response schema
   depends on.
+- 2026-08-04, v10: Carried one rule rename — `export_wflow_results` →
+  **`derive_wflow_indicators`** — on the principle that a milestone renames what
+  it falsifies: R9 turns that rule's outputs into `q_indicators.csv` and
+  `basin_indicators.csv`, so both halves of the old name become wrong. `derive_`
+  is the terminal-product verb, matching `derive_change_factors`; `reduce_` is
+  reserved for intermediate aggregation. The remaining nine rule renames and the
+  verb vocabulary are deferred to R10, since rule identifiers are a CLI contract
+  surface rather than part of the artifact tree and no durable artifact path
+  carries one. `LOG_RULES` must be updated in the same edit; the baseline is
+  unaffected.
 - 2026-08-04, v9: The spatial rows are **final, not provisional** — the v8 marker
   is withdrawn. It rested on `master-task-brief.md`'s phase index reading "Gate 2
   review pending"; the git history shows Gates 2 and 3 were approved and
