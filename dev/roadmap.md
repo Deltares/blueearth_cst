@@ -1,6 +1,6 @@
 # Fork Roadmap
 
-Source of truth for the personal fork of `blueearth_cst`. Five phases:
+Source of truth for the personal fork of `blueearth_cst`. Six phases:
 
 **Phase 1 — Foundation (sealed 2026-05-08).** Replicated upstream,
 formalized the pixi env, upgraded load-bearing libraries, and added
@@ -26,6 +26,13 @@ milestone, R7; dev artifacts under `dev/milestones/r07/`. See § Phase 4 below.
 phase to change what a workflow *computes* and how its rule graph is shaped,
 starting with workflow 2. Milestone R8; design and audit trail under
 `dev/reference/workflows/`. See § Phase 5 below.
+
+**Phase 6 — Project tree redesign (R9 open, registered 2026-08-04).** Replaces the
+*semantic roots* of the generated `project_dir` — `config/`, `data/`, `models/`,
+`experiments/` — where Phase 4 consolidated the layout it inherited. Also adopts a
+filename convention for generated artifacts, a pointer-derived model fingerprint,
+and an experiment lifecycle. One milestone, R9; dev artifacts under
+`dev/milestones/r09/`. See § Phase 6 below.
 
 ```text
 Phase 1 — Foundation (sealed)
@@ -1054,6 +1061,91 @@ observed pin-mismatch rates). All three need operational data that does not exis
 yet.
 
 **Tag.** `r08-wf2-projections` *(planned; not yet cut)*.
+
+---
+
+## Phase 6 — Project tree redesign (R9 OPEN)
+
+Registered 2026-08-04. Phase 4 consolidated the generated tree it inherited —
+producer-oriented roots (`climate_historical/`, `climate_projections/`,
+`hydrology_model/`), tidied but not rethought. Phase 6 replaces those roots with
+domain ones and settles four things Phase 4 left to convention: how generated
+files are named, what a model fingerprint actually has to cover, when an
+experiment's configuration stops being editable, and where a run's own records
+live.
+
+Kept separate from Phase 4 rather than reopening it: R7 is sealed and tagged, and
+its record stays as written. This is a second, deeper pass over the same surface,
+not a correction of the first — R7's depth-agnostic run-directory handling is
+precisely what makes R9's flattening cheap.
+
+### R9 — Generated project tree (OPEN)
+
+**Status.** Design **ACCEPTED** by the owner 2026-08-04:
+`dev/milestones/r09/project-tree-design.md` (v4). Not yet implemented; no task
+brief, no branch, no commits.
+
+Drafted as an external-review brief and then **accepted without external review**
+— the owner waived it. The design says so on its face and records the two
+consequences: it carries no independent verdict, and its nine open questions were
+ruled by the owner directly rather than forced by a reviewer. Two of those nine
+rulings changed the design, which is the outcome a review is normally relied on
+to produce; the reviewer contract is retained unexercised so a review can still
+be dispatched against v4 without rework.
+
+**Goal.** `config/`, `data/`, `models/`, `experiments/` as the stable semantic
+roots of every project, with: one live Wflow model at `models/hydrology/wflow/`;
+reusable engine-independent inputs under `data/`; each experiment self-contained
+and keyed by an allocated ID; fan-out members keyed by filename on both engine
+sides; lowercase `snake_case` for every locally minted name; and a
+pointer-derived model fingerprint that WF3 re-checks before simulating.
+
+**Design decisions of record** (full rationale in the design):
+
+| Area | Decision |
+| --- | --- |
+| Run records | Log and benchmark live at the scope of what the run produces (P7) — project root for WF1/WF2, the experiment for WF3. Merging them was rejected on `_parts` collision, not taste. |
+| Wflow run subtree | `rlz_<r>/` removed; members are `rlz_<r>_cst_<c>` filenames, matching the climate side. |
+| Result tables | `Qstats.csv` → `q_indicators.csv`, `basin.csv` → `basin_indicators.csv`, `RT_*.csv` dropped. |
+| Naming | Lowercase `snake_case` for locally minted names; upstream identifiers and engine filenames exempt. Closes the gap `naming.md` §8 left open. |
+| Fingerprint | Pointer-derived: the TOML plus every model-root file its path-valued keys resolve to. |
+| Catalogs | Referenced, never copied. Only generated catalogs live in a project. |
+
+**Preconditions before a task brief.** Two, both named by the design itself:
+an **artifact inventory** covering every file the three workflows and their
+engines emit, and the **old → new path map** built from it. The map is needed
+three times over — by `semantic_tree_diff` to gate the migration, by
+`naming.md` §7 as the mandated internal rename record
+(`dev/milestones/r09/migration_project-tree.md`), and by the brief itself to be
+actionable. R7's equivalent ran to 54 KB; this is the milestone's real entry
+cost, not a formality.
+
+**Exit criteria.** Design accepted *(done 2026-08-04)*; inventory and path map
+complete; task brief written; commits landed leaving the tree runnable at each
+step; all three Snakefiles `--dry-run` clean and `pytest tests/` green; a full
+three-workflow run on the seed config completes; `semantic_tree_diff` clean
+against the R9 path map modulo a written allowlist; the fifteen falsifiers in
+the design exercised — including the ones that need a **real run** rather than a
+dry-run (the flattened Wflow subtree changes emitted TOML pointer strings, and
+the HydroMT model-root ownership question is settled empirically); baseline
+manifest re-recorded exactly once as a documented value-identical re-record;
+`naming.md` §8 amended in the same milestone that adopts the tree.
+
+**Carries a known defect to fix, not inherit.** `validate_hm7` asserts the basin
+table's header is exactly the two perturbation-axis columns — true only when no
+basin-average outputs are configured, and therefore false under the shipped
+default `wflow_outvars`. The rename must not carry it forward unfixed.
+
+**Out of scope.** Multiple concurrent Wflow models; multiple retained ERA5
+windows; a project-level `runs/` hierarchy with execution-attempt manifests;
+the source-repository layout; any change to what the workflows compute.
+
+**Support decision.** Pre-existing `project_dir` trees are unsupported: a fresh
+run is required and no `mv` migration script ships. This restates R7's ruling
+GA-2 on the same grounds — no production trees exist and no external consumer
+reads artifact paths.
+
+**Tag.** `r09-project-tree` *(on seal)*.
 
 ---
 

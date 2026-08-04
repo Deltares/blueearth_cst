@@ -1,8 +1,13 @@
 # dev/milestones/
 
-One folder per sealed milestone, holding its design, plan, review, migration,
+One folder per milestone, holding its design, plan, review, migration,
 and evidence documents. Narrative and rationale live in
 [`../roadmap.md`](../roadmap.md); this is the file index.
+
+Most folders here are sealed milestones. A folder is also created when a
+milestone is **registered** — its design accepted but not yet implemented — so
+the accepted design has a source-of-record home instead of sitting in
+`../working/`. The `Sealed` column says which is which.
 
 These folders moved here from the `dev/` root on 2026-08-02. That was a path
 change only — no file was renamed, split, or edited beyond its path prefix, and
@@ -29,11 +34,13 @@ milestone's record stays as it was written.
 | `p33/` | P3-3 — Performance passes | — | `p33-performance` |
 | `r07/` | R7 — Project layout | 2026-07-29 | `r07-layout` |
 | `r08/` | R8 — WF2 v2.0: GCM projections analysis | 2026-07-31 | `r08-wf2-projections` |
+| `r09/` | R9 — Generated project tree | — *(open)* | `r09-project-tree` |
 
 Phase grouping: `phase-1/` is Phase 1 (Foundation); `r01`–`r06` are Phase 2
 (Refactor, complete 2026-07-23); `p31`–`p33` are Phase 3 (Usability &
 flexibility, complete 2026-07-25); `r07` is Phase 4 (Layout consolidation);
-`r08` is Phase 5 (Workflow rework).
+`r08` is Phase 5 (Workflow rework); `r09` is Phase 6 (Project tree redesign,
+open).
 
 `p33` carries a tag but no `sealed` line in `roadmap.md` — it is recorded there
 as *scoped 2026-07-24*, so the date column is left blank rather than guessed.
