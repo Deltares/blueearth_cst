@@ -77,7 +77,7 @@ Of the 14 explicit entries, 12 are load-bearing under (a): eight are bound
 `when`-only somewhere (`snakemake`, `hydromt`, `hydromt-wflow`, `wflow`,
 `climate-projections`, `climate-stress-testing`, `cst-run-control`,
 `python-geospatial`) and four are claimed by no active role at all (`pixi-env`,
-`design-review-loop`, `design-scoping`, `python-publication-figures`). The
+`design-review-loop`, `design-scoping`, `python-plotting`). The
 remaining two — `git-workflow` (`always` via `git-steward`) and
 `python-discipline` (`always` via `python-engineer`) — are redundant on Claude
 and kept under (b), because `.codex/` drives this repo too.
