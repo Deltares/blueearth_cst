@@ -17,6 +17,14 @@
 #   clim_project cmip6
 #   paths       192
 #
+# ADDENDUM (manual, 2026-08-04). Two facts a regeneration will not reproduce:
+#   * `main` advanced to c9990a5 after this run. The delta from the recorded run
+#     commit is docs-only (dev/reference/agent-activation.md), so the tree is
+#     unaffected -- but the two hashes will not match.
+#   * The run used main PLUS commit a011546 (the LOG_RULES fix, phase-1 report
+#     F7). Without it the tree carries one extra path,
+#     logs/_parts/1.01b_delineate_region.log.
+#
 # POSIX separators, sorted, deduplicated. `.snakemake/` is excluded:
 # Snakemake bookkeeping, not a project artifact. Everything else is
 # kept, including artifacts no rule declares --- that is the point.

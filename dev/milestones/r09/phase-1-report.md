@@ -109,7 +109,7 @@ Identical with `--gap-rules`, which is itself the evidence for F2.
 **The two expected asymmetries against the declared tier both hold**, and
 neither is a defect:
 
-- **66 observed-only paths** — the undeclared engine artifacts the tier exists
+- **57 observed-only paths** — the undeclared engine artifacts the tier exists
   for. `hydromt.log`, `hydromt_data.yml`, seven `staticgeoms/` layers,
   `run_default/{log.txt,wflow_sbm.toml,outstate/}`, the digest bundles' internal
   structure (`effective.yml`, `source.yml`, `referenced-files.json`, `files/**`),
@@ -131,10 +131,19 @@ the map routes wholesale — so the falsifier reported none of them. See F5. The
 snapshot was committed *before* round 2 deliberately, so the commit diff is the
 exact stale-file list rather than a prose claim.
 
-**One caveat, stated so it is not read as drift.** The snapshot is `main` **plus**
-the one-line `LOG_RULES` fix this branch carries (F7). Run from `main` as it
-stands today, the tree would carry one extra path,
-`logs/_parts/1.01b_delineate_region.log`.
+**Two caveats, stated so neither is read as drift.**
+
+1. **The snapshot is `main` PLUS the one-line `LOG_RULES` fix this branch
+   carries (F7)** — commit `a011546`. Run from `main` as it stands, the tree
+   carries one extra path, `logs/_parts/1.01b_delineate_region.log`. **P2 must
+   merge or carry `a011546` before using `observed_inventory.txt` as its
+   pre-migration reference**, or subtract that one path. Until this branch
+   merges, anyone running WF1 from the primary checkout strands the part again.
+2. **`main` advanced during the session**, from `5322280` (recorded in the
+   snapshot header as the run commit) to `c9990a5`. The delta is two commits
+   touching `dev/reference/agent-activation.md` only — no Snakefile, no
+   `blueearth_cst/`, no `config/` — so the tree the run produced is unaffected.
+   Checked rather than assumed, so the next reader need not redo the diff.
 
 ---
 
