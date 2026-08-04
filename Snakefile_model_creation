@@ -655,6 +655,33 @@ rule plot_map:
     message: rule_banner("1.12", "plot_map")
     input:
         gauges_path = f"{basin_dir}/staticgeoms/outlets.geojson",
+        # RACE FIX, 2026-08-04. plot_map reads staticmaps.nc straight off disk
+        # (plot_map.load_basin_layers -- it stopped asking hydromt at R7) but
+        # declared only the gauges layer, so nothing ordered it after rule 1.04
+        # add_reservoirs_lakes_glaciers. Under `-c 1` they never overlap and the
+        # ordering held by accident; a cold `-c 3` run schedules them together
+        # and 1.12 dies with NO Python traceback. That silence is the tell:
+        # `HDF5_USE_FILE_LOCKING = "FALSE"` in the pixi env means a concurrent
+        # read while another process writes is unprotected, so it aborts below
+        # Python. Reproduced three times at `-c 3`; 18/18 at `-c 1`.
+        #
+        # The ordering anchor is the SENTINEL, not staticmaps.nc. Declaring
+        # staticmaps.nc alone does not fix it -- rule 1.04 writes that file as
+        # an UNDECLARED SIDE EFFECT (its only declared output is
+        # reservoirs_lakes_glaciers.txt), so Snakemake attributes staticmaps.nc
+        # to 1.03 build_wflow_model and orders 1.12 after 1.03, which is exactly
+        # where it already was. `.outputs_configured` is rule 1.05's completion
+        # marker and 1.05 runs after 1.04, so it is the earliest edge that means
+        # "every writer of staticmaps.nc is done" -- the same use rule 1.07
+        # already makes of it.
+        #
+        # Both are declared: the sentinel for ORDERING, staticmaps.nc because
+        # this rule genuinely reads it and a declaration that says so is what
+        # stops the next reader from re-deriving all of the above. `ancient()`
+        # on both supplies the edge without a timestamp rerun-trigger, so no
+        # rebuild cascade appears.
+        model_ready = ancient(f"{basin_dir}/.outputs_configured"),
+        basin_nc = ancient(f"{basin_dir}/staticmaps.nc"),
         **_locations_input,
     # R07 B10: basin_area depicts the MODEL, not its evaluation (P1), so it
     # sits at the model root's plots/. Two formats, one render: the PDF is the
