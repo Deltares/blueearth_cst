@@ -49,7 +49,7 @@ Phase 1 — Foundation (sealed)
               └── milestone/02b-library-upgrades  →  tag: m02b-upgrades
                     └── milestone/02c-tests             →  tag: m02c-tests
 
-Phase 2 — Refactor (active, branches from m02c-tests)
+Phase 2 — Refactor (complete 2026-07-23, branches from m02c-tests)
                           └── milestone/r01-contracts        →  tag: r01-contracts
                                 └── milestone/r02-naming        →  tag: r02-naming
                                       └── milestone/r03-model-builder  →  tag: r03-model-builder
@@ -727,7 +727,7 @@ tests, seam doc updated with the measured procedure (19 jobs / 247.7 s) and its
 
 **Tag.** `p32b-interchange-contracts`.
 
-### P3-3 — Performance passes (scoped 2026-07-24)
+### P3-3 — Performance passes (sealed 2026-07-25)
 
 Profiling-driven efficiency work targeting the wf3 stress-test sweep, with
 baseline discipline à la R3–R5. **Confirmed scope**
@@ -943,7 +943,7 @@ end-to-end (O-18/O-19) stay parked. Promoting climate analysis to a fourth
 Snakefile is a separate milestone; R7 only ensures the layout does not obstruct
 it.
 
-**Tag.** `r07-layout` (on seal).
+**Tag.** `r07-layout` — cut 2026-07-29.
 
 ---
 
@@ -1067,7 +1067,7 @@ OQ-11 (revisit fail-fast — needs observed failure rates), OQ-14 cadence (needs
 observed pin-mismatch rates). All three need operational data that does not exist
 yet.
 
-**Tag.** `r08-wf2-projections` *(planned; not yet cut)*.
+**Tag.** `r08-wf2-projections` — cut 2026-07-31.
 
 ---
 
@@ -1089,8 +1089,11 @@ precisely what makes R9's flattening cheap.
 ### R9 — Generated project tree (OPEN)
 
 **Status.** Design **ACCEPTED** by the owner 2026-08-04:
-`dev/milestones/r09/project-tree-design.md` (v4). Not yet implemented; no task
-brief, no branch, no commits.
+`dev/milestones/r09/project-tree-design.md` (v10). Task briefs written — the
+master `project-tree-task-brief.md`, the path map `migration_project-tree.md`,
+and one brief per phase (P1–P5). Integration branch cut 2026-08-04. **Not yet
+implemented**: the branch carries design and brief commits only, and no phase
+work has started.
 
 Drafted as an external-review brief and then **accepted without external review**
 — the owner waived it. The design says so on its face and records the two
@@ -1203,6 +1206,13 @@ the source-repository layout; any change to what the workflows compute.
 run is required and no `mv` migration script ships. This restates R7's ruling
 GA-2 on the same grounds — no production trees exist and no external consumer
 reads artifact paths.
+
+**Branch.** `milestone/r09-project-tree` — cut 2026-08-04 from `main`'s tip,
+local only. Phase work goes on `feat/r09-p<N>-<topic>` branches off it, never
+on the trunk: the baseline is red by construction from the first P2 commit
+until P3's re-record, and that window must not sit on `main`. It merges to
+`main` once, green, at the seal (Gate 3). Inventory in
+`dev/reference/git-conventions.md`.
 
 **Tag.** `r09-project-tree` *(on seal)*.
 
