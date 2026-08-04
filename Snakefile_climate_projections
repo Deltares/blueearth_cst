@@ -540,6 +540,14 @@ def get_horizon(wildcards):
 WORKFLOW_LOG_NAME = "wf2_climate_projections.log"
 LOG_PARTS_DIR = f"{project_dir}/logs/_parts"
 LOG_RULES = [
+    # 2.03b was MISSING here, the THIRD instance of one defect. `delineate_region`
+    # is splatted into all three workflows from ONE producer contract, but each
+    # workflow owns its own `log:` label and its own LOG_RULES -- so registering
+    # it is a per-file obligation the shared definition does not carry. P1 fixed
+    # WF1's 1.01b (phase-1 report F7); P4 found WF3's 3.01b and this one. An
+    # unlisted label is not an error: merge_logs drops the section and strands
+    # the part, silently, on every run.
+    "2.03b_delineate_region",
     "2.01_fetch_gcm_raw",
     "2.02_reduce_gcm_series",
     "2.04_derive_change_factors",

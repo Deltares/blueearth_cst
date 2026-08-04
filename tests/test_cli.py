@@ -61,13 +61,29 @@ def config_with_staged_region(tmp_path):
         cfg = yaml.safe_load(f)
     cfg["project"]["project_dir"] = str(tmp_path).replace("\\", "/")
 
-    region = tmp_path / "hydrology_model" / "staticgeoms" / "region.geojson"
+    # R9 P2 moved the model root; the staged region follows it.
+    region = (
+        tmp_path / "models" / "hydrology" / "wflow" / "staticgeoms"
+        / "region.geojson"
+    )
     region.parent.mkdir(parents=True)
     region.write_text(_MINIMAL_REGION_GEOJSON, encoding="utf-8")
 
     wf1_snapshot = tmp_path / "config" / "runs" / "snake_config_model_creation.yml"
     wf1_snapshot.parent.mkdir(parents=True)
     wf1_snapshot.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+
+    # R9 P4 rule 3.01c is the FIRST WF3 rule to declare model files as inputs --
+    # the model was previously reached only through `params`, so the DAG could
+    # not see that WF3 depends on it. Making the edge real is the point (P2's
+    # F5 race is what happens when an undeclared read is ordered by luck), and
+    # the cost is that WF3's dry-run now needs these two staged, exactly as it
+    # already needed the wf1 config snapshot above.
+    model_root = tmp_path / "models" / "hydrology" / "wflow"
+    (model_root / "wflow_sbm.toml").write_text(
+        '[input]\npath_static = "staticmaps.nc"\n', encoding="utf-8"
+    )
+    (model_root / ".outputs_configured").write_text("", encoding="utf-8")
 
     cfg_path = tmp_path / "snake_config_staged.yml"
     cfg_path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
