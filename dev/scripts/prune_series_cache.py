@@ -96,7 +96,7 @@ def main() -> None:
         config = yaml.safe_load(handle)
 
     keys, project_dir, clim_project = expected_keys(config)
-    clim_dir = Path(project_dir) / "climate_projections" / clim_project
+    clim_dir = Path(project_dir) / "data" / "climate" / "projections" / clim_project
     if not clim_dir.is_dir():
         print(f"nothing to do: {clim_dir} does not exist")
         return

@@ -9,19 +9,22 @@ repo root -- and names it after nothing in particular. The graph describes ONE
 project's run, so it belongs under that config's own ``project_dir``, carrying
 the project name and the workflow number:
 
-    <project_dir>/config/dag/<project_name>_wf<N>_dag.png
+    <project_dir>/logs/dag/<project_name>_wf<N>_dag.png              (wf1, wf2)
+    <project_dir>/experiments/<id>/logs/dag/<name>_wf3_dag.png        (wf3)
 
-``config/`` because a run is determined by exactly two things -- the config and
-the Snakefile -- and ``<project_dir>/config/`` is already "provenance snapshots,
-split by kind" (``runs/ catalogs/ templates/ generated/``,
-dev/milestones/r07/project-layout-design.md §B). ``config/runs/`` snapshots the first half;
-this is a rendering of the second, so it joins as a fifth kind rather than
-sitting loose in the project root, in ``logs/`` (merged run narrative, text), or
-under a new top-level directory minted for one file.
+**At the producing run's scope, under ``logs/``** (R9 design v10, principles P4
+and P7). R7 put this under ``config/dag/`` on the reasoning that a run is
+determined by the config plus the Snakefile, so a rendering of the second
+belonged beside the snapshot of the first. R9 overrules that: ``config/`` is the
+project's *editable + generated-provenance* root and P4 keeps generated run
+records out of it, while P7 places every artifact at the scope of the producer
+that wrote it. A DAG render is a generated record OF A RUN, so it goes with the
+run's other records -- and WF3's belongs to its experiment, not to the project.
 
-Nothing digests the project's ``config/`` tree by listing it -- the copier and
-the consistency guard compare NAMED config digests -- so an extra file here
-cannot churn a fingerprint or trigger a rebuild.
+The old rationale's supporting claim still holds and is simply no longer
+load-bearing: nothing digests the project's ``config/`` tree by listing it, so
+the file never could have churned a fingerprint. It moves because of where it
+belongs, not because it was dangerous.
 
 Lives in ``scripts/`` rather than ``dev/scripts/`` because it writes a
 user-facing artifact into a production ``project_dir`` from a user's project
@@ -73,9 +76,31 @@ WORKFLOW_NUMBER = {
     "Snakefile_climate_experiment": 3,
 }
 
-# Where under project_dir the graph lands -- a fifth kind beside the config
-# snapshot's runs/ catalogs/ templates/ generated/ (see the module docstring).
-PLOT_SUBDIR = Path("config") / "dag"
+# Where under project_dir the graph lands. Scope-dependent since R9 (P7): WF1
+# and WF2 are project-scoped producers, WF3 is experiment-scoped.
+PLOT_SUBDIR = Path("logs") / "dag"
+
+
+def plot_subdir(number: int, config: dict) -> Path:
+    """The DAG render's directory under ``project_dir``, at the run's scope.
+
+    WF1 and WF2 write project-scoped records, so their graphs join the project's
+    own ``logs/dag/``. WF3 is experiment-scoped -- its DAG describes one
+    experiment's run -- so it lands in that experiment's ``logs/dag/``,
+    alongside the merged ``wf3_climate_experiment.log`` (design v10, P7).
+
+    Falls back to the project scope when a WF3 config carries no experiment
+    name: the render is a convenience artifact and must not fail a user's
+    command over a missing optional key.
+    """
+    if number != 3:
+        return PLOT_SUBDIR
+    experiment = (
+        (config.get("workflows") or {}).get("climate_experiment") or {}
+    ).get("experiment_name")
+    if not experiment:
+        return PLOT_SUBDIR
+    return Path("experiments") / str(experiment) / "logs" / "dag"
 
 
 class DagPlotError(Exception):
@@ -93,8 +118,11 @@ def workflow_number(snakefile: Path) -> int:
         ) from None
 
 
-def read_project(config_path: Path) -> tuple[Path, str]:
-    """``(project_dir, project_name)`` from a workflow config.
+def read_project(config_path: Path) -> tuple[Path, str, dict]:
+    """``(project_dir, project_name, config)`` from a workflow config.
+
+    The parsed config comes back too, so the caller can place a WF3 render
+    at its experiment's scope without re-reading the file.
 
     Handles both config shapes in the repo: the R01 sectioned schema
     (``project.project_dir``) and the legacy single-workflow projections configs
@@ -129,7 +157,7 @@ def read_project(config_path: Path) -> tuple[Path, str]:
     if not project_dir.is_absolute():
         project_dir = REPO_ROOT / project_dir
     name = config.get("project_name") or project_dir.name
-    return project_dir, str(name)
+    return project_dir, str(name), config
 
 
 def build_graph(mode: str, snakefile: Path, config_path: Path, target: str,
@@ -212,9 +240,9 @@ def main() -> int:
 
     try:
         number = workflow_number(args.snakefile)
-        project_dir, project_name = read_project(args.configfile)
+        project_dir, project_name, config = read_project(args.configfile)
         output_path = (
-            project_dir / PLOT_SUBDIR
+            project_dir / plot_subdir(number, config)
             / f"{project_name}_wf{number}_{args.mode}.{args.image_format}"
         )
         dot_text = build_graph(

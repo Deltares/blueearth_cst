@@ -252,19 +252,19 @@ def _resolve_project_dir(requested: str | None) -> Path:
     explicit = requested or os.environ.get("BASIN_MAP_PROJECT_DIR")
     if explicit:
         path = Path(explicit).expanduser().resolve()
-        if not (path / "hydrology_model" / "staticmaps.nc").is_file():
-            raise SystemExit(f"{path} does not hold a hydrology_model/staticmaps.nc")
+        if not (path / "models" / "hydrology" / "wflow" / "staticmaps.nc").is_file():
+            raise SystemExit(f"{path} does not hold a models/hydrology/wflow/staticmaps.nc")
         _warn_if_transient(path)
         return path
     roots = dict.fromkeys((_primary_checkout(), REPO_ROOT))  # ordered, deduped
     for root, candidate in itertools.product(roots, _CANDIDATE_PROJECT_DIRS):
         path = root / candidate
-        if (path / "hydrology_model" / "staticmaps.nc").is_file():
+        if (path / "models" / "hydrology" / "wflow" / "staticmaps.nc").is_file():
             _warn_if_transient(path)
             return path.resolve()
     raise SystemExit(
         "No project directory found. Pass --project-dir <dir> (the folder "
-        "holding hydrology_model/), or set $BASIN_MAP_PROJECT_DIR. Tried: "
+        "holding models/hydrology/wflow/), or set $BASIN_MAP_PROJECT_DIR. Tried: "
         + ", ".join(
             str(root / c) for root, c in itertools.product(roots, _CANDIDATE_PROJECT_DIRS)
         )
@@ -279,7 +279,7 @@ def _gauges_fn(project_dir: Path) -> str | None:
     reconstructed from the layer instead. hydromt_wflow's naming rule replaces
     underscores with hyphens, so inverting it round-trips exactly.
     """
-    geoms_dir = project_dir / "hydrology_model" / "staticgeoms"
+    geoms_dir = project_dir / "models" / "hydrology" / "wflow" / "staticgeoms"
     layers = sorted(geoms_dir.glob("gauges_*.geojson"))
     if not layers:
         return None
@@ -375,7 +375,7 @@ def main(argv=None) -> int:
     )
     parser.add_argument(
         "--project-dir",
-        help="the folder holding hydrology_model/ (default: $BASIN_MAP_PROJECT_DIR, "
+        help="the folder holding models/hydrology/wflow/ (default: $BASIN_MAP_PROJECT_DIR, "
         "then the first known test project present)",
     )
     parser.add_argument(

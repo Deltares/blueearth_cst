@@ -96,6 +96,7 @@ def merge_outlet_and_gauge_series(qsim, qsim_gauges, log=_log):
 
 def analyse_wflow_historical(
     project_dir: Path,
+    model_dir: Union[Path, str] = None,
     observations_fn: Union[Path, str] = None,
     gauges_locs: Union[Path, str] = None,
     location_registry: Union[Path, str] = None,
@@ -107,7 +108,9 @@ def analyse_wflow_historical(
     """
     Analyse and plot wflow model performance for historical run.
 
-    To be read, model should be stored in ``project_dir``/hydrology_model.
+    The model root is supplied by the RULE as ``model_dir``, not rebuilt here
+    from ``project_dir``: where the model lives is the Snakefile's fact, and
+    spelling it in both places is how the two drift (R9 P2 commit 1).
     Model results should include the discharge keys Q_outlets and, if gauges are
     provided, Q_gauges_{basename(gauges_locs)}. The climate plots (P/T/EP) are
     derived from the shared store's gridded climate extraction (``climate_nc``,
@@ -139,6 +142,10 @@ def analyse_wflow_historical(
     ----------
     project_dir : Path
         path to CST project directory
+    model_dir : Union[Path, str], optional
+        The wflow model root, passed by the rule. Defaults to the v10 location
+        under ``project_dir`` when omitted, which is what a standalone call
+        gets.
     observations_fn : Union[Path, str], optional
         Path to observations timeseries file, by default None
         Required columns: time, wflow_id IDs of the locations as in ``gauges_locs``.
@@ -176,7 +183,8 @@ def analyse_wflow_historical(
     # live inside the engine subtree, split by KIND (P1) — figures under
     # evaluation/plots/, the metrics table one level up in evaluation/,
     # because plots/ holds figures only.
-    Folder_eval = f"{project_dir}/hydrology_model/evaluation"
+    model_dir = model_dir or f"{project_dir}/models/hydrology/wflow"
+    Folder_eval = f"{model_dir}/evaluation"
     Folder_plots = f"{Folder_eval}/plots"
 
     # makedirs, not mkdir: evaluation/plots/ is two levels deep, and only the
@@ -212,7 +220,7 @@ def analyse_wflow_historical(
 
     ### 3. Read the wflow model and results ###
     # Instantiate wflow model
-    Folder_run = f"{project_dir}/hydrology_model"
+    Folder_run = str(model_dir)
     mod = WflowSbmModel(root=Folder_run, mode="r")
     mod.output_csv.read()
     results = mod.output_csv.data
@@ -440,6 +448,7 @@ if __name__ == "__main__":
         with tee_to_log(sm.log[0]):
             analyse_wflow_historical(
                 project_dir=sm.params.project_dir,
+                model_dir=sm.params.model_dir,
                 observations_fn=getattr(sm.input, "observations_timeseries", None),
                 gauges_locs=getattr(sm.input, "output_locations", None),
                 location_registry=sm.input.location_registry,

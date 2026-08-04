@@ -2,6 +2,7 @@
 """
 Export wflow results for easy plotting of the climate response plots
 """
+import re
 import os
 from pathlib import Path
 import pandas as pd
@@ -13,22 +14,34 @@ import blueearth_cst.shared.metrics_definition as md
 from blueearth_cst.shared.snake_utils import log_row
 
 
-def realization_from_run_csv(csv_fn: Union[str, Path]) -> int:
-    """Realization index of a wflow run CSV, from its ``rlz_<n>`` run directory.
+#: ``rlz_<n>_cst_<m>`` in a wflow run CSV's stem. Anchored at the start so a
+#: directory component can never satisfy it.
+_RLZ_IN_STEM = re.compile(r"^rlz_(\d+)_cst_\d+$")
 
-    R07 B5 moved the realization index out of the filename and into the run
-    directory: ``hydrology_runs/rlz_<n>/output/cst_<m>.csv``. The old
-    ``output_rlz_<n>_cst_<m>.csv`` name could be split on ``_``; the new one
-    cannot, so the index is read from the grandparent directory instead.
+
+def realization_from_run_csv(csv_fn: Union[str, Path]) -> int:
+    """Realization index of a wflow run CSV, read from its FILENAME.
+
+    The index has moved twice. R07 B5 took it out of the filename and into a
+    run directory (``hydrology_runs/rlz_<n>/output/cst_<m>.csv``), so this read
+    the grandparent directory. R9 P2 dissolves that level and puts the index
+    back in the stem (``hydrology/wflow/output/rlz_<n>_cst_<m>.csv``), so the
+    directory read stopped working -- caught by the first full WF3 run on the
+    migrated tree, at rule 3.11, after all twelve members had run.
+
+    Matched against a full-stem pattern rather than split on ``_``: the stem
+    now contains two indices, and ``split("_")[-1]`` would silently return the
+    CST member number as the realization. A wrong-but-plausible integer is far
+    worse here than an exception, because it would mislabel every result row.
     """
-    run_dir = Path(csv_fn).parent.parent.name  # rlz_<n>
-    try:
-        return int(run_dir.split("_")[-1])
-    except ValueError:
+    stem = Path(csv_fn).stem
+    match = _RLZ_IN_STEM.match(stem)
+    if match is None:
         raise ValueError(
             f"cannot derive the realization index from {csv_fn!r}: expected a "
-            f"'rlz_<n>' run directory, got {run_dir!r}"
-        ) from None
+            f"'rlz_<n>_cst_<m>' filename, got {stem!r}"
+        )
+    return int(match.group(1))
 
 
 def analyze_wflow_results(

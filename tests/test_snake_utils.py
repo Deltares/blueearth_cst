@@ -624,14 +624,21 @@ def _spec(**overrides):
 
 
 def test_climate_store_spec_key_matches_the_pre_r07_wf3_construction():
-    """The store dir must be byte-identical to the key wf3 built inline."""
+    """The store KEY must be byte-identical to the one wf3 built inline.
+
+    R9 P2 moved the store under `data/climate/`, but the key is the load-bearing
+    half: it is a CACHE key (R9 design Finding 3), so two experiments sharing a
+    source and a window must still land on one directory. The assertion is split
+    accordingly -- the root moved, the key did not.
+    """
     spec = _spec()
-    assert spec.store_dir == "/proj/climate_historical/era5_20000101_20201231"
+    assert spec.store_dir == "/proj/data/climate/historical/era5_20000101_20201231"
+    assert spec.store_dir.endswith("/era5_20000101_20201231")
     assert spec.outputs["climate_nc"] == f"{spec.store_dir}/extract_historical.nc"
     # ADR 0003: the polygon is no longer a per-store-key output. It is the one
     # project artifact, and the store declares it as an INPUT.
     assert "region_geojson" not in spec.outputs
-    assert spec.inputs["region_geojson"] == "/proj/spatial/geoms/region.geojson"
+    assert spec.inputs["region_geojson"] == "/proj/data/spatial/geoms/region.geojson"
 
 
 def test_climate_store_spec_inputs_are_the_catalog_and_the_region():
@@ -644,7 +651,7 @@ def test_climate_store_spec_inputs_are_the_catalog_and_the_region():
     spec = _spec()
     assert spec.inputs == {
         "catalog": "config/catalogs/deltares_data.yml",
-        "region_geojson": "/proj/spatial/geoms/region.geojson",
+        "region_geojson": "/proj/data/spatial/geoms/region.geojson",
     }
 
 
@@ -795,3 +802,67 @@ def test_forward_slash_spelling_is_handled_too():
 def test_an_already_relative_line_is_untouched():
     line = "Parsing data catalog from config/catalogs/deltares_data.yml"
     assert _rel(line) == line
+
+
+# ---------------------------------------------------------------------------
+# R9 P2 commit 3: per-member pointer keying (the concurrency falsifier's cheap
+# half). Removing the `rlz_<r>/` directory level puts every member's artifacts
+# in ONE directory, and rule 3.10 batches members concurrently -- so the
+# filename is now the only thing keeping them apart.
+# ---------------------------------------------------------------------------
+
+_MEMBER_CONFIG = "experiments/e/hydrology/wflow/config/{member}.toml"
+
+
+def test_member_pointer_base_derives_the_stem_and_the_sibling_output_hop():
+    run_name, out_prefix = su.member_pointer_base(
+        _MEMBER_CONFIG.format(member="rlz_1_cst_2")
+    )
+    assert run_name == "rlz_1_cst_2"
+    # Relative, POSIX, trailing-separated -- config/ -> sibling output/.
+    assert out_prefix == "../output/"
+
+
+def test_every_member_gets_a_distinct_log_and_output_pointer():
+    """The property the flattening put at risk, asserted over a real grid.
+
+    Pre-R9 each realization owned a directory, so wflow's default `log.txt`
+    beside the TOML was one shared log PER REALIZATION -- measured on the P1
+    observed tier as exactly two logs for twelve members. Flattening the level
+    would make that one log for all twelve unless every pointer is keyed by
+    member. Checked for the three member-keyed pointers at once.
+    """
+    members = [f"rlz_{r}_cst_{c}" for r in (1, 2) for c in range(1, 7)]
+    logs, csvs, states = set(), set(), set()
+    for member in members:
+        run_name, out_prefix = su.member_pointer_base(
+            _MEMBER_CONFIG.format(member=member)
+        )
+        logs.add(f"{out_prefix}{run_name}.log")
+        csvs.add(f"{out_prefix}{run_name}.csv")
+        states.add(f"{out_prefix}outstates_{run_name}.nc")
+    assert len(logs) == len(members), "two members would share one log"
+    assert len(csvs) == len(members)
+    assert len(states) == len(members)
+    # ...and the realization index is genuinely back IN the filename, which is
+    # what the R7 -> R9 inversion means.
+    assert "../output/rlz_2_cst_6.log" in logs
+
+
+def test_the_log_pointer_is_keyed_the_same_way_as_the_other_two():
+    """A guard on the guard: `path_log` must be derived, not hardcoded.
+
+    If `downscale_climate_forcing.py` ever spells the log path literally
+    instead of building it from `member_pointer_base`, this stays green while
+    the race returns -- so the source is asserted too.
+    """
+    src = (
+        Path(__file__).resolve().parents[1]
+        / "blueearth_cst" / "experiment" / "downscale_climate_forcing.py"
+    ).read_text(encoding="utf-8")
+    assert '"logging.path_log": f"{out_prefix}{run_name}.log"' in src
+    # Comments legitimately NAME the wflow default while explaining why it is
+    # overridden, so strip them first: what must not reappear is `log.txt` as a
+    # VALUE. A blunter substring check fails on the rationale for the fix.
+    code = "\n".join(line.split("#", 1)[0] for line in src.splitlines())
+    assert "log.txt" not in code, "the wflow default log name must not be a value"

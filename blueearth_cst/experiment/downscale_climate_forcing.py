@@ -6,7 +6,7 @@ import numpy as np
 
 from hydromt_wflow import WflowSbmModel
 
-from blueearth_cst.shared.snake_utils import tee_to_log
+from blueearth_cst.shared.snake_utils import member_pointer_base, tee_to_log
 
 # This script reads the snakemake global at module top level (no __name__
 # guard), so the tee_to_log wrap must enclose the whole body — the top-level
@@ -38,21 +38,18 @@ with tee_to_log(snakemake.log[0]):
     config_out_root = os.path.dirname(config_out_fn)
     config_out_name = os.path.basename(config_out_fn)
 
-    # R07 B5: the run TOML now lives in hydrology_runs/rlz_<r>/config/ and
-    # wflow's own products belong in the sibling output/. Both are derived from
-    # the DECLARED toml path -- never hardcoded, so the layout stays owned by
-    # the rule. `run_name` is the toml stem (cst_<m>): the realization index has
-    # migrated into the run directory, so it is no longer part of any file name
-    # on this side.
-    run_name = config_out_fn.stem
-    run_output_dir = Path(config_out_root).parent / "output"
-    # Relative, POSIX, with a trailing separator: wflow resolves output pointers
-    # against dirname(toml) + `dir_output`, and `dir_output` stays "." so the
-    # sibling hop rides in the two pointers themselves. Keeping the hop out of
-    # `dir_output` also keeps semantic_tree_diff's TOML comparator correct --
-    # it resolves these fields lexically against the toml's own directory and
-    # does not read `dir_output`.
-    out_prefix = Path(os.path.relpath(run_output_dir, config_out_root)).as_posix() + "/"
+    # The run TOML lives in the experiment's hydrology/wflow/config/ and wflow's
+    # own products in the sibling output/. Both are derived from the DECLARED
+    # toml path -- never hardcoded -- so the layout stays owned by the rule.
+    #
+    # `run_name` is the toml stem, and R9 P2 commit 3 changed what that stem
+    # SAYS without changing a line here: R07 had moved the realization index out
+    # of the filename and into a `rlz_<r>/` directory, making the stem `cst_<m>`;
+    # R9 removes the level and puts the index back, making it `rlz_<r>_cst_<m>`.
+    # Every pointer built from `run_name` -- outstates, the output CSV, and now
+    # the per-member log -- follows automatically. That is the payoff of deriving
+    # from the declared path instead of reconstructing it.
+    run_name, out_prefix = member_pointer_base(config_out_fn)
 
     # Instantiate model in r+ on the source root, then redirect writes to the
     # per-realization run directory by rebinding root.
@@ -98,6 +95,17 @@ with tee_to_log(snakemake.log[0]):
             "input.path_static": str(Path(model_root, "staticmaps.nc").resolve()),
             "input.path_forcing": str(fn_out.resolve()),
             "output.csv.path": f"{out_prefix}{run_name}.csv",
+            # R9 P2 commit 3 -- ships WITH the rlz_<r>/ flattening, never after.
+            # Wflow's `[logging] path_log` defaults to `log.txt` beside the TOML.
+            # While each realization owned a run directory that was already one
+            # shared log per realization; removing the level puts EVERY member's
+            # log at one path, and rule 3.10 batches members concurrently, so it
+            # becomes a race rather than an overwrite. Measured on the
+            # pre-flattening tree (R9 P1 observed tier): exactly two log.txt for
+            # twelve members -- one per realization, six writers each. Keyed per
+            # member here and derived from the same declared TOML path as every
+            # other pointer, so the rule still owns the layout.
+            "logging.path_log": f"{out_prefix}{run_name}.log",
         }
     )
 

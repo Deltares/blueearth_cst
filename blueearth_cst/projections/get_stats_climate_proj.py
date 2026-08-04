@@ -215,8 +215,14 @@ if __name__ == "__main__":
                     time_tuple_all = ("2021-01-01", "2100-12-31")
 
             # additional folder structure info
-            folder_model = os.path.join(project_dir, "hydrology_model")
-            folder_out = os.path.join(project_dir, "climate_projections", name_clim_project)
+            # R9 P2 commits 1-2: the model root and the projections overlay
+            # both moved. Spelled here rather than passed because this branch is
+            # a standalone/legacy path with no rule to ask; the live WF2 rules
+            # build their paths from `clim_project_dir`.
+            folder_model = os.path.join(project_dir, "models", "hydrology", "wflow")
+            folder_out = os.path.join(
+                project_dir, "data", "climate", "projections", name_clim_project
+            )
 
             # makedirs, not mkdir-if-absent: the guarded mkdir raced whenever two
             # reduce jobs started together, which is almost certainly why rule 2.03

@@ -112,9 +112,12 @@ if __name__ == "__main__":
 
             # R07 B10: forcing / model-input QA figures live beside the forcing
             # they describe, inside the engine subtree.
+            # Rule-owned model root (R9 P2 commit 1): the script no longer
+            # rebuilds `{project_dir}/hydrology_model` for itself.
+            model_dir = sm.params.model_dir
             plot_forcing(
-                wflow_root=f"{project_dir}/hydrology_model",
-                plot_dir=f"{project_dir}/hydrology_model/forcing/plots",
+                wflow_root=model_dir,
+                plot_dir=f"{model_dir}/forcing/plots",
                 gauges_fn=getattr(sm.input, "output_locations", None),
             )
     else:
