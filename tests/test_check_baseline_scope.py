@@ -140,7 +140,7 @@ def test_unselected_missing_target_ignored(project, capsys):
     """An unselected (workflow-3) target missing on disk is ignored by a scoped
     check -> returns 0, count stays 12."""
     project_dir, manifest_path = project
-    victim = cb.resolve("{exp_dir}/indicators/Qstats.csv", project_dir)
+    victim = cb.resolve("{exp_dir}/results/q_indicators.csv", project_dir)
     Path(victim).unlink()
 
     rc = cb.cmd_check(
@@ -170,14 +170,14 @@ def test_record_workflow_merges_and_preserves_other_slices(project):
     cp_path = cb.resolve(
         "{clim_project_dir}/summary/{clim_project}_change_factors_annual.csv", project_dir
     )
-    exp_path = cb.resolve("{exp_dir}/indicators/Qstats.csv", project_dir)
+    exp_path = cb.resolve("{exp_dir}/results/q_indicators.csv", project_dir)
     cp_before, exp_before = before[cp_path], before[exp_path]
 
     # Mutate a wf1 target AND a wf2 target on disk; then merge-record only wf1.
     # A correct merge must re-record wf1 yet leave the (now stale) wf2 row as it
     # was — proving it did not recompute or drop the unselected slice.
     disch_path = cb.resolve(
-        "{project_dir}/hydrology_model/run_default/output.csv", project_dir
+        "{project_dir}/models/hydrology/wflow/run_default/output.csv", project_dir
     )
     Path(cp_path).write_text("a,b\n9,9\n")  # wf2 content now differs from cp_before
     Path(disch_path).write_text(

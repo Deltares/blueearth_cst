@@ -6,7 +6,7 @@ roadmap and the pipeline-regression-testing skill: per-variable summary
 stats for netCDF, normalized SHA256 for CSV/YAML, size-only for PNG.
 
 One target is special: the workflow-1 Wflow **discharge** series
-(`hydrology_model/run_default/output.csv`). It is NOT a `rule all` target of
+(`models/hydrology/wflow/run_default/output.csv`). It is NOT a `rule all` target of
 Snakefile_model_creation (whose `rule all` lists only the 3 PNGs + config
 snapshot + outlet_index.csv); it is fingerprinted beyond `rule all` for
 constant-parameter-preservation coverage (ADR 0001, t260719a). A byte-hash is
@@ -24,7 +24,7 @@ the durable regression check cannot disagree.
 constant-parameter restoration the wf1 slice reflects the RESTORED model, while the
 wf2/wf3 rows are the pre-restoration recording (the restored discharge move was
 immaterial — 0/7670 timesteps over tolerance — so wf3 was deliberately not re-run).
-A future wf3 regen + `check` MAY fail the byte-exact Qstats.csv/basin.csv
+A future wf3 regen + `check` MAY fail the byte-exact q_indicators/basin_indicators
 fingerprints if the sub-tolerance wf1 move (max|dQ|/mean ~ 1.7e-4) survives their
 rounding. That is the DOCUMENTED residual, not a regression: follow the ADR 0001
 step-7 immaterial-branch recovery path (re-run wf3, confirm the movement is
@@ -159,13 +159,13 @@ VOLATILE_NC_ATTRS = frozenset({
 TARGETS: list[tuple[str, str, str]] = [
     # Snakefile_model_creation -- B10 (commit 12) splits the project-level
     # plots/ tree by DEPICTED subject: model inputs, the model, the run.
-    ("model_creation", "png",  "{project_dir}/hydrology_model/evaluation/plots/hydro_wflow_1.png"),
-    ("model_creation", "png",  "{project_dir}/hydrology_model/plots/basin_area.png"),
-    ("model_creation", "png",  "{project_dir}/hydrology_model/forcing/plots/forcing_precip_map.png"),
+    ("model_creation", "png",  "{project_dir}/models/hydrology/wflow/evaluation/plots/hydro_wflow_1.png"),
+    ("model_creation", "png",  "{project_dir}/models/hydrology/wflow/plots/basin_area.png"),
+    ("model_creation", "png",  "{project_dir}/models/hydrology/wflow/forcing/plots/forcing_precip_map.png"),
     ("model_creation", "yaml", "{project_dir}/config/runs/snake_config_model_creation.yml"),
     # Unmoved within the tree (prefix change only) -- and exception 3(d)
     # requires it to stay that way: if discharge moves at all, stop.
-    ("model_creation", "discharge", "{project_dir}/hydrology_model/run_default/output.csv"),
+    ("model_creation", "discharge", "{project_dir}/models/hydrology/wflow/run_default/output.csv"),
     # Snakefile_climate_projections -- B3 (commit 9) tiers ONLY the three
     # summary files; the three PNGs deliberately stay put (arch-10).
     # S8-05: a SWAP, not a subtraction. The three wide
@@ -181,11 +181,11 @@ TARGETS: list[tuple[str, str, str]] = [
     ("climate_projections", "png",  "{clim_project_dir}/plots/{clim_project}_precip_annual_absolute.png"),
     ("climate_projections", "png",  "{clim_project_dir}/plots/{clim_project}_temp_annual_absolute.png"),
     ("climate_projections", "yaml", "{project_dir}/config/runs/snake_config_climate_projections.yml"),
-    # Snakefile_climate_experiment -- B7 (commit 11) renames model_results/ to
-    # indicators/, the CST term. The wf3 config snapshot does NOT join
+    # Snakefile_climate_experiment. R9 P3 renames the two tables and moves them
+    # from indicators/ to results/. The wf3 config snapshot does NOT join
     # config/runs/: it stays inside the experiment (arch-10), content only.
-    ("climate_experiment", "csv",  "{exp_dir}/indicators/Qstats.csv"),
-    ("climate_experiment", "csv",  "{exp_dir}/indicators/basin.csv"),
+    ("climate_experiment", "csv",  "{exp_dir}/results/q_indicators.csv"),
+    ("climate_experiment", "csv",  "{exp_dir}/results/basin_indicators.csv"),
     ("climate_experiment", "yaml", "{exp_dir}/config/snake_config_climate_experiment.yml"),
 ]
 
@@ -232,7 +232,7 @@ def active_targets(
 def resolve(template: str, project_dir: str) -> str:
     return template.format(
         project_dir=project_dir,
-        clim_project_dir=f"{project_dir}/climate_projections/{CLIM_PROJECT}",
+        clim_project_dir=f"{project_dir}/data/climate/projections/{CLIM_PROJECT}",
         # S8-04/07: artifact names carry the archive as a prefix, so the templates
         # need the bare project name as well as the directory built from it.
         clim_project=CLIM_PROJECT,
