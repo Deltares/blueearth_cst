@@ -238,7 +238,6 @@ never normalized by the naming rule.
 | `logs/*`, `benchmarks/*` | `logs/*`, `benchmarks/*` (unchanged) |
 | `config/snake_config_climate_experiment.yml` | unchanged (identity) |
 | `config/catalogs/*` | unchanged (identity) |
-| `data_catalog_climate_experiment.yml` | `config/catalogs/data_catalog_climate_experiment.yml` — resolved by the v6 ruling |
 
 ### → `config/` — RULED (A), identity except where noted
 
