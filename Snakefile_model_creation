@@ -665,6 +665,8 @@ rule plot_map:
         output_map_png = f"{basin_dir}/plots/basin_area.png",
     params:
         project_dir = f"{project_dir}",
+        # Rule-owned model root; see rule 1.11's note.
+        model_dir = basin_dir,
     log:
         f"{LOG_PARTS_DIR}/1.12_plot_map.log",
     benchmark:
