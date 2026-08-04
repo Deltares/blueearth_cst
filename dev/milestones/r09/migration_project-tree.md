@@ -49,31 +49,43 @@ absolute path.
 
 There is no `project.yml` anywhere, and nothing writes one.
 
-Three consequences:
+**The collision.** `config/catalogs/` and `config/templates/` are the *same
+paths* with *opposite semantics* in the two documents: v4 labels them per-basin
+editable overrides; `copy_config_files.py` writes generated snapshots there.
 
-1. **P4 is inverted for this directory.** The design puts editable intent in
-   `config/` and generated provenance elsewhere; the code does the opposite.
-   Under P4 as written, everything currently in `config/` would have to move out.
-2. **The Q6 ruling was wrong in its reasoning, right in its conclusion.** I ruled
-   that catalogs are "referenced, never copied". They *are* referenced as inputs —
-   and also copied, as provenance. So `config/catalogs/` exists, but as generated
-   output, not as the per-basin override directory v4 now describes.
-3. **Introducing `config/project.yml` is new capability, not a relocation.** It
-   would move the source of truth from the toolbox into the project — a change to
-   how the toolbox is driven, with consequences for `run_workflows.py`, the
-   `--configfile` contract, and `suggest_experiment_name.py`. The design presents
-   it as settled framing, which reads as though it already exists.
+**The ruling that unblocks the map is one question: where does the generated
+config snapshot live under the v4 tree?** The snapshot is a real, sizeable
+artifact set — `config/runs/snake_config_<workflow>.yml`,
+`config/runs/model_creation/<digest>/`, `config/catalogs/`, `config/templates/`,
+`config/observations/` — and the v4 tree has **no provenance root** to receive
+it. The six roots are `config/`, `data/`, `models/`, `experiments/`, `logs/`,
+`benchmarks/`, and under P4 none of them is a home for per-run generated
+provenance at project scope.
 
-**Owner ruling needed.** Either:
+Candidate homes, for the owner to rule between:
 
-- **(A)** accept that a project's `config/` is generated provenance, rename it
-  accordingly (`provenance/`, or keep `config/` but drop the "editable" claim),
-  and drop `project.yml` from the design; or
-- **(B)** keep `project.yml` as the intended end state, and record explicitly
-  that R9 introduces a project-owned editable config — expanding the milestone
-  from a tree migration into a config-ownership change, with its own design work.
+- **(A)** keep it under `config/` and drop the "editable project source" label
+  from the subdirectories that are generated, distinguishing editable from
+  snapshot *inside* `config/`;
+- **(B)** give the snapshot its own project-scope root beside `logs/` and
+  `benchmarks/`, which are already the project's generated run-record pair; or
+- **(C)** treat it as a run record and place it under `logs/`, applying P7.
 
-Everything under `config/` in the map below is withheld pending this ruling.
+Every `config/` row in the map below is withheld pending this ruling.
+
+**Two related notes, neither of which blocks the map:**
+
+1. **The Q6 ruling is wrong in its conclusion, not just its reasoning.** I ruled
+   that toolbox catalogs are "referenced, never copied". They are referenced as
+   inputs **and copied as provenance**. v4's tree now carries the comment
+   *"toolbox catalogs are referenced, not copied"* — that line is false in the
+   accepted design of record and is corrected in v5.
+2. **`config/project.yml` is new capability, not a relocation.** Nothing writes
+   one; the source of truth is the `--configfile` in the toolbox. Introducing it
+   moves config ownership from toolbox to project, touching `run_workflows.py`,
+   the `--configfile` contract, and `suggest_experiment_name.py`. This is a
+   **scope note on R9**, not a precondition for the map: it is a settled-framing
+   decision and is not reopened here.
 
 ## Finding 2 — the spatial subtree is in flux
 
@@ -214,7 +226,8 @@ orphans are not covered by it.
 
 ## Next steps
 
-1. **Rule Finding 1** — this gates everything under `config/`.
+1. **Rule Finding 1** — where the generated config snapshot lives. This gates
+   everything under `config/`.
 2. Rule Finding 3's three mismatches (window key, `raw`/`scalar`, `change_factors`).
 3. Place the six unplaced artifact classes.
 4. Re-derive the WF1/spatial rows after Gate 2 closes (Finding 2).

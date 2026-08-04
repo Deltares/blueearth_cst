@@ -2,7 +2,7 @@
 
 Status: ACCEPTED by the owner, 2026-08-04. External review waived at this stage.
 
-Document version: v4
+Document version: v5
 
 Date: 2026-08-04
 
@@ -34,11 +34,38 @@ than assumed:
    it, which is the outcome an external review is normally relied on to produce.
 2. **The reviewer contract below is intact and unexercised.** It is held in
    reserve, not deleted: a later review can run against this document without
-   rework, and would target `doc_version: v4`.
+   rework, and would target `doc_version: v5`.
 
 Acceptance covers the placement contract, the naming rule, the four v2
 decisions, and the nine v4 rulings. It does not substitute for the validation
 expectations, which remain obligations on whatever implementation follows.
+
+## Correction (v5) — `config/` is contested
+
+The artifact inventory (`migration_project-tree.md`, Finding 1) found that this
+document is **wrong about `config/`**, and the correction is recorded here rather
+than silently applied, because the fix needs an owner ruling.
+
+- The tree labels `config/` **"editable project source"**. In the current code,
+  `<project_dir>/config/` is written *in its entirety* by rule 1.01
+  `snapshot_config` (`blueearth_cst/model/copy_config_files.py`): `catalogs/`,
+  `templates/`, `observations/`, `runs/`, and a digest-keyed bundle. All of it is
+  generated provenance for inputs that live outside `project_dir`.
+- The v4 tree comment *"toolbox catalogs are referenced, not copied"* is
+  **false**. They are referenced as inputs **and** copied as provenance. Ruling 6
+  in *Questions ruled at acceptance* is wrong in its conclusion.
+- `config/project.yml` does not exist and nothing writes one. Introducing it is
+  new capability — moving config ownership from the toolbox into the project —
+  not the relocation this document implies. That remains settled framing and is
+  not reopened; it is recorded as a scope note on the milestone.
+
+**Open ruling:** the generated snapshot needs a home, and the six roots below
+contain no provenance root. Options are set out in the migration document; until
+one is chosen, every `config/` row of the path map is withheld and the tree's
+`config/` subtree below should be read as provisional.
+
+Nothing else in this document is affected: `models/`, `data/`, `experiments/`,
+`logs/`, and `benchmarks/` were all confirmed against declared outputs.
 
 ## Review purpose
 
@@ -179,8 +206,8 @@ competes with an external contract.
 <project_dir>/                              # e.g. gabon/
 ├── config/                                # editable project source
 │   ├── project.yml                        # canonical project configuration
-│   ├── catalogs/                          # per-basin OVERRIDES only, often absent
-│   │   └── <override>.yml                 # toolbox catalogs are referenced, not copied
+│   ├── catalogs/                          # ⚠ CONTESTED — see Correction (v5)
+│   │   └── <override>.yml                 # code writes GENERATED snapshots here
 │   └── templates/
 │       ├── wflow_build.yml
 │       └── wflow_waterbodies.yml
@@ -588,7 +615,7 @@ two of the nine changed the design rather than confirming it.
 | 3 | Does HydroMT claim ownership of the model root? | No evidence of a conflict in anything vendored here; a `config/` subdirectory is not a reserved name. Settled empirically by falsifier 7b rather than by assertion. |
 | 4 | Where do DAG renders and sentinels live? | Sentinels stay beside what they guard (already the case). DAG renders move OUT of `config/`, which would violate P4, into `logs/dag/` at the producing run's scope. |
 | 5 | When does `experiment.yml` become immutable? | At the first successful run, not at creation. Revision afterwards means a new experiment, mirroring the model-fingerprint rule. |
-| 6 | Which catalogs must be copied into the project? | **None — design changed.** Toolbox catalogs are referenced by path; only *generated* catalogs live in the project, beside their producer. `config/catalogs/` holds per-basin overrides and is often absent. |
+| 6 | Which catalogs must be copied into the project? | ⚠ **Ruled wrong; superseded at v5.** Toolbox catalogs are referenced *and* copied as provenance snapshots into `config/catalogs/`. See *Correction (v5)*. |
 | 7 | Is `_vN` right when two same-named experiments are unrelated? | Split by provenance: a colliding user-supplied name is rejected; only the generated default is auto-suffixed. |
 | 8 | Which paths cannot move atomically? | None. R7's ruling GA-2 restated: pre-existing trees unsupported, fresh run required, no external path consumer. |
 | 9 | Does flattening create a directory-size problem? | No. ~1,260 files per directory is a browsing annoyance, not a limit; the two places an OS argument limit could bite (the batched Wflow shell call, the reduction rule's input list) are both bounded or passed in-process. |
@@ -614,7 +641,7 @@ Return only Markdown with this structure:
 ```text
 ## Verdict
 verdict: approve | revise | reject
-doc_version: v4
+doc_version: v5
 
 ## Findings
 ### ext1-01 [blocking | major | minor]
@@ -648,6 +675,17 @@ List findings in severity order. An empty findings section with
   unexercised. Versioned rather than edited in place so that document version
   and document content stay one-to-one, which the reviewer response schema
   depends on.
+- 2026-08-04, v5: Correction, not a redesign. The artifact inventory found this
+  document wrong about `config/`: the project's `config/` is written in full by
+  rule 1.01 as generated provenance, not authored as editable source, and v4's
+  claim that toolbox catalogs are "referenced, not copied" is false. Ruling 6 is
+  marked superseded, the tree's `config/catalogs/` comment is corrected, and the
+  open ruling — where the generated snapshot lives, given the tree has no
+  provenance root — is recorded under *Correction (v5)* rather than decided here.
+  `config/project.yml` stays settled framing; it is flagged as new capability
+  rather than a relocation, which is a scope note on the milestone, not a
+  reopening. No other section is affected: `models/`, `data/`, `experiments/`,
+  `logs/` and `benchmarks/` were confirmed against declared outputs.
 - 2026-08-04, v4: All nine open questions ruled by the owner; none remain open
   (see *Questions ruled at acceptance*). Two rulings changed the design rather
   than confirming it. (Q2) The model fingerprint is now **pointer-derived** —

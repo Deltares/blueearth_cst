@@ -1111,14 +1111,38 @@ pointer-derived model fingerprint that WF3 re-checks before simulating.
 | Fingerprint | Pointer-derived: the TOML plus every model-root file its path-valued keys resolve to. |
 | Catalogs | Referenced, never copied. Only generated catalogs live in a project. |
 
-**Preconditions before a task brief.** Two, both named by the design itself:
-an **artifact inventory** covering every file the three workflows and their
-engines emit, and the **old → new path map** built from it. The map is needed
-three times over — by `semantic_tree_diff` to gate the migration, by
-`naming.md` §7 as the mandated internal rename record
-(`dev/milestones/r09/migration_project-tree.md`), and by the brief itself to be
-actionable. R7's equivalent ran to 54 KB; this is the milestone's real entry
-cost, not a formality.
+**Preconditions before a task brief.** Two, both named by the design itself: an
+**artifact inventory** covering every file the three workflows and their engines
+emit, and the **old → new path map** built from it. The map is needed three times
+over — by `semantic_tree_diff` to gate the migration, by `naming.md` §7 as the
+mandated internal rename record, and by the brief itself to be actionable.
+
+**Status: run, and BLOCKED** (2026-08-04) —
+`dev/milestones/r09/migration_project-tree.md`. Built from the Snakefiles'
+declared outputs rather than from `test_case/test_local`, which is a mixed-era
+tree carrying orphans from at least three code generations and no `spatial/`
+subtree at all. Building it that way is what surfaced the blocker: the project's
+`config/` is written **in full** by rule 1.01 `snapshot_config` as generated
+provenance, while the design labels it the editable project source — the same
+paths with opposite semantics. The v4 tree also asserts that toolbox catalogs are
+"referenced, not copied", which is false; they are both. Design corrected to v5;
+ruling 6 marked superseded.
+
+**One ruling unblocks the map:** where the generated config snapshot
+(`config/runs/`, the digest-keyed bundle, `catalogs/`, `templates/`,
+`observations/`) lives under the new tree, whose six roots contain no provenance
+root. Every `config/` row is withheld until then. Separately noted as a scope
+note, not a blocker: `config/project.yml` does not exist and nothing writes one,
+so adopting it moves config ownership from the toolbox into the project rather
+than relocating a file.
+
+Also outstanding from the inventory: three v4 tree shapes that do not match what
+the code emits (the climate store is keyed by dataset **and** window; `cmip6/raw/`
+and `cmip6/scalar/` collapse into one drawn `timeseries/`; `change_factors/` is
+drawn as a directory but written as two files under `summary/`), six artifact
+classes with no home in the design, and provisional WF1 rows — the
+`wf1-spatial-decoupling` P2 work is implemented with **Gate 2 review pending**
+and changes `Snakefile_model_creation`.
 
 **Exit criteria.** Design accepted *(done 2026-08-04)*; inventory and path map
 complete; task brief written; commits landed leaving the tree runnable at each
