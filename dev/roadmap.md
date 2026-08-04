@@ -1125,7 +1125,7 @@ emit, and the **old → new path map** built from it. The map is needed three ti
 over — by `semantic_tree_diff` to gate the migration, by `naming.md` §7 as the
 mandated internal rename record, and by the brief itself to be actionable.
 
-**Status: run, and COMPLETE except the WF1/spatial rows** (2026-08-04) —
+**Status: run, and COMPLETE** (2026-08-04) —
 `dev/milestones/r09/migration_project-tree.md`. Built from the Snakefiles'
 declared outputs rather than from `test_case/test_local`, which is a mixed-era
 tree carrying orphans from at least three code generations and no `spatial/`
@@ -1168,8 +1168,19 @@ tooling must learn to report orphaned store directories.
 writes one; adopting it moves config ownership from the toolbox into the project
 rather than relocating a file, and R9 must budget it as new capability.
 
+**Master brief written** 2026-08-04:
+`dev/milestones/r09/project-tree-task-brief.md`. The complexity gate classified
+R9 as several independently verifiable subsystems rather than one unit, so it is
+a master brief plus five phase briefs, matching R7's shape. Phases are strictly
+sequential — every phase but P1 edits `Snakefile_climate_experiment`, so they
+cannot run in parallel worktrees — and P1 (the `semantic_tree_diff` comparator)
+deliberately precedes the migration, because a move made before its comparator
+exists has no regression detector. Three human gates: comparator, scientific
+delta before any baseline re-record, and landing.
+
 **Exit criteria.** Design accepted *(done 2026-08-04)*; inventory and path map
-complete; task brief written; commits landed leaving the tree runnable at each
+complete *(done 2026-08-04)*; master brief written *(done 2026-08-04)*; five
+phase briefs written; commits landed leaving the tree runnable at each
 step; all three Snakefiles `--dry-run` clean and `pytest tests/` green; a full
 three-workflow run on the seed config completes; `semantic_tree_diff` clean
 against the R9 path map modulo a written allowlist; the fifteen falsifiers in
