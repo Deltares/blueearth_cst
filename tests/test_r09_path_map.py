@@ -475,22 +475,51 @@ def test_declared_inventory_holds_project_relative_paths_only():
         assert "\\" not in rel, rel
 
 
+#: The digest-keyed config bundles are named by a hash over the PARSED CONFIG,
+#: which includes `project.project_dir` -- so regenerating the inventory into a
+#: different temp dir changes exactly these path components and nothing else
+#: (measured 2026-08-04: `climate_projections/61868971c618` -> `407f4256c490`).
+#: The assertions below normalize them, or a faithful regeneration would fail
+#: for a reason that has nothing to do with the map.
+_DIGEST_SEGMENT = re.compile(r"(config/runs/[a-z_]+)/[0-9a-f]{8,}(?=/|$)")
+
+
+def _digest_agnostic(rel: str) -> str:
+    return _DIGEST_SEGMENT.sub(r"\1/<digest>", rel)
+
+
 #: The EXACT set of declared-tier paths the migration map does not cover, as an
 #: exact set rather than a count: a count still passes when one gap is fixed and
 #: a different one appears. Each is a finding against the map (phase-1 report);
 #: `build_r09_gap_rules` carries the proposed rules, and the owner rules on them
 #: at gate 1.
 KNOWN_UNMAPPED = {
-    "config/runs/climate_projections/61868971c618",
-    "experiments/experiment/config/runs/climate_experiment/278159763309",
+    "config/runs/climate_projections/<digest>",
+    "experiments/experiment/config/runs/climate_experiment/<digest>",
     "spatial/geoms/region.geojson",
 }
 
 
 def test_declared_tier_unmapped_set_is_exactly_the_known_gaps():
     rows = std.classify_path_map(_declared_paths(), MAP, DELETIONS)
-    unmapped = {old for old, _, kind in rows if kind == "UNMAPPED"}
+    unmapped = {_digest_agnostic(old)
+                for old, _, kind in rows if kind == "UNMAPPED"}
     assert unmapped == KNOWN_UNMAPPED, std.format_path_map_report(rows)
+
+
+def test_the_digest_normalizer_only_touches_config_run_bundles():
+    """Guard on the normalizer: it must not blunt any other assertion."""
+    assert _digest_agnostic("config/runs/model_creation/1a22a14838f3") == \
+        "config/runs/model_creation/<digest>"
+    assert _digest_agnostic(
+        "experiments/experiment/config/runs/climate_experiment/278159763309/x.yml"
+    ) == "experiments/experiment/config/runs/climate_experiment/<digest>/x.yml"
+    for untouched in (
+        "config/runs/snake_config_model_creation.yml",
+        "spatial/geoms/region.geojson",
+        "climate_projections/cmip6/raw/cmip6_INM_INM-CM4-8_ssp245_r1i1p1f1.nc",
+    ):
+        assert _digest_agnostic(untouched) == untouched
 
 
 def test_declared_tier_has_zero_unmapped_with_the_gap_rules():

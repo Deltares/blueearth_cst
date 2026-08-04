@@ -40,6 +40,14 @@
 # `$P/` prefix, sort -u. Regenerated under a different config the list changes:
 # the member count, the model list and the store key are all config-derived.
 #
+# NOT BYTE-REPRODUCIBLE ACROSS TEMP DIRS. The three `config/runs/<workflow>/`
+# bundles are named by a hash over the PARSED CONFIG, which includes
+# `project.project_dir` -- so regenerating into a different $P changes exactly
+# those three path components and nothing else (measured 2026-08-04:
+# config/runs/climate_projections/61868971c618 -> 407f4256c490). The falsifier's
+# assertions normalize that segment to `<digest>`; do not read the digests here
+# as stable identifiers.
+#
 # CONSUMED BY
 #   tests/test_r09_path_map.py  (the declared-tier falsifier)
 #   python dev/scripts/semantic_tree_diff.py --check-map <this file> \

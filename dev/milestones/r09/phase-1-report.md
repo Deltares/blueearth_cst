@@ -63,6 +63,14 @@ over the tracked seed config, with `project_dir` repointed at an empty temp dir
 so every job is planned. It was **not** run against `test_case/test_local`,
 whose documented orphans are deliberately unmapped.
 
+One caveat, measured rather than assumed: the three `config/runs/<workflow>/`
+bundles are named by a hash over the parsed config, which **includes
+`project_dir`**, so regenerating into a different temp dir changes exactly those
+three path components (`climate_projections/61868971c618` → `407f4256c490`).
+The inventory header records this and the falsifier's assertions normalize the
+digest segment, so a faithful regeneration cannot fail for a reason unrelated to
+the map.
+
 ## Falsifier — observed tier: **UNVERIFIED**
 
 One clean three-workflow run from the primary checkout, snapshotted as a sorted
@@ -84,9 +92,11 @@ The undeclared classes the observed tier will exercise, none of which the
 declared tier reaches: `hydromt.log`, `hydromt_data.yml`, `staticgeoms/*` beyond
 the four declared files, `run_default/*` beyond `output.csv`, `evaluation/*`,
 weathergenr's `plots/*.png` and `output/{sim_dates,resampled_dates}.csv`,
-`config/generated/wflow_build_model_run.yml`, `store_region.geojson`,
-`instate/*`, and Wflow's `log.txt`. All have map rows and are covered by the
-row-driven test; the observed tier is what proves the rows match reality.
+`config/generated/wflow_build_model_run.yml`, `store_region.geojson`, and
+Wflow's `log.txt`. Each has a map row **and a case in the row-driven test's
+`MAP_ROWS` table**; the observed tier is what proves those rows match reality.
+`instate/` is the exception and is F2 below — no map row, and not observed
+either.
 
 ---
 
@@ -138,7 +148,12 @@ would surface the moment the observed tier is snapshotted. Also carried in
 `build_r09_gap_rules`.
 
 - **`hydrology_model/instate/`** — Wflow's warm states. The design tree has
-  `models/hydrology/wflow/instate/`; the map's models section has no row.
+  `models/hydrology/wflow/instate/` and the map's models section has no row.
+  **Not observed, only inferred**: it appears in no `output:` declaration, and
+  the only other evidence in the repository is a path string in an existing
+  test fixture. Whether Wflow.jl writes that directory at that path under the
+  pinned version is unconfirmed — confirm against the observed tier before
+  ruling on the row. The proposed rule is inert if the directory never exists.
 - **`hydrology_model/plots/` as a directory** — the map row names
   `basin_area.{png,pdf}` as two files, not a glob. The strict map encodes exactly
   those two exact rules; the prefix that would generalise them is the same class
@@ -239,8 +254,8 @@ Snakefile or `script:` signature changed); rungs 4–5 belong to the program.
 
 | Rung | Command | Result |
 | --- | --- | --- |
-| 1 Narrow | `pytest tests/test_semantic_tree_diff.py tests/test_r09_path_map.py tests/test_prune_climate_store.py` | **149 passed** |
-| 3 Phase gate | `pixi run test-fast` | **1181 passed**, 30 skipped, 42 deselected, 1 xfailed (98 s) |
+| 1 Narrow | `pytest tests/test_semantic_tree_diff.py tests/test_r09_path_map.py tests/test_prune_climate_store.py` | **150 passed** |
+| 3 Phase gate | `pixi run test-fast` | **1182 passed**, 30 skipped, 42 deselected, 1 xfailed (48 s) |
 
 WF1/WF2/WF3 suites were not run: this phase touches no workflow.
 
