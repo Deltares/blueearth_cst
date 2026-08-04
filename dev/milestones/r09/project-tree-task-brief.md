@@ -148,7 +148,7 @@ change what `pytest tests/` means, which is a contract. R9 **uses** the existing
 ### Phase brief index
 
 - P1 — Comparator and tooling — [`phase-1-comparator-task-brief.md`](phase-1-comparator-task-brief.md) — **COMPLETE 2026-08-04; Gate 1 CLOSED; merged to `milestone/r09-project-tree`.** Report: [`phase-1-report.md`](phase-1-report.md). Both tiers zero-unmapped (declared 176, observed 192). Eight findings; F1a–F1c amended the map, F2 closed negatively, F7 fixed a stranded `LOG_RULES` entry, F8 retired a map row
-- P2 — Tree migration — [`phase-2-tree-migration-task-brief.md`](phase-2-tree-migration-task-brief.md) — **released by Gate 1**; branch `feat/r09-p2-tree-migration` and worktree created 2026-08-04 from the merged milestone tip; no P2 edit made yet
-- P3 — Result tables and rule 3.11 — [`phase-3-result-tables-task-brief.md`](phase-3-result-tables-task-brief.md) — not started
+- P2 — Tree migration — [`phase-2-tree-migration-task-brief.md`](phase-2-tree-migration-task-brief.md) — **COMPLETE 2026-08-04; merged.** Report: [`phase-2-report.md`](phase-2-report.md). Four rows landed plus four unplanned fixes; whole-tree gate zero numeric and zero structure failures; concurrency falsifier green. `check_baseline` red from P2 commit 1 until P3 re-records
+- P3 — Result tables and rule 3.11 — [`phase-3-result-tables-task-brief.md`](phase-3-result-tables-task-brief.md) — **released by P2**; branch `feat/r09-p3-result-tables` and worktree created 2026-08-04; pre-P3 tables retained at `.cst_runs/r09_pre_p3_tables/` for the value-identity falsifier; no P3 edit made yet. **Owns the program's single baseline re-record, released only by Gate 2**
 - P4 — Fingerprint and experiment lifecycle — [`phase-4-fingerprint-task-brief.md`](phase-4-fingerprint-task-brief.md) — not started
 - P5 — Conventions and docs — [`phase-5-conventions-docs-task-brief.md`](phase-5-conventions-docs-task-brief.md) — not started
