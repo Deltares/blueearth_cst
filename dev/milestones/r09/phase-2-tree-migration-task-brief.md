@@ -99,7 +99,8 @@ can fail.
 
 ### Acceptance criteria
 
-- Three clean `--dry-run`s; `pytest tests/` green.
+- Three clean `--dry-run`s; `pixi run test-fast` green. The **full** suite is
+  not this phase's gate — it runs once for the program, in P5.
 - A full three-workflow run completes on the seed config.
 - `semantic_tree_diff` clean against the R9 map modulo a **written** allowlist.
 - The concurrency falsifier passes, and was shown to fail before the fix.

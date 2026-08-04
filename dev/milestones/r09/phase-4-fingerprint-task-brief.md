@@ -104,7 +104,8 @@ change, so tests that only confirm detection are half the job:
 - Every falsifier above passes, and the pointer-discovery one was shown to fail
   against a fixed-file-list implementation.
 - Rule 3.00b's declared inputs and sentinel paths are unchanged.
-- `pytest tests/` green; three clean `--dry-run`s.
+- `pixi run test-fast` green; three clean `--dry-run`s. The full suite runs
+  once for the program, in P5 — not here.
 - Rollback: if the pre-simulation check cannot be made to fail loud *before*
   simulation work begins, revert commit 3 and report — a check that runs after
   the work is not a guard.
