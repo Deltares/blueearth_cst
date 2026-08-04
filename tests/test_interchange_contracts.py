@@ -311,8 +311,54 @@ def test_hm7_synthetic_pass():
 
 def test_hm7_synthetic_fail():
     qstats, basin = _hm7_good()
-    basin = pd.DataFrame(columns=["prcp", "tavg"])  # wrong header order
+    basin = pd.DataFrame(columns=["tavg"])  # perturbation axis incomplete
     assert ic.validate_hm7(qstats, basin) != []
+
+
+def test_hm7_accepts_the_shipped_template_default_basavg_columns():
+    """The defect this phase must not inherit.
+
+    The basin table's header is `tavg`, `prcp`, PLUS one column per configured
+    `*_basavg` variable -- `export_wflow_results` builds it as
+    `["tavg", "prcp"] + [c for c in sim.columns if "basavg" in c]`. The exact
+    two-column assertion held only because the SEED CONFIG declares
+    `wflow_outvars: ["river discharge"]` and so produces no basavg column.
+
+    The SHIPPED TEMPLATE DEFAULT is
+    `["river discharge", "actual evapotranspiration"]`, which does produce one.
+    So the validator passed on the fixture and would have failed every project
+    using the default -- a validator that only accepts the test's own shape.
+    """
+    qstats, _ = _hm7_good()
+    basin = pd.DataFrame(
+        columns=["tavg", "prcp", "actual_evapotranspiration_basavg"]
+    )
+    assert ic.validate_hm7(qstats, basin) == []
+
+
+def test_hm7_accepts_the_unaggregated_realization_column():
+    """The same class again, one config knob over.
+
+    With `aggregate_rlz: false` the writer prepends a `realization` column
+    (`col_names = ["realization", "tavg", "prcp"]`). An assertion pinned to the
+    aggregated shape would reject every unaggregated run.
+    """
+    qstats, _ = _hm7_good()
+    basin = pd.DataFrame(columns=["realization", "tavg", "prcp", "q_basavg"])
+    assert ic.validate_hm7(qstats, basin) == []
+
+
+def test_hm7_still_rejects_a_foreign_basin_column():
+    """Widening must not become 'accept anything'.
+
+    Only the perturbation axis, the optional realization index, and
+    `*_basavg` variables belong. A column that is none of those is still a
+    contract violation and must be named.
+    """
+    qstats, _ = _hm7_good()
+    basin = pd.DataFrame(columns=["tavg", "prcp", "Q_130000086"])
+    diffs = ic.validate_hm7(qstats, basin)
+    assert diffs and "Q_130000086" in diffs[0]
 
 
 # --- Relational synthetic pass/fail (break exactly ONE member) -------------
@@ -565,8 +611,8 @@ def test_hm5_integration():
 
 @pytest.mark.skipif(not _fixture_present(), reason=_FIXTURE_ABSENT)
 def test_hm7_integration():
-    qstats = pd.read_csv(join(_EXP, "indicators", "Qstats.csv"))
-    basin = pd.read_csv(join(_EXP, "indicators", "basin.csv"))
+    qstats = pd.read_csv(join(_EXP, "results", "q_indicators.csv"))
+    basin = pd.read_csv(join(_EXP, "results", "basin_indicators.csv"))
     assert ic.validate_hm7(qstats, basin) == []
 
 
@@ -587,7 +633,7 @@ def test_gauge_identity_integration(rlz, cst):
     output_rlz = pd.read_csv(
         join(_EXP, "hydrology_runs", f"rlz_{rlz}", "output", f"cst_{cst}.csv")
     )
-    qstats = pd.read_csv(join(_EXP, "indicators", "Qstats.csv"))
+    qstats = pd.read_csv(join(_EXP, "results", "q_indicators.csv"))
     assert ic.validate_hm_gauge_column_identity(toml_cfg, output_rlz, qstats) == []
 
 

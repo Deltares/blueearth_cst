@@ -109,9 +109,9 @@ def test_climate_experiment_end_to_end():
         f"snakemake exited {result.returncode}\n"
         f"--- stderr (tail) ---\n{(result.stderr or '')[-4000:]}"
     )
-    for name in ("Qstats.csv", "basin.csv"):
+    for name in ("q_indicators.csv", "basin_indicators.csv"):
         out = join(
-            SNAKEDIR, project_dir, "experiments", experiment, "indicators", name
+            SNAKEDIR, project_dir, "experiments", experiment, "results", name
         )
         assert exists(out), f"expected output not created: {out}"
         assert getsize(out) > 0, f"output is empty: {out}"

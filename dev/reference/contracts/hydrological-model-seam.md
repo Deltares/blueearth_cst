@@ -247,8 +247,9 @@ Rendered one subsection per artifact.
   perturbation-axis index). These are the **response-surface hand-off** to the
   platform.
 - **temp() lifecycle:** not `temp()` (`rule all`, manifested).
-- **deliberately unpinned:** the `RT_*.csv` response tables (non-manifest side
-  products).
+- **removed at R9 P3:** the `RT_*.csv` response tables. They were non-manifest
+  side products with no in-repo consumer, written via `params` rather than
+  declared and therefore invisible to `--dry-run`. Nothing replaces them.
 - **validator:** `validate_hm7`; the gauge-column tie to HM-4/HM-5 by the
   relational `validate_hm_gauge_column_identity`.
 
