@@ -52,11 +52,14 @@ paths, since those carry the incremental-execution constraint.
    model path and the digest.
 4. Recompute and compare **before WF3 performs simulation work**; fail loud on
    mismatch, naming the changed input.
-5. Experiment ID allocation: a colliding **user-supplied** name is rejected with
-   an error naming the existing experiment; only the generated default
-   `stress_test_<YYYYMMDD>` is suffixed `_v2`, `_v3`. Reservation must be atomic.
-6. `experiments/<id>/config/experiment.yml` becomes immutable at the **first
-   successful run**, not at creation.
+5. ~~Experiment ID allocation~~ — **SUPERSEDED 2026-08-04** by
+   [`phase-4-commit-4-task-brief.md`](phase-4-commit-4-task-brief.md). This item
+   named a generated default `stress_test_<YYYYMMDD>` that appears nowhere in
+   the codebase (the real one is `<project-basename>_<YYYYMMDD>`) and required
+   atomic reservation where no reservation step exists.
+6. ~~`experiment.yml` immutability~~ — **SUPERSEDED** by the same brief. Nothing
+   writes `experiment.yml`; the file is named in design tree v10 and by nothing
+   else, so this is new capability rather than a rule over an existing artifact.
 
 ### Commit plan
 
