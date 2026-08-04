@@ -81,7 +81,7 @@ current docs do not.
 - §8 carries a generated-outputs rule; §7's carve-out is narrowed; the class
   scoping is explicit.
 - The grep falsifier's surviving hits are each accounted for.
-- `pytest tests/` green.
+- `pixi run test-full` green — the program's single full-suite run.
 - Sealed milestone records under `dev/milestones/r0[1-8]/` are **unmodified** —
   a sealed record stays as it was written.
 
