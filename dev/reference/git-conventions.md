@@ -8,7 +8,7 @@ The conventions below moved here from `dev/roadmap.md` on 2026-08-02 — this
 file used to point *back* at the roadmap for them, which meant the rules and
 the inventory lived apart. `roadmap.md` is now the phase narrative only.
 
-Inventory last updated: 2026-07-19.
+Inventory last updated: 2026-08-04.
 
 ## Durable branches
 
@@ -24,6 +24,16 @@ Inventory last updated: 2026-07-19.
 | `milestone/r01-contracts`        | **Sealed** 2026-07-18 (tag `r01-contracts`) — R1 config-contract migration; merged to `main` 2026-07-18. Kept alive as a durable phase marker. |
 | `milestone/r02-naming`           | **Sealed** 2026-07-19 (tag `r02-naming`) — R2 naming style guide; merged to `main` 2026-07-19. Kept alive as a durable phase marker. |
 | `milestone/r03-model-builder`    | **Sealed** 2026-07-19 (tag `r03-model-builder`) — R3 workflow-1 cleanup; behavior-preserving (14/14). Merged to `main` 2026-07-19. Kept alive as a durable phase marker. |
+| `milestone/r04-projections`      | **Sealed** 2026-07-20 (tag `r04-projections`) — R4 workflow-2 cleanup. Merged to `main`. Kept alive as a durable phase marker. |
+| `milestone/r05-experiment`       | **Sealed** 2026-07-20 (tag `r05-experiment`) — R5 workflow-3 + weathergen cleanup. Merged to `main`. Kept alive as a durable phase marker. |
+| `milestone/r06-refactor`         | **Sealed** 2026-07-23 (tag `r06-refactor`) — R6 structural refactor; behavior-preserving. Merged to `main`. Kept alive as a durable phase marker. |
+| `milestone/p31-experiments`      | **Sealed** 2026-07-24 (tag `p31-experiments`) — P3-1 project/experiment structure. Merged to `main`. Kept alive as a durable phase marker. |
+| `milestone/p32a-climate-analysis` | **Sealed** 2026-07-24 (tag `p32a-climate-analysis`) — P3-2a model-independent climate analysis. Merged to `main`. Kept alive as a durable phase marker. |
+| `milestone/p32b-interchange-contracts` | **Sealed** 2026-07-24 (tag `p32b-interchange-contracts`) — P3-2b model-swap interchange contracts. Merged to `main`. Kept alive as a durable phase marker. |
+| `milestone/p33-performance`      | **Sealed** 2026-07-25 (tag `p33-performance`) — P3-3 performance passes. Merged to `main`. Kept alive as a durable phase marker. |
+| `milestone/r07-layout`           | **Sealed** 2026-07-29 (tag `r07-layout`) — R7 project layout; behaviour-preserving. Merged to `main`. Kept alive as a durable phase marker. |
+| `milestone/r08-wf2-projections`  | **Sealed** 2026-07-31 (tag `r08-wf2-projections`) — R8 WF2 v2.0 GCM projections analysis. Merged to `main`. Kept alive as a durable phase marker. |
+| `milestone/r09-project-tree`     | **Active** — R9 project-tree migration; cut 2026-08-04 from `main`'s tip. Merges to `main` once, at the seal, then tag `r09-project-tree`. Local only, not pushed. The baseline is red by construction from the first P2 commit until P3's re-record, which is why that window is contained here and never on the trunk. |
 | `origin/fao` (remote-only)       | Inherited upstream project branch (FAO / DCRM work, ~32 commits off-trunk). Not tracked locally; review before ever deleting. |
 
 ## Tags
@@ -42,9 +52,22 @@ Tags are permanent rollback points; they never move.
 | `r01-contracts`   | 2026-07-18 | Phase 2 seal: sectioned config schema (project/shared/workflows); suite 51/3/2. Sealed on invariance-by-construction — M2b baseline left untouched (stale; see `dev/milestones/r01/baseline_diffs.md`). |
 | `r02-naming`      | 2026-07-19 | Phase 2 seal: naming style guide (`dev/reference/naming.md`). Docs-only; existing names grandfathered; suite 51/3/2. |
 | `r03-model-builder` | 2026-07-19 | Phase 2 seal: workflow-1 (model builder) cleanup — shared `snake_utils` (`get_config`/`tee_to_log`), per-rule log/benchmark, `outlet_index.csv`, gauges hardening, structured waterbodies sentinel. Behavior-preserving (14/14); suite 73/3/2. |
+| `r04-projections` | 2026-07-20 | Phase 2 seal: workflow-2 (climate projections) cleanup, inheriting the R3 patterns. Contract doc `dev/reference/workflows/climate_projections.md`; 11 commits. |
+| `r05-experiment`  | 2026-07-20 | Phase 2 seal: workflow-3 (climate experiment) + the R weathergen layer cleaned up, inheriting the R3/R4 patterns. Contract doc `dev/reference/workflows/climate_experiment.md`; 12 commits. |
+| `r06-refactor`    | 2026-07-23 | Phase 2 seal: structural refactor — `src/` → `blueearth_cst/` package, `config/` three-bin split, runners → `scripts/`, `enabled:`-aware wrapper, `MIGRATION.md` (51 renames). Behavior-preserving (run-relative baseline + full-tree semantic diff clean). |
+| `p31-experiments` | 2026-07-24 | Phase 3 seal: project/experiment structure. |
+| `p32a-climate-analysis` | 2026-07-24 | Phase 3 seal: model-independent climate analysis. |
+| `p32b-interchange-contracts` | 2026-07-24 | Phase 3 seal: model-swap interchange contracts. |
+| `p33-performance` | 2026-07-25 | Phase 3 seal: performance passes; user-signed milestone gate. |
+| `r07-layout`      | 2026-07-29 | Phase 4 seal: project layout — single climate store with a model-free shared producer, engine subtrees under `project_dir`, config split four ways, project-level `plots/` and `data/` retired. Behaviour-preserving (full-tree semantic diff clean, discharge bit-identical). |
+| `r08-wf2-projections` | 2026-07-31 | Phase 5 seal: WF2 v2.0 GCM projections analysis; all seven §8 migration steps implemented. User migration note in `docs/migration-r08-wf2.md`. |
 
-Planned (cut at each Phase 2 milestone seal):
-`r04-projections`, `r05-experiment`, `r06-refactor`.
+`r05-experiment`, `p31-experiments`, `p32a-climate-analysis`, and
+`p32b-interchange-contracts` are **lightweight** tags; every other tag above is
+annotated and carries a message.
+
+Planned (cut at seal): `r09-project-tree` (Phase 6),
+`r10-rule-naming` (Phase 7).
 
 ## Using a checkpoint tag (e.g. `pre-r01`)
 
@@ -72,21 +95,27 @@ sealed, or retired. Local tags/branches reach `origin` only on explicit push
 | Frozen base   | `base/<start-point>`          | Historical starting point of the fork (e.g. `base/v0.1.0-alpha`).        |
 | Phase 1 milestone | `milestone/<NN>-<topic>`  | Sealed; pattern preserved on existing branches (`milestone/02c-tests`).  |
 | Phase 2 milestone | `milestone/r<NN>-<topic>` | Active; example `milestone/r01-contracts`, `milestone/r03-model-builder`. |
+| Phase 3 sub-milestone | `milestone/p3<N><letter?>-<topic>` | Sealed; pattern preserved on existing branches (`milestone/p32a-climate-analysis`). |
 | Experiment    | `exp/r<NN>-<topic>`           | Messy trial branch off a Phase 2 milestone.                              |
 | Feature       | `feat/r<NN>-<topic>`          | Cleaner implementation off a Phase 2 milestone, intended to be merged in. |
 | Pull request  | `pr/<NN>-<topic>`             | Clean branch prepared for upstream review.                               |
 
 **Tags.** Phase 1 tags use `m##-<topic>` and stay frozen
 (`m01-replication`, `m02-pixi`, `m02b-upgrades`, `m02c-tests`). Phase 2
-tags use `r##-<topic>` (`r01-contracts`, `r02-naming`,
-`r03-model-builder`, `r04-projections`, `r05-experiment`,
-`r06-refactor`). Tags are permanent rollback points; milestone branches
-stay alive after their tag for late patches or PR prep.
+onward use `r##-<topic>`; Phase 3's sub-milestones use `p3#-<topic>`.
+The tags themselves are inventoried in § Tags above — that table is the
+single list, so don't restate it here; a second copy is what went stale
+last time. Tags are permanent rollback points; milestone branches stay
+alive after their tag for late patches or PR prep.
 
 **Stacked, not parallel.** Each milestone branches from the previous
 milestone's tip (not from `base/`). Phase 2 starts from the
 `m02c-tests` tag. R1, R2 are pre-workflow contracts and conventions
 that R3-R5 inherit; R6 is the cross-cutting structural refactor.
+Once a milestone has merged, `main`'s tip *is* the previous milestone's
+tip, so later milestones are cut from `main` — verify rather than assume
+(`git log --oneline main..milestone/<previous>` must be empty). R9 was
+cut this way on 2026-08-04, with R7 and R8 both confirmed empty.
 
 **Remotes.**
 - `origin` — your fork (`github.com/tanerumit/blueearth_cst`).
