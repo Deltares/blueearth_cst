@@ -13,7 +13,6 @@ existed to keep an external review tractable. With the review waived and nine
 questions ruled into the text, the document is now the accepted design of
 record rather than a reviewer's reading load, and raising the number a third
 time would make it decorative. Retired deliberately, not exceeded silently.
-At v4: 601 normative, 665 total.
 
 ## Review status
 
