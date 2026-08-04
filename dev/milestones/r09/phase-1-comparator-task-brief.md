@@ -60,11 +60,16 @@ anything under a `project_dir`, `dev/baseline/manifest.json`.
 
 ### Validation
 
-Ladder rungs 1 and 2 only — this phase changes no runtime behaviour, so rungs
-3–5 do not apply and `pytest tests/` is not required here.
+Master ladder rungs 1 and 3 only. This phase changes no runtime behaviour: rung
+2 has no trigger (no Snakefile or `script:` edit), and rungs 4–5 belong to the
+program, not to this phase.
 
-1. **Narrow** — `pytest tests/test_semantic_tree_diff.py` (per edit).
-2. **New behavioural tests** — the new cases above (per edit).
+**Named scope — run this and nothing else:** `pytest tests/test_semantic_tree_diff.py`
+plus the new test module. Do not run WF1/WF2/WF3 suites; this phase touches no
+workflow.
+
+1. **Narrow** — the named scope (per edit).
+2. **Phase gate** — `pixi run test-fast` once, at phase end.
 
 **Falsifier for the property this phase asserts.** The claim is *"the map covers
 every artifact."* A passing unit test cannot show that. Apply the map to a

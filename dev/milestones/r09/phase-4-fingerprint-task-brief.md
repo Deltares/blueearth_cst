@@ -72,10 +72,14 @@ the thing it guards.
 
 ### Validation
 
-1. **Narrow** — the new module's tests (per edit).
-2. **New behavioural tests** — the falsifier set below (per edit).
-3. **Integration** — `pytest tests/test_cli.py` after each Snakefile edit.
-4. **Full gate** — `pytest tests/` once, at phase end.
+**Named scope — run this and nothing else:** the new digest module's tests plus
+the WF3 experiment tests. WF1 and WF2 suites are not in scope; this phase reads
+the model root but changes nothing that builds it.
+
+1. **Narrow** — the named scope and the falsifier set below (per edit).
+2. **Integration** — `pixi run test-cli` after each Snakefile edit (commits 2–3).
+3. **Phase gate** — `pixi run test-fast` once, at phase end. **Not** the full
+   suite.
 
 **Falsifiers.** The fingerprint's whole purpose is to detect an absence of
 change, so tests that only confirm detection are half the job:

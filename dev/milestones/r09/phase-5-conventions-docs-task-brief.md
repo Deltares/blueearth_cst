@@ -59,13 +59,15 @@ rather than by analogy.
 
 ### Validation
 
-Rungs 1 and 4 only; this phase changes no behaviour.
+This phase changes no behaviour, so it has no narrow test scope — the grep below
+*is* its check. It is also the last phase, so the program's single full-gate run
+lands here.
 
-1. **Narrow** — `grep` for each pre-R9 path string across `README.rst`,
-   `AGENTS.md`, `docs/`, and `dev/reference/`; every hit is either updated or is
-   a deliberate historical reference in a sealed milestone's record.
-2. **Full gate** — `pytest tests/` once, to catch any doctest or path assertion
+1. **Narrow** — the grep falsifier below (per edit).
+2. **Phase gate** — `pixi run test-fast`, to catch any doctest or path assertion
    that reads documentation.
+3. **Full gate** — `pixi run test-full`. **The program's one run**, at the
+   landing gate. If red, bisect with `pixi run test-fast`.
 
 **Falsifier.** Claim: *no documentation still describes the old tree*. A read-
 through cannot establish that. Grep the tracked tree for `hydrology_model/`,

@@ -1,6 +1,7 @@
 Master Brief — R9 generated project tree
 
-Revision: 2026-08-04, initial; phase briefs linked same day.
+Revision: 2026-08-04, initial; phase briefs linked same day; validation ladder
+revised same day (owner, after the R8 retrospective on slow cycles).
 
 ### Goal
 
@@ -59,6 +60,18 @@ they are not to be run in parallel worktrees.
   (`AGENTS.md`): two `.snakemake/` metadata stores over one `project_dir`
   disagree, and both hold locks.
 - `pixi.toml` / `pixi.lock` and `Manifest.toml` are not to be edited.
+- **Match the check to the blast radius** (`AGENTS.md` § Validation ladder). The
+  full suite runs **once, before merging** — not per phase, not per commit. R8's
+  slow cycles came from re-proving what the previous run already proved. Each
+  phase brief names its own narrow scope; run that scope, not its neighbours'.
+- **Trim regression runs, never falsifiers.** The two are different instruments.
+  A regression run re-proves untouched behaviour and is the thing to batch; a
+  falsifier is the only evidence that a claimed *absence* holds, and R9 has three
+  failure modes no unit test reaches — a missed `LOG_RULES` entry (silent, not an
+  error), undeclared engine artifacts (`--dry-run` structurally cannot see them),
+  and the concurrent-log race (needs two members running at once). They cost
+  seconds to minutes. Cutting them makes R9 faster and less safe at the same
+  time.
 
 ### Human gates
 
@@ -86,8 +99,10 @@ Whole-program checks no single phase can perform:
   construction from the first P2 commit until P3's re-record; that window must be
   named in the phase reports, not discovered. Re-record **exactly once**, after
   Gate 2.
-- **Full suite** — `pytest tests/` once before merging, per the repository's
-  validation ladder. Not per phase.
+- **Full suite** — `pixi run test-full` **once, before merging**. Not per phase.
+  If it comes back red, bisect with `pixi run test-fast` (~3.3 min a probe, versus
+  ~8 min) — which is the reason to keep the tiers distinct rather than collapse
+  them.
 - **Full three-workflow run on the seed config** — the only check that exercises
   undeclared engine artifacts, which `--dry-run` cannot see.
 - **Falsifiers for the two properties the program asserts.** Both assert an
@@ -100,6 +115,29 @@ Whole-program checks no single phase can perform:
     Run two experiments sharing both; assert the shared climate-store rule's
     input set is byte-identical for each, and that the second schedules zero
     store jobs.
+
+### Validation ladder (binds every phase)
+
+Measured 2026-08-03 and recorded in `pyproject.toml`: the suite is ~492 s, and 15
+`slow` tests account for ~302 s of it — 61% of the cost in 3% of the tests. 13 of
+those 15 sit inside `workflow_contract or process_isolation`, which `pixi.toml`
+already tiers on. The tiers existed and were unused.
+
+| Rung | Frequency | Command | Cost |
+|---|---|---|---|
+| 1 Narrow | per edit | the phase's **named scope** only | seconds |
+| 2 Integration | per commit, **only if** a Snakefile or `script:` signature changed | `pixi run test-cli` | ~30 s |
+| 3 Phase gate | end of each phase | `pixi run test-fast` | ~3.3 min |
+| 4 Full gate | **once**, before merge | `pixi run test-full` | ~8 min |
+| 5 Tree gates | landing gate; the re-record once in P3 | three-workflow run, `semantic_tree_diff`, `check_baseline` | expensive |
+
+Rung 3 replaces the per-phase full suite. Rung 4 fires once for the program.
+
+**Not in scope for R9:** `pyproject.toml` records an open decision on whether a
+default deselect wires to the `slow` marker or to the
+`workflow_contract`/`process_isolation` scheme — *"not both"*. Closing it would
+change what `pytest tests/` means, which is a contract. R9 **uses** the existing
+`pixi` tasks and leaves the default alone.
 
 ### Phase brief index
 

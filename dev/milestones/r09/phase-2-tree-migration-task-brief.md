@@ -73,12 +73,20 @@ the log path are one correctness unit.
 
 ### Validation
 
-Rungs and frequency:
+**Named scope by commit — do not run all four sets at every commit:**
 
-1. **Narrow** — the touched module's tests (per edit).
-2. **Integration** — `pytest tests/test_cli.py`, which dry-runs all three
-   Snakefiles (per commit; a Snakefile edit is exactly its trigger).
-3. **Full gate** — `pytest tests/` once, at phase end.
+| Commit | Narrow scope |
+|---|---|
+| 1 model → `models/` | WF1 model/build tests |
+| 2 spatial + climate → `data/` | WF1 spatial + WF2 projection tests |
+| 3 experiment subtrees | WF3 experiment tests |
+| 4 DAG renders | plot/DAG tests |
+
+1. **Narrow** — the row's scope only (per edit).
+2. **Integration** — `pixi run test-cli` (per commit; every commit here edits a
+   Snakefile, so this rung fires four times — it is ~30 s, not the suite).
+3. **Phase gate** — `pixi run test-fast` once, at phase end. **Not** the full
+   suite; that fires once for the program, before merge.
 4. **Non-regression** — `semantic_tree_diff` against the R9 map, whole-tree,
    after a full three-workflow run. Once, at phase end.
 

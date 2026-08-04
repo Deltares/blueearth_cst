@@ -70,13 +70,17 @@ be attributable on its own.
 
 ### Validation
 
-1. **Narrow** — `pytest tests/test_export_wflow_results.py`,
-   `tests/test_interchange_contracts.py` (per edit).
-2. **New behavioural tests** — a `validate_hm7` case with `*_basavg` columns
-   present, which fails on today's assertion.
-3. **Integration** — `pytest tests/test_cli.py` after the rule rename.
-4. **Full gate** — `pytest tests/` once, at phase end.
-5. **Non-regression** — `check_baseline.py check`, expected **green after**
+**Named scope — run this and nothing else:** `tests/test_export_wflow_results.py`,
+`tests/test_interchange_contracts.py`, `tests/test_check_baseline*.py`. This
+phase touches no WF1 or WF2 code; their suites are not upstream of anything here.
+
+1. **Narrow** — the named scope (per edit), plus the new `validate_hm7` case with
+   `*_basavg` columns present, which must fail on today's assertion.
+2. **Integration** — `pixi run test-cli` after the rule rename (rung 2's trigger:
+   a rule identifier changed).
+3. **Phase gate** — `pixi run test-fast` once, at phase end. **Not** the full
+   suite.
+4. **Non-regression** — `check_baseline.py check`, expected **green after**
    commit 4 and red before it.
 
 **Falsifier — value identity.** Claim: *the renamed tables are byte-identical in
