@@ -1140,9 +1140,13 @@ the tree differs from what the code emits, the emitted structure wins unless a
 stated reason overrides it. Four divergences were found and every one encoded a
 prior decision.
 
-**The map is complete except the WF1/spatial rows**, which wait on the
-`wf1-spatial-decoupling` P2 Gate 2 review — that work is implemented, changes
-`Snakefile_model_creation`, and would move those rows under R9's feet.
+**The map is COMPLETE.** It was briefly recorded as blocked on the
+`wf1-spatial-decoupling` P2 Gate 2 review; that finding was withdrawn 2026-08-04
+once the git history was checked. Gates 2 and 3 were approved and the branch
+merged on 2026-08-02 (`29ccde9`) — `ad9702d` closed the gates in the phase report
+but left the phase index reading "Gate 2 review pending", and the inventory
+inherited that stale line as a blocker. The WF1 rows were derived from `main` and
+already reflect the landed work. The index has been corrected.
 
 **Two obligations the inventory added to the milestone.** First, a real defect:
 Wflow's `[logging] path_log` defaults to `log.txt` beside the TOML, so removing

@@ -104,7 +104,7 @@ generalised from them.
 | `sim_dates.csv`, `resampled_dates.csv` | `series/` **renamed `output/`**. These are generator *products*, and R7's G1 ruling OQ-4 already split products (`output/`) from per-member configs (`_work/`); `series/` was narrower than its contents. `output/` also mirrors `hydrology/wflow/output/`, restoring the two-engine symmetry B5 was for. |
 | Wflow's own `log.txt` | **Defect, not a gap** — see below. Given an explicit per-member path under `hydrology/wflow/output/`. |
 | `.model_built`, `.outputs_configured` | Stay at the model root. Generalised: *every* sentinel lives beside what it guards, build sentinels included. |
-| `data/spatial/**` | Placeholders replaced with the emitted set. `region.geojson` was drawn here but exists only as `models/hydrology/wflow/staticgeoms/region.geojson` and the store's `store_region.geojson`; `gauges.geojson` does not exist at all. Rows provisional pending the spatial work's Gate 2. |
+| `data/spatial/**` | Placeholders replaced with the emitted set. `region.geojson` was drawn here but exists only as `models/hydrology/wflow/staticgeoms/region.geojson` and the store's `store_region.geojson`; `gauges.geojson` does not exist at all. Rows are final: the spatial work's Gates 2 and 3 closed and merged 2026-08-02; the "pending" status the inventory relied on was a stale index line. |
 
 **The defect.** Wflow's `[logging] path_log` defaults to `"log.txt"`, resolved
 against the TOML's own directory (`docs/wflow-user-guide/03-toml-file.md:47`) —
@@ -290,7 +290,7 @@ code only with an argument.
 │   └── observations/                      # GENERATED  snapshots of obs inputs
 │
 ├── data/                                  # reusable, engine-independent data
-│   ├── spatial/                          # PROVISIONAL — spatial work's Gate 2 pending
+│   ├── spatial/                          # the nine P1 products, landed on main
 │   │   ├── spatial_maps.nc
 │   │   ├── spatial_catalog.yml            # generated catalog DESCRIBING this data
 │   │   ├── spatial_report.yml

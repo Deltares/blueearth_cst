@@ -1,9 +1,8 @@
 # Migration — project tree (R9)
 
-Status: **COMPLETE except the WF1/spatial rows** (2026-08-04). Findings 1 and 3
-ruled; all previously unplaced artifact classes placed at design v8. The only
-outstanding item is Finding 2 — the WF1/spatial rows are provisional until the
-spatial work's Gate 2 closes.
+Status: **COMPLETE** (2026-08-04). All three findings resolved and every artifact
+class placed. The map is ready to be encoded as regex rules and to feed the task
+brief.
 
 Date: 2026-08-04
 
@@ -100,12 +99,23 @@ the point: the cheapest correct answer was the one that moved nothing.
    **scope note on R9**, not a precondition for the map: it is a settled-framing
    decision and is not reopened here.
 
-## Finding 2 — the spatial subtree is in flux
+## Finding 2 — WITHDRAWN: the spatial subtree is settled
 
-`dev/working/wf1-spatial-decoupling/` — P1 complete and gated; **P2 implemented,
-Gate 2 review pending**. P2 changes `Snakefile_model_creation` and the model
-build. The WF1 half of this map is therefore provisional and must be re-derived
-after Gate 2 closes.
+Recorded as a blocker on the strength of `master-task-brief.md`'s phase index,
+which read *"P2 — implemented; Gate 2 review pending"*. **That line was stale.**
+Gates 2 and 3 were both approved and `feat/wf1-spatial-decoupling` was merged to
+`main` on 2026-08-02 (`29ccde9`); `ad9702d` closed the gates in
+`phase-2-report.md` and `DEVLOG.md` but never updated the index. The branch is
+deleted and rules 1.02 `prepare_spatial_maps` and 1.03 `build_wflow_model` are on
+`main`.
+
+The WF1 rows in this map were derived from `main`, so they already reflect the
+landed work and are **final, not provisional**. The nine P1 products the report
+names correspond exactly to the `data/spatial/` rows below: five vector layers
+under `geoms/`, plus `location_registry.csv`, `spatial_catalog.yml`,
+`spatial_maps.nc`, and `spatial_report.yml`.
+
+The index line has been corrected.
 
 ## Finding 3 — RULED: three tree shapes did not match what the code emits
 
@@ -147,7 +157,7 @@ what design principle P9 now generalises.
 The last two are also listed under `config/` below, since that is where they come
 from; the design routes generated build YAML to the model root.
 
-### → `data/` — PROVISIONAL, see Finding 2
+### → `data/`
 
 | Old | New |
 | --- | --- |
@@ -231,7 +241,7 @@ All closed at design v8 (and v6/v7 for two of them). One is not a pure move:
 | `cmip6/report.md` | `data/climate/projections/cmip6/report.md` | none (v7) |
 | `sim_dates.csv`, `resampled_dates.csv` | `climate/weathergenr/output/` | none — `series/` renamed `output/` |
 | `.model_built`, `.outputs_configured` | model root | none — sentinel rule generalised |
-| `spatial/*` | `data/spatial/**` | none, but **provisional** (Finding 2) |
+| `spatial/*` | `data/spatial/**` | none — final; Finding 2 withdrawn |
 | Wflow's `log.txt` | `hydrology/wflow/output/rlz_<r>_cst_<c>.log` | **one-line code change** |
 
 **Scope of the mandated rename record.** `naming.md` §7 requires an internal
@@ -267,8 +277,9 @@ orphans are not covered by it.
 1. ~~Rule Finding 1~~ **done 2026-08-04** — option (A), design v6.
 2. ~~Rule Finding 3's three mismatches~~ **done 2026-08-04** — design v7.
 3. ~~Place the unplaced artifact classes~~ **done 2026-08-04** — design v8.
-4. **Re-derive the WF1/spatial rows after Gate 2 closes (Finding 2)** — the only
-   item still open.
+4. ~~Re-derive the WF1/spatial rows after Gate 2 closes~~ **not required** —
+   Finding 2 withdrawn 2026-08-04; the rows were already derived from the landed
+   work.
 5. Materialize a **clean** fixture from current code — the existing one cannot
    validate this map — and diff it against the completed map.
 6. Encode the map as regex rules alongside `build_r07_path_map`.
