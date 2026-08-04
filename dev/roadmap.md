@@ -1,6 +1,6 @@
 # Fork Roadmap
 
-Source of truth for the personal fork of `blueearth_cst`. Five phases:
+Source of truth for the personal fork of `blueearth_cst`. Seven phases:
 
 **Phase 1 — Foundation (sealed 2026-05-08).** Replicated upstream,
 formalized the pixi env, upgraded load-bearing libraries, and added
@@ -26,6 +26,20 @@ milestone, R7; dev artifacts under `dev/milestones/r07/`. See § Phase 4 below.
 phase to change what a workflow *computes* and how its rule graph is shaped,
 starting with workflow 2. Milestone R8; design and audit trail under
 `dev/reference/workflows/`. See § Phase 5 below.
+
+**Phase 6 — Project tree redesign (R9 open, registered 2026-08-04).** Replaces the
+*semantic roots* of the generated `project_dir` — `config/`, `data/`, `models/`,
+`experiments/` — where Phase 4 consolidated the layout it inherited. Also adopts a
+filename convention for generated artifacts, a pointer-derived model fingerprint,
+and an experiment lifecycle. One milestone, R9; dev artifacts under
+`dev/milestones/r09/`. See § Phase 6 below.
+
+**Phase 7 — Naming coherence (R10 open, registered 2026-08-04).** Brings the
+twenty-eight Snakemake rule identifiers onto one verb-and-noun scheme. Split from
+Phase 6 for the same reason Phase 5 was split from Phase 4: rule names are a CLI
+contract surface, not part of the artifact tree, and no durable artifact path
+carries one. One milestone, R10; dev artifacts under `dev/milestones/r10/`. See
+§ Phase 7 below.
 
 ```text
 Phase 1 — Foundation (sealed)
@@ -1054,6 +1068,206 @@ observed pin-mismatch rates). All three need operational data that does not exis
 yet.
 
 **Tag.** `r08-wf2-projections` *(planned; not yet cut)*.
+
+---
+
+## Phase 6 — Project tree redesign (R9 OPEN)
+
+Registered 2026-08-04. Phase 4 consolidated the generated tree it inherited —
+producer-oriented roots (`climate_historical/`, `climate_projections/`,
+`hydrology_model/`), tidied but not rethought. Phase 6 replaces those roots with
+domain ones and settles four things Phase 4 left to convention: how generated
+files are named, what a model fingerprint actually has to cover, when an
+experiment's configuration stops being editable, and where a run's own records
+live.
+
+Kept separate from Phase 4 rather than reopening it: R7 is sealed and tagged, and
+its record stays as written. This is a second, deeper pass over the same surface,
+not a correction of the first — R7's depth-agnostic run-directory handling is
+precisely what makes R9's flattening cheap.
+
+### R9 — Generated project tree (OPEN)
+
+**Status.** Design **ACCEPTED** by the owner 2026-08-04:
+`dev/milestones/r09/project-tree-design.md` (v4). Not yet implemented; no task
+brief, no branch, no commits.
+
+Drafted as an external-review brief and then **accepted without external review**
+— the owner waived it. The design says so on its face and records the two
+consequences: it carries no independent verdict, and its nine open questions were
+ruled by the owner directly rather than forced by a reviewer. Two of those nine
+rulings changed the design, which is the outcome a review is normally relied on
+to produce; the reviewer contract is retained unexercised so a review can still
+be dispatched against v4 without rework.
+
+**Goal.** `config/`, `data/`, `models/`, `experiments/` as the stable semantic
+roots of every project, with: one live Wflow model at `models/hydrology/wflow/`;
+reusable engine-independent inputs under `data/`; each experiment self-contained
+and keyed by an allocated ID; fan-out members keyed by filename on both engine
+sides; lowercase `snake_case` for every locally minted name; and a
+pointer-derived model fingerprint that WF3 re-checks before simulating.
+
+**Design decisions of record** (full rationale in the design):
+
+| Area | Decision |
+| --- | --- |
+| Run records | Log and benchmark live at the scope of what the run produces (P7) — project root for WF1/WF2, the experiment for WF3. Merging them was rejected on `_parts` collision, not taste. |
+| Wflow run subtree | `rlz_<r>/` removed; members are `rlz_<r>_cst_<c>` filenames, matching the climate side. |
+| Result tables | `Qstats.csv` → `q_indicators.csv`, `basin.csv` → `basin_indicators.csv`, `RT_*.csv` dropped. |
+| Rule 3.11 | `export_wflow_results` → `derive_wflow_indicators`. The one rule rename R9 carries, on the principle that a milestone renames what it falsifies — R9 makes the outputs indicators, so "export…results" would be a mismatch R9 itself created. The other nine renames are R10. |
+| Naming | Lowercase `snake_case` for locally minted names; upstream identifiers and engine filenames exempt. Closes the gap `naming.md` §8 left open. |
+| Fingerprint | Pointer-derived: the TOML plus every model-root file its path-valued keys resolve to. |
+| Catalogs | Referenced, never copied. Only generated catalogs live in a project. |
+
+**Preconditions before a task brief.** Two, both named by the design itself: an
+**artifact inventory** covering every file the three workflows and their engines
+emit, and the **old → new path map** built from it. The map is needed three times
+over — by `semantic_tree_diff` to gate the migration, by `naming.md` §7 as the
+mandated internal rename record, and by the brief itself to be actionable.
+
+**Status: run, and COMPLETE** (2026-08-04) —
+`dev/milestones/r09/migration_project-tree.md`. Built from the Snakefiles'
+declared outputs rather than from `test_case/test_local`, which is a mixed-era
+tree carrying orphans from at least three code generations and no `spatial/`
+subtree at all. Building it that way is what surfaced the blocker: the project's
+`config/` is written **in full** by rule 1.01 `snapshot_config` as generated
+provenance, while the design labels it the editable project source — the same
+paths with opposite semantics. The v4 tree also asserts that toolbox catalogs are
+"referenced, not copied", which is false; they are both. Design corrected to v5;
+ruling 6 marked superseded.
+
+**Resolved across design v6–v8**, all toward what the code emits: the config
+snapshot **stays under `config/`** (the decider being that
+`config/runs/snake_config_model_creation.yml` is a declared `input:` of WF3's
+drift guard, so it is a consumed contract artifact rather than an archive); the
+climate store **keeps its source+window cache key**; `cmip6/raw/` and `scalar/`
+are both kept, `scalar/` being R8's ruling S8-03; `change_factors/` stays as two
+files under `summary/`; and the last four unplaced artifact classes are placed.
+P4 was restated from *separate* to *distinguishable*, and **P9 added** — where
+the tree differs from what the code emits, the emitted structure wins unless a
+stated reason overrides it. Four divergences were found and every one encoded a
+prior decision.
+
+**The map is COMPLETE.** It was briefly recorded as blocked on the
+`wf1-spatial-decoupling` P2 Gate 2 review; that finding was withdrawn 2026-08-04
+once the git history was checked. Gates 2 and 3 were approved and the branch
+merged on 2026-08-02 (`29ccde9`) — `ad9702d` closed the gates in the phase report
+but left the phase index reading "Gate 2 review pending", and the inventory
+inherited that stale line as a blocker. The WF1 rows were derived from `main` and
+already reflect the landed work. The index has been corrected.
+
+**Two obligations the inventory added to the milestone.** First, a real defect:
+Wflow's `[logging] path_log` defaults to `log.txt` beside the TOML, so removing
+the `rlz_<r>/` level puts every concurrently-batched member's log at one path —
+a race. The directory removal and the per-member `path_log` must land in the
+same commit, with a two-member concurrency falsifier. Second, keeping the store's
+cache key means a changed window strands its predecessor on disk, so the pruning
+tooling must learn to report orphaned store directories.
+
+**Scope note, not a blocker.** `config/project.yml` does not exist and nothing
+writes one; adopting it moves config ownership from the toolbox into the project
+rather than relocating a file, and R9 must budget it as new capability.
+
+**Master brief written** 2026-08-04:
+`dev/milestones/r09/project-tree-task-brief.md`. The complexity gate classified
+R9 as several independently verifiable subsystems rather than one unit, so it is
+a master brief plus five phase briefs, matching R7's shape. Phases are strictly
+sequential — every phase but P1 edits `Snakefile_climate_experiment`, so they
+cannot run in parallel worktrees — and P1 (the `semantic_tree_diff` comparator)
+deliberately precedes the migration, because a move made before its comparator
+exists has no regression detector. Three human gates: comparator, scientific
+delta before any baseline re-record, and landing.
+
+**Exit criteria.** Design accepted *(done 2026-08-04)*; inventory and path map
+complete *(done 2026-08-04)*; master brief and five phase briefs written
+*(done 2026-08-04)*; commits landed leaving the tree runnable at each
+step; all three Snakefiles `--dry-run` clean and `pytest tests/` green; a full
+three-workflow run on the seed config completes; `semantic_tree_diff` clean
+against the R9 path map modulo a written allowlist; the fifteen falsifiers in
+the design exercised — including the ones that need a **real run** rather than a
+dry-run (the flattened Wflow subtree changes emitted TOML pointer strings, and
+the HydroMT model-root ownership question is settled empirically); baseline
+manifest re-recorded exactly once as a documented value-identical re-record;
+`naming.md` §8 amended in the same milestone that adopts the tree.
+
+**Carries a known defect to fix, not inherit.** `validate_hm7` asserts the basin
+table's header is exactly the two perturbation-axis columns — true only when no
+basin-average outputs are configured, and therefore false under the shipped
+default `wflow_outvars`. The rename must not carry it forward unfixed.
+
+**Out of scope.** Multiple concurrent Wflow models; multiple retained ERA5
+windows; a project-level `runs/` hierarchy with execution-attempt manifests;
+the source-repository layout; any change to what the workflows compute.
+
+**Support decision.** Pre-existing `project_dir` trees are unsupported: a fresh
+run is required and no `mv` migration script ships. This restates R7's ruling
+GA-2 on the same grounds — no production trees exist and no external consumer
+reads artifact paths.
+
+**Tag.** `r09-project-tree` *(on seal)*.
+
+---
+
+## Phase 7 — Naming coherence (R10 OPEN)
+
+Registered 2026-08-04, out of the R9 inventory: mapping every rule's outputs made
+the rules' own names hard to ignore. Phases 4–6 worked on artifacts; Phase 7
+works on the identifiers that produce them.
+
+Split from Phase 6 rather than folded into it, for the reason Phase 5 was split
+from Phase 4. Rule identifiers are a **CLI contract surface** (`naming.md` §9),
+not part of the artifact tree, and no durable artifact path carries one — rule
+names reach `project_dir` only through transient log/benchmark part directories
+and as section labels inside two merged files. There is no shared cost to
+capture, and R9 is already carrying six kinds of change.
+
+### R10 — Rule naming (OPEN)
+
+**Status.** Design **ACCEPTED** by the owner 2026-08-04:
+`dev/milestones/r10/rule-naming-design.md`. Not implemented; no task brief, no
+branch.
+
+**Goal.** Every rule reads `<verb>_<noun>`, verb first, drawn from a controlled
+verb list so that two rules doing the same kind of work read the same. Ten of
+twenty-eight rules move; eighteen already conform and are named explicitly as
+not-to-touch.
+
+**The distinction that needed care.** `reduce_` and `derive_` both turn many
+inputs into few outputs. They are split by **position, not operation**:
+`reduce_` is an intermediate aggregation feeding a later rule
+(`reduce_gcm_series`), `derive_` computes a workflow's terminal product
+(`derive_change_factors`, `derive_wflow_indicators`). WF2's and WF3's final rules
+therefore read alike, which they should.
+
+**Defects being fixed.** Two rules carry no verb at all
+(`climate_stress_parameters`, `climate_data_catalog`); one verb is actively wrong
+(`export_wflow_results` — folded into R9); `setup_` duplicates `prepare_`;
+`weagen` and `proj` are contractions that appear in no path or directory; `_st`
+reads as a truncation; and `plot_results` / `plot_map` are vague beside their
+specific siblings.
+
+**The implementation trap.** Each rename touches three call sites — the `rule`
+identifier, its `log:`/`benchmark:` prefix, and its `LOG_RULES` entry. A missed
+`LOG_RULES` entry is **not an error**: `merge_logs` is deliberately scoped to that
+list, so the section silently vanishes from the merged log while its parts stay
+on disk forever.
+
+**Also in scope, independently landable.** `naming.md` §9 says `NN` is the step
+in *definition order*; WF2 defines 2.00, 2.03b, 2.03, 2.01, 2.02, … out of order,
+with gaps at 1.14, 2.05, 3.12. The recommendation is to **amend §9** — the number
+is a stable identifier assigned at creation, not a position — rather than
+renumber, which would churn every part path across all three workflows for
+nothing. `naming.md` should also gain the verb vocabulary; it has no rule-naming
+section today.
+
+**Exit criteria.** Design accepted *(done 2026-08-04)*; ten renames landed with
+`LOG_RULES` updated in the same edit; `migration_rule-names.md` recorded per §7;
+`pytest tests/` green; a full three-workflow run showing a merged-log section for
+every rule and no surviving `_parts/`; a repository-wide grep for each old name
+returning nothing outside the migration record; and `check_baseline check`
+passing **unchanged** — no renamed rule alters an output path or value.
+
+**Tag.** `r10-rule-naming` *(on seal)*.
 
 ---
 

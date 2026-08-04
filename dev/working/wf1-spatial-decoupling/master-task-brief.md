@@ -48,4 +48,9 @@ P2 starts with a bounded HydroMT-Wflow adapter proof. It may proceed only after 
 ### Phase brief index
 
 - [P1 — engine-neutral spatial maps](phase-1-spatial-maps-task-brief.md) — complete; Gate 1 approved
-- [P2 — Wflow-SBM model build](phase-2-wflow-build-task-brief.md) — implemented; Gate 2 review pending
+- [P2 — Wflow-SBM model build](phase-2-wflow-build-task-brief.md) — complete; Gates 2 and 3 approved, landed on `main` 2026-08-02 (`29ccde9`)
+
+**All three gates are closed and the work is merged.** This index said "Gate 2
+review pending" until 2026-08-04: `ad9702d` closed the gates in
+`phase-2-report.md` and `DEVLOG.md` but did not update this line, and R9's
+artifact inventory then inherited the stale status as a blocker.
