@@ -645,8 +645,12 @@ def validate_hm7(qstats_df: Any, basin_df: Any) -> list[str]:
     ``tavg,prcp`` plus ONE COLUMN PER CONFIGURED ``*_basavg`` VARIABLE, and an
     optional leading ``realization`` index. These are the response-surface
     hand-off to the platform. The gauge-column tie to HM-4/HM-5 is checked by
-    the relational ``validate_hm_gauge_column_identity``; the ``RT_*.csv`` side
-    tables are deliberately unpinned.
+    the relational ``validate_hm_gauge_column_identity``.
+
+    The ``RT_*.csv`` side tables this used to describe as "deliberately
+    unpinned" are GONE as of R9 P3: they had no in-repo consumer, were written
+    via ``params`` rather than declared, and so were invisible to ``--dry-run``.
+    Nothing replaces them.
 
     The basin check asserted ``== ["tavg", "prcp"]`` until 2026-08-04. That held
     only for the SEED CONFIG, whose ``wflow_outvars`` is ``["river discharge"]``

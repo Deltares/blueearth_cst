@@ -7,7 +7,6 @@ import os
 from pathlib import Path
 import pandas as pd
 import numpy as np
-import xarray as xr
 from typing import List, Union
 
 import blueearth_cst.shared.metrics_definition as md
@@ -162,7 +161,6 @@ def analyze_wflow_results(
         )
 
     log_row("Computing discharge stats for each realization/stress test", module="export")
-    Q_rps = []
     for i in range(np.size(df_out_mean, 0)):
         # Read csv file
         if not aggr_rlz:
@@ -251,19 +249,6 @@ def analyze_wflow_results(
             [["BaseFlowIndex"], cst_stat, df_BFI.values.round(4)]
         )
 
-        # Update return interval dataset
-        Q_rp = md.returnintervalmulti(sim)
-        # Add realization as new coords
-        Q_rp = Q_rp.assign_coords(scenario=i)
-        # Add a new dim for realization number
-        Q_rp = Q_rp.expand_dims("scenario")
-        # Add tavg coords that are function of scenario dim
-        if not aggr_rlz:
-            Q_rp = Q_rp.assign_coords(realization=("scenario", [rlz_nb]))
-        Q_rp = Q_rp.assign_coords(tavg=("scenario", [tavg]))
-        Q_rp = Q_rp.assign_coords(prcp=("scenario", [prcp]))
-        Q_rps.append(Q_rp)
-
         # Update basin average statistics table
         if not aggr_rlz:
             stats_basavg = np.array([rlz_nb, tavg, prcp])
@@ -308,24 +293,6 @@ def analyze_wflow_results(
     )
     df_out_Qstats.to_csv(qstats_fn, index=False)
 
-    # Merge Qrps list and save as one csv per loc
-    Q_rps = xr.concat(Q_rps, dim="scenario")
-    for v in Q_rps.data_vars:
-        df_rp = Q_rps[v].to_pandas().round(1)
-        # Reorder dims of Q_rp
-        if not aggr_rlz:
-            df_rp["realization"] = Q_rps["realization"].values
-        df_rp["tavg"] = Q_rps["tavg"].values
-        df_rp["prcp"] = Q_rps["prcp"].values
-        # Change column order of df
-        cols = df_rp.columns.tolist()
-        if not aggr_rlz:
-            cols = cols[-3:] + cols[:-3]
-        else:
-            cols = cols[-2:] + cols[:-2]
-        df_rp = df_rp[cols]
-        # Save to csv
-        df_rp.to_csv(os.path.join(results_dir, f"RT_{v}.csv"), index=False)
 
 
 if __name__ == "__main__":
