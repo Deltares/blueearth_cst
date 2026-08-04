@@ -48,7 +48,7 @@ from blueearth_cst.shared.snake_utils import slugify_window  # noqa: E402
 
 #: The store root, project-root-relative. Kept as one constant because R09 P2
 #: moves it to ``data/climate/historical/`` — one edit, not a search.
-STORE_ROOT = "climate_historical"
+STORE_ROOT = "data/climate/historical"
 
 
 def active_store_key(config: dict) -> str:

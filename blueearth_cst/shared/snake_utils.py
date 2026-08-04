@@ -829,7 +829,11 @@ def region_spec(
     RegionSpec
         ``region_geojson``, ``script``, ``inputs``, ``outputs``, ``params``.
     """
-    region_geojson = f"{project_dir}/spatial/geoms/region.geojson"
+    # R9 P2 commit 2: engine-neutral geometry lives under `data/` (design v10).
+    # Defined ONCE here and splatted into all three workflows' delineate_region
+    # rule, so the move lands in every workflow at the same instant --
+    # tests/test_region_spec.py parses all three and fails on any difference.
+    region_geojson = f"{project_dir}/data/spatial/geoms/region.geojson"
     return RegionSpec(
         region_geojson=region_geojson,
         script=REGION_SCRIPT,
@@ -938,7 +942,13 @@ def climate_store_spec(
     # experiments sharing clim_historical + historical_window resolve to the
     # same dir and reuse the extraction.
     store_key = f"{clim_source}_{slugify_window(starttime, endtime)}"
-    store_dir = f"{project_dir}/climate_historical/{store_key}"
+    # R9 P2 commit 2: the store moves under `data/climate/`, and the KEY IS
+    # RETAINED. `<clim_source>_<window>` is a cache key, not multi-window
+    # support (R9 design Finding 3): two experiments sharing a source and a
+    # window must still resolve to the same directory and reuse the extraction,
+    # so the path stays EXPERIMENT-INVARIANT across the move. That invariant is
+    # this commit's, and it is why the key survives the relocation unchanged.
+    store_dir = f"{project_dir}/data/climate/historical/{store_key}"
 
     outputs = {
         "climate_nc": f"{store_dir}/extract_historical.nc",

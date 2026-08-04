@@ -99,7 +99,7 @@ def staged_project(tmp_path):
     # (commit 4). Derive the key exactly as the Snakefile does.
     win = base["shared"]["historical_window"]
     key = f"{base['shared']['clim_historical']}_{slugify_window(win['starttime'], win['endtime'])}"
-    guard_ok = pdir / "climate_historical" / key / ".guard_ok"
+    guard_ok = pdir / "data" / "climate" / "historical" / key / ".guard_ok"
     return cfg_path, pdir, wf1, wf2, sentinel, guard_ok
 
 

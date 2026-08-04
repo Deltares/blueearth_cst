@@ -172,7 +172,12 @@ MAX_FLAGGED_MONTHS = _relative_cfg.get(
     "max_flagged_months", _dm.DEFAULT_MAX_FLAGGED_MONTHS
 )
 
-clim_project_dir = f"{project_dir}/climate_projections/{clim_project}"
+# R9 P2 commit 2: the projections overlay moves under `data/climate/`. ONE
+# binding carries every WF2 output below it, and the two cache tiers keep their
+# names -- `raw/` (as-fetched GCM slices) and `scalar/` (spatially reduced,
+# S8-03) -- so `prune_series_cache.py`, which is keyed to that grammar, keeps
+# working once repointed at the new root.
+clim_project_dir = f"{project_dir}/data/climate/projections/{clim_project}"
 
 # ONE producer contract, built here and identically in Snakefile_model_creation
 # and Snakefile_climate_experiment, and splatted into rule 1.01b / 2.03b / 3.01b.

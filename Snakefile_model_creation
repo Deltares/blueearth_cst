@@ -168,6 +168,12 @@ CONFIG_SNAPSHOT_DIR = (
 # and cannot make an existing project's drift guard refuse to run.
 basin_dir = f"{project_dir}/models/hydrology/wflow"
 
+# R9 P2 commit 2: engine-neutral geometry -- the region, the vector layers, the
+# location registry and the generated catalog that DESCRIBES them -- lives under
+# `data/`, reusable across engines and workflows (design v10). One binding, as
+# with basin_dir above.
+spatial_dir = f"{project_dir}/data/spatial"
+
 # The canonical climate figure set, one directory per dataset (rule 1.13 draws
 # the forcing, 1.15 the source). variable x kind is a fixed cross-product, so
 # unlike rule 1.11's per-station figures these are fully knowable at parse time
@@ -281,7 +287,7 @@ WF1_TERMINALS = [
     f"{basin_dir}/staticgeoms/outlet_index.csv",
     # P1 spatial foundation. One representative output schedules the complete
     # multi-output rule and makes both gather rules wait for its log/benchmark.
-    f"{project_dir}/spatial/spatial_catalog.yml",
+    f"{spatial_dir}/spatial_catalog.yml",
 ]
 
 # 1.00  all — target aggregator: full historical build + performance plots
@@ -355,15 +361,15 @@ rule prepare_spatial_maps:
         region_geojson = REGION.region_geojson,
         **_locations_input,
     output:
-        spatial_maps = f"{project_dir}/spatial/spatial_maps.nc",
-        basins = f"{project_dir}/spatial/geoms/basins.geojson",
-        subbasins = f"{project_dir}/spatial/geoms/subbasins.geojson",
-        catchments = f"{project_dir}/spatial/geoms/catchments.geojson",
-        rivers = f"{project_dir}/spatial/geoms/rivers.geojson",
-        locations = f"{project_dir}/spatial/geoms/locations.geojson",
-        location_registry = f"{project_dir}/spatial/location_registry.csv",
-        spatial_catalog = f"{project_dir}/spatial/spatial_catalog.yml",
-        spatial_report = f"{project_dir}/spatial/spatial_report.yml",
+        spatial_maps = f"{spatial_dir}/spatial_maps.nc",
+        basins = f"{spatial_dir}/geoms/basins.geojson",
+        subbasins = f"{spatial_dir}/geoms/subbasins.geojson",
+        catchments = f"{spatial_dir}/geoms/catchments.geojson",
+        rivers = f"{spatial_dir}/geoms/rivers.geojson",
+        locations = f"{spatial_dir}/geoms/locations.geojson",
+        location_registry = f"{spatial_dir}/location_registry.csv",
+        spatial_catalog = f"{spatial_dir}/spatial_catalog.yml",
+        spatial_report = f"{spatial_dir}/spatial_report.yml",
     params:
         basin_config = basin_cfg,
         model_config = my_cfg,
@@ -378,15 +384,15 @@ rule build_wflow_model:
     message: rule_banner("1.03", "build_wflow_model")
     input:
         parameter_template = model_build_config,
-        spatial_maps = f"{project_dir}/spatial/spatial_maps.nc",
-        basins = f"{project_dir}/spatial/geoms/basins.geojson",
-        subbasins = f"{project_dir}/spatial/geoms/subbasins.geojson",
-        catchments = f"{project_dir}/spatial/geoms/catchments.geojson",
-        rivers = f"{project_dir}/spatial/geoms/rivers.geojson",
-        locations = f"{project_dir}/spatial/geoms/locations.geojson",
-        location_registry = f"{project_dir}/spatial/location_registry.csv",
-        spatial_catalog = f"{project_dir}/spatial/spatial_catalog.yml",
-        spatial_report = f"{project_dir}/spatial/spatial_report.yml",
+        spatial_maps = f"{spatial_dir}/spatial_maps.nc",
+        basins = f"{spatial_dir}/geoms/basins.geojson",
+        subbasins = f"{spatial_dir}/geoms/subbasins.geojson",
+        catchments = f"{spatial_dir}/geoms/catchments.geojson",
+        rivers = f"{spatial_dir}/geoms/rivers.geojson",
+        locations = f"{spatial_dir}/geoms/locations.geojson",
+        location_registry = f"{spatial_dir}/location_registry.csv",
+        spatial_catalog = f"{spatial_dir}/spatial_catalog.yml",
+        spatial_report = f"{spatial_dir}/spatial_report.yml",
         data_catalogs = DATA_SOURCES,
     output:
         staticmaps = f"{basin_dir}/staticmaps.nc",
@@ -441,7 +447,7 @@ rule add_gauges_and_outputs:
         text = f"{basin_dir}/staticgeoms/reservoirs_lakes_glaciers.txt",
         # P2 already created gauge/outlet maps from this registry. This rule
         # only adds output declarations and verifies those identities.
-        location_registry = f"{project_dir}/spatial/location_registry.csv",
+        location_registry = f"{spatial_dir}/location_registry.csv",
     output:
         configured = touch(f"{basin_dir}/.outputs_configured"),
     params:
@@ -459,7 +465,7 @@ rule write_outlet_index:
     message: rule_banner("1.06", "write_outlet_index")
     input:
         outlets_path = f"{basin_dir}/staticgeoms/outlets.geojson",
-        location_registry = f"{project_dir}/spatial/location_registry.csv",
+        location_registry = f"{spatial_dir}/location_registry.csv",
     output:
         outlet_index_path = f"{basin_dir}/staticgeoms/outlet_index.csv"
     log:
@@ -590,7 +596,7 @@ rule plot_results:
        # positions AND the observed series, so either changing must re-evaluate.
        **_locations_input,
        **_observations_input,
-       location_registry = f"{project_dir}/spatial/location_registry.csv",
+       location_registry = f"{spatial_dir}/location_registry.csv",
        script = "blueearth_cst/model/plot_results.py"
    # R07 B10 + O-24. The artifacts move into the engine subtree, split by KIND
    # (P1): figures under evaluation/plots/, the metrics table one level up in

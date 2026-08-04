@@ -624,14 +624,21 @@ def _spec(**overrides):
 
 
 def test_climate_store_spec_key_matches_the_pre_r07_wf3_construction():
-    """The store dir must be byte-identical to the key wf3 built inline."""
+    """The store KEY must be byte-identical to the one wf3 built inline.
+
+    R9 P2 moved the store under `data/climate/`, but the key is the load-bearing
+    half: it is a CACHE key (R9 design Finding 3), so two experiments sharing a
+    source and a window must still land on one directory. The assertion is split
+    accordingly -- the root moved, the key did not.
+    """
     spec = _spec()
-    assert spec.store_dir == "/proj/climate_historical/era5_20000101_20201231"
+    assert spec.store_dir == "/proj/data/climate/historical/era5_20000101_20201231"
+    assert spec.store_dir.endswith("/era5_20000101_20201231")
     assert spec.outputs["climate_nc"] == f"{spec.store_dir}/extract_historical.nc"
     # ADR 0003: the polygon is no longer a per-store-key output. It is the one
     # project artifact, and the store declares it as an INPUT.
     assert "region_geojson" not in spec.outputs
-    assert spec.inputs["region_geojson"] == "/proj/spatial/geoms/region.geojson"
+    assert spec.inputs["region_geojson"] == "/proj/data/spatial/geoms/region.geojson"
 
 
 def test_climate_store_spec_inputs_are_the_catalog_and_the_region():
@@ -644,7 +651,7 @@ def test_climate_store_spec_inputs_are_the_catalog_and_the_region():
     spec = _spec()
     assert spec.inputs == {
         "catalog": "config/catalogs/deltares_data.yml",
-        "region_geojson": "/proj/spatial/geoms/region.geojson",
+        "region_geojson": "/proj/data/spatial/geoms/region.geojson",
     }
 
 

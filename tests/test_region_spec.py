@@ -38,7 +38,7 @@ def _spec(**overrides):
 def test_the_artifact_sits_with_the_other_project_geoms():
     """One polygon per project, beside basins/catchments/locations."""
     spec = _spec()
-    assert spec.region_geojson == "/proj/spatial/geoms/region.geojson"
+    assert spec.region_geojson == "/proj/data/spatial/geoms/region.geojson"
     assert spec.outputs == {"region_geojson": spec.region_geojson}
 
 
@@ -175,7 +175,7 @@ def test_the_output_is_the_shared_artifact(declarations):
         paths = [str(path) for path in rule.output]
         assert len(paths) == 1, f"{label}: {paths}"
         assert paths[0].replace("\\", "/").endswith(
-            "/spatial/geoms/region.geojson"
+            "/data/spatial/geoms/region.geojson"
         ), f"{label}: {paths[0]}"
 
 
