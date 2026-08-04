@@ -167,8 +167,16 @@ CONFIG_SNAPSHOT_DIR = (
 # inmaps_rlz_* are wflow-GRID downscaled forcing (rule 3.09) -- the per-
 # realization twin of hydrology_model/forcing/inmaps_historical.nc -- so they
 # belong to the hydrology side, not to weather_generator/output/.
-wg_dir = f"{exp_dir}/weather_generator"
-runs_dir = f"{exp_dir}/hydrology_runs"
+# R9 P2 commit 3. The generator subtree moves under climate/ and takes the
+# engine's own name; `output/` is RETAINED as the directory name (R7 G1 ruling
+# OQ-4) so it keeps holding the date tables as well as the series, and mirrors
+# hydrology/wflow/output/.
+wg_dir = f"{exp_dir}/climate/weathergenr"
+# The rlz_<r>/ LEVEL DISSOLVES: members are keyed by filename again, as they
+# were before R7 moved the index into a directory. R9 moves it back --
+# hydrology/wflow/{config,forcing,output}/rlz_<r>_cst_<c>.*  -- so one member is
+# one filename in three flat directories.
+runs_dir = f"{exp_dir}/hydrology/wflow"
 # B7: "indicators" is the CST term for the reduction's response-surface tables.
 # "outputs" was rejected -- hydrology_runs/ also holds outputs.
 indicators_dir = f"{exp_dir}/indicators"
@@ -516,8 +524,8 @@ rule downscale_climate_realization:
         nc = f"{wg_dir}/output/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc",
         data_sources = [f"{exp_dir}/data_catalog_climate_experiment.yml", DATA_SOURCES]
     output:
-        nc = temp(f"{runs_dir}/rlz_"+"{rlz_num}"+"/forcing/inmaps_cst_"+"{st_num}"+".nc"),
-        toml = f"{runs_dir}/rlz_"+"{rlz_num}"+"/config/cst_"+"{st_num}"+".toml"
+        nc = temp(f"{runs_dir}/forcing/inmaps_rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc"),
+        toml = f"{runs_dir}/config/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".toml"
     params:
         model_dir = basin_dir,
         clim_source = clim_source,
@@ -587,14 +595,14 @@ for _b, _members in _batches.items():
         name: f"run_wflow_batch_{_b}"
         message: rule_banner("3.10", f"run_wflow_batch_{_b}")
         input:
-            forcing = [f"{runs_dir}/rlz_{r}/forcing/inmaps_cst_{c}.nc"
+            forcing = [f"{runs_dir}/forcing/inmaps_rlz_{r}_cst_{c}.nc"
                        for (r, c) in _members],
-            tomls = [f"{runs_dir}/rlz_{r}/config/cst_{c}.toml"
+            tomls = [f"{runs_dir}/config/rlz_{r}_cst_{c}.toml"
                      for (r, c) in _members],
         output:
-            csvs = [f"{runs_dir}/rlz_{r}/output/cst_{c}.csv"
+            csvs = [f"{runs_dir}/output/rlz_{r}_cst_{c}.csv"
                     for (r, c) in _members],
-            states = [temp(f"{runs_dir}/rlz_{r}/output/outstates_cst_{c}.nc")
+            states = [temp(f"{runs_dir}/output/outstates_rlz_{r}_cst_{c}.nc")
                       for (r, c) in _members],
         params:
             members = _members,
@@ -610,7 +618,7 @@ for _b, _members in _batches.items():
 rule export_wflow_results:
     message: rule_banner("3.11", "export_wflow_results")
     input:
-        rlz_csv_fns = expand((f"{runs_dir}/rlz_"+"{rlz_num}"+"/output/cst_"+"{st_num}"+".csv"), rlz_num=np.arange(1, RLZ_NUM+1), st_num=np.arange(ST_START, ST_NUM+1)),
+        rlz_csv_fns = expand((f"{runs_dir}/output/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".csv"), rlz_num=np.arange(1, RLZ_NUM+1), st_num=np.arange(ST_START, ST_NUM+1)),
         # R07 B6: the perturbation grid was an UNDECLARED runtime read
         # (export_wflow_results.py reconstructed the path from exp_dir), so it
         # was invisible to --dry-run. It is enumerable from ST_NUM, so declare

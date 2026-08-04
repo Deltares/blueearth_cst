@@ -867,6 +867,50 @@ class ClimateStoreSpec:
     params: Mapping
 
 
+def member_pointer_base(config_out_fn) -> tuple[str, str]:
+    """Derive one stress-test member's ``run_name`` and output prefix.
+
+    Pure, and it lives here rather than in ``downscale_climate_forcing.py``
+    because that module reads the ``snakemake`` global at import time and so
+    cannot be imported by a test. Separating it makes the PER-MEMBER KEYING
+    testable without a Wflow run.
+
+    Every member-specific pointer the caller writes -- the output CSV, the
+    outstate NetCDF, and ``[logging] path_log`` -- is built from these two
+    values, so distinct values per member imply distinct pointers per member.
+    That is the cheap half of R9 P2's concurrency falsifier. The expensive half
+    -- content attribution under a real concurrent batch -- still needs a run,
+    because two members could be keyed apart here and still collide if wflow
+    ignored the pointer.
+
+    ``out_prefix`` is relative, POSIX and trailing-separated: wflow resolves
+    output pointers against ``dirname(toml) + dir_output``, and ``dir_output``
+    stays ``"."``, so the config/ -> output/ sibling hop rides in the pointers
+    themselves. Keeping the hop out of ``dir_output`` also keeps
+    ``semantic_tree_diff``'s TOML comparator correct: it resolves these fields
+    lexically against the toml's own directory and does not read ``dir_output``.
+
+    Parameters
+    ----------
+    config_out_fn : str | Path
+        The member's DECLARED run-TOML path, e.g.
+        ``experiments/<id>/hydrology/wflow/config/rlz_1_cst_2.toml``.
+
+    Returns
+    -------
+    (run_name, out_prefix)
+        The TOML stem, and a relative prefix pointing at the sibling
+        ``output/`` directory.
+    """
+    config_out_fn = Path(config_out_fn)
+    config_out_root = os.path.dirname(config_out_fn)
+    run_output_dir = Path(config_out_root).parent / "output"
+    out_prefix = (
+        Path(os.path.relpath(run_output_dir, config_out_root)).as_posix() + "/"
+    )
+    return config_out_fn.stem, out_prefix
+
+
 def climate_store_spec(
     project_dir,
     model_region,
