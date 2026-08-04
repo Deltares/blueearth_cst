@@ -2,7 +2,7 @@
 
 Status: ACCEPTED by the owner, 2026-08-04. External review waived at this stage.
 
-Document version: v7
+Document version: v8
 
 Date: 2026-08-04
 
@@ -34,7 +34,7 @@ than assumed:
    it, which is the outcome an external review is normally relied on to produce.
 2. **The reviewer contract below is intact and unexercised.** It is held in
    reserve, not deleted: a later review can run against this document without
-   rework, and would target `doc_version: v7`.
+   rework, and would target `doc_version: v8`.
 
 Acceptance covers the placement contract, the naming rule, the four v2
 decisions, and the nine v4 rulings. It does not substitute for the validation
@@ -96,6 +96,32 @@ generalised from them.
 | `cmip6/change_factors/` | two files under `cmip6/summary/` | **Keep them in `summary/`.** A directory for two files violates P5, and `summary/` is coherent as WF2's reduced products — composition, provenance, and the change-factor tables. Splitting them out leaves `summary/` holding only metadata. |
 
 `report.md` is placed at the `cmip6/` root by the same pass.
+
+### Four unplaced artifact classes, and a defect the flattening would introduce (v8)
+
+| Artifact | Ruling |
+| --- | --- |
+| `sim_dates.csv`, `resampled_dates.csv` | `series/` **renamed `output/`**. These are generator *products*, and R7's G1 ruling OQ-4 already split products (`output/`) from per-member configs (`_work/`); `series/` was narrower than its contents. `output/` also mirrors `hydrology/wflow/output/`, restoring the two-engine symmetry B5 was for. |
+| Wflow's own `log.txt` | **Defect, not a gap** — see below. Given an explicit per-member path under `hydrology/wflow/output/`. |
+| `.model_built`, `.outputs_configured` | Stay at the model root. Generalised: *every* sentinel lives beside what it guards, build sentinels included. |
+| `data/spatial/**` | Placeholders replaced with the emitted set. `region.geojson` was drawn here but exists only as `models/hydrology/wflow/staticgeoms/region.geojson` and the store's `store_region.geojson`; `gauges.geojson` does not exist at all. Rows provisional pending the spatial work's Gate 2. |
+
+**The defect.** Wflow's `[logging] path_log` defaults to `"log.txt"`, resolved
+against the TOML's own directory (`docs/wflow-user-guide/03-toml-file.md:47`) —
+which is why the current tree holds one `log.txt` per `rlz_<r>/config/`. Removing
+that directory level puts **every member's log at the same path**, and rule 3.10
+runs members concurrently in batches, so this is a race on one file rather than a
+tidy overwrite. It would have shipped as a real defect of the flattening.
+
+The fix is one line in `downscale_climate_forcing.py`, reusing pointers that are
+already layout-derived and mirroring how `output.csv.path` is built:
+
+```python
+"[logging] path_log": f"{out_prefix}{run_name}.log",
+```
+
+This is the only **code** change the placement pass produced; the other three
+cost corrections to this document alone.
 
 Nothing else in this document was affected: `models/`, `experiments/`, `logs/`,
 and `benchmarks/` were all confirmed against declared outputs.
@@ -264,11 +290,13 @@ code only with an argument.
 │   └── observations/                      # GENERATED  snapshots of obs inputs
 │
 ├── data/                                  # reusable, engine-independent data
-│   ├── spatial/
-│   │   ├── region.geojson
-│   │   ├── gauges.geojson
-│   │   ├── spatial_catalog.yml            # GENERATED catalog, travels with its producer
-│   │   └── ...
+│   ├── spatial/                          # PROVISIONAL — spatial work's Gate 2 pending
+│   │   ├── spatial_maps.nc
+│   │   ├── spatial_catalog.yml            # generated catalog DESCRIBING this data
+│   │   ├── spatial_report.yml
+│   │   ├── location_registry.csv
+│   │   └── geoms/
+│   │       └── {basins,catchments,locations,rivers,subbasins}.geojson
 │   ├── climate/
 │   │   ├── historical/
 │   │   │   └── <source>_<window>/        # CACHE KEY (source + window), NOT
@@ -323,9 +351,11 @@ code only with an argument.
 │       ├── climate/
 │       │   └── weathergenr/
 │       │       ├── config/
-│       │       ├── series/               # stochastic and perturbed climate series
-│       │       │   ├── rlz_<r>.nc
-│       │       │   └── rlz_<r>_cst_<c>.nc
+│       │       ├── output/               # generator PRODUCTS (R7 G1 ruling OQ-4);
+│       │       │   ├── rlz_<r>.nc        # named output/ not series/ to hold the
+│       │       │   ├── rlz_<r>_cst_<c>.nc#   date tables too, and to mirror
+│       │       │   ├── sim_dates.csv     #   hydrology/wflow/output/
+│       │       │   └── resampled_dates.csv
 │       │       ├── plots/                # generator diagnostics only
 │       │       └── _work/                # retained engine intermediates
 │       ├── hydrology/
@@ -336,6 +366,7 @@ code only with an argument.
 │       │       │   └── inmaps_rlz_<r>_cst_<c>.nc
 │       │       └── output/
 │       │           ├── rlz_<r>_cst_<c>.csv
+│       │           ├── rlz_<r>_cst_<c>.log   # Wflow's own log — see Correction (v8)
 │       │           └── outstates_rlz_<r>_cst_<c>.nc
 │       ├── results/                      # machine-readable experiment products
 │       │   ├── q_indicators.csv          # gauge-point discharge statistics
@@ -364,7 +395,7 @@ code only with an argument.
 | Observed discharge | `data/hydrology/observations/` | Observation, not model output |
 | Wflow `staticmaps.nc`, TOML, states, forcing, and historical run | `models/hydrology/wflow/` | Engine-shaped live model artifacts |
 | Generated HydroMT build YAML | `models/hydrology/wflow/config/` | Provenance of the model it built |
-| Generated and perturbed weather series | `experiments/<id>/climate/weathergenr/series/` | Experiment-specific climate simulation |
+| Generated weather series and the generator's date tables | `experiments/<id>/climate/weathergenr/output/` | Generator products (R7 G1 ruling OQ-4). Named `output/`, mirroring `hydrology/wflow/output/` |
 | Wflow stress-test configs, forcing, and outputs | `experiments/<id>/hydrology/wflow/{config,forcing,output}/` | Experiment-specific hydrological simulation, one member per file |
 | Discharge statistics at gauge points (mean, min, max, q95, 7-day extremes, BFI, return intervals) | `experiments/<id>/results/q_indicators.csv` | Point-support response-surface input |
 | Basin-averaged fluxes and states (evapotranspiration, recharge, overland flow, peak snow water equivalent; mm/yr, set by `wflow_outvars`) | `experiments/<id>/results/basin_indicators.csv` | Areal-support response-surface input |
@@ -373,7 +404,7 @@ code only with an argument.
 | WF1/WF2 run log and benchmark | `logs/`, `benchmarks/` at the project root | P7 — project-scoped producers |
 | WF3 run log and benchmark | `experiments/<id>/logs/`, `.../benchmarks/` | P7 — experiment-scoped producer |
 | Workflow DAG renders | `logs/dag/` (WF1/WF2), `experiments/<id>/logs/dag/` (WF3) | Generated run record, at the producing run's scope (P7). Must NOT sit under the editable `config/`, which would violate P4 |
-| Guard and consistency sentinels | Beside what they guard — `experiments/<id>/.project_consistency_ok`, `data/climate/historical/era5/.guard_ok` | The guard's path must be experiment-invariant; see *Incremental-execution constraint* |
+| Guard, consistency and **build** sentinels | Beside what they guard — `experiments/<id>/.project_consistency_ok`, the climate store's `.guard_ok`, and the model root's `.model_built` / `.outputs_configured` | One rule for every sentinel. The guard's path must additionally stay experiment-invariant; see *Incremental-execution constraint* |
 
 ## Naming rule for generated artifacts
 
@@ -596,6 +627,9 @@ Neutral obligations:
   rename record (old → new mapping) and a re-recorded baseline manifest;
 - exact catalog/template names and all undeclared artifacts must be resolved
   during implementation inventory;
+- Wflow's log path must be set explicitly per member before the `rlz_<r>/` level
+  is removed, or concurrent batch members race on one `log.txt`. The removal and
+  the `path_log` setting must land in the **same commit**;
 - the pruning tooling must learn to report **orphaned climate-store directories**.
   Keeping the store's cache key means a changed window strands its predecessor on
   disk, and `prune_series_cache.py` covers the WF2 series class only, so "one
@@ -656,7 +690,11 @@ An implementation design should include at least these falsifiers:
     error naming the existing experiment, while a same-day generated default
     collides into `_v2`; and that `experiment.yml` is writable before the first
     successful run and refused after it.
-15. Build the model and then run a HydroMT `update` against it; confirm the
+15. Run two stress-test members concurrently in one batch and assert that each
+    writes its own Wflow log — two distinct, non-empty files under
+    `hydrology/wflow/output/`. This is the falsifier for the `path_log` fix; the
+    defect it guards is a race, so a single-member run cannot detect it.
+16. Build the model and then run a HydroMT `update` against it; confirm the
     generated `config/` subdirectory and its contents survive. This is the
     empirical check that HydroMT asserts no ownership over unknown
     subdirectories of the model root (question 3).
@@ -701,7 +739,7 @@ Return only Markdown with this structure:
 ```text
 ## Verdict
 verdict: approve | revise | reject
-doc_version: v7
+doc_version: v8
 
 ## Findings
 ### ext1-01 [blocking | major | minor]
@@ -735,6 +773,19 @@ List findings in severity order. An empty findings section with
   unexercised. Versioned rather than edited in place so that document version
   and document content stay one-to-one, which the reviewer response schema
   depends on.
+- 2026-08-04, v8: Placed the four remaining unplaced artifact classes, closing
+  the path map except the WF1/spatial rows. `series/` renamed **`output/`** — the
+  generator's date tables are products under R7's G1 ruling OQ-4, and `output/`
+  mirrors `hydrology/wflow/output/`, restoring the engine symmetry `series/`
+  broke. Build sentinels join guard sentinels under one rule: a sentinel lives
+  beside what it guards. `data/spatial/` placeholders replaced with the emitted
+  set — neither `region.geojson` nor `gauges.geojson` existed at that path — and
+  marked provisional pending the spatial work's Gate 2. **One defect found:**
+  Wflow's `path_log` defaults to `log.txt` beside the TOML, so removing the
+  `rlz_<r>/` level makes every concurrently-batched member race on one file. Fixed
+  by setting `path_log` per member from the existing layout-derived pointers; the
+  removal and the fix must land in the same commit, and falsifier 15 is the
+  concurrency check that a single-member run cannot perform.
 - 2026-08-04, v7: Three tree shapes corrected toward the code, none costing an
   implementation change. The climate store keeps its source+window **cache key**
   (P3-1 §4) rather than collapsing to a fixed `era5/`, and the settled framing is

@@ -1,8 +1,9 @@
 # Migration — project tree (R9)
 
-Status: **DRAFT — Findings 1 and 3 ruled (2026-08-04).** Outstanding: four
-unplaced artifact classes, and the provisional WF1 rows pending the spatial
-work's Gate 2 (Finding 2).
+Status: **COMPLETE except the WF1/spatial rows** (2026-08-04). Findings 1 and 3
+ruled; all previously unplaced artifact classes placed at design v8. The only
+outstanding item is Finding 2 — the WF1/spatial rows are provisional until the
+spatial work's Gate 2 closes.
 
 Date: 2026-08-04
 
@@ -138,7 +139,7 @@ what design principle P9 now generalises.
 | `<P>/hydrology_model/run_default/*` | `models/hydrology/wflow/run_default/*` |
 | `<P>/hydrology_model/evaluation/*` | `models/hydrology/wflow/evaluation/*` |
 | `<P>/hydrology_model/plots/basin_area.{png,pdf}` | `models/hydrology/wflow/plots/basin_area.{png,pdf}` |
-| `<P>/hydrology_model/.model_built` | `models/hydrology/wflow/.model_built` |
+| `<P>/hydrology_model/.model_built` | `models/hydrology/wflow/.model_built` (sentinel rule) |
 | `<P>/hydrology_model/.outputs_configured` | `models/hydrology/wflow/.outputs_configured` |
 | `<P>/config/generated/wflow_build_model_run.yml` | `models/hydrology/wflow/config/build_model.yml` |
 | `<P>/config/generated/wflow_build_forcing_historical.yml` | `models/hydrology/wflow/config/build_historical_forcing.yml` |
@@ -174,20 +175,20 @@ never normalized by the naming rule.
 
 | Old | New |
 | --- | --- |
-| `weather_generator/output/rlz_<r>_cst_<c>.nc` | `climate/weathergenr/series/rlz_<r>_cst_<c>.nc` |
+| `weather_generator/output/rlz_<r>_cst_<c>.nc` | `climate/weathergenr/output/rlz_<r>_cst_<c>.nc` |
 | `weather_generator/config/weathergen_config.yml` | `climate/weathergenr/config/weathergen_config.yml` |
 | `weather_generator/_work/*` | `climate/weathergenr/_work/*` |
 | `weather_generator/plots/*.png` | `climate/weathergenr/plots/*.png` |
-| `weather_generator/output/{sim_dates,resampled_dates}.csv` | **unplaced** — see gaps |
+| `weather_generator/output/{sim_dates,resampled_dates}.csv` | `climate/weathergenr/output/…` (identity) |
 | `hydrology_runs/rlz_<r>/config/cst_<c>.toml` | `hydrology/wflow/config/rlz_<r>_cst_<c>.toml` |
 | `hydrology_runs/rlz_<r>/forcing/inmaps_cst_<c>.nc` | `hydrology/wflow/forcing/inmaps_rlz_<r>_cst_<c>.nc` |
 | `hydrology_runs/rlz_<r>/output/cst_<c>.csv` | `hydrology/wflow/output/rlz_<r>_cst_<c>.csv` |
 | `hydrology_runs/rlz_<r>/output/outstates_cst_<c>.nc` | `hydrology/wflow/output/outstates_rlz_<r>_cst_<c>.nc` |
-| `hydrology_runs/rlz_<r>/config/log.txt` | **unplaced** — Wflow driver log, see gaps |
+| `hydrology_runs/rlz_<r>/config/log.txt` | `hydrology/wflow/output/rlz_<r>_cst_<c>.log` — **requires a code change**, see below |
 | `indicators/Qstats.csv` | `results/q_indicators.csv` |
 | `indicators/basin.csv` | `results/basin_indicators.csv` |
 | `indicators/RT_*.csv` | **deleted** — not migrated (v2 decision 3) |
-| `data_catalog_climate_experiment.yml` | **unplaced** — generated catalog at the experiment root |
+| `data_catalog_climate_experiment.yml` | `config/catalogs/data_catalog_climate_experiment.yml` (v6 ruling) |
 | `.project_consistency_ok` | `.project_consistency_ok` (unchanged) |
 | `logs/*`, `benchmarks/*` | `logs/*`, `benchmarks/*` (unchanged) |
 | `config/snake_config_climate_experiment.yml` | unchanged (identity) |
@@ -220,20 +221,25 @@ never normalized by the naming rule.
 
 ---
 
-## Artifacts the v4 design does not place
+## Placement of the previously unplaced classes
 
-Each needs a home before the task brief:
+All closed at design v8 (and v6/v7 for two of them). One is not a pure move:
 
-2. `weather_generator/output/{sim_dates,resampled_dates}.csv` — generator
-   products that are not per-member series; `series/` or `_work/`?
-4. `hydrology_runs/rlz_<r>/config/log.txt` — written by the Wflow driver, not by
-   a Snakemake `log:`. Undeclared. With the `rlz_<r>/` level gone it has no
-   obvious home and would collide across members if left in `config/`.
-5. `hydrology_model/{.model_built,.outputs_configured}` — build sentinels. The
-   design places guard sentinels but not build sentinels.
-6. `spatial/spatial_report.yml`, `location_registry.csv` — post-date the design;
-   `data/spatial/` is drawn as `region.geojson` + `gauges.geojson` + `...`, and
-   neither of those filenames exists. The real set is above.
+| Artifact | Home | Cost |
+| --- | --- | --- |
+| `data_catalog_climate_experiment.yml` | `experiments/<id>/config/catalogs/` | none (v6 ruling) |
+| `cmip6/report.md` | `data/climate/projections/cmip6/report.md` | none (v7) |
+| `sim_dates.csv`, `resampled_dates.csv` | `climate/weathergenr/output/` | none — `series/` renamed `output/` |
+| `.model_built`, `.outputs_configured` | model root | none — sentinel rule generalised |
+| `spatial/*` | `data/spatial/**` | none, but **provisional** (Finding 2) |
+| Wflow's `log.txt` | `hydrology/wflow/output/rlz_<r>_cst_<c>.log` | **one-line code change** |
+
+**The `log.txt` row is a defect, not a move.** Wflow's `[logging] path_log`
+defaults to `log.txt` beside the TOML, so removing the `rlz_<r>/` level puts every
+member's log at one path — and rule 3.10 batches members concurrently, making it a
+race rather than an overwrite. Set `path_log` per member from the existing
+layout-derived pointers, **in the same commit that removes the directory level**.
+Falsifier 15 in the design is the concurrency check.
 
 ## Orphans in the fixture — do NOT map
 
@@ -252,8 +258,9 @@ orphans are not covered by it.
 
 1. ~~Rule Finding 1~~ **done 2026-08-04** — option (A), design v6.
 2. ~~Rule Finding 3's three mismatches~~ **done 2026-08-04** — design v7.
-3. Place the six unplaced artifact classes.
-4. Re-derive the WF1/spatial rows after Gate 2 closes (Finding 2).
+3. ~~Place the unplaced artifact classes~~ **done 2026-08-04** — design v8.
+4. **Re-derive the WF1/spatial rows after Gate 2 closes (Finding 2)** — the only
+   item still open.
 5. Materialize a **clean** fixture from current code — the existing one cannot
    validate this map — and diff it against the completed map.
 6. Encode the map as regex rules alongside `build_r07_path_map`.
