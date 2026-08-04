@@ -57,6 +57,65 @@ rather than by analogy.
    assigned at rule creation**, not a position — WF2 already defines rules out of
    numeric order with gaps at 1.14, 2.05, 3.12, so the current wording is false.
 
+
+### Discovered during P1–P4 — verified, with evidence
+
+Added 2026-08-04, after the four implementation phases ran. Each was found by
+running the pipeline rather than by reading, and each is verified against the
+code or the built tree rather than asserted. They are **additions** to the checklist above, not
+corrections to it.
+
+7. **`AGENTS.md:114` documents the wrong DAG-render path.** It says
+   `config/dag/<project_name>_wf<N>_dag.png`; P2 commit 4 moved renders to
+   `logs/dag/` (WF1/WF2) and `experiments/<id>/logs/dag/` (WF3), under design
+   principles P4 and P7. Agent-facing, so a stale command here misdirects the
+   next session rather than merely confusing a reader.
+
+8. **`AGENTS.md:136` is factually wrong about the pixi environment.** It states
+   the env is shared and "a worktree resolves to the primary's copy instead of
+   building its own". It does not: each worktree carries its own tracked
+   `pixi.toml`, so pixi creates a separate `.pixi/` beside it. Measured in P2 —
+   WF3 failed in a task worktree with `there is no package called 'weathergenr'`
+   because that package comes from `pixi run install` (remotes), not from
+   `pixi install`.
+   The passage also *advises* on the strength of that mechanism — telling a task
+   that changes `pixi.toml`/`pixi.lock` to build its own env "rather than
+   inherit" — so the advice is premised on an inheritance that does not happen.
+   Correct both the claim and the advice; the disk-cost figure needs re-checking
+   too.
+
+9. **`project-tree-design.md:129` asserts a file does not exist where it does.**
+   It states `region.geojson` "exists only as
+   `models/hydrology/wflow/staticgeoms/region.geojson` and the store's
+   `store_region.geojson`". `data/spatial/geoms/region.geojson` is written by
+   rule `delineate_region` (ADR 0003) — `snake_utils.py:836` — and is present in
+   the declared inventory, the observed inventory and the built tree.
+   This is the root of P1's F1a, where the migration map's `data/` row
+   enumerated five geoms layers and the code writes six. The map was amended;
+   **the design doc was not**, and it is the more authoritative document.
+   This is a design-record correction rather than documentation polish, so rule
+   it explicitly rather than editing in passing.
+
+10. **`AGENTS.md` does not mention P1's tooling.** `dev/scripts/prune_climate_store.py`,
+    `dev/scripts/snapshot_project_tree.py` and the `pixi run tree-check` task are
+    absent from both the Repo Map and Key Commands. The Repo Map currently names
+    `prune_series_cache.py` as though it were the only pruning helper.
+
+11. **Extend the grep falsifier's term list.** P3 renamed the rule identifier and
+    P2 moved `data_catalog_climate_experiment.yml`, so add `export_wflow_results`,
+    `basin.csv`, `config/dag/`, and `indicators/` to the terms below. `Qstats`
+    and `RT_` are already listed and remain correct.
+
+**One caution for the grep falsifier.** Its surviving hits will include this
+milestone's own reports and briefs, which describe the old tree deliberately and
+at length — `phase-1-report.md` alone discusses `hydrology_model/` throughout.
+Those are records of what was done, not documentation of the current tree, and
+justifying them one by one would swamp the report. Justify by CLASS: sealed
+records under `dev/milestones/r0[1-8]/`, R9's own phase reports and briefs, and
+the comparator's path-map source side (`build_r09_path_map`, both inventories,
+and their tests) all legitimately name old paths. Anything outside those classes
+is a real hit.
+
 ### Validation
 
 This phase changes no behaviour, so it has no narrow test scope — the grep below
