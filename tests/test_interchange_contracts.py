@@ -611,8 +611,8 @@ def test_hm5_integration():
 
 @pytest.mark.skipif(not _fixture_present(), reason=_FIXTURE_ABSENT)
 def test_hm7_integration():
-    qstats = pd.read_csv(join(_EXP, "indicators", "Qstats.csv"))
-    basin = pd.read_csv(join(_EXP, "indicators", "basin.csv"))
+    qstats = pd.read_csv(join(_EXP, "results", "q_indicators.csv"))
+    basin = pd.read_csv(join(_EXP, "results", "basin_indicators.csv"))
     assert ic.validate_hm7(qstats, basin) == []
 
 
@@ -633,7 +633,7 @@ def test_gauge_identity_integration(rlz, cst):
     output_rlz = pd.read_csv(
         join(_EXP, "hydrology_runs", f"rlz_{rlz}", "output", f"cst_{cst}.csv")
     )
-    qstats = pd.read_csv(join(_EXP, "indicators", "Qstats.csv"))
+    qstats = pd.read_csv(join(_EXP, "results", "q_indicators.csv"))
     assert ic.validate_hm_gauge_column_identity(toml_cfg, output_rlz, qstats) == []
 
 

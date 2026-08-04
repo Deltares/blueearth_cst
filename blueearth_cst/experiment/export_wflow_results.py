@@ -74,11 +74,11 @@ def analyze_wflow_results(
     qstats_fn : Union[str, Path], optional
         Path to the output csv file with the discharge statistics for each
         realization/stress test.
-        If None will be saved in `indicators_dir/Qstats.csv`.
+        If None will be saved in `indicators_dir/q_indicators.csv`.
     bas_fn : Union[str, Path], optional
         Path to the output csv file with the basin average statistics for each
         realization/stress test.
-        If None will be saved in `indicators_dir/basin.csv`.
+        If None will be saved in `indicators_dir/basin_indicators.csv`.
     Tpeak : int, optional
         Return period for high flows (in years), by default 10
     Tlow : int, optional
@@ -88,9 +88,9 @@ def analyze_wflow_results(
     """
     # Output file paths
     if qstats_fn is None:
-        qstats_fn = f"{indicators_dir}/Qstats.csv"
+        qstats_fn = f"{indicators_dir}/q_indicators.csv"
     if bas_fn is None:
-        bas_fn = f"{indicators_dir}/basin.csv"
+        bas_fn = f"{indicators_dir}/basin_indicators.csv"
 
     # cst_<m>.csv lookup, keyed by the stress-test index in the file name.
     # cst_0 is the reserved unperturbed baseline and has no file (naming.md §4),
@@ -339,8 +339,8 @@ if __name__ == "__main__":
                 st_csv_fns=sm.input.st_csv_fns,
                 indicators_dir=sm.params.indicators_dir,
                 st_num=sm.params.st_num,
-                qstats_fn=sm.output.Qstats,
-                bas_fn=sm.output.basin,
+                qstats_fn=sm.output.q_indicators,
+                bas_fn=sm.output.basin_indicators,
                 Tpeak=sm.params.Tpeak,
                 Tlow=sm.params.Tlow,
                 aggr_rlz=sm.params.aggr_rlz,
