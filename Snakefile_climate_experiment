@@ -265,6 +265,7 @@ LOG_RULES = [
     # is outside P4's permitted scope (phase-4 report).
     "3.01b_delineate_region",
     "3.01c_write_model_reference",
+    "3.01d_check_model_reference",
     # 3.02 is the SHARED store rule (= WF1's 1.10). Run in pipeline order WF1
     # builds the store and WF3 finds it current, so this section usually reads
     # "no part from this run". Listed anyway: WF3 standalone does build it, and
@@ -399,6 +400,37 @@ rule write_model_reference:
     benchmark:
         f"{exp_dir}/benchmarks/_parts/3.01c_write_model_reference.tsv",
     script: "blueearth_cst/experiment/write_model_reference.py"
+
+# 3.01d  check_model_reference — refuse to simulate against a changed model.
+#
+# ORDERING IS THE WHOLE GUARD. A check that runs after the work is a post-mortem:
+# the forcing would already be downscaled and the members already run, against
+# physics the experiment never recorded. So this rule's sentinel is a declared
+# input of rule 3.09, the FIRST rule that touches the model, and the brief's
+# rollback rule applies if it cannot be made to fire there.
+#
+# Why the reference does not simply follow the model: rule 3.01c declares its
+# model inputs ancient(), so a rebuilt model does NOT re-trigger it. That is
+# load-bearing -- if the reference were rewritten whenever the model changed it
+# would always match, and this comparison would be decorative.
+#
+# A NEW sentinel, deliberately: rule 3.00b's sentinel paths carry the
+# incremental-execution constraint and are approval-gated, so they are untouched.
+rule check_model_reference:
+    message: rule_banner("3.01d", "check_model_reference")
+    input:
+        model_reference = f"{exp_dir}/config/model_reference.yml",
+        model_toml = ancient(f"{basin_dir}/wflow_sbm.toml"),
+    params:
+        model_dir = basin_dir,
+        experiment = experiment,
+    output:
+        ok = touch(f"{exp_dir}/.model_reference_ok"),
+    log:
+        f"{LOG_PARTS_DIR}/3.01d_check_model_reference.log",
+    benchmark:
+        f"{exp_dir}/benchmarks/_parts/3.01d_check_model_reference.tsv",
+    script: "blueearth_cst/experiment/check_model_reference.py"
 
 # 3.02  extract_climate_grid — the SHARED historical-climate store producer
 # (R07 B1). This declaration and rule 1.10 in Snakefile_model_creation are the
@@ -570,7 +602,9 @@ rule downscale_climate_realization:
         st_num=r"\d+",
     input:
         nc = f"{wg_dir}/output/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc",
-        data_sources = [exp_catalog, DATA_SOURCES]
+        data_sources = [exp_catalog, DATA_SOURCES],
+        # The drift guard, BEFORE any simulation work touches the model.
+        model_reference_ok = f"{exp_dir}/.model_reference_ok",
     output:
         nc = temp(f"{runs_dir}/forcing/inmaps_rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc"),
         toml = f"{runs_dir}/config/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".toml"
