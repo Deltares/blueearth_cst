@@ -6,7 +6,14 @@ Date: 2026-08-04. Branch: `feat/r09-p1-comparator` (cut from
 
 **Status: complete. Findings F1a–F1c ruled by the owner 2026-08-04 and folded
 into the map; PAUSED at master Gate 1 on the observed tier.** No P2 work has
-begun. This phase moved no files and wrote to no `project_dir`.
+begun. The phase itself moved no files and wrote to no `project_dir`.
+
+One qualification, so the sentence above is not read too broadly: **after** the
+phase closed, on an explicit owner instruction, the fixture tree
+`test_case/test_local` was staged for the observed-tier run — 102 orphan files
+quarantined (moved, not deleted) to `test_case/_pruned_20260804/`. That is
+runbook step 1, not P1 work, and it touched no artifact any rule produces. See
+F5 and the runbook.
 
 ---
 
@@ -220,7 +227,30 @@ TOML rule to `config/(.*)`, or adding a `config/` catch-all, silently reopens
 them. Both hazards have the tests the brief mandates, so the behaviour is pinned
 either way.
 
-### F5 — no path map row proved unexpressible
+### F5 — an identity-mapped directory hides orphans from the falsifier
+
+Found while staging the fixture tree for the observed-tier run. The falsifier
+reported 23 unmapped paths there; the actual orphan set was **102 files**. The
+79 it did not name sit under two directories the map routes *wholesale*:
+
+| Orphan group | Files | Why the falsifier is blind to it |
+| --- | ---: | --- |
+| retired WF2 log labels under `logs/_parts/` | 21 | the map row is `logs/_parts/**` — an identity prefix, so any part dir under it matches |
+| pre-`_parts` WF3 logs under `experiments/<id>/logs/` | 58 | the map row is `logs/*` at experiment scope — identity over the whole directory |
+
+**The encoding is faithful** — both map rows really are wholesale, and the
+project-root rows really are narrow (`logs/wf{1,2}_*.log`, `_parts/**`,
+`dag/`), which is exactly why the 22 project-scope rule logs *were* caught. The
+asymmetry is in the map, not in the comparator.
+
+The consequence is operational and worth stating plainly: **the hand-prune list
+in the runbook cannot be replaced by the comparator.** Anything under an
+identity-mapped directory has to be adjudicated by eye. Narrowing the two rows
+to match the project-root precision would close it, but that is a map amendment
+on no evidence of a real defect — the wholesale rows are what the map says — so
+it is recorded rather than done.
+
+### F6 — no path map row proved unexpressible
 
 Every row of the map's four destination sections, plus the project-root rows and
 the rule-3.11 rename rows, resolves to its stated destination under
@@ -292,7 +322,7 @@ WF1/WF2/WF3 suites were not run: this phase touches no workflow.
 | --- | --- | --- |
 | 1 | The three declared-tier gaps (F1a–F1c) | **RULED 2026-08-04** — map amended, rules folded in, strict map now reports 0 unmapped |
 | 2 | The two unruled gaps (F2) | **Open, not blocking** — neither appears in any declaration; carried opt-in in `build_r09_gap_rules` until the observed tier shows whether they exist |
-| 3 | The observed tier | **UNVERIFIED** — an owner action; **this is what keeps Gate 1 open** |
+| 3 | The observed tier | **UNVERIFIED** — an owner action; **this is what keeps Gate 1 open**. Runbook step 1 is done: the tree is pruned and staged (`MAP CLEAN: 138 paths, 0 unmapped`), so only the three-workflow run and the snapshot remain |
 
 Item 1's rulings were taken on the falsifier's own output: the map's `data/` row
 enumerated five geoms layers where the code writes six, its `config/runs/` row

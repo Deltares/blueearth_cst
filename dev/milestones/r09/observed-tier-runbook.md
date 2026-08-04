@@ -102,6 +102,19 @@ are deliberately unmapped. The observed tier is the snapshot taken in step 3,
 
 ## Step 1 — prune
 
+> **DONE 2026-08-04 for `test_case/test_local`.** Both scripted prunes (1a, 1b)
+> reported **zero** — the series cache and the climate store were already clean,
+> so the whole prune was the hand list. Its 102 files were **quarantined, not
+> deleted**: moved to `test_case/_pruned_20260804/`, which sits beside the tree
+> and therefore cannot enter a snapshot, with a `README.md` recording each group,
+> why it is an orphan, and the restore command. `test_case/` is git-ignored, so
+> the quarantine is invisible to `git status`.
+>
+> Afterwards the tree is `MAP CLEAN: 138 paths, 0 unmapped` (240 − 102). That is
+> the tree **staged for** step 2 — it is *not* the observed tier, which requires
+> the clean three-workflow run below. Skip to step 2 unless you are starting from
+> a different `project_dir`.
+
 Three classes, three mechanisms. **All three default to reporting**; run each
 without `--delete` first and read the output.
 
