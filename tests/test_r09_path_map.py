@@ -326,6 +326,9 @@ MAP_ROWS: dict[str, list[tuple[str, str]]] = {
         ("spatial/geoms/rivers.geojson", "data/spatial/geoms/rivers.geojson"),
         ("spatial/geoms/subbasins.geojson",
          "data/spatial/geoms/subbasins.geojson"),
+        # F1a amendment 2026-08-04: the row is the geoms DIRECTORY, so the
+        # sixth layer (rule delineate_region) is covered by the same row.
+        ("spatial/geoms/region.geojson", "data/spatial/geoms/region.geojson"),
         (f"climate_historical/{KEY}/extract_historical.nc",
          f"data/climate/historical/{KEY}/extract_historical.nc"),
         (f"climate_historical/{KEY}/store_region.geojson",
@@ -390,6 +393,9 @@ MAP_ROWS: dict[str, list[tuple[str, str]]] = {
          f"experiments/{E}/config/snake_config_climate_experiment.yml"),
         (f"experiments/{E}/config/catalogs/data_catalog_climate_experiment.yml",
          f"experiments/{E}/config/catalogs/data_catalog_climate_experiment.yml"),
+        # F1c addition 2026-08-04: the experiment-scoped digest bundle.
+        (f"experiments/{E}/config/runs/climate_experiment/278159763309/x.yml",
+         f"experiments/{E}/config/runs/climate_experiment/278159763309/x.yml"),
     ],
     # --- section: -> config/ ---
     "config": [
@@ -397,8 +403,11 @@ MAP_ROWS: dict[str, list[tuple[str, str]]] = {
          "config/runs/snake_config_model_creation.yml"),
         ("config/runs/snake_config_climate_projections.yml",
          "config/runs/snake_config_climate_projections.yml"),
+        # F1b amendment 2026-08-04: `<workflow>`, not just `model_creation`.
         ("config/runs/model_creation/1a22a14838f3/snake_config.yml",
          "config/runs/model_creation/1a22a14838f3/snake_config.yml"),
+        ("config/runs/climate_projections/61868971c618/snake_config.yml",
+         "config/runs/climate_projections/61868971c618/snake_config.yml"),
         ("config/catalogs/cmip6_data.yml", "config/catalogs/cmip6_data.yml"),
         ("config/templates/wflow_build_model.yml",
          "config/templates/wflow_build_model.yml"),
@@ -490,14 +499,14 @@ def _digest_agnostic(rel: str) -> str:
 
 #: The EXACT set of declared-tier paths the migration map does not cover, as an
 #: exact set rather than a count: a count still passes when one gap is fixed and
-#: a different one appears. Each is a finding against the map (phase-1 report);
-#: `build_r09_gap_rules` carries the proposed rules, and the owner rules on them
-#: at gate 1.
-KNOWN_UNMAPPED = {
-    "config/runs/climate_projections/<digest>",
-    "experiments/experiment/config/runs/climate_experiment/<digest>",
-    "spatial/geoms/region.geojson",
-}
+#: a different one appears.
+#:
+#: EMPTY since 2026-08-04. The three gaps this instrument found -- and it is the
+#: instrument that found them -- were ruled by the owner (phase-1 report
+#: F1a-F1c), the migration map was amended, and the rules moved into
+#: `build_r09_path_map`. Keeping the set (rather than deleting the test) is what
+#: makes a NEW gap fail loudly instead of quietly widening the map.
+KNOWN_UNMAPPED: set[str] = set()
 
 
 def test_declared_tier_unmapped_set_is_exactly_the_known_gaps():
@@ -505,6 +514,50 @@ def test_declared_tier_unmapped_set_is_exactly_the_known_gaps():
     unmapped = {_digest_agnostic(old)
                 for old, _, kind in rows if kind == "UNMAPPED"}
     assert unmapped == KNOWN_UNMAPPED, std.format_path_map_report(rows)
+
+
+def test_the_three_ruled_gaps_are_covered_by_the_map_itself():
+    """F1a-F1c: covered by `build_r09_path_map`, NOT by the opt-in gap rules.
+
+    Pins where each ruling landed. If one of these ever falls back into
+    `build_r09_gap_rules`, the strict map silently stops covering an artifact
+    the owner ruled on.
+    """
+    cases = {
+        # F1a -- the `data/` row is now the geoms DIRECTORY
+        "spatial/geoms/region.geojson": "data/spatial/geoms/region.geojson",
+        # F1b -- `config/runs/<workflow>/<digest>/**`, not just model_creation
+        "config/runs/climate_projections/61868971c618":
+            "config/runs/climate_projections/61868971c618",
+        "config/runs/model_creation/1a22a14838f3/snake_config.yml":
+            "config/runs/model_creation/1a22a14838f3/snake_config.yml",
+        # F1c -- the experiment-scoped bundle, identity under P9
+        f"experiments/{E}/config/runs/climate_experiment/278159763309":
+            f"experiments/{E}/config/runs/climate_experiment/278159763309",
+    }
+    for old, new in cases.items():
+        got, matched = std.apply_path_map_matched(old, MAP)
+        assert matched, f"{old} is UNMAPPED under the strict map"
+        assert got == new, old
+
+
+def test_the_workflow_digest_rule_did_not_become_a_config_runs_catch_all():
+    """F1b's generalisation must not swallow the two CONTRACT PATHS.
+
+    `config/runs/snake_config_{model_creation,climate_projections}.yml` are
+    declared inputs of WF3's rule 3.00b drift guard and are enumerated rows in
+    their own right. A `config/runs/` PREFIX rule would collapse all three rows
+    into one catch-all; the regex requires a second `/`, so it cannot.
+    """
+    for contract_path in (
+        "config/runs/snake_config_model_creation.yml",
+        "config/runs/snake_config_climate_projections.yml",
+    ):
+        assert std.apply_path_map(contract_path, MAP) == contract_path
+    # ...and an unknown file directly under config/runs/ is still UNMAPPED,
+    # which is what proves the enumeration was not quietly widened.
+    assert std.classify_path_map(
+        ["config/runs/something_new.yml"], MAP)[0][2] == "UNMAPPED"
 
 
 def test_the_digest_normalizer_only_touches_config_run_bundles():

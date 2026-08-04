@@ -4,8 +4,9 @@ Date: 2026-08-04. Branch: `feat/r09-p1-comparator` (cut from
 `milestone/r09-project-tree`). Brief:
 [`phase-1-comparator-task-brief.md`](phase-1-comparator-task-brief.md).
 
-**Status: complete, PAUSED at master Gate 1.** No P2 work has begun. This phase
-moved no files and wrote to no `project_dir`.
+**Status: complete. Findings F1a–F1c ruled by the owner 2026-08-04 and folded
+into the map; PAUSED at master Gate 1 on the observed tier.** No P2 work has
+begun. This phase moved no files and wrote to no `project_dir`.
 
 ---
 
@@ -15,25 +16,26 @@ moved no files and wrote to no `project_dir`.
 | --- | --- |
 | `semantic_tree_diff.build_r09_path_map` | The migration map's rows as executable rules |
 | `semantic_tree_diff.apply_path_map_matched` | The fall-through signal the falsifier needs |
-| `semantic_tree_diff.build_r09_gap_rules` / `R09_MAP_GAPS` | Proposed rows for artifacts the map does not cover — **opt-in** |
+| `semantic_tree_diff.build_r09_gap_rules` / `R09_MAP_GAPS` | Candidate rows for artifacts the map does not cover — **opt-in**; down to the two unruled ones |
 | `semantic_tree_diff.build_r09_deletions` | `indicators/RT_*.csv`, deleted rather than migrated |
 | `semantic_tree_diff --check-map` | The falsifier: classify a path list, exit 1 on any UNMAPPED |
 | `dev/scripts/prune_climate_store.py` | Orphaned `climate_historical/<source>_<window>/` reporting |
 | `dev/milestones/r09/declared_inventory.txt` | The declared-tier inventory, 176 paths, with its provenance |
-| `tests/test_r09_path_map.py`, `tests/test_prune_climate_store.py` | 97 new tests (plus 5 added to `tests/test_semantic_tree_diff.py`) |
+| `tests/test_r09_path_map.py`, `tests/test_prune_climate_store.py` | 102 new tests (plus 5 added to `tests/test_semantic_tree_diff.py`) |
 
 ## Rule count by class
 
-`build_r09_path_map("experiment", "era5_20000101_20201231")` — **63 rules**:
+`build_r09_path_map("experiment", "era5_20000101_20201231")` — **60 rules**,
+after the F1a–F1c amendment:
 
 | Kind | Count | Of which identity |
 | --- | ---: | ---: |
-| regex (`fullmatch` + expansion template) | 8 | 2 |
-| directory prefix (`old` ends `/`) | 23 | 7 |
-| exact file | 32 | 7 |
-| **total** | **63** | **16** |
+| regex (`fullmatch` + expansion template) | 9 | 3 |
+| directory prefix (`old` ends `/`) | 24 | 8 |
+| exact file | 27 | 6 |
+| **total** | **60** | **17** |
 
-47 rules relocate; 16 resolve a path to itself. The 16 are enumerated **per map
+43 rules relocate; 17 resolve a path to itself. The 17 are enumerated **per map
 row** — never as a catch-all — because `apply_path_map` returns its input
 unchanged on fall-through, so one broad `config/` → `config/` rule would satisfy
 every `config/` row at once and empty the unmapped-path report by construction.
@@ -45,8 +47,9 @@ Registered **narrower source pattern first** (`apply_path_map` is first match
 wins). `test_narrower_source_pattern_is_registered_first` asserts the ordering as
 an index property over five (narrow, general) pairs, not just as outcomes.
 
-Separately: 5 opt-in gap rules (all directory prefixes, 2 of them identity) and
-1 deletion pattern.
+Separately: 2 opt-in gap rules (F2, both directory prefixes, both relocations)
+and 1 deletion pattern. Three of the original five became map rows when F1a–F1c
+were ruled.
 
 ## Falsifier — declared tier
 
@@ -55,8 +58,12 @@ Full output and the complete old → new table:
 
 | Run | Paths | Moved | Identity (by rule) | Unmapped | Exit |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| strict map | 176 | 162 | 11 | **3** | 1 |
-| `--r09-gap-rules` | 176 | 163 | 13 | **0** | 0 |
+| map as first encoded | 176 | 162 | 11 | **3** | 1 |
+| same + proposed rules (`--r09-gap-rules`) | 176 | 163 | 13 | **0** | 0 |
+| **after the F1a–F1c amendment**, no opt-in | 176 | 163 | 13 | **0** | 0 |
+
+The third row is byte-identical to the second, which is what confirms the
+amendment encoded exactly the three ruled rows and nothing more.
 
 The inventory is regenerated from the three Snakefiles' `output:` declarations
 over the tracked seed config, with `project_dir` repointed at an empty temp dir
@@ -102,44 +109,49 @@ either.
 
 ## Findings
 
-### F1 — three declared artifacts have no map row (needs an owner ruling)
+### F1 — three declared artifacts had no map row — **RULED 2026-08-04, map amended**
 
-Kept **out** of `build_r09_path_map` deliberately. The brief is explicit that an
-uncovered artifact is "a finding against the map, not a reason to improvise", and
-amending the map is an owner decision — a rule added quietly would be a fait
-accompli, and Gate 1 exists precisely because a map wrong in the same direction
-as the migration is undetectable afterwards. The proposed rules live in
-`build_r09_gap_rules`, behind `--r09-gap-rules`, so both numbers are reportable.
+Found by applying the encoded map to the declared-tier inventory. They were kept
+**out** of `build_r09_path_map` until ruled: the brief is explicit that an
+uncovered artifact is "a finding against the map, not a reason to improvise",
+amending the map is an owner decision, and Gate 1 exists precisely because a map
+wrong in the same direction as the migration is undetectable afterwards. Holding
+them in the opt-in `build_r09_gap_rules` is what let the falsifier report *both*
+numbers — 3 unmapped, and 0 once the additions are accepted — instead of quietly
+reporting 0.
 
-Split by whether the **design tree v10** fixes the destination:
-
-| # | Artifact | Producer | Design tree | Proposed |
+| # | Artifact | Producer | Design tree | Ruling |
 | --- | --- | --- | --- | --- |
-| F1a | `spatial/geoms/region.geojson` | rule `delineate_region` (ADR 0003) | **silent** | → `data/spatial/geoms/region.geojson` |
-| F1b | `config/runs/climate_projections/<digest>/` | WF2 config snapshot | covered — `config/runs/<workflow>/<digest>/` | identity |
-| F1c | `experiments/<id>/config/runs/climate_experiment/<digest>/` | WF3 config snapshot | **silent** | identity |
+| F1a | `spatial/geoms/region.geojson` | rule `delineate_region` (ADR 0003) | **silent** | `data/` row generalised to `spatial/geoms/*`; Finding 2 corrected |
+| F1b | `config/runs/climate_projections/<digest>/` | WF2 config snapshot | covered — `config/runs/<workflow>/<digest>/` | `config/` row generalised from `model_creation` to `<workflow>` |
+| F1c | `experiments/<id>/config/runs/climate_experiment/<digest>/` | WF3 config snapshot | **silent** | new identity row in the experiments section, under P9 |
 
-**F1a is the sharpest and should lead the gate discussion.** The map's Finding 2
-states that the `data/spatial/` rows "correspond exactly" to the nine P1 products
-of rule `prepare_spatial_maps`. The declared inventory shows **ten** files under
-`spatial/`: the tenth, `geoms/region.geojson`, comes from a *different rule*. The
-map's own completeness claim for the spatial subtree is therefore falsified, and
-the design tree does not name the file either. The destination is not in doubt —
-it is the same directory as the other five geoms — but the row is a design gap,
-not just a transcription gap.
+**F1a was the sharpest.** The map's Finding 2 stated that the `data/spatial/`
+rows "correspond exactly" to the nine P1 products of rule `prepare_spatial_maps`.
+The declared inventory shows **ten** files under `spatial/`: the tenth,
+`geoms/region.geojson`, comes from a *different rule*. The nine-product list was
+a complete inventory of one rule's outputs, mistaken for a complete inventory of
+the subtree — so the map's completeness claim was falsified by the instrument
+built to test it. Ruled toward a **directory row** rather than a sixth
+enumerated file, so a seventh layer cannot reopen the same gap; Finding 2's
+sentence is corrected in the map doc. The design tree v10 still does not name
+`region.geojson` — a documentation gap for **P5**, not a placement question.
 
-**F1b is a transcription narrowing.** Design tree line 308 reads
-`config/runs/<workflow>/<digest>/`; the map row transcribes only
-`model_creation`. WF2 emits the same class, and WF1's row already rules it
-unchanged.
+**F1b was a transcription narrowing.** Design tree line 308 reads
+`config/runs/<workflow>/<digest>/`; the map row transcribed only
+`model_creation`, while WF2 emits the same class. The row now reads `<workflow>`.
+Encoded as a regex, **not** a `config/runs/` prefix: a prefix would also swallow
+`config/runs/snake_config_{model_creation,climate_projections}.yml`, which are
+declared inputs of WF3's rule 3.00b drift guard and enumerated rows in their own
+right. Pinned by
+`test_the_workflow_digest_rule_did_not_become_a_config_runs_catch_all`.
 
-**F1c has no design line at all.** v10's `experiments/<id>/config/` lists
-`experiment.yml`, `project_snapshot.yml` and `model_reference.yml` — an
-experiment-scoped `runs/<workflow>/<digest>/` bundle is not among them, yet WF3
-emits one. Identity is proposed under principle **P9** (where the design differs
-from what the code emits, the emitted structure wins). If the owner would rather
-the design absorb it, that is a design edit, not a map edit — and P4 is the phase
-that touches `experiments/<id>/config/`.
+**F1c had no design line at all.** v10's `experiments/<id>/config/` lists
+`experiment.yml`, `project_snapshot.yml` and `model_reference.yml`; WF3 also
+emits a digest bundle there. Ruled identity under principle **P9** (where the
+design differs from what the code emits, the emitted structure wins). The map
+gains the row now; whether the design tree should absorb the line is **P4/P5**
+territory, since P4 is the phase that touches `experiments/<id>/config/`.
 
 ### F2 — two further map gaps, observed-tier only
 
@@ -160,10 +172,12 @@ would surface the moment the observed tier is snapshotted. Also carried in
   of judgment as F1 and is therefore flagged, not folded in.
 
 For contrast, the prefixes used for `staticgeoms/`, `run_default/`,
-`evaluation/`, `forcing/plots/`, `config/catalogs/`, `config/templates/`,
-`config/observations/` and `config/runs/model_creation/` are **not** widenings:
-each of those map rows is itself a `*` or `**` glob over the directory, so a
-prefix rule is the faithful per-row encoding.
+`evaluation/`, `forcing/plots/`, `config/catalogs/`, `config/templates/` and
+`config/observations/` are **not** widenings: each of those map rows is itself a
+`*` or `**` glob over the directory, so a prefix rule is the faithful per-row
+encoding. Since the F1a/F1b rulings, `spatial/geoms/` and
+`config/runs/<workflow>/` are in that same category — their rows are now globs
+too.
 
 ### F3 — `hydrology_runs/rlz_<r>/config/log.txt` is a one-to-many split, not a move
 
@@ -208,7 +222,7 @@ either way.
 
 Every row of the map's four destination sections, plus the project-root rows and
 the rule-3.11 rename rows, resolves to its stated destination under
-`test_every_map_row_resolves` (69 parametrised cases). `indicators/RT_*.csv` is
+`test_every_map_row_resolves` (72 parametrised cases). `indicators/RT_*.csv` is
 the one row whose "destination" is deletion; it is classified `DELETED` by
 `build_r09_deletions` rather than given an invented destination, so the row is
 covered without polluting the map.
@@ -254,23 +268,30 @@ Snakefile or `script:` signature changed); rungs 4–5 belong to the program.
 
 | Rung | Command | Result |
 | --- | --- | --- |
-| 1 Narrow | `pytest tests/test_semantic_tree_diff.py tests/test_r09_path_map.py tests/test_prune_climate_store.py` | **150 passed** |
-| 3 Phase gate | `pixi run test-fast` | **1182 passed**, 30 skipped, 42 deselected, 1 xfailed (48 s) |
+| 1 Narrow | `pytest tests/test_semantic_tree_diff.py tests/test_r09_path_map.py tests/test_prune_climate_store.py` | **155 passed** (after the F1a–F1c amendment) |
+| 3 Phase gate | `pixi run test-fast` | **1187 passed**, 30 skipped, 42 deselected, 1 xfailed (42 s) |
 
 WF1/WF2/WF3 suites were not run: this phase touches no workflow.
 
 ---
 
-## Gate 1 — what the owner is being asked to rule
+## Gate 1 — status
 
-1. **The three declared-tier gaps (F1a–F1c)** — accept the proposed rows into
-   the migration map, or rule differently. Until then the strict map reports 3
-   unmapped and the falsifier's headline is *zero unmapped once the three
-   enumerated additions are accepted*. F1a additionally warrants a design-doc
-   correction: Finding 2's "correspond exactly" claim is false.
-2. **The two observed-tier gaps (F2)** — same question, one milestone earlier
-   than they would otherwise surface.
-3. **The observed tier itself** — an owner action. Gate 1 does not close on the
-   declared tier alone.
+| # | Item | Status |
+| --- | --- | --- |
+| 1 | The three declared-tier gaps (F1a–F1c) | **RULED 2026-08-04** — map amended, rules folded in, strict map now reports 0 unmapped |
+| 2 | The two unruled gaps (F2) | **Open, not blocking** — neither appears in any declaration; carried opt-in in `build_r09_gap_rules` until the observed tier shows whether they exist |
+| 3 | The observed tier | **UNVERIFIED** — an owner action; **this is what keeps Gate 1 open** |
 
-**Do not begin P2 until 1–3 are ruled.**
+Item 1's rulings were taken on the falsifier's own output: the map's `data/` row
+enumerated five geoms layers where the code writes six, its `config/runs/` row
+transcribed one workflow where the design says `<workflow>`, and no row covered
+WF3's experiment-scoped bundle. All three are amended in
+`migration_project-tree.md`, dated and cross-referenced to this report.
+
+**Gate 1 does not close on the declared tier alone**, and P2 does not begin until
+it does. The remaining action is the observed tier: prune first
+(`prune_series_cache.py --delete`, `prune_climate_store.py --delete`, and the
+log-part and superseded-config orphans by hand), then one clean three-workflow
+run from the primary checkout, snapshotted as a sorted path list under
+`dev/milestones/r09/`, then `--check-map` against it with zero unmapped.

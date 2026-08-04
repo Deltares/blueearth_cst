@@ -22,7 +22,7 @@ Provenance and the regeneration recipe are in that file's header.
 orphans are deliberately unmapped (map doc, *Orphans in the fixture — do NOT
 map*), so it fails by construction on paths the map is right to reject.
 
-## Run 1 — the strict map (`build_r09_path_map` only)
+## Run 1 — the map AS FIRST ENCODED, before the amendment
 
 ```
 $ python dev/scripts/semantic_tree_diff.py --check-map \
@@ -36,17 +36,32 @@ UNMAPPED PATHS: 176 paths, 162 moved, 11 identity (by rule), 0 deleted-by-design
 UNMAPPED PATHS: 176 paths, 162 moved, 11 identity (by rule), 0 deleted-by-design, 3 unmapped
 ```
 
-Exit 1. Three declared artifacts have **no row in the migration map**.
-They are findings against the map, not defects in the comparator; each is
-recorded in `semantic_tree_diff.R09_MAP_GAPS` with its producing rule and the
-authority for its proposed destination, and analysed in the phase report.
+Exit 1. Three declared artifacts had **no row in the migration map**. They were
+findings against the map, not defects in the comparator: the map's `data/` row
+enumerated five geoms layers when the code writes six, its `config/runs/` row
+transcribed one workflow when the design tree says `<workflow>`, and no row at
+all covered WF3's experiment-scoped digest bundle.
 
-## Run 2 — with the proposed gap rules (`--r09-gap-rules`)
+**Ruled by the owner, 2026-08-04** (phase-1 report F1a–F1c). The migration map
+was amended — Finding 2's "correspond exactly" claim corrected, two rows
+generalised, one row added — and the three rules moved from the opt-in
+`build_r09_gap_rules` into `build_r09_path_map`, where they now belong.
 
-Exit 0. **Zero unmapped.** The full old → new table follows: this is the
-map applied to a pre-migration path set, showing the intended post-migration
-paths. `IDENTITY` means a rule fired and resolved the path to itself — a
-deliberately unchanged artifact, not a fall-through.
+Two further candidates remain **unruled** and stay opt-in: `hydrology_model/instate/`
+and `hydrology_model/plots/` as a directory. Neither appears in any `output:`
+declaration and neither has been observed, so neither can be ruled until the
+observed tier exists.
+
+## Run 2 — after the amendment
+
+Exit 0. **Zero unmapped, with no opt-in rules.** Byte-identical to the
+pre-amendment run with `--r09-gap-rules`, which is what confirms the amendment
+encoded exactly the three ruled rows and nothing more.
+
+The full old → new table follows: this is the map applied to a pre-migration
+path set, showing the intended post-migration paths. `IDENTITY` means a rule
+fired and resolved the path to itself — a deliberately unchanged artifact, not a
+fall-through.
 
 ```
 IDENTITY benchmarks/wf1_benchmarks.md

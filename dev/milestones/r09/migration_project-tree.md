@@ -1,8 +1,25 @@
 # Migration — project tree (R9)
 
-Status: **COMPLETE** (2026-08-04). All three findings resolved, every artifact
-class placed, rule precedence stated, and the validating inventory ruled. The map
-is ready to be encoded as regex rules and to feed the task brief.
+Status: **COMPLETE** (2026-08-04), **amended 2026-08-04** after P1 encoded it.
+All three original findings resolved, every artifact class placed, rule
+precedence stated, and the validating inventory ruled.
+
+**Amendment 2026-08-04 — three rows, ruled by the owner on the P1 falsifier's
+evidence** (`phase-1-report.md` F1a–F1c; run:
+`2026-08-04_p1-declared-tier-falsifier.md`). Applying the encoded map to the
+declared-tier inventory reported three artifacts with no row. This is the map
+being corrected by the instrument built to test it, which is what gate 1 is for.
+
+| # | Artifact | Ruling |
+| --- | --- | --- |
+| F1a | `spatial/geoms/region.geojson` (rule `delineate_region`) | `data/` row generalised to `spatial/geoms/*`, and Finding 2's "correspond exactly" claim corrected |
+| F1b | `config/runs/climate_projections/<digest>/` | `config/` row generalised from `model_creation` to `<workflow>` |
+| F1c | `experiments/<id>/config/runs/climate_experiment/<digest>/` | new identity row in the experiments section, under P9 |
+
+Two further gaps (`hydrology_model/instate/`, and `hydrology_model/plots/` as a
+directory rather than two named files) appear in no declaration and are **not
+ruled**; they are carried in `semantic_tree_diff.build_r09_gap_rules` until the
+observed tier confirms whether they exist.
 
 Date: 2026-08-04
 
@@ -111,9 +128,20 @@ deleted and rules 1.02 `prepare_spatial_maps` and 1.03 `build_wflow_model` are o
 
 The WF1 rows in this map were derived from `main`, so they already reflect the
 landed work and are **final, not provisional**. The nine P1 products the report
-names correspond exactly to the `data/spatial/` rows below: five vector layers
-under `geoms/`, plus `location_registry.csv`, `spatial_catalog.yml`,
-`spatial_maps.nc`, and `spatial_report.yml`.
+names are five vector layers under `geoms/`, plus `location_registry.csv`,
+`spatial_catalog.yml`, `spatial_maps.nc`, and `spatial_report.yml`.
+
+**Amended 2026-08-04 (P1 falsifier, F1a).** This paragraph previously said those
+nine "correspond exactly" to the `data/spatial/` rows below. They do not. The
+declared-tier inventory carries a **tenth** file under `spatial/` —
+`geoms/region.geojson`, written by rule `delineate_region` (ADR 0003), a
+*different rule* from `prepare_spatial_maps`. The nine-product list was a
+complete inventory of one rule's outputs and was mistaken for a complete
+inventory of the subtree. The `data/spatial/` row is now a directory row rather
+than five enumerated files, so a future layer cannot reopen the same gap. The
+design tree in `project-tree-design.md` v10 does not name `region.geojson`
+either; that is a documentation gap, not a placement question — the destination
+is the same `geoms/` directory as the other layers.
 
 The index line has been corrected.
 
@@ -200,7 +228,7 @@ from; the design routes generated build YAML to the model root.
 | `<P>/spatial/spatial_catalog.yml` | `data/spatial/spatial_catalog.yml` |
 | `<P>/spatial/spatial_report.yml` | `data/spatial/spatial_report.yml` |
 | `<P>/spatial/location_registry.csv` | `data/spatial/location_registry.csv` |
-| `<P>/spatial/geoms/{basins,catchments,locations,rivers,subbasins}.geojson` | `data/spatial/geoms/…` |
+| `<P>/spatial/geoms/*` | `data/spatial/geoms/*` — amended 2026-08-04 (F1a); was five enumerated layers, but `region.geojson` from rule `delineate_region` is a sixth |
 | `<P>/climate_historical/<store_key>/extract_historical.nc` | `data/climate/historical/<source>_<window>/extract_historical.nc` † |
 | `<P>/climate_historical/<store_key>/store_region.geojson` | `data/climate/historical/<source>_<window>/store_region.geojson` † |
 | `<P>/climate_historical/<store_key>/plots/source_*.png` | `data/climate/historical/<source>_<window>/plots/source_*.png` † |
@@ -238,6 +266,7 @@ never normalized by the naming rule.
 | `logs/*`, `benchmarks/*` | `logs/*`, `benchmarks/*` (unchanged) |
 | `config/snake_config_climate_experiment.yml` | unchanged (identity) |
 | `config/catalogs/*` | unchanged (identity) |
+| `config/runs/<workflow>/<digest>/**` | unchanged (identity) — added 2026-08-04 (F1c); WF3 emits an experiment-scoped digest bundle that no row and no design-tree line covered. Ruled toward the code under **P9** |
 
 ### → `config/` — RULED (A), identity except where noted
 
@@ -245,7 +274,7 @@ never normalized by the naming rule.
 | --- | --- |
 | `<P>/config/runs/snake_config_model_creation.yml` | unchanged — **contract path**, declared input of WF3 rule 3.00b |
 | `<P>/config/runs/snake_config_climate_projections.yml` | unchanged — contract path |
-| `<P>/config/runs/model_creation/<digest>/**` | unchanged |
+| `<P>/config/runs/<workflow>/<digest>/**` | unchanged — amended 2026-08-04 (F1b); the row transcribed only `model_creation`, but WF2 emits `climate_projections/<digest>/` from the same producer class, and design tree v10 already reads `<workflow>` |
 | `<P>/config/catalogs/*.yml` | unchanged |
 | `<P>/config/templates/*.yml` | unchanged — snapshots, **not** the editable inputs v4 drew |
 | `<P>/config/observations/*` | unchanged |

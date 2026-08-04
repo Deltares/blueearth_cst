@@ -581,6 +581,10 @@ def build_r09_path_map(
         f"experiments/{e}/.project_consistency_ok",
         f"experiments/{e}/config/snake_config_climate_experiment.yml",
         f"experiments/{e}/config/catalogs/",   # row: `config/catalogs/*`
+        # Row added 2026-08-04 by the P1 falsifier's F1c ruling: WF3 emits an
+        # experiment-scoped digest bundle that no row and no design-tree line
+        # covered. Ruled toward the code under principle P9.
+        f"experiments/{e}/config/runs/",       # row: `config/runs/<workflow>/<digest>/**`
         f"experiments/{e}/logs/",              # rows: `logs/*` + new `logs/dag/`
         f"experiments/{e}/benchmarks/",        # row: `benchmarks/*`
     ):
@@ -620,13 +624,13 @@ def build_r09_path_map(
             "spatial_catalog.yml",
             "spatial_report.yml",
             "location_registry.csv",
-            "geoms/basins.geojson",
-            "geoms/catchments.geojson",
-            "geoms/locations.geojson",
-            "geoms/rivers.geojson",
-            "geoms/subbasins.geojson",
         )
     ]
+    # A DIRECTORY row since the F1a ruling of 2026-08-04: it enumerated the five
+    # layers rule `prepare_spatial_maps` writes, which missed `region.geojson`
+    # from rule `delineate_region` (ADR 0003). A sixth layer would have reopened
+    # the same gap, so the row is now the directory.
+    rules.append(("spatial/geoms/", "data/spatial/geoms/"))
     if dataset_key:
         # Narrower than the generic store rule below, so it is registered first.
         rules.append((f"climate_historical/{dataset_key}/",
@@ -653,12 +657,19 @@ def build_r09_path_map(
     for same in (
         "config/runs/snake_config_model_creation.yml",
         "config/runs/snake_config_climate_projections.yml",
-        "config/runs/model_creation/",   # row: `model_creation/<digest>/**`
         "config/catalogs/",              # row: `config/catalogs/*.yml`
         "config/templates/",             # row: `config/templates/*.yml`
         "config/observations/",          # row: `config/observations/*`
     ):
         ident.append((same, same))
+    # Row: `config/runs/<workflow>/<digest>/**`. Generalised from
+    # `model_creation` by the F1b ruling of 2026-08-04 — WF2 emits
+    # `climate_projections/<digest>/` from the same producer class, and design
+    # tree v10 already reads `<workflow>`. A regex, not a `config/runs/` prefix:
+    # the prefix form would also swallow the two `snake_config_*.yml` CONTRACT
+    # PATHS above, collapsing three enumerated rows into one catch-all. The
+    # pattern needs the second `/`, so those two files cannot match it.
+    ident.append((re.compile(r"(config/runs/[a-z_]+/.*)"), r"\1"))
 
     # -- 10. project root identity rows ---------------------------------------
     ident += [
@@ -674,43 +685,30 @@ def build_r09_path_map(
 #: Candidate map rows for artifacts the migration map does not cover, found by
 #: applying `build_r09_path_map` to the declared-tier inventory. Kept OUT of the
 #: map so the falsifier reports them; amending the map is an owner decision
-#: (phase-1 brief, *Task constraints*). Each entry: (why, producing rule,
+#: (phase-1 brief, *Task constraints*). Each entry: (artifact, producing rule,
 #: authority for the destination).
+#:
+#: THE THREE DECLARED-TIER GAPS ARE GONE FROM THIS TUPLE. They were ruled by the
+#: owner on 2026-08-04 (phase-1 report F1a-F1c), the migration map was amended,
+#: and the rules now live in `build_r09_path_map` where they belong. What is
+#: left is the pair that appears in NO declaration: neither has been observed,
+#: so neither can be ruled until the observed tier exists.
 R09_MAP_GAPS: tuple[tuple[str, str, str], ...] = (
-    (
-        "spatial/geoms/region.geojson",
-        "rule delineate_region (ADR 0003)",
-        "Design tree v10 `data/spatial/geoms/`. The map's `data/` row and "
-        "Finding 2 both enumerate FIVE geoms produced by rule "
-        "prepare_spatial_maps; region.geojson is a sixth file in the same "
-        "directory from a different rule, so the map's completeness claim for "
-        "the spatial subtree is falsified. The DESIGN TREE is silent on it too.",
-    ),
-    (
-        "config/runs/climate_projections/<digest>/",
-        "rule 2.00 config snapshot (digest-keyed bundle)",
-        "Design tree v10 line `config/runs/<workflow>/<digest>/`. The map row "
-        "transcribes only `model_creation`; the design covers every workflow.",
-    ),
-    (
-        "experiments/<id>/config/runs/climate_experiment/<digest>/",
-        "rule 3.00 config snapshot (digest-keyed bundle)",
-        "No design-tree line: v10's `experiments/<id>/config/` lists "
-        "experiment.yml, project_snapshot.yml and model_reference.yml only. "
-        "Identity is proposed under principle P9 (emitted structure wins).",
-    ),
     (
         "hydrology_model/instate/",
         "Wflow.jl warm-state output (undeclared engine artifact)",
-        "Design tree v10 `models/hydrology/wflow/instate/`. The map's models "
-        "section has no row for it.",
+        "Design tree v10 `models/hydrology/wflow/instate/`; the map's models "
+        "section has no row. INFERRED, NOT OBSERVED: the directory appears in "
+        "no `output:` declaration and has not been seen on disk, so whether "
+        "Wflow.jl writes it at that path under the pinned version is "
+        "unconfirmed. The rule is inert if it never exists.",
     ),
     (
         "hydrology_model/plots/ (as a directory)",
         "rule plot_map",
-        "The map row names basin_area.{png,pdf} as two files, not a glob. A "
-        "prefix rule is the same class of judgment as the four above, so it is "
-        "flagged rather than folded into the map.",
+        "The map row names basin_area.{png,pdf} as two files, not a glob, and "
+        "the declared tier emits exactly those two. A prefix rule would widen "
+        "the row on no evidence, so it is flagged rather than folded in.",
     ),
 )
 
@@ -724,12 +722,13 @@ def build_r09_gap_rules(
     either disjoint from, or strictly broader than, every map rule, so
     appending cannot change how a map row resolves. `test_r09_path_map.py`
     pins that property against the declared-tier inventory.
+
+    `experiment_name` is unused since the F1c ruling folded the only
+    experiment-scoped candidate into the map; the parameter is kept so the
+    call signature does not change under the caller.
     """
-    e = experiment_name
+    del experiment_name
     return [
-        ("spatial/geoms/", "data/spatial/geoms/"),
-        ("config/runs/climate_projections/", "config/runs/climate_projections/"),
-        (f"experiments/{e}/config/runs/", f"experiments/{e}/config/runs/"),
         ("hydrology_model/instate/", "models/hydrology/wflow/instate/"),
         ("hydrology_model/plots/", "models/hydrology/wflow/plots/"),
     ]
