@@ -75,7 +75,13 @@ anything under a `project_dir`, `dev/baseline/manifest.json`.
    deletion only behind an explicit flag, matching `prune_series_cache.py`'s
    stated contract.
 6. Tests: one per relocation class, plus a case asserting an unmapped path is
-   reported rather than silently passed through.
+   reported rather than silently passed through, plus a **row-driven case** —
+   every `(old, new)` pair in the map's four destination sections as test data,
+   asserting each resolves to its stated destination. The declared-tier falsifier
+   cannot cover the rows for undeclared engine artifacts (`hydromt.log`,
+   `staticgeoms/*`, `run_default/*`, `evaluation/*`, `_work/*`, Wflow's
+   `log.txt`), and a per-class test does not reach every row; this is the only
+   instrument that does.
 
 ### Validation
 
@@ -111,7 +117,8 @@ reject.
 
 ### Acceptance criteria
 
-- Every path map row has a rule, registered narrower-first, and both named
+- Every path map row has a rule that resolves to its stated destination, shown by
+  the row-driven test; rules are registered narrower-first, and both named
   precedence hazards resolve to their narrow destination.
 - Applying the map to the declared-tier inventory yields v10 paths with **zero
   unmapped paths**; the observed tier is either clean or reported as unverified.
