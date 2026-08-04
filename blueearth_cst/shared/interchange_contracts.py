@@ -641,11 +641,25 @@ def validate_hm7(qstats_df: Any, basin_df: Any) -> list[str]:
 
     Pinned surface (design §5.3): ``Qstats.csv`` header
     ``statistic,tavg,prcp,<gauge-cols>`` (the ``<gauge-cols>`` set = HM-5's
-    ``<header>_<mapid>`` set); ``basin.csv`` header ``tavg,prcp`` (the
-    perturbation-axis index). These are the response-surface hand-off to the
-    platform. The gauge-column tie to HM-4/HM-5 is checked by the relational
-    ``validate_hm_gauge_column_identity``; the ``RT_*.csv`` side tables are
-    deliberately unpinned.
+    ``<header>_<mapid>`` set); ``basin.csv`` carries the perturbation axis
+    ``tavg,prcp`` plus ONE COLUMN PER CONFIGURED ``*_basavg`` VARIABLE, and an
+    optional leading ``realization`` index. These are the response-surface
+    hand-off to the platform. The gauge-column tie to HM-4/HM-5 is checked by
+    the relational ``validate_hm_gauge_column_identity``; the ``RT_*.csv`` side
+    tables are deliberately unpinned.
+
+    The basin check asserted ``== ["tavg", "prcp"]`` until 2026-08-04. That held
+    only for the SEED CONFIG, whose ``wflow_outvars`` is ``["river discharge"]``
+    and so yields no basavg column. The SHIPPED TEMPLATE DEFAULT adds
+    ``"actual evapotranspiration"``, which does yield one, and
+    ``aggregate_rlz: false`` prepends ``realization``. So the validator accepted
+    only the fixture's own shape and would have rejected every project using the
+    default — a pre-existing defect fixed BEFORE R9 P3 renames these tables, so
+    that a fixture-shaped assertion is not carried into the new names.
+
+    Widened by MEMBERSHIP, not by dropping the check: the perturbation axis must
+    be present, and every other column must be the realization index or a
+    ``*_basavg`` variable. A foreign column is still a violation, and is named.
     """
     label = "HM-7"
     diffs: list[str] = []
@@ -657,8 +671,22 @@ def validate_hm7(qstats_df: Any, basin_df: Any) -> list[str]:
     if not gauge_cols:
         diffs.append(f"{label}: Qstats.csv has no gauge columns")
     b_cols = _columns(basin_df)
-    if b_cols != ["tavg", "prcp"]:
-        diffs.append(f"{label}: basin.csv header {b_cols} != ['tavg', 'prcp']")
+    for axis in ("tavg", "prcp"):
+        if axis not in b_cols:
+            diffs.append(
+                f"{label}: basin.csv missing {axis!r} perturbation-axis column "
+                f"(have {b_cols})"
+            )
+    foreign = [
+        c for c in b_cols
+        if c not in ("tavg", "prcp", "realization") and not c.endswith("basavg")
+    ]
+    if foreign:
+        diffs.append(
+            f"{label}: basin.csv has column(s) {foreign} that are neither the "
+            f"perturbation axis, the realization index, nor a '*_basavg' "
+            f"variable (have {b_cols})"
+        )
     return diffs
 
 
