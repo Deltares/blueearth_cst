@@ -2,17 +2,18 @@
 
 Status: ACCEPTED by the owner, 2026-08-04. External review waived at this stage.
 
-Document version: v3
+Document version: v4
 
 Date: 2026-08-04
 
 Decider: Ümit Taner
 
-Normative body budget: fewer than 550 lines including the tree and review
-contract (raised from v1's 450 to carry v2's four decisions). Measured over the
-normative body only — the *Review status* note and the revision log are document
-metadata and are excluded, so the budget constrains the design rather than
-inflating each time the status changes. At v3: 525 normative, 574 total.
+Normative body budget: **retired at v4** (was 450 at v1, 550 at v2). The budget
+existed to keep an external review tractable. With the review waived and nine
+questions ruled into the text, the document is now the accepted design of
+record rather than a reviewer's reading load, and raising the number a third
+time would make it decorative. Retired deliberately, not exceeded silently.
+At v4: 601 normative, 665 total.
 
 ## Review status
 
@@ -27,19 +28,18 @@ challenged by an independent reviewer.
 Two consequences follow, and they are the reason the waiver is recorded rather
 than assumed:
 
-1. **The open questions did not get ruled by the review.** The review was the
-   mechanism that would have forced them. They remain open, listed below, and
-   they are owner decisions now. Several are implementation-blocking — the
-   fingerprint-sufficiency question in particular, since that mechanism is the
-   one that can silently admit a wrong result.
+1. **The open questions were ruled by the owner, not by a review.** The review
+   was the mechanism that would have forced them; with it waived, all nine were
+   worked directly against the code and ruled at v4 (see *Questions ruled at
+   acceptance*). Two of those rulings changed the design rather than confirming
+   it, which is the outcome an external review is normally relied on to produce.
 2. **The reviewer contract below is intact and unexercised.** It is held in
    reserve, not deleted: a later review can run against this document without
-   rework, and would target `doc_version: v3`.
+   rework, and would target `doc_version: v4`.
 
-Acceptance covers the placement contract, the naming rule, and the four v2
-decisions. It does **not** constitute a ruling on the open questions, and it does
-not substitute for the validation expectations, which remain obligations on
-whatever implementation follows.
+Acceptance covers the placement contract, the naming rule, the four v2
+decisions, and the nine v4 rulings. It does not substitute for the validation
+expectations, which remain obligations on whatever implementation follows.
 
 ## Review purpose
 
@@ -180,9 +180,8 @@ competes with an external contract.
 <project_dir>/                              # e.g. gabon/
 ├── config/                                # editable project source
 │   ├── project.yml                        # canonical project configuration
-│   ├── catalogs/
-│   │   ├── hydrography.yml
-│   │   └── climate.yml
+│   ├── catalogs/                          # per-basin OVERRIDES only, often absent
+│   │   └── <override>.yml                 # toolbox catalogs are referenced, not copied
 │   └── templates/
 │       ├── wflow_build.yml
 │       └── wflow_waterbodies.yml
@@ -191,12 +190,15 @@ competes with an external contract.
 │   ├── spatial/
 │   │   ├── region.geojson
 │   │   ├── gauges.geojson
+│   │   ├── spatial_catalog.yml            # GENERATED catalog, travels with its producer
 │   │   └── ...
 │   ├── climate/
 │   │   ├── historical/
-│   │   │   └── era5/                     # the single active time window
+│   │   │   └── era5/                     # the single active time window;
+│   │   │       │                         # path MUST stay experiment-invariant
 │   │   │       ├── extract_historical.nc
 │   │   │       ├── orography.nc
+│   │   │       ├── .guard_ok             # sentinel, beside what it guards
 │   │   │       └── plots/                # source-data diagnostics
 │   │   ├── observations/
 │   │   │   └── ...
@@ -232,6 +234,7 @@ competes with an external contract.
 │
 ├── experiments/
 │   └── <experiment_id>/
+│       ├── .project_consistency_ok        # sentinel, beside what it guards
 │       ├── config/
 │       │   ├── experiment.yml
 │       │   ├── project_snapshot.yml
@@ -258,9 +261,11 @@ competes with an external contract.
 │       │   └── basin_indicators.csv      # basin-averaged fluxes and states
 │       ├── plots/                        # final experiment-level figures
 │       ├── logs/
+│       │   └── dag/                      # WF3 DAG render
 │       └── benchmarks/
 │
 ├── logs/                                  # WF1/WF2 logs (P7)
+│   └── dag/                               # WF1/WF2 DAG renders
 └── benchmarks/                            # WF1/WF2 benchmarks (P7)
 ```
 
@@ -269,7 +274,8 @@ competes with an external contract.
 | Artifact | Required home | Reason |
 | --- | --- | --- |
 | Editable basin, model-build, and projection settings | `config/project.yml` | One project source of truth |
-| Editable data catalogs and build templates | `config/catalogs/`, `config/templates/` | Project inputs, not generated state |
+| Build templates, and per-basin catalog **overrides** only | `config/templates/`, `config/catalogs/` | Project inputs, not generated state. Toolbox catalogs are referenced by path, never copied, so `config/catalogs/` is frequently absent |
+| Generated data catalogs | Beside their producer's output (`data/spatial/spatial_catalog.yml`, the experiment's climate catalog) | Generated provenance, not editable intent (P4) |
 | Region, gauges, and other engine-neutral geometry | `data/spatial/` | Reusable across engines and workflows |
 | ERA5 extraction | `data/climate/historical/era5/` | One active source and window |
 | CMIP6 change factors | `data/climate/projections/cmip6/` | Plausibility overlay, independent of experiments |
@@ -284,6 +290,8 @@ competes with an external contract.
 | Weathergenr/Wflow diagnostic figures | Beside the relevant engine | Avoid mixing diagnostics with final figures |
 | WF1/WF2 run log and benchmark | `logs/`, `benchmarks/` at the project root | P7 — project-scoped producers |
 | WF3 run log and benchmark | `experiments/<id>/logs/`, `.../benchmarks/` | P7 — experiment-scoped producer |
+| Workflow DAG renders | `logs/dag/` (WF1/WF2), `experiments/<id>/logs/dag/` (WF3) | Generated run record, at the producing run's scope (P7). Must NOT sit under the editable `config/`, which would violate P4 |
+| Guard and consistency sentinels | Beside what they guard — `experiments/<id>/.project_consistency_ok`, `data/climate/historical/era5/.guard_ok` | The guard's path must be experiment-invariant; see *Incremental-execution constraint* |
 
 ## Naming rule for generated artifacts
 
@@ -318,14 +326,26 @@ Experiment creation and experiment execution are distinct operations.
    characters. Example: `Reservoir Option A` becomes `reservoir_option_a`.
 2. Without a user-supplied name, the base ID is
    `stress_test_<YYYYMMDD>`.
-3. Creation reserves the first free ID. If the base exists, suffixes are
-   allocated as `_v2`, `_v3`, and so on. The first instance has no `_v1`
-   suffix.
+3. **Collision behavior depends on where the name came from.** A colliding
+   *user-supplied* name is REJECTED with an error naming the existing
+   experiment; it is not silently suffixed. A colliding *generated default*
+   (`stress_test_<YYYYMMDD>`, two runs on one day) is suffixed `_v2`, `_v3`,
+   and so on; the first instance has no `_v1` suffix. Rationale: a duplicate
+   name the user typed is almost always a mistake, and auto-suffixing hides it,
+   while a same-day default collision is expected and carries no intent.
 4. Creation never overwrites or silently reuses an existing directory.
 5. Running or resuming an existing experiment uses its exact ID and never
    allocates a new version merely because the directory exists.
 6. Directory reservation must be atomic so concurrent creators cannot receive
    the same ID.
+7. **`config/experiment.yml` becomes immutable at the first SUCCESSFUL run**,
+   not at creation: creation-to-first-run is the editing window. Revising a
+   experiment afterwards means creating a new one. This deliberately mirrors
+   the model-fingerprint rule — a changed model already forces a new
+   experiment — so configuration drift and model drift obey one rule rather
+   than two. Permitting in-place edits with a revision counter was rejected: it
+   reintroduces exactly the mutable-provenance problem the fingerprint exists
+   to prevent.
 
 Examples:
 
@@ -343,20 +363,53 @@ name when supplied, the creation timestamp, and the allocation sequence.
 
 There is one mutable live Wflow model, but each experiment records which model
 state it used. `config/model_reference.yml` contains the relative model path and
-a deterministic SHA-256 fingerprint over the minimal WF3 runtime model inputs:
+a deterministic SHA-256 fingerprint over the WF3 runtime model inputs.
 
-- `wflow_sbm.toml`;
-- `staticmaps.nc`;
-- the presence and content of `instate/instates.nc`.
+**The fingerprint is pointer-derived, not a fixed file list.** It covers:
+
+- `wflow_sbm.toml`; and
+- **every model-root file the TOML points at**, resolved from its path-valued
+  keys (today `input.path_static`, `input.path_forcing`, `state.path_input`,
+  `state.path_output`, `output.csv.path` — but discovered, not hardcoded).
+
+A fixed triple of TOML + `staticmaps.nc` + `instates.nc` was rejected: it is
+correct only for the TOML shape the toolbox happens to emit today. Nothing
+constrains the model to five path keys — any hydromt `setup_*` that emits a
+TOML-referenced side file (lake rating curves, glacier tables) adds a runtime
+input whose *content* would fall outside a fixed digest. The pointer change
+would be caught, because the TOML is hashed; a later in-place edit of the
+pointed-to file would not be. Deriving the file set from the TOML closes that
+class instead of enumerating its current members.
+
+Deliberately excluded, because Wflow.jl does not read them at run time:
+`staticgeoms/` (hydromt-side vector geometry), `hydromt.log`, and
+`hydromt_data.yml`.
 
 The digest is computed from sorted relative paths plus file contents; an absent
-optional state has an explicit absence marker. Before WF3 performs simulation
+optional input has an explicit absence marker. Before WF3 performs simulation
 work, it recomputes the fingerprint and fails on a mismatch. A changed live
 model therefore requires creation of a new experiment version; the old
 experiment is not silently rerun against different model physics or state.
 
 The model is not copied into each experiment. Project-level settings are
 captured separately in `config/project_snapshot.yml`.
+
+## Incremental-execution constraint
+
+The tree adds no lifecycle boundary beyond the drift guard that already exists,
+but it inherits one hard constraint from it, stated here because it is invisible
+from the tree alone.
+
+WF3's consistency guard writes a sentinel under the shared climate store, and
+that path is deliberately **experiment-invariant**: the store rule is shared
+across every experiment on the same dataset and window, so if its input set
+varied per experiment, Snakemake's input-set provenance trigger would fire and
+re-run shared work once per experiment. `data/climate/historical/era5/`
+satisfies this because it is keyed by dataset and window, never by experiment.
+
+Any future refinement that keys the store — or the guard beside it — by
+experiment silently reintroduces re-run storms. This is a placement constraint,
+not a preference.
 
 ## Figure policy
 
@@ -465,7 +518,15 @@ Neutral obligations:
 - an existing interchange validator asserts that the basin table's header is
   exactly the two perturbation-axis columns, which holds only when no
   basin-average outputs are configured and is therefore false under the shipped
-  default. The rename must not inherit that assertion unfixed.
+  default. The rename must not inherit that assertion unfixed;
+- pre-existing `project_dir` trees are **unsupported**: a fresh run is required
+  and no `mv` migration script ships. This restates R7's ruling GA-2 for this
+  milestone on the same grounds — no production trees exist, and no external
+  consumer reads artifact paths — so no current path is blocked from moving
+  atomically;
+- the pointer-derived fingerprint must resolve TOML pointers against the
+  model root and refuse to hash anything outside it, so a pointer escaping the
+  model root is an error rather than a silently widened digest.
 
 ## Validation expectations
 
@@ -481,11 +542,17 @@ An implementation design should include at least these falsifiers:
    Wflow subtree and the renamed result tables need a real run, not a dry run,
    because the emitted Wflow TOML pointer strings change with run-directory
    depth.
-5. Test user names, default IDs, invalid slugs, collisions through `_v3`, and
-   create-versus-resume behavior.
+5. Test user names, default IDs, invalid slugs, generated-default collisions
+   through `_v3`, and create-versus-resume behavior. (Colliding user-supplied
+   names are covered by falsifier 14, which asserts rejection rather than
+   suffixing.)
 6. Test atomic ID reservation under competing creators.
 7. Test model fingerprints for unchanged inputs, each individual runtime-input
    mutation, optional-state presence changes, and excluded output/log changes.
+   Because the digest is pointer-derived, also test that ADDING a path-valued
+   key to the TOML brings a new file into the digest, that editing that file's
+   content alone (TOML untouched) is detected, and that `staticgeoms/`,
+   `hydromt.log`, and `hydromt_data.yml` changes are not.
 8. Verify that an old experiment fails before simulation after the live model
    changes and that a newly created experiment succeeds.
 9. Verify final plots and engine diagnostics land in their distinct homes.
@@ -496,32 +563,42 @@ An implementation design should include at least these falsifiers:
     the tables they replace, and that no `RT_*.csv` is produced.
 12. Scan the materialized tree for names violating the naming rule, with the
     two exemptions encoded rather than hand-waved.
+13. Run two experiments that share a dataset and window, and confirm the shared
+    climate-store rule's input set is byte-identical for both — the guard
+    against re-run storms described under *Incremental-execution constraint*.
+14. Test that a colliding user-supplied experiment name is rejected with an
+    error naming the existing experiment, while a same-day generated default
+    collides into `_v2`; and that `experiment.yml` is writable before the first
+    successful run and refused after it.
+15. Build the model and then run a HydroMT `update` against it; confirm the
+    generated `config/` subdirectory and its contents survive. This is the
+    empirical check that HydroMT asserts no ownership over unknown
+    subdirectories of the model root (question 3).
 
-## Open questions for review
+## Questions ruled at acceptance
 
-- Does the tree omit a lifecycle boundary needed for safe Snakemake incremental
-  execution?
-- Is the minimal model fingerprint sufficient for numerical reproducibility,
-  or does WF3 consume another model-root artifact transitively?
-- Does placing generated HydroMT build configuration inside the model root
-  conflict with any HydroMT/Wflow directory ownership assumption?
-- Where should workflow DAG renders and small guard/sentinel artifacts live?
-- When should `config/experiment.yml` become immutable, and how should a user
-  intentionally revise an existing experiment?
-- Which catalog files must be copied into the project rather than referenced
-  from the toolbox or an external source?
-- Is `_vN` an appropriate collision suffix when two same-named experiments are
-  not necessarily scientific revisions of one another?
-- Which current artifact paths cannot move atomically because an external
-  consumer relies on them?
-- Does flattening the Wflow run subtree create a directory-size or tooling
-  problem at production grid sizes that the depth saving does not justify?
+v1–v3 carried nine open questions. All were worked against the code and ruled by
+the owner on 2026-08-04. **No question remains open.** They are recorded rather
+than deleted, so a later reader can see what was considered and on what basis;
+two of the nine changed the design rather than confirming it.
+
+| # | Question | Ruling |
+| --- | --- | --- |
+| 1 | Lifecycle boundary missing for safe incremental execution? | No boundary missing, but a constraint was implicit and is now stated — see *Incremental-execution constraint*. |
+| 2 | Is the minimal model fingerprint sufficient? | **No — design changed.** A fixed file list is correct only for today's TOML shape. The digest is now pointer-derived. |
+| 3 | Does HydroMT claim ownership of the model root? | No evidence of a conflict in anything vendored here; a `config/` subdirectory is not a reserved name. Settled empirically by falsifier 7b rather than by assertion. |
+| 4 | Where do DAG renders and sentinels live? | Sentinels stay beside what they guard (already the case). DAG renders move OUT of `config/`, which would violate P4, into `logs/dag/` at the producing run's scope. |
+| 5 | When does `experiment.yml` become immutable? | At the first successful run, not at creation. Revision afterwards means a new experiment, mirroring the model-fingerprint rule. |
+| 6 | Which catalogs must be copied into the project? | **None — design changed.** Toolbox catalogs are referenced by path; only *generated* catalogs live in the project, beside their producer. `config/catalogs/` holds per-basin overrides and is often absent. |
+| 7 | Is `_vN` right when two same-named experiments are unrelated? | Split by provenance: a colliding user-supplied name is rejected; only the generated default is auto-suffixed. |
+| 8 | Which paths cannot move atomically? | None. R7's ruling GA-2 restated: pre-existing trees unsupported, fresh run required, no external path consumer. |
+| 9 | Does flattening create a directory-size problem? | No. ~1,260 files per directory is a browsing annoyance, not a limit; the two places an OS argument limit could bite (the batched Wflow shell call, the reduction rule's input list) are both bounded or passed in-process. |
 
 ## External reviewer instructions (held in reserve — not exercised)
 
-*This contract was not run for v1, v2, or v3. It is retained verbatim so a later
-review can be dispatched against the current document without rework; see*
-*Review status.*
+*This contract has not been run for any version. It is retained verbatim so a
+later review can be dispatched against the current document without rework;*
+*see* Review status.
 
 You are an independent design reviewer. Challenge operational feasibility,
 missing failure modes, over-engineering, ambiguous ownership, reproducibility,
@@ -538,7 +615,7 @@ Return only Markdown with this structure:
 ```text
 ## Verdict
 verdict: approve | revise | reject
-doc_version: v3
+doc_version: v4
 
 ## Findings
 ### ext1-01 [blocking | major | minor]
@@ -572,3 +649,19 @@ List findings in severity order. An empty findings section with
   unexercised. Versioned rather than edited in place so that document version
   and document content stay one-to-one, which the reviewer response schema
   depends on.
+- 2026-08-04, v4: All nine open questions ruled by the owner; none remain open
+  (see *Questions ruled at acceptance*). Two rulings changed the design rather
+  than confirming it. (Q2) The model fingerprint is now **pointer-derived** —
+  the TOML plus every model-root file its path-valued keys resolve to — instead
+  of a fixed triple that was correct only for today's TOML shape; this closes a
+  path by which an edited, TOML-referenced side file could pass the guard and
+  change results. (Q6) Toolbox catalogs are **referenced, never copied**:
+  `config/catalogs/` now holds per-basin overrides only, and generated catalogs
+  travel with their producer. (Q4) DAG renders move out of the editable
+  `config/`, which violated P4, into `logs/dag/` at the producing run's scope;
+  sentinels are confirmed beside what they guard. (Q1) The store path's
+  experiment-invariance is promoted from an implicit property to a stated
+  constraint with its own section. (Q5, Q7) Experiment-config immutability and
+  collision behavior are specified. (Q3, Q8, Q9) Ruled without design change;
+  Q3 is settled by a new empirical falsifier rather than by assertion. Tree,
+  placement contract, consequences, obligations and falsifiers updated to match.
