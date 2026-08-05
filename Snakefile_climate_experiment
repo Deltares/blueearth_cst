@@ -2,14 +2,16 @@ import hashlib
 import json
 import numpy as np
 import sys
+from datetime import datetime
 from pathlib import Path
 
 # Shared helpers live in blueearth_cst/; make them importable regardless of the working
 # directory by prepending this Snakefile's own directory to sys.path.
 # See dev/milestones/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
+from blueearth_cst.experiment.allocate import resolve_default_experiment_name
 from blueearth_cst.shared.provenance import short_digest, snapshot_bundle_digest
-from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_spec, file_digest_or_absent, get_config, patch_psutil_windows_benchmark, region_spec, rule_banner, stress_test_grid, target_banner, validate_experiment_name, warn_if_project_dir_in_repo
+from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_spec, file_digest_or_absent, get_config, patch_psutil_windows_benchmark, project_slug, region_spec, rule_banner, stress_test_grid, target_banner, validate_experiment_name, warn_if_project_dir_in_repo
 
 # Windows: make Snakemake's benchmark memory/IO/CPU metrics work (else all NA).
 patch_psutil_windows_benchmark()
@@ -37,25 +39,44 @@ warn_if_project_dir_in_repo(project_dir, workflow.basedir)
 static_dir = get_config(project_cfg, "static_dir", optional=False)
 DATA_SOURCES = get_config(project_cfg, "data_sources", optional=False)
 
-# The key is required and has no default: it names experiments/<name>/, so a
-# fallback would silently collapse every project into one directory. The
-# template ships it unset on purpose, so absence is the EXPECTED first-run
-# state for a copied config — the message names the command that fills it in
-# rather than leaving get_config's bare "not found in config".
-# A bare `experiment_name:` parses to None, which is "unset" to a reader and to
-# suggest_experiment_name.py (whose refusal test is `is not None`), so it must
-# take the same branch as an absent key rather than falling through to the
-# grammar check's less directive "must be a non-empty string, got None".
+# experiment_name is OPTIONAL, and defaults to the project's own name plus the
+# date the experiment was first created — `gabon_0108` gives
+# `gabon_0108_20260805`. The template ships the key unset, so this is the
+# expected first-run state for a copied config; before the default existed a
+# copied template put every project into one shared `experiments/experiment/`.
+#
+# A bare `experiment_name:` parses to None, which reads as "unset" to a human
+# and to suggest_experiment_name.py (whose refusal test is `is not None`), so it
+# takes the same branch as an absent key rather than reaching the grammar check
+# as a None.
+#
+# The default REUSES an existing dated experiment before minting today's — see
+# resolve_default_experiment_name for why an unconditional date would break
+# every incremental rerun. It resolves only and never creates: this runs under
+# --dry-run and --unlock too.
 _name = my_cfg.get("experiment_name")
 if _name is None or (isinstance(_name, str) and not _name.strip()):
-    raise ValueError(
-        "workflows.climate_experiment.experiment_name is not set. It names the "
-        "experiments/<name>/ directory this workflow writes to, and is filled "
-        "in once, before the first run:\n\n"
-        "    pixi run python scripts/suggest_experiment_name.py "
-        f"{config_path}\n"
+    try:
+        experiment = resolve_default_experiment_name(
+            project_dir,
+            project_slug(project_dir, reserve=len("_YYYYMMDD")),
+            datetime.now().strftime("%Y%m%d"),
+        )
+    except ValueError as exc:
+        raise ValueError(
+            f"workflows.climate_experiment.experiment_name is not set and no "
+            f"default can be derived: {exc}. Set the key, or run:\n\n"
+            f"    pixi run python scripts/suggest_experiment_name.py "
+            f"{config_path} --name <name>\n"
+        ) from None
+    print(
+        f"experiment_name is not set; using {experiment!r} "
+        f"(derived from project_dir). Set the key, or run "
+        f"scripts/suggest_experiment_name.py, to pin a different name.",
+        file=sys.stderr,
     )
-experiment = get_config(my_cfg, "experiment_name", optional=False)
+else:
+    experiment = _name
 # Validate the experiment name as a safe experiments/<name>/ path segment BEFORE
 # any path is built from it (design §2b). Parse-time is correct here (config
 # validation, not a project-state check) — a malformed name makes the whole DAG

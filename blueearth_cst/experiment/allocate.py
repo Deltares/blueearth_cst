@@ -77,6 +77,60 @@ def next_available_name(project_dir, base: str) -> str:
     )
 
 
+#: A name this module GENERATED for a project: `<slug>_<YYYYMMDD>` with the
+#: optional `_vN` collision suffix. Matched when resolving the unset-key
+#: default, so only names of that shape are candidates for reuse — a
+#: deliberately chosen `dry_scenario` is never picked up by accident.
+_DATED_NAME_RE = re.compile(r"^(?P<base>.+)_(?P<date>\d{8})(?:_v(?P<version>\d+))?$")
+
+
+def resolve_default_experiment_name(project_dir, base: str, today: str) -> str:
+    """The ``experiment_name`` to use when the config leaves the key unset.
+
+    **Reuse before create.** If ``experiments/`` already holds a dated
+    experiment for this project, the most recently allocated one is returned;
+    otherwise ``<base>_<today>``. Minting today's date unconditionally is the
+    trap this avoids: tomorrow's run would target an empty
+    ``experiments/<base>_<tomorrow>/``, so every job would re-run, today's
+    outputs would be orphaned, and ``--dry-run`` would show a full rebuild with
+    no stated reason. Reuse makes the default stable once a run has happened,
+    which is what keeps incremental reruns working.
+
+    **Resolves only — never creates.** This is called at Snakefile parse time,
+    which also runs under ``--dry-run`` and ``--unlock``, where a side effect on
+    disk would be wrong. The directory comes into being when a rule first writes
+    into it. Reservation stays with the creation path
+    (``scripts/suggest_experiment_name.py`` → ``allocate_experiment_name``).
+
+    "Most recently allocated" is max by ``(date, version)``, so
+    ``<base>_20260805_v2`` wins over ``<base>_20260805`` and both lose to
+    ``<base>_20260806``. Ties cannot occur — the pair is unique per directory.
+
+    Parameters
+    ----------
+    project_dir : str | Path
+        the run's output root, holding ``experiments/``
+    base : str
+        the project stem from ``snake_utils.project_slug``
+    today : str
+        ``YYYYMMDD`` stamp used only when nothing is there to reuse. Passed in
+        rather than read from the clock so the helper stays testable.
+    """
+    root = experiments_root(project_dir)
+    best = None
+    if root.is_dir():
+        for entry in root.iterdir():
+            if not entry.is_dir():
+                continue
+            m = _DATED_NAME_RE.match(entry.name)
+            if m is None or m.group("base") != base:
+                continue
+            key = (m.group("date"), int(m.group("version") or 1))
+            if best is None or key > best[0]:
+                best = (key, entry.name)
+    return best[1] if best else f"{base}_{today}"
+
+
 def reserve_experiment(project_dir, name: str) -> Path:
     """Claim ``experiments/<name>/`` atomically. Returns the created path.
 

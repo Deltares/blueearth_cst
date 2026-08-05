@@ -349,22 +349,37 @@ runs them through the hydrological model, and aggregates the
 discharge statistics.
 
 Every artifact this workflow writes hangs off
-``<project_dir>/experiments/<experiment_name>/``. The config key naming
-that directory is **not** pre-filled by ``snake_config.template.yml`` —
-run this once, deliberately, before the first climate-experiment run:
+``<project_dir>/experiments/<experiment_name>/``. That config key is
+**optional**. Left unset, it defaults to the project's own name plus the
+date the experiment was first created — a ``project_dir`` of
+``/data/gabon_0108`` gives ``experiments/gabon_0108_20260805/``.
+
+The default **reuses** an existing dated experiment before creating a new
+one, so a run tomorrow lands in the same directory as a run today and
+incremental reruns keep working. (An unconditional current-date name
+would send each day's run at an empty directory: every job re-runs,
+yesterday's outputs are orphaned, and ``--dry-run`` reports a full
+rebuild with no stated reason.) Resolution never creates the directory —
+it happens at parse time, which also runs under ``--dry-run`` and
+``--unlock``.
+
+To pin a deliberate name — a scenario label, or a second experiment
+beside the first — run this once, before the first climate-experiment
+run:
 
 .. code-block:: console
 
     $ pixi run python scripts/suggest_experiment_name.py <your config>
+    $ pixi run python scripts/suggest_experiment_name.py <your config> --name dry_scenario
 
-It derives a name from ``project_dir`` plus today's date, reserves the
-directory (versioning a generated collision to ``_v2``), and writes
-``workflows.climate_experiment.experiment_name`` back into the config.
-Pass ``--name NAME`` to choose your own, or ``--dry-run`` to see the
+It reserves the directory atomically (versioning a *generated* collision
+to ``_v2``; a name you chose is never silently renamed) and writes
+``workflows.climate_experiment.experiment_name`` back into the config,
+leaving its comments and layout intact. ``--dry-run`` prints the
 suggestion without writing. An **existing value is never overwritten**:
 the experiment directory is what a completed run's outputs are addressed
-by, so silently renaming it would strand them. Remove the key by hand if
-you really want a fresh experiment directory.
+by, so silently renaming it would strand them. Clear the key by hand to
+go back to the default.
 
 .. code-block:: console
 
