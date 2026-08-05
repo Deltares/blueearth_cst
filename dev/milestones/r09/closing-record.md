@@ -133,7 +133,7 @@ Not blockers; each has a home.
 | **The batch split is core-derived**, so re-running at a different `-c` re-does all Wflow work and invalidates any job-count comparison | P3-3 design territory; recorded in `26109f5` |
 | WF2's nondeterministic fetch provenance (P2 F4) — 4 of the gate's 5 diff failures | P2 report |
 | Rule 1.04's undeclared write to `staticmaps.nc` (P2 F5's root cause) | P2 report |
-| The seal convention has one banner and no enforcement | P5 F2 |
+| ~~The seal convention has one banner and no enforcement~~ | **DONE 2026-08-05** — `dev/reference/sealed-records.yml` + `tests/test_sealed_records.py` (banner shape, date cross-check, frozen content hash), an `AGENTS.md` rule, and a milestone-close checklist item in `git-conventions.md`. Each assertion was demonstrated FAILING. Note the honest limit: the test enforces only what the registry lists — registering a document stays a judgment at milestone close, so this would not by itself have caught the unbannered doc. What it does prevent is a sealed record being edited, which P5 came one revert from shipping | P5 F2 |
 | Three copies of cross-workflow staging logic, one stale | P5 F3 |
 | `docs/notebooks/*.ipynb` carry R7-era `examples/` paths | P5, reported not fixed |
 

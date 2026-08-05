@@ -202,6 +202,20 @@ pinned by `tests/test_run_workflows.py`.
   hydromt via `-d`. Never hardcode data paths in a Snakefile.
 - `dev/` vs `docs/`: put a new file where its audience is — design notes and one-off
   probes under `dev/` (planning, not shipped), install/usage docs under `docs/`.
+- **Seal a superseded reference document; never migrate its paths.** A document
+  kept as the baseline a past milestone's commits were checked against is
+  valuable *because* it is unedited. Freshening its paths is worse than leaving
+  it: the line numbers, rule names and module locations still lie, while the
+  document now looks maintained. Instead give it a banner at its head —
+  `> **SUPERSEDED — … (sealed YYYY-MM-DD).**` naming what superseded it and
+  where current truth lives — and register it in
+  `dev/reference/sealed-records.yml`, which freezes its hash so a later edit
+  fails `tests/test_sealed_records.py` instead of landing. **At every milestone
+  close, ask which reference documents that milestone superseded** and seal them
+  then; the registry cannot infer it, and `climate_experiment.md` went four
+  milestones reading as a live WF3 contract because nobody asked (R9 P5 F2).
+  Read a document's head before editing it — a path grep cannot see a banner,
+  because a banner contains no paths.
 - [Python] `script:` modules read `snakemake.input/output/params`, not `sys.argv`.
   [R] `Rscript --vanilla` scripts take positional args via `commandArgs(trailingOnly=TRUE)`.
 - netCDF (`.nc`) is the interchange format across R/Python/Julia. Wrap intermediate
