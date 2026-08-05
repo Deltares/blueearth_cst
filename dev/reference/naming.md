@@ -135,7 +135,18 @@ a migration note (§7).**
 - User-facing Wflow output *labels* mapped to CSDMS names in
   `setup_gauges_and_outputs.py` (`actual evapotranspiration`,
   `groundwater recharge`) — display names, not the upstream IDs.
-- Cross-tool scientific variable names: `precip`, `temp`.
+- Cross-tool scientific variable names: `precip`, `temp`. **These are the
+  canonical stems and every producer now uses them** — the WG-1 extraction, the
+  HM-2 / WG-6 wflow forcing, the `stress_test` config block, the `cst_<m>.csv`
+  perturbation files, and (since 2026-08-05) the two indicator tables. The one
+  exception was `q_indicators.csv` / `basin_indicators.csv`, whose axis columns
+  read `tavg` / `prcp`; see §7. Aliases that look like drift but are NOT — each is
+  owned by an external schema and adapted at a named seam, so leave them alone:
+  `tas` / `pr` (CMIP6, renamed by the catalog's `data_adapter.rename`),
+  `P_subcatchment` / `T_subcatchment` / `EP_subcatchment` (`plot_clim` keys,
+  adapted by `subcatchment_climate.FORCING_TO_CLIM`), `Q` / `P` (wflow
+  `[output.csv]` headers), `precipitation` (a `WFLOW_VARS` display label, tier 2
+  above), and weathergenr's `temp_delta` / `precip_mean_factor` (tier 1).
 
 **Tier 3 — new locally owned scientific identifiers.** Follow local
 style (§1) unless an explicit external schema dictates a spelling.
@@ -159,6 +170,13 @@ scope is exactly two files: `Qstats.csv` → `q_indicators.csv` and `basin.csv` 
 `basin_indicators.csv`. Everything else R9 moved is a directory relocation or a
 non-`rule all` artifact, and `series/` → `output/` is a directory rename, so §7
 does not extend to them. Stated so the scope is not re-derived.
+
+**A second R9 record covers the COLUMNS inside those two files**:
+`dev/milestones/r09/migration_indicator-axis-columns.md` (2026-08-05), scope
+`tavg` → `temp_change` and `prcp` → `precip_change`. Two files renamed and their
+axis columns renamed are separate §7 events with separate records, because a
+table label is a tier-2 contract in its own right (§6) — a consumer that survived
+the filename rename can still break on the header.
 
 **Two artifact classes, distinguished (R07).** The rename note above and a
 user-facing migration guide are different documents with different audiences,

@@ -299,9 +299,9 @@ def test_hm5_synthetic_fail():
 
 def _hm7_good():
     qstats = pd.DataFrame(
-        columns=["statistic", "tavg", "prcp", "Q_130000086"]
+        columns=["statistic", "temp_change", "precip_change", "Q_130000086"]
     )
-    basin = pd.DataFrame(columns=["tavg", "prcp"])
+    basin = pd.DataFrame(columns=["temp_change", "precip_change"])
     return qstats, basin
 
 
@@ -311,17 +311,17 @@ def test_hm7_synthetic_pass():
 
 def test_hm7_synthetic_fail():
     qstats, basin = _hm7_good()
-    basin = pd.DataFrame(columns=["tavg"])  # perturbation axis incomplete
+    basin = pd.DataFrame(columns=["temp_change"])  # perturbation axis incomplete
     assert ic.validate_hm7(qstats, basin) != []
 
 
 def test_hm7_accepts_the_shipped_template_default_basavg_columns():
     """The defect this phase must not inherit.
 
-    The basin table's header is `tavg`, `prcp`, PLUS one column per configured
-    `*_basavg` variable -- `export_wflow_results` builds it as
-    `["tavg", "prcp"] + [c for c in sim.columns if "basavg" in c]`. The exact
-    two-column assertion held only because the SEED CONFIG declares
+    The basin table's header is `temp_change`, `precip_change`, PLUS one column
+    per configured `*_basavg` variable -- `export_wflow_results` builds it as
+    `["temp_change", "precip_change"] + [c for c in sim.columns if "basavg" in c]`.
+    The exact two-column assertion held only because the SEED CONFIG declares
     `wflow_outvars: ["river discharge"]` and so produces no basavg column.
 
     The SHIPPED TEMPLATE DEFAULT is
@@ -331,7 +331,7 @@ def test_hm7_accepts_the_shipped_template_default_basavg_columns():
     """
     qstats, _ = _hm7_good()
     basin = pd.DataFrame(
-        columns=["tavg", "prcp", "actual_evapotranspiration_basavg"]
+        columns=["temp_change", "precip_change", "actual_evapotranspiration_basavg"]
     )
     assert ic.validate_hm7(qstats, basin) == []
 
@@ -340,11 +340,13 @@ def test_hm7_accepts_the_unaggregated_realization_column():
     """The same class again, one config knob over.
 
     With `aggregate_rlz: false` the writer prepends a `realization` column
-    (`col_names = ["realization", "tavg", "prcp"]`). An assertion pinned to the
-    aggregated shape would reject every unaggregated run.
+    (`col_names = ["realization", "temp_change", "precip_change"]`). An assertion
+    pinned to the aggregated shape would reject every unaggregated run.
     """
     qstats, _ = _hm7_good()
-    basin = pd.DataFrame(columns=["realization", "tavg", "prcp", "q_basavg"])
+    basin = pd.DataFrame(
+        columns=["realization", "temp_change", "precip_change", "q_basavg"]
+    )
     assert ic.validate_hm7(qstats, basin) == []
 
 
@@ -356,9 +358,30 @@ def test_hm7_still_rejects_a_foreign_basin_column():
     contract violation and must be named.
     """
     qstats, _ = _hm7_good()
-    basin = pd.DataFrame(columns=["tavg", "prcp", "Q_130000086"])
+    basin = pd.DataFrame(columns=["temp_change", "precip_change", "Q_130000086"])
     diffs = ic.validate_hm7(qstats, basin)
     assert diffs and "Q_130000086" in diffs[0]
+
+
+def test_hm7_rejects_the_pre_rename_axis_spelling():
+    """The rename is a contract change, so the OLD header must now FAIL.
+
+    `tavg` / `prcp` were the axis columns until 2026-08-05
+    (`dev/milestones/r09/migration_indicator-axis-columns.md`). They were the
+    repo's only violation of the `precip`/`temp` vocabulary naming.md §6 tier 2
+    declares. A validator that accepted both spellings would let a stale writer
+    keep emitting the old header undetected, which is exactly what the migration
+    note exists to prevent -- so this pins the rejection, not just the acceptance.
+
+    `tavg` also trips the foreign-column rule on the basin table, which is the
+    right diagnosis to hand someone whose tree predates the rename.
+    """
+    qstats = pd.DataFrame(columns=["statistic", "tavg", "prcp", "Q_130000086"])
+    basin = pd.DataFrame(columns=["tavg", "prcp"])
+    diffs = ic.validate_hm7(qstats, basin)
+    assert diffs
+    assert any("temp_change" in d for d in diffs)
+    assert any("precip_change" in d for d in diffs)
 
 
 # --- Relational synthetic pass/fail (break exactly ONE member) -------------
@@ -374,7 +397,9 @@ def _gauge_identity_good():
         }
     }
     output_rlz = pd.DataFrame({"time": ["2070-01-01"], "Q_130000086": [1.0]})
-    qstats = pd.DataFrame(columns=["statistic", "tavg", "prcp", "Q_130000086"])
+    qstats = pd.DataFrame(
+        columns=["statistic", "temp_change", "precip_change", "Q_130000086"]
+    )
     return toml_cfg, output_rlz, qstats
 
 
@@ -386,7 +411,9 @@ def test_gauge_identity_synthetic_fail():
     toml_cfg, output_rlz, qstats = _gauge_identity_good()
     # Break exactly ONE member of the correlated set: rename the Qstats gauge
     # column so check-3 (list-equality) fires while TOML + output_rlz still agree.
-    qstats = pd.DataFrame(columns=["statistic", "tavg", "prcp", "Q_999999999"])
+    qstats = pd.DataFrame(
+        columns=["statistic", "temp_change", "precip_change", "Q_999999999"]
+    )
     assert ic.validate_hm_gauge_column_identity(toml_cfg, output_rlz, qstats) != []
 
 

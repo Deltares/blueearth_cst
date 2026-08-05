@@ -636,23 +636,42 @@ def validate_hm5(df: Any) -> list[str]:
     return diffs
 
 
+#: HM-7 perturbation-axis columns, shared by both indicator tables and by the
+#: relational gauge-identity check (which derives its gauge set by subtracting
+#: them). Named once so the two validators cannot drift apart on a rename — they
+#: did not during the 2026-08-05 tavg/prcp rename only because both were edited
+#: in the same commit.
+_PERTURBATION_AXIS = ("temp_change", "precip_change")
+
+
 def validate_hm7(qstats_df: Any, basin_df: Any) -> list[str]:
     """HM-7 — response-surface reduction (``q_indicators.csv`` + ``basin_indicators.csv``).
 
     Pinned surface (design §5.3): ``q_indicators.csv`` header
-    ``statistic,tavg,prcp,<gauge-cols>`` (the ``<gauge-cols>`` set = HM-5's
-    ``<header>_<mapid>`` set); ``basin_indicators.csv`` carries the perturbation axis
-    ``tavg,prcp`` plus ONE COLUMN PER CONFIGURED ``*_basavg`` VARIABLE, and an
-    optional leading ``realization`` index. These are the response-surface
-    hand-off to the platform. The gauge-column tie to HM-4/HM-5 is checked by
-    the relational ``validate_hm_gauge_column_identity``.
+    ``statistic,temp_change,precip_change,<gauge-cols>`` (the ``<gauge-cols>`` set
+    = HM-5's ``<header>_<mapid>`` set); ``basin_indicators.csv`` carries the
+    perturbation axis ``temp_change,precip_change`` plus ONE COLUMN PER CONFIGURED
+    ``*_basavg`` VARIABLE, and an optional leading ``realization`` index. These are
+    the response-surface hand-off to the platform. The gauge-column tie to
+    HM-4/HM-5 is checked by the relational ``validate_hm_gauge_column_identity``.
+
+    The axis columns were spelled ``tavg`` / ``prcp`` until 2026-08-05. That was
+    the repo's only violation of the ``precip`` / ``temp`` vocabulary naming.md §6
+    tier 2 declares — every other producer (WG-1, HM-2, the stress-test
+    ``cst_<m>.csv``, the config's ``stress_test`` block) already used the canonical
+    stems. Renamed with ``dev/milestones/r09/migration_indicator-axis-columns.md``;
+    the ``_change`` suffix is not decoration — these columns are the PERTURBATION
+    each member imposes (absolute degC, relative %), not the variable's value, so
+    bare ``temp`` / ``precip`` would have been the wrong name in the other
+    direction.
 
     The ``RT_*.csv`` side tables this used to describe as "deliberately
     unpinned" are GONE as of R9 P3: they had no in-repo consumer, were written
     via ``params`` rather than declared, and so were invisible to ``--dry-run``.
     Nothing replaces them.
 
-    The basin check asserted ``== ["tavg", "prcp"]`` until 2026-08-04. That held
+    The basin check asserted ``== ["tavg", "prcp"]`` (the axis columns' pre-rename
+    spelling) until 2026-08-04. That held
     only for the SEED CONFIG, whose ``wflow_outvars`` is ``["river discharge"]``
     and so yields no basavg column. The SHIPPED TEMPLATE DEFAULT adds
     ``"actual evapotranspiration"``, which does yield one, and
@@ -668,14 +687,14 @@ def validate_hm7(qstats_df: Any, basin_df: Any) -> list[str]:
     label = "HM-7"
     diffs: list[str] = []
     q_cols = _columns(qstats_df)
-    for fixed in ("statistic", "tavg", "prcp"):
+    for fixed in ("statistic", *_PERTURBATION_AXIS):
         if fixed not in q_cols:
             diffs.append(f"{label}: q_indicators.csv missing {fixed!r} column (have {q_cols})")
-    gauge_cols = [c for c in q_cols if c not in ("statistic", "tavg", "prcp")]
+    gauge_cols = [c for c in q_cols if c not in ("statistic", *_PERTURBATION_AXIS)]
     if not gauge_cols:
         diffs.append(f"{label}: q_indicators.csv has no gauge columns")
     b_cols = _columns(basin_df)
-    for axis in ("tavg", "prcp"):
+    for axis in _PERTURBATION_AXIS:
         if axis not in b_cols:
             diffs.append(
                 f"{label}: basin_indicators.csv missing {axis!r} perturbation-axis column "
@@ -683,7 +702,7 @@ def validate_hm7(qstats_df: Any, basin_df: Any) -> list[str]:
             )
     foreign = [
         c for c in b_cols
-        if c not in ("tavg", "prcp", "realization") and not c.endswith("basavg")
+        if c not in (*_PERTURBATION_AXIS, "realization") and not c.endswith("basavg")
     ]
     if foreign:
         diffs.append(
@@ -858,8 +877,9 @@ def validate_hm_gauge_column_identity(
          ``[output.csv].column`` entry (map-typed -> ``<header>_<id>`` pattern;
          non-map -> exact ``header``), and every declared entry is represented;
       2. the map-typed gauge columns carry the ``Q_`` prefix rule 3.11 hard-codes;
-      3. ``qstats_df``'s gauge columns (header minus ``statistic,tavg,prcp``) are
-         list-equal to the ``output_rlz_df`` gauge set.
+      3. ``qstats_df``'s gauge columns (header minus ``statistic`` and the
+         ``_PERTURBATION_AXIS`` columns) are list-equal to the ``output_rlz_df``
+         gauge set.
 
     C3 boundary: the numeric ``<id>`` in ``Q_130000086`` is wflow's outlets-map
     cell value — the validator checks the ``<header>_<id>`` PATTERN and the
@@ -908,7 +928,7 @@ def validate_hm_gauge_column_identity(
 
     # Check 3: q_indicators gauge set list-equal to the output_rlz gauge set.
     q_gauge = [
-        c for c in _columns(qstats_df) if c not in ("statistic", "tavg", "prcp")
+        c for c in _columns(qstats_df) if c not in ("statistic", *_PERTURBATION_AXIS)
     ]
     out_gauge = [c for c in out_cols if c.startswith("Q_")]
     if q_gauge != out_gauge:

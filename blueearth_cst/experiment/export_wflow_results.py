@@ -110,7 +110,7 @@ def analyze_wflow_results(
 
     # Initialise emtpy output dataframes
     if aggr_rlz:
-        col_names = ["statistic", "tavg", "prcp"]
+        col_names = ["statistic", "temp_change", "precip_change"]
         col_names.extend(Q_vars)
         df_out_mean = pd.DataFrame(
             data=np.zeros((st_num, len(col_names))),
@@ -120,7 +120,7 @@ def analyze_wflow_results(
         # Update the dtype of the statistics columns into string
         df_out_mean["statistic"] = df_out_mean["statistic"].astype(str)
     else:
-        col_names = ["statistic", "realization", "tavg", "prcp"]
+        col_names = ["statistic", "realization", "temp_change", "precip_change"]
         col_names.extend(Q_vars)
         df_out_mean = pd.DataFrame(
             data=np.zeros((len(csv_fns), len(col_names))),
@@ -144,7 +144,7 @@ def analyze_wflow_results(
 
     # Other variables than discharge
     if aggr_rlz:
-        col_names = ["tavg", "prcp"]
+        col_names = ["temp_change", "precip_change"]
         col_names.extend(basavg_vars)
         df_out_basavg = pd.DataFrame(
             data=np.zeros((st_num, len(col_names))),
@@ -152,7 +152,7 @@ def analyze_wflow_results(
             dtype="float32",
         )
     else:
-        col_names = ["realization", "tavg", "prcp"]
+        col_names = ["realization", "temp_change", "precip_change"]
         col_names.extend(basavg_vars)
         df_out_basavg = pd.DataFrame(
             data=np.zeros((len(csv_fns), len(col_names))),
@@ -200,17 +200,22 @@ def analyze_wflow_results(
 
         # Get stress test stats
         rlz_nb = realization_from_run_csv(csv_fns[i])
+        # The two perturbation-axis values this member imposes, in the units the
+        # response surface is plotted on: temp_change is the ABSOLUTE shift in
+        # degC (cst_<m>.csv carries it directly), precip_change is the RELATIVE
+        # shift in % (cst_<m>.csv carries a multiplicative factor). cst_0 is the
+        # unperturbed baseline, so both axes are 0 by definition.
         if st_nb == "0":
-            tavg = 0
-            prcp = 0
+            temp_change = 0
+            precip_change = 0
         else:
             df_st = pd.read_csv(st_csv_by_num[str(st_nb)])
-            tavg = df_st["temp_mean"].iloc[0]
-            prcp = df_st["precip_mean"].iloc[0] * 100 - 100  # change in %
+            temp_change = df_st["temp_mean"].iloc[0]
+            precip_change = df_st["precip_mean"].iloc[0] * 100 - 100  # change in %
         if not aggr_rlz:
-            cst_stat = (rlz_nb, tavg, prcp)
+            cst_stat = (rlz_nb, temp_change, precip_change)
         else:
-            cst_stat = (tavg, prcp)
+            cst_stat = (temp_change, precip_change)
 
         # Update discharge statistics tableslen
         df_out_mean.iloc[i, :] = np.concatenate(
@@ -251,9 +256,9 @@ def analyze_wflow_results(
 
         # Update basin average statistics table
         if not aggr_rlz:
-            stats_basavg = np.array([rlz_nb, tavg, prcp])
+            stats_basavg = np.array([rlz_nb, temp_change, precip_change])
         else:
-            stats_basavg = np.array([tavg, prcp])
+            stats_basavg = np.array([temp_change, precip_change])
         sim = sim_all[basavg_vars]
         for v in basavg_vars:
             if v == "snow_basavg":

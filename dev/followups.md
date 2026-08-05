@@ -131,6 +131,23 @@ end-to-end. Don't delete them.
   Reproduce the table with `gpd.read_file` on the two directories of any built
   project; no run needed if `test_case/test_local` is present.
 
+- **[R9-2] Baseline re-record owed for the indicator-table axis-column rename.**
+  Raised 2026-08-05 as "climate variable terminology is inconsistent across
+  workflows" (`temp`/`tavg`, `precip`/`prcp`). The screening found exactly one
+  real violation: `q_indicators.csv` / `basin_indicators.csv` spelled the two
+  perturbation-axis columns `tavg` / `prcp`, while every other producer already
+  used the `precip` / `temp` stems `naming.md` §6 tier 2 declares. Renamed to
+  `temp_change` / `precip_change`; full rationale, the old → new map, and the
+  alias list that only *looks* like drift are in
+  `dev/milestones/r09/migration_indicator-axis-columns.md`.
+
+  **Outstanding:** `dev/baseline/manifest.json` fingerprints both tables
+  byte-exact, so `check_baseline.py check` fails until a WF3 run **from the
+  primary checkout** is re-recorded. Expected diff is exactly two entries'
+  `sha256` / `size_bytes`; a third entry moving means something else changed too.
+  Code, tests, contract doc and `naming.md` are already done — this is the only
+  open item.
+
 ---
 
 ## Post-R8 (surfaced 2026-08-02 during the Post-R7 triage)
