@@ -36,14 +36,22 @@ the discussion started; further parts are added as topics come up.
 | | |
 |---|---|
 | **Naming** | C22 `cst_` becomes `st_` (`rlz_` unchanged) |
-| **Design table** | C23 write a master design table · C24 keep two identifiers, not one · C25 numbers are experiment-scoped · C26 enumerate once, use twice · C27 width follows the count |
+| **Design table** | C23 write a master design table · C24 keep two identifiers, not one · C25 numbers are experiment-scoped · C26 enumerate once, use twice · C27 width follows the count · C28 results carry `st_id` alongside the perturbation columns |
+
+### Part C — generator plumbing
+
+| | |
+|---|---|
+| | C29 retire the per-run generator configuration file *(proposed, not ruled)* |
 
 ### Across the document
 
 | | |
 |---|---|
-| **Findings** | F1 January-only perturbation · F2 overland flow units · F3 seam in the 7-day window · F4 gauge rainfall discarded · F5 run numbers silently change meaning |
-| **Open** | O1 do subbasins overlap · O2 stale configuration switch · O3 does the design id replace the perturbation columns |
+| **Findings** | F1 January-only perturbation · F2 overland flow units · F3 seam in the 7-day window · F4 gauge rainfall discarded · F5 run numbers silently change meaning · F6 per-run generator config is empty and misleading |
+| **Open** | O1 do subbasins overlap · O2 stale configuration switch · ~~O3~~ closed → C28 |
+
+An appendix at the end sketches how a stress test is built today, step by step.
 
 ---
 
@@ -96,16 +104,22 @@ One file per variable, named after the variable:
     precip_indicators.csv
 
 Only the variables actually requested in the model configuration get a file.
-Every file has the same six columns:
+Every file has the same seven columns:
 
 | column | what it holds |
 |---|---|
 | `metric` | what was calculated, e.g. `q_mean_annual_7day_min` |
+| `st_id` | which stress-test design point — the key into the design table (C23) |
 | `temp_change` | the temperature perturbation, in °C |
 | `precip_change` | the precipitation perturbation, in % |
 | `realization_id` | which realization — or `0`, meaning "pooled over all of them" |
 | `location` | the gauge or subbasin number |
 | `value` | the number |
+
+`temp_change` and `precip_change` are a **deliberate duplicate** of what the
+design table already holds — kept so the file can be plotted without a join. See
+C28, which is why they are here and what has to happen when a third stress
+dimension arrives.
 
 ---
 
@@ -321,6 +335,55 @@ engine needs to know the runs before any of them has produced a file.
 digits caps at 999, and ten realizations across a 5 × 5 × 3 grid is already 750
 before a fourth dimension is added.
 
+**C28 — The results tables carry `st_id` *alongside* `temp_change` and
+`precip_change`, not instead of them.** Decided 2026-08-05, **for this stage**.
+
+The alternative was to drop the two perturbation columns and let `st_id` be the
+only link to what a run was. That would have kept the results shape fixed at any
+number of stress dimensions — the property Part A exists for — at the cost of
+needing a join before anything can be plotted. Keeping both means the files stay
+readable on their own, which is what has driven most of the Part A decisions.
+
+**What this costs, stated plainly.** The two columns are now a *cached copy* of
+what the design table holds, so they can disagree with it if anything goes wrong
+in writing them, and the results shape is again tied to the number of stress
+dimensions — adding a third adds a column. That is acceptable while stress
+testing is two-dimensional. It stops being acceptable the moment it is not, which
+is the whole reason Part B exists.
+
+**So the decision carries a trigger rather than a hope.** Two things follow:
+
+- the writer must check, for every row, that `temp_change` and `precip_change`
+  match the design table's entry for that `st_id` — a cached copy that nothing
+  verifies is a copy that eventually lies;
+- when the stress-test configuration gains a **third dimension**, the results
+  writer should stop and say so, naming this decision, rather than quietly adding
+  a column. At that point the choice is made again with the extra dimension
+  actually in hand.
+
+---
+
+# Part C — generator plumbing
+
+**C29 — Retire the per-run weather-generator configuration file.** *(Proposed
+2026-08-05, not yet ruled.)*
+
+Every perturbed run currently gets its own small configuration file,
+`weathergen_config_rlz_<m>_cst_<n>.yml`, written by its own workflow step with
+its own log and timing record. On a ten-realization, eighty-eight-point sweep
+that is 880 configuration files, 880 logs and 880 timing files.
+
+They contain almost nothing. The only thing that varies between them is **the
+name of the file the run should write** — split into a prefix and a suffix
+because the generator's write routine takes them separately. Everything else is
+identical in all 880: two on/off switches, and a copy of the perturbation
+settings that the generator does not read (see F6).
+
+The workflow engine already knows the output filename — it is the step's own
+declared output. So the filename can be passed straight to the R script as an
+argument, the two switches belong in the single shared generator configuration
+that already exists, and the whole per-run step disappears.
+
 ---
 
 # Findings, open items and cost
@@ -369,6 +432,18 @@ assumption that the numbers mean the same thing. It becomes more frequent once
 stress testing is multi-dimensional. **Addressed by C25**, which scopes the
 numbering to one experiment and writes down what each number meant.
 
+**F6 — The per-run generator configuration carries no per-run information, and
+the part of it that looks informative is ignored.** Each
+`weathergen_config_rlz_<m>_cst_<n>.yml` copies in the full temperature and
+precipitation perturbation settings from the project configuration — the step
+counts and the monthly minimum and maximum ranges. The R script reads **only the
+two transient on/off switches** from those blocks. The numbers that actually
+perturb the run come from `cst_<n>.csv`, not from here.
+
+So anyone opening one of these files to find out what a run did would read
+plausible-looking perturbation ranges that had no part in it. The rest of the
+file is a filename. **Addressed by C29.**
+
 ---
 
 ## Open decisions
@@ -383,27 +458,11 @@ retired pooling switch (C9). It would currently be ignored in silence, leaving
 the user believing it still does something. The recommendation is to refuse to
 run and say so.
 
-**O3 — Does the design-point number *replace* the perturbation columns in the
-results tables, or sit next to them?** This is the one open item that changes
-Part A, so it should be settled before any of it is built.
-
-- *Replace* — the results tables carry the design number instead of
-  `temp_change` and `precip_change`. Their shape then stays fixed no matter how
-  many stress dimensions exist, which is the guarantee Part A was built for. The
-  cost is that plotting a response surface needs one join against the design
-  table: the files stop being readable entirely on their own. This would supersede
-  the `temp_change` / `precip_change` columns described under C6–C8, and change
-  what C11 sits alongside.
-- *Sit alongside* — the tables keep both, so they remain self-contained and can
-  be plotted directly. The cost is that the header grows by one column per stress
-  dimension, so the shape depends on the configuration again — which is what C6
-  and C7 were for.
-
-There is no version that has both. The recommendation is *replace*, because the
-fixed shape is what makes multi-dimensional stress testing possible without
-another round of this discussion — but it runs against the preference for
-self-contained files that shaped several Part A decisions, so it is the owner's
-call rather than a technical one.
+**O3 — CLOSED 2026-08-05 → see C28.** Ruled *alongside*: the results tables carry
+`st_id` **and** the perturbation columns, for this stage. The recommendation had
+been *replace*, for a permanently fixed shape; the owner chose readability now
+with an explicit revisit when a third dimension arrives. C28 records the cost and
+the trigger.
 
 ---
 
@@ -418,3 +477,81 @@ call rather than a technical one.
 - **The results workflow starts depending on the model configuration** to know
   which variable files to produce (C7). It currently discovers this while
   running, which is too late for the workflow engine to plan the job.
+
+---
+
+# Appendix — how a stress test is actually built today
+
+Reference for reviewing the changes above. Traced from
+`Snakefile_climate_experiment`, 2026-08-05. Step numbers are the workflow's own.
+
+```
+config stress_test:          extract_historical.nc        WF1 model
+        │                            │                    (staticmaps, toml)
+        ▼                            ▼                        │
+  3.03 climate_stress_parameters                              │
+   prepare_cst_parameters.py                                  │
+        │                                                     │
+        ├──► _work/cst_1..N.csv    ◄── 12 monthly rows each   │
+        │      (temp_mean, precip_mean, precip_variance)      │
+        │                                                     │
+        │    3.04 prepare_weagen_config                       │
+        │      └──► config/weathergen_config.yml  (ONE file)  │
+        │                     │                               │
+        │                     ▼                               │
+        │        3.06 generate_weather_realization            │
+        │           generate_weather.R  (weathergenr)         │
+        │              └──► output/rlz_1..R_cst_0.nc   temp() │
+        │                     │                               │
+        │  3.05 prepare_weagen_config_st                      │
+        │    └──► _work/weathergen_config_rlz_m_cst_n.yml     │
+        │                     │                               │
+        ▼                     ▼                               │
+      3.07 generate_climate_stress_test                       │
+         impose_climate_change.R                              │
+         weathergenr::apply_climate_perturbations             │
+           └──► output/rlz_m_cst_n.nc              temp()     │
+                        │                                     │
+                        ▼                                     │
+              3.08 climate_data_catalog                       │
+                └──► data_catalog_climate_experiment.yml      │
+                        │                                     │
+                        ▼                                     ▼
+              3.09 downscale_climate_realization ◄────────────┘
+                 hydromt setup_precip_forcing
+                        + setup_temp_pet_forcing
+                ├──► forcing/inmaps_rlz_m_cst_n.nc   temp()
+                └──► config/rlz_m_cst_n.toml
+                        │
+                        ▼
+              3.10 run_wflow_batch_<b>   (B members per Julia session)
+                ├──► output/rlz_m_cst_n.csv
+                └──► output/outstates_rlz_m_cst_n.nc   temp()
+                        │
+                        ▼
+              3.11 derive_wflow_indicators ◄─── also reads cst_1..N.csv
+                └──► results/q_indicators.csv, basin_indicators.csv
+```
+
+**Where the perturbation is actually applied:** step 3.07, inside R.
+`apply_climate_perturbations` receives `precip_mean_factor` (multiplicative),
+`precip_var_factor` (multiplicative) and `temp_delta` (additive °C) directly from
+the twelve rows of `cst_<n>.csv`, together with `compute_pet = TRUE` — so
+potential evaporation is computed there by the weather generator, and then
+computed again from temperature by hydromt at step 3.09.
+
+**`cst_<n>.csv` — one producer, two consumers that read it differently:**
+
+| | |
+|---|---|
+| written by | 3.03, from the project configuration's `stress_test:` block |
+| read by 3.07 | the R generator — uses **all twelve monthly values** |
+| read by 3.11 | the results reducer — uses **the first row only**, i.e. January |
+
+That asymmetry is F1. The file is correct and the generator reads it correctly;
+only the results reducer under-reads it. The defect is one line in one consumer,
+not a data problem.
+
+**`weathergen_config_rlz_<m>_cst_<n>.yml` — see F6 and C29.** The R script reads
+five values from it: an output directory, a filename prefix, a filename suffix,
+and two transient on/off switches. Only the prefix and suffix vary between runs.

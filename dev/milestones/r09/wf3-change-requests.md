@@ -520,13 +520,79 @@ Also rejected for the design token, each on a concrete collision: `scn_` /
 - **C27** — id width derived from the count, not fixed at three digits. 10 rlz ×
   a 5×5×3 grid is 750 before a fourth dimension exists.
 
-### Machinery this touches
+### C28 — results tables carry `st_id` ALONGSIDE the perturbation columns
+
+Ruled 2026-08-05, **"at this stage"** — against the recommendation, which was to
+replace. The owner chose plottable-without-a-join now, with an explicit revisit
+when a third dimension arrives. The seven-column shape is therefore:
+
+    metric, st_id, temp_change, precip_change, realization_id, location, value
+
+**Two obligations follow, and neither is optional — they are what stop an interim
+decision from rotting into a wrong one:**
+
+1. **A consistency check.** `temp_change` / `precip_change` are now a cached copy
+   of the design table's row for that `st_id`. `validate_hm7` must assert they
+   agree. Same class as C2's `metric.startswith(variable + "_")` check: a
+   denormalised copy that nothing verifies is a copy that eventually lies.
+2. **A hard stop at the third dimension.** When `stress_test:` gains a third
+   axis, the results writer raises, naming this decision, rather than silently
+   adding a column. The `variable_spec.parse` precedent again — refuse and
+   explain. Without it, CR-2's fixed-shape property degrades one column at a
+   time with nothing noticing.
+
+Recorded plainly: *alongside* re-couples the results header to the stress
+dimension count, which is exactly what CR-2 removed on the location axis. That is
+tolerable at two dimensions and is not a permanent position.
+
+### Machinery CR-4 touches
 
 `naming.md` §4 (wildcard vocabulary) and §7 (a rename note is required —
 filenames *and* catalog source names are both listed there);
 `validate_wg5_catalog_grid`, whose expected key set is literally
 `rlz_<n>_cst_<m>`; the R9 path map; `check_baseline.py` targets; every WF3 log
 and TOML name.
+
+---
+
+## CR-5 — retire the per-run weather-generator config (PROPOSED, not ruled)
+
+Proposal-side: **Part C, C29**, finding **F6**.
+
+Rule 3.05 `prepare_weagen_config_st` emits one
+`{wg_dir}/_work/weathergen_config_rlz_{rlz_num}_cst_{st_num}.yml` per member,
+each with its own log and benchmark file. At RLZ_NUM=10, ST_NUM=88 that is 880
+YAMLs + 880 logs + 880 benchmark TSVs.
+
+**The file carries no per-member information beyond its own output name.**
+`build_weagen_config`'s stress-test branch (`prepare_weagen_config.py:69-81`)
+emits exactly:
+
+| key | varies? | read by `impose_climate_change.R`? |
+| --- | --- | --- |
+| `imposeClimateChanges.output.path` | no — constant `{wg_dir}/output/` | yes (`:29`) |
+| `imposeClimateChanges.nc.file.prefix` | **yes** — `rlz_<m>_cst` | yes (`:30`) |
+| `imposeClimateChanges.nc.file.suffix` | **yes** — `<n>` | yes (`:31`) |
+| `temp` (whole config block) | no | **only `$transient_change`** (`:34`) |
+| `precip` (whole config block) | no | **only `$transient_change`** (`:35`) |
+
+The prefix/suffix split exists only because `weathergenr::write_netcdf` takes
+`file_prefix` and `file_suffix` separately — and Snakemake already knows that
+path: it is rule 3.07's own declared output `rlz_st_nc`.
+
+**F6:** the copied `temp:` / `precip:` blocks carry `step_num` and the monthly
+`mean.min` / `mean.max` ranges, none of which the R script reads. The values that
+actually perturb the run come from `cst_<n>.csv`. So the file presents
+plausible-looking perturbation settings that had no part in the run it names —
+worse than carrying nothing.
+
+**Proposal:** pass the output path (or prefix/suffix) to `impose_climate_change.R`
+as CLI args alongside the two it already takes, move `temp.transient_change` /
+`precip.transient_change` into the single `weathergen_config.yml` from rule 3.04,
+and delete rule 3.05. Removes one rule, one wildcard-expanded artifact class, and
+2,640 files from a production sweep.
+
+**Not yet ruled** — awaiting owner decision.
 
 ---
 
@@ -539,7 +605,8 @@ the ruling block immediately above. **Two remain.**
 | --- | --- | --- |
 | **Q7** | Stale `aggregate_rlz` in an existing user config — silently ignored today, because workflow configs never read unknown keys. The user believes it is still in effect. | Hard error naming the migration note, following the `variable_spec.parse` precedent (it refuses the pre-5e list shape and states the migration). |
 | **Q11** | **Nested or incremental subcatchments?** Decides whether the overall basin value can be derived from the per-location values. See CR-3b. | Do not derive it either way — emit it independently under a reserved `location = basin`, by keeping the existing `reducer=["mean"]` output alongside the new per-subcatchment one. |
-| **Q12** (= proposal **O3**) | **Does `st_id` replace `temp_change` / `precip_change` in the results tables, or sit alongside them?** *Replace* keeps the header fixed at any dimension count — the guarantee CR-2 exists for — at the cost of a join to plot. *Alongside* keeps the files self-contained but re-couples the header to the dimension count, undoing CR-2's central property. **There is no version with both.** | Replace. But it runs against the self-contained-file preference that shaped several CR-2 decisions, so it is an owner call, not a technical one. **This blocks CR-2 implementation** — it decides whether the six-column shape stands or becomes five with a foreign key. |
+**Q12 (= proposal O3) is CLOSED — ruled *alongside*, 2026-08-05.** See C28 below.
+**CR-2 is no longer blocked.**
 
 ---
 
