@@ -46,6 +46,8 @@ from pathlib import Path
 
 import yaml
 
+import cross_workflow_inputs
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG = REPO_ROOT / "config/workflows/snake_config_model_test.yml"
 DEFAULT_EXTRAS = Path(__file__).resolve().parent / "scaffold_extras.yml"
@@ -83,48 +85,21 @@ def _scratch_config(config_path: Path, project_dir: Path, dest: Path) -> Path:
     return dest
 
 
-# Enough of a wflow TOML for rule 3.01c to read `input.path_static`; same role
-# as the test fixture's.
-_MINIMAL_WFLOW_TOML = '[input]\npath_static = "staticmaps.nc"\n'
-
-#: The wf1 leaves WF2/WF3 declare as `ancient()` inputs and Snakemake will not
-#: satisfy on its own. Keep in step with `tests/test_cli.py`'s
-#: `config_with_staged_region`, which stages the same contract for the dry-run
-#: tests; the two lists are maintained by hand and have drifted apart before
-#: (the R9 P5 sweep found this one two milestones behind).
-_STAGED_LEAVES = (
-    # WF3 rule 3.00b `check_project_consistency` (P3-1 commit 1).
-    "config/runs/snake_config_model_creation.yml",
-    # WF3 rule 3.01c `write_model_reference` (R9 P4) -- the FIRST WF3 rule to
-    # declare model files as inputs. Before P4 the model was reached only
-    # through `params`, so the DAG could not see the dependency at all.
-    "models/hydrology/wflow/wflow_sbm.toml",
-    "models/hydrology/wflow/.outputs_configured",
-)
-
-
 def _stage_cross_workflow_inputs(project_dir: Path, config_path: Path) -> None:
-    """Stage the wf1 leaves WF2/WF3 declare as ancient() inputs.
+    """Stage the wf1 leaves WF2/WF3 declare and Snakemake will not satisfy.
 
-    NO REGION is staged, and that is the current contract rather than an
-    omission. Until ADR 0003 both downstream workflows consumed wf1's
-    `staticgeoms/region.geojson`; the extent is now model-free, so WF2 and WF3
-    each DELINEATE their own `data/spatial/geoms/region.geojson` (rule
-    `delineate_region`) and declare it as an OUTPUT. Staging one would be
-    staging a file the workflow is about to produce.
+    The leaf set itself lives in `cross_workflow_inputs`, shared with the two
+    test fixtures that stage the same contract; it used to be three hand-kept
+    copies and they drifted (R9 P5 F3, and this file was the worst of them).
+
+    NO REGION is staged, and that is the contract rather than an omission: since
+    ADR 0003 WF2 and WF3 each delineate their own
+    `data/spatial/geoms/region.geojson` and declare it as an OUTPUT, so staging
+    one would pre-empt a file the workflow is about to write.
     """
-    snapshot_rel = "config/runs/snake_config_model_creation.yml"
-    for rel in _STAGED_LEAVES:
-        target = project_dir / rel
-        target.parent.mkdir(parents=True, exist_ok=True)
-        if rel == snapshot_rel:
-            # Serialized from the config the summary itself consumes, so the
-            # drift guard's comparands match by construction.
-            target.write_text(config_path.read_text(encoding="utf-8"), encoding="utf-8")
-        elif rel.endswith("wflow_sbm.toml"):
-            target.write_text(_MINIMAL_WFLOW_TOML, encoding="utf-8")
-        else:
-            target.write_text("", encoding="utf-8")
+    cross_workflow_inputs.stage(
+        project_dir, config_path.read_text(encoding="utf-8")
+    )
 
 
 def _summary(snakefile: str, config_path: Path) -> list[str]:

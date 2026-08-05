@@ -1,6 +1,7 @@
 """Test some snake command line interface (CLI) for validity of snakefiles."""
 
 import os
+import sys
 from os.path import join, dirname, realpath
 from pathlib import Path
 import subprocess
@@ -11,19 +12,13 @@ import pytest
 TESTDIR = dirname(realpath(__file__))
 SNAKEDIR = join(TESTDIR, "..")
 
+sys.path.insert(0, join(SNAKEDIR, "dev", "scripts"))
+import cross_workflow_inputs as cwi  # noqa: E402
+
 config_fn = join(TESTDIR, "snake_config_model_test.yml")
 linux_config_fn = join(
     SNAKEDIR, "config", "workflows", "snake_config_model_test_linux.yml"
 )
-
-# Minimal valid GeoJSON standing in for the workflow-1 region output that
-# climate_projections consumes as a cross-workflow input (see the fixture).
-_MINIMAL_REGION_GEOJSON = (
-    '{"type": "FeatureCollection", "features": [{"type": "Feature", '
-    '"properties": {}, "geometry": {"type": "Polygon", "coordinates": '
-    "[[[0, 0], [0, 1], [1, 1], [1, 0], [0, 0]]]}}]}"
-)
-
 
 def _dry_run(snakefile, cfg=config_fn):
     """Dry-run a Snakefile on a config; return the completed process.
@@ -65,29 +60,14 @@ def config_with_staged_region(tmp_path):
         cfg = yaml.safe_load(f)
     cfg["project"]["project_dir"] = str(tmp_path).replace("\\", "/")
 
-    # R9 P2 moved the model root; the staged region follows it.
-    region = (
-        tmp_path / "models" / "hydrology" / "wflow" / "staticgeoms"
-        / "region.geojson"
-    )
-    region.parent.mkdir(parents=True)
-    region.write_text(_MINIMAL_REGION_GEOJSON, encoding="utf-8")
-
-    wf1_snapshot = tmp_path / "config" / "runs" / "snake_config_model_creation.yml"
-    wf1_snapshot.parent.mkdir(parents=True)
-    wf1_snapshot.write_text(yaml.safe_dump(cfg), encoding="utf-8")
-
-    # R9 P4 rule 3.01c is the FIRST WF3 rule to declare model files as inputs --
-    # the model was previously reached only through `params`, so the DAG could
-    # not see that WF3 depends on it. Making the edge real is the point (P2's
-    # F5 race is what happens when an undeclared read is ordered by luck), and
-    # the cost is that WF3's dry-run now needs these two staged, exactly as it
-    # already needed the wf1 config snapshot above.
-    model_root = tmp_path / "models" / "hydrology" / "wflow"
-    (model_root / "wflow_sbm.toml").write_text(
-        '[input]\npath_static = "staticmaps.nc"\n', encoding="utf-8"
-    )
-    (model_root / ".outputs_configured").write_text("", encoding="utf-8")
+    # ONE definition of the leaf set, shared with `test_guard_invalidation` and
+    # `scaffold_project_tree` and proved complete-and-minimal against the real
+    # DAG by `tests/test_cross_workflow_inputs.py`. It was three hand-kept
+    # copies until R9 P5 F3; R9 P4's rule 3.01c added the two model leaves, two
+    # of the three were updated, and the third went red looking like a defect
+    # in the thing it tested. EXTRA_REGION is a deliberate non-leaf, kept for
+    # the reason given in the docstring above.
+    cwi.stage(tmp_path, yaml.safe_dump(cfg), extras=(cwi.EXTRA_REGION,))
 
     cfg_path = tmp_path / "snake_config_staged.yml"
     cfg_path.write_text(yaml.safe_dump(cfg), encoding="utf-8")

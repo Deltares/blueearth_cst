@@ -20,6 +20,7 @@ mutations — that would move the recorded-params baseline and invalidate the
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -33,11 +34,8 @@ TESTDIR = Path(__file__).resolve().parent
 SNAKEDIR = TESTDIR.parent
 CONFIG_FN = TESTDIR / "snake_config_model_test.yml"
 
-_MINIMAL_REGION_GEOJSON = (
-    '{"type": "FeatureCollection", "features": [{"type": "Feature", '
-    '"properties": {}, "geometry": {"type": "Polygon", "coordinates": '
-    "[[[0, 0], [0, 1], [1, 1], [1, 0], [0, 0]]]}}]}"
-)
+sys.path.insert(0, str(SNAKEDIR / "dev" / "scripts"))
+import cross_workflow_inputs as cwi  # noqa: E402
 
 
 def _run(args, cfg_path):
@@ -77,39 +75,31 @@ def staged_project(tmp_path):
     base["project"]["project_dir"] = str(pdir).replace("\\", "/")
     experiment = base["workflows"]["climate_experiment"]["experiment_name"]
 
-    # R07 B1 retired the extraction's ancient(region.geojson) input (it now
-    # delineates model-free from shared.basin + the catalog), and ADR 0003 gave
-    # wf3 its own delineate_region, so wf3 reads NOTHING from staticgeoms/. The
-    # file is staged anyway to keep the project looking like a completed wf1
-    # run; R9 P2 moved the model root, so it follows.
-    model_root = pdir / "models" / "hydrology" / "wflow"
-    region = model_root / "staticgeoms" / "region.geojson"
-    region.parent.mkdir(parents=True)
-    region.write_text(_MINIMAL_REGION_GEOJSON, encoding="utf-8")
-
-    # R9 P4's rule 3.01c write_model_reference is the FIRST wf3 rule to declare
-    # model FILES as inputs -- before it, wf3 reached the model only through
-    # `params` and the DAG could not see the dependency. So the model leaves
-    # joined the wf1 config snapshot as things --unlock needs on disk.
+    # THE LEAF SET IS NOT MAINTAINED HERE any more. It lives in
+    # `cross_workflow_inputs` with the other two stagers, and
+    # `tests/test_cross_workflow_inputs.py` proves it complete and minimal
+    # against the real DAG. This fixture is exactly why: R9 P4's rule 3.01c
+    # `write_model_reference` is the first wf3 rule to declare model FILES as
+    # inputs, so the model leaves joined the wf1 snapshot as things `--unlock`
+    # needs on disk; test_cli.py's equivalent was updated and this one was not,
+    # and 2c(iii) went red looking like a guard defect (R9 P5 F3). The phase
+    # gate could not have caught it either -- this module is
+    # `workflow_contract`, which `pixi run test-fast` excludes by definition.
     #
-    # This fixture was NOT updated when that rule landed (test_cli.py's
-    # equivalent was), and 2c(iii) went red. It could not have been caught by
-    # the phase gate that ran: this module is marked `workflow_contract`, which
-    # `pixi run test-fast` excludes by definition, so only `test-full` sees it.
-    (model_root / "wflow_sbm.toml").write_text(
-        '[input]\npath_static = "staticmaps.nc"\n', encoding="utf-8"
+    # Two EXTRAS beyond the leaves, both deliberate non-leaves:
+    #   * the wf2 snapshot, which the guard reads as a `params` path and
+    #     existence-checks in its script (the projections overlay is optional
+    #     and must not be force-required) -- this module's assertions are about
+    #     that COMPARISON, not about the DAG;
+    #   * the region, which since ADR 0003 wf3 reads not at all, staged only to
+    #     keep the project looking like a completed wf1 run.
+    config_text = yaml.safe_dump(base)
+    cwi.stage(
+        pdir, config_text, extras=(cwi.EXTRA_REGION, cwi.EXTRA_WF2_SNAPSHOT)
     )
-    (model_root / ".outputs_configured").write_text("", encoding="utf-8")
-
-    # Project snapshots the guard compares against (identical to live -> pass).
-    # R07 B9 (commit 10) split the project config snapshot by kind: the snake
-    # config snapshots live under config/runs/.
     snap_dir = pdir / "config" / "runs"
-    snap_dir.mkdir(parents=True, exist_ok=True)
     wf1 = snap_dir / "snake_config_model_creation.yml"
     wf2 = snap_dir / "snake_config_climate_projections.yml"
-    wf1.write_text(yaml.safe_dump(base), encoding="utf-8")
-    wf2.write_text(yaml.safe_dump(base), encoding="utf-8")
 
     cfg_path = tmp_path / "snake_config_staged.yml"
     cfg_path.write_text(yaml.safe_dump(base), encoding="utf-8")
