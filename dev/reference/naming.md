@@ -77,7 +77,7 @@ wildcard requires updating this file in the same commit.
 The `st_num2` variant formerly used in `Snakefile_climate_experiment`'s
 downstream rules (it admitted `0` under `run_historical`, where `st_num`
 starts at `1`) was **folded into `st_num` in R5**. The downstream rules
-(`downscale_climate_realization`, `run_wflow`, `export_wflow_results`) now use
+(`downscale_climate_realization`, `run_wflow`, `derive_wflow_indicators`) now use
 the single `st_num` vocabulary and keep the default match that admits `0`;
 only `generate_climate_stress_test` carries a rule-local
 `wildcard_constraints: st_num=[1-9][0-9]*` that bars `0` (so it cannot be a
@@ -126,7 +126,9 @@ rename path, not even a migration note.**
 **Tier 2 — established BlueEarth contracts. Grandfather; rename only with
 a migration note (§7).**
 
-- User-facing output / config names: `Qstats`, `Tlow`, `Tpeak`.
+- User-facing config keys and table labels: `Tlow`, `Tpeak`. (`Qstats` was the
+  third example until R9 P3 renamed `Qstats.csv` to `q_indicators.csv`; no
+  filename relies on this tier any more — see §7 and §8.)
 - HydroMT data-catalog *source names* (`era5`, `merit_hydro`,
   `cmip6_<model>_<scenario>_<member>`) — BlueEarth-minted lookup keys
   that form a catalog-lookup contract. (Their schema is tier 1.)

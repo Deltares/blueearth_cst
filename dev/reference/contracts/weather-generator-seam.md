@@ -192,7 +192,7 @@ WG-3 is the *current* generator's contract, not a universal one.
 
 ## WG-5 — hydromt climate data catalog (side channel)
 
-- **path pattern:** `<exp>/data_catalog_climate_experiment.yml` (rule-3.08 side
+- **path pattern:** `<exp>/config/catalogs/data_catalog_climate_experiment.yml` (rule-3.08 side
   channel).
 - **producer:** rule 3.08 `climate_data_catalog`
   (`blueearth_cst/climate_analysis/prepare_climate_data_catalog.py`).
@@ -227,10 +227,10 @@ real artifact.
 
 ## WG-6 — downscaled Wflow forcing (wf3)
 
-- **path pattern:** `<exp>/hydrology/wflow/rlz_<n>/forcing/inmaps_cst_<m>.nc`.
+- **path pattern:** `<exp>/hydrology/wflow/forcing/inmaps_rlz_<n>_cst_<m>.nc`.
   This is wflow-GRID forcing, so R07 B5 files it on the hydrology side, not
-  under `climate/weathergenr/output/`; the realization index moves into the run
-  directory and leaves the file name.
+  under `climate/weathergenr/output/`; R9 P2 dissolved the `rlz_<n>/` level, so
+  both indices are back in the file name.
 - **producer:** rule 3.09 `downscale_climate_realization`
   (`blueearth_cst/experiment/downscale_climate_forcing.py`).
 - **consumer:** rule 3.10 `run_wflow`.
@@ -239,7 +239,7 @@ real artifact.
   seam doc, HM-2): `(time, lat, lon)` `float32` `precip` / `pet` / `temp` on the
   staticmaps grid, `spatial_ref` EPSG:4326 + `GeoTransform`, daily. This is the
   wflow-seam forcing input; **pinned once in HM-2, cross-referenced here.**
-- **naming pattern:** `rlz_<n>/forcing/inmaps_cst_<m>.nc`.
+- **naming pattern:** `forcing/inmaps_rlz_<n>_cst_<m>.nc`.
 - **temp() lifecycle:** **`temp()`** — deleted after rule 3.10 finishes,
   **absent on the completed fixture**.
 - **pinned surface:** as HM-2 (dims, `precip`/`pet`/`temp` names + `float32`,
@@ -316,9 +316,9 @@ executes on **every** checkout, fixture or not.
 | `validate_wg2` | WG-2 | `<exp>/climate/weathergenr/_work/cst_<m>.csv` | **yes** (persists) |
 | `validate_wg3` | WG-3 | `<exp>/climate/weathergenr/config/weathergen_config.yml`, `<exp>/climate/weathergenr/_work/weathergen_config_rlz_<n>_cst_<m>.yml` | **yes** (persists) |
 | `validate_wg4` | WG-4 | `<exp>/climate/weathergenr/output/rlz_<n>_cst_<m>.nc` | **captured 2026-07-25** — `temp()` content, absent until a `--notemp` capture; green on the real artifact **after** the `crs`/`category` correction; synthetic-proven every suite |
-| `validate_wg5` | WG-5 | `<exp>/data_catalog_climate_experiment.yml` | **yes** (catalog persists) |
-| `validate_wg5_catalog_grid` (relational) | WG-5 entry-key grid vs intended `rlz × cst` (incl. `cst_0`) | `<exp>/data_catalog_climate_experiment.yml` + the run's config snapshot | **yes** (all inputs persist) |
-| `validate_wg6` | WG-6 | `<exp>/hydrology/wflow/rlz_<n>/forcing/inmaps_cst_<m>.nc` | **captured 2026-07-25** — `temp()` content, absent until a `--notemp` capture; green on the real artifact unchanged; synthetic-proven every suite |
+| `validate_wg5` | WG-5 | `<exp>/config/catalogs/data_catalog_climate_experiment.yml` | **yes** (catalog persists) |
+| `validate_wg5_catalog_grid` (relational) | WG-5 entry-key grid vs intended `rlz × cst` (incl. `cst_0`) | `<exp>/config/catalogs/data_catalog_climate_experiment.yml` + the run's config snapshot | **yes** (all inputs persist) |
+| `validate_wg6` | WG-6 | `<exp>/hydrology/wflow/forcing/inmaps_rlz_<n>_cst_<m>.nc` | **captured 2026-07-25** — `temp()` content, absent until a `--notemp` capture; green on the real artifact unchanged; synthetic-proven every suite |
 
 `validate_wg5_catalog_grid(catalog_cfg, rlz_num, st_num) -> list[str]` checks the
 WG-5 entry-key set against the **intended** grid: expected keys exactly
@@ -362,8 +362,8 @@ enough and avoids re-running the batches that are already up to date:
 snakemake -c 3 -s Snakefile_climate_experiment \
   --configfile config/workflows/snake_config_model_test.yml --notemp \
   test_case/test_local/experiments/experiment/climate/weathergenr/output/rlz_1_cst_1.nc \
-  test_case/test_local/experiments/experiment/hydrology/wflow/rlz_1/forcing/inmaps_cst_1.nc \
-  test_case/test_local/experiments/experiment/hydrology/wflow/rlz_1/output/outstates_cst_1.nc
+  test_case/test_local/experiments/experiment/hydrology/wflow/forcing/inmaps_rlz_1_cst_1.nc \
+  test_case/test_local/experiments/experiment/hydrology/wflow/output/outstates_rlz_1_cst_1.nc
 ```
 
 Measured 2026-07-25: **19 jobs, 247.7 s**. Note the `temp()` cascade — asking for
@@ -387,9 +387,9 @@ skip-guards test for):
 | validator | artifact captured | fixture path (`<exp>` = `experiments/experiment`) |
 |---|---|---|
 | `validate_wg4` | WG-4 generator output NC | `<exp>/climate/weathergenr/output/rlz_<n>_cst_<m>.nc` |
-| `validate_wg6` | WG-6 downscaled forcing NC | `<exp>/hydrology/wflow/rlz_<n>/forcing/inmaps_cst_<m>.nc` |
+| `validate_wg6` | WG-6 downscaled forcing NC | `<exp>/hydrology/wflow/forcing/inmaps_rlz_<n>_cst_<m>.nc` |
 
-(HM-6b's `rlz_<n>/output/outstates_cst_<m>.nc` is captured by the same run — documented
+(HM-6b's `output/outstates_rlz_<n>_cst_<m>.nc` is captured by the same run — documented
 in the hydrological-model seam doc.)
 
 **Which cases un-skip:** with these artifacts present, `test_wg4_integration` and

@@ -317,16 +317,17 @@ historical period.
 
 .. code-block:: console
 
-    $ snakemake -s Snakefile_model_creation --configfile config/workflows/snake_config_model_test.yml --dag | dot -Tpng > test_case/test_local/dag/dag_model.png
+    $ python scripts/plot_workflow_dag.py -s Snakefile_model_creation --configfile config/workflows/snake_config_model_test.yml
     $ snakemake --unlock -s Snakefile_model_creation --configfile config/workflows/snake_config_model_test.yml
     $ snakemake all -c 1 -s Snakefile_model_creation --configfile config/workflows/snake_config_model_test.yml
 
-The first command generates a DAG visualization (requires Graphviz's
-``dot``). It writes under the config's ``project_dir`` -- the DAG is a
-function of the config, so it belongs with that config's artifacts, not
-at the repository root. Create ``<project_dir>/dag/`` first if it does
-not exist. The second clears any leftover working-directory lock from
-a prior crash. The third runs the workflow.
+The first command renders a DAG visualization (requires Graphviz's
+``dot``). It writes at the scope of the run that would produce it, under
+that scope's ``logs/`` -- ``<project_dir>/logs/dag/`` for workflows 1 and
+2, and ``<project_dir>/experiments/<id>/logs/dag/`` for workflow 3 --
+creating the directory itself. It renders the graph and runs nothing.
+The second command clears any leftover working-directory lock from a
+prior crash. The third runs the workflow.
 
 Snakefile_climate_projections
 -----------------------------
@@ -336,7 +337,7 @@ precipitation change) for selected CMIP scenarios and GCMs.
 
 .. code-block:: console
 
-    $ snakemake -s Snakefile_climate_projections --configfile config/workflows/snake_config_model_test.yml --dag | dot -Tpng > test_case/test_local/dag/dag_projections.png
+    $ python scripts/plot_workflow_dag.py -s Snakefile_climate_projections --configfile config/workflows/snake_config_model_test.yml
     $ snakemake --unlock -s Snakefile_climate_projections --configfile config/workflows/snake_config_model_test.yml
     $ snakemake all -c 1 -s Snakefile_climate_projections --configfile config/workflows/snake_config_model_test.yml --keep-going
 
@@ -349,7 +350,7 @@ discharge statistics.
 
 .. code-block:: console
 
-    $ snakemake -s Snakefile_climate_experiment --configfile config/workflows/snake_config_model_test.yml --dag | dot -Tpng > test_case/test_local/dag/dag_experiment.png
+    $ python scripts/plot_workflow_dag.py -s Snakefile_climate_experiment --configfile config/workflows/snake_config_model_test.yml
     $ snakemake --unlock -s Snakefile_climate_experiment --configfile config/workflows/snake_config_model_test.yml
     $ snakemake all -c 1 -s Snakefile_climate_experiment --configfile config/workflows/snake_config_model_test.yml
 
