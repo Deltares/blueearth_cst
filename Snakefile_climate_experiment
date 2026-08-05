@@ -266,6 +266,7 @@ LOG_RULES = [
     "3.01b_delineate_region",
     "3.01c_write_model_reference",
     "3.01d_check_model_reference",
+    "3.01e_write_experiment_config",
     # 3.02 is the SHARED store rule (= WF1's 1.10). Run in pipeline order WF1
     # builds the store and WF3 finds it current, so this section usually reads
     # "no part from this run". Listed anyway: WF3 standalone does build it, and
@@ -292,6 +293,7 @@ WF3_TARGETS = {
     "basin_indicators": f"{results_dir}/basin_indicators.csv",
     "snake_config": f"{exp_dir}/config/snake_config_climate_experiment.yml",
     "model_reference": f"{exp_dir}/config/model_reference.yml",
+    "experiment_config": f"{exp_dir}/config/experiment.yml",
     "workflow_log": f"{exp_dir}/logs/{WORKFLOW_LOG_NAME}",
     "benchmarks": f"{exp_dir}/benchmarks/wf3_benchmarks.md",
 }
@@ -431,6 +433,36 @@ rule check_model_reference:
     benchmark:
         f"{exp_dir}/benchmarks/_parts/3.01d_check_model_reference.tsv",
     script: "blueearth_cst/experiment/check_model_reference.py"
+
+# 3.01e  write_experiment_config — the experiment's OWN parameters, recorded
+# beside the model reference that records which model it used (design tree v10).
+#
+# Generated, never authored: a hand-written file here would be a second source
+# of truth competing with the --configfile, which is the config/project.yml
+# direction the master brief puts out of scope.
+#
+# IMMUTABLE AT THE FIRST SUCCESSFUL RUN, not at creation. Editing an
+# experiment's parameters before it has produced anything is ordinary work;
+# afterwards it would silently redefine what the existing results mean. The
+# marker is the merged workflow log -- WF3's last rule and one of `rule all`'s
+# targets, so it exists only after a COMPLETE run. It is read from the
+# filesystem rather than declared as an input: declaring it would invert the
+# DAG, since this file is written long before the log.
+rule write_experiment_config:
+    message: rule_banner("3.01e", "write_experiment_config")
+    input:
+        consistency_ok = f"{exp_dir}/.project_consistency_ok",
+    params:
+        exp_dir = exp_dir,
+        experiment = experiment,
+        experiment_cfg = my_cfg,
+    output:
+        experiment_config = f"{exp_dir}/config/experiment.yml",
+    log:
+        f"{LOG_PARTS_DIR}/3.01e_write_experiment_config.log",
+    benchmark:
+        f"{exp_dir}/benchmarks/_parts/3.01e_write_experiment_config.tsv",
+    script: "blueearth_cst/experiment/write_experiment_config.py"
 
 # 3.02  extract_climate_grid — the SHARED historical-climate store producer
 # (R07 B1). This declaration and rule 1.10 in Snakefile_model_creation are the
