@@ -98,6 +98,14 @@ Three homes for executables, split by INVOCATION MODEL — not by audience (O-23
 the pipeline, `dev/scripts/` inspects or maintains the repository and is never part
 of a run.
 
+**`dev/scripts/` is not only executables.** It also holds small LIBRARIES that
+`tests/` imports via `sys.path` — `semantic_tree_diff.py` (the R9 path map) and
+`cross_workflow_inputs.py` (the one definition of the wf1 leaves WF2/WF3 need
+staged). "Never part of a run" still holds — no Snakefile touches them — but
+"dev-only" does not: a bare-checkout CI run imports them, so an import-time
+error there fails the suite on both legs. Treat those two as contract surfaces
+with test consumers, not as scratch helpers.
+
 ## Key Commands
 
 Run everything inside `pixi shell`, or prefix each command with `pixi run`, so

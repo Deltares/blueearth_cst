@@ -68,7 +68,17 @@ def _staged_config(tmp_path: Path, leaves) -> Path:
 
 
 def _dry_run(snakefile: str, config_path: Path) -> subprocess.CompletedProcess:
-    """Build the DAG only. Returns the completed process; stdout+stderr captured."""
+    """Build the DAG only. Returns the completed process; stdout+stderr captured.
+
+    Runs on BOTH CI legs against the Windows-flavoured `tests/` config, and that
+    is deliberate. AGENTS.md tells a *user* to pick `*_linux.yml` on Linux
+    because data-catalog paths differ — but a dry-run resolves the catalog
+    file's existence, not its interior data paths, so the distinction does not
+    reach here. `test_cli.py` proves it: its dry-run tests use this same config
+    unconditionally, and its `linux_config_fn` case is a separate "the Linux
+    config still parses" assertion that also runs on both legs rather than a
+    platform switch. No skip guard, therefore, and none wanted.
+    """
     return subprocess.run(
         [
             "snakemake", "all", "-c", "1",
