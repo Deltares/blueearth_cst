@@ -348,6 +348,24 @@ Prepares future weather realizations and stress-test perturbations,
 runs them through the hydrological model, and aggregates the
 discharge statistics.
 
+Every artifact this workflow writes hangs off
+``<project_dir>/experiments/<experiment_name>/``. The config key naming
+that directory is **not** pre-filled by ``snake_config.template.yml`` —
+run this once, deliberately, before the first climate-experiment run:
+
+.. code-block:: console
+
+    $ pixi run python scripts/suggest_experiment_name.py <your config>
+
+It derives a name from ``project_dir`` plus today's date, reserves the
+directory (versioning a generated collision to ``_v2``), and writes
+``workflows.climate_experiment.experiment_name`` back into the config.
+Pass ``--name NAME`` to choose your own, or ``--dry-run`` to see the
+suggestion without writing. An **existing value is never overwritten**:
+the experiment directory is what a completed run's outputs are addressed
+by, so silently renaming it would strand them. Remove the key by hand if
+you really want a fresh experiment directory.
+
 .. code-block:: console
 
     $ python scripts/plot_workflow_dag.py -s Snakefile_climate_experiment --configfile config/workflows/snake_config_model_test.yml

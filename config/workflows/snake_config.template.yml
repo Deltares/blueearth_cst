@@ -144,7 +144,18 @@ workflows:
 
   climate_experiment:
     enabled: true
-    experiment_name: experiment
+    # experiment_name names the directory every wf3 artifact hangs off
+    # (experiments/<name>/), so it must be unique per experiment. It is left
+    # unset here on purpose: a placeholder in a template would put every
+    # project copied from it into one shared experiments/experiment/. Fill it
+    # once, before the first climate-experiment run:
+    #
+    #     pixi run python scripts/suggest_experiment_name.py <this config>
+    #
+    # That derives a name from project_dir plus today's date, reserves the
+    # directory, and inserts the key just below (leaving these comments
+    # intact). It REFUSES to overwrite a name already set, which is why the
+    # key has to start out unset.
     realizations_num: 2
     # Future midpoint year for the climate experiment
     horizontime_climate: 2050
