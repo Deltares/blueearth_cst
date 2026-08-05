@@ -71,13 +71,36 @@ record exists to prevent.
 
 | Gate | Status |
 | --- | --- |
-| `pytest tests/test_interchange_contracts.py` | **PASS** — 38 passed, 26 skipped (the integration layer needs the untracked `test_case/test_local` tree, absent in this worktree) |
+| `pytest tests/test_interchange_contracts.py` (this worktree) | **PASS** — 38 passed, 26 skipped |
 | `pytest tests/test_export_wflow_results.py` | **PASS** — covers `realization_from_run_csv` only; untouched by this change |
-| `check_baseline.py check` | **OUTSTANDING — expected to FAIL until re-recorded** |
+| `pytest tests/` from the **primary checkout** | **OUTSTANDING — expected to FAIL** (see below) |
+| `check_baseline.py check` | **OUTSTANDING — expected to FAIL** (see below) |
 
-`dev/baseline/manifest.json` fingerprints both tables **byte-exact** (`sha256`,
-`type: csv`) at `test_case/test_local/experiments/experiment/results/`. A header
-change moves both hashes. Clearing it needs a WF3 run **from the primary
-checkout** (the `.snakemake` metadata rule in `AGENTS.md`), then a re-record.
-The diff must be confined to those two `sha256` / `size_bytes` pairs — any third
-entry moving means something other than this rename also changed.
+**Both outstanding gates have the same trigger and one fix: re-run WF3 from the
+primary checkout.** They are listed separately because they fail for different
+reasons and a reader who clears only one is not done.
+
+**Why `pytest tests/` fails there but passed here.** This worktree has no
+`test_case/test_local`, so the 26 fixture-dependent cases skip. The primary
+checkout HAS that tree, and its `q_indicators.csv` / `basin_indicators.csv`
+still carry the pre-rename `tavg` / `prcp` headers. Two integration cases parse
+them and will now fail — correctly, because `validate_hm7` is supposed to reject
+the old spelling (§4):
+
+| Test | Why it fails on a stale tree |
+| --- | --- |
+| `test_hm7_integration` (`test_interchange_contracts.py:640`) | Reads both tables; the axis columns are missing under their new names |
+| `test_gauge_identity_integration` (`:653`, 12 parametrized cases) | Check 3 derives the gauge set as *header minus `statistic` minus `_PERTURBATION_AXIS`*; a stale header leaves `tavg`/`prcp` in that set, so the list-equality against `output_rlz` breaks |
+
+This is **the branch's merge gate**, not a cosmetic one — `AGENTS.md`'s
+validation ladder runs `pytest tests/` before merging.
+
+**Why `check_baseline.py check` fails.** `dev/baseline/manifest.json`
+fingerprints both tables **byte-exact** (`sha256`, `type: csv`) at
+`test_case/test_local/experiments/experiment/results/`. A header change moves
+both hashes. The re-record diff must be confined to those two `sha256` /
+`size_bytes` pairs — any third entry moving means something other than this
+rename also changed.
+
+Order: run WF3 from the primary checkout (the `.snakemake` metadata rule in
+`AGENTS.md`), then `pytest tests/`, then re-record the baseline.

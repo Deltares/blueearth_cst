@@ -205,6 +205,18 @@ def analyze_wflow_results(
         # degC (cst_<m>.csv carries it directly), precip_change is the RELATIVE
         # shift in % (cst_<m>.csv carries a multiplicative factor). cst_0 is the
         # unperturbed baseline, so both axes are 0 by definition.
+        #
+        # NOTE the `.iloc[0]`: cst_<m>.csv has TWELVE rows, one per month, and
+        # this reads JANUARY, then labels it as the member's single axis value.
+        # That is only the annual figure when the config's monthly min/max
+        # vectors are FLAT -- which the shipped template and the seed config both
+        # are (`min: [0.0]*12`, `max: [3.0]*12`), so it has never been observed
+        # wrong. A project with a seasonal perturbation vector gets a response
+        # surface indexed by its January perturbation. Pre-existing; recorded
+        # here rather than fixed silently, because collapsing 12 months to one
+        # number is a design question (mean? annual total? drop the axis?), not
+        # a typo. Same class as the fixture-shaped validate_hm7 assertion the
+        # HM-7 docstring records.
         if st_nb == "0":
             temp_change = 0
             precip_change = 0

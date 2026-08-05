@@ -141,12 +141,47 @@ end-to-end. Don't delete them.
   alias list that only *looks* like drift are in
   `dev/milestones/r09/migration_indicator-axis-columns.md`.
 
-  **Outstanding:** `dev/baseline/manifest.json` fingerprints both tables
-  byte-exact, so `check_baseline.py check` fails until a WF3 run **from the
-  primary checkout** is re-recorded. Expected diff is exactly two entries'
-  `sha256` / `size_bytes`; a third entry moving means something else changed too.
-  Code, tests, contract doc and `naming.md` are already done — this is the only
-  open item.
+  **Outstanding — TWO gates, one fix: re-run WF3 from the primary checkout.**
+  Code, tests, contract doc and `naming.md` are done; both remaining gates fail
+  only because the fixture tree still holds pre-rename output.
+
+  1. **`pytest tests/` from the primary checkout FAILS** — the branch's merge
+     gate, not just a reporting nicety. `test_hm7_integration` and the 12
+     `test_gauge_identity_integration` cases parse the real
+     `q_indicators.csv` / `basin_indicators.csv`, which still carry `tavg` /
+     `prcp`. They fail *correctly*: `validate_hm7` is meant to reject the old
+     spelling. This worktree passed only because it has no `test_case/test_local`
+     and those 26 cases skip.
+  2. **`check_baseline.py check` FAILS** — `manifest.json` fingerprints both
+     tables byte-exact. Expected re-record diff is exactly two entries'
+     `sha256` / `size_bytes`; a third entry moving means something else changed
+     too.
+
+  Order: WF3 run → `pytest tests/` → baseline re-record.
+
+- **[R9-3] The response-surface axis columns hold JANUARY, not an annual value.**
+  Surfaced 2026-08-05 while writing R9-2's rename, reading the code the rename
+  touched. `export_wflow_results.py` does `df_st["temp_mean"].iloc[0]`, but
+  `cst_<m>.csv` has **twelve rows, one per month** — `prepare_cst_parameters`
+  builds them from the config's 12-element `min` / `max` vectors. So the value
+  labelled `temp_change` / `precip_change` for a stress-test member is its
+  January perturbation.
+
+  **Never observed wrong, and that is the whole problem.** Both the shipped
+  template and the seed config use flat vectors (`min: [0.0]*12`,
+  `max: [3.0]*12`), so January *is* the annual figure there. A project with a
+  seasonal perturbation vector — which the config schema explicitly supports,
+  and which `transient_change: true` invites — gets a response surface silently
+  indexed by one month. Same class as the fixture-shaped `validate_hm7`
+  assertion R9 P3 fixed: correct on the fixture, wrong for the general config.
+
+  **Not fixed in passing, deliberately.** Collapsing 12 months to one axis value
+  is a method question, not a typo — mean? annual total (right for precip,
+  wrong for temp)? or does a seasonally-perturbed run need a different response
+  surface altogether? It also moves numbers, so it is a baseline event. Recorded
+  in the code at the read site so nobody re-derives it. Reproduce by setting a
+  non-flat `stress_test.temp.mean.max` and comparing the emitted axis column
+  against the intended annual mean.
 
 ---
 

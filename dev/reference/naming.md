@@ -157,6 +157,11 @@ Renaming any of these requires a `dev/<milestone>/migration_<topic>.md`
 note listing the old → new mapping:
 
 - `rule all` output filenames (baseline manifest contract).
+- **Column labels in `rule all` output tables** — a header is a tier-2 contract
+  in its own right (§6), separately from the filename that carries it: a
+  consumer that survived a file rename can still break on a header. Added
+  2026-08-05, when the `tavg` → `temp_change` rename found this list enumerated
+  only filenames.
 - Checked-in example config keys (user-facing).
 - HydroMT data-catalog source names in `config/*.yml` (§6 tier 2).
 - Test fixture paths read by `tests/conftest.py`,
