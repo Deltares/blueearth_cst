@@ -69,10 +69,15 @@ The tree is self-explanatory; these are the parts that are not.
   break Snakemake idempotence.
 - `dev/` — planning, audits, design docs, conventions, roadmap, the baseline
   manifest, and dev-process helpers under `dev/scripts/`. Not shipped, not
-  user-facing. `dev/scripts/prune_series_cache.py` reports (and, with
-  `--delete`, removes) orphaned WF2 series — deleting is an explicit owner
-  action, and it must run **before** any reference snapshot, or the snapshot
-  bakes the orphans in and the gate compares them instead of the live series.
+  user-facing. Three inspection helpers, all **report-only by default**:
+  `prune_series_cache.py` (orphaned WF2 series), `prune_climate_store.py`
+  (stale `<source>_<window>` climate stores, R9) and `snapshot_project_tree.py`
+  (a tree as a path list, checked against the R9 path map — also `pixi run
+  tree-check`). Deleting is an explicit owner action via `--delete`, and pruning
+  must run **before** any reference snapshot, or the snapshot bakes the orphans
+  in and the gate compares them instead of the live artifacts. Neither prune
+  tool sees everything: R9 P2 found stale files only an mtime sweep caught,
+  because they sat under directories the path map routes wholesale.
 - `docs/` — user-facing reference, including the vendored hydromt / hydromt-wflow /
   wflow guides. Configs are not mirrored here; `config/` is the single source.
 - `.github/workflows/ci.yml` — `pytest tests/` on ubuntu + windows with
@@ -110,9 +115,18 @@ snakemake all -c 3 -s Snakefile_climate_experiment  --configfile config/workflow
 # Or drive all enabled workflows through the wrapper:
 pixi run python scripts/run_workflows.py --config config/workflows/snake_config_model_test.yml
 
-# Render a workflow's DAG into the config's own project_dir, as
-# config/dag/<project_name>_wf<N>_dag.png (never into the repo root):
+# Render a workflow's DAG into the config's own project_dir, at the PRODUCING
+# RUN's scope (never into the repo root): logs/dag/<project_name>_wf<N>_dag.png
+# for wf1/wf2, experiments/<id>/logs/dag/ for wf3:
 pixi run python scripts/plot_workflow_dag.py -s Snakefile_model_creation --configfile <cfg>
+
+# Snapshot a project tree as a path list and check every path against the R9
+# path map (add --out to record it; nothing is written otherwise):
+pixi run tree-check --config <cfg>
+
+# Report orphaned artifacts. Both DRY RUN by default; --delete is explicit:
+pixi run python dev/scripts/prune_series_cache.py --config <cfg>    # WF2 series cache
+pixi run python dev/scripts/prune_climate_store.py --config <cfg>   # stale climate stores
 
 snakemake ... --dry-run           # inspect the DAG before running or after editing rules
 snakemake --unlock -s <Snakefile> --configfile <cfg>   # Snakemake locks the workdir on crash
@@ -132,13 +146,20 @@ corruption risk, not just confusion. Worktrees are for editing code and running
 `pytest`; pipeline runs belong in the one checkout `worktree_policy: always`
 already reserves for integration.
 
-The **pixi env is shared on purpose**. `.pixi/envs/default` is ~4.7 GB and a
-worktree resolves to the primary's copy instead of building its own. The cost:
-a task that changes `pixi.toml`/`pixi.lock` would silently test the OLD
-environment, so such a task must build its own env in its worktree
-(`pixi install` there) rather than inherit. Both `.pixi/` and `.ruff_cache/`
-self-ignore through a `.gitignore` the tools write themselves, so neither needs
-a repo rule.
+**Every worktree builds its OWN pixi env.** This said the opposite until R9 —
+that a worktree "resolves to the primary's copy instead of building its own" —
+and that is not what happens: each worktree carries its own tracked `pixi.toml`,
+so pixi creates a separate `.pixi/` beside it.
+
+The practical consequence, measured in R9 P2: `pixi install` alone is not enough
+to run WF3 in a fresh worktree. `weathergenr` comes from `pixi run install`
+(remotes), so a worktree that has only had `pixi install` fails at rule 3.06
+with `there is no package called 'weathergenr'`. **Run `pixi run install` in a
+worktree before running WF3 there** — and prefer running the pipeline from the
+primary checkout anyway, for the `.snakemake` reason above.
+
+Both `.pixi/` and `.ruff_cache/` self-ignore through a `.gitignore` the tools
+write themselves, so neither needs a repo rule.
 
 Use `config/workflows/*_linux.yml` + `config/catalogs/*_linux.yml` variants on
 Linux — data-catalog paths differ from Windows. `scripts/run_snake_test.cmd`
