@@ -10,7 +10,7 @@ skill's decision-record reference).
 | [0001](0001-restore-wflow-constant-parameters.md) | Reconcile the dropped Wflow constant parameters via evidence-gated CSDMS restoration | accepted | 2026-07-21 |
 | [0002](0002-revive-subcatchment-climate-plots.md) | Revive the subcatchment climate plots from the wflow forcing input | accepted | 2026-07-21 |
 | [0003](0003-one-shared-region-artifact.md) | One shared region artifact, delineated once per project | accepted | 2026-08-02 |
-| [0004](0004-order-model-readers-on-a-terminal-sentinel.md) | Order model-root readers on a terminal build sentinel, not on a declared output | **proposed** | 2026-08-05 |
+| [0004](0004-order-model-readers-on-a-terminal-sentinel.md) | Order model-root readers on a terminal build sentinel, not on a declared output | accepted | 2026-08-05 |
 
 ## Retired numbers
 

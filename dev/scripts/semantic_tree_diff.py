@@ -657,6 +657,11 @@ def build_r09_path_map(
             "hydromt_data.yml",
             ".model_built",          # sentinel rule
             ".outputs_configured",
+            # ADR 0004's terminal build sentinel, added 2026-08-05. Identity
+            # like its two siblings: it is a NEW artifact with no pre-R09
+            # counterpart, but the row keeps it out of UNMAPPED when a
+            # post-ADR-0004 tree is checked.
+            ".model_final",
             "forcing/inmaps_historical.nc",
             "plots/basin_area.png",
             "plots/basin_area.pdf",

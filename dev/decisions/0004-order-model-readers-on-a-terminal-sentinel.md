@@ -1,6 +1,6 @@
 ADR 0004 — Order model-root readers on a terminal build sentinel, not on a declared output
 
-Status: proposed
+Status: accepted
 Date: 2026-08-05
 Deciders: Ümit Taner
 Consulted: —
@@ -8,6 +8,12 @@ Supersedes: none
 Revisions:
   - 2026-08-05: initial draft; raised from R9 P2 F5's unfixed root cause, and
     from the measurement below showing that F5's own fix is insufficient.
+  - 2026-08-05: ACCEPTED and implemented. Two refinements from doing it, both
+    narrowing the Decision as written: the sentinel is scoped to WF1 (see
+    *Decision*), and 1.08 was measured to rewrite the WHOLE model root, not
+    just `staticmaps.nc` and the toml, which brought rule 1.06 into scope. The
+    rejected alternative's disqualifier was confirmed empirically rather than
+    left as a documented expectation (see *Alternatives considered*).
 
 ### Context
 
@@ -19,9 +25,15 @@ is where the two models disagree.
 
 Both files are **created by rule 1.03** and then **rewritten in place** by rules
 1.04 (`mod.write()`/`mod.close()`), 1.05 (same), and 1.08 (`hydromt update
-wflow_sbm`). Only 1.03 declares them. So Snakemake attributes both files to
-1.03, and a reader that declares `staticmaps.nc` is ordered after 1.03 — not
-after the last rule that writes it. The repository already works around this
+wflow_sbm`). 1.08's write is the widest: measured on the gate run, it rewrites
+`staticmaps.nc`, `wflow_sbm.toml`, `hydromt.log` **and every `staticgeoms/`
+layer**, all at 22:59:37-40. Only artifacts written by our own scripts
+(`outlet_index.csv`, `reservoirs_lakes_glaciers.txt`) escape it — which is why
+rule 1.06, reading `staticgeoms/outlets.geojson`, is in scope too.
+
+**Only 1.03 declares any of it.** So Snakemake attributes the files to 1.03, and
+a reader that declares `staticmaps.nc` is ordered after 1.03 — not after the
+last rule that writes it. The repository already works around this
 with a chain of completion sentinels (`.model_built` → `reservoirs_lakes_glaciers.txt`
 → `.outputs_configured`), which is the impedance-matching layer between the two
 models and is not itself the problem.
@@ -62,8 +74,12 @@ live and the next reader inherits it, because the anchor's name
 
 We will introduce a **terminal build sentinel**, `.model_final`, declared as a
 `touch()` output of the last rule that writes the model root (currently rule
-1.08 `add_forcing`), and every rule that reads any model-root artifact will
-declare `ancient(.model_final)` as its ordering edge. The existing per-rule
+1.08 `add_forcing`), and every **WF1** rule that reads a model-root artifact and
+is not itself a writer will declare `ancient(.model_final)` as its ordering
+edge. The scope is WF1 because the hazard is intra-DAG concurrency: WF2 and WF3
+run as separate Snakemake invocations, after WF1 has finished, so no writer of
+theirs is in flight. Extending the sentinel to WF3 would add a fourth
+cross-workflow leaf (`cross_workflow_inputs.LEAVES`) and buy no ordering. The existing per-rule
 sentinel chain is retained unchanged for ordering *within* the build; the
 terminal sentinel is the single edge that means "the model directory is final".
 The output declarations on rules 1.03–1.08 are **not** changed. A test asserts
@@ -92,8 +108,11 @@ the 1.12 defect cannot recur silently.
   move with it. The enforcing test cannot detect that — it checks that readers
   declare the sentinel, not that the sentinel is attached to the last writer.
   **This is the residual risk and it should be stated in the Snakefile comment.**
-- Readers gain an edge they did not have, so `--dry-run` job counts and the
-  rulegraph change shape. Any recorded DAG render is stale.
+- Readers gain an edge they did not have, so the DAG changes shape. Measured
+  with `dev/scripts/rule_dag_levels.py` on a fresh project at `-c 3`: `plot_map`
+  moves from depth 5 to 7 and `write_outlet_index` from 3 to 7, so both now sit
+  strictly behind `add_forcing` at 6 instead of beside or ahead of it. Job count
+  is unchanged at 18. Any recorded DAG render is stale.
 
 *Neutral*
 
