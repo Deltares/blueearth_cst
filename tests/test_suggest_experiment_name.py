@@ -174,3 +174,151 @@ def test_the_test_fixtures_deliberately_KEEP_a_fixed_name():
             (SNAKEDIR / "config/workflows" / name).read_text(encoding="utf-8")
         )
         assert doc["workflows"]["climate_experiment"]["experiment_name"]
+
+
+# --- the write must not destroy the config it edits ----------------------------
+
+
+def _annotated_cfg(tmp_path, body):
+    """A config written as TEXT, so comments and layout survive to be checked."""
+    project_dir = tmp_path / "Gabon"
+    project_dir.mkdir(exist_ok=True)
+    p = tmp_path / "cfg.yml"
+    p.write_text(
+        "# top-of-file banner\n"
+        "project:\n"
+        "  project_dir: " + str(project_dir).replace("\\", "/") + "  # where output goes\n"
+        "\n"
+        "workflows:\n" + body,
+        encoding="utf-8",
+    )
+    return p
+
+
+CE_BLOCK = (
+    "  climate_experiment:\n"
+    "    enabled: true\n"
+    "    realizations_num: 2  # trailing comment\n"
+    "    stress_test:\n"
+    "      temp:\n"
+    "        step_num: 1\n"
+)
+
+
+def test_cli_preserves_every_comment_in_the_config(tmp_path):
+    """yaml.safe_dump discards comments. The shipped template carries ~110 of
+    them and this command is the first thing a new user runs against their
+    copy, so a dump would delete the annotations they were just handed."""
+    cfg = _annotated_cfg(tmp_path, CE_BLOCK)
+    before = cfg.read_text(encoding="utf-8")
+    assert _run(cfg).returncode == 0
+    after = cfg.read_text(encoding="utf-8")
+    for comment in ("# top-of-file banner", "# where output goes", "# trailing comment"):
+        assert comment in after, f"{comment!r} was destroyed by the write"
+    # Exactly one line added, everything else byte-identical.
+    added = [ln for ln in after.splitlines() if ln not in before.splitlines()]
+    assert added == ["    experiment_name: gabon_20260728"]
+
+
+def test_cli_fills_a_bare_key_in_place_keeping_its_comment(tmp_path):
+    """`experiment_name:` with no value parses to None, which this command
+    treats as unset (its refusal test is `is not None`)."""
+    cfg = _annotated_cfg(
+        tmp_path,
+        "  climate_experiment:\n"
+        "    enabled: true\n"
+        "    experiment_name:   # fill me in\n"
+        "    realizations_num: 2\n",
+    )
+    assert _run(cfg).returncode == 0
+    after = cfg.read_text(encoding="utf-8")
+    assert "    experiment_name: gabon_20260728  # fill me in" in after
+    assert after.count("experiment_name") == 1, "must fill in place, not duplicate"
+
+
+def test_the_new_key_lands_below_the_comments_that_document_it(tmp_path):
+    """The template heads the block with a comment explaining the key; the
+    insertion goes after it, not between the comment and its heading."""
+    cfg = _annotated_cfg(
+        tmp_path,
+        "  climate_experiment:\n"
+        "    enabled: true\n"
+        "    # experiment_name is left unset on purpose; run the command\n"
+        "    realizations_num: 2\n",
+    )
+    assert _run(cfg).returncode == 0
+    lines = cfg.read_text(encoding="utf-8").splitlines()
+    assert lines.index("    experiment_name: gabon_20260728") == lines.index(
+        "    realizations_num: 2"
+    ) - 1
+
+
+def test_cli_leaves_unrelated_structure_intact(tmp_path):
+    """The reload check is the guarantee; this pins it end to end."""
+    cfg = _annotated_cfg(tmp_path, CE_BLOCK)
+    before = yaml.safe_load(cfg.read_text(encoding="utf-8"))
+    assert _run(cfg).returncode == 0
+    after = yaml.safe_load(cfg.read_text(encoding="utf-8"))
+    before["workflows"]["climate_experiment"]["experiment_name"] = "gabon_20260728"
+    assert after == before
+
+
+def test_an_uneditable_config_reserves_nothing(tmp_path):
+    """Failing after the reservation would strand an experiments/<id>/ for a
+    config the command then could not write to anyway."""
+    cfg = _annotated_cfg(tmp_path, "  climate_experiment: {enabled: true}\n")
+    before = cfg.read_text(encoding="utf-8")
+    res = _run(cfg)
+    assert res.returncode == 2
+    assert "flow style" in res.stderr and "by hand" in res.stderr
+    assert cfg.read_text(encoding="utf-8") == before
+    assert not (tmp_path / "Gabon" / "experiments").exists(), "must reserve nothing"
+
+
+def test_the_shipped_template_is_editable_by_this_command(tmp_path):
+    """The template is the file this command is documented against; a layout
+    it cannot edit would break the one path a new user is told to take."""
+    import shutil
+
+    src = SNAKEDIR / "config/workflows/snake_config.template.yml"
+    cfg = tmp_path / "tmpl.yml"
+    shutil.copy(src, cfg)
+    doc = yaml.safe_load(cfg.read_text(encoding="utf-8"))
+    project_dir = tmp_path / "Gabon"
+    project_dir.mkdir()
+    text = cfg.read_text(encoding="utf-8").replace(
+        doc["project"]["project_dir"], str(project_dir).replace("\\", "/"), 1
+    )
+    cfg.write_text(text, encoding="utf-8")
+    n_comments_before = text.count("#")
+
+    res = _run(cfg)
+    assert res.returncode == 0, res.stderr
+    after = cfg.read_text(encoding="utf-8")
+    assert after.count("#") == n_comments_before
+    assert (
+        yaml.safe_load(after)["workflows"]["climate_experiment"]["experiment_name"]
+        == "gabon_20260728"
+    )
+
+
+def test_a_missing_climate_experiment_block_is_appended(tmp_path):
+    """The yaml.safe_dump this replaced created absent blocks via setdefault;
+    dropping that would break configs the command used to accept."""
+    cfg = _annotated_cfg(
+        tmp_path,
+        "  model_creation:\n"
+        "    enabled: true  # keep me\n"
+        "\n"
+        "# a trailing comment that belongs to no block\n",
+    )
+    assert _run(cfg).returncode == 0
+    doc = yaml.safe_load(cfg.read_text(encoding="utf-8"))
+    assert doc["workflows"]["climate_experiment"] == {
+        "experiment_name": "gabon_20260728"
+    }
+    assert doc["workflows"]["model_creation"] == {"enabled": True}
+    text = cfg.read_text(encoding="utf-8")
+    assert "# keep me" in text and "belongs to no block" in text
+    # The appended block goes before the dangling comment, not after it.
+    assert text.index("climate_experiment") < text.index("belongs to no block")
