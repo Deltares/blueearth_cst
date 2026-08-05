@@ -252,10 +252,17 @@ it, which is F1's pattern surfacing a fifth time in a form that got caught.
 | 1 Narrow | the grep falsifier, per edit | all 133 matching files classed |
 | 1 Narrow | `tests/test_interchange_contracts.py` | 37 passed, 26 skipped |
 | 1 Narrow | `tests/test_guard_invalidation.py` | 2 passed |
-| 2 Integration | `pixi run test-cli` | 12 passed |
+| 2 Integration | `pixi run test-cli` | 12 passed — **at commit 1**; superseded by rung 3, which subsumes it and ran against the final tree |
 | 3 **Full gate** | `pixi run test-full` | **first run: 1 failed** (F3), 1311 passed, 31 skipped, 1 xfailed, 5m04s |
+| 3 **Full gate, re-run** | `pixi run test-full` | **1312 passed**, 31 skipped, 1 xfailed, 4m26s — **green** |
 
-The full-gate re-run after the F3 fix is recorded below the table when it lands.
+The count rises by one because F3's fix turned a failing test into a passing
+one; nothing was added or skipped to get there.
+
+The rung-2 caveat is deliberate. Naming test-cli as this phase's validation when
+it ran three commits earlier would be F1's pattern — a check claimed on intent
+rather than on a re-run — in the report that names the class. It is recorded as
+what it is, and the full gate is what actually covers the final tree.
 
 Sealed records under `dev/milestones/**` are unmodified — checked, not assumed.
 
