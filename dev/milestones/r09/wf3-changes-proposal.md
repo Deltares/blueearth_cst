@@ -42,7 +42,7 @@ the discussion started; further parts are added as topics come up.
 
 | | |
 |---|---|
-| | C29 retire the per-run generator configuration file *(proposed, not ruled)* |
+| | C29 retire the per-run generator configuration file · C34 decide every generator argument deliberately *(both proposed, not ruled)* |
 
 ### Part D — where settings live
 
@@ -54,7 +54,7 @@ the discussion started; further parts are added as topics come up.
 
 | | |
 |---|---|
-| **Findings** | F1 January-only perturbation · F2 overland flow units · F3 seam in the 7-day window · F4 gauge rainfall discarded · F5 run numbers silently change meaning · F6 per-run generator config is empty and misleading · F7 generator template is an undeclared input · F8 spell-length perturbations in the wrong file · F9 hydrological year configured twice · F10 two settings read by nothing · F11 contract covers 11 of 16 settings · F12 hardcoded series start year |
+| **Findings** | F1 January-only perturbation · F2 overland flow units · F3 seam in the 7-day window · F4 gauge rainfall discarded · F5 run numbers silently change meaning · F6 per-run generator config is empty and misleading · F7 generator template is an undeclared input · F8 spell-length perturbations in the wrong file · F9 hydrological year configured twice · F10 two settings read by nothing · F11 contract covers 11 of 16 settings · F12 hardcoded series start year · F13 dead settings are pre-1.2.0 leftovers · F14 three unreachable stress dimensions · F15 perturbation step unseeded · F16 evaporation computed twice |
 | **Open** | O1 do subbasins overlap · O2 stale configuration switch · ~~O3~~ closed → C28 |
 
 An appendix at the end sketches how a stress test is built today, step by step.
@@ -304,6 +304,13 @@ change is zero. This is the artifact that is missing today: a single place that
 answers "what was run 37?". It also becomes the natural place to add a dimension
 — a new column, rather than a new naming convention.
 
+The extra dimensions are not hypothetical. **F14** records that the installed
+generator already accepts wet/dry day frequency, extreme intensification, and
+spell-length factors, all left at their defaults and unreachable from any project
+configuration. Adding them is plumbing, not new science — which is exactly the
+case this design table was proposed for, and the reason it is worth doing before
+they arrive rather than after.
+
 **C24 — Keep two identifiers, not one.** The design point and the realization are
 different kinds of thing and should not collapse into a single counter:
 
@@ -389,6 +396,22 @@ The workflow engine already knows the output filename — it is the step's own
 declared output. So the filename can be passed straight to the R script as an
 argument, the two switches belong in the single shared generator configuration
 that already exists, and the whole per-run step disappears.
+
+**C34 — Decide every weather-generator argument deliberately, instead of
+inheriting defaults by omission.** *(Proposed 2026-08-05, not yet ruled.)*
+
+We call two generator routines. Between them they accept forty-nine arguments,
+and we set thirty — the other nineteen take whatever the package decides. None of
+what we pass is out of date (see F13), but the gap is where the interesting
+material sits: three of the unset arguments are **additional ways to stress the
+climate** (F14), one is a reproducibility control we set on one call and not the
+other (F15), and one silently picks an evaporation method that a later step
+overrides anyway (F16).
+
+The proposal is not "expose everything" — most defaults are fine and exposing
+them would bloat the configuration for no gain. It is that each argument gets one
+recorded decision: surface it, or accept the default *on purpose*. An argument
+nobody has looked at is not the same as an argument someone chose.
 
 ---
 
@@ -614,6 +637,43 @@ has. A basin whose record ends in 2005, or extends to 2020, gets an anchor that
 is simply wrong, and nothing says so. **Not addressed by any change here** — the
 fix is to derive it from the climate store rather than assume it, which changes
 numbers and so needs its own decision.
+
+**F13 — Nothing we pass to the weather generator is out of date; the dead
+settings are leftovers from an older version of it.** Checked against the pinned
+generator version actually installed. Every argument both scripts pass still
+exists. The two settings that are read by nothing (F10) are survivors from a time
+when evaluation was part of the generation routine — it has since been split into
+routines of its own, and whether diagnostic plots are produced is now controlled
+by a different argument that we never set, so it is always on. Someone switching
+the old setting off today would reasonably expect the plots to stop. They do not.
+
+**F14 — The generator already supports three more ways to stress the climate than
+the toolbox can reach.** Beyond shifting temperature and rescaling precipitation
+mean and variance, the installed version accepts a **wet/dry day frequency**
+factor, an **extreme-intensification** control with its own threshold and
+strength, and the **spell-length** factors from F8. All are left at their
+defaults, unreachable from any project configuration.
+
+This matters for Part B specifically. The design table was proposed to make
+multi-dimensional stress testing durable, and the obvious question was what the
+extra dimensions would be. They already exist — the capability is installed and
+working, and only the plumbing is missing.
+
+**F15 — The perturbation step is not seeded, though the generation step is.** The
+project configuration supplies a random seed to the routine that generates the
+baseline realizations. The routine that then perturbs them accepts a seed too,
+and is given none. Whatever is random in that step is therefore not reproducible,
+while the step before it is — an asymmetry nobody chose. Whether it actually
+matters depends on what the perturbation does stochastically, which should be
+confirmed rather than assumed; the asymmetry is real either way.
+
+**F16 — Potential evaporation is computed twice, by two different methods.** The
+generator computes it while applying the perturbation, using its own default
+method, and then the downscaling step recomputes it from the perturbed
+temperature using a different one. So the chain contains two methods, neither
+chosen at the first step, and the first result is very probably thrown away.
+Confirm it is discarded before removing the work — but at minimum the method
+should be chosen rather than defaulted.
 
 ---
 

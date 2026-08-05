@@ -594,7 +594,92 @@ and delete rule 3.05. Removes one rule, one wildcard-expanded artifact class, an
 
 **Not yet ruled** — awaiting owner decision.
 
-### F7 — `config/templates/weathergen_config.yml` is an UNDECLARED input to 3.04
+---
+
+## CR-5b — audit both weathergenr call sites against v1.2.0 (C34, PROPOSED)
+
+Signatures read from the **installed** package, not from docs:
+`tanerumit/weathergenr@v1.2.0` (pinned in `dev/scripts/install_weathergenr.R`),
+via the primary checkout's env — this worktree has had only `pixi install`, so
+weathergenr is absent here.
+
+```
+Rscript --vanilla -e "print(args(weathergenr::generate_weather))"
+Rscript --vanilla -e "print(args(weathergenr::apply_climate_perturbations))"
+```
+
+### F13 — nothing we pass is retired; the dead keys are pre-1.2.0 vestiges
+
+**`generate_weather()` takes 24 args; `generate_weather.R:39-58` passes 19.**
+Every one still exists in v1.2.0 — there is no retired parameter in either call.
+Unpassed:
+
+| arg | default | note |
+| --- | --- | --- |
+| `save_plots` | `TRUE` | **the live control that `evaluate.model` used to be** |
+| `warm_filter_bounds` | `list()` | new in 1.2.0 — acceptance bounds on the generated annual series |
+| `relax_priority` | `c("wavelet","sd","tail_low","tail_high","mean")` | new — which distributional criterion is sacrificed when the warm-pool filter cannot be met. A **scientific** choice currently made by an upstream default |
+| `n_cores` | `NULL` | we pass `parallel` but never `n_cores` |
+| `verbose` | `FALSE` | |
+
+v1.2.0 splits evaluation out into its own exports (`evaluate_weather_generator`,
+`prepare_evaluation_data`), which is why `evaluate.model` / `evaluate.grid.num`
+(F10) reach nothing. Plot emission is now `save_plots`, unset and defaulting
+`TRUE` — so setting `evaluate.model: FALSE` today does **not** stop the plots.
+
+### F14 — three perturbation dimensions exist upstream and are unreachable
+
+**`apply_climate_perturbations()` takes 25 args;
+`impose_climate_change.R:45-57` passes 11.** Fourteen unpassed:
+
+| arg | default | class |
+| --- | --- | --- |
+| `precip_occurrence_factor` | `NULL` | **STRESS DIMENSION** — wet/dry day frequency |
+| `precip_occurrence_transient` | `TRUE` | its transient flag |
+| `precip_intensity_threshold` | `0` | wet-day threshold |
+| `exaggerate_extremes` | `FALSE` | **STRESS DIMENSION** — extreme intensification |
+| `extreme_prob_threshold` / `extreme_k` | `0.95` / `1.2` | its controls |
+| `precip_cap_mm_day` / `precip_floor_mm_day` / `precip_cap_quantile` | `NULL` | physical bounds on perturbed precip |
+| `scale_var_with_mean` / `enforce_target_mean` | `TRUE` / `TRUE` | how the perturbation is conditioned |
+| `pet_method` | `"hargreaves"` | see F16 |
+| `seed` | `NULL` | see F15 |
+| `verbose` | `FALSE` | |
+
+With `dry_spell_factor` / `wet_spell_factor` on the generate side (F8), that is
+**three additional stress dimensions already installed and working**: occurrence
+frequency, extreme intensification, spell length. Ties directly to CR-4/C23 —
+the design table's extra columns are plumbing, not new science.
+
+### F15 — the perturbation step is unseeded while generation is seeded
+
+`generate_weather.R:57` passes `seed = yaml$...$seed` (`123` from the template).
+`impose_climate_change.R` passes no `seed`, so `apply_climate_perturbations` gets
+`NULL`. The function accepting a seed implies something stochastic in it
+(quantile-mapping fit / resampling). **Confirm against the package source before
+asserting non-determinism** — but the asymmetry is unchosen either way.
+
+### F16 — PET computed twice, by two methods, first result probably discarded
+
+`impose_climate_change.R:54` passes `compute_pet = TRUE` and lets `pet_method`
+default to `"hargreaves"`. Rule 3.09's `downscale_climate_forcing.py:117-122`
+then calls `setup_temp_pet_forcing(..., pet_method=pet_method)` with `makkink`
+(eobs) or `debruin`, recomputing PET from the perturbed temperature. HM-2/WG-6
+pins the wflow forcing's `pet`; WG-4 pins only `precip`/`temp` on the generator
+NC. **Verify the generator's `pet` really is unused before removing the work** —
+but the chain carries two PET methods and neither was chosen at the first step.
+
+### C34 — one recorded decision per argument
+
+Not "expose everything" — most defaults are right and surfacing them would bloat
+the project config. The rule is that each of the 19 unpassed args gets one
+recorded decision: **surface it, or accept the default deliberately**. An
+unexamined default is not a choice. Minimum set to surface, on this evidence:
+`save_plots`, `pet_method`, `seed` (perturbation side), and the three stress
+dimensions once CR-4's design table can carry them.
+
+---
+
+## F7 — `config/templates/weathergen_config.yml` is an UNDECLARED input to 3.04
 
 Found 2026-08-05 while checking the appendix's dependency arrows.
 `Snakefile_climate_experiment:588` passes it as
