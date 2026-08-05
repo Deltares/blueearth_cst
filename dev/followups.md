@@ -167,6 +167,39 @@ end-to-end. Don't delete them.
   Order: WF3 run → `pytest tests/` → ADR 0001 step-7 consistency check →
   baseline re-record.
 
+- **[R9-4] R9 moved the project tree but never re-pointed the interchange
+  contract tests. FIXED 2026-08-05.** The whole Layer-2 block of
+  `tests/test_interchange_contracts.py` still used pre-R9 paths —
+  `climate_historical/`, `hydrology_model/`, `weather_generator/`,
+  `hydrology_runs/rlz_<n>/`, and the loose `data_catalog_climate_experiment.yml`
+  at the experiment root — plus the pre-flattening member naming
+  (`rlz_<n>/config/cst_<m>.toml` rather than `config/rlz_<n>_cst_<m>.toml`).
+  **22 failures** on the first post-R9 `pytest tests/` in the primary checkout.
+
+  **Why it stayed invisible, which is the part worth keeping.** The block is
+  `skipif(not _fixture_present())` and `test_case/test_local` is untracked, so
+  it is absent in every worktree and on CI — `AGENTS.md` already says CI covers
+  only what a bare checkout can run. R9's gates were `semantic_tree_diff` and
+  `check_baseline`, which validate the tree's SHAPE; neither reads the code that
+  reads the tree. So the only check that could have caught it is the one only
+  the primary checkout can run, and it had not been run since R9 landed.
+
+  Three of the paths were worse than merely broken: `_WG4_NC`, `_WG6_NC` and
+  `_HM6B_NC` sit behind a runtime `os.path.exists` guard, so a wrong path reads
+  as "temp() artifact absent" and **skips silently** — indistinguishable from a
+  normal run, forever.
+
+  Fixed by deriving four roots (`_MODEL_DIR`, `_STORE_ROOT`, `_WG_DIR`,
+  `_RUNS_DIR`) named after the Snakefile variables they mirror, so the next tree
+  move is a one-line edit rather than a dozen literals. **Verified only against
+  the fixture's real layout on disk, not by a green run** — this worktree has no
+  fixture. Confirm with `pytest tests/test_interchange_contracts.py` in the
+  primary checkout.
+
+  **Generalizes:** any milestone that moves the project tree must grep the test
+  suite for the old roots, because the suite's fixture-dependent layer cannot
+  fail in CI.
+
 - **[R9-3] The response-surface axis columns hold JANUARY, not an annual value.**
   Surfaced 2026-08-05 while writing R9-2's rename, reading the code the rename
   touched. `export_wflow_results.py` does `df_st["temp_mean"].iloc[0]`, but
