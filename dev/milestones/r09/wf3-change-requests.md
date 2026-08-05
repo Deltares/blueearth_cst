@@ -14,8 +14,70 @@ carries the stable **C / F / O** reference numbers. **The two must be kept in
 step:** a decision changed here without updating the proposal leaves the
 reviewable version lying.
 
-Status: **CR-1 landed. CR-2 specified, NOT implemented. Collection still open —
-more requests expected.**
+Status: **CR-1 landed. CR-2 specified, NOT implemented. Unit D DEFERRED.**
+Collection closed for sequencing purposes — see the batch plan below.
+
+---
+
+## Batch plan and sequencing (2026-08-05)
+
+The register grew from three requests to thirty-four changes and sixteen findings
+because tracing each request surfaced adjacent ones. That is a collection, not a
+plan. **It is four units**, and they do not all belong in this milestone.
+
+| unit | changes | work | risk |
+| --- | --- | --- | --- |
+| **A — results tables** | C2–C21, C28 | rewrite `export_wflow_results.py`, rework `validate_hm7` + the relational validator, update tests | medium — moves numbers, needs the baseline |
+| **B — run identification** | C22–C27 | `cst_`→`st_` rename, the design table, DAG-time enumeration | medium — many filenames, catalog keys, path map |
+| **C — generator plumbing** | C29, C34 | delete rule 3.05, audit both weathergenr call sites | small |
+| **D — config surfaces** | C30–C33 | redistribute the weathergen template, restructure `advanced_settings.yml` | **highest** — breaking migration for every existing project config |
+
+### Unit D is DEFERRED to its own milestone
+
+Nothing is broken today; it is tidiness plus the unreachable dimensions in F8. It
+is the only unit with a breaking migration (the hydrological-year unification),
+it touches every project config, and it is not what this thread set out to fix.
+The specification stays here and is complete — it just does not land with A–C.
+
+**Consequence to hold onto:** F7 (undeclared template input) was to be disposed of
+by C31. With D deferred, F7 needs its own one-line fix — declare the template as
+an input to rule 3.04 — or it stays open. Do not let it fall between the two.
+
+### Order
+
+| # | step | why here |
+| --- | --- | --- |
+| 1 | **Clear the owed WF3 re-run** (CR-1 / followups R9-2) | It already blocks `pytest tests/` on the primary checkout. Every unit below adds to that debt; running once now stops it compounding. |
+| 2 | **Rule C29** | One yes/no. It is R10's only blocker — see below. |
+| 3 | **R10** (rule identifier renames) | ACCEPTED and fully designed, so zero decision cost remains. Small bounded work should not queue behind large work with six unruled changes. |
+| 4 | **Unit A** | The original request. |
+| 5 | **Unit B**, with **Unit C** alongside | B is what makes A durable past two stress dimensions; C touches the same rules B does. |
+| — | Unit D | deferred |
+
+### Interaction with R10 — exactly one collision
+
+R10's scope is rule **identifiers only** (bodies, inputs, outputs and numbering
+are explicitly out), so there is no renumbering cascade. Checked rename by
+rename against this register:
+
+| R10 rename | interaction |
+| --- | --- |
+| 1.07, 1.11, 1.12, 2.01, 2.06 | none — WF1/WF2, untouched here |
+| 3.03 → `prepare_stress_grid` | rule survives; only its outputs change (C22/C23). Name stays correct |
+| 3.08 → `write_climate_catalog` | survives; catalog *keys* change, the rule does not |
+| 3.04 → `prepare_weathergen_config` | survives; C31 changes its inputs, name stays correct |
+| **3.05 → `prepare_weathergen_config_perturbed`** | **C29 deletes this rule** |
+
+Renaming 3.05 would enter R10's `migration_rule-names.md` as a CLI-surface rename
+and then vanish a milestone later. **If C29 is ruled, drop 3.05 from R10's
+scope** — R10's own design already applies this principle in reverse, folding
+`export_wflow_results` into R9 because "a milestone renames what it falsifies".
+If C29 is declined, 3.05 stays and R10 renames it as designed.
+
+**Shared hazard, worth keeping apart rather than merging:** both R10 and units
+A–C edit `LOG_RULES`. R10's design records that a missed entry makes a log
+section *silently vanish* while its parts stay on disk. Two separate careful
+passes beat one tangled one.
 
 ---
 
@@ -706,9 +768,19 @@ neighbourhood anyway.
 
 ---
 
-## CR-6 — configuration surfaces (PROPOSED, not ruled)
+## CR-6 — configuration surfaces — **DEFERRED to its own milestone**
 
 Proposal-side: **Part D, C30–C33**, findings **F8–F12**.
+
+**Deferred 2026-08-05** (see the batch plan). The specification below is complete
+and stands; it simply does not land with units A–C. Reasons: it is the only unit
+with a breaking migration, it touches every project config, nothing is broken
+today, and it is not what this thread set out to fix.
+
+**Do not lose F7 on the way out.** C31 was to dispose of it by removing the
+template entirely; deferred, it needs its own one-line fix (declare
+`config/templates/weathergen_config.yml` as an input to rule 3.04) or it stays
+open indefinitely.
 
 ### The three surfaces, and why two of them overlap
 

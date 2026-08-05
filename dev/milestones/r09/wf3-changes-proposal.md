@@ -415,7 +415,17 @@ nobody has looked at is not the same as an argument someone chose.
 
 ---
 
-# Part D — where settings live
+# Part D — where settings live — **DEFERRED**
+
+**Deferred 2026-08-05 to its own milestone.** Everything below stands as written;
+it simply is not part of the batch being built now. It is the only part with a
+breaking change for existing projects, it touches every project's configuration
+file, nothing is currently broken by leaving it alone, and it is not what this
+work set out to fix.
+
+One thing must not be lost with it: **F7** was going to be solved for free by
+C31, since removing the template removes the thing nobody declared. Deferred, it
+needs its own one-line fix instead, or it quietly stays open.
 
 ## The short version
 

@@ -2,6 +2,17 @@
 
 Status: **ACCEPTED** by the owner, 2026-08-04. Not implemented.
 
+> **Note added 2026-08-05 — read before implementing. This does not change the
+> accepted scope.** Rule 3.05 `prepare_weagen_config_st` is proposed for
+> **deletion** by a pending WF3 change (C29 in
+> `dev/milestones/r09/wf3-change-requests.md`), which found the per-run config it
+> writes carries no per-run information. If C29 is ruled, **drop 3.05's rename
+> from the nine** rather than recording a CLI-surface rename for a rule that then
+> disappears — the same principle this design already applies in reverse when it
+> folds `export_wflow_results` into R9. If C29 is declined, rename it as
+> designed. The other eight renames are unaffected; that register's batch plan
+> has the rename-by-rename check.
+
 Date: 2026-08-04
 
 Decider: Ümit Taner
