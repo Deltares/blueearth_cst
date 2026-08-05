@@ -929,3 +929,65 @@ def test_kernel_hash_is_stable_for_set_literal_constants():
         return x in {"alpha", "beta", "gamma", "delta"}
 
     assert si.kernel_hash([uses_a_set]) == si.kernel_hash([uses_a_set])
+
+
+# ---------------------------------------------------------------------------
+# Inherited single-source CMIP6 provenance (R9 P2 F4)
+# ---------------------------------------------------------------------------
+
+class _FakeDataset:
+    """Just the `.attrs` surface the dropper touches — no xarray needed."""
+
+    def __init__(self, attrs):
+        self.attrs = dict(attrs)
+
+
+def test_drop_inherited_removes_exactly_the_single_source_attrs():
+    """The three inherited keys go; everything else, especially `cst_*`, stays.
+
+    "Exactly" is the assertion that matters. `cst_raw_digest`,
+    `cst_schema_version` and `cst_calendar` also differ between trees written by
+    different code eras — but those are OURS and record real drift, so a fix
+    that swept "provenance attrs" generally would hide it.
+    """
+    ds = _FakeDataset(
+        {
+            "variable_id": "tas",
+            "tracking_id": "hdl:21.14100/abc",
+            "status": "2020-03-22;created",
+            "cst_raw_digest": "deadbeef",
+            "cst_schema_version": "4",
+            "cst_calendar": "noleap",
+            "cst_source_paths": '{"r1i1p1f1": {"pr": ["gr1/v1"], "tas": ["gr1/v1"]}}',
+            "institution_id": "INM",
+        }
+    )
+    si.drop_inherited_single_source_attrs(ds)
+
+    assert set(ds.attrs) == {
+        "cst_raw_digest",
+        "cst_schema_version",
+        "cst_calendar",
+        "cst_source_paths",
+        "institution_id",
+    }
+
+
+def test_drop_inherited_is_idempotent_and_tolerates_absence():
+    """A slice fetched after the fix has none of them; dropping again is a no-op."""
+    ds = _FakeDataset({"cst_raw_digest": "deadbeef"})
+    si.drop_inherited_single_source_attrs(ds)
+    si.drop_inherited_single_source_attrs(ds)
+    assert ds.attrs == {"cst_raw_digest": "deadbeef"}
+
+
+def test_inherited_attr_set_is_exactly_three():
+    """A guard on the constant itself.
+
+    Widening it is a decision with a blast radius — `semantic_tree_diff` imports
+    this set to mask those keys in the cmip6 merge classes — so a change here
+    should be deliberate enough to update a test.
+    """
+    assert si.INHERITED_SINGLE_SOURCE_ATTRS == frozenset(
+        {"variable_id", "tracking_id", "status"}
+    )

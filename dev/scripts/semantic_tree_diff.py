@@ -87,7 +87,43 @@ except ModuleNotFoundError:  # pragma: no cover - fallback for <3.11
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import check_baseline as cb  # noqa: E402
 
+# The package is the source of truth for what WE write, so the attr set below
+# is imported rather than restated -- one definition, as with the leaf set.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from blueearth_cst.projections.series_identity import (  # noqa: E402
+    INHERITED_SINGLE_SOURCE_ATTRS,
+)
+
 VOLATILE_NC_ATTRS = cb.VOLATILE_NC_ATTRS
+
+#: Path classes whose files carry CMIP6 global attrs inherited from ONE member
+#: of a multi-variable merge. SCOPED, not folded into VOLATILE_NC_ATTRS: that
+#: frozenset is global to every netCDF comparison in both tools, and masking
+#: `variable_id` everywhere would drop it from artifacts where it does describe
+#: the file. Here it is dropped only where it provably cannot (R9 P2 F4).
+#:
+#: Needed even after the writers stopped emitting these attrs, and that is the
+#: point: every reference tree recorded before that fix still carries them, so a
+#: new-vs-old comparison would report them present on one side and absent on the
+#: other. Retire this only once no reference tree in use predates the fix.
+_INHERITED_ATTR_PATH_MARKERS = (
+    "climate_projections/cmip6/raw/",
+    "climate_projections/cmip6/scalar/",
+    "climate/projections/cmip6/raw/",
+    "climate/projections/cmip6/scalar/",
+)
+
+
+def _volatile_attrs_for(*paths: str) -> frozenset:
+    """Volatile attrs for a comparison, widened for the CMIP6 merge classes.
+
+    Widened if EITHER side is in the class, since the whole point is comparing a
+    post-fix tree against a pre-fix reference.
+    """
+    joined = " ".join(p.replace("\\", "/") for p in paths)
+    if any(marker in joined for marker in _INHERITED_ATTR_PATH_MARKERS):
+        return VOLATILE_NC_ATTRS | INHERITED_SINGLE_SOURCE_ATTRS
+    return VOLATILE_NC_ATTRS
 
 # ---------------------------------------------------------------------------
 # Copied-config normalize map (ext2-01). The documented old->new path map that
@@ -940,6 +976,7 @@ def compare_nc(ref_path: str, cur_path: str, tol: float = DEFAULT_TOLERANCE) -> 
     equality criterion here.
     """
     diffs: list[str] = []
+    volatile = _volatile_attrs_for(ref_path, cur_path)
     with xr.open_dataset(ref_path) as ref, xr.open_dataset(cur_path) as cur:
         # Dimensions
         if dict(ref.sizes) != dict(cur.sizes):
@@ -971,16 +1008,19 @@ def compare_nc(ref_path: str, cur_path: str, tol: float = DEFAULT_TOLERANCE) -> 
                     tol,
                 )
                 diffs += _compare_attrs(
-                    f"var {name}", ref[name].attrs, cur[name].attrs
+                    f"var {name}", ref[name].attrs, cur[name].attrs, volatile
                 )
         # Dataset-level attrs
-        diffs += _compare_attrs("dataset", ref.attrs, cur.attrs)
+        diffs += _compare_attrs("dataset", ref.attrs, cur.attrs, volatile)
     return diffs
 
 
-def _compare_attrs(scope: str, ref_attrs: dict, cur_attrs: dict) -> list[str]:
-    ref_a = {k: str(v) for k, v in ref_attrs.items() if k not in VOLATILE_NC_ATTRS}
-    cur_a = {k: str(v) for k, v in cur_attrs.items() if k not in VOLATILE_NC_ATTRS}
+def _compare_attrs(
+    scope: str, ref_attrs: dict, cur_attrs: dict, volatile: frozenset | None = None
+) -> list[str]:
+    volatile = VOLATILE_NC_ATTRS if volatile is None else volatile
+    ref_a = {k: str(v) for k, v in ref_attrs.items() if k not in volatile}
+    cur_a = {k: str(v) for k, v in cur_attrs.items() if k not in volatile}
     if ref_a != cur_a:
         return [f"{scope} attrs {cur_a} vs {ref_a}"]
     return []

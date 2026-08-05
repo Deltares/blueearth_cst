@@ -84,6 +84,36 @@ ACQUISITION_WINDOWS = {
 #: unverified and unpinnable (design §5.5, ruling A3).
 CERTIFIED_VARIABLES = ("pr", "tas")
 
+#: CMIP6 global attrs that describe ONE source file and therefore cannot describe
+#: a merge of several. Our raw slices and series hold `precip` AND `temp` merged
+#: from separate CMIP6 files, so whichever member wins ``xr.merge``'s attr
+#: resolution stamps the result: ``variable_id`` reads `tas` on one fetch and
+#: `pr` on the next while every value matches (R9 P2 F4). Dropped when we stamp
+#: our own provenance, because the attribute is not merely nondeterministic — it
+#: is WRONG for a two-variable file, and a reader has no way to know that.
+#:
+#: The correct merged provenance is already carried by ``cst_source_paths``,
+#: which names every variable and the store version each came from, and by the
+#: per-variable ``original_name`` / ``standard_name`` / ``units`` — none of which
+#: are touched here, so a genuine tas-vs-pr mixup is still caught (and would show
+#: in the values regardless).
+#:
+#: EXACTLY these three. `creation_date` is already handled as a volatile attr by
+#: the comparators, and our own `cst_*` attrs legitimately differ between code
+#: eras — masking or dropping those would hide real drift.
+INHERITED_SINGLE_SOURCE_ATTRS = frozenset({"variable_id", "tracking_id", "status"})
+
+
+def drop_inherited_single_source_attrs(ds):
+    """Strip the single-source CMIP6 provenance a merged dataset cannot own.
+
+    Mutates and returns ``ds``. Call after stamping ``cst_*`` provenance, so the
+    file carries merge-aware identity and nothing that contradicts it.
+    """
+    for key in INHERITED_SINGLE_SOURCE_ATTRS:
+        ds.attrs.pop(key, None)
+    return ds
+
 
 def acquisition_window(experiment: str) -> tuple[str, str]:
     """Return the fixed acquisition span for ``experiment``.
