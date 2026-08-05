@@ -216,3 +216,63 @@ def test_every_declared_log_part_label_is_registered_in_log_rules():
             f"{snakefile.name}: log part label(s) {sorted(missing)} declared but "
             f"absent from LOG_RULES -- merge_logs will drop the section silently"
         )
+
+
+def _script_modules():
+    """Every module Snakemake EXECUTES via `script:`, resolved to a real path.
+
+    `REGION.script` is a variable, not a literal, so it is resolved through
+    `snake_utils.REGION_SCRIPT` rather than skipped -- it is the one splatted
+    producer shared by all three workflows, so missing it would leave the widest
+    blast radius uncovered.
+    """
+    from blueearth_cst.shared.snake_utils import REGION_SCRIPT
+
+    repo = SNAKEFILE.parent
+    found = {REGION_SCRIPT}
+    for snakefile in sorted(repo.glob("Snakefile_*")):
+        text = snakefile.read_text(encoding="utf-8")
+        found |= set(re.findall(r'script:\s*"([^"]+\.py)"', text))
+    return sorted(repo / rel for rel in found if (repo / rel).is_file())
+
+
+def test_no_script_module_carries_a_future_import():
+    """Snakemake PREPENDS a preamble to a `script:` module, so a
+    `from __future__` import inside it is no longer at the top of the file and
+    the job dies with SyntaxError before running a line of our code.
+
+    Found at R9's landing gate by the first real run of P4's three new rules --
+    3.01c, 3.01d and 3.01e all carried it, and all three failed. Nothing before
+    that run could have caught it: the unit tests IMPORT these modules, where the
+    future import is perfectly legal, and `--dry-run` never executes a `script:`
+    body at all. So the defect was invisible to every rung of the ladder below a
+    real run.
+
+    No placement inside the file can fix it -- the preamble goes before the whole
+    file -- so the import must simply be absent. On the pinned Python (3.12) it
+    buys nothing: PEP 585 and PEP 604 annotations are native.
+
+    SCOPE: this covers modules reached by a literal `script: "…"` plus the one
+    variable-resolved `REGION.script`. A path assembled some other way would not
+    be seen. It also does not check IMPORTED modules -- `model_digest.py` and
+    five others keep their future import legitimately, because nothing prepends
+    anything to a module you import.
+    """
+    offenders = [
+        p for p in _script_modules()
+        if re.search(r"^from __future__ import", p.read_text(encoding="utf-8"), re.M)
+    ]
+    assert not offenders, (
+        "`from __future__` in a Snakemake `script:` module fails at RUN time with "
+        "SyntaxError, and only a real run reveals it: "
+        + ", ".join(p.name for p in offenders)
+    )
+
+
+def test_the_future_import_check_can_actually_fail(tmp_path):
+    """Guard the guard. The test above asserts an ABSENCE, so a bug in how it
+    finds script modules would make it pass over an empty set forever."""
+    assert _script_modules(), "no script: modules discovered -- the check is vacuous"
+    decoy = tmp_path / "decoy.py"
+    decoy.write_text('"""d."""\n\nfrom __future__ import annotations\n', encoding="utf-8")
+    assert re.search(r"^from __future__ import", decoy.read_text(encoding="utf-8"), re.M)

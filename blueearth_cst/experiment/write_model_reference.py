@@ -15,8 +15,6 @@ only report that *something* moved; the guard that reads this file has to name
 the changed input, or an operator cannot act on it.
 """
 
-from __future__ import annotations
-
 import os
 from pathlib import Path
 

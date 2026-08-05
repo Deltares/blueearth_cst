@@ -20,8 +20,6 @@ that something moved; it does not tell them whether the forcing was replaced or
 the parameters were re-derived, and those call for different responses.
 """
 
-from __future__ import annotations
-
 from pathlib import Path
 
 import yaml

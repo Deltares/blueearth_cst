@@ -23,8 +23,6 @@ marker is read from the filesystem rather than declared as an input, because
 declaring it would invert the DAG — this file is written long before the log.
 """
 
-from __future__ import annotations
-
 from pathlib import Path
 
 import yaml
