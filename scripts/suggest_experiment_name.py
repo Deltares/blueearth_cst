@@ -28,7 +28,14 @@ from pathlib import Path
 import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from blueearth_cst.shared.snake_utils import suggest_experiment_name  # noqa: E402
+from blueearth_cst.experiment.allocate import (  # noqa: E402
+    ExperimentCollisionError,
+    allocate_experiment_name,
+)
+from blueearth_cst.shared.snake_utils import (  # noqa: E402
+    suggest_experiment_name,
+    validate_experiment_name,
+)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -40,8 +47,17 @@ def main(argv: list[str] | None = None) -> int:
              "command reproducible in tests and scripted setups",
     )
     ap.add_argument(
+        "--name", default=None, metavar="NAME",
+        help="use this experiment name instead of the generated suggestion. A "
+             "name you choose is NEVER silently versioned: if it is already "
+             "taken the command fails, where a generated one would become "
+             "_v2. Validated by the same grammar the workflow enforces",
+    )
+    ap.add_argument(
         "--dry-run", action="store_true",
-        help="print the suggestion and leave the config untouched",
+        help="print the suggestion and leave the config untouched. Reserves "
+             "nothing, so the name it prints may be taken by the time you use "
+             "it",
     )
     args = ap.parse_args(argv)
 
@@ -59,7 +75,10 @@ def main(argv: list[str] | None = None) -> int:
 
     stamp = args.date or date.today().strftime("%Y%m%d")
     try:
-        name = suggest_experiment_name(project_dir, stamp)
+        if args.name is not None:
+            name = validate_experiment_name(args.name, project_dir)
+        else:
+            name = suggest_experiment_name(project_dir, stamp)
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -81,6 +100,18 @@ def main(argv: list[str] | None = None) -> int:
             f"first if you really want a new experiment directory.",
             file=sys.stderr,
         )
+        return 1
+
+    # Reserve BEFORE writing the config: an atomic mkdir claims the name, so
+    # two sessions creating experiments at the same moment cannot both believe
+    # they own it. A user-supplied collision is an error; a generated one is
+    # versioned to _v2, _v3 (R9 P4 commit 4).
+    try:
+        name = allocate_experiment_name(
+            project_dir, name, user_supplied=args.name is not None
+        )
+    except ExperimentCollisionError as exc:
+        print(f"error: {exc}", file=sys.stderr)
         return 1
 
     doc.setdefault("workflows", {}).setdefault("climate_experiment", {})[
