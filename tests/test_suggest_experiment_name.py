@@ -143,3 +143,34 @@ def test_cli_refusal_names_what_it_would_have_suggested(tmp_path):
     res = _run(cfg)
     assert res.returncode != 0
     assert "already_here" in res.stderr and "gabon_20260728" in res.stderr
+
+
+# --- the template must leave the key for this command to fill ------------------
+
+
+def test_the_template_config_does_not_hardcode_an_experiment_name():
+    """The template shipped ``experiment_name: experiment`` while this command
+    refuses to overwrite any existing value — so every project copied from it
+    landed in the same ``experiments/experiment/`` and the command that exists
+    to name the directory could never run. The key must start out ABSENT."""
+    template = yaml.safe_load(
+        (SNAKEDIR / "config/workflows/snake_config.template.yml").read_text(
+            encoding="utf-8"
+        )
+    )
+    section = template["workflows"]["climate_experiment"]
+    assert "experiment_name" not in section, (
+        "snake_config.template.yml must not set experiment_name: a copied "
+        "template would inherit the placeholder, and "
+        "suggest_experiment_name.py refuses to overwrite an existing value"
+    )
+
+
+def test_the_test_fixtures_deliberately_KEEP_a_fixed_name():
+    """The gate needs a fixed experiments/<name>/ path, so the seed configs
+    keep theirs. Only the user-facing template drops the key."""
+    for name in ("snake_config_model_test.yml", "snake_config_dev_fast.yml"):
+        doc = yaml.safe_load(
+            (SNAKEDIR / "config/workflows" / name).read_text(encoding="utf-8")
+        )
+        assert doc["workflows"]["climate_experiment"]["experiment_name"]

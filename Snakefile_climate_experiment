@@ -37,6 +37,24 @@ warn_if_project_dir_in_repo(project_dir, workflow.basedir)
 static_dir = get_config(project_cfg, "static_dir", optional=False)
 DATA_SOURCES = get_config(project_cfg, "data_sources", optional=False)
 
+# The key is required and has no default: it names experiments/<name>/, so a
+# fallback would silently collapse every project into one directory. The
+# template ships it unset on purpose, so absence is the EXPECTED first-run
+# state for a copied config — the message names the command that fills it in
+# rather than leaving get_config's bare "not found in config".
+# A bare `experiment_name:` parses to None, which is "unset" to a reader and to
+# suggest_experiment_name.py (whose refusal test is `is not None`), so it must
+# take the same branch as an absent key rather than falling through to the
+# grammar check's less directive "must be a non-empty string, got None".
+_name = my_cfg.get("experiment_name")
+if _name is None or (isinstance(_name, str) and not _name.strip()):
+    raise ValueError(
+        "workflows.climate_experiment.experiment_name is not set. It names the "
+        "experiments/<name>/ directory this workflow writes to, and is filled "
+        "in once, before the first run:\n\n"
+        "    pixi run python scripts/suggest_experiment_name.py "
+        f"{config_path}\n"
+    )
 experiment = get_config(my_cfg, "experiment_name", optional=False)
 # Validate the experiment name as a safe experiments/<name>/ path segment BEFORE
 # any path is built from it (design §2b). Parse-time is correct here (config

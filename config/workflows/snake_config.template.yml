@@ -144,7 +144,17 @@ workflows:
 
   climate_experiment:
     enabled: true
-    experiment_name: experiment
+    # experiment_name is DELIBERATELY ABSENT from this template. It names the
+    # directory every wf3 artifact hangs off (experiments/<name>/), so it must
+    # be unique per experiment — a hardcoded placeholder here would put every
+    # project that copied the template into the same experiments/experiment/.
+    # Fill it once, before the first climate-experiment run:
+    #
+    #     pixi run python scripts/suggest_experiment_name.py <this config>
+    #
+    # That derives a name from project_dir plus today's date, reserves the
+    # directory, and writes the key back here. It REFUSES to overwrite an
+    # existing value, which is exactly why the key must start out unset.
     realizations_num: 2
     # Future midpoint year for the climate experiment
     horizontime_climate: 2050
