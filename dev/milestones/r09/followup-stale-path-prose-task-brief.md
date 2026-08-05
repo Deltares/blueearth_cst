@@ -62,7 +62,7 @@ full gate caught (`test_guard_invalidation.py`'s missing model leaves) was a
 staging helper that fell behind a new declared input. This script is the third
 copy of that staging logic. Consider whether it should share one.
 
-### Class C — three more `dev/scripts/` files
+### Class C — four more `dev/scripts/` files
 
 Smaller, and one of them is R9's own.
 
@@ -71,6 +71,15 @@ Smaller, and one of them is R9's own.
 | `prune_climate_store.py` | 5, 9, 69 | `climate_historical/`, `climate_projections/<proj>/scalar/` | `data/climate/historical/`, `data/climate/projections/<proj>/scalar/` |
 | `probe_store_read_timing.py` | 42 | `test_case/test_local/climate_historical/era5_…/store_region.geojson` | the `data/climate/historical/` store |
 | `inspect_spatial_ref.py` | 13 | `examples/test_local/climate_historical/raw_data/…` | pre-R9 debt — `examples/` was retired at R7 and `raw_data/` at R7 B1 |
+| `verify_constant_pars.py` | 25, 88 | `examples/test_local/hydrology_model` — a usage string **and an argparse default** | doubly stale: `examples/` retired at R7, `hydrology_model/` at R9 |
+
+**`probe_store_read_timing.py` is now broken rather than merely stale**: the
+2026-08-05 orphan sweep deleted the file its hardcoded path points at
+([`orphan-sweep-2026-08-05.txt`](orphan-sweep-2026-08-05.txt)).
+`verify_constant_pars.py` is the more dangerous of the two, because its stale
+path is an **argparse default** — running it with no `--model-dir` silently
+targets a tree that has not existed since R7, which reads as a working default
+rather than as an error.
 
 `prune_climate_store.py` is the sharpest of the three because **P1 shipped it and
 P2 repointed it**: `STORE_ROOT = "data/climate/historical"` is correct in code

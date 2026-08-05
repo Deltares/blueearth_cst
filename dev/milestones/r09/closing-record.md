@@ -144,7 +144,31 @@ satisfied on evidence, the tree a fresh run produces is the design's tree, no
 scientific value moved, and the four defects the gate existed to find are fixed
 with their classes closed mechanically rather than by hand.
 
-The one thing to decide separately: the old fixture tree at
-`test_case/test_local` is still mixed-era. The gate's MISSING list is its
-inventory. Sweeping it is safe but is a deletion, so it is the owner's call and
-not part of this merge.
+## The fixture tree was swept before merging
+
+Owner-ruled 2026-08-05. `test_case/test_local` had been mixed-era since P2 —
+Snakemake writes the new path and never deletes the old — and the gate's MISSING
+list was its inventory, so the sweep was derived rather than guessed.
+
+**160 files removed**, listed in
+[`orphan-sweep-2026-08-05.txt`](orphan-sweep-2026-08-05.txt): the eight pre-R9
+subtrees (`hydrology_model/ spatial/ climate_historical/ climate_projections/
+config/generated/` and the experiment's `weather_generator/ hydrology_runs/
+indicators/`) plus the loose `data_catalog_climate_experiment.yml`.
+
+That is 156 the diff reported **plus 4 the comparator excludes by design**
+(`.log` / `log.txt`) which sit inside orphan subtrees and are therefore orphans
+too. Two of them — `hydrology_runs/rlz_{1,2}/config/log.txt` — are the pre-R9
+shared logs the concurrency falsifier exists to prevent: two files for twelve
+members, the very artefact of the defect, still on disk.
+
+**Retained deliberately:** the 17 digest-named `config/runs/**` bundles. They
+appear in the MISSING set only because the snapshot digest includes
+`project_dir`, so the two trees name the same artifact differently. They are
+this tree's own current output, not leftovers.
+
+Checked before deleting, not after: none of the 14 baseline manifest targets
+lies under any swept path, and no test reads one. Checked after: `check_baseline
+check` still reports **8 targets matching**, and the tree now holds exactly the
+six R9 roots with the experiment holding exactly six subdirectories — identical
+in shape to the fresh gate run.
