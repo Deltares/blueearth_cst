@@ -67,7 +67,7 @@ def analyze_wflow_results(
         declared inputs rather than reconstructed from a directory convention
         (R07 B6), so the read is on the DAG and visible to ``--dry-run``.
     results_dir : Union[str, Path]
-        Directory the response-surface tables are written to (``indicators/``).
+        Directory the response-surface tables are written to (``results/``).
     st_num : int
         Number of stress tests (increments) per realization
     qstats_fn : Union[str, Path], optional

@@ -4,7 +4,8 @@ Rule ``plot_climate_source``'s script (``Snakefile_model_creation`` 1.15 — a
 single declaration; none of B1's two-DAG machinery applies). It answers *"what
 does the source climate look like?"* from the store alone, so its whole
 subgraph is the B1 producer (whose sole input is the tracked data catalog) plus
-itself: the three figures build with **neither** ``hydrology_model/`` **nor**
+itself: the three figures build with **neither** ``models/hydrology/wflow/``
+**nor**
 ``config/templates/wflow_build_model.yml`` on disk. That is the P4 assertion,
 pinned by ``tests/test_plot_climate_source.py``.
 
@@ -15,13 +16,13 @@ filename is prefixed by its dataset, because a bare ``pet.png`` copied into a
 report or picked up by a GUI collector loses its parent directory and the two
 are **deliberately different** values:
 
-===============================  ======  ==================================
-Product                          Grid    Home
-===============================  ======  ==================================
-source climate (this module)     source  ``climate_historical/<key>/plots/``
-forcing / model-input QA (1.13)  model   ``hydrology_model/forcing/plots/``
-model-parity climate (rule 1.11) model   ``hydrology_model/evaluation/plots/``
-===============================  ======  ==================================
+================================  ======  ============================================
+Product                           Grid    Home
+================================  ======  ============================================
+source climate (this module)      source  ``data/climate/historical/<key>/plots/``
+forcing / model-input QA (1.13)   model   ``models/hydrology/wflow/forcing/plots/``
+model-parity climate (rule 1.11)  model   ``models/hydrology/wflow/evaluation/plots/``
+================================  ======  ============================================
 
 The third stays outside the canonical set: it is keyed by STATION rather than by
 grid and answers a different question (climate beside the discharge it drove).
@@ -170,10 +171,10 @@ def plot_climate_source(
     Parameters
     ----------
     climate_nc : str | Path
-        ``climate_historical/<key>/extract_historical.nc`` — the store's
+        ``data/climate/historical/<key>/extract_historical.nc`` — the store's
         extraction (rule 1.10 ``extract_climate_grid``).
     plot_dir : str | Path
-        ``climate_historical/<key>/plots/``. Created if absent.
+        ``data/climate/historical/<key>/plots/``. Created if absent.
     oro_nc : str | Path, optional
         chirps / chirps_global only: the store's declared ``orography.nc``
         sidecar. None on era5, where the orography comes from the catalog.

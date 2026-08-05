@@ -3,12 +3,12 @@
 WF1 holds two gridded climate products and until now each had its own plotting
 code and its own idea of what a climate figure is:
 
-===================  =========================================  ==============
-Dataset (``dataset``) Home                                       Producer
-===================  =========================================  ==============
-``source``            ``climate_historical/<key>/plots/``        rule 1.15
-``forcing``           ``hydrology_model/forcing/plots/``         rule 1.13
-===================  =========================================  ==============
+=====================  =========================================  ==============
+Dataset (``dataset``)  Home                                       Producer
+=====================  =========================================  ==============
+``source``             ``data/climate/historical/<key>/plots/``   rule 1.15
+``forcing``            ``models/hydrology/wflow/forcing/plots/``  rule 1.13
+=====================  =========================================  ==============
 
 They are the SAME climate at two stages — raw on the extraction grid, and
 downscaled/corrected onto the model grid — so the useful question is what
@@ -33,9 +33,10 @@ model's own geometries) and, at higher fidelity, from rule 1.12's
 ``basin_area.png``.
 
 A third climate-figure family — the model-parity plots under
-``hydrology_model/evaluation/plots/`` (rule 1.11) — is NOT part of this set. It
-answers a different question (per-subcatchment climate as the model sees it,
-beside the discharge it produced) and is keyed by station rather than by grid.
+``models/hydrology/wflow/evaluation/plots/`` (rule 1.11) — is NOT part of this
+set. It answers a different question (per-subcatchment climate as the model sees
+it, beside the discharge it produced) and is keyed by station rather than by
+grid.
 """
 
 from __future__ import annotations

@@ -2,11 +2,12 @@
 
 Sibling of ``prune_series_cache.py``, which covers the WF2 *series* class only.
 That script's contract is keyed to the CMIP6 series filename grammar under
-``climate_projections/<clim_project>/scalar/``; the historical store is a
+``data/climate/projections/<clim_project>/scalar/``; the historical store is a
 different artifact class in a different tree with a different key, so it gets
 its own script rather than a second mode in that one.
 
-**Why orphans happen here.** ``climate_historical/<clim_source>_<start>_<end>/``
+**Why orphans happen here.**
+``data/climate/historical/<clim_source>_<start>_<end>/``
 is a *cache key*, not multi-window support (R09 design Finding 3,
 `dev/milestones/r09/migration_project-tree.md`): two experiments sharing a
 source and a window reuse one extraction. The consequence is that changing
@@ -66,7 +67,7 @@ def active_store_key(config: dict) -> str:
 
 
 def find_orphans(project_dir: Path, active_key: str) -> list[Path]:
-    """Store directories under ``climate_historical/`` other than the active one."""
+    """Store dirs under ``data/climate/historical/`` other than the active one."""
     root = project_dir / STORE_ROOT
     if not root.is_dir():
         return []

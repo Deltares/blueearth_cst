@@ -1,6 +1,6 @@
 """Cache identity for the persistent GCM series store (WF2 v2.0, design §5.3).
 
-The series files under ``climate_projections/{clim_project}/`` stop being
+The series files under ``data/climate/projections/{clim_project}/`` stop being
 ``temp()`` at migration step 2b and become a persistent product. Persistence
 without identity is a silent-wrong-numbers path: a file on disk looks valid
 whatever produced it. This module is the identity — it answers "was this series

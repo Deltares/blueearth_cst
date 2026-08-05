@@ -57,17 +57,6 @@ SNAKEFILES = {
     3: "Snakefile_climate_experiment",
 }
 
-# Minimal valid region so WF2/WF3 DAGs resolve; same role as the test fixture's.
-_MINIMAL_REGION_GEOJSON = """{
-  "type": "FeatureCollection",
-  "features": [{
-    "type": "Feature", "properties": {"value": 1},
-    "geometry": {"type": "Polygon", "coordinates": [[
-      [11.3, -1.05], [13.6, -1.05], [13.6, 0.9], [11.3, 0.9], [11.3, -1.05]]]}
-  }]
-}
-"""
-
 _LOG_PLACEHOLDER = """\
 # BlueEarth-CST | project: {project} | <date>
 # project dir: {project_dir}
@@ -94,15 +83,48 @@ def _scratch_config(config_path: Path, project_dir: Path, dest: Path) -> Path:
     return dest
 
 
-def _stage_cross_workflow_inputs(project_dir: Path, config_path: Path) -> None:
-    """Stage the wf1 leaves WF2/WF3 declare as ancient() inputs."""
-    region = project_dir / "hydrology_model/staticgeoms/region.geojson"
-    region.parent.mkdir(parents=True, exist_ok=True)
-    region.write_text(_MINIMAL_REGION_GEOJSON, encoding="utf-8")
+# Enough of a wflow TOML for rule 3.01c to read `input.path_static`; same role
+# as the test fixture's.
+_MINIMAL_WFLOW_TOML = '[input]\npath_static = "staticmaps.nc"\n'
 
-    snapshot = project_dir / "config/runs/snake_config_model_creation.yml"
-    snapshot.parent.mkdir(parents=True, exist_ok=True)
-    snapshot.write_text(config_path.read_text(encoding="utf-8"), encoding="utf-8")
+#: The wf1 leaves WF2/WF3 declare as `ancient()` inputs and Snakemake will not
+#: satisfy on its own. Keep in step with `tests/test_cli.py`'s
+#: `config_with_staged_region`, which stages the same contract for the dry-run
+#: tests; the two lists are maintained by hand and have drifted apart before
+#: (the R9 P5 sweep found this one two milestones behind).
+_STAGED_LEAVES = (
+    # WF3 rule 3.00b `check_project_consistency` (P3-1 commit 1).
+    "config/runs/snake_config_model_creation.yml",
+    # WF3 rule 3.01c `write_model_reference` (R9 P4) -- the FIRST WF3 rule to
+    # declare model files as inputs. Before P4 the model was reached only
+    # through `params`, so the DAG could not see the dependency at all.
+    "models/hydrology/wflow/wflow_sbm.toml",
+    "models/hydrology/wflow/.outputs_configured",
+)
+
+
+def _stage_cross_workflow_inputs(project_dir: Path, config_path: Path) -> None:
+    """Stage the wf1 leaves WF2/WF3 declare as ancient() inputs.
+
+    NO REGION is staged, and that is the current contract rather than an
+    omission. Until ADR 0003 both downstream workflows consumed wf1's
+    `staticgeoms/region.geojson`; the extent is now model-free, so WF2 and WF3
+    each DELINEATE their own `data/spatial/geoms/region.geojson` (rule
+    `delineate_region`) and declare it as an OUTPUT. Staging one would be
+    staging a file the workflow is about to produce.
+    """
+    snapshot_rel = "config/runs/snake_config_model_creation.yml"
+    for rel in _STAGED_LEAVES:
+        target = project_dir / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if rel == snapshot_rel:
+            # Serialized from the config the summary itself consumes, so the
+            # drift guard's comparands match by construction.
+            target.write_text(config_path.read_text(encoding="utf-8"), encoding="utf-8")
+        elif rel.endswith("wflow_sbm.toml"):
+            target.write_text(_MINIMAL_WFLOW_TOML, encoding="utf-8")
+        else:
+            target.write_text("", encoding="utf-8")
 
 
 def _summary(snakefile: str, config_path: Path) -> list[str]:
@@ -141,21 +163,50 @@ def _log_paths(snakefile: str, experiment: str) -> list[str]:
     text = (REPO_ROOT / snakefile).read_text(encoding="utf-8")
     roots = {"project_dir": "", "exp_dir": f"experiments/{experiment}/"}
 
+    # ONE LEVEL OF INDIRECTION, resolved from the same file. Rules no longer
+    # interpolate `project_dir` directly -- they interpolate `LOG_PARTS_DIR`,
+    # itself assigned f"{project_dir}/logs/_parts" (WF1/WF2) or
+    # f"{exp_dir}/logs/_parts" (WF3). Matching only the two ROOT names therefore
+    # matched nothing and every workflow silently scaffolded ZERO logs: the same
+    # failure mode as the stale staging above -- a helper left behind by a
+    # refactor, reporting success while producing a wrong tree.
+    for name, base, tail in re.findall(
+        r"""^(\w+)\s*=\s*f["']\{(\w+)\}/([^"']+)["']""", text, re.M
+    ):
+        # `not in roots` matters: `exp_dir` is itself assigned from project_dir
+        # as f"{project_dir}/experiments/{experiment_name}", and resolving that
+        # would replace the seeded value with one still carrying a wildcard --
+        # which the substitution below then renders as `experiments/1/`.
+        if base in roots and name not in roots:
+            roots[name] = roots[base] + tail.rstrip("/") + "/"
+    # Bare `.log` string constants (WORKFLOW_LOG_NAME = "wf1_model_creation.log")
+    # are interpolated into the merged-log path, which would otherwise reduce to
+    # `logs/1` under the wildcard substitution below and be dropped.
+    consts = dict(
+        re.findall(r"""^(\w+)\s*=\s*["']([^"'{}]+\.log)["']""", text, re.M)
+    )
+
     logs = []
     # Three declaration forms are in use across the Snakefiles and all three
     # must be read, or a workflow silently loses logs from the scaffold:
-    #   f"{project_dir}/logs/2.05_….log"                       (plain f-string)
+    #   f"{LOG_PARTS_DIR}/2.05_….log"                          (plain f-string)
     #   f"{exp_dir}/logs/3.05_…/" + "rlz_{rlz_num}_….log"      (f-string + concat)
     #   project_dir + "/logs/_parts/2.02_…/{model}.log"        (bare concat)
+    #
+    # The tail is NOT anchored to `logs/` -- with LOG_PARTS_DIR resolved above,
+    # the `logs/` segment lives in the ROOT, not the tail. The `.log` suffix
+    # test below is what keeps non-log f-strings out.
     patterns = (
-        r"""f["']\{(\w+)\}/(logs/[^"']*?)["'](?:\s*\+\s*["']([^"']+)["'])?""",
-        r"""\b(\w+)\s*\+\s*["']/(logs/[^"']+)["']()""",
+        r"""f["']\{(\w+)\}/([^"']*?)["'](?:\s*\+\s*["']([^"']+)["'])?""",
+        r"""\b(\w+)\s*\+\s*["']/([^"']+)["']()""",
     )
     for pattern in patterns:
         for var, tail, extra in re.findall(pattern, text):
             if var not in roots:
                 continue
             rel = roots[var] + tail + extra
+            for const, value in consts.items():
+                rel = rel.replace("{" + const + "}", value)
             if not rel.endswith(".log"):
                 continue
             # Wildcards ({rlz_num}, {_b}) stand in for a fan-out; show one instance.

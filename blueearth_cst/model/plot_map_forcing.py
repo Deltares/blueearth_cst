@@ -1,6 +1,7 @@
 """Canonical climate figures for the wflow FORCING (rule 1.13).
 
-The model-grid half of the pair: ``hydrology_model/forcing/inmaps_historical.nc``
+The model-grid half of the pair:
+``models/hydrology/wflow/forcing/inmaps_historical.nc``
 is the same climate as the shared store's extraction, after the build's regrid,
 lapse/pressure corrections and PET derivation. Drawing it with the SAME figure
 set as the source grid (``climate_analysis.climate_figures``) is what makes
@@ -54,11 +55,11 @@ def plot_forcing(
     Parameters
     ----------
     wflow_root : str | Path
-        The wflow model root (``hydrology_model/``).
+        The wflow model root (``models/hydrology/wflow/``).
     plot_dir : str | Path, optional
         Destination. Defaults to ``<wflow_root>/plots``; rule 1.13 passes
-        ``hydrology_model/forcing/plots`` so the figures sit beside the forcing
-        they describe (R07 B10).
+        ``models/hydrology/wflow/forcing/plots`` so the figures sit beside the
+        forcing they describe (R07 B10).
     gauges_fn : str | Path, optional
         The config's ``output_locations`` PATH. The staticgeoms layer is
         resolved from the model (``shared.gauges``) rather than derived from

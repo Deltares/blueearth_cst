@@ -9,10 +9,17 @@ impose_climate_change).
 from pathlib import Path
 from netCDF4 import Dataset
 
+# Relative to the repo root, so run this from there. The two realization NCs
+# are wrapped in temp() by rule 3.06, so they exist only DURING a WF3 run --
+# "(not present)" for those two is the normal state between runs, not a stale
+# path.
+FIXTURE = Path("test_case/test_local")
+EXPERIMENT = "experiment"
+STORE_KEY = "era5_20000101_20201231"
 paths = [
-    Path("examples/test_local/climate_historical/raw_data/extract_historical.nc"),
-    Path("examples/test_local/climate_experiment/realization_1/rlz_1_cst_0.nc"),
-    Path("examples/test_local/climate_experiment/realization_2/rlz_2_cst_0.nc"),
+    FIXTURE / f"data/climate/historical/{STORE_KEY}/extract_historical.nc",
+    FIXTURE / f"experiments/{EXPERIMENT}/climate/weathergenr/output/rlz_1_cst_0.nc",
+    FIXTURE / f"experiments/{EXPERIMENT}/climate/weathergenr/output/rlz_2_cst_0.nc",
 ]
 
 for p in paths:

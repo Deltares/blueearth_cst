@@ -42,12 +42,16 @@ def _dry_run(snakefile, cfg=config_fn):
 def config_with_staged_region(tmp_path):
     """Config whose project_dir is a temp dir pre-staged with the wf1 leaves.
 
-    climate_projections declares `{project_dir}/hydrology_model/staticgeoms/
-    region.geojson` as an `ancient(...)` input produced by model_creation — a
-    correct cross-workflow contract Snakemake will not satisfy on its own. To
-    dry-run workflow 2 in isolation we stage a minimal valid region file under
-    a **test-owned tmp project_dir** (never the tracked baseline dir) and point
-    a copy of the test config at it. tmp_path is torn down by pytest.
+    Historically climate_projections declared `{project_dir}/hydrology_model/
+    staticgeoms/region.geojson` as an `ancient(...)` input produced by
+    model_creation — a cross-workflow contract Snakemake will not satisfy on its
+    own — so the fixture staged a minimal valid region file under a **test-owned
+    tmp project_dir** (never the tracked baseline dir). Since ADR 0003 the extent
+    is model-free and BOTH downstream workflows delineate their own
+    `data/spatial/geoms/region.geojson`, declaring it as an OUTPUT, so the staged
+    region is no longer load-bearing for either dry-run; it is retained only
+    because removing it belongs with the wider staging consolidation (R9 P5 F3).
+    The staged path follows the R9 model root. tmp_path is torn down by pytest.
 
     Since P3-1 commit 1, climate_experiment's drift guard (rule
     check_project_consistency) additionally declares the wf1 config snapshot
@@ -296,16 +300,29 @@ def test_snakefile_cli_climate_projections(config_with_staged_region):
     assert result.returncode == 0, (result.stdout or "") + (result.stderr or "")
 
 
-def test_climate_projections_declares_wf1_region_input():
-    """Pin the fixture to the real contract it stands in for.
+def test_climate_projections_owns_its_region():
+    """Pin WF2's region contract to what it actually is.
 
-    The dry-run fixture stages `staticgeoms/region.geojson`; this guards that
-    Snakefile_climate_projections still declares that exact workflow-1 output
-    path as an input, so the fixture can never silently diverge from the
-    cross-workflow contract.
+    This guard used to assert that `staticgeoms/region.geojson` appears in
+    Snakefile_climate_projections, standing in for a wf1 -> wf2 cross-workflow
+    input. That input is gone: since ADR 0003 the extent is model-free and WF2
+    delineates its OWN `data/spatial/geoms/region.geojson`. The literal string
+    still occurred in the file — in a comment recording that WF2 was *freed*
+    from it — so the assertion kept passing while guarding nothing, found by the
+    R9 P5 stale-path sweep.
+
+    What is worth pinning is the current shape: WF2 produces the model-free
+    region, and reads nothing from the wf1 model root.
     """
     text = Path(SNAKEDIR, "Snakefile_climate_projections").read_text()
-    assert "staticgeoms/region.geojson" in text
+    assert "data/spatial/geoms/region.geojson" not in text, (
+        "the region path belongs in snake_utils.region_spec, not inline here"
+    )
+    assert "region_spec(" in text and "REGION.region_geojson" in text
+    # The model root may only appear as history, never as a declared dependency.
+    for line in text.splitlines():
+        if "hydrology_model/" in line or "models/hydrology/wflow" in line:
+            assert line.lstrip().startswith("#"), f"WF2 reads the model root: {line}"
 
 
 @pytest.mark.workflow_contract

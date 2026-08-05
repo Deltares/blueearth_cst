@@ -50,7 +50,7 @@ def model_parity_climate(
     ----------
     ds_raw : xr.Dataset
         Extraction from the shared store
-        (``climate_historical/<key>/extract_historical.nc``): ``precip``,
+        (``data/climate/historical/<key>/extract_historical.nc``): ``precip``,
         ``temp``, ``kin``, ``press_msl`` (+ ``kout`` for debruin), daily,
         on the extraction grid.
     dem_model : xr.DataArray

@@ -745,7 +745,7 @@ rule gather_benchmarks:
 #
 # The whole subgraph of these figures is rule 1.10 (whose sole input is the
 # tracked data catalog) plus this rule, so they build with NEITHER
-# hydrology_model/ NOR config/templates/wflow_build_model.yml on disk — the P4
+# models/hydrology/wflow/ NOR config/templates/wflow_build_model.yml on disk — the P4
 # assertion, pinned by tests/test_plot_climate_source.py.
 #
 # The data catalog rides in `params`, not `input`: the era5 branch resolves
