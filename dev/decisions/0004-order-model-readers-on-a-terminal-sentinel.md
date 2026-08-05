@@ -114,11 +114,31 @@ the 1.12 defect cannot recur silently.
   strictly behind `add_forcing` at 6 instead of beside or ahead of it. Job count
   is unchanged at 18. Any recorded DAG render is stale.
 
+**Verified on a real run** (2026-08-05, `-c 3`, fresh `project_dir`, 18/18
+steps): `.model_final` is written at 21:46:15, alongside 1.08's last model
+writes, and every reader lands after it — `plot_map` 21:46:28,
+`write_outlet_index` 21:46:32, `run_wflow` 21:47:55. The same run reproduces
+the defect it fixes: `staticmaps.nc` is last written at 21:46:11, **19 s after**
+`.outputs_configured` at 21:45:52, matching the 17 s measured on the gate run.
+So the old anchor was not a one-off misreading, and the ordering is now
+inverted: `plot_map` finishes 13 s *after* the last model write instead of 9 s
+before it.
+
 *Neutral*
 
-- `dev/scripts/semantic_tree_diff.py` needs one row: the model-root leaf list at
-  lines ~658-659 already enumerates `.model_built` and `.outputs_configured`,
-  and `.model_final` joins them. The R9 declared inventory gains one path.
+- `dev/scripts/semantic_tree_diff.py` needs **no** path-map row, which is the
+  opposite of what this ADR first said. That list is pre-R09 -> post-R09
+  RELOCATION and `.model_final` has no pre-R09 form, so a row could never fire;
+  the file records the reason in place of the row. What the sentinel does cause
+  is one EXTRA in a whole-tree diff against a pre-ADR-0004 reference, passed via
+  `--allow models/hydrology/wflow/.model_final` (the r09 milestone has no
+  `build_r09_allowlist`; extras go on the command line).
+- Related, and worth stating because it was tried: `--check-map` does NOT
+  validate a post-ADR-0004 tree. It implements the R9 observed-tier runbook,
+  whose input is a PRE-R9 tree being migrated, so every relocated path in a
+  post-R9 tree falls through as UNMAPPED by design — `.model_built` and
+  `.outputs_configured` included. It is not a regression check for new
+  artifacts.
 - **No baseline re-record.** Sentinels are not `rule all` targets and are not
   fingerprinted by `check_baseline.py`; no artifact's content changes. This
   corrects the initial sizing of this item, which assumed a re-record.

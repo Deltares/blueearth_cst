@@ -657,11 +657,12 @@ def build_r09_path_map(
             "hydromt_data.yml",
             ".model_built",          # sentinel rule
             ".outputs_configured",
-            # ADR 0004's terminal build sentinel, added 2026-08-05. Identity
-            # like its two siblings: it is a NEW artifact with no pre-R09
-            # counterpart, but the row keeps it out of UNMAPPED when a
-            # post-ADR-0004 tree is checked.
-            ".model_final",
+            # NO ROW for ADR 0004's `.model_final`, deliberately. This list is
+            # pre-R09 -> post-R09 RELOCATION, and `.model_final` has no pre-R09
+            # form: any tree carrying it is already post-R09, so a row here
+            # could never fire. It surfaces instead as an EXTRA in a whole-tree
+            # diff against a pre-ADR-0004 reference, which the r09 milestone
+            # handles through `--allow` (there is no build_r09_allowlist).
             "forcing/inmaps_historical.nc",
             "plots/basin_area.png",
             "plots/basin_area.pdf",
