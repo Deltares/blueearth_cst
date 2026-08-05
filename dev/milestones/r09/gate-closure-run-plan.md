@@ -53,30 +53,46 @@ regression.
 
 ### Step 0 — position the checkout
 
+**`git checkout milestone/r09-project-tree` FAILS.** That branch is checked out
+in the `r09-brief-amendments` worktree, and git refuses a second checkout of one
+branch. Detach at its tip instead — same tree, no branch moved:
+
 ```powershell
-cd ~/workspace/blueearth_cst          # the PRIMARY checkout, currently on main @ c9990a5
-git status --short                    # must be clean
-git checkout milestone/r09-project-tree
-git log --oneline -1                  # expect the P5 merge, 4ddcce2
+cd ~/workspace/blueearth_cst          # the PRIMARY checkout
+git status --short                    # expect only dev/working/ untracked files
+git checkout --detach d51a0d3         # the milestone tip
+git log --oneline -1
 ```
 
-Restore `main` when finished. Nothing in this plan commits.
+`git checkout main` when finished. Nothing in this plan commits.
 
 ### Step 1 — the run (items 6 and 7)
 
-Into a **fresh** `project_dir`, so the existing tree survives as the comparand
-and the mixed-era orphans stay out of the way.
+**Already prepared — nothing to create.** Both configs and an empty run
+directory exist, under `test_case/` so they are gitignored and durable:
+
+| Path | What |
+| --- | --- |
+| `test_case/r09_gate/seed.yml` | the seed config, `project_dir` → `test_case/r09_gate/post_p4` |
+| `test_case/r09_gate/seed_exp_b.yml` | same, `experiment_name: shared_store_probe_b` — for re-running item 9 inside the fresh tree |
+| `test_case/r09_gate/post_p4/` | empty |
+
+`test_case/` rather than `$env:TEMP`: the run is expensive, temp gets swept, and
+sitting beside `test_local` means the diff in step 2 takes repo-relative paths
+exactly as P2's did.
+
+**Validated 2026-08-05** — WF1 dry-runs against the empty directory and plans
+**18 jobs**, a full build including `delineate_region` and `extract_climate_grid`
+(the store correctly rebuilds in a fresh `project_dir`; this is the same rule
+whose *reuse* item 9 proved within one tree). WF2 and WF3 cannot be dry-run until
+WF1 has produced its outputs — expected, not a config problem.
+
+**The run — one paste, from inside `pixi shell` at the repo root:**
 
 ```powershell
-$RUN = "$env:TEMP\r09_gate\post_p4"
-New-Item -ItemType Directory -Force $RUN
-$CFG = "$env:TEMP\r09_gate\seed.yml"
-# copy config/workflows/snake_config_model_test.yml with project.project_dir -> $RUN
-```
+$CFG = "test_case/r09_gate/seed.yml"
+$RUN = "test_case/r09_gate/post_p4"
 
-Then the three workflows **in order**, from inside `pixi shell`:
-
-```powershell
 snakemake all -c 3 -s Snakefile_model_creation      --configfile $CFG
 snakemake all -c 3 -s Snakefile_climate_projections --configfile $CFG --keep-going
 snakemake all -c 3 -s Snakefile_climate_experiment  --configfile $CFG
@@ -84,6 +100,9 @@ snakemake all -c 3 -s Snakefile_climate_experiment  --configfile $CFG
 
 `-c 3` deliberately: WF3 fans out over `(rlz, cst)`, and a serial run cannot
 exercise the concurrency this milestone's falsifier is about.
+
+If a run crashes, `snakemake --unlock -s <Snakefile> --configfile $CFG` before
+retrying — Snakemake locks its working directory on crash.
 
 **The P4 acceptance check — do this first, before any diff.** Three files must
 exist that no previous run produced:
@@ -171,7 +190,7 @@ job count answers it.
 
 ```powershell
 # a second config: same clim_historical + historical_window, different experiment_name
-$CFG2 = "$env:TEMP\r09_gate\seed_exp_b.yml"
+$CFG2 = "test_case/r09_gate/seed_exp_b.yml"   # already prepared
 snakemake all -c 1 -s Snakefile_climate_experiment --configfile $CFG2 --dry-run
 ```
 
