@@ -374,16 +374,86 @@ Note this also removes the last point-geometry variable other than `q`: with
 precip aggregated, the point/basin split collapses to `q` vs everything else,
 which is what the owner originally described.
 
+### CR-3b — basin variables reported per contributing subbasin
+
+Ruled 2026-08-05: the basin-scalar variables use **the exact same location set
+and names as the q table**, so a gauge's discharge metrics and its catchment's
+ET / recharge / snow sit on one join key.
+
+**No crosswalk is needed — the ids are already one namespace.**
+`write_outlet_index.py:3-4` records that hydromt_wflow 1.x labels outlets with
+**basin-derived subcatchment IDs** (e.g. `130000086`), and `build_outlet_index`
+merges `subcatchment_id` to `subbasin_id` with `validate="one_to_one"`. So the
+map id in `Q_130000086` *is* the subcatchment id, and dropping the `reducer`
+emits `<header>_<subcatchment_id>` columns in the same namespace the q table
+already uses.
+
+`location` stays the **numeric id**. `outlet_index.csv` also carries
+`station_name`, `location_code`, `subbasin_code` and `compat_station_name`
+(`wflow_1..N`), but those are a presentation join — the numeric id is what wflow
+emits, so nothing can drift between the two tables.
+
+#### OPEN — nested or incremental subcatchments?
+
+This decides whether the requested overall basin value can be *derived*:
+
+| | consequence |
+| --- | --- |
+| **Incremental** — each gauge's own area, tiling the basin, non-overlapping | the basin value is a valid area-weighted mean of the per-location values |
+| **Nested** — each gauge's full upstream contributing area, so a downstream gauge contains upstream ones | the areas overlap; area-weighting double-counts and the basin value **cannot** be derived |
+
+"Contributing subbasin" reads as nested.
+
+**Recommendation regardless: do not derive it.** Emit the overall basin value
+independently by keeping the existing `reducer=["mean"]` output alongside the new
+per-subcatchment one, under a reserved `location = basin`. A derived value that
+is silently wrong under nesting is the worse failure, and the reduced output
+already exists — one extra `setup_config_output_timeseries` call, not new
+computation.
+
+---
+
+## Rulings closing Q5, Q8, Q10 (2026-08-05)
+
+**Q5 — class C stress-test axis: fixed month from `cst_0`.** The wettest and
+driest months are picked once, from the `cst_0` baseline pooled over
+realizations, and that month is evaluated for every stress-test member. The
+surface then shows how flow in a given month responds to perturbation rather
+than conflating that with the month itself moving. **This makes `cst_0` rows
+mandatory** — the aggregated path drops them today (`st_nb = i + 1`), and the
+month cannot be picked from a record that is not there.
+
+**Q8 — tolerance comparator.** The indicator tables move off byte-exact `sha256`
+onto `check_baseline.py`'s existing `compare_discharge`-style tolerance
+comparator, the one already used for the wf1 discharge anchor. Byte-exactness
+became untenable when `.round(2)` was dropped (see the `float32` decision): it
+was the accidental drift buffer, and without it every harmless numeric nudge
+fails the gate without indicating a defect — the same argument that excludes
+`FIGURE_KINDS` from the baseline by default.
+
+**Q10 — keep native wflow units.** Overland flow reduces with a
+**unit-preserving** reduction (annual mean, m³ s⁻¹) instead of a sum. ET and
+recharge keep `annual_total` in mm/yr: a daily sum of a mm Δt⁻¹ flux is a
+legitimate time-integral of a flux, not a unit error, which is precisely why
+overland flow was the odd one out. Per-variable tables make the differing metric
+vocabularies natural rather than awkward.
+
+> **Reading to confirm at implementation:** this is scoped to the overland-flow
+> defect. If the intent was that *all* basin variables report in native
+> per-timestep units (ET as mm/day rather than mm/yr), that is a factor of 365 on
+> two variables and needs saying explicitly.
+
 ---
 
 ## Open questions
 
+Q1-Q4, Q6 and Q9 are closed in the decision sections above; Q5, Q8 and Q10 in
+the ruling block immediately above. **Two remain.**
+
 | # | Question | Recommendation |
 | --- | --- | --- |
-| **Q5** | Class C, stress-test axis. Ruling (a) fixed the month across realizations but not across stress tests. If each member picks its own wettest month, the surface compares different months — the same incomparability, one axis over. Live: the config supports monthly perturbation vectors. | Pick the month once from **`cst_0`, pooled over realizations**, and evaluate it everywhere. If the seasonal *shift* is interesting, that is a different indicator and the long shape carries it additively. |
-| **Q7** | Stale `aggregate_rlz` in an existing user config — silently ignored today. | Hard error naming the migration note, following the `variable_spec.parse` precedent (it refuses the pre-5e list shape and states the migration). |
-| **Q10** | **`overland flow` is summed in the wrong units.** `export_wflow_results.py:265-270` sums every non-snow basavg variable annually, commented *"Total evaporation or recharge or overland flow volume (mm/yr)"*. Correct for `actual evapotranspiration` and `groundwater recharge` — both **mm Δt⁻¹**, so a daily sum is genuinely mm/yr. But `overland flow` is **m³ s⁻¹**: summing a flow rate over 365 daily steps gives `Σ(m³/s)`, which is not mm/yr, not m³, not anything. It needs `× 86400` to become a volume. Any project putting `overland flow` in `wflow_outvars` gets a column off by 86400 with a wrong stated unit. Found 2026-08-05 while settling the token table; the unit column is what exposed it. | Not fixed in passing — it moves numbers, and the right target (volume in m³, or depth in mm, which needs the basin area) is a method call. Decide alongside Q6, since it is a `basin_indicators` defect. |
-| **Q8** | Baseline comparator for the two tables, raised by the unrounded-`float32` decision. They are byte-exact `sha256` entries today, and `.round(2)` was the accidental drift buffer. `check_baseline.py:26-28` already warns that a sub-tolerance wf1 discharge move (`max\|dQ\|/mean ≈ 1.7e-4`) *may* survive into them; unrounded, it will. | Move both targets to the **tolerance comparator** `check_baseline.py` already has — `compare_discharge`, used for the wf1 discharge anchor. Otherwise every harmless numeric nudge fails the gate without indicating a defect, which is the same argument that excludes `FIGURE_KINDS` from the baseline by default. |
+| **Q7** | Stale `aggregate_rlz` in an existing user config — silently ignored today, because workflow configs never read unknown keys. The user believes it is still in effect. | Hard error naming the migration note, following the `variable_spec.parse` precedent (it refuses the pre-5e list shape and states the migration). |
+| **Q11** | **Nested or incremental subcatchments?** Decides whether the overall basin value can be derived from the per-location values. See CR-3b. | Do not derive it either way — emit it independently under a reserved `location = basin`, by keeping the existing `reducer=["mean"]` output alongside the new per-subcatchment one. |
 
 ---
 
