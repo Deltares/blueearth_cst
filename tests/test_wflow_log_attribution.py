@@ -11,6 +11,15 @@ proves nothing about interleaving. What discriminates is CONTENT ATTRIBUTION:
 each log must describe its own ``rlz_<r>_cst_<c>`` and no other. A log that had
 been written by two members would carry both names.
 
+**The measured failure mode is OVERWRITING, not interleaving** (R9 landing gate,
+2026-08-05). With ``path_log`` removed and WF3 re-run at ``-c 3``, twelve
+members produced ZERO per-member logs and one shared ``log.txt`` naming exactly
+ONE member -- whichever finished last. Each wflow process opens the default path
+and truncates it, so eleven members' logs were not merged, they were destroyed.
+Attribution still catches it, but through absence rather than through a file
+carrying two names; ``_member_logs`` below is what makes that absence a failure
+instead of a skip.
+
 Why the race is real rather than theoretical: Wflow's ``[logging] path_log``
 defaults to ``log.txt`` beside the TOML. Before R9 each realization owned a run
 directory, so that default was already ONE SHARED LOG PER REALIZATION -- the P1
@@ -40,12 +49,36 @@ def _output_dir() -> Path:
 
 
 def _member_logs() -> list[Path]:
+    """The member logs, or a skip if no run is present — but NEVER a skip when a
+    run IS present and its logs are missing.
+
+    That distinction was missing until the R9 landing gate, and it made this
+    module skip itself in the one condition it exists to catch. Demonstrated:
+    `path_log` was removed and WF3 re-run, and the two attribution tests
+    SKIPPED — twelve members had collapsed onto one `log.txt`, so there were no
+    per-member logs to attribute, so `if not logs: skip` fired. Only the
+    module's own self-described "weakest" assertion caught the defect. Delete
+    that one and the module would have gone green over an empty set.
+
+    A run is present when the member CSVs are: they are declared outputs of rule
+    3.10 and are not temp(), so they persist. If they exist and the logs do not,
+    every member's log was overwritten — which IS the finding, not a reason to
+    skip.
+    """
     out = _output_dir()
     if not out.is_dir():
         pytest.skip(f"no post-migration run at {out}; set $R09_P2_RUN_DIR")
     logs = sorted(out.glob("rlz_*_cst_*.log"))
     if not logs:
-        pytest.skip(f"no per-member Wflow logs under {out}")
+        members = sorted(out.glob("rlz_*_cst_*.csv"))
+        if not members:
+            pytest.skip(f"no post-migration run at {out}; set $R09_P2_RUN_DIR")
+        raise AssertionError(
+            f"{len(members)} member(s) ran and produced NO per-member log under "
+            f"{out}. Every member's log was written to wflow's default shared "
+            f"path and overwritten by the next writer -- the exact condition "
+            f"`logging.path_log` exists to prevent."
+        )
     return logs
 
 
