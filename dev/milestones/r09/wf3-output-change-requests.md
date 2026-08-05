@@ -30,11 +30,17 @@ single baseline move. Do not re-run twice.
 
 ### The shape
 
-Seven fixed columns, independent of gauge count:
+**One table per variable** (ruled 2026-08-05), named from the token table below:
+`q_indicators.csv`, `aet_indicators.csv`, `recharge_indicators.csv`,
+`overland_flow_indicators.csv`, `snow_indicators.csv`, `precip_indicators.csv`.
+Only the variables in `wflow_outvars` are emitted. `q_indicators.csv` keeps its
+current name.
+
+**Six fixed columns**, independent of location count. There is no `variable`
+column — the filename carries it, and so does the composite `metric`:
 
 | Column | Domain |
 | --- | --- |
-| `variable` | short token — `q`, `et`, `recharge`, `overland_flow`, `snow` |
 | `metric` | **composite** `<variable>_<statistic>` — e.g. `q_mean_annual_7day_min` |
 | `temp_change` | perturbation axis, absolute degC |
 | `precip_change` | perturbation axis, relative % |
@@ -46,6 +52,48 @@ Rows-not-columns for locations is the point: the header stops growing with gauge
 count, which is what forces `validate_hm_gauge_column_identity`'s check 3 to
 compare column *sets* today. Post-CR-2 that check compares the `location`
 column's value set instead — same invariant, simpler expression.
+
+`location` is retained even where it is constant today (`basin` for the
+basin-scalar variables). It costs one column, keeps every table unionable with a
+plain `concat`, and is what CR-3 would populate with subbasin ids — a schema
+change avoided by not dropping it.
+
+#### Accepted costs of the per-variable split
+
+Ruled with these known and accepted, not discovered during implementation:
+
+1. **The output set becomes config-dependent.** Three currently-fixed things
+   become derived: `WF3_TARGETS` in `Snakefile_climate_experiment`,
+   `check_baseline.py`'s literal `TARGETS` entries, and the R9 path map (which
+   needs a pattern row rather than two literal paths).
+2. **WF3 must read `workflows.model_creation.wflow_outvars`** — a new
+   cross-workflow config coupling. Today WF3 never reads it; it discovers what
+   exists at *runtime* from the wflow CSV's columns
+   (`basavg_vars = [x for x in sim.columns if "basavg" in x]`). Snakemake needs
+   output paths at DAG-construction time, so runtime discovery is not an option.
+   `check_model_reference.py` already exists to catch the case where the model on
+   disk was built from a different list than the config now declares.
+
+#### The size argument does NOT hold — measured, not assumed
+
+Per-variable splitting was partly motivated by file size. It does not deliver
+that. At the stated scale — 10 locations, 100 stress-test combinations, 10
+realizations, class A per-realization and class B pooled:
+
+| table | rows | approx size |
+| --- | --- | --- |
+| `q_indicators.csv` | 9 × 100 × 10 × 10 + 2 × 100 × 10 = **92,000** | ~5.5 MB |
+| each basin variable (1 metric, 1 location) | 1 × 100 × 10 = **1,000** | ~55 KB |
+
+`q` is ~98% of the volume, because it is the only variable that is both
+multi-location and multi-metric. The split moves five ~55 KB files away from a
+5.5 MB one that stays 5.5 MB. **The decision stands on its other two grounds**
+(no `variable` column; each variable gets its natural geometry) — this is
+recorded so a 5.5 MB CSV is not a surprise later.
+
+If q's size becomes a real problem the levers are elsewhere: fewer metrics, or
+dropping per-realization rows for class A and emitting only pooled values, or a
+binary format.
 
 ### Decision — `realization_id = 0` means pooled
 
@@ -303,12 +351,36 @@ exists; and disambiguate against names already in use.** Three consequences:
 
 ---
 
+## CR-3 — subbasin-mean precipitation instead of point precipitation
+
+Raised 2026-08-05 alongside the per-variable ruling: for CST's purposes a
+subbasin mean is more useful than precipitation at an exact gauge point.
+
+This is a **model-output** change, not a table-shape one, so it is its own CR.
+It splits into a free half and a real one:
+
+| Want | Status |
+| --- | --- |
+| **Basin-average precip** | **Available today, no code change.** Put `precipitation` in `wflow_outvars` and it is emitted as `precipitation_basavg` via `mapname="subcatchment", reducer=["mean"]`. `plot_results.py:314` explicitly drops it from the basin plots, so someone already anticipated it appearing. |
+| **Per-*subbasin* precip** | **Not available.** `reducer=["mean"]` collapses the whole subcatchment map to one value. One value per subbasin means dropping the reducer in `setup_gauges_and_outputs.py` — a model_creation change. |
+
+**Consequence if the reducer is dropped:** every basin-scalar variable gains
+*multiple* locations, so `location` stops being constant and the row count of
+each basin table multiplies by the subbasin count. This is the case where the
+size argument dismissed above *does* start to bite — and it is the reason
+`location` is retained in the basin tables even though it is constant today.
+
+Note this also removes the last point-geometry variable other than `q`: with
+precip aggregated, the point/basin split collapses to `q` vs everything else,
+which is what the owner originally described.
+
+---
+
 ## Open questions
 
 | # | Question | Recommendation |
 | --- | --- | --- |
 | **Q5** | Class C, stress-test axis. Ruling (a) fixed the month across realizations but not across stress tests. If each member picks its own wettest month, the surface compares different months — the same incomparability, one axis over. Live: the config supports monthly perturbation vectors. | Pick the month once from **`cst_0`, pooled over realizations**, and evaluate it everywhere. If the seasonal *shift* is interesting, that is a different indicator and the long shape carries it additively. |
-| **Q6** | `basin_indicators.csv`, forced by (b1). | Same seven columns: `variable` ∈ {`actual_evapotranspiration`, `snow`, …}, `metric` ∈ {`annual_total`, `annual_max`}, `location` = `basin`, `realization_id` = `1..N` (all basavg metrics are class A). `_basavg` then disappears from the names because `location` says it. Two files, one shared schema — vs merging into a single `indicators.csv`, which is tidier but collapses two `rule all` targets. |
 | **Q7** | Stale `aggregate_rlz` in an existing user config — silently ignored today. | Hard error naming the migration note, following the `variable_spec.parse` precedent (it refuses the pre-5e list shape and states the migration). |
 | **Q10** | **`overland flow` is summed in the wrong units.** `export_wflow_results.py:265-270` sums every non-snow basavg variable annually, commented *"Total evaporation or recharge or overland flow volume (mm/yr)"*. Correct for `actual evapotranspiration` and `groundwater recharge` — both **mm Δt⁻¹**, so a daily sum is genuinely mm/yr. But `overland flow` is **m³ s⁻¹**: summing a flow rate over 365 daily steps gives `Σ(m³/s)`, which is not mm/yr, not m³, not anything. It needs `× 86400` to become a volume. Any project putting `overland flow` in `wflow_outvars` gets a column off by 86400 with a wrong stated unit. Found 2026-08-05 while settling the token table; the unit column is what exposed it. | Not fixed in passing — it moves numbers, and the right target (volume in m³, or depth in mm, which needs the basin area) is a method call. Decide alongside Q6, since it is a `basin_indicators` defect. |
 | **Q8** | Baseline comparator for the two tables, raised by the unrounded-`float32` decision. They are byte-exact `sha256` entries today, and `.round(2)` was the accidental drift buffer. `check_baseline.py:26-28` already warns that a sub-tolerance wf1 discharge move (`max\|dQ\|/mean ≈ 1.7e-4`) *may* survive into them; unrounded, it will. | Move both targets to the **tolerance comparator** `check_baseline.py` already has — `compare_discharge`, used for the wf1 discharge anchor. Otherwise every harmless numeric nudge fails the gate without indicating a defect, which is the same argument that excludes `FIGURE_KINDS` from the baseline by default. |
