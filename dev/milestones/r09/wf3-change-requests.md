@@ -594,6 +594,31 @@ and delete rule 3.05. Removes one rule, one wildcard-expanded artifact class, an
 
 **Not yet ruled** — awaiting owner decision.
 
+### F7 — `config/templates/weathergen_config.yml` is an UNDECLARED input to 3.04
+
+Found 2026-08-05 while checking the appendix's dependency arrows.
+`Snakefile_climate_experiment:588` passes it as
+`params.default_config = "config/templates/weathergen_config.yml"`, never as an
+`input:`. `build_weagen_config` reads it as the seed dict for the `generate`
+branch (`prepare_weagen_config.py:57`), so it carries `general.variables`,
+`warm.sample.num`, `warm.variable` — all behaviour-affecting.
+
+**Failure mode:** edit the template, and 3.04 does not re-run. The generated
+`{wg_dir}/config/weathergen_config.yml` stays stale, and 3.06 keeps generating
+realizations from the superseded settings. It propagates silently because the
+*generated* config **is** declared and consumed by 3.06 (`:629`), so every
+downstream timestamp is consistent.
+
+**Not the same as the neighbouring `ancient()` usage.** `ancient(config_path)` in
+3.03 and the params-passed `snake_config` in 3.04/3.05 have an evident reason:
+`suggest_experiment_name.py` rewrites the config as text, so an mtime-sensitive
+edge would invalidate the whole pipeline on every name pin. The template has no
+counterpart — not declared, not marked ancient, no recorded decision.
+
+**Fix:** one line, declare it as an input to 3.04. Fold into whichever CR next
+touches this rule — CR-5 (C29) is the natural carrier, since it rewrites 3.04's
+neighbourhood anyway.
+
 ---
 
 ## Open questions

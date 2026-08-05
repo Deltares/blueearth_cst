@@ -48,7 +48,7 @@ the discussion started; further parts are added as topics come up.
 
 | | |
 |---|---|
-| **Findings** | F1 January-only perturbation · F2 overland flow units · F3 seam in the 7-day window · F4 gauge rainfall discarded · F5 run numbers silently change meaning · F6 per-run generator config is empty and misleading |
+| **Findings** | F1 January-only perturbation · F2 overland flow units · F3 seam in the 7-day window · F4 gauge rainfall discarded · F5 run numbers silently change meaning · F6 per-run generator config is empty and misleading · F7 generator template is an undeclared input |
 | **Open** | O1 do subbasins overlap · O2 stale configuration switch · ~~O3~~ closed → C28 |
 
 An appendix at the end sketches how a stress test is built today, step by step.
@@ -444,6 +444,26 @@ So anyone opening one of these files to find out what a run did would read
 plausible-looking perturbation ranges that had no part in it. The rest of the
 file is a filename. **Addressed by C29.**
 
+**F7 — Editing the weather-generator template changes nothing until something
+else forces a rerun.** Step 3.04 reads `config/templates/weathergen_config.yml`
+to seed the generator settings, but does not declare it as an input. That
+template is a tracked, editable file carrying the variable list, the sampling
+size and the wavelet variable — all of which change what the generator produces.
+
+Change it and the workflow sees no reason to act: 3.04 stays satisfied, the
+configuration it wrote earlier stays in place, and 3.06 keeps generating
+realizations from the old settings. Nothing looks wrong downstream, because the
+*generated* configuration is properly declared, so the stale settings propagate
+looking entirely consistent.
+
+Worth distinguishing from the neighbouring case: the project configuration is
+deliberately held outside the change-detection in these steps, and for a good
+reason — pinning an experiment name rewrites that file, and a naive dependency
+would invalidate the entire pipeline every time someone did so. The template has
+no such reasoning behind it. It is simply not listed. **Not addressed by any
+change here;** the fix is a one-line declaration and belongs with whichever
+change next touches this step.
+
 ---
 
 ## Open decisions
@@ -532,6 +552,20 @@ config stress_test:          extract_historical.nc        WF1 model
               3.11 derive_wflow_indicators ◄─── also reads cst_1..N.csv
                 └──► results/q_indicators.csv, basin_indicators.csv
 ```
+
+**What each step actually waits for.** The diagram's layout can suggest
+dependencies that are not there, so the declared inputs, in full:
+
+| step | waits for | feeds |
+|---|---|---|
+| 3.03 `climate_stress_parameters` | the project config, consistency check | 3.07, 3.11 |
+| 3.04 `prepare_weagen_config` | consistency check **only** | 3.06 |
+| 3.05 `prepare_weagen_config_st` | consistency check **only** | 3.07 |
+| 3.06 `generate_weather_realization` | the historical climate file **and 3.04's config** | 3.07, 3.08 |
+| 3.07 `generate_climate_stress_test` | 3.06's baseline realization, 3.03's perturbation file, 3.05's per-run config | 3.08 |
+
+So 3.03, 3.04 and 3.05 are three **independent** starting points, not a chain.
+Only 3.03 and 3.05 meet at 3.07; 3.04 goes to 3.06.
 
 **Where the perturbation is actually applied:** step 3.07, inside R.
 `apply_climate_perturbations` receives `precip_mean_factor` (multiplicative),
