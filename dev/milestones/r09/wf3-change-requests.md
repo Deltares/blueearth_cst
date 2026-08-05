@@ -1,11 +1,21 @@
-# WF3 output change requests
+# WF3 change requests
 
 Opened 2026-08-05, from observations on the first full WF3 run of the migrated
 R9 tree. **Collect-then-implement**: the requests are specified here and built as
 one batch, so the contract, the validators, the migration note and the baseline
 re-record move once rather than per request.
 
-Status: **CR-1 landed. CR-2 specified, NOT implemented — open questions below.**
+**Scope: WF3 as a whole**, not only its output tables — that is simply where the
+discussion started. CR-1..CR-3 all concern the result tables; later CRs need not.
+
+This is the implementation specification, dense with file and line references.
+The reviewable, plain-language companion is `wf3-changes-proposal.md`, which
+carries the stable **C / F / O** reference numbers. **The two must be kept in
+step:** a decision changed here without updating the proposal leaves the
+reviewable version lying.
+
+Status: **CR-1 landed. CR-2 specified, NOT implemented. Collection still open —
+more requests expected.**
 
 ---
 

@@ -1,17 +1,25 @@
-# Proposal: reshaping the WF3 result tables
+# Proposal: changes to Workflow 3 (the climate stress test)
 
-Plain-language summary of what we propose to change about the stress-test result
-tables, and why. Written to be read, not parsed — the precise specification, with
-file and line references, lives in `wf3-output-change-requests.md`.
+Plain-language summary of what we propose to change in WF3, and why. Written to
+be read, not parsed — the precise specification, with file and line references,
+lives in `wf3-change-requests.md`.
 
-Decided 2026-08-05. Nothing here is implemented yet except **C1**.
+Opened 2026-08-05, and **still being added to**. Nothing here is implemented yet
+except **C1**.
 
 Everything is numbered for reference: **C**hanges, **F**indings (problems we
-turned up along the way), **O**pen decisions.
+turned up along the way), **O**pen decisions. **Numbers are stable** — once
+assigned they are not reused or renumbered, so a later note can point at C14 and
+mean the same thing it means today. New items append.
+
+This document covers WF3 as a whole. Part A is the result tables, which is where
+the discussion started; further parts are added as topics come up.
 
 ---
 
 ## Index
+
+### Part A — result tables
 
 | | |
 |---|---|
@@ -22,10 +30,17 @@ turned up along the way), **O**pen decisions.
 | **Numbers** | C14 single precision, unrounded · C15 keep the model's units · C16 pool yearly extremes, not the stitched record |
 | **Locations** | C17 plain gauge number · C18 same locations for basin variables · C19 basin figure produced directly · C20 precipitation as a subbasin mean |
 | **Checks** | C21 tolerance comparison instead of exact match |
+
+### Across the document
+
+| | |
+|---|---|
 | **Findings** | F1 January-only perturbation · F2 overland flow units · F3 seam in the 7-day window · F4 gauge rainfall discarded |
 | **Open** | O1 do subbasins overlap · O2 stale configuration switch |
 
 ---
+
+# Part A — result tables
 
 ## The short version
 
@@ -216,6 +231,10 @@ numerically meaningless differences. The comparison this needs already exists an
 is used for the discharge reference.
 
 ---
+
+# Findings, open items and cost
+
+These span the whole document, not just Part A.
 
 ## Findings
 
