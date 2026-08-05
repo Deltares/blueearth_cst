@@ -160,6 +160,38 @@ def test_the_guard_gates_the_first_rule_that_touches_the_model():
     )
 
 
+def test_the_guards_verdict_does_not_persist_between_invocations():
+    """The edge alone is not the guard — this is what P4 missed.
+
+    Rule 3.09 declaring the sentinel as an input orders the guard BEFORE the
+    work, and the test above pins that. But a sentinel that survives the run
+    satisfies that edge with a STALE VERDICT: the check passed once against
+    model M1, the file remains, and a later invocation re-simulates against M2
+    without the guard running at all.
+
+    Measured at the R9 landing gate, on this rule's first real execution: with
+    the model perturbed and the sentinel present, an incremental re-run
+    scheduled **12 jobs of rule 3.09 and did not schedule the guard**. The
+    detection logic was correct throughout — forced to run, it raised
+    ModelDriftError naming the changed file. Only the trigger was missing.
+
+    `temp()` is the trigger: Snakemake deletes the sentinel once 3.09 has
+    consumed it, so the next invocation finds it absent and re-evaluates against
+    whatever the pointer-derived digest currently covers. That is also why the
+    fix is not "drop ancient() from model_toml" — the digest reaches files this
+    rule does not declare, and declaring them would duplicate what
+    `model_digest` discovers through the TOML's pointers.
+    """
+    guard = _rule_block("check_model_reference")
+    out = guard[guard.index("output:"): guard.index("log:")]
+    assert "temp(" in out, (
+        "the guard's sentinel is not temp(), so its verdict persists and rule "
+        "3.09's edge can be satisfied by a check that ran against a different "
+        "model — the R9 gate measured exactly this"
+    )
+    assert "touch(" in out, "the sentinel must still be a touch() marker"
+
+
 def test_the_guard_reads_the_reference_and_the_writer_produces_it():
     """The two rules are a producer/consumer pair -- the class of bug this
     milestone hit three times. Asserted rather than assumed."""

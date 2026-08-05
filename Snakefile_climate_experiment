@@ -418,6 +418,24 @@ rule write_model_reference:
 #
 # A NEW sentinel, deliberately: rule 3.00b's sentinel paths carry the
 # incremental-execution constraint and are approval-gated, so they are untouched.
+#
+# THE SENTINEL IS temp(), AND THAT IS THE GUARD'S TRIGGER. A persisted sentinel
+# satisfies rule 3.09's edge with a STALE VERDICT: the check passed once, the
+# file remains, and 3.09 is free to re-simulate against a model that changed
+# afterwards. Measured at the R9 landing gate, on this rule's first real run --
+# with the model perturbed and the sentinel present, an incremental re-run
+# scheduled 12 jobs of rule 3.09 and did NOT schedule this rule. Detection was
+# never the problem; triggering was.
+#
+# Dropping `ancient()` from `model_toml` does not fix it: the digest covers
+# files this rule does not declare (staticmaps, forcing), and enumerating them
+# here would duplicate what `model_digest` discovers through the TOML's own
+# pointers -- two lists to keep in step, which is the coupling the pointer
+# derivation exists to avoid. temp() sidesteps both. The verdict is deleted once
+# 3.09 has consumed it, so the NEXT invocation finds it absent and re-evaluates
+# against whatever the digest currently covers.
+#
+# A guard evaluates; it does not cache an answer.
 rule check_model_reference:
     message: rule_banner("3.01d", "check_model_reference")
     input:
@@ -427,7 +445,7 @@ rule check_model_reference:
         model_dir = basin_dir,
         experiment = experiment,
     output:
-        ok = touch(f"{exp_dir}/.model_reference_ok"),
+        ok = temp(touch(f"{exp_dir}/.model_reference_ok")),
     log:
         f"{LOG_PARTS_DIR}/3.01d_check_model_reference.log",
     benchmark:
