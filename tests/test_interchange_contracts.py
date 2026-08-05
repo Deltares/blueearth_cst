@@ -37,6 +37,30 @@ SNAKEDIR = join(TESTDIR, "..")
 _FIXTURE = join(SNAKEDIR, "test_case", "test_local")
 _EXP = join(_FIXTURE, "experiments", "experiment")
 
+# Fixture sub-roots, named after the Snakefile path variables they mirror so a
+# future tree move has ONE place to change here instead of a dozen literals.
+#
+#   _MODEL_DIR  <- basin_dir  = {project_dir}/models/hydrology/wflow
+#   _STORE_ROOT <- store_dir  = {project_dir}/data/climate/historical/<key>
+#   _WG_DIR     <- wg_dir     = {exp_dir}/climate/weathergenr
+#   _RUNS_DIR   <- runs_dir   = {exp_dir}/hydrology/wflow
+#
+# R9 P2 moved every one of these and this file was NOT re-pointed. The staleness
+# survived because the whole Layer-2 block is `skipif(not _fixture_present())`
+# and the fixture is untracked: it is absent in every worktree and on CI, so 22
+# dead paths sat green everywhere until the first post-R9 `pytest tests/` in the
+# primary checkout (2026-08-05, 22 FileNotFoundError). R9's own gates --
+# `semantic_tree_diff` and `check_baseline` -- validate the tree's SHAPE, not the
+# code that reads it, so neither could have caught this. Keeping the roots here,
+# derived and commented, is what makes the next move a one-line edit.
+_MODEL_DIR = join(_FIXTURE, "models", "hydrology", "wflow")
+_STORE_ROOT = join(_FIXTURE, "data", "climate", "historical")
+_WG_DIR = join(_EXP, "climate", "weathergenr")
+_RUNS_DIR = join(_EXP, "hydrology", "wflow")
+# The generated climate catalog joins the experiment's own config dir (R9
+# arch-10), it is not loose at the experiment root.
+_EXP_CATALOG = join(_EXP, "config", "catalogs", "data_catalog_climate_experiment.yml")
+
 _FIXTURE_ABSENT = (
     "untracked test_case/test_local fixture tree not present "
     "(interchange-contract integration layer skipped)"
@@ -299,9 +323,9 @@ def test_hm5_synthetic_fail():
 
 def _hm7_good():
     qstats = pd.DataFrame(
-        columns=["statistic", "tavg", "prcp", "Q_130000086"]
+        columns=["statistic", "temp_change", "precip_change", "Q_130000086"]
     )
-    basin = pd.DataFrame(columns=["tavg", "prcp"])
+    basin = pd.DataFrame(columns=["temp_change", "precip_change"])
     return qstats, basin
 
 
@@ -311,17 +335,17 @@ def test_hm7_synthetic_pass():
 
 def test_hm7_synthetic_fail():
     qstats, basin = _hm7_good()
-    basin = pd.DataFrame(columns=["tavg"])  # perturbation axis incomplete
+    basin = pd.DataFrame(columns=["temp_change"])  # perturbation axis incomplete
     assert ic.validate_hm7(qstats, basin) != []
 
 
 def test_hm7_accepts_the_shipped_template_default_basavg_columns():
     """The defect this phase must not inherit.
 
-    The basin table's header is `tavg`, `prcp`, PLUS one column per configured
-    `*_basavg` variable -- `export_wflow_results` builds it as
-    `["tavg", "prcp"] + [c for c in sim.columns if "basavg" in c]`. The exact
-    two-column assertion held only because the SEED CONFIG declares
+    The basin table's header is `temp_change`, `precip_change`, PLUS one column
+    per configured `*_basavg` variable -- `export_wflow_results` builds it as
+    `["temp_change", "precip_change"] + [c for c in sim.columns if "basavg" in c]`.
+    The exact two-column assertion held only because the SEED CONFIG declares
     `wflow_outvars: ["river discharge"]` and so produces no basavg column.
 
     The SHIPPED TEMPLATE DEFAULT is
@@ -331,7 +355,7 @@ def test_hm7_accepts_the_shipped_template_default_basavg_columns():
     """
     qstats, _ = _hm7_good()
     basin = pd.DataFrame(
-        columns=["tavg", "prcp", "actual_evapotranspiration_basavg"]
+        columns=["temp_change", "precip_change", "actual_evapotranspiration_basavg"]
     )
     assert ic.validate_hm7(qstats, basin) == []
 
@@ -340,11 +364,13 @@ def test_hm7_accepts_the_unaggregated_realization_column():
     """The same class again, one config knob over.
 
     With `aggregate_rlz: false` the writer prepends a `realization` column
-    (`col_names = ["realization", "tavg", "prcp"]`). An assertion pinned to the
-    aggregated shape would reject every unaggregated run.
+    (`col_names = ["realization", "temp_change", "precip_change"]`). An assertion
+    pinned to the aggregated shape would reject every unaggregated run.
     """
     qstats, _ = _hm7_good()
-    basin = pd.DataFrame(columns=["realization", "tavg", "prcp", "q_basavg"])
+    basin = pd.DataFrame(
+        columns=["realization", "temp_change", "precip_change", "q_basavg"]
+    )
     assert ic.validate_hm7(qstats, basin) == []
 
 
@@ -356,9 +382,30 @@ def test_hm7_still_rejects_a_foreign_basin_column():
     contract violation and must be named.
     """
     qstats, _ = _hm7_good()
-    basin = pd.DataFrame(columns=["tavg", "prcp", "Q_130000086"])
+    basin = pd.DataFrame(columns=["temp_change", "precip_change", "Q_130000086"])
     diffs = ic.validate_hm7(qstats, basin)
     assert diffs and "Q_130000086" in diffs[0]
+
+
+def test_hm7_rejects_the_pre_rename_axis_spelling():
+    """The rename is a contract change, so the OLD header must now FAIL.
+
+    `tavg` / `prcp` were the axis columns until 2026-08-05
+    (`dev/milestones/r09/migration_indicator-axis-columns.md`). They were the
+    repo's only violation of the `precip`/`temp` vocabulary naming.md §6 tier 2
+    declares. A validator that accepted both spellings would let a stale writer
+    keep emitting the old header undetected, which is exactly what the migration
+    note exists to prevent -- so this pins the rejection, not just the acceptance.
+
+    `tavg` also trips the foreign-column rule on the basin table, which is the
+    right diagnosis to hand someone whose tree predates the rename.
+    """
+    qstats = pd.DataFrame(columns=["statistic", "tavg", "prcp", "Q_130000086"])
+    basin = pd.DataFrame(columns=["tavg", "prcp"])
+    diffs = ic.validate_hm7(qstats, basin)
+    assert diffs
+    assert any("temp_change" in d for d in diffs)
+    assert any("precip_change" in d for d in diffs)
 
 
 # --- Relational synthetic pass/fail (break exactly ONE member) -------------
@@ -374,7 +421,9 @@ def _gauge_identity_good():
         }
     }
     output_rlz = pd.DataFrame({"time": ["2070-01-01"], "Q_130000086": [1.0]})
-    qstats = pd.DataFrame(columns=["statistic", "tavg", "prcp", "Q_130000086"])
+    qstats = pd.DataFrame(
+        columns=["statistic", "temp_change", "precip_change", "Q_130000086"]
+    )
     return toml_cfg, output_rlz, qstats
 
 
@@ -386,7 +435,9 @@ def test_gauge_identity_synthetic_fail():
     toml_cfg, output_rlz, qstats = _gauge_identity_good()
     # Break exactly ONE member of the correlated set: rename the Qstats gauge
     # column so check-3 (list-equality) fires while TOML + output_rlz still agree.
-    qstats = pd.DataFrame(columns=["statistic", "tavg", "prcp", "Q_999999999"])
+    qstats = pd.DataFrame(
+        columns=["statistic", "temp_change", "precip_change", "Q_999999999"]
+    )
     assert ic.validate_hm_gauge_column_identity(toml_cfg, output_rlz, qstats) != []
 
 
@@ -525,34 +576,34 @@ def _open_ds(path):
 @pytest.mark.skipif(not _fixture_present(), reason=_FIXTURE_ABSENT)
 def test_wg1_integration():
     key = "era5_20000101_20201231"
-    path = join(_FIXTURE, "climate_historical", key, "extract_historical.nc")
+    path = join(_STORE_ROOT, key, "extract_historical.nc")
     with _open_ds(path) as ds:
         assert ic.validate_wg1(ds) == []
 
 
 @pytest.mark.skipif(not _fixture_present(), reason=_FIXTURE_ABSENT)
 def test_wg2_integration():
-    df = pd.read_csv(join(_EXP, "weather_generator", "_work", "cst_1.csv"))
+    df = pd.read_csv(join(_WG_DIR, "_work", "cst_1.csv"))
     assert ic.validate_wg2(df) == []
 
 
 @pytest.mark.skipif(not _fixture_present(), reason=_FIXTURE_ABSENT)
 def test_wg3_integration():
-    with open(join(_EXP, "weather_generator", "config", "weathergen_config.yml")) as f:
+    with open(join(_WG_DIR, "config", "weathergen_config.yml")) as f:
         cfg = yaml.safe_load(f)
     assert ic.validate_wg3(cfg) == []
 
 
 @pytest.mark.skipif(not _fixture_present(), reason=_FIXTURE_ABSENT)
 def test_wg5_integration():
-    with open(join(_EXP, "data_catalog_climate_experiment.yml")) as f:
+    with open(_EXP_CATALOG) as f:
         cfg = yaml.safe_load(f)
     assert ic.validate_wg5(cfg) == []
 
 
 @pytest.mark.skipif(not _fixture_present(), reason=_FIXTURE_ABSENT)
 def test_wg5_catalog_grid_integration():
-    with open(join(_EXP, "data_catalog_climate_experiment.yml")) as f:
+    with open(_EXP_CATALOG) as f:
         catalog = yaml.safe_load(f)
     with open(join(_EXP, "config", "snake_config_climate_experiment.yml")) as f:
         snap = yaml.safe_load(f)
@@ -564,13 +615,13 @@ def test_wg5_catalog_grid_integration():
 
 @pytest.mark.skipif(not _fixture_present(), reason=_FIXTURE_ABSENT)
 def test_hm1_integration():
-    with _open_ds(join(_FIXTURE, "hydrology_model", "staticmaps.nc")) as ds:
+    with _open_ds(join(_MODEL_DIR, "staticmaps.nc")) as ds:
         assert ic.validate_hm1(ds) == []
 
 
 @pytest.mark.skipif(not _fixture_present(), reason=_FIXTURE_ABSENT)
 def test_hm2_integration():
-    path = join(_FIXTURE, "hydrology_model", "forcing", "inmaps_historical.nc")
+    path = join(_MODEL_DIR, "forcing", "inmaps_historical.nc")
     with _open_ds(path) as ds:
         assert ic.validate_hm2(ds) == []
 
@@ -579,7 +630,7 @@ def test_hm2_integration():
 def test_hm3_integration():
     import geopandas as gpd
 
-    geoms = join(_FIXTURE, "hydrology_model", "staticgeoms")
+    geoms = join(_MODEL_DIR, "staticgeoms")
     region = gpd.read_file(join(geoms, "region.geojson"))
     outlets = gpd.read_file(join(geoms, "outlets.geojson"))
     outlet_index = pd.read_csv(join(geoms, "outlet_index.csv"))
@@ -590,22 +641,20 @@ def test_hm3_integration():
 def test_hm4_integration():
     import tomllib
 
-    with open(join(_FIXTURE, "hydrology_model", "wflow_sbm.toml"), "rb") as f:
+    with open(join(_MODEL_DIR, "wflow_sbm.toml"), "rb") as f:
         base = tomllib.load(f)
     assert ic.validate_hm4(base) == []
-    with open(
-        join(_EXP, "hydrology_runs", "rlz_1", "config", "cst_1.toml"), "rb"
-    ) as f:
+    with open(join(_RUNS_DIR, "config", "rlz_1_cst_1.toml"), "rb") as f:
         percst = tomllib.load(f)
     assert ic.validate_hm4(percst) == []
 
 
 @pytest.mark.skipif(not _fixture_present(), reason=_FIXTURE_ABSENT)
 def test_hm5_integration():
-    # wf1 output.csv + a wf3 per-cst output_rlz — both persist.
-    wf1 = pd.read_csv(join(_FIXTURE, "hydrology_model", "run_default", "output.csv"))
+    # wf1 output.csv + a wf3 per-cst run csv — both persist.
+    wf1 = pd.read_csv(join(_MODEL_DIR, "run_default", "output.csv"))
     assert ic.validate_hm5(wf1) == []
-    wf3 = pd.read_csv(join(_EXP, "hydrology_runs", "rlz_1", "output", "cst_1.csv"))
+    wf3 = pd.read_csv(join(_RUNS_DIR, "output", "rlz_1_cst_1.csv"))
     assert ic.validate_hm5(wf3) == []
 
 
@@ -626,12 +675,10 @@ def _gauge_identity_pairs():
 def test_gauge_identity_integration(rlz, cst):
     import tomllib
 
-    with open(
-        join(_EXP, "hydrology_runs", f"rlz_{rlz}", "config", f"cst_{cst}.toml"), "rb"
-    ) as f:
+    with open(join(_RUNS_DIR, "config", f"rlz_{rlz}_cst_{cst}.toml"), "rb") as f:
         toml_cfg = tomllib.load(f)
     output_rlz = pd.read_csv(
-        join(_EXP, "hydrology_runs", f"rlz_{rlz}", "output", f"cst_{cst}.csv")
+        join(_RUNS_DIR, "output", f"rlz_{rlz}_cst_{cst}.csv")
     )
     qstats = pd.read_csv(join(_EXP, "results", "q_indicators.csv"))
     assert ic.validate_hm_gauge_column_identity(toml_cfg, output_rlz, qstats) == []
@@ -647,10 +694,16 @@ def test_gauge_identity_integration(rlz, cst):
 
 _TEMP_ABSENT = "temp() artifact absent; capture via --notemp"
 
-# Fixture temp() paths (present only after a --notemp capture run).
-_WG4_NC = join(_EXP, "weather_generator", "output", "rlz_1_cst_1.nc")
-_WG6_NC = join(_EXP, "hydrology_runs", "rlz_1", "forcing", "inmaps_cst_1.nc")
-_HM6B_NC = join(_EXP, "hydrology_runs", "rlz_1", "output", "outstates_cst_1.nc")
+# Fixture temp() paths (present only after a --notemp capture run). R9 P2 also
+# flattened the member naming here: the rlz_<r>/ directory level dissolved and
+# the index went back into the stem, so these are `inmaps_rlz_1_cst_1.nc`, not
+# `rlz_1/forcing/inmaps_cst_1.nc`. Unlike the persisted cases above these fail
+# SILENTLY when stale -- the runtime `os.path.exists` guard reads a wrong path as
+# "temp artifact absent" and skips, so a stale path here is indistinguishable
+# from a normal run. That is why they are derived from the same roots.
+_WG4_NC = join(_WG_DIR, "output", "rlz_1_cst_1.nc")
+_WG6_NC = join(_RUNS_DIR, "forcing", "inmaps_rlz_1_cst_1.nc")
+_HM6B_NC = join(_RUNS_DIR, "output", "outstates_rlz_1_cst_1.nc")
 
 
 @pytest.mark.skipif(not _fixture_present(), reason=_FIXTURE_ABSENT)

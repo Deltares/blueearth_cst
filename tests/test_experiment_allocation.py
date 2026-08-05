@@ -221,3 +221,105 @@ def test_a_user_supplied_name_still_faces_the_grammar(tmp_path, capsys):
     cfg = _cfg(tmp_path)
     assert runner.main([str(cfg), "--name", "Gabon-Dry"]) == 2
     assert "grammar" in capsys.readouterr().err
+
+
+# --- the unset-key default: reuse before create --------------------------------
+
+from blueearth_cst.experiment.allocate import (  # noqa: E402
+    resolve_default_experiment_name,
+)
+from blueearth_cst.shared.snake_utils import project_slug  # noqa: E402
+
+
+def _proj(tmp_path, *existing):
+    pd = tmp_path / "gabon_0108"
+    (pd / "experiments").mkdir(parents=True)
+    for name in existing:
+        (pd / "experiments" / name).mkdir()
+    return pd
+
+
+def test_the_default_is_the_project_name_plus_today(tmp_path):
+    """`gabon_0108` yields `gabon_0108_20260805` when nothing is set."""
+    pd = _proj(tmp_path)
+    base = project_slug(pd, reserve=len("_YYYYMMDD"))
+    assert base == "gabon_0108"
+    assert resolve_default_experiment_name(pd, base, "20260805") == "gabon_0108_20260805"
+
+
+def test_a_later_run_REUSES_the_existing_experiment(tmp_path):
+    """The whole point of reuse. Minting today's date unconditionally would send
+    tomorrow's run at an empty directory: every job re-runs, today's outputs are
+    orphaned, and --dry-run shows a full rebuild with no stated reason."""
+    pd = _proj(tmp_path, "gabon_0108_20260805")
+    assert (
+        resolve_default_experiment_name(pd, "gabon_0108", "20260806")
+        == "gabon_0108_20260805"
+    )
+
+
+def test_the_most_recently_allocated_wins(tmp_path):
+    """Max by (date, version): _v2 beats the unsuffixed name of the same day,
+    and a newer day beats both."""
+    pd = _proj(tmp_path, "gabon_0108_20260805", "gabon_0108_20260805_v2")
+    assert (
+        resolve_default_experiment_name(pd, "gabon_0108", "20260806")
+        == "gabon_0108_20260805_v2"
+    )
+    (pd / "experiments" / "gabon_0108_20260810").mkdir()
+    assert (
+        resolve_default_experiment_name(pd, "gabon_0108", "20260806")
+        == "gabon_0108_20260810"
+    )
+
+
+def test_only_this_project_s_dated_names_are_reused(tmp_path):
+    """A deliberately chosen name must never be picked up by accident, and
+    neither must another project's experiments sharing the directory."""
+    pd = _proj(
+        tmp_path, "dry_scenario", "other_project_20260901", "gabon_0108_no_date"
+    )
+    assert (
+        resolve_default_experiment_name(pd, "gabon_0108", "20260805")
+        == "gabon_0108_20260805"
+    )
+
+
+def test_resolving_creates_nothing(tmp_path):
+    """Called at Snakefile parse time, which also runs under --dry-run and
+    --unlock; a side effect on disk there would be wrong."""
+    pd = _proj(tmp_path)
+    name = resolve_default_experiment_name(pd, "gabon_0108", "20260805")
+    assert not (pd / "experiments" / name).exists()
+    assert list((pd / "experiments").iterdir()) == []
+
+
+def test_a_missing_experiments_dir_is_not_an_error(tmp_path):
+    """First run of a brand-new project: nothing exists yet."""
+    pd = tmp_path / "gabon_0108"
+    pd.mkdir()
+    assert (
+        resolve_default_experiment_name(pd, "gabon_0108", "20260805")
+        == "gabon_0108_20260805"
+    )
+
+
+def test_files_beside_the_experiments_are_ignored(tmp_path):
+    pd = _proj(tmp_path)
+    (pd / "experiments" / "gabon_0108_20260805").write_text("not a dir", encoding="utf-8")
+    assert (
+        resolve_default_experiment_name(pd, "gabon_0108", "20260806")
+        == "gabon_0108_20260806"
+    )
+
+
+def test_the_default_and_the_suggest_command_derive_one_stem(tmp_path):
+    """Both naming paths go through project_slug, so they cannot disagree."""
+    from blueearth_cst.shared.snake_utils import suggest_experiment_name
+
+    for name in ("Gabon", "My Basin-2024", "gabon_0108"):
+        pd = tmp_path / name
+        pd.mkdir()
+        base = project_slug(pd, reserve=len("_YYYYMMDD"))
+        assert suggest_experiment_name(pd, "20260805") == f"{base}_20260805"
+        assert resolve_default_experiment_name(pd, base, "20260805") == f"{base}_20260805"

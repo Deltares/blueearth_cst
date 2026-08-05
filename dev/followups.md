@@ -75,6 +75,157 @@ end-to-end. Don't delete them.
 
 ---
 
+## Post-R9 (surfaced 2026-08-05 during the R9 self-test)
+
+- **[R9-1] Six geojson basenames collide across `data/spatial/geoms/` and
+  `models/hydrology/wflow/staticgeoms/`, meaning different things in each.**
+  Raised as "how do we prevent drift between the files that are the same"; the
+  measurement says none of the six pairs *are* the same, which makes
+  misidentification the exposure rather than drift. Measured on
+  `test_case/test_local`, 2026-08-05:
+
+  | layer | features (`data/spatial` / `staticgeoms`) | relationship |
+  |---|---|---|
+  | `region.geojson` | 1 / 1 | **different objects** — ours 0.017847, hydromt's 0.026667, IoU 0.67, ours ⊂ hydromt's exactly (`a\b` = 0). Ours is the delineated basin; hydromt's is the model grid extent. |
+  | `basins.geojson` | **1 / 5** | hydromt's own per-subbasin polygons (`value` column); union area identical |
+  | `rivers.geojson` | **3 / 4** | different provenance — 21 MERIT-style attrs vs `idx, idx_ds, pit, strord` |
+  | `subbasins` / `catchments` / `locations` | 5 / 5 | true copies — identical geometry AND identical column schema, incl. our own `delineation_method`, `subbasin_code` |
+
+  **Temporal drift is already structurally impossible** and needs nothing: there
+  is no second independent producer. `data/spatial/` is upstream —
+  `Snakefile_model_creation:385-392` declares all six as inputs to rule 1.03,
+  so the model rebuilds whenever they change. That is ADR 0003's fix, and
+  `spatial/delineate_region.py:7-14` records the pre-ADR state this replaced
+  ("agreed exactly — agreement maintained by coincidence, since nothing
+  compared them").
+
+  Three things are exposed, none of them drift:
+
+  1. **Name collision.** `basins.geojson` is "the basin" in one directory and
+     "five grid-derived polygons" in the other, with nothing in the tree saying
+     so. A future rule, the GUI, or a later reader takes the wrong one and is
+     silently wrong.
+  2. **Eight of ten `staticgeoms/` files are undeclared outputs.** Rule 1.03
+     declares only `region.geojson` and `outlets.geojson`
+     (`Snakefile_model_creation:400-401`); the rest are hydromt side effects
+     Snakemake does not track, so a partially-failed build can leave stale ones.
+  3. **The `region` containment relationship is unrecorded.** `ours ⊆ hydromt's`
+     held exactly here; a hydromt upgrade that changed how the model extent is
+     derived would break it with nothing watching.
+
+  Options when this is picked up, in preference order: **(a)** a contract check
+  asserting the *relationship* rather than equality — containment for `region`,
+  topological equality for the three copy layers — reusing
+  `dev/scripts/semantic_tree_diff.py:1250` `compare_geojson`, which already
+  compares CRS, row count, non-geometry columns and geometry topologically
+  (it exists because byte comparison is wrong for this format); **(b)** document
+  in the seam contract and the R9 path map which directory is authoritative for
+  which question; **(c)** declare the eight undeclared `staticgeoms/` outputs on
+  rule 1.03 — closes the stale-artifact gap but couples our DAG harder to
+  hydromt's output surface.
+
+  **Do not rename or suppress anything under `staticgeoms/`** — it is
+  hydromt_wflow's own output surface and `AGENTS.md`'s hard constraint puts it
+  off-limits.
+
+  Reproduce the table with `gpd.read_file` on the two directories of any built
+  project; no run needed if `test_case/test_local` is present.
+
+- **[R9-2] Baseline re-record owed for the indicator-table axis-column rename.**
+  Raised 2026-08-05 as "climate variable terminology is inconsistent across
+  workflows" (`temp`/`tavg`, `precip`/`prcp`). The screening found exactly one
+  real violation: `q_indicators.csv` / `basin_indicators.csv` spelled the two
+  perturbation-axis columns `tavg` / `prcp`, while every other producer already
+  used the `precip` / `temp` stems `naming.md` §6 tier 2 declares. Renamed to
+  `temp_change` / `precip_change`; full rationale, the old → new map, and the
+  alias list that only *looks* like drift are in
+  `dev/milestones/r09/migration_indicator-axis-columns.md`.
+
+  **Outstanding — TWO gates, one fix: re-run WF3 from the primary checkout.**
+  Code, tests, contract doc and `naming.md` are done; both remaining gates fail
+  only because the fixture tree still holds pre-rename output.
+
+  1. **`pytest tests/` from the primary checkout FAILS** — the branch's merge
+     gate, not just a reporting nicety. `test_hm7_integration` and the 12
+     `test_gauge_identity_integration` cases parse the real
+     `q_indicators.csv` / `basin_indicators.csv`, which still carry `tavg` /
+     `prcp`. They fail *correctly*: `validate_hm7` is meant to reject the old
+     spelling. This worktree passed only because it has no `test_case/test_local`
+     and those 26 cases skip.
+  2. **`check_baseline.py check` FAILS** — `manifest.json` fingerprints both
+     tables byte-exact. Expected re-record diff is exactly two entries'
+     `sha256` / `size_bytes`; a third entry moving means something else changed
+     too. **But those two can move for TWO reasons at once** — the header rename
+     *and* the pre-restoration wf3 provenance finally catching up with the
+     restored wf1 slice (`check_baseline.py` module docstring; the wf3 rows were
+     deliberately never re-recorded because the discharge move was immaterial).
+     Do not re-record on sight: follow ADR 0001 step 7's immaterial branch —
+     confirm the movement is consistent with the recorded wf1 diff first. Full
+     procedure and commands in
+     `dev/milestones/r09/migration_indicator-axis-columns.md` §5.
+
+  Order: WF3 run → `pytest tests/` → ADR 0001 step-7 consistency check →
+  baseline re-record.
+
+- **[R9-4] R9 moved the project tree but never re-pointed the interchange
+  contract tests. FIXED 2026-08-05.** The whole Layer-2 block of
+  `tests/test_interchange_contracts.py` still used pre-R9 paths —
+  `climate_historical/`, `hydrology_model/`, `weather_generator/`,
+  `hydrology_runs/rlz_<n>/`, and the loose `data_catalog_climate_experiment.yml`
+  at the experiment root — plus the pre-flattening member naming
+  (`rlz_<n>/config/cst_<m>.toml` rather than `config/rlz_<n>_cst_<m>.toml`).
+  **22 failures** on the first post-R9 `pytest tests/` in the primary checkout.
+
+  **Why it stayed invisible, which is the part worth keeping.** The block is
+  `skipif(not _fixture_present())` and `test_case/test_local` is untracked, so
+  it is absent in every worktree and on CI — `AGENTS.md` already says CI covers
+  only what a bare checkout can run. R9's gates were `semantic_tree_diff` and
+  `check_baseline`, which validate the tree's SHAPE; neither reads the code that
+  reads the tree. So the only check that could have caught it is the one only
+  the primary checkout can run, and it had not been run since R9 landed.
+
+  Three of the paths were worse than merely broken: `_WG4_NC`, `_WG6_NC` and
+  `_HM6B_NC` sit behind a runtime `os.path.exists` guard, so a wrong path reads
+  as "temp() artifact absent" and **skips silently** — indistinguishable from a
+  normal run, forever.
+
+  Fixed by deriving four roots (`_MODEL_DIR`, `_STORE_ROOT`, `_WG_DIR`,
+  `_RUNS_DIR`) named after the Snakefile variables they mirror, so the next tree
+  move is a one-line edit rather than a dozen literals. **Verified only against
+  the fixture's real layout on disk, not by a green run** — this worktree has no
+  fixture. Confirm with `pytest tests/test_interchange_contracts.py` in the
+  primary checkout.
+
+  **Generalizes:** any milestone that moves the project tree must grep the test
+  suite for the old roots, because the suite's fixture-dependent layer cannot
+  fail in CI.
+
+- **[R9-3] The response-surface axis columns hold JANUARY, not an annual value.**
+  Surfaced 2026-08-05 while writing R9-2's rename, reading the code the rename
+  touched. `export_wflow_results.py` does `df_st["temp_mean"].iloc[0]`, but
+  `cst_<m>.csv` has **twelve rows, one per month** — `prepare_cst_parameters`
+  builds them from the config's 12-element `min` / `max` vectors. So the value
+  labelled `temp_change` / `precip_change` for a stress-test member is its
+  January perturbation.
+
+  **Never observed wrong, and that is the whole problem.** Both the shipped
+  template and the seed config use flat vectors (`min: [0.0]*12`,
+  `max: [3.0]*12`), so January *is* the annual figure there. A project with a
+  seasonal perturbation vector — which the config schema explicitly supports,
+  and which `transient_change: true` invites — gets a response surface silently
+  indexed by one month. Same class as the fixture-shaped `validate_hm7`
+  assertion R9 P3 fixed: correct on the fixture, wrong for the general config.
+
+  **Not fixed in passing, deliberately.** Collapsing 12 months to one axis value
+  is a method question, not a typo — mean? annual total (right for precip,
+  wrong for temp)? or does a seasonally-perturbed run need a different response
+  surface altogether? It also moves numbers, so it is a baseline event. Recorded
+  in the code at the read site so nobody re-derives it. Reproduce by setting a
+  non-flat `stress_test.temp.mean.max` and comparing the emitted axis column
+  against the intended annual mean.
+
+---
+
 ## Post-R8 (surfaced 2026-08-02 during the Post-R7 triage)
 
 - **[R8-1] The ruff gate is red on `main`.** *Row `t260802a`.* `pixi run ruff

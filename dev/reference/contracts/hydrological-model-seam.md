@@ -247,12 +247,23 @@ Rendered one subsection per artifact.
   `export_wflow_results` at R9 P3; the *module* it runs keeps the old name, so
   the `export_wflow_results.py:NN` citations below are current).
 - **consumer:** CST-API / GUI (terminal in-repo).
-- **pinned surface:** `q_indicators.csv` header `statistic,tavg,prcp,<gauge-cols>`
-  where `<gauge-cols>` = HM-5's `<header>_<mapid>` set (fixture `Q_130000086`),
-  ordered per `export_wflow_results.py:66-67`; rows keyed by `statistic` × the
-  `(tavg, prcp)` perturbation grid. `basin_indicators.csv` header `tavg,prcp`
-  (the perturbation-axis index). These are the **response-surface hand-off** to
-  the platform.
+- **pinned surface:** `q_indicators.csv` header
+  `statistic,temp_change,precip_change,<gauge-cols>` where `<gauge-cols>` = HM-5's
+  `<header>_<mapid>` set (fixture `Q_130000086`), ordered per
+  `export_wflow_results.py:66-67`; rows keyed by `statistic` × the
+  `(temp_change, precip_change)` perturbation grid. `basin_indicators.csv` header
+  `temp_change,precip_change` (the perturbation-axis index) plus one column per
+  configured `*_basavg` variable, and an optional leading `realization`. These are
+  the **response-surface hand-off** to the platform.
+- **axis-column rename (2026-08-05):** these two columns were `tavg` / `prcp`
+  until the R9 followup recorded in
+  `dev/milestones/r09/migration_indicator-axis-columns.md`. They were the repo's
+  only violation of the `precip` / `temp` vocabulary `naming.md` §6 tier 2
+  declares. The `_change` suffix is load-bearing: the columns hold the
+  **perturbation** each member imposes — absolute degC and relative % — not the
+  variable's value, so bare `temp` / `precip` would have been wrong in the other
+  direction. Both spellings are named once in code, as
+  `interchange_contracts._PERTURBATION_AXIS`.
 - **temp() lifecycle:** not `temp()` (`rule all`, manifested).
 - **removed at R9 P3:** the `RT_*.csv` response tables. They were non-manifest
   side products with no in-repo consumer, written via `params` rather than
@@ -290,7 +301,8 @@ Exactly the failure no per-artifact validator can see.
    `<header>_<id>` pattern; entries without `map` → exact `header`), and every
    declared entry is represented;
 2. the map-typed gauge columns carry the `Q_` prefix rule 3.11 hard-codes;
-3. `qstats_df`'s gauge columns (header minus `statistic,tavg,prcp`, ordered per
+3. `qstats_df`'s gauge columns (header minus `statistic` and the
+   `_PERTURBATION_AXIS` columns `temp_change,precip_change`, ordered per
    `export_wflow_results.py:66-67`) are **list-equal** to the `output_rlz_df`
    gauge set.
 
