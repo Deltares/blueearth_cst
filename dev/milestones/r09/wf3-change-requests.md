@@ -307,6 +307,58 @@ The row key is therefore
 between the `outlets` and `gauges_locations` maps, which in the wide table would
 surface only as duplicate columns and go unnoticed.
 
+**That collision is not hypothetical — see F17 below. It is live in the shipped
+fixture.** This assertion is the only thing in the register that catches it.
+
+### F17 — `Q_<id>` is emitted twice when an outlet is also a registry gauge
+
+Observed 2026-08-05 in `test_case/test_local`, inside the failure message of an
+unrelated test.
+
+```
+run CSV: time,Q_101,Q_105,Q_104,Q_102,Q_103,Q_101,P_105,P_104,P_102,P_103,P_101
+                 ^^^^^                        ^^^^^   both from wflow, one name
+wflow_sbm.toml [output.csv]:
+    header = "Q"   map = "outlets"
+    header = "Q"   map = "gauges_locations"
+    header = "P"   map = "gauges_locations"
+```
+
+`setup_gauges_and_outputs.py` registers `Q` on **both** maps — `setup_outlets`
+(`:55-58`) and `setup_config_output_timeseries` (`:79-87`). Outlet 101 is also
+registry gauge 101, so wflow writes that series twice under one header.
+
+**Propagation.** `pd.read_csv` renames the second to `Q_101.1`;
+`export_wflow_results.py:108`'s `startswith("Q_")` filter takes both; so
+`q_indicators.csv` carries **six gauge columns for five gauges**, in both wf1's
+`output.csv` and every wf3 run CSV.
+
+**Measured severity today: benign.** The two series are byte-identical
+(`(a-b).abs().max() == 0.0`). So no number is wrong; a per-location aggregation
+just double-counts station 101.
+
+**Severity ceiling: not benign.** They agree because both map entries resolve to
+the same cell. **Nothing asserts that.** An outlet id and a gauge id that coincide
+numerically while pointing at different cells would put two different series
+under one name, silently.
+
+**`validate_hm_gauge_column_identity` does NOT catch it, in any of its three
+checks:**
+
+| check | why it passes |
+| --- | --- |
+| 1 — every produced column traces to a declared entry | a duplicate still matches the `Q_*` pattern |
+| 2 — map-typed gauge columns carry the `Q_` prefix | only requires ≥1 such column |
+| 3 — q_indicators gauge set == output_rlz gauge set | **both files carry the duplicate identically**, so they agree |
+
+**Addressed by C17's row-key uniqueness assertion**, and by nothing else.
+Structural for any project whose basin outlet is also a registered gauge — the
+normal case, not an edge case.
+
+**Also confirms F4 with data:** `P_101`..`P_105` are present in the same output
+and dropped by the `Q_` filter. That finding was inferred from the code; this is
+the artifact.
+
 ### Decision — `variable` is a live discriminator, not future-proofing (was Q3)
 
 Ruled 2026-08-05, on evidence rather than intent.

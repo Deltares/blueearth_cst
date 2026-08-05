@@ -54,7 +54,7 @@ the discussion started; further parts are added as topics come up.
 
 | | |
 |---|---|
-| **Findings** | F1 January-only perturbation · F2 overland flow units · F3 seam in the 7-day window · F4 gauge rainfall discarded · F5 run numbers silently change meaning · F6 per-run generator config is empty and misleading · F7 generator template is an undeclared input · F8 spell-length perturbations in the wrong file · F9 hydrological year configured twice · F10 two settings read by nothing · F11 contract covers 11 of 16 settings · F12 hardcoded series start year · F13 dead settings are pre-1.2.0 leftovers · F14 three unreachable stress dimensions · F15 perturbation step unseeded · F16 evaporation computed twice |
+| **Findings** | F1 January-only perturbation · F2 overland flow units · F3 seam in the 7-day window · F4 gauge rainfall discarded · F5 run numbers silently change meaning · F6 per-run generator config is empty and misleading · F7 generator template is an undeclared input · F8 spell-length perturbations in the wrong file · F9 hydrological year configured twice · F10 two settings read by nothing · F11 contract covers 11 of 16 settings · F12 hardcoded series start year · F13 dead settings are pre-1.2.0 leftovers · F14 three unreachable stress dimensions · F15 perturbation step unseeded · F16 evaporation computed twice · F17 one gauge reported twice |
 | **Open** | O1 do subbasins overlap · O2 stale configuration switch · ~~O3~~ closed → C28 |
 
 An appendix at the end sketches how a stress test is built today, step by step.
@@ -676,6 +676,30 @@ and is given none. Whatever is random in that step is therefore not reproducible
 while the step before it is — an asymmetry nobody chose. Whether it actually
 matters depends on what the perturbation does stochastically, which should be
 confirmed rather than assumed; the asymmetry is real either way.
+
+**F17 — One gauge is reported twice, and nothing notices.** Discharge is asked
+for at two sets of locations: the basin outlets, and the registered measurement
+stations. When a basin outlet *is* one of the registered stations — the normal
+case — the model writes that location's flow **twice**, under the same name. The
+results table then reports six gauges where there are five, and a reader has no
+way to tell that two of the columns are one place.
+
+Found 2026-08-05 in the test fixture, in the error message from a different
+failure. The two series there are **byte-for-byte identical**, so nothing is
+numerically wrong today, and any per-location total simply counts that station
+twice.
+
+**But the harmless version is not guaranteed.** The two copies agree because both
+map entries happen to resolve to the same grid cell. Nothing asserts that. If an
+outlet identifier and a station identifier ever coincide *numerically* while
+pointing at different places, the same duplication would put two genuinely
+different flow series under one name — and the existing cross-file check would
+still pass, because it compares the two files' column lists against each other
+and both carry the duplicate identically.
+
+**Addressed by C17's uniqueness check** on the row key, which is the reason that
+check was proposed. It also confirms **F4** with data rather than inference: the
+discarded rainfall-at-gauges columns are right there in the same output.
 
 **F16 — Potential evaporation is computed twice, by two different methods.** The
 generator computes it while applying the perturbation, using its own default
