@@ -75,6 +75,64 @@ end-to-end. Don't delete them.
 
 ---
 
+## Post-R9 (surfaced 2026-08-05 during the R9 self-test)
+
+- **[R9-1] Six geojson basenames collide across `data/spatial/geoms/` and
+  `models/hydrology/wflow/staticgeoms/`, meaning different things in each.**
+  Raised as "how do we prevent drift between the files that are the same"; the
+  measurement says none of the six pairs *are* the same, which makes
+  misidentification the exposure rather than drift. Measured on
+  `test_case/test_local`, 2026-08-05:
+
+  | layer | features (`data/spatial` / `staticgeoms`) | relationship |
+  |---|---|---|
+  | `region.geojson` | 1 / 1 | **different objects** — ours 0.017847, hydromt's 0.026667, IoU 0.67, ours ⊂ hydromt's exactly (`a\b` = 0). Ours is the delineated basin; hydromt's is the model grid extent. |
+  | `basins.geojson` | **1 / 5** | hydromt's own per-subbasin polygons (`value` column); union area identical |
+  | `rivers.geojson` | **3 / 4** | different provenance — 21 MERIT-style attrs vs `idx, idx_ds, pit, strord` |
+  | `subbasins` / `catchments` / `locations` | 5 / 5 | true copies — identical geometry AND identical column schema, incl. our own `delineation_method`, `subbasin_code` |
+
+  **Temporal drift is already structurally impossible** and needs nothing: there
+  is no second independent producer. `data/spatial/` is upstream —
+  `Snakefile_model_creation:385-392` declares all six as inputs to rule 1.03,
+  so the model rebuilds whenever they change. That is ADR 0003's fix, and
+  `spatial/delineate_region.py:7-14` records the pre-ADR state this replaced
+  ("agreed exactly — agreement maintained by coincidence, since nothing
+  compared them").
+
+  Three things are exposed, none of them drift:
+
+  1. **Name collision.** `basins.geojson` is "the basin" in one directory and
+     "five grid-derived polygons" in the other, with nothing in the tree saying
+     so. A future rule, the GUI, or a later reader takes the wrong one and is
+     silently wrong.
+  2. **Eight of ten `staticgeoms/` files are undeclared outputs.** Rule 1.03
+     declares only `region.geojson` and `outlets.geojson`
+     (`Snakefile_model_creation:400-401`); the rest are hydromt side effects
+     Snakemake does not track, so a partially-failed build can leave stale ones.
+  3. **The `region` containment relationship is unrecorded.** `ours ⊆ hydromt's`
+     held exactly here; a hydromt upgrade that changed how the model extent is
+     derived would break it with nothing watching.
+
+  Options when this is picked up, in preference order: **(a)** a contract check
+  asserting the *relationship* rather than equality — containment for `region`,
+  topological equality for the three copy layers — reusing
+  `dev/scripts/semantic_tree_diff.py:1250` `compare_geojson`, which already
+  compares CRS, row count, non-geometry columns and geometry topologically
+  (it exists because byte comparison is wrong for this format); **(b)** document
+  in the seam contract and the R9 path map which directory is authoritative for
+  which question; **(c)** declare the eight undeclared `staticgeoms/` outputs on
+  rule 1.03 — closes the stale-artifact gap but couples our DAG harder to
+  hydromt's output surface.
+
+  **Do not rename or suppress anything under `staticgeoms/`** — it is
+  hydromt_wflow's own output surface and `AGENTS.md`'s hard constraint puts it
+  off-limits.
+
+  Reproduce the table with `gpd.read_file` on the two directories of any built
+  project; no run needed if `test_case/test_local` is present.
+
+---
+
 ## Post-R8 (surfaced 2026-08-02 during the Post-R7 triage)
 
 - **[R8-1] The ruff gate is red on `main`.** *Row `t260802a`.* `pixi run ruff
