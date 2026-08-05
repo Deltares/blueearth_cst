@@ -4,15 +4,12 @@ Date: 2026-08-04. Branch: `feat/r09-p4-fingerprint`, cut from
 `milestone/r09-project-tree` after P3. Brief:
 [`phase-4-fingerprint-task-brief.md`](phase-4-fingerprint-task-brief.md).
 
-**Status: PARTIAL, deliberately. Commits 1–3 — the model fingerprint — are
-complete. Commit 4 — experiment ID collisions and config immutability — is NOT
-done**: its checklist diverges from the code in four ways that need owner
-rulings, and improvising them would have settled four design questions
-unilaterally. See *Commit 4: why it stopped*.
-
-The fingerprint half stands on its own: the brief made the lifecycle rules
-"separately revertible from the fingerprint", and that separation is what let
-this stop cleanly.
+**Status: complete.** Commits 1–3 (the model fingerprint) landed first; commit 4
+(experiment lifecycle) stopped mid-phase because its checklist diverged from the
+code in four ways, was re-specified against reality in
+[`phase-4-commit-4-task-brief.md`](phase-4-commit-4-task-brief.md), ruled by the
+owner, and then implemented. *Commit 4: why it stopped* is kept below as the
+record of that pause.
 
 ---
 
@@ -24,7 +21,9 @@ this stop cleanly.
 | 2 | `r09: write model_reference.yml per experiment` | the reference exists before anything reads it |
 | — | `fix(wf2): add 2.03b_delineate_region to LOG_RULES` | pre-existing; third instance of one defect |
 | 3 | `r09: fail WF3 on model drift before simulating` | the guard, plus the defect class closed mechanically |
-| 4 | — | **not done**, see below |
+| 4a | `r09: reject colliding experiment names and version generated ones` | scope exception for `scripts/`, owner-ruled |
+| 4b | `r09: write experiment.yml and freeze it after the first successful run` | |
+| — | `fix(r09): keep the suggest-name tests out of the working tree` | my defect; caught by the phase gate |
 
 ## The digest
 
@@ -73,7 +72,11 @@ exist in a built tree.
 | **Containment** — a pointer escaping the model root raises | pass |
 | **Determinism** — same model at two absolute locations agrees; entries sorted | pass |
 | **End to end** — an old experiment fails after the model changes; a new one succeeds | pass **at unit level**; not yet demonstrated in a real run |
-| **Collisions**, **immutability** | **not implemented** — commit 4 |
+| **Resume is not a collision** | pass — a resume allocates nothing |
+| **User-supplied duplicate rejected**, naming the existing experiment | pass; never silently versioned |
+| **Generated collision → `_v2` then `_v3`** | pass — the third case is the discriminator; gaps are filled, not counted |
+| **Reservation is atomic** | pass — **demonstrated by racing** eight threads for one name: one winner, seven clean errors |
+| **Immutability, both directions** | pass — writable *before* the first successful run, refused *after* |
 
 The pointer-discovery falsifier carries a second assertion: if the fixed-list
 stand-in ever *starts* catching the edit, the test fails. Otherwise "discovery
@@ -138,6 +141,31 @@ assembled from a variable.
 Found because an automated `LOG_RULES` insert printed `False` and I went looking
 rather than assuming the edit had landed.
 
+
+### F3 — adding a side effect invalidated an existing command's test fixtures
+
+**My defect, caught by `pixi run test-fast` and not by the narrow scope.**
+
+Reservation gave `suggest_experiment_name.py` a filesystem side effect it never
+had: it now creates `experiments/<id>/` to claim the name. The existing tests
+point `project_dir` at the repo-relative `examples/Gabon`, so running them wrote
+real directories into the working tree and accumulated them across runs — the
+failure read `gabon_20260728_v5`, four versions deep, having resurrected
+`examples/`, a tree retired at R7.
+
+I ran those two test files *before* wiring reservation into the runner and read
+that green as covering the change. Only the full gate exercised the runner end
+to end.
+
+The lesson generalises past the fix: **a command that only read the filesystem
+now writes to it, and every existing test of it was written under the old
+assumption.** Their fixtures were invalidated even though their assertions still
+looked right.
+
+**Known trade-off, stated rather than left to be discovered:** reservation
+creates the directory, so an abandoned setup leaves an empty experiment dir that
+will collide next time. Inherent to reserving up front; the alternative is a
+window in which two sessions own one name.
 ## Commit 4: why it stopped
 
 The checklist diverges from the code in four ways, each verified:
@@ -155,8 +183,14 @@ scope — four owner decisions. The brief's own stance on an analogous case is t
 stop and report, and its commit plan made the lifecycle rules separately
 revertible precisely so this could stop here.
 
-**Recommended next step:** amend the P4 brief's items 5–6 against the code, then
-run commit 4 as its own task.
+**Resolution.** The brief's items 5–6 were superseded by
+[`phase-4-commit-4-task-brief.md`](phase-4-commit-4-task-brief.md), which leads
+with a verified ground-truth table and leaves the four decisions to the owner
+rather than settling them. All four were ruled on 2026-08-04 — keep the existing
+`<project-basename>_<YYYYMMDD>` default and suffix only generated names;
+`experiment.yml` is the generated experiment section; atomicity is scoped to one
+machine (`os.mkdir`); and `scripts/suggest_experiment_name.py` is in scope by
+exception — and commit 4 was then implemented against those rulings.
 
 ## Validation
 
@@ -164,14 +198,13 @@ run commit 4 as its own task.
 | --- | --- | --- |
 | 1 Narrow | `tests/test_model_digest.py`, `tests/test_model_reference.py` | 28 passed |
 | 2 Integration | `pixi run test-cli` | 12 passed — three clean dry-runs |
-| 3 Phase gate | `pixi run test-fast` | **1249 passed**, 30 skipped, 42 deselected, 1 xfailed |
+| 3 Phase gate | `pixi run test-fast` | **1271 passed**, 30 skipped, 42 deselected, 1 xfailed — and the working tree is clean of stray directories afterwards, which is the property F3 is about |
 
 `ruff` clean on the new modules. `check_baseline` is green (P3 re-recorded it);
 this phase changes no baseline-pinned artifact.
 
 ## Carried forward
 
-- **Commit 4**, with an amended brief.
 - The **end-to-end drift falsifier** in a real run, not just at unit level.
 - From P2: the concurrency falsifier has still not been shown to **fail** with
   `path_log` unset; WF2's nondeterministic fetch provenance (F4); rule 1.04's
