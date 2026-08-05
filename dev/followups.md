@@ -284,22 +284,22 @@ Provenance: `dev/milestones/r07/migration_project-layout.md` §§7a–7d,
 
 ### Cosmetic / low priority
 
-- **[R7-8]** *(triaged 2026-08-02 — no row: the fix is known and small, but
-  verifying it needs a full wf3 run, which is a poor trade for a gate-invisible
-  cosmetic. Fold it into the next task that runs wf3 anyway.)* **wflow writes
-  `log.txt` beside the run TOML**, not under
-  `dir_output` — so it lands in `hydrology_runs/rlz_<r>/config/log.txt`, one per
-  realization instead of one per experiment. Gate-invisible (`_is_excluded`
-  drops `log.txt`), but `config/` holding a log is a small P3 wart.
-  **Mechanism confirmed 2026-07-29:** `path_log` is a *documented, optional*
-  wflow TOML key under `[logging]`, default `"log.txt"`
-  (`docs/wflow-user-guide/03-toml-file.md:47`) — so relocating it is consuming
-  an upstream convention, not re-engineering one, and is in scope. Set it beside
-  the other run-TOML pointers in `downscale_climate_forcing.py`.
-  **Deferred deliberately:** verifying where wflow actually resolves `path_log`
-  (TOML dir vs `dir_output`) needs a real wf3 run, which is a poor trade for a
-  gate-invisible cosmetic. Recorded here so the next person does not have to
-  rediscover the key.
+- **[R7-8] ~~wflow writes `log.txt` beside the run TOML.~~ FIXED 2026-08-03 by
+  R9 P2 commit 3.** `downscale_climate_forcing.py` now sets
+  `logging.path_log = f"{out_prefix}{run_name}.log"` beside the other run-TOML
+  pointers, so each member logs to its own file under
+  `hydrology/wflow/output/`. It shipped **in the same commit as the `rlz_<n>/`
+  flattening** and not after: flattening put every member's TOML in one shared
+  `config/` directory, where the wflow default `"log.txt"` would have had all
+  members writing one file concurrently. What was a cosmetic while each
+  realization owned a directory became a correctness problem the moment they
+  did not.
+  Triaged 2026-08-02 as "fold into the next task that runs wf3 anyway", which is
+  exactly what happened.
+  **Still owed:** the concurrency falsifier has never been shown to FAIL with
+  `path_log` unset. The cheap half — distinct pointers per member — is unit
+  tested via `snake_utils.member_pointer_base`; the expensive half, content
+  attribution under a real concurrent batch, still needs a run.
 - **[R7-9] ~~Stale benchmark parts survive a rule rename.~~ CLOSED — NO ACTION,
   2026-07-29.** Investigated: `merge_benchmarks` deletes every part it merges
   (`_remove_parts`, called at the end of the merge), so a stale part from a
@@ -347,11 +347,17 @@ Provenance: `dev/milestones/r07/migration_project-layout.md` §§7a–7d,
 
 ### Parked by ruling — not defects
 
-- **[R7-15] Engine-named subtrees** (`models/wflow/` vs `hydrology_model/`) —
-  parked at G1, explicitly deferred beyond R7. Per arch-8 the **structural** half
-  goes with it: how a second engine's build subtree and run subtree are placed.
-  The Goal was narrowed from extensibility to **separability** (ruling GB-1)
-  precisely because the tree cannot honour the stronger claim without that rule.
+- **[R7-15] ~~Engine-named subtrees~~ DELIVERED by R9 P2.** Parked at R7's G1
+  and explicitly deferred beyond R7; R9 is the milestone that took it. The tree
+  is now `models/hydrology/wflow/` — domain, then engine — and the experiment
+  carries the symmetric pair `experiments/<id>/{climate/weathergenr,hydrology/wflow}/`,
+  so a second engine slots in beside the first at both scopes rather than
+  needing a new root. That answers arch-8's structural half: a build subtree
+  lives under `models/<domain>/<engine>/` and a run subtree under
+  `experiments/<id>/<domain>/<engine>/`.
+  **Not claimed:** that a second engine has been *tried*. The placement rule
+  exists; nothing has exercised it. R7's narrowing from extensibility to
+  **separability** (ruling GB-1) still describes what is actually proven.
 - **[R7-16] Tooling contract** *(O-14 decision 2 + O-16 are row `t260802d`)*: O-14 `pyproject.toml`, O-15 `ruff`, O-16 `flit`
   — open decisions, unrelated to layout.
   **O-14 decision 1 RESOLVED** (ab781a5): tool-config-only `pyproject.toml`, no
