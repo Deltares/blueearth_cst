@@ -155,9 +155,17 @@ end-to-end. Don't delete them.
   2. **`check_baseline.py check` FAILS** — `manifest.json` fingerprints both
      tables byte-exact. Expected re-record diff is exactly two entries'
      `sha256` / `size_bytes`; a third entry moving means something else changed
-     too.
+     too. **But those two can move for TWO reasons at once** — the header rename
+     *and* the pre-restoration wf3 provenance finally catching up with the
+     restored wf1 slice (`check_baseline.py` module docstring; the wf3 rows were
+     deliberately never re-recorded because the discharge move was immaterial).
+     Do not re-record on sight: follow ADR 0001 step 7's immaterial branch —
+     confirm the movement is consistent with the recorded wf1 diff first. Full
+     procedure and commands in
+     `dev/milestones/r09/migration_indicator-axis-columns.md` §5.
 
-  Order: WF3 run → `pytest tests/` → baseline re-record.
+  Order: WF3 run → `pytest tests/` → ADR 0001 step-7 consistency check →
+  baseline re-record.
 
 - **[R9-3] The response-surface axis columns hold JANUARY, not an annual value.**
   Surfaced 2026-08-05 while writing R9-2's rename, reading the code the rename

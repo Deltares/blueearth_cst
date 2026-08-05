@@ -102,5 +102,35 @@ both hashes. The re-record diff must be confined to those two `sha256` /
 `size_bytes` pairs — any third entry moving means something other than this
 rename also changed.
 
+**DO NOT re-record on sight of those two moving — they can move for TWO reasons
+at once.** `check_baseline.py`'s module docstring records a **mixed-provenance
+baseline**: since the constant-parameter restoration the wf1 slice reflects the
+RESTORED model, while the wf2/wf3 rows are still the PRE-restoration recording
+(wf3 was deliberately not re-run, because the discharge move was immaterial —
+0/7670 timesteps over tolerance). So this re-run is the first time that
+sub-tolerance wf1 delta (`max|dQ|/mean ≈ 1.7e-4`) can reach these two tables,
+and it lands in the same two entries as the header rename.
+
+Follow **ADR 0001 step 7, the immaterial branch**: re-run wf3, confirm the
+movement is consistent with the recorded wf1 diff
+(`dev/decisions/0001-restore-wflow-constant-parameters/baseline_diffs.md`), then
+re-record the wf3 slice **with a note**; else stop and investigate. Unrounded
+`float32` values (CR-2's C14) will make this MORE visible in future, not less —
+which is what Q8's tolerance comparator is for.
+
+Commands, from the primary checkout:
+
+```
+pixi run snakemake all -c 3 -s Snakefile_climate_experiment \
+    --configfile config/workflows/snake_config_model_test.yml
+pixi run pytest tests/
+pixi run python dev/scripts/check_baseline.py check  --workflow climate_experiment
+# only after the ADR 0001 step-7 consistency check:
+pixi run python dev/scripts/check_baseline.py record --workflow climate_experiment
+```
+
+`--workflow climate_experiment` merges into the existing manifest rather than
+overwriting it, so the wf1 and wf2 rows are preserved.
+
 Order: run WF3 from the primary checkout (the `.snakemake` metadata rule in
-`AGENTS.md`), then `pytest tests/`, then re-record the baseline.
+`AGENTS.md`), then `pytest tests/`, then the consistency check, then re-record.
