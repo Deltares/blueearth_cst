@@ -824,6 +824,64 @@ def test_geojson_attribute_change_fails(tmp_path):
     assert any("value" in r for r in reasons), reasons
 
 
+# ---------------------------------------------------------------------------
+# R09 phase 1: the shared applier gains a fall-through signal.
+#
+# `apply_path_map` returns its input unchanged both when an identity rule fires
+# and when nothing matches, which makes "the map covers every artifact"
+# inexpressible. `apply_path_map_matched` reports whether a rule actually
+# fired; `apply_path_map` is now a projection of it, so the two cannot drift.
+# Every pre-existing call site must behave exactly as before.
+# ---------------------------------------------------------------------------
+
+def test_apply_path_map_matched_reports_fall_through():
+    m = [("a/b.txt", "c/d.txt")]
+    assert std.apply_path_map_matched("a/b.txt", m) == ("c/d.txt", True)
+    assert std.apply_path_map_matched("x/y.txt", m) == ("x/y.txt", False)
+
+
+def test_apply_path_map_matched_distinguishes_identity_from_fall_through():
+    """The discriminator the R09 falsifier is built on: same string, different
+    verdict."""
+    ident = [("keep/me.txt", "keep/me.txt")]
+    assert std.apply_path_map_matched("keep/me.txt", ident) == ("keep/me.txt", True)
+    assert std.apply_path_map_matched("keep/other.txt", ident) == \
+        ("keep/other.txt", False)
+
+
+def test_apply_path_map_matched_never_reports_a_match_without_rules():
+    """An empty or absent map must report EVERY path as unmatched.
+
+    If it did not, a map with no rules would green the falsifier
+    unconditionally -- the exact false pass the reporting parameter exists to
+    prevent."""
+    for empty in (None, []):
+        assert std.apply_path_map_matched("anything/at/all.nc", empty) == \
+            ("anything/at/all.nc", False)
+
+
+def test_apply_path_map_matched_normalizes_backslashes_like_the_original():
+    m = [("a/b.txt", "c/d.txt")]
+    assert std.apply_path_map_matched("a\\b.txt", m) == ("c/d.txt", True)
+    # unmatched paths come back normalized too, as apply_path_map has always
+    # returned them
+    assert std.apply_path_map_matched("x\\y.txt", m) == ("x/y.txt", False)
+    assert std.apply_path_map("x\\y.txt", m) == "x/y.txt"
+
+
+def test_apply_path_map_is_the_projection_of_the_reporting_sibling():
+    """Pins the delegation: no second matching pass that could drift."""
+    for rel in (
+        "experiments/experiment/realization_2/inmaps_rlz_2_cst_3.nc",
+        "experiments/experiment/model_runs/wflow_sbm_rlz_4_cst_7.toml",
+        "hydrology_model/staticmaps.nc",
+        "climate_projections/cmip6/series/x.nc",
+        "nothing/matches/this.txt",
+    ):
+        m = std.build_r07_path_map("experiment", "k1")
+        assert std.apply_path_map(rel, m) == std.apply_path_map_matched(rel, m)[0]
+
+
 def test_geojson_dispatches_by_suffix(tmp_path):
     """dispatch() routes .geojson to the semantic comparator, not the hash."""
     from pathlib import Path as _P

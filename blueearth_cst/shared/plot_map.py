@@ -331,8 +331,11 @@ _EXTENT_BUFFER_DEG = 0.02
 # now reads the files itself instead of asking hydromt where they are. If a
 # future hydromt_wflow changes a name, this block is the whole blast radius.
 # ---------------------------------------------------------------------------
-#: Model root, relative to ``project_dir``.
-MODEL_DIRNAME = "hydrology_model"
+#: Model root, relative to ``project_dir``. R9 P2 commit 1 moved it under
+#: ``models/``. Kept as a default only -- the RULE passes ``model_dir``, and
+#: this constant serves standalone callers (dev/scripts/preview_basin_map.py)
+#: that have no rule to ask.
+MODEL_DIRNAME = "models/hydrology/wflow"
 #: Gridded model parameters; carries the DEM this figure shades.
 STATICMAPS_FILENAME = "staticmaps.nc"
 #: Vector layers, one GeoJSON per layer, stem == layer name.
@@ -848,7 +851,7 @@ def _river_linewidths(gdf_riv):
     return RIVER_WIDTH_MIN + span * (order - lowest) / (highest - lowest)
 
 
-def plot_basin_map(project_dir, gauges_fn, plot_dir=None):
+def plot_basin_map(project_dir, gauges_fn, plot_dir=None, model_dir=None):
     """Render basin_area.{pdf,png} (DEM + rivers + basin + outlets/waterbodies).
 
     The gauge layer is resolved from the MODEL (``shared.gauges``), not from the
@@ -858,11 +861,13 @@ def plot_basin_map(project_dir, gauges_fn, plot_dir=None):
     """
     from blueearth_cst.shared.gauges import gauges_layer_name
 
+    # The model root is the RULE's fact when a rule is calling; the constant is
+    # the fallback for standalone callers (R9 P2 commit 1).
+    root = str(model_dir) if model_dir else f"{project_dir}/{MODEL_DIRNAME}"
     if plot_dir is None:
-        # R07 B10: basin_area depicts the MODEL, not its evaluation, so it
-        # sits at the model root's plots/ — not under evaluation/ (P1).
-        plot_dir = f"{project_dir}/{MODEL_DIRNAME}/plots"
-    root = f"{project_dir}/{MODEL_DIRNAME}"
+        # basin_area depicts the MODEL, not its evaluation, so it sits at the
+        # model root's plots/ -- not under evaluation/ (P1).
+        plot_dir = f"{root}/plots"
 
     # Read straight off disk -- no model object, no hydromt (see module docstring).
     da, gdf_riv, gdf_bas, geoms = load_basin_layers(root)
@@ -1064,5 +1069,6 @@ if __name__ == "__main__":
         with tee_to_log(sm.log[0]):
             plot_basin_map(
                 project_dir=sm.params.project_dir,
+                model_dir=sm.params.model_dir,
                 gauges_fn=getattr(sm.input, "output_locations", None),
             )

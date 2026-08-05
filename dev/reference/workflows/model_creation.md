@@ -31,7 +31,9 @@ and `blueearth_cst/spatial/`.
 
 ## Reads from `project`
 
-- `project.project_dir` — output root (`basin_dir = {project_dir}/hydrology_model`).
+- `project.project_dir` — output root
+  (`basin_dir = {project_dir}/models/hydrology/wflow`,
+  `spatial_dir = {project_dir}/data/spatial`; R9 P2).
 - `project.static_dir` — location of the build/update config templates.
 - `project.data_sources` — hydromt data-catalog YAML (passed to `hydromt build/update -d`).
 
@@ -63,11 +65,11 @@ The rule's freshness boundary is the workflow config, the catalog YAML file(s),
 and the optional gauge file, all declared as Snakemake inputs. A change to a
 data file hidden behind an unchanged catalog URI is not detectable by
 Snakemake; touch/update the catalog or force this rule when refreshing such a
-source. The generated catalog uses relative URIs, so the complete `spatial/`
-directory is portable as a unit.
+source. The generated catalog uses relative URIs, so the complete
+`data/spatial/` directory is portable as a unit.
 
 Targeting this rule directly does not schedule Wflow or create
-`hydrology_model/`. In the full DAG, rule 1.03 declares all nine spatial
+`models/hydrology/wflow/`. In the full DAG, rule 1.03 declares all nine spatial
 products as inputs. Wflow constants and derived parameter maps remain outside
 this product.
 
@@ -119,10 +121,10 @@ waterbodies, outputs, runtime, and forcing.
 - `{basin_dir}/evaluation/plots/hydro_wflow_1.png` (the run)
 - `{basin_dir}/plots/basin_area.png` (the model)
 - `{basin_dir}/forcing/plots/forcing_precip_map.png` (model inputs)
-- `{project_dir}/climate_historical/<key>/plots/source_{precip,temp,pet}.png`
+- `{project_dir}/data/climate/historical/<key>/plots/source_{precip,temp,pet}.png`
   (R07 B4 — source-grid figures from the shared store; produced with no model)
 - `{project_dir}/config/runs/snake_config_model_creation.yml` (verbatim snake-config snapshot)
-- `{project_dir}/spatial/spatial_catalog.yml` (representative target for the
+- `{project_dir}/data/spatial/spatial_catalog.yml` (representative target for the
   complete rule-1.02 spatial product)
 
 *R07 retired the project-level `plots/` tree: figures now attach to what they
@@ -134,16 +136,20 @@ workflows 2/3; not in this `rule all`):
 - `{basin_dir}/staticgeoms/region.geojson`
 - `{basin_dir}/staticgeoms/outlets.geojson`
 - `{basin_dir}/wflow_sbm.toml`
-- `{project_dir}/climate_historical/wflow_data/inmaps_historical.nc`
+- `{basin_dir}/forcing/inmaps_historical.nc`
 - `{basin_dir}/run_default/output.csv`
 
 **Spatial-foundation contract** (`blueearth-cst-spatial-v1`):
 
-- `{project_dir}/spatial/spatial_maps.nc`
-- `{project_dir}/spatial/geoms/{basins,subbasins,catchments,rivers,locations}.geojson`
-- `{project_dir}/spatial/location_registry.csv`
-- `{project_dir}/spatial/spatial_catalog.yml`
-- `{project_dir}/spatial/spatial_report.yml`
+- `{project_dir}/data/spatial/spatial_maps.nc`
+- `{project_dir}/data/spatial/geoms/{basins,subbasins,catchments,rivers,locations}.geojson`
+- `{project_dir}/data/spatial/geoms/region.geojson` — a **sixth** layer in the
+  same directory, written by rule 1.01b `delineate_region` (ADR 0003) rather
+  than by 1.02. Listed separately because the producer differs: enumerating
+  five layers here is what let R9's migration map miss it (P1 finding F1a).
+- `{project_dir}/data/spatial/location_registry.csv`
+- `{project_dir}/data/spatial/spatial_catalog.yml`
+- `{project_dir}/data/spatial/spatial_report.yml`
 
 The raster, vector, and registry identifiers are relational: basin IDs are
 `1..N`; subbasin IDs use `basin_id * 100 + local_number`; each primary location
@@ -220,7 +226,7 @@ remaining entries become basin-average timeseries (`{name}_basavg`, mean
 reducer over `subcatchment`).
 
 When observations are configured, rule 1.11 declares
-`spatial/location_registry.csv` as an input and validates the raw semicolon-
+`data/spatial/location_registry.csv` as an input and validates the raw semicolon-
 separated header before HydroMT parses the table. Duplicate or registry-unknown
 IDs fail explicitly. Every user-provided control/observation location must have
 one column; synthetic automatic outlets are optional.

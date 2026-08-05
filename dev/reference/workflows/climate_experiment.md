@@ -1,5 +1,36 @@
 # Workflow: climate_experiment
 
+> **SUPERSEDED — this describes WF3 *before* P3-1, R7 and R9 (sealed 2026-08-05).**
+>
+> It is kept unedited because it is the **baseline the R5 commits were checked
+> against**; rewriting it would destroy the record it exists to be. Nothing below
+> is a reliable description of the current workflow — not the paths, not the rule
+> names, not the `src/…` module locations, and not a single Snakefile line
+> number.
+>
+> For the current state:
+>
+> | | |
+> |---|---|
+> | Output tree | `dev/milestones/r09/project-tree-design.md` (v10) |
+> | Old → new paths | `dev/milestones/r09/migration_project-tree.md` |
+> | Artifact contracts | `dev/reference/contracts/hydrological-model-seam.md`, `…/weather-generator-seam.md` |
+> | Rules and config keys | `Snakefile_climate_experiment` itself |
+>
+> The largest divergences: the two result tables are
+> `results/{q_indicators,basin_indicators}.csv`, not `indicators/{Qstats,basin}.csv`;
+> the `RT_*.csv` side tables are gone; the generator subtree is
+> `climate/weathergenr/`; one stress-test member is one filename in three flat
+> directories under `hydrology/wflow/` (the `rlz_<n>/` level dissolved); rule
+> 3.11 is `derive_wflow_indicators`; WF3 consumes no `staticgeoms/` artifact and
+> delineates its own region (ADR 0003); and rules 3.01c/d/e now fingerprint the
+> model and freeze the experiment's config.
+>
+> **This is the WF3 twin of the WF2 seal on
+> `dev/reference/workflows/climate_projections.md`.** R9 P5 began migrating this
+> document's paths before recognising it as the same kind of record; those edits
+> were reverted. A milestone-opening baseline is sealed, not maintained.
+
 Contract for `Snakefile_climate_experiment` (workflow 3). Format per
 `dev/milestones/r01/modularity-contracts-design.md` §4, mirroring
 `dev/reference/workflows/model_creation.md` and `dev/reference/workflows/climate_projections.md`.

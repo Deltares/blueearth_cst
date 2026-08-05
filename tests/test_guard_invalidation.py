@@ -60,11 +60,17 @@ def _run(args, cfg_path):
 
 @pytest.fixture()
 def staged_project(tmp_path):
-    """A staged project_dir with wf1 + wf2 snapshots and region.geojson.
+    """A staged project_dir carrying EVERY wf3 leaf input.
 
     The snapshots are byte-serialized from the SAME parsed config the live
     ``--configfile`` uses, so the guard passes initially. Returns
     (cfg_path, project_dir, wf1_snapshot, wf2_snapshot, sentinel_path).
+
+    "Every leaf" is load-bearing, not incidental: gate 2c(iii) below asserts
+    that ``--unlock`` SUCCEEDS once the wf1 snapshot is restored, and on the
+    pinned Snakemake ``--unlock`` builds the DAG first, so it fails on ANY
+    missing leaf. A leaf the fixture forgets turns that assertion into a
+    failure that looks like a guard defect and is not one.
     """
     base = yaml.safe_load(CONFIG_FN.read_text(encoding="utf-8"))
     pdir = tmp_path / "proj"
@@ -72,12 +78,28 @@ def staged_project(tmp_path):
     experiment = base["workflows"]["climate_experiment"]["experiment_name"]
 
     # R07 B1 retired the extraction's ancient(region.geojson) input (it now
-    # delineates model-free from shared.basin + the catalog), but wf3's DAG is
-    # built in full for --unlock, so a project that looks like a completed wf1
-    # run keeps the 2c(ii) leaf-input reasoning below intact.
-    region = pdir / "hydrology_model" / "staticgeoms" / "region.geojson"
+    # delineates model-free from shared.basin + the catalog), and ADR 0003 gave
+    # wf3 its own delineate_region, so wf3 reads NOTHING from staticgeoms/. The
+    # file is staged anyway to keep the project looking like a completed wf1
+    # run; R9 P2 moved the model root, so it follows.
+    model_root = pdir / "models" / "hydrology" / "wflow"
+    region = model_root / "staticgeoms" / "region.geojson"
     region.parent.mkdir(parents=True)
     region.write_text(_MINIMAL_REGION_GEOJSON, encoding="utf-8")
+
+    # R9 P4's rule 3.01c write_model_reference is the FIRST wf3 rule to declare
+    # model FILES as inputs -- before it, wf3 reached the model only through
+    # `params` and the DAG could not see the dependency. So the model leaves
+    # joined the wf1 config snapshot as things --unlock needs on disk.
+    #
+    # This fixture was NOT updated when that rule landed (test_cli.py's
+    # equivalent was), and 2c(iii) went red. It could not have been caught by
+    # the phase gate that ran: this module is marked `workflow_contract`, which
+    # `pixi run test-fast` excludes by definition, so only `test-full` sees it.
+    (model_root / "wflow_sbm.toml").write_text(
+        '[input]\npath_static = "staticmaps.nc"\n', encoding="utf-8"
+    )
+    (model_root / ".outputs_configured").write_text("", encoding="utf-8")
 
     # Project snapshots the guard compares against (identical to live -> pass).
     # R07 B9 (commit 10) split the project config snapshot by kind: the snake
@@ -99,7 +121,7 @@ def staged_project(tmp_path):
     # (commit 4). Derive the key exactly as the Snakefile does.
     win = base["shared"]["historical_window"]
     key = f"{base['shared']['clim_historical']}_{slugify_window(win['starttime'], win['endtime'])}"
-    guard_ok = pdir / "climate_historical" / key / ".guard_ok"
+    guard_ok = pdir / "data" / "climate" / "historical" / key / ".guard_ok"
     return cfg_path, pdir, wf1, wf2, sentinel, guard_ok
 
 

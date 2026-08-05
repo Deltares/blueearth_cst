@@ -67,8 +67,15 @@ def _run(cfg, *extra):
 
 
 def _cfg(tmp_path, experiment_name=None):
+    # project_dir must be under tmp_path. Since R9 P4 the command RESERVES the
+    # name by creating experiments/<id>/, so a repo-relative project_dir here
+    # would write real directories into the working tree on every test run --
+    # it resurrected `examples/`, retired at R7, before this was caught. The
+    # basename still slugifies to `gabon`, which is what these cases are about.
+    project_dir = tmp_path / "Gabon"
+    project_dir.mkdir(exist_ok=True)
     doc = {
-        "project": {"project_dir": "examples/Gabon"},
+        "project": {"project_dir": str(project_dir).replace("\\", "/")},
         "workflows": {"climate_experiment": {"enabled": True}},
     }
     if experiment_name is not None:
@@ -115,7 +122,9 @@ def test_cli_preserves_other_config_content(tmp_path):
     assert _run(cfg).returncode == 0
     out = yaml.safe_load(cfg.read_text(encoding="utf-8"))
     assert out["shared"] == {"clim_historical": "era5"}
-    assert out["project"]["project_dir"] == "examples/Gabon"
+    # Compare against the value actually written rather than a literal: the
+    # fixture is tmp_path-based since P4 made the command reserve.
+    assert out["project"]["project_dir"] == doc["project"]["project_dir"]
 
 
 def test_cli_dry_run_reports_even_when_a_value_is_set(tmp_path):

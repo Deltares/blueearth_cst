@@ -21,13 +21,24 @@ class FakeResult:
         self.stderr = stderr
 
 
-def _write_r01_cfg(path, project_dir):
-    path.write_text(
+def _write_r01_cfg(path, project_dir, experiment=None):
+    """An R01 config; `experiment` adds the key WF3's DAG scope reads.
+
+    Optional on purpose -- both WF3 branches are exercised below: the
+    experiment scope, and the fallback when the key is absent.
+    """
+    text = (
         "project:\n"
         f"  project_dir: {project_dir}\n"
-        "  static_dir: config\n",
-        encoding="utf-8",
+        "  static_dir: config\n"
     )
+    if experiment is not None:
+        text += (
+            "workflows:\n"
+            "  climate_experiment:\n"
+            f"    experiment_name: {experiment}\n"
+        )
+    path.write_text(text, encoding="utf-8")
 
 
 # --- workflow number -------------------------------------------------------
@@ -59,7 +70,7 @@ def test_unknown_snakefile_names_the_valid_ones():
 def test_absolute_project_dir_is_used_verbatim(tmp_path):
     cfg = tmp_path / "cfg.yml"
     _write_r01_cfg(cfg, "C:/TESTS/CST/gabon_0108")
-    project_dir, name = pwd.read_project(cfg)
+    project_dir, name, _ = pwd.read_project(cfg)
     assert project_dir == pwd.Path("C:/TESTS/CST/gabon_0108")
     assert name == "gabon_0108"
 
@@ -69,7 +80,7 @@ def test_relative_project_dir_resolves_against_the_repo_root(tmp_path):
     outputs do -- not next to the config or the caller's cwd."""
     cfg = tmp_path / "cfg.yml"
     _write_r01_cfg(cfg, "test_case/test_local")
-    project_dir, name = pwd.read_project(cfg)
+    project_dir, name, _ = pwd.read_project(cfg)
     assert project_dir == pwd.REPO_ROOT / "test_case" / "test_local"
     assert name == "test_local"
 
@@ -81,7 +92,7 @@ def test_legacy_flat_config_uses_top_level_keys(tmp_path):
     cfg.write_text(
         "project_name: Gabon\nproject_dir: test_case/gabon\n", encoding="utf-8"
     )
-    project_dir, name = pwd.read_project(cfg)
+    project_dir, name, _ = pwd.read_project(cfg)
     assert project_dir == pwd.REPO_ROOT / "test_case" / "gabon"
     assert name == "Gabon"
 
@@ -92,7 +103,7 @@ def test_explicit_project_name_wins_in_the_r01_schema(tmp_path):
         "project_name: Gabon\nproject:\n  project_dir: C:/TESTS/CST/gabon_0108\n",
         encoding="utf-8",
     )
-    _, name = pwd.read_project(cfg)
+    _, name, _ = pwd.read_project(cfg)
     assert name == "Gabon"
 
 
@@ -110,7 +121,7 @@ def test_missing_config_file_is_a_hard_error(tmp_path):
 
 # --- end-to-end output path ------------------------------------------------
 
-def test_output_lands_in_config_dag_named_project_wfN(tmp_path, monkeypatch, capsys):
+def test_output_lands_in_logs_dag_named_project_wfN(tmp_path, monkeypatch, capsys):
     cfg = tmp_path / "cfg.yml"
     project_dir = tmp_path / "gabon_0108"
     _write_r01_cfg(cfg, project_dir.as_posix())
@@ -134,7 +145,7 @@ def test_output_lands_in_config_dag_named_project_wfN(tmp_path, monkeypatch, cap
     )
 
     assert pwd.main() == 0
-    expected = project_dir / "config" / "dag" / "gabon_0108_wf1_dag.png"
+    expected = project_dir / "logs" / "dag" / "gabon_0108_wf1_dag.png"
     assert rendered["argv"] == ["dot-stub", "-Tpng", "-o", str(expected)]
     assert rendered["dot"].startswith("digraph")
     assert capsys.readouterr().out.strip() == str(expected)
@@ -146,7 +157,7 @@ def test_output_lands_in_config_dag_named_project_wfN(tmp_path, monkeypatch, cap
 def test_rulegraph_mode_and_format_reach_the_filename(tmp_path, monkeypatch):
     cfg = tmp_path / "cfg.yml"
     project_dir = tmp_path / "gabon_0108"
-    _write_r01_cfg(cfg, project_dir.as_posix())
+    _write_r01_cfg(cfg, project_dir.as_posix(), experiment="experiment")
 
     seen = {}
 
@@ -168,7 +179,8 @@ def test_rulegraph_mode_and_format_reach_the_filename(tmp_path, monkeypatch):
     assert pwd.main() == 0
     assert "--rulegraph" in seen["snakemake"]
     assert seen["out"] == str(
-        project_dir / "config" / "dag" / "gabon_0108_wf3_rulegraph.svg"
+        project_dir / "experiments" / "experiment" / "logs" / "dag"
+        / "gabon_0108_wf3_rulegraph.svg"
     )
 
 
@@ -186,3 +198,43 @@ def test_snakemake_failure_surfaces_its_stderr(monkeypatch):
     with pytest.raises(pwd.DagPlotError, match="MissingInputException"):
         pwd.build_graph("dag", pwd.Path("Snakefile_model_creation"),
                         pwd.Path("cfg.yml"), "all", [])
+
+
+# --- R9 P2 commit 4: the render sits at the PRODUCING RUN's scope (P7) ------
+
+def test_wf1_and_wf2_renders_are_project_scoped():
+    """Project-scoped producers write to the project's own logs/dag/."""
+    cfg = {"workflows": {"climate_experiment": {"experiment_name": "e"}}}
+    assert pwd.plot_subdir(1, cfg) == pwd.Path("logs") / "dag"
+    assert pwd.plot_subdir(2, cfg) == pwd.Path("logs") / "dag"
+
+
+def test_wf3_render_is_experiment_scoped():
+    """WF3's DAG describes ONE experiment's run, so it goes with that
+    experiment's other run records -- beside wf3_climate_experiment.log."""
+    cfg = {"workflows": {"climate_experiment": {"experiment_name": "gabon_dry"}}}
+    assert pwd.plot_subdir(3, cfg) == (
+        pwd.Path("experiments") / "gabon_dry" / "logs" / "dag"
+    )
+
+
+@pytest.mark.parametrize(
+    "cfg",
+    [
+        {},
+        {"workflows": None},
+        {"workflows": {"climate_experiment": None}},
+        {"workflows": {"climate_experiment": {}}},
+    ],
+)
+def test_wf3_falls_back_to_project_scope_without_an_experiment_name(cfg):
+    """A convenience render must not fail a user's command over a missing
+    optional key -- including the several ways YAML spells "absent"."""
+    assert pwd.plot_subdir(3, cfg) == pwd.Path("logs") / "dag"
+
+
+def test_the_render_never_lands_under_the_editable_config_root():
+    """The P4 property the move exists for, asserted directly."""
+    cfg = {"workflows": {"climate_experiment": {"experiment_name": "e"}}}
+    for number in (1, 2, 3):
+        assert "config" not in pwd.plot_subdir(number, cfg).parts

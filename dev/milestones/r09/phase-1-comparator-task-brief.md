@@ -37,6 +37,14 @@ before it starts.
 logic does not fit its contract), `tests/test_semantic_tree_diff.py`, and new
 test modules.
 
+**Explicitly authorized:** the shared `apply_path_map` may gain a **default-off**
+reporting parameter (or a sibling returning `(new, matched)`) so a fall-through is
+distinguishable from an identity match. Today it returns its input unchanged when
+no rule fires (`semantic_tree_diff.py:461`), which makes the falsifier below
+inexpressible. Existing call sites — `build_r07_path_map`, `compare_yaml`,
+`_normalize_tree_root_paths` — must keep their current behaviour bit-for-bit. The
+non-goal below binds `build_r07_path_map`'s **rules**, not the shared applier.
+
 **Forbidden** — all three `Snakefile_*`, `blueearth_cst/**`, `config/**`,
 anything under a `project_dir`, `dev/baseline/manifest.json`.
 
@@ -51,12 +59,29 @@ anything under a `project_dir`, `dev/baseline/manifest.json`.
    `outstates_` prefixes.
 3. Identity rules where the map says identity — notably every `config/` row —
    so an unmapped path is distinguishable from a deliberately unchanged one.
-4. Orphan climate-store reporting: list `climate_historical/<source>_<window>/`
+   **Enumerate them per row.** A catch-all `config/` → `config/` prefix satisfies
+   every row at once and silently empties the falsifier's report, since a
+   fall-through and an identity match then look the same.
+4. Register the rules in **precedence order — narrower source pattern first**. The
+   map's tables are grouped by destination root for reading, not for encoding
+   (map doc, *Rule precedence — the tables are not the rule order*). Include a
+   test per named hazard, asserting the path resolves to the narrow destination:
+   `config/generated/wflow_build_model_run.yml` →
+   `models/hydrology/wflow/config/build_model.yml`, and
+   `hydrology_runs/rlz_<r>/config/log.txt` →
+   `hydrology/wflow/output/rlz_<r>_cst_<c>.log`.
+5. Orphan climate-store reporting: list `climate_historical/<source>_<window>/`
    directories not matching the config's active key. **Dry run by default**;
    deletion only behind an explicit flag, matching `prune_series_cache.py`'s
    stated contract.
-5. Tests: one per relocation class, plus a case asserting an unmapped path is
-   reported rather than silently passed through.
+6. Tests: one per relocation class, plus a case asserting an unmapped path is
+   reported rather than silently passed through, plus a **row-driven case** —
+   every `(old, new)` pair in the map's four destination sections as test data,
+   asserting each resolves to its stated destination. The declared-tier falsifier
+   cannot cover the rows for undeclared engine artifacts (`hydromt.log`,
+   `staticgeoms/*`, `run_default/*`, `evaluation/*`, `_work/*`, Wflow's
+   `log.txt`), and a per-class test does not reach every row; this is the only
+   instrument that does.
 
 ### Validation
 
@@ -72,24 +97,42 @@ workflow.
 2. **Phase gate** — `pixi run test-fast` once, at phase end.
 
 **Falsifier for the property this phase asserts.** The claim is *"the map covers
-every artifact."* A passing unit test cannot show that. Apply the map to a
-materialized pre-migration tree and assert **zero unmapped paths**; any path the
-map does not recognise must appear in the report. That output is Gate 1's
-evidence.
+every artifact."* A passing unit test cannot show that. Apply the map to the
+**declared-tier inventory** — the paths derived from the three Snakefiles'
+`output:` declarations, expanded over the seed config (map doc, *The inventory the
+map is validated against*) — and assert **zero unmapped paths**. Any path the map
+does not recognise must appear in the report rather than pass through silently.
+That output is Gate 1's evidence for the declared tier.
+
+The **observed tier** — one clean three-workflow run from the primary checkout,
+snapshotted as a sorted path list — is an owner action and is out of this phase's
+scope; it is the only tier carrying undeclared engine artifacts. If it does not
+exist when this phase runs, run against the declared tier and **name the observed
+tier as unverified in the phase report**. Gate 1 closes on both.
+
+Do **not** run this falsifier against `test_case/test_local`. It is a mixed-era
+tree whose documented orphans are deliberately unmapped (map doc, *Orphans in the
+fixture — do NOT map*), so it fails by construction on paths the map is right to
+reject.
 
 ### Acceptance criteria
 
-- Every path map row has a rule; applying the map to a materialized
-  pre-migration tree yields the v10 tree with zero unmapped paths.
-- `build_r07_path_map` and its tests are unchanged.
+- Every path map row has a rule that resolves to its stated destination, shown by
+  the row-driven test; rules are registered narrower-first, and both named
+  precedence hazards resolve to their narrow destination.
+- Applying the map to the declared-tier inventory yields v10 paths with **zero
+  unmapped paths**; the observed tier is either clean or reported as unverified.
+- `build_r07_path_map`'s rules and tests are unchanged, and every existing
+  `apply_path_map` call site behaves exactly as before.
 - Orphan-store reporting deletes nothing without an explicit flag.
 - **PAUSE at master Gate 1.** Do not proceed to P2.
 
 ### Output requirements
 
 A phase report naming: the map's rule count by class, the unmapped-path result
-against the materialized tree, and any path map row that could not be expressed
-as a rule — that last is a finding against the map, not a reason to improvise.
+against the declared-tier inventory, the observed tier's status (snapshotted and
+clean, or **unverified**), and any path map row that could not be expressed as a
+rule — that last is a finding against the map, not a reason to improvise.
 
 ### Task constraints
 

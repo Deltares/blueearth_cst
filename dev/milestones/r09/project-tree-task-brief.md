@@ -75,11 +75,17 @@ they are not to be run in parallel worktrees.
 
 ### Human gates
 
-1. **Comparator gate — PAUSE after P1.** Present the R9 path map applied to a
-   materialized pre-migration tree, showing the intended post-migration paths.
-   Do not begin moving files until the owner confirms the map reproduces the
-   design's tree. A map that is wrong in the same direction as the migration is
-   undetectable afterwards.
+1. **Comparator gate — PAUSE after P1.** Present the R9 path map applied to the
+   two-tier inventory ruled in the map doc (*The inventory the map is validated
+   against*), showing the intended post-migration paths: the **declared tier**
+   from the Snakefiles' `output:` declarations, which P1 produces, and the
+   **observed tier** — one clean three-workflow run from the primary checkout,
+   snapshotted as a sorted path list. Both must show zero unmapped paths. P1 may
+   complete with the observed tier unverified; **this gate may not close that
+   way**, because undeclared engine artifacts appear in no declaration and
+   `--dry-run` structurally cannot see them. Do not begin moving files until the
+   owner confirms the map reproduces the design's tree. A map that is wrong in the
+   same direction as the migration is undetectable afterwards.
 2. **Scientific-delta gate — PAUSE before recording any new baseline.** Present
    the discharge comparison and any map-level differences. The program's premise
    is that nothing changes value; a non-zero delta means either a defect or a
@@ -88,6 +94,15 @@ they are not to be run in parallel worktrees.
 3. **Landing gate — PAUSE before merging.** Present all five phase reports, three
    workflow dry-runs, a full three-workflow run, and the falsifier results named
    below.
+   **Presented 2026-08-05 and CLOSED the same day — NINE OF NINE.**
+   Evidence: [`landing-gate.md`](landing-gate.md). Account:
+   [`closing-record.md`](closing-record.md). Steps:
+   [`gate-closure-run-plan.md`](gate-closure-run-plan.md).
+   Presented first at six of nine; the fresh three-workflow run closed the
+   remaining three and **found four defects that `pixi run test-full` was green
+   over** — three in P4 code that had never executed, one in a P2 falsifier that
+   had never been falsified. All five phases are merged to
+   `milestone/r09-project-tree`, which is ready to merge onward.
 
 ### Cross-cutting validation
 
@@ -141,8 +156,8 @@ change what `pytest tests/` means, which is a contract. R9 **uses** the existing
 
 ### Phase brief index
 
-- P1 — Comparator and tooling — [`phase-1-comparator-task-brief.md`](phase-1-comparator-task-brief.md) — not started
-- P2 — Tree migration — [`phase-2-tree-migration-task-brief.md`](phase-2-tree-migration-task-brief.md) — not started
-- P3 — Result tables and rule 3.11 — [`phase-3-result-tables-task-brief.md`](phase-3-result-tables-task-brief.md) — not started
-- P4 — Fingerprint and experiment lifecycle — [`phase-4-fingerprint-task-brief.md`](phase-4-fingerprint-task-brief.md) — not started
-- P5 — Conventions and docs — [`phase-5-conventions-docs-task-brief.md`](phase-5-conventions-docs-task-brief.md) — not started
+- P1 — Comparator and tooling — [`phase-1-comparator-task-brief.md`](phase-1-comparator-task-brief.md) — **COMPLETE 2026-08-04; Gate 1 CLOSED; merged to `milestone/r09-project-tree`.** Report: [`phase-1-report.md`](phase-1-report.md). Both tiers zero-unmapped (declared 176, observed 192). Eight findings; F1a–F1c amended the map, F2 closed negatively, F7 fixed a stranded `LOG_RULES` entry, F8 retired a map row
+- P2 — Tree migration — [`phase-2-tree-migration-task-brief.md`](phase-2-tree-migration-task-brief.md) — **COMPLETE 2026-08-04; merged.** Report: [`phase-2-report.md`](phase-2-report.md). Four rows landed plus four unplanned fixes; whole-tree gate zero numeric and zero structure failures; concurrency falsifier green. `check_baseline` red from P2 commit 1 until P3 re-records
+- P3 — Result tables and rule 3.11 — [`phase-3-result-tables-task-brief.md`](phase-3-result-tables-task-brief.md) — **COMPLETE 2026-08-04; Gate 2 CLOSED; merged.** Report: [`phase-3-report.md`](phase-3-report.md). Both tables byte-identical to the retained pre-P3 artifacts, discharge series bit-identical, baseline re-recorded once and `check` green — the red window opened at P2 commit 1 is closed
+- P4 — Fingerprint and experiment lifecycle — [`phase-4-fingerprint-task-brief.md`](phase-4-fingerprint-task-brief.md) — **COMPLETE 2026-08-04; merged.** Report: [`phase-4-report.md`](phase-4-report.md). Pointer-derived model digest, per-experiment `model_reference.yml`, a drift guard that fires before simulation, experiment-ID collision rules with atomic reservation, and `experiment.yml` frozen at the first successful run. Commit 4's checklist was re-specified mid-phase against the code ([`phase-4-commit-4-task-brief.md`](phase-4-commit-4-task-brief.md)) and its four decisions ruled
+- P5 — Conventions and docs — [`phase-5-conventions-docs-task-brief.md`](phase-5-conventions-docs-task-brief.md) — **COMPLETE 2026-08-05; awaiting the landing gate.** Report: [`phase-5-report.md`](phase-5-report.md). `naming.md` §6–§9 and §4 revised (§9's numbering claim was false and is corrected with evidence); the grep falsifier's 133 matching files classed across **seven** justified classes, not the three the brief named. Five findings: F1 a sweep claimed complete on edits rather than on a re-run of the instrument (fourth instance in R9); F2 two of the three "current workflow contracts" are sealed baseline records, one now bannered as the other already was; F3 a P4 escape `test-fast` structurally could not see, caught by this phase's full gate; F4 a seventh project root no inventory tier covers; F5 the design's false `region.geojson` claim, in two places. **`pixi run test-full` green — 1312 passed, the program's single full-suite run.** Two follow-up briefs written rather than implemented: [`followup-provenance-root-task-brief.md`](followup-provenance-root-task-brief.md) and [`followup-stale-path-prose-task-brief.md`](followup-stale-path-prose-task-brief.md)

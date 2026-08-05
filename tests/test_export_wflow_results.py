@@ -20,30 +20,57 @@ from blueearth_cst.experiment.export_wflow_results import (  # noqa: E402
 
 
 @pytest.mark.parametrize("rlz", [1, 2, 11])
-def test_realization_index_comes_from_the_run_directory(tmp_path, rlz):
-    csv = tmp_path / "experiments" / "e" / "hydrology_runs" / f"rlz_{rlz}" / \
-        "output" / "cst_3.csv"
+def test_realization_index_comes_from_the_file_name(tmp_path, rlz):
+    """R9 P2 put the index back in the stem, so that is where it is read from.
+
+    It has moved twice: R07 B5 took it out of the filename into a `rlz_<n>/`
+    run directory, and R9 dissolves that level. These cases follow the index,
+    not the era.
+    """
+    csv = (
+        tmp_path / "experiments" / "e" / "hydrology" / "wflow" / "output"
+        / f"rlz_{rlz}_cst_3.csv"
+    )
     csv.parent.mkdir(parents=True)
     csv.write_text("time,Q_1\n")
     assert realization_from_run_csv(csv) == rlz
     assert realization_from_run_csv(str(csv)) == rlz
 
 
-def test_realization_index_survives_a_cst_only_file_name(tmp_path):
-    """The regression this guards: the file name alone no longer carries the
-    index, so any name-splitting derivation must be gone."""
-    csv = tmp_path / "rlz_7" / "output" / "cst_0.csv"
+def test_the_cst_index_is_never_mistaken_for_the_realization(tmp_path):
+    """The failure mode a `split("_")[-1]` derivation would produce SILENTLY.
+
+    The stem now carries two indices. Splitting on "_" and taking the last
+    field returns the CST member number, which is a plausible integer -- so
+    every result row would be mislabelled with no error anywhere. Pinned with a
+    case where the two indices differ and the wrong one is the tempting one.
+    """
+    csv = tmp_path / "output" / "rlz_2_cst_9.csv"
     csv.parent.mkdir(parents=True)
     csv.write_text("time,Q_1\n")
-    assert csv.name.count("_") == 1  # 'cst_0.csv' -- no rlz component left
-    assert realization_from_run_csv(csv) == 7
+    assert realization_from_run_csv(csv) == 2
+    assert csv.stem.split("_")[-1] == "9"  # what the naive derivation returns
+
+
+def test_the_directory_no_longer_carries_the_index(tmp_path):
+    """The R7 shape must not keep working by accident.
+
+    A `rlz_<n>/` directory with a `cst_<m>.csv` inside is the OLD layout. If it
+    still resolved, a half-migrated tree would produce results silently instead
+    of failing, which is exactly what P2 must not allow.
+    """
+    csv = tmp_path / "hydrology_runs" / "rlz_7" / "output" / "cst_0.csv"
+    csv.parent.mkdir(parents=True)
+    csv.write_text("time,Q_1\n")
+    with pytest.raises(ValueError, match="rlz_<n>_cst_<m>"):
+        realization_from_run_csv(csv)
 
 
 def test_realization_index_raises_naming_the_offending_path(tmp_path):
     csv = tmp_path / "model_runs" / "output" / "cst_1.csv"
     csv.parent.mkdir(parents=True)
     csv.write_text("time,Q_1\n")
-    with pytest.raises(ValueError, match="rlz_<n>"):
+    with pytest.raises(ValueError, match="rlz_<n>_cst_<m>"):
         realization_from_run_csv(csv)
 
 
@@ -58,6 +85,6 @@ def test_incomplete_stress_test_grid_fails_loudly(tmp_path):
         analyze_wflow_results(
             csv_fns=[str(run_csv)],
             st_csv_fns=[str(tmp_path / "cst_1.csv"), str(tmp_path / "cst_2.csv")],
-            indicators_dir=str(tmp_path),
+            results_dir=str(tmp_path),
             st_num=3,
         )

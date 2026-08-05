@@ -1,0 +1,226 @@
+# Project-tree snapshot --- a sorted list of project-relative paths.
+#
+# The OBSERVED tier of the two-tier inventory ruled in
+# dev/milestones/r09/migration_project-tree.md, *The inventory the map
+# is validated against*: the only tier that carries UNDECLARED engine
+# artifacts (hydromt, Wflow.jl, weathergenr), which appear in no
+# `output:` declaration and which --dry-run structurally cannot see.
+#
+# PROVENANCE
+#   generated   2026-08-04 by dev/scripts/snapshot_project_tree.py
+#   run commit  a011546  (C:/Users/taner/workspace/.worktrees/blueearth_cst/r09-p1-comparator)
+#   tool commit a011546  (C:/Users/taner/workspace/.worktrees/blueearth_cst/r09-p1-comparator)
+#   config      config/workflows/snake_config_model_test.yml
+#   project_dir test_case/test_local
+#   experiment  experiment
+#   store key   era5_20000101_20201231
+#   clim_project cmip6
+#   paths       192
+#
+# ADDENDUM (manual, 2026-08-04). Two facts a regeneration will not reproduce:
+#   * `main` advanced to c9990a5 after this run. The delta from the recorded run
+#     commit is docs-only (dev/reference/agent-activation.md), so the tree is
+#     unaffected -- but the two hashes will not match.
+#   * The run used main PLUS commit a011546 (the LOG_RULES fix, phase-1 report
+#     F7). Without it the tree carries one extra path,
+#     logs/_parts/1.01b_delineate_region.log.
+#
+# POSIX separators, sorted, deduplicated. `.snakemake/` is excluded:
+# Snakemake bookkeeping, not a project artifact. Everything else is
+# kept, including artifacts no rule declares --- that is the point.
+#
+# REGENERATE
+#   python dev/scripts/snapshot_project_tree.py --config config/workflows/snake_config_model_test.yml \
+#       --out <this file>
+benchmarks/wf1_benchmarks.md
+benchmarks/wf2_benchmarks.md
+climate_historical/era5_20000101_20201231/.guard_ok
+climate_historical/era5_20000101_20201231/extract_historical.nc
+climate_historical/era5_20000101_20201231/plots/source_pet_annual.png
+climate_historical/era5_20000101_20201231/plots/source_pet_map.png
+climate_historical/era5_20000101_20201231/plots/source_pet_monthly.png
+climate_historical/era5_20000101_20201231/plots/source_precip_annual.png
+climate_historical/era5_20000101_20201231/plots/source_precip_map.png
+climate_historical/era5_20000101_20201231/plots/source_precip_monthly.png
+climate_historical/era5_20000101_20201231/plots/source_temp_annual.png
+climate_historical/era5_20000101_20201231/plots/source_temp_map.png
+climate_historical/era5_20000101_20201231/plots/source_temp_monthly.png
+climate_historical/era5_20000101_20201231/store_region.geojson
+climate_projections/cmip6/plots/cmip6_change_factor_cloud.png
+climate_projections/cmip6/plots/cmip6_precip_annual_absolute.png
+climate_projections/cmip6/plots/cmip6_precip_annual_change.png
+climate_projections/cmip6/plots/cmip6_precip_monthly_absolute.png
+climate_projections/cmip6/plots/cmip6_precip_monthly_change.png
+climate_projections/cmip6/plots/cmip6_temp_annual_absolute.png
+climate_projections/cmip6/plots/cmip6_temp_annual_change.png
+climate_projections/cmip6/plots/cmip6_temp_monthly_absolute.png
+climate_projections/cmip6/plots/cmip6_temp_monthly_change.png
+climate_projections/cmip6/raw/cmip6_INM_INM-CM4-8_historical_r1i1p1f1.nc
+climate_projections/cmip6/raw/cmip6_INM_INM-CM4-8_ssp245_r1i1p1f1.nc
+climate_projections/cmip6/raw/cmip6_INM_INM-CM4-8_ssp585_r1i1p1f1.nc
+climate_projections/cmip6/raw/cmip6_INM_INM-CM5-0_historical_r1i1p1f1.nc
+climate_projections/cmip6/raw/cmip6_INM_INM-CM5-0_ssp245_r1i1p1f1.nc
+climate_projections/cmip6/raw/cmip6_INM_INM-CM5-0_ssp585_r1i1p1f1.nc
+climate_projections/cmip6/raw/cmip6_NOAA-GFDL_GFDL-ESM4_historical_r1i1p1f1.nc
+climate_projections/cmip6/raw/cmip6_NOAA-GFDL_GFDL-ESM4_ssp245_r1i1p1f1.nc
+climate_projections/cmip6/raw/cmip6_NOAA-GFDL_GFDL-ESM4_ssp585_r1i1p1f1.nc
+climate_projections/cmip6/report.md
+climate_projections/cmip6/scalar/cmip6_INM_INM-CM4-8_historical_r1i1p1f1.nc
+climate_projections/cmip6/scalar/cmip6_INM_INM-CM4-8_ssp245_r1i1p1f1.nc
+climate_projections/cmip6/scalar/cmip6_INM_INM-CM4-8_ssp585_r1i1p1f1.nc
+climate_projections/cmip6/scalar/cmip6_INM_INM-CM5-0_historical_r1i1p1f1.nc
+climate_projections/cmip6/scalar/cmip6_INM_INM-CM5-0_ssp245_r1i1p1f1.nc
+climate_projections/cmip6/scalar/cmip6_INM_INM-CM5-0_ssp585_r1i1p1f1.nc
+climate_projections/cmip6/scalar/cmip6_NOAA-GFDL_GFDL-ESM4_historical_r1i1p1f1.nc
+climate_projections/cmip6/scalar/cmip6_NOAA-GFDL_GFDL-ESM4_ssp245_r1i1p1f1.nc
+climate_projections/cmip6/scalar/cmip6_NOAA-GFDL_GFDL-ESM4_ssp585_r1i1p1f1.nc
+climate_projections/cmip6/summary/cmip6_change_factors_annual.csv
+climate_projections/cmip6/summary/cmip6_change_factors_monthly.csv
+climate_projections/cmip6/summary/composition.csv
+climate_projections/cmip6/summary/provenance.json
+config/catalogs/cmip6_data.yml
+config/catalogs/deltares_data.yml
+config/generated/wflow_build_forcing_historical.yml
+config/runs/climate_projections/7d2b336f42e1/.snakemake_timestamp
+config/runs/climate_projections/7d2b336f42e1/effective.yml
+config/runs/climate_projections/7d2b336f42e1/files/catalogs/768a349a9c8e-cmip6_data.yml
+config/runs/climate_projections/7d2b336f42e1/referenced-files.json
+config/runs/climate_projections/7d2b336f42e1/source.yml
+config/runs/model_creation/2e52f3ee43fe/.snakemake_timestamp
+config/runs/model_creation/2e52f3ee43fe/effective.yml
+config/runs/model_creation/2e52f3ee43fe/files/catalogs/459d6135261e-deltares_data.yml
+config/runs/model_creation/2e52f3ee43fe/files/templates/6975ec4074fe-wflow_update_waterbodies.yml
+config/runs/model_creation/2e52f3ee43fe/files/templates/ac5885767129-wflow_build_model.yml
+config/runs/model_creation/2e52f3ee43fe/referenced-files.json
+config/runs/model_creation/2e52f3ee43fe/source.yml
+config/runs/snake_config_climate_projections.yml
+config/runs/snake_config_model_creation.yml
+config/templates/wflow_build_model.yml
+config/templates/wflow_update_waterbodies.yml
+experiments/experiment/.project_consistency_ok
+experiments/experiment/benchmarks/wf3_benchmarks.md
+experiments/experiment/config/catalogs/deltares_data.yml
+experiments/experiment/config/runs/climate_experiment/7a6c090e3555/.snakemake_timestamp
+experiments/experiment/config/runs/climate_experiment/7a6c090e3555/effective.yml
+experiments/experiment/config/runs/climate_experiment/7a6c090e3555/files/catalogs/459d6135261e-deltares_data.yml
+experiments/experiment/config/runs/climate_experiment/7a6c090e3555/referenced-files.json
+experiments/experiment/config/runs/climate_experiment/7a6c090e3555/source.yml
+experiments/experiment/config/snake_config_climate_experiment.yml
+experiments/experiment/data_catalog_climate_experiment.yml
+experiments/experiment/hydrology_runs/rlz_1/config/cst_1.toml
+experiments/experiment/hydrology_runs/rlz_1/config/cst_2.toml
+experiments/experiment/hydrology_runs/rlz_1/config/cst_3.toml
+experiments/experiment/hydrology_runs/rlz_1/config/cst_4.toml
+experiments/experiment/hydrology_runs/rlz_1/config/cst_5.toml
+experiments/experiment/hydrology_runs/rlz_1/config/cst_6.toml
+experiments/experiment/hydrology_runs/rlz_1/config/log.txt
+experiments/experiment/hydrology_runs/rlz_1/output/cst_1.csv
+experiments/experiment/hydrology_runs/rlz_1/output/cst_2.csv
+experiments/experiment/hydrology_runs/rlz_1/output/cst_3.csv
+experiments/experiment/hydrology_runs/rlz_1/output/cst_4.csv
+experiments/experiment/hydrology_runs/rlz_1/output/cst_5.csv
+experiments/experiment/hydrology_runs/rlz_1/output/cst_6.csv
+experiments/experiment/hydrology_runs/rlz_2/config/cst_1.toml
+experiments/experiment/hydrology_runs/rlz_2/config/cst_2.toml
+experiments/experiment/hydrology_runs/rlz_2/config/cst_3.toml
+experiments/experiment/hydrology_runs/rlz_2/config/cst_4.toml
+experiments/experiment/hydrology_runs/rlz_2/config/cst_5.toml
+experiments/experiment/hydrology_runs/rlz_2/config/cst_6.toml
+experiments/experiment/hydrology_runs/rlz_2/config/log.txt
+experiments/experiment/hydrology_runs/rlz_2/output/cst_1.csv
+experiments/experiment/hydrology_runs/rlz_2/output/cst_2.csv
+experiments/experiment/hydrology_runs/rlz_2/output/cst_3.csv
+experiments/experiment/hydrology_runs/rlz_2/output/cst_4.csv
+experiments/experiment/hydrology_runs/rlz_2/output/cst_5.csv
+experiments/experiment/hydrology_runs/rlz_2/output/cst_6.csv
+experiments/experiment/indicators/Qstats.csv
+experiments/experiment/indicators/RT_Q_101.1.csv
+experiments/experiment/indicators/RT_Q_101.csv
+experiments/experiment/indicators/RT_Q_102.csv
+experiments/experiment/indicators/RT_Q_103.csv
+experiments/experiment/indicators/RT_Q_104.csv
+experiments/experiment/indicators/RT_Q_105.csv
+experiments/experiment/indicators/basin.csv
+experiments/experiment/logs/wf3_climate_experiment.log
+experiments/experiment/weather_generator/_work/cst_1.csv
+experiments/experiment/weather_generator/_work/cst_2.csv
+experiments/experiment/weather_generator/_work/cst_3.csv
+experiments/experiment/weather_generator/_work/cst_4.csv
+experiments/experiment/weather_generator/_work/cst_5.csv
+experiments/experiment/weather_generator/_work/cst_6.csv
+experiments/experiment/weather_generator/_work/weathergen_config_rlz_1_cst_1.yml
+experiments/experiment/weather_generator/_work/weathergen_config_rlz_1_cst_2.yml
+experiments/experiment/weather_generator/_work/weathergen_config_rlz_1_cst_3.yml
+experiments/experiment/weather_generator/_work/weathergen_config_rlz_1_cst_4.yml
+experiments/experiment/weather_generator/_work/weathergen_config_rlz_1_cst_5.yml
+experiments/experiment/weather_generator/_work/weathergen_config_rlz_1_cst_6.yml
+experiments/experiment/weather_generator/_work/weathergen_config_rlz_2_cst_1.yml
+experiments/experiment/weather_generator/_work/weathergen_config_rlz_2_cst_2.yml
+experiments/experiment/weather_generator/_work/weathergen_config_rlz_2_cst_3.yml
+experiments/experiment/weather_generator/_work/weathergen_config_rlz_2_cst_4.yml
+experiments/experiment/weather_generator/_work/weathergen_config_rlz_2_cst_5.yml
+experiments/experiment/weather_generator/_work/weathergen_config_rlz_2_cst_6.yml
+experiments/experiment/weather_generator/config/weathergen_config.yml
+experiments/experiment/weather_generator/output/resampled_dates.csv
+experiments/experiment/weather_generator/output/sim_dates.csv
+experiments/experiment/weather_generator/plots/obs_power_spectra.png
+experiments/experiment/weather_generator/plots/warm_annual_precip.png
+experiments/experiment/weather_generator/plots/warm_annual_stats.png
+experiments/experiment/weather_generator/plots/warm_annual_wavelet.png
+hydrology_model/.model_built
+hydrology_model/.outputs_configured
+hydrology_model/evaluation/performance_metrics.csv
+hydrology_model/evaluation/plots/clim_wflow_102_month.png
+hydrology_model/evaluation/plots/clim_wflow_102_year.png
+hydrology_model/evaluation/plots/clim_wflow_103_month.png
+hydrology_model/evaluation/plots/clim_wflow_103_year.png
+hydrology_model/evaluation/plots/clim_wflow_104_month.png
+hydrology_model/evaluation/plots/clim_wflow_104_year.png
+hydrology_model/evaluation/plots/clim_wflow_105_month.png
+hydrology_model/evaluation/plots/clim_wflow_105_year.png
+hydrology_model/evaluation/plots/clim_wflow_1_month.png
+hydrology_model/evaluation/plots/clim_wflow_1_year.png
+hydrology_model/evaluation/plots/hydro_wflow_1.png
+hydrology_model/forcing/inmaps_historical.nc
+hydrology_model/forcing/plots/forcing_pet_annual.png
+hydrology_model/forcing/plots/forcing_pet_map.png
+hydrology_model/forcing/plots/forcing_pet_monthly.png
+hydrology_model/forcing/plots/forcing_precip_annual.png
+hydrology_model/forcing/plots/forcing_precip_map.png
+hydrology_model/forcing/plots/forcing_precip_monthly.png
+hydrology_model/forcing/plots/forcing_temp_annual.png
+hydrology_model/forcing/plots/forcing_temp_map.png
+hydrology_model/forcing/plots/forcing_temp_monthly.png
+hydrology_model/hydromt.log
+hydrology_model/hydromt_data.yml
+hydrology_model/plots/basin_area.pdf
+hydrology_model/plots/basin_area.png
+hydrology_model/run_default/log.txt
+hydrology_model/run_default/output.csv
+hydrology_model/run_default/outstate/outstates.nc
+hydrology_model/run_default/wflow_sbm.toml
+hydrology_model/staticgeoms/basins.geojson
+hydrology_model/staticgeoms/catchments.geojson
+hydrology_model/staticgeoms/gauges_locations.geojson
+hydrology_model/staticgeoms/locations.geojson
+hydrology_model/staticgeoms/meta_basins_highres.geojson
+hydrology_model/staticgeoms/outlet_index.csv
+hydrology_model/staticgeoms/outlets.geojson
+hydrology_model/staticgeoms/region.geojson
+hydrology_model/staticgeoms/reservoirs_lakes_glaciers.txt
+hydrology_model/staticgeoms/rivers.geojson
+hydrology_model/staticgeoms/subbasins.geojson
+hydrology_model/staticmaps.nc
+hydrology_model/wflow_sbm.toml
+logs/wf1_model_creation.log
+logs/wf2_climate_projections.log
+spatial/geoms/basins.geojson
+spatial/geoms/catchments.geojson
+spatial/geoms/locations.geojson
+spatial/geoms/region.geojson
+spatial/geoms/rivers.geojson
+spatial/geoms/subbasins.geojson
+spatial/location_registry.csv
+spatial/spatial_catalog.yml
+spatial/spatial_maps.nc
+spatial/spatial_report.yml

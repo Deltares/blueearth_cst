@@ -126,7 +126,7 @@ log rather than erroring.
 | `sim_dates.csv`, `resampled_dates.csv` | `series/` **renamed `output/`**. These are generator *products*, and R7's G1 ruling OQ-4 already split products (`output/`) from per-member configs (`_work/`); `series/` was narrower than its contents. `output/` also mirrors `hydrology/wflow/output/`, restoring the two-engine symmetry B5 was for. |
 | Wflow's own `log.txt` | **Defect, not a gap** — see below. Given an explicit per-member path under `hydrology/wflow/output/`. |
 | `.model_built`, `.outputs_configured` | Stay at the model root. Generalised: *every* sentinel lives beside what it guards, build sentinels included. |
-| `data/spatial/**` | Placeholders replaced with the emitted set. `region.geojson` was drawn here but exists only as `models/hydrology/wflow/staticgeoms/region.geojson` and the store's `store_region.geojson`; `gauges.geojson` does not exist at all. Rows are final: the spatial work's Gates 2 and 3 closed and merged 2026-08-02; the "pending" status the inventory relied on was a stale index line. |
+| `data/spatial/**` | Placeholders replaced with the emitted set. **Corrected 2026-08-04:** this row previously said `region.geojson` "exists only as `models/hydrology/wflow/staticgeoms/region.geojson` and the store's `store_region.geojson`". It ALSO exists at `data/spatial/geoms/region.geojson`, written by rule `delineate_region` (ADR 0003), and is in both inventory tiers and the built tree. The error was counting one rule's nine outputs (`prepare_spatial_maps`) as the whole subtree when a different rule writes the tenth -- and it is the root of P1's finding F1a, where the migration map's `data/` row enumerated five geoms layers against six emitted. `gauges.geojson` does not exist at all. Rows are final: the spatial work's Gates 2 and 3 closed and merged 2026-08-02; the "pending" status the inventory relied on was a stale index line. |
 
 **The defect.** Wflow's `[logging] path_log` defaults to `"log.txt"`, resolved
 against the TOML's own directory (`docs/wflow-user-guide/03-toml-file.md:47`) —
@@ -318,7 +318,10 @@ code only with an argument.
 │   │   ├── spatial_report.yml
 │   │   ├── location_registry.csv
 │   │   └── geoms/
-│   │       └── {basins,catchments,locations,rivers,subbasins}.geojson
+│   │       ├── {basins,catchments,locations,rivers,subbasins}.geojson
+│   │       └── region.geojson         # rule delineate_region (ADR 0003):
+│   │                                  # a SIXTH layer, written by a
+│   │                                  # different rule than the five above
 │   ├── climate/
 │   │   ├── historical/
 │   │   │   └── <source>_<window>/        # CACHE KEY (source + window), NOT
@@ -824,7 +827,8 @@ List findings in severity order. An empty findings section with
   mirrors `hydrology/wflow/output/`, restoring the engine symmetry `series/`
   broke. Build sentinels join guard sentinels under one rule: a sentinel lives
   beside what it guards. `data/spatial/` placeholders replaced with the emitted
-  set — neither `region.geojson` nor `gauges.geojson` existed at that path — and
+  set — `gauges.geojson` does not exist at all, though `region.geojson` DOES (see
+  the corrections table; that claim was wrong) — and
   marked provisional pending the spatial work's Gate 2. **One defect found:**
   Wflow's `path_log` defaults to `log.txt` beside the TOML, so removing the
   `rlz_<r>/` level makes every concurrently-batched member race on one file. Fixed

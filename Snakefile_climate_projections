@@ -172,7 +172,12 @@ MAX_FLAGGED_MONTHS = _relative_cfg.get(
     "max_flagged_months", _dm.DEFAULT_MAX_FLAGGED_MONTHS
 )
 
-clim_project_dir = f"{project_dir}/climate_projections/{clim_project}"
+# R9 P2 commit 2: the projections overlay moves under `data/climate/`. ONE
+# binding carries every WF2 output below it, and the two cache tiers keep their
+# names -- `raw/` (as-fetched GCM slices) and `scalar/` (spatially reduced,
+# S8-03) -- so `prune_series_cache.py`, which is keyed to that grammar, keeps
+# working once repointed at the new root.
+clim_project_dir = f"{project_dir}/data/climate/projections/{clim_project}"
 
 # ONE producer contract, built here and identically in Snakefile_model_creation
 # and Snakefile_climate_experiment, and splatted into rule 1.01b / 2.03b / 3.01b.
@@ -535,6 +540,14 @@ def get_horizon(wildcards):
 WORKFLOW_LOG_NAME = "wf2_climate_projections.log"
 LOG_PARTS_DIR = f"{project_dir}/logs/_parts"
 LOG_RULES = [
+    # 2.03b was MISSING here, the THIRD instance of one defect. `delineate_region`
+    # is splatted into all three workflows from ONE producer contract, but each
+    # workflow owns its own `log:` label and its own LOG_RULES -- so registering
+    # it is a per-file obligation the shared definition does not carry. P1 fixed
+    # WF1's 1.01b (phase-1 report F7); P4 found WF3's 3.01b and this one. An
+    # unlisted label is not an error: merge_logs drops the section and strands
+    # the part, silently, on every run.
+    "2.03b_delineate_region",
     "2.01_fetch_gcm_raw",
     "2.02_reduce_gcm_series",
     "2.04_derive_change_factors",

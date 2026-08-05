@@ -2,39 +2,51 @@
 """
 Export wflow results for easy plotting of the climate response plots
 """
+import re
 import os
 from pathlib import Path
 import pandas as pd
 import numpy as np
-import xarray as xr
 from typing import List, Union
 
 import blueearth_cst.shared.metrics_definition as md
 from blueearth_cst.shared.snake_utils import log_row
 
 
-def realization_from_run_csv(csv_fn: Union[str, Path]) -> int:
-    """Realization index of a wflow run CSV, from its ``rlz_<n>`` run directory.
+#: ``rlz_<n>_cst_<m>`` in a wflow run CSV's stem. Anchored at the start so a
+#: directory component can never satisfy it.
+_RLZ_IN_STEM = re.compile(r"^rlz_(\d+)_cst_\d+$")
 
-    R07 B5 moved the realization index out of the filename and into the run
-    directory: ``hydrology_runs/rlz_<n>/output/cst_<m>.csv``. The old
-    ``output_rlz_<n>_cst_<m>.csv`` name could be split on ``_``; the new one
-    cannot, so the index is read from the grandparent directory instead.
+
+def realization_from_run_csv(csv_fn: Union[str, Path]) -> int:
+    """Realization index of a wflow run CSV, read from its FILENAME.
+
+    The index has moved twice. R07 B5 took it out of the filename and into a
+    run directory (``hydrology_runs/rlz_<n>/output/cst_<m>.csv``), so this read
+    the grandparent directory. R9 P2 dissolves that level and puts the index
+    back in the stem (``hydrology/wflow/output/rlz_<n>_cst_<m>.csv``), so the
+    directory read stopped working -- caught by the first full WF3 run on the
+    migrated tree, at rule 3.11, after all twelve members had run.
+
+    Matched against a full-stem pattern rather than split on ``_``: the stem
+    now contains two indices, and ``split("_")[-1]`` would silently return the
+    CST member number as the realization. A wrong-but-plausible integer is far
+    worse here than an exception, because it would mislabel every result row.
     """
-    run_dir = Path(csv_fn).parent.parent.name  # rlz_<n>
-    try:
-        return int(run_dir.split("_")[-1])
-    except ValueError:
+    stem = Path(csv_fn).stem
+    match = _RLZ_IN_STEM.match(stem)
+    if match is None:
         raise ValueError(
             f"cannot derive the realization index from {csv_fn!r}: expected a "
-            f"'rlz_<n>' run directory, got {run_dir!r}"
-        ) from None
+            f"'rlz_<n>_cst_<m>' filename, got {stem!r}"
+        )
+    return int(match.group(1))
 
 
 def analyze_wflow_results(
     csv_fns: List[Union[str, Path]],
     st_csv_fns: List[Union[str, Path]],
-    indicators_dir: Union[str, Path],
+    results_dir: Union[str, Path],
     st_num: int,
     qstats_fn: Union[str, Path] = None,
     bas_fn: Union[str, Path] = None,
@@ -54,18 +66,18 @@ def analyze_wflow_results(
         and precip changes each stress test imposes). Passed in from the rule's
         declared inputs rather than reconstructed from a directory convention
         (R07 B6), so the read is on the DAG and visible to ``--dry-run``.
-    indicators_dir : Union[str, Path]
+    results_dir : Union[str, Path]
         Directory the response-surface tables are written to (``indicators/``).
     st_num : int
         Number of stress tests (increments) per realization
     qstats_fn : Union[str, Path], optional
         Path to the output csv file with the discharge statistics for each
         realization/stress test.
-        If None will be saved in `indicators_dir/Qstats.csv`.
+        If None will be saved in `results_dir/q_indicators.csv`.
     bas_fn : Union[str, Path], optional
         Path to the output csv file with the basin average statistics for each
         realization/stress test.
-        If None will be saved in `indicators_dir/basin.csv`.
+        If None will be saved in `results_dir/basin_indicators.csv`.
     Tpeak : int, optional
         Return period for high flows (in years), by default 10
     Tlow : int, optional
@@ -75,9 +87,9 @@ def analyze_wflow_results(
     """
     # Output file paths
     if qstats_fn is None:
-        qstats_fn = f"{indicators_dir}/Qstats.csv"
+        qstats_fn = f"{results_dir}/q_indicators.csv"
     if bas_fn is None:
-        bas_fn = f"{indicators_dir}/basin.csv"
+        bas_fn = f"{results_dir}/basin_indicators.csv"
 
     # cst_<m>.csv lookup, keyed by the stress-test index in the file name.
     # cst_0 is the reserved unperturbed baseline and has no file (naming.md §4),
@@ -149,7 +161,6 @@ def analyze_wflow_results(
         )
 
     log_row("Computing discharge stats for each realization/stress test", module="export")
-    Q_rps = []
     for i in range(np.size(df_out_mean, 0)):
         # Read csv file
         if not aggr_rlz:
@@ -238,19 +249,6 @@ def analyze_wflow_results(
             [["BaseFlowIndex"], cst_stat, df_BFI.values.round(4)]
         )
 
-        # Update return interval dataset
-        Q_rp = md.returnintervalmulti(sim)
-        # Add realization as new coords
-        Q_rp = Q_rp.assign_coords(scenario=i)
-        # Add a new dim for realization number
-        Q_rp = Q_rp.expand_dims("scenario")
-        # Add tavg coords that are function of scenario dim
-        if not aggr_rlz:
-            Q_rp = Q_rp.assign_coords(realization=("scenario", [rlz_nb]))
-        Q_rp = Q_rp.assign_coords(tavg=("scenario", [tavg]))
-        Q_rp = Q_rp.assign_coords(prcp=("scenario", [prcp]))
-        Q_rps.append(Q_rp)
-
         # Update basin average statistics table
         if not aggr_rlz:
             stats_basavg = np.array([rlz_nb, tavg, prcp])
@@ -295,24 +293,6 @@ def analyze_wflow_results(
     )
     df_out_Qstats.to_csv(qstats_fn, index=False)
 
-    # Merge Qrps list and save as one csv per loc
-    Q_rps = xr.concat(Q_rps, dim="scenario")
-    for v in Q_rps.data_vars:
-        df_rp = Q_rps[v].to_pandas().round(1)
-        # Reorder dims of Q_rp
-        if not aggr_rlz:
-            df_rp["realization"] = Q_rps["realization"].values
-        df_rp["tavg"] = Q_rps["tavg"].values
-        df_rp["prcp"] = Q_rps["prcp"].values
-        # Change column order of df
-        cols = df_rp.columns.tolist()
-        if not aggr_rlz:
-            cols = cols[-3:] + cols[:-3]
-        else:
-            cols = cols[-2:] + cols[:-2]
-        df_rp = df_rp[cols]
-        # Save to csv
-        df_rp.to_csv(os.path.join(indicators_dir, f"RT_{v}.csv"), index=False)
 
 
 if __name__ == "__main__":
@@ -324,10 +304,10 @@ if __name__ == "__main__":
             analyze_wflow_results(
                 csv_fns=sm.input.rlz_csv_fns,
                 st_csv_fns=sm.input.st_csv_fns,
-                indicators_dir=sm.params.indicators_dir,
+                results_dir=sm.params.results_dir,
                 st_num=sm.params.st_num,
-                qstats_fn=sm.output.Qstats,
-                bas_fn=sm.output.basin,
+                qstats_fn=sm.output.q_indicators,
+                bas_fn=sm.output.basin_indicators,
                 Tpeak=sm.params.Tpeak,
                 Tlow=sm.params.Tlow,
                 aggr_rlz=sm.params.aggr_rlz,
