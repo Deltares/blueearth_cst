@@ -49,15 +49,42 @@ is outstanding for a reason that only surfaced while preparing this document.
 | 5 | Gate 2 — scientific delta | **closed at P3**, value identity proven byte-identical before the re-record |
 | 6 | Full three-workflow run on the seed config | **SATISFIED 2026-08-05** — fresh tree, P4-inclusive; two defects found and fixed |
 | 7 | `semantic_tree_diff` whole-tree, clean modulo allowlist | **SATISFIED 2026-08-05** — 5 attr-only failures, **0 numeric, 0 structure** |
-| 8 | Falsifier: no member's Wflow log is overwritten | passing half re-confirmed; failing half in flight |
+| 8 | Falsifier: no member's Wflow log is overwritten | **SATISFIED 2026-08-05** — both halves; the run exposed a defect in the falsifier itself |
 | 9 | Falsifier: sharing a dataset+window does not re-run shared work | **SATISFIED 2026-08-05** |
 | — | `check_baseline check` | **green 2026-08-05** — 8 targets match, no re-record |
 
-**The run found two real defects, which is the argument for having required it.**
-Both were in P4 code that had never executed, and both are fixed:
-`from __future__` in all three of P4's `script:` modules (`SyntaxError` at run
-time, invisible to import-based tests and to every dry-run), and the drift
-guard's verdict persisting between invocations.
+**Nine of nine. The gate found FOUR defects**, and `pixi run test-full` was green
+over every one of them — which is the argument for having required it. Full
+account in [`closing-record.md`](closing-record.md).
+
+## Gate closure — item 8, the log falsifier's missing half
+
+Owed since P2, which ran the passing half (12 logs, 12 attributed, 0 stray) and
+recorded the other as outstanding.
+
+**The demonstration.** `logging.path_log` removed from
+`downscale_climate_forcing.py`, WF3 re-run at `-c 3` against the fresh tree:
+**twelve members, ZERO per-member logs, one shared
+`hydrology/wflow/config/log.txt` naming exactly ONE member** — `rlz_2_cst_2`,
+whichever finished last.
+
+**So the failure mode is OVERWRITING, not interleaving.** Each wflow process
+opens the default path and truncates it; eleven members' logs were destroyed
+rather than merged. The module's docstring had been looking for a file "carrying
+both names", which never appears.
+
+**And the falsifier skipped itself.** With no per-member logs, `_member_logs`
+hit `if not logs: pytest.skip(...)` and **both attribution tests skipped**. The
+only assertion that fired was the one the module itself calls *"the weakest of
+the three… on its own this proves little."* Delete that one line and the module
+goes green over an empty set, under the exact defect it exists for — the same
+absence-asserted-over-nothing shape this milestone kept hitting.
+
+Fixed in `4fabb70`: the member CSVs are non-`temp()` declared outputs of rule
+3.10, so they are the reliable witness that a run happened. CSVs present + logs
+absent now raises instead of skipping. Both branches demonstrated on synthetic
+trees — 3 CSVs/0 logs → 2 failed (was 2 skipped); 0 CSVs/0 logs → 2 skipped,
+unchanged, so a bare checkout still skips rather than fails.
 
 ---
 

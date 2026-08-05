@@ -94,13 +94,15 @@ they are not to be run in parallel worktrees.
 3. **Landing gate — PAUSE before merging.** Present all five phase reports, three
    workflow dry-runs, a full three-workflow run, and the falsifier results named
    below.
-   **Presented 2026-08-05 — [`landing-gate.md`](landing-gate.md). NOT closed:**
-   six of nine items satisfied. The shared-store falsifier was run the same day
-   and **passes**; still outstanding are the full three-workflow run (it predates
-   P4), the whole-tree diff (the fixture tree is mixed-era), and the concurrency
-   falsifier's failing half. Closing steps:
-   [`gate-closure-run-plan.md`](gate-closure-run-plan.md). All five phases are
-   merged to `milestone/r09-project-tree`; that branch is **not** merged onward.
+   **Presented 2026-08-05 and CLOSED the same day — NINE OF NINE.**
+   Evidence: [`landing-gate.md`](landing-gate.md). Account:
+   [`closing-record.md`](closing-record.md). Steps:
+   [`gate-closure-run-plan.md`](gate-closure-run-plan.md).
+   Presented first at six of nine; the fresh three-workflow run closed the
+   remaining three and **found four defects that `pixi run test-full` was green
+   over** — three in P4 code that had never executed, one in a P2 falsifier that
+   had never been falsified. All five phases are merged to
+   `milestone/r09-project-tree`, which is ready to merge onward.
 
 ### Cross-cutting validation
 
