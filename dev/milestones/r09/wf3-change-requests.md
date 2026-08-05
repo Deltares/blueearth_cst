@@ -455,6 +455,81 @@ vocabularies natural rather than awkward.
 
 ---
 
+## CR-4 — run identification and the stress-test design table
+
+Proposal-side: **Part B, C22–C27**, finding **F5**, open item **O3**.
+
+### C22 — `cst_` → `st_` (`rlz_` unchanged)
+
+Ruled 2026-08-05. `cst` is the tool's own name, so it says nothing as a member
+token. The decisive evidence is that **the code already says `st`** and only the
+filenames disagree:
+
+| layer | token |
+| --- | --- |
+| Snakemake wildcard (naming.md §4, pinned vocabulary) | `st_num` |
+| config-derived count | `ST_NUM` |
+| shared helper | `stress_test_grid()` |
+| config section | `stress_test:` |
+| rule input variable | `st_csv_fns` |
+| **filenames / catalog keys** | **`cst_<m>`** |
+
+`Snakefile_climate_experiment:805` builds `f"{wg_dir}/_work/cst_{st_num}.csv"` —
+a `cst_` filename from an `st_num` wildcard. So this **removes an existing
+inconsistency**, and needs no new word.
+
+Surfaces to move: `cst_<m>.csv`, `rlz_<n>_cst_<m>.{nc,csv,toml,log}`, the WG-5
+catalog entry keys (`rlz_<n>_cst_<m>`), and the reserved baseline `cst_0` →
+`st_0`. `wildcard_constraints: st_num=[1-9][0-9]*` on
+`generate_climate_stress_test` is unaffected — the wildcard name does not change.
+
+`rlz_` stays: unlike `cst`, it abbreviates a *correct* term (CMIP's `r1i1p1f1`
+uses `r` for realization) and collides with nothing. Renaming it would cost the
+same migration for no correctness gain. **Considered and rejected:** `mem_`,
+which is climate-standard but is already WF2's word for CMIP members — a
+genuinely different thing, so it would create the cross-workflow ambiguity this
+whole thread has been removing.
+
+Also rejected for the design token, each on a concrete collision: `scn_` /
+`scenario_` (AGENTS.md forbids coupling the experiment to CMIP scenarios;
+"scenario" already means an SSP here), `grid_` (the spatial/model grid), `point_`
+(Part A's `location`).
+
+### C23–C27 — the design table
+
+- **C23** — `stress_test_design.csv`: one row per design point, one column per
+  stress dimension, plus a row for `st_0` with every change zero. The artifact
+  that is missing today — `st_<m>.csv` holds twelve monthly rows and there is no
+  single place that answers "what is run 37?".
+- **C24** — two id spaces, not one. `st_id` is the *designed* axis (enumerable,
+  worth looking up); `realization` is the *sampled* axis (draw 7 has no
+  parameters). Run identity stays `(rlz, st)`. Four reasons: C10 pools over
+  realization but not design, and one opaque id cannot express that; adding
+  realizations would otherwise renumber the design; the P3-3 batching work groups
+  by realization via wildcard patterns; and a failing run's log should name what
+  broke.
+- **C25** — ids are **experiment-scoped**. The table lives in `experiments/<id>/`
+  beside the config snapshot, which is already where settings are pinned. Rejected:
+  content-hashed ids (stable but opaque and unsortable) and positional ids
+  (`t2_p5_v1` — self-describing but grows a segment per dimension, which is what
+  this change exists to avoid).
+- **C26** — one enumeration, two consumers. The routine that expands the DAG also
+  writes the table, so they cannot disagree. Without this there is a
+  chicken-and-egg: Snakemake needs the ids at DAG-construction time, before any
+  rule has written a file. `stress_test_grid()` is the natural place to extend.
+- **C27** — id width derived from the count, not fixed at three digits. 10 rlz ×
+  a 5×5×3 grid is 750 before a fourth dimension exists.
+
+### Machinery this touches
+
+`naming.md` §4 (wildcard vocabulary) and §7 (a rename note is required —
+filenames *and* catalog source names are both listed there);
+`validate_wg5_catalog_grid`, whose expected key set is literally
+`rlz_<n>_cst_<m>`; the R9 path map; `check_baseline.py` targets; every WF3 log
+and TOML name.
+
+---
+
 ## Open questions
 
 Q1-Q4, Q6 and Q9 are closed in the decision sections above; Q5, Q8 and Q10 in
@@ -464,6 +539,7 @@ the ruling block immediately above. **Two remain.**
 | --- | --- | --- |
 | **Q7** | Stale `aggregate_rlz` in an existing user config — silently ignored today, because workflow configs never read unknown keys. The user believes it is still in effect. | Hard error naming the migration note, following the `variable_spec.parse` precedent (it refuses the pre-5e list shape and states the migration). |
 | **Q11** | **Nested or incremental subcatchments?** Decides whether the overall basin value can be derived from the per-location values. See CR-3b. | Do not derive it either way — emit it independently under a reserved `location = basin`, by keeping the existing `reducer=["mean"]` output alongside the new per-subcatchment one. |
+| **Q12** (= proposal **O3**) | **Does `st_id` replace `temp_change` / `precip_change` in the results tables, or sit alongside them?** *Replace* keeps the header fixed at any dimension count — the guarantee CR-2 exists for — at the cost of a join to plot. *Alongside* keeps the files self-contained but re-couples the header to the dimension count, undoing CR-2's central property. **There is no version with both.** | Replace. But it runs against the self-contained-file preference that shaped several CR-2 decisions, so it is an owner call, not a technical one. **This blocks CR-2 implementation** — it decides whether the six-column shape stands or becomes five with a foreign key. |
 
 ---
 

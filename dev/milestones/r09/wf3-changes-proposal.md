@@ -31,12 +31,19 @@ the discussion started; further parts are added as topics come up.
 | **Locations** | C17 plain gauge number · C18 same locations for basin variables · C19 basin figure produced directly · C20 precipitation as a subbasin mean |
 | **Checks** | C21 tolerance comparison instead of exact match |
 
+### Part B — run identification
+
+| | |
+|---|---|
+| **Naming** | C22 `cst_` becomes `st_` (`rlz_` unchanged) |
+| **Design table** | C23 write a master design table · C24 keep two identifiers, not one · C25 numbers are experiment-scoped · C26 enumerate once, use twice · C27 width follows the count |
+
 ### Across the document
 
 | | |
 |---|---|
-| **Findings** | F1 January-only perturbation · F2 overland flow units · F3 seam in the 7-day window · F4 gauge rainfall discarded |
-| **Open** | O1 do subbasins overlap · O2 stale configuration switch |
+| **Findings** | F1 January-only perturbation · F2 overland flow units · F3 seam in the 7-day window · F4 gauge rainfall discarded · F5 run numbers silently change meaning |
+| **Open** | O1 do subbasins overlap · O2 stale configuration switch · O3 does the design id replace the perturbation columns |
 
 ---
 
@@ -232,6 +239,90 @@ is used for the discharge reference.
 
 ---
 
+# Part B — how stress-test runs are identified
+
+## The short version
+
+Every run is currently identified by its filename — `rlz_2_cst_37` — and what
+`cst_37` actually *is* exists nowhere except inside `cst_37.csv`, as twelve
+monthly rows. We propose writing a **master design table**: one row per
+stress-test point, listing what climate perturbation it applies. Runs keep a
+readable two-part identity, but the meaning finally lives somewhere you can look
+it up.
+
+We also rename the stress-test token from `cst_` to `st_`.
+
+## Why this matters more than it looks
+
+Part A's main achievement was making the results table shape independent of the
+basin. But under **multi-dimensional** stress testing, the current design breaks
+that from the other end: `temp_change` and `precip_change` are columns, so adding
+a seasonality or spell-length dimension adds a column, and the header depends on
+the configuration again.
+
+A design table with an id fixes that permanently — the results tables reference a
+point instead of describing it, and their shape stops depending on how many
+stress dimensions there are. That is the real argument for this change, and it is
+why it belongs alongside Part A rather than after it.
+
+## The changes
+
+**C22 — Rename the stress-test token from `cst_` to `st_`.** `cst` is the name of
+the whole tool, so using it for one member of a grid inside that tool says
+nothing. More to the point, **the code already says `st`** — the workflow
+wildcard is `st_num`, the count is `ST_NUM`, the helper is `stress_test_grid()`,
+the configuration section is `stress_test:`. Only the *files* say `cst_`. The
+Snakefile even builds a filename called `cst_...` out of a wildcard called
+`st_num`. So this removes an inconsistency that already exists rather than
+introducing churn. `rlz_` stays as it is: unlike `cst`, it is a terse
+abbreviation of a *correct* term — realization is the standard word for a
+stochastic replicate, and there is no collision to fix.
+
+**C23 — Write a stress-test design table.** One row per design point, listing the
+perturbation it applies, with a row for the unperturbed baseline where every
+change is zero. This is the artifact that is missing today: a single place that
+answers "what was run 37?". It also becomes the natural place to add a dimension
+— a new column, rather than a new naming convention.
+
+**C24 — Keep two identifiers, not one.** The design point and the realization are
+different kinds of thing and should not collapse into a single counter:
+
+- the **design point** is *designed* — enumerable, meaningful, worth looking up;
+- the **realization** is *sampled* — realization 7 has no parameters, it is
+  simply draw 7, and there is nothing to look up.
+
+Four practical consequences of keeping them apart. The return-period statistics
+pool over realizations but *not* over design points (C10), which a single
+identifier cannot express. Adding realizations would otherwise renumber the whole
+design. The workflow engine can still select "everything for realization 2" as a
+pattern, which the batching work depends on. And when a run fails, the log name
+tells you what broke instead of sending you to a lookup table.
+
+**C25 — Design-point numbers are meaningful within one experiment, not across
+experiments.** A sequential number over an enumerated grid changes meaning the
+moment the grid changes — add one temperature step and everything after it
+shifts. Rather than pretend otherwise, the design table lives in the experiment
+folder next to the configuration snapshot that produced it, which is already the
+place where settings are pinned. A different configuration is a different
+experiment, which is how the tool already works.
+
+*Considered and rejected:* numbering derived from the parameter values
+themselves, which would be stable across grid changes but unreadable and
+unsortable; and numbering that encodes the grid position, which is
+self-describing but grows a segment for every dimension added — the thing this
+change exists to avoid.
+
+**C26 — The list of design points is worked out once and used twice.** The same
+routine that tells the workflow engine which runs to plan also writes the design
+table, so the two cannot disagree. Without this there is a circularity — the
+engine needs to know the runs before any of them has produced a file.
+
+**C27 — The number width follows the count rather than being fixed.** Three
+digits caps at 999, and ten realizations across a 5 × 5 × 3 grid is already 750
+before a fourth dimension is added.
+
+---
+
 # Findings, open items and cost
 
 These span the whole document, not just Part A.
@@ -269,6 +360,15 @@ season falls near the turn of the year. **Addressed by C16.**
 already set up to report it at gauge locations, and the results step silently
 discards those columns. **Addressed by C20.**
 
+**F5 — Run numbers silently change meaning when the configuration changes.**
+`cst_37` is the thirty-seventh point of an enumerated grid, so adding a single
+temperature step shifts everything after the first block — the same filename then
+refers to a different climate. This is true today and always has been; nothing
+warns about it, and results carried between runs can be compared under the
+assumption that the numbers mean the same thing. It becomes more frequent once
+stress testing is multi-dimensional. **Addressed by C25**, which scopes the
+numbering to one experiment and writes down what each number meant.
+
 ---
 
 ## Open decisions
@@ -282,6 +382,28 @@ though C19 recommends not doing that regardless.
 retired pooling switch (C9). It would currently be ignored in silence, leaving
 the user believing it still does something. The recommendation is to refuse to
 run and say so.
+
+**O3 — Does the design-point number *replace* the perturbation columns in the
+results tables, or sit next to them?** This is the one open item that changes
+Part A, so it should be settled before any of it is built.
+
+- *Replace* — the results tables carry the design number instead of
+  `temp_change` and `precip_change`. Their shape then stays fixed no matter how
+  many stress dimensions exist, which is the guarantee Part A was built for. The
+  cost is that plotting a response surface needs one join against the design
+  table: the files stop being readable entirely on their own. This would supersede
+  the `temp_change` / `precip_change` columns described under C6–C8, and change
+  what C11 sits alongside.
+- *Sit alongside* — the tables keep both, so they remain self-contained and can
+  be plotted directly. The cost is that the header grows by one column per stress
+  dimension, so the shape depends on the configuration again — which is what C6
+  and C7 were for.
+
+There is no version that has both. The recommendation is *replace*, because the
+fixed shape is what makes multi-dimensional stress testing possible without
+another round of this discussion — but it runs against the preference for
+self-contained files that shaped several Part A decisions, so it is the owner's
+call rather than a technical one.
 
 ---
 
