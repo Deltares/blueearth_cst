@@ -47,14 +47,126 @@ is outstanding for a reason that only surfaced while preparing this document.
 | 3 | Full suite, once, before merging | **satisfied** — `pixi run test-full`, **1312 passed**, 31 skipped, 1 xfailed, 4m26s |
 | 4 | Gate 1 — map reproduces the design tree | **closed at P1**, both tiers zero-unmapped |
 | 5 | Gate 2 — scientific delta | **closed at P3**, value identity proven byte-identical before the re-record |
-| 6 | **Full three-workflow run on the seed config** | **OUTSTANDING — predates P4** |
-| 7 | **`semantic_tree_diff` whole-tree, clean modulo allowlist** | **OUTSTANDING — the fixture tree is mixed-era** |
-| 8 | **Falsifier: no member's Wflow log is overwritten** | **HALF DONE** — passes; never shown to fail |
-| 9 | Falsifier: sharing a dataset+window does not re-run shared work | **SATISFIED 2026-08-05** — see *Gate closure* below |
-| — | `check_baseline check` | green at P3; **not re-verified since**, and P4/P5 touch no pinned artifact |
+| 6 | Full three-workflow run on the seed config | **SATISFIED 2026-08-05** — fresh tree, P4-inclusive; two defects found and fixed |
+| 7 | `semantic_tree_diff` whole-tree, clean modulo allowlist | **SATISFIED 2026-08-05** — 5 attr-only failures, **0 numeric, 0 structure** |
+| 8 | Falsifier: no member's Wflow log is overwritten | passing half re-confirmed; failing half in flight |
+| 9 | Falsifier: sharing a dataset+window does not re-run shared work | **SATISFIED 2026-08-05** |
+| — | `check_baseline check` | **green 2026-08-05** — 8 targets match, no re-record |
 
-**Six of nine satisfied. Three outstanding**, all requiring the fresh run in
-[`gate-closure-run-plan.md`](gate-closure-run-plan.md).
+**The run found two real defects, which is the argument for having required it.**
+Both were in P4 code that had never executed, and both are fixed:
+`from __future__` in all three of P4's `script:` modules (`SyntaxError` at run
+time, invisible to import-based tests and to every dry-run), and the drift
+guard's verdict persisting between invocations.
+
+---
+
+## Gate closure — items 6 and 7, the fresh run
+
+Run 2026-08-05 from the primary checkout into `test_case/r09_gate/post_p4`,
+`-c 3`, three workflows in order. **The two defects it found are the return on
+requiring it**, and neither was reachable by anything cheaper.
+
+### Two defects, both in P4 code that had never run
+
+**`from __future__ import annotations` in all three of P4's `script:` modules.**
+Snakemake PREPENDS its preamble to a `script:` module, so the future import is no
+longer at the top of the file and the job dies with `SyntaxError` before running
+a line of our code. WF3 failed on its first job. All three of 3.01c/3.01d/3.01e
+carried it; none of the 13 pre-existing `script:` modules does.
+
+Nothing below a real run could have caught it: the unit tests **import** these
+modules, where the import is perfectly legal — 28 tests passed against code that
+could not execute — and `--dry-run`, `test-cli` and `test-full` never execute a
+`script:` body. Fixed in `83e1ac1`, closed mechanically by a test that parses
+every Snakefile's `script:` paths plus the variable-resolved `REGION.script`.
+
+**The drift guard detected but never fired.** Forced against a perturbed model
+it raises `ModelDriftError` naming the changed file — the logic was right all
+along. But its sentinel persisted, so rule 3.09's input edge was satisfied by a
+verdict about a *different* model. P4 asserted the ordering structurally and that
+test was correct and still passes: **an edge orders A before B; it does not make
+A re-evaluate.** Fixed in `8d992ef` by making the sentinel `temp()`, so the
+verdict dies with the invocation that produced it.
+
+*Evidence correction (`26109f5`).* The severity was first argued from a job count
+taken at `-c 1` against a tree built at `-c 3`. P3-3 derives the batch split from
+the core count, so the batch rule instances differ and everything downstream
+replans; those jobs were that artifact, not the effect under test. Re-established
+on a two-rule probe independent of WF3 scheduling, and confirmed end to end at
+matching cores: model perturbed, 3.09 forced, **run stopped at 1 of 34 steps**
+with no member simulated.
+
+### P4's artifacts, executing for the first time
+
+`config/model_reference.yml`, `config/experiment.yml` and `.model_reference_ok`
+all present. The digest is exactly what the design predicted — 6 inputs, 3
+hashed, 3 `<absent>` because `dir_output` is deliberately not applied:
+
+| Path | State |
+| --- | --- |
+| `wflow_sbm.toml`, `staticmaps.nc`, `forcing/inmaps_historical.nc` | hashed |
+| `instate/instates.nc`, `output.csv`, `outstate/outstates.nc` | `<absent>` |
+
+### The tree is the design tree
+
+Six roots and nothing else — `benchmarks/ config/ data/ experiments/ logs/
+models/` — and the experiment carries exactly `benchmarks/ climate/ config/
+hydrology/ logs/ results/`. **No pre-R9 orphans**, because a fresh
+`project_dir` cannot inherit any.
+
+### Whole-tree diff — 0 numeric, 0 structure
+
+`semantic_tree_diff --no-path-map`, fresh run vs `test_case/test_local`:
+**156 files compared, 5 failed, 173 missing, 20 extra.**
+
+All five failures are **attribute-only**, in classes declared before the run:
+
+| Failure | Class |
+| --- | --- |
+| `extract_historical.nc` | one attr differs — `region_source`, which records the region file's path. Two `project_dir`s, two paths. Provenance, not value |
+| 3 × `cmip6/raw/*.nc` | **P2's F4** — `variable_id` (`pr` vs `tas`), `tracking_id`, `status`. Two fetches of one slice take global attrs from different members of the merge. Values, coords and dims all match |
+| `cmip6/summary/provenance.json` | sha256 — it embeds the F4 attrs above. Same root cause |
+
+**The MISSING set is the orphan inventory, exactly as the plan predicted** — a
+nuisance turned into the deliverable. 173 = ~156 pre-R9 orphans in the reference
+tree + 17 digest-named config bundles that appear as MISSING/EXTRA pairs because
+the snapshot digest includes `project_dir`.
+
+| Orphan subtree | Files |
+| --- | ---: |
+| `hydrology_model/**` | 43 |
+| `climate_projections/cmip6/**` | 32 |
+| `experiments/experiment/weather_generator/**` | 25 |
+| `experiments/experiment/hydrology_runs/**` | 24 |
+| `climate_historical/era5_20000101_20201231/**` | 12 |
+| `spatial/**` | 10 |
+| `experiments/experiment/indicators/**` | 8 |
+| `data_catalog_climate_experiment.yml`, `config/generated/` | 2 |
+
+Every one is a subtree P2 migrated away from, still present in `test_local`
+because Snakemake writes the new path and never deletes the old. This is P1's F5
+made concrete: no comparator can find these from one tree alone, and two trees of
+the same era enumerate them for free.
+
+The 20 EXTRA are the digest-named bundles' other halves plus P4's two new config
+files — nothing unaccounted for.
+
+### `check_baseline check` — green
+
+**8 targets match the manifest**, no re-record. Gate 2 stays closed at P3, as the
+master brief requires. It ran against `test_case/test_local`, which the fresh run
+never touched, so it is a *"nothing drifted on disk"* tripwire rather than a
+verdict on the new run — the 156-file semantic diff above is the value gate.
+
+### One correction to the plan itself
+
+The plan told the operator to re-run `--check-map` on the fresh tree and expect
+zero unmapped. **That is the wrong direction and it reports 163 unmapped.** The
+map translates *old → new*; a tree that is already new has no old paths to
+translate. P1's falsifier ran it against the pre-migration inventory, which is
+the only direction in which it means anything. Step 0's `git checkout` and step
+1's `--configfile` flag were wrong too (see the plan's own corrections).
 
 ---
 
