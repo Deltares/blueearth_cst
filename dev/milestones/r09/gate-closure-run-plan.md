@@ -1,7 +1,11 @@
 Task Brief — R9 gate closure: the run the landing gate is waiting on
 
-Closes the four outstanding items in [`landing-gate.md`](landing-gate.md). One
-run covers three of them; the fourth is independent and cheap.
+Closes the outstanding items in [`landing-gate.md`](landing-gate.md).
+
+**Step 4 is DONE — the shared-store falsifier passed on 2026-08-05**, results in
+`landing-gate.md` § *Gate closure*. It is kept below unchanged, because the
+assertions and the reasoning behind the discriminator are what a re-run would
+need. **Three items remain, and one run covers all three: steps 1, 2 and 3.**
 
 **Owner action, primary checkout.** `AGENTS.md` reserves pipeline runs for the
 one checkout: Snakemake keeps "what is up to date" in `.snakemake/` under the
@@ -160,7 +164,7 @@ which is a worse outcome than a red and must be reported as such.
 `git checkout -- blueearth_cst/experiment/downscale_climate_forcing.py` after,
 and confirm the module is clean before anything else runs.
 
-### Step 4 — the shared-store falsifier (item 9)
+### Step 4 — the shared-store falsifier (item 9) — DONE 2026-08-05, PASSED
 
 Never run, in any phase. Cheapest of the four and needs no execution — a dry-run
 job count answers it.

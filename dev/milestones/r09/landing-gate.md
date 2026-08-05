@@ -5,9 +5,10 @@ Gate defined in [`project-tree-task-brief.md`](project-tree-task-brief.md) §Gat
 item 3: *"PAUSE before merging. Present all five phase reports, three workflow
 dry-runs, a full three-workflow run, and the falsifier results named below."*
 
-**Recommendation: do not close this gate yet.** Five of nine items are
-satisfied. Four are not, and one of them — the full three-workflow run — is
-outstanding for a reason that only surfaced while preparing this presentation.
+**Recommendation: do not close this gate yet.** **Six of nine items are
+satisfied** — item 9 was run and passed on 2026-08-05, after this presentation
+was first written. Three remain, and one of them — the full three-workflow run —
+is outstanding for a reason that only surfaced while preparing this document.
 
 ---
 
@@ -49,12 +50,86 @@ outstanding for a reason that only surfaced while preparing this presentation.
 | 6 | **Full three-workflow run on the seed config** | **OUTSTANDING — predates P4** |
 | 7 | **`semantic_tree_diff` whole-tree, clean modulo allowlist** | **OUTSTANDING — the fixture tree is mixed-era** |
 | 8 | **Falsifier: no member's Wflow log is overwritten** | **HALF DONE** — passes; never shown to fail |
-| 9 | **Falsifier: sharing a dataset+window does not re-run shared work** | **NOT RUN — appears in no phase report** |
+| 9 | Falsifier: sharing a dataset+window does not re-run shared work | **SATISFIED 2026-08-05** — see *Gate closure* below |
 | — | `check_baseline check` | green at P3; **not re-verified since**, and P4/P5 touch no pinned artifact |
+
+**Six of nine satisfied. Three outstanding**, all requiring the fresh run in
+[`gate-closure-run-plan.md`](gate-closure-run-plan.md).
 
 ---
 
-## The four outstanding items
+## Gate closure — item 9, the shared-store falsifier
+
+**Run 2026-08-05, primary checkout detached at `2b264d8`, against
+`test_case/test_local`. PASSES.** Restored to `main` afterwards; the fixture tree
+is unmodified (dry-run only — `experiments/` still holds `experiment` alone).
+
+*"Sharing a dataset and window does not re-run shared work per experiment."*
+Two configs identical in every store-determining section — `shared.clim_historical`,
+`shared.historical_window`, `shared.basin`, `project.project_dir`,
+`project.data_sources` — differing **only** in `experiment_name`
+(`experiment` vs `shared_store_probe_b`, the latter never run).
+
+### The three assertions
+
+**1. The second experiment schedules zero store jobs.** Config B plans **51
+jobs** — it is a fresh experiment, so every experiment-scoped rule runs — and
+`extract_climate_grid` is **not among them**.
+
+**2. The store rule's resolved spec is byte-identical across both configs.**
+Compared field by field via `snake_utils.climate_store_spec`:
+
+| Field | Value (identical for A and B) |
+| --- | --- |
+| `store_dir` | `…/data/climate/historical/era5_20000101_20201231` |
+| `outputs.climate_nc` | `…/era5_20000101_20201231/extract_historical.nc` |
+| `inputs.region_geojson` | `…/data/spatial/geoms/region.geojson` |
+| `inputs.catalog` | `config/catalogs/deltares_data.yml` |
+| `params` | region, source, window, hydrography, basin index — all equal |
+| `script` | `blueearth_cst/climate_analysis/extract_historical_climate.py` |
+
+**3. The discriminator — the rule is SATISFIED, not ABSENT.** A zero job count
+alone is also what you get when the rule never entered the second DAG, which
+would be a DAG defect wearing the costume of a pass. Targeting the store file
+explicitly under config B:
+
+```
+snakemake -s Snakefile_climate_experiment --configfile <exp_b.yml> --dry-run \
+    test_case/test_local/data/climate/historical/era5_20000101_20201231/extract_historical.nc
+
+Nothing to be done (all requested files are present and up to date).
+```
+
+The rule is in B's DAG, resolves to the same output, and is up to date. That is
+reuse.
+
+### Two things the run showed that the falsifier did not ask for
+
+- **The sharing extends past the store to the region.** `delineate_region` is
+  also absent from B's DAG. `extract_climate_grid`'s own input is
+  `data/spatial/geoms/region.geojson` — the single shared region artifact of ADR
+  0003 — so the reuse is two artifacts deep, not one. This is the same file
+  whose existence P1's F1a and P5's F5 were both about.
+- **51 vs 37 jobs is the design, read correctly.** Config A plans fewer jobs
+  than the never-run B because A is a completed experiment being partially
+  re-triggered. The interesting number is not the totals but *which* rules B
+  skips: only the project-scoped shared ones. Everything experiment-scoped runs,
+  which is what makes two experiments independent while their inputs stay shared.
+
+### Why this was run from the primary checkout
+
+The measurement **is** a Snakemake job count, and `AGENTS.md` records that one
+`project_dir` driven from two checkouts plans differently — 12 jobs from one, 2
+from the other, measured 2026-08-02 — because the "what is up to date" metadata
+lives in `.snakemake/` under the *working directory*. Taking this count from a
+task worktree would have been convenient and unsound.
+
+The milestone branch is checked out in a worktree, so the primary was detached at
+its tip rather than switched to it.
+
+---
+
+## The three outstanding items
 
 ### 6. The full three-workflow run predates P4
 
@@ -118,19 +193,30 @@ that is demonstrated, the test is consistent with a workflow that would pass it
 either way. P1's observed tier is partial evidence — six members sharing one
 `log.txt` — but partial is the accurate word.
 
-### 9. The shared-store falsifier was never run
+### 9. The shared-store falsifier — CLOSED 2026-08-05
 
-*"Sharing a dataset and window does not re-run shared work per experiment."* The
-master brief names it; **no phase report mentions it.** Not deferred, not
-triaged — it fell between five phases, each of which had its own named scope, and
-none of which owned it.
+Results in *Gate closure* above. Kept here because **how it went missing** is
+worth more than the fact that it passed.
 
-It needs two experiments sharing `clim_historical` + `historical_window`, with
-the assertion that the shared store rule's input set is byte-identical for each
-and that the second schedules **zero** store jobs. That is a `--dry-run` job-count
-check plus an input comparison, so it is the cheapest of the four items — and it
-guards the reason the store key exists at all (design tree §`data/climate/historical/`:
-a cache key, not multi-window support).
+The master brief named it; **no phase report mentioned it.** Not deferred, not
+triaged — it fell between five phases, each of which had its own named scope and
+none of which owned it. It was also the cheapest of the four items: a dry-run job
+count plus an input comparison, about fifteen minutes end to end.
+
+The lesson generalises past this milestone: **a cross-cutting check listed only
+in the master brief belongs to nobody.** Every phase brief carried its own
+falsifier and every phase ran it. The two whole-program falsifiers sat one level
+up, and one of them was simply never picked up — not by the phase that made the
+store shared, nor by any phase after. Item 8's missing half went the same way for
+the same reason: P2 ran the half its own brief named and left the half the master
+brief named.
+
+Worth fixing structurally in R10: assign each cross-cutting check to a *named
+phase*, or the landing gate is the first moment anyone notices.
+
+It guards the reason the store key exists at all — design tree
+`data/climate/historical/<key>/` keeps the key as a **cache key**, not as
+multi-window support.
 
 ---
 

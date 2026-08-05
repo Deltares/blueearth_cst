@@ -95,9 +95,10 @@ they are not to be run in parallel worktrees.
    workflow dry-runs, a full three-workflow run, and the falsifier results named
    below.
    **Presented 2026-08-05 — [`landing-gate.md`](landing-gate.md). NOT closed:**
-   five of nine items satisfied; the full three-workflow run predates P4, the
-   fixture tree is mixed-era, the concurrency falsifier has never been shown to
-   FAIL, and the shared-store falsifier was never run at all. Closing steps:
+   six of nine items satisfied. The shared-store falsifier was run the same day
+   and **passes**; still outstanding are the full three-workflow run (it predates
+   P4), the whole-tree diff (the fixture tree is mixed-era), and the concurrency
+   falsifier's failing half. Closing steps:
    [`gate-closure-run-plan.md`](gate-closure-run-plan.md). All five phases are
    merged to `milestone/r09-project-tree`; that branch is **not** merged onward.
 
@@ -151,7 +152,7 @@ default deselect wires to the `slow` marker or to the
 change what `pytest tests/` means, which is a contract. R9 **uses** the existing
 `pixi` tasks and leaves the default alone.
 
-&
+### Phase brief index
 
 - P1 — Comparator and tooling — [`phase-1-comparator-task-brief.md`](phase-1-comparator-task-brief.md) — **COMPLETE 2026-08-04; Gate 1 CLOSED; merged to `milestone/r09-project-tree`.** Report: [`phase-1-report.md`](phase-1-report.md). Both tiers zero-unmapped (declared 176, observed 192). Eight findings; F1a–F1c amended the map, F2 closed negatively, F7 fixed a stranded `LOG_RULES` entry, F8 retired a map row
 - P2 — Tree migration — [`phase-2-tree-migration-task-brief.md`](phase-2-tree-migration-task-brief.md) — **COMPLETE 2026-08-04; merged.** Report: [`phase-2-report.md`](phase-2-report.md). Four rows landed plus four unplanned fixes; whole-tree gate zero numeric and zero structure failures; concurrency falsifier green. `check_baseline` red from P2 commit 1 until P3 re-records
