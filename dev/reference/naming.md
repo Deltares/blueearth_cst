@@ -152,6 +152,12 @@ note listing the old → new mapping:
 Tier-1 identifiers (§6) are not renameable at all, so they are omitted
 here.
 
+**R9's record is `dev/milestones/r09/migration_project-tree.md`**, and its §7
+scope is exactly two files: `Qstats.csv` → `q_indicators.csv` and `basin.csv` →
+`basin_indicators.csv`. Everything else R9 moved is a directory relocation or a
+non-`rule all` artifact, and `series/` → `output/` is a directory rename, so §7
+does not extend to them. Stated so the scope is not re-derived.
+
 **Two artifact classes, distinguished (R07).** The rename note above and a
 user-facing migration guide are different documents with different audiences,
 and conflating them is what made `MIGRATION.md`'s home ambiguous:
@@ -170,10 +176,16 @@ migrate, and it publishes no guide.
 for `dev/` markdown.** The form is fixed by this section; §8 does not apply to
 it. (Stated because two consecutive milestones hit the ambiguity.)
 
-**Scientific abbreviations in user-facing output filenames are allowed**
-even though they break the acronym-lowercase rule: `Qstats.csv`, `Tlow`,
-`Tpeak`, return-period `T2` / `T10`, `BFI`. These are established domain
-vocabulary; keep them.
+**Scientific abbreviations are allowed in config keys and column/row labels**
+even though they break the acronym-lowercase rule: `Tlow`, `Tpeak`,
+return-period `T2` / `T10`, `BFI`. These are established domain vocabulary;
+keep them.
+
+**Narrowed at R9 (was: "in user-facing output filenames").** The carve-out
+existed for `Qstats.csv`, and R9 renamed it to `q_indicators.csv` — after which
+no *filename* relied on it. The exemption is not repealed, because the labels
+inside those tables still need it; it is scoped to where it is actually load-
+bearing. §8's generated-outputs rule now governs the filenames.
 
 ## 8. File naming by class
 
@@ -187,16 +199,39 @@ unify them.
 | Markdown planning docs under `dev/`    | kebab-case                        | `naming-conventions-design.md`                       |
 | Standard root-level files              | upstream                          | `CLAUDE.md`, `README.rst`, `Dockerfile`, `LICENSE`   |
 | Config / data / catalog YAML           | tool contract                     | `snake_config_model_test.yml`, `deltares_data.yml`   |
-| Generated outputs under `project_dir/` | owning workflow contract (R01)    | varies                                               |
+| Generated outputs under `project_dir/` | lowercase `snake_case`, two exemptions (below) | `q_indicators.csv`, `basin_indicators.csv`, `model_reference.yml`, `inmaps_rlz_1_cst_2.nc` |
 
 Don't rename existing `dev/` docs.
+
+### Generated outputs under `project_dir/` (R9)
+
+Locally minted file and directory names are lowercase `snake_case`: no hyphens,
+no capitals, no spaces. This replaces "owning workflow contract — varies", which
+was not a rule and let each workflow answer differently.
+
+Two exemptions, both narrow, both stated so a reader does not "correct" them:
+
+1. **Upstream-owned names pass through verbatim.** Engine-mandated filenames
+   (`wflow_sbm.toml`, `staticmaps.nc`, `instates.nc`, `hydromt_data.yml`) and
+   upstream identifiers embedded in a path — CMIP model IDs such as
+   `NOAA-GFDL/GFDL-ESM4`, which carry hyphens, slashes and mixed case — are
+   never normalized. These are §6 tier-1 identifiers.
+2. **Config keys and data labels are out of reach.** The rule governs filenames
+   and directory names only. Column and row labels (`Tlow`, `Tpeak`, `BFI`) and
+   config keys keep their domain spelling — see §7's narrowed carve-out.
+
+**The rule is CLASS-SCOPED and must not be generalised.** It governs generated
+output names under `project_dir/` and nothing else: `dev/` markdown stays
+kebab-case (the row above), Python modules stay `snake_case` because they must
+be importable, and root-level files keep their upstream names. Reading this as a
+repo-wide sweep would rename documents this guide explicitly protects.
 
 ## 9. Rule numbering (`W.NN` reference scheme)
 
 Each rule in the three `Snakefile_*` entry points carries a `W.NN`
 reference number — `W` = workflow (`1` model_creation, `2`
-climate_projections, `3` climate_experiment), `NN` = zero-padded step in
-**definition order** within that Snakefile. It exists in exactly two
+climate_projections, `3` climate_experiment), `NN` = a zero-padded
+**stable identifier assigned when the rule is created** — NOT a position. It exists in exactly two
 places, both cheap:
 
 - **A comment header above each rule** —
@@ -222,11 +257,26 @@ Rules:
   `rlz_num × st_num`. Each Snakefile states this in a header comment.
 - **Reference in prose/commits as "Rule 1.3"** (drop the pad); the padded
   `1.03` form is for the sortable filenames.
-- **Inserting a rule** renumbers the contiguous comments and log/benchmark
-  prefixes below it — a mechanical sweep. Log/benchmark paths are ephemeral
-  and untracked (not a §7 migration-note contract), so renumbering them is
-  safe. Use contiguous numbers, not gaps; "Rule 1.5" decimals are review
-  shorthand for *talking about* an insert, never a permanent identifier.
+- **Inserting a rule takes the next free number, or a letter suffix; it does
+  NOT renumber anything below.** Corrected at R9, because the previous wording
+  ("renumbers the contiguous comments below it… use contiguous numbers, not
+  gaps") described a practice the code has never followed:
+
+  | Claim | Reality |
+  | --- | --- |
+  | contiguous, no gaps | gaps at **1.14**, **2.05**, **3.12** |
+  | definition order | WF2 defines `2.03b`, `2.03`, `2.01`, `2.02` — out of numeric order |
+  | renumber on insert | R9 P4 inserted `3.01c`, `3.01d`, `3.01e` and renumbered nothing |
+
+  A letter suffix (`1.01b`, `3.00b`) is the established way to insert between
+  two numbers, and it is preferable to renumbering: the number appears in
+  `LOG_RULES`, in log and benchmark paths, and in prose across `dev/`, so a
+  sweep is a wide edit with a silent failure mode — an unlisted `LOG_RULES`
+  label drops its log section without erroring, which happened three times in
+  R9 alone. Gaps are the cost of that safety and are expected.
+
+- "Rule 1.5" decimals remain review shorthand for *talking about* an insert,
+  never a permanent identifier.
 
 ## 10. Examples
 

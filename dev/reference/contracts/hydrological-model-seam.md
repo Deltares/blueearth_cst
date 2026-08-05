@@ -50,7 +50,7 @@ Rendered one subsection per artifact.
 
 ## HM-1 — static grid (staticmaps.nc)
 
-- **path pattern:** `hydrology_model/staticmaps.nc`.
+- **path pattern:** `models/hydrology/wflow/staticmaps.nc`.
 - **producer:** rule 1.03 `create_model` (hydromt build).
 - **consumers:** wf1 rules 1.04 / 1.05 / 1.10 / 1.11; wf3 rule 3.09
   (`WflowSbmModel(root)`).
@@ -71,8 +71,8 @@ Rendered one subsection per artifact.
 
 ## HM-2 — Wflow forcing (inmaps)
 
-- **path pattern:** `hydrology_model/forcing/inmaps_historical.nc` (wf1
-  forcing); wf3 twin `<exp>/hydrology_runs/rlz_<n>/forcing/inmaps_cst_<m>.nc`
+- **path pattern:** `models/hydrology/wflow/forcing/inmaps_historical.nc` (wf1
+  forcing); wf3 twin `<exp>/hydrology/wflow/rlz_<n>/forcing/inmaps_cst_<m>.nc`
   (= WG-6 on the weather-generator seam). R07 B5 files the wf3 twin on the
   HYDROLOGY side because it is model-grid forcing, symmetric with the wf1
   path above.
@@ -107,7 +107,7 @@ Rendered one subsection per artifact.
 
 ## HM-3 — static vector geometries (staticgeoms)
 
-- **path pattern:** `hydrology_model/staticgeoms/*` (`region.geojson`,
+- **path pattern:** `models/hydrology/wflow/staticgeoms/*` (`region.geojson`,
   `basins.geojson`, `outlets.geojson`, `rivers.geojson`, `outlet_index.csv`, …).
 - **producer:** rule 1.03 side-effect + rules 1.05 / 1.06.
 - **consumers:** wf1 plot rules; wf3 rule 3.02 (`region.geojson` via
@@ -124,8 +124,8 @@ Rendered one subsection per artifact.
 
 ## HM-4 — run configuration (wflow_sbm.toml)
 
-- **path pattern:** `hydrology_model/wflow_sbm.toml` (base) and per-cst
-  `<exp>/hydrology_runs/rlz_<n>/config/cst_<m>.toml`. R07 B5 moved the run
+- **path pattern:** `models/hydrology/wflow/wflow_sbm.toml` (base) and per-cst
+  `<exp>/hydrology/wflow/rlz_<n>/config/cst_<m>.toml`. R07 B5 moved the run
   TOMLs one level deeper, so every pointer escaping the experiment gains one
   `../`; `input.path_forcing` becomes the sibling hop `../forcing/…`, and
   `[state].path_output` / `[output.csv].path` become `../output/…`. hydromt
@@ -167,8 +167,8 @@ Rendered one subsection per artifact.
 
 ## HM-5 — per-run discharge CSV (output.csv)
 
-- **path pattern:** wf1 `hydrology_model/run_default/output.csv`; wf3
-  `<exp>/hydrology_runs/rlz_<n>/output/cst_<m>.csv` (R07 B5: the realization
+- **path pattern:** wf1 `models/hydrology/wflow/run_default/output.csv`; wf3
+  `<exp>/hydrology/wflow/rlz_<n>/output/cst_<m>.csv` (R07 B5: the realization
   index moved from the file name into the run directory).
 - **producer:** rule 1.09 / rule 3.10 `run_wflow`.
 - **consumers:** wf1 rule 1.11 plots; wf3 rule 3.11 `export_wflow_results`.
@@ -176,7 +176,7 @@ Rendered one subsection per artifact.
   `time` index (ISO-8601, daily) + **one column per `[output.csv].column`
   entry**, named `<header>_<mapid>`. Fixture: `time,Q_130000086` (one gauge).
 - **the single degree of freedom:** the gauge-column set flows **TOML
-  `[output.csv].column` → `output_rlz` → Qstats** as one degree of freedom — the
+  `[output.csv].column` → `output_rlz` → q_indicators** as one degree of freedom — the
   key bounded-substitution invariant, checked end-to-end by
   `validate_hm_gauge_column_identity` (below).
 - **consumer-prefix reliance (grounded, `export_wflow_results.py:61-62`):** rule
@@ -193,7 +193,7 @@ Rendered one subsection per artifact.
 
 ## HM-6a — wf1 warm state (persisted, no validator)
 
-- **path pattern:** `hydrology_model/run_default/outstate/outstates.nc`.
+- **path pattern:** `models/hydrology/wflow/run_default/outstate/outstates.nc`.
 - **producer → consumer:** rule 1.09 `run_wflow` → **(nothing in-repo)**.
 - **THIN — "named output sink, unconsumed."** Persisted on the fixture.
 - **contract surface:** name + location only — which **HM-4 already pins** via
@@ -211,7 +211,7 @@ Rendered one subsection per artifact.
 
 ## HM-6b — wf3 warm state (temp, skip-until-captured)
 
-- **path pattern:** `<exp>/hydrology_runs/rlz_<n>/output/outstates_cst_<m>.nc`.
+- **path pattern:** `<exp>/hydrology/wflow/rlz_<n>/output/outstates_cst_<m>.nc`.
 - **producer → consumer:** rule 3.10 `run_wflow` → **(nothing in-repo)**.
 - **THIN — "named output sink, unconsumed" (corrects the intake's chaining
   hint).** Verified: the per-cst TOML keeps `cold_start__flag = true` and
@@ -233,14 +233,14 @@ Rendered one subsection per artifact.
   content absent by default); logic proven every suite by a synthetic pass/fail
   pair. See the `--notemp` capture procedure below.
 
-## HM-7 — response-surface reduction (Qstats / basin)
+## HM-7 — response-surface reduction (q_indicators / basin_indicators)
 
-- **path pattern:** `<exp>/indicators/Qstats.csv`, `<exp>/indicators/basin.csv`
+- **path pattern:** `<exp>/results/q_indicators.csv`, `<exp>/results/basin_indicators.csv`
   (R07 B7: `indicators/` is the CST term; `outputs/` was rejected because
-  `hydrology_runs/` also holds outputs).
+  `hydrology/wflow/` also holds outputs).
 - **producer:** rule 3.11 `export_wflow_results`.
 - **consumer:** CST-API / GUI (terminal in-repo).
-- **pinned surface:** `Qstats.csv` header `statistic,tavg,prcp,<gauge-cols>`
+- **pinned surface:** `q_indicators.csv` header `statistic,tavg,prcp,<gauge-cols>`
   where `<gauge-cols>` = HM-5's `<header>_<mapid>` set (fixture `Q_130000086`),
   ordered per `export_wflow_results.py:66-67`; rows keyed by `statistic` × the
   `(tavg, prcp)` perturbation grid. `basin.csv` header `tavg,prcp` (the
@@ -271,7 +271,7 @@ prefix filter** (`Q_vars = [x for x in sim.columns if x.startswith("Q_")]`, line
 123 / 136). So:
 
 - a **renamed gauge header in the first csv** empties `Q_vars` → a **silently
-  gauge-less Qstats**;
+  gauge-less q_indicators**;
 - a **mismatch in a later csv** `KeyError`s deep in the reduction.
 
 Exactly the failure no per-artifact validator can see.
@@ -296,9 +296,9 @@ reliance; the fixture TOML declares no `basavg` column, so that branch is
 **documented, not fixture-verified**.
 
 **Fixture wiring.** All inputs persist (12 per-cst TOMLs, 12 `output_rlz_*` CSVs,
-`Qstats.csv` — rlz {1,2} × cst {0..6}), so this relational check is in the
+`q_indicators.csv` — rlz {1,2} × cst {0..6}), so this relational check is in the
 **continuously-verified** class. The test parametrizes over all 12 fixture
-`(toml, output_rlz)` pairs against the one `Qstats.csv`.
+`(toml, output_rlz)` pairs against the one `q_indicators.csv`.
 
 ---
 
@@ -309,7 +309,7 @@ The intake's seam inventory hinted at "per-cst run chaining" via
 base `wflow_sbm.toml`) shows `cold_start__flag = true` in **both**, rule 3.10
 declares only a `forcing_path` + `toml_path` input (no `instates`), and the
 `path_input` the rewrite sets (`downscale_climate_forcing.py:79`) points at a
-**non-existent** `hydrology_model/instate/instates.nc` that cold-start never
+**non-existent** `models/hydrology/wflow/instate/instates.nc` that cold-start never
 reads. So HM-6a / HM-6b are contracted as an **unconsumed named sink**, not a
 chaining invariant (a chaining contract would be fiction).
 
@@ -360,15 +360,15 @@ executes on **every** checkout, fixture or not. HM-2 unit attrs are asserted
 
 | validator | artifact(s) | fixture path (era5) | continuously verified? |
 |---|---|---|---|
-| `validate_hm1` | HM-1 | `hydrology_model/staticmaps.nc` | **yes** (persists) |
-| `validate_hm2` | HM-2 (+ WG-6 twin) | `hydrology_model/forcing/inmaps_historical.nc`; wf3 twin `<exp>/hydrology_runs/rlz_<n>/forcing/inmaps_cst_<m>.nc` | **yes** for wf1 `inmaps_historical.nc`; wf3 twin (WG-6) `temp()` → skip-until-captured |
-| `validate_hm3` | HM-3 | `hydrology_model/staticgeoms/{region.geojson, outlets.geojson, outlet_index.csv}` | **yes** (persists) |
-| `validate_hm4` | HM-4 | `hydrology_model/wflow_sbm.toml`; `<exp>/hydrology_runs/rlz_<n>/config/cst_<m>.toml` | **yes** (both base + per-cst TOMLs persist) |
-| `validate_hm5` | HM-5 | wf1 `run_default/output.csv`; wf3 `<exp>/hydrology_runs/rlz_<n>/output/cst_<m>.csv` | **yes** (both persist; the wf3 per-cst CSVs are NOT `temp()`) |
-| `validate_hm_gauge_column_identity` (relational) | HM-4 → HM-5 → HM-7 gauge-column identity | per-cst TOMLs + the per-cst run CSVs + `Qstats.csv` | **yes** (all inputs persist) |
-| *(HM-6a)* | HM-6a | `hydrology_model/run_default/outstate/outstates.nc` | **no validator** — existence pinned transitively via HM-4's `[state].path_output` |
-| `validate_hm6b` | HM-6b | `<exp>/hydrology_runs/rlz_<n>/output/outstates_cst_<m>.nc` | **no** — `temp()` content absent; skip-until-captured on disk, synthetic-proven every suite |
-| `validate_hm7` | HM-7 | `<exp>/indicators/{Qstats.csv, basin.csv}` | **yes** (persists; `rule all`, manifested) |
+| `validate_hm1` | HM-1 | `models/hydrology/wflow/staticmaps.nc` | **yes** (persists) |
+| `validate_hm2` | HM-2 (+ WG-6 twin) | `models/hydrology/wflow/forcing/inmaps_historical.nc`; wf3 twin `<exp>/hydrology/wflow/rlz_<n>/forcing/inmaps_cst_<m>.nc` | **yes** for wf1 `inmaps_historical.nc`; wf3 twin (WG-6) `temp()` → skip-until-captured |
+| `validate_hm3` | HM-3 | `models/hydrology/wflow/staticgeoms/{region.geojson, outlets.geojson, outlet_index.csv}` | **yes** (persists) |
+| `validate_hm4` | HM-4 | `models/hydrology/wflow/wflow_sbm.toml`; `<exp>/hydrology/wflow/rlz_<n>/config/cst_<m>.toml` | **yes** (both base + per-cst TOMLs persist) |
+| `validate_hm5` | HM-5 | wf1 `run_default/output.csv`; wf3 `<exp>/hydrology/wflow/rlz_<n>/output/cst_<m>.csv` | **yes** (both persist; the wf3 per-cst CSVs are NOT `temp()`) |
+| `validate_hm_gauge_column_identity` (relational) | HM-4 → HM-5 → HM-7 gauge-column identity | per-cst TOMLs + the per-cst run CSVs + `q_indicators.csv` | **yes** (all inputs persist) |
+| *(HM-6a)* | HM-6a | `models/hydrology/wflow/run_default/outstate/outstates.nc` | **no validator** — existence pinned transitively via HM-4's `[state].path_output` |
+| `validate_hm6b` | HM-6b | `<exp>/hydrology/wflow/rlz_<n>/output/outstates_cst_<m>.nc` | **no** — `temp()` content absent; skip-until-captured on disk, synthetic-proven every suite |
+| `validate_hm7` | HM-7 | `<exp>/indicators/{q_indicators.csv, basin.csv}` | **yes** (persists; `rule all`, manifested) |
 
 ### `--notemp` capture procedure (temp() on-disk validators)
 
@@ -387,7 +387,7 @@ a contracts-only milestone. The procedure below is the one-command lift a
 **future run** performs when full on-disk coverage is wanted (design OQ-4).
 
 **Capture sketch** (run from the repo root inside `pixi shell`, after the wf1
-model exists — wf3 needs `hydrology_model/` artifacts):
+model exists — wf3 needs `models/hydrology/wflow/` artifacts):
 
 ```bash
 snakemake all -c 3 -s Snakefile_climate_experiment \
@@ -402,7 +402,7 @@ tests for):
 
 | validator | artifact captured | fixture path (`<exp>` = `experiments/experiment`) |
 |---|---|---|
-| `validate_hm6b` | HM-6b wf3 warm state NC | `<exp>/hydrology_runs/rlz_<n>/output/outstates_cst_<m>.nc` |
+| `validate_hm6b` | HM-6b wf3 warm state NC | `<exp>/hydrology/wflow/rlz_<n>/output/outstates_cst_<m>.nc` |
 
 (The same run also captures WG-4 `rlz_<n>_cst_<m>.nc` and WG-6
 `inmaps_rlz_<n>_cst_<m>.nc` — documented in the weather-generator seam doc.)
