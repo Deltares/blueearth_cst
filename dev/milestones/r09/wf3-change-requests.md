@@ -621,6 +621,137 @@ neighbourhood anyway.
 
 ---
 
+## CR-6 — configuration surfaces (PROPOSED, not ruled)
+
+Proposal-side: **Part D, C30–C33**, findings **F8–F12**.
+
+### The three surfaces, and why two of them overlap
+
+| file | charter | schema |
+| --- | --- | --- |
+| `config/workflows/snake_config_*.yml` | per-project, the `--configfile` target | per-workflow `get_config` |
+| `config/advanced_settings.yml` | *"toolbox-wide knobs a normal project never touches"* | **CLOSED** — `snake_utils._ADVANCED_SETTINGS_SCHEMA`, unknown key/section rejected at parse time, `tests/test_advanced_settings.py` |
+| `config/templates/weathergen_config.yml` | *"Weather Generator Advanced settings"* | **none** |
+
+Two files, one charter. The mature one does not hold the generator knobs.
+
+### C30 — split by OWNERSHIP, not change frequency
+
+- project config: describes *this* basin/experiment;
+- `advanced_settings.yml`: applies to every project, under `constraints:` /
+  `defaults:` / `runtime:`;
+- `config/templates/`: the SHAPE of a generated artifact — not a settings
+  surface. Using it as one is the root cause.
+
+"Rarely changed" is unfalsifiable. Ownership is decidable.
+
+### C31 — redistribute `config/templates/weathergen_config.yml`
+
+Consumer evidence: `generate_weather.R:39-58` reads 16 keys; `:100` reads
+`nc.file.prefix`. `impose_climate_change.R` reads only `imposeClimateChanges.*`
+plus the two `transient_change` flags.
+
+| key | destination | rationale |
+| --- | --- | --- |
+| `dry.spell.change`, `wet.spell.change` | project config, under `stress_test:` | F8 — perturbation params, passed to `apply_climate_perturbations` beside temp/precip factors |
+| `month.start` | project config, unified with `climate_projections.start_month_hyd_year` | F9 |
+| `seed` | project config (`climate_experiment.seed`) | reproducibility is an experiment property |
+| `general.variables` | project config or derived from the store | must be a subset of what `extract_historical.nc` carries; nothing checks it today |
+| `warm.signif.level`, `warm.sample.num`, `knn.sample.num`, `mc.wet.quantile`, `mc.extreme.quantile` | `advanced_settings.defaults.weathergen.*` | true generator tuning; gains schema validation |
+| `compute.parallel` | `advanced_settings.defaults.weathergen.*` | resource sibling of `julia_threads` |
+| `evaluate.model`, `evaluate.grid.num` | **delete** | F10 — read by nothing |
+| `output.path`, `sim.year.start`, `sim.year.num`, `nc.file.prefix`, `realizations_num` | not settings | already injected per-run by `prepare_weagen_config.py:60-66` |
+
+Rule 3.04 survives — it still assembles the generated `weathergen_config.yml`,
+just from `advanced_settings` + project config instead of a template seed.
+**Disposes of F7** (no template → no undeclared input) and composes cleanly with
+CR-5/C29, which retires the *per-run* config (rule 3.05), a different file.
+
+### C32 — write the RESOLVED toolbox settings into the project under their own name
+
+Not a provenance fix — provenance is already intact. `Snakefile_climate_experiment:392`
+passes `advanced_settings = ADVANCED_SETTINGS` to `copy_config_files.py`, and
+`_write_snapshot_bundle` writes them into `<snapshot_dir>/effective.yml` under an
+`advanced_settings:` key, which also feeds `effective_config_digest` and
+`snapshot_bundle_digest`. Changing the file changes the digest, which changes the
+snapshot directory name.
+
+It is a **findability** fix, and the evidence is the strongest kind: the tool's
+own author looked for these settings in a project folder and concluded they were
+not saved. They are nested under a key, inside a differently-named file, in a
+digest-named directory. Write them as `<exp_dir>/config/advanced_settings.yml`
+beside the existing `snake_config_climate_experiment.yml` snapshot — **resolved
+values, not a copy of the source**, since resolved is what applied.
+
+### C33 — group `advanced_settings.yml` by KIND first, COMPONENT second
+
+    defaults:
+      weathergen: {...}
+      wflow:      {julia_threads: 4}
+
+The three sections encode **override semantics**, which is what the closed schema
+enforces and the first question a reader has. Component-first buries it.
+
+**The case that settles it:** `min_historical_years` *originates* with weathergenr
+(the wavelet decomposition's minimum annual record) but is *enforced* against wf1
+at parse time and against the shared climate-store producer, so it binds wf2 and
+wf3 too. Component-first would file it under `weathergen` and misdescribe where
+it binds. Kind-first keeps it a constraint with its origin in the comment — what
+it does today.
+
+**Category gap this opens.** Generator tuning is neither a hard limit
+(`constraints:`) nor a toolchain pin (`runtime:`), leaving `defaults:` — which
+means "a project config MAY override", so each needs an override key in the
+project schema. **Recommended:** accept that, mirroring `julia_threads` ←
+`shared.julia_threads`; an unused optional override key costs nothing and lets a
+project with a real reason differ without editing the toolbox. **Rejected:** a
+fourth `tuning:` section — it adds a concept to a split documented as "the
+point", and hard-blocks a legitimate per-project need.
+
+### Migration for existing project configs
+
+Additive except one item:
+
+| change | impact on an existing config |
+| --- | --- |
+| `stress_test.dry_spell` / `wet_spell` | **optional**, default `[1.0]*12` — untouched configs produce identical results |
+| `climate_experiment.seed` | **optional**, default `123` |
+| generator tuning → `advanced_settings` | **none** — toolbox file to toolbox file |
+| template deleted | **none** |
+| **hydrological-year start unified** | **BREAKING** — see below |
+
+`climate_projections.start_month_hyd_year: Jan` (wf2, month *name*) and the
+template's `month.start: 1` (wf3, *integer*) become one key in one place —
+`shared:` is the natural home, since it is cross-workflow. A config still
+declaring the old location must be **refused with an explanation** (the
+`variable_spec.parse` precedent, same as Q7/O2); silently ignoring it would change
+results while the file still claims otherwise.
+
+**Verify before merging, do not assume:** wf2 uses it as an *aggregation
+boundary* for hydrological-year statistics; weathergenr uses it as
+`year_start_month`, a *simulation start*. Same concept, but confirm the two
+consumers agree on semantics before collapsing them into one key.
+
+### F11 — the WG-3 contract under-covers
+
+`interchange_contracts._WG3_GWS_KEYS` pins 11 keys; `generate_weather.R` reads 16
+from `generateWeatherSeries`. Missing: `warm.signif.level`, `warm.sample.num`,
+`mc.wet.quantile`, `mc.extreme.quantile`, `compute.parallel`. Drop one from the
+config and `validate_wg3` passes while R hands `NULL` to `generate_weather`. The
+docstring claims the set is "the key set the R side reads". Widen to 16 whenever
+C31 lands, since C31 changes where those keys come from.
+
+### F12 — hardcoded historical anchor
+
+`prepare_weagen_config.compute_nr_years` returns
+`ceil((middle_year + wflow_run_length/2) - 2010 + 2)`, and `:62` writes
+`sim.year.start: 2010`. The docstring calls 2010 "the historical-end anchor".
+Nothing reconciles it with the actual span of `extract_historical.nc`. A project
+whose record ends in 2005, or runs to 2020, gets a wrong anchor silently. Fix is
+to derive it from the store — moves numbers, so it needs its own ruling.
+
+---
+
 ## Open questions
 
 Q1-Q4, Q6 and Q9 are closed in the decision sections above; Q5, Q8 and Q10 in

@@ -44,11 +44,17 @@ the discussion started; further parts are added as topics come up.
 |---|---|
 | | C29 retire the per-run generator configuration file *(proposed, not ruled)* |
 
+### Part D — where settings live
+
+| | |
+|---|---|
+| | C30 split by ownership, not change frequency · C31 redistribute the generator settings · C32 write resolved toolbox settings into the project under their own name · C33 group by kind first, component second |
+
 ### Across the document
 
 | | |
 |---|---|
-| **Findings** | F1 January-only perturbation · F2 overland flow units · F3 seam in the 7-day window · F4 gauge rainfall discarded · F5 run numbers silently change meaning · F6 per-run generator config is empty and misleading · F7 generator template is an undeclared input |
+| **Findings** | F1 January-only perturbation · F2 overland flow units · F3 seam in the 7-day window · F4 gauge rainfall discarded · F5 run numbers silently change meaning · F6 per-run generator config is empty and misleading · F7 generator template is an undeclared input · F8 spell-length perturbations in the wrong file · F9 hydrological year configured twice · F10 two settings read by nothing · F11 contract covers 11 of 16 settings · F12 hardcoded series start year |
 | **Open** | O1 do subbasins overlap · O2 stale configuration switch · ~~O3~~ closed → C28 |
 
 An appendix at the end sketches how a stress test is built today, step by step.
@@ -386,6 +392,112 @@ that already exists, and the whole per-run step disappears.
 
 ---
 
+# Part D — where settings live
+
+## The short version
+
+There are three places a setting can live, and which one it lives in was decided
+by which file existed when the setting was added. The intention was that rarely
+changed tuning would sit apart from project settings, keeping the project file
+light. That intention is sound, but "rarely changed" turned out not to be a rule
+anyone can apply — so parameters ended up on both sides more or less at random,
+including two that are duplicated and two that are read by nothing.
+
+We propose splitting by **who owns the value** instead, which is decidable.
+
+## The three surfaces today
+
+| file | what it is | validated? |
+|---|---|---|
+| `config/workflows/snake_config_*.yml` | the project's own settings, one per project | by each workflow as it reads |
+| `config/advanced_settings.yml` | toolbox-wide settings applying to every project | **yes** — closed schema, unknown keys rejected at load, plus tests |
+| `config/templates/weathergen_config.yml` | headed "Weather Generator Advanced settings" | **no** |
+
+The second and third have the same stated purpose. Only one of them is built for
+it — and it is not the one holding the generator settings.
+
+## The changes
+
+**C30 — Split settings by who owns the value, not by how often they change.**
+
+- **The project file** holds anything describing *this* basin or experiment: what
+  is perturbed, over what period, how many realizations, the random seed.
+- **The toolbox settings file** holds values that apply to *every* project, under
+  its existing three-way split — hard limits, overridable defaults, and external
+  version pins.
+- **The templates folder** holds the *shape* of files the workflow generates. It
+  is not a settings surface, and using it as one is what created this problem.
+
+"Rarely changed" cannot be applied consistently, because every setting is rarely
+changed until someone needs to change it. Ownership can.
+
+**C31 — Redistribute the weather-generator settings accordingly**, after which the
+template no longer exists as a settings file:
+
+| setting | goes to | because |
+|---|---|---|
+| `dry.spell.change`, `wet.spell.change` | project file, with the other perturbations | they *are* perturbations — see F8 |
+| `month.start` | project file, merged with the existing hydrological-year setting | see F9 |
+| `seed` | project file | reproducibility is a property of an experiment |
+| `warm.*`, `knn.*`, `mc.*` | toolbox settings, as overridable defaults | genuine generator tuning |
+| `compute.parallel` | toolbox settings, beside the other parallelism setting | a resource choice, not a science one |
+| `evaluate.model`, `evaluate.grid.num` | deleted | read by nothing — see F10 |
+| `output.path`, `sim.year.*`, `nc.file.*` | nowhere | never settings; the workflow computes them per run |
+
+This also disposes of **F7** at no extra cost: with no template to read, there is
+no undeclared input to declare.
+
+**C32 — Write the resolved toolbox settings into the project under their own
+name.** They are already recorded — embedded inside a larger file, under a key,
+in a directory named after a checksum. That is correct and unfindable: the tool's
+own author looked for them and concluded they were not saved at all. Writing them
+as a plainly named file beside the project-configuration snapshot costs nothing
+and answers "what settings produced this run?" without needing to know where to
+look. The *resolved* values, not a copy of the source file, since resolved is
+what actually applied.
+
+**C33 — Group the toolbox settings by kind first, component second.** The three
+existing sections encode whether a project may override a value, which is the
+first thing a reader needs to know; grouping by component would bury it. But once
+the generator settings arrive the file is mostly generator settings, so grouping
+within each section is worth having:
+
+    defaults:
+      weathergen:  ...
+      wflow:       ...
+
+The case that settles the order: the minimum-historical-record limit *originates*
+with the weather generator — it is what the wavelet analysis needs — but it is
+*enforced* against the model build and against the shared climate store, so it
+binds all three workflows. Filing it under the generator would misdescribe where
+it actually applies. It stays a limit, with its origin explained in its comment.
+
+**One gap this opens.** The generator tuning settings are neither hard limits nor
+version pins, which leaves them as overridable defaults — and that means defining
+a project-level key that can override each one. That is the same arrangement the
+existing thread-count setting already uses, and an override key that nobody uses
+costs nothing. The alternative, a fourth category for "adjustable by a maintainer
+but not by a project", adds a concept to a file whose three-way split is
+deliberate, and blocks a project that has a genuine reason to differ.
+
+## What existing projects have to do
+
+Almost nothing, by design — with one exception.
+
+- **New perturbation and seed settings are optional**, defaulting to today's
+  values, so an untouched project file keeps working and produces identical
+  results.
+- **Generator tuning moves without touching project files at all** — it goes from
+  one toolbox file to another.
+- **The hydrological-year setting is the one breaking change.** It currently
+  exists twice (F9) and has to become one setting in one place. A project file
+  that still declares it in the old location should be **refused with an
+  explanation**, not silently ignored — the same treatment proposed for the
+  retired pooling switch (O2). Silently ignoring it would change results while
+  the file still says otherwise.
+
+---
+
 # Findings, open items and cost
 
 These span the whole document, not just Part A.
@@ -460,9 +572,48 @@ Worth distinguishing from the neighbouring case: the project configuration is
 deliberately held outside the change-detection in these steps, and for a good
 reason — pinning an experiment name rewrites that file, and a naive dependency
 would invalidate the entire pipeline every time someone did so. The template has
-no such reasoning behind it. It is simply not listed. **Not addressed by any
-change here;** the fix is a one-line declaration and belongs with whichever
-change next touches this step.
+no such reasoning behind it. It is simply not listed. **Addressed by C31**, which removes the template
+as a settings surface — with nothing to read, there is nothing to declare. If
+C31 is not taken, the fix is a one-line declaration on step 3.04.
+
+**F8 — Two stress-test dimensions are sitting in the "advanced" file.**
+`dry.spell.change` and `wet.spell.change` are twelve monthly coefficients each,
+adjusting dry- and wet-spell length, and they are handed to the perturbation
+routine alongside the temperature and precipitation factors. They are
+perturbations in every sense — and they are precisely the third and fourth stress
+dimensions Part B was designed to accommodate. Today they are pinned at "no
+change" in a file no project config can reach. **Addressed by C31.**
+
+**F9 — The start of the hydrological year is configured twice, differently.** The
+projections workflow reads it from the project file as a month *name*; the
+weather generator reads it from the template as an *integer*. Same concept, two
+files, two spellings, two encodings, and no link between them — set one and the
+other does not follow. **Addressed by C31**, with a caveat: the two consumers use
+it differently (one as an aggregation boundary, one as a simulation start), so
+merging them should be checked against both before it is done, not assumed.
+
+**F10 — Two generator settings are read by nothing.** `evaluate.model` and
+`evaluate.grid.num` appear in the template with explanatory comments and are
+touched by neither R script. They describe a capability the pipeline does not
+use. **Addressed by C31.**
+
+**F11 — The contract check for the generator configuration covers eleven of the
+sixteen settings the generator actually reads.** Five are unchecked:
+`warm.signif.level`, `warm.sample.num`, `mc.wet.quantile`, `mc.extreme.quantile`
+and `compute.parallel`. If one went missing the check would still pass and the R
+would hand an empty value to the generator. The check's own description claims it
+is "the key set the R side reads". **Not addressed by any change here** — it
+should be widened to sixteen whenever C31 lands, since C31 changes where those
+settings come from.
+
+**F12 — The generated-series start year is hardcoded.** The length of the
+synthetic record is computed as reaching from 2010 to the run window, plus a
+two-year pad, with 2010 written into the Python as "the end of the historical
+period". Nothing checks that against the historical record the project actually
+has. A basin whose record ends in 2005, or extends to 2020, gets an anchor that
+is simply wrong, and nothing says so. **Not addressed by any change here** — the
+fix is to derive it from the climate store rather than assume it, which changes
+numbers and so needs its own decision.
 
 ---
 
