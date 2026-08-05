@@ -34,8 +34,8 @@ Seven fixed columns, independent of gauge count:
 
 | Column | Domain |
 | --- | --- |
-| `variable` | `q` (only value today — see open Q3) |
-| `metric` | the statistic (vocabulary under open Q4) |
+| `variable` | short token — `q`, `et`, `recharge`, `overland_flow`, `snow` |
+| `metric` | **composite** `<variable>_<statistic>` — e.g. `q_mean_annual_7day_min` |
 | `temp_change` | perturbation axis, absolute degC |
 | `precip_change` | perturbation axis, relative % |
 | `realization_id` | **integer**; `1..RLZ_NUM`, or `0` = pooled over all realizations |
@@ -202,13 +202,82 @@ With bare-id locations those two are distinguished naturally by `variable` ∈
 second column set. Whether to stop dropping `P_` is a separate call; leave it
 dropped for now, and note that the schema no longer blocks it.
 
+### Decision — `metric` is a composite, `<variable>_<statistic>` (was Q4, Q9)
+
+Ruled 2026-08-05, **against the recommendation on this page**, deliberately and
+with the reason recorded: a self-contained CSV, with the variable already merged
+into the metric name, is handier for plotting and for sharing a result file
+outside the project tree.
+
+The redundancy is real and accepted — any two of {variable, statistic,
+composite} determine the third, so `metric: q_mean_annual_7day_min` makes
+`variable: q` derivable. The alternative considered and rejected was
+`variable` + a variable-neutral `statistic` (`q` / `mean_annual_7day_min`), which
+is fully normalised and composes the display name at read time.
+
+**Consequence: the validator must assert what normalisation would have given for
+free.** `validate_hm7` checks `metric.startswith(variable + "_")` and that the
+statistic suffix matches the known pattern set. Without it, `variable` and
+`metric` can silently disagree.
+
+#### Do NOT borrow the terse conventional abbreviations
+
+The appeal of a composite is that `Q95`, `Q10`, `7Q2`, `BFI` are established
+hydrological names. **Established names carry established meanings, and two of
+ours differ:**
+
+- `q95` here is `sim.resample("YE").quantile(0.95).mean()` — the mean annual
+  **95th percentile**, a HIGH flow. Conventional **Q95** is the flow *exceeded*
+  95% of the time, from a flow-duration curve — a LOW-flow drought index. They
+  are opposite ends of the distribution. The existing name is already a misnomer
+  in domain terms; do not propagate it. Renamed to `..._p95`.
+- `Q10` would be readable as either a 10-year flood or a 10%-exceedance flow.
+
+Compose systematically instead. Verbose beats wrong.
+
+#### Vocabulary
+
+| current | `metric` |
+| --- | --- |
+| `mean` | `q_annual_mean` |
+| `max` | `q_mean_annual_max` |
+| `min` | `q_mean_annual_min` |
+| `q95` | `q_mean_annual_p95` |
+| `Q7day_max` | `q_mean_annual_7day_max` |
+| `Q7day_min` | `q_mean_annual_7day_min` |
+| `wetmonth_mean` | `q_wettest_month_mean` |
+| `drymonth_mean` | `q_driest_month_mean` |
+| `BaseFlowIndex` | `q_baseflow_index` |
+| `returninterval` | `q_return_level_10yr_max` |
+| `returninternval_min_7day` | `q_return_level_2yr_7day_min` |
+
+`mean_annual_` is not padding: every one of these is "annual statistic, then mean
+over years", which the current names hide. The shipped `returninternval` typo
+(`export_wflow_results.py:239`) dies here.
+
+**This closes Q9 for free.** `Tpeak` / `Tlow` are config values that appear in no
+column and no name today, so two runs with different `Tpeak` produce
+identical-looking rows meaning different things — a 10-year and a 20-year flood
+level, indistinguishable once the file leaves the project folder. A composite
+name absorbs them at no structural cost. The vocabulary is therefore partly
+config-derived, so `validate_hm7` matches a **pattern**, not an enumeration.
+
+#### `variable` token vocabulary
+
+Short tokens: `q`, `et`, `recharge`, `overland_flow`, `snow`. Chosen over
+snake-cased `wflow_outvars` labels (`river_discharge`,
+`actual_evapotranspiration`), which would be one vocabulary rather than a third
+but would make metrics like `actual_evapotranspiration_annual_total` — undercutting
+the readability that motivated the composite in the first place. **Cost: a third
+spelling** alongside the CSDMS names and the Tier 2 display labels, so the
+token → label → CSDMS mapping must be documented in the seam contract.
+
 ---
 
 ## Open questions
 
 | # | Question | Recommendation |
 | --- | --- | --- |
-| **Q4** | Metric vocabulary. Current values are inconsistent (`mean`/`q95` lowercase, `Q7day_max` mixed, `BaseFlowIndex` PascalCase) and one is **misspelled and shipped**: `returninternval_min_7day` (`export_wflow_results.py:239`). | Harmonise now. `metric` becomes a *data value* users filter on — a typo in a header is ugly, a typo in a filter key is a support ticket. |
 | **Q5** | Class C, stress-test axis. Ruling (a) fixed the month across realizations but not across stress tests. If each member picks its own wettest month, the surface compares different months — the same incomparability, one axis over. Live: the config supports monthly perturbation vectors. | Pick the month once from **`cst_0`, pooled over realizations**, and evaluate it everywhere. If the seasonal *shift* is interesting, that is a different indicator and the long shape carries it additively. |
 | **Q6** | `basin_indicators.csv`, forced by (b1). | Same seven columns: `variable` ∈ {`actual_evapotranspiration`, `snow`, …}, `metric` ∈ {`annual_total`, `annual_max`}, `location` = `basin`, `realization_id` = `1..N` (all basavg metrics are class A). `_basavg` then disappears from the names because `location` says it. Two files, one shared schema — vs merging into a single `indicators.csv`, which is tidier but collapses two `rule all` targets. |
 | **Q7** | Stale `aggregate_rlz` in an existing user config — silently ignored today. | Hard error naming the migration note, following the `variable_spec.parse` precedent (it refuses the pre-5e list shape and states the migration). |
