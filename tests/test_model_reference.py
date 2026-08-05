@@ -169,11 +169,24 @@ def test_the_guards_verdict_does_not_persist_between_invocations():
     model M1, the file remains, and a later invocation re-simulates against M2
     without the guard running at all.
 
-    Measured at the R9 landing gate, on this rule's first real execution: with
-    the model perturbed and the sentinel present, an incremental re-run
-    scheduled **12 jobs of rule 3.09 and did not schedule the guard**. The
-    detection logic was correct throughout — forced to run, it raised
-    ModelDriftError naming the changed file. Only the trigger was missing.
+    Demonstrated in isolation at the R9 landing gate, on a two-rule probe, so
+    the result does not depend on WF3's scheduling quirks:
+
+      * consumer up to date, model drifted -> nothing runs. Safe by INACTION:
+        the guard does not fire, but neither does the consumer.
+      * consumer must re-run, model drifted -> with a persisted sentinel the
+        guard is NOT scheduled and the consumer runs anyway; with temp() the
+        guard IS scheduled, first, and stops it.
+
+    The second case is the hole. It needs 3.09 to genuinely re-run — a different
+    `-c` (the batch split is core-derived), deleted temp intermediates, a retried
+    failure, added realizations — so it is narrower than "every re-run", and
+    saying otherwise would overstate it.
+
+    Confirmed end to end in the real workflow: model perturbed, 3.09 forced to
+    re-run at the tree's own core count, the run stopped at 1 of 34 steps with
+    ModelDriftError and no member simulated. Detection was correct throughout;
+    only the trigger was missing.
 
     `temp()` is the trigger: Snakemake deletes the sentinel once 3.09 has
     consumed it, so the next invocation finds it absent and re-evaluates against

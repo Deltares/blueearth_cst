@@ -422,10 +422,18 @@ rule write_model_reference:
 # THE SENTINEL IS temp(), AND THAT IS THE GUARD'S TRIGGER. A persisted sentinel
 # satisfies rule 3.09's edge with a STALE VERDICT: the check passed once, the
 # file remains, and 3.09 is free to re-simulate against a model that changed
-# afterwards. Measured at the R9 landing gate, on this rule's first real run --
-# with the model perturbed and the sentinel present, an incremental re-run
-# scheduled 12 jobs of rule 3.09 and did NOT schedule this rule. Detection was
-# never the problem; triggering was.
+# afterwards. Detection was never the problem -- forced to run against a drifted
+# model the rule raises ModelDriftError naming the changed file. Triggering was.
+#
+# The exposure needs 3.09 to genuinely re-run: a different `-c` (the batch split
+# is core-derived, so the partition changes), deleted temp intermediates, a
+# retried failure, added realizations. On an untouched tree at the same `-c`
+# nothing re-runs at all, so a stale verdict is harmless there -- the hole is
+# real but narrower than "every re-run".
+#
+# Proven end to end at the R9 landing gate: model perturbed, 3.09 forced to
+# re-run at the tree's own core count, run stopped at 1 of 34 steps with
+# ModelDriftError and no member simulated.
 #
 # Dropping `ancient()` from `model_toml` does not fix it: the digest covers
 # files this rule does not declare (staticmaps, forcing), and enumerating them
