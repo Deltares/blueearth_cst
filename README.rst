@@ -198,7 +198,7 @@ output and re-snapshot forever. Rule ``snapshot_config`` logs the bundle path
 and its full digest, so a run tells you where its configuration was recorded.
 
 Runs launched through ``scripts/run_workflows.py`` additionally write one
-immutable invocation manifest under ``<project_dir>/provenance/runs/``. It
+immutable invocation manifest under ``<project_dir>/config/runs/invocations/``. It
 records enabled workflows, sanitized arguments, start/end status, config and
 lock-file digests, and Git/runtime identity. Direct ``snakemake`` invocations
 still receive the configuration snapshot, but only the wrapper can record the
@@ -284,7 +284,7 @@ Contract:
   projections only).
 - Every valid wrapper invocation, including a dry-run, no-op, or failed child,
   receives a unique atomically finalized manifest under
-  ``<project_dir>/provenance/runs/``. Passthrough ``--config`` overrides are
+  ``<project_dir>/config/runs/invocations/``. Passthrough ``--config`` overrides are
   sanitized and recorded there; the workflow snapshot remains authoritative
   for the merged Snakemake config.
 

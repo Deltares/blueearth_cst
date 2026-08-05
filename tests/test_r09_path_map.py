@@ -422,6 +422,16 @@ MAP_ROWS: dict[str, list[tuple[str, str]]] = {
          "config/observations/output_locations.csv"),
         ("config/generated/wflow_build_forcing_historical.yml",
          "models/hydrology/wflow/config/build_historical_forcing.yml"),
+        # 2026-08-05 follow-up: the wrapper's invocation manifest relocates off
+        # its own `provenance/` root. RELOCATION, not identity -- the only row
+        # in this section whose source is outside `config/`.
+        ("provenance/runs/20260805T142211Z-a1b2c3d4e5f6.json",
+         "config/runs/invocations/20260805T142211Z-a1b2c3d4e5f6.json"),
+        # ...and the destination classifies on its own row, so a future
+        # tightening of the `config/runs/<workflow>/` regex cannot silently
+        # drop it to UNMAPPED.
+        ("config/runs/invocations/20260805T142211Z-a1b2c3d4e5f6.json",
+         "config/runs/invocations/20260805T142211Z-a1b2c3d4e5f6.json"),
     ],
     # --- section: -> project root ---
     "root": [

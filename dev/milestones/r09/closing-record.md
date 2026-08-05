@@ -128,7 +128,7 @@ Not blockers; each has a home.
 
 | Item | Where |
 | --- | --- |
-| `provenance/runs/` is a seventh project root no inventory tier can see | [`followup-provenance-root-task-brief.md`](followup-provenance-root-task-brief.md) |
+| ~~`provenance/runs/` is a seventh project root no inventory tier can see~~ | **DONE 2026-08-05** — moved to `config/runs/invocations/`; map row F3, design-tree line, and the inventory's blind spot documented. [`followup-provenance-root-task-brief.md`](followup-provenance-root-task-brief.md) |
 | Pre-R9 paths in `blueearth_cst/**` prose, a Snakefile comment block, and four `dev/scripts/` files | [`followup-stale-path-prose-task-brief.md`](followup-stale-path-prose-task-brief.md) |
 | **The batch split is core-derived**, so re-running at a different `-c` re-does all Wflow work and invalidates any job-count comparison | P3-3 design territory; recorded in `26109f5` |
 | WF2's nondeterministic fetch provenance (P2 F4) — 4 of the gate's 5 diff failures | P2 report |

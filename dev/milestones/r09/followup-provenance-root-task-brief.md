@@ -1,5 +1,12 @@
 Task Brief — R9 follow-up: move `provenance/runs/` under an existing root
 
+> **COMPLETE 2026-08-05.** Both deferred rulings were taken by the owner the
+> same day: placement `config/runs/invocations/` (the recommendation), and the
+> inventory gap closed by **documenting the limit** rather than extending the
+> declared tier. The falsifier ran as specified — a wrapper-driven run, not a
+> unit test — and all three of its clauses passed; evidence at the foot of this
+> brief. The brief is kept unedited above that record.
+
 Raised by P5 on 2026-08-04 and ruled the same day: `provenance/runs/` **moves
 under an existing root** rather than becoming a seventh. This is a code change,
 and P5 is docs-only, so it is its own task.
@@ -94,3 +101,79 @@ pass without ever proving the wrapper writes there.
 - Pre-existing `provenance/` directories are NOT migrated: R9 declares pre-R9
   `project_dir` trees unsupported and requires a fresh run (R7 ruling GA-2,
   restated for R9), so there is nothing to move.
+
+---
+
+## Completion record — 2026-08-05
+
+### Rulings taken
+
+| Question the brief deferred | Ruling |
+| --- | --- |
+| Placement | `config/runs/invocations/` — the brief's recommendation. The owner did **not** read the manifest as a log, so the `logs/` alternative stays rejected on Finding 1's reasoning: `logs/` is what a user deletes to reclaim space and its parts are merged-then-deleted by design, while this manifest is immutable and retained |
+| Required change 4 — the inventory gap | **Document the limit.** `migration_project-tree.md` now carries *What the inventory does not cover*: both tiers are Snakemake-derived, so the inventory covers rule-declared artifacts only, and the missed class — artifacts written by a user-facing runner rather than by a rule — is named with a table of known members. Extending the declared tier was considered and deferred: it needs a declaration mechanism the runners do not have |
+
+### Changes
+
+| File | Change |
+| --- | --- |
+| `scripts/run_workflows.py` | the one path binding, plus the docstring clause (g) |
+| `tests/test_run_workflows.py` | the manifest-glob helper follows the binding |
+| `README.rst` | the two user-facing mentions of the old path |
+| `dev/scripts/semantic_tree_diff.py` | relocation rule (§8b) + an explicit identity row for the destination (§9) |
+| `tests/test_r09_path_map.py` | two row-driven cases in the `config` section: the relocation and the destination |
+| `dev/milestones/r09/migration_project-tree.md` | third amendment (F3), the `config/` row, and *What the inventory does not cover* |
+| `dev/milestones/r09/project-tree-design.md` | the `invocations/` tree line, and an amendment recording that the rejected-`provenance/`-root ruling had already been violated when it was written |
+
+`README.rst` is outside the brief's permitted list. It is included deliberately:
+it names the manifest path twice in user-facing prose, and leaving it pointing at
+a directory nothing writes any more is the same defect class the stale-path-prose
+follow-up exists to clear.
+
+### Why the destination got its own map row
+
+The pre-existing `re.compile(r"(config/runs/[a-z_]+/.*)")` identity rule already
+matches `config/runs/invocations/…`, so the row is redundant *today*. It is
+there because `invocations` is not a workflow and only matches `[a-z_]+` by
+coincidence: tightening that regex to the three real workflow names is a
+reasonable future edit, and without its own row this path would drop to UNMAPPED
+with nothing in the map to say why.
+
+### Falsifier — as specified, a run through the wrapper
+
+`pixi run python scripts/run_workflows.py --config <scratch cfg> -- --dry-run`,
+`model_creation` enabled only, into a scratch `project_dir`. A dry-run exercises
+`_initialize_manifest` / `_finalize_manifest` identically — the manifest is
+written per invocation regardless of what the child does — so it proves the write
+path without a build. Wrapper exit 0; WF1 planned 18 jobs.
+
+| Clause | Result |
+| --- | --- |
+| Manifest lands at the new path | PASS — `config/runs/invocations/20260805T110022.527Z-e8857faa45f0.json`, the only file in the tree |
+| Nothing remains at `provenance/runs/` | PASS — no `provenance/` directory exists |
+| `--check-map` reports zero unmapped | PASS — `MAP CLEAN: 1 paths, 0 moved, 1 identity (by rule), 0 deleted-by-design, 0 unmapped`, exit 0 |
+
+One check beyond the brief, because the three clauses above never exercise the
+**relocation** rule — the post-move tree has no old path in it. Dropping a
+synthetic `provenance/runs/*.json` into the same tree and re-running the real
+tool:
+
+```
+IDENTITY config/runs/invocations/20260805T110022.527Z-e8857faa45f0.json
+MOVED    provenance/runs/20260101T000000Z-oldpath.json  ->  config/runs/invocations/20260101T000000Z-oldpath.json
+MAP CLEAN: 2 paths, 1 moved, 1 identity (by rule), 0 deleted-by-design, 0 unmapped
+```
+
+So the row is live through `snapshot_project_tree`, not only through the unit
+test. The synthetic file was removed afterwards.
+
+### Named-scope tests
+
+`pytest tests/test_run_workflows.py tests/test_shared_provenance.py
+tests/test_r09_path_map.py` — **128 passed**.
+
+### Not done, by the brief's own acceptance criteria
+
+Pre-existing `provenance/` directories are **not** migrated. R9 declares pre-R9
+`project_dir` trees unsupported and requires a fresh run (R7 ruling GA-2,
+restated for R9), so no migration code was written and none should be.

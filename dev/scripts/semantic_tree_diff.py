@@ -670,6 +670,17 @@ def build_r09_path_map(
         (f"climate_projections/{cp}/report.md", f"{proj}/report.md"),
     ]
 
+    # -- 8b. the wrapper's invocation manifest --------------------------------
+    # Added 2026-08-05. `scripts/run_workflows.py` wrote one immutable manifest
+    # per invocation to `provenance/runs/`, a SEVENTH project root that no R9
+    # instrument could see: the declared tier reads the Snakefiles' `output:`
+    # declarations and the wrapper is not a rule, the observed tier came from
+    # direct `snakemake` invocations so the wrapper never ran, and the
+    # whole-tree diff compared two trees that both lacked it. The follow-up
+    # ruled it under `config/runs/`, where the per-run generated provenance
+    # already lives; see the destination row in section 9.
+    rules.append(("provenance/runs/", "config/runs/invocations/"))
+
     # -- 9. config/ identity rows, ONE RULE PER MAP ROW -----------------------
     # The two `config/runs/snake_config_*.yml` entries are CONTRACT PATHS --
     # declared inputs of WF3's rule 3.00b drift guard -- which is why option (A)
@@ -682,6 +693,14 @@ def build_r09_path_map(
         "config/observations/",          # row: `config/observations/*`
     ):
         ident.append((same, same))
+    # Row: `config/runs/invocations/**`, added 2026-08-05 by the R9 follow-up
+    # that moved the wrapper's invocation manifest off its own `provenance/`
+    # root (relocation rule in section 8b). Registered BEFORE the workflow
+    # regex below even though both would yield identity: `invocations` is NOT a
+    # workflow, and it only matches `[a-z_]+` by coincidence. Tightening that
+    # regex to the three real workflow names -- a reasonable future edit --
+    # would otherwise drop this path to UNMAPPED with nothing to say why.
+    ident.append(("config/runs/invocations/", "config/runs/invocations/"))
     # Row: `config/runs/<workflow>/<digest>/**`. Generalised from
     # `model_creation` by the F1b ruling of 2026-08-04 — WF2 emits
     # `climate_projections/<digest>/` from the same producer class, and design
