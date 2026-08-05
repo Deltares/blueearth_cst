@@ -24,12 +24,20 @@ the durable regression check cannot disagree.
 constant-parameter restoration the wf1 slice reflects the RESTORED model, while the
 wf2/wf3 rows are the pre-restoration recording (the restored discharge move was
 immaterial — 0/7670 timesteps over tolerance — so wf3 was deliberately not re-run).
-A future wf3 regen + `check` MAY fail the byte-exact q_indicators/basin_indicators
-fingerprints if the sub-tolerance wf1 move (max|dQ|/mean ~ 1.7e-4) survives their
-rounding. That is the DOCUMENTED residual, not a regression: follow the ADR 0001
-step-7 immaterial-branch recovery path (re-run wf3, confirm the movement is
-consistent with the recorded wf1 diff, then re-record the wf3 slice with a note;
-else stop and investigate) — see dev/decisions/0001-restore-wflow-constant-parameters/baseline_diffs.md.
+**RESIDUAL TESTED AND CLOSED 2026-08-05.** This used to warn that a future wf3
+regen + `check` MAY fail the byte-exact q_indicators/basin_indicators fingerprints
+if the sub-tolerance wf1 move (max|dQ|/mean ~ 1.7e-4) survived their rounding, and
+to follow the ADR 0001 step-7 immaterial-branch path if it did. It has now been
+run. A wf3 regen from the RESTORED model reproduced both tables byte-identically
+below the header: the only fingerprint movement was the R9-followup rename of the
+perturbation-axis columns (tavg/prcp -> temp_change/precip_change), proven by
+reverting the header line alone and recovering both recorded sha256 exactly, with
+both sizes moving by exactly +16 bytes -- the header delta and nothing else. So
+the wf1 delta demonstrably does NOT propagate into the wf3 reduction, and the wf3
+slice is no longer mixed-provenance in any way that matters: it was re-recorded
+from main@03e546c on those same numbers.
+Evidence: dev/milestones/r09/migration_indicator-axis-columns.md §5;
+dev/decisions/0001-restore-wflow-constant-parameters/baseline_diffs.md.
 
 Usage:
     python dev/scripts/check_baseline.py record

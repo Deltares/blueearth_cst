@@ -141,7 +141,21 @@ end-to-end. Don't delete them.
   alias list that only *looks* like drift are in
   `dev/milestones/r09/migration_indicator-axis-columns.md`.
 
-  **Outstanding — TWO gates, one fix: re-run WF3 from the primary checkout.**
+  **CLOSED 2026-08-05.** WF3 re-run from the primary checkout on `main@03e546c`;
+  `pytest tests/` green (1356 passed) and the baseline re-recorded after the
+  ADR 0001 step-7 attribution came back conclusive: **zero numeric movement**.
+  Reverting the header line alone reproduced both recorded `sha256` exactly, body
+  bytes compared equal, and both sizes moved by exactly +16 — the header delta and
+  nothing else. Only rule 3.11 re-ran, so the reduction consumed byte-identical
+  inputs. Full evidence in
+  `dev/milestones/r09/migration_indicator-axis-columns.md` §5. It also closed the
+  mixed-provenance residual `check_baseline.py` had carried since the restoration:
+  the wf1 delta demonstrably does not survive the wf3 reduction, and that
+  docstring is now a result rather than a warning.
+
+  <details><summary>What was outstanding (kept for the record)</summary>
+
+  **TWO gates, one fix: re-run WF3 from the primary checkout.**
   Code, tests, contract doc and `naming.md` are done; both remaining gates fail
   only because the fixture tree still holds pre-rename output.
 
@@ -166,6 +180,8 @@ end-to-end. Don't delete them.
 
   Order: WF3 run → `pytest tests/` → ADR 0001 step-7 consistency check →
   baseline re-record.
+
+  </details>
 
 - **[R9-4] R9 moved the project tree but never re-pointed the interchange
   contract tests. FIXED 2026-08-05.** The whole Layer-2 block of

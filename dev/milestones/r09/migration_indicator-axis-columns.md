@@ -1,7 +1,8 @@
 # Migration — indicator-table axis columns (R9 followup)
 
 Date: 2026-08-05
-Status: **code COMPLETE**, **baseline re-record OUTSTANDING** (see §5)
+Status: **COMPLETE 2026-08-05** — code landed, suite green, baseline re-recorded.
+Attribution evidence in §5.
 
 Purpose: the old → new map mandated by `naming.md` §7 for a tier-2 table-label
 rename. Sibling record to `migration_project-tree.md`, which renamed the two
@@ -71,66 +72,82 @@ record exists to prevent.
 
 | Gate | Status |
 | --- | --- |
-| `pytest tests/test_interchange_contracts.py` (this worktree) | **PASS** — 38 passed, 26 skipped |
-| `pytest tests/test_export_wflow_results.py` | **PASS** — covers `realization_from_run_csv` only; untouched by this change |
-| `pytest tests/` from the **primary checkout** | **OUTSTANDING — expected to FAIL** (see below) |
-| `check_baseline.py check` | **OUTSTANDING — expected to FAIL** (see below) |
+| `pytest tests/test_interchange_contracts.py` (worktree) | **PASS** — 38 passed, 26 skipped |
+| `pytest tests/test_export_wflow_results.py` | **PASS** |
+| `pytest tests/` from the **primary checkout** | **PASS 2026-08-05** — 1356 passed, 8 skipped, 1 xfailed |
+| `check_baseline.py check --workflow climate_experiment` | **PASS 2026-08-05** after re-record — 3 targets match |
 
-**Both outstanding gates have the same trigger and one fix: re-run WF3 from the
-primary checkout.** They are listed separately because they fail for different
-reasons and a reader who clears only one is not done.
+### ATTRIBUTION — ADR 0001 step 7, settled conclusively
 
-**Why `pytest tests/` fails there but passed here.** This worktree has no
-`test_case/test_local`, so the 26 fixture-dependent cases skip. The primary
-checkout HAS that tree, and its `q_indicators.csv` / `basin_indicators.csv`
-still carry the pre-rename `tavg` / `prcp` headers. Two integration cases parse
-them and will now fail — correctly, because `validate_hm7` is supposed to reject
-the old spelling (§4):
+The step-7 immaterial branch asks that the movement be confirmed *consistent with
+the recorded wf1 diff* before re-recording. It was possible to do better than
+that here: **there is no numeric movement at all.**
 
-| Test | Why it fails on a stale tree |
-| --- | --- |
-| `test_hm7_integration` (`test_interchange_contracts.py:640`) | Reads both tables; the axis columns are missing under their new names |
-| `test_gauge_identity_integration` (`:653`, 12 parametrized cases) | Check 3 derives the gauge set as *header minus `statistic` minus `_PERTURBATION_AXIS`*; a stale header leaves `tavg`/`prcp` in that set, so the list-equality against `output_rlz` breaks |
+**1. Only rule 3.11 re-ran.** Timestamps on the fixture: `results/*.csv` fresh
+from the run, but the wflow run CSVs (`hydrology/wflow/output/rlz_*.csv`), the
+stress-test parameter files and the wf1 discharge all older. So
+`analyze_wflow_results` consumed byte-identical inputs; the only variable was the
+code change.
 
-This is **the branch's merge gate**, not a cosmetic one — `AGENTS.md`'s
-validation ladder runs `pytest tests/` before merging.
+**2. Reverting the header alone reproduces both recorded hashes.** Taking each
+new table, replacing `temp_change`→`tavg` and `precip_change`→`prcp` **in the
+header line only**, and re-hashing through `check_baseline.fingerprint_csv`'s own
+normalisation:
 
-**Why `check_baseline.py check` fails.** `dev/baseline/manifest.json`
-fingerprints both tables **byte-exact** (`sha256`, `type: csv`) at
-`test_case/test_local/experiments/experiment/results/`. A header change moves
-both hashes. The re-record diff must be confined to those two `sha256` /
-`size_bytes` pairs — any third entry moving means something other than this
-rename also changed.
+| file | reverted-header sha256 | recorded sha256 | |
+| --- | --- | --- | --- |
+| `q_indicators.csv` | `b051ba53…a55d653` | `b051ba53…a55d653` | match |
+| `basin_indicators.csv` | `6ece285f…47e2c9fd` | `6ece285f…47e2c9fd` | match |
 
-**DO NOT re-record on sight of those two moving — they can move for TWO reasons
-at once.** `check_baseline.py`'s module docstring records a **mixed-provenance
-baseline**: since the constant-parameter restoration the wf1 slice reflects the
-RESTORED model, while the wf2/wf3 rows are still the PRE-restoration recording
-(wf3 was deliberately not re-run, because the discharge move was immaterial —
-0/7670 timesteps over tolerance). So this re-run is the first time that
-sub-tolerance wf1 delta (`max|dQ|/mean ≈ 1.7e-4`) can reach these two tables,
-and it lands in the same two entries as the header rename.
+Body bytes below the header compare equal in both files.
 
-Follow **ADR 0001 step 7, the immaterial branch**: re-run wf3, confirm the
-movement is consistent with the recorded wf1 diff
-(`dev/decisions/0001-restore-wflow-constant-parameters/baseline_diffs.md`), then
-re-record the wf3 slice **with a note**; else stop and investigate. Unrounded
-`float32` values (CR-2's C14) will make this MORE visible in future, not less —
-which is what Q8's tolerance comparator is for.
+**3. Sizes moved by exactly +16 bytes each** — `len("temp_change") - len("tavg")`
+= 7 plus `len("precip_change") - len("prcp")` = 9. The header delta and nothing
+else. 3838→3854 and 71→87.
 
-Commands, from the primary checkout:
+**4. Nothing else moved.** The full manifest diff is the two indicator entries
+plus the recording provenance (`milestone/r09-project-tree@f054a771` → `main@03e546c`),
+which also retires the cross-branch recording warning for this slice.
+
+### This closes the documented residual too
+
+`check_baseline.py`'s docstring warned that a wf3 regen might fail these
+fingerprints if the sub-tolerance wf1 restoration delta (`max|dQ|/mean ≈ 1.7e-4`)
+survived into them. It has now been tested: an earlier run the same day
+regenerated the wf3 run CSVs **from the restored model**, and the resulting tables
+still hashed to the pre-restoration recorded values — which is why `check` passed
+before the rename landed. The delta does not propagate through the reduction. The
+docstring has been updated from a warning to a result.
+
+### Commands used
 
 ```
 pixi run snakemake all -c 3 -s Snakefile_climate_experiment \
     --configfile config/workflows/snake_config_model_test.yml
 pixi run pytest tests/
 pixi run python dev/scripts/check_baseline.py check  --workflow climate_experiment
-# only after the ADR 0001 step-7 consistency check:
 pixi run python dev/scripts/check_baseline.py record --workflow climate_experiment
 ```
 
 `--workflow climate_experiment` merges into the existing manifest rather than
-overwriting it, so the wf1 and wf2 rows are preserved.
+overwriting, so the wf1 and wf2 rows were preserved (14 targets total).
 
-Order: run WF3 from the primary checkout (the `.snakemake` metadata rule in
-`AGENTS.md`), then `pytest tests/`, then the consistency check, then re-record.
+### What the gates looked like before the run (kept, because the prediction held)
+
+Both failed for different reasons and were listed separately so a reader who
+cleared only one would not think they were done:
+
+| gate | predicted | actual |
+| --- | --- | --- |
+| `pytest tests/` | `test_hm7_integration` + 12 `test_gauge_identity_integration` fail, because `validate_hm7` is supposed to reject the old spelling (§4) | exactly those 13, then all green |
+| `check_baseline check` | exactly two entries move; a third moving means something else changed | exactly two moved |
+
+The live concern was that those two entries could move for **two reasons at
+once** — the header rename *and* the pre-restoration wf3 provenance catching up
+with the restored wf1 slice — so re-recording on sight would have baked in an
+unattributed numeric change. The attribution above shows the second cause did not
+materialise.
+
+Kept forward: unrounded `float32` (CR-2's C14) will make numeric movement in
+these tables MORE visible, not less, which is what Q8's tolerance comparator is
+for.
