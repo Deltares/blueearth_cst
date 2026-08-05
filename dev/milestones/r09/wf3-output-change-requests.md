@@ -264,13 +264,42 @@ config-derived, so `validate_hm7` matches a **pattern**, not an enumeration.
 
 #### `variable` token vocabulary
 
-Short tokens: `q`, `et`, `recharge`, `overland_flow`, `snow`. Chosen over
-snake-cased `wflow_outvars` labels (`river_discharge`,
-`actual_evapotranspiration`), which would be one vocabulary rather than a third
-but would make metrics like `actual_evapotranspiration_annual_total` — undercutting
-the readability that motivated the composite in the first place. **Cost: a third
-spelling** alongside the CSDMS names and the Tier 2 display labels, so the
-token → label → CSDMS mapping must be documented in the seam contract.
+Short tokens, chosen over snake-cased `wflow_outvars` labels
+(`river_discharge`, `actual_evapotranspiration`) — those would avoid a third
+vocabulary but produce metrics like `actual_evapotranspiration_annual_total`,
+undercutting the readability that motivated the composite. **Cost: a third
+spelling** alongside the CSDMS names and the Tier 2 display labels, so this
+mapping is the contract and belongs in the seam doc.
+
+Authoritative source for the left two columns:
+`dev/reference/workflows/model_creation.md:213-220` (the `WFLOW_VARS` map).
+**Six entries, not five** — `precipitation` is one, emitted at registry
+locations with header `P` (see the `variable` decision above).
+
+| semantic name (`wflow_outvars`) | token | CSDMS name | unit |
+| --- | --- | --- | --- |
+| river discharge | `q` | `river_water__volume_flow_rate` | m³ s⁻¹ |
+| precipitation | `precip` | `atmosphere_water__precipitation_volume_flux` | mm Δt⁻¹ |
+| actual evapotranspiration | `aet` | `land_surface__evapotranspiration_volume_flux` | mm Δt⁻¹ |
+| groundwater recharge | `recharge` | `soil_water_saturated_zone_top__net_recharge_volume_flux` | mm Δt⁻¹ |
+| overland flow | `overland_flow` | `land_surface_water__volume_flow_rate` | m³ s⁻¹ |
+| snow | `snow` | `snowpack_liquid_water__depth` | mm |
+
+**The rule, so future tokens are not minted ad hoc: where the repo already has a
+canonical short name for the quantity, use it; only mint a token where none
+exists; and disambiguate against names already in use.** Three consequences:
+
+- **`precip`, not `p`.** `naming.md` §6 tier 2 declares `precip` the canonical
+  cross-tool name. `p` would be a seventh spelling for precipitation — the exact
+  inconsistency CR-1 fixed.
+- **`aet`, not `et`.** `pet` is already canonical here (one of the three HM-2
+  forcing variables). `et` one letter from `pet` in the same result file is a
+  misreading waiting to happen; `aet`/`pet` is the standard pairing.
+- **`snow`, not `swe`.** The code comment calls it "snow water equivalent", but
+  the CSDMS name is `snowpack_liquid_water__depth` — snowpack *liquid water*,
+  not total water equivalent. Minting `swe` would assert a physical claim the
+  upstream name does not support, and re-adjudicating wflow physics is outside
+  this repo's scope (`AGENTS.md` hard constraint). Keep the label's own word.
 
 ---
 
@@ -281,6 +310,7 @@ token → label → CSDMS mapping must be documented in the seam contract.
 | **Q5** | Class C, stress-test axis. Ruling (a) fixed the month across realizations but not across stress tests. If each member picks its own wettest month, the surface compares different months — the same incomparability, one axis over. Live: the config supports monthly perturbation vectors. | Pick the month once from **`cst_0`, pooled over realizations**, and evaluate it everywhere. If the seasonal *shift* is interesting, that is a different indicator and the long shape carries it additively. |
 | **Q6** | `basin_indicators.csv`, forced by (b1). | Same seven columns: `variable` ∈ {`actual_evapotranspiration`, `snow`, …}, `metric` ∈ {`annual_total`, `annual_max`}, `location` = `basin`, `realization_id` = `1..N` (all basavg metrics are class A). `_basavg` then disappears from the names because `location` says it. Two files, one shared schema — vs merging into a single `indicators.csv`, which is tidier but collapses two `rule all` targets. |
 | **Q7** | Stale `aggregate_rlz` in an existing user config — silently ignored today. | Hard error naming the migration note, following the `variable_spec.parse` precedent (it refuses the pre-5e list shape and states the migration). |
+| **Q10** | **`overland flow` is summed in the wrong units.** `export_wflow_results.py:265-270` sums every non-snow basavg variable annually, commented *"Total evaporation or recharge or overland flow volume (mm/yr)"*. Correct for `actual evapotranspiration` and `groundwater recharge` — both **mm Δt⁻¹**, so a daily sum is genuinely mm/yr. But `overland flow` is **m³ s⁻¹**: summing a flow rate over 365 daily steps gives `Σ(m³/s)`, which is not mm/yr, not m³, not anything. It needs `× 86400` to become a volume. Any project putting `overland flow` in `wflow_outvars` gets a column off by 86400 with a wrong stated unit. Found 2026-08-05 while settling the token table; the unit column is what exposed it. | Not fixed in passing — it moves numbers, and the right target (volume in m³, or depth in mm, which needs the basin area) is a method call. Decide alongside Q6, since it is a `basin_indicators` defect. |
 | **Q8** | Baseline comparator for the two tables, raised by the unrounded-`float32` decision. They are byte-exact `sha256` entries today, and `.round(2)` was the accidental drift buffer. `check_baseline.py:26-28` already warns that a sub-tolerance wf1 discharge move (`max\|dQ\|/mean ≈ 1.7e-4`) *may* survive into them; unrounded, it will. | Move both targets to the **tolerance comparator** `check_baseline.py` already has — `compare_discharge`, used for the wf1 discharge anchor. Otherwise every harmless numeric nudge fails the gate without indicating a defect, which is the same argument that excludes `FIGURE_KINDS` from the baseline by default. |
 
 ---
