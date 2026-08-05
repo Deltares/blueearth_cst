@@ -39,8 +39,8 @@ Seven fixed columns, independent of gauge count:
 | `temp_change` | perturbation axis, absolute degC |
 | `precip_change` | perturbation axis, relative % |
 | `realization_id` | **integer**; `1..RLZ_NUM`, or `0` = pooled over all realizations |
-| `location` | gauge identifier (spelling under open Q2) |
-| `value` | the metric value (precision under open Q1) |
+| `location` | **bare** gauge id — `130000086`, not `Q_130000086` |
+| `value` | the metric value, **`float32`, not rounded** |
 
 Rows-not-columns for locations is the point: the header stops growing with gauge
 count, which is what forces `validate_hm_gauge_column_identity`'s check 3 to
@@ -136,19 +136,83 @@ unconditional argument is different — both methods give `RLZ_NUM × N` blocks
 **only if** every realization is a whole number of years on the same calendar
 boundary, and nothing checks that. Sample-pooling does not depend on it.
 
+### Decision — `value` is `float32`, unrounded (was Q1)
+
+Ruled 2026-08-05. The `.round(2)` / `.round(4)` calls go away entirely; no
+per-metric precision policy is needed.
+
+The original request was a flat 2 digits, which would have been lossy: precision
+today is per-statistic, and the `.round(4)` set is exactly the low-flow metrics
+plus BFI. At 2 dp a `Q7day_min` of `0.0034` becomes `0.00` and the low-flow half
+of the response surface flattens to zero.
+
+`float32` avoids the tradeoff rather than resolving it. **Measured** in the pixi
+env — pandas writes a float32 column as the shortest round-tripping repr, so the
+output is short *and* keeps low-flow resolution:
+
+| value | plain `to_csv` (float32) | `float_format="%.2f"` |
+| --- | --- | --- |
+| `12.3` | `12.3` | `12.30` |
+| `0.0034567` | `0.0034567` | **`0.00`** |
+| `0.87654321` | `0.8765432` | `0.88` |
+
+Read back as `float64` (pandas default) — a lossless widening. `float32` carries
+~7 significant digits, ample for discharge and every statistic derived from it.
+The basin table is already `dtype="float32"`, so this also makes the two tables
+consistent.
+
+**Consequence — the baseline gate gets brittle (see Q8).** `.round(2)` was
+incidentally a numeric-drift buffer: a 1e-6 change could not move a 2-decimal
+file. Unrounded float32 exposes the last bit to a byte-exact `sha256`.
+
+### Decision — `location` is the bare id (was Q2)
+
+Ruled 2026-08-05. `130000086`, not `Q_130000086`.
+
+The `Q_` prefix filter at `export_wflow_results.py:108` **stays** — it reads the
+wflow output CSV, which is upstream of our table and keeps wflow's naming.
+Stripping is a write-time transform (`col.removeprefix("Q_")`).
+`validate_hm_gauge_column_identity` strips explicitly on one side of its
+comparison rather than relying on the two strings being equal.
+
+`location` is declared a **string** in both tables, read with
+`dtype={"location": str}`. Bare ids would otherwise load as `int64` in
+`q_indicators` and `object` in `basin_indicators` (where `location = "basin"`),
+so two files claiming one schema would disagree on their shared column's dtype.
+Ids are identifiers, not numbers; nothing arithmetic is done with them.
+
+The row key is therefore
+`(variable, metric, temp_change, precip_change, realization_id, location)`.
+`validate_hm7` asserts its **uniqueness** — cheap, and it catches an id collision
+between the `outlets` and `gauges_locations` maps, which in the wide table would
+surface only as duplicate columns and go unnoticed.
+
+### Decision — `variable` is a live discriminator, not future-proofing (was Q3)
+
+Ruled 2026-08-05, on evidence rather than intent.
+
+`setup_gauges_and_outputs.py:79-87`: when a `location_registry` is configured,
+wflow is set up with `header=["Q", "P"]` on `gauges_locations`, so the run CSV
+already carries **`Q_<id>` and `P_<id>` at the same gauge**.
+`export_wflow_results.py:108` filters `startswith("Q_")` and **silently drops
+every `P_` column**.
+
+With bare-id locations those two are distinguished naturally by `variable` ∈
+{`q`, `p`} at one `location` — which the wide format could not express without a
+second column set. Whether to stop dropping `P_` is a separate call; leave it
+dropped for now, and note that the schema no longer blocks it.
+
 ---
 
 ## Open questions
 
 | # | Question | Recommendation |
 | --- | --- | --- |
-| **Q1** | `value` precision. Requested: 2 digits. But precision is currently **per-statistic** — `.round(2)` for `mean/max/q95/returninterval/Q7day_max/wetmonth_mean`, `.round(4)` for `min/returninterval_min_7day/Q7day_min/drymonth_mean/BaseFlowIndex`. The 4-digit set is exactly the low-flow metrics plus BFI; at 2 digits a `Q7day_min` of `0.0034` becomes `0.00` and the low-flow half of the surface flattens to zero. | Keep `value` a real float and make precision a **write-time format**, not a data round — the long shape finally gives one homogeneous float column. Apply a per-metric format map: 2 dp everywhere it is meaningful, 4 dp for the low-flow set. |
-| **Q2** | `location` spelling: `Q_130000086` or bare `130000086`? With `variable: q` present the `Q_` prefix is redundant, but it is also the literal HM-5 column name and the tie the gauge-identity validator checks. | Bare id; update the validator to strip the prefix explicitly rather than relying on the strings matching. |
-| **Q3** | Is `variable: q` future-proofing for absorbing `basin_indicators`? A one-value column only earns its place as such. | Yes — see Q6. It becomes the discriminator. |
 | **Q4** | Metric vocabulary. Current values are inconsistent (`mean`/`q95` lowercase, `Q7day_max` mixed, `BaseFlowIndex` PascalCase) and one is **misspelled and shipped**: `returninternval_min_7day` (`export_wflow_results.py:239`). | Harmonise now. `metric` becomes a *data value* users filter on — a typo in a header is ugly, a typo in a filter key is a support ticket. |
 | **Q5** | Class C, stress-test axis. Ruling (a) fixed the month across realizations but not across stress tests. If each member picks its own wettest month, the surface compares different months — the same incomparability, one axis over. Live: the config supports monthly perturbation vectors. | Pick the month once from **`cst_0`, pooled over realizations**, and evaluate it everywhere. If the seasonal *shift* is interesting, that is a different indicator and the long shape carries it additively. |
 | **Q6** | `basin_indicators.csv`, forced by (b1). | Same seven columns: `variable` ∈ {`actual_evapotranspiration`, `snow`, …}, `metric` ∈ {`annual_total`, `annual_max`}, `location` = `basin`, `realization_id` = `1..N` (all basavg metrics are class A). `_basavg` then disappears from the names because `location` says it. Two files, one shared schema — vs merging into a single `indicators.csv`, which is tidier but collapses two `rule all` targets. |
 | **Q7** | Stale `aggregate_rlz` in an existing user config — silently ignored today. | Hard error naming the migration note, following the `variable_spec.parse` precedent (it refuses the pre-5e list shape and states the migration). |
+| **Q8** | Baseline comparator for the two tables, raised by the unrounded-`float32` decision. They are byte-exact `sha256` entries today, and `.round(2)` was the accidental drift buffer. `check_baseline.py:26-28` already warns that a sub-tolerance wf1 discharge move (`max\|dQ\|/mean ≈ 1.7e-4`) *may* survive into them; unrounded, it will. | Move both targets to the **tolerance comparator** `check_baseline.py` already has — `compare_discharge`, used for the wf1 discharge anchor. Otherwise every harmless numeric nudge fails the gate without indicating a defect, which is the same argument that excludes `FIGURE_KINDS` from the baseline by default. |
 
 ---
 
