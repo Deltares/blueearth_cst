@@ -260,13 +260,19 @@ _WG3_GWS_KEYS = (
 
 
 def validate_wg3(cfg: Any) -> list[str]:
-    """WG-3 — weathergenr config surface (``weathergen_config*.yml``).
+    """WG-3 — weathergenr config surface (``weathergen_config.yml``).
 
     Pinned surface (design §5.2, OQ-6): the *key set* the R side reads —
-    top-level ``general.variables`` (a list) and the ``generateWeatherSeries``
-    key set — NOT weathergenr's config *semantics* or value ranges. A
-    replacement generator may define its own config surface entirely; this pins
-    the *current* generator's contract.
+    top-level ``general.variables`` (a list), the ``generateWeatherSeries``
+    key set, and the two ``transient_change`` flags — NOT weathergenr's config
+    *semantics* or value ranges. A replacement generator may define its own
+    config surface entirely; this pins the *current* generator's contract.
+
+    **ONE file since C29 (2026-08-05).** This used to cover a second, per-member
+    ``weathergen_config_rlz_<n>_cst_<m>.yml`` as well. That file carried nothing
+    that varied except its own output filename, so it was retired with rule 3.05
+    and its two ``transient_change`` flags moved here — which is why they are
+    pinned. ``impose_climate_change.R`` now reads THIS file.
     """
     label = "WG-3"
     diffs: list[str] = []
@@ -289,6 +295,13 @@ def validate_wg3(cfg: Any) -> list[str]:
                 diffs.append(
                     f"{label}: 'generateWeatherSeries.{key}' absent"
                 )
+    # The perturbation-step flags (C29). Read by impose_climate_change.R; absent,
+    # the R hands NULL to apply_climate_perturbations and the ramp-vs-step
+    # behaviour is whatever weathergenr defaults to.
+    for section in ("temp", "precip"):
+        block = cfg.get(section)
+        if not isinstance(block, Mapping) or "transient_change" not in block:
+            diffs.append(f"{label}: '{section}.transient_change' absent")
     return diffs
 
 

@@ -133,11 +133,23 @@ consumer reads while keeping the divergence honestly on the record.
 
 ## WG-3 — weathergenr config surface
 
-- **path pattern:** `<exp>/climate/weathergenr/config/weathergen_config.yml` and
-  `<exp>/climate/weathergenr/_work/weathergen_config_rlz_<n>_cst_<m>.yml`.
-- **producer:** rules 3.04 / 3.05 `prepare_weagen_config[_st]`
+- **path pattern:** `<exp>/climate/weathergenr/config/weathergen_config.yml` —
+  **one file** since C29.
+- **producer:** rule 3.04 `prepare_weagen_config`
   (`blueearth_cst/experiment/prepare_weagen_config.py`).
-- **consumer:** rules 3.06 / 3.07 (R side).
+- **consumer:** rules 3.06 and 3.07 (both R side), which now read the same file.
+- **removed at C29 (2026-08-05):** the per-member
+  `_work/weathergen_config_rlz_<n>_cst_<m>.yml` and its producer rule 3.05
+  `prepare_weagen_config_st`. Nothing in that file varied except the output
+  filename — split into prefix and suffix because `weathergenr::write_netcdf`
+  takes them separately — and Snakemake already knew it as rule 3.07's own
+  declared output, so it is passed as the 4th CLI argument and split in R. Its
+  two `transient_change` flags moved into this file and are now pinned here. At
+  RLZ_NUM=10, ST_NUM=88 the removal drops 880 YAMLs plus their logs and
+  benchmark parts. The rest of what it carried — copies of the `stress_test`
+  step counts and monthly min/max ranges — was never read (finding F6) and
+  deliberately did **not** move: the values that perturb a run come from
+  `cst_<m>.csv`.
 - **shape (YAML):** the weathergenr config surface — top-level
   `general.variables` (list ⊆ `{precip, temp, temp_min, temp_max}`) and
   `generateWeatherSeries.{warm.*, knn.sample.num, month.start, warm.variable,
@@ -314,7 +326,7 @@ executes on **every** checkout, fixture or not.
 |---|---|---|---|
 | `validate_wg1` | WG-1 | `data/climate/historical/<key>/extract_historical.nc` | **yes** (persists); chirps facts **not fixture-verified (no chirps fixture)** |
 | `validate_wg2` | WG-2 | `<exp>/climate/weathergenr/_work/cst_<m>.csv` | **yes** (persists) |
-| `validate_wg3` | WG-3 | `<exp>/climate/weathergenr/config/weathergen_config.yml`, `<exp>/climate/weathergenr/_work/weathergen_config_rlz_<n>_cst_<m>.yml` | **yes** (persists) |
+| `validate_wg3` | WG-3 | `<exp>/climate/weathergenr/config/weathergen_config.yml` (the per-member config is gone — C29) | **yes** (persists) |
 | `validate_wg4` | WG-4 | `<exp>/climate/weathergenr/output/rlz_<n>_cst_<m>.nc` | **captured 2026-07-25** — `temp()` content, absent until a `--notemp` capture; green on the real artifact **after** the `crs`/`category` correction; synthetic-proven every suite |
 | `validate_wg5` | WG-5 | `<exp>/config/catalogs/data_catalog_climate_experiment.yml` | **yes** (catalog persists) |
 | `validate_wg5_catalog_grid` (relational) | WG-5 entry-key grid vs intended `rlz × cst` (incl. `cst_0`) | `<exp>/config/catalogs/data_catalog_climate_experiment.yml` + the run's config snapshot | **yes** (all inputs persist) |

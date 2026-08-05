@@ -62,16 +62,31 @@ def test_default_weagen_config_resolves_at_templates_path():
 def test_build_weagen_config_generate_reads_moved_default(tmp_path):
     """Exercise the exact resolution path rule 3.04 uses: build_weagen_config's
     generate branch read_yml(default_config_path) against the moved template."""
+    out = build_weagen_config(**_generate_kwargs(tmp_path))
+    # Seeded from the moved default template, then overridden by snake config.
+    assert out["generateWeatherSeries"]["seed"] == 123
+    assert out["generateWeatherSeries"]["realizations_num"] == 2
+    assert out["generateWeatherSeries"]["sim.year.num"] == 82
+
+
+def _generate_kwargs(tmp_path, stress_test=None):
+    """The call rule 3.04 makes, with a writable snake config beside it."""
+    if stress_test is None:
+        stress_test = {
+            "temp": {"step_num": 1, "transient_change": True},
+            "precip": {"step_num": 2, "transient_change": False},
+        }
     snake_cfg = {
         "workflows": {
-            "climate_experiment": {"realizations_num": 2},
+            "climate_experiment": {
+                "realizations_num": 2,
+                "stress_test": stress_test,
+            }
         }
     }
     snake_path = tmp_path / "snake.yml"
     snake_path.write_text(yaml.safe_dump(snake_cfg), encoding="utf-8")
-
-    out = build_weagen_config(
-        cftype="generate",
+    return dict(
         snake_config_path=str(snake_path),
         output_path="out/",
         nc_file_prefix="rlz_1",
@@ -79,40 +94,54 @@ def test_build_weagen_config_generate_reads_moved_default(tmp_path):
         middle_year=2080,
         sim_years=20,
     )
-    # Seeded from the moved default template, then overridden by snake config.
-    assert out["generateWeatherSeries"]["seed"] == 123
-    assert out["generateWeatherSeries"]["realizations_num"] == 2
-    assert out["generateWeatherSeries"]["sim.year.num"] == 82
 
 
-def test_stress_test_branch_dict_shape(tmp_path):
-    """The stress_test branch assembles the imposeClimateChanges block + copies
-    the temp/precip sections verbatim from the snake config — no arithmetic."""
-    snake_cfg = {
-        "workflows": {
-            "climate_experiment": {
-                "stress_test": {
-                    "temp": {"step_num": 1, "transient_change": True},
-                    "precip": {"step_num": 2, "transient_change": False},
-                }
-            }
-        }
-    }
-    snake_path = tmp_path / "snake.yml"
-    snake_path.write_text(yaml.safe_dump(snake_cfg), encoding="utf-8")
+def test_transient_flags_reach_the_one_shared_config(tmp_path):
+    """C29: the flags impose_climate_change.R reads now live in THIS file.
 
+    They used to arrive in a per-member weathergen_config_rlz_<n>_cst_<m>.yml
+    that rule 3.05 wrote once per member. With 3.05 gone the shared config is
+    their only carrier, so an omission here is a silent behaviour change in the
+    perturbation step -- which is what `validate_wg3` now pins.
+    """
+    out = build_weagen_config(**_generate_kwargs(tmp_path))
+    assert out["temp"] == {"transient_change": True}
+    assert out["precip"] == {"transient_change": False}
+
+
+def test_only_the_flags_are_copied_not_the_perturbation_ranges(tmp_path):
+    """F6: the retired per-member file copied in the whole stress_test blocks.
+
+    It carried `step_num` and the monthly min/max ranges, none of which the R
+    read -- so anyone opening it to see what a run did read plausible
+    perturbation ranges that had no part in it. The real values come from
+    cst_<m>.csv. Do not reintroduce them here.
+    """
     out = build_weagen_config(
-        cftype="stress_test",
-        snake_config_path=str(snake_path),
-        output_path="out/",
-        nc_file_prefix="rlz_1_cst",
-        nc_file_suffix="3",
+        **_generate_kwargs(
+            tmp_path,
+            stress_test={
+                "temp": {
+                    "step_num": 1,
+                    "transient_change": True,
+                    "mean": {"min": [0.0] * 12, "max": [3.0] * 12},
+                },
+                "precip": {"step_num": 2, "transient_change": True},
+            },
+        )
     )
+    assert set(out["temp"]) == {"transient_change"}
+    assert "mean" not in out["temp"]
+    assert "step_num" not in out["temp"]
 
-    assert out["imposeClimateChanges"] == {
-        "output.path": "out/",
-        "nc.file.prefix": "rlz_1_cst",
-        "nc.file.suffix": "3",
+
+@pytest.mark.parametrize("variable", ["temp", "precip"])
+def test_missing_transient_flag_refuses_and_names_the_key(tmp_path, variable):
+    """No silent default: it decides whether a perturbation ramps or steps."""
+    stress_test = {
+        "temp": {"transient_change": True},
+        "precip": {"transient_change": True},
     }
-    assert out["temp"] == {"step_num": 1, "transient_change": True}
-    assert out["precip"] == {"step_num": 2, "transient_change": False}
+    del stress_test[variable]["transient_change"]
+    with pytest.raises(ValueError, match=rf"stress_test\.{variable}\.transient_change"):
+        build_weagen_config(**_generate_kwargs(tmp_path, stress_test=stress_test))

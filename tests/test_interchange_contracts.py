@@ -137,6 +137,9 @@ def _wg3_good():
     return {
         "general": {"variables": ["precip", "temp"]},
         "generateWeatherSeries": {k: 0 for k in ic._WG3_GWS_KEYS},
+        # C29 moved these here from the retired per-member config.
+        "temp": {"transient_change": True},
+        "precip": {"transient_change": True},
     }
 
 
@@ -148,6 +151,20 @@ def test_wg3_synthetic_fail():
     cfg = _wg3_good()
     del cfg["generateWeatherSeries"]["seed"]  # a required key removed
     assert ic.validate_wg3(cfg) != []
+
+
+@pytest.mark.parametrize("section", ["temp", "precip"])
+def test_wg3_requires_the_transient_flags(section):
+    """C29: the shared config is now the ONLY carrier of these two flags.
+
+    Rule 3.05 used to supply them per member. With that rule gone, an omission
+    here reaches `impose_climate_change.R` as NULL and the perturbation silently
+    takes whatever weathergenr defaults to -- so the contract has to pin them.
+    """
+    cfg = _wg3_good()
+    del cfg[section]["transient_change"]
+    diffs = ic.validate_wg3(cfg)
+    assert diffs and any(f"{section}.transient_change" in d for d in diffs)
 
 
 def _catalog_entry_good(uri="X:/rlz.nc"):

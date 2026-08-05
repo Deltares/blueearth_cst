@@ -378,8 +378,13 @@ is the whole reason Part B exists.
 
 # Part C — generator plumbing
 
-**C29 — Retire the per-run weather-generator configuration file.** *(Proposed
-2026-08-05, not yet ruled.)*
+**C29 — Retire the per-run weather-generator configuration file.** **Done
+2026-08-05**, together with **F6** (only the two switches moved across, not the
+perturbation settings that were never read) and **F7** (the template is now
+declared, so editing it forces a rerun). The output filename reaches the R script
+as an argument and is split there, which means the planned member-token rename
+(C22) will not touch it. Not yet exercised end to end — nothing in the test suite
+runs the R script, so this first executes in a real run.
 
 Every perturbed run currently gets its own small configuration file,
 `weathergen_config_rlz_<m>_cst_<n>.yml`, written by its own workflow step with
