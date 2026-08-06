@@ -790,6 +790,9 @@ CLIMATE_STORE_SCRIPT = "blueearth_cst/climate_analysis/extract_historical_climat
 #: The region producer's script (ADR 0003), same resolution rule as above.
 REGION_SCRIPT = "blueearth_cst/spatial/delineate_region.py"
 
+#: The vector-foundation producer's script (ADR 0003 §8), same rule again.
+SPATIAL_UNITS_SCRIPT = "blueearth_cst/spatial/delineate_spatial_units.py"
+
 
 @dataclass(frozen=True)
 class RegionSpec:
@@ -866,6 +869,136 @@ def region_spec(
             "model_region": model_region,
             "hydrography": hydrography,
             "basin_index": basin_index,
+        },
+    )
+
+
+@dataclass(frozen=True)
+class SpatialUnitsRule:
+    """The producer contract for the shared vector foundation (ADR 0003 §8).
+
+    The THIRD member of the shared-rule family, beside :class:`RegionSpec` and
+    :class:`ClimateStoreSpec` and with the same shape. All three workflows
+    declare ``delineate_spatial_units`` from this object, so the three rule
+    bodies cannot drift apart.
+
+    Named ``_rule``, not ``_spec``: the object holds a rule's script, inputs,
+    outputs and params, so it IS a rule definition minus its labels. The other
+    two rename to match under ``dev/followups.md`` ``[R10-7]``; until that sweep
+    lands the trio is deliberately inconsistent rather than renamed here.
+    """
+
+    spatial_dir: str
+    hydrography_nc: str
+    script: str
+    inputs: Mapping
+    outputs: Mapping
+    params: Mapping
+
+
+def spatial_units_rule(project_dir, spatial_config, data_sources) -> SpatialUnitsRule:
+    """Build the one producer contract for the shared vector foundation.
+
+    ONE rule definition, declared in all three workflows (``1.01c`` / ``2.03c``
+    / ``3.01f``), over the vector half of what rule 1.02 used to do alone.
+    Before ADR 0003 §8, WF2 and WF3 could not reach the basin and subbasin
+    boundaries without declaring ``prepare_spatial_maps`` — whose real product
+    is ``spatial_maps.nc`` — so a projections-only run would have resampled
+    ``vito``, ``modis_lai`` and ``soilgrids`` to draw a subbasin outline.
+
+    Seven outputs. Six are the declared vector artifacts; the seventh,
+    ``hydrography.nc``, is the SEAM INTERMEDIATE (§8a). The raster half declares
+    it as an input because the whole hydrography grid stack used to cross this
+    boundary in memory, and recomputing it would make WF1 read the hydrography
+    twice with two grids that can drift. It is deliberately absent from
+    ``spatial_catalog.yml``.
+
+    **The params are a pure function of ``project`` + ``shared.basin`` (§8b),
+    and that is a requirement, not a convenience.** The five projections-only
+    configs contain no ``workflows.model_creation`` keys at all, so a params
+    payload drawn from that section would differ per invoking workflow — the
+    input/params asymmetry ``ext1-02`` forbade for the climate store — and
+    ``config_path`` itself differs between a full config and a single-workflow
+    one, so declaring it as an input would thrash this rule on every WF1/WF2
+    alternation. Hence: no ``config_snake`` input, and the deprecated
+    ``workflows.model_creation.output_locations`` fallback in
+    ``resolve_gauge_points_path`` CANNOT feed this rule. Callers must resolve
+    ``spatial_config`` with ``parse_spatial_config(basin_cfg)`` — no model
+    section. What makes that safe is rule 3.00b, which already guarantees
+    ``shared.basin`` agrees across the workflows that share the rule.
+
+    The thematic source names (``lulc``/``lai``/``soil``) are deliberately NOT
+    carried: they belong to the raster half, and carrying them would make a
+    change to one of them re-run the vector rule in all three workflows.
+
+    Parameters
+    ----------
+    project_dir : str
+        ``project.project_dir``.
+    spatial_config : SpatialConfig
+        The parsed ``shared.basin`` contract
+        (``blueearth_cst.spatial.config.parse_spatial_config``). Read
+        attribute-wise rather than imported, so ``shared/`` keeps importing
+        nothing from ``spatial/`` — the dependency runs the other way.
+    data_sources : str
+        ``project.data_sources`` — the hydromt catalog path.
+
+    Returns
+    -------
+    SpatialUnitsRule
+        ``spatial_dir``, ``hydrography_nc``, ``script``, ``inputs``,
+        ``outputs``, ``params``.
+    """
+    spatial_dir = f"{project_dir}/data/spatial"
+    geoms_dir = f"{spatial_dir}/geoms"
+    hydrography_nc = f"{spatial_dir}/hydrography.nc"
+
+    inputs = {
+        "data_catalogs": data_sources,
+        # `region_spec` owns the path, so the two helpers cannot disagree about
+        # where the one project polygon lives -- the same reason
+        # `climate_store_spec` resolves it through the helper rather than
+        # restating the string.
+        "region_geojson": region_spec(
+            project_dir,
+            spatial_config.region,
+            data_sources,
+            hydrography=spatial_config.hydrography,
+            basin_index=spatial_config.basin_index,
+        ).region_geojson,
+    }
+    # OPTIONAL, and an unset key contributes no entry at all -- the shape rule
+    # 1.02 already used for `output_locations`. `resolve_gauge_points_path` has
+    # already collapsed both unset spellings (YAML null and the legacy "None"
+    # string) to None, so this is the whole test. Declared as an INPUT rather
+    # than a param so editing the FILE re-triggers the rule: as a param
+    # Snakemake compares the path, and renumbering the gauge points would leave
+    # the registry on the old ids in silence.
+    if spatial_config.gauge_points_path is not None:
+        inputs["gauge_points"] = spatial_config.gauge_points_path
+
+    outputs = {
+        "basins": f"{geoms_dir}/basins.geojson",
+        "subbasins": f"{geoms_dir}/subbasins.geojson",
+        "catchments": f"{geoms_dir}/catchments.geojson",
+        "rivers": f"{geoms_dir}/rivers.geojson",
+        "locations": f"{geoms_dir}/locations.geojson",
+        "location_registry": f"{spatial_dir}/location_registry.csv",
+        "hydrography": hydrography_nc,
+    }
+    return SpatialUnitsRule(
+        spatial_dir=spatial_dir,
+        hydrography_nc=hydrography_nc,
+        script=SPATIAL_UNITS_SCRIPT,
+        inputs=inputs,
+        outputs=outputs,
+        params={
+            "hydrography": spatial_config.hydrography,
+            "resolution": spatial_config.resolution,
+            "river_uparea_km2": spatial_config.river_uparea_km2,
+            "rivers_source": spatial_config.sources.rivers,
+            "gauge_snap_tolerance_m": spatial_config.gauge_snap_tolerance_m,
+            "max_automatic_subbasins": spatial_config.max_automatic_subbasins,
         },
     )
 

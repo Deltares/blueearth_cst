@@ -50,7 +50,7 @@ rather than failing obscurely downstream.
 
 Rendering from the engine-neutral ``spatial/`` products was a DIFFERENT proposal,
 considered and rejected: waterbodies come from rule 1.04 and the gauge layer from
-1.05, and ``SpatialProducts`` carries neither, so an artifact-driven version would
+1.05, and ``SpatialUnits`` carries neither, so an artifact-driven version would
 silently drop layers this figure exists to show. Reading ``staticgeoms/`` keeps
 every one of them — they are all written there.
 """

@@ -1,4 +1,11 @@
-"""Snakemake entry point for the engine-neutral Workflow 1 spatial product."""
+"""Snakemake entry point for Workflow 1's thematic spatial map stack.
+
+The RASTER half of ADR 0003 §8, and WF1 only: it exists to parameterise Wflow.
+The vector layers and the location registry it used to produce alongside
+``spatial_maps.nc`` now come from rule ``delineate_spatial_units``, which all
+three workflows declare — this rule consumes them, adds the LULC/LAI/soil
+layers, and writes the catalog and report.
+"""
 
 import gc
 import os
@@ -6,13 +13,17 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+import geopandas as gpd
+import pandas as pd
 from hydromt import DataCatalog
 
 from blueearth_cst.spatial.config import parse_spatial_config
 from blueearth_cst.spatial.products import (
-    prepare_spatial_products,
+    prepare_spatial_maps,
+    read_hydrography_seam,
+    spatial_report,
     validate_written_spatial_products,
-    write_spatial_products,
+    write_spatial_maps,
 )
 
 
@@ -28,23 +39,35 @@ def run_prepare_spatial_maps(
     model_config: Mapping[str, Any],
     data_catalogs: str | os.PathLike[str] | Sequence[object],
     output_dir: str | os.PathLike[str],
-    region_fn: str | os.PathLike[str],
+    hydrography_fn: str | os.PathLike[str],
+    basins_fn: str | os.PathLike[str],
+    subbasins_fn: str | os.PathLike[str],
+    location_registry_fn: str | os.PathLike[str],
 ) -> None:
-    """Build, write, and reopen the complete neutral spatial contract.
+    """Fold the thematic layers onto the seam grid, then reopen and validate.
 
-    ``region_fn`` is the rule's declared ``region_geojson`` input — the one
-    project region artifact (ADR 0003), never re-delineated here.
+    ``hydrography_fn`` is the seam intermediate rule
+    ``delineate_spatial_units`` wrote (ADR 0003 §8a) — the grid stack that used
+    to cross this boundary in memory. The three vector paths are that rule's
+    declared outputs, read back for the thematic clip geometry and the report.
     """
     config = parse_spatial_config(basin_config, model_config)
     catalog = DataCatalog(data_libs=_catalog_paths(data_catalogs))
-    products = prepare_spatial_products(config, catalog, region_fn)
+    seam = read_hydrography_seam(hydrography_fn)
+    basins = gpd.read_file(basins_fn)
+    maps = prepare_spatial_maps(seam, basins, config, catalog)
     try:
-        write_spatial_products(products, output_dir)
+        report = spatial_report(
+            basins,
+            gpd.read_file(subbasins_fn),
+            pd.read_csv(location_registry_fn),
+        )
+        write_spatial_maps(maps, report, output_dir)
         validate_written_spatial_products(output_dir)
     finally:
         # Rasterio/GDAL-backed lazy arrays otherwise survive until interpreter
         # shutdown on Windows and can emit a large benign sys.excepthook cascade.
-        products.maps.close()
+        maps.close()
         gc.collect()
 
 
@@ -58,5 +81,8 @@ if __name__ == "__main__" and "snakemake" in globals():
             model_config=sm.params.model_config,
             data_catalogs=sm.input.data_catalogs,
             output_dir=Path(sm.output.spatial_maps).parent,
-            region_fn=sm.input.region_geojson,
+            hydrography_fn=sm.input.hydrography,
+            basins_fn=sm.input.basins,
+            subbasins_fn=sm.input.subbasins,
+            location_registry_fn=sm.input.location_registry,
         )

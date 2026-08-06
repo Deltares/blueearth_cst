@@ -18,13 +18,18 @@ from blueearth_cst.spatial import products as products_module
 from blueearth_cst.spatial.config import SpatialConfig, SpatialSources
 from blueearth_cst.spatial.hydrography import prepare_hydrography
 from blueearth_cst.spatial.products import (
+    HYDROGRAPHY_SEAM_NAME,
     _delineate_spatial_units,
     _parent_basins,
     _snap_gauge_points,
     _validate_flow_topology,
-    prepare_spatial_products,
+    prepare_spatial_maps,
+    prepare_spatial_units,
+    read_hydrography_seam,
+    spatial_report,
     validate_written_spatial_products,
-    write_spatial_products,
+    write_spatial_maps,
+    write_spatial_units,
 )
 
 
@@ -230,9 +235,75 @@ def test_fallback_is_resolved_independently_for_multiple_parent_features():
     assert set(result[1]["basin_id"]) == {1, 2}
     assert 2 <= len(result[1]) <= 4
 
+    # ADR 0003 §8: `methods` used to cross into the report in memory. The
+    # raster half now derives it from `subbasins`, which is only sound while
+    # the two agree -- checked on the MULTI-BASIN case, since a one-basin
+    # fixture cannot tell a per-basin mapping from a constant.
+    _subbasin_map, subbasins, _catchments, _locations, registry, methods = result
+    assert spatial_report(basins, subbasins, registry)[
+        "delineation_method_by_basin"
+    ] == methods
 
-def test_product_writer_round_trips_every_catalog_entry(tmp_path, monkeypatch):
-    """The generated catalog is portable and its core ID joins remain valid."""
+
+def test_the_report_rejects_a_parent_with_two_delineation_methods():
+    """Guard on the derivation above: the uniformity it rests on is checked."""
+    maps, flow, basins, outlets = _base_maps()
+    empty = products_module.read_gauge_points(None)
+    snapped = _snap_gauge_points(empty, maps, flow, 1000)
+    _map, subbasins, _c, _l, registry, _m = _delineate_spatial_units(
+        maps, flow, basins, outlets, snapped, 3
+    )
+    if len(subbasins) < 2:
+        pytest.skip("fixture produced a single subbasin")
+    subbasins = subbasins.copy()
+    subbasins.loc[subbasins.index[0], "delineation_method"] = "gauge"
+
+    with pytest.raises(ValueError, match="more than one delineation method"):
+        spatial_report(basins, subbasins, registry)
+
+
+def _units_kwargs(config: SpatialConfig) -> dict:
+    """The `shared.basin` fields the vector half takes, from a full config.
+
+    Mirrors what `snake_utils.spatial_units_rule` puts in the rule's params --
+    which deliberately excludes the thematic source names (ADR 0003 §8b).
+    """
+    return {
+        "hydrography": config.hydrography,
+        "resolution": config.resolution,
+        "river_uparea_km2": config.river_uparea_km2,
+        "rivers_source": config.sources.rivers,
+        "gauge_points_path": config.gauge_points_path,
+        "gauge_snap_tolerance_m": config.gauge_snap_tolerance_m,
+        "max_automatic_subbasins": config.max_automatic_subbasins,
+    }
+
+
+def _run_both_halves(output_dir, catalog, config):
+    """Drive the split exactly as rules 1.01c and 1.02 drive it, through disk."""
+    units = prepare_spatial_units(catalog, "region.geojson", **_units_kwargs(config))
+    write_spatial_units(units, output_dir)
+    units.maps.close()
+
+    seam = read_hydrography_seam(output_dir / HYDROGRAPHY_SEAM_NAME)
+    basins = gpd.read_file(output_dir / "geoms" / "basins.geojson")
+    maps = prepare_spatial_maps(seam, basins, config, catalog)
+    report = spatial_report(
+        basins,
+        gpd.read_file(output_dir / "geoms" / "subbasins.geojson"),
+        pd.read_csv(output_dir / "location_registry.csv"),
+    )
+    return units, seam, maps, report
+
+
+def test_both_halves_round_trip_every_catalog_entry(tmp_path, monkeypatch):
+    """The generated catalog is portable and its core ID joins remain valid.
+
+    Drives the ADR 0003 §8 split end to end: the vector half writes, the seam
+    goes to disk, the raster half reads it back. Before the split this was one
+    in-memory call, and the seam is exactly what the split has to carry
+    without loss.
+    """
     source, region = _source_dataset()
     rivers = gpd.GeoDataFrame(
         {"river_name": ["synthetic"]},
@@ -240,22 +311,22 @@ def test_product_writer_round_trips_every_catalog_entry(tmp_path, monkeypatch):
         crs=3857,
     )
     monkeypatch.setattr(products_module, "_region_geometry", lambda *_: region)
+    catalog = _FakeCatalog(source, rivers)
+    config = _config()
+    output_dir = tmp_path / "spatial"
 
     # ADR 0003: the region arrives as a declared input path; _region_geometry
     # is stubbed above, so the value is only passed through.
-    product = prepare_spatial_products(
-        _config(), _FakeCatalog(source, rivers), "region.geojson"
-    )
-    assert product.subbasins.geometry.is_valid.all()
-    assert product.catchments.geometry.is_valid.all()
+    units, seam, maps, report = _run_both_halves(output_dir, catalog, config)
+    assert units.subbasins.geometry.is_valid.all()
+    assert units.catchments.geometry.is_valid.all()
     # Exercise CF decoding of integer nodata: xarray reopens _FillValue=0 as
     # NaN, which must not be mistaken for another spatial-unit identifier.
-    ids, counts = np.unique(product.maps["subbasin_id"].values, return_counts=True)
+    ids, counts = np.unique(maps["subbasin_id"].values, return_counts=True)
     multi_cell_id = int(ids[np.argmax(counts)])
-    row, col = np.argwhere(product.maps["subbasin_id"].values == multi_cell_id)[0]
-    product.maps["subbasin_id"].values[row, col] = 0
-    output_dir = tmp_path / "spatial"
-    write_spatial_products(product, output_dir)
+    row, col = np.argwhere(maps["subbasin_id"].values == multi_cell_id)[0]
+    maps["subbasin_id"].values[row, col] = 0
+    write_spatial_maps(maps, report, output_dir)
     validate_written_spatial_products(output_dir)
 
     expected = {
@@ -263,6 +334,7 @@ def test_product_writer_round_trips_every_catalog_entry(tmp_path, monkeypatch):
         output_dir / "spatial_catalog.yml",
         output_dir / "spatial_report.yml",
         output_dir / "location_registry.csv",
+        output_dir / HYDROGRAPHY_SEAM_NAME,
         *(output_dir / "geoms" / f"{name}.geojson" for name in (
             "basins", "subbasins", "catchments", "rivers", "locations"
         )),
@@ -273,6 +345,62 @@ def test_product_writer_round_trips_every_catalog_entry(tmp_path, monkeypatch):
     assert {"land_cover", "leaf_area_index", "soil_value"}.issubset(reopened)
     assert reopened["leaf_area_index"].dims == ("month", "y", "x")
     assert reopened["month"].values.tolist() == list(range(1, 13))
+    reopened.close()
+    seam.close()
+
+
+def test_the_seam_carries_the_grid_stack_with_its_dtypes(tmp_path, monkeypatch):
+    """The property the split rests on, and the one netCDF quietly breaks.
+
+    Every layer stores its nodata as a `_FillValue` ATTRIBUTE, so xarray's
+    default CF decoding recasts the array to float and puts NaN where the fill
+    is. `basin_id` and `subbasin_id` would come back float64 and
+    `spatial_maps.nc` would ship float identifier rasters -- silently, since
+    the values still compare equal. `read_hydrography_seam` reads with
+    `mask_and_scale=False` for exactly this.
+    """
+    source, region = _source_dataset()
+    rivers = gpd.GeoDataFrame(
+        {"river_name": ["synthetic"]},
+        geometry=[LineString([(0, 6000), (6000, 0)])],
+        crs=3857,
+    )
+    monkeypatch.setattr(products_module, "_region_geometry", lambda *_: region)
+    config = _config()
+    output_dir = tmp_path / "spatial"
+
+    units = prepare_spatial_units(
+        _FakeCatalog(source, rivers), "region.geojson", **_units_kwargs(config)
+    )
+    expected = {name: units.maps[name].dtype for name in units.maps.data_vars}
+    write_spatial_units(units, output_dir)
+    units.maps.close()
+
+    seam = read_hydrography_seam(output_dir / HYDROGRAPHY_SEAM_NAME)
+    assert dict(seam.dtypes) == expected
+    # ADR 0003 §8a: the WHOLE stack crosses the seam, not only the six layers
+    # the section enumerates -- `spatial_maps.nc` holds these too, and
+    # re-deriving them in the raster half is the second hydrography read §8a
+    # rejects.
+    assert set(seam.data_vars) >= {
+        "flow_direction", "flow_accumulation", "upstream_area", "river_mask",
+        "basin_id", "subbasin_id", "cell_area", "river_order", "elevation",
+        "slope",
+    }
+    assert seam.raster.crs.to_epsg() == 3857
+    seam.close()
+
+
+def test_the_seam_is_not_advertised_as_a_product():
+    """It is an intermediate, not a catalog entry (ADR 0003 §8a).
+
+    `build_wflow_model` resolves every model input through this catalog, so an
+    entry here would make the seam part of the model-build interface.
+    """
+    catalog = products_module._catalog_dict()
+    uris = {entry["uri"] for entry in catalog.values()}
+    assert HYDROGRAPHY_SEAM_NAME not in uris
+    assert "hydrography" not in catalog
 
 
 def test_products_module_is_wflow_independent():

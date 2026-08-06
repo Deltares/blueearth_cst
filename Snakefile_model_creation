@@ -6,7 +6,7 @@ from pathlib import Path
 # See dev/milestones/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
 from blueearth_cst.shared.provenance import short_digest, snapshot_bundle_digest
-from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_JULIA_THREADS, climate_store_spec, get_config, julia_prefix, patch_psutil_windows_benchmark, region_spec, rule_banner, target_banner, validate_historical_window, warn_if_project_dir_in_repo
+from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_JULIA_THREADS, climate_store_spec, get_config, julia_prefix, patch_psutil_windows_benchmark, region_spec, rule_banner, spatial_units_rule, target_banner, validate_historical_window, warn_if_project_dir_in_repo
 from blueearth_cst.spatial.config import parse_spatial_config
 # The canonical climate figure set (rules 1.13 and 1.15 both draw it). Imported
 # for figure_names() ONLY, so every figure is declared from the same list the
@@ -215,6 +215,27 @@ REGION = region_spec(
     basin_index=basin_index,
 )
 
+# --- The shared vector foundation (ADR 0003 §8) -------------------------------
+# Third and last of the shared producer contracts, same pattern again: built
+# here and identically in the other two workflows, splatted into rule 1.01c
+# below, and tests/test_spatial_units_rule.py parses all three workflows and
+# fails on ANY difference beyond message/log/benchmark.
+#
+# `parse_spatial_config(basin_cfg)` WITHOUT `my_cfg`, deliberately, and this is
+# the one call site where that differs from the module-level `spatial_cfg`
+# above: §8b requires the shared rule's params to be a pure function of
+# `project` + `shared.basin`, so the deprecated
+# `workflows.model_creation.output_locations` fallback cannot feed it. A config
+# still using only the legacy key gets a vector rule with no gauge_points input
+# — WF1's own consumers (rule 1.05) keep reading `spatial_cfg`, which does
+# honour the fallback, so the compatibility release is unaffected everywhere it
+# was ever promised.
+SPATIAL_UNITS = spatial_units_rule(
+    project_dir=project_dir,
+    spatial_config=parse_spatial_config(basin_cfg),
+    data_sources=DATA_SOURCES,
+)
+
 # Rule numbering (comment headers + log/benchmark filenames) uses `W.NN` =
 # workflow.step in DEFINITION order — a reading and reference aid ("Rule 1.3" =
 # build_wflow_model), NOT guaranteed execution order. Snakemake resolves execution
@@ -249,6 +270,7 @@ WORKFLOW_LOG_NAME = "wf1_model_creation.log"
 LOG_PARTS_DIR = f"{project_dir}/logs/_parts"
 LOG_RULES = [
     "1.01b_delineate_region",
+    "1.01c_delineate_spatial_units",
     "1.02_prepare_spatial_maps",
     "1.03_build_wflow_model",
     "1.04_add_reservoirs_lakes_glaciers",
@@ -351,24 +373,44 @@ rule delineate_region:
         f"{project_dir}/benchmarks/_parts/1.01b_delineate_region.tsv",
     script: REGION.script
 
-# 1.02  prepare_spatial_maps — engine-neutral spatial foundation
+# 1.01c  delineate_spatial_units — the shared vector foundation (ADR 0003 §8).
+# Byte-identical to 2.03c and 3.01f except message/log/benchmark; everything
+# else is splatted from SPATIAL_UNITS so the three cannot drift.
+rule delineate_spatial_units:
+    message: rule_banner("1.01c", "delineate_spatial_units")
+    input:
+        **SPATIAL_UNITS.inputs,
+    params:
+        **SPATIAL_UNITS.params,
+    output:
+        **SPATIAL_UNITS.outputs,
+    log:
+        f"{LOG_PARTS_DIR}/1.01c_delineate_spatial_units.log",
+    benchmark:
+        f"{project_dir}/benchmarks/_parts/1.01c_delineate_spatial_units.tsv",
+    script: SPATIAL_UNITS.script
+
+# 1.02  prepare_spatial_maps — the thematic raster stack, WF1 ONLY
+#
+# The raster half of ADR 0003 §8. The vector layers and the registry come from
+# 1.01c now; this rule folds LULC/LAI/soil onto the grid 1.01c handed it and
+# writes the model-build interface. `hydrography` is the SEAM INTERMEDIATE
+# (§8a): the whole hydrography grid stack used to cross this boundary in
+# memory, and re-deriving it here would mean two producers of one value.
 rule prepare_spatial_maps:
     message: rule_banner("1.02", "prepare_spatial_maps")
     input:
         config_snake = config_path,
         data_catalogs = DATA_SOURCES,
-        # ADR 0003: the delineation this rule used to do itself, now read from
-        # the one shared artifact so 1.02 and the climate store cannot disagree.
-        region_geojson = REGION.region_geojson,
-        **_locations_input,
+        hydrography = SPATIAL_UNITS.outputs["hydrography"],
+        basins = SPATIAL_UNITS.outputs["basins"],
+        subbasins = SPATIAL_UNITS.outputs["subbasins"],
+        catchments = SPATIAL_UNITS.outputs["catchments"],
+        rivers = SPATIAL_UNITS.outputs["rivers"],
+        locations = SPATIAL_UNITS.outputs["locations"],
+        location_registry = SPATIAL_UNITS.outputs["location_registry"],
     output:
         spatial_maps = f"{spatial_dir}/spatial_maps.nc",
-        basins = f"{spatial_dir}/geoms/basins.geojson",
-        subbasins = f"{spatial_dir}/geoms/subbasins.geojson",
-        catchments = f"{spatial_dir}/geoms/catchments.geojson",
-        rivers = f"{spatial_dir}/geoms/rivers.geojson",
-        locations = f"{spatial_dir}/geoms/locations.geojson",
-        location_registry = f"{spatial_dir}/location_registry.csv",
         spatial_catalog = f"{spatial_dir}/spatial_catalog.yml",
         spatial_report = f"{spatial_dir}/spatial_report.yml",
     params:
