@@ -8,9 +8,9 @@ Ruled by the owner after a full re-audit against the code as it stands. The
 design was accepted before R9's followups landed, and two of its rules moved
 underneath it.
 
-**Scope is now NINE renames, not ten** — the original ten, less two that left
-scope, plus one newly ruled in (1.08 `add_forcing`, below). The arithmetic is
-stated because the totals coincide and would otherwise look untouched.
+**Scope is now TWELVE renames, not ten** — the original ten, less two that left
+scope, plus four newly ruled in. The arithmetic is stated because the original
+total is close enough to look untouched.
 
 Two dropped, for opposite reasons:
 
@@ -27,9 +27,16 @@ Two dropped, for opposite reasons:
 | 3.08 | `write_climate_catalog` | **`write_climate_data_catalog`** | matches the artifact (`data_catalog_climate_experiment.yml`) |
 | 2.06 | `plot_projection_timeseries` | **`plot_gcm_timeseries`** | shorter, and puts all three WF2 rules on one noun — `fetch_gcm_slice`, `reduce_gcm_series`, `plot_gcm_timeseries`. `projection` would have introduced a second noun for the same thing. Verified accurate: 2.06 consumes the per-member GCM series `reduce_gcm_series` writes |
 
-**One rename added:** 1.08 `add_forcing` → `add_climate_forcing`.
+**Four renames added**, all from reading what the rules actually do:
 
-**Six corrections to the design itself**, each below in place:
+| # | current | added as | why |
+| --- | --- | --- | --- |
+| 1.08 | `add_forcing` | `add_climate_forcing` | thin noun beside its siblings |
+| 1.10 / 3.02 | `extract_climate_grid` | `extract_historical_climate` | "grid" now collides with `prepare_stress_test_grid`. The new name already agrees with four existing things: the script `extract_historical_climate.py`, the artifact `extract_historical.nc`, the store path `data/climate/historical/<key>/`, and it drops "grid" entirely. **The one cross-workflow rename** — this rule is splatted into WF1 and WF3 from one producer contract, so it touches both Snakefiles plus `climate_store_spec` in `snake_utils.py` |
+| 3.06 | `generate_weather_realization` | `generate_weather_realizations` | one invocation produces ALL `RLZ_NUM` of them and the output is a list; singular was simply wrong. It also makes number carry meaning — 3.06 plural (all in one job), 3.09 singular (wildcarded, one job per member) |
+| 3.07 | `generate_climate_stress_test` | `perturb_climate_realization` | **the name claims the wrong job.** 3.03 creates the stress test; 3.07 applies ONE point of it to ONE realization via `apply_climate_perturbations`. With 3.03 becoming `prepare_stress_test_grid`, two rules saying "stress test" for different things is worse than today. Pairs with 3.09 `downscale_climate_realization` — same object, next transform |
+
+**Seven corrections to the design itself**, each below in place:
 
 1. the verb table gains `delineate_`, which `delineate_region` conformed to
    without it being listed;
@@ -40,7 +47,9 @@ Two dropped, for opposite reasons:
 4. the implementation trap gains the one rule it does **not** apply to (3.10);
 5. it also gains the call-site count, which was **six, not three** — the missing
    one is `rule_banner`'s label argument;
-6. validation item 4 is rescoped — as written it could not pass.
+6. validation item 4 is rescoped — as written it could not pass;
+7. the §9 finding's gap numbers are corrected — 1.14 and 3.12 are occupied, not
+   gaps.
 
 Date: 2026-08-04
 
@@ -51,7 +60,7 @@ Decider: Ümit Taner
 Bring the Snakemake rule identifiers across the three `Snakefile_*` entry points
 onto one verb-and-noun scheme, without changing what any rule does.
 
-**Counts as amended 2026-08-06: 34 identifiers — 9 move, 25 already conform and
+**Counts as amended 2026-08-06: 34 identifiers — 12 move, 22 already conform and
 must not.** (Originally written as "twenty-eight … ten move; eighteen conform",
 from an inventory that was never exhaustive — see the full audit below.)
 
@@ -98,6 +107,7 @@ same:
 | `write_` | **emit a record or index** — the emission *is* the work |
 | `generate_` | stochastic or synthetic production |
 | `downscale_` | resolution transform |
+| `perturb_` | apply a climate perturbation to an existing series |
 | `run_` | invoke an external engine |
 | `reduce_` | **intermediate** aggregation that feeds a later rule |
 | `derive_` | compute a workflow's **terminal product** from reduced inputs |
@@ -158,18 +168,21 @@ trailing full words, never two-letter suffixes.
 
 ## The renames
 
-Nine, as amended 2026-08-06.
+Twelve, as amended 2026-08-06.
 
 | # | Current | New | Defect |
 | --- | --- | --- | --- |
 | 1.07 | `setup_runtime` | `prepare_runtime_window` | `setup_` duplicates `prepare_`; "runtime" alone says nothing |
 | 1.08 | `add_forcing` | `add_climate_forcing` | thin noun beside its siblings — does not say *which* forcing |
 | 1.11 | `plot_results` | `plot_wflow_evaluation` | vague noun beside the specific `plot_climate_source` / `plot_forcing` |
+| 1.10 / 3.02 | `extract_climate_grid` | `extract_historical_climate` | "grid" collides with the stress-test grid; **the one cross-workflow rename** |
 | 1.12 | `plot_map` | `plot_basin_map` | vague noun |
 | 2.01 | `fetch_gcm_raw` | `fetch_gcm_slice` | dangling adjective; "slice" is the code's own word for the artifact |
 | 2.06 | `plot_climate_proj_timeseries` | `plot_gcm_timeseries` | `proj` contraction; `gcm` puts all three WF2 rules on one noun |
 | 3.03 | `climate_stress_parameters` | `prepare_stress_test_grid` | no verb |
 | 3.04 | `prepare_weagen_config` | `prepare_weathergen_config` | `weagen` appears in no path or directory |
+| 3.06 | `generate_weather_realization` | `generate_weather_realizations` | produces ALL realizations in one job; the output is a list |
+| 3.07 | `generate_climate_stress_test` | `perturb_climate_realization` | claims 3.03's job; it applies one grid point to one realization |
 | 3.08 | `climate_data_catalog` | `write_climate_data_catalog` | no verb |
 
 **Out of scope, and why** — see the amendment: `export_wflow_results` →
@@ -184,14 +197,12 @@ omitted `gather_benchmarks`, `write_model_reference`, `check_model_reference`,
 conform, but silence in that list read as clearance when it was really absence.
 Every identifier in the three Snakefiles is now accounted for.
 
-**Conforming (24), do not touch:** `all`, `snapshot_config`, `delineate_region`,
+**Conforming (22), do not touch:** `all`, `snapshot_config`, `delineate_region`,
 `prepare_spatial_maps`, `build_wflow_model`, `add_reservoirs_lakes_glaciers`,
-`add_gauges_and_outputs`, `write_outlet_index`, `run_wflow`,
-`extract_climate_grid`, `plot_forcing`, `plot_climate_source`, `gather_logs`,
-`gather_benchmarks`, `reduce_gcm_series`, `derive_change_factors`,
-`derive_wflow_indicators`, `check_project_consistency`, `check_model_reference`,
-`write_model_reference`, `write_experiment_config`,
-`generate_weather_realization`, `generate_climate_stress_test`,
+`add_gauges_and_outputs`, `write_outlet_index`, `run_wflow`, `plot_forcing`,
+`plot_climate_source`, `gather_logs`, `gather_benchmarks`, `reduce_gcm_series`,
+`derive_change_factors`, `derive_wflow_indicators`, `check_project_consistency`,
+`check_model_reference`, `write_model_reference`, `write_experiment_config`,
 `downscale_climate_realization`, plus the dynamic `run_wflow_batch_<b>`.
 
 `add_forcing` was carried here as an optional candidate and is now **ruled into
@@ -203,7 +214,7 @@ have introduced a word for one rule's benefit. There is no ambiguity to resolve
 within WF1 anyway: the perturbed forcing is WF3's, added by a differently-named
 rule in a different workflow.
 
-**Counts reconcile:** 9 renames + 25 conforming = 34 identifiers.
+**Counts reconcile:** 12 renames + 22 conforming = 34 identifiers.
 
 ## The implementation trap
 
@@ -243,7 +254,7 @@ both the singular `3.10_run_wflow`. That divergence is **deliberate** (P3-3 keys
 logs by batch id, not by rule identifier), so identifier and label are not
 supposed to match there. Applying the three-call-sites rule mechanically to 3.10
 would rename a `LOG_RULES` entry that has no rule to match and break the merge.
-None of the nine renames touches 3.10 — this is stated so a sweep does not
+None of the twelve renames touches 3.10 — this is stated so a sweep does not
 "fix" it.
 
 **A deletion is the same hazard as a rename.** When C29 removed rule 3.05 its
@@ -296,7 +307,7 @@ unchanged, which is itself worth asserting.
 
 ## Consequences
 
-- **Nine** rule identifiers change on the CLI surface; a
+- **Twelve** rule identifiers change on the CLI surface; a
   `migration_rule-names.md` record is mandatory under `naming.md` §7. It should
   also record the two that left scope — one landed with R9, one had its rule
   deleted — so the count reconciles against the original ten.
