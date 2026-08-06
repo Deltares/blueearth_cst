@@ -1,17 +1,33 @@
 # Snakemake rule naming — R10 design
 
-Status: **ACCEPTED** by the owner, 2026-08-04. Not implemented.
+Status: **ACCEPTED** by the owner, 2026-08-04. **AMENDED 2026-08-06.** Not implemented.
 
-> **Note added 2026-08-05 — read before implementing. This does not change the
-> accepted scope.** Rule 3.05 `prepare_weagen_config_st` is proposed for
-> **deletion** by a pending WF3 change (C29 in
-> `dev/milestones/r09/wf3-change-requests.md`), which found the per-run config it
-> writes carries no per-run information. If C29 is ruled, **drop 3.05's rename
-> from the nine** rather than recording a CLI-surface rename for a rule that then
-> disappears — the same principle this design already applies in reverse when it
-> folds `export_wflow_results` into R9. If C29 is declined, rename it as
-> designed. The other eight renames are unaffected; that register's batch plan
-> has the rename-by-rename check.
+## Amendment — 2026-08-06
+
+Ruled by the owner after a full re-audit against the code as it stands. The
+design was accepted before R9's followups landed, and two of its rules moved
+underneath it.
+
+**Scope is now EIGHT renames, not ten.** Two dropped for opposite reasons:
+
+| # | rule | why it is no longer in scope |
+| --- | --- | --- |
+| R9 | `export_wflow_results` → `derive_wflow_indicators` | **already landed** with R9, as this design intended |
+| 3.05 | `prepare_weagen_config_st` | **the rule no longer exists** — deleted by C29 (`dev/milestones/r09/wf3-change-requests.md` CR-5), which found its per-member config carried nothing that varied except its own output filename. Renaming it would have entered `migration_rule-names.md` as a CLI-surface rename for a rule that then vanished. Same principle this design applies in reverse when it folds the R9 rename out. |
+
+**Three renames adjusted:**
+
+| # | as designed | as ruled | reason |
+| --- | --- | --- | --- |
+| 3.03 | `prepare_stress_grid` | **`prepare_stress_test_grid`** | matches the config section it reads (`stress_test:`) |
+| 3.08 | `write_climate_catalog` | **`write_climate_data_catalog`** | matches the artifact (`data_catalog_climate_experiment.yml`) |
+| 2.06 | `plot_projection_timeseries` | **`plot_gcm_timeseries`** | shorter, and puts all three WF2 rules on one noun — `fetch_gcm_slice`, `reduce_gcm_series`, `plot_gcm_timeseries`. `projection` would have introduced a second noun for the same thing. Verified accurate: 2.06 consumes the per-member GCM series `reduce_gcm_series` writes |
+
+**Four corrections to the design itself**, each below in place: the verb table
+gains `delineate_`; the `prepare_`/`write_` split is re-cut on a testable
+criterion; the conforming list becomes a full 34-rule audit; and the
+implementation trap gains the one rule it does not apply to. Validation item 4 is
+rescoped — as written it could not pass.
 
 Date: 2026-08-04
 
@@ -58,10 +74,11 @@ same:
 | --- | --- |
 | `fetch_` | acquire from an external source |
 | `extract_` | subset or derive from a larger source already present |
-| `prepare_` | produce a config or intermediate for a later rule |
+| `delineate_` | derive a catchment boundary from hydrography and an outlet |
+| `prepare_` | **compute or assemble** something a later rule needs |
 | `build_` | construct a model from inputs |
 | `add_` | mutate an existing model in place (a hydromt `update`) |
-| `write_` | emit one small table or index |
+| `write_` | **emit a record or index** — the emission *is* the work |
 | `generate_` | stochastic or synthetic production |
 | `downscale_` | resolution transform |
 | `run_` | invoke an external engine |
@@ -79,6 +96,44 @@ rule, while `derive_change_factors` and `derive_wflow_indicators` each produce
 their workflow's final answer. That makes the terminal rule of WF2 and WF3 read
 alike, which they should.
 
+### `prepare_` versus `write_` — re-cut 2026-08-06
+
+The original split was by *what is produced* — "a config or intermediate" versus
+"one small table or index". That is not decidable: `write_experiment_config`
+produces a config, and `write_climate_data_catalog` produces an index that a
+later rule consumes. Both readings applied to both rules, which is why neither
+appeared in the renames or the conforming list.
+
+Split on **where the work is** instead:
+
+> **The test: if you deleted the file-writing, would there be work left?**
+> **Yes → `prepare_`. No → `write_`.**
+
+| rule | work left without the write? | verb |
+| --- | --- | --- |
+| `write_outlet_index` | no — a crosswalk join, then emit | `write_` |
+| `write_experiment_config` | no — records what was configured | `write_` |
+| `write_model_reference` | no — records which model was used | `write_` |
+| `write_climate_data_catalog` | no — enumerates entries | `write_` |
+| `prepare_stress_test_grid` | **yes** — `np.linspace` over 12-month vectors | `prepare_` |
+| `prepare_weathergen_config` | **yes** — template merge plus `compute_nr_years` | `prepare_` |
+| `prepare_runtime_window` | **yes** — computes the window | `prepare_` |
+| `prepare_spatial_maps` | **yes** — derives the maps | `prepare_` |
+
+Every previously-accepted choice survives this cut. Note what is **not** the
+criterion: whether a later rule consumes the output. `write_climate_data_catalog`
+is consumed by 3.09 and is still `write_`, because enumerating entries is all it
+does.
+
+### `delineate_` — why a sixteenth verb rather than a rename
+
+`delineate_region` was listed as conforming, but `delineate_` was not in the
+table — it conformed to a list it was not on. Basin delineation is the field's
+own word for deriving a catchment boundary from hydrography and an outlet;
+`derive_region` or `extract_region` would be vocabulary purity bought with a
+worse name. Added to the table with its action class stated, so the next reader
+finds it rather than inferring it.
+
 Nouns are full words. Only the established domain set abbreviates — `gcm`,
 `cmip6`, `wflow`, `rlz`, `cst` — and those are tier-1/tier-2 identifiers under
 `naming.md` §6. Ad-hoc contractions (`weagen`, `proj`) are not. Qualifiers are
@@ -86,26 +141,47 @@ trailing full words, never two-letter suffixes.
 
 ## The renames
 
+Eight, as amended 2026-08-06.
+
 | # | Current | New | Defect |
 | --- | --- | --- | --- |
-| 3.03 | `climate_stress_parameters` | `prepare_stress_grid` | no verb |
-| 3.08 | `climate_data_catalog` | `write_climate_catalog` | no verb |
-| 3.04 | `prepare_weagen_config` | `prepare_weathergen_config` | `weagen` appears in no path or directory |
-| 3.05 | `prepare_weagen_config_st` | `prepare_weathergen_config_perturbed` | same, plus `_st` reads as a truncation — `st_num` is the combination index, not "stress test" |
 | 1.07 | `setup_runtime` | `prepare_runtime_window` | `setup_` duplicates `prepare_`; "runtime" alone says nothing |
 | 1.11 | `plot_results` | `plot_wflow_evaluation` | vague noun beside the specific `plot_climate_source` / `plot_forcing` |
 | 1.12 | `plot_map` | `plot_basin_map` | vague noun |
 | 2.01 | `fetch_gcm_raw` | `fetch_gcm_slice` | dangling adjective; "slice" is the code's own word for the artifact |
-| 2.06 | `plot_climate_proj_timeseries` | `plot_projection_timeseries` | `proj` contraction |
-| *(R9)* | `export_wflow_results` | `derive_wflow_indicators` | wrong verb — the rule aggregates *and* computes; `derive_` is the terminal-product verb. **Lands with R9** |
+| 2.06 | `plot_climate_proj_timeseries` | `plot_gcm_timeseries` | `proj` contraction; `gcm` puts all three WF2 rules on one noun |
+| 3.03 | `climate_stress_parameters` | `prepare_stress_test_grid` | no verb |
+| 3.04 | `prepare_weagen_config` | `prepare_weathergen_config` | `weagen` appears in no path or directory |
+| 3.08 | `climate_data_catalog` | `write_climate_data_catalog` | no verb |
 
-**Conforming, do not touch:** `all`, `snapshot_config`, `delineate_region`,
+**Out of scope, and why** — see the amendment: `export_wflow_results` →
+`derive_wflow_indicators` **landed with R9**; `prepare_weagen_config_st` **no
+longer exists** (C29 deleted rule 3.05).
+
+## The full audit — every identifier, 2026-08-06
+
+The original "eighteen already conform" was illustrative, not exhaustive: it
+omitted `gather_benchmarks`, `write_model_reference`, `check_model_reference`,
+`write_experiment_config` and the dynamic `run_wflow_batch_<b>`. All five do
+conform, but silence in that list read as clearance when it was really absence.
+Every identifier in the three Snakefiles is now accounted for.
+
+**Conforming (24), do not touch:** `all`, `snapshot_config`, `delineate_region`,
 `prepare_spatial_maps`, `build_wflow_model`, `add_reservoirs_lakes_glaciers`,
-`add_gauges_and_outputs`, `write_outlet_index`, `add_forcing`, `run_wflow`,
+`add_gauges_and_outputs`, `write_outlet_index`, `run_wflow`,
 `extract_climate_grid`, `plot_forcing`, `plot_climate_source`, `gather_logs`,
-`reduce_gcm_series`, `derive_change_factors`, `check_project_consistency`,
+`gather_benchmarks`, `reduce_gcm_series`, `derive_change_factors`,
+`derive_wflow_indicators`, `check_project_consistency`, `check_model_reference`,
+`write_model_reference`, `write_experiment_config`,
 `generate_weather_realization`, `generate_climate_stress_test`,
-`downscale_climate_realization`.
+`downscale_climate_realization`, plus the dynamic `run_wflow_batch_<b>`.
+
+**One optional candidate, not ruled:** `add_forcing` has a thin noun beside its
+siblings `add_gauges_and_outputs` and `add_reservoirs_lakes_glaciers` — it does
+not say *which* forcing. It adds the historical climate forcing
+(`inmaps_historical.nc`), so `add_historical_forcing` would match the artifact and
+draw the contrast with WF3's per-member forcing. Left out of the eight
+deliberately; take it or leave it, but decide rather than inherit.
 
 ## The implementation trap
 
@@ -120,6 +196,21 @@ merged log while its parts stay on disk forever. The same applies to
 Three call sites move together for each rename: the `rule` identifier, its
 `log:`/`benchmark:` path prefix, and its `LOG_RULES` entry. The comment header
 carrying the `W.NN` number moves too.
+
+**The one rule this does NOT apply to (added 2026-08-06).** Rule 3.10's
+identifiers are `run_wflow_batch_0`, `run_wflow_batch_1`, … — parse-time
+loop-generated, one per batch — while its log label and its `LOG_RULES` entry are
+both the singular `3.10_run_wflow`. That divergence is **deliberate** (P3-3 keys
+logs by batch id, not by rule identifier), so identifier and label are not
+supposed to match there. Applying the three-call-sites rule mechanically to 3.10
+would rename a `LOG_RULES` entry that has no rule to match and break the merge.
+None of the eight renames touches 3.10 — this is stated so a sweep does not
+"fix" it.
+
+**A deletion is the same hazard as a rename.** When C29 removed rule 3.05 its
+`LOG_RULES` entry went in the same edit, because a label with no producer
+contributes an empty section forever — the mirror of the missed-rename case
+above. Whatever changes the rule set, the list changes with it.
 
 ## Separate finding — the `W.NN` scheme is violated in WF2
 
@@ -146,9 +237,19 @@ This is a documentation fix and could land independently of the renames.
 3. A full three-workflow run, then confirm the merged log contains a section for
    **every** rule in `LOG_RULES` and that no `_parts/` directory survives — the
    direct check on the trap above.
-4. `grep` the repository for each old rule name after the sweep: `README.rst`,
-   `AGENTS.md`, `dev/`, `docs/`, comments and test IDs. Zero hits outside the
-   migration record.
+4. `grep` for each old rule name after the sweep — **scoped to LIVE surfaces**:
+   the three `Snakefile_*`, `README.rst`, `AGENTS.md`, `docs/`, `dev/reference/`,
+   `blueearth_cst/`, `dev/scripts/` and `tests/` (comments and test IDs
+   included). Zero hits there, excluding `migration_rule-names.md`.
+
+   **Rescoped 2026-08-06.** As written this said `dev/` and demanded zero hits
+   outside the migration record — which cannot pass and should not.
+   `dev/milestones/` is an **archive**: the p31, p32b, r05, r07 and r09 records
+   legitimately name `prepare_weagen_config_st`, `export_wflow_results` and the
+   rest as historical fact, because that is what those rules were called when
+   those milestones ran. Rewriting them to satisfy a grep would falsify the
+   record. A hit in an archived milestone document is evidence, not drift; a hit
+   in a live surface is drift.
 
 The baseline is **not** affected — no renamed rule changes an output path or
 value, and part paths are transient. `check_baseline.py check` should pass
@@ -156,8 +257,10 @@ unchanged, which is itself worth asserting.
 
 ## Consequences
 
-- Ten rule identifiers change on the CLI surface; a `migration_rule-names.md`
-  record is mandatory under `naming.md` §7.
+- **Eight** rule identifiers change on the CLI surface; a
+  `migration_rule-names.md` record is mandatory under `naming.md` §7. It should
+  also record the two that left scope — one landed with R9, one had its rule
+  deleted — so the count reconciles against the original ten.
 - The merged log and benchmark table gain new section labels — durable content
   changes with no path or value change.
 - `naming.md` should carry the verb vocabulary above, so the next rule is named
