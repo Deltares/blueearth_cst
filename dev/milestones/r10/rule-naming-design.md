@@ -1,8 +1,52 @@
 # Snakemake rule naming — R10 design
 
-Status: **ACCEPTED** by the owner, 2026-08-04. **AMENDED 2026-08-06.** Not implemented.
+Status: **ACCEPTED** by the owner, 2026-08-04. **AMENDED TWICE, 2026-08-06.** Not implemented.
 
-## Amendment — 2026-08-06
+## Amendment 2 — 2026-08-06, from the rule-index name-vs-body audit
+
+Ruled by the owner after `dev/reference/workflows/rule-index.md` checked all 34
+identifiers against their **script or shell bodies**, rather than against the
+naming grammar. Amendment 1 below re-audited the *inventory*; this one re-audits
+the *claims*.
+
+**The method gap this exposed.** Amendment 1's "Conforming (22), do not touch"
+list is correct on grammar — every one of the 22 satisfies `verb_object`. It was
+never a check that the verb is still **true**. Two rules passed it while
+describing work that had moved out from under them. Grammar conformance and body
+conformance are two different checks, and only the first had been run.
+
+| # | audit found | ruled |
+| --- | --- | --- |
+| 1.05 | `add_gauges_and_outputs` **adds no gauges** — rule 1.03 does, via `setup_gauges`/`setup_outlets` with `toml_output=None`. 1.05 only writes the `[output.csv]` block and re-checks the gauge IDs. The "add gauges" half moved in the P1/P2 restructuring and the name did not follow | **rename → `declare_wflow_outputs`**, and add `declare_` to the verb table |
+| 1.07 | `setup_runtime` writes a hydromt **forcing build recipe**, not a runtime. Nothing reaches the model TOML until 1.08 applies it. The designed target `prepare_runtime_window` is no more accurate than the name it replaces | **drop the rename — merge 1.07 into 1.08** (see *Out of scope* below) |
+| 1.02 | `prepare_spatial_maps` names one of nine outputs; the rule is the delineation-and-identity engine | **keep the name.** `build_spatial_foundation` reads less clearly to the owner than the slightly narrow name it would replace, and `build_` is defined here as "construct a model from inputs" — the spatial foundation is not a model |
+
+**Why `declare_` earns an 18th verb.** `add_` was available at no vocabulary
+cost: its entry reads "mutate an existing model in place (a hydromt `update`)",
+which is mechanically what 1.05 does. It was rejected because the action class
+differs — 1.04 and 1.08 add model **data** (waterbody layers, forcing grids),
+while 1.05 adds none and only changes what the engine will emit. Amendment 1 set
+this precedent by adding `delineate_` rather than forcing a worse name onto
+`derive_` or `extract_`.
+
+**Counts reconcile at 34, unchanged:**
+
+| class | count | change |
+| --- | --- | --- |
+| renames | 12 | 1.07 leaves, 1.05 joins — net zero |
+| conforming, do not touch | 21 | 1.05 leaves for the rename list |
+| pending removal (merges into 1.08) | 1 | 1.07 |
+
+**Out of scope for R10: the 1.07/1.08 merge.** This milestone is
+identifier-only — "Rule bodies, inputs, outputs, numbering, and the artifacts
+they produce are out of scope". The merge is recorded as `[R10-1]` in
+`dev/followups.md` with its cost (1.07 is a Python `script:`, 1.08 a `shell:`
+hydromt CLI call, and Snakemake allows only one per rule). **Sequencing:** if the
+merge lands first, 1.07 has no rename to skip and nothing here changes; if R10
+lands first, 1.07 keeps `setup_runtime` until the merge deletes it. Either order
+works — what must not happen is renaming 1.07 in passing.
+
+## Amendment 1 — 2026-08-06
 
 Ruled by the owner after a full re-audit against the code as it stands. The
 design was accepted before R9's followups landed, and two of its rules moved
@@ -60,9 +104,10 @@ Decider: Ümit Taner
 Bring the Snakemake rule identifiers across the three `Snakefile_*` entry points
 onto one verb-and-noun scheme, without changing what any rule does.
 
-**Counts as amended 2026-08-06: 34 identifiers — 12 move, 22 already conform and
-must not.** (Originally written as "twenty-eight … ten move; eighteen conform",
-from an inventory that was never exhaustive — see the full audit below.)
+**Counts as amended 2026-08-06: 34 identifiers — 12 move, 21 already conform and
+must not, 1 (rule 1.07) is removed by a merge rather than renamed.** (Originally
+written as "twenty-eight … ten move; eighteen conform", from an inventory that
+was never exhaustive — see the full audit below.)
 
 Scope is the rule **identifier** only. Rule bodies, inputs, outputs, numbering,
 and the artifacts they produce are out of scope — R9 owns the artifact tree.
@@ -88,7 +133,7 @@ CLI-surface rename to that pile for no shared cost.
 it falsifies: R9 renames rule 3.11's outputs to `q_indicators.csv` and
 `basin_indicators.csv`, so leaving `export_wflow_results` would entrench a
 mismatch R9 itself creates. That rename lands with R9; the rest land here — see
-the amendment for the current count.
+the amendments for the current count.
 
 ## The convention
 
@@ -103,7 +148,8 @@ same:
 | `delineate_` | derive a catchment boundary from hydrography and an outlet |
 | `prepare_` | **compute or assemble** something a later rule needs |
 | `build_` | construct a model from inputs |
-| `add_` | mutate an existing model in place (a hydromt `update`) |
+| `add_` | mutate an existing model in place by adding **data** (a hydromt `update`) |
+| `declare_` | change what an engine will **emit**, adding no model data |
 | `write_` | **emit a record or index** — the emission *is* the work |
 | `generate_` | stochastic or synthetic production |
 | `downscale_` | resolution transform |
@@ -144,7 +190,7 @@ Split on **where the work is** instead:
 | `write_climate_data_catalog` | no — enumerates entries | `write_` |
 | `prepare_stress_test_grid` | **yes** — `np.linspace` over 12-month vectors | `prepare_` |
 | `prepare_weathergen_config` | **yes** — template merge plus `compute_nr_years` | `prepare_` |
-| `prepare_runtime_window` | **yes** — computes the window | `prepare_` |
+| ~~`prepare_runtime_window`~~ | **yes** — assembles the forcing recipe | withdrawn by amendment 2; rule 1.07 merges into 1.08 |
 | `prepare_spatial_maps` | **yes** — derives the maps | `prepare_` |
 
 Every previously-accepted choice survives this cut. Note what is **not** the
@@ -172,7 +218,7 @@ Twelve, as amended 2026-08-06.
 
 | # | Current | New | Defect |
 | --- | --- | --- | --- |
-| 1.07 | `setup_runtime` | `prepare_runtime_window` | `setup_` duplicates `prepare_`; "runtime" alone says nothing |
+| 1.05 | `add_gauges_and_outputs` | `declare_wflow_outputs` | **added by amendment 2** — adds no gauges; 1.03 does. The name kept a job that moved away from it |
 | 1.08 | `add_forcing` | `add_climate_forcing` | thin noun beside its siblings — does not say *which* forcing |
 | 1.11 | `plot_results` | `plot_wflow_evaluation` | vague noun beside the specific `plot_climate_source` / `plot_forcing` |
 | 1.10 / 3.02 | `extract_climate_grid` | `extract_historical_climate` | "grid" collides with the stress-test grid; **the one cross-workflow rename** |
@@ -185,9 +231,11 @@ Twelve, as amended 2026-08-06.
 | 3.07 | `generate_climate_stress_test` | `perturb_climate_realization` | claims 3.03's job; it applies one grid point to one realization |
 | 3.08 | `climate_data_catalog` | `write_climate_data_catalog` | no verb |
 
-**Out of scope, and why** — see the amendment: `export_wflow_results` →
+**Out of scope, and why** — see amendment 1: `export_wflow_results` →
 `derive_wflow_indicators` **landed with R9**; `prepare_weagen_config_st` **no
-longer exists** (C29 deleted rule 3.05).
+longer exists** (C29 deleted rule 3.05). Per amendment 2, **1.07 `setup_runtime`
+is no longer renamed** — it merges into 1.08 (`dev/followups.md` `[R10-1]`), so
+its designed target `prepare_runtime_window` is withdrawn rather than replaced.
 
 ## The full audit — every identifier, 2026-08-06
 
@@ -197,16 +245,16 @@ omitted `gather_benchmarks`, `write_model_reference`, `check_model_reference`,
 conform, but silence in that list read as clearance when it was really absence.
 Every identifier in the three Snakefiles is now accounted for.
 
-**Conforming (22), do not touch:** `all`, `snapshot_config`, `delineate_region`,
+**Conforming (21), do not touch:** `all`, `snapshot_config`, `delineate_region`,
 `prepare_spatial_maps`, `build_wflow_model`, `add_reservoirs_lakes_glaciers`,
-`add_gauges_and_outputs`, `write_outlet_index`, `run_wflow`, `plot_forcing`,
+`write_outlet_index`, `run_wflow`, `plot_forcing`,
 `plot_climate_source`, `gather_logs`, `gather_benchmarks`, `reduce_gcm_series`,
 `derive_change_factors`, `derive_wflow_indicators`, `check_project_consistency`,
 `check_model_reference`, `write_model_reference`, `write_experiment_config`,
 `downscale_climate_realization`, plus the dynamic `run_wflow_batch_<b>`.
 
 `add_forcing` was carried here as an optional candidate and is now **ruled into
-the nine** as `add_climate_forcing`. `climate_` rather than `historical_`: it is
+the renames** as `add_climate_forcing`. `climate_` rather than `historical_`: it is
 already the established noun across rule names — `extract_climate_grid`,
 `plot_climate_source`, `downscale_climate_realization`,
 `write_climate_data_catalog` — whereas `historical_` appears in none, so it would
@@ -214,7 +262,15 @@ have introduced a word for one rule's benefit. There is no ambiguity to resolve
 within WF1 anyway: the perturbed forcing is WF3's, added by a differently-named
 rule in a different workflow.
 
-**Counts reconcile:** 12 renames + 22 conforming = 34 identifiers.
+**Counts reconcile:** 12 renames + 21 conforming + 1 pending removal (1.07) =
+34 identifiers.
+
+**What this list does and does not certify (amendment 2).** It certifies that
+each name satisfies `verb_object` against the verb table. It does **not** certify
+that the verb is still true of the body — `add_gauges_and_outputs` sat here while
+adding no gauges, and it took reading the script to find that. Anything added to
+this list in future should be checked both ways, and the check that was run
+should be stated.
 
 ## The implementation trap
 
@@ -309,8 +365,12 @@ unchanged, which is itself worth asserting.
 
 - **Twelve** rule identifiers change on the CLI surface; a
   `migration_rule-names.md` record is mandatory under `naming.md` §7. It should
-  also record the two that left scope — one landed with R9, one had its rule
-  deleted — so the count reconciles against the original ten.
+  also record the **three** that left scope — one landed with R9, one had its
+  rule deleted (3.05), and one is withdrawn in favour of a merge (1.07) — so the
+  count reconciles against the original ten.
+- `declare_wflow_outputs` is the only rename that also **adds a verb**, so
+  `naming.md`'s vocabulary section must gain `declare_` in the same edit, not
+  just the new name.
 - The merged log and benchmark table gain new section labels — durable content
   changes with no path or value change.
 - `naming.md` should carry the verb vocabulary above, so the next rule is named

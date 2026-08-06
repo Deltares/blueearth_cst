@@ -26,7 +26,8 @@ R10's scope stays at twelve: 1.07's rename leaves, 1.05's joins. The 1.07/1.08
 merge is **not** an R10 item — that milestone is identifier-only and rule bodies
 are explicitly out of its scope. See [Merge candidates](#merge-candidates).
 
-`rule-naming-design.md` still carries the pre-ruling scope and needs amending.
+Recorded in `dev/milestones/r10/rule-naming-design.md` amendment 2 (which also
+adds `declare_` to the verb table) and `dev/followups.md` `[R10-1]`/`[R10-2]`.
 
 **On the numbers.** `W.NN` is a **stable identifier assigned when a rule is
 created**, not a position — it disambiguates log parts across workflows and gives
@@ -790,6 +791,10 @@ R10 item** — that milestone is identifier-only.
 | M2 | merge 1.06 into 1.05. Both are small, both read `location_registry.csv`, both exist to wire the model to named stations — one declares which timeseries come out, the other the crosswalk mapping them back | held |
 | M3 | merge `gather_benchmarks` + `gather_logs` per workflow. Same input set, same schedule position, same shape; six rules doing two near-identical things | held |
 | S1 | **split** 1.11 into `evaluate_wflow_run` (metrics) → `plot_wflow_evaluation` (figures). `performance_metrics.csv` is baseline-covered data and the figures are explicitly excluded from the baseline, yet one rule produces both — so the DAG cannot tell a figure edit from a metrics edit, a distinction the validation ladder relies on | held |
+
+Tracked in `dev/followups.md` as `[R10-1]` (M1) and `[R10-2]` (M2/M3/S1, plus the
+do-not-merge note below); the rulings are recorded in
+`dev/milestones/r10/rule-naming-design.md` amendment 2.
 
 **M1's cost.** Snakemake allows one of `script:` / `shell:` per rule, and 1.07 is
 a Python `script:` while 1.08 shells out to the hydromt CLI. The merged rule must
