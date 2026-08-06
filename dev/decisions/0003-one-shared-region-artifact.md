@@ -1,5 +1,5 @@
-Status: accepted (§1–7, implemented); **accepted (§8–11, implemented 2026-08-06)**;
-        **proposed** (§12, the `wflow_id` renumbering)
+Status: accepted (§1–12, implemented 2026-08-06). **Baseline re-record owed** —
+        see *Landed state (§12)*.
 Date: 2026-08-02
 Deciders: Ümit Taner
 Consulted: gabon_0108 run (2026-08-02) — geometry comparison showing
@@ -40,7 +40,11 @@ Revisions:
     below for what the implementation settled that the design did not say.
   - 2026-08-06: **§11 implemented and accepted, as ONE landing rather than the
     two §11 specifies.** Measurement collapsed the split — see *Landed state
-    (§11)*. §12 stays proposed.
+    (§11)*.
+  - 2026-08-06: **§12 implemented; the record is now accepted in full.** The
+    `wflow_id` scheme, §12a's repealed invariant and §12b's user-data migration
+    all landed together. One baseline re-record is owed, covering §11's config
+    rename and §12's id change — see *Landed state (§12)*.
 
 # ADR 0003 — Spatial artifacts delineated once per project, shared across workflows
 
@@ -724,6 +728,85 @@ was wrong. §11 and §12 are untouched and still proposed.
   flips `guarded_sections_digest` and the drift guard re-runs. Harmless when the
   workflows run in order (WF1 re-snapshots first); a WF3-only run against a
   stale WF1 snapshot fails loud, which is the guard working.
+
+### Landed state (§12), 2026-08-06
+
+Three of §12's four open questions are now answered from the fixture rather than
+by reasoning, because a clean-room tree existed when this landed.
+
+- **The `outlets` map is NOT renumbered — confirmed, not assumed.** §12's own
+  open question warned that "an implementer renumbering all the ids would break
+  the gate". The fixture shows why: `outlet_index.csv` carries
+  `subcatchment_id: 101`, `check_baseline` resolves its discharge anchor through
+  that value to the column `Q_101`, and outlet-map values are SUBBASIN ids,
+  which §12 leaves alone. Only the location registry's `wflow_id` moves.
+
+- **The schema question, answered — and it uncovered a live defect.** §12 warned
+  that "the same physical point may appear as two columns" and that whether
+  `output.csv` gains one "must be pinned by a fixture run before the baseline is
+  re-recorded." The fixture's header is:
+
+  ```
+  time,Q_101,Q_105,Q_104,Q_102,Q_103,Q_101,P_105,P_104,P_102,P_103,P_101
+                                      ^^^^^ duplicate
+  ```
+
+  The two columns already exist; they **collide in name**, because
+  `wflow_id == subbasin_id` made the outlet and its gauge indistinguishable.
+  They are value-identical (max abs diff 0.0 — same physical point). So §12 does
+  not *add* a column, it **separates two that were already there**: the gauge
+  becomes `Q_1010` and the header stops being ambiguous.
+
+  That collision had already leaked into a delivered result:
+  `q_indicators.csv` shipped a column literally named **`Q_101.1`** — pandas'
+  de-duplication suffix, written into WF3's result surface. §12 fixes it.
+
+- **The discharge anchor does not move.** `check_baseline` selects by name via
+  `pd.read_csv`, which de-duplicates to `Q_101` / `Q_101.1` and returns the
+  first — the outlet column, mean `10.94766158`, matching the manifest. §12
+  leaves that column's name and values untouched.
+
+- **Ordering of additional locations within `m`** (the fourth open question):
+  unchanged and now stated. `assign_location_ids` sorts on `basin_id`,
+  `subbasin_id`, `is_primary` (descending), then `station_name`, `snapped_row`,
+  `snapped_col`, `original_x`, `original_y`. `m = local_location_number - 1`, so
+  the primary sorting first is exactly what puts it on `m = 0` — asserted in the
+  code rather than left as a consequence of the sort.
+
+- **STILL UNANSWERED: nine additional locations per subbasin.** §12 says to
+  "check against a real gauge list before implementing, not after." The shipped
+  fixture runs `gauge_points: null`, and real basin data lives outside this
+  repository, so **it could not be checked here.** The cap is enforced loudly —
+  a tenth additional location in one subbasin raises by name, because `m = 10`
+  would land exactly on the next subbasin's primary — so the failure mode is a
+  hard error, not silent corruption. If a real deployment trips it, the
+  `basin_id*10000 + local_subbasin_number*100 + m` variant lifts the limit to 99
+  at five digits.
+
+- **§12a repealed, not deleted.** `build_wflow_model._validate_registry` raised
+  "every primary location wflow_id must equal its subbasin_id" — an enforced
+  invariant that made WF1 unbuildable under §12. The property it protected is
+  real (a primary must be identifiable from its id alone), so the check was
+  **replaced** by "every primary wflow_id ends in 0" rather than dropped.
+
+- **§12b shipped with the code.** `config/templates/observations/README.md`
+  carries a before/after table and the migration, and the shipped
+  `observations_timeseries.csv` header moved from `time;101;102` to
+  `time;1010;1020` so the template no longer demonstrates the retired scheme.
+  The recommended migration is to DELETE the optional `wflow_id` column, run WF1
+  once, and read the assigned ids from `location_registry.csv`.
+
+- **`warn_if_low_gauge_ids` is moot and deliberately not re-tuned.** The
+  smallest generated id is now 1010, an order of magnitude above `MIN_GAUGE_ID`,
+  so no generated id can trip it and a pinned low id dies earlier at the
+  mismatch check. Raising the threshold would look like maintenance and buy
+  nothing; the advisory stays only for projects carrying pre-§12 ids.
+
+**Baseline re-record owed, covering §11 and §12 together.** Expected to move:
+the three config-snapshot hashes (§11's key rename) and `q_indicators.csv`
+(§12's column names). Expected NOT to move: the `output.csv` discharge anchor,
+`basin_indicators.csv` (it carries no ids), and the change-factor tables. State
+that in the re-record commit, or the diff will not match its message.
 
 ### Open questions — §8–12
 

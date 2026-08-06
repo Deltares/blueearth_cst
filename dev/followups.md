@@ -100,7 +100,7 @@ items below and in ADR 0003. The landing order it recommended, adopted:
 | 5 | ~~`[R10-6]` §11a then §11b~~ **DONE 2026-08-06 as ONE landing** — measurement collapsed the split: the fixture's partition saturates at 5 subbasins from ceiling 5 up, so §11b moves nothing and only the key rename shows. Baseline re-record owed (3 config-snapshot entries) | §11b turned out NOT to be a baseline event on this fixture |
 | 6 | R10 renames + `[R10-5]` renumber + `[R10-7]` + `[R10-10]` | against a rule set that is finally stable; regenerate the number map from it. `[R10-10]` rides here because it and `[R10-9]`'s ordering assertion touch the same test file |
 | — | `[R10-11]` tree-check on a post-migration tree | no sequencing dependency, but do it BEFORE the next milestone leans on `tree-check` as a gate — it reports red on every correct tree today |
-| 7 | `[R10-6]` §12 | standalone, last, with its own baseline re-record |
+| 7 | ~~`[R10-6]` §12~~ **DONE 2026-08-06** — landed with §11's re-record still pending, so ONE re-record now covers both | standalone, last; re-record owed |
 
 **This resolves the double-renumber contradiction.** `[R10-6]` says land the
 split before `[R10-5]`, but `rule-index.md` publishes a 45-identifier map that
@@ -469,13 +469,26 @@ that awkwardness.
     **Owed: a baseline re-record of three config-snapshot entries** (WF1/WF2/WF3
     all copy the seed config and share hash `48242f48…`). Nothing numeric moves.
   - **§12 — `wflow_id` becomes `basin_id*1000 + subbasin*10 + m`** (basin 1 →
-    1010, 1011, 1020 …), `m = 0` the subbasin's primary. Today a subbasin primary
-    gets `basin*100 + n` while any additional point gets
-    `1_000_000 + subbasin_id*100 + n`, so basin 1's second gauge is `1_010_102`.
-    **Revised 2026-08-06** from a flat `basin*100 + k`: review showed the flat
-    form near-collides with `subbasin_id` at an off-by-one and discards the
-    subbasin encoding the current ids carry. Cost: nine additional locations per
-    subbasin.
+    1010, 1011, 1020 …), `m = 0` the subbasin's primary. **DONE 2026-08-06.**
+    It replaced two unrelated formulas sharing one column: a primary took
+    `basin*100 + n` while any additional point took
+    `1_000_000 + subbasin_id*100 + n`, so basin 1's second gauge read
+    `1_010_102`. §12a's enforced invariant (`wflow_id == subbasin_id`) was
+    REPLACED, not dropped — it now reads "every primary ends in 0". §12b shipped
+    with it: `config/templates/observations/README.md` carries the migration and
+    the template header moved to `time;1010;1020`.
+
+    **It uncovered a live defect.** `output.csv` shipped `Q_101` TWICE — the
+    outlet column and its gauge column collided in name because
+    `wflow_id == subbasin_id` made them indistinguishable (value-identical, max
+    diff 0.0). That collision had already leaked into WF3's result surface as a
+    column literally named **`Q_101.1`**, pandas' de-duplication suffix. §12
+    separates them, so this is a fix rather than only a rename.
+
+    **Still unanswered:** the ADR said to check the nine-additional-locations cap
+    "against a real gauge list before implementing". The fixture runs
+    `gauge_points: null` and real basin data lives outside the repo, so it could
+    not be checked. The cap raises by name if tripped, so the failure is loud.
 
   **§11b and §12 are baseline events and must each land alone.** Only §8–10 and
   §11a are behaviour-preserving — an earlier version of this entry claimed §8–11

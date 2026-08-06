@@ -144,7 +144,9 @@ def test_no_gauges_selects_automatic_fallback_and_complete_registry():
     assert len(catchments) == len(subbasins)
     assert len(registry) == len(subbasins)
     assert registry["is_primary"].all()
-    assert (registry["wflow_id"] == registry["subbasin_id"]).all()
+    # ADR 0003 §12: a primary is `basin*1000 + local_subbasin*10`, no longer
+    # its own subbasin_id. What still holds is that it ends in 0.
+    assert (registry["wflow_id"] % 10 == 0).all()
     rows = registry["snapped_row"].astype(int).to_numpy()
     cols = registry["snapped_col"].astype(int).to_numpy()
     assert maps["river_mask"].values[rows, cols].all()

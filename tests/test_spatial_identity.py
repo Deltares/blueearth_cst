@@ -60,6 +60,7 @@ def _locations() -> pd.DataFrame:
                 "subbasin_id": 101,
                 "subbasin_code": "B001-S01",
                 "subbasin_name": "outlet",
+                "local_subbasin_number": 1,
                 "station_name": "Secondary",
                 "location_role": "observation",
                 "is_primary": False,
@@ -77,6 +78,7 @@ def _locations() -> pd.DataFrame:
                 "subbasin_id": 101,
                 "subbasin_code": "B001-S01",
                 "subbasin_name": "outlet",
+                "local_subbasin_number": 1,
                 "station_name": "Primary",
                 "location_role": "control",
                 "is_primary": True,
@@ -91,14 +93,67 @@ def _locations() -> pd.DataFrame:
     )
 
 
-def test_location_ids_follow_primary_and_reserved_additional_ranges():
-    """Primary locations inherit subbasin IDs; extras use the reserved range."""
+def test_location_ids_decode_as_basin_subbasin_member():
+    """ADR 0003 §12: `wflow_id = basin_id*1000 + local_subbasin*10 + m`.
+
+    This REPLACES two unrelated formulas that shared one column — a primary got
+    its three-digit `subbasin_id`, any additional point got a seven-digit
+    `1_000_000 + subbasin_id*100 + n` — so sibling points sat four orders of
+    magnitude apart. `location_code` is deliberately unchanged: codes are for
+    reading, `wflow_id` is the integer for joining and for scanning a CSV
+    header.
+    """
     resolved = assign_location_ids(_locations()).set_index("station_name")
 
     assert resolved.loc["Primary", "location_code"] == "B001-S01-L01"
-    assert resolved.loc["Primary", "wflow_id"] == 101
+    assert resolved.loc["Primary", "wflow_id"] == 1010
     assert resolved.loc["Secondary", "location_code"] == "B001-S01-L02"
-    assert resolved.loc["Secondary", "wflow_id"] == 1_010_102
+    assert resolved.loc["Secondary", "wflow_id"] == 1011
+    # The decode every consumer relies on: a primary ends in 0.
+    assert resolved.loc["Primary", "wflow_id"] % 10 == 0
+    assert resolved.loc["Secondary", "wflow_id"] % 10 != 0
+
+
+def test_wflow_ids_group_by_basin_and_order_by_subbasin():
+    """The property §12 exists for: ids sort into per-basin blocks."""
+    rows = []
+    for basin_id in (1, 2):
+        for local_subbasin in (1, 2):
+            rows.append({
+                "basin_id": basin_id,
+                "basin_code": f"B{basin_id:03d}",
+                "basin_name": f"basin_{basin_id:03d}",
+                "subbasin_id": basin_id * 100 + local_subbasin,
+                "subbasin_code": f"B{basin_id:03d}-S{local_subbasin:02d}",
+                "subbasin_name": "unit",
+                "local_subbasin_number": local_subbasin,
+                "station_name": f"P{basin_id}{local_subbasin}",
+                "location_role": "control",
+                "is_primary": True,
+                "original_x": 1.0, "original_y": 2.0,
+                "snapped_x": 1.0, "snapped_y": 2.0,
+                "snapped_row": 3, "snapped_col": 4,
+            })
+    resolved = assign_location_ids(pd.DataFrame(rows))
+
+    assert resolved["wflow_id"].tolist() == [1010, 1020, 2010, 2020]
+    assert resolved["wflow_id"].is_unique
+
+
+def test_a_tenth_additional_location_in_one_subbasin_raises():
+    """The collision boundary, not a preference: m=10 lands on the next
+    subbasin's primary (`sub*10 + 10 == (sub+1)*10`)."""
+    base = _locations().iloc[1].to_dict()          # the primary
+    extra = _locations().iloc[0].to_dict()          # an additional point
+    rows = [base]
+    for n in range(10):                             # ten additional -> m = 1..10
+        row = dict(extra)
+        row["station_name"] = f"Extra{n:02d}"
+        row["snapped_row"] = 10 + n
+        rows.append(row)
+
+    with pytest.raises(ValueError, match="additional locations"):
+        assign_location_ids(pd.DataFrame(rows))
 
 
 def test_location_ids_are_deterministic_under_row_shuffle():
@@ -114,7 +169,7 @@ def test_location_ids_are_deterministic_under_row_shuffle():
 def test_supplied_wflow_id_must_match_resolved_registry():
     """A stale user ID cannot silently override the deterministic hierarchy."""
     locations = _locations()
-    locations["provided_wflow_id"] = [999, 101]
+    locations["provided_wflow_id"] = [999, 1010]
 
     with pytest.raises(ValueError, match="disagree"):
         assign_location_ids(locations)
@@ -123,7 +178,7 @@ def test_supplied_wflow_id_must_match_resolved_registry():
 def test_non_numeric_supplied_wflow_id_is_not_treated_as_missing():
     """A populated invalid ID fails instead of being silently regenerated."""
     locations = _locations()
-    locations["provided_wflow_id"] = ["stale-id", 101]
+    locations["provided_wflow_id"] = ["stale-id", 1010]
 
     with pytest.raises(ValueError, match="must be integers"):
         assign_location_ids(locations)

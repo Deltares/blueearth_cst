@@ -8,7 +8,17 @@ import pandas as pd
 
 INT32_MAX = 2_147_483_647
 MAX_LOCAL_SUBBASIN_NUMBER = 99
-ADDITIONAL_LOCATION_OFFSET = 1_000_000
+
+#: Additional (non-primary) locations allowed inside one subbasin (ADR 0003
+#: §12). The id reserves ONE digit for the within-subbasin member, so `m` runs
+#: 0–9 with 0 reserved for the primary. A tenth additional location would carry
+#: `m = 10` and land exactly on the NEXT subbasin's primary, so this is a
+#: collision boundary rather than a preference.
+#:
+#: If a real deployment ever needs more, the `basin_id*10000 +
+#: local_subbasin_number*100 + m` variant lifts the limit to 99 at five digits
+#: (ADR 0003 §12, *Cost, accepted*).
+MAX_ADDITIONAL_LOCATIONS = 9
 
 
 def _require_columns(frame: pd.DataFrame, columns: Iterable[str], label: str) -> None:
@@ -132,6 +142,11 @@ def assign_location_ids(locations: pd.DataFrame) -> pd.DataFrame:
             "subbasin_id",
             "subbasin_code",
             "subbasin_name",
+            # ADR 0003 §12: the wflow_id is built from the LOCAL subbasin
+            # number, not from `subbasin_id`. Carried explicitly rather than
+            # recovered as `subbasin_id - basin_id*100`, so the id scheme does
+            # not silently depend on how subbasin_id happens to be composed.
+            "local_subbasin_number",
             "station_name",
             "location_role",
             "is_primary",
@@ -181,13 +196,37 @@ def assign_location_ids(locations: pd.DataFrame) -> pd.DataFrame:
         ),
         axis=1,
     )
-    primary_ids = ordered["subbasin_id"].astype("int64")
-    additional_ids = (
-        ADDITIONAL_LOCATION_OFFSET
-        + primary_ids * 100
-        + ordered["local_location_number"].astype("int64")
+    # ADR 0003 §12: `wflow_id = basin_id*1000 + local_subbasin_number*10 + m`,
+    # `m = 0` for the subbasin's primary location and 1–9 for additional points
+    # inside it. Basin 1 reads 1010, 1011, 1020, 1030…; basin 2 reads 2010, …
+    #
+    # This REPLACES two unrelated formulas that shared one column: a primary got
+    # `subbasin_id` (three digits) while any additional point got
+    # `1_000_000 + subbasin_id*100 + n` (seven), so points a user thinks of as
+    # siblings sat four orders of magnitude apart. The new id groups by basin,
+    # orders by subbasin, and keeps the subbasin legible in the flat integer.
+    #
+    # `m` is `local_location_number - 1`, and the sort above places the primary
+    # first within each subbasin, so the primary always lands on 0. Asserted
+    # rather than assumed — it is the property every consumer decodes by.
+    member = ordered["local_location_number"].astype("int64") - 1
+    if not ordered.loc[ordered["is_primary"], "local_location_number"].eq(1).all():
+        raise ValueError("each subbasin's primary location must sort first")
+    too_many = member > MAX_ADDITIONAL_LOCATIONS
+    if too_many.any():
+        crowded = sorted(
+            set(ordered.loc[too_many, "subbasin_code"].astype(str))
+        )
+        raise ValueError(
+            f"a subbasin cannot hold more than {MAX_ADDITIONAL_LOCATIONS} "
+            f"additional locations beside its primary under the ADR 0003 §12 "
+            f"wflow_id scheme; crowded subbasins: {crowded}"
+        )
+    ordered["wflow_id"] = (
+        ordered["basin_id"].astype("int64") * 1000
+        + ordered["local_subbasin_number"].astype("int64") * 10
+        + member
     )
-    ordered["wflow_id"] = additional_ids.where(~ordered["is_primary"], primary_ids)
     _validate_positive_int32(ordered["wflow_id"], "wflow_id")
 
     if "provided_wflow_id" in ordered:

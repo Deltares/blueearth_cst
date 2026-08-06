@@ -528,6 +528,9 @@ def _delineate_spatial_units(
                 "subbasin_id",
                 "subbasin_code",
                 "subbasin_name",
+                # ADR 0003 §12 builds wflow_id from this, so it has to reach
+                # `assign_location_ids` rather than stop at the subbasin table.
+                "local_subbasin_number",
             ]
         ],
         on="temporary_label",

@@ -59,6 +59,15 @@ GAUGES_PREFIX = "gauges_"
 #: A CONVENTION, not a constraint: lower ids work, so an existing dataset keeps
 #: running. Only the silence was the problem — a user who renumbers the template
 #: and not their data has no way to notice.
+#:
+#: **MOOT since ADR 0003 §12, and deliberately not re-tuned.** Generated ids are
+#: now `basin_id*1000 + local_subbasin_number*10 + m`, so the smallest possible
+#: one is 1010 — an order of magnitude above this floor, which no generated id
+#: can trip. A user-PINNED id below the floor dies earlier and louder at
+#: `assign_location_ids`' mismatch check, which compares the pinned value
+#: against the resolved hierarchy by name. Raising the threshold to match the
+#: new scheme would look like maintenance and buy nothing; the advisory is kept
+#: only because a project carrying pre-§12 ids can still reach it.
 MIN_GAUGE_ID = 100
 
 
