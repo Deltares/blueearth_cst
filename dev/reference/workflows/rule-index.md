@@ -1017,9 +1017,19 @@ none is an R10 item. The two accepted ones are already reflected above.
 **Also do not merge `write_model_reference` and `check_model_reference`** — the
 `ancient()` / `temp()` asymmetry *is* the guard. See 3.05's section.
 
-**The general lesson**, worth carrying into any future sweep: two rules being
-small, adjacent and thematically similar is not an argument for merging them.
-Check what each actually depends on, and whether either destroys its own inputs.
+**Two general lessons**, both earned by designs that looked right on paper:
+
+1. Two rules being small, adjacent and thematically similar is not an argument
+   for merging them. Check what each actually **depends on**, and whether either
+   **destroys its own inputs**. (M2 and M3.)
+2. **A function boundary is not a data boundary.** Both accepted splits assumed
+   one: `[R10-6]` §8 read as "vectors, then thematic rasters" until the whole
+   hydrography grid turned out to cross the seam in memory, and `[R10-2]` read as
+   "metrics, then figures" until the metrics proved to be one call inside the
+   figure loop, downstream of a model open, a gauge-name resolution, a merge, an
+   alignment and a parity transform. Before splitting a rule, list what the
+   second half would have to **reload or recompute** — not which functions it
+   would call.
 
 ## Drift found in the Snakefile comments (not yet fixed)
 

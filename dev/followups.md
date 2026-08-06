@@ -95,7 +95,7 @@ items below and in ADR 0003. The landing order it recommended, adopted:
 |---|---|---|
 | 1 | ~~`[R10-8]` stale WF2 `LOG_RULES` entry · `[R10-4]` comments · rule-index diagram fixes~~ **DONE 2026-08-06** | no sequencing dependency; one is a live defect |
 | 2 | ~~`[R10-9]` the `LOG_RULES` conformance test~~ **DONE 2026-08-06** (`tests/test_log_rules_contract.py`, 9 passed) | the sweep's highest-risk surface, verified *before* the sweep edits it |
-| 3 | ~~`[R10-1]` merge~~ **DONE 2026-08-06** · `[R10-2]` split | small, behaviour-preserving, `test_cli.py` each |
+| 3 | ~~`[R10-1]` merge~~ **DONE 2026-08-06** · `[R10-2]` split **BLOCKED** — needs an owner ruling, see the item | the merge was small and behaviour-preserving; the split turned out not to have the seam it assumed |
 | 4 | `[R10-6]` §8–10 — after deciding the seam artifact and params purity, and after the WF2 cost measurement | changes the rule count of all three workflows |
 | 5 | `[R10-6]` §11a (rename, value preserved) then §11b (default → 11) | §11b is a baseline event; §11a is one YAML key |
 | 6 | R10 renames + `[R10-5]` renumber + `[R10-7]` | against a rule set that is finally stable; regenerate the number map from it |
@@ -166,17 +166,47 @@ being the target from the start.
   and rewrites identical metrics, so the gate passes. The gain is that a
   figure-only change becomes *visible as one* to Snakemake.
 
-  Two open sub-decisions for whoever implements it:
+  **BLOCKED 2026-08-06 — the split does not have the seam this item assumed.**
+  Found while implementing it, by reading `plot_results.py` rather than trusting
+  the brief. `analyse_wflow_historical` is one function whose shared prefix is
+  nearly the whole rule:
 
-  1. **How the halves share data.** `plot_results.py` loads the run, the climate
-     store and the observations once and uses them for both. The split needs
-     either a re-read of `output.csv` in the figure rule or a declared
-     intermediate. Prefer the re-read unless it measures badly — an intermediate
-     is a new artifact in a tree R9 just finished settling.
-  2. **The metrics rule's verb.** `evaluate_` would be a **19th verb**;
-     `derive_wflow_metrics` reuses an existing one, but `derive_` is explicitly
-     reserved for a workflow's *terminal* product and the metrics table is not
-     WF1's. Rule on this before the sweep, not during it.
+  - `WflowSbmModel(root, mode="r")`, `mod.output_csv.read()`, `mod.geoms.data`;
+  - the outlet/gauge series merge, with **variable names resolved from the
+    model** (`gauges_variable_name`/`gauges_layer_name`, not from the filename);
+  - observation loading plus `validate_observation_station_ids`;
+  - the warm-up trim and the qsim/qobs time alignment;
+  - the climate-parity transform (catalog orography fetch, regrid, lapse and
+    pressure correction, PET) — the expensive part.
+
+  **The metrics are one call inside the figure loop**
+  (`compute_metrics(qsim_i, qobs_i, station_name)`, `plot_results.py:422`), in
+  the same `if do_signatures and qobs_i is not None:` branch that emits
+  `plot_signatures`. The metrics half is ~5 lines; the figure half is the module.
+
+  So "re-read `output.csv`" — this item's stated preference — actually means
+  re-open the model, re-resolve the gauge variable names, re-merge, re-align and
+  **re-run the parity transform**. That preference is **withdrawn**: it was
+  formed from a description of the rule, not from the rule.
+
+  Three options, none free, and this is now a design decision rather than an
+  implementation detail:
+
+  1. **Aligned-discharge intermediate.** The metrics rule runs upstream and
+     writes `performance_metrics.csv` plus the aligned qsim/qobs series; the
+     figure rule reads that. Removes the merge and alignment duplication but not
+     the parity work, and adds a declared artifact to a tree R9 just settled.
+  2. **Full re-read.** Duplicates the parity transform in both rules.
+  3. **Drop S1.** The harm it fixes is a wasted re-run and a needless baseline
+     comparison — not a wrong number, by this item's own assessment. That may not
+     justify either cost.
+
+  Still open regardless: **the metrics rule's verb.** `evaluate_` is ruled in as
+  the 19th verb (`rule-naming-design.md` amendment 2) and stands whichever option
+  is chosen — but if S1 is dropped, so is the verb.
+
+  **Nothing else in the stack depends on S1**, so steps 4–7 of the landing order
+  are unaffected.
 
 - **[R10-3] Two consolidations REJECTED, recorded so they are not re-raised.**
   Both looked obvious and both are wrong; the reasons are structural, not
