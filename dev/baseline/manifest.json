@@ -2,16 +2,16 @@
   "project_dir": "test_case/test_local",
   "recorded_by": {
     "branch": "main",
-    "commit": "03e546cf4b01c425ff61ec7a7dc9a3d4e80ffdfa",
+    "commit": "a1d999307720f034434787b6156c45c9d3a5bfd0",
     "dirty": true
   },
   "targets": {
     "test_case/test_local/config/runs/snake_config_climate_projections.yml": {
-      "sha256": "48242f483146c02ae16b0739cbea74d40593b21876c9f4d3d96294eb2d6f1c2d",
+      "sha256": "e223eaf7e4d6cab9f8b54974ce07caf411f9ed79f81d417f71f45d404fdbd7bf",
       "type": "yaml"
     },
     "test_case/test_local/config/runs/snake_config_model_creation.yml": {
-      "sha256": "48242f483146c02ae16b0739cbea74d40593b21876c9f4d3d96294eb2d6f1c2d",
+      "sha256": "e223eaf7e4d6cab9f8b54974ce07caf411f9ed79f81d417f71f45d404fdbd7bf",
       "type": "yaml"
     },
     "test_case/test_local/data/climate/projections/cmip6/plots/cmip6_change_factor_cloud.png": {
@@ -40,7 +40,7 @@
       "type": "csv"
     },
     "test_case/test_local/experiments/experiment/config/snake_config_climate_experiment.yml": {
-      "sha256": "48242f483146c02ae16b0739cbea74d40593b21876c9f4d3d96294eb2d6f1c2d",
+      "sha256": "e223eaf7e4d6cab9f8b54974ce07caf411f9ed79f81d417f71f45d404fdbd7bf",
       "type": "yaml"
     },
     "test_case/test_local/experiments/experiment/results/basin_indicators.csv": {
@@ -49,8 +49,8 @@
       "type": "csv"
     },
     "test_case/test_local/experiments/experiment/results/q_indicators.csv": {
-      "sha256": "2c4bb3c879ea7ac540d2521f45ba364a4fa97b7b86246524d232ff2351fbf239",
-      "size_bytes": 3854,
+      "sha256": "65c6b0b92ff1f272d9d404e256be133e11a3b34a62c16920f463bfda403e566a",
+      "size_bytes": 3857,
       "type": "csv"
     },
     "test_case/test_local/models/hydrology/wflow/evaluation/plots/hydro_wflow_1.png": {
