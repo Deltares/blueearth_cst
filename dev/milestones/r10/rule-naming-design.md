@@ -301,6 +301,22 @@ rule in a different workflow.
 **Counts reconcile:** 12 renames + 21 conforming + 1 pending removal (1.07) =
 34 identifiers.
 
+**Still 34 after `[R10-6]` §8, by coincidence rather than design.** The merge
+removed 1.07 and the vector/raster split added `delineate_spatial_units`, so the
+audit now reads 12 renames + **22** conforming = 34. The new rule conforms
+without being touched: `delineate_` is already in the verb table (amendment 1),
+and `spatial_units` is the noun ADR 0003 §8 uses for the layer set. It is
+declared once and splatted into all three workflows, exactly like
+`delineate_region`, so it is **one** identifier here and three rows in
+`rule-index.md`'s renumber map.
+
+That is the whole of the 34-vs-47 difference: this document counts distinct
+identifiers, `rule-index.md` counts declarations. Seven rules are declared in
+more than one workflow — `all`, `snapshot_config`, `delineate_region`,
+`delineate_spatial_units`, `gather_logs`, `gather_benchmarks` (three times each)
+and `extract_historical_climate` (twice) — which is 13 declarations beyond their
+first. 47 − 13 = 34. Neither count is wrong; state which one is meant.
+
 **What this list does and does not certify (amendment 2).** It certifies that
 each name satisfies `verb_object` against the verb table. It does **not** certify
 that the verb is still true of the body — `add_gauges_and_outputs` sat here while
@@ -381,15 +397,31 @@ The owner ruled the other way after the rule-index audit reordered the DAG
 diagrams into `data → model → run → records`: with the stages made explicit, the
 numbers contradicting them was the more visible defect. **`W.NN` becomes
 positional** — contiguous per workflow, every dependency pointing from a lower
-number to a higher one. The full old→new map for all 45 identifiers lives in
+number to a higher one. The full old→new map for all **47** identifiers lives in
 `dev/reference/workflows/rule-index.md` § *What changed*; the item is
 `dev/followups.md` `[R10-5]`.
 
+**Regenerated 2026-08-06, and the count moved twice.** The first published map
+carried 45. It reconciles as −1 (`evaluate_wflow_run` never exists — `[R10-2]`
+dropped) +3 (`delineate_spatial_units`, one declaration per workflow, from
+`[R10-6]` §8). The map was deliberately regenerated at step 6 of the landing
+order rather than being the target from the start, precisely so the rule set had
+stopped changing first.
+
+**"Every dependency low→high" must be checked against `input:`, `ancient()`
+included.** The first draft of the map put `write_outlet_index` and
+`plot_basin_map` before `add_climate_forcing` — both declare
+`ancient(<model>/.model_final)`, which that rule writes, so both edges pointed
+high→low. `ancient()` suppresses the timestamp rerun-trigger and nothing else;
+the DAG edge stands. ADR 0004 moved that sentinel onto the forcing rule after
+the draft was written, and `ancient()` is why it read as no dependency at all.
+
 The cost above stands and was accepted knowingly. One part of it is worse than
 this section anticipated: because the new numbering is contiguous, **retired
-numbers get reused** — new 1.07 is `write_outlet_index` where old 1.07 was
-`setup_runtime`, and new 3.05 is `check_model_reference` where old 3.05 was the
-rule C29 deleted. Under the policy this section recommended, a stale `W.NN`
+numbers get reused** — new 1.07 is `build_wflow_model` where old 1.07 was
+`setup_runtime`, and new 3.05 is `write_model_reference` where old 3.05 was the
+rule C29 deleted. Sharpest, new 3.10 is `prepare_weathergen_config` where old
+3.10 was `run_wflow`. Under the policy this section recommended, a stale `W.NN`
 reference merely dangled and was obvious; now it silently resolves to a
 different rule. Read every `W.NN` in `dev/milestones/`, `DEVLOG.md` and
 `dev/decisions/` **as of its date**, and do not rewrite archived records to the
