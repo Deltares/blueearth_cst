@@ -57,6 +57,15 @@ Two further merges were **rejected** by the same audit — 1.06 into 1.05, and t
 paired `gather_*` rules — for structural reasons recorded in `[R10-3]`. Noted
 here because both would have changed which identifiers exist.
 
+**Riding in the same sweep, but not a rule rename:** `[R10-7]` renames the three
+shared-rule helper functions in `snake_utils.py` from `_spec` to `_rule`
+(`region_spec` → `region_rule`, `climate_store_spec` → `climate_store_rule`, and
+the new `spatial_units_rule` from `[R10-6]`). These are **Python identifiers, not
+Snakemake rule identifiers**, so they are outside this design's scope proper —
+they ride along only because the sweep already edits all three Snakefiles.
+Counted separately: the 34 identifiers above are unaffected. `naming.md` should
+gain the `_rule` convention in the same edit that gains the verb vocabulary.
+
 ## Amendment 1 — 2026-08-06
 
 Ruled by the owner after a full re-audit against the code as it stands. The

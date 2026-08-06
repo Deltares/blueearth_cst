@@ -177,6 +177,38 @@ rejected.** None is an R10 item; that milestone is identifier-only.
   not an argument for merging them. Check what each actually depends on, and
   whether either destroys its own inputs.
 
+- **[R10-7] Rename the three shared-rule helpers from `_spec` to `_rule`.**
+  *Ruled 2026-08-06; not implemented.* `region_spec` → `region_rule`,
+  `climate_store_spec` → `climate_store_rule`, and the new one from `[R10-6]` is
+  born as `spatial_units_rule`. Dataclasses follow (`RegionRule`,
+  `ClimateStoreRule`, `SpatialUnitsRule`), as does `tests/test_region_spec.py` →
+  `tests/test_region_rule.py`.
+
+  **Why:** `spec` reads as jargon to a non-programmer, and the object is not a
+  specification of anything abstract — it holds a rule's `script`, `inputs`,
+  `outputs` and `params`, i.e. a rule definition minus its `message`/`log`/
+  `benchmark` labels. "The region rule" says what it is. `_contract` was
+  rejected: this repo already uses "contract" for interchange surfaces
+  (`dev/reference/contracts/`, `SPATIAL_CONTRACT_VERSION`,
+  `test_climate_store_contract.py`), and overloading it would be worse than the
+  jargon. `_definition` was the runner-up, rejected on verbosity at the call
+  sites.
+
+  **Scope:** all three, not just the new one — three sibling helpers under two
+  suffixes is the inconsistency the shared-rule pattern exists to prevent.
+  **21 files** reference the current names (`snake_utils.py`, all three
+  Snakefiles, eight tests, two `dev/scripts/`, and several `dev/reference/`
+  docs). Mechanical, but note `climate_store_spec` appears inside an error
+  *message string* in `snake_utils.py` and in module docstrings — a
+  symbol-only rename misses both.
+
+  **Land it in the R10 sweep**, which already edits all three Snakefiles.
+  `dev/reference/naming.md` documents no `_spec` convention (its suffix rules
+  cover `_path` / `_ds` / `_cfg`), so nothing there contradicts this — but the
+  sweep should *add* the `_rule` convention so the next helper is named from a
+  rule rather than by analogy. Do **not** rewrite `dev/milestones/` archives,
+  per R10's validation item 4.
+
 - **[R10-6] Split `prepare_spatial_maps` so WF2 and WF3 can consume basin and
   subbasin boundaries.** *Designed 2026-08-06 as ADR 0003 §8–11 (**proposed**,
   not accepted); not implemented.* WF2 and WF3 declare `delineate_region` and no

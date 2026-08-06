@@ -316,8 +316,8 @@ never from a built model.
 #### 1.03 · `extract_historical_climate`
 
 **Does.** The **shared** historical-climate store producer — the same rule WF3
-declares as 3.07, splatted from one `climate_store_spec` so the two declarations
-cannot drift. Extracts the configured historical climate for the region and
+declares as 3.07, splatted from one `climate_store_rule` helper so the two
+declarations cannot drift. Extracts the configured historical climate for the region and
 window, on the source grid, model-free. Its declared inputs are the data catalog
 — the store's freshness boundary — and the region polygon.
 

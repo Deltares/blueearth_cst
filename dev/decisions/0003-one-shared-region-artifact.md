@@ -23,6 +23,9 @@ Revisions:
     basin and subbasin boundaries without dragging in the raster stack. The
     "point at `basins.geojson`" alternative rejected in the original record is
     marked revisited, because this split removes its disqualifying factor.
+    Also ruled: the shared-rule helpers drop the `_spec` suffix for `_rule`
+    (`[R10-7]`). §1–7 below still name `region_spec` / `climate_store_spec`,
+    which is what the **implemented** code calls them until that sweep lands.
 
 # ADR 0003 — Spatial artifacts delineated once per project, shared across workflows
 
@@ -169,10 +172,19 @@ region polygon to the vector foundation.
    vector half is `prepare_spatial_products` up to and including
    `_delineate_spatial_units`, the raster half is `_thematic_maps` onward.
 
-9. **`snake_utils.spatial_units_spec(...)`** returns a `SpatialUnitsSpec` —
-   `script`, `inputs`, `outputs`, `params` — mirroring `region_spec` and
-   `climate_store_spec`. All three workflows declare `delineate_spatial_units`
-   from it, byte-identical but for `message`/`log`/`benchmark`.
+9. **`snake_utils.spatial_units_rule(...)`** returns a `SpatialUnitsRule` —
+   `script`, `inputs`, `outputs`, `params` — mirroring the other two shared-rule
+   helpers. All three workflows declare `delineate_spatial_units` from it,
+   byte-identical but for `message`/`log`/`benchmark`.
+
+   The suffix is **`_rule`, not `_spec`** (ruled 2026-08-06): the object holds a
+   rule's script, inputs, outputs and params, so it *is* a rule definition minus
+   its labels, and "the region rule" reads to someone who does not write
+   software. `region_spec` → `region_rule` and `climate_store_spec` →
+   `climate_store_rule` rename with it so the trio stays consistent —
+   `dev/followups.md` `[R10-7]`, folded into the R10 sweep. `_contract` was
+   rejected because this repo already uses "contract" for interchange surfaces
+   (`dev/reference/contracts/`, `SPATIAL_CONTRACT_VERSION`).
 
 10. **WF2 and WF3 consume the vectors as declared inputs** of the figure and
     metric rules that use them. *Which* rules is deliberately left open — see
@@ -344,9 +356,10 @@ region polygon to the vector foundation.
 
 #### Validation of §8–11
 
-1. `tests/test_spatial_units_spec.py` (new) — the spec's shape, and that the
+1. `tests/test_spatial_units_rule.py` (new) — the helper's shape, and that the
    three declarations of `delineate_spatial_units` differ only in
-   `message`/`log`/`benchmark`. Mirrors `test_region_spec.py`.
+   `message`/`log`/`benchmark`. Mirrors `test_region_rule.py` (itself renamed
+   from `test_region_spec.py` by `[R10-7]`).
 2. `tests/test_spatial_products.py` — the vector half writes the same six
    artifacts it writes today, with the same schemas; the raster half still
    validates the ID joins across raster, vector and registry.
