@@ -144,8 +144,8 @@ workflows 2/3; not in this `rule all`):
 - `{project_dir}/data/spatial/spatial_maps.nc`
 - `{project_dir}/data/spatial/geoms/{basins,subbasins,catchments,rivers,locations}.geojson`
 - `{project_dir}/data/spatial/geoms/region.geojson` — a **sixth** layer in the
-  same directory, written by rule 1.01b `delineate_region` (ADR 0003) rather
-  than by 1.02. Listed separately because the producer differs: enumerating
+  same directory, written by rule 1.02 `delineate_region` (ADR 0003) rather
+  than by 1.06. Listed separately because the producer differs: enumerating
   five layers here is what let R9's migration map miss it (P1 finding F1a).
 - `{project_dir}/data/spatial/location_registry.csv`
 - `{project_dir}/data/spatial/spatial_catalog.yml`

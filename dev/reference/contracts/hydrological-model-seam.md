@@ -51,8 +51,8 @@ Rendered one subsection per artifact.
 ## HM-1 — static grid (staticmaps.nc)
 
 - **path pattern:** `models/hydrology/wflow/staticmaps.nc`.
-- **producer:** rule 1.03 `create_model` (hydromt build).
-- **consumers:** wf1 rules 1.04 / 1.05 / 1.10 / 1.11; wf3 rule 3.09
+- **producer:** rule 1.07 `create_model` (hydromt build).
+- **consumers:** wf1 rules 1.08 / 1.09 / 1.04 / 1.15; wf3 rule 3.14
   (`WflowSbmModel(root)`).
 - **coords:** `(latitude, longitude)` `float64` + `spatial_ref` EPSG:4326 +
   `GeoTransform`.
@@ -76,8 +76,8 @@ Rendered one subsection per artifact.
   (= WG-6 on the weather-generator seam). R07 B5 files the wf3 twin on the
   HYDROLOGY side because it is model-grid forcing, symmetric with the wf1
   path above; R9 P2 flattened the `rlz_<n>/` level out of it.
-- **producer → consumer:** rule 1.08 `add_climate_forcing` (hydromt update) → rule 1.09
-  `run_wflow`; wf3 rule 3.09 → rule 3.10.
+- **producer → consumer:** rule 1.10 `add_climate_forcing` (hydromt update) → rule 1.14
+  `run_wflow`; wf3 rule 3.14 → rule 3.15.
 - **dims:** `(time, latitude, longitude)` on the **model grid** (`float64`
   lat/lon matching HM-1).
 - **data_vars:** exactly `precip`, `pet`, `temp` — all `float32`, each
@@ -109,8 +109,8 @@ Rendered one subsection per artifact.
 
 - **path pattern:** `models/hydrology/wflow/staticgeoms/*` (`region.geojson`,
   `basins.geojson`, `outlets.geojson`, `rivers.geojson`, `outlet_index.csv`, …).
-- **producer:** rule 1.03 side-effect + rules 1.05 / 1.06.
-- **consumers:** wf1 plot rules; wf3 rule 3.02 (`region.geojson` via
+- **producer:** rule 1.07 side-effect + rules 1.09 / 1.11.
+- **consumers:** wf1 plot rules; wf3 rule 3.08 (`region.geojson` via
   `ancient()`).
 - **pinned surface (OUR-consumed vectors only):** `region.geojson` (basin extent
   polygon, EPSG:4326 — the wf3 extraction region + the `ancient()` DAG edge);
@@ -132,8 +132,8 @@ Rendered one subsection per artifact.
   stays `"."` and the hop rides in the pointers themselves
   (`snake_utils.member_pointer_base`). hydromt re-relativizes the absolute
   pointers on write -- none is hand-maintained.
-- **producer:** tracked template / rule 3.09 rewrite.
-- **consumer:** rule 1.09 / rule 3.10 `run_wflow` (`Wflow.run()`).
+- **producer:** tracked template / rule 3.14 rewrite.
+- **consumer:** rule 1.14 / rule 3.15 `run_wflow` (`Wflow.run()`).
 - **pinned surface (the TOML fields OUR code reads/rewrites — the wf3 rewrite
   sites, `downscale_climate_forcing.py:55-84` `setup_config`):**
   `[time].{calendar, starttime, endtime, timestepsecs}`, `dir_output`,
@@ -174,8 +174,8 @@ Rendered one subsection per artifact.
   `rlz_<n>/` level and moved the realization index back into the file name, so
   one member is one filename in three flat directories (`config/`, `forcing/`,
   `output/`). This is the inverse of R07 B5.
-- **producer:** rule 1.09 / rule 3.10 `run_wflow`.
-- **consumers:** wf1 rule 1.11 plots; wf3 rule 3.11 `derive_wflow_indicators`.
+- **producer:** rule 1.14 / rule 3.15 `run_wflow`.
+- **consumers:** wf1 rule 1.15 plots; wf3 rule 3.16 `derive_wflow_indicators`.
 - **pinned surface — column identity is config-driven, NOT a literal list:** a
   `time` index (ISO-8601, daily) + **one column per `[output.csv].column`
   entry**, named `<header>_<mapid>`. Fixture: `time,Q_130000086` (one gauge).
@@ -184,7 +184,7 @@ Rendered one subsection per artifact.
   key bounded-substitution invariant, checked end-to-end by
   `validate_hm_gauge_column_identity` (below).
 - **consumer-prefix reliance (grounded, `export_wflow_results.py:61-62`):** rule
-  3.11 selects gauge columns by a **hard-coded `Q_` prefix**
+  3.16 selects gauge columns by a **hard-coded `Q_` prefix**
   (`Q_vars = [x for x in sim.columns if x.startswith("Q_")]`, line 61) and
   basin-average columns by a `basavg` substring (line 62) — so the TOML `header`
   values are load-bearing **beyond mere identity**.
@@ -198,7 +198,7 @@ Rendered one subsection per artifact.
 ## HM-6a — wf1 warm state (persisted, no validator)
 
 - **path pattern:** `models/hydrology/wflow/run_default/outstate/outstates.nc`.
-- **producer → consumer:** rule 1.09 `run_wflow` → **(nothing in-repo)**.
+- **producer → consumer:** rule 1.14 `run_wflow` → **(nothing in-repo)**.
 - **THIN — "named output sink, unconsumed."** Persisted on the fixture.
 - **contract surface:** name + location only — which **HM-4 already pins** via
   `[state].path_output`. **No validator (design risk-1):** a standalone existence
@@ -217,10 +217,10 @@ Rendered one subsection per artifact.
 
 - **path pattern:** `<exp>/hydrology/wflow/output/outstates_rlz_<n>_cst_<m>.nc`
   (flattened with HM-5 at R9 P2).
-- **producer → consumer:** rule 3.10 `run_wflow` → **(nothing in-repo)**.
+- **producer → consumer:** rule 3.15 `run_wflow` → **(nothing in-repo)**.
 - **THIN — "named output sink, unconsumed" (corrects the intake's chaining
   hint).** Verified: the per-cst TOML keeps `cold_start__flag = true` and
-  declares **no `instates` input** on rule 3.10; wf3 fans out in parallel over
+  declares **no `instates` input** on rule 3.15; wf3 fans out in parallel over
   `(rlz, cst)` with no cross-cst edge — **no warm-state chaining invariant** our
   DAG relies on (design §5.3 warm-state finding).
 - **contract surface:** the file is a declared wflow state **output** whose name
@@ -243,7 +243,7 @@ Rendered one subsection per artifact.
 - **path pattern:** `<exp>/results/q_indicators.csv`, `<exp>/results/basin_indicators.csv`
   (R07 B7: `indicators/` is the CST term; `outputs/` was rejected because
   `hydrology/wflow/` also holds outputs).
-- **producer:** rule 3.11 `derive_wflow_indicators` (renamed from
+- **producer:** rule 3.16 `derive_wflow_indicators` (renamed from
   `export_wflow_results` at R9 P3; the *module* it runs keeps the old name, so
   the `export_wflow_results.py:NN` citations below are current).
 - **consumer:** CST-API / GUI (terminal in-repo).
@@ -300,7 +300,7 @@ Exactly the failure no per-artifact validator can see.
    `[output.csv].column` entry in `toml_cfg` (map-typed entries →
    `<header>_<id>` pattern; entries without `map` → exact `header`), and every
    declared entry is represented;
-2. the map-typed gauge columns carry the `Q_` prefix rule 3.11 hard-codes;
+2. the map-typed gauge columns carry the `Q_` prefix rule 3.16 hard-codes;
 3. `qstats_df`'s gauge columns (header minus `statistic` and the
    `_PERTURBATION_AXIS` columns `temp_change,precip_change`, ordered per
    `export_wflow_results.py:66-67`) are **list-equal** to the `output_rlz_df`
@@ -325,7 +325,7 @@ reliance; the fixture TOML declares no `basavg` column, so that branch is
 
 The intake's seam inventory hinted at "per-cst run chaining" via
 `instates`/`outstates`. The fixture + TOML diff (`wflow_sbm_rlz_1_cst_1.toml` vs
-base `wflow_sbm.toml`) shows `cold_start__flag = true` in **both**, rule 3.10
+base `wflow_sbm.toml`) shows `cold_start__flag = true` in **both**, rule 3.15
 declares only a `forcing_path` + `toml_path` input (no `instates`), and the
 `path_input` the rewrite sets (`downscale_climate_forcing.py:79`) points at a
 **non-existent** `models/hydrology/wflow/instate/instates.nc` that cold-start never
@@ -347,16 +347,16 @@ A drop-in model (design §5.6) must:
   wf3 forcing/TOML to match the weathergenr `noleap` origin, distinct from the
   wf1 `proleptic_gregorian` pin; arch-4).
 - **Produce** HM-5 per-run discharge CSVs with the **`<header>_<mapid>` column
-  identity** the reduction (rule 3.11) keys on — the single degree of freedom
+  identity** the reduction (rule 3.16) keys on — the single degree of freedom
   that flows HM-4 `[output.csv].column` → HM-5 → HM-7, and the `Q_` header prefix
   the reduction hard-codes (`export_wflow_results.py:61`). A swap that renames the
   gauge column silently breaks HM-7 — exactly the failure the relational
   `validate_hm_gauge_column_identity` exists to catch.
-- **Repo files it replaces:** rule 1.03 build (`hydromt build`), rule 1.08 / 3.09
-  forcing prep, rules 1.09 / 3.10 `run_wflow` `shell:` bodies
+- **Repo files it replaces:** rule 1.07 build (`hydromt build`), rule 1.10 / 3.14
+  forcing prep, rules 1.14 / 3.15 `run_wflow` `shell:` bodies
   (`julia … Wflow.run()`), and `downscale_climate_forcing.py`'s TOML-rewrite
   (HM-4 fields) if the run-config format changes.
-- **Files it must NOT change:** rule 3.11 `derive_wflow_indicators` (the reduction)
+- **Files it must NOT change:** rule 3.16 `derive_wflow_indicators` (the reduction)
   — provided HM-5's column identity is honored.
 - **Contracts it must satisfy:** HM-1 (static reliance), HM-2 (forcing in), HM-4
   (run-config rewrite fields), HM-5 (output column identity), HM-7 (reduction
@@ -393,7 +393,7 @@ executes on **every** checkout, fixture or not. HM-2 unit attrs are asserted
 
 The `temp()`-content validator `validate_hm6b` (HM-6b, the wf3 warm state) has
 **no on-disk integration check on the default fixture**: `outstates_rlz_<n>_cst_<m>.nc`
-is wrapped in Snakemake `temp()` and deleted after rule 3.10 finishes, so it does
+is wrapped in Snakemake `temp()` and deleted after rule 3.15 finishes, so it does
 not survive a completed run. Its Layer-2 integration case
 (`test_hm6b_integration`) carries **both** the `_FIXTURE_ABSENT` skipif and a
 runtime `pytest.skip("temp() artifact absent; capture via --notemp")` guarding on
