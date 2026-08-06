@@ -8,12 +8,13 @@ one does, what it writes, and how they connect.
 >
 > Nothing below is implemented. It shows the rule set **after** the R10 rename
 > sweep (`dev/milestones/r10/rule-naming-design.md`, accepted and amended twice)
-> **and** after the accepted 1.07→1.08 merge (`dev/followups.md` `[R10-1]`).
+> and after the two accepted structural changes — the 1.07→1.08 merge
+> (`dev/followups.md` `[R10-1]`) and the 1.11 split (`[R10-2]`).
 >
-> **Twelve rules answer to a different name on the command line today, and one
-> rule still exists.** Translate with [What changed](#what-changed) before typing
-> a `snakemake <rule>` target. Delete this banner and that section once both
-> land.
+> **Twelve rules answer to a different name on the command line today, one rule
+> still exists, and one does not exist yet.** Translate with
+> [What changed](#what-changed) before typing a `snakemake <rule>` target. Delete
+> this banner and that section once all three land.
 
 Each workflow gets a diagram, a one-line summary table, then one section per
 rule. **Does** is the rule's job; **Writes** transcribes its `output:` block —
@@ -40,7 +41,7 @@ is a CLI-surface change only.
 | 1.05 | `add_gauges_and_outputs` | `declare_wflow_outputs` |
 | 1.08 | `add_forcing` | `add_climate_forcing` |
 | 1.10 / 3.02 | `extract_climate_grid` | `extract_historical_climate` |
-| 1.11 | `plot_results` | `plot_wflow_evaluation` |
+| 1.11 | `plot_results` | `plot_wflow_evaluation` — **and see the split below** |
 | 1.12 | `plot_map` | `plot_basin_map` |
 | 2.01 | `fetch_gcm_raw` | `fetch_gcm_slice` |
 | 2.06 | `plot_climate_proj_timeseries` | `plot_gcm_timeseries` |
@@ -50,12 +51,18 @@ is a CLI-surface change only.
 | 3.07 | `generate_climate_stress_test` | `perturb_climate_realization` |
 | 3.08 | `climate_data_catalog` | `write_climate_data_catalog` |
 
-**One merge (`[R10-1]`, not an R10 item — that milestone is identifier-only).**
-Rule 1.07 `setup_runtime` wrote a hydromt forcing build recipe whose only
-consumer was 1.08. Two rules, one job. It merges into 1.08 rather than being
-renamed: a recipe that never leaves the pair needs no name of its own, so the
-naming problem disappears with the rule instead of being renamed around. 1.07's
-number becomes a gap.
+**Two structural changes.** Neither is an R10 item — that milestone is
+identifier-only — so they land separately, in either order.
+
+| | change | why |
+|---|---|---|
+| `[R10-1]` | **1.07 `setup_runtime` merges into 1.08.** Its number becomes a gap | 1.07 wrote a hydromt forcing build recipe whose only consumer was 1.08. Two rules, one job — and a recipe that never leaves the pair needs no name of its own, so the naming problem disappears with the rule instead of being renamed around |
+| `[R10-2]` | **1.11 splits** into 1.11 `evaluate_wflow_run` (metrics) and 1.11b `plot_wflow_evaluation` (figures) | `performance_metrics.csv` is baseline-covered data; the figures are excluded from the baseline. One rule producing both left the DAG unable to express the distinction the validation ladder turns on |
+
+**Two merges were considered and rejected**, recorded in `[R10-3]` so they are not
+re-raised: 1.06 into 1.05 (would *add* a DAG edge — 1.06 currently runs parallel
+to 1.04/1.05) and the paired `gather_*` rules (both delete the parts they consume,
+so merging creates a partial-failure path that silently degrades the merged log).
 
 **Three rules kept names the audit questioned.** `prepare_spatial_maps` (names one
 of nine outputs — but the alternative read less clearly), `derive_change_factors`
@@ -121,9 +128,11 @@ once on historical forcing. No calibration — rapid deployment.
                                  │                          │
              ┌───────────────────┼────────────────┐         │
              ▼                   ▼                ▼         ▼
-   1.11 plot_wflow_      1.12 plot_basin_   1.13 plot_      │
-        evaluation            _map              _forcing    │
-                                              1.15 plot_climate_source
+     1.11 evaluate_      1.12 plot_basin_   1.13 plot_      │
+          wflow_run           _map              _forcing    │
+             │                                              │
+             ▼                                 1.15 plot_climate_source
+   1.11b plot_wflow_evaluation
                                  │
                                  ▼
                 1.14 gather_benchmarks · 1.16 gather_logs
@@ -142,7 +151,8 @@ once on historical forcing. No calibration — rapid deployment.
 | 1.08 | `add_climate_forcing` | Assembles the hydromt recipe and applies it: builds the forcing. |
 | 1.09 | `run_wflow` | Runs Wflow.jl once. |
 | 1.10 | `extract_historical_climate` | The shared historical-climate store (= WF3 3.02). |
-| 1.11 | `plot_wflow_evaluation` | Evaluates the run: figures **and** the metrics table. |
+| 1.11 | `evaluate_wflow_run` | Scores the run against observations: the metrics table. |
+| 1.11b | `plot_wflow_evaluation` | The evaluation figures. |
 | 1.12 | `plot_basin_map` | Basin, rivers, gauges and DEM on one map. |
 | 1.13 | `plot_forcing` | Canonical climate figures for the model's forcing. |
 | 1.14 | `gather_benchmarks` | Merges the timing parts. |
@@ -298,22 +308,36 @@ chirps branches. The extraction records its own extent in netCDF attributes
 (`region_geojson_sha256`, `region_bbox`, `region_source`) rather than in a
 sidecar file.
 
-#### 1.11 · `plot_wflow_evaluation`
+#### 1.11 · `evaluate_wflow_run`
 
-**Does.** Analyses and plots the Wflow run — hydrographs, climate comparison at
-model parity, basin-average series, and signature plots where observations
-exist. Also **computes the evaluation metrics table**, which the `plot_` prefix
-does not say; splitting that out is held as `[R10-2]` S1.
+**Does.** Scores the Wflow run against observations where they exist, producing
+the evaluation metrics. Split from the figures (`[R10-2]`) because the metrics
+table is **baseline-covered data** while the figures are explicitly excluded from
+the baseline — one rule producing both left the DAG unable to express the
+distinction the validation ladder turns on.
+
+**Writes.** `<model>/evaluation/performance_metrics.csv`.
+
+#### 1.11b · `plot_wflow_evaluation`
+
+**Does.** Draws the evaluation figures — hydrographs, climate comparison at model
+parity, basin-average series, and signature plots where observations exist.
+Terminal: no rule consumes a figure, so a change here cannot propagate into a
+number.
 
 **Writes.** `<model>/evaluation/plots/hydro_wflow_1.png` ·
 `clim_wflow_1_{month,year}.png` · one `<var>_basavg.png` per basin-average
-`wflow_outvars` entry · `<model>/evaluation/performance_metrics.csv`.
+`wflow_outvars` entry.
 
 **Writes (undeclared).** `hydro_<station>.png`,
 `clim_<station>_{month,year}.png`, `signatures_<station>.png`. Their count is a
 product of the model build (outlets and subcatchments), not of config, so they
 cannot be enumerated at parse time; `signatures_*` also needs observations and a
 run longer than a year.
+
+**Open at implementation:** how the two halves share loaded data — a re-read of
+`output.csv` in this rule, or a declared intermediate from 1.11. And whether
+`evaluate_` earns a 19th verb; see `[R10-2]`.
 
 #### 1.12 · `plot_basin_map`
 
@@ -772,22 +796,29 @@ hundreds of files across several subdirectories. A clean full run leaves one.
 
 ---
 
-## Open consolidations
+## Consolidations — all four decided
 
-The name audit that produced the R10 rulings also raised four structural
-candidates. One is accepted and reflected above (the 1.07/1.08 merge); three are
-held. **None is an R10 item** — that milestone is identifier-only. Tracked as
-`[R10-2]` in `dev/followups.md`.
+The name audit raised four structural candidates. All were ruled on 2026-08-06;
+none is an R10 item. The two accepted ones are already reflected above.
 
-| # | candidate | main cost |
+| # | candidate | verdict |
 |---|---|---|
-| M2 | merge 1.06 `write_outlet_index` into 1.05. Both small, both read `location_registry.csv`, both exist to wire the model to named stations | `outlet_index.csv` is a WF1 terminal, and `.outputs_configured` anchors ordering for 1.12 and WF3's 3.01c |
-| M3 | merge `gather_benchmarks` + `gather_logs` per workflow. Identical input sets, identical schedule position | two scripts; a failure in one currently does not block the other |
-| S1 | **split** 1.11 into `evaluate_wflow_run` (metrics) → `plot_wflow_evaluation` (figures). The metrics table is baseline-covered data; the figures are explicitly excluded from the baseline, yet one rule makes both | the two share loaded data; splitting means re-reading `output.csv` |
+| M1 | merge 1.07 into 1.08 | **accepted** — `[R10-1]` |
+| S1 | split 1.11 into metrics + figures | **accepted** — `[R10-2]` |
+| M2 | merge 1.06 `write_outlet_index` into 1.05 | **rejected.** Paired thematically, not structurally: 1.06 reads only `outlets.geojson` (1.03) and `location_registry.csv` (1.02), so it runs in parallel with 1.04 and 1.05 today. Merging would serialise a cheap pandas join behind the waterbody update and a hydromt `r+` mutation — it *adds* an edge |
+| M3 | merge `gather_benchmarks` + `gather_logs` per workflow | **rejected.** Both merge functions call `_remove_parts` — they delete the parts they consumed. In one rule, a failure in the second half strands the first half's already-deleted parts and the re-run degrades that artifact to "no part from this run". Today either succeeding independently means its output survives the other's failure |
+
+**Also do not merge 3.01c `write_model_reference` and 3.01d
+`check_model_reference`** — the `ancient()` / `temp()` asymmetry *is* the guard.
+See 3.01d's section.
+
+**The general lesson**, worth carrying into any future sweep: two rules being
+small, adjacent and thematically similar is not an argument for merging them.
+Check what each actually depends on, and whether either destroys its own inputs.
 
 ## Drift found in the Snakefile comments (not yet fixed)
 
-Tracked as `[R10-3]`. Reported rather than patched, because these live in the
+Tracked as `[R10-4]`. Reported rather than patched, because these live in the
 Snakefiles: two stale references to the deleted rule 3.05 in
 `Snakefile_climate_experiment`, and all three `gather_benchmarks` comments
 describing their output as `.tsv` when it is `.md`.

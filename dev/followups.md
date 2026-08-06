@@ -80,7 +80,11 @@ end-to-end. Don't delete them.
 Every rule identifier in the three Snakefiles was checked against its **script or
 shell body** while writing `dev/reference/workflows/rule-index.md`. Three names
 were ruled on directly and are recorded in `dev/milestones/r10/rule-naming-design.md`
-amendment 2. The items below are what that audit surfaced and did **not** rule on.
+amendment 2.
+
+The audit also raised four **structural** candidates — three merges and one
+split. All four were ruled on 2026-08-06: **M1 and S1 accepted, M2 and M3
+rejected.** None is an R10 item; that milestone is identifier-only.
 
 - **[R10-1] Merge rule 1.07 `setup_runtime` into 1.08 `add_forcing`.**
   *Accepted 2026-08-06; not implemented.* 1.07 writes a hydromt forcing build
@@ -104,24 +108,76 @@ amendment 2. The items below are what that audit surfaced and did **not** rule o
   has no rename to skip; if R10 lands first, 1.07 keeps `setup_runtime` until the
   merge deletes it. What must not happen is renaming 1.07 in passing.
 
-- **[R10-2] Three further rule consolidations, held.** Raised by the same audit,
-  not ruled on. None is an R10 item — that milestone is identifier-only.
+- **[R10-2] Split rule 1.11 into a metrics rule and a figure rule.**
+  *Accepted 2026-08-06; not implemented.* Today one rule writes both
+  `<model>/evaluation/performance_metrics.csv` — **baseline-covered data** — and
+  the evaluation figures, which `check_baseline.py` **excludes by default**
+  (`FIGURE_KINDS`). The DAG therefore cannot express the distinction the
+  `AGENTS.md` validation ladder turns on: "do not run the validation suite or the
+  baseline for a figure-only change" is written guidance that the rule graph
+  contradicts.
 
-  | # | candidate | argument | main cost |
-  |---|---|---|---|
-  | M2 | merge 1.06 `write_outlet_index` into 1.05 | both are small, both read `location_registry.csv`, both exist to wire the model to named stations — one declares which timeseries come out, the other the crosswalk that maps them back | `outlet_index.csv` is a WF1 terminal, and `.outputs_configured` is an ordering anchor for 1.07, 1.12 **and WF3's 3.01c**; any merge must preserve a sentinel meaning "every writer of the model root is done" |
-  | M3 | merge `gather_benchmarks` + `gather_logs`, per workflow | identical input sets, identical schedule position, near-identical shape; six rules doing two things | two scripts, and a failure in one currently does not block the other. Modest win — worth taking only if these are being touched anyway |
-  | S1 | **split** 1.11 into `evaluate_wflow_run` (metrics) → `plot_wflow_evaluation` (figures) | `performance_metrics.csv` is baseline-covered data; the figures are explicitly **excluded** from the baseline (`FIGURE_KINDS`). One rule produces both, so the DAG cannot distinguish a figure edit from a metrics edit — precisely the distinction `AGENTS.md`'s validation ladder turns on | the figure code and the metrics code share loaded data; splitting means re-reading `output.csv` or passing an intermediate |
+  Target shape: **1.11 `evaluate_wflow_run`** (metrics) → **1.11b
+  `plot_wflow_evaluation`** (figures), using the letter-suffix convention already
+  set by 1.01b / 2.03b / 3.00b / 3.01c–e. The figure half keeps the R10 target
+  name, so that rename is unaffected either way.
 
-  **Do not merge 3.01c `write_model_reference` and 3.01d
+  **Honest about the size of the win.** The harm today is a wasted re-run and a
+  needless baseline comparison, not a wrong number: a plotting edit re-runs 1.11
+  and rewrites identical metrics, so the gate passes. The gain is that a
+  figure-only change becomes *visible as one* to Snakemake.
+
+  Two open sub-decisions for whoever implements it:
+
+  1. **How the halves share data.** `plot_results.py` loads the run, the climate
+     store and the observations once and uses them for both. The split needs
+     either a re-read of `output.csv` in the figure rule or a declared
+     intermediate. Prefer the re-read unless it measures badly — an intermediate
+     is a new artifact in a tree R9 just finished settling.
+  2. **The metrics rule's verb.** `evaluate_` would be a **19th verb**;
+     `derive_wflow_metrics` reuses an existing one, but `derive_` is explicitly
+     reserved for a workflow's *terminal* product and the metrics table is not
+     WF1's. Rule on this before the sweep, not during it.
+
+- **[R10-3] Two consolidations REJECTED, recorded so they are not re-raised.**
+  Both looked obvious and both are wrong; the reasons are structural, not
+  aesthetic.
+
+  **M2 — merge 1.06 `write_outlet_index` into 1.05. Rejected.** The two were
+  paired thematically ("both wire the model to named stations"), and the
+  structure does not agree. 1.06's inputs are `outlets.geojson` (rule 1.03) and
+  `location_registry.csv` (rule 1.02) — nothing else — while 1.05 waits on
+  `reservoirs_lakes_glaciers.txt` from 1.04. So 1.06 runs in parallel with 1.04
+  and 1.05 today, and merging would serialise a cheap deterministic pandas join
+  behind the waterbody update *and* a hydromt `r+` model mutation. Re-deriving
+  the crosswalk after a registry fix would then re-run the hydromt update.
+  **The merge adds a DAG edge rather than removing one.**
+
+  **M3 — merge `gather_benchmarks` + `gather_logs` per workflow. Rejected.**
+  Both merge functions call `_remove_parts`: they **delete the parts they
+  consumed**. In one rule that becomes a partial-failure hazard — the log merge
+  succeeds and deletes its parts, the benchmark merge raises, Snakemake removes
+  both declared outputs as a failed job, and the re-run finds no log parts and
+  rewrites the merged log with "no part from this run" for every rule. Today
+  `gather_logs` succeeding independently means its output survives a
+  `gather_benchmarks` failure. Three rules out of forty is not worth a path that
+  silently degrades a durable artifact. Revisit only if the deletion is made safe
+  first (both merges complete before either deletes), which is work the current
+  split gets for free.
+
+  **Also do not merge 3.01c `write_model_reference` and 3.01d
   `check_model_reference`.** They read as an obvious pair and merging them
   destroys the guard. 3.01c's model inputs are `ancient()` *on purpose* — if the
   reference were rewritten whenever the model changed it would always match, and
   3.01d's comparison would be decorative. 3.01d's sentinel is `temp()` for the
   mirror reason: a persisted verdict satisfies 3.09's edge after the model has
-  drifted. Recorded here so a consolidation sweep does not "tidy" them.
+  drifted. The asymmetry *is* the mechanism.
 
-- **[R10-3] Stale rule references in Snakefile comments.** Cosmetic, found by the
+  **Generalizes:** two rules being small, adjacent and thematically similar is
+  not an argument for merging them. Check what each actually depends on, and
+  whether either destroys its own inputs.
+
+- **[R10-4] Stale rule references in Snakefile comments.** Cosmetic, found by the
   same read. `Snakefile_climate_experiment` names the **deleted** rule 3.05 twice
   — the 3.00b comment still lists `prepare_weagen_config_st` as one of the four
   per-experiment roots, and 3.13's comment says "3.05/3.07/3.09 write one part

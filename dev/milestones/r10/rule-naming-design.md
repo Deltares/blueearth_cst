@@ -37,14 +37,25 @@ this precedent by adding `delineate_` rather than forcing a worse name onto
 | conforming, do not touch | 21 | 1.05 leaves for the rename list |
 | pending removal (merges into 1.08) | 1 | 1.07 |
 
-**Out of scope for R10: the 1.07/1.08 merge.** This milestone is
+**Out of scope for R10: two structural changes.** This milestone is
 identifier-only — "Rule bodies, inputs, outputs, numbering, and the artifacts
-they produce are out of scope". The merge is recorded as `[R10-1]` in
-`dev/followups.md` with its cost (1.07 is a Python `script:`, 1.08 a `shell:`
-hydromt CLI call, and Snakemake allows only one per rule). **Sequencing:** if the
-merge lands first, 1.07 has no rename to skip and nothing here changes; if R10
-lands first, 1.07 keeps `setup_runtime` until the merge deletes it. Either order
-works — what must not happen is renaming 1.07 in passing.
+they produce are out of scope". The same audit accepted two body changes, both
+recorded in `dev/followups.md`:
+
+| | change | effect on this design |
+| --- | --- | --- |
+| `[R10-1]` | merge 1.07 into 1.08 | 1.07's rename is withdrawn — see above. Cost: 1.07 is a Python `script:`, 1.08 a `shell:` hydromt CLI call, and Snakemake allows one per rule |
+| `[R10-2]` | split 1.11 into 1.11 `evaluate_wflow_run` (metrics) + 1.11b `plot_wflow_evaluation` (figures) | the figure half **keeps this design's target name**, so the 1.11 rename is unaffected. The metrics half is a NEW identifier and needs a verb ruling: `evaluate_` would be a 19th verb, while `derive_` is reserved here for a workflow's *terminal* product, which the metrics table is not |
+
+**Sequencing:** either order works for both. If a merge or split lands first, the
+affected rename is already moot; if R10 lands first, the rules keep their names
+until the structural change removes or adds one. What must not happen is renaming
+1.07 in passing, or inventing the metrics rule's name during the sweep instead of
+ruling on it.
+
+Two further merges were **rejected** by the same audit — 1.06 into 1.05, and the
+paired `gather_*` rules — for structural reasons recorded in `[R10-3]`. Noted
+here because both would have changed which identifiers exist.
 
 ## Amendment 1 — 2026-08-06
 
