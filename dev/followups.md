@@ -98,7 +98,7 @@ items below and in ADR 0003. The landing order it recommended, adopted:
 | 3 | ~~`[R10-1]` merge~~ **DONE 2026-08-06** · `[R10-2]` split **BLOCKED** — needs an owner ruling, see the item | the merge was small and behaviour-preserving; the split turned out not to have the seam it assumed |
 | 4 | ~~`[R10-6]` §8–10 — the vector/raster split~~ **DONE 2026-08-06** (rules `1.01c` / `2.03c` / `3.01f`; nine WF1 artifacts byte-identical; ADR §8–10 now **accepted**). Baseline gate still open | changes the rule count of all three workflows |
 | 5 | `[R10-6]` §11a (rename, value preserved) then §11b (default → 11) | §11b is a baseline event; §11a is one YAML key |
-| 6 | R10 renames + `[R10-5]` renumber + `[R10-7]` | against a rule set that is finally stable; regenerate the number map from it |
+| 6 | R10 renames + `[R10-5]` renumber + `[R10-7]` + `[R10-10]` | against a rule set that is finally stable; regenerate the number map from it. `[R10-10]` rides here because it and `[R10-9]`'s ordering assertion touch the same test file |
 | 7 | `[R10-6]` §12 | standalone, last, with its own baseline re-record |
 
 **This resolves the double-renumber contradiction.** `[R10-6]` says land the
@@ -295,6 +295,41 @@ that awkwardness.
   `LOG_RULES`, `rule_banner`, `log:` and `benchmark:` from it. Four of the six
   call sites collapse to one definition, and the next rename or renumber becomes
   a one-line edit per rule.
+
+- **[R10-10] `test_model_reference.py`'s `LOG_RULES` slicer stops at the first
+  `]`, so a bracket in a comment silently blinds it.** *Found 2026-08-06 while
+  landing `[R10-6]`; the Snakefile side is fixed, the test is not.*
+
+  `test_every_declared_log_part_label_is_registered_in_log_rules` extracts the
+  block as `text[index("LOG_RULES = ["): index("]", index("LOG_RULES = ["))]`.
+  Any `]` inside the list — including one inside a **comment** — ends the slice
+  early, so every label below that point reads as unregistered.
+
+  **This is not hypothetical, and the failure mode is the interesting part.**
+  Commit `129580f` put `# No 1.07 entry: [R10-1] merged setup_runtime into 1.08`
+  inside WF1's list. The test went red immediately and stayed red, because it
+  asserts *inside* a `sorted(glob("Snakefile_*"))` loop: the first failing file
+  aborts the test, and nobody looked past the message. `[R10-6]` then briefly
+  wrote a bracketed reference into WF3's list too — WF3 sorts first, so the WF1
+  failure was masked behind the new one, and fixing WF3 is what surfaced it.
+  Both comments now avoid brackets and say why, which is a convention held only
+  by a comment.
+
+  Two independent defects, and the second is what let the first sit:
+
+  - **Fragile extraction.** The block is not valid Python either (`[R10-9]`'s
+    note), but `ast` on the *lifted* text is — `tests/test_log_rules_contract.py`
+    already does exactly that and was green throughout, which is why the two
+    disagreed. Either lift the block the way that module does, or slice to the
+    first `]` at column 0.
+  - **Loop-scoped assertion.** Collect across all three Snakefiles and assert
+    once, so a second file's failure cannot hide a first's — the same
+    "pairwise, not left/right" argument the three-declaration contract tests make.
+
+  Consider folding the check into `tests/test_log_rules_contract.py` and
+  deleting it from `test_model_reference.py`: two modules asserting the same
+  property by different parsers is how they came to disagree. Do it during
+  `[R10-9]`'s ordering extension, which touches that file anyway.
 
 - **[R10-7] Rename the three shared-rule helpers from `_spec` to `_rule`.**
   *Ruled 2026-08-06; not implemented.* `region_spec` → `region_rule`,
