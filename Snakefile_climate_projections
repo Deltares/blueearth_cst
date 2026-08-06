@@ -14,7 +14,7 @@ from snakemake.exceptions import WorkflowError
 # See dev/milestones/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
 from blueearth_cst.shared.provenance import effective_config_digest, short_digest, snapshot_bundle_digest
-from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, get_config, patch_psutil_windows_benchmark, region_spec, rule_banner, spatial_units_rule, target_banner, warn_if_project_dir_in_repo
+from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, get_config, patch_psutil_windows_benchmark, region_rule, rule_banner, spatial_units_rule, target_banner, warn_if_project_dir_in_repo
 from blueearth_cst.spatial.config import parse_spatial_config
 from blueearth_cst.projections.gridded_outputs import RemovedGriddedOutputsError, validate_removed_gridded_options
 
@@ -181,9 +181,9 @@ MAX_FLAGGED_MONTHS = _relative_cfg.get(
 clim_project_dir = f"{project_dir}/data/climate/projections/{clim_project}"
 
 # ONE producer contract, built here and identically in Snakefile_model_creation
-# and Snakefile_climate_experiment, and splatted into rule 1.01b / 2.03b / 3.01b.
+# and Snakefile_climate_experiment, and splatted into rule 1.02 / 2.02 / 3.03.
 # Everything content- or execution-determining comes from this object; only
-# message/log/benchmark are workflow-local. tests/test_region_spec.py parses all
+# message/log/benchmark are workflow-local. tests/test_region_rule.py parses all
 # three workflows and fails on ANY other difference.
 #
 # WF2 needs the model-free delineated polygon and nothing else — that is what
@@ -193,7 +193,7 @@ clim_project_dir = f"{project_dir}/data/climate/projections/{clim_project}"
 # the design recorded that as "the accepted, stated price of A1". The region is
 # now its own artifact, so WF2 declares this rule and no store: a
 # projections-only run does no climate extraction at all.
-REGION = region_spec(
+REGION = region_rule(
     project_dir=project_dir,
     model_region=model_region,
     data_sources=STORE_DATA_SOURCES,
@@ -204,14 +204,14 @@ region_path = REGION.region_geojson
 
 # --- The shared vector foundation (ADR 0003 §8) -------------------------------
 # Same pattern once more: ONE producer contract, built here and identically in
-# the other two workflows, splatted into rule 2.03c below, and
+# the other two workflows, splatted into rule 2.03 below, and
 # tests/test_spatial_units_rule.py parses all three and fails on ANY difference
 # beyond message/log/benchmark.
 #
 # WF2 gains basin and subbasin boundaries — a context map beside the
 # change-factor plots, and the option of subbasin-resolved indicators — WITHOUT
 # a built model and without the thematic raster stack. Declaring the UNSPLIT
-# rule 1.02 instead would have made a projections-only run resample `vito`,
+# rule 1.06 instead would have made a projections-only run resample `vito`,
 # `modis_lai` and `soilgrids` to draw a subbasin outline; measured 2026-08-06,
 # the split avoids ~71% of what that would add. `snakemake -n` on this file must
 # therefore list `delineate_spatial_units` and no job whose inputs mention those
@@ -544,14 +544,23 @@ def series_digest_components(model, experiment, member):
 def get_horizon(wildcards):
     return config["workflows"]["climate_projections"]["future_horizons"][wildcards.horizon]
 
-# Rule numbering (comment headers + log/benchmark filenames) uses `W.NN` =
-# workflow.step in DEFINITION order — a reference aid ("Rule 2.4" =
-# derive_change_factors), not execution order (stage A still fans out over
-# {series_key}; stage B no longer fans out at all since step 4d).
-# Convention: dev/reference/naming.md.
+# Rule numbering (comment headers + log/benchmark filenames) uses `W.NN` = the
+# rule's position in this workflow's LOGICAL order — data, then the product,
+# then figures and records. Contiguous, and every dependency points from a lower
+# number to a higher one. Positional since [R10-5] (2026-08-06); this file is
+# where the old scheme showed worst, defining its rules 2.00, 2.03b, 2.03, 2.01,
+# 2.02, 2.04, 2.06, 2.07 — numbers out of order against the DAG.
+#
+# STILL A READING AID, NOT EXECUTION ORDER — stage A fans out over {series_key},
+# so low-to-high says "cannot depend on", not "runs before". Definition order in
+# this file is not the number order and is not required to be.
+#
+# DO NOT RENUMBER TO INSERT A RULE. Use a letter suffix (2.05b) until the next
+# deliberate sweep. Convention: dev/reference/naming.md §9; full map:
+# dev/reference/workflows/rule-index.md § What changed.
 
 # --- log layout ---------------------------------------------------------------
-# EVERY WF2 rule that logs writes a PART under logs/_parts/, and rule 2.07 merges
+# EVERY WF2 rule that logs writes a PART under logs/_parts/, and rule 2.09 merges
 # the parts into ONE logs/wf2_climate_projections.log, then deletes them. So the
 # only WF2 file left in logs/ after a full run is that merged log — the same deal
 # benchmarks/wf2_benchmarks.md already gets from `gather_benchmarks`.
@@ -561,34 +570,38 @@ def get_horizon(wildcards):
 # place — the rule that owns it. Naming the labels rather than globbing `_parts/`
 # is what keeps an orphan dir from a renamed rule out of the file (test_local
 # still holds `2.02_monthly_stats_hist`, `2.03_monthly_stats_fut`,
-# `2.04_monthly_change` from the pre-step-4d names): not a label, never read.
+# `2.04_monthly_change` from the pre-step-4d names, and now the whole pre-R10
+# generation besides): not a label, never read.
 #
-# Order is by RULE NUMBER, matching the rule map and benchmarks/wf2_benchmarks.md
-# — not execution order (2.11 builds the store stage A reads, so it runs first).
+# ORDER IS BY RULE NUMBER, and since [R10-5] that is also dependency order, so
+# this list needed no reordering to satisfy the assertion
+# tests/test_log_rules_contract.py now makes — it was already in EXECUTION
+# order, and the renumber is what made the two agree. Before it this file's
+# comment claimed "order is by rule number" while the list opened 2.03b, 2.01,
+# 2.02; which of the two was wrong was a ruling nobody had made, and it is why
+# the assertion was deferred to this sweep.
+#
 # Each section carries its own timestamps, so chronology stays readable inside a
-# section without reordering the file.
+# section. 2.01 snapshot_config declares no `log:`, and neither gather rule does.
+#
+# TWO INSTANCES OF ONE DEFECT ARE FIXED HERE. The region rule was missing from
+# this list -- it is splatted into all three workflows from ONE producer
+# contract, but each workflow owns its own `log:` label and its own LOG_RULES,
+# so registering it is a per-file obligation the shared definition does not
+# carry, and it was missed in all three files in turn. And a store label
+# outlived the rule ADR 0003 §5 deleted, contributing a phantom "no part from
+# this run" section to every merged WF2 log. WF2 builds no climate store,
+# standalone or otherwise: it reads the region polygon from `delineate_region`.
+# Both directions are now mechanically checked for all three workflows.
 WORKFLOW_LOG_NAME = "wf2_climate_projections.log"
 LOG_PARTS_DIR = f"{project_dir}/logs/_parts"
 LOG_RULES = [
-    # 2.03b was MISSING here, the THIRD instance of one defect. `delineate_region`
-    # is splatted into all three workflows from ONE producer contract, but each
-    # workflow owns its own `log:` label and its own LOG_RULES -- so registering
-    # it is a per-file obligation the shared definition does not carry. P1 fixed
-    # WF1's 1.01b (phase-1 report F7); P4 found WF3's 3.01b and this one. An
-    # unlisted label is not an error: merge_logs drops the section and strands
-    # the part, silently, on every run.
-    "2.03b_delineate_region",
-    "2.03c_delineate_spatial_units",
-    "2.01_fetch_gcm_raw",
-    "2.02_reduce_gcm_series",
-    "2.04_derive_change_factors",
-    "2.06_plot_climate_proj_timeseries",
-    # NO store entry here. ADR 0003 §5 removed rule 2.11 entirely -- WF2 reads
-    # the region polygon from `delineate_region` and never builds the climate
-    # store, standalone or otherwise. The label outlived the rule by four days
-    # and contributed a phantom "no part from this run" section to every merged
-    # WF2 log: the label-with-no-producer hazard the C29 precedent documents,
-    # realised. tests/test_log_rules_contract.py now fails on a repeat.
+    "2.02_delineate_region",
+    "2.03_delineate_spatial_units",
+    "2.04_fetch_gcm_slice",
+    "2.05_reduce_gcm_series",
+    "2.06_derive_change_factors",
+    "2.07_plot_gcm_timeseries",
 ]
 
 # 2.00  all — target aggregator: change-factor summaries + projection plots
@@ -621,7 +634,7 @@ WF2_TARGETS = {
     # ONE merged log for the whole workflow (was: one per fan-out stage,
     # alongside four rules writing logs/2.NN_*.log directly -- five files a
     # reader had to open in the right order to follow one run). Every rule
-    # now logs into logs/_parts/ and rule 2.07 merges the lot.
+    # now logs into logs/_parts/ and rule 2.09 merges the lot.
     "workflow_log": f"{project_dir}/logs/{WORKFLOW_LOG_NAME}",
     "benchmarks": f"{project_dir}/benchmarks/wf2_benchmarks.md",
 }
@@ -645,16 +658,18 @@ rule all:
 # ambiguity it was insuring against: there is no longer a second stage-B rule that
 # could claim the same output.
 
-# 2.03b  delineate_region — the one project region artifact (ADR 0003).
-# Byte-identical to 1.01b and 3.01b except message/log/benchmark.
+# 2.02  delineate_region — the one project region artifact (ADR 0003).
+# Byte-identical to 1.02 and 3.03 except message/log/benchmark.
 #
-# This REPLACES rule 2.11 extract_climate_grid. WF2 declared the whole shared
+# This REPLACES rule 2.11 extract_climate_grid -- the name that rule answered to
+# when it was deleted; WF1/WF3's surviving copy is now extract_historical_climate
+# (R10). WF2 declared the whole shared
 # climate-store producer to obtain the delineated polygon and never read the
 # gridded extraction it also wrote (design N7); a projections-only run paid for
 # a multi-decade extraction to learn a basin outline. The region is now its own
 # artifact, so WF2 declares the delineation alone.
 rule delineate_region:
-    message: rule_banner("2.03b", "delineate_region")
+    message: rule_banner("2.02", "delineate_region")
     input:
         **REGION.inputs,
     params:
@@ -662,20 +677,20 @@ rule delineate_region:
     output:
         **REGION.outputs,
     log:
-        f"{LOG_PARTS_DIR}/2.03b_delineate_region.log",
+        f"{LOG_PARTS_DIR}/2.02_delineate_region.log",
     benchmark:
-        f"{project_dir}/benchmarks/_parts/2.03b_delineate_region.tsv",
+        f"{project_dir}/benchmarks/_parts/2.02_delineate_region.tsv",
     script: REGION.script
 
-# 2.03c  delineate_spatial_units — the shared vector foundation (ADR 0003 §8).
-# Byte-identical to 1.01c and 3.01f except message/log/benchmark.
+# 2.03  delineate_spatial_units — the shared vector foundation (ADR 0003 §8).
+# Byte-identical to 1.03 and 3.04 except message/log/benchmark.
 #
-# WF2 declares the VECTOR half only. The raster half (rule 1.02) stays WF1-only,
+# WF2 declares the VECTOR half only. The raster half (rule 1.06) stays WF1-only,
 # so a projections-only run obtains basin and subbasin boundaries without
 # reading `vito`, `modis_lai` or `soilgrids` at all — see the SPATIAL_UNITS
 # comment block above for why that is the whole point.
 rule delineate_spatial_units:
-    message: rule_banner("2.03c", "delineate_spatial_units")
+    message: rule_banner("2.03", "delineate_spatial_units")
     input:
         **SPATIAL_UNITS.inputs,
     params:
@@ -683,20 +698,21 @@ rule delineate_spatial_units:
     output:
         **SPATIAL_UNITS.outputs,
     log:
-        f"{LOG_PARTS_DIR}/2.03c_delineate_spatial_units.log",
+        f"{LOG_PARTS_DIR}/2.03_delineate_spatial_units.log",
     benchmark:
-        f"{project_dir}/benchmarks/_parts/2.03c_delineate_spatial_units.tsv",
+        f"{project_dir}/benchmarks/_parts/2.03_delineate_spatial_units.tsv",
     script: SPATIAL_UNITS.script
 
-# 2.03  snapshot_config — current copies + immutable effective-config bundle
+# 2.01  snapshot_config — current copies + immutable effective-config bundle
 #
-# S8-08(d): was 2.01, colliding with fetch_gcm_raw. The numbers are a reference
-# aid, so two rules answering to "2.01" is exactly the confusion they exist to
-# prevent -- and the rule map already listed snapshot_config as 2.03. No path moves:
+# S8-08(d): this rule and the fetch rule both answered to `2.01` until S8-08(d)
+# separated them -- read as of that date; both have since moved again under
+# [R10-5]. The numbers are a reference aid, so two rules answering to one is
+# exactly the confusion they exist to prevent. No path moves:
 # this rule names its output explicitly and has no banner-derived log or
 # benchmark, so the collision only ever showed in the console message.
 rule snapshot_config:
-    message: rule_banner("2.03", "snapshot_config")
+    message: rule_banner("2.01", "snapshot_config")
     input:
         config_snake = config_path,
     params:
@@ -711,7 +727,7 @@ rule snapshot_config:
     script:
         "blueearth_cst/model/copy_config_files.py"
 
-# 2.01  fetch_gcm_raw — acquire ONE raw slice; the only rule that reads the store.
+# 2.04  fetch_gcm_slice — acquire ONE raw slice; the only rule that reads the store.
 #
 # Stage A splits into fetch -> reduce (design revision 6) because the two have
 # wildly different costs and different invalidation causes. Measured 2026-07-30
@@ -725,8 +741,8 @@ rule snapshot_config:
 # minus reducer_module_hash), so Snakemake's params trigger cannot re-download on a
 # formula edit. Passing `digest_components` here instead would silently undo the
 # entire split while every test still passed.
-rule fetch_gcm_raw:
-    message: rule_banner("2.01", "fetch_gcm_raw")
+rule fetch_gcm_slice:
+    message: rule_banner("2.04", "fetch_gcm_slice")
     wildcard_constraints:
         series_key = "|".join(re.escape(k) for k in SERIES),
     input:
@@ -753,12 +769,12 @@ rule fetch_gcm_raw:
             series_digest_components(*SERIES[wildcards.series_key])
         ),
     log:
-        LOG_PARTS_DIR + "/2.01_fetch_gcm_raw/{series_key}.log",
+        LOG_PARTS_DIR + "/2.04_fetch_gcm_slice/{series_key}.log",
     benchmark:
-        project_dir + "/benchmarks/_parts/2.01_fetch_gcm_raw/{series_key}.tsv",
+        project_dir + "/benchmarks/_parts/2.04_fetch_gcm_slice/{series_key}.tsv",
     script: "blueearth_cst/projections/fetch_gcm_raw.py"
 
-# 2.02  reduce_gcm_series — ONE stage-A rule over {series_key} (step 3).
+# 2.05  reduce_gcm_series — ONE stage-A rule over {series_key} (step 3).
 # Collapses monthly_stats_hist + monthly_stats_fut: they ran the same script with
 # different params, and the only structural difference was their output naming
 # (`historical_stats_time_{model}` vs `stats_time-{model}_{scenario}`) -- which is
@@ -768,7 +784,7 @@ rule fetch_gcm_raw:
 # series at all: every series is independent, so the stage fans out at full width.
 # Since revision 6 it reads the local raw slice above and makes NO network call.
 rule reduce_gcm_series:
-    message: rule_banner("2.02", "reduce_gcm_series")
+    message: rule_banner("2.05", "reduce_gcm_series")
     wildcard_constraints:
         # Anchor to the keys actually built at parse time. Without this the
         # wildcard would also match paths that merely look like keys.
@@ -793,7 +809,7 @@ rule reduce_gcm_series:
         name_model = lambda wildcards: SERIES[wildcards.series_key][0],
         name_clim_project = clim_project,
         variables = variables,
-        # S8-08(a): see rule 2.01.
+        # S8-08(a): see rule 2.04.
         variable_units = {v.source: v.units for v in VARIABLE_SPEC.values()},
         series_nc_out = lambda wildcards: f"{clim_project_dir}/scalar/{wildcards.series_key}.nc",
         digest_components = lambda wildcards: series_digest_components(*SERIES[wildcards.series_key]),
@@ -801,19 +817,19 @@ rule reduce_gcm_series:
         store_index = STORE_INDEX,
         buffer_degrees = REGION_BUFFER_DEGREES,
     log:
-        LOG_PARTS_DIR + "/2.02_reduce_gcm_series/{series_key}.log",
+        LOG_PARTS_DIR + "/2.05_reduce_gcm_series/{series_key}.log",
     benchmark:
-        project_dir + "/benchmarks/_parts/2.02_reduce_gcm_series/{series_key}.tsv",
+        project_dir + "/benchmarks/_parts/2.05_reduce_gcm_series/{series_key}.tsv",
     script: "blueearth_cst/projections/get_stats_climate_proj.py"
 
-# 2.04  derive_change_factors — stage B, ONE job (step 4d, design §5 "B. Derive")
+# 2.06  derive_change_factors — stage B, ONE job (step 4d, design §5 "B. Derive")
 # Replaces monthly_change (fanned out per point_key x horizon) + its aggregator
 # monthly_change_scalar_merge. The design gives stage B one job with no fan-out.
 # The per-point change netCDFs were temp() outputs of the fan-out; they are now
 # job-internal intermediates with the same lifetime (the script uses a
 # TemporaryDirectory), so nothing durable changed shape.
 rule derive_change_factors:
-    message: rule_banner("2.04", "derive_change_factors")
+    message: rule_banner("2.06", "derive_change_factors")
     input:
         # EXPLICIT expanded list (risk-06 / revision 4), never a glob and never a
         # config cross-product: exactly the series the resolved combination set
@@ -836,7 +852,7 @@ rule derive_change_factors:
         # GONE. The tidy tables below supersede them -- same numbers, long format,
         # per-row provenance, plus the future level the wide form never carried.
         # Verified before removal: Snakefile_climate_experiment and
-        # blueearth_cst/experiment/ referenced them zero times, and rule 2.06
+        # blueearth_cst/experiment/ referenced them zero times, and rule 2.07
         # declared the `.nc` as an input it never opened. The `.nc` survives as a
         # job-internal intermediate, because the tidy reshape reads it back.
         stats_change_plt = (clim_project_dir + "/plots/cmip6_change_factor_cloud.png"),
@@ -925,16 +941,16 @@ rule derive_change_factors:
             for key, (model, scenario, member) in POINT_KEYS.items()
         ],
     log:
-        f"{LOG_PARTS_DIR}/2.04_derive_change_factors.log",
+        f"{LOG_PARTS_DIR}/2.06_derive_change_factors.log",
     benchmark:
-        f"{project_dir}/benchmarks/_parts/2.04_derive_change_factors.tsv",
+        f"{project_dir}/benchmarks/_parts/2.06_derive_change_factors.tsv",
     script: "blueearth_cst/projections/derive_change_factors.py"
 
-# 2.06  plot_climate_proj_timeseries — plot projected anomaly time series
-rule plot_climate_proj_timeseries:
-    message: rule_banner("2.06", "plot_climate_proj_timeseries")
+# 2.07  plot_gcm_timeseries — plot projected anomaly time series
+rule plot_gcm_timeseries:
+    message: rule_banner("2.07", "plot_gcm_timeseries")
     input:
-        # Ordering edge only -- 2.06 never opens this. Repointed at S8-05 from the
+        # Ordering edge only -- 2.07 never opens this. Repointed at S8-05 from the
         # retired wide summary to the tidy annual table, which is the stage-B
         # artifact that now plays the same "stage B finished" role.
         stats_change_summary = (clim_project_dir + f"/summary/{clim_project}_change_factors_annual.csv"),
@@ -971,15 +987,15 @@ rule plot_climate_proj_timeseries:
         # of the tier it duplicated. The durable timeseries tier is `scalar/`;
         # `summary/*_change_factors_*.csv` is the analysis-ready form.
     log:
-        f"{LOG_PARTS_DIR}/2.06_plot_climate_proj_timeseries.log",
+        f"{LOG_PARTS_DIR}/2.07_plot_gcm_timeseries.log",
     benchmark:
-        f"{project_dir}/benchmarks/_parts/2.06_plot_climate_proj_timeseries.tsv",
+        f"{project_dir}/benchmarks/_parts/2.07_plot_gcm_timeseries.tsv",
     script: "blueearth_cst/projections/plot_proj_timeseries.py"
 
 # --- log gather ---------------------------------------------------------------
-# 2.07  gather_logs — merge every WF2 log part into ONE workflow log.
+# 2.09  gather_logs — merge every WF2 log part into ONE workflow log.
 #
-# Replaces the two per-stage gathers (`gather_series_logs` 2.07 /
+# Replaces the two per-stage gathers (`gather_series_logs` 2.09 /
 # `gather_raw_logs` 2.08). Those merged only the fan-out rules, each into its own
 # logs/2.NN_<rule>.log, while the four single-job rules wrote their logs straight
 # to logs/ — so following one run meant opening five files and knowing their
@@ -1000,19 +1016,19 @@ rule plot_climate_proj_timeseries:
 # (dev/followups.md R7-9) — the artifact describes the run that produced it, not
 # an accumulated history.
 #
-# WF1 (1.16) and WF3 (3.13) declare the same rule against the same script; only
+# WF1 (1.17) and WF3 (3.18) declare the same rule against the same script; only
 # the label list, the parts dir and the output name differ.
 rule gather_logs:
-    message: rule_banner("2.07", "gather_logs")
+    message: rule_banner("2.09", "gather_logs")
     input:
         (clim_project_dir + f"/summary/{clim_project}_change_factors_annual.csv"),
         (clim_project_dir + f"/plots/{clim_project}_change_factor_cloud.png"),
         (clim_project_dir + f"/plots/{clim_project}_precip_annual_absolute.png"),
-        # ADR 0003 §8: rule 2.03c is a LEAF here — nothing in WF2 consumes the
+        # ADR 0003 §8: rule 2.03 is a LEAF here — nothing in WF2 consumes the
         # vector layers yet (§10) — so it is not upstream of the three terminals
-        # above the way 2.03b is. Without this edge it would run in parallel
+        # above the way 2.02 is. Without this edge it would run in parallel
         # with the merge and its part would be stranded under `_parts/`, the
-        # exact defect the LOG_RULES block records for 1.01b, 2.03b and 3.01b.
+        # exact defect the LOG_RULES block records for 1.02, 2.02 and 3.03.
         SPATIAL_UNITS.outputs["basins"],
     output:
         f"{project_dir}/logs/{WORKFLOW_LOG_NAME}",
@@ -1026,12 +1042,12 @@ rule gather_logs:
 # benchmarks/wf2_benchmarks.md (rule column + TOTAL row) once the summary +
 # plots are built (all WF2 rules ran).
 rule gather_benchmarks:
-    message: rule_banner("2.10", "gather_benchmarks")
+    message: rule_banner("2.08", "gather_benchmarks")
     input:
         (clim_project_dir + f"/summary/{clim_project}_change_factors_annual.csv"),
         (clim_project_dir + f"/plots/{clim_project}_change_factor_cloud.png"),
         (clim_project_dir + f"/plots/{clim_project}_precip_annual_absolute.png"),
-        # Same reason as gather_logs above: 2.03c is a leaf, and the benchmark
+        # Same reason as gather_logs above: 2.03 is a leaf, and the benchmark
         # gather has to wait for it or its `_parts/` row misses this run.
         SPATIAL_UNITS.outputs["basins"],
     output:

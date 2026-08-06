@@ -19,10 +19,17 @@ exactly this surface. It is mechanically checkable, so it is checked here
 instead.
 
 The label is derived from each rule's own ``log:`` path rather than from its
-name, which is what makes rule 3.10 fall out correctly: its identifiers are
-``run_wflow_batch_<b>`` (one per batch, parse-time generated) while every batch
-writes into the single ``3.10_run_wflow`` directory. Deriving from the path
-records that divergence as the deliberate thing it is (P3-3).
+name, which is what makes the batched Wflow rule fall out correctly: its
+identifiers are ``run_wflow_batch_<b>`` (one per batch, parse-time generated)
+while every batch writes into a single ``<W.NN>_run_wflow`` directory. Deriving
+from the path records that divergence as the deliberate thing it is (P3-3).
+
+**This module is the ONLY home for the property** (`dev/followups.md`
+``[R10-10]``). ``tests/test_model_reference.py`` used to assert a subset of it
+by slicing the ``LOG_RULES`` text to the first ``]`` and matching an f-string
+label form; both were wrong in ways that let a real failure sit unread, and two
+modules asserting one property by different parsers is how they came to
+disagree. Do not re-add a second parser — extend this one.
 """
 from __future__ import annotations
 
@@ -161,14 +168,46 @@ def test_declared_labels_are_unique(snakefile):
     assert not duplicates, f"{snakefile}: duplicate LOG_RULES entries: {duplicates}"
 
 
-# NOT asserted: that LOG_RULES reads in rule-number order.
+@pytest.mark.parametrize("snakefile", WORKFLOWS)
+def test_declared_labels_read_in_rule_number_order(snakefile):
+    """``LOG_RULES`` is the MERGE order, so it must read as the workflow does.
+
+    Deferred until `[R10-5]` and added with it, which is the whole point of the
+    delay. Before the renumber this file's own note recorded why it could not be
+    asserted: `Snakefile_climate_projections` said "Order is by RULE NUMBER"
+    while its list opened ``2.03b``, ``2.01``, ``2.02`` — correct by EXECUTION
+    order, wrong by number. Which of the two the list should follow was a ruling
+    nobody had made, and asserting either would have encoded a convention by
+    accident. `W.NN` is positional now, so number order, dependency order and
+    sort order coincide and the question dissolves.
+
+    **Plain string sort is the right comparison here, and only because `NN` is
+    zero-padded to two digits** — ``"1.09" < "1.10"`` holds lexically, which it
+    would not for ``1.9`` / ``1.10``. A future rule inserted with a letter
+    suffix also sorts correctly (``"1.09" < "1.09b" < "1.10"``), which is what
+    keeps the documented insert-with-a-suffix escape hatch compatible with this
+    assertion.
+
+    What a failure means: the merged log's sections come out in an order that
+    contradicts both the rule map and the benchmark table, so following one run
+    means knowing the list rather than reading the file.
+    """
+    declared = _declared_log_rules(snakefile)
+    assert declared == sorted(declared), (
+        f"{snakefile}: LOG_RULES is not in rule-number order.\n"
+        f"  got:      {declared}\n"
+        f"  expected: {sorted(declared)}\n"
+        "It is the merge order for merge_logs, so this is the order the merged "
+        "log's sections come out in. Reorder the list wholesale rather than "
+        "entry by entry."
+    )
+
+
+# NOT asserted: that the rules are DEFINED in that order in the Snakefile.
 #
-# It is the merge order, and `Snakefile_climate_projections` says "Order is by
-# RULE NUMBER" — but its list opens `2.03b_delineate_region`, `2.01_...`,
-# `2.02_...`, so the comment and the list disagree. Which one is wrong is a
-# ruling, not a fact: 2.03b first is correct by EXECUTION order (the region is
-# delineated before the first fetch) and wrong by rule number.
-#
-# Asserting either would encode a convention nobody has chosen, and the question
-# dissolves once `[R10-5]` renumbers positionally — number, execution and sort
-# order coincide from then on. Recorded there; add the assertion after.
+# They are not, and are not required to be. Module-level code is interleaved
+# between rule blocks and depends on its position (`_basavg_pngs` is built just
+# above the rule that declares it; the `_batches` loop generates its rules), so
+# reordering the blocks to match the numbers would be a behaviour risk taken for
+# cosmetics. `W.NN` is the rule's position in the workflow's logical order, not
+# its offset in the file.

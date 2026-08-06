@@ -67,7 +67,7 @@ def map_parameters(config: dict) -> dict:
 
     Built the same way the workflows build them, so a snapshot cannot disagree
     with the tree it describes: the store key mirrors
-    `snake_utils.climate_store_spec`, and the experiment name and clim_project
+    `snake_utils.climate_store_rule`, and the experiment name and clim_project
     come from the sections that own them.
     """
     project = config["project"]
@@ -172,6 +172,15 @@ def main(argv: list[str] | None = None) -> int:
         help="snapshot only; skip the path-map check (and its exit code)",
     )
     parser.add_argument(
+        "--map", choices=("current", "r09"), default="current",
+        help="which path map to check against. `current` (default) is the "
+             "POST-MIGRATION INVENTORY -- it asks 'does this tree hold "
+             "anything nobody declared?' and is the only one that can pass on "
+             "a tree in the layout R9 delivered. `r09` is the one-way "
+             "migration map (pre-R9 -> post-R9); use it to check a tree that "
+             "has NOT been migrated yet. See dev/followups.md [R10-11]",
+    )
+    parser.add_argument(
         "--gap-rules", action="store_true",
         help="append the PROPOSED rules for artifacts the R09 map does not "
              "cover (semantic_tree_diff.R09_MAP_GAPS). Default OFF: the strict "
@@ -225,14 +234,20 @@ def main(argv: list[str] | None = None) -> int:
     if args.no_check:
         return 0
 
-    path_map = std.build_r09_path_map(
-        params["experiment_name"], params["dataset_key"], params["clim_project"]
-    )
+    if args.map == "current":
+        path_map = std.build_project_tree_rules(
+            params["experiment_name"], params["dataset_key"], params["clim_project"]
+        )
+    else:
+        path_map = std.build_r09_path_map(
+            params["experiment_name"], params["dataset_key"], params["clim_project"]
+        )
     if args.gap_rules:
         path_map = path_map + std.build_r09_gap_rules(params["experiment_name"])
     rows = std.classify_path_map(
         paths, path_map, std.build_r09_deletions(params["experiment_name"])
     )
+    print(f"map           : {args.map}")
 
     print()
     report = std.format_path_map_report(rows)

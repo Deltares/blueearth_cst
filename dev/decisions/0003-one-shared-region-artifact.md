@@ -11,7 +11,7 @@ Supersedes: none
 Revisions:
   - 2026-08-02: initial record, accepted and implemented in the same session
     (fast-track, no staged review). One `delineate_region` rule, declared
-    identically in all three workflows from `snake_utils.region_spec`, produces
+    identically in all three workflows from `snake_utils.region_rule`, produces
     `spatial/geoms/region.geojson`; rule 1.02 and the climate store consume it
     instead of delineating; WF2 drops the climate-store producer entirely;
     `store_region.geojson` is retired and the store's extent moves into
@@ -25,8 +25,10 @@ Revisions:
     "point at `basins.geojson`" alternative rejected in the original record is
     marked revisited, because this split removes its disqualifying factor.
     Also ruled: the shared-rule helpers drop the `_spec` suffix for `_rule`
-    (`[R10-7]`). §1–7 below still name `region_spec` / `climate_store_spec`,
-    which is what the **implemented** code calls them until that sweep lands.
+    (`[R10-7]`). **That sweep landed 2026-08-06**, so §1–7 below are renamed
+    with it and this record again names what the implemented code calls them.
+    The earlier note here read "§1–7 still name `region_spec` /
+    `climate_store_spec` … until that sweep lands"; it has.
     §11 rewritten and §12 added the same day: the automatic-subbasin ceiling
     becomes per-basin at a default of 11, and `wflow_id` is renumbered into
     per-basin blocks of 100. §12 is the one part of this record that moves
@@ -124,9 +126,9 @@ boundaries.
 Introduce **one region artifact per project**, produced by one small rule that
 all three workflows declare identically.
 
-1. **`snake_utils.region_spec(project_dir, model_region, hydrography,
-   basin_index, data_sources)`** returns a `RegionSpec` — `script`, `inputs`,
-   `outputs`, `params` — exactly mirroring `climate_store_spec`. Its single
+1. **`snake_utils.region_rule(project_dir, model_region, hydrography,
+   basin_index, data_sources)`** returns a `RegionRule` — `script`, `inputs`,
+   `outputs`, `params` — exactly mirroring `climate_store_rule`. Its single
    output is:
 
    ```
@@ -152,7 +154,7 @@ all three workflows declare identically.
    performs today (non-empty, CRS present, explode, non-overlap) — it stops
    delineating, not checking.
 
-4. **The climate store consumes it.** `climate_store_spec` gains
+4. **The climate store consumes it.** `climate_store_rule` gains
    `region_geojson` as an **input** and loses it as an **output**;
    `extract_historical_climate.py` reads the polygon's bounds instead of
    delineating. `delineate_store_region` moves to
@@ -236,8 +238,8 @@ region polygon to the vector foundation.
    rule's script, inputs, outputs and params, so it *is* a rule definition minus
    its labels, and "the region rule" reads to someone who does not write
    software. `region_spec` → `region_rule` and `climate_store_spec` →
-   `climate_store_rule` rename with it so the trio stays consistent —
-   `dev/followups.md` `[R10-7]`, folded into the R10 sweep. `_contract` was
+   `climate_store_rule` renamed with it so the trio stays consistent —
+   `dev/followups.md` `[R10-7]`, landed in the R10 sweep. `_contract` was
    rejected because this repo already uses "contract" for interchange surfaces
    (`dev/reference/contracts/`, `SPATIAL_CONTRACT_VERSION`).
 
@@ -418,7 +420,7 @@ region polygon to the vector foundation.
 *Negative*
 
 - A **third** shared spec, and therefore a third byte-identity contract test
-  beside `test_region_spec.py` and `test_climate_store_contract.py`. The
+  beside `test_region_rule.py` and `test_climate_store_contract.py`. The
   duplication-by-construction cost of this pattern is now paid three times.
 - WF2 gains a hydrography raster read (`buffer=10`) plus flow-direction and
   accumulation derivation that it does not pay today. Much cheaper than the
@@ -531,7 +533,7 @@ region polygon to the vector foundation.
 
 ### Validation
 
-1. `tests/test_region_spec.py` — the shared spec's shape, and that the three
+1. `tests/test_region_rule.py` — the shared spec's shape, and that the three
    workflow declarations of `delineate_region` differ only in
    `message`/`log`/`benchmark` (mirroring `test_climate_store_contract.py`).
 2. `tests/test_delineate_region.py` — the producer writes a GeoJSON whose
@@ -827,7 +829,7 @@ that in the re-record commit, or the diff will not match its message.
 
 ### Related
 
-- `blueearth_cst/shared/snake_utils.py::climate_store_spec` — the shared-spec
+- `blueearth_cst/shared/snake_utils.py::climate_store_rule` — the shared-spec
   pattern this mirrors, and the store contract being changed.
 - `Snakefile_climate_projections` §2.11 comment block — design D2/A1, the
   "accepted, stated price" this record repays.

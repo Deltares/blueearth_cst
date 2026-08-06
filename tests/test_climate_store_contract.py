@@ -1,9 +1,9 @@
-"""R07 B1: the three ``extract_climate_grid`` declarations are ONE rule.
+"""R07 B1: the three ``extract_historical_climate`` declarations are ONE rule.
 
 The store producer is declared in ``Snakefile_model_creation`` (rule 1.10),
 ``Snakefile_climate_experiment`` (rule 3.02) and — since WF2 v2.0 migration
 step 1 — ``Snakefile_climate_projections`` (rule 2.11), all from the same
-``snake_utils.climate_store_spec`` object. Nothing in the rule grammar enforces
+``snake_utils.climate_store_rule`` object. Nothing in the rule grammar enforces
 that they stay identical, and a per-workflow difference re-creates the
 wf1<->wf3 re-extraction oscillation the design forbids (P2(b), ext1-02/ext2-01).
 This module is the enforcement: it parses both workflows in-process and compares
@@ -34,7 +34,7 @@ import pytest
 
 SNAKEDIR = Path(__file__).resolve().parents[1]
 CONFIG_FN = Path(__file__).resolve().parent / "snake_config_model_test.yml"
-RULE_NAME = "extract_climate_grid"
+RULE_NAME = "extract_historical_climate"
 
 #: Sentinel for "the built Rule carries no such attribute on this Snakemake".
 #: Compared as a value, so absent-on-both is equal and absent-on-one fails.
@@ -213,7 +213,7 @@ def config_variants(tmp_path_factory):
 
 @pytest.fixture(scope="module", params=["defaults", "custom_basin"])
 def declarations(request, config_variants):
-    """The built ``extract_climate_grid`` rule from both workflows, one config.
+    """The built ``extract_historical_climate`` rule from both workflows, one config.
 
     Parametrized over both config variants: a defaults-only comparison passes
     whenever the two Snakefiles happen to share a fallback, which is a weaker
@@ -307,7 +307,7 @@ def test_declarations_are_identical(declarations):
     assert not differences, (
         f"{RULE_NAME} differs across the declaring workflows on "
         f"{len(differences)} directive comparison(s). Only message/log/benchmark "
-        "may differ; everything else must come from climate_store_spec.\n"
+        "may differ; everything else must come from climate_store_rule.\n"
         + "\n".join(differences)
     )
 
@@ -358,7 +358,7 @@ def test_retired_declarations_are_gone(declarations):
     """No wf1-only store, and no rule anywhere writes under ``wf1_raw/``."""
     wf1_workflow, _ = declarations["wf1"]
     rule_names = {rule.name for rule in wf1_workflow.rules}
-    assert "extract_climate_grid_wf1" not in rule_names
+    assert "extract_historical_climate_wf1" not in rule_names
     stale = [
         (rule.name, str(path))
         for rule in wf1_workflow.rules
@@ -411,7 +411,7 @@ def test_chirps_branch_declares_and_consumes_one_orography_path(tmp_path):
 
     workflow = _parse_workflow("Snakefile_climate_experiment", cfg_path)
     producer = workflow.get_rule(RULE_NAME)
-    catalog_rule = workflow.get_rule("climate_data_catalog")
+    catalog_rule = workflow.get_rule("write_climate_data_catalog")
 
     oro_out = str(producer.output.oro_nc)
     assert oro_out.endswith("/orography.nc"), oro_out

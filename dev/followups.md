@@ -97,10 +97,10 @@ items below and in ADR 0003. The landing order it recommended, adopted:
 | 2 | ~~`[R10-9]` the `LOG_RULES` conformance test~~ **DONE 2026-08-06** (`tests/test_log_rules_contract.py`, 9 passed) | the sweep's highest-risk surface, verified *before* the sweep edits it |
 | 3 | ~~`[R10-1]` merge~~ **DONE 2026-08-06** · ~~`[R10-2]` split~~ **DROPPED 2026-08-06** — no seam worth its price; `evaluate_` withdrawn with it | the merge was small and behaviour-preserving; the split turned out not to have the seam it assumed |
 | 4 | ~~`[R10-6]` §8–10 — the vector/raster split~~ **DONE 2026-08-06** (rules `1.01c` / `2.03c` / `3.01f`; nine WF1 artifacts byte-identical; ADR §8–10 now **accepted**). Baseline gate still open | changes the rule count of all three workflows |
-| 5 | ~~`[R10-6]` §11a then §11b~~ **DONE 2026-08-06 as ONE landing** — measurement collapsed the split: the fixture's partition saturates at 5 subbasins from ceiling 5 up, so §11b moves nothing and only the key rename shows. Baseline re-record owed (3 config-snapshot entries) | §11b turned out NOT to be a baseline event on this fixture |
-| 6 | R10 renames + `[R10-5]` renumber + `[R10-7]` + `[R10-10]` | against a rule set that is finally stable; regenerate the number map from it. `[R10-10]` rides here because it and `[R10-9]`'s ordering assertion touch the same test file |
-| — | `[R10-11]` tree-check on a post-migration tree | no sequencing dependency, but do it BEFORE the next milestone leans on `tree-check` as a gate — it reports red on every correct tree today |
-| 7 | ~~`[R10-6]` §12~~ **DONE 2026-08-06** — landed with §11's re-record still pending, so ONE re-record now covers both | standalone, last; re-record owed |
+| 5 | ~~`[R10-6]` §11a then §11b~~ **DONE 2026-08-06 as ONE landing** — measurement collapsed the split: the fixture's partition saturates at 5 subbasins from ceiling 5 up, so §11b moves nothing and only the key rename shows. **Baseline re-recorded `ea5ac59`** | §11b turned out NOT to be a baseline event on this fixture |
+| 6 | ~~R10 renames + `[R10-5]` renumber + `[R10-7]` + `[R10-10]`~~ **DONE 2026-08-06** — eight commits; the number map was regenerated FIRST and owner-approved before any code moved against it. `[R10-9]`'s deferred ordering assertion landed with the renumber that makes it true. Gates: `pytest tests/` 1503 passed; `check_baseline.py check` **OK, 8/8, no re-record**; `pixi run tree-check` **186 paths, 0 unmapped** | against a rule set that is finally stable; regenerate the number map from it. `[R10-10]` rides here because it and `[R10-9]`'s ordering assertion touch the same test file |
+| — | ~~`[R10-11]` tree-check on a post-migration tree~~ **DONE 2026-08-06** — post-migration inventory is the default; 186/186 identity on the live tree | done before step 6, so the sweep has a working tree-shape gate while it runs |
+| 7 | ~~`[R10-6]` §12~~ **DONE 2026-08-06** — landed with §11's re-record still pending, so ONE re-record covered both: **`ea5ac59`**, 4 targets (3 config snapshots + `q_indicators.csv`). Nothing further owed | standalone, last |
 
 **This resolves the double-renumber contradiction.** `[R10-6]` says land the
 split before `[R10-5]`, but `rule-index.md` publishes a 45-identifier map that
@@ -309,23 +309,69 @@ that awkwardness.
   - A Snakefile is **not valid Python** (`rule all:` is Snakemake grammar), so
     `ast.parse` over the whole file raises. The `LOG_RULES` block is lifted out
     textually and only that is parsed.
-  - **Ordering is deliberately not asserted.** `Snakefile_climate_projections`
+  - **Ordering is deliberately not asserted.** ~~`Snakefile_climate_projections`
     says "Order is by RULE NUMBER" while its list opens `2.03b`, `2.01`,
     `2.02` — correct by *execution* order, wrong by number. Which is right is a
     ruling nobody has made, and it dissolves at `[R10-5]`, after which number,
     execution and sort order coincide. **Add the ordering assertion then**, and
     settle the related WF1/WF3-vs-WF2 disagreement about whether
-    `gather_benchmarks` precedes `gather_logs` in the same edit.
+    `gather_benchmarks` precedes `gather_logs` in the same edit.~~
+    **DONE 2026-08-06** with the renumber, exactly as planned:
+    `test_declared_labels_read_in_rule_number_order` asserts
+    `LOG_RULES == sorted(LOG_RULES)`, which is a correct comparison only because
+    `NN` is zero-padded to two digits — stated in the test, since a future
+    unpadded number would break it silently. WF2's list needed no reordering: it
+    was already in execution order, and the renumber is what made the two agree.
+
+    **The gather ordering was a separate question and this item mis-stated its
+    mechanism.** Neither gather rule declares a `log:`, so neither appears in
+    any `LOG_RULES` and the ordering assertion never touches them. What forces
+    the decision is the *number map*. Ruled by the owner 2026-08-06: **benchmarks
+    then logs in all three workflows**, so WF2 moved to match WF1 and WF3. The
+    two are parallel leaves with identical input sets, so no dependency decides
+    it — it is a reading convention, and `gather_logs` is now the last-numbered
+    rule everywhere.
 
   Related, and free only while every call site is already being edited: define
-  **one label constant per rule** (`_L = "1.11_add_climate_forcing"`) and build
+  **one label constant per rule** (`_L = "1.10_add_climate_forcing"`) and build
   `LOG_RULES`, `rule_banner`, `log:` and `benchmark:` from it. Four of the six
   call sites collapse to one definition, and the next rename or renumber becomes
   a one-line edit per rule.
 
-- **[R10-10] `test_model_reference.py`'s `LOG_RULES` slicer stops at the first
-  `]`, so a bracket in a comment silently blinds it.** *Found 2026-08-06 while
-  landing `[R10-6]`; the Snakefile side is fixed, the test is not.*
+  **NOT TAKEN in the R10 sweep — still open, and cheaper now than it looks.**
+  The sweep was the moment this was free and it was dropped anyway, so the
+  reason matters. `LOG_RULES` must stay a **module-level list literal**: three
+  separate consumers read it out of the source text without executing the
+  Snakefile — `tests/test_log_rules_contract.py` lifts the block and
+  `ast.literal_eval`s it, and that is the only way to read it, because a
+  Snakefile is not valid Python (`rule all:` is Snakemake grammar). Building the
+  list from per-rule constants makes it a list of *names*, not literals, and
+  `literal_eval` raises. Closing that needs the checker to parse the executed
+  workflow's globals instead — which is a change to the instrument the sweep was
+  relying on, mid-sweep. Do it as its own task, instrument first.
+
+- **[R10-10] ~~`test_model_reference.py`'s `LOG_RULES` slicer stops at the first
+  `]`, so a bracket in a comment silently blinds it.~~ DONE 2026-08-06** —
+  **folded, not fixed.** The check was deleted from `test_model_reference.py`
+  and `tests/test_log_rules_contract.py` is now the only home for the property,
+  because two modules asserting one property by different parsers is how they
+  came to disagree.
+
+  Folding turned out to be strictly stronger than fixing the slicer, for a
+  reason this item had not found: the slicer's label regex matched the f-string
+  form `{LOG_PARTS_DIR}/<label>` only, so WF2's and WF3's fan-out rules — which
+  build their `log:` path by concatenation — were invisible to it. That is what
+  its own docstring's "14/3/14" recorded: it saw **3 of WF2's 6** labels. The
+  contract module derives labels from the parsed workflow's `rule.log`, so it
+  has neither blind spot, and it asserts across all three Snakefiles at once.
+
+  Verified failing before the sweep rather than merely present: dropping one
+  label from WF1's list fires `test_every_logging_rule_is_declared` naming that
+  exact label. The bracket convention the Snakefile comments held is also
+  retired — the surviving parser anchors the closing bracket at column 0, so a
+  `]` inside the block is fine again, and the comments say so.
+
+  *Original item follows.*
 
   `test_every_declared_log_part_label_is_registered_in_log_rules` extracts the
   block as `text[index("LOG_RULES = ["): index("]", index("LOG_RULES = ["))]`.
@@ -358,9 +404,17 @@ that awkwardness.
   property by different parsers is how they came to disagree. Do it during
   `[R10-9]`'s ordering extension, which touches that file anyway.
 
-- **[R10-11] `pixi run tree-check` cannot pass on a correctly-migrated tree.**
-  *Found 2026-08-06 at the `[R10-6]` baseline gate; pre-existing, not caused by
-  it.* `AGENTS.md` documents the command as a standing check — "Snapshot a
+- **[R10-11] ~~`pixi run tree-check` cannot pass on a correctly-migrated tree.~~
+  FIXED 2026-08-06.** `dev/scripts/semantic_tree_diff.py::build_project_tree_rules`
+  is the post-migration inventory and is now `tree-check`'s DEFAULT; the one-way
+  migration map stays reachable as `--map r09`. Verified on the live tree:
+  **186 paths, 186 identity, 0 unmapped, exit 0** — against 153 unmapped before.
+  `tests/test_project_tree_inventory.py` covers it, and its second half is the
+  load-bearing one: twelve undeclared artifacts, each under a root the inventory
+  DOES cover, must still report UNMAPPED, so a prefix written one level too
+  broad fails the test rather than emptying the report.
+
+  *Original diagnosis follows.* `AGENTS.md` documents the command as a standing check — "Snapshot a
   project tree as a path list and check every path against the R9 path map" —
   and it exits 1 on every tree that is in the layout R9 delivered.
 
@@ -409,8 +463,24 @@ that awkwardness.
   and say so in `AGENTS.md` — a documented command that always fails trains
   readers to ignore it, which is worse than not having it.
 
-- **[R10-7] Rename the three shared-rule helpers from `_spec` to `_rule`.**
-  *Ruled 2026-08-06; not implemented.* `region_spec` → `region_rule`,
+- **[R10-7] ~~Rename the three shared-rule helpers from `_spec` to `_rule`.~~
+  DONE 2026-08-06**, in the R10 step-6 sweep, 20 files. The two hazards this
+  item flagged both bit and were caught: `climate_store_spec` inside an error
+  *message string* and in module docstrings, which a symbol-only rename misses;
+  and `dev/decisions/0003`, whose §1–7 named the old symbols on purpose. Its own
+  revision note said they would be renamed "until that sweep lands", so they
+  were — and a blanket substitution collapsed two of its old→new arrows
+  (``` `region_spec` → `region_rule` ``` became ``` `region_rule` →
+  `region_rule` ```), which is the failure mode of renaming inside a document
+  that *documents* the rename. `dev/reference/naming.md` §5 now carries the
+  `_rule` convention with both rejected alternatives.
+
+  Two files were deliberately NOT renamed: the `wf2-climate-analysis-v2` design
+  and its review record under `dev/reference/workflows/`. They describe a design
+  run closed 2026-07-29 and name the symbols as they were; freshening them is
+  the R9 P5 F2 mistake.
+
+  *Original item follows.* `region_spec` → `region_rule`,
   `climate_store_spec` → `climate_store_rule`, and the new one from `[R10-6]`
   was **born as `spatial_units_rule` / `SpatialUnitsRule` on 2026-08-06**, so the
   trio is deliberately inconsistent until this sweep lands. Dataclasses follow (`RegionRule`,
@@ -492,8 +562,17 @@ that awkwardness.
     synthetic multi-basin tests, not the baseline. Full table and the internal
     renames in ADR 0003 *Landed state (§11)*.
 
-    **Owed: a baseline re-record of three config-snapshot entries** (WF1/WF2/WF3
-    all copy the seed config and share hash `48242f48…`). Nothing numeric moves.
+    ~~**Owed: a baseline re-record of three config-snapshot entries**~~
+    **DONE `ea5ac59`** — one re-record covered §11 and §12 together, from a
+    clean-room three-workflow run: the three config snapshots (WF1/WF2/WF3 all
+    copy the seed config and shared hash `48242f48…` → `e223eaf7`) plus
+    §12's `q_indicators.csv`. `output.csv` and `basin_indicators.csv` did NOT
+    move, which is the load-bearing half. Nothing numeric moved from §11.
+
+    **The manifest is therefore CURRENT.** This line said "owed" for long
+    enough to mislead a later gate into budgeting for six expected diffs; read
+    the manifest and `ea5ac59`, not this item, before running
+    `check_baseline.py check`.
   - **§12 — `wflow_id` becomes `basin_id*1000 + subbasin*10 + m`** (basin 1 →
     1010, 1011, 1020 …), `m = 0` the subbasin's primary. **DONE 2026-08-06.**
     It replaced two unrelated formulas sharing one column: a primary took
@@ -528,8 +607,45 @@ that awkwardness.
   not a silent break. And §12 rewrites the column headers of every project's
   **observation files**, which is user data, not repo data.
 
-- **[R10-5] Renumber every rule so `W.NN` follows the logical order.**
-  *Accepted 2026-08-06; not implemented.* Numbers become **positional**: data
+- **[R10-5] ~~Renumber every rule so `W.NN` follows the logical order.~~
+  DONE 2026-08-06**, in the same sweep as the renames, as this item required.
+  47 rule declarations across the three workflows; the map was regenerated from
+  the live rule set and owner-approved before any code moved against it.
+
+  **Three things the map had wrong when this item was written**, all found by
+  recomputing the order from each rule's `input:` block rather than editing the
+  published table:
+
+  1. **Two dependencies pointed high→low.** `write_outlet_index` and
+     `plot_basin_map` both declare `ancient(<model>/.model_final)`, which
+     `add_climate_forcing` writes — so both are downstream of it, while the map
+     placed them ahead of it. `ancient()` suppresses the timestamp
+     rerun-trigger, **not the DAG edge**, which is why it read as no dependency
+     at all; ADR 0004 moved that sentinel onto the forcing rule after the map
+     was drawn. **Generalizes: any ordering check that skips `ancient()` inputs
+     will reproduce this.**
+  2. `delineate_spatial_units` was absent (added by `[R10-6]` §8 after the map
+     was published) — the reason this step was scheduled last.
+  3. `[R10-2]`'s `1.14 evaluate_wflow_run` row had to go with the drop.
+
+  The `gather_benchmarks`/`gather_logs` disagreement was ruled at the same
+  gate: **benchmarks then logs everywhere**, so WF2 moved. See `[R10-9]`.
+
+  Both hazards this item named were handled. `LOG_RULES` was rewritten
+  wholesale, not entry by entry, and is now asserted to read in number order.
+  The batched Wflow rule kept its singular `<W.NN>_run_wflow` label against
+  `run_wflow_batch_<b>` identifiers.
+
+  **What made the sweep safe was making the numbers reusable-but-checkable.**
+  The renumber ran as one simultaneous pass keyed on (old number, rule *name*),
+  so a number freed by one rule could not be picked up by another mid-pass; and
+  prose references were remapped separately, with the already-correct call sites
+  masked. Two audits then ran over the result: every `W.NN` in the three files
+  resolves to a live rule (6 deliberate exceptions — letter-suffix examples, a
+  quoted old scheme, one deleted rule), and every comment naming both a number
+  and a rule name agrees with the call sites (0 disagreements).
+
+  *Original item follows.* Numbers become **positional**: data
   first, then model build, then run, then records, contiguous within each
   workflow, with every dependency pointing from a lower number to a higher one.
   The full old→new map for all 45 identifiers is in

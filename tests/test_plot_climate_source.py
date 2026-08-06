@@ -177,7 +177,7 @@ def modelfree_project(tmp_path):
 
     Returns ``(config_path, project_dir, store_dir, absent_template)``.
     """
-    from blueearth_cst.shared.snake_utils import climate_store_spec
+    from blueearth_cst.shared.snake_utils import climate_store_rule
 
     project_dir = tmp_path / "proj"
     project_dir.mkdir()
@@ -206,7 +206,7 @@ def modelfree_project(tmp_path):
     cfg_path = tmp_path / "snake_config_modelfree.yml"
     cfg_path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
 
-    spec = climate_store_spec(
+    spec = climate_store_rule(
         project_dir=project_dir.as_posix(),
         model_region=cfg["shared"]["basin"]["region"],
         clim_source=cfg["shared"]["clim_historical"],
@@ -242,7 +242,7 @@ def test_source_figures_build_without_a_model(modelfree_project):
     combined = (result.stdout or "") + (result.stderr or "")
     assert result.returncode == 0, combined[-4000:]
 
-    assert "extract_climate_grid" in combined
+    assert "extract_historical_climate" in combined
     assert "plot_climate_source" in combined
     assert "prepare_spatial_maps" not in combined
     assert "build_wflow_model" not in combined

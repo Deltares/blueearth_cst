@@ -70,7 +70,7 @@ DECLARED_PLOT_OUTPUTS = (
 @pytest.fixture()
 def fabricated_project(tmp_path):
     """A project_dir pre-filled with every declared wf1 figure output."""
-    from blueearth_cst.shared.snake_utils import climate_store_spec
+    from blueearth_cst.shared.snake_utils import climate_store_rule
 
     cfg = yaml.safe_load(CONFIG_FN.read_text(encoding="utf-8"))
     project_dir = tmp_path / "proj"
@@ -81,7 +81,7 @@ def fabricated_project(tmp_path):
     cfg_path = tmp_path / "snake_config_fabricated.yml"
     cfg_path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
 
-    spec = climate_store_spec(
+    spec = climate_store_rule(
         project_dir=project_dir.as_posix(),
         model_region=cfg["shared"]["basin"]["region"],
         clim_source=cfg["shared"]["clim_historical"],

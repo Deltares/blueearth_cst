@@ -50,7 +50,7 @@ _DIGITS = re.compile(r"(\d+)")
 
 
 def _rule_tag(label):
-    """Render a part label ``2.01_fetch_gcm_raw`` as the banner tag ``2.01  fetch_gcm_raw``.
+    """Render a part label ``2.04_fetch_gcm_slice`` as the banner tag ``2.04  fetch_gcm_slice``.
 
     Mirrors ``snake_utils.rule_banner`` so the merged log and the console use one
     spelling. A label that is not ``<W.NN>_<name>`` is passed through as-is.
@@ -157,7 +157,7 @@ def merge_logs(rules, out_path, parts_dir, remove_parts=False):
     Parameters
     ----------
     rules : list of str
-        Rule labels (``"2.01_fetch_gcm_raw"``) in the order their sections should
+        Rule labels (``"2.04_fetch_gcm_slice"``) in the order their sections should
         appear. Rule-number order, matching the rule map and the benchmark table.
     out_path : str
         The merged log. Regenerated whole on every run.

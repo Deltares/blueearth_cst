@@ -113,7 +113,7 @@ def test_the_marker_is_a_completed_run_not_a_started_one(tmp_path):
     # a partial run: log PARTS exist, the merged log does not
     parts = exp / "logs" / "_parts"
     parts.mkdir(parents=True)
-    (parts / "3.06_generate_weather_realization.log").write_text("x", encoding="utf-8")
+    (parts / "3.11_generate_weather_realizations.log").write_text("x", encoding="utf-8")
     (exp / "results").mkdir()
     (exp / "results" / "q_indicators.csv").write_text("a\n", encoding="utf-8")
 
@@ -135,14 +135,24 @@ def test_no_recorded_file_means_nothing_to_freeze(tmp_path):
 # Wiring
 # ---------------------------------------------------------------------------
 
-def test_the_rule_declares_the_file_and_registers_its_log_label():
-    """The LOG_RULES class this milestone hit three times -- checked at the
-    point a new label is added, not later."""
+def test_the_rule_declares_the_file_and_reaches_rule_all():
+    """The rule writes what it claims to, and something asks for it.
+
+    The `LOG_RULES` half of this test is GONE, and the reason is worth keeping.
+    It asserted `'"3.01e_write_experiment_config"' in text` -- a hardcoded label
+    matched against the raw source, a THIRD parser for a property two other
+    modules already checked -- and it broke on the [R10-5] renumber for exactly
+    the reason [R10-10] predicts: parsers that each know the property a little
+    differently drift apart, and the one that breaks first is whichever hardcoded
+    the most. `tests/test_log_rules_contract.py` owns it now, derives the label
+    from the rule's own `log:` path, and asserts both directions for all three
+    workflows -- so this rule's registration is covered more strongly than it
+    was here, and without a number to keep in step.
+    """
     text = (Path(__file__).resolve().parents[1]
             / "Snakefile_climate_experiment").read_text(encoding="utf-8")
     start = text.index("rule write_experiment_config:")
     block = text[start: text.index("\nrule ", start + 1)]
     assert "config/experiment.yml" in block[block.index("output:"):]
-    assert '"3.01e_write_experiment_config"' in text
     assert "experiment_config" in text[text.index("WF3_TARGETS = {"):
                                        text.index("rule all:")]

@@ -78,8 +78,9 @@ The tree is self-explanatory; these are the parts that are not.
   user-facing. Three inspection helpers, all **report-only by default**:
   `prune_series_cache.py` (orphaned WF2 series), `prune_climate_store.py`
   (stale `<source>_<window>` climate stores, R9) and `snapshot_project_tree.py`
-  (a tree as a path list, checked against the R9 path map — also `pixi run
-  tree-check`). Deleting is an explicit owner action via `--delete`, and pruning
+  (a tree as a path list, checked against the post-migration inventory — also
+  `pixi run tree-check`; `--map r09` selects the one-way migration map, which
+  only a pre-move tree can satisfy, `[R10-11]`). Deleting is an explicit owner action via `--delete`, and pruning
   must run **before** any reference snapshot, or the snapshot bakes the orphans
   in and the gate compares them instead of the live artifacts. Neither prune
   tool sees everything: R9 P2 found stale files only an mtime sweep caught,
@@ -134,8 +135,10 @@ pixi run python scripts/run_workflows.py --config config/workflows/snake_config_
 # for wf1/wf2, experiments/<id>/logs/dag/ for wf3:
 pixi run python scripts/plot_workflow_dag.py -s Snakefile_model_creation --configfile <cfg>
 
-# Snapshot a project tree as a path list and check every path against the R9
-# path map (add --out to record it; nothing is written otherwise):
+# Snapshot a project tree as a path list and check that it holds nothing
+# undeclared (add --out to record it; nothing is written otherwise). The default
+# map is the POST-MIGRATION INVENTORY; `--map r09` runs the one-way R9 migration
+# map instead, for a tree that has not been moved yet:
 pixi run tree-check --config <cfg>
 
 # Report orphaned artifacts. Both DRY RUN by default; --delete is explicit:

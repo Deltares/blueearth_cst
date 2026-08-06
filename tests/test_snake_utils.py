@@ -331,7 +331,7 @@ def test_relativize_leaves_out_of_project_paths_absolute():
 
 def test_tee_to_log_relativizes_project_paths(tmp_path):
     proj = tmp_path / "gabon"
-    log = proj / "logs" / "1.10_plot_results.log"
+    log = proj / "logs" / "1.15_plot_wflow_evaluation.log"
     abs_png = os.path.join(str(proj), "plots", "map.png")
     with tee_to_log(log):
         print(f"Saved figure: {abs_png}")
@@ -402,14 +402,14 @@ def test_tee_to_log_writes_project_header(tmp_path):
     # a `.../<project>/logs/<rule>.log` path yields a header naming the project,
     # the full project dir, and the rule-log id; the date lives here (dropped
     # from each row), followed by a blank line before the body.
-    log = tmp_path / "gabon" / "logs" / "1.07_setup_runtime.log"
+    log = tmp_path / "gabon" / "logs" / "1.07_build_wflow_model.log"
     with tee_to_log(log):
         print("body line")
     head = log.read_text(encoding="utf-8").splitlines()
     assert head[0].startswith("# BlueEarth-CST")
     assert "project: gabon" in head[0]
     assert head[1].startswith("# project dir:") and head[1].rstrip().endswith("gabon")
-    assert "1.07_setup_runtime.log" in head[2] and "started" in head[2]
+    assert "1.07_build_wflow_model.log" in head[2] and "started" in head[2]
     assert head[3] == ""  # blank line separates header from body
     assert head[4] == "body line"
 
@@ -606,7 +606,7 @@ def test_warn_uses_containment_not_string_prefix(tmp_path):
         assert su.warn_if_project_dir_in_repo(sibling, repo) is False
 
 
-# --- climate_store_spec (R07 B1) ---------------------------------------------
+# --- climate_store_rule (R07 B1) ---------------------------------------------
 
 _WINDOW = {"starttime": "2000-01-01T00:00:00", "endtime": "2020-12-31T00:00:00"}
 
@@ -620,10 +620,10 @@ def _spec(**overrides):
         data_sources="config/catalogs/deltares_data.yml",
     )
     kwargs.update(overrides)
-    return su.climate_store_spec(**kwargs)
+    return su.climate_store_rule(**kwargs)
 
 
-def test_climate_store_spec_key_matches_the_pre_r07_wf3_construction():
+def test_climate_store_rule_key_matches_the_pre_r07_wf3_construction():
     """The store KEY must be byte-identical to the one wf3 built inline.
 
     R9 P2 moved the store under `data/climate/`, but the key is the load-bearing
@@ -641,7 +641,7 @@ def test_climate_store_spec_key_matches_the_pre_r07_wf3_construction():
     assert spec.inputs["region_geojson"] == "/proj/data/spatial/geoms/region.geojson"
 
 
-def test_climate_store_spec_inputs_are_the_catalog_and_the_region():
+def test_climate_store_rule_inputs_are_the_catalog_and_the_region():
     """ext2-01 + ADR 0003: two inputs, and BOTH symmetric across the workflows.
 
     The catalog stays the store's freshness boundary. The region joined it when
@@ -655,10 +655,10 @@ def test_climate_store_spec_inputs_are_the_catalog_and_the_region():
     }
 
 
-def test_climate_store_region_input_is_the_region_spec_output():
+def test_climate_store_region_input_is_the_region_rule_output():
     """One owner for the path: the two helpers cannot disagree about it."""
     spec = _spec()
-    region = su.region_spec(
+    region = su.region_rule(
         project_dir="/proj",
         model_region="{'subbasin': [9.666, 0.4476], 'uparea': 100}",
         data_sources="config/catalogs/deltares_data.yml",
@@ -667,7 +667,7 @@ def test_climate_store_region_input_is_the_region_spec_output():
     assert region.outputs == {"region_geojson": region.region_geojson}
 
 
-def test_climate_store_spec_params_carry_the_content_surface():
+def test_climate_store_rule_params_carry_the_content_surface():
     spec = _spec()
     assert set(spec.params) == {
         "model_region",
@@ -683,7 +683,7 @@ def test_climate_store_spec_params_carry_the_content_surface():
     assert spec.params["endtime"] == _WINDOW["endtime"]
 
 
-def test_climate_store_spec_hydrography_defaults_match_the_spatial_contract():
+def test_climate_store_rule_hydrography_defaults_match_the_spatial_contract():
     """Climate extraction and P1 share one model-neutral source default."""
     from blueearth_cst.spatial.config import parse_spatial_config
 
@@ -694,7 +694,7 @@ def test_climate_store_spec_hydrography_defaults_match_the_spatial_contract():
     assert spec.params["basin_index"] == spatial.basin_index == "merit_hydro_index"
 
 
-def test_climate_store_spec_overrides_are_carried_through():
+def test_climate_store_rule_overrides_are_carried_through():
     spec = _spec(hydrography="merit_hydro_1k", basin_index="my_index")
     assert spec.params["hydrography"] == "merit_hydro_1k"
     assert spec.params["basin_index"] == "my_index"
@@ -712,19 +712,19 @@ def test_no_orography_output_outside_the_chirps_branch():
     assert "oro_nc" not in _spec(clim_source="era5").outputs
 
 
-def test_climate_store_spec_script_is_relative_to_the_repo_root():
+def test_climate_store_rule_script_is_relative_to_the_repo_root():
     """One relative path serves both Snakefiles (`script:` resolves to basedir)."""
     spec = _spec()
     assert spec.script == "blueearth_cst/climate_analysis/extract_historical_climate.py"
     assert (Path(__file__).resolve().parents[1] / spec.script).is_file()
 
 
-def test_climate_store_spec_rejects_a_non_mapping_window():
+def test_climate_store_rule_rejects_a_non_mapping_window():
     with pytest.raises(TypeError, match="historical_window"):
         _spec(historical_window=("2000-01-01T00:00:00", "2020-12-31T00:00:00"))
 
 
-def test_climate_store_spec_rejects_a_sub_day_window():
+def test_climate_store_rule_rejects_a_sub_day_window():
     """The day-resolution store key cannot represent a sub-day window."""
     with pytest.raises(ValueError, match="time-of-day"):
         _spec(historical_window={
@@ -733,7 +733,7 @@ def test_climate_store_spec_rejects_a_sub_day_window():
         })
 
 
-def test_climate_store_spec_is_frozen():
+def test_climate_store_rule_is_frozen():
     """The two Snakefiles share one contract object; it must not be mutable."""
     spec = _spec()
     with pytest.raises(Exception):

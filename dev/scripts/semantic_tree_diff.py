@@ -819,6 +819,146 @@ def build_r09_gap_rules(
     return []
 
 
+def build_project_tree_rules(
+    experiment_name: str,
+    dataset_key: str,
+    clim_project: str = "cmip6",
+) -> list[tuple[str | re.Pattern, str]]:
+    """Identity rules for the CURRENT project tree — the post-R9 inventory.
+
+    **Why this exists, and why it is not the R9 map.** `build_r09_path_map` runs
+    ONE WAY: pre-R9 paths to post-R9 ones. A live tree holds only the post-R9
+    side, so nothing matches the old-side patterns and every relocated artifact
+    falls through as UNMAPPED — `pixi run tree-check` returned exit 1 on every
+    CORRECTLY migrated tree (`dev/followups.md` `[R10-11]`; measured 153 of 186
+    unmapped on a clean run, and 165 of 203 on a tree that predated the
+    artifact people first suspected). The map was never wrong; it was being
+    asked about an era that has passed.
+
+    So the migration map keeps its job — validating the move, which is what its
+    tests exercise — and this answers the question that outlives it: **does this
+    tree hold anything nobody declared?** That is the property that caught
+    `region.geojson` (R9 phase-1 F1a) and that the ADR 0003 §8a seam
+    intermediate needed a row for.
+
+    Every rule maps a path to ITSELF, so a covered path classifies as IDENTITY
+    and an unknown one still classifies as UNMAPPED. That distinction only
+    exists through `apply_path_map_matched`, which is why identity is enumerated
+    rather than written as a `data/` → `data/` catch-all: a catch-all would make
+    the report empty by construction and the gate would pass unconditionally
+    (`test_a_catch_all_config_prefix_would_empty_the_report` demonstrates the
+    hazard on the R9 map).
+
+    DIRECTORY PREFIXES are used only where the contents are genuinely open —
+    `plots/`, `staticgeoms/`, a wflow run directory, the projection tiers. Where
+    the set of files is fixed, they are enumerated, so a new file in a settled
+    directory is reported rather than absorbed.
+
+    Parameters
+    ----------
+    experiment_name, dataset_key, clim_project
+        The same config-derived values `build_r09_path_map` takes, so one
+        caller can build either.
+    """
+    e = experiment_name
+    exp = re.escape(experiment_name)
+    rules: list[tuple[str | re.Pattern, str]] = []
+
+    def same(path: str) -> None:
+        rules.append((path, path))
+
+    def same_rx(pattern: str) -> None:
+        rules.append((re.compile(f"({pattern})"), r"\1"))
+
+    # -- project root ---------------------------------------------------------
+    same_rx(r"logs/wf[12]_[^/]+\.log")
+    same("logs/_parts/")
+    same("logs/dag/")
+    same_rx(r"benchmarks/wf[12]_benchmarks\.md")
+    same("benchmarks/_parts/")
+
+    # -- config/ --------------------------------------------------------------
+    # The two snapshot CONTRACT PATHS are enumerated; the digest bundles are a
+    # regex because the digest is content-derived. `files/` inside a bundle is a
+    # prefix: its members are named `<hash>-<original>` per referenced input.
+    same("config/runs/snake_config_model_creation.yml")
+    same("config/runs/snake_config_climate_projections.yml")
+    same_rx(r"config/runs/[a-z_]+/[0-9a-f]{8,}/.*")
+    same("config/catalogs/")
+    same("config/templates/")
+    same("config/observations/")
+    # Generated build config lives in the model's own config/ (R9 design v10).
+
+    # -- data/ ----------------------------------------------------------------
+    for leaf in (
+        "spatial_maps.nc",
+        "spatial_catalog.yml",
+        "spatial_report.yml",
+        "location_registry.csv",
+        # ADR 0003 §8a seam intermediate.
+        "hydrography.nc",
+    ):
+        same(f"data/spatial/{leaf}")
+    same("data/spatial/geoms/")
+    # The climate store is keyed by <clim_source>_<window>; the key is a CACHE
+    # KEY, so the rule is keyed by a variable exactly as the R9 map's is.
+    same(f"data/climate/historical/{dataset_key}/")
+    same_rx(r"data/climate/historical/[^/]+/.*")
+    for tier in ("raw", "scalar", "summary", "plots"):
+        same(f"data/climate/projections/{clim_project}/{tier}/")
+    same(f"data/climate/projections/{clim_project}/report.md")
+
+    # -- models/ --------------------------------------------------------------
+    wflow = "models/hydrology/wflow"
+    for leaf in (
+        "staticmaps.nc",
+        "wflow_sbm.toml",
+        "hydromt.log",
+        "hydromt_data.yml",
+        ".model_built",
+        ".outputs_configured",
+        # ADR 0004's terminal build sentinel.
+        ".model_final",
+        "config/build_historical_forcing.yml",
+        "forcing/inmaps_historical.nc",
+    ):
+        same(f"{wflow}/{leaf}")
+    for directory in (
+        "staticgeoms/",
+        "forcing/plots/",
+        "run_default/",
+        "evaluation/",
+        "plots/",
+    ):
+        same(f"{wflow}/{directory}")
+
+    # -- experiments/<id>/ ----------------------------------------------------
+    for leaf in (
+        ".project_consistency_ok",
+        "config/snake_config_climate_experiment.yml",
+        "config/model_reference.yml",
+        "config/experiment.yml",
+    ):
+        same(f"experiments/{e}/{leaf}")
+    for directory in (
+        "config/catalogs/",
+        "config/runs/",
+        "logs/",
+        "benchmarks/",
+        "results/",
+        "climate/weathergenr/",
+        "hydrology/wflow/",
+    ):
+        same(f"experiments/{e}/{directory}")
+    # Belt and braces on the experiment id: a tree may hold OTHER experiments
+    # than the one this config names, and they are legitimate rather than
+    # orphaned. Registered last so the named experiment's narrower rows win.
+    rules.append(
+        (re.compile(rf"(experiments/(?!{exp}/)[^/]+/.*)"), r"\1")
+    )
+    return rules
+
+
 def build_r09_deletions(experiment_name: str) -> list[re.Pattern]:
     """Paths the migration deliberately does NOT carry forward.
 

@@ -296,9 +296,9 @@ def test_climate_projections_owns_its_region():
     """
     text = Path(SNAKEDIR, "Snakefile_climate_projections").read_text()
     assert "data/spatial/geoms/region.geojson" not in text, (
-        "the region path belongs in snake_utils.region_spec, not inline here"
+        "the region path belongs in snake_utils.region_rule, not inline here"
     )
-    assert "region_spec(" in text and "REGION.region_geojson" in text
+    assert "region_rule(" in text and "REGION.region_geojson" in text
     # The model root may only appear as history, never as a declared dependency.
     for line in text.splitlines():
         if "hydrology_model/" in line or "models/hydrology/wflow" in line:

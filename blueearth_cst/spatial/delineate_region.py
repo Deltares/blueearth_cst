@@ -2,7 +2,7 @@
 
 Rule ``delineate_region``'s script — the SINGLE producer of
 ``spatial/geoms/region.geojson``, declared identically in all three workflows
-(``1.01b`` / ``2.03b`` / ``3.01b``) from ``snake_utils.region_spec``.
+(``1.01b`` / ``2.03b`` / ``3.01b``) from ``snake_utils.region_rule``.
 
 Before ADR 0003 the same polygon was delineated TWICE from the same inputs:
 once by rule 1.02 (``spatial/products.py::_region_geometry``, on its way to

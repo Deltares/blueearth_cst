@@ -133,9 +133,14 @@ def _tree(tmp_path):
 
 
 def test_reports_unmapped_and_exits_nonzero(tmp_path, capsys):
+    """`--map r09`: this fixture is a PRE-migration tree.
+
+    The default became the post-migration inventory with `[R10-11]`, so a test
+    feeding `hydrology_model/...` has to say which era it is asking about.
+    """
     proj = _tree(tmp_path)
     cfg = _write_config(tmp_path, _config(proj))
-    assert spt.main(["--config", str(cfg)]) == 1
+    assert spt.main(["--config", str(cfg), "--map", "r09"]) == 1
     out = capsys.readouterr().out
     assert "UNMAPPED logs/1.03_create_model.log" in out
     assert "MOVED    hydrology_model/staticmaps.nc" in out
@@ -143,11 +148,43 @@ def test_reports_unmapped_and_exits_nonzero(tmp_path, capsys):
 
 
 def test_a_clean_tree_exits_zero(tmp_path, capsys):
+    """`--map r09`: a pre-migration path the migration map fully covers."""
     proj = tmp_path / "proj"
     _touch(proj, "hydrology_model/staticmaps.nc")
     cfg = _write_config(tmp_path, _config(proj))
-    assert spt.main(["--config", str(cfg)]) == 0
+    assert spt.main(["--config", str(cfg), "--map", "r09"]) == 0
     assert "MAP CLEAN" in capsys.readouterr().out
+
+
+def test_the_default_map_is_the_post_migration_inventory(tmp_path, capsys):
+    """`[R10-11]`: the DEFAULT must pass on a tree in today's layout.
+
+    Before this, `tree-check` ran the one-way R9 migration map against a
+    migrated tree and reported every relocated artifact as unmapped -- exit 1
+    on every correct tree. The same path proves both halves: covered under the
+    default, unmapped under `--map r09`, which is the era mismatch itself.
+    """
+    proj = tmp_path / "proj"
+    _touch(proj, "data/spatial/spatial_maps.nc")
+    cfg = _write_config(tmp_path, _config(proj))
+
+    assert spt.main(["--config", str(cfg)]) == 0
+    out = capsys.readouterr().out
+    assert "map           : current" in out
+    assert "MAP CLEAN" in out
+
+    assert spt.main(["--config", str(cfg), "--map", "r09"]) == 1
+
+
+def test_the_default_map_still_reports_an_undeclared_artifact(tmp_path, capsys):
+    """The inventory is a gate, not a rubber stamp."""
+    proj = tmp_path / "proj"
+    _touch(proj, "data/spatial/spatial_maps.nc")
+    _touch(proj, "data/spatial/leftover_intermediate.nc")
+    cfg = _write_config(tmp_path, _config(proj))
+
+    assert spt.main(["--config", str(cfg)]) == 1
+    assert "UNMAPPED data/spatial/leftover_intermediate.nc" in capsys.readouterr().out
 
 
 def test_writes_nothing_without_out(tmp_path):
@@ -196,8 +233,8 @@ def test_the_gap_rule_set_is_empty_and_the_flag_is_a_no_op(tmp_path, capsys):
     proj = tmp_path / "proj"
     _touch(proj, "hydrology_model/staticmaps.nc")
     cfg = _write_config(tmp_path, _config(proj))
-    assert spt.main(["--config", str(cfg)]) == 0
-    assert spt.main(["--config", str(cfg), "--gap-rules"]) == 0
+    assert spt.main(["--config", str(cfg), "--map", "r09"]) == 0
+    assert spt.main(["--config", str(cfg), "--map", "r09", "--gap-rules"]) == 0
 
 
 def test_gap_rules_still_wire_through_when_the_set_is_non_empty(

@@ -79,7 +79,7 @@ downstream rules (it admitted `0` under `run_historical`, where `st_num`
 starts at `1`) was **folded into `st_num` in R5**. The downstream rules
 (`downscale_climate_realization`, `run_wflow`, `derive_wflow_indicators`) now use
 the single `st_num` vocabulary and keep the default match that admits `0`;
-only `generate_climate_stress_test` carries a rule-local
+only `perturb_climate_realization` carries a rule-local
 `wildcard_constraints: st_num=[1-9][0-9]*` that bars `0` (so it cannot be a
 second producer of the `cst_0` baseline).
 
@@ -106,6 +106,23 @@ grandfathered.
 
 **Deprecated path suffixes** (grandfathered; do not use in new code):
 `_fn`, `_fid`, `_file` → `_path`.
+
+**`_rule` — a shared Snakemake rule definition.** A helper that returns a
+frozen dataclass holding a rule's `script`, `inputs`, `outputs` and `params`
+— everything content- or execution-determining, with only
+`message`/`log`/`benchmark` left workflow-local — so the same rule can be
+splatted into more than one Snakefile without the declarations drifting.
+Function and dataclass both carry it: `region_rule` → `RegionRule`,
+`climate_store_rule` → `ClimateStoreRule`, `spatial_units_rule` →
+`SpatialUnitsRule`.
+
+The suffix was `_spec` until `[R10-7]` (2026-08-06). `spec` reads as jargon
+to a non-programmer and the object specifies nothing abstract — it *is* a
+rule definition minus its labels. Two alternatives were rejected:
+`_contract`, because this repo already uses "contract" for interchange
+surfaces (`dev/reference/contracts/`, `SPATIAL_CONTRACT_VERSION`,
+`test_climate_store_contract.py`) and overloading it is worse than the
+jargon; and `_definition`, on verbosity at the call sites.
 
 ## 6. Domain identifiers — three tiers
 
@@ -157,6 +174,13 @@ Renaming any of these requires a `dev/<milestone>/migration_<topic>.md`
 note listing the old → new mapping:
 
 - `rule all` output filenames (baseline manifest contract).
+- **Snakemake rule identifiers.** They are the CLI target surface
+  (`snakemake <rule> -s …`, `--forcerun <rule>`) and are referenced across
+  `docs/`, `dev/reference/` and the Snakefile comments, so a rename breaks a
+  command someone has in their shell history. §9's "rule identifiers are not
+  numbered" clause already called this a §7 event; it is listed here now
+  because the enumeration, not the cross-reference, is what gets read.
+  **R10's record is `dev/milestones/r10/migration_rule-names.md`.**
 - **Column labels in `rule all` output tables** — a header is a tier-2 contract
   in its own right (§6), separately from the filename that carries it: a
   consumer that survived a file rename can still break on a header. Added
@@ -251,23 +275,121 @@ kebab-case (the row above), Python modules stay `snake_case` because they must
 be importable, and root-level files keep their upstream names. Reading this as a
 repo-wide sweep would rename documents this guide explicitly protects.
 
+## 8b. Rule naming — `<verb>_<noun>`, verb first, always
+
+Every Snakemake rule identifier is `<verb>_<noun>`. The verb comes from this
+list — **one verb per action class**, so two rules doing the same kind of work
+read the same. Name a new rule from the table, not by analogy with whichever
+rule happens to sit above it.
+
+| Verb | Action class |
+| --- | --- |
+| `fetch_` | acquire from an external source |
+| `extract_` | subset or derive from a larger source already present |
+| `delineate_` | derive a catchment boundary from hydrography and an outlet |
+| `prepare_` | **compute or assemble** something a later rule needs |
+| `build_` | construct a model from inputs |
+| `add_` | mutate an existing model in place by adding **data** (a hydromt `update`) |
+| `declare_` | change what an engine will **emit**, adding no model data |
+| `write_` | **emit a record or index** — the emission *is* the work |
+| `generate_` | stochastic or synthetic production |
+| `downscale_` | resolution transform |
+| `perturb_` | apply a climate perturbation to an existing series |
+| `run_` | invoke an external engine |
+| `reduce_` | **intermediate** aggregation that feeds a later rule |
+| `derive_` | compute a workflow's **terminal product** from reduced inputs |
+| `plot_` | render a figure |
+| `check_` | validate, fail loud |
+| `snapshot_` | copy inputs for provenance |
+| `gather_` | merge parts |
+
+Two distinctions needed care and are the ones a new rule gets wrong:
+
+- **`reduce_` vs `derive_` splits by POSITION, not by operation.** Both turn
+  many inputs into few outputs. `reduce_gcm_series` feeds a later rule;
+  `derive_change_factors` and `derive_wflow_indicators` each produce their
+  workflow's final answer. That makes WF2's and WF3's terminal rules read alike,
+  which they should.
+- **`prepare_` vs `write_` splits on where the work is.** The original criterion
+  was "a config or intermediate" versus "one small table or index", which could
+  not decide `write_experiment_config` or `write_climate_data_catalog` — both
+  readings applied to both. The testable form:
+
+  > **If you deleted the file-writing, would there be work left?
+  > Yes → `prepare_`. No → `write_`.**
+
+  Note what is *not* the criterion: whether a later rule consumes the output.
+  `write_climate_data_catalog` is consumed downstream and is still `write_`,
+  because enumerating entries is all it does.
+
+**Nouns are full words.** Only the established domain set abbreviates — `gcm`,
+`cmip6`, `wflow`, `rlz`, `cst` — and those are tier-1/tier-2 identifiers under
+§6. Ad-hoc contractions (`weagen`, `proj`) are not. Qualifiers are trailing full
+words, never two-letter suffixes.
+
+**Adding a verb is allowed, and cheaper than a bad name.** `delineate_` and
+`declare_` were both added rather than forcing their rules onto `derive_` or
+`add_`: basin delineation is the field's own word, and `declare_wflow_outputs`
+changes what the engine *emits* while `add_` is defined as adding model *data*.
+The bar is that the action class is genuinely distinct — and that the verb has a
+user. `evaluate_` was ruled in for a rule that then never existed and was
+withdrawn, because a verb in this table with no rule behind it reads as an
+available option that some rule must already justify.
+
+**Grammar conformance is not body conformance.** A name satisfying
+`<verb>_<noun>` can still be false: `add_gauges_and_outputs` passed the grammar
+check for three milestones while adding no gauges — the job had moved to another
+rule and the name did not follow. Check the verb against the rule's script or
+shell body, and say which check you ran.
+
+Full rationale and the twelve-rename audit:
+`dev/milestones/r10/rule-naming-design.md`.
+
 ## 9. Rule numbering (`W.NN` reference scheme)
 
 Each rule in the three `Snakefile_*` entry points carries a `W.NN`
 reference number — `W` = workflow (`1` model_creation, `2`
 climate_projections, `3` climate_experiment), `NN` = a zero-padded
-**stable identifier assigned when the rule is created** — NOT a position. It exists in exactly two
-places, both cheap:
+**position in that workflow's logical order**: data first, then model
+build, then run, then records. It exists in exactly two places, both
+cheap:
 
 - **A comment header above each rule** —
-  `# 1.03  create_model — build the Wflow-SBM model (hydromt build wflow_sbm)`.
+  `# 1.07  build_wflow_model — parameterize Wflow-SBM on the spatial foundation`.
 - **The `log:` / `benchmark:` filename prefix** —
-  `logs/1.03_create_model.log`, `benchmarks/1.03_create_model.tsv`; for
-  wildcard rules the prefix goes on the subdirectory
-  (`logs/3.10_run_wflow/rlz_{rlz_num}_cst_{st_num}.log`). All three
+  `logs/1.07_build_wflow_model.log`,
+  `benchmarks/_parts/1.07_build_wflow_model.tsv`; for wildcard rules the
+  prefix goes on the subdirectory
+  (`logs/3.15_run_wflow/batch_{b}.log`). All three
   workflows share `project_dir/logs`, so the `W` digit keeps their logs
   disambiguated and a single `ls logs/` sorts globally by workflow then
   step.
+
+**Positional since 2026-08-06 (`[R10-5]`), and this reverses the previous
+rule.** `NN` used to be "a stable identifier assigned when the rule is
+created — NOT a position", which left it uncorrelated with everything: gaps
+where rules had been removed, WF2 defining its rules out of numeric order,
+five letter suffixes stacked beside one WF3 number, and `gather_benchmarks`
+answering to 2.10 beside siblings at 1.14 and 3.12. The rule-index audit
+made the workflow stages explicit and the numbers contradicting them became
+the more visible defect. Two properties now hold and are worth stating
+separately:
+
+- **Contiguous** within each workflow, from `W.00` (`rule all`).
+- **Every dependency points from a lower number to a higher one**, checked
+  against each rule's `input:` block — **`ancient()` included**. `ancient()`
+  suppresses the timestamp rerun-trigger, not the DAG edge; missing that is
+  how the first draft of the map put two rules ahead of something they
+  depend on.
+
+**The cost was accepted knowingly: numbers are REUSED.** Under the old
+policy a retired number stayed a gap, so a stale reference merely dangled
+and was obvious. Now it silently resolves to a *different rule* — new 3.10
+is `prepare_weathergen_config` where old 3.10 was `run_wflow`. Read every
+`W.NN` in `dev/milestones/`, `DEVLOG.md`, `dev/decisions/` and the dated
+migration records **as of its date**, and translate through
+`dev/reference/workflows/rule-index.md` § *What changed*. Do not rewrite
+those archives to the new numbers.
 
 Rules:
 
@@ -277,28 +399,37 @@ Rules:
   `W.NN` identifier would be both illegal-as-typed and a §7 contract
   rename. The number lives only in the comment and the log/benchmark path.
 - The number is a **reference and reading aid, not execution order**
-  (MUST keep this framing). Snakemake executes from the DAG; e.g.
-  WF1 `1.10`–`1.12` are parallel plot leaves and WF3 fans out over
-  `rlz_num × st_num`. Each Snakefile states this in a header comment.
+  (MUST keep this framing, and it survives the change to positional
+  numbering). Snakemake executes from the DAG, so rules on separate branches
+  run concurrently — WF1's `1.11`–`1.13` are parallel leaves and WF3 fans out
+  over `rlz_num × st_num`. Low-to-high means **"cannot depend on"**, not
+  "runs before". Each Snakefile states this in a header comment.
+- **Definition order in the file need not match the number.** It does not
+  today: module-level code is interleaved between rule blocks and depends on
+  its position, so reordering the blocks would be a behaviour risk taken for
+  cosmetics. `W.NN` is the rule's place in the workflow, not its offset in the
+  file. (`LOG_RULES` *is* asserted to read in number order —
+  `tests/test_log_rules_contract.py` — because that list is the merge order
+  for the workflow log.)
 - **Reference in prose/commits as "Rule 1.3"** (drop the pad); the padded
   `1.03` form is for the sortable filenames.
-- **Inserting a rule takes the next free number, or a letter suffix; it does
-  NOT renumber anything below.** Corrected at R9, because the previous wording
-  ("renumbers the contiguous comments below it… use contiguous numbers, not
-  gaps") described a practice the code has never followed:
+- **DO NOT RENUMBER TO INSERT A RULE. Use a letter suffix** (`1.09b`) until
+  the next deliberate sweep, and take the whole workflow in one commit when
+  that sweep comes. Renumbering is a migration, not an edit: the number
+  appears in `LOG_RULES`, in log and benchmark paths, in `rule_banner`, in
+  the comment headers and in prose across `dev/`, so a sweep is a wide edit
+  with a silent failure mode — an unlisted `LOG_RULES` label drops its log
+  section without erroring, which happened four times before it was made
+  mechanically checkable.
 
-  | Claim | Reality |
-  | --- | --- |
-  | contiguous, no gaps | gaps at **1.14**, **2.05**, **3.12** |
-  | definition order | WF2 defines `2.03b`, `2.03`, `2.01`, `2.02` — out of numeric order |
-  | renumber on insert | R9 P4 inserted `3.01c`, `3.01d`, `3.01e` and renumbered nothing |
+  A letter suffix sorts correctly against the padded numbers
+  (`"1.09" < "1.09b" < "1.10"`), so an inserted rule does not break the
+  `LOG_RULES` ordering assertion.
 
-  A letter suffix (`1.01b`, `3.00b`) is the established way to insert between
-  two numbers, and it is preferable to renumbering: the number appears in
-  `LOG_RULES`, in log and benchmark paths, and in prose across `dev/`, so a
-  sweep is a wide edit with a silent failure mode — an unlisted `LOG_RULES`
-  label drops its log section without erroring, which happened three times in
-  R9 alone. Gaps are the cost of that safety and are expected.
+  R9's version of this bullet said inserting "does NOT renumber anything
+  below" and treated gaps as the accepted cost. `[R10-5]` accepted that cost
+  once, deliberately, to buy contiguity and dependency order; the
+  *steady-state* rule is unchanged and is the one above.
 
 - "Rule 1.5" decimals remain review shorthand for *talking about* an insert,
   never a permanent identifier.

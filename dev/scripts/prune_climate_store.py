@@ -55,7 +55,7 @@ STORE_ROOT = "data/climate/historical"
 def active_store_key(config: dict) -> str:
     """The store key the config resolves to, built exactly as the workflow builds it.
 
-    Mirrors ``snake_utils.climate_store_spec``: ``<clim_source>_<window slug>``,
+    Mirrors ``snake_utils.climate_store_rule``: ``<clim_source>_<window slug>``,
     keyed at day resolution. Derived rather than globbed, so a key the workflow
     would not produce counts as an orphan instead of as a second active store.
     """

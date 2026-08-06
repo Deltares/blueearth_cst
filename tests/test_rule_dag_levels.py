@@ -29,9 +29,9 @@ WF2_RULEGRAPH = """digraph snakemake_dag {
     0[label = "all", color = "0.00 0.6 0.85", style="rounded"];
     1[label = "derive_change_factors", color = "0.13 0.6 0.85", style="rounded"];
     2[label = "reduce_gcm_series", color = "0.60 0.6 0.85", style="rounded"];
-    3[label = "extract_climate_grid", color = "0.20 0.6 0.85", style="rounded"];
-    4[label = "fetch_gcm_raw", color = "0.27 0.6 0.85", style="rounded"];
-    5[label = "plot_climate_proj_timeseries", color = "0.47 0.6 0.85", style="rounded"];
+    3[label = "extract_historical_climate", color = "0.20 0.6 0.85", style="rounded"];
+    4[label = "fetch_gcm_slice", color = "0.27 0.6 0.85", style="rounded"];
+    5[label = "plot_gcm_timeseries", color = "0.47 0.6 0.85", style="rounded"];
     6[label = "snapshot_config", color = "0.07 0.6 0.85", style="rounded"];
     7[label = "gather_raw_logs", color = "0.33 0.6 0.85", style="rounded"];
     8[label = "gather_series_logs", color = "0.40 0.6 0.85", style="rounded"];
@@ -60,10 +60,10 @@ WF2_RULEGRAPH = """digraph snakemake_dag {
 # an up-to-date (dashed) job, and a plain one.
 WF2_DAG = """digraph snakemake_dag {
     0[label = "all", color = "0.00 0.6 0.85", style="rounded"];
-    3[label = "extract_climate_grid", color = "0.20 0.6 0.85", style="rounded,dashed"];
-    4[label = "fetch_gcm_raw\\nseries_key: cmip6_INM_INM-CM4-8_historical_r1i1p1f1", color = "0.27 0.6 0.85", style="rounded"];
+    3[label = "extract_historical_climate", color = "0.20 0.6 0.85", style="rounded,dashed"];
+    4[label = "fetch_gcm_slice\\nseries_key: cmip6_INM_INM-CM4-8_historical_r1i1p1f1", color = "0.27 0.6 0.85", style="rounded"];
     5[label = "reduce_gcm_series", color = "0.60 0.6 0.85", style="rounded,dashed"];
-    6[label = "fetch_gcm_raw\\nseries_key: cmip6_INM_INM-CM5-0_ssp245_r1i1p1f1", color = "0.27 0.6 0.85", style="rounded"];
+    6[label = "fetch_gcm_slice\\nseries_key: cmip6_INM_INM-CM5-0_ssp245_r1i1p1f1", color = "0.27 0.6 0.85", style="rounded"];
     4 -> 0
     3 -> 4
 }
@@ -76,16 +76,16 @@ def test_parse_dot_reads_every_node_and_edge():
     nodes, edges = rdl.parse_dot(WF2_RULEGRAPH)
     assert len(nodes) == 10
     assert len(edges) == 17
-    assert nodes[4].rule == "fetch_gcm_raw"
+    assert nodes[4].rule == "fetch_gcm_slice"
     # Direction: snakemake draws dependency -> dependent.
-    assert (3, 4) in edges, "extract_climate_grid must point at fetch_gcm_raw"
+    assert (3, 4) in edges, "extract_historical_climate must point at fetch_gcm_slice"
 
 
 def test_parse_dot_strips_the_wildcard_line_from_a_job_label():
     """A job label is `rule\\nwildcard: value`; only the first line names the rule."""
     nodes, _ = rdl.parse_dot(WF2_DAG)
-    assert nodes[4].rule == "fetch_gcm_raw"
-    assert nodes[6].rule == "fetch_gcm_raw"
+    assert nodes[4].rule == "fetch_gcm_slice"
+    assert nodes[6].rule == "fetch_gcm_slice"
 
 
 def test_parse_dot_detects_the_dashed_up_to_date_style():
@@ -130,13 +130,13 @@ def test_isolated_nodes_are_level_zero():
 def test_wf2_rule_levels_match_the_measured_topology():
     assert rdl.rule_levels(WF2_RULEGRAPH) == {
         "snapshot_config": 0,
-        "extract_climate_grid": 0,
-        "fetch_gcm_raw": 1,
+        "extract_historical_climate": 0,
+        "fetch_gcm_slice": 1,
         "gather_raw_logs": 2,
         "reduce_gcm_series": 2,
         "derive_change_factors": 3,
         "gather_series_logs": 3,
-        "plot_climate_proj_timeseries": 4,
+        "plot_gcm_timeseries": 4,
         "gather_benchmarks": 5,
         "all": 6,
     }
@@ -145,9 +145,9 @@ def test_wf2_rule_levels_match_the_measured_topology():
 def test_wf2_fetch_precedes_reduce_precedes_derive():
     """The ordering claim the helper exists to make, stated independently."""
     levels = rdl.rule_levels(WF2_RULEGRAPH)
-    assert levels["fetch_gcm_raw"] < levels["reduce_gcm_series"]
+    assert levels["fetch_gcm_slice"] < levels["reduce_gcm_series"]
     assert levels["reduce_gcm_series"] < levels["derive_change_factors"]
-    assert levels["derive_change_factors"] < levels["plot_climate_proj_timeseries"]
+    assert levels["derive_change_factors"] < levels["plot_gcm_timeseries"]
     assert levels["all"] == max(levels.values())
 
 
@@ -156,8 +156,8 @@ def test_wf2_fetch_precedes_reduce_precedes_derive():
 def test_job_counts_split_runnable_from_up_to_date():
     assert rdl.job_counts(WF2_DAG) == {
         "all": (1, 0),
-        "extract_climate_grid": (0, 1),
-        "fetch_gcm_raw": (2, 0),
+        "extract_historical_climate": (0, 1),
+        "fetch_gcm_slice": (2, 0),
         "reduce_gcm_series": (0, 1),
     }
 
@@ -166,11 +166,11 @@ def test_job_counts_split_runnable_from_up_to_date():
 
 def test_format_table_orders_by_level_then_name():
     levels = rdl.rule_levels(WF2_RULEGRAPH)
-    counts = {"fetch_gcm_raw": (9, 0), "reduce_gcm_series": (9, 0)}
+    counts = {"fetch_gcm_slice": (9, 0), "reduce_gcm_series": (9, 0)}
     body = [line for line in rdl.format_table(levels, counts) if line.strip()]
     rules = [line.split()[1] for line in body[2:]]
-    assert rules[0] in {"snapshot_config", "extract_climate_grid"}
-    assert rules.index("fetch_gcm_raw") < rules.index("reduce_gcm_series")
+    assert rules[0] in {"snapshot_config", "extract_historical_climate"}
+    assert rules.index("fetch_gcm_slice") < rules.index("reduce_gcm_series")
     assert rules[-1] == "all"
 
 
