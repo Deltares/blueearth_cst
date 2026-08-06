@@ -99,6 +99,7 @@ items below and in ADR 0003. The landing order it recommended, adopted:
 | 4 | ~~`[R10-6]` §8–10 — the vector/raster split~~ **DONE 2026-08-06** (rules `1.01c` / `2.03c` / `3.01f`; nine WF1 artifacts byte-identical; ADR §8–10 now **accepted**). Baseline gate still open | changes the rule count of all three workflows |
 | 5 | `[R10-6]` §11a (rename, value preserved) then §11b (default → 11) | §11b is a baseline event; §11a is one YAML key |
 | 6 | R10 renames + `[R10-5]` renumber + `[R10-7]` + `[R10-10]` | against a rule set that is finally stable; regenerate the number map from it. `[R10-10]` rides here because it and `[R10-9]`'s ordering assertion touch the same test file |
+| — | `[R10-11]` tree-check on a post-migration tree | no sequencing dependency, but do it BEFORE the next milestone leans on `tree-check` as a gate — it reports red on every correct tree today |
 | 7 | `[R10-6]` §12 | standalone, last, with its own baseline re-record |
 
 **This resolves the double-renumber contradiction.** `[R10-6]` says land the
@@ -330,6 +331,57 @@ that awkwardness.
   deleting it from `test_model_reference.py`: two modules asserting the same
   property by different parsers is how they came to disagree. Do it during
   `[R10-9]`'s ordering extension, which touches that file anyway.
+
+- **[R10-11] `pixi run tree-check` cannot pass on a correctly-migrated tree.**
+  *Found 2026-08-06 at the `[R10-6]` baseline gate; pre-existing, not caused by
+  it.* `AGENTS.md` documents the command as a standing check — "Snapshot a
+  project tree as a path list and check every path against the R9 path map" —
+  and it exits 1 on every tree that is in the layout R9 delivered.
+
+  **The map runs one way.** `build_r09_path_map` maps PRE-R9 paths to post-R9
+  ones (`spatial/spatial_maps.nc` -> `data/spatial/spatial_maps.nc`). A live
+  tree holds only the post-R9 side, so nothing matches the old-side patterns and
+  every relocated artifact falls through as UNMAPPED. Only the identity rows
+  fire — `config/`, `logs/`, `benchmarks/`, the paths that are the same in both
+  eras.
+
+  Measured on two trees, one of which cannot contain the artifact `[R10-6]`
+  added:
+
+  | tree | paths | identity | unmapped | exit |
+  |---|---|---|---|---|
+  | fresh clean-room run, 2026-08-06 | 186 | 33 | 153 | 1 |
+  | `test_case/test_local_pre_r10-6` (parked, pre-split) | 203 | 38 | 165 | 1 |
+
+  The second is the falsifier: it holds no `data/spatial/hydrography.nc` at all
+  and fails identically, so the condition predates `[R10-6]` and its path-map
+  row. `data/spatial/spatial_maps.nc` — mapped since R9 — is UNMAPPED on both.
+
+  **Why the unit tests are green while the tool is red.** They feed the map its
+  OLD-side inputs: `MAP_ROWS` in `tests/test_r09_path_map.py` and
+  `dev/milestones/r09/declared_inventory.txt` are both pre-move path lists. The
+  map is correct; it is being asked about the wrong era. Nothing was wrong with
+  either instrument — they simply cannot see this, which is why it took a live
+  run to surface.
+
+  **Consequence for `[R10-6]`:** its commit 3 claims the invariant "`pixi run
+  tree-check` clean". That was unachievable when written. The path-map row it
+  added is right and `tests/test_r09_path_map.py` exercises it; only the
+  end-to-end claim is void.
+
+  **Recommended fix — a post-migration inventory, not a reverse map.** The
+  reason to keep this tool is the property it was built for: *no artifact
+  appears that nobody declared* — exactly what caught `region.geojson` (F1a) and
+  what the seam intermediate needed a row for. That property does not need a
+  migration map; it needs the set of paths a correct tree may hold, asserted as
+  identity-by-rule so a NEW artifact still reports UNMAPPED. Retiring the check
+  half and keeping only `--out` would be cheaper and would throw the property
+  away. Inverting the map (new -> old) would validate a migration nobody will
+  run again.
+
+  Until then, treat a red `tree-check` as uninformative rather than as a gate,
+  and say so in `AGENTS.md` — a documented command that always fails trains
+  readers to ignore it, which is worse than not having it.
 
 - **[R10-7] Rename the three shared-rule helpers from `_spec` to `_rule`.**
   *Ruled 2026-08-06; not implemented.* `region_spec` → `region_rule`,
