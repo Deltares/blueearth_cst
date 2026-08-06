@@ -95,7 +95,7 @@ items below and in ADR 0003. The landing order it recommended, adopted:
 |---|---|---|
 | 1 | ~~`[R10-8]` stale WF2 `LOG_RULES` entry · `[R10-4]` comments · rule-index diagram fixes~~ **DONE 2026-08-06** | no sequencing dependency; one is a live defect |
 | 2 | ~~`[R10-9]` the `LOG_RULES` conformance test~~ **DONE 2026-08-06** (`tests/test_log_rules_contract.py`, 9 passed) | the sweep's highest-risk surface, verified *before* the sweep edits it |
-| 3 | `[R10-1]` merge · `[R10-2]` split | small, behaviour-preserving, `test_cli.py` each |
+| 3 | ~~`[R10-1]` merge~~ **DONE 2026-08-06** · `[R10-2]` split | small, behaviour-preserving, `test_cli.py` each |
 | 4 | `[R10-6]` §8–10 — after deciding the seam artifact and params purity, and after the WF2 cost measurement | changes the rule count of all three workflows |
 | 5 | `[R10-6]` §11a (rename, value preserved) then §11b (default → 11) | §11b is a baseline event; §11a is one YAML key |
 | 6 | R10 renames + `[R10-5]` renumber + `[R10-7]` | against a rule set that is finally stable; regenerate the number map from it |
@@ -108,7 +108,25 @@ stops changing, and the published map is regenerated at that point rather than
 being the target from the start.
 
 - **[R10-1] Merge rule 1.07 `setup_runtime` into 1.08 `add_forcing`.**
-  *Accepted 2026-08-06; not implemented.* 1.07 writes a hydromt forcing build
+  **DONE 2026-08-06** — `blueearth_cst/model/add_climate_forcing.py`; gate
+  `pytest tests/test_cli.py` (12 passed) + `test_log_rules_contract.py` +
+  `test_setup_time_horizon.py` (22 passed).
+
+  Resolved as a `script:` driving hydromt's CLI, so the command issued is
+  byte-identical to the one the `shell:` rule ran. Two things found while doing
+  it, neither in the brief: 1.07's `gauges_path` input was **dead** (the script
+  never opened `outlets.geojson`) and was dropped rather than carried over; and
+  `tee_to_log` redirects Python-level streams only, so a bare `subprocess.run`
+  would have inherited stdout and left the rule's log part **empty** — hydromt's
+  `-vv` output is streamed line-by-line through the tee to preserve what
+  `run_logged` captured before. The recipe builder in
+  `shared/setup_time_horizon.py` is untouched and still directly tested.
+
+  **NOT executed.** `test_cli.py` dry-runs; it does not run hydromt. A real WF1
+  run in the primary checkout is still owed before this is trusted — the risk is
+  the subprocess plumbing, not the recipe.
+
+  *Original brief:* 1.07 writes a hydromt forcing build
   recipe (`<model>/config/build_historical_forcing.yml`) whose **only** consumer
   is 1.08, which runs `hydromt update wflow_sbm -i` against it. Two rules, one
   job. The merge is the reason 1.07's R10 rename was withdrawn rather than

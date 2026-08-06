@@ -254,7 +254,8 @@ LOG_RULES = [
     "1.04_add_reservoirs_lakes_glaciers",
     "1.05_add_gauges_and_outputs",
     "1.06_write_outlet_index",
-    "1.07_setup_runtime",
+    # No 1.07 entry: [R10-1] merged setup_runtime into 1.08, so its label has no
+    # producer. tests/test_log_rules_contract.py fails if one reappears.
     "1.08_add_forcing",
     "1.09_run_wflow",
     "1.10_extract_climate_grid",
@@ -475,43 +476,46 @@ rule write_outlet_index:
     script:
         "blueearth_cst/model/write_outlet_index.py"
 
-# 1.07  setup_runtime — prepare the forcing time horizon / runtime window
-rule setup_runtime:
-    message: rule_banner("1.07", "setup_runtime")
+# 1.08  add_forcing — assemble the hydromt forcing recipe, then apply it
+#
+# [R10-1]: rule 1.07 `setup_runtime` was MERGED IN here. It wrote the `steps:`
+# YAML below and nothing else read it — one job split across two rules, and the
+# reason 1.07's R10 rename was withdrawn rather than replaced. 1.07 is now a gap
+# in the numbering.
+#
+# Two details the merge folded in:
+#  - 1.07's `gauges_path` input (staticgeoms/outlets.geojson) was DEAD — the
+#    script never opened it — and is dropped rather than carried over.
+#  - `.outputs_configured` is inherited from 1.07, and is load-bearing: it is
+#    rule 1.05's completion sentinel, so the R7-1 rebuild cascade
+#    (1.03 -> 1.04 -> 1.05 -> here) survives the merge.
+#
+# `script:` rather than `shell:` because Snakemake allows one per rule and the
+# halves were one of each; the hydromt command issued is byte-identical to the
+# one this rule ran before.
+rule add_forcing:
+    message: rule_banner("1.08", "add_forcing")
     input:
-        gauges_path = f"{basin_dir}/staticgeoms/outlets.geojson",
         outputs_configured = f"{basin_dir}/.outputs_configured",
     output:
         # Generated build YAML is provenance OF THE MODEL IT BUILT, so it lives
         # in the model's own config/ rather than a project-level generated/
-        # (design v10). `config/generated/wflow_build_model_run.yml` had a row
-        # in the migration map beside this one; nothing writes it any more, and
-        # R9 P1 retired that row (phase-1 report G2).
-        forcing_yml = f"{basin_dir}/config/build_historical_forcing.yml"
+        # (design v10). Still DECLARED after the merge — `semantic_tree_diff.py`
+        # and the R9 path map both pin this path, and it is the record of what
+        # the forcing was built from.
+        forcing_yml = f"{basin_dir}/config/build_historical_forcing.yml",
+        forcing_path = f"{basin_dir}/forcing/inmaps_historical.nc",
     params:
         starttime = get_config(shared_cfg["historical_window"], "starttime", optional=False),
         endtime = get_config(shared_cfg["historical_window"], "endtime", optional=False),
         clim_source = get_config(shared_cfg, "clim_historical", optional=False),
         basin_dir = basin_dir,
-    log:
-        f"{LOG_PARTS_DIR}/1.07_setup_runtime.log",
-    benchmark:
-        f"{project_dir}/benchmarks/_parts/1.07_setup_runtime.tsv",
-    script: "blueearth_cst/shared/setup_time_horizon.py"
-
-# 1.08  add_forcing — add historical forcing to the model (hydromt update wflow_sbm)
-rule add_forcing:
-    message: rule_banner("1.08", "add_forcing")
-    input:
-        forcing_ini = f"{basin_dir}/config/build_historical_forcing.yml"
-    output:
-        forcing_path = f"{basin_dir}/forcing/inmaps_historical.nc"
+        data_catalog = DATA_SOURCES,
     log:
         f"{LOG_PARTS_DIR}/1.08_add_forcing.log",
     benchmark:
         f"{project_dir}/benchmarks/_parts/1.08_add_forcing.tsv",
-    shell:
-        """python -u "{run_logged}" "{log}" -- hydromt update wflow_sbm "{basin_dir}" -i "{input.forcing_ini}" -d "{DATA_SOURCES}" -vv"""
+    script: "blueearth_cst/model/add_climate_forcing.py"
 
 # 1.09  run_wflow — run the Wflow.jl model on historical forcing
 rule run_wflow:
