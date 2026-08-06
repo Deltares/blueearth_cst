@@ -107,13 +107,53 @@ asserted per site.
 - `pytest tests/test_cli.py` — all three Snakefiles parse and dry-run.
 - `pytest tests/` — the full suite; nine tests hardcoded old rule identifiers
   and were updated with the sweep.
-- `check_baseline.py check` — **must pass with no re-record.** No renamed rule
-  changes an output path or value. Rule labels reach exactly two durable
-  *contents* — the merged log's section banners and the benchmark table's rule
-  column — and the manifest fingerprints neither: its 14 targets are config
-  snapshots, projection summaries, indicator tables, the run CSV and four
-  figures. A baseline diff here means a rename touched something durable and is
-  a rollback trigger.
+- `check_baseline.py check` — **no diff ATTRIBUTABLE TO THIS SWEEP.** Not "no
+  diff": two re-records were already owed on this branch before the sweep
+  started, from `[R10-6]` §11 (the `max_per_basin` config-key rename moves all
+  three config-snapshot hashes) and §12 (the `wflow_id` renumbering rewrites
+  gauge column headers, which reaches the run CSV and both indicator tables).
+  Landing-order step 7 says one re-record covers both. Running the gate as "must
+  pass unchanged" would read those six as this sweep's damage and trigger a
+  rollback of the wrong thing.
+
+  Write the expected set down before running, and classify against it:
+
+  | manifest target | expectation |
+  |---|---|
+  | `config/runs/snake_config_model_creation.yml` | **may move** — §11 |
+  | `config/runs/snake_config_climate_projections.yml` | **may move** — §11 |
+  | `<exp>/config/snake_config_climate_experiment.yml` | **may move** — §11 |
+  | `<model>/run_default/output.csv` | **may move** — §12 |
+  | `<exp>/results/q_indicators.csv` | **may move** — §12 |
+  | `<exp>/results/basin_indicators.csv` | **may move** — §12 |
+  | `<proj>/summary/cmip6_change_factors_{annual,monthly}.csv` | **must NOT move** |
+  | the four `*.png` targets | excluded by default (`FIGURE_KINDS`) |
+
+  **The discriminator is sharp**: with figures excluded, the gate checks eight
+  targets, six of which are the owed set — so the two CMIP6 change-factor tables
+  are the only default-checked targets this sweep could implicate. Either of
+  them moving, or any owed target moving in a way §11/§12 does not explain, is a
+  rollback trigger for the sweep. All six owed and neither CMIP6 table is the
+  expected result, and means the sweep is behaviour-preserving.
+
+  **Why a rename cannot reach any of them.** Rule labels reach exactly two
+  durable *contents* — the merged log's section banners and the benchmark
+  table's rule column — and the manifest fingerprints neither. It has no
+  `logs/`- or `benchmarks/`-shaped target at all.
+
+## Old part directories persist, and that is correct
+
+After the next run, `logs/_parts/` will still hold directories named for the old
+labels — `2.01_fetch_gcm_raw/`, `3.07_generate_climate_stress_test/`,
+`3.10_run_wflow/` and the rest. `merge_logs` is deliberately scoped to
+`LOG_RULES`, so it never reads an unlisted directory and never deletes one; that
+scoping is what keeps an orphan out of the merged log in the first place.
+
+`tree-check` will not flag them either: the post-migration inventory covers
+`logs/_parts/` as a prefix. So the "a stranded part shows up as an unmapped
+path" check does **not** fire for this class, and a clean `tree-check` is not
+evidence that no part was stranded. Stated because it looks like a defect and
+is not — delete them by hand, or leave them; they are transient either way.
 
 ## Do not rewrite the archives
 
