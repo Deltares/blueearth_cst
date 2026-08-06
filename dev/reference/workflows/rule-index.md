@@ -162,6 +162,13 @@ STAGE 4 — RUN RECORDS
 concurrently with everything below it — a cold climate store extracts while the
 model builds. Only the arrows constrain order.
 
+**The five leaves.** 1.06, 1.11b, 1.12, 1.13 and 1.15 have no downstream rule.
+All are members of `WF1_TERMINALS`, so all are `rule all` targets and inputs of
+the two gather rules — that is the edge the stage-4 line stands in for. Four are
+figures, which are expected to terminate (no rule consumes a `.png`). **1.06 is
+the one data leaf**, and its real consumer sits outside the workflow: see its
+section below.
+
 **What is NOT a dependency, despite reading like one.** 1.08 does not consume the
 climate store: it reads source climate through the data catalog (`-d`), and its
 only declared input is the forcing recipe. The store reaches WF1's *figures*
@@ -304,6 +311,25 @@ labels outlets with basin-derived subcatchment IDs, which are not the registry's
 IDs — this is the crosswalk between them, rebuilt on every run.
 
 **Writes.** `<model>/staticgeoms/outlet_index.csv`.
+
+**Consumed by** — and this is why the rule has no downstream node: **no rule
+declares this file as an input.** Its consumers are outside the DAG.
+
+- `dev/scripts/check_baseline.py::_read_discharge_series` uses it to resolve
+  *which* `Q_*` column of `output.csv` is the primary outlet, once a project has
+  more than one gauge station. It matches `compat_station_name == "wflow_1"`,
+  takes that row's `subcatchment_id`, and requires `Q_<id>` to be present.
+  Without the file a multi-gauge project fails the baseline gate outright. The
+  path is **derived** from the run CSV's location
+  (`<run>/../staticgeoms/outlet_index.csv`), not passed — which is exactly why
+  Snakemake cannot see the edge.
+- `dev/reference/contracts/hydrological-model-seam.md` pins it in `validate_hm3`
+  as a persisted model-root artifact.
+
+It is a member of `WF1_TERMINALS`, so it is a `rule all` target and an input of
+both gather rules. **Do not prune it as stray output** — `check_baseline.py`'s
+own module docstring records that it is fingerprinted beyond `rule all` for this
+reason.
 
 #### 1.08 · `add_climate_forcing`
 
