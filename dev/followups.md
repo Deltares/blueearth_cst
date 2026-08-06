@@ -75,6 +75,411 @@ end-to-end. Don't delete them.
 
 ---
 
+## Post-R10-design (surfaced 2026-08-06 during the rule-index name-vs-body audit)
+
+Every rule identifier in the three Snakefiles was checked against its **script or
+shell body** while writing `dev/reference/workflows/rule-index.md`. Three names
+were ruled on directly and are recorded in `dev/milestones/r10/rule-naming-design.md`
+amendment 2.
+
+The audit also raised four **structural** candidates — three merges and one
+split. All four were ruled on 2026-08-06: **M1 and S1 accepted, M2 and M3
+rejected.** None is an R10 item; that milestone is identifier-only.
+
+**Reviewed 2026-08-06** by a `cst-architect` pass over the whole stack against
+the code. It confirmed the M2/M3 rejections and the renumber arithmetic, and
+found several defects the design had asserted its way past — recorded in the
+items below and in ADR 0003. The landing order it recommended, adopted:
+
+| # | step | why here |
+|---|---|---|
+| 1 | ~~`[R10-8]` stale WF2 `LOG_RULES` entry · `[R10-4]` comments · rule-index diagram fixes~~ **DONE 2026-08-06** | no sequencing dependency; one is a live defect |
+| 2 | ~~`[R10-9]` the `LOG_RULES` conformance test~~ **DONE 2026-08-06** (`tests/test_log_rules_contract.py`, 9 passed) | the sweep's highest-risk surface, verified *before* the sweep edits it |
+| 3 | ~~`[R10-1]` merge~~ **DONE 2026-08-06** · `[R10-2]` split **BLOCKED** — needs an owner ruling, see the item | the merge was small and behaviour-preserving; the split turned out not to have the seam it assumed |
+| 4 | ~~`[R10-6]` §8–10 — the vector/raster split~~ **DONE 2026-08-06** (rules `1.01c` / `2.03c` / `3.01f`; nine WF1 artifacts byte-identical; ADR §8–10 now **accepted**). Baseline gate still open | changes the rule count of all three workflows |
+| 5 | `[R10-6]` §11a (rename, value preserved) then §11b (default → 11) | §11b is a baseline event; §11a is one YAML key |
+| 6 | R10 renames + `[R10-5]` renumber + `[R10-7]` + `[R10-10]` | against a rule set that is finally stable; regenerate the number map from it. `[R10-10]` rides here because it and `[R10-9]`'s ordering assertion touch the same test file |
+| 7 | `[R10-6]` §12 | standalone, last, with its own baseline re-record |
+
+**This resolves the double-renumber contradiction.** `[R10-6]` says land the
+split before `[R10-5]`, but `rule-index.md` publishes a 45-identifier map that
+excludes §8's new rules. Renumbering now moves to **step 6**, after the rule set
+stops changing, and the published map is regenerated at that point rather than
+being the target from the start.
+
+As of 2026-08-06 that is no longer hypothetical: step 4 ADDED three identifiers
+the published map does not carry — `1.01c` / `2.03c` / `3.01f`
+`delineate_spatial_units`, one per workflow. Step 6 regenerates the map, so it
+must ADD rows, not only renumber the 45 that were there; `3.01f` in particular
+exists only because `3.01c`–`3.01e` were taken, and renumbering is what removes
+that awkwardness.
+
+- **[R10-1] Merge rule 1.07 `setup_runtime` into 1.08 `add_forcing`.**
+  **DONE 2026-08-06** — `blueearth_cst/model/add_climate_forcing.py`; gate
+  `pytest tests/test_cli.py` (12 passed) + `test_log_rules_contract.py` +
+  `test_setup_time_horizon.py` (22 passed).
+
+  Resolved as a `script:` driving hydromt's CLI, so the command issued is
+  byte-identical to the one the `shell:` rule ran. Two things found while doing
+  it, neither in the brief: 1.07's `gauges_path` input was **dead** (the script
+  never opened `outlets.geojson`) and was dropped rather than carried over; and
+  `tee_to_log` redirects Python-level streams only, so a bare `subprocess.run`
+  would have inherited stdout and left the rule's log part **empty** — hydromt's
+  `-vv` output is streamed line-by-line through the tee to preserve what
+  `run_logged` captured before. The recipe builder in
+  `shared/setup_time_horizon.py` is untouched and still directly tested.
+
+  **NOT executed.** `test_cli.py` dry-runs; it does not run hydromt. A real WF1
+  run in the primary checkout is still owed before this is trusted — the risk is
+  the subprocess plumbing, not the recipe.
+
+  *Original brief:* 1.07 writes a hydromt forcing build
+  recipe (`<model>/config/build_historical_forcing.yml`) whose **only** consumer
+  is 1.08, which runs `hydromt update wflow_sbm -i` against it. Two rules, one
+  job. The merge is the reason 1.07's R10 rename was withdrawn rather than
+  replaced: a recipe that never leaves the pair needs no name of its own, so the
+  naming drift disappears with the rule instead of being renamed around.
+
+  **The implementation cost is real.** Snakemake allows one of `script:` /
+  `shell:` per rule. 1.07 is a Python `script:` (`setup_time_horizon.py`, which
+  also opens the model's staticmaps to size a chunksize); 1.08 is a `shell:`
+  invoking the hydromt CLI. The merged rule must either call hydromt's Python API
+  or shell out from inside a script. Decide at the same time whether
+  `build_historical_forcing.yml` stays a **declared** output — it is kept today
+  as provenance of the model it built (`Snakefile_model_creation` rule 1.07's
+  comment, design v10), and demoting it to an undeclared side-write would lose
+  that without saying so.
+
+  **Sequencing against R10:** either order works. If the merge lands first, 1.07
+  has no rename to skip; if R10 lands first, 1.07 keeps `setup_runtime` until the
+  merge deletes it. What must not happen is renaming 1.07 in passing.
+
+- **[R10-2] Split rule 1.11 into a metrics rule and a figure rule.**
+  *Accepted 2026-08-06; not implemented.* Today one rule writes both
+  `<model>/evaluation/performance_metrics.csv` — **baseline-covered data** — and
+  the evaluation figures, which `check_baseline.py` **excludes by default**
+  (`FIGURE_KINDS`). The DAG therefore cannot express the distinction the
+  `AGENTS.md` validation ladder turns on: "do not run the validation suite or the
+  baseline for a figure-only change" is written guidance that the rule graph
+  contradicts.
+
+  Target shape: **1.11 `evaluate_wflow_run`** (metrics) → **1.11b
+  `plot_wflow_evaluation`** (figures), using the letter-suffix convention already
+  set by 1.01b / 2.03b / 3.00b / 3.01c–e. The figure half keeps the R10 target
+  name, so that rename is unaffected either way.
+
+  **Honest about the size of the win.** The harm today is a wasted re-run and a
+  needless baseline comparison, not a wrong number: a plotting edit re-runs 1.11
+  and rewrites identical metrics, so the gate passes. The gain is that a
+  figure-only change becomes *visible as one* to Snakemake.
+
+  **BLOCKED 2026-08-06 — the split does not have the seam this item assumed.**
+  Found while implementing it, by reading `plot_results.py` rather than trusting
+  the brief. `analyse_wflow_historical` is one function whose shared prefix is
+  nearly the whole rule:
+
+  - `WflowSbmModel(root, mode="r")`, `mod.output_csv.read()`, `mod.geoms.data`;
+  - the outlet/gauge series merge, with **variable names resolved from the
+    model** (`gauges_variable_name`/`gauges_layer_name`, not from the filename);
+  - observation loading plus `validate_observation_station_ids`;
+  - the warm-up trim and the qsim/qobs time alignment;
+  - the climate-parity transform (catalog orography fetch, regrid, lapse and
+    pressure correction, PET) — the expensive part.
+
+  **The metrics are one call inside the figure loop**
+  (`compute_metrics(qsim_i, qobs_i, station_name)`, `plot_results.py:422`), in
+  the same `if do_signatures and qobs_i is not None:` branch that emits
+  `plot_signatures`. The metrics half is ~5 lines; the figure half is the module.
+
+  So "re-read `output.csv`" — this item's stated preference — actually means
+  re-open the model, re-resolve the gauge variable names, re-merge, re-align and
+  **re-run the parity transform**. That preference is **withdrawn**: it was
+  formed from a description of the rule, not from the rule.
+
+  Three options, none free, and this is now a design decision rather than an
+  implementation detail:
+
+  1. **Aligned-discharge intermediate.** The metrics rule runs upstream and
+     writes `performance_metrics.csv` plus the aligned qsim/qobs series; the
+     figure rule reads that. Removes the merge and alignment duplication but not
+     the parity work, and adds a declared artifact to a tree R9 just settled.
+  2. **Full re-read.** Duplicates the parity transform in both rules.
+  3. **Drop S1.** The harm it fixes is a wasted re-run and a needless baseline
+     comparison — not a wrong number, by this item's own assessment. That may not
+     justify either cost.
+
+  Still open regardless: **the metrics rule's verb.** `evaluate_` is ruled in as
+  the 19th verb (`rule-naming-design.md` amendment 2) and stands whichever option
+  is chosen — but if S1 is dropped, so is the verb.
+
+  **Nothing else in the stack depends on S1**, so steps 4–7 of the landing order
+  are unaffected.
+
+- **[R10-3] Two consolidations REJECTED, recorded so they are not re-raised.**
+  Both looked obvious and both are wrong; the reasons are structural, not
+  aesthetic.
+
+  **M2 — merge 1.06 `write_outlet_index` into 1.05. Rejected.** The two were
+  paired thematically ("both wire the model to named stations"), and the
+  structure does not agree. 1.06's inputs are `outlets.geojson` (rule 1.03) and
+  `location_registry.csv` (rule 1.02) — nothing else — while 1.05 waits on
+  `reservoirs_lakes_glaciers.txt` from 1.04. So 1.06 runs in parallel with 1.04
+  and 1.05 today, and merging would serialise a cheap deterministic pandas join
+  behind the waterbody update *and* a hydromt `r+` model mutation. Re-deriving
+  the crosswalk after a registry fix would then re-run the hydromt update.
+  **The merge adds a DAG edge rather than removing one.**
+
+  **M3 — merge `gather_benchmarks` + `gather_logs` per workflow. Rejected.**
+  Both merge functions call `_remove_parts`: they **delete the parts they
+  consumed**. In one rule that becomes a partial-failure hazard — the log merge
+  succeeds and deletes its parts, the benchmark merge raises, Snakemake removes
+  both declared outputs as a failed job, and the re-run finds no log parts and
+  rewrites the merged log with "no part from this run" for every rule. Today
+  `gather_logs` succeeding independently means its output survives a
+  `gather_benchmarks` failure. Three rules out of forty is not worth a path that
+  silently degrades a durable artifact. Revisit only if the deletion is made safe
+  first (both merges complete before either deletes), which is work the current
+  split gets for free.
+
+  **Also do not merge 3.01c `write_model_reference` and 3.01d
+  `check_model_reference`.** They read as an obvious pair and merging them
+  destroys the guard. 3.01c's model inputs are `ancient()` *on purpose* — if the
+  reference were rewritten whenever the model changed it would always match, and
+  3.01d's comparison would be decorative. 3.01d's sentinel is `temp()` for the
+  mirror reason: a persisted verdict satisfies 3.09's edge after the model has
+  drifted. The asymmetry *is* the mechanism.
+
+  **Generalizes:** two rules being small, adjacent and thematically similar is
+  not an argument for merging them. Check what each actually depends on, and
+  whether either destroys its own inputs.
+
+- **[R10-8] `Snakefile_climate_projections` lists a `LOG_RULES` label with no
+  rule.** *Found by the 2026-08-06 review; a live defect, not a comment.*
+  Line 560 still carries `"2.11_extract_climate_grid"`, with a comment claiming
+  WF2 builds the store when run standalone. It does not — ADR 0003 §5 removed
+  that rule, and `grep -c "rule extract_climate_grid" Snakefile_climate_projections`
+  returns **0**. Consequence: every WF2 merged log carries a phantom "no part
+  from this run" section forever. This is exactly the label-with-no-producer
+  hazard `rule-naming-design.md` documents from the C29 precedent, already
+  realised. Delete the entry and its comment. Gate: `pytest tests/test_cli.py`.
+
+- **[R10-9] Make the `LOG_RULES` contract a test.** *Recommended by the
+  2026-08-06 review; the cheapest insurance in the stack.* The
+  unlisted-or-stale-label defect has now occurred **four** times (1.01b, 3.01b,
+  2.03b, and `[R10-8]`), and the design treats it as checklist discipline before
+  a sweep that edits precisely that surface across three files.
+
+  It is mechanically checkable: parse each Snakefile — the machinery in
+  `tests/test_climate_store_contract.py` already does this — and assert
+  set-equality between `LOG_RULES` and the labels derived from every rule's
+  `log:` path. Rule 3.10's deliberately singular label falls out naturally, since
+  its own `log:` path carries `3.10_run_wflow` rather than the batch identifiers.
+
+  **DONE 2026-08-06** — `tests/test_log_rules_contract.py`, 9 passed, and it
+  confirms `[R10-8]`'s deletion left no orphan and no unlisted label in any
+  workflow. Two notes for whoever extends it:
+
+  - A Snakefile is **not valid Python** (`rule all:` is Snakemake grammar), so
+    `ast.parse` over the whole file raises. The `LOG_RULES` block is lifted out
+    textually and only that is parsed.
+  - **Ordering is deliberately not asserted.** `Snakefile_climate_projections`
+    says "Order is by RULE NUMBER" while its list opens `2.03b`, `2.01`,
+    `2.02` — correct by *execution* order, wrong by number. Which is right is a
+    ruling nobody has made, and it dissolves at `[R10-5]`, after which number,
+    execution and sort order coincide. **Add the ordering assertion then**, and
+    settle the related WF1/WF3-vs-WF2 disagreement about whether
+    `gather_benchmarks` precedes `gather_logs` in the same edit.
+
+  Related, and free only while every call site is already being edited: define
+  **one label constant per rule** (`_L = "1.11_add_climate_forcing"`) and build
+  `LOG_RULES`, `rule_banner`, `log:` and `benchmark:` from it. Four of the six
+  call sites collapse to one definition, and the next rename or renumber becomes
+  a one-line edit per rule.
+
+- **[R10-10] `test_model_reference.py`'s `LOG_RULES` slicer stops at the first
+  `]`, so a bracket in a comment silently blinds it.** *Found 2026-08-06 while
+  landing `[R10-6]`; the Snakefile side is fixed, the test is not.*
+
+  `test_every_declared_log_part_label_is_registered_in_log_rules` extracts the
+  block as `text[index("LOG_RULES = ["): index("]", index("LOG_RULES = ["))]`.
+  Any `]` inside the list — including one inside a **comment** — ends the slice
+  early, so every label below that point reads as unregistered.
+
+  **This is not hypothetical, and the failure mode is the interesting part.**
+  Commit `129580f` put `# No 1.07 entry: [R10-1] merged setup_runtime into 1.08`
+  inside WF1's list. The test went red immediately and stayed red, because it
+  asserts *inside* a `sorted(glob("Snakefile_*"))` loop: the first failing file
+  aborts the test, and nobody looked past the message. `[R10-6]` then briefly
+  wrote a bracketed reference into WF3's list too — WF3 sorts first, so the WF1
+  failure was masked behind the new one, and fixing WF3 is what surfaced it.
+  Both comments now avoid brackets and say why, which is a convention held only
+  by a comment.
+
+  Two independent defects, and the second is what let the first sit:
+
+  - **Fragile extraction.** The block is not valid Python either (`[R10-9]`'s
+    note), but `ast` on the *lifted* text is — `tests/test_log_rules_contract.py`
+    already does exactly that and was green throughout, which is why the two
+    disagreed. Either lift the block the way that module does, or slice to the
+    first `]` at column 0.
+  - **Loop-scoped assertion.** Collect across all three Snakefiles and assert
+    once, so a second file's failure cannot hide a first's — the same
+    "pairwise, not left/right" argument the three-declaration contract tests make.
+
+  Consider folding the check into `tests/test_log_rules_contract.py` and
+  deleting it from `test_model_reference.py`: two modules asserting the same
+  property by different parsers is how they came to disagree. Do it during
+  `[R10-9]`'s ordering extension, which touches that file anyway.
+
+- **[R10-7] Rename the three shared-rule helpers from `_spec` to `_rule`.**
+  *Ruled 2026-08-06; not implemented.* `region_spec` → `region_rule`,
+  `climate_store_spec` → `climate_store_rule`, and the new one from `[R10-6]`
+  was **born as `spatial_units_rule` / `SpatialUnitsRule` on 2026-08-06**, so the
+  trio is deliberately inconsistent until this sweep lands. Dataclasses follow (`RegionRule`,
+  `ClimateStoreRule`, `SpatialUnitsRule`), as does `tests/test_region_spec.py` →
+  `tests/test_region_rule.py`.
+
+  **Why:** `spec` reads as jargon to a non-programmer, and the object is not a
+  specification of anything abstract — it holds a rule's `script`, `inputs`,
+  `outputs` and `params`, i.e. a rule definition minus its `message`/`log`/
+  `benchmark` labels. "The region rule" says what it is. `_contract` was
+  rejected: this repo already uses "contract" for interchange surfaces
+  (`dev/reference/contracts/`, `SPATIAL_CONTRACT_VERSION`,
+  `test_climate_store_contract.py`), and overloading it would be worse than the
+  jargon. `_definition` was the runner-up, rejected on verbosity at the call
+  sites.
+
+  **Scope:** all three, not just the new one — three sibling helpers under two
+  suffixes is the inconsistency the shared-rule pattern exists to prevent.
+  **21 files** reference the current names (`snake_utils.py`, all three
+  Snakefiles, eight tests, two `dev/scripts/`, and several `dev/reference/`
+  docs). Mechanical, but note `climate_store_spec` appears inside an error
+  *message string* in `snake_utils.py` and in module docstrings — a
+  symbol-only rename misses both.
+
+  **Land it in the R10 sweep**, which already edits all three Snakefiles.
+  `dev/reference/naming.md` documents no `_spec` convention (its suffix rules
+  cover `_path` / `_ds` / `_cfg`), so nothing there contradicts this — but the
+  sweep should *add* the `_rule` convention so the next helper is named from a
+  rule rather than by analogy. Do **not** rewrite `dev/milestones/` archives,
+  per R10's validation item 4.
+
+- **[R10-6] Split `prepare_spatial_maps` so WF2 and WF3 can consume basin and
+  subbasin boundaries.** *ADR 0003 §8–12. **§8–10 DONE 2026-08-06** and moved
+  from proposed to accepted; §11–12 still proposed.* The split put the vector
+  half — basins, subbasins, catchments, rivers, locations, registry — behind a
+  third shared rule (`delineate_spatial_units`, `1.01c` / `2.03c` / `3.01f`,
+  from `snake_utils.spatial_units_rule`) declared in all three workflows, and
+  left the thematic raster stack (`vito`, `modis_lai`, `soilgrids`) in the
+  WF1-only `prepare_spatial_maps`. The seam between them is
+  `data/spatial/hydrography.nc`, an intermediate deliberately absent from
+  `spatial_catalog.yml`.
+
+  Landed in three commits, each runnable on its own. All nine WF1 artifacts are
+  byte-identical to pre-split on the synthetic fixture, and WF2's dry run
+  schedules `delineate_spatial_units` with no thematic read. **The baseline gate
+  is still open** — `check_baseline.py check` needs the primary checkout and is
+  the assertion that §8–10 are behaviour-preserving on real data; a diff there
+  is a revert trigger, not a re-record. What it uniquely covers: the thematic
+  clip geometry now arrives from `basins.geojson` reprojected onto the grid CRS
+  rather than from an in-memory frame, a no-op for geographic hydrography but
+  untestable on the fixture catalog, which ignores `geom=`.
+
+  Full context, decision, consequences, alternatives, validation, the landed
+  state and four open questions in
+  `dev/decisions/0003-one-shared-region-artifact.md`. §8–10 landed **before
+  `[R10-5]`** as planned — they add a rule to every workflow, so renumbering
+  first would have moved the numbers twice.
+
+  §11 and §12 below are what remains of this item.
+
+  The record also carries two **identity** changes ruled the same day, which ride
+  with the split because they live in the same vector half:
+
+  - **§11 — `automatic_subbasins.max_count` → `max_per_basin`, a per-basin
+    ceiling, default 20 → 11.** Today it is one global budget, area-weighted
+    across parents, that *raises* when parents exceed it. Per-basin removes that
+    failure and deletes `allocate_automatic_subbasin_budgets` outright. Safe
+    because `select_automatic_subbasins` treats the count as an upper bound.
+    The key is **renamed**, not redefined: `shared.basin`'s schema is not closed,
+    so a leftover `max_count` would be ignored silently and the project would run
+    at the new default rather than its author's value. `parse_spatial_config`
+    must reject the old key by name.
+  - **§12 — `wflow_id` becomes `basin_id*1000 + subbasin*10 + m`** (basin 1 →
+    1010, 1011, 1020 …), `m = 0` the subbasin's primary. Today a subbasin primary
+    gets `basin*100 + n` while any additional point gets
+    `1_000_000 + subbasin_id*100 + n`, so basin 1's second gauge is `1_010_102`.
+    **Revised 2026-08-06** from a flat `basin*100 + k`: review showed the flat
+    form near-collides with `subbasin_id` at an off-by-one and discards the
+    subbasin encoding the current ids carry. Cost: nine additional locations per
+    subbasin.
+
+  **§11b and §12 are baseline events and must each land alone.** Only §8–10 and
+  §11a are behaviour-preserving — an earlier version of this entry claimed §8–11
+  were, which was wrong on two counts (the default change moves the fixture's
+  automatic partition; the config-key rename moves the snapshot hash).
+
+  Three things not to lose. The hydrography-read cost §8 adds to WF2 is asserted,
+  **not measured** — ADR 0003 validation item 7 makes measuring it the acceptance
+  gate. `wflow_id == subbasin_id` is an **enforced validator**
+  (`build_wflow_model.py:157`), so §12 stops WF1 building until it is repealed —
+  not a silent break. And §12 rewrites the column headers of every project's
+  **observation files**, which is user data, not repo data.
+
+- **[R10-5] Renumber every rule so `W.NN` follows the logical order.**
+  *Accepted 2026-08-06; not implemented.* Numbers become **positional**: data
+  first, then model build, then run, then records, contiguous within each
+  workflow, with every dependency pointing from a lower number to a higher one.
+  The full old→new map for all 45 identifiers is in
+  `dev/reference/workflows/rule-index.md` § *What changed*.
+
+  **This overrides `rule-naming-design.md` §9**, which recommended amending the
+  convention to "a stable identifier assigned at rule creation" and *not*
+  renumbering. That recommendation was made on cost grounds and the owner ruled
+  the other way, so §9 is amended to record the reversal rather than the advice.
+
+  **The cost, and it is the reason §9 said no: numbers are REUSED.** New 1.07 is
+  `write_outlet_index`; old 1.07 was `setup_runtime`. New 3.05 is
+  `check_model_reference`; old 3.05 was the deleted `prepare_weagen_config_st`.
+  Under the old policy a retired number stayed a gap, so a stale reference merely
+  dangled and was obvious. Now it silently resolves to a **different rule**.
+  Every `W.NN` in `dev/milestones/`, `DEVLOG.md`, `dev/decisions/` and the
+  Snakefile comments predates the map and must be read as of its date. Do not
+  "fix" archived milestone documents to the new numbers — the same reasoning
+  R10's validation item 4 already applies to old rule *names*.
+
+  **Migration surface**, per renumbered rule — the same six call sites the
+  rename sweep touches (`LOG_RULES` entry, `W.NN` comment header, `rule`
+  identifier where a rename coincides, `rule_banner`'s first argument, the `log:`
+  path, the `benchmark:` path). Two extra hazards specific to renumbering:
+
+  1. **`LOG_RULES` order is the merge order.** Renumbering changes both the
+     labels and their intended sequence; update the list wholesale, not entry by
+     entry, or the merged log comes out in a mixed order.
+  2. **Rule 3.14 keeps a singular log label** (`3.14_run_wflow`) while its
+     identifiers stay `run_wflow_batch_<b>`. The divergence is deliberate and
+     survives renumbering — do not "fix" it.
+
+  **Do it in the same sweep as R10's renames.** They touch the same six call
+  sites per rule, want the same validation (`pytest tests/test_cli.py`, then a
+  full three-workflow run confirming the merged log has a section per
+  `LOG_RULES` entry and no `_parts/` survives), and splitting them means paying
+  that cost twice. The baseline is unaffected either way — part paths are
+  transient and no output path or value changes.
+
+  **Going forward:** do not renumber to insert a rule. Use a letter suffix
+  (`1.09b`) until the next deliberate sweep.
+
+- **[R10-4] Stale rule references in Snakefile comments.** Cosmetic, found by the
+  same read. `Snakefile_climate_experiment` names the **deleted** rule 3.05 twice
+  — the 3.00b comment still lists `prepare_weagen_config_st` as one of the four
+  per-experiment roots, and 3.13's comment says "3.05/3.07/3.09 write one part
+  per (rlz, cst)". Separately, all three `gather_benchmarks` comments describe
+  their output as `wf<N>_benchmarks.tsv`; the declared output is `.md`. Gate is
+  `pytest tests/test_cli.py` (comments only, but the files are Snakefiles).
+
+---
+
 ## Post-R9 (surfaced 2026-08-05 during the R9 self-test)
 
 - **[R9-1] Six geojson basenames collide across `data/spatial/geoms/` and
@@ -587,6 +992,19 @@ Provenance: `dev/milestones/r07/migration_project-layout.md` §§7a–7d,
 ---
 
 ## Post-P3-3 (surfaced 2026-07-25 during the P3-3 batching milestone)
+
+- **[2026-08-06] The item below may not need solving — see CR-7 / F18** in
+  `dev/milestones/r09/wf3-change-requests.md`. Its *observation* is confirmed and
+  strengthened: `B` keys off sweep size when only per-run cost should set it. But
+  the same defect applies to the TIME economics, and more sharply — what batching
+  amortizes is a fixed ~81 s per member, worth 70% of a run on the seed fixture
+  and **2.2% at 1 h/run, 0.4% at 6 h/run**, which is the owner's stated production
+  scale (1–6 h per run, 3–5 rlz × 25 cst). At K≈125 the default clamps to B=8,
+  buying ~1.9% wall-clock for up to **seven completed runs** discarded on one
+  failure — 42 h of compute at 6 h/run. **C35 proposes defaulting to B=1 with
+  batching opt-in**, which removes the `B` from `p × B × (forcing + state)` and
+  leaves no cap to compute. Rule on C35 before investing in the disk estimator
+  below.
 
 - **Make the wf3 batch-size default genuinely disk-aware.** Design §6.1 names
   three ceilings on `B` and calls the **disk ceiling the BINDING constraint** on

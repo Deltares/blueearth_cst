@@ -336,6 +336,12 @@ MAP_ROWS: dict[str, list[tuple[str, str]]] = {
         # F1a amendment 2026-08-04: the row is the geoms DIRECTORY, so the
         # sixth layer (rule delineate_region) is covered by the same row.
         ("spatial/geoms/region.geojson", "data/spatial/geoms/region.geojson"),
+        # ADR 0003 §8a amendment 2026-08-06: the seam intermediate between the
+        # vector and raster halves of the old rule 1.02. Enumerated rather than
+        # covered by a directory row -- it is a flat file under `spatial/`,
+        # where the map lists leaves one by one, and F1a's widening only
+        # reached `geoms/`.
+        ("spatial/hydrography.nc", "data/spatial/hydrography.nc"),
         (f"climate_historical/{KEY}/extract_historical.nc",
          f"data/climate/historical/{KEY}/extract_historical.nc"),
         (f"climate_historical/{KEY}/store_region.geojson",

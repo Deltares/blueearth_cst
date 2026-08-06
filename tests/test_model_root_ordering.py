@@ -48,13 +48,18 @@ SENTINEL_OWNER = "add_forcing"
 #: "this rule writes the model and is part of the build chain". Adding one that
 #: merely READS the model would silently reopen the race, which is why the list
 #: is short, ordered, and commented rather than inferred.
+#: `setup_runtime` (1.07) was listed here until R10-1 merged it INTO 1.08. The
+#: two landed on separate branches, so neither side's tests could see the
+#: contradiction: this list named a rule that no longer exists, and the exemption
+#: it granted now belongs to the rule that absorbed it. `add_forcing` was already
+#: listed, so the merge removes an entry rather than moving one.
 MODEL_ROOT_WRITERS = (
     "build_wflow_model",             # 1.03 creates staticmaps.nc + the toml
     "add_reservoirs_lakes_glaciers", # 1.04 mod.write()/mod.close()
     "add_gauges_and_outputs",        # 1.05 mod.write()/mod.close()
-    "setup_runtime",                 # 1.07 reads the model, precedes 1.08 by
-                                     #      construction (1.08 needs its output)
-    "add_forcing",                   # 1.08 hydromt update -- rewrites all of it
+    "add_forcing",                   # 1.08 hydromt update -- rewrites all of it,
+                                     #      and since R10-1 also writes the
+                                     #      forcing yml 1.07 used to hand it
 )
 
 #: `rule all` names targets rather than reading them.

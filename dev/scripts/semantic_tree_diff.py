@@ -686,6 +686,19 @@ def build_r09_path_map(
             "spatial_catalog.yml",
             "spatial_report.yml",
             "location_registry.csv",
+            # ADR 0003 §8a, added 2026-08-06. The SEAM INTERMEDIATE between
+            # rule 1.01c (the vector foundation, shared by all three workflows)
+            # and rule 1.02 (the thematic stack, WF1-only): the hydrography
+            # grid stack that used to cross that boundary in memory.
+            #
+            # It has no pre-move counterpart -- the same situation as
+            # `region.geojson`, which the F1a ruling of 2026-08-04 covered by
+            # turning the geoms row into a DIRECTORY row. A flat file under
+            # `spatial/` has no such row to widen, so it is enumerated here
+            # instead. Note it is NOT in `spatial_catalog.yml` and never should
+            # be: covered by the path map is not the same as advertised as a
+            # product (tests/test_spatial_products.py pins the exclusion).
+            "hydrography.nc",
         )
     ]
     # A DIRECTORY row since the F1a ruling of 2026-08-04: it enumerated the five

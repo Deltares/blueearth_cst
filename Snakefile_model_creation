@@ -6,7 +6,7 @@ from pathlib import Path
 # See dev/milestones/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
 from blueearth_cst.shared.provenance import short_digest, snapshot_bundle_digest
-from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_JULIA_THREADS, climate_store_spec, get_config, julia_prefix, patch_psutil_windows_benchmark, region_spec, rule_banner, target_banner, validate_historical_window, warn_if_project_dir_in_repo
+from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_JULIA_THREADS, climate_store_spec, get_config, julia_prefix, patch_psutil_windows_benchmark, region_spec, rule_banner, spatial_units_rule, target_banner, validate_historical_window, warn_if_project_dir_in_repo
 from blueearth_cst.spatial.config import parse_spatial_config
 # The canonical climate figure set (rules 1.13 and 1.15 both draw it). Imported
 # for figure_names() ONLY, so every figure is declared from the same list the
@@ -215,6 +215,38 @@ REGION = region_spec(
     basin_index=basin_index,
 )
 
+# --- The shared vector foundation (ADR 0003 §8) -------------------------------
+# Third and last of the shared producer contracts, same pattern again: built
+# here and identically in the other two workflows, splatted into rule 1.01c
+# below, and tests/test_spatial_units_rule.py parses all three workflows and
+# fails on ANY difference beyond message/log/benchmark.
+#
+# `parse_spatial_config(basin_cfg)` WITHOUT `my_cfg`, deliberately, and this is
+# the one call site where that differs from the module-level `spatial_cfg`
+# above: §8b requires the shared rule's params to be a pure function of
+# `project` + `shared.basin`, so the deprecated
+# `workflows.model_creation.output_locations` fallback cannot feed it.
+#
+# THE COST IS REAL, AND IT IS SILENT. Rule 1.02 used to receive `my_cfg` and so
+# honoured the legacy key on its way to the partition. A config that sets ONLY
+# `workflows.model_creation.output_locations` now reaches this rule with no
+# gauge points at all, so its parent basins fall back to the AUTOMATIC
+# partition: different subbasins, a different location_registry.csv, and
+# different wflow_id values — with no error, because an absent gauge file is a
+# legitimate configuration. Rule 1.05 would then add gauges to a model whose
+# subbasins were derived without them.
+#
+# No tracked config is affected (all set `shared.basin.gauge_points`, the
+# canonical key, checked 2026-08-06), and §8b leaves no alternative: a params
+# payload drawn from a section the projections-only configs do not have would
+# differ per invoking workflow. But a migrating project must move the key, not
+# merely be told the old one is deprecated.
+SPATIAL_UNITS = spatial_units_rule(
+    project_dir=project_dir,
+    spatial_config=parse_spatial_config(basin_cfg),
+    data_sources=DATA_SOURCES,
+)
+
 # Rule numbering (comment headers + log/benchmark filenames) uses `W.NN` =
 # workflow.step in DEFINITION order — a reading and reference aid ("Rule 1.3" =
 # build_wflow_model), NOT guaranteed execution order. Snakemake resolves execution
@@ -249,12 +281,20 @@ WORKFLOW_LOG_NAME = "wf1_model_creation.log"
 LOG_PARTS_DIR = f"{project_dir}/logs/_parts"
 LOG_RULES = [
     "1.01b_delineate_region",
+    "1.01c_delineate_spatial_units",
     "1.02_prepare_spatial_maps",
     "1.03_build_wflow_model",
     "1.04_add_reservoirs_lakes_glaciers",
     "1.05_add_gauges_and_outputs",
     "1.06_write_outlet_index",
-    "1.07_setup_runtime",
+    # No 1.07 entry: R10-1 merged setup_runtime into 1.08, so its label has no
+    # producer. tests/test_log_rules_contract.py fails if one reappears.
+    #
+    # NOTE: no closing square bracket anywhere inside this list.
+    # test_model_reference.py slices the block from "LOG_RULES = " to the first
+    # one, so a followups-style reference in brackets truncates the label set it
+    # reads and every label below the comment reads as unregistered. That is
+    # what the bracketed R10-1 above did between 2026-08-06 and this edit.
     "1.08_add_forcing",
     "1.09_run_wflow",
     "1.10_extract_climate_grid",
@@ -350,24 +390,44 @@ rule delineate_region:
         f"{project_dir}/benchmarks/_parts/1.01b_delineate_region.tsv",
     script: REGION.script
 
-# 1.02  prepare_spatial_maps — engine-neutral spatial foundation
+# 1.01c  delineate_spatial_units — the shared vector foundation (ADR 0003 §8).
+# Byte-identical to 2.03c and 3.01f except message/log/benchmark; everything
+# else is splatted from SPATIAL_UNITS so the three cannot drift.
+rule delineate_spatial_units:
+    message: rule_banner("1.01c", "delineate_spatial_units")
+    input:
+        **SPATIAL_UNITS.inputs,
+    params:
+        **SPATIAL_UNITS.params,
+    output:
+        **SPATIAL_UNITS.outputs,
+    log:
+        f"{LOG_PARTS_DIR}/1.01c_delineate_spatial_units.log",
+    benchmark:
+        f"{project_dir}/benchmarks/_parts/1.01c_delineate_spatial_units.tsv",
+    script: SPATIAL_UNITS.script
+
+# 1.02  prepare_spatial_maps — the thematic raster stack, WF1 ONLY
+#
+# The raster half of ADR 0003 §8. The vector layers and the registry come from
+# 1.01c now; this rule folds LULC/LAI/soil onto the grid 1.01c handed it and
+# writes the model-build interface. `hydrography` is the SEAM INTERMEDIATE
+# (§8a): the whole hydrography grid stack used to cross this boundary in
+# memory, and re-deriving it here would mean two producers of one value.
 rule prepare_spatial_maps:
     message: rule_banner("1.02", "prepare_spatial_maps")
     input:
         config_snake = config_path,
         data_catalogs = DATA_SOURCES,
-        # ADR 0003: the delineation this rule used to do itself, now read from
-        # the one shared artifact so 1.02 and the climate store cannot disagree.
-        region_geojson = REGION.region_geojson,
-        **_locations_input,
+        hydrography = SPATIAL_UNITS.outputs["hydrography"],
+        basins = SPATIAL_UNITS.outputs["basins"],
+        subbasins = SPATIAL_UNITS.outputs["subbasins"],
+        catchments = SPATIAL_UNITS.outputs["catchments"],
+        rivers = SPATIAL_UNITS.outputs["rivers"],
+        locations = SPATIAL_UNITS.outputs["locations"],
+        location_registry = SPATIAL_UNITS.outputs["location_registry"],
     output:
         spatial_maps = f"{spatial_dir}/spatial_maps.nc",
-        basins = f"{spatial_dir}/geoms/basins.geojson",
-        subbasins = f"{spatial_dir}/geoms/subbasins.geojson",
-        catchments = f"{spatial_dir}/geoms/catchments.geojson",
-        rivers = f"{spatial_dir}/geoms/rivers.geojson",
-        locations = f"{spatial_dir}/geoms/locations.geojson",
-        location_registry = f"{spatial_dir}/location_registry.csv",
         spatial_catalog = f"{spatial_dir}/spatial_catalog.yml",
         spatial_report = f"{spatial_dir}/spatial_report.yml",
     params:
@@ -409,7 +469,9 @@ rule build_wflow_model:
         # re-trigger on its own execution forever. This sentinel is written by
         # nothing else, so it re-fires rule 1.04 without any self-trigger, and
         # the chain cascades from there (1.04 -> .txt -> 1.05 ->
-        # .outputs_configured -> 1.07 -> forcing yml -> 1.08).
+        # .outputs_configured -> 1.08). The forcing-yml hop that used to sit in
+        # the middle of that chain is gone: R10-1 merged 1.07 into 1.08, which
+        # now writes the yml it used to consume.
         built = touch(f"{basin_dir}/.model_built"),
     log:
         f"{LOG_PARTS_DIR}/1.03_build_wflow_model.log",
@@ -479,36 +541,34 @@ rule write_outlet_index:
     script:
         "blueearth_cst/model/write_outlet_index.py"
 
-# 1.07  setup_runtime — prepare the forcing time horizon / runtime window
-rule setup_runtime:
-    message: rule_banner("1.07", "setup_runtime")
+# 1.08  add_forcing — assemble the hydromt forcing recipe, then apply it
+#
+# [R10-1]: rule 1.07 `setup_runtime` was MERGED IN here. It wrote the `steps:`
+# YAML below and nothing else read it — one job split across two rules, and the
+# reason 1.07's R10 rename was withdrawn rather than replaced. 1.07 is now a gap
+# in the numbering.
+#
+# Two details the merge folded in:
+#  - 1.07's `gauges_path` input (staticgeoms/outlets.geojson) was DEAD — the
+#    script never opened it — and is dropped rather than carried over.
+#  - `.outputs_configured` is inherited from 1.07, and is load-bearing: it is
+#    rule 1.05's completion sentinel, so the R7-1 rebuild cascade
+#    (1.03 -> 1.04 -> 1.05 -> here) survives the merge.
+#
+# `script:` rather than `shell:` because Snakemake allows one per rule and the
+# halves were one of each; the hydromt command issued is byte-identical to the
+# one this rule ran before.
+rule add_forcing:
+    message: rule_banner("1.08", "add_forcing")
     input:
-        gauges_path = f"{basin_dir}/staticgeoms/outlets.geojson",
         outputs_configured = f"{basin_dir}/.outputs_configured",
     output:
         # Generated build YAML is provenance OF THE MODEL IT BUILT, so it lives
         # in the model's own config/ rather than a project-level generated/
-        # (design v10). `config/generated/wflow_build_model_run.yml` had a row
-        # in the migration map beside this one; nothing writes it any more, and
-        # R9 P1 retired that row (phase-1 report G2).
-        forcing_yml = f"{basin_dir}/config/build_historical_forcing.yml"
-    params:
-        starttime = get_config(shared_cfg["historical_window"], "starttime", optional=False),
-        endtime = get_config(shared_cfg["historical_window"], "endtime", optional=False),
-        clim_source = get_config(shared_cfg, "clim_historical", optional=False),
-        basin_dir = basin_dir,
-    log:
-        f"{LOG_PARTS_DIR}/1.07_setup_runtime.log",
-    benchmark:
-        f"{project_dir}/benchmarks/_parts/1.07_setup_runtime.tsv",
-    script: "blueearth_cst/shared/setup_time_horizon.py"
-
-# 1.08  add_forcing — add historical forcing to the model (hydromt update wflow_sbm)
-rule add_forcing:
-    message: rule_banner("1.08", "add_forcing")
-    input:
-        forcing_ini = f"{basin_dir}/config/build_historical_forcing.yml"
-    output:
+        # (design v10). Still DECLARED after the merge — `semantic_tree_diff.py`
+        # and the R9 path map both pin this path, and it is the record of what
+        # the forcing was built from.
+        forcing_yml = f"{basin_dir}/config/build_historical_forcing.yml",
         forcing_path = f"{basin_dir}/forcing/inmaps_historical.nc",
         # TERMINAL BUILD SENTINEL (ADR 0004). `hydromt update wflow_sbm` calls
         # mod.write(), which rewrites the WHOLE model root -- measured on the R9
@@ -530,13 +590,23 @@ rule add_forcing:
         # new rule that mutates the model after 1.08 must move the sentinel to
         # itself. `tests/test_model_root_ordering.py` checks that readers
         # declare it, not that it is attached to the right rule.
+        #
+        # [R10-1] MERGE NOTE: ADR 0004 attached this to the old 1.08, which then
+        # consumed 1.07's YAML. The merge folded 1.07 in, so the rule that
+        # carries the sentinel now also WRITES that YAML -- it is still the last
+        # writer of the model root, so the anchor is unchanged.
         model_final = touch(f"{basin_dir}/.model_final"),
+    params:
+        starttime = get_config(shared_cfg["historical_window"], "starttime", optional=False),
+        endtime = get_config(shared_cfg["historical_window"], "endtime", optional=False),
+        clim_source = get_config(shared_cfg, "clim_historical", optional=False),
+        basin_dir = basin_dir,
+        data_catalog = DATA_SOURCES,
     log:
         f"{LOG_PARTS_DIR}/1.08_add_forcing.log",
     benchmark:
         f"{project_dir}/benchmarks/_parts/1.08_add_forcing.tsv",
-    shell:
-        """python -u "{run_logged}" "{log}" -- hydromt update wflow_sbm "{basin_dir}" -i "{input.forcing_ini}" -d "{DATA_SOURCES}" -vv"""
+    script: "blueearth_cst/model/add_climate_forcing.py"
 
 # 1.09  run_wflow — run the Wflow.jl model on historical forcing
 rule run_wflow:
@@ -705,8 +775,8 @@ rule plot_map:
         # to 1.03 build_wflow_model and orders 1.12 after 1.03, which is exactly
         # where it already was. `.outputs_configured` is rule 1.05's completion
         # marker and 1.05 runs after 1.04, so it is the earliest edge that means
-        # "every writer of staticmaps.nc is done" -- the same use rule 1.07
-        # already makes of it.
+        # "every writer of staticmaps.nc is done" -- the same use rule 1.08
+        # already makes of it (it was 1.07's until R10-1 merged the two).
         #
         # Both are declared: the sentinel for ORDERING, staticmaps.nc because
         # this rule genuinely reads it and a declaration that says so is what
@@ -762,7 +832,7 @@ rule plot_forcing:
 # --- benchmark gather ---------------------------------------------------------
 # Per-rule benchmarks land under benchmarks/_parts/. This runs once, after the
 # terminal outputs (so all WF1 rules ran), and merges the WF1 parts into one
-# benchmarks/wf1_benchmarks.tsv (rule column + TOTAL row), fresh each run.
+# benchmarks/wf1_benchmarks.md (rule column + TOTAL row), fresh each run.
 rule gather_benchmarks:
     message: rule_banner("1.14", "gather_benchmarks")
     input:

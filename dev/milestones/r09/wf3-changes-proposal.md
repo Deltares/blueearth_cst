@@ -44,6 +44,12 @@ the discussion started; further parts are added as topics come up.
 |---|---|
 | | C29 retire the per-run generator configuration file · C34 decide every generator argument deliberately *(both proposed, not ruled)* |
 
+### Part E — how the runs are batched
+
+| | |
+|---|---|
+| | C35 batch one run per session by default *(proposed, not ruled)* |
+
 ### Part D — where settings live
 
 | | |
@@ -54,7 +60,7 @@ the discussion started; further parts are added as topics come up.
 
 | | |
 |---|---|
-| **Findings** | F1 January-only perturbation · F2 overland flow units · F3 seam in the 7-day window · F4 gauge rainfall discarded · F5 run numbers silently change meaning · F6 per-run generator config is empty and misleading · F7 generator template is an undeclared input · F8 spell-length perturbations in the wrong file · F9 hydrological year configured twice · F10 two settings read by nothing · F11 contract covers 11 of 16 settings · F12 hardcoded series start year · F13 dead settings are pre-1.2.0 leftovers · F14 three unreachable stress dimensions · F15 perturbation step unseeded · F16 evaporation computed twice · F17 one gauge reported twice |
+| **Findings** | F1 January-only perturbation · F2 overland flow units · F3 seam in the 7-day window · F4 gauge rainfall discarded · F5 run numbers silently change meaning · F6 per-run generator config is empty and misleading · F7 generator template is an undeclared input · F8 spell-length perturbations in the wrong file · F9 hydrological year configured twice · F10 two settings read by nothing · F11 contract covers 11 of 16 settings · F12 hardcoded series start year · F13 dead settings are pre-1.2.0 leftovers · F14 three unreachable stress dimensions · F15 perturbation step unseeded · F16 evaporation computed twice · F17 one gauge reported twice · F18 batch size chosen from the wrong quantity |
 | **Open** | O1 do subbasins overlap · O2 stale configuration switch · ~~O3~~ closed → C28 |
 
 An appendix at the end sketches how a stress test is built today, step by step.
@@ -536,6 +542,83 @@ Almost nothing, by design — with one exception.
 
 ---
 
+# Part E — how the hydrological runs are batched
+
+## The short version
+
+Several stress-test runs share one Julia session, so the startup cost is paid
+once instead of once per run. On the tiny test basin that is worth 35% of the
+whole workflow. On a real basin it is worth about 2%, and the setting that
+controls it is currently chosen in a way that makes it *larger* on exactly the
+runs where it helps least — while multiplying what is lost when one run fails.
+
+**C35 — Batch one run per session by default; make batching something you turn
+on.** *(Proposed 2026-08-06, not yet ruled.)*
+
+## Why the measured win does not survive the move to a real basin
+
+What sharing a session saves is a **fixed** amount: starting Julia and warming up
+the model code, measured at roughly **81 seconds** per run saved. That is
+compilation, not simulation — it does not grow when the basin does.
+
+| a single run takes | saved by sharing a session |
+|---|---|
+| 35 seconds (the test basin) | **70%** |
+| 1 hour | **2.2%** |
+| 6 hours | **0.4%** |
+
+The 35% headline from the batching milestone is real and was carefully measured —
+on a basin where a run costs about as much as the startup it amortizes. At an
+hour a run, the saving is rounding error.
+
+## The setting scales the wrong way
+
+The default batch size is chosen from **how many runs there are**, capped at
+eight. A realistic sweep — 5 realizations × 25 perturbations = 125 runs — hits
+that cap, so it gets the **largest** batch allowed:
+
+| | |
+|---|---|
+| whole sweep, one run per session | ~42.6 hours |
+| whole sweep, eight per session | ~41.8 hours |
+| **gained** | **~1.9%** |
+| **lost when one run fails** | up to **seven completed runs** — 7 hours at an hour each, **42 hours** at six |
+
+The workflow already documents this default as "backwards" — but only for **disk**,
+since holding eight runs' intermediate files at once grows the footprint as the
+sweep grows. The timing argument is backwards in exactly the same way and for the
+same reason: **batch size is decided by sweep size when the only thing that
+should decide it is how long one run takes.**
+
+## Three things that also get worse at scale
+
+- **Scheduling.** 125 separate jobs spread across cores far better than 16 batch
+  jobs. One slow batch holds up the whole stage — and the batching work chose a
+  longest-job-first scheduler precisely because run times vary.
+- **Restarting.** A crash, an out-of-memory, a timeout: one run lost with
+  batching off, up to eight with it on. Over a forty-hour sweep that stops being
+  hypothetical.
+- **Seeing where you are.** At six hours a run, per-run jobs are how progress is
+  visible at all. Batching moves that into log lines inside a driver.
+
+## What the change is
+
+Default to one run per session. Keep batching available as a setting, and switch
+it on in the test configuration so the fast-sweep behaviour and the batched code
+path both stay exercised. **Nothing about the mechanism changes** — only which
+side of it is the default.
+
+It also dissolves an open problem rather than solving it: the disk followup asks
+for a cap computed from available headroom and an estimate of each run's
+intermediate size, and the hard part is that those files do not exist yet when
+the cap has to be chosen. With one run per session the term that needed capping
+is gone.
+
+**In the meantime**, any production configuration should set the batch size to 1
+explicitly. That is a one-line change and needs no code.
+
+---
+
 # Findings, open items and cost
 
 These span the whole document, not just Part A.
@@ -705,6 +788,21 @@ and both carry the duplicate identically.
 **Addressed by C17's uniqueness check** on the row key, which is the reason that
 check was proposed. It also confirms **F4** with data rather than inference: the
 discarded rainfall-at-gauges columns are right there in the same output.
+
+**F18 — The batch-size default is chosen from the wrong quantity, and the tiny
+test basin hides it.** It is computed from how many runs the sweep contains,
+capped at eight — so the bigger the sweep, the bigger the batch, and a realistic
+125-run sweep gets the maximum. What batching actually saves is a fixed ~81
+seconds per run, so the correct input is **how long one run takes**, which the
+formula never consults.
+
+On the test basin the two happen to agree, which is why this was invisible: a
+12-run sweep yields a batch of 4, every measurement in the batching milestone
+stands, and the win is a genuine 35%. The disagreement only appears above 24 runs
+— and it appears hardest on the runs where the benefit has already vanished.
+
+Noted 2026-08-06 from the owner's statement of real-world scale: 1–6 hours per
+run, 3–5 realizations × 25 perturbations. **Addressed by C35.**
 
 **F16 — Potential evaporation is computed twice, by two different methods.** The
 generator computes it while applying the perturbation, using its own default

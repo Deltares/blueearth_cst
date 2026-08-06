@@ -1,4 +1,24 @@
-"""Compose and write the versioned Workflow 1 spatial-foundation product."""
+"""Compose and write the versioned spatial-foundation products.
+
+Two halves since ADR 0003 §8, split at the thematic-raster seam:
+
+* the **vector half** (``prepare_spatial_units`` / ``write_spatial_units``) —
+  region polygon + hydrography catalog + ``shared.basin.gauge_points`` into the
+  five vector layers, the location registry, and the hydrography grid stack.
+  Model-free, engine-neutral, and declared by ALL THREE workflows so WF2 and
+  WF3 can obtain basin and subbasin boundaries without resampling a single
+  thematic raster;
+* the **raster half** (``prepare_spatial_maps`` / ``write_spatial_maps``) —
+  reads that seam back, adds the LULC/LAI/soil layers, and writes
+  ``spatial_maps.nc`` with its catalog and report. **WF1 only**: it exists to
+  parameterise Wflow.
+
+The seam is NOT free, and the split is not a pure decomposition (ADR 0003 §8a):
+what crossed it in memory is the whole hydrography grid stack, so the vector
+half writes it as an intermediate the raster half declares as an input.
+Recomputing it instead would make WF1 read the hydrography twice with two grids
+that can drift.
+"""
 
 from __future__ import annotations
 
@@ -36,10 +56,24 @@ from blueearth_cst.spatial.identity import (
 
 SPATIAL_CONTRACT_VERSION = "blueearth-cst-spatial-v1"
 
+#: The seam intermediate's filename, relative to the spatial directory.
+#:
+#: A SEAM INTERMEDIATE, NOT A PRODUCT (ADR 0003 §8a): it is deliberately absent
+#: from ``spatial_catalog.yml``, which is the model-build interface. It carries
+#: the WHOLE hydrography grid stack -- not only the six layers §8a enumerates --
+#: because ``spatial_maps.nc`` also holds ``cell_area``, ``river_order``,
+#: ``elevation`` and ``slope``, and recomputing those in the raster half is the
+#: second hydrography read §8a rejects.
+HYDROGRAPHY_SEAM_NAME = "hydrography.nc"
+
 
 @dataclass
-class SpatialProducts:
-    """In-memory spatial contract before serialization."""
+class SpatialUnits:
+    """The vector half's in-memory result: layers, registry, and the seam grid.
+
+    ``maps`` is the hydrography grid stack the raster half consumes; the rest
+    are the six declared vector artifacts, already in EPSG:4326.
+    """
 
     maps: xr.Dataset
     basins: gpd.GeoDataFrame
@@ -48,7 +82,6 @@ class SpatialProducts:
     rivers: gpd.GeoDataFrame
     locations: gpd.GeoDataFrame
     location_registry: pd.DataFrame
-    report: dict[str, Any]
 
 
 def _vectorize_ids(data: xr.DataArray, id_column: str) -> gpd.GeoDataFrame:
@@ -614,37 +647,54 @@ def _thematic_maps(
     )
 
 
-def prepare_spatial_products(
-    config: SpatialConfig, catalog: DataCatalog, region_fn: str | os.PathLike[str]
-) -> SpatialProducts:
-    """Build the complete in-memory engine-neutral spatial contract.
+def prepare_spatial_units(
+    catalog: DataCatalog,
+    region_fn: str | os.PathLike[str],
+    *,
+    hydrography: str,
+    resolution: float,
+    river_uparea_km2: float,
+    rivers_source: str,
+    gauge_points_path: str | None,
+    gauge_snap_tolerance_m: float,
+    max_automatic_subbasins: int,
+) -> SpatialUnits:
+    """Build the model-free vector foundation and the hydrography grid seam.
 
-    ``region_fn`` is rule 1.02's declared ``region_geojson`` input — the one
-    project region artifact (ADR 0003), not a path this function derives.
+    The vector half of ADR 0003 §8. Every argument is a field
+    ``parse_spatial_config`` resolves from ``shared.basin`` ALONE — spelled out
+    rather than taken as a ``SpatialConfig`` so §8b's requirement is visible in
+    the signature: the rule is declared by all three workflows, so anything that
+    could differ per invoking workflow (``workflows.model_creation``, the
+    ``--configfile`` path) cannot reach it. The thematic source names are
+    deliberately absent: they belong to the raster half.
+
+    ``region_fn`` is the rule's declared ``region_geojson`` input — the one
+    project region artifact (ADR 0003 §1), not a path this function derives.
     """
     region = _region_geometry(region_fn)
     source = catalog.get_rasterdataset(
-        config.hydrography,
+        hydrography,
         geom=region,
         buffer=10,
         single_var_as_array=False,
     )
     if source is None:
-        raise ValueError(f"catalog source {config.hydrography!r} returned no data")
+        raise ValueError(f"catalog source {hydrography!r} returned no data")
     source_ds = _as_dataset(source)
     maps, flwdir = prepare_hydrography(
         source_ds,
         region,
-        config.resolution,
-        config.river_uparea_km2,
+        resolution,
+        river_uparea_km2,
     )
     basin_map, basins, outlet_by_basin = _parent_basins(maps, flwdir, region)
     maps["basin_id"] = basin_map
     gauges = _snap_gauge_points(
-        read_gauge_points(config.gauge_points_path),
+        read_gauge_points(gauge_points_path),
         maps,
         flwdir,
-        config.gauge_snap_tolerance_m,
+        gauge_snap_tolerance_m,
     )
     (
         subbasin_map,
@@ -652,23 +702,104 @@ def prepare_spatial_products(
         catchments,
         locations,
         registry,
-        methods,
+        _methods,
     ) = _delineate_spatial_units(
         maps,
         flwdir,
         basins,
         outlet_by_basin,
         gauges,
-        config.max_automatic_subbasins,
+        max_automatic_subbasins,
     )
     maps["subbasin_id"] = subbasin_map
     for name in maps.data_vars:
-        maps[name].attrs.setdefault("source", config.hydrography)
+        maps[name].attrs.setdefault("source", hydrography)
         maps[name].attrs.setdefault("resolution", float(abs(maps.raster.res[0])))
-    thematic = _thematic_maps(catalog, config, basins, maps["flow_direction"])
-    maps = xr.merge([maps, thematic], compat="override")
     maps.raster.set_crs(source_ds.raster.crs)
-    maps.attrs.update(
+
+    rivers = catalog.get_geodataframe(rivers_source, geom=basins)
+    if rivers is None or rivers.empty:
+        raise ValueError(f"catalog source {rivers_source!r} returned no rivers")
+    if rivers.crs is None:
+        raise ValueError(f"catalog source {rivers_source!r} has no CRS")
+    rivers = rivers.to_crs(4326)
+    for frame in (basins, subbasins, catchments):
+        if frame.crs is None:
+            raise ValueError("generated spatial geometry has no CRS")
+    return SpatialUnits(
+        maps=maps,
+        basins=basins.to_crs(4326),
+        subbasins=subbasins.to_crs(4326),
+        catchments=catchments.to_crs(4326),
+        rivers=rivers,
+        locations=locations,
+        location_registry=registry,
+    )
+
+
+def read_hydrography_seam(seam_fn: str | os.PathLike[str]) -> xr.Dataset:
+    """Read the seam intermediate back as the raster half's starting grid.
+
+    Two properties this reader exists for, both measured on the synthetic
+    fixture (2026-08-06) against the pre-split ``spatial_maps.nc``:
+
+    * ``mask_and_scale=False``. Every layer carries ``_FillValue`` in its
+      ATTRS, and the CF mask decoder would move it into ``encoding`` and recast
+      the array to float — ``basin_id`` and ``subbasin_id`` would come back as
+      float64 with NaN where the fill is, and ``spatial_maps.nc`` would ship
+      float identifier rasters;
+    * COORDS FIRST. netCDF stores variables in creation order, and
+      ``open_dataset`` yields data variables before coordinates while the
+      pre-split dataset had ``y``/``x``/``spatial_ref`` first. Rebuilding the
+      dataset coords-first is what makes the written file byte-identical rather
+      than merely equivalent.
+
+    The CRS re-anchor below needs an authority code. A hydrography source whose
+    CRS has none keeps the WKT as stored: correct values and a correct
+    projection, but ``spatial_maps.nc`` will not be byte-identical to what the
+    unsplit rule wrote. No source in the shipped catalogs is in that position.
+    """
+    raw = xr.open_dataset(seam_fn, mask_and_scale=False)
+    try:
+        maps = xr.Dataset(coords=raw.coords, attrs=dict(raw.attrs))
+        for name in raw.data_vars:
+            maps[name] = raw[name]
+        # Materialize before the handle closes: `open_dataset` is lazy, and the
+        # caller writes these arrays out again.
+        maps.load()
+    finally:
+        raw.close()
+    # Re-anchor the CRS on its authority code. Reading `spatial_ref` back gives
+    # pyproj a CRS built from the stored WKT, whose re-emitted WKT is POORER
+    # than the catalog's -- `DATUM[...]` where the catalog had
+    # `ENSEMBLE[... MEMBER ...]`, and `CONVERSION["unnamed"]`. Same coordinate
+    # system, but a different string in the file, which is the difference
+    # between byte-identical and merely equivalent. Measured 2026-08-06: this
+    # was the ONLY difference left between the split and unsplit outputs.
+    epsg = maps.raster.crs.to_epsg() if maps.raster.crs is not None else None
+    if epsg is not None:
+        maps.raster.set_crs(epsg)
+    return maps
+
+
+def prepare_spatial_maps(
+    maps: xr.Dataset,
+    basins: gpd.GeoDataFrame,
+    config: SpatialConfig,
+    catalog: DataCatalog,
+) -> xr.Dataset:
+    """Fold the thematic layers onto the seam grid — the raster half, WF1 only.
+
+    ``basins`` arrives from the declared ``basins.geojson`` input in EPSG:4326
+    and is reprojected onto the grid's CRS, which is what the unsplit rule
+    passed: a no-op whenever the hydrography is geographic (merit_hydro is).
+    """
+    if basins.crs != maps.raster.crs:
+        basins = basins.to_crs(maps.raster.crs)
+    thematic = _thematic_maps(catalog, config, basins, maps["flow_direction"])
+    merged = xr.merge([maps, thematic], compat="override")
+    merged.raster.set_crs(maps.raster.crs)
+    merged.attrs.update(
         spatial_contract=SPATIAL_CONTRACT_VERSION,
         hydrography_source=config.hydrography,
         river_source=config.sources.rivers,
@@ -676,20 +807,30 @@ def prepare_spatial_products(
         lai_source=config.sources.lai,
         soil_source=config.sources.soil,
     )
+    return merged
 
-    rivers = catalog.get_geodataframe(config.sources.rivers, geom=basins)
-    if rivers is None or rivers.empty:
-        raise ValueError(f"catalog source {config.sources.rivers!r} returned no rivers")
-    if rivers.crs is None:
-        raise ValueError(f"catalog source {config.sources.rivers!r} has no CRS")
-    rivers = rivers.to_crs(4326)
-    for frame in (basins, subbasins, catchments):
-        if frame.crs is None:
-            raise ValueError("generated spatial geometry has no CRS")
-    basins = basins.to_crs(4326)
-    subbasins = subbasins.to_crs(4326)
-    catchments = catchments.to_crs(4326)
-    report = {
+
+def spatial_report(
+    basins: gpd.GeoDataFrame,
+    subbasins: gpd.GeoDataFrame,
+    registry: pd.DataFrame,
+) -> dict[str, Any]:
+    """Summarize the written vector foundation.
+
+    ``delineation_method_by_basin`` is DERIVED from ``subbasins`` rather than
+    carried across the seam: the method is a per-parent property that every one
+    of that parent's subbasins already records, so recovering it needs no extra
+    channel. The uniformity that makes the recovery valid is checked, not
+    assumed.
+    """
+    per_basin = subbasins.groupby("basin_id", sort=True)["delineation_method"]
+    ambiguous = sorted(int(value) for value in per_basin.nunique().loc[lambda s: s > 1].index)
+    if ambiguous:
+        raise ValueError(
+            f"parent basins carry more than one delineation method: {ambiguous}"
+        )
+    methods = {int(basin): str(method) for basin, method in per_basin.first().items()}
+    return {
         "contract": SPATIAL_CONTRACT_VERSION,
         "parent_basins": len(basins),
         "subbasins": len(subbasins),
@@ -706,20 +847,16 @@ def prepare_spatial_products(
         ],
         "wflow_id_range": [int(registry["wflow_id"].min()), int(registry["wflow_id"].max())],
     }
-    return SpatialProducts(
-        maps=maps,
-        basins=basins,
-        subbasins=subbasins,
-        catchments=catchments,
-        rivers=rivers,
-        locations=locations,
-        location_registry=registry,
-        report=report,
-    )
 
 
 def _catalog_dict() -> dict[str, Any]:
-    """Return the portable HydroMT catalog for a written spatial product."""
+    """Return the portable HydroMT catalog for a written spatial product.
+
+    ``hydrography.nc`` is deliberately absent: it is the seam between the two
+    halves, not a product (ADR 0003 §8a). Adding it would advertise an
+    intermediate to ``build_wflow_model``, which resolves every model input
+    through this catalog.
+    """
     entries: dict[str, Any] = {
         "spatial_maps": {
             "data_type": "RasterDataset",
@@ -748,24 +885,42 @@ def _catalog_dict() -> dict[str, Any]:
     return entries
 
 
-def write_spatial_products(products: SpatialProducts, output_dir: str | Path) -> None:
-    """Serialize every explicit spatial artifact and its HydroMT catalog."""
+def _write_dataset(data: xr.Dataset, path: Path) -> None:
+    """Serialize one dataset through a temporary sibling, then swap it in."""
+    temporary_path = path.parent / f"{path.stem}.tmp.nc"
+    data.to_netcdf(temporary_path)
+    temporary_path.replace(path)
+
+
+def write_spatial_units(units: SpatialUnits, output_dir: str | Path) -> None:
+    """Serialize the six vector artifacts and the hydrography grid seam.
+
+    ``spatial_catalog.yml`` is NOT written here. It is the model-build
+    interface, it lists the raster entries too, and a file with two writers is
+    the R7-1 anti-pattern — so it stays whole in the raster half (ADR 0003 §8,
+    *Neutral*).
+    """
     output_dir = Path(output_dir)
     geoms_dir = output_dir / "geoms"
     geoms_dir.mkdir(parents=True, exist_ok=True)
-    maps_path = output_dir / "spatial_maps.nc"
-    temporary_maps_path = output_dir / "spatial_maps.tmp.nc"
-    products.maps.to_netcdf(temporary_maps_path)
-    temporary_maps_path.replace(maps_path)
-
+    _write_dataset(units.maps, output_dir / HYDROGRAPHY_SEAM_NAME)
     for name in ("basins", "subbasins", "catchments", "rivers", "locations"):
-        frame = getattr(products, name)
+        frame = getattr(units, name)
         frame.to_file(geoms_dir / f"{name}.geojson", driver="GeoJSON")
-    products.location_registry.to_csv(output_dir / "location_registry.csv", index=False)
+    units.location_registry.to_csv(output_dir / "location_registry.csv", index=False)
+
+
+def write_spatial_maps(
+    maps: xr.Dataset, report: dict[str, Any], output_dir: str | Path
+) -> None:
+    """Serialize the thematic map stack, its HydroMT catalog, and the report."""
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    _write_dataset(maps, output_dir / "spatial_maps.nc")
     with (output_dir / "spatial_catalog.yml").open("w", encoding="utf-8") as stream:
         yaml.safe_dump(_catalog_dict(), stream, sort_keys=False)
     with (output_dir / "spatial_report.yml").open("w", encoding="utf-8") as stream:
-        yaml.safe_dump(products.report, stream, sort_keys=False)
+        yaml.safe_dump(report, stream, sort_keys=False)
 
 
 def _validate_flow_topology(maps: xr.Dataset) -> None:
