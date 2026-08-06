@@ -996,6 +996,77 @@ to derive it from the store — moves numbers, so it needs its own ruling.
 
 ---
 
+## CR-7 — invert the wf3 batch-size default (C35, F18) — PROPOSED, not ruled
+
+Proposal-side: **Part E, C35**, finding **F18**. Supersedes the *framing* of
+`dev/followups.md` § Post-P3-3's disk item — see below.
+
+### F18 — `B` keys off sweep size; only per-run cost should set it
+
+`Snakefile_climate_experiment`:
+
+```python
+batch_size = min(batch_size_max, max(1, ceil(K / cores)))   # batch_size_max = 8
+```
+
+What batching amortizes is **fixed**: `F + S_cold − S_warm` = `24 + 92 − 35` ≈
+**81 s per amortized member** (measured, `dev/milestones/p33/batching-results.md`
+§ Decomposition). That is Julia start + Wflow-code warm-up — **compilation, not
+simulation** — so it does not scale with basin size or run length.
+
+| per-run sim time | solo | warm | saving |
+| --- | --- | --- | --- |
+| 35 s (seed fixture) | 116 s | 35 s | **70 %** |
+| 1 h | 3,681 s | 3,600 s | **2.2 %** |
+| 6 h | 21,681 s | 21,600 s | **0.4 %** |
+
+**At the owner's stated production scale** — 1–6 h per run, 3–5 rlz × 25 cst, so
+K ≈ 125 — at `-c 3`: `ceil(125/3) = 42`, clamped to **B = 8**, the maximum. The
+sweep gets the largest batch on exactly the runs where batching is worth least:
+
+| | at 1 h/run |
+| --- | --- |
+| total work, B=1 | `125 × (3600+81)` = 460,125 s → **42.6 h** at `-c 3` |
+| total work, B=8 | `125 × 3600 + 16 × 81` = 451,296 s → **41.8 h** |
+| gain | **1.9 %** |
+| blast radius | up to **7 completed runs** discarded — 7 h at 1 h/run, **42 h at 6 h/run** |
+
+Three second-order costs also grow with run length: scheduling granularity (125
+jobs load-balance better than 16, and P3-3 chose LPT precisely because member
+costs vary), restart cost (1 member lost vs up to 8), and progress visibility
+(per-member Snakemake jobs vs driver log lines, over a 40 h sweep).
+
+**Why this was invisible.** On the seed fixture K=12 at `-c 3` gives
+`min(ceil(12/3), 8) = 4`, so every P3-3 measurement stands and the 35.4 % win is
+real. The clamp only binds from K > 24 — the followup already records that — and
+the *timing* divergence appears in the same region.
+
+### C35 — default `batch_size: 1`, batching opt-in
+
+Mechanism unchanged; only the default side flips. `config/workflows/snake_config_model_test.yml`
+sets `batch_size: 4` so the fast-sweep behaviour and the batched code path stay
+exercised, and so P3-3's measurements remain reproducible from the seed config.
+
+**It dissolves the Post-P3-3 disk item rather than solving it.** That followup
+asks for a cap computed from a stated disk headroom and a per-run
+forcing+state size estimate, and records that the estimate is the hard part —
+at parse time the forcing NCs are `temp()` and do not exist. At B=1 the `p × B ×
+(forcing + state)` term loses its `B`, so there is no cap left to compute. The
+followup's *observation* stands and is strengthened; its proposed remedy becomes
+unnecessary.
+
+**Interim, no code needed:** set `batch_size: 1` in any production config.
+
+### Adjacent, NOT proposed here
+
+The frozen resource triple is `-c 3, --threads 4`. Wflow parallelizes over grid
+**cells**, so a real basin gains from threads in a way the fixture cannot show,
+and the `-c N × julia_threads <= logical CPUs` budget probably wants rebalancing
+toward threads at production scale. That is a **measurement**, not an inference —
+do not change it on the strength of this note.
+
+---
+
 ## Open questions
 
 Q1-Q4, Q6 and Q9 are closed in the decision sections above; Q5, Q8 and Q10 in

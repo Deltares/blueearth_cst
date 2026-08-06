@@ -588,6 +588,19 @@ Provenance: `dev/milestones/r07/migration_project-layout.md` §§7a–7d,
 
 ## Post-P3-3 (surfaced 2026-07-25 during the P3-3 batching milestone)
 
+- **[2026-08-06] The item below may not need solving — see CR-7 / F18** in
+  `dev/milestones/r09/wf3-change-requests.md`. Its *observation* is confirmed and
+  strengthened: `B` keys off sweep size when only per-run cost should set it. But
+  the same defect applies to the TIME economics, and more sharply — what batching
+  amortizes is a fixed ~81 s per member, worth 70% of a run on the seed fixture
+  and **2.2% at 1 h/run, 0.4% at 6 h/run**, which is the owner's stated production
+  scale (1–6 h per run, 3–5 rlz × 25 cst). At K≈125 the default clamps to B=8,
+  buying ~1.9% wall-clock for up to **seven completed runs** discarded on one
+  failure — 42 h of compute at 6 h/run. **C35 proposes defaulting to B=1 with
+  batching opt-in**, which removes the `B` from `p × B × (forcing + state)` and
+  leaves no cap to compute. Rule on C35 before investing in the disk estimator
+  below.
+
 - **Make the wf3 batch-size default genuinely disk-aware.** Design §6.1 names
   three ceilings on `B` and calls the **disk ceiling the BINDING constraint** on
   large `RLZ_NUM×ST_NUM` runs, capped so `p × B × (forcing_size + state_size)`
