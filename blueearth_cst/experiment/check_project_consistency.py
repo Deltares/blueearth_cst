@@ -4,7 +4,7 @@ An experiment config is a *full* config (approach A). Its project-level
 sections (``project``, ``shared.basin``, ``workflows.model_creation``,
 ``workflows.climate_projections``) must describe the same project the built
 model / overlay came from — otherwise the experiment silently reuses a
-``hydrology_model/`` built under different settings. This rule (3.00b
+``models/hydrology/wflow/`` built under different settings. This rule (3.00b
 ``check_project_consistency``) runs at wf3 rule time and fails loud on
 divergence, naming the diverging key.
 

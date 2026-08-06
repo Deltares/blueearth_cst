@@ -68,6 +68,16 @@ P4 is restated accordingly. Two alternatives were rejected:
   to reclaim space, and its parts are merged-then-deleted by design, whereas this
   bundle is immutable and retained — and consumed.
 
+**Amendment 2026-08-05 — the ruling had already been violated when it was
+written.** `scripts/run_workflows.py` was writing one immutable invocation
+manifest per wrapper-driven run to `<project_dir>/provenance/runs/` — the exact
+seventh root this section rejects — and no R9 instrument reported it, because
+every tier of the inventory is Snakemake-derived and the wrapper is not a rule
+(see the map doc's *What the inventory does not cover*). Ruled the same day:
+the manifest is immutable and retained for the same reasons the snapshot is, so
+the same reasoning places it under `config/runs/invocations/`. Both rejected
+alternatives above apply to it unchanged.
+
 **Why the contract path decides it.**
 `config/runs/snake_config_model_creation.yml` is a **declared `input:`** of WF3's
 rule 3.00b drift guard, with its digest taken at parse time
@@ -305,8 +315,12 @@ code only with an argument.
 │   ├── project.yml                        # editable — NOT BUILT, see scope note
 │   ├── runs/                              # GENERATED  resolved configs +
 │   │   ├── snake_config_<workflow>.yml    #            digest-keyed bundles.
-│   │   └── <workflow>/<digest>/           #  ⚠ snake_config_model_creation.yml is a
-│   │                                      #    DECLARED INPUT of WF3's drift guard
+│   │   ├── <workflow>/<digest>/           #  ⚠ snake_config_model_creation.yml is a
+│   │   │                                  #    DECLARED INPUT of WF3's drift guard
+│   │   └── invocations/                   # GENERATED  one immutable manifest per
+│   │                                      #  run_workflows.py invocation (2026-08-05).
+│   │                                      #  A SIBLING of <workflow>/, not a fourth
+│   │                                      #  entry in it: an invocation spans workflows
 │   ├── catalogs/                          # GENERATED  snapshots of catalogs used
 │   ├── templates/                         # GENERATED  snapshots of templates used
 │   └── observations/                      # GENERATED  snapshots of obs inputs

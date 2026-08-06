@@ -1,0 +1,52 @@
+# Sealed records — documents that must not be edited.
+#
+# A SEALED RECORD is a document kept because it is the baseline some past
+# milestone's commits were checked against. Its value is that it is UNEDITED:
+# rewriting it destroys the record it exists to be. Migrating its paths is worse
+# than leaving it alone, because a freshened-looking stale document reads as
+# current while its line numbers, rule names and module paths still lie (R9 P5
+# F2 — the WF2 doc was migrated wholesale before its banner was noticed, and had
+# to be fully reverted).
+#
+# Registering a document here does two things:
+#   1. `tests/test_sealed_records.py` asserts it still carries its banner and
+#      still hashes to `sha256`, so an edit fails a test rather than landing;
+#   2. it makes the set of sealed documents READABLE, which is the half no test
+#      can supply — a test cannot infer that a document is a record.
+#
+# WHAT THIS DOES NOT DO. It cannot catch a document that should be sealed and is
+# not; that is a judgment made at milestone close (see AGENTS.md, Conventions).
+# `climate_experiment.md` went four milestones without a banner precisely
+# because nothing knew it was a record. Adding the entry is the human step.
+#
+# TO SEAL A DOCUMENT
+#   1. Add the banner to its head (see the shape the test enforces, below).
+#   2. Append an entry here, then fill `sha256` from:
+#
+#        pixi run python -c "import hashlib,pathlib,sys; p=pathlib.Path(sys.argv[1]); print(hashlib.sha256(p.read_text(encoding='utf-8').replace(chr(13)+chr(10),chr(10)).replace(chr(13),chr(10)).encode('utf-8')).hexdigest())" <path>
+#
+# THE HASH IS NEWLINE-NORMALIZED, not a hash of the file's bytes. `.gitattributes`
+# marks `*.md` as `text`, so the repo stores LF and Windows checks out CRLF; a
+# byte hash would pass locally and fail on CI's ubuntu runner, or the reverse.
+#
+# BANNER SHAPE the test enforces, in the document's first 12 lines:
+#
+#     > **SUPERSEDED — <what it describes and what superseded it> (sealed YYYY-MM-DD).**
+#
+# The date must equal this file's `sealed` field, so the two sources cross-check
+# rather than each asserting only that some text exists somewhere.
+
+sealed_records:
+  - path: dev/reference/workflows/climate_projections.md
+    sealed: 2026-07-31
+    superseded_by: R8 WF2 rework
+    current_truth: dev/reference/workflows/wf2_climate_projections_overview.md
+    why: the baseline the R4 commits were checked against
+    sha256: 203c94cc4b0bc1d61c279c285e8c16381f2819987ed6a46116ac2105228e67dd
+
+  - path: dev/reference/workflows/climate_experiment.md
+    sealed: 2026-08-05
+    superseded_by: P3-1, R7 and R9
+    current_truth: Snakefile_climate_experiment
+    why: the baseline the R5 commits were checked against
+    sha256: 93d7d07efa2821277cb4b9c0ee22adf1c580df274a2233add3f569071c231c2d

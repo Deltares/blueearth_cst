@@ -22,7 +22,7 @@ step 3). Run it against a restored build during implementation and paste the
 report into dev/decisions/0001-restore-wflow-constant-parameters/baseline_diffs.md.
 
     python dev/scripts/verify_constant_pars.py \
-        --model-dir examples/test_local/hydrology_model \
+        --model-dir test_case/test_local/models/hydrology/wflow \
         --config dev/decisions/0001-restore-wflow-constant-parameters/config_restored.yml
 
 Exit 0 iff every expected constant landed as a correct scalar with no shadowing.
@@ -85,7 +85,7 @@ def main() -> int:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     p.add_argument("--model-dir", type=Path,
-                   default=Path("examples/test_local/hydrology_model"),
+                   default=Path("test_case/test_local/models/hydrology/wflow"),
                    help="Built model dir (holds wflow_sbm.toml + staticmaps.nc)")
     p.add_argument("--config", type=Path,
                    default=Path("dev/decisions/0001-restore-wflow-constant-parameters/config_restored.yml"),

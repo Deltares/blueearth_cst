@@ -68,7 +68,7 @@ def _snakefiles_invoked(calls):
 
 def _manifests(project_dir: Path) -> list[Path]:
     """Return wrapper manifests in deterministic filename order."""
-    return sorted((project_dir / "provenance" / "runs").glob("*.json"))
+    return sorted((project_dir / "config" / "runs" / "invocations").glob("*.json"))
 
 
 def _read_only_manifest(project_dir: Path) -> dict:

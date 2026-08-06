@@ -10,24 +10,60 @@
 # two instances that make the shape legible, not the full fan-out.
 #
 # Provenance: seeded 2026-07-29 from the real completed run in
-# test_case/test_local. Re-check against a fresh run before trusting it.
+# test_case/test_local, and REDERIVED from that same tree on 2026-08-05 during
+# the R9 stale-path sweep. Every entry below was checked to exist — or, where
+# marked CONDITIONAL, to be explained by a config the fixture does not set.
+# Four entries from the 2026-07-29 seed did not survive that check; they are
+# recorded at the foot of this file rather than silently dropped.
+# Re-check against a fresh run before trusting it.
 
 wf1:
-  # plot_results' config-dependent figures — O-24 declares only the
-  # config-invariant subset (Snakefile_model_creation, rule plot_results).
-  - hydrology_model/evaluation/plots/signatures_wflow_1.png
+  # plot_results' per-station fan-out. Rule 1.11 declares only station 1
+  # (hydro_wflow_1.png, clim_wflow_1_{month,year}.png); every other station is
+  # written but undeclared (O-24, Snakefile_model_creation rule plot_results).
+  - models/hydrology/wflow/evaluation/plots/clim_wflow_102_month.png
+  - models/hydrology/wflow/evaluation/plots/clim_wflow_102_year.png
+  # CONDITIONAL: signatures_<station>.png also needs observations AND a run
+  # longer than a year (plot_results.py `do_signatures`), so it is absent from
+  # the fixture — which sets no observations — but present on a basin that has
+  # them. Kept because the scaffold exists to show tree SHAPE.
+  - models/hydrology/wflow/evaluation/plots/signatures_wflow_1.png
   # Wflow.jl's own run outputs; only run_default/output.csv is declared.
-  - hydrology_model/run_default/outstates.nc
-  - hydrology_model/run_default/output_scalar.nc
+  - models/hydrology/wflow/run_default/log.txt
+  - models/hydrology/wflow/run_default/outstate/outstates.nc
+  - models/hydrology/wflow/run_default/wflow_sbm.toml
   # hydromt build artifacts alongside the declared staticmaps.nc.
-  - hydrology_model/staticgeoms/basins.geojson
-  - hydrology_model/staticgeoms/rivers.geojson
-  - hydrology_model/wflow_sbm.toml
-  - hydrology_model/hydromt.log
+  - models/hydrology/wflow/staticgeoms/basins.geojson
+  - models/hydrology/wflow/staticgeoms/rivers.geojson
+  - models/hydrology/wflow/wflow_sbm.toml
+  - models/hydrology/wflow/hydromt.log
 
 wf2: []
 
 wf3:
   # weathergenr's R-written diagnostics (Rscript shell: body — invisible to the DAG).
-  - experiments/experiment/weather_generator/plots/weathergen_diagnostics.png
-  - experiments/experiment/weather_generator/_work/rlz_1_config.yml
+  - experiments/experiment/climate/weathergenr/plots/obs_power_spectra.png
+  - experiments/experiment/climate/weathergenr/plots/warm_annual_precip.png
+
+# --- Entries retired 2026-08-05, with the reason -----------------------------
+#
+# Recorded rather than deleted: an overlay entry that turns out not to exist is
+# evidence about the tree, and the next person tempted to add it back should see
+# why it went. All four were seeded on 2026-07-29 and are contradicted by the
+# same fixture they were seeded from.
+#
+#   hydrology_model/run_default/outstates.nc
+#       Wrong depth. Wflow writes the state under run_default/outstate/, so the
+#       real path is run_default/outstate/outstates.nc (listed above).
+#   hydrology_model/run_default/output_scalar.nc
+#       Not written by this config: `wflow_outvars` is discharge-only in the
+#       test config, so no scalar output is configured.
+#   experiments/<id>/weather_generator/plots/weathergen_diagnostics.png
+#       No such filename. weathergenr writes obs_power_spectra.png and
+#       warm_annual_{precip,stats,wavelet}.png (two listed above).
+#   experiments/<id>/weather_generator/_work/rlz_1_config.yml
+#       No such filename. It named the per-member generator configs, which rule
+#       3.05 emitted as _work/weathergen_config_rlz_<r>_cst_<c>.yml -- declared,
+#       so an overlay entry would have doubled them. C29 has since retired that
+#       rule outright (the files carried no per-member data), so the class the
+#       entry pointed at no longer exists at all.

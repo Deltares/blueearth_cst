@@ -397,6 +397,11 @@ if __name__ == "__main__":
                     "cst_calendar": raw_calendar,
                 }
             )
+            # The series inherits the raw slice's global attrs, so it inherits
+            # the same single-source CMIP6 provenance a merge cannot own. Drop
+            # it here too: a series written from a pre-fix raw slice would
+            # otherwise carry it forward (R9 P2 F4).
+            series_identity.drop_inherited_single_source_attrs(nc_mean_stats_time)
 
             log_row(f"writing series to {os.path.basename(series_nc_out)}", module="stats")
             os.makedirs(os.path.dirname(series_nc_out), exist_ok=True)

@@ -20,7 +20,10 @@ yaml <- yaml::read_yaml(weagen_config_path)
 
 # Parse global parameters from the yaml configuration file
 historical_realizations_num <- yaml$generateWeatherSeries$realizations_num
-# R07 B5: `output.path` is the weather_generator/ ROOT, not a write directory.
+# `output.path` is the generator subtree ROOT --
+# experiments/<id>/climate/weathergenr/ -- not a write directory (R07 B5 set
+# the split; R9 P2 moved the subtree under climate/ and gave it the engine's
+# own name).
 # weathergenr::generate_weather writes BOTH its diagnostic figures and its two
 # date CSVs into a single out_dir; the R07 layout separates products from
 # figures, so the split is done here -- on our side of the seam -- rather than
@@ -85,8 +88,9 @@ for (n in 1:historical_realizations_num) {
   # Obtain stochastic series by re-ordering historical data
   stochastic_rlz <- lapply(ncdata$data, function(x) x[day_order, ])
 
-  # save to netcdf. R07 B5 dissolves realization_<n>/: every realization NC
-  # lands flat in weather_generator/output/, its index carried by the file name.
+  # save to netcdf. Every realization NC lands flat in
+  # climate/weathergenr/output/, its index carried by the file name -- R07 B5
+  # dissolved the realization_<n>/ level, R9 P2 renamed the subtree.
   rlz_out_dir <- weathergen_output_path
   weathergenr::write_netcdf(
         data          = stochastic_rlz,

@@ -716,8 +716,8 @@ def slugify_window(start, end) -> str:
 
     Builds the dataset-store key component for the wf3 historical-climate store
     (dev/milestones/p31/experiment-structure-design.md §4/§4c/§4d). The store dir is
-    ``climate_historical/<clim_source>_<start>_<end>/`` where ``<start>``/``<end>``
-    are this function's output. The window endpoints are ISO
+    ``data/climate/historical/<clim_source>_<start>_<end>/`` where
+    ``<start>``/``<end>`` are this function's output. The window endpoints are ISO
     ``YYYY-MM-DDTHH:MM:SS``; ``:`` is illegal in Windows paths, so time-of-day and
     separators are stripped to ``YYYYMMDD``.
 
@@ -943,14 +943,15 @@ def climate_store_spec(
     hydrography=DEFAULT_HYDROGRAPHY,
     basin_index=DEFAULT_BASIN_INDEX,
 ) -> ClimateStoreSpec:
-    """Build the one producer contract for ``climate_historical/<key>/`` (R07 B1).
+    """Build the one producer contract for ``data/climate/historical/<key>/``
+    (R07 B1).
 
     ONE rule definition, declared in **both** ``Snakefile_model_creation``
     (rule 1.10) and ``Snakefile_climate_experiment`` (rule 3.02), over the
     model-independent region specification + data catalog. wf1's `wf1_raw/`
     store and its `staticmaps.nc`-derived bbox are retired: the extent is now a
     pure function of ``shared.basin`` + the catalog, so a climate-only run needs
-    no ``hydrology_model/`` on disk and a region change re-extracts through
+    no ``models/hydrology/wflow/`` on disk and a region change re-extracts through
     Snakemake's params rerun-trigger (design § B1).
 
     **The input set is exactly one entry — the catalog — in both DAGs.** An
@@ -965,7 +966,7 @@ def climate_store_spec(
     ----------
     project_dir : str
         ``project.project_dir``; the store lands under
-        ``<project_dir>/climate_historical/``.
+        ``<project_dir>/data/climate/historical/``.
     model_region : str | Mapping
         ``shared.basin.region`` — the hydromt region specification (usually a
         Python-dict-literal string). Carried in ``params``, never resolved here.
@@ -1662,8 +1663,8 @@ def target_banner(number, name, targets, project_dir=None):
     Indented four spaces to sit where Snakemake's own ``input:`` values sit.
 
     With ``project_dir`` the targets print RELATIVE to it, which is what makes a
-    deep tree legible — ``climate_projections/cmip6/summary/x.csv`` rather than
-    the same path behind 40 characters of absolute prefix. The root is then
+    deep tree legible — ``data/climate/projections/cmip6/summary/x.csv`` rather
+    than the same path behind 40 characters of absolute prefix. The root is then
     appended to the banner in brackets, because a relative path with no stated
     root is ambiguous: the reader must still be able to reconstruct the full
     path, and one root on one line beats repeating it nine times. Without
