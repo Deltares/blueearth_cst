@@ -99,7 +99,7 @@ items below and in ADR 0003. The landing order it recommended, adopted:
 | 4 | ~~`[R10-6]` §8–10 — the vector/raster split~~ **DONE 2026-08-06** (rules `1.01c` / `2.03c` / `3.01f`; nine WF1 artifacts byte-identical; ADR §8–10 now **accepted**). Baseline gate still open | changes the rule count of all three workflows |
 | 5 | ~~`[R10-6]` §11a then §11b~~ **DONE 2026-08-06 as ONE landing** — measurement collapsed the split: the fixture's partition saturates at 5 subbasins from ceiling 5 up, so §11b moves nothing and only the key rename shows. Baseline re-record owed (3 config-snapshot entries) | §11b turned out NOT to be a baseline event on this fixture |
 | 6 | R10 renames + `[R10-5]` renumber + `[R10-7]` + `[R10-10]` | against a rule set that is finally stable; regenerate the number map from it. `[R10-10]` rides here because it and `[R10-9]`'s ordering assertion touch the same test file |
-| — | `[R10-11]` tree-check on a post-migration tree | no sequencing dependency, but do it BEFORE the next milestone leans on `tree-check` as a gate — it reports red on every correct tree today |
+| — | ~~`[R10-11]` tree-check on a post-migration tree~~ **DONE 2026-08-06** — post-migration inventory is the default; 186/186 identity on the live tree | done before step 6, so the sweep has a working tree-shape gate while it runs |
 | 7 | ~~`[R10-6]` §12~~ **DONE 2026-08-06** — landed with §11's re-record still pending, so ONE re-record now covers both | standalone, last; re-record owed |
 
 **This resolves the double-renumber contradiction.** `[R10-6]` says land the
@@ -358,9 +358,17 @@ that awkwardness.
   property by different parsers is how they came to disagree. Do it during
   `[R10-9]`'s ordering extension, which touches that file anyway.
 
-- **[R10-11] `pixi run tree-check` cannot pass on a correctly-migrated tree.**
-  *Found 2026-08-06 at the `[R10-6]` baseline gate; pre-existing, not caused by
-  it.* `AGENTS.md` documents the command as a standing check — "Snapshot a
+- **[R10-11] ~~`pixi run tree-check` cannot pass on a correctly-migrated tree.~~
+  FIXED 2026-08-06.** `dev/scripts/semantic_tree_diff.py::build_project_tree_rules`
+  is the post-migration inventory and is now `tree-check`'s DEFAULT; the one-way
+  migration map stays reachable as `--map r09`. Verified on the live tree:
+  **186 paths, 186 identity, 0 unmapped, exit 0** — against 153 unmapped before.
+  `tests/test_project_tree_inventory.py` covers it, and its second half is the
+  load-bearing one: twelve undeclared artifacts, each under a root the inventory
+  DOES cover, must still report UNMAPPED, so a prefix written one level too
+  broad fails the test rather than emptying the report.
+
+  *Original diagnosis follows.* `AGENTS.md` documents the command as a standing check — "Snapshot a
   project tree as a path list and check every path against the R9 path map" —
   and it exits 1 on every tree that is in the layout R9 delivered.
 
