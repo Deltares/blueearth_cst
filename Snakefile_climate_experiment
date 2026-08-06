@@ -100,7 +100,7 @@ clim_source = get_config(shared_cfg, "clim_historical", optional=False)
 
 # Region specification for the store's model-free delineation (R07 B1). The two
 # hydrography keys are OPTIONAL; defaults equal the shipped build template's
-# setup_basemaps values, so absent keys leave rule 3.00b's guard digest
+# setup_basemaps values, so absent keys leave rule 3.01's guard digest
 # byte-identical. shared.basin is a guarded section, so an experiment config
 # whose values diverge from the wf1 snapshot fails the drift guard.
 basin_cfg = shared_cfg["basin"]
@@ -116,7 +116,7 @@ historical_window_cfg = get_config(shared_cfg, "historical_window", optional=Fal
 
 # --- The shared historical-climate store (R07 B1) -----------------------------
 # ONE producer contract, built here and identically in Snakefile_model_creation,
-# and splatted into rule 3.02 / rule 1.10. The store stays a PROJECT-LEVEL,
+# and splatted into rule 3.08 / rule 1.04. The store stays a PROJECT-LEVEL,
 # dataset+window-keyed dir (design §4/§4c/§4d): two experiments sharing
 # clim_historical + historical_window resolve to the same key and reuse the
 # extraction, and climate_store_rule's slugify_window call enforces the
@@ -135,7 +135,7 @@ store_dir = CLIMATE_STORE.store_dir
 
 # --- The one project region artifact (ADR 0003) -------------------------------
 # ONE producer contract, built here and identically in the other two workflows,
-# and splatted into rule 3.01b below. Only message/log/benchmark are
+# and splatted into rule 3.03 below. Only message/log/benchmark are
 # workflow-local; tests/test_region_rule.py parses all three workflows and fails
 # on ANY other difference.
 REGION = region_rule(
@@ -148,7 +148,7 @@ REGION = region_rule(
 
 # --- The shared vector foundation (ADR 0003 §8) -------------------------------
 # Third shared producer contract, same pattern: built here and identically in
-# the other two workflows, splatted into rule 3.01f below, and
+# the other two workflows, splatted into rule 3.04 below, and
 # tests/test_spatial_units_rule.py fails on ANY difference beyond
 # message/log/benchmark.
 #
@@ -159,7 +159,7 @@ REGION = region_rule(
 #
 # NOTE the scope mismatch, ruled 2026-08-06: everything else in WF3_TARGETS is
 # experiment-scoped, and this one is not. The vectors are a property of the
-# PROJECT (they depend on `shared.basin` alone, which rule 3.00b guarantees
+# PROJECT (they depend on `shared.basin` alone, which rule 3.01 guarantees
 # agrees across workflows), so two experiments on one project share one copy —
 # which is what makes the shared declaration safe in the first place.
 #
@@ -177,7 +177,7 @@ wflow_run_length = get_config(my_cfg, "run_length", 20)
 
 # R9 P2 commit 1: must match WF1's definition exactly — WF3 READS the model root
 # WF1 wrote, so the two move in the same commit or the cross-workflow contract
-# breaks mid-migration. Not a config value, so rule 3.00b's guard digest (which
+# breaks mid-migration. Not a config value, so rule 3.01's guard digest (which
 # serializes config sections only) is unaffected.
 basin_dir = f"{project_dir}/models/hydrology/wflow"
 # Per-experiment root (design §2/§2a): every wf3-owned output that was
@@ -217,8 +217,8 @@ CONFIG_SNAPSHOT_DIR = (
 # CURRENT SHAPE. Each engine owns its own config, working and product
 # directories, and ONE MEMBER IS ONE FILENAME (`rlz_<r>_cst_<c>`) rather than a
 # directory level:
-#   climate/weathergenr/config/  the generator's own config snapshot (rule 3.04)
-#   climate/weathergenr/_work/   the cst_<c>.csv perturbation grid (3.03) --
+#   climate/weathergenr/config/  the generator's own config snapshot (rule 3.10)
+#   climate/weathergenr/_work/   the cst_<c>.csv perturbation grid (3.09) --
 #                                demoted for legibility, RETAINED on disk: it is
 #                                the only record of the precip_variance axis and
 #                                of the monthly structure the reduction
@@ -230,7 +230,7 @@ CONFIG_SNAPSHOT_DIR = (
 #   climate/weathergenr/plots/   weathergenr's diagnostic figures
 #   hydrology/wflow/{config,forcing,output}/  three FLAT directories, each
 #                                holding rlz_<r>_cst_<c>.* for every member.
-# inmaps_rlz_* are wflow-GRID downscaled forcing (rule 3.09) -- the per-
+# inmaps_rlz_* are wflow-GRID downscaled forcing (rule 3.14) -- the per-
 # realization twin of models/hydrology/wflow/forcing/inmaps_historical.nc -- so
 # they belong to the hydrology side, not to climate/weathergenr/output/.
 #
@@ -258,7 +258,7 @@ exp_catalog = f"{exp_dir}/config/catalogs/data_catalog_climate_experiment.yml"
 results_dir = f"{exp_dir}/results"
 
 # --- Drift-guard comparands (dev/milestones/p31/experiment-structure-design.md §3b/§3c) ---
-# Rule 3.00b check_project_consistency compares this experiment config's
+# Rule 3.01 check_project_consistency compares this experiment config's
 # project-level sections against the wf1/wf2 project snapshots. Snakemake's
 # default params rerun-trigger re-runs the guard when any of these param values
 # changes (probe-verified, design §3c), so every comparand is threaded through
@@ -300,66 +300,77 @@ wf2_snapshot_path = f"{project_dir}/config/runs/snake_config_climate_projections
 wf1_snapshot_digest = file_digest_or_absent(wf1_snapshot_path)
 wf2_snapshot_digest = file_digest_or_absent(wf2_snapshot_path)
 
-# Rule numbering (comment headers + log/benchmark filenames) uses `W.NN` =
-# workflow.step in DEFINITION order — a reference aid ("Rule 3.10" = run_wflow),
-# not execution order (the DAG fans out over RLZ_NUM x ST_NUM realizations).
-# Convention: dev/reference/naming.md.
+# Rule numbering (comment headers + log/benchmark filenames) uses `W.NN` = the
+# rule's position in this workflow's LOGICAL order — guard and provenance, then
+# climate data, then the model run, then records. Contiguous, and every
+# dependency points from a lower number to a higher one. Positional since
+# [R10-5] (2026-08-06); it used to be a stable identifier assigned at rule
+# creation, which is why five letter suffixes had stacked up beside 3.01.
+#
+# STILL A READING AID, NOT EXECUTION ORDER — the DAG fans out over
+# RLZ_NUM x ST_NUM realizations, so low-to-high says "cannot depend on", not
+# "runs before". Definition order in this file is not the number order and is
+# not required to be (3.04 is still declared after 3.07, where its letter suffix
+# put it). Read the numbers, not the file order.
+#
+# DO NOT RENUMBER TO INSERT A RULE. Use a letter suffix (3.09b) until the next
+# deliberate sweep. Convention: dev/reference/naming.md §9; full map:
+# dev/reference/workflows/rule-index.md § What changed.
 
 # --- log layout ---------------------------------------------------------------
 # EVERY WF3 rule that logs writes a PART under <exp_dir>/logs/_parts/, and rule
-# 3.13 merges the parts into ONE <exp_dir>/logs/wf3_climate_experiment.log, then
+# 3.18 merges the parts into ONE <exp_dir>/logs/wf3_climate_experiment.log, then
 # deletes them. So the only file left in the experiment's logs/ after a full run
-# is that merged log — matching WF1 (1.16) and WF2 (2.07), and the deal
+# is that merged log — matching WF1 (1.17) and WF2 (2.09), and the deal
 # benchmarks/wf3_benchmarks.md already had.
 #
 # LOG_RULES is the merge order: rule LABELS, not part paths. merge_logs lists each
-# label's part dir to find its members, which matters most here: 3.07/3.09 fan
-# out over RLZ_NUM x ST_NUM and 3.10 over the batch split, so an explicit part
+# label's part dir to find its members, which matters most here: 3.12/3.14 fan
+# out over RLZ_NUM x ST_NUM and 3.15 over the batch split, so an explicit part
 # list would re-derive ST_START, RLZ_NUM and the `_batches` arithmetic in a second
 # place that could drift from the rules that own it. Discovery is scoped to these
 # labels, so it is not a blind glob: an orphan dir from a renamed rule is not a
-# label and is never read. Order is by RULE NUMBER, matching the rule map and
-# benchmarks/wf3_benchmarks.md. 3.01 snapshot_config declares no `log:`.
+# label and is never read.
+#
+# ORDER IS BY RULE NUMBER, and since [R10-5] that is also dependency order.
+# tests/test_log_rules_contract.py asserts it. 3.02 snapshot_config declares no
+# `log:`, and neither gather rule does.
+#
+# TWO INSTANCES OF ONE DEFECT ARE FIXED HERE, both worth knowing because neither
+# raised. The region rule was missing from this list, exactly as it was missing
+# from WF1's until 2026-08-04: it is splatted into all three workflows from one
+# producer contract, but each workflow owns its own `log:` label and its own
+# LOG_RULES, so registering it is a per-file obligation the shared definition
+# does not carry. And the per-member weathergen-config rule C29 deleted left its
+# label behind, which contributes an empty "no part from this run" section
+# forever. Both directions are now mechanically checked for all three workflows.
+#
+# 3.08 is the SHARED store rule (= WF1's 1.04). Run in pipeline order WF1 builds
+# the store and WF3 finds it current, so that section usually reads "no part from
+# this run". Listed anyway: WF3 standalone does build it, and an unlisted part
+# would be neither merged nor cleaned up.
+#
+# 3.15's label is the SINGULAR `3.15_run_wflow` while its rule identifiers are
+# `run_wflow_batch_<b>`, one per batch. Deliberate (P3-3 keys logs by batch id),
+# and it survives renumbering — do not "fix" it.
 WORKFLOW_LOG_NAME = "wf3_climate_experiment.log"
 LOG_PARTS_DIR = f"{exp_dir}/logs/_parts"
 LOG_RULES = [
-    "3.00b_check_project_consistency",
-    # 3.01b was MISSING here, exactly as 1.01b was missing from WF1's list until
-    # 2026-08-04 (phase-1 report F7). The region rule is splatted into all three
-    # workflows from one producer contract, but each workflow owns its own
-    # `log:` label and its own LOG_RULES -- so P1's fix covered WF1 only and the
-    # WF2/WF3 copies kept silently dropping their section and stranding their
-    # part. WF2's 2.03b is the same defect and is NOT fixed here: that Snakefile
-    # is outside P4's permitted scope (phase-4 report).
-    "3.01b_delineate_region",
-    "3.01c_write_model_reference",
-    "3.01d_check_model_reference",
-    "3.01e_write_experiment_config",
-    # 3.01f, not 3.01c: the letters beside 3.01 were already taken, and
-    # renumbering is R10-5's job, not this one's. NOTE: no closing square
-    # bracket anywhere inside this list, deliberately -- test_model_reference.py
-    # slices the block from "LOG_RULES = " to the first one, so a
-    # followups-style reference such as R10-5 in brackets silently truncates the
-    # label set it reads and the whole tail reads as unregistered.
-    "3.01f_delineate_spatial_units",
-    # 3.02 is the SHARED store rule (= WF1's 1.10). Run in pipeline order WF1
-    # builds the store and WF3 finds it current, so this section usually reads
-    # "no part from this run". Listed anyway: WF3 standalone does build it, and
-    # an unlisted part would be neither merged nor cleaned up.
-    "3.02_extract_historical_climate",
-    "3.03_prepare_stress_test_grid",
-    "3.04_prepare_weathergen_config",
-    # 3.05 removed with its rule (C29). Dropping the label matters as much as the
-    # rule: merge_logs discovers a section by listing the dir named after its
-    # label, so a label with no producer would silently contribute an empty
-    # section forever -- the mirror of the missed-rename hazard R10's design
-    # records for this same list.
-    "3.06_generate_weather_realizations",
-    "3.07_perturb_climate_realization",
-    "3.08_write_climate_data_catalog",
-    "3.09_downscale_climate_realization",
-    "3.10_run_wflow",
-    "3.11_derive_wflow_indicators",
+    "3.01_check_project_consistency",
+    "3.03_delineate_region",
+    "3.04_delineate_spatial_units",
+    "3.05_write_model_reference",
+    "3.06_check_model_reference",
+    "3.07_write_experiment_config",
+    "3.08_extract_historical_climate",
+    "3.09_prepare_stress_test_grid",
+    "3.10_prepare_weathergen_config",
+    "3.11_generate_weather_realizations",
+    "3.12_perturb_climate_realization",
+    "3.13_write_climate_data_catalog",
+    "3.14_downscale_climate_realization",
+    "3.15_run_wflow",
+    "3.16_derive_wflow_indicators",
 ]
 
 # 3.00  all — target aggregator: the two experiment indicator tables
@@ -374,7 +385,7 @@ WF3_TARGETS = {
     "model_reference": f"{exp_dir}/config/model_reference.yml",
     "experiment_config": f"{exp_dir}/config/experiment.yml",
     # ADR 0003 §8, and the one PROJECT-scoped entry in this otherwise
-    # experiment-scoped set (see the SPATIAL_UNITS block above). Rule 3.01f has
+    # experiment-scoped set (see the SPATIAL_UNITS block above). Rule 3.04 has
     # no WF3 consumer yet (§10), so a target entry is what makes it reachable;
     # one representative schedules the whole multi-output rule. It is a gather
     # input below too, or the leaf would run parallel to the merge and strand
@@ -389,7 +400,7 @@ rule all:
     input:
         **WF3_TARGETS,
 
-# 3.00b check_project_consistency — drift guard: fail loud if this experiment
+# 3.01 check_project_consistency — drift guard: fail loud if this experiment
 # config's project-level sections (project, shared.basin,
 # workflows.model_creation, workflows.climate_projections) diverge from the
 # wf1/wf2 project snapshots. Runs at rule time (not parse) so --dry-run and
@@ -405,7 +416,7 @@ rule all:
 # for every experiment sharing dataset+window, so the shared rule's input set is
 # invariant across those experiments.
 rule check_project_consistency:
-    message: rule_banner("3.00b", "check_project_consistency")
+    message: rule_banner("3.01", "check_project_consistency")
     input:
         wf1_snapshot = ancient(wf1_snapshot_path),
     params:
@@ -418,15 +429,15 @@ rule check_project_consistency:
         sentinel = f"{exp_dir}/.project_consistency_ok",
         guard_ok = f"{store_dir}/.guard_ok",
     log:
-        f"{LOG_PARTS_DIR}/3.00b_check_project_consistency.log",
+        f"{LOG_PARTS_DIR}/3.01_check_project_consistency.log",
     benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.00b_check_project_consistency.tsv",
+        f"{exp_dir}/benchmarks/_parts/3.01_check_project_consistency.tsv",
     script:
         "blueearth_cst/experiment/check_project_consistency.py"
 
-# 3.01  snapshot_config — current copies + immutable effective-config bundle
+# 3.02  snapshot_config — current copies + immutable effective-config bundle
 rule snapshot_config:
-    message: rule_banner("3.01", "snapshot_config")
+    message: rule_banner("3.02", "snapshot_config")
     input:
         config_snake = config_path,
         consistency_ok = f"{exp_dir}/.project_consistency_ok",
@@ -444,10 +455,10 @@ rule snapshot_config:
     script:
         "blueearth_cst/model/copy_config_files.py"
 
-# 3.01b  delineate_region — the one project region artifact (ADR 0003).
+# 3.03  delineate_region — the one project region artifact (ADR 0003).
 # Byte-identical to the other two declarations except message/log/benchmark.
 rule delineate_region:
-    message: rule_banner("3.01b", "delineate_region")
+    message: rule_banner("3.03", "delineate_region")
     input:
         **REGION.inputs,
     params:
@@ -455,12 +466,12 @@ rule delineate_region:
     output:
         **REGION.outputs,
     log:
-        f"{LOG_PARTS_DIR}/3.01b_delineate_region.log",
+        f"{LOG_PARTS_DIR}/3.03_delineate_region.log",
     benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.01b_delineate_region.tsv",
+        f"{exp_dir}/benchmarks/_parts/3.03_delineate_region.tsv",
     script: REGION.script
 
-# 3.01c  write_model_reference — record WHICH model state this experiment used
+# 3.05  write_model_reference — record WHICH model state this experiment used
 # (R9 P4, design *Model reproducibility contract*). There is one mutable live
 # model and experiments are long-lived, so without this an old experiment can be
 # re-run against rebuilt physics or state and no one is told.
@@ -469,13 +480,13 @@ rule delineate_region:
 # digest, and the per-input hashes the digest was built from so a later mismatch
 # can NAME the changed input.
 #
-# `.outputs_configured` is rule 1.05's completion sentinel, declared ancient()
+# `.outputs_configured` is rule 1.09's completion sentinel, declared ancient()
 # for ORDERING only -- it means "every writer of the model root is done", which
 # is the same anchor P2 used to fix rule 1.12's race. ancient() so the reference
 # is not re-written by a timestamp touch on a model this experiment already
 # recorded.
 rule write_model_reference:
-    message: rule_banner("3.01c", "write_model_reference")
+    message: rule_banner("3.05", "write_model_reference")
     input:
         model_ready = ancient(f"{basin_dir}/.outputs_configured"),
         model_toml = ancient(f"{basin_dir}/wflow_sbm.toml"),
@@ -485,40 +496,40 @@ rule write_model_reference:
     output:
         model_reference = f"{exp_dir}/config/model_reference.yml",
     log:
-        f"{LOG_PARTS_DIR}/3.01c_write_model_reference.log",
+        f"{LOG_PARTS_DIR}/3.05_write_model_reference.log",
     benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.01c_write_model_reference.tsv",
+        f"{exp_dir}/benchmarks/_parts/3.05_write_model_reference.tsv",
     script: "blueearth_cst/experiment/write_model_reference.py"
 
-# 3.01d  check_model_reference — refuse to simulate against a changed model.
+# 3.06  check_model_reference — refuse to simulate against a changed model.
 #
 # ORDERING IS THE WHOLE GUARD. A check that runs after the work is a post-mortem:
 # the forcing would already be downscaled and the members already run, against
 # physics the experiment never recorded. So this rule's sentinel is a declared
-# input of rule 3.09, the FIRST rule that touches the model, and the brief's
+# input of rule 3.14, the FIRST rule that touches the model, and the brief's
 # rollback rule applies if it cannot be made to fire there.
 #
-# Why the reference does not simply follow the model: rule 3.01c declares its
+# Why the reference does not simply follow the model: rule 3.05 declares its
 # model inputs ancient(), so a rebuilt model does NOT re-trigger it. That is
 # load-bearing -- if the reference were rewritten whenever the model changed it
 # would always match, and this comparison would be decorative.
 #
-# A NEW sentinel, deliberately: rule 3.00b's sentinel paths carry the
+# A NEW sentinel, deliberately: rule 3.01's sentinel paths carry the
 # incremental-execution constraint and are approval-gated, so they are untouched.
 #
 # THE SENTINEL IS temp(), AND THAT IS THE GUARD'S TRIGGER. A persisted sentinel
-# satisfies rule 3.09's edge with a STALE VERDICT: the check passed once, the
-# file remains, and 3.09 is free to re-simulate against a model that changed
+# satisfies rule 3.14's edge with a STALE VERDICT: the check passed once, the
+# file remains, and 3.14 is free to re-simulate against a model that changed
 # afterwards. Detection was never the problem -- forced to run against a drifted
 # model the rule raises ModelDriftError naming the changed file. Triggering was.
 #
-# The exposure needs 3.09 to genuinely re-run: a different `-c` (the batch split
+# The exposure needs 3.14 to genuinely re-run: a different `-c` (the batch split
 # is core-derived, so the partition changes), deleted temp intermediates, a
 # retried failure, added realizations. On an untouched tree at the same `-c`
 # nothing re-runs at all, so a stale verdict is harmless there -- the hole is
 # real but narrower than "every re-run".
 #
-# Proven end to end at the R9 landing gate: model perturbed, 3.09 forced to
+# Proven end to end at the R9 landing gate: model perturbed, 3.14 forced to
 # re-run at the tree's own core count, run stopped at 1 of 34 steps with
 # ModelDriftError and no member simulated.
 #
@@ -527,12 +538,12 @@ rule write_model_reference:
 # here would duplicate what `model_digest` discovers through the TOML's own
 # pointers -- two lists to keep in step, which is the coupling the pointer
 # derivation exists to avoid. temp() sidesteps both. The verdict is deleted once
-# 3.09 has consumed it, so the NEXT invocation finds it absent and re-evaluates
+# 3.14 has consumed it, so the NEXT invocation finds it absent and re-evaluates
 # against whatever the digest currently covers.
 #
 # A guard evaluates; it does not cache an answer.
 rule check_model_reference:
-    message: rule_banner("3.01d", "check_model_reference")
+    message: rule_banner("3.06", "check_model_reference")
     input:
         model_reference = f"{exp_dir}/config/model_reference.yml",
         model_toml = ancient(f"{basin_dir}/wflow_sbm.toml"),
@@ -542,12 +553,12 @@ rule check_model_reference:
     output:
         ok = temp(touch(f"{exp_dir}/.model_reference_ok")),
     log:
-        f"{LOG_PARTS_DIR}/3.01d_check_model_reference.log",
+        f"{LOG_PARTS_DIR}/3.06_check_model_reference.log",
     benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.01d_check_model_reference.tsv",
+        f"{exp_dir}/benchmarks/_parts/3.06_check_model_reference.tsv",
     script: "blueearth_cst/experiment/check_model_reference.py"
 
-# 3.01e  write_experiment_config — the experiment's OWN parameters, recorded
+# 3.07  write_experiment_config — the experiment's OWN parameters, recorded
 # beside the model reference that records which model it used (design tree v10).
 #
 # Generated, never authored: a hand-written file here would be a second source
@@ -562,7 +573,7 @@ rule check_model_reference:
 # filesystem rather than declared as an input: declaring it would invert the
 # DAG, since this file is written long before the log.
 rule write_experiment_config:
-    message: rule_banner("3.01e", "write_experiment_config")
+    message: rule_banner("3.07", "write_experiment_config")
     input:
         consistency_ok = f"{exp_dir}/.project_consistency_ok",
     params:
@@ -572,20 +583,20 @@ rule write_experiment_config:
     output:
         experiment_config = f"{exp_dir}/config/experiment.yml",
     log:
-        f"{LOG_PARTS_DIR}/3.01e_write_experiment_config.log",
+        f"{LOG_PARTS_DIR}/3.07_write_experiment_config.log",
     benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.01e_write_experiment_config.tsv",
+        f"{exp_dir}/benchmarks/_parts/3.07_write_experiment_config.tsv",
     script: "blueearth_cst/experiment/write_experiment_config.py"
 
-# 3.01f  delineate_spatial_units — the shared vector foundation (ADR 0003 §8).
-# Byte-identical to 1.01c and 2.03c except message/log/benchmark.
+# 3.04  delineate_spatial_units — the shared vector foundation (ADR 0003 §8).
+# Byte-identical to 1.03 and 2.03 except message/log/benchmark.
 #
-# 3.01f, and defined HERE rather than beside 3.01b, because the rule numbers are
-# a reading aid in DEFINITION order and 3.01c/d/e were already taken by
+# 3.04, and defined HERE rather than beside 3.03, because the rule numbers are
+# a reading aid in DEFINITION order and 3.05/d/e were already taken by
 # write_model_reference, check_model_reference and write_experiment_config.
 # Renumbering them to put this rule beside the region is [R10-5]'s job.
 rule delineate_spatial_units:
-    message: rule_banner("3.01f", "delineate_spatial_units")
+    message: rule_banner("3.04", "delineate_spatial_units")
     input:
         **SPATIAL_UNITS.inputs,
     params:
@@ -593,13 +604,13 @@ rule delineate_spatial_units:
     output:
         **SPATIAL_UNITS.outputs,
     log:
-        f"{LOG_PARTS_DIR}/3.01f_delineate_spatial_units.log",
+        f"{LOG_PARTS_DIR}/3.04_delineate_spatial_units.log",
     benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.01f_delineate_spatial_units.tsv",
+        f"{exp_dir}/benchmarks/_parts/3.04_delineate_spatial_units.tsv",
     script: SPATIAL_UNITS.script
 
-# 3.02  extract_historical_climate — the SHARED historical-climate store producer
-# (R07 B1). This declaration and rule 1.10 in Snakefile_model_creation are the
+# 3.08  extract_historical_climate — the SHARED historical-climate store producer
+# (R07 B1). This declaration and rule 1.04 in Snakefile_model_creation are the
 # same rule: identical name, script, single catalog input, outputs and params,
 # all splatted from CLIMATE_STORE. Only message/log/benchmark are
 # workflow-local, and tests/test_climate_store_contract.py fails on ANY other
@@ -608,14 +619,14 @@ rule delineate_spatial_units:
 # The pre-R07 inputs are gone: ancient(staticgeoms/region.geojson) (the extent
 # is now model-free) and ancient({store_dir}/.guard_ok) (an asymmetric input set
 # re-triggers the producer on every wf1/wf3 alternation — design ext1-02). Rule
-# 3.00b is untouched and .guard_ok survives as the store-level receipt; only its
+# 3.01 is untouched and .guard_ok survives as the store-level receipt; only its
 # DAG edge retires. Store integrity moves to the params rerun-trigger (region,
 # hydrography, source, window all ride in params) and experiment gating stays
 # transitively enforced through the per-experiment sentinel chain
-# (3.00b -> 3.04 -> 3.06). The catalog input is PLAIN, not ancient(): it is the
+# (3.01 -> 3.10 -> 3.11). The catalog input is PLAIN, not ancient(): it is the
 # store's freshness boundary (ext2-01).
 rule extract_historical_climate:
-    message: rule_banner("3.02", "extract_historical_climate")
+    message: rule_banner("3.08", "extract_historical_climate")
     input:
         **CLIMATE_STORE.inputs,
     params:
@@ -623,35 +634,35 @@ rule extract_historical_climate:
     output:
         **CLIMATE_STORE.outputs,
     log:
-        f"{LOG_PARTS_DIR}/3.02_extract_historical_climate.log",
+        f"{LOG_PARTS_DIR}/3.08_extract_historical_climate.log",
     benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.02_extract_historical_climate.tsv",
+        f"{exp_dir}/benchmarks/_parts/3.08_extract_historical_climate.tsv",
     script:
         CLIMATE_STORE.script
 
-# 3.03  prepare_stress_test_grid — write the per-cst stress-test parameter grid
+# 3.09  prepare_stress_test_grid — write the per-cst stress-test parameter grid
 rule prepare_stress_test_grid:
-    message: rule_banner("3.03", "prepare_stress_test_grid")
+    message: rule_banner("3.09", "prepare_stress_test_grid")
     input:
         config = ancient(config_path),
         consistency_ok = f"{exp_dir}/.project_consistency_ok",
     output:
         st_csv_fns = [f"{wg_dir}/_work/cst_{st_num}.csv" for st_num in np.arange(1, ST_NUM+1)]
     log:
-        f"{LOG_PARTS_DIR}/3.03_prepare_stress_test_grid.log",
+        f"{LOG_PARTS_DIR}/3.09_prepare_stress_test_grid.log",
     benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.03_prepare_stress_test_grid.tsv",
+        f"{exp_dir}/benchmarks/_parts/3.09_prepare_stress_test_grid.tsv",
     script:
         "blueearth_cst/experiment/prepare_cst_parameters.py"
 
-# 3.04  prepare_weathergen_config — weathergen config for realization generation
+# 3.10  prepare_weathergen_config — weathergen config for realization generation
 rule prepare_weathergen_config:
-    message: rule_banner("3.04", "prepare_weathergen_config")
+    message: rule_banner("3.10", "prepare_weathergen_config")
     input:
         consistency_ok = f"{exp_dir}/.project_consistency_ok",
         # F7: this was a params-only read until 2026-08-05, so editing the
-        # template changed nothing until something else forced a rerun -- 3.04
-        # stayed satisfied, its generated config stayed stale, and 3.06 kept
+        # template changed nothing until something else forced a rerun -- 3.10
+        # stayed satisfied, its generated config stayed stale, and 3.11 kept
         # generating realizations from superseded settings. It propagated
         # silently precisely BECAUSE the generated config is properly declared,
         # so every downstream timestamp stayed consistent. The template carries
@@ -672,9 +683,9 @@ rule prepare_weathergen_config:
         sim_years = wflow_run_length,
         nc_file_prefix = "rlz"
     log:
-        f"{LOG_PARTS_DIR}/3.04_prepare_weathergen_config.log",
+        f"{LOG_PARTS_DIR}/3.10_prepare_weathergen_config.log",
     benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.04_prepare_weathergen_config.tsv",
+        f"{exp_dir}/benchmarks/_parts/3.10_prepare_weathergen_config.tsv",
     script:
         "blueearth_cst/experiment/prepare_weagen_config.py"
 
@@ -682,30 +693,30 @@ rule prepare_weathergen_config:
 # weathergen_config_rlz_<n>_cst_<m>.yml per member -- RLZ_NUM x ST_NUM files,
 # each with its own log and benchmark part -- and nothing in it varied except the
 # OUTPUT FILENAME, split into prefix and suffix because weathergenr::write_netcdf
-# takes them separately. Snakemake already knows that path: it is rule 3.07's own
-# declared output, so 3.07 now passes it as the 4th CLI arg and derives the split
+# takes them separately. Snakemake already knows that path: it is rule 3.12's own
+# declared output, so 3.12 now passes it as the 4th CLI arg and derives the split
 # in R. The two transient_change flags, the only other thing the R read, moved
-# into the ONE shared config from 3.04. See dev/milestones/r09/wf3-change-requests.md
+# into the ONE shared config from 3.10. See dev/milestones/r09/wf3-change-requests.md
 # CR-5, and F6 for what the deleted file misleadingly carried.
 
-# 3.06  generate_weather_realizations — weathergenr stochastic realizations (cst_0)
+# 3.11  generate_weather_realizations — weathergenr stochastic realizations (cst_0)
 rule generate_weather_realizations:
-    message: rule_banner("3.06", "generate_weather_realizations")
+    message: rule_banner("3.11", "generate_weather_realizations")
     input:
         climate_nc = ancient(f"{store_dir}/extract_historical.nc"),
         weagen_config = f"{wg_dir}/config/weathergen_config.yml",
     output:
         temp([f"{wg_dir}/output/rlz_{rlz_num}_cst_0.nc" for rlz_num in np.arange(1, RLZ_NUM+1)])
     log:
-        f"{LOG_PARTS_DIR}/3.06_generate_weather_realizations.log",
+        f"{LOG_PARTS_DIR}/3.11_generate_weather_realizations.log",
     benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.06_generate_weather_realizations.tsv",
+        f"{exp_dir}/benchmarks/_parts/3.11_generate_weather_realizations.tsv",
     shell:
         """python -u "{run_logged}" "{log}" -- Rscript --vanilla blueearth_cst/weathergen/generate_weather.R {input.climate_nc} {input.weagen_config}"""
 
-# 3.07  perturb_climate_realization — impose perturbations per rlz/cst (st_num >= 1)
+# 3.12  perturb_climate_realization — impose perturbations per rlz/cst (st_num >= 1)
 rule perturb_climate_realization:
-    message: rule_banner("3.07", "perturb_climate_realization")
+    message: rule_banner("3.12", "perturb_climate_realization")
     # Constrain st_num to strictly positive integers on THIS rule so its output
     # wildcard rlz_{rlz_num}_cst_{st_num}.nc can never resolve st_num to 0. Left
     # unconstrained, the rule would be a second eligible producer of cst_0.nc
@@ -718,22 +729,22 @@ rule perturb_climate_realization:
     input:
         rlz_nc = f"{wg_dir}/output/rlz_"+"{rlz_num}"+"_cst_0.nc",
         st_csv = f"{wg_dir}/_work/cst_"+"{st_num}"+".csv",
-        # The ONE shared config from 3.04 (C29 retired the per-member one). The
-        # DAG edge was already there transitively via 3.06; declaring it makes
+        # The ONE shared config from 3.10 (C29 retired the per-member one). The
+        # DAG edge was already there transitively via 3.11; declaring it makes
         # the transient-flag read visible to --dry-run.
         weagen_config = f"{wg_dir}/config/weathergen_config.yml",
     output:
         rlz_st_nc = temp(f"{wg_dir}/output/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc")
     log:
-        f"{LOG_PARTS_DIR}/3.07_perturb_climate_realization/" + "rlz_{rlz_num}_cst_{st_num}.log",
+        f"{LOG_PARTS_DIR}/3.12_perturb_climate_realization/" + "rlz_{rlz_num}_cst_{st_num}.log",
     benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.07_perturb_climate_realization/" + "rlz_{rlz_num}_cst_{st_num}.tsv",
+        f"{exp_dir}/benchmarks/_parts/3.12_perturb_climate_realization/" + "rlz_{rlz_num}_cst_{st_num}.tsv",
     shell:
         """python -u "{run_logged}" "{log}" -- Rscript --vanilla blueearth_cst/weathergen/impose_climate_change.R {input.rlz_nc} {input.weagen_config} {input.st_csv} {output.rlz_st_nc}"""
 
-# 3.08  write_climate_data_catalog — build a hydromt data catalog of the climate files
+# 3.13  write_climate_data_catalog — build a hydromt data catalog of the climate files
 rule write_climate_data_catalog:
-    message: rule_banner("3.08", "write_climate_data_catalog")
+    message: rule_banner("3.13", "write_climate_data_catalog")
     input:
         cst_nc = expand((f"{wg_dir}/output/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc"), rlz_num = np.arange(1, RLZ_NUM+1), st_num = np.arange(1, ST_NUM+1)),
         rlz_nc = [f"{wg_dir}/output/rlz_{rlz_num}_cst_0.nc" for rlz_num in np.arange(1, RLZ_NUM+1)]
@@ -745,22 +756,22 @@ rule write_climate_data_catalog:
         # Orography sidecar path for the chirps/chirps_global branch: the store
         # producer writes it as the clim_source-INDEPENDENT orography.nc beside
         # extract_historical.nc under the keyed store dir (R07 B1 standardises
-        # the filename; it is rule 1.10/3.02's declared oro_nc output). Passed
+        # the filename; it is rule 1.04/3.08's declared oro_nc output). Passed
         # explicitly (design §4a) so the catalog builder no longer reconstructs
         # it by fragile ../.. walking from a realization NC — which broke on both
         # the store move and every subsequent change to the realization NC dir
         # (now climate/weathergenr/output/).
         oro_path = f"{store_dir}/orography.nc",
     log:
-        f"{LOG_PARTS_DIR}/3.08_write_climate_data_catalog.log",
+        f"{LOG_PARTS_DIR}/3.13_write_climate_data_catalog.log",
     benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.08_write_climate_data_catalog.tsv",
+        f"{exp_dir}/benchmarks/_parts/3.13_write_climate_data_catalog.tsv",
     script:
         "blueearth_cst/climate_analysis/prepare_climate_data_catalog.py"
 
-# 3.09  downscale_climate_realization — downscale climate forcing to wflow grid
+# 3.14  downscale_climate_realization — downscale climate forcing to wflow grid
 rule downscale_climate_realization:
-    message: rule_banner("3.09", "downscale_climate_realization")
+    message: rule_banner("3.14", "downscale_climate_realization")
     # R07 B5 puts rlz_num in a DIRECTORY position for the first time. Snakemake's
     # default wildcard regex is `.+`, which matches "/" -- constrain both indices
     # to digits so a path can never be split across the rlz_<r>/ boundary.
@@ -781,13 +792,13 @@ rule downscale_climate_realization:
         horizontime_climate = horizontime_climate,
         run_length = wflow_run_length,
     log:
-        f"{LOG_PARTS_DIR}/3.09_downscale_climate_realization/" + "rlz_{rlz_num}_cst_{st_num}.log",
+        f"{LOG_PARTS_DIR}/3.14_downscale_climate_realization/" + "rlz_{rlz_num}_cst_{st_num}.log",
     benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.09_downscale_climate_realization/" + "rlz_{rlz_num}_cst_{st_num}.tsv",
+        f"{exp_dir}/benchmarks/_parts/3.14_downscale_climate_realization/" + "rlz_{rlz_num}_cst_{st_num}.tsv",
     script:
         "blueearth_cst/experiment/downscale_climate_forcing.py"
 
-# 3.10  run_wflow — run Wflow.jl for every rlz/cst forcing, B runs batched per
+# 3.15  run_wflow — run Wflow.jl for every rlz/cst forcing, B runs batched per
 # Julia session (P3-3 design §6.1: parse-time loop-generated anonymous rules —
 # one rule per batch with STATIC per-cst input/output lists, members via
 # params:, no input function, no checkpoint; probe-verified construct,
@@ -807,7 +818,7 @@ except Exception:
     _cores = 1
 # B default from -c N (the §6.1 parallelism ceiling, B ≈ ceil(K/N)), then CLAMPED
 # by the §6.1 DISK ceiling. Peak temp() footprint is p × B × (forcing + state) —
-# both the 3.09 forcing NC and the 3.10 outstates NC are held per batch, and all p
+# both the 3.14 forcing NC and the 3.15 outstates NC are held per batch, and all p
 # concurrent batches are resident — so an unclamped ceil(K/N) default scales B UP
 # with sweep size, making peak disk grow as the sweep grows. That is backwards:
 # §6.1 calls disk "the BINDING constraint" that forces B small on large
@@ -842,7 +853,7 @@ _batch_driver = str(Path(workflow.basedir) / "blueearth_cst" / "experiment" / "r
 for _b, _members in _batches.items():
     rule:
         name: f"run_wflow_batch_{_b}"
-        message: rule_banner("3.10", f"run_wflow_batch_{_b}")
+        message: rule_banner("3.15", f"run_wflow_batch_{_b}")
         input:
             forcing = [f"{runs_dir}/forcing/inmaps_rlz_{r}_cst_{c}.nc"
                        for (r, c) in _members],
@@ -857,21 +868,21 @@ for _b, _members in _batches.items():
             members = _members,
             driver = _batch_driver,
         log:
-            f"{LOG_PARTS_DIR}/3.10_run_wflow/batch_{_b}.log",
+            f"{LOG_PARTS_DIR}/3.15_run_wflow/batch_{_b}.log",
         benchmark:
-            f"{exp_dir}/benchmarks/_parts/3.10_run_wflow/batch_{_b}.tsv",
+            f"{exp_dir}/benchmarks/_parts/3.15_run_wflow/batch_{_b}.tsv",
         shell:
             """python -u "{run_logged}" "{log}" -- julia +1.11.7 --project=. --threads 4 "{params.driver}" {input.tomls}"""
 
-# 3.11  derive_wflow_indicators — reduce runs to the two indicator tables
+# 3.16  derive_wflow_indicators — reduce runs to the two indicator tables
 rule derive_wflow_indicators:
-    message: rule_banner("3.11", "derive_wflow_indicators")
+    message: rule_banner("3.16", "derive_wflow_indicators")
     input:
         rlz_csv_fns = expand((f"{runs_dir}/output/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".csv"), rlz_num=np.arange(1, RLZ_NUM+1), st_num=np.arange(ST_START, ST_NUM+1)),
         # R07 B6: the perturbation grid was an UNDECLARED runtime read
         # (the script reconstructed the path from exp_dir), so it
         # was invisible to --dry-run. It is enumerable from ST_NUM, so declare
-        # it -- the same correction rule 3.08's oro_path got.
+        # it -- the same correction rule 3.13's oro_path got.
         st_csv_fns = [f"{wg_dir}/_work/cst_{st_num}.csv" for st_num in np.arange(1, ST_NUM+1)],
     output:
         q_indicators = f"{results_dir}/q_indicators.csv",
@@ -883,9 +894,9 @@ rule derive_wflow_indicators:
         Tlow = get_config(my_cfg, "Tlow", 2),
         Tpeak = get_config(my_cfg, "Tpeak", 10),
     log:
-        f"{LOG_PARTS_DIR}/3.11_derive_wflow_indicators.log",
+        f"{LOG_PARTS_DIR}/3.16_derive_wflow_indicators.log",
     benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.11_derive_wflow_indicators.tsv",
+        f"{exp_dir}/benchmarks/_parts/3.16_derive_wflow_indicators.tsv",
     script:
         "blueearth_cst/experiment/export_wflow_results.py"
 
@@ -894,11 +905,11 @@ rule derive_wflow_indicators:
 # benchmarks/wf3_benchmarks.md (rule column + TOTAL row) once the final
 # results are built (all WF3 rules ran).
 rule gather_benchmarks:
-    message: rule_banner("3.12", "gather_benchmarks")
+    message: rule_banner("3.17", "gather_benchmarks")
     input:
         f"{results_dir}/q_indicators.csv",
         f"{results_dir}/basin_indicators.csv",
-        # ADR 0003 §8: rule 3.01f is a LEAF — nothing in WF3 consumes the vector
+        # ADR 0003 §8: rule 3.04 is a LEAF — nothing in WF3 consumes the vector
         # layers yet (§10) — so it is not upstream of the two indicator tables.
         # Without this edge it would run in parallel with the merge and its
         # `_parts/` row would miss the run.
@@ -911,27 +922,27 @@ rule gather_benchmarks:
     script: "blueearth_cst/shared/merge_benchmarks.py"
 
 # --- log gather ---------------------------------------------------------------
-# 3.13  gather_logs — merge every WF3 log part into ONE workflow log.
+# 3.18  gather_logs — merge every WF3 log part into ONE workflow log.
 #
-# Same rule as WF1's 1.16 and WF2's 2.07, against the same script; only the label
+# Same rule as WF1's 1.17 and WF2's 2.09, against the same script; only the label
 # list, the parts dir and the output name differ. `input:` is the final indicator
 # set (identical to gather_benchmarks), which is what schedules it LAST: every
 # logging rule is upstream of it. The parts stay in `params:` — they are `log:`
 # files, and Snakemake does not track those in the DAG, so naming them as `input:`
 # would demand them as buildable targets.
 #
-# This is the workflow where the merge earns most: 3.07/3.09 write one part per
-# (rlz, cst) and 3.10 one per batch, so the experiment's logs/ held hundreds
+# This is the workflow where the merge earns most: 3.12/3.14 write one part per
+# (rlz, cst) and 3.15 one per batch, so the experiment's logs/ held hundreds
 # of files across four subdirectories. The merge DELETES the parts it consumed and
 # prunes the emptied dirs, so a clean full run leaves one file. After a PARTIAL
 # re-run only the re-run rules have parts, so the rewritten log marks the rest
 # "no part from this run" — the same trade `merge_benchmarks` makes (R7-9).
 rule gather_logs:
-    message: rule_banner("3.13", "gather_logs")
+    message: rule_banner("3.18", "gather_logs")
     input:
         f"{results_dir}/q_indicators.csv",
         f"{results_dir}/basin_indicators.csv",
-        # Same reason as gather_benchmarks above: 3.01f is a leaf, and the log
+        # Same reason as gather_benchmarks above: 3.04 is a leaf, and the log
         # merge has to wait for it or its part is stranded under `_parts/`.
         SPATIAL_UNITS.outputs["basins"],
     output:

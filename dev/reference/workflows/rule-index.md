@@ -4,19 +4,15 @@ One page listing every rule in `Snakefile_model_creation`,
 `Snakefile_climate_projections` and `Snakefile_climate_experiment`, what each
 one does, what it writes, and how they connect.
 
-> ## ⚠ The numbers and names below are not on disk yet
+> **This page describes what is on disk.** The R10 step-6 sweep landed
+> 2026-08-06: the twelve renames (`dev/milestones/r10/rule-naming-design.md`,
+> record `dev/milestones/r10/migration_rule-names.md`) and the positional
+> renumber (`dev/followups.md` `[R10-5]`).
 >
-> They land in the remaining commits of the R10 step-6 sweep — the twelve
-> renames (`dev/milestones/r10/rule-naming-design.md`), then the renumber
-> (`dev/followups.md` `[R10-5]`). **This map is final**: it is regenerated from
-> the rule set as it stands after `[R10-1]` and `[R10-6]` §8–12, and no further
-> rule is being added or removed.
->
-> Until those commits land, almost every rule answers to a different number and
-> twelve to a different name. Translate with [What changed](#what-changed)
-> before typing a `snakemake <rule>` target or reading a `W.NN` reference in any
-> older document. Delete this banner once the renumber commit lands; keep
-> [What changed](#what-changed), which is the permanent translation table.
+> **Any `W.NN` written before that date means a different rule.** Translate
+> with [What changed](#what-changed) — it is the permanent translation table,
+> not a transitional note — before reading a rule number in `dev/milestones/`,
+> `DEVLOG.md`, `dev/decisions/` or a dated migration record.
 
 Each workflow gets a diagram, a one-line summary table, then one section per
 rule. **Does** is the rule's job; **Writes** transcribes its `output:` block —

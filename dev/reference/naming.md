@@ -350,18 +350,46 @@ Full rationale and the twelve-rename audit:
 Each rule in the three `Snakefile_*` entry points carries a `W.NN`
 reference number — `W` = workflow (`1` model_creation, `2`
 climate_projections, `3` climate_experiment), `NN` = a zero-padded
-**stable identifier assigned when the rule is created** — NOT a position. It exists in exactly two
-places, both cheap:
+**position in that workflow's logical order**: data first, then model
+build, then run, then records. It exists in exactly two places, both
+cheap:
 
 - **A comment header above each rule** —
-  `# 1.03  create_model — build the Wflow-SBM model (hydromt build wflow_sbm)`.
+  `# 1.07  build_wflow_model — parameterize Wflow-SBM on the spatial foundation`.
 - **The `log:` / `benchmark:` filename prefix** —
-  `logs/1.03_create_model.log`, `benchmarks/1.03_create_model.tsv`; for
-  wildcard rules the prefix goes on the subdirectory
-  (`logs/3.10_run_wflow/rlz_{rlz_num}_cst_{st_num}.log`). All three
+  `logs/1.07_build_wflow_model.log`,
+  `benchmarks/_parts/1.07_build_wflow_model.tsv`; for wildcard rules the
+  prefix goes on the subdirectory
+  (`logs/3.15_run_wflow/batch_{b}.log`). All three
   workflows share `project_dir/logs`, so the `W` digit keeps their logs
   disambiguated and a single `ls logs/` sorts globally by workflow then
   step.
+
+**Positional since 2026-08-06 (`[R10-5]`), and this reverses the previous
+rule.** `NN` used to be "a stable identifier assigned when the rule is
+created — NOT a position", which left it uncorrelated with everything: gaps
+where rules had been removed, WF2 defining its rules out of numeric order,
+five letter suffixes stacked beside one WF3 number, and `gather_benchmarks`
+answering to 2.10 beside siblings at 1.14 and 3.12. The rule-index audit
+made the workflow stages explicit and the numbers contradicting them became
+the more visible defect. Two properties now hold and are worth stating
+separately:
+
+- **Contiguous** within each workflow, from `W.00` (`rule all`).
+- **Every dependency points from a lower number to a higher one**, checked
+  against each rule's `input:` block — **`ancient()` included**. `ancient()`
+  suppresses the timestamp rerun-trigger, not the DAG edge; missing that is
+  how the first draft of the map put two rules ahead of something they
+  depend on.
+
+**The cost was accepted knowingly: numbers are REUSED.** Under the old
+policy a retired number stayed a gap, so a stale reference merely dangled
+and was obvious. Now it silently resolves to a *different rule* — new 3.10
+is `prepare_weathergen_config` where old 3.10 was `run_wflow`. Read every
+`W.NN` in `dev/milestones/`, `DEVLOG.md`, `dev/decisions/` and the dated
+migration records **as of its date**, and translate through
+`dev/reference/workflows/rule-index.md` § *What changed*. Do not rewrite
+those archives to the new numbers.
 
 Rules:
 
@@ -371,28 +399,37 @@ Rules:
   `W.NN` identifier would be both illegal-as-typed and a §7 contract
   rename. The number lives only in the comment and the log/benchmark path.
 - The number is a **reference and reading aid, not execution order**
-  (MUST keep this framing). Snakemake executes from the DAG; e.g.
-  WF1 `1.10`–`1.12` are parallel plot leaves and WF3 fans out over
-  `rlz_num × st_num`. Each Snakefile states this in a header comment.
+  (MUST keep this framing, and it survives the change to positional
+  numbering). Snakemake executes from the DAG, so rules on separate branches
+  run concurrently — WF1's `1.11`–`1.13` are parallel leaves and WF3 fans out
+  over `rlz_num × st_num`. Low-to-high means **"cannot depend on"**, not
+  "runs before". Each Snakefile states this in a header comment.
+- **Definition order in the file need not match the number.** It does not
+  today: module-level code is interleaved between rule blocks and depends on
+  its position, so reordering the blocks would be a behaviour risk taken for
+  cosmetics. `W.NN` is the rule's place in the workflow, not its offset in the
+  file. (`LOG_RULES` *is* asserted to read in number order —
+  `tests/test_log_rules_contract.py` — because that list is the merge order
+  for the workflow log.)
 - **Reference in prose/commits as "Rule 1.3"** (drop the pad); the padded
   `1.03` form is for the sortable filenames.
-- **Inserting a rule takes the next free number, or a letter suffix; it does
-  NOT renumber anything below.** Corrected at R9, because the previous wording
-  ("renumbers the contiguous comments below it… use contiguous numbers, not
-  gaps") described a practice the code has never followed:
+- **DO NOT RENUMBER TO INSERT A RULE. Use a letter suffix** (`1.09b`) until
+  the next deliberate sweep, and take the whole workflow in one commit when
+  that sweep comes. Renumbering is a migration, not an edit: the number
+  appears in `LOG_RULES`, in log and benchmark paths, in `rule_banner`, in
+  the comment headers and in prose across `dev/`, so a sweep is a wide edit
+  with a silent failure mode — an unlisted `LOG_RULES` label drops its log
+  section without erroring, which happened four times before it was made
+  mechanically checkable.
 
-  | Claim | Reality |
-  | --- | --- |
-  | contiguous, no gaps | gaps at **1.14**, **2.05**, **3.12** |
-  | definition order | WF2 defines `2.03b`, `2.03`, `2.01`, `2.02` — out of numeric order |
-  | renumber on insert | R9 P4 inserted `3.01c`, `3.01d`, `3.01e` and renumbered nothing |
+  A letter suffix sorts correctly against the padded numbers
+  (`"1.09" < "1.09b" < "1.10"`), so an inserted rule does not break the
+  `LOG_RULES` ordering assertion.
 
-  A letter suffix (`1.01b`, `3.00b`) is the established way to insert between
-  two numbers, and it is preferable to renumbering: the number appears in
-  `LOG_RULES`, in log and benchmark paths, and in prose across `dev/`, so a
-  sweep is a wide edit with a silent failure mode — an unlisted `LOG_RULES`
-  label drops its log section without erroring, which happened three times in
-  R9 alone. Gaps are the cost of that safety and are expected.
+  R9's version of this bullet said inserting "does NOT renumber anything
+  below" and treated gaps as the accepted cost. `[R10-5]` accepted that cost
+  once, deliberately, to buy contiguity and dependency order; the
+  *steady-state* rule is unchanged and is the one above.
 
 - "Rule 1.5" decimals remain review shorthand for *talking about* an insert,
   never a permanent identifier.

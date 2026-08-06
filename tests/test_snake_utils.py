@@ -331,7 +331,7 @@ def test_relativize_leaves_out_of_project_paths_absolute():
 
 def test_tee_to_log_relativizes_project_paths(tmp_path):
     proj = tmp_path / "gabon"
-    log = proj / "logs" / "1.10_plot_results.log"
+    log = proj / "logs" / "1.15_plot_wflow_evaluation.log"
     abs_png = os.path.join(str(proj), "plots", "map.png")
     with tee_to_log(log):
         print(f"Saved figure: {abs_png}")
@@ -402,14 +402,14 @@ def test_tee_to_log_writes_project_header(tmp_path):
     # a `.../<project>/logs/<rule>.log` path yields a header naming the project,
     # the full project dir, and the rule-log id; the date lives here (dropped
     # from each row), followed by a blank line before the body.
-    log = tmp_path / "gabon" / "logs" / "1.07_setup_runtime.log"
+    log = tmp_path / "gabon" / "logs" / "1.07_build_wflow_model.log"
     with tee_to_log(log):
         print("body line")
     head = log.read_text(encoding="utf-8").splitlines()
     assert head[0].startswith("# BlueEarth-CST")
     assert "project: gabon" in head[0]
     assert head[1].startswith("# project dir:") and head[1].rstrip().endswith("gabon")
-    assert "1.07_setup_runtime.log" in head[2] and "started" in head[2]
+    assert "1.07_build_wflow_model.log" in head[2] and "started" in head[2]
     assert head[3] == ""  # blank line separates header from body
     assert head[4] == "body line"
 

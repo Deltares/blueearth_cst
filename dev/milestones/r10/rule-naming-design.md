@@ -1,7 +1,10 @@
 # Snakemake rule naming — R10 design
 
 Status: **ACCEPTED** by the owner, 2026-08-04. **AMENDED THREE TIMES, 2026-08-06.**
-Not implemented.
+**IMPLEMENTED 2026-08-06** — the twelve renames, the `[R10-5]` renumber and the
+`[R10-7]` helper rename landed together as step 6 of the `dev/followups.md`
+landing order. Migration record: `dev/milestones/r10/migration_rule-names.md`.
+Live rule set: `dev/reference/workflows/rule-index.md`.
 
 ## Amendment 3 — 2026-08-06, `[R10-2]` dropped and `evaluate_` withdrawn
 

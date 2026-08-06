@@ -122,7 +122,7 @@ COVERED: dict[str, list[str]] = {
         f"experiments/{E}/config/catalogs/data_catalog_climate_experiment.yml",
         f"experiments/{E}/config/runs/climate_experiment/278159763309/effective.yml",
         f"experiments/{E}/logs/wf3_climate_experiment.log",
-        f"experiments/{E}/logs/_parts/3.06_generate_weather_realization.log",
+        f"experiments/{E}/logs/_parts/3.11_generate_weather_realizations.log",
         f"experiments/{E}/benchmarks/wf3_benchmarks.md",
         f"experiments/{E}/results/q_indicators.csv",
         f"experiments/{E}/results/basin_indicators.csv",
