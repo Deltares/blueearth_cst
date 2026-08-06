@@ -288,15 +288,46 @@ _WINDOWS_RESERVED_NAMES = frozenset(
 )
 
 
+def project_slug(project_dir, reserve: int = 0) -> str:
+    """Slugify ``project_dir``'s basename into an experiment-name stem.
+
+    The shared stem behind both naming paths: ``suggest_experiment_name``
+    (which appends a date and writes the result into a config) and the
+    workflow's own unset-key default (which appends a date only when no dated
+    experiment for this project exists yet). Extracted so the two cannot derive
+    a different stem from one ``project_dir``.
+
+    ``reserve`` is how many characters the caller will append afterwards; the
+    stem is truncated to leave room, so the total still fits the length limit.
+
+    Raises ``ValueError`` if the basename has no alphanumeric characters at all.
+    """
+    base = os.path.basename(str(project_dir).replace("\\", "/").rstrip("/"))
+    slug = re.sub(r"[^a-z0-9]+", "_", base.lower())
+    slug = re.sub(r"_+", "_", slug).strip("_")
+    if not slug:
+        raise ValueError(
+            f"cannot derive an experiment_name from project_dir basename "
+            f"{base!r}: it contains no alphanumeric characters"
+        )
+    return slug[: _EXPERIMENT_NAME_MAX_LEN - reserve].rstrip("_")
+
+
 def suggest_experiment_name(project_dir, today: str) -> str:
     """Suggest an ``experiment_name`` from ``project_dir`` and a date stamp.
 
-    R07 B8. A *suggestion writer*, never a runtime generator: a name derived at
-    run time would make every invocation target a fresh ``experiments/<id>/``,
-    so nothing would ever be up to date, incremental reruns would be
-    impossible, ``--dry-run`` would mislead, and the baseline gate would have
-    no fixed path. The helper is invoked once, deliberately, and the value it
-    writes is then read as an ordinary config key.
+    R07 B8. A *suggestion writer*, never a runtime generator: a name derived
+    fresh on every run would make each invocation target a new
+    ``experiments/<id>/``, so nothing would ever be up to date, incremental
+    reruns would be impossible, ``--dry-run`` would mislead, and the baseline
+    gate would have no fixed path. The helper is invoked once, deliberately,
+    and the value it writes is then read as an ordinary config key.
+
+    The workflow's unset-key default (``allocate.resolve_default_experiment_name``)
+    reaches the same name without a config edit, and avoids the trap by
+    **reusing** an existing dated experiment instead of minting today's. This
+    command remains the way to pin a deliberate name, choose one with
+    ``--name``, or start a fresh experiment beside an existing one.
 
     ``project_dir``'s basename is **slugified**, because it is not guaranteed
     to satisfy the grammar ``validate_experiment_name`` enforces (repo-7):
@@ -324,16 +355,8 @@ def suggest_experiment_name(project_dir, today: str) -> str:
     Returns the validated suggestion, or raises ``ValueError`` if no valid slug
     can be derived (e.g. a basename with no alphanumerics at all).
     """
-    base = os.path.basename(str(project_dir).replace("\\", "/").rstrip("/"))
-    slug = re.sub(r"[^a-z0-9]+", "_", base.lower())
-    slug = re.sub(r"_+", "_", slug).strip("_")
-    if not slug:
-        raise ValueError(
-            f"cannot derive an experiment_name from project_dir basename "
-            f"{base!r}: it contains no alphanumeric characters"
-        )
     suffix = f"_{today}" if today else ""
-    slug = slug[: _EXPERIMENT_NAME_MAX_LEN - len(suffix)].rstrip("_")
+    slug = project_slug(project_dir, reserve=len(suffix))
     return validate_experiment_name(f"{slug}{suffix}", project_dir)
 
 

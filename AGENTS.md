@@ -65,8 +65,14 @@ The tree is self-explanatory; these are the parts that are not.
   schema is closed, so an unknown section or key is rejected at parse time; add
   a setting to the file and to `snake_utils._ADVANCED_SETTINGS_SCHEMA` together.
 - `scripts/` — user-facing runners. `suggest_experiment_name.py` writes
-  `experiment_name` into a config once, never at run time: a runtime value would
-  break Snakemake idempotence.
+  `experiment_name` into a config once, to pin a deliberate name; it edits the
+  config as TEXT, never `yaml.safe_dump`, which would delete every comment in
+  the file. The key is optional: unset, WF3 defaults to the project name plus
+  the date the experiment was first created, and **reuses** an existing dated
+  experiment before minting the current date
+  (`experiment/allocate.py::resolve_default_experiment_name`). The reuse is not
+  a nicety — a name regenerated from today's clock on every run would break
+  Snakemake idempotence, which is why no path here generates one.
 - `dev/` — planning, audits, design docs, conventions, roadmap, the baseline
   manifest, and dev-process helpers under `dev/scripts/`. Not shipped, not
   user-facing. Three inspection helpers, all **report-only by default**:

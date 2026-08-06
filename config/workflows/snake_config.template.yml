@@ -144,7 +144,26 @@ workflows:
 
   climate_experiment:
     enabled: true
-    experiment_name: experiment
+    # experiment_name names the directory every wf3 artifact hangs off
+    # (experiments/<name>/). It is OPTIONAL and left unset here: unset, the
+    # workflow uses the project's own name plus the date the experiment was
+    # first created, so a project_dir of .../gabon_0108 gives
+    # experiments/gabon_0108_20260805/. Later runs REUSE that directory rather
+    # than minting the current date, which is what keeps incremental reruns
+    # working. (A placeholder value here instead would put every project copied
+    # from this template into one shared experiments/experiment/.)
+    #
+    # To pin a deliberate name — a scenario label, or a second experiment
+    # beside the first — run this once, before the first climate-experiment
+    # run:
+    #
+    #     pixi run python scripts/suggest_experiment_name.py <this config>
+    #     pixi run python scripts/suggest_experiment_name.py <this config> --name dry_scenario
+    #
+    # It reserves the directory atomically, versions a generated collision to
+    # _v2, and inserts the key just below (leaving these comments intact). It
+    # REFUSES to overwrite a name already set, since that would strand a
+    # completed experiment's outputs under a name nothing points at.
     realizations_num: 2
     # Future midpoint year for the climate experiment
     horizontime_climate: 2050
