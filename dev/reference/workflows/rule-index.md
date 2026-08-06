@@ -12,10 +12,21 @@ so the claim can be checked against the Snakefile rather than believed.
 (`dev/milestones/r10/rule-naming-design.md`, accepted and amended, **not yet
 implemented**). Until that sweep lands, "current" is what you type on the command
 line and "after R10" is the target. Once it lands, drop the first column.
-Entries marked ⚠ are **contested by this index's own audit** — either the
-proposed target is no more accurate than the name it replaces, or a `—`
-("conforming, do not touch") covers a name whose verb is no longer true. See
-[Name-vs-body audit](#name-vs-body-audit) at the end.
+
+**Three rulings from this index's audit, owner, 2026-08-06.** The audit at the
+end found names whose verb is no longer true; these were ruled on directly:
+
+| # | audit found | ruled |
+|---|---|---|
+| 1.05 | `add_gauges_and_outputs` adds no gauges | **rename to `declare_wflow_outputs`** — R10 gains an 18th verb, `declare_`: the rule adds no model *data*, it changes what the engine emits |
+| 1.07 | `setup_runtime` writes a recipe, not a runtime; R10's `prepare_runtime_window` is no better | **drop the rename — merge 1.07 into 1.08 instead.** A recipe whose only consumer is the next rule needs no name of its own |
+| 1.02 | `prepare_spatial_maps` names one of nine outputs | **keep the name.** `build_spatial_foundation` is less clear to a reader than the slightly narrow name it would replace |
+
+R10's scope stays at twelve: 1.07's rename leaves, 1.05's joins. The 1.07/1.08
+merge is **not** an R10 item — that milestone is identifier-only and rule bodies
+are explicitly out of its scope. See [Merge candidates](#merge-candidates).
+
+`rule-naming-design.md` still carries the pre-ruling scope and needs amending.
 
 **On the numbers.** `W.NN` is a **stable identifier assigned when a rule is
 created**, not a position — it disambiguates log parts across workflows and gives
@@ -97,12 +108,12 @@ once on historical forcing. No calibration — rapid deployment.
 | 1.00 | `all` | — | Target aggregator. |
 | 1.01 | `snapshot_config` | — | Snapshots the config and everything it references. |
 | 1.01b | `delineate_region` | — | Delineates the one project extent. |
-| 1.02 | `prepare_spatial_maps` | ⚠ — | The spatial foundation, and where gauges enter the workflow. |
+| 1.02 | `prepare_spatial_maps` | — | The spatial foundation, and where gauges enter the workflow. |
 | 1.03 | `build_wflow_model` | — | Parameterises Wflow-SBM, and where gauges enter the model. |
 | 1.04 | `add_reservoirs_lakes_glaciers` | — | Adds waterbodies. |
-| 1.05 | `add_gauges_and_outputs` | ⚠ — | Declares the `[output.csv]` block. Adds no gauges. |
+| 1.05 | `add_gauges_and_outputs` | `declare_wflow_outputs` | Declares the `[output.csv]` block. Adds no gauges. |
 | 1.06 | `write_outlet_index` | — | Crosswalk from Wflow outlet IDs to named stations. |
-| 1.07 | `setup_runtime` | ⚠ `prepare_runtime_window` | Writes the hydromt forcing build recipe. |
+| 1.07 | `setup_runtime` | *(merges into 1.08)* | Writes the hydromt forcing build recipe. |
 | 1.08 | `add_forcing` | `add_climate_forcing` | Applies that recipe: builds the forcing. |
 | 1.09 | `run_wflow` | — | Runs Wflow.jl once. |
 | 1.10 | `extract_climate_grid` | `extract_historical_climate` | The shared historical-climate store (= WF3 3.02). |
@@ -147,7 +158,7 @@ never from a built model.
 
 **Writes.** `<spatial>/geoms/region.geojson`.
 
-#### 1.02 · `prepare_spatial_maps` · ⚠ no rename planned
+#### 1.02 · `prepare_spatial_maps`
 
 **Does.** Builds the engine-neutral spatial foundation — the maps a model is
 parameterised on, before any Wflow-specific step. Also where **gauge points
@@ -189,13 +200,18 @@ layers back into the model. That undeclared write is what forced 1.12's ordering
 fix: Snakemake attributes `staticmaps.nc` to 1.03, so declaring it there orders
 nothing after *this* rule.
 
-#### 1.05 · `add_gauges_and_outputs` · ⚠ no rename planned
+#### 1.05 · `add_gauges_and_outputs` → `declare_wflow_outputs`
 
-**Does.** Despite the name, **adds no gauges** — 1.03 already did. It declares
-the outputs: the `[output.csv]` block that decides which timeseries Wflow emits,
-for `outlets` (Q), `gauges_locations` (Q, P) and basin means of any extra
-`wflow_outvars`. It also re-checks that the model's gauge IDs still equal
+**Does.** Despite the current name, **adds no gauges** — 1.03 already did. It
+declares the outputs: the `[output.csv]` block that decides which timeseries
+Wflow emits, for `outlets` (Q), `gauges_locations` (Q, P) and basin means of any
+extra `wflow_outvars`. It also re-checks that the model's gauge IDs still equal
 `location_registry.wflow_id`, and fails if either map is absent.
+
+That re-check is not redundant with 1.03's identical comparison
+(`build_wflow_model.py::_validate_written_model`): 1.04 mutates `staticmaps.nc`
+in between, so this copy is what catches corruption from that step. If 1.05 ever
+folds into 1.03, one of the two goes.
 
 **Writes.** `<model>/.outputs_configured` (sentinel).
 
@@ -213,7 +229,7 @@ IDs — this is the crosswalk between them, rebuilt on every run.
 
 **Writes.** `<model>/staticgeoms/outlet_index.csv`.
 
-#### 1.07 · `setup_runtime` · ⚠ R10 target `prepare_runtime_window` contested
+#### 1.07 · `setup_runtime` · ruled to merge into 1.08
 
 **Does.** Writes a hydromt **recipe**, not a runtime. The generated YAML holds
 `setup_config` (`time.starttime`, `time.endtime`, `time.timestepsecs`,
@@ -223,6 +239,11 @@ chunksize sized by opening the model's staticmaps. **Nothing reaches the model
 TOML here** — 1.08 applies the recipe.
 
 **Writes.** `<model>/config/build_historical_forcing.yml`.
+
+**Ruled 2026-08-06:** this rule merges into 1.08 rather than being renamed. Its
+output has exactly one consumer, the next rule, so the recipe becomes an internal
+intermediate and the naming problem disappears with the rule. See
+[Merge candidates](#merge-candidates) for the cost.
 
 #### 1.08 · `add_forcing` → `add_climate_forcing`
 
@@ -735,20 +756,52 @@ work that has moved or was never theirs; two more oversell or undersell. Nothing
 here is a defect in the *code* — the rules do the right thing under the wrong
 label.
 
-| rule | the name says | the body does | suggested |
+| rule | the name says | the body does | ruled 2026-08-06 |
 |---|---|---|---|
-| 1.05 `add_gauges_and_outputs` | adds gauges, adds outputs | adds **only** output declarations; 1.03 added the gauges. The "add gauges" half moved in the P1/P2 restructuring and the name did not follow | `declare_wflow_outputs` |
-| 1.07 `setup_runtime` → R10 `prepare_runtime_window` | sets up a runtime / prepares a run window | writes a hydromt **forcing build recipe**. The window is three keys inside a three-step YAML that also selects the precipitation source, the PET method and the orography source. Nothing is applied until 1.08 | `write_forcing_build_config` |
-| 1.02 `prepare_spatial_maps` | prepares maps | `spatial_maps.nc` is one of nine outputs. The rule is the delineation-and-identity engine: five vector layers, the location registry, a generated catalog and a report | `build_spatial_foundation` |
-| 1.11 `plot_results` → R10 `plot_wflow_evaluation` | plots | also computes `performance_metrics.csv`. The R10 target already drops "results" for "evaluation"; the `plot_` prefix is the part that still overreaches | keep R10's target, or `evaluate_wflow_run` |
+| 1.05 `add_gauges_and_outputs` | adds gauges, adds outputs | adds **only** output declarations; 1.03 added the gauges. The "add gauges" half moved in the P1/P2 restructuring and the name did not follow | **rename → `declare_wflow_outputs`** |
+| 1.07 `setup_runtime` → R10 `prepare_runtime_window` | sets up a runtime / prepares a run window | writes a hydromt **forcing build recipe**. The window is three keys inside a three-step YAML that also selects the precipitation source, the PET method and the orography source. Nothing is applied until 1.08 | **no rename — merge into 1.08** |
+| 1.02 `prepare_spatial_maps` | prepares maps | `spatial_maps.nc` is one of nine outputs. The rule is the delineation-and-identity engine: five vector layers, the location registry, a generated catalog and a report | **keep the name** — `build_spatial_foundation` reads less clearly than the narrow name it would replace |
+| 1.11 `plot_results` → R10 `plot_wflow_evaluation` | plots | also computes `performance_metrics.csv`. The R10 target already drops "results" for "evaluation"; the `plot_` prefix is the part that still overreaches | keep R10's target; the split (S1) is held |
 | 2.04 `derive_change_factors` | derives change factors | also renders `change_factor_cloud.png` and writes `report.md` + `provenance.json`. The name is right about the *product*; the detail above is the honest scope | no rename — noted so the figure's owner is findable |
 
-**On the ⚠ marks.** 1.07's R10 target is contested: `prepare_runtime_window` is
-no more accurate than the name it replaces, so implementing the sweep as written
-would spend a rename without fixing the mismatch. 1.02 and 1.05 were classified
-"conforming, do not touch" by the R10 audit — correctly on *grammar*, since
-`verb_object` is satisfied, but that audit tested the shape of names and not
-whether the verb is still true.
+**Why `declare_` is worth an 18th verb.** R10's table defines `add_` mechanically
+as "mutate an existing model in place (a hydromt `update`)", which 1.05 does — so
+`add_wflow_outputs` was available at no vocabulary cost. It was rejected because
+the action class is genuinely different: 1.04 and 1.08 add model *data* (waterbody
+layers, forcing grids), while 1.05 adds none at all and only changes what the
+engine will emit. The amendment set the precedent by adding `delineate_` rather
+than forcing a worse name onto an existing verb.
+
+**What the R10 audit missed, and why.** 1.02 and 1.05 were both classified
+"conforming (22), do not touch". That classification was correct on *grammar* —
+`verb_object` is satisfied by both — but it tested the shape of names, not whether
+the verb is still true. Worth carrying into any future naming sweep: grammar
+conformance and body conformance are two different checks.
+
+## Merge candidates
+
+Raised by the audit above: several drifting names are better fixed by removing
+the rule than by renaming it. **All of these change rule bodies, so none is an
+R10 item** — that milestone is identifier-only.
+
+| # | candidate | status |
+|---|---|---|
+| M1 | **merge 1.07 into 1.08.** The forcing recipe's only consumer is the rule that applies it, so it becomes an internal intermediate and 1.07's naming problem disappears with the rule | **accepted 2026-08-06** |
+| M2 | merge 1.06 into 1.05. Both are small, both read `location_registry.csv`, both exist to wire the model to named stations — one declares which timeseries come out, the other the crosswalk mapping them back | held |
+| M3 | merge `gather_benchmarks` + `gather_logs` per workflow. Same input set, same schedule position, same shape; six rules doing two near-identical things | held |
+| S1 | **split** 1.11 into `evaluate_wflow_run` (metrics) → `plot_wflow_evaluation` (figures). `performance_metrics.csv` is baseline-covered data and the figures are explicitly excluded from the baseline, yet one rule produces both — so the DAG cannot tell a figure edit from a metrics edit, a distinction the validation ladder relies on | held |
+
+**M1's cost.** Snakemake allows one of `script:` / `shell:` per rule, and 1.07 is
+a Python `script:` while 1.08 shells out to the hydromt CLI. The merged rule must
+either call hydromt's Python API or shell out from a script. Decide too whether
+`<model>/config/build_historical_forcing.yml` stays a declared output — it is
+kept today as provenance of the model it built.
+
+**Do not merge 3.01c and 3.01d.** They look like an obvious pair and merging them
+would destroy the guard. 3.01c's model inputs are `ancient()` *on purpose*: if the
+reference were rewritten whenever the model changed it would always match, and
+3.01d's comparison would be decorative. 3.01d's sentinel is `temp()` for the
+mirror reason. Recorded here so a future consolidation sweep does not "tidy" them.
 
 ## Drift found in the Snakefile comments (not yet fixed)
 
