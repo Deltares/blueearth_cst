@@ -8,7 +8,11 @@ Ruled by the owner after a full re-audit against the code as it stands. The
 design was accepted before R9's followups landed, and two of its rules moved
 underneath it.
 
-**Scope is now EIGHT renames, not ten.** Two dropped for opposite reasons:
+**Scope is now NINE renames, not ten** — the original ten, less two that left
+scope, plus one newly ruled in (1.08 `add_forcing`, below). The arithmetic is
+stated because the totals coincide and would otherwise look untouched.
+
+Two dropped, for opposite reasons:
 
 | # | rule | why it is no longer in scope |
 | --- | --- | --- |
@@ -23,11 +27,20 @@ underneath it.
 | 3.08 | `write_climate_catalog` | **`write_climate_data_catalog`** | matches the artifact (`data_catalog_climate_experiment.yml`) |
 | 2.06 | `plot_projection_timeseries` | **`plot_gcm_timeseries`** | shorter, and puts all three WF2 rules on one noun — `fetch_gcm_slice`, `reduce_gcm_series`, `plot_gcm_timeseries`. `projection` would have introduced a second noun for the same thing. Verified accurate: 2.06 consumes the per-member GCM series `reduce_gcm_series` writes |
 
-**Four corrections to the design itself**, each below in place: the verb table
-gains `delineate_`; the `prepare_`/`write_` split is re-cut on a testable
-criterion; the conforming list becomes a full 34-rule audit; and the
-implementation trap gains the one rule it does not apply to. Validation item 4 is
-rescoped — as written it could not pass.
+**One rename added:** 1.08 `add_forcing` → `add_climate_forcing`.
+
+**Six corrections to the design itself**, each below in place:
+
+1. the verb table gains `delineate_`, which `delineate_region` conformed to
+   without it being listed;
+2. the `prepare_`/`write_` split is re-cut on a testable criterion — the old one
+   could not decide `write_experiment_config` or `write_climate_data_catalog`;
+3. the conforming list becomes a full **34-identifier audit** — the old one
+   omitted five rules that do conform, so silence read as clearance;
+4. the implementation trap gains the one rule it does **not** apply to (3.10);
+5. it also gains the call-site count, which was **six, not three** — the missing
+   one is `rule_banner`'s label argument;
+6. validation item 4 is rescoped — as written it could not pass.
 
 Date: 2026-08-04
 
@@ -35,9 +48,12 @@ Decider: Ümit Taner
 
 ## Purpose
 
-Bring the twenty-eight Snakemake rule identifiers across the three `Snakefile_*`
-entry points onto one verb-and-noun scheme, without changing what any rule does.
-Ten rules move; eighteen already conform and must not.
+Bring the Snakemake rule identifiers across the three `Snakefile_*` entry points
+onto one verb-and-noun scheme, without changing what any rule does.
+
+**Counts as amended 2026-08-06: 34 identifiers — 9 move, 25 already conform and
+must not.** (Originally written as "twenty-eight … ten move; eighteen conform",
+from an inventory that was never exhaustive — see the full audit below.)
 
 Scope is the rule **identifier** only. Rule bodies, inputs, outputs, numbering,
 and the artifacts they produce are out of scope — R9 owns the artifact tree.
@@ -62,7 +78,8 @@ CLI-surface rename to that pile for no shared cost.
 **One rename was folded into R9** on the principle that a milestone renames what
 it falsifies: R9 renames rule 3.11's outputs to `q_indicators.csv` and
 `basin_indicators.csv`, so leaving `export_wflow_results` would entrench a
-mismatch R9 itself creates. That rename lands with R9; the other nine land here.
+mismatch R9 itself creates. That rename lands with R9; the rest land here — see
+the amendment for the current count.
 
 ## The convention
 
@@ -141,11 +158,12 @@ trailing full words, never two-letter suffixes.
 
 ## The renames
 
-Eight, as amended 2026-08-06.
+Nine, as amended 2026-08-06.
 
 | # | Current | New | Defect |
 | --- | --- | --- | --- |
 | 1.07 | `setup_runtime` | `prepare_runtime_window` | `setup_` duplicates `prepare_`; "runtime" alone says nothing |
+| 1.08 | `add_forcing` | `add_climate_forcing` | thin noun beside its siblings — does not say *which* forcing |
 | 1.11 | `plot_results` | `plot_wflow_evaluation` | vague noun beside the specific `plot_climate_source` / `plot_forcing` |
 | 1.12 | `plot_map` | `plot_basin_map` | vague noun |
 | 2.01 | `fetch_gcm_raw` | `fetch_gcm_slice` | dangling adjective; "slice" is the code's own word for the artifact |
@@ -176,12 +194,16 @@ Every identifier in the three Snakefiles is now accounted for.
 `generate_weather_realization`, `generate_climate_stress_test`,
 `downscale_climate_realization`, plus the dynamic `run_wflow_batch_<b>`.
 
-**One optional candidate, not ruled:** `add_forcing` has a thin noun beside its
-siblings `add_gauges_and_outputs` and `add_reservoirs_lakes_glaciers` — it does
-not say *which* forcing. It adds the historical climate forcing
-(`inmaps_historical.nc`), so `add_historical_forcing` would match the artifact and
-draw the contrast with WF3's per-member forcing. Left out of the eight
-deliberately; take it or leave it, but decide rather than inherit.
+`add_forcing` was carried here as an optional candidate and is now **ruled into
+the nine** as `add_climate_forcing`. `climate_` rather than `historical_`: it is
+already the established noun across rule names — `extract_climate_grid`,
+`plot_climate_source`, `downscale_climate_realization`,
+`write_climate_data_catalog` — whereas `historical_` appears in none, so it would
+have introduced a word for one rule's benefit. There is no ambiguity to resolve
+within WF1 anyway: the perturbed forcing is WF3's, added by a differently-named
+rule in a different workflow.
+
+**Counts reconcile:** 9 renames + 25 conforming = 34 identifiers.
 
 ## The implementation trap
 
@@ -193,9 +215,26 @@ read — so a missed rename produces a log section that silently vanishes from t
 merged log while its parts stay on disk forever. The same applies to
 `merge_benchmarks`.
 
-Three call sites move together for each rename: the `rule` identifier, its
-`log:`/`benchmark:` path prefix, and its `LOG_RULES` entry. The comment header
-carrying the `W.NN` number moves too.
+**SIX call sites move together, not three (corrected 2026-08-06).** The original
+count was taken from memory rather than from a rule; counting them on 1.08
+`add_forcing` gives:
+
+| # | site | example |
+| --- | --- | --- |
+| 1 | `LOG_RULES` entry | `"1.08_add_forcing"` |
+| 2 | comment header carrying `W.NN` | `# 1.08  add_forcing — …` |
+| 3 | the `rule` identifier | `rule add_forcing:` |
+| 4 | **`rule_banner`'s second argument** | `rule_banner("1.08", "add_forcing")` |
+| 5 | `log:` path | `{LOG_PARTS_DIR}/1.08_add_forcing.log` |
+| 6 | `benchmark:` path | `benchmarks/_parts/1.08_add_forcing.tsv` |
+
+**Site 4 is the one the original list missed**, and it is the one a checklist
+would cause someone to skip: `rule_banner` prints the human-facing label in the
+run output, so missing it leaves the banner announcing the old name while the
+rule carries the new one. Cosmetic rather than breaking — which is exactly why it
+would survive a green test run and reach a user.
+
+Sites 5 and 6 are also two lines, not one "path prefix".
 
 **The one rule this does NOT apply to (added 2026-08-06).** Rule 3.10's
 identifiers are `run_wflow_batch_0`, `run_wflow_batch_1`, … — parse-time
@@ -204,7 +243,7 @@ both the singular `3.10_run_wflow`. That divergence is **deliberate** (P3-3 keys
 logs by batch id, not by rule identifier), so identifier and label are not
 supposed to match there. Applying the three-call-sites rule mechanically to 3.10
 would rename a `LOG_RULES` entry that has no rule to match and break the merge.
-None of the eight renames touches 3.10 — this is stated so a sweep does not
+None of the nine renames touches 3.10 — this is stated so a sweep does not
 "fix" it.
 
 **A deletion is the same hazard as a rename.** When C29 removed rule 3.05 its
@@ -257,7 +296,7 @@ unchanged, which is itself worth asserting.
 
 ## Consequences
 
-- **Eight** rule identifiers change on the CLI surface; a
+- **Nine** rule identifiers change on the CLI surface; a
   `migration_rule-names.md` record is mandatory under `naming.md` §7. It should
   also record the two that left scope — one landed with R9, one had its rule
   deleted — so the count reconciles against the original ten.
