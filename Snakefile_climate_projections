@@ -579,10 +579,10 @@ LOG_RULES = [
     # the part, silently, on every run.
     "2.03b_delineate_region",
     "2.03c_delineate_spatial_units",
-    "2.01_fetch_gcm_raw",
+    "2.01_fetch_gcm_slice",
     "2.02_reduce_gcm_series",
     "2.04_derive_change_factors",
-    "2.06_plot_climate_proj_timeseries",
+    "2.06_plot_gcm_timeseries",
     # NO store entry here. ADR 0003 §5 removed rule 2.11 entirely -- WF2 reads
     # the region polygon from `delineate_region` and never builds the climate
     # store, standalone or otherwise. The label outlived the rule by four days
@@ -648,7 +648,9 @@ rule all:
 # 2.03b  delineate_region — the one project region artifact (ADR 0003).
 # Byte-identical to 1.01b and 3.01b except message/log/benchmark.
 #
-# This REPLACES rule 2.11 extract_climate_grid. WF2 declared the whole shared
+# This REPLACES rule 2.11 extract_climate_grid -- the name that rule answered to
+# when it was deleted; WF1/WF3's surviving copy is now extract_historical_climate
+# (R10). WF2 declared the whole shared
 # climate-store producer to obtain the delineated polygon and never read the
 # gridded extraction it also wrote (design N7); a projections-only run paid for
 # a multi-decade extraction to learn a basin outline. The region is now its own
@@ -690,7 +692,7 @@ rule delineate_spatial_units:
 
 # 2.03  snapshot_config — current copies + immutable effective-config bundle
 #
-# S8-08(d): was 2.01, colliding with fetch_gcm_raw. The numbers are a reference
+# S8-08(d): was 2.01, colliding with fetch_gcm_slice. The numbers are a reference
 # aid, so two rules answering to "2.01" is exactly the confusion they exist to
 # prevent -- and the rule map already listed snapshot_config as 2.03. No path moves:
 # this rule names its output explicitly and has no banner-derived log or
@@ -711,7 +713,7 @@ rule snapshot_config:
     script:
         "blueearth_cst/model/copy_config_files.py"
 
-# 2.01  fetch_gcm_raw — acquire ONE raw slice; the only rule that reads the store.
+# 2.01  fetch_gcm_slice — acquire ONE raw slice; the only rule that reads the store.
 #
 # Stage A splits into fetch -> reduce (design revision 6) because the two have
 # wildly different costs and different invalidation causes. Measured 2026-07-30
@@ -725,8 +727,8 @@ rule snapshot_config:
 # minus reducer_module_hash), so Snakemake's params trigger cannot re-download on a
 # formula edit. Passing `digest_components` here instead would silently undo the
 # entire split while every test still passed.
-rule fetch_gcm_raw:
-    message: rule_banner("2.01", "fetch_gcm_raw")
+rule fetch_gcm_slice:
+    message: rule_banner("2.01", "fetch_gcm_slice")
     wildcard_constraints:
         series_key = "|".join(re.escape(k) for k in SERIES),
     input:
@@ -753,9 +755,9 @@ rule fetch_gcm_raw:
             series_digest_components(*SERIES[wildcards.series_key])
         ),
     log:
-        LOG_PARTS_DIR + "/2.01_fetch_gcm_raw/{series_key}.log",
+        LOG_PARTS_DIR + "/2.01_fetch_gcm_slice/{series_key}.log",
     benchmark:
-        project_dir + "/benchmarks/_parts/2.01_fetch_gcm_raw/{series_key}.tsv",
+        project_dir + "/benchmarks/_parts/2.01_fetch_gcm_slice/{series_key}.tsv",
     script: "blueearth_cst/projections/fetch_gcm_raw.py"
 
 # 2.02  reduce_gcm_series — ONE stage-A rule over {series_key} (step 3).
@@ -930,9 +932,9 @@ rule derive_change_factors:
         f"{project_dir}/benchmarks/_parts/2.04_derive_change_factors.tsv",
     script: "blueearth_cst/projections/derive_change_factors.py"
 
-# 2.06  plot_climate_proj_timeseries — plot projected anomaly time series
-rule plot_climate_proj_timeseries:
-    message: rule_banner("2.06", "plot_climate_proj_timeseries")
+# 2.06  plot_gcm_timeseries — plot projected anomaly time series
+rule plot_gcm_timeseries:
+    message: rule_banner("2.06", "plot_gcm_timeseries")
     input:
         # Ordering edge only -- 2.06 never opens this. Repointed at S8-05 from the
         # retired wide summary to the tidy annual table, which is the stage-B
@@ -971,9 +973,9 @@ rule plot_climate_proj_timeseries:
         # of the tier it duplicated. The durable timeseries tier is `scalar/`;
         # `summary/*_change_factors_*.csv` is the analysis-ready form.
     log:
-        f"{LOG_PARTS_DIR}/2.06_plot_climate_proj_timeseries.log",
+        f"{LOG_PARTS_DIR}/2.06_plot_gcm_timeseries.log",
     benchmark:
-        f"{project_dir}/benchmarks/_parts/2.06_plot_climate_proj_timeseries.tsv",
+        f"{project_dir}/benchmarks/_parts/2.06_plot_gcm_timeseries.tsv",
     script: "blueearth_cst/projections/plot_proj_timeseries.py"
 
 # --- log gather ---------------------------------------------------------------

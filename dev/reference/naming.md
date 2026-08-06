@@ -79,7 +79,7 @@ downstream rules (it admitted `0` under `run_historical`, where `st_num`
 starts at `1`) was **folded into `st_num` in R5**. The downstream rules
 (`downscale_climate_realization`, `run_wflow`, `derive_wflow_indicators`) now use
 the single `st_num` vocabulary and keep the default match that admits `0`;
-only `generate_climate_stress_test` carries a rule-local
+only `perturb_climate_realization` carries a rule-local
 `wildcard_constraints: st_num=[1-9][0-9]*` that bars `0` (so it cannot be a
 second producer of the `cst_0` baseline).
 
@@ -174,6 +174,13 @@ Renaming any of these requires a `dev/<milestone>/migration_<topic>.md`
 note listing the old → new mapping:
 
 - `rule all` output filenames (baseline manifest contract).
+- **Snakemake rule identifiers.** They are the CLI target surface
+  (`snakemake <rule> -s …`, `--forcerun <rule>`) and are referenced across
+  `docs/`, `dev/reference/` and the Snakefile comments, so a rename breaks a
+  command someone has in their shell history. §9's "rule identifiers are not
+  numbered" clause already called this a §7 event; it is listed here now
+  because the enumeration, not the cross-reference, is what gets read.
+  **R10's record is `dev/milestones/r10/migration_rule-names.md`.**
 - **Column labels in `rule all` output tables** — a header is a tier-2 contract
   in its own right (§6), separately from the filename that carries it: a
   consumer that survived a file rename can still break on a header. Added
@@ -267,6 +274,76 @@ output names under `project_dir/` and nothing else: `dev/` markdown stays
 kebab-case (the row above), Python modules stay `snake_case` because they must
 be importable, and root-level files keep their upstream names. Reading this as a
 repo-wide sweep would rename documents this guide explicitly protects.
+
+## 8b. Rule naming — `<verb>_<noun>`, verb first, always
+
+Every Snakemake rule identifier is `<verb>_<noun>`. The verb comes from this
+list — **one verb per action class**, so two rules doing the same kind of work
+read the same. Name a new rule from the table, not by analogy with whichever
+rule happens to sit above it.
+
+| Verb | Action class |
+| --- | --- |
+| `fetch_` | acquire from an external source |
+| `extract_` | subset or derive from a larger source already present |
+| `delineate_` | derive a catchment boundary from hydrography and an outlet |
+| `prepare_` | **compute or assemble** something a later rule needs |
+| `build_` | construct a model from inputs |
+| `add_` | mutate an existing model in place by adding **data** (a hydromt `update`) |
+| `declare_` | change what an engine will **emit**, adding no model data |
+| `write_` | **emit a record or index** — the emission *is* the work |
+| `generate_` | stochastic or synthetic production |
+| `downscale_` | resolution transform |
+| `perturb_` | apply a climate perturbation to an existing series |
+| `run_` | invoke an external engine |
+| `reduce_` | **intermediate** aggregation that feeds a later rule |
+| `derive_` | compute a workflow's **terminal product** from reduced inputs |
+| `plot_` | render a figure |
+| `check_` | validate, fail loud |
+| `snapshot_` | copy inputs for provenance |
+| `gather_` | merge parts |
+
+Two distinctions needed care and are the ones a new rule gets wrong:
+
+- **`reduce_` vs `derive_` splits by POSITION, not by operation.** Both turn
+  many inputs into few outputs. `reduce_gcm_series` feeds a later rule;
+  `derive_change_factors` and `derive_wflow_indicators` each produce their
+  workflow's final answer. That makes WF2's and WF3's terminal rules read alike,
+  which they should.
+- **`prepare_` vs `write_` splits on where the work is.** The original criterion
+  was "a config or intermediate" versus "one small table or index", which could
+  not decide `write_experiment_config` or `write_climate_data_catalog` — both
+  readings applied to both. The testable form:
+
+  > **If you deleted the file-writing, would there be work left?
+  > Yes → `prepare_`. No → `write_`.**
+
+  Note what is *not* the criterion: whether a later rule consumes the output.
+  `write_climate_data_catalog` is consumed downstream and is still `write_`,
+  because enumerating entries is all it does.
+
+**Nouns are full words.** Only the established domain set abbreviates — `gcm`,
+`cmip6`, `wflow`, `rlz`, `cst` — and those are tier-1/tier-2 identifiers under
+§6. Ad-hoc contractions (`weagen`, `proj`) are not. Qualifiers are trailing full
+words, never two-letter suffixes.
+
+**Adding a verb is allowed, and cheaper than a bad name.** `delineate_` and
+`declare_` were both added rather than forcing their rules onto `derive_` or
+`add_`: basin delineation is the field's own word, and `declare_wflow_outputs`
+changes what the engine *emits* while `add_` is defined as adding model *data*.
+The bar is that the action class is genuinely distinct — and that the verb has a
+user. `evaluate_` was ruled in for a rule that then never existed and was
+withdrawn, because a verb in this table with no rule behind it reads as an
+available option that some rule must already justify.
+
+**Grammar conformance is not body conformance.** A name satisfying
+`<verb>_<noun>` can still be false: `add_gauges_and_outputs` passed the grammar
+check for three milestones while adding no gauges — the job had moved to another
+rule and the name did not follow. Check the verb against the rule's script or
+shell body, and say which check you ran.
+
+Full rationale and the twelve-rename audit:
+`dev/milestones/r10/rule-naming-design.md`.
 
 ## 9. Rule numbering (`W.NN` reference scheme)
 

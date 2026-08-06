@@ -18,9 +18,9 @@
 # Re-check against a fresh run before trusting it.
 
 wf1:
-  # plot_results' per-station fan-out. Rule 1.11 declares only station 1
+  # plot_wflow_evaluation's per-station fan-out. Rule 1.11 declares only station 1
   # (hydro_wflow_1.png, clim_wflow_1_{month,year}.png); every other station is
-  # written but undeclared (O-24, Snakefile_model_creation rule plot_results).
+  # written but undeclared (O-24, Snakefile_model_creation rule plot_wflow_evaluation).
   - models/hydrology/wflow/evaluation/plots/clim_wflow_102_month.png
   - models/hydrology/wflow/evaluation/plots/clim_wflow_102_year.png
   # CONDITIONAL: signatures_<station>.png also needs observations AND a run

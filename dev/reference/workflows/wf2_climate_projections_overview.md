@@ -81,7 +81,7 @@ until 2.07 and 2.10 have run.
 | in | `{PD}/logs/wf2_climate_projections.log` | 2.07 |
 | in | `{PD}/benchmarks/wf2_benchmarks.md` | 2.10 |
 
-### 2.01 `fetch_gcm_raw` — `{series_key}`
+### 2.01 `fetch_gcm_slice` — `{series_key}`
 
 The **only** rule that opens the remote store. Acquires one bbox+buffer, time-
 windowed slice per `(model, experiment, member)` and writes it to local disk.
@@ -146,7 +146,7 @@ change factors for every `(point, horizon)`, and writes every result artifact.
   CSVs are `check_baseline.py` targets, so the format change required a scoped
   `record --workflow climate_projections`.
 
-### 2.06 `plot_climate_proj_timeseries` — gather
+### 2.06 `plot_gcm_timeseries` — gather
 
 Reopens all scalar series and renders the eight figures. Figure-only since S8-02.
 
@@ -208,7 +208,7 @@ pinned by `tests/test_climate_store_contract.py`. WF2 declares it to obtain
         2.11 extract_climate_grid ─► store_region.geojson              │
                      │                                                 │
                      ▼                                                 │
-   ┌─► 2.01 fetch_gcm_raw {series_key} ─► raw/{key}.nc                 │
+   ┌─► 2.01 fetch_gcm_slice {series_key} ─► raw/{key}.nc                 │
    │        (the ONLY remote read)                                     │
    │             │                                                     │
    │             ▼                                                     │
@@ -222,7 +222,7 @@ pinned by `tests/test_climate_store_contract.py`. WF2 declares it to obtain
                  └─► plots/{proj}_change_factor_cloud.png              │
                  │                                                     │
                  ▼ (ordering edge; the CSV is declared, unread)        │
-        2.06 plot_climate_proj_timeseries ─► plots/*.png ──────────────┤
+        2.06 plot_gcm_timeseries ─► plots/*.png  ──────────────┤
                  │                                                     │
                  ├─► 2.07 gather_logs ─► logs/wf2_climate_projections.log
                  │        (+ deletes logs/_parts/)                     │

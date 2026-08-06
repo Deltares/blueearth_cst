@@ -11,7 +11,7 @@ and `blueearth_cst/spatial/`.
 - `wflow_outvars` — Wflow output variables to emit (default `['river discharge']`).
 - `model_build_config` — path to the hydromt build config (default `{static_dir}/wflow_build_model.yml`).
 - `waterbodies_config` — path to the reservoirs/lakes/glaciers update config (default `{static_dir}/wflow_update_waterbodies.yml`).
-- `observations_timeseries` — optional observed-discharge file for `plot_results`. Default `None`.
+- `observations_timeseries` — optional observed-discharge file for `plot_wflow_evaluation`. Default `None`.
 
 ## Reads from `shared`
 

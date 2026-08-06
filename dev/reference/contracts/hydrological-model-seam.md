@@ -76,7 +76,7 @@ Rendered one subsection per artifact.
   (= WG-6 on the weather-generator seam). R07 B5 files the wf3 twin on the
   HYDROLOGY side because it is model-grid forcing, symmetric with the wf1
   path above; R9 P2 flattened the `rlz_<n>/` level out of it.
-- **producer → consumer:** rule 1.08 `add_forcing` (hydromt update) → rule 1.09
+- **producer → consumer:** rule 1.08 `add_climate_forcing` (hydromt update) → rule 1.09
   `run_wflow`; wf3 rule 3.09 → rule 3.10.
 - **dims:** `(time, latitude, longitude)` on the **model grid** (`float64`
   lat/lon matching HM-1).

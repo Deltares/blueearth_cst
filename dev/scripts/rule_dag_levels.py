@@ -26,7 +26,7 @@ so that is where extra cores actually go.
 
 What a level is **not** is a schedule. Snakemake starts a job the moment its own
 inputs exist, not level by level, so independent chains overlap — one series can
-be in ``reduce_gcm_series`` while another is still in ``fetch_gcm_raw``. Read the
+be in ``reduce_gcm_series`` while another is still in ``fetch_gcm_slice``. Read the
 levels as dependency depth, never as "these run together and nothing else does".
 
 Usage (from the repo root, inside pixi)::
@@ -54,7 +54,7 @@ from typing import NamedTuple
 
 REPO = Path(__file__).resolve().parents[2]
 
-# `\t4[label = "fetch_gcm_raw\nseries_key: cmip6_...", color = "...", style="rounded,dashed"];`
+# `\t4[label = "fetch_gcm_slice\nseries_key: cmip6_...", color = "...", style="rounded,dashed"];`
 # The label is taken non-greedily to the next quote. Snakemake does not escape
 # quotes inside a label, so a wildcard VALUE containing `"` would truncate the
 # rule name -- it cannot corrupt the graph, because only the first label line is

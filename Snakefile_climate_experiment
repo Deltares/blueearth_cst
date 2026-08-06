@@ -109,8 +109,8 @@ basin_hydrography = get_config(basin_cfg, "hydrography", DEFAULT_HYDROGRAPHY)
 basin_index = get_config(basin_cfg, "basin_index", DEFAULT_BASIN_INDEX)
 
 # Historical extraction window: sourced from shared.historical_window so the
-# extract_climate_grid dates come from the config instead of being hardcoded in
-# extract_historical_climate.py. climate_store_rule reads starttime/endtime off
+# extract_historical_climate dates come from the config instead of being
+# hardcoded in the script. climate_store_rule reads starttime/endtime off
 # this section and enforces the day-resolution store-key invariant.
 historical_window_cfg = get_config(shared_cfg, "historical_window", optional=False)
 
@@ -183,7 +183,7 @@ basin_dir = f"{project_dir}/models/hydrology/wflow"
 # Per-experiment root (design §2/§2a): every wf3-owned output that was
 # project-global moves under experiments/<name>/. Redefining this one binding
 # carries all exp_dir-derived output/params paths (incl. the three params paths
-# on prepare_weagen_config, derive_wflow_indicators)
+# on prepare_weathergen_config, derive_wflow_indicators)
 # the guard sentinel. The remaining project_dir-rooted wf3 paths (log:, the
 # benchmark _parts/ tree, gather output + parts_dir param, the config snapshot)
 # are hand-edited to experiments/<name>/ below.
@@ -346,17 +346,17 @@ LOG_RULES = [
     # builds the store and WF3 finds it current, so this section usually reads
     # "no part from this run". Listed anyway: WF3 standalone does build it, and
     # an unlisted part would be neither merged nor cleaned up.
-    "3.02_extract_climate_grid",
-    "3.03_climate_stress_parameters",
-    "3.04_prepare_weagen_config",
+    "3.02_extract_historical_climate",
+    "3.03_prepare_stress_test_grid",
+    "3.04_prepare_weathergen_config",
     # 3.05 removed with its rule (C29). Dropping the label matters as much as the
     # rule: merge_logs discovers a section by listing the dir named after its
     # label, so a label with no producer would silently contribute an empty
     # section forever -- the mirror of the missed-rename hazard R10's design
     # records for this same list.
-    "3.06_generate_weather_realization",
-    "3.07_generate_climate_stress_test",
-    "3.08_climate_data_catalog",
+    "3.06_generate_weather_realizations",
+    "3.07_perturb_climate_realization",
+    "3.08_write_climate_data_catalog",
     "3.09_downscale_climate_realization",
     "3.10_run_wflow",
     "3.11_derive_wflow_indicators",
@@ -395,9 +395,10 @@ rule all:
 # wf1/wf2 project snapshots. Runs at rule time (not parse) so --dry-run and
 # --unlock stay usable (design §3). Two outputs, one per sharing class (§3a,
 # ext2-1): the per-experiment sentinel is a FRESH input of the four
-# per-experiment roots (snapshot_config, climate_stress_parameters,
-# prepare_weagen_config); the guard artifact is
-# consumed ancient() by extract_climate_grid ONLY — its path is
+# per-experiment roots (snapshot_config, prepare_stress_test_grid,
+# prepare_weathergen_config, write_experiment_config -- the fourth was missing
+# from this list, not from the DAG); the guard artifact is
+# consumed ancient() by extract_historical_climate ONLY — its path is
 # experiment-invariant so the shared rule's input set never changes across
 # experiments (input-set provenance trigger cannot fire, §3d). The guard
 # artifact lands under the dataset+window keyed store dir (§4), keyed identically
@@ -597,7 +598,7 @@ rule delineate_spatial_units:
         f"{exp_dir}/benchmarks/_parts/3.01f_delineate_spatial_units.tsv",
     script: SPATIAL_UNITS.script
 
-# 3.02  extract_climate_grid — the SHARED historical-climate store producer
+# 3.02  extract_historical_climate — the SHARED historical-climate store producer
 # (R07 B1). This declaration and rule 1.10 in Snakefile_model_creation are the
 # same rule: identical name, script, single catalog input, outputs and params,
 # all splatted from CLIMATE_STORE. Only message/log/benchmark are
@@ -613,8 +614,8 @@ rule delineate_spatial_units:
 # transitively enforced through the per-experiment sentinel chain
 # (3.00b -> 3.04 -> 3.06). The catalog input is PLAIN, not ancient(): it is the
 # store's freshness boundary (ext2-01).
-rule extract_climate_grid:
-    message: rule_banner("3.02", "extract_climate_grid")
+rule extract_historical_climate:
+    message: rule_banner("3.02", "extract_historical_climate")
     input:
         **CLIMATE_STORE.inputs,
     params:
@@ -622,30 +623,30 @@ rule extract_climate_grid:
     output:
         **CLIMATE_STORE.outputs,
     log:
-        f"{LOG_PARTS_DIR}/3.02_extract_climate_grid.log",
+        f"{LOG_PARTS_DIR}/3.02_extract_historical_climate.log",
     benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.02_extract_climate_grid.tsv",
+        f"{exp_dir}/benchmarks/_parts/3.02_extract_historical_climate.tsv",
     script:
         CLIMATE_STORE.script
 
-# 3.03  climate_stress_parameters — write the per-cst stress-test parameter grid
-rule climate_stress_parameters:
-    message: rule_banner("3.03", "climate_stress_parameters")
+# 3.03  prepare_stress_test_grid — write the per-cst stress-test parameter grid
+rule prepare_stress_test_grid:
+    message: rule_banner("3.03", "prepare_stress_test_grid")
     input:
         config = ancient(config_path),
         consistency_ok = f"{exp_dir}/.project_consistency_ok",
     output:
         st_csv_fns = [f"{wg_dir}/_work/cst_{st_num}.csv" for st_num in np.arange(1, ST_NUM+1)]
     log:
-        f"{LOG_PARTS_DIR}/3.03_climate_stress_parameters.log",
+        f"{LOG_PARTS_DIR}/3.03_prepare_stress_test_grid.log",
     benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.03_climate_stress_parameters.tsv",
+        f"{exp_dir}/benchmarks/_parts/3.03_prepare_stress_test_grid.tsv",
     script:
         "blueearth_cst/experiment/prepare_cst_parameters.py"
 
-# 3.04  prepare_weagen_config — weathergen config for realization generation
-rule prepare_weagen_config:
-    message: rule_banner("3.04", "prepare_weagen_config")
+# 3.04  prepare_weathergen_config — weathergen config for realization generation
+rule prepare_weathergen_config:
+    message: rule_banner("3.04", "prepare_weathergen_config")
     input:
         consistency_ok = f"{exp_dir}/.project_consistency_ok",
         # F7: this was a params-only read until 2026-08-05, so editing the
@@ -671,9 +672,9 @@ rule prepare_weagen_config:
         sim_years = wflow_run_length,
         nc_file_prefix = "rlz"
     log:
-        f"{LOG_PARTS_DIR}/3.04_prepare_weagen_config.log",
+        f"{LOG_PARTS_DIR}/3.04_prepare_weathergen_config.log",
     benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.04_prepare_weagen_config.tsv",
+        f"{exp_dir}/benchmarks/_parts/3.04_prepare_weathergen_config.tsv",
     script:
         "blueearth_cst/experiment/prepare_weagen_config.py"
 
@@ -687,28 +688,28 @@ rule prepare_weagen_config:
 # into the ONE shared config from 3.04. See dev/milestones/r09/wf3-change-requests.md
 # CR-5, and F6 for what the deleted file misleadingly carried.
 
-# 3.06  generate_weather_realization — weathergenr stochastic realizations (cst_0)
-rule generate_weather_realization:
-    message: rule_banner("3.06", "generate_weather_realization")
+# 3.06  generate_weather_realizations — weathergenr stochastic realizations (cst_0)
+rule generate_weather_realizations:
+    message: rule_banner("3.06", "generate_weather_realizations")
     input:
         climate_nc = ancient(f"{store_dir}/extract_historical.nc"),
         weagen_config = f"{wg_dir}/config/weathergen_config.yml",
     output:
         temp([f"{wg_dir}/output/rlz_{rlz_num}_cst_0.nc" for rlz_num in np.arange(1, RLZ_NUM+1)])
     log:
-        f"{LOG_PARTS_DIR}/3.06_generate_weather_realization.log",
+        f"{LOG_PARTS_DIR}/3.06_generate_weather_realizations.log",
     benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.06_generate_weather_realization.tsv",
+        f"{exp_dir}/benchmarks/_parts/3.06_generate_weather_realizations.tsv",
     shell:
         """python -u "{run_logged}" "{log}" -- Rscript --vanilla blueearth_cst/weathergen/generate_weather.R {input.climate_nc} {input.weagen_config}"""
 
-# 3.07  generate_climate_stress_test — impose perturbations per rlz/cst (st_num >= 1)
-rule generate_climate_stress_test:
-    message: rule_banner("3.07", "generate_climate_stress_test")
+# 3.07  perturb_climate_realization — impose perturbations per rlz/cst (st_num >= 1)
+rule perturb_climate_realization:
+    message: rule_banner("3.07", "perturb_climate_realization")
     # Constrain st_num to strictly positive integers on THIS rule so its output
     # wildcard rlz_{rlz_num}_cst_{st_num}.nc can never resolve st_num to 0. Left
     # unconstrained, the rule would be a second eligible producer of cst_0.nc
-    # (already produced by generate_weather_realization and named as this rule's
+    # (already produced by generate_weather_realizations and named as this rule's
     # own literal rlz_nc input) -> a rule ambiguity that surfaces as a self-loop
     # (CyclicGraphException) on the test-config dry-run. cst_0 is the reserved
     # unperturbed baseline (naming.md §4); only perturbed st_num >= 1 belong here.
@@ -724,15 +725,15 @@ rule generate_climate_stress_test:
     output:
         rlz_st_nc = temp(f"{wg_dir}/output/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc")
     log:
-        f"{LOG_PARTS_DIR}/3.07_generate_climate_stress_test/" + "rlz_{rlz_num}_cst_{st_num}.log",
+        f"{LOG_PARTS_DIR}/3.07_perturb_climate_realization/" + "rlz_{rlz_num}_cst_{st_num}.log",
     benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.07_generate_climate_stress_test/" + "rlz_{rlz_num}_cst_{st_num}.tsv",
+        f"{exp_dir}/benchmarks/_parts/3.07_perturb_climate_realization/" + "rlz_{rlz_num}_cst_{st_num}.tsv",
     shell:
         """python -u "{run_logged}" "{log}" -- Rscript --vanilla blueearth_cst/weathergen/impose_climate_change.R {input.rlz_nc} {input.weagen_config} {input.st_csv} {output.rlz_st_nc}"""
 
-# 3.08  climate_data_catalog — build a hydromt data catalog of the climate files
-rule climate_data_catalog:
-    message: rule_banner("3.08", "climate_data_catalog")
+# 3.08  write_climate_data_catalog — build a hydromt data catalog of the climate files
+rule write_climate_data_catalog:
+    message: rule_banner("3.08", "write_climate_data_catalog")
     input:
         cst_nc = expand((f"{wg_dir}/output/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc"), rlz_num = np.arange(1, RLZ_NUM+1), st_num = np.arange(1, ST_NUM+1)),
         rlz_nc = [f"{wg_dir}/output/rlz_{rlz_num}_cst_0.nc" for rlz_num in np.arange(1, RLZ_NUM+1)]
@@ -751,9 +752,9 @@ rule climate_data_catalog:
         # (now climate/weathergenr/output/).
         oro_path = f"{store_dir}/orography.nc",
     log:
-        f"{LOG_PARTS_DIR}/3.08_climate_data_catalog.log",
+        f"{LOG_PARTS_DIR}/3.08_write_climate_data_catalog.log",
     benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.08_climate_data_catalog.tsv",
+        f"{exp_dir}/benchmarks/_parts/3.08_write_climate_data_catalog.tsv",
     script:
         "blueearth_cst/climate_analysis/prepare_climate_data_catalog.py"
 

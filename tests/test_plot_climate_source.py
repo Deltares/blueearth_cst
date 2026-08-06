@@ -242,7 +242,7 @@ def test_source_figures_build_without_a_model(modelfree_project):
     combined = (result.stdout or "") + (result.stderr or "")
     assert result.returncode == 0, combined[-4000:]
 
-    assert "extract_climate_grid" in combined
+    assert "extract_historical_climate" in combined
     assert "plot_climate_source" in combined
     assert "prepare_spatial_maps" not in combined
     assert "build_wflow_model" not in combined

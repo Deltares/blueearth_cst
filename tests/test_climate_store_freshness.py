@@ -4,7 +4,7 @@ The producer declares exactly one input in both DAGs — the ``project.data_sour
 catalog, plain (never ``ancient()``). Two properties follow, and this module
 pins both against a real Snakemake invocation:
 
-1. **Freshness.** Editing the catalog in place schedules ``extract_climate_grid``
+1. **Freshness.** Editing the catalog in place schedules ``extract_historical_climate``
    **exactly once**. Pre-R07 the catalog rode only as a ``params`` path string,
    so an in-place edit re-triggered nothing — a staleness gap that predates R07.
 2. **No oscillation.** Once the store is fresh again, ``--dry-run`` schedules
@@ -20,7 +20,7 @@ input **edge**, which the mtime trigger exercises directly.
 
 Data behind an unchanged catalog entry is deliberately OUT of scope (see
 ``dev/milestones/r07/migration_project-layout.md`` §2f); the escape hatch is
-``snakemake --forcerun extract_climate_grid``.
+``snakemake --forcerun extract_historical_climate``.
 """
 from __future__ import annotations
 
@@ -41,7 +41,7 @@ CATALOG_FN = TESTDIR / "data" / "tests_data_catalog.yml"
 
 SNAKEFILES = ("Snakefile_model_creation", "Snakefile_climate_experiment")
 
-_JOB_COUNT_RE = re.compile(r"^extract_climate_grid\s+(\d+)\s*$", re.MULTILINE)
+_JOB_COUNT_RE = re.compile(r"^extract_historical_climate\s+(\d+)\s*$", re.MULTILINE)
 
 
 @pytest.fixture()
@@ -92,7 +92,7 @@ def _run(args, snakefile, cfg_path):
 
 
 def _scheduled_count(snakefile, cfg_path, target):
-    """How many ``extract_climate_grid`` jobs a dry-run would run (0 when clean).
+    """How many ``extract_historical_climate`` jobs a dry-run would run (0 when clean).
 
     A missing job-stats row is read as 0, so every ``== 0`` assertion below
     pairs this with an explicit "Nothing to be done" check — otherwise a
@@ -136,7 +136,7 @@ def test_catalog_edit_schedules_extraction_exactly_once(staged_store):
     for snakefile in SNAKEFILES:
         count, out = _scheduled_count(snakefile, cfg_path, target)
         assert count == 1, (
-            f"{snakefile} scheduled {count} extract_climate_grid job(s) after a "
+            f"{snakefile} scheduled {count} extract_historical_climate job(s) after a "
             f"catalog edit; expected exactly 1\n{out}"
         )
         assert "Updated input files" in out, out[-2000:]

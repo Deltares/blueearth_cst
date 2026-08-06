@@ -163,6 +163,6 @@ def test_spatial_only_dry_run_has_no_wflow_edge():
     for forbidden_rule in (
         "build_wflow_model",
         "add_reservoirs_lakes_glaciers",
-        "add_gauges_and_outputs",
+        "declare_wflow_outputs",
     ):
         assert forbidden_rule not in combined, combined[-3000:]

@@ -6,7 +6,7 @@ and several actual writers. Snakemake attributes the files to 1.03, so a reader
 that declares `staticmaps.nc` is ordered after 1.03 rather than after the rule
 that writes it last.
 
-Measured on the R9 gate run: rule 1.08 `add_forcing` (`hydromt update
+Measured on the R9 gate run: rule 1.08 `add_climate_forcing` (`hydromt update
 wflow_sbm`) rewrites the WHOLE model root, 17 s after `.outputs_configured` --
 the sentinel R9 P2 F5 chose as the anchor on the belief that rule 1.05 was the
 last writer. Rule 1.12 read `staticmaps.nc` and finished 9 s before 1.08
@@ -38,7 +38,7 @@ SNAKEFILE = Path(__file__).resolve().parents[1] / "Snakefile_model_creation"
 #: root. Both are asserted, because the sentinel is only meaningful while it is
 #: attached to the last writer.
 SENTINEL = ".model_final"
-SENTINEL_OWNER = "add_forcing"
+SENTINEL_OWNER = "add_climate_forcing"
 
 #: Rules that WRITE the model root, in chain order. They cannot declare the
 #: sentinel -- a writer that waited for the terminal marker would be a cycle --
@@ -51,13 +51,13 @@ SENTINEL_OWNER = "add_forcing"
 #: `setup_runtime` (1.07) was listed here until R10-1 merged it INTO 1.08. The
 #: two landed on separate branches, so neither side's tests could see the
 #: contradiction: this list named a rule that no longer exists, and the exemption
-#: it granted now belongs to the rule that absorbed it. `add_forcing` was already
+#: it granted now belongs to the rule that absorbed it. `add_climate_forcing` was already
 #: listed, so the merge removes an entry rather than moving one.
 MODEL_ROOT_WRITERS = (
     "build_wflow_model",             # 1.03 creates staticmaps.nc + the toml
     "add_reservoirs_lakes_glaciers", # 1.04 mod.write()/mod.close()
-    "add_gauges_and_outputs",        # 1.05 mod.write()/mod.close()
-    "add_forcing",                   # 1.08 hydromt update -- rewrites all of it,
+    "declare_wflow_outputs",        # 1.05 mod.write()/mod.close()
+    "add_climate_forcing",                   # 1.08 hydromt update -- rewrites all of it,
                                      #      and since R10-1 also writes the
                                      #      forcing yml 1.07 used to hand it
 )
@@ -82,7 +82,7 @@ def _rule_bodies() -> dict[str, str]:
     `rule` -- the Snakefile interleaves module-level code between rules, and
     running to the next rule swept that code into the preceding rule's body.
     Caught by this module's own first run: it reported rule 1.10
-    `extract_climate_grid` as a model-root reader because the `_evaluation_pngs`
+    `extract_historical_climate` as a model-root reader because the `_evaluation_pngs`
     comprehension sits after it.
     """
     text = _strip_comments(SNAKEFILE.read_text(encoding="utf-8"))

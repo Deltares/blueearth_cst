@@ -55,7 +55,7 @@ per artifact (a literal 14-column table is illegible).
 
 - **path pattern:** `data/climate/historical/<key>/extract_historical.nc`, where
   `<key> = <clim_source>_<startYYYYMMDD>_<endYYYYMMDD>` (P3-1 keyed store).
-- **producer:** rule `extract_climate_grid`
+- **producer:** rule `extract_historical_climate`
   (`blueearth_cst/climate_analysis/extract_historical_climate.py`) — ONE rule,
   declared identically in `Snakefile_climate_experiment` (3.02) and
   `Snakefile_model_creation` (1.10) from `snake_utils.climate_store_rule`
@@ -65,7 +65,7 @@ per artifact (a literal 14-column table is illegible).
   than per store key. The store records the extent it cut to in the
   extraction's own attributes (`region_bbox`, `region_geojson_sha256`,
   `region_source`).
-- **consumer:** rule 3.06 `generate_weather_realization` (weathergenr
+- **consumer:** rule 3.06 `generate_weather_realizations` (weathergenr
   `generate_weather.R`), passed in as `climate_nc`.
 - **dims:** `(time, latitude, longitude)`.
 - **coords:** `time` — `datetime64[ns]`, daily, `calendar=proleptic_gregorian`;
@@ -114,9 +114,9 @@ consumer reads while keeping the divergence honestly on the record.
   `precip_variance` axis and of the monthly structure the reduction collapses.
   Also a **declared `input:` on rule 3.11** (R07 B6) -- it used to be an
   undeclared runtime read, invisible to `--dry-run`.
-- **producer:** rule 3.03 `climate_stress_parameters`
+- **producer:** rule 3.03 `prepare_stress_test_grid`
   (`blueearth_cst/experiment/prepare_cst_parameters.py`).
-- **consumer:** rule 3.07 `generate_climate_stress_test` (weathergenr
+- **consumer:** rule 3.07 `perturb_climate_realization` (weathergenr
   `impose_climate_change.R`), passed in as `st_csv`.
 - **shape:** a CSV with **header exactly** `month,temp_mean,precip_mean,precip_variance`
   and **12 rows**, `month ∈ 1..12`.
@@ -135,7 +135,7 @@ consumer reads while keeping the divergence honestly on the record.
 
 - **path pattern:** `<exp>/climate/weathergenr/config/weathergen_config.yml` —
   **one file** since C29.
-- **producer:** rule 3.04 `prepare_weagen_config`
+- **producer:** rule 3.04 `prepare_weathergen_config`
   (`blueearth_cst/experiment/prepare_weagen_config.py`).
 - **consumer:** rules 3.06 and 3.07 (both R side), which now read the same file.
 - **removed at C29 (2026-08-05):** the per-member
@@ -173,7 +173,7 @@ WG-3 is the *current* generator's contract, not a universal one.
   and `<exp>/climate/weathergenr/output/rlz_<n>_cst_<m>.nc` (`m ≥ 1`, perturbed).
   R07 B5 dissolved `realization_<n>/`; the index stays in the file name.
 - **producer:** rule 3.06 (cst_0) / rule 3.07 (cst_m).
-- **consumer:** rule 3.08 `climate_data_catalog` + rule 3.09
+- **consumer:** rule 3.08 `write_climate_data_catalog` + rule 3.09
   `downscale_climate_realization`.
 - **shape:** the **generator OUTPUT contract** — a raster netCDF the hydromt
   catalog reads: `(time, lat, lon)` daily grid with **at least `precip`, `temp`**
@@ -206,7 +206,7 @@ WG-3 is the *current* generator's contract, not a universal one.
 
 - **path pattern:** `<exp>/config/catalogs/data_catalog_climate_experiment.yml` (rule-3.08 side
   channel).
-- **producer:** rule 3.08 `climate_data_catalog`
+- **producer:** rule 3.08 `write_climate_data_catalog`
   (`blueearth_cst/climate_analysis/prepare_climate_data_catalog.py`).
 - **consumer:** rule 3.09 `downscale_climate_realization` (as the `-d` catalog).
 - **shape (pinned-as-reliance — hydromt data-catalog schema, OUR emitted
@@ -274,7 +274,7 @@ inventory is intentional, not an oversight (design §5.2, risk-5 / arch-7):
   produced or consumed path in any Snakefile, Python module, or R script.
 - `spatial/geoms/region.geojson` (rule `delineate_region`, ADR 0003) - the
   delineated polygon the extraction bbox came from. Provenance for WG-1. It
-  IS a DAG-tracked input of `extract_climate_grid` and of rule 1.02; what
+  IS a DAG-tracked input of `extract_historical_climate` and of rule 1.02; what
   has no DAG-tracked consumer is the extraction's `region_*` attributes,
   which record the same fact inside the data. Retired with ADR 0003: the
   per-store-key `data/climate/historical/<key>/store_region.geojson`.
