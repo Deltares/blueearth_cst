@@ -156,7 +156,7 @@ basin_dir = f"{project_dir}/models/hydrology/wflow"
 # Per-experiment root (design §2/§2a): every wf3-owned output that was
 # project-global moves under experiments/<name>/. Redefining this one binding
 # carries all exp_dir-derived output/params paths (incl. the three params paths
-# on prepare_weagen_config, prepare_weagen_config_st, derive_wflow_indicators)
+# on prepare_weagen_config, derive_wflow_indicators)
 # the guard sentinel. The remaining project_dir-rooted wf3 paths (log:, the
 # benchmark _parts/ tree, gather output + parts_dir param, the config snapshot)
 # are hand-edited to experiments/<name>/ below.
@@ -284,7 +284,7 @@ wf2_snapshot_digest = file_digest_or_absent(wf2_snapshot_path)
 # benchmarks/wf3_benchmarks.md already had.
 #
 # LOG_RULES is the merge order: rule LABELS, not part paths. merge_logs lists each
-# label's part dir to find its members, which matters most here: 3.05/3.07/3.09
+# label's part dir to find its members, which matters most here: 3.07/3.09
 # fan out over RLZ_NUM x ST_NUM and 3.10 over the batch split, so an explicit part
 # list would re-derive ST_START, RLZ_NUM and the `_batches` arithmetic in a second
 # place that could drift from the rules that own it. Discovery is scoped to these
@@ -353,7 +353,7 @@ rule all:
 # --unlock stay usable (design §3). Two outputs, one per sharing class (§3a,
 # ext2-1): the per-experiment sentinel is a FRESH input of the four
 # per-experiment roots (snapshot_config, climate_stress_parameters,
-# prepare_weagen_config, prepare_weagen_config_st); the guard artifact is
+# prepare_weagen_config); the guard artifact is
 # consumed ancient() by extract_climate_grid ONLY — its path is
 # experiment-invariant so the shared rule's input set never changes across
 # experiments (input-set provenance trigger cannot fire, §3d). The guard
@@ -826,7 +826,7 @@ rule derive_wflow_indicators:
 
 # --- benchmark gather ---------------------------------------------------------
 # Merge WF3's per-rule benchmark parts (benchmarks/_parts/3.*) into one
-# benchmarks/wf3_benchmarks.tsv (rule column + TOTAL row) once the final
+# benchmarks/wf3_benchmarks.md (rule column + TOTAL row) once the final
 # results are built (all WF3 rules ran).
 rule gather_benchmarks:
     message: rule_banner("3.12", "gather_benchmarks")
@@ -850,7 +850,7 @@ rule gather_benchmarks:
 # files, and Snakemake does not track those in the DAG, so naming them as `input:`
 # would demand them as buildable targets.
 #
-# This is the workflow where the merge earns most: 3.05/3.07/3.09 write one part
+# This is the workflow where the merge earns most: 3.07 and 3.09 write one part
 # per (rlz, cst) and 3.10 one per batch, so the experiment's logs/ held hundreds
 # of files across four subdirectories. The merge DELETES the parts it consumed and
 # prunes the emptied dirs, so a clean full run leaves one file. After a PARTIAL

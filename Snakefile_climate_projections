@@ -552,12 +552,12 @@ LOG_RULES = [
     "2.02_reduce_gcm_series",
     "2.04_derive_change_factors",
     "2.06_plot_climate_proj_timeseries",
-    # 2.11 is the SHARED store rule (= WF1's 1.10). Run in pipeline order, WF1
-    # builds the store and WF2 finds it current, so 2.11 does not re-run and its
-    # section reads "no part from this run" on most runs. Listed anyway: when WF2
-    # *is* run standalone it does build the store, and an unlisted part would be
-    # neither merged nor cleaned up.
-    "2.11_extract_climate_grid",
+    # NO store entry here. ADR 0003 §5 removed rule 2.11 entirely -- WF2 reads
+    # the region polygon from `delineate_region` and never builds the climate
+    # store, standalone or otherwise. The label outlived the rule by four days
+    # and contributed a phantom "no part from this run" section to every merged
+    # WF2 log: the label-with-no-producer hazard the C29 precedent documents,
+    # realised. tests/test_log_rules_contract.py now fails on a repeat.
 ]
 
 # 2.00  all — target aggregator: change-factor summaries + projection plots
@@ -957,7 +957,7 @@ rule gather_logs:
 
 # --- benchmark gather ---------------------------------------------------------
 # Merge WF2's per-rule benchmark parts (benchmarks/_parts/2.*) into one
-# benchmarks/wf2_benchmarks.tsv (rule column + TOTAL row) once the summary +
+# benchmarks/wf2_benchmarks.md (rule column + TOTAL row) once the summary +
 # plots are built (all WF2 rules ran).
 rule gather_benchmarks:
     message: rule_banner("2.10", "gather_benchmarks")

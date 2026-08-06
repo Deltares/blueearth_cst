@@ -93,8 +93,8 @@ items below and in ADR 0003. The landing order it recommended, adopted:
 
 | # | step | why here |
 |---|---|---|
-| 1 | `[R10-8]` stale WF2 `LOG_RULES` entry · `[R10-4]` comments · rule-index diagram fixes | no sequencing dependency; one is a live defect |
-| 2 | `[R10-9]` the `LOG_RULES` conformance test | the sweep's highest-risk surface, verified *before* the sweep edits it |
+| 1 | ~~`[R10-8]` stale WF2 `LOG_RULES` entry · `[R10-4]` comments · rule-index diagram fixes~~ **DONE 2026-08-06** | no sequencing dependency; one is a live defect |
+| 2 | ~~`[R10-9]` the `LOG_RULES` conformance test~~ **DONE 2026-08-06** (`tests/test_log_rules_contract.py`, 9 passed) | the sweep's highest-risk surface, verified *before* the sweep edits it |
 | 3 | `[R10-1]` merge · `[R10-2]` split | small, behaviour-preserving, `test_cli.py` each |
 | 4 | `[R10-6]` §8–10 — after deciding the seam artifact and params purity, and after the WF2 cost measurement | changes the rule count of all three workflows |
 | 5 | `[R10-6]` §11a (rename, value preserved) then §11b (default → 11) | §11b is a baseline event; §11a is one YAML key |
@@ -220,8 +220,20 @@ being the target from the start.
   `log:` path. Rule 3.10's deliberately singular label falls out naturally, since
   its own `log:` path carries `3.10_run_wflow` rather than the batch identifiers.
 
-  **Land it before the R10 sweep**, so the highest-risk edit of that surface is
-  verified rather than reviewed.
+  **DONE 2026-08-06** — `tests/test_log_rules_contract.py`, 9 passed, and it
+  confirms `[R10-8]`'s deletion left no orphan and no unlisted label in any
+  workflow. Two notes for whoever extends it:
+
+  - A Snakefile is **not valid Python** (`rule all:` is Snakemake grammar), so
+    `ast.parse` over the whole file raises. The `LOG_RULES` block is lifted out
+    textually and only that is parsed.
+  - **Ordering is deliberately not asserted.** `Snakefile_climate_projections`
+    says "Order is by RULE NUMBER" while its list opens `2.03b`, `2.01`,
+    `2.02` — correct by *execution* order, wrong by number. Which is right is a
+    ruling nobody has made, and it dissolves at `[R10-5]`, after which number,
+    execution and sort order coincide. **Add the ordering assertion then**, and
+    settle the related WF1/WF3-vs-WF2 disagreement about whether
+    `gather_benchmarks` precedes `gather_logs` in the same edit.
 
   Related, and free only while every call site is already being edited: define
   **one label constant per rule** (`_L = "1.11_add_climate_forcing"`) and build

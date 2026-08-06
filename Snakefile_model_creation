@@ -727,7 +727,7 @@ rule plot_forcing:
 # --- benchmark gather ---------------------------------------------------------
 # Per-rule benchmarks land under benchmarks/_parts/. This runs once, after the
 # terminal outputs (so all WF1 rules ran), and merges the WF1 parts into one
-# benchmarks/wf1_benchmarks.tsv (rule column + TOTAL row), fresh each run.
+# benchmarks/wf1_benchmarks.md (rule column + TOTAL row), fresh each run.
 rule gather_benchmarks:
     message: rule_banner("1.14", "gather_benchmarks")
     input:
