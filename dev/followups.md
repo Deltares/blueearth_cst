@@ -95,7 +95,7 @@ items below and in ADR 0003. The landing order it recommended, adopted:
 |---|---|---|
 | 1 | ~~`[R10-8]` stale WF2 `LOG_RULES` entry · `[R10-4]` comments · rule-index diagram fixes~~ **DONE 2026-08-06** | no sequencing dependency; one is a live defect |
 | 2 | ~~`[R10-9]` the `LOG_RULES` conformance test~~ **DONE 2026-08-06** (`tests/test_log_rules_contract.py`, 9 passed) | the sweep's highest-risk surface, verified *before* the sweep edits it |
-| 3 | ~~`[R10-1]` merge~~ **DONE 2026-08-06** · `[R10-2]` split **BLOCKED** — needs an owner ruling, see the item | the merge was small and behaviour-preserving; the split turned out not to have the seam it assumed |
+| 3 | ~~`[R10-1]` merge~~ **DONE 2026-08-06** · ~~`[R10-2]` split~~ **DROPPED 2026-08-06** — no seam worth its price; `evaluate_` withdrawn with it | the merge was small and behaviour-preserving; the split turned out not to have the seam it assumed |
 | 4 | ~~`[R10-6]` §8–10 — the vector/raster split~~ **DONE 2026-08-06** (rules `1.01c` / `2.03c` / `3.01f`; nine WF1 artifacts byte-identical; ADR §8–10 now **accepted**). Baseline gate still open | changes the rule count of all three workflows |
 | 5 | ~~`[R10-6]` §11a then §11b~~ **DONE 2026-08-06 as ONE landing** — measurement collapsed the split: the fixture's partition saturates at 5 subbasins from ceiling 5 up, so §11b moves nothing and only the key rename shows. Baseline re-record owed (3 config-snapshot entries) | §11b turned out NOT to be a baseline event on this fixture |
 | 6 | R10 renames + `[R10-5]` renumber + `[R10-7]` + `[R10-10]` | against a rule set that is finally stable; regenerate the number map from it. `[R10-10]` rides here because it and `[R10-9]`'s ordering assertion touch the same test file |
@@ -155,8 +155,34 @@ that awkwardness.
   has no rename to skip; if R10 lands first, 1.07 keeps `setup_runtime` until the
   merge deletes it. What must not happen is renaming 1.07 in passing.
 
-- **[R10-2] Split rule 1.11 into a metrics rule and a figure rule.**
-  *Accepted 2026-08-06; not implemented.* Today one rule writes both
+- **[R10-2] ~~Split rule 1.11 into a metrics rule and a figure rule.~~
+  DROPPED 2026-08-06 by owner ruling** — option 3 of the three below.
+  *Accepted 2026-08-06, blocked the same day on implementation evidence,
+  then dropped.*
+
+  **Why option 3.** The item's own assessment is that the harm is a wasted
+  re-run and a needless baseline comparison — **not a wrong number**. The two
+  ways to actually split it both cost more than that: an aligned-discharge
+  intermediate adds a declared artifact to a tree R9 has just settled, and a
+  full re-read duplicates the climate-parity transform, the expensive part of
+  the rule. Neither price is worth a re-run.
+
+  **Consequences, both settled:** `evaluate_` is withdrawn as the 19th verb
+  (`dev/milestones/r10/rule-naming-design.md` Amendment 3) — it existed only
+  to name the metrics half, and a verb with no user is a trap for the next
+  author. 1.11's rename to `plot_wflow_evaluation` is UNAFFECTED: that was
+  always the figure half's name, so step 6 renames 1.11 to it as planned.
+
+  **What stays true, and is the reason to keep this record rather than delete
+  it:** the DAG still cannot express the distinction the `AGENTS.md`
+  validation ladder turns on — "do not run the baseline for a figure-only
+  change" remains written guidance that the rule graph contradicts. That is
+  now a known, accepted gap rather than an open task. Re-raise only with a
+  cheaper seam than the three below.
+
+  Original analysis follows.
+
+  *Original statement:* Today one rule writes both
   `<model>/evaluation/performance_metrics.csv` — **baseline-covered data** — and
   the evaluation figures, which `check_baseline.py` **excludes by default**
   (`FIGURE_KINDS`). The DAG therefore cannot express the distinction the
