@@ -196,8 +196,9 @@ region polygon to the vector foundation.
     *Open questions*; making the artifacts reachable is this decision, using them
     is the next one.
 
-11. **`automatic_subbasins.max_count` becomes a PER-BASIN ceiling, default 20 →
-    11.** Today it is one **global** budget shared across parents:
+11. **`automatic_subbasins.max_count` becomes `max_per_basin`, a PER-BASIN
+    ceiling, default 20 → 11.** Today it is one **global** budget shared across
+    parents:
     `allocate_automatic_subbasin_budgets` gives each fallback parent one unit,
     distributes the remainder by largest-remainder weighted on upstream area, and
     **raises outright** when `len(parent_areas) > max_count`. Per-basin removes
@@ -213,6 +214,17 @@ region polygon to the vector foundation.
     never errors. The area weighting being dropped therefore costs less than it
     sounds: a small basin was already going to produce fewer units than a large
     one at the same ceiling.
+
+    **The key is renamed, not just redefined** (ruled 2026-08-06). `max_count`
+    changing meaning in place would silently triple a three-basin project's
+    partition — 20 subbasins total becomes 20 *per basin* — with no error and no
+    diff in the config. `shared.basin`'s schema is **not** closed (unlike
+    `advanced_settings`, whose `_ADVANCED_SETTINGS_SCHEMA` rejects unknown keys),
+    so a leftover `max_count` would be ignored in silence and the project would
+    run at the new default instead of the value its author wrote. The rename must
+    therefore come with an **explicit rejection** of the old key in
+    `parse_spatial_config`, naming the replacement — not merely a new key that
+    happens to be read.
 
     **11, not 13.** Twelve is the practical ceiling for a qualitative colour ramp
     a reader can tell apart (ColorBrewer `Set3` and `Paired` both stop at 12), so
@@ -458,13 +470,6 @@ region polygon to the vector foundation.
   thematic stack, not measured. If it is not, the split has moved the cost rather
   than removed it.
 - **Who writes `spatial_catalog.yml`** after the split — see *Consequences*.
-- **Does `max_count` keep its name under §11?** The key now means something
-  different — a per-basin ceiling rather than a project-wide budget — so a config
-  that sets `max_count: 20` for three basins silently goes from 20 subbasins
-  total to 60. Either keep the name and note it as a breaking config change, or
-  rename to `max_per_basin` so an old config fails loudly on an unknown key
-  (`advanced_settings`' schema is closed; `shared.basin`'s is not, so a rename
-  here would pass silently unless validated).
 - **Block size in §12.** 100 locations per basin matches
   `MAX_LOCAL_SUBBASIN_NUMBER = 99`, but caps a heavily-instrumented basin. 1000
   would be roomier at the cost of longer ids. Decide against a real gauge count,

@@ -226,11 +226,15 @@ rejected.** None is an R10 item; that milestone is identifier-only.
   The record also carries two **identity** changes ruled the same day, which ride
   with the split because they live in the same vector half:
 
-  - **§11 — `automatic_subbasins.max_count` becomes per-basin, default 20 → 11.**
-    Today it is one global budget, area-weighted across parents, that *raises*
-    when parents exceed it. Per-basin removes that failure and deletes
-    `allocate_automatic_subbasin_budgets` outright. Safe because
-    `select_automatic_subbasins` treats the count as an upper bound.
+  - **§11 — `automatic_subbasins.max_count` → `max_per_basin`, a per-basin
+    ceiling, default 20 → 11.** Today it is one global budget, area-weighted
+    across parents, that *raises* when parents exceed it. Per-basin removes that
+    failure and deletes `allocate_automatic_subbasin_budgets` outright. Safe
+    because `select_automatic_subbasins` treats the count as an upper bound.
+    The key is **renamed**, not redefined: `shared.basin`'s schema is not closed,
+    so a leftover `max_count` would be ignored silently and the project would run
+    at the new default rather than its author's value. `parse_spatial_config`
+    must reject the old key by name.
   - **§12 — `wflow_id` becomes a per-basin block of 100** (basin 1 → 100, 101,
     102 …). Today a subbasin primary gets `basin*100 + n` while any additional
     point gets `1_000_000 + subbasin_id*100 + n`, so basin 1's second gauge is
