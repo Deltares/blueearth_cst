@@ -210,7 +210,7 @@ rejected.** None is an R10 item; that milestone is identifier-only.
   per R10's validation item 4.
 
 - **[R10-6] Split `prepare_spatial_maps` so WF2 and WF3 can consume basin and
-  subbasin boundaries.** *Designed 2026-08-06 as ADR 0003 §8–11 (**proposed**,
+  subbasin boundaries.** *Designed 2026-08-06 as ADR 0003 §8–12 (**proposed**,
   not accepted); not implemented.* WF2 and WF3 declare `delineate_region` and no
   other spatial rule, and neither workflow's scripts read a vector layer today.
   The split puts the vector half — basins, subbasins, catchments, rivers,

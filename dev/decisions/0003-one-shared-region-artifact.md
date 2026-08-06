@@ -1,4 +1,4 @@
-Status: accepted (§1–7, implemented); **proposed** (§8–11, the vector-foundation split)
+Status: accepted (§1–7, implemented); **proposed** (§8–12, the vector-foundation split)
 Date: 2026-08-02
 Deciders: Ümit Taner
 Consulted: gabon_0108 run (2026-08-02) — geometry comparison showing
@@ -16,7 +16,7 @@ Revisions:
     `store_region.geojson` is retired and the store's extent moves into
     `extract_historical.nc` attributes.
   - 2026-08-06: **subject broadened from the region polygon to the shared
-    spatial foundation**, and the title with it. Adds §8–11 (proposed): split
+    spatial foundation**, and the title with it. Adds §8–12 (proposed): split
     `prepare_spatial_maps` at its thematic-raster seam so the vector layers —
     basins, subbasins, catchments, rivers, locations, registry — become a third
     shared spec declared in all three workflows, letting WF2 and WF3 consume
@@ -160,7 +160,7 @@ all three workflows declare identically.
    the polygon while `shared.basin.region` is unchanged, and that is exactly the
    case a specification-based digest misses.
 
-**§8–11 are PROPOSED, not implemented.** They extend the same pattern from the
+**§8–12 are PROPOSED, not implemented.** They extend the same pattern from the
 region polygon to the vector foundation.
 
 8. **Split `prepare_spatial_maps` at the thematic seam**, into two rules:
@@ -289,7 +289,7 @@ region polygon to the vector foundation.
 - The store key (`<clim_source>_<window>`) is unchanged, so store reuse across
   experiments (P3-1 §4) behaves exactly as before.
 
-#### Consequences of §8–11
+#### Consequences of §8–12
 
 *Positive*
 
@@ -321,7 +321,7 @@ region polygon to the vector foundation.
   behaviour-preserving.** `wflow_id` values populate the `gauges_locations` map,
   so Wflow emits `Q_<wflow_id>` / `P_<wflow_id>` columns: renumbering renames
   every gauge column in `output.csv`. `check_baseline.py check` **will fail**
-  until the baseline is re-recorded. Everything else in §8–11 leaves outputs
+  until the baseline is re-recorded. Everything else in §8–12 leaves outputs
   byte-identical; this does not, and it must not be landed in the same commit as
   work that claims to be.
 - **`wflow_id == subbasin_id` stops holding for primary locations** (§12). Both
@@ -374,7 +374,7 @@ region polygon to the vector foundation.
   same config and produce the same polygon. Preferred only if WF2's extraction
   cost were not real; it is, and it is stated in the code as an accepted price.
 
-#### Alternatives to §8–11
+#### Alternatives to §8–12
 
 - **Declare `prepare_spatial_maps` unsplit in all three workflows.** One more
   shared spec, no decomposition, symmetric with `delineate_region`. **Rejected**:
@@ -420,7 +420,7 @@ region polygon to the vector foundation.
    `snakemake -n -s Snakefile_climate_projections` showing no
    `extract_climate_grid` job.
 
-#### Validation of §8–11
+#### Validation of §8–12
 
 1. `tests/test_spatial_units_rule.py` (new) — the helper's shape, and that the
    three declarations of `delineate_spatial_units` differ only in
@@ -449,7 +449,7 @@ region polygon to the vector foundation.
      **re-record the baseline** and state in the commit that the discharge
      column names changed by design.
 
-### Open questions — §8–11
+### Open questions — §8–12
 
 - **What do WF2 and WF3 actually plot or aggregate?** §10 leaves the consuming
   rules unnamed. Subbasin-resolved WF3 indicators would change what
