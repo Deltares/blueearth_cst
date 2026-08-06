@@ -334,7 +334,11 @@ LOG_RULES = [
     "3.01d_check_model_reference",
     "3.01e_write_experiment_config",
     # 3.01f, not 3.01c: the letters beside 3.01 were already taken, and
-    # renumbering is [R10-5]'s job, not this one's.
+    # renumbering is R10-5's job, not this one's. NOTE: no closing square
+    # bracket anywhere inside this list, deliberately -- test_model_reference.py
+    # slices the block from "LOG_RULES = " to the first one, so a
+    # followups-style reference such as R10-5 in brackets silently truncates the
+    # label set it reads and the whole tail reads as unregistered.
     "3.01f_delineate_spatial_units",
     # 3.02 is the SHARED store rule (= WF1's 1.10). Run in pipeline order WF1
     # builds the store and WF3 finds it current, so this section usually reads

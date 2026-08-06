@@ -753,6 +753,11 @@ def read_hydrography_seam(seam_fn: str | os.PathLike[str]) -> xr.Dataset:
       pre-split dataset had ``y``/``x``/``spatial_ref`` first. Rebuilding the
       dataset coords-first is what makes the written file byte-identical rather
       than merely equivalent.
+
+    The CRS re-anchor below needs an authority code. A hydrography source whose
+    CRS has none keeps the WKT as stored: correct values and a correct
+    projection, but ``spatial_maps.nc`` will not be byte-identical to what the
+    unsplit rule wrote. No source in the shipped catalogs is in that position.
     """
     raw = xr.open_dataset(seam_fn, mask_and_scale=False)
     try:

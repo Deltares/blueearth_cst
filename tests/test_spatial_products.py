@@ -239,10 +239,15 @@ def test_fallback_is_resolved_independently_for_multiple_parent_features():
     # raster half now derives it from `subbasins`, which is only sound while
     # the two agree -- checked on the MULTI-BASIN case, since a one-basin
     # fixture cannot tell a per-basin mapping from a constant.
+    #
+    # Compared as ITEMS, not as dicts. `yaml.safe_dump(sort_keys=False)` writes
+    # insertion order, so a key reordering is a byte change in
+    # spatial_report.yml that dict equality cannot see.
     _subbasin_map, subbasins, _catchments, _locations, registry, methods = result
-    assert spatial_report(basins, subbasins, registry)[
+    derived = spatial_report(basins, subbasins, registry)[
         "delineation_method_by_basin"
-    ] == methods
+    ]
+    assert list(derived.items()) == list(methods.items())
 
 
 def test_the_report_rejects_a_parent_with_two_delineation_methods():

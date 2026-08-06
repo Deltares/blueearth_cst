@@ -96,7 +96,7 @@ items below and in ADR 0003. The landing order it recommended, adopted:
 | 1 | ~~`[R10-8]` stale WF2 `LOG_RULES` entry · `[R10-4]` comments · rule-index diagram fixes~~ **DONE 2026-08-06** | no sequencing dependency; one is a live defect |
 | 2 | ~~`[R10-9]` the `LOG_RULES` conformance test~~ **DONE 2026-08-06** (`tests/test_log_rules_contract.py`, 9 passed) | the sweep's highest-risk surface, verified *before* the sweep edits it |
 | 3 | ~~`[R10-1]` merge~~ **DONE 2026-08-06** · `[R10-2]` split **BLOCKED** — needs an owner ruling, see the item | the merge was small and behaviour-preserving; the split turned out not to have the seam it assumed |
-| 4 | `[R10-6]` §8–10 — **all three gates closed** (seam artifact §8a, params purity §8b, cost measurement validation 7, 2026-08-06). Briefed at `dev/working/r10-spatial-units-split/task-brief.md`; implementation not started | changes the rule count of all three workflows |
+| 4 | ~~`[R10-6]` §8–10 — the vector/raster split~~ **DONE 2026-08-06** (rules `1.01c` / `2.03c` / `3.01f`; nine WF1 artifacts byte-identical; ADR §8–10 now **accepted**). Baseline gate still open | changes the rule count of all three workflows |
 | 5 | `[R10-6]` §11a (rename, value preserved) then §11b (default → 11) | §11b is a baseline event; §11a is one YAML key |
 | 6 | R10 renames + `[R10-5]` renumber + `[R10-7]` | against a rule set that is finally stable; regenerate the number map from it |
 | 7 | `[R10-6]` §12 | standalone, last, with its own baseline re-record |
@@ -106,6 +106,13 @@ split before `[R10-5]`, but `rule-index.md` publishes a 45-identifier map that
 excludes §8's new rules. Renumbering now moves to **step 6**, after the rule set
 stops changing, and the published map is regenerated at that point rather than
 being the target from the start.
+
+As of 2026-08-06 that is no longer hypothetical: step 4 ADDED three identifiers
+the published map does not carry — `1.01c` / `2.03c` / `3.01f`
+`delineate_spatial_units`, one per workflow. Step 6 regenerates the map, so it
+must ADD rows, not only renumber the 45 that were there; `3.01f` in particular
+exists only because `3.01c`–`3.01e` were taken, and renumbering is what removes
+that awkwardness.
 
 - **[R10-1] Merge rule 1.07 `setup_runtime` into 1.08 `add_forcing`.**
   **DONE 2026-08-06** — `blueearth_cst/model/add_climate_forcing.py`; gate
@@ -291,8 +298,9 @@ being the target from the start.
 
 - **[R10-7] Rename the three shared-rule helpers from `_spec` to `_rule`.**
   *Ruled 2026-08-06; not implemented.* `region_spec` → `region_rule`,
-  `climate_store_spec` → `climate_store_rule`, and the new one from `[R10-6]` is
-  born as `spatial_units_rule`. Dataclasses follow (`RegionRule`,
+  `climate_store_spec` → `climate_store_rule`, and the new one from `[R10-6]`
+  was **born as `spatial_units_rule` / `SpatialUnitsRule` on 2026-08-06**, so the
+  trio is deliberately inconsistent until this sweep lands. Dataclasses follow (`RegionRule`,
   `ClimateStoreRule`, `SpatialUnitsRule`), as does `tests/test_region_spec.py` →
   `tests/test_region_rule.py`.
 
@@ -322,18 +330,33 @@ being the target from the start.
   per R10's validation item 4.
 
 - **[R10-6] Split `prepare_spatial_maps` so WF2 and WF3 can consume basin and
-  subbasin boundaries.** *Designed 2026-08-06 as ADR 0003 §8–12 (**proposed**,
-  not accepted); not implemented.* WF2 and WF3 declare `delineate_region` and no
-  other spatial rule, and neither workflow's scripts read a vector layer today.
-  The split puts the vector half — basins, subbasins, catchments, rivers,
-  locations, registry — behind a third shared spec declared in all three
-  workflows, and leaves the thematic raster stack (`vito`, `modis_lai`,
-  `soilgrids`) in a WF1-only rule.
+  subbasin boundaries.** *ADR 0003 §8–12. **§8–10 DONE 2026-08-06** and moved
+  from proposed to accepted; §11–12 still proposed.* The split put the vector
+  half — basins, subbasins, catchments, rivers, locations, registry — behind a
+  third shared rule (`delineate_spatial_units`, `1.01c` / `2.03c` / `3.01f`,
+  from `snake_utils.spatial_units_rule`) declared in all three workflows, and
+  left the thematic raster stack (`vito`, `modis_lai`, `soilgrids`) in the
+  WF1-only `prepare_spatial_maps`. The seam between them is
+  `data/spatial/hydrography.nc`, an intermediate deliberately absent from
+  `spatial_catalog.yml`.
 
-  Full context, decision, consequences, alternatives, validation and four open
-  questions in `dev/decisions/0003-one-shared-region-artifact.md`. **Land it
-  before `[R10-5]`** — it adds a WF1 rule, so renumbering first moves the numbers
-  twice.
+  Landed in three commits, each runnable on its own. All nine WF1 artifacts are
+  byte-identical to pre-split on the synthetic fixture, and WF2's dry run
+  schedules `delineate_spatial_units` with no thematic read. **The baseline gate
+  is still open** — `check_baseline.py check` needs the primary checkout and is
+  the assertion that §8–10 are behaviour-preserving on real data; a diff there
+  is a revert trigger, not a re-record. What it uniquely covers: the thematic
+  clip geometry now arrives from `basins.geojson` reprojected onto the grid CRS
+  rather than from an in-memory frame, a no-op for geographic hydrography but
+  untestable on the fixture catalog, which ignores `geom=`.
+
+  Full context, decision, consequences, alternatives, validation, the landed
+  state and four open questions in
+  `dev/decisions/0003-one-shared-region-artifact.md`. §8–10 landed **before
+  `[R10-5]`** as planned — they add a rule to every workflow, so renumbering
+  first would have moved the numbers twice.
+
+  §11 and §12 below are what remains of this item.
 
   The record also carries two **identity** changes ruled the same day, which ride
   with the split because they live in the same vector half:

@@ -1,4 +1,5 @@
-Status: accepted (§1–7, implemented); **proposed** (§8–12, the vector-foundation split)
+Status: accepted (§1–7, implemented); **accepted (§8–10, implemented 2026-08-06)**;
+        **proposed** (§11–12, the identity changes)
 Date: 2026-08-02
 Deciders: Ümit Taner
 Consulted: gabon_0108 run (2026-08-02) — geometry comparison showing
@@ -31,6 +32,12 @@ Revisions:
     per-basin blocks of 100. §12 is the one part of this record that moves
     outputs — it renames every gauge column in `output.csv` and requires a
     baseline re-record.
+  - 2026-08-06: **§8–10 implemented and moved from proposed to accepted.**
+    Three commits, each leaving the tree runnable: the `products.py` split with
+    WF1 declaring rule `1.01c`; the WF2 (`2.03c`) and WF3 (`3.01f`)
+    declarations; the R9 path-map row for the seam. §11–12 stay **proposed** —
+    they move outputs and are separate landings. See *Landed state (§8–10)*
+    below for what the implementation settled that the design did not say.
 
 # ADR 0003 — Spatial artifacts delineated once per project, shared across workflows
 
@@ -587,6 +594,82 @@ region polygon to the vector foundation.
    still unmeasured, so re-run the probe when a large basin is available. The
    direction is unlikely to reverse: the thematic half's three global-source
    reads are per-run overhead that a larger basin only adds to.
+
+### Landed state (§8–10), 2026-08-06
+
+What the implementation settled, in the places the design left underspecified or
+was wrong. §11 and §12 are untouched and still proposed.
+
+- **The seam carries the WHOLE grid stack, not §8a's six layers.** §8a lists
+  `flow_direction`, `flow_accumulation`, `upstream_area`, `river_mask`,
+  `basin_id`, `subbasin_id`. `spatial_maps.nc` also holds `cell_area`,
+  `river_order`, `elevation` and `slope`, all from `prepare_hydrography`, so a
+  six-layer seam would have forced the raster half to re-derive them — the
+  second hydrography read §8a rejects. §8's own prose ("the whole hydrography
+  grid stack") is the binding statement; the enumeration is illustrative.
+- **`<project_dir>/data/spatial/hydrography.nc`**, confirmed by the owner.
+  Absent from `spatial_catalog.yml`, and a test pins the absence: that file is
+  the model-build interface, and an entry would advertise an intermediate to
+  `build_wflow_model`.
+- **Two non-obvious things were needed for byte-identity**, both found by
+  hashing all nine artifacts before and after on the synthetic fixture rather
+  than by reasoning:
+  - the seam is read with `mask_and_scale=False`. Every layer stores its nodata
+    as a `_FillValue` **attribute**, so default CF decoding recasts the array to
+    float — `basin_id` and `subbasin_id` would have returned float64 with NaN at
+    the fill, and `spatial_maps.nc` would have shipped float identifier rasters
+    while every value still compared equal;
+  - the read dataset is rebuilt **coords-first** and its CRS re-anchored on its
+    EPSG code. netCDF stores variables in creation order and `open_dataset`
+    yields data variables before coordinates; and a CRS rebuilt from stored WKT
+    re-emits a poorer WKT than the catalog's (`DATUM[...]` where the catalog had
+    `ENSEMBLE[... MEMBER ...]`, `CONVERSION["unnamed"]`). Each was a byte diff on
+    a file whose every value already matched.
+- **`delineation_method_by_basin` is derived, not carried.** The raster half
+  recovers it from `subbasins`, where every row already records its parent's
+  method, and raises if a parent carries two. Pinned on the multi-basin fixture,
+  since a one-basin fixture cannot tell a per-basin mapping from a constant.
+- **The rule numbers are `1.01c` / `2.03c` / `3.01f`.** Not `3.01c`: WF3 had
+  already taken c/d/e, and renumbering is `[R10-5]`. The WF3 rule is therefore
+  defined after `3.01e`, keeping numbers in definition order.
+- **Reachability needed two edges per workflow, which §10 did not anticipate.**
+  With no consumer the rule is a leaf, so it needs (a) a `rule all` target entry
+  or it is never scheduled, and (b) an edge into `gather_logs` **and**
+  `gather_benchmarks` or it runs parallel to the merge and strands its log part
+  under `_parts/` — the defect this repo's `LOG_RULES` blocks already record
+  three times. Ruled 2026-08-06 that the project-scoped vectors join WF3's
+  otherwise experiment-scoped `rule all`: they depend on `shared.basin` alone,
+  which rule 3.00b already guarantees agrees across workflows.
+- **The §8 acceptance assertion is now a test, not a one-off dry-run.**
+  `_thematic_maps` — the only reader of `vito`, `modis_lai` and `soilgrids` —
+  has exactly one entry point, so "WF2 no longer reads the thematic sources" is
+  decidable by asking which workflows declare a rule running
+  `prepare_spatial_maps.py`. Checking the script rather than grepping a job list
+  for `vito` also survives a config that names those sources explicitly.
+  Measured on the fixture config, WF2's dry run schedules 26 jobs across 10
+  rules and `prepare_spatial_maps` is not among them.
+- **§8b's cost is larger than §8b says, and it is silent.** The section states
+  the deprecated `workflows.model_creation.output_locations` fallback "cannot
+  feed the shared rule" and calls that acceptable, but never says what happens
+  downstream. Rule 1.02 previously received `model_config` and so honoured the
+  legacy key on its way to the partition. A config setting ONLY the legacy key
+  now reaches the vector rule with no gauge points, falls back to the
+  **automatic** partition, and produces different subbasins, a different
+  `location_registry.csv` and different `wflow_id` values — with **no error**,
+  since an absent gauge file is a legitimate configuration. Rule 1.05 would then
+  add gauges to a model whose subbasins were derived without them.
+
+  No tracked config is affected: every one sets `shared.basin.gauge_points`
+  (checked 2026-08-06), so the baseline seed is unaffected. But the
+  compatibility release's promise is narrower than it reads — a migrating
+  project must **move** the key, not merely be warned the old one is deprecated.
+  Whoever removes the fallback should say so in the migration note.
+- **Not yet verified:** the thematic clip geometry now arrives from
+  `basins.geojson` (EPSG:4326) reprojected onto the grid CRS, where the unsplit
+  rule passed an in-memory frame already in that CRS. A no-op whenever the
+  hydrography is geographic, which merit_hydro is — but the fixture catalog
+  ignores `geom=`, so only `check_baseline.py check` from the primary checkout
+  can close it.
 
 ### Open questions — §8–12
 

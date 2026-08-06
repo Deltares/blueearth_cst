@@ -225,11 +225,22 @@ REGION = region_spec(
 # the one call site where that differs from the module-level `spatial_cfg`
 # above: §8b requires the shared rule's params to be a pure function of
 # `project` + `shared.basin`, so the deprecated
-# `workflows.model_creation.output_locations` fallback cannot feed it. A config
-# still using only the legacy key gets a vector rule with no gauge_points input
-# — WF1's own consumers (rule 1.05) keep reading `spatial_cfg`, which does
-# honour the fallback, so the compatibility release is unaffected everywhere it
-# was ever promised.
+# `workflows.model_creation.output_locations` fallback cannot feed it.
+#
+# THE COST IS REAL, AND IT IS SILENT. Rule 1.02 used to receive `my_cfg` and so
+# honoured the legacy key on its way to the partition. A config that sets ONLY
+# `workflows.model_creation.output_locations` now reaches this rule with no
+# gauge points at all, so its parent basins fall back to the AUTOMATIC
+# partition: different subbasins, a different location_registry.csv, and
+# different wflow_id values — with no error, because an absent gauge file is a
+# legitimate configuration. Rule 1.05 would then add gauges to a model whose
+# subbasins were derived without them.
+#
+# No tracked config is affected (all set `shared.basin.gauge_points`, the
+# canonical key, checked 2026-08-06), and §8b leaves no alternative: a params
+# payload drawn from a section the projections-only configs do not have would
+# differ per invoking workflow. But a migrating project must move the key, not
+# merely be told the old one is deprecated.
 SPATIAL_UNITS = spatial_units_rule(
     project_dir=project_dir,
     spatial_config=parse_spatial_config(basin_cfg),
@@ -276,8 +287,14 @@ LOG_RULES = [
     "1.04_add_reservoirs_lakes_glaciers",
     "1.05_add_gauges_and_outputs",
     "1.06_write_outlet_index",
-    # No 1.07 entry: [R10-1] merged setup_runtime into 1.08, so its label has no
+    # No 1.07 entry: R10-1 merged setup_runtime into 1.08, so its label has no
     # producer. tests/test_log_rules_contract.py fails if one reappears.
+    #
+    # NOTE: no closing square bracket anywhere inside this list.
+    # test_model_reference.py slices the block from "LOG_RULES = " to the first
+    # one, so a followups-style reference in brackets truncates the label set it
+    # reads and every label below the comment reads as unregistered. That is
+    # what the bracketed R10-1 above did between 2026-08-06 and this edit.
     "1.08_add_forcing",
     "1.09_run_wflow",
     "1.10_extract_climate_grid",
