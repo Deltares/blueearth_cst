@@ -45,6 +45,14 @@ section is the target state.
 
 ### Renumbering (`[R10-5]`)
 
+> **This map is not final.** `[R10-6]` adds a rule to all three workflows
+> (`delineate_spatial_units`) and lands **before** the renumber, so the numbers
+> below shift again from WF1 1.06 upward. The renumber is step 6 of the landing
+> order in `dev/followups.md`, once the rule set has stopped changing, and this
+> table is regenerated at that point. It is published now because the rest of the
+> page needs *some* numbering to refer to — not because these are the final
+> values.
+
 Read this table before interpreting any `W.NN` in a document written before
 2026-08-06.
 
@@ -252,6 +260,11 @@ the two gather rules — that is the edge the stage-4 line stands in for. Four a
 figures, which are expected to terminate (no rule consumes a `.png`). **1.07 is
 the one data leaf**, and its real consumer sits outside the workflow: see its
 section below.
+
+`WF1_TERMINALS` has a **sixth** member that is not a leaf —
+`<spatial>/spatial_catalog.yml`, listed as one representative of 1.05's
+multi-output set so the gather rules wait for it. Its producer feeds 1.06, so it
+is a terminal in the target-set sense without being a graph leaf.
 
 **What is NOT a dependency, despite reading like one.** 1.11 does not consume the
 climate store: it reads source climate through the data catalog (`-d`), and its
@@ -713,30 +726,38 @@ exists by then.
 STAGE 1 — GUARD + PROVENANCE   (config and hashes only)
 ──────────────────────────────────────────────────────────────────
    config ──► 3.01 check_project_consistency   (drift guard, fails loud)
-                          │
-        ┌─────────────────┼──────────────────┬──────────────────┐
-        ▼                 ▼                  ▼                  ▼
-  3.02 snapshot     3.03 delineate     3.04 write_model    3.06 write_
-     _config           _region           _reference        experiment_config
-        │                 │                    │
-        │                 │                    ▼
-        │                 │           3.05 check_model_reference
-        │                 │            (verdict consumed by 3.13)
-        │                 │
+                 │         .project_consistency_ok
+                 │
+                 │   ┌─────────────┬─────────────┬─────────────┐
+                 └──►│             │             │             │
+                     ▼             ▼             ▼             ▼
+              3.02 snapshot   3.06 write_    3.08 prepare  3.09 prepare_
+                 _config      experiment_    _stress_test  weathergen_
+                              config             _grid        config
+
+   config ──► 3.03 delineate_region      (guard-independent: its only
+                     │  region.geojson    input is the data catalog, and
+                     │                    the byte-identity contract with
+                     ▼                    WF1/WF2 forbids adding one)
+              3.07 extract_historical_climate   (SHARED with WF1 1.03)
+
+   model  ──► 3.04 write_model_reference  (inputs: WF1's .outputs_configured
+                     │                     + wflow_sbm.toml, both ancient)
+                     ▼
+              3.05 check_model_reference   (verdict consumed by 3.13)
+
 STAGE 2 — CLIMATE DATA   (the model is fingerprinted, never used)
 ──────────────────────────────────────────────────────────────────
-        │                 ▼
-        │      3.07 extract_historical_climate   (SHARED with WF1 1.03)
-        │                 │  extract_historical.nc
-        ▼                 │
-  3.08 prepare_stress     │      3.09 prepare_weathergen_config
-      _test_grid          │              │  weathergen_config.yml
-        │  cst_1..N.csv   └──────────────┤
-        │                                ▼
-        │                 3.10 generate_weather_realizations
-        │                                │  rlz_1..R_cst_0.nc  (unperturbed)
-        └────────────────┐               │
-                         ▼               ▼
+   3.07 extract_historical_climate      3.09 prepare_weathergen_config
+              │  extract_historical.nc          │  weathergen_config.yml
+              └────────────────┬────────────────┘
+                               ▼
+              3.10 generate_weather_realizations
+                               │  rlz_1..R_cst_0.nc   (unperturbed)
+   3.08 prepare_stress_test_grid        │
+              │  cst_1..N.csv           │
+              └────────────────┬────────┘
+                               ▼
                   3.11 perturb_climate_realization
                          │  rlz_<n>_cst_<m>.nc   (perturbed)
                          ▼
@@ -762,6 +783,14 @@ STAGE 4 — PRODUCT + RECORDS
 **The store feeds 3.10, not 3.08.** 3.08 enumerates the stress-test grid from
 the config alone — it needs no climate data at all, and runs concurrently with
 the extraction. The historical climate is what the *generator* resamples.
+
+**The guard's fan-out is 3.01 → {3.02, 3.06, 3.08, 3.09}** — the four rules that
+declare `consistency_ok`. An earlier version of this diagram drew it reaching
+`delineate_region` and `write_model_reference` as well; neither declares it, and
+`delineate_region` structurally *cannot* — its input set is splatted from the
+shared rule helper and adding a WF3-only input would break the byte-identity
+contract `test_region_rule.py` enforces. `write_model_reference` hangs off the
+built model instead (`.outputs_configured` + `wflow_sbm.toml`, both `ancient()`).
 
 | # | rule | in one line |
 |---|---|---|

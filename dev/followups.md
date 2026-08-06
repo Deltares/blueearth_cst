@@ -86,6 +86,27 @@ The audit also raised four **structural** candidates — three merges and one
 split. All four were ruled on 2026-08-06: **M1 and S1 accepted, M2 and M3
 rejected.** None is an R10 item; that milestone is identifier-only.
 
+**Reviewed 2026-08-06** by a `cst-architect` pass over the whole stack against
+the code. It confirmed the M2/M3 rejections and the renumber arithmetic, and
+found several defects the design had asserted its way past — recorded in the
+items below and in ADR 0003. The landing order it recommended, adopted:
+
+| # | step | why here |
+|---|---|---|
+| 1 | `[R10-8]` stale WF2 `LOG_RULES` entry · `[R10-4]` comments · rule-index diagram fixes | no sequencing dependency; one is a live defect |
+| 2 | `[R10-9]` the `LOG_RULES` conformance test | the sweep's highest-risk surface, verified *before* the sweep edits it |
+| 3 | `[R10-1]` merge · `[R10-2]` split | small, behaviour-preserving, `test_cli.py` each |
+| 4 | `[R10-6]` §8–10 — after deciding the seam artifact and params purity, and after the WF2 cost measurement | changes the rule count of all three workflows |
+| 5 | `[R10-6]` §11a (rename, value preserved) then §11b (default → 11) | §11b is a baseline event; §11a is one YAML key |
+| 6 | R10 renames + `[R10-5]` renumber + `[R10-7]` | against a rule set that is finally stable; regenerate the number map from it |
+| 7 | `[R10-6]` §12 | standalone, last, with its own baseline re-record |
+
+**This resolves the double-renumber contradiction.** `[R10-6]` says land the
+split before `[R10-5]`, but `rule-index.md` publishes a 45-identifier map that
+excludes §8's new rules. Renumbering now moves to **step 6**, after the rule set
+stops changing, and the published map is regenerated at that point rather than
+being the target from the start.
+
 - **[R10-1] Merge rule 1.07 `setup_runtime` into 1.08 `add_forcing`.**
   *Accepted 2026-08-06; not implemented.* 1.07 writes a hydromt forcing build
   recipe (`<model>/config/build_historical_forcing.yml`) whose **only** consumer
@@ -177,6 +198,37 @@ rejected.** None is an R10 item; that milestone is identifier-only.
   not an argument for merging them. Check what each actually depends on, and
   whether either destroys its own inputs.
 
+- **[R10-8] `Snakefile_climate_projections` lists a `LOG_RULES` label with no
+  rule.** *Found by the 2026-08-06 review; a live defect, not a comment.*
+  Line 560 still carries `"2.11_extract_climate_grid"`, with a comment claiming
+  WF2 builds the store when run standalone. It does not — ADR 0003 §5 removed
+  that rule, and `grep -c "rule extract_climate_grid" Snakefile_climate_projections`
+  returns **0**. Consequence: every WF2 merged log carries a phantom "no part
+  from this run" section forever. This is exactly the label-with-no-producer
+  hazard `rule-naming-design.md` documents from the C29 precedent, already
+  realised. Delete the entry and its comment. Gate: `pytest tests/test_cli.py`.
+
+- **[R10-9] Make the `LOG_RULES` contract a test.** *Recommended by the
+  2026-08-06 review; the cheapest insurance in the stack.* The
+  unlisted-or-stale-label defect has now occurred **four** times (1.01b, 3.01b,
+  2.03b, and `[R10-8]`), and the design treats it as checklist discipline before
+  a sweep that edits precisely that surface across three files.
+
+  It is mechanically checkable: parse each Snakefile — the machinery in
+  `tests/test_climate_store_contract.py` already does this — and assert
+  set-equality between `LOG_RULES` and the labels derived from every rule's
+  `log:` path. Rule 3.10's deliberately singular label falls out naturally, since
+  its own `log:` path carries `3.10_run_wflow` rather than the batch identifiers.
+
+  **Land it before the R10 sweep**, so the highest-risk edit of that surface is
+  verified rather than reviewed.
+
+  Related, and free only while every call site is already being edited: define
+  **one label constant per rule** (`_L = "1.11_add_climate_forcing"`) and build
+  `LOG_RULES`, `rule_banner`, `log:` and `benchmark:` from it. Four of the six
+  call sites collapse to one definition, and the next rename or renumber becomes
+  a one-line edit per rule.
+
 - **[R10-7] Rename the three shared-rule helpers from `_spec` to `_rule`.**
   *Ruled 2026-08-06; not implemented.* `region_spec` → `region_rule`,
   `climate_store_spec` → `climate_store_rule`, and the new one from `[R10-6]` is
@@ -235,20 +287,26 @@ rejected.** None is an R10 item; that milestone is identifier-only.
     so a leftover `max_count` would be ignored silently and the project would run
     at the new default rather than its author's value. `parse_spatial_config`
     must reject the old key by name.
-  - **§12 — `wflow_id` becomes a per-basin block of 100** (basin 1 → 100, 101,
-    102 …). Today a subbasin primary gets `basin*100 + n` while any additional
-    point gets `1_000_000 + subbasin_id*100 + n`, so basin 1's second gauge is
-    `1_010_102` — a seven-digit id beside a three-digit one in the same column.
+  - **§12 — `wflow_id` becomes `basin_id*1000 + subbasin*10 + m`** (basin 1 →
+    1010, 1011, 1020 …), `m = 0` the subbasin's primary. Today a subbasin primary
+    gets `basin*100 + n` while any additional point gets
+    `1_000_000 + subbasin_id*100 + n`, so basin 1's second gauge is `1_010_102`.
+    **Revised 2026-08-06** from a flat `basin*100 + k`: review showed the flat
+    form near-collides with `subbasin_id` at an off-by-one and discards the
+    subbasin encoding the current ids carry. Cost: nine additional locations per
+    subbasin.
 
-  **§12 is a baseline event and must not share a commit with the rest.** `wflow_id`
-  values name Wflow's gauge output columns, so renumbering renames every
-  `Q_<id>` / `P_<id>` in `output.csv`; `check_baseline.py check` fails until
-  re-recorded. §8–11 are behaviour-preserving, §12 is not — landing them together
-  destroys the ability to tell an intended diff from a regression.
+  **§11b and §12 are baseline events and must each land alone.** Only §8–10 and
+  §11a are behaviour-preserving — an earlier version of this entry claimed §8–11
+  were, which was wrong on two counts (the default change moves the fixture's
+  automatic partition; the config-key rename moves the snapshot hash).
 
-  Two things not to lose: the hydrography-read cost §8 adds to WF2 is asserted,
-  **not measured**; and `wflow_id == subbasin_id` stops holding for primary
-  locations under §12, so grep for code relying on that identity first.
+  Three things not to lose. The hydrography-read cost §8 adds to WF2 is asserted,
+  **not measured** — ADR 0003 validation item 7 makes measuring it the acceptance
+  gate. `wflow_id == subbasin_id` is an **enforced validator**
+  (`build_wflow_model.py:157`), so §12 stops WF1 building until it is repealed —
+  not a silent break. And §12 rewrites the column headers of every project's
+  **observation files**, which is user data, not repo data.
 
 - **[R10-5] Renumber every rule so `W.NN` follows the logical order.**
   *Accepted 2026-08-06; not implemented.* Numbers become **positional**: data

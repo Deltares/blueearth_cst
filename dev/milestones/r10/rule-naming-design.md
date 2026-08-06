@@ -45,7 +45,7 @@ recorded in `dev/followups.md`:
 | | change | effect on this design |
 | --- | --- | --- |
 | `[R10-1]` | merge 1.07 into 1.08 | 1.07's rename is withdrawn — see above. Cost: 1.07 is a Python `script:`, 1.08 a `shell:` hydromt CLI call, and Snakemake allows one per rule |
-| `[R10-2]` | split 1.11 into 1.11 `evaluate_wflow_run` (metrics) + 1.11b `plot_wflow_evaluation` (figures) | the figure half **keeps this design's target name**, so the 1.11 rename is unaffected. The metrics half is a NEW identifier and needs a verb ruling: `evaluate_` would be a 19th verb, while `derive_` is reserved here for a workflow's *terminal* product, which the metrics table is not |
+| `[R10-2]` | split 1.11 into `evaluate_wflow_run` (metrics) + `plot_wflow_evaluation` (figures) | the figure half **keeps this design's target name**, so the 1.11 rename is unaffected. The metrics half is a new identifier, and `evaluate_` is **ruled in as the 19th verb** (2026-08-06): `derive_` is reserved for a workflow's *terminal* product and the metrics table is not WF1's; `check_` is wrong because the rule must not fail on poor skill; `prepare_`/`write_` misdescribe scoring. The "never fails on skill" clause in its table entry is what separates it from `check_` |
 
 **Sequencing:** either order works for both. If a merge or split lands first, the
 affected rename is already moot; if R10 lands first, the rules keep their names
@@ -170,6 +170,7 @@ same:
 | `build_` | construct a model from inputs |
 | `add_` | mutate an existing model in place by adding **data** (a hydromt `update`) |
 | `declare_` | change what an engine will **emit**, adding no model data |
+| `evaluate_` | score outputs against observations; emits metrics, **never fails on skill** |
 | `write_` | **emit a record or index** — the emission *is* the work |
 | `generate_` | stochastic or synthetic production |
 | `downscale_` | resolution transform |

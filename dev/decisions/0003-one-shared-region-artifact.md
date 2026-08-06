@@ -173,9 +173,45 @@ region polygon to the vector foundation.
      the thematic layers → `spatial_maps.nc`, `spatial_catalog.yml`,
      `spatial_report.yml`. **WF1 only.**
 
-   The split is a decomposition of one existing function, not new logic: the
-   vector half is `prepare_spatial_products` up to and including
-   `_delineate_spatial_units`, the raster half is `_thematic_maps` onward.
+   The function boundary is `prepare_spatial_products` up to and including
+   `_delineate_spatial_units` versus `_thematic_maps` onward — but **the seam is
+   not free**, and an earlier draft of this section wrongly called it a pure
+   decomposition. What crosses it in memory is the whole hydrography grid stack:
+   `_thematic_maps(catalog, config, basins, maps["flow_direction"])` uses
+   `flow_direction` as the resample template, and `maps` by then carries the
+   derived `basin_id` and `subbasin_id` rasters the raster half also writes into
+   `spatial_maps.nc`.
+
+   **8a. The vector rule therefore writes a seventh artifact**: the hydrography
+   grid stack (`flow_direction`, `flow_accumulation`, `upstream_area`,
+   `river_mask`, `basin_id`, `subbasin_id`) as a netCDF the raster rule declares
+   as an input. Recomputing instead would make WF1 read the hydrography twice
+   with two grids that can drift; rasterizing back from the geojsons adds new
+   logic and precision loss. The intermediate is the only option that keeps one
+   producer per value.
+
+   It is a **seam intermediate, not a product**: it stays out of
+   `spatial_catalog.yml`, and it needs a row in the R9 path map and a
+   `tree-check` entry.
+
+   **8b. The vector rule's inputs and params must be a pure function of
+   `project` + `shared.basin`.** Today rule 1.02 declares
+   `config_snake = config_path` as an *input* and passes the whole
+   `workflows.model_creation` section as *params*. Neither can survive a
+   three-way shared declaration: the five projections-only configs contain no
+   `workflows.model_creation` keys at all, so the params payload would differ per
+   invoking workflow — the input/params asymmetry `ext1-02` forbade for the
+   climate store — and `config_path` itself differs between a full config and a
+   single-workflow one, so as a declared input it would thrash the shared rule on
+   every WF1/WF2 alternation.
+
+   So the vector rule drops `config_snake` and narrows its params to the
+   `SpatialConfig` fields resolved from `shared.basin` alone. Consequence: the
+   one-release `workflows.model_creation.output_locations` fallback in
+   `resolve_gauge_points_path` cannot feed the shared rule. Acceptable — it is
+   deprecated compat — but it must be stated rather than discovered. What makes
+   this safe is rule 3.00b, which already guarantees `shared.basin` agrees across
+   the workflows that share the rule.
 
 9. **`snake_utils.spatial_units_rule(...)`** returns a `SpatialUnitsRule` —
    `script`, `inputs`, `outputs`, `params` — mirroring the other two shared-rule
@@ -228,17 +264,36 @@ region polygon to the vector foundation.
 
     **11, not 13.** Twelve is the practical ceiling for a qualitative colour ramp
     a reader can tell apart (ColorBrewer `Set3` and `Paired` both stop at 12), so
-    11 keeps a subbasin map legible with one legend entry per unit; 13 forces a
-    palette that repeats or interpolates. `MAX_LOCAL_SUBBASIN_NUMBER = 99` stays
-    as the hard cap — this is a default, not a limit.
+    11 keeps *one basin's* subbasin map legible with a legend entry per unit; 13
+    forces a palette that repeats or interpolates. The argument holds **per
+    basin only** — a three-basin project reaches 33 units and exceeds any
+    qualitative ramp regardless, so per-basin colouring is the figure's problem
+    to solve, not the default's. `MAX_LOCAL_SUBBASIN_NUMBER = 99` stays as the
+    hard cap: this is a default, not a limit.
+
+    **§11 splits into two landings, because it is NOT behaviour-preserving.** An
+    earlier draft claimed §8–11 left outputs byte-identical. False, twice:
+
+    - **11a — rename only.** Ship the tracked seed config as
+      `max_per_basin: 20`, preserving the current value. Expected baseline delta:
+      exactly one YAML key in the config snapshot, which `check_baseline`
+      fingerprints by normalized SHA-256. Note that without this edit the shipped
+      config **fails to parse** the moment the old-key rejection lands.
+    - **11b — default 20 → 11**, as its own baseline event. The shipped test
+      config has `gauge_points: null`, so the fixture runs the *automatic* path:
+      lowering the ceiling changes the threshold `select_automatic_subbasins`
+      selects whenever the count at 20 exceeded 11, which moves the subbasins,
+      the registry, the gauge map and the `_basavg` columns. Whether this
+      fixture actually crosses 11 can only be answered in the primary checkout.
 
     *Withdrawn:* an earlier draft of this section proposed "no gauges → one
     subbasin per basin". The owner retracted it on 2026-08-06. A gauge-free
     project **should** be subdivided; it should just not be subdivided twenty
     ways.
 
-12. **`wflow_id` becomes a per-basin block of 100**, so Wflow's output columns
-    group by basin. Today two unrelated formulas share the column:
+12. **`wflow_id` becomes a basin-grouped, subbasin-structured integer**, so
+    Wflow's output columns group by basin without losing what they point at.
+    Today two unrelated formulas share the column:
 
     | location | today | basin 1 example |
     |---|---|---|
@@ -248,16 +303,46 @@ region polygon to the vector foundation.
     A seven-digit id sits beside a three-digit one in the same column, for points
     a user thinks of as siblings.
 
-    Target: **`wflow_id = basin_id * 100 + k`**, with `k` assigned *within the
-    basin* — `k = 0` the basin outlet, then the remaining subbasin primaries
-    downstream → upstream, then the additional locations. Basin 1 reads
-    `100, 101, 102, …`; basin 2 reads `200, 201, 202, …`. A parent basin may hold
-    100 locations, raising past that exactly as `MAX_LOCAL_SUBBASIN_NUMBER` caps
-    subbasins at 99.
+    Target: **`wflow_id = basin_id*1000 + local_subbasin_number*10 + m`**, with
+    `m = 0` for the subbasin's primary location and `m = 1…9` for additional
+    locations within it. Basin 1 reads `1010, 1011, 1020, 1030…`; basin 2 reads
+    `2010, 2011, …`. Grouped by basin, ordered by subbasin, and the subbasin
+    stays legible in the flat id.
 
-    **`location_code` does not change.** It stays hierarchical
-    (`B001-S01-L01`) and keeps the subbasin visible. Codes are for reading,
-    `wflow_id` is the flat integer for joining and for scanning a CSV header.
+    **Rejected: `basin_id*100 + k` with a flat sequential `k`** (the first draft
+    of this section, and the owner's initial proposal). Two defects, both raised
+    in review and accepted 2026-08-06:
+
+    - It *near-collides* with `subbasin_id` at an off-by-one — S01's primary
+      would be `100` while its `subbasin_id` is `101`, and `103` could be an
+      additional gauge while subbasin `103` is S03. Two 3-digit namespaces with
+      different meanings and no visual tell.
+    - It **loses information the current scheme carries**. `1_010_102` decodes to
+      "subbasin 101, location 02"; a flat `103` decodes to nothing and can only
+      be resolved through the registry. Ugly ids that encode structure beat tidy
+      ids that do not.
+
+    **Cost, accepted:** nine additional locations per subbasin (today 99), and
+    four-digit ids. A `basin_id*10000 + subbasin*100 + m` variant lifts the limit
+    to 99 at five digits and is the fallback if a real project ever needs it.
+
+    **`location_code` does not change.** It stays hierarchical (`B001-S01-L01`).
+    Codes are for reading, `wflow_id` is the integer for joining and for scanning
+    a CSV header.
+
+    **12a. `build_wflow_model` must repeal an enforced invariant.**
+    `_validate_registry` raises `"Every primary location wflow_id must equal its
+    subbasin_id"` (`build_wflow_model.py:157`). Under §12 a primary is
+    `basin*1000 + sub*10` while its `subbasin_id` is `basin*100 + sub`, so **WF1
+    cannot build at all** until that check is rewritten. An earlier draft called
+    this a silent breakage to grep for; it is a designed-in invariant this
+    decision must consciously repeal, and it is loud.
+
+    **12b. Observation files are a user-data migration.** Observation timeseries
+    columns are `wflow_id` values (`observation_validation.py`,
+    `plot_results.py`), so after §12 every project's observation CSV header is
+    wrong and `validate_observation_station_ids` raises on the missing ids. The
+    migration note must cover observation files, not only `gauge_points` pinning.
 
 ### Consequences
 
@@ -329,30 +414,42 @@ region polygon to the vector foundation.
 - WF1 gains a rule. Interacts with the renumbering in `dev/followups.md`
   `[R10-5]`: land the split first or the numbers move twice.
 
-- **§12 is a baseline event, and it is the only part of this record that is not
-  behaviour-preserving.** `wflow_id` values populate the `gauges_locations` map,
-  so Wflow emits `Q_<wflow_id>` / `P_<wflow_id>` columns: renumbering renames
-  every gauge column in `output.csv`. `check_baseline.py check` **will fail**
-  until the baseline is re-recorded. Everything else in §8–12 leaves outputs
-  byte-identical; this does not, and it must not be landed in the same commit as
-  work that claims to be.
-- **`wflow_id == subbasin_id` stops holding for primary locations** (§12). Both
-  columns remain in `location_registry.csv`, so no information is lost, but any
-  code or query relying on the identity breaks silently. Grep for it before
-  implementing.
-- Projects that pin `wflow_id` in `gauge_points` must re-pin. The existing
-  mismatch check in `assign_location_ids` raises with the offending rows, which
-  is the right failure — loud, and it names the stations.
-- The `warn_if_low_gauge_ids` advisory (fired from rule 1.01, deliberately early
-  so a warning precedes the ids reaching the model) needs its threshold
-  revisited: under §12 ids start at 100 by construction.
+- **§11b and §12 both move outputs.** Only §8–10 and §11a are
+  behaviour-preserving; an earlier draft of this record claimed §8–11 were, and
+  that was wrong (see §11). Land each output-moving step in its own commit, or an
+  intended diff becomes indistinguishable from a regression.
+- **§12's baseline mechanism, precisely.** The baseline's discharge anchor
+  resolves the primary outlet column through `outlet_index.csv` →
+  `subcatchment_id` → `Q_<subcatchment_id>` (`check_baseline.py:380-405`), and
+  outlet-map values are **subbasin ids**, which §12 does not renumber. So the
+  anchor column keeps its name. What moves is the **gauge** columns
+  (`Q_<wflow_id>` / `P_<wflow_id>` from the `gauges_locations` map), the WF3
+  indicator tables, the registry, and — via re-pinning — the config snapshots.
+  State this in the re-record commit, or the diff will not match its message.
+- **The outlet/gauge id overlap inverts, and may change the CSV *schema*.**
+  `plot_results.py:43-51` documents today's normal case, where the outlet's
+  subcatchment id equals the outlet gauge's `wflow_id` and the two coincide in
+  one column. §12 removes that equality, so the same physical point may appear
+  as two columns. Whether `output.csv` gains a column — a schema change, not a
+  rename — must be pinned by a fixture run before the baseline is re-recorded.
+- **`wflow_id == subbasin_id` is repealed, not broken** — see §12a. It is an
+  enforced validator, so the failure is a hard build error, not a silent drift.
+- Projects that pin `wflow_id` in `gauge_points` must re-pin, and every
+  observation file's column headers must be rewritten (§12b). The mismatch check
+  in `assign_location_ids` and `validate_observation_station_ids` both raise by
+  name, so the failures are loud — but this is user data, not repo data.
+- The `warn_if_low_gauge_ids` advisory is **moot** under §12 rather than needing
+  a new threshold: generated ids start well above it, and a user-pinned id below
+  the floor dies at the mismatch check first.
 
 *Neutral*
 
-- `spatial_catalog.yml` currently enumerates all five geoms, the registry and
-  `spatial_maps`. After the split its producer must be chosen — either the vector
-  rule writes a vector-only catalog that the raster rule extends, or the catalog
-  stays whole in the raster half and WF2/WF3 read the geojsons by path.
+- **`spatial_catalog.yml` stays whole in the raster (WF1-only) half.** It is the
+  model-build interface — `build_wflow_model` resolves every entry through it —
+  and `_catalog_dict()` is static, so the raster rule can list the vector entries
+  it consumed. WF2 and WF3 need no hydromt catalog to read a geojson by path. A
+  vector-only catalog *extended* by the raster rule would mean two writers of one
+  file, which is the R7-1 anti-pattern.
 - Migration: the two rules and their call sites land in **one commit**. Splitting
   a `script:` module into two entry points leaves the tree un-runnable between a
   bare move and its reference rewrite.
@@ -411,7 +508,12 @@ region polygon to the vector foundation.
   workflow's ability to bootstrap itself. It is also **not blocked by this
   decision**: WF0 would carry the vector half and leave the raster half in WF1,
   which is the same seam §8 cuts, so §8 is a prerequisite either way. Raise it as
-  its own record when the duplication cost of three shared specs is felt.
+  its own record when the duplication cost of three shared rules is felt.
+
+  **Tripwire, so this is not re-litigated every milestone:** adopt WF0 when a
+  **fourth** shared rule appears, or when a byte-identity contract test catches
+  real drift twice. Until then the duplication is held safe by tests that already
+  exist, and the deferral costs nothing.
 
 ### Validation
 
@@ -450,30 +552,40 @@ region polygon to the vector foundation.
 5. `check_baseline.py check` — for §8–10 the vector outputs are byte-identical
    to pre-split, so the baseline passes unchanged. A diff there means the split
    changed behaviour, which it must not.
-6. §11 and §12 are **expected** to move outputs and are validated separately:
-   - §11 — on a multi-basin fixture, each parent's automatic partition is capped
-     at `max_count` independently, and a parent count exceeding it no longer
+6. §11b and §12 are **expected** to move outputs and are validated separately:
+   - §11b — on a multi-basin fixture, each parent's automatic partition is capped
+     at `max_per_basin` independently, and a parent count exceeding it no longer
      raises. `tests/test_delineation.py` loses the global-allocation cases with
      `allocate_automatic_subbasin_budgets`.
-   - §12 — `tests/test_identity.py`: every `wflow_id` falls in
-     `[basin_id*100, basin_id*100+99]`, the basin outlet is `basin_id*100`,
-     values are unique, and a 101st location in one basin raises. Then
-     **re-record the baseline** and state in the commit that the discharge
-     column names changed by design.
+   - §12 — `tests/test_identity.py`: every `wflow_id` decodes as
+     `basin_id*1000 + local_subbasin_number*10 + m`; each subbasin's primary ends
+     in `0`; a tenth location in one subbasin raises; values are unique. Then
+     **re-record the baseline**, stating in the commit that the *gauge* column
+     names changed by design while the outlet anchor column did not.
+7. **§8's acceptance gate is a measurement, not an assertion.** Time
+   `prepare_spatial_products` through `_delineate_spatial_units` (skipping
+   `_thematic_maps` onward) on the largest realistic basin, against the current
+   1.02 benchmark part. Record the number in this record. If the vector half is
+   not materially cheaper than the whole rule, §8 has moved WF2's cost rather
+   than removed it and the decision should be revisited. Expected risk is memory
+   on a large basin rather than wall-clock.
 
 ### Open questions — §8–12
 
 - **What do WF2 and WF3 actually plot or aggregate?** §10 leaves the consuming
   rules unnamed. Subbasin-resolved WF3 indicators would change what
   `basin_indicators.csv` means, which is a separate decision.
-- **Measured cost of the hydrography read in WF2.** Asserted cheaper than the
-  thematic stack, not measured. If it is not, the split has moved the cost rather
-  than removed it.
-- **Who writes `spatial_catalog.yml`** after the split — see *Consequences*.
-- **Block size in §12.** 100 locations per basin matches
-  `MAX_LOCAL_SUBBASIN_NUMBER = 99`, but caps a heavily-instrumented basin. 1000
-  would be roomier at the cost of longer ids. Decide against a real gauge count,
-  not in the abstract.
+- **Ordering of additional locations within `m`** (§12). These become Wflow
+  column names, so the tie-break must be deterministic — today
+  `assign_location_ids` sorts on `station_name, snapped_row, snapped_col,
+  original_x, original_y` within a subbasin, which carries over, but say so.
+- **Does the `outlets` map get renumbered too?** It must not — the baseline's
+  discharge anchor depends on outlet values staying subbasin ids — but §12 never
+  says so explicitly, and an implementer renumbering "all the ids" would break
+  the gate.
+- **Nine additional locations per subbasin** is the §12 cap. Fine unless a real
+  deployment exceeds it, in which case the `basin*10000 + sub*100 + m` variant
+  applies. Check against a real gauge list before implementing, not after.
 
 ### Related
 
