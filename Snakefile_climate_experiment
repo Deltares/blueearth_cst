@@ -213,35 +213,37 @@ CONFIG_SNAPSHOT_DIR = (
     f"{exp_dir}/config/runs/climate_experiment/{short_digest(CONFIG_SNAPSHOT_DIGEST)}"
 )
 
-# --- The two symmetric engine subtrees inside the experiment (R07 B5/B6/B7) ---
-# weather_generator/ mirrors hydrology_runs/: each engine owns its own config,
-# working, and product directories, and the per-realization/per-cst indices live
-# where they belong. realization_<r>/, model_runs/ and stress_test/ all dissolve.
-#   weather_generator/config/  the generator's own config snapshot (rule 3.04)
-#   weather_generator/_work/   per-member configs (3.05) + the cst_<c>.csv
-#                              perturbation grid (3.03) -- demoted for
-#                              legibility, RETAINED on disk: it is the only
-#                              record of the precip_variance axis and of the
-#                              monthly structure the reduction collapses.
-#   weather_generator/output/  the generator's products: the realization NCs
-#                              and weathergenr's two date CSVs
-#   weather_generator/plots/   weathergenr's diagnostic figures
-#   hydrology_runs/rlz_<r>/{config,forcing,output}/  one wflow run dir per
-#                              realization; the realization index migrates from
-#                              the FILENAME into the directory, so the per-cst
-#                              filenames lose their rlz_<r> component.
+# --- The two symmetric engine subtrees inside the experiment ------------------
+# CURRENT SHAPE. Each engine owns its own config, working and product
+# directories, and ONE MEMBER IS ONE FILENAME (`rlz_<r>_cst_<c>`) rather than a
+# directory level:
+#   climate/weathergenr/config/  the generator's own config snapshot (rule 3.04)
+#   climate/weathergenr/_work/   the cst_<c>.csv perturbation grid (3.03) --
+#                                demoted for legibility, RETAINED on disk: it is
+#                                the only record of the precip_variance axis and
+#                                of the monthly structure the reduction
+#                                collapses. It held per-member configs too until
+#                                C29 retired rule 3.05, which was writing one
+#                                file per member that carried no per-member data.
+#   climate/weathergenr/output/  the generator's products: the realization NCs
+#                                and weathergenr's two date CSVs
+#   climate/weathergenr/plots/   weathergenr's diagnostic figures
+#   hydrology/wflow/{config,forcing,output}/  three FLAT directories, each
+#                                holding rlz_<r>_cst_<c>.* for every member.
 # inmaps_rlz_* are wflow-GRID downscaled forcing (rule 3.09) -- the per-
-# realization twin of hydrology_model/forcing/inmaps_historical.nc -- so they
-# belong to the hydrology side, not to weather_generator/output/.
-# R9 P2 commit 3. The generator subtree moves under climate/ and takes the
-# engine's own name; `output/` is RETAINED as the directory name (R7 G1 ruling
-# OQ-4) so it keeps holding the date tables as well as the series, and mirrors
-# hydrology/wflow/output/.
+# realization twin of models/hydrology/wflow/forcing/inmaps_historical.nc -- so
+# they belong to the hydrology side, not to climate/weathergenr/output/.
+#
+# HOW IT GOT HERE, kept because the current shape is a RETURN rather than an
+# invention. R07 B5/B6/B7 dissolved realization_<r>/, model_runs/ and
+# stress_test/, and moved the realization index out of the FILENAME into a
+# directory level: `weather_generator/` beside `hydrology_runs/rlz_<r>/`. R9 P2
+# commit 3 reversed the level -- members are keyed by filename again, as they
+# were before R7 -- and renamed the generator subtree, which moves under
+# climate/ and takes the engine's own name. `output/` is RETAINED as a
+# directory name (R7 G1 ruling OQ-4) so it keeps holding the date tables as
+# well as the series, and mirrors hydrology/wflow/output/.
 wg_dir = f"{exp_dir}/climate/weathergenr"
-# The rlz_<r>/ LEVEL DISSOLVES: members are keyed by filename again, as they
-# were before R7 moved the index into a directory. R9 moves it back --
-# hydrology/wflow/{config,forcing,output}/rlz_<r>_cst_<c>.*  -- so one member is
-# one filename in three flat directories.
 runs_dir = f"{exp_dir}/hydrology/wflow"
 # The experiment's generated climate catalog joins the experiment's own config
 # snapshot rather than sitting loose at the experiment root (migration map, v6
@@ -249,7 +251,7 @@ runs_dir = f"{exp_dir}/hydrology/wflow"
 # snapshot in the same sense as the project-scope config/catalogs/.
 exp_catalog = f"{exp_dir}/config/catalogs/data_catalog_climate_experiment.yml"
 # B7: "indicators" is the CST term for the reduction's response-surface tables.
-# "outputs" was rejected -- hydrology_runs/ also holds outputs.
+# "outputs" was rejected -- the hydrology side also holds outputs.
 # R9 P3: machine-readable experiment products live in `results/`, and the
 # two tables take names that say what they hold (migration map; the ONLY two
 # `rule all` filename renames in the whole of R9, per naming.md §7).
@@ -311,8 +313,8 @@ wf2_snapshot_digest = file_digest_or_absent(wf2_snapshot_path)
 # benchmarks/wf3_benchmarks.md already had.
 #
 # LOG_RULES is the merge order: rule LABELS, not part paths. merge_logs lists each
-# label's part dir to find its members, which matters most here: 3.07/3.09
-# fan out over RLZ_NUM x ST_NUM and 3.10 over the batch split, so an explicit part
+# label's part dir to find its members, which matters most here: 3.07/3.09 fan
+# out over RLZ_NUM x ST_NUM and 3.10 over the batch split, so an explicit part
 # list would re-derive ST_START, RLZ_NUM and the `_batches` arithmetic in a second
 # place that could drift from the rules that own it. Discovery is scoped to these
 # labels, so it is not a blind glob: an orphan dir from a renamed rule is not a
@@ -746,7 +748,7 @@ rule climate_data_catalog:
         # explicitly (design §4a) so the catalog builder no longer reconstructs
         # it by fragile ../.. walking from a realization NC — which broke on both
         # the store move and every subsequent change to the realization NC dir
-        # (now weather_generator/output/, R07 B5).
+        # (now climate/weathergenr/output/).
         oro_path = f"{store_dir}/orography.nc",
     log:
         f"{LOG_PARTS_DIR}/3.08_climate_data_catalog.log",
@@ -917,8 +919,8 @@ rule gather_benchmarks:
 # files, and Snakemake does not track those in the DAG, so naming them as `input:`
 # would demand them as buildable targets.
 #
-# This is the workflow where the merge earns most: 3.07 and 3.09 write one part
-# per (rlz, cst) and 3.10 one per batch, so the experiment's logs/ held hundreds
+# This is the workflow where the merge earns most: 3.07/3.09 write one part per
+# (rlz, cst) and 3.10 one per batch, so the experiment's logs/ held hundreds
 # of files across four subdirectories. The merge DELETES the parts it consumed and
 # prunes the emptied dirs, so a clean full run leaves one file. After a PARTIAL
 # re-run only the re-run rules have parts, so the rewritten log marks the rest

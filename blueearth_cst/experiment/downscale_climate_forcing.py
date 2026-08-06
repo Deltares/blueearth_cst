@@ -81,10 +81,11 @@ with tee_to_log(snakemake.log[0]):
             # config/ -> output/ hop in the pointers (see out_prefix above).
             "dir_output": ".",
             # Absolute paths into the wf1 model dir (staticmaps + instates).
-            # The run dir moved to experiments/<name>/hydrology_runs/rlz_<r>/
-            # (R07 B5), one level deeper than the old model_runs/, so the "../"
-            # depth is no longer a literal anyone should maintain by hand. Pass
-            # ABSOLUTE paths: hydromt_wflow's config.write re-relativizes any
+            # The run dir is experiments/<name>/hydrology/wflow/config/, and it
+            # has moved twice -- R07 B5 gave each realization its own rlz_<r>/
+            # level, R9 P2 dissolved that level again -- which is exactly why
+            # the "../" depth is not a literal anyone should maintain by hand.
+            # Pass ABSOLUTE paths: hydromt_wflow's config.write re-relativizes any
             # absolute same-mount value against the new toml's own directory on
             # write, emitting the correct relative pointer (verified against the
             # vendored make_config_paths_relative; design §5/§5a).

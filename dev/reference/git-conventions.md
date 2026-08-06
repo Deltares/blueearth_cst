@@ -133,6 +133,30 @@ series.
 
 ---
 
+## Sealing a milestone
+
+Alongside merging, tagging, and updating the two tables above:
+
+- [ ] **Ask which reference documents this milestone superseded**, and seal
+      each one: a `> **SUPERSEDED — … (sealed YYYY-MM-DD).**` banner at its
+      head naming what replaced it and where current truth lives, plus an
+      entry in `dev/reference/sealed-records.yml`.
+
+Seal them; do **not** migrate their paths. A superseded document is kept
+because it is the baseline that milestone's commits were checked against, and
+freshening its paths leaves its line numbers, rule names and module locations
+lying just as loudly while making the document *look* maintained — strictly
+worse than leaving it obviously old.
+
+This step is a judgment and cannot be automated: nothing can infer from a
+document's content that it is a record. `tests/test_sealed_records.py` enforces
+only what the registry already lists — that each entry keeps its banner and
+still hashes to what was sealed. Skipping the question is how
+`climate_experiment.md` spent four milestones reading as a live WF3 contract
+(R9 P5 F2).
+
+---
+
 ## Commit strategy
 
 Branch and tag naming live in "Branching and tagging conventions"

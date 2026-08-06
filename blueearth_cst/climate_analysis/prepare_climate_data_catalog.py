@@ -35,7 +35,8 @@ def prepare_clim_data_catalog(
         (design §4a) so the path is not reconstructed by fragile ``../..``
         walking from a realization NC — which broke on the store keying and on
         every subsequent move of the realization NC dir (now
-        ``experiments/<name>/weather_generator/output/``, R07 B5). Required
+        ``experiments/<name>/climate/weathergenr/output/``; R07 B5 moved it,
+        R9 P2 moved it again, which is the point). Required
         when ``source_like`` is chirps/chirps_global.
 
     Returns

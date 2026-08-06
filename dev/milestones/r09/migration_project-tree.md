@@ -30,6 +30,21 @@ reach, and retired a row:
 into the map and two out of it. The observed tier is
 `observed_inventory.txt` — 201 paths, zero unmapped.
 
+**Third amendment 2026-08-05 — one row, found by reading rather than by any
+instrument.** P5 noticed that `scripts/run_workflows.py` writes an immutable
+invocation manifest to `<project_dir>/provenance/runs/`, a **seventh project
+root** appearing in zero rows here and zero lines of the design tree. Ruled the
+same day: it moves under `config/runs/`, where the per-run generated provenance
+already lives.
+
+| # | Artifact | Ruling |
+| --- | --- | --- |
+| F3 | `provenance/runs/*.json` (`scripts/run_workflows.py`) | Relocated to `config/runs/invocations/`; new row in the `config/` section, and the inventory's blind spot documented under *What the inventory does not cover* |
+
+The more useful half is **why nothing caught it**: every tier of the inventory
+is Snakemake-derived, and the wrapper is not a rule. That limit is now stated
+in this document rather than left to be rediscovered.
+
 Date: 2026-08-04
 
 Purpose: the old → new path map mandated by `naming.md` §7, and the artifact
@@ -289,6 +304,7 @@ never normalized by the naming rule.
 | `<P>/config/observations/*` | unchanged |
 | ~~`<P>/config/generated/wflow_build_model_run.yml`~~ | **row dropped 2026-08-04** — no current rule writes it; only `wflow_build_forcing_historical.yml` is generated (phase-1 report G2) |
 | `<P>/config/generated/wflow_build_forcing_historical.yml` | `models/hydrology/wflow/config/build_historical_forcing.yml` |
+| `<P>/provenance/runs/*.json` | `config/runs/invocations/*.json` — added 2026-08-05 (F3). The wrapper's immutable per-invocation manifest, which was writing to a **seventh root** no inventory tier could see. `invocations/` is a SIBLING of `<workflow>/`, not a fourth entry in it: an invocation spans workflows |
 | *(not built)* | `config/project.yml` — new capability, see scope note |
 
 ### → project root
@@ -392,6 +408,38 @@ A run into an existing `project_dir` inherits whatever is already there. This is
 not one command: `dev/scripts/prune_series_cache.py --delete` covers the WF2 series
 class only, and the log-part and superseded-config orphans listed above are removed
 by hand before the run is snapshotted.
+
+### What the inventory does not cover — added 2026-08-05 (F3)
+
+**Both tiers are Snakemake-derived, so the inventory covers RULE-DECLARED
+artifacts only.** Stating the limit rather than closing it is a deliberate
+choice (ruled 2026-08-05); what follows is the class it therefore misses, so
+the next occurrence is found by reading this section rather than by accident.
+
+- *Declared tier* — the three Snakefiles' `output:` declarations. An artifact
+  no rule declares is invisible to it by construction.
+- *Observed tier* — a tree walk after direct `snakemake` invocations. It sees
+  undeclared **engine** artifacts (that is what it is for), but only those a
+  rule's execution happened to produce.
+- *Whole-tree `semantic_tree_diff`* — compares two trees. An artifact absent
+  from both sides cancels out and is reported by neither.
+
+**The class all three miss: artifacts written by a user-facing runner rather
+than by a Snakemake rule.** The runner is not a rule, so it declares nothing;
+and the observed tier was produced by direct `snakemake` invocations, so the
+runner never ran and its artifacts never appeared. This is a gap in the method,
+not an oversight in one document.
+
+Known members:
+
+| Artifact | Producer | Status |
+| --- | --- | --- |
+| `config/runs/invocations/*.json` | `scripts/run_workflows.py` | Mapped 2026-08-05 (F3). Found by a P5 read, not by any instrument — it had been writing to a seventh root, `provenance/runs/`, through the whole of R9 |
+
+**Extend this table when a new runner-written artifact appears**, and pair it
+with a map row. Closing the gap mechanically — teaching the declared tier to
+enumerate runner-written paths — was considered and deferred: it needs a
+declaration mechanism the runners do not have, which is its own task.
 
 ## Next steps
 

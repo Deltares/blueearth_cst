@@ -37,10 +37,11 @@ import time
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-DEFAULT_REGION = (
-    REPO
-    / "test_case/test_local/climate_historical/era5_20000101_20201231/store_region.geojson"
-)
+#: The fixture's MODEL-FREE region polygon (rule `delineate_region`, ADR 0003).
+#: Was the store's own `store_region.geojson` copy until ADR 0003 retired it --
+#: the probe then pointed at a file that no longer exists anywhere, which is a
+#: broken default rather than a stale one.
+DEFAULT_REGION = REPO / "test_case/test_local/data/spatial/geoms/region.geojson"
 DEFAULT_CATALOG = REPO / "config/catalogs/cmip6_data.yml"
 
 #: Matches series_identity.ACQUISITION_WINDOWS -- keep in step with it.

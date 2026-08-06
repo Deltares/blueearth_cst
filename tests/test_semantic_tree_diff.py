@@ -88,6 +88,64 @@ def test_nc_volatile_attr_change_passes(tmp_path):
     assert std.compare_nc(str(a), str(b), tol=0.0) == []
 
 
+# --- the CMIP6 merge classes' inherited attrs (R9 P2 F4) -------------------
+# The exclusion is SCOPED to a path class, so it takes two tests: one that it
+# applies where it should, and one that it does not apply anywhere else. The
+# second is the load-bearing half -- folding these keys into the global
+# VOLATILE_NC_ATTRS would have made the first pass on its own.
+
+_INHERITED = {
+    "variable_id": ("tas", "pr"),
+    "tracking_id": ("hdl:21.14100/aaa", "hdl:21.14100/bbb"),
+    "status": ("2020-03-22;created", "2020-02-06;created"),
+}
+
+
+def _write_inherited_pair(root, subdir):
+    """Two identical datasets differing ONLY in the inherited CMIP6 attrs."""
+    paths = []
+    for side in ("ref", "cur"):
+        d = root / side / subdir
+        d.mkdir(parents=True, exist_ok=True)
+        path = d / "slice.nc"
+        idx = 0 if side == "ref" else 1
+        _write_nc(
+            path,
+            [1.0, 2.0, 3.0],
+            attrs={k: v[idx] for k, v in _INHERITED.items()},
+        )
+        paths.append(path)
+    return paths
+
+
+def test_inherited_cmip6_attrs_ignored_in_the_merge_classes(tmp_path):
+    """`cmip6/{raw,scalar}/` files merge pr and tas, so these attrs are wrong.
+
+    Whichever member wins `xr.merge`'s attr resolution stamps the file, so two
+    independent fetches of the same slice disagree while every value matches.
+    """
+    for subdir in (
+        "data/climate/projections/cmip6/raw",
+        "data/climate/projections/cmip6/scalar",
+    ):
+        ref, cur = _write_inherited_pair(tmp_path / subdir.replace("/", "_"), subdir)
+        assert std.compare_nc(str(ref), str(cur), tol=0.0) == [], subdir
+
+
+def test_inherited_cmip6_attrs_still_compared_everywhere_else(tmp_path):
+    """The exclusion is path-scoped, and this is what pins that.
+
+    If these keys were added to the global VOLATILE_NC_ATTRS instead, this test
+    fails -- which is the whole reason the scoped form was chosen.
+    """
+    ref, cur = _write_inherited_pair(tmp_path, "data/spatial")
+    diffs = std.compare_nc(str(ref), str(cur), tol=0.0)
+    assert any("attrs" in d for d in diffs), "attr difference went unreported"
+    reported = " ".join(diffs)
+    for key in _INHERITED:
+        assert key in reported, f"{key} masked outside the cmip6 merge classes"
+
+
 # ---------------------------------------------------------------------------
 # .toml normalized comparator
 # ---------------------------------------------------------------------------

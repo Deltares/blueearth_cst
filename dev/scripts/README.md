@@ -51,7 +51,13 @@ re-run when a similar symptom appears. Not part of any workflow.
 
 ## Shared helpers
 
+Two of these are imported by `tests/` (via `sys.path`), so they are **contract
+surfaces with test consumers, not scratch helpers** — a bare-checkout CI run
+imports them on both legs, and an import-time error there fails the suite.
+
 | File | Purpose |
 |---|---|
+| [`cross_workflow_inputs.py`](cross_workflow_inputs.py) | **Library, not a script.** The one definition of the wf1 leaves WF2/WF3 declare and Snakemake will not satisfy on its own, plus the deliberate non-leaves some callers stage anyway. Consumed by `tests/test_cli.py`, `tests/test_guard_invalidation.py` and `scaffold_project_tree.py` — it replaced three hand-kept copies that drifted (R9 P5 F3). `tests/test_cross_workflow_inputs.py` proves the set complete and minimal against the real DAG, so a rule declaring a new cross-workflow input turns it red rather than surfacing later as an unrelated-looking failure. |
+| [`semantic_tree_diff.py`](semantic_tree_diff.py) | Whole-tree comparator and the home of the R9 old→new path map (`build_r09_path_map`). Imported by `tests/test_r09_path_map.py` and `tests/test_semantic_tree_diff.py`, and driven by `snapshot_project_tree.py`'s `--check-map`. The map is the migration contract, so a row is edited only with the migration doc. |
 | [`console.py`](console.py) | Vendored colour / glyph / banner helpers from the `console-formatting` skill. Used by other scripts here. Self-contained, no third-party deps. Keep in sync with the upstream brain copy. |
 | [`open_shell.bat`](open_shell.bat) | Double-clickable launcher: opens a PowerShell at the repo root with the `cst` conda env activated. Pre-pixi convenience; mostly superseded by `pixi shell`. |

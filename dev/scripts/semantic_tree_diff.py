@@ -87,7 +87,43 @@ except ModuleNotFoundError:  # pragma: no cover - fallback for <3.11
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import check_baseline as cb  # noqa: E402
 
+# The package is the source of truth for what WE write, so the attr set below
+# is imported rather than restated -- one definition, as with the leaf set.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from blueearth_cst.projections.series_identity import (  # noqa: E402
+    INHERITED_SINGLE_SOURCE_ATTRS,
+)
+
 VOLATILE_NC_ATTRS = cb.VOLATILE_NC_ATTRS
+
+#: Path classes whose files carry CMIP6 global attrs inherited from ONE member
+#: of a multi-variable merge. SCOPED, not folded into VOLATILE_NC_ATTRS: that
+#: frozenset is global to every netCDF comparison in both tools, and masking
+#: `variable_id` everywhere would drop it from artifacts where it does describe
+#: the file. Here it is dropped only where it provably cannot (R9 P2 F4).
+#:
+#: Needed even after the writers stopped emitting these attrs, and that is the
+#: point: every reference tree recorded before that fix still carries them, so a
+#: new-vs-old comparison would report them present on one side and absent on the
+#: other. Retire this only once no reference tree in use predates the fix.
+_INHERITED_ATTR_PATH_MARKERS = (
+    "climate_projections/cmip6/raw/",
+    "climate_projections/cmip6/scalar/",
+    "climate/projections/cmip6/raw/",
+    "climate/projections/cmip6/scalar/",
+)
+
+
+def _volatile_attrs_for(*paths: str) -> frozenset:
+    """Volatile attrs for a comparison, widened for the CMIP6 merge classes.
+
+    Widened if EITHER side is in the class, since the whole point is comparing a
+    post-fix tree against a pre-fix reference.
+    """
+    joined = " ".join(p.replace("\\", "/") for p in paths)
+    if any(marker in joined for marker in _INHERITED_ATTR_PATH_MARKERS):
+        return VOLATILE_NC_ATTRS | INHERITED_SINGLE_SOURCE_ATTRS
+    return VOLATILE_NC_ATTRS
 
 # ---------------------------------------------------------------------------
 # Copied-config normalize map (ext2-01). The documented old->new path map that
@@ -621,6 +657,12 @@ def build_r09_path_map(
             "hydromt_data.yml",
             ".model_built",          # sentinel rule
             ".outputs_configured",
+            # NO ROW for ADR 0004's `.model_final`, deliberately. This list is
+            # pre-R09 -> post-R09 RELOCATION, and `.model_final` has no pre-R09
+            # form: any tree carrying it is already post-R09, so a row here
+            # could never fire. It surfaces instead as an EXTRA in a whole-tree
+            # diff against a pre-ADR-0004 reference, which the r09 milestone
+            # handles through `--allow` (there is no build_r09_allowlist).
             "forcing/inmaps_historical.nc",
             "plots/basin_area.png",
             "plots/basin_area.pdf",
@@ -683,6 +725,17 @@ def build_r09_path_map(
         (f"climate_projections/{cp}/report.md", f"{proj}/report.md"),
     ]
 
+    # -- 8b. the wrapper's invocation manifest --------------------------------
+    # Added 2026-08-05. `scripts/run_workflows.py` wrote one immutable manifest
+    # per invocation to `provenance/runs/`, a SEVENTH project root that no R9
+    # instrument could see: the declared tier reads the Snakefiles' `output:`
+    # declarations and the wrapper is not a rule, the observed tier came from
+    # direct `snakemake` invocations so the wrapper never ran, and the
+    # whole-tree diff compared two trees that both lacked it. The follow-up
+    # ruled it under `config/runs/`, where the per-run generated provenance
+    # already lives; see the destination row in section 9.
+    rules.append(("provenance/runs/", "config/runs/invocations/"))
+
     # -- 9. config/ identity rows, ONE RULE PER MAP ROW -----------------------
     # The two `config/runs/snake_config_*.yml` entries are CONTRACT PATHS --
     # declared inputs of WF3's rule 3.00b drift guard -- which is why option (A)
@@ -695,6 +748,14 @@ def build_r09_path_map(
         "config/observations/",          # row: `config/observations/*`
     ):
         ident.append((same, same))
+    # Row: `config/runs/invocations/**`, added 2026-08-05 by the R9 follow-up
+    # that moved the wrapper's invocation manifest off its own `provenance/`
+    # root (relocation rule in section 8b). Registered BEFORE the workflow
+    # regex below even though both would yield identity: `invocations` is NOT a
+    # workflow, and it only matches `[a-z_]+` by coincidence. Tightening that
+    # regex to the three real workflow names -- a reasonable future edit --
+    # would otherwise drop this path to UNMAPPED with nothing to say why.
+    ident.append(("config/runs/invocations/", "config/runs/invocations/"))
     # Row: `config/runs/<workflow>/<digest>/**`. Generalised from
     # `model_creation` by the F1b ruling of 2026-08-04 — WF2 emits
     # `climate_projections/<digest>/` from the same producer class, and design
@@ -934,6 +995,7 @@ def compare_nc(ref_path: str, cur_path: str, tol: float = DEFAULT_TOLERANCE) -> 
     equality criterion here.
     """
     diffs: list[str] = []
+    volatile = _volatile_attrs_for(ref_path, cur_path)
     with xr.open_dataset(ref_path) as ref, xr.open_dataset(cur_path) as cur:
         # Dimensions
         if dict(ref.sizes) != dict(cur.sizes):
@@ -965,16 +1027,19 @@ def compare_nc(ref_path: str, cur_path: str, tol: float = DEFAULT_TOLERANCE) -> 
                     tol,
                 )
                 diffs += _compare_attrs(
-                    f"var {name}", ref[name].attrs, cur[name].attrs
+                    f"var {name}", ref[name].attrs, cur[name].attrs, volatile
                 )
         # Dataset-level attrs
-        diffs += _compare_attrs("dataset", ref.attrs, cur.attrs)
+        diffs += _compare_attrs("dataset", ref.attrs, cur.attrs, volatile)
     return diffs
 
 
-def _compare_attrs(scope: str, ref_attrs: dict, cur_attrs: dict) -> list[str]:
-    ref_a = {k: str(v) for k, v in ref_attrs.items() if k not in VOLATILE_NC_ATTRS}
-    cur_a = {k: str(v) for k, v in cur_attrs.items() if k not in VOLATILE_NC_ATTRS}
+def _compare_attrs(
+    scope: str, ref_attrs: dict, cur_attrs: dict, volatile: frozenset | None = None
+) -> list[str]:
+    volatile = VOLATILE_NC_ATTRS if volatile is None else volatile
+    ref_a = {k: str(v) for k, v in ref_attrs.items() if k not in volatile}
+    cur_a = {k: str(v) for k, v in cur_attrs.items() if k not in volatile}
     if ref_a != cur_a:
         return [f"{scope} attrs {cur_a} vs {ref_a}"]
     return []

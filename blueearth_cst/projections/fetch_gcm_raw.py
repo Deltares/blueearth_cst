@@ -321,6 +321,11 @@ if "snakemake" in globals():
                 # claim an identity that implies arithmetic was applied.
             }
         )
+        # ...and drop the inherited attrs that describe ONE source file. This
+        # slice merges pr and tas, so a single `variable_id` is wrong whichever
+        # way the merge resolved it; `cst_source_paths` above carries the real
+        # per-variable provenance (R9 P2 F4).
+        series_identity.drop_inherited_single_source_attrs(data)
 
         series_identity.write_netcdf_atomic(data, raw_nc_out)
         log_row(

@@ -1,8 +1,8 @@
 {
   "project_dir": "test_case/test_local",
   "recorded_by": {
-    "branch": "milestone/r09-project-tree",
-    "commit": "f054a7712a0fd3c88b6a45ecb11bc3da9154be61",
+    "branch": "main",
+    "commit": "03e546cf4b01c425ff61ec7a7dc9a3d4e80ffdfa",
     "dirty": true
   },
   "targets": {
@@ -44,13 +44,13 @@
       "type": "yaml"
     },
     "test_case/test_local/experiments/experiment/results/basin_indicators.csv": {
-      "sha256": "6ece285f41f2aa9eeeb8a33a68dc5ee508889f4d69b8dbc0ffc2516347e2c9fd",
-      "size_bytes": 71,
+      "sha256": "7b1813ac09fbe3fc149b46535f05f45c0e04148188973afc6f894ee093bf4ebe",
+      "size_bytes": 87,
       "type": "csv"
     },
     "test_case/test_local/experiments/experiment/results/q_indicators.csv": {
-      "sha256": "b051ba53d339cc945358c7db401ae4456359d093a57e700659fbe2230a55d653",
-      "size_bytes": 3838,
+      "sha256": "2c4bb3c879ea7ac540d2521f45ba364a4fa97b7b86246524d232ff2351fbf239",
+      "size_bytes": 3854,
       "type": "csv"
     },
     "test_case/test_local/models/hydrology/wflow/evaluation/plots/hydro_wflow_1.png": {

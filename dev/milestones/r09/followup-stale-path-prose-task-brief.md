@@ -1,5 +1,13 @@
 Task Brief — R9 follow-up: pre-R9 paths in code prose and in one dev tool
 
+> **COMPLETE 2026-08-05.** All three classes done. Class B was demonstrated
+> FAILING before the fix, as the brief requires, and the failure was exactly
+> the P4 model files it predicted. Three defects beyond the brief's text were
+> found and fixed in the same files -- a silently-zero log matcher, an overlay
+> file whose entries the fixture disproves, and a guard test that had become
+> vacuous. Evidence at the foot of this brief; the brief is kept unedited
+> above that record.
+
 Raised by P5's grep falsifier on 2026-08-05 and ruled the same day: P5 fixes the
 documentation classes in its own scope and briefs these two, because one is a
 per-file reading job inside files P5 forbids and the other is a **functional**
@@ -130,3 +138,140 @@ missing — and it must be shown to FAIL before the fix.
   leaf the three Snakefiles currently declare — including P4's model files.
 - The failing-before-fixing demonstration is recorded, not just asserted.
 - No executable line changed.
+
+---
+
+## Completion record — 2026-08-05
+
+### Class A — 13 files, read one at a time
+
+Fixed as stale DESCRIPTION (prose asserting where a file lives today):
+
+| File | Was | Now |
+| --- | --- | --- |
+| `climate_analysis/climate_figures.py` | `climate_historical/<key>/plots/`, `hydrology_model/forcing/plots/`, `hydrology_model/evaluation/plots/` | the `data/climate/historical/` and `models/hydrology/wflow/` forms (reST table columns re-widened) |
+| `climate_analysis/plot_climate_source.py` | the same three, plus the store path in two `Parameters` entries | ditto |
+| `climate_analysis/extract_historical_climate.py` | `climate_historical/<key>/`, and `spatial/geoms/region.geojson` (not in the brief's list, same defect) | `data/climate/historical/<key>/`, `data/spatial/geoms/region.geojson` |
+| `climate_analysis/prepare_climate_data_catalog.py` | "now `experiments/<name>/weather_generator/output/`, R07 B5" | the `climate/weathergenr/` path; the "moved twice" point is kept, which is what the sentence is *for* |
+| `experiment/check_project_consistency.py` | `hydrology_model/` | `models/hydrology/wflow/` |
+| `experiment/downscale_climate_forcing.py` | "the run dir moved to `hydrology_runs/rlz_<r>/`, one level deeper" | current dir first, then BOTH moves — the "../ depth is not a literal to maintain by hand" point is strengthened by R9 P2, not weakened |
+| `experiment/export_wflow_results.py` | `indicators/` | `results/` |
+| `model/plot_map_forcing.py` | `hydrology_model/forcing/…` x3 | `models/hydrology/wflow/forcing/…` |
+| `model/plot_results.py`, `shared/climate_parity.py` | `climate_historical/<key>/extract_historical.nc` | `data/climate/historical/…` |
+| `shared/snake_utils.py` | the store dir x3 and the banner example | `data/climate/historical/`, `models/hydrology/wflow/`, `data/climate/projections/` |
+| `projections/series_identity.py` | `climate_projections/{clim_project}/` (not in the brief's list) | `data/climate/projections/{clim_project}/` |
+| `weathergen/generate_weather.R` | `weather_generator/` x2 | `climate/weathergenr/`, with R7-set-the-split / R9-renamed-it as history |
+| `Snakefile_climate_experiment:150-186` | 30-line R7 block read as current, R9 amendment appended at line 170 | RESTRUCTURED: `CURRENT SHAPE` first, then `HOW IT GOT HERE` — history kept, not deleted |
+| `Snakefile_model_creation:748` | "build with NEITHER hydrology_model/ …" | the R9 model root |
+
+Rule numbers were checked, not assumed: 1.11 / 1.13 / 1.15 are still correct,
+so only paths moved.
+
+**Four hits survive the falsifier, each change narrative rather than
+description** — the distinction the brief asks the sweep to make:
+
+| Hit | Why it stays |
+| --- | --- |
+| `export_wflow_results.py:25` | "R07 B5 took it out of the filename … R9 P2 dissolves that level" — correct history, and the current path is stated right after |
+| `Snakefile_model_creation:536` | "wf1's **old** `climate_historical/wf1_raw/` store … **retired**" — describes a store that no longer exists at any path |
+| `Snakefile_climate_projections:189` | "what **freed it from** wf1's `hydrology_model/staticgeoms/region.geojson`" — the dependency it names is the one that was removed |
+| `Snakefile_climate_experiment:172` | inside the new explicit `HOW IT GOT HERE` section |
+
+One further hit, `Snakefile_climate_projections:61`, is CODE
+(`config/runs/climate_projections/<digest>`) and correct.
+
+### Class B — the scaffold, demonstrated failing first
+
+**Before** (`--out` to a scratch tree, nothing else changed):
+
+    wf1: 50 declared outputs, 0 logs
+    wf2: 37 declared outputs, 0 logs
+    !! Snakefile_climate_experiment --summary failed:
+    wf3: 0 declared outputs, 0 logs
+    scaffolded 95 paths
+
+    MissingInputException in rule write_model_reference … line 390:
+        affected files:
+            …/models/hydrology/wflow/wflow_sbm.toml
+            …/models/hydrology/wflow/.outputs_configured
+
+Exactly the P4 model files the brief predicted. Two things the run showed that
+the brief did not:
+
+1. **The tool exits 0 while producing an incomplete tree.** `_summary` writes
+   the failure to stderr and returns `[]`, so WF3 contributed zero paths and the
+   script still reported success. A caller checking the exit code learns nothing.
+2. **The stale region was not the cause, and staging one at the corrected path
+   would still have been wrong.** WF2's summary succeeded *with* the region at
+   the pre-R9 path, because since ADR 0003 neither downstream workflow consumes
+   a wf1 region: each delineates its own `data/spatial/geoms/region.geojson` and
+   declares it as an OUTPUT. So the fix REMOVES the region staging rather than
+   repointing it, and `_STAGED_LEAVES` is now the three leaves WF3 actually
+   declares — the wf1 config snapshot (3.00b) and the two model files (3.01c).
+
+**After:**
+
+    wf1: 50 declared outputs, 15 logs
+    wf2: 37 declared outputs, 6 logs
+    wf3: 95 declared outputs, 16 logs
+    scaffolded 224 paths
+
+The scaffolded tree's top level is now exactly the six ruled roots —
+`benchmarks/ config/ data/ experiments/ logs/ models/` — with no pre-R9 path
+anywhere in it.
+
+### Beyond the brief, and why
+
+**`_log_paths` was silently returning zero for every workflow** ("0 logs"
+above). Rules no longer interpolate `project_dir` directly; they interpolate
+`LOG_PARTS_DIR`, itself assigned from `project_dir` (WF1/WF2) or `exp_dir`
+(WF3). The matcher resolved only the two root names, so it matched nothing.
+Fixed by resolving one level of indirection out of the same file, plus bare
+`.log` string constants (`WORKFLOW_LOG_NAME`) that would otherwise reduce to
+`logs/1`. This is the brief's own defect class — a helper left behind by a
+refactor, reporting success while producing a wrong tree — in the file the
+brief assigns, so it is fixed here rather than deferred; flagged because it is
+not in the brief's text. Resolving indirection introduced and then fixed a bug
+of its own (`exp_dir` is itself assigned from `project_dir`, so resolving it
+replaced the seeded value with one still carrying a wildcard, rendering
+`experiments/1/`); the guard is `name not in roots`.
+
+**`scaffold_extras.yml` was rederived, not repointed.** All nine overlay entries
+named pre-R9 paths. Repointing them would have preserved four that the fixture
+disproves: `run_default/outstates.nc` (wrong depth — it is under
+`run_default/outstate/`), `run_default/output_scalar.nc` (not written by this
+config at all), and two weathergenr filenames that do not exist. Each is
+recorded at the foot of that file with its reason rather than silently dropped,
+and the surviving entries were checked against `test_case/test_local`.
+
+**A guard test had become vacuous.**
+`tests/test_cli.py::test_climate_projections_declares_wf1_region_input`
+asserted that `staticgeoms/region.geojson` appears in
+`Snakefile_climate_projections`, standing in for a wf1 to wf2 contract. That
+contract is gone, and the only remaining occurrence of the string is the comment
+recording that WF2 was *freed* from it — so the assertion passed while guarding
+nothing, and would have kept passing had the sweep deleted the prose it depends
+on. Replaced by `test_climate_projections_owns_its_region`, which pins the
+current shape: WF2 resolves its region through `region_spec` and reads nothing
+from the model root except in comments. The fixture's own vestigial region
+staging is left alone — that is the staging-consolidation item (P5 F3), which
+the brief says not to fold in.
+
+### Class C — four `dev/scripts/` files
+
+| File | Fix |
+| --- | --- |
+| `prune_climate_store.py` | three docstrings brought into line with the `STORE_ROOT` constant P2 already repointed |
+| `probe_store_read_timing.py` | was BROKEN, not stale: its default pointed at `store_region.geojson`, which ADR 0003 retired, so the file exists nowhere. Repointed to the fixture's model-free `data/spatial/geoms/region.geojson` |
+| `inspect_spatial_ref.py` | two milestones stale. Fixed rather than deleted; the two realization NCs are `temp()`, so "(not present)" between runs is now documented as normal rather than looking like rot |
+| `verify_constant_pars.py` | usage string AND the argparse default — the dangerous one, since running it bare silently targeted a tree retired at R7 |
+
+### Validation
+
+- Class A falsifier: the P5 grep re-run over `blueearth_cst/**` and all three
+  Snakefiles. Four hits, each justified above. `\bRT_[0-9A-Za-z]` (the tight
+  form, avoiding the over-match the brief warns about): no hits.
+- Class B falsifier: the scaffold run above, failing before and passing after.
+- `ruff check` on every changed file: no new findings. The two `F541` in
+  `prune_climate_store.py` are pre-existing at HEAD.
+- No executable line changed in `blueearth_cst/**` or any Snakefile.

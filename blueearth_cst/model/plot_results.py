@@ -161,8 +161,8 @@ def analyse_wflow_historical(
         Resolved P1 registry used to validate observation station IDs.
     climate_nc : Union[Path, str], optional
         Path to the shared store's climate extraction
-        (``climate_historical/<key>/extract_historical.nc``, R07 B1). When absent
-        the climate plots are skipped.
+        (``data/climate/historical/<key>/extract_historical.nc``, R07 B1). When
+        absent the climate plots are skipped.
     oro_nc : Union[Path, str], optional
         chirps/chirps_global only: the extraction's orography sidecar (the
         declared rule-1.10/3.02 ``oro_nc`` output, ``<key>/orography.nc``).

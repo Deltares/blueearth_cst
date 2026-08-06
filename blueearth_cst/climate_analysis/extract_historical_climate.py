@@ -1,11 +1,11 @@
 """Extract historical climate data for a given region and time period.
 
 Rule ``extract_climate_grid``'s script — the SINGLE producer of the shared
-``climate_historical/<key>/`` store, declared identically in
+``data/climate/historical/<key>/`` store, declared identically in
 ``Snakefile_model_creation`` (1.10) and ``Snakefile_climate_experiment`` (3.02)
 from ``snake_utils.climate_store_spec`` (R07 B1). The extraction extent stays
-**model-free**: it comes from ``spatial/geoms/region.geojson``, the one project
-region artifact delineated from ``shared.basin`` + the catalog by rule
+**model-free**: it comes from ``data/spatial/geoms/region.geojson``, the one
+project region artifact delineated from ``shared.basin`` + the catalog by rule
 ``delineate_region`` (ADR 0003), so nothing here reads a built model.
 
 Until ADR 0003 this script delineated that polygon itself and wrote a

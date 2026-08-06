@@ -469,7 +469,9 @@ rule build_wflow_model:
         # re-trigger on its own execution forever. This sentinel is written by
         # nothing else, so it re-fires rule 1.04 without any self-trigger, and
         # the chain cascades from there (1.04 -> .txt -> 1.05 ->
-        # .outputs_configured -> 1.07 -> forcing yml -> 1.08).
+        # .outputs_configured -> 1.08). The forcing-yml hop that used to sit in
+        # the middle of that chain is gone: R10-1 merged 1.07 into 1.08, which
+        # now writes the yml it used to consume.
         built = touch(f"{basin_dir}/.model_built"),
     log:
         f"{LOG_PARTS_DIR}/1.03_build_wflow_model.log",
@@ -526,6 +528,10 @@ rule write_outlet_index:
     input:
         outlets_path = f"{basin_dir}/staticgeoms/outlets.geojson",
         location_registry = f"{spatial_dir}/location_registry.csv",
+        # ADR 0004: rule 1.08 rewrites every staticgeoms/ layer, so this read
+        # needs the terminal anchor. Nothing in WF1 consumes outlet_index.csv,
+        # so waiting for the model to be final costs only a schedule slot.
+        model_final = ancient(f"{basin_dir}/.model_final"),
     output:
         outlet_index_path = f"{basin_dir}/staticgeoms/outlet_index.csv"
     log:
@@ -564,6 +570,32 @@ rule add_forcing:
         # the forcing was built from.
         forcing_yml = f"{basin_dir}/config/build_historical_forcing.yml",
         forcing_path = f"{basin_dir}/forcing/inmaps_historical.nc",
+        # TERMINAL BUILD SENTINEL (ADR 0004). `hydromt update wflow_sbm` calls
+        # mod.write(), which rewrites the WHOLE model root -- measured on the R9
+        # gate run, where staticmaps.nc, wflow_sbm.toml, hydromt.log and every
+        # staticgeoms/ layer all carry this rule's timestamps. So THIS rule, not
+        # 1.03, is the last writer of the model, and it is the only correct
+        # ordering anchor for a reader.
+        #
+        # `.outputs_configured` (rule 1.05) was the anchor until now and is NOT
+        # sufficient: it precedes this rule's write of staticmaps.nc by 17 s on
+        # that same run. Rule 1.12 read staticmaps.nc and finished 9 s before
+        # this rule rewrote it -- a timing accident, not a DAG edge, and one
+        # that closes as the basin grows. The failure is silent:
+        # HDF5_USE_FILE_LOCKING="FALSE" in the pixi env means a concurrent read
+        # aborts below Python with no traceback (R9 P2 F5).
+        #
+        # RESIDUAL RISK, stated because no test can catch it: this sentinel is
+        # correct only while this rule is the last writer of the model root. A
+        # new rule that mutates the model after 1.08 must move the sentinel to
+        # itself. `tests/test_model_root_ordering.py` checks that readers
+        # declare it, not that it is attached to the right rule.
+        #
+        # [R10-1] MERGE NOTE: ADR 0004 attached this to the old 1.08, which then
+        # consumed 1.07's YAML. The merge folded 1.07 in, so the rule that
+        # carries the sentinel now also WRITES that YAML -- it is still the last
+        # writer of the model root, so the anchor is unchanged.
+        model_final = touch(f"{basin_dir}/.model_final"),
     params:
         starttime = get_config(shared_cfg["historical_window"], "starttime", optional=False),
         endtime = get_config(shared_cfg["historical_window"], "endtime", optional=False),
@@ -580,7 +612,12 @@ rule add_forcing:
 rule run_wflow:
     message: rule_banner("1.09", "run_wflow")
     input:
-        forcing_path = f"{basin_dir}/forcing/inmaps_historical.nc"
+        forcing_path = f"{basin_dir}/forcing/inmaps_historical.nc",
+        # ADR 0004. Already ordered after 1.08 through forcing_path; declared
+        # anyway so the invariant is LOCAL rather than transitive -- a reader is
+        # correct because of what it declares, not because of a chain someone
+        # has to re-derive.
+        model_final = ancient(f"{basin_dir}/.model_final"),
     output:
         csv_path = f"{basin_dir}/run_default/output.csv"
     params:
@@ -654,6 +691,9 @@ rule plot_results:
    message: rule_banner("1.11", "plot_results")
    input:
        csv_path = f"{basin_dir}/run_default/output.csv",
+       # ADR 0004; transitively ordered after 1.08 via 1.09, declared for the
+       # same reason as there.
+       model_final = ancient(f"{basin_dir}/.model_final"),
        **_wf1_plot_clim_inputs,
        # Both observation files, when configured: this rule reads the gauge
        # positions AND the observed series, so either changing must re-evaluate.
@@ -735,15 +775,15 @@ rule plot_map:
         # to 1.03 build_wflow_model and orders 1.12 after 1.03, which is exactly
         # where it already was. `.outputs_configured` is rule 1.05's completion
         # marker and 1.05 runs after 1.04, so it is the earliest edge that means
-        # "every writer of staticmaps.nc is done" -- the same use rule 1.07
-        # already makes of it.
+        # "every writer of staticmaps.nc is done" -- the same use rule 1.08
+        # already makes of it (it was 1.07's until R10-1 merged the two).
         #
         # Both are declared: the sentinel for ORDERING, staticmaps.nc because
         # this rule genuinely reads it and a declaration that says so is what
         # stops the next reader from re-deriving all of the above. `ancient()`
         # on both supplies the edge without a timestamp rerun-trigger, so no
         # rebuild cascade appears.
-        model_ready = ancient(f"{basin_dir}/.outputs_configured"),
+        model_final = ancient(f"{basin_dir}/.model_final"),
         basin_nc = ancient(f"{basin_dir}/staticmaps.nc"),
         **_locations_input,
     # R07 B10: basin_area depicts the MODEL, not its evaluation (P1), so it
@@ -770,6 +810,8 @@ rule plot_forcing:
     message: rule_banner("1.13", "plot_forcing")
     input:
         forcing_path = f"{basin_dir}/forcing/inmaps_historical.nc",
+        # ADR 0004; see rule 1.09.
+        model_final = ancient(f"{basin_dir}/.model_final"),
         **_locations_input,
     # R07 B10 + O-24: the forcing/model-input QA figures sit beside the forcing
     # they describe, and ALL of them are declared — variable x kind is a fixed
@@ -808,7 +850,7 @@ rule gather_benchmarks:
 #
 # The whole subgraph of these figures is rule 1.10 (whose sole input is the
 # tracked data catalog) plus this rule, so they build with NEITHER
-# hydrology_model/ NOR config/templates/wflow_build_model.yml on disk — the P4
+# models/hydrology/wflow/ NOR config/templates/wflow_build_model.yml on disk — the P4
 # assertion, pinned by tests/test_plot_climate_source.py.
 #
 # The data catalog rides in `params`, not `input`: the era5 branch resolves

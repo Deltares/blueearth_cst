@@ -30,8 +30,10 @@ Contract (pinned, design §7 (a)-(g)):
  (f) Per-workflow flags are preserved from a hardcoded map matching the runners:
      --keep-going on climate_projections only.
  (g) Every valid wrapper invocation creates and atomically finalizes a unique
-     `<project_dir>/provenance/runs/*.json` lifecycle manifest. Its runner-side
-     config digest covers the source YAML plus resolved advanced settings;
+     `<project_dir>/config/runs/invocations/*.json` lifecycle manifest -- a
+     SIBLING of the per-workflow `config/runs/<workflow>/<digest>/` bundles,
+     because an invocation spans workflows. Its runner-side config digest
+     covers the source YAML plus resolved advanced settings;
      passthrough `--config` overrides are recorded but intentionally excluded,
      because the Snakefile snapshot owns Snakemake's authoritative merged config.
 
@@ -319,7 +321,15 @@ def _initialize_manifest(
 ) -> tuple[Path, dict[str, Any]]:
     """Create an in-memory initial invocation record and its unique path."""
     started_at = _utc_now()
-    runs_dir = project_dir / "provenance" / "runs"
+    # Under `config/runs/`, NOT a `provenance/` root of its own (R9 follow-up,
+    # ruled 2026-08-05). The migration map's Finding 1 disqualified `logs/` for
+    # the config snapshot because logs are what a user deletes to reclaim space
+    # and their parts are merged-then-deleted by design, while the snapshot is
+    # immutable and retained. This manifest is immutable and retained for the
+    # same reasons, so the same reasoning places it here. `invocations/` is a
+    # SIBLING of the `<workflow>/<digest>/` bundles rather than a fourth
+    # workflow entry: an invocation spans workflows.
+    runs_dir = project_dir / "config" / "runs" / "invocations"
     runs_dir.mkdir(parents=True, exist_ok=True)
     filename_stamp = started_at.replace("-", "").replace(":", "")
     filename = f"{filename_stamp}-{uuid.uuid4().hex[:12]}.json"
