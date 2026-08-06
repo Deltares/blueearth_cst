@@ -14,7 +14,7 @@ shared:
     resolution: 0.0062475
     gauge_points: null
     automatic_subbasins:
-      max_count: 20
+      max_per_basin: 11
   historical_window:
     # >= snake_utils.MIN_HISTORICAL_YEARS (16), or every dry-run test in this
     # suite reds at parse time. Was 2015..2020 (6 years) until 2026-08-01, when

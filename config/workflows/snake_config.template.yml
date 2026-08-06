@@ -46,7 +46,7 @@ shared:
     automatic_subbasins:
       # Global ceiling for automatically generated subbasins. User-directed
       # gauge subbasins are not silently pruned by this limit.
-      max_count: 20
+      max_per_basin: 11
     # Maximum point-to-river snapping distance [m].
     gauge_snap_tolerance_m: 10000
     # Upstream-area threshold [km2] for the analysis river mask.

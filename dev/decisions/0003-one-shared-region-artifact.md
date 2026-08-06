@@ -1,5 +1,5 @@
-Status: accepted (§1–7, implemented); **accepted (§8–10, implemented 2026-08-06)**;
-        **proposed** (§11–12, the identity changes)
+Status: accepted (§1–7, implemented); **accepted (§8–11, implemented 2026-08-06)**;
+        **proposed** (§12, the `wflow_id` renumbering)
 Date: 2026-08-02
 Deciders: Ümit Taner
 Consulted: gabon_0108 run (2026-08-02) — geometry comparison showing
@@ -38,6 +38,9 @@ Revisions:
     declarations; the R9 path-map row for the seam. §11–12 stay **proposed** —
     they move outputs and are separate landings. See *Landed state (§8–10)*
     below for what the implementation settled that the design did not say.
+  - 2026-08-06: **§11 implemented and accepted, as ONE landing rather than the
+    two §11 specifies.** Measurement collapsed the split — see *Landed state
+    (§11)*. §12 stays proposed.
 
 # ADR 0003 — Spatial artifacts delineated once per project, shared across workflows
 
@@ -670,6 +673,57 @@ was wrong. §11 and §12 are untouched and still proposed.
   hydrography is geographic, which merit_hydro is — but the fixture catalog
   ignores `geom=`, so only `check_baseline.py check` from the primary checkout
   can close it.
+
+### Landed state (§11), 2026-08-06
+
+- **One landing, not two — and the reason is a measurement.** §11 splits itself
+  into 11a (rename, value preserved) and 11b (default 20 → 11) so "an intended
+  diff becomes distinguishable from a regression". That reason does not apply
+  here, because **11b moves nothing on the baseline fixture.** Replaying
+  `select_automatic_subbasins` against the fresh fixture's own hydrography seam,
+  at every ceiling from 1 to 25:
+
+  | ceiling | 1 | 2 | 3 | 4 | **5–25** |
+  |---|---|---|---|---|---|
+  | subbasins | 1 | 1 | 3 | 4 | **5** |
+
+  The partition **saturates at 5** from ceiling 5 upward, so 11 and 20 are the
+  same number to this fixture and the single baseline diff is attributable to
+  the key rename alone. This answers §11b's own open question — "whether this
+  fixture actually crosses 11 can only be answered in the primary checkout" — in
+  the negative: the 384-cell basin never binds the ceiling at all.
+
+  **The corollary matters more than the collapse.** This fixture is *structurally
+  incapable* of validating any ceiling above 5, so no baseline run can ever test
+  §11b. Its real coverage is the synthetic multi-basin case in
+  `tests/test_spatial_products.py`, which is what validation item 6 already
+  asked for and which now carries two tests: the ceiling applies per parent
+  independently, and more parents than the ceiling no longer raises.
+
+- **The rename is wider than §11 states: FIVE configs, not one.**
+  `config/workflows/{snake_config_model_test,..._linux,dev_fast,template}.yml`
+  and `tests/snake_config_model_test.yml` all carry the key, and all five must
+  move in the same commit or the old-key rejection makes them unparseable. All
+  five went to `max_per_basin: 11`, the new default, rather than to a preserved
+  20 — which the table above shows is the same partition.
+
+- **THREE baseline entries move, not one.** §11 says "exactly one YAML key in
+  the config snapshot". The manifest holds three config-snapshot targets —
+  WF1's, WF2's and WF3's — all sharing hash `48242f48…` because all three are
+  copies of the seed config. A re-record touches all three.
+
+- **The internal name moved with the config key.** `SpatialConfig.
+  max_automatic_subbasins` → `max_subbasins_per_basin`, and
+  `select_automatic_subbasins`'s `max_count` parameter → `max_subbasins`.
+  Leaving the code name reading "global count of automatic subbasins" after the
+  meaning became per-basin would be the same silent redefinition §11 forbids at
+  the config layer, one level down. The rule's params key moved too, so the
+  params rerun-trigger fires once.
+
+- **`shared.basin` is inside rule 3.00b's guard digest**, so renaming the key
+  flips `guarded_sections_digest` and the drift guard re-runs. Harmless when the
+  workflows run in order (WF1 re-snapshots first); a WF3-only run against a
+  stale WF1 snapshot fails loud, which is the guard working.
 
 ### Open questions — §8–12
 

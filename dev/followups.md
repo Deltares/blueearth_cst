@@ -97,7 +97,7 @@ items below and in ADR 0003. The landing order it recommended, adopted:
 | 2 | ~~`[R10-9]` the `LOG_RULES` conformance test~~ **DONE 2026-08-06** (`tests/test_log_rules_contract.py`, 9 passed) | the sweep's highest-risk surface, verified *before* the sweep edits it |
 | 3 | ~~`[R10-1]` merge~~ **DONE 2026-08-06** · `[R10-2]` split **BLOCKED** — needs an owner ruling, see the item | the merge was small and behaviour-preserving; the split turned out not to have the seam it assumed |
 | 4 | ~~`[R10-6]` §8–10 — the vector/raster split~~ **DONE 2026-08-06** (rules `1.01c` / `2.03c` / `3.01f`; nine WF1 artifacts byte-identical; ADR §8–10 now **accepted**). Baseline gate still open | changes the rule count of all three workflows |
-| 5 | `[R10-6]` §11a (rename, value preserved) then §11b (default → 11) | §11b is a baseline event; §11a is one YAML key |
+| 5 | ~~`[R10-6]` §11a then §11b~~ **DONE 2026-08-06 as ONE landing** — measurement collapsed the split: the fixture's partition saturates at 5 subbasins from ceiling 5 up, so §11b moves nothing and only the key rename shows. Baseline re-record owed (3 config-snapshot entries) | §11b turned out NOT to be a baseline event on this fixture |
 | 6 | R10 renames + `[R10-5]` renumber + `[R10-7]` + `[R10-10]` | against a rule set that is finally stable; regenerate the number map from it. `[R10-10]` rides here because it and `[R10-9]`'s ordering assertion touch the same test file |
 | — | `[R10-11]` tree-check on a post-migration tree | no sequencing dependency, but do it BEFORE the next milestone leans on `tree-check` as a gate — it reports red on every correct tree today |
 | 7 | `[R10-6]` §12 | standalone, last, with its own baseline re-record |
@@ -449,14 +449,25 @@ that awkwardness.
   with the split because they live in the same vector half:
 
   - **§11 — `automatic_subbasins.max_count` → `max_per_basin`, a per-basin
-    ceiling, default 20 → 11.** Today it is one global budget, area-weighted
-    across parents, that *raises* when parents exceed it. Per-basin removes that
-    failure and deletes `allocate_automatic_subbasin_budgets` outright. Safe
-    because `select_automatic_subbasins` treats the count as an upper bound.
-    The key is **renamed**, not redefined: `shared.basin`'s schema is not closed,
-    so a leftover `max_count` would be ignored silently and the project would run
-    at the new default rather than its author's value. `parse_spatial_config`
-    must reject the old key by name.
+    ceiling, default 20 → 11. DONE 2026-08-06**, in one landing rather than the
+    two the ADR planned. The global budget was area-weighted across parents and
+    *raised* when parents exceeded it; per-basin removes that failure and
+    `allocate_automatic_subbasin_budgets` is deleted outright. Safe because
+    `select_automatic_subbasins` treats the count as an upper bound.
+    `parse_spatial_config` rejects the old key **by name**, since
+    `shared.basin`'s schema is not closed and a leftover `max_count` would
+    otherwise be ignored in silence.
+
+    **Why one landing:** the ADR split it so an intended diff stayed
+    distinguishable from a regression, but the fixture's partition **saturates
+    at 5 subbasins from ceiling 5 upward**, so 11 and 20 are the same number to
+    it and §11b moves nothing. The corollary is the part to remember: this
+    fixture can never validate a ceiling change, so §11b's coverage is the
+    synthetic multi-basin tests, not the baseline. Full table and the internal
+    renames in ADR 0003 *Landed state (§11)*.
+
+    **Owed: a baseline re-record of three config-snapshot entries** (WF1/WF2/WF3
+    all copy the seed config and share hash `48242f48…`). Nothing numeric moves.
   - **§12 — `wflow_id` becomes `basin_id*1000 + subbasin*10 + m`** (basin 1 →
     1010, 1011, 1020 …), `m = 0` the subbasin's primary. Today a subbasin primary
     gets `basin*100 + n` while any additional point gets

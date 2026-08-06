@@ -12,7 +12,16 @@ from typing import Any
 
 from blueearth_cst.shared.snake_utils import DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY
 
-DEFAULT_MAX_AUTOMATIC_SUBBASINS = 20
+#: Default ceiling on automatically-derived subbasins, PER PARENT BASIN
+#: (ADR 0003 §11). Eleven, not twelve or twenty: twelve is the practical limit
+#: for a qualitative colour ramp a reader can tell apart (ColorBrewer ``Set3``
+#: and ``Paired`` both stop there), so 11 keeps ONE basin's subbasin map legible
+#: with a legend entry per unit. The argument holds per basin only — a
+#: three-basin project reaches 33 units and exceeds any qualitative ramp
+#: regardless, which is the figure's problem to solve, not the default's.
+DEFAULT_MAX_SUBBASINS_PER_BASIN = 11
+#: The hard cap, unchanged: `Bnnn-Snn` gives two digits of local subbasin
+#: number. A limit, where the above is a default.
 MAX_LOCAL_SUBBASIN_NUMBER = 99
 DEFAULT_GAUGE_SNAP_TOLERANCE_M = 10_000.0
 DEFAULT_RIVER_UPAREA_KM2 = 32.0
@@ -37,7 +46,7 @@ class SpatialConfig:
     hydrography: str
     basin_index: str | None
     gauge_points_path: str | None
-    max_automatic_subbasins: int
+    max_subbasins_per_basin: int
     gauge_snap_tolerance_m: float
     river_uparea_km2: float
     sources: SpatialSources
@@ -182,6 +191,23 @@ def parse_spatial_config(
     automatic_cfg = basin_cfg.get("automatic_subbasins", {}) or {}
     if not isinstance(automatic_cfg, Mapping):
         raise TypeError("shared.basin.automatic_subbasins must be a mapping")
+    # ADR 0003 §11: `max_count` was a GLOBAL budget shared across parents;
+    # `max_per_basin` is a per-parent ceiling. Rejected BY NAME rather than
+    # ignored, because `shared.basin` has no closed schema (unlike
+    # `advanced_settings`, whose `_ADVANCED_SETTINGS_SCHEMA` rejects unknown
+    # keys) — so a leftover `max_count` would be dropped in silence and the
+    # project would run at the new default instead of the value its author
+    # wrote. On a three-basin project that is a silently tripled partition.
+    if "max_count" in automatic_cfg:
+        raise ValueError(
+            "shared.basin.automatic_subbasins.max_count was removed in ADR 0003 "
+            "§11. Rename it to 'max_per_basin' — and note the MEANING changed "
+            "with the name: max_count was one global budget shared across all "
+            "parent basins, max_per_basin is a ceiling applied to each parent "
+            "independently. A multi-basin project keeping the same number will "
+            "produce more subbasins than before, which is the point of the "
+            f"rename. The default is now {DEFAULT_MAX_SUBBASINS_PER_BASIN}."
+        )
     sources_cfg = basin_cfg.get("spatial_sources", {}) or {}
     if not isinstance(sources_cfg, Mapping):
         raise TypeError("shared.basin.spatial_sources must be a mapping")
@@ -204,9 +230,13 @@ def parse_spatial_config(
         hydrography=hydrography,
         basin_index=basin_index,
         gauge_points_path=resolve_gauge_points_path(basin_cfg, model_cfg),
-        max_automatic_subbasins=_positive_int(
-            automatic_cfg.get("max_count", DEFAULT_MAX_AUTOMATIC_SUBBASINS),
-            "shared.basin.automatic_subbasins.max_count",
+        # `maximum` is now EXACTLY right rather than incidentally right: the
+        # ceiling counts subbasins within ONE parent, and `Bnnn-Snn` gives that
+        # parent two digits of local subbasin number. Under the old global
+        # budget the same bound was a loose over-estimate.
+        max_subbasins_per_basin=_positive_int(
+            automatic_cfg.get("max_per_basin", DEFAULT_MAX_SUBBASINS_PER_BASIN),
+            "shared.basin.automatic_subbasins.max_per_basin",
             maximum=MAX_LOCAL_SUBBASIN_NUMBER,
         ),
         gauge_snap_tolerance_m=_positive_float(

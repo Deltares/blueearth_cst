@@ -2,57 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-
 import numpy as np
 from pyflwdir import FlwdirRaster
-
-
-def allocate_automatic_subbasin_budgets(
-    parent_areas: Mapping[int, float], max_count: int
-) -> dict[int, int]:
-    """Allocate a global automatic-subbasin ceiling across fallback parents.
-
-    Every fallback parent receives one unit. Remaining units follow the
-    largest-remainder method weighted by parent upstream area; basin ID breaks
-    exact remainder ties.
-    """
-    if max_count < 1:
-        raise ValueError("max_count must be >= 1")
-    if not parent_areas:
-        return {}
-    if any(basin_id < 1 for basin_id in parent_areas):
-        raise ValueError("parent basin IDs must be positive integers")
-    if any(not np.isfinite(area) or area <= 0 for area in parent_areas.values()):
-        raise ValueError("parent basin areas must be finite and > 0")
-    if len(parent_areas) > max_count:
-        raise ValueError(
-            f"{len(parent_areas)} fallback parent basins exceed the global "
-            f"automatic-subbasin ceiling of {max_count}"
-        )
-
-    ordered_ids = sorted(parent_areas)
-    budgets = {basin_id: 1 for basin_id in ordered_ids}
-    remaining = max_count - len(ordered_ids)
-    if remaining == 0:
-        return budgets
-
-    total_area = sum(parent_areas.values())
-    quotas = {
-        basin_id: remaining * parent_areas[basin_id] / total_area
-        for basin_id in ordered_ids
-    }
-    floors = {basin_id: int(np.floor(quotas[basin_id])) for basin_id in ordered_ids}
-    for basin_id, floor in floors.items():
-        budgets[basin_id] += floor
-    left = remaining - sum(floors.values())
-    remainder_order = sorted(
-        ordered_ids,
-        key=lambda basin_id: (-(quotas[basin_id] - floors[basin_id]), basin_id),
-    )
-    for basin_id in remainder_order[:left]:
-        budgets[basin_id] += 1
-    return budgets
 
 
 def find_parent_outlet(
@@ -118,10 +69,10 @@ def full_catchment(flwdir: FlwdirRaster, outlet_index: int) -> np.ndarray:
 def select_automatic_subbasins(
     flwdir: FlwdirRaster,
     upstream_area: np.ndarray,
-    max_count: int,
+    max_subbasins: int,
     outlet_mask: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Choose the most detailed area partition that respects ``max_count``.
+    """Choose the most detailed area partition that respects ``max_subbasins``.
 
     Candidate thresholds are the unique upstream-area values on valid cells.
     PyFlwDir's area partition count is monotonic as that threshold grows, so a
@@ -129,8 +80,8 @@ def select_automatic_subbasins(
     configured budget. Returned labels are temporary; the identity contract
     replaces them after hydrologic ordering.
     """
-    if max_count < 1:
-        raise ValueError("max_count must be >= 1")
+    if max_subbasins < 1:
+        raise ValueError("max_subbasins must be >= 1")
     area = np.asarray(upstream_area, dtype=float)
     if area.shape != flwdir.shape:
         raise ValueError("upstream area and flow direction must align")
@@ -155,7 +106,7 @@ def select_automatic_subbasins(
         _, candidate_outlets = flwdir.subbasins_area(
             area_min=float(thresholds[middle]), uparea=area
         )
-        if candidate_outlets.size <= max_count:
+        if candidate_outlets.size <= max_subbasins:
             selected_outlets = candidate_outlets
             high = middle - 1
         else:
@@ -163,9 +114,9 @@ def select_automatic_subbasins(
 
     if selected_outlets is None or selected_outlets.size == 0:
         raise RuntimeError(
-            f"unable to derive an automatic partition within max_count={max_count}"
+            f"unable to derive an automatic partition within max_subbasins={max_subbasins}"
         )
-    if selected_outlets.size > max_count:
+    if selected_outlets.size > max_subbasins:
         raise RuntimeError("automatic partition exceeded its configured ceiling")
     partition = incremental_subbasins(flwdir, selected_outlets)
     partition[~flwdir.mask.reshape(flwdir.shape)] = 0

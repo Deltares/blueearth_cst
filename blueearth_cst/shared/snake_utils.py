@@ -998,7 +998,7 @@ def spatial_units_rule(project_dir, spatial_config, data_sources) -> SpatialUnit
             "river_uparea_km2": spatial_config.river_uparea_km2,
             "rivers_source": spatial_config.sources.rivers,
             "gauge_snap_tolerance_m": spatial_config.gauge_snap_tolerance_m,
-            "max_automatic_subbasins": spatial_config.max_automatic_subbasins,
+            "max_subbasins_per_basin": spatial_config.max_subbasins_per_basin,
         },
     )
 

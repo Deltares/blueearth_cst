@@ -16,7 +16,7 @@ shared:
     resolution: 0.0062475
     gauge_points: null
     automatic_subbasins:
-      max_count: 20
+      max_per_basin: 11
   historical_window:
     starttime: "2000-01-01T00:00:00"
     endtime: "2020-12-31T00:00:00"

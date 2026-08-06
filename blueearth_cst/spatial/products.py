@@ -40,7 +40,6 @@ from pyflwdir import FlwdirRaster
 from blueearth_cst.spatial.config import SpatialConfig
 from blueearth_cst.spatial.delineate_region import read_region
 from blueearth_cst.spatial.delineation import (
-    allocate_automatic_subbasin_budgets,
     downstream_steps,
     find_parent_outlet,
     full_catchment,
@@ -319,26 +318,30 @@ def _delineate_spatial_units(
     basins: gpd.GeoDataFrame,
     outlet_by_basin: dict[int, int],
     gauges: gpd.GeoDataFrame,
-    max_automatic_subbasins: int,
+    max_subbasins_per_basin: int,
 ) -> tuple[xr.DataArray, gpd.GeoDataFrame, gpd.GeoDataFrame, gpd.GeoDataFrame, pd.DataFrame, dict[int, str]]:
-    """Resolve gauge-driven or automatic partitions independently per parent."""
-    fallback_areas: dict[int, float] = {}
+    """Resolve gauge-driven or automatic partitions independently per parent.
+
+    ADR 0003 §11: the ceiling is PER PARENT, so every automatic parent gets the
+    same one and there is nothing to allocate.
+    ``allocate_automatic_subbasin_budgets`` — which handed each parent one unit,
+    spread the remainder by largest-remainder weighted on upstream area, and
+    RAISED outright when the project had more parent basins than the global
+    budget — is deleted rather than adapted. Its per-parent upstream areas went
+    with it: they existed only to weight that split.
+
+    Dropping the area weighting costs less than it sounds. ``select_automatic_
+    subbasins`` treats the ceiling as an UPPER BOUND, binary-searching for the
+    most detailed partition within it, so a small parent already yielded fewer
+    units than a large one at the same ceiling.
+    """
     methods: dict[int, str] = {}
     for basin_id, parent_outlet in outlet_by_basin.items():
         controls = gauges.loc[
             gauges["basin_id"].eq(basin_id) & gauges["location_role"].eq("control")
         ]
         has_internal = bool((controls["snapped_index"] != parent_outlet).any())
-        if not has_internal:
-            fallback_areas[basin_id] = float(
-                maps["upstream_area"].values.ravel()[parent_outlet]
-            )
-            methods[basin_id] = "automatic"
-        else:
-            methods[basin_id] = "gauge"
-    budgets = allocate_automatic_subbasin_budgets(
-        fallback_areas, max_automatic_subbasins
-    )
+        methods[basin_id] = "gauge" if has_internal else "automatic"
 
     temporary_map = np.zeros(maps.raster.shape, dtype="int32")
     subbasin_records: list[dict[str, Any]] = []
@@ -365,7 +368,7 @@ def _delineate_spatial_units(
             partition, outlets = select_automatic_subbasins(
                 parent_flwdir,
                 maps["upstream_area"].values,
-                budgets[basin_id],
+                max_subbasins_per_basin,
                 outlet_mask=maps["river_mask"].values,
             )
             if parent_outlet not in outlets:
@@ -657,7 +660,7 @@ def prepare_spatial_units(
     rivers_source: str,
     gauge_points_path: str | None,
     gauge_snap_tolerance_m: float,
-    max_automatic_subbasins: int,
+    max_subbasins_per_basin: int,
 ) -> SpatialUnits:
     """Build the model-free vector foundation and the hydrography grid seam.
 
@@ -709,7 +712,7 @@ def prepare_spatial_units(
         basins,
         outlet_by_basin,
         gauges,
-        max_automatic_subbasins,
+        max_subbasins_per_basin,
     )
     maps["subbasin_id"] = subbasin_map
     for name in maps.data_vars:

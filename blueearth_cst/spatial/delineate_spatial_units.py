@@ -55,7 +55,7 @@ def run_delineate_spatial_units(
     rivers_source: str,
     gauge_points_path: Optional[str],
     gauge_snap_tolerance_m: float,
-    max_automatic_subbasins: int,
+    max_subbasins_per_basin: int,
 ) -> None:
     """Build and write the vector foundation plus the hydrography grid seam.
 
@@ -79,7 +79,7 @@ def run_delineate_spatial_units(
         rivers_source=rivers_source,
         gauge_points_path=gauge_points_path,
         gauge_snap_tolerance_m=gauge_snap_tolerance_m,
-        max_automatic_subbasins=max_automatic_subbasins,
+        max_subbasins_per_basin=max_subbasins_per_basin,
     )
     try:
         write_spatial_units(units, output_dir)
@@ -105,5 +105,5 @@ if __name__ == "__main__" and "snakemake" in globals():
             rivers_source=sm.params.rivers_source,
             gauge_points_path=getattr(sm.input, "gauge_points", None),
             gauge_snap_tolerance_m=sm.params.gauge_snap_tolerance_m,
-            max_automatic_subbasins=sm.params.max_automatic_subbasins,
+            max_subbasins_per_basin=sm.params.max_subbasins_per_basin,
         )
