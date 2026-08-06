@@ -14,7 +14,8 @@ from snakemake.exceptions import WorkflowError
 # See dev/milestones/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
 from blueearth_cst.shared.provenance import effective_config_digest, short_digest, snapshot_bundle_digest
-from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, get_config, patch_psutil_windows_benchmark, region_spec, rule_banner, target_banner, warn_if_project_dir_in_repo
+from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, get_config, patch_psutil_windows_benchmark, region_spec, rule_banner, spatial_units_rule, target_banner, warn_if_project_dir_in_repo
+from blueearth_cst.spatial.config import parse_spatial_config
 from blueearth_cst.projections.gridded_outputs import RemovedGriddedOutputsError, validate_removed_gridded_options
 
 # Windows: make Snakemake's benchmark memory/IO/CPU metrics work (else all NA).
@@ -200,6 +201,35 @@ REGION = region_spec(
     basin_index=basin_index,
 )
 region_path = REGION.region_geojson
+
+# --- The shared vector foundation (ADR 0003 §8) -------------------------------
+# Same pattern once more: ONE producer contract, built here and identically in
+# the other two workflows, splatted into rule 2.03c below, and
+# tests/test_spatial_units_rule.py parses all three and fails on ANY difference
+# beyond message/log/benchmark.
+#
+# WF2 gains basin and subbasin boundaries — a context map beside the
+# change-factor plots, and the option of subbasin-resolved indicators — WITHOUT
+# a built model and without the thematic raster stack. Declaring the UNSPLIT
+# rule 1.02 instead would have made a projections-only run resample `vito`,
+# `modis_lai` and `soilgrids` to draw a subbasin outline; measured 2026-08-06,
+# the split avoids ~71% of what that would add. `snakemake -n` on this file must
+# therefore list `delineate_spatial_units` and no job whose inputs mention those
+# three sources — that dry-run is §8's acceptance assertion, not this comment.
+#
+# WF2 does not yet CONSUME the layers (§10 leaves the consuming rules
+# deliberately unnamed); making them reachable is this decision, using them is
+# the next one.
+#
+# `parse_spatial_config(basin_cfg)` takes NO model section: §8b requires the
+# shared rule's params to be a pure function of `project` + `shared.basin`, and
+# this workflow has no `workflows.model_creation` to offer anyway — which is
+# exactly why the asymmetry would have been fatal.
+SPATIAL_UNITS = spatial_units_rule(
+    project_dir=project_dir,
+    spatial_config=parse_spatial_config(basin_cfg),
+    data_sources=STORE_DATA_SOURCES,
+)
 
 # --- series identity (migration step 2b; design §5.3, D9, D12) ----------------
 # The series files below stop being temp() and become a persistent product, so
@@ -548,6 +578,7 @@ LOG_RULES = [
     # unlisted label is not an error: merge_logs drops the section and strands
     # the part, silently, on every run.
     "2.03b_delineate_region",
+    "2.03c_delineate_spatial_units",
     "2.01_fetch_gcm_raw",
     "2.02_reduce_gcm_series",
     "2.04_derive_change_factors",
@@ -578,6 +609,14 @@ WF2_TARGETS = {
     "stats_change_plt": (clim_project_dir + f"/plots/{clim_project}_change_factor_cloud.png"),
     "precip_plt": (clim_project_dir + f"/plots/{clim_project}_precip_annual_absolute.png"),
     "temp_plt": (clim_project_dir + f"/plots/{clim_project}_temp_annual_absolute.png"),
+    # ADR 0003 §8. The vector rule has NO WF2 consumer yet (§10), so a target
+    # entry is what makes it reachable at all — an undeclared leaf is simply
+    # never scheduled. One representative schedules the whole multi-output rule,
+    # the same deal WF1's `spatial_catalog.yml` terminal gets. It is also a
+    # gather input below: a leaf running parallel to the merge would strand its
+    # log part under `_parts/`, which is the defect the LOG_RULES block above
+    # documents three times over.
+    "spatial_basins": SPATIAL_UNITS.outputs["basins"],
     "snake_config": f"{project_dir}/config/runs/snake_config_climate_projections.yml",
     # ONE merged log for the whole workflow (was: one per fan-out stage,
     # alongside four rules writing logs/2.NN_*.log directly -- five files a
@@ -627,6 +666,27 @@ rule delineate_region:
     benchmark:
         f"{project_dir}/benchmarks/_parts/2.03b_delineate_region.tsv",
     script: REGION.script
+
+# 2.03c  delineate_spatial_units — the shared vector foundation (ADR 0003 §8).
+# Byte-identical to 1.01c and 3.01f except message/log/benchmark.
+#
+# WF2 declares the VECTOR half only. The raster half (rule 1.02) stays WF1-only,
+# so a projections-only run obtains basin and subbasin boundaries without
+# reading `vito`, `modis_lai` or `soilgrids` at all — see the SPATIAL_UNITS
+# comment block above for why that is the whole point.
+rule delineate_spatial_units:
+    message: rule_banner("2.03c", "delineate_spatial_units")
+    input:
+        **SPATIAL_UNITS.inputs,
+    params:
+        **SPATIAL_UNITS.params,
+    output:
+        **SPATIAL_UNITS.outputs,
+    log:
+        f"{LOG_PARTS_DIR}/2.03c_delineate_spatial_units.log",
+    benchmark:
+        f"{project_dir}/benchmarks/_parts/2.03c_delineate_spatial_units.tsv",
+    script: SPATIAL_UNITS.script
 
 # 2.03  snapshot_config — current copies + immutable effective-config bundle
 #
@@ -948,6 +1008,12 @@ rule gather_logs:
         (clim_project_dir + f"/summary/{clim_project}_change_factors_annual.csv"),
         (clim_project_dir + f"/plots/{clim_project}_change_factor_cloud.png"),
         (clim_project_dir + f"/plots/{clim_project}_precip_annual_absolute.png"),
+        # ADR 0003 §8: rule 2.03c is a LEAF here — nothing in WF2 consumes the
+        # vector layers yet (§10) — so it is not upstream of the three terminals
+        # above the way 2.03b is. Without this edge it would run in parallel
+        # with the merge and its part would be stranded under `_parts/`, the
+        # exact defect the LOG_RULES block records for 1.01b, 2.03b and 3.01b.
+        SPATIAL_UNITS.outputs["basins"],
     output:
         f"{project_dir}/logs/{WORKFLOW_LOG_NAME}",
     params:
@@ -965,6 +1031,9 @@ rule gather_benchmarks:
         (clim_project_dir + f"/summary/{clim_project}_change_factors_annual.csv"),
         (clim_project_dir + f"/plots/{clim_project}_change_factor_cloud.png"),
         (clim_project_dir + f"/plots/{clim_project}_precip_annual_absolute.png"),
+        # Same reason as gather_logs above: 2.03c is a leaf, and the benchmark
+        # gather has to wait for it or its `_parts/` row misses this run.
+        SPATIAL_UNITS.outputs["basins"],
     output:
         f"{project_dir}/benchmarks/wf2_benchmarks.md",
     params:

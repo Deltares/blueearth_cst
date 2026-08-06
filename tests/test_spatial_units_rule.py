@@ -16,11 +16,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from blueearth_cst.shared import snake_utils as su
 from blueearth_cst.spatial.config import parse_spatial_config
 
 TESTDIR = Path(__file__).resolve().parent
 SNAKEDIR = TESTDIR.parent
+CONFIG_FN = TESTDIR / "snake_config_model_test.yml"
+
+RULE_NAME = "delineate_spatial_units"
 
 
 def _rule(basin_overrides=None, **overrides):
@@ -182,3 +187,155 @@ def test_shared_does_not_import_spatial():
     assert not offenders, offenders
 
 
+
+
+# ---------------------------------------------------------------------------
+# The three declarations
+# ---------------------------------------------------------------------------
+
+_SNAKEFILES = (
+    ("wf1", "Snakefile_model_creation"),
+    ("wf2", "Snakefile_climate_projections"),
+    ("wf3", "Snakefile_climate_experiment"),
+)
+
+
+def _parse_workflow(snakefile: str, config_path):
+    """Parse a Snakefile in-process and return its ``Workflow``.
+
+    Same helper, same pinning caveat, as ``test_region_spec.py``: rules are
+    built exactly as a real invocation builds them, and ``wf_api._workflow`` is
+    private on the pinned Snakemake.
+    """
+    import snakemake.api as api
+
+    with api.SnakemakeApi() as sa:
+        wf_api = sa.workflow(
+            resource_settings=api.ResourceSettings(cores=1),
+            config_settings=api.ConfigSettings(configfiles=[Path(config_path)]),
+            storage_settings=api.StorageSettings(),
+            workflow_settings=api.WorkflowSettings(),
+            snakefile=SNAKEDIR / snakefile,
+            workdir=SNAKEDIR,
+        )
+        workflow = wf_api._workflow
+        workflow.include(workflow.main_snakefile, overwrite_default_target=True)
+        return workflow
+
+
+@pytest.fixture(scope="module")
+def declarations():
+    """The built ``delineate_spatial_units`` rule from all three workflows."""
+    return {
+        label: _parse_workflow(snakefile, CONFIG_FN).get_rule(RULE_NAME)
+        for label, snakefile in _SNAKEFILES
+    }
+
+
+@pytest.mark.slow
+@pytest.mark.workflow_contract
+def test_every_workflow_declares_the_rule(declarations):
+    for label, rule in declarations.items():
+        assert rule is not None, f"{label} has no {RULE_NAME} rule"
+        assert rule.name == RULE_NAME
+
+
+@pytest.mark.workflow_contract
+def test_declarations_are_identical(declarations):
+    """Compared pairwise: with three declarations, one left/right comparison
+    would let two agree while the third drifted."""
+    import itertools
+
+    def _fields(rule):
+        return {
+            "input": sorted(str(path) for path in rule.input),
+            "output": sorted(str(path) for path in rule.output),
+            "input_keys": sorted(rule.input.keys()),
+            "output_keys": sorted(rule.output.keys()),
+            "params": sorted(f"{k}={rule.params[k]!r}" for k in rule.params.keys()),
+            "script": str(rule.script),
+        }
+
+    differences = []
+    for left, right in itertools.combinations(sorted(declarations), 2):
+        for field, left_value in _fields(declarations[left]).items():
+            right_value = _fields(declarations[right])[field]
+            if left_value != right_value:
+                differences.append(
+                    f"{field} ({left} vs {right}):\n"
+                    f"    {left} = {left_value}\n    {right} = {right_value}"
+                )
+    assert not differences, (
+        f"{RULE_NAME} differs across the three workflows on "
+        f"{len(differences)} comparison(s). Only message/log/benchmark may "
+        "differ; everything else must come from spatial_units_rule.\n"
+        + "\n".join(differences)
+    )
+
+
+@pytest.mark.workflow_contract
+def test_the_outputs_are_the_shared_vector_artifacts(declarations):
+    expected = {
+        "geoms/basins.geojson",
+        "geoms/subbasins.geojson",
+        "geoms/catchments.geojson",
+        "geoms/rivers.geojson",
+        "geoms/locations.geojson",
+        "location_registry.csv",
+        "hydrography.nc",
+    }
+    for label, rule in declarations.items():
+        tails = set()
+        for path in rule.output:
+            posix = str(path).replace("\\", "/")
+            tails.add(posix.split("/data/spatial/", 1)[1])
+        assert tails == expected, f"{label}: {sorted(tails)}"
+
+
+@pytest.mark.workflow_contract
+def test_the_shared_rule_carries_no_thematic_source(declarations):
+    """The property §8 exists to buy, at the params level.
+
+    Carrying the thematic names here would both leak the raster half's
+    configuration into a shared rule and make an edit to `spatial_sources.lulc`
+    re-run the vector rule in all three workflows.
+    """
+    for label, rule in declarations.items():
+        payload = " ".join(f"{k}={rule.params[k]!r}" for k in rule.params.keys())
+        for source in ("vito", "modis_lai", "soilgrids", "lulc", "lai", "soil"):
+            assert source not in payload, f"{label}: {payload}"
+
+
+@pytest.mark.slow
+@pytest.mark.workflow_contract
+def test_only_wf1_can_reach_the_thematic_reads():
+    """§8's acceptance assertion, as a test rather than a one-off dry-run.
+
+    `_thematic_maps` -- the only code that reads `vito`, `modis_lai` and
+    `soilgrids` -- has exactly one entry point, `prepare_spatial_maps.py`. So
+    "WF2 no longer reads the thematic sources" is decidable by asking which
+    workflows declare a rule running that script. An ABSENCE, which the dry-run
+    reports but no assertion over WF2's own rules can express.
+
+    Checking the script rather than the params also survives a config that
+    NAMES the thematic sources explicitly, where grepping a job list for
+    "vito" would report a false alarm.
+    """
+    callers = sorted(
+        path.relative_to(SNAKEDIR).as_posix()
+        for path in (SNAKEDIR / "blueearth_cst").rglob("*.py")
+        if "_thematic_maps(" in path.read_text(encoding="utf-8")
+    )
+    assert callers == ["blueearth_cst/spatial/products.py"], callers
+
+    raster_script = "blueearth_cst/spatial/prepare_spatial_maps.py"
+    declaring = {
+        label
+        for label, snakefile in _SNAKEFILES
+        if any(
+            str(rule.script).replace("\\", "/").endswith(raster_script)
+            for rule in _parse_workflow(snakefile, CONFIG_FN).rules
+            if rule.script
+        )
+    }
+    assert declaring == {"wf1"}, declaring
