@@ -101,42 +101,78 @@ Paths are relative to `project_dir`, with these shorthands:
 Builds a distributed Wflow-SBM model from global datasets via hydromt and runs it
 once on historical forcing. No calibration — rapid deployment.
 
+An arrow is a **declared** dependency; rules on separate branches run
+concurrently. The stages read **data → model → run → records**: nothing that
+does not need a built model appears after one. In particular the four `plot_*`
+rules are leaves that do **not** wait for `run_wflow`.
+
 ```
-                        config + data catalogs
-                                 │
-      1.01 snapshot_config ──────┤
-                                 ▼
-                      1.01b delineate_region  ──► <spatial>/geoms/region.geojson
-                                 │                          │
-                                 ▼                          │
-                      1.02 prepare_spatial_maps             │
-                                 │                          │
-                                 ▼                          ▼
-                      1.03 build_wflow_model    1.10 extract_historical_climate
-                                 │                  (SHARED store, = WF3 3.02)
-                                 ▼                          │
-                 1.04 add_reservoirs_lakes_glaciers         │
-                                 ▼                          │
-                    1.05 declare_wflow_outputs              │
-                                 ▼                          │
-                     1.06 write_outlet_index                │
-                                 ▼                          │
-                    1.08 add_climate_forcing ◄──────────────┤
-                                 │        inmaps_historical.nc
-                                 ▼                          │
-                         1.09 run_wflow                     │
-                                 │                          │
-             ┌───────────────────┼────────────────┐         │
-             ▼                   ▼                ▼         ▼
-     1.11 evaluate_      1.12 plot_basin_   1.13 plot_      │
-          wflow_run           _map              _forcing    │
-             │                                              │
-             ▼                                 1.15 plot_climate_source
-   1.11b plot_wflow_evaluation
-                                 │
-                                 ▼
-                1.14 gather_benchmarks · 1.16 gather_logs
+STAGE 1 — DATA   (no model exists yet)
+──────────────────────────────────────────────────────────────────
+                    config + data catalogs
+                              │
+      1.01 snapshot_config ───┤
+                              ▼
+                    1.01b delineate_region ──► region.geojson
+                              │
+              ┌───────────────┴───────────────┐
+              ▼                               ▼
+    1.02 prepare_spatial_maps      1.10 extract_historical_climate
+     (engine-neutral maps,            (SHARED store, = WF3 3.02)
+      gauges, identities)                     │
+              │                               ▼
+              │                     1.15 plot_climate_source
+              │
+STAGE 2 — MODEL BUILD
+──────────────────────────────────────────────────────────────────
+              ▼
+    1.03 build_wflow_model
+              │
+       ┌──────┴───────────────────┐
+       ▼                          ▼
+1.06 write_outlet_index    1.04 add_reservoirs_lakes_glaciers
+                                  │
+                                  ▼
+                        1.05 declare_wflow_outputs
+                                  │
+                      ┌───────────┴───────────┐
+                      ▼                       ▼
+            1.12 plot_basin_map     1.08 add_climate_forcing
+                                              │
+                                  ┌───────────┴───────────┐
+                                  ▼                       ▼
+                        1.13 plot_forcing            (to stage 3)
+
+STAGE 3 — RUN + EVALUATE
+──────────────────────────────────────────────────────────────────
+                        1.09 run_wflow
+                              │
+                              ▼
+                    1.11 evaluate_wflow_run
+                              │
+                              ▼
+              1.11b plot_wflow_evaluation ◄── the store (1.10)
+
+STAGE 4 — RUN RECORDS
+──────────────────────────────────────────────────────────────────
+      1.14 gather_benchmarks · 1.16 gather_logs   (last: every terminal)
 ```
+
+**Stages are a reading aid, not a barrier.** Stage 1's right-hand branch runs
+concurrently with everything below it — a cold climate store extracts while the
+model builds. Only the arrows constrain order.
+
+**What is NOT a dependency, despite reading like one.** 1.08 does not consume the
+climate store: it reads source climate through the data catalog (`-d`), and its
+only declared input is the forcing recipe. The store reaches WF1's *figures*
+(1.11b, 1.15), never its forcing.
+
+**The numbers do not follow the stages, deliberately.** `W.NN` is a stable
+identifier assigned at rule creation, so 1.10 and 1.15 sit in stage 1 while 1.06
+sits in stage 2. Renumbering to match would churn every log and benchmark part
+path across all three workflows and invalidate every `W.NN` cross-reference in
+the comments and docs, for no behavioural gain — the same conclusion
+`rule-naming-design.md` §9 reached.
 
 | # | rule | in one line |
 |---|---|---|
@@ -411,29 +447,51 @@ A plausibility overlay, not a driver. Computes monthly CMIP6 change factors that
 situate the stress-test grid in projection space. **Nothing here feeds a
 stress-test run.**
 
+No model anywhere in this workflow — it is data end to end.
+
 ```
-      CMIP6 store (gs://cmip6)          config + catalogs
-              │                                 │
-              ▼                     2.03 snapshot_config
-    2.01 fetch_gcm_slice             2.03b delineate_region
-    (one raw slice per member)                  │
-              │                                 │
-              ▼                                 │
-    2.02 reduce_gcm_series  ◄───────────────────┘
-    (stage A: one job per series key)
+STAGE 1 — DATA
+──────────────────────────────────────────────────────────────────
+                        config + catalogs
+                                │
+        2.03 snapshot_config ───┤
+                                ▼
+                      2.03b delineate_region
+                                │  region.geojson
+              ┌─────────────────┴─────────────────┐
+              │                                   │
+   CMIP6 store │ (gs://cmip6)                     │
+              ▼                                   │
+    2.01 fetch_gcm_slice                          │
+    (one raw slice per member;                    │
+     the ONLY remote read)                        │
+              │                                   │
+              ▼                                   │
+    2.02 reduce_gcm_series ◄──────────────────────┤
+    (one job per series key, full fan-out)        │
+              │                                   │
+STAGE 2 — PRODUCT                                 │
+──────────────────────────────────────────────────────────────────
+              ▼                                   │
+    2.04 derive_change_factors ◄──────────────────┘
+    (ONE job — the workflow's answer)
               │
+              ├──► summary/*_change_factors_{annual,monthly}.csv
+              │    composition.csv · provenance.json · report.md
+              │    plots/*_change_factor_cloud.png
               ▼
-    2.04 derive_change_factors
-    (stage B: ONE job — the workflow's answer)
-              │
-              ├──► summary tables (change factors, annual + monthly)
-              │
-              ▼
-    2.06 plot_gcm_timeseries
+STAGE 3 — FIGURES + RECORDS
+──────────────────────────────────────────────────────────────────
+    2.06 plot_gcm_timeseries   (reads 2.02's series, not 2.04)
               │
               ▼
     2.07 gather_logs · 2.10 gather_benchmarks
 ```
+
+The region polygon feeds **three** rules — 2.01, 2.02 and 2.04 all declare it —
+because stage B recomputes every expected digest, including the polygon
+fingerprint. 2.06's edge from 2.04 is an **ordering edge only**; it plots the
+per-member series from 2.02 and never opens the change-factor table.
 
 | # | rule | in one line |
 |---|---|---|
@@ -544,47 +602,63 @@ The stress test itself. Generates stochastic weather realizations, perturbs each
 across a temperature × precipitation grid, runs every member through Wflow, and
 reduces the runs to the indicator tables that form the response surface.
 
+Every climate artifact is generated **before** the model is used: 3.09 is the
+first rule to put the model to work, and the whole stress-test ensemble already
+exists by then.
+
 ```
+STAGE 1 — GUARD + PROVENANCE   (config and hashes only)
+──────────────────────────────────────────────────────────────────
    config ──► 3.00b check_project_consistency   (drift guard, fails loud)
                           │
         ┌─────────────────┼──────────────────┬──────────────────┐
         ▼                 ▼                  ▼                  ▼
   3.01 snapshot     3.01b delineate    3.01c write_model   3.01e write_
      _config           _region           _reference        experiment_config
-                                              │
-                                              ▼
-                                    3.01d check_model_reference
-                                     (sentinel consumed by 3.09)
-                                              │
-  3.02 extract_historical_climate  (SHARED with WF1 1.10)
-        │                                     │
-        ▼                                     │
-  3.03 prepare_stress_test_grid                │
-        │  cst_1..N.csv                        │
-        │              3.04 prepare_weathergen_config
-        │                        │  weathergen_config.yml
-        │                        ▼
-        │              3.06 generate_weather_realizations
-        │                        │  rlz_1..R_cst_0.nc   (unperturbed)
-        └────────────┐           │
-                     ▼           ▼
-              3.07 perturb_climate_realization
-                     │  rlz_<n>_cst_<m>.nc   (perturbed)
-                     ▼
-              3.08 write_climate_data_catalog
-                     │
-                     ▼
-              3.09 downscale_climate_realization  ◄── model + guard sentinel
-                     │  inmaps + per-member TOML
-                     ▼
-              3.10 run_wflow_batch_<b>   (B members per Julia session)
-                     │  per-member run CSVs
-                     ▼
-              3.11 derive_wflow_indicators
-                     │  q_indicators.csv · basin_indicators.csv
-                     ▼
-              3.12 gather_benchmarks · 3.13 gather_logs
+        │                 │                    │
+        │                 │                    ▼
+        │                 │          3.01d check_model_reference
+        │                 │           (verdict consumed by 3.09)
+        │                 │
+STAGE 2 — CLIMATE DATA   (the model is fingerprinted, never used)
+──────────────────────────────────────────────────────────────────
+        │                 ▼
+        │      3.02 extract_historical_climate   (SHARED with WF1 1.10)
+        │                 │  extract_historical.nc
+        ▼                 │
+  3.03 prepare_stress     │      3.04 prepare_weathergen_config
+      _test_grid          │              │  weathergen_config.yml
+        │  cst_1..N.csv   └──────────────┤
+        │                                ▼
+        │                 3.06 generate_weather_realizations
+        │                                │  rlz_1..R_cst_0.nc  (unperturbed)
+        └────────────────┐               │
+                         ▼               ▼
+                  3.07 perturb_climate_realization
+                         │  rlz_<n>_cst_<m>.nc   (perturbed)
+                         ▼
+                  3.08 write_climate_data_catalog
+                         │
+STAGE 3 — MODEL RUN   (first use of the built model)
+──────────────────────────────────────────────────────────────────
+                         ▼
+       3.09 downscale_climate_realization ◄── model + 3.01d's verdict
+                         │  inmaps + per-member TOML
+                         ▼
+                  3.10 run_wflow_batch_<b>   (B members per Julia session)
+                         │  per-member run CSVs
+                         ▼
+STAGE 4 — PRODUCT + RECORDS
+──────────────────────────────────────────────────────────────────
+                  3.11 derive_wflow_indicators
+                         │  q_indicators.csv · basin_indicators.csv
+                         ▼
+                  3.12 gather_benchmarks · 3.13 gather_logs
 ```
+
+**The store feeds 3.06, not 3.03.** 3.03 enumerates the stress-test grid from
+the config alone — it needs no climate data at all, and runs concurrently with
+the extraction. The historical climate is what the *generator* resamples.
 
 | # | rule | in one line |
 |---|---|---|
