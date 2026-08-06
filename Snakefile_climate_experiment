@@ -191,11 +191,13 @@ CONFIG_SNAPSHOT_DIR = (
 # directories, and ONE MEMBER IS ONE FILENAME (`rlz_<r>_cst_<c>`) rather than a
 # directory level:
 #   climate/weathergenr/config/  the generator's own config snapshot (rule 3.04)
-#   climate/weathergenr/_work/   per-member configs (3.05) + the cst_<c>.csv
-#                                perturbation grid (3.03) -- demoted for
-#                                legibility, RETAINED on disk: it is the only
-#                                record of the precip_variance axis and of the
-#                                monthly structure the reduction collapses.
+#   climate/weathergenr/_work/   the cst_<c>.csv perturbation grid (3.03) --
+#                                demoted for legibility, RETAINED on disk: it is
+#                                the only record of the precip_variance axis and
+#                                of the monthly structure the reduction
+#                                collapses. It held per-member configs too until
+#                                C29 retired rule 3.05, which was writing one
+#                                file per member that carried no per-member data.
 #   climate/weathergenr/output/  the generator's products: the realization NCs
 #                                and weathergenr's two date CSVs
 #   climate/weathergenr/plots/   weathergenr's diagnostic figures
@@ -284,8 +286,8 @@ wf2_snapshot_digest = file_digest_or_absent(wf2_snapshot_path)
 # benchmarks/wf3_benchmarks.md already had.
 #
 # LOG_RULES is the merge order: rule LABELS, not part paths. merge_logs lists each
-# label's part dir to find its members, which matters most here: 3.05/3.07/3.09
-# fan out over RLZ_NUM x ST_NUM and 3.10 over the batch split, so an explicit part
+# label's part dir to find its members, which matters most here: 3.07/3.09 fan
+# out over RLZ_NUM x ST_NUM and 3.10 over the batch split, so an explicit part
 # list would re-derive ST_START, RLZ_NUM and the `_batches` arithmetic in a second
 # place that could drift from the rules that own it. Discovery is scoped to these
 # labels, so it is not a blind glob: an orphan dir from a renamed rule is not a
@@ -850,8 +852,8 @@ rule gather_benchmarks:
 # files, and Snakemake does not track those in the DAG, so naming them as `input:`
 # would demand them as buildable targets.
 #
-# This is the workflow where the merge earns most: 3.05/3.07/3.09 write one part
-# per (rlz, cst) and 3.10 one per batch, so the experiment's logs/ held hundreds
+# This is the workflow where the merge earns most: 3.07/3.09 write one part per
+# (rlz, cst) and 3.10 one per batch, so the experiment's logs/ held hundreds
 # of files across four subdirectories. The merge DELETES the parts it consumed and
 # prunes the emptied dirs, so a clean full run leaves one file. After a PARTIAL
 # re-run only the re-run rules have parts, so the rewritten log marks the rest

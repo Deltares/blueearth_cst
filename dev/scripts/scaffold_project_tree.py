@@ -165,7 +165,7 @@ def _log_paths(snakefile: str, experiment: str) -> list[str]:
     # Three declaration forms are in use across the Snakefiles and all three
     # must be read, or a workflow silently loses logs from the scaffold:
     #   f"{LOG_PARTS_DIR}/2.05_….log"                          (plain f-string)
-    #   f"{exp_dir}/logs/3.05_…/" + "rlz_{rlz_num}_….log"      (f-string + concat)
+    #   f"{exp_dir}/logs/3.07_…/" + "rlz_{rlz_num}_….log"      (f-string + concat)
     #   project_dir + "/logs/_parts/2.02_…/{model}.log"        (bare concat)
     #
     # The tail is NOT anchored to `logs/` -- with LOG_PARTS_DIR resolved above,

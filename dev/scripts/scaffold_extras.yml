@@ -62,6 +62,8 @@ wf3:
 #       No such filename. weathergenr writes obs_power_spectra.png and
 #       warm_annual_{precip,stats,wavelet}.png (two listed above).
 #   experiments/<id>/weather_generator/_work/rlz_1_config.yml
-#       No such filename, and the class is DECLARED anyway: rule 3.05 emits
-#       _work/weathergen_config_rlz_<r>_cst_<c>.yml, so --summary already
-#       carries it and an overlay entry would double it.
+#       No such filename. It named the per-member generator configs, which rule
+#       3.05 emitted as _work/weathergen_config_rlz_<r>_cst_<c>.yml -- declared,
+#       so an overlay entry would have doubled them. C29 has since retired that
+#       rule outright (the files carried no per-member data), so the class the
+#       entry pointed at no longer exists at all.
