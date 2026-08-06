@@ -331,6 +331,10 @@ above. Whatever changes the rule set, the list changes with it.
 
 ## Separate finding — the `W.NN` scheme is violated in WF2
 
+> **Superseded in part.** The recommendation below (amend §9, do not renumber)
+> was **overruled 2026-08-06** — see the subsection at the end. The finding
+> itself stands; the remedy changed.
+
 `naming.md` §9 defines `NN` as "the zero-padded step in **definition order**".
 WF2 defines its rules in the order 2.00, 2.03b, 2.03, 2.01, 2.02, 2.04, 2.06,
 2.07 — numbers out of order relative to definition — and the series has gaps at
@@ -345,6 +349,31 @@ neither purpose needs contiguity or order. Gaps then record history instead of
 looking like mistakes.
 
 This is a documentation fix and could land independently of the renames.
+
+### OVERRULED 2026-08-06 — renumber
+
+The owner ruled the other way after the rule-index audit reordered the DAG
+diagrams into `data → model → run → records`: with the stages made explicit, the
+numbers contradicting them was the more visible defect. **`W.NN` becomes
+positional** — contiguous per workflow, every dependency pointing from a lower
+number to a higher one. The full old→new map for all 45 identifiers lives in
+`dev/reference/workflows/rule-index.md` § *What changed*; the item is
+`dev/followups.md` `[R10-5]`.
+
+The cost above stands and was accepted knowingly. One part of it is worse than
+this section anticipated: because the new numbering is contiguous, **retired
+numbers get reused** — new 1.07 is `write_outlet_index` where old 1.07 was
+`setup_runtime`, and new 3.05 is `check_model_reference` where old 3.05 was the
+rule C29 deleted. Under the policy this section recommended, a stale `W.NN`
+reference merely dangled and was obvious; now it silently resolves to a
+different rule. Read every `W.NN` in `dev/milestones/`, `DEVLOG.md` and
+`dev/decisions/` **as of its date**, and do not rewrite archived records to the
+new numbers — the same rule validation item 4 already applies to old rule names.
+
+**Land it in the same sweep as the renames.** Both touch the same six call sites
+per rule and want the same validation, so splitting them pays that cost twice.
+Going forward, insert with a letter suffix (`1.09b`) rather than renumbering
+again.
 
 ## Validation
 

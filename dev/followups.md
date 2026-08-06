@@ -177,6 +177,50 @@ rejected.** None is an R10 item; that milestone is identifier-only.
   not an argument for merging them. Check what each actually depends on, and
   whether either destroys its own inputs.
 
+- **[R10-5] Renumber every rule so `W.NN` follows the logical order.**
+  *Accepted 2026-08-06; not implemented.* Numbers become **positional**: data
+  first, then model build, then run, then records, contiguous within each
+  workflow, with every dependency pointing from a lower number to a higher one.
+  The full old→new map for all 45 identifiers is in
+  `dev/reference/workflows/rule-index.md` § *What changed*.
+
+  **This overrides `rule-naming-design.md` §9**, which recommended amending the
+  convention to "a stable identifier assigned at rule creation" and *not*
+  renumbering. That recommendation was made on cost grounds and the owner ruled
+  the other way, so §9 is amended to record the reversal rather than the advice.
+
+  **The cost, and it is the reason §9 said no: numbers are REUSED.** New 1.07 is
+  `write_outlet_index`; old 1.07 was `setup_runtime`. New 3.05 is
+  `check_model_reference`; old 3.05 was the deleted `prepare_weagen_config_st`.
+  Under the old policy a retired number stayed a gap, so a stale reference merely
+  dangled and was obvious. Now it silently resolves to a **different rule**.
+  Every `W.NN` in `dev/milestones/`, `DEVLOG.md`, `dev/decisions/` and the
+  Snakefile comments predates the map and must be read as of its date. Do not
+  "fix" archived milestone documents to the new numbers — the same reasoning
+  R10's validation item 4 already applies to old rule *names*.
+
+  **Migration surface**, per renumbered rule — the same six call sites the
+  rename sweep touches (`LOG_RULES` entry, `W.NN` comment header, `rule`
+  identifier where a rename coincides, `rule_banner`'s first argument, the `log:`
+  path, the `benchmark:` path). Two extra hazards specific to renumbering:
+
+  1. **`LOG_RULES` order is the merge order.** Renumbering changes both the
+     labels and their intended sequence; update the list wholesale, not entry by
+     entry, or the merged log comes out in a mixed order.
+  2. **Rule 3.14 keeps a singular log label** (`3.14_run_wflow`) while its
+     identifiers stay `run_wflow_batch_<b>`. The divergence is deliberate and
+     survives renumbering — do not "fix" it.
+
+  **Do it in the same sweep as R10's renames.** They touch the same six call
+  sites per rule, want the same validation (`pytest tests/test_cli.py`, then a
+  full three-workflow run confirming the merged log has a section per
+  `LOG_RULES` entry and no `_parts/` survives), and splitting them means paying
+  that cost twice. The baseline is unaffected either way — part paths are
+  transient and no output path or value changes.
+
+  **Going forward:** do not renumber to insert a rule. Use a letter suffix
+  (`1.09b`) until the next deliberate sweep.
+
 - **[R10-4] Stale rule references in Snakefile comments.** Cosmetic, found by the
   same read. `Snakefile_climate_experiment` names the **deleted** rule 3.05 twice
   — the 3.00b comment still lists `prepare_weagen_config_st` as one of the four
