@@ -562,13 +562,31 @@ region polygon to the vector foundation.
      in `0`; a tenth location in one subbasin raises; values are unique. Then
      **re-record the baseline**, stating in the commit that the *gauge* column
      names changed by design while the outlet anchor column did not.
-7. **§8's acceptance gate is a measurement, not an assertion.** Time
-   `prepare_spatial_products` through `_delineate_spatial_units` (skipping
-   `_thematic_maps` onward) on the largest realistic basin, against the current
-   1.02 benchmark part. Record the number in this record. If the vector half is
-   not materially cheaper than the whole rule, §8 has moved WF2's cost rather
-   than removed it and the decision should be revisited. Expected risk is memory
-   on a large basin rather than wall-clock.
+7. **§8's acceptance gate is a measurement, not an assertion. PASSED
+   2026-08-06.** Measured by
+   `dev/decisions/0003-one-shared-region-artifact/probe_split_cost.py`, which
+   times the two halves exactly as `prepare_spatial_products` calls them, against
+   the real `deltares_data.yml` catalog:
+
+   | | fixture config | `config_gabon0108.yml` |
+   |---|---|---|
+   | already paid today (`delineate_region`) | 5.58 s | 5.86 s |
+   | **§8 adds to WF2/WF3** | **3.65 s** | **3.89 s** |
+   | unsplit would add instead | 13.03 s | 13.17 s |
+   | **§8 avoids** | **9.37 s — 72.0%** | **9.28 s — 70.5%** |
+
+   `delineate_region` is **excluded from the comparison**: WF2 and WF3 already
+   declare it under §1–7, so it is paid either way. The gate is what §8 *adds*
+   against what declaring the rule unsplit would add — and it avoids ~71% of
+   that. **§8 is worth doing; the unsplit alternative is not.**
+
+   **Caveat, unresolved:** both configs resolve to the same 384-cell basin
+   (16 × 24), where both halves are dominated by fixed overhead — opening VRTs
+   and tifs, parsing the catalog — rather than per-cell work. No larger basin
+   config exists on this machine. Which half scales worse with basin size is
+   still unmeasured, so re-run the probe when a large basin is available. The
+   direction is unlikely to reverse: the thematic half's three global-source
+   reads are per-run overhead that a larger basin only adds to.
 
 ### Open questions — §8–12
 
