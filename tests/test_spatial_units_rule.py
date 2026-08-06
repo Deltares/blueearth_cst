@@ -116,7 +116,7 @@ def test_params_carry_only_shared_basin_fields():
         "river_uparea_km2",
         "rivers_source",
         "gauge_snap_tolerance_m",
-        "max_automatic_subbasins",
+        "max_subbasins_per_basin",
     }
     assert rule.params["hydrography"] == "merit_hydro_ihu"
     assert rule.params["rivers_source"] == "rivers_lin2019_v1"
@@ -148,14 +148,14 @@ def test_overrides_are_carried_through():
         "resolution": 0.05,
         "river_uparea_km2": 50.0,
         "gauge_snap_tolerance_m": 2500.0,
-        "automatic_subbasins": {"max_count": 7},
+        "automatic_subbasins": {"max_per_basin": 7},
         "spatial_sources": {"rivers": "my_rivers"},
     })
     assert rule.params["hydrography"] == "merit_hydro_1k"
     assert rule.params["resolution"] == 0.05
     assert rule.params["river_uparea_km2"] == 50.0
     assert rule.params["gauge_snap_tolerance_m"] == 2500.0
-    assert rule.params["max_automatic_subbasins"] == 7
+    assert rule.params["max_subbasins_per_basin"] == 7
     assert rule.params["rivers_source"] == "my_rivers"
 
 

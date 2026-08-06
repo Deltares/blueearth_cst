@@ -1,6 +1,22 @@
 # Snakemake rule naming — R10 design
 
-Status: **ACCEPTED** by the owner, 2026-08-04. **AMENDED TWICE, 2026-08-06.** Not implemented.
+Status: **ACCEPTED** by the owner, 2026-08-04. **AMENDED THREE TIMES, 2026-08-06.**
+Not implemented.
+
+## Amendment 3 — 2026-08-06, `[R10-2]` dropped and `evaluate_` withdrawn
+
+Owner ruled `[R10-2]` **DROPPED** (option 3 of the three the item records). The
+split of rule 1.11 into a metrics rule and a figure rule does not happen.
+
+**Consequence for this design: `evaluate_` is withdrawn as the 19th verb.** It
+was ruled in *for* `evaluate_wflow_run`, the metrics half of that split, and no
+other rule was ever going to carry it — grep confirms zero occurrences across the
+three Snakefiles. A verb in the table with no user is a trap for the next
+author: it reads as an available option that some rule must already justify.
+
+Nothing else moves. 1.11's own rename to `plot_wflow_evaluation` was always the
+FIGURE half's name, so it survives the drop unchanged and step 6 renames 1.11 to
+it exactly as this design already says.
 
 ## Amendment 2 — 2026-08-06, from the rule-index name-vs-body audit
 
@@ -45,7 +61,7 @@ recorded in `dev/followups.md`:
 | | change | effect on this design |
 | --- | --- | --- |
 | `[R10-1]` | merge 1.07 into 1.08 | 1.07's rename is withdrawn — see above. Cost: 1.07 is a Python `script:`, 1.08 a `shell:` hydromt CLI call, and Snakemake allows one per rule |
-| `[R10-2]` | split 1.11 into `evaluate_wflow_run` (metrics) + `plot_wflow_evaluation` (figures) | the figure half **keeps this design's target name**, so the 1.11 rename is unaffected. The metrics half is a new identifier, and `evaluate_` is **ruled in as the 19th verb** (2026-08-06): `derive_` is reserved for a workflow's *terminal* product and the metrics table is not WF1's; `check_` is wrong because the rule must not fail on poor skill; `prepare_`/`write_` misdescribe scoring. The "never fails on skill" clause in its table entry is what separates it from `check_` |
+| `[R10-2]` | ~~split 1.11 into `evaluate_wflow_run` + `plot_wflow_evaluation`~~ **DROPPED 2026-08-06** | no effect. 1.11's rename to `plot_wflow_evaluation` was always the FIGURE half's name and stands unchanged. `evaluate_` is withdrawn with the split — see Amendment 3 |
 
 **Sequencing:** either order works for both. If a merge or split lands first, the
 affected rename is already moot; if R10 lands first, the rules keep their names
@@ -170,7 +186,6 @@ same:
 | `build_` | construct a model from inputs |
 | `add_` | mutate an existing model in place by adding **data** (a hydromt `update`) |
 | `declare_` | change what an engine will **emit**, adding no model data |
-| `evaluate_` | score outputs against observations; emits metrics, **never fails on skill** |
 | `write_` | **emit a record or index** — the emission *is* the work |
 | `generate_` | stochastic or synthetic production |
 | `downscale_` | resolution transform |

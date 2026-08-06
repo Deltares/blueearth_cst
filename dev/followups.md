@@ -95,11 +95,12 @@ items below and in ADR 0003. The landing order it recommended, adopted:
 |---|---|---|
 | 1 | ~~`[R10-8]` stale WF2 `LOG_RULES` entry · `[R10-4]` comments · rule-index diagram fixes~~ **DONE 2026-08-06** | no sequencing dependency; one is a live defect |
 | 2 | ~~`[R10-9]` the `LOG_RULES` conformance test~~ **DONE 2026-08-06** (`tests/test_log_rules_contract.py`, 9 passed) | the sweep's highest-risk surface, verified *before* the sweep edits it |
-| 3 | ~~`[R10-1]` merge~~ **DONE 2026-08-06** · `[R10-2]` split **BLOCKED** — needs an owner ruling, see the item | the merge was small and behaviour-preserving; the split turned out not to have the seam it assumed |
+| 3 | ~~`[R10-1]` merge~~ **DONE 2026-08-06** · ~~`[R10-2]` split~~ **DROPPED 2026-08-06** — no seam worth its price; `evaluate_` withdrawn with it | the merge was small and behaviour-preserving; the split turned out not to have the seam it assumed |
 | 4 | ~~`[R10-6]` §8–10 — the vector/raster split~~ **DONE 2026-08-06** (rules `1.01c` / `2.03c` / `3.01f`; nine WF1 artifacts byte-identical; ADR §8–10 now **accepted**). Baseline gate still open | changes the rule count of all three workflows |
-| 5 | `[R10-6]` §11a (rename, value preserved) then §11b (default → 11) | §11b is a baseline event; §11a is one YAML key |
+| 5 | ~~`[R10-6]` §11a then §11b~~ **DONE 2026-08-06 as ONE landing** — measurement collapsed the split: the fixture's partition saturates at 5 subbasins from ceiling 5 up, so §11b moves nothing and only the key rename shows. Baseline re-record owed (3 config-snapshot entries) | §11b turned out NOT to be a baseline event on this fixture |
 | 6 | R10 renames + `[R10-5]` renumber + `[R10-7]` + `[R10-10]` | against a rule set that is finally stable; regenerate the number map from it. `[R10-10]` rides here because it and `[R10-9]`'s ordering assertion touch the same test file |
-| 7 | `[R10-6]` §12 | standalone, last, with its own baseline re-record |
+| — | `[R10-11]` tree-check on a post-migration tree | no sequencing dependency, but do it BEFORE the next milestone leans on `tree-check` as a gate — it reports red on every correct tree today |
+| 7 | ~~`[R10-6]` §12~~ **DONE 2026-08-06** — landed with §11's re-record still pending, so ONE re-record now covers both | standalone, last; re-record owed |
 
 **This resolves the double-renumber contradiction.** `[R10-6]` says land the
 split before `[R10-5]`, but `rule-index.md` publishes a 45-identifier map that
@@ -154,8 +155,34 @@ that awkwardness.
   has no rename to skip; if R10 lands first, 1.07 keeps `setup_runtime` until the
   merge deletes it. What must not happen is renaming 1.07 in passing.
 
-- **[R10-2] Split rule 1.11 into a metrics rule and a figure rule.**
-  *Accepted 2026-08-06; not implemented.* Today one rule writes both
+- **[R10-2] ~~Split rule 1.11 into a metrics rule and a figure rule.~~
+  DROPPED 2026-08-06 by owner ruling** — option 3 of the three below.
+  *Accepted 2026-08-06, blocked the same day on implementation evidence,
+  then dropped.*
+
+  **Why option 3.** The item's own assessment is that the harm is a wasted
+  re-run and a needless baseline comparison — **not a wrong number**. The two
+  ways to actually split it both cost more than that: an aligned-discharge
+  intermediate adds a declared artifact to a tree R9 has just settled, and a
+  full re-read duplicates the climate-parity transform, the expensive part of
+  the rule. Neither price is worth a re-run.
+
+  **Consequences, both settled:** `evaluate_` is withdrawn as the 19th verb
+  (`dev/milestones/r10/rule-naming-design.md` Amendment 3) — it existed only
+  to name the metrics half, and a verb with no user is a trap for the next
+  author. 1.11's rename to `plot_wflow_evaluation` is UNAFFECTED: that was
+  always the figure half's name, so step 6 renames 1.11 to it as planned.
+
+  **What stays true, and is the reason to keep this record rather than delete
+  it:** the DAG still cannot express the distinction the `AGENTS.md`
+  validation ladder turns on — "do not run the baseline for a figure-only
+  change" remains written guidance that the rule graph contradicts. That is
+  now a known, accepted gap rather than an open task. Re-raise only with a
+  cheaper seam than the three below.
+
+  Original analysis follows.
+
+  *Original statement:* Today one rule writes both
   `<model>/evaluation/performance_metrics.csv` — **baseline-covered data** — and
   the evaluation figures, which `check_baseline.py` **excludes by default**
   (`FIGURE_KINDS`). The DAG therefore cannot express the distinction the
@@ -331,6 +358,57 @@ that awkwardness.
   property by different parsers is how they came to disagree. Do it during
   `[R10-9]`'s ordering extension, which touches that file anyway.
 
+- **[R10-11] `pixi run tree-check` cannot pass on a correctly-migrated tree.**
+  *Found 2026-08-06 at the `[R10-6]` baseline gate; pre-existing, not caused by
+  it.* `AGENTS.md` documents the command as a standing check — "Snapshot a
+  project tree as a path list and check every path against the R9 path map" —
+  and it exits 1 on every tree that is in the layout R9 delivered.
+
+  **The map runs one way.** `build_r09_path_map` maps PRE-R9 paths to post-R9
+  ones (`spatial/spatial_maps.nc` -> `data/spatial/spatial_maps.nc`). A live
+  tree holds only the post-R9 side, so nothing matches the old-side patterns and
+  every relocated artifact falls through as UNMAPPED. Only the identity rows
+  fire — `config/`, `logs/`, `benchmarks/`, the paths that are the same in both
+  eras.
+
+  Measured on two trees, one of which cannot contain the artifact `[R10-6]`
+  added:
+
+  | tree | paths | identity | unmapped | exit |
+  |---|---|---|---|---|
+  | fresh clean-room run, 2026-08-06 | 186 | 33 | 153 | 1 |
+  | `test_case/test_local_pre_r10-6` (parked, pre-split) | 203 | 38 | 165 | 1 |
+
+  The second is the falsifier: it holds no `data/spatial/hydrography.nc` at all
+  and fails identically, so the condition predates `[R10-6]` and its path-map
+  row. `data/spatial/spatial_maps.nc` — mapped since R9 — is UNMAPPED on both.
+
+  **Why the unit tests are green while the tool is red.** They feed the map its
+  OLD-side inputs: `MAP_ROWS` in `tests/test_r09_path_map.py` and
+  `dev/milestones/r09/declared_inventory.txt` are both pre-move path lists. The
+  map is correct; it is being asked about the wrong era. Nothing was wrong with
+  either instrument — they simply cannot see this, which is why it took a live
+  run to surface.
+
+  **Consequence for `[R10-6]`:** its commit 3 claims the invariant "`pixi run
+  tree-check` clean". That was unachievable when written. The path-map row it
+  added is right and `tests/test_r09_path_map.py` exercises it; only the
+  end-to-end claim is void.
+
+  **Recommended fix — a post-migration inventory, not a reverse map.** The
+  reason to keep this tool is the property it was built for: *no artifact
+  appears that nobody declared* — exactly what caught `region.geojson` (F1a) and
+  what the seam intermediate needed a row for. That property does not need a
+  migration map; it needs the set of paths a correct tree may hold, asserted as
+  identity-by-rule so a NEW artifact still reports UNMAPPED. Retiring the check
+  half and keeping only `--out` would be cheaper and would throw the property
+  away. Inverting the map (new -> old) would validate a migration nobody will
+  run again.
+
+  Until then, treat a red `tree-check` as uninformative rather than as a gate,
+  and say so in `AGENTS.md` — a documented command that always fails trains
+  readers to ignore it, which is worse than not having it.
+
 - **[R10-7] Rename the three shared-rule helpers from `_spec` to `_rule`.**
   *Ruled 2026-08-06; not implemented.* `region_spec` → `region_rule`,
   `climate_store_spec` → `climate_store_rule`, and the new one from `[R10-6]`
@@ -397,22 +475,46 @@ that awkwardness.
   with the split because they live in the same vector half:
 
   - **§11 — `automatic_subbasins.max_count` → `max_per_basin`, a per-basin
-    ceiling, default 20 → 11.** Today it is one global budget, area-weighted
-    across parents, that *raises* when parents exceed it. Per-basin removes that
-    failure and deletes `allocate_automatic_subbasin_budgets` outright. Safe
-    because `select_automatic_subbasins` treats the count as an upper bound.
-    The key is **renamed**, not redefined: `shared.basin`'s schema is not closed,
-    so a leftover `max_count` would be ignored silently and the project would run
-    at the new default rather than its author's value. `parse_spatial_config`
-    must reject the old key by name.
+    ceiling, default 20 → 11. DONE 2026-08-06**, in one landing rather than the
+    two the ADR planned. The global budget was area-weighted across parents and
+    *raised* when parents exceeded it; per-basin removes that failure and
+    `allocate_automatic_subbasin_budgets` is deleted outright. Safe because
+    `select_automatic_subbasins` treats the count as an upper bound.
+    `parse_spatial_config` rejects the old key **by name**, since
+    `shared.basin`'s schema is not closed and a leftover `max_count` would
+    otherwise be ignored in silence.
+
+    **Why one landing:** the ADR split it so an intended diff stayed
+    distinguishable from a regression, but the fixture's partition **saturates
+    at 5 subbasins from ceiling 5 upward**, so 11 and 20 are the same number to
+    it and §11b moves nothing. The corollary is the part to remember: this
+    fixture can never validate a ceiling change, so §11b's coverage is the
+    synthetic multi-basin tests, not the baseline. Full table and the internal
+    renames in ADR 0003 *Landed state (§11)*.
+
+    **Owed: a baseline re-record of three config-snapshot entries** (WF1/WF2/WF3
+    all copy the seed config and share hash `48242f48…`). Nothing numeric moves.
   - **§12 — `wflow_id` becomes `basin_id*1000 + subbasin*10 + m`** (basin 1 →
-    1010, 1011, 1020 …), `m = 0` the subbasin's primary. Today a subbasin primary
-    gets `basin*100 + n` while any additional point gets
-    `1_000_000 + subbasin_id*100 + n`, so basin 1's second gauge is `1_010_102`.
-    **Revised 2026-08-06** from a flat `basin*100 + k`: review showed the flat
-    form near-collides with `subbasin_id` at an off-by-one and discards the
-    subbasin encoding the current ids carry. Cost: nine additional locations per
-    subbasin.
+    1010, 1011, 1020 …), `m = 0` the subbasin's primary. **DONE 2026-08-06.**
+    It replaced two unrelated formulas sharing one column: a primary took
+    `basin*100 + n` while any additional point took
+    `1_000_000 + subbasin_id*100 + n`, so basin 1's second gauge read
+    `1_010_102`. §12a's enforced invariant (`wflow_id == subbasin_id`) was
+    REPLACED, not dropped — it now reads "every primary ends in 0". §12b shipped
+    with it: `config/templates/observations/README.md` carries the migration and
+    the template header moved to `time;1010;1020`.
+
+    **It uncovered a live defect.** `output.csv` shipped `Q_101` TWICE — the
+    outlet column and its gauge column collided in name because
+    `wflow_id == subbasin_id` made them indistinguishable (value-identical, max
+    diff 0.0). That collision had already leaked into WF3's result surface as a
+    column literally named **`Q_101.1`**, pandas' de-duplication suffix. §12
+    separates them, so this is a fix rather than only a rename.
+
+    **Still unanswered:** the ADR said to check the nine-additional-locations cap
+    "against a real gauge list before implementing". The fixture runs
+    `gauge_points: null` and real basin data lives outside the repo, so it could
+    not be checked. The cap raises by name if tripped, so the failure is loud.
 
   **§11b and §12 are baseline events and must each land alone.** Only §8–10 and
   §11a are behaviour-preserving — an earlier version of this entry claimed §8–11

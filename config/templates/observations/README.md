@@ -38,13 +38,42 @@ Gauge/output locations, **comma**-separated:
 | `x`, `y` | longitude, latitude in EPSG:4326 |
 | `location_role` | optional role: `control` (default) defines a subbasin; `observation` is tracked without controlling delineation |
 
-Primary locations inherit their subbasin ID: basin 1 subbasins are 101, 102,
-and so on, giving location codes such as `B001-S01-L01`. Additional
-non-controlling locations use a reserved range beginning at 1,000,000. The
-current Gabon IDs 101–104 remain valid only when the resolved hierarchy assigns
-the same stations to `B001-S01` through `B001-S04`; otherwise preparation fails
-with an explicit old-ID → resolved-ID crosswalk rather than silently preserving
-stale IDs.
+### How `wflow_id` is built (changed 2026-08-06 — **existing files must be renumbered**)
+
+```
+wflow_id = basin_id*1000 + local_subbasin_number*10 + m
+```
+
+`m = 0` for the subbasin's own primary location and `1`–`9` for additional
+points inside it. Basin 1 reads `1010, 1011, 1020, 1030…`; basin 2 reads
+`2010, 2011, …`. Ids therefore group by basin, order by subbasin, and keep the
+subbasin legible in the flat integer.
+
+**This replaces the previous scheme, and old files will not work.** Before
+2026-08-06 a primary location took its `subbasin_id` verbatim (`101`, `102`, …)
+while any additional location took `1_000_000 + subbasin_id*100 + n` — so a
+station and its neighbour sat four orders of magnitude apart in the same column.
+
+| location | before | after |
+| --- | --- | --- |
+| basin 1, subbasin 1, primary | `101` | `1010` |
+| basin 1, subbasin 1, second point | `1010102` | `1011` |
+| basin 1, subbasin 2, primary | `102` | `1020` |
+
+**What you have to do.** Both files are keyed by `wflow_id`, so **renumber the
+`output_locations.csv` `wflow_id` column and the `observations_timeseries.csv`
+column headers together.** Neither failure is silent: a pinned `wflow_id` that
+no longer matches the resolved hierarchy stops preparation with an explicit
+old-ID → resolved-ID crosswalk, and an observation header carrying ids the
+registry does not know fails the WF1 header check by name.
+
+The simplest migration is to **delete the `wflow_id` column** from
+`output_locations.csv`, run WF1 once, and read the assigned ids out of
+`data/spatial/location_registry.csv` — the column is optional, and pinning it is
+only worth doing when you need the ids to stay fixed across rebuilds.
+
+`location_code` is unchanged (`B001-S01-L01`): codes are for reading, `wflow_id`
+is the integer for joining and for scanning a CSV header.
 
 ## `observations_timeseries.csv`
 
@@ -57,7 +86,7 @@ arguments, so keep each file's separator as shipped.
   `spatial/location_registry.csv` — not by `station_name`.
 - Missing values: leave the field empty.
 
-The shipped header (`time;101;102`) is illustrative — replace `101` and `102`
+The shipped header (`time;1010;1020`) is illustrative — replace `1010` and `1020`
 with your own `wflow_id` values and add one column per station. The two files
 must be changed **together**. Before plotting, Workflow 1 checks the raw header
 against `spatial/location_registry.csv`: duplicate or unknown IDs fail

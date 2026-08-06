@@ -122,7 +122,7 @@ def _config() -> SpatialConfig:
         hydrography="hydro",
         basin_index=None,
         gauge_points_path=None,
-        max_automatic_subbasins=3,
+        max_subbasins_per_basin=3,
         gauge_snap_tolerance_m=1500,
         river_uparea_km2=0.1,
         sources=SpatialSources(rivers="rivers", lulc="lulc", lai="lai", soil="soil"),
@@ -144,7 +144,9 @@ def test_no_gauges_selects_automatic_fallback_and_complete_registry():
     assert len(catchments) == len(subbasins)
     assert len(registry) == len(subbasins)
     assert registry["is_primary"].all()
-    assert (registry["wflow_id"] == registry["subbasin_id"]).all()
+    # ADR 0003 §12: a primary is `basin*1000 + local_subbasin*10`, no longer
+    # its own subbasin_id. What still holds is that it ends in 0.
+    assert (registry["wflow_id"] % 10 == 0).all()
     rows = registry["snapped_row"].astype(int).to_numpy()
     cols = registry["snapped_col"].astype(int).to_numpy()
     assert maps["river_mask"].values[rows, cols].all()
@@ -173,7 +175,7 @@ def test_internal_control_uses_gauge_partition_and_is_row_order_invariant():
     for candidate in (gauges, gauges.iloc[::-1].reset_index(drop=True)):
         snapped = _snap_gauge_points(candidate, maps, flow, 1000)
         result = _delineate_spatial_units(
-            maps, flow, basins, outlets, snapped, max_automatic_subbasins=3
+            maps, flow, basins, outlets, snapped, max_subbasins_per_basin=3
         )
         assert result[-1] == {1: "gauge"}
         registries.append(result[4].sort_values("location_code").reset_index(drop=True))
@@ -206,8 +208,8 @@ def test_outlet_only_control_uses_automatic_fallback():
     assert "Outlet" in set(result[4]["station_name"])
 
 
-def test_fallback_is_resolved_independently_for_multiple_parent_features():
-    """Every parent survives and shares one global automatic-unit budget."""
+def _two_parent_maps():
+    """A synthetic grid resolving to TWO parent basins, west and east."""
     source, region = _source_dataset()
     directions = np.tile(np.asarray([2, 4, 8, 2, 4, 8], dtype="uint8"), (6, 1))
     directions[-1] = np.asarray([1, 0, 16, 1, 0, 16], dtype="uint8")
@@ -228,12 +230,54 @@ def test_fallback_is_resolved_independently_for_multiple_parent_features():
     gauges = _snap_gauge_points(
         products_module.read_gauge_points(None), maps, flow, 1000
     )
+    return maps, flow, basins, outlets, gauges
+
+
+def test_the_automatic_ceiling_applies_to_each_parent_INDEPENDENTLY():
+    """ADR 0003 §11: a per-parent ceiling, not one budget split across parents.
+
+    Before §11 the number was a GLOBAL budget: every fallback parent got one
+    unit and `allocate_automatic_subbasin_budgets` spread the remainder by
+    upstream area, so a parent's partition depended on how many OTHER parents
+    the project had. Now each parent is capped at the same number on its own,
+    which is what makes two projects' partitions comparable.
+    """
+    maps, flow, basins, outlets, gauges = _two_parent_maps()
 
     result = _delineate_spatial_units(maps, flow, basins, outlets, gauges, 4)
 
     assert result[-1] == {1: "automatic", 2: "automatic"}
-    assert set(result[1]["basin_id"]) == {1, 2}
-    assert 2 <= len(result[1]) <= 4
+    subbasins = result[1]
+    assert set(subbasins["basin_id"]) == {1, 2}
+    per_parent = subbasins.groupby("basin_id").size()
+    # The bound is PER PARENT. Under the old global budget of 4 the two parents
+    # together could not exceed 4; now each may reach it, so a `len() <= 4`
+    # assertion would pass for the wrong reason.
+    assert (per_parent <= 4).all(), per_parent.to_dict()
+    assert (per_parent >= 1).all(), per_parent.to_dict()
+
+
+def test_more_parents_than_the_ceiling_no_longer_raises():
+    """The failure mode §11 removes, as a test rather than as prose.
+
+    `allocate_automatic_subbasin_budgets` raised outright when
+    `len(parent_areas) > max_count` -- a project with more parent basins than
+    the global budget could not be delineated at all. With a per-parent ceiling
+    there is nothing to run out of: a ceiling of 1 simply gives each parent one
+    subbasin.
+    """
+    maps, flow, basins, outlets, gauges = _two_parent_maps()
+
+    result = _delineate_spatial_units(maps, flow, basins, outlets, gauges, 1)
+
+    subbasins = result[1]
+    assert set(subbasins["basin_id"]) == {1, 2}
+    assert subbasins.groupby("basin_id").size().eq(1).all()
+
+
+def test_the_derived_report_methods_match_the_delineation():
+    maps, flow, basins, outlets, gauges = _two_parent_maps()
+    result = _delineate_spatial_units(maps, flow, basins, outlets, gauges, 4)
 
     # ADR 0003 §8: `methods` used to cross into the report in memory. The
     # raster half now derives it from `subbasins`, which is only sound while
@@ -280,7 +324,7 @@ def _units_kwargs(config: SpatialConfig) -> dict:
         "rivers_source": config.sources.rivers,
         "gauge_points_path": config.gauge_points_path,
         "gauge_snap_tolerance_m": config.gauge_snap_tolerance_m,
-        "max_automatic_subbasins": config.max_automatic_subbasins,
+        "max_subbasins_per_basin": config.max_subbasins_per_basin,
     }
 
 

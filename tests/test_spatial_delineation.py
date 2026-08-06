@@ -8,7 +8,6 @@ import pytest
 from affine import Affine
 
 from blueearth_cst.spatial.delineation import (
-    allocate_automatic_subbasin_budgets,
     downstream_steps,
     find_parent_outlet,
     full_catchment,
@@ -34,20 +33,6 @@ def _flow_network():
         transform=Affine(1000, 0, 0, 0, -1000, 5000),
         outlets="min",
     )
-
-
-def test_budget_allocation_respects_global_ceiling_and_parent_minimum():
-    """The ceiling is global while every fallback parent receives one unit."""
-    budgets = allocate_automatic_subbasin_budgets({3: 20.0, 1: 70.0, 2: 10.0}, 8)
-
-    assert budgets == {1: 5, 2: 1, 3: 2}
-    assert sum(budgets.values()) == 8
-
-
-def test_budget_allocation_fails_when_parents_alone_exceed_ceiling():
-    """No parent basin is silently dropped to satisfy the global limit."""
-    with pytest.raises(ValueError, match="exceed"):
-        allocate_automatic_subbasin_budgets({1: 1.0, 2: 1.0, 3: 1.0}, 2)
 
 
 def test_parent_outlet_and_downstream_steps_follow_flow_network():
@@ -95,7 +80,7 @@ def test_automatic_partition_outlets_respect_eligibility_mask():
     outlet_mask = area >= 6
 
     _, outlets = select_automatic_subbasins(
-        flwdir, area, max_count=20, outlet_mask=outlet_mask
+        flwdir, area, max_subbasins=20, outlet_mask=outlet_mask
     )
 
     assert outlets.size < 20

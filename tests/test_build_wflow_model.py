@@ -80,7 +80,7 @@ def test_arcgis_d8_conversion_preserves_grid_and_active_domain():
     assert set(np.unique(ldd.values[:1])).issubset(set(range(1, 10)))
 
 
-def test_registry_requires_primary_ids_to_inherit_subbasin():
+def test_registry_requires_primary_ids_to_end_in_zero():
     registry = pd.DataFrame(
         {
             "subbasin_id": [101],
@@ -94,7 +94,7 @@ def test_registry_requires_primary_ids_to_inherit_subbasin():
         registry.copy(), geometry=[Point(1, 1)], crs=4326
     )
 
-    with pytest.raises(ValueError, match="must equal its subbasin_id"):
+    with pytest.raises(ValueError, match="must end in 0"):
         _validate_registry(registry, locations)
 
 

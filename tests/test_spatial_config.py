@@ -6,7 +6,7 @@ import pytest
 
 from blueearth_cst.spatial.config import (
     DEFAULT_GAUGE_SNAP_TOLERANCE_M,
-    DEFAULT_MAX_AUTOMATIC_SUBBASINS,
+    DEFAULT_MAX_SUBBASINS_PER_BASIN,
     DEFAULT_RIVER_UPAREA_KM2,
     parse_spatial_config,
     resolve_gauge_points_path,
@@ -31,7 +31,7 @@ def test_parse_spatial_config_applies_documented_defaults():
     assert config.hydrography == "merit_hydro_ihu"
     assert config.basin_index == "merit_hydro_index"
     assert config.gauge_points_path is None
-    assert config.max_automatic_subbasins == DEFAULT_MAX_AUTOMATIC_SUBBASINS
+    assert config.max_subbasins_per_basin == DEFAULT_MAX_SUBBASINS_PER_BASIN
     assert config.gauge_snap_tolerance_m == DEFAULT_GAUGE_SNAP_TOLERANCE_M
     assert config.river_uparea_km2 == DEFAULT_RIVER_UPAREA_KM2
     assert config.sources.rivers == "rivers_lin2019_v1"
@@ -48,7 +48,7 @@ def test_parse_spatial_config_accepts_explicit_basin_settings():
             hydrography="custom_hydro",
             basin_index=None,
             gauge_points="C:/observations/gauges.csv",
-            automatic_subbasins={"max_count": 8},
+            automatic_subbasins={"max_per_basin": 8},
             gauge_snap_tolerance_m=2500,
             river_uparea_km2=15,
             spatial_sources={
@@ -65,7 +65,7 @@ def test_parse_spatial_config_accepts_explicit_basin_settings():
     assert config.hydrography == "custom_hydro"
     assert config.basin_index is None
     assert config.gauge_points_path == "C:/observations/gauges.csv"
-    assert config.max_automatic_subbasins == 8
+    assert config.max_subbasins_per_basin == 8
     assert config.gauge_snap_tolerance_m == 2500
     assert config.river_uparea_km2 == 15
     assert config.sources.rivers == "custom_rivers"
@@ -117,8 +117,10 @@ def test_conflicting_gauge_paths_fail_loudly():
         ({"region": "not a mapping"}, ValueError, "region"),
         ({"region": {"bbox": [0, 0, 1, 1]}}, ValueError, "basin.*subbasin"),
         ({"resolution": 0}, ValueError, "resolution"),
-        ({"automatic_subbasins": {"max_count": 0}}, ValueError, "max_count"),
-        ({"automatic_subbasins": {"max_count": 100}}, ValueError, "<= 99"),
+        ({"automatic_subbasins": {"max_per_basin": 0}}, ValueError, "max_per_basin"),
+        ({"automatic_subbasins": {"max_per_basin": 100}}, ValueError, "<= 99"),
+        # ADR 0003 §11: the OLD key must be rejected BY NAME, not ignored.
+        ({"automatic_subbasins": {"max_count": 20}}, ValueError, "max_per_basin"),
         ({"gauge_snap_tolerance_m": -1}, ValueError, "tolerance"),
         ({"gauge_points": 123}, TypeError, "path string"),
         ({"spatial_sources": {"soil": ""}}, TypeError, "soil"),
