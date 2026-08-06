@@ -669,7 +669,42 @@ and TOML name.
 
 ---
 
-## CR-5 — retire the per-run weather-generator config (PROPOSED, not ruled)
+## CR-5 — retire the per-run weather-generator config — **RULED AND LANDED 2026-08-05**
+
+Implemented as specified below, plus two things folded in because they live in
+the same two rules:
+
+| item | what landed |
+| --- | --- |
+| **C29** | rule 3.05 deleted; 3.07 takes the output path as its 4th CLI arg and reads the shared config from 3.04 |
+| **F6** | only the two `transient_change` flags moved to the shared config — the `stress_test` step counts and monthly ranges did **not**, so the file no longer implies values that had no part in the run |
+| **F7** | `config/templates/weathergen_config.yml` is now a **declared input** to 3.04, not a params-only read |
+
+**Design choice worth recording.** `impose_climate_change.R` derives `out_dir`,
+`file_prefix` and `file_suffix` from the single output path rather than taking
+them as three separate arguments. `weathergenr::write_netcdf` composes
+`<prefix>_<suffix>.nc`, so the stem is split at its LAST underscore. That keeps
+one source of truth — the Snakemake `output:` declaration — and is
+naming-agnostic: `rlz_1_cst_2` and `rlz_1_st_2` both split correctly, so **C22's
+member-token rename touches nothing here**. It refuses loudly if the stem has no
+underscore.
+
+**`LOG_RULES` was updated in the same edit**, which matters as much as deleting
+the rule: `merge_logs` discovers a section by listing the directory named after
+its label, so a label with no producer contributes an empty section forever.
+R10's design records the mirror hazard for renames on this same list.
+
+**Gates:** `pytest tests/test_cli.py` (dry-runs all three Snakefiles — the DAG is
+valid without 3.05) + the two affected module suites: **62 passed, 26 skipped**.
+`validate_wg3` now pins the two flags, with a synthetic pass/fail pair per flag.
+
+**NOT verified: the R side.** Nothing here exercises
+`impose_climate_change.R` — no R test harness exists (`dev/followups.md`:
+"R testthat coverage. Decided at the start of R5 — Python helpers only"). The new
+arity, the path split and the flag read all first execute at rule 3.07 in a real
+WF3 run. **Run WF3 in the primary checkout before treating this as done.**
+
+### Original proposal
 
 Proposal-side: **Part C, C29**, finding **F6**.
 
