@@ -97,10 +97,10 @@ items below and in ADR 0003. The landing order it recommended, adopted:
 | 2 | ~~`[R10-9]` the `LOG_RULES` conformance test~~ **DONE 2026-08-06** (`tests/test_log_rules_contract.py`, 9 passed) | the sweep's highest-risk surface, verified *before* the sweep edits it |
 | 3 | ~~`[R10-1]` merge~~ **DONE 2026-08-06** · ~~`[R10-2]` split~~ **DROPPED 2026-08-06** — no seam worth its price; `evaluate_` withdrawn with it | the merge was small and behaviour-preserving; the split turned out not to have the seam it assumed |
 | 4 | ~~`[R10-6]` §8–10 — the vector/raster split~~ **DONE 2026-08-06** (rules `1.01c` / `2.03c` / `3.01f`; nine WF1 artifacts byte-identical; ADR §8–10 now **accepted**). Baseline gate still open | changes the rule count of all three workflows |
-| 5 | ~~`[R10-6]` §11a then §11b~~ **DONE 2026-08-06 as ONE landing** — measurement collapsed the split: the fixture's partition saturates at 5 subbasins from ceiling 5 up, so §11b moves nothing and only the key rename shows. Baseline re-record owed (3 config-snapshot entries) | §11b turned out NOT to be a baseline event on this fixture |
+| 5 | ~~`[R10-6]` §11a then §11b~~ **DONE 2026-08-06 as ONE landing** — measurement collapsed the split: the fixture's partition saturates at 5 subbasins from ceiling 5 up, so §11b moves nothing and only the key rename shows. **Baseline re-recorded `ea5ac59`** | §11b turned out NOT to be a baseline event on this fixture |
 | 6 | ~~R10 renames + `[R10-5]` renumber + `[R10-7]` + `[R10-10]`~~ **DONE 2026-08-06** — five commits; the number map was regenerated FIRST and owner-approved before any code moved against it. `[R10-9]`'s deferred ordering assertion landed with the renumber that makes it true. `pytest tests/` green | against a rule set that is finally stable; regenerate the number map from it. `[R10-10]` rides here because it and `[R10-9]`'s ordering assertion touch the same test file |
 | — | ~~`[R10-11]` tree-check on a post-migration tree~~ **DONE 2026-08-06** — post-migration inventory is the default; 186/186 identity on the live tree | done before step 6, so the sweep has a working tree-shape gate while it runs |
-| 7 | ~~`[R10-6]` §12~~ **DONE 2026-08-06** — landed with §11's re-record still pending, so ONE re-record now covers both | standalone, last; re-record owed |
+| 7 | ~~`[R10-6]` §12~~ **DONE 2026-08-06** — landed with §11's re-record still pending, so ONE re-record covered both: **`ea5ac59`**, 4 targets (3 config snapshots + `q_indicators.csv`). Nothing further owed | standalone, last |
 
 **This resolves the double-renumber contradiction.** `[R10-6]` says land the
 split before `[R10-5]`, but `rule-index.md` publishes a 45-identifier map that
@@ -562,8 +562,17 @@ that awkwardness.
     synthetic multi-basin tests, not the baseline. Full table and the internal
     renames in ADR 0003 *Landed state (§11)*.
 
-    **Owed: a baseline re-record of three config-snapshot entries** (WF1/WF2/WF3
-    all copy the seed config and share hash `48242f48…`). Nothing numeric moves.
+    ~~**Owed: a baseline re-record of three config-snapshot entries**~~
+    **DONE `ea5ac59`** — one re-record covered §11 and §12 together, from a
+    clean-room three-workflow run: the three config snapshots (WF1/WF2/WF3 all
+    copy the seed config and shared hash `48242f48…` → `e223eaf7`) plus
+    §12's `q_indicators.csv`. `output.csv` and `basin_indicators.csv` did NOT
+    move, which is the load-bearing half. Nothing numeric moved from §11.
+
+    **The manifest is therefore CURRENT.** This line said "owed" for long
+    enough to mislead a later gate into budgeting for six expected diffs; read
+    the manifest and `ea5ac59`, not this item, before running
+    `check_baseline.py check`.
   - **§12 — `wflow_id` becomes `basin_id*1000 + subbasin*10 + m`** (basin 1 →
     1010, 1011, 1020 …), `m = 0` the subbasin's primary. **DONE 2026-08-06.**
     It replaced two unrelated formulas sharing one column: a primary took

@@ -107,39 +107,27 @@ asserted per site.
 - `pytest tests/test_cli.py` — all three Snakefiles parse and dry-run.
 - `pytest tests/` — the full suite; nine tests hardcoded old rule identifiers
   and were updated with the sweep.
-- `check_baseline.py check` — **no diff ATTRIBUTABLE TO THIS SWEEP.** Not "no
-  diff": two re-records were already owed on this branch before the sweep
-  started, from `[R10-6]` §11 (the `max_per_basin` config-key rename moves all
-  three config-snapshot hashes) and §12 (the `wflow_id` renumbering rewrites
-  gauge column headers, which reaches the run CSV and both indicator tables).
-  Landing-order step 7 says one re-record covers both. Running the gate as "must
-  pass unchanged" would read those six as this sweep's damage and trigger a
-  rollback of the wrong thing.
+- `check_baseline.py check` — **must pass with NO diff, and every target is in
+  scope.** The manifest is current: `[R10-6]` §11 and §12's re-record landed at
+  `ea5ac59`, which is in this branch's history, and it moved exactly four
+  targets (the three config snapshots, sharing a hash because all three copy the
+  seed config, plus `q_indicators.csv`). Nothing is owed. **Any** target moving
+  here is this sweep's damage and is a rollback trigger.
 
-  Write the expected set down before running, and classify against it:
+  This was briefly written the other way, and the correction is the point worth
+  keeping: `dev/followups.md` still said "re-record owed" under §11 and §12
+  after the re-record had landed, so reading the item rather than the manifest
+  produced a gate that would have accepted six diffs as expected. **Check what
+  the manifest records, not what a followup says is owed** — a followup is a
+  statement about the past, and `ea5ac59` is the fact.
 
-  | manifest target | expectation |
-  |---|---|
-  | `config/runs/snake_config_model_creation.yml` | **may move** — §11 |
-  | `config/runs/snake_config_climate_projections.yml` | **may move** — §11 |
-  | `<exp>/config/snake_config_climate_experiment.yml` | **may move** — §11 |
-  | `<model>/run_default/output.csv` | **may move** — §12 |
-  | `<exp>/results/q_indicators.csv` | **may move** — §12 |
-  | `<exp>/results/basin_indicators.csv` | **may move** — §12 |
-  | `<proj>/summary/cmip6_change_factors_{annual,monthly}.csv` | **must NOT move** |
-  | the four `*.png` targets | excluded by default (`FIGURE_KINDS`) |
-
-  **The discriminator is sharp**: with figures excluded, the gate checks eight
-  targets, six of which are the owed set — so the two CMIP6 change-factor tables
-  are the only default-checked targets this sweep could implicate. Either of
-  them moving, or any owed target moving in a way §11/§12 does not explain, is a
-  rollback trigger for the sweep. All six owed and neither CMIP6 table is the
-  expected result, and means the sweep is behaviour-preserving.
-
-  **Why a rename cannot reach any of them.** Rule labels reach exactly two
+  **Why a rename cannot reach any target.** Rule labels reach exactly two
   durable *contents* — the merged log's section banners and the benchmark
   table's rule column — and the manifest fingerprints neither. It has no
-  `logs/`- or `benchmarks/`-shaped target at all.
+  `logs/`- or `benchmarks/`-shaped target at all: its fourteen are three config
+  snapshots, two CMIP6 summary tables, two indicator tables, the run CSV, and
+  four figures (excluded by default under `FIGURE_KINDS`, so the gate compares
+  ten).
 
 ## Old part directories persist, and that is correct
 
