@@ -19,10 +19,17 @@ exactly this surface. It is mechanically checkable, so it is checked here
 instead.
 
 The label is derived from each rule's own ``log:`` path rather than from its
-name, which is what makes rule 3.10 fall out correctly: its identifiers are
-``run_wflow_batch_<b>`` (one per batch, parse-time generated) while every batch
-writes into the single ``3.10_run_wflow`` directory. Deriving from the path
-records that divergence as the deliberate thing it is (P3-3).
+name, which is what makes the batched Wflow rule fall out correctly: its
+identifiers are ``run_wflow_batch_<b>`` (one per batch, parse-time generated)
+while every batch writes into a single ``<W.NN>_run_wflow`` directory. Deriving
+from the path records that divergence as the deliberate thing it is (P3-3).
+
+**This module is the ONLY home for the property** (`dev/followups.md`
+``[R10-10]``). ``tests/test_model_reference.py`` used to assert a subset of it
+by slicing the ``LOG_RULES`` text to the first ``]`` and matching an f-string
+label form; both were wrong in ways that let a real failure sit unread, and two
+modules asserting one property by different parsers is how they came to
+disagree. Do not re-add a second parser — extend this one.
 """
 from __future__ import annotations
 

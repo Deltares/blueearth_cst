@@ -235,32 +235,23 @@ def test_rule_3_00b_sentinels_are_untouched():
     assert ".guard_ok" in guard_00b
 
 
-def test_every_declared_log_part_label_is_registered_in_log_rules():
-    """The class behind P1's F7 and P4's two repeats, closed mechanically.
-
-    A rule that declares a `log:` part under LOG_PARTS_DIR but is absent from
-    LOG_RULES loses its section from the merged log and strands its part --
-    silently, on every run. Three instances were fixed by hand across the three
-    workflows; this is what stops a fourth.
-
-    SCOPE, stated so the test is not read as stronger than it is: it matches the
-    `f"{LOG_PARTS_DIR}/<label>..."` form, which is how every current declaration
-    is written, and it counts 14/3/14 labels across the three Snakefiles today.
-    A declaration built some other way -- a label assembled from a variable, say
-    -- would not be seen, so this closes the common case rather than the whole
-    class. Registered-but-undeclared is deliberately NOT an error: merge_logs
-    simply finds no part for it, which is how the shared store rules are listed.
-    """
-    for snakefile in sorted(SNAKEFILE.parent.glob("Snakefile_*")):
-        text = snakefile.read_text(encoding="utf-8")
-        declared = set(re.findall(r'LOG_PARTS_DIR\}/([0-9]+\.[0-9]+[a-z]?_[a-z_]+)', text))
-        block = text[text.index("LOG_RULES = ["): text.index("]", text.index("LOG_RULES = ["))]
-        registered = set(re.findall(r'"([0-9]+\.[0-9]+[a-z]?_[a-z_]+)"', block))
-        missing = declared - registered
-        assert not missing, (
-            f"{snakefile.name}: log part label(s) {sorted(missing)} declared but "
-            f"absent from LOG_RULES -- merge_logs will drop the section silently"
-        )
+# The declared-label-is-registered check that used to live here is GONE, folded
+# into tests/test_log_rules_contract.py [R10-10]. It asserted a strict SUBSET of
+# what `test_every_logging_rule_is_declared` asserts there, by a weaker parser,
+# and the two disagreed for two independent reasons:
+#
+#  - its slicer ran `text.index("]", ...)`, so the FIRST `]` anywhere in the
+#    block -- including one inside a comment -- ended the slice and every label
+#    below it read as unregistered. Commit 129580f put a bracketed followups
+#    reference in WF1's list and this test went red and stayed red;
+#  - its label regex matched the f-string form `{LOG_PARTS_DIR}/<label>` only,
+#    so WF2's and WF3's fan-out rules -- which build their `log:` path by
+#    concatenation -- were invisible to it. That is the "14/3/14" its own
+#    docstring recorded: it saw 3 of WF2's 6 labels.
+#
+# The contract module derives labels from the PARSED workflow's `rule.log`, so
+# it has neither blind spot, and it asserts across all three Snakefiles at once
+# rather than inside a loop where the first failure hides the rest.
 
 
 def _script_modules():
