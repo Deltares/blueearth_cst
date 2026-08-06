@@ -126,18 +126,45 @@ asserted per site.
   table's rule column — and the manifest fingerprints neither. It has no
   `logs/`- or `benchmarks/`-shaped target at all: its fourteen are three config
   snapshots, two CMIP6 summary tables, two indicator tables, the run CSV, and
-  four figures (excluded by default under `FIGURE_KINDS`, so the gate compares
-  ten).
+  **six** figures — which are excluded by default under `FIGURE_KINDS`, so the
+  gate compares **eight**.
 
-## Old part directories persist, and that is correct
+  **RESULT 2026-08-06: `OK - 8 target(s) match manifest.`** No target moved.
 
-After the next run, `logs/_parts/` will still hold directories named for the old
-labels — `2.01_fetch_gcm_raw/`, `3.07_generate_climate_stress_test/`,
-`3.10_run_wflow/` and the rest. `merge_logs` is deliberately scoped to
-`LOG_RULES`, so it never reads an unlisted directory and never deletes one; that
-scoping is what keeps an orphan out of the merged log in the first place.
+  **What that does and does not prove, because the tool says so itself.** It
+  warned: *"manifest recorded by `main@a1d9993` +dirty, checking from
+  `HEAD@6ad6a2e` +dirty. The baseline fixture is untracked and therefore SHARED
+  BY EVERY BRANCH, so a pass here may mean the tree matches another branch's
+  code."* That is exactly the situation. `test_case/test_local` still holds the
+  artifacts a pre-sweep run produced; no workflow has been re-run under the
+  renamed rules. So this pass establishes that **the sweep did not perturb the
+  recorded artifacts** — real, since a careless edit to a `script:` path or an
+  `output:` block would show here — but it is **not** evidence that a fresh run
+  under the new identifiers reproduces them.
 
-`tree-check` will not flag them either: the post-migration inventory covers
+  The structural argument is what carries that claim, and it is checkable
+  without a run: no manifest target is log- or benchmark-shaped. The empirical
+  confirmation is a three-workflow run followed by a re-check, which is owed
+  regardless for the `[R10-1]` merge's subprocess plumbing.
+
+- `pixi run tree-check` — **`MAP CLEAN: 186 paths, 0 moved, 186 identity, 0
+  unmapped`** (2026-08-06, primary checkout). No rule identifier reaches a
+  durable path, which this confirms from the other direction: the tree the
+  pre-sweep run produced is still fully declared under the post-migration
+  inventory.
+
+## Old part directories will persist, and that is correct
+
+The fixture tree currently holds **no** `logs/_parts/` at all — the last run
+completed, and both merges delete the parts they consume. But after the next
+*partial* run under the new identifiers, `logs/_parts/` will hold directories
+named for the old labels — `2.01_fetch_gcm_raw/`,
+`3.07_generate_climate_stress_test/`, `3.10_run_wflow/` and the rest —
+alongside the new ones. `merge_logs` is deliberately scoped to `LOG_RULES`, so
+it never reads an unlisted directory and never deletes one; that scoping is what
+keeps an orphan out of the merged log in the first place.
+
+`tree-check` will not flag them: the post-migration inventory covers
 `logs/_parts/` as a prefix. So the "a stranded part shows up as an unmapped
 path" check does **not** fire for this class, and a clean `tree-check` is not
 evidence that no part was stranded. Stated because it looks like a defect and
