@@ -1,4 +1,4 @@
-Status: accepted
+Status: accepted (§1–7, implemented); **proposed** (§8–11, the vector-foundation split)
 Date: 2026-08-02
 Deciders: Ümit Taner
 Consulted: gabon_0108 run (2026-08-02) — geometry comparison showing
@@ -15,8 +15,16 @@ Revisions:
     instead of delineating; WF2 drops the climate-store producer entirely;
     `store_region.geojson` is retired and the store's extent moves into
     `extract_historical.nc` attributes.
+  - 2026-08-06: **subject broadened from the region polygon to the shared
+    spatial foundation**, and the title with it. Adds §8–11 (proposed): split
+    `prepare_spatial_maps` at its thematic-raster seam so the vector layers —
+    basins, subbasins, catchments, rivers, locations, registry — become a third
+    shared spec declared in all three workflows, letting WF2 and WF3 consume
+    basin and subbasin boundaries without dragging in the raster stack. The
+    "point at `basins.geojson`" alternative rejected in the original record is
+    marked revisited, because this split removes its disqualifying factor.
 
-# ADR 0003 — One shared region artifact, delineated once per project
+# ADR 0003 — Spatial artifacts delineated once per project, shared across workflows
 
 ### Context
 
@@ -59,6 +67,35 @@ view: R07 B1 made the climate store **model-free** on purpose, replacing
 derivations that read the built model's `staticmaps.nc` (wf1) or
 `staticgeoms/region.geojson` (wf3). Any replacement must preserve that — the
 region must come from config plus catalog, never from a hydrology build.
+
+### Context — second pressure (2026-08-06)
+
+The region polygon is now shared; **nothing else spatial is.** WF2 and WF3
+declare `delineate_region` and no other `spatial/` rule, and neither workflow's
+scripts read a vector layer — `export_wflow_results.py` and
+`plot_proj_timeseries.py` contain no reference to basins, subbasins or the
+location registry. Figures and metrics in both workflows want basin and subbasin
+boundaries: a context map beside the change-factor plots, and the option of
+subbasin-resolved indicators instead of today's basin averages.
+
+The obvious move — declare `prepare_spatial_maps` in all three workflows, as
+`delineate_region` is declared — repeats the trade this record removed. That rule
+produces nine outputs across two separable jobs
+(`spatial/products.py::prepare_spatial_products`):
+
+| job | outputs | needed by |
+|---|---|---|
+| **vectors + hydrography** — read the hydrography raster, derive flow direction and accumulation, delineate parent basins, snap gauges, partition subbasins | `geoms/{basins,subbasins,catchments,rivers,locations}.geojson`, `location_registry.csv` | WF1, and now WF2 + WF3 |
+| **thematic raster stack** — `_thematic_maps` reads and reprojects LULC (`vito`), LAI (`modis_lai`) and soil (`soilgrids`) onto the grid | folded into `spatial_maps.nc` | WF1 only — it exists to parameterise Wflow |
+
+A projections-only run would resample three global raster sources to draw a
+subbasin outline. That is the same shape as the cost this record repaid, one
+level down: WF2 paying for a large derived product to obtain a small geometric
+one. The seam is clean in the code — `_thematic_maps` is a single call and
+nothing in the vector path depends on it.
+
+Owner ruled 2026-08-06 that WF2 and WF3 need **no DEM or raster layer**, only the
+boundaries.
 
 ### Decision
 
@@ -115,6 +152,41 @@ all three workflows declare identically.
    the polygon while `shared.basin.region` is unchanged, and that is exactly the
    case a specification-based digest misses.
 
+**§8–11 are PROPOSED, not implemented.** They extend the same pattern from the
+region polygon to the vector foundation.
+
+8. **Split `prepare_spatial_maps` at the thematic seam**, into two rules:
+
+   - **`delineate_spatial_units`** — region polygon + hydrography catalog +
+     `shared.basin.gauge_points` → `geoms/{basins,subbasins,catchments,rivers,
+     locations}.geojson` and `location_registry.csv`. Model-free and
+     engine-neutral, exactly as the whole rule is today.
+   - **`prepare_spatial_maps`** (retained name and job) — consumes those, adds
+     the thematic layers → `spatial_maps.nc`, `spatial_catalog.yml`,
+     `spatial_report.yml`. **WF1 only.**
+
+   The split is a decomposition of one existing function, not new logic: the
+   vector half is `prepare_spatial_products` up to and including
+   `_delineate_spatial_units`, the raster half is `_thematic_maps` onward.
+
+9. **`snake_utils.spatial_units_spec(...)`** returns a `SpatialUnitsSpec` —
+   `script`, `inputs`, `outputs`, `params` — mirroring `region_spec` and
+   `climate_store_spec`. All three workflows declare `delineate_spatial_units`
+   from it, byte-identical but for `message`/`log`/`benchmark`.
+
+10. **WF2 and WF3 consume the vectors as declared inputs** of the figure and
+    metric rules that use them. *Which* rules is deliberately left open — see
+    *Open questions*; making the artifacts reachable is this decision, using them
+    is the next one.
+
+11. **`automatic_subbasins.max_count` gains a per-basin spelling.** A gauge-free
+    project must be able to ask for subbasin == basin. Today the ceiling is
+    **global across parents** and `allocate_automatic_subbasin_budgets` raises
+    when `len(parent_areas) > max_count`, so "one per basin" is expressible only
+    by setting `max_count` to a parent count the config author cannot know before
+    delineation runs. The default of 20 also means a gauge-free project currently
+    gets twenty automatic subbasins, not one.
+
 ### Consequences
 
 *Positive*
@@ -157,6 +229,44 @@ all three workflows declare identically.
 - The store key (`<clim_source>_<window>`) is unchanged, so store reuse across
   experiments (P3-1 §4) behaves exactly as before.
 
+#### Consequences of §8–11
+
+*Positive*
+
+- WF2 and WF3 can draw or aggregate on basin and subbasin boundaries with **no
+  built model and no thematic raster read**. Observable as
+  `snakemake -n -s Snakefile_climate_projections` listing
+  `delineate_spatial_units` while `vito`, `modis_lai` and `soilgrids` appear in
+  no job's inputs.
+- `rivers.geojson` and `location_registry.csv` come with them, so a WF2 context
+  map and a WF3 station-labelled indicator table need no further plumbing.
+- The alternative this record originally rejected — point a consumer at
+  `basins.geojson` — becomes viable, because its disqualifying factor was the
+  raster stack behind rule 1.02 and §8 removes it.
+
+*Negative*
+
+- A **third** shared spec, and therefore a third byte-identity contract test
+  beside `test_region_spec.py` and `test_climate_store_contract.py`. The
+  duplication-by-construction cost of this pattern is now paid three times.
+- WF2 gains a hydrography raster read (`buffer=10`) plus flow-direction and
+  accumulation derivation that it does not pay today. Much cheaper than the
+  thematic stack but **not free, and not yet measured** — see *Open questions*.
+- `shared.basin.gauge_points` becomes a rerun trigger for WF2 and WF3, which
+  reference it nowhere today.
+- WF1 gains a rule. Interacts with the renumbering in `dev/followups.md`
+  `[R10-5]`: land the split first or the numbers move twice.
+
+*Neutral*
+
+- `spatial_catalog.yml` currently enumerates all five geoms, the registry and
+  `spatial_maps`. After the split its producer must be chosen — either the vector
+  rule writes a vector-only catalog that the raster rule extends, or the catalog
+  stays whole in the raster half and WF2/WF3 read the geojsons by path.
+- Migration: the two rules and their call sites land in **one commit**. Splitting
+  a `script:` module into two entry points leaves the tree un-runnable between a
+  bare move and its reference rewrite.
+
 ### Alternatives considered
 
 - **Point the climate store at `spatial/geoms/basins.geojson`.** No new artifact
@@ -166,6 +276,13 @@ all three workflows declare identically.
   get a polygon — the same trade it makes today with the climate store, moved
   rather than removed. `basins.geojson` is also the *exploded, id-carrying*
   form, which is a P1 domain product, not a plain extent.
+
+  > **Revisited 2026-08-06.** The first objection no longer holds: §8 splits the
+  > raster stack out, so depending on the vector layers no longer means depending
+  > on `spatial_maps.nc`. The **second** objection stands and is why §8 keeps
+  > `region.geojson` as a separate artifact rather than folding it into
+  > `basins.geojson` — a plain extent and an exploded id-carrying product are
+  > different things, and the climate store wants the former.
 - **Add `region.geojson` beside `basins.geojson` with no rule change**, written
   by 1.02 as an extra output, and have the store read it. Cheaper, but leaves
   WF2 and WF3 depending on 1.02 for the same reason as above, and leaves the
@@ -178,6 +295,33 @@ all three workflows declare identically.
 - **Do nothing.** The duplication is harmless in itself — both callers read the
   same config and produce the same polygon. Preferred only if WF2's extraction
   cost were not real; it is, and it is stated in the code as an accepted price.
+
+#### Alternatives to §8–11
+
+- **Declare `prepare_spatial_maps` unsplit in all three workflows.** One more
+  shared spec, no decomposition, symmetric with `delineate_region`. **Rejected**:
+  every projections-only run would resample `vito`, `modis_lai` and `soilgrids`
+  to obtain vector boundaries — the cost this record exists to have removed, at
+  larger scale. Preferred if the thematic read were cheap, or if WF2/WF3 wanted
+  the DEM; the owner ruled on 2026-08-06 that they do not.
+- **Declare the geojsons as plain inputs in WF2/WF3, with no producing rule.**
+  The smallest possible change. **Rejected**: WF2 stops bootstrapping itself. It
+  runs today from a cold project because it declares the rules that build what it
+  reads; under this option it fails with missing inputs unless WF1 ran first.
+  Preferred only if WF1-first were already mandatory — which is what the next
+  alternative would make it.
+- **Move the shared rules into a preparation workflow (`WF0`).** `snapshot_config`,
+  `delineate_region`, `delineate_spatial_units` and `extract_historical_climate`
+  become a fourth Snakefile that runs before the other three, deleting the
+  shared-spec duplication entirely — one declaration each instead of three plus a
+  byte-identity test. **Deferred, not rejected**: it is a larger architectural
+  change (a fourth entry point against `AGENTS.md`'s stated three, plus
+  `run_workflows.py`, its `workflows.<name>.enabled` schema, `tests/test_cli.py`,
+  `plot_workflow_dag.py`, the R9 path map and `README.rst`), and it removes each
+  workflow's ability to bootstrap itself. It is also **not blocked by this
+  decision**: WF0 would carry the vector half and leave the raster half in WF1,
+  which is the same seam §8 cuts, so §8 is a prerequisite either way. Raise it as
+  its own record when the duplication cost of three shared specs is felt.
 
 ### Validation
 
@@ -197,6 +341,38 @@ all three workflows declare identically.
 7. Live: WF1 on `C:/TESTS/CST/config_gabon0108.yml`, and
    `snakemake -n -s Snakefile_climate_projections` showing no
    `extract_climate_grid` job.
+
+#### Validation of §8–11
+
+1. `tests/test_spatial_units_spec.py` (new) — the spec's shape, and that the
+   three declarations of `delineate_spatial_units` differ only in
+   `message`/`log`/`benchmark`. Mirrors `test_region_spec.py`.
+2. `tests/test_spatial_products.py` — the vector half writes the same six
+   artifacts it writes today, with the same schemas; the raster half still
+   validates the ID joins across raster, vector and registry.
+3. `pytest tests/test_cli.py` — all three Snakefiles parse and dry-run.
+4. Live: `snakemake -n -s Snakefile_climate_projections` lists
+   `delineate_spatial_units` and **no** job whose inputs include `vito`,
+   `modis_lai` or `soilgrids`. This is the assertion that the split achieved its
+   purpose; without it the change is indistinguishable from the rejected
+   unsplit alternative.
+5. `check_baseline.py check` — the vector outputs are byte-identical to
+   pre-split, so the baseline passes unchanged. A diff here means the split
+   changed behaviour, which it must not.
+
+### Open questions — §8–11
+
+- **What do WF2 and WF3 actually plot or aggregate?** §10 leaves the consuming
+  rules unnamed. Subbasin-resolved WF3 indicators would change what
+  `basin_indicators.csv` means, which is a separate decision.
+- **Measured cost of the hydrography read in WF2.** Asserted cheaper than the
+  thematic stack, not measured. If it is not, the split has moved the cost rather
+  than removed it.
+- **Who writes `spatial_catalog.yml`** after the split — see *Consequences*.
+- **Spelling for §11's per-basin ceiling** (`max_count: per_basin`, a per-parent
+  ceiling, or a separate `subdivide: false`), and whether the default of 20
+  changes. Separable from the split: it is what makes a gauge-free project
+  *usable* from WF2/WF3, not what makes the boundaries *reachable*.
 
 ### Related
 

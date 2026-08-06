@@ -177,6 +177,26 @@ rejected.** None is an R10 item; that milestone is identifier-only.
   not an argument for merging them. Check what each actually depends on, and
   whether either destroys its own inputs.
 
+- **[R10-6] Split `prepare_spatial_maps` so WF2 and WF3 can consume basin and
+  subbasin boundaries.** *Designed 2026-08-06 as ADR 0003 §8–11 (**proposed**,
+  not accepted); not implemented.* WF2 and WF3 declare `delineate_region` and no
+  other spatial rule, and neither workflow's scripts read a vector layer today.
+  The split puts the vector half — basins, subbasins, catchments, rivers,
+  locations, registry — behind a third shared spec declared in all three
+  workflows, and leaves the thematic raster stack (`vito`, `modis_lai`,
+  `soilgrids`) in a WF1-only rule.
+
+  Full context, decision, consequences, alternatives, validation and four open
+  questions in `dev/decisions/0003-one-shared-region-artifact.md`. **Land it
+  before `[R10-5]`** — it adds a WF1 rule, so renumbering first moves the numbers
+  twice.
+
+  Two things not to lose: the hydrography-read cost it adds to WF2 is asserted,
+  **not measured**; and §11 (a per-basin `automatic_subbasins` ceiling) is
+  separable — a gauge-free project does not fail today, it gets twenty automatic
+  subbasins, and "one subbasin per basin" is not currently expressible because
+  the ceiling is global across parents.
+
 - **[R10-5] Renumber every rule so `W.NN` follows the logical order.**
   *Accepted 2026-08-06; not implemented.* Numbers become **positional**: data
   first, then model build, then run, then records, contiguous within each
