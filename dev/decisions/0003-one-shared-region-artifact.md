@@ -26,6 +26,11 @@ Revisions:
     Also ruled: the shared-rule helpers drop the `_spec` suffix for `_rule`
     (`[R10-7]`). §1–7 below still name `region_spec` / `climate_store_spec`,
     which is what the **implemented** code calls them until that sweep lands.
+    §11 rewritten and §12 added the same day: the automatic-subbasin ceiling
+    becomes per-basin at a default of 11, and `wflow_id` is renumbered into
+    per-basin blocks of 100. §12 is the one part of this record that moves
+    outputs — it renames every gauge column in `output.csv` and requires a
+    baseline re-record.
 
 # ADR 0003 — Spatial artifacts delineated once per project, shared across workflows
 
@@ -191,13 +196,56 @@ region polygon to the vector foundation.
     *Open questions*; making the artifacts reachable is this decision, using them
     is the next one.
 
-11. **`automatic_subbasins.max_count` gains a per-basin spelling.** A gauge-free
-    project must be able to ask for subbasin == basin. Today the ceiling is
-    **global across parents** and `allocate_automatic_subbasin_budgets` raises
-    when `len(parent_areas) > max_count`, so "one per basin" is expressible only
-    by setting `max_count` to a parent count the config author cannot know before
-    delineation runs. The default of 20 also means a gauge-free project currently
-    gets twenty automatic subbasins, not one.
+11. **`automatic_subbasins.max_count` becomes a PER-BASIN ceiling, default 20 →
+    11.** Today it is one **global** budget shared across parents:
+    `allocate_automatic_subbasin_budgets` gives each fallback parent one unit,
+    distributes the remainder by largest-remainder weighted on upstream area, and
+    **raises outright** when `len(parent_areas) > max_count`. Per-basin removes
+    that failure mode and makes a multi-basin project's partitions comparable —
+    every parent gets the same ceiling however many parents there are.
+
+    `allocate_automatic_subbasin_budgets` is then **deleted, not adapted**: with
+    an equal per-parent ceiling there is nothing left to allocate.
+
+    Safe because `select_automatic_subbasins` treats the count as an **upper
+    bound** — it binary-searches for the smallest area threshold whose outlet
+    count is `<= max_count` — so a small parent simply yields fewer subbasins and
+    never errors. The area weighting being dropped therefore costs less than it
+    sounds: a small basin was already going to produce fewer units than a large
+    one at the same ceiling.
+
+    **11, not 13.** Twelve is the practical ceiling for a qualitative colour ramp
+    a reader can tell apart (ColorBrewer `Set3` and `Paired` both stop at 12), so
+    11 keeps a subbasin map legible with one legend entry per unit; 13 forces a
+    palette that repeats or interpolates. `MAX_LOCAL_SUBBASIN_NUMBER = 99` stays
+    as the hard cap — this is a default, not a limit.
+
+    *Withdrawn:* an earlier draft of this section proposed "no gauges → one
+    subbasin per basin". The owner retracted it on 2026-08-06. A gauge-free
+    project **should** be subdivided; it should just not be subdivided twenty
+    ways.
+
+12. **`wflow_id` becomes a per-basin block of 100**, so Wflow's output columns
+    group by basin. Today two unrelated formulas share the column:
+
+    | location | today | basin 1 example |
+    |---|---|---|
+    | subbasin primary | `wflow_id = subbasin_id = basin_id*100 + local_subbasin_number` | `101` |
+    | any additional point | `1_000_000 + subbasin_id*100 + local_location_number` | `1_010_102` |
+
+    A seven-digit id sits beside a three-digit one in the same column, for points
+    a user thinks of as siblings.
+
+    Target: **`wflow_id = basin_id * 100 + k`**, with `k` assigned *within the
+    basin* — `k = 0` the basin outlet, then the remaining subbasin primaries
+    downstream → upstream, then the additional locations. Basin 1 reads
+    `100, 101, 102, …`; basin 2 reads `200, 201, 202, …`. A parent basin may hold
+    100 locations, raising past that exactly as `MAX_LOCAL_SUBBASIN_NUMBER` caps
+    subbasins at 99.
+
+    **`location_code` does not change.** It stays hierarchical
+    (`B001-S01-L01`) and keeps the subbasin visible. Codes are for reading,
+    `wflow_id` is the flat integer for joining and for scanning a CSV header.
 
 ### Consequences
 
@@ -268,6 +316,24 @@ region polygon to the vector foundation.
   reference it nowhere today.
 - WF1 gains a rule. Interacts with the renumbering in `dev/followups.md`
   `[R10-5]`: land the split first or the numbers move twice.
+
+- **§12 is a baseline event, and it is the only part of this record that is not
+  behaviour-preserving.** `wflow_id` values populate the `gauges_locations` map,
+  so Wflow emits `Q_<wflow_id>` / `P_<wflow_id>` columns: renumbering renames
+  every gauge column in `output.csv`. `check_baseline.py check` **will fail**
+  until the baseline is re-recorded. Everything else in §8–11 leaves outputs
+  byte-identical; this does not, and it must not be landed in the same commit as
+  work that claims to be.
+- **`wflow_id == subbasin_id` stops holding for primary locations** (§12). Both
+  columns remain in `location_registry.csv`, so no information is lost, but any
+  code or query relying on the identity breaks silently. Grep for it before
+  implementing.
+- Projects that pin `wflow_id` in `gauge_points` must re-pin. The existing
+  mismatch check in `assign_location_ids` raises with the offending rows, which
+  is the right failure — loud, and it names the stations.
+- The `warn_if_low_gauge_ids` advisory (fired from rule 1.01, deliberately early
+  so a warning precedes the ids reaching the model) needs its threshold
+  revisited: under §12 ids start at 100 by construction.
 
 *Neutral*
 
@@ -369,9 +435,19 @@ region polygon to the vector foundation.
    `modis_lai` or `soilgrids`. This is the assertion that the split achieved its
    purpose; without it the change is indistinguishable from the rejected
    unsplit alternative.
-5. `check_baseline.py check` — the vector outputs are byte-identical to
-   pre-split, so the baseline passes unchanged. A diff here means the split
+5. `check_baseline.py check` — for §8–10 the vector outputs are byte-identical
+   to pre-split, so the baseline passes unchanged. A diff there means the split
    changed behaviour, which it must not.
+6. §11 and §12 are **expected** to move outputs and are validated separately:
+   - §11 — on a multi-basin fixture, each parent's automatic partition is capped
+     at `max_count` independently, and a parent count exceeding it no longer
+     raises. `tests/test_delineation.py` loses the global-allocation cases with
+     `allocate_automatic_subbasin_budgets`.
+   - §12 — `tests/test_identity.py`: every `wflow_id` falls in
+     `[basin_id*100, basin_id*100+99]`, the basin outlet is `basin_id*100`,
+     values are unique, and a 101st location in one basin raises. Then
+     **re-record the baseline** and state in the commit that the discharge
+     column names changed by design.
 
 ### Open questions — §8–11
 
@@ -382,10 +458,17 @@ region polygon to the vector foundation.
   thematic stack, not measured. If it is not, the split has moved the cost rather
   than removed it.
 - **Who writes `spatial_catalog.yml`** after the split — see *Consequences*.
-- **Spelling for §11's per-basin ceiling** (`max_count: per_basin`, a per-parent
-  ceiling, or a separate `subdivide: false`), and whether the default of 20
-  changes. Separable from the split: it is what makes a gauge-free project
-  *usable* from WF2/WF3, not what makes the boundaries *reachable*.
+- **Does `max_count` keep its name under §11?** The key now means something
+  different — a per-basin ceiling rather than a project-wide budget — so a config
+  that sets `max_count: 20` for three basins silently goes from 20 subbasins
+  total to 60. Either keep the name and note it as a breaking config change, or
+  rename to `max_per_basin` so an old config fails loudly on an unknown key
+  (`advanced_settings`' schema is closed; `shared.basin`'s is not, so a rename
+  here would pass silently unless validated).
+- **Block size in §12.** 100 locations per basin matches
+  `MAX_LOCAL_SUBBASIN_NUMBER = 99`, but caps a heavily-instrumented basin. 1000
+  would be roomier at the cost of longer ids. Decide against a real gauge count,
+  not in the abstract.
 
 ### Related
 

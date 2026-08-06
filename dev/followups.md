@@ -223,11 +223,28 @@ rejected.** None is an R10 item; that milestone is identifier-only.
   before `[R10-5]`** — it adds a WF1 rule, so renumbering first moves the numbers
   twice.
 
-  Two things not to lose: the hydrography-read cost it adds to WF2 is asserted,
-  **not measured**; and §11 (a per-basin `automatic_subbasins` ceiling) is
-  separable — a gauge-free project does not fail today, it gets twenty automatic
-  subbasins, and "one subbasin per basin" is not currently expressible because
-  the ceiling is global across parents.
+  The record also carries two **identity** changes ruled the same day, which ride
+  with the split because they live in the same vector half:
+
+  - **§11 — `automatic_subbasins.max_count` becomes per-basin, default 20 → 11.**
+    Today it is one global budget, area-weighted across parents, that *raises*
+    when parents exceed it. Per-basin removes that failure and deletes
+    `allocate_automatic_subbasin_budgets` outright. Safe because
+    `select_automatic_subbasins` treats the count as an upper bound.
+  - **§12 — `wflow_id` becomes a per-basin block of 100** (basin 1 → 100, 101,
+    102 …). Today a subbasin primary gets `basin*100 + n` while any additional
+    point gets `1_000_000 + subbasin_id*100 + n`, so basin 1's second gauge is
+    `1_010_102` — a seven-digit id beside a three-digit one in the same column.
+
+  **§12 is a baseline event and must not share a commit with the rest.** `wflow_id`
+  values name Wflow's gauge output columns, so renumbering renames every
+  `Q_<id>` / `P_<id>` in `output.csv`; `check_baseline.py check` fails until
+  re-recorded. §8–11 are behaviour-preserving, §12 is not — landing them together
+  destroys the ability to tell an intended diff from a regression.
+
+  Two things not to lose: the hydrography-read cost §8 adds to WF2 is asserted,
+  **not measured**; and `wflow_id == subbasin_id` stops holding for primary
+  locations under §12, so grep for code relying on that identity first.
 
 - **[R10-5] Renumber every rule so `W.NN` follows the logical order.**
   *Accepted 2026-08-06; not implemented.* Numbers become **positional**: data
