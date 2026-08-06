@@ -62,11 +62,11 @@ def staged_store(tmp_path):
     cfg_path = tmp_path / "snake_config_staged.yml"
     cfg_path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
 
-    # Store key exactly as climate_store_spec builds it.
+    # Store key exactly as climate_store_rule builds it.
 
-    from blueearth_cst.shared.snake_utils import climate_store_spec
+    from blueearth_cst.shared.snake_utils import climate_store_rule
 
-    spec = climate_store_spec(
+    spec = climate_store_rule(
         project_dir=project_dir.as_posix(),
         model_region=cfg["shared"]["basin"]["region"],
         clim_source=cfg["shared"]["clim_historical"],

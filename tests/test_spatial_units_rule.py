@@ -9,7 +9,7 @@ to have removed, one level down.
 These pin the replacement: ``snake_utils.spatial_units_rule`` owns the contract,
 and the three workflow declarations of ``delineate_spatial_units`` may differ
 only in ``message`` / ``log`` / ``benchmark``. Same shape, and the same reason,
-as ``tests/test_region_spec.py`` and ``tests/test_climate_store_contract.py`` —
+as ``tests/test_region_rule.py`` and ``tests/test_climate_store_contract.py`` —
 the third and last member of that family.
 """
 from __future__ import annotations
@@ -79,7 +79,7 @@ def test_the_inputs_are_the_catalog_and_the_shared_region():
 def test_the_region_path_comes_from_the_region_helper():
     """One owner for the polygon's path, so the two helpers cannot disagree."""
     rule = _rule()
-    region = su.region_spec(
+    region = su.region_rule(
         "/proj",
         "{'subbasin': [9.666, 0.4476], 'uparea': 100}",
         "config/catalogs/deltares_data.yml",
@@ -203,7 +203,7 @@ _SNAKEFILES = (
 def _parse_workflow(snakefile: str, config_path):
     """Parse a Snakefile in-process and return its ``Workflow``.
 
-    Same helper, same pinning caveat, as ``test_region_spec.py``: rules are
+    Same helper, same pinning caveat, as ``test_region_rule.py``: rules are
     built exactly as a real invocation builds them, and ``wf_api._workflow`` is
     private on the pinned Snakemake.
     """

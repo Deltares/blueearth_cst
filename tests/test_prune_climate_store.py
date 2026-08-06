@@ -43,7 +43,7 @@ def _write_config(tmp_path, cfg):
 
 
 def test_active_store_key_matches_the_workflow_key():
-    """Derived the same way `snake_utils.climate_store_spec` derives it."""
+    """Derived the same way `snake_utils.climate_store_rule` derives it."""
     assert pcs.active_store_key(_config("proj")) == ACTIVE
     assert pcs.active_store_key(
         _config("proj", source="chirps", start="1990-01-01T00:00:00",

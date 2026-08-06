@@ -3,7 +3,7 @@
 The store producer is declared in ``Snakefile_model_creation`` (rule 1.10),
 ``Snakefile_climate_experiment`` (rule 3.02) and — since WF2 v2.0 migration
 step 1 — ``Snakefile_climate_projections`` (rule 2.11), all from the same
-``snake_utils.climate_store_spec`` object. Nothing in the rule grammar enforces
+``snake_utils.climate_store_rule`` object. Nothing in the rule grammar enforces
 that they stay identical, and a per-workflow difference re-creates the
 wf1<->wf3 re-extraction oscillation the design forbids (P2(b), ext1-02/ext2-01).
 This module is the enforcement: it parses both workflows in-process and compares
@@ -307,7 +307,7 @@ def test_declarations_are_identical(declarations):
     assert not differences, (
         f"{RULE_NAME} differs across the declaring workflows on "
         f"{len(differences)} directive comparison(s). Only message/log/benchmark "
-        "may differ; everything else must come from climate_store_spec.\n"
+        "may differ; everything else must come from climate_store_rule.\n"
         + "\n".join(differences)
     )
 

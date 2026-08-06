@@ -58,7 +58,7 @@ per artifact (a literal 14-column table is illegible).
 - **producer:** rule `extract_climate_grid`
   (`blueearth_cst/climate_analysis/extract_historical_climate.py`) — ONE rule,
   declared identically in `Snakefile_climate_experiment` (3.02) and
-  `Snakefile_model_creation` (1.10) from `snake_utils.climate_store_spec`
+  `Snakefile_model_creation` (1.10) from `snake_utils.climate_store_rule`
   (R07 B1). Its inputs are the data catalog and the project region artifact
   `spatial/geoms/region.geojson`; the extent is still model-free, but it is
   delineated once per project by rule `delineate_region` (ADR 0003) rather

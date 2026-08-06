@@ -67,7 +67,7 @@ def map_parameters(config: dict) -> dict:
 
     Built the same way the workflows build them, so a snapshot cannot disagree
     with the tree it describes: the store key mirrors
-    `snake_utils.climate_store_spec`, and the experiment name and clim_project
+    `snake_utils.climate_store_rule`, and the experiment name and clim_project
     come from the sections that own them.
     """
     project = config["project"]

@@ -795,10 +795,10 @@ SPATIAL_UNITS_SCRIPT = "blueearth_cst/spatial/delineate_spatial_units.py"
 
 
 @dataclass(frozen=True)
-class RegionSpec:
+class RegionRule:
     """The producer contract for the one project region artifact (ADR 0003).
 
-    Same shape and same purpose as :class:`ClimateStoreSpec`: all three
+    Same shape and same purpose as :class:`ClimateStoreRule`: all three
     workflows declare ``delineate_region`` from this object, so the three rule
     bodies cannot drift apart.
     """
@@ -810,13 +810,13 @@ class RegionSpec:
     params: Mapping
 
 
-def region_spec(
+def region_rule(
     project_dir,
     model_region,
     data_sources,
     hydrography=DEFAULT_HYDROGRAPHY,
     basin_index=DEFAULT_BASIN_INDEX,
-) -> RegionSpec:
+) -> RegionRule:
     """Build the one producer contract for ``spatial/geoms/region.geojson``.
 
     ONE rule definition, declared in all three workflows (``1.01b`` / ``2.03b``
@@ -852,15 +852,15 @@ def region_spec(
 
     Returns
     -------
-    RegionSpec
+    RegionRule
         ``region_geojson``, ``script``, ``inputs``, ``outputs``, ``params``.
     """
     # R9 P2 commit 2: engine-neutral geometry lives under `data/` (design v10).
     # Defined ONCE here and splatted into all three workflows' delineate_region
     # rule, so the move lands in every workflow at the same instant --
-    # tests/test_region_spec.py parses all three and fails on any difference.
+    # tests/test_region_rule.py parses all three and fails on any difference.
     region_geojson = f"{project_dir}/data/spatial/geoms/region.geojson"
-    return RegionSpec(
+    return RegionRule(
         region_geojson=region_geojson,
         script=REGION_SCRIPT,
         inputs={"catalog": data_sources},
@@ -877,15 +877,23 @@ def region_spec(
 class SpatialUnitsRule:
     """The producer contract for the shared vector foundation (ADR 0003 §8).
 
-    The THIRD member of the shared-rule family, beside :class:`RegionSpec` and
-    :class:`ClimateStoreSpec` and with the same shape. All three workflows
+    The THIRD member of the shared-rule family, beside :class:`RegionRule` and
+    :class:`ClimateStoreRule` and with the same shape. All three workflows
     declare ``delineate_spatial_units`` from this object, so the three rule
     bodies cannot drift apart.
 
     Named ``_rule``, not ``_spec``: the object holds a rule's script, inputs,
-    outputs and params, so it IS a rule definition minus its labels. The other
-    two rename to match under ``dev/followups.md`` ``[R10-7]``; until that sweep
-    lands the trio is deliberately inconsistent rather than renamed here.
+    outputs and params, so it IS a rule definition minus its labels. This was
+    the first of the three to carry the suffix; the other two joined it in the
+    R10 step-6 sweep (``dev/followups.md`` ``[R10-7]``), so the family is
+    uniform again.
+
+    **Name the next one ``<thing>_rule``.** ``_contract`` was rejected — this
+    repo uses "contract" for interchange surfaces
+    (``dev/reference/contracts/``, ``SPATIAL_CONTRACT_VERSION``,
+    ``test_climate_store_contract.py``) and overloading it would be worse than
+    the jargon it replaced; ``_definition`` was the runner-up, rejected on
+    verbosity at the call sites.
     """
 
     spatial_dir: str
@@ -955,11 +963,11 @@ def spatial_units_rule(project_dir, spatial_config, data_sources) -> SpatialUnit
 
     inputs = {
         "data_catalogs": data_sources,
-        # `region_spec` owns the path, so the two helpers cannot disagree about
+        # `region_rule` owns the path, so the two helpers cannot disagree about
         # where the one project polygon lives -- the same reason
-        # `climate_store_spec` resolves it through the helper rather than
+        # `climate_store_rule` resolves it through the helper rather than
         # restating the string.
-        "region_geojson": region_spec(
+        "region_geojson": region_rule(
             project_dir,
             spatial_config.region,
             data_sources,
@@ -1004,7 +1012,7 @@ def spatial_units_rule(project_dir, spatial_config, data_sources) -> SpatialUnit
 
 
 @dataclass(frozen=True)
-class ClimateStoreSpec:
+class ClimateStoreRule:
     """The complete producer contract for the shared historical-climate store.
 
     Attribute-accessible and dict-splattable: a Snakefile writes
@@ -1067,7 +1075,7 @@ def member_pointer_base(config_out_fn) -> tuple[str, str]:
     return config_out_fn.stem, out_prefix
 
 
-def climate_store_spec(
+def climate_store_rule(
     project_dir,
     model_region,
     clim_source,
@@ -1075,7 +1083,7 @@ def climate_store_spec(
     data_sources,
     hydrography=DEFAULT_HYDROGRAPHY,
     basin_index=DEFAULT_BASIN_INDEX,
-) -> ClimateStoreSpec:
+) -> ClimateStoreRule:
     """Build the one producer contract for ``data/climate/historical/<key>/``
     (R07 B1).
 
@@ -1119,7 +1127,7 @@ def climate_store_spec(
 
     Returns
     -------
-    ClimateStoreSpec
+    ClimateStoreRule
         ``store_dir``, ``script``, ``inputs``, ``outputs``, ``params``.
 
     Raises
@@ -1132,7 +1140,7 @@ def climate_store_spec(
     """
     if not isinstance(historical_window, Mapping):
         raise TypeError(
-            "climate_store_spec: historical_window must be the shared."
+            "climate_store_rule: historical_window must be the shared."
             "historical_window mapping with 'starttime'/'endtime', got "
             f"{type(historical_window).__name__}"
         )
@@ -1160,17 +1168,17 @@ def climate_store_spec(
         # two pre-R07 spellings on `orography.nc`).
         outputs["oro_nc"] = f"{store_dir}/orography.nc"
 
-    return ClimateStoreSpec(
+    return ClimateStoreRule(
         store_dir=store_dir,
         script=CLIMATE_STORE_SCRIPT,
         # Two declared inputs since ADR 0003. The catalog is the store's
         # freshness boundary (ext2-01); the region is the extent it cuts to,
         # produced once per project by `delineate_region` rather than
-        # re-delineated per store key. `region_spec` owns the path, so the two
+        # re-delineated per store key. `region_rule` owns the path, so the two
         # helpers cannot disagree about where the polygon lives.
         inputs={
             "catalog": data_sources,
-            "region_geojson": region_spec(
+            "region_geojson": region_rule(
                 project_dir,
                 model_region,
                 data_sources,

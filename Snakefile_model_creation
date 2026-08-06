@@ -6,7 +6,7 @@ from pathlib import Path
 # See dev/milestones/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
 from blueearth_cst.shared.provenance import short_digest, snapshot_bundle_digest
-from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_JULIA_THREADS, climate_store_spec, get_config, julia_prefix, patch_psutil_windows_benchmark, region_spec, rule_banner, spatial_units_rule, target_banner, validate_historical_window, warn_if_project_dir_in_repo
+from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_JULIA_THREADS, climate_store_rule, get_config, julia_prefix, patch_psutil_windows_benchmark, region_rule, rule_banner, spatial_units_rule, target_banner, validate_historical_window, warn_if_project_dir_in_repo
 from blueearth_cst.spatial.config import parse_spatial_config
 # The canonical climate figure set (rules 1.13 and 1.15 both draw it). Imported
 # for figure_names() ONLY, so every figure is declared from the same list the
@@ -188,7 +188,7 @@ _forcing_climate_pngs = [f"{FORCING_PLOTS_DIR}/{name}" for name in figure_names(
 # input, outputs, params) comes from this object; only message/log/benchmark are
 # workflow-local. tests/test_climate_store_contract.py parses both workflows and
 # fails on ANY other difference.
-CLIMATE_STORE = climate_store_spec(
+CLIMATE_STORE = climate_store_rule(
     project_dir=project_dir,
     model_region=model_region,
     clim_source=clim_source,
@@ -203,11 +203,11 @@ store_dir = CLIMATE_STORE.store_dir
 # Same pattern, same reason: ONE producer contract, built here and identically
 # in the other two workflows, splatted into rule 1.01b below. Only
 # message/log/benchmark are workflow-local, and
-# tests/test_region_spec.py parses all three workflows and fails on ANY other
+# tests/test_region_rule.py parses all three workflows and fails on ANY other
 # difference. `shared.basin.region` used to be delineated twice per project —
 # here on the way to basins.geojson, and once per climate-store key — and WF2
 # ran the whole climate-store producer just to obtain the polygon.
-REGION = region_spec(
+REGION = region_rule(
     project_dir=project_dir,
     model_region=model_region,
     data_sources=DATA_SOURCES,

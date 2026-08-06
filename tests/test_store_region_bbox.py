@@ -25,7 +25,7 @@ import pytest
 import yaml
 
 SNAKEDIR = Path(__file__).resolve().parents[1]
-from blueearth_cst.shared.snake_utils import region_spec  # noqa: E402
+from blueearth_cst.shared.snake_utils import region_rule  # noqa: E402
 
 SEED_CONFIG = SNAKEDIR / "config" / "workflows" / "snake_config_model_test.yml"
 
@@ -40,7 +40,7 @@ def _seed_paths():
     cfg = yaml.safe_load(SEED_CONFIG.read_text(encoding="utf-8"))
     project_dir = SNAKEDIR / cfg["project"]["project_dir"]
     basin_cfg = cfg["shared"]["basin"]
-    spec = region_spec(
+    spec = region_rule(
         project_dir=project_dir.as_posix(),
         model_region=basin_cfg["region"],
         data_sources=cfg["project"]["data_sources"],

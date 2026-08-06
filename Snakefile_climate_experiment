@@ -11,7 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(workflow.basedir)))
 from blueearth_cst.experiment.allocate import resolve_default_experiment_name
 from blueearth_cst.shared.provenance import short_digest, snapshot_bundle_digest
-from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_spec, file_digest_or_absent, get_config, patch_psutil_windows_benchmark, project_slug, region_spec, rule_banner, spatial_units_rule, stress_test_grid, target_banner, validate_experiment_name, warn_if_project_dir_in_repo
+from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_rule, file_digest_or_absent, get_config, patch_psutil_windows_benchmark, project_slug, region_rule, rule_banner, spatial_units_rule, stress_test_grid, target_banner, validate_experiment_name, warn_if_project_dir_in_repo
 from blueearth_cst.spatial.config import parse_spatial_config
 
 # Windows: make Snakemake's benchmark memory/IO/CPU metrics work (else all NA).
@@ -110,7 +110,7 @@ basin_index = get_config(basin_cfg, "basin_index", DEFAULT_BASIN_INDEX)
 
 # Historical extraction window: sourced from shared.historical_window so the
 # extract_climate_grid dates come from the config instead of being hardcoded in
-# extract_historical_climate.py. climate_store_spec reads starttime/endtime off
+# extract_historical_climate.py. climate_store_rule reads starttime/endtime off
 # this section and enforces the day-resolution store-key invariant.
 historical_window_cfg = get_config(shared_cfg, "historical_window", optional=False)
 
@@ -119,10 +119,10 @@ historical_window_cfg = get_config(shared_cfg, "historical_window", optional=Fal
 # and splatted into rule 3.02 / rule 1.10. The store stays a PROJECT-LEVEL,
 # dataset+window-keyed dir (design §4/§4c/§4d): two experiments sharing
 # clim_historical + historical_window resolve to the same key and reuse the
-# extraction, and climate_store_spec's slugify_window call enforces the
+# extraction, and climate_store_rule's slugify_window call enforces the
 # day-resolution invariant (sub-day windows fail loud). The key is also where
 # the guard's second (experiment-invariant) output .guard_ok lands.
-CLIMATE_STORE = climate_store_spec(
+CLIMATE_STORE = climate_store_rule(
     project_dir=project_dir,
     model_region=model_region,
     clim_source=clim_source,
@@ -136,9 +136,9 @@ store_dir = CLIMATE_STORE.store_dir
 # --- The one project region artifact (ADR 0003) -------------------------------
 # ONE producer contract, built here and identically in the other two workflows,
 # and splatted into rule 3.01b below. Only message/log/benchmark are
-# workflow-local; tests/test_region_spec.py parses all three workflows and fails
+# workflow-local; tests/test_region_rule.py parses all three workflows and fails
 # on ANY other difference.
-REGION = region_spec(
+REGION = region_rule(
     project_dir=project_dir,
     model_region=model_region,
     data_sources=DATA_SOURCES,

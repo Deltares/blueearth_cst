@@ -5,7 +5,7 @@ on its way to ``basins.geojson``, and once per climate-store key as
 ``store_region.geojson`` — and WF2 declared the entire climate-store producer
 just to obtain the polygon, paying for a multi-decade extraction it never read.
 
-These pin the replacement: ``snake_utils.region_spec`` owns the contract, and
+These pin the replacement: ``snake_utils.region_rule`` owns the contract, and
 the three workflow declarations of ``delineate_region`` may differ only in
 ``message`` / ``log`` / ``benchmark``. Same shape, and the same reason, as
 ``tests/test_climate_store_contract.py``.
@@ -32,7 +32,7 @@ def _spec(**overrides):
         data_sources="config/catalogs/deltares_data.yml",
     )
     kwargs.update(overrides)
-    return su.region_spec(**kwargs)
+    return su.region_rule(**kwargs)
 
 
 def test_the_artifact_sits_with_the_other_project_geoms():
@@ -164,7 +164,7 @@ def test_declarations_are_identical(declarations):
     assert not differences, (
         f"{RULE_NAME} differs across the three workflows on "
         f"{len(differences)} comparison(s). Only message/log/benchmark may "
-        "differ; everything else must come from region_spec.\n"
+        "differ; everything else must come from region_rule.\n"
         + "\n".join(differences)
     )
 

@@ -107,6 +107,23 @@ grandfathered.
 **Deprecated path suffixes** (grandfathered; do not use in new code):
 `_fn`, `_fid`, `_file` → `_path`.
 
+**`_rule` — a shared Snakemake rule definition.** A helper that returns a
+frozen dataclass holding a rule's `script`, `inputs`, `outputs` and `params`
+— everything content- or execution-determining, with only
+`message`/`log`/`benchmark` left workflow-local — so the same rule can be
+splatted into more than one Snakefile without the declarations drifting.
+Function and dataclass both carry it: `region_rule` → `RegionRule`,
+`climate_store_rule` → `ClimateStoreRule`, `spatial_units_rule` →
+`SpatialUnitsRule`.
+
+The suffix was `_spec` until `[R10-7]` (2026-08-06). `spec` reads as jargon
+to a non-programmer and the object specifies nothing abstract — it *is* a
+rule definition minus its labels. Two alternatives were rejected:
+`_contract`, because this repo already uses "contract" for interchange
+surfaces (`dev/reference/contracts/`, `SPATIAL_CONTRACT_VERSION`,
+`test_climate_store_contract.py`) and overloading it is worse than the
+jargon; and `_definition`, on verbosity at the call sites.
+
 ## 6. Domain identifiers — three tiers
 
 Domain identifiers carry different kinds of contract, so treat them in

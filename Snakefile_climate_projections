@@ -14,7 +14,7 @@ from snakemake.exceptions import WorkflowError
 # See dev/milestones/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
 from blueearth_cst.shared.provenance import effective_config_digest, short_digest, snapshot_bundle_digest
-from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, get_config, patch_psutil_windows_benchmark, region_spec, rule_banner, spatial_units_rule, target_banner, warn_if_project_dir_in_repo
+from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, get_config, patch_psutil_windows_benchmark, region_rule, rule_banner, spatial_units_rule, target_banner, warn_if_project_dir_in_repo
 from blueearth_cst.spatial.config import parse_spatial_config
 from blueearth_cst.projections.gridded_outputs import RemovedGriddedOutputsError, validate_removed_gridded_options
 
@@ -183,7 +183,7 @@ clim_project_dir = f"{project_dir}/data/climate/projections/{clim_project}"
 # ONE producer contract, built here and identically in Snakefile_model_creation
 # and Snakefile_climate_experiment, and splatted into rule 1.01b / 2.03b / 3.01b.
 # Everything content- or execution-determining comes from this object; only
-# message/log/benchmark are workflow-local. tests/test_region_spec.py parses all
+# message/log/benchmark are workflow-local. tests/test_region_rule.py parses all
 # three workflows and fails on ANY other difference.
 #
 # WF2 needs the model-free delineated polygon and nothing else — that is what
@@ -193,7 +193,7 @@ clim_project_dir = f"{project_dir}/data/climate/projections/{clim_project}"
 # the design recorded that as "the accepted, stated price of A1". The region is
 # now its own artifact, so WF2 declares this rule and no store: a
 # projections-only run does no climate extraction at all.
-REGION = region_spec(
+REGION = region_rule(
     project_dir=project_dir,
     model_region=model_region,
     data_sources=STORE_DATA_SOURCES,
