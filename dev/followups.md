@@ -96,7 +96,7 @@ items below and in ADR 0003. The landing order it recommended, adopted:
 | 1 | ~~`[R10-8]` stale WF2 `LOG_RULES` entry · `[R10-4]` comments · rule-index diagram fixes~~ **DONE 2026-08-06** | no sequencing dependency; one is a live defect |
 | 2 | ~~`[R10-9]` the `LOG_RULES` conformance test~~ **DONE 2026-08-06** (`tests/test_log_rules_contract.py`, 9 passed) | the sweep's highest-risk surface, verified *before* the sweep edits it |
 | 3 | ~~`[R10-1]` merge~~ **DONE 2026-08-06** · `[R10-2]` split **BLOCKED** — needs an owner ruling, see the item | the merge was small and behaviour-preserving; the split turned out not to have the seam it assumed |
-| 4 | `[R10-6]` §8–10 — **all three gates now closed**: seam artifact (§8a), params purity (§8b), and the cost measurement (validation 7, passed 2026-08-06). Implementation not started | changes the rule count of all three workflows |
+| 4 | `[R10-6]` §8–10 — **all three gates closed** (seam artifact §8a, params purity §8b, cost measurement validation 7, 2026-08-06). Briefed at `dev/working/r10-spatial-units-split/task-brief.md`; implementation not started | changes the rule count of all three workflows |
 | 5 | `[R10-6]` §11a (rename, value preserved) then §11b (default → 11) | §11b is a baseline event; §11a is one YAML key |
 | 6 | R10 renames + `[R10-5]` renumber + `[R10-7]` | against a rule set that is finally stable; regenerate the number map from it |
 | 7 | `[R10-6]` §12 | standalone, last, with its own baseline re-record |
