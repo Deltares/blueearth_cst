@@ -264,6 +264,19 @@ Rendered one subsection per artifact.
   variable's value, so bare `temp` / `precip` would have been wrong in the other
   direction. Both spellings are named once in code, as
   `interchange_contracts._PERTURBATION_AXIS`.
+- **axis VALUE, not just its name (2026-08-07, [R9-3]):** each member's
+  perturbation is monthly — `cst_<m>.csv` carries twelve rows — so the two axis
+  columns are a **month-length-weighted annual mean** of those twelve values,
+  taken by `export_wflow_results.annual_perturbation`. They held the JANUARY
+  value until this date, which was indistinguishable from the annual figure for
+  a flat perturbation vector and wrong for any seasonal one. The rule is fixed
+  by the CMIP6 overlay rather than chosen: the GCM dots share these axes, and
+  WF2 defines its annual change factor the same way
+  (`get_change_climate_proj._annual`). The precip axis is that definition with a
+  uniform-daily-rate weight standing in for the baseline climatology — exact for
+  a flat vector, approximate under seasonality; see the function's docstring.
+  A consumer may rely on the axis staying **evenly spaced** across the grid: the
+  collapse is affine in the member's step index, so the surface is rectilinear.
 - **temp() lifecycle:** not `temp()` (`rule all`, manifested).
 - **removed at R9 P3:** the `RT_*.csv` response tables. They were non-manifest
   side products with no in-repo consumer, written via `params` rather than

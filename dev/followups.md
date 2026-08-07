@@ -921,8 +921,46 @@ that awkwardness.
   suite for the old roots, because the suite's fixture-dependent layer cannot
   fail in CI.
 
-- **[R9-3] The response-surface axis columns hold JANUARY, not an annual value.**
-  Surfaced 2026-08-05 while writing R9-2's rename, reading the code the rename
+- **[R9-3] ~~The response-surface axis columns hold JANUARY, not an annual
+  value.~~ FIXED 2026-08-07.** `export_wflow_results.annual_perturbation`
+  collapses each `cst_<m>.csv` column's twelve monthly rows to one axis value
+  as a **month-length-weighted mean** (owner ruling, 2026-08-07).
+
+  **What decided the collapse rule was the CMIP6 overlay, not exactness.** The
+  GCM dots are plotted on these same two axes (technical note §880), and WF2
+  already fixes the definition in `get_change_climate_proj._annual`: a
+  duration-weighted mean for the intensive variable, a month-length-weighted
+  integral for the rate. A different collapse in WF3 would put the surface and
+  the overlay in two different coordinate spaces under a seasonal perturbation.
+  The temperature axis now matches that definition exactly.
+
+  **The precip axis is an approximation of it, knowingly.** WF2's precip factor
+  weights each month by its baseline precipitation; month-length weighting
+  assumes a uniform daily rate. They agree exactly for a flat vector and
+  diverge with the covariance between the perturbation and the basin's seasonal
+  cycle — a wet-season-targeted perturbation on a strongly seasonal basin is
+  where it bites, and the error there can exceed ten percentage points. The
+  exact form was declined because it costs a WG-1 climatology input edge on
+  rule 3.16. Recorded in `annual_perturbation`'s docstring, not just here.
+
+  **It was NOT a baseline event, contrary to this item's original last
+  paragraph.** A weighted mean of twelve identical values is that value, so
+  every tracked config (all flat) is unchanged — verified by running
+  `prep_cst_parameters` on the tests config and comparing the emitted axis
+  values as strings across all four members: identical. The flat case
+  short-circuits on exact equality rather than falling through the weighted
+  mean, so it cannot drift by a ULP into a meaningless byte diff.
+
+  **The gate is a unit test, and could not have been anything else.** No
+  fixture, no config and no baseline target carries a non-flat vector, so
+  nothing on disk can distinguish January from the annual mean. Seven cases in
+  `tests/test_export_wflow_results.py` supply the seasonal vector the tree does
+  not — including the affinity case that pins the axis as evenly spaced across
+  the grid, which is what keeps the response surface rectilinear and what rules
+  out a max or wet-season-only reduction. Same lesson as [R9-4].
+
+  *Original item follows.* Surfaced 2026-08-05 while writing R9-2's rename,
+  reading the code the rename
   touched. `export_wflow_results.py` does `df_st["temp_mean"].iloc[0]`, but
   `cst_<m>.csv` has **twelve rows, one per month** — `prepare_cst_parameters`
   builds them from the config's 12-element `min` / `max` vectors. So the value
@@ -944,6 +982,31 @@ that awkwardness.
   in the code at the read site so nobody re-derives it. Reproduce by setting a
   non-flat `stress_test.temp.mean.max` and comparing the emitted axis column
   against the intended annual mean.
+
+- **[R9-5] The unperturbed baseline member is in the response tables under
+  `aggregate_rlz: false` and absent under `true`.** Surfaced 2026-08-07 while
+  fixing [R9-3], in the branch immediately above the axis read.
+
+  `export_wflow_results.py` guards the baseline with `if st_nb == "0"`. In the
+  `aggr_rlz=False` branch `st_nb` is a **string** parsed off the run CSV's name,
+  so the guard fires and `cst_0` gets a row with both axes at 0. In the
+  `aggr_rlz=True` branch `st_nb = i + 1` is an **int**, so `st_nb == "0"` is
+  false for a reason that has nothing to do with the baseline — the comparison
+  is int-to-str and can never be true. It is harmless only because that loop
+  runs over `1..st_num` and never reaches the baseline at all: the aggregated
+  table simply has no `cst_0` row.
+
+  So the two shapes of the same table disagree on whether the baseline is a
+  member of the response surface, and the dead comparison hides it. Which is
+  correct is a question about the artifact's contract (HM-7 pins the columns,
+  not the row set) rather than a typo — the baseline is a legitimate (0, 0)
+  point on the surface, but it is also the only member with no perturbation to
+  average over realizations. `ST_START = 0 if run_hist else 1` means the
+  baseline runs exist either way when `run_hist` is set, so the data is there
+  in both shapes.
+
+  Deliberately not folded into [R9-3]'s fix: adding or dropping a row moves the
+  artifact, which the axis-collapse change explicitly did not.
 
 ---
 
