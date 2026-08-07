@@ -2,6 +2,7 @@
 title: Generated netCDFs lose `spatial_ref` from their template
 type: watch-item
 area: upstream / weathergenr
+origin: R5
 created: 2026-08-07
 updated: 2026-08-07
 ---

@@ -22,6 +22,9 @@ updated: 2026-08-07
 
 - Migrated from `dev/followups.md` on 2026-08-07, when the board replaced it. Prose below is that
   entry verbatim; it is the reproducible context, not a summary.
+- No `origin` recorded. It was migrated from the roadmap-carryover "Minor open items" section, not
+  from a milestone's followups. The convention it would enforce was established in R2 (per the prose
+  below), but that is the convention's vintage, not this item's recorded origin.
 
 ## Detail
 

@@ -2,40 +2,40 @@
 
 # TODO
 
-| ID | Item | Area | # | State |
-| --- | --- | --- | --- | --- |
-| t2608071201 | Make `inmaps_historical.nc` byte-reproducible, or stop the drift guard reacting to it | wf1 / drift guard | 1 | backlog |
-| t2608071202 | Make a failing `check_model_reference` write its error into the log part it points at | logging | 2 | backlog |
-| t2608071203 | Resolve six geojson basenames that mean different things in `data/spatial/geoms/` and the wflow `staticgeoms/` | naming | 3 | backlog |
-| t2608071204 | Settle whether the unperturbed baseline member belongs in the response tables | wf3 results | 4 | backlog |
-| t2608071205 | Find out why a red ruff gate went unnoticed, and decide whether a pre-push hook is the answer | lint / CI | 5 | backlog |
-| t2608071206 | Make the hydro/clim/signatures figure families declarable so `--delete-all-output` can clean them | wf1 rule shape | 6 | backlog |
-| t2608071207 | Show the per-member wflow log falsifier actually failing with `path_log` unset | wf3 logging | 7 | backlog |
-| t2608071208 | Fix `tests/test_stage_data_incremental.py`'s order-dependent failure | test hygiene | 8 | backlog |
-| t2608071209 | Decide real packaging (O-14 decision 2) and unblock flit (O-16) | packaging | 9 | backlog |
-| t2608071210 | Retire the 48 MB pre-R7 reference tree at `~/workspace/.r07-reference/` | housekeeping | 10 | backlog |
-| t2608071211 | Convert `downscale_climate_forcing.py` off the bare `snakemake` global read at import | importability | 11 | backlog |
-| t2608071212 | Rule on adopting `ruff format`, then land it in one mechanical commit | formatting | 12 | backlog |
-| t2608071213 | Define one label constant per rule, so a rename is a one-line edit | rule identifiers | 13 | backlog |
-| t2608071214 | Measure the hydrography read cost §8 adds to WF2 | spatial rules | 14 | backlog |
-| t2608071215 | Enforce the naming convention with a linter instead of review attention | tooling | 15 | backlog |
-| t2608071216 | Make the WF3 batch-size default actually disk-aware | wf3 batching | 16 | backlog |
-| t2608071217 | Recover per-cst persistence isolation under batching | wf3 batching | 17 | backlog |
-| t2608071218 | Make a code change to wf2's rule 2.04 actually re-trigger it | wf2 | 18 | backlog |
-| t2608071219 | Capture a failing `script:` rule's traceback in its log part | ergonomics | 19 | backlog |
+| ID | Item | Area | Origin | # | State |
+| --- | --- | --- | --- | --- | --- |
+| t2608071201 | Make `inmaps_historical.nc` byte-reproducible, or stop the drift guard reacting to it | wf1 / drift guard | R10 | 1 | backlog |
+| t2608071202 | Make a failing `check_model_reference` write its error into the log part it points at | logging | R10 | 2 | backlog |
+| t2608071203 | Resolve six geojson basenames that mean different things in `data/spatial/geoms/` and the wflow `staticgeoms/` | naming | R9 | 3 | backlog |
+| t2608071204 | Settle whether the unperturbed baseline member belongs in the response tables | wf3 results | R9 | 4 | backlog |
+| t2608071205 | Find out why a red ruff gate went unnoticed, and decide whether a pre-push hook is the answer | lint / CI | R8 | 5 | backlog |
+| t2608071206 | Make the hydro/clim/signatures figure families declarable so `--delete-all-output` can clean them | wf1 rule shape | R7 | 6 | backlog |
+| t2608071207 | Show the per-member wflow log falsifier actually failing with `path_log` unset | wf3 logging | R7 | 7 | backlog |
+| t2608071208 | Fix `tests/test_stage_data_incremental.py`'s order-dependent failure | test hygiene | R7 | 8 | backlog |
+| t2608071209 | Decide real packaging (O-14 decision 2) and unblock flit (O-16) | packaging | R7 | 9 | backlog |
+| t2608071210 | Retire the 48 MB pre-R7 reference tree at `~/workspace/.r07-reference/` | housekeeping | R7 | 10 | backlog |
+| t2608071211 | Convert `downscale_climate_forcing.py` off the bare `snakemake` global read at import | importability | R7 | 11 | backlog |
+| t2608071212 | Rule on adopting `ruff format`, then land it in one mechanical commit | formatting | R7 | 12 | backlog |
+| t2608071213 | Define one label constant per rule, so a rename is a one-line edit | rule identifiers | R10 | 13 | backlog |
+| t2608071214 | Measure the hydrography read cost §8 adds to WF2 | spatial rules | R10 | 14 | backlog |
+| t2608071215 | Enforce the naming convention with a linter instead of review attention | tooling |  | 15 | backlog |
+| t2608071216 | Make the WF3 batch-size default actually disk-aware | wf3 batching | P3-3 | 16 | backlog |
+| t2608071217 | Recover per-cst persistence isolation under batching | wf3 batching | P3-3 | 17 | backlog |
+| t2608071218 | Make a code change to wf2's rule 2.04 actually re-trigger it | wf2 | R6 | 18 | backlog |
+| t2608071219 | Capture a failing `script:` rule's traceback in its log part | ergonomics |  | 19 | backlog |
 
 ## Watching
 
-| ID | Item | Area | Trigger |
-| --- | --- | --- | --- |
-| t2608071220 | A comment-only edit to a shared-rule script invalidates up to three whole workflows | rerun triggers | Someone edits one of the three shared-rule scripts often enough that the full re-run cost bites, or proposes extending `kernel_hash` to them. |
-| t2608071221 | Docker (O-06) and Linux end-to-end (O-18, O-19) are unexercised | platform | A Linux machine or runner capable of a full pipeline run becomes available. |
-| t2608071222 | The R layer has no test infrastructure; Python helpers carry the coverage | testing | The R layer grows past the weather-generator wrappers, or an R-side defect ships. |
-| t2608071223 | Long-running rules announce themselves only by rule name, not in plain language | ergonomics | Someone runs the pipeline for a user who is watching it, or asks what a stalled run is doing. |
-| t2608071224 | The per-cst persistence item below may already be answered by R9's CR-7 / F18 | wf3 | The per-cst persistence item is picked up — read CR-7 / F18 first. |
-| t2608071225 | Generated netCDFs lose `spatial_ref` from their template | upstream / weathergenr | Upstream `tanerumit/weathergenr` propagates the attribute, or a consumer starts needing the CRS from that file. |
-| t2608071226 | The wavelet minimum surfaces as a cryptic error rather than a stated requirement | upstream / weathergenr | Upstream improves the message, or a project hits it and loses time to the diagnosis. |
-| t2608071227 | The first test file to call `sys.modules.setdefault` decides the stub for every later file | tests | A new stubbing test file lands, or an ordering change makes a passing suite fail. |
-| t2608071228 | dask cannot be stubbed at module level, because pandas imports it lazily and reads `dask.__spec__` | tests | pandas changes how it probes dask, or a test needs dask stubbed and hits the wall. |
-| t2608071229 | hydromt's `to_yml` silently strips `driver.options.preprocess` on a catalog round-trip | upstream / hydromt | Upstream fixes `to_yml` — `tests/test_prepare_climate_data_catalog.py`'s xfail flips to a pass and fails CI under strict, which is the signal. |
-| t2608071230 | Outlet stations are named by subcatchment ID, which is not a human-readable station name | naming | The owner rules on a naming scheme, or a deliverable needs readable station names. |
+| ID | Item | Area | Origin | Trigger |
+| --- | --- | --- | --- | --- |
+| t2608071220 | A comment-only edit to a shared-rule script invalidates up to three whole workflows | rerun triggers | R10 | Someone edits one of the three shared-rule scripts often enough that the full re-run cost bites, or proposes extending `kernel_hash` to them. |
+| t2608071221 | Docker (O-06) and Linux end-to-end (O-18, O-19) are unexercised | platform | R7 | A Linux machine or runner capable of a full pipeline run becomes available. |
+| t2608071222 | The R layer has no test infrastructure; Python helpers carry the coverage | testing |  | The R layer grows past the weather-generator wrappers, or an R-side defect ships. |
+| t2608071223 | Long-running rules announce themselves only by rule name, not in plain language | ergonomics |  | Someone runs the pipeline for a user who is watching it, or asks what a stalled run is doing. |
+| t2608071224 | The per-cst persistence item below may already be answered by R9's CR-7 / F18 | wf3 | P3-3 | The per-cst persistence item is picked up — read CR-7 / F18 first. |
+| t2608071225 | Generated netCDFs lose `spatial_ref` from their template | upstream / weathergenr | R5 | Upstream `tanerumit/weathergenr` propagates the attribute, or a consumer starts needing the CRS from that file. |
+| t2608071226 | The wavelet minimum surfaces as a cryptic error rather than a stated requirement | upstream / weathergenr | R5 | Upstream improves the message, or a project hits it and loses time to the diagnosis. |
+| t2608071227 | The first test file to call `sys.modules.setdefault` decides the stub for every later file | tests | M02c | A new stubbing test file lands, or an ordering change makes a passing suite fail. |
+| t2608071228 | dask cannot be stubbed at module level, because pandas imports it lazily and reads `dask.__spec__` | tests | M02c | pandas changes how it probes dask, or a test needs dask stubbed and hits the wall. |
+| t2608071229 | hydromt's `to_yml` silently strips `driver.options.preprocess` on a catalog round-trip | upstream / hydromt | M02b | Upstream fixes `to_yml` — `tests/test_prepare_climate_data_catalog.py`'s xfail flips to a pass and fails CI under strict, which is the signal. |
+| t2608071230 | Outlet stations are named by subcatchment ID, which is not a human-readable station name | naming | M02b | The owner rules on a naming scheme, or a deliverable needs readable station names. |

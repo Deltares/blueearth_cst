@@ -2,6 +2,7 @@
 title: The first test file to call `sys.modules.setdefault` decides the stub for every later file
 type: watch-item
 area: tests
+origin: M02c
 created: 2026-08-07
 updated: 2026-08-07
 ---

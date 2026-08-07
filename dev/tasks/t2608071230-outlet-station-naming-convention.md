@@ -2,6 +2,7 @@
 title: Outlet stations are named by subcatchment ID, which is not a human-readable station name
 type: watch-item
 area: naming
+origin: M02b
 created: 2026-08-07
 updated: 2026-08-07
 ---
