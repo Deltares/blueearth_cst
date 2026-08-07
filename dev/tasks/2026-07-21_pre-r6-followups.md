@@ -1,3 +1,10 @@
+> **PRE-BOARD RECORD — kept, not a board item (bannered 2026-08-07).**
+> `dev/tasks/` became the todo-board's OPEN set on 2026-08-07; before that it
+> held one record per closed task, which is what this is. It is not a
+> `todo-item`, carries no `type:` frontmatter, and the board's loader ignores
+> it by design. Closures from this campaign are NOT backfilled into
+> `dev/LOG.md` — the pre-board ledger is `dev/followups-archive.md`.
+
 # Pre-R6 followups campaign
 
 Clearing the deferred backlog before the R6 structural refactor, so R6 does not
@@ -36,7 +43,7 @@ Suite before: 119 passed / 3 skipped / 7 xfailed. After: **123 / 3 / 1**
   climate_projections` passes on the `.nc`. With R4's probe having shown no wf2 code
   drops attrs and the values being CMIP6-native, hydromt 1.3.1's read preserves them;
   the M2b `{}` diagnosis no longer reproduces (root cause moot). No baseline move.
-  Disposition in `dev/milestones/r04/chain-audit.md` § D-ATTRS + `dev/followups.md` § M2b.
+  Disposition in `dev/milestones/r04/chain-audit.md` § D-ATTRS + `dev/tasks/` § M2b.
   (Aside: the same check flags the 2 wf2 summary **CSVs** as byte-diffs — the
   **pre-existing R4 serialization non-determinism**, `dev/milestones/r04/baseline_diffs.md`,
   not D-ATTRS and not a regression.)
@@ -60,7 +67,7 @@ Suite before: 119 passed / 3 skipped / 7 xfailed. After: **123 / 3 / 1**
   unread). R5 wired `historical_window` as `params`; Snakemake 9.6.2's default
   `params` rerun-trigger now re-runs the rule on a window edit — **verified** by a
   dry-run (endtime 2020→2019 → "Params have changed" schedules the rule). Config-
-  as-input is unnecessary/coarser. Detail in `dev/followups.md` § R3.
+  as-input is unnecessary/coarser. Detail in `dev/tasks/` § R3.
 
 ## Wave D — big / scientific (design ACCEPTED, implementation PENDING)
 
@@ -118,3 +125,37 @@ Suite before: 119 passed / 3 skipped / 7 xfailed. After: **123 / 3 / 1**
 - t260716b historical wiring — DONE in R5 (`shared.historical_window`).
 - t260716c outlet naming — DONE in R3 (`outlet_index.csv`).
 - t260716c "CMIP6 attr loss on merge" — duplicate of **t260720e** (D-ATTRS); merge.
+
+
+## Closure record, carried from `dev/TODO.md` (2026-08-07)
+
+`dev/TODO.md` became **generated output** when the board was adopted, and
+`todoboard render` rewrites it whole. These paragraphs were hand-written
+there and are the only record of eleven closed task IDs with their commits,
+so they are moved here rather than lost to the first render.
+
+Left deliberately without a row: R7-8 (wflow `log.txt` placement â€” gate-invisible
+cosmetic whose verification needs a full wf3 run), R7-7 (working as intended),
+R7-21 candidates (b)/(c) (conditional on misattribution recurring), and the
+R7-15/17/18 parking rulings.
+
+**Done this campaign (2026-07-21, `fix/pre-r6-followups`):** t260720a
+(`variance.max` endpoint, `d2de843`), t260720c (D-CAL cftime, `c57eda0`),
+t260720d (D-VAR/D-MEM fail-loud, `735cc20`), t260716a truncation warning
+(`ce56bc3`), t260721a (wf1 tee wrapper, `d13ba37`), **t260719a** (CSDMS
+constant-params restoration via [ADR 0001](decisions/0001-restore-wflow-constant-parameters.md);
+gate all-13-PASS, discharge IMMATERIAL, wf1 baseline re-recorded; evidence
+`dev/decisions/0001-restore-wflow-constant-parameters/baseline_diffs.md`), **t260716aâ€²** (M1 warnings
+re-triage â€” bucket 2/3 empty of defects; `extract_climate_grid` config-staleness
+resolved by R5 params-wiring + verified; docs-only), **t260720e** (D-ATTRS â€”
+confirmed does-not-reproduce under current pins: summary `.nc` + recorded manifest
+both carry full CF attrs; no fix, no re-record; docs-only).
+
+**Closed as already-done (verified 2026-07-21):** t260716a `test_cli` xfails
+(R3+R5), t260716b `historical:` wiring (R5), t260716c outlet naming (R3).
+Upstream weathergenr (t260716b tail) is a separate `tanerumit/weathergenr`
+concern, out of this repo's board.
+
+> **Detail lives in `followups.md`**, kept as the milestone-scoped backlog store
+> (it carries reproducible context and is referenced by live tests). Promote an
+> individual item to an `active` row here when its milestone starts.
