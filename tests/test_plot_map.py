@@ -16,24 +16,30 @@ from matplotlib import colors
 from blueearth_cst.shared import plot_map
 from blueearth_cst.shared.plot_map import (
     FIGURE_WIDTH_MM,
+    GRATICULE_MAX_TICKS,
     MM_PER_INCH,
     _CORNERS,
     _EXTENT_BUFFER_DEG,
     _NORTH_ARROW_CORNER,
+    RIVER_WIDTH_UNIFORM,
     _basin_outline,
     _colorbar_inset,
     _corner_occupancy,
     _elevation_colormap,
+    _elevation_levels,
     _figure_size,
+    _nice_step_up,
     _mask_nodata,
     _publication_rc,
     _scale_bar_corner,
+    _graticule_ticks,
     _metres_per_degree,
     _nice_round_length,
     _river_linewidths,
     load_basin_layers,
     map_extent,
     pixel_resolution,
+    plot_basin_map,
     spatial_dim_names,
 )
 
@@ -122,6 +128,54 @@ def test_extreme_basin_shapes_stay_inside_the_aspect_clamps(aspect):
     assert height_in < 2.0 * width_in
 
 
+# --- graticule ----------------------------------------------------------------
+# `map_extent` pads the DEM bounds and clamps nothing, so the tick chooser is the
+# last thing standing between a polar basin and a latitude label past the pole.
+
+
+def test_ticks_stay_inside_the_basin_extent():
+    lon, lat = _graticule_ticks(np.array([9.638, 9.878, 0.33, 0.503]))
+    assert lon and lat
+    assert all(9.638 <= t <= 9.878 for t in lon)
+    assert all(0.33 <= t <= 0.503 for t in lat)
+
+
+@pytest.mark.parametrize(
+    "extent",
+    [
+        (20.0, 25.0, 80.0, 92.0),  # padding pushed lat_max past the north pole
+        (20.0, 25.0, -93.0, -80.0),  # and past the south pole
+    ],
+)
+def test_no_latitude_tick_is_placed_past_the_pole(extent):
+    """A latitude beyond +/-90 does not exist, so it must never be labelled."""
+    _, lat = _graticule_ticks(np.array(extent))
+    assert lat, "clamping must not empty the graticule"
+    assert all(-90.0 <= t <= 90.0 for t in lat)
+
+
+def test_longitude_past_the_antimeridian_is_preserved():
+    """Unlike latitude, past +/-180 is a legitimate antimeridian-spanning basin."""
+    lon, _ = _graticule_ticks(np.array([176.0, 184.0, 60.0, 64.0]))
+    assert max(lon) > 180.0
+
+
+@pytest.mark.parametrize(
+    "extent",
+    [
+        (9.638, 9.878, 0.33, 0.503),  # sub-degree
+        (5.0, 6.0, 45.0, 45.5),
+        (80.0, 89.0, 25.0, 35.0),
+    ],
+)
+def test_tick_count_respects_the_declared_maximum(extent):
+    """Regression guard: cartopy's LatitudeLocator overshoots this on a
+    sub-degree basin, which is why the graticule does not use it."""
+    lon, lat = _graticule_ticks(np.array(extent))
+    assert len(lon) <= GRATICULE_MAX_TICKS + 1
+    assert len(lat) <= GRATICULE_MAX_TICKS + 1
+
+
 # --- furniture placement ------------------------------------------------------
 # Fixed corners are only safe for the basin shape they were tuned on.
 
@@ -188,6 +242,123 @@ def test_a_basin_filling_its_box_still_yields_a_valid_corner():
     assert _scale_bar_corner(_basin_covering(0, 0, 1, 1), _UNIT_EXTENT) in _CORNERS
 
 
+def test_the_scale_bar_yields_the_corner_the_locator_took():
+    """Two artists in one corner is the collision this budgeting prevents."""
+    central = _basin_covering(0.35, 0.35, 0.65, 0.65)  # every corner equally free
+    taken = _scale_bar_corner(central, _UNIT_EXTENT, {_NORTH_ARROW_CORNER})
+    assert _scale_bar_corner(central, _UNIT_EXTENT, {_NORTH_ARROW_CORNER, taken}) != taken
+
+
+def test_reserving_every_corner_still_returns_one():
+    """Better a crowded bar than a crash: the fallback must not empty the list."""
+    assert _scale_bar_corner(
+        _basin_covering(0.35, 0.35, 0.65, 0.65), _UNIT_EXTENT, set(_CORNERS)
+    ) in _CORNERS
+
+
+# --- locator inset ------------------------------------------------------------
+# The "where in the world is this" panel. Its window and its box are pure
+# geometry and testable; whether it LOOKS right is a question for the render.
+
+
+@pytest.fixture
+def restore_locator():
+    names = ("LOCATOR_ENABLED", "_LOCATOR_CORNER", "_LOCATOR_WIDTH")
+    original = {name: getattr(plot_map, name) for name in names}
+    yield
+    for name, value in original.items():
+        setattr(plot_map, name, value)
+
+
+def test_the_locator_window_is_square_and_centred_on_the_basin():
+    window = plot_map._locator_window([9.65, 9.86, 0.35, 0.50])
+    assert (window[1] - window[0]) == pytest.approx(window[3] - window[2])
+    assert 0.5 * (window[0] + window[1]) == pytest.approx(9.755)
+
+
+def test_a_polar_basin_gets_a_full_window_rather_than_half_of_one():
+    """Clipping at the pole would leave the inset half empty; re-centre instead."""
+    window = plot_map._locator_window([20.0, 21.0, 88.0, 89.5])
+    assert (window[1] - window[0]) == pytest.approx(window[3] - window[2])
+    assert window[3] <= 90.0
+
+
+@pytest.mark.parametrize(
+    "extent", [(0.0, 1.0, 0.0, 1.0), (0.0, 4.0, 0.0, 1.0), (0.0, 1.0, 0.0, 3.0)]
+)
+def test_the_locator_box_comes_out_square_on_the_page(extent):
+    """Equal fractions in a non-square panel would render a slot, not a square."""
+    lon_span, lat_span = extent[1] - extent[0], extent[3] - extent[2]
+    _, _, width, height = plot_map._locator_box(np.asarray(extent), "upper left")
+    assert width * lon_span == pytest.approx(height * lat_span)
+    assert 0 < width <= 1 and 0 < height <= 1
+
+
+@pytest.mark.parametrize(
+    ("corner", "expect_left", "expect_upper"),
+    [
+        ("upper left", True, True),
+        ("lower right", False, False),
+        ("upper right", False, True),
+        ("lower left", True, False),
+    ],
+)
+def test_the_locator_box_lands_in_the_corner_it_is_given(
+    corner, expect_left, expect_upper
+):
+    x0, y0, width, height = plot_map._locator_box(
+        np.array([0.0, 1.0, 0.0, 1.0]), corner
+    )
+    assert (x0 < 0.5) is expect_left
+    assert (y0 + height > 0.5) is expect_upper
+
+
+def test_no_corner_is_reserved_when_the_locator_is_off(restore_locator):
+    plot_map.LOCATOR_ENABLED = False
+    assert plot_map._locator_corner(_basin_covering(0, 0, 1, 1), _UNIT_EXTENT) is None
+
+
+def test_the_locator_never_takes_the_north_arrow_corner(restore_locator):
+    plot_map.LOCATOR_ENABLED = True
+    plot_map._LOCATOR_CORNER = "auto"
+    basin = _basin_covering(0.0, 0.0, 0.9, 0.9)  # only upper right is free
+    assert plot_map._locator_corner(basin, _UNIT_EXTENT) != _NORTH_ARROW_CORNER
+
+
+def test_an_explicit_locator_corner_is_honoured(restore_locator):
+    plot_map.LOCATOR_ENABLED = True
+    plot_map._LOCATOR_CORNER = "lower right"
+    assert (
+        plot_map._locator_corner(_basin_covering(0, 0, 1, 1), _UNIT_EXTENT)
+        == "lower right"
+    )
+
+
+# --- the vendored basemap -----------------------------------------------------
+# It is committed rather than downloaded, so the thing to check is that the
+# committed file is intact and holds what the inset asks it for.
+
+
+def test_the_vendored_basemap_is_present():
+    assert plot_map.BASEMAP_PATH.is_file(), (
+        f"{plot_map.BASEMAP_PATH} is missing; see config/basemap/README.md"
+    )
+
+
+@pytest.mark.parametrize("layer", ["land", "borders", "places"])
+def test_each_basemap_layer_is_readable_and_not_empty(layer):
+    import geopandas as gpd
+
+    assert len(gpd.read_file(plot_map.BASEMAP_PATH, layer=layer)) > 0
+
+
+def test_the_places_layer_carries_the_columns_the_inset_filters_on():
+    import geopandas as gpd
+
+    places = gpd.read_file(plot_map.BASEMAP_PATH, layer="places")
+    assert {"name", "pop_max", "scalerank"} <= set(places.columns)
+
+
 # --- basin outline vs subcatchment divides ------------------------------------
 # `mod.basins` returns one polygon per SUBCATCHMENT once gauges are burned in.
 
@@ -233,11 +404,13 @@ def test_a_single_basin_survives_the_dissolve_unchanged():
 class _FakeRivers:
     """Minimal stand-in for the ``strord`` column ``_river_linewidths`` reads."""
 
-    def __init__(self, orders):
+    def __init__(self, orders, column="strord"):
         self._orders = np.asarray(orders, dtype=float)
+        self.columns = [column] if column is not None else []
+        self._column = column
 
     def __getitem__(self, key):
-        assert key == "strord"
+        assert key == self._column
         return self
 
     def astype(self, dtype):
@@ -259,6 +432,17 @@ def test_uniform_stream_order_does_not_divide_by_zero():
     assert np.all(np.isfinite(widths)) and np.all(widths > 0)
 
 
+def test_a_river_layer_without_an_order_column_still_draws():
+    """Rivers from outside wflow carry no `strord`; that is not an error."""
+    assert _river_linewidths(_FakeRivers([1, 2], column="order")) == RIVER_WIDTH_UNIFORM
+    assert _river_linewidths(_FakeRivers([1, 2]), None) == RIVER_WIDTH_UNIFORM
+
+
+def test_an_alternative_order_column_is_honoured():
+    widths = _river_linewidths(_FakeRivers([1, 4], column="order"), "order")
+    assert np.all(np.diff(widths) > 0)
+
+
 # --- the figure is still colour-independent -----------------------------------
 
 
@@ -278,6 +462,76 @@ def test_ramp_endpoints_are_distinguishable_under_dichromacy():
 
 def test_colormap_is_a_matplotlib_colormap():
     assert isinstance(_elevation_colormap(), colors.Colormap)
+
+
+def test_the_ramp_can_be_cut_into_discrete_classes():
+    assert _elevation_colormap(6).N == 6
+
+
+# --- elevation classes --------------------------------------------------------
+# The bar is stepped, its boundaries are round numbers, and both ends are
+# labelled. The trap is the zero baseline: it must not flatten a highland basin.
+
+
+@pytest.mark.parametrize(
+    "value, expected", [(0.9, 1.0), (1.0, 1.0), (1.7, 2.0), (3.0, 5.0), (16.9, 20.0)]
+)
+def test_a_class_width_rounds_UP_to_one_two_or_five(value, expected):
+    """Down would give MORE classes than asked for -- the opposite of the point."""
+    assert _nice_step_up(value) == expected
+
+
+def _dem_spanning(low, high):
+    values = np.linspace(low, high, 400)
+    side = 20
+    return xr.DataArray(values.reshape(side, side), dims=("latitude", "longitude"))
+
+
+def test_a_lowland_basin_gets_a_ramp_starting_at_zero():
+    levels = _elevation_levels(_dem_spanning(4.0, 137.0))
+    assert levels[0] == 0.0
+    assert levels[-1] >= 137.0
+
+
+def test_a_plateau_basin_keeps_its_own_baseline():
+    """Zeroed, a 1900-1960 m basin lands entirely in ONE class and goes flat."""
+    levels = _elevation_levels(_dem_spanning(1900.0, 1960.0))
+    assert levels[0] > 0.0
+    # the basin must span most of the ramp, not a single band of it
+    assert (1960.0 - 1900.0) / (levels[-1] - levels[0]) > 0.5
+
+
+def test_a_mountain_basin_still_zeroes_because_it_can_afford_to():
+    levels = _elevation_levels(_dem_spanning(800.0, 6200.0))
+    assert levels[0] == 0.0
+
+
+def test_the_top_class_contains_the_highest_cell_rather_than_ending_at_it():
+    """A boundary exactly at the summit renders the summit as nodata."""
+    assert _elevation_levels(_dem_spanning(0.0, 100.0))[-1] >= 100.0
+
+
+def test_boundaries_sit_on_multiples_of_the_class_width():
+    """A floor of 1903 m must label as 1900, not carry itself up the bar."""
+    levels = _elevation_levels(_dem_spanning(1903.0, 2410.0))
+    step = levels[1] - levels[0]
+    assert np.allclose(np.mod(levels, step), 0.0)
+
+
+def test_classes_are_evenly_spaced_and_increasing():
+    levels = _elevation_levels(_dem_spanning(4.0, 137.0))
+    assert np.all(np.diff(levels) > 0)
+    assert np.allclose(np.diff(levels), levels[1] - levels[0])
+
+
+def test_a_flat_dem_does_not_produce_a_degenerate_ramp():
+    levels = _elevation_levels(_dem_spanning(12.0, 12.0))
+    assert len(levels) >= 2 and np.all(np.diff(levels) > 0)
+
+
+def test_a_below_sea_level_basin_is_not_clipped_at_zero():
+    levels = _elevation_levels(_dem_spanning(-30.0, 90.0))
+    assert levels[0] <= -30.0
 
 
 # --- the tunable block stays live ---------------------------------------------
@@ -310,6 +564,53 @@ def test_colorbar_inset_follows_the_panel_position(restore_tunables):
     plot_map._COLORBAR_WIDTH = 0.1
     left, _, width, _ = _colorbar_inset()
     assert (left, width) == (1.5, 0.1)
+
+
+@pytest.fixture
+def restore_colorbar_label_position():
+    original = plot_map.COLORBAR_LABEL_POSITION
+    yield
+    plot_map.COLORBAR_LABEL_POSITION = original
+
+
+def test_a_right_label_leaves_the_colorbar_at_full_height(
+    restore_colorbar_label_position,
+):
+    plot_map.COLORBAR_LABEL_POSITION = "right"
+    assert _colorbar_inset()[3] == pytest.approx(plot_map._COLORBAR_HEIGHT)
+
+
+def test_a_top_label_shortens_the_bar_to_make_room(restore_colorbar_label_position):
+    """Without this the bar reaches 1.0 and the label renders off the canvas."""
+    plot_map.COLORBAR_LABEL_POSITION = "top"
+    assert _colorbar_inset()[3] == pytest.approx(
+        plot_map._COLORBAR_HEIGHT - plot_map._COLORBAR_TOP_LABEL_HEADROOM
+    )
+
+
+def test_each_extra_label_line_costs_the_bar_the_same_again(
+    restore_colorbar_label_position,
+):
+    """A fixed headroom would clip a two-line label or gap above a one-line one."""
+    plot_map.COLORBAR_LABEL_POSITION = "top"
+    one, two = _colorbar_inset(1)[3], _colorbar_inset(2)[3]
+    assert one - two == pytest.approx(plot_map._COLORBAR_TOP_LABEL_HEADROOM)
+
+
+def test_label_lines_do_not_shorten_a_right_hand_label(
+    restore_colorbar_label_position,
+):
+    plot_map.COLORBAR_LABEL_POSITION = "right"
+    assert _colorbar_inset(1)[3] == _colorbar_inset(3)[3]
+
+
+def test_an_unknown_label_position_raises_rather_than_silently_defaulting(
+    restore_colorbar_label_position,
+):
+    """A knob that reads as set but does nothing is the worst failure here."""
+    plot_map.COLORBAR_LABEL_POSITION = "above"
+    with pytest.raises(ValueError, match="COLORBAR_LABEL_POSITION"):
+        _colorbar_inset()
 
 
 def test_the_pdf_stays_truetype_whatever_the_sizes_are():
@@ -419,3 +720,224 @@ def test_an_absent_elevation_variable_lists_what_the_file_does_hold(tmp_path):
     (tmp_path / plot_map.STATICGEOMS_DIRNAME).mkdir()
     with pytest.raises(KeyError, match="something_else"):
         load_basin_layers(tmp_path)
+
+
+# --- the layer-in plotting function -------------------------------------------
+# `plot_basin_map` takes each map layer as its own argument and returns the
+# figure. What needs covering is the OPTIONALITY: every layer but the first
+# three may be absent, and an absent layer must drop out of the drawing AND out
+# of the legend rather than raising or leaving a dangling entry. The figure's
+# appearance is not asserted here -- it is verified by rendering it and looking
+# at it (AGENTS.md, "Figures are terminal artifacts").
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _headless_backend():
+    """No display in CI, and no interactive window locally."""
+    import matplotlib
+
+    matplotlib.use("Agg", force=True)
+
+
+def _frame(geometries):
+    import geopandas as gpd
+
+    return gpd.GeoDataFrame(
+        {"value": list(range(len(geometries)))},
+        geometry=list(geometries),
+        crs="EPSG:4326",
+    )
+
+
+def _layers():
+    """A DEM and one of every vector layer, in one geographic neighbourhood."""
+    import geopandas as gpd
+    from shapely.geometry import LineString, Point, box
+
+    dem = _dem(nx=12, ny=10, res=0.01)
+    rivers = gpd.GeoDataFrame(
+        {"strord": [1, 3]},
+        geometry=[
+            LineString([(0.01, -0.01), (0.05, -0.05)]),
+            LineString([(0.05, -0.05), (0.10, -0.08)]),
+        ],
+        crs="EPSG:4326",
+    )
+    gauges = gpd.GeoDataFrame(
+        {"wflow_id": [101, 102]},
+        geometry=[Point(0.05, -0.05), Point(0.09, -0.07)],
+        crs="EPSG:4326",
+    )
+    return dict(
+        dem=dem,
+        rivers=rivers,
+        basin=_frame([box(0.0, -0.09, 0.11, 0.0)]),
+        subbasins=_frame([box(0.0, -0.05, 0.11, 0.0), box(0.0, -0.09, 0.11, -0.05)]),
+        gauges=gauges,
+        outlets=_frame([Point(0.10, -0.08)]),
+        lakes=_frame([box(0.02, -0.03, 0.04, -0.01)]),
+        reservoirs=_frame([box(0.06, -0.07, 0.08, -0.05)]),
+        glaciers=_frame([box(0.01, -0.085, 0.03, -0.065)]),
+    )
+
+
+def _legend_labels(ax):
+    return [text.get_text() for text in ax.get_legend().get_texts()]
+
+
+def test_the_minimal_call_draws_a_figure_and_writes_nothing(tmp_path):
+    """DEM + rivers + basin is the whole requirement; the rest is optional."""
+    import matplotlib.pyplot as plt
+
+    layers = _layers()
+    fig, ax = plot_basin_map(layers["dem"], layers["rivers"], layers["basin"])
+    try:
+        assert fig is not None and ax is not None
+        assert _legend_labels(ax) == ["river"]
+        assert not list(tmp_path.iterdir())  # saving is the caller's decision
+    finally:
+        plt.close(fig)
+
+
+def test_every_layer_together_renders():
+    import matplotlib.pyplot as plt
+
+    layers = _layers()
+    fig, ax = plot_basin_map(
+        layers.pop("dem"), layers.pop("rivers"), layers.pop("basin"), **layers
+    )
+    try:
+        # A list, not a set: a duplicated entry is exactly the defect the
+        # hand-built waterbody patches caused until 2026-08-03.
+        assert _legend_labels(ax) == [
+            "river",
+            "outlets",
+            "output locs",
+            "subcatchments",
+            "lakes",
+            "reservoirs",
+            "glaciers",
+        ]
+    finally:
+        plt.close(fig)
+
+
+def test_omitting_subbasins_drops_the_divides_and_their_legend_entry():
+    """The split's whole point: an outline without divides is a valid map."""
+    import matplotlib.pyplot as plt
+
+    layers = _layers()
+    common = (layers["dem"], layers["rivers"], layers["basin"])
+    with_divides, ax_with = plot_basin_map(*common, subbasins=layers["subbasins"])
+    without, ax_without = plot_basin_map(*common, subbasins=None)
+    try:
+        assert "subcatchments" in _legend_labels(ax_with)
+        assert "subcatchments" not in _legend_labels(ax_without)
+    finally:
+        plt.close(with_divides)
+        plt.close(without)
+
+
+def test_an_empty_layer_is_treated_as_an_absent_one():
+    """An empty frame must not leave a legend entry for something undrawn."""
+    import matplotlib.pyplot as plt
+
+    layers = _layers()
+    fig, ax = plot_basin_map(
+        layers["dem"],
+        layers["rivers"],
+        layers["basin"],
+        subbasins=layers["subbasins"].iloc[:0],
+        lakes=layers["lakes"].iloc[:0],
+        outlets=layers["outlets"].iloc[:0],
+    )
+    try:
+        assert _legend_labels(ax) == ["river"]
+    finally:
+        plt.close(fig)
+
+
+def test_each_waterbody_enters_on_its_own_argument():
+    import matplotlib.pyplot as plt
+
+    layers = _layers()
+    fig, ax = plot_basin_map(
+        layers["dem"], layers["rivers"], layers["basin"], reservoirs=layers["reservoirs"]
+    )
+    try:
+        assert _legend_labels(ax) == ["river", "reservoirs"]
+    finally:
+        plt.close(fig)
+
+
+def test_gauge_labels_can_be_switched_off_without_dropping_the_markers():
+    import matplotlib.pyplot as plt
+
+    layers = _layers()
+    fig, ax = plot_basin_map(
+        layers["dem"],
+        layers["rivers"],
+        layers["basin"],
+        gauges=layers["gauges"],
+        gauge_label_column=None,
+    )
+    try:
+        assert "output locs" in _legend_labels(ax)
+        assert not [text for text in ax.texts if text.get_text() in {"101", "102"}]
+    finally:
+        plt.close(fig)
+
+
+def test_the_returned_figure_is_already_laid_out():
+    """One savefig must be enough — the caller does not owe the figure a draw.
+
+    Constrained layout is iterative: before this was settled inside the
+    function, the first draw left the y tick labels at x0 < 0, i.e. off the
+    canvas, so "0.45°N" saved as "45°N". The workflow path hid it by saving
+    twice (PDF then PNG).
+    """
+    import matplotlib.pyplot as plt
+
+    layers = _layers()
+    fig, ax = plot_basin_map(layers["dem"], layers["rivers"], layers["basin"])
+    try:
+        assert min(t.get_window_extent().x0 for t in ax.get_yticklabels()) >= 0.0
+    finally:
+        plt.close(fig)
+
+
+@pytest.mark.parametrize(
+    ("position", "expect_title", "expect_ylabel"),
+    [("top", True, False), ("right", False, True)],
+)
+def test_the_colorbar_label_is_drawn_where_the_position_says(
+    position, expect_title, expect_ylabel, restore_colorbar_label_position
+):
+    """"top" is a horizontal title above the bar; "right" is the rotated label."""
+    import matplotlib.pyplot as plt
+
+    plot_map.COLORBAR_LABEL_POSITION = position
+    layers = _layers()
+    fig, ax = plot_basin_map(
+        layers["dem"], layers["rivers"], layers["basin"], elevation_label="depth [m]"
+    )
+    try:
+        colorbar_axes = ax.child_axes[0]  # an inset axes, so NOT in fig.axes
+        assert (colorbar_axes.get_title(loc="left") == "depth [m]") is expect_title
+        assert (colorbar_axes.get_ylabel() == "depth [m]") is expect_ylabel
+    finally:
+        plt.close(fig)
+
+
+def test_an_explicit_extent_overrides_the_dem_bounding_box():
+    import matplotlib.pyplot as plt
+
+    layers = _layers()
+    extent = [0.0, 0.05, -0.04, 0.0]
+    fig, ax = plot_basin_map(
+        layers["dem"], layers["rivers"], layers["basin"], extent=extent
+    )
+    try:
+        assert list(ax.get_extent(crs=ax.projection)) == pytest.approx(extent)
+    finally:
+        plt.close(fig)
