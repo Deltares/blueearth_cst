@@ -13,16 +13,15 @@
 | t2608071207 | Show the per-member wflow log falsifier actually failing with `path_log` unset | wf3 logging | R7 | 7 | backlog |
 | t2608071208 | Fix `tests/test_stage_data_incremental.py`'s order-dependent failure | test hygiene | R7 | 8 | backlog |
 | t2608071209 | Decide real packaging (O-14 decision 2) and unblock flit (O-16) | packaging | R7 | 9 | blocked |
-| t2608071210 | Retire the 48 MB pre-R7 reference tree at `~/workspace/.r07-reference/` | housekeeping | R7 | 10 | backlog |
-| t2608071211 | Convert `downscale_climate_forcing.py` off the bare `snakemake` global read at import | importability | R7 | 11 | backlog |
-| t2608071212 | Rule on adopting `ruff format`, then land it in one mechanical commit | formatting | R7 | 12 | blocked |
-| t2608071213 | Define one label constant per rule, so a rename is a one-line edit | rule identifiers | R10 | 13 | backlog |
-| t2608071214 | Measure the hydrography read cost §8 adds to WF2 | spatial rules | R10 | 14 | backlog |
-| t2608071215 | Enforce the naming convention with a linter instead of review attention | tooling |  | 15 | backlog |
-| t2608071216 | Make the WF3 batch-size default actually disk-aware | wf3 batching | P3-3 | 16 | backlog |
-| t2608071217 | Recover per-cst persistence isolation under batching | wf3 batching | P3-3 | 17 | backlog |
-| t2608071218 | Make a code change to wf2's rule 2.04 actually re-trigger it | wf2 | R6 | 18 | backlog |
-| t2608071219 | Capture a failing `script:` rule's traceback in its log part | ergonomics |  | 19 | backlog |
+| t2608071211 | Convert `downscale_climate_forcing.py` off the bare `snakemake` global read at import | importability | R7 | 10 | backlog |
+| t2608071212 | Rule on adopting `ruff format`, then land it in one mechanical commit | formatting | R7 | 11 | blocked |
+| t2608071213 | Define one label constant per rule, so a rename is a one-line edit | rule identifiers | R10 | 12 | backlog |
+| t2608071214 | Measure the hydrography read cost §8 adds to WF2 | spatial rules | R10 | 13 | backlog |
+| t2608071215 | Enforce the naming convention with a linter instead of review attention | tooling |  | 14 | backlog |
+| t2608071216 | Make the WF3 batch-size default actually disk-aware | wf3 batching | P3-3 | 15 | backlog |
+| t2608071217 | Recover per-cst persistence isolation under batching | wf3 batching | P3-3 | 16 | backlog |
+| t2608071218 | Make a code change to wf2's rule 2.04 actually re-trigger it | wf2 | R6 | 17 | backlog |
+| t2608071219 | Capture a failing `script:` rule's traceback in its log part | ergonomics |  | 18 | backlog |
 
 ## Watching
 
