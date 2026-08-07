@@ -168,7 +168,7 @@ sealed 2026-08-07).
 
 | Phase | Contents | Risk |
 | --- | --- | --- |
-| **P1** | Unit A — result tables | medium; moves numbers |
+| **P1** | Unit A — result tables. **Deletes the fixture's frozen experiment first** (§9) | medium; moves numbers |
 | **P2** | Unit B, with C34 and F7 alongside | medium; moves paths and names |
 | **P3** | `[R10-13]`, the `[R10-12]` runbook line, then the single re-record | low |
 
@@ -180,13 +180,7 @@ numeric had moved; without it a re-record blesses whatever happens to be on disk
 
 ## 8. Open questions
 
-**Q1 — Does unit B's `cst_`→`st_` rename reach `experiment.yml`?**
-R9 freezes that file at an experiment's first successful run. If the rename
-touches frozen content, existing experiments need either a migration path or an
-explicit unsupported-and-re-run ruling. Both prior milestones took the latter
-(R7's GA-2, R9's support decision) on the grounds that no production trees exist
-— but that reasoning must be re-checked, not inherited, because R9 shipped the
-freezing mechanism that makes this different.
+**Q1 — RESOLVED 2026-08-07. The answer inverted the question; see §10.**
 
 **Q2 — Should `[R10-13]` land here or separately?**
 It fixes `tee_to_log`, improving every `script:` rule in all three workflows, so
@@ -196,7 +190,66 @@ found). Splitting it keeps the milestone's boundary clean. No strong recommendat
 
 ---
 
-## 9. Provenance
+## 9. The experiment freeze — support decision (2026-08-07)
+
+Investigated because Q1 asked whether unit B's rename reaches the frozen
+`experiment.yml`. **It does not** — C22's surfaces are filenames and catalog keys
+(`cst_<m>.csv`, `rlz_<n>_cst_<m>.*`, the WG-5 catalog keys, `cst_0`→`st_0`), and
+the frozen document holds configuration, not member identifiers.
+
+**The collision is real but it is in unit A.** `experiment.yml` records the
+resolved `workflows.climate_experiment` section, and CR-2 retires
+`aggregate_rlz`, which is a key in that section. Tested against
+`test_case/test_local/experiments/experiment` rather than reasoned about:
+
+```
+frozen: True
+RESULT: RAISES -> ExperimentConfigFrozenError
+  changed: ['aggregate_rlz']
+```
+
+Every experiment that has already run would fail its next WF3 invocation.
+
+**It is conditional on a decision the register already parked.** The frozen
+document is built from the *resolved* config section, so removing `aggregate_rlz`
+from the config files makes the key vanish from the document and the freeze
+fires; leaving it in as an unread key keeps the document identical and nothing
+breaks. That choice is the register's own **open Q7 (removal policy)**, which
+does not mention this consequence.
+
+### Ruling — accept the break
+
+`aggregate_rlz` is removed, and an experiment that has run under the old table
+shape **cannot continue under the new one**: it is re-run as a new experiment.
+
+This is the freeze working, not a defect to route around. Retiring the flag
+changes the table's grain, so the existing results genuinely mean something
+different — which is exactly what `check_not_frozen` exists to refuse. Rejected
+alternatives: keeping the key as an accepted no-op through R11 (a whole milestone
+in which a user's setting silently does nothing — the hazard the register already
+names), and teaching the freeze a retired-keys list (new machinery for a problem
+that has occurred once).
+
+Consistent with R7's GA-2 and R9's support decision, both of which ruled
+pre-existing state unsupported because no production trees exist. That reasoning
+was re-checked here rather than inherited, since R9 is what shipped the freezing
+mechanism.
+
+**Consequence for the phase plan, which must not be discovered mid-run:** the
+fixture's own experiment at `test_case/test_local/experiments/experiment` is
+frozen and will refuse. **P1 deletes it before the gate run** — that is a step,
+not an accident, and the deletion belongs in P1's brief.
+
+### Recorded, not solved
+
+Any future milestone that adds or removes a `climate_experiment` key hits this
+same wall; R11 is simply the first. If it recurs, the freeze wants a
+schema-version concept rather than a per-milestone ruling. Carried as a
+watch-item with that trigger.
+
+---
+
+## 10. Provenance
 
 Scope confirmed with the owner 2026-08-07 through `design-scoping`. Rulings taken
 in that session: milestone boundary (register now, v2 as R12); `[R9-5]` include
