@@ -252,3 +252,50 @@ git log -S'[R10-5]' --oneline -- dev/followups.md
 - **Retire the "CMIP6 GCS throughput regression" follow-up. CLOSED 2026-07-25.**
   The ~6 h estimate came from the slow path; the as-shipped run completes in
   24 min after the eager `.load()` patch in `get_stats_climate_proj.py`.
+
+## Superseded, found during the board migration (2026-08-07)
+
+- **`setup_constant_pars` short names → CSDMS Standard Names. SUPERSEDED 2026-07-21.**
+  The work landed as [ADR 0001](decisions/0001-restore-wflow-constant-parameters.md), whose
+  reconciliation table classifies every parameter and restores `cf_soil` and
+  `rootdistpar` among them; `dev/TODO.md` records the task (`t260719a`) closed
+  with all-13-PASS, discharge immaterial and the wf1 baseline re-recorded. The
+  entry below stayed open in `followups.md` for another two weeks because
+  nothing links an ADR back to the followup it answers — the migration is what
+  surfaced it. Original entry follows.
+
+- **`setup_constant_pars` short names → CSDMS Standard Names.**
+    *Re-tagged 2026-07-19: standalone scientific-review task `t260719a`, split
+    out of R3.* hydromt_wflow 1.x's `setup_constant_pars` rejects the short
+    parameter names from 0.x and requires CSDMS Standard Names instead. M2b
+    dropped **14 of the 15** originally-set constants under the "intentional
+    drift, re-baseline aggressively" policy and kept only `KsatHorFrac` (which
+    the build errors without).
+
+    **Authoritative inventory (the handoff prose miscounts — its explicit
+    parenthesized list of 15 names controls, not its "14 constant pars / other
+    13" prose):** 15 original / 1 retained (`KsatHorFrac`) / **14 dropped**,
+    where the 14 dropped = **8 known CSDMS mappings** (`Cfmax`, `WHC`, `TT`,
+    `TTI`, `TTM`, `G_Cfmax`, `MaxLeakage`, `InfiltCapPath`) + **`InfiltCapSoil`**
+    (deprecated, `wflow_v1: None` in `hydromt_wflow.naming` → stays dropped) +
+    **5 unresolved** (`cf_soil`, `EoverR`, `rootdistpar`, `G_SIfrac`, `G_TT`)
+    whose CSDMS mapping or deprecation status is not yet confirmed.
+
+    Restoring physics parameters is a scientific decision, not a mechanical
+    rename, so it is **out of R3** (which is a behavior-preserving refactor,
+    per `dev/milestones/r03/model-builder-design.md`). The dedicated task owns
+    `config/wflow_build_model.yml` and the resulting baseline move. Its scope
+    must carry: a **parameter-reconciliation table** (per param: old value,
+    Wflow 1.x effective default, units, semantics, storage location, observed
+    built value, and a restore / adopt-new-default / drop-deprecated
+    classification); a **direct staticmaps.nc/TOML assertion** that each
+    restored value actually lands (a name accepted but silently no-op'd is the
+    failure mode); a **data-level workflow-1 discharge comparison** (not PNG
+    size — the manifest does not fingerprint discharge); and a **clean
+    dedicated project-dir re-record** with a freshness check on every recorded
+    target (existence-based Snakemake timestamps + `ancient()` inputs can bless
+    stale artifacts). The task should also ADD staticmaps/TOML fingerprints to
+    the manifest, since workflow 1's slice is currently only 3 size-only PNGs +
+    a snake-config snapshot. CSDMS lookup tables in `hydromt_wflow.naming` and
+    `hydromt_wflow.version_upgrade`. Concrete 8-mapping remap in
+    `dev/milestones/phase-1/m02b/handoff.md` decision #3.

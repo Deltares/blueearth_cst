@@ -280,7 +280,7 @@ if __name__ == "__main__":
         # disk, whereas a configured observations path that is not a file is a
         # typo -- and a silently skipped typo is precisely the failure mode
         # that cost this workflow its whole evaluation output once already
-        # (dev/followups.md, the gauge-name entry).
+        # (dev/tasks/, the gauge-name entry).
         if workflow_name == "model_creation":
             # sm.INPUT, not sm.params: both keys became declared inputs on
             # 2026-08-02 so a file EDIT retriggers the rules that read them.

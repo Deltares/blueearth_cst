@@ -10,7 +10,7 @@ Usage (from a ``shell:`` rule)::
 
 The word after ``--`` onward is the command, passed through verbatim (no shell
 re-tokenization). Rationale and the masking bug it fixes: see
-``blueearth_cst/shared/snake_utils.run_and_tee`` (t260721a; dev/followups.md).
+``blueearth_cst/shared/snake_utils.run_and_tee`` (t260721a; dev/tasks/).
 """
 import os
 import sys

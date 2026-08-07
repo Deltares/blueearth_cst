@@ -1438,7 +1438,7 @@ def run_and_tee(command, log_path):
     ``| tee`` pipeline returns *tee*'s exit status, not the command's, unless
     bash ``pipefail`` is active -- and Snakemake injects no ``pipefail`` prefix
     on Windows/cmd.exe, so a failed ``hydromt``/``julia`` step is misread as
-    success (t260721a; dev/followups.md). Teeing in-process restores exit-code
+    success (t260721a; dev/tasks/). Teeing in-process restores exit-code
     fidelity while keeping live console output. The child runs with
     ``shell=False`` so argument quoting is preserved identically across cmd.exe
     and bash (e.g. Julia's ``-e "using Wflow; Wflow.run()"`` stays one argv).

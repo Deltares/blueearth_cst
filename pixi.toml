@@ -43,7 +43,7 @@ r-base = "4.4.*"        # pinned to 4.4: conda-forge's r45 r-waveslim build is b
                         # the r44 build loads fine. Pin is intentionally global (not win-64-only) to keep
                         # R at one version across platforms for reproducibility parity — linux-64 is
                         # unaffected by the bug but rides the same 4.4 for consistency. Revisit when
-                        # conda-forge fixes the r45 Fortran build (see dev/followups.md).
+                        # conda-forge fixes the r45 Fortran build (see dev/tasks/).
 r-remotes = ">=2.5.0,<3" # weathergenr install from GitHub (conda-forge r-pak is broken on win-64)
 r-devtools = "*"        # dev convenience / local install fallback
 r-doparallel = "*"

@@ -113,7 +113,7 @@ for (n in 1:historical_realizations_num) {
   # historical template.
   # REMOVAL CONDITION: drop this block only once tanerumit/weathergenr's
   # write_netcdf propagates spatial_ref (and its ncatt_get check asserts
-  # hasatt=TRUE) — tracked in dev/followups.md § R5. Removing it before the
+  # hasatt=TRUE) — tracked in dev/tasks/ § R5. Removing it before the
   # upstream fix lands breaks the pipeline.
   # Match THIS realization only: all realizations now share one output dir, so
   # an index-free pattern would re-patch realization 1 on every iteration.

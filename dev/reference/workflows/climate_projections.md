@@ -149,7 +149,7 @@ additionally emits the per-model grid netCDFs.
 
 `annual_change_scalar_stats_summary.nc` currently ships **empty CF `attrs`**
 (`{}`) on `precip`/`temp`, a consequence of the M2b hydromt-1.3 regression
-(`dev/followups.md` § R3+). Recorded so a reader of the sealed workflow does not
+(`dev/tasks/` § R3+). Recorded so a reader of the sealed workflow does not
 mistake the empty metadata for correct output — a documentation entry, not a fix.
 
 ## Downstream consumers

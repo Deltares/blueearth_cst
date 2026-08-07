@@ -132,7 +132,7 @@ testing additions that make Phase 2 possible.
 
 ### Known issues / followups
 
-- Test `xfail`s tracked in `dev/followups.md`:
+- Test `xfail`s tracked in `dev/tasks/`:
   - hydromt `to_yml` preprocess strip — upstream hydromt issue.
   - `extract_climate_grid` silent truncation when staged source < requested window — fix in R3.
 - Snakemake bump to 9.20 deferred until upstream relaxes the

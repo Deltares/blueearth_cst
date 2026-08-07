@@ -824,7 +824,7 @@ except Exception:
 # §6.1 calls disk "the BINDING constraint" that forces B small on large
 # RLZ_NUM×ST_NUM runs. The true cap needs a stated disk headroom and a per-run
 # size estimate, neither available at parse time (the forcing NCs are temp() and
-# do not exist yet) — see dev/followups.md § Post-P3-3. Until then batch_size_max
+# do not exist yet) — see dev/tasks/ § Post-P3-3. Until then batch_size_max
 # bounds the blast radius and the footprint; both keys are overridable, and
 # batch_size set explicitly still wins outright.
 def _positive_batch_key(key, value):

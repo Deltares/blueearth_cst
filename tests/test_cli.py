@@ -272,7 +272,7 @@ def test_snakefile_cli_climate_projections(config_with_staged_region):
     `ancient(...)` input Snakemake will not build itself — correct behavior. R3
     stages it in a test-owned tmp project_dir (see the fixture) rather than
     weakening the contract; workflow 2's Snakefile is untouched (R4 territory).
-    Was a MissingInputException ratchet pre-R3 (dev/followups.md).
+    Was a MissingInputException ratchet pre-R3 (dev/tasks/).
     """
     result = _dry_run(
         "Snakefile_climate_projections", cfg=config_with_staged_region
@@ -317,7 +317,7 @@ def test_snakefile_cli_climate_experiment(config_with_staged_region):
     gone the ancient(region.geojson) input existence is checked, so this reuses
     the same staged-region fixture as workflow 2 (region.geojson is the sole
     unbuilt cross-workflow leaf). Was a CyclicGraphException ratchet pre-R5
-    (dev/followups.md § R3).
+    (dev/tasks/ § R3).
     """
     result = _dry_run(
         "Snakefile_climate_experiment", cfg=config_with_staged_region

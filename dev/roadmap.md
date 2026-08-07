@@ -462,13 +462,13 @@ Suite: 120 passed, 3 skipped, 7 xfailed.
   config with `variance.max ≠ variance.min`. Owner `cst-architect` (route to
   `python-engineer` for the one-token fix + baseline re-record). Flagged by a
   `xfail(strict=True)` characterization test that xpasses when the fix lands.
-- **weathergenr `spatial_ref` propagation** (`dev/followups.md` § R5) — the
+- **weathergenr `spatial_ref` propagation** (`dev/tasks/` § R5) — the
   in-repo `generate_weather.R` workaround block STAYS (load-bearing) with a
   tightened removal-condition comment; the real fix is upstream in
   `tanerumit/weathergenr` `write_netcdf`. Upstream weathergenr task.
-- **weathergenr wavelet `>= 16` cryptic error** (`dev/followups.md` § R5) —
+- **weathergenr wavelet `>= 16` cryptic error** (`dev/tasks/` § R5) —
   entirely inside the weathergenr package (`wavelet_cwt.R`); upstream task.
-- **wf1 `| tee {log}` exit-masking-on-failure** (`dev/followups.md`,
+- **wf1 `| tee {log}` exit-masking-on-failure** (`dev/tasks/`,
   cross-cutting) — wf1's three shell rules run correctly on success (the R5 gate's
   wf1 leg passes) but mask the exit code on failure (cmd.exe has no
   `set -euo pipefail` prefix). Latent robustness item, NOT an R5 blocker; migrate
@@ -535,7 +535,7 @@ green (14/23/57 steps); baseline vs the pre-R6 scratch manifest clean modulo
 the three adjudicated copied-config snapshot rows (normalize-then-compare) and
 two **pre-existing** non-deterministic CSV column orderings (unsorted set
 intersection, `PYTHONHASHSEED`-dependent — demonstrated R6-independent, values
-identical by label; see `dev/followups.md`); full-tree semantic diff
+identical by label; see `dev/tasks/`); full-tree semantic diff
 (`dev/scripts/semantic_tree_diff.py`, element-wise `.nc`) clean on all 96
 substantive files. Notable en-route corrections: four design-inventory blind
 spots (extensionless Snakefiles, two-line `script:` form, `data_sources_climate`
@@ -611,7 +611,7 @@ overtaken by events — Phase 4 opened 2026-07-26 for layout consolidation (§ P
 4) — and the owner has now ruled that the WF2 v2.0 rework is **numbered phase
 work**, landing as **Phase 5 / R8** (§ Phase 5) rather than unnumbered.
 
-The former candidate pool stays recorded across `dev/followups.md`, the "Minor
+The former candidate pool stays recorded across `dev/tasks/`, the "Minor
 open items" section below (CI, R testthat, a naming linter), the "Deferred: Linux
 replication" section below, and the deferred items named in the
 P3-2a/P3-2b/P3-3 designs (OQ-3 store, OQ-8 zone source, the 4th Snakefile entry
@@ -781,7 +781,7 @@ measurement in this repo must record `cpu_time` alongside wall and confirm no
 sibling agent session is active.
 Post-P3-3 followups (genuinely disk-aware batch-size cap; the
 `--keep-incomplete` ↔ `--keep-going` probe that could narrow the C5 blast
-radius) in `dev/followups.md` § Post-P3-3.
+radius) in `dev/tasks/` § Post-P3-3.
 
 **Tag.** `p33-performance`.
 
@@ -862,7 +862,7 @@ modules, the `.Rproj`), 17 additions, 3 renames. The large deletion count is the
 milestone's point — the toolbox stopped carrying basin data and duplicated
 configs.
 
-**Post-milestone follow-ups.** `dev/followups.md` § Post-R7 — 21 items, 11
+**Post-milestone follow-ups.** `dev/tasks/` § Post-R7 — 21 items, 11
 resolved (4 fixed, 1 mitigated, 1 answered, 4 closed with reasons). Six further
 commits after the milestone fixed the latent wflow-TOML rebuild defect (R7-1),
 moved the parity transform out of the model package (R7-4), added manifest
@@ -1294,7 +1294,7 @@ passing **unchanged** — no renamed rule alters an output path or value.
   milestone's tolerance / justification rules. No silent updates.
 - **No milestone touches the next milestone's territory.** If you
   find yourself wanting to fix a workflow-2 issue while in R3, write
-  it down in `dev/followups.md` (or `dev/milestones/r04/followups.md` once R4
+  it down in `dev/tasks/` (or `dev/milestones/r04/followups.md` once R4
   is open) and keep going.
 - **PRs back to upstream** (if any) are prepared from
   `pr/<NN>-<topic>` branches per the existing fork workflow guide —
@@ -1318,3 +1318,74 @@ belong, because neither is history:
 
 "Cross-cutting principles" above stays: those are the rules a milestone is run
 under, inseparable from the narrative of the milestones themselves.
+
+## Candidate milestones (moved from `followups.md` 2026-08-07)
+
+These are directions, not tasks. They came out of `followups.md` when the
+todo-board replaced it: a candidate milestone on a task board reads as
+scheduled work, and scheduling it is exactly the decision not yet taken.
+Scope one before it becomes board items.
+
+- **[R7-18] Climate analysis as a fourth Snakefile** — a separate milestone. R7
+  only ensured the layout does not obstruct it, and the model-free store plus
+  rule 1.15 are the enabling pieces.
+
+- **Climate analysis/visualization as a model-independent subworkflow.**
+  *Direction raised by Ümit 2026-07-21 (test/pre06, Observation 4 follow-up).*
+  We should be able to analyze and visualize climate data — gridded meteo
+  diagnostics, forcing climatology, projection change factors — **without**
+  building a hydrology model. Today the WF1 climate QA plots
+  (`src/plot_results.py` §4) are coupled to the built wflow model
+  (`mod.forcing.data`, `staticmaps["subcatchment"]`), and the forcing itself
+  (`inmaps_historical.nc`) is a *product* of the model build. Yet the natural
+  minimal dependency for climate analysis is a region/AOI geometry + data
+  catalog — which WF3's `extract_climate_grid` (rule 3.02: `region.geojson` +
+  clim source → `extract_historical.nc`) and WF2's `monthly_stats_*` already
+  demonstrate (both depend only on `region.geojson`, not the full model).
+  Direction: factor a shared **climate-analysis subworkflow/component** whose
+  inputs are (region/AOI, gridded climate dataset) and whose outputs are
+  climate diagnostics/plots, consumed by WF1 QA, WF2, and WF3 alike; degrade
+  gracefully (region-only → basin-level; + subcatchment map → per-subcatchment).
+  This is *functional* decomposition (capability boundaries), a **new axis**
+  beyond the R6 roadmap's current layout/`enabled:` pain points (roadmap §R6) —
+  add it to the R6 lock list when R6 scoping begins.
+  **Tension to resolve:** ADR 0002
+  (`dev/decisions/0002-revive-subcatchment-climate-plots.md`) currently sources
+  the climate plots from `mod.forcing.data` (re-couples to the build); a modular
+  design would source raw gridded climate (catalog + region) instead. Keep this
+  in mind when ADR 0002 is implemented — it may argue for sourcing from
+  `extract_climate_grid`-style extraction rather than the model forcing. To be
+  discussed at R6 scoping; not to be designed or implemented yet.
+
+- **Reconsider the WF1 rule arrangement — bundle/split + rename.**
+  *Direction raised by Ümit 2026-07-21 (test/pre06, Observation re: WF1's 11
+  rules).* NOT covered by R6's current lock list (which is repo/directory
+  layout + `enabled:`); this is rule-level composition *within* a workflow — a
+  new R6 axis. WF1 today has 12 rules (1.01–1.12; see `Snakefile_model_creation`
+  and naming.md §9): copy_config, prepare_build_config, create_model,
+  add_reservoirs_lakes_glaciers, add_gauges_and_outputs, write_outlet_index,
+  setup_runtime, add_forcing, run_wflow, plot_results, plot_map, plot_forcing.
+  Candidates to weigh:
+  - **Plotting is three separate rules** (plot_results 1.10, plot_map 1.11,
+    plot_forcing 1.12), each a `script:` emitting PNGs and now sharing
+    `save_figure`. Consider consolidating into fewer rules (or one parameterized
+    "plots" rule / a plotting sub-component) and a shared plotting module.
+  - **Model-update chain is finely split** (create_model → add_reservoirs… →
+    add_gauges… → write_outlet_index → setup_runtime → add_forcing). Some splits
+    are historical: `add_reservoirs_lakes_glaciers`'s own comment says it "can be
+    moved back to create_model when hydromt is updated" — a standing re-merge
+    candidate.
+  - **Verb standardization**: rules mix `create_`/`add_`/`setup_`/`prepare_`/
+    `write_`/`plot_`/`run_`; `prepare_build_config` vs `setup_runtime` vs
+    `create_model` overlap semantically. Align on a small verb vocabulary
+    (naming.md §2 already prescribes `verb_noun`).
+  **Key tradeoff — do not bundle blindly:** separate rules give Snakemake
+  parallelism and *targeted* re-runs (edit forcing → only `plot_forcing` reruns);
+  bundling coarsens the DAG and re-runs more on any change. Weigh granularity vs.
+  readability per rule. Interactions: any reorg renumbers the `W.NN` scheme
+  (naming.md §9 documents this as a mechanical cost), touches CLI target names
+  (a naming.md §7 contract-surface rename → migration note), and overlaps the
+  climate-subworkflow item above (plotting may move out of WF1 entirely). Same
+  lens applies to WF3 (also 11 rules). To be discussed at R6 scoping; not to be
+  designed or implemented yet.
+
