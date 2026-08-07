@@ -42,3 +42,19 @@ isolation_landing: auto # auto | approval
 # deliberately, not as a side effect of finishing a task; flip to `true` to
 # re-enable the >24h / 25-commit backup trigger.
 auto_push: false # true | false
+
+# Untracked trees the launcher COPIES into every new worktree. `git worktree add`
+# brings tracked files only, and `test_case/` is untracked — so without this the
+# fixture-dependent tests SKIP rather than fail, and the suite reports a green
+# gate having never run them. Measured 2026-08-07 on one branch: unseeded gave
+# 1567 passed / 31 skipped and read as clean; seeded gave 1590 passed / 8 skipped.
+# Twenty-three tests had silently not run, on a branch rebased across the R9 tree
+# move — precisely what they cover.
+#
+# COPIED, never linked: tests/test_model_rebuild_cascade.py runs a real
+# `snakemake all` against the fixture, so a link would point two checkouts at one
+# project_dir. List the subtrees, not `test_case/` itself — that is 361 MB, mostly
+# superseded reference trees. Full rationale in AGENTS.md, worktree section.
+worktree_seed:
+  - test_case/test_local          # 46 MB; named by 18 of the 25 fixture references
+  - test_case/basin_map_fixture   # 248 KB; only dev/scripts/preview_basin_map.py
