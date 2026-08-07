@@ -98,7 +98,7 @@ items below and in ADR 0003. The landing order it recommended, adopted:
 | 3 | ~~`[R10-1]` merge~~ **DONE 2026-08-06** · ~~`[R10-2]` split~~ **DROPPED 2026-08-06** — no seam worth its price; `evaluate_` withdrawn with it | the merge was small and behaviour-preserving; the split turned out not to have the seam it assumed |
 | 4 | ~~`[R10-6]` §8–10 — the vector/raster split~~ **DONE 2026-08-06** (rules `1.01c` / `2.03c` / `3.01f`; nine WF1 artifacts byte-identical; ADR §8–10 now **accepted**). Baseline gate still open | changes the rule count of all three workflows |
 | 5 | ~~`[R10-6]` §11a then §11b~~ **DONE 2026-08-06 as ONE landing** — measurement collapsed the split: the fixture's partition saturates at 5 subbasins from ceiling 5 up, so §11b moves nothing and only the key rename shows. **Baseline re-recorded `ea5ac59`** | §11b turned out NOT to be a baseline event on this fixture |
-| 6 | ~~R10 renames + `[R10-5]` renumber + `[R10-7]` + `[R10-10]`~~ **DONE 2026-08-06** — eight commits; the number map was regenerated FIRST and owner-approved before any code moved against it. `[R10-9]`'s deferred ordering assertion landed with the renumber that makes it true. Gates: `pytest tests/` 1503 passed; `check_baseline.py check` **OK, 8/8, no re-record**; `pixi run tree-check` **186 paths, 0 unmapped** | against a rule set that is finally stable; regenerate the number map from it. `[R10-10]` rides here because it and `[R10-9]`'s ordering assertion touch the same test file |
+| 6 | ~~R10 renames + `[R10-5]` renumber + `[R10-7]` + `[R10-10]`~~ **DONE 2026-08-06** — eight commits; the number map was regenerated FIRST and owner-approved before any code moved against it. `[R10-9]`'s deferred ordering assertion landed with the renumber that makes it true. Gates: `pytest tests/` 1526 passed (primary, fixture layer included); **a full three-workflow run** — WF1 17/17, WF2 14/14, WF3 34/34, every merged-log section present in number order and no `_parts/` surviving, including the batch and fan-out labels no test reaches; `check_baseline.py check` **OK 8/8 AFTER that run**; `pixi run tree-check` **186 paths, 0 unmapped** | against a rule set that is finally stable; regenerate the number map from it. `[R10-10]` rides here because it and `[R10-9]`'s ordering assertion touch the same test file |
 | — | ~~`[R10-11]` tree-check on a post-migration tree~~ **DONE 2026-08-06** — post-migration inventory is the default; 186/186 identity on the live tree | done before step 6, so the sweep has a working tree-shape gate while it runs |
 | 7 | ~~`[R10-6]` §12~~ **DONE 2026-08-06** — landed with §11's re-record still pending, so ONE re-record covered both: **`ea5ac59`**, 4 targets (3 config snapshots + `q_indicators.csv`). Nothing further owed | standalone, last |
 
@@ -115,6 +115,79 @@ must ADD rows, not only renumber the 45 that were there; `3.01f` in particular
 exists only because `3.01c`–`3.01e` were taken, and renumbering is what removes
 that awkwardness.
 
+- **[R10-12] `inmaps_historical.nc` is not byte-reproducible, so every model
+  rebuild trips WF3's drift guard.** *Found 2026-08-06 by the R10 step-6
+  three-workflow run — the first time WF1 had been re-run end to end since the
+  guard was built.*
+
+  WF1 rebuilt the model; `check_model_reference` then failed at job 1 of 34
+  naming exactly one changed input: `forcing/inmaps_historical.nc`.
+  `staticmaps.nc` and `wflow_sbm.toml` were unchanged.
+
+  **The values did not move — only the bytes.** The old file was overwritten so
+  it cannot be diffed directly, but `run_default/output.csv` is a baseline
+  target, is a deterministic function of (forcing, model, TOML), and matched
+  byte-for-byte. Had the forcing numbers changed, that would have moved. The NC
+  carries no global attributes, so it is not an embedded timestamp; most likely
+  HDF5 chunk/encoding layout from the hydromt write.
+
+  **The guard is behaving correctly and must not be "fixed" by loosening it.**
+  `write_model_reference` declares its model inputs `ancient()` *on purpose* —
+  a reference that refreshed whenever the model changed would always match and
+  the comparison would be decorative. That asymmetry IS the mechanism.
+
+  **The cost is operational and lands on a real project, not the fixture:** any
+  WF1 rebuild blocks every existing experiment until its reference is
+  re-recorded, including rebuilds that changed nothing numeric. On the fixture
+  the recovery is to delete `<exp>/config/model_reference.yml` and let
+  `write_model_reference` regenerate it; on a real project that is a decision
+  ("this experiment now accepts the rebuilt model"), not a chore.
+
+  Options when picked up, in preference order: **(a)** make the digest ignore
+  the forcing NC's storage layout — hash its *values* (variable-wise checksums)
+  rather than the file, which is what `compare_model_digest` would need;
+  **(b)** make the hydromt forcing write byte-deterministic by pinning
+  encoding/chunking, if hydromt exposes that; **(c)** accept it and document the
+  re-record step as normal after any rebuild. (a) is the honest fix — the guard
+  should fire on physics changes, not on chunk layout.
+
+- **[R10-13] A failing `check_model_reference` writes an empty log part, so the
+  file the error points at is useless.** *Same run.* Snakemake reported
+  `Error in rule check_model_reference … log: …/3.06_check_model_reference.log
+  (check log file(s) for error details)`, and that file contained the three
+  header lines and nothing else. The `ModelDriftError` — which names the changed
+  input, the useful part — went to the Snakemake log instead.
+
+  It is a `script:` rule, so `tee_to_log` captures Python-level streams; an
+  exception propagating out of the script is not written through the tee before
+  the process dies. Cheap fix: catch, log the diff lines to the rule's own log,
+  re-raise. **The message actively misdirects** — it tells an operator to read a
+  file that will not explain the failure, which is worse than saying nothing.
+  Likely applies to every `script:` rule that raises, not just this one; check
+  before scoping.
+
+- **[R10-14] A comment-only edit to a shared-rule script invalidates two whole
+  workflows.** *Same run.* The `[R10-7]` rename touched one line inside
+  `blueearth_cst/spatial/delineate_region.py`. Snakemake's `code` rerun-trigger
+  hashes the entire script text, comments included, so `delineate_region`
+  re-ran, `region.geojson` was rewritten, and all 17 WF1 jobs plus all 25 WF2
+  jobs were scheduled from it.
+
+  Correct Snakemake behaviour, and convenient here — it gave a full run with no
+  `--forceall`. But it is the same over-invalidation the WF2 design already
+  engineered around: `series_identity.kernel_hash` hashes the *behaviour* of
+  enumerated reduction functions rather than file bytes, precisely so an
+  error-handling edit does not re-derive nine series over the network (the 4c
+  incident). The three shared-rule scripts have no equivalent protection, and
+  they are the highest-fan-out scripts in the repo — one of them re-running
+  cascades into every workflow that declares it.
+
+  Not urgent, and possibly not worth fixing: the safe direction for a cache is
+  to over-invalidate. Recorded because the *asymmetry* is surprising — WF2's
+  reducer is protected and the shared region/vector/store producers are not —
+  and because anyone editing a comment in those three scripts should know it
+  costs a full re-run of up to three workflows.
+
 - **[R10-1] Merge rule 1.07 `setup_runtime` into 1.08 `add_forcing`.**
   **DONE 2026-08-06** — `blueearth_cst/model/add_climate_forcing.py`; gate
   `pytest tests/test_cli.py` (12 passed) + `test_log_rules_contract.py` +
@@ -130,9 +203,18 @@ that awkwardness.
   `run_logged` captured before. The recipe builder in
   `shared/setup_time_horizon.py` is untouched and still directly tested.
 
-  **NOT executed.** `test_cli.py` dry-runs; it does not run hydromt. A real WF1
+  ~~**NOT executed.** `test_cli.py` dry-runs; it does not run hydromt. A real WF1
   run in the primary checkout is still owed before this is trusted — the risk is
-  the subprocess plumbing, not the recipe.
+  the subprocess plumbing, not the recipe.~~ **EXECUTED 2026-08-06**, in the R10
+  step-6 three-workflow run: WF1 17/17, the merged rule's `log:` part carries
+  hydromt's streamed `-vv` output (so the `tee_to_log` concern was real and is
+  handled), and `run_default/output.csv` came back **byte-identical to the
+  baseline** — the forcing this rule now builds drives an identical model run.
+  The plumbing is trusted.
+
+  **One thing the run surfaced about its output**, tracked separately as
+  `[R10-12]`: `forcing/inmaps_historical.nc` is not byte-reproducible across
+  rebuilds, so it trips WF3's model-drift guard even when nothing numeric moved.
 
   *Original brief:* 1.07 writes a hydromt forcing build
   recipe (`<model>/config/build_historical_forcing.yml`) whose **only** consumer
