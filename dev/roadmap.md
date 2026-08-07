@@ -27,15 +27,15 @@ phase to change what a workflow *computes* and how its rule graph is shaped,
 starting with workflow 2. Milestone R8; design and audit trail under
 `dev/reference/workflows/`. See § Phase 5 below.
 
-**Phase 6 — Project tree redesign (R9 open, registered 2026-08-04).** Replaces the
+**Phase 6 — Project tree redesign (R9 SEALED 2026-08-07).** Replaced the
 *semantic roots* of the generated `project_dir` — `config/`, `data/`, `models/`,
-`experiments/` — where Phase 4 consolidated the layout it inherited. Also adopts a
+`experiments/` — where Phase 4 consolidated the layout it inherited. Also adopted a
 filename convention for generated artifacts, a pointer-derived model fingerprint,
 and an experiment lifecycle. One milestone, R9; dev artifacts under
 `dev/milestones/r09/`. See § Phase 6 below.
 
-**Phase 7 — Naming coherence (R10 open, registered 2026-08-04).** Brings the
-twenty-eight Snakemake rule identifiers onto one verb-and-noun scheme. Split from
+**Phase 7 — Naming coherence (R10 SEALED 2026-08-07).** Brought the
+Snakemake rule identifiers onto one verb-and-noun scheme. Split from
 Phase 6 for the same reason Phase 5 was split from Phase 4: rule names are a CLI
 contract surface, not part of the artifact tree, and no durable artifact path
 carries one. One milestone, R10; dev artifacts under `dev/milestones/r10/`. See
@@ -1071,7 +1071,7 @@ yet.
 
 ---
 
-## Phase 6 — Project tree redesign (R9 OPEN)
+## Phase 6 — Project tree redesign (R9 SEALED 2026-08-07)
 
 Registered 2026-08-04. Phase 4 consolidated the generated tree it inherited —
 producer-oriented roots (`climate_historical/`, `climate_projections/`,
@@ -1086,14 +1086,41 @@ its record stays as written. This is a second, deeper pass over the same surface
 not a correction of the first — R7's depth-agnostic run-directory handling is
 precisely what makes R9's flattening cheap.
 
-### R9 — Generated project tree (OPEN)
+### R9 — Generated project tree (SEALED 2026-08-07)
 
-**Status.** Design **ACCEPTED** by the owner 2026-08-04:
-`dev/milestones/r09/project-tree-design.md` (v10). Task briefs written — the
-master `project-tree-task-brief.md`, the path map `migration_project-tree.md`,
-and one brief per phase (P1–P5). Integration branch cut 2026-08-04. **Not yet
-implemented**: the branch carries design and brief commits only, and no phase
-work has started.
+**Status.** **SEALED 2026-08-07**, tag `r09-project-tree`. All five phases
+implemented and merged; landing gate nine of nine. Closing record:
+`dev/milestones/r09/closing-record.md`; gate evidence `landing-gate.md`.
+
+The seal is dated two days after the work finished (2026-08-05) because nothing
+prompted it — the roadmap went on describing R9 as "not yet implemented" while
+`main` carried the whole milestone. That gap is the reason **Cross-cutting
+principles** now names the seal as the milestone's own last step rather than an
+implied consequence of merging.
+
+**What landed.** `project_dir` has six roots — `config/ data/ models/
+experiments/ logs/ benchmarks/` — and every artifact sits at the scope of the
+producer that wrote it, verified on a fresh run as those six and nothing else.
+P1 built the comparator (a 59-rule path map, `--check-map`, orphan-store pruning,
+two inventory tiers, both zero-unmapped); P2 moved the tree and flattened
+fan-out members back into filenames; P3 renamed the result tables and proved
+value identity **byte-identical before** the single allowed baseline re-record;
+P4 added the pointer-derived model digest, `model_reference.yml`, a drift guard
+ordered before simulation, and experiment freezing; P5 amended `naming.md`
+§4/§6/§7/§8/§9, `AGENTS.md`, `README.rst` and both seam contracts.
+
+**The lesson worth carrying.** The landing gate found **four** defects, and
+`pixi run test-full` was green over every one of them. A `from __future__` import
+in three `script:` modules made them unrunnable while 28 unit tests passed
+against them, because importing a module is not executing it under Snakemake's
+prepended preamble. The drift guard was asserted structurally — an input edge
+orders A before B but does not make A re-evaluate — so it detected and never
+fired. Both are now cited where they can be acted on rather than only here
+(`AGENTS.md`, the validation ladder).
+
+**Carried forward, not resolved:** `[R9-1]` colliding geojson basenames and
+`[R9-5]` the baseline member's presence differing between the two table shapes.
+Both are on the board.
 
 Drafted as an external-review brief and then **accepted without external review**
 — the owner waived it. The design says so on its face and records the two
@@ -1214,11 +1241,12 @@ until P3's re-record, and that window must not sit on `main`. It merges to
 `main` once, green, at the seal (Gate 3). Inventory in
 `dev/reference/git-conventions.md`.
 
-**Tag.** `r09-project-tree` *(on seal)*.
+**Tag.** `r09-project-tree` — cut 2026-08-07 on the milestone branch's tip
+(`ca3fca5`), matching how every prior milestone was tagged.
 
 ---
 
-## Phase 7 — Naming coherence (R10 OPEN)
+## Phase 7 — Naming coherence (R10 SEALED 2026-08-07)
 
 Registered 2026-08-04, out of the R9 inventory: mapping every rule's outputs made
 the rules' own names hard to ignore. Phases 4–6 worked on artifacts; Phase 7
@@ -1231,11 +1259,48 @@ names reach `project_dir` only through transient log/benchmark part directories
 and as section labels inside two merged files. There is no shared cost to
 capture, and R9 is already carrying six kinds of change.
 
-### R10 — Rule naming (OPEN)
+### R10 — Rule naming (SEALED 2026-08-07)
 
-**Status.** Design **ACCEPTED** by the owner 2026-08-04:
-`dev/milestones/r10/rule-naming-design.md`. Not implemented; no task brief, no
-branch.
+**Status.** **SEALED 2026-08-07**, tag `r10-rule-naming`. Landed 2026-08-06 as a
+seven-step sequence; migration record `dev/milestones/r10/migration_rule-names.md`.
+
+**What landed, and it is more than the renames.** The design was reviewed by a
+`cst-architect` pass against the code, which found several defects the design had
+asserted its way past. The sequence that followed: a stale `LOG_RULES` entry and
+the rule-index diagram fixes `[R10-8]`/`[R10-4]`; the `LOG_RULES` conformance test
+`[R10-9]`, written **before** the sweep that would edit it; the `[R10-1]` merge,
+with `[R10-2]`'s split **dropped** once measurement showed the seam it assumed did
+not exist; ADR 0003 §8–12, which split `prepare_spatial_maps` at the thematic seam
+and made `wflow_id` basin-blocked; then the twelve renames, the `[R10-5]`
+renumber, `[R10-7]` and `[R10-10]`.
+
+**Two things went differently than planned, both worth keeping.** The
+double-renumber contradiction was resolved by moving the renumber to **last**,
+after the rule set stopped changing — the published 45-identifier map had to gain
+rows, not merely be renumbered, because §8 added three identifiers. And §12's
+`wflow_id` change uncovered a live defect rather than being cosmetic:
+`output.csv` had been shipping `Q_101` twice, a collision that had already leaked
+into WF3's response surface as a column named `Q_101.1`.
+
+**Gates.** `pytest tests/` 1526 passed from the primary checkout with the fixture
+layer included; a **full three-workflow run** — WF1 17/17, WF2 14/14, WF3 34/34,
+every merged-log section present in rule-number order with no `_parts/`
+surviving, including the batch and fan-out labels no test reaches;
+`check_baseline.py check` OK 8/8 run *after* that; `pixi run tree-check` 186
+paths, 0 unmapped. `naming.md` gained §8b (the verb vocabulary) and §9 was
+**reversed** to make `NN` positional.
+
+**One deliberate narrowing, recorded so it is not read as an oversight.** The
+scope was the rule *identifier*. Five modules keep their old names, so
+`plot_wflow_evaluation` executes `plot_results.py`, `fetch_gcm_slice` executes
+`fetch_gcm_raw.py`, and three others likewise. Renaming a module is an
+import-surface change and was kept out; `migration_rule-names.md` §"Script
+modules did NOT move" carries the list.
+
+**Carried forward:** `[R10-12]` the forcing NC's non-reproducible bytes tripping
+WF3's drift guard, `[R10-13]` a failing `script:` rule writing an empty log part,
+`[R10-14]` the shared-rule comment-edit cascade, `[R10-9]`'s one-constant-per-rule
+half, and `[R10-6]`'s unmeasured WF2 hydrography read cost. All on the board.
 
 **Goal.** Every rule reads `<verb>_<noun>`, verb first, drawn from a controlled
 verb list so that two rules doing the same kind of work read the same. Ten of
@@ -1270,20 +1335,40 @@ renumber, which would churn every part path across all three workflows for
 nothing. `naming.md` should also gain the verb vocabulary; it has no rule-naming
 section today.
 
-**Exit criteria.** Design accepted *(done 2026-08-04)*; ten renames landed with
-`LOG_RULES` updated in the same edit; `migration_rule-names.md` recorded per §7;
-`pytest tests/` green; a full three-workflow run showing a merged-log section for
-every rule and no surviving `_parts/`; a repository-wide grep for each old name
-returning nothing outside the migration record; and `check_baseline check`
-passing **unchanged** — no renamed rule alters an output path or value.
+**Exit criteria — all met.** Design accepted *(2026-08-04)*; the renames landed
+with `LOG_RULES` updated in the same edit — **twelve, not ten**, the count having
+grown as the name-vs-body audit found more; `migration_rule-names.md` recorded per
+§7; `pytest tests/` green (1526, primary checkout); the full three-workflow run
+showing a merged-log section for every rule and no surviving `_parts/`; the
+repository-wide grep for each old name returning nothing outside the migration
+record **and the documented module-name narrowing above**; `check_baseline check`
+passing **unchanged**, no renamed rule having altered an output path or value.
 
-**Tag.** `r10-rule-naming` *(on seal)*.
+**Branch.** `milestone/r10-rule-naming` — cut retroactively 2026-08-07 at
+`7164d83`, R10's completion point. R10 is the one milestone whose work did not run
+on its own branch: it landed through `fix/r09-followups`, because it began as R9
+followups and grew into the milestone. The branch exists so the inventory in
+`dev/reference/git-conventions.md` has a row for every milestone; it records where
+R10 finished, not a history of how it got there.
+
+**Tag.** `r10-rule-naming` — cut 2026-08-07 on that branch.
 
 ---
 
 ## Cross-cutting principles
 
 - **Every milestone ends with a tag.** Tags are the rollback points.
+- **The seal is the milestone's last STEP, not a consequence of merging it.**
+  Merging the work and recording that it happened are separate acts, and nothing
+  prompts the second. R9 and R10 both finished, merged, and then sat with this
+  file still describing them as unimplemented — R10's section read "Not
+  implemented; no task brief, no branch" while `main` carried all seven of its
+  steps and every gate had passed. A backlog review caught it 2026-08-07, not the
+  work itself. Sealing means, in one sitting: tag, update this file's phase
+  summary AND its milestone section, update the branch inventory in
+  `dev/reference/git-conventions.md`, and **ask which reference documents the
+  milestone superseded** so they can be sealed while the answer is still known
+  (`AGENTS.md`, Conventions). None of it is inferable later.
 - **Every milestone preserves the M1 baseline** unless it is
   *intentionally* changing behavior. R3, R4, R5 are each allowed to
   change their own workflow's slice of the manifest — with a

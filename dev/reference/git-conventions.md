@@ -33,7 +33,8 @@ Inventory last updated: 2026-08-04.
 | `milestone/p33-performance`      | **Sealed** 2026-07-25 (tag `p33-performance`) — P3-3 performance passes. Merged to `main`. Kept alive as a durable phase marker. |
 | `milestone/r07-layout`           | **Sealed** 2026-07-29 (tag `r07-layout`) — R7 project layout; behaviour-preserving. Merged to `main`. Kept alive as a durable phase marker. |
 | `milestone/r08-wf2-projections`  | **Sealed** 2026-07-31 (tag `r08-wf2-projections`) — R8 WF2 v2.0 GCM projections analysis. Merged to `main`. Kept alive as a durable phase marker. |
-| `milestone/r09-project-tree`     | **Active** — R9 project-tree migration; cut 2026-08-04 from `main`'s tip. Merges to `main` once, at the seal, then tag `r09-project-tree`. Local only, not pushed. The baseline is red by construction from the first P2 commit until P3's re-record, which is why that window is contained here and never on the trunk. |
+| `milestone/r09-project-tree`     | **Sealed** 2026-08-07 (tag `r09-project-tree`) — R9 project-tree migration; all five phases, landing gate nine of nine. Merged to `main`. Kept alive as a durable phase marker. |
+| `milestone/r10-rule-naming`      | **Sealed** 2026-08-07 (tag `r10-rule-naming`) — R10 rule identifiers. Cut **retroactively** at `7164d83`, R10's completion point: the work ran on `fix/r09-followups` because it began as R9 followups and grew into the milestone, so this branch records where R10 finished rather than how it got there. Kept alive as a durable phase marker. |
 | `origin/fao` (remote-only)       | Inherited upstream project branch (FAO / DCRM work, ~32 commits off-trunk). Not tracked locally; review before ever deleting. |
 
 ## Tags
@@ -61,6 +62,8 @@ Tags are permanent rollback points; they never move.
 | `p33-performance` | 2026-07-25 | Phase 3 seal: performance passes; user-signed milestone gate. |
 | `r07-layout`      | 2026-07-29 | Phase 4 seal: project layout — single climate store with a model-free shared producer, engine subtrees under `project_dir`, config split four ways, project-level `plots/` and `data/` retired. Behaviour-preserving (full-tree semantic diff clean, discharge bit-identical). |
 | `r08-wf2-projections` | 2026-07-31 | Phase 5 seal: WF2 v2.0 GCM projections analysis; all seven §8 migration steps implemented. User migration note in `docs/migration-r08-wf2.md`. |
+| `r09-project-tree` | 2026-08-07 | Phase 6 seal: generated project tree — six semantic roots, fan-out members keyed by filename, result tables renamed, pointer-derived model fingerprint with a drift guard, experiment freezing. Landing gate nine of nine; closing record `dev/milestones/r09/closing-record.md`. Work completed 2026-08-05; sealed two days later, which is why the seal is now a named step in the roadmap's cross-cutting principles. |
+| `r10-rule-naming` | 2026-08-07 | Phase 7 seal: rule identifiers on one `<verb>_<noun>` scheme — twelve renames, `W.NN` renumbered to follow the DAG, `LOG_RULES` made a conformance test, and ADR 0003 §8–12's spatial-units split. Gates: suite 1526 from the primary, a full three-workflow run, `check_baseline` 8/8 after it, `tree-check` 186/0. Script modules deliberately not renamed. |
 
 `r05-experiment`, `p31-experiments`, `p32a-climate-analysis`, and
 `p32b-interchange-contracts` are **lightweight** tags; every other tag above is
