@@ -21,7 +21,6 @@
 | t2608071217 | Recover per-cst persistence isolation under batching | wf3 batching | P3-3 | 16 | backlog |
 | t2608071218 | Make a code change to wf2's rule 2.04 actually re-trigger it | wf2 | R6 | 17 | backlog |
 | t2608071219 | Capture a failing `script:` rule's traceback in its log part | ergonomics |  | 18 | backlog |
-| t2608071944 | Settle whether unit B's cst_ to st_ rename reaches the frozen experiment.yml | wf3 identification | R11 |  | backlog |
 | t2608071945 | Decide whether the tee_to_log traceback fix lands inside R11 or on its own | workflow ergonomics | R11 |  | backlog |
 
 ## Watching
@@ -40,3 +39,4 @@
 | t2608071228 | dask cannot be stubbed at module level, because pandas imports it lazily and reads `dask.__spec__` | tests | M02c | pandas changes how it probes dask, or a test needs dask stubbed and hits the wall. |
 | t2608071229 | hydromt's `to_yml` silently strips `driver.options.preprocess` on a catalog round-trip | upstream / hydromt | M02b | Upstream fixes `to_yml` — `tests/test_prepare_climate_data_catalog.py`'s xfail flips to a pass and fails CI under strict, which is the signal. |
 | t2608071230 | Outlet stations are named by subcatchment ID, which is not a human-readable station name | naming | M02b | The owner rules on a naming scheme, or a deliverable needs readable station names. |
+| t2608072234 | Changing any climate_experiment config key breaks every experiment that has already run | wf3 experiment lifecycle | R11 | A third milestone needs the same ruling, or a real project reports being unable to continue an experiment. At that point the freeze wants a schema-version concept rather than a per-milestone support decision. |
