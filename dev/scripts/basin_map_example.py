@@ -17,7 +17,11 @@ import xarray as xr
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
-from blueearth_cst.shared import plot_map  # noqa: E402
+# F401: `plot_map` reads as unused because every line that touches it is
+# COMMENTED OUT by design -- the tunable block below is a menu of
+# `plot_map.FONT_SIZE_BASE = ...` overrides you uncomment. Deleting this import
+# would break the file the moment it is used as intended.
+from blueearth_cst.shared import plot_map  # noqa: E402,F401
 from blueearth_cst.shared.plot_map import plot_basin_map  # noqa: E402
 
 
