@@ -33,12 +33,12 @@ the contract validators enforce the new shape.
 
 ### Non-goals
 
-- **C28 / `st_id` — moved to P2.** The register lists it under unit A, but its
-  header is `metric, st_id, …` and its mandatory consistency check compares the
-  results against the design table's row for that `st_id`. That design table is
-  C23–C27, which is unit B. C28 therefore cannot land before P2 and carries its
-  two obligations with it (the consistency assertion, and the hard stop at a third
-  stress dimension). *Deviation from the register's batch plan — confirm at Gate 1.*
+- **C28 / `st_id` — moved to P2. RULED 2026-08-07**, so P1's header is **six**
+  columns and this is settled, not provisional. C28's consistency check compares
+  the results against the design table's row for that `st_id`, and that table is
+  unit B's; it carries both of its obligations to P2 with it. Full reasoning,
+  including why pulling the design table forward was rejected on a half-migrated
+  `st_0`/`cst_0` window: `wf3-consolidation-scope.md` §3.
 - Unit B's `cst_`→`st_` rename, the design table, C34, F7 — all P2.
 - `[R10-13]`, the `[R10-12]` runbook line, the baseline re-record — all P3. **P1
   leaves the baseline red**; that is expected and is why the re-record is one step
@@ -143,9 +143,8 @@ rather than a rubber stamp.
 
 **Human gates**
 
-1. **Before starting** — confirm C28's move to P2. It deviates from the
-   register's batch plan; the owner may prefer to pull the design table forward
-   into P1 instead.
+1. ~~Confirm C28's move to P2.~~ **RELEASED 2026-08-07** — ruled, C28 is P2's.
+   P1 starts without waiting.
 2. **Before any gate run** — deleting the fixture's frozen experiment is
    destructive and needs explicit approval, even though it is a fixture.
 3. **At phase end** — report the baseline delta and STOP. P3 owns the re-record;

@@ -65,12 +65,34 @@ called** — not how it executes.
 
 | Unit | Changes | Work |
 | --- | --- | --- |
-| **A — result tables** | C2–C21, C28 | `q_indicators.csv` wide→long; one table per variable present in `wflow_outvars`; six fixed columns; rows-not-columns for locations. Rewrite `derive_wflow_indicators`, rework `validate_hm7` and the relational validator, update tests |
-| **B — run identification** | C22–C27 | `cst_`→`st_` rename, the design table, DAG-time enumeration |
+| **A — result tables** | C2–C21 | `q_indicators.csv` wide→long; one table per variable present in `wflow_outvars`; **six** fixed columns; rows-not-columns for locations. Rewrite `derive_wflow_indicators`, rework `validate_hm7` and the relational validator, update tests |
+| **B — run identification** | C22–C27, **C28** | `cst_`→`st_` rename, the design table, DAG-time enumeration, and `st_id` in the results tables |
 | **C — generator plumbing** | C34 only | audit both weathergenr call sites. C29 already landed as CR-5 (rule 3.05 retired, `9260668`) |
 | **F7** | one line | declare the weathergen template as an input to rule 3.04 |
 | **`[R9-5]`** | folds into A | the unperturbed baseline in both table shapes |
 | **`[R10-13]`** | small, cross-cutting | a failing `script:` rule must write its traceback to its own log part |
+
+### C28 moved from unit A to unit B — ruled 2026-08-07 (Gate 1)
+
+The register's batch plan lists C28 under unit A, but its header is
+`metric, st_id, …` and its mandatory consistency check compares the results
+against *the design table's row for that `st_id`* — and that table is C23–C27, in
+unit B. C28 cannot land before it exists, and it takes both of its obligations
+with it: the consistency assertion, and the hard stop when a third stress
+dimension arrives.
+
+**The alternative was rejected on a half-migrated window.** Pulling the design
+table forward into unit A looks tidier — the results header would reach its final
+seven columns in one move — but C23 specifies a row for **`st_0`**, the *new*
+token, while C22's rename stays in unit B. Unit A would therefore either emit
+`st_0` beside `cst_0` filenames for a whole phase, or write `cst_0` and have unit
+B rewrite the table it had just built. Moving C28 has no such window: unit A has
+no `st_id` at all and filenames stay `cst_`, then unit B lands the rename and the
+table together, consistent at both ends.
+
+**Cost accepted:** HM-7's pinned columns and the seam contract change twice, six
+then seven. The second change is new behaviour rather than redone work, and the
+single P3 re-record absorbs both table moves.
 
 ### F7 is here because unit D's deferral orphaned it
 
@@ -168,8 +190,8 @@ sealed 2026-08-07).
 
 | Phase | Contents | Risk |
 | --- | --- | --- |
-| **P1** | Unit A — result tables. **Deletes the fixture's frozen experiment first** (§9) | medium; moves numbers |
-| **P2** | Unit B, with C34 and F7 alongside | medium; moves paths and names |
+| **P1** | Unit A — result tables, six columns. **Deletes the fixture's frozen experiment first** (§9). Brief: [`phase-1-result-tables-task-brief.md`](phase-1-result-tables-task-brief.md) | medium; moves numbers |
+| **P2** | Unit B **including C28**, with C34 and F7 alongside — the rename, the design table, and `st_id` land together | medium; moves paths and names |
 | **P3** | `[R10-13]`, the `[R10-12]` runbook line, then the single re-record | low |
 
 **One human gate, before the re-record:** the scientific-delta check R9 used.
