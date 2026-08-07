@@ -75,7 +75,15 @@ The tree is self-explanatory; these are the parts that are not.
   Snakemake idempotence, which is why no path here generates one.
 - `dev/` — planning, audits, design docs, conventions, roadmap, the baseline
   manifest, and dev-process helpers under `dev/scripts/`. Not shipped, not
-  user-facing. Three inspection helpers, all **report-only by default**:
+  user-facing. **Open work lives on the todo-board**: one note per item under
+  `dev/tasks/`, closures in `dev/LOG.md`, and `dev/TODO.md` is **generated**
+  (`todoboard render` — do not hand-edit it, edit the note). A note is a
+  `todo-item` (work) or a `watch-item` (true and worth seeing, but no action
+  intended — it carries a **Trigger** naming what would make it work). This
+  replaced `dev/followups.md` on 2026-08-07; everything closed before that is
+  in `dev/followups-archive.md`, which stays readable because code, tests and
+  Snakefiles cite its item IDs. Three inspection helpers, all **report-only by
+  default**:
   `prune_series_cache.py` (orphaned WF2 series), `prune_climate_store.py`
   (stale `<source>_<window>` climate stores, R9) and `snapshot_project_tree.py`
   (a tree as a path list, checked against the post-migration inventory — also

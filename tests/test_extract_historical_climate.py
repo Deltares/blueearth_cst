@@ -3,7 +3,7 @@
 This module is heavily coupled to hydromt I/O; we test the function's
 configuration logic (driver options, variable lists, clim_source
 branching) and skip the deeper reprojection paths. The truncation
-warning xfail captures the R3 followup bug from dev/followups.md.
+warning xfail captures the R3 followup bug from dev/tasks/.
 """
 from __future__ import annotations
 
@@ -317,7 +317,7 @@ def test_starttime_and_endtime_passed_to_get_rasterdataset(tmp_path, fake_era5_c
     """The function MUST pass its starttime/endtime params through to hydromt.
     Note: this tests the FUNCTION's behavior, not the Snakefile rule that
     invokes it. The rule-level bug (Snakefile_climate_experiment hardcoding
-    dates) is separately tracked in dev/followups.md R5 and belongs to an
+    dates) is separately tracked in dev/tasks/ R5 and belongs to an
     integration test, not this unit."""
     region = tmp_path / "region.geojson"
     region.write_text("{}")

@@ -27,7 +27,7 @@ re-run when a similar symptom appears. Not part of any workflow.
 |---|---|
 | [`inspect_era5_nan.py`](inspect_era5_nan.py) | Where the NaN values around 2010-2011 in the staged era5_daily zarr come from (source vs `subset_zarr()` step). |
 | [`probe_era5.py`](probe_era5.py) | Definitive NaN count on the staged era5 `t2m` plus sample reads — sanity-check against `inspect_era5_nan.py`. |
-| [`inspect_spatial_ref.py`](inspect_spatial_ref.py) | Whether `spatial_ref.x_dim` / `y_dim` attrs propagate through weathergenr's `write_netcdf` (they don't — see the weathergenr items in `dev/followups.md` R5 section). |
+| [`inspect_spatial_ref.py`](inspect_spatial_ref.py) | Whether `spatial_ref.x_dim` / `y_dim` attrs propagate through weathergenr's `write_netcdf` (they don't — see the weathergenr items in `dev/tasks/` R5 section). |
 | [`inspect_weathergenr.R`](inspect_weathergenr.R) | Lists the installed weathergenr's exported API and the signatures of functions called by `src/weathergen/generate_weather.R`. Used to detect signature drift between the package and the workflow. |
 
 ## Workflow inspection

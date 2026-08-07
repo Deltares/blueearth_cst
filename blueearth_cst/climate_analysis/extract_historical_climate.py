@@ -45,7 +45,7 @@ def _check_window_coverage(ds, starttime, endtime, clim_source):
     only here, and a silently-truncated record is the original defect: a config
     asking 1980..2010 against an era5 staging that starts in 2000 yielded 11
     years with no signal, and WF3 then died on weathergenr's wavelet minimum
-    twenty rules away (dev/followups.md R3, observed 2026-05-07).
+    twenty rules away (dev/tasks/ R3, observed 2026-05-07).
 
     Two deliberately separate comparisons:
 

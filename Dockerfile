@@ -2,7 +2,7 @@
 #
 # M2 status: rewritten mechanically from the conda+install_rpackages.R
 # original. Not yet validated end-to-end on Linux — that work is
-# explicitly deferred per dev/followups.md ("Deferred: Linux replication").
+# explicitly deferred per dev/tasks/ ("Deferred: Linux replication").
 # The image must continue to *parse and build*; full workflow runs
 # inside it are exercised when the deferred milestone resumes.
 

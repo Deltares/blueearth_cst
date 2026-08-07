@@ -2,7 +2,7 @@
 
 Kept dependency-light (xarray only) and separate from the plotting/model code so
 the same aggregation can back a model-independent climate-analysis component
-later — see the R6 functional-modularization note in ``dev/followups.md`` and
+later — see the R6 functional-modularization note in ``dev/tasks/`` and
 ADR 0002 (``dev/decisions/0002-revive-subcatchment-climate-plots.md``).
 """
 

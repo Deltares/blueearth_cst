@@ -26,7 +26,7 @@ cannot break suite collection.
 Note: the known ``CyclicGraphException`` xfail in ``test_cli.py`` does not
 apply here — it only triggers on the ``tests/`` config whose project_dir has
 no workflow 1 outputs. On this config the DAG resolves (verified: 56 jobs
-under ``--forceall``). Tracked in ``dev/followups.md`` under R3.
+under ``--forceall``). Tracked in ``dev/tasks/`` under R3.
 """
 
 import os

@@ -70,7 +70,7 @@ jobs:
         # repo under `ruff check --isolated`), so an unpinned `select` would turn
         # a routine ruff version bump into a red CI on an untouched tree.
         #
-        # `ruff format` is deliberately NOT checked here — see dev/followups.md
+        # `ruff format` is deliberately NOT checked here — see dev/tasks/
         # R7-23. Adding --check would fail on 118 of 262 files today.
         run: pixi run ruff check .
 

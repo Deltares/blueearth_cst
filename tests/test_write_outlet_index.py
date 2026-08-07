@@ -3,7 +3,7 @@
 Round-trips a tiny outlets.geojson through real geopandas — no hydromt or model
 build. Sibling tests (test_extract_historical_climate, test_stage_data) stub
 geopandas via sys.modules.setdefault, which would shadow the real package here
-(the M02c pollution hazard, dev/followups.md R3+). The `woi` fixture removes
+(the M02c pollution hazard, dev/tasks/ R3+). The `woi` fixture removes
 that stub for this test only (monkeypatch restores it) and imports the module
 fresh against the real geopandas.
 """

@@ -463,7 +463,7 @@ Fork-specific (development):
   structural refactor).
 - ``dev/milestones/p31/``, ``dev/milestones/p32a/``, ``dev/milestones/p32b/``, ``dev/milestones/p33/`` — sealed
   Phase 3 milestone designs, review records and evidence notes.
-- ``dev/followups.md`` — the open backlog, with closed items retained
+- ``dev/tasks/`` — the open backlog, with closed items retained
   and dated.
 - ``docs/migration-r06.md`` — the R6 rename map (old path → new path).
 - ``CHANGELOG.md`` — release history (release-level; milestone detail
