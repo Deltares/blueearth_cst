@@ -222,14 +222,25 @@ concurrent-lock corruption this section already warns about, arriving through th
 test suite instead of through a deliberate run. A copy is an independent
 `project_dir`; a link is a shared one.
 
-**When it must be the primary anyway:** a gate that needs the fixture layer to be
-*authoritative* still belongs in the primary checkout — a copied fixture proves
-the code runs, the primary's proves it runs against the tree the baseline was
-recorded from. Borrow it with `git checkout --detach <branch>`, run, then
-`git checkout main`. Detach rather than `git checkout <branch>`, which **refuses**
-while that branch is claimed by its own worktree. Note this is not a read-only
-borrow: the cascade test writes into `test_case/`, so run it where that is the
-intended `project_dir` and nowhere else.
+**Do NOT borrow the primary checkout to run a branch's gate.** The obvious
+alternative to seeding — `git checkout --detach <branch>` in the primary, run,
+`git checkout main` — parses as safe and is not, because a long test run holds
+the checkout for fifteen minutes and nothing reserves it.
+
+Tried 2026-08-07 and it failed exactly that way. Another session merged its own
+branch **onto the detached HEAD**, noticed, checked out `main`, and redid the
+merge properly — all while the suite was running. `config/basemap/` exists only on
+the branch, so it vanished from the tree mid-run and six basemap tests failed. The
+failures were pure artifact: the branch was fine, and the run had to be discarded.
+Cost was 15 minutes and a false defect report. A stale checkout is recoverable; a
+gate result you have to *decide whether to believe* is worse than no gate.
+
+Seeding is therefore not the cheap option, it is the correct one — a seeded
+worktree cannot be moved by another session. The residual difference is small and
+worth stating: a copied fixture proves the code runs, the primary's tree is the
+one the baseline was recorded from. When that distinction actually matters — a
+baseline re-record — take the primary deliberately, with no other session live,
+which `worktree_policy: always` is what enforces.
 
 Both `.pixi/` and `.ruff_cache/` self-ignore through a `.gitignore` the tools
 write themselves, so neither needs a repo rule.
