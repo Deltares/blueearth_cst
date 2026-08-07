@@ -192,8 +192,18 @@ TARGETS: list[tuple[str, str, str]] = [
     # Snakefile_climate_experiment. R9 P3 renames the two tables and moves them
     # from indicators/ to results/. The wf3 config snapshot does NOT join
     # config/runs/: it stays inside the experiment (arch-10), content only.
+    # R11 CR-2: ONE table per output variable, so this set follows the SEED
+    # config's `workflows.model_creation.wflow_outvars`, which is
+    # `["river discharge"]` -> `q_indicators.csv` alone. `basin_indicators.csv`
+    # no longer exists; its contents are now per-variable tables, and the seed
+    # requests no basin variables.
+    #
+    # Pinned here rather than read from a config, deliberately: this file already
+    # pins EXPERIMENT_NAME and CLIM_PROJECT the same way, because it describes the
+    # SEED tree and not an arbitrary project. **Adding a variable to the seed
+    # config means adding its row here** -- the two are coupled and nothing
+    # enforces it, which is the cost of that choice.
     ("climate_experiment", "csv",  "{exp_dir}/results/q_indicators.csv"),
-    ("climate_experiment", "csv",  "{exp_dir}/results/basin_indicators.csv"),
     ("climate_experiment", "yaml", "{exp_dir}/config/snake_config_climate_experiment.yml"),
 ]
 

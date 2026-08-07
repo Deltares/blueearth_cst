@@ -62,8 +62,13 @@ the contract validators enforce the new shape.
   and the new read of `workflows.model_creation.wflow_outvars`
 - `dev/scripts/check_baseline.py` — its literal `TARGETS` entries for the two
   tables become derived
-- `dev/scripts/semantic_tree_diff.py` — the R9 path map needs a **pattern** row
-  where it currently has two literal result-table paths
+- ~~`dev/scripts/semantic_tree_diff.py`~~ — **no change needed; verified
+  2026-08-08.** The two literal result-table paths there belong to
+  `build_r09_path_map`, the **one-way historical migration map**, which records a
+  past move and must not be rewritten. The map that describes a *current* tree is
+  `build_project_tree_rules`, and it covers `experiments/<e>/results/` as a
+  **prefix** rule — tested: `aet_indicators.csv` and
+  `overland_flow_indicators.csv` both classify as matched already.
 - `config/workflows/snake_config.template.yml:194`,
   `config/workflows/snake_config_model_test.yml:82` — remove `aggregate_rlz`
 - `dev/reference/contracts/hydrological-model-seam.md` — HM-7's pinned columns
@@ -112,12 +117,17 @@ implementation, by tracing the rule's `output:` block rather than by hitting it.
    coupling — WF3 discovers variables at runtime today
    (`[x for x in sim.columns if "basavg" in x]`), which Snakemake cannot use
    because it needs paths at DAG-construction time.
-7. Derive `check_baseline.py`'s `TARGETS` for the tables, **and move them off
-   byte-exact `sha256` onto the existing `compare_discharge`-style tolerance
-   comparator** (Q8, ruled 2026-08-05). Dropping `.round(2)` removed the
-   accidental drift buffer, so byte-exactness would now fail on every harmless
-   numeric nudge — the same argument that excludes `FIGURE_KINDS` by default.
-   Give `semantic_tree_diff.py` a pattern row where it has two literal paths.
+7. Point `check_baseline.py`'s `TARGETS` at the seed's derived set (one row,
+   `q_indicators.csv`; `basin_indicators.csv` no longer exists). **Pinned, not
+   config-read** — that file already pins `EXPERIMENT_NAME` and `CLIM_PROJECT`
+   the same way because it describes the seed tree, so adding a variable to the
+   seed config means adding a row here. *(Commit 1.)*
+   Then, **with the content change**, move those rows off byte-exact `sha256`
+   onto the `compare_discharge`-style tolerance comparator (Q8, ruled
+   2026-08-05): dropping `.round(2)` removes the accidental drift buffer, so
+   byte-exactness would fail on every harmless numeric nudge — the same argument
+   that excludes `FIGURE_KINDS` by default. *(Commit 2, because it is a
+   consequence of unrounding, not of the file set changing.)*
 7b. Emit the basin value under a reserved `location = basin`, independently of
    the per-subcatchment rows, keeping the existing `reducer=["mean"]` output
    (Q11, ruled 2026-08-07). This does not answer whether subcatchments nest — it
