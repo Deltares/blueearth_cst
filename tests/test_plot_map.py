@@ -16,6 +16,7 @@ from matplotlib import colors
 from blueearth_cst.shared import plot_map
 from blueearth_cst.shared.plot_map import (
     FIGURE_WIDTH_MM,
+    GRATICULE_MAX_TICKS,
     MM_PER_INCH,
     _CORNERS,
     _EXTENT_BUFFER_DEG,
@@ -31,6 +32,7 @@ from blueearth_cst.shared.plot_map import (
     _mask_nodata,
     _publication_rc,
     _scale_bar_corner,
+    _graticule_ticks,
     _metres_per_degree,
     _nice_round_length,
     _river_linewidths,
@@ -124,6 +126,54 @@ def test_extreme_basin_shapes_stay_inside_the_aspect_clamps(aspect):
     width_in, height_in = _figure_size(np.array([0.0, 1.0, 0.0, aspect]))
     assert np.isfinite(height_in) and height_in > 0
     assert height_in < 2.0 * width_in
+
+
+# --- graticule ----------------------------------------------------------------
+# `map_extent` pads the DEM bounds and clamps nothing, so the tick chooser is the
+# last thing standing between a polar basin and a latitude label past the pole.
+
+
+def test_ticks_stay_inside_the_basin_extent():
+    lon, lat = _graticule_ticks(np.array([9.638, 9.878, 0.33, 0.503]))
+    assert lon and lat
+    assert all(9.638 <= t <= 9.878 for t in lon)
+    assert all(0.33 <= t <= 0.503 for t in lat)
+
+
+@pytest.mark.parametrize(
+    "extent",
+    [
+        (20.0, 25.0, 80.0, 92.0),  # padding pushed lat_max past the north pole
+        (20.0, 25.0, -93.0, -80.0),  # and past the south pole
+    ],
+)
+def test_no_latitude_tick_is_placed_past_the_pole(extent):
+    """A latitude beyond +/-90 does not exist, so it must never be labelled."""
+    _, lat = _graticule_ticks(np.array(extent))
+    assert lat, "clamping must not empty the graticule"
+    assert all(-90.0 <= t <= 90.0 for t in lat)
+
+
+def test_longitude_past_the_antimeridian_is_preserved():
+    """Unlike latitude, past +/-180 is a legitimate antimeridian-spanning basin."""
+    lon, _ = _graticule_ticks(np.array([176.0, 184.0, 60.0, 64.0]))
+    assert max(lon) > 180.0
+
+
+@pytest.mark.parametrize(
+    "extent",
+    [
+        (9.638, 9.878, 0.33, 0.503),  # sub-degree
+        (5.0, 6.0, 45.0, 45.5),
+        (80.0, 89.0, 25.0, 35.0),
+    ],
+)
+def test_tick_count_respects_the_declared_maximum(extent):
+    """Regression guard: cartopy's LatitudeLocator overshoots this on a
+    sub-degree basin, which is why the graticule does not use it."""
+    lon, lat = _graticule_ticks(np.array(extent))
+    assert len(lon) <= GRATICULE_MAX_TICKS + 1
+    assert len(lat) <= GRATICULE_MAX_TICKS + 1
 
 
 # --- furniture placement ------------------------------------------------------

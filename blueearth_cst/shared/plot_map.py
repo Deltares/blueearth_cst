@@ -857,9 +857,28 @@ def _coordinate_format(span_degrees):
 
 
 def _graticule_ticks(extent, max_ticks=GRATICULE_MAX_TICKS):
-    """Shared tick positions for the grid LINES and the axis LABELS."""
+    """Shared tick positions for the grid LINES and the axis LABELS.
+
+    The latitude window is clamped to +/-90 BEFORE the ticks are chosen.
+    ``map_extent`` pads the DEM bounds by ``_EXTENT_BUFFER_DEG`` plus half a cell
+    and clamps nothing, so a basin near a pole yields ``lat_max > 90`` and the
+    graticule would label a latitude that does not exist.
+
+    Longitude is deliberately NOT clamped: past +/-180 is a legitimate way to
+    express a basin spanning the antimeridian, whereas past +/-90 is always
+    meaningless.
+
+    ``cartopy.mpl.ticker.LatitudeLocator`` looks like the ready-made answer and
+    is not. It subdivides in degrees/minutes/seconds, so on a sub-degree basin it
+    returns 0.33/0.36/0.39/0.42/0.45/0.48 where ``MaxNLocator`` returns
+    0.35/0.40/0.45/0.50 -- uglier, and SIX ticks against a ``max_ticks`` of five.
+    Measured on the fixture 2026-08-07, which is why the graticule half of the
+    abandoned feat/outputs-figures branch was not carried over.
+    """
     lon_min, lon_max, lat_min, lat_max = extent
+    lat_min, lat_max = max(float(lat_min), -90.0), min(float(lat_max), 90.0)
     locator = MaxNLocator(nbins=max_ticks, steps=[1, 2, 2.5, 5, 10])
+
     def inside(ticks, low, high):
         return [t for t in ticks if low <= t <= high]
 
