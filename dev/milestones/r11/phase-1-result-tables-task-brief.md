@@ -53,12 +53,25 @@ the contract validators enforce the new shape.
 - `blueearth_cst/shared/interchange_contracts.py` — `validate_hm7`,
   `validate_hm_gauge_column_identity`
 - `tests/test_export_wflow_results.py`, `tests/test_interchange_contracts.py`
-- `Snakefile_climate_experiment` — the rule's `params`/`output` only, for the
-  variable-keyed table set and the `aggr_rlz` removal at line 892
+- `Snakefile_climate_experiment` — the rule's `output:`/`params:`, **`WF3_TARGETS`**,
+  and the new read of `workflows.model_creation.wflow_outvars`
+- `dev/scripts/check_baseline.py` — its literal `TARGETS` entries for the two
+  tables become derived
+- `dev/scripts/semantic_tree_diff.py` — the R9 path map needs a **pattern** row
+  where it currently has two literal result-table paths
 - `config/workflows/snake_config.template.yml:194`,
   `config/workflows/snake_config_model_test.yml:82` — remove `aggregate_rlz`
 - `dev/reference/contracts/hydrological-model-seam.md` — HM-7's pinned columns
+  **and the variable-token vocabulary**, which CR-2 says belongs in the seam doc
 - `dev/milestones/r11/` — this brief's `Progress`
+
+**Scope correction, 2026-08-07.** The first four entries above were missing or
+too narrow in the brief as first written. CR-2's "accepted costs" make the output
+set config-dependent, so the DAG, the baseline target list and the path map all
+stop being literal — and WF3 acquires a **new cross-workflow config read** it has
+never had (`wflow_outvars` lives under `workflows.model_creation`). Without them
+the writer would emit tables Snakemake does not declare. Found before
+implementation, by tracing the rule's `output:` block rather than by hitting it.
 
 **Approval-gated** *(Gate 2)*
 - Deleting `test_case/test_local/experiments/experiment/` — required before any
@@ -85,18 +98,33 @@ the contract validators enforce the new shape.
 5. Rework `validate_hm_gauge_column_identity` check 3 to compare the `location`
    column's **value set** instead of the header's column set — same invariant,
    simpler expression.
-6. Update `hydrological-model-seam.md` to the new HM-7 columns.
-7. Update both test modules; add tests for the baseline row, the `float32`
+6. Derive the output set: `WF3_TARGETS` and the rule's `output:` from
+   `wflow_outvars`, read from `workflows.model_creation`. New cross-workflow
+   coupling — WF3 discovers variables at runtime today
+   (`[x for x in sim.columns if "basavg" in x]`), which Snakemake cannot use
+   because it needs paths at DAG-construction time.
+7. Derive `check_baseline.py`'s `TARGETS` for the tables, and give
+   `semantic_tree_diff.py` a pattern row where it has two literal paths.
+8. Update `hydrological-model-seam.md`: the new HM-7 columns **and** the
+   variable-token vocabulary, which CR-2 places in the seam doc.
+9. Update both test modules; add tests for the baseline row, the `float32`
    unrounded values, and the bare-id `location`.
 
 ### Commit plan
 
-HM-7 is a pinned contract, so the writer and its validators must not land apart.
+HM-7 is a pinned contract, and the output set is declared in three places that
+must agree. Three commits, each independently runnable.
 
 | # | Subject · paths | Invariant it preserves |
 |---|---|---|
-| 1 | `feat(wf3): emit indicator tables in long format` · writer + `interchange_contracts` + both test modules + seam doc | The contract and its producer move together — a validator pinning six columns must never exist against a writer emitting the old shape |
-| 2 | `chore(wf3): retire aggregate_rlz` · Snakefile + both configs | Isolated so the freeze break has its own diff and its own line in the migration note |
+| 1 | `feat(wf3): derive the indicator table set from wflow_outvars` · Snakefile (`WF3_TARGETS`, rule `output:`, the new `wflow_outvars` read) + `check_baseline.py` + `semantic_tree_diff.py` | The DAG, the baseline target list and the path map agree on which tables exist **before** any writer emits them. Landing this second would mean a commit where Snakemake declares outputs nothing produces |
+| 2 | `feat(wf3): emit indicator tables in long format` · writer + `interchange_contracts` + both test modules + seam doc | The contract and its producer move together — a validator pinning six columns must never exist against a writer emitting the old shape |
+| 3 | `chore(wf3): retire aggregate_rlz` · Snakefile + both configs | Isolated so the experiment-freeze break has its own diff and its own line in the migration note |
+
+**Commit 1 before 2 is the correctness property**, not a preference: the reverse
+order leaves a commit in which the writer emits `aet_indicators.csv` while the
+rule still declares `basin_indicators.csv`, so `--dry-run` fails and the tree is
+not runnable at that point in history.
 
 ### Validation
 
