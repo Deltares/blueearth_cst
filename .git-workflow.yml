@@ -26,14 +26,19 @@ mode: full
 # primary checkout under this policy. An optional PreToolUse guard hook can deny
 # native edit tools there as defense in depth — see the skill's
 # references/worktree-enforcement.md.
-worktree_policy: always
+# Re-affirmed 2026-08-07 after a second incident, this one under `concurrent`:
+# a session detached this checkout to run a branch's 15-minute test suite, and
+# another session merged onto that detached HEAD, then checked out main. A
+# directory tracked only on the branch under test vanished mid-run and six tests
+# failed as pure artifact. The branch was fine; the gate result was worthless.
+worktree_policy: always # concurrent | always
 
 # Branches created solely to isolate concurrent work auto-land after rebase and
 # verification, so isolation costs nothing at the end of a task. Feature branches
 # and explicitly held isolation branches still wait for a decision.
-isolation_landing: auto
+isolation_landing: auto # auto | approval
 
 # No automatic push, including the backup checkpoint. This repo's trunk is pushed
 # deliberately, not as a side effect of finishing a task; flip to `true` to
 # re-enable the >24h / 25-commit backup trigger.
-auto_push: false
+auto_push: false # true | false
