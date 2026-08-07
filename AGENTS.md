@@ -191,6 +191,46 @@ with `there is no package called 'weathergenr'`. **Run `pixi run install` in a
 worktree before running WF3 there** — and prefer running the pipeline from the
 primary checkout anyway, for the `.snakemake` reason above.
 
+**A worktree carries no `test_case/`, and that silently downgrades the test
+suite.** `test_case/` is untracked, so `git worktree add` does not bring it. The
+fixture-dependent layer then **skips instead of failing** — measured 2026-08-07:
+`pytest tests/` in a fresh worktree reported *1567 passed, 31 skipped* and looked
+like a clean gate, while **15 of those skips were the fixture layer** this file
+already names as the one no worktree can exercise. A branch whose
+change crosses the project tree (an R9-style move, a `MODEL_DIRNAME` edit) is
+exactly the case that layer exists to catch, and exactly the case a worktree
+cannot report.
+
+**Seed a new worktree with the fixture subtrees it needs, by COPY:**
+
+```bash
+# 46 MB — the tree named by 18 of the 25 fixture references in tests/
+cp -r <primary>/test_case/test_local        <worktree>/test_case/
+# 248 KB — only dev/scripts/preview_basin_map.py reads it
+cp -r <primary>/test_case/basin_map_fixture <worktree>/test_case/
+```
+
+Copy those two subtrees, not all of `test_case/` — the whole directory is 361 MB
+and most of it is superseded reference trees (`ref_wf2_pre_*`, `test_local_pre_*`,
+`_pruned_*`). `test_case/test` and `test_case/gabon` appear in test source but do
+not exist on disk; their tests skip on the primary too, so they need nothing.
+
+**Never symlink or junction it.** `tests/test_model_rebuild_cascade.py` runs a
+real `snakemake all -c 1` against the fixture, so a link would drive one
+`project_dir` from two checkouts — the same `.snakemake` divergence and
+concurrent-lock corruption this section already warns about, arriving through the
+test suite instead of through a deliberate run. A copy is an independent
+`project_dir`; a link is a shared one.
+
+**When it must be the primary anyway:** a gate that needs the fixture layer to be
+*authoritative* still belongs in the primary checkout — a copied fixture proves
+the code runs, the primary's proves it runs against the tree the baseline was
+recorded from. Borrow it with `git checkout --detach <branch>`, run, then
+`git checkout main`. Detach rather than `git checkout <branch>`, which **refuses**
+while that branch is claimed by its own worktree. Note this is not a read-only
+borrow: the cascade test writes into `test_case/`, so run it where that is the
+intended `project_dir` and nowhere else.
+
 Both `.pixi/` and `.ruff_cache/` self-ignore through a `.gitignore` the tools
 write themselves, so neither needs a repo rule.
 
