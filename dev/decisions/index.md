@@ -11,6 +11,7 @@ skill's decision-record reference).
 | [0002](0002-revive-subcatchment-climate-plots.md) | Revive the subcatchment climate plots from the wflow forcing input | accepted | 2026-07-21 |
 | [0003](0003-one-shared-region-artifact.md) | Spatial artifacts delineated once per project, shared across workflows | accepted §1–12 | 2026-08-06 |
 | [0004](0004-order-model-readers-on-a-terminal-sentinel.md) | Order model-root readers on a terminal build sentinel, not on a declared output | accepted | 2026-08-05 |
+| [0005](0005-adopt-ruff-format-in-two-stages.md) | Adopt `ruff format`, in two stages split on the Snakemake code rerun trigger | proposed | 2026-08-07 |
 
 ## Retired numbers
 
