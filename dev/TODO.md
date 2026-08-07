@@ -4,7 +4,6 @@
 
 | ID | Item | Area | Origin | # | State |
 | --- | --- | --- | --- | --- | --- |
-| t2608071201 | Make `inmaps_historical.nc` byte-reproducible, or stop the drift guard reacting to it | wf1 / drift guard | R10 | 1 | backlog |
 | t2608071202 | Make a failing `check_model_reference` write its error into the log part it points at | logging | R10 | 2 | backlog |
 | t2608071203 | Resolve six geojson basenames that mean different things in `data/spatial/geoms/` and the wflow `staticgeoms/` | naming | R9 | 3 | backlog |
 | t2608071204 | Settle whether the unperturbed baseline member belongs in the response tables | wf3 results | R9 | 4 | backlog |
@@ -22,11 +21,14 @@
 | t2608071217 | Recover per-cst persistence isolation under batching | wf3 batching | P3-3 | 16 | backlog |
 | t2608071218 | Make a code change to wf2's rule 2.04 actually re-trigger it | wf2 | R6 | 17 | backlog |
 | t2608071219 | Capture a failing `script:` rule's traceback in its log part | ergonomics |  | 18 | backlog |
+| t2608071944 | Settle whether unit B's cst_ to st_ rename reaches the frozen experiment.yml | wf3 identification | R11 |  | backlog |
+| t2608071945 | Decide whether the tee_to_log traceback fix lands inside R11 or on its own | workflow ergonomics | R11 |  | backlog |
 
 ## Watching
 
 | ID | Item | Area | Origin | Trigger |
 | --- | --- | --- | --- | --- |
+| t2608071201 | A WF1 rebuild always trips WF3's drift guard, and the re-record is accepted as normal | wf1 / drift guard | R10 | Re-open if a re-record ever masks a **real** drift, if someone reports having accepted one without reading the diff, or if hydromt gains a documented way to pin forcing encoding. The cost of this ruling is that a routine re-record is how a real drift eventually gets waved through; that is the thing to watch for, not the noise itself. |
 | t2608071220 | A comment-only edit to a shared-rule script invalidates up to three whole workflows | rerun triggers | R10 | Someone edits one of the three shared-rule scripts often enough that the full re-run cost bites, or proposes extending `kernel_hash` to them. |
 | t2608071221 | Docker (O-06) and Linux end-to-end (O-18, O-19) are unexercised | platform | R7 | A Linux machine or runner capable of a full pipeline run becomes available. |
 | t2608071222 | The R layer has no test infrastructure; Python helpers carry the coverage | testing |  | The R layer grows past the weather-generator wrappers, or an R-side defect ships. |
