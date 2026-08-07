@@ -14,6 +14,7 @@ it goes and when it may be deleted.
 | Path | Holds |
 |---|---|
 | `tasks/` | **The board.** One note per open item — `todo-item` (work) or `watch-item` (true, tracked, no action intended). The source of truth |
+| ↳ `origin:` | Which milestone the item fell out of, using `roadmap.md`'s own IDs (`R10`, `P3-3`, `M02b`). Set it only from a **recorded** origin — the source item's ID, or the `followups.md` section it was migrated from. Leave it blank when the lineage would have to be inferred from prose, and say so in the note's `## Refs`: the Origin column is read when prioritising, so a guess there costs more than a gap |
 | `TODO.md` | **Generated** view of `tasks/` — `todoboard render` writes it and the banner says do-not-edit. Never hand-edit it; edit the note |
 | `LOG.md` | Closure ledger. One row per item the board has closed since 2026-08-07 |
 | `working/` | Working & handoff notes for **live** work; drained at closure, but see the promotion rule below |

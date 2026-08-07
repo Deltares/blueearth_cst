@@ -2,6 +2,7 @@
 title: dask cannot be stubbed at module level, because pandas imports it lazily and reads `dask.__spec__`
 type: watch-item
 area: tests
+origin: M02c
 created: 2026-08-07
 updated: 2026-08-07
 ---

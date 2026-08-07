@@ -2,6 +2,7 @@
 title: The wavelet minimum surfaces as a cryptic error rather than a stated requirement
 type: watch-item
 area: upstream / weathergenr
+origin: R5
 created: 2026-08-07
 updated: 2026-08-07
 ---

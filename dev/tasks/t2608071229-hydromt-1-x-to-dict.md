@@ -2,6 +2,7 @@
 title: hydromt's `to_yml` silently strips `driver.options.preprocess` on a catalog round-trip
 type: watch-item
 area: upstream / hydromt
+origin: M02b
 created: 2026-08-07
 updated: 2026-08-07
 ---

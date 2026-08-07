@@ -15,6 +15,8 @@ updated: 2026-08-07
 
 - Migrated from `dev/followups.md` on 2026-08-07, when the board replaced it. Prose below is that
   entry verbatim; it is the reproducible context, not a summary.
+- No `origin` recorded. It was migrated from the un-milestoned "Cross-cutting — workflow ergonomics"
+  section; it was parked 2026-07-19 without being attached to a milestone.
 
 ## Detail
 

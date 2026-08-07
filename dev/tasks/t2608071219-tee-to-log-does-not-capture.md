@@ -22,6 +22,8 @@ updated: 2026-08-07
 
 - Migrated from `dev/followups.md` on 2026-08-07, when the board replaced it. Prose below is that
   entry verbatim; it is the reproducible context, not a summary.
+- No `origin` recorded. It was migrated from the un-milestoned "Cross-cutting — workflow ergonomics"
+  section; the prose dates the diagnosis to 2026-08-01, during R8, but no milestone owned the item.
 
 ## Detail
 

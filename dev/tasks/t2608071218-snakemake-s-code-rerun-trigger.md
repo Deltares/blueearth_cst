@@ -4,6 +4,7 @@ type: todo-item
 status: backlog
 effort: 2
 area: wf2
+origin: R6
 queue: 18
 created: 2026-08-07
 updated: 2026-08-07

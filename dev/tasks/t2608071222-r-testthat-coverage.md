@@ -15,6 +15,9 @@ updated: 2026-08-07
 
 - Migrated from `dev/followups.md` on 2026-08-07, when the board replaced it. Prose below is that
   entry verbatim; it is the reproducible context, not a summary.
+- No `origin` recorded. It was migrated from the roadmap-carryover "Minor open items" section. The
+  prose says the call was made at the start of R5, which dates the *ruling*, not an owning milestone
+  for the work.
 
 ## Detail
 
