@@ -4,26 +4,25 @@
 
 | ID | Item | Area | # | State |
 | --- | --- | --- | --- | --- |
-| t2608071200 | Re-record the baseline manifest for the indicator-table axis-column rename | baseline | 1 | backlog |
-| t2608071201 | Make `inmaps_historical.nc` byte-reproducible, or stop the drift guard reacting to it | wf1 / drift guard | 2 | backlog |
-| t2608071202 | Make a failing `check_model_reference` write its error into the log part it points at | logging | 3 | backlog |
-| t2608071203 | Resolve six geojson basenames that mean different things in `data/spatial/geoms/` and the wflow `staticgeoms/` | naming | 4 | backlog |
-| t2608071204 | Settle whether the unperturbed baseline member belongs in the response tables | wf3 results | 5 | backlog |
-| t2608071205 | Find out why a red ruff gate went unnoticed, and decide whether a pre-push hook is the answer | lint / CI | 6 | backlog |
-| t2608071206 | Make the hydro/clim/signatures figure families declarable so `--delete-all-output` can clean them | wf1 rule shape | 7 | backlog |
-| t2608071207 | Show the per-member wflow log falsifier actually failing with `path_log` unset | wf3 logging | 8 | backlog |
-| t2608071208 | Fix `tests/test_stage_data_incremental.py`'s order-dependent failure | test hygiene | 9 | backlog |
-| t2608071209 | Decide real packaging (O-14 decision 2) and unblock flit (O-16) | packaging | 10 | backlog |
-| t2608071210 | Retire the 48 MB pre-R7 reference tree at `~/workspace/.r07-reference/` | housekeeping | 11 | backlog |
-| t2608071211 | Convert `downscale_climate_forcing.py` off the bare `snakemake` global read at import | importability | 12 | backlog |
-| t2608071212 | Rule on adopting `ruff format`, then land it in one mechanical commit | formatting | 13 | backlog |
-| t2608071213 | Define one label constant per rule, so a rename is a one-line edit | rule identifiers | 14 | backlog |
-| t2608071214 | Measure the hydrography read cost §8 adds to WF2 | spatial rules | 15 | backlog |
-| t2608071215 | Enforce the naming convention with a linter instead of review attention | tooling | 16 | backlog |
-| t2608071216 | Make the WF3 batch-size default actually disk-aware | wf3 batching | 17 | backlog |
-| t2608071217 | Recover per-cst persistence isolation under batching | wf3 batching | 18 | backlog |
-| t2608071218 | Make a code change to wf2's rule 2.04 actually re-trigger it | wf2 | 19 | backlog |
-| t2608071219 | Capture a failing `script:` rule's traceback in its log part | ergonomics | 20 | backlog |
+| t2608071201 | Make `inmaps_historical.nc` byte-reproducible, or stop the drift guard reacting to it | wf1 / drift guard | 1 | backlog |
+| t2608071202 | Make a failing `check_model_reference` write its error into the log part it points at | logging | 2 | backlog |
+| t2608071203 | Resolve six geojson basenames that mean different things in `data/spatial/geoms/` and the wflow `staticgeoms/` | naming | 3 | backlog |
+| t2608071204 | Settle whether the unperturbed baseline member belongs in the response tables | wf3 results | 4 | backlog |
+| t2608071205 | Find out why a red ruff gate went unnoticed, and decide whether a pre-push hook is the answer | lint / CI | 5 | backlog |
+| t2608071206 | Make the hydro/clim/signatures figure families declarable so `--delete-all-output` can clean them | wf1 rule shape | 6 | backlog |
+| t2608071207 | Show the per-member wflow log falsifier actually failing with `path_log` unset | wf3 logging | 7 | backlog |
+| t2608071208 | Fix `tests/test_stage_data_incremental.py`'s order-dependent failure | test hygiene | 8 | backlog |
+| t2608071209 | Decide real packaging (O-14 decision 2) and unblock flit (O-16) | packaging | 9 | backlog |
+| t2608071210 | Retire the 48 MB pre-R7 reference tree at `~/workspace/.r07-reference/` | housekeeping | 10 | backlog |
+| t2608071211 | Convert `downscale_climate_forcing.py` off the bare `snakemake` global read at import | importability | 11 | backlog |
+| t2608071212 | Rule on adopting `ruff format`, then land it in one mechanical commit | formatting | 12 | backlog |
+| t2608071213 | Define one label constant per rule, so a rename is a one-line edit | rule identifiers | 13 | backlog |
+| t2608071214 | Measure the hydrography read cost §8 adds to WF2 | spatial rules | 14 | backlog |
+| t2608071215 | Enforce the naming convention with a linter instead of review attention | tooling | 15 | backlog |
+| t2608071216 | Make the WF3 batch-size default actually disk-aware | wf3 batching | 16 | backlog |
+| t2608071217 | Recover per-cst persistence isolation under batching | wf3 batching | 17 | backlog |
+| t2608071218 | Make a code change to wf2's rule 2.04 actually re-trigger it | wf2 | 18 | backlog |
+| t2608071219 | Capture a failing `script:` rule's traceback in its log part | ergonomics | 19 | backlog |
 
 ## Watching
 
