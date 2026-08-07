@@ -13,7 +13,9 @@ it goes and when it may be deleted.
 
 | Path | Holds |
 |---|---|
-| `TODO.md` | Live task board — unfinished work only (`backlog` / `active` / `blocked`) |
+| `tasks/` | **The board.** One note per open item — `todo-item` (work) or `watch-item` (true, tracked, no action intended). The source of truth |
+| `TODO.md` | **Generated** view of `tasks/` — `todoboard render` writes it and the banner says do-not-edit. Never hand-edit it; edit the note |
+| `LOG.md` | Closure ledger. One row per item the board has closed since 2026-08-07 |
 | `working/` | Working & handoff notes for **live** work; drained at closure, but see the promotion rule below |
 
 **Stays true** — consulted while working, rewritten rarely and deliberately:
@@ -21,8 +23,7 @@ it goes and when it may be deleted.
 | Path | Holds |
 |---|---|
 | `roadmap.md` | The phase narrative: what each milestone set out to do and how it landed |
-| `followups.md` | Milestone-scoped backlog with reproducible context; cited by live tests. **Open items only** — detail store behind `TODO.md` |
-| `followups-archive.md` | Closed followups, one brief entry each. IDs kept resolvable because code, tests and Snakefiles cite them |
+| `followups-archive.md` | **Pre-board ledger** — everything closed before 2026-08-07, one brief entry each. IDs kept resolvable because code, tests and Snakefiles cite them. `LOG.md` takes over from here; this file is not extended |
 | `reference/` | The rules: `naming.md`, `agent-activation.md`, `git-conventions.md`, `contracts/`, `workflows/` — see its `README.md` |
 
 **Happened** — records of what was done, kept by identity:
@@ -31,7 +32,7 @@ it goes and when it may be deleted.
 |---|---|
 | `decisions/` | ADRs — **permanent**. Superseded ones stay with a pointer; evidence in a `<adr-slug>/` sibling folder |
 | `milestones/` | Every milestone's design / plan / review / evidence docs — see its own `README.md` for the index |
-| `tasks/` | One brief record per closed tracked task |
+| `tasks/2026-07-21_pre-r6-followups.md` | The one **pre-board** record: `tasks/` held closed-task records until 2026-08-07, when it became the open board. Bannered, kept, and ignored by the board's loader (it carries no `type:`) |
 
 **Decays** — snapshots of a system that keeps moving:
 
@@ -85,8 +86,8 @@ A review may be deleted when **all three** hold:
 
 1. **Nothing cites it** — including other reviews. Check with
    `git grep -l <filename>`, not intuition.
-2. **Its items are dispositioned**, and anything carried forward has landed in
-   `followups.md`, `TODO.md`, or a decision.
+2. **Its items are dispositioned**, and anything carried forward has landed as
+   a board note in `tasks/` or as a decision.
 3. **Its durable output has left** — if the review produced skill or role
    candidates, those changes are committed in `brain`. The lesson's home is the
    skill; the review that prompted it is then spent.
@@ -103,13 +104,17 @@ supersedes only some sections — `wf2-v2-process-review-r2.md` replaces section
 1, 3 and 5 of its predecessor while 2, 4 and 6 stand. Put a banner in the
 superseded file saying exactly which sections went and where; keep both.
 
-### The one place a register IS compressed — and what makes it safe
+### The one place a register WAS compressed — and what made it safe
 
-`followups.md` is the exception, and it is worth being precise about why, since
-the paragraph above rules the practice out for `reviews/`. On 2026-08-07 the
-file had reached 2,038 lines, roughly half of it items already closed, because a
-closure note had grown into a post-mortem averaging 29 lines. The closed items
-were compressed into `followups-archive.md` at a few lines each.
+`followups.md` was the exception. It no longer exists — the todo-board replaced
+it on 2026-08-07 (see `working/todo-board-adoption/`) — but the rule it
+established governs the next register anyone is tempted to compress, so it is
+kept rather than deleted with the file.
+
+On 2026-08-07 that file had reached 2,038 lines, roughly half of it items
+already closed, because a closure note had grown into a post-mortem averaging
+29 lines. The closed items were compressed into `followups-archive.md` at a few
+lines each; the open ones became board notes later the same day.
 
 That was allowed only because condition 3 above — **its durable output has
 left** — was checked item by item and already held. Every reusable lesson in
