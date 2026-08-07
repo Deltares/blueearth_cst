@@ -9,7 +9,12 @@ plus `wf3-changes-proposal.md`, which carries the stable C/F/O numbers. This bri
 does not restate the spec; it bounds the unit and names what the spec leaves to
 the executor.
 
-- **The spec is already ruled.** CR-2's shape, `realization_id = 0` means pooled,
+- **The spec is now fully ruled.** It was not when this brief was first written:
+  the register's closure section still said "Two remain". **Q7 and Q11 were ruled
+  2026-08-07**, both to the recommendation, and the register's inline "still open"
+  markers — which contradicted its own closure table — were corrected in the same
+  commit. Nothing in CR-2 is open.
+- **The spec is authoritative.** CR-2's shape, `realization_id = 0` means pooled,
   metrics split three ways, `value` is `float32` unrounded, `location` is the bare
   gauge id, `metric` is the composite `<variable>_<statistic>`. Do not re-open
   these; implement them.
@@ -92,7 +97,11 @@ implementation, by tracing the rule's `output:` block rather than by hitting it.
    `st_nb == "0"` guard rather than repairing it — it is an int-to-string
    comparison that can never be true, so it never expressed a choice.
 3. Retire `aggregate_rlz`: remove the read at `Snakefile_climate_experiment:892`
-   and the key from both config files.
+   and the key from both config files — **and raise a hard error naming the
+   migration note when a project config still carries it** (Q7, ruled
+   2026-08-07, per the `variable_spec.parse` precedent). Silent removal was
+   rejected: workflow configs ignore unread keys, so a stale `aggregate_rlz`
+   would leave a user believing a setting is in effect while it does nothing.
 4. Rework `validate_hm7` for the six-column shape, keeping C2's
    `metric.startswith(variable + "_")` assertion.
 5. Rework `validate_hm_gauge_column_identity` check 3 to compare the `location`
@@ -103,8 +112,17 @@ implementation, by tracing the rule's `output:` block rather than by hitting it.
    coupling — WF3 discovers variables at runtime today
    (`[x for x in sim.columns if "basavg" in x]`), which Snakemake cannot use
    because it needs paths at DAG-construction time.
-7. Derive `check_baseline.py`'s `TARGETS` for the tables, and give
-   `semantic_tree_diff.py` a pattern row where it has two literal paths.
+7. Derive `check_baseline.py`'s `TARGETS` for the tables, **and move them off
+   byte-exact `sha256` onto the existing `compare_discharge`-style tolerance
+   comparator** (Q8, ruled 2026-08-05). Dropping `.round(2)` removed the
+   accidental drift buffer, so byte-exactness would now fail on every harmless
+   numeric nudge — the same argument that excludes `FIGURE_KINDS` by default.
+   Give `semantic_tree_diff.py` a pattern row where it has two literal paths.
+7b. Emit the basin value under a reserved `location = basin`, independently of
+   the per-subcatchment rows, keeping the existing `reducer=["mean"]` output
+   (Q11, ruled 2026-08-07). This does not answer whether subcatchments nest — it
+   makes the question irrelevant to the artifact, so no implementer has to
+   assume an answer.
 8. Update `hydrological-model-seam.md`: the new HM-7 columns **and** the
    variable-token vocabulary, which CR-2 places in the seam doc.
 9. Update both test modules; add tests for the baseline row, the `float32`
