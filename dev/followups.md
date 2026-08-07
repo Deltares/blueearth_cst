@@ -949,8 +949,42 @@ that awkwardness.
 
 ## Post-R8 (surfaced 2026-08-02 during the Post-R7 triage)
 
-- **[R8-1] The ruff gate is red on `main`.** *Row `t260802a`.* `pixi run ruff
-  check .` reports **10 findings**, 7 of them auto-fixable:
+- **[R8-1] ~~The ruff gate is red on `main`.~~ FIXED 2026-08-07** — `pixi run
+  ruff check .` now reports **All checks passed!**, which is the exact command
+  `.github/workflows/ci.yml` runs on both legs.
+
+  **It had grown from 10 findings to 14** by the time it was cleared; the
+  four newcomers are in files written after this item (`add_climate_forcing.py`,
+  `plot_map.py`, `test_plot_map.py`, and one more in `dev/scripts/`). A red
+  gate does not stay the size you recorded it at.
+
+  Nine were `ruff check --fix`; five needed judgment, and this item was right
+  to single out the `F841`:
+
+  - **`get_stats_climate_proj.py` `ds = []`** — read before deleting, as this
+    item asked. Genuinely dead: the only other `ds` in the module is a
+    different function's parameter, and its sibling `ds_scalar` is the one the
+    reduction actually accumulates into. No dropped call.
+  - **`add_climate_forcing.py` `import sys`** — looked used (`sys.` appears in
+    the module) but the occurrence is inside a **docstring**. A grep would have
+    kept a dead import; ruff was right.
+  - **Three `F401`s in `test_plot_map.py`** — each flagged symbol appeared
+    exactly once, on the import line itself, so they were import drift rather
+    than a deliberate "these symbols exist" surface.
+  - Two `E731` lambdas became `def`s; two `E702` semicolon statements became
+    two lines each.
+
+  Gates: `pixi run ruff check .` clean; `pytest tests/` 1503 passed, 31
+  skipped, 1 xfailed. `plot_map.py` is a shared helper, so it took the full
+  ladder rather than the module's own tests.
+
+  **Still open from this item's last paragraph:** whether the gate went red
+  after the R7-19 seal's green CI run (30450296441) or a later red was not
+  acted on. Unanswered — and the four newcomers say the answer is "nobody was
+  watching", which is an argument for a pre-push hook rather than more fixes.
+
+  *Original item follows.* `pixi run ruff
+  check .` reported **10 findings**, 7 of them auto-fixable:
 
   | File | Finding |
   |---|---|

@@ -42,7 +42,6 @@ Not part of a run: this inspects a project tree
 from __future__ import annotations
 
 import argparse
-import os
 import subprocess
 import sys
 from datetime import date

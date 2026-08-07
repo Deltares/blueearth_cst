@@ -29,7 +29,6 @@ covering it directly — the merge moves the *invocation*, not the logic.
 # and raises at rule run time. Every `script:` module in this repo omits it.
 import os
 import subprocess
-import sys
 from typing import Sequence, Union
 
 from blueearth_cst.shared.setup_time_horizon import prep_hydromt_update_forcing_config
