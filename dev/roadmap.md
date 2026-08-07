@@ -41,6 +41,12 @@ contract surface, not part of the artifact tree, and no durable artifact path
 carries one. One milestone, R10; dev artifacts under `dev/milestones/r10/`. See
 § Phase 7 below.
 
+**Phase 8 — WF3 rework (R11 OPEN, registered 2026-08-07).** Rebuilds workflow 3,
+the stress test, in the two layers it turns out to have: **R11** changes what it
+emits and what its members are called; **R12** changes how it executes. Mirrors
+Phase 5, which did the same for workflow 2. Dev artifacts under
+`dev/milestones/r11/`. See § Phase 8 below.
+
 ```text
 Phase 1 — Foundation (sealed)
   base/<start-point>
@@ -1352,6 +1358,71 @@ followups and grew into the milestone. The branch exists so the inventory in
 R10 finished, not a history of how it got there.
 
 **Tag.** `r10-rule-naming` — cut 2026-08-07 on that branch.
+
+---
+
+## Phase 8 — WF3 rework (R11 OPEN)
+
+Registered 2026-08-07. Workflow 3 is the last of the three not to have been
+reworked: Phase 5 did WF2, and WF1 was settled across R3, R7 and R9. This phase
+does WF3, and splits it the way the existing material already splits.
+
+**Two designs existed, and they are different layers, not rival versions.** The
+design run under `docs/wf3-redesign` changes how WF3 **executes** — member-level
+incrementality moves out of Snakemake into our own code, with a manifest, a
+ledger and a `member_hash`. The change register in
+`dev/milestones/r09/wf3-change-requests.md` changes what WF3 **emits** and what
+its members are **called**. They also target different trees: the design run
+predates R9 (2026-08-01→04), the register was opened 2026-08-05 out of the first
+full run of the migrated R9 tree.
+
+Measured 2026-08-07 rather than assumed: `design-v4.md` carries ~74 references to
+artifacts and rules that no longer exist — `Qstats` ×25, `RT_` ×15 (tables R9
+deleted), `export_wflow_results` ×14, and three rules R10 renamed. Its 65 findings
+and two external review rounds survive; its mechanics need re-deriving.
+
+So the phase sequences rather than merges them, emitting-layer first — which also
+means R12 inherits settled result-table shapes instead of moving ones.
+
+### R11 — WF3 artifacts and identification (OPEN)
+
+**Status.** Scoped 2026-08-07 through `design-scoping`:
+`dev/milestones/r11/wf3-consolidation-scope.md`. Not designed, no task brief, no
+branch.
+
+**Goal.** Land the WF3 changes already specified against the post-R9 tree — unit
+A (result tables, `q_indicators.csv` wide→long, one table per variable), unit B
+(`cst_`→`st_` run identification), C34, and F7 — and close the WF3-territory
+followups.
+
+**Rulings taken at scoping.** `[R9-5]`: the unperturbed baseline is a member of
+the response surface and is emitted in **both** table shapes; it needs no new
+rule, because CR-2's `realization_id = 0` already means pooled. `[R10-12]`: the
+drift-guard re-record is **accepted and documented**, not fixed in code, with the
+cost of that choice recorded on its watch-item.
+
+**Out of scope.** Unit D — the only breaking config migration, deferred with its
+specification complete. And the execution model, which is R12.
+
+**Open questions.** Whether unit B's rename reaches the `experiment.yml` R9
+freezes, and whether `[R10-13]`'s `tee_to_log` fix belongs here given it improves
+all three workflows. Both are on the board.
+
+**Tag.** `r11-wf3-artifacts` *(on seal)*.
+
+### R12 — WF3 execution model (NOT STARTED)
+
+Takes `docs/wf3-redesign` as an **input, not a starting point**: 289 commits
+behind, G2 unratified since 2026-08-04 and flagged
+`rejected-major-part-pending-G2`. Ratifying or re-opening that gate is a
+prerequisite, because it decides whether the re-derivation inherits a contested
+decision. The `cst-run-control` skill governs — its scope is exactly this
+territory (run manifests, resume, checkpoints, quarantine, conformance vectors)
+and may already answer questions the design run spent rounds on.
+
+Do not merge `docs/wf3-redesign`.
+
+**Tag.** `r12-wf3-execution` *(on seal)*.
 
 ---
 
