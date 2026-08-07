@@ -148,10 +148,46 @@ asserted per site.
   regardless for the `[R10-1]` merge's subprocess plumbing.
 
 - `pixi run tree-check` — **`MAP CLEAN: 186 paths, 0 moved, 186 identity, 0
-  unmapped`** (2026-08-06, primary checkout). No rule identifier reaches a
-  durable path, which this confirms from the other direction: the tree the
-  pre-sweep run produced is still fully declared under the post-migration
-  inventory.
+  unmapped`**, both before and after the run below.
+
+- **A full three-workflow run, 2026-08-06/07, primary checkout — the gate the
+  suite cannot reach.** `pytest` dry-runs the DAG; it never executes
+  `merge_logs` against real parts, so until this run nothing had confirmed that
+  a renamed label produces a part the merge actually finds.
+
+  | | jobs | merged-log sections | `_parts/` after |
+  |---|---|---|---|
+  | WF1 | 17/17 | 14, all with content, `1.02`→`1.15` | gone |
+  | WF2 | 14/14 | 6 in order; `2.05`–`2.07` with content, `2.02`–`2.04` marked "no part" | gone |
+  | WF3 | 34/34 | 15 in order, `3.01`→`3.16`, 7 with content | gone |
+
+  Benchmark tables carry the same labels in the same order in all three.
+
+  **The two label shapes no test reaches, both confirmed:**
+
+  - **The batch divergence.** `run_wflow_batch_0/1/2` — three rule identifiers —
+    all wrote into the single `3.15_run_wflow/` directory, and all three appear
+    under one `== 3.15  run_wflow` section. This is the one rule the
+    six-call-site rule exempts, and the only proof it still works is a run.
+  - **Fan-out.** `3.12` merged 12 per-member parts and `3.14` another 12, each
+    under one section, with per-member benchmark rows.
+
+  **`--forceall` was not needed and not used.** The `_spec` → `_rule` rename
+  touched a comment inside `spatial/delineate_region.py`, and Snakemake's `code`
+  trigger hashes the whole script text — so the shared region rule re-ran and
+  cascaded through all of WF1. WF2 and WF3 were then already current and had to
+  be forced from a named rule to exercise their parts. WF2's `fetch_gcm_slice`
+  was deliberately left unforced: forcing it re-opens nine remote CMIP6 sources
+  at ~1142 s each, for a label check the other five rules already give. Its
+  section correctly reads "no part from this run", which is also the documented
+  partial-re-run behaviour working.
+
+- **`check_baseline.py check` — `OK - 8 target(s) match manifest`, run AFTER all
+  three workflows re-executed.** This is the load-bearing one. The earlier pass
+  compared artifacts a pre-sweep run had produced, so it showed only that the
+  sweep had not disturbed them; this one shows a fresh run under the renamed and
+  renumbered rules reproduces every fingerprinted target exactly. The
+  behaviour-preserving claim is now empirical rather than structural.
 
 ## Old part directories will persist, and that is correct
 
