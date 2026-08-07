@@ -22,18 +22,15 @@ from blueearth_cst.shared.plot_map import (
     _NORTH_ARROW_CORNER,
     _basin_outline,
     _colorbar_inset,
-    _coordinate_format,
     _corner_occupancy,
     _elevation_colormap,
     _figure_size,
     _mask_nodata,
     _publication_rc,
     _scale_bar_corner,
-    _graticule_ticks,
     _metres_per_degree,
     _nice_round_length,
     _river_linewidths,
-    _vertical_exaggeration,
     load_basin_layers,
     map_extent,
     pixel_resolution,
@@ -273,7 +270,9 @@ def test_ramp_endpoints_are_distinguishable_under_dichromacy():
     """
     ramp = _elevation_colormap()
     low, high = np.array(ramp(0.0)[:3]), np.array(ramp(1.0)[:3])
-    collapse = lambda rgb: np.array([rgb[:2].mean(), rgb[:2].mean(), rgb[2]])
+    def collapse(rgb):
+        return np.array([rgb[:2].mean(), rgb[:2].mean(), rgb[2]])
+
     assert np.abs(collapse(low) - collapse(high)).max() > 0.3
 
 

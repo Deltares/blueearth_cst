@@ -93,7 +93,6 @@ def get_stats_clim_projections(
     x_dim = _spatial_dim(data, XDIMS)
     y_dim = _spatial_dim(data, YDIMS)
 
-    ds = []
     ds_scalar = []
     # filter variables for precip and temp
     # data_vars = list(data.data_vars)

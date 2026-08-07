@@ -2,7 +2,6 @@
 
 import numpy as np
 import pandas as pd
-import pytest
 import xarray as xr
 
 from blueearth_cst.projections.get_change_climate_proj import (

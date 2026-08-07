@@ -111,8 +111,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if not (root / active).is_dir():
-        print(f"    NOTE     the active store is absent; it will be extracted "
-              f"on the next run")
+        print("    NOTE     the active store is absent; it will be extracted "
+              "on the next run")
 
     orphans = find_orphans(project_dir, active)
     print(f"orphans        : {len(orphans)}")

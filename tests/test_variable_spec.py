@@ -74,7 +74,8 @@ def test_every_field_is_required(field):
     "field,bad", [("canonical", "flux"), ("change", "ratio")]
 )
 def test_enumerated_fields_reject_unknown_values(field, bad):
-    body = dict(SEED["precip"]); body[field] = bad
+    body = dict(SEED["precip"])
+    body[field] = bad
     with pytest.raises(ValueError, match=field):
         parse({"precip": body})
 
@@ -96,5 +97,6 @@ def test_digest_component_is_deterministic_across_key_order():
 def test_digest_component_moves_when_semantics_change():
     """The spec picks the arithmetic, so it must be part of the cache key."""
     base = parse(SEED)
-    flipped = dict(SEED); flipped["precip"] = dict(SEED["precip"], change="absolute")
+    flipped = dict(SEED)
+    flipped["precip"] = dict(SEED["precip"], change="absolute")
     assert as_digest_component(base) != as_digest_component(parse(flipped))

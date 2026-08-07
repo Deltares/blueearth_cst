@@ -638,7 +638,9 @@ def _graticule_ticks(extent, max_ticks=GRATICULE_MAX_TICKS):
     """Shared tick positions for the grid LINES and the axis LABELS."""
     lon_min, lon_max, lat_min, lat_max = extent
     locator = MaxNLocator(nbins=max_ticks, steps=[1, 2, 2.5, 5, 10])
-    inside = lambda ticks, low, high: [t for t in ticks if low <= t <= high]
+    def inside(ticks, low, high):
+        return [t for t in ticks if low <= t <= high]
+
     return (
         inside(locator.tick_values(lon_min, lon_max), lon_min, lon_max),
         inside(locator.tick_values(lat_min, lat_max), lat_min, lat_max),

@@ -26,7 +26,6 @@ entirely, and a run where nothing resolves at all.
 """
 from __future__ import annotations
 
-import os
 from typing import Iterable, Mapping, NamedTuple, Sequence
 
 #: Resolution outcomes, in the order the ladder tests them (design §5.7).
