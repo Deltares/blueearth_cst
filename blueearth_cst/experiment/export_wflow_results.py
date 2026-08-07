@@ -17,6 +17,71 @@ from blueearth_cst.shared.snake_utils import log_row
 #: directory component can never satisfy it.
 _RLZ_IN_STEM = re.compile(r"^rlz_(\d+)_cst_\d+$")
 
+#: Month lengths in the weather generator's calendar. ``impose_climate_change.R``
+#: writes every perturbed realization with ``calendar = "noleap"``, so a year is
+#: 365 days and February is always 28 -- there is no leap branch to reach here.
+_MONTH_LENGTHS = np.array(
+    [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31], dtype="float64"
+)
+_MONTHS = tuple(range(1, 13))
+
+
+def annual_perturbation(
+    df_st: pd.DataFrame, column: str, source: Union[str, Path] = ""
+) -> float:
+    """Collapse a ``cst_<m>.csv`` column's TWELVE monthly values to ONE axis value.
+
+    ``prepare_cst_parameters`` builds each stress-test member from the config's
+    12-element ``min``/``max`` vectors, so every perturbation is monthly. The
+    response surface is two-dimensional, so the reduction owes it a single
+    annual figure per axis (technical note §1.3.1: "Mean Temperature Change
+    (degC)", "Mean Precipitation Change (%)").
+
+    **Month-length-weighted mean**, per the 2026-08-07 owner ruling on [R9-3].
+    That makes the temperature axis identical to how WF2 defines its annual
+    change factor (``get_change_climate_proj._annual``: a duration-weighted mean
+    for an intensive variable), which matters because the CMIP6 "GCM dots" are
+    overlaid on THESE axes -- two different collapses would compare two
+    different quantities.
+
+    The precipitation axis is an APPROXIMATION of that same definition. WF2
+    integrates precip over the year and takes the ratio, which weights each
+    month by its baseline precipitation; weighting by month length instead
+    assumes a uniform daily rate. The two agree exactly for a flat perturbation
+    vector and diverge with the covariance between the perturbation and the
+    basin's seasonal cycle -- a wet-season-targeted perturbation on a strongly
+    seasonal basin is the case where it matters. The exact form was declined
+    because it costs a WG-1 climatology input edge on rule 3.16; recorded here
+    so the residual is not re-derived from scratch.
+
+    Read ``.iloc[0]`` -- i.e. JANUARY -- until 2026-08-07. That was only ever
+    the annual figure for a FLAT vector, which the shipped template and the seed
+    config both are, so it was never observed wrong.
+
+    Flat vectors short-circuit on exact equality rather than falling through the
+    weighted mean, which would round twelve identical values to something a unit
+    in the last place away from them. The axis values are written unrounded, so
+    that wobble would surface as a baseline byte diff carrying no information.
+    """
+    values = df_st[column].to_numpy(dtype="float64")
+    if values.size != len(_MONTHS):
+        raise ValueError(
+            f"{source or 'stress-test parameter file'}: column {column!r} has "
+            f"{values.size} rows, expected one per month ({len(_MONTHS)})"
+        )
+    if "month" in df_st.columns:
+        # Align the weights to the rows rather than trusting file order.
+        months = df_st["month"].to_numpy(dtype="int64")
+        if tuple(sorted(months)) != _MONTHS:
+            raise ValueError(
+                f"{source or 'stress-test parameter file'}: 'month' column is "
+                f"{months.tolist()}, expected the twelve calendar months"
+            )
+        values = values[np.argsort(months)]
+    if np.ptp(values) == 0:
+        return float(values[0])
+    return float(np.average(values, weights=_MONTH_LENGTHS))
+
 
 def realization_from_run_csv(csv_fn: Union[str, Path]) -> int:
     """Realization index of a wflow run CSV, read from its FILENAME.
@@ -206,24 +271,19 @@ def analyze_wflow_results(
         # shift in % (cst_<m>.csv carries a multiplicative factor). cst_0 is the
         # unperturbed baseline, so both axes are 0 by definition.
         #
-        # NOTE the `.iloc[0]`: cst_<m>.csv has TWELVE rows, one per month, and
-        # this reads JANUARY, then labels it as the member's single axis value.
-        # That is only the annual figure when the config's monthly min/max
-        # vectors are FLAT -- which the shipped template and the seed config both
-        # are (`min: [0.0]*12`, `max: [3.0]*12`), so it has never been observed
-        # wrong. A project with a seasonal perturbation vector gets a response
-        # surface indexed by its January perturbation. Pre-existing; recorded
-        # here rather than fixed silently, because collapsing 12 months to one
-        # number is a design question (mean? annual total? drop the axis?), not
-        # a typo. Same class as the fixture-shaped validate_hm7 assertion the
-        # HM-7 docstring records.
+        # cst_<m>.csv holds TWELVE rows, one per month; `annual_perturbation`
+        # collapses each column to the member's single axis value. It read
+        # JANUARY until 2026-08-07 -- see that function for the ruling, and for
+        # the residual approximation on the precip axis.
         if st_nb == "0":
             temp_change = 0
             precip_change = 0
         else:
-            df_st = pd.read_csv(st_csv_by_num[str(st_nb)])
-            temp_change = df_st["temp_mean"].iloc[0]
-            precip_change = df_st["precip_mean"].iloc[0] * 100 - 100  # change in %
+            st_csv_fn = st_csv_by_num[str(st_nb)]
+            df_st = pd.read_csv(st_csv_fn)
+            temp_change = annual_perturbation(df_st, "temp_mean", st_csv_fn)
+            # change in %
+            precip_change = annual_perturbation(df_st, "precip_mean", st_csv_fn) * 100 - 100
         if not aggr_rlz:
             cst_stat = (rlz_nb, temp_change, precip_change)
         else:
