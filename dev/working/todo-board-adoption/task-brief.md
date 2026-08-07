@@ -60,7 +60,9 @@ only), `.claude/skills/todo-board/` (vendored copy), and citation-only edits in
 
 ### Required changes (checklist)
 
-**Phase 1 — the skill (brain repo; blocking).**
+**Phase 1 — the skill (brain repo). ✅ DONE 2026-08-07** — brain `a38388ab`,
+`todo-board` **v0.11.0**. Kept below as what was asked for; `### Progress`
+records what each item produced.
 
 1. Add a second frontmatter type, `type: watch-item`: durable knowledge with no
    action intended. Overview carries **What / Why / Trigger** — the *condition
@@ -73,13 +75,24 @@ only), `.claude/skills/todo-board/` (vendored copy), and citation-only edits in
    already filters `type == "todo-item"`, so it needs a second view; the
    generated `dev/TODO.md` needs a second table or a Type column.
    `todoboard list` today filters `--area` / `--status` only —
-   `<DECIDE: add --type to the CLI, or keep type filtering view-only>`.
+   **RESOLVED: the CLI did need it.** `add --type/--trigger`, `list --type`,
+   and a `## Watching` table in `render`; `next` needed no change (below).
 4. Bump `version:` and add a `HISTORY.md` entry.
 
 **Phase 2 — this repo.**
 
-5. Vendor `todo-board` into `.claude/skills/todo-board/` by the same pin
-   mechanism the other 19 use (`<PLACEHOLDER: the sync command or ADR pin>`).
+5. ~~Vendor `todo-board` into `.claude/skills/todo-board/`.~~ **RESOLVED — all
+   but a no-op.** Skills are not copied here: `.claude/skills/<name>` are
+   **symlinks** into `~/workspace/brain/artifacts/skills/`, materialized by
+   `python scripts/agent-system/activation.py` from a manifest. `todo-board` is
+   already active at **user scope** (`~/.claude/skills/todo-board` → the brain
+   artifact), so this repo already resolves **v0.11.0** with nothing vendored.
+   Two consequences worth stating: there is **no pinned copy**, so this project
+   tracks brain's `master` live and a later skill change reaches it without any
+   action here; and `.claude/` is **gitignored**, so adding `todo-board` to
+   `.claude/agent-manifest.yml` is untracked local state that no commit can
+   record. Declare it there for explicitness if you like — availability does
+   not depend on it.
 6. Create `dev/LOG.md`. Resolve the existing closed campaign record per Gate 3.
 7. Create one note per open followup, per the classification below. **Each note
    keeps its legacy `R<n>-<n>` ID** in frontmatter `refs:` or the body, so
@@ -91,6 +104,37 @@ only), `.claude/skills/todo-board/` (vendored copy), and citation-only edits in
 10. Rewrite `dev/README.md`'s `dev/` grammar rows (`tasks/` inverts meaning; add
     `LOG.md`; `followups-archive.md` becomes the pre-board ledger) and the
     `dev/` bullet in `AGENTS.md`'s Repo Map.
+
+### Progress
+
+- [x] Gate 1 — owner approved the `watch-item` design 2026-08-07; draft in
+      `watch-item-proposal.md` beside this brief
+- [x] 1–2. `type: watch-item` + the routing admission gate — brain `d5d6df47`.
+      `load_items` gained `item_type=DEFAULT_TYPE`, and **that is what made
+      `next` need no edit at all**: `next`, the open render table and
+      `worktrees` all keep asking for work by default, so `next` cannot return
+      a watch-item without knowing the type exists
+- [x] 3. Views + CLI — `add --type/--trigger`, `list --type`, a `## Watching`
+      table **omitted when empty** so a board that has not adopted the type
+      renders byte-identically; Obsidian gets a Watch view keyed on `type`
+- [x] 4. `v0.11.0` + HISTORY row. **No release gate applied** — only
+      `git-workflow` has a versioning adapter in brain's `.git-workflow.yml`,
+      so this bump is a frontmatter edit, as v0.10.0 was
+- [x] Phase 1 gates — `pytest todoboard/` **115 passed** (102 pre-existing
+      unchanged + 13 new); `grep -rn "brain" todoboard/ --include=*.py` empty,
+      so the package stays vendorable; scratch-board round-trip drove
+      `add` → `next` → `list` → `render` → `done --outcome superseded` and
+      confirmed the Watching table appears and then disappears
+- [x] 5. Vendoring — resolved as a no-op (see above); nothing to commit
+- [ ] Gate 2 — which items go to `roadmap.md` rather than the board
+- [ ] Gate 3 — the closed pre-R6 campaign record: `LOG.md` row, or keep the file
+- [ ] 6–10. Board scaffolding, note migration, `followups.md` deletion with the
+      citation rewrite in the same commit, `render`, convention rewrites
+
+**Not verified, and not verifiable from the authoring session:** whether an
+agent actually *follows* the new type. Skill text is snapshotted at session
+start, so the SKILL.md prose must be exercised in a fresh session; only the
+code was gated above.
 
 ### Commit plan
 
