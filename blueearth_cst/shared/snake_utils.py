@@ -551,7 +551,7 @@ ADVANCED_SETTINGS = load_advanced_settings()
 #:
 #: It subsumes the other length requirement in the tree: rule 1.11
 #: ``plot_results`` writes ``clim_wflow_1_{month,year}.png`` only from >= 365
-#: TIMESTEPS, which 16 years clears for any daily source (dev/followups.md
+#: TIMESTEPS, which 16 years clears for any daily source (dev/followups-archive.md
 #: R7-6).
 MIN_HISTORICAL_YEARS = ADVANCED_SETTINGS["constraints"]["min_historical_years"]
 
@@ -885,7 +885,7 @@ class SpatialUnitsRule:
     Named ``_rule``, not ``_spec``: the object holds a rule's script, inputs,
     outputs and params, so it IS a rule definition minus its labels. This was
     the first of the three to carry the suffix; the other two joined it in the
-    R10 step-6 sweep (``dev/followups.md`` ``[R10-7]``), so the family is
+    R10 step-6 sweep (``dev/followups-archive.md`` ``[R10-7]``), so the family is
     uniform again.
 
     **Name the next one ``<thing>_rule``.** ``_contract`` was rejected — this

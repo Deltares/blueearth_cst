@@ -177,7 +177,7 @@ def main(argv: list[str] | None = None) -> int:
              "anything nobody declared?' and is the only one that can pass on "
              "a tree in the layout R9 delivered. `r09` is the one-way "
              "migration map (pre-R9 -> post-R9); use it to check a tree that "
-             "has NOT been migrated yet. See dev/followups.md [R10-11]",
+             "has NOT been migrated yet. See dev/followups-archive.md [R10-11]",
     )
     parser.add_argument(
         "--gap-rules", action="store_true",

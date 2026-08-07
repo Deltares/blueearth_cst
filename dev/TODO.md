@@ -24,13 +24,16 @@ each is now either resolution-marked there or carries a row here.
 
 | ID | Status | Area | Updated | Item |
 |---|---|---|---|---|
-| `t260802a` | backlog | lint / CI | 2026-08-02 | **The ruff gate is red on `main`.** 10 findings (7 auto-fixable) in R8-era `projections/` + two tests. CI runs `pixi run ruff check .` (`ci.yml:75`), so both legs fail on an untouched tree. Predates this triage — present at `207c449`. Detail: `followups.md` R8-1 |
 | `t260802b` | backlog | wf1 rule shape | 2026-08-02 | `hydro_*`, `clim_*`, `signatures_*` figures are undeclarable at parse time, so `--delete-all-output` leaves stale figures on a config with extra gauges or observations. Needs a `checkpoint` or `directory()` output. `followups.md` R7-5 (basin-average half already fixed) |
 | `t260802c` | backlog | test hygiene | 2026-08-02 | `tests/test_stage_data_incremental.py` fails intermittently under some orderings, passes in isolation. Test-isolation issue, not a product defect. `followups.md` R7-14 |
 | `t260802d` | backlog | packaging | 2026-08-02 | O-14 decision 2 (real packaging) needs a superseding record in `dev/decisions/`; O-16 (flit) stays blocked until it lands. `followups.md` R7-16 |
 | `t260802e` | backlog | importability | 2026-08-02 | `downscale_climate_forcing.py` is the last module reading the bare `snakemake` global at import; converting it makes it unit-testable and lets the `F821` per-file-ignore in `pyproject.toml` be **deleted**. Not mechanical — the body sits inside `tee_to_log(...)`. `followups.md` R7-22 |
 | `t260802f` | blocked | formatting | 2026-08-02 | Adopt `ruff format`? Now **136** files / ~7.8k lines (118 at R7). A churn decision, not a defect — needs an owner ruling, then one mechanical commit and a baseline re-record. `followups.md` R7-23 |
 | `t260802g` | backlog | housekeeping | 2026-08-02 | Retire the 48 MB pre-R7 reference tree at `~/workspace/.r07-reference/`. Its precondition — R7 sealed — was met 2026-07-29, so this has simply gone unexecuted. `followups.md` R7-20 |
+
+**Closed since the triage:** `t260802a` (ruff gate red on `main`) — DONE
+2026-08-07, `2c8f32a`; `pixi run ruff check .` is clean and `followups.md` R8-1
+carries the remaining question (why a red gate went unnoticed).
 
 Left deliberately without a row: R7-8 (wflow `log.txt` placement — gate-invisible
 cosmetic whose verification needs a full wf3 run), R7-7 (working as intended),

@@ -96,6 +96,14 @@ The tree is self-explanatory; these are the parts that are not.
   covers DATA, not figures: `FIGURE_KINDS` targets are excluded by default
   because a figure is fingerprinted by byte size, so any cosmetic edit fails the
   gate without indicating a defect (see the validation ladder under Workflow).
+  **A task that MOVES THE PROJECT TREE must grep the test suite for the old
+  roots.** The fixture-dependent layer is the one part of the suite that cannot
+  fail in CI or in any worktree, so a stale path there survives every gate a
+  branch can run: R9 moved the tree and left 22 such failures, three of them
+  behind an `os.path.exists` guard that turned a wrong path into a **silent
+  skip** rather than a failure (archived as R9-4). Tree-shape gates —
+  `semantic_tree_diff`, `check_baseline` — do not read the code that reads the
+  tree, so they cannot substitute.
 - Outputs land under `project_dir` (set in the config). Production `project_dir`
   lives **outside the repository tree**; the in-repo untracked `test_case/test_local`
   is a dev/test convention only, explicitly exempt from that rule.

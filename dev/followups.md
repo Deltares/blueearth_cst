@@ -4,8 +4,55 @@ Issues surfaced during pre-M1 cleanup that belong to later milestones.
 Per the roadmap's "no milestone touches the next milestone's territory" rule,
 captured here and resolved in passing when the relevant milestone starts.
 
-Convention: one bullet per item. Keep the diagnosis date and reproducible
-context so future-you can confirm the issue still applies before fixing.
+**This file holds OPEN items only.** Closed ones live in
+[`followups-archive.md`](followups-archive.md), one brief entry each, with
+their IDs intact — those IDs are cited from code, tests and Snakefiles.
+
+## Conventions
+
+- **One bullet per item.** Keep the diagnosis date and reproducible context so
+  future-you can confirm the issue still applies before fixing.
+- **Closing an item is a brief note, not a post-mortem.** State what it was,
+  how it ended, and the date — a few lines. If the fix taught something that
+  generalizes, **promote the lesson to the file that governs the behaviour**
+  (`AGENTS.md`, `dev/reference/`, a contract doc, a test or code docstring) and
+  cite that from here. A lesson kept only in a backlog is read by nobody; the
+  2026-08-07 sweep found that nearly every lesson worth keeping had *already*
+  been promoted, so 953 lines of closure prose were duplicating guidance that
+  lived somewhere better.
+- **Move a closed item to the archive.** An item with anything left to do is
+  not closed — it stays here, with its finished part compressed to a few lines.
+- **Keep the index below in step** when an item is added, closed or moved.
+
+## Open items
+
+| # | Area | Item |
+|---|---|---|
+| R10-12 | wf1 / drift guard | `inmaps_historical.nc` is not byte-reproducible, so every model rebuild trips WF3's drift guard |
+| R10-13 | logging | A failing `check_model_reference` writes an empty log part, so the file the error points at is useless |
+| R10-14 | rerun triggers | A comment-only edit to a shared-rule script invalidates two whole workflows |
+| R10-9 | rule identifiers | `LOG_RULES` contract test DONE; the one-label-constant-per-rule refactor is not taken |
+| R10-6 | spatial rules | ADR 0003 §8–12 landed; the WF2 hydrography read cost is asserted, not measured |
+| R9-1 | naming | Six geojson basenames collide across `data/spatial/geoms/` and the wflow `staticgeoms/` |
+| R9-2 | baseline | Re-record owed for the indicator-table axis-column rename |
+| R9-5 | wf3 results | The unperturbed baseline member is present under `aggregate_rlz: false`, absent under `true` |
+| R8-1 | lint / CI | Ruff gate FIXED; open question is why a red gate went unnoticed (pre-push hook?) |
+| R7-5 | wf1 rule shape | Figure families are not parse-time enumerable, so `--delete-all-output` leaves stale figures |
+| R7-8 | wf3 logging | Per-member wflow logs FIXED; the concurrency falsifier has never been shown to fail |
+| R7-14 | test hygiene | `tests/test_stage_data_incremental.py` fails intermittently under some orderings |
+| R7-16 | packaging | O-14 decision 2 (real packaging) + O-16 (flit) still open |
+| R7-17 | platform | Docker and Linux end-to-end, parked — no Linux machine |
+| R7-18 | architecture | Climate analysis as a fourth Snakefile — a separate milestone |
+| R7-22 | importability | `downscale_climate_forcing.py` is the last module reading the bare `snakemake` global at import |
+| R7-23 | formatting | `ruff format` configured but not enforced — needs an owner ruling |
+| R7-20 | housekeeping | Retire the 48 MB pre-R7 reference tree |
+| — | wf3 batching | Disk-aware batch-size default; per-cst persistence isolation under batching |
+| — | wf2 | Snakemake's `code` rerun-trigger does not reach rule 2.04 |
+| — | ergonomics | `tee_to_log` does not capture a failing `script:` rule's traceback; per-rule progress messages |
+| — | wf3 / weathergenr | `write_netcdf` drops `spatial_ref`; the wavelet minimum surfaces as a cryptic error |
+| — | tests | `sys.modules.setdefault` pollution; dask cannot be stubbed at module level |
+| — | upstream / hydromt | `to_yml` strips `driver.options.preprocess`; `setup_constant_pars` CSDMS names; outlet station naming |
+| — | R6 direction | Model-independent climate-analysis subworkflow; WF1 rule arrangement |
 
 ---
 
@@ -19,19 +66,6 @@ These sat in `roadmap.md` as a third backlog, referenced by neither
 Small decisions that don't justify a section of their own. Resolve
 in passing as the relevant milestone starts.
 
-- ~~**CI.**~~ **DONE 2026-07-25 (first Phase-4 item)** —
-  `.github/workflows/ci.yml` runs the unit suite on push to `main` and on PRs,
-  across both supported pixi platforms (`ubuntu-latest` + `windows-latest`,
-  `fail-fast: false`), with `locked: true` so `pixi.lock` drift fails the run.
-  Scope set by measurement: a bare checkout gives 386 passed / 30 skipped /
-  1 xfailed in ~100 s, every skip principled (~27 need the untracked
-  `examples/test_local` fixture, 3 are the `--run-integration` end-to-end
-  tests). **`check_baseline.py` turned out NOT to be the natural fit this entry
-  assumed** — it fingerprints targets inside that untracked fixture tree, so it
-  cannot run on a runner and stays a local gate, as does `semantic_tree_diff`
-  whole-tree diffing. The ubuntu leg is also the first time the linux-64 half of
-  `pixi.lock` has been resolved anywhere, so it de-risks the parked Linux work
-  below.
 - **R testthat coverage.** Decided at the start of R5 — Python
   helpers only by default; adding R testing infrastructure is a
   separate call.
@@ -188,595 +222,47 @@ that awkwardness.
   and because anyone editing a comment in those three scripts should know it
   costs a full re-run of up to three workflows.
 
-- **[R10-1] Merge rule 1.07 `setup_runtime` into 1.08 `add_forcing`.**
-  **DONE 2026-08-06** — `blueearth_cst/model/add_climate_forcing.py`; gate
-  `pytest tests/test_cli.py` (12 passed) + `test_log_rules_contract.py` +
-  `test_setup_time_horizon.py` (22 passed).
+- **[R10-9] Make the `LOG_RULES` contract a test.** **The test is DONE
+  2026-08-06** — `tests/test_log_rules_contract.py` asserts set-equality between
+  each Snakefile's `LOG_RULES` and the labels derived from every rule's `log:`
+  path, plus, since the `[R10-5]` renumber, that the list reads in rule-number
+  order. It confirmed `[R10-8]`'s deletion left no orphan. The
+  unlisted-or-stale-label defect had occurred four times before it existed.
 
-  Resolved as a `script:` driving hydromt's CLI, so the command issued is
-  byte-identical to the one the `shell:` rule ran. Two things found while doing
-  it, neither in the brief: 1.07's `gauges_path` input was **dead** (the script
-  never opened `outlets.geojson`) and was dropped rather than carried over; and
-  `tee_to_log` redirects Python-level streams only, so a bare `subprocess.run`
-  would have inherited stdout and left the rule's log part **empty** — hydromt's
-  `-vv` output is streamed line-by-line through the tee to preserve what
-  `run_logged` captured before. The recipe builder in
-  `shared/setup_time_horizon.py` is untouched and still directly tested.
-
-  ~~**NOT executed.** `test_cli.py` dry-runs; it does not run hydromt. A real WF1
-  run in the primary checkout is still owed before this is trusted — the risk is
-  the subprocess plumbing, not the recipe.~~ **EXECUTED 2026-08-06**, in the R10
-  step-6 three-workflow run: WF1 17/17, the merged rule's `log:` part carries
-  hydromt's streamed `-vv` output (so the `tee_to_log` concern was real and is
-  handled), and `run_default/output.csv` came back **byte-identical to the
-  baseline** — the forcing this rule now builds drives an identical model run.
-  The plumbing is trusted.
-
-  **One thing the run surfaced about its output**, tracked separately as
-  `[R10-12]`: `forcing/inmaps_historical.nc` is not byte-reproducible across
-  rebuilds, so it trips WF3's model-drift guard even when nothing numeric moved.
-
-  *Original brief:* 1.07 writes a hydromt forcing build
-  recipe (`<model>/config/build_historical_forcing.yml`) whose **only** consumer
-  is 1.08, which runs `hydromt update wflow_sbm -i` against it. Two rules, one
-  job. The merge is the reason 1.07's R10 rename was withdrawn rather than
-  replaced: a recipe that never leaves the pair needs no name of its own, so the
-  naming drift disappears with the rule instead of being renamed around.
-
-  **The implementation cost is real.** Snakemake allows one of `script:` /
-  `shell:` per rule. 1.07 is a Python `script:` (`setup_time_horizon.py`, which
-  also opens the model's staticmaps to size a chunksize); 1.08 is a `shell:`
-  invoking the hydromt CLI. The merged rule must either call hydromt's Python API
-  or shell out from inside a script. Decide at the same time whether
-  `build_historical_forcing.yml` stays a **declared** output — it is kept today
-  as provenance of the model it built (`Snakefile_model_creation` rule 1.07's
-  comment, design v10), and demoting it to an undeclared side-write would lose
-  that without saying so.
-
-  **Sequencing against R10:** either order works. If the merge lands first, 1.07
-  has no rename to skip; if R10 lands first, 1.07 keeps `setup_runtime` until the
-  merge deletes it. What must not happen is renaming 1.07 in passing.
-
-- **[R10-2] ~~Split rule 1.11 into a metrics rule and a figure rule.~~
-  DROPPED 2026-08-06 by owner ruling** — option 3 of the three below.
-  *Accepted 2026-08-06, blocked the same day on implementation evidence,
-  then dropped.*
-
-  **Why option 3.** The item's own assessment is that the harm is a wasted
-  re-run and a needless baseline comparison — **not a wrong number**. The two
-  ways to actually split it both cost more than that: an aligned-discharge
-  intermediate adds a declared artifact to a tree R9 has just settled, and a
-  full re-read duplicates the climate-parity transform, the expensive part of
-  the rule. Neither price is worth a re-run.
-
-  **Consequences, both settled:** `evaluate_` is withdrawn as the 19th verb
-  (`dev/milestones/r10/rule-naming-design.md` Amendment 3) — it existed only
-  to name the metrics half, and a verb with no user is a trap for the next
-  author. 1.11's rename to `plot_wflow_evaluation` is UNAFFECTED: that was
-  always the figure half's name, so step 6 renames 1.11 to it as planned.
-
-  **What stays true, and is the reason to keep this record rather than delete
-  it:** the DAG still cannot express the distinction the `AGENTS.md`
-  validation ladder turns on — "do not run the baseline for a figure-only
-  change" remains written guidance that the rule graph contradicts. That is
-  now a known, accepted gap rather than an open task. Re-raise only with a
-  cheaper seam than the three below.
-
-  Original analysis follows.
-
-  *Original statement:* Today one rule writes both
-  `<model>/evaluation/performance_metrics.csv` — **baseline-covered data** — and
-  the evaluation figures, which `check_baseline.py` **excludes by default**
-  (`FIGURE_KINDS`). The DAG therefore cannot express the distinction the
-  `AGENTS.md` validation ladder turns on: "do not run the validation suite or the
-  baseline for a figure-only change" is written guidance that the rule graph
-  contradicts.
-
-  Target shape: **1.11 `evaluate_wflow_run`** (metrics) → **1.11b
-  `plot_wflow_evaluation`** (figures), using the letter-suffix convention already
-  set by 1.01b / 2.03b / 3.00b / 3.01c–e. The figure half keeps the R10 target
-  name, so that rename is unaffected either way.
-
-  **Honest about the size of the win.** The harm today is a wasted re-run and a
-  needless baseline comparison, not a wrong number: a plotting edit re-runs 1.11
-  and rewrites identical metrics, so the gate passes. The gain is that a
-  figure-only change becomes *visible as one* to Snakemake.
-
-  **BLOCKED 2026-08-06 — the split does not have the seam this item assumed.**
-  Found while implementing it, by reading `plot_results.py` rather than trusting
-  the brief. `analyse_wflow_historical` is one function whose shared prefix is
-  nearly the whole rule:
-
-  - `WflowSbmModel(root, mode="r")`, `mod.output_csv.read()`, `mod.geoms.data`;
-  - the outlet/gauge series merge, with **variable names resolved from the
-    model** (`gauges_variable_name`/`gauges_layer_name`, not from the filename);
-  - observation loading plus `validate_observation_station_ids`;
-  - the warm-up trim and the qsim/qobs time alignment;
-  - the climate-parity transform (catalog orography fetch, regrid, lapse and
-    pressure correction, PET) — the expensive part.
-
-  **The metrics are one call inside the figure loop**
-  (`compute_metrics(qsim_i, qobs_i, station_name)`, `plot_results.py:422`), in
-  the same `if do_signatures and qobs_i is not None:` branch that emits
-  `plot_signatures`. The metrics half is ~5 lines; the figure half is the module.
-
-  So "re-read `output.csv`" — this item's stated preference — actually means
-  re-open the model, re-resolve the gauge variable names, re-merge, re-align and
-  **re-run the parity transform**. That preference is **withdrawn**: it was
-  formed from a description of the rule, not from the rule.
-
-  Three options, none free, and this is now a design decision rather than an
-  implementation detail:
-
-  1. **Aligned-discharge intermediate.** The metrics rule runs upstream and
-     writes `performance_metrics.csv` plus the aligned qsim/qobs series; the
-     figure rule reads that. Removes the merge and alignment duplication but not
-     the parity work, and adds a declared artifact to a tree R9 just settled.
-  2. **Full re-read.** Duplicates the parity transform in both rules.
-  3. **Drop S1.** The harm it fixes is a wasted re-run and a needless baseline
-     comparison — not a wrong number, by this item's own assessment. That may not
-     justify either cost.
-
-  Still open regardless: **the metrics rule's verb.** `evaluate_` is ruled in as
-  the 19th verb (`rule-naming-design.md` amendment 2) and stands whichever option
-  is chosen — but if S1 is dropped, so is the verb.
-
-  **Nothing else in the stack depends on S1**, so steps 4–7 of the landing order
-  are unaffected.
-
-- **[R10-3] Two consolidations REJECTED, recorded so they are not re-raised.**
-  Both looked obvious and both are wrong; the reasons are structural, not
-  aesthetic.
-
-  **M2 — merge 1.06 `write_outlet_index` into 1.05. Rejected.** The two were
-  paired thematically ("both wire the model to named stations"), and the
-  structure does not agree. 1.06's inputs are `outlets.geojson` (rule 1.03) and
-  `location_registry.csv` (rule 1.02) — nothing else — while 1.05 waits on
-  `reservoirs_lakes_glaciers.txt` from 1.04. So 1.06 runs in parallel with 1.04
-  and 1.05 today, and merging would serialise a cheap deterministic pandas join
-  behind the waterbody update *and* a hydromt `r+` model mutation. Re-deriving
-  the crosswalk after a registry fix would then re-run the hydromt update.
-  **The merge adds a DAG edge rather than removing one.**
-
-  **M3 — merge `gather_benchmarks` + `gather_logs` per workflow. Rejected.**
-  Both merge functions call `_remove_parts`: they **delete the parts they
-  consumed**. In one rule that becomes a partial-failure hazard — the log merge
-  succeeds and deletes its parts, the benchmark merge raises, Snakemake removes
-  both declared outputs as a failed job, and the re-run finds no log parts and
-  rewrites the merged log with "no part from this run" for every rule. Today
-  `gather_logs` succeeding independently means its output survives a
-  `gather_benchmarks` failure. Three rules out of forty is not worth a path that
-  silently degrades a durable artifact. Revisit only if the deletion is made safe
-  first (both merges complete before either deletes), which is work the current
-  split gets for free.
-
-  **Also do not merge 3.01c `write_model_reference` and 3.01d
-  `check_model_reference`.** They read as an obvious pair and merging them
-  destroys the guard. 3.01c's model inputs are `ancient()` *on purpose* — if the
-  reference were rewritten whenever the model changed it would always match, and
-  3.01d's comparison would be decorative. 3.01d's sentinel is `temp()` for the
-  mirror reason: a persisted verdict satisfies 3.09's edge after the model has
-  drifted. The asymmetry *is* the mechanism.
-
-  **Generalizes:** two rules being small, adjacent and thematically similar is
-  not an argument for merging them. Check what each actually depends on, and
-  whether either destroys its own inputs.
-
-- **[R10-8] `Snakefile_climate_projections` lists a `LOG_RULES` label with no
-  rule.** *Found by the 2026-08-06 review; a live defect, not a comment.*
-  Line 560 still carries `"2.11_extract_climate_grid"`, with a comment claiming
-  WF2 builds the store when run standalone. It does not — ADR 0003 §5 removed
-  that rule, and `grep -c "rule extract_climate_grid" Snakefile_climate_projections`
-  returns **0**. Consequence: every WF2 merged log carries a phantom "no part
-  from this run" section forever. This is exactly the label-with-no-producer
-  hazard `rule-naming-design.md` documents from the C29 precedent, already
-  realised. Delete the entry and its comment. Gate: `pytest tests/test_cli.py`.
-
-- **[R10-9] Make the `LOG_RULES` contract a test.** *Recommended by the
-  2026-08-06 review; the cheapest insurance in the stack.* The
-  unlisted-or-stale-label defect has now occurred **four** times (1.01b, 3.01b,
-  2.03b, and `[R10-8]`), and the design treats it as checklist discipline before
-  a sweep that edits precisely that surface across three files.
-
-  It is mechanically checkable: parse each Snakefile — the machinery in
-  `tests/test_climate_store_contract.py` already does this — and assert
-  set-equality between `LOG_RULES` and the labels derived from every rule's
-  `log:` path. Rule 3.10's deliberately singular label falls out naturally, since
-  its own `log:` path carries `3.10_run_wflow` rather than the batch identifiers.
-
-  **DONE 2026-08-06** — `tests/test_log_rules_contract.py`, 9 passed, and it
-  confirms `[R10-8]`'s deletion left no orphan and no unlisted label in any
-  workflow. Two notes for whoever extends it:
-
-  - A Snakefile is **not valid Python** (`rule all:` is Snakemake grammar), so
-    `ast.parse` over the whole file raises. The `LOG_RULES` block is lifted out
-    textually and only that is parsed.
-  - **Ordering is deliberately not asserted.** ~~`Snakefile_climate_projections`
-    says "Order is by RULE NUMBER" while its list opens `2.03b`, `2.01`,
-    `2.02` — correct by *execution* order, wrong by number. Which is right is a
-    ruling nobody has made, and it dissolves at `[R10-5]`, after which number,
-    execution and sort order coincide. **Add the ordering assertion then**, and
-    settle the related WF1/WF3-vs-WF2 disagreement about whether
-    `gather_benchmarks` precedes `gather_logs` in the same edit.~~
-    **DONE 2026-08-06** with the renumber, exactly as planned:
-    `test_declared_labels_read_in_rule_number_order` asserts
-    `LOG_RULES == sorted(LOG_RULES)`, which is a correct comparison only because
-    `NN` is zero-padded to two digits — stated in the test, since a future
-    unpadded number would break it silently. WF2's list needed no reordering: it
-    was already in execution order, and the renumber is what made the two agree.
-
-    **The gather ordering was a separate question and this item mis-stated its
-    mechanism.** Neither gather rule declares a `log:`, so neither appears in
-    any `LOG_RULES` and the ordering assertion never touches them. What forces
-    the decision is the *number map*. Ruled by the owner 2026-08-06: **benchmarks
-    then logs in all three workflows**, so WF2 moved to match WF1 and WF3. The
-    two are parallel leaves with identical input sets, so no dependency decides
-    it — it is a reading convention, and `gather_logs` is now the last-numbered
-    rule everywhere.
-
-  Related, and free only while every call site is already being edited: define
-  **one label constant per rule** (`_L = "1.10_add_climate_forcing"`) and build
-  `LOG_RULES`, `rule_banner`, `log:` and `benchmark:` from it. Four of the six
-  call sites collapse to one definition, and the next rename or renumber becomes
-  a one-line edit per rule.
-
-  **NOT TAKEN in the R10 sweep — still open, and cheaper now than it looks.**
-  The sweep was the moment this was free and it was dropped anyway, so the
-  reason matters. `LOG_RULES` must stay a **module-level list literal**: three
-  separate consumers read it out of the source text without executing the
-  Snakefile — `tests/test_log_rules_contract.py` lifts the block and
-  `ast.literal_eval`s it, and that is the only way to read it, because a
-  Snakefile is not valid Python (`rule all:` is Snakemake grammar). Building the
-  list from per-rule constants makes it a list of *names*, not literals, and
-  `literal_eval` raises. Closing that needs the checker to parse the executed
-  workflow's globals instead — which is a change to the instrument the sweep was
-  relying on, mid-sweep. Do it as its own task, instrument first.
-
-- **[R10-10] ~~`test_model_reference.py`'s `LOG_RULES` slicer stops at the first
-  `]`, so a bracket in a comment silently blinds it.~~ DONE 2026-08-06** —
-  **folded, not fixed.** The check was deleted from `test_model_reference.py`
-  and `tests/test_log_rules_contract.py` is now the only home for the property,
-  because two modules asserting one property by different parsers is how they
-  came to disagree.
-
-  Folding turned out to be strictly stronger than fixing the slicer, for a
-  reason this item had not found: the slicer's label regex matched the f-string
-  form `{LOG_PARTS_DIR}/<label>` only, so WF2's and WF3's fan-out rules — which
-  build their `log:` path by concatenation — were invisible to it. That is what
-  its own docstring's "14/3/14" recorded: it saw **3 of WF2's 6** labels. The
-  contract module derives labels from the parsed workflow's `rule.log`, so it
-  has neither blind spot, and it asserts across all three Snakefiles at once.
-
-  Verified failing before the sweep rather than merely present: dropping one
-  label from WF1's list fires `test_every_logging_rule_is_declared` naming that
-  exact label. The bracket convention the Snakefile comments held is also
-  retired — the surviving parser anchors the closing bracket at column 0, so a
-  `]` inside the block is fine again, and the comments say so.
-
-  *Original item follows.*
-
-  `test_every_declared_log_part_label_is_registered_in_log_rules` extracts the
-  block as `text[index("LOG_RULES = ["): index("]", index("LOG_RULES = ["))]`.
-  Any `]` inside the list — including one inside a **comment** — ends the slice
-  early, so every label below that point reads as unregistered.
-
-  **This is not hypothetical, and the failure mode is the interesting part.**
-  Commit `129580f` put `# No 1.07 entry: [R10-1] merged setup_runtime into 1.08`
-  inside WF1's list. The test went red immediately and stayed red, because it
-  asserts *inside* a `sorted(glob("Snakefile_*"))` loop: the first failing file
-  aborts the test, and nobody looked past the message. `[R10-6]` then briefly
-  wrote a bracketed reference into WF3's list too — WF3 sorts first, so the WF1
-  failure was masked behind the new one, and fixing WF3 is what surfaced it.
-  Both comments now avoid brackets and say why, which is a convention held only
-  by a comment.
-
-  Two independent defects, and the second is what let the first sit:
-
-  - **Fragile extraction.** The block is not valid Python either (`[R10-9]`'s
-    note), but `ast` on the *lifted* text is — `tests/test_log_rules_contract.py`
-    already does exactly that and was green throughout, which is why the two
-    disagreed. Either lift the block the way that module does, or slice to the
-    first `]` at column 0.
-  - **Loop-scoped assertion.** Collect across all three Snakefiles and assert
-    once, so a second file's failure cannot hide a first's — the same
-    "pairwise, not left/right" argument the three-declaration contract tests make.
-
-  Consider folding the check into `tests/test_log_rules_contract.py` and
-  deleting it from `test_model_reference.py`: two modules asserting the same
-  property by different parsers is how they came to disagree. Do it during
-  `[R10-9]`'s ordering extension, which touches that file anyway.
-
-- **[R10-11] ~~`pixi run tree-check` cannot pass on a correctly-migrated tree.~~
-  FIXED 2026-08-06.** `dev/scripts/semantic_tree_diff.py::build_project_tree_rules`
-  is the post-migration inventory and is now `tree-check`'s DEFAULT; the one-way
-  migration map stays reachable as `--map r09`. Verified on the live tree:
-  **186 paths, 186 identity, 0 unmapped, exit 0** — against 153 unmapped before.
-  `tests/test_project_tree_inventory.py` covers it, and its second half is the
-  load-bearing one: twelve undeclared artifacts, each under a root the inventory
-  DOES cover, must still report UNMAPPED, so a prefix written one level too
-  broad fails the test rather than emptying the report.
-
-  *Original diagnosis follows.* `AGENTS.md` documents the command as a standing check — "Snapshot a
-  project tree as a path list and check every path against the R9 path map" —
-  and it exits 1 on every tree that is in the layout R9 delivered.
-
-  **The map runs one way.** `build_r09_path_map` maps PRE-R9 paths to post-R9
-  ones (`spatial/spatial_maps.nc` -> `data/spatial/spatial_maps.nc`). A live
-  tree holds only the post-R9 side, so nothing matches the old-side patterns and
-  every relocated artifact falls through as UNMAPPED. Only the identity rows
-  fire — `config/`, `logs/`, `benchmarks/`, the paths that are the same in both
-  eras.
-
-  Measured on two trees, one of which cannot contain the artifact `[R10-6]`
-  added:
-
-  | tree | paths | identity | unmapped | exit |
-  |---|---|---|---|---|
-  | fresh clean-room run, 2026-08-06 | 186 | 33 | 153 | 1 |
-  | `test_case/test_local_pre_r10-6` (parked, pre-split) | 203 | 38 | 165 | 1 |
-
-  The second is the falsifier: it holds no `data/spatial/hydrography.nc` at all
-  and fails identically, so the condition predates `[R10-6]` and its path-map
-  row. `data/spatial/spatial_maps.nc` — mapped since R9 — is UNMAPPED on both.
-
-  **Why the unit tests are green while the tool is red.** They feed the map its
-  OLD-side inputs: `MAP_ROWS` in `tests/test_r09_path_map.py` and
-  `dev/milestones/r09/declared_inventory.txt` are both pre-move path lists. The
-  map is correct; it is being asked about the wrong era. Nothing was wrong with
-  either instrument — they simply cannot see this, which is why it took a live
-  run to surface.
-
-  **Consequence for `[R10-6]`:** its commit 3 claims the invariant "`pixi run
-  tree-check` clean". That was unachievable when written. The path-map row it
-  added is right and `tests/test_r09_path_map.py` exercises it; only the
-  end-to-end claim is void.
-
-  **Recommended fix — a post-migration inventory, not a reverse map.** The
-  reason to keep this tool is the property it was built for: *no artifact
-  appears that nobody declared* — exactly what caught `region.geojson` (F1a) and
-  what the seam intermediate needed a row for. That property does not need a
-  migration map; it needs the set of paths a correct tree may hold, asserted as
-  identity-by-rule so a NEW artifact still reports UNMAPPED. Retiring the check
-  half and keeping only `--out` would be cheaper and would throw the property
-  away. Inverting the map (new -> old) would validate a migration nobody will
-  run again.
-
-  Until then, treat a red `tree-check` as uninformative rather than as a gate,
-  and say so in `AGENTS.md` — a documented command that always fails trains
-  readers to ignore it, which is worse than not having it.
-
-- **[R10-7] ~~Rename the three shared-rule helpers from `_spec` to `_rule`.~~
-  DONE 2026-08-06**, in the R10 step-6 sweep, 20 files. The two hazards this
-  item flagged both bit and were caught: `climate_store_spec` inside an error
-  *message string* and in module docstrings, which a symbol-only rename misses;
-  and `dev/decisions/0003`, whose §1–7 named the old symbols on purpose. Its own
-  revision note said they would be renamed "until that sweep lands", so they
-  were — and a blanket substitution collapsed two of its old→new arrows
-  (``` `region_spec` → `region_rule` ``` became ``` `region_rule` →
-  `region_rule` ```), which is the failure mode of renaming inside a document
-  that *documents* the rename. `dev/reference/naming.md` §5 now carries the
-  `_rule` convention with both rejected alternatives.
-
-  Two files were deliberately NOT renamed: the `wf2-climate-analysis-v2` design
-  and its review record under `dev/reference/workflows/`. They describe a design
-  run closed 2026-07-29 and name the symbols as they were; freshening them is
-  the R9 P5 F2 mistake.
-
-  *Original item follows.* `region_spec` → `region_rule`,
-  `climate_store_spec` → `climate_store_rule`, and the new one from `[R10-6]`
-  was **born as `spatial_units_rule` / `SpatialUnitsRule` on 2026-08-06**, so the
-  trio is deliberately inconsistent until this sweep lands. Dataclasses follow (`RegionRule`,
-  `ClimateStoreRule`, `SpatialUnitsRule`), as does `tests/test_region_spec.py` →
-  `tests/test_region_rule.py`.
-
-  **Why:** `spec` reads as jargon to a non-programmer, and the object is not a
-  specification of anything abstract — it holds a rule's `script`, `inputs`,
-  `outputs` and `params`, i.e. a rule definition minus its `message`/`log`/
-  `benchmark` labels. "The region rule" says what it is. `_contract` was
-  rejected: this repo already uses "contract" for interchange surfaces
-  (`dev/reference/contracts/`, `SPATIAL_CONTRACT_VERSION`,
-  `test_climate_store_contract.py`), and overloading it would be worse than the
-  jargon. `_definition` was the runner-up, rejected on verbosity at the call
-  sites.
-
-  **Scope:** all three, not just the new one — three sibling helpers under two
-  suffixes is the inconsistency the shared-rule pattern exists to prevent.
-  **21 files** reference the current names (`snake_utils.py`, all three
-  Snakefiles, eight tests, two `dev/scripts/`, and several `dev/reference/`
-  docs). Mechanical, but note `climate_store_spec` appears inside an error
-  *message string* in `snake_utils.py` and in module docstrings — a
-  symbol-only rename misses both.
-
-  **Land it in the R10 sweep**, which already edits all three Snakefiles.
-  `dev/reference/naming.md` documents no `_spec` convention (its suffix rules
-  cover `_path` / `_ds` / `_cfg`), so nothing there contradicts this — but the
-  sweep should *add* the `_rule` convention so the next helper is named from a
-  rule rather than by analogy. Do **not** rewrite `dev/milestones/` archives,
-  per R10's validation item 4.
+  **Still open: one label constant per rule.** Defining
+  `_L = "1.10_add_climate_forcing"` and building `LOG_RULES`, `rule_banner`,
+  `log:` and `benchmark:` from it would collapse four of the six call sites per
+  rule and make the next rename a one-line edit. The R10 sweep was the moment
+  this was free and dropped it anyway, so the reason matters: **`LOG_RULES` must
+  stay a module-level list literal.** Three consumers read it out of the source
+  text without executing the Snakefile — a Snakefile is not valid Python, so
+  `ast.literal_eval` on the lifted block is the only way to read it. Building the
+  list from per-rule constants makes it a list of *names* and `literal_eval`
+  raises. Closing this needs the checker to parse the executed workflow's globals
+  instead — a change to the instrument, so do it as its own task, instrument
+  first.
 
 - **[R10-6] Split `prepare_spatial_maps` so WF2 and WF3 can consume basin and
-  subbasin boundaries.** *ADR 0003 §8–12. **§8–10 DONE 2026-08-06** and moved
-  from proposed to accepted; §11–12 still proposed.* The split put the vector
-  half — basins, subbasins, catchments, rivers, locations, registry — behind a
-  third shared rule (`delineate_spatial_units`, `1.01c` / `2.03c` / `3.01f`,
-  from `snake_utils.spatial_units_rule`) declared in all three workflows, and
-  left the thematic raster stack (`vito`, `modis_lai`, `soilgrids`) in the
-  WF1-only `prepare_spatial_maps`. The seam between them is
-  `data/spatial/hydrography.nc`, an intermediate deliberately absent from
-  `spatial_catalog.yml`.
+  subbasin boundaries.** *ADR 0003 §8–12.* **§8–12 all landed 2026-08-06.** The
+  vector half moved behind a third shared rule (`delineate_spatial_units`,
+  `1.01c` / `2.03c` / `3.01f`) declared in all three workflows; the thematic
+  raster stack stayed WF1-only. The seam is `data/spatial/hydrography.nc`,
+  deliberately absent from `spatial_catalog.yml`. §11 made
+  `automatic_subbasins.max_count` a per-basin `max_per_basin` (default 20 → 11);
+  §12 changed `wflow_id` to `basin_id*1000 + subbasin*10 + m`, which uncovered a
+  live defect — `output.csv` had shipped `Q_101` twice, a collision that had
+  already leaked into WF3's surface as a column named `Q_101.1`. One baseline
+  re-record covered both (`ea5ac59`), so **the manifest is CURRENT**. Full
+  decision, consequences and landed state:
+  `dev/decisions/0003-one-shared-region-artifact.md`.
 
-  Landed in three commits, each runnable on its own. All nine WF1 artifacts are
-  byte-identical to pre-split on the synthetic fixture, and WF2's dry run
-  schedules `delineate_spatial_units` with no thematic read. **The baseline gate
-  is still open** — `check_baseline.py check` needs the primary checkout and is
-  the assertion that §8–10 are behaviour-preserving on real data; a diff there
-  is a revert trigger, not a re-record. What it uniquely covers: the thematic
-  clip geometry now arrives from `basins.geojson` reprojected onto the grid CRS
-  rather than from an in-memory frame, a no-op for geographic hydrography but
-  untestable on the fixture catalog, which ignores `geom=`.
+  **Still open, both from ADR 0003:**
 
-  Full context, decision, consequences, alternatives, validation, the landed
-  state and four open questions in
-  `dev/decisions/0003-one-shared-region-artifact.md`. §8–10 landed **before
-  `[R10-5]`** as planned — they add a rule to every workflow, so renumbering
-  first would have moved the numbers twice.
-
-  §11 and §12 below are what remains of this item.
-
-  The record also carries two **identity** changes ruled the same day, which ride
-  with the split because they live in the same vector half:
-
-  - **§11 — `automatic_subbasins.max_count` → `max_per_basin`, a per-basin
-    ceiling, default 20 → 11. DONE 2026-08-06**, in one landing rather than the
-    two the ADR planned. The global budget was area-weighted across parents and
-    *raised* when parents exceeded it; per-basin removes that failure and
-    `allocate_automatic_subbasin_budgets` is deleted outright. Safe because
-    `select_automatic_subbasins` treats the count as an upper bound.
-    `parse_spatial_config` rejects the old key **by name**, since
-    `shared.basin`'s schema is not closed and a leftover `max_count` would
-    otherwise be ignored in silence.
-
-    **Why one landing:** the ADR split it so an intended diff stayed
-    distinguishable from a regression, but the fixture's partition **saturates
-    at 5 subbasins from ceiling 5 upward**, so 11 and 20 are the same number to
-    it and §11b moves nothing. The corollary is the part to remember: this
-    fixture can never validate a ceiling change, so §11b's coverage is the
-    synthetic multi-basin tests, not the baseline. Full table and the internal
-    renames in ADR 0003 *Landed state (§11)*.
-
-    ~~**Owed: a baseline re-record of three config-snapshot entries**~~
-    **DONE `ea5ac59`** — one re-record covered §11 and §12 together, from a
-    clean-room three-workflow run: the three config snapshots (WF1/WF2/WF3 all
-    copy the seed config and shared hash `48242f48…` → `e223eaf7`) plus
-    §12's `q_indicators.csv`. `output.csv` and `basin_indicators.csv` did NOT
-    move, which is the load-bearing half. Nothing numeric moved from §11.
-
-    **The manifest is therefore CURRENT.** This line said "owed" for long
-    enough to mislead a later gate into budgeting for six expected diffs; read
-    the manifest and `ea5ac59`, not this item, before running
-    `check_baseline.py check`.
-  - **§12 — `wflow_id` becomes `basin_id*1000 + subbasin*10 + m`** (basin 1 →
-    1010, 1011, 1020 …), `m = 0` the subbasin's primary. **DONE 2026-08-06.**
-    It replaced two unrelated formulas sharing one column: a primary took
-    `basin*100 + n` while any additional point took
-    `1_000_000 + subbasin_id*100 + n`, so basin 1's second gauge read
-    `1_010_102`. §12a's enforced invariant (`wflow_id == subbasin_id`) was
-    REPLACED, not dropped — it now reads "every primary ends in 0". §12b shipped
-    with it: `config/templates/observations/README.md` carries the migration and
-    the template header moved to `time;1010;1020`.
-
-    **It uncovered a live defect.** `output.csv` shipped `Q_101` TWICE — the
-    outlet column and its gauge column collided in name because
-    `wflow_id == subbasin_id` made them indistinguishable (value-identical, max
-    diff 0.0). That collision had already leaked into WF3's result surface as a
-    column literally named **`Q_101.1`**, pandas' de-duplication suffix. §12
-    separates them, so this is a fix rather than only a rename.
-
-    **Still unanswered:** the ADR said to check the nine-additional-locations cap
-    "against a real gauge list before implementing". The fixture runs
-    `gauge_points: null` and real basin data lives outside the repo, so it could
-    not be checked. The cap raises by name if tripped, so the failure is loud.
-
-  **§11b and §12 are baseline events and must each land alone.** Only §8–10 and
-  §11a are behaviour-preserving — an earlier version of this entry claimed §8–11
-  were, which was wrong on two counts (the default change moves the fixture's
-  automatic partition; the config-key rename moves the snapshot hash).
-
-  Three things not to lose. The hydrography-read cost §8 adds to WF2 is asserted,
-  **not measured** — ADR 0003 validation item 7 makes measuring it the acceptance
-  gate. `wflow_id == subbasin_id` is an **enforced validator**
-  (`build_wflow_model.py:157`), so §12 stops WF1 building until it is repealed —
-  not a silent break. And §12 rewrites the column headers of every project's
-  **observation files**, which is user data, not repo data.
-
-- **[R10-5] ~~Renumber every rule so `W.NN` follows the logical order.~~
-  DONE 2026-08-06**, in the same sweep as the renames, as this item required.
-  47 rule declarations across the three workflows; the map was regenerated from
-  the live rule set and owner-approved before any code moved against it.
-
-  **Three things the map had wrong when this item was written**, all found by
-  recomputing the order from each rule's `input:` block rather than editing the
-  published table:
-
-  1. **Two dependencies pointed high→low.** `write_outlet_index` and
-     `plot_basin_map` both declare `ancient(<model>/.model_final)`, which
-     `add_climate_forcing` writes — so both are downstream of it, while the map
-     placed them ahead of it. `ancient()` suppresses the timestamp
-     rerun-trigger, **not the DAG edge**, which is why it read as no dependency
-     at all; ADR 0004 moved that sentinel onto the forcing rule after the map
-     was drawn. **Generalizes: any ordering check that skips `ancient()` inputs
-     will reproduce this.**
-  2. `delineate_spatial_units` was absent (added by `[R10-6]` §8 after the map
-     was published) — the reason this step was scheduled last.
-  3. `[R10-2]`'s `1.14 evaluate_wflow_run` row had to go with the drop.
-
-  The `gather_benchmarks`/`gather_logs` disagreement was ruled at the same
-  gate: **benchmarks then logs everywhere**, so WF2 moved. See `[R10-9]`.
-
-  Both hazards this item named were handled. `LOG_RULES` was rewritten
-  wholesale, not entry by entry, and is now asserted to read in number order.
-  The batched Wflow rule kept its singular `<W.NN>_run_wflow` label against
-  `run_wflow_batch_<b>` identifiers.
-
-  **What made the sweep safe was making the numbers reusable-but-checkable.**
-  The renumber ran as one simultaneous pass keyed on (old number, rule *name*),
-  so a number freed by one rule could not be picked up by another mid-pass; and
-  prose references were remapped separately, with the already-correct call sites
-  masked. Two audits then ran over the result: every `W.NN` in the three files
-  resolves to a live rule (6 deliberate exceptions — letter-suffix examples, a
-  quoted old scheme, one deleted rule), and every comment naming both a number
-  and a rule name agrees with the call sites (0 disagreements).
-
-  *Original item follows.* Numbers become **positional**: data
-  first, then model build, then run, then records, contiguous within each
-  workflow, with every dependency pointing from a lower number to a higher one.
-  The full old→new map for all 45 identifiers is in
-  `dev/reference/workflows/rule-index.md` § *What changed*.
-
-  **This overrides `rule-naming-design.md` §9**, which recommended amending the
-  convention to "a stable identifier assigned at rule creation" and *not*
-  renumbering. That recommendation was made on cost grounds and the owner ruled
-  the other way, so §9 is amended to record the reversal rather than the advice.
-
-  **The cost, and it is the reason §9 said no: numbers are REUSED.** New 1.07 is
-  `write_outlet_index`; old 1.07 was `setup_runtime`. New 3.05 is
-  `check_model_reference`; old 3.05 was the deleted `prepare_weagen_config_st`.
-  Under the old policy a retired number stayed a gap, so a stale reference merely
-  dangled and was obvious. Now it silently resolves to a **different rule**.
-  Every `W.NN` in `dev/milestones/`, `DEVLOG.md`, `dev/decisions/` and the
-  Snakefile comments predates the map and must be read as of its date. Do not
-  "fix" archived milestone documents to the new numbers — the same reasoning
-  R10's validation item 4 already applies to old rule *names*.
-
-  **Migration surface**, per renumbered rule — the same six call sites the
-  rename sweep touches (`LOG_RULES` entry, `W.NN` comment header, `rule`
-  identifier where a rename coincides, `rule_banner`'s first argument, the `log:`
-  path, the `benchmark:` path). Two extra hazards specific to renumbering:
-
-  1. **`LOG_RULES` order is the merge order.** Renumbering changes both the
-     labels and their intended sequence; update the list wholesale, not entry by
-     entry, or the merged log comes out in a mixed order.
-  2. **Rule 3.14 keeps a singular log label** (`3.14_run_wflow`) while its
-     identifiers stay `run_wflow_batch_<b>`. The divergence is deliberate and
-     survives renumbering — do not "fix" it.
-
-  **Do it in the same sweep as R10's renames.** They touch the same six call
-  sites per rule, want the same validation (`pytest tests/test_cli.py`, then a
-  full three-workflow run confirming the merged log has a section per
-  `LOG_RULES` entry and no `_parts/` survives), and splitting them means paying
-  that cost twice. The baseline is unaffected either way — part paths are
-  transient and no output path or value changes.
-
-  **Going forward:** do not renumber to insert a rule. Use a letter suffix
-  (`1.09b`) until the next deliberate sweep.
-
-- **[R10-4] Stale rule references in Snakefile comments.** Cosmetic, found by the
-  same read. `Snakefile_climate_experiment` names the **deleted** rule 3.05 twice
-  — the 3.00b comment still lists `prepare_weagen_config_st` as one of the four
-  per-experiment roots, and 3.13's comment says "3.05/3.07/3.09 write one part
-  per (rlz, cst)". Separately, all three `gather_benchmarks` comments describe
-  their output as `wf<N>_benchmarks.tsv`; the declared output is `.md`. Gate is
-  `pytest tests/test_cli.py` (comments only, but the files are Snakefiles).
+  - The hydrography-read cost §8 adds to WF2 is **asserted, not measured** —
+    validation item 7 makes measuring it the acceptance gate.
+  - The nine-additional-locations cap was never checked against a real gauge
+    list: the fixture runs `gauge_points: null` and real basin data lives
+    outside the repo. The cap raises by name if tripped, so failure is loud.
 
 ---
 
@@ -888,101 +374,6 @@ that awkwardness.
 
   </details>
 
-- **[R9-4] R9 moved the project tree but never re-pointed the interchange
-  contract tests. FIXED 2026-08-05.** The whole Layer-2 block of
-  `tests/test_interchange_contracts.py` still used pre-R9 paths —
-  `climate_historical/`, `hydrology_model/`, `weather_generator/`,
-  `hydrology_runs/rlz_<n>/`, and the loose `data_catalog_climate_experiment.yml`
-  at the experiment root — plus the pre-flattening member naming
-  (`rlz_<n>/config/cst_<m>.toml` rather than `config/rlz_<n>_cst_<m>.toml`).
-  **22 failures** on the first post-R9 `pytest tests/` in the primary checkout.
-
-  **Why it stayed invisible, which is the part worth keeping.** The block is
-  `skipif(not _fixture_present())` and `test_case/test_local` is untracked, so
-  it is absent in every worktree and on CI — `AGENTS.md` already says CI covers
-  only what a bare checkout can run. R9's gates were `semantic_tree_diff` and
-  `check_baseline`, which validate the tree's SHAPE; neither reads the code that
-  reads the tree. So the only check that could have caught it is the one only
-  the primary checkout can run, and it had not been run since R9 landed.
-
-  Three of the paths were worse than merely broken: `_WG4_NC`, `_WG6_NC` and
-  `_HM6B_NC` sit behind a runtime `os.path.exists` guard, so a wrong path reads
-  as "temp() artifact absent" and **skips silently** — indistinguishable from a
-  normal run, forever.
-
-  Fixed by deriving four roots (`_MODEL_DIR`, `_STORE_ROOT`, `_WG_DIR`,
-  `_RUNS_DIR`) named after the Snakefile variables they mirror, so the next tree
-  move is a one-line edit rather than a dozen literals. **Verified only against
-  the fixture's real layout on disk, not by a green run** — this worktree has no
-  fixture. Confirm with `pytest tests/test_interchange_contracts.py` in the
-  primary checkout.
-
-  **Generalizes:** any milestone that moves the project tree must grep the test
-  suite for the old roots, because the suite's fixture-dependent layer cannot
-  fail in CI.
-
-- **[R9-3] ~~The response-surface axis columns hold JANUARY, not an annual
-  value.~~ FIXED 2026-08-07.** `export_wflow_results.annual_perturbation`
-  collapses each `cst_<m>.csv` column's twelve monthly rows to one axis value
-  as a **month-length-weighted mean** (owner ruling, 2026-08-07).
-
-  **What decided the collapse rule was the CMIP6 overlay, not exactness.** The
-  GCM dots are plotted on these same two axes (technical note §880), and WF2
-  already fixes the definition in `get_change_climate_proj._annual`: a
-  duration-weighted mean for the intensive variable, a month-length-weighted
-  integral for the rate. A different collapse in WF3 would put the surface and
-  the overlay in two different coordinate spaces under a seasonal perturbation.
-  The temperature axis now matches that definition exactly.
-
-  **The precip axis is an approximation of it, knowingly.** WF2's precip factor
-  weights each month by its baseline precipitation; month-length weighting
-  assumes a uniform daily rate. They agree exactly for a flat vector and
-  diverge with the covariance between the perturbation and the basin's seasonal
-  cycle — a wet-season-targeted perturbation on a strongly seasonal basin is
-  where it bites, and the error there can exceed ten percentage points. The
-  exact form was declined because it costs a WG-1 climatology input edge on
-  rule 3.16. Recorded in `annual_perturbation`'s docstring, not just here.
-
-  **It was NOT a baseline event, contrary to this item's original last
-  paragraph.** A weighted mean of twelve identical values is that value, so
-  every tracked config (all flat) is unchanged — verified by running
-  `prep_cst_parameters` on the tests config and comparing the emitted axis
-  values as strings across all four members: identical. The flat case
-  short-circuits on exact equality rather than falling through the weighted
-  mean, so it cannot drift by a ULP into a meaningless byte diff.
-
-  **The gate is a unit test, and could not have been anything else.** No
-  fixture, no config and no baseline target carries a non-flat vector, so
-  nothing on disk can distinguish January from the annual mean. Seven cases in
-  `tests/test_export_wflow_results.py` supply the seasonal vector the tree does
-  not — including the affinity case that pins the axis as evenly spaced across
-  the grid, which is what keeps the response surface rectilinear and what rules
-  out a max or wet-season-only reduction. Same lesson as [R9-4].
-
-  *Original item follows.* Surfaced 2026-08-05 while writing R9-2's rename,
-  reading the code the rename
-  touched. `export_wflow_results.py` does `df_st["temp_mean"].iloc[0]`, but
-  `cst_<m>.csv` has **twelve rows, one per month** — `prepare_cst_parameters`
-  builds them from the config's 12-element `min` / `max` vectors. So the value
-  labelled `temp_change` / `precip_change` for a stress-test member is its
-  January perturbation.
-
-  **Never observed wrong, and that is the whole problem.** Both the shipped
-  template and the seed config use flat vectors (`min: [0.0]*12`,
-  `max: [3.0]*12`), so January *is* the annual figure there. A project with a
-  seasonal perturbation vector — which the config schema explicitly supports,
-  and which `transient_change: true` invites — gets a response surface silently
-  indexed by one month. Same class as the fixture-shaped `validate_hm7`
-  assertion R9 P3 fixed: correct on the fixture, wrong for the general config.
-
-  **Not fixed in passing, deliberately.** Collapsing 12 months to one axis value
-  is a method question, not a typo — mean? annual total (right for precip,
-  wrong for temp)? or does a seasonally-perturbed run need a different response
-  surface altogether? It also moves numbers, so it is a baseline event. Recorded
-  in the code at the read site so nobody re-derives it. Reproduce by setting a
-  non-flat `stress_test.temp.mean.max` and comparing the emitted axis column
-  against the intended annual mean.
-
 - **[R9-5] The unperturbed baseline member is in the response tables under
   `aggregate_rlz: false` and absent under `true`.** Surfaced 2026-08-07 while
   fixing [R9-3], in the branch immediately above the axis read.
@@ -1013,66 +404,18 @@ that awkwardness.
 ## Post-R8 (surfaced 2026-08-02 during the Post-R7 triage)
 
 - **[R8-1] ~~The ruff gate is red on `main`.~~ FIXED 2026-08-07** — `pixi run
-  ruff check .` now reports **All checks passed!**, which is the exact command
-  `.github/workflows/ci.yml` runs on both legs.
+  ruff check .` reports **All checks passed!**, the exact command
+  `.github/workflows/ci.yml` runs on both legs. It had grown from 10 findings to
+  14 by the time it was cleared. Nine were `ruff check --fix`; five needed
+  judgment, and two are worth remembering: the `F841` was genuinely dead, and an
+  `import sys` that looked used appeared only inside a **docstring**, so a grep
+  would have kept a dead import where ruff was right. Gates: ruff clean;
+  `pytest tests/` 1503 passed / 31 skipped / 1 xfailed.
 
-  **It had grown from 10 findings to 14** by the time it was cleared; the
-  four newcomers are in files written after this item (`add_climate_forcing.py`,
-  `plot_map.py`, `test_plot_map.py`, and one more in `dev/scripts/`). A red
-  gate does not stay the size you recorded it at.
-
-  Nine were `ruff check --fix`; five needed judgment, and this item was right
-  to single out the `F841`:
-
-  - **`get_stats_climate_proj.py` `ds = []`** — read before deleting, as this
-    item asked. Genuinely dead: the only other `ds` in the module is a
-    different function's parameter, and its sibling `ds_scalar` is the one the
-    reduction actually accumulates into. No dropped call.
-  - **`add_climate_forcing.py` `import sys`** — looked used (`sys.` appears in
-    the module) but the occurrence is inside a **docstring**. A grep would have
-    kept a dead import; ruff was right.
-  - **Three `F401`s in `test_plot_map.py`** — each flagged symbol appeared
-    exactly once, on the import line itself, so they were import drift rather
-    than a deliberate "these symbols exist" surface.
-  - Two `E731` lambdas became `def`s; two `E702` semicolon statements became
-    two lines each.
-
-  Gates: `pixi run ruff check .` clean; `pytest tests/` 1503 passed, 31
-  skipped, 1 xfailed. `plot_map.py` is a shared helper, so it took the full
-  ladder rather than the module's own tests.
-
-  **Still open from this item's last paragraph:** whether the gate went red
-  after the R7-19 seal's green CI run (30450296441) or a later red was not
-  acted on. Unanswered — and the four newcomers say the answer is "nobody was
-  watching", which is an argument for a pre-push hook rather than more fixes.
-
-  *Original item follows.* `pixi run ruff
-  check .` reported **10 findings**, 7 of them auto-fixable:
-
-  | File | Finding |
-  |---|---|
-  | `projections/get_change_climate_proj.py` | F401 ×5 — `os`, `series_identity`, `dry_month.FLAGGED_STATUS`, `dry_month.is_flagged`, `snake_utils.log_row` |
-  | `projections/get_stats_climate_proj.py:96` | F841 — `ds` assigned, never used |
-  | `projections/resolution.py:29` | F401 — `os` |
-  | `tests/test_monthly_change.py:5` | F401 — `pytest` |
-  | `tests/test_variable_spec.py:77,99` | E702 ×2 — semicolon statements |
-
-  This is not cosmetic: `.github/workflows/ci.yml:75` runs exactly this command
-  on both legs, so **CI fails on an untouched checkout**. R7-16 recorded the
-  gate as adopted with "all 96 findings cleared" (`85d3178` → `81e0096`); every
-  finding above is in an R8-era file, so the gate went red during the WF2 v2.0
-  rework and the seal did not catch it.
-
-  Verified to predate this triage: the identical 10 findings reproduce at
-  `207c449`, the commit before any `dev/` tidy work. Most are dead imports left
-  by refactoring — likely `ruff check --fix` plus two hand edits, but the F841
-  in `get_stats_climate_proj.py` should be read before deleting, in case the
-  assignment was meant to be used.
-
-  Worth asking as part of the fix: the seal ran CI green (R7-19 cites run
-  30450296441), so either the gate was added after that run or a later red was
-  not acted on. The answer decides whether anything beyond the ten fixes is
-  needed.
+  **Still open, which is why this is not archived:** whether the gate went red
+  after the R7-19 seal's green CI run (30450296441), or a later red went unacted
+  on. The four newcomers say nobody was watching — an argument for a pre-push
+  hook rather than more fixes.
 
 ---
 
@@ -1084,231 +427,40 @@ deliberately did **not** fix, plus what implementation surfaced along the way.
 Provenance: `dev/milestones/r07/migration_project-layout.md` §§7a–7d,
 `dev/milestones/r07/project-layout-design.md`, and the `r07:` commit messages.
 
-### Defects — worth fixing
-
-- **[R7-1] ~~`wflow_sbm.toml` is written by five rules and declared by one.~~
-  FIXED 2026-07-29** — rule 1.03 now emits a `touch()` completion sentinel
-  (`hydrology_model/.model_built`) that rule 1.04 consumes as a **non-ancient**
-  input, so a rebuild re-fires the whole toml-writing chain
-  (1.04 → `.txt` → 1.05 → `outlets.geojson` → 1.07 → forcing yml → 1.08).
-  The obvious fix — dropping the `ancient()` on staticmaps — was **wrong**:
-  1.04/1.05 commit writes back into staticmaps themselves via
-  `mod.write()`/`mod.close()`, so a plain edge would re-trigger them on their
-  own execution forever. Regression test falsified both ways.
-
-  *Original diagnosis, kept for the record* (map §7c): rule 1.03 `create_model`
-  creates it; rules 1.04–1.09 update it
-  **in place** while taking `ancient(f"{basin_dir}/staticmaps.nc")`, which
-  suppresses exactly the mtime trigger a rebuilt staticmaps would fire. So
-  **anything that re-fires `create_model` alone leaves the TOML stripped** of
-  every section the later rules added, and the next wflow run dies on the
-  missing key. Bit three times during R7 (commits 7, 10, and once more during
-  the config split); each recovery needed `--forceall`. Pre-existing, not an R7
-  regression — R7 is simply the first thing in a while to re-fire the build.
-  Fix is a rule-shape change (declare the TOML on every rule that writes it, or
-  make the update chain depend on it), which is why a behaviour-preserving
-  milestone could not take it. **Highest-value item in this list.**
-
-- **[R7-2] ~~The store's freshness boundary stops at the catalog file.~~
-  CLOSED — WON'T FIX, 2026-07-29 (owner-ruled).** Editing the catalog
-  mtime-triggers exactly one re-extraction (R7 closed *that* gap, which
-  pre-dated the milestone). Data *behind* an unchanged catalog entry — a local
-  file the entry points at, or a remote store — participates in no trigger, and
-  it is staying that way. Three reasons, and the ruling records them so this is
-  not re-opened as an oversight:
-
-  1. **It is outside CST's automation scope.** Enumerating catalog-resolved
-     sources as DAG inputs means parsing hydromt catalog semantics at
-     DAG-parse time — re-implementing how hydromt resolves data. `AGENTS.md`
-     Hard Constraints put that off-limits: consume hydromt conventions
-     verbatim, never re-engineer them.
-  2. **It is not implementable for the general case anyway.** Remote sources
-     (the CMIP6 GCS store, any URI-backed entry) expose no usable mtime, so
-     even a correct implementation would cover only local-file entries and
-     silently miss the rest — a gate that looks complete and is not, which is
-     worse than a documented gap.
-  3. **The catalog-conventional signal already exists.** The supported way to
-     record a data change behind a stable entry is to edit the entry (path,
-     version, or meta), which the R7 input edge now picks up. For a genuine
-     in-place data mutation the escape hatch is
-     `snakemake --forcerun extract_climate_grid`, documented in
-     `dev/milestones/r07/migration_project-layout.md` §2f.
-
-  Revisit only if hydromt gains a first-class "resolve this entry to its
-  concrete sources" API — at which point this becomes consuming an upstream
-  convention rather than re-implementing one.
-
-- **[R7-3] ~~`basin_area.png`: which change produced the 134,828-byte figure?~~
-  ANSWERED 2026-07-29.** It was written by a **different branch**.
-  `feat/outputs-figures` carries `e917a8e` *"redesign basin_area.png as a
-  self-contained basin map"* and `c2f4881` *"degree-aware gridline locators"*,
-  both dated 2026-07-25 and **neither in `main`'s history**. That branch's
-  `plot_map.py` defines `_add_scale_bar`, `_add_north_arrow`, an `area_km2`
-  title and a `YlOrBr` colormap — precisely the figure found in the fixture;
-  HEAD's `plot_map.py` contains none of them and cannot produce it.
-
-  So the earlier reading was wrong in its premise: `plot_map.py` **has** changed
-  since R6, just not on this line of history. Nobody's figure was corrupt —
-  someone ran wf1 from `feat/outputs-figures` into the shared fixture, and the
-  artifact outlived the branch checkout. The manifest (recorded from main-line
-  code) and the fixture (written by feature-branch code) then disagreed, exactly
-  as observed. Closed as **explained, not a defect**; the commit-14 re-record
-  already restored agreement. Generalised as R7-21 below, which is the part that
-  matters.
-
-- **[R7-21] ~~The baseline fixture is branch-shared mutable state.~~
-  MITIGATED 2026-07-29** — candidate (a) implemented: `record` stamps
-  `recorded_by` (branch, commit, dirty) into the manifest and `check` prints a
-  provenance line **before** the verdict, warning loudly when the recording
-  branch differs from the checking one. Advisory only: it never changes the exit
-  code, because the failure mode is silent misattribution rather than
-  corruption, and a deliberate cross-branch check is legitimate. A pre-stamp
-  manifest says so rather than pretending. The R7-3 scenario is simulated in
-  `tests/test_check_baseline_provenance.py`. The underlying *sharing* is
-  unchanged — candidates (b) branch-derived fixture paths and (c) per-branch
-  regeneration remain open if misattribution recurs despite the warning.
-
-  *Original diagnosis, kept for the record.* `test_case/test_local` is
-  **untracked**, so it is not part of any branch: every branch, worktree and
-  session that runs a workflow writes into the *same* tree. Consequences, all
-  observed rather than hypothesised:
-
-  - A figure produced by `feat/outputs-figures` sat in the fixture for days and
-    was read as the pre-R7 baseline reference (R7-3).
-  - `check_baseline check` therefore answers "does the tree match the manifest"
-    for **whichever branch ran last**, not for the branch you are on. A green
-    check can mean someone else's code is consistent with your manifest.
-  - The R7 milestone's own gate captured that contamination into its
-    pre-R07 reference tree at commit 1 and had to allowlist it at Gate 3.
-
-  Nothing here is a bug in the gate's logic — it is a scoping gap: the fixture
-  has no owner and no provenance. Candidate fixes, cheapest first:
-  **(a)** have `record`/`check` stamp the writing branch + commit into the
-  manifest and warn when they disagree with `HEAD`; **(b)** make the fixture
-  path branch-derived, so branches cannot collide; **(c)** treat it as
-  disposable and regenerate per branch, accepting the runtime. (a) is probably
-  enough, since the failure mode is silent misattribution rather than
-  corruption. **Worth doing before the next milestone runs a gate.**
 
 ### Design debt accepted knowingly
 
-- **[R7-4] ~~Import direction in the model-free producer.~~ FIXED 2026-07-29** —
-  `climate_parity.py` moved `model/` → `shared/`, where it belongs: it imports
-  only `typing`/`pandas`/`xarray`/`hydromt`, never touches a model object (the
-  P3-2a C1 criterion its own docstring claims), and now has two callers on
-  opposite sides — `model/plot_results.py` at model parity and
-  `climate_analysis/plot_climate_source.py` on the source grid. It was misfiled,
-  not miscoupled. `climate_analysis/` now imports nothing from
-  `blueearth_cst.model`, pinned by a test that walks the package's ASTs so the
-  convention cannot drift back silently.
+- **[R7-5] O-24 is partially closed; its premise was wrong.** *Remaining half is
+  row `t260802b`.* The basin-average half was FIXED 2026-08-01 — rule 1.11
+  derives `plot_basavg`'s PNGs from `wflow_outvars` and declares them, verified
+  reaching `--delete-all-output`.
 
-- **[R7-5] O-24 is partially closed; its premise was wrong.** *Remaining half
-  is row `t260802b`.* *Basin-average
-  half FIXED 2026-08-01.* Rule 1.11 now derives `plot_basavg`'s PNGs from
-  `wflow_outvars` and declares them — excluding `river discharge` (rule 1.05
-  filters it out of the basin-average setup) and `precipitation` (whose column
-  `plot_results` drops before plotting). Verified reaching
-  `--delete-all-output`, including the fact that the derived filename carries
-  the config's spelling **with spaces** (`actual evapotranspiration_basavg.png`)
-  and that Snakemake handles it as a declared output and an explicit target.
-
-  **The rest cannot be closed the way this entry assumed.** It claimed all
-  three families were derivable "at parse time from `wflow_outvars` /
+  **The rest cannot be closed the way this entry assumed.** It claimed all three
+  families were derivable "at parse time from `wflow_outvars` /
   `output_locations`". They are not: `hydro_{station}.png` and
   `clim_{station}_{period}.png` are counted by the model's OUTLETS and
-  SUBCATCHMENTS — a rule-1.03 product read back through `Q_outlets` / the
-  subcatchment map, unknown until the model is built, with `output_locations`
-  contributing only the extra gauge stations on top. `signatures_{station}.png`
-  is narrower still: it also needs observations AND a run longer than a year
-  (`plot_results.do_signatures`), so it is data-conditional, not merely
-  config-conditional. Closing those needs a `checkpoint` or a `directory()`
-  output — a real rule-shape change, not the enumeration this entry imagined.
-  Consequence, unchanged for those families: on a config with extra gauges or
-  observations, `--delete-all-output` still cannot clean them and stale figures
-  survive a rerun.
-
-- **[R7-6] ~~Declaring `clim_wflow_1_*` made rule 1.11 newly able to fail.~~
-  FIXED 2026-08-01** — the failure still happens, but no longer at rule 1.11 and
-  no longer as `MissingOutputException`. Rule 1.11's ≥365-timestep requirement
-  is subsumed by `snake_utils.MIN_HISTORICAL_YEARS` (16) — ONE floor for the
-  whole toolbox (owner ruling 2026-08-01) — checked twice: against the
-  REQUESTED window at WF1 parse time (`validate_historical_window`, so a short
-  config reds the dry-run before any rule executes) and against the ACTUAL
-  extracted span in the shared store producer
-  (`extract_historical_climate._check_window_coverage`, which raises naming the
-  requested window, the covered span and the floor). The owner ruling that
-  failing loudly beats an incomplete figure set is preserved — only *where* and
-  *how legibly* it fails changed. Original entry: those figures are written only
-  when the extraction spans ≥365 days, so a config with a sub-year
-  `historical_window` died with `MissingOutputException` instead of logging a
-  skip.
-
-- **[R7-7] The contract-equality test pins Snakemake 9.6.2's directive set.**
-  **ACCEPTED — NO ACTION, 2026-08-02 (triage).** It asserts the compared /
-  allowed-local / structural buckets partition `RuleInfo`'s fields exactly, so a
-  Snakemake upgrade fails it loudly rather than silently widening the hole. That
-  is the designed behaviour: the maintenance touchpoint at every version bump is
-  the price of the loud failure, and paying it is cheaper than the silent hole.
-  No row — the work it implies is "read the failure when you bump Snakemake."
+  SUBCATCHMENTS — a rule-1.03 product, unknown until the model is built — and
+  `signatures_{station}.png` also needs observations AND a run longer than a
+  year, so it is data-conditional, not merely config-conditional. Closing those
+  needs a `checkpoint` or a `directory()` output, a real rule-shape change.
+  Consequence, unchanged: on a config with extra gauges or observations,
+  `--delete-all-output` cannot clean them and stale figures survive a rerun.
 
 ### Cosmetic / low priority
 
 - **[R7-8] ~~wflow writes `log.txt` beside the run TOML.~~ FIXED 2026-08-03 by
-  R9 P2 commit 3.** `downscale_climate_forcing.py` now sets
-  `logging.path_log = f"{out_prefix}{run_name}.log"` beside the other run-TOML
-  pointers, so each member logs to its own file under
-  `hydrology/wflow/output/`. It shipped **in the same commit as the `rlz_<n>/`
-  flattening** and not after: flattening put every member's TOML in one shared
-  `config/` directory, where the wflow default `"log.txt"` would have had all
-  members writing one file concurrently. What was a cosmetic while each
-  realization owned a directory became a correctness problem the moment they
-  did not.
-  Triaged 2026-08-02 as "fold into the next task that runs wf3 anyway", which is
-  exactly what happened.
+  R9 P2 commit 3.** `downscale_climate_forcing.py` sets `logging.path_log` per
+  member, so each logs to its own file. It shipped in the same commit as the
+  `rlz_<n>/` flattening and not after: flattening put every member's TOML in one
+  shared `config/`, where the wflow default `"log.txt"` would have had all
+  members writing one file concurrently — a cosmetic became a correctness
+  problem the moment realizations stopped owning a directory.
+
   **Still owed:** the concurrency falsifier has never been shown to FAIL with
-  `path_log` unset. The cheap half — distinct pointers per member — is unit
-  tested via `snake_utils.member_pointer_base`; the expensive half, content
-  attribution under a real concurrent batch, still needs a run.
-- **[R7-9] ~~Stale benchmark parts survive a rule rename.~~ CLOSED — NO ACTION,
-  2026-07-29.** Investigated: `merge_benchmarks` deletes every part it merges
-  (`_remove_parts`, called at the end of the merge), so a stale part from a
-  renamed rule is consumed and removed on the **first** merge after the rename.
-  The phantom row therefore appears exactly once, in one report, and the
-  condition is self-healing. Adding a rule-name guard would mean teaching
-  `merge_benchmarks` the current rule list, which it has no other reason to
-  know. Not worth the coupling.
-- **[R7-10] ~~Old-path references in documents commit 15 did not own.~~
-  FIXED 2026-07-29.** `dev/reference/workflows/model_creation.md`'s `rule all` target list
-  repointed to the B10 homes (and gains B4's three `source_*` figures, which it
-  never listed); two notebook figure paths repointed.
-  `dev/milestones/p32a/compare_climate_ladder.py` turned out to be a **live** probe, not a
-  historical note — it opens `wf1_raw/`, which B1 retired, so it raises
-  `FileNotFoundError`. Marked SUPERSEDED with the reason rather than repointed:
-  the ladder existed to characterise the difference between `wf1_raw` and the
-  keyed store, and R07's merge comparison proved those two element-wise
-  identical, so re-pointing it would leave it comparing a store against itself.
-- **[R7-11] ~~`plot_map_forcing.py:199` carries the same `"None"`-string
-  shape as O-08.~~ CLOSED — NO ACTION, 2026-07-29.** Two independent reasons,
-  both checked. The derived name is consumed by `if gauges_name in geoms:`
-  (`plot_map_forcing.py:91`) — a *membership test*, which is itself the guard: a
-  bogus `"None"` simply is not in `geoms` and nothing is drawn. And rule 1.13
-  passes `{basin_dir}/staticgeoms/outlets.geojson`, a real declared path, never
-  the sentinel, so the case cannot arise from the workflow at all. This is the
-  structural difference from O-08, where `plot_map.py` *built a layer name and
-  used it* with no membership check.
-- **[R7-12] CLOSED — WORKING AS INTENDED, 2026-07-29. The tests config warns on
-  every dry-run.**
-  `tests/snake_config_model_test.yml` uses `project_dir: tests/test_project`,
-  which is in-repo and outside the single `test_case/` exemption, so O-22's
-  warning fires correctly but routinely. Not widened to silence it — the
-  exemption exists because the *baseline seed* config is tracked, not as a
-  general licence for in-repo scratch dirs.
-- **[R7-13] ~~Map §2c's depth arithmetic is off by one.~~ FIXED 2026-07-29** —
-  corrected against the emitted TOMLs, with the four verified pointer values
-  tabulated and the two the original omitted (`state.path_output`,
-  `output.csv.path`) added. Recorded as a correction rather than quietly
-  amended: the map deferring to the comparator is precisely what kept the wrong
-  arithmetic harmless, and that lesson is worth more than a tidy table.
+  `path_log` unset. Distinct pointers per member are unit tested via
+  `snake_utils.member_pointer_base`; content attribution under a real concurrent
+  batch still needs a run.
+
 - **[R7-14] `tests/test_stage_data_incremental.py` fails intermittently** *(row
   `t260802c`; still present and still flaky, confirmed 2026-08-02)* under
   some orderings; passes in isolation and on re-run. Another workstream's
@@ -1316,30 +468,16 @@ Provenance: `dev/milestones/r07/migration_project-layout.md` §§7a–7d,
 
 ### Parked by ruling — not defects
 
-- **[R7-15] ~~Engine-named subtrees~~ DELIVERED by R9 P2.** Parked at R7's G1
-  and explicitly deferred beyond R7; R9 is the milestone that took it. The tree
-  is now `models/hydrology/wflow/` — domain, then engine — and the experiment
-  carries the symmetric pair `experiments/<id>/{climate/weathergenr,hydrology/wflow}/`,
-  so a second engine slots in beside the first at both scopes rather than
-  needing a new root. That answers arch-8's structural half: a build subtree
-  lives under `models/<domain>/<engine>/` and a run subtree under
-  `experiments/<id>/<domain>/<engine>/`.
-  **Not claimed:** that a second engine has been *tried*. The placement rule
-  exists; nothing has exercised it. R7's narrowing from extensibility to
-  **separability** (ruling GB-1) still describes what is actually proven.
-- **[R7-16] Tooling contract** *(O-14 decision 2 + O-16 are row `t260802d`)*: O-14 `pyproject.toml`, O-15 `ruff`, O-16 `flit`
-  — open decisions, unrelated to layout.
-  **O-14 decision 1 RESOLVED** (ab781a5): tool-config-only `pyproject.toml`, no
-  `[build-system]` / `[project]` / `[tool.pixi]`. Decision 2 (real packaging)
-  still needs a superseding record in `dev/decisions/`.
-  **O-15 RESOLVED** (85d3178 → 81e0096): ruff adopted as the lint gate,
-  `select = ["E4","E7","E9","F"]`, all 96 findings cleared, and the PR
-  template's unfounded "Black formatting pass" checkbox now names
-  `pixi run ruff check .` — a command that exists. Two things worth carrying
-  forward: ruff 0.16's *default* selection is ~415 rules (409 findings here
-  under `--isolated`), so `select` is pinned explicitly and must stay pinned;
-  and `ruff format` is configured but deliberately **not** enforced — see
-  R7-23. **O-16 still open** and still gated on O-14 decision 2.
+- **[R7-16] Tooling contract** *(O-14 decision 2 + O-16 are row `t260802d`)*.
+  **Resolved:** O-14 decision 1 (`ab781a5`) — a tool-config-only
+  `pyproject.toml`, no `[build-system]` / `[project]` / `[tool.pixi]`; and O-15
+  (`85d3178` → `81e0096`) — ruff adopted as the lint gate with
+  `select = ["E4","E7","E9","F"]` pinned explicitly, because ruff 0.16's
+  *default* selection is ~415 rules and must not be inherited by accident.
+  **Open:** O-14 decision 2 (real packaging) needs a superseding record in
+  `dev/decisions/`; O-16 (flit) stays gated on it. `ruff format` is configured
+  but deliberately unenforced — see R7-23.
+
 - **[R7-17] Docker (O-06) and Linux end-to-end (O-18, O-19)** — parked, no Linux
   machine. Linux *parse-level* consistency is now covered: the Linux config
   dry-runs on both CI legs.
@@ -1349,11 +487,6 @@ Provenance: `dev/milestones/r07/migration_project-layout.md` §§7a–7d,
 
 ### Milestone housekeeping
 
-- **[R7-19] ~~Branch unmerged, tag unapplied, roadmap stale.~~ RESOLVED
-  2026-07-29.** Merged `--no-ff` (`0ea3918`), tagged `r07-layout`, and both
-  pushed to `origin`. `dev/roadmap.md` Phase 4 now reads SEALED. CI green on
-  both legs for the sealed tree (run 30450296441) — which was also the first
-  CI run to see any of R7, since the milestone sat unpushed until the seal.
 - **[R7-22]** *(row `t260802e`; re-confirmed 2026-08-02 — the bare reads and the
   `F821` per-file-ignore are both still in place)* **`downscale_climate_forcing.py` is the last module that reads the
   bare `snakemake` global at import time.** The other 22 `script:`-invoked
@@ -1435,82 +568,6 @@ Provenance: `dev/milestones/r07/migration_project-layout.md` §§7a–7d,
 
 ## Post-R6 (surfaced 2026-07-23 during the R6 milestone validation)
 
-- ~~**Make the projections summary CSV column order deterministic.**~~
-  **CLOSED 2026-07-25 — code fix landed AND manifest re-recorded.** wf2 was run
-  to completion (12/12 jobs, 140 s), the delta was proven column-order-only, and
-  `record --workflow climate_projections` updated exactly the two affected rows.
-  Evidence, in the order it was established:
-  - **Delta is ordering, nothing else.** Both CSVs: identical column *set*,
-    identical shape (48×9 and 6×9), header moved `temp,precip` →
-    `precip,temp`, and **every value identical when matched by label**
-    (`DataFrame.equals` after realigning the after-frame to the before-frame's
-    column order). Checked before recording, because a value change would have
-    meant `sorted()` did more than reorder — that would have blocked the record.
-  - **Scope was exactly the 2 predicted rows.** `check` pre-record reported
-    `FAIL - 2 target(s)`, both summary CSVs; the sibling
-    `annual_change_scalar_stats_summary.nc` and the other five wf2 targets were
-    unaffected.
-  - **Manifest diff is 2 lines.** `git diff dev/baseline/manifest.json` = 2
-    insertions / 2 deletions, both `sha256` values, `size_bytes` unchanged
-    (a pure column swap preserves total width).
-  - **Post-state:** full `check_baseline check` **OK 18/18**, and wf2 dry-runs
-    to "Nothing to be done" — the queued-jobs tripwire left by the earlier
-    killed run is gone.
-
-  Historical detail retained below.
-
-  **CODE FIX LANDED 2026-07-25; MANIFEST RE-RECORD (now done, see above).**
-  `intersection()` in `blueearth_cst/projections/get_change_climate_proj.py`
-  returned `list(set(lst1) & set(lst2))` — hash-order dependent, so
-  `annual_change_scalar_stats_summary{,_mean}.csv` flipped `precip`/`temp`
-  column order run-to-run (values identical by label, sibling `.nc` unaffected,
-  consumers read by name). Now `sorted(...)`, with 7 regression tests including
-  a sub-process `PYTHONHASHSEED` sweep — the only form that actually catches
-  hash-order dependence, since the seed is fixed for an interpreter's life.
-  Verified: all 7 fail on the pre-fix line, pass on the fixed one.
-
-  **Chose alphabetical over "preserve the first sequence's order"** so the
-  guarantee is self-contained rather than silently dependent on upstream
-  dataset-variable ordering. On the seed config the two coincide
-  (`variables: [precip, temp]`).
-
-  **Outstanding — the baseline gate the R6 note anticipated.** The recorded
-  fixture CSVs carry the columns as `…,temp,precip,…`, which is *neither*
-  candidate deterministic order, so the next wf2 run will emit
-  `…,precip,temp,…` and the **2 manifested CSV rows will mismatch**
-  (`check_baseline` fingerprints them by sha256 of normalized bytes —
-  `check_baseline.py` `fingerprint_csv`). `check` is green **18/18 today** only
-  because a code change cannot move on-disk outputs. So this fix has planted a
-  guaranteed, expected failure that will look like a regression to whoever next
-  runs wf2. To close: re-run wf2 (`~1172 s` summed job time, so roughly 3–6 min
-  wall at `-c 3` on a quiet box — and that figure was measured during the
-  contaminated window, so likely faster), confirm the delta is column order
-  only, then `check_baseline.py record --workflow climate_projections`. That is
-  a deliberate manifest update per the roadmap's "no silent updates" rule.
-
-  **STATE AS LEFT 2026-07-25 — read before the next wf2 run.** A forced wf2
-  re-run (`--forcerun monthly_change monthly_change_scalar_merge`, 22 jobs) was
-  started and **killed at 10/22**, deliberately not retried. Consequences:
-  - The 2 summary CSVs are **still the original bytes** (`…,temp,precip,…`) —
-    rule 2.05 never ran. The manifest was **not** touched; `check_baseline`
-    reports **OK 18/18**.
-  - The workdir was left locked and has since been **unlocked** (no locks
-    remain).
-  - **A partial regeneration is now QUEUED.** wf2 went from "Nothing to be
-    done" to **12 pending jobs** (3 `monthly_stats_fut`, 3 `monthly_change`,
-    `monthly_change_scalar_merge`, `plot_climate_proj_timeseries`, the log/
-    benchmark gathers, `all`), because 6 of the 9 stats jobs completed and their
-    `temp()` intermediates were reclaimed. So **the next wf2 invocation — any
-    invocation, not just a forced one — will complete the merge and rewrite the
-    two CSVs in the new `…,precip,temp,…` order**, at which point those 2
-    manifest rows go red until re-recorded. That is expected, not a regression.
-  - Cost note: wf2's 2.02/2.03 read CMIP6 **over the network** from
-    `gs://cmip6/...`, so its wall time is bandwidth-bound, not CPU-bound. The
-    killed run managed 10/22 jobs in ~3.5 min. An earlier "3-6 min from the
-    1172 s summed benchmark" estimate was wrong in kind for that reason.
-  - Snakemake may also require `--rerun-incomplete` if it flags any output left
-    half-written by the kill.
-
 - **Snakemake's `code` rerun-trigger does NOT reach wf2's rule 2.04.**
   Discovered 2026-07-25 while trying to propagate the `intersection()` fix.
   Rule 2.04 `monthly_change` names `get_change_climate_proj.py` directly as its
@@ -1527,119 +584,12 @@ Provenance: `dev/milestones/r07/migration_project-layout.md` §§7a–7d,
   considering whether the `ancient()` wrappers on 2.05's inputs are still
   earning their keep, or whether they are over-broad insurance that now hides
   real staleness.
-- ~~**`semantic_tree_diff.py` exclusion refinement.**~~ **CLOSED 2026-07-25 —
-  already fixed, no action taken.** The cited defect (stray `.log`/`.txt` under
-  `hydrology_model/` reaching the hash comparator as benign FAILs) was resolved
-  by P3-1 commit `576b6a6` ("exclude run-log files (5b)"), which added a
-  file-level rule to `_is_excluded`: `rel.suffix == ".log" or rel.name ==
-  "log.txt"`. Verified 2026-07-25 by calling `_is_excluded` directly on the
-  three exact paths — `hydrology_model/hydromt.log`,
-  `hydrology_model/run_default/log.txt`,
-  `experiments/experiment/model_runs/log.txt` — all three EXCLUDED. The only
-  other non-standard-extension file in the tree,
-  `hydrology_model/staticgeoms/reservoirs_lakes_glaciers.txt`, is correctly
-  hash-compared: it is content-bearing and deterministic, and passed as one of
-  the 102 CLEAN files in the P3-3 value-identity gate. **The residual
-  suggestion (a generic extension-level volatile class / per-tree exclude
-  globs) is deliberately NOT implemented:** this is a *gate* tool, and widening
-  its exclusions without a demonstrated false FAIL trades real detection for
-  nothing. Reopen only with a concrete benign-FAIL case.
-- ~~**Dead-fixture audit: `tests/wflow_build_model.yml`.**~~ **CLOSED 2026-07-25
-  — confirmed dead, removed.** Evidence: (1) no config points at it — every
-  `model_build_config:` in the repo, **including `tests/snake_config_model_test.yml`
-  and `tests/test_project/`**, resolves to `config/templates/wflow_build_model.yml`
-  in the shared config tree (the R6 review already established this as finding
-  arch-1); (2) no test loads it by name and nothing globs `tests/*.yml`; (3) it
-  was itself **broken** — its `read_config.config_fn: "../config/wflow_sbm.toml"`
-  dangles, since R6 moved that file to `config/templates/wflow_sbm.toml` and the
-  fixture was never updated, so anything that *did* load it would fail; (4) last
-  touched in m02b (`95c4163`), predating the R6 config split. Removed rather than
-  wired up: a second build template would be a duplicate maintenance surface with
-  no consumer. Full suite green after removal.
-- ~~**`scripts/run_snake_test.cmd` modernization.**~~ **CLOSED 2026-07-25 —
-  ported, not retired.** `scripts/` is a documented user-facing entry point
-  (`AGENTS.md` Repo Map), so the default was to preserve the surface and fix the
-  hostility rather than delete it. Changes: every call goes through `pixi run`
-  (drops `call activate cst`, and incidentally fixes the graphviz complaint —
-  `dot` resolves from the pixi env, verified graphviz 14.1.2, all three DAGs
-  render); `pause` removed; stops on the first failing workflow with a nonzero
-  exit, matching `run_workflows.py`'s contract; arguments forward to every
-  `snakemake all` call, so `scripts\run_snake_test.cmd --dry-run` validates the
-  whole script in seconds; DAG renders moved out of the repo root into a
-  gitignored `dag/`, and the render step is best-effort so a graphviz failure
-  cannot abort a run. Verified: `--dry-run` exits 0 across all three workflows
-  in the required order; a bogus flag exits 1 after workflow 1 and never reaches
-  2 or 3. Two cmd.exe traps hit and documented in-file while porting — an
-  unescaped `)` inside a parenthesised `if/else` block, and `shift` **not**
-  rebasing `%*` (forwarded args are captured once into `%FWD%` instead).
-  A stale `dag_model.png` from the old script may still sit in the repo root;
-  it is gitignored and safe to delete by hand.
-
 ---
 
-## Cross-cutting — baseline manifest integrity
-
-- **[RESOLVED 2026-07-18] Baseline rebuilt from a tracked seed config.**
-  `dev/baseline/manifest.json` was re-recorded from the now-tracked
-  `config/snake_config_model_test.yml` (project_dir `examples/test_local`,
-  3 models, single `far` horizon, current libraries), after a fresh run of
-  all three workflows. `record` → `check` round-trips clean (14/14). The
-  untracked `snake_config_model_test_local.yml` that seeded the stale M2b
-  baseline is retired, so the divergence cannot recur. The model-independent
-  workflow-1 PNG drift noted below was not separately investigated — it is
-  moot now that the whole baseline is re-recorded from a known, tracked
-  config; revisit only if a future `check` shows unexplained PNG drift.
-  Original diagnosis retained below for provenance.
-
-- **Rebuild `dev/baseline/manifest.json` against current libraries with a
-  tracked seed config.** *Surfaced 2026-07-18 during R01 Task 5.* The M2b
-  manifest (last recorded 2026-05-08, commit `159e197`) was recorded from
-  an **untracked, 3-model local config**, while the tracked canonical
-  (`config/snake_config_model_test.yml`) has used an **8-model** list since
-  before `pre-r01`. The two have been silently divergent since M2b — the
-  workflow smoke tests never compare against the manifest, so nobody caught
-  it. R01 Task 5 was the first `check_baseline check` against the canonical
-  model set and exposed the mismatch (see `dev/milestones/r01/baseline_diffs.md`).
-
-  A fresh 8-model canonical run also shows **model-independent** drift on
-  workflow-1 plots (`basin_area/hydro_wflow_1/precip.png`, 19–32% size) —
-  workflow 1 never reads the climate model list, so the M2b local config
-  must have differed from the canonical in ways beyond model count, and
-  **cannot be reconstructed**.
-
-  *Fix:* choose a deliberate model set, commit a **tracked** seed config
-  (or parameterize `check_baseline` with one) so the baseline is
-  reproducible, run all three workflows on current libraries, and record a
-  fresh manifest. Investigate whether the workflow-1 PNG drift is
-  rendering-only (matplotlib) or real content before blessing it. Until
-  then the M2b manifest remains the contract of record, with R01 sealed on
-  invariance-by-construction rather than a re-record.
 
 ---
 
 ## Cross-cutting — workflow ergonomics
-
-- **[FIXED 2026-08-01] The user's gauges were dropped in silence, everywhere.**
-  *Found on a real basin run (`C:/TESTS/CST/gabon_0108`), reported by Ümit as
-  "output locations missing from the spatial plots".* hydromt_wflow's
-  `setup_gauges` normalizes the basename — `.replace("_", "-")`,
-  `wflow_base.py` — so `output_locations.csv` becomes `output-locations` in the
-  staticgeoms layer, the wflow TOML `map`, and the parsed output columns. Three
-  of our readers derived that name from the FILENAME and missed the
-  substitution; every lookup was a membership test used as a guard
-  (`if name in geoms:`), so all three failed **silently**. Damage: gauges absent
-  from `basin_area.png`, no gauge hydrographs, no signature plots, and an EMPTY
-  `performance_metrics.csv` on a config that supplied observations — while
-  `output.csv` held all four stations correctly, because wflow reads the TOML
-  instead of guessing. Rule 1.13 had a second, independent instance: it passed
-  `staticgeoms/outlets.geojson` as its gauges param, so a configured
-  `output_locations` was never even attempted there.
-  *Fixed* by `blueearth_cst/shared/gauges.py`: resolve the layer and variable
-  from the MODEL, and WARN (never skip) when a configured file cannot be
-  resolved. **This is the second instance of the class** — R07 O-08 was the
-  same shape with a different cause (the `"None"` sentinel). Both times a
-  membership test doubled as a guard. Worth a sweep: any `if <derived name> in
-  <mapping>:` where the name comes from config is a silent-drop candidate.
 
 - **`tee_to_log` does not capture the traceback of a failing `script:` rule.**
   *Surfaced 2026-08-01 while landing the canonical climate figure set.* A rule
@@ -1668,184 +618,12 @@ Provenance: `dev/milestones/r07/migration_project-layout.md` §§7a–7d,
   R3. Deferred by choice, not a blocker — pick up when convenient (a natural
   fit alongside R4/R5 Snakefile work or R6 polish).
 
-- **[RESOLVED 2026-07-21, commit `d13ba37` (t260721a, `fix/pre-r6-followups`).]**
-  wf1's three shell rules now route through `src/run_logged.py` (a CLI over
-  `snake_utils.run_and_tee`), a portable Python tee wrapper that keeps live
-  console output, writes the log, and exits with the child's own return code.
-  Verified end-to-end: a deliberately-failing child propagates its non-zero code
-  (the old `| tee` masked it to 0 under cmd.exe). Original diagnosis retained
-  below for provenance.
-
-- **[Latent robustness, not a blocker] wf1's `| tee {log}` shell rules mask the
-  exit code on failure.** *Surfaced 2026-07-20 during R5 (design §2 ruling).*
-  `Snakefile_model_creation`'s three shell rules (lines 89, 167, 182 — `hydromt
-  build`, `hydromt update`, Julia `Wflow.run()`) use `... 2>&1 | tee {log}`.
-  A bare `cmd | tee` pipeline returns `tee`'s exit status, not `cmd`'s, unless
-  bash `pipefail` is active. On **Windows/cmd.exe** Snakemake injects **no**
-  `set -euo pipefail` prefix (that prefix is bash-only — verified against
-  Snakemake 9.6.2 `shell.py`), so a genuine `cmd` failure is reported as
-  success. Verified empirically 2026-07-20 in a scratch Snakefile: a
-  deliberately-failing command under `| tee` → Snakemake reports success;
-  under `> {log} 2>&1` → Snakemake fails ("command exited with non-zero exit
-  code"). On POSIX/bash the `pipefail` prefix protects, and on **success** the
-  wf1 `| tee` rules run correctly (R3 sealed via a full `--forceall` wf1 rebuild
-  that wrote all three tee logs and passed 14/14 on this machine) — so this is a
-  **latent** failure-masking gap that only bites if a wf1 rule actually fails
-  mid-run, **not** a gate blocker.
-
-  *Fix:* migrate wf1's three shell rules to the exit-preserving `> {log} 2>&1`
-  form R5 adopted for workflow 3's shell rules, **or** adopt a portable Python
-  tee wrapper repo-wide if live console streaming must return (the tee form was
-  deliberately chosen in commit `4a67d79` to restore live output). Owner:
-  `cst-architect`. Activation: **next time wf1 shell-rule robustness is worked
-  on.** wf3's own new shell rules already use `> {log} 2>&1` (R5 commit 8), so
-  R5 introduces no new instance of the masking.
-
 ---
 
-## R3 — Workflow 1: model builder
-
-- ~~**Resolve test_cli xfails.**~~ **CLOSED 2026-07-25 — both resolved, each by
-  one of the options this entry proposed.** Verified on the current tree:
-  `tests/test_cli.py` contains **no `xfail` marker at all**; all three cases
-  assert `returncode == 0` and the file runs **4 passed**. The
-  `MissingInputException` case was fixed the fixture way — `test_snakefile_cli_
-  climate_projections` takes the `config_with_staged_region` fixture (R3), so
-  `region.geojson` is pre-staged rather than the Snakefile being refactored. The
-  `CyclicGraphException` case was fixed the `wildcard_constraints` way in R5, and
-  the fix is self-documenting at `Snakefile_climate_experiment:297` — a
-  rule-local `st_num=r"[1-9][0-9]*"` constraint whose comment names this exact
-  exception and explains why `cst_0` must not be resolvable by rule 3.07. No
-  `ruleorder` was needed. Original entry retained below for provenance.
-
-  Two of the three parametrizations in
-  `tests/test_cli.py` are marked `xfail` since M2:
-  - `Snakefile_climate_projections`: dry-run trips
-    `MissingInputException` because the workflow expects
-    `staticgeoms/region.geojson` (produced by Snakefile_model_creation)
-    even when only dry-running. Either change the test fixture to
-    pre-stage that file, or refactor `Snakefile_climate_projections` so
-    `--dry-run` doesn't require it.
-  - `Snakefile_climate_experiment`: dry-run trips
-    `CyclicGraphException` at `rule generate_climate_stress_test`. The
-    rule's wildcard pattern `rlz_{rlz_num}_cst_{st_num}.nc` overlaps
-    with `generate_weather_realization`'s output `rlz_{rlz_num}_cst_0.nc`.
-    Production configs (`config/snake_config_model_test_local.yml`) work
-    fine because Snakemake disambiguates from concrete paths in
-    `expand(...)`, but the `--dry-run` resolver flags the cycle on the
-    test config. Add a wildcard constraint (`{st_num,[1-9][0-9]*}` or
-    similar) or a `ruleorder:` directive.
-
-  These are pre-M2 failures masked by the fact that M1 closure didn't
-  actually run pytest.
-
-  *Split 2026-07-19 (`dev/milestones/r03/model-builder-design.md` §2), by where the fix
-  lives:* the `MissingInputException` is a workflow-2 **test-fixture** defect
-  (dry-run against an empty project dir) — **fixed in R3** by pre-staging a
-  minimal valid `region.geojson` and flipping that ratchet. The
-  `CyclicGraphException` fix is a `wildcard_constraints`/`ruleorder` edit
-  **inside `Snakefile_climate_experiment`** (R5 territory, entangled with the
-  `st_num2 → st_num` fold that `dev/reference/naming.md` §4 already assigns
-  to R5) — **deferred to R5**; the ratchet is retained until then.
-
-- **[RESOLVED 2026-07-21, t260716a′ (`fix/pre-r6-followups`).] Redo M1 warnings
-  triage exhaustively.** Swept 82 captured `.log` files across all three workflows
-  (per-rule `log:` directives now present via R3/R4/R5). **Bucket 3 (our-code):
-  empty** — no warnings framed in `src/`, the Snakefiles, `dev/scripts/`, or the R
-  layer. **Bucket 2:** one item, intended hydromt behavior (the `0.00833` vs native
-  `0.008333333333325754` resolution snap) — won't-fix (a config match is fragile +
-  would drift the tracked snake-config fingerprint for zero model change).
-  **Bucket 1:** hydromt CRS/forcing/model-dir warnings + a new-but-captured 62×
-  `Error in sys.excepthook` shutdown cascade from `hydromt build -vv` (post-success;
-  upstream subprocess, not our tee wrapper — absent from the Julia/hydromt-update
-  logs that use the same wrapper). No code changes. Full re-triage recorded in
-  `dev/milestones/phase-1/m01/warnings.md` § "Exhaustive re-triage — 2026-07-21".
-
-- **~~`extract_climate_grid` silently truncates the historical range.~~
-  CLOSED 2026-08-01.** Both halves are now resolved. *Truncation WARNING*
-  resolved 2026-07-21, commit `ce56bc3` (t260716a, `fix/pre-r6-followups`):
-  `prep_historical_climate` emits an advisory when the extracted span falls
-  short of the requested window. *Config staleness* resolved 2026-07-21
-  (t260716a′, see the nested entry below — R5 wired the window in as `params`,
-  so Snakemake's default rerun-trigger re-extracts on an edit). *The
-  "optionally, fail the rule" half of the fix below* landed 2026-08-01, as a
-  UNIFIED floor rather than a per-workflow one (owner ruling, same day):
-  `extract_historical_climate._check_window_coverage` keeps shortfall-vs-
-  requested advisory with its 31-day tolerance, and RAISES below
-  `snake_utils.MIN_HISTORICAL_YEARS` (16). A WF1 parse-time guard
-  (`validate_historical_window`) applies the same floor to the requested window
-  before any rule runs. The floor is set by the most demanding consumer
-  (weathergenr's wavelet minimum) and enforced in WF1 and WF2 too: a first
-  revision enforced 365 days hard and 16 years advisory, which let WF1 build a
-  model on a record WF3 would reject — moving the failure to the workflow least
-  able to explain it. **Consequence:** two shipped configs held windows under
-  the new floor and were widened to 2000–2020 — `snake_config.template.yml` (was
-  6 years) and `tests/snake_config_model_test.yml` (was 6). **Still open, and
-  tracked separately:** the 16-year gate in WF3 itself, where weathergenr is
-  invoked — a store built before this change can still reach it. See
-  "weathergenr's wavelet minimum surfaces as a cryptic error" in the R5
-  section.*
-  When the snake config's `historical:` window asks for years that the
-  staged source doesn't cover, the rule produces a shorter `extract_historical.nc`
-  without any warning. Downstream rules then fail in cryptic ways far from
-  the actual cause.
-
-  *Observed 2026-05-07:* config asked `historical: 1980, 2010` (31 years),
-  the staged era5 only had data from 2000-01-01 onward, so the extracted
-  netCDF held 2000–2010 = **11 years**. That fell below weathergenr's
-  16-year wavelet minimum and crashed `generate_weather_realization`
-  with `'series' must have at least 16 observations`.
-
-  *Fix:* in `extract_climate_grid` (or its underlying script), log a warning
-  when the extracted time span is shorter than the requested span. Optionally,
-  fail the rule if the shortfall is large enough to break a downstream step
-  (e.g. < 16 historical years when weathergenr is in the pipeline).
-
-  *Related Snakemake-staleness issue:* **[RESOLVED 2026-07-21, t260716a′ — by R5's
-  wiring + verification, no new code.]** The 2026-05-07 repro (changing `historical:`
-  didn't re-extract) predates R5, when the dates were hardcoded and `historical:`
-  was **never read** by `extract_climate_grid` — so of course the edit had no effect.
-  R5 wired `shared.historical_window` into the rule as `params`
-  (`starttime`/`endtime`, `Snakefile_climate_experiment:78-82`), and Snakemake 9.6.2
-  applies its default `params` rerun-trigger (no `--rerun-triggers` override in the
-  repo). **Verified empirically 2026-07-21:** a dry-run against the built
-  `examples/test_local` with `historical_window.endtime` changed 2020→2019 schedules
-  `extract_climate_grid` with reason *"Params have changed since last execution:
-  before '2020-12-31…' now '2019-12-31…'"*. So config edits to the historical window
-  now propagate automatically; `--forcerun` is no longer needed. Declaring the whole
-  config as an input (the original suggestion) is unnecessary and coarser (would
-  re-run on any unrelated config edit). The broader "audit every rule whose behavior
-  depends on an unread config key" remains a general note (see R5 section below), not
-  part of this item.
-
-  *Workaround applied 2026-05-07:* `historical: 2000, 2020` in the local test
-  config + `--forcerun extract_climate_grid` for the immediate run. Treats
-  the symptom; doesn't fix either of the two underlying issues.
 
 ---
 
 ## R5 — Workflow 3: climate experiment
-
-- **`extract_climate_grid` ignores the `historical:` config and hardcodes
-  the date range.** Pre-R5 unblocking edit on 2026-05-07 changed the
-  hardcoded `starttime="2000-01-01"` / `endtime="2020-12-31"` in
-  `src/extract_historical_climate.py`. The snake config's `historical:`
-  key is read by `Snakefile_climate_projections` (workflow 2) but never
-  by `Snakefile_climate_experiment` (workflow 3) — the rule
-  `extract_climate_grid` only receives `data_sources` and `clim_source`
-  as params; `historical:` is silently ignored.
-
-  *Proper fix:* in `Snakefile_climate_experiment`, parse `historical:`
-  from the config and pass `starttime` / `endtime` as rule params; in
-  `src/extract_historical_climate.py`, replace the hardcoded date
-  strings with `sm.params.starttime` / `sm.params.endtime`. While at it,
-  drop the misleading function defaults at lines 20–21 (currently still
-  say `1980` / `2010`).
-
-  *Also touches the R3 followup:* this is the same shape as the
-  config-key-not-wired pattern — fixing it should be paired with a
-  general audit of every rule whose behavior depends on a config key
-  that isn't actually read.
 
 - **`weathergenr::write_netcdf` does not propagate `spatial_ref` attributes
   from `template_path` to the output.** Confirmed 2026-05-07: the historical
@@ -1934,36 +712,6 @@ for the full M2b record.
   *Proper fix:* file upstream against `hydromt`. Reproducer is the
   three-line snippet in `dev/milestones/phase-1/m02b/handoff.md` decision section.
 
-- **conda-forge does not ship `julia` for win-64 at all.** linux-64 / osx-64
-  have 1.10.x and 1.12.x but skip 1.11.x; win-64 has nothing. This blocks the
-  "single env via pixi" goal on Windows for the Julia layer. Today juliaup
-  manages Julia 1.11.7 outside pixi.
-  *Possible fixes:* (a) wait for conda-forge to ship win-64 Julia; (b) wrap
-  juliaup in a pixi `[tasks]` step that calls `juliaup install 1.11.7` at
-  env-setup time; (c) move to a different distribution channel.
-
-- **[RESOLVED 2026-07-17] weathergenr crashed loading on Windows —
-  root cause was conda-forge's r45 `r-waveslim` build, not `ncdf4`.**
-  `library(weathergenr)` (and the install's lazy-load step) died with
-  `Mingw-w64 runtime failure: 32 bit pseudo relocation ... out of range`.
-  Isolated by loading each Import in turn: the first 15 loaded fine and
-  only `waveslim` overflowed — its Fortran DLL carries a 32-bit
-  pseudo-relocation to libgfortran that lands ~2.7 GB away (past the
-  signed 2 GB range), so load order can't dodge it. The earlier "likely
-  ncdf4" and "user lib on Windows" notes were both wrong: under pixi
-  `Rscript --vanilla` the only libPath is the conda site-lib, and ncdf4
-  is fine. The bug is specific to the **r45** (R 4.5) waveslim build; the
-  **r44** build loads and runs `modwt` cleanly.
-  *Fix applied:* pin `r-base = "4.4.*"` in `pixi.toml` so the solver picks
-  the working r44 waveslim (and r44 builds of the other Fortran deps).
-  Also switched `install_weathergenr.R` from `pak` (conda-forge `r-pak` is
-  separately broken on win-64 — "Wrong OS or architecture") to
-  `remotes::install_github(dependencies=FALSE, upgrade="never")`, which
-  touches nothing but weathergenr itself. Verified: `pixi run install-rdeps`
-  installs and `library(weathergenr)` loads.
-  *Revisit when:* conda-forge ships a fixed r45 `r-waveslim` (or R 4.6)
-  Fortran build — then the `r-base` pin can move forward again.
-
 - **`setup_constant_pars` short names → CSDMS Standard Names.**
   *Re-tagged 2026-07-19: standalone scientific-review task `t260719a`, split
   out of R3.* hydromt_wflow 1.x's `setup_constant_pars` rejects the short
@@ -2000,19 +748,6 @@ for the full M2b record.
   `hydromt_wflow.version_upgrade`. Concrete 8-mapping remap in
   `dev/milestones/phase-1/m02b/handoff.md` decision #3.
 
-- **[RESOLVED 2026-07-21, t260720e — does-not-reproduce, no fix.] CMIP6 `precip` /
-  `temp` `.attrs` lost on `monthly_change_scalar_merge`.** Under the current pinned
-  env (hydromt 1.3.1) the merged `annual_change_scalar_stats_summary.nc` carries the
-  **full CF set** (`cell_measures`, `cell_methods`, `comment`, `long_name`,
-  `original_name`, `standard_name`, `units`) on both `precip` and `temp` — verified
-  on the real-CMIP6-read output in `examples/test_local` AND in the recorded manifest
-  fingerprint (`check --workflow climate_projections` passes on the `.nc`). R4's
-  `probe_attrs_chain.py` proved no wf2 code drops attrs, and the values are
-  CMIP6-native, so the hydromt read preserves them. The M2b `{}` diagnosis no longer
-  reproduces; original root cause not re-litigated (moot). Absorbed the old t260716c
-  "CMIP6 attr loss on merge" item. Full disposition: `dev/milestones/r04/chain-audit.md`
-  § D-ATTRS.
-
 - **Outlet station naming convention decision.** hydromt_wflow 1.x's
   `setup_outlets` uses subcatchment IDs (e.g. `130000086`, `1`, `2`, …) for
   outlet stations rather than the contiguous `1..N` of 0.x. The CSV column
@@ -2020,24 +755,6 @@ for the full M2b record.
   rebuilds `station_name` as `1..N` to keep `hydro_wflow_1.png` visually
   stable; R3 should pick a consistent project-wide convention (real
   subcatchment IDs vs `1..N` rebuild) and document it.
-
-- ~~**Retire the "CMIP6 GCS throughput regression" follow-up.**~~ **CLOSED
-  2026-07-25 — retired, and independently re-confirmed.** The original
-  M2b mid-flight estimate was ~6 h for the full 3-model × 2-scenario fetch;
-  the as-shipped run completed in 24 min after the eager `.load()` patch
-  in `src/get_stats_climate_proj.py` (now
-  `blueearth_cst/projections/get_stats_climate_proj.py`). The followup line item
-  was based on the slow path and no longer applies; no file lists it separately,
-  so this entry was the last trace and is now closed rather than carried
-  indefinitely as a "reminder if it resurfaces".
-
-  **Fresh corroboration 2026-07-25:** a wf2 run observed 2.02/2.03 reading
-  `gs://cmip6/CMIP6/ScenarioMIP/...` live and clearing **10 of 22 jobs in ~3.5
-  min** at `-c 3` — i.e. ~100 s per model-scenario stats job, entirely
-  consistent with the fast path and nowhere near the regressed one. Recorded
-  because it also corrects a cost-model error made the same day: wf2's wall is
-  **bandwidth-bound on GCS**, not CPU-bound, so estimates derived from its summed
-  CPU benchmark (1172 s) are wrong in kind. See the Post-R6 CSV-determinism entry.
 
 ## R6 — Functional modularization (capability boundaries)
 

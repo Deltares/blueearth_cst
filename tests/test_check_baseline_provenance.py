@@ -9,7 +9,7 @@ mean someone else's code is consistent with your manifest.
 That is not hypothetical. A `basin_area.png` produced on `feat/outputs-figures`
 sat in the shared fixture for days and was read as the pre-R07 baseline
 reference; only a byte-size mismatch at the R07 gate forced the question
-(dev/followups.md R7-3). These tests pin the stamp that makes such a
+(dev/followups-archive.md R7-3). These tests pin the stamp that makes such a
 misattribution visible instead of silent.
 """
 
