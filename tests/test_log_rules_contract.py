@@ -13,7 +13,7 @@ disagreement fail silently:
 
 Neither raises. Both have happened: rules 1.01b, 3.01b and 2.03b were each added
 without their label, and ``2.11_extract_climate_grid`` outlived the rule ADR 0003
-§5 deleted (`dev/followups.md` [R10-8]). ``rule-naming-design.md`` treats this as
+§5 deleted (`dev/followups-archive.md` [R10-8]). ``rule-naming-design.md`` treats this as
 checklist discipline for the R10 sweep — the single edit most likely to break
 exactly this surface. It is mechanically checkable, so it is checked here
 instead.
@@ -24,7 +24,7 @@ identifiers are ``run_wflow_batch_<b>`` (one per batch, parse-time generated)
 while every batch writes into a single ``<W.NN>_run_wflow`` directory. Deriving
 from the path records that divergence as the deliberate thing it is (P3-3).
 
-**This module is the ONLY home for the property** (`dev/followups.md`
+**This module is the ONLY home for the property** (`dev/followups-archive.md`
 ``[R10-10]``). ``tests/test_model_reference.py`` used to assert a subset of it
 by slicing the ``LOG_RULES`` text to the first ``]`` and matching an f-string
 label form; both were wrong in ways that let a real failure sit unread, and two

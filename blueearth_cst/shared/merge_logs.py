@@ -171,7 +171,7 @@ def merge_logs(rules, out_path, parts_dir, remove_parts=False):
     A leftover member part -- ``rlz_5_cst_1`` after ``realizations_num`` drops to
     3 -- IS merged, since it sits in a live rule's dir. It is then deleted with
     the rest, so the condition shows in one log and heals itself; the same trade
-    ``merge_benchmarks`` makes for a renamed rule's row (``dev/followups.md``
+    ``merge_benchmarks`` makes for a renamed rule's row (``dev/followups-archive.md``
     R7-9). Not worth teaching this script the current wildcard ranges.
     """
     parent = os.path.dirname(out_path)

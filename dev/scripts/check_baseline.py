@@ -95,7 +95,7 @@ def git_provenance(repo_root: Path = REPO_ROOT) -> dict | None:
     Observed, not hypothetical: a `basin_area.png` produced on
     `feat/outputs-figures` sat in the fixture for days and was read as the
     pre-R07 baseline reference, until a byte-size mismatch at the R07 gate
-    forced the question (see dev/followups.md R7-3 / R7-21).
+    forced the question (see dev/followups-archive.md R7-3 / R7-21).
 
     Best-effort by design: a missing `git`, a non-repository checkout or a
     detached HEAD returns None rather than raising. Provenance is an aid to

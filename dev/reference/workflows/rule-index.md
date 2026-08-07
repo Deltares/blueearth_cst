@@ -7,7 +7,7 @@ one does, what it writes, and how they connect.
 > **This page describes what is on disk.** The R10 step-6 sweep landed
 > 2026-08-06: the twelve renames (`dev/milestones/r10/rule-naming-design.md`,
 > record `dev/milestones/r10/migration_rule-names.md`) and the positional
-> renumber (`dev/followups.md` `[R10-5]`).
+> renumber (`dev/followups-archive.md` `[R10-5]`).
 >
 > **Any `W.NN` written before that date means a different rule.** Translate
 > with [What changed](#what-changed) — it is the permanent translation table,

@@ -1,5 +1,5 @@
-Status: accepted (§1–12, implemented 2026-08-06). **Baseline re-record owed** —
-        see *Landed state (§12)*.
+Status: accepted (§1–12, implemented 2026-08-06); baseline re-recorded
+        `ea5ac59` — see *Landed state (§12)*.
 Date: 2026-08-02
 Deciders: Ümit Taner
 Consulted: gabon_0108 run (2026-08-02) — geometry comparison showing
@@ -239,7 +239,7 @@ region polygon to the vector foundation.
    its labels, and "the region rule" reads to someone who does not write
    software. `region_spec` → `region_rule` and `climate_store_spec` →
    `climate_store_rule` renamed with it so the trio stays consistent —
-   `dev/followups.md` `[R10-7]`, landed in the R10 sweep. `_contract` was
+   `dev/followups-archive.md` `[R10-7]`, landed in the R10 sweep. `_contract` was
    rejected because this repo already uses "contract" for interchange surfaces
    (`dev/reference/contracts/`, `SPATIAL_CONTRACT_VERSION`).
 
@@ -427,7 +427,7 @@ region polygon to the vector foundation.
   thematic stack but **not free, and not yet measured** — see *Open questions*.
 - `shared.basin.gauge_points` becomes a rerun trigger for WF2 and WF3, which
   reference it nowhere today.
-- WF1 gains a rule. Interacts with the renumbering in `dev/followups.md`
+- WF1 gains a rule. Interacts with the renumbering in `dev/followups-archive.md`
   `[R10-5]`: land the split first or the numbers move twice.
 
 - **§11b and §12 both move outputs.** Only §8–10 and §11a are
@@ -804,11 +804,14 @@ by reasoning, because a clean-room tree existed when this landed.
   mismatch check. Raising the threshold would look like maintenance and buy
   nothing; the advisory stays only for projects carrying pre-§12 ids.
 
-**Baseline re-record owed, covering §11 and §12 together.** Expected to move:
-the three config-snapshot hashes (§11's key rename) and `q_indicators.csv`
-(§12's column names). Expected NOT to move: the `output.csv` discharge anchor,
-`basin_indicators.csv` (it carries no ids), and the change-factor tables. State
-that in the re-record commit, or the diff will not match its message.
+**Baseline re-recorded for §11 and §12 together — `ea5ac59`, 2026-08-06. The
+manifest is CURRENT.** What moved was what was predicted: the three
+config-snapshot hashes (§11's key rename) and `q_indicators.csv` (§12's column
+names). What did not move is the load-bearing half — the `output.csv` discharge
+anchor, `basin_indicators.csv` (it carries no ids), and the change-factor
+tables. Read the manifest and `ea5ac59` before running `check_baseline.py
+check`; this paragraph read "owed" for long enough to mislead a later gate into
+budgeting for six expected diffs.
 
 ### Open questions — §8–12
 

@@ -1,6 +1,6 @@
 """Assemble the hydromt forcing recipe and apply it — rules 1.07 + 1.08, merged.
 
-`dev/followups.md` `[R10-1]`. Rule 1.07 wrote a `steps:` YAML whose **only**
+`dev/followups-archive.md` `[R10-1]`. Rule 1.07 wrote a `steps:` YAML whose **only**
 consumer was rule 1.08, which ran `hydromt update wflow_sbm -i` against it. Two
 rules, one job — and a recipe that never leaves the pair needs no rule name of
 its own, which is why 1.07's R10 rename was withdrawn rather than replaced.

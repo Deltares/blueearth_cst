@@ -21,7 +21,8 @@ it goes and when it may be deleted.
 | Path | Holds |
 |---|---|
 | `roadmap.md` | The phase narrative: what each milestone set out to do and how it landed |
-| `followups.md` | Milestone-scoped backlog with reproducible context; cited by live tests. Detail store behind `TODO.md` |
+| `followups.md` | Milestone-scoped backlog with reproducible context; cited by live tests. **Open items only** — detail store behind `TODO.md` |
+| `followups-archive.md` | Closed followups, one brief entry each. IDs kept resolvable because code, tests and Snakefiles cite them |
 | `reference/` | The rules: `naming.md`, `agent-activation.md`, `git-conventions.md`, `contracts/`, `workflows/` — see its `README.md` |
 
 **Happened** — records of what was done, kept by identity:
@@ -101,6 +102,32 @@ path.
 supersedes only some sections — `wf2-v2-process-review-r2.md` replaces sections
 1, 3 and 5 of its predecessor while 2, 4 and 6 stand. Put a banner in the
 superseded file saying exactly which sections went and where; keep both.
+
+### The one place a register IS compressed — and what makes it safe
+
+`followups.md` is the exception, and it is worth being precise about why, since
+the paragraph above rules the practice out for `reviews/`. On 2026-08-07 the
+file had reached 2,038 lines, roughly half of it items already closed, because a
+closure note had grown into a post-mortem averaging 29 lines. The closed items
+were compressed into `followups-archive.md` at a few lines each.
+
+That was allowed only because condition 3 above — **its durable output has
+left** — was checked item by item and already held. Every reusable lesson in
+those write-ups had been promoted at the time it was learned: the `ancient()`
+trap to `dev/reference/workflows/rule-index.md`, the `tee_to_log` stream
+boundary to `snake_utils._Tee`, the `LOG_RULES` literal constraint to
+`tests/test_log_rules_contract.py`, the branch-shared-fixture hazard to
+`check_baseline.py`. The long entries were duplicating guidance that already
+lived somewhere it is actually read. Exactly one lesson was still unpromoted
+(R9-4's) and it went into `AGENTS.md` as part of the sweep.
+
+So the rule generalizes rather than contradicting the one above: **compress a
+closure note only after its lesson has a home outside the backlog, and name the
+commit the full text is recoverable from.** What is not allowed is compressing
+first and hoping the detail was not load-bearing — which is the `reviews/`
+failure this file already records. The other half of the safeguard: the item IDs
+are cited from code, tests and Snakefiles, so the archive keeps every ID rather
+than merging items away.
 
 Nothing outside `reviews/` is prunable. `decisions/` is permanent by
 construction, `milestones/` and `tasks/` are identity-indexed records, and
