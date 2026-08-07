@@ -36,6 +36,174 @@ WFLOW_VARS = {
 }
 
 
+# --- publication figure style -------------------------------------------
+# Mirrors the constants in shared/plot_map.py. Both should move to a shared
+# style module; kept local for now so the two redesigns stay independent.
+_FIG_WIDTH_MM = 180.0
+_MM_PER_IN = 25.4
+_PT_BODY, _PT_SECONDARY, _PT_CREDIT = 8, 7, 6
+_CLIM_RC = {
+    "font.size": _PT_BODY,
+    "axes.labelsize": _PT_BODY,
+    "legend.fontsize": _PT_SECONDARY,
+    "xtick.labelsize": _PT_SECONDARY,
+    "ytick.labelsize": _PT_SECONDARY,
+    "axes.linewidth": 0.8,
+    "figure.facecolor": "white",
+}
+# Okabe-Ito: CVD-safe, and each hue keeps a distinct lightness so the panels
+# stay separable in greyscale.
+_CLIM_COLORS = {"T": "#D55E00", "P": "#0072B2", "EP": "#009E73"}
+
+
+def _sen_trend(years, values):
+    """Theil-Sen slope with a Mann-Kendall significance test.
+
+    Ordinary least squares plus R^2 — what this figure reported before —
+    answers "how tightly do the points sit on a line", not "is there a
+    trend". R^2 is also sensitive to the outliers that annual climate series
+    routinely carry. Theil-Sen (robust slope) with Mann-Kendall (rank-based
+    significance) is the standard pairing for hydro-climate trend detection,
+    and both come from scipy, already a dependency.
+    """
+    result = stats.theilslopes(values, years)
+    tau, p_value = stats.kendalltau(years, values)
+    return result.slope, result.intercept, p_value
+
+
+def _format_trend(slope_per_year, p_value, unit, decimals=2):
+    """Trend annotation: magnitude per decade plus significance."""
+    per_decade = slope_per_year * 10.0
+    if p_value < 0.001:
+        significance = "$p$ < 0.001"
+    elif p_value < 0.05:
+        significance = f"$p$ = {p_value:.3f}"
+    else:
+        significance = "not significant"
+    # U+2212 MINUS SIGN, not the ASCII hyphen "+/-" formatting emits
+    magnitude = f"{per_decade:+.{decimals}f}".replace("-", "−")
+    return f"{magnitude} {unit} decade$^{{-1}}$ ({significance})"
+
+
+def _plot_clim_year(ds_clim, folder_out, station_name, width_mm=_FIG_WIDTH_MM, dpi=600):
+    """Annual temperature / precipitation / potential evaporation with trends."""
+    series = [
+        (
+            "T_subcatchment",
+            "mean",
+            _CLIM_COLORS["T"],
+            r"$T$ ($\degree$C)",
+            r"$\degree$C",
+            2,
+        ),
+        (
+            "P_subcatchment",
+            "sum",
+            _CLIM_COLORS["P"],
+            r"$P$ (mm yr$^{-1}$)",
+            "mm",
+            0,
+        ),
+        (
+            "EP_subcatchment",
+            "sum",
+            _CLIM_COLORS["EP"],
+            r"$E_P$ (mm yr$^{-1}$)",
+            "mm",
+            0,
+        ),
+    ]
+
+    with plt.rc_context(_CLIM_RC):
+        fig_width = width_mm / _MM_PER_IN
+        fig, axes = plt.subplots(
+            3, 1, sharex=True, figsize=(fig_width, fig_width * 0.62)
+        )
+        fig.subplots_adjust(left=0.10, right=0.985, top=0.985, bottom=0.135, hspace=0.16)
+
+        for ax, (var, how, color, ylabel, unit, decimals), tag in zip(
+            axes, series, "abc"
+        ):
+            resampled = ds_clim[var].resample(time="YE")
+            annual = resampled.mean("time") if how == "mean" else resampled.sum("time")
+            years = annual.time.dt.year.values.astype(float)
+            values = np.asarray(annual.values, dtype=float)
+
+            slope, intercept, p_value = _sen_trend(years, values)
+            significant = p_value < 0.05
+
+            ax.plot(
+                years,
+                values,
+                color=color,
+                linewidth=1.1,
+                marker="o",
+                markersize=2.6,
+                markerfacecolor="white",
+                markeredgewidth=0.7,
+                zorder=3,
+                label="annual value",
+            )
+            # a non-significant trend is drawn faint and dashed: the line is
+            # still shown, but it must not read as a result
+            ax.plot(
+                years,
+                intercept + slope * years,
+                color="0.25" if significant else "0.6",
+                linewidth=1.2 if significant else 0.9,
+                linestyle="-" if significant else (0, (4, 3)),
+                zorder=2,
+                label="Theil–Sen trend",
+            )
+
+            # headroom for the annotation so it never sits on the series
+            low, high = float(values.min()), float(values.max())
+            pad = 0.10 * (high - low or 1.0)
+            ax.set_ylim(low - pad, high + 2.3 * pad)
+            ax.text(
+                0.012,
+                0.94,
+                f"({tag})  {_format_trend(slope, p_value, unit, decimals)}",
+                transform=ax.transAxes,
+                ha="left",
+                va="top",
+                fontsize=_PT_SECONDARY,
+            )
+            ax.set_ylabel(ylabel)
+            ax.grid(axis="y", color="0.85", linewidth=0.5)
+            ax.set_axisbelow(True)
+            for side in ("top", "right"):
+                ax.spines[side].set_visible(False)
+
+        axes[-1].set_xlabel("Year")
+        axes[-1].xaxis.set_major_locator(plt.MaxNLocator(integer=True))
+        axes[0].legend(
+            loc="upper right",
+            frameon=False,
+            ncol=2,
+            handlelength=1.8,
+            columnspacing=1.2,
+            bbox_to_anchor=(1.0, 1.03),
+        )
+
+        first, last = int(ds_clim.time.dt.year[0]), int(ds_clim.time.dt.year[-1])
+        fig.text(
+            0.10,
+            0.012,
+            f"Basin-mean climate at {station_name}, {first}–{last}. "
+            "Trend: Theil–Sen slope, significance by Mann–Kendall.",
+            ha="left",
+            va="bottom",
+            fontsize=_PT_CREDIT,
+            color="0.35",
+        )
+
+        save_figure(
+            os.path.join(folder_out, f"clim_{station_name}_year.png"), dpi=dpi
+        )
+        plt.close(fig)
+
+
 def rsquared(x, y):
     """Return R^2 where x and y are array-like."""
 
@@ -667,6 +835,10 @@ def plot_hydro(
 
 
 def plot_clim(ds_clim, Folder_out, station_name, period, lw=0.8, fs=8):
+    if period == "year":
+        # redesigned path; the monthly climatology still uses the block below
+        return _plot_clim_year(ds_clim, Folder_out, station_name)
+
     fig, (ax1, ax2, ax3) = plt.subplots(
         3, 1, figsize=(16 / 2.54, 15 / 2.54), sharex=True
     )
