@@ -34,14 +34,22 @@ milestone's record stays as it was written.
 | `p33/` | P3-3 — Performance passes | — | `p33-performance` |
 | `r07/` | R7 — Project layout | 2026-07-29 | `r07-layout` |
 | `r08/` | R8 — WF2 v2.0: GCM projections analysis | 2026-07-31 | `r08-wf2-projections` |
-| `r09/` | R9 — Generated project tree | — *(open)* | `r09-project-tree` |
-| `r10/` | R10 — Rule naming | — *(open)* | `r10-rule-naming` |
+| `r09/` | R9 — Generated project tree | 2026-08-07 | `r09-project-tree` |
+| `r10/` | R10 — Rule naming | 2026-08-07 | `r10-rule-naming` |
+| `r11/` | R11 — WF3 artifacts and identification | 2026-08-08 | `r11-wf3-artifacts` |
+| `r12/` | R12 — WF3 execution model | — *(open)* | `r12-wf3-execution` |
 
 Phase grouping: `phase-1/` is Phase 1 (Foundation); `r01`–`r06` are Phase 2
 (Refactor, complete 2026-07-23); `p31`–`p33` are Phase 3 (Usability &
 flexibility, complete 2026-07-25); `r07` is Phase 4 (Layout consolidation);
-`r08` is Phase 5 (Workflow rework); `r09` is Phase 6 (Project tree redesign,
-open); `r10` is Phase 7 (Naming coherence, open).
+`r08` is Phase 5 (Workflow rework); `r09` is Phase 6 (Project tree redesign);
+`r10` is Phase 7 (Naming coherence); `r11`–`r12` are Phase 8 (WF3 rework, open —
+R11 sealed, R12 registered).
+
+**Phase 3's folders are named `p3x`, not `rNN`, and that is not an anomaly.**
+Phase 3 milestones carry `P3-x` identifiers in `roadmap.md` (§ P3-1, P3-2a,
+P3-2b, P3-3) and their tags follow suit. There is no `p32/` — P3-2 split into
+`p32a/` and `p32b/`, which is why a reader looking for `p32` finds nothing.
 
 `p33` carries a tag but no `sealed` line in `roadmap.md` — it is recorded there
 as *scoped 2026-07-24*, so the date column is left blank rather than guessed.
