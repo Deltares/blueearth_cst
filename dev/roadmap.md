@@ -1457,7 +1457,7 @@ specification complete. And the execution model, which is R12.
 question — scope §10) and whether `[R10-13]` belongs here (Q2, ruled 2026-08-08:
 it does not — scope §8).
 
-**Tag.** `r11-wf3-artifacts` *(on seal)*.
+**Tag.** `r11-wf3-artifacts` — cut 2026-08-08 on `milestone/r11-wf3-artifacts`.
 
 ### R12 — WF3 execution model (NOT STARTED)
 
