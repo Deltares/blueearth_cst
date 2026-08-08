@@ -1505,10 +1505,21 @@ history, per the WF2 precedent.
   implemented; no task brief, no branch" while `main` carried all seven of its
   steps and every gate had passed. A backlog review caught it 2026-08-07, not the
   work itself. Sealing means, in one sitting: tag, update this file's phase
-  summary AND its milestone section, update the branch inventory in
-  `dev/reference/git-conventions.md`, and **ask which reference documents the
-  milestone superseded** so they can be sealed while the answer is still known
-  (`AGENTS.md`, Conventions). None of it is inferable later.
+  summary AND its milestone section, **update the index in
+  `dev/milestones/README.md`** (folder row, seal date, tag), update the branch
+  inventory in `dev/reference/git-conventions.md`, and **ask which reference
+  documents the milestone superseded** so they can be sealed while the answer is
+  still known (`AGENTS.md`, Conventions). None of it is inferable later.
+
+  The `milestones/README.md` step was added 2026-08-08 for the same reason the
+  rest of this list exists: it had drifted exactly as described above, still
+  showing R9 and R10 as open a day after both sealed, and carrying no row for
+  R11 at all. Checked at a close, it is thirty seconds; discovered later, it is
+  an index that reads as authoritative while describing an older world.
+
+  **Order matters, learned at R11's close:** cut the tag and record it BEFORE
+  restoring `worktree_policy: always`. Restoring first leaves the remaining
+  close steps needing an edit in a checkout that no longer permits one.
 - **Every milestone preserves the M1 baseline** unless it is
   *intentionally* changing behavior. R3, R4, R5 are each allowed to
   change their own workflow's slice of the manifest — with a

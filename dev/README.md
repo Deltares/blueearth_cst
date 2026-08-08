@@ -141,9 +141,19 @@ construction, `milestones/` and `tasks/` are identity-indexed records, and
 
 ## Milestone records
 
-`milestones/` holds one folder per milestone — `phase-1/m0x/`, `r01/`..`r08/`,
-`p31/`, `p32a/`, `p32b/`, `p33/`. Its `README.md` indexes all sixteen with seal
-dates and tags.
+`milestones/` holds one folder per milestone. **`milestones/README.md` is the
+index** — folder, milestone, seal date and tag — and is the only place that list
+is maintained.
+
+Deliberately not repeated here. This paragraph used to enumerate the folders and
+give a count, and both went stale: it still read `r01/..r08/` and "all sixteen"
+after R9, R10 and R11 had sealed, so the file that points at the index disagreed
+with the index. One list, one home.
+
+Two naming facts a reader trips over, since they cannot be inferred from the
+folder names: Phase 3's milestones are `p31/`, `p32a/`, `p32b/`, `p33/` because
+`roadmap.md` identifies them as `P3-x` rather than `Rn`; and there is no `p32/`,
+because P3-2 split in two.
 
 Two rules govern them:
 
