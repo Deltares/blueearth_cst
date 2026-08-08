@@ -17,11 +17,21 @@ workflows:
     observations_timeseries: null
 ```
 
-**Config migration.** `shared.basin.gauge_points` replaces
-`workflows.model_creation.output_locations` because the points now control the
-model-neutral basin/subbasin layout as well as Wflow outputs. The old key is
-accepted for one compatibility release with a warning. If both keys are set,
-they must name the same path; conflicting values fail at parse time.
+**Config migration — the old key no longer works on its own.**
+`shared.basin.gauge_points` replaces `workflows.model_creation.output_locations`
+because the points now control the model-neutral basin/subbasin layout as well
+as Wflow outputs, and **only the canonical key reaches the rule that delineates
+it** (1.03 `delineate_spatial_units`, whose params are `shared.basin` alone per
+ADR 0003 §8b — it is declared by all three workflows and the other two carry no
+`workflows.model_creation` section).
+
+A config that sets ONLY the legacy key therefore fails at parse time with the
+migrated key spelled out. This used to be a `FutureWarning` that returned the
+path anyway, which was worse than useless: the points still reached the
+evaluation rule, so delineation quietly used the automatic fallback and the run
+failed a whole model build later, comparing observation station IDs against a
+registry built without them. If both keys are set they must name the same path,
+so a staged migration can carry both; conflicting values fail at parse time.
 
 Older configs may also write an unquoted `None`, which YAML parses to the Python
 **string** `"None"` rather than to null. That remains an accepted unset spelling

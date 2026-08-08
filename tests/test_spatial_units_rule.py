@@ -123,22 +123,40 @@ def test_params_carry_only_shared_basin_fields():
 
 
 def test_the_deprecated_model_creation_fallback_cannot_reach_the_rule():
-    """§8b's stated consequence, pinned rather than left to be discovered.
+    """§8b's stated consequence, and why the legacy key now has to raise.
 
-    `resolve_gauge_points_path` still accepts
-    `workflows.model_creation.output_locations` for one compatibility release,
-    but the shared rule is resolved WITHOUT a model section -- the five
-    projections-only configs have none, so a params payload drawn from it would
-    differ per invoking workflow.
+    The shared rule is resolved WITHOUT a model section -- the five
+    projections-only configs have none, so a params payload drawn from one
+    would differ per invoking workflow. That is unchanged and is asserted
+    below.
+
+    What changed 2026-08-08: a legacy-only config used to RESOLVE here (with a
+    `FutureWarning`) while contributing nothing to the rule, so the gauge
+    points reached rule 1.15 and never rule 1.03. Delineation fell back to the
+    automatic partition and the run died a model build later on station IDs
+    absent from the registry. The asymmetry cannot be fixed on the rule's side
+    without breaking §8b, so it is refused at the config seam instead.
     """
-    legacy_only = parse_spatial_config(
-        {"region": {"basin": [0, 0]}}, {"output_locations": "C:/data/legacy.csv"}
-    )
-    assert legacy_only.gauge_points_path == "C:/data/legacy.csv"
+    with pytest.raises(ValueError, match="no longer honoured on its own"):
+        parse_spatial_config(
+            {"region": {"basin": [0, 0]}},
+            {"output_locations": "C:/data/legacy.csv"},
+        )
+
     shared = parse_spatial_config({"region": {"basin": [0, 0]}})
     assert shared.gauge_points_path is None
     assert "gauge_points" not in su.spatial_units_rule(
         "/proj", shared, "cat.yml"
+    ).inputs
+
+    # Both keys, same path: a staged migration still parses, and the canonical
+    # value reaches the shared rule as an input.
+    migrating = parse_spatial_config(
+        {"region": {"basin": [0, 0]}, "gauge_points": "C:/data/legacy.csv"},
+        {"output_locations": "C:/data/legacy.csv"},
+    )
+    assert "gauge_points" in su.spatial_units_rule(
+        "/proj", migrating, "cat.yml"
     ).inputs
 
 

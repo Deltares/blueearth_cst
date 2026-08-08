@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import ast
 import os
-import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import PureWindowsPath
@@ -79,12 +78,23 @@ def _normalized_path(value: str | os.PathLike[str]) -> str:
 def resolve_gauge_points_path(
     basin_cfg: Mapping[str, Any], model_cfg: Mapping[str, Any]
 ) -> str | None:
-    """Resolve the canonical gauge file with one-release legacy compatibility.
+    """Resolve the canonical gauge file, rejecting a legacy-only config.
 
     ``shared.basin.gauge_points`` is canonical. The former
-    ``workflows.model_creation.output_locations`` key remains accepted for one
-    release, but two different populated paths are an error rather than a
-    precedence rule.
+    ``workflows.model_creation.output_locations`` key is accepted only ALONGSIDE
+    it, naming the same file, so a staged migration can carry both; two
+    different populated paths are an error rather than a precedence rule.
+
+    **A legacy-only config raises.** It cannot be honoured, which is why the
+    former ``FutureWarning`` was not enough. Gauge points became an input to
+    rule 1.03 ``delineate_spatial_units``, and ADR 0003 §8b requires that
+    rule's params to be a pure function of ``project`` + ``shared.basin`` —
+    it is declared by all three workflows and the other two carry no
+    ``workflows.model_creation`` section at all. So the legacy key reaches the
+    evaluation rule that reads the registry back but NOT the rule that writes
+    it: delineation silently falls back to the automatic partition, and the
+    failure surfaces a whole model build later as observation station IDs that
+    the registry does not contain. Measured on a real project 2026-08-08.
     """
     canonical = basin_cfg.get("gauge_points")
     legacy = model_cfg.get("output_locations")
@@ -107,14 +117,24 @@ def resolve_gauge_points_path(
     if has_canonical:
         return _path_value(canonical, "shared.basin.gauge_points")
     if has_legacy:
-        warnings.warn(
-            "workflows.model_creation.output_locations is deprecated; move the "
-            "path to shared.basin.gauge_points. The legacy key will be removed "
-            "after one compatibility release.",
-            FutureWarning,
-            stacklevel=2,
+        legacy_path = _path_value(
+            legacy, "workflows.model_creation.output_locations"
         )
-        return _path_value(legacy, "workflows.model_creation.output_locations")
+        raise ValueError(
+            "workflows.model_creation.output_locations is no longer honoured on "
+            "its own: move the path to shared.basin.gauge_points.\n\n"
+            "    shared:\n"
+            "      basin:\n"
+            f"        gauge_points: {legacy_path}\n\n"
+            "The gauge points control the basin/subbasin partition, not only "
+            "the Wflow outputs, and only the canonical key reaches the rule "
+            "that delineates it. Left under the legacy key they would be "
+            "ignored there, the subbasins would come from the automatic "
+            "fallback, and the run would fail much later comparing observation "
+            "station IDs against a registry built without them.\n"
+            "Migrating a project also renumbers wflow_id: see "
+            "config/templates/observations/README.md."
+        )
     return None
 
 
