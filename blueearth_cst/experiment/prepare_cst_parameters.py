@@ -147,8 +147,26 @@ def prep_cst_parameters(
                 csv_fn = csv_fns[i]
             df.to_csv(csv_fn)
 
-            # Same frame, same derivation, SAME UNITS as the results tables.
-            temp_change, precip_change = perturbation_axes(df, csv_fn)
+            # Derive the design row from the PERSISTED file, not from `df`
+            # (R11 P3, 2026-08-08). `df` is float32; `df.to_csv` writes it as
+            # text, and every downstream reader -- the weather generator at 3.12
+            # and the results writer at 3.16 -- reads that text back as float64.
+            # So a design row computed from `df` records a perturbation NOBODY
+            # APPLIED: float32(0.7) is 0.69999998807, giving -30.000001%, while
+            # the run actually imposed the round-tripped 0.7, i.e. -30.0%.
+            #
+            # Found by C28's own consistency check the first time it ran against
+            # real data (P3). It had never run on the fixture: the integration
+            # test called validate_hm7 without a `design=`, so the check that was
+            # supposed to make this artifact trustworthy was skipped entirely.
+            #
+            # The two sides stay independent in the way C28 needs -- different
+            # code, different rule, different job -- but now read the same bytes,
+            # so the check verifies the design against the results rather than
+            # against a precision artifact. What it no longer catches is a lossy
+            # CSV write; that is a deliberate trade, ruled 2026-08-08.
+            persisted = pd.read_csv(csv_fn, index_col="month")
+            temp_change, precip_change = perturbation_axes(persisted, csv_fn)
             design_rows.append(
                 {
                     "st_id": f"{i + 1:0{st_width}d}",
@@ -157,7 +175,8 @@ def prep_cst_parameters(
                     # Percent, matching precip_change: both are factors in the
                     # parameter file, and one table must not mix conventions.
                     "precip_variance_change": (
-                        annual_perturbation(df, "precip_variance", csv_fn) * 100 - 100
+                        annual_perturbation(persisted, "precip_variance", csv_fn)
+                        * 100 - 100
                     ),
                 }
             )

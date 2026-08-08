@@ -60,7 +60,18 @@ workflows:
     realizations_num: 2
     horizontime_climate: 2080
     run_length: 20
-    run_historical: false
+    # R11 P3, 2026-08-08: was `false`. Turning it on runs the st_0 unperturbed
+    # baseline member, which is NOT optional for this seed config:
+    #   - Q5 fixes the wettest/driest month once from the st_0 baseline and
+    #     evaluates it for every member, so with no st_0 run the class-C metrics
+    #     (`q_wettest_month_mean`, `q_driest_month_mean`) are skipped ENTIRELY --
+    #     silently, since export_wflow_results only guards on `0 in runs`.
+    #   - [R9-5] ruled the baseline is a member of the response surface.
+    # Measured before the change: 576 rows / 9 metrics / st_id 1-6, against a
+    # design table declaring st_id 0-6. Both month metrics were present in the
+    # pre-R11 table under this same config, so leaving it `false` would have
+    # recorded a regression into the baseline.
+    run_historical: true
     stress_test:
       temp:
         step_num: 1

@@ -748,6 +748,16 @@ def validate_hm7(
     The check is skipped, not failed, when ``design`` is None — a caller that
     has only the tables can still assert everything else.
 
+    **Both directions are checked, and the second was added because its absence
+    hid a defect** (R11 P3, 2026-08-08). results → design catches a row whose
+    cached axes drifted from the design; design → results catches a declared
+    member that produced no rows at all. Only the first existed, so a seed config
+    with ``run_historical: false`` dropped the ``st_0`` baseline, and with it the
+    two class-C metrics that Q5 derives *from* that baseline — 180 rows and two
+    of eleven metrics gone, with this validator green. A per-row check is
+    stronger than a fingerprint for the rows that exist and says nothing at all
+    about the rows that do not.
+
     Original pinned surface, for the record (design §5.3): ``q_indicators.csv``
     header ``statistic,temp_change,precip_change,<gauge-cols>``;
     ``basin_indicators.csv`` the axis plus one column per configured
@@ -857,7 +867,45 @@ def validate_hm7(
                             f"{expected!r} -- the cached copy has drifted (C28)"
                         )
 
+            # -- and the OTHER direction: every declared member produced rows --
+            #
+            # Added R11 P3, 2026-08-08, because the run found what its absence
+            # hid. Everything above validates results -> design: for each row
+            # that EXISTS, its cached axes match its design row. Nothing
+            # validated design -> results, so a member that never ran was
+            # invisible: the seed config had `run_historical: false`, st_0 never
+            # ran, and because Q5 fixes the class-C month from the st_0 baseline,
+            # `q_wettest_month_mean` and `q_driest_month_mean` were skipped
+            # ENTIRELY. 180 rows and two of eleven metrics vanished with no
+            # warning and a green validator.
+            #
+            # This is also what makes the design table earn the trust P2 placed
+            # in it when it argued a byte fingerprint was unnecessary because
+            # "validate_hm7's per-row check is stronger". Per-row is stronger for
+            # rows that exist and says nothing about rows that do not.
+            missing = sorted(set(by_id) - set(seen), key=_st_sort_key)
+            if missing:
+                diffs.append(
+                    f"{label}: the stress-test design table declares st_id "
+                    f"{missing} that produced NO rows in {name}. A member that "
+                    f"never ran is not a smaller table -- metrics derived from "
+                    f"it are skipped silently (Q5 fixes the class-C month from "
+                    f"the st_0 baseline). Check `run_historical` / ST_START."
+                )
+
     return diffs
+
+
+def _st_sort_key(st_id: str):
+    """Sort st_ids numerically when they are numeric, lexically otherwise.
+
+    They are written zero-padded in filenames and bare in the table, and a
+    project may yet carry a non-numeric one, so this must not raise on either.
+    """
+    try:
+        return (0, int(st_id), "")
+    except (TypeError, ValueError):
+        return (1, 0, str(st_id))
 
 
 # ---------------------------------------------------------------------------

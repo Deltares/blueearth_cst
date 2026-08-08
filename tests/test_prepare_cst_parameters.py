@@ -175,6 +175,16 @@ def test_design_values_use_the_indicator_tables_own_reduction_AND_units(tmp_path
     PERCENT change (30.0), so the two tables disagreed by construction and C28's
     assertion would have failed on a unit rather than on a defect. The fix was
     to name the derivation once; this pins that there is only one.
+
+    **And it MISSED one, which is why the comparison is now exact.** Until R11
+    P3 the assertions below used ``pytest.approx``, whose default relative
+    tolerance is 1e-6. The design row was computed from the in-memory float32
+    frame while this test read the persisted float64 CSV, a ~4e-8 relative
+    disagreement -- comfortably inside ``approx`` and 40x outside the 1e-9 that
+    ``interchange_contracts._close`` uses for the same comparison. The defect
+    lived in the gap between two tolerances for one invariant. Both sides now
+    derive from the same persisted bytes, so equality is EXACT and achievable;
+    asserting it exactly is what keeps that gap closed.
     """
     from blueearth_cst.experiment.export_wflow_results import perturbation_axes
 
@@ -183,12 +193,15 @@ def test_design_values_use_the_indicator_tables_own_reduction_AND_units(tmp_path
     prep_cst_parameters(cfg_path, csv_fns=None, design_fn=str(design))
 
     df = pd.read_csv(design, dtype={"st_id": str}).set_index("st_id")
+    checked = 0
     for path in glob.glob(str(tmp_path / "st_*.csv")):
         member = pd.read_csv(path)
         st_id = os.path.basename(path)[3:-4]
         temp_change, precip_change = perturbation_axes(member, path)
-        assert df.loc[st_id, "temp_change"] == pytest.approx(temp_change)
-        assert df.loc[st_id, "precip_change"] == pytest.approx(precip_change)
+        assert df.loc[st_id, "temp_change"] == temp_change
+        assert df.loc[st_id, "precip_change"] == precip_change
+        checked += 1
+    assert checked, "no member parameter files were compared"
 
     # And the units are the RESULTS' units, stated so a future edit cannot
     # quietly switch back: a 1.3 mean factor is 30.0, not 1.3.
