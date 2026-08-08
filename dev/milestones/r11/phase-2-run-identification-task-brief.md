@@ -48,7 +48,8 @@ a denormalised copy honest.
 - `blueearth_cst/weathergen/generate_weather.R`
 - `blueearth_cst/climate_analysis/prepare_climate_data_catalog.py`
 - `tests/`, `dev/reference/contracts/`, `dev/reference/naming.md` §4,
-  `dev/scripts/semantic_tree_diff.py` (the R9 map's `_cst_` patterns),
+  `dev/scripts/semantic_tree_diff.py` (**`build_project_tree_rules` only** —
+  `build_r09_path_map` is frozen; see BOUNDARY below),
   `dev/milestones/r11/`
 
 **Approval-gated**
@@ -86,8 +87,10 @@ a denormalised copy honest.
 9. **F7** — declare `config/templates/weathergen_config.yml` as an `input:` of
    rule 3.04. One line. Orphaned by unit D's deferral; the register says
    explicitly not to let it fall between the two.
-10. Update `naming.md` §4, both seam contracts, and the R9 path map's `_cst_`
-    patterns. Record the rename per §7.
+10. Update `naming.md` §4, both seam contracts, `rule-index.md`, and
+    `build_project_tree_rules` in `semantic_tree_diff.py`. Record the rename per
+    §7. Do **not** touch `build_r09_path_map` or any `dev/milestones/**` record —
+    see BOUNDARY below.
 
 ### Commit plan
 
@@ -108,12 +111,75 @@ is the failure mode, and a green unit suite does not detect it.
 
 | Property | Falsifier | Command |
 |---|---|---|
-| No member path still says `cst_` | any `cst_[0-9{]` outside the migration record | `git grep -nE "cst_[0-9{]"` |
+| No LIVE member path still says `cst_` | any `cst_[0-9{]` in the renamed surfaces | `git grep -nE "cst_[0-9{]" -- Snakefile_climate_experiment blueearth_cst tests config` |
 | The DAG is internally consistent | `--dry-run` names a missing input | `pytest tests/test_cli.py` |
 | Catalog keys moved with the files | `validate_wg5_catalog_grid` reports an unexpected key set | `pytest tests/test_interchange_contracts.py -k catalog` |
 | `st_id` agrees with the design table | perturb one row's `temp_change`; `validate_hm7` must report it | new test in `test_interchange_contracts.py` |
 | A third stress dimension refuses | add one to a synthetic config; the writer must raise naming C28 | new test in `test_export_wflow_results.py` |
 | F7 actually re-triggers 3.04 | touch the template; 3.04 must be scheduled | `snakemake --dry-run` before/after |
+
+**BOUNDARY — records are not migrated (ruled 2026-08-08).** `cst_[0-9{]` hits
+~65 files, and a large share are RECORDS rather than live surfaces. Rename only:
+
+    Snakefile_climate_experiment, blueearth_cst/**, config/**, AGENTS.md,
+    dev/reference/contracts/*-seam.md, dev/reference/naming.md,
+    dev/reference/workflows/rule-index.md, dev/scripts/inspect_spatial_ref.py,
+    tests/** EXCEPT the three historical-map files below
+
+**Leave untouched**, deliberately: every `dev/milestones/**` design doc,
+inventory (`declared_inventory.txt`, `observed_inventory.txt`), probe output
+(`_forceall_dryrun.txt`, `_batch_dryrun_demo.txt`) and gate record;
+`dev/reviews/**`; `dev/roadmap.md`'s historical phase entries;
+`docs/migration-r08-wf2.md` (a past release's user migration note); and
+`dev/reference/workflows/climate_experiment.md`, which is registered in
+`sealed-records.yml` and whose edit fails `tests/test_sealed_records.py` by
+design.
+
+Those describe what was true when written. `AGENTS.md`: *"freshening its paths is
+worse than leaving it: the line numbers, rule names and module locations still
+lie, while the document now looks maintained."* That is R9 P5 F2 verbatim. The
+migration note carries the old→new map, which is how a reader of an old record
+translates.
+
+**Anything that TESTS or DOCUMENTS a historical migration map is frozen too** —
+found the hard way, 2026-08-08, by sweeping `tests/**` wholesale and having to
+revert. `tests/test_r09_path_map.py`, `tests/test_semantic_tree_diff.py` and
+`dev/scripts/semantic_tree_diff.py` all exercise or illustrate the P3-1, R07 and
+R9 migration maps, whose eras used `cst_`. Renaming their expectations would make
+them assert that a frozen map produces `st_`, which it does not — the tests would
+fail, and "fixing" them would rewrite the record. They keep the old token, and
+that is not a half-landed rename.
+
+**The R9 path map stays frozen.** `build_r09_path_map` keeps `_cst_` on BOTH
+sides: it validates a migration between two eras that both used `cst_`, and
+`test_r09_path_map.py` exercises it against pre/post-R9 trees, neither of which
+is a P2 tree. Only `build_project_tree_rules` — the post-migration inventory —
+learns `st_`. Updating both would make the R9 map claim a migration that never
+happened in that form.
+
+**`cst_` HAS THREE MEANINGS. Only one of them is the member token.** Established
+2026-08-08 after two failed sweeps; do not attempt a regex over bare `cst_`.
+
+| form | meaning | rename? |
+| --- | --- | --- |
+| `blueearth_cst` | the package | **NEVER** — 874 hits; renaming breaks every import |
+| `cst_0`, `cst_{st_num}`, `cst_<m>`, `cst_"+"{…}"`, `cst_*.csv` | the stress-test member | **YES** |
+| `cst_calendar`, `cst_raw_digest`, `cst_source`, `cst_acquired`, `cst_region`, `cst_schema`, `cst_series_*`, `cst_time` | **WF2 netCDF attribute prefixes** meaning "written by CST" | **NEVER** — these are provenance attrs in `blueearth_cst/projections/`; renaming corrupts WF2 output |
+
+**Substitute an explicit list of member forms, not a pattern.** The member token
+appears as: a digit (`cst_0`), a format placeholder (`cst_{st_num}`, `cst_{c}`,
+`cst_{i+1}`), a doc placeholder (`cst_<m>`, `cst_<c>`, `cst_<n>`), a glob
+(`cst_*`), and — the one that broke the first attempt — **a string-concatenation
+boundary in the Snakefile**: `f"…/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc"`,
+where the character after `cst_` is a quote.
+
+**Why the first attempt was not caught by the suite.** `cst_[0-9{]` renamed
+`prepare_cst_parameters.py` (which writes `st_1.csv`) but NOT the Snakefile's
+concatenated `output:` declaration (still `cst_1.csv`). A script's behaviour
+disagreeing with its rule's declaration is invisible to `--dry-run`, so
+`test_cli` passed against a broken pipeline. **The rename's real falsifier is a
+run, not a dry-run** — or, cheaper, a grep asserting the producer and the
+declaration agree.
 
 **DANGER — the package is named `blueearth_cst`.** Measured 2026-08-08: **1413**
 tracked occurrences of `cst_`, of which **874 are the package name** and only
@@ -137,7 +203,8 @@ substitution renames the package and breaks every import in the repo. Match
 
 - Checklist 1–10 complete; the four commits landed in order
 - Rungs 1–5 green; rung 6's red documented target-by-target
-- `git grep -nE "cst_[0-9{]"` clean outside the migration record
+- `git grep -nE "cst_[0-9{]"` clean across the LIVE surfaces named above;
+  records still carry the old token, deliberately, and that is not a failure
 - The package `blueearth_cst` is untouched — `git grep -c "blueearth_cst"` unchanged
 - **Rollback:** if the rename cannot be completed atomically in commit 1, revert
   it rather than landing a partial one; a half-renamed tree is worse than none
