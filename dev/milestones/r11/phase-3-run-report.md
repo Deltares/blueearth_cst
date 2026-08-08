@@ -154,6 +154,20 @@ also differs by `max_count` → `max_per_basin`, which is a pre-R11 change. That
 tree predates more than this milestone; the hash-recovery check above is the one
 that isolates R11.)*
 
-### WF2 — `Snakefile_climate_projections`
+### WF2 — `Snakefile_climate_projections`, exit 0
 
-*(In progress.)*
+15/15 jobs. Log merged into 6 `== 2.NN` sections; no surviving `logs/_parts/`.
+
+`check_baseline check --workflow climate_projections` → **1 of 3 targets moved**,
+and it is the same config snapshot with the same one-key cause (all three
+workflows snapshot the same source config, hence the identical hashes).
+
+**The two CMIP6 change-factor CSVs did NOT move** — worth stating, because
+`reduce_gcm_series` was one of the rules the dry-run flagged as changed in both
+code *and* params. Changed inputs to the rule, identical numbers out.
+
+### WF3 — `Snakefile_climate_experiment`
+
+*(In progress. The experiment name is pinned — `experiment_name: experiment` —
+so the tree rebuilds at `experiments/experiment/` and the manifest paths hold. A
+minted date-based name would have silently broken every recorded path.)*
