@@ -191,7 +191,7 @@ sealed 2026-08-07).
 | Phase | Contents | Risk |
 | --- | --- | --- |
 | **P1** | Unit A — result tables, six columns. **Deletes the fixture's frozen experiment first** (§9). Brief: [`phase-1-result-tables-task-brief.md`](phase-1-result-tables-task-brief.md) | medium; moves numbers |
-| **P2** | Unit B **including C28**, with C34 and F7 alongside — the rename, the design table, and `st_id` land together | medium; moves paths and names |
+| **P2** | Unit B **including C28**, with C34 and F7 alongside — the rename, the design table, and `st_id` land together. Brief: [`phase-2-run-identification-task-brief.md`](phase-2-run-identification-task-brief.md) | medium; moves paths and names |
 | **P3** | `[R10-13]`, the `[R10-12]` runbook line, then the single re-record | low |
 
 **One human gate, before the re-record:** the scientific-delta check R9 used.
