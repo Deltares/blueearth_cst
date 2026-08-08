@@ -117,11 +117,12 @@ every other. Rationale for including it: it is a legitimate point on the respons
 surface, the runs exist whenever `run_hist` is set, and a surface missing its own
 origin forces every downstream consumer to reconstruct it.
 
-### `[R10-13]` is deliberately cross-cutting
+### ~~`[R10-13]` is deliberately cross-cutting~~ — REMOVED from scope, 2026-08-08
 
 The fix lands in `tee_to_log`, which improves every `script:` rule in all three
-workflows, so R11 is not purely a WF3 milestone. This is recorded rather than
-hidden — see open question **Q2**.
+workflows, so R11 would not have been purely a WF3 milestone. That was recorded
+rather than hidden as open question **Q2** — and Q2 ruled it **out**: see §8.
+R11 stays a WF3 milestone. `[R10-13]` is now listed under §4.
 
 ---
 
@@ -142,6 +143,9 @@ hidden — see open question **Q2**.
   model"), not a chore. *The known cost of this ruling, recorded so it stays
   visible: routine re-records are how a real drift eventually gets waved through.
   Becomes a watch-item carrying that trigger.*
+- **`[R10-13]` — the `tee_to_log` traceback fix.** Moved here from §3 by the Q2
+  ruling (2026-08-08). Not deferred for cost: deferred so P3's one pipeline run
+  attributes cleanly. Board items `t2608071202` and `t2608071219` stay open.
 - **`[R10-14]`** — the shared-rule comment-edit cascade. Already a watch-item;
   stays one.
 
@@ -170,7 +174,9 @@ hidden — see open question **Q2**.
 
 ## 6. Success criteria
 
-- Units A, B, C34 and F7 landed; `[R9-5]` and `[R10-13]` closed
+- Units A, B, C34 and F7 landed; `[R9-5]` closed. ~~`[R10-13]` closed~~ —
+  **amended 2026-08-08 by the Q2 ruling (§8)**: it left scope, so it is not a
+  criterion. Its board items stay open.
 - `pytest tests/` green **from the primary checkout**, fixture layer included —
   a worktree run cannot exercise it (`AGENTS.md`, worktree section)
 - A full three-workflow run: every merged-log section present in rule-number
@@ -209,11 +215,25 @@ numeric had moved; without it a re-record blesses whatever happens to be on disk
 
 **Q1 — RESOLVED 2026-08-07. The answer inverted the question; see §10.**
 
-**Q2 — Should `[R10-13]` land here or separately?**
-It fixes `tee_to_log`, improving every `script:` rule in all three workflows, so
-carrying it makes R11 not purely a WF3 milestone. Landing it here is cheap and it
-is genuinely a WF3 pain point (`check_model_reference`'s empty log is how it was
-found). Splitting it keeps the milestone's boundary clean. No strong recommendation.
+**Q2 — RULED 2026-08-08 (P3, Gate 1): separately, after R11.**
+
+The question was posed as a cost trade — cheap either way, boundary vs. delay.
+The ruling turned on neither: it turned on **attribution**. P3 is the phase that
+finally runs the pipeline, and the entire R side (`generate_weather.R`'s
+4-argument arity, `save_plots`, `seed`, `pet_method`) executes for the first time
+in that run. That one run is the whole phase's evidence. Folding a cross-workflow
+`tee_to_log` change into it gives every failure two candidate causes, in exactly
+the run where a clean attribution is worth most.
+
+The counter-argument is real and was weighed: `[R10-13]` would make a P3 failure
+print its own traceback instead of costing a reproduce cycle — it is most useful
+precisely during this run. Ruled against because a debugging aid that muddies the
+evidence it is helping you read is a bad trade at a milestone gate.
+
+Board: the decision item `t2608071945` closes with this ruling. The work items
+stay open and unranked-into-R11 — `t2608071202` (`[R10-13]`, the
+`check_model_reference` case) and `t2608071219` (the general `tee_to_log` fix,
+which subsumes it). They are one fix; whoever takes it should close both.
 
 ---
 

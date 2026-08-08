@@ -31,7 +31,12 @@ mode: full
 # another session merged onto that detached HEAD, then checked out main. A
 # directory tracked only on the branch under test vanished mid-run and six tests
 # failed as pure artifact. The branch was fine; the gate result was worthless.
-worktree_policy: always # concurrent | always
+#
+# TEMPORARY, R11 P3 (2026-08-08): set to `concurrent` so the phase that runs the
+# pipeline and takes the single baseline re-record can hold this checkout
+# deliberately — AGENTS.md reserves the primary for exactly that case. RESTORE TO
+# `always` AT THE R11 MILESTONE CLOSE.
+worktree_policy: concurrent # concurrent | always
 
 # Branches created solely to isolate concurrent work auto-land after rebase and
 # verification, so isolation costs nothing at the end of a task. Feature branches

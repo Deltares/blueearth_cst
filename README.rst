@@ -297,6 +297,43 @@ if they are absent) — identical to invoking a single Snakefile directly.
 You are responsible for the staleness of what a downstream workflow
 consumes when you disable its prerequisite.
 
+Re-running an experiment after a model rebuild
+----------------------------------------------
+
+An experiment records the Wflow model it was run against, and
+``check_model_reference`` refuses to re-run it if that model has since
+changed — otherwise new model state would be mixed into old results.
+**Expect this refusal after any WF1 rebuild, including one that changed
+nothing numeric.** ``forcing/inmaps_historical.nc`` is not
+byte-reproducible: hydromt's write varies the HDF5 chunk/encoding layout
+between runs while the values stay identical, so a rebuild trips the
+guard on layout alone.
+
+The guard is correct and must not be loosened. ``write_model_reference``
+declares its model inputs ``ancient()`` deliberately — a reference that
+refreshed whenever the model changed would always match, and the
+comparison would be decorative.
+
+**Re-recording the reference is an operator decision, not a chore.** It
+means *"this experiment now accepts the rebuilt model."* Before you do it,
+read what the error names:
+
+- If ``forcing/inmaps_historical.nc`` is the **only** changed input, this
+  is the known layout-only case. Delete the experiment's
+  ``config/model_reference.yml`` and let ``write_model_reference``
+  regenerate it on the next run.
+- If **anything else** is named — ``staticmaps.nc``, ``wflow_sbm.toml``,
+  or the forcing alongside them — the guard has found something real. Do
+  not re-record. Create a new experiment: the recorded one is not
+  re-runnable against different physics or state.
+
+The cost of accepting this is recorded rather than hidden: a re-record
+that becomes routine is how a genuine drift eventually gets waved
+through. That is the failure mode to watch for, not the noise itself.
+Tracked as a watch-item on the dev board (``[R10-12]``), which re-opens
+if a re-record ever masks a real drift or if hydromt gains a documented
+way to pin forcing encoding.
+
 Running from docker image
 -------------------------
 
