@@ -1,5 +1,21 @@
 # Proposal: changes to Workflow 3 (the climate stress test)
 
+> **SUPERSEDED — proposes changes to WF3 that R11 has since made (sealed 2026-08-08).**
+>
+> It is kept unedited because it is the **reviewable companion to the
+> specification the R11 commits were checked against**
+> (`wf3-change-requests.md`, sealed the same day); rewriting it would destroy
+> the record it exists to be. It is written in the future tense about work that
+> is now done, and the two must stay in step — the scope doc's own constraint
+> was that a decision changed in one without the other leaves the reviewable
+> version lying. Sealing both together is how that constraint is finally
+> discharged.
+>
+> Current truth: `dev/milestones/r11/wf3-consolidation-scope.md` for what was
+> ruled, `dev/milestones/r11/migration_indicator-tables.md` for the resulting
+> contract, and `dev/milestones/r11/phase-3-run-report.md` for what building it
+> actually surfaced.
+
 Plain-language summary of what we propose to change in WF3, and why. Written to
 be read, not parsed — the precise specification, with file and line references,
 lives in `wf3-change-requests.md`.

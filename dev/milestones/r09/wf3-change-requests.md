@@ -1,5 +1,26 @@
 # WF3 change requests
 
+> **SUPERSEDED — specifies WF3's result tables and run identification before R11 built them (sealed 2026-08-08).**
+>
+> It is kept unedited because it is the **specification the R11 commits were
+> checked against**; rewriting it would destroy the record it exists to be. R11
+> implemented CR-1..CR-4 plus C28 and C34, so the file paths, line numbers and
+> "today the code does X" statements below describe the pre-R11 tree and no
+> longer hold.
+>
+> **Its identifiers are still live.** `Snakefile_climate_experiment`,
+> `export_wflow_results.py`, `prepare_cst_parameters.py` and
+> `dev/reference/workflows/rule-index.md` all cite this document by CR/C number,
+> which is why it is sealed rather than deleted — the numbers must stay
+> resolvable.
+>
+> Current truth: `Snakefile_climate_experiment` and
+> `blueearth_cst/shared/indicator_tables.py` for the contract,
+> `dev/milestones/r11/migration_indicator-tables.md` for the migration, and
+> `dev/milestones/r11/phase-3-run-report.md` for what the build actually found.
+> Rulings taken after this document was written — Q5, Q7, Q8, Q10, Q11, and R11's
+> own Q2 — are recorded in `dev/milestones/r11/wf3-consolidation-scope.md`.
+
 Opened 2026-08-05, from observations on the first full WF3 run of the migrated
 R9 tree. **Collect-then-implement**: the requests are specified here and built as
 one batch, so the contract, the validators, the migration note and the baseline

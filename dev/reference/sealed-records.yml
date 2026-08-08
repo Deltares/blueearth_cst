@@ -50,3 +50,27 @@ sealed_records:
     current_truth: Snakefile_climate_experiment
     why: the baseline the R5 commits were checked against
     sha256: 93d7d07efa2821277cb4b9c0ee22adf1c580df274a2233add3f569071c231c2d
+
+  # Sealed together at R11's close, because they are one record in two
+  # registers: the specification and its reviewable companion. The scope doc's
+  # constraint was that the two be kept in step, since a decision changed in one
+  # without the other leaves the reviewable version lying. Sealing both on the
+  # same day is how that constraint is discharged rather than carried forever.
+  #
+  # Neither can be deleted: code and reference docs cite them by CR/C number
+  # (Snakefile_climate_experiment, export_wflow_results.py,
+  # prepare_cst_parameters.py, rule-index.md), so the identifiers must stay
+  # resolvable. That is precisely the seal case.
+  - path: dev/milestones/r09/wf3-change-requests.md
+    sealed: 2026-08-08
+    superseded_by: R11
+    current_truth: dev/milestones/r11/migration_indicator-tables.md
+    why: the specification the R11 commits were checked against
+    sha256: b3d16dc21cc67e26bfeaca810ccb1b015af1e8ab4fe99cba04eb2f3b8b93ff92
+
+  - path: dev/milestones/r09/wf3-changes-proposal.md
+    sealed: 2026-08-08
+    superseded_by: R11
+    current_truth: dev/milestones/r11/wf3-consolidation-scope.md
+    why: the reviewable companion to the specification the R11 commits were checked against
+    sha256: 9661d042270a8bdd4b016d07662a77db4a6ecc936be7494369eed3d54a1470aa

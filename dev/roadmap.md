@@ -41,8 +41,8 @@ contract surface, not part of the artifact tree, and no durable artifact path
 carries one. One milestone, R10; dev artifacts under `dev/milestones/r10/`. See
 § Phase 7 below.
 
-**Phase 8 — WF3 rework (R11 OPEN, registered 2026-08-07).** Rebuilds workflow 3,
-the stress test, in the two layers it turns out to have: **R11** changes what it
+**Phase 8 — WF3 rework (R11 SEALED 2026-08-08; R12 next).** Rebuilds workflow 3,
+the stress test, in the two layers it turns out to have: **R11** changed what it
 emits and what its members are called; **R12** changes how it executes. Mirrors
 Phase 5, which did the same for workflow 2. Dev artifacts under
 `dev/milestones/r11/`. See § Phase 8 below.
@@ -1361,7 +1361,7 @@ R10 finished, not a history of how it got there.
 
 ---
 
-## Phase 8 — WF3 rework (R11 OPEN)
+## Phase 8 — WF3 rework (R11 SEALED, R12 next)
 
 Registered 2026-08-07. Workflow 3 is the last of the three not to have been
 reworked: Phase 5 did WF2, and WF1 was settled across R3, R7 and R9. This phase
@@ -1384,11 +1384,59 @@ and two external review rounds survive; its mechanics need re-deriving.
 So the phase sequences rather than merges them, emitting-layer first — which also
 means R12 inherits settled result-table shapes instead of moving ones.
 
-### R11 — WF3 artifacts and identification (OPEN)
+### R11 — WF3 artifacts and identification (SEALED 2026-08-08)
 
-**Status.** Scoped 2026-08-07 through `design-scoping`:
-`dev/milestones/r11/wf3-consolidation-scope.md`. Not designed, no task brief, no
-branch.
+**Status.** Complete in three phases. Scope:
+`dev/milestones/r11/wf3-consolidation-scope.md`; the build's own record is
+`dev/milestones/r11/phase-3-run-report.md`.
+
+| phase | landed | what |
+| --- | --- | --- |
+| P1 | `94ab26e` | unit A — result tables wide→long, one per variable, `aggregate_rlz` retired as a hard error |
+| P2 | `923ecb5` | unit B — `cst_`→`st_`, zero-padded ids, the design table, `st_id` (C28), C34, F7 |
+| P3 | `d462710` | the run, the delta gate, the single re-record, and three defects only a run could find |
+
+**P3 is the phase worth reading.** P1 and P2 changed WF3 without ever executing
+it — every gate was unit tests, dry-runs and greps. Running it found three
+defects, and they share one shape: **something that should have been checked was
+not being checked, and nothing said so.**
+
+1. **Two of eleven metrics vanished silently.** The seed config set
+   `run_historical: false`, so `ST_START = 1`, so the `st_0` baseline never ran —
+   and because Q5 fixes the class-C month *from* that baseline, both month
+   metrics were skipped entirely. 180 rows gone, no warning, every gate green.
+   `validate_hm7` checked results→design and never design→results, so a member
+   that produced no rows was unreachable by every assertion it had.
+2. **The design table recorded perturbations nobody applied.** Fixing (1) meant
+   passing `design=` to `validate_hm7` in the integration test, which had always
+   called it bare — so C28's consistency check had never run on real data at all.
+   It failed on first contact: the table said −30.000001%, the run imposed
+   −30.0%, because the design row was derived from an in-memory float32 frame
+   while every consumer read the persisted float64 text.
+3. **A test had asserted nothing since R9.** `test_store_region_bbox` guarded on
+   `hydrology_model/staticmaps.nc`, a pre-R9 path, so it skipped silently — the
+   third instance in one phase of the pattern `AGENTS.md` names as the one that
+   survives every gate a branch can run. Found by reading the skip *list*, not
+   the pass count.
+
+**Rulings taken during the build.** **Q2**: `[R10-13]` lands separately, on
+attribution rather than cost — P3's one run is the phase's entire evidence, and a
+cross-workflow change folded into it gives every failure two candidate causes.
+**Q8's comparator**: `q_indicators.csv` moves off a byte hash onto a new
+`indicator` target kind with a per-`(metric, location)` tolerance, because P1
+dropped the rounding that had been an accidental drift buffer.
+**`stress_test_design.csv`** stays out of the manifest. **`[R10-12]`**: the
+operator accepted the rebuilt model, on hashes showing `staticmaps.nc` and
+`wflow_sbm.toml` byte-identical and only the forcing NC moved.
+
+**The delta gate held where it was falsifiable.** Eight of eleven metrics
+reconstruct at the old file's own 2-dp precision; `q_wettest_month_mean` moved as
+pre-registered under Q5. Three upper-tail metrics moved <1% downward, explained
+by the butt-splice P1 removed — an explanation recorded explicitly as *post-hoc,
+not predicted*.
+
+**Carried forward:** `[R10-13]` (`t2608071202`, `t2608071219`), the pre-R9
+cascade guard (`t2608081012`), and stale fixture coverage (`t2608082010`).
 
 **Goal.** Land the WF3 changes already specified against the post-R9 tree — unit
 A (result tables, `q_indicators.csv` wide→long, one table per variable), unit B
@@ -1404,9 +1452,10 @@ cost of that choice recorded on its watch-item.
 **Out of scope.** Unit D — the only breaking config migration, deferred with its
 specification complete. And the execution model, which is R12.
 
-**Open questions.** Whether unit B's rename reaches the `experiment.yml` R9
-freezes, and whether `[R10-13]`'s `tee_to_log` fix belongs here given it improves
-all three workflows. Both are on the board.
+**Open questions — both resolved.** Whether unit B's rename reaches the
+`experiment.yml` R9 freezes (Q1, resolved 2026-08-07; the answer inverted the
+question — scope §10) and whether `[R10-13]` belongs here (Q2, ruled 2026-08-08:
+it does not — scope §8).
 
 **Tag.** `r11-wf3-artifacts` *(on seal)*.
 
