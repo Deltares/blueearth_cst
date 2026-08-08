@@ -178,7 +178,12 @@ hidden — see open question **Q2**.
 - `check_baseline check` passing after **exactly one** documented re-record
 - `pixi run tree-check` clean against an updated path map
 - Migration note recorded per `naming.md` §7
-- A repository-wide grep for `cst_` returning nothing outside the migration record
+- ~~A repository-wide grep for `cst_` returning nothing outside the migration
+  record~~ — **amended 2026-08-08, P2.** Not satisfiable: `cst_` has three
+  meanings (the package `blueearth_cst`, the member token, and WF2's netCDF
+  provenance attrs), and the frozen migration maps keep the old token by design.
+  The satisfiable form is `git grep -nE "cst_[0-9{]"` over the live surfaces,
+  with the residuals listed in `migration_indicator-tables.md`.
 
 ---
 
@@ -192,7 +197,7 @@ sealed 2026-08-07).
 | --- | --- | --- |
 | **P1** | Unit A — result tables, six columns. **Deletes the fixture's frozen experiment first** (§9). Brief: [`phase-1-result-tables-task-brief.md`](phase-1-result-tables-task-brief.md) | medium; moves numbers |
 | **P2** | Unit B **including C28**, with C34 and F7 alongside — the rename, the design table, and `st_id` land together. Brief: [`phase-2-run-identification-task-brief.md`](phase-2-run-identification-task-brief.md) | medium; moves paths and names |
-| **P3** | `[R10-13]`, the `[R10-12]` runbook line, then the single re-record | low |
+| **P3** | `[R10-13]`, the `[R10-12]` runbook line, then the single re-record. Brief: [`phase-3-rerecord-task-brief.md`](phase-3-rerecord-task-brief.md) | low → **medium**: it is the phase that finally RUNS the pipeline, and the whole R side is unexecuted |
 
 **One human gate, before the re-record:** the scientific-delta check R9 used.
 That gate is what established that R9-2's movement was header-only and nothing
