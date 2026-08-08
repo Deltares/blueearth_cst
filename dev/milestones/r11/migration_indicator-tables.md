@@ -172,11 +172,22 @@ an internal tidy.
 | `cst_calendar`, `cst_raw_digest`, `cst_source_paths`, `cst_series_digest`, `cst_schema_version`, `cst_acquisition_window`, `cst_time_*`, `cst_region_*`, `cst_crs`, `cst_members`, `cst_geometry_check`, `cst_weighting_scheme`, `cst_reducer_module_hash`, `cst_catalog_entry` | **WF2 netCDF provenance attributes** meaning "written by CST", in `blueearth_cst/projections/`. Renaming them corrupts WF2 output and breaks every cached store's identity check |
 | `rlz_` | a correct abbreviation, colliding with nothing (C22) |
 | `prepare_cst_parameters.py` / `prep_cst_parameters()` | module and function identifiers, not paths or keys — explicit P2 non-goal. Its *output* moved (`st_<m>.csv`); its own name did not |
-| `cst_nc` (rule 3.13 input name), `cst_data` (R local), `_cst_df` / `_read_cst_csvs` (test helpers), `test_the_cst_index_…`, `_cst_pss_shim`, `cst_test_lib` | pure identifiers. None is a path or a key, so none is part of this migration; carried as a named residual for a later decision |
+| `cst_data` (R local), `_cst_df` / `_read_cst_csvs` (test helpers), `test_the_cst_index_…`, `_cst_pss_shim`, `cst_test_lib` | pure identifiers. None is a path or a key, so none is part of this migration; carried as a named residual for a later decision |
 | `dev/scripts/semantic_tree_diff.py`, `tests/test_r09_path_map.py`, `tests/test_semantic_tree_diff.py` | they encode the P3-1 / R07 / R9 migration maps, whose eras used `cst_` on **both** sides. Renaming their expectations would make them assert a migration that never happened |
 | `tests/test_wflow_log_attribution.py` | consumes `.cst_runs/r09_p2_post`, an R9-era tree outside the repo. Renaming its `MEMBER` regex and globs would match zero files and turn the test vacuous |
 | every `dev/milestones/**`, `dev/reviews/**`, `docs/migration-r08-wf2.md`, `dev/reference/workflows/climate_experiment.md` | records of what was true when written (`AGENTS.md`, Conventions). `climate_experiment.md` is in `sealed-records.yml` |
 | inline comments naming a PAST era — the R07 stem `cst_<m>`, the R07 batch tag, the retired C29 `weathergen_config_rlz_<n>_cst_<m>.yml` | they name files that existed under that token and, in C29's case, no longer exist at all. Renaming them invents a filename no tree ever held |
+
+## Follow-on: rule 3.13's input keyword
+
+`cst_nc` → `st_nc`, landed **after Gate 1** as its own commit, not part of the
+atomic rename above. It is an identifier rather than a path or a key, so it sat
+outside commit 1's scope — but unlike the other identifier residuals it is a
+Snakefile↔script SEAM (`Snakefile_climate_experiment:770` declares it,
+`prepare_climate_data_catalog.py:133` reads `sm.input.st_nc`), and its sibling
+input on the next line has always been `rlz_nc`. Leaving it would have made
+every future `cst_` grep report an oversight. Separated from commit 1 so the
+atomic rename's blast radius stays exactly the paths and keys it claims.
 
 ## Support decision
 

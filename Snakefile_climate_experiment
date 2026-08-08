@@ -767,7 +767,7 @@ rule perturb_climate_realization:
 rule write_climate_data_catalog:
     message: rule_banner("3.13", "write_climate_data_catalog")
     input:
-        cst_nc = expand((f"{wg_dir}/output/rlz_"+"{rlz_num}"+"_st_"+"{st_num}"+".nc"), rlz_num = np.arange(1, RLZ_NUM+1), st_num = np.arange(1, ST_NUM+1)),
+        st_nc = expand((f"{wg_dir}/output/rlz_"+"{rlz_num}"+"_st_"+"{st_num}"+".nc"), rlz_num = np.arange(1, RLZ_NUM+1), st_num = np.arange(1, ST_NUM+1)),
         rlz_nc = [f"{wg_dir}/output/rlz_{rlz_num}_st_0.nc" for rlz_num in np.arange(1, RLZ_NUM+1)]
     output:
         clim_data = exp_catalog
