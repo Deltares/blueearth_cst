@@ -240,3 +240,146 @@ absent.
 **Held for an owner ruling before the re-record.** Recording as-is would bless a
 silent regression into the baseline, and the baseline is exactly the artifact
 that would then make it look intentional.
+
+### Ruled 2026-08-08, and a SECOND defect found while fixing it
+
+Ruled: set `run_historical: true` in the seed config, and add the design →
+results coverage check. Both landed in `25c174b`.
+
+Adding the check meant passing `design=` to `validate_hm7` in
+`test_hm7_integration`, which had always called it bare — so **C28's consistency
+check had never run against the fixture at all**. It failed on first contact:
+
+    design  precip_change = -30.000001192092896
+    results precip_change = -30.0
+
+`prepare_cst_parameters.py` wrote each member CSV from a float32 frame and then
+derived the design row from that same **in-memory** frame, while the weather
+generator (3.12) and the results writer (3.16) both read the persisted text back
+as float64. `float32(0.7)` is `0.69999998807`, so the design table documented a
+−30.000001% perturbation **that was never applied to anything** — the run imposed
+the round-tripped −30.0%.
+
+Two things worth carrying forward:
+
+- **P2's argument for not baselining `stress_test_design.csv`** — "already
+  covered by `validate_hm7`'s per-row check, which is stronger than a byte
+  fingerprint" — rested on a check that was not running. The reasoning was sound
+  and the premise was false.
+- **The unit test compared the right two things at the wrong precision.**
+  `test_design_values_use_the_indicator_tables_own_reduction_AND_units` used
+  `pytest.approx` (rel 1e-6) while `_close` used 1e-9 for the same invariant. A
+  4e-8 error fits between them. The defect lived in the gap between two
+  tolerances for one contract. That comparison is now exact.
+
+Ruled: derive the design row from the persisted file. The two sides stay
+independent in code, rule and job but now read the same bytes — which costs the
+ability to catch a lossy CSV write, accepted deliberately rather than widening
+`_close` and leaving the table wrong.
+
+---
+
+## The re-run, and gate 3
+
+Config change → all three workflows re-ran. WF1 14/14, WF2 6/6, both green.
+
+**WF3 stopped at rule 3.06 on the model-drift guard — `[R10-12]`, live.** The
+runbook line added earlier this same phase got its first real use and gave the
+right answer.
+
+Evidence brought to the gate, hashed directly rather than trusting the guard's
+own message:
+
+| model input | recorded | live | |
+| --- | --- | --- | --- |
+| `staticmaps.nc` | `12a8c2ea…` | `12a8c2ea…` | identical |
+| `wflow_sbm.toml` | `ae7f5142…` | `ae7f5142…` | identical |
+| `forcing/inmaps_historical.nc` | `2108ec9f…` | `b447df0f…` | **moved** |
+
+Exactly one input, and it is the forcing NC — the known layout-only case.
+`run_default/output.csv` also passed the discharge comparator after **both** WF1
+rebuilds; it is a deterministic function of (forcing, model, TOML), so had the
+forcing values moved, it would have.
+
+**Operator accepted the rebuilt model** (gate 3, 2026-08-08). The superseded
+`model_reference.yml` is preserved at
+`scratchpad/model_reference_accepted.yml` so the acceptance is auditable rather
+than merely asserted. WF3 then ran 38/38, exit 0.
+
+### Both defects confirmed fixed, at the predicted numbers
+
+    rows      756   (predicted 756; was 576)
+    metrics    11   (predicted 11;  was 9)
+    st_id     0-6   (predicted 0-6; was 1-6)
+
+---
+
+## Gate 2 — the scientific-delta check
+
+**A probe bug first, recorded because it nearly produced a false finding.** The
+first run reported five metrics moving 2–16%, with the note *"mean of 4
+realization(s)"* — against a 2-realization fixture. Cause: the probe keyed old
+rows to new rows on `(temp_change, precip_change)`, and that pair is **not
+unique across members**. The baseline sits at the origin by definition and the
+seed grid also contains a `(0, 0)` point, so `st_0` and `st_2` share a cell. The
+old wide table carried no `st_id`, and its `(0,0)` row is the GRID POINT — `st_0`
+never appeared in it, because `aggregate_rlz` dropped the baseline. Keying on the
+pair averaged the unperturbed baseline together with the grid point. Re-keyed via
+the design table, excluding the baseline.
+
+Had that gone unnoticed it would have been read as "R11 moved every class-A
+metric by up to 16%", and the obvious next move — widen the tolerance until it
+passes — would have buried the real signal underneath.
+
+### Result, per metric (old values are 2 dp, so ≤ 0.005 is exact at the precision the old file was written in)
+
+| metric | n | max_abs | max_rel | verdict |
+| --- | --- | --- | --- | --- |
+| `q_annual_mean` | 36 | 0.004778 | 0.0220 | RECONSTRUCTS |
+| `q_baseflow_index` | 36 | 4.807e-05 | 0.348 | RECONSTRUCTS |
+| `q_driest_month_mean` | 36 | 0.002329 | 0.232 | RECONSTRUCTS |
+| `q_mean_annual_7day_max` | 36 | 0.004958 | 0.00205 | RECONSTRUCTS |
+| `q_mean_annual_7day_min` | 36 | 4.782e-05 | 0.465 | RECONSTRUCTS |
+| `q_mean_annual_min` | 36 | 4.909e-05 | 0.471 | RECONSTRUCTS |
+| `q_return_level_2yr_7day_min` | 36 | 4.764e-05 | 0.476 | RECONSTRUCTS |
+| `q_wettest_month_mean` | 36 | 0.9892 | 0.0414 | **moved — pre-registered (Q5)** |
+| `q_mean_annual_max` | 36 | 0.07629 | 0.00894 | moved, NOT pre-registered |
+| `q_mean_annual_p95` | 36 | 0.03447 | 0.00552 | moved, NOT pre-registered |
+| `q_return_level_10yr_max` | 36 | 0.1675 | 0.00990 | moved, NOT pre-registered |
+
+**Eight of eleven reconstruct** — the class-A means average back to the old
+aggregated values exactly at 2 dp, which is the pre-registered prediction and the
+falsifiable half of the gate. It held.
+
+### The three residuals, and an honest note on them
+
+All three moved **< 1% relative**, all **systematically downward**, and all three
+are **upper-tail statistics**: the annual maximum, the 95th percentile, and the
+10-year return level (which is fitted to annual maxima, so it inherits whatever
+the maxima do).
+
+The explanation that fits is the **same butt-splice defect** P1 fixed. At
+`a1d9993` — the commit the manifest was recorded from, i.e. the code that
+produced the old numbers — `analyze_wflow_results` does:
+
+    178:  sim_all = pd.concat(csv_rlz)
+    179:  sim_all.index = pd.date_range(...)
+    185:  df_mean = sim.resample("YE").mean().mean()
+    186:  df_max  = sim.resample("YE").max().mean()
+    188:  df_q95  = sim.resample("YE").quantile(0.95).mean()
+
+The class-A statistics were computed on the spliced series, whose year boundaries
+are a synthetic index rather than each realization's own calendar. A **mean** over
+a year is robust to where the cut falls; a **maximum** is not. Which is exactly
+the observed split: the mean reconstructs, the maxima and the p95 do not, and they
+move down — consistent with removing buckets that straddled two realizations and
+so took a maximum over a mixed window.
+
+**Stated plainly: this is a post-hoc explanation, not a pre-registered one.** The
+pre-registration named the 7-day return level and the two month metrics, because
+the writer's docstring names those. It did not anticipate that the same splice
+also reached the upper-tail class-A metrics — that inference came after seeing
+which metrics moved. The evidence for it is strong (the old code demonstrably
+splices; the affected set is exactly the boundary-sensitive statistics; the
+direction is consistent), but it is reasoning toward an explanation rather than a
+prediction that survived a test, and it should be read at that weight.
