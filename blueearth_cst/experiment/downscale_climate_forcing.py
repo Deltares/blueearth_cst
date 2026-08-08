@@ -45,7 +45,8 @@ with tee_to_log(snakemake.log[0]):
     # `run_name` is the toml stem, and R9 P2 commit 3 changed what that stem
     # SAYS without changing a line here: R07 had moved the realization index out
     # of the filename and into a `rlz_<r>/` directory, making the stem `cst_<m>`;
-    # R9 removes the level and puts the index back, making it `rlz_<r>_cst_<m>`.
+    # R9 removes the level and puts the index back, and R11 P2 renamed the member
+    # token, making it `rlz_<r>_st_<m>`.
     # Every pointer built from `run_name` -- outstates, the output CSV, and now
     # the per-member log -- follows automatically. That is the payoff of deriving
     # from the declared path instead of reconstructing it.

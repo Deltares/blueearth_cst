@@ -71,7 +71,7 @@ wildcard requires updating this file in the same commit.
 | `scenario` | active                   | climate scenario (`historical`, `ssp245`, …)                            |
 | `horizon`  | active                   | future horizon name (`near`, `far`)                                     |
 | `rlz_num`  | active                   | weather realization number (`1..rlz_count`)                             |
-| `st_num`   | active                   | stress-test combination: `1..stress_test_count` perturbed; `0` = reserved unperturbed baseline (`cst_0`), run through Wflow only when `run_historical` sets `ST_START = 0` |
+| `st_num`   | active                   | stress-test combination: `1..stress_test_count` perturbed; `0` = reserved unperturbed baseline (`st_0`), run through Wflow only when `run_historical` sets `ST_START = 0` |
 | `member`   | reserved (CMIP ensemble) | ensemble member id (`r1i1p1f1`, …). Config-only today; becomes a wildcard if per-member rules are added |
 
 The `st_num2` variant formerly used in `Snakefile_climate_experiment`'s
@@ -80,8 +80,40 @@ starts at `1`) was **folded into `st_num` in R5**. The downstream rules
 (`downscale_climate_realization`, `run_wflow`, `derive_wflow_indicators`) now use
 the single `st_num` vocabulary and keep the default match that admits `0`;
 only `perturb_climate_realization` carries a rule-local
-`wildcard_constraints: st_num=[1-9][0-9]*` that bars `0` (so it cannot be a
-second producer of the `cst_0` baseline).
+`wildcard_constraints: st_num=member_index_regex(ST_WIDTH)` that bars the
+all-zeros baseline (so it cannot be a second producer of `st_0`). That was the
+literal `[1-9][0-9]*` until R11 P2 zero-padded the index — a leading-zero-hostile
+pattern rejects `st_01`, so it is now built from the width; see below.
+
+**The member token in filenames and catalog keys is `st_`, the same word as the
+wildcard.** R11 P2 renamed it from `cst_` (C22): `cst` is the toolbox's own
+name, so it said nothing as a member token, while every layer that mattered
+already said `st` — the `st_num` wildcard above, `ST_NUM`, `stress_test_grid()`,
+the `stress_test:` config section. Only the filenames and the WG-5 catalog keys
+disagreed, and `Snakefile_climate_experiment` built a `cst_` filename out of an
+`st_num` wildcard on one line. So a member is `st_<m>.csv` and
+`rlz_<n>_st_<m>.{nc,csv,toml,log}`, with `st_0` the reserved unperturbed
+baseline. `rlz_` deliberately stays: it abbreviates a *correct* term and
+collides with nothing. Record: `dev/milestones/r11/migration_indicator-tables.md`.
+
+**Member indices are ZERO-PADDED to a width derived from the count** (C27),
+so lexical order matches run order: `st_01 … st_12` for a twelve-point grid,
+`st_001` past ninety-nine, and no padding at all below ten, where `st_1 … st_6`
+already sort correctly. `rlz_` and `st_` pad independently, each from its own
+count. The width is a pure function of `ST_NUM` / `RLZ_NUM`, both of which live
+in the `climate_experiment` section `experiment.yml` freezes, so a grid change
+that would move the width already forces a new experiment — no tree is ever
+renamed underneath itself. One helper owns it (`snake_utils.index_width`), and
+`member_index_regex` builds the matching `wildcard_constraints` so an *unpadded*
+name raises `MissingRuleException` instead of routing silently. That regex MUST
+stay anchor-free: Snakemake embeds a constraint in the whole path's regex, so a
+`$` inside one binds to the end of the path and silently voids the condition.
+
+**Three different things spell themselves `cst`**, which is why a bare `cst_`
+grep is never the right tool: the package `blueearth_cst`, the member token
+(now `st_`), and the WF2 netCDF provenance attributes in
+`blueearth_cst/projections/` (`cst_calendar`, `cst_raw_digest`, `cst_source_paths`,
+…), which mean "written by CST" and are part of WF2's on-disk output.
 
 ## 5. Suffix vocabulary — path vs. object
 
@@ -154,7 +186,7 @@ a migration note (§7).**
   `groundwater recharge`) — display names, not the upstream IDs.
 - Cross-tool scientific variable names: `precip`, `temp`. **These are the
   canonical stems and every producer now uses them** — the WG-1 extraction, the
-  HM-2 / WG-6 wflow forcing, the `stress_test` config block, the `cst_<m>.csv`
+  HM-2 / WG-6 wflow forcing, the `stress_test` config block, the `st_<m>.csv`
   perturbation files, and (since 2026-08-05) the two indicator tables. The one
   exception was `q_indicators.csv` / `basin_indicators.csv`, whose axis columns
   read `tavg` / `prcp`; see §7. Aliases that look like drift but are NOT — each is
@@ -207,6 +239,12 @@ axis columns renamed are separate §7 events with separate records, because a
 table label is a tier-2 contract in its own right (§6) — a consumer that survived
 the filename rename can still break on the header.
 
+**R11's record is `dev/milestones/r11/migration_indicator-tables.md`**, and it
+carries two §7 events: P1's indicator-table reshape (files and columns), and
+P2's member-token rename `cst_` → `st_` (§4), which moves member filenames and
+the WG-5 catalog *source names* — the tier-2 clause above. One document rather
+than two because one milestone re-records the baseline once.
+
 **Two artifact classes, distinguished (R07).** The rename note above and a
 user-facing migration guide are different documents with different audiences,
 and conflating them is what made `MIGRATION.md`'s home ambiguous:
@@ -248,7 +286,7 @@ unify them.
 | Markdown planning docs under `dev/`    | kebab-case                        | `naming-conventions-design.md`                       |
 | Standard root-level files              | upstream                          | `CLAUDE.md`, `README.rst`, `Dockerfile`, `LICENSE`   |
 | Config / data / catalog YAML           | tool contract                     | `snake_config_model_test.yml`, `deltares_data.yml`   |
-| Generated outputs under `project_dir/` | lowercase `snake_case`, two exemptions (below) | `q_indicators.csv`, `basin_indicators.csv`, `model_reference.yml`, `inmaps_rlz_1_cst_2.nc` |
+| Generated outputs under `project_dir/` | lowercase `snake_case`, two exemptions (below) | `q_indicators.csv`, `basin_indicators.csv`, `model_reference.yml`, `inmaps_rlz_1_st_2.nc` |
 
 Don't rename existing `dev/` docs.
 
@@ -323,8 +361,8 @@ Two distinctions needed care and are the ones a new rule gets wrong:
   because enumerating entries is all it does.
 
 **Nouns are full words.** Only the established domain set abbreviates — `gcm`,
-`cmip6`, `wflow`, `rlz`, `cst` — and those are tier-1/tier-2 identifiers under
-§6. Ad-hoc contractions (`weagen`, `proj`) are not. Qualifiers are trailing full
+`cmip6`, `wflow`, `rlz`, `st` — and those are tier-1/tier-2 identifiers under
+§6. (`st` replaced `cst` at R11 P2; see §4.) Ad-hoc contractions (`weagen`, `proj`) are not. Qualifiers are trailing full
 words, never two-letter suffixes.
 
 **Adding a verb is allowed, and cheaper than a bad name.** `delineate_` and

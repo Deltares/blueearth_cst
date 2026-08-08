@@ -83,7 +83,7 @@ def chirps_like_catalog(monkeypatch):
 
 
 def test_single_fn_produces_one_entry_named_after_basename(tmp_path, era5_like_catalog):
-    rlz_nc = tmp_path / "rlz_1_cst_0.nc"
+    rlz_nc = tmp_path / "rlz_1_st_0.nc"
     rlz_nc.write_bytes(b"")  # the function uses str(fn.resolve()), not contents
     fn_out = tmp_path / "catalog.yml"
 
@@ -95,12 +95,12 @@ def test_single_fn_produces_one_entry_named_after_basename(tmp_path, era5_like_c
     )
 
     written = yaml.safe_load(fn_out.read_text())
-    assert list(written.keys()) == ["rlz_1_cst_0"]
+    assert list(written.keys()) == ["rlz_1_st_0"]
 
 
 def test_multiple_fns_produce_one_entry_per_input(tmp_path, era5_like_catalog):
     fns = []
-    for name in ["rlz_1_cst_0.nc", "rlz_2_cst_0.nc", "rlz_3_cst_0.nc"]:
+    for name in ["rlz_1_st_0.nc", "rlz_2_st_0.nc", "rlz_3_st_0.nc"]:
         p = tmp_path / name
         p.write_bytes(b"")
         fns.append(p)
@@ -114,14 +114,14 @@ def test_multiple_fns_produce_one_entry_per_input(tmp_path, era5_like_catalog):
     )
 
     written = yaml.safe_load(fn_out.read_text())
-    assert set(written.keys()) == {"rlz_1_cst_0", "rlz_2_cst_0", "rlz_3_cst_0"}
+    assert set(written.keys()) == {"rlz_1_st_0", "rlz_2_st_0", "rlz_3_st_0"}
 
 
 def test_driver_options_preprocess_is_harmonise_dims(tmp_path, era5_like_catalog):
     """The function MUST set driver.options.preprocess='harmonise_dims' on every
     entry, regardless of what the source_like driver had. This is what the
     yaml.safe_dump workaround protects against hydromt 1.3 silently stripping."""
-    rlz_nc = tmp_path / "rlz_1_cst_0.nc"
+    rlz_nc = tmp_path / "rlz_1_st_0.nc"
     rlz_nc.write_bytes(b"")
     fn_out = tmp_path / "catalog.yml"
 
@@ -133,7 +133,7 @@ def test_driver_options_preprocess_is_harmonise_dims(tmp_path, era5_like_catalog
     )
 
     written = yaml.safe_load(fn_out.read_text())
-    entry = written["rlz_1_cst_0"]
+    entry = written["rlz_1_st_0"]
     assert entry["driver"]["name"] == "raster_xarray"
     assert entry["driver"]["options"]["preprocess"] == "harmonise_dims"
     assert entry["driver"]["options"]["lock"] is False
@@ -143,7 +143,7 @@ def test_data_adapter_and_root_are_dropped(tmp_path, era5_like_catalog):
     """The R-generated NCs are already in standard units, so unit_mult /
     rename adapters from the source must be discarded. Same for `root`,
     which would point at the wrong filesystem."""
-    rlz_nc = tmp_path / "rlz_1_cst_0.nc"
+    rlz_nc = tmp_path / "rlz_1_st_0.nc"
     rlz_nc.write_bytes(b"")
     fn_out = tmp_path / "catalog.yml"
 
@@ -155,13 +155,13 @@ def test_data_adapter_and_root_are_dropped(tmp_path, era5_like_catalog):
     )
 
     written = yaml.safe_load(fn_out.read_text())
-    entry = written["rlz_1_cst_0"]
+    entry = written["rlz_1_st_0"]
     assert "data_adapter" not in entry
     assert "root" not in entry
 
 
 def test_uri_resolves_to_absolute_path(tmp_path, era5_like_catalog):
-    rlz_nc = tmp_path / "rlz_1_cst_0.nc"
+    rlz_nc = tmp_path / "rlz_1_st_0.nc"
     rlz_nc.write_bytes(b"")
     fn_out = tmp_path / "catalog.yml"
 
@@ -173,11 +173,11 @@ def test_uri_resolves_to_absolute_path(tmp_path, era5_like_catalog):
     )
 
     written = yaml.safe_load(fn_out.read_text())
-    assert Path(written["rlz_1_cst_0"]["uri"]).is_absolute()
+    assert Path(written["rlz_1_st_0"]["uri"]).is_absolute()
 
 
 def test_processing_metadata_for_era5_source(tmp_path, era5_like_catalog):
-    rlz_nc = tmp_path / "rlz_1_cst_0.nc"
+    rlz_nc = tmp_path / "rlz_1_st_0.nc"
     rlz_nc.write_bytes(b"")
     fn_out = tmp_path / "catalog.yml"
 
@@ -189,14 +189,14 @@ def test_processing_metadata_for_era5_source(tmp_path, era5_like_catalog):
     )
 
     written = yaml.safe_load(fn_out.read_text())
-    proc = written["rlz_1_cst_0"]["metadata"]["processing"]
+    proc = written["rlz_1_st_0"]["metadata"]["processing"]
     assert "era5" in proc
     assert "weathergenr" in proc
     assert "chirps" not in proc  # the era5-branch message
 
 
 def test_processing_metadata_mentions_chirps_and_era5_for_chirps_source(tmp_path, chirps_like_catalog):
-    rlz_nc = tmp_path / "rlz_1_cst_0.nc"
+    rlz_nc = tmp_path / "rlz_1_st_0.nc"
     rlz_nc.write_bytes(b"")
     oro_fn = tmp_path / "chirps_global_orography.nc"
     oro_fn.write_bytes(b"")
@@ -211,7 +211,7 @@ def test_processing_metadata_mentions_chirps_and_era5_for_chirps_source(tmp_path
     )
 
     written = yaml.safe_load(fn_out.read_text())
-    proc = written["rlz_1_cst_0"]["metadata"]["processing"]
+    proc = written["rlz_1_st_0"]["metadata"]["processing"]
     # The chirps branch explicitly notes both precip source and era5 fallback.
     assert "chirps_global" in proc
     assert "era5" in proc
@@ -225,7 +225,7 @@ def test_chirps_source_adds_orography_entry(tmp_path, chirps_like_catalog):
     # layout — the rewritten lookup must NOT walk relative to this file.
     rlz_dir = tmp_path / "experiments" / "expa" / "weather_generator" / "output"
     rlz_dir.mkdir(parents=True)
-    rlz_nc = rlz_dir / "rlz_1_cst_0.nc"
+    rlz_nc = rlz_dir / "rlz_1_st_0.nc"
     rlz_nc.write_bytes(b"")
     # Sidecar under the keyed store dir, passed explicitly.
     store_dir = tmp_path / "climate_historical" / "chirps_global_20000101_20201231"
@@ -258,7 +258,7 @@ def test_chirps_source_requires_oro_path(tmp_path, chirps_like_catalog):
     fallback to a reconstructed path)."""
     rlz_dir = tmp_path / "experiments" / "expa" / "weather_generator" / "output"
     rlz_dir.mkdir(parents=True)
-    rlz_nc = rlz_dir / "rlz_1_cst_0.nc"
+    rlz_nc = rlz_dir / "rlz_1_st_0.nc"
     rlz_nc.write_bytes(b"")
     fn_out = tmp_path / "catalog.yml"
 
@@ -273,7 +273,7 @@ def test_chirps_source_requires_oro_path(tmp_path, chirps_like_catalog):
 
 def test_era5_source_ignores_oro_path(tmp_path, era5_like_catalog):
     """The era5 branch adds no orography entry and needs no oro_path."""
-    rlz_nc = tmp_path / "rlz_1_cst_0.nc"
+    rlz_nc = tmp_path / "rlz_1_st_0.nc"
     rlz_nc.write_bytes(b"")
     fn_out = tmp_path / "catalog.yml"
 
@@ -343,7 +343,7 @@ def test_orography_entry_points_at_the_standardised_sidecar(tmp_path, chirps_lik
     finally agree. The seed config is era5, so nothing else in this repo would
     catch the pre-R07 mismatch.
     """
-    rlz_nc = tmp_path / "rlz_1_cst_0.nc"
+    rlz_nc = tmp_path / "rlz_1_st_0.nc"
     rlz_nc.write_bytes(b"")
     store_dir = tmp_path / "climate_historical" / "chirps_global_20000101_20201231"
     store_dir.mkdir(parents=True)

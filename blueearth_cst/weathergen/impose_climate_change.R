@@ -34,7 +34,8 @@ cst_data <- read.csv(stress_csv_path)
 # stem is split at its LAST underscore. Deriving rather than passing prefix and
 # suffix separately keeps ONE source of truth -- the Snakemake output
 # declaration -- and is naming-agnostic: rlz_1_cst_2 and rlz_1_st_2 both split
-# correctly, so a future member-token rename touches nothing here.
+# correctly, which R11 P2's member-token rename then demonstrated -- it changed
+# the declared name and touched nothing here.
 output_path    <- paste0(dirname(output_nc_path), "/")
 output_stem    <- sub("\\.nc$", "", basename(output_nc_path))
 if (!grepl("_", output_stem, fixed = TRUE)) {
@@ -67,7 +68,20 @@ rlz_future <- weathergenr::apply_climate_perturbations(
    precip_transient   = precip_change_transient,
    compute_pet        = TRUE,
    qm_fit_method      = "mme",
-   diagnostic         = FALSE
+   diagnostic         = FALSE,
+   # C34/F15. Generation is seeded and the perturbation was not, so the two
+   # halves of one experiment had different reproducibility guarantees and
+   # nobody chose that. Passing the SAME seed the generator uses makes the whole
+   # chain reproducible; if the function turns out to be deterministic this is a
+   # no-op, and either way the asymmetry is now a decision rather than an
+   # oversight.
+   seed               = yaml$generateWeatherSeries$seed,
+   # C34/F16. PET is computed twice in this chain -- here, and again from the
+   # perturbed temperature by rule 3.14's setup_temp_pet_forcing -- by two
+   # different methods, neither of which was chosen. Surfaced at weathergenr's
+   # own default so this step's method is now stated; whether the first result
+   # is used at all is the open half of F16 and is NOT settled here.
+   pet_method         = yaml$generateWeatherSeries$pet.method
 )
 
 # Save to netcdf file

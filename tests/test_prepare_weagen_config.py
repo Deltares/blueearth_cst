@@ -115,7 +115,7 @@ def test_only_the_flags_are_copied_not_the_perturbation_ranges(tmp_path):
     It carried `step_num` and the monthly min/max ranges, none of which the R
     read -- so anyone opening it to see what a run did read plausible
     perturbation ranges that had no part in it. The real values come from
-    cst_<m>.csv. Do not reintroduce them here.
+    st_<m>.csv. Do not reintroduce them here.
     """
     out = build_weagen_config(
         **_generate_kwargs(
@@ -145,3 +145,65 @@ def test_missing_transient_flag_refuses_and_names_the_key(tmp_path, variable):
     del stress_test[variable]["transient_change"]
     with pytest.raises(ValueError, match=rf"stress_test\.{variable}\.transient_change"):
         build_weagen_config(**_generate_kwargs(tmp_path, stress_test=stress_test))
+
+
+# ---------------------------------------------------------------------------
+# F7 (regression) and C34 — R11 P2 commit 4
+# ---------------------------------------------------------------------------
+
+
+def test_f7_the_template_is_a_declared_input_of_rule_3_10():
+    """F7: the weathergen template must be an `input:`, not a params-only read.
+
+    It landed with CR-5 (`9260668`, 2026-08-05); this pins it so it cannot slide
+    back. The failure it guards is silent: edit the template and rule 3.10 does
+    NOT re-run, its generated config stays stale, and 3.11 keeps generating
+    realizations from superseded settings -- propagating quietly precisely
+    BECAUSE the generated config is properly declared, so every downstream
+    timestamp stays consistent.
+
+    Asserted against the rule's own `input:` block rather than the whole file,
+    so a `params:` mention alone cannot satisfy it -- that is the exact state
+    F7 described.
+    """
+    from pathlib import Path
+    import re
+
+    snakefile = (
+        Path(__file__).resolve().parents[1] / "Snakefile_climate_experiment"
+    ).read_text(encoding="utf-8")
+    rule = re.search(
+        r"rule prepare_weathergen_config:.*?\n    output:", snakefile, re.S
+    )
+    assert rule, "rule prepare_weathergen_config not found"
+    inputs = re.search(r"\n    input:(.*)", rule.group(0), re.S).group(1)
+    assert "config/templates/weathergen_config.yml" in inputs, (
+        "F7 regression: the weathergen template is not declared as an input of "
+        "rule 3.10, so editing it will not re-trigger the rule"
+    )
+
+
+@pytest.mark.parametrize("key,value", [("save.plots", True),
+                                       ("pet.method", "hargreaves")])
+def test_c34_surfaced_arguments_reach_the_generated_config(tmp_path, key, value):
+    """C34: a surfaced argument is worthless if it does not reach the R.
+
+    `build_weagen_config` seeds from the template wholesale, so a key added
+    there arrives automatically -- this pins that, because the alternative
+    (an explicit copy list) is what would silently drop it.
+    """
+    out = build_weagen_config(**_generate_kwargs(tmp_path))
+    assert out["generateWeatherSeries"][key] == value
+
+
+def test_c34_retired_the_dead_evaluate_keys(tmp_path):
+    """The two keys weathergenr 1.2.0 reaches with NOTHING are gone.
+
+    `evaluate.model` claimed to control plot emission and did not; a user who
+    set it FALSE still got every plot. Leaving a dead key that reads as a live
+    setting is worse than removing it.
+    """
+    out = build_weagen_config(**_generate_kwargs(tmp_path))
+    gws = out["generateWeatherSeries"]
+    assert "evaluate.model" not in gws
+    assert "evaluate.grid.num" not in gws

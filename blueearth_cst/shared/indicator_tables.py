@@ -63,7 +63,7 @@ VARIABLE_TOKENS = {
 #: name it was given in R9, which is why the pattern is token-first.
 _TABLE_SUFFIX = "_indicators.csv"
 
-#: The six columns of every indicator table, in order. Fixed regardless of gauge
+#: The seven columns of every indicator table, in order. Fixed regardless of gauge
 #: count — that fixity is the point of the long shape.
 #:
 #: Lives here rather than in the writer because BOTH the writer and ``validate_hm7``
@@ -72,12 +72,21 @@ _TABLE_SUFFIX = "_indicators.csv"
 #: which is the specific failure this pairing exists to prevent.
 INDICATOR_COLUMNS = (
     "metric",
+    "st_id",
     "temp_change",
     "precip_change",
     "realization_id",
     "location",
     "value",
 )
+
+#: The stress dimensions this shape can express. C28 was ruled "at this stage" —
+#: `st_id` ALONGSIDE the perturbation columns rather than replacing them, chosen
+#: for plottable-without-a-join, with an explicit revisit when a third dimension
+#: arrives. That re-couples the header to the dimension count, which is what CR-2
+#: removed on the location axis, so the coupling is made refusable rather than
+#: silent: the writer raises when a design table carries an axis outside this set.
+DESIGN_AXES = ("temp_change", "precip_change")
 
 #: ``realization_id`` for a pooled row. A numeric sentinel in a numeric key
 #: column is safe ONLY because no metric emits both grains; if that ever changes

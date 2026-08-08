@@ -11,8 +11,8 @@ exitcode = 0
 for t in ARGS
     global exitcode
     # R07 B5 moved the realization index out of the toml NAME and into its run
-    # directory, so basename alone (cst_1.toml) no longer identifies a member
-    # within a batch. Tag with rlz_<n>/cst_<m>.toml.
+    # directory, so basename alone (cst_1.toml, as the member token then read)
+    # no longer identifies a member within a batch. Tag with the parent too.
     tag = joinpath(basename(dirname(dirname(t))), basename(t))
     try
         dt = @elapsed Wflow.run(t)

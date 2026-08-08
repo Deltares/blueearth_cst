@@ -154,6 +154,19 @@ def _columns(df: Any) -> list[str]:
     return [str(c) for c in getattr(df, "columns", [])]
 
 
+def _close(a: float, b: float, tol: float = 1e-9) -> bool:
+    """Float agreement for C28's cached-copy check.
+
+    A tolerance rather than equality because the two sides are computed by the
+    same function but travel through a CSV round-trip: the design table is
+    written and re-read as text, so the results value and the design value can
+    differ in the last bit without anything being wrong. The tolerance is tight
+    enough that a genuine drift -- a different member, a unit confusion, a stale
+    table -- is orders of magnitude outside it.
+    """
+    return abs(float(a) - float(b)) <= tol * max(1.0, abs(float(a)), abs(float(b)))
+
+
 # ---------------------------------------------------------------------------
 # Weather-generator seam — WG-1, WG-2, WG-3, WG-5 (persisted).
 # WG-4 / WG-6 (temp()) live in the temp-validator section below.
@@ -217,7 +230,7 @@ _WG2_HEADER = ("month", "temp_mean", "precip_mean", "precip_variance")
 
 
 def validate_wg2(df: Any) -> list[str]:
-    """WG-2 — stress-test perturbation grid (``cst_<m>.csv``, m>=1).
+    """WG-2 — stress-test perturbation grid (``st_<m>.csv``, m>=1).
 
     Pinned surface (design §5.2): header exactly ``month,temp_mean,precip_mean,
     precip_variance``; 12 rows with ``month`` domain ``1..12``. Column
@@ -256,6 +269,11 @@ _WG3_GWS_KEYS = (
     "sim.year.num",
     "nc.file.prefix",
     "realizations_num",
+    # C34 (R11 P2): surfaced weathergenr arguments. Pinned for the same reason
+    # the transient flags are -- the R reads them, and an omission would reach
+    # the generator as NULL and silently take whatever upstream defaults to.
+    "save.plots",
+    "pet.method",
 )
 
 
@@ -364,7 +382,7 @@ def validate_wg5(cfg: Any) -> list[str]:
     """WG-5 — hydromt climate data catalog (``data_catalog_climate_experiment.yml``).
 
     Pinned-as-reliance (design §5.2): OUR emitted subset of the hydromt
-    data-catalog schema — for every ``rlz_<n>_cst_<m>`` entry the driver /
+    data-catalog schema — for every ``rlz_<n>_st_<m>`` entry the driver /
     metadata fields ``{uri, driver.name=raster_xarray,
     driver.options.preprocess=harmonise_dims, driver.options.lock=false,
     metadata.crs=4326, metadata.category=meteo, data_type=RasterDataset}``.
@@ -383,7 +401,7 @@ def validate_wg5(cfg: Any) -> list[str]:
         k: v for k, v in cfg.items() if isinstance(k, str) and k.startswith("rlz_")
     }
     if not entries:
-        diffs.append(f"{label}: no 'rlz_<n>_cst_<m>' entries in catalog")
+        diffs.append(f"{label}: no 'rlz_<n>_st_<m>' entries in catalog")
     for key in sorted(entries):
         diffs += _validate_catalog_entry(key, entries[key], label)
     return diffs
@@ -660,6 +678,12 @@ from blueearth_cst.shared.indicator_tables import (  # noqa: E402
     metric_grain,
 )
 
+#: The member-index padding width (C27). Imported rather than reimplemented so
+#: the catalog-key expectation below and the Snakefile's own filenames cannot
+#: disagree about how wide an index is. `snake_utils` does not import this
+#: module, so the direction is one-way and no cycle exists.
+from blueearth_cst.shared.snake_utils import index_width  # noqa: E402
+
 _PERTURBATION_AXIS = ("temp_change", "precip_change")
 
 #: The six HM-7 columns, in order. Imported from the writer's own module rather
@@ -668,11 +692,15 @@ _PERTURBATION_AXIS = ("temp_change", "precip_change")
 HM7_COLUMNS = INDICATOR_COLUMNS
 
 
-def validate_hm7(tables: dict, rlz_num: int | None = None) -> list[str]:
+def validate_hm7(
+    tables: dict, rlz_num: int | None = None, design=None
+) -> list[str]:
     """HM-7 — response-surface reduction, ONE LONG TABLE PER OUTPUT VARIABLE.
 
     ``tables`` maps variable token to parsed table (``{"q": df, "aet": df}``).
     ``rlz_num`` is optional; supply it to check the ``realization_id`` domain.
+    ``design`` is the parsed ``stress_test_design.csv``; supply it to check C28's
+    consistency obligation.
 
     **R11 CR-2 replaced the two wide tables with a fixed six-column long shape:**
     ``metric, temp_change, precip_change, realization_id, location, value``. The
@@ -702,9 +730,23 @@ def validate_hm7(tables: dict, rlz_num: int | None = None) -> list[str]:
     in-repo consumer, written via ``params`` rather than declared, so invisible to
     ``--dry-run``. Nothing replaces them.
 
-    C28 will add ``st_id`` alongside the perturbation columns, with a consistency
-    check that they agree with the design table's row. That is R11 P2's, because
-    the design table does not exist yet.
+    **C28 (R11 P2) added ``st_id`` alongside the perturbation columns**, making
+    the header seven wide. That was ruled "at this stage" — plottable without a
+    join now, revisited when a third dimension arrives — and it re-couples the
+    header to the stress-dimension count, which is what CR-2 removed on the
+    location axis. Two obligations keep that interim decision from rotting:
+
+    - **The consistency check here.** ``temp_change`` / ``precip_change`` are now
+      a CACHED COPY of the design table's row for that ``st_id``. The writer
+      derives them independently, from the parameter files, so the two really can
+      disagree — which is the point. A denormalised copy that nothing verifies is
+      a copy that eventually lies. Same class as the ``metric`` /
+      ``token`` agreement above.
+    - **A hard stop in the writer** when ``stress_test:`` gains a third axis,
+      naming C28 rather than silently adding a column.
+
+    The check is skipped, not failed, when ``design`` is None — a caller that
+    has only the tables can still assert everything else.
 
     Original pinned surface, for the record (design §5.3): ``q_indicators.csv``
     header ``statistic,temp_change,precip_change,<gauge-cols>``;
@@ -782,6 +824,39 @@ def validate_hm7(tables: dict, rlz_num: int | None = None) -> list[str]:
                     f"{label}: {name} metric {metric!r} is per-realization but "
                     f"carries the pooled sentinel realization_id 0"
                 )
+    # -- C28: the cached axis columns must agree with the design table --------
+    if design is not None:
+        by_id = {}
+        for _, row in design.iterrows():
+            by_id[str(row["st_id"])] = row
+        for token, table in sorted(tables.items()):
+            name = f"{token}_indicators.csv"
+            if "st_id" not in table.columns:
+                continue  # the header check above already reported it
+            seen = {}
+            for st_id, temp, precip in zip(
+                table["st_id"], table["temp_change"], table["precip_change"]
+            ):
+                seen.setdefault(str(st_id), (temp, precip))
+            for st_id, (temp, precip) in sorted(seen.items()):
+                design_row = by_id.get(st_id)
+                if design_row is None:
+                    diffs.append(
+                        f"{label}: {name} carries st_id {st_id!r}, which the "
+                        f"stress-test design table does not define"
+                    )
+                    continue
+                for column, value in (
+                    ("temp_change", temp), ("precip_change", precip),
+                ):
+                    expected = float(design_row[column])
+                    if not _close(float(value), expected):
+                        diffs.append(
+                            f"{label}: {name} st_id {st_id!r} has {column}="
+                            f"{float(value)!r}, but the design table says "
+                            f"{expected!r} -- the cached copy has drifted (C28)"
+                        )
+
     return diffs
 
 
@@ -799,7 +874,7 @@ def validate_hm7(tables: dict, rlz_num: int | None = None) -> list[str]:
 
 
 def validate_wg4(ds: Any) -> list[str]:
-    """WG-4 — generator output netCDF content (``rlz_<n>_cst_<m>.nc``).
+    """WG-4 — generator output netCDF content (``rlz_<n>_st_<m>.nc``).
 
     Pinned surface (design §5.2): a ``(time, lat, lon)`` raster the hydromt
     catalog (WG-5) reads — at least ``precip`` and ``temp`` on an EPSG:4326 grid
@@ -846,7 +921,7 @@ def validate_wg4(ds: Any) -> list[str]:
 
 
 def validate_wg6(ds: Any) -> list[str]:
-    """WG-6 — downscaled Wflow forcing content (``inmaps_rlz_<n>_cst_<m>.nc``).
+    """WG-6 — downscaled Wflow forcing content (``inmaps_rlz_<n>_st_<m>.nc``).
 
     The wf3 twin of ``inmaps_historical.nc`` — the SAME contract as HM-2 (design
     §5.2/§5.3): ``(time, latitude, longitude)`` ``float32`` ``precip`` / ``pet``
@@ -861,7 +936,7 @@ def validate_wg6(ds: Any) -> list[str]:
 
 
 def validate_hm6b(ds: Any) -> list[str]:
-    """HM-6b — wf3 warm state content (``outstates_rlz_<n>_cst_<m>.nc``).
+    """HM-6b — wf3 warm state content (``outstates_rlz_<n>_st_<m>.nc``).
 
     THIN — an unconsumed named sink (design §5.3): nothing in-repo reads it, so
     the contract pins only that it is a wflow state **output** — an
@@ -1037,8 +1112,8 @@ def validate_wg5_catalog_grid(
 ) -> list[str]:
     """Relational: the WG-5 catalog entry-key grid vs the INTENDED grid (design §5.5).
 
-    Expected entry keys exactly ``{rlz_<n>_cst_<m> : n in 1..rlz_num,
-    m in 0..st_num}`` — **cst_0 included** (rule 3.08 consumes both the cst_0
+    Expected entry keys exactly ``{rlz_<n>_st_<m> : n in 1..rlz_num,
+    m in 0..st_num}`` — **st_0 included** (rule 3.08 consumes both the st_0
     list and the perturbed ``expand`` grid, ``Snakefile_climate_experiment:318-319``).
     Both missing AND unexpected keys are reported. A dropped or extra catalog
     entry is invisible to per-artifact ``validate_wg5`` (each remaining entry is
@@ -1052,8 +1127,12 @@ def validate_wg5_catalog_grid(
     label = "wg5-catalog-grid"
     if not isinstance(catalog_cfg, Mapping):
         return [f"{label}: catalog is not a mapping ({type(catalog_cfg).__name__})"]
+    # Keys carry the ZERO-PADDED member index (C27), and the widths derive from
+    # the same counts this function already takes -- so the expectation moves
+    # with the filenames without a signature change.
+    rlz_w, st_w = index_width(rlz_num), index_width(st_num)
     expected = {
-        f"rlz_{n}_cst_{m}"
+        f"rlz_{n:0{rlz_w}d}_st_{m:0{st_w}d}"
         for n in range(1, rlz_num + 1)
         for m in range(0, st_num + 1)
     }

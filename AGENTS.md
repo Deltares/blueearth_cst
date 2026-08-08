@@ -26,7 +26,7 @@ Method context that changes how code here should be edited (rationale:
   hydromt and runs it once on historical forcing (rapid deployment, no local
   calibration); wf2 computes monthly change factors per (model, scenario, horizon);
   wf3 is the stress test — weathergenr generates `RLZ_NUM` realizations, each
-  perturbed across `ST_NUM` temp/precip combinations (`cst_0` = unperturbed
+  perturbed across `ST_NUM` temp/precip combinations (`st_0` = unperturbed
   baseline), run through Wflow and reduced to the hydrological indicators that form
   the response surface.
 - This repo is the workflow engine of a three-part platform (workflows + CST-API

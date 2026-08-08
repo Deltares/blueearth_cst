@@ -130,7 +130,7 @@ if __name__ == "__main__":
 
         with tee_to_log(sm.log[0]):
             # Read the two list of nc files and combine
-            nc_fns = sm.input.cst_nc
+            nc_fns = sm.input.st_nc
             nc_fns2 = sm.input.rlz_nc
             nc_fns.extend(nc_fns2)
 

@@ -15,15 +15,35 @@ from typing import Union, List
 # root); parent.parent stopped at the package dir, from which
 # `import blueearth_cst.shared...` cannot resolve (O-07).
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from blueearth_cst.shared.snake_utils import stress_test_grid
+from blueearth_cst.shared.snake_utils import index_width, stress_test_grid
+# The SAME twelve-to-one reduction the indicator tables use (month-length
+# weighted mean). Imported rather than reimplemented: C28 makes `validate_hm7`
+# assert that a results row's temp_change/precip_change equals the design
+# table's row for that st_id, and two independent collapses of the same twelve
+# monthly values would make that check fail on rounding rather than on a defect.
+from blueearth_cst.experiment.export_wflow_results import (
+    annual_perturbation,
+    perturbation_axes,
+)
+
+#: The stress-test axes this module knows how to enumerate. A third axis needs a
+#: new design-table column AND a new results column, so it must arrive as a
+#: refusal rather than as a silently missing dimension (C28's second obligation).
+_KNOWN_AXES = ("temp", "precip")
+
+#: Design-table header (C23/C24). `st_id` is the DESIGNED axis; `realization` is
+#: the sampled one and deliberately absent -- run identity is `(rlz, st)`, and a
+#: draw has no design parameters to record.
+DESIGN_COLUMNS = ("st_id", "temp_change", "precip_change", "precip_variance_change")
 
 
 def prep_cst_parameters(
     config_fn: Union[str, Path],
     csv_fns: List[Union[str, Path]],
+    design_fn: Union[str, Path, None] = None,
 ):
     """
-    Prepare a csv file for each stress test scenario.
+    Prepare a csv file for each stress test scenario, and the design table.
 
     Parameters
     ----------
@@ -32,6 +52,10 @@ def prep_cst_parameters(
     csv_fns : List[str, Path]
         List of paths to the output csv files. If None saves in same directory as
         config_fn and names from stress test parameters.
+    design_fn : str, Path, optional
+        Path to ``stress_test_design.csv`` (C23). Written from the SAME loop that
+        writes the per-member files, so the two cannot disagree about what run
+        ``m`` is -- which is the property C26 exists for. Skipped when None.
     """
 
     # Read the yaml config (R01 sectioned schema)
@@ -39,6 +63,19 @@ def prep_cst_parameters(
         yml = yaml.load(stream, Loader=yaml.FullLoader)
 
     stress_test_cfg = yml["workflows"]["climate_experiment"]["stress_test"]
+
+    # A third stress dimension must REFUSE, not silently vanish from the design
+    # table (C28). The grid arithmetic, the CSV loop and DESIGN_COLUMNS below all
+    # assume exactly two axes; adding one without touching them would emit a
+    # table that describes a different experiment than the one that ran.
+    unknown_axes = sorted(set(stress_test_cfg) - set(_KNOWN_AXES))
+    if unknown_axes:
+        raise ValueError(
+            f"stress_test carries unsupported axes {unknown_axes}: this module "
+            f"enumerates exactly {list(_KNOWN_AXES)}. Adding a dimension means "
+            f"adding a design-table column and a results column together (C28); "
+            f"see dev/milestones/r09/wf3-change-requests.md."
+        )
 
     # Grid step counts + total via the shared helper (single source of truth,
     # strict on a missing step_num). temp_step_num / precip_step_num are the
@@ -65,6 +102,23 @@ def prep_cst_parameters(
         delta_precip_variance_min, delta_precip_variance_max, precip_step_num, axis=1
     )
 
+    # The design table's ids are padded to the same count-derived width as the
+    # filenames (C27), so `st_id` and the member filename are textually the same
+    # token and a consumer joining a plot to its run needs no coercion.
+    st_width = index_width(ST_NUM)
+
+    # C23: the reserved unperturbed baseline is a REAL row with every change
+    # zero. A response surface missing its own origin forces every downstream
+    # consumer to reconstruct it.
+    design_rows = [
+        {
+            "st_id": f"{0:0{st_width}d}",
+            "temp_change": 0.0,
+            "precip_change": 0.0,
+            "precip_variance_change": 0.0,
+        }
+    ]
+
     # Generate csv file for each stress test scenario
     i = 0
     for j in range(temp_step_num):
@@ -82,15 +136,38 @@ def prep_cst_parameters(
             df = pd.DataFrame(data=data, dtype=np.float32, index=np.arange(1, 13))
             df.index.name = "month"
             if csv_fns is None:
+                # Auto-naming fallback (no Snakemake): pad to the same
+                # count-derived width the rule's output: declaration uses, so
+                # the two spellings of a member name cannot diverge (C27).
                 csv_fn = join(
                     os.path.dirname(config_fn),
-                    f"cst_{i+1}.csv",
+                    f"st_{i + 1:0{index_width(ST_NUM)}d}.csv",
                 )
             else:
                 csv_fn = csv_fns[i]
             df.to_csv(csv_fn)
 
+            # Same frame, same derivation, SAME UNITS as the results tables.
+            temp_change, precip_change = perturbation_axes(df, csv_fn)
+            design_rows.append(
+                {
+                    "st_id": f"{i + 1:0{st_width}d}",
+                    "temp_change": temp_change,
+                    "precip_change": precip_change,
+                    # Percent, matching precip_change: both are factors in the
+                    # parameter file, and one table must not mix conventions.
+                    "precip_variance_change": (
+                        annual_perturbation(df, "precip_variance", csv_fn) * 100 - 100
+                    ),
+                }
+            )
+
             i += 1
+
+    if design_fn is not None:
+        design = pd.DataFrame(design_rows, columns=list(DESIGN_COLUMNS))
+        Path(design_fn).parent.mkdir(parents=True, exist_ok=True)
+        design.to_csv(design_fn, index=False)
 
 
 if __name__ == "__main__":
@@ -102,6 +179,7 @@ if __name__ == "__main__":
             prep_cst_parameters(
                 config_fn=sm.input.config,
                 csv_fns=sm.output.st_csv_fns,
+                design_fn=sm.output.design_csv,
             )
     else:
         prep_cst_parameters(

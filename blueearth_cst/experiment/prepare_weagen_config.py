@@ -75,7 +75,7 @@ def build_weagen_config(
     ``stress_test.precip`` blocks — step counts and monthly min/max ranges — of
     which the R read only the two transient flags (finding F6). Anyone opening
     one to see what a run did read plausible perturbation ranges that had no part
-    in it; the real values come from ``cst_<m>.csv``. Only the two flags survive
+    in it; the real values come from ``st_<m>.csv``. Only the two flags survive
     here, so the file no longer implies otherwise.
     """
     yml_snake = read_yml(snake_config_path)
@@ -93,7 +93,7 @@ def build_weagen_config(
         yml_dict["generateWeatherSeries"][k] = v
 
     # Read by impose_climate_change.R (rule 3.07). Only the flags, not the
-    # perturbation magnitudes — those live in cst_<m>.csv and are read from there.
+    # perturbation magnitudes — those live in st_<m>.csv and are read from there.
     stress_test_cfg = experiment_cfg["stress_test"]
     yml_dict["temp"] = {"transient_change": _transient_flag(stress_test_cfg, "temp")}
     yml_dict["precip"] = {"transient_change": _transient_flag(stress_test_cfg, "precip")}

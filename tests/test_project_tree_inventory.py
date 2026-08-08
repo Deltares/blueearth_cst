@@ -128,11 +128,11 @@ COVERED: dict[str, list[str]] = {
         f"experiments/{E}/results/basin_indicators.csv",
         f"experiments/{E}/climate/weathergenr/output/sim_dates.csv",
         f"experiments/{E}/climate/weathergenr/config/weathergen_config.yml",
-        f"experiments/{E}/climate/weathergenr/_work/cst_4.csv",
+        f"experiments/{E}/climate/weathergenr/_work/st_4.csv",
         f"experiments/{E}/climate/weathergenr/plots/obs_power_spectra.png",
-        f"experiments/{E}/hydrology/wflow/config/rlz_1_cst_2.toml",
-        f"experiments/{E}/hydrology/wflow/output/rlz_1_cst_2.csv",
-        f"experiments/{E}/hydrology/wflow/output/rlz_1_cst_2.log",
+        f"experiments/{E}/hydrology/wflow/config/rlz_1_st_2.toml",
+        f"experiments/{E}/hydrology/wflow/output/rlz_1_st_2.csv",
+        f"experiments/{E}/hydrology/wflow/output/rlz_1_st_2.log",
     ],
 }
 

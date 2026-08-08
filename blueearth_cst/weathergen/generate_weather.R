@@ -10,11 +10,27 @@ library(yaml)
 # downstream. Placed after source(global.R) so the arity stop() is the first
 # thing to touch args.
 args <- commandArgs(trailingOnly = TRUE)
-if (length(args) != 2L) {
-  stop("generate_weather.R expects 2 args: <climate_nc> <weagen_config_yaml>")
+if (length(args) != 4L) {
+  stop("generate_weather.R expects 4 args: <climate_nc> <weagen_config_yaml> ",
+       "<rlz_index_width> <st_index_width>")
 }
 climate_nc_path    <- args[[1]]
 weagen_config_path <- args[[2]]
+# Member indices are zero-padded to a width derived from the COUNT (C27). The
+# widths are computed ONCE, in the Snakefile, and passed in -- never re-derived
+# here. Re-deriving would mean reimplementing stress_test_grid's arithmetic in R,
+# and a cross-language copy of a filename rule is exactly the kind of
+# producer/declaration disagreement that --dry-run cannot see.
+rlz_index_width    <- as.integer(args[[3]])
+st_index_width     <- as.integer(args[[4]])
+if (is.na(rlz_index_width) || is.na(st_index_width) ||
+    rlz_index_width < 1L || st_index_width < 1L) {
+  stop("generate_weather.R needs positive integer index widths, got: ",
+       args[[3]], " / ", args[[4]])
+}
+pad <- function(value, width) sprintf(paste0("%0", width, "d"), as.integer(value))
+# The reserved unperturbed baseline this rule writes, padded like any member.
+st_baseline <- pad(0L, st_index_width)
 
 yaml <- yaml::read_yaml(weagen_config_path)
 
@@ -58,7 +74,12 @@ stochastic_weather <- weathergenr::generate_weather(
     wet_spell_factor = yaml$generateWeatherSeries$wet.spell.change,
     out_dir          = weathergen_output_path,
     seed             = yaml$generateWeatherSeries$seed,
-    parallel         = yaml$generateWeatherSeries$compute.parallel
+    parallel         = yaml$generateWeatherSeries$compute.parallel,
+    # C34. weathergenr 1.2.0 split evaluation into its own exports, so the
+    # config's old `evaluate.model` reached NOTHING -- plot emission is
+    # `save_plots`, which defaulted TRUE. Setting evaluate.model: FALSE
+    # therefore did not stop the plots, which is what the key claimed to do.
+    save_plots       = yaml$generateWeatherSeries$save.plots
 )
 
 # Step 2b) Move the generator's diagnostic figures into plots/. The two date
@@ -102,7 +123,7 @@ for (n in 1:historical_realizations_num) {
         compression   = 4,
         spatial_ref   = "spatial_ref",
         file_prefix   = yaml$generateWeatherSeries$nc.file.prefix,
-        file_suffix   = paste0(n, "_cst_0")
+        file_suffix   = paste0(pad(n, rlz_index_width), "_st_", st_baseline)
   )
 
   # Workaround (load-bearing): weathergenr::write_netcdf does NOT propagate
@@ -118,7 +139,7 @@ for (n in 1:historical_realizations_num) {
   # Match THIS realization only: all realizations now share one output dir, so
   # an index-free pattern would re-patch realization 1 on every iteration.
   rlz_files <- list.files(
-    rlz_out_dir, pattern = paste0("_", n, "_cst_0\\.nc$"), full.names = TRUE
+    rlz_out_dir, pattern = paste0("_", pad(n, rlz_index_width), "_st_", st_baseline, "\\.nc$"), full.names = TRUE
   )
   if (length(rlz_files) >= 1) {
     src <- ncdf4::nc_open(climate_nc_path)
