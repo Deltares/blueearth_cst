@@ -276,6 +276,43 @@ that changes what P3 records, and the brief gates it. `build_project_tree_rules`
 gained its inventory row, or `tree-check` would report it UNMAPPED;
 `build_r09_path_map` stays frozen.
 
+## `st_id` in the indicator tables (C28, R11 P2 commit 3)
+
+The header is now **seven** columns:
+
+    metric, st_id, temp_change, precip_change, realization_id, location, value
+
+`st_id` is the design point's id, padded identically to the member filename, so
+the results, the design table and the file on disk are one token. Ruled *"at
+this stage"* — ALONGSIDE the perturbation columns rather than replacing them,
+for plottable-without-a-join — which re-couples the header to the stress
+dimension count. Two obligations hold that in place, and neither is optional:
+
+1. **`validate_hm7(tables, rlz_num, design=…)` asserts the axis columns equal
+   the design table's row for that `st_id`.** They are a cached copy; the writer
+   derives them independently from the parameter files, so they really can drift.
+   Skipped, never silently passed, when no design table is supplied.
+2. **The writer REFUSES a design table carrying an axis the header cannot
+   express**, naming C28. Rule 3.16 declares the design table as an input, so the
+   refusal is reachable and the DAG edge is real.
+
+**A units bug this forced into the open.** Commit 2's design table wrote the raw
+precipitation FACTOR (`1.3`) while the results writer has always written a
+PERCENT change (`30.0`). The two tables therefore disagreed *by construction*,
+and C28's assertion would have failed on a unit rather than on a defect — the
+exact way a consistency check rots into noise. Fixed by naming the derivation
+once: `perturbation_axes()` in `export_wflow_results.py` is now the only place
+either table computes an axis, and `precip_variance_change` follows the same
+percent convention so one table does not mix two.
+
+**`st_id` MUST be read as a string.** `pd.read_csv` with no `dtype` infers the
+column as an integer, so `01` returns as `1` and the join to
+`stress_test_design.csv` silently misses. Both tables carry the padded text on
+disk — pinned against the file's BYTES, not a parsed frame, because a parsed
+frame is exactly where the padding appears to vanish. Consumers (including
+CST-API / the GUI) need `dtype={"st_id": str}`; recorded in the HM-7 seam
+contract.
+
 ## Follow-on: rule 3.13's input keyword
 
 `cst_nc` → `st_nc`, landed **after Gate 1** as its own commit, not part of the

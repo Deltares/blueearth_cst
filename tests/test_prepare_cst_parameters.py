@@ -163,14 +163,20 @@ def test_design_ids_are_the_filenames(tmp_path):
     assert set(df["st_id"]) - {"00"} == on_disk
 
 
-def test_design_values_use_the_indicator_tables_own_reduction(tmp_path):
-    """The design table's axes must equal what the results tables will carry.
+def test_design_values_use_the_indicator_tables_own_reduction_AND_units(tmp_path):
+    """The design table's axes must equal what the results tables carry.
 
-    Both go through `annual_perturbation`, so this pins that they agree rather
-    than merely look similar -- C28's consistency check is only meaningful if a
-    disagreement here is impossible by construction.
+    Both go through `perturbation_axes`, so agreement is by construction rather
+    than by coincidence -- which is what makes C28's consistency check able to
+    catch a real drift instead of a unit difference.
+
+    **This case exists because it caught one.** R11 P2 commit 2 wrote the raw
+    precipitation FACTOR (1.3) while the results writer has always written a
+    PERCENT change (30.0), so the two tables disagreed by construction and C28's
+    assertion would have failed on a unit rather than on a defect. The fix was
+    to name the derivation once; this pins that there is only one.
     """
-    from blueearth_cst.experiment.export_wflow_results import annual_perturbation
+    from blueearth_cst.experiment.export_wflow_results import perturbation_axes
 
     cfg_path = _write_cfg(tmp_path, temp_step=2, precip_step=3)
     design = tmp_path / "stress_test_design.csv"
@@ -180,12 +186,13 @@ def test_design_values_use_the_indicator_tables_own_reduction(tmp_path):
     for path in glob.glob(str(tmp_path / "st_*.csv")):
         member = pd.read_csv(path)
         st_id = os.path.basename(path)[3:-4]
-        assert df.loc[st_id, "temp_change"] == pytest.approx(
-            annual_perturbation(member, "temp_mean")
-        )
-        assert df.loc[st_id, "precip_change"] == pytest.approx(
-            annual_perturbation(member, "precip_mean")
-        )
+        temp_change, precip_change = perturbation_axes(member, path)
+        assert df.loc[st_id, "temp_change"] == pytest.approx(temp_change)
+        assert df.loc[st_id, "precip_change"] == pytest.approx(precip_change)
+
+    # And the units are the RESULTS' units, stated so a future edit cannot
+    # quietly switch back: a 1.3 mean factor is 30.0, not 1.3.
+    assert (df["precip_change"].abs() > 1.0).any()
 
 
 def test_a_third_stress_axis_refuses_naming_c28(tmp_path):

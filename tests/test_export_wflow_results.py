@@ -201,6 +201,7 @@ def test_incomplete_stress_test_grid_fails_loudly(tmp_path):
         analyze_wflow_results(
             csv_fns=[str(run_csv)],
             st_csv_fns=[str(tmp_path / "st_1.csv"), str(tmp_path / "st_2.csv")],
+            design_path=_write_design(tmp_path, 3),
             results_dir=str(tmp_path),
             st_num=3,
             indicator_tokens=["q"],
@@ -209,6 +210,26 @@ def test_incomplete_stress_test_grid_fails_loudly(tmp_path):
 
 
 # --- the long shape (R11 CR-2) ------------------------------------------------
+
+
+def _write_design(tmp_path, st_num, extra_axis=False):
+    """A stress_test_design.csv matching what `_reduce` builds, as 3.09 writes it."""
+    width = len(str(st_num))
+    rows = [{"st_id": f"{0:0{width}d}", "temp_change": 0.0, "precip_change": 0.0,
+             "precip_variance_change": 0.0}]
+    for member in range(1, st_num + 1):
+        rows.append({
+            "st_id": f"{member:0{width}d}",
+            "temp_change": 0.5 * member,
+            "precip_change": (1.0 + 0.1 * member) * 100 - 100,
+            "precip_variance_change": 0.0,
+        })
+    if extra_axis:
+        for row in rows:
+            row["wind_change"] = 0.0
+    path = tmp_path / "stress_test_design.csv"
+    pd.DataFrame(rows).to_csv(path, index=False)
+    return str(path)
 
 
 def _run_csv(path, seed, offset, basavg=True):
@@ -225,7 +246,7 @@ def _run_csv(path, seed, offset, basavg=True):
     pd.DataFrame(data, index=idx).rename_axis("time").to_csv(path)
 
 
-def _reduce(tmp_path, tokens=("q",), rlz=2, st=2, basavg=True):
+def _reduce(tmp_path, tokens=("q",), rlz=2, st=2, basavg=True, extra_axis=False):
     """Run the reduction over a small synthetic sweep and return the tables."""
     seed = 0
     for member in range(0, st + 1):
@@ -240,6 +261,7 @@ def _reduce(tmp_path, tokens=("q",), rlz=2, st=2, basavg=True):
     analyze_wflow_results(
         csv_fns=sorted(str(p) for p in tmp_path.glob("rlz_*.csv")),
         st_csv_fns=sorted(str(p) for p in tmp_path.glob("st_*.csv")),
+        design_path=_write_design(tmp_path, st, extra_axis=extra_axis),
         results_dir=str(tmp_path),
         st_num=st,
         indicator_tokens=list(tokens),
@@ -250,13 +272,56 @@ def _reduce(tmp_path, tokens=("q",), rlz=2, st=2, basavg=True):
     return {t: pd.read_csv(p) for t, p in paths.items()}
 
 
-def test_the_header_is_six_columns_and_does_not_grow_with_gauges(tmp_path):
-    """The point of the long shape: two gauges and twenty give the same header."""
+def test_the_header_is_seven_columns_and_does_not_grow_with_gauges(tmp_path):
+    """The point of the long shape: two gauges and twenty give the same header.
+
+    Seven since C28 added `st_id`. That column is the one thing in this header
+    which is coupled to the stress-dimension COUNT rather than being fixed --
+    ruled "at this stage" -- so the writer refuses a third axis rather than
+    letting the shape drift a column at a time.
+    """
     q = _reduce(tmp_path)["q"]
     assert list(q.columns) == [
-        "metric", "temp_change", "precip_change", "realization_id", "location", "value",
+        "metric", "st_id", "temp_change", "precip_change",
+        "realization_id", "location", "value",
     ]
     assert set(q.location.astype(str)) == {"101", "202"}
+
+
+def test_st_id_is_the_padded_member_token(tmp_path):
+    """C27/C28: the id WRITTEN is the token in the member filename.
+
+    Asserted against the file's TEXT, not a parsed frame, and that distinction
+    is the point: `pd.read_csv` with no dtype infers `st_id` as int64, so `01`
+    comes back as `1` and the padding appears to vanish. The bytes on disk are
+    the contract -- a consumer joining results to the design table must read the
+    column as a string, which both tables' own readers do.
+    """
+    _reduce(tmp_path, st=12)
+    text = (tmp_path / "q_indicators.csv").read_text(encoding="utf-8")
+    written = {line.split(",")[1] for line in text.splitlines()[1:]}
+    assert written == {f"{m:02d}" for m in range(0, 13)}
+
+
+def test_st_id_survives_a_dtype_aware_round_trip(tmp_path):
+    """The join C28 exists to make possible, done the way a consumer must."""
+    _reduce(tmp_path, st=12)
+    q = pd.read_csv(tmp_path / "q_indicators.csv", dtype={"st_id": str})
+    design = pd.read_csv(tmp_path / "stress_test_design.csv", dtype={"st_id": str})
+    assert set(q["st_id"]) <= set(design["st_id"])
+    assert set(q["st_id"]) == {f"{m:02d}" for m in range(0, 13)}
+
+
+def test_a_third_stress_axis_refuses_naming_c28(tmp_path):
+    """C28's second obligation, on the RESULTS side.
+
+    A design table carrying an axis this header cannot express must stop the
+    run and say so. Silently dropping it would leave results that describe a
+    different experiment than the one that ran, and CR-2's fixed-shape property
+    would degrade one column at a time with nothing noticing.
+    """
+    with pytest.raises(ValueError, match="C28"):
+        _reduce(tmp_path, extra_axis=True)
 
 
 def test_the_unperturbed_baseline_is_a_row_at_the_origin(tmp_path):

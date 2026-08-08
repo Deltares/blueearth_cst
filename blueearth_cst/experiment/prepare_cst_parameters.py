@@ -21,7 +21,10 @@ from blueearth_cst.shared.snake_utils import index_width, stress_test_grid
 # assert that a results row's temp_change/precip_change equals the design
 # table's row for that st_id, and two independent collapses of the same twelve
 # monthly values would make that check fail on rounding rather than on a defect.
-from blueearth_cst.experiment.export_wflow_results import annual_perturbation
+from blueearth_cst.experiment.export_wflow_results import (
+    annual_perturbation,
+    perturbation_axes,
+)
 
 #: The stress-test axes this module knows how to enumerate. A third axis needs a
 #: new design-table column AND a new results column, so it must arrive as a
@@ -144,14 +147,17 @@ def prep_cst_parameters(
                 csv_fn = csv_fns[i]
             df.to_csv(csv_fn)
 
-            # Same frame, same reduction the results tables will use.
+            # Same frame, same derivation, SAME UNITS as the results tables.
+            temp_change, precip_change = perturbation_axes(df, csv_fn)
             design_rows.append(
                 {
                     "st_id": f"{i + 1:0{st_width}d}",
-                    "temp_change": annual_perturbation(df, "temp_mean", csv_fn),
-                    "precip_change": annual_perturbation(df, "precip_mean", csv_fn),
-                    "precip_variance_change": annual_perturbation(
-                        df, "precip_variance", csv_fn
+                    "temp_change": temp_change,
+                    "precip_change": precip_change,
+                    # Percent, matching precip_change: both are factors in the
+                    # parameter file, and one table must not mix conventions.
+                    "precip_variance_change": (
+                        annual_perturbation(df, "precip_variance", csv_fn) * 100 - 100
                     ),
                 }
             )

@@ -154,6 +154,19 @@ def _columns(df: Any) -> list[str]:
     return [str(c) for c in getattr(df, "columns", [])]
 
 
+def _close(a: float, b: float, tol: float = 1e-9) -> bool:
+    """Float agreement for C28's cached-copy check.
+
+    A tolerance rather than equality because the two sides are computed by the
+    same function but travel through a CSV round-trip: the design table is
+    written and re-read as text, so the results value and the design value can
+    differ in the last bit without anything being wrong. The tolerance is tight
+    enough that a genuine drift -- a different member, a unit confusion, a stale
+    table -- is orders of magnitude outside it.
+    """
+    return abs(float(a) - float(b)) <= tol * max(1.0, abs(float(a)), abs(float(b)))
+
+
 # ---------------------------------------------------------------------------
 # Weather-generator seam — WG-1, WG-2, WG-3, WG-5 (persisted).
 # WG-4 / WG-6 (temp()) live in the temp-validator section below.
@@ -674,11 +687,15 @@ _PERTURBATION_AXIS = ("temp_change", "precip_change")
 HM7_COLUMNS = INDICATOR_COLUMNS
 
 
-def validate_hm7(tables: dict, rlz_num: int | None = None) -> list[str]:
+def validate_hm7(
+    tables: dict, rlz_num: int | None = None, design=None
+) -> list[str]:
     """HM-7 — response-surface reduction, ONE LONG TABLE PER OUTPUT VARIABLE.
 
     ``tables`` maps variable token to parsed table (``{"q": df, "aet": df}``).
     ``rlz_num`` is optional; supply it to check the ``realization_id`` domain.
+    ``design`` is the parsed ``stress_test_design.csv``; supply it to check C28's
+    consistency obligation.
 
     **R11 CR-2 replaced the two wide tables with a fixed six-column long shape:**
     ``metric, temp_change, precip_change, realization_id, location, value``. The
@@ -708,9 +725,23 @@ def validate_hm7(tables: dict, rlz_num: int | None = None) -> list[str]:
     in-repo consumer, written via ``params`` rather than declared, so invisible to
     ``--dry-run``. Nothing replaces them.
 
-    C28 will add ``st_id`` alongside the perturbation columns, with a consistency
-    check that they agree with the design table's row. That is R11 P2's, because
-    the design table does not exist yet.
+    **C28 (R11 P2) added ``st_id`` alongside the perturbation columns**, making
+    the header seven wide. That was ruled "at this stage" — plottable without a
+    join now, revisited when a third dimension arrives — and it re-couples the
+    header to the stress-dimension count, which is what CR-2 removed on the
+    location axis. Two obligations keep that interim decision from rotting:
+
+    - **The consistency check here.** ``temp_change`` / ``precip_change`` are now
+      a CACHED COPY of the design table's row for that ``st_id``. The writer
+      derives them independently, from the parameter files, so the two really can
+      disagree — which is the point. A denormalised copy that nothing verifies is
+      a copy that eventually lies. Same class as the ``metric`` /
+      ``token`` agreement above.
+    - **A hard stop in the writer** when ``stress_test:`` gains a third axis,
+      naming C28 rather than silently adding a column.
+
+    The check is skipped, not failed, when ``design`` is None — a caller that
+    has only the tables can still assert everything else.
 
     Original pinned surface, for the record (design §5.3): ``q_indicators.csv``
     header ``statistic,temp_change,precip_change,<gauge-cols>``;
@@ -788,6 +819,39 @@ def validate_hm7(tables: dict, rlz_num: int | None = None) -> list[str]:
                     f"{label}: {name} metric {metric!r} is per-realization but "
                     f"carries the pooled sentinel realization_id 0"
                 )
+    # -- C28: the cached axis columns must agree with the design table --------
+    if design is not None:
+        by_id = {}
+        for _, row in design.iterrows():
+            by_id[str(row["st_id"])] = row
+        for token, table in sorted(tables.items()):
+            name = f"{token}_indicators.csv"
+            if "st_id" not in table.columns:
+                continue  # the header check above already reported it
+            seen = {}
+            for st_id, temp, precip in zip(
+                table["st_id"], table["temp_change"], table["precip_change"]
+            ):
+                seen.setdefault(str(st_id), (temp, precip))
+            for st_id, (temp, precip) in sorted(seen.items()):
+                design_row = by_id.get(st_id)
+                if design_row is None:
+                    diffs.append(
+                        f"{label}: {name} carries st_id {st_id!r}, which the "
+                        f"stress-test design table does not define"
+                    )
+                    continue
+                for column, value in (
+                    ("temp_change", temp), ("precip_change", precip),
+                ):
+                    expected = float(design_row[column])
+                    if not _close(float(value), expected):
+                        diffs.append(
+                            f"{label}: {name} st_id {st_id!r} has {column}="
+                            f"{float(value)!r}, but the design table says "
+                            f"{expected!r} -- the cached copy has drifted (C28)"
+                        )
+
     return diffs
 
 

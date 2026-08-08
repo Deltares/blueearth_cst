@@ -361,11 +361,20 @@ def test_hm5_synthetic_fail():
     assert ic.validate_hm5(df) != []
 
 
-def _hm7_row(metric, rlz, location="101", temp=0.0, precip=0.0, value=1.0):
+def _hm7_row(metric, rlz, location="101", temp=0.0, precip=0.0, value=1.0,
+             st_id="0"):
     return {
-        "metric": metric, "temp_change": temp, "precip_change": precip,
+        "metric": metric, "st_id": st_id,
+        "temp_change": temp, "precip_change": precip,
         "realization_id": rlz, "location": location, "value": value,
     }
+
+
+def _design(rows=((("0"), 0.0, 0.0),)):
+    """A stress_test_design.csv as rule 3.09 writes it."""
+    return pd.DataFrame(
+        [{"st_id": s, "temp_change": t, "precip_change": p} for s, t, p in rows]
+    )
 
 
 def _hm7_good():
@@ -391,7 +400,7 @@ def test_hm7_pins_the_header_exactly_now_that_it_cannot_vary():
     long shape is fixed, so the exact assertion is available again -- and an
     extra column is a violation rather than something to tolerate."""
     tables = _hm7_good()
-    tables["q"]["st_id"] = 1  # C28's column, which is P2's and not yet contracted
+    tables["q"]["wind_change"] = 1.0  # an eighth column is a violation, not tolerated
     diffs = ic.validate_hm7(tables, rlz_num=2)
     assert diffs and "expected exactly" in diffs[0]
 
@@ -482,6 +491,45 @@ def test_gauge_identity_synthetic_fail():
     # location so check 3 fires while TOML + output_rlz still agree.
     qstats = pd.DataFrame([_hm7_row("q_annual_mean", 1, location="999999999")])
     assert ic.validate_hm_gauge_column_identity(toml_cfg, output_rlz, qstats) != []
+
+
+# --- C28: st_id and the cached-copy consistency check ------------------------
+
+
+def test_hm7_accepts_a_table_that_agrees_with_the_design_table():
+    tables = _hm7_good()
+    assert ic.validate_hm7(tables, rlz_num=2, design=_design()) == []
+
+
+def test_hm7_reports_an_axis_column_that_drifted_from_the_design_table():
+    """C28's whole reason: the axis columns are a CACHED COPY of a design row.
+
+    The writer derives them independently, from the parameter files, so they
+    really can disagree -- perturb one and the check must say so, naming the
+    st_id and the column. A copy nothing verifies is a copy that eventually
+    lies.
+    """
+    tables = _hm7_good()
+    tables["q"].loc[0, "temp_change"] = 2.5  # design says 0.0
+    diffs = ic.validate_hm7(tables, rlz_num=2, design=_design())
+    assert diffs and "temp_change" in diffs[0] and "drifted" in diffs[0]
+
+
+def test_hm7_reports_an_st_id_the_design_table_does_not_define():
+    """A results row for a member that is not in the design is unjoinable."""
+    tables = _hm7_good()
+    tables["q"].loc[0, "st_id"] = "07"
+    diffs = ic.validate_hm7(tables, rlz_num=2, design=_design())
+    assert diffs and "does not define" in diffs[0]
+
+
+def test_hm7_skips_the_c28_check_when_no_design_table_is_supplied():
+    """Skipped, never silently passed: a caller with only the tables can still
+    assert the header, the vocabulary and the grain."""
+    assert ic.validate_hm7(_hm7_good(), rlz_num=2) == []
+    broken = _hm7_good()
+    broken["q"].loc[0, "temp_change"] = 2.5
+    assert ic.validate_hm7(broken, rlz_num=2) == []  # unchecked without a design
 
 
 def _catalog_grid_good():

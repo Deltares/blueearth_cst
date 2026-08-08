@@ -952,6 +952,12 @@ rule derive_wflow_indicators:
         # was invisible to --dry-run. It is enumerable from ST_NUM, so declare
         # it -- the same correction rule 3.13's oro_path got.
         st_csv_fns = [f"{wg_dir}/_work/st_{st_ix(m)}.csv" for m in np.arange(1, ST_NUM+1)],
+        # C28: the results tables carry `st_id`, so the writer needs the design
+        # table -- for the id WIDTH, and to refuse when a third stress axis
+        # appears. The axis VALUES are still derived from st_csv_fns above,
+        # independently, which is what leaves `validate_hm7`'s consistency check
+        # something real to verify.
+        design_csv = f"{exp_dir}/config/stress_test_design.csv",
     output:
         # One per configured output variable (CR-2). Keyed by token so the script
         # can address them by name; `**` splats the derived set in, because the

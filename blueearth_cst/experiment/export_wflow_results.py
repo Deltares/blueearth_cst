@@ -5,9 +5,9 @@ R11 CR-2. The pre-R11 writer produced two WIDE tables — ``q_indicators.csv`` w
 one column per gauge, and ``basin_indicators.csv`` with one column per basin
 variable — so the header grew with the gauge count and a reader had to know which
 columns were locations. This emits **one table per output variable**, each with a
-**fixed six-column header** that does not grow with anything:
+**fixed seven-column header** that does not grow with anything:
 
-    metric, temp_change, precip_change, realization_id, location, value
+    metric, st_id, temp_change, precip_change, realization_id, location, value
 
 ``metric`` is a composite ``<variable>_<statistic>`` (``q_mean_annual_7day_min``),
 so a result file is self-contained once it leaves the project tree —
@@ -52,6 +52,7 @@ import blueearth_cst.shared.metrics_definition as md
 from blueearth_cst.shared.indicator_tables import (
     BASIN_LOCATION,
     BASIN_METRIC_SUFFIXES,
+    DESIGN_AXES,
     INDICATOR_COLUMNS,
     POOLED_REALIZATION,
     basin_metric_name,
@@ -225,10 +226,32 @@ def _return_level_from_blocks(blocks: pd.DataFrame, period: int, mode: str) -> p
     return pd.Series(levels)
 
 
-def _rows(metric, temp, precip, realization, values, locations) -> list[tuple]:
+def perturbation_axes(
+    df_st: pd.DataFrame, source: Union[str, Path] = ""
+) -> tuple[float, float]:
+    """The two response-surface axes for one member, in the RESULTS' own units.
+
+    ``temp_change`` is a delta in K; ``precip_change`` is a PERCENT change, not
+    the factor the parameter file carries -- a 1.3 mean factor is ``30.0``.
+
+    Named once, and used by BOTH the design table (rule 3.09) and the indicator
+    tables (rule 3.16), because C28 makes the results columns a cached copy of
+    the design table's row and `validate_hm7` asserts they agree. Two spellings
+    of "the precipitation axis" is exactly how that assertion starts failing on
+    a unit rather than on a defect -- which it did, between this milestone's
+    commit 2 and commit 3, when the design table wrote the raw factor.
+    """
+    return (
+        annual_perturbation(df_st, "temp_mean", source),
+        annual_perturbation(df_st, "precip_mean", source) * 100 - 100,
+    )
+
+
+def _rows(metric, st_id, temp, precip, realization, values, locations) -> list[tuple]:
     """One long-format row per location, for one metric at one member."""
     return [
-        (metric, temp, precip, realization, locations[column], float(values[column]))
+        (metric, st_id, temp, precip, realization,
+         locations[column], float(values[column]))
         for column in values.index
     ]
 
@@ -236,6 +259,7 @@ def _rows(metric, temp, precip, realization, values, locations) -> list[tuple]:
 def analyze_wflow_results(
     csv_fns: List[Union[str, Path]],
     st_csv_fns: List[Union[str, Path]],
+    design_path: Union[str, Path],
     results_dir: Union[str, Path],
     st_num: int,
     indicator_tokens: List[str],
@@ -264,11 +288,32 @@ def analyze_wflow_results(
         )
     axes = {0: (0.0, 0.0)}  # the baseline sits at the origin by definition
     for st, path in st_csv_by_num.items():
-        df_st = pd.read_csv(path)
-        axes[st] = (
-            annual_perturbation(df_st, "temp_mean", path),
-            annual_perturbation(df_st, "precip_mean", path) * 100 - 100,
+        axes[st] = perturbation_axes(pd.read_csv(path), path)
+
+    # -- st_id, and C28's hard stop -------------------------------------------
+    # The design table is read for exactly two things: the id WIDTH (so a
+    # results st_id is the same token as the member filename) and the axis set.
+    # The axis VALUES are still derived above, independently, from the parameter
+    # files -- that independence is what gives `validate_hm7`'s consistency
+    # check something to actually verify. A copy checked against itself is not a
+    # check.
+    design = pd.read_csv(design_path, dtype={"st_id": str})
+    extra_axes = [
+        c for c in design.columns
+        if c != "st_id" and c.endswith("_change") and c not in DESIGN_AXES
+        and c != "precip_variance_change"
+    ]
+    if extra_axes:
+        raise ValueError(
+            f"the stress-test design table carries axes {extra_axes}, which this "
+            f"writer cannot express: the indicator header is fixed at "
+            f"{list(INDICATOR_COLUMNS)} and C28 ruled `st_id` ALONGSIDE the "
+            f"perturbation columns only 'at this stage', with an explicit revisit "
+            f"when a third dimension arrives. Adding a column silently would "
+            f"degrade CR-2's fixed-shape property one column at a time. See "
+            f"dev/milestones/r09/wf3-change-requests.md C28."
         )
+    st_width = max(len(str(i)) for i in design["st_id"])
 
     # -- index the runs by member ---------------------------------------------
     runs: dict = {}
@@ -303,6 +348,7 @@ def analyze_wflow_results(
 
     for st in members:
         temp, precip = axes[st]
+        st_id = f"{st:0{st_width}d}"
         by_rlz = runs[st]
 
         # ---- discharge ------------------------------------------------------
@@ -326,7 +372,7 @@ def analyze_wflow_results(
                 for statistic, values in annual.items():
                     rows["q"] += _rows(
                         q_metric_name(statistic, Tpeak, Tlow),
-                        temp, precip, rlz, values, q_locations,
+                        st_id, temp, precip, rlz, values, q_locations,
                     )
 
             # Class B: pooled blocks, never a spliced series.
@@ -343,7 +389,7 @@ def analyze_wflow_results(
             ):
                 rows["q"] += _rows(
                     q_metric_name(statistic, Tpeak, Tlow),
-                    temp, precip, POOLED_REALIZATION,
+                    st_id, temp, precip, POOLED_REALIZATION,
                     _return_level_from_blocks(blocks, period, mode),
                     q_locations,
                 )
@@ -357,7 +403,7 @@ def analyze_wflow_results(
                 ):
                     rows["q"] += _rows(
                         q_metric_name(statistic, Tpeak, Tlow),
-                        temp, precip, POOLED_REALIZATION,
+                        st_id, temp, precip, POOLED_REALIZATION,
                         _month_mean(pooled, month), q_locations,
                     )
 
@@ -376,7 +422,9 @@ def analyze_wflow_results(
                 if column is None:
                     continue
                 value = float(_annual(sim[column], how).mean())
-                rows[token].append((metric, temp, precip, rlz, BASIN_LOCATION, value))
+                rows[token].append(
+                    (metric, st_id, temp, precip, rlz, BASIN_LOCATION, value)
+                )
 
     # -- write ----------------------------------------------------------------
     for token in indicator_tokens:
@@ -400,6 +448,7 @@ if __name__ == "__main__":
             analyze_wflow_results(
                 csv_fns=sm.input.rlz_csv_fns,
                 st_csv_fns=sm.input.st_csv_fns,
+                design_path=sm.input.design_csv,
                 results_dir=sm.params.results_dir,
                 st_num=sm.params.st_num,
                 indicator_tokens=tokens,

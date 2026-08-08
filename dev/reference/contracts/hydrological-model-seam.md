@@ -250,7 +250,7 @@ Rendered one subsection per artifact.
 - **consumer:** CST-API / GUI (terminal in-repo).
 - **pinned surface:** every table carries **exactly six columns, in this order**:
 
-      metric, temp_change, precip_change, realization_id, location, value
+      metric, st_id, temp_change, precip_change, realization_id, location, value
 
   The header does not grow with the gauge count — locations are ROWS. `metric` is
   a composite `<token>_<statistic>`, so a result file is self-contained once it
@@ -355,6 +355,21 @@ Exactly the failure no per-artifact validator can see.
    declared entry is represented;
 2. the map-typed gauge columns carry the `Q_` prefix rule 3.16 hard-codes;
 3. `qstats_df`'s gauge columns (header minus `statistic` and the
+- **`st_id` (C28, R11 P2).** The design point's id, zero-padded to the same
+  count-derived width as the member filename, so the two are ONE token. It is
+  emitted ALONGSIDE the perturbation columns rather than replacing them — ruled
+  "at this stage", for plottable-without-a-join, with an explicit revisit when a
+  third stress dimension arrives. Two obligations hold that in place:
+  `validate_hm7` asserts `temp_change`/`precip_change` equal the design table's
+  row for that `st_id` (they are a cached copy, derived independently by the
+  writer, so they really can drift), and the writer REFUSES a design table
+  carrying an axis this header cannot express.
+
+  **Read it as a string.** `pd.read_csv` with no `dtype` infers `st_id` as an
+  integer, so `01` returns as `1` and the join to `stress_test_design.csv`
+  silently misses. Both tables carry the padded text on disk; a consumer must
+  pass `dtype={"st_id": str}`.
+
    `_PERTURBATION_AXIS` columns `temp_change,precip_change`, ordered per
    `export_wflow_results.py:66-67`) are **list-equal** to the `output_rlz_df`
    gauge set.
