@@ -383,3 +383,89 @@ which metrics moved. The evidence for it is strong (the old code demonstrably
 splices; the affected set is exactly the boundary-sensitive statistics; the
 direction is consistent), but it is reasoning toward an explanation rather than a
 prediction that survived a test, and it should be read at that weight.
+
+One pre-registration miss in the other direction, worth recording because it is
+the kind that flatters the predictor if left unsaid: **`q_driest_month_mean` was
+predicted to move and did not** (max_abs 0.0023, inside the 2-dp reconstruction
+band). Only one of the Q5 pair actually shifted.
+
+**Gate 2 PASSED** (owner ruling, 2026-08-08).
+
+---
+
+## The re-record — once
+
+`check_baseline.py record`, one invocation, then `check`:
+
+    recorded: 7 target(s) -> dev\baseline\manifest.json (7 total)
+    OK - 7 target(s) match manifest.
+
+| target | kind | outcome |
+| --- | --- | --- |
+| `config/runs/snake_config_model_creation.yml` | yaml | moved — `aggregate_rlz` removed (P1) + `run_historical: true` (P3) |
+| `config/runs/snake_config_climate_projections.yml` | yaml | same snapshot, same two keys |
+| `experiments/experiment/config/snake_config_climate_experiment.yml` | yaml | same |
+| `cmip6_change_factors_annual.csv` | csv | **unchanged** |
+| `cmip6_change_factors_monthly.csv` | csv | **unchanged** |
+| `models/…/run_default/output.csv` | discharge | **passed the comparator** across both rebuilds |
+| `experiments/…/results/q_indicators.csv` | **indicator** (was `csv`) | 756 rows, 66 groups, 7 columns; tolerance comparator per Q8 |
+| `experiments/…/results/basin_indicators.csv` | — | **entry removed**; no basin variable in the seed, and the pre-R11 file was 87 bytes with no values |
+
+Two judgement calls taken on documented defaults rather than referred up:
+
+- **The six `png` rows are pruned.** `record` excludes `FIGURE_KINDS` by default
+  (`AGENTS.md`) and a full record overwrites, so they are gone. They were already
+  unreachable by the default `check`. Restoring figure coverage would need
+  `record --include-figures` — i.e. a *second* record, which the brief forbids.
+- **`stress_test_design.csv` stays out**, per the P3 ruling. That ruling is
+  better supported now than when it was made: P2's justification (`validate_hm7`
+  covers it) was false at the time and is true only since `test_hm7_integration`
+  started passing `design=`.
+
+### The new comparator, proven on the real artifact rather than assumed
+
+| perturbation of the recorded table | result |
+| --- | --- |
+| identical | pass |
+| one row +50% | **fail**, localised to `q_annual_mean␟101` |
+| every row +1e-9 | pass — Q8's entire purpose |
+| `st_0` dropped | **structural fail**, 108 rows only-ref |
+
+The last row matters: the baseline itself would now catch the defect this phase
+found, independently of `validate_hm7`.
+
+---
+
+## Post-record verification
+
+    pytest tests/ -q -rs   ->  1707 passed, 8 skipped, 1 xfailed  (11:14)
+    pixi run tree-check    ->  MAP CLEAN: 221 paths, 0 unmapped
+
+**All five Layer-2 cases un-skipped** — `test_wg2_integration`, `test_hm4_integration`,
+`test_hm5_integration`, `test_wg5_catalog_grid_integration`, `test_wg3_integration`
+are absent from the skip list, so the fixture genuinely regenerated. Read as the
+brief demands: the skip LIST, not the pass count.
+
+### A THIRD defect, found by reading that list
+
+Of the 8 remaining skips, 6 are expected (3 × `temp()` capture, 3 ×
+`--run-integration`). One is the known board item `t2608081012`. The eighth was
+not known:
+
+    tests/test_store_region_bbox.py:60: needs a completed run under test_case/test_local
+
+It said the artifacts were missing immediately after a completed run that
+produced them. `_seed_paths()` pointed at `project_dir / "hydrology_model" /
+"staticmaps.nc"` — a **pre-R9 path** — so `exists()` was False forever and the
+test **skipped silently from R9 until now, asserting nothing.**
+
+This is the third instance in one phase of the pattern `AGENTS.md` names as the
+one that survives every gate a branch can run: a wrong path behind an `exists()`
+guard degrades to a silent skip rather than a failure. Fixed to
+`models/hydrology/wflow/staticmaps.nc`; the test now runs (20.8 s of real work)
+and passes, so the region/grid agreement invariant is restored *and* holds.
+
+Notable that all three of this phase's defects share one shape: **something that
+should have been checked was not being checked, and nothing said so.** A metric
+family absent from a table, a validator called without its argument, a test
+guarded on a stale path. None was a wrong answer; each was a missing question.

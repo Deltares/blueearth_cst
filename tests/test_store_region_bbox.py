@@ -47,7 +47,13 @@ def _seed_paths():
     )
     return (
         Path(spec.region_geojson),
-        project_dir / "hydrology_model" / "staticmaps.nc",
+        # `models/hydrology/wflow/`, not the pre-R9 `hydrology_model/`. Fixed
+        # 2026-08-08 (R11 P3): the stale path made `staticmaps_fn.exists()` False
+        # forever, so this test SKIPPED silently from R9 until now and asserted
+        # nothing -- the exact failure mode AGENTS.md names, where a wrong path
+        # behind an exists() guard survives every gate a branch can run. Found by
+        # reading P3's skip LIST rather than its pass count.
+        project_dir / "models" / "hydrology" / "wflow" / "staticmaps.nc",
         basin_cfg.get("resolution", 0.00833333),
     )
 

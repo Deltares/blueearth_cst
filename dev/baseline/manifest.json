@@ -2,32 +2,17 @@
   "project_dir": "test_case/test_local",
   "recorded_by": {
     "branch": "main",
-    "commit": "a1d999307720f034434787b6156c45c9d3a5bfd0",
+    "commit": "d3b6da70dfc219f58fa2ccaaaa48287ffb26f380",
     "dirty": true
   },
   "targets": {
     "test_case/test_local/config/runs/snake_config_climate_projections.yml": {
-      "sha256": "e223eaf7e4d6cab9f8b54974ce07caf411f9ed79f81d417f71f45d404fdbd7bf",
+      "sha256": "7fdf3eb34e3566257a3984e86a3b233e20e71a0ad5d32bd426e2e2316b825887",
       "type": "yaml"
     },
     "test_case/test_local/config/runs/snake_config_model_creation.yml": {
-      "sha256": "e223eaf7e4d6cab9f8b54974ce07caf411f9ed79f81d417f71f45d404fdbd7bf",
+      "sha256": "7fdf3eb34e3566257a3984e86a3b233e20e71a0ad5d32bd426e2e2316b825887",
       "type": "yaml"
-    },
-    "test_case/test_local/data/climate/projections/cmip6/plots/cmip6_change_factor_cloud.png": {
-      "exists": true,
-      "size_bytes": 39870,
-      "type": "png"
-    },
-    "test_case/test_local/data/climate/projections/cmip6/plots/cmip6_precip_annual_absolute.png": {
-      "exists": true,
-      "size_bytes": 606180,
-      "type": "png"
-    },
-    "test_case/test_local/data/climate/projections/cmip6/plots/cmip6_temp_annual_absolute.png": {
-      "exists": true,
-      "size_bytes": 386751,
-      "type": "png"
     },
     "test_case/test_local/data/climate/projections/cmip6/summary/cmip6_change_factors_annual.csv": {
       "sha256": "a85e3d49efc50c1c89c22e77490e97ef1f802fe2caefc0a30444f83ef6e73f8e",
@@ -40,33 +25,23 @@
       "type": "csv"
     },
     "test_case/test_local/experiments/experiment/config/snake_config_climate_experiment.yml": {
-      "sha256": "e223eaf7e4d6cab9f8b54974ce07caf411f9ed79f81d417f71f45d404fdbd7bf",
+      "sha256": "7fdf3eb34e3566257a3984e86a3b233e20e71a0ad5d32bd426e2e2316b825887",
       "type": "yaml"
     },
-    "test_case/test_local/experiments/experiment/results/basin_indicators.csv": {
-      "sha256": "7b1813ac09fbe3fc149b46535f05f45c0e04148188973afc6f894ee093bf4ebe",
-      "size_bytes": 87,
-      "type": "csv"
-    },
     "test_case/test_local/experiments/experiment/results/q_indicators.csv": {
-      "sha256": "65c6b0b92ff1f272d9d404e256be133e11a3b34a62c16920f463bfda403e566a",
-      "size_bytes": 3857,
-      "type": "csv"
-    },
-    "test_case/test_local/models/hydrology/wflow/evaluation/plots/hydro_wflow_1.png": {
-      "exists": true,
-      "size_bytes": 297819,
-      "type": "png"
-    },
-    "test_case/test_local/models/hydrology/wflow/forcing/plots/forcing_precip_map.png": {
-      "exists": true,
-      "size_bytes": 145066,
-      "type": "png"
-    },
-    "test_case/test_local/models/hydrology/wflow/plots/basin_area.png": {
-      "exists": true,
-      "size_bytes": 141645,
-      "type": "png"
+      "columns": [
+        "metric",
+        "st_id",
+        "temp_change",
+        "precip_change",
+        "realization_id",
+        "location",
+        "value"
+      ],
+      "n_groups": 66,
+      "n_rows": 756,
+      "ref_table": "indicator_ref/74ed83c06b2e7e6c.csv",
+      "type": "indicator"
     },
     "test_case/test_local/models/hydrology/wflow/run_default/output.csv": {
       "column": "Q_101",
