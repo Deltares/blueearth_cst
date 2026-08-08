@@ -122,7 +122,9 @@ consumer reads while keeping the divergence honestly on the record.
   and **12 rows**, `month ∈ 1..12`.
 - **semantics:** `temp_mean` additive (°C); `precip_mean` / `precip_variance`
   multiplicative factors (fixture example row values `0.0, 0.7, 1.0`).
-- **naming pattern:** one file per perturbation `m = 1..ST_NUM`; `st_0` is
+- **naming pattern:** one file per perturbation `m = 1..ST_NUM`, the index
+  ZERO-PADDED to a width derived from `ST_NUM` (C27: `st_01 … st_12` at
+  twelve points, unpadded below ten); `st_0` is
   **reserved** (no file — the unperturbed baseline, naming.md §4).
 - **temp() lifecycle:** not `temp()`.
 - **pinned surface:** the exact header, the 12-row `month` domain, the additive-

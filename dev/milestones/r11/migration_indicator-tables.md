@@ -178,6 +178,104 @@ an internal tidy.
 | every `dev/milestones/**`, `dev/reviews/**`, `docs/migration-r08-wf2.md`, `dev/reference/workflows/climate_experiment.md` | records of what was true when written (`AGENTS.md`, Conventions). `climate_experiment.md` is in `sealed-records.yml` |
 | inline comments naming a PAST era — the R07 stem `cst_<m>`, the R07 batch tag, the retired C29 `weathergen_config_rlz_<n>_cst_<m>.yml` | they name files that existed under that token and, in C29's case, no longer exist at all. Renaming them invents a filename no tree ever held |
 
+## Zero-padded member indices (R11 P2, commit 2)
+
+C27 applied to the PATH as well as to the `st_id` column. Member indices are
+padded to a width derived from their own count, so lexical order matches run
+order in `ls`, a glob, an IDE tree and the WG-5 catalog's key order.
+
+| count | width | members |
+| --- | --- | --- |
+| 1–9 | 1 | `st_1 … st_6` — **unpadded**, they already sort correctly |
+| 10–99 | 2 | `st_01 … st_12`, baseline `st_00` |
+| 100+ | 3 | `st_001 …` |
+
+`rlz_` and `st_` pad INDEPENDENTLY, each from its own count: a 2-realization ×
+100-member experiment is `rlz_1_st_001`, which is right rather than
+inconsistent.
+
+**On the tracked test config this changes nothing on disk.** `ST_NUM = 6`,
+`RLZ_NUM = 2`, so both widths are 1 and every filename is byte-identical to
+commit 1's. The fixture and the baseline therefore cannot exercise padding;
+`tests/test_prepare_cst_parameters.py` and `tests/test_stress_test_grid.py`
+carry that load with grids of ten or more, and a 12 × 12 dry-run was used to
+prove the DAG (144 perturb jobs, `rlz_01_st_01 … rlz_12_st_12`, baseline
+`rlz_<n>_st_00`, no `CyclicGraphException`).
+
+**The wildcard constraint had to change, and it is load-bearing.** Rule 3.12's
+`st_num=[1-9][0-9]*` forbids a leading zero — it would have rejected `st_01`
+outright. It is now `member_index_regex(ST_WIDTH)`, which bars the all-zeros
+baseline exactly as before AND rejects an *unpadded* `st_1` with
+`MissingRuleException` rather than routing it silently. The laxer
+`0*[1-9][0-9]*` was rejected for accepting both spellings: a producer that
+forgot to pad would have agreed with the DAG invisibly, which is the failure
+mode that cost this milestone two attempts.
+
+**The regex is ANCHOR-FREE, and one wrong version shipped before the suite
+caught it.** The natural spelling is `(?!0+$)[0-9]{W}`. It passes every
+anchored unit check and is still wrong: Snakemake embeds a wildcard's
+constraint in the regex for the WHOLE path, so `$` binds to the end of the path
+rather than the end of the wildcard. With `.nc` always following, `0+$` can
+never match, the lookahead always succeeds, and the constraint degenerates to
+`[0-9]{W}` — admitting `st_00` and making rule 3.12 a second producer of the
+baseline. A 12 × 12 `--dry-run` did NOT catch it, because where the baseline is
+also reachable from its plural rule Snakemake prefers that one (fewer
+wildcards) and the ambiguity stays hidden; it surfaced as a
+`CyclicGraphException` in `test_cross_workflow_inputs` and
+`test_guard_invalidation`, whose staged configs produce a DAG shape that forces
+the choice. The shipped form spells not-all-zeros positionally instead —
+`[1-9]` at width 1, `(?:[1-9][0-9]|0[1-9])` at width 2 — with no anchor and no
+lookahead, and `test_the_member_regex_holds_when_EMBEDDED_in_a_path` pins it in
+the position that actually broke.
+
+**One new cross-language seam.** `generate_weather.R` composes its own output
+filenames, so rule 3.11 now passes the two widths as CLI args 3 and 4 (arity
+2 → 4). Re-deriving them in R would mean reimplementing `stress_test_grid`'s
+arithmetic there, and a cross-language copy of a filename rule is invisible to
+`--dry-run`.
+
+## The stress-test design table (C23–C27)
+
+`experiments/<id>/config/stress_test_design.csv` — one row per design point plus
+a row for the `st_0` baseline with every change zero, beside the config snapshot
+whose settings produced it (C25).
+
+| column | meaning |
+| --- | --- |
+| `st_id` | the DESIGNED axis (C24), padded identically to the filename, so the two are the same token |
+| `temp_change` | annual temperature change for that design point |
+| `precip_change` | annual precipitation change factor |
+| `precip_variance_change` | annual precipitation-variance factor |
+
+`realization` is deliberately absent: it is the *sampled* axis, and a draw has no
+design parameters to record. Run identity stays `(rlz, st)`.
+
+**Written by rule 3.09, from the same loop that writes the member CSVs.** That is
+C26's property — the enumeration which names the members and the enumeration
+which describes them are one loop, so they cannot disagree about what run `m` is.
+The values go through `annual_perturbation`, the SAME month-length-weighted
+reduction the indicator tables use, because C28 (commit 3) will assert a results
+row against the design table's row for its `st_id`; two independent collapses of
+the same twelve monthly values would make that check fail on rounding.
+
+**A third stress axis REFUSES.** `stress_test:` carrying anything beyond `temp`
+and `precip` raises, naming C28 — a new dimension needs a design column and a
+results column together, and one that merely went unrecorded would leave the
+table describing a different experiment than the one that ran.
+
+**Judgment call, easily reverted:** C23 says "one column per stress dimension",
+which is two. `precip_variance_change` is a third column because the variance
+genuinely varies per design point, and without it the table still does not fully
+answer "what is run 37?" — the question C23 exists for. It is additive and does
+not affect C28's check, which reads only the two axes.
+
+**Not a baseline target.** It is declared in `WF3_TARGETS` so `rule all` demands
+it (otherwise an experiment whose 3.09 is up to date would never regain a deleted
+table — the F7 hazard), but it is deliberately NOT added to `check_baseline.py`:
+that changes what P3 records, and the brief gates it. `build_project_tree_rules`
+gained its inventory row, or `tree-check` would report it UNMAPPED;
+`build_r09_path_map` stays frozen.
+
 ## Follow-on: rule 3.13's input keyword
 
 `cst_nc` → `st_nc`, landed **after Gate 1** as its own commit, not part of the

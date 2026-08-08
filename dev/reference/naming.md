@@ -80,8 +80,10 @@ starts at `1`) was **folded into `st_num` in R5**. The downstream rules
 (`downscale_climate_realization`, `run_wflow`, `derive_wflow_indicators`) now use
 the single `st_num` vocabulary and keep the default match that admits `0`;
 only `perturb_climate_realization` carries a rule-local
-`wildcard_constraints: st_num=[1-9][0-9]*` that bars `0` (so it cannot be a
-second producer of the `st_0` baseline).
+`wildcard_constraints: st_num=member_index_regex(ST_WIDTH)` that bars the
+all-zeros baseline (so it cannot be a second producer of `st_0`). That was the
+literal `[1-9][0-9]*` until R11 P2 zero-padded the index — a leading-zero-hostile
+pattern rejects `st_01`, so it is now built from the width; see below.
 
 **The member token in filenames and catalog keys is `st_`, the same word as the
 wildcard.** R11 P2 renamed it from `cst_` (C22): `cst` is the toolbox's own
@@ -93,6 +95,19 @@ disagreed, and `Snakefile_climate_experiment` built a `cst_` filename out of an
 `rlz_<n>_st_<m>.{nc,csv,toml,log}`, with `st_0` the reserved unperturbed
 baseline. `rlz_` deliberately stays: it abbreviates a *correct* term and
 collides with nothing. Record: `dev/milestones/r11/migration_indicator-tables.md`.
+
+**Member indices are ZERO-PADDED to a width derived from the count** (C27),
+so lexical order matches run order: `st_01 … st_12` for a twelve-point grid,
+`st_001` past ninety-nine, and no padding at all below ten, where `st_1 … st_6`
+already sort correctly. `rlz_` and `st_` pad independently, each from its own
+count. The width is a pure function of `ST_NUM` / `RLZ_NUM`, both of which live
+in the `climate_experiment` section `experiment.yml` freezes, so a grid change
+that would move the width already forces a new experiment — no tree is ever
+renamed underneath itself. One helper owns it (`snake_utils.index_width`), and
+`member_index_regex` builds the matching `wildcard_constraints` so an *unpadded*
+name raises `MissingRuleException` instead of routing silently. That regex MUST
+stay anchor-free: Snakemake embeds a constraint in the whole path's regex, so a
+`$` inside one binds to the end of the path and silently voids the condition.
 
 **Three different things spell themselves `cst`**, which is why a bare `cst_`
 grep is never the right tool: the package `blueearth_cst`, the member token

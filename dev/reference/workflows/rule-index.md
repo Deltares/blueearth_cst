@@ -1061,7 +1061,11 @@ one file per stress-test point: twelve monthly rows of temperature delta,
 precipitation mean factor and precipitation variance factor. **This is what
 creates the stress test.**
 
-**Writes.** `<wg>/_work/st_1.csv` … `st_<ST_NUM>.csv`.
+**Writes.** `<wg>/_work/st_1.csv` … `st_<ST_NUM>.csv` (zero-padded to a
+width derived from `ST_NUM`, so `st_01 … st_12` on a twelve-point grid) ·
+`<exp>/config/stress_test_design.csv` — one row per design point plus the
+`st_0` baseline, written from the SAME loop, so the members and the table
+describing them cannot disagree (C23/C26).
 
 #### 3.10 · `prepare_weathergen_config`
 

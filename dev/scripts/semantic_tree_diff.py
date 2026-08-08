@@ -938,6 +938,9 @@ def build_project_tree_rules(
         "config/snake_config_climate_experiment.yml",
         "config/model_reference.yml",
         "config/experiment.yml",
+        # R11 P2 C23: the stress-test design table, beside the config snapshot
+        # whose settings produced it.
+        "config/stress_test_design.csv",
     ):
         same(f"experiments/{e}/{leaf}")
     for directory in (

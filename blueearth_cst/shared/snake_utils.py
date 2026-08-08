@@ -1255,6 +1255,87 @@ def stress_test_grid(stress_test_cfg: Mapping) -> tuple[int, int, int]:
     return temp_step_count, precip_step_count, temp_step_count * precip_step_count
 
 
+def index_width(count: int) -> int:
+    """Digits needed to render ``0..count`` so LEXICAL order matches NUMERIC.
+
+    C27: the width is derived from the COUNT, never fixed. A 6-member grid gets
+    width 1 (``st_1``) because ``st_1 … st_6`` already sort correctly; a
+    12-member grid gets width 2 (``st_01 … st_12``) because ``st_1, st_11,
+    st_2`` does not. 100 members gets 3.
+
+    This is what makes an ``ls``, a glob expansion, an IDE tree and the WG-5
+    catalog's key order read in run order. It is NOT cosmetic for the design
+    table: C28 puts ``st_id`` in the indicator tables, and padding both from
+    this one function makes the column and the filename textually identical, so
+    a consumer joining a plot to its run needs no integer coercion.
+
+    **The width is stable for an experiment's life.** It is a function of
+    ``ST_NUM`` / ``RLZ_NUM``, and both live in the ``climate_experiment``
+    section that ``experiment.yml`` freezes at first successful run — so a grid
+    change that would move the width already forces a new experiment via
+    ``check_not_frozen``. No existing tree can be renamed underneath itself.
+
+    Raises
+    ------
+    ValueError
+        If ``count`` is not a positive integer. A zero or negative count has no
+        width, and returning 1 for it would paper over a broken grid.
+    """
+    if isinstance(count, bool) or not isinstance(count, int):
+        raise ValueError(f"index_width needs a positive int count, got {count!r}")
+    if count < 1:
+        raise ValueError(f"index_width needs a positive count, got {count}")
+    return len(str(count))
+
+
+def member_index_regex(width: int) -> str:
+    """Wildcard-constraint regex for a padded member index, excluding all-zeros.
+
+    Two jobs, and the second is why this is exact-width rather than the laxer
+    ``0*[1-9][0-9]*``:
+
+    1. **Bar the reserved baseline.** ``st_0`` (``st_00`` at width 2) is written
+       by ``generate_weather_realizations``; rule 3.12 must never become a
+       second producer of it, which surfaces as a ``CyclicGraphException``
+       (``Snakefile_climate_experiment``, rule 3.12's own comment).
+    2. **Reject an UNPADDED name outright.** At width 2, ``st_1`` fails to match
+       and Snakemake raises ``MissingRuleException`` rather than routing it.
+       A lax pattern would accept both spellings, so a producer that forgot to
+       pad would silently agree with the DAG — the same invisible
+       producer/declaration disagreement that broke this milestone's first two
+       rename attempts.
+
+    **ANCHOR-FREE, and that is not a style choice.** The obvious spelling is a
+    negative lookahead, ``(?!0+$)[0-9]{width}``. It is WRONG here: Snakemake
+    embeds a wildcard's constraint inside the regex for the WHOLE path, so the
+    ``$`` anchors to the end of that path rather than to the end of the
+    wildcard. With ``.nc`` always following, ``0+$`` can never match, the
+    lookahead always succeeds, and the constraint silently degenerates to
+    ``[0-9]{width}`` -- which admits the baseline and makes rule 3.12 a second
+    producer of it. Caught by ``test_cross_workflow_inputs`` and
+    ``test_guard_invalidation`` as a ``CyclicGraphException``, and NOT by a
+    plain ``--dry-run``, because whether the ambiguity surfaces depends on the
+    DAG shape: where the baseline is also reachable from its own plural rule,
+    Snakemake prefers that one (fewer wildcards) and the degeneracy stays
+    hidden.
+
+    So the not-all-zeros condition is spelled positionally instead: the index is
+    exactly ``width`` digits, of which the first NON-zero one sits at some
+    position ``k``. Alternating over ``k`` covers every value except all-zeros,
+    with no anchor and no lookahead.
+
+        width 1 -> [1-9]
+        width 2 -> [1-9][0-9]|0[1-9]        (10..99 and 01..09, never 00)
+    """
+    if isinstance(width, bool) or not isinstance(width, int) or width < 1:
+        raise ValueError(f"member_index_regex needs a positive int width, got {width!r}")
+    branches = [
+        f"0{{{k}}}[1-9][0-9]{{{width - 1 - k}}}".replace("0{0}", "").replace("[0-9]{0}", "")
+        for k in range(width)
+    ]
+    return branches[0] if width == 1 else "(?:" + "|".join(branches) + ")"
+
+
 def _fmt_elapsed(seconds):
     """Format a duration compactly: ``45s``, ``2m14s``, ``1h03m20s``."""
     seconds = int(round(seconds))

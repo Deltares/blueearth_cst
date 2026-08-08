@@ -660,6 +660,12 @@ from blueearth_cst.shared.indicator_tables import (  # noqa: E402
     metric_grain,
 )
 
+#: The member-index padding width (C27). Imported rather than reimplemented so
+#: the catalog-key expectation below and the Snakefile's own filenames cannot
+#: disagree about how wide an index is. `snake_utils` does not import this
+#: module, so the direction is one-way and no cycle exists.
+from blueearth_cst.shared.snake_utils import index_width  # noqa: E402
+
 _PERTURBATION_AXIS = ("temp_change", "precip_change")
 
 #: The six HM-7 columns, in order. Imported from the writer's own module rather
@@ -1052,8 +1058,12 @@ def validate_wg5_catalog_grid(
     label = "wg5-catalog-grid"
     if not isinstance(catalog_cfg, Mapping):
         return [f"{label}: catalog is not a mapping ({type(catalog_cfg).__name__})"]
+    # Keys carry the ZERO-PADDED member index (C27), and the widths derive from
+    # the same counts this function already takes -- so the expectation moves
+    # with the filenames without a signature change.
+    rlz_w, st_w = index_width(rlz_num), index_width(st_num)
     expected = {
-        f"rlz_{n}_st_{m}"
+        f"rlz_{n:0{rlz_w}d}_st_{m:0{st_w}d}"
         for n in range(1, rlz_num + 1)
         for m in range(0, st_num + 1)
     }
