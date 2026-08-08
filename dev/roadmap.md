@@ -1459,17 +1459,37 @@ it does not — scope §8).
 
 **Tag.** `r11-wf3-artifacts` — cut 2026-08-08 on `milestone/r11-wf3-artifacts`.
 
-### R12 — WF3 execution model (NOT STARTED)
+### R12 — WF3 execution model (OPEN — G2 ratified 2026-08-08, not yet scoped)
 
-Takes `docs/wf3-redesign` as an **input, not a starting point**: 289 commits
-behind, G2 unratified since 2026-08-04 and flagged
-`rejected-major-part-pending-G2`. Ratifying or re-opening that gate is a
-prerequisite, because it decides whether the re-derivation inherits a contested
-decision. The `cst-run-control` skill governs — its scope is exactly this
-territory (run manifests, resume, checkpoints, quarantine, conformance vectors)
-and may already answer questions the design run spent rounds on.
+Takes `docs/wf3-redesign` as an **input, not a starting point**.
 
-Do not merge `docs/wf3-redesign`.
+**The G2 prerequisite is discharged.** Ratified 2026-08-08 as an *architectural
+input, not an implementable spec*, with the risk-7 part-3 rejection ratified and
+`ext1-2`'s standing objection carried rather than resolved. Full record:
+`dev/reference/workflows/wf3-experiment-v2-design-review-record.md`; the
+assessment behind it: `dev/milestones/r12/g2-assessment.md`.
+
+Why nothing was promoted: the run's process was sound and its output is
+unimplementable, which are not in tension — the tree it was designed against no
+longer exists. Two structural facts, not the ~178 stale identifiers, decide it.
+`aggregate_rlz` is **load-bearing** (it defines `member_id` and the
+cell-completeness predicate) and R11 retired it as a hard error, dissolving the
+distinction rather than renaming it. And `GF-21`, a named gate falsifier, asserts
+the reduce emits **no `cst_0` row** — which R11 inverted on `[R9-5]`, so it now
+passes only if the implementation reproduces behaviour R11 deliberately removed.
+
+**R12's first task is the re-derivation**, whose deliverable is a written mapping
+from each surviving finding to its post-R11 expression. That mapping is what
+makes two external review rounds portable instead of merely archived. Surviving:
+the manifest + ledger architecture, `member_hash`, resumable sweeps, epochs,
+quarantine, checked atomic publication, and the counterbalanced AB/BA timing gate.
+
+The `cst-run-control` skill governs — its scope is exactly this territory (run
+manifests, resume, checkpoints, quarantine, conformance vectors) and may already
+answer questions the design run spent rounds on.
+
+Do not merge `docs/wf3-redesign`. It is cited by path; its scratch stays in git
+history, per the WF2 precedent.
 
 **Tag.** `r12-wf3-execution` *(on seal)*.
 

@@ -85,24 +85,41 @@ the long table shape "aggregated" was never a shape choice at all. There is no
 mechanical substitution available: the key did not get renamed, the distinction
 it expressed was dissolved.
 
-### The member set itself moved, and R11 proved it can move silently
+### The member set moved, and a named gate falsifier now expects the wrong result
 
-    :62   Therefore **K = 2 × 6 = 12 members, none of them `cst_0`**
+**Correction to a first reading of this, made while writing the record.** It is
+tempting to say the design assumes `K = 12` and knows nothing of the baseline.
+That is not true and the record should not say it. `ext2-1` raised the missing
+baseline branch, it was accepted, and the 6a revision handled it properly —
+`GF-21` is a whole baseline-member lifecycle falsifier, and the scoped
+verification confirmed the arithmetic *"`ST_START=0` ⇒ K = 2 × 7 = 14 as
+stated"*. The design is not ignorant here.
 
-Post-R11 P3 the fixture runs **14 members, including `st_0`**. Worse for the
-design's assumptions, R11 P3 established that *whether the baseline member exists
-at all* is toggled by `run_historical` / `ST_START`, and that it had been
-silently absent — taking two of eleven metrics with it.
+What is stale is narrower and sharper. `design-v4.md:2183-2186`:
 
-This bears directly on `ext2-1`, the external finding that there was **no `cst_0`
-branch in the fused lifecycle**. That was accepted and fixed in v4 — but it was
-fixed as *a special case for an asymmetric baseline*. R11 went the other way and
-made `st_0` an ordinary member of the response surface (`[R9-5]`), whose presence
-is conditional on config. The v4 fix is not wrong so much as aimed at a shape that
-no longer exists.
+    test_case/test_local, **as tracked**: `K = 12`, no `cst_0` members,
+    … `K = 14` arithmetic assumed `run_historical: true`, which no tracked
+    config sets,
 
-`design-v4.md:237` even lists as an open question *"whether the `cst_0` asymmetry
-in the reduction is desirable"*. **R11 answered it** — the asymmetry is gone.
+**R11 P3 made that sentence false.** The tracked seed config now sets
+`run_historical: true`, because leaving it false silently cost two of eleven
+metrics. So `GF-21`'s elaborate apparatus — copy the config to
+`dev/tmp/gf21_config.yml`, flip `run_historical`, use a distinct
+`experiment_name` to avoid touching the tracked fixture — is now unnecessary
+scaffolding around what the tracked config does by default.
+
+And worse than unnecessary, its expected observation is now **inverted**. GF-21
+asserts that the reduce *"under `aggregate_rlz: true`, emits **no `cst_0` row**
+(the inherited §4.4 asymmetry, observed as specified)"*. R11 removed that
+asymmetry on `[R9-5]`'s ruling that the baseline is a member of the surface:
+`st_0` rows **are** emitted, and `aggregate_rlz` no longer exists to condition
+anything. A falsifier that passes only when the implementation reproduces
+behaviour R11 deliberately removed is worse than a missing falsifier.
+
+`design-v4.md:237` lists as an open question *"whether the `cst_0` asymmetry in
+the reduction is desirable"*. **R11 answered it — no.** That is a design question
+closed by evidence rather than by argument, which is the good outcome; but it
+means the surrounding mechanics were built around the other answer.
 
 ---
 
@@ -141,12 +158,30 @@ over a naming problem.
    the accepted parts 1–2 is on the record and travels with the seal.
 3. **Take sv-1..sv-7 as author's discretion** (their stated disposition) —
    re-deriving the mechanics supersedes minor editorial findings anyway.
-4. **Seal `design-v4.md` and the run directory** under
-   `dev/reference/sealed-records.yml`. This is squarely the seal case the registry
-   describes: valuable *because* unedited, and actively harmful to freshen —
-   migrating 98 `cst_` references would produce a document that looks current
-   while its architecture still assumes a retired config key. The R11 close sealed
-   two documents for exactly this reason.
+4. **Write a consolidated review record, do not seal and do not merge.**
+   *(Revised from this document's first draft, which proposed a
+   `sealed-records.yml` entry. That was wrong on the mechanics and wrong on the
+   precedent.)*
+
+   Wrong on mechanics: `tests/test_sealed_records.py` asserts
+   `(REPO / record["path"]).is_file()`, so the registry can only hold documents
+   **in the tree**. The run lives on `docs/wf3-redesign`; registering it would
+   require merging 14,855 lines onto `main` first, which is the opposite of what
+   sealing is for.
+
+   Wrong on precedent: **WF2's design run already solved this**, and the answer
+   is neither seal nor merge. `dev/reference/workflows/wf2-climate-analysis-v2-design-review-record.md`
+   states it outright — *"This record is the durable artifact; the per-round
+   scratch (`design-v1.md` … `design-v4.md`, `status.md`, the briefs and
+   transcripts) lives in git history"* — with the commits naming each verbatim
+   round. The record is a **current** document, so it needs no banner and no seal;
+   the scratch stays where scratch belongs.
+
+   Do the same for WF3: `dev/reference/workflows/wf3-experiment-v2-design-review-record.md`.
+   The one deliberate difference from WF2 is that WF2's run promoted an ACCEPTED
+   design into `dev/reference/workflows/`; WF3's does not, because the mechanics
+   do not survive. The record carries the audit trail and the surviving findings;
+   R12 produces the design.
 5. **R12's first task is the re-derivation**, with a written mapping from each
    surviving finding to its post-R11 expression. That mapping is the deliverable
    that makes the 65 findings portable.
