@@ -80,10 +80,10 @@ def test_tokens_are_distinct_so_two_variables_cannot_share_a_table():
 def test_the_return_levels_carry_their_return_period():
     """Tpeak/Tlow appeared in no column and no name before R11, so two runs with
     different settings produced identical-looking rows meaning different things."""
-    assert q_metric_name("returninterval", 10, 2) == "q_return_level_10yr_max"
-    assert q_metric_name("returninterval", 20, 5) == "q_return_level_20yr_max"
+    assert q_metric_name("return_level_max", 10, 2) == "q_return_level_10yr_max"
+    assert q_metric_name("return_level_max", 20, 5) == "q_return_level_20yr_max"
     assert (
-        q_metric_name("returninterval_min_7day", 20, 5)
+        q_metric_name("return_level_7day_min", 20, 5)
         == "q_return_level_5yr_7day_min"
     )
 
@@ -105,7 +105,7 @@ def test_class_a_metrics_are_the_ones_linear_in_years(statistic):
 
 def test_the_two_gev_fits_are_pooled_only():
     """A per-realization GEV fit over a short record is ill-conditioned."""
-    for statistic in ("returninterval", "returninterval_min_7day"):
+    for statistic in ("return_level_max", "return_level_7day_min"):
         assert Q_METRIC_SUFFIXES[statistic][1] == "B"
 
 

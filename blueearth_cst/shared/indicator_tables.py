@@ -74,6 +74,18 @@ _TABLE_SUFFIX = "_indicators.csv"
 #: ``mean_annual_`` is not padding: it says "annual statistic, then mean over
 #: years", which the pre-R11 names hid.
 #:
+#: **"Return level", not "return interval" or "return period" — the distinction is
+#: real, not pedantry.** The *return period* is the input ``T`` (years); the
+#: *return level* is what comes back, a discharge magnitude, which is what this
+#: row's ``value`` holds. Naming the metric after the period would name the wrong
+#: quantity. "Return interval" is additionally non-standard: the established
+#: synonyms are *return period* (engineering, extreme-value theory) and
+#: *recurrence interval* (USGS usage) — the two the knowledge base's
+#: ``hydrological-indicators`` note uses throughout. The statistic keys below were
+#: renamed off the inherited ``returninterval`` spelling for that reason;
+#: ``metrics_definition.py`` still carries it, including the shipped
+#: ``returninternval`` typo, and is a separate cleanup.
+#:
 #: The two return levels interpolate ``Tpeak``/``Tlow``. Those are config values
 #: that appeared in no column and no name before R11, so two runs with different
 #: ``Tpeak`` produced identical-looking rows meaning different things — a 10-year
@@ -91,8 +103,8 @@ Q_METRIC_SUFFIXES = {
     "Q7day_max": ("mean_annual_7day_max", "A"),
     "Q7day_min": ("mean_annual_7day_min", "A"),
     "BaseFlowIndex": ("baseflow_index", "A"),
-    "returninterval": ("return_level_{Tpeak}yr_max", "B"),
-    "returninterval_min_7day": ("return_level_{Tlow}yr_7day_min", "B"),
+    "return_level_max": ("return_level_{Tpeak}yr_max", "B"),
+    "return_level_7day_min": ("return_level_{Tlow}yr_7day_min", "B"),
     "wetmonth_mean": ("wettest_month_mean", "C"),
     "drymonth_mean": ("driest_month_mean", "C"),
 }
