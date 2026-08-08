@@ -215,6 +215,54 @@ def metric_grain(token: str, metric: str) -> str | None:
     return None
 
 
+#: Config keys R11 retired, and what to tell someone whose config still has one.
+#:
+#: Refused rather than ignored, per the ``variable_spec.parse`` precedent. The
+#: hazard is specific to this repo's config handling: **workflow configs silently
+#: ignore keys nothing reads**, so a retired key does not fail, does not warn, and
+#: does not take effect — it leaves a user believing a setting is in force while
+#: it does nothing. A refusal that states the migration is strictly better than a
+#: setting that lies.
+RETIRED_EXPERIMENT_KEYS = {
+    "aggregate_rlz": (
+        "In the long table shape 'aggregated' is no longer a SHAPE choice, which "
+        "is the only reason this flag existed. Every table now carries the finest "
+        "grain available -- metrics linear in years per realization, the GEV fits "
+        "and month-selecting metrics pooled -- and downstream aggregates as it "
+        "likes. Delete the line; nothing replaces it."
+    ),
+}
+
+#: Where the migration is written down. Named in the error rather than described,
+#: because the reshape has more to it than the one key.
+MIGRATION_NOTE = "dev/milestones/r11/migration_indicator-tables.md"
+
+
+class RetiredConfigKeyError(ValueError):
+    """A project config still declares a key R11 removed."""
+
+
+def refuse_retired_experiment_keys(experiment_cfg) -> None:
+    """Raise if ``workflows.climate_experiment`` still declares a retired key.
+
+    Called at DAG-construction time so the run stops before producing anything,
+    rather than after a sweep whose grain silently ignored the setting.
+    """
+    if not isinstance(experiment_cfg, dict):
+        return
+    found = [key for key in RETIRED_EXPERIMENT_KEYS if key in experiment_cfg]
+    if not found:
+        return
+    lines = [
+        f"workflows.climate_experiment declares {len(found)} key(s) removed in "
+        f"R11: {', '.join(sorted(found))}."
+    ]
+    for key in sorted(found):
+        lines.append(f"\n  {key}: {RETIRED_EXPERIMENT_KEYS[key]}")
+    lines.append(f"\n\nMigration: {MIGRATION_NOTE}")
+    raise RetiredConfigKeyError("".join(lines))
+
+
 class UnknownOutputVariableError(ValueError):
     """``wflow_outvars`` names a variable with no token, so no table can be named.
 

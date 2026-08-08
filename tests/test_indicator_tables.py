@@ -11,14 +11,17 @@ import pytest
 
 from blueearth_cst.shared.indicator_tables import (
     BASIN_METRIC_SUFFIXES,
+    MIGRATION_NOTE,
     Q_METRIC_SUFFIXES,
     VARIABLE_TOKENS,
+    RetiredConfigKeyError,
     UnknownOutputVariableError,
     basin_metric_name,
     basin_reduction,
     indicator_table_filename,
     indicator_tables,
     q_metric_name,
+    refuse_retired_experiment_keys,
     variable_token,
 )
 
@@ -153,3 +156,38 @@ def test_the_three_tokens_that_were_deliberately_not_abbreviated(outvar, token):
     """Each of these had a shorter candidate rejected for a stated reason; a
     silent change here would reintroduce the ambiguity the ruling removed."""
     assert variable_token(outvar) == token
+
+
+# --- retired config keys (Q7) -------------------------------------------------
+
+
+def test_a_config_without_retired_keys_is_accepted():
+    refuse_retired_experiment_keys({"realizations_num": 2, "stress_test": {}})
+
+
+def test_a_stale_aggregate_rlz_is_refused_not_ignored():
+    """Q7, ruled 2026-08-07. Workflow configs silently ignore keys nothing reads,
+    so the alternative to refusing is a user believing a setting is in effect
+    while it does nothing at all."""
+    with pytest.raises(RetiredConfigKeyError) as excinfo:
+        refuse_retired_experiment_keys({"aggregate_rlz": True, "realizations_num": 2})
+    message = str(excinfo.value)
+    assert "aggregate_rlz" in message
+    # The error must state the migration, not merely refuse -- the
+    # `variable_spec.parse` precedent.
+    assert MIGRATION_NOTE in message
+    assert "Delete the line" in message
+
+
+def test_the_refusal_fires_on_the_value_being_present_not_truthy():
+    """`aggregate_rlz: false` is just as stale as `true`; both mean the user
+    thinks the flag still does something."""
+    with pytest.raises(RetiredConfigKeyError):
+        refuse_retired_experiment_keys({"aggregate_rlz": False})
+
+
+@pytest.mark.parametrize("not_a_mapping", [None, [], "aggregate_rlz"])
+def test_a_non_mapping_section_is_left_to_the_schema_check(not_a_mapping):
+    """This guard has one job. A malformed section is someone else's error, and
+    raising the wrong one here would misdirect."""
+    refuse_retired_experiment_keys(not_a_mapping)

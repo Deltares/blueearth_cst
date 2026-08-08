@@ -10,7 +10,7 @@ from pathlib import Path
 # See dev/milestones/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
 from blueearth_cst.experiment.allocate import resolve_default_experiment_name
-from blueearth_cst.shared.indicator_tables import indicator_tables
+from blueearth_cst.shared.indicator_tables import indicator_tables, refuse_retired_experiment_keys
 from blueearth_cst.shared.provenance import short_digest, snapshot_bundle_digest
 from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_rule, file_digest_or_absent, get_config, patch_psutil_windows_benchmark, project_slug, region_rule, rule_banner, spatial_units_rule, stress_test_grid, target_banner, validate_experiment_name, warn_if_project_dir_in_repo
 from blueearth_cst.spatial.config import parse_spatial_config
@@ -384,6 +384,11 @@ LOG_RULES = [
 # Runtime discovery, which the pre-CR-2 writer used (`"basavg" in sim.columns`),
 # cannot serve here: Snakemake needs these paths before any rule has produced a
 # CSV to inspect.
+# R11 Q7: a config still carrying a retired key is a hard error, not a silent
+# no-op. Workflow configs ignore keys nothing reads, so the alternative is a user
+# believing a setting is in effect while it does nothing.
+refuse_retired_experiment_keys(my_cfg)
+
 INDICATOR_TABLES = indicator_tables(
     get_config(config.get("workflows", {}).get("model_creation", {}) or {},
                "wflow_outvars", [], optional=True)
@@ -912,7 +917,6 @@ rule derive_wflow_indicators:
         # rather than re-derived in the script so the DAG and the writer cannot
         # disagree about which tables exist.
         indicator_tokens = list(INDICATOR_TABLES),
-        aggr_rlz = get_config(my_cfg, "aggregate_rlz", True),
         st_num = ST_NUM,
         Tlow = get_config(my_cfg, "Tlow", 2),
         Tpeak = get_config(my_cfg, "Tpeak", 10),
