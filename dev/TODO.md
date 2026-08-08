@@ -23,6 +23,7 @@
 | t2608071219 | Capture a failing `script:` rule's traceback in its log part | ergonomics |  | 18 | backlog |
 | t2608071945 | Decide whether the tee_to_log traceback fix lands inside R11 or on its own | workflow ergonomics | R11 |  | backlog |
 | t2608080807 | Rename metrics_definition's returninterval functions to return_level, and fix the returninternval typo | wf3 metrics | R11 |  | backlog |
+| t2608081012 | Fix the pre-R9 fixture guard that has silently skipped the rebuild-cascade test since R9 | test hygiene | R11 |  | backlog |
 
 ## Watching
 
