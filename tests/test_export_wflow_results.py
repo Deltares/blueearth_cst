@@ -26,7 +26,7 @@ import pytest
 from blueearth_cst.experiment.export_wflow_results import (  # noqa: E402
     analyze_wflow_results,
     annual_perturbation,
-    realization_from_run_csv,
+    member_from_run_csv,
 )
 
 
@@ -56,8 +56,8 @@ def test_realization_index_comes_from_the_file_name(tmp_path, rlz):
     )
     csv.parent.mkdir(parents=True)
     csv.write_text("time,Q_1\n")
-    assert realization_from_run_csv(csv) == rlz
-    assert realization_from_run_csv(str(csv)) == rlz
+    assert member_from_run_csv(csv) == (rlz, 3)
+    assert member_from_run_csv(str(csv)) == (rlz, 3)
 
 
 def test_the_cst_index_is_never_mistaken_for_the_realization(tmp_path):
@@ -71,7 +71,7 @@ def test_the_cst_index_is_never_mistaken_for_the_realization(tmp_path):
     csv = tmp_path / "output" / "rlz_2_cst_9.csv"
     csv.parent.mkdir(parents=True)
     csv.write_text("time,Q_1\n")
-    assert realization_from_run_csv(csv) == 2
+    assert member_from_run_csv(csv) == (2, 9)
     assert csv.stem.split("_")[-1] == "9"  # what the naive derivation returns
 
 
@@ -86,7 +86,7 @@ def test_the_directory_no_longer_carries_the_index(tmp_path):
     csv.parent.mkdir(parents=True)
     csv.write_text("time,Q_1\n")
     with pytest.raises(ValueError, match="rlz_<n>_cst_<m>"):
-        realization_from_run_csv(csv)
+        member_from_run_csv(csv)
 
 
 def test_realization_index_raises_naming_the_offending_path(tmp_path):
@@ -94,7 +94,7 @@ def test_realization_index_raises_naming_the_offending_path(tmp_path):
     csv.parent.mkdir(parents=True)
     csv.write_text("time,Q_1\n")
     with pytest.raises(ValueError, match="rlz_<n>_cst_<m>"):
-        realization_from_run_csv(csv)
+        member_from_run_csv(csv)
 
 
 def test_a_flat_vector_collapses_to_exactly_its_own_value():
@@ -199,4 +199,117 @@ def test_incomplete_stress_test_grid_fails_loudly(tmp_path):
             st_csv_fns=[str(tmp_path / "cst_1.csv"), str(tmp_path / "cst_2.csv")],
             results_dir=str(tmp_path),
             st_num=3,
+            indicator_tokens=["q"],
+            table_paths={"q": str(tmp_path / "q_indicators.csv")},
         )
+
+
+# --- the long shape (R11 CR-2) ------------------------------------------------
+
+
+def _run_csv(path, seed, offset, basavg=True):
+    """A wflow run CSV: two gauges, optionally one basin-average column."""
+    rng = np.random.default_rng(seed)
+    idx = pd.date_range("2000-01-01", periods=365 * 4, freq="D")
+    data = {
+        "Q_101": rng.gamma(2, 5, len(idx)) + offset,
+        "Q_202": rng.gamma(2, 3, len(idx)) + offset,
+    }
+    if basavg:
+        data["actual evapotranspiration_basavg"] = rng.gamma(2, 1, len(idx))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(data, index=idx).rename_axis("time").to_csv(path)
+
+
+def _reduce(tmp_path, tokens=("q",), rlz=2, st=2, basavg=True):
+    """Run the reduction over a small synthetic sweep and return the tables."""
+    seed = 0
+    for member in range(0, st + 1):
+        for r in range(1, rlz + 1):
+            _run_csv(tmp_path / f"rlz_{r}_cst_{member}.csv", seed, member, basavg)
+            seed += 1
+    for member in range(1, st + 1):
+        _cst_df(0.5 * member, 1.0 + 0.1 * member).to_csv(
+            tmp_path / f"cst_{member}.csv", index=False
+        )
+    paths = {t: str(tmp_path / f"{t}_indicators.csv") for t in tokens}
+    analyze_wflow_results(
+        csv_fns=sorted(str(p) for p in tmp_path.glob("rlz_*.csv")),
+        st_csv_fns=sorted(str(p) for p in tmp_path.glob("cst_*.csv")),
+        results_dir=str(tmp_path),
+        st_num=st,
+        indicator_tokens=list(tokens),
+        table_paths=paths,
+        Tpeak=10,
+        Tlow=2,
+    )
+    return {t: pd.read_csv(p) for t, p in paths.items()}
+
+
+def test_the_header_is_six_columns_and_does_not_grow_with_gauges(tmp_path):
+    """The point of the long shape: two gauges and twenty give the same header."""
+    q = _reduce(tmp_path)["q"]
+    assert list(q.columns) == [
+        "metric", "temp_change", "precip_change", "realization_id", "location", "value",
+    ]
+    assert set(q.location.astype(str)) == {"101", "202"}
+
+
+def test_the_unperturbed_baseline_is_a_row_at_the_origin(tmp_path):
+    """[R9-5], ruled 2026-08-07. It is also what Q5 needs: the class-C month is
+    picked from the baseline, and it cannot be picked from a record not there."""
+    q = _reduce(tmp_path)["q"]
+    origin = q[(q.temp_change == 0) & (q.precip_change == 0)]
+    assert not origin.empty
+    assert origin.metric.nunique() == q.metric.nunique()
+
+
+def test_class_a_is_per_realization_while_b_and_c_are_pooled(tmp_path):
+    q = _reduce(tmp_path, rlz=2)["q"]
+    per_rlz = q[q.metric == "q_annual_mean"].realization_id
+    assert set(per_rlz) == {1, 2}
+    for pooled_metric in (
+        "q_return_level_10yr_max",
+        "q_return_level_2yr_7day_min",
+        "q_wettest_month_mean",
+        "q_driest_month_mean",
+    ):
+        assert set(q[q.metric == pooled_metric].realization_id) == {0}
+
+
+def test_values_are_not_rounded(tmp_path):
+    """`.round(2)` was an accidental drift buffer; dropping it is why the
+    baseline comparator moves to a tolerance rather than a byte hash."""
+    q = _reduce(tmp_path)["q"]
+    assert not np.allclose(q.value, q.value.round(2))
+
+
+def test_the_class_c_month_is_the_same_for_every_member(tmp_path):
+    """Q5: the month is FIXED from cst_0, so the surface shows how flow in a
+    given month responds rather than conflating that with the month moving."""
+    q = _reduce(tmp_path, st=2)["q"]
+    wet = q[(q.metric == "q_wettest_month_mean") & (q.location == 101)]
+    # One value per member; if the month were re-picked per member the values
+    # would come from different months, which this cannot detect directly --
+    # what it CAN pin is that every member produced exactly one such row.
+    assert len(wet) == q.temp_change.nunique()
+
+
+def test_a_basin_variable_gets_its_own_table_at_the_reserved_location(tmp_path):
+    """Q11: the basin value is emitted independently under `location = basin`,
+    not derived from per-location values, because whether subcatchments nest
+    decides whether an area-weighted mean is valid at all."""
+    tables = _reduce(tmp_path, tokens=("q", "aet"))
+    aet = tables["aet"]
+    assert list(aet.metric.unique()) == ["aet_annual_total"]
+    assert list(aet.location.unique()) == ["basin"]
+    assert set(aet.realization_id) == {1, 2}
+
+
+def test_a_variable_the_run_never_emitted_yields_an_empty_table(tmp_path):
+    """The rule declares a table per CONFIGURED variable. If the model did not
+    emit it, the table exists and is empty rather than the run failing -- the
+    mismatch is `check_model_reference`'s to catch, not this reduction's."""
+    tables = _reduce(tmp_path, tokens=("q", "snow"), basavg=False)
+    assert tables["snow"].empty
+    assert list(tables["snow"].columns)[0] == "metric"

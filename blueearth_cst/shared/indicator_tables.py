@@ -41,6 +41,8 @@ make, which ``AGENTS.md`` puts out of scope).
 
 from __future__ import annotations
 
+import re
+
 #: Semantic name (as it appears in ``workflows.model_creation.wflow_outvars``)
 #: → short token used in filenames and in the composite ``metric``.
 #:
@@ -60,6 +62,33 @@ VARIABLE_TOKENS = {
 #: Filename suffix shared by every indicator table. ``q_indicators.csv`` keeps the
 #: name it was given in R9, which is why the pattern is token-first.
 _TABLE_SUFFIX = "_indicators.csv"
+
+#: The six columns of every indicator table, in order. Fixed regardless of gauge
+#: count — that fixity is the point of the long shape.
+#:
+#: Lives here rather than in the writer because BOTH the writer and ``validate_hm7``
+#: need it, and ``shared/`` may not import from ``experiment/``. Stating it once is
+#: also what stops the producer and its validator disagreeing about the header,
+#: which is the specific failure this pairing exists to prevent.
+INDICATOR_COLUMNS = (
+    "metric",
+    "temp_change",
+    "precip_change",
+    "realization_id",
+    "location",
+    "value",
+)
+
+#: ``realization_id`` for a pooled row. A numeric sentinel in a numeric key
+#: column is safe ONLY because no metric emits both grains; if that ever changes
+#: it must become a string, or ``groupby("realization_id")`` folds pooled rows in
+#: as another realization.
+POOLED_REALIZATION = 0
+
+#: The reserved ``location`` for a basin-scalar value (Q11, 2026-08-07): emitted
+#: independently rather than derived from per-location values, because whether
+#: subcatchments nest or tile decides whether an area-weighted mean is even valid.
+BASIN_LOCATION = "basin"
 
 
 #: Discharge metrics: internal statistic key → (metric suffix, grain class).
@@ -157,6 +186,33 @@ def basin_metric_name(token: str) -> str:
 def basin_reduction(token: str) -> str:
     """The annual reduction a basin-scalar variable uses (``sum``/``max``/``mean``)."""
     return BASIN_METRIC_SUFFIXES[token][1]
+
+
+def metric_grain(token: str, metric: str) -> str | None:
+    """``'per-realization'`` / ``'pooled'`` for a metric name, or ``None`` if unknown.
+
+    Matched as a PATTERN, not looked up in an enumeration, because two suffixes
+    interpolate ``Tpeak``/``Tlow``: a validator that enumerated names would reject
+    every project whose return periods differ from the fixture's. The
+    interpolation points become ``\\d+`` and everything else is literal, so
+    ``q_return_level_50yr_max`` validates while ``q_return_level_fifty`` does not.
+
+    Returning ``None`` rather than raising lets the caller report *which* metric is
+    unrecognised alongside its other findings, instead of dying on the first one.
+    """
+    if token == "q":
+        for suffix, grain_class in Q_METRIC_SUFFIXES.values():
+            pattern = re.escape(f"q_{suffix}")
+            pattern = pattern.replace(re.escape("{Tpeak}"), r"\d+")
+            pattern = pattern.replace(re.escape("{Tlow}"), r"\d+")
+            if re.fullmatch(pattern, metric):
+                return METRIC_CLASSES[grain_class]
+        return None
+    if token in BASIN_METRIC_SUFFIXES:
+        # Basin-scalar metrics are linear in years, so they carry the finest
+        # grain available, exactly as class A does.
+        return "per-realization" if metric == basin_metric_name(token) else None
+    return None
 
 
 class UnknownOutputVariableError(ValueError):

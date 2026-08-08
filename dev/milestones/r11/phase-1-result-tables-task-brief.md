@@ -122,12 +122,14 @@ implementation, by tracing the rule's `output:` block rather than by hitting it.
    config-read** — that file already pins `EXPERIMENT_NAME` and `CLIM_PROJECT`
    the same way because it describes the seed tree, so adding a variable to the
    seed config means adding a row here. *(Commit 1.)*
-   Then, **with the content change**, move those rows off byte-exact `sha256`
-   onto the `compare_discharge`-style tolerance comparator (Q8, ruled
-   2026-08-05): dropping `.round(2)` removes the accidental drift buffer, so
-   byte-exactness would fail on every harmless numeric nudge — the same argument
-   that excludes `FIGURE_KINDS` by default. *(Commit 2, because it is a
-   consequence of unrounding, not of the file set changing.)*
+   Q8's comparator change — moving those rows off byte-exact `sha256` onto a
+   `compare_discharge`-style tolerance comparator, because dropping `.round(2)`
+   removes the accidental drift buffer — **moves to P3, revised 2026-08-08.**
+   It needs a stored reference series and tolerance machinery parallel to the
+   discharge anchor, and it is only *exercised* at re-record time, which is P3's.
+   Landing it in P1 would be untestable code: there is no re-recorded table to
+   compare against until P3 runs WF3. The rows stay `csv` (byte-exact) through
+   P1, which is consistent with P1 leaving the baseline red by design.
 7b. Emit the basin value under a reserved `location = basin`, independently of
    the per-subcatchment rows, keeping the existing `reducer=["mean"]` output
    (Q11, ruled 2026-08-07). This does not answer whether subcatchments nest — it
