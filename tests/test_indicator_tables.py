@@ -10,10 +10,15 @@ silently producing a result set missing a variable the config asked for.
 import pytest
 
 from blueearth_cst.shared.indicator_tables import (
+    BASIN_METRIC_SUFFIXES,
+    Q_METRIC_SUFFIXES,
     VARIABLE_TOKENS,
     UnknownOutputVariableError,
+    basin_metric_name,
+    basin_reduction,
     indicator_table_filename,
     indicator_tables,
+    q_metric_name,
     variable_token,
 )
 
@@ -65,6 +70,75 @@ def test_an_unknown_variable_raises_rather_than_being_skipped():
 
 def test_tokens_are_distinct_so_two_variables_cannot_share_a_table():
     assert len(set(VARIABLE_TOKENS.values())) == len(VARIABLE_TOKENS)
+
+
+# --- the metric vocabulary ----------------------------------------------------
+# A published contract: these names leave the project tree inside result files,
+# so a silent change to one breaks a consumer that cannot see this repo.
+
+
+def test_the_return_levels_carry_their_return_period():
+    """Tpeak/Tlow appeared in no column and no name before R11, so two runs with
+    different settings produced identical-looking rows meaning different things."""
+    assert q_metric_name("returninterval", 10, 2) == "q_return_level_10yr_max"
+    assert q_metric_name("returninterval", 20, 5) == "q_return_level_20yr_max"
+    assert (
+        q_metric_name("returninterval_min_7day", 20, 5)
+        == "q_return_level_5yr_7day_min"
+    )
+
+
+def test_q95_is_named_p95_because_the_conventional_name_means_the_opposite():
+    """Ours is the mean annual 95th percentile, a HIGH flow. Conventional Q95 is
+    the flow exceeded 95% of the time — a LOW-flow drought index."""
+    assert q_metric_name("q95", 10, 2) == "q_mean_annual_p95"
+
+
+@pytest.mark.parametrize(
+    "statistic", [s for s, (_, cls) in Q_METRIC_SUFFIXES.items() if cls == "A"]
+)
+def test_class_a_metrics_are_the_ones_linear_in_years(statistic):
+    """Class A is per-realization precisely because these average back to the
+    pooled value exactly; nothing is lost by emitting the finer grain."""
+    assert Q_METRIC_SUFFIXES[statistic][1] == "A"
+
+
+def test_the_two_gev_fits_are_pooled_only():
+    """A per-realization GEV fit over a short record is ill-conditioned."""
+    for statistic in ("returninterval", "returninterval_min_7day"):
+        assert Q_METRIC_SUFFIXES[statistic][1] == "B"
+
+
+def test_the_month_selecting_metrics_are_pooled_only():
+    """`idxmax()` picks ONE month, so different realizations can pick different
+    ones; the month is chosen once from the pooled record."""
+    for statistic in ("wetmonth_mean", "drymonth_mean"):
+        assert Q_METRIC_SUFFIXES[statistic][1] == "C"
+
+
+def test_every_metric_name_starts_with_its_variable_token():
+    """The invariant `validate_hm7` asserts, since composing the variable into
+    the metric is what normalisation would have given for free."""
+    for statistic in Q_METRIC_SUFFIXES:
+        assert q_metric_name(statistic, 10, 2).startswith("q_")
+    for token in BASIN_METRIC_SUFFIXES:
+        assert basin_metric_name(token).startswith(f"{token}_")
+
+
+def test_overland_flow_reduces_with_a_mean_not_a_sum():
+    """Q10: it is a volume flow rate, so summing daily values yields a quantity
+    in no useful unit. The odd one out, and the defect that ruling fixed."""
+    assert basin_reduction("overland_flow") == "mean"
+    assert basin_metric_name("overland_flow") == "overland_flow_annual_mean"
+
+
+@pytest.mark.parametrize("token", ["aet", "recharge", "precip"])
+def test_fluxes_keep_their_annual_total_in_mm_per_year(token):
+    """A daily sum of a mm Δt⁻¹ flux is a legitimate time-integral. Ruled
+    2026-08-08 as scoped to overland flow, so these are deliberately NOT
+    rescaled to per-timestep units."""
+    assert basin_reduction(token) == "sum"
+    assert basin_metric_name(token) == f"{token}_annual_total"
 
 
 @pytest.mark.parametrize(

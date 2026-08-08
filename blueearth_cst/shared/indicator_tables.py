@@ -62,6 +62,91 @@ VARIABLE_TOKENS = {
 _TABLE_SUFFIX = "_indicators.csv"
 
 
+#: Discharge metrics: internal statistic key → (metric suffix, grain class).
+#:
+#: The suffix is composed systematically rather than borrowed from conventional
+#: hydrological shorthand, because two of ours differ from the established
+#: meaning: our ``q95`` is the mean annual 95th percentile (a HIGH flow), while
+#: conventional *Q95* is the flow exceeded 95% of the time (a LOW-flow drought
+#: index) — opposite ends of the distribution. Hence ``_p95``. Verbose beats
+#: wrong.
+#:
+#: ``mean_annual_`` is not padding: it says "annual statistic, then mean over
+#: years", which the pre-R11 names hid.
+#:
+#: The two return levels interpolate ``Tpeak``/``Tlow``. Those are config values
+#: that appeared in no column and no name before R11, so two runs with different
+#: ``Tpeak`` produced identical-looking rows meaning different things — a 10-year
+#: and a 20-year flood level, indistinguishable once the file left the project
+#: folder. Because the vocabulary is therefore partly config-derived,
+#: ``validate_hm7`` matches a PATTERN rather than an enumeration.
+#:
+#: Grain classes (CR-2): **A** is emitted per realization, **B** and **C** only
+#: pooled (``realization_id = 0``). See ``METRIC_CLASSES``.
+Q_METRIC_SUFFIXES = {
+    "mean": ("annual_mean", "A"),
+    "max": ("mean_annual_max", "A"),
+    "min": ("mean_annual_min", "A"),
+    "q95": ("mean_annual_p95", "A"),
+    "Q7day_max": ("mean_annual_7day_max", "A"),
+    "Q7day_min": ("mean_annual_7day_min", "A"),
+    "BaseFlowIndex": ("baseflow_index", "A"),
+    "returninterval": ("return_level_{Tpeak}yr_max", "B"),
+    "returninterval_min_7day": ("return_level_{Tlow}yr_7day_min", "B"),
+    "wetmonth_mean": ("wettest_month_mean", "C"),
+    "drymonth_mean": ("driest_month_mean", "C"),
+}
+
+#: Basin-scalar variables: token → (metric suffix, annual reduction).
+#:
+#: Ruled 2026-08-08 (Q10 scope + metric naming). Two things worth reading
+#: together, because they are why this table is not uniform:
+#:
+#: 1. **Overland flow reduces with a MEAN, not a sum.** It is a volume flow rate
+#:    (m³ s⁻¹), so summing daily values produces a quantity in no unit anyone
+#:    wants; the annual mean preserves the native unit. ET, recharge and
+#:    precipitation keep ``annual_total`` in mm/yr — a daily sum of a mm Δt⁻¹
+#:    flux is a legitimate time-integral, which is precisely why overland flow
+#:    was the odd one out. Scoped deliberately to overland flow: reporting ET as
+#:    mm/day instead would rescale it by 365 and is not what a water-balance
+#:    reader expects.
+#: 2. **The suffixes omit the ``mean_`` prefix** the q vocabulary uses
+#:    (``snow_annual_max``, not ``snow_mean_annual_max``), by owner ruling
+#:    2026-08-08. **Accepted asymmetry, recorded so a reader does not read it as
+#:    a bug:** ``q_mean_annual_max`` and ``snow_annual_max`` describe the same
+#:    reduction shape — annual statistic, then mean over years — spelled two
+#:    ways. The q vocabulary makes the mean-over-years step visible; these do not.
+BASIN_METRIC_SUFFIXES = {
+    "aet": ("annual_total", "sum"),
+    "recharge": ("annual_total", "sum"),
+    "precip": ("annual_total", "sum"),
+    "snow": ("annual_max", "max"),
+    "overland_flow": ("annual_mean", "mean"),
+}
+
+#: Grain per class. `0` means pooled over realizations; see the
+#: `realization_id = 0` decision, and note the sentinel is only safe because no
+#: metric emits both grains — if that ever changes, it must become a string.
+METRIC_CLASSES = {"A": "per-realization", "B": "pooled", "C": "pooled"}
+
+
+def q_metric_name(statistic: str, tpeak: int, tlow: int) -> str:
+    """Composite metric name for one discharge statistic."""
+    suffix, _ = Q_METRIC_SUFFIXES[statistic]
+    return f"q_{suffix.format(Tpeak=tpeak, Tlow=tlow)}"
+
+
+def basin_metric_name(token: str) -> str:
+    """Composite metric name for one basin-scalar variable."""
+    suffix, _ = BASIN_METRIC_SUFFIXES[token]
+    return f"{token}_{suffix}"
+
+
+def basin_reduction(token: str) -> str:
+    """The annual reduction a basin-scalar variable uses (``sum``/``max``/``mean``)."""
+    return BASIN_METRIC_SUFFIXES[token][1]
+
+
 class UnknownOutputVariableError(ValueError):
     """``wflow_outvars`` names a variable with no token, so no table can be named.
 
