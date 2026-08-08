@@ -121,4 +121,39 @@ entry loses no coverage that ever existed.
 
 ## The run
 
-WF1 → WF2 → WF3, `-c 3`, from the primary. *(In progress; results below.)*
+WF1 → WF2 → WF3, `-c 3`, from the primary.
+
+### WF1 — `Snakefile_model_creation`, exit 0
+
+16/16 jobs. Log merged into 14 `== 1.NN` sections in rule-number order; no
+surviving `logs/_parts/`.
+
+`check_baseline check --workflow model_creation` → **1 of 5 targets moved.**
+
+**`run_default/output.csv` PASSED the discharge comparator.** This was a declared
+stop condition, not something to absorb: `[R10-12]`'s entire argument that
+`inmaps_historical.nc` moves on *storage layout* and not on values rests on
+`output.csv` being reproducible across a rebuild. It was, again — so this run is
+fresh evidence *for* the ruling rather than merely a consumer of it. Had it
+failed, the correct response was to stop, not to re-record.
+
+The one move is `config/runs/snake_config_model_creation.yml`, and it moved by
+**exactly one key**:
+
+    current                              78e0ca0c...
+    current + aggregate_rlz: true        e223eaf7...
+    recorded in the manifest             e223eaf7...
+
+Adding the retired key back recovers the recorded hash byte-exactly. That is the
+same falsifier R9 used when it proved its movement was header-only, and it is
+stronger than reading a diff: it shows nothing *else* moved. Cause is P1 removing
+`aggregate_rlz` from the tracked seed config after that snapshot was written.
+
+*(Care needed reading `test_case/test_local_pre_r10-12/` as a reference here — it
+also differs by `max_count` → `max_per_basin`, which is a pre-R11 change. That
+tree predates more than this milestone; the hash-recovery check above is the one
+that isolates R11.)*
+
+### WF2 — `Snakefile_climate_projections`
+
+*(In progress.)*
