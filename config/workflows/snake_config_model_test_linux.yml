@@ -71,4 +71,3 @@ workflows:
           max: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
     Tlow: 2
     Tpeak: 10
-    aggregate_rlz: true

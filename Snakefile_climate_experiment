@@ -10,6 +10,7 @@ from pathlib import Path
 # See dev/milestones/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
 from blueearth_cst.experiment.allocate import resolve_default_experiment_name
+from blueearth_cst.shared.indicator_tables import indicator_tables, refuse_retired_experiment_keys
 from blueearth_cst.shared.provenance import short_digest, snapshot_bundle_digest
 from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_rule, file_digest_or_absent, get_config, patch_psutil_windows_benchmark, project_slug, region_rule, rule_banner, spatial_units_rule, stress_test_grid, target_banner, validate_experiment_name, warn_if_project_dir_in_repo
 from blueearth_cst.spatial.config import parse_spatial_config
@@ -373,14 +374,34 @@ LOG_RULES = [
     "3.16_derive_wflow_indicators",
 ]
 
-# 3.00  all — target aggregator: the two experiment indicator tables
+# --- the experiment's indicator tables ----------------------------------------
+# CR-2: ONE table per output variable, so the set is config-dependent and must be
+# derived before the DAG is built. `wflow_outvars` lives under
+# `workflows.model_creation` -- WF3 already reads that section (it is one of the
+# `guarded_sections` hashed below), but only as an opaque blob; this is the first
+# time WF3 depends on the MEANING of a key inside it.
+#
+# Runtime discovery, which the pre-CR-2 writer used (`"basavg" in sim.columns`),
+# cannot serve here: Snakemake needs these paths before any rule has produced a
+# CSV to inspect.
+# R11 Q7: a config still carrying a retired key is a hard error, not a silent
+# no-op. Workflow configs ignore keys nothing reads, so the alternative is a user
+# believing a setting is in effect while it does nothing.
+refuse_retired_experiment_keys(my_cfg)
+
+INDICATOR_TABLES = indicator_tables(
+    get_config(config.get("workflows", {}).get("model_creation", {}) or {},
+               "wflow_outvars", [], optional=True)
+)
+
+# 3.00  all — target aggregator: the experiment's indicator tables
 #
 # Hoisted into a dict so `message:` can print one target per line without
 # restating them; `**` splats it back as the same keyword arguments these
 # inputs already used.
 WF3_TARGETS = {
-    "q_indicators": f"{results_dir}/q_indicators.csv",
-    "basin_indicators": f"{results_dir}/basin_indicators.csv",
+    **{f"{token}_indicators": f"{results_dir}/{fname}"
+       for token, fname in INDICATOR_TABLES.items()},
     "snake_config": f"{exp_dir}/config/snake_config_climate_experiment.yml",
     "model_reference": f"{exp_dir}/config/model_reference.yml",
     "experiment_config": f"{exp_dir}/config/experiment.yml",
@@ -885,11 +906,17 @@ rule derive_wflow_indicators:
         # it -- the same correction rule 3.13's oro_path got.
         st_csv_fns = [f"{wg_dir}/_work/cst_{st_num}.csv" for st_num in np.arange(1, ST_NUM+1)],
     output:
-        q_indicators = f"{results_dir}/q_indicators.csv",
-        basin_indicators = f"{results_dir}/basin_indicators.csv",
+        # One per configured output variable (CR-2). Keyed by token so the script
+        # can address them by name; `**` splats the derived set in, because the
+        # count is not known until the config is read.
+        **{f"{token}_indicators": f"{results_dir}/{fname}"
+           for token, fname in INDICATOR_TABLES.items()},
     params:
         results_dir = results_dir,
-        aggr_rlz = get_config(my_cfg, "aggregate_rlz", True),
+        # The tokens the writer must emit, in config order. Passed as a param
+        # rather than re-derived in the script so the DAG and the writer cannot
+        # disagree about which tables exist.
+        indicator_tokens = list(INDICATOR_TABLES),
         st_num = ST_NUM,
         Tlow = get_config(my_cfg, "Tlow", 2),
         Tpeak = get_config(my_cfg, "Tpeak", 10),
@@ -907,8 +934,7 @@ rule derive_wflow_indicators:
 rule gather_benchmarks:
     message: rule_banner("3.17", "gather_benchmarks")
     input:
-        f"{results_dir}/q_indicators.csv",
-        f"{results_dir}/basin_indicators.csv",
+        [f"{results_dir}/{fname}" for fname in INDICATOR_TABLES.values()],
         # ADR 0003 §8: rule 3.04 is a LEAF — nothing in WF3 consumes the vector
         # layers yet (§10) — so it is not upstream of the two indicator tables.
         # Without this edge it would run in parallel with the merge and its
@@ -940,8 +966,7 @@ rule gather_benchmarks:
 rule gather_logs:
     message: rule_banner("3.18", "gather_logs")
     input:
-        f"{results_dir}/q_indicators.csv",
-        f"{results_dir}/basin_indicators.csv",
+        [f"{results_dir}/{fname}" for fname in INDICATOR_TABLES.values()],
         # Same reason as gather_benchmarks above: 3.04 is a leaf, and the log
         # merge has to wait for it or its part is stranded under `_parts/`.
         SPATIAL_UNITS.outputs["basins"],

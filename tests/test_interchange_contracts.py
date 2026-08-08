@@ -338,91 +338,96 @@ def test_hm5_synthetic_fail():
     assert ic.validate_hm5(df) != []
 
 
+def _hm7_row(metric, rlz, location="101", temp=0.0, precip=0.0, value=1.0):
+    return {
+        "metric": metric, "temp_change": temp, "precip_change": precip,
+        "realization_id": rlz, "location": location, "value": value,
+    }
+
+
 def _hm7_good():
-    qstats = pd.DataFrame(
-        columns=["statistic", "temp_change", "precip_change", "Q_130000086"]
-    )
-    basin = pd.DataFrame(columns=["temp_change", "precip_change"])
-    return qstats, basin
+    """A minimal long table: one class-A metric per realization, one pooled."""
+    rows = [_hm7_row("q_annual_mean", r) for r in (1, 2)]
+    rows.append(_hm7_row("q_return_level_10yr_max", 0))
+    return {"q": pd.DataFrame(rows)}
 
 
 def test_hm7_synthetic_pass():
-    assert ic.validate_hm7(*_hm7_good()) == []
+    assert ic.validate_hm7(_hm7_good(), rlz_num=2) == []
 
 
 def test_hm7_synthetic_fail():
-    qstats, basin = _hm7_good()
-    basin = pd.DataFrame(columns=["temp_change"])  # perturbation axis incomplete
-    assert ic.validate_hm7(qstats, basin) != []
+    tables = _hm7_good()
+    tables["q"] = tables["q"].rename(columns={"location": "gauge"})
+    assert ic.validate_hm7(tables, rlz_num=2) != []
 
 
-def test_hm7_accepts_the_shipped_template_default_basavg_columns():
-    """The defect this phase must not inherit.
+def test_hm7_pins_the_header_exactly_now_that_it_cannot_vary():
+    """The pre-R11 validator had to widen to a MEMBERSHIP test because the wide
+    header grew with the gauge count and the configured basavg variables. The
+    long shape is fixed, so the exact assertion is available again -- and an
+    extra column is a violation rather than something to tolerate."""
+    tables = _hm7_good()
+    tables["q"]["st_id"] = 1  # C28's column, which is P2's and not yet contracted
+    diffs = ic.validate_hm7(tables, rlz_num=2)
+    assert diffs and "expected exactly" in diffs[0]
 
-    The basin table's header is `temp_change`, `precip_change`, PLUS one column
-    per configured `*_basavg` variable -- `export_wflow_results` builds it as
-    `["temp_change", "precip_change"] + [c for c in sim.columns if "basavg" in c]`.
-    The exact two-column assertion held only because the SEED CONFIG declares
-    `wflow_outvars: ["river discharge"]` and so produces no basavg column.
 
-    The SHIPPED TEMPLATE DEFAULT is
-    `["river discharge", "actual evapotranspiration"]`, which does produce one.
-    So the validator passed on the fixture and would have failed every project
-    using the default -- a validator that only accepts the test's own shape.
+def test_hm7_rejects_a_metric_that_disagrees_with_its_own_table():
+    """The composite carries the variable, so no `variable` column exists. That
+    redundancy is safe only because this is asserted."""
+    tables = {"aet": pd.DataFrame([_hm7_row("q_annual_mean", 1, location="basin")])}
+    diffs = ic.validate_hm7(tables, rlz_num=1)
+    assert diffs and "do not begin with" in diffs[0]
+
+
+def test_hm7_matches_the_vocabulary_as_a_pattern_not_an_enumeration():
+    """Tpeak/Tlow are config values interpolated into two metric names, so an
+    enumerated check would reject every project whose return periods differ from
+    the fixture's -- the same fixture-shaped defect the wide validator had."""
+    rows = [_hm7_row("q_return_level_50yr_max", 0), _hm7_row("q_annual_mean", 1)]
+    assert ic.validate_hm7({"q": pd.DataFrame(rows)}, rlz_num=1) == []
+
+
+def test_hm7_rejects_an_unrecognised_metric():
+    """Widening to a pattern must not become 'accept anything'."""
+    rows = [_hm7_row("q_totally_made_up", 1)]
+    diffs = ic.validate_hm7({"q": pd.DataFrame(rows)}, rlz_num=1)
+    assert diffs and "unrecognised metric" in diffs[0]
+
+
+def test_hm7_enforces_the_grain_invariant():
+    """`realization_id = 0` is a numeric sentinel in a numeric key column. It is
+    safe ONLY because no metric emits both grains -- otherwise a
+    `groupby('realization_id')` folds pooled rows in as another realization.
+    Since 0 cannot announce itself, the validator asserts it."""
+    pooled_as_member = [_hm7_row("q_return_level_10yr_max", 1)]
+    diffs = ic.validate_hm7({"q": pd.DataFrame(pooled_as_member)}, rlz_num=2)
+    assert diffs and "pooled-only" in diffs[0]
+
+    member_as_pooled = [_hm7_row("q_annual_mean", 0)]
+    diffs = ic.validate_hm7({"q": pd.DataFrame(member_as_pooled)}, rlz_num=2)
+    assert diffs and "per-realization" in diffs[0]
+
+
+def test_hm7_rejects_a_realization_id_outside_the_declared_range():
+    rows = [_hm7_row("q_annual_mean", 7)]
+    diffs = ic.validate_hm7({"q": pd.DataFrame(rows)}, rlz_num=2)
+    assert diffs and "outside" in diffs[0]
+
+
+def test_hm7_rejects_the_pre_r11_wide_header():
+    """The reshape is a contract change, so the OLD header must now FAIL.
+
+    A stale writer still emitting `statistic,temp_change,precip_change,Q_<id>`
+    would otherwise go undetected, which is exactly what the migration record
+    exists to prevent -- so this pins the rejection, not only the acceptance.
     """
-    qstats, _ = _hm7_good()
-    basin = pd.DataFrame(
-        columns=["temp_change", "precip_change", "actual_evapotranspiration_basavg"]
+    wide = pd.DataFrame(
+        columns=["statistic", "temp_change", "precip_change", "Q_130000086"]
     )
-    assert ic.validate_hm7(qstats, basin) == []
-
-
-def test_hm7_accepts_the_unaggregated_realization_column():
-    """The same class again, one config knob over.
-
-    With `aggregate_rlz: false` the writer prepends a `realization` column
-    (`col_names = ["realization", "temp_change", "precip_change"]`). An assertion
-    pinned to the aggregated shape would reject every unaggregated run.
-    """
-    qstats, _ = _hm7_good()
-    basin = pd.DataFrame(
-        columns=["realization", "temp_change", "precip_change", "q_basavg"]
-    )
-    assert ic.validate_hm7(qstats, basin) == []
-
-
-def test_hm7_still_rejects_a_foreign_basin_column():
-    """Widening must not become 'accept anything'.
-
-    Only the perturbation axis, the optional realization index, and
-    `*_basavg` variables belong. A column that is none of those is still a
-    contract violation and must be named.
-    """
-    qstats, _ = _hm7_good()
-    basin = pd.DataFrame(columns=["temp_change", "precip_change", "Q_130000086"])
-    diffs = ic.validate_hm7(qstats, basin)
-    assert diffs and "Q_130000086" in diffs[0]
-
-
-def test_hm7_rejects_the_pre_rename_axis_spelling():
-    """The rename is a contract change, so the OLD header must now FAIL.
-
-    `tavg` / `prcp` were the axis columns until 2026-08-05
-    (`dev/milestones/r09/migration_indicator-axis-columns.md`). They were the
-    repo's only violation of the `precip`/`temp` vocabulary naming.md §6 tier 2
-    declares. A validator that accepted both spellings would let a stale writer
-    keep emitting the old header undetected, which is exactly what the migration
-    note exists to prevent -- so this pins the rejection, not just the acceptance.
-
-    `tavg` also trips the foreign-column rule on the basin table, which is the
-    right diagnosis to hand someone whose tree predates the rename.
-    """
-    qstats = pd.DataFrame(columns=["statistic", "tavg", "prcp", "Q_130000086"])
-    basin = pd.DataFrame(columns=["tavg", "prcp"])
-    diffs = ic.validate_hm7(qstats, basin)
-    assert diffs
-    assert any("temp_change" in d for d in diffs)
-    assert any("precip_change" in d for d in diffs)
+    diffs = ic.validate_hm7({"q": wide}, rlz_num=2)
+    assert diffs and "expected exactly" in diffs[0]
 
 
 # --- Relational synthetic pass/fail (break exactly ONE member) -------------
@@ -438,9 +443,9 @@ def _gauge_identity_good():
         }
     }
     output_rlz = pd.DataFrame({"time": ["2070-01-01"], "Q_130000086": [1.0]})
-    qstats = pd.DataFrame(
-        columns=["statistic", "temp_change", "precip_change", "Q_130000086"]
-    )
+    # R11 CR-2: locations are ROWS now, so check 3 compares the `location` value
+    # set rather than subtracting non-gauge columns out of a wide header.
+    qstats = pd.DataFrame([_hm7_row("q_annual_mean", 1, location="130000086")])
     return toml_cfg, output_rlz, qstats
 
 
@@ -450,11 +455,9 @@ def test_gauge_identity_synthetic_pass():
 
 def test_gauge_identity_synthetic_fail():
     toml_cfg, output_rlz, qstats = _gauge_identity_good()
-    # Break exactly ONE member of the correlated set: rename the Qstats gauge
-    # column so check-3 (list-equality) fires while TOML + output_rlz still agree.
-    qstats = pd.DataFrame(
-        columns=["statistic", "temp_change", "precip_change", "Q_999999999"]
-    )
+    # Break exactly ONE member of the correlated set: change the q table's
+    # location so check 3 fires while TOML + output_rlz still agree.
+    qstats = pd.DataFrame([_hm7_row("q_annual_mean", 1, location="999999999")])
     assert ic.validate_hm_gauge_column_identity(toml_cfg, output_rlz, qstats) != []
 
 
@@ -677,9 +680,22 @@ def test_hm5_integration():
 
 @pytest.mark.skipif(not _fixture_present(), reason=_FIXTURE_ABSENT)
 def test_hm7_integration():
-    qstats = pd.read_csv(join(_EXP, "results", "q_indicators.csv"))
-    basin = pd.read_csv(join(_EXP, "results", "basin_indicators.csv"))
-    assert ic.validate_hm7(qstats, basin) == []
+    # The seed config declares `wflow_outvars: ["river discharge"]`, so the
+    # experiment emits exactly one indicator table. R11 CR-2 replaced
+    # basin_indicators.csv with per-variable tables; there is no basin variable
+    # in the seed, so none is expected.
+    q = pd.read_csv(join(_EXP, "results", "q_indicators.csv"))
+    # The fixture is only regenerated when WF3 re-runs, which R11 P1 does not do
+    # -- P3 owns the single re-run and re-record. Skip on the PRE-R11 HEADER
+    # specifically, never on the file's absence: a bare existence guard is how
+    # R9-4 turned a wrong path into a silent pass, and a new-shape table that is
+    # genuinely broken must still fail here.
+    if list(q.columns)[:1] == ["statistic"]:
+        pytest.skip(
+            "fixture q_indicators.csv predates R11 CR-2 (wide shape); "
+            "regenerated by P3's WF3 re-run"
+        )
+    assert ic.validate_hm7({"q": q}) == []
 
 
 def _gauge_identity_pairs():
@@ -698,6 +714,13 @@ def test_gauge_identity_integration(rlz, cst):
         join(_RUNS_DIR, "output", f"rlz_{rlz}_cst_{cst}.csv")
     )
     qstats = pd.read_csv(join(_EXP, "results", "q_indicators.csv"))
+    # Same stale-fixture condition as test_hm7_integration, and guarded the same
+    # narrow way: on the PRE-R11 HEADER, never on the file being absent.
+    if list(qstats.columns)[:1] == ["statistic"]:
+        pytest.skip(
+            "fixture q_indicators.csv predates R11 CR-2 (wide shape); "
+            "regenerated by P3's WF3 re-run"
+        )
     assert ic.validate_hm_gauge_column_identity(toml_cfg, output_rlz, qstats) == []
 
 

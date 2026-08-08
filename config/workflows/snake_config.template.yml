@@ -191,4 +191,3 @@ workflows:
     Tlow: 2
     Tpeak: 10
     # Aggregate realizations before computing statistics
-    aggregate_rlz: true

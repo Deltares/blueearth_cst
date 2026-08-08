@@ -238,23 +238,63 @@ Rendered one subsection per artifact.
   content absent by default); logic proven every suite by a synthetic pass/fail
   pair. See the `--notemp` capture procedure below.
 
-## HM-7 — response-surface reduction (q_indicators / basin_indicators)
+## HM-7 — response-surface reduction (one indicator table per variable)
 
-- **path pattern:** `<exp>/results/q_indicators.csv`, `<exp>/results/basin_indicators.csv`
-  (R07 B7: `indicators/` is the CST term; `outputs/` was rejected because
-  `hydrology/wflow/` also holds outputs).
+- **path pattern:** `<exp>/results/<token>_indicators.csv`, **one per variable in
+  `workflows.model_creation.wflow_outvars`** (R11 CR-2). `basin_indicators.csv` is
+  gone; its contents are now per-variable tables. The set is config-dependent, so
+  the DAG derives it — see the token vocabulary below.
 - **producer:** rule 3.16 `derive_wflow_indicators` (renamed from
   `export_wflow_results` at R9 P3; the *module* it runs keeps the old name, so
   the `export_wflow_results.py:NN` citations below are current).
 - **consumer:** CST-API / GUI (terminal in-repo).
-- **pinned surface:** `q_indicators.csv` header
-  `statistic,temp_change,precip_change,<gauge-cols>` where `<gauge-cols>` = HM-5's
-  `<header>_<mapid>` set (fixture `Q_130000086`), ordered per
-  `export_wflow_results.py:66-67`; rows keyed by `statistic` × the
-  `(temp_change, precip_change)` perturbation grid. `basin_indicators.csv` header
-  `temp_change,precip_change` (the perturbation-axis index) plus one column per
-  configured `*_basavg` variable, and an optional leading `realization`. These are
-  the **response-surface hand-off** to the platform.
+- **pinned surface:** every table carries **exactly six columns, in this order**:
+
+      metric, temp_change, precip_change, realization_id, location, value
+
+  The header does not grow with the gauge count — locations are ROWS. `metric` is
+  a composite `<token>_<statistic>`, so a result file is self-contained once it
+  leaves the project tree and needs no `variable` column; `validate_hm7` asserts
+  the metric agrees with the table it sits in, which is what normalisation would
+  have given for free. `value` is `float32` and **unrounded**.
+
+- **variable tokens (the contract CR-2 places here):**
+
+  | `wflow_outvars` | token | table |
+  | --- | --- | --- |
+  | river discharge | `q` | `q_indicators.csv` |
+  | precipitation | `precip` | `precip_indicators.csv` |
+  | actual evapotranspiration | `aet` | `aet_indicators.csv` |
+  | groundwater recharge | `recharge` | `recharge_indicators.csv` |
+  | overland flow | `overland_flow` | `overland_flow_indicators.csv` |
+  | snow | `snow` | `snow_indicators.csv` |
+
+  Minting rule: where the repo already has a canonical short name, use it; only
+  mint where none exists; disambiguate against names in use. Hence `precip` not
+  `p` (`naming.md` §6 tier 2), `aet` not `et` (`pet` is canonical and one letter
+  away), `snow` not `swe` (the CSDMS name is `snowpack_liquid_water__depth` —
+  snowpack *liquid water*, so `swe` would assert a claim upstream does not make).
+
+- **`realization_id`, and the grain it encodes:** `0` means **pooled over
+  realizations**; `1..RLZ_NUM` name one. Metrics linear in years are emitted per
+  realization; the two GEV fits and the two month-selecting metrics are pooled
+  only. The numeric sentinel is safe **only because no metric emits both grains**
+  — if that ever changes it must become a string, or `groupby("realization_id")`
+  folds pooled rows in as another realization. `validate_hm7` asserts it, since
+  `0` cannot announce itself.
+
+- **`location`:** the **bare** gauge id (`130000086`, not `Q_130000086`), which is
+  the subcatchment id wflow emits, so it joins `outlet_index.csv` with no
+  crosswalk. `basin` is **reserved** for a basin-scalar value, emitted
+  independently rather than derived from per-location values (Q11): whether
+  subcatchments nest or tile decides whether an area-weighted mean is valid at
+  all, and a derived value would silently encode whichever answer the implementer
+  assumed.
+
+- **`aggregate_rlz` is retired** (ruling b1). In the long shape "aggregated" is
+  not a *shape* choice, so the table always carries the finest grain available and
+  downstream aggregates as it likes.
+
 - **axis-column rename (2026-08-05):** these two columns were `tavg` / `prcp`
   until the R9 followup recorded in
   `dev/milestones/r09/migration_indicator-axis-columns.md`. They were the repo's
@@ -400,7 +440,7 @@ executes on **every** checkout, fixture or not. HM-2 unit attrs are asserted
 | `validate_hm_gauge_column_identity` (relational) | HM-4 → HM-5 → HM-7 gauge-column identity | per-cst TOMLs + the per-cst run CSVs + `q_indicators.csv` | **yes** (all inputs persist) |
 | *(HM-6a)* | HM-6a | `models/hydrology/wflow/run_default/outstate/outstates.nc` | **no validator** — existence pinned transitively via HM-4's `[state].path_output` |
 | `validate_hm6b` | HM-6b | `<exp>/hydrology/wflow/output/outstates_rlz_<n>_cst_<m>.nc` | **no** — `temp()` content absent; skip-until-captured on disk, synthetic-proven every suite |
-| `validate_hm7` | HM-7 | `<exp>/results/{q_indicators.csv, basin_indicators.csv}` | **yes** (persists; `rule all`, manifested) |
+| `validate_hm7` | HM-7 | `<exp>/results/<token>_indicators.csv` (one per `wflow_outvars` entry) | **yes** (persists; `rule all`, manifested) |
 
 ### `--notemp` capture procedure (temp() on-disk validators)
 

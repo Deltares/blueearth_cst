@@ -77,7 +77,7 @@ def _check_ns(
 
 @pytest.fixture
 def project(tmp_path):
-    """A synthetic project dir with all 14 targets present + a recorded manifest.
+    """A synthetic project dir with all 13 targets present + a recorded manifest.
 
     Returns (project_dir, manifest_path). Both point under tmp_path.
     """
@@ -94,19 +94,26 @@ def project(tmp_path):
 
 
 def test_targets_tagged_with_expected_cardinality():
-    """The shipping TARGETS carry the 5/6/3 workflow tags the count math relies on
-    (model_creation gained the beyond-`rule all` discharge target)."""
+    """The shipping TARGETS carry the 5/6/2 workflow tags the count math relies on.
+
+    `model_creation` gained the beyond-`rule all` discharge target.
+    `climate_experiment` dropped from 3 to 2 at R11 CR-2: `basin_indicators.csv`
+    no longer exists, and the seed config declares only `river discharge`, so it
+    emits one indicator table. A project configuring more output variables gets
+    more tables — but this list describes the SEED tree, which is why the number
+    is pinned here rather than derived.
+    """
     counts = Counter(workflow for workflow, _kind, _template in cb.TARGETS)
     assert counts == {
         "model_creation": 5,
         "climate_projections": 6,
-        "climate_experiment": 3,
+        "climate_experiment": 2,
     }
 
 
 def test_scoped_count_is_selected_not_full(project, capsys):
     """`--workflow model_creation --workflow climate_projections` reports 11
-    of the 14 targets, not the full set."""
+    of the 13 targets, not the full set."""
     project_dir, manifest_path = project
     rc = cb.cmd_check(
         _check_ns(project_dir, manifest_path,
@@ -138,7 +145,7 @@ def test_selected_missing_target_fails(project, capsys):
 
 def test_unselected_missing_target_ignored(project, capsys):
     """An unselected (workflow-3) target missing on disk is ignored by a scoped
-    check -> returns 0, count stays 12."""
+    check -> returns 0, count stays 11."""
     project_dir, manifest_path = project
     victim = cb.resolve("{exp_dir}/results/q_indicators.csv", project_dir)
     Path(victim).unlink()
@@ -154,10 +161,10 @@ def test_unselected_missing_target_ignored(project, capsys):
 
 
 def test_unscoped_record_writes_all_targets(project):
-    """An unscoped record with --include-figures writes all 14 (overwrite)."""
+    """An unscoped record with --include-figures writes all 13 (overwrite)."""
     project_dir, manifest_path = project
     written = json.loads(Path(manifest_path).read_text())
-    assert len(written["targets"]) == 14
+    assert len(written["targets"]) == 13
     assert written["version"] == cb.MANIFEST_VERSION
 
 
@@ -190,7 +197,7 @@ def test_record_workflow_merges_and_preserves_other_slices(project):
     assert rc == 0
     after = json.loads(Path(manifest_path).read_text())["targets"]
 
-    assert len(after) == 14                       # nothing dropped
+    assert len(after) == 13                       # nothing dropped
     assert after[cp_path] == cp_before            # wf2 row preserved verbatim
     assert after[exp_path] == exp_before          # wf3 row preserved verbatim
     # wf1 discharge row re-recorded against the mutated series.
@@ -199,14 +206,14 @@ def test_record_workflow_merges_and_preserves_other_slices(project):
 
 
 def test_unscoped_check_spans_all_targets(project, capsys):
-    """`check --include-figures` with no `--workflow` spans all 14 targets."""
+    """`check --include-figures` with no `--workflow` spans all 13 targets."""
     project_dir, manifest_path = project
     rc = cb.cmd_check(
         _check_ns(project_dir, manifest_path, workflow=None, include_figures=True)
     )
     out = capsys.readouterr().out
     assert rc == 0
-    assert "OK - 14 target(s)" in out
+    assert "OK - 13 target(s)" in out
 
 
 # --- figure targets are excluded by default (2026-08-03) ----------------------

@@ -1,21 +1,70 @@
 # -*- coding: utf-8 -*-
+"""Reduce the stress-test runs into one LONG-format indicator table per variable.
+
+R11 CR-2. The pre-R11 writer produced two WIDE tables — ``q_indicators.csv`` with
+one column per gauge, and ``basin_indicators.csv`` with one column per basin
+variable — so the header grew with the gauge count and a reader had to know which
+columns were locations. This emits **one table per output variable**, each with a
+**fixed six-column header** that does not grow with anything:
+
+    metric, temp_change, precip_change, realization_id, location, value
+
+``metric`` is a composite ``<variable>_<statistic>`` (``q_mean_annual_7day_min``),
+so a result file is self-contained once it leaves the project tree —
+``variable`` is derivable from it and needs no column of its own. The vocabulary
+and the variable tokens live in ``shared/indicator_tables.py``, which is the
+published contract.
+
+**Three grain classes, and the reason they differ** (CR-2):
+
+- **A — linear in years.** Emitted PER REALIZATION. All are "annual statistic,
+  then mean over years", and realizations are equal-length, so per-realization
+  values average back to the pooled value exactly. Nothing is lost by emitting
+  the finer grain, and ``aggregate_rlz`` existed only to choose between grains
+  that are not actually different.
+- **B — non-linear fit.** Pooled only (``realization_id = 0``). A GEV fit over one
+  short realization is ill-conditioned; pooling multiplies the block sample by
+  ``RLZ_NUM``.
+- **C — selects a category.** Pooled only. ``idxmax()`` picks ONE month, so
+  different realizations can pick different ones. The month is fixed from the
+  ``cst_0`` baseline and then evaluated for every member — which is what makes
+  the baseline rows mandatory rather than decorative.
+
+**Pooling pools the SAMPLE, not a spliced series.** The pre-R11 code concatenated
+realizations and overwrote the index with a synthetic continuous ``date_range``,
+butt-splicing them into one fictitious record. A ``rolling(7)`` window then
+crossed each splice and manufactured 7-day flows that occurred in no realization,
+which could become that year's annual minimum and enter the GEV block sample. For
+the 7-day return level we therefore extract each realization's annual minima
+*within* that realization and pool the blocks. It also removes an unstated
+assumption: both methods give ``RLZ_NUM x N`` blocks only if every realization is
+a whole number of years on the same calendar boundary, and nothing checks that.
 """
-Export wflow results for easy plotting of the climate response plots
-"""
+
 import re
-import os
 from pathlib import Path
-import pandas as pd
-import numpy as np
 from typing import List, Union
 
+import numpy as np
+import pandas as pd
+
 import blueearth_cst.shared.metrics_definition as md
+from blueearth_cst.shared.indicator_tables import (
+    BASIN_LOCATION,
+    BASIN_METRIC_SUFFIXES,
+    INDICATOR_COLUMNS,
+    POOLED_REALIZATION,
+    basin_metric_name,
+    basin_reduction,
+    q_metric_name,
+)
 from blueearth_cst.shared.snake_utils import log_row
 
-
 #: ``rlz_<n>_cst_<m>`` in a wflow run CSV's stem. Anchored at the start so a
-#: directory component can never satisfy it.
-_RLZ_IN_STEM = re.compile(r"^rlz_(\d+)_cst_\d+$")
+#: directory component can never satisfy it, and both indices are captured --
+#: ``split("_")[-1]`` would silently return the member number as the realization,
+#: and a wrong-but-plausible integer mislabels every row it touches.
+_MEMBER_IN_STEM = re.compile(r"^rlz_(\d+)_cst_(\d+)$")
 
 #: Month lengths in the weather generator's calendar. ``impose_climate_change.R``
 #: writes every perturbed realization with ``calendar = "noleap"``, so a year is
@@ -29,39 +78,29 @@ _MONTHS = tuple(range(1, 13))
 def annual_perturbation(
     df_st: pd.DataFrame, column: str, source: Union[str, Path] = ""
 ) -> float:
-    """Collapse a ``cst_<m>.csv`` column's TWELVE monthly values to ONE axis value.
+    """Collapse a perturbation file's TWELVE monthly values to ONE axis value.
 
-    ``prepare_cst_parameters`` builds each stress-test member from the config's
-    12-element ``min``/``max`` vectors, so every perturbation is monthly. The
-    response surface is two-dimensional, so the reduction owes it a single
-    annual figure per axis (technical note §1.3.1: "Mean Temperature Change
-    (degC)", "Mean Precipitation Change (%)").
+    ``prepare_stress_test_grid`` builds each member from the config's 12-element
+    ``min``/``max`` vectors, so every perturbation is monthly. The response
+    surface is two-dimensional, so the reduction owes it a single annual figure
+    per axis.
 
-    **Month-length-weighted mean**, per the 2026-08-07 owner ruling on [R9-3].
-    That makes the temperature axis identical to how WF2 defines its annual
-    change factor (``get_change_climate_proj._annual``: a duration-weighted mean
-    for an intensive variable), which matters because the CMIP6 "GCM dots" are
-    overlaid on THESE axes -- two different collapses would compare two
-    different quantities.
+    **Month-length-weighted mean**, per the 2026-08-07 ruling on [R9-3]. That
+    makes the temperature axis identical to how WF2 defines its annual change
+    factor (a duration-weighted mean for an intensive variable), which matters
+    because the CMIP6 "GCM dots" are overlaid on THESE axes -- two different
+    collapses would compare two different quantities.
 
-    The precipitation axis is an APPROXIMATION of that same definition. WF2
-    integrates precip over the year and takes the ratio, which weights each
-    month by its baseline precipitation; weighting by month length instead
-    assumes a uniform daily rate. The two agree exactly for a flat perturbation
-    vector and diverge with the covariance between the perturbation and the
-    basin's seasonal cycle -- a wet-season-targeted perturbation on a strongly
-    seasonal basin is the case where it matters. The exact form was declined
-    because it costs a WG-1 climatology input edge on rule 3.16; recorded here
-    so the residual is not re-derived from scratch.
-
-    Read ``.iloc[0]`` -- i.e. JANUARY -- until 2026-08-07. That was only ever
-    the annual figure for a FLAT vector, which the shipped template and the seed
-    config both are, so it was never observed wrong.
+    The precipitation axis APPROXIMATES that definition: WF2 integrates precip
+    over the year and takes the ratio, weighting each month by its baseline
+    precipitation, while month-length weighting assumes a uniform daily rate.
+    They agree exactly for a flat vector and diverge with the covariance between
+    the perturbation and the basin's seasonal cycle. The exact form was declined
+    because it costs a climatology input edge on the rule.
 
     Flat vectors short-circuit on exact equality rather than falling through the
     weighted mean, which would round twelve identical values to something a unit
-    in the last place away from them. The axis values are written unrounded, so
-    that wobble would surface as a baseline byte diff carrying no information.
+    in the last place away from them.
     """
     values = df_st[column].to_numpy(dtype="float64")
     if values.size != len(_MONTHS):
@@ -70,7 +109,6 @@ def annual_perturbation(
             f"{values.size} rows, expected one per month ({len(_MONTHS)})"
         )
     if "month" in df_st.columns:
-        # Align the weights to the rows rather than trusting file order.
         months = df_st["month"].to_numpy(dtype="int64")
         if tuple(sorted(months)) != _MONTHS:
             raise ValueError(
@@ -83,29 +121,116 @@ def annual_perturbation(
     return float(np.average(values, weights=_MONTH_LENGTHS))
 
 
-def realization_from_run_csv(csv_fn: Union[str, Path]) -> int:
-    """Realization index of a wflow run CSV, read from its FILENAME.
-
-    The index has moved twice. R07 B5 took it out of the filename and into a
-    run directory (``hydrology_runs/rlz_<n>/output/cst_<m>.csv``), so this read
-    the grandparent directory. R9 P2 dissolves that level and puts the index
-    back in the stem (``hydrology/wflow/output/rlz_<n>_cst_<m>.csv``), so the
-    directory read stopped working -- caught by the first full WF3 run on the
-    migrated tree, at rule 3.11, after all twelve members had run.
-
-    Matched against a full-stem pattern rather than split on ``_``: the stem
-    now contains two indices, and ``split("_")[-1]`` would silently return the
-    CST member number as the realization. A wrong-but-plausible integer is far
-    worse here than an exception, because it would mislabel every result row.
-    """
+def member_from_run_csv(csv_fn: Union[str, Path]) -> tuple[int, int]:
+    """``(realization, stress_test)`` indices of a wflow run CSV, from its stem."""
     stem = Path(csv_fn).stem
-    match = _RLZ_IN_STEM.match(stem)
+    match = _MEMBER_IN_STEM.match(stem)
     if match is None:
         raise ValueError(
-            f"cannot derive the realization index from {csv_fn!r}: expected a "
+            f"cannot derive the member indices from {csv_fn!r}: expected a "
             f"'rlz_<n>_cst_<m>' filename, got {stem!r}"
         )
-    return int(match.group(1))
+    return int(match.group(1)), int(match.group(2))
+
+
+def gauge_columns(columns) -> dict[str, str]:
+    """Discharge columns → their BARE gauge id.
+
+    ``Q_130000086`` → ``130000086``. The bare id is what the ``location`` column
+    carries: it is the subcatchment id wflow itself emits, so it joins to
+    ``outlet_index.csv`` without a crosswalk, and it lets one location carry
+    several variables (a registry gauge emits both ``Q_`` and ``P_`` at the same
+    point) which the wide format could not express.
+    """
+    return {c: c[2:] for c in columns if c.startswith("Q_")}
+
+
+def basavg_column(columns, token: str) -> str | None:
+    """The basin-average column for one variable token, if the run emitted it."""
+    for column in columns:
+        if column.endswith("_basavg") and _matches_token(column, token):
+            return column
+    return None
+
+
+def _matches_token(column: str, token: str) -> bool:
+    """Whether a ``<something>_basavg`` column belongs to this variable token.
+
+    wflow names these from the SEMANTIC label ("actual evapotranspiration_basavg"),
+    not from our token, so the match is on the label's own words rather than on
+    the token string. Kept narrow deliberately: a substring test on ``snow``
+    would also claim ``snowmelt_basavg`` if wflow ever emitted one.
+    """
+    label = column[: -len("_basavg")].strip().lower()
+    return {
+        "aet": label in {"actual evapotranspiration", "aet"},
+        "recharge": label in {"groundwater recharge", "recharge"},
+        "precip": label in {"precipitation", "precip"},
+        "snow": label in {"snow", "snowpack"},
+        "overland_flow": label in {"overland flow", "overland_flow"},
+        "q": label in {"river discharge", "q", "discharge"},
+    }.get(token, False)
+
+
+def _annual(series: pd.Series, how: str) -> pd.Series:
+    """One value per calendar year, by the variable's own reduction."""
+    resampled = series.resample("YE")
+    return {"sum": resampled.sum, "max": resampled.max, "mean": resampled.mean}[how]()
+
+
+def _category_month(pooled: pd.DataFrame, which: str) -> int:
+    """The wettest or driest month, picked ONCE from the pooled baseline.
+
+    Q5 (2026-08-05). Picking per member would conflate "how does flow in a given
+    month respond to perturbation" with "the month itself moved", and the two are
+    different questions. One month is chosen for the whole table -- from the
+    first column, preserving the pre-R11 behaviour, since the ruling says *picked
+    once* rather than picked per location.
+    """
+    monthly = pooled.groupby(pooled.index.month).sum()
+    chosen = monthly.idxmax() if which == "wet" else monthly.idxmin()
+    return int(chosen.iloc[0])
+
+
+def _month_mean(frame: pd.DataFrame, month: int) -> pd.Series:
+    """Mean flow in one fixed calendar month, averaged over years."""
+    return frame[frame.index.month == month].resample("YE").mean().mean()
+
+
+def _return_level_from_blocks(blocks: pd.DataFrame, period: int, mode: str) -> pd.Series:
+    """Fit a GEV to a POOLED block sample and read one return level off it.
+
+    ``frequency_analysis`` blocks a time series internally, which forces the
+    caller to hand it a single continuous record -- the very splice this
+    reduction exists to avoid. Blocking first and fitting here keeps each
+    realization's blocks its own: ``RLZ_NUM x N`` genuine annual extrema, none of
+    them straddling a boundary between two realizations.
+
+    ``mode="max"`` reads the upper tail (a flood level), ``mode="min"`` the lower
+    (a drought level), which is why the quantile flips rather than the fit.
+    """
+    import xarray as xr
+    from xclim.indices.stats import fit, parametric_quantile
+
+    quantile = 1.0 - 1.0 / period if mode == "max" else 1.0 / period
+    levels = {}
+    for column in blocks.columns:
+        sample = blocks[column].to_numpy(dtype="float64")
+        sample = sample[np.isfinite(sample)]
+        da = xr.DataArray(sample, dims=("time",), name=str(column))
+        params = fit(da, dist="genextreme")
+        levels[column] = float(
+            parametric_quantile(params, q=quantile).values.ravel()[0]
+        )
+    return pd.Series(levels)
+
+
+def _rows(metric, temp, precip, realization, values, locations) -> list[tuple]:
+    """One long-format row per location, for one metric at one member."""
+    return [
+        (metric, temp, precip, realization, locations[column], float(values[column]))
+        for column in values.index
+    ]
 
 
 def analyze_wflow_results(
@@ -113,263 +238,156 @@ def analyze_wflow_results(
     st_csv_fns: List[Union[str, Path]],
     results_dir: Union[str, Path],
     st_num: int,
-    qstats_fn: Union[str, Path] = None,
-    bas_fn: Union[str, Path] = None,
+    indicator_tokens: List[str],
+    table_paths: dict,
     Tpeak: int = 10,
     Tlow: int = 2,
-    aggr_rlz: bool = True,
 ):
-    """
-    Analyze wflow results and computes statistics for each realization/stress test.
+    """Reduce every stress-test run into one long table per configured variable.
 
-    Parameters
-    ----------
-    csv_fns : List[Union[str, Path]]
-        List of csv files containing the wflow results for each realization/stress test
-    st_csv_fns : List[Union[str, Path]]
-        Paths to the per-stress-test ``cst_<m>.csv`` perturbation files (the temp
-        and precip changes each stress test imposes). Passed in from the rule's
-        declared inputs rather than reconstructed from a directory convention
-        (R07 B6), so the read is on the DAG and visible to ``--dry-run``.
-    results_dir : Union[str, Path]
-        Directory the response-surface tables are written to (``results/``).
-    st_num : int
-        Number of stress tests (increments) per realization
-    qstats_fn : Union[str, Path], optional
-        Path to the output csv file with the discharge statistics for each
-        realization/stress test.
-        If None will be saved in `results_dir/q_indicators.csv`.
-    bas_fn : Union[str, Path], optional
-        Path to the output csv file with the basin average statistics for each
-        realization/stress test.
-        If None will be saved in `results_dir/basin_indicators.csv`.
-    Tpeak : int, optional
-        Return period for high flows (in years), by default 10
-    Tlow : int, optional
-        Return period for low flows (in years), by default 2
-    aggr_rlz : bool, optional
-        If True, aggregate all realizations for each stress test, by default True.
+    ``table_paths`` maps token to output path, threaded from the rule's declared
+    outputs rather than rebuilt here, so the DAG and the writer cannot disagree
+    about which tables exist or where they go.
     """
-    # Output file paths
-    if qstats_fn is None:
-        qstats_fn = f"{results_dir}/q_indicators.csv"
-    if bas_fn is None:
-        bas_fn = f"{results_dir}/basin_indicators.csv"
+    results_dir = Path(results_dir)
+    results_dir.mkdir(parents=True, exist_ok=True)
 
-    # cst_<m>.csv lookup, keyed by the stress-test index in the file name.
-    # cst_0 is the reserved unperturbed baseline and has no file (naming.md §4),
-    # so the declared set is exactly 1..st_num. Check it here rather than letting
-    # a Snakefile/script disagreement surface as a KeyError deep in the loop.
-    st_csv_by_num = {Path(p).stem.split("_")[-1]: p for p in st_csv_fns}
-    expected = {str(n) for n in range(1, st_num + 1)}
-    if set(st_csv_by_num) != expected:
+    # -- the perturbation axes, per member ------------------------------------
+    # cst_0 is the reserved unperturbed baseline and has no parameter file, so
+    # the declared set is exactly 1..st_num. Checked here rather than letting a
+    # Snakefile/script disagreement surface as a KeyError deep in the loop.
+    st_csv_by_num = {int(Path(p).stem.split("_")[-1]): p for p in st_csv_fns}
+    if set(st_csv_by_num) != set(range(1, st_num + 1)):
         raise ValueError(
             f"stress-test parameter files do not cover 1..{st_num}: got "
-            f"{sorted(st_csv_by_num)}, expected {sorted(expected)}"
+            f"{sorted(st_csv_by_num)}, expected {sorted(range(1, st_num + 1))}"
+        )
+    axes = {0: (0.0, 0.0)}  # the baseline sits at the origin by definition
+    for st, path in st_csv_by_num.items():
+        df_st = pd.read_csv(path)
+        axes[st] = (
+            annual_perturbation(df_st, "temp_mean", path),
+            annual_perturbation(df_st, "precip_mean", path) * 100 - 100,
         )
 
-    # Get output discharge columns
-    sim = pd.read_csv(csv_fns[0], index_col=0, parse_dates=True)
-    Q_vars = [x for x in sim.columns if x.startswith("Q_")]
-    basavg_vars = [x for x in sim.columns if "basavg" in x]
+    # -- index the runs by member ---------------------------------------------
+    runs: dict = {}
+    for csv_fn in csv_fns:
+        rlz, st = member_from_run_csv(csv_fn)
+        runs.setdefault(st, {})[rlz] = Path(csv_fn)
+    members = sorted(runs)
 
-    # Initialise emtpy output dataframes
-    if aggr_rlz:
-        col_names = ["statistic", "temp_change", "precip_change"]
-        col_names.extend(Q_vars)
-        df_out_mean = pd.DataFrame(
-            data=np.zeros((st_num, len(col_names))),
-            columns=col_names,
-            dtype="str",
-        )
-        # Update the dtype of the statistics columns into string
-        df_out_mean["statistic"] = df_out_mean["statistic"].astype(str)
-    else:
-        col_names = ["statistic", "realization", "temp_change", "precip_change"]
-        col_names.extend(Q_vars)
-        df_out_mean = pd.DataFrame(
-            data=np.zeros((len(csv_fns), len(col_names))),
-            columns=col_names,
-            dtype="str",
-        )
-        # Update the dtype of the statistics columns into string
-        df_out_mean["statistic"] = df_out_mean["statistic"].astype(str)
-    df_out_max = df_out_mean.copy()
-    df_out_min = df_out_mean.copy()
-    df_out_q95 = df_out_mean.copy()
-    df_out_RT = df_out_mean.copy()
-    df_out_Q7dmax = df_out_mean.copy()
-    # df_out_highpulse = df_out_mean.copy()
-    df_out_wetmonth = df_out_mean.copy()
-    df_out_RT7d = df_out_mean.copy()
-    df_out_Q7dmin = df_out_mean.copy()
-    # df_out_lowpulse = df_out_mean.copy()
-    df_out_drymonth = df_out_mean.copy()
-    df_out_BFI = df_out_mean.copy()
+    def read(path):
+        return pd.read_csv(path, index_col=0, parse_dates=True)
 
-    # Other variables than discharge
-    if aggr_rlz:
-        col_names = ["temp_change", "precip_change"]
-        col_names.extend(basavg_vars)
-        df_out_basavg = pd.DataFrame(
-            data=np.zeros((st_num, len(col_names))),
-            columns=col_names,
-            dtype="float32",
-        )
-    else:
-        col_names = ["realization", "temp_change", "precip_change"]
-        col_names.extend(basavg_vars)
-        df_out_basavg = pd.DataFrame(
-            data=np.zeros((len(csv_fns), len(col_names))),
-            columns=col_names,
-            dtype="float32",
-        )
+    first = read(csv_fns[0])
+    q_locations = gauge_columns(first.columns)
 
-    log_row("Computing discharge stats for each realization/stress test", module="export")
-    for i in range(np.size(df_out_mean, 0)):
-        # Read csv file
-        if not aggr_rlz:
-            st_nb = os.path.basename(csv_fns[i]).split(".")[0].split("_")[-1]
-            sim_all = pd.read_csv(csv_fns[i], index_col=0, parse_dates=True)
-            sim = sim_all[Q_vars]
-        else:
-            # read and concat several files
-            st_nb = i + 1
-            csv_fns_i = [x for x in csv_fns if x.endswith("cst_" + str(i + 1) + ".csv")]
-            csv_rlz = []
-            for j in range(len(csv_fns_i)):
-                sim_j = pd.read_csv(csv_fns_i[j], index_col=0, parse_dates=True)
-                csv_rlz.append(sim_j)
-            sim_all = pd.concat(csv_rlz)
-            sim_all.index = pd.date_range(
-                start=sim_all.index[0], periods=len(sim_all), name="time"
-            )
-            sim = sim_all[Q_vars]
-        # Get statistics
-        # Average Yearly statistics
-        df_mean = sim.resample("YE").mean().mean()
-        df_max = sim.resample("YE").max().mean()
-        df_min = sim.resample("YE").min().mean()
-        df_q95 = sim.resample("YE").quantile(0.95).mean()
-        # High flows
-        df_RT = md.returninterval(sim, Tpeak)
-        df_Q7dmax = md.Q7d_maxyear(sim)
-        # df_highpulse = md.highpulse(sim)
-        df_wetmonth = md.wetmonth_mean(sim)
-        # Low flows
-        df_RT7d = md.returninterval_Q7d(sim, Tlow)
-        df_Q7dmin = md.Q7d_min(sim)
-        # df_lowpulse = md.lowpulse(sim)
-        df_drymonth = md.drymonth_mean(sim)
-        df_BFI = md.BFI(sim)
+    # -- the class-C month, fixed once from the pooled baseline ---------------
+    # Q5: pick from cst_0, then evaluate that month for every member, so the
+    # surface shows how flow in a GIVEN month responds rather than conflating
+    # that with the month itself moving. Requires the baseline runs to exist,
+    # which ST_START = 0 guarantees whenever run_historical is set.
+    wet_month = dry_month = None
+    if q_locations and 0 in runs:
+        baseline = pd.concat([read(p)[list(q_locations)] for p in runs[0].values()])
+        wet_month = _category_month(baseline, "wet")
+        dry_month = _category_month(baseline, "dry")
 
-        # Get stress test stats
-        rlz_nb = realization_from_run_csv(csv_fns[i])
-        # The two perturbation-axis values this member imposes, in the units the
-        # response surface is plotted on: temp_change is the ABSOLUTE shift in
-        # degC (cst_<m>.csv carries it directly), precip_change is the RELATIVE
-        # shift in % (cst_<m>.csv carries a multiplicative factor). cst_0 is the
-        # unperturbed baseline, so both axes are 0 by definition.
-        #
-        # cst_<m>.csv holds TWELVE rows, one per month; `annual_perturbation`
-        # collapses each column to the member's single axis value. It read
-        # JANUARY until 2026-08-07 -- see that function for the ruling, and for
-        # the residual approximation on the precip axis.
-        if st_nb == "0":
-            temp_change = 0
-            precip_change = 0
-        else:
-            st_csv_fn = st_csv_by_num[str(st_nb)]
-            df_st = pd.read_csv(st_csv_fn)
-            temp_change = annual_perturbation(df_st, "temp_mean", st_csv_fn)
-            # change in %
-            precip_change = annual_perturbation(df_st, "precip_mean", st_csv_fn) * 100 - 100
-        if not aggr_rlz:
-            cst_stat = (rlz_nb, temp_change, precip_change)
-        else:
-            cst_stat = (temp_change, precip_change)
-
-        # Update discharge statistics tableslen
-        df_out_mean.iloc[i, :] = np.concatenate(
-            [["mean"], cst_stat, df_mean.values.round(2)]
-        )
-        df_out_max.iloc[i, :] = np.concatenate(
-            [["max"], cst_stat, df_max.values.round(2)]
-        )
-        df_out_min.iloc[i, :] = np.concatenate(
-            [["min"], cst_stat, df_min.values.round(4)]
-        )
-        df_out_q95.iloc[i, :] = np.concatenate(
-            [["q95"], cst_stat, df_q95.values.round(2)]
-        )
-        df_out_RT.iloc[i, :] = np.concatenate(
-            [["returninterval"], cst_stat, df_RT.values.round(2)]
-        )
-        df_out_Q7dmax.iloc[i, :] = np.concatenate(
-            [["Q7day_max"], cst_stat, df_Q7dmax.values.round(2)]
-        )
-        # df_out_highpulse.iloc[i, :] = np.concatenate([['highpulse'], cst_stat, df_highpulse.values.round(2)])
-        df_out_wetmonth.iloc[i, :] = np.concatenate(
-            [["wetmonth_mean"], cst_stat, df_wetmonth.values.round(2)]
-        )
-        df_out_RT7d.iloc[i, :] = np.concatenate(
-            [["returninternval_min_7day"], cst_stat, df_RT7d.values.round(4)]
-        )
-        df_out_Q7dmin.iloc[i, :] = np.concatenate(
-            [["Q7day_min"], cst_stat, df_Q7dmin.values.round(4)]
-        )
-        # df_out_lowpulse.iloc[i, :] = np.concatenate([['lowpulse'], cst_stat, df_lowpulse.values.round(2)])
-        df_out_drymonth.iloc[i, :] = np.concatenate(
-            [["drymonth_mean"], cst_stat, df_drymonth.values.round(4)]
-        )
-        df_out_BFI.iloc[i, :] = np.concatenate(
-            [["BaseFlowIndex"], cst_stat, df_BFI.values.round(4)]
-        )
-
-        # Update basin average statistics table
-        if not aggr_rlz:
-            stats_basavg = np.array([rlz_nb, temp_change, precip_change])
-        else:
-            stats_basavg = np.array([temp_change, precip_change])
-        sim = sim_all[basavg_vars]
-        for v in basavg_vars:
-            if v == "snow_basavg":
-                # Maximum snow water equivalent per year (mm/yr)
-                stats_basavg = np.append(
-                    stats_basavg, (sim[v].resample("YE").max().mean())
-                )
-            else:
-                # actual evapotranspiration_basavg or groundwater recharge_basavg
-                # or overland_flow_basavg
-                # Total evaporation or recharge or overland flow volume (mm/yr)
-                stats_basavg = np.append(
-                    stats_basavg, (sim[v].resample("YE").sum().mean())
-                )
-        df_out_basavg.iloc[i, :] = np.float32(stats_basavg.round(1))
-
-    log_row("Writting tables for 2D stress tests plots", module="export")
-    if not os.path.isdir(os.path.dirname(bas_fn)):
-        os.makedirs(bas_fn)
-
-    df_out_basavg.to_csv(bas_fn, index=False)
-    # One file for all stats
-    df_out_Qstats = pd.concat(
-        [
-            df_out_mean,
-            df_out_max,
-            df_out_min,
-            df_out_q95,
-            df_out_RT,
-            df_out_Q7dmax,
-            df_out_wetmonth,
-            df_out_RT7d,
-            df_out_Q7dmin,
-            df_out_drymonth,
-            df_out_BFI,
-        ]
+    rows: dict = {token: [] for token in indicator_tokens}
+    log_row(
+        f"reducing {len(csv_fns)} runs into {len(indicator_tokens)} indicator "
+        f"table(s): {', '.join(indicator_tokens)}",
+        module="export",
     )
-    df_out_Qstats.to_csv(qstats_fn, index=False)
 
+    for st in members:
+        temp, precip = axes[st]
+        by_rlz = runs[st]
+
+        # ---- discharge ------------------------------------------------------
+        if "q" in rows and q_locations:
+            per_rlz = {
+                rlz: read(p)[list(q_locations)] for rlz, p in sorted(by_rlz.items())
+            }
+
+            # Class A: per realization. Linear in years, so the finer grain
+            # averages back to the pooled value exactly and nothing is lost.
+            for rlz, sim in per_rlz.items():
+                annual = {
+                    "mean": sim.resample("YE").mean().mean(),
+                    "max": sim.resample("YE").max().mean(),
+                    "min": sim.resample("YE").min().mean(),
+                    "q95": sim.resample("YE").quantile(0.95).mean(),
+                    "Q7day_max": md.Q7d_maxyear(sim),
+                    "Q7day_min": md.Q7d_min(sim),
+                    "BaseFlowIndex": md.BFI(sim),
+                }
+                for statistic, values in annual.items():
+                    rows["q"] += _rows(
+                        q_metric_name(statistic, Tpeak, Tlow),
+                        temp, precip, rlz, values, q_locations,
+                    )
+
+            # Class B: pooled blocks, never a spliced series.
+            high_blocks = pd.concat(
+                [s.resample("YE").max() for s in per_rlz.values()], ignore_index=True
+            )
+            low_blocks = pd.concat(
+                [s.rolling(7).mean().resample("YE").min() for s in per_rlz.values()],
+                ignore_index=True,
+            )
+            for statistic, blocks, period, mode in (
+                ("return_level_max", high_blocks, Tpeak, "max"),
+                ("return_level_7day_min", low_blocks, Tlow, "min"),
+            ):
+                rows["q"] += _rows(
+                    q_metric_name(statistic, Tpeak, Tlow),
+                    temp, precip, POOLED_REALIZATION,
+                    _return_level_from_blocks(blocks, period, mode),
+                    q_locations,
+                )
+
+            # Class C: pooled, at the month fixed from the baseline.
+            if wet_month is not None:
+                pooled = pd.concat(per_rlz.values())
+                for statistic, month in (
+                    ("wetmonth_mean", wet_month),
+                    ("drymonth_mean", dry_month),
+                ):
+                    rows["q"] += _rows(
+                        q_metric_name(statistic, Tpeak, Tlow),
+                        temp, precip, POOLED_REALIZATION,
+                        _month_mean(pooled, month), q_locations,
+                    )
+
+        # ---- basin-scalar variables -----------------------------------------
+        # Per realization, for the same reason class A is: these are "annual
+        # statistic, then mean over years", so the finest grain is available and
+        # ruling (b1) says the table carries it and lets downstream aggregate.
+        for token in indicator_tokens:
+            if token == "q" or token not in BASIN_METRIC_SUFFIXES:
+                continue
+            metric = basin_metric_name(token)
+            how = basin_reduction(token)
+            for rlz, path in sorted(by_rlz.items()):
+                sim = read(path)
+                column = basavg_column(sim.columns, token)
+                if column is None:
+                    continue
+                value = float(_annual(sim[column], how).mean())
+                rows[token].append((metric, temp, precip, rlz, BASIN_LOCATION, value))
+
+    # -- write ----------------------------------------------------------------
+    for token in indicator_tokens:
+        table = pd.DataFrame(rows[token], columns=list(INDICATOR_COLUMNS))
+        # float32, UNROUNDED: the pre-R11 round(2)/round(4) was an accidental
+        # drift buffer, and dropping it is why the baseline comparator moves to a
+        # tolerance rather than a byte hash.
+        table["value"] = table["value"].astype("float32")
+        table["realization_id"] = table["realization_id"].astype("int64")
+        table.to_csv(table_paths[token], index=False)
+        log_row(f"wrote {table_paths[token]} ({len(table)} rows)", module="export")
 
 
 if __name__ == "__main__":
@@ -378,16 +396,18 @@ if __name__ == "__main__":
         from blueearth_cst.shared.snake_utils import tee_to_log
 
         with tee_to_log(sm.log[0]):
+            tokens = list(sm.params.indicator_tokens)
             analyze_wflow_results(
                 csv_fns=sm.input.rlz_csv_fns,
                 st_csv_fns=sm.input.st_csv_fns,
                 results_dir=sm.params.results_dir,
                 st_num=sm.params.st_num,
-                qstats_fn=sm.output.q_indicators,
-                bas_fn=sm.output.basin_indicators,
+                indicator_tokens=tokens,
+                table_paths={
+                    t: getattr(sm.output, f"{t}_indicators") for t in tokens
+                },
                 Tpeak=sm.params.Tpeak,
                 Tlow=sm.params.Tlow,
-                aggr_rlz=sm.params.aggr_rlz,
             )
     else:
         raise ValueError("This script should be run from a snakemake environment")

@@ -195,7 +195,7 @@ every class-B row has `realization_id == 0`; no class-A row does;
 | --- | --- | --- |
 | **A — linear in years** | `mean`, `max`, `min`, `q95`, `Q7day_max`, `Q7day_min`, `BaseFlowIndex` | Per realization (`1..N`). All are "annual statistic → mean over years"; realizations are equal-length, so per-realization values average back to the pooled value **exactly**. Nothing is lost. |
 | **B — non-linear fit** | `returninterval`, `returninterval_min_7day` | Pooled (`0`) only. `frequency_analysis(freq="YS")` fits a GEV to annual blocks; pooling multiplies the block sample by `RLZ_NUM`. A per-realization fit over a short record is ill-conditioned — the owner's stated reason for this CR. |
-| **C — selects a category** | `wetmonth_mean`, `drymonth_mean` | `groupby(index.month).sum().idxmax()` picks ONE month from the record, so different realizations can pick different months. Realization axis ruled: **pick once from the pooled record**. Stress-test axis still open (Q5). |
+| **C — selects a category** | `wetmonth_mean`, `drymonth_mean` | `groupby(index.month).sum().idxmax()` picks ONE month from the record, so different realizations can pick different months. Realization axis ruled: **pick once from the pooled record**. Stress-test axis ruled by Q5 (2026-08-05): **the month is fixed from `cst_0`** and evaluated for every member — which is what makes the `cst_0` rows mandatory. |
 
 ### Decision — retire `aggregate_rlz` (ruling b1)
 
@@ -210,9 +210,10 @@ Consequences:
   `snake_config.template.yml:194` and `snake_config_model_test.yml:82`.
 - Workflow configs **silently ignore unread keys**, so a user's stale
   `aggregate_rlz` would quietly do nothing while they believed it was in effect.
-  Removal policy under open Q7.
+  Removal policy ruled by **Q7 (2026-08-07): a hard error** naming the migration
+  note, per the `variable_spec.parse` precedent.
 - One `aggr_rlz` parameter drives **both** tables, so `basin_indicators.csv`
-  must change in the same commit — open Q6.
+  must change in the same commit (Q6, closed in the decision sections above).
 
 ### Decision — CR-3 folded in: pool the sample, not the spliced series
 
@@ -1070,12 +1071,13 @@ do not change it on the strength of this note.
 ## Open questions
 
 Q1-Q4, Q6 and Q9 are closed in the decision sections above; Q5, Q8 and Q10 in
-the ruling block immediately above. **Two remain.**
+the ruling block immediately above. **Q7 and Q11 were ruled 2026-08-07, both to
+the recommendation. Nothing remains open.**
 
-| # | Question | Recommendation |
+| # | Question | Ruling (2026-08-07) |
 | --- | --- | --- |
-| **Q7** | Stale `aggregate_rlz` in an existing user config — silently ignored today, because workflow configs never read unknown keys. The user believes it is still in effect. | Hard error naming the migration note, following the `variable_spec.parse` precedent (it refuses the pre-5e list shape and states the migration). |
-| **Q11** | **Nested or incremental subcatchments?** Decides whether the overall basin value can be derived from the per-location values. See CR-3b. | Do not derive it either way — emit it independently under a reserved `location = basin`, by keeping the existing `reducer=["mean"]` output alongside the new per-subcatchment one. |
+| **Q7** | Stale `aggregate_rlz` in an existing user config — silently ignored today, because workflow configs never read unknown keys. The user believes it is still in effect. | **RULED to the recommendation.** A config still carrying `aggregate_rlz` is a **hard error** naming the migration note, per the `variable_spec.parse` precedent. Retiring it silently was rejected on the failure mode the question itself states: a user believing a setting is in effect while it does nothing is worse than a refusal. |
+| **Q11** | **Nested or incremental subcatchments?** Decides whether the overall basin value can be derived from the per-location values. See CR-3b. | **RULED to the recommendation.** Do not derive it either way — emit the basin value independently under a reserved `location = basin`, keeping the existing `reducer=["mean"]` output alongside the new per-subcatchment one. This does not answer the nesting question; it makes it *irrelevant to the artifact*, which is the point — a derived value would silently encode whichever answer the implementer assumed. |
 **Q12 (= proposal O3) is CLOSED — ruled *alongside*, 2026-08-05.** See C28 below.
 **CR-2 is no longer blocked.**
 

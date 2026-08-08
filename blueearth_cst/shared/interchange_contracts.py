@@ -654,75 +654,134 @@ def validate_hm5(df: Any) -> list[str]:
 #: them). Named once so the two validators cannot drift apart on a rename — they
 #: did not during the 2026-08-05 tavg/prcp rename only because both were edited
 #: in the same commit.
+from blueearth_cst.shared.indicator_tables import (  # noqa: E402
+    INDICATOR_COLUMNS,
+    POOLED_REALIZATION,
+    metric_grain,
+)
+
 _PERTURBATION_AXIS = ("temp_change", "precip_change")
 
+#: The six HM-7 columns, in order. Imported from the writer's own module rather
+#: than restated, so the producer and its validator cannot disagree about the
+#: header -- the failure mode this pairing exists to prevent.
+HM7_COLUMNS = INDICATOR_COLUMNS
 
-def validate_hm7(qstats_df: Any, basin_df: Any) -> list[str]:
-    """HM-7 — response-surface reduction (``q_indicators.csv`` + ``basin_indicators.csv``).
 
-    Pinned surface (design §5.3): ``q_indicators.csv`` header
-    ``statistic,temp_change,precip_change,<gauge-cols>`` (the ``<gauge-cols>`` set
-    = HM-5's ``<header>_<mapid>`` set); ``basin_indicators.csv`` carries the
-    perturbation axis ``temp_change,precip_change`` plus ONE COLUMN PER CONFIGURED
-    ``*_basavg`` VARIABLE, and an optional leading ``realization`` index. These are
-    the response-surface hand-off to the platform. The gauge-column tie to
-    HM-4/HM-5 is checked by the relational ``validate_hm_gauge_column_identity``.
+def validate_hm7(tables: dict, rlz_num: int | None = None) -> list[str]:
+    """HM-7 — response-surface reduction, ONE LONG TABLE PER OUTPUT VARIABLE.
 
-    The axis columns were spelled ``tavg`` / ``prcp`` until 2026-08-05. That was
-    the repo's only violation of the ``precip`` / ``temp`` vocabulary naming.md §6
-    tier 2 declares — every other producer (WG-1, HM-2, the stress-test
-    ``cst_<m>.csv``, the config's ``stress_test`` block) already used the canonical
-    stems. Renamed with ``dev/milestones/r09/migration_indicator-axis-columns.md``;
-    the ``_change`` suffix is not decoration — these columns are the PERTURBATION
-    each member imposes (absolute degC, relative %), not the variable's value, so
-    bare ``temp`` / ``precip`` would have been the wrong name in the other
-    direction.
+    ``tables`` maps variable token to parsed table (``{"q": df, "aet": df}``).
+    ``rlz_num`` is optional; supply it to check the ``realization_id`` domain.
 
-    The ``RT_*.csv`` side tables this used to describe as "deliberately
-    unpinned" are GONE as of R9 P3: they had no in-repo consumer, were written
-    via ``params`` rather than declared, and so were invisible to ``--dry-run``.
-    Nothing replaces them.
+    **R11 CR-2 replaced the two wide tables with a fixed six-column long shape:**
+    ``metric, temp_change, precip_change, realization_id, location, value``. The
+    header no longer grows with the gauge count, which is why this validator can
+    assert it exactly rather than by membership — the previous version had to
+    widen to a membership test precisely because the shape was config-dependent
+    in the wrong dimension.
 
-    The basin check asserted ``== ["tavg", "prcp"]`` (the axis columns' pre-rename
-    spelling) until 2026-08-04. That held
-    only for the SEED CONFIG, whose ``wflow_outvars`` is ``["river discharge"]``
-    and so yields no basavg column. The SHIPPED TEMPLATE DEFAULT adds
-    ``"actual evapotranspiration"``, which does yield one, and
-    ``aggregate_rlz: false`` prepends ``realization``. So the validator accepted
-    only the fixture's own shape and would have rejected every project using the
-    default — a pre-existing defect fixed BEFORE R9 P3 renames these tables, so
-    that a fixture-shaped assertion is not carried into the new names.
+    Three things it asserts that nothing else can:
 
-    Widened by MEMBERSHIP, not by dropping the check: the perturbation axis must
-    be present, and every other column must be the realization index or a
-    ``*_basavg`` variable. A foreign column is still a violation, and is named.
+    - **``metric`` agrees with the table it is in.** The composite carries the
+      variable, so no ``variable`` column exists; the redundancy is safe only if
+      something checks it, which is what normalisation would have given free.
+    - **The vocabulary, as a PATTERN.** Two suffixes interpolate ``Tpeak``/``Tlow``,
+      so enumerating names would reject every project whose return periods differ
+      from the fixture's.
+    - **The grain invariant.** ``realization_id = 0`` means pooled — a numeric
+      sentinel in a numeric key column, which is safe only because no metric
+      emits both grains. If that ever stops holding, the sentinel must become a
+      string, and this check is what would catch it.
+
+    Superseded and worth not re-deriving: the axis columns were spelled
+    ``tavg``/``prcp`` until 2026-08-05, the repo's only violation of the
+    ``precip``/``temp`` vocabulary; the ``_change`` suffix is not decoration, since
+    these columns are the perturbation each member imposes rather than the
+    variable's value. The ``RT_*.csv`` side tables are gone as of R9 P3 — no
+    in-repo consumer, written via ``params`` rather than declared, so invisible to
+    ``--dry-run``. Nothing replaces them.
+
+    C28 will add ``st_id`` alongside the perturbation columns, with a consistency
+    check that they agree with the design table's row. That is R11 P2's, because
+    the design table does not exist yet.
+
+    Original pinned surface, for the record (design §5.3): ``q_indicators.csv``
+    header ``statistic,temp_change,precip_change,<gauge-cols>``;
+    ``basin_indicators.csv`` the axis plus one column per configured
+    ``*_basavg`` variable.
+
+    The gauge-location tie to HM-4/HM-5 is checked by the relational
+    ``validate_hm_gauge_column_identity``, which post-CR-2 compares the
+    ``location`` column's value set rather than the header's column set — the same
+    invariant, expressed against a header that no longer varies.
     """
     label = "HM-7"
     diffs: list[str] = []
-    q_cols = _columns(qstats_df)
-    for fixed in ("statistic", *_PERTURBATION_AXIS):
-        if fixed not in q_cols:
-            diffs.append(f"{label}: q_indicators.csv missing {fixed!r} column (have {q_cols})")
-    gauge_cols = [c for c in q_cols if c not in ("statistic", *_PERTURBATION_AXIS)]
-    if not gauge_cols:
-        diffs.append(f"{label}: q_indicators.csv has no gauge columns")
-    b_cols = _columns(basin_df)
-    for axis in _PERTURBATION_AXIS:
-        if axis not in b_cols:
+    for token, table in sorted(tables.items()):
+        name = f"{token}_indicators.csv"
+        columns = _columns(table)
+        if columns != list(HM7_COLUMNS):
             diffs.append(
-                f"{label}: basin_indicators.csv missing {axis!r} perturbation-axis column "
-                f"(have {b_cols})"
+                f"{label}: {name} header is {columns}, expected exactly "
+                f"{list(HM7_COLUMNS)} in that order"
             )
-    foreign = [
-        c for c in b_cols
-        if c not in (*_PERTURBATION_AXIS, "realization") and not c.endswith("basavg")
-    ]
-    if foreign:
-        diffs.append(
-            f"{label}: basin_indicators.csv has column(s) {foreign} that are neither the "
-            f"perturbation axis, the realization index, nor a '*_basavg' "
-            f"variable (have {b_cols})"
-        )
+            continue  # every check below reads these columns by name
+
+        metrics = sorted({str(m) for m in table["metric"]})
+        if not metrics:
+            diffs.append(f"{label}: {name} has no rows")
+            continue
+
+        # The composite carries the variable, so `variable` needs no column of
+        # its own -- but that redundancy is only safe if something asserts the
+        # two agree. This is what normalisation would have given for free.
+        wrong_variable = [m for m in metrics if not m.startswith(f"{token}_")]
+        if wrong_variable:
+            diffs.append(
+                f"{label}: {name} carries metric(s) {wrong_variable} that do not "
+                f"begin with the table's own variable token {token + '_'!r}"
+            )
+
+        unknown = [m for m in metrics if metric_grain(token, m) is None]
+        if unknown:
+            diffs.append(
+                f"{label}: {name} carries unrecognised metric(s) {unknown}; the "
+                f"vocabulary is in blueearth_cst/shared/indicator_tables.py"
+            )
+
+        if rlz_num is not None:
+            allowed = {POOLED_REALIZATION} | set(range(1, int(rlz_num) + 1))
+            stray = sorted({int(r) for r in table["realization_id"]} - allowed)
+            if stray:
+                diffs.append(
+                    f"{label}: {name} has realization_id {stray}, outside "
+                    f"{{0}} and 1..{rlz_num}"
+                )
+
+        # The grain invariant. `realization_id = 0` is a numeric sentinel in a
+        # numeric key column, which is safe ONLY because no metric emits both
+        # grains -- otherwise `groupby('realization_id')` folds pooled rows in as
+        # another realization. Asserted here because 0 cannot announce itself.
+        for metric in metrics:
+            grain = metric_grain(token, metric)
+            if grain is None:
+                continue
+            ids = {
+                int(r)
+                for r, m in zip(table["realization_id"], table["metric"])
+                if str(m) == metric
+            }
+            if grain == "pooled" and ids != {POOLED_REALIZATION}:
+                diffs.append(
+                    f"{label}: {name} metric {metric!r} is pooled-only but carries "
+                    f"realization_id {sorted(ids)}; expected {{0}} alone"
+                )
+            if grain == "per-realization" and POOLED_REALIZATION in ids:
+                diffs.append(
+                    f"{label}: {name} metric {metric!r} is per-realization but "
+                    f"carries the pooled sentinel realization_id 0"
+                )
     return diffs
 
 
@@ -939,15 +998,34 @@ def validate_hm_gauge_column_identity(
                 f"rule 3.11 filters on (have {out_cols})"
             )
 
-    # Check 3: q_indicators gauge set list-equal to the output_rlz gauge set.
-    q_gauge = [
-        c for c in _columns(qstats_df) if c not in ("statistic", *_PERTURBATION_AXIS)
-    ]
+    # Check 3: the q table's LOCATION SET equals the output_rlz gauge set.
+    #
+    # Pre-R11 this compared column SETS, because the wide q_indicators header
+    # carried one column per gauge and so had to be subtracted down to them. The
+    # long shape puts locations in rows, so the same invariant is now expressed
+    # against a column whose meaning is fixed -- simpler, and no longer coupled
+    # to which non-gauge columns happen to lead the header.
+    #
+    # Compared as SETS rather than lists: rows have no meaningful order, so
+    # list-equality would fail on a reordering that changes nothing. The
+    # one-to-one property that mattered is preserved -- a gauge present in one
+    # and absent from the other is still reported, by name.
     out_gauge = [c for c in out_cols if c.startswith("Q_")]
-    if q_gauge != out_gauge:
+    expected = {c[2:] for c in out_gauge}
+    if "location" in _columns(qstats_df):
+        present = {str(v) for v in qstats_df["location"]} - {"basin"}
+        if present != expected:
+            missing = sorted(expected - present)
+            extra = sorted(present - expected)
+            diffs.append(
+                f"{label}: q_indicators location set != output_rlz gauge set "
+                f"(missing {missing}, unexpected {extra})"
+            )
+    else:
         diffs.append(
-            f"{label}: q_indicators gauge columns {q_gauge} != output_rlz gauge "
-            f"columns {out_gauge} (list-equality)"
+            f"{label}: q_indicators has no 'location' column "
+            f"(have {_columns(qstats_df)}); the pre-R11 wide shape is no longer "
+            f"a valid HM-7 surface"
         )
     return diffs
 
