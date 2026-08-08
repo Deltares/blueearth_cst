@@ -166,8 +166,77 @@ workflows snapshot the same source config, hence the identical hashes).
 `reduce_gcm_series` was one of the rules the dry-run flagged as changed in both
 code *and* params. Changed inputs to the rule, identical numbers out.
 
-### WF3 — `Snakefile_climate_experiment`
+### WF3 — `Snakefile_climate_experiment`, exit 0
 
-*(In progress. The experiment name is pinned — `experiment_name: experiment` —
-so the tree rebuilds at `experiments/experiment/` and the manifest paths hold. A
-minted date-based name would have silently broken every recorded path.)*
+40/40 jobs. Log merged into 15 `== 3.NN` sections in rule-number order; no
+surviving `logs/_parts/`.
+
+**The R side executed correctly on the first attempt.** `generate_weather.R`'s new
+4-argument arity, `save_plots`, `seed` and `pet_method` had never run in P1 or P2
+— the brief budgeted for a fix cycle here and none was needed. Member filenames,
+the `cst_` → `st_` rename and the zero-padded indices all resolved: no missing
+input at 3.12/3.14/3.15, which was the rename's only real falsifier.
+
+The experiment name is pinned (`experiment_name: experiment`), so the tree
+rebuilt at `experiments/experiment/` and the manifest paths held. A minted
+date-based name would have silently broken every recorded path.
+
+---
+
+## DEFECT FOUND BY THE RUN — two of eleven metrics silently vanished
+
+**This is what the brief meant by "expect the run to find something." It is not a
+dry-run-able defect, and it is a regression against the pre-R11 table.**
+
+### What is on disk
+
+The new table has **576 data rows / 9 metrics / `st_id` 1–6**. The design table
+next to it declares **`st_id` 0–6**. Expected, had nothing been dropped:
+
+    observed                            576   (st 1-6, class C absent)
+    st 0-6 with class C present         756
+
+180 rows missing. `wettest_month_mean` and `driest_month_mean` are absent
+**entirely**, and both existed in the pre-R11 table under the same config.
+
+### Mechanism, traced
+
+`config/workflows/snake_config_model_test.yml:63` — the **seed config the
+baseline is recorded from** — sets `run_historical: false`. Then:
+
+    Snakefile_climate_experiment:98    ST_START = 0 if run_hist else 1
+    export_wflow_results.py:337        if q_locations and 0 in runs:
+
+With `ST_START = 1` the baseline member never runs, so `0 not in runs`, so the
+class-C month is never picked and both month metrics are skipped. No warning, no
+error, no log line — the WF3 log contains zero matches for warn/skip/drop/empty.
+
+The writer's own comment at line 335 states the dependency and then assumes it
+away: *"Requires the baseline runs to exist, which ST_START = 0 guarantees
+whenever `run_historical` is set."* The seed config does not set it.
+
+### Why every gate passed
+
+`validate_hm7` checks **results → design**: each row's `temp_change` /
+`precip_change` must match the design table's row for its `st_id`. It does not
+check **design → results**: that every declared member produced rows. So a
+member that never ran, and a metric family that never emitted, are both invisible
+to it. That asymmetry is also why P2's reasoning for *not* baselining
+`stress_test_design.csv` — "already covered by `validate_hm7`'s per-row check,
+which is stronger than a byte fingerprint" — is true for the rows that exist and
+silent about the rows that do not.
+
+### It contradicts two standing rulings
+
+- **Q5** (2026-08-05): *"This makes `cst_0` rows mandatory — the month cannot be
+  picked from a record that is not there."*
+- **`[R9-5]`** (scope §3, ruled 2026-08-07): *the baseline is a member of the
+  surface.*
+
+Both say the baseline member belongs in the table. The implementation makes it
+conditional on a config flag, and the seed config takes the branch where it is
+absent.
+
+**Held for an owner ruling before the re-record.** Recording as-is would bless a
+silent regression into the baseline, and the baseline is exactly the artifact
+that would then make it look intentional.
