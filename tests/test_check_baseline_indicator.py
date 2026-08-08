@@ -203,6 +203,22 @@ def test_reordered_current_rows_are_aligned_not_flagged():
     assert report["ok"], report
 
 
+def test_a_filtered_frame_does_not_mis_index():
+    """The group loop maps labels to positions, so a non-RangeIndex `ref` would
+    silently mis-index. Both sides are normalized on entry; pin it from the
+    REFERENCE side, which the reorder test above does not exercise."""
+    full = _table(_grid("q_mean", "101", 10.0, n=6))
+    ref = full[full["st_id"] != "st_00"]          # index 1..5, deliberately gappy
+    cur = ref.copy()
+    assert list(ref.index) != list(range(len(ref)))  # premise
+    assert cb.compare_indicator_table(ref, cur)["ok"]
+
+    cur = cur.copy()
+    cur.loc[3, "value"] += 5.0
+    report = cb.compare_indicator_table(ref, cur)
+    assert not report["ok"] and report["n_fail"] == 1
+
+
 def test_float_key_columns_are_compared_as_written():
     """`temp_change` reparsed as float would make 1.3 and 1.3000000000000003
     different groups and report a key-set mismatch. Read as strings, they are

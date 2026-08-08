@@ -715,6 +715,13 @@ def compare_indicator_table(ref: pd.DataFrame, cur: pd.DataFrame) -> dict:
 
     Pass iff no structural mismatch and no failing row.
     """
+    # The group loop maps index labels back to positions via get_indexer, which
+    # is only sound on a clean 0..n-1 index. read_indicator_table always gives
+    # one; a caller that hands in a FILTERED frame would otherwise mis-index
+    # silently rather than fail. Refuse instead of trusting the caller.
+    ref = ref.reset_index(drop=True)
+    cur = cur.reset_index(drop=True)
+
     structural: list[str] = []
 
     ref_cols, cur_cols = list(ref.columns), list(cur.columns)
