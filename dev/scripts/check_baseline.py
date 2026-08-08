@@ -20,6 +20,16 @@ is exposed via the `compare` subcommand for the one-off restored-vs-reference an
 reproducibility comparisons (ADR steps 4b/5), so reproducibility, materiality, and
 the durable regression check cannot disagree.
 
+The wf3 **indicator tables** are the second such target (type "indicator", R11
+Q8). Same reason, arrived at from the other direction: they used to be
+byte-hashable only because they were rounded, and P1 dropped the rounding as part
+of moving them to a long float32 shape. `record` stores a reference copy of the
+table under dev/baseline/indicator_ref/ and `check` aligns the two on their row
+keys and applies a per-group absolute+relative tolerance. Grouped, not global,
+because one long table stacks metrics in different units and gauges of different
+catchment areas -- a single file-wide mean would let the biggest series set the
+threshold for the smallest.
+
 **Mixed-provenance baseline (ADR 0001 t260719a, immaterial branch).** Since the
 constant-parameter restoration the wf1 slice reflects the RESTORED model, while the
 wf2/wf3 rows are the pre-restoration recording (the restored discharge move was
@@ -38,6 +48,9 @@ slice is no longer mixed-provenance in any way that matters: it was re-recorded
 from main@03e546c on those same numbers.
 Evidence: dev/milestones/r09/migration_indicator-axis-columns.md §5;
 dev/decisions/0001-restore-wflow-constant-parameters/baseline_diffs.md.
+(That paragraph describes the world before R11: both tables were byte-hashed and
+`basin_indicators.csv` still existed. Kept as written because it is the record of
+how the residual was closed, not a description of the current gate.)
 
 Usage:
     python dev/scripts/check_baseline.py record
@@ -139,6 +152,40 @@ DISCHARGE_RTOL = 0.01
 # Subdir (relative to the manifest dir) holding reduced reference discharge series.
 DISCHARGE_REF_SUBDIR = "discharge_ref"
 
+# Indicator-table comparator tolerances (R11 Q8, ruled 2026-08-05). Deliberately
+# the SAME numbers as the discharge anchor, under their own names so the two can
+# diverge later without one silently dragging the other: 1e-3 of a group's own
+# mean magnitude, tightened to 1% relative wherever the reference value is large
+# enough for a relative test to mean anything.
+#
+# Why a tolerance at all: the tables dropped `.round(2)` / `.round(4)` in P1, and
+# that rounding had been an ACCIDENTAL drift buffer. Without it a byte-exact
+# sha256 fails on any harmless numeric nudge -- a solver rebuild, a BLAS version,
+# a float32 reduction reordering -- without indicating a defect. That is the same
+# argument that excludes FIGURE_KINDS by default: a gate that cannot distinguish
+# noise from a defect stops being read.
+#
+# These starting values are the repo's established materiality threshold rather
+# than a measured property of indicator tables. They are honest as a default and
+# unproven as a tuning: the two GEV fits are optimizer output and are the rows
+# most likely to move for reasons no physics change explains. If a re-record ever
+# shows those rows failing alone, tighten or loosen THEM, not the whole table.
+INDICATOR_ATOL_FRAC = 1e-3
+INDICATOR_RTOL = 0.01
+# Subdir (relative to the manifest dir) holding reference indicator tables.
+INDICATOR_REF_SUBDIR = "indicator_ref"
+# The value column; every other column is part of the row key. Kept as a literal
+# rather than imported from blueearth_cst.shared.indicator_tables on purpose --
+# dev/scripts/ is importable from a bare checkout with no package install, and a
+# baseline gate that cannot run because the package moved is worse than a
+# duplicated string. tests/test_check_baseline_indicator.py pins the two together.
+INDICATOR_VALUE_COLUMN = "value"
+# Rows are grouped by these columns before a tolerance is derived, so each group's
+# ATOL comes from its OWN magnitude. Grouping matters: `metric` alone would let a
+# large-catchment gauge set the threshold for a small one, and no grouping at all
+# would let a return level in m3/s set it for a volume in mm.
+INDICATOR_GROUP_COLUMNS = ("metric", "location")
+
 # Volatile attrs stripped before fingerprinting netCDF files.
 VOLATILE_NC_ATTRS = frozenset({
     "history", "creation_date", "Conventions",
@@ -203,7 +250,12 @@ TARGETS: list[tuple[str, str, str]] = [
     # SEED tree and not an arbitrary project. **Adding a variable to the seed
     # config means adding its row here** -- the two are coupled and nothing
     # enforces it, which is the cost of that choice.
-    ("climate_experiment", "csv",  "{exp_dir}/results/q_indicators.csv"),
+    # R11 Q8: `indicator`, not `csv`. P1 dropped the `.round(2)`/`.round(4)` that
+    # had been an accidental drift buffer, so a byte-exact sha256 here now fails
+    # on numeric noise that indicates no defect. Compared against a stored
+    # reference table with a per-group tolerance instead -- see the indicator
+    # block and INDICATOR_ATOL_FRAC.
+    ("climate_experiment", "indicator", "{exp_dir}/results/q_indicators.csv"),
     ("climate_experiment", "yaml", "{exp_dir}/config/snake_config_climate_experiment.yml"),
 ]
 
@@ -339,18 +391,27 @@ FINGERPRINTERS = {
 }
 
 
+#: Kinds compared against a STORED REFERENCE with a tolerance comparator rather
+#: than a self-contained fingerprint. `compute_manifest` skips them; each has its
+#: own record_*/check_* pair. A kind listed here has no entry in FINGERPRINTERS,
+#: so forgetting the skip is a KeyError at record time rather than a silent hash.
+REFERENCE_KINDS = frozenset({"discharge", "indicator"})
+
+
 def compute_manifest(
     project_dir: str,
     workflows: set[str] | None = None,
     include_figures: bool = False,
 ) -> tuple[dict, list[str]]:
-    """Fingerprint every non-discharge target. Discharge targets are handled by
-    record_discharge / check_discharge (they need a stored reference series and a
-    tolerance comparator, not a self-contained fingerprint)."""
+    """Fingerprint every self-contained target.
+
+    REFERENCE_KINDS targets are handled by their own record_*/check_* pairs
+    (they need a stored reference plus a tolerance comparator, not a hash).
+    """
     out: dict[str, dict] = {}
     missing: list[str] = []
     for _workflow, kind, template in active_targets(workflows, include_figures):
-        if kind == "discharge":
+        if kind in REFERENCE_KINDS:
             continue
         path = resolve(template, project_dir)
         if not Path(path).exists():
@@ -600,6 +661,264 @@ def check_discharge(
     return failures
 
 
+# ---------------------------------------------------------------------------
+# Indicator tables: read, compare (R11 Q8), record/check integration.
+#
+# Structurally parallel to the discharge block above, and deliberately so: Q8
+# ruled these targets onto "check_baseline.py's existing compare_discharge-style
+# tolerance comparator". The one real difference is that a discharge target is a
+# SINGLE series with one meaningful magnitude, while an indicator table stacks
+# many series -- metrics in different units, gauges with different catchment
+# areas -- into one long table. So the tolerance is derived per group rather than
+# once for the file. Everything else (structural-checks-first, ATOL from the
+# reference's own mean, RTOL as a large-value tightener, division-safe skip
+# below ATOL) is the same rule.
+# ---------------------------------------------------------------------------
+
+def read_indicator_table(path: str) -> pd.DataFrame:
+    """Parse an indicator table (or a stored reference copy) as strings + value.
+
+    Every column but ``value`` is read as a STRING and left untouched. That is
+    what makes the key alignment exact: ``temp_change`` and ``precip_change``
+    are floats on disk, and letting pandas parse them would make two runs that
+    wrote ``1.3`` and ``1.3000000000000003`` land in different groups and report
+    as a key-set mismatch instead of the sub-tolerance move they are.
+    """
+    df = pd.read_csv(path, dtype=str, keep_default_na=False)
+    if INDICATOR_VALUE_COLUMN not in df.columns:
+        raise ValueError(
+            f"{path}: no {INDICATOR_VALUE_COLUMN!r} column; columns are "
+            f"{list(df.columns)}"
+        )
+    df[INDICATOR_VALUE_COLUMN] = pd.to_numeric(
+        df[INDICATOR_VALUE_COLUMN], errors="coerce"
+    )
+    return df
+
+
+def _indicator_key_columns(df: pd.DataFrame) -> list[str]:
+    return [c for c in df.columns if c != INDICATOR_VALUE_COLUMN]
+
+
+def compare_indicator_table(ref: pd.DataFrame, cur: pd.DataFrame) -> dict:
+    """Key-aligned numeric comparator for a long indicator table (R11 Q8).
+
+    Structural checks first (any hit ⇒ structural FAIL, never a numeric pass):
+    column-set or column-order mismatch, duplicate row keys in either table,
+    unequal row-key sets, non-finite values. Then, per group g of
+    ``INDICATOR_GROUP_COLUMNS`` present in the table, with
+    ATOL(g) = INDICATOR_ATOL_FRAC * mean(|value_ref| within g) and
+    RTOL = INDICATOR_RTOL::
+
+        fail(r) := |dv(r)| > ATOL(g)
+                   OR (|v_ref(r)| >= ATOL(g) AND |dv(r)| > RTOL*|v_ref(r)|)
+
+    Pass iff no structural mismatch and no failing row.
+    """
+    structural: list[str] = []
+
+    ref_cols, cur_cols = list(ref.columns), list(cur.columns)
+    if ref_cols != cur_cols:
+        only_ref = [c for c in ref_cols if c not in cur_cols]
+        only_cur = [c for c in cur_cols if c not in ref_cols]
+        if only_ref or only_cur:
+            structural.append(
+                f"column mismatch: {len(only_ref)} only-ref {only_ref}, "
+                f"{len(only_cur)} only-cur {only_cur}"
+            )
+        else:
+            structural.append(
+                f"column ORDER changed: {cur_cols} vs {ref_cols}"
+            )
+
+    base = {
+        "ok": False,
+        "structural": structural,
+        "rtol": INDICATOR_RTOL,
+        "n": len(ref),
+        "n_groups": None,
+        "n_fail": None,
+        "max_rel": None,
+        "worst": None,
+        "failing_groups": [],
+    }
+    if structural:
+        return base
+
+    key_cols = _indicator_key_columns(ref)
+    ref_key = ref[key_cols].agg("\x1f".join, axis=1)
+    cur_key = cur[key_cols].agg("\x1f".join, axis=1)
+
+    if ref_key.duplicated().any():
+        structural.append(
+            f"{int(ref_key.duplicated().sum())} duplicate row key(s) in reference table"
+        )
+    if cur_key.duplicated().any():
+        structural.append(
+            f"{int(cur_key.duplicated().sum())} duplicate row key(s) in current table"
+        )
+    n_ref_bad = int((~np.isfinite(ref[INDICATOR_VALUE_COLUMN])).sum())
+    n_cur_bad = int((~np.isfinite(cur[INDICATOR_VALUE_COLUMN])).sum())
+    if n_ref_bad:
+        structural.append(f"{n_ref_bad} non-finite value(s) in reference table")
+    if n_cur_bad:
+        structural.append(f"{n_cur_bad} non-finite value(s) in current table")
+
+    ref_set, cur_set = set(ref_key), set(cur_key)
+    if ref_set != cur_set:
+        only_ref = sorted(ref_set - cur_set)
+        only_cur = sorted(cur_set - ref_set)
+
+        def _show(keys: list[str]) -> list[str]:
+            return [k.replace("\x1f", "|") for k in keys[:3]]
+
+        structural.append(
+            f"row-key mismatch: {len(only_ref)} only-ref, {len(only_cur)} only-cur "
+            f"(ref-only e.g. {_show(only_ref)}; cur-only e.g. {_show(only_cur)})"
+        )
+
+    if structural:
+        base["structural"] = structural
+        return base
+
+    # Keys equal and both dedup'd ⇒ reorder current onto reference order.
+    cur_vals = cur.set_index(cur_key)[INDICATOR_VALUE_COLUMN]
+    cur_aligned = cur_vals.reindex(ref_key).to_numpy(dtype=float)
+    ref_vals = ref[INDICATOR_VALUE_COLUMN].to_numpy(dtype=float)
+    dv = np.abs(cur_aligned - ref_vals)
+
+    group_cols = [c for c in INDICATOR_GROUP_COLUMNS if c in ref.columns]
+    if group_cols:
+        group_key = ref[group_cols].agg("\x1f".join, axis=1)
+    else:
+        # No grouping column present ⇒ one group, exactly the discharge rule.
+        group_key = pd.Series(["*"] * len(ref), index=ref.index)
+
+    fail = np.zeros(len(ref), dtype=bool)
+    rel = np.zeros(len(ref), dtype=float)
+    atol_of: dict[str, float] = {}
+    for gname, idx in group_key.groupby(group_key).groups.items():
+        pos = ref.index.get_indexer(idx)
+        atol = INDICATOR_ATOL_FRAC * float(np.mean(np.abs(ref_vals[pos])))
+        atol_of[str(gname)] = atol
+        g_dv, g_ref = dv[pos], np.abs(ref_vals[pos])
+        abs_fail = g_dv > atol
+        rel_subset = g_ref >= atol
+        rel_fail = np.zeros_like(g_dv, dtype=bool)
+        if atol > 0:
+            rel_fail[rel_subset] = g_dv[rel_subset] > INDICATOR_RTOL * g_ref[rel_subset]
+        fail[pos] = abs_fail | rel_fail
+        with np.errstate(divide="ignore", invalid="ignore"):
+            rel[pos] = np.where(g_ref > 0, g_dv / np.where(g_ref > 0, g_ref, 1.0), 0.0)
+
+    n_fail = int(fail.sum())
+    worst = None
+    if len(ref):
+        w = int(np.argmax(rel))
+        worst = ref_key.iloc[w].replace("\x1f", "|")
+    failing_groups = sorted({str(g) for g in group_key[fail].unique()})
+
+    return {
+        "ok": n_fail == 0,
+        "structural": [],
+        "rtol": INDICATOR_RTOL,
+        "n": len(ref),
+        "n_groups": len(atol_of),
+        "n_fail": n_fail,
+        "max_rel": float(rel.max()) if len(ref) else 0.0,
+        "worst": worst,
+        "failing_groups": failing_groups,
+    }
+
+
+def _indicator_report_lines(report: dict) -> list[str]:
+    if report["structural"]:
+        return [f"structural: {s}" for s in report["structural"]]
+    lines = [
+        f"{report['n_fail']}/{report['n']} row(s) exceed tolerance across "
+        f"{report['n_groups']} group(s) "
+        f"(ATOL={INDICATOR_ATOL_FRAC:g}*mean|value_ref| per "
+        f"{'+'.join(INDICATOR_GROUP_COLUMNS)}, RTOL={report['rtol']:.0%})",
+        f"max relative move = {report['max_rel']:.4g} at {report['worst']}",
+    ]
+    if report["n_fail"]:
+        shown = report["failing_groups"][:5]
+        more = len(report["failing_groups"]) - len(shown)
+        lines.append(
+            f"failing group(s): {[g.replace(chr(31), '|') for g in shown]}"
+            + (f" (+{more} more)" if more > 0 else "")
+        )
+    return lines
+
+
+def _indicator_slug(resolved_path: str) -> str:
+    return hashlib.sha1(resolved_path.encode("utf-8")).hexdigest()[:16] + ".csv"
+
+
+def record_indicator(
+    project_dir: str, ref_dir: Path, workflows: set[str] | None = None
+) -> tuple[dict, list[str]]:
+    """Store a reference copy of every in-scope indicator table and return their
+    manifest rows plus any missing target paths.
+
+    The stored copy is the table VERBATIM. Unlike the discharge sidecar there is
+    nothing to reduce -- the table is already the reduction -- and copying bytes
+    keeps the reference readable as the artifact it mirrors.
+    """
+    rows: dict[str, dict] = {}
+    missing: list[str] = []
+    # Never a FIGURE_KIND, so include_figures=True keeps this universe identical
+    # either way -- same reasoning as record_discharge.
+    for _workflow, kind, template in active_targets(workflows, include_figures=True):
+        if kind != "indicator":
+            continue
+        path = resolve(template, project_dir)
+        if not Path(path).exists():
+            missing.append(path)
+            continue
+        df = read_indicator_table(path)
+        rel = f"{INDICATOR_REF_SUBDIR}/{_indicator_slug(path)}"
+        sidecar = ref_dir / rel
+        sidecar.parent.mkdir(parents=True, exist_ok=True)
+        sidecar.write_bytes(Path(path).read_bytes())
+        group_cols = [c for c in INDICATOR_GROUP_COLUMNS if c in df.columns]
+        n_groups = (
+            int(df[group_cols].agg("\x1f".join, axis=1).nunique()) if group_cols else 1
+        )
+        rows[path] = {
+            "type": "indicator",
+            "columns": list(df.columns),
+            "n_rows": int(len(df)),
+            "n_groups": n_groups,
+            "ref_table": rel,
+        }
+    return rows, missing
+
+
+def check_indicator(
+    project_dir: str, ref_dir: Path, rec_targets: dict
+) -> list[tuple[str, list[str]]]:
+    """Compare every recorded indicator target (already scoped by the caller)
+    against its stored reference table. Returns (path, diff-lines) failures."""
+    failures: list[tuple[str, list[str]]] = []
+    for path, rec in rec_targets.items():
+        if not isinstance(rec, dict) or rec.get("type") != "indicator":
+            continue
+        if not Path(path).exists():
+            failures.append((path, ["target missing on disk"]))
+            continue
+        sidecar = ref_dir / rec["ref_table"]
+        if not sidecar.exists():
+            failures.append((path, [f"stored reference table missing: {sidecar}"]))
+            continue
+        report = compare_indicator_table(
+            read_indicator_table(str(sidecar)), read_indicator_table(path)
+        )
+        if not report["ok"]:
+            failures.append((path, _indicator_report_lines(report)))
+    return failures
+
+
 def diff_png(rec: dict, cur: dict) -> list[str]:
     if not cur.get("exists"):
         return ["missing"]
@@ -677,7 +996,8 @@ def cmd_record(args: argparse.Namespace) -> int:
         args.project_dir, workflows=selected, include_figures=_want_figures(args)
     )
     disch_rows, disch_missing = record_discharge(args.project_dir, ref_dir, workflows=selected)
-    missing = missing + disch_missing
+    ind_rows, ind_missing = record_indicator(args.project_dir, ref_dir, workflows=selected)
+    missing = missing + disch_missing + ind_missing
     if missing:
         scope = "" if selected is None else f" for workflow(s) {sorted(selected)}"
         sys.stderr.write(
@@ -687,7 +1007,7 @@ def cmd_record(args: argparse.Namespace) -> int:
             sys.stderr.write(f"  - {p}\n")
         return 1
 
-    new_rows = {**manifest, **disch_rows}
+    new_rows = {**manifest, **disch_rows, **ind_rows}
     if selected is not None and args.manifest.exists():
         # Merge: keep every recorded row NOT owned by a selected workflow, then
         # overlay the freshly-recorded selected rows. Never clobber wf2/wf3.
@@ -793,8 +1113,9 @@ def cmd_check(args: argparse.Namespace) -> int:
         diffs = diff_records(rec, current[path], args.tolerance)
         if diffs:
             failures.append((path, diffs))
-    # Discharge targets: compared via the tolerance comparator, not fingerprints.
+    # REFERENCE_KINDS: compared via their tolerance comparators, not fingerprints.
     failures.extend(check_discharge(args.project_dir, ref_dir, rec_targets))
+    failures.extend(check_indicator(args.project_dir, ref_dir, rec_targets))
     for path in sorted(set(current) - set(rec_targets)):
         failures.append((path, ["target present but not in manifest"]))
 
