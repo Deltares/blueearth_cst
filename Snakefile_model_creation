@@ -227,20 +227,29 @@ REGION = region_rule(
 # `project` + `shared.basin`, so the deprecated
 # `workflows.model_creation.output_locations` fallback cannot feed it.
 #
-# THE COST IS REAL, AND IT IS SILENT. Rule 1.06 used to receive `my_cfg` and so
-# honoured the legacy key on its way to the partition. A config that sets ONLY
-# `workflows.model_creation.output_locations` now reaches this rule with no
-# gauge points at all, so its parent basins fall back to the AUTOMATIC
-# partition: different subbasins, a different location_registry.csv, and
-# different wflow_id values — with no error, because an absent gauge file is a
-# legitimate configuration. Rule 1.09 would then add gauges to a model whose
-# subbasins were derived without them.
+# THE COST WAS REAL AND SILENT, AND IS NOW REFUSED AT THE SEAM. Rule 1.06 used
+# to receive `my_cfg` and so honoured the legacy key on its way to the
+# partition. A config that set ONLY `workflows.model_creation.output_locations`
+# then reached this rule with no gauge points at all, so its parent basins fell
+# back to the AUTOMATIC partition: different subbasins, a different
+# location_registry.csv, and different wflow_id values — with no error, because
+# an absent gauge file is a legitimate configuration. Rule 1.09 would then add
+# gauges to a model whose subbasins were derived without them.
 #
-# No tracked config is affected (all set `shared.basin.gauge_points`, the
-# canonical key, checked 2026-08-06), and §8b leaves no alternative: a params
+# That is no longer reachable. §8b leaves no alternative on this side — a params
 # payload drawn from a section the projections-only configs do not have would
-# differ per invoking workflow. But a migrating project must move the key, not
-# merely be told the old one is deprecated.
+# differ per invoking workflow — so the asymmetry is refused one level up
+# instead: `resolve_gauge_points_path` RAISES on a legacy-only config, at the
+# module-level `parse_spatial_config` call above (line 47), before the DAG is
+# built. Both keys naming the same path still parse. A migrating project is
+# therefore stopped at parse time with the canonical key spelled out, rather
+# than told the old one is deprecated and left to discover the partition moved.
+#
+# Fixed 2026-08-08 after a real project hit it: five automatic outlets in the
+# registry, observations declaring the four station ids the gauge file pinned,
+# and the failure surfacing at rule 1.15 a whole model build later. No tracked
+# config was ever affected (all set `shared.basin.gauge_points`, the canonical
+# key, checked 2026-08-06), which is why the suite stayed green throughout.
 SPATIAL_UNITS = spatial_units_rule(
     project_dir=project_dir,
     spatial_config=parse_spatial_config(basin_cfg),

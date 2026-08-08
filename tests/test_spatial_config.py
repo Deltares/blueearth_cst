@@ -82,14 +82,34 @@ def test_gauge_points_supports_legacy_unset_spellings(legacy_unset):
     )
 
 
-def test_legacy_output_locations_warns_and_remains_compatible():
-    """One-release compatibility is explicit rather than a silent fallback."""
-    with pytest.warns(FutureWarning, match="shared.basin.gauge_points"):
-        path = resolve_gauge_points_path(
+def test_legacy_only_output_locations_is_rejected_at_parse_time():
+    """The legacy key alone cannot be honoured, so it must not parse.
+
+    It reaches rule 1.15 through this resolver but never rule 1.03, whose
+    params are `shared.basin` alone (ADR 0003 §8b). Honouring it would
+    delineate from the automatic fallback and fail a whole model build later,
+    which is what happened on a real project 2026-08-08. Raising here is the
+    only place the two keys are visible together.
+    """
+    with pytest.raises(ValueError, match="no longer honoured on its own"):
+        resolve_gauge_points_path(
             {}, {"output_locations": "C:/observations/gauges.csv"}
         )
 
-    assert path == "C:/observations/gauges.csv"
+
+def test_legacy_only_rejection_quotes_the_migrated_key_and_path():
+    """The error is a copy-pasteable edit, not just a complaint."""
+    with pytest.raises(ValueError) as excinfo:
+        resolve_gauge_points_path(
+            {}, {"output_locations": "C:/observations/gauges.csv"}
+        )
+
+    message = str(excinfo.value)
+    assert "gauge_points: C:/observations/gauges.csv" in message
+    assert "shared:" in message and "basin:" in message
+    # The second half of the migration -- the ids move too, and a user who
+    # only moves the key hits the wflow_id assertion next.
+    assert "config/templates/observations/README.md" in message
 
 
 def test_matching_canonical_and_legacy_gauge_paths_are_allowed():
