@@ -217,7 +217,7 @@ _WG2_HEADER = ("month", "temp_mean", "precip_mean", "precip_variance")
 
 
 def validate_wg2(df: Any) -> list[str]:
-    """WG-2 — stress-test perturbation grid (``cst_<m>.csv``, m>=1).
+    """WG-2 — stress-test perturbation grid (``st_<m>.csv``, m>=1).
 
     Pinned surface (design §5.2): header exactly ``month,temp_mean,precip_mean,
     precip_variance``; 12 rows with ``month`` domain ``1..12``. Column
@@ -364,7 +364,7 @@ def validate_wg5(cfg: Any) -> list[str]:
     """WG-5 — hydromt climate data catalog (``data_catalog_climate_experiment.yml``).
 
     Pinned-as-reliance (design §5.2): OUR emitted subset of the hydromt
-    data-catalog schema — for every ``rlz_<n>_cst_<m>`` entry the driver /
+    data-catalog schema — for every ``rlz_<n>_st_<m>`` entry the driver /
     metadata fields ``{uri, driver.name=raster_xarray,
     driver.options.preprocess=harmonise_dims, driver.options.lock=false,
     metadata.crs=4326, metadata.category=meteo, data_type=RasterDataset}``.
@@ -383,7 +383,7 @@ def validate_wg5(cfg: Any) -> list[str]:
         k: v for k, v in cfg.items() if isinstance(k, str) and k.startswith("rlz_")
     }
     if not entries:
-        diffs.append(f"{label}: no 'rlz_<n>_cst_<m>' entries in catalog")
+        diffs.append(f"{label}: no 'rlz_<n>_st_<m>' entries in catalog")
     for key in sorted(entries):
         diffs += _validate_catalog_entry(key, entries[key], label)
     return diffs
@@ -799,7 +799,7 @@ def validate_hm7(tables: dict, rlz_num: int | None = None) -> list[str]:
 
 
 def validate_wg4(ds: Any) -> list[str]:
-    """WG-4 — generator output netCDF content (``rlz_<n>_cst_<m>.nc``).
+    """WG-4 — generator output netCDF content (``rlz_<n>_st_<m>.nc``).
 
     Pinned surface (design §5.2): a ``(time, lat, lon)`` raster the hydromt
     catalog (WG-5) reads — at least ``precip`` and ``temp`` on an EPSG:4326 grid
@@ -846,7 +846,7 @@ def validate_wg4(ds: Any) -> list[str]:
 
 
 def validate_wg6(ds: Any) -> list[str]:
-    """WG-6 — downscaled Wflow forcing content (``inmaps_rlz_<n>_cst_<m>.nc``).
+    """WG-6 — downscaled Wflow forcing content (``inmaps_rlz_<n>_st_<m>.nc``).
 
     The wf3 twin of ``inmaps_historical.nc`` — the SAME contract as HM-2 (design
     §5.2/§5.3): ``(time, latitude, longitude)`` ``float32`` ``precip`` / ``pet``
@@ -861,7 +861,7 @@ def validate_wg6(ds: Any) -> list[str]:
 
 
 def validate_hm6b(ds: Any) -> list[str]:
-    """HM-6b — wf3 warm state content (``outstates_rlz_<n>_cst_<m>.nc``).
+    """HM-6b — wf3 warm state content (``outstates_rlz_<n>_st_<m>.nc``).
 
     THIN — an unconsumed named sink (design §5.3): nothing in-repo reads it, so
     the contract pins only that it is a wflow state **output** — an
@@ -1037,8 +1037,8 @@ def validate_wg5_catalog_grid(
 ) -> list[str]:
     """Relational: the WG-5 catalog entry-key grid vs the INTENDED grid (design §5.5).
 
-    Expected entry keys exactly ``{rlz_<n>_cst_<m> : n in 1..rlz_num,
-    m in 0..st_num}`` — **cst_0 included** (rule 3.08 consumes both the cst_0
+    Expected entry keys exactly ``{rlz_<n>_st_<m> : n in 1..rlz_num,
+    m in 0..st_num}`` — **st_0 included** (rule 3.08 consumes both the st_0
     list and the perturbed ``expand`` grid, ``Snakefile_climate_experiment:318-319``).
     Both missing AND unexpected keys are reported. A dropped or extra catalog
     entry is invisible to per-artifact ``validate_wg5`` (each remaining entry is
@@ -1053,7 +1053,7 @@ def validate_wg5_catalog_grid(
     if not isinstance(catalog_cfg, Mapping):
         return [f"{label}: catalog is not a mapping ({type(catalog_cfg).__name__})"]
     expected = {
-        f"rlz_{n}_cst_{m}"
+        f"rlz_{n}_st_{m}"
         for n in range(1, rlz_num + 1)
         for m in range(0, st_num + 1)
     }

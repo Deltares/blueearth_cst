@@ -216,10 +216,10 @@ CONFIG_SNAPSHOT_DIR = (
 
 # --- The two symmetric engine subtrees inside the experiment ------------------
 # CURRENT SHAPE. Each engine owns its own config, working and product
-# directories, and ONE MEMBER IS ONE FILENAME (`rlz_<r>_cst_<c>`) rather than a
+# directories, and ONE MEMBER IS ONE FILENAME (`rlz_<r>_st_<c>`) rather than a
 # directory level:
 #   climate/weathergenr/config/  the generator's own config snapshot (rule 3.10)
-#   climate/weathergenr/_work/   the cst_<c>.csv perturbation grid (3.09) --
+#   climate/weathergenr/_work/   the st_<c>.csv perturbation grid (3.09) --
 #                                demoted for legibility, RETAINED on disk: it is
 #                                the only record of the precip_variance axis and
 #                                of the monthly structure the reduction
@@ -230,7 +230,7 @@ CONFIG_SNAPSHOT_DIR = (
 #                                and weathergenr's two date CSVs
 #   climate/weathergenr/plots/   weathergenr's diagnostic figures
 #   hydrology/wflow/{config,forcing,output}/  three FLAT directories, each
-#                                holding rlz_<r>_cst_<c>.* for every member.
+#                                holding rlz_<r>_st_<c>.* for every member.
 # inmaps_rlz_* are wflow-GRID downscaled forcing (rule 3.14) -- the per-
 # realization twin of models/hydrology/wflow/forcing/inmaps_historical.nc -- so
 # they belong to the hydrology side, not to climate/weathergenr/output/.
@@ -668,7 +668,7 @@ rule prepare_stress_test_grid:
         config = ancient(config_path),
         consistency_ok = f"{exp_dir}/.project_consistency_ok",
     output:
-        st_csv_fns = [f"{wg_dir}/_work/cst_{st_num}.csv" for st_num in np.arange(1, ST_NUM+1)]
+        st_csv_fns = [f"{wg_dir}/_work/st_{st_num}.csv" for st_num in np.arange(1, ST_NUM+1)]
     log:
         f"{LOG_PARTS_DIR}/3.09_prepare_stress_test_grid.log",
     benchmark:
@@ -720,14 +720,14 @@ rule prepare_weathergen_config:
 # into the ONE shared config from 3.10. See dev/milestones/r09/wf3-change-requests.md
 # CR-5, and F6 for what the deleted file misleadingly carried.
 
-# 3.11  generate_weather_realizations — weathergenr stochastic realizations (cst_0)
+# 3.11  generate_weather_realizations — weathergenr stochastic realizations (st_0)
 rule generate_weather_realizations:
     message: rule_banner("3.11", "generate_weather_realizations")
     input:
         climate_nc = ancient(f"{store_dir}/extract_historical.nc"),
         weagen_config = f"{wg_dir}/config/weathergen_config.yml",
     output:
-        temp([f"{wg_dir}/output/rlz_{rlz_num}_cst_0.nc" for rlz_num in np.arange(1, RLZ_NUM+1)])
+        temp([f"{wg_dir}/output/rlz_{rlz_num}_st_0.nc" for rlz_num in np.arange(1, RLZ_NUM+1)])
     log:
         f"{LOG_PARTS_DIR}/3.11_generate_weather_realizations.log",
     benchmark:
@@ -739,27 +739,27 @@ rule generate_weather_realizations:
 rule perturb_climate_realization:
     message: rule_banner("3.12", "perturb_climate_realization")
     # Constrain st_num to strictly positive integers on THIS rule so its output
-    # wildcard rlz_{rlz_num}_cst_{st_num}.nc can never resolve st_num to 0. Left
-    # unconstrained, the rule would be a second eligible producer of cst_0.nc
+    # wildcard rlz_{rlz_num}_st_{st_num}.nc can never resolve st_num to 0. Left
+    # unconstrained, the rule would be a second eligible producer of st_0.nc
     # (already produced by generate_weather_realizations and named as this rule's
     # own literal rlz_nc input) -> a rule ambiguity that surfaces as a self-loop
-    # (CyclicGraphException) on the test-config dry-run. cst_0 is the reserved
+    # (CyclicGraphException) on the test-config dry-run. st_0 is the reserved
     # unperturbed baseline (naming.md §4); only perturbed st_num >= 1 belong here.
     wildcard_constraints:
         st_num=r"[1-9][0-9]*",
     input:
-        rlz_nc = f"{wg_dir}/output/rlz_"+"{rlz_num}"+"_cst_0.nc",
-        st_csv = f"{wg_dir}/_work/cst_"+"{st_num}"+".csv",
+        rlz_nc = f"{wg_dir}/output/rlz_"+"{rlz_num}"+"_st_0.nc",
+        st_csv = f"{wg_dir}/_work/st_"+"{st_num}"+".csv",
         # The ONE shared config from 3.10 (C29 retired the per-member one). The
         # DAG edge was already there transitively via 3.11; declaring it makes
         # the transient-flag read visible to --dry-run.
         weagen_config = f"{wg_dir}/config/weathergen_config.yml",
     output:
-        rlz_st_nc = temp(f"{wg_dir}/output/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc")
+        rlz_st_nc = temp(f"{wg_dir}/output/rlz_"+"{rlz_num}"+"_st_"+"{st_num}"+".nc")
     log:
-        f"{LOG_PARTS_DIR}/3.12_perturb_climate_realization/" + "rlz_{rlz_num}_cst_{st_num}.log",
+        f"{LOG_PARTS_DIR}/3.12_perturb_climate_realization/" + "rlz_{rlz_num}_st_{st_num}.log",
     benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.12_perturb_climate_realization/" + "rlz_{rlz_num}_cst_{st_num}.tsv",
+        f"{exp_dir}/benchmarks/_parts/3.12_perturb_climate_realization/" + "rlz_{rlz_num}_st_{st_num}.tsv",
     shell:
         """python -u "{run_logged}" "{log}" -- Rscript --vanilla blueearth_cst/weathergen/impose_climate_change.R {input.rlz_nc} {input.weagen_config} {input.st_csv} {output.rlz_st_nc}"""
 
@@ -767,8 +767,8 @@ rule perturb_climate_realization:
 rule write_climate_data_catalog:
     message: rule_banner("3.13", "write_climate_data_catalog")
     input:
-        cst_nc = expand((f"{wg_dir}/output/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc"), rlz_num = np.arange(1, RLZ_NUM+1), st_num = np.arange(1, ST_NUM+1)),
-        rlz_nc = [f"{wg_dir}/output/rlz_{rlz_num}_cst_0.nc" for rlz_num in np.arange(1, RLZ_NUM+1)]
+        cst_nc = expand((f"{wg_dir}/output/rlz_"+"{rlz_num}"+"_st_"+"{st_num}"+".nc"), rlz_num = np.arange(1, RLZ_NUM+1), st_num = np.arange(1, ST_NUM+1)),
+        rlz_nc = [f"{wg_dir}/output/rlz_{rlz_num}_st_0.nc" for rlz_num in np.arange(1, RLZ_NUM+1)]
     output:
         clim_data = exp_catalog
     params:
@@ -800,22 +800,22 @@ rule downscale_climate_realization:
         rlz_num=r"\d+",
         st_num=r"\d+",
     input:
-        nc = f"{wg_dir}/output/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc",
+        nc = f"{wg_dir}/output/rlz_"+"{rlz_num}"+"_st_"+"{st_num}"+".nc",
         data_sources = [exp_catalog, DATA_SOURCES],
         # The drift guard, BEFORE any simulation work touches the model.
         model_reference_ok = f"{exp_dir}/.model_reference_ok",
     output:
-        nc = temp(f"{runs_dir}/forcing/inmaps_rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".nc"),
-        toml = f"{runs_dir}/config/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".toml"
+        nc = temp(f"{runs_dir}/forcing/inmaps_rlz_"+"{rlz_num}"+"_st_"+"{st_num}"+".nc"),
+        toml = f"{runs_dir}/config/rlz_"+"{rlz_num}"+"_st_"+"{st_num}"+".toml"
     params:
         model_dir = basin_dir,
         clim_source = clim_source,
         horizontime_climate = horizontime_climate,
         run_length = wflow_run_length,
     log:
-        f"{LOG_PARTS_DIR}/3.14_downscale_climate_realization/" + "rlz_{rlz_num}_cst_{st_num}.log",
+        f"{LOG_PARTS_DIR}/3.14_downscale_climate_realization/" + "rlz_{rlz_num}_st_{st_num}.log",
     benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.14_downscale_climate_realization/" + "rlz_{rlz_num}_cst_{st_num}.tsv",
+        f"{exp_dir}/benchmarks/_parts/3.14_downscale_climate_realization/" + "rlz_{rlz_num}_st_{st_num}.tsv",
     script:
         "blueearth_cst/experiment/downscale_climate_forcing.py"
 
@@ -876,14 +876,14 @@ for _b, _members in _batches.items():
         name: f"run_wflow_batch_{_b}"
         message: rule_banner("3.15", f"run_wflow_batch_{_b}")
         input:
-            forcing = [f"{runs_dir}/forcing/inmaps_rlz_{r}_cst_{c}.nc"
+            forcing = [f"{runs_dir}/forcing/inmaps_rlz_{r}_st_{c}.nc"
                        for (r, c) in _members],
-            tomls = [f"{runs_dir}/config/rlz_{r}_cst_{c}.toml"
+            tomls = [f"{runs_dir}/config/rlz_{r}_st_{c}.toml"
                      for (r, c) in _members],
         output:
-            csvs = [f"{runs_dir}/output/rlz_{r}_cst_{c}.csv"
+            csvs = [f"{runs_dir}/output/rlz_{r}_st_{c}.csv"
                     for (r, c) in _members],
-            states = [temp(f"{runs_dir}/output/outstates_rlz_{r}_cst_{c}.nc")
+            states = [temp(f"{runs_dir}/output/outstates_rlz_{r}_st_{c}.nc")
                       for (r, c) in _members],
         params:
             members = _members,
@@ -899,12 +899,12 @@ for _b, _members in _batches.items():
 rule derive_wflow_indicators:
     message: rule_banner("3.16", "derive_wflow_indicators")
     input:
-        rlz_csv_fns = expand((f"{runs_dir}/output/rlz_"+"{rlz_num}"+"_cst_"+"{st_num}"+".csv"), rlz_num=np.arange(1, RLZ_NUM+1), st_num=np.arange(ST_START, ST_NUM+1)),
+        rlz_csv_fns = expand((f"{runs_dir}/output/rlz_"+"{rlz_num}"+"_st_"+"{st_num}"+".csv"), rlz_num=np.arange(1, RLZ_NUM+1), st_num=np.arange(ST_START, ST_NUM+1)),
         # R07 B6: the perturbation grid was an UNDECLARED runtime read
         # (the script reconstructed the path from exp_dir), so it
         # was invisible to --dry-run. It is enumerable from ST_NUM, so declare
         # it -- the same correction rule 3.13's oro_path got.
-        st_csv_fns = [f"{wg_dir}/_work/cst_{st_num}.csv" for st_num in np.arange(1, ST_NUM+1)],
+        st_csv_fns = [f"{wg_dir}/_work/st_{st_num}.csv" for st_num in np.arange(1, ST_NUM+1)],
     output:
         # One per configured output variable (CR-2). Keyed by token so the script
         # can address them by name; `**` splats the derived set in, because the

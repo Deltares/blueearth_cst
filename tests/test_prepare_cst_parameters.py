@@ -1,7 +1,7 @@
 """Unit tests for prepare_cst_parameters.prep_cst_parameters (R5 §8).
 
 Drives the CSV generation on a synthetic in-memory config written to a
-tmp_path YAML, with csv_fns=None so the function auto-names cst_{i+1}.csv in
+tmp_path YAML, with csv_fns=None so the function auto-names st_{i+1}.csv in
 the config's directory. Uses only pandas/numpy/yaml — the function is already
 import-clean (guarded), no heavy-dep stub, no sys.modules pollution risk.
 """
@@ -47,7 +47,7 @@ def _write_cfg(tmp_path, *, temp_step=1, precip_step=2, var_min=1.0, var_max=1.0
 
 def _read_cst_csvs(tmp_path):
     paths = sorted(
-        glob.glob(str(tmp_path / "cst_*.csv")),
+        glob.glob(str(tmp_path / "st_*.csv")),
         key=lambda p: int(os.path.basename(p).split("_")[1].split(".")[0]),
     )
     return [pd.read_csv(p) for p in paths]

@@ -310,9 +310,9 @@ def test_snakefile_cli_climate_experiment(config_with_staged_region):
     """Workflow 3 dry-run builds a clean DAG on the test config (R5 fixed the cycle).
 
     Pre-R5 this tripped a CyclicGraphException at rule
-    generate_climate_stress_test: its output wildcard rlz_{rlz_num}_cst_{st_num}.nc
+    generate_climate_stress_test: its output wildcard rlz_{rlz_num}_st_{st_num}.nc
     could resolve st_num to 0, making the rule a second eligible producer of
-    cst_0.nc (a self-loop). R5 removed it with a rule-local
+    st_0.nc (a self-loop). R5 removed it with a rule-local
     `wildcard_constraints: st_num=[1-9][0-9]*` on that rule. Once the cycle is
     gone the ancient(region.geojson) input existence is checked, so this reuses
     the same staged-region fixture as workflow 2 (region.geojson is the sole

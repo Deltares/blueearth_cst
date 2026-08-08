@@ -84,7 +84,7 @@ def prep_cst_parameters(
             if csv_fns is None:
                 csv_fn = join(
                     os.path.dirname(config_fn),
-                    f"cst_{i+1}.csv",
+                    f"st_{i+1}.csv",
                 )
             else:
                 csv_fn = csv_fns[i]

@@ -2,12 +2,15 @@
 perturbation-axis collapse ([R9-3]).
 
 B5 moved the realization index out of the wflow run CSV's file name and into
-its run directory (``hydrology_runs/rlz_<n>/output/cst_<m>.csv``). The old
+its run directory (``hydrology_runs/rlz_<n>/output/cst_<m>.csv``). The older
 ``output_rlz_<n>_cst_<m>.csv`` name was split on ``_`` at a fixed position --
 a derivation that raises ``IndexError`` on the new name, and that is computed
 on every row even when ``aggr_rlz=True`` leaves the value unused. That makes it
 the one place in the move where a path rename breaks logic rather than a
-pointer, so it gets direct coverage.
+pointer, so it gets direct coverage. Both of those names carry the pre-R11-P2
+``cst_`` member token, deliberately: they name eras, and that is what a tree
+from either one actually holds. Everything the current reduction reads or
+raises about says ``st_``.
 
 The [R9-3] cases carry a load the rest of the ladder cannot: every tracked
 config uses a FLAT monthly perturbation vector, so the baseline manifest and
@@ -31,7 +34,7 @@ from blueearth_cst.experiment.export_wflow_results import (  # noqa: E402
 
 
 def _cst_df(temp, precip):
-    """A ``cst_<m>.csv`` as ``prepare_cst_parameters`` writes it: 12 rows, month 1..12."""
+    """A ``st_<m>.csv`` as ``prepare_cst_parameters`` writes it: 12 rows, month 1..12."""
     return pd.DataFrame(
         {
             "month": np.arange(1, 13),
@@ -52,7 +55,7 @@ def test_realization_index_comes_from_the_file_name(tmp_path, rlz):
     """
     csv = (
         tmp_path / "experiments" / "e" / "hydrology" / "wflow" / "output"
-        / f"rlz_{rlz}_cst_3.csv"
+        / f"rlz_{rlz}_st_3.csv"
     )
     csv.parent.mkdir(parents=True)
     csv.write_text("time,Q_1\n")
@@ -68,7 +71,7 @@ def test_the_cst_index_is_never_mistaken_for_the_realization(tmp_path):
     every result row would be mislabelled with no error anywhere. Pinned with a
     case where the two indices differ and the wrong one is the tempting one.
     """
-    csv = tmp_path / "output" / "rlz_2_cst_9.csv"
+    csv = tmp_path / "output" / "rlz_2_st_9.csv"
     csv.parent.mkdir(parents=True)
     csv.write_text("time,Q_1\n")
     assert member_from_run_csv(csv) == (2, 9)
@@ -78,22 +81,23 @@ def test_the_cst_index_is_never_mistaken_for_the_realization(tmp_path):
 def test_the_directory_no_longer_carries_the_index(tmp_path):
     """The R7 shape must not keep working by accident.
 
-    A `rlz_<n>/` directory with a `cst_<m>.csv` inside is the OLD layout. If it
+    A `rlz_<n>/` directory with a `cst_<m>.csv` inside is the OLD layout — the
+    old token included, since that is what a stale tree actually holds. If it
     still resolved, a half-migrated tree would produce results silently instead
     of failing, which is exactly what P2 must not allow.
     """
     csv = tmp_path / "hydrology_runs" / "rlz_7" / "output" / "cst_0.csv"
     csv.parent.mkdir(parents=True)
     csv.write_text("time,Q_1\n")
-    with pytest.raises(ValueError, match="rlz_<n>_cst_<m>"):
+    with pytest.raises(ValueError, match="rlz_<n>_st_<m>"):
         member_from_run_csv(csv)
 
 
 def test_realization_index_raises_naming_the_offending_path(tmp_path):
-    csv = tmp_path / "model_runs" / "output" / "cst_1.csv"
+    csv = tmp_path / "model_runs" / "output" / "st_1.csv"
     csv.parent.mkdir(parents=True)
     csv.write_text("time,Q_1\n")
-    with pytest.raises(ValueError, match="rlz_<n>_cst_<m>"):
+    with pytest.raises(ValueError, match="rlz_<n>_st_<m>"):
         member_from_run_csv(csv)
 
 
@@ -176,27 +180,27 @@ def test_row_order_does_not_change_the_answer():
 def test_a_partial_year_is_refused_by_name():
     df = _cst_df([1.0] * 12, [1.0] * 12).iloc[:6]
     with pytest.raises(ValueError, match="6 rows, expected one per month"):
-        annual_perturbation(df, "temp_mean", "cst_4.csv")
+        annual_perturbation(df, "temp_mean", "st_4.csv")
 
 
 def test_a_broken_month_column_is_refused_by_name():
     df = _cst_df([1.0] * 12, [1.0] * 12)
     df.loc[3, "month"] = 3  # month 4 duplicated as a second March
     with pytest.raises(ValueError, match="twelve calendar months"):
-        annual_perturbation(df, "temp_mean", "cst_4.csv")
+        annual_perturbation(df, "temp_mean", "st_4.csv")
 
 
 def test_incomplete_stress_test_grid_fails_loudly(tmp_path):
-    """B6 declares cst_1..cst_ST_NUM as a real input. If the declared set and
+    """B6 declares st_1..st_ST_NUM as a real input. If the declared set and
     ``st_num`` ever disagree, that must name the mismatch, not KeyError deep in
     the reduction loop on whichever row happens to reach the missing index."""
-    run_csv = tmp_path / "rlz_1" / "output" / "cst_1.csv"
+    run_csv = tmp_path / "rlz_1" / "output" / "st_1.csv"
     run_csv.parent.mkdir(parents=True)
     run_csv.write_text("time,Q_1\n2000-01-01,1.0\n")
     with pytest.raises(ValueError, match=r"do not cover 1\.\.3"):
         analyze_wflow_results(
             csv_fns=[str(run_csv)],
-            st_csv_fns=[str(tmp_path / "cst_1.csv"), str(tmp_path / "cst_2.csv")],
+            st_csv_fns=[str(tmp_path / "st_1.csv"), str(tmp_path / "st_2.csv")],
             results_dir=str(tmp_path),
             st_num=3,
             indicator_tokens=["q"],
@@ -226,16 +230,16 @@ def _reduce(tmp_path, tokens=("q",), rlz=2, st=2, basavg=True):
     seed = 0
     for member in range(0, st + 1):
         for r in range(1, rlz + 1):
-            _run_csv(tmp_path / f"rlz_{r}_cst_{member}.csv", seed, member, basavg)
+            _run_csv(tmp_path / f"rlz_{r}_st_{member}.csv", seed, member, basavg)
             seed += 1
     for member in range(1, st + 1):
         _cst_df(0.5 * member, 1.0 + 0.1 * member).to_csv(
-            tmp_path / f"cst_{member}.csv", index=False
+            tmp_path / f"st_{member}.csv", index=False
         )
     paths = {t: str(tmp_path / f"{t}_indicators.csv") for t in tokens}
     analyze_wflow_results(
         csv_fns=sorted(str(p) for p in tmp_path.glob("rlz_*.csv")),
-        st_csv_fns=sorted(str(p) for p in tmp_path.glob("cst_*.csv")),
+        st_csv_fns=sorted(str(p) for p in tmp_path.glob("st_*.csv")),
         results_dir=str(tmp_path),
         st_num=st,
         indicator_tokens=list(tokens),
@@ -285,7 +289,7 @@ def test_values_are_not_rounded(tmp_path):
 
 
 def test_the_class_c_month_is_the_same_for_every_member(tmp_path):
-    """Q5: the month is FIXED from cst_0, so the surface shows how flow in a
+    """Q5: the month is FIXED from st_0, so the surface shows how flow in a
     given month responds rather than conflating that with the month moving."""
     q = _reduce(tmp_path, st=2)["q"]
     wet = q[(q.metric == "q_wettest_month_mean") & (q.location == 101)]

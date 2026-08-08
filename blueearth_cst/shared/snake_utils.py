@@ -62,7 +62,7 @@ def _log_path_parts(log_path):
 
     The parent of the first ``logs`` / ``benchmarks`` path component is the
     project dir; the path below that anchor is the rule-log id (so wildcard
-    sub-logs read e.g. ``3.10_run_wflow/rlz_1_cst_1.log``). Both are ``""`` /
+    sub-logs read e.g. ``3.10_run_wflow/rlz_1_st_1.log``). Both are ``""`` /
     the bare basename when the anchor is absent (e.g. an ad-hoc test path).
     """
     log_path = os.fspath(log_path)
@@ -1058,7 +1058,7 @@ def member_pointer_base(config_out_fn) -> tuple[str, str]:
     ----------
     config_out_fn : str | Path
         The member's DECLARED run-TOML path, e.g.
-        ``experiments/<id>/hydrology/wflow/config/rlz_1_cst_2.toml``.
+        ``experiments/<id>/hydrology/wflow/config/rlz_1_st_2.toml``.
 
     Returns
     -------

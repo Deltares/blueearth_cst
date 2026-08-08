@@ -21,7 +21,7 @@ benchmark tables):
   console announces (``snake_utils.rule_banner``), so a section is greppable by
   the number it ran under.
 - One ``--`` sub-header per member of a fan-out rule (WF2's ``{series_key}``,
-  WF3's ``rlz_N_cst_M`` / ``batch_N``) -- those are the parts a reader has to tell
+  WF3's ``rlz_N_st_M`` / ``batch_N``) -- those are the parts a reader has to tell
   apart, and the member id is what the stripped header used to carry.
 
 The caller passes an ordered list of RULE LABELS, not part paths, and members are
@@ -168,7 +168,7 @@ def merge_logs(rules, out_path, parts_dir, remove_parts=False):
 
     Notes
     -----
-    A leftover member part -- ``rlz_5_cst_1`` after ``realizations_num`` drops to
+    A leftover member part -- ``rlz_5_st_1`` after ``realizations_num`` drops to
     3 -- IS merged, since it sits in a live rule's dir. It is then deleted with
     the rest, so the condition shows in one log and heals itself; the same trade
     ``merge_benchmarks`` makes for a renamed rule's row (``dev/followups-archive.md``

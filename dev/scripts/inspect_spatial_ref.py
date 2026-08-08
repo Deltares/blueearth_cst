@@ -1,4 +1,4 @@
-"""Inspect spatial_ref attributes in extract_historical.nc and rlz_*_cst_0.nc.
+"""Inspect spatial_ref attributes in extract_historical.nc and rlz_*_st_0.nc.
 
 weathergenr's write_netcdf needs `x_dim` and `y_dim` attributes on the
 template's `spatial_ref` variable. Confirm whether they're present in the
@@ -18,8 +18,8 @@ EXPERIMENT = "experiment"
 STORE_KEY = "era5_20000101_20201231"
 paths = [
     FIXTURE / f"data/climate/historical/{STORE_KEY}/extract_historical.nc",
-    FIXTURE / f"experiments/{EXPERIMENT}/climate/weathergenr/output/rlz_1_cst_0.nc",
-    FIXTURE / f"experiments/{EXPERIMENT}/climate/weathergenr/output/rlz_2_cst_0.nc",
+    FIXTURE / f"experiments/{EXPERIMENT}/climate/weathergenr/output/rlz_1_st_0.nc",
+    FIXTURE / f"experiments/{EXPERIMENT}/climate/weathergenr/output/rlz_2_st_0.nc",
 ]
 
 for p in paths:

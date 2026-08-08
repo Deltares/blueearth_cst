@@ -34,7 +34,8 @@ cst_data <- read.csv(stress_csv_path)
 # stem is split at its LAST underscore. Deriving rather than passing prefix and
 # suffix separately keeps ONE source of truth -- the Snakemake output
 # declaration -- and is naming-agnostic: rlz_1_cst_2 and rlz_1_st_2 both split
-# correctly, so a future member-token rename touches nothing here.
+# correctly, which R11 P2's member-token rename then demonstrated -- it changed
+# the declared name and touched nothing here.
 output_path    <- paste0(dirname(output_nc_path), "/")
 output_stem    <- sub("\\.nc$", "", basename(output_nc_path))
 if (!grepl("_", output_stem, fixed = TRUE)) {

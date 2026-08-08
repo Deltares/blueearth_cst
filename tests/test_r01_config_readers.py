@@ -17,7 +17,7 @@ def test_prep_cst_parameters_reads_sectioned_config(tmp_path):
     from blueearth_cst.experiment.prepare_cst_parameters import prep_cst_parameters
 
     # temp.step_num=1, precip.step_num=1 in the tests config -> ST_NUM = 2*2 = 4.
-    csv_fns = [str(tmp_path / f"cst_{i}.csv") for i in range(4)]
+    csv_fns = [str(tmp_path / f"st_{i}.csv") for i in range(4)]
     prep_cst_parameters(config_fn=CONFIG, csv_fns=csv_fns)
     for fn in csv_fns:
         assert __import__("os").path.exists(fn), f"expected {fn} written"

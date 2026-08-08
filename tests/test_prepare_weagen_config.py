@@ -115,7 +115,7 @@ def test_only_the_flags_are_copied_not_the_perturbation_ranges(tmp_path):
     It carried `step_num` and the monthly min/max ranges, none of which the R
     read -- so anyone opening it to see what a run did read plausible
     perturbation ranges that had no part in it. The real values come from
-    cst_<m>.csv. Do not reintroduce them here.
+    st_<m>.csv. Do not reintroduce them here.
     """
     out = build_weagen_config(
         **_generate_kwargs(

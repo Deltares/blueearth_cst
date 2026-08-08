@@ -304,10 +304,10 @@ def test_log_path_parts_project_root_and_id(tmp_path):
     assert root == os.path.normpath(str(tmp_path / "gabon"))
     assert log_id == "1.03_create_model.log"
     # wildcard sub-log: project root unchanged, id is the path below logs/
-    lp2 = tmp_path / "gabon" / "logs" / "3.10_run_wflow" / "rlz_1_cst_1.log"
+    lp2 = tmp_path / "gabon" / "logs" / "3.10_run_wflow" / "rlz_1_st_1.log"
     root2, log_id2 = _log_path_parts(str(lp2))
     assert root2 == os.path.normpath(str(tmp_path / "gabon"))
-    assert log_id2 == "3.10_run_wflow/rlz_1_cst_1.log"
+    assert log_id2 == "3.10_run_wflow/rlz_1_st_1.log"
 
 
 def test_relativize_strips_project_root_both_separators():
@@ -816,9 +816,9 @@ _MEMBER_CONFIG = "experiments/e/hydrology/wflow/config/{member}.toml"
 
 def test_member_pointer_base_derives_the_stem_and_the_sibling_output_hop():
     run_name, out_prefix = su.member_pointer_base(
-        _MEMBER_CONFIG.format(member="rlz_1_cst_2")
+        _MEMBER_CONFIG.format(member="rlz_1_st_2")
     )
-    assert run_name == "rlz_1_cst_2"
+    assert run_name == "rlz_1_st_2"
     # Relative, POSIX, trailing-separated -- config/ -> sibling output/.
     assert out_prefix == "../output/"
 
@@ -832,7 +832,7 @@ def test_every_member_gets_a_distinct_log_and_output_pointer():
     would make that one log for all twelve unless every pointer is keyed by
     member. Checked for the three member-keyed pointers at once.
     """
-    members = [f"rlz_{r}_cst_{c}" for r in (1, 2) for c in range(1, 7)]
+    members = [f"rlz_{r}_st_{c}" for r in (1, 2) for c in range(1, 7)]
     logs, csvs, states = set(), set(), set()
     for member in members:
         run_name, out_prefix = su.member_pointer_base(
@@ -846,7 +846,7 @@ def test_every_member_gets_a_distinct_log_and_output_pointer():
     assert len(states) == len(members)
     # ...and the realization index is genuinely back IN the filename, which is
     # what the R7 -> R9 inversion means.
-    assert "../output/rlz_2_cst_6.log" in logs
+    assert "../output/rlz_2_st_6.log" in logs
 
 
 def test_the_log_pointer_is_keyed_the_same_way_as_the_other_two():

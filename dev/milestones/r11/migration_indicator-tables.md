@@ -120,3 +120,81 @@ experiment and re-run, or start a new one.
 `st_id` (C28) lands in **P2**, alongside the design table it must be checked
 against. The header therefore gains a seventh column later; `validate_hm7` will
 change with it.
+
+---
+
+# Migration — the WF3 member token, `cst_` → `st_` (R11 P2, commit 1)
+
+Rename record per `naming.md` §7, appended here rather than given its own file
+because P2's brief carries it in this record and the two migrations land in one
+milestone and are re-recorded by one P3 baseline pass. Landed 2026-08-08 on
+`refactor/r11-p2-rename`. Specification: `dev/milestones/r09/wf3-change-requests.md`
+**C22**; boundary and rulings: `phase-2-run-identification-task-brief.md`.
+
+**Why.** `cst` is the toolbox's own name, so it said nothing as a member token,
+and every layer that mattered already said `st`: the `st_num` wildcard, `ST_NUM`,
+`stress_test_grid()`, the `stress_test:` config section, the `st_csv_fns` rule
+input. Only the filenames and the WG-5 catalog keys disagreed — one Snakefile
+line built a `cst_` filename out of an `st_num` wildcard. This removes an
+inconsistency; it invents no vocabulary. `rlz_` deliberately stays: it
+abbreviates a *correct* term (CMIP's `r1i1p1f1`) and collides with nothing.
+
+## Paths
+
+| before | after |
+| --- | --- |
+| `<exp>/climate/weathergenr/_work/cst_<m>.csv` | `…/_work/st_<m>.csv` |
+| `<exp>/climate/weathergenr/output/rlz_<n>_cst_0.nc` | `…/output/rlz_<n>_st_0.nc` |
+| `<exp>/climate/weathergenr/output/rlz_<n>_cst_<m>.nc` | `…/output/rlz_<n>_st_<m>.nc` |
+| `<exp>/hydrology/wflow/forcing/inmaps_rlz_<n>_cst_<m>.nc` | `…/forcing/inmaps_rlz_<n>_st_<m>.nc` |
+| `<exp>/hydrology/wflow/config/rlz_<n>_cst_<m>.toml` | `…/config/rlz_<n>_st_<m>.toml` |
+| `<exp>/hydrology/wflow/output/rlz_<n>_cst_<m>.csv` | `…/output/rlz_<n>_st_<m>.csv` |
+| `<exp>/hydrology/wflow/output/rlz_<n>_cst_<m>.log` | `…/output/rlz_<n>_st_<m>.log` |
+| `<exp>/hydrology/wflow/output/outstates_rlz_<n>_cst_<m>.nc` | `…/output/outstates_rlz_<n>_st_<m>.nc` |
+| `<exp>/logs/_parts/3.1{2,4}_*/rlz_<n>_cst_<m>.log` | `…/rlz_<n>_st_<m>.log` |
+| `<exp>/benchmarks/_parts/3.1{2,4}_*/rlz_<n>_cst_<m>.tsv` | `…/rlz_<n>_st_<m>.tsv` |
+
+## Catalog keys
+
+WG-5 (`<exp>/config/catalogs/data_catalog_climate_experiment.yml`): every entry
+key `rlz_<n>_cst_<m>` → `rlz_<n>_st_<m>`, `m ∈ 0..ST_NUM`. The key is derived as
+the realization NC's stem (`prepare_climate_data_catalog.py`), so it moved with
+the file rather than being renamed separately; `validate_wg5_catalog_grid`'s
+constructed expectation moved with it. This is the §7 clause on *hydromt
+data-catalog source names* and is what makes this a recorded rename rather than
+an internal tidy.
+
+## Unchanged, deliberately
+
+| surface | why |
+| --- | --- |
+| `blueearth_cst` (the package) | 885 occurrences; renaming breaks every import. Never a `cst_` rename target |
+| `cst_calendar`, `cst_raw_digest`, `cst_source_paths`, `cst_series_digest`, `cst_schema_version`, `cst_acquisition_window`, `cst_time_*`, `cst_region_*`, `cst_crs`, `cst_members`, `cst_geometry_check`, `cst_weighting_scheme`, `cst_reducer_module_hash`, `cst_catalog_entry` | **WF2 netCDF provenance attributes** meaning "written by CST", in `blueearth_cst/projections/`. Renaming them corrupts WF2 output and breaks every cached store's identity check |
+| `rlz_` | a correct abbreviation, colliding with nothing (C22) |
+| `prepare_cst_parameters.py` / `prep_cst_parameters()` | module and function identifiers, not paths or keys — explicit P2 non-goal. Its *output* moved (`st_<m>.csv`); its own name did not |
+| `cst_nc` (rule 3.13 input name), `cst_data` (R local), `_cst_df` / `_read_cst_csvs` (test helpers), `test_the_cst_index_…`, `_cst_pss_shim`, `cst_test_lib` | pure identifiers. None is a path or a key, so none is part of this migration; carried as a named residual for a later decision |
+| `dev/scripts/semantic_tree_diff.py`, `tests/test_r09_path_map.py`, `tests/test_semantic_tree_diff.py` | they encode the P3-1 / R07 / R9 migration maps, whose eras used `cst_` on **both** sides. Renaming their expectations would make them assert a migration that never happened |
+| `tests/test_wflow_log_attribution.py` | consumes `.cst_runs/r09_p2_post`, an R9-era tree outside the repo. Renaming its `MEMBER` regex and globs would match zero files and turn the test vacuous |
+| every `dev/milestones/**`, `dev/reviews/**`, `docs/migration-r08-wf2.md`, `dev/reference/workflows/climate_experiment.md` | records of what was true when written (`AGENTS.md`, Conventions). `climate_experiment.md` is in `sealed-records.yml` |
+| inline comments naming a PAST era — the R07 stem `cst_<m>`, the R07 batch tag, the retired C29 `weathergen_config_rlz_<n>_cst_<m>.yml` | they name files that existed under that token and, in C29's case, no longer exist at all. Renaming them invents a filename no tree ever held |
+
+## Support decision
+
+Same as P1's, and for the same reason: **an experiment that has already run is
+not migrated, it is re-run as a new experiment.** No rename shim, no dual-token
+read path. Consistent with R7 GA-2 and R9, re-checked rather than inherited.
+
+The `test_case/test_local` fixture is a pre-P2 tree and stays one until P3's
+single WF3 re-run. The Layer-2 integration cases in
+`tests/test_interchange_contracts.py` therefore assert the **post**-rename path
+and skip on the specific pre-rename shape — `_member_artifact()` skips only when
+the old-token twin exists exactly where the new artifact is missing, and
+`test_wg5_catalog_grid_integration` skips only when every catalog key still
+carries `_cst_`. Never a bare existence guard: that is how R9-4 turned a wrong
+path into a silent pass. Precedent: P1's `test_hm7_integration`.
+
+## Baseline
+
+Every WF3 member artifact moved, so the baseline is **expected red** for those
+targets. P3 owns the single re-record for the whole milestone; do not re-record
+here. Targets that moved are exactly the ten path rows above.

@@ -883,13 +883,13 @@ STAGE 2 — CLIMATE DATA   (the model is fingerprinted, never used)
               └────────────────┬────────────────┘
                                ▼
               3.11 generate_weather_realizations
-                               │  rlz_1..R_cst_0.nc   (unperturbed)
+                               │  rlz_1..R_st_0.nc   (unperturbed)
    3.09 prepare_stress_test_grid        │
-              │  cst_1..N.csv           │
+              │  st_1..N.csv            │
               └────────────────┬────────┘
                                ▼
                   3.12 perturb_climate_realization
-                         │  rlz_<n>_cst_<m>.nc   (perturbed)
+                         │  rlz_<n>_st_<m>.nc   (perturbed)
                          ▼
                   3.13 write_climate_data_catalog
                          │
@@ -1061,7 +1061,7 @@ one file per stress-test point: twelve monthly rows of temperature delta,
 precipitation mean factor and precipitation variance factor. **This is what
 creates the stress test.**
 
-**Writes.** `<wg>/_work/cst_1.csv` … `cst_<ST_NUM>.csv`.
+**Writes.** `<wg>/_work/st_1.csv` … `st_<ST_NUM>.csv`.
 
 #### 3.10 · `prepare_weathergen_config`
 
@@ -1076,11 +1076,11 @@ something else forced a rerun, and 3.11 kept generating from superseded settings
 #### 3.11 · `generate_weather_realizations`
 
 **Does.** Runs weathergenr **once** to produce all `RLZ_NUM` stochastic
-realizations of the historical climate — the unperturbed `cst_0` baselines. The
+realizations of the historical climate — the unperturbed `st_0` baselines. The
 plural is load-bearing: number carries meaning here, with 3.11 plural (all in one
 job) against 3.14 singular (wildcarded, one job per member).
 
-**Writes.** `<wg>/output/rlz_1_cst_0.nc` … `rlz_<RLZ_NUM>_cst_0.nc`, all
+**Writes.** `<wg>/output/rlz_1_st_0.nc` … `rlz_<RLZ_NUM>_st_0.nc`, all
 `temp()`.
 
 **Writes (undeclared).** Four generator diagnostic figures moved into
@@ -1094,10 +1094,10 @@ left in `<wg>/output/`.
 applies that perturbation — precipitation mean and variance factors, temperature
 delta, transient flags, PET recompute. **It applies the stress test; 3.09 creates
 it.** Its `st_num` wildcard is constrained to ≥ 1 so it can never become a second
-producer of the reserved `cst_0` baseline, which would surface as a cyclic-graph
+producer of the reserved `st_0` baseline, which would surface as a cyclic-graph
 error.
 
-**Writes.** `<wg>/output/rlz_<n>_cst_<m>.nc`, `temp()`.
+**Writes.** `<wg>/output/rlz_<n>_st_<m>.nc`, `temp()`.
 
 #### 3.13 · `write_climate_data_catalog`
 
@@ -1114,8 +1114,8 @@ realization file.
 producing that member's forcing and its run TOML. The first rule to touch the
 model, which is why 3.06's guard sentinel is a declared input here.
 
-**Writes.** `<runs>/forcing/inmaps_rlz_<n>_cst_<m>.nc` (`temp()`) ·
-`<runs>/config/rlz_<n>_cst_<m>.toml`.
+**Writes.** `<runs>/forcing/inmaps_rlz_<n>_st_<m>.nc` (`temp()`) ·
+`<runs>/config/rlz_<n>_st_<m>.toml`.
 
 #### 3.15 · `run_wflow_batch_<b>`
 
@@ -1129,8 +1129,8 @@ keys logs by batch id, not by rule identifier; applying the six-call-site rule
 mechanically here would rename a `LOG_RULES` entry that has no rule to match and
 break the merge.
 
-**Writes.** `<runs>/output/rlz_<n>_cst_<m>.csv` per member ·
-`<runs>/output/outstates_rlz_<n>_cst_<m>.nc` per member (`temp()`).
+**Writes.** `<runs>/output/rlz_<n>_st_<m>.csv` per member ·
+`<runs>/output/outstates_rlz_<n>_st_<m>.nc` per member (`temp()`).
 
 #### 3.16 · `derive_wflow_indicators`
 

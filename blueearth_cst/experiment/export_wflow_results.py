@@ -27,7 +27,7 @@ published contract.
   ``RLZ_NUM``.
 - **C — selects a category.** Pooled only. ``idxmax()`` picks ONE month, so
   different realizations can pick different ones. The month is fixed from the
-  ``cst_0`` baseline and then evaluated for every member — which is what makes
+  ``st_0`` baseline and then evaluated for every member — which is what makes
   the baseline rows mandatory rather than decorative.
 
 **Pooling pools the SAMPLE, not a spliced series.** The pre-R11 code concatenated
@@ -60,11 +60,11 @@ from blueearth_cst.shared.indicator_tables import (
 )
 from blueearth_cst.shared.snake_utils import log_row
 
-#: ``rlz_<n>_cst_<m>`` in a wflow run CSV's stem. Anchored at the start so a
+#: ``rlz_<n>_st_<m>`` in a wflow run CSV's stem. Anchored at the start so a
 #: directory component can never satisfy it, and both indices are captured --
 #: ``split("_")[-1]`` would silently return the member number as the realization,
 #: and a wrong-but-plausible integer mislabels every row it touches.
-_MEMBER_IN_STEM = re.compile(r"^rlz_(\d+)_cst_(\d+)$")
+_MEMBER_IN_STEM = re.compile(r"^rlz_(\d+)_st_(\d+)$")
 
 #: Month lengths in the weather generator's calendar. ``impose_climate_change.R``
 #: writes every perturbed realization with ``calendar = "noleap"``, so a year is
@@ -128,7 +128,7 @@ def member_from_run_csv(csv_fn: Union[str, Path]) -> tuple[int, int]:
     if match is None:
         raise ValueError(
             f"cannot derive the member indices from {csv_fn!r}: expected a "
-            f"'rlz_<n>_cst_<m>' filename, got {stem!r}"
+            f"'rlz_<n>_st_<m>' filename, got {stem!r}"
         )
     return int(match.group(1)), int(match.group(2))
 
@@ -253,7 +253,7 @@ def analyze_wflow_results(
     results_dir.mkdir(parents=True, exist_ok=True)
 
     # -- the perturbation axes, per member ------------------------------------
-    # cst_0 is the reserved unperturbed baseline and has no parameter file, so
+    # st_0 is the reserved unperturbed baseline and has no parameter file, so
     # the declared set is exactly 1..st_num. Checked here rather than letting a
     # Snakefile/script disagreement surface as a KeyError deep in the loop.
     st_csv_by_num = {int(Path(p).stem.split("_")[-1]): p for p in st_csv_fns}
@@ -284,7 +284,7 @@ def analyze_wflow_results(
     q_locations = gauge_columns(first.columns)
 
     # -- the class-C month, fixed once from the pooled baseline ---------------
-    # Q5: pick from cst_0, then evaluate that month for every member, so the
+    # Q5: pick from st_0, then evaluate that month for every member, so the
     # surface shows how flow in a GIVEN month responds rather than conflating
     # that with the month itself moving. Requires the baseline runs to exist,
     # which ST_START = 0 guarantees whenever run_historical is set.

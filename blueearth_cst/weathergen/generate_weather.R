@@ -102,7 +102,7 @@ for (n in 1:historical_realizations_num) {
         compression   = 4,
         spatial_ref   = "spatial_ref",
         file_prefix   = yaml$generateWeatherSeries$nc.file.prefix,
-        file_suffix   = paste0(n, "_cst_0")
+        file_suffix   = paste0(n, "_st_0")
   )
 
   # Workaround (load-bearing): weathergenr::write_netcdf does NOT propagate
@@ -118,7 +118,7 @@ for (n in 1:historical_realizations_num) {
   # Match THIS realization only: all realizations now share one output dir, so
   # an index-free pattern would re-patch realization 1 on every iteration.
   rlz_files <- list.files(
-    rlz_out_dir, pattern = paste0("_", n, "_cst_0\\.nc$"), full.names = TRUE
+    rlz_out_dir, pattern = paste0("_", n, "_st_0\\.nc$"), full.names = TRUE
   )
   if (length(rlz_files) >= 1) {
     src <- ncdf4::nc_open(climate_nc_path)
