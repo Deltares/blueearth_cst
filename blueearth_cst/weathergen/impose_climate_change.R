@@ -68,7 +68,20 @@ rlz_future <- weathergenr::apply_climate_perturbations(
    precip_transient   = precip_change_transient,
    compute_pet        = TRUE,
    qm_fit_method      = "mme",
-   diagnostic         = FALSE
+   diagnostic         = FALSE,
+   # C34/F15. Generation is seeded and the perturbation was not, so the two
+   # halves of one experiment had different reproducibility guarantees and
+   # nobody chose that. Passing the SAME seed the generator uses makes the whole
+   # chain reproducible; if the function turns out to be deterministic this is a
+   # no-op, and either way the asymmetry is now a decision rather than an
+   # oversight.
+   seed               = yaml$generateWeatherSeries$seed,
+   # C34/F16. PET is computed twice in this chain -- here, and again from the
+   # perturbed temperature by rule 3.14's setup_temp_pet_forcing -- by two
+   # different methods, neither of which was chosen. Surfaced at weathergenr's
+   # own default so this step's method is now stated; whether the first result
+   # is used at all is the open half of F16 and is NOT settled here.
+   pet_method         = yaml$generateWeatherSeries$pet.method
 )
 
 # Save to netcdf file

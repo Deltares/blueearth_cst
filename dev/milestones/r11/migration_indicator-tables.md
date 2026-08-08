@@ -313,6 +313,38 @@ frame is exactly where the padding appears to vanish. Consumers (including
 CST-API / the GUI) need `dtype={"st_id": str}`; recorded in the HM-7 seam
 contract.
 
+## Weathergenr config keys (C34, R11 P2 commit 4)
+
+A checked-in example config key change, `naming.md` §7 tier 2. Full reasoning and
+the one-decision-per-argument table: `c34-weathergenr-argument-decisions.md`.
+
+| before | after |
+| --- | --- |
+| `generateWeatherSeries.evaluate.model: TRUE` | `generateWeatherSeries.save.plots: TRUE` |
+| `generateWeatherSeries.evaluate.grid.num: 20` | **gone** |
+| — | `generateWeatherSeries.pet.method: hargreaves` |
+
+**Nothing is lost, because both removed keys were already dead.** weathergenr
+1.2.0 split evaluation into its own exports, so `evaluate.model` and
+`evaluate.grid.num` reached nothing: a project setting `evaluate.model: FALSE`
+still got every plot. `save.plots` is the same stated intent wired to the
+argument that actually controls it, and it defaults `TRUE`, so every tracked
+config keeps today's behaviour.
+
+**To migrate:** rename `evaluate.model` to `save.plots` in any project's
+weathergen template copy and delete `evaluate.grid.num`. If neither is done the
+generated config simply lacks `save.plots`, and `validate_wg3` reports it —
+which is the point of pinning it.
+
+**Also surfaced, without a config-key change:** the perturbation step now
+receives the generator's own `seed` (it was unseeded while generation was
+seeded — F15) and an explicit `pet_method` (PET is computed twice by two
+methods, neither chosen — F16). **Both are UNEXECUTED here**: `weathergenr` is
+absent from a `pixi install`-only worktree, there is no R test harness, and they
+first run at rules 3.11/3.12. If the perturbation turns out to be stochastic,
+seeding it moves numbers, and **P3's single re-record absorbs that** — flagged
+so it is read as expected rather than as drift.
+
 ## Follow-on: rule 3.13's input keyword
 
 `cst_nc` → `st_nc`, landed **after Gate 1** as its own commit, not part of the

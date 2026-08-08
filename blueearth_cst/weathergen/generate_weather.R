@@ -74,7 +74,12 @@ stochastic_weather <- weathergenr::generate_weather(
     wet_spell_factor = yaml$generateWeatherSeries$wet.spell.change,
     out_dir          = weathergen_output_path,
     seed             = yaml$generateWeatherSeries$seed,
-    parallel         = yaml$generateWeatherSeries$compute.parallel
+    parallel         = yaml$generateWeatherSeries$compute.parallel,
+    # C34. weathergenr 1.2.0 split evaluation into its own exports, so the
+    # config's old `evaluate.model` reached NOTHING -- plot emission is
+    # `save_plots`, which defaulted TRUE. Setting evaluate.model: FALSE
+    # therefore did not stop the plots, which is what the key claimed to do.
+    save_plots       = yaml$generateWeatherSeries$save.plots
 )
 
 # Step 2b) Move the generator's diagnostic figures into plots/. The two date

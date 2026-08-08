@@ -15,8 +15,8 @@ generateWeatherSeries:
   mc.wet.quantile: 0.2         # quantile threshold to define wet weather
   mc.extreme.quantile: 0.8     # quantile threshold to define very wet weather
   seed: 123                    # Randomization seed (needs to be an integer value)
-  evaluate.model: TRUE         # Should performance plots be generated?
-  evaluate.grid.num: 20        # Number of grids to be sampled for the comparison plots (for speed reasons, keep <50)
+  save.plots: TRUE             # Should the generator's diagnostic plots be written? (C34)
+  pet.method: hargreaves       # PET method for the PERTURBATION step (C34/F16; hargreaves is weathergenr's own default)
   compute.parallel: FALSE      # Should the code run in parallel mode? 
   dry.spell.change: [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]  # monthly coefficient to adjust dry spell length
   wet.spell.change: [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]  # monthly coefficient to adjust wet spell length

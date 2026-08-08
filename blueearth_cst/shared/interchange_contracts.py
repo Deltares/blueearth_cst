@@ -269,6 +269,11 @@ _WG3_GWS_KEYS = (
     "sim.year.num",
     "nc.file.prefix",
     "realizations_num",
+    # C34 (R11 P2): surfaced weathergenr arguments. Pinned for the same reason
+    # the transient flags are -- the R reads them, and an omission would reach
+    # the generator as NULL and silently take whatever upstream defaults to.
+    "save.plots",
+    "pet.method",
 )
 
 
