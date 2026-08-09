@@ -1,6 +1,6 @@
 ADR 0005 — Adopt `ruff format`, in two stages split on the Snakemake code rerun trigger
 
-Status: proposed
+Status: accepted (stage 1 landed 2026-08-09; stage 2 open)
 Date: 2026-08-07
 Deciders: Ümit Taner
 Consulted: —
@@ -10,6 +10,18 @@ Revisions:
     which had been sitting as `backlog` while blocked on this ruling. Churn
     re-measured on `main` at `5bc3d6a`; the previously recorded ratio is
     corrected below.
+  - 2026-08-09: **ACCEPTED** by the owner; stage 1 landed the same day. Two
+    amendments, both discovered while landing it, are folded into Decision
+    below. (a) `ruff format` rewrites fenced Python inside **Markdown**, so the
+    gate excludes `*.md` permanently — unexcluded, `--check` would demand
+    rewriting `dev/milestones/r09/wf3-change-requests.md`, which
+    `dev/reference/sealed-records.yml` hash-freezes. The original Decision would
+    have armed a CI gate that fails on a sealed record. (b) Stage 2 is tracked
+    as a **board item**, not as the dated `pyproject.toml` comment the original
+    Decision specified — the Consequences already named that comment as this
+    ADR's residual risk, and a board item is the thing that actually gets read.
+    Stage 1 landed 122 files rather than the 119 measured on `5bc3d6a`; the set
+    grew by three in two days, as the Context predicted it would.
 
 ### Context
 
@@ -80,10 +92,28 @@ commit, immediately before that run, so the invalidation it causes is absorbed
 by work that was going to re-run everything regardless.
 
 Enforcement lands with stage 1: `ruff format --check` joins the existing ruff
-invocation in `.github/workflows/ci.yml`, scoped to the tracked source set, and
-**stage 2's files are excluded from the check until stage 2 lands** — via an
-explicit, dated exclusion in `pyproject.toml` naming this ADR, not a silent
-narrowing of the check's path list.
+invocation in `.github/workflows/ci.yml`, and **stage 2's files are excluded
+from the check until stage 2 lands** — via an explicit exclusion in
+`pyproject.toml` naming this ADR, not a silent narrowing of the check's path
+list. The exclusion is `format`-scoped (`[tool.ruff.format] exclude`), never
+`[tool.ruff] extend-exclude`, so `blueearth_cst/` stays fully **linted**
+throughout.
+
+*Amended 2026-08-09, at landing.* Two things the draft above got wrong:
+
+- **`*.md` is excluded too, permanently.** `ruff format` formats fenced Python
+  blocks inside Markdown, so an unscoped `--check .` demands rewriting ten
+  tracked documents — one of which, `dev/milestones/r09/wf3-change-requests.md`,
+  is hash-frozen in `dev/reference/sealed-records.yml`. As drafted, this ADR
+  would have armed a CI gate that fails on a sealed record, and invited the
+  obvious "fix" that trips `tests/test_sealed_records.py`. The formatter's scope
+  here is Python source, not prose.
+- **Stage 2 is tracked on the board, not by a dated comment.** The Consequences
+  below name "a dated exclusion in `pyproject.toml` is debt with a deadline, and
+  deadlines in config files are routinely missed" as the residual risk. Writing
+  the deadline into the config anyway would have been accepting the risk while
+  documenting it. The `pyproject.toml` comment says *temporary* and points at
+  the board; the board item carries the trigger.
 
 ### Consequences
 
@@ -155,8 +185,12 @@ ruling.
 
 ### Related
 
-- `dev/tasks/t2608071212-r7-23.md` (R7-23, `blocked`) — the board item this ADR
-  exists to unblock; carries the original framing and the earlier measurements.
+- `t2608071212` (R7-23) — the board item this ADR existed to unblock; **closed
+  2026-08-09** with the ruling and stage 1, see `dev/LOG.md`. Its original
+  framing and the earlier measurements are quoted in Context above, which is now
+  the only surviving copy.
+- `dev/tasks/t2608090907a-adr0005-stage2.md` — stage 2, carrying the trigger
+  that schedules it.
 - `dev/tasks/t2608071220-r10-14.md` (R10-14, watch) — the measured blast radius
   of the `code` rerun trigger: one line, 42 jobs. Stage 2's entire cost model
   rests on it.

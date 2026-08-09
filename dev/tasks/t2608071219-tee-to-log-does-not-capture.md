@@ -4,9 +4,9 @@ type: todo-item
 status: backlog
 effort: 1
 area: ergonomics
-queue: 18
+queue: 17
 created: 2026-08-07
-updated: 2026-08-07
+updated: 2026-08-09
 ---
 
 > [!note] Overview
