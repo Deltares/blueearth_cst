@@ -198,6 +198,53 @@ def _month_mean(frame: pd.DataFrame, month: int) -> pd.Series:
     return frame[frame.index.month == month].resample("YE").mean().mean()
 
 
+#: Significant digits kept in the written ``value`` column. Not decimal places —
+#: the difference is what makes this safe; see ``_format_value``.
+VALUE_SIGNIFICANT_DIGITS = 4
+
+
+def _format_value(value: float) -> str:
+    """Render one indicator value as PLAIN DECIMAL text, 4 significant digits.
+
+    Two separate requirements, both about how this file reads *outside* the
+    pipeline. The tables are a deliverable and an interchange surface, so the
+    bytes are a contract rather than a display choice.
+
+    **No scientific notation.** Low-flow values reach ~1e-5, so pandas' default
+    repr puts ``6.3476255e-05`` in the file, which Excel does not open cleanly.
+    ``np.format_float_positional`` is what removes the exponent. Note that the
+    obvious ``float_format="%.4g"`` does NOT: it still emits ``6.348e-05``.
+
+    **Four SIGNIFICANT digits, not four decimal places.** This distinction is
+    the whole reason a cap is safe to reintroduce here. The pre-R11
+    ``.round(2)`` / ``.round(4)`` were decimal-place rounding, which is
+    scale-destroying — ``round(2)`` turns ``0.0007395697`` into ``0.0`` — and
+    ``dev/scripts/check_baseline.py`` records that as the "accidental drift
+    buffer" P1 removed, the reason the comparator moved to a tolerance instead
+    of a sha256. A significant-digit cap is scale-invariant: worst-case relative
+    error is 5e-4 — half a unit in the last kept digit, worst when the leading
+    digit is 1 — against that comparator's own ``INDICATOR_RTOL`` of 1e-2, a 20x
+    margin, so it cannot mask a difference the baseline gate would have caught.
+    ``tests/test_export_wflow_results.py`` pins that claim to the tolerance
+    constants and to the real reference table, so tightening either fails loudly
+    here rather than silently invalidating the argument. Measured worst case on
+    the current reference table is 4.6e-4.
+
+    Missing values render as the empty field pandas would have written via
+    ``na_rep``. Stated explicitly because ``.map()`` bypasses that path and
+    would otherwise put the literal string ``nan`` in the file.
+    """
+    if pd.isna(value):
+        return ""
+    return np.format_float_positional(
+        value,
+        precision=VALUE_SIGNIFICANT_DIGITS,
+        unique=False,
+        fractional=False,
+        trim="-",
+    )
+
+
 def _return_level_from_blocks(blocks: pd.DataFrame, period: int, mode: str) -> pd.Series:
     """Fit a GEV to a POOLED block sample and read one return level off it.
 
@@ -429,11 +476,18 @@ def analyze_wflow_results(
     # -- write ----------------------------------------------------------------
     for token in indicator_tokens:
         table = pd.DataFrame(rows[token], columns=list(INDICATOR_COLUMNS))
-        # float32, UNROUNDED: the pre-R11 round(2)/round(4) was an accidental
-        # drift buffer, and dropping it is why the baseline comparator moves to a
-        # tolerance rather than a byte hash.
+        # float32: the reduction's own precision. The pre-R11 round(2)/round(4)
+        # that used to follow it was an accidental drift buffer, and dropping it
+        # is why the baseline comparator moves to a tolerance rather than a byte
+        # hash. What `_format_value` adds below is NOT that rounding returning —
+        # see its docstring for why a significant-digit cap is a different thing.
         table["value"] = table["value"].astype("float32")
         table["realization_id"] = table["realization_id"].astype("int64")
+        # Format ONLY the value column. `to_csv(float_format=...)` would apply to
+        # every float column, rewriting temp_change/precip_change from `0.0` to
+        # `0` — bytes that consumers join on and that the baseline comparator
+        # aligns rows by. Formatting one column leaves all the others exact.
+        table["value"] = table["value"].map(_format_value)
         table.to_csv(table_paths[token], index=False)
         log_row(f"wrote {table_paths[token]} ({len(table)} rows)", module="export")
 
