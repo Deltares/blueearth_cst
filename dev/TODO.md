@@ -26,6 +26,7 @@
 | [t2608090907a](tasks/t2608090907a-adr0005-stage2.md)                                                                                        | Land ADR 0005 stage 2 — reformat the 51 blueearth_cst modules                                                  | formatting       | R7     |     | blocked |
 | [t2608091006](tasks/t2608091006-standardize-plotting-across-the-toolbox-with-shared-templates-then-sweep-the-existing-figures-onto-them.md) | Standardize plotting across the toolbox with shared templates, then sweep the existing figures onto them       | plotting         |        |     | backlog |
 | [t2608091028](tasks/t2608091028-land-feat-signature-figure-redesign-once-the-rendered-figure-has-been-judged.md)                            | Land feat/signature-figure-redesign once the rendered figure has been judged                                   | plotting         |        |     | blocked |
+| [t2608091116](tasks/t2608091116-ruff-import-sorting.md)                                                                                     | Adopt ruff's I rule family — import sorting — in two stages, like ADR 0005                                     | formatting       | R7     |     | backlog |
 
 ## Watching
 
