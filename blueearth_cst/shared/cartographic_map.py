@@ -656,6 +656,14 @@ DEM_INTERPOLATION = "none"
 #: it here if the names matter more than the join.
 GAUGE_LABEL_COLUMN = "wflow_id"
 
+#: Clip the river network to the basin before drawing it. The engine-neutral
+#: river layer is the REGIONAL network, so unclipped it runs well past the
+#: study area — context the map did not ask for, and on a study-area figure
+#: it reads as the basin outline failing to contain its own hydrography.
+#: The raster is already clipped to the basin; this makes the vectors agree.
+#: A no-op where the layer is already in-basin, as the wflow model's is.
+CLIP_RIVERS_TO_BASIN = True
+
 #: Column whose values scale the river line weights. ``strord`` is wflow's
 #: Strahler stream order. Any numeric column works; ``None``, or a column the
 #: frame does not carry, draws every reach at ``RIVER_WIDTH_UNIFORM``.
@@ -2038,6 +2046,23 @@ def _add_north_arrow(ax):
 
 
 
+def _clip_to_basin(layer, basin):
+    """``layer`` cut to the basin's footprint, or unchanged if that fails.
+
+    Returns the original layer on any geometry error rather than dropping it:
+    a river network drawn slightly too far is a lesser fault than one silently
+    missing, and an invalid polygon is the caller's data problem, not this
+    figure's to resolve.
+    """
+    if not _present(layer) or not _present(basin):
+        return layer
+    try:
+        clipped = gpd.clip(layer, basin)
+    except Exception:
+        return layer
+    return clipped if len(clipped) else layer
+
+
 def _divide_linework(subbasins):
     """The subcatchment divides as ONE merged linework, not one ring per polygon.
 
@@ -2424,18 +2449,19 @@ def _draw_waterbodies(ax, entries):
         layer.plot(ax=ax, zorder=Z_WATERBODY, **style)
 
 
-def _legend_handles(styles, *, subbasins, outlets, gauges, waterbodies):
+def _legend_handles(styles, *, rivers, basin, subbasins, outlets, gauges, waterbodies):
     """Every legend entry, in reading order, built without drawing anything.
 
     Shares its style dicts with the artists themselves, so a legend swatch
     cannot drift from the line it stands for.
     """
-    handles = [
-        Line2D([], [], label=LABEL_RIVER, **styles["river"]),
+    handles = []
+    if _present(rivers):
+        handles.append(Line2D([], [], label=LABEL_RIVER, **styles["river"]))
+    if _present(basin):
         # The outline is the map's key line and had no legend entry at all until
         # 2026-08, which left the heaviest thing on the figure unexplained.
-        Line2D([], [], label=LABEL_BASIN, **styles["basin"]),
-    ]
+        handles.append(Line2D([], [], label=LABEL_BASIN, **styles["basin"]))
     if _present(subbasins):
         handles.append(Line2D([], [], label=LABEL_SUBCATCHMENT, **styles["divide"]))
     if _present(outlets):
@@ -2609,12 +2635,18 @@ def plot_raster_map(
         # the colourbar, and its width sizes the locator inset so the panel's
         # top and bottom blocks come out the same. Its own anchor depends on
         # nothing, so there is no circularity — only this ordering.
+        # Clipped BEFORE the legend is built, so an entry cannot describe a
+        # layer the map does not show.
+        if CLIP_RIVERS_TO_BASIN:
+            rivers = _clip_to_basin(rivers, basin)
         styles = _layer_styles()
         waterbodies = _waterbody_entries(
             {"lakes": lakes, "reservoirs": reservoirs, "glaciers": glaciers}
         )
         handles = _legend_handles(
             styles,
+            rivers=rivers,
+            basin=basin,
             subbasins=subbasins,
             outlets=outlets,
             gauges=gauges,
