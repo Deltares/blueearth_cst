@@ -87,6 +87,12 @@ target-version = "py312"
 #   test_case/ untracked run fixture, not source.
 extend-exclude = ["docs", "test_case", ".pixi", ".snakemake"]
 
+# Apply the excludes to explicitly-named paths too, not only to a directory
+# walk. Without it `ruff format blueearth_cst/<file>.py` reformats a file the
+# [tool.ruff.format] exclude below is deliberately holding back, and the
+# Snakemake `code` rerun trigger fires on a tree nobody meant to touch.
+force-exclude = true
+
 [tool.ruff.lint]
 # Pinned explicitly rather than inherited. Ruff 0.16's DEFAULT selection is ~415
 # rules (verified with `ruff check --isolated`: 409 findings here, vs 96 for the
