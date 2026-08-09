@@ -50,6 +50,7 @@ import numpy as np
 import xarray as xr
 from matplotlib.ticker import MaxNLocator
 
+from blueearth_cst.shared.plot_map import RASTER_DPI
 from blueearth_cst.shared.snake_utils import log_row, save_figure
 
 #: One entry per variable: label and unit for the axes, and how the variable
@@ -57,9 +58,24 @@ from blueearth_cst.shared.snake_utils import log_row, save_figure
 #: ``mean`` is a state that averages. Getting this wrong is not cosmetic -- a
 #: summed temperature is meaningless and a meaned rainfall understates by ~365x.
 CLIMATE_VARS = {
-    "precip": {"label": "precipitation", "unit": "mm", "how": "sum"},
-    "temp": {"label": "air temperature", "unit": "$\\degree$C", "how": "mean"},
-    "pet": {"label": "potential evaporation", "unit": "mm", "how": "sum"},
+    "precip": {
+        "label": "precipitation",
+        "unit": "mm",
+        "how": "sum",
+        "style": "precip",
+    },
+    "temp": {
+        "label": "air temperature",
+        "unit": "$\\degree$C",
+        "how": "mean",
+        "style": "temp",
+    },
+    "pet": {
+        "label": "potential evaporation",
+        "unit": "mm",
+        "how": "sum",
+        "style": "pet",
+    },
 }
 
 #: One entry per figure kind. ``map`` is the spatial view (climatological
@@ -179,31 +195,69 @@ def _label_points(ax, gdf) -> None:
 
 
 def _render_map(da, spec, title, caveat, overlays):
-    """Climatological field as a raster map, with optional vector overlays."""
+    """Climatological field as a cartographic map.
+
+    A caller of ``shared.plot_map.plot_raster_map``, so this figure carries the
+    same furniture as rule 1.12's basin map: graticule and frame, latitude-
+    corrected scale bar, north arrow, locator inset, and the side panel holding
+    the colourbar over the vector legend. Only the raster and its palette
+    differ, which is the point of the template — a new quantity is an entry in
+    ``RASTER_STYLES``, not another plotting function.
+    """
+    from blueearth_cst.shared.plot_map import (
+        RASTER_STYLES,
+        RasterStyle,
+        _basin_outline,
+        plot_raster_map,
+        resolve_temperature_style,
+    )
+
     how, label, unit = spec["how"], spec["label"], spec["unit"]
     field = _climatological_field(da, how)
     axis_unit = f"{unit} y$^{{-1}}$" if how == "sum" else unit
 
-    fig, ax = plt.subplots(figsize=(7.5, 6))
-    field.attrs.update(long_name=label, units=axis_unit)
-    field.plot(ax=ax, cbar_kwargs=dict(aspect=30, shrink=0.85, label=f"{label} [{axis_unit}]"))
-    for name, gdf in (overlays or {}).items():
-        if gdf is None or len(gdf) == 0:
-            continue
-        if name == "rivers":
-            gdf.plot(ax=ax, linewidth=0.6, color="steelblue", zorder=3)
-        elif name == "basins":
-            gdf.boundary.plot(ax=ax, color="k", linewidth=0.5, zorder=4)
-        else:
-            # Point layers: outlets in black, user gauges in blue, matching
-            # rule 1.12's basin_area.png so the two read as one family.
-            colour = "blue" if name == "gauges" else "k"
-            gdf.plot(ax=ax, marker="d", markersize=18, facecolor=colour, zorder=5)
-            _label_points(ax, gdf)
-    ax.set_title(f"{label} — climatological mean\n{title}", fontsize=9)
-    ax.set_xlabel("longitude [degree east]")
-    ax.set_ylabel("latitude [degree north]")
-    _footer(fig, caveat)
+    base = RASTER_STYLES[spec["style"]]
+    # The unit belongs to the DATA, not to the style: `how` decides whether the
+    # field is a yearly total or a mean, so the label is built here.
+    style = RasterStyle(
+        label=f"{label.capitalize()} ({axis_unit})",
+        palette=base.palette,
+        classification=base.classification,
+        clip_quantiles=base.clip_quantiles,
+        zero_baseline=base.zero_baseline,
+        relief=base.relief,
+        interpolation=base.interpolation,
+        diverging_center=base.diverging_center,
+    )
+    if spec["style"] == "temp":
+        style = resolve_temperature_style(field, style)
+
+    overlays = overlays or {}
+    basins = overlays.get("basins")
+    if basins is None or len(basins) == 0:
+        raise ValueError(
+            "_render_map needs a 'basins' overlay: the map's outline, scale bar "
+            "placement and locator inset are all derived from it"
+        )
+    fig, _ = plot_raster_map(
+        field,
+        overlays.get("rivers"),
+        _basin_outline(basins),
+        subbasins=basins if len(basins) > 1 else None,
+        gauges=overlays.get("gauges"),
+        outlets=overlays.get("outlets"),
+        style=style,
+        # No figure title. A published figure carries its title in the caption,
+        # and nothing is lost here: the colourbar names the quantity and the
+        # footnote names the dataset. ``title`` stays available on the template
+        # for a caller that renders outside a document.
+        caveat=caveat,
+        # The field is a derived aggregate whose units this function sets, so
+        # the raster's own `units` attribute says nothing useful about it — the
+        # wflow forcing labels both temp and pet "m". Skip the check rather
+        # than warn on every run about metadata nothing here reads.
+        expected_units=(),
+    )
     return fig
 
 
@@ -333,7 +387,7 @@ def plot_climate_figures(
         for kind in FIGURE_KINDS:
             out_path = plot_dir / f"{dataset}_{var}_{kind}.png"
             fig = _RENDERERS[kind](da, spec, title, caveat, overlays)
-            save_figure(out_path, dpi=300)
+            save_figure(out_path, dpi=RASTER_DPI)
             plt.close(fig)
             written.append(out_path)
     log_row(
