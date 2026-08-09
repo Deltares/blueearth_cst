@@ -21,7 +21,7 @@ Two things changed with the canonical set (2026-08), both deliberate:
   licence/attribution on a submitted figure, and a basemap that the server can
   re-render out from under a "reproducible" run — so NO rule in WF1 fetches
   tiles any more. It draws its terrain context as a hillshade of the model's own
-  DEM (``shared.plot_map``), which is offline, reproducible, and finer than the
+  DEM (``shared.cartographic_map``), which is offline, reproducible, and finer
   tiles were at the zoom level that rule had hardcoded.
 * **Filenames carry the dataset.** ``precip.png`` became
   ``forcing_precip_map.png`` and friends — see ``climate_figures.figure_names``.
