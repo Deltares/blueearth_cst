@@ -42,7 +42,9 @@ class _FakeDataCatalog:
 
 sys.modules.setdefault("hydromt", types.SimpleNamespace(DataCatalog=_FakeDataCatalog))
 
-from blueearth_cst.climate_analysis import prepare_climate_data_catalog as pcdc  # noqa: E402
+from blueearth_cst.climate_analysis import (  # noqa: E402
+    prepare_climate_data_catalog as pcdc,
+)
 
 
 @pytest.fixture

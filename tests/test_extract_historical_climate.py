@@ -14,7 +14,6 @@ import warnings
 import numpy as np
 import pytest
 
-
 # --- Stubs for heavy deps (set up BEFORE importing the source module) ---
 
 
@@ -149,7 +148,9 @@ _geopandas_stub = types.SimpleNamespace(
 # is in the env (pixi-installed), and dask.diagnostics.ProgressBar is a
 # cheap context manager — let the real one run.
 
-from blueearth_cst.climate_analysis import extract_historical_climate as ehc  # noqa: E402
+from blueearth_cst.climate_analysis import (  # noqa: E402
+    extract_historical_climate as ehc,
+)
 
 
 @pytest.fixture(autouse=True)

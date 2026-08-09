@@ -7,6 +7,7 @@ is provably identity-preserving rather than merely green on a smoke test.
 
 import io
 import os
+import re
 import sys
 import time
 import warnings
@@ -14,14 +15,12 @@ from pathlib import Path
 
 import pytest
 
-import re
-
 import blueearth_cst.shared.snake_utils as su  # noqa: E402
 from blueearth_cst.shared.snake_utils import (  # noqa: E402
-    _Heartbeat,
     _compact_log_line,
     _cr_overwrite,
     _fmt_elapsed,
+    _Heartbeat,
     _log_path_parts,
     _relativize_paths,
     get_config,

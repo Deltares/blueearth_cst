@@ -30,9 +30,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "dev" / "scripts"))
 import dask  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
-import xarray as xr  # noqa: E402
-
 import stage_data as sd  # noqa: E402
+import xarray as xr  # noqa: E402
 
 
 def _stage(cfg):

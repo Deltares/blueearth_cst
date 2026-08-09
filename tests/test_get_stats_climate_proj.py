@@ -9,7 +9,7 @@ to produce the scalar (``mean_stats_time``) series. Synthetic constant grids
 make every expected value self-evidently correct.
 """
 
-from os.path import join, dirname, realpath
+from os.path import dirname, join, realpath
 
 import numpy as np
 import pandas as pd
@@ -18,7 +18,9 @@ import xarray as xr
 TESTDIR = dirname(realpath(__file__))
 SNAKEDIR = join(TESTDIR, "..")
 
-from blueearth_cst.projections.get_stats_climate_proj import get_stats_clim_projections  # noqa: E402
+from blueearth_cst.projections.get_stats_climate_proj import (  # noqa: E402
+    get_stats_clim_projections,
+)
 
 
 def _make_daily_grid(precip_day, temp_day, periods, xname="lon", yname="lat"):

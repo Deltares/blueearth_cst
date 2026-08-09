@@ -20,7 +20,6 @@ from blueearth_cst.projections.grid_weights import (
     midpoint_edges,
 )
 
-
 # --- F1: strict generalization -- uniform grid must reproduce cos(lat) ---------
 
 

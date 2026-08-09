@@ -24,7 +24,6 @@ import numpy as np
 import pandas as pd
 import pytest
 
-
 from blueearth_cst.experiment.export_wflow_results import (  # noqa: E402
     VALUE_SIGNIFICANT_DIGITS,
     _format_value,
