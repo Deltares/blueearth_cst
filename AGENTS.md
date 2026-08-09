@@ -354,6 +354,27 @@ Two things follow, and they are complementary rather than alternatives.
   evidence about the other leg, and the ubuntu leg is the only place linux-64 is
   exercised at all (`dev/roadmap.md`, "Deferred: Linux replication").
 
+**`gh run list` does not work in this repo.** It exits 0 and prints nothing,
+with 20 runs on the server (observed 2026-08-09, gh 2.94.0). Read that output
+literally and you conclude CI has never run — which is worse than not looking.
+Go to the API instead:
+
+```bash
+# the latest run, whatever branch it was on
+gh api "repos/tanerumit/blueearth_cst/actions/runs?per_page=1" \
+  --jq '.workflow_runs[0] | "\(.head_sha[0:7]) \(.status) \(.conclusion)"'
+
+# which STEP failed, per leg -- the only view that separates a lint failure
+# from a suite failure from a platform-specific one
+gh api "repos/tanerumit/blueearth_cst/actions/runs/<id>/jobs" \
+  --jq '.jobs[] | "\(.name) -> \(.conclusion): " +
+        ([.steps[] | select(.conclusion=="failure") | .name] | join(", "))'
+```
+
+Do **not** filter by `head_sha=<short sha>` — that parameter needs the full
+40-character value and silently matches nothing otherwise, which reads as "the
+run has not started yet" and polls forever.
+
 ### Figures are terminal artifacts
 
 No rule consumes a `.png`/`.pdf` under `project_dir`, so a figure change cannot
