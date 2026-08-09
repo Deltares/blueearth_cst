@@ -13,6 +13,7 @@ skill's decision-record reference).
 | [0004](0004-order-model-readers-on-a-terminal-sentinel.md) | Order model-root readers on a terminal build sentinel, not on a declared output | accepted | 2026-08-05 |
 | [0005](0005-adopt-ruff-format-in-two-stages.md) | Adopt `ruff format`, in two stages split on the Snakemake code rerun trigger | accepted (stage 1 landed) | 2026-08-09 |
 | [0006](0006-retire-subcatchment-climate-plots.md) | Retire the subcatchment climate plots; the canonical climate figure set answers this | accepted | 2026-08-09 |
+| [0007](0007-draw-basin-area-from-the-spatial-foundation.md) | Draw basin_area from the spatial foundation, not the model | accepted | 2026-08-09 |
 
 ## Retired numbers
 
