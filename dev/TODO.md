@@ -24,7 +24,6 @@
 | [t2608071219](tasks/t2608071219-tee-to-log-does-not-capture.md)                                                                         | Capture a failing `script:` rule's traceback in its log part                                                   | ergonomics       |        | 18  | backlog |
 | [t2608081012](tasks/t2608081012-pre-r9-cascade-guard.md)                                                                                | Fix the pre-R9 fixture guard that has silently skipped the rebuild-cascade test since R9                       | test hygiene     | R11    |     | backlog |
 | [t2608082010](tasks/t2608082010-cover-st-0-and-drop-basin-indicators-in-the-fixture-facing-test-coverage.md)                            | Cover st_0 and drop basin_indicators in the fixture-facing test coverage                                       | test coverage    | R11    |     | backlog |
-| [t2608090806](tasks/t2608090806-write-wf3-result-csvs-in-plain-decimal-notation-capped-to-4-significant-digits.md)                      | Write WF3 result CSVs in plain decimal notation, capped to 4 significant digits                                | wf3 results      |        |     | backlog |
 | [t2608090826](tasks/t2608090826-convert-the-root-readme-from-restructuredtext-to-markdown-rendering-rst-only-if-a-consumer-needs-it.md) | Convert the root README from reStructuredText to Markdown, rendering .rst only if a consumer needs it          | docs             |        |     | backlog |
 
 ## Watching
