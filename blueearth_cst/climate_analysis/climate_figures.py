@@ -41,6 +41,7 @@ grid.
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from typing import Optional, Union
@@ -248,7 +249,7 @@ def load_spatial_overlays(geoms_dir: Optional[Union[str, Path]]) -> dict:
     return overlays
 
 
-def _render_map(da, spec, title, caveat, overlays):
+def _render_map(da, spec, title, caveat, overlays, levels=None, levels_out=None):
     """Climatological field as a cartographic map.
 
     A caller of ``shared.cartographic_map.plot_raster_map``, so this figure carries
@@ -260,7 +261,6 @@ def _render_map(da, spec, title, caveat, overlays):
     """
     from blueearth_cst.shared.cartographic_map import (
         RASTER_STYLES,
-        RasterStyle,
         extent_from_layer,
         plot_raster_map,
         resolve_temperature_style,
@@ -274,18 +274,11 @@ def _render_map(da, spec, title, caveat, overlays):
     base = RASTER_STYLES[spec["style"]]
     # The unit belongs to the DATA, not to the style: `how` decides whether the
     # field is a yearly total or a mean, so the label is built here.
-    style = RasterStyle(
-        label=f"{label.capitalize()} ({axis_unit})",
-        palette=base.palette,
-        classification=base.classification,
-        clip_quantiles=base.clip_quantiles,
-        zero_baseline=base.zero_baseline,
-        relief=base.relief,
-        interpolation=base.interpolation,
-        diverging_center=base.diverging_center,
-    )
+    style = base.replace(label=f"{label.capitalize()} ({axis_unit})")
     if spec["style"] == "temp":
         style = resolve_temperature_style(field, style)
+    if levels is not None:
+        style.levels = levels
 
     # Every overlay is optional, and the two datasets supply them from
     # different products: the FORCING maps take the wflow model's staticgeoms
@@ -333,10 +326,33 @@ def _render_map(da, spec, title, caveat, overlays):
         # than warn on every run about metadata nothing here reads.
         expected_units=(),
     )
+    if levels_out is not None:
+        # Report back what this bar ended up using, so a later figure of the
+        # same quantity can be pinned to it. Read from the style when it was
+        # handed in, and recomputed from the FRAMED raster otherwise — the same
+        # restriction plot_raster_map applies, so the two cannot disagree.
+        levels_out[:] = (
+            list(levels)
+            if levels is not None
+            else [float(v) for v in _levels_actually_used(field, style, basins)]
+        )
     return fig
 
 
-def _render_annual(da, spec, title, caveat, overlays):
+def _levels_actually_used(field, style, basins):
+    """The class boundaries ``plot_raster_map`` would derive for this figure."""
+    from blueearth_cst.shared.cartographic_map import (
+        _class_levels,
+        _raster_within,
+        extent_from_layer,
+    )
+
+    extent = extent_from_layer(basins) if basins is not None and len(basins) else None
+    framed = _raster_within(field, extent) if extent is not None else field
+    return _class_levels(framed, style)
+
+
+def _render_annual(da, spec, title, caveat, overlays, **_):
     """Domain-mean value per year, with the period mean for reference."""
     how, label, unit = spec["how"], spec["label"], spec["unit"]
     series = _yearly(da.mean(dim=_space_dims(da)), how).compute()
@@ -369,7 +385,7 @@ def _render_annual(da, spec, title, caveat, overlays):
     return fig
 
 
-def _render_monthly(da, spec, title, caveat, overlays):
+def _render_monthly(da, spec, title, caveat, overlays, **_):
     """Monthly climatology of the domain mean."""
     how, label, unit = spec["how"], spec["label"], spec["unit"]
     domain = da.mean(dim=_space_dims(da)).resample(time="ME")
@@ -400,6 +416,44 @@ _RENDERERS = {
 }
 
 
+
+#: Sidecar written beside the SOURCE figures and read by the FORCING ones, so a
+#: variable's two maps carry the same colourbar and can be read against each
+#: other. Direction matters and is one-way: the source rule (1.05) is
+#: independent of the model build and writes; the forcing rule (1.13) is
+#: downstream of it anyway and reads. The reverse would make the source figures
+#: wait on a wflow model, which they exist to precede.
+LEVELS_FILENAME = "climate_levels.json"
+
+
+def read_shared_levels(levels_file: Optional[Union[str, Path]]) -> dict:
+    """Class boundaries recorded by an earlier figure set, keyed by variable.
+
+    Returns an empty dict when the file is absent or unreadable — a figure with
+    its own bar is still correct, and refusing to plot because a convenience
+    sidecar is missing would be the wrong trade.
+    """
+    if levels_file is None:
+        return {}
+    path = Path(levels_file)
+    if not path.is_file():
+        return {}
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        log_row(f"shared levels unreadable, ignored: {path}", module="plot")
+        return {}
+    return {k: v for k, v in loaded.items() if isinstance(v, list) and len(v) > 1}
+
+
+def write_shared_levels(levels_file: Union[str, Path], levels: dict) -> None:
+    """Record the class boundaries this figure set used, for its pair to adopt."""
+    path = Path(levels_file)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(levels, indent=2, sort_keys=True), encoding="utf-8")
+    log_row(f"Wrote shared colourbar levels: {path}", module="plot")
+
+
 def plot_climate_figures(
     ds: xr.Dataset,
     plot_dir: Union[str, Path],
@@ -407,6 +461,8 @@ def plot_climate_figures(
     *,
     caveat: Optional[str] = None,
     overlays: Optional[dict] = None,
+    levels_file: Optional[Union[str, Path]] = None,
+    write_levels: bool = False,
 ) -> list[Path]:
     """Write the canonical figure set for one gridded climate dataset.
 
@@ -456,15 +512,29 @@ def plot_climate_figures(
     plot_dir = Path(plot_dir)
     os.makedirs(plot_dir, exist_ok=True)
     title = DATASETS[dataset]
+    shared = {} if write_levels else read_shared_levels(levels_file)
     written = []
     for var, spec in CLIMATE_VARS.items():
         da = ds[var]
+        captured = []
         for kind in FIGURE_KINDS:
             out_path = plot_dir / f"{dataset}_{var}_{kind}.png"
-            fig = _RENDERERS[kind](da, spec, title, caveat, overlays)
+            fig = _RENDERERS[kind](
+                da,
+                spec,
+                title,
+                caveat,
+                overlays,
+                levels=shared.get(var),
+                levels_out=captured if write_levels else None,
+            )
             save_figure(out_path, dpi=RASTER_DPI)
             plt.close(fig)
             written.append(out_path)
+        if write_levels and captured:
+            shared[var] = list(captured)
+    if write_levels and levels_file is not None:
+        write_shared_levels(levels_file, shared)
     log_row(
         f"Wrote {len(written)} canonical climate figures ({dataset}) to {plot_dir}",
         module="plot",

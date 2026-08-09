@@ -34,6 +34,7 @@ from typing import Optional, Union
 
 from blueearth_cst.climate_analysis.climate_figures import (
     CLIMATE_VARS,
+    LEVELS_FILENAME,
     load_spatial_overlays,
     plot_climate_figures,
 )
@@ -51,6 +52,7 @@ def plot_forcing(
     plot_dir: Optional[Union[str, Path]] = None,
     gauges_fn: Optional[Union[str, Path]] = None,
     geoms_dir: Optional[Union[str, Path]] = None,
+    source_plot_dir: Optional[Union[str, Path]] = None,
 ):
     """Write the canonical climate figure set for the wflow forcing.
 
@@ -100,6 +102,13 @@ def plot_forcing(
         "forcing",
         caveat=_CAVEAT,
         overlays=load_spatial_overlays(geoms_dir),
+        # Adopt the source figures' colourbars, so each variable's two maps
+        # differ only in the field they show. Absent, each bar is its own.
+        levels_file=(
+            Path(source_plot_dir) / LEVELS_FILENAME
+            if source_plot_dir is not None
+            else None
+        ),
     )
 
 
@@ -121,6 +130,7 @@ if __name__ == "__main__":
                 plot_dir=f"{model_dir}/forcing/plots",
                 gauges_fn=getattr(sm.input, "output_locations", None),
                 geoms_dir=sm.params.geoms_dir,
+                source_plot_dir=sm.params.source_plot_dir,
             )
     else:
         plot_forcing(
