@@ -25,6 +25,7 @@
 | [t2608082010](tasks/t2608082010-cover-st-0-and-drop-basin-indicators-in-the-fixture-facing-test-coverage.md)                                | Cover st_0 and drop basin_indicators in the fixture-facing test coverage                                       | test coverage    | R11    |     | backlog |
 | [t2608090826](tasks/t2608090826-convert-the-root-readme-from-restructuredtext-to-markdown-rendering-rst-only-if-a-consumer-needs-it.md)     | Convert the root README from reStructuredText to Markdown, rendering .rst only if a consumer needs it          | docs             |        |     | backlog |
 | [t2608091006](tasks/t2608091006-standardize-plotting-across-the-toolbox-with-shared-templates-then-sweep-the-existing-figures-onto-them.md) | Standardize plotting across the toolbox with shared templates, then sweep the existing figures onto them       | plotting         |        |     | backlog |
+| [t2608091028](tasks/t2608091028-land-feat-signature-figure-redesign-once-the-rendered-figure-has-been-judged.md)                            | Land feat/signature-figure-redesign once the rendered figure has been judged                                   | plotting         |        |     | blocked |
 
 ## Watching
 
