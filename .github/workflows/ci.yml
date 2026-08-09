@@ -70,9 +70,14 @@ jobs:
         # repo under `ruff check --isolated`), so an unpinned `select` would turn
         # a routine ruff version bump into a red CI on an untouched tree.
         #
-        # `ruff format` is deliberately NOT checked here — see dev/tasks/
-        # R7-23. Adding --check would fail on 118 of 262 files today.
         run: pixi run ruff check .
+
+      - name: Format (ruff)
+        # Armed by ADR 0005 stage 1 (2026-08-09). Its scope and the two
+        # exclusions — blueearth_cst/ until stage 2, and *.md permanently — are
+        # in pyproject.toml [tool.ruff.format]; keep them there, not here, so a
+        # local `pixi run format-check` and CI cannot disagree.
+        run: pixi run format-check
 
       - name: Run the unit suite
         # -rs prints every skip reason, so the expected-skip set stays visible in
