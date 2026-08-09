@@ -20,8 +20,18 @@ updated: 2026-08-09
 
 ## Progress
 
-*Not blocked on a decision — nobody has objected to sorted imports. It is
-queued behind ADR 0005 stage 2 because the two share a cost.*
+**HALF LANDED 2026-08-09 (`b124a98`). The 42 files outside `blueearth_cst/` are
+sorted, and `I` is armed in `select`** — with the deferred half carved out as
+`"blueearth_cst/**" = ["I001"]`, the same shape `[tool.ruff.format]` uses.
+
+That is a deviation from this note's original plan, which said to arm `I` only
+once both halves were clean. Arming it early with an explicit carve-out is
+strictly better: it stops the 42 drifting back while the 20 wait, and waiting
+was the failure mode this item exists to prevent. What remains is deleting one
+line from `pyproject.toml` and running `--fix` on 20 files.
+
+*Not blocked on a decision — nobody has objected to sorted imports. The
+remainder is queued behind ADR 0005 stage 2 because the two share a cost.*
 
 **Measured on `main` at `b46ccc8` (2026-08-09): 62 files, all auto-fixable.**
 
@@ -39,11 +49,11 @@ and once for imports, is pure waste. Land the 42 non-`script:` files whenever;
 land the 20 **in the same sitting as stage 2**, ideally as the commit
 immediately before or after it, so one full re-run absorbs both.
 
-- [ ] Land `I` for `tests/`, `dev/`, `scripts/` (42 files) — own commit, gated
-      by `pixi run lint` and the module tests
+- [x] Land `I` for `tests/`, `dev/`, `scripts/` (42 files) — `b124a98`
+- [x] Add `I` to `select`, carving out `blueearth_cst/**` rather than waiting
 - [ ] Land `I` for `blueearth_cst/` (20 files) beside `t2608090907a` stage 2
-- [ ] Add `I` to `select` in `pyproject.toml` only once both halves are clean,
-      so the gate never goes red on an untouched tree
+- [ ] Delete the `"blueearth_cst/**" = ["I001"]` per-file-ignore in the same
+      commit — it is the only thing left holding the rule back
 
 ## Refs
 
