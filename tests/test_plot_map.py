@@ -8,8 +8,10 @@ physical width, the classification, and the ramps' accessibility properties.
 Each of these was a real defect in the pre-2026-08 figures.
 
 Since 2026-08 one drawing function serves four quantities (``plot_raster_map``
-plus ``RASTER_STYLES``), so the tests cover the shared template as well as the
-elevation caller that was once the whole module.
+plus ``RASTER_STYLES``). The cartography lives in ``shared.cartographic_map``
+and the wflow-specific reading half in ``shared.plot_map``; this file covers
+both, because every test here is ultimately about one of the two figures they
+combine to produce.
 """
 
 import numpy as np
@@ -17,50 +19,51 @@ import pytest
 import xarray as xr
 from matplotlib import colors
 
+from blueearth_cst.shared import cartographic_map as carto
 from blueearth_cst.shared import plot_map
-from blueearth_cst.shared.plot_map import (
+from blueearth_cst.shared.cartographic_map import (
     FIGURE_WIDTH_MM,
     GRATICULE_MAX_TICKS,
     MM_PER_INCH,
-    _CORNERS,
-    _EXTENT_BUFFER_DEG,
-    _NORTH_ARROW_CORNER,
-    RIVER_WIDTH_UNIFORM,
-    _basin_outline,
-    _colorbar_inset,
-    _corner_occupancy,
-    _elevation_colormap,
-    _elevation_levels,
-    _figure_size,
-    _nice_step_up,
-    _mask_nodata,
-    _publication_rc,
-    _scale_bar_corner,
-    _graticule_ticks,
-    _metres_per_degree,
-    _nice_round_length,
-    _river_linewidths,
-    load_basin_layers,
-    map_extent,
-    pixel_resolution,
-    plot_basin_map,
-    spatial_dim_names,
-)
-from blueearth_cst.shared.plot_map import (  # the template surface
     RASTER_STYLES,
+    RIVER_WIDTH_UNIFORM,
     RasterStyle,
     _class_levels,
+    _colorbar_inset,
+    _CORNERS,
+    _corner_occupancy,
     _divide_linework,
+    _elevation_colormap,
     _equal_interval_levels,
+    _EXTENT_BUFFER_DEG,
+    _figure_size,
     _finite_cells,
+    _graticule_ticks,
     _locator_span,
+    _mask_nodata,
+    _metres_per_degree,
+    _nice_round_length,
+    _nice_step_up,
+    _NORTH_ARROW_CORNER,
     _overlay_contrast,
+    _publication_rc,
+    _river_linewidths,
+    _scale_bar_corner,
     _style_colormap,
     _weighted_quantiles,
     _wrap_label,
     check_geographic_inputs,
+    map_extent,
+    pixel_resolution,
     plot_raster_map,
     resolve_temperature_style,
+    spatial_dim_names,
+)
+from blueearth_cst.shared.plot_map import (
+    _basin_outline,
+    _elevation_levels,
+    load_basin_layers,
+    plot_basin_map,
 )
 
 
@@ -288,22 +291,28 @@ def test_reserving_every_corner_still_returns_one():
 
 @pytest.fixture
 def restore_locator():
-    names = ("LOCATOR_ENABLED", "_LOCATOR_CORNER", "_LOCATOR_WIDTH")
-    original = {name: getattr(plot_map, name) for name in names}
+    names = (
+        "LOCATOR_ENABLED",
+        "_LOCATOR_CORNER",
+        "_LOCATOR_WIDTH",
+        "_LOCATOR_PLACEMENT",
+        "_LOCATOR_SPAN_DEG",
+    )
+    original = {name: getattr(carto, name) for name in names}
     yield
     for name, value in original.items():
-        setattr(plot_map, name, value)
+        setattr(carto, name, value)
 
 
 def test_the_locator_window_is_square_and_centred_on_the_basin():
-    window = plot_map._locator_window([9.65, 9.86, 0.35, 0.50])
+    window = carto._locator_window([9.65, 9.86, 0.35, 0.50])
     assert (window[1] - window[0]) == pytest.approx(window[3] - window[2])
     assert 0.5 * (window[0] + window[1]) == pytest.approx(9.755)
 
 
 def test_a_polar_basin_gets_a_full_window_rather_than_half_of_one():
     """Clipping at the pole would leave the inset half empty; re-centre instead."""
-    window = plot_map._locator_window([20.0, 21.0, 88.0, 89.5])
+    window = carto._locator_window([20.0, 21.0, 88.0, 89.5])
     assert (window[1] - window[0]) == pytest.approx(window[3] - window[2])
     assert window[3] <= 90.0
 
@@ -314,7 +323,7 @@ def test_a_polar_basin_gets_a_full_window_rather_than_half_of_one():
 def test_the_locator_box_comes_out_square_on_the_page(extent):
     """Equal fractions in a non-square panel would render a slot, not a square."""
     lon_span, lat_span = extent[1] - extent[0], extent[3] - extent[2]
-    _, _, width, height = plot_map._locator_box(np.asarray(extent), "upper left")
+    _, _, width, height = carto._locator_box(np.asarray(extent), "upper left")
     assert width * lon_span == pytest.approx(height * lat_span)
     assert 0 < width <= 1 and 0 < height <= 1
 
@@ -331,41 +340,39 @@ def test_the_locator_box_comes_out_square_on_the_page(extent):
 def test_the_locator_box_lands_in_the_corner_it_is_given(
     corner, expect_left, expect_upper
 ):
-    x0, y0, width, height = plot_map._locator_box(
-        np.array([0.0, 1.0, 0.0, 1.0]), corner
-    )
+    x0, y0, width, height = carto._locator_box(np.array([0.0, 1.0, 0.0, 1.0]), corner)
     assert (x0 < 0.5) is expect_left
     assert (y0 + height > 0.5) is expect_upper
 
 
 def test_no_corner_is_reserved_when_the_locator_is_off(restore_locator):
-    plot_map.LOCATOR_ENABLED = False
-    assert plot_map._locator_corner(_basin_covering(0, 0, 1, 1), _UNIT_EXTENT) is None
+    carto.LOCATOR_ENABLED = False
+    assert carto._locator_corner(_basin_covering(0, 0, 1, 1), _UNIT_EXTENT) is None
 
 
 def test_the_locator_never_takes_the_north_arrow_corner(restore_locator):
-    plot_map.LOCATOR_ENABLED = True
-    plot_map._LOCATOR_CORNER = "auto"
+    carto.LOCATOR_ENABLED = True
+    carto._LOCATOR_CORNER = "auto"
     basin = _basin_covering(0.0, 0.0, 0.9, 0.9)  # only upper right is free
-    assert plot_map._locator_corner(basin, _UNIT_EXTENT) != _NORTH_ARROW_CORNER
+    assert carto._locator_corner(basin, _UNIT_EXTENT) != _NORTH_ARROW_CORNER
 
 
 def test_an_explicit_locator_corner_is_honoured(restore_locator):
-    plot_map.LOCATOR_ENABLED = True
-    plot_map._LOCATOR_PLACEMENT = "map"
-    plot_map._LOCATOR_CORNER = "lower right"
+    carto.LOCATOR_ENABLED = True
+    carto._LOCATOR_PLACEMENT = "map"
+    carto._LOCATOR_CORNER = "lower right"
     assert (
-        plot_map._locator_corner(_basin_covering(0, 0, 1, 1), _UNIT_EXTENT)
+        carto._locator_corner(_basin_covering(0, 0, 1, 1), _UNIT_EXTENT)
         == "lower right"
     )
 
 
 def test_a_panel_locator_claims_no_map_corner(restore_locator):
     """It is not on the map, so the scale bar gets that corner back."""
-    plot_map.LOCATOR_ENABLED = True
-    plot_map._LOCATOR_PLACEMENT = "panel"
-    plot_map._LOCATOR_CORNER = "lower right"
-    assert plot_map._locator_corner(_basin_covering(0, 0, 1, 1), _UNIT_EXTENT) is None
+    carto.LOCATOR_ENABLED = True
+    carto._LOCATOR_PLACEMENT = "panel"
+    carto._LOCATOR_CORNER = "lower right"
+    assert carto._locator_corner(_basin_covering(0, 0, 1, 1), _UNIT_EXTENT) is None
 
 
 # --- the vendored basemap -----------------------------------------------------
@@ -374,8 +381,8 @@ def test_a_panel_locator_claims_no_map_corner(restore_locator):
 
 
 def test_the_vendored_basemap_is_present():
-    assert plot_map.BASEMAP_PATH.is_file(), (
-        f"{plot_map.BASEMAP_PATH} is missing; see config/basemap/README.md"
+    assert carto.BASEMAP_PATH.is_file(), (
+        f"{carto.BASEMAP_PATH} is missing; see config/basemap/README.md"
     )
 
 
@@ -383,13 +390,13 @@ def test_the_vendored_basemap_is_present():
 def test_each_basemap_layer_is_readable_and_not_empty(layer):
     import geopandas as gpd
 
-    assert len(gpd.read_file(plot_map.BASEMAP_PATH, layer=layer)) > 0
+    assert len(gpd.read_file(carto.BASEMAP_PATH, layer=layer)) > 0
 
 
 def test_the_places_layer_carries_the_columns_the_inset_filters_on():
     import geopandas as gpd
 
-    places = gpd.read_file(plot_map.BASEMAP_PATH, layer="places")
+    places = gpd.read_file(carto.BASEMAP_PATH, layer="places")
     assert {"name", "pop_max", "scalerank"} <= set(places.columns)
 
 
@@ -584,39 +591,39 @@ def test_a_below_sea_level_basin_is_not_clipped_at_zero():
 def restore_tunables():
     """Put the module globals back, whatever a test does to them."""
     names = ("FONT_SIZE_TICK", "WIDTH_AXES_SPINE", "_PANEL_LEFT", "_COLORBAR_WIDTH")
-    original = {name: getattr(plot_map, name) for name in names}
+    original = {name: getattr(carto, name) for name in names}
     yield
     for name, value in original.items():
-        setattr(plot_map, name, value)
+        setattr(carto, name, value)
 
 
 def test_rcparams_follow_a_font_size_override(restore_tunables):
-    plot_map.FONT_SIZE_TICK = 99.0
-    plot_map.WIDTH_AXES_SPINE = 3.0
+    carto.FONT_SIZE_TICK = 99.0
+    carto.WIDTH_AXES_SPINE = 3.0
     assert _publication_rc()["xtick.labelsize"] == 99.0
     assert _publication_rc()["ytick.labelsize"] == 99.0
     assert _publication_rc()["axes.linewidth"] == 3.0
 
 
 def test_colorbar_inset_follows_the_panel_position(restore_tunables):
-    plot_map._PANEL_LEFT = 1.5
-    plot_map._COLORBAR_WIDTH = 0.1
+    carto._PANEL_LEFT = 1.5
+    carto._COLORBAR_WIDTH = 0.1
     left, _, width, _ = _colorbar_inset()
     assert (left, width) == (1.5, 0.1)
 
 
 @pytest.fixture
 def restore_colorbar_label_position():
-    original = plot_map.COLORBAR_LABEL_POSITION
+    original = carto.COLORBAR_LABEL_POSITION
     yield
-    plot_map.COLORBAR_LABEL_POSITION = original
+    carto.COLORBAR_LABEL_POSITION = original
 
 
 def test_a_right_label_leaves_the_colorbar_at_full_height(
     restore_colorbar_label_position,
 ):
-    plot_map.COLORBAR_LABEL_POSITION = "right"
-    assert _colorbar_inset()[3] == pytest.approx(plot_map._colorbar_height())
+    carto.COLORBAR_LABEL_POSITION = "right"
+    assert _colorbar_inset()[3] == pytest.approx(carto._colorbar_height())
 
 
 def test_a_top_label_moves_the_bar_down_rather_than_shortening_it(
@@ -628,35 +635,35 @@ def test_a_top_label_moves_the_bar_down_rather_than_shortening_it(
     comes out of the bar's position, not its height. The earlier behaviour
     shortened the bar instead, which broke that promise silently.
     """
-    plot_map.COLORBAR_LABEL_POSITION = "top"
+    carto.COLORBAR_LABEL_POSITION = "top"
     _, bottom, _, height = _colorbar_inset()
-    assert height == pytest.approx(plot_map._colorbar_height())
-    assert bottom + height + plot_map._COLORBAR_TOP_LABEL_HEADROOM <= 1.0 + 1e-9
+    assert height == pytest.approx(carto._colorbar_height())
+    assert bottom + height + carto._COLORBAR_TOP_LABEL_HEADROOM <= 1.0 + 1e-9
 
 
 def test_each_extra_label_line_pushes_the_bar_down_the_same_again(
     restore_colorbar_label_position,
 ):
     """A fixed headroom would clip a two-line label or gap above a one-line one."""
-    plot_map.COLORBAR_LABEL_POSITION = "top"
+    carto.COLORBAR_LABEL_POSITION = "top"
     one, two = _colorbar_inset(1)[1], _colorbar_inset(2)[1]
-    assert one - two == pytest.approx(plot_map._COLORBAR_TOP_LABEL_HEADROOM)
+    assert one - two == pytest.approx(carto._COLORBAR_TOP_LABEL_HEADROOM)
 
 
 def test_the_bar_gives_way_when_the_panel_cannot_hold_it(
     restore_colorbar_label_position,
 ):
     """Position first, length only when the band genuinely cannot fit it."""
-    plot_map.COLORBAR_LABEL_POSITION = "top"
+    carto.COLORBAR_LABEL_POSITION = "top"
     squeezed = _colorbar_inset(1, reserved_top=0.5, band_bottom=0.3)
-    assert squeezed[3] < plot_map._colorbar_height()
-    assert squeezed[3] >= plot_map._COLORBAR_MIN_HEIGHT
+    assert squeezed[3] < carto._colorbar_height()
+    assert squeezed[3] >= carto._COLORBAR_MIN_HEIGHT
 
 
 def test_label_lines_do_not_move_a_right_hand_label(
     restore_colorbar_label_position,
 ):
-    plot_map.COLORBAR_LABEL_POSITION = "right"
+    carto.COLORBAR_LABEL_POSITION = "right"
     assert _colorbar_inset(1) == _colorbar_inset(3)
 
 
@@ -664,7 +671,7 @@ def test_an_unknown_label_position_raises_rather_than_silently_defaulting(
     restore_colorbar_label_position,
 ):
     """A knob that reads as set but does nothing is the worst failure here."""
-    plot_map.COLORBAR_LABEL_POSITION = "above"
+    carto.COLORBAR_LABEL_POSITION = "above"
     with pytest.raises(ValueError, match="COLORBAR_LABEL_POSITION"):
         _colorbar_inset()
 
@@ -845,11 +852,11 @@ def _legend_labels(ax):
 # wording: what the legend must get right is which entries appear and in what
 # order, not the words. Pinning the strings made a copy edit look like a
 # regression.
-_RIVER = plot_map.LABEL_RIVER
-_BASIN = plot_map.LABEL_BASIN
-_DIVIDES = plot_map.LABEL_SUBCATCHMENT
-_OUTLET = plot_map.LABEL_OUTLET
-_GAUGE = plot_map.LABEL_GAUGE
+_RIVER = carto.LABEL_RIVER
+_BASIN = carto.LABEL_BASIN
+_DIVIDES = carto.LABEL_SUBCATCHMENT
+_OUTLET = carto.LABEL_OUTLET
+_GAUGE = carto.LABEL_GAUGE
 
 
 def test_the_minimal_call_draws_a_figure_and_writes_nothing(tmp_path):
@@ -992,7 +999,7 @@ def test_the_colorbar_label_is_drawn_where_the_position_says(
     """ "top" is a horizontal title above the bar; "right" is the rotated label."""
     import matplotlib.pyplot as plt
 
-    plot_map.COLORBAR_LABEL_POSITION = position
+    carto.COLORBAR_LABEL_POSITION = position
     layers = _layers()
     fig, ax = plot_basin_map(
         layers["dem"], layers["rivers"], layers["basin"], elevation_label="depth [m]"
@@ -1086,7 +1093,7 @@ def test_temperature_goes_diverging_only_when_it_crosses_freezing():
 
     crossing = resolve_temperature_style(_ramp(-8.0, 14.0))
     assert crossing.diverging_center == 0.0
-    assert crossing.palette == plot_map.TEMPERATURE_DIVERGING_PALETTE
+    assert crossing.palette == carto.TEMPERATURE_DIVERGING_PALETTE
 
 
 def test_a_diverging_temperature_ramp_is_centred_on_zero_not_on_the_data():
@@ -1107,7 +1114,7 @@ def test_the_tick_cap_is_enforced_by_widening_the_step(low, high):
     Both exist because rounding a class width to a readable number means the
     count cannot be requested exactly.
     """
-    assert len(_equal_interval_levels(low, high)) <= plot_map._COLORBAR_MAX_TICKS
+    assert len(_equal_interval_levels(low, high)) <= carto._COLORBAR_MAX_TICKS
 
 
 def test_a_skewed_field_switches_to_equal_area_under_auto():
@@ -1117,7 +1124,7 @@ def test_a_skewed_field_switches_to_equal_area_under_auto():
     linear = RasterStyle(label="x", palette="Blues", classification="equal_interval")
     values, weights = _finite_cells(skewed)
     modal = {
-        name: plot_map._class_area_shares(
+        name: carto._class_area_shares(
             values, _class_levels(skewed, style), weights
         ).max()
         for name, style in (("auto", auto), ("linear", linear))
@@ -1138,7 +1145,7 @@ def test_a_field_with_two_distinct_values_falls_back_rather_than_collapsing():
     values = np.where(np.arange(400).reshape(20, 20) < 200, 2727.0, 2820.0)
     style = RasterStyle(label="x", palette="Blues", classification="auto")
     levels = _class_levels(_field(values), style)
-    assert len(levels) - 1 >= plot_map._MIN_CLASSES
+    assert len(levels) - 1 >= carto._MIN_CLASSES
     assert np.all(np.diff(levels) > 0)
 
 
@@ -1237,21 +1244,21 @@ def test_divides_are_merged_so_a_shared_edge_is_drawn_once():
 
 def test_the_locator_window_is_sized_from_the_basin(restore_locator):
     """A fixed span cannot serve two basins of different sizes."""
-    plot_map._LOCATOR_SPAN_DEG = "auto"
+    carto._LOCATOR_SPAN_DEG = "auto"
     small = _locator_span(np.array([0.0, 0.25, 0.0, 0.2]))
     large = _locator_span(np.array([0.0, 6.0, 0.0, 5.0]))
     assert small < large
-    assert small in plot_map._LOCATOR_SPAN_LADDER
+    assert small in carto._LOCATOR_SPAN_LADDER
 
 
 def test_a_pinned_locator_span_overrides_the_auto_rule(restore_locator):
-    plot_map._LOCATOR_SPAN_DEG = 3.0
+    carto._LOCATOR_SPAN_DEG = 3.0
     assert _locator_span(np.array([0.0, 0.25, 0.0, 0.2])) == 3.0
 
 
 def test_a_basin_always_fits_inside_its_own_locator_window(restore_locator):
     """The target alone would choose a window narrower than a large basin."""
-    plot_map._LOCATOR_SPAN_DEG = "auto"
+    carto._LOCATOR_SPAN_DEG = "auto"
     extent = np.array([0.0, 30.0, 0.0, 25.0])
     assert 2.0 * _locator_span(extent) >= (extent[1] - extent[0])
 

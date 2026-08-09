@@ -1,0 +1,2747 @@
+# -*- coding: utf-8 -*-
+"""A cartographic template: any geographic raster, with map furniture.
+
+One drawing function, ``plot_raster_map``, serves every map this toolbox makes.
+What differs between a DEM, a rainfall field and a temperature field is a
+``RasterStyle`` — palette, label, classification, whether the values are a
+surface worth hillshading. Everything else a map needs is shared and lives
+here: the graticule and frame, a latitude-corrected scale bar, a north arrow,
+an auto-sized locator inset, and a side panel that stacks the colourbar over
+the vector legend.
+
+Adding a quantity is an entry in ``RASTER_STYLES``, not another plotting
+function. That is the whole point of the split: rule 1.12's basin map and rule
+1.13's three forcing maps were separate code with separate ideas of what a map
+is, and the forcing maps had no furniture at all.
+
+The two entry points, split along reading-vs-drawing, are elsewhere:
+``shared.plot_map`` resolves a wflow model on disk into the layers this module
+draws. Nothing here reads a file except the vendored basemap, and nothing here
+knows what wflow is — so any raster on a geographic grid, from any source,
+plots through it.
+
+Three rules the whole module depends on, worth knowing before changing anything:
+
+* Lengths are in PHYSICAL units (mm / inches / points). The figure is built at
+  its final printed size, so a font size is the size it will be on the page.
+  Raising ``RASTER_DPI`` makes the PNG bigger, NOT the type smaller.
+* Positions inside the map are AXES FRACTIONS and may exceed 1 to sit outside
+  it — that is how the side panel works. Positions of map furniture drawn in
+  data space (the scale bar) are fractions of the map's own extent, so they
+  hold for any basin.
+* Anything assembled FROM a tunable is derived in a FUNCTION, never frozen into
+  a module-level constant. A constant snapshots its inputs at import, so
+  overriding the input afterwards would silently do nothing — which is exactly
+  how ``dev/scripts/preview_basin_map.py`` drives this module.
+"""
+
+import warnings
+from pathlib import Path
+
+import geopandas as gpd
+import matplotlib
+import matplotlib.patches as mpatches
+import matplotlib.patheffects as pe
+import matplotlib.pyplot as plt
+import numpy as np
+import xarray as xr
+from matplotlib import colors, rc_context
+from matplotlib.cm import ScalarMappable
+from matplotlib.lines import Line2D
+import matplotlib.text as mtext
+from matplotlib.path import Path as MplPath
+from matplotlib.ticker import MaxNLocator
+import cartopy.crs as ccrs
+from cartopy.mpl.ticker import LatitudeFormatter, LongitudeFormatter
+from shapely.geometry import box as shapely_box
+
+
+# ===========================================================================
+# TUNABLE CONSTANTS
+# ===========================================================================
+# Everything a reader might want to adjust lives in this block; nothing below
+# it hardcodes a size, weight, colour or position. Values are grouped by what
+# they control, and each says what it affects so a change can be made without
+# reading the drawing code.
+#
+# Two rules the whole block depends on, worth knowing before changing anything:
+#
+# * Lengths are in PHYSICAL units (mm / inches / points), not pixels. The
+#   figure is built at its final printed size, so a font size is the size it
+#   will be on the page. Raising RASTER_DPI makes the PNG bigger, NOT the type
+#   smaller.
+# * Positions inside the map are AXES FRACTIONS (0 = left/bottom, 1 =
+#   right/top) and can exceed 1 to sit outside the map — that is how the side
+#   panel works. Positions of map furniture drawn in data space (the scale bar)
+#   are fractions of the map's own extent, so they hold for any basin.
+# ---------------------------------------------------------------------------
+
+# --- page and export -------------------------------------------------------
+
+#: Figure width in MILLIMETRES — converted once, here, and never re-guessed
+#: downstream. 180 mm is the double-column width that Elsevier (190), AGU (190)
+#: and Copernicus (170) all accept without downscaling. Set this to your target
+#: journal's column width; every other size is chosen to work at it.
+FIGURE_WIDTH_MM = 180.0
+MM_PER_INCH = 25.4
+
+#: Resolution of the PNG. The figure is built at its final PHYSICAL size, so
+#: this changes the pixel count and nothing else — type, line weights and the
+#: map all stay the size they will be on the page.
+#:
+#: 600 because this is COMBINATION artwork: a raster (the DEM) under line art
+#: and type. Publishers ask more of that than of either alone — 300 dpi is the
+#: pure-halftone minimum, while Elsevier asks 500 and AGU/Wiley 600 for
+#: combination figures. 600 clears all of them, and 180 mm at 600 dpi is
+#: 4252 px, which is still a small file for a map this sparse.
+#:
+#: It also covers PowerPoint. matplotlib writes the resolution into the PNG's
+#: ``pHYs`` chunk, so PowerPoint and Word insert the image at its true 180 mm
+#: width instead of assuming 96 dpi and dropping in something 750 mm wide. That
+#: is the part that actually breaks when a figure is exported without dpi
+#: metadata, and it is verified rather than assumed (checked 2026-08-09).
+#:
+#: The PDF remains the deliverable for print: it is vector, so it has no
+#: resolution to get wrong.
+RASTER_DPI = 600
+
+# --- typography ------------------------------------------------------------
+
+#: Type sizes in POINTS at the printed width above. Applied through
+#: ``rc_context`` so the process-wide rcParams the other plotting rules inherit
+#: are left untouched. Raise every value together to scale the labelling; raise
+#: one to re-balance it.
+#: Fallback for anything not named below — which, as the figure currently
+#: stands, is NOTHING: every text element carries its own size, the title is
+#: empty and the axes have no labels. Changing it alone therefore renders
+#: identical bytes. It matters only once a text element is added without a size
+#: of its own. Verified 2026-08-03 with ``dev/scripts/preview_basin_map.py``.
+FONT_SIZE_BASE = 8.0
+FONT_SIZE_TICK = 7.0  #: coordinate tick labels
+FONT_SIZE_LEGEND = 6.5  #: legend entries and its title
+FONT_SIZE_COLORBAR_LABEL = 7.0  #: the colourbar's title
+FONT_SIZE_COLORBAR_TICK = 5.5  #: the numbers beside the colourbar
+FONT_SIZE_GAUGE_LABEL = 5.5  #: the wflow_id beside each gauge marker
+FONT_SIZE_SCALE_BAR = 6.0  #: the 0 / 2.5 / 5 km numbers
+FONT_SIZE_NORTH_ARROW = 7.5  #: the "N"
+
+#: Font family. ``None`` keeps matplotlib's default (DejaVu Sans, which embeds
+#: cleanly in the PDF). Set e.g. ``"Arial"`` or ``["Helvetica", "Arial"]`` to
+#: match a manuscript — but check the exported PDF, because a missing family
+#: falls back SILENTLY.
+FONT_FAMILY = None
+
+# --- layout ----------------------------------------------------------------
+
+#: Vertical room (inches) constrained layout needs for the x tick labels and the
+#: axes furniture, on top of the map panel itself. Measured need is ~0.16 in of
+#: tick labels; the rest is margin. Over-allowing here shows up directly as dead
+#: space above and below an aspect-locked map.
+_FURNITURE_HEIGHT_IN = 0.32
+
+#: Horizontal room (inches) the y tick labels take on the left. Raise it if a
+#: basin's coordinates need more decimal places than the default formatting.
+_TICK_LABEL_WIDTH_IN = 0.5
+
+#: Constrained layout owns the figure only up to here; the strip to the right is
+#: a SIDE PANEL holding the colourbar and, beneath it, the legend. A GeoAxes has
+#: a LOCKED aspect, so it does not fill its layout cell vertically — and
+#: ``fig.colorbar(ax=ax)`` sizes to the CELL, which is what made the bar overhang
+#: the map top and bottom. Both panel items are therefore anchored in AXES
+#: coordinates (so they track the map exactly) and this rect reserves the room.
+#: LOWER it to widen the panel (a longer legend entry needs more), RAISE it to
+#: give the map more width.
+_LAYOUT_RIGHT = 0.78
+
+#: Keep pathological basin shapes from producing an unusable page. A basin
+#: narrower or taller than these renders with whitespace rather than being
+#: squashed or running off the figure.
+_MIN_MAP_ASPECT, _MAX_MAP_ASPECT = 0.45, 1.45
+
+#: Draw passes run before the figure is returned, so its layout is already
+#: settled. Constrained layout converges in two here (measured); a third costs
+#: ~0.2 s and changes nothing. Raise it only if a label still lands off-canvas.
+_LAYOUT_SETTLE_PASSES = 2
+
+# --- side panel: colourbar and legend --------------------------------------
+
+#: Left edge of the side panel, in axes fractions (>1 = outside the map). The
+#: colourbar and the legend BOTH start here — ONE value, so they cannot drift
+#: out of alignment. Raise it to push the panel further from the map.
+_PANEL_LEFT = 1.03
+
+#: Colourbar geometry in axes fractions. ``HEIGHT`` is the BAR's own drawn
+#: length, so it reads straight against a brief that asks for "60-70% of the
+#: axis"; it is a MAXIMUM, since the bar gives way when the panel's other two
+#: blocks need the room. There is no ``_COLORBAR_BOTTOM`` any more: the bar's
+#: position is DERIVED from what the locator above it and the legend below it
+#: leave, which is the only way the three can be guaranteed to fit the map's
+#: height without a hand-tuned constant per combination.
+_COLORBAR_WIDTH = 0.025
+_COLORBAR_HEIGHT = 0.65
+#: The bar never shrinks below this, even if that overruns the panel. A bar too
+#: short to carry its own tick labels is not a smaller bar, it is a broken one —
+#: better to overflow visibly than to render something unreadable.
+_COLORBAR_MIN_HEIGHT = 0.18
+_COLORBAR_OUTLINE_WIDTH = 0.5
+
+#: Where the colourbar's label goes. ``"right"`` is matplotlib's own placement
+#: for a vertical bar: alongside it, rotated 90°. ``"top"`` puts it above the
+#: bar, HORIZONTAL and left-aligned to the bar's left edge — which is
+#: ``_PANEL_LEFT``, the legend's anchor too, so the two line up. Prefer "top"
+#: for a long label: rotated text is slower to read and a unit string in
+#: brackets reads badly on its side.
+COLORBAR_LABEL_POSITION = "top"
+
+#: Gap between the bar and a "top" label, in points.
+_COLORBAR_TITLE_PAD = 5.0
+
+#: Height reserved for a "top" label, in axes fractions PER LINE of it. The bar
+#: keeps its declared length and is pushed DOWN when the label would otherwise
+#: run off the canvas — the earlier behaviour shortened the bar instead, which
+#: silently broke the "the bar is N% of the axis" contract the height states.
+#: Per line, because the label wraps: a two-line label needs twice the room, and
+#: a fixed value would either clip the second line or leave a gap above a
+#: one-line one.
+_COLORBAR_TOP_LABEL_HEADROOM = 0.055
+
+#: The values ``COLORBAR_LABEL_POSITION`` accepts.
+_COLORBAR_LABEL_POSITIONS = ("right", "top")
+#: Upper and lower quantiles of the DEM the ramp spans. The upper clip stops a
+#: single high pixel flattening the rest of the basin to one colour.
+_ELEVATION_CLIP_QUANTILES = (0.0, 0.98)
+
+#: Target number of colour CLASSES. The ramp is stepped rather than continuous:
+#: a reader cannot resolve a shade back to a number off a smooth ramp, but can
+#: off a class, and stepped classes survive the greyscale print that a
+#: continuous ramp turns to mush. The count is a target — the class WIDTH is
+#: rounded to a ladder value first, so the boundaries are numbers worth printing
+#: and the count lands near this rather than on it.
+_COLORBAR_LEVELS = 6
+
+#: Hard cap on the number of TICK LABELS on the bar — one per class boundary, so
+#: a bar of N classes carries N+1 of them. The target above is a wish; this is
+#: enforced, by widening the step until the count fits. Both exist because
+#: rounding the class width to a readable number means the count cannot be
+#: dialled in exactly: asking for 4 classes over a 0-140 m range yields 4 or 3
+#: depending on which ladder rung the width lands on, and only the cap
+#: guarantees the bar never comes back with eight.
+_COLORBAR_MAX_TICKS = 7
+
+#: How many times the step may be widened chasing that cap before the result is
+#: taken as it stands. A bound, not a tuning knob: each rung roughly doubles the
+#: step, so this covers a range of 10^3 and exists only so a pathological DEM
+#: cannot spin here.
+_STEP_WIDEN_ATTEMPTS = 12
+
+#: Start the ramp at 0 m rather than at the basin's own lowest cell. Elevation
+#: is measured from a datum, so a bar starting at 4 m invites the reader to
+#: treat the basin floor as the zero of the scale. Set False to always spend the
+#: whole ramp on the basin's actual range.
+_ELEVATION_STARTS_AT_ZERO = True
+
+#: ...but not when it would cost the map its resolution. A 1900-1960 m plateau
+#: zeroed gets classes 0/500/1000/1500/2000 — the ENTIRE basin lands in one of
+#: them and the map renders as a single flat colour. So the baseline drops to
+#: zero only while the basin's own range stays at least this fraction of the
+#: zero-based range; below it, the ramp starts at the basin's floor instead.
+#: CST runs on lowland deltas and Himalayan headwaters from the same code, and
+#: a rule tuned on one of them is not a rule.
+#: Raised from 0.35 in 2026-08: at 0.35 a 1900-4200 m headwater still zeroed,
+#: which spent the lowest class on ground the basin does not contain and left
+#: 44% of its cells in one class. Measured on synthetic archetypes, not guessed.
+_ZERO_BASELINE_MIN_SPAN_FRACTION = 0.70
+
+# --- elevation classification ----------------------------------------------
+# Equal-interval classes are the right default and the wrong answer on a skewed
+# DEM. The fixture is the case: 1.5-215 m, median 10 m, so 0/20/40/.../140 puts
+# 73% of the basin in ONE class and leaves three classes empty — the map renders
+# as blank paper and the ramp does no work. Equal-AREA (quantile) classes fix
+# that but read as arbitrary numbers, so the breaks are snapped onto a readable
+# ladder. Which rule applies is decided per basin from the DEM's own histogram,
+# because CST runs on deltas and on headwaters from this same code.
+
+#: Which rule sets the class boundaries.
+#:
+#: * ``"equal_interval"`` — evenly spaced classes on a round step, always. The
+#:   bar is then a linear scale: a reader can step up it in equal metres, and
+#:   two classes are always the same number of metres apart. This is the
+#:   default, and it is what most readers assume an elevation bar is.
+#: * ``"auto"`` — equal-interval unless the DEM's own histogram says it is not
+#:   working (see ``_MAX_CLASS_AREA_SHARE``), then equal-AREA classes snapped to
+#:   a readable ladder. Differentiates a skewed basin far better; costs the
+#:   linear reading.
+#:
+#: The trade is real in both directions and depends on the basin, which is why
+#: both rules are kept rather than one being deleted.
+ELEVATION_CLASSIFICATION = "equal_interval"
+_ELEVATION_CLASSIFICATIONS = ("equal_interval", "auto")
+
+#: Equal-interval is kept while no class holds more than this share of the
+#: basin's cells AND no class is empty. Above it, the equal-area rule takes
+#: over. Consulted only when ``ELEVATION_CLASSIFICATION == "auto"``.
+_MAX_CLASS_AREA_SHARE = 0.40
+
+#: A class holding less than this share counts as empty for that test.
+_EMPTY_CLASS_AREA_SHARE = 0.01
+
+#: Never fall to fewer classes than this. Snapping equal-area breaks onto the
+#: ladder can collapse neighbours on a tightly-clustered DEM; below this count
+#: the equal-interval breaks are the better of two imperfect answers.
+_MIN_CLASSES = 4
+
+#: Mantissas of the readable break ladder, spanning one decade. ~30% spacing:
+#: fine enough that a quantile lands near a rung, coarse enough that every rung
+#: is a number worth printing on a bar. Equal-area breaks snap onto it.
+_BREAK_LADDER = (1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0)
+
+#: Gap between the colourbar's lower end and the top of the legend box, in axes
+#: fractions. The legend's position is DERIVED from the bar's rather than being
+#: a second hand-tuned constant: the two used to be pinned independently, so
+#: changing the bar's length silently moved it into the legend.
+_LEGEND_GAP = 0.05
+
+#: Row pitch of the legend, as a multiple of ``FONT_SIZE_LEGEND``. Used to
+#: PREDICT the legend's height before it is drawn, so the colourbar above it can
+#: be sized to what is left. matplotlib does not report a legend's extent until
+#: after a draw, and by then the bar's inset axes is already placed — so the
+#: height is estimated from the entry count instead. Raise it if a long legend
+#: starts to crowd the bar; the estimate only has to be close.
+_LEGEND_ROW_FACTOR = 1.55
+_LEGEND_FRAME_ALPHA = 0.85  #: 1.0 = opaque, 0.0 = no fill
+_LEGEND_FRAME_WIDTH = 0.5  #: border weight, points
+_LEGEND_BORDER_PAD = 0.4  #: padding inside the frame, in font units
+_LEGEND_HANDLE_LENGTH = 1.4  #: length of the sample line/marker, in font units
+#: ``None`` drops the title row. Dropped by default: the block sits alone under
+#: a colourbar in a panel that contains nothing else, so "Legend" labels the
+#: obvious and costs a row of the panel's height.
+_LEGEND_TITLE = None
+
+#: Legend wording, one place. These are what the READER sees, so they are the
+#: domain's words rather than the model's internals: "output locs" was the
+#: config key ``output_locations`` abbreviated to fit, which names a wflow
+#: concept and not a thing on the ground. Keep them short — the side panel is
+#: about 40 mm wide and a longer entry pushes ``_LAYOUT_RIGHT``.
+LABEL_RIVER = "River network"
+LABEL_BASIN = "Basin boundary"
+LABEL_SUBCATCHMENT = "Subcatchments"
+LABEL_OUTLET = "Basin outlet"
+LABEL_GAUGE = "Points of interest"
+
+# --- colours ---------------------------------------------------------------
+
+#: One place for every hue on the figure. The blue is used for BOTH the rivers
+#: and the user's gauges, which is deliberate: it ties a gauge to the network it
+#: sits on and separates it from the model's own outlets, which stay black.
+COLOR_RIVER = "#2c6fad"
+COLOR_GAUGE = "#2c6fad"
+COLOR_OUTLET = "k"
+COLOR_BASIN_OUTLINE = "k"
+#: Subcatchment divides. Darkened from "0.45": a light grey hairline is legible
+#: over white and disappears over the mid-browns of the elevation ramp, which is
+#: most of the map. Contrast alone was not enough — the divides also carry a
+#: halo (``HALO_WIDTH_SUBCATCHMENT``), which is what makes a 0.6 pt line hold
+#: against ANY terrain colour underneath it rather than only against pale ones.
+COLOR_SUBCATCHMENT = "0.15"
+COLOR_GRATICULE = "0.4"
+COLOR_MARKER_EDGE = "white"
+#: Halo drawn behind furniture text so it stays legible over any terrain.
+COLOR_HALO = "white"
+
+#: Waterbody fills, as (facecolor, edgecolor). Keyed by the staticgeoms layer.
+WATERBODY_COLORS = {
+    "lakes": ("#a8d0e6", "#3d5a6c"),
+    "reservoirs": ("#2c6fad", "#173d5e"),
+    "glaciers": ("#d9d9d9", "#8c8c8c"),
+}
+
+#: A monotonic-lightness elevation ramp, hand-built rather than imported: the
+#: perceptually-uniform terrain colormaps (cmcrameri, cmocean) are not in the
+#: pixi env and adding a dependency for one figure is not warranted. Lightness
+#: falls monotonically from low to high ground, so the ramp survives greyscale
+#: printing AND every dichromacy — the two failure modes `terrain` had. Replace
+#: it only with another ramp whose lightness is monotonic; a test enforces that.
+_DEM_ANCHORS = ("#f6f2ea", "#e3d5ba", "#c9aa7d", "#a07f52", "#6f5533", "#46351f")
+
+# --- line weights (points) -------------------------------------------------
+
+#: River width scales with Strahler stream order, between these two bounds. The
+#: minimum is what a headwater gets, the maximum the trunk — widen the gap for a
+#: more dramatic network, narrow it for a flatter, more uniform one.
+#: 0.2 pt is below what most printers hold and vanishes on screen at any
+#: reasonable zoom, so the headwaters of the network simply were not there.
+RIVER_WIDTH_MIN = 0.5
+RIVER_WIDTH_MAX = 1.4
+#: Used when every river shares one stream order, so there is nothing to scale.
+RIVER_WIDTH_UNIFORM = 0.6
+
+WIDTH_BASIN_OUTLINE = 0.9  #: the dissolved outer boundary — the map's key line
+#: Internal divides. Still lighter than the basin outline — that hierarchy is
+#: the point — but no longer a hairline: at 0.35 pt the divides were below what
+#: reads on screen at all over textured ground.
+WIDTH_SUBCATCHMENT = 0.7
+WIDTH_WATERBODY_EDGE = 0.5
+WIDTH_MARKER_EDGE = 0.4
+WIDTH_AXES_SPINE = 0.6
+WIDTH_GRATICULE = 0.3
+#: Dash pattern for the subcatchment divides, matplotlib ``(offset, (on, off))``.
+#: Longer dashes than the old (4, 2): a short dash at this weight reads as a
+#: dotted line, and the divides have to be told apart from the graticule, which
+#: IS dotted.
+DASH_SUBCATCHMENT = (0, (6, 2.5))
+#: Halo stroke widths, points. The halo must exceed the line it protects.
+HALO_WIDTH_TEXT = 2.5
+HALO_WIDTH_GAUGE_LABEL = 1.8
+#: Halo behind the subcatchment divides. Narrowed from 1.6 once the template
+#: started drawing SATURATED rasters: over the pale elevation ramp a wide halo
+#: is invisible, but over a dark red temperature field it became the thing you
+#: see — the divides read as WHITE dashes with dark edges, the inverse of the
+#: intended styling. It must stay wide enough to separate the line and narrow
+#: enough that the line, not the ring, is what reads.
+HALO_WIDTH_SUBCATCHMENT = 1.25
+
+# --- markers ---------------------------------------------------------------
+
+#: Separate shapes for the two point layers. They were both thin diamonds,
+#: separated by colour alone — which fails in greyscale, fails for a
+#: dichromat, and is hard to tell apart at 5 pt anyway. Shape is the redundant
+#: channel that fixes all three. Circle reads as a measurement point, square as
+#: a structural one; swap them if a convention says otherwise.
+MARKER_SHAPE_GAUGE = "o"
+MARKER_SHAPE_OUTLET = "s"
+#: matplotlib points-squared, as geopandas expects. 18 was ~4.2 pt across at
+#: 180 mm, which disappears against the relief; 44 is ~6.6 pt.
+MARKER_SIZE = 44
+#: Offset of a gauge's label from its marker, in points (x, y). Must clear the
+#: marker's RADIUS: at MARKER_SIZE 44 that is ~3.3 pt, and the old (2.5, 2.5)
+#: put the text inside the symbol.
+GAUGE_LABEL_OFFSET = (4.5, 3.5)
+
+# --- graticule -------------------------------------------------------------
+
+#: ``"box"`` closes the map on all four sides — the frame a reader expects
+#: around a map panel, and what keeps the DEM's own edge from reading as the
+#: panel's edge. ``"L"`` draws only the two labelled sides, which is the plot
+#: convention rather than the map one.
+_MAP_FRAME = "box"
+
+GRATICULE_ALPHA = 0.5
+GRATICULE_LINESTYLE = ":"
+#: Upper bound on tick count per axis; the locator picks round values under it.
+GRATICULE_MAX_TICKS = 6
+TICK_LENGTH = 2.5  #: points
+TICK_PAD = 2.0  #: gap between tick and label, points
+
+# --- scale bar -------------------------------------------------------------
+
+#: Alternating filled/open segments, the conventional cartographic scale bar.
+#: Must be EVEN for the midpoint label to land on a segment boundary.
+_SCALE_BAR_SEGMENTS = 4
+#: Bar height as a fraction of the map's latitude span.
+_SCALE_BAR_HEIGHT = 0.011
+#: Target bar length as a fraction of the map width, before rounding to a 1/2/5
+#: value. Raise it for a longer, more precisely readable bar.
+_SCALE_BAR_WIDTH_FRACTION = 0.25
+#: VERTICAL inset of the bar from its chosen corner, as a fraction of the map
+#: extent. The horizontal one is ``_FURNITURE_INSET_X``, shared with the north
+#: arrow — see there.
+_SCALE_BAR_INSET_Y = 0.06
+#: Which corner the bar takes, or ``"auto"`` for the emptiest one left after the
+#: north arrow and the locator have been placed. Pinned to lower left so the
+#: figure's furniture sits where a reader expects it on EVERY basin — an
+#: auto-placed bar that moves corner between two basins makes two maps of the
+#: same study harder to compare, which is the cost the auto rule was not paying
+#: attention to. Set "auto" to get the old behaviour back.
+_SCALE_BAR_CORNER = "lower left"
+#: Gap between the bar and its numbers, as a fraction of the latitude span.
+_SCALE_BAR_LABEL_GAP = 0.008
+_SCALE_BAR_EDGE_WIDTH = 0.5
+
+# --- north arrow -----------------------------------------------------------
+
+#: Horizontal inset of the map's left-hand furniture — the north arrow and the
+#: scale bar — as a fraction of the map extent. ONE value for both, so the two
+#: line up on the same vertical by construction. They were on 0.035 and 0.06,
+#: close enough to look like a mistake rather than a choice; a shared constant
+#: is what stops them drifting apart again the next time one is nudged.
+#: (An axes fraction and an extent fraction are the same thing here: the panel
+#: is PlateCarree with an explicit extent.)
+_FURNITURE_INSET_X = 0.05
+
+#: Arrow position in axes fractions: (tip y, tail y). The "N" sits at the tail;
+#: the arrow's x comes from ``_FURNITURE_INSET_X``. Exactly vertical is correct
+#: here because PlateCarree's north is up. Tucked into the map's own top-LEFT
+#: corner: the locator inset owns the top right.
+_NORTH_ARROW_POSITION = (0.985, 0.885)
+_NORTH_ARROW_STYLE = "-|>"
+_NORTH_ARROW_WIDTH = 0.8
+#: The arrow's corner. Stated separately from the position because the corner
+#: budget reads it — the position is where the artist is drawn, this is which
+#: corner is spoken for.
+_NORTH_ARROW_CORNER = "upper left"
+
+# --- locator inset ---------------------------------------------------------
+# A small map in a corner saying WHERE this basin is: land and sea, country
+# lines, a few major cities, and a mark on the basin. It is an INSET rather
+# than a widened frame on purpose — the elevation map keeps the whole panel and
+# its own scale, and a basin with nothing within 500 km still gets an answer,
+# which a zoomed-out background could not give.
+
+#: Draw it at all. The layers come from a vendored Natural Earth extract
+#: (``config/basemap/``); with that file absent the inset is skipped and a note
+#: is printed, so a copy of this module taken to another project still renders.
+LOCATOR_ENABLED = True
+
+#: Half-width of the locator's window, in degrees, around the basin's centre —
+#: or ``"auto"`` to derive it from the basin's own size.
+#:
+#: Auto, because a fixed value cannot serve two basins of different sizes now
+#: that the inset draws the real polygon rather than a centroid mark. The window
+#: has to be wide enough to place the basin against something a reader knows,
+#: and narrow enough that the basin is more than a few points across — and where
+#: that balance falls depends entirely on how big the basin is. A fixed 8 deg
+#: put this fixture's 0.24 deg basin at 1.5% of the frame, a speck; the same
+#: 8 deg would make a 6 deg basin fill the window and show no context at all.
+#: Set a number to pin it.
+_LOCATOR_SPAN_DEG = "auto"
+
+#: What "well distinguishable" means, as the basin's long axis over the window's
+#: width. 3% is the measured answer on this fixture: it is what a 4 deg
+#: half-width gives, and 4 deg is the width that reads as a shape while keeping
+#: the coast, the country and the nearest capital in frame.
+_LOCATOR_TARGET_BASIN_FRACTION = 0.03
+
+#: Half-widths the auto rule may choose, in degrees. A ladder rather than a
+#: continuous value so the window lands on a round number, and the same basin
+#: re-rendered after a small extent change does not shift its frame slightly.
+_LOCATOR_SPAN_LADDER = (1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0, 12.0)
+
+#: The basin must FIT its window with room to spare, whatever the target says.
+#: Binds for a large basin, where the target alone would choose a window
+#: narrower than the basin itself.
+_LOCATOR_MIN_SPAN_MARGIN = 0.75
+
+#: The inset's width as a fraction of the map panel's width, and its inset from
+#: the corner. Its HEIGHT is derived so the box comes out square on the page —
+#: a square window drawn into a non-square box would otherwise letterbox.
+_LOCATOR_WIDTH = 0.22
+_LOCATOR_MARGIN = 0.025
+
+#: Which corner it sits in, or ``"auto"`` for the emptiest one the north arrow
+#: is not using. Pinned to upper right, the conventional place to read a
+#: locator, so it does not move between two basins of the same study. The cost
+#: is real and was the reason for "auto": the inset is OPAQUE, so a pinned
+#: corner can cover basin the reader wanted — on this fixture it lands on the
+#: basin's highest ground. ``_LOCATOR_PLACEMENT = "panel"`` is the way out that
+#: keeps the position fixed AND covers nothing.
+_LOCATOR_CORNER = "upper right"
+
+#: Where the inset is drawn: ``"map"`` puts it in a corner OF THE MAP, over the
+#: basin; ``"panel"`` puts it at the top of the side panel, above the colourbar,
+#: where it covers nothing. "panel" costs the colourbar some length and reads
+#: slightly less as "this window contains that map"; "map" costs whatever basin
+#: it lands on. Both are defensible — this is the knob to compare, not to guess.
+#: "panel" chosen 2026-08-09: on the map it covered the fixture's highest ground,
+#: and the panel stacks locator/colourbar/legend into the map's own height.
+_LOCATOR_PLACEMENT = "panel"
+
+#: The inset's width in the side panel, as an axes fraction, when
+#: ``_LOCATOR_PLACEMENT == "panel"``. Anchored at ``_PANEL_LEFT`` like the
+#: colourbar and the legend, so all three share one left edge.
+_LOCATOR_PANEL_WIDTH = 0.315
+#: Gap between the panel inset's bottom and the colourbar's label, axes fractions.
+#: Trimmed with the +10% inset: the panel's three blocks are stacked to fit the
+#: map's height exactly, so the room the inset gains has to come from somewhere,
+#: and a gap is cheaper to give up than the colourbar's length.
+_LOCATOR_PANEL_GAP = 0.05
+#: Cap on the panel inset's height. A wide, short basin makes the square inset
+#: TALL in axes fractions (the box is square on the page, not in the fraction
+#: space), and an uncapped one would take half the panel from the colourbar.
+#: This is what actually SETS the inset's size on a basin wider than it is tall
+#: (the fixture is one), so it and ``_LOCATOR_PANEL_WIDTH`` are raised together
+#: — changing only the width would do nothing there.
+_LOCATOR_PANEL_MAX_HEIGHT = 0.315
+#: The colourbar's length when the locator shares the panel with it. The panel
+#: cannot hold a full-length bar, a legend AND an inset — this is the price of
+#: ``_LOCATOR_PLACEMENT = "panel"``, stated rather than discovered by clipping.
+_COLORBAR_HEIGHT_PANEL = 0.272
+
+COLOR_LOCATOR_OCEAN = "#eef2f5"  #: sea; the palest thing on the figure
+COLOR_LOCATOR_LAND = "#dcdcd8"  #: land, a shade darker so the coast reads
+COLOR_LOCATOR_COAST = "0.55"  #: the land polygons' own edge IS the coastline
+COLOR_LOCATOR_BORDER = "0.7"  #: country lines, lighter still
+COLOR_LOCATOR_CITY = "0.35"
+#: The "you are here" shape — the basin's own outline, filled. The one warm
+#: accent on the figure, and the only place red appears: it has to win against
+#: grey without competing with the elevation ramp, which owns every brown.
+COLOR_LOCATOR_BASIN = "#c0392b"
+#: Its edge, a darker shade of the same red. Darker rather than white, because
+#: at this size a light edge eats into a shape only a few points across and
+#: leaves less of it than it outlines.
+COLOR_LOCATOR_BASIN_EDGE = "#7d2318"
+
+WIDTH_LOCATOR_COAST = 0.35
+WIDTH_LOCATOR_BORDER = 0.3
+WIDTH_LOCATOR_FRAME = 0.6
+
+#: Cities are filtered by Natural Earth's own prominence rank (0 = most
+#: prominent), then the largest few by population are kept. Both limits matter:
+#: the rank keeps towns out, the count keeps a dense region from filling up.
+_LOCATOR_CITY_MAX_SCALERANK = 3
+_LOCATOR_MAX_CITIES = 5
+_LOCATOR_CITY_MARKER_SIZE = 5
+#: City labels. Dropped with the inset's +10%: the inset grew, so the names no
+#: longer need the size to stay readable, and a smaller label leaves more of the
+#: window showing the coast and borders the inset exists to show.
+FONT_SIZE_LOCATOR_CITY = 4.0
+
+#: Weight of the basin outline in the inset. Heavier than the coastline so the
+#: basin reads as the subject and the basemap as context.
+WIDTH_LOCATOR_BASIN = 0.5
+#: White ring drawn behind the basin shape so it separates from land, borders
+#: and city labels alike. Must exceed ``WIDTH_LOCATOR_BASIN``.
+HALO_WIDTH_LOCATOR_BASIN = 1.6
+#: Label offset for a city name.
+_LOCATOR_CITY_LABEL_OFFSET = (2.5, -1.0)
+
+# --- furniture placement ---------------------------------------------------
+
+#: Lower-left corner of each candidate furniture box, as a fraction of the map
+#: extent. Names are matplotlib ``legend(loc=...)`` values verbatim.
+_CORNER_BOX = 0.30
+_CORNERS = {
+    "lower left": (0.0, 0.0),
+    "lower right": (1.0 - _CORNER_BOX, 0.0),
+    "upper left": (0.0, 1.0 - _CORNER_BOX),
+    "upper right": (1.0 - _CORNER_BOX, 1.0 - _CORNER_BOX),
+}
+
+# --- hillshade -------------------------------------------------------------
+
+#: Illumination: light from the north-west at 45 deg, the convention readers'
+#: relief perception is calibrated to (lit NW = ridge, shaded SE = valley;
+#: reverse it and terrain visually inverts).
+_AZIMUTH_DEG, _ALTITUDE_DEG = 315.0, 45.0
+
+#: Target 90th-percentile terrain slope AFTER exaggeration, ~19 deg — steep
+#: enough to read as relief, shallow enough not to fabricate mountains. The
+#: exaggeration factor is derived per basin: CST runs on lowland deltas and on
+#: Himalayan headwaters from the same code, and any FIXED factor renders one of
+#: them featureless (a flat basin at exag 3) or blown out (an alpine basin at
+#: exag 200). Raise for more dramatic relief, lower for a flatter, calmer map.
+_TARGET_SLOPE = 0.35
+_MAX_VERT_EXAG = 500.0
+#: How the ramp and the shading combine. "soft" keeps colour; "overlay" is
+#: higher contrast; "hsv" is the most dramatic and the least faithful.
+_SHADE_BLEND_MODE = "soft"
+
+#: How the DEM raster is resampled onto the page. ``"none"`` draws the model
+#: grid as it is — honest, and on a coarse grid visibly blocky (the fixture is
+#: 16x24 cells at ~900 m, so every cell is ~5 mm on a 180 mm figure).
+#: ``"bilinear"`` smooths it into something that READS as terrain but is partly
+#: invented: nothing between cell centres was ever measured. Use "none" when the
+#: figure has to defend the model's actual resolution, "bilinear" when the DEM
+#: is background context and the colourbar carries the numbers. This is a
+#: presentation choice with an honesty cost, so it is stated rather than tuned.
+DEM_INTERPOLATION = "none"
+
+# --- data / labels ---------------------------------------------------------
+# These three are the DEFAULTS of ``plot_basin_map`` parameters, so a caller
+# overrides them per call rather than by patching the module.
+
+#: Gauge marker label. ``wflow_id`` is what the wflow output columns
+#: (``Q_101``) and the observation file's rows are keyed on, so it is the label
+#: that lets a reader join this map to a hydrograph. ``station_name`` is longer,
+#: collides more, and answers a question the caption can answer instead — swap
+#: it here if the names matter more than the join.
+GAUGE_LABEL_COLUMN = "wflow_id"
+
+#: Column whose values scale the river line weights. ``strord`` is wflow's
+#: Strahler stream order. Any numeric column works; ``None``, or a column the
+#: frame does not carry, draws every reach at ``RIVER_WIDTH_UNIFORM``.
+RIVER_ORDER_COLUMN = "strord"
+
+#: Colourbar label. Units are the DEM's, so change it with the DEM. One line:
+#: the label is left-aligned to the bar's own left edge, which is the panel's
+#: anchor, so it runs into the panel's width rather than past it — and a
+#: one-line label gives the bar back the axes fraction the second line cost.
+ELEVATION_LABEL = "Elevation (m a.s.l.)"
+
+#: Padding around the model's own bounding box, in degrees, so the basin does
+#: not touch the frame.
+_EXTENT_BUFFER_DEG = 0.02
+
+# --- raster styles ---------------------------------------------------------
+# What makes one raster map differ from another. Everything ELSE on the figure
+# — furniture, panel stack, legend, graticule, locator — is shared, which is
+# what makes this a template rather than four similar functions.
+#
+# Palettes were verified at the real class count, not at 256 samples: monotonic
+# CIE L*, minimum adjacent dL* in greyscale, and order preserved under all three
+# dichromacies (measured 2026-08-09). A DIVERGING palette deliberately fails the
+# monotonic-lightness test — it is light at the midpoint by construction — so it
+# is used only where a midpoint is real, and never as a default.
+
+
+class RasterStyle:
+    """How one quantity is drawn: palette, label, classification, relief.
+
+    Deliberately a plain object rather than a dataclass, to stay consistent
+    with a module that carries no type annotations.
+    """
+
+    def __init__(
+        self,
+        label,
+        palette,
+        classification="auto",
+        clip_quantiles=(0.0, 0.98),
+        zero_baseline=False,
+        relief=False,
+        interpolation="none",
+        diverging_center=None,
+        reserve_low_for=None,
+        low_clip=0.45,
+    ):
+        #: Colourbar label, including units. The caller owns it, because the
+        #: units belong to the data rather than to the style.
+        self.label = label
+        #: A matplotlib colormap NAME, or a tuple of hex anchors to build one
+        #: from. Anchors exist for the elevation ramp, which is hand-built
+        #: because the perceptually-uniform terrain maps are not in the env.
+        self.palette = palette
+        self.classification = classification
+        self.clip_quantiles = clip_quantiles
+        #: Drop the lowest class boundary to zero when the data can afford it.
+        #: True for a quantity measured from a datum (elevation, rainfall
+        #: depth); False for one that is not (temperature).
+        self.zero_baseline = zero_baseline
+        #: Drape the ramp over a hillshade of the raster itself. Meaningful
+        #: only where the raster IS a surface — elevation. A hillshade of a
+        #: precipitation field would render gradients as topography.
+        self.relief = relief
+        self.interpolation = interpolation
+        #: Value the palette is centred on, for a diverging palette. ``None``
+        #: means the palette is sequential and no centre applies.
+        self.diverging_center = diverging_center
+        #: Reserve the palette's palest end for values at or below this.
+        #: Precipitation is the case: white reads as DRY, so a basin whose
+        #: lowest class is 2725 mm/y must not paint that class white — it
+        #: says 'no rain here' about the wettest ground on the map. When the
+        #: class floor sits above this value the ramp starts at ``low_clip``
+        #: instead of at 0, so white stays available for what it means.
+        #: ``None`` uses the whole ramp always.
+        self.reserve_low_for = reserve_low_for
+        #: Where the ramp starts when the low end is reserved, 0-1. 0.32 is
+        #: far enough up Blues that the driest class reads as a light BLUE
+        #: rather than as an off-white a reader still parses as 'dry'. At
+        #: 0.45 the driest swatch is L*=72, clearly blue; 0.32 measured L*=82,
+        #: which still reads white against a white page.
+        self.low_clip = low_clip
+
+
+#: The styles this toolbox ships. Add a quantity by adding an entry, not by
+#: writing another plotting function.
+RASTER_STYLES = {
+    "elevation": RasterStyle(
+        label="Elevation (m a.s.l.)",
+        palette=None,  # falls back to _DEM_ANCHORS
+        # LINEAR, deliberately, and the one style that is. Elevation is the
+        # quantity a reader is most likely to do arithmetic on — how far above
+        # that gauge, how much fall to the outlet — and equal-area classes give
+        # that up to show more spatial structure. The climate variables are read
+        # as patterns rather than as differences, so they take the adaptive rule;
+        # elevation keeps the scale you can subtract on. Owner's call, 2026-08-09.
+        classification="equal_interval",
+        zero_baseline=True,
+        relief=True,
+    ),
+    #: Light-to-dark blue: the conventional wet ramp, and the one whose hue
+    #: cannot be confused with the warm ramps the other two climate variables
+    #: use. dL* 12.0 greyscale, 11.3 under CVD.
+    "precip": RasterStyle(
+        label="Precipitation (mm y$^{-1}$)",
+        palette="Blues",
+        zero_baseline=True,
+        # White means DRY on a rainfall map. A basin whose driest class is
+        # 2725 mm/y has no dry ground on it, so the ramp starts at a pale blue
+        # instead and white stays reserved for the basins that do.
+        reserve_low_for=0.0,
+    ),
+    #: Warm sequential for absolute temperature, which has no meaningful
+    #: midpoint. ``_temperature_style`` swaps in a diverging palette centred on
+    #: 0 degC when the field actually straddles freezing — that is where a
+    #: midpoint becomes real. dL* 10.9 greyscale, 9.0 under CVD.
+    "temp": RasterStyle(
+        label="Air temperature ($\\degree$C)",
+        palette="YlOrRd",
+        zero_baseline=False,
+    ),
+    #: Evaporative demand: warm, but a different hue family from temperature so
+    #: the two figures are not confused at a glance. dL* 10.7 greyscale, 10.0
+    #: under CVD — the best of the warm-earth ramps available here.
+    "pet": RasterStyle(
+        label="Potential evaporation (mm y$^{-1}$)",
+        palette="Oranges",
+        zero_baseline=True,
+    ),
+}
+
+#: Palette and centre used for temperature that crosses freezing. Below 0 is
+#: ice and above is not, so the midpoint is physical rather than chosen — which
+#: is the only thing that licenses a diverging ramp.
+TEMPERATURE_DIVERGING_PALETTE = "RdBu_r"
+TEMPERATURE_DIVERGING_CENTER = 0.0
+
+#: Optional figure title and footnote, drawn INSIDE the constrained-layout
+#: budget. The climate figures carry both; the basin map carries neither.
+FONT_SIZE_TITLE = 9.0
+FONT_SIZE_CAVEAT = 6.0
+COLOR_CAVEAT = "0.35"
+
+
+#: The vendored Natural Earth extract the locator inset draws. Provenance,
+#: licence and the rebuild recipe are in that folder's README. Committed rather
+#: than fetched so the figure needs no network — see the module docstring.
+BASEMAP_PATH = Path(__file__).resolve().parents[2] / "config" / "basemap" / "natural_earth_50m.gpkg"
+
+#: Dimension names treated as easting/northing, lowercased. hydromt's ``.raster``
+#: accessor sniffed these for us; reading the file directly means saying which
+#: spellings count. wflow writes ``latitude``/``longitude``.
+_X_DIM_NAMES = ("x", "longitude", "lon")
+_Y_DIM_NAMES = ("y", "latitude", "lat")
+
+#: The CRS every layer has to be in. This is not a preference: the panel is
+#: ``ccrs.PlateCarree()``, and BOTH the scale bar and the hillshade convert
+#: degrees to metres through ``_metres_per_degree``. Hand them a projected layer
+#: — metres, or feet — and nothing raises: the map draws, the scale bar reports
+#: a distance out by five orders of magnitude, and the relief is shaded as if
+#: the basin were flat. A wrong figure that renders is worse than one that
+#: fails, so the assumption is now checked instead of stated in a comment.
+REQUIRED_CRS_EPSG = 4326
+
+#: Elevation units the ``ELEVATION_LABEL`` default is honest about. A DEM in
+#: feet plots perfectly well and gets a bar labelled "m a.s.l.".
+_ELEVATION_UNITS = ("m", "meter", "meters", "metre", "metres")
+
+#: Drawing order. Every artist names one of these rather than a bare number, so
+#: the stack is legible and reorderable in one place.
+Z_RELIEF = 1
+Z_RIVER = 3
+Z_WATERBODY = 4
+Z_SUBCATCHMENT = 5
+Z_BASIN_OUTLINE = 6
+Z_MARKER = 7
+#: The basin outlet sits ABOVE the other point layer. A gauge is routinely
+#: snapped to the same cell as the outlet, and whichever layer was drawn second
+#: hid the other — the outlet is the one the map cannot afford to lose, so it
+#: wins. Draw order alone would not settle it: the outlet is drawn first so its
+#: legend entry reads before the gauges', and zorder is what separates "read in
+#: this order" from "drawn on top".
+Z_OUTLET = 8
+Z_FURNITURE = 9
+
+_EARTH_RADIUS_M = 6_371_000.0
+
+# ===========================================================================
+# DERIVED VALUES
+# ===========================================================================
+# Anything assembled FROM the block above is derived in a function, never
+# frozen into a module-level constant. A constant would snapshot its inputs at
+# import time, so overriding e.g. FONT_SIZE_BASE afterwards would change
+# nothing — which is precisely how `dev/scripts/preview_basin_map.py` drives
+# this module. Keep that property when adding a value: derive it here.
+# ---------------------------------------------------------------------------
+
+
+def _colorbar_label_position():
+    """``COLORBAR_LABEL_POSITION``, validated.
+
+    Raises rather than falling back: a typo that silently keeps the default
+    placement is the failure mode a tuning knob must not have — the figure
+    still renders, so nothing tells you the value did nothing.
+    """
+    if COLORBAR_LABEL_POSITION not in _COLORBAR_LABEL_POSITIONS:
+        raise ValueError(
+            f"COLORBAR_LABEL_POSITION={COLORBAR_LABEL_POSITION!r}; expected one "
+            f"of {_COLORBAR_LABEL_POSITIONS}"
+        )
+    return COLORBAR_LABEL_POSITION
+
+
+def _colorbar_inset(label_lines=1, reserved_top=0.0, band_bottom=0.0):
+    """[x0, y0, width, height] for ``ax.inset_axes``, in axes fractions.
+
+    The bar is placed in the band the panel's OTHER blocks leave it:
+    ``reserved_top`` is what the locator inset takes off the top, ``band_bottom``
+    what the legend takes off the bottom. It keeps ``_COLORBAR_HEIGHT`` while
+    that band can hold it and gives way when it cannot, down to
+    ``_COLORBAR_MIN_HEIGHT`` — so the three blocks stack inside the map's own
+    height instead of the bar being pinned and the legend running off the page.
+    ``label_lines`` is how many lines the "top" label wraps to, since each one
+    costs the same again.
+    """
+    label = (
+        _COLORBAR_TOP_LABEL_HEADROOM * label_lines
+        if _colorbar_label_position() == "top"
+        else 0.0
+    )
+    band_top = 1.0 - reserved_top
+    band = max(band_top - band_bottom, 0.0)
+    height = min(_colorbar_height(), max(band - label, _COLORBAR_MIN_HEIGHT))
+    # Pinned to the TOP of what is free, so the bar sits directly under the
+    # locator and any slack falls between the bar and the legend rather than
+    # opening a gap under the inset.
+    bottom = max(band_top - label - height, band_bottom)
+    return (_PANEL_LEFT, bottom, _COLORBAR_WIDTH, height)
+
+
+def _colorbar_height():
+    """The bar's length, shortened when the locator shares its panel."""
+    if _LOCATOR_PLACEMENT == "panel" and _locator_drawn():
+        return _COLORBAR_HEIGHT_PANEL
+    return _COLORBAR_HEIGHT
+
+
+def _panel_available_width():
+    """Usable width to the right of ``_PANEL_LEFT``, in axes fractions.
+
+    The side panel is the strip ``_LAYOUT_RIGHT`` leaves, measured in INCHES;
+    the inset is placed in axes fractions. This converts between them, so the
+    inset can be clamped to a panel it cannot see.
+    """
+    panel_in = FIGURE_WIDTH_MM / MM_PER_INCH * (1.0 - _LAYOUT_RIGHT)
+    return panel_in / max(_map_width_inches(), 1e-6) - (_PANEL_LEFT - 1.0)
+
+
+def _panel_locator_box(extent, target_width=None):
+    """[x0, y0, w, h] for the locator inset when it sits in the SIDE PANEL.
+
+    Square on the page, like the on-map box, and pinned to the panel's top so
+    the reader meets "where is this" before the elevation scale.
+
+    ``target_width`` is normally the LEGEND'S measured width, which is what
+    makes the panel's top and bottom blocks come out the same size. The legend
+    drives rather than the inset because a legend's width is set by its text and
+    cannot be dictated — matplotlib has no width parameter for one, and
+    ``mode="expand"`` does not constrain it either (tried: it stretched the
+    legend to 1.29 axes fractions). An inset's width is free, so the inset
+    yields.
+
+    Two limits still bind, and which one depends on the basin. A WIDE basin
+    makes the map panel short, so a square inset is tall in axes fractions and
+    the height cap binds. A TALL basin makes the panel tall, the fractions
+    shrink, and the panel's own WIDTH binds instead. Either one overrides the
+    target, so the two blocks can end up slightly unequal — an inset cropped by
+    the canvas or overrunning the colourbar is the worse failure.
+    """
+    lon_span = max(float(extent[1] - extent[0]), 1e-9)
+    lat_span = max(float(extent[3] - extent[2]), 1e-9)
+    width = target_width if target_width and target_width > 0 else _LOCATOR_PANEL_WIDTH
+    width = min(width, _panel_available_width())
+    height = width * lon_span / lat_span
+    if height > _LOCATOR_PANEL_MAX_HEIGHT:
+        height = _LOCATOR_PANEL_MAX_HEIGHT
+        # Back-derive the width so the box stays square on the page.
+        width = min(height * lat_span / lon_span, _panel_available_width())
+    return [_PANEL_LEFT, 1.0 - height, width, height]
+
+
+
+
+def _publication_rc():
+    """The rcParams the figure is drawn under, from the FONT_SIZE_*/WIDTH_*."""
+    return {
+        "font.size": FONT_SIZE_BASE,
+        "axes.titlesize": FONT_SIZE_BASE + 1.0,
+        "axes.labelsize": FONT_SIZE_BASE,
+        "xtick.labelsize": FONT_SIZE_TICK,
+        "ytick.labelsize": FONT_SIZE_TICK,
+        "legend.fontsize": FONT_SIZE_LEGEND,
+        "legend.title_fontsize": FONT_SIZE_LEGEND,
+        "axes.linewidth": WIDTH_AXES_SPINE,
+        "xtick.major.width": WIDTH_AXES_SPINE,
+        "ytick.major.width": WIDTH_AXES_SPINE,
+        # 42 = TrueType. The default (Type 3) is not editable in Illustrator and
+        # is rejected outright by several publishers' preflight.
+        "pdf.fonttype": 42,
+        "ps.fonttype": 42,
+        **({"font.family": FONT_FAMILY} if FONT_FAMILY else {}),
+    }
+
+
+def _metres_per_degree(latitude_deg):
+    """Metres per degree of longitude and of latitude at ``latitude_deg``.
+
+    Both the hillshade and the scale bar need this. The model grid is
+    EPSG:4326, where a cell's ``dx`` is an ANGLE: feeding degrees to a gradient
+    that expects metres exaggerates relief by ~10^5, and a scale bar drawn as a
+    fixed number of degrees is wrong everywhere except the equator.
+    """
+    metres_per_degree_lat = np.pi * _EARTH_RADIUS_M / 180.0
+    metres_per_degree_lon = metres_per_degree_lat * np.cos(np.radians(latitude_deg))
+    return float(metres_per_degree_lon), float(metres_per_degree_lat)
+
+
+def _nice_round_length(value_km):
+    """Round a scale-bar length down to the nearest 1/2/5 x 10^n."""
+    if value_km <= 0:
+        return 1.0
+    exponent = np.floor(np.log10(value_km))
+    fraction = value_km / 10.0**exponent
+    step = 5.0 if fraction >= 5.0 else (2.0 if fraction >= 2.0 else 1.0)
+    return float(step * 10.0**exponent)
+
+
+def _elevation_colormap(levels=None):
+    """The CVD-safe elevation ramp, continuous or cut into ``levels`` classes."""
+    ramp = colors.LinearSegmentedColormap.from_list("dem_cvd", _DEM_ANCHORS, N=256)
+    return ramp if levels is None else ramp.resampled(levels)
+
+
+def _style_colormap(style, levels=None, floor=None):
+    """The style's palette, continuous or cut into ``levels`` classes.
+
+    A style may name a matplotlib colormap or supply its own hex anchors; the
+    elevation ramp is anchors because the perceptually-uniform terrain maps are
+    not in this environment and one figure does not justify a dependency.
+
+    ``floor`` is the lowest class boundary. When the style reserves its pale end
+    for low values and the floor sits above that threshold, the ramp starts at
+    ``style.low_clip`` instead of at its palest colour — so white keeps meaning
+    "none" rather than "least of a lot".
+    """
+    palette = getattr(style, "palette", None)
+    if palette is None:
+        ramp = _elevation_colormap(None)
+    elif isinstance(palette, str):
+        ramp = matplotlib.colormaps[palette]
+    else:
+        ramp = colors.LinearSegmentedColormap.from_list("style", tuple(palette), N=256)
+
+    reserve = getattr(style, "reserve_low_for", None)
+    if reserve is not None and floor is not None and float(floor) > float(reserve):
+        start = float(getattr(style, "low_clip", 0.0))
+        ramp = colors.LinearSegmentedColormap.from_list(
+            f"{getattr(ramp, 'name', 'style')}_clipped",
+            ramp(np.linspace(start, 1.0, 256)),
+            N=256,
+        )
+    return ramp if levels is None else ramp.resampled(levels)
+
+
+def resolve_temperature_style(raster, style=None):
+    """The temperature style, switched to diverging when the field crosses 0.
+
+    Absolute temperature has no meaningful midpoint, so it takes a sequential
+    warm ramp — until the field spans freezing, at which point 0 degC IS a
+    midpoint and a diverging palette centred on it is the honest encoding.
+    Centring a diverging ramp on the data's own mean instead is the standard
+    way this rule gets broken, so the centre is pinned to zero rather than
+    derived.
+    """
+    style = RASTER_STYLES["temp"] if style is None else style
+    values = np.asarray(raster.values)
+    values = values[np.isfinite(values)]
+    if values.size == 0 or values.min() >= 0.0 or values.max() <= 0.0:
+        return style
+    return RasterStyle(
+        label=style.label,
+        palette=TEMPERATURE_DIVERGING_PALETTE,
+        classification=style.classification,
+        clip_quantiles=style.clip_quantiles,
+        zero_baseline=False,
+        relief=style.relief,
+        interpolation=style.interpolation,
+        diverging_center=TEMPERATURE_DIVERGING_CENTER,
+    )
+
+
+#: Mantissas a class WIDTH may take. Wider than the 1/2/5 used for the scale
+#: bar: with a capped tick count the step is what controls how many classes the
+#: bar gets, and 1/2/5 leaves gaps too coarse to land in. Over 0-140 m it can
+#: only offer 20 (eight labels, over the cap) or 50 (four) — 40 gives the five
+#: the cap allows, and 0/40/80/120/160 is as readable as any of them. 2.5 and 4
+#: are ordinary contour-interval values, not invented precision.
+_STEP_LADDER = (1.0, 2.0, 2.5, 4.0, 5.0, 10.0)
+
+
+def _nice_step_up(value):
+    """Round a class width UP to the next ``_STEP_LADDER`` rung x 10^n.
+
+    Up, not down: ``_nice_round_length`` rounds down, which for a class width
+    means MORE classes than asked for, and a bar of twelve near-identical
+    browns is the thing the discretisation exists to avoid.
+    """
+    if value <= 0:
+        return 1.0
+    exponent = np.floor(np.log10(value))
+    fraction = value / 10.0**exponent
+    step = next((rung for rung in _STEP_LADDER if fraction <= rung), 10.0)
+    return float(step * 10.0**exponent)
+
+
+def _next_step_up(step):
+    """The ladder rung above ``step`` — used to force the tick count down."""
+    return _nice_step_up(step * (1.0 + 1e-9))
+
+
+def _zero_baseline(lower, upper, enabled=None):
+    """``lower``, dropped to 0 when the data can afford it. See the constants."""
+    if enabled is None:
+        enabled = _ELEVATION_STARTS_AT_ZERO
+    if not enabled or lower <= 0.0 or upper <= 0.0:
+        return lower
+    if (upper - lower) / upper >= _ZERO_BASELINE_MIN_SPAN_FRACTION:
+        return 0.0
+    return lower
+
+
+def _equal_interval_levels(lower, upper, zero_baseline=None):
+    """Evenly spaced class boundaries on a round step — the default rule.
+
+    The step comes from ``_COLORBAR_LEVELS`` but is then widened, a ladder rung
+    at a time, until the boundary count fits ``_COLORBAR_MAX_TICKS``. Rounding
+    the width to a readable number means the class count cannot be requested
+    exactly, so the target sets the ambition and the cap sets the limit.
+    """
+    baseline = _zero_baseline(lower, upper, zero_baseline)
+    step = _nice_step_up((upper - baseline) / max(_COLORBAR_LEVELS, 1))
+    max_ticks = max(int(_COLORBAR_MAX_TICKS), 2)
+    for _ in range(_STEP_WIDEN_ATTEMPTS):
+        # Put the boundaries on multiples of the step, so a basin floor of
+        # 1903 m labels as 1900 rather than carrying its own arbitrary value up
+        # the bar.
+        floor = float(np.floor(baseline / step) * step)
+        # ceil, then +1 boundary: the top class must CONTAIN the highest cell,
+        # not end at it, or the summit renders as nodata.
+        count = int(np.ceil((upper - floor) / step))
+        if count + 1 <= max_ticks:
+            return floor + step * np.arange(count + 1)
+        step = _next_step_up(step)
+    return floor + step * np.arange(count + 1)
+
+
+def _ladder_values(lower, upper):
+    """Every readable break value spanning ``[lower, upper]``, ascending.
+
+    The ladder is multiplicative (``_BREAK_LADDER`` x 10^n), which is what lets
+    one rule serve a 1-200 m coastal basin and a 400-3800 m alpine one: the
+    rungs get coarser as the numbers do, so a break is always about as precise
+    as the reader can use.
+    """
+    lower = max(float(lower), 1e-9)
+    exponents = range(
+        int(np.floor(np.log10(lower))) - 1, int(np.ceil(np.log10(max(upper, lower)))) + 1
+    )
+    return np.unique(
+        np.concatenate([np.array(_BREAK_LADDER) * 10.0**e for e in exponents])
+    )
+
+
+def _snap_to_ladder(value, rungs, mode="near"):
+    """``value`` moved onto the nearest ladder rung, or the one below/above it."""
+    if mode == "down":
+        below = rungs[rungs <= value]
+        return float(below[-1]) if below.size else float(rungs[0])
+    if mode == "up":
+        above = rungs[rungs >= value]
+        return float(above[0]) if above.size else float(rungs[-1])
+    return float(rungs[np.argmin(np.abs(rungs - value))])
+
+
+def _weighted_quantiles(values, weights, probabilities):
+    """Quantiles of ``values`` weighted by ``weights``, ascending.
+
+    ``np.quantile`` takes no weights, and the weights here are cell AREAS — the
+    thing "equal-area classes" is named after. Standard definition: sort, take
+    the cumulative weight at each sample's midpoint, interpolate.
+    """
+    order = np.argsort(values)
+    sorted_values, sorted_weights = values[order], weights[order]
+    cumulative = np.cumsum(sorted_weights)
+    total = cumulative[-1]
+    if total <= 0:
+        return np.quantile(values, probabilities)
+    positions = (cumulative - 0.5 * sorted_weights) / total
+    return np.interp(probabilities, positions, sorted_values)
+
+
+def _equal_area_levels(values, lower, upper, weights=None, zero_baseline=None):
+    """Quantile class boundaries, snapped onto the readable ladder.
+
+    Each class holds roughly the same AREA, so a skewed DEM spends the whole
+    ramp on ground the basin actually has. Snapping is what keeps the bar
+    labelled with numbers rather than with the basin's own percentiles; a snap
+    that collides with its neighbour is dropped, so the count comes out at or
+    below ``_COLORBAR_LEVELS`` and the caller checks it against ``_MIN_CLASSES``.
+    """
+    inside = (values >= lower) & (values <= upper)
+    if not np.any(inside):
+        return np.array([lower, upper])
+    probabilities = np.linspace(0.0, 1.0, _COLORBAR_LEVELS + 1)
+    if weights is None:
+        quantiles = np.quantile(values[inside], probabilities)
+    else:
+        quantiles = _weighted_quantiles(
+            values[inside], weights[inside], probabilities
+        )
+    rungs = _ladder_values(lower, upper)
+    floor = _zero_baseline(lower, upper, zero_baseline)
+    levels = [0.0 if floor <= 0.0 else _snap_to_ladder(floor, rungs, "down")]
+    for value in quantiles[1:-1]:
+        rung = _snap_to_ladder(value, rungs, "near")
+        if rung > levels[-1]:
+            levels.append(rung)
+    top = _snap_to_ladder(upper, rungs, "up")
+    if top <= levels[-1]:
+        top = _snap_to_ladder(levels[-1] * 1.3, _ladder_values(lower, upper * 2), "up")
+    levels.append(top)
+    return np.array(levels)
+
+
+def _finite_cells(dem):
+    """The DEM's valid cells as ``(values, area_weights)``, both flattened.
+
+    The weights are ``cos(latitude)``, which is what a cell's ground area is
+    proportional to on a lat-lon grid. Counting cells instead treats a cell at
+    60 deg as the equal of one at the equator, and it is half the area — so
+    "equal-AREA" classes built from counts are not equal-area, and neither is
+    the largest-class test that decides whether to use them.
+
+    Negligible on a basin spanning a fraction of a degree (this fixture varies
+    by 0.001%) and not negligible on the continental-scale basins the same code
+    has to serve, which is the whole reason it is weighted rather than argued
+    about per basin.
+    """
+    x_dim, y_dim = spatial_dim_names(dem)
+    values = dem.transpose(y_dim, x_dim).values
+    latitudes = np.asarray(dem[y_dim].values, dtype=float)
+    weights = np.repeat(
+        np.cos(np.radians(np.clip(latitudes, -89.9999, 89.9999)))[:, None],
+        values.shape[1],
+        axis=1,
+    )
+    finite = np.isfinite(values)
+    return values[finite], weights[finite]
+
+
+def _class_area_shares(values, levels, weights=None):
+    """Fraction of the basin's AREA falling in each class."""
+    totals, _ = np.histogram(values, bins=levels, weights=weights)
+    total = float(totals.sum())
+    return totals / total if total > 0 else totals
+
+
+def _class_levels(raster, style):
+    """Class boundaries for any quantity, following ``style``.
+
+    The generalisation of ``_elevation_levels``: same two rules and same
+    readable-ladder snapping, with the clip quantiles, zero baseline and
+    classification mode read from the style rather than from elevation's
+    constants. See ``_elevation_levels`` for what the rules are and why.
+    """
+    lower, upper = (
+        float(value) for value in raster.quantile(list(style.clip_quantiles)).compute()
+    )
+    if not np.isfinite(upper) or not np.isfinite(lower) or upper <= lower:
+        upper = lower + 1.0
+
+    if style.classification not in _ELEVATION_CLASSIFICATIONS:
+        raise ValueError(
+            f"classification={style.classification!r}; expected one of "
+            f"{_ELEVATION_CLASSIFICATIONS}"
+        )
+    equal_interval = _equal_interval_levels(lower, upper, style.zero_baseline)
+    if style.classification == "equal_interval":
+        return equal_interval
+
+    values, weights = _finite_cells(raster)
+    if values.size == 0:
+        return equal_interval
+    shares = _class_area_shares(values, equal_interval, weights)
+    if shares.max() <= _MAX_CLASS_AREA_SHARE and not (
+        shares < _EMPTY_CLASS_AREA_SHARE
+    ).any():
+        return equal_interval
+
+    equal_area = _equal_area_levels(
+        values, lower, upper, weights, style.zero_baseline
+    )
+    # A field with only a handful of distinct values — the wflow forcing on a
+    # basin driven by a 2x3 reanalysis grid is one — collapses most of its
+    # snapped breaks into each other. Equal interval is then the better of two
+    # imperfect answers, which is what this guard is for.
+    if len(equal_area) - 1 < _MIN_CLASSES:
+        return equal_interval
+    return equal_area
+
+
+
+
+def _vertical_exaggeration(elevation, dx_metres, dy_metres, valid=None):
+    """Exaggeration that renders THIS basin's relief legibly.
+
+    Scales the DEM's own 90th-percentile slope onto ``_TARGET_SLOPE``, so the
+    hillshade reads the same whether the basin drops 130 m over 24 km or
+    3000 m over 20 km.
+
+    ``valid`` masks the cells INSIDE the basin. Measuring the slope over the
+    whole bounding box instead would let the same basin shade differently
+    depending on how much nodata its box happens to contain — the flat fill
+    drags the percentile down, and the exaggeration up.
+    """
+    gradient_y, gradient_x = np.gradient(elevation, dy_metres, dx_metres)
+    slope = np.hypot(gradient_x, gradient_y)
+    if valid is not None:
+        slope = np.where(valid, slope, np.nan)
+        if not np.any(np.isfinite(slope)):
+            return 1.0
+    typical_slope = float(np.nanpercentile(slope, 90))
+    if not np.isfinite(typical_slope) or typical_slope <= 0.0:
+        return 1.0
+    return float(np.clip(_TARGET_SLOPE / typical_slope, 1.0, _MAX_VERT_EXAG))
+
+
+def spatial_dim_names(da):
+    """The ``(x_dim, y_dim)`` names of a 2-D geographic ``DataArray``.
+
+    Replaces ``da.raster.x_dim`` / ``.y_dim``. Raises rather than guessing: a
+    silently wrong axis produces a transposed map, which is far harder to notice
+    than an exception.
+    """
+    lowered = {str(dim).lower(): dim for dim in da.dims}
+    x_dim = next((lowered[n] for n in _X_DIM_NAMES if n in lowered), None)
+    y_dim = next((lowered[n] for n in _Y_DIM_NAMES if n in lowered), None)
+    if x_dim is None or y_dim is None:
+        raise ValueError(
+            f"cannot identify the spatial dimensions of {da.dims}; expected one "
+            f"of {_X_DIM_NAMES} and one of {_Y_DIM_NAMES}"
+        )
+    return x_dim, y_dim
+
+
+def pixel_resolution(da):
+    """Signed ``(res_x, res_y)`` cell size in degrees, as ``da.raster.res`` gives.
+
+    ``res_y`` is negative for the north-up ordering wflow writes; callers that
+    only need a magnitude take ``abs()``.
+    """
+    x_dim, y_dim = spatial_dim_names(da)
+    resolutions = []
+    for dim in (x_dim, y_dim):
+        coord = da[dim].values
+        if coord.size < 2:
+            raise ValueError(f"cannot derive a resolution from a {dim} of length {coord.size}")
+        resolutions.append(float(coord[1] - coord[0]))
+    return tuple(resolutions)
+
+
+def map_extent(da, buffer_deg=_EXTENT_BUFFER_DEG):
+    """``[lon_min, lon_max, lat_min, lat_max]`` covering the DEM, plus padding.
+
+    Replaces ``da.raster.box.buffer(...).total_bounds``. Coordinates are cell
+    CENTRES, so the box reaches half a cell beyond them on each side — dropping
+    that half-cell shrinks the frame by one pixel row and column.
+    """
+    x_dim, y_dim = spatial_dim_names(da)
+    res_x, res_y = pixel_resolution(da)
+    half_x, half_y = abs(res_x) / 2.0, abs(res_y) / 2.0
+    x, y = da[x_dim].values, da[y_dim].values
+    return np.array(
+        [
+            x.min() - half_x - buffer_deg,
+            x.max() + half_x + buffer_deg,
+            y.min() - half_y - buffer_deg,
+            y.max() + half_y + buffer_deg,
+        ]
+    )
+
+
+def check_geographic_inputs(raster, layers, value_label=None, expected_units=None):
+    """Raise unless every layer is geographic and the DEM's units match its label.
+
+    Three assumptions this figure has always made and never tested:
+
+    * every vector layer is in ``EPSG:4326``;
+    * the DEM's coordinates are degrees, not projected units;
+    * the DEM's values are metres, which is what ``ELEVATION_LABEL`` says.
+
+    All three are readable from the data — the fixture's DEM carries
+    ``units: "m"`` and a ``spatial_ref``, and every GeoJSON carries its CRS — so
+    the cost of checking is a few comparisons, against a failure mode that
+    produces a plausible-looking map with a scale bar out by 10^5.
+
+    Units are a WARNING, not an error: a DEM in feet is still a valid map once
+    the caller passes a ``value_label`` that says so, and refusing to plot
+    it would be the wrong answer. The CRS is an error, because no label can
+    repair a scale bar computed from the wrong kind of number.
+    """
+    wrong_crs = {
+        name: str(layer.crs)
+        for name, layer in layers.items()
+        if layer is not None and len(layer) > 0 and layer.crs is not None
+        and layer.crs.to_epsg() != REQUIRED_CRS_EPSG
+    }
+    if wrong_crs:
+        raise ValueError(
+            f"plot_basin_map needs every layer in EPSG:{REQUIRED_CRS_EPSG}; got "
+            f"{wrong_crs}. Reproject with .to_crs(epsg={REQUIRED_CRS_EPSG}) first "
+            "— the scale bar and the hillshade both convert degrees to metres."
+        )
+
+    x_dim, y_dim = spatial_dim_names(raster)
+    x, y = raster[x_dim].values, raster[y_dim].values
+    if np.nanmax(np.abs(x)) > 360.0 or np.nanmax(np.abs(y)) > 90.0:
+        raise ValueError(
+            f"the DEM's coordinates do not look geographic: {x_dim} reaches "
+            f"{np.nanmax(np.abs(x)):.4g}, {y_dim} reaches {np.nanmax(np.abs(y)):.4g}. "
+            f"Reproject the grid to EPSG:{REQUIRED_CRS_EPSG}."
+        )
+
+    units = str(raster.attrs.get("units", "")).strip().lower()
+    label = ELEVATION_LABEL if value_label is None else value_label
+    expected = _ELEVATION_UNITS if expected_units is None else expected_units
+    if units and expected and units not in expected:
+        warnings.warn(
+            f"the DEM declares units={units!r} but the colourbar is labelled "
+            f"{label!r}. Pass value_label= to match the data.",
+            stacklevel=2,
+        )
+
+
+def _mask_nodata(da):
+    """NaN out the fill value, as ``da.raster.mask_nodata()`` does.
+
+    Normally a no-op: xarray decodes ``_FillValue`` to NaN when it opens the
+    file. It earns its place for a DataArray opened with ``mask_and_scale=False``
+    or one carrying the fill value only as an attribute.
+    """
+    fill = da.attrs.get("_FillValue", da.encoding.get("_FillValue"))
+    if fill is None or (isinstance(fill, float) and np.isnan(fill)):
+        return da
+    return da.where(da != fill)
+
+
+
+
+def _shaded_relief(da, cmap, norm, latitude_deg):
+    """Drape the elevation ramp over a hillshade of the same DEM.
+
+    Returns an RGBA ``DataArray``: this replaces the satellite basemap, so it
+    has to carry the terrain context on its own.
+    """
+    # LightSource reads the array as (row, column) = (y, x) and takes dx/dy in
+    # that order, so put the DEM in y-major order before touching it rather than
+    # assuming the model wrote it that way.
+    x_dim, y_dim = spatial_dim_names(da)
+    da = da.transpose(y_dim, x_dim)
+    resolution_x, resolution_y = (abs(value) for value in pixel_resolution(da))
+    metres_per_degree_lon, metres_per_degree_lat = _metres_per_degree(latitude_deg)
+    light = colors.LightSource(azdeg=_AZIMUTH_DEG, altdeg=_ALTITUDE_DEG)
+    # LightSource cannot see NaN; fill with the basin minimum so the boundary
+    # does not shade as a cliff, then restore the mask through alpha.
+    values = da.values
+    inside_basin = ~np.isnan(values)
+    filled = np.where(inside_basin, values, float(np.nanmin(values)))
+    dx_metres = resolution_x * metres_per_degree_lon
+    dy_metres = resolution_y * metres_per_degree_lat
+    rgba = light.shade(
+        filled,
+        cmap=cmap,
+        norm=norm,
+        blend_mode=_SHADE_BLEND_MODE,
+        dx=dx_metres,
+        dy=dy_metres,
+        vert_exag=_vertical_exaggeration(filled, dx_metres, dy_metres, inside_basin),
+    )
+    rgba[..., 3] = inside_basin.astype(float)
+    # Carry the DEM's OWN dimension names through: hydromt spells them
+    # latitude/longitude here, not y/x, and hardcoding y/x raises KeyError.
+    return xr.DataArray(
+        rgba,
+        dims=(*da.dims, "band"),
+        coords={dim: da[dim] for dim in da.dims if dim in da.coords},
+    )
+
+
+def _map_aspect(extent):
+    """The map panel's height/width ratio, clamped to the usable range.
+
+    cartopy locks a PlateCarree panel to equal DEGREES, so the rendered aspect
+    is the extent's own ratio -- not the true ground aspect.
+    """
+    lon_min, lon_max, lat_min, lat_max = extent
+    span_lon = max(float(lon_max - lon_min), 1e-9)
+    aspect = float(lat_max - lat_min) / span_lon
+    return float(np.clip(aspect, _MIN_MAP_ASPECT, _MAX_MAP_ASPECT))
+
+
+def _map_width_inches():
+    """Width of the map panel itself, once the side panel and ticks are taken."""
+    return FIGURE_WIDTH_MM / MM_PER_INCH * _LAYOUT_RIGHT - _TICK_LABEL_WIDTH_IN
+
+
+def _map_height_inches(extent):
+    """Height of the map panel in inches — the axes an axes FRACTION is of.
+
+    Needed to turn a legend's height in POINTS into the fraction the panel
+    stack is measured in.
+    """
+    return _map_width_inches() * _map_aspect(extent)
+
+
+def _figure_size(extent):
+    """Figure size in inches: declared width, height from the basin's aspect."""
+    # Height follows the MAP PANEL, not the full page: sizing off the figure
+    # width leaves the aspect-locked panel floating in an over-tall cell.
+    return (
+        FIGURE_WIDTH_MM / MM_PER_INCH,
+        _map_height_inches(extent) + _FURNITURE_HEIGHT_IN,
+    )
+
+
+def _legend_height_fraction(extent, entries):
+    """Predicted legend height, as a fraction of the map's height.
+
+    The FALLBACK for ``_measure_legend``, used only when no renderer can be
+    obtained. Predicts from the entry count and the font size, which is close
+    enough to stack three blocks that must not overlap but not close enough to
+    align two edges — which is why the measured path exists.
+    """
+    rows = max(int(entries), 0) + (1 if _LEGEND_TITLE else 0)
+    if rows == 0:
+        return 0.0
+    points = FONT_SIZE_LEGEND * (
+        rows * _LEGEND_ROW_FACTOR + 2.0 * _LEGEND_BORDER_PAD
+    )
+    return (points / 72.0) / max(_map_height_inches(extent), 1e-6)
+
+
+def _measure_legend(fig, legend, extent):
+    """The legend's (width, height) in AXES FRACTIONS, measured not predicted.
+
+    Alignment is the reason this is measured. Sizing the locator inset to a
+    PREDICTED legend width leaves the two panel blocks visibly unequal whenever
+    the prediction is a few percent out, and a character-count estimate is
+    always a few percent out — it cannot know the font's real advance widths.
+
+    Measured in INCHES and divided by the map panel's DESIGN size, not read off
+    ``ax.transAxes``. The legend is built before the DEM, the ticks and the
+    furniture, and constrained layout resizes the axes as each of those arrives:
+    the same legend measured through ``transAxes`` reported 0.198 axes fractions
+    early and 0.215 at the end, which is exactly the 8% error that made the two
+    blocks visibly unequal. Its PHYSICAL size never changes, and the design size
+    is what the figure was built to — measured within 0.5% of the settled axes.
+
+    Returns ``None`` when no renderer can be had, so the caller can fall back to
+    the estimate rather than crash on a backend that cannot measure text.
+    """
+    renderer = None
+    for attempt in (0, 1):
+        try:
+            renderer = fig.canvas.get_renderer()
+            break
+        except AttributeError:
+            if attempt:
+                return None
+            # Some backends only build a renderer once something has been laid
+            # out; a layout pass is cheap here, before the DEM is drawn.
+            fig.draw_without_rendering()
+    if renderer is None:
+        return None
+    box = legend.get_window_extent(renderer)
+    return (
+        float(box.width / fig.dpi) / max(_map_width_inches(), 1e-6),
+        float(box.height / fig.dpi) / max(_map_height_inches(extent), 1e-6),
+    )
+
+
+def _panel_layout(extent, label_lines=1, legend_size=(0.0, 0.0)):
+    """Where the side panel's three blocks go, stacked to fit the map's height.
+
+    Top to bottom: the locator inset (when it is in the panel), the colourbar
+    with its label, then the legend. The locator is pinned to the top and the
+    legend to the BOTTOM — anchoring the legend at y=0 and letting it grow
+    upward is what makes a bottom overflow impossible, rather than something
+    caught by re-tuning a constant after looking at a render.
+
+    ``legend_size`` is the legend's MEASURED (width, height) in axes fractions.
+    Both matter: the height is what the colourbar is sized against, and the
+    width is what the locator is matched to.
+    """
+    legend_width, legend_height = legend_size
+    box = None
+    if _LOCATOR_PLACEMENT == "panel" and _locator_drawn():
+        box = _panel_locator_box(extent, legend_width)
+    reserved_top = box[3] + _LOCATOR_PANEL_GAP if box else 0.0
+    band_bottom = legend_height + _LEGEND_GAP if legend_height else 0.0
+    return {
+        "colorbar": _colorbar_inset(label_lines, reserved_top, band_bottom),
+        "locator": box,
+    }
+
+
+def _coordinate_format(span_degrees):
+    """Decimal places that suit the basin's size, not every basin's."""
+    if span_degrees > 5.0:
+        return ".0f"
+    return ".1f" if span_degrees > 1.0 else ".2f"
+
+
+def _graticule_ticks(extent, max_ticks=GRATICULE_MAX_TICKS):
+    """Shared tick positions for the grid LINES and the axis LABELS.
+
+    The latitude window is clamped to +/-90 BEFORE the ticks are chosen.
+    ``map_extent`` pads the DEM bounds by ``_EXTENT_BUFFER_DEG`` plus half a cell
+    and clamps nothing, so a basin near a pole yields ``lat_max > 90`` and the
+    graticule would label a latitude that does not exist.
+
+    Longitude is deliberately NOT clamped: past +/-180 is a legitimate way to
+    express a basin spanning the antimeridian, whereas past +/-90 is always
+    meaningless.
+
+    ``cartopy.mpl.ticker.LatitudeLocator`` looks like the ready-made answer and
+    is not. It subdivides in degrees/minutes/seconds, so on a sub-degree basin it
+    returns 0.33/0.36/0.39/0.42/0.45/0.48 where ``MaxNLocator`` returns
+    0.35/0.40/0.45/0.50 -- uglier, and SIX ticks against a ``max_ticks`` of five.
+    Measured on the fixture 2026-08-07, which is why the graticule half of the
+    abandoned feat/outputs-figures branch was not carried over.
+    """
+    lon_min, lon_max, lat_min, lat_max = extent
+    lat_min, lat_max = max(float(lat_min), -90.0), min(float(lat_max), 90.0)
+    locator = MaxNLocator(nbins=max_ticks, steps=[1, 2, 2.5, 5, 10])
+
+    def inside(ticks, low, high):
+        return [t for t in ticks if low <= t <= high]
+
+    return (
+        inside(locator.tick_values(lon_min, lon_max), lon_min, lon_max),
+        inside(locator.tick_values(lat_min, lat_max), lat_min, lat_max),
+    )
+
+
+def _add_graticule(ax, extent):
+    """A light graticule, labelled through the normal tick machinery.
+
+    The labels are REAL matplotlib ticks rather than ``gridlines(draw_labels=
+    True)``. Cartopy's Gridliner labels are invisible to constrained layout,
+    which reserves no room for them: observed here as latitude labels placed at
+    x = -160 px, i.e. silently clipped off the canvas, on a figure whose
+    longitude labels rendered fine. Ticks report their extent to the layout
+    engine, so the room is reserved. Both consume the same tick list, so the
+    lines and the labels cannot drift apart.
+    """
+    lon_ticks, lat_ticks = _graticule_ticks(extent)
+    ax.gridlines(
+        xlocs=lon_ticks,
+        ylocs=lat_ticks,
+        draw_labels=False,
+        linewidth=WIDTH_GRATICULE,
+        color=COLOR_GRATICULE,
+        alpha=GRATICULE_ALPHA,
+        linestyle=GRATICULE_LINESTYLE,
+    )
+    plate_carree = ccrs.PlateCarree()
+    ax.set_xticks(lon_ticks, crs=plate_carree)
+    ax.set_yticks(lat_ticks, crs=plate_carree)
+    lon_min, lon_max, lat_min, lat_max = extent
+    ax.xaxis.set_major_formatter(
+        LongitudeFormatter(number_format=_coordinate_format(lon_max - lon_min))
+    )
+    ax.yaxis.set_major_formatter(
+        LatitudeFormatter(number_format=_coordinate_format(lat_max - lat_min))
+    )
+    # The formatters already spell out E/N, so an axis label would only repeat
+    # them — the panel grid and the "longitude [degree east]" labels this
+    # replaces were the two things making the old figure read as a plot of
+    # coordinates rather than a map.
+    ax.tick_params(length=TICK_LENGTH, pad=TICK_PAD)
+
+    # A GeoAxes draws its box through the single ``geo`` spine; the four
+    # ordinary spines are what an L-frame is built from. Exactly one of the two
+    # mechanisms is used, so they cannot both draw the left edge.
+    if _MAP_FRAME == "box":
+        for side in ("top", "right", "left", "bottom"):
+            ax.spines[side].set_visible(False)
+        frame = ax.spines["geo"]
+        frame.set_visible(True)
+        frame.set_linewidth(WIDTH_AXES_SPINE)
+        frame.set_edgecolor(COLOR_BASIN_OUTLINE)
+    else:
+        ax.spines["geo"].set_visible(False)
+        for side in ("top", "right"):
+            ax.spines[side].set_visible(False)
+        for side in ("left", "bottom"):
+            spine = ax.spines[side]
+            spine.set_visible(True)
+            spine.set_linewidth(WIDTH_AXES_SPINE)
+            spine.set_color(COLOR_BASIN_OUTLINE)
+
+
+def _corner_occupancy(basin_geometry, extent):
+    """Fraction of each corner box the basin covers.
+
+    Fixed corners are only safe for basins shaped like the one they were tuned
+    on. A basin that fills its bounding box, or simply carries mass in the
+    south-west, gets the scale bar and the opaque legend frame drawn over its
+    own rivers.
+    """
+    lon_min, lon_max, lat_min, lat_max = extent
+    span_lon, span_lat = lon_max - lon_min, lat_max - lat_min
+    occupancy = {}
+    for name, (x_fraction, y_fraction) in _CORNERS.items():
+        corner = shapely_box(
+            lon_min + x_fraction * span_lon,
+            lat_min + y_fraction * span_lat,
+            lon_min + (x_fraction + _CORNER_BOX) * span_lon,
+            lat_min + (y_fraction + _CORNER_BOX) * span_lat,
+        )
+        area = corner.area
+        occupancy[name] = (
+            corner.intersection(basin_geometry).area / area if area > 0 else 1.0
+        )
+    return occupancy
+
+
+def _locator_drawn():
+    """Whether the inset will actually be drawn, so corners can be budgeted."""
+    return LOCATOR_ENABLED and BASEMAP_PATH.is_file()
+
+
+def _locator_corner(basin_geometry, extent):
+    """The corner the locator takes: the emptiest, or the configured one.
+
+    Returns ``None`` when there is no inset, which hands the corner back to the
+    scale bar rather than reserving it for something that never appears.
+    """
+    if not _locator_drawn():
+        return None
+    if _LOCATOR_PLACEMENT == "panel":
+        # It is not on the map, so it claims no map corner — and the scale bar
+        # gets that corner back rather than avoiding something that is not there.
+        return None
+    if _LOCATOR_CORNER != "auto":
+        return _LOCATOR_CORNER
+    occupancy = _corner_occupancy(basin_geometry, extent)
+    candidates = [name for name in _CORNERS if name != _NORTH_ARROW_CORNER]
+    return min(
+        candidates,
+        key=lambda name: (
+            round(occupancy[name], 3),
+            0 if name.startswith("upper") else 1,
+            name,
+        ),
+    )
+
+
+def _scale_bar_corner(basin_geometry, extent, excluded=None):
+    """The emptiest corner left for the scale bar, ties broken toward the bottom.
+
+    ``excluded`` defaults to the corners the north arrow and the locator inset
+    hold. The legend is not among them — it lives in the side panel rather than
+    on the map, which gives the bar back a lower corner it used to yield.
+
+    Ties are rounded before ranking so "equally empty" really does fall through
+    to the bottom preference, and the corner name breaks the last tie so the
+    figure never depends on dict iteration order.
+    """
+    if excluded is None:
+        excluded = {_NORTH_ARROW_CORNER}
+    elif isinstance(excluded, str):
+        excluded = {excluded}
+    occupancy = _corner_occupancy(basin_geometry, extent)
+    candidates = [name for name in _CORNERS if name not in excluded] or list(_CORNERS)
+    return min(
+        candidates,
+        key=lambda name: (
+            round(occupancy[name], 3),
+            0 if name.startswith("lower") else 1,
+            name,
+        ),
+    )
+
+
+def _add_scale_bar(ax, extent, corner="lower left"):
+    """A scale bar in kilometres, corrected for the basin's latitude."""
+    lon_min, lon_max, lat_min, lat_max = extent
+    metres_per_degree_lon, _ = _metres_per_degree(0.5 * (lat_min + lat_max))
+    span_lon, span_lat = lon_max - lon_min, lat_max - lat_min
+    map_width_km = span_lon * metres_per_degree_lon / 1000.0
+    length_km = _nice_round_length(_SCALE_BAR_WIDTH_FRACTION * map_width_km)
+    length_deg = length_km * 1000.0 / metres_per_degree_lon
+
+    if corner.endswith("right"):
+        x_start = lon_max - _FURNITURE_INSET_X * span_lon - length_deg
+    else:
+        # The same inset the north arrow uses, so the bar's left end sits
+        # directly under the arrow when both are on the left.
+        x_start = lon_min + _FURNITURE_INSET_X * span_lon
+    if corner.startswith("upper"):
+        y_bar = lat_max - (_SCALE_BAR_INSET_Y + 0.04) * span_lat
+    else:
+        y_bar = lat_min + _SCALE_BAR_INSET_Y * span_lat
+
+    # Alternating filled and open segments — the conventional bar, which lets a
+    # reader step off a distance rather than only read the total.
+    height = _SCALE_BAR_HEIGHT * span_lat
+    segment_deg = length_deg / _SCALE_BAR_SEGMENTS
+    halo = [pe.withStroke(linewidth=HALO_WIDTH_TEXT, foreground=COLOR_HALO)]
+    for index in range(_SCALE_BAR_SEGMENTS):
+        ax.add_patch(
+            mpatches.Rectangle(
+                (x_start + index * segment_deg, y_bar),
+                segment_deg,
+                height,
+                facecolor=COLOR_BASIN_OUTLINE if index % 2 == 0 else "white",
+                edgecolor=COLOR_BASIN_OUTLINE,
+                linewidth=_SCALE_BAR_EDGE_WIDTH,
+                zorder=Z_FURNITURE,
+            )
+        )
+
+    segment_km = length_km / _SCALE_BAR_SEGMENTS
+    # Label the ends and the midpoint only: a tick under every segment boundary
+    # crowds at this size, and the midpoint is what makes the segments countable.
+    for step in (0, _SCALE_BAR_SEGMENTS // 2, _SCALE_BAR_SEGMENTS):
+        value = step * segment_km
+        ax.text(
+            x_start + step * segment_deg,
+            y_bar + height + _SCALE_BAR_LABEL_GAP * span_lat,
+            f"{value:g}" if step < _SCALE_BAR_SEGMENTS else f"{value:g} km",
+            ha="center",
+            va="bottom",
+            fontsize=FONT_SIZE_SCALE_BAR,
+            zorder=Z_FURNITURE,
+            path_effects=halo,
+        )
+
+
+def _locator_span(extent):
+    """Half-width of the locator window, in degrees — the auto rule or the pin.
+
+    Sized so the basin's LONG axis comes out at
+    ``_LOCATOR_TARGET_BASIN_FRACTION`` of the window's width, then snapped UP to
+    the next ladder rung. Up rather than nearest: erring toward a wider window
+    costs some of the basin's apparent size and keeps the context that makes the
+    inset worth drawing, while erring narrow can crop the very coastline the
+    reader is orienting against.
+    """
+    if _LOCATOR_SPAN_DEG != "auto":
+        return float(_LOCATOR_SPAN_DEG)
+    basin_span = max(
+        float(extent[1] - extent[0]), float(extent[3] - extent[2]), 1e-9
+    )
+    half_width = basin_span / (2.0 * max(_LOCATOR_TARGET_BASIN_FRACTION, 1e-6))
+    # A basin bigger than the target implies must still fit inside its window.
+    half_width = max(half_width, basin_span * _LOCATOR_MIN_SPAN_MARGIN)
+    rung = next((rung for rung in _LOCATOR_SPAN_LADDER if rung >= half_width), None)
+    # Off the ladder rather than clamped to its top rung: falling back to the
+    # largest rung is what let a basin wider than 2 x 12 deg overflow its own
+    # locator window. The ladder exists to keep the window on a round number,
+    # which is a nicety; containing the subject is not.
+    return float(rung) if rung is not None else float(half_width)
+
+
+def _locator_window(extent):
+    """The locator's own extent: a square window centred on the basin.
+
+    Square in DEGREES, so the inset box can be made square on the page and the
+    window fills it without letterboxing. Clamped to the world, and re-centred
+    rather than clipped at the poles so a high-latitude basin still gets a full
+    window rather than a half-empty one.
+    """
+    centre_lon = 0.5 * (extent[0] + extent[1])
+    centre_lat = 0.5 * (extent[2] + extent[3])
+    span = _locator_span(extent)
+    centre_lat = float(np.clip(centre_lat, -90.0 + span, 90.0 - span))
+    return [
+        centre_lon - span,
+        centre_lon + span,
+        max(centre_lat - span, -90.0),
+        min(centre_lat + span, 90.0),
+    ]
+
+
+def _locator_box(extent, corner):
+    """[x0, y0, w, h] in axes fractions, square ON THE PAGE, in its corner.
+
+    The map axes is not square — PlateCarree locks it to the extent's own
+    degree ratio — so a box with equal fractional width and height comes out
+    as stretched as the panel is. Correcting by that ratio is what makes the
+    inset a square rather than a slot.
+    """
+    lon_span = max(float(extent[1] - extent[0]), 1e-9)
+    lat_span = max(float(extent[3] - extent[2]), 1e-9)
+    width = _LOCATOR_WIDTH
+    height = width * lon_span / lat_span
+    # A tall, narrow basin makes the panel tall: the square would then overflow
+    # the map vertically, so cap it and take the width back down to match.
+    if height > 1.0 - 2.0 * _LOCATOR_MARGIN:
+        height = 1.0 - 2.0 * _LOCATOR_MARGIN
+        width = height * lat_span / lon_span
+    left = (
+        _LOCATOR_MARGIN if corner.endswith("left") else 1.0 - _LOCATOR_MARGIN - width
+    )
+    bottom = (
+        1.0 - _LOCATOR_MARGIN - height
+        if corner.startswith("upper")
+        else _LOCATOR_MARGIN
+    )
+    return [left, bottom, width, height]
+
+
+def _read_basemap(layer, window):
+    """One vendored Natural Earth layer, clipped to the locator's window.
+
+    ``bbox`` pushes the filter down into the driver, so a render reads the few
+    hundred features it draws rather than the global layer.
+    """
+    return gpd.read_file(BASEMAP_PATH, layer=layer, bbox=tuple(
+        (window[0], window[2], window[1], window[3])
+    ))
+
+
+def _locator_cities(window):
+    """The few most prominent cities inside the window, largest first."""
+    places = _read_basemap("places", window)
+    if places.empty:
+        return places
+    places = places[places["scalerank"] <= _LOCATOR_CITY_MAX_SCALERANK]
+    return places.sort_values("pop_max", ascending=False).head(_LOCATOR_MAX_CITIES)
+
+
+def _add_locator_inset(ax, extent, basin, corner, box=None):
+    """A small "where is this" map: land, sea, borders, cities, and the basin.
+
+    ``box`` is the inset's [x0, y0, w, h] in axes fractions, normally from
+    ``_panel_layout`` so its width matches the legend's. Omitted, it is derived
+    from the constants alone.
+
+    Skips itself, with a note, when the vendored basemap is absent — a copy of
+    this module taken to another project should still render a basin map, just
+    without the inset. Silence would be worse: an inset that quietly never
+    appears reads as a layout bug.
+    """
+    if not LOCATOR_ENABLED:
+        return None
+    if not BASEMAP_PATH.is_file():
+        print(f"note: locator inset skipped, no basemap at {BASEMAP_PATH}")
+        return None
+    in_panel = _LOCATOR_PLACEMENT == "panel"
+    if corner is None and not in_panel:
+        return None
+
+    window = _locator_window(extent)
+    if box is None:
+        box = _panel_locator_box(extent) if in_panel else _locator_box(extent, corner)
+    inset = ax.inset_axes(box, projection=ccrs.PlateCarree())
+    # Outside the layout for the same reason as the side panel: its footprint
+    # would inflate the map's tight bbox and shrink the map to make room for
+    # something drawn INSIDE the map.
+    inset.set_in_layout(False)
+    inset.set_extent(window, crs=ccrs.PlateCarree())
+    inset.set_facecolor(COLOR_LOCATOR_OCEAN)  # sea is whatever land is not
+
+    land = _read_basemap("land", window)
+    if not land.empty:
+        land.plot(
+            ax=inset,
+            facecolor=COLOR_LOCATOR_LAND,
+            edgecolor=COLOR_LOCATOR_COAST,
+            linewidth=WIDTH_LOCATOR_COAST,
+        )
+    borders = _read_basemap("borders", window)
+    if not borders.empty:
+        borders.plot(
+            ax=inset, color=COLOR_LOCATOR_BORDER, linewidth=WIDTH_LOCATOR_BORDER
+        )
+
+    halo = [pe.withStroke(linewidth=HALO_WIDTH_GAUGE_LABEL, foreground=COLOR_HALO)]
+    for _, city in _locator_cities(window).iterrows():
+        inset.plot(
+            city.geometry.x,
+            city.geometry.y,
+            marker="o",
+            markersize=_LOCATOR_CITY_MARKER_SIZE ** 0.5,
+            color=COLOR_LOCATOR_CITY,
+            transform=ccrs.PlateCarree(),
+        )
+        inset.annotate(
+            city["name"],
+            xy=(city.geometry.x, city.geometry.y),
+            xytext=_LOCATOR_CITY_LABEL_OFFSET,
+            textcoords="offset points",
+            fontsize=FONT_SIZE_LOCATOR_CITY,
+            color=COLOR_LOCATOR_CITY,
+            va="center",
+            path_effects=halo,
+        )
+
+    # The basin's OWN outline, filled, rather than a mark standing in for it.
+    # It is small at this window — the fixture spans 0.24 deg in a 16 deg
+    # frame — but its footprint, elongation and orientation are real information
+    # a centroid dot cannot carry, and the filled shape stays findable at the
+    # size the edge alone would not.
+    basin.plot(
+        ax=inset,
+        facecolor=COLOR_LOCATOR_BASIN,
+        edgecolor=COLOR_LOCATOR_BASIN_EDGE,
+        linewidth=WIDTH_LOCATOR_BASIN,
+        zorder=Z_FURNITURE,
+        # A halo, for the same reason the scale bar's numbers carry one: the
+        # basin is a few points across and lands wherever it lands — on land, on
+        # a border, or under the label of the city it sits next to, which is the
+        # commonest case because basins and cities share rivers. The white ring
+        # is what separates it from all three without enlarging it.
+        path_effects=[
+            pe.withStroke(
+                linewidth=HALO_WIDTH_LOCATOR_BASIN, foreground=COLOR_HALO
+            )
+        ],
+    )
+
+    inset.spines["geo"].set_linewidth(WIDTH_LOCATOR_FRAME)
+    inset.spines["geo"].set_edgecolor(COLOR_BASIN_OUTLINE)
+    return inset
+
+
+def _add_north_arrow(ax):
+    """A north arrow — exactly vertical, which PlateCarree guarantees.
+
+    Sits top-left, on the same vertical as the scale bar below it. The legend
+    and the locator both live in the side panel, so the map's left edge is the
+    only furniture column and the two items on it share one inset.
+    """
+    tip_y, tail_y = _NORTH_ARROW_POSITION
+    # Shared with the scale bar; see _FURNITURE_INSET_X.
+    x_fraction = _FURNITURE_INSET_X
+    ax.annotate(
+        "N",
+        xy=(x_fraction, tip_y),
+        xytext=(x_fraction, tail_y),
+        xycoords="axes fraction",
+        ha="center",
+        va="bottom",
+        fontsize=FONT_SIZE_NORTH_ARROW,
+        fontweight="bold",
+        zorder=Z_FURNITURE,
+        arrowprops=dict(
+            arrowstyle=_NORTH_ARROW_STYLE,
+            facecolor=COLOR_BASIN_OUTLINE,
+            edgecolor=COLOR_BASIN_OUTLINE,
+            linewidth=_NORTH_ARROW_WIDTH,
+        ),
+        path_effects=[pe.withStroke(linewidth=HALO_WIDTH_TEXT, foreground=COLOR_HALO)],
+    )
+
+
+
+
+def _divide_linework(subbasins):
+    """The subcatchment divides as ONE merged linework, not one ring per polygon.
+
+    ``subbasins.boundary`` returns a closed ring per subcatchment, so every
+    INTERNAL divide — which by definition belongs to the two subcatchments on
+    either side of it — gets drawn twice. Two dashed lines at the same place
+    with different phase interleave, and the gaps of one are filled by the dashes
+    of the other: the shared edges render SOLID while the outer ones stay dashed.
+    Observed at 600 dpi on the fixture, where it read as the divides being
+    styled inconsistently rather than as double-drawing.
+
+    ``union_all`` nodes the rings and merges the duplicated segments into single
+    lines, so every divide is drawn once and the dash pattern means the same
+    thing everywhere. It also stops the halo being laid down twice.
+    """
+    return gpd.GeoSeries([subbasins.geometry.boundary.union_all()], crs=subbasins.crs)
+
+
+def _river_linewidths(gdf_riv, column=RIVER_ORDER_COLUMN):
+    """Stream order rescaled to publication line weights.
+
+    ``strord / 2`` was tuned to a 10x8-inch canvas; at 180 mm it draws an
+    8th-order river as a 4 pt band that swallows the basin.
+
+    A river layer from outside wflow may carry no order column at all, so a
+    missing (or ``None``) ``column`` falls back to one uniform weight rather
+    than raising: a network drawn at a single width is a legitimate map, and
+    refusing to plot it would be the wrong answer for the commonest
+    non-wflow input.
+    """
+    if column is None or column not in gdf_riv.columns:
+        return RIVER_WIDTH_UNIFORM
+    order = gdf_riv[column].astype(float).to_numpy()
+    lowest, highest = float(np.nanmin(order)), float(np.nanmax(order))
+    if not np.isfinite(lowest) or highest <= lowest:
+        return np.full(order.shape, RIVER_WIDTH_UNIFORM)
+    span = RIVER_WIDTH_MAX - RIVER_WIDTH_MIN
+    return RIVER_WIDTH_MIN + span * (order - lowest) / (highest - lowest)
+
+
+
+def _wrap_label(fig, text, max_width_inches, fontsize):
+    """``text`` broken across lines so no line exceeds ``max_width_inches``.
+
+    The colourbar's title is left-aligned to the panel, so a long one — most
+    quantity names with their units are long — runs past the panel and off the
+    figure. Wrapping is measured rather than guessed at a character count,
+    because the width that matters is the panel's, and a character estimate
+    cannot know the font's advance widths.
+
+    Falls back to the unwrapped text when no renderer is available; a
+    too-wide title is better than no figure.
+    """
+    words = str(text).split()
+    if len(words) < 2 or max_width_inches <= 0:
+        return text
+    try:
+        renderer = fig.canvas.get_renderer()
+    except AttributeError:
+        return text
+
+    def width_of(line):
+        artist = mtext.Text(0, 0, line, fontsize=fontsize, figure=fig)
+        return artist.get_window_extent(renderer).width / fig.dpi
+
+    lines, current = [], words[0]
+    for word in words[1:]:
+        candidate = f"{current} {word}"
+        if width_of(candidate) <= max_width_inches:
+            current = candidate
+        else:
+            lines.append(current)
+            current = word
+    lines.append(current)
+    return "\n".join(lines)
+
+
+def _colorbar_extend(dem, levels):
+    """Which ends of the bar need an "and beyond" arrow.
+
+    ``_ELEVATION_CLIP_QUANTILES`` deliberately cuts the top of the DEM so one
+    summit pixel cannot flatten the rest of the basin to a single colour. Those
+    cells still get drawn, in the darkest class — so the bar has to SAY that its
+    top number is a threshold and not the basin's maximum. An arrow is the
+    cartographic convention for exactly that, and it costs one glyph.
+    """
+    values = np.asarray(dem.values)
+    values = values[np.isfinite(values)]
+    if values.size == 0:
+        return "neither"
+    below = float(values.min()) < float(levels[0])
+    above = float(values.max()) > float(levels[-1])
+    if below and above:
+        return "both"
+    return "max" if above else ("min" if below else "neither")
+
+
+
+#: Lightness (CIE L*) above which the raster under the overlays counts as PALE.
+#: Below it the divides flip to a light line with a dark halo. 55 sits near the
+#: middle of the L* range and is where a mid-grey line stops reading either way.
+_DARK_RASTER_LIGHTNESS = 55.0
+
+
+def _relative_luminance(rgb):
+    """CIE L* of an sRGB triple, 0 (black) to 100 (white)."""
+    channels = np.asarray(rgb, dtype=float)[..., :3]
+    linear = np.where(
+        channels <= 0.04045, channels / 12.92, ((channels + 0.055) / 1.055) ** 2.4
+    )
+    luminance = linear @ np.array([0.2126, 0.7152, 0.0722])
+    return float(
+        np.where(luminance > 0.008856, 116 * np.cbrt(luminance) - 16, 903.3 * luminance)
+    )
+
+
+def _overlay_contrast(raster, style):
+    """``(line_colour, halo_colour)`` for boundaries drawn over ``raster``.
+
+    A dark line over a dark fill has no contrast, so the halo ends up doing all
+    the work and the divide renders as two white rails with an invisible core —
+    observed on the precipitation map, where 90% of the basin sits in the
+    darkest class. Which way round to draw depends on what the reader actually
+    sees, so it is measured: the AREA-WEIGHTED mean lightness of the classes
+    actually painted, not the palette's midpoint. A palette that is pale overall
+    can still paint a basin dark if the data crowds its top class.
+    """
+    try:
+        levels = _class_levels(raster, style)
+        values, weights = _finite_cells(raster)
+        shares = _class_area_shares(values, levels, weights)
+        cmap = _style_colormap(style, len(levels) - 1, floor=levels[0])
+        lightness = np.array(
+            [_relative_luminance(cmap(i)) for i in range(len(levels) - 1)]
+        )
+        mean_lightness = float((lightness * shares).sum() / max(shares.sum(), 1e-9))
+    except (ValueError, KeyError, IndexError):
+        # Any failure here is cosmetic; fall back to the pale-ground styling
+        # rather than let a contrast heuristic stop a figure rendering.
+        return COLOR_SUBCATCHMENT, COLOR_HALO
+    if mean_lightness >= _DARK_RASTER_LIGHTNESS:
+        return COLOR_SUBCATCHMENT, COLOR_HALO
+    return COLOR_HALO, COLOR_SUBCATCHMENT
+
+
+def _extent_frame(extent):
+    """The map extent as a one-row GeoDataFrame, for a map with no basin layer.
+
+    Every vector layer is optional — a raster on its own is a legitimate map,
+    and the source-grid climate figures are drawn before any model exists. The
+    furniture still needs a subject: something for the locator inset to mark and
+    for the corner budget to measure against. The extent box is the honest
+    stand-in, since it is exactly what the figure shows.
+    """
+    lon_min, lon_max, lat_min, lat_max = (float(value) for value in extent)
+    return gpd.GeoDataFrame(
+        geometry=[shapely_box(lon_min, lat_min, lon_max, lat_max)],
+        crs=f"EPSG:{REQUIRED_CRS_EPSG}",
+    )
+
+
+def _basin_clip_path(basin):
+    """The dissolved basin as a matplotlib ``Path``, for clipping the raster.
+
+    Needed only when the DEM is resampled. The basin edge is carried by the
+    RGBA image's ALPHA channel, and any interpolation resamples alpha with
+    everything else — so a bilinear DEM fades out ACROSS the basin boundary and
+    visibly spills past the outline that is supposed to bound it. Clipping to
+    the real polygon puts the edge back where the geometry says it is, and lets
+    the smoothing act only on the inside.
+    """
+    vertices, codes = [], []
+    for geometry in basin.geometry:
+        for polygon in getattr(geometry, "geoms", [geometry]):
+            for ring in (polygon.exterior, *polygon.interiors):
+                coordinates = np.asarray(ring.coords)
+                if len(coordinates) < 3:
+                    continue
+                vertices.append(coordinates)
+                codes.append(
+                    [MplPath.MOVETO]
+                    + [MplPath.LINETO] * (len(coordinates) - 2)
+                    + [MplPath.CLOSEPOLY]
+                )
+    if not vertices:
+        return None
+    return MplPath(np.concatenate(vertices), np.concatenate(codes))
+
+
+def _draw_raster(
+    fig,
+    ax,
+    raster,
+    style,
+    centre_latitude,
+    colorbar_box=None,
+    basin=None,
+    label_width_inches=None,
+):
+    """Shaded relief plus its colourbar in the side panel.
+
+    ``colorbar_box`` is the bar's [x0, y0, w, h] in axes fractions, normally
+    from ``_panel_layout`` so the bar lands in what the locator and the legend
+    leave. ``basin`` clips the raster, and matters only when
+    ``DEM_INTERPOLATION`` resamples it.
+    """
+    levels = _class_levels(raster, style)
+    extend = _colorbar_extend(raster, levels)
+    # BoundaryNorm wants one colour per class, PLUS one per extended end — the
+    # arrow is a colour, not a decoration, so the ramp has to carry it.
+    extra = {"neither": 0, "min": 1, "max": 1, "both": 2}[extend]
+    cmap = _style_colormap(style, len(levels) - 1 + extra, floor=levels[0])
+    norm = colors.BoundaryNorm(levels, cmap.N, extend=extend)
+    x_dim, y_dim = spatial_dim_names(raster)
+    field = (
+        _shaded_relief(raster, cmap, norm, centre_latitude)
+        if style.relief
+        else raster
+    )
+    image = field.plot.imshow(
+        ax=ax,
+        x=x_dim,
+        y=y_dim,
+        transform=ccrs.PlateCarree(),
+        zorder=Z_RELIEF,
+        add_labels=False,
+        interpolation=style.interpolation,
+        **({} if style.relief else {"cmap": cmap, "norm": norm, "add_colorbar": False}),
+    )
+    if style.interpolation != "none" and basin is not None:
+        clip = _basin_clip_path(basin)
+        if clip is not None:
+            image.set_clip_path(clip, transform=ax.transData)
+    # imshow of an RGBA array carries no mappable, so the colourbar needs an
+    # explicit one — the ramp is the same object either way.
+    # The bar's title is wrapped to the panel's width. Most quantity names with
+    # their units are longer than a 40 mm panel, and the title is left-aligned
+    # to that panel — so unwrapped it runs off the figure.
+    label = style.label
+    if label_width_inches:
+        label = _wrap_label(fig, label, label_width_inches, FONT_SIZE_COLORBAR_LABEL)
+    if colorbar_box is None:
+        colorbar_box = _colorbar_inset(label.count("\n") + 1)
+    colorbar_axes = ax.inset_axes(colorbar_box)
+    # The side panel lives OUTSIDE the map axes but is anchored to it. Left
+    # in the layout, its footprint inflates the axes' tight bbox, and
+    # constrained layout answers by shrinking the map — in BOTH directions,
+    # because the aspect is locked. Measured cost before this line: 0.69 in
+    # of dead space above AND below a map 1.2 in narrower than its cell.
+    # ``rect`` already reserves the panel's room, so it must not be counted
+    # twice.
+    colorbar_axes.set_in_layout(False)
+    # ``ticks=levels`` labels every class BOUNDARY, which is what puts the first
+    # and the last on the bar; matplotlib's own locator drops both ends.
+    # ``spacing="uniform"`` gives every CLASS the same length of bar. With
+    # equal-interval breaks that is what "proportional" already did; with
+    # equal-area breaks it is the difference between a readable bar and one
+    # whose top class — the widest in metres, by construction — eats two thirds
+    # of it. The bar shows classes, so the classes get equal room.
+    colorbar = fig.colorbar(
+        ScalarMappable(norm=norm, cmap=cmap),
+        cax=colorbar_axes,
+        ticks=levels,
+        spacing="uniform",
+    )
+    if _colorbar_label_position() == "top":
+        # A TITLE, not the label: ``set_label`` on a vertical bar always lands
+        # alongside it, rotated. ``loc="left"`` is what keeps a label wider than
+        # the 0.025-wide bar from hanging off both of its sides — it starts at
+        # the bar's left edge, which is the legend's anchor too.
+        colorbar_axes.set_title(
+            label,
+            fontsize=FONT_SIZE_COLORBAR_LABEL,
+            pad=_COLORBAR_TITLE_PAD,
+            loc="left",
+        )
+    else:
+        colorbar.set_label(label, fontsize=FONT_SIZE_COLORBAR_LABEL)
+    colorbar.outline.set_linewidth(_COLORBAR_OUTLINE_WIDTH)
+    colorbar_axes.tick_params(
+        labelsize=FONT_SIZE_COLORBAR_TICK, length=TICK_LENGTH, pad=TICK_PAD
+    )
+
+
+def _point_handle(facecolor, label, marker):
+    """A legend entry for a point layer, built by hand.
+
+    Not ``label=`` on the ``plot`` call. geopandas registers the labelled
+    ``PathCollection``, and matplotlib's ``HandlerPathCollection`` draws a
+    collection's paths stretched across ``handlelength`` — so "outlets" came out
+    as a filled black BLOCK rather than as the square marker it labels. Passing
+    the label to both the plot and a hand-built handle is the same double-entry
+    bug ``_draw_waterbodies`` documents. One handle, built here, is the fix for
+    both symptoms.
+    """
+    return Line2D(
+        [],
+        [],
+        linestyle="none",
+        marker=marker,
+        markerfacecolor=facecolor,
+        markeredgecolor=COLOR_MARKER_EDGE,
+        markeredgewidth=WIDTH_MARKER_EDGE,
+        # Line2D takes a marker SIZE in points; geopandas takes points-squared.
+        markersize=MARKER_SIZE**0.5,
+        label=label,
+    )
+
+
+def _draw_points(ax, layer, facecolor, marker, label_column=None, zorder=Z_MARKER):
+    """One point layer, optionally annotated with a column's values.
+
+    Draws only — the legend entry comes from ``_point_handle``, so nothing here
+    registers a labelled artist.
+    """
+    if layer is None or len(layer) == 0:
+        return
+    layer.plot(
+        ax=ax,
+        marker=marker,
+        markersize=MARKER_SIZE,
+        facecolor=facecolor,
+        edgecolor=COLOR_MARKER_EDGE,
+        linewidth=WIDTH_MARKER_EDGE,
+        zorder=zorder,
+    )
+    if label_column is None or label_column not in layer.columns:
+        return
+    layer.apply(
+        lambda row: ax.annotate(
+            text=str(row[label_column]),
+            xy=row.geometry.coords[0],
+            xytext=GAUGE_LABEL_OFFSET,
+            textcoords="offset points",
+            fontsize=FONT_SIZE_GAUGE_LABEL,
+            fontweight="bold",
+            color=COLOR_BASIN_OUTLINE,
+            zorder=Z_MARKER,
+            path_effects=[
+                pe.withStroke(linewidth=HALO_WIDTH_GAUGE_LABEL, foreground=COLOR_HALO)
+            ],
+        ),
+        axis=1,
+    )
+
+
+def _present(layer):
+    """Whether an optional layer has anything to draw."""
+    return layer is not None and len(layer) > 0
+
+
+def _waterbody_entries(layers):
+    """``[(name, layer, style)]`` for each waterbody layer that has features.
+
+    Split out from the drawing so the legend can be BUILT before anything is
+    drawn — its size is now measured to place the rest of the panel, so it has
+    to exist first.
+    """
+    return [
+        (
+            name,
+            layer,
+            dict(
+                facecolor=WATERBODY_COLORS[name][0],
+                edgecolor=WATERBODY_COLORS[name][1],
+                linewidth=WIDTH_WATERBODY_EDGE,
+            ),
+        )
+        for name, layer in layers.items()
+        if _present(layer)
+    ]
+
+
+def _draw_waterbodies(ax, entries):
+    """Fill each waterbody layer from ``_waterbody_entries``.
+
+    No ``label`` on the ``plot`` call, ever. geopandas registers a labelled
+    collection, so labelling here AND building a patch — which this did until
+    2026-08-03 — puts every waterbody in the legend twice. The patch built in
+    ``_legend_handles`` is the only labelled artist; geopandas' polygon handle
+    does not survive into a legend usably anyway (geopandas/geopandas#660).
+    """
+    for _, layer, style in entries:
+        layer.plot(ax=ax, zorder=Z_WATERBODY, **style)
+
+
+def _legend_handles(styles, *, subbasins, outlets, gauges, waterbodies):
+    """Every legend entry, in reading order, built without drawing anything.
+
+    Shares its style dicts with the artists themselves, so a legend swatch
+    cannot drift from the line it stands for.
+    """
+    handles = [
+        Line2D([], [], label=LABEL_RIVER, **styles["river"]),
+        # The outline is the map's key line and had no legend entry at all until
+        # 2026-08, which left the heaviest thing on the figure unexplained.
+        Line2D([], [], label=LABEL_BASIN, **styles["basin"]),
+    ]
+    if _present(subbasins):
+        handles.append(Line2D([], [], label=LABEL_SUBCATCHMENT, **styles["divide"]))
+    if _present(outlets):
+        handles.append(_point_handle(COLOR_OUTLET, LABEL_OUTLET, MARKER_SHAPE_OUTLET))
+    if _present(gauges):
+        handles.append(_point_handle(COLOR_GAUGE, LABEL_GAUGE, MARKER_SHAPE_GAUGE))
+    handles.extend(
+        mpatches.Patch(label=name, **style) for name, _, style in waterbodies
+    )
+    return handles
+
+
+def _layer_styles():
+    """The style dicts the map artists and their legend handles both use."""
+    return {
+        "river": dict(color=COLOR_RIVER, linewidth=RIVER_WIDTH_MAX),
+        "basin": dict(color=COLOR_BASIN_OUTLINE, linewidth=WIDTH_BASIN_OUTLINE),
+        "divide": dict(
+            color=COLOR_SUBCATCHMENT,
+            linewidth=WIDTH_SUBCATCHMENT,
+            linestyle=DASH_SUBCATCHMENT,
+        ),
+    }
+
+
+def _add_legend(ax, handles):
+    """The legend, at its final anchor — the panel's lower-left corner.
+
+    Created BEFORE the map is drawn, because its measured size is what places
+    the colourbar and sizes the locator inset. Its own position depends on
+    nothing else, so building it first costs nothing.
+    """
+    legend = ax.legend(
+        handles=handles,
+        title=_LEGEND_TITLE,
+        # Anchored by its LOWER left to the panel's floor: the legend grows
+        # upward toward the colourbar, so a long one cannot run off the bottom
+        # of the figure.
+        loc="lower left",
+        bbox_to_anchor=(_PANEL_LEFT, 0.0),
+        borderaxespad=0.0,
+        alignment="left",
+        frameon=True,
+        framealpha=_LEGEND_FRAME_ALPHA,
+        edgecolor=COLOR_BASIN_OUTLINE,
+        facecolor="white",
+        borderpad=_LEGEND_BORDER_PAD,
+        handlelength=_LEGEND_HANDLE_LENGTH,
+    )
+    legend.get_frame().set_linewidth(_LEGEND_FRAME_WIDTH)
+    # The panel's room is reserved by the layout engine's ``rect``, so letting
+    # the engine also see the legend costs the map size.
+    legend.set_in_layout(False)
+    return legend
+
+
+def plot_raster_map(
+    raster,
+    rivers=None,
+    basin=None,
+    *,
+    subbasins=None,
+    gauges=None,
+    outlets=None,
+    lakes=None,
+    reservoirs=None,
+    glaciers=None,
+    extent=None,
+    gauge_label_column=GAUGE_LABEL_COLUMN,
+    river_order_column=RIVER_ORDER_COLUMN,
+    style=None,
+    title=None,
+    caveat=None,
+    expected_units=None,
+):
+    """Draw a basin map: shaded relief, rivers, boundaries, points, waterbodies.
+
+    Every layer is its own argument, and every argument but the first three is
+    optional — so this plots ANY basin, from any source, not only a wflow model
+    on disk. It reads no files, writes no files and returns the figure; saving
+    is the caller's decision. ``plot_basin_map_from_model`` is the wrapper that
+    supplies these arguments from a wflow model directory.
+
+    Parameters
+    ----------
+    dem : xarray.DataArray
+        2-D elevation on a GEOGRAPHIC grid (EPSG:4326). Its coordinates set the
+        default extent and its values drive both the colour ramp and the
+        hillshade, whose vertical exaggeration is derived per basin. Cells
+        outside the basin should be NaN — they are drawn transparent.
+    rivers : geopandas.GeoDataFrame
+        The river network (LineStrings). Line weight scales with
+        ``river_order_column`` when the frame carries it.
+    basin : geopandas.GeoDataFrame
+        The OUTER boundary, already dissolved to what should be drawn as the
+        map's heaviest line. Pass ``_basin_outline(subcatchments)`` if you hold
+        one polygon per subcatchment — drawing those at boundary weight makes an
+        internal divide indistinguishable from the basin outline, which is the
+        one line on this figure a reader has to be able to trust.
+    subbasins : geopandas.GeoDataFrame, optional
+        Internal subcatchment divides, drawn lighter and dashed beneath the
+        outline. Omit for a basin with no meaningful internal division; nothing
+        is drawn and no legend entry appears.
+    gauges, outlets : geopandas.GeoDataFrame, optional
+        Point layers. Gauges take the river colour (they sit on the network);
+        outlets stay black (they belong to the model). Gauges are annotated with
+        ``gauge_label_column`` when the frame has it.
+    lakes, reservoirs, glaciers : geopandas.GeoDataFrame, optional
+        Filled polygon layers, each with its own colours from
+        ``WATERBODY_COLORS``.
+    extent : sequence of float, optional
+        ``[lon_min, lon_max, lat_min, lat_max]``. Defaults to the DEM's own
+        bounding box plus ``_EXTENT_BUFFER_DEG``. Set it to frame several basins
+        alike, or to crop.
+    gauge_label_column : str or None
+        Column annotated beside each gauge; ``None`` draws the markers unlabelled.
+    river_order_column : str or None
+        Numeric column scaling the river widths; ``None`` or an absent column
+        draws every reach at ``RIVER_WIDTH_UNIFORM``.
+    style : RasterStyle, optional
+        Palette, label, classification and relief for the quantity being drawn.
+        Defaults to ``RASTER_STYLES["elevation"]``. This is the one argument
+        that makes the figure a template: everything else on it — furniture,
+        panel stack, legend, graticule, locator — is the same for any raster.
+    title, caveat : str, optional
+        Figure title and footnote, drawn through ``suptitle``/``supxlabel`` so
+        constrained layout reserves room for them.
+    expected_units : sequence of str, optional
+        Units the label claims. A mismatch warns; see ``check_geographic_inputs``.
+
+    Returns
+    -------
+    (matplotlib.figure.Figure, cartopy.mpl.geoaxes.GeoAxes)
+        Nothing has been saved. The figure is sized in millimetres
+        (``FIGURE_WIDTH_MM``), so ``savefig`` without ``bbox_inches="tight"``
+        preserves the declared width.
+    """
+    # Checked, not assumed: the panel is PlateCarree and two of the furniture
+    # items convert degrees to metres, so a projected layer renders a wrong map
+    # rather than failing. See ``check_geographic_inputs``.
+    style = RASTER_STYLES["elevation"] if style is None else style
+    check_geographic_inputs(
+        raster,
+        {
+            "rivers": rivers,
+            "basin": basin,
+            "subbasins": subbasins,
+            "gauges": gauges,
+            "outlets": outlets,
+            "lakes": lakes,
+            "reservoirs": reservoirs,
+            "glaciers": glaciers,
+        },
+        style.label,
+        expected_units,
+    )
+    if extent is None:
+        extent = map_extent(raster)
+    proj = ccrs.PlateCarree()
+    centre_latitude = 0.5 * float(extent[2] + extent[3])
+
+    with rc_context(_publication_rc()):
+        fig = plt.figure(figsize=_figure_size(extent), layout="constrained")
+        fig.get_layout_engine().set(rect=(0.0, 0.0, _LAYOUT_RIGHT, 1.0))
+        ax = fig.add_subplot(projection=proj)
+        ax.set_extent(extent, crs=proj)
+
+        # --- the legend, first ------------------------------------------------
+        # Built and placed before anything is drawn, because its MEASURED size
+        # is what the rest of the panel is laid out against: its height sizes
+        # the colourbar, and its width sizes the locator inset so the panel's
+        # top and bottom blocks come out the same. Its own anchor depends on
+        # nothing, so there is no circularity — only this ordering.
+        styles = _layer_styles()
+        waterbodies = _waterbody_entries(
+            {"lakes": lakes, "reservoirs": reservoirs, "glaciers": glaciers}
+        )
+        handles = _legend_handles(
+            styles,
+            subbasins=subbasins,
+            outlets=outlets,
+            gauges=gauges,
+            waterbodies=waterbodies,
+        )
+        legend = _add_legend(ax, handles)
+
+        measured = _measure_legend(fig, legend, extent)
+        if measured is None:
+            measured = (0.0, _legend_height_fraction(extent, len(handles)))
+        # The title wraps to the PANEL ITEM width — what the legend and the
+        # locator inset span — not to the panel's full available width. That is
+        # the edge the reader sees the three blocks share, so a title running
+        # past it is what reads as overflowing even while it is still on canvas.
+        panel_width_in = (
+            measured[0] or _panel_available_width()
+        ) * _map_width_inches()
+        # Wrapped BEFORE the layout is computed: how many lines the colourbar's
+        # title takes is what the bar is positioned against, so measuring it
+        # afterwards would place the bar against a title that no longer fits.
+        wrapped_label = _wrap_label(
+            fig, style.label, panel_width_in, FONT_SIZE_COLORBAR_LABEL
+        )
+        label_lines = wrapped_label.count("\n") + 1
+        layout = _panel_layout(extent, label_lines, measured)
+
+        # --- elevation, as shaded relief -------------------------------------
+        _draw_raster(
+            fig,
+            ax,
+            raster,
+            style,
+            centre_latitude,
+            layout["colorbar"],
+            basin if _present(basin) else None,
+            label_width_inches=panel_width_in,
+        )
+
+        # --- hydrography ------------------------------------------------------
+        if _present(rivers):
+            rivers.plot(
+                ax=ax,
+                linewidth=_river_linewidths(rivers, river_order_column),
+                color=COLOR_RIVER,
+                zorder=Z_RIVER,
+            )
+        # Subcatchment divides first and lighter, then the outline over them, so
+        # the two are never confusable at the same weight.
+        if _present(subbasins):
+            divide_color, divide_halo = _overlay_contrast(raster, style)
+            styles["divide"]["color"] = divide_color
+            _divide_linework(subbasins).plot(
+                ax=ax,
+                zorder=Z_SUBCATCHMENT,
+                path_effects=[
+                    pe.withStroke(
+                        linewidth=HALO_WIDTH_SUBCATCHMENT, foreground=divide_halo
+                    )
+                ],
+                **styles["divide"],
+            )
+        if _present(basin):
+            basin.boundary.plot(ax=ax, zorder=Z_BASIN_OUTLINE, **styles["basin"])
+
+        _draw_points(
+            ax, outlets, COLOR_OUTLET, MARKER_SHAPE_OUTLET, zorder=Z_OUTLET
+        )
+        _draw_points(
+            ax, gauges, COLOR_GAUGE, MARKER_SHAPE_GAUGE, gauge_label_column
+        )
+
+        # --- waterbodies ------------------------------------------------------
+        _draw_waterbodies(ax, waterbodies)
+
+        # --- cartographic furniture -------------------------------------------
+        # The legend sits in the side panel, so it no longer competes for a map
+        # corner. The scale bar is placed against the basin's ACTUAL footprint,
+        # so it does not land on a basin that reaches into a bottom corner.
+        # Every vector layer is optional — the raster alone is a map. Without a
+        # basin the locator falls back to the raster's own extent, and the
+        # corner budget to the extent box, so the furniture still places.
+        subject = basin if _present(basin) else _extent_frame(extent)
+        footprint = subject.union_all()
+        # Corners are budgeted in one place, in priority order: the arrow's is
+        # fixed, then the locator's, then the bar's. Each of the three may be
+        # pinned to a named corner or left on "auto", in which case it takes the
+        # emptiest corner none of its predecessors claimed. Pinned by default
+        # now — furniture that moves between two basins of one study is harder
+        # to compare than furniture that occasionally sits on a river.
+        locator_corner = _locator_corner(footprint, extent)
+        bar_corner = (
+            _SCALE_BAR_CORNER
+            if _SCALE_BAR_CORNER != "auto"
+            else _scale_bar_corner(
+                footprint, extent, {_NORTH_ARROW_CORNER, locator_corner}
+            )
+        )
+        _add_graticule(ax, extent)
+        _add_scale_bar(ax, extent, bar_corner)
+        _add_north_arrow(ax)
+        # Sized to the legend's measured width, so the panel's top and bottom
+        # blocks share a right edge as well as a left one.
+        _add_locator_inset(ax, extent, subject, locator_corner, layout["locator"])
+        ax.set_title("")
+        # Title and footnote go through the FIGURE-level artists that
+        # constrained layout knows about. The climate figures previously drew
+        # their caveat with fig.text + fig.tight_layout(), and tight_layout
+        # DISABLES constrained layout — which is what the whole side-panel
+        # stack is built on, so it would have arrived as a broken panel
+        # rather than as a misplaced caption.
+        if title:
+            fig.suptitle(title, fontsize=FONT_SIZE_TITLE)
+        if caveat:
+            fig.supxlabel(
+                caveat, fontsize=FONT_SIZE_CAVEAT, color=COLOR_CAVEAT, wrap=True
+            )
+
+        # Constrained layout is ITERATIVE, and one pass is not enough here: the
+        # first draw leaves the y tick labels at x0 = -7.7 px — off the canvas,
+        # so "0.45°N" prints as "45°N" — and the second settles them at +4.2.
+        # The workflow path never saw this because it saves twice (PDF, then
+        # PNG) and the second save inherits a settled layout. A caller doing one
+        # savefig would not, so the figure is settled BEFORE it is handed back.
+        for _ in range(_LAYOUT_SETTLE_PASSES):
+            fig.draw_without_rendering()
+
+    return fig, ax
+
+
+

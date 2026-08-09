@@ -356,16 +356,19 @@ being visual comparison rather than a byte check. Render the LAYER-RICH fixture
 are simply absent from the image and cannot be judged.
 
 For the basin map, render it WITHOUT a WF1 run:
-`dev/scripts/preview_basin_map.py` drives `plot_map.py`'s tunable block from the
-command line against a model already on disk (`--list`, `--set NAME=VALUE`,
+`dev/scripts/preview_basin_map.py` drives `cartographic_map.py`'s tunable block
+from the command line against a model already on disk (`--list`, `--set NAME=VALUE`,
 `--sweep NAME=V1,V2,...`). Anything assembled from those tunables must be derived
 in a function, not frozen into a module constant — a constant snapshots its
 inputs at import, so the override would silently do nothing.
 
 **The trap:** "I changed it for a figure" is not the same as "it is a
 figure-only change". A shared helper edited in service of a plot
-(`shared/snake_utils.py`, `shared/plot_utils.py`) is a contract surface with
-other callers, and takes the normal ladder above.
+(`shared/snake_utils.py`, `shared/plot_utils.py`, `shared/cartographic_map.py`)
+is a contract surface with other callers, and takes the normal ladder above.
+`cartographic_map.py` is the one every map figure draws through — rule 1.12's
+basin map and rule 1.13's three forcing maps — so a change there is never
+figure-local.
 
 ## Hard Constraints
 

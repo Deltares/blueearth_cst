@@ -50,7 +50,7 @@ import numpy as np
 import xarray as xr
 from matplotlib.ticker import MaxNLocator
 
-from blueearth_cst.shared.plot_map import RASTER_DPI
+from blueearth_cst.shared.cartographic_map import RASTER_DPI
 from blueearth_cst.shared.snake_utils import log_row, save_figure
 
 #: One entry per variable: label and unit for the axes, and how the variable
@@ -197,20 +197,20 @@ def _label_points(ax, gdf) -> None:
 def _render_map(da, spec, title, caveat, overlays):
     """Climatological field as a cartographic map.
 
-    A caller of ``shared.plot_map.plot_raster_map``, so this figure carries the
+    A caller of ``shared.cartographic_map.plot_raster_map``, so this figure carries
     same furniture as rule 1.12's basin map: graticule and frame, latitude-
     corrected scale bar, north arrow, locator inset, and the side panel holding
     the colourbar over the vector legend. Only the raster and its palette
     differ, which is the point of the template — a new quantity is an entry in
     ``RASTER_STYLES``, not another plotting function.
     """
-    from blueearth_cst.shared.plot_map import (
+    from blueearth_cst.shared.cartographic_map import (
         RASTER_STYLES,
         RasterStyle,
-        _basin_outline,
         plot_raster_map,
         resolve_temperature_style,
     )
+    from blueearth_cst.shared.plot_map import _basin_outline
 
     how, label, unit = spec["how"], spec["label"], spec["unit"]
     field = _climatological_field(da, how)

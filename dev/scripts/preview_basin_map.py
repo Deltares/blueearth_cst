@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """Render the basin-area figure with any tunable overridden, without a WF1 run.
 
-``blueearth_cst/shared/plot_map.py`` opens with a TUNABLE CONSTANTS block —
-every size, weight, colour and position the figure uses. This script drives that
-block from the command line against a model that already exists on disk, so a
-value can be tried and LOOKED AT in seconds instead of edit-rerun-WF1.
+``blueearth_cst/shared/cartographic_map.py`` opens with a TUNABLE CONSTANTS
+block — every size, weight, colour and position the figure uses. This script
+drives that block from the command line against a model that already exists on
+disk, so a value can be tried and LOOKED AT in seconds instead of edit-rerun-WF1.
 
     # what can I change, and what is it set to now?
     pixi run python dev/scripts/preview_basin_map.py --list
@@ -27,7 +27,7 @@ gitignored scratch tree by default) and NEVER in a project's ``plots/``: a
 hand-tuned preview must not be able to take the place of a run product that the
 baseline fingerprints.
 
-**When adding a tunable to plot_map.py**, derive anything assembled from it in a
+**When adding a tunable to cartographic_map.py**, derive anything assembled from it in a
 function (see that module's DERIVED VALUES section). A module-level constant
 built from other constants snapshots them at import, so this script would set
 the input and silently change nothing.
@@ -57,9 +57,15 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from blueearth_cst.shared import plot_map  # noqa: E402
+from blueearth_cst.shared import cartographic_map, plot_map  # noqa: E402
 
-#: Names in ``plot_map`` that count as tunables: SHOUTING_CASE, optionally
+#: Where the tunables live. The cartography moved out of ``plot_map`` in
+#: 2026-08; overriding a name on ``plot_map`` that is only re-exported there
+#: would set a copy and change nothing, which is the exact failure this
+#: script's own docstring warns about. Read and write the real home.
+_TUNABLE_MODULE = cartographic_map
+
+#: Names in ``cartographic_map`` that count as tunables: SHOUTING_CASE, optionally
 #: private. Mixed-case imports (``LatitudeFormatter``, ``Line2D``) do not match,
 #: and callables are filtered out separately.
 _TUNABLE_PATTERN = re.compile(r"^_?[A-Z][A-Z0-9_]*$")
@@ -88,10 +94,10 @@ _FIGURE_STEM = "basin_area"
 
 
 def _tunables() -> dict:
-    """Every overridable constant in ``plot_map``, name to current value."""
+    """Every overridable constant in ``cartographic_map``, name to value."""
     return {
         name: value
-        for name, value in vars(plot_map).items()
+        for name, value in vars(_TUNABLE_MODULE).items()
         if _TUNABLE_PATTERN.match(name) and not callable(value)
     }
 
@@ -126,7 +132,7 @@ def _tunable_docs() -> dict:
     from what the block actually says. Both spellings are picked up: the comment
     block ABOVE an assignment, and the trailing comment on its own line.
     """
-    source = Path(plot_map.__file__).read_text(encoding="utf-8")
+    source = Path(_TUNABLE_MODULE.__file__).read_text(encoding="utf-8")
     comments = _comments_by_line(source)
     docs = {}
     for node in ast.parse(source).body:
@@ -169,7 +175,7 @@ def _coerce(name: str, text: str):
     except (ValueError, SyntaxError):
         return text
     numeric = isinstance(value, (int, float)) and not isinstance(value, bool)
-    if numeric and isinstance(getattr(plot_map, name), str):
+    if numeric and isinstance(getattr(_TUNABLE_MODULE, name), str):
         return text
     return value
 
@@ -202,7 +208,7 @@ def _parse_assignment(argument: str, flag: str) -> tuple:
         suggestion = difflib.get_close_matches(name, known, n=3, cutoff=0.5)
         hint = f" Did you mean {', '.join(suggestion)}?" if suggestion else ""
         raise SystemExit(
-            f"{name!r} is not a tunable in plot_map.py.{hint} "
+            f"{name!r} is not a tunable in cartographic_map.py.{hint} "
             f"Run --list to see all {len(known)} of them."
         )
     return name, value.strip()
@@ -295,14 +301,14 @@ def gauges_fn_for(project_dir: Path) -> str | None:
 @contextlib.contextmanager
 def _overridden(values: dict):
     """Set tunables for the duration of one render, then put them back."""
-    previous = {name: getattr(plot_map, name) for name in values}
+    previous = {name: getattr(_TUNABLE_MODULE, name) for name in values}
     for name, value in values.items():
-        setattr(plot_map, name, value)
+        setattr(_TUNABLE_MODULE, name, value)
     try:
         yield
     finally:
         for name, value in previous.items():
-            setattr(plot_map, name, value)
+            setattr(_TUNABLE_MODULE, name, value)
 
 
 def _slug(values: dict) -> str:
