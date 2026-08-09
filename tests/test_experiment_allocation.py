@@ -43,6 +43,7 @@ def _existing(project_dir, *names):
 # Collision vs resume
 # ---------------------------------------------------------------------------
 
+
 def test_a_user_supplied_collision_is_rejected_and_names_the_experiment(tmp_path):
     _existing(tmp_path, "gabon_dry")
     with pytest.raises(ExperimentCollisionError) as excinfo:
@@ -75,10 +76,15 @@ def test_resume_allocates_nothing(tmp_path):
     before = sorted(p.name for p in (tmp_path / "experiments").iterdir())
 
     cfg = tmp_path / "cfg.yml"
-    cfg.write_text(yaml.safe_dump({
-        "project": {"project_dir": str(tmp_path).replace("\\", "/")},
-        "workflows": {"climate_experiment": {"experiment_name": "gabon_dry"}},
-    }), encoding="utf-8")
+    cfg.write_text(
+        yaml.safe_dump(
+            {
+                "project": {"project_dir": str(tmp_path).replace("\\", "/")},
+                "workflows": {"climate_experiment": {"experiment_name": "gabon_dry"}},
+            }
+        ),
+        encoding="utf-8",
+    )
 
     # The runner refuses to overwrite an existing name -- that IS the resume
     # path, and it must allocate nothing.
@@ -91,15 +97,14 @@ def test_resume_allocates_nothing(tmp_path):
 # Versioning of generated names
 # ---------------------------------------------------------------------------
 
+
 def test_a_generated_collision_becomes_v2_then_v3(tmp_path):
     """The third collision is the discriminator: an implementation that only
     handles the second passes a `_v2`-only test."""
     base = "test_local_20260804"
     assert allocate_experiment_name(tmp_path, base, user_supplied=False) == base
-    assert allocate_experiment_name(tmp_path, base, user_supplied=False) == \
-        f"{base}_v2"
-    assert allocate_experiment_name(tmp_path, base, user_supplied=False) == \
-        f"{base}_v3"
+    assert allocate_experiment_name(tmp_path, base, user_supplied=False) == f"{base}_v2"
+    assert allocate_experiment_name(tmp_path, base, user_supplied=False) == f"{base}_v3"
 
 
 def test_versioning_starts_at_v2_because_the_bare_name_is_version_1(tmp_path):
@@ -118,6 +123,7 @@ def test_versioning_fills_a_gap_rather_than_counting_directories(tmp_path):
 # ---------------------------------------------------------------------------
 # Reservation
 # ---------------------------------------------------------------------------
+
 
 def test_reservation_creates_the_directory(tmp_path):
     path = reserve_experiment(tmp_path, "exp")
@@ -162,11 +168,13 @@ def test_concurrent_reservation_yields_exactly_one_winner(tmp_path):
 # The runner
 # ---------------------------------------------------------------------------
 
+
 def _cfg(tmp_path):
     cfg = tmp_path / "cfg.yml"
-    cfg.write_text(yaml.safe_dump(
-        {"project": {"project_dir": str(tmp_path).replace("\\", "/")}}
-    ), encoding="utf-8")
+    cfg.write_text(
+        yaml.safe_dump({"project": {"project_dir": str(tmp_path).replace("\\", "/")}}),
+        encoding="utf-8",
+    )
     return cfg
 
 
@@ -182,16 +190,19 @@ def test_the_runner_reserves_and_writes_the_name(tmp_path, capsys):
 def test_the_runner_versions_a_generated_collision(tmp_path):
     cfg = _cfg(tmp_path)
     runner.main([str(cfg), "--date", "20260804"])
-    first = yaml.safe_load(cfg.read_text(encoding="utf-8"))[
-        "workflows"]["climate_experiment"]["experiment_name"]
+    first = yaml.safe_load(cfg.read_text(encoding="utf-8"))["workflows"][
+        "climate_experiment"
+    ]["experiment_name"]
 
     cfg2 = tmp_path / "cfg2.yml"
-    cfg2.write_text(yaml.safe_dump(
-        {"project": {"project_dir": str(tmp_path).replace("\\", "/")}}
-    ), encoding="utf-8")
+    cfg2.write_text(
+        yaml.safe_dump({"project": {"project_dir": str(tmp_path).replace("\\", "/")}}),
+        encoding="utf-8",
+    )
     runner.main([str(cfg2), "--date", "20260804"])
-    second = yaml.safe_load(cfg2.read_text(encoding="utf-8"))[
-        "workflows"]["climate_experiment"]["experiment_name"]
+    second = yaml.safe_load(cfg2.read_text(encoding="utf-8"))["workflows"][
+        "climate_experiment"
+    ]["experiment_name"]
 
     assert second == f"{first}_v2"
 
@@ -244,7 +255,9 @@ def test_the_default_is_the_project_name_plus_today(tmp_path):
     pd = _proj(tmp_path)
     base = project_slug(pd, reserve=len("_YYYYMMDD"))
     assert base == "gabon_0108"
-    assert resolve_default_experiment_name(pd, base, "20260805") == "gabon_0108_20260805"
+    assert (
+        resolve_default_experiment_name(pd, base, "20260805") == "gabon_0108_20260805"
+    )
 
 
 def test_a_later_run_REUSES_the_existing_experiment(tmp_path):
@@ -276,9 +289,7 @@ def test_the_most_recently_allocated_wins(tmp_path):
 def test_only_this_project_s_dated_names_are_reused(tmp_path):
     """A deliberately chosen name must never be picked up by accident, and
     neither must another project's experiments sharing the directory."""
-    pd = _proj(
-        tmp_path, "dry_scenario", "other_project_20260901", "gabon_0108_no_date"
-    )
+    pd = _proj(tmp_path, "dry_scenario", "other_project_20260901", "gabon_0108_no_date")
     assert (
         resolve_default_experiment_name(pd, "gabon_0108", "20260805")
         == "gabon_0108_20260805"
@@ -306,7 +317,9 @@ def test_a_missing_experiments_dir_is_not_an_error(tmp_path):
 
 def test_files_beside_the_experiments_are_ignored(tmp_path):
     pd = _proj(tmp_path)
-    (pd / "experiments" / "gabon_0108_20260805").write_text("not a dir", encoding="utf-8")
+    (pd / "experiments" / "gabon_0108_20260805").write_text(
+        "not a dir", encoding="utf-8"
+    )
     assert (
         resolve_default_experiment_name(pd, "gabon_0108", "20260806")
         == "gabon_0108_20260806"
@@ -322,4 +335,6 @@ def test_the_default_and_the_suggest_command_derive_one_stem(tmp_path):
         pd.mkdir()
         base = project_slug(pd, reserve=len("_YYYYMMDD"))
         assert suggest_experiment_name(pd, "20260805") == f"{base}_20260805"
-        assert resolve_default_experiment_name(pd, base, "20260805") == f"{base}_20260805"
+        assert (
+            resolve_default_experiment_name(pd, base, "20260805") == f"{base}_20260805"
+        )

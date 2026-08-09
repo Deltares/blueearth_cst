@@ -14,14 +14,17 @@ import sys
 import pytest
 
 
-
 @pytest.fixture()
 def woi(monkeypatch):
     """blueearth_cst.model.write_outlet_index imported against the real (un-stubbed) geopandas."""
-    for name in [m for m in list(sys.modules) if m == "geopandas" or m.startswith("geopandas.")]:
+    for name in [
+        m for m in list(sys.modules) if m == "geopandas" or m.startswith("geopandas.")
+    ]:
         monkeypatch.delitem(sys.modules, name, raising=False)
     importlib.import_module("geopandas")  # bind the real package in sys.modules
-    monkeypatch.delitem(sys.modules, "blueearth_cst.model.write_outlet_index", raising=False)
+    monkeypatch.delitem(
+        sys.modules, "blueearth_cst.model.write_outlet_index", raising=False
+    )
     return importlib.import_module("blueearth_cst.model.write_outlet_index")
 
 

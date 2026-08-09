@@ -24,6 +24,7 @@
   string stays tolerated for project configs still carrying it, so both
   spellings must keep resolving to "unset".
 """
+
 from __future__ import annotations
 
 import shutil
@@ -57,8 +58,7 @@ DECLARED_PLOT_OUTPUTS = (
     "models/hydrology/wflow/plots/basin_area.pdf",
     "models/hydrology/wflow/plots/basin_area.png",
 ) + tuple(
-    f"models/hydrology/wflow/forcing/plots/{name}"
-    for name in _figure_names("forcing")
+    f"models/hydrology/wflow/forcing/plots/{name}" for name in _figure_names("forcing")
 )
 
 
@@ -94,7 +94,9 @@ def fabricated_project(tmp_path):
     # Knowingly UNDECLARED (config-dependent): it must survive, which is what
     # makes the assertion below a discriminating check rather than a tautology
     # about an emptied directory.
-    undeclared = project_dir / "models/hydrology/wflow/evaluation/plots/signatures_wflow_1.png"
+    undeclared = (
+        project_dir / "models/hydrology/wflow/evaluation/plots/signatures_wflow_1.png"
+    )
     for path in [*expected, undeclared]:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b"placeholder")
@@ -160,7 +162,9 @@ def project_with_basavg_outvar(tmp_path):
     basavg.parent.mkdir(parents=True, exist_ok=True)
     basavg.write_bytes(b"placeholder")
     # Same control as the fixture above: an undeclared sibling must survive.
-    undeclared = project_dir / "models/hydrology/wflow/evaluation/plots/signatures_wflow_1.png"
+    undeclared = (
+        project_dir / "models/hydrology/wflow/evaluation/plots/signatures_wflow_1.png"
+    )
     undeclared.write_bytes(b"placeholder")
     return cfg_path, basavg, undeclared
 

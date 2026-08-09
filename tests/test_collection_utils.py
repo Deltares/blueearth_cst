@@ -25,9 +25,7 @@ def test_intersection_order_is_input_order_independent(left, right):
 
 
 def test_intersection_is_sorted_and_deduplicated():
-    result = intersection(
-        ["temp", "precip", "temp", "kin"], ["kin", "precip", "temp"]
-    )
+    result = intersection(["temp", "precip", "temp", "kin"], ["kin", "precip", "temp"])
 
     assert result == ["kin", "precip", "temp"]
     assert len(result) == len(set(result))

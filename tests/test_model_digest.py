@@ -68,10 +68,13 @@ def _model(tmp_path, toml=_TOML, with_instate=True, extra=None):
 # Pointer discovery — the property a fixed file list fails
 # ---------------------------------------------------------------------------
 
-_TOML_WITH_SIDE_FILE = _TOML + """
+_TOML_WITH_SIDE_FILE = (
+    _TOML
+    + """
 [input.lateral.river.lake]
 path = "lake_rating_curve.csv"
 """
+)
 
 
 def _fixed_list_digest(root):
@@ -92,8 +95,11 @@ def _fixed_list_digest(root):
 
 def test_a_new_toml_pointer_brings_its_file_into_the_digest(tmp_path):
     """A hydromt setup_* that writes a TOML-referenced side file adds an input."""
-    root = _model(tmp_path, toml=_TOML_WITH_SIDE_FILE,
-                  extra={"lake_rating_curve.csv": b"h,q\n1,2\n"})
+    root = _model(
+        tmp_path,
+        toml=_TOML_WITH_SIDE_FILE,
+        extra={"lake_rating_curve.csv": b"h,q\n1,2\n"},
+    )
     assert "lake_rating_curve.csv" in model_file_set(root)
 
 
@@ -103,8 +109,11 @@ def test_editing_a_discovered_file_alone_moves_the_digest(tmp_path):
     A fixed list cannot see this: it would catch the POINTER appearing, because
     the TOML is hashed, but not a later in-place edit of the file pointed at.
     """
-    root = _model(tmp_path, toml=_TOML_WITH_SIDE_FILE,
-                  extra={"lake_rating_curve.csv": b"h,q\n1,2\n"})
+    root = _model(
+        tmp_path,
+        toml=_TOML_WITH_SIDE_FILE,
+        extra={"lake_rating_curve.csv": b"h,q\n1,2\n"},
+    )
     before, fixed_before = model_digest(root), _fixed_list_digest(root)
 
     (root / "lake_rating_curve.csv").write_bytes(b"h,q\n1,999\n")  # TOML untouched
@@ -121,6 +130,7 @@ def test_editing_a_discovered_file_alone_moves_the_digest(tmp_path):
 # ---------------------------------------------------------------------------
 # Exclusions — structural, not a blocklist
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.parametrize(
     "rel", ["hydromt.log", "hydromt_data.yml", "staticgeoms/basins.geojson"]
@@ -142,6 +152,7 @@ def test_artifacts_wflow_never_reads_are_excluded(tmp_path, rel):
 # ---------------------------------------------------------------------------
 # The absence marker
 # ---------------------------------------------------------------------------
+
 
 def test_absent_optional_input_differs_from_present_one(tmp_path):
     """Presence and absence of the warm state are different model states."""
@@ -167,8 +178,10 @@ def test_absence_is_marked_not_omitted(tmp_path):
 # Containment, determinism, and reporting
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("escape", ["../outside.nc", "../../etc/passwd",
-                                    "forcing/../../outside.nc"])
+
+@pytest.mark.parametrize(
+    "escape", ["../outside.nc", "../../etc/passwd", "forcing/../../outside.nc"]
+)
 def test_a_pointer_escaping_the_model_root_is_an_error(tmp_path, escape):
     """Not a silently widened digest: the fingerprint claims to cover the model."""
     root = _model(tmp_path, toml=_TOML.replace("staticmaps.nc", escape))

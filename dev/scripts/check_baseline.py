@@ -60,6 +60,7 @@ Usage:
     python dev/scripts/check_baseline.py compare --ref A/output.csv --cur B/output.csv
     python dev/scripts/check_baseline.py {record,check} --project-dir test_case/test
 """
+
 from __future__ import annotations
 
 import argparse
@@ -114,11 +115,14 @@ def git_provenance(repo_root: Path = REPO_ROOT) -> dict | None:
     detached HEAD returns None rather than raising. Provenance is an aid to
     attribution, and must never be the reason a baseline command fails.
     """
+
     def _git(*args: str) -> str | None:
         try:
             out = subprocess.run(
                 ["git", "-C", str(repo_root), *args],
-                capture_output=True, text=True, timeout=15,
+                capture_output=True,
+                text=True,
+                timeout=15,
             )
         except (OSError, subprocess.SubprocessError):
             return None
@@ -141,8 +145,12 @@ def git_provenance(repo_root: Path = REPO_ROOT) -> dict | None:
 def format_provenance(prov: dict | None) -> str:
     if not prov:
         return "(unrecorded)"
-    return (f"{prov.get('branch')}@{str(prov.get('commit'))[:12]}"
-            f"{' +dirty' if prov.get('dirty') else ''}")
+    return (
+        f"{prov.get('branch')}@{str(prov.get('commit'))[:12]}"
+        f"{' +dirty' if prov.get('dirty') else ''}"
+    )
+
+
 PNG_TOLERANCE_FRAC = 0.10
 
 # Discharge comparator tolerances (ADR 0001 step 6). ATOL is set per-comparison
@@ -187,12 +195,19 @@ INDICATOR_VALUE_COLUMN = "value"
 INDICATOR_GROUP_COLUMNS = ("metric", "location")
 
 # Volatile attrs stripped before fingerprinting netCDF files.
-VOLATILE_NC_ATTRS = frozenset({
-    "history", "creation_date", "Conventions",
-    "software", "software_version",
-    "production_date", "creation_time",
-    "date_created", "date_modified",
-})
+VOLATILE_NC_ATTRS = frozenset(
+    {
+        "history",
+        "creation_date",
+        "Conventions",
+        "software",
+        "software_version",
+        "production_date",
+        "creation_time",
+        "date_created",
+        "date_modified",
+    }
+)
 
 # (workflow, kind, path-template). Templates are resolved against project_dir.
 # The workflow tag scopes `check --workflow <name>` / `record --workflow <name>`
@@ -214,13 +229,33 @@ VOLATILE_NC_ATTRS = frozenset({
 TARGETS: list[tuple[str, str, str]] = [
     # Snakefile_model_creation -- B10 (commit 12) splits the project-level
     # plots/ tree by DEPICTED subject: model inputs, the model, the run.
-    ("model_creation", "png",  "{project_dir}/models/hydrology/wflow/evaluation/plots/hydro_wflow_1.png"),
-    ("model_creation", "png",  "{project_dir}/models/hydrology/wflow/plots/basin_area.png"),
-    ("model_creation", "png",  "{project_dir}/models/hydrology/wflow/forcing/plots/forcing_precip_map.png"),
-    ("model_creation", "yaml", "{project_dir}/config/runs/snake_config_model_creation.yml"),
+    (
+        "model_creation",
+        "png",
+        "{project_dir}/models/hydrology/wflow/evaluation/plots/hydro_wflow_1.png",
+    ),
+    (
+        "model_creation",
+        "png",
+        "{project_dir}/models/hydrology/wflow/plots/basin_area.png",
+    ),
+    (
+        "model_creation",
+        "png",
+        "{project_dir}/models/hydrology/wflow/forcing/plots/forcing_precip_map.png",
+    ),
+    (
+        "model_creation",
+        "yaml",
+        "{project_dir}/config/runs/snake_config_model_creation.yml",
+    ),
     # Unmoved within the tree (prefix change only) -- and exception 3(d)
     # requires it to stay that way: if discharge moves at all, stop.
-    ("model_creation", "discharge", "{project_dir}/models/hydrology/wflow/run_default/output.csv"),
+    (
+        "model_creation",
+        "discharge",
+        "{project_dir}/models/hydrology/wflow/run_default/output.csv",
+    ),
     # Snakefile_climate_projections -- B3 (commit 9) tiers ONLY the three
     # summary files; the three PNGs deliberately stay put (arch-10).
     # S8-05: a SWAP, not a subtraction. The three wide
@@ -229,13 +264,37 @@ TARGETS: list[tuple[str, str, str]] = [
     # the change factors unfingerprinted. The two tidy tables take their place and
     # carry strictly more -- both values per row, per-row provenance, and the
     # future level the wide form never held.
-    ("climate_projections", "csv",  "{clim_project_dir}/summary/{clim_project}_change_factors_annual.csv"),
-    ("climate_projections", "csv",  "{clim_project_dir}/summary/{clim_project}_change_factors_monthly.csv"),
+    (
+        "climate_projections",
+        "csv",
+        "{clim_project_dir}/summary/{clim_project}_change_factors_annual.csv",
+    ),
+    (
+        "climate_projections",
+        "csv",
+        "{clim_project_dir}/summary/{clim_project}_change_factors_monthly.csv",
+    ),
     # S8-07 renamed all three figures.
-    ("climate_projections", "png",  "{clim_project_dir}/plots/{clim_project}_change_factor_cloud.png"),
-    ("climate_projections", "png",  "{clim_project_dir}/plots/{clim_project}_precip_annual_absolute.png"),
-    ("climate_projections", "png",  "{clim_project_dir}/plots/{clim_project}_temp_annual_absolute.png"),
-    ("climate_projections", "yaml", "{project_dir}/config/runs/snake_config_climate_projections.yml"),
+    (
+        "climate_projections",
+        "png",
+        "{clim_project_dir}/plots/{clim_project}_change_factor_cloud.png",
+    ),
+    (
+        "climate_projections",
+        "png",
+        "{clim_project_dir}/plots/{clim_project}_precip_annual_absolute.png",
+    ),
+    (
+        "climate_projections",
+        "png",
+        "{clim_project_dir}/plots/{clim_project}_temp_annual_absolute.png",
+    ),
+    (
+        "climate_projections",
+        "yaml",
+        "{project_dir}/config/runs/snake_config_climate_projections.yml",
+    ),
     # Snakefile_climate_experiment. R9 P3 renames the two tables and moves them
     # from indicators/ to results/. The wf3 config snapshot does NOT join
     # config/runs/: it stays inside the experiment (arch-10), content only.
@@ -256,7 +315,11 @@ TARGETS: list[tuple[str, str, str]] = [
     # reference table with a per-group tolerance instead -- see the indicator
     # block and INDICATOR_ATOL_FRAC.
     ("climate_experiment", "indicator", "{exp_dir}/results/q_indicators.csv"),
-    ("climate_experiment", "yaml", "{exp_dir}/config/snake_config_climate_experiment.yml"),
+    (
+        "climate_experiment",
+        "yaml",
+        "{exp_dir}/config/snake_config_climate_experiment.yml",
+    ),
 ]
 
 WORKFLOWS = ("model_creation", "climate_projections", "climate_experiment")
@@ -344,7 +407,9 @@ def fingerprint_nc(path: str) -> dict:
             else:
                 entry["count_non_nan"] = int(values.size)
                 entry["min"] = entry["max"] = entry["mean"] = entry["std"] = None
-            attrs = {k: str(v) for k, v in arr.attrs.items() if k not in VOLATILE_NC_ATTRS}
+            attrs = {
+                k: str(v) for k, v in arr.attrs.items() if k not in VOLATILE_NC_ATTRS
+            }
             entry["attrs"] = dict(sorted(attrs.items()))
             per_var[name] = entry
     js = json.dumps(per_var, sort_keys=True, ensure_ascii=False)
@@ -424,6 +489,7 @@ def compute_manifest(
 # ---------------------------------------------------------------------------
 # Discharge series: read, compare (ADR 0001 step 6), record/check integration.
 # ---------------------------------------------------------------------------
+
 
 def read_discharge_series(path: str) -> tuple[list[str], np.ndarray, str]:
     """Parse a Wflow `output.csv` (or a stored reduced reference series).
@@ -595,7 +661,9 @@ def _discharge_report_lines(report: dict) -> list[str]:
     return lines
 
 
-def _write_reference_series(path: Path, times: list[str], q: np.ndarray, col: str) -> None:
+def _write_reference_series(
+    path: Path, times: list[str], q: np.ndarray, col: str
+) -> None:
     """Write a reduced reference series (time,Q) round-trippably (full float repr)."""
     out = [f"time,{col}"]
     out.extend(f"{t},{float(v)!r}" for t, v in zip(times, q))
@@ -675,6 +743,7 @@ def check_discharge(
 # below ATOL) is the same rule.
 # ---------------------------------------------------------------------------
 
+
 def read_indicator_table(path: str) -> pd.DataFrame:
     """Parse an indicator table (or a stored reference copy) as strings + value.
 
@@ -734,9 +803,7 @@ def compare_indicator_table(ref: pd.DataFrame, cur: pd.DataFrame) -> dict:
                 f"{len(only_cur)} only-cur {only_cur}"
             )
         else:
-            structural.append(
-                f"column ORDER changed: {cur_cols} vs {ref_cols}"
-            )
+            structural.append(f"column ORDER changed: {cur_cols} vs {ref_cols}")
 
     base = {
         "ok": False,
@@ -934,7 +1001,9 @@ def diff_png(rec: dict, cur: dict) -> list[str]:
         return [] if cur_size == 0 else [f"size {cur_size}, expected 0"]
     rel = abs(cur_size - rec_size) / rec_size
     if rel > PNG_TOLERANCE_FRAC:
-        return [f"size {cur_size} vs {rec_size} ({rel:.1%} drift > {PNG_TOLERANCE_FRAC:.0%})"]
+        return [
+            f"size {cur_size} vs {rec_size} ({rel:.1%} drift > {PNG_TOLERANCE_FRAC:.0%})"
+        ]
     return []
 
 
@@ -959,7 +1028,16 @@ def diff_nc(rec: dict, cur: dict, tolerance: float = 0.0) -> list[str]:
         if var not in cur_summary:
             diffs.append(f"variable {var}: missing in current run")
             continue
-        for stat in ("shape", "dtype", "count_non_nan", "min", "max", "mean", "std", "attrs"):
+        for stat in (
+            "shape",
+            "dtype",
+            "count_non_nan",
+            "min",
+            "max",
+            "mean",
+            "std",
+            "attrs",
+        ):
             r, c = rec_summary[var].get(stat), cur_summary[var].get(stat)
             if r == c:
                 continue
@@ -1002,8 +1080,12 @@ def cmd_record(args: argparse.Namespace) -> int:
     manifest, missing = compute_manifest(
         args.project_dir, workflows=selected, include_figures=_want_figures(args)
     )
-    disch_rows, disch_missing = record_discharge(args.project_dir, ref_dir, workflows=selected)
-    ind_rows, ind_missing = record_indicator(args.project_dir, ref_dir, workflows=selected)
+    disch_rows, disch_missing = record_discharge(
+        args.project_dir, ref_dir, workflows=selected
+    )
+    ind_rows, ind_missing = record_indicator(
+        args.project_dir, ref_dir, workflows=selected
+    )
     missing = missing + disch_missing + ind_missing
     if missing:
         scope = "" if selected is None else f" for workflow(s) {sorted(selected)}"
@@ -1046,7 +1128,9 @@ def cmd_record(args: argparse.Namespace) -> int:
     }
     args.manifest.parent.mkdir(parents=True, exist_ok=True)
     args.manifest.write_text(json.dumps(payload, indent=2, sort_keys=True))
-    print(f"{verb}: {len(new_rows)} target(s) -> {args.manifest} ({len(targets)} total)")
+    print(
+        f"{verb}: {len(new_rows)} target(s) -> {args.manifest} ({len(targets)} total)"
+    )
     return 0
 
 
@@ -1082,8 +1166,8 @@ def cmd_check(args: argparse.Namespace) -> int:
                 "         The baseline fixture is untracked and therefore "
                 "SHARED BY EVERY BRANCH, so a pass here may mean the tree "
                 "matches another branch's code."
-                if not same_branch else
-                "         Same branch, different commit -- expected if the "
+                if not same_branch
+                else "         Same branch, different commit -- expected if the "
                 "recorded run predates your latest commits."
             )
         elif cur_prov.get("dirty") and not rec_prov.get("dirty"):
@@ -1147,7 +1231,9 @@ def cmd_compare(args: argparse.Namespace) -> int:
     if report["structural"]:
         print(f"STRUCTURAL MISMATCH: ref={args.ref} cur={args.cur}")
     else:
-        verdict = "PASS (immaterial / reproducible)" if report["ok"] else "FAIL (material)"
+        verdict = (
+            "PASS (immaterial / reproducible)" if report["ok"] else "FAIL (material)"
+        )
         print(f"{verdict}: ref={args.ref} cur={args.cur}")
     for line in _discharge_report_lines(report):
         print(f"  - {line}")
@@ -1161,18 +1247,28 @@ def cmd_compare(args: argparse.Namespace) -> int:
 
 
 def _add_common(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--project-dir", default=PROJECT_DIR_DEFAULT,
-                        help=f"Project directory (default: {PROJECT_DIR_DEFAULT})")
-    parser.add_argument("--manifest", type=Path, default=MANIFEST_PATH_DEFAULT,
-                        help=f"Manifest path (default: {MANIFEST_PATH_DEFAULT})")
+    parser.add_argument(
+        "--project-dir",
+        default=PROJECT_DIR_DEFAULT,
+        help=f"Project directory (default: {PROJECT_DIR_DEFAULT})",
+    )
+    parser.add_argument(
+        "--manifest",
+        type=Path,
+        default=MANIFEST_PATH_DEFAULT,
+        help=f"Manifest path (default: {MANIFEST_PATH_DEFAULT})",
+    )
     # Only `record` and `check` take this — `compare` does not read TARGETS.
-    parser.add_argument("--include-figures", action="store_true",
-                        help="Include figure targets "
-                             f"({'/'.join(sorted(FIGURE_KINDS))}). Excluded by default: "
-                             "a figure is a terminal artifact nothing downstream reads, "
-                             "and it is fingerprinted by BYTE SIZE, so any cosmetic edit "
-                             "fails the gate without indicating a defect. Record and "
-                             "check must pass this flag identically.")
+    parser.add_argument(
+        "--include-figures",
+        action="store_true",
+        help="Include figure targets "
+        f"({'/'.join(sorted(FIGURE_KINDS))}). Excluded by default: "
+        "a figure is a terminal artifact nothing downstream reads, "
+        "and it is fingerprinted by BYTE SIZE, so any cosmetic edit "
+        "fails the gate without indicating a defect. Record and "
+        "check must pass this flag identically.",
+    )
 
 
 def main() -> None:
@@ -1183,22 +1279,34 @@ def main() -> None:
 
     record_p = sub.add_parser("record", help="Record fingerprints to manifest")
     _add_common(record_p)
-    record_p.add_argument("--workflow", action="append", choices=list(WORKFLOWS),
-                          default=None,
-                          help="Record ONLY the given workflow(s) and MERGE into the "
-                               "existing manifest (other workflows' rows are preserved). "
-                               "Repeatable. Omit to record all targets (overwrite).")
+    record_p.add_argument(
+        "--workflow",
+        action="append",
+        choices=list(WORKFLOWS),
+        default=None,
+        help="Record ONLY the given workflow(s) and MERGE into the "
+        "existing manifest (other workflows' rows are preserved). "
+        "Repeatable. Omit to record all targets (overwrite).",
+    )
 
     check_p = sub.add_parser("check", help="Check current outputs against manifest")
     _add_common(check_p)
-    check_p.add_argument("--tolerance", type=float, default=0.0,
-                         help="Relative tolerance for netCDF numeric stats "
-                              "(default 0 = exact). Use 1e-9 for cross-env comparison.")
-    check_p.add_argument("--workflow", action="append", choices=list(WORKFLOWS),
-                         default=None,
-                         help="Restrict the check to targets tagged with the given "
-                              "workflow(s). Repeatable. Applied symmetrically to the "
-                              "recorded and current sides. Omit to check all targets.")
+    check_p.add_argument(
+        "--tolerance",
+        type=float,
+        default=0.0,
+        help="Relative tolerance for netCDF numeric stats "
+        "(default 0 = exact). Use 1e-9 for cross-env comparison.",
+    )
+    check_p.add_argument(
+        "--workflow",
+        action="append",
+        choices=list(WORKFLOWS),
+        default=None,
+        help="Restrict the check to targets tagged with the given "
+        "workflow(s). Repeatable. Applied symmetrically to the "
+        "recorded and current sides. Omit to check all targets.",
+    )
 
     compare_p = sub.add_parser(
         "compare", help="Compare two Wflow output.csv discharge series (ADR steps 4b/5)"

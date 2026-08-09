@@ -32,9 +32,7 @@ def test_extras_selection_and_csdms_mapping(monkeypatch):
     class _FakeMod:
         def __init__(self, *a, **k):
             self.staticmaps = SimpleNamespace(
-                data=xr.Dataset(
-                    {"outlets": (("y", "x"), np.array([[101.0]]))}
-                )
+                data=xr.Dataset({"outlets": (("y", "x"), np.array([[101.0]]))})
             )
 
         def setup_config_output_timeseries(self, **k):

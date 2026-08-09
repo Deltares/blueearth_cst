@@ -69,7 +69,7 @@ def test_F3_global_grid_weights_sum_to_the_area_of_the_sphere():
     A grid partitioning the sphere must have cell areas summing to 4*pi
     steradians. An interior-only check cannot see a mis-sized boundary cell.
     """
-    lat = np.arange(-88.75, 90.0, 2.5)      # centers; edges land exactly on +-90
+    lat = np.arange(-88.75, 90.0, 2.5)  # centers; edges land exactly on +-90
     lon = np.arange(-179.375, 180.0, 1.25)  # centers spanning the full circle
     total = cell_area_weights(lat, lon).sum()
     np.testing.assert_allclose(total, 4.0 * np.pi, rtol=1e-12)
@@ -102,9 +102,9 @@ def test_F4_two_dimensional_coordinates_are_refused_naming_the_source():
 @pytest.mark.parametrize(
     "axis",
     [
-        [0.0, 1.0, 1.0, 2.0],        # repeated value
-        [0.0, 2.0, 1.0, 3.0],        # unordered
-        [170.0, 175.0, -175.0],      # dateline-wrapped subset
+        [0.0, 1.0, 1.0, 2.0],  # repeated value
+        [0.0, 2.0, 1.0, 3.0],  # unordered
+        [170.0, 175.0, -175.0],  # dateline-wrapped subset
     ],
 )
 def test_F4_non_monotonic_axes_are_refused(axis):
@@ -124,7 +124,7 @@ def test_F4_non_uniform_1d_axis_is_ACCEPTED_not_refused():
     contradict the strict-generalization framing (falsifier F4, second direction).
     """
     gaussian_like = np.array([-70.0, -45.0, -25.0, -10.0, 10.0, 25.0, 45.0, 70.0])
-    w = latitude_weights(gaussian_like)     # must not raise
+    w = latitude_weights(gaussian_like)  # must not raise
     assert w.shape == gaussian_like.shape
     assert np.all(w > 0)
 

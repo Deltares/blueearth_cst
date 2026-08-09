@@ -23,9 +23,11 @@ def _parts(tmp_path, layout):
     """
     parts_dir = tmp_path / "_parts"
     for label, members in layout.items():
-        targets = [parts_dir / f"{label}.log"] if members is None else [
-            parts_dir / label / f"{m}.log" for m in members
-        ]
+        targets = (
+            [parts_dir / f"{label}.log"]
+            if members is None
+            else [parts_dir / label / f"{m}.log" for m in members]
+        )
         for path, tag in zip(targets, [label] if members is None else members):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(
@@ -37,10 +39,15 @@ def _parts(tmp_path, layout):
 def test_one_header_then_a_banner_per_rule(tmp_path):
     parts_dir = _parts(
         tmp_path,
-        {"2.01_fetch_gcm_raw": ["modelA", "modelB"], "2.04_derive_change_factors": None},
+        {
+            "2.01_fetch_gcm_raw": ["modelA", "modelB"],
+            "2.04_derive_change_factors": None,
+        },
     )
     out = tmp_path / "logs" / "wf2_climate_projections.log"
-    merge_logs(["2.01_fetch_gcm_raw", "2.04_derive_change_factors"], str(out), parts_dir)
+    merge_logs(
+        ["2.01_fetch_gcm_raw", "2.04_derive_change_factors"], str(out), parts_dir
+    )
     text = out.read_text(encoding="utf-8")
 
     # exactly one provenance header, and it is the merged log's own
@@ -73,7 +80,9 @@ def test_sections_follow_the_label_order_not_disk_order(tmp_path):
         {"2.01_fetch_gcm_raw": ["modelA"], "2.04_derive_change_factors": None},
     )
     out = tmp_path / "merged.log"
-    merge_logs(["2.04_derive_change_factors", "2.01_fetch_gcm_raw"], str(out), parts_dir)
+    merge_logs(
+        ["2.04_derive_change_factors", "2.01_fetch_gcm_raw"], str(out), parts_dir
+    )
     text = out.read_text(encoding="utf-8")
     assert text.index("derive_change_factors") < text.index("fetch_gcm_raw")
 

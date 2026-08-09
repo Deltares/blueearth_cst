@@ -129,9 +129,7 @@ def _read_config(config_path: str) -> Mapping[str, Any]:
     return config
 
 
-def _enabled_flags(
-    cfg: Mapping[str, Any], config_path: str
-) -> dict[str, bool]:
+def _enabled_flags(cfg: Mapping[str, Any], config_path: str) -> dict[str, bool]:
     """Validate and return workflow enablement from an already loaded config."""
 
     if "workflows" not in cfg:
@@ -153,9 +151,7 @@ def _enabled_flags(
             )
         section = workflows[name]
         if "enabled" not in section:
-            raise ConfigError(
-                f"{config_path}: missing 'workflows.{name}.enabled' key"
-            )
+            raise ConfigError(f"{config_path}: missing 'workflows.{name}.enabled' key")
         value = section["enabled"]
         if not isinstance(value, bool):
             raise ConfigError(
@@ -174,9 +170,10 @@ def _project_dir(cfg: Mapping[str, Any], config_path: str) -> Path:
     if not isinstance(project, Mapping):
         raise ConfigError(f"{config_path}: missing or invalid 'project:' section")
     project_dir = project.get("project_dir")
-    if not isinstance(project_dir, (str, os.PathLike)) or not os.fspath(
-        project_dir
-    ).strip():
+    if (
+        not isinstance(project_dir, (str, os.PathLike))
+        or not os.fspath(project_dir).strip()
+    ):
         raise ConfigError(
             f"{config_path}: 'project.project_dir' must be a non-empty path"
         )
@@ -193,9 +190,12 @@ def build_command(
     return [
         "snakemake",
         "all",
-        "-c", str(cores),
-        "-s", SNAKEFILE[name],
-        "--configfile", config_path,
+        "-c",
+        str(cores),
+        "-s",
+        SNAKEFILE[name],
+        "--configfile",
+        config_path,
         *PER_WORKFLOW_FLAGS[name],
         *extra,
     ]
@@ -473,15 +473,19 @@ def main(argv: list[str] | None = None) -> int:
         description="Run the enabled CST workflows in fixed order.",
     )
     ap.add_argument(
-        "--config", required=True,
+        "--config",
+        required=True,
         help="path to a full-orchestration snake config (config/workflows/...)",
     )
     ap.add_argument(
-        "--cores", type=int, default=3,
+        "--cores",
+        type=int,
+        default=3,
         help="cores forwarded to every snakemake invocation (default: 3)",
     )
     ap.add_argument(
-        "extra", nargs=argparse.REMAINDER,
+        "extra",
+        nargs=argparse.REMAINDER,
         help="args after `--` are appended verbatim to every invocation",
     )
     args = ap.parse_args(argv)

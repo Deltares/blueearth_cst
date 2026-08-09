@@ -288,9 +288,7 @@ def test_the_derived_report_methods_match_the_delineation():
     # insertion order, so a key reordering is a byte change in
     # spatial_report.yml that dict equality cannot see.
     _subbasin_map, subbasins, _catchments, _locations, registry, methods = result
-    derived = spatial_report(basins, subbasins, registry)[
-        "delineation_method_by_basin"
-    ]
+    derived = spatial_report(basins, subbasins, registry)["delineation_method_by_basin"]
     assert list(derived.items()) == list(methods.items())
 
 
@@ -384,9 +382,10 @@ def test_both_halves_round_trip_every_catalog_entry(tmp_path, monkeypatch):
         output_dir / "spatial_report.yml",
         output_dir / "location_registry.csv",
         output_dir / HYDROGRAPHY_SEAM_NAME,
-        *(output_dir / "geoms" / f"{name}.geojson" for name in (
-            "basins", "subbasins", "catchments", "rivers", "locations"
-        )),
+        *(
+            output_dir / "geoms" / f"{name}.geojson"
+            for name in ("basins", "subbasins", "catchments", "rivers", "locations")
+        ),
     }
     assert all(path.is_file() for path in expected)
     reopened = xr.open_dataset(output_dir / "spatial_maps.nc")
@@ -432,8 +431,15 @@ def test_the_seam_carries_the_grid_stack_with_its_dtypes(tmp_path, monkeypatch):
     # re-deriving them in the raster half is the second hydrography read §8a
     # rejects.
     assert set(seam.data_vars) >= {
-        "flow_direction", "flow_accumulation", "upstream_area", "river_mask",
-        "basin_id", "subbasin_id", "cell_area", "river_order", "elevation",
+        "flow_direction",
+        "flow_accumulation",
+        "upstream_area",
+        "river_mask",
+        "basin_id",
+        "subbasin_id",
+        "cell_area",
+        "river_order",
+        "elevation",
         "slope",
     }
     assert seam.raster.crs.to_epsg() == 3857

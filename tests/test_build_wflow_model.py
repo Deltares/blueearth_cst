@@ -90,9 +90,7 @@ def test_registry_requires_primary_ids_to_end_in_zero():
             "location_role": ["control"],
         }
     )
-    locations = gpd.GeoDataFrame(
-        registry.copy(), geometry=[Point(1, 1)], crs=4326
-    )
+    locations = gpd.GeoDataFrame(registry.copy(), geometry=[Point(1, 1)], crs=4326)
 
     with pytest.raises(ValueError, match="must end in 0"):
         _validate_registry(registry, locations)

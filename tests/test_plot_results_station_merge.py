@@ -17,6 +17,7 @@ outputs and every figure is written as ``<kind>_{station_name}.png``, so a
 user name winning on the first outlet trades the MergeError for a
 MissingOutputException.
 """
+
 from __future__ import annotations
 
 import numpy as np

@@ -19,6 +19,7 @@ Scenarios (each exits the process non-zero on failure):
     python tests/_stage_equiv_harness.py <workdir>
 Exit 0 = all pass; 1 = failure (with a diagnostic on stdout).
 """
+
 from __future__ import annotations
 
 import shutil
@@ -83,7 +84,9 @@ def _write_source(path: Path, ds: xr.Dataset, *, as_zarr: bool) -> None:
         ds.to_netcdf(path)
 
 
-def _cfg(source_root, target_root, rel, typ, time_range, *, variables=None, pattern=None):
+def _cfg(
+    source_root, target_root, rel, typ, time_range, *, variables=None, pattern=None
+):
     entry = {"name": "x", "type": typ, "path": rel, "time_range": list(time_range)}
     if variables is not None:
         entry["variables"] = list(variables)
@@ -103,24 +106,45 @@ def _open(path: Path, *, as_zarr: bool) -> xr.Dataset:
 
 # --- Phase 1: netcdf_glob ----------------------------------------------------
 
+
 def scenario_glob(work: Path) -> None:
     src = work / "src"
     years = [1998, 1999, 2000, 2001, 2002, 2003]
     for y in years:
-        _write_source(src / "meteo" / "glob" / f"y_{y}.nc", _source_ds([y]), as_zarr=False)
+        _write_source(
+            src / "meteo" / "glob" / f"y_{y}.nc", _source_ds([y]), as_zarr=False
+        )
 
     a, b = work / "gA", work / "gB"
 
     def out(root, y):
         return root / "meteo" / "glob" / f"y_{y}.nc"
 
-    _stage(_cfg(src, a, "meteo/glob", "netcdf_glob", ["2000-01-01", "2002-12-31"], pattern="y_*.nc"))
+    _stage(
+        _cfg(
+            src,
+            a,
+            "meteo/glob",
+            "netcdf_glob",
+            ["2000-01-01", "2002-12-31"],
+            pattern="y_*.nc",
+        )
+    )
     interior, new = [2000, 2001, 2002], [1998, 1999, 2003]
     for y in new:
         assert not out(a, y).exists(), f"glob narrow: {y} unexpectedly staged"
     mtimes = {y: out(a, y).stat().st_mtime_ns for y in interior}
 
-    report = _stage(_cfg(src, a, "meteo/glob", "netcdf_glob", ["1998-01-01", "2003-12-31"], pattern="y_*.nc"))
+    report = _stage(
+        _cfg(
+            src,
+            a,
+            "meteo/glob",
+            "netcdf_glob",
+            ["1998-01-01", "2003-12-31"],
+            pattern="y_*.nc",
+        )
+    )
     for y in interior:
         assert out(a, y).stat().st_mtime_ns == mtimes[y], f"glob widen: {y} rewritten"
     for y in new:
@@ -128,7 +152,16 @@ def scenario_glob(work: Path) -> None:
     c = report.counts()
     assert c[sd.WRITTEN] == 3 and c[sd.EXISTS] == 3, f"glob widen counts {c}"
 
-    _stage(_cfg(src, b, "meteo/glob", "netcdf_glob", ["1998-01-01", "2003-12-31"], pattern="y_*.nc"))
+    _stage(
+        _cfg(
+            src,
+            b,
+            "meteo/glob",
+            "netcdf_glob",
+            ["1998-01-01", "2003-12-31"],
+            pattern="y_*.nc",
+        )
+    )
     for y in years:
         da, db = xr.open_dataset(out(a, y)), xr.open_dataset(out(b, y))
         try:
@@ -140,6 +173,7 @@ def scenario_glob(work: Path) -> None:
 
 # --- Phase 2: single-store rebuild (zarr + netcdf) ---------------------------
 
+
 def _rebuild_value_identity(work: Path, typ: str, as_zarr: bool) -> None:
     """Widening (a prepend) incrementally == wide-from-scratch."""
     src = work / "src"
@@ -147,9 +181,9 @@ def _rebuild_value_identity(work: Path, typ: str, as_zarr: bool) -> None:
     _write_source(src / rel, _source_ds(range(1998, 2004)), as_zarr=as_zarr)
     a, b = work / "A", work / "B"
 
-    _stage(_cfg(src, a, rel, typ, ["2001-01-01", "2002-12-31"]))   # narrow
-    _stage(_cfg(src, a, rel, typ, ["1999-01-01", "2002-12-31"]))   # widen (prepend)
-    _stage(_cfg(src, b, rel, typ, ["1999-01-01", "2002-12-31"]))   # from scratch
+    _stage(_cfg(src, a, rel, typ, ["2001-01-01", "2002-12-31"]))  # narrow
+    _stage(_cfg(src, a, rel, typ, ["1999-01-01", "2002-12-31"]))  # widen (prepend)
+    _stage(_cfg(src, b, rel, typ, ["1999-01-01", "2002-12-31"]))  # from scratch
 
     da, db = _open(a / rel, as_zarr=as_zarr), _open(b / rel, as_zarr=as_zarr)
     try:
@@ -168,14 +202,18 @@ def _rebuild_provenance(work: Path, typ: str, as_zarr: bool) -> None:
     _write_source(src / rel, _source_ds(range(1998, 2004)), as_zarr=as_zarr)
     a = work / "P"
 
-    _stage(_cfg(src, a, rel, typ, ["2001-01-01", "2002-12-31"]))   # narrow
+    _stage(_cfg(src, a, rel, typ, ["2001-01-01", "2002-12-31"]))  # narrow
     ds0 = _open(a / rel, as_zarr=as_zarr)
     overlap_2001 = ds0["precip"].sel(time=_year_times(2001)).values.copy()
     ds0.close()
 
     # Mutate the source's 2001 overlap, then widen: 2001 must NOT be re-read.
-    _write_source(src / rel, _source_ds(range(1998, 2004), bump_year=2001, bump=9999.0), as_zarr=as_zarr)
-    _stage(_cfg(src, a, rel, typ, ["1999-01-01", "2002-12-31"]))   # widen
+    _write_source(
+        src / rel,
+        _source_ds(range(1998, 2004), bump_year=2001, bump=9999.0),
+        as_zarr=as_zarr,
+    )
+    _stage(_cfg(src, a, rel, typ, ["1999-01-01", "2002-12-31"]))  # widen
 
     ds1 = _open(a / rel, as_zarr=as_zarr)
     try:
@@ -185,8 +223,12 @@ def _rebuild_provenance(work: Path, typ: str, as_zarr: bool) -> None:
         )
         # The prepended delta (1999) is present and unmutated.
         got_1999 = ds1["precip"].sel(time=_year_times(1999)).values
-        expected_1999 = _year_ds(1999, with_temp=False, precip_bump=0.0)["precip"].values
-        assert np.allclose(got_1999, expected_1999), f"{typ}: prepended 1999 delta wrong"
+        expected_1999 = _year_ds(1999, with_temp=False, precip_bump=0.0)[
+            "precip"
+        ].values
+        assert np.allclose(got_1999, expected_1999), (
+            f"{typ}: prepended 1999 delta wrong"
+        )
     finally:
         ds1.close()
 
@@ -195,18 +237,35 @@ def _rebuild_add_variable(work: Path) -> None:
     """Adding a variable pulls only the new var from source; precip is reused."""
     src = work / "src"
     rel = "meteo/addvar.zarr"
-    _write_source(src / rel, _source_ds(range(2001, 2003), with_temp=True), as_zarr=True)
+    _write_source(
+        src / rel, _source_ds(range(2001, 2003), with_temp=True), as_zarr=True
+    )
     a = work / "V"
 
-    _stage(_cfg(src, a, rel, "zarr", ["2001-01-01", "2002-12-31"], variables=["precip"]))
+    _stage(
+        _cfg(src, a, rel, "zarr", ["2001-01-01", "2002-12-31"], variables=["precip"])
+    )
     ds0 = xr.open_zarr(a / rel, consolidated=True)
     assert "temp" not in ds0.data_vars, "addvar narrow: temp should not be staged yet"
     precip0 = ds0["precip"].values.copy()
     ds0.close()
 
     # Mutate source precip; add temp to the request. precip must be reused.
-    _write_source(src / rel, _source_ds(range(2001, 2003), with_temp=True, bump_year=2001, bump=9999.0), as_zarr=True)
-    _stage(_cfg(src, a, rel, "zarr", ["2001-01-01", "2002-12-31"], variables=["precip", "temp"]))
+    _write_source(
+        src / rel,
+        _source_ds(range(2001, 2003), with_temp=True, bump_year=2001, bump=9999.0),
+        as_zarr=True,
+    )
+    _stage(
+        _cfg(
+            src,
+            a,
+            rel,
+            "zarr",
+            ["2001-01-01", "2002-12-31"],
+            variables=["precip", "temp"],
+        )
+    )
 
     ds1 = xr.open_zarr(a / rel, consolidated=True)
     try:
@@ -215,7 +274,9 @@ def _rebuild_add_variable(work: Path) -> None:
             "addvar: precip was re-read from the mutated source, not reused"
         )
         expected_temp = _source_ds(range(2001, 2003), with_temp=True)["temp"].values
-        assert np.allclose(ds1["temp"].values, expected_temp), "addvar: temp values wrong"
+        assert np.allclose(ds1["temp"].values, expected_temp), (
+            "addvar: temp values wrong"
+        )
     finally:
         ds1.close()
 
@@ -226,18 +287,21 @@ def _rebuild_preserves_packing(work: Path) -> None:
     rel = "meteo/packed.nc"
     ds = _source_ds(range(1999, 2003))
     ds["precip"].encoding = {
-        "dtype": "int16", "scale_factor": 0.1, "_FillValue": -9999, "zlib": True,
+        "dtype": "int16",
+        "scale_factor": 0.1,
+        "_FillValue": -9999,
+        "zlib": True,
     }
     _write_source(src / rel, ds, as_zarr=False)
     a, b = work / "A", work / "B"
 
-    _stage(_cfg(src, a, rel, "netcdf", ["2001-01-01", "2002-12-31"]))   # narrow
-    _stage(_cfg(src, a, rel, "netcdf", ["1999-01-01", "2002-12-31"]))   # widen (rebuild)
-    _stage(_cfg(src, b, rel, "netcdf", ["1999-01-01", "2002-12-31"]))   # from scratch
+    _stage(_cfg(src, a, rel, "netcdf", ["2001-01-01", "2002-12-31"]))  # narrow
+    _stage(_cfg(src, a, rel, "netcdf", ["1999-01-01", "2002-12-31"]))  # widen (rebuild)
+    _stage(_cfg(src, b, rel, "netcdf", ["1999-01-01", "2002-12-31"]))  # from scratch
 
     da, db = xr.open_dataset(a / rel), xr.open_dataset(b / rel)
     try:
-        xr.testing.assert_identical(da, db)                     # decoded values match
+        xr.testing.assert_identical(da, db)  # decoded values match
         assert da["precip"].encoding.get("dtype") == np.dtype("int16"), (
             "rebuild lost int16 packing (stored as float)"
         )
@@ -253,7 +317,10 @@ def _chunked_download_equiv(work: Path) -> None:
     rel = "meteo/chunked.nc"
     ds = _source_ds(range(1999, 2003))  # 16 timesteps
     ds["precip"].encoding = {
-        "dtype": "int16", "scale_factor": 0.1, "_FillValue": -9999, "zlib": True,
+        "dtype": "int16",
+        "scale_factor": 0.1,
+        "_FillValue": -9999,
+        "zlib": True,
     }
     _write_source(src / rel, ds, as_zarr=False)
     a, b = work / "A", work / "B"
@@ -262,7 +329,7 @@ def _chunked_download_equiv(work: Path) -> None:
     try:
         sd.DOWNLOAD_BLOCK_STEPS = 10_000  # single-load reference
         _stage(_cfg(src, b, rel, "netcdf", ["1999-01-01", "2002-12-31"]))
-        sd.DOWNLOAD_BLOCK_STEPS = 3       # force a multi-block chunked download
+        sd.DOWNLOAD_BLOCK_STEPS = 3  # force a multi-block chunked download
         _stage(_cfg(src, a, rel, "netcdf", ["1999-01-01", "2002-12-31"]))
     finally:
         sd.DOWNLOAD_BLOCK_STEPS = orig

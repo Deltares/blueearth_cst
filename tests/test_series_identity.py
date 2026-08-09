@@ -15,6 +15,7 @@ turn on:
 
 All offline: no network, no hydromt.
 """
+
 from __future__ import annotations
 
 import json
@@ -116,6 +117,7 @@ def _components(catalog_path, members=("r1i1p1f1",), **overrides):
 # acquisition window and key grammar
 # --------------------------------------------------------------------------
 
+
 def test_acquisition_window_is_fixed_per_experiment_class():
     assert si.acquisition_window("historical") == ("1950-01-01", "2014-12-31")
     for ssp in ("ssp126", "ssp245", "ssp370", "ssp585", "ssp534-over"):
@@ -132,6 +134,7 @@ def test_series_key_sanitizes_the_vendor_path_segment():
 # --------------------------------------------------------------------------
 # catalog parsing: merge keys MUST resolve
 # --------------------------------------------------------------------------
+
 
 def test_merge_keys_resolve_on_a_non_anchor_entry(catalog):
     """§5.3: a parser that ignores `<<` sees no driver block, silently.
@@ -155,6 +158,7 @@ def test_absent_entry_raises_naming_itself(catalog):
 # --------------------------------------------------------------------------
 # §5.3 exclusions — the three falsifiable cache consequences
 # --------------------------------------------------------------------------
+
 
 def test_adding_a_member_to_placeholders_does_not_change_the_digest(catalog, tmp_path):
     """Consequence 1: regeneration after the store gains a member re-derives ZERO.
@@ -186,7 +190,9 @@ def test_changing_the_shared_driver_block_changes_the_digest(catalog, tmp_path):
     resolved — a parser ignoring `<<` would see no change here.
     """
     before = _components(catalog)
-    changed = CATALOG_YAML.replace("      - time_bnds\n", "      - time_bnds\n      - lat_bnds\n")
+    changed = CATALOG_YAML.replace(
+        "      - time_bnds\n", "      - time_bnds\n      - lat_bnds\n"
+    )
     path = tmp_path / "changed_driver.yml"
     path.write_text(changed, encoding="utf-8")
     assert si.series_digest(before, "fp") != si.series_digest(_components(path), "fp")
@@ -238,6 +244,7 @@ def test_horizons_are_not_a_digest_component(catalog):
 # D9 — region identified by content
 # --------------------------------------------------------------------------
 
+
 def _write_region(path, coords):
     payload = {
         "type": "FeatureCollection",
@@ -266,7 +273,10 @@ def test_region_fingerprint_is_stable_across_formatting(tmp_path):
     a = _write_region(tmp_path / "a.geojson", SQUARE)
     b = tmp_path / "b.geojson"
     # same geometry, different JSON formatting (indentation + key order)
-    b.write_text(json.dumps(json.loads(a.read_text(encoding="utf-8")), indent=4), encoding="utf-8")
+    b.write_text(
+        json.dumps(json.loads(a.read_text(encoding="utf-8")), indent=4),
+        encoding="utf-8",
+    )
     assert si.region_fingerprint(a) == si.region_fingerprint(b)
 
 
@@ -281,12 +291,15 @@ def test_region_fingerprint_changes_when_the_geometry_changes(tmp_path):
 
 def test_digest_depends_on_the_region_fingerprint(catalog):
     components = _components(catalog)
-    assert si.series_digest(components, "fp-one") != si.series_digest(components, "fp-two")
+    assert si.series_digest(components, "fp-one") != si.series_digest(
+        components, "fp-two"
+    )
 
 
 # --------------------------------------------------------------------------
 # risk-03 — mechanical reducer version
 # --------------------------------------------------------------------------
+
 
 def test_module_hash_changes_with_content_and_ignores_directory(tmp_path):
     one = tmp_path / "d1"
@@ -322,6 +335,7 @@ def test_module_hash_notices_a_rename(tmp_path):
 # D12 — read-time pin verification
 # --------------------------------------------------------------------------
 
+
 def test_verify_pins_passes_when_the_store_matches():
     pinned = {"pr": ["gn/v1"], "tas": ["gn/v1"]}
     si.verify_pins(pinned, pinned, MERGED_ENTRY, "r1i1p1f1")  # no raise
@@ -356,6 +370,7 @@ def test_load_pins_returns_empty_for_an_unknown_member(index):
 # --------------------------------------------------------------------------
 # revalidation and the stage-B backstop
 # --------------------------------------------------------------------------
+
 
 def _write_series(path, digest, version=si.SCHEMA_VERSION):
     xr = pytest.importorskip("xarray")
@@ -436,6 +451,7 @@ def test_member_order_does_not_change_the_identity(catalog):
 # kernel_hash — invalidation tracks BEHAVIOUR, not file bytes (efficiency fix 2)
 # --------------------------------------------------------------------------
 
+
 def _compile_reduce(*lines):
     """Compile a `reduce` function from source lines, under a fixed qualname.
 
@@ -512,9 +528,17 @@ def test_kernel_hash_notices_a_changed_error_message():
     [
         ("dim kwarg", "ds.mean(dim='time')", "ds.mean(dim='month')"),
         ("variable key", "ds['pr'].mean()", "ds['tas'].mean()"),
-        ("resample code", "ds.resample(time='MS').mean()", "ds.resample(time='YS').mean()"),
+        (
+            "resample code",
+            "ds.resample(time='MS').mean()",
+            "ds.resample(time='YS').mean()",
+        ),
         ("groupby key", "ds.groupby('time.month')", "ds.groupby('time.season')"),
-        ("date bound", "ds.sel(time=slice('2000', '2014'))", "ds.sel(time=slice('2000', '2020'))"),
+        (
+            "date bound",
+            "ds.sel(time=slice('2000', '2014'))",
+            "ds.sel(time=slice('2000', '2020'))",
+        ),
     ],
 )
 def test_kernel_hash_notices_a_changed_string_constant(name, before, after):
@@ -526,6 +550,7 @@ def test_kernel_hash_notices_a_changed_string_constant(name, before, after):
 
 def test_kernel_hash_notices_a_changed_default_argument():
     """Defaults live on the function object, not in the code object."""
+
     def before(ds, offset=273.15):
         return ds - offset
 
@@ -545,6 +570,7 @@ def test_kernel_hash_notices_a_changed_default_argument():
 
 def test_kernel_hash_notices_a_changed_environment():
     """A dependency upgrade must re-derive: the numbers depend on xarray, not only source."""
+
     def reduce(ds):
         return ds.mean()
 
@@ -584,6 +610,7 @@ def test_kernel_hash_changes_when_the_formula_changes():
 
 def test_kernel_hash_changes_when_a_numeric_threshold_changes():
     """A changed constant is a behaviour change even if the code shape is identical."""
+
     def before(x):
         return x > 0.1
 
@@ -622,6 +649,7 @@ def test_kernel_hash_is_order_independent_but_name_sensitive():
 # --------------------------------------------------------------------------
 # revision 6 — the fetch/reduce split: two cache layers, one identity each
 # --------------------------------------------------------------------------
+
 
 def _split_components(reducer_hash="deadbeef"):
     """A digest-component set shaped like the Snakefile's, cheap to build."""
@@ -681,14 +709,23 @@ def test_raw_components_drops_only_the_reducer_hash():
     }
 
 
-def _write_raw(path, digest, *, window=("2015-01-01", "2100-12-31"), variables=("precip", "temp"),
-               schema=None, times=None):
+def _write_raw(
+    path,
+    digest,
+    *,
+    window=("2015-01-01", "2100-12-31"),
+    variables=("precip", "temp"),
+    schema=None,
+    times=None,
+):
     """A minimal raw-slice netCDF carrying the attributes the reduce stage checks."""
     import numpy as np
     import pandas as pd
     import xarray as xr
 
-    times = pd.date_range("2015-01-01", periods=3, freq="MS") if times is None else times
+    times = (
+        pd.date_range("2015-01-01", periods=3, freq="MS") if times is None else times
+    )
     ds = xr.Dataset(
         {v: ("time", np.arange(len(times), dtype="float32")) for v in variables},
         coords={"time": times},
@@ -814,8 +851,10 @@ def test_write_netcdf_atomic_skips_scalars(tmp_path):
     import xarray as xr
 
     ds = xr.Dataset(
-        {"precip": (("time",), np.arange(8.0, dtype="float32")),
-         "spatial_ref": ((), np.int64(0))}
+        {
+            "precip": (("time",), np.arange(8.0, dtype="float32")),
+            "spatial_ref": ((), np.int64(0)),
+        }
     )
     path = tmp_path / "slice.nc"
     si.write_netcdf_atomic(ds, path)  # must not raise
@@ -826,7 +865,9 @@ def test_write_netcdf_atomic_skips_scalars(tmp_path):
 
 
 def test_pinned_uri_narrows_the_glob_to_the_recorded_store():
-    uri = "gs://cmip6/CMIP6/ScenarioMIP/INM/INM-CM4-8/ssp245/{member}/Amon/{variable}/*/*"
+    uri = (
+        "gs://cmip6/CMIP6/ScenarioMIP/INM/INM-CM4-8/ssp245/{member}/Amon/{variable}/*/*"
+    )
     pins = {"pr": ["gr1/v20190603"], "tas": ["gr1/v20190603"]}
 
     assert si.pinned_uri(uri, pins) == (
@@ -846,7 +887,9 @@ def test_pinned_uri_keeps_the_glob_when_pins_cannot_name_one_store():
     D8 duplicate-time-axis assertion still sees the ambiguity instead of the pin
     silently choosing one store.
     """
-    uri = "gs://cmip6/CMIP6/CMIP/AS-RCEC/TaiESM1/historical/{member}/Amon/{variable}/*/*"
+    uri = (
+        "gs://cmip6/CMIP6/CMIP/AS-RCEC/TaiESM1/historical/{member}/Amon/{variable}/*/*"
+    )
 
     assert si.pinned_uri(uri, {}) is None  # no pin recorded (best-effort variable)
     assert si.pinned_uri(uri, {"pr": ["gn/v1"], "tas": ["gn/v2"]}) is None  # divergent
@@ -897,7 +940,9 @@ def test_kernel_hash_is_stable_for_a_function_containing_a_closure():
         def outer(x):
             def inner(y):
                 return y * 2
+
             return inner(x)
+
         return outer
 
     first, second = make(), make()
@@ -911,11 +956,13 @@ def test_kernel_hash_still_moves_when_a_closure_body_changes():
     def a(x):
         def inner(y):
             return y * 2
+
         return inner(x)
 
     def b(x):
         def inner(y):
             return y * 3
+
         return inner(x)
 
     assert si.kernel_hash([a]) != si.kernel_hash([b])
@@ -934,6 +981,7 @@ def test_kernel_hash_is_stable_for_set_literal_constants():
 # ---------------------------------------------------------------------------
 # Inherited single-source CMIP6 provenance (R9 P2 F4)
 # ---------------------------------------------------------------------------
+
 
 class _FakeDataset:
     """Just the `.attrs` surface the dropper touches — no xarray needed."""

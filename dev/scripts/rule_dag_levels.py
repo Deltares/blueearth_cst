@@ -146,18 +146,25 @@ def job_counts(dag_dot: str) -> dict[str, tuple[int, int]]:
     return {rule: (pair[0], pair[1]) for rule, pair in counts.items()}
 
 
-def run_snakemake(mode: str, snakefile: Path, configfile: Path, target: str,
-                  extra: list[str]) -> str:
+def run_snakemake(
+    mode: str, snakefile: Path, configfile: Path, target: str, extra: list[str]
+) -> str:
     """Invoke one non-executing snakemake graph mode and return its stdout.
 
     ``python -m snakemake`` rather than the console script, so the interpreter
     running this helper is the one that resolves the workflow's imports.
     """
     command = [
-        sys.executable, "-m", "snakemake", target,
-        mode, "dot",
-        "-s", str(snakefile),
-        "--configfile", str(configfile),
+        sys.executable,
+        "-m",
+        "snakemake",
+        target,
+        mode,
+        "dot",
+        "-s",
+        str(snakefile),
+        "--configfile",
+        str(configfile),
         *extra,
     ]
     result = subprocess.run(command, cwd=REPO, capture_output=True, text=True)
@@ -189,13 +196,14 @@ def format_table(
         if previous is not None and level != previous:
             lines.append("")
         lines.append(
-            f"{level:>5}  {rule:<{width}}  "
-            f"{to_run or '-':>5}  {cached or '-':>6}"
+            f"{level:>5}  {rule:<{width}}  {to_run or '-':>5}  {cached or '-':>6}"
         )
         previous = level
     for rule in unknown:
         to_run, cached = counts[rule]
-        lines.append(f"{'?':>5}  {rule:<{width}}  {to_run or '-':>5}  {cached or '-':>6}")
+        lines.append(
+            f"{'?':>5}  {rule:<{width}}  {to_run or '-':>5}  {cached or '-':>6}"
+        )
     return lines
 
 
@@ -204,15 +212,22 @@ def main() -> None:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument(
-        "-s", "--snakefile", type=Path, required=True,
+        "-s",
+        "--snakefile",
+        type=Path,
+        required=True,
         help="the Snakefile to inspect (e.g. Snakefile_climate_projections)",
     )
     parser.add_argument(
-        "--configfile", type=Path, required=True,
+        "--configfile",
+        type=Path,
+        required=True,
         help="the --configfile the workflow would be run with",
     )
     parser.add_argument(
-        "--target", default="all", help="target rule to build the DAG for (default: all)"
+        "--target",
+        default="all",
+        help="target rule to build the DAG for (default: all)",
     )
     parser.add_argument(
         "extra", nargs="*", help="extra arguments forwarded to snakemake, after `--`"
@@ -220,7 +235,9 @@ def main() -> None:
     args = parser.parse_args()
 
     levels = rule_levels(
-        run_snakemake("--rulegraph", args.snakefile, args.configfile, args.target, args.extra)
+        run_snakemake(
+            "--rulegraph", args.snakefile, args.configfile, args.target, args.extra
+        )
     )
     counts = job_counts(
         run_snakemake("--dag", args.snakefile, args.configfile, args.target, args.extra)
@@ -237,8 +254,10 @@ def main() -> None:
     total_run = sum(run for run, _ in counts.values())
     total_cached = sum(cached for _, cached in counts.values())
     widest = max(
-        (sum(counts.get(r, (0, 0))[0] for r, lv in levels.items() if lv == level)
-         for level in set(levels.values())),
+        (
+            sum(counts.get(r, (0, 0))[0] for r, lv in levels.items() if lv == level)
+            for level in set(levels.values())
+        ),
         default=0,
     )
     print(

@@ -95,9 +95,9 @@ def test_the_member_regex_bars_the_baseline_but_admits_padded_members():
     """
     rx = re.compile(f"^{member_index_regex(2)}$")
     assert rx.match("01") and rx.match("10") and rx.match("12")
-    assert not rx.match("00")          # the baseline
-    assert not rx.match("1")           # UNPADDED -> MissingRuleException, not a silent route
-    assert not rx.match("001")         # wrong width
+    assert not rx.match("00")  # the baseline
+    assert not rx.match("1")  # UNPADDED -> MissingRuleException, not a silent route
+    assert not rx.match("001")  # wrong width
 
 
 def test_the_member_regex_at_width_one_is_just_the_nonzero_digits():

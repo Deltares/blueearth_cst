@@ -50,6 +50,7 @@ def _touch(root, rel, text="x"):
 # Parameter derivation
 # ---------------------------------------------------------------------------
 
+
 def test_map_parameters_are_derived_the_way_the_workflows_build_them():
     params = spt.map_parameters(_config("proj"))
     assert params == {
@@ -80,6 +81,7 @@ def test_a_sub_day_window_fails_loud():
 # The walk
 # ---------------------------------------------------------------------------
 
+
 def test_list_tree_returns_sorted_relative_posix_paths(tmp_path):
     _touch(tmp_path, "b/second.nc")
     _touch(tmp_path, "a/first.csv")
@@ -90,9 +92,9 @@ def test_snakemake_metadata_is_excluded_but_nothing_else_is(tmp_path):
     """`.snakemake/` is bookkeeping. Everything else is kept ON PURPOSE --
     an observed snapshot exists to carry artifacts no rule declares."""
     _touch(tmp_path, ".snakemake/log/whatever.log")
-    _touch(tmp_path, "hydrology_model/hydromt.log")     # undeclared, kept
-    _touch(tmp_path, "logs/wf1_model_creation.log")     # excluded from tree
-    _touch(tmp_path, "hydrology_model/.model_built")    # dotfile, kept
+    _touch(tmp_path, "hydrology_model/hydromt.log")  # undeclared, kept
+    _touch(tmp_path, "logs/wf1_model_creation.log")  # excluded from tree
+    _touch(tmp_path, "hydrology_model/.model_built")  # dotfile, kept
     assert spt.list_tree(tmp_path) == [
         "hydrology_model/.model_built",
         "hydrology_model/hydromt.log",
@@ -124,11 +126,12 @@ def test_relative_project_dir_resolves_against_the_cwd_not_the_tool_repo(tmp_pat
 # End to end
 # ---------------------------------------------------------------------------
 
+
 def _tree(tmp_path):
     """A miniature pre-migration tree: one mapped file, one orphan."""
     proj = tmp_path / "proj"
     _touch(proj, "hydrology_model/staticmaps.nc")
-    _touch(proj, "logs/1.03_create_model.log")   # pre-_parts orphan shape
+    _touch(proj, "logs/1.03_create_model.log")  # pre-_parts orphan shape
     return proj
 
 
@@ -204,12 +207,15 @@ def test_out_writes_a_snapshot_the_falsifier_can_read_back(tmp_path):
 
     text = out.read_text(encoding="utf-8")
     assert "# PROVENANCE" in text
-    assert "era5_20000101_20201231" in text          # the derived store key
-    assert "my_experiment" in text                   # the derived experiment
+    assert "era5_20000101_20201231" in text  # the derived store key
+    assert "my_experiment" in text  # the derived experiment
     # `--check-map` skips comments and blank lines; what is left must be the
     # exact path list, so the two tools cannot disagree about the snapshot.
-    payload = [ln.strip() for ln in text.splitlines()
-               if ln.strip() and not ln.lstrip().startswith("#")]
+    payload = [
+        ln.strip()
+        for ln in text.splitlines()
+        if ln.strip() and not ln.lstrip().startswith("#")
+    ]
     assert payload == spt.list_tree(proj)
 
 
@@ -248,7 +254,8 @@ def test_gap_rules_still_wire_through_when_the_set_is_non_empty(
     `instate/` case did when its candidate was retired.
     """
     monkeypatch.setattr(
-        spt.std, "build_r09_gap_rules",
+        spt.std,
+        "build_r09_gap_rules",
         lambda _e: [("some_future_dir/", "data/some_future_dir/")],
     )
     proj = tmp_path / "proj"

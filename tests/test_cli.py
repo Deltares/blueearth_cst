@@ -20,6 +20,7 @@ linux_config_fn = join(
     SNAKEDIR, "config", "workflows", "snake_config_model_test_linux.yml"
 )
 
+
 def _dry_run(snakefile, cfg=config_fn):
     """Dry-run a Snakefile on a config; return the completed process.
 
@@ -274,9 +275,7 @@ def test_snakefile_cli_climate_projections(config_with_staged_region):
     weakening the contract; workflow 2's Snakefile is untouched (R4 territory).
     Was a MissingInputException ratchet pre-R3 (dev/tasks/).
     """
-    result = _dry_run(
-        "Snakefile_climate_projections", cfg=config_with_staged_region
-    )
+    result = _dry_run("Snakefile_climate_projections", cfg=config_with_staged_region)
     assert result.returncode == 0, (result.stdout or "") + (result.stderr or "")
 
 
@@ -319,7 +318,5 @@ def test_snakefile_cli_climate_experiment(config_with_staged_region):
     unbuilt cross-workflow leaf). Was a CyclicGraphException ratchet pre-R5
     (dev/tasks/ § R3).
     """
-    result = _dry_run(
-        "Snakefile_climate_experiment", cfg=config_with_staged_region
-    )
+    result = _dry_run("Snakefile_climate_experiment", cfg=config_with_staged_region)
     assert result.returncode == 0, (result.stdout or "") + (result.stderr or "")

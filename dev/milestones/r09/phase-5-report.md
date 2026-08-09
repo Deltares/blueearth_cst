@@ -62,7 +62,7 @@ bookkeeping, they are places where a naive sweep would have done damage.
 | **Prior-release migration guides** — `docs/migration-r06.md`, `docs/migration-r08-wf2.md` | They exist to describe the tree a user is coming *from*. |
 | **`config/runs/<workflow>/` — current and correct** | `Snakefile_climate_projections:61` and `wf2_climate_projections_overview.md:122` carry `config/runs/climate_projections/<digest>/`. The snapshot directory is keyed by **workflow name**, so the term `climate_projections/` matches a path that is right. Naming this class explicitly is the point: without it, the next sweep "fixes" a correct path. |
 | **Rename records** — `naming.md` §6/§7, `check_baseline.py:185`, `plot_workflow_dag.py:16`, closed `followups.md` entries | "X was renamed to Y" must name X. |
-| **Task briefs** — `dev/working/wf1-spatial-decoupling/*.md` | Records of what was asked at the time. |
+| **Task briefs** — `dev/milestones/r09/wf1-spatial-decoupling/*.md` | Records of what was asked at the time. |
 
 ### Real hits — what was fixed
 

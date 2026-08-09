@@ -17,6 +17,7 @@ edit-then-``--dry-run``. The real execution is never repeated between
 mutations — that would move the recorded-params baseline and invalidate the
 (l) revert check.
 """
+
 from __future__ import annotations
 
 import subprocess
@@ -94,9 +95,7 @@ def staged_project(tmp_path):
     #   * the region, which since ADR 0003 wf3 reads not at all, staged only to
     #     keep the project looking like a completed wf1 run.
     config_text = yaml.safe_dump(base)
-    cwi.stage(
-        pdir, config_text, extras=(cwi.EXTRA_REGION, cwi.EXTRA_WF2_SNAPSHOT)
-    )
+    cwi.stage(pdir, config_text, extras=(cwi.EXTRA_REGION, cwi.EXTRA_WF2_SNAPSHOT))
     snap_dir = pdir / "config" / "runs"
     wf1 = snap_dir / "snake_config_model_creation.yml"
     wf2 = snap_dir / "snake_config_climate_projections.yml"

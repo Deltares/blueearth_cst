@@ -16,8 +16,18 @@ from blueearth_cst.projections.variable_spec import (
 )
 
 SEED = {
-    "precip": {"source": "precip", "canonical": "rate", "units": "mm/day", "change": "relative"},
-    "temp": {"source": "temp", "canonical": "state", "units": "degC", "change": "absolute"},
+    "precip": {
+        "source": "precip",
+        "canonical": "rate",
+        "units": "mm/day",
+        "change": "relative",
+    },
+    "temp": {
+        "source": "temp",
+        "canonical": "state",
+        "units": "degC",
+        "change": "absolute",
+    },
 }
 
 
@@ -27,17 +37,31 @@ def test_K7_change_semantics_come_from_the_spec_not_the_name():
     Under the old list form this was differenced as though it were a temperature,
     silently, and the fixture could never show it.
     """
-    spec = parse({
-        "rainfall": {"source": "rainfall", "canonical": "rate", "units": "mm/day", "change": "relative"},
-    })
+    spec = parse(
+        {
+            "rainfall": {
+                "source": "rainfall",
+                "canonical": "rate",
+                "units": "mm/day",
+                "change": "relative",
+            },
+        }
+    )
     assert change_kind(spec, "rainfall") == "relative"
 
 
 def test_K7_a_variable_NAMED_precip_can_be_declared_absolute():
     """The inverse, which the name-based guess could never express."""
-    spec = parse({
-        "precip": {"source": "precip", "canonical": "rate", "units": "mm/day", "change": "absolute"},
-    })
+    spec = parse(
+        {
+            "precip": {
+                "source": "precip",
+                "canonical": "rate",
+                "units": "mm/day",
+                "change": "absolute",
+            },
+        }
+    )
     assert change_kind(spec, "precip") == "absolute"
 
 
@@ -70,9 +94,7 @@ def test_every_field_is_required(field):
         parse({"precip": body})
 
 
-@pytest.mark.parametrize(
-    "field,bad", [("canonical", "flux"), ("change", "ratio")]
-)
+@pytest.mark.parametrize("field,bad", [("canonical", "flux"), ("change", "ratio")])
 def test_enumerated_fields_reject_unknown_values(field, bad):
     body = dict(SEED["precip"])
     body[field] = bad
@@ -82,9 +104,12 @@ def test_enumerated_fields_reject_unknown_values(field, bad):
 
 def test_source_names_are_sorted_for_a_stable_digest():
     """Unordered would make the cache key depend on mapping iteration order."""
-    spec = parse({
-        "temp": SEED["temp"], "precip": SEED["precip"],
-    })
+    spec = parse(
+        {
+            "temp": SEED["temp"],
+            "precip": SEED["precip"],
+        }
+    )
     assert source_names(spec) == ["precip", "temp"]
 
 

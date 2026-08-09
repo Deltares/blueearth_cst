@@ -29,7 +29,7 @@ def test_K3_window_overrunning_the_historical_end_is_clipped():
 
 
 def test_K3_the_warning_names_requested_AND_effective():
-    """"Clipped" alone does not let a reader judge the damage."""
+    """ "Clipped" alone does not let a reader judge the damage."""
     lines = window_warnings(clip_reference_window([1990, 2030]))
     clip_line = next(line for line in lines if "clipped" in line)
     assert "1990-2030" in clip_line and f"1990-{HISTORICAL_END_YEAR}" in clip_line
@@ -117,7 +117,8 @@ def test_K6_a_clipped_window_can_trigger_BOTH_warnings():
 
 
 @pytest.mark.parametrize(
-    "requested", [[1990, 2010], ("1990", "2010"), "1990, 2010", ["1990-01-01", "2010-12-31"]]
+    "requested",
+    [[1990, 2010], ("1990", "2010"), "1990, 2010", ["1990-01-01", "2010-12-31"]],
 )
 def test_every_configured_window_shape_normalises_to_the_same_years(requested):
     """`historical_year_range` has appeared as a list, a string and dates."""

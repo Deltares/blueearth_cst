@@ -6,7 +6,6 @@ beside it, so it could not serve four destinations (runs/, catalogs/,
 templates/, generated/). These pin the new contract.
 """
 
-
 import json
 from pathlib import Path
 
@@ -77,7 +76,7 @@ def test_missing_source_is_skipped_not_fatal(tmp_path, sources):
         config_out_path=str(cfg / "runs" / "snake_config_model_creation.yml"),
         other_config_files={
             str(catalog): str(cfg / "catalogs"),
-            "artifact_data": str(cfg / "catalogs"),   # predefined, no file
+            "artifact_data": str(cfg / "catalogs"),  # predefined, no file
         },
     )
     assert (cfg / "catalogs" / "deltares_data.yml").is_file()
@@ -197,9 +196,7 @@ def test_writes_effective_config_bundle_and_archives_references(tmp_path, source
         (snapshot_dir / "referenced-files.json").read_text(encoding="utf-8")
     )
     assert manifest["workflow"] == "model_creation"
-    assert manifest["effective_config_sha256"] == effective[
-        "effective_config_sha256"
-    ]
+    assert manifest["effective_config_sha256"] == effective["effective_config_sha256"]
     assert manifest["source_config"]["sha256"]
     assert manifest["source_config"]["archived_path"] == "source.yml"
 

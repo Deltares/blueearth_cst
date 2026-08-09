@@ -8,6 +8,7 @@ Covers:
 Heavy deps (``open_mfdataset``, seaborn ``JointGrid``/``savefig``) run in the
 real pixi env per the M02c discipline (dask cannot be stubbed at module level).
 """
+
 from os.path import join, dirname, realpath
 
 import numpy as np
@@ -75,7 +76,10 @@ def _write_change_nc(path, model, precip_change, temp_change):
     """Write a minimal *non-empty* annual_change_scalar_stats-style netCDF."""
     ds = xr.Dataset(
         {
-            "precip": (("stats", "horizon", "scenario", "model"), [[[[precip_change]]]]),
+            "precip": (
+                ("stats", "horizon", "scenario", "model"),
+                [[[[precip_change]]]],
+            ),
             "temp": (("stats", "horizon", "scenario", "model"), [[[[temp_change]]]]),
         },
         coords={

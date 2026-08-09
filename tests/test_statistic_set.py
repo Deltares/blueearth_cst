@@ -28,7 +28,7 @@ def test_J1_default_statistic_set_is_mean_median_std():
 
 @pytest.mark.parametrize("stat", ["q_90", "q_75", "q_10", "q_25"])
 def test_J5_quantiles_are_labelled_with_the_sample_size(stat):
-    """"The second-highest of 20" should be self-evident at the point of use.
+    """ "The second-highest of 20" should be self-evident at the point of use.
 
     The label rides on the `stats` coordinate, so it reaches the CSV and the
     report without either needing to know about sample sizes.

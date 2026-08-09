@@ -20,13 +20,14 @@ annual mean, and nothing on disk supplies one. Same lesson as R9-4: a check
 that cannot fail on the fixture has to be written against a synthetic case.
 """
 
-
 import numpy as np
 import pandas as pd
 import pytest
 
 
 from blueearth_cst.experiment.export_wflow_results import (  # noqa: E402
+    VALUE_SIGNIFICANT_DIGITS,
+    _format_value,
     analyze_wflow_results,
     annual_perturbation,
     member_from_run_csv,
@@ -54,7 +55,12 @@ def test_realization_index_comes_from_the_file_name(tmp_path, rlz):
     not the era.
     """
     csv = (
-        tmp_path / "experiments" / "e" / "hydrology" / "wflow" / "output"
+        tmp_path
+        / "experiments"
+        / "e"
+        / "hydrology"
+        / "wflow"
+        / "output"
         / f"rlz_{rlz}_st_3.csv"
     )
     csv.parent.mkdir(parents=True)
@@ -215,15 +221,23 @@ def test_incomplete_stress_test_grid_fails_loudly(tmp_path):
 def _write_design(tmp_path, st_num, extra_axis=False):
     """A stress_test_design.csv matching what `_reduce` builds, as 3.09 writes it."""
     width = len(str(st_num))
-    rows = [{"st_id": f"{0:0{width}d}", "temp_change": 0.0, "precip_change": 0.0,
-             "precip_variance_change": 0.0}]
-    for member in range(1, st_num + 1):
-        rows.append({
-            "st_id": f"{member:0{width}d}",
-            "temp_change": 0.5 * member,
-            "precip_change": (1.0 + 0.1 * member) * 100 - 100,
+    rows = [
+        {
+            "st_id": f"{0:0{width}d}",
+            "temp_change": 0.0,
+            "precip_change": 0.0,
             "precip_variance_change": 0.0,
-        })
+        }
+    ]
+    for member in range(1, st_num + 1):
+        rows.append(
+            {
+                "st_id": f"{member:0{width}d}",
+                "temp_change": 0.5 * member,
+                "precip_change": (1.0 + 0.1 * member) * 100 - 100,
+                "precip_variance_change": 0.0,
+            }
+        )
     if extra_axis:
         for row in rows:
             row["wind_change"] = 0.0
@@ -282,8 +296,13 @@ def test_the_header_is_seven_columns_and_does_not_grow_with_gauges(tmp_path):
     """
     q = _reduce(tmp_path)["q"]
     assert list(q.columns) == [
-        "metric", "st_id", "temp_change", "precip_change",
-        "realization_id", "location", "value",
+        "metric",
+        "st_id",
+        "temp_change",
+        "precip_change",
+        "realization_id",
+        "location",
+        "value",
     ]
     assert set(q.location.astype(str)) == {"101", "202"}
 
@@ -382,3 +401,94 @@ def test_a_variable_the_run_never_emitted_yields_an_empty_table(tmp_path):
     tables = _reduce(tmp_path, tokens=("q", "snow"), basavg=False)
     assert tables["snow"].empty
     assert list(tables["snow"].columns)[0] == "metric"
+
+
+# --- written number format (t2608090806) ------------------------------------
+#
+# The tables are a deliverable and an interchange surface, so how a value is
+# SPELLED on disk is a contract, not a display choice. Two properties, tested
+# separately because they can regress independently.
+
+
+def test_values_are_written_without_scientific_notation(tmp_path):
+    """Excel does not open `6.3476255e-05` cleanly, and low flows reach ~1e-5.
+
+    Asserted on the file's TEXT rather than a parsed frame, for the same reason
+    `test_st_id_is_the_padded_member_token` is: `pd.read_csv` would turn the
+    bytes back into floats and hide exactly the property under test.
+    """
+    _reduce(tmp_path, st=3)
+    text = (tmp_path / "q_indicators.csv").read_text(encoding="utf-8")
+    values = [line.split(",")[-1] for line in text.splitlines()[1:]]
+    assert values, "no rows written"
+    assert not [v for v in values if "e" in v.lower()]
+
+
+def test_the_value_column_is_the_only_column_reformatted(tmp_path):
+    """`to_csv(float_format=...)` would also rewrite temp_change/precip_change
+    (`0.0` -> `0`). Those are join keys for consumers and row-alignment keys for
+    the baseline comparator, so their bytes must survive untouched."""
+    _reduce(tmp_path, st=3)
+    text = (tmp_path / "q_indicators.csv").read_text(encoding="utf-8")
+    header, *body = text.splitlines()
+    cols = header.split(",")
+    axes = [cols.index("temp_change"), cols.index("precip_change")]
+    written = {body_line.split(",")[i] for body_line in body for i in axes}
+    assert all("." in v for v in written), written
+
+
+def test_missing_values_render_as_an_empty_field_not_the_string_nan():
+    """`.map()` bypasses pandas' `na_rep` path, so this is ours to handle."""
+    assert _format_value(float("nan")) == ""
+
+
+def test_the_cap_is_significant_digits_not_decimal_places():
+    """The distinction the whole change rests on. Decimal-place rounding is
+    scale-destroying -- `round(2)` sends 0.0007395697 to 0.0 -- which is what
+    check_baseline.py:161 calls the accidental drift buffer P1 removed. A
+    significant-digit cap keeps the same RELATIVE precision at every scale."""
+    assert _format_value(0.0007395697) == "0.0007396"
+    assert _format_value(115.48856) == "115.5"
+    assert _format_value(6.3476255e-05) == "0.00006348"
+
+
+def test_the_cap_cannot_trip_the_baseline_gate():
+    """Pins "this rounding is invisible to the comparator" to the comparator's
+    OWN constants, applied to the REAL reference table.
+
+    Without this the safety argument lives only in a docstring, and a later
+    tolerance tightening would silently invalidate it instead of failing here.
+    Tolerances are derived exactly as `check_baseline` derives them: ATOL from
+    each group's own mean magnitude, RTOL relative.
+    """
+    import sys
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    sys.path.insert(0, str(root / "dev" / "scripts"))
+    import check_baseline as cb  # noqa: E402
+
+    ref = pd.read_csv(
+        root / "dev" / "baseline" / "indicator_ref" / "74ed83c06b2e7e6c.csv"
+    )
+    assert not ref.empty
+
+    worst = 0.0
+    for _, group in ref.groupby(list(cb.INDICATOR_GROUP_COLUMNS)):
+        values = group[cb.INDICATOR_VALUE_COLUMN].astype(float)
+        atol = cb.INDICATOR_ATOL_FRAC * float(values.abs().mean())
+        for v in values:
+            formatted = float(_format_value(v))
+            allowed = max(atol, cb.INDICATOR_RTOL * abs(v))
+            assert abs(formatted - v) <= allowed, (v, formatted, allowed)
+            if v:
+                worst = max(worst, abs(formatted - v) / abs(v))
+
+    # Worst case for an N-significant-digit cap is 5e-N relative: half a unit in
+    # the last kept digit, worst when the leading digit is 1. Assert the real
+    # table honours that bound, then that the bound sits well inside the
+    # comparator's RTOL -- so tightening RTOL fails HERE, at the argument, rather
+    # than leaving a docstring that is quietly no longer true.
+    theoretical = 5 * 10**-VALUE_SIGNIFICANT_DIGITS
+    assert worst <= theoretical, worst
+    assert theoretical < cb.INDICATOR_RTOL / 10

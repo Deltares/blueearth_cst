@@ -31,18 +31,28 @@ REPO = Path(__file__).resolve().parents[1]
 def _dry_run(config_path):
     return subprocess.run(
         [
-            sys.executable, "-m", "snakemake", "all", "-n",
-            "-s", str(REPO / "Snakefile_climate_projections"),
-            "--configfile", str(config_path),
+            sys.executable,
+            "-m",
+            "snakemake",
+            "all",
+            "-n",
+            "-s",
+            str(REPO / "Snakefile_climate_projections"),
+            "--configfile",
+            str(config_path),
         ],
-        cwd=REPO, capture_output=True, text=True,
+        cwd=REPO,
+        capture_output=True,
+        text=True,
     )
 
 
 @pytest.fixture
 def seed_config():
     return yaml.safe_load(
-        (REPO / "config/workflows/snake_config_dev_fast.yml").read_text(encoding="utf-8")
+        (REPO / "config/workflows/snake_config_dev_fast.yml").read_text(
+            encoding="utf-8"
+        )
     )
 
 

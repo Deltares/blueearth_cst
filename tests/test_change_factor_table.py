@@ -130,8 +130,14 @@ def test_M3_every_value_matches_the_wide_dataset(wide):
 def test_M3_no_row_is_dropped_or_duplicated(wide):
     """A reshape that loses rows still produces a plausible-looking file."""
     keys = [
-        (r["model"], r["scenario"], r["horizon"], r["member"], r["variable"],
-         r["statistic"])
+        (
+            r["model"],
+            r["scenario"],
+            r["horizon"],
+            r["member"],
+            r["variable"],
+            r["statistic"],
+        )
         for r in _rows(wide)
     ]
     assert len(keys) == len(set(keys))
@@ -208,7 +214,10 @@ def test_M4_both_windows_read_in_the_same_effective_form(wide):
     `reference_window` was the effective span — two meanings, two formats, in
     adjacent columns. Both are now the effective bounds from
     `hydrological_year_bounds`, in one `%Y-%m-%d / %Y-%m-%d` form."""
-    facts = {"reference_window": "nominal-fallback", "horizon_window": {"far": "2070-2090"}}
+    facts = {
+        "reference_window": "nominal-fallback",
+        "horizon_window": {"far": "2070-2090"},
+    }
     row_facts = {
         (model, scenario, "r1i1p1f1", "far"): {
             "reference_window": "1990-01-01 / 2010-12-01",
@@ -305,8 +314,14 @@ def test_the_month_column_exists_only_in_the_monthly_table(wide):
 
 def test_dead_columns_are_gone(wide):
     """`horizon_window_effective` and `n_years_dropped` were hardcoded empty."""
-    for dead in ("period", "units_of_value", "horizon_window_effective",
-                 "n_years_dropped", "n_years", "reference_series_key"):
+    for dead in (
+        "period",
+        "units_of_value",
+        "horizon_window_effective",
+        "n_years_dropped",
+        "n_years",
+        "reference_series_key",
+    ):
         assert dead not in TABLE_COLUMNS_ANNUAL
         assert dead not in TABLE_COLUMNS_MONTHLY
 

@@ -14,6 +14,7 @@ then records a manifest against it via `cmd_record` — the same code path the t
 uses, so path keys match `resolve()` byte-for-byte and the discharge reference
 series lands under `<manifest_dir>/discharge_ref/`. No real Snakemake run.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -127,9 +128,12 @@ def test_scoped_count_is_selected_not_full(project, capsys):
     of the 13 targets, not the full set."""
     project_dir, manifest_path = project
     rc = cb.cmd_check(
-        _check_ns(project_dir, manifest_path,
-                  workflow=["model_creation", "climate_projections"],
-                  include_figures=True)
+        _check_ns(
+            project_dir,
+            manifest_path,
+            workflow=["model_creation", "climate_projections"],
+            include_figures=True,
+        )
     )
     out = capsys.readouterr().out
     assert rc == 0
@@ -140,14 +144,18 @@ def test_selected_missing_target_fails(project, capsys):
     """A selected target missing on disk -> non-zero, and named."""
     project_dir, manifest_path = project
     victim = cb.resolve(
-        "{clim_project_dir}/summary/{clim_project}_change_factors_annual.csv", project_dir
+        "{clim_project_dir}/summary/{clim_project}_change_factors_annual.csv",
+        project_dir,
     )
     Path(victim).unlink()
 
     rc = cb.cmd_check(
-        _check_ns(project_dir, manifest_path,
-                  workflow=["model_creation", "climate_projections"],
-                  include_figures=True)
+        _check_ns(
+            project_dir,
+            manifest_path,
+            workflow=["model_creation", "climate_projections"],
+            include_figures=True,
+        )
     )
     out = capsys.readouterr().out
     assert rc == 1
@@ -162,9 +170,12 @@ def test_unselected_missing_target_ignored(project, capsys):
     Path(victim).unlink()
 
     rc = cb.cmd_check(
-        _check_ns(project_dir, manifest_path,
-                  workflow=["model_creation", "climate_projections"],
-                  include_figures=True)
+        _check_ns(
+            project_dir,
+            manifest_path,
+            workflow=["model_creation", "climate_projections"],
+            include_figures=True,
+        )
     )
     out = capsys.readouterr().out
     assert rc == 0
@@ -186,7 +197,8 @@ def test_record_workflow_merges_and_preserves_other_slices(project):
     before = json.loads(Path(manifest_path).read_text())["targets"]
 
     cp_path = cb.resolve(
-        "{clim_project_dir}/summary/{clim_project}_change_factors_annual.csv", project_dir
+        "{clim_project_dir}/summary/{clim_project}_change_factors_annual.csv",
+        project_dir,
     )
     exp_path = cb.resolve("{exp_dir}/results/q_indicators.csv", project_dir)
     cp_before, exp_before = before[cp_path], before[exp_path]
@@ -199,18 +211,20 @@ def test_record_workflow_merges_and_preserves_other_slices(project):
     )
     Path(cp_path).write_text("a,b\n9,9\n")  # wf2 content now differs from cp_before
     Path(disch_path).write_text(
-        "time,Q_synthetic\n" + "\n".join(
-            f"2000-01-{i + 2:02d}T00:00:00,{5.0 + i!r}" for i in range(10)
-        ) + "\n"
+        "time,Q_synthetic\n"
+        + "\n".join(f"2000-01-{i + 2:02d}T00:00:00,{5.0 + i!r}" for i in range(10))
+        + "\n"
     )
 
-    rc = cb.cmd_record(_record_ns(project_dir, manifest_path, workflow=["model_creation"]))
+    rc = cb.cmd_record(
+        _record_ns(project_dir, manifest_path, workflow=["model_creation"])
+    )
     assert rc == 0
     after = json.loads(Path(manifest_path).read_text())["targets"]
 
-    assert len(after) == 13                       # nothing dropped
-    assert after[cp_path] == cp_before            # wf2 row preserved verbatim
-    assert after[exp_path] == exp_before          # wf3 row preserved verbatim
+    assert len(after) == 13  # nothing dropped
+    assert after[cp_path] == cp_before  # wf2 row preserved verbatim
+    assert after[exp_path] == exp_before  # wf3 row preserved verbatim
     # wf1 discharge row re-recorded against the mutated series.
     assert after[disch_path]["type"] == "discharge"
     assert after[disch_path]["mean_ref"] != before[disch_path]["mean_ref"]

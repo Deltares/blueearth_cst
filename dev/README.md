@@ -108,9 +108,11 @@ superseded file saying exactly which sections went and where; keep both.
 ### The one place a register WAS compressed — and what made it safe
 
 `followups.md` was the exception. It no longer exists — the todo-board replaced
-it on 2026-08-07 (see `working/todo-board-adoption/`) — but the rule it
-established governs the next register anyone is tempted to compress, so it is
-kept rather than deleted with the file.
+it on 2026-08-07 — but the rule it established governs the next register anyone
+is tempted to compress, so it is kept rather than deleted with the file. (The
+adoption's own working notes were drained on 2026-08-09 under the promotion rule
+above: the board exists and the `watch-item` type shipped in the `todo-board`
+skill, so the brief was spent. Recoverable from that commit if ever needed.)
 
 On 2026-08-07 that file had reached 2,038 lines, roughly half of it items
 already closed, because a closure note had grown into a post-mortem averaging

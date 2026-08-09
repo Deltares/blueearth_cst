@@ -6,7 +6,9 @@ Synthetic 2x2 grids keep these OS- and data-independent (no hydromt/wflow).
 import numpy as np
 import xarray as xr
 
-from blueearth_cst.climate_analysis.subcatchment_climate import climate_forcing_by_subcatchment  # noqa: E402
+from blueearth_cst.climate_analysis.subcatchment_climate import (
+    climate_forcing_by_subcatchment,
+)  # noqa: E402
 
 
 def _grid(values_2d, time=3):
@@ -15,7 +17,11 @@ def _grid(values_2d, time=3):
     return xr.DataArray(
         arr,
         dims=("time", "latitude", "longitude"),
-        coords={"time": np.arange(time), "latitude": [0.0, 1.0], "longitude": [0.0, 1.0]},
+        coords={
+            "time": np.arange(time),
+            "latitude": [0.0, 1.0],
+            "longitude": [0.0, 1.0],
+        },
     )
 
 

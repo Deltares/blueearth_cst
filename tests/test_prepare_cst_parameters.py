@@ -62,7 +62,12 @@ def test_seed_like_grid_shape_and_endpoints(tmp_path):
     assert len(dfs) == 6  # (1+1) * (2+1)
 
     for df in dfs:
-        assert list(df.columns) == ["month", "temp_mean", "precip_mean", "precip_variance"]
+        assert list(df.columns) == [
+            "month",
+            "temp_mean",
+            "precip_mean",
+            "precip_variance",
+        ]
         assert len(df) == 12  # one row per month
 
     # temp mean spans [0, 3]; precip mean spans [0.7, 1.3] across the grid.
@@ -86,7 +91,9 @@ def test_precip_variance_grid_uses_max_endpoint(tmp_path):
     variance['min'] into the max endpoint, collapsing a non-degenerate range
     (min=1.0, max=1.5) to [1.0, 1.0]. With the fix the grid max is variance.max.
     """
-    cfg_path = _write_cfg(tmp_path, temp_step=1, precip_step=1, var_min=1.0, var_max=1.5)
+    cfg_path = _write_cfg(
+        tmp_path, temp_step=1, precip_step=1, var_min=1.0, var_max=1.5
+    )
     prep_cst_parameters(cfg_path, csv_fns=None)
     assert _precip_variance_grid_max(tmp_path) == pytest.approx(1.5)
 
@@ -137,13 +144,17 @@ def test_design_table_carries_one_row_per_member_plus_the_baseline(tmp_path):
 
     df = pd.read_csv(design, dtype={"st_id": str})
     assert list(df.columns) == [
-        "st_id", "temp_change", "precip_change", "precip_variance_change",
+        "st_id",
+        "temp_change",
+        "precip_change",
+        "precip_variance_change",
     ]
     assert len(df) == 13  # 12 members + the baseline
     baseline = df.iloc[0]
     assert baseline["st_id"] == "00"
-    assert (baseline[["temp_change", "precip_change",
-                      "precip_variance_change"]] == 0.0).all()
+    assert (
+        baseline[["temp_change", "precip_change", "precip_variance_change"]] == 0.0
+    ).all()
 
 
 def test_design_ids_are_the_filenames(tmp_path):
@@ -158,8 +169,7 @@ def test_design_ids_are_the_filenames(tmp_path):
     prep_cst_parameters(cfg_path, csv_fns=None, design_fn=str(design))
 
     df = pd.read_csv(design, dtype={"st_id": str})
-    on_disk = {os.path.basename(p)[3:-4]
-               for p in glob.glob(str(tmp_path / "st_*.csv"))}
+    on_disk = {os.path.basename(p)[3:-4] for p in glob.glob(str(tmp_path / "st_*.csv"))}
     assert set(df["st_id"]) - {"00"} == on_disk
 
 
@@ -220,7 +230,8 @@ def test_a_third_stress_axis_refuses_naming_c28(tmp_path):
     cfg_path = _write_cfg(tmp_path, temp_step=1, precip_step=2)
     cfg = _yaml.safe_load(open(cfg_path, encoding="utf-8"))
     cfg["workflows"]["climate_experiment"]["stress_test"]["wind"] = {
-        "step_num": 1, "mean": {"min": _twelve(0.0), "max": _twelve(1.0)},
+        "step_num": 1,
+        "mean": {"min": _twelve(0.0), "max": _twelve(1.0)},
     }
     open(cfg_path, "w", encoding="utf-8").write(_yaml.safe_dump(cfg))
 

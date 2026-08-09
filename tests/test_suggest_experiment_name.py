@@ -27,7 +27,7 @@ CLI = SNAKEDIR / "scripts" / "suggest_experiment_name.py"
 @pytest.mark.parametrize(
     "project_dir, expected",
     [
-        ("examples/Gabon", "gabon_20260728"),          # the live counterexample
+        ("examples/Gabon", "gabon_20260728"),  # the live counterexample
         ("test_case/test_local", "test_local_20260728"),
         ("/mnt/data/My Basin-2024", "my_basin_2024_20260728"),
         (r"C:\runs\Rhine--Upper", "rhine_upper_20260728"),
@@ -62,7 +62,8 @@ def test_basename_without_alphanumerics_raises():
 def _run(cfg, *extra):
     return subprocess.run(
         [sys.executable, str(CLI), str(cfg), "--date", "20260728", *extra],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
 
 
@@ -187,7 +188,9 @@ def _annotated_cfg(tmp_path, body):
     p.write_text(
         "# top-of-file banner\n"
         "project:\n"
-        "  project_dir: " + str(project_dir).replace("\\", "/") + "  # where output goes\n"
+        "  project_dir: "
+        + str(project_dir).replace("\\", "/")
+        + "  # where output goes\n"
         "\n"
         "workflows:\n" + body,
         encoding="utf-8",
@@ -213,7 +216,11 @@ def test_cli_preserves_every_comment_in_the_config(tmp_path):
     before = cfg.read_text(encoding="utf-8")
     assert _run(cfg).returncode == 0
     after = cfg.read_text(encoding="utf-8")
-    for comment in ("# top-of-file banner", "# where output goes", "# trailing comment"):
+    for comment in (
+        "# top-of-file banner",
+        "# where output goes",
+        "# trailing comment",
+    ):
         assert comment in after, f"{comment!r} was destroyed by the write"
     # Exactly one line added, everything else byte-identical.
     added = [ln for ln in after.splitlines() if ln not in before.splitlines()]
@@ -248,9 +255,10 @@ def test_the_new_key_lands_below_the_comments_that_document_it(tmp_path):
     )
     assert _run(cfg).returncode == 0
     lines = cfg.read_text(encoding="utf-8").splitlines()
-    assert lines.index("    experiment_name: gabon_20260728") == lines.index(
-        "    realizations_num: 2"
-    ) - 1
+    assert (
+        lines.index("    experiment_name: gabon_20260728")
+        == lines.index("    realizations_num: 2") - 1
+    )
 
 
 def test_cli_leaves_unrelated_structure_intact(tmp_path):

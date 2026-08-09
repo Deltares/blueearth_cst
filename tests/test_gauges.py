@@ -28,6 +28,7 @@ CONFIGURED = "C:/TESTS/CST/observations/gabon/output_locations.csv"
 
 # --- the unset sentinels ---------------------------------------------------
 
+
 @pytest.mark.parametrize("unset", [None, "None"])
 def test_both_unset_spellings_resolve_to_nothing(unset):
     """YAML null and the legacy 'None' string alike (R07 O-08)."""
@@ -51,6 +52,7 @@ def test_an_unset_config_never_adopts_the_outlets():
 
 
 # --- the underscore/hyphen regression --------------------------------------
+
 
 def test_hydromt_basename_mirrors_the_underscore_to_hyphen_rule():
     assert hydromt_basename("a/b/output_locations.csv") == "output-locations"
@@ -84,6 +86,7 @@ def test_the_configured_layer_wins_when_several_exist():
 
 # --- the silence is the other half of the bug ------------------------------
 
+
 def test_a_configured_but_missing_layer_warns_loudly():
     """The lesson was the silence, not the name. A skip here is what cost a
     whole run's evaluation outputs."""
@@ -103,9 +106,12 @@ def test_the_warning_names_what_it_looked_for_and_what_exists():
 
 def test_an_ambiguous_set_warns_rather_than_guessing():
     with pytest.warns(UserWarning, match="could not be resolved"):
-        assert gauges_layer_name(
-            {"gauges_one-network", "gauges_other-network"}, "a/b/absent.csv"
-        ) is None
+        assert (
+            gauges_layer_name(
+                {"gauges_one-network", "gauges_other-network"}, "a/b/absent.csv"
+            )
+            is None
+        )
 
 
 def test_a_missing_variable_warns_too():
@@ -114,6 +120,7 @@ def test_a_missing_variable_warns_too():
 
 
 # --- the wflow_id convention -----------------------------------------------
+
 
 def test_low_gauge_ids_warn_and_are_returned():
     """A CONVENTION, not a constraint -- so it warns and names the offenders

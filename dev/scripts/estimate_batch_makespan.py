@@ -38,6 +38,7 @@ Usage::
     python dev/scripts/estimate_batch_makespan.py --table
     python dev/scripts/estimate_batch_makespan.py --table --k 13 --p 3
 """
+
 from __future__ import annotations
 
 import argparse
@@ -160,21 +161,31 @@ def _fmt_sizes(sizes: list[int]) -> str:
 def print_table(k: int, p: int, f: float, s_cold: float, s_warm: float) -> None:
     """Print the §5.5 per-B fixture comparison (LPT makespan + Graham bracket)."""
     today = estimate(k, p, 1, f, s_cold, s_warm).makespan
-    print(f"# LPT makespan table  (K={k}, p={p}, F={f:g}, S_cold={s_cold:g}, S_warm={s_warm:g})")
+    print(
+        f"# LPT makespan table  (K={k}, p={p}, F={f:g}, S_cold={s_cold:g}, S_warm={s_warm:g})"
+    )
     header = f"{'lever / B':<32} {'batches':>12} {'makespan':>10} {'vs today':>9}  {'Graham [lo, hi]':>22}"
     print(header)
     print("-" * len(header))
     for label, b, f_override in _TABLE_ROWS:
         row_f = f if f_override is None else f_override
         est = estimate(k, p, b, row_f, s_cold, s_warm)
-        vs = "--" if abs(est.makespan - today) < 1e-9 else f"{(est.makespan / today - 1) * 100:+.0f}%"
+        vs = (
+            "--"
+            if abs(est.makespan - today) < 1e-9
+            else f"{(est.makespan / today - 1) * 100:+.0f}%"
+        )
         bracket = f"[{est.graham_lower:.0f}, {est.graham_upper:.0f}]"
-        print(f"{label:<32} {_fmt_sizes(est.batch_sizes):>12} {est.makespan:>10.0f} {vs:>9}  {bracket:>22}")
+        print(
+            f"{label:<32} {_fmt_sizes(est.batch_sizes):>12} {est.makespan:>10.0f} {vs:>9}  {bracket:>22}"
+        )
 
 
 def _print_single(est: MakespanEstimate, k: int, p: int, b: int) -> None:
     print(f"K={k}  p={p}  B={b}")
-    print(f"  batch sizes      : {_fmt_sizes(est.batch_sizes)}  (n={len(est.batch_sizes)})")
+    print(
+        f"  batch sizes      : {_fmt_sizes(est.batch_sizes)}  (n={len(est.batch_sizes)})"
+    )
     print(f"  batch durations  : {[round(d, 1) for d in est.durations]}")
     print(f"  LPT makespan     : {est.makespan:.1f} s")
     print(f"  Graham bracket   : [{est.graham_lower:.1f}, {est.graham_upper:.1f}] s")
@@ -184,22 +195,49 @@ def main() -> None:
     p = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    p.add_argument("--k", type=int, default=K_DEFAULT,
-                   help=f"Sweep size K = RLZ_NUM x (ST_NUM + [run_historical]) "
-                        f"(default {K_DEFAULT}, the seed fixture)")
-    p.add_argument("--p", type=int, default=P_DEFAULT,
-                   help=f"Effective parallelism p (~= -c N) (default {P_DEFAULT})")
-    p.add_argument("--b", type=int, default=4,
-                   help="Batch size B (ignored in --table mode) (default 4)")
-    p.add_argument("--f", type=float, default=F_DEFAULT,
-                   help=f"Per-process fixed cost F, s (default {F_DEFAULT}); honored "
-                        f"in --table mode for every row but the sysimage counterfactual")
-    p.add_argument("--s-cold", type=float, default=S_COLD_DEFAULT,
-                   help=f"Per-run cold simulation S_cold, s (default {S_COLD_DEFAULT})")
-    p.add_argument("--s-warm", type=float, default=S_WARM_DEFAULT,
-                   help=f"Per-run warm simulation S_warm, s (default {S_WARM_DEFAULT})")
-    p.add_argument("--table", action="store_true",
-                   help="Print the design §5.5 per-B fixture comparison table")
+    p.add_argument(
+        "--k",
+        type=int,
+        default=K_DEFAULT,
+        help=f"Sweep size K = RLZ_NUM x (ST_NUM + [run_historical]) "
+        f"(default {K_DEFAULT}, the seed fixture)",
+    )
+    p.add_argument(
+        "--p",
+        type=int,
+        default=P_DEFAULT,
+        help=f"Effective parallelism p (~= -c N) (default {P_DEFAULT})",
+    )
+    p.add_argument(
+        "--b",
+        type=int,
+        default=4,
+        help="Batch size B (ignored in --table mode) (default 4)",
+    )
+    p.add_argument(
+        "--f",
+        type=float,
+        default=F_DEFAULT,
+        help=f"Per-process fixed cost F, s (default {F_DEFAULT}); honored "
+        f"in --table mode for every row but the sysimage counterfactual",
+    )
+    p.add_argument(
+        "--s-cold",
+        type=float,
+        default=S_COLD_DEFAULT,
+        help=f"Per-run cold simulation S_cold, s (default {S_COLD_DEFAULT})",
+    )
+    p.add_argument(
+        "--s-warm",
+        type=float,
+        default=S_WARM_DEFAULT,
+        help=f"Per-run warm simulation S_warm, s (default {S_WARM_DEFAULT})",
+    )
+    p.add_argument(
+        "--table",
+        action="store_true",
+        help="Print the design §5.5 per-B fixture comparison table",
+    )
     args = p.parse_args()
 
     if args.table:

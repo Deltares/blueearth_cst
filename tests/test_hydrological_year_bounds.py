@@ -83,14 +83,18 @@ def test_L5_a_span_shorter_than_one_year_raises():
 
 def test_L5_exactly_one_complete_year_is_fine():
     start, end, n = hydrological_year_bounds(_series("1985-01", "1985-12"), "Jan")
-    assert n == 1 and (str(start.date()), str(end.date())) == ("1985-01-01", "1985-12-01")
+    assert n == 1 and (str(start.date()), str(end.date())) == (
+        "1985-01-01",
+        "1985-12-01",
+    )
 
 
 # --- start months across the year ---------------------------------------------
 
 
 @pytest.mark.parametrize(
-    "month,expected_n", [("Jan", 30), ("Feb", 29), ("Jul", 29), ("Oct", 29), ("Dec", 29)]
+    "month,expected_n",
+    [("Jan", 30), ("Feb", 29), ("Jul", 29), ("Oct", 29), ("Dec", 29)],
 )
 def test_only_a_january_start_yields_30_over_1985_2014(month, expected_n):
     """A1's exact claim: 30 only for January, 29 for every other start month."""

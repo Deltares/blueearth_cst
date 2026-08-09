@@ -97,21 +97,29 @@ def _stage_cross_workflow_inputs(project_dir: Path, config_path: Path) -> None:
     `data/spatial/geoms/region.geojson` and declare it as an OUTPUT, so staging
     one would pre-empt a file the workflow is about to write.
     """
-    cross_workflow_inputs.stage(
-        project_dir, config_path.read_text(encoding="utf-8")
-    )
+    cross_workflow_inputs.stage(project_dir, config_path.read_text(encoding="utf-8"))
 
 
 def _summary(snakefile: str, config_path: Path) -> list[str]:
     """Return declared output + log paths for one workflow, via `snakemake --summary`."""
     cmd = [
-        "snakemake", "all", "-c", "1",
-        "-s", str(REPO_ROOT / snakefile),
-        "--configfile", str(config_path),
+        "snakemake",
+        "all",
+        "-c",
+        "1",
+        "-s",
+        str(REPO_ROOT / snakefile),
+        "--configfile",
+        str(config_path),
         "--summary",
     ]
     proc = subprocess.run(
-        cmd, cwd=REPO_ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace"
+        cmd,
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     if proc.returncode != 0:
         sys.stderr.write(f"\n!! {snakefile} --summary failed:\n{proc.stderr[-2000:]}\n")
@@ -157,9 +165,7 @@ def _log_paths(snakefile: str, experiment: str) -> list[str]:
     # Bare `.log` string constants (WORKFLOW_LOG_NAME = "wf1_model_creation.log")
     # are interpolated into the merged-log path, which would otherwise reduce to
     # `logs/1` under the wildcard substitution below and be dropped.
-    consts = dict(
-        re.findall(r"""^(\w+)\s*=\s*["']([^"'{}]+\.log)["']""", text, re.M)
-    )
+    consts = dict(re.findall(r"""^(\w+)\s*=\s*["']([^"'{}]+\.log)["']""", text, re.M))
 
     logs = []
     # Three declaration forms are in use across the Snakefiles and all three
@@ -189,7 +195,9 @@ def _log_paths(snakefile: str, experiment: str) -> list[str]:
     return sorted(set(logs))
 
 
-def _load_delta(path: Path | None) -> tuple[list[tuple[str, str]], list[str], list[str]]:
+def _load_delta(
+    path: Path | None,
+) -> tuple[list[tuple[str, str]], list[str], list[str]]:
     """Load a layout delta: `renames` (prefix or exact), `drops`, `adds`.
 
     Three verbs are enough to express every layout revision discussed so far:
@@ -210,7 +218,7 @@ def _apply_renames(rel: str, renames: list[tuple[str, str]]) -> str:
         if rel == src:
             return dst
         if src.endswith("/") and rel.startswith(src):
-            return dst + rel[len(src):]
+            return dst + rel[len(src) :]
     return rel
 
 
@@ -270,6 +278,7 @@ def _placeholder(rel: str, project_dir: Path, part_logs: list[str]) -> str:
 
 def _print_tree(root: Path) -> None:
     """Render the scaffolded tree, directories first, one indent level per depth."""
+
     def walk(d: Path, prefix: str) -> None:
         entries = sorted(d.iterdir(), key=lambda p: (p.is_file(), p.name.lower()))
         for i, entry in enumerate(entries):
@@ -286,7 +295,9 @@ def _print_tree(root: Path) -> None:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
-    ap.add_argument("--workflows", default="1,2,3", help="comma-separated, e.g. 1 or 1,3")
+    ap.add_argument(
+        "--workflows", default="1,2,3", help="comma-separated, e.g. 1 or 1,3"
+    )
     ap.add_argument("--out", type=Path, default=DEFAULT_OUT)
     ap.add_argument("--rename-map", type=Path, default=None)
     ap.add_argument("--extras", type=Path, default=DEFAULT_EXTRAS)
@@ -321,7 +332,9 @@ def main(argv: list[str] | None = None) -> int:
     for w in workflows:
         found = _summary(SNAKEFILES[w], scratch_cfg)
         logs = _log_paths(SNAKEFILES[w], experiment)
-        print(f"wf{w}: {len(found)} declared outputs, {len(logs)} logs", file=sys.stderr)
+        print(
+            f"wf{w}: {len(found)} declared outputs, {len(logs)} logs", file=sys.stderr
+        )
         raw.extend(found)
         raw.extend(logs)
 
@@ -336,7 +349,7 @@ def main(argv: list[str] | None = None) -> int:
     for p in raw:
         rel = Path(p).as_posix()
         prefix = project_dir.as_posix() + "/"
-        rel = rel[len(prefix):] if rel.startswith(prefix) else rel
+        rel = rel[len(prefix) :] if rel.startswith(prefix) else rel
         # Rename first, then drop: a drop names the POST-move location, so a
         # delta can move files into a transient area and then retire the area.
         rel = _apply_renames(rel, renames)
@@ -354,7 +367,9 @@ def main(argv: list[str] | None = None) -> int:
         target = project_dir / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         if not target.exists():
-            target.write_text(_placeholder(rel, project_dir, part_logs), encoding="utf-8")
+            target.write_text(
+                _placeholder(rel, project_dir, part_logs), encoding="utf-8"
+            )
 
     print(f"scaffolded {len(rels)} paths under {project_dir}", file=sys.stderr)
     if args.print_tree:

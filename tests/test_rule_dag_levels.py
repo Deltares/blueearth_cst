@@ -4,6 +4,7 @@ Pure unit tests -- no snakemake invocation, no project tree, so they run on a
 bare checkout in CI. The DOT fixtures below are verbatim excerpts of what
 snakemake 9.6.2 emitted for `Snakefile_climate_projections` on 2026-07-31.
 """
+
 from __future__ import annotations
 
 import importlib.util
@@ -13,7 +14,9 @@ from pathlib import Path
 import pytest
 
 # dev/scripts is not an importable package; load the module by path.
-_MODULE_PATH = Path(__file__).resolve().parents[1] / "dev" / "scripts" / "rule_dag_levels.py"
+_MODULE_PATH = (
+    Path(__file__).resolve().parents[1] / "dev" / "scripts" / "rule_dag_levels.py"
+)
 _spec = importlib.util.spec_from_file_location("rule_dag_levels", _MODULE_PATH)
 assert _spec is not None and _spec.loader is not None
 rdl = importlib.util.module_from_spec(_spec)
@@ -72,6 +75,7 @@ WF2_DAG = """digraph snakemake_dag {
 
 # --- parse_dot ----------------------------------------------------------------
 
+
 def test_parse_dot_reads_every_node_and_edge():
     nodes, edges = rdl.parse_dot(WF2_RULEGRAPH)
     assert len(nodes) == 10
@@ -96,11 +100,12 @@ def test_parse_dot_detects_the_dashed_up_to_date_style():
 
 
 def test_parse_dot_ignores_non_node_lines():
-    nodes, edges = rdl.parse_dot('digraph d {\n graph[bgcolor=white];\n}\n')
+    nodes, edges = rdl.parse_dot("digraph d {\n graph[bgcolor=white];\n}\n")
     assert nodes == {} and edges == []
 
 
 # --- topological_levels -------------------------------------------------------
+
 
 def test_levels_take_the_longest_path_not_the_shortest():
     """A node reachable by a short AND a long chain belongs at the long one.
@@ -126,6 +131,7 @@ def test_isolated_nodes_are_level_zero():
 
 
 # --- rule_levels: the real WF2 topology ---------------------------------------
+
 
 def test_wf2_rule_levels_match_the_measured_topology():
     assert rdl.rule_levels(WF2_RULEGRAPH) == {
@@ -153,6 +159,7 @@ def test_wf2_fetch_precedes_reduce_precedes_derive():
 
 # --- job_counts ---------------------------------------------------------------
 
+
 def test_job_counts_split_runnable_from_up_to_date():
     assert rdl.job_counts(WF2_DAG) == {
         "all": (1, 0),
@@ -163,6 +170,7 @@ def test_job_counts_split_runnable_from_up_to_date():
 
 
 # --- format_table -------------------------------------------------------------
+
 
 def test_format_table_orders_by_level_then_name():
     levels = rdl.rule_levels(WF2_RULEGRAPH)

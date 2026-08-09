@@ -1,74 +1,28 @@
 # Controls the git-workflow skill's ceremony for THIS repo.
-# Read at Pre-flight. Schema + resolution:
-# ~/workspace/brain/artifacts/skills/git-workflow/references/configuration.md
+# Schema: ~/workspace/brain/artifacts/skills/git-workflow/references/configuration.md
 #
 #   full — branch risky/multi-session work; auto-commit verified work.  (current)
 #   lite — trunk only (no feature branches); auto-commit verified work.
 mode: full
 
-# Every modifying task starts in its own task branch + linked worktree at
-# <workspace>/.worktrees/blueearth_cst/<task>; this primary checkout is reserved
-# for integration (merging, landing, read-only work).
-#
-# Set because this repo is routinely worked by SEVERAL CONCURRENT SESSIONS.
-# Without it they share one index and HEAD, and the collisions are real rather
-# than theoretical: on 2026-07-31 two sessions in this checkout interleaved six
-# commits and four dirty files, and a rule moved 32 lines under a read that was
-# already in flight. Strict pathspecs contained it; isolation removes the class.
-#
-# This setting is AGENT-HONORED, not a git-level block. The enforcement floor is
-# the launcher, which starts the client already inside the task worktree:
-#
-#   python ~/workspace/brain/artifacts/skills/git-workflow/scripts/worktree-session.py \
-#       start --task <slug> --type <fix|feat|refactor|docs|test|chore> -- claude
-#
-# `... worktree-session.py check` returns 2 when a session is sitting in this
-# primary checkout under this policy. An optional PreToolUse guard hook can deny
-# native edit tools there as defense in depth — see the skill's
-# references/worktree-enforcement.md.
-# Re-affirmed 2026-08-07 after a second incident, this one under `concurrent`:
-# a session detached this checkout to run a branch's 15-minute test suite, and
-# another session merged onto that detached HEAD, then checked out main. A
-# directory tracked only on the branch under test vanished mid-run and six tests
-# failed as pure artifact. The branch was fine; the gate result was worthless.
-#
-# Held `concurrent` for R11 P3 (2026-08-08) so the phase that ran the pipeline
-# and took the single baseline re-record could hold this checkout deliberately —
-# AGENTS.md reserves the primary for exactly that case. RESTORED at the R11
-# close, as that note required.
-# HELD `concurrent` from 2026-08-09, at the owner's request, so this primary
-# checkout can be edited directly for the current sitting. RESTORE to `always`
-# when that sitting ends: the SessionStart check and the PreToolUse guard both
-# read THIS key, so nothing else re-arms them. Standing at the time of the hold —
-# one other worktree was live (.worktrees/blueearth_cst/signature-figure, on
-# feat/signature-figure-redesign), which is the same overlap both incidents above
-# came out of. Under `concurrent` the skill still isolates a modifying task while
-# another writer is plausibly active; the hold removes the hard block, not the
-# judgement call.
-worktree_policy: concurrent # concurrent | always
+# Every modifying task starts in its own branch + linked worktree; this primary
+# checkout is reserved for integration. Set because several sessions routinely
+# work this repo at once. Agent-honored, enforced by the launcher and the
+# PreToolUse guard — skill: references/worktree-enforcement.md.
+# Relaxing it has collided three times: `git log -- .git-workflow.yml`.
+worktree_policy: always # concurrent | always
 
-# Branches created solely to isolate concurrent work auto-land after rebase and
-# verification, so isolation costs nothing at the end of a task. Feature branches
-# and explicitly held isolation branches still wait for a decision.
+# Isolation branches auto-land after rebase + verification. Feature branches and
+# explicitly held isolation branches still wait for a decision.
 isolation_landing: auto # auto | approval
 
-# No automatic push, including the backup checkpoint. This repo's trunk is pushed
-# deliberately, not as a side effect of finishing a task; flip to `true` to
-# re-enable the >24h / 25-commit backup trigger.
+# The trunk is pushed deliberately, never as a side effect of finishing a task.
+# `true` re-enables the >24h / 25-commit backup trigger.
 auto_push: false # true | false
 
-# Untracked trees the launcher COPIES into every new worktree. `git worktree add`
-# brings tracked files only, and `test_case/` is untracked — so without this the
-# fixture-dependent tests SKIP rather than fail, and the suite reports a green
-# gate having never run them. Measured 2026-08-07 on one branch: unseeded gave
-# 1567 passed / 31 skipped and read as clean; seeded gave 1590 passed / 8 skipped.
-# Twenty-three tests had silently not run, on a branch rebased across the R9 tree
-# move — precisely what they cover.
-#
-# COPIED, never linked: tests/test_model_rebuild_cascade.py runs a real
-# `snakemake all` against the fixture, so a link would point two checkouts at one
-# project_dir. List the subtrees, not `test_case/` itself — that is 361 MB, mostly
-# superseded reference trees. Full rationale in AGENTS.md, worktree section.
+# Untracked trees the launcher COPIES (never links) into each new worktree.
+# Without them the fixture-dependent tests skip and the suite reports a false
+# green. Rationale: AGENTS.md, worktree section.
 worktree_seed:
   - test_case/test_local          # 46 MB; named by 18 of the 25 fixture references
   - test_case/basin_map_fixture   # 248 KB; only dev/scripts/preview_basin_map.py

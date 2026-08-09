@@ -136,7 +136,9 @@ def main(argv=None):
     s0 = xr.open_dataset(
         project_dir / "climate_historical/wflow_data/inmaps_historical.nc"
     )
-    s1 = xr.open_dataset(project_dir / "climate_historical/wf1_raw/extract_historical.nc")
+    s1 = xr.open_dataset(
+        project_dir / "climate_historical/wf1_raw/extract_historical.nc"
+    )
 
     if clim_source in ("chirps", "chirps_global"):
         dem_forcing = xr.open_dataarray(
@@ -180,10 +182,7 @@ def main(argv=None):
     g_rows = []
     times = np.intersect1d(s3["time"].values, s0["time"].values)
     for var in ("precip", "temp", "pet"):
-        d = (
-            s3[var].sel(time=times).where(mask)
-            - s0[var].sel(time=times).where(mask)
-        )
+        d = s3[var].sel(time=times).where(mask) - s0[var].sel(time=times).where(mask)
         mean, maxabs, rmse = _stats(d)
         g_rows.append(("G (S3-S0 grid, masked)", var, mean, maxabs, rmse))
         if maxabs > TOL[var]:
@@ -198,23 +197,19 @@ def main(argv=None):
         k = xr.open_dataset(key_path)
         for var in s1.data_vars:
             same_nan = bool(
-                np.array_equal(
-                    np.isnan(s1[var].values), np.isnan(k[var].values)
-                )
+                np.array_equal(np.isnan(s1[var].values), np.isnan(k[var].values))
             )
-            close = bool(
-                np.allclose(s1[var].values, k[var].values, equal_nan=True)
-            )
+            close = bool(np.allclose(s1[var].values, k[var].values, equal_nan=True))
             if not (same_nan and close):
-                dmax = float(
-                    np.nanmax(np.abs(s1[var].values - k[var].values))
-                )
+                dmax = float(np.nanmax(np.abs(s1[var].values - k[var].values)))
                 failures.append(
                     f"wf1_raw vs keyed store NOT allclose for {var} "
                     f"(max abs {dmax:.4g})"
                 )
-        print(f"[edge: wf1_raw vs keyed store {store_key}] allclose checked "
-              f"for {list(s1.data_vars)}")
+        print(
+            f"[edge: wf1_raw vs keyed store {store_key}] allclose checked "
+            f"for {list(s1.data_vars)}"
+        )
     else:
         failures.append(f"keyed store extraction missing: {key_path}")
 

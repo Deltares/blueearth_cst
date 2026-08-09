@@ -7,6 +7,7 @@ yaml.safe_dump workaround (bypassing DataCatalog.to_yml because hydromt
 1.3 strips driver.options.preprocess) is itself the subject of one of
 the xfail regression tests below.
 """
+
 from __future__ import annotations
 
 import sys
@@ -39,9 +40,7 @@ class _FakeDataCatalog:
 # the wrong DataCatalog. Each fixture below monkeypatches pcdc.hydromt
 # directly per test — guarantees isolation regardless of collection order.
 
-sys.modules.setdefault(
-    "hydromt", types.SimpleNamespace(DataCatalog=_FakeDataCatalog)
-)
+sys.modules.setdefault("hydromt", types.SimpleNamespace(DataCatalog=_FakeDataCatalog))
 
 from blueearth_cst.climate_analysis import prepare_climate_data_catalog as pcdc  # noqa: E402
 
@@ -195,7 +194,9 @@ def test_processing_metadata_for_era5_source(tmp_path, era5_like_catalog):
     assert "chirps" not in proc  # the era5-branch message
 
 
-def test_processing_metadata_mentions_chirps_and_era5_for_chirps_source(tmp_path, chirps_like_catalog):
+def test_processing_metadata_mentions_chirps_and_era5_for_chirps_source(
+    tmp_path, chirps_like_catalog
+):
     rlz_nc = tmp_path / "rlz_1_st_0.nc"
     rlz_nc.write_bytes(b"")
     oro_fn = tmp_path / "chirps_global_orography.nc"
@@ -327,13 +328,12 @@ def test_hydromt_to_yml_round_trip_preserves_preprocess(tmp_path):
     sys.modules["hydromt"] = types.SimpleNamespace(DataCatalog=_FakeDataCatalog)
 
     # The assertion that fails until upstream fix:
-    assert (
-        written["test_source"]["driver"]["options"]["preprocess"]
-        == "harmonise_dims"
-    )
+    assert written["test_source"]["driver"]["options"]["preprocess"] == "harmonise_dims"
 
 
-def test_orography_entry_points_at_the_standardised_sidecar(tmp_path, chirps_like_catalog):
+def test_orography_entry_points_at_the_standardised_sidecar(
+    tmp_path, chirps_like_catalog
+):
     """R07 B1: the emitted sidecar is `orography.nc`, not `<source>_orography.nc`.
 
     The CATALOG ENTRY key stays `<source>_orography` — downstream consumers

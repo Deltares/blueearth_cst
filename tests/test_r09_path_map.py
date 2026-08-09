@@ -48,6 +48,7 @@ def _map(rel, path_map=MAP):
 # 1. One test per relocation class
 # ---------------------------------------------------------------------------
 
+
 def test_wflow_member_index_moves_from_directory_into_filename():
     """The class R09 exists for, and the exact inverse of R07's B5 rules.
 
@@ -57,14 +58,10 @@ def test_wflow_member_index_moves_from_directory_into_filename():
     `inmaps_` / `outstates_` prefixes have to survive the round trip.
     """
     cases = {
-        f"experiments/{E}/hydrology_runs/rlz_2/config/cst_3.toml":
-            f"experiments/{E}/hydrology/wflow/config/rlz_2_cst_3.toml",
-        f"experiments/{E}/hydrology_runs/rlz_2/forcing/inmaps_cst_3.nc":
-            f"experiments/{E}/hydrology/wflow/forcing/inmaps_rlz_2_cst_3.nc",
-        f"experiments/{E}/hydrology_runs/rlz_10/output/cst_7.csv":
-            f"experiments/{E}/hydrology/wflow/output/rlz_10_cst_7.csv",
-        f"experiments/{E}/hydrology_runs/rlz_1/output/outstates_cst_12.nc":
-            f"experiments/{E}/hydrology/wflow/output/outstates_rlz_1_cst_12.nc",
+        f"experiments/{E}/hydrology_runs/rlz_2/config/cst_3.toml": f"experiments/{E}/hydrology/wflow/config/rlz_2_cst_3.toml",
+        f"experiments/{E}/hydrology_runs/rlz_2/forcing/inmaps_cst_3.nc": f"experiments/{E}/hydrology/wflow/forcing/inmaps_rlz_2_cst_3.nc",
+        f"experiments/{E}/hydrology_runs/rlz_10/output/cst_7.csv": f"experiments/{E}/hydrology/wflow/output/rlz_10_cst_7.csv",
+        f"experiments/{E}/hydrology_runs/rlz_1/output/outstates_cst_12.nc": f"experiments/{E}/hydrology/wflow/output/outstates_rlz_1_cst_12.nc",
     }
     for old, new in cases.items():
         assert _map(old) == new, old
@@ -72,16 +69,11 @@ def test_wflow_member_index_moves_from_directory_into_filename():
 
 def test_weathergenr_subtree_relocates_whole_directories():
     cases = {
-        f"experiments/{E}/weather_generator/output/rlz_1_cst_0.nc":
-            f"experiments/{E}/climate/weathergenr/output/rlz_1_cst_0.nc",
-        f"experiments/{E}/weather_generator/output/sim_dates.csv":
-            f"experiments/{E}/climate/weathergenr/output/sim_dates.csv",
-        f"experiments/{E}/weather_generator/config/weathergen_config.yml":
-            f"experiments/{E}/climate/weathergenr/config/weathergen_config.yml",
-        f"experiments/{E}/weather_generator/_work/cst_4.csv":
-            f"experiments/{E}/climate/weathergenr/_work/cst_4.csv",
-        f"experiments/{E}/weather_generator/plots/warm_annual_precip.png":
-            f"experiments/{E}/climate/weathergenr/plots/warm_annual_precip.png",
+        f"experiments/{E}/weather_generator/output/rlz_1_cst_0.nc": f"experiments/{E}/climate/weathergenr/output/rlz_1_cst_0.nc",
+        f"experiments/{E}/weather_generator/output/sim_dates.csv": f"experiments/{E}/climate/weathergenr/output/sim_dates.csv",
+        f"experiments/{E}/weather_generator/config/weathergen_config.yml": f"experiments/{E}/climate/weathergenr/config/weathergen_config.yml",
+        f"experiments/{E}/weather_generator/_work/cst_4.csv": f"experiments/{E}/climate/weathergenr/_work/cst_4.csv",
+        f"experiments/{E}/weather_generator/plots/warm_annual_precip.png": f"experiments/{E}/climate/weathergenr/plots/warm_annual_precip.png",
     }
     for old, new in cases.items():
         assert _map(old) == new, old
@@ -89,10 +81,14 @@ def test_weathergenr_subtree_relocates_whole_directories():
 
 def test_result_tables_are_the_only_rule_all_renames():
     """naming.md §7's rename record is exactly two files across the whole map."""
-    assert _map(f"experiments/{E}/indicators/Qstats.csv") == \
-        f"experiments/{E}/results/q_indicators.csv"
-    assert _map(f"experiments/{E}/indicators/basin.csv") == \
-        f"experiments/{E}/results/basin_indicators.csv"
+    assert (
+        _map(f"experiments/{E}/indicators/Qstats.csv")
+        == f"experiments/{E}/results/q_indicators.csv"
+    )
+    assert (
+        _map(f"experiments/{E}/indicators/basin.csv")
+        == f"experiments/{E}/results/basin_indicators.csv"
+    )
 
 
 def test_rt_tables_are_classified_deleted_not_mapped():
@@ -103,11 +99,14 @@ def test_rt_tables_are_classified_deleted_not_mapped():
     separately, so the row is covered and the map stays honest.
     """
     rows = std.classify_path_map(
-        [f"experiments/{E}/indicators/RT_10.csv"], MAP, DELETIONS)
+        [f"experiments/{E}/indicators/RT_10.csv"], MAP, DELETIONS
+    )
     assert rows == [(f"experiments/{E}/indicators/RT_10.csv", "", "DELETED")]
     # ...and without the deletion list it is UNMAPPED, never a silent identity.
-    assert std.classify_path_map(
-        [f"experiments/{E}/indicators/RT_10.csv"], MAP)[0][2] == "UNMAPPED"
+    assert (
+        std.classify_path_map([f"experiments/{E}/indicators/RT_10.csv"], MAP)[0][2]
+        == "UNMAPPED"
+    )
 
 
 def test_hydrology_model_relocates_to_the_models_root():
@@ -115,16 +114,11 @@ def test_hydrology_model_relocates_to_the_models_root():
         "hydrology_model/staticmaps.nc": "models/hydrology/wflow/staticmaps.nc",
         "hydrology_model/wflow_sbm.toml": "models/hydrology/wflow/wflow_sbm.toml",
         "hydrology_model/.model_built": "models/hydrology/wflow/.model_built",
-        "hydrology_model/staticgeoms/region.geojson":
-            "models/hydrology/wflow/staticgeoms/region.geojson",
-        "hydrology_model/forcing/inmaps_historical.nc":
-            "models/hydrology/wflow/forcing/inmaps_historical.nc",
-        "hydrology_model/forcing/plots/forcing_precip_map.png":
-            "models/hydrology/wflow/forcing/plots/forcing_precip_map.png",
-        "hydrology_model/run_default/output.csv":
-            "models/hydrology/wflow/run_default/output.csv",
-        "hydrology_model/evaluation/performance_metrics.csv":
-            "models/hydrology/wflow/evaluation/performance_metrics.csv",
+        "hydrology_model/staticgeoms/region.geojson": "models/hydrology/wflow/staticgeoms/region.geojson",
+        "hydrology_model/forcing/inmaps_historical.nc": "models/hydrology/wflow/forcing/inmaps_historical.nc",
+        "hydrology_model/forcing/plots/forcing_precip_map.png": "models/hydrology/wflow/forcing/plots/forcing_precip_map.png",
+        "hydrology_model/run_default/output.csv": "models/hydrology/wflow/run_default/output.csv",
+        "hydrology_model/evaluation/performance_metrics.csv": "models/hydrology/wflow/evaluation/performance_metrics.csv",
     }
     for old, new in cases.items():
         assert _map(old) == new, old
@@ -132,27 +126,29 @@ def test_hydrology_model_relocates_to_the_models_root():
 
 def test_climate_store_keeps_its_cache_key():
     """Finding 3: `<source>_<window>` is a CACHE KEY and is retained verbatim."""
-    assert _map(f"climate_historical/{KEY}/extract_historical.nc") == \
-        f"data/climate/historical/{KEY}/extract_historical.nc"
-    assert _map(f"climate_historical/{KEY}/.guard_ok") == \
-        f"data/climate/historical/{KEY}/.guard_ok"
+    assert (
+        _map(f"climate_historical/{KEY}/extract_historical.nc")
+        == f"data/climate/historical/{KEY}/extract_historical.nc"
+    )
+    assert (
+        _map(f"climate_historical/{KEY}/.guard_ok")
+        == f"data/climate/historical/{KEY}/.guard_ok"
+    )
     # The row is keyed by a variable, so an unfamiliar key still maps.
-    assert _map("climate_historical/chirps_19900101_20101231/plots/x.png") == \
-        "data/climate/historical/chirps_19900101_20101231/plots/x.png"
+    assert (
+        _map("climate_historical/chirps_19900101_20101231/plots/x.png")
+        == "data/climate/historical/chirps_19900101_20101231/plots/x.png"
+    )
 
 
 def test_projection_tiers_relocate_under_data():
     cases = {
-        "climate_projections/cmip6/raw/cmip6_NOAA-GFDL_GFDL-ESM4_ssp245_r1i1p1f1.nc":
-            "data/climate/projections/cmip6/raw/"
-            "cmip6_NOAA-GFDL_GFDL-ESM4_ssp245_r1i1p1f1.nc",
-        "climate_projections/cmip6/scalar/cmip6_INM_INM-CM4-8_historical_r1i1p1f1.nc":
-            "data/climate/projections/cmip6/scalar/"
-            "cmip6_INM_INM-CM4-8_historical_r1i1p1f1.nc",
-        "climate_projections/cmip6/summary/cmip6_change_factors_annual.csv":
-            "data/climate/projections/cmip6/summary/cmip6_change_factors_annual.csv",
-        "climate_projections/cmip6/report.md":
-            "data/climate/projections/cmip6/report.md",
+        "climate_projections/cmip6/raw/cmip6_NOAA-GFDL_GFDL-ESM4_ssp245_r1i1p1f1.nc": "data/climate/projections/cmip6/raw/"
+        "cmip6_NOAA-GFDL_GFDL-ESM4_ssp245_r1i1p1f1.nc",
+        "climate_projections/cmip6/scalar/cmip6_INM_INM-CM4-8_historical_r1i1p1f1.nc": "data/climate/projections/cmip6/scalar/"
+        "cmip6_INM_INM-CM4-8_historical_r1i1p1f1.nc",
+        "climate_projections/cmip6/summary/cmip6_change_factors_annual.csv": "data/climate/projections/cmip6/summary/cmip6_change_factors_annual.csv",
+        "climate_projections/cmip6/report.md": "data/climate/projections/cmip6/report.md",
     }
     for old, new in cases.items():
         assert _map(old) == new, old
@@ -162,14 +158,19 @@ def test_projection_tiers_relocate_under_data():
 
 def test_rule_3_11_rename_touches_only_transient_parts():
     """The one rule identifier R09 changes; its path effect is parts only."""
-    assert _map(f"experiments/{E}/logs/_parts/3.11_export_wflow_results.log") == \
-        f"experiments/{E}/logs/_parts/3.11_derive_wflow_indicators.log"
-    assert _map(
-        f"experiments/{E}/benchmarks/_parts/3.11_export_wflow_results.tsv"
-    ) == f"experiments/{E}/benchmarks/_parts/3.11_derive_wflow_indicators.tsv"
+    assert (
+        _map(f"experiments/{E}/logs/_parts/3.11_export_wflow_results.log")
+        == f"experiments/{E}/logs/_parts/3.11_derive_wflow_indicators.log"
+    )
+    assert (
+        _map(f"experiments/{E}/benchmarks/_parts/3.11_export_wflow_results.tsv")
+        == f"experiments/{E}/benchmarks/_parts/3.11_derive_wflow_indicators.tsv"
+    )
     # The rename rule must beat the `_parts/` identity row registered after it.
-    assert _map(f"experiments/{E}/logs/_parts/3.09_other.log") == \
-        f"experiments/{E}/logs/_parts/3.09_other.log"
+    assert (
+        _map(f"experiments/{E}/logs/_parts/3.09_other.log")
+        == f"experiments/{E}/logs/_parts/3.09_other.log"
+    )
 
 
 def test_identity_rows_are_matched_rules_not_fall_through():
@@ -214,6 +215,7 @@ def test_a_catch_all_config_prefix_would_empty_the_report():
 # 2. The two named precedence hazards
 # ---------------------------------------------------------------------------
 
+
 def test_hazard_generated_build_yaml_beats_the_config_identity_rows():
     """`config/generated/*` is routed to the MODEL root, not left under config/.
 
@@ -222,13 +224,17 @@ def test_hazard_generated_build_yaml_beats_the_config_identity_rows():
     more -- so the map doc's second named hazard guarded a retired file
     (phase-1 report G2). Its row, its rule and its row-driven case are gone.
     """
-    assert _map("config/generated/wflow_build_forcing_historical.yml") == \
-        "models/hydrology/wflow/config/build_historical_forcing.yml"
+    assert (
+        _map("config/generated/wflow_build_forcing_historical.yml")
+        == "models/hydrology/wflow/config/build_historical_forcing.yml"
+    )
     # The retired one must now FALL THROUGH rather than resolve: an old
     # project_dir that still holds the file gets it REPORTED, not silently
     # migrated to a destination the design no longer has a producer for.
-    assert std.classify_path_map(
-        ["config/generated/wflow_build_model_run.yml"], MAP)[0][2] == "UNMAPPED"
+    assert (
+        std.classify_path_map(["config/generated/wflow_build_model_run.yml"], MAP)[0][2]
+        == "UNMAPPED"
+    )
 
 
 def test_hazard_wflow_log_beats_the_run_config_regex():
@@ -240,11 +246,15 @@ def test_hazard_wflow_log_beats_the_run_config_regex():
     against the map; what this test pins is the PRECEDENCE, which is what a
     later `config/(.*)` rule would silently break.
     """
-    assert _map(f"experiments/{E}/hydrology_runs/rlz_3/config/log.txt") == \
-        f"experiments/{E}/hydrology/wflow/output/rlz_3_cst_<c>.log"
+    assert (
+        _map(f"experiments/{E}/hydrology_runs/rlz_3/config/log.txt")
+        == f"experiments/{E}/hydrology/wflow/output/rlz_3_cst_<c>.log"
+    )
     # The general run-config rule still owns the TOMLs in the same directory.
-    assert _map(f"experiments/{E}/hydrology_runs/rlz_3/config/cst_5.toml") == \
-        f"experiments/{E}/hydrology/wflow/config/rlz_3_cst_5.toml"
+    assert (
+        _map(f"experiments/{E}/hydrology_runs/rlz_3/config/cst_5.toml")
+        == f"experiments/{E}/hydrology/wflow/config/rlz_3_cst_5.toml"
+    )
 
 
 def test_narrower_source_pattern_is_registered_first():
@@ -254,6 +264,7 @@ def test_narrower_source_pattern_is_registered_first():
     the general one consumes its paths first (`apply_path_map` is first match
     wins).
     """
+
     def index_of(pattern_src: str) -> int:
         for i, (old, _) in enumerate(MAP):
             src = old.pattern if isinstance(old, re.Pattern) else old
@@ -263,16 +274,24 @@ def test_narrower_source_pattern_is_registered_first():
 
     exp = re.escape(E)
     pairs = [
-        (rf"experiments/{exp}/hydrology_runs/rlz_(\d+)/config/log\.txt",
-         rf"experiments/{exp}/hydrology_runs/rlz_(\d+)/config/cst_(\d+)\.toml"),
-        (rf"experiments/{exp}/hydrology_runs/rlz_(\d+)/output/"
-         rf"outstates_cst_(\d+)\.nc",
-         rf"experiments/{exp}/hydrology_runs/rlz_(\d+)/output/cst_(\d+)\.csv"),
-        (f"experiments/{E}/logs/_parts/3.11_export_wflow_results.log",
-         f"experiments/{E}/logs/"),
+        (
+            rf"experiments/{exp}/hydrology_runs/rlz_(\d+)/config/log\.txt",
+            rf"experiments/{exp}/hydrology_runs/rlz_(\d+)/config/cst_(\d+)\.toml",
+        ),
+        (
+            rf"experiments/{exp}/hydrology_runs/rlz_(\d+)/output/"
+            rf"outstates_cst_(\d+)\.nc",
+            rf"experiments/{exp}/hydrology_runs/rlz_(\d+)/output/cst_(\d+)\.csv",
+        ),
+        (
+            f"experiments/{E}/logs/_parts/3.11_export_wflow_results.log",
+            f"experiments/{E}/logs/",
+        ),
         (f"climate_historical/{KEY}/", r"climate_historical/([^/]+)/(.*)"),
-        ("hydrology_model/forcing/inmaps_historical.nc",
-         "hydrology_model/forcing/plots/"),
+        (
+            "hydrology_model/forcing/inmaps_historical.nc",
+            "hydrology_model/forcing/plots/",
+        ),
     ]
     for narrow, general in pairs:
         assert index_of(narrow) < index_of(general), (narrow, general)
@@ -290,34 +309,47 @@ def test_narrower_source_pattern_is_registered_first():
 MAP_ROWS: dict[str, list[tuple[str, str]]] = {
     # --- section: -> models/hydrology/wflow/ ---
     "models": [
-        ("hydrology_model/staticmaps.nc",
-         "models/hydrology/wflow/staticmaps.nc"),
-        ("hydrology_model/wflow_sbm.toml",
-         "models/hydrology/wflow/wflow_sbm.toml"),
-        ("hydrology_model/hydromt.log",
-         "models/hydrology/wflow/hydromt.log"),
-        ("hydrology_model/hydromt_data.yml",
-         "models/hydrology/wflow/hydromt_data.yml"),
-        ("hydrology_model/staticgeoms/outlets.geojson",
-         "models/hydrology/wflow/staticgeoms/outlets.geojson"),
-        ("hydrology_model/forcing/inmaps_historical.nc",
-         "models/hydrology/wflow/forcing/inmaps_historical.nc"),
-        ("hydrology_model/forcing/plots/forcing_temp_map.png",
-         "models/hydrology/wflow/forcing/plots/forcing_temp_map.png"),
-        ("hydrology_model/run_default/output.csv",
-         "models/hydrology/wflow/run_default/output.csv"),
-        ("hydrology_model/evaluation/plots/hydro_wflow_1.png",
-         "models/hydrology/wflow/evaluation/plots/hydro_wflow_1.png"),
-        ("hydrology_model/plots/basin_area.png",
-         "models/hydrology/wflow/plots/basin_area.png"),
-        ("hydrology_model/plots/basin_area.pdf",
-         "models/hydrology/wflow/plots/basin_area.pdf"),
-        ("hydrology_model/.model_built",
-         "models/hydrology/wflow/.model_built"),
-        ("hydrology_model/.outputs_configured",
-         "models/hydrology/wflow/.outputs_configured"),
-        ("config/generated/wflow_build_forcing_historical.yml",
-         "models/hydrology/wflow/config/build_historical_forcing.yml"),
+        ("hydrology_model/staticmaps.nc", "models/hydrology/wflow/staticmaps.nc"),
+        ("hydrology_model/wflow_sbm.toml", "models/hydrology/wflow/wflow_sbm.toml"),
+        ("hydrology_model/hydromt.log", "models/hydrology/wflow/hydromt.log"),
+        ("hydrology_model/hydromt_data.yml", "models/hydrology/wflow/hydromt_data.yml"),
+        (
+            "hydrology_model/staticgeoms/outlets.geojson",
+            "models/hydrology/wflow/staticgeoms/outlets.geojson",
+        ),
+        (
+            "hydrology_model/forcing/inmaps_historical.nc",
+            "models/hydrology/wflow/forcing/inmaps_historical.nc",
+        ),
+        (
+            "hydrology_model/forcing/plots/forcing_temp_map.png",
+            "models/hydrology/wflow/forcing/plots/forcing_temp_map.png",
+        ),
+        (
+            "hydrology_model/run_default/output.csv",
+            "models/hydrology/wflow/run_default/output.csv",
+        ),
+        (
+            "hydrology_model/evaluation/plots/hydro_wflow_1.png",
+            "models/hydrology/wflow/evaluation/plots/hydro_wflow_1.png",
+        ),
+        (
+            "hydrology_model/plots/basin_area.png",
+            "models/hydrology/wflow/plots/basin_area.png",
+        ),
+        (
+            "hydrology_model/plots/basin_area.pdf",
+            "models/hydrology/wflow/plots/basin_area.pdf",
+        ),
+        ("hydrology_model/.model_built", "models/hydrology/wflow/.model_built"),
+        (
+            "hydrology_model/.outputs_configured",
+            "models/hydrology/wflow/.outputs_configured",
+        ),
+        (
+            "config/generated/wflow_build_forcing_historical.yml",
+            "models/hydrology/wflow/config/build_historical_forcing.yml",
+        ),
     ],
     # --- section: -> data/ ---
     "data": [
@@ -326,13 +358,10 @@ MAP_ROWS: dict[str, list[tuple[str, str]]] = {
         ("spatial/spatial_report.yml", "data/spatial/spatial_report.yml"),
         ("spatial/location_registry.csv", "data/spatial/location_registry.csv"),
         ("spatial/geoms/basins.geojson", "data/spatial/geoms/basins.geojson"),
-        ("spatial/geoms/catchments.geojson",
-         "data/spatial/geoms/catchments.geojson"),
-        ("spatial/geoms/locations.geojson",
-         "data/spatial/geoms/locations.geojson"),
+        ("spatial/geoms/catchments.geojson", "data/spatial/geoms/catchments.geojson"),
+        ("spatial/geoms/locations.geojson", "data/spatial/geoms/locations.geojson"),
         ("spatial/geoms/rivers.geojson", "data/spatial/geoms/rivers.geojson"),
-        ("spatial/geoms/subbasins.geojson",
-         "data/spatial/geoms/subbasins.geojson"),
+        ("spatial/geoms/subbasins.geojson", "data/spatial/geoms/subbasins.geojson"),
         # F1a amendment 2026-08-04: the row is the geoms DIRECTORY, so the
         # sixth layer (rule delineate_region) is covered by the same row.
         ("spatial/geoms/region.geojson", "data/spatial/geoms/region.geojson"),
@@ -342,130 +371,215 @@ MAP_ROWS: dict[str, list[tuple[str, str]]] = {
         # where the map lists leaves one by one, and F1a's widening only
         # reached `geoms/`.
         ("spatial/hydrography.nc", "data/spatial/hydrography.nc"),
-        (f"climate_historical/{KEY}/extract_historical.nc",
-         f"data/climate/historical/{KEY}/extract_historical.nc"),
-        (f"climate_historical/{KEY}/store_region.geojson",
-         f"data/climate/historical/{KEY}/store_region.geojson"),
-        (f"climate_historical/{KEY}/plots/source_precip_map.png",
-         f"data/climate/historical/{KEY}/plots/source_precip_map.png"),
-        (f"climate_historical/{KEY}/.guard_ok",
-         f"data/climate/historical/{KEY}/.guard_ok"),
-        ("climate_projections/cmip6/raw/cmip6_INM_INM-CM4-8_ssp245_r1i1p1f1.nc",
-         "data/climate/projections/cmip6/raw/"
-         "cmip6_INM_INM-CM4-8_ssp245_r1i1p1f1.nc"),
-        ("climate_projections/cmip6/scalar/cmip6_INM_INM-CM4-8_ssp245_r1i1p1f1.nc",
-         "data/climate/projections/cmip6/scalar/"
-         "cmip6_INM_INM-CM4-8_ssp245_r1i1p1f1.nc"),
-        ("climate_projections/cmip6/summary/provenance.json",
-         "data/climate/projections/cmip6/summary/provenance.json"),
-        ("climate_projections/cmip6/plots/cmip6_change_factor_cloud.png",
-         "data/climate/projections/cmip6/plots/cmip6_change_factor_cloud.png"),
-        ("climate_projections/cmip6/report.md",
-         "data/climate/projections/cmip6/report.md"),
+        (
+            f"climate_historical/{KEY}/extract_historical.nc",
+            f"data/climate/historical/{KEY}/extract_historical.nc",
+        ),
+        (
+            f"climate_historical/{KEY}/store_region.geojson",
+            f"data/climate/historical/{KEY}/store_region.geojson",
+        ),
+        (
+            f"climate_historical/{KEY}/plots/source_precip_map.png",
+            f"data/climate/historical/{KEY}/plots/source_precip_map.png",
+        ),
+        (
+            f"climate_historical/{KEY}/.guard_ok",
+            f"data/climate/historical/{KEY}/.guard_ok",
+        ),
+        (
+            "climate_projections/cmip6/raw/cmip6_INM_INM-CM4-8_ssp245_r1i1p1f1.nc",
+            "data/climate/projections/cmip6/raw/cmip6_INM_INM-CM4-8_ssp245_r1i1p1f1.nc",
+        ),
+        (
+            "climate_projections/cmip6/scalar/cmip6_INM_INM-CM4-8_ssp245_r1i1p1f1.nc",
+            "data/climate/projections/cmip6/scalar/"
+            "cmip6_INM_INM-CM4-8_ssp245_r1i1p1f1.nc",
+        ),
+        (
+            "climate_projections/cmip6/summary/provenance.json",
+            "data/climate/projections/cmip6/summary/provenance.json",
+        ),
+        (
+            "climate_projections/cmip6/plots/cmip6_change_factor_cloud.png",
+            "data/climate/projections/cmip6/plots/cmip6_change_factor_cloud.png",
+        ),
+        (
+            "climate_projections/cmip6/report.md",
+            "data/climate/projections/cmip6/report.md",
+        ),
     ],
     # --- section: -> experiments/<id>/ ---
     "experiments": [
-        (f"experiments/{E}/weather_generator/output/rlz_1_cst_2.nc",
-         f"experiments/{E}/climate/weathergenr/output/rlz_1_cst_2.nc"),
-        (f"experiments/{E}/weather_generator/config/weathergen_config.yml",
-         f"experiments/{E}/climate/weathergenr/config/weathergen_config.yml"),
-        (f"experiments/{E}/weather_generator/_work/"
-         f"weathergen_config_rlz_1_cst_2.yml",
-         f"experiments/{E}/climate/weathergenr/_work/"
-         f"weathergen_config_rlz_1_cst_2.yml"),
-        (f"experiments/{E}/weather_generator/plots/obs_power_spectra.png",
-         f"experiments/{E}/climate/weathergenr/plots/obs_power_spectra.png"),
-        (f"experiments/{E}/weather_generator/output/sim_dates.csv",
-         f"experiments/{E}/climate/weathergenr/output/sim_dates.csv"),
-        (f"experiments/{E}/weather_generator/output/resampled_dates.csv",
-         f"experiments/{E}/climate/weathergenr/output/resampled_dates.csv"),
-        (f"experiments/{E}/hydrology_runs/rlz_1/config/cst_2.toml",
-         f"experiments/{E}/hydrology/wflow/config/rlz_1_cst_2.toml"),
-        (f"experiments/{E}/hydrology_runs/rlz_1/forcing/inmaps_cst_2.nc",
-         f"experiments/{E}/hydrology/wflow/forcing/inmaps_rlz_1_cst_2.nc"),
-        (f"experiments/{E}/hydrology_runs/rlz_1/output/cst_2.csv",
-         f"experiments/{E}/hydrology/wflow/output/rlz_1_cst_2.csv"),
-        (f"experiments/{E}/hydrology_runs/rlz_1/output/outstates_cst_2.nc",
-         f"experiments/{E}/hydrology/wflow/output/outstates_rlz_1_cst_2.nc"),
+        (
+            f"experiments/{E}/weather_generator/output/rlz_1_cst_2.nc",
+            f"experiments/{E}/climate/weathergenr/output/rlz_1_cst_2.nc",
+        ),
+        (
+            f"experiments/{E}/weather_generator/config/weathergen_config.yml",
+            f"experiments/{E}/climate/weathergenr/config/weathergen_config.yml",
+        ),
+        (
+            f"experiments/{E}/weather_generator/_work/"
+            f"weathergen_config_rlz_1_cst_2.yml",
+            f"experiments/{E}/climate/weathergenr/_work/"
+            f"weathergen_config_rlz_1_cst_2.yml",
+        ),
+        (
+            f"experiments/{E}/weather_generator/plots/obs_power_spectra.png",
+            f"experiments/{E}/climate/weathergenr/plots/obs_power_spectra.png",
+        ),
+        (
+            f"experiments/{E}/weather_generator/output/sim_dates.csv",
+            f"experiments/{E}/climate/weathergenr/output/sim_dates.csv",
+        ),
+        (
+            f"experiments/{E}/weather_generator/output/resampled_dates.csv",
+            f"experiments/{E}/climate/weathergenr/output/resampled_dates.csv",
+        ),
+        (
+            f"experiments/{E}/hydrology_runs/rlz_1/config/cst_2.toml",
+            f"experiments/{E}/hydrology/wflow/config/rlz_1_cst_2.toml",
+        ),
+        (
+            f"experiments/{E}/hydrology_runs/rlz_1/forcing/inmaps_cst_2.nc",
+            f"experiments/{E}/hydrology/wflow/forcing/inmaps_rlz_1_cst_2.nc",
+        ),
+        (
+            f"experiments/{E}/hydrology_runs/rlz_1/output/cst_2.csv",
+            f"experiments/{E}/hydrology/wflow/output/rlz_1_cst_2.csv",
+        ),
+        (
+            f"experiments/{E}/hydrology_runs/rlz_1/output/outstates_cst_2.nc",
+            f"experiments/{E}/hydrology/wflow/output/outstates_rlz_1_cst_2.nc",
+        ),
         # One-to-many split: `<c>` is not recoverable from the old path.
-        (f"experiments/{E}/hydrology_runs/rlz_1/config/log.txt",
-         f"experiments/{E}/hydrology/wflow/output/rlz_1_cst_<c>.log"),
-        (f"experiments/{E}/indicators/Qstats.csv",
-         f"experiments/{E}/results/q_indicators.csv"),
-        (f"experiments/{E}/indicators/basin.csv",
-         f"experiments/{E}/results/basin_indicators.csv"),
-        (f"experiments/{E}/data_catalog_climate_experiment.yml",
-         f"experiments/{E}/config/catalogs/data_catalog_climate_experiment.yml"),
-        (f"experiments/{E}/.project_consistency_ok",
-         f"experiments/{E}/.project_consistency_ok"),
-        (f"experiments/{E}/logs/wf3_climate_experiment.log",
-         f"experiments/{E}/logs/wf3_climate_experiment.log"),
-        (f"experiments/{E}/benchmarks/wf3_benchmarks.md",
-         f"experiments/{E}/benchmarks/wf3_benchmarks.md"),
-        (f"experiments/{E}/config/snake_config_climate_experiment.yml",
-         f"experiments/{E}/config/snake_config_climate_experiment.yml"),
-        (f"experiments/{E}/config/catalogs/data_catalog_climate_experiment.yml",
-         f"experiments/{E}/config/catalogs/data_catalog_climate_experiment.yml"),
+        (
+            f"experiments/{E}/hydrology_runs/rlz_1/config/log.txt",
+            f"experiments/{E}/hydrology/wflow/output/rlz_1_cst_<c>.log",
+        ),
+        (
+            f"experiments/{E}/indicators/Qstats.csv",
+            f"experiments/{E}/results/q_indicators.csv",
+        ),
+        (
+            f"experiments/{E}/indicators/basin.csv",
+            f"experiments/{E}/results/basin_indicators.csv",
+        ),
+        (
+            f"experiments/{E}/data_catalog_climate_experiment.yml",
+            f"experiments/{E}/config/catalogs/data_catalog_climate_experiment.yml",
+        ),
+        (
+            f"experiments/{E}/.project_consistency_ok",
+            f"experiments/{E}/.project_consistency_ok",
+        ),
+        (
+            f"experiments/{E}/logs/wf3_climate_experiment.log",
+            f"experiments/{E}/logs/wf3_climate_experiment.log",
+        ),
+        (
+            f"experiments/{E}/benchmarks/wf3_benchmarks.md",
+            f"experiments/{E}/benchmarks/wf3_benchmarks.md",
+        ),
+        (
+            f"experiments/{E}/config/snake_config_climate_experiment.yml",
+            f"experiments/{E}/config/snake_config_climate_experiment.yml",
+        ),
+        (
+            f"experiments/{E}/config/catalogs/data_catalog_climate_experiment.yml",
+            f"experiments/{E}/config/catalogs/data_catalog_climate_experiment.yml",
+        ),
         # F1c addition 2026-08-04: the experiment-scoped digest bundle.
-        (f"experiments/{E}/config/runs/climate_experiment/278159763309/x.yml",
-         f"experiments/{E}/config/runs/climate_experiment/278159763309/x.yml"),
+        (
+            f"experiments/{E}/config/runs/climate_experiment/278159763309/x.yml",
+            f"experiments/{E}/config/runs/climate_experiment/278159763309/x.yml",
+        ),
     ],
     # --- section: -> config/ ---
     "config": [
-        ("config/runs/snake_config_model_creation.yml",
-         "config/runs/snake_config_model_creation.yml"),
-        ("config/runs/snake_config_climate_projections.yml",
-         "config/runs/snake_config_climate_projections.yml"),
+        (
+            "config/runs/snake_config_model_creation.yml",
+            "config/runs/snake_config_model_creation.yml",
+        ),
+        (
+            "config/runs/snake_config_climate_projections.yml",
+            "config/runs/snake_config_climate_projections.yml",
+        ),
         # F1b amendment 2026-08-04: `<workflow>`, not just `model_creation`.
-        ("config/runs/model_creation/1a22a14838f3/snake_config.yml",
-         "config/runs/model_creation/1a22a14838f3/snake_config.yml"),
-        ("config/runs/climate_projections/61868971c618/snake_config.yml",
-         "config/runs/climate_projections/61868971c618/snake_config.yml"),
+        (
+            "config/runs/model_creation/1a22a14838f3/snake_config.yml",
+            "config/runs/model_creation/1a22a14838f3/snake_config.yml",
+        ),
+        (
+            "config/runs/climate_projections/61868971c618/snake_config.yml",
+            "config/runs/climate_projections/61868971c618/snake_config.yml",
+        ),
         ("config/catalogs/cmip6_data.yml", "config/catalogs/cmip6_data.yml"),
-        ("config/templates/wflow_build_model.yml",
-         "config/templates/wflow_build_model.yml"),
-        ("config/observations/output_locations.csv",
-         "config/observations/output_locations.csv"),
-        ("config/generated/wflow_build_forcing_historical.yml",
-         "models/hydrology/wflow/config/build_historical_forcing.yml"),
+        (
+            "config/templates/wflow_build_model.yml",
+            "config/templates/wflow_build_model.yml",
+        ),
+        (
+            "config/observations/output_locations.csv",
+            "config/observations/output_locations.csv",
+        ),
+        (
+            "config/generated/wflow_build_forcing_historical.yml",
+            "models/hydrology/wflow/config/build_historical_forcing.yml",
+        ),
         # 2026-08-05 follow-up: the wrapper's invocation manifest relocates off
         # its own `provenance/` root. RELOCATION, not identity -- the only row
         # in this section whose source is outside `config/`.
-        ("provenance/runs/20260805T142211Z-a1b2c3d4e5f6.json",
-         "config/runs/invocations/20260805T142211Z-a1b2c3d4e5f6.json"),
+        (
+            "provenance/runs/20260805T142211Z-a1b2c3d4e5f6.json",
+            "config/runs/invocations/20260805T142211Z-a1b2c3d4e5f6.json",
+        ),
         # ...and the destination classifies on its own row, so a future
         # tightening of the `config/runs/<workflow>/` regex cannot silently
         # drop it to UNMAPPED.
-        ("config/runs/invocations/20260805T142211Z-a1b2c3d4e5f6.json",
-         "config/runs/invocations/20260805T142211Z-a1b2c3d4e5f6.json"),
+        (
+            "config/runs/invocations/20260805T142211Z-a1b2c3d4e5f6.json",
+            "config/runs/invocations/20260805T142211Z-a1b2c3d4e5f6.json",
+        ),
     ],
     # --- section: -> project root ---
     "root": [
         ("logs/wf1_model_creation.log", "logs/wf1_model_creation.log"),
         ("logs/wf2_climate_projections.log", "logs/wf2_climate_projections.log"),
-        ("logs/_parts/1.01_snapshot_config.log",
-         "logs/_parts/1.01_snapshot_config.log"),
+        (
+            "logs/_parts/1.01_snapshot_config.log",
+            "logs/_parts/1.01_snapshot_config.log",
+        ),
         ("benchmarks/wf1_benchmarks.md", "benchmarks/wf1_benchmarks.md"),
         ("benchmarks/wf2_benchmarks.md", "benchmarks/wf2_benchmarks.md"),
-        ("benchmarks/_parts/1.01_snapshot_config.tsv",
-         "benchmarks/_parts/1.01_snapshot_config.tsv"),
+        (
+            "benchmarks/_parts/1.01_snapshot_config.tsv",
+            "benchmarks/_parts/1.01_snapshot_config.tsv",
+        ),
         ("logs/dag/test_wf1_dag.png", "logs/dag/test_wf1_dag.png"),
     ],
     # --- section: Rule rename carried by R9 ---
     "rule_rename": [
-        ("logs/_parts/3.11_export_wflow_results.log",
-         "logs/_parts/3.11_derive_wflow_indicators.log"),
-        ("benchmarks/_parts/3.11_export_wflow_results.tsv",
-         "benchmarks/_parts/3.11_derive_wflow_indicators.tsv"),
+        (
+            "logs/_parts/3.11_export_wflow_results.log",
+            "logs/_parts/3.11_derive_wflow_indicators.log",
+        ),
+        (
+            "benchmarks/_parts/3.11_export_wflow_results.tsv",
+            "benchmarks/_parts/3.11_derive_wflow_indicators.tsv",
+        ),
     ],
 }
 
-ALL_ROWS = [(section, old, new)
-            for section, rows in MAP_ROWS.items() for old, new in rows]
+ALL_ROWS = [
+    (section, old, new) for section, rows in MAP_ROWS.items() for old, new in rows
+]
 
 
-@pytest.mark.parametrize("section,old,new", ALL_ROWS,
-                         ids=[f"{s}:{o}" for s, o, _ in ALL_ROWS])
+@pytest.mark.parametrize(
+    "section,old,new", ALL_ROWS, ids=[f"{s}:{o}" for s, o, _ in ALL_ROWS]
+)
 def test_every_map_row_resolves(section, old, new):
     """Row-driven: each (old, new) pair from the map doc, as test data.
 
@@ -480,8 +594,14 @@ def test_every_map_row_resolves(section, old, new):
 
 def test_row_coverage_is_not_trivially_satisfied():
     """Guard on the guard: the row table must exercise every section."""
-    assert set(MAP_ROWS) == {"models", "data", "experiments", "config",
-                             "root", "rule_rename"}
+    assert set(MAP_ROWS) == {
+        "models",
+        "data",
+        "experiments",
+        "config",
+        "root",
+        "rule_rename",
+    }
     assert len(ALL_ROWS) >= 60
 
 
@@ -489,10 +609,14 @@ def test_row_coverage_is_not_trivially_satisfied():
 # 4. Declared-tier falsifier (dev/milestones/r09/declared_inventory.txt)
 # ---------------------------------------------------------------------------
 
+
 def _declared_paths() -> list[str]:
     text = DECLARED_INVENTORY.read_text(encoding="utf-8")
-    paths = [line.strip() for line in text.splitlines()
-             if line.strip() and not line.lstrip().startswith("#")]
+    paths = [
+        line.strip()
+        for line in text.splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
     assert paths, "declared inventory is empty"
     return paths
 
@@ -532,8 +656,7 @@ KNOWN_UNMAPPED: set[str] = set()
 
 def test_declared_tier_unmapped_set_is_exactly_the_known_gaps():
     rows = std.classify_path_map(_declared_paths(), MAP, DELETIONS)
-    unmapped = {_digest_agnostic(old)
-                for old, _, kind in rows if kind == "UNMAPPED"}
+    unmapped = {_digest_agnostic(old) for old, _, kind in rows if kind == "UNMAPPED"}
     assert unmapped == KNOWN_UNMAPPED, std.format_path_map_report(rows)
 
 
@@ -548,13 +671,10 @@ def test_the_three_ruled_gaps_are_covered_by_the_map_itself():
         # F1a -- the `data/` row is now the geoms DIRECTORY
         "spatial/geoms/region.geojson": "data/spatial/geoms/region.geojson",
         # F1b -- `config/runs/<workflow>/<digest>/**`, not just model_creation
-        "config/runs/climate_projections/61868971c618":
-            "config/runs/climate_projections/61868971c618",
-        "config/runs/model_creation/1a22a14838f3/snake_config.yml":
-            "config/runs/model_creation/1a22a14838f3/snake_config.yml",
+        "config/runs/climate_projections/61868971c618": "config/runs/climate_projections/61868971c618",
+        "config/runs/model_creation/1a22a14838f3/snake_config.yml": "config/runs/model_creation/1a22a14838f3/snake_config.yml",
         # F1c -- the experiment-scoped bundle, identity under P9
-        f"experiments/{E}/config/runs/climate_experiment/278159763309":
-            f"experiments/{E}/config/runs/climate_experiment/278159763309",
+        f"experiments/{E}/config/runs/climate_experiment/278159763309": f"experiments/{E}/config/runs/climate_experiment/278159763309",
     }
     for old, new in cases.items():
         got, matched = std.apply_path_map_matched(old, MAP)
@@ -577,17 +697,24 @@ def test_the_workflow_digest_rule_did_not_become_a_config_runs_catch_all():
         assert std.apply_path_map(contract_path, MAP) == contract_path
     # ...and an unknown file directly under config/runs/ is still UNMAPPED,
     # which is what proves the enumeration was not quietly widened.
-    assert std.classify_path_map(
-        ["config/runs/something_new.yml"], MAP)[0][2] == "UNMAPPED"
+    assert (
+        std.classify_path_map(["config/runs/something_new.yml"], MAP)[0][2]
+        == "UNMAPPED"
+    )
 
 
 def test_the_digest_normalizer_only_touches_config_run_bundles():
     """Guard on the normalizer: it must not blunt any other assertion."""
-    assert _digest_agnostic("config/runs/model_creation/1a22a14838f3") == \
-        "config/runs/model_creation/<digest>"
-    assert _digest_agnostic(
-        "experiments/experiment/config/runs/climate_experiment/278159763309/x.yml"
-    ) == "experiments/experiment/config/runs/climate_experiment/<digest>/x.yml"
+    assert (
+        _digest_agnostic("config/runs/model_creation/1a22a14838f3")
+        == "config/runs/model_creation/<digest>"
+    )
+    assert (
+        _digest_agnostic(
+            "experiments/experiment/config/runs/climate_experiment/278159763309/x.yml"
+        )
+        == "experiments/experiment/config/runs/climate_experiment/<digest>/x.yml"
+    )
     for untouched in (
         "config/runs/snake_config_model_creation.yml",
         "spatial/geoms/region.geojson",
@@ -645,18 +772,24 @@ def test_the_bare_weathergenr_directory_maps_too():
     R07 carries the same case for its own layout, in
     `test_r07_bare_realization_dir_maps_to_the_generator_output_dir`.
     """
-    assert _map(f"experiments/{E}/weather_generator/") == \
-        f"experiments/{E}/climate/weathergenr/"
+    assert (
+        _map(f"experiments/{E}/weather_generator/")
+        == f"experiments/{E}/climate/weathergenr/"
+    )
     # ...and the four subdirectory rules still win, because they are registered
     # first. If the bare rule ever moved above them it would still produce the
     # right string here, so assert a case where the order is observable: these
     # must resolve through their own rule, not by prefix-substitution accident.
     for sub in ("output", "config", "_work", "plots"):
-        assert _map(f"experiments/{E}/weather_generator/{sub}/x.nc") == \
-            f"experiments/{E}/climate/weathergenr/{sub}/x.nc"
+        assert (
+            _map(f"experiments/{E}/weather_generator/{sub}/x.nc")
+            == f"experiments/{E}/climate/weathergenr/{sub}/x.nc"
+        )
 
 
 def test_the_experiment_catalog_moves_under_config_catalogs():
     """The v6 row P2 had not implemented until the tree gate reported it."""
-    assert _map(f"experiments/{E}/data_catalog_climate_experiment.yml") == \
-        f"experiments/{E}/config/catalogs/data_catalog_climate_experiment.yml"
+    assert (
+        _map(f"experiments/{E}/data_catalog_climate_experiment.yml")
+        == f"experiments/{E}/config/catalogs/data_catalog_climate_experiment.yml"
+    )

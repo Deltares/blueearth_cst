@@ -9,6 +9,7 @@ Testing pattern (M02c convention; see dev/milestones/phase-1/m02c/test-coverage-
 - Inline fixtures per file. Promote to conftest.py only if reused in 3+ files.
 - No Snakemake script injection — call functions directly.
 """
+
 from __future__ import annotations
 
 

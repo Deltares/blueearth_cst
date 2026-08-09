@@ -21,15 +21,14 @@ def _window(start, end):
 
 # --- historical_window_days ------------------------------------------------
 
+
 def test_span_of_a_full_year():
     assert historical_window_days(_window("2000-01-01", "2001-01-01")) == 366
 
 
 def test_iso_datetime_endpoints_are_accepted():
     """The spelling every shipped config uses."""
-    days = historical_window_days(
-        _window("2000-01-01T00:00:00", "2020-12-31T00:00:00")
-    )
+    days = historical_window_days(_window("2000-01-01T00:00:00", "2020-12-31T00:00:00"))
     assert days == 7670
 
 
@@ -49,6 +48,7 @@ def test_non_mapping_is_rejected():
 
 
 # --- meets_min_historical_years (calendar arithmetic) ----------------------
+
 
 def test_exactly_sixteen_calendar_years_meets_the_floor():
     """Inclusive: the same date 16 years later passes, one day earlier does
@@ -80,6 +80,7 @@ def test_leap_day_clamps_across_a_non_leap_century():
 
 # --- validate_historical_window --------------------------------------------
 
+
 def test_exactly_the_floor_is_accepted():
     assert validate_historical_window(_window("2000-01-01", "2016-01-01")) > 0
 
@@ -90,9 +91,12 @@ def test_one_day_under_the_floor_is_rejected():
 
 
 def test_the_shipped_window_passes():
-    assert validate_historical_window(
-        _window("2000-01-01T00:00:00", "2020-12-31T00:00:00")
-    ) == 7670
+    assert (
+        validate_historical_window(
+            _window("2000-01-01T00:00:00", "2020-12-31T00:00:00")
+        )
+        == 7670
+    )
 
 
 def test_rejection_names_the_window_its_length_the_floor_and_the_cause():

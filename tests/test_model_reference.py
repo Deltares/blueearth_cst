@@ -49,6 +49,7 @@ def _model(tmp_path):
 # The reference document
 # ---------------------------------------------------------------------------
 
+
 def test_the_reference_stores_a_relative_posix_model_path(tmp_path):
     """Relative and POSIX, so the reference survives the project moving or
     being read on another platform -- the same reason the digest hashes no
@@ -63,7 +64,9 @@ def test_the_reference_records_per_input_hashes_not_just_the_digest(tmp_path):
     """A bare digest can only say SOMETHING moved; the guard must name what."""
     doc = build_model_reference(_model(tmp_path), tmp_path)
     assert set(doc["inputs"]) == {
-        "wflow_sbm.toml", "staticmaps.nc", "forcing/inmaps_historical.nc"
+        "wflow_sbm.toml",
+        "staticmaps.nc",
+        "forcing/inmaps_historical.nc",
     }
     assert doc["digest_version"] == DIGEST_VERSION
 
@@ -78,6 +81,7 @@ def test_writing_produces_readable_yaml(tmp_path):
 # ---------------------------------------------------------------------------
 # Drift detection
 # ---------------------------------------------------------------------------
+
 
 def test_an_unchanged_model_passes(tmp_path):
     root = _model(tmp_path)
@@ -104,8 +108,8 @@ def test_check_raises_and_the_message_says_what_to_do(tmp_path):
     with pytest.raises(ModelDriftError) as excinfo:
         check_model_reference(out, root, experiment="gabon_dry")
     msg = str(excinfo.value)
-    assert "staticmaps.nc" in msg          # what changed
-    assert "gabon_dry" in msg              # which experiment
+    assert "staticmaps.nc" in msg  # what changed
+    assert "gabon_dry" in msg  # which experiment
     assert "new experiment" in msg.lower()  # what to do about it
 
 
@@ -140,11 +144,12 @@ def test_a_digest_version_change_is_reported_as_incomparable(tmp_path):
 # Ordering — the property the guard IS
 # ---------------------------------------------------------------------------
 
+
 def _rule_block(name: str) -> str:
     text = SNAKEFILE.read_text(encoding="utf-8")
     start = text.index(f"rule {name}:")
     nxt = text.find("\nrule ", start + 1)
-    return text[start: nxt if nxt != -1 else len(text)]
+    return text[start : nxt if nxt != -1 else len(text)]
 
 
 def test_the_guard_gates_the_first_rule_that_touches_the_model():
@@ -153,7 +158,7 @@ def test_the_guard_gates_the_first_rule_that_touches_the_model():
     INPUT. Without this edge the guard could run after the simulation and every
     other test here would still pass."""
     downscale = _rule_block("downscale_climate_realization")
-    inputs = downscale[downscale.index("input:"): downscale.index("output:")]
+    inputs = downscale[downscale.index("input:") : downscale.index("output:")]
     assert ".model_reference_ok" in inputs, (
         "rule 3.09 does not declare the drift guard's sentinel as an input, so "
         "nothing orders the guard before simulation work"
@@ -196,7 +201,7 @@ def test_the_guards_verdict_does_not_persist_between_invocations():
     `model_digest` discovers through the TOML's pointers.
     """
     guard = _rule_block("check_model_reference")
-    out = guard[guard.index("output:"): guard.index("log:")]
+    out = guard[guard.index("output:") : guard.index("log:")]
     assert "temp(" in out, (
         "the guard's sentinel is not temp(), so its verdict persists and rule "
         "3.09's edge can be satisfied by a check that ran against a different "
@@ -210,8 +215,10 @@ def test_the_guard_reads_the_reference_and_the_writer_produces_it():
     milestone hit three times. Asserted rather than assumed."""
     writer = _rule_block("write_model_reference")
     guard = _rule_block("check_model_reference")
-    assert "model_reference.yml" in writer[writer.index("output:"):]
-    assert "model_reference.yml" in guard[guard.index("input:"): guard.index("output:")]
+    assert "model_reference.yml" in writer[writer.index("output:") :]
+    assert (
+        "model_reference.yml" in guard[guard.index("input:") : guard.index("output:")]
+    )
 
 
 def test_the_writer_declares_its_model_inputs_ancient():
@@ -219,7 +226,7 @@ def test_the_writer_declares_its_model_inputs_ancient():
     the reference would be rewritten to match, the comparison would always pass,
     and the guard would be decorative."""
     writer = _rule_block("write_model_reference")
-    decl = writer[writer.index("input:"): writer.index("params:")]
+    decl = writer[writer.index("input:") : writer.index("params:")]
     for line in decl.splitlines():
         if "basin_dir" in line:
             assert "ancient(" in line, f"model input not ancient(): {line.strip()}"
@@ -295,7 +302,8 @@ def test_no_script_module_carries_a_future_import():
     anything to a module you import.
     """
     offenders = [
-        p for p in _script_modules()
+        p
+        for p in _script_modules()
         if re.search(r"^from __future__ import", p.read_text(encoding="utf-8"), re.M)
     ]
     assert not offenders, (
@@ -310,5 +318,9 @@ def test_the_future_import_check_can_actually_fail(tmp_path):
     finds script modules would make it pass over an empty set forever."""
     assert _script_modules(), "no script: modules discovered -- the check is vacuous"
     decoy = tmp_path / "decoy.py"
-    decoy.write_text('"""d."""\n\nfrom __future__ import annotations\n', encoding="utf-8")
-    assert re.search(r"^from __future__ import", decoy.read_text(encoding="utf-8"), re.M)
+    decoy.write_text(
+        '"""d."""\n\nfrom __future__ import annotations\n', encoding="utf-8"
+    )
+    assert re.search(
+        r"^from __future__ import", decoy.read_text(encoding="utf-8"), re.M
+    )

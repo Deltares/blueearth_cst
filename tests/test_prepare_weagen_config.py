@@ -31,7 +31,7 @@ DEFAULT_WEAGEN_CONFIG = os.path.join(
     [
         (2080, 20, math.ceil((2080 + 20 / 2) - 2010 + 2)),  # 82 (seed config)
         (2050, 30, math.ceil((2050 + 30 / 2) - 2010 + 2)),  # 57
-        (2010, 0, math.ceil((2010 + 0) - 2010 + 2)),        # 2 (degenerate)
+        (2010, 0, math.ceil((2010 + 0) - 2010 + 2)),  # 2 (degenerate)
     ],
 )
 def test_compute_nr_years(middle_year, run_length, expected):
@@ -183,8 +183,9 @@ def test_f7_the_template_is_a_declared_input_of_rule_3_10():
     )
 
 
-@pytest.mark.parametrize("key,value", [("save.plots", True),
-                                       ("pet.method", "hargreaves")])
+@pytest.mark.parametrize(
+    "key,value", [("save.plots", True), ("pet.method", "hargreaves")]
+)
 def test_c34_surfaced_arguments_reach_the_generated_config(tmp_path, key, value):
     """C34: a surfaced argument is worthless if it does not reach the R.
 

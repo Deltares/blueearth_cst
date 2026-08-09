@@ -2,6 +2,7 @@
 list/string horizon normalization contract. These cover logic that
 dry-runs and skip-by-default integration tests do not reach.
 """
+
 from os.path import join, dirname, realpath
 
 import pytest
@@ -26,8 +27,8 @@ def test_prep_cst_parameters_reads_sectioned_config(tmp_path):
 @pytest.mark.parametrize(
     "value, expected",
     [
-        ("2000, 2010", ("2000", "2010")),   # legacy comma-separated string
-        ([2000, 2010], ("2000", "2010")),   # R01 list form
+        ("2000, 2010", ("2000", "2010")),  # legacy comma-separated string
+        ([2000, 2010], ("2000", "2010")),  # R01 list form
         ([2030, 2060], ("2030", "2060")),
     ],
 )
@@ -36,6 +37,7 @@ def test_horizon_normalization_contract(value, expected):
 
     Kept in lockstep with the production _to_str_tuple; see that module.
     """
+
     def _to_str_tuple(v):
         if isinstance(v, str):
             return tuple(map(str, v.split(", ")))

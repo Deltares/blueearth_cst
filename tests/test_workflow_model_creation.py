@@ -28,11 +28,20 @@ import pytest
 TESTDIR = dirname(realpath(__file__))
 SNAKEDIR = join(TESTDIR, "..")
 
-# The config that actually runs end-to-end (project_dir: test_case/test,
+# The config that actually runs end-to-end (project_dir: test_case/test_local,
 # data_sources: the full config/deltares_data.yml mirror).
-CONFIG = "config/snake_config_model_test.yml"
+#
+# All three of these were stale and none of them could fail a gate: this module
+# is `pytest.mark.integration`, so it only runs under --run-integration, which
+# no CI leg passes. R7 moved the config under `config/workflows/` and R9 moved
+# the model to `models/hydrology/wflow`. The config path was the worse of the
+# two -- `_catalog_root()` opens it, so the module ERRORED on a missing file
+# rather than reaching its own data-mirror skip. Corrected 2026-08-09 against
+# the paths on disk and the baseline manifest's own wf1 discharge target.
+CONFIG = "config/workflows/snake_config_model_test.yml"
 OUTPUT_CSV = join(
-    SNAKEDIR, "test_case", "test", "hydrology_model", "run_default", "output.csv"
+    SNAKEDIR, "test_case", "test_local",
+    "models", "hydrology", "wflow", "run_default", "output.csv",
 )
 
 pytestmark = pytest.mark.integration
