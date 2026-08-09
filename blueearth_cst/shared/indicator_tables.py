@@ -120,9 +120,7 @@ BASIN_LOCATION = "basin"
 #: synonyms are *return period* (engineering, extreme-value theory) and
 #: *recurrence interval* (USGS usage) — the two the knowledge base's
 #: ``hydrological-indicators`` note uses throughout. The statistic keys below were
-#: renamed off the inherited ``returninterval`` spelling for that reason;
-#: ``metrics_definition.py`` still carries it, including the shipped
-#: ``returninternval`` typo, and is a separate cleanup.
+#: renamed off the inherited ``returninterval`` spelling for that reason.
 #:
 #: The two return levels interpolate ``Tpeak``/``Tlow``. Those are config values
 #: that appeared in no column and no name before R11, so two runs with different

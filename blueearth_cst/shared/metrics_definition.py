@@ -1,24 +1,4 @@
-import xarray as xr
-from xclim.indices.stats import frequency_analysis
-
-
 ## High flows
-def returninterval(df, T):
-    ds = xr.Dataset.from_dataframe(df)
-    ds.attrs["units"] = "m3/d"
-    Q_interval = frequency_analysis(ds, t=T, dist="genextreme", mode="max", freq="YS")
-    df_interval = xr.Dataset.to_dataframe(Q_interval)
-    return df_interval.transpose().iloc[:, 0]
-
-
-def returnintervalmulti(df):
-    ds = xr.Dataset.from_dataframe(df)
-    ds.attrs["units"] = "m3/d"
-    all_T = [2, 5, 10, 20, 50, 100, 200]
-    Q_rps = frequency_analysis(ds, t=all_T, dist="genextreme", mode="max", freq="YS")
-    return Q_rps
-
-
 def Q7d_maxyear(df):
     return df.rolling(7).mean().resample("YE").max().mean()
 
@@ -39,15 +19,6 @@ def wetmonth_mean(df):
 
 
 ## Low flows
-def returninterval_Q7d(df, T):
-    df7D = df.rolling(7).mean()
-    ds = xr.Dataset.from_dataframe(df7D)
-    ds.attrs["units"] = "m3/d"
-    Q_interval = frequency_analysis(ds, t=T, dist="genextreme", mode="min", freq="YS")
-    df_interval = xr.Dataset.to_dataframe(Q_interval)
-    return df_interval.transpose().iloc[:, 0]
-
-
 def Q7d_min(df):
     return df.rolling(7).mean().resample("YE").min().mean()
 
