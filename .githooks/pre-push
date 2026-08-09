@@ -20,6 +20,11 @@
 #     git config core.hooksPath .githooks
 # Bypass a single push:
 #     git push --no-verify
+#
+# Expect the FIRST push from a new worktree to be slow. Every worktree builds
+# its own pixi env (AGENTS.md, worktree section), so `pixi run` here installs it
+# rather than reusing the primary's -- minutes, inside a hook, with no progress
+# output. Run `pixi install` in a new worktree before pushing from it.
 
 set -e
 
