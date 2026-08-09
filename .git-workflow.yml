@@ -36,7 +36,16 @@ mode: full
 # and took the single baseline re-record could hold this checkout deliberately —
 # AGENTS.md reserves the primary for exactly that case. RESTORED at the R11
 # close, as that note required.
-worktree_policy: always # concurrent | always
+# HELD `concurrent` from 2026-08-09, at the owner's request, so this primary
+# checkout can be edited directly for the current sitting. RESTORE to `always`
+# when that sitting ends: the SessionStart check and the PreToolUse guard both
+# read THIS key, so nothing else re-arms them. Standing at the time of the hold —
+# one other worktree was live (.worktrees/blueearth_cst/signature-figure, on
+# feat/signature-figure-redesign), which is the same overlap both incidents above
+# came out of. Under `concurrent` the skill still isolates a modifying task while
+# another writer is plausibly active; the hold removes the hard block, not the
+# judgement call.
+worktree_policy: concurrent # concurrent | always
 
 # Branches created solely to isolate concurrent work auto-land after rebase and
 # verification, so isolation costs nothing at the end of a task. Feature branches
