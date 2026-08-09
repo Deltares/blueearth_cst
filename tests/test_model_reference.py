@@ -113,6 +113,35 @@ def test_check_raises_and_the_message_says_what_to_do(tmp_path):
     assert "new experiment" in msg.lower()  # what to do about it
 
 
+def test_the_drift_message_reaches_the_rules_own_log_part(tmp_path):
+    """[R10-13]: the rule fails naming a log file that must explain why.
+
+    Snakemake reported `Error in rule check_model_reference ... log:
+    .../3.06_check_model_reference.log (check log file(s) for error details)`
+    and that file held the three header lines and nothing else -- the
+    ModelDriftError went to Snakemake's own log instead. Wired together here
+    because the general fix in `tee_to_log` is only worth anything if it
+    actually reaches THIS raise, which happens inside the manager.
+    """
+    from blueearth_cst.shared.snake_utils import tee_to_log
+
+    root = _model(tmp_path)
+    out = tmp_path / "model_reference.yml"
+    write_model_reference(root, tmp_path, out)
+    (root / "staticmaps.nc").write_bytes(b"REBUILT")
+
+    log = tmp_path / "logs" / "_parts" / "3.06_check_model_reference.log"
+    with pytest.raises(ModelDriftError):
+        with tee_to_log(log):
+            check_model_reference(out, root, experiment="gabon_dry")
+
+    text = log.read_text(encoding="utf-8")
+    assert "staticmaps.nc" in text  # what changed -- the useful part
+    assert "gabon_dry" in text  # which experiment
+    assert "new experiment" in text.lower()  # what to do about it
+    assert "ModelDriftError" in text
+
+
 def test_a_newly_created_reference_passes_against_the_changed_model(tmp_path):
     """The other half of the end-to-end falsifier: drift blocks the OLD
     experiment, and a NEW one records the current model and proceeds."""
