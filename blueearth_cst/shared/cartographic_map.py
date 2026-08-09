@@ -2274,6 +2274,18 @@ def _wrap_label(fig, text, max_width_inches, fontsize):
         artist = mtext.Text(0, 0, line, fontsize=fontsize, figure=fig)
         return artist.get_window_extent(renderer).width / fig.dpi
 
+    if width_of(text) <= max_width_inches:
+        return text
+
+    # Break at the UNIT first. A quantity's name and its unit are the two things
+    # a reader parses separately, so "Precipitation" over "(mm y-1)" reads as one
+    # label on two lines, where greedy wrapping gives "Precipitation (mm" over
+    # "y-1)" — which splits the unit itself into two half-thoughts.
+    head, opener, tail = str(text).partition("(")
+    head = head.rstrip()
+    if head and tail and width_of(head) <= max_width_inches:
+        return f"{head}\n{opener}{tail}"
+
     lines, current = [], words[0]
     for word in words[1:]:
         candidate = f"{current} {word}"

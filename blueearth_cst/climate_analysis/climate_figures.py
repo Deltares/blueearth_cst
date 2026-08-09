@@ -508,27 +508,9 @@ def _render_monthly(da, spec, title, caveat, overlays, **_):
             [months[i] for i in populated], means,
             color="0.2", marker="D", ms=2.6, lw=0.9, ls="-", zorder=5,
         )
-        # A legend, not a fixed annotation: a corner that is empty for one
-        # variable holds a whisker for the next, and matplotlib places this
-        # clear of the data.
-        import matplotlib.patches as mpatches
-        from matplotlib.lines import Line2D
-
-        ax.legend(
-            handles=[
-                mpatches.Patch(facecolor=colour, edgecolor=colour,
-                               label="Spread across years"),
-                Line2D([], [], color="0.2", marker="D", ms=2.6, lw=0.9,
-                       label="Climatological mean"),
-            ],
-            loc="best",
-            frameon=True,
-            framealpha=0.85,
-            edgecolor="0.7",
-            fontsize=FONT_SIZE_ANNOTATION,
-            borderpad=0.4,
-            handlelength=1.4,
-        )
+        # No legend. Box-whiskers over a monthly axis are a convention the
+        # audience reads without a key, and the caption carries what the boxes
+        # are — the same reason the figures carry no title.
     ax.set_xticks(months)
     ax.set_xticklabels(MONTH_LABELS)
     ax.set_xlim(0.4, 12.6)
