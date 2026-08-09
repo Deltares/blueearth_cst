@@ -63,6 +63,19 @@ def test_unknown_snakefile_names_the_valid_ones():
 # --- project_dir / project_name derivation ---------------------------------
 
 
+# `C:/...` is only ABSOLUTE on Windows. On POSIX it is an ordinary relative
+# path, so `read_project` correctly joins it onto the repo root and the assert
+# below compares a joined path against a bare one -- the test asserts the
+# platform, not the function. The relative-path case immediately after covers
+# the same code on both legs.
+#
+# Red on the ubuntu leg for three CI runs before anyone looked (t2608071205);
+# t2608071221 tracks Linux being unexercised, and this is one of four skips to
+# revisit when a real Linux run becomes available.
+@pytest.mark.skipif(
+    sys.platform != "win32",
+    reason="`C:/...` is only absolute on Windows; revisit under t2608071221",
+)
 def test_absolute_project_dir_is_used_verbatim(tmp_path):
     cfg = tmp_path / "cfg.yml"
     _write_r01_cfg(cfg, "C:/TESTS/CST/gabon_0108")
