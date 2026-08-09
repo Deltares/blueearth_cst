@@ -125,7 +125,12 @@ COVERED: dict[str, list[str]] = {
         f"experiments/{E}/logs/_parts/3.11_generate_weather_realizations.log",
         f"experiments/{E}/benchmarks/wf3_benchmarks.md",
         f"experiments/{E}/results/q_indicators.csv",
-        f"experiments/{E}/results/basin_indicators.csv",
+        # `results/basin_indicators.csv` sat here until 2026-08-09
+        # (t2608082010). R11 CR-2 replaced the two WIDE tables with one LONG
+        # table per output variable, so nothing writes that path again and this
+        # sample asserted an inventory rule against a path that can no longer
+        # occur. The rule it exercised is still covered by q_indicators.csv
+        # above.
         f"experiments/{E}/climate/weathergenr/output/sim_dates.csv",
         f"experiments/{E}/climate/weathergenr/config/weathergen_config.yml",
         f"experiments/{E}/climate/weathergenr/_work/st_4.csv",
