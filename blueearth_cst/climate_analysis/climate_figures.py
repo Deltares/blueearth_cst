@@ -232,18 +232,17 @@ def _render_map(da, spec, title, caveat, overlays):
     if spec["style"] == "temp":
         style = resolve_temperature_style(field, style)
 
+    # Every overlay is optional. The source-grid figures (rule 1.15) are drawn
+    # before any model exists, so this function has to produce a bare raster map
+    # as readily as a fully-dressed one.
     overlays = overlays or {}
     basins = overlays.get("basins")
-    if basins is None or len(basins) == 0:
-        raise ValueError(
-            "_render_map needs a 'basins' overlay: the map's outline, scale bar "
-            "placement and locator inset are all derived from it"
-        )
+    has_basins = basins is not None and len(basins) > 0
     fig, _ = plot_raster_map(
         field,
         overlays.get("rivers"),
-        _basin_outline(basins),
-        subbasins=basins if len(basins) > 1 else None,
+        _basin_outline(basins) if has_basins else None,
+        subbasins=basins if has_basins and len(basins) > 1 else None,
         gauges=overlays.get("gauges"),
         outlets=overlays.get("outlets"),
         style=style,

@@ -1990,8 +1990,12 @@ def _locator_span(extent):
     half_width = basin_span / (2.0 * max(_LOCATOR_TARGET_BASIN_FRACTION, 1e-6))
     # A basin bigger than the target implies must still fit inside its window.
     half_width = max(half_width, basin_span * _LOCATOR_MIN_SPAN_MARGIN)
-    rungs = _LOCATOR_SPAN_LADDER
-    return float(next((rung for rung in rungs if rung >= half_width), rungs[-1]))
+    rung = next((rung for rung in _LOCATOR_SPAN_LADDER if rung >= half_width), None)
+    # Off the ladder rather than clamped to its top rung: falling back to the
+    # largest rung is what let a basin wider than 2 x 12 deg overflow its own
+    # locator window. The ladder exists to keep the window on a round number,
+    # which is a nicety; containing the subject is not.
+    return float(rung) if rung is not None else float(half_width)
 
 
 def _locator_window(extent):
@@ -2345,6 +2349,22 @@ def _overlay_contrast(raster, style):
     return COLOR_HALO, COLOR_SUBCATCHMENT
 
 
+def _extent_frame(extent):
+    """The map extent as a one-row GeoDataFrame, for a map with no basin layer.
+
+    Every vector layer is optional — a raster on its own is a legitimate map,
+    and the source-grid climate figures are drawn before any model exists. The
+    furniture still needs a subject: something for the locator inset to mark and
+    for the corner budget to measure against. The extent box is the honest
+    stand-in, since it is exactly what the figure shows.
+    """
+    lon_min, lon_max, lat_min, lat_max = (float(value) for value in extent)
+    return gpd.GeoDataFrame(
+        geometry=[shapely_box(lon_min, lat_min, lon_max, lat_max)],
+        crs=f"EPSG:{REQUIRED_CRS_EPSG}",
+    )
+
+
 def _basin_clip_path(basin):
     """The dissolved basin as a matplotlib ``Path``, for clipping the raster.
 
@@ -2640,8 +2660,8 @@ def _add_legend(ax, handles):
 
 def plot_raster_map(
     raster,
-    rivers,
-    basin,
+    rivers=None,
+    basin=None,
     *,
     subbasins=None,
     gauges=None,
@@ -2795,17 +2815,18 @@ def plot_raster_map(
             style,
             centre_latitude,
             layout["colorbar"],
-            basin,
+            basin if _present(basin) else None,
             label_width_inches=panel_width_in,
         )
 
         # --- hydrography ------------------------------------------------------
-        rivers.plot(
-            ax=ax,
-            linewidth=_river_linewidths(rivers, river_order_column),
-            color=COLOR_RIVER,
-            zorder=Z_RIVER,
-        )
+        if _present(rivers):
+            rivers.plot(
+                ax=ax,
+                linewidth=_river_linewidths(rivers, river_order_column),
+                color=COLOR_RIVER,
+                zorder=Z_RIVER,
+            )
         # Subcatchment divides first and lighter, then the outline over them, so
         # the two are never confusable at the same weight.
         if _present(subbasins):
@@ -2821,7 +2842,8 @@ def plot_raster_map(
                 ],
                 **styles["divide"],
             )
-        basin.boundary.plot(ax=ax, zorder=Z_BASIN_OUTLINE, **styles["basin"])
+        if _present(basin):
+            basin.boundary.plot(ax=ax, zorder=Z_BASIN_OUTLINE, **styles["basin"])
 
         _draw_points(
             ax, outlets, COLOR_OUTLET, MARKER_SHAPE_OUTLET, zorder=Z_OUTLET
@@ -2837,7 +2859,11 @@ def plot_raster_map(
         # The legend sits in the side panel, so it no longer competes for a map
         # corner. The scale bar is placed against the basin's ACTUAL footprint,
         # so it does not land on a basin that reaches into a bottom corner.
-        footprint = basin.union_all()
+        # Every vector layer is optional — the raster alone is a map. Without a
+        # basin the locator falls back to the raster's own extent, and the
+        # corner budget to the extent box, so the furniture still places.
+        subject = basin if _present(basin) else _extent_frame(extent)
+        footprint = subject.union_all()
         # Corners are budgeted in one place, in priority order: the arrow's is
         # fixed, then the locator's, then the bar's. Each of the three may be
         # pinned to a named corner or left on "auto", in which case it takes the
@@ -2857,7 +2883,7 @@ def plot_raster_map(
         _add_north_arrow(ax)
         # Sized to the legend's measured width, so the panel's top and bottom
         # blocks share a right edge as well as a left one.
-        _add_locator_inset(ax, extent, basin, locator_corner, layout["locator"])
+        _add_locator_inset(ax, extent, subject, locator_corner, layout["locator"])
         ax.set_title("")
         # Title and footnote go through the FIGURE-level artists that
         # constrained layout knows about. The climate figures previously drew
