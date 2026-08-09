@@ -41,7 +41,10 @@ from typing import Optional, Union
 
 import xarray as xr
 
-from blueearth_cst.climate_analysis.climate_figures import plot_climate_figures
+from blueearth_cst.climate_analysis.climate_figures import (
+    load_spatial_overlays,
+    plot_climate_figures,
+)
 from blueearth_cst.shared.climate_parity import model_parity_climate
 from blueearth_cst.shared.snake_utils import log_row
 
@@ -155,12 +158,14 @@ def source_grid_climate(
     )
 
 
+
 def plot_climate_source(
     climate_nc: Union[str, Path],
     plot_dir: Union[str, Path],
     oro_nc: Optional[Union[str, Path]] = None,
     data_sources: Optional[Union[str, Path]] = None,
     clim_source: str = "era5",
+    geoms_dir: Optional[Union[str, Path]] = None,
 ):
     """Write the canonical climate figure set from the shared climate store.
 
@@ -182,6 +187,12 @@ def plot_climate_source(
         hydromt data catalog(s). Required on the era5 branch (``era5_orography``).
     clim_source : str
         ``shared.clim_historical``; recorded in the log for traceability.
+    geoms_dir : str | Path, optional
+        ``data/spatial/geoms/`` — the ENGINE-NEUTRAL vector foundation from rule
+        1.03. Supplies the basin outline, subcatchment divides, river network
+        and points of interest the maps are drawn over. Optional, and
+        model-independent by construction: this rule runs off the climate store
+        and must not wait on a wflow build to plot the source climate.
 
     Raises
     ------
@@ -214,6 +225,7 @@ def plot_climate_source(
         plot_dir,
         "source",
         caveat=f"{_CAVEAT}\n{_PET_CAVEAT}",
+        overlays=load_spatial_overlays(geoms_dir),
     )
 
 
@@ -231,4 +243,5 @@ if __name__ == "__main__":
                 oro_nc=getattr(sm.input, "oro_nc", None),
                 data_sources=sm.params.data_sources,
                 clim_source=sm.params.clim_source,
+                geoms_dir=sm.params.geoms_dir,
             )

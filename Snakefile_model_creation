@@ -844,6 +844,13 @@ rule plot_forcing:
         # ADR 0004; see rule 1.14.
         model_final = ancient(f"{basin_dir}/.model_final"),
         **_locations_input,
+        # The SAME vector layers rule 1.05 draws, from rule 1.03's shared
+        # foundation. Both climate map families read one layer set so the two
+        # differ only in the raster underneath — which is what makes "what did
+        # downscaling change?" answerable by putting the two directories side
+        # by side. The model's own staticgeoms would reintroduce the divergence.
+        **{name: SPATIAL_UNITS.outputs[name] for name in
+           ("basins", "subbasins", "rivers", "locations")},
     # R07 B10 + O-24: the forcing/model-input QA figures sit beside the forcing
     # they describe, and ALL of them are declared — variable x kind is a fixed
     # cross-product, so the list comes from climate_figures.figure_names()
@@ -854,6 +861,7 @@ rule plot_forcing:
         project_dir = f"{project_dir}",
         # Rule-owned model root; see rule 1.15's note.
         model_dir = basin_dir,
+        geoms_dir = SPATIAL_UNITS.spatial_dir + "/geoms",
     log:
         f"{LOG_PARTS_DIR}/1.13_plot_forcing.log",
     benchmark:
@@ -895,6 +903,18 @@ if clim_source in ("chirps", "chirps_global"):
     # orography comes from the catalog instead.
     _source_plot_inputs["oro_nc"] = CLIMATE_STORE.outputs["oro_nc"]
 
+# The vector layers the source maps are drawn over, from rule 1.03's shared
+# foundation — NOT the wflow model's staticgeoms. That choice keeps this rule
+# independent of the model build (1.07): the source grid is the climate BEFORE
+# any model exists, and making it wait on one would invert that. Declared as
+# real inputs so the edge is in the DAG rather than read behind Snakemake's
+# back; the cost is that re-delineating the basin re-plots these figures, which
+# is correct — the outline on them would otherwise be stale.
+_source_plot_inputs.update(
+    {name: SPATIAL_UNITS.outputs[name] for name in
+     ("basins", "subbasins", "rivers", "locations")}
+)
+
 rule plot_climate_source:
     message: rule_banner("1.05", "plot_climate_source")
     input:
@@ -905,6 +925,7 @@ rule plot_climate_source:
         plot_dir = f"{store_dir}/plots",
         data_sources = DATA_SOURCES,
         clim_source = clim_source,
+        geoms_dir = SPATIAL_UNITS.spatial_dir + "/geoms",
     log:
         f"{LOG_PARTS_DIR}/1.05_plot_climate_source.log",
     benchmark:

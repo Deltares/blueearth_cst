@@ -45,6 +45,7 @@ import os
 from pathlib import Path
 from typing import Optional, Union
 
+import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
@@ -194,6 +195,59 @@ def _label_points(ax, gdf) -> None:
         )
 
 
+
+#: Stream-order column names, in the order they are tried. wflow writes
+#: ``strord``; ``spatial/geoms/rivers.geojson`` writes ``order``.
+_RIVER_ORDER_COLUMNS = ("strord", "order")
+
+
+def _river_order_column(rivers) -> Optional[str]:
+    """The stream-order column this river layer actually carries, if any."""
+    if rivers is None or not hasattr(rivers, "columns"):
+        return None
+    return next((c for c in _RIVER_ORDER_COLUMNS if c in rivers.columns), None)
+
+
+#: The vector layers BOTH climate map families draw, keyed by the overlay name
+#: ``_render_map`` expects. One source for both, so the source-grid and
+#: model-grid maps differ only in the raster underneath — which is the whole
+#: point of drawing them as one set.
+#:
+#: Deliberately the ENGINE-NEUTRAL products from rule 1.03, not the wflow
+#: model's staticgeoms: rule 1.05 runs off the climate store and must stay
+#: independent of the model build (1.07), so the shared foundation is the only
+#: layer set both callers can reach. The model's separate ``outlets.geojson``
+#: is not in it — but its point IS: the basin outlet is one of ``locations``,
+#: so it is still drawn, as a point of interest rather than its own symbol.
+_SPATIAL_OVERLAYS = {
+    "basins": "basins",
+    "subbasins": "subbasins",
+    "rivers": "rivers",
+    "gauges": "locations",
+}
+
+
+def load_spatial_overlays(geoms_dir: Optional[Union[str, Path]]) -> dict:
+    """Read ``data/spatial/geoms/`` into the overlays the map renderer takes.
+
+    Returns an empty dict when ``geoms_dir`` is absent, and skips any single
+    layer that is missing — a climate map with no vectors on it is still
+    a correct figure, so refusing to plot one would trade a complete figure for
+    no figure.
+    """
+    if geoms_dir is None:
+        return {}
+    geoms_dir = Path(geoms_dir)
+    overlays = {}
+    for name, stem in _SPATIAL_OVERLAYS.items():
+        path = geoms_dir / f"{stem}.geojson"
+        if path.is_file():
+            overlays[name] = gpd.read_file(path)
+        else:
+            log_row(f"spatial overlay absent, skipped: {path}", module="plot")
+    return overlays
+
+
 def _render_map(da, spec, title, caveat, overlays):
     """Climatological field as a cartographic map.
 
@@ -232,19 +286,34 @@ def _render_map(da, spec, title, caveat, overlays):
     if spec["style"] == "temp":
         style = resolve_temperature_style(field, style)
 
-    # Every overlay is optional. The source-grid figures (rule 1.15) are drawn
-    # before any model exists, so this function has to produce a bare raster map
-    # as readily as a fully-dressed one.
+    # Every overlay is optional, and the two datasets supply them from
+    # different products: the FORCING maps take the wflow model's staticgeoms
+    # (one polygon per subcatchment in ``basins``), the SOURCE maps take the
+    # engine-neutral ``data/spatial/geoms/`` from rule 1.03 (a dissolved
+    # ``basins`` plus a separate ``subbasins``). Accepting both shapes is what
+    # lets one renderer serve both without either caller reshaping its layers.
     overlays = overlays or {}
     basins = overlays.get("basins")
+    subbasins = overlays.get("subbasins")
+    rivers = overlays.get("rivers")
     has_basins = basins is not None and len(basins) > 0
+    if subbasins is not None and len(subbasins) > 0:
+        divides = subbasins
+    elif has_basins and len(basins) > 1:
+        divides = basins
+    else:
+        divides = None
     fig, _ = plot_raster_map(
         field,
-        overlays.get("rivers"),
+        rivers,
         _basin_outline(basins) if has_basins else None,
-        subbasins=basins if has_basins and len(basins) > 1 else None,
+        subbasins=divides,
         gauges=overlays.get("gauges"),
         outlets=overlays.get("outlets"),
+        # wflow spells stream order ``strord``; the shared vector foundation
+        # spells it ``order``. Naming both keeps the river widths scaled on
+        # either product instead of silently flattening to one weight.
+        river_order_column=_river_order_column(rivers),
         style=style,
         # No figure title. A published figure carries its title in the caption,
         # and nothing is lost here: the colourbar names the quantity and the
