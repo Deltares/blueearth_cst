@@ -261,6 +261,7 @@ def _render_map(da, spec, title, caveat, overlays):
     from blueearth_cst.shared.cartographic_map import (
         RASTER_STYLES,
         RasterStyle,
+        extent_from_layer,
         plot_raster_map,
         resolve_temperature_style,
     )
@@ -315,6 +316,12 @@ def _render_map(da, spec, title, caveat, overlays):
         # either product instead of silently flattening to one weight.
         river_order_column=_river_order_column(rivers),
         style=style,
+        # Framed on the BASIN, not on each raster's own footprint. The forcing
+        # is masked to the basin and the source extraction is a few reanalysis
+        # cells reaching far past it, so raster-framed the pair cannot be read
+        # side by side — which is the one thing these two families exist to
+        # support.
+        extent=extent_from_layer(basins) if has_basins else None,
         # No figure title. A published figure carries its title in the caption,
         # and nothing is lost here: the colourbar names the quantity and the
         # footnote names the dataset. ``title`` stays available on the template

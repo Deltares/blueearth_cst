@@ -1418,6 +1418,59 @@ def check_geographic_inputs(raster, layers, value_label=None, expected_units=Non
         )
 
 
+
+def extent_from_layer(layer, buffer_deg=_EXTENT_BUFFER_DEG):
+    """``[lon_min, lon_max, lat_min, lat_max]`` covering a vector layer.
+
+    The companion to :func:`map_extent`, which frames a map on its RASTER. Two
+    maps of the same area drawn from different grids frame differently that way
+    — the wflow forcing is masked to the basin, the source extraction is a
+    handful of reanalysis cells reaching far beyond it — so the pair cannot be
+    read side by side. Framing both on the same VECTOR layer is what makes them
+    comparable, and the basin is the subject of both.
+    """
+    if not _present(layer):
+        return None
+    lon_min, lat_min, lon_max, lat_max = layer.total_bounds
+    return np.array(
+        [
+            lon_min - buffer_deg,
+            lon_max + buffer_deg,
+            lat_min - buffer_deg,
+            lat_max + buffer_deg,
+        ]
+    )
+
+
+
+def _raster_within(raster, extent):
+    """``raster`` cut to ``extent``, keeping the cells that touch its edges.
+
+    The colourbar classifies whatever it is handed, so a raster reaching past
+    the frame puts values the reader cannot see into the class breaks — the
+    source-grid extraction spans several degrees around a basin a fraction of a
+    degree wide, and framed on the basin its bar described mostly off-frame
+    cells. A bar must describe the map it sits on.
+
+    Half a cell of padding on each side, so a cell straddling the frame edge is
+    kept rather than dropped: it IS partly visible.
+    """
+    try:
+        x_dim, y_dim = spatial_dim_names(raster)
+        res_x, res_y = (abs(v) / 2.0 for v in pixel_resolution(raster))
+    except ValueError:
+        return raster
+    lon_min, lon_max, lat_min, lat_max = (float(v) for v in extent)
+    x, y = raster[x_dim], raster[y_dim]
+    inside = raster.sel(
+        {
+            x_dim: x[(x >= lon_min - res_x) & (x <= lon_max + res_x)],
+            y_dim: y[(y >= lat_min - res_y) & (y <= lat_max + res_y)],
+        }
+    )
+    return inside if inside.size else raster
+
+
 def _mask_nodata(da):
     """NaN out the fill value, as ``da.raster.mask_nodata()`` does.
 
@@ -2620,6 +2673,10 @@ def plot_raster_map(
     )
     if extent is None:
         extent = map_extent(raster)
+    else:
+        # An extent the CALLER chose can be far smaller than the raster — the
+        # source-grid climate framed on the basin is. Classify what is shown.
+        raster = _raster_within(raster, extent)
     proj = ccrs.PlateCarree()
     centre_latitude = 0.5 * float(extent[2] + extent[3])
 
