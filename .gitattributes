@@ -23,6 +23,10 @@ LICENSE      text
 
 # Must be LF (executed in Linux/Docker)
 *.sh         text eol=lf
+# Git hooks are extensionless, so `* text=auto` above would check them out CRLF
+# on Windows and `sh` would fail on the `#!/bin/sh\r` shebang. They are run by
+# Git's own sh on every platform, so pin LF like any other shell script.
+.githooks/** text eol=lf
 
 # Must be CRLF (Windows-only scripts)
 *.cmd        text eol=crlf
