@@ -515,8 +515,15 @@ def test_the_ramp_can_be_cut_into_discrete_classes():
 
 @pytest.mark.parametrize(
     "value, expected",
-    [(0.9, 1.0), (1.0, 1.0), (1.2, 1.5), (1.7, 2.0), (2.4, 2.5), (3.0, 5.0),
-     (16.9, 20.0)],
+    [
+        (0.9, 1.0),
+        (1.0, 1.0),
+        (1.2, 1.5),
+        (1.7, 2.0),
+        (2.4, 2.5),
+        (3.0, 5.0),
+        (16.9, 20.0),
+    ],
 )
 def test_a_class_width_rounds_UP_to_a_ladder_rung(value, expected):
     """Down would give MORE classes than asked for -- the opposite of the point.
@@ -545,8 +552,15 @@ def test_replacing_a_style_field_keeps_every_other_one():
     original = RASTER_STYLES["precip"]
     copy = original.replace(label="Other (mm)")
     assert copy.label == "Other (mm)"
-    for field in ("palette", "classification", "zero_baseline", "reserve_low_for",
-                  "low_clip", "step_ladder", "relief"):
+    for field in (
+        "palette",
+        "classification",
+        "zero_baseline",
+        "reserve_low_for",
+        "low_clip",
+        "step_ladder",
+        "relief",
+    ):
         assert getattr(copy, field) == getattr(original, field), field
 
 
