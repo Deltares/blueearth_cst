@@ -40,8 +40,14 @@ SNAKEDIR = join(TESTDIR, "..")
 # the paths on disk and the baseline manifest's own wf1 discharge target.
 CONFIG = "config/workflows/snake_config_model_test.yml"
 OUTPUT_CSV = join(
-    SNAKEDIR, "test_case", "test_local",
-    "models", "hydrology", "wflow", "run_default", "output.csv",
+    SNAKEDIR,
+    "test_case",
+    "test_local",
+    "models",
+    "hydrology",
+    "wflow",
+    "run_default",
+    "output.csv",
 )
 
 pytestmark = pytest.mark.integration

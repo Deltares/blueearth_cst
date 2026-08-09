@@ -65,7 +65,9 @@ def test_staticmaps_edges_stay_ancient():
 
 
 @pytest.mark.skipif(
-    not (SNAKEDIR / "test_case" / "test_local" / "models" / "hydrology" / "wflow").is_dir(),
+    not (
+        SNAKEDIR / "test_case" / "test_local" / "models" / "hydrology" / "wflow"
+    ).is_dir(),
     reason="untracked test_case/test_local fixture tree not present",
 )
 @pytest.mark.workflow_contract
