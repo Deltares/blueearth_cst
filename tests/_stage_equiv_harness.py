@@ -344,16 +344,35 @@ def _chunked_download_equiv(work: Path) -> None:
         db.close()
 
 
+def _step(name: str) -> None:
+    """Announce a scenario, FLUSHED, so a stall can be localized.
+
+    The caller runs this harness with ``capture_output=True``, i.e. through a
+    pipe, where stdout is block-buffered -- so without an explicit flush every
+    line is still sitting in the buffer when a hung child is killed, and the
+    captured output arrives empty. That is exactly what happened on 2026-08-09:
+    the windows CI leg stalled here for 24 minutes and the kill produced no
+    indication of which scenario was running (t2608071208).
+    """
+    print(f"STEP {name}", flush=True)
+
+
 def main(workdir: str) -> None:
     work = Path(workdir)
+    _step("glob")
     scenario_glob(work / "glob")
     for typ, as_zarr in (("zarr", True), ("netcdf", False)):
+        _step(f"value_identity:{typ}")
         _rebuild_value_identity(work / f"vi_{typ}", typ, as_zarr)
+        _step(f"provenance:{typ}")
         _rebuild_provenance(work / f"pv_{typ}", typ, as_zarr)
+    _step("add_variable")
     _rebuild_add_variable(work / "addvar")
+    _step("preserves_packing")
     _rebuild_preserves_packing(work / "packed")
+    _step("chunked_download")
     _chunked_download_equiv(work / "chunked")
-    print("PASS")
+    print("PASS", flush=True)
 
 
 if __name__ == "__main__":
