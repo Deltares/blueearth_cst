@@ -1,6 +1,6 @@
 """R7-1: re-firing build_wflow_model must rebuild the TOML-writing chain.
 
-`hydrology_model/wflow_sbm.toml` is CREATED by rule 1.03 `build_wflow_model` and then
+`models/hydrology/wflow/wflow_sbm.toml` is CREATED by rule 1.03 `build_wflow_model` and then
 updated IN PLACE by rules 1.04-1.08 (waterbodies, gauges/outputs, runtime,
 forcing) -- but only 1.03 declares it. Before this fix, anything that re-fired
 1.03 alone left the toml stripped of every section the later rules add, and the
@@ -38,7 +38,7 @@ def test_build_wflow_model_declares_a_completion_sentinel():
     assert "touch(" in out, "the sentinel should use Snakemake's touch() output"
     # nothing else writes it
     text = SNAKEFILE.read_text(encoding="utf-8")
-    assert text.count("touch(f\"{basin_dir}/.model_built\")") == 1
+    assert text.count('touch(f"{basin_dir}/.model_built")') == 1
 
 
 def test_the_rebuild_edge_is_not_ancient():
@@ -65,7 +65,7 @@ def test_staticmaps_edges_stay_ancient():
 
 
 @pytest.mark.skipif(
-    not (SNAKEDIR / "test_case" / "test_local" / "hydrology_model").is_dir(),
+    not (SNAKEDIR / "test_case" / "test_local" / "models" / "hydrology" / "wflow").is_dir(),
     reason="untracked test_case/test_local fixture tree not present",
 )
 @pytest.mark.workflow_contract
@@ -84,7 +84,10 @@ def test_rerunning_build_wflow_model_reschedules_the_whole_toml_chain():
     res = subprocess.run(
         f"snakemake all -c 1 -s {SNAKEFILE} --configfile {CFG} "
         f"--dry-run --forcerun build_wflow_model",
-        shell=True, capture_output=True, text=True, cwd=SNAKEDIR,
+        shell=True,
+        capture_output=True,
+        text=True,
+        cwd=SNAKEDIR,
     )
     combined = (res.stdout or "") + (res.stderr or "")
     assert res.returncode == 0, combined[-2000:]
@@ -92,8 +95,11 @@ def test_rerunning_build_wflow_model_reschedules_the_whole_toml_chain():
     # `setup_runtime` was listed here until [R10-1] merged it into the forcing
     # rule. The entry outlived the rule: this case is fixture-gated, so no
     # worktree run could see that it now demands a rule the DAG cannot contain.
-    for rule in ("add_reservoirs_lakes_glaciers", "declare_wflow_outputs",
-                 "add_climate_forcing"):
+    for rule in (
+        "add_reservoirs_lakes_glaciers",
+        "declare_wflow_outputs",
+        "add_climate_forcing",
+    ):
         assert rule in combined, (
             f"{rule} was NOT rescheduled alongside build_wflow_model -- the toml "
             f"would be left stripped\n{combined[-2000:]}"
