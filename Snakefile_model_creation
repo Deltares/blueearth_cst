@@ -202,7 +202,7 @@ CLIMATE_STORE = climate_store_rule(
 )
 store_dir = CLIMATE_STORE.store_dir
 
-# --- The one project region artifact (ADR 0003) -------------------------------
+# --- The one project region artifact (ADR 0006) -------------------------------
 # Same pattern, same reason: ONE producer contract, built here and identically
 # in the other two workflows, splatted into rule 1.02 below. Only
 # message/log/benchmark are workflow-local, and
@@ -218,7 +218,7 @@ REGION = region_rule(
     basin_index=basin_index,
 )
 
-# --- The shared vector foundation (ADR 0003 §8) -------------------------------
+# --- The shared vector foundation (ADR 0006 §8) -------------------------------
 # Third and last of the shared producer contracts, same pattern again: built
 # here and identically in the other two workflows, splatted into rule 1.03
 # below, and tests/test_spatial_units_rule.py parses all three workflows and
@@ -406,7 +406,7 @@ rule snapshot_config:
     script:
         "blueearth_cst/model/copy_config_files.py"
 
-# 1.02  delineate_region — the one project region artifact (ADR 0003).
+# 1.02  delineate_region — the one project region artifact (ADR 0006).
 # Byte-identical to 2.02 and 3.03 except message/log/benchmark; everything
 # else is splatted from REGION so the three cannot drift.
 rule delineate_region:
@@ -423,7 +423,7 @@ rule delineate_region:
         f"{project_dir}/benchmarks/_parts/1.02_delineate_region.tsv",
     script: REGION.script
 
-# 1.03  delineate_spatial_units — the shared vector foundation (ADR 0003 §8).
+# 1.03  delineate_spatial_units — the shared vector foundation (ADR 0006 §8).
 # Byte-identical to 2.03 and 3.04 except message/log/benchmark; everything
 # else is splatted from SPATIAL_UNITS so the three cannot drift.
 rule delineate_spatial_units:
@@ -442,7 +442,7 @@ rule delineate_spatial_units:
 
 # 1.06  prepare_spatial_maps — the thematic raster stack, WF1 ONLY
 #
-# The raster half of ADR 0003 §8. The vector layers and the registry come from
+# The raster half of ADR 0006 §8. The vector layers and the registry come from
 # 1.03 now; this rule folds LULC/LAI/soil onto the grid 1.03 handed it and
 # writes the model-build interface. `hydrography` is the SEAM INTERMEDIATE
 # (§8a): the whole hydrography grid stack used to cross this boundary in
@@ -690,15 +690,9 @@ rule extract_historical_climate:
     script:
         CLIMATE_STORE.script
 
-# 1.15  plot_wflow_evaluation — analyse + plot the wflow run (parallel leaf with 1.12/1.13)
-# The climate plots read the shared store's extraction (rule 1.04) at model
-# parity — not the inmaps forcing (P3-2a re-source; was ADR 0002). On chirps/
-# chirps_global the extraction's orography sidecar is a declared input with a
-# real producer edge (ext2-1); producer and consumer resolve that branch from
-# the same clim_historical key via CLIMATE_STORE, so they cannot disagree.
-_wf1_plot_clim_inputs = {"climate_nc": CLIMATE_STORE.outputs["climate_nc"]}
-if clim_source in ("chirps", "chirps_global"):
-    _wf1_plot_clim_inputs["oro_nc"] = CLIMATE_STORE.outputs["oro_nc"]
+# 1.15  plot_wflow_evaluation — analyse + plot the wflow RUN (parallel leaf
+# with 1.12/1.13). Discharge only since ADR 0006; the climate figures it used
+# to draw are the map/series family under forcing/plots/ now.
 
 # O-24, basin-average half. The ONE plot_wflow_evaluation family that is a pure
 # function of config, so it is declared rather than left undeclared.
@@ -728,7 +722,9 @@ rule plot_wflow_evaluation:
        # ADR 0004; transitively ordered after 1.10 via 1.14, declared for the
        # same reason as there.
        model_final = ancient(f"{basin_dir}/.model_final"),
-       **_wf1_plot_clim_inputs,
+       # The climate-store inputs went with the subcatchment climate figures
+       # (ADR 0006). This rule evaluates DISCHARGE now, so it no longer waits
+       # on rule 1.04 at all.
        # Both observation files, when configured: this rule reads the gauge
        # positions AND the observed series, so either changing must re-evaluate.
        **_locations_input,
@@ -759,17 +755,13 @@ rule plot_wflow_evaluation:
    # rule-shape change, not the enumeration R7-5 imagined. `--delete-all-output`
    # completeness therefore still holds only for configs without extra gauges.
    #
-   # KNOWN CONSEQUENCE of declaring the two clim_wflow_1_* figures: they are
-   # written only when the store's extraction is present AND covers >= 365
-   # days (plot_results.py's climate branch). A config with a sub-year
-   # historical_window now fails here with MissingOutputException instead of
-   # logging a skip. Every shipped config spans years, so no shipped config is
-   # affected; recorded because it is a NEW failure mode, not just a
-   # declaration.
+   # The two clim_wflow_1_* figures were declared here until 2026-08-09 and are
+   # gone with the branch that wrote them (ADR 0006). Their removal also
+   # retires the failure mode declaring them introduced: a config with a
+   # sub-year historical_window failed here with MissingOutputException where
+   # it used to log a skip.
    output:
        output_png = f"{basin_dir}/evaluation/plots/hydro_wflow_1.png",
-       clim_month_png = f"{basin_dir}/evaluation/plots/clim_wflow_1_month.png",
-       clim_year_png = f"{basin_dir}/evaluation/plots/clim_wflow_1_year.png",
        metrics_csv = f"{basin_dir}/evaluation/performance_metrics.csv",
        basavg_pngs = _basavg_pngs,
    params:
@@ -779,8 +771,6 @@ rule plot_wflow_evaluation:
        # which made the model's location a fact spelled in two places; this move
        # is what forced the question, and passing it is the answer.
        model_dir = basin_dir,
-       data_sources = DATA_SOURCES,
-       clim_source = clim_source,
    log:
        f"{LOG_PARTS_DIR}/1.15_plot_wflow_evaluation.log",
    benchmark:
