@@ -712,6 +712,7 @@ class RasterStyle:
         low_clip=0.45,
         step_ladder=None,
         levels=None,
+        series_color=None,
     ):
         #: Colourbar label, including units. The caller owns it, because the
         #: units belong to the data rather than to the style.
@@ -746,6 +747,13 @@ class RasterStyle:
         #: Temperature takes its own so a bar steps in 0.25/0.5/1 degC rather
         #: than picking up 0.15 or 0.2 from the general ladder.
         self.step_ladder = step_ladder
+        #: The one colour this quantity takes in a NON-map figure — its annual
+        #: series, its monthly climatology. ``None`` derives it from the map's
+        #: own ramp, which is the point: a reader meets precipitation as blue on
+        #: the map and must meet it as the same blue on the line beside it.
+        #: Deriving rather than declaring is what stops the two drifting when a
+        #: palette changes.
+        self.series_color = series_color
         #: Explicit class boundaries, bypassing the classifier entirely. This is
         #: what lets two figures share one bar: the first computes them, the
         #: second is handed them. ``None`` classifies from the data.
@@ -780,6 +788,7 @@ class RasterStyle:
             low_clip=self.low_clip,
             step_ladder=self.step_ladder,
             levels=self.levels,
+            series_color=self.series_color,
         )
         fields.update(changes)
         return RasterStyle(**fields)
@@ -1524,6 +1533,35 @@ def _raster_within(raster, extent):
         }
     )
     return touching if touching.size else raster
+
+
+
+#: Where along a style's ramp its series colour is taken from. High enough to
+#: read as a line on white, low enough not to be the near-black end of a
+#: sequential palette.
+_SERIES_COLOR_POSITION = 0.72
+
+
+def style_series_color(style):
+    """The single colour this quantity takes outside a map.
+
+    Drawn from the style's own ramp so a variable keeps one identity across the
+    figure set: the blue a reader meets on the precipitation map is the blue of
+    its annual series. A style may pin ``series_color`` instead.
+    """
+    if getattr(style, "series_color", None) is not None:
+        return style.series_color
+    return _style_colormap(style)(_SERIES_COLOR_POSITION)
+
+
+def series_figure_size(aspect=0.42):
+    """Figure size in inches for a NON-map figure at the shared page width.
+
+    Same declared width as every map, so a report setting these side by side
+    gets one column width rather than three.
+    """
+    width_in = FIGURE_WIDTH_MM / MM_PER_INCH
+    return width_in, width_in * aspect
 
 
 def _mask_nodata(da):
