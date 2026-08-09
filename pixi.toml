@@ -132,6 +132,8 @@ test-full = { cmd = "pytest tests/", description = "Run the authoritative full n
 # graphviz alias script.
 test-cli = { cmd = "pytest tests/test_cli.py", description = "Dry-run all three Snakefiles -- the cheapest sanity check after editing a rule or script signature" }
 lint = { cmd = "ruff check .", description = "Lint the repo with the [tool.ruff] config in pyproject.toml" }
+format = { cmd = "ruff format .", description = "Format the repo -- scope and exclusions in [tool.ruff.format]" }
+format-check = { cmd = "ruff format --check .", description = "Fail if anything in the formatter's scope is unformatted; the CI gate" }
 
 # DAG validation, one per workflow. `--configfile` is pinned to the tracked test
 # config so the task is runnable from a fresh clone; pass a different one on the

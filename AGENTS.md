@@ -328,7 +328,7 @@ re-proves what the previous run already proved.
 | When | Run |
 |---|---|
 | While iterating | Only the tests covering the file you changed (`pytest tests/test_<module>.py`). Nothing else. |
-| Before a commit | Add `pytest tests/test_cli.py` **if** a Snakefile or a `script:` signature changed; otherwise the module's own tests are the gate. |
+| Before a commit | Add `pytest tests/test_cli.py` **if** a Snakefile or a `script:` signature changed; otherwise the module's own tests are the gate. If you wrote Python, `pixi run lint` and `pixi run format-check` — both are CI gates, and both take ~1 s. `pixi run format` fixes the second. |
 | Before merging the branch | `pytest tests/` once. |
 | Before a milestone seal / after touching numeric outputs | `check_baseline.py check`, plus `semantic_tree_diff.py` if the tree shape moved. |
 
