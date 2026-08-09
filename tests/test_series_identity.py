@@ -24,7 +24,6 @@ import pytest
 
 from blueearth_cst.projections import series_identity as si
 
-
 # --------------------------------------------------------------------------
 # fixtures: a minimal generated-catalog shape, including the merge-key anchor
 # --------------------------------------------------------------------------

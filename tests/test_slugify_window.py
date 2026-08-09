@@ -7,7 +7,6 @@ a nonzero time-of-day fails loud rather than colliding onto a shared day key.
 
 from __future__ import annotations
 
-
 import pytest
 
 from blueearth_cst.shared.snake_utils import slugify_window  # noqa: E402

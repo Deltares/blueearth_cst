@@ -17,7 +17,6 @@ import yaml
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "dev", "scripts"))
 import semantic_tree_diff as std  # noqa: E402
 
-
 # ---------------------------------------------------------------------------
 # .nc element-wise comparator
 # ---------------------------------------------------------------------------

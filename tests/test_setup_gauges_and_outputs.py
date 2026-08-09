@@ -7,7 +7,9 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from blueearth_cst.model.setup_gauges_and_outputs import update_wflow_gauges_outputs  # noqa: E402
+from blueearth_cst.model.setup_gauges_and_outputs import (
+    update_wflow_gauges_outputs,  # noqa: E402
+)
 
 
 def test_raises_on_unknown_outvar():

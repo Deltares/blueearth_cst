@@ -1,0 +1,52 @@
+#!/bin/sh
+# Pre-push gate: the two ruff checks CI runs, ~2 s together.
+#
+# Why only these two. The lint gate was red on `main` for EIGHT DAYS across
+# seven CI runs before anyone looked (t2608071205), and every one of those
+# findings was reproducible locally in about a second. That is the class this
+# hook exists to stop.
+#
+# Why not the test suite. It takes ~6 minutes, and a 6-minute pre-push hook gets
+# bypassed with --no-verify until the bypass is the habit -- at which point the
+# hook reads as coverage while providing none. `pytest tests/` stays a
+# before-merge step, per the validation ladder in AGENTS.md.
+#
+# What this CANNOT catch: anything platform-specific. The failure that replaced
+# the lint one was four tests asserting Windows path spelling, green on the
+# author's machine and red on the ubuntu leg. No local hook can see that, which
+# is why AGENTS.md also asks you to read the run after you push.
+#
+# Install (once per clone; covers linked worktrees too):
+#     git config core.hooksPath .githooks
+# Bypass a single push:
+#     git push --no-verify
+#
+# Expect the FIRST push from a new worktree to be slow. Every worktree builds
+# its own pixi env (AGENTS.md, worktree section), so `pixi run` here installs it
+# rather than reusing the primary's -- minutes, inside a hook, with no progress
+# output. Run `pixi install` in a new worktree before pushing from it.
+
+set -e
+
+if ! command -v pixi >/dev/null 2>&1; then
+    echo "pre-push: pixi not found on PATH -- cannot run the ruff gates." >&2
+    echo "          Fix the environment, or bypass once with: git push --no-verify" >&2
+    exit 1
+fi
+
+echo "pre-push: ruff check ..."
+if ! pixi run --frozen lint; then
+    echo "" >&2
+    echo "pre-push: BLOCKED -- ruff check failed. Fix, or: git push --no-verify" >&2
+    exit 1
+fi
+
+echo "pre-push: ruff format --check ..."
+if ! pixi run --frozen format-check; then
+    echo "" >&2
+    echo "pre-push: BLOCKED -- formatting is not clean." >&2
+    echo "          Run: pixi run format     (or bypass: git push --no-verify)" >&2
+    exit 1
+fi
+
+exit 0

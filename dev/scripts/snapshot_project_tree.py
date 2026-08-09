@@ -52,9 +52,9 @@ REPO = HERE.parents[1]
 sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(HERE))
 
+import semantic_tree_diff as std  # noqa: E402
 import yaml  # noqa: E402
 
-import semantic_tree_diff as std  # noqa: E402
 from blueearth_cst.shared.snake_utils import slugify_window  # noqa: E402
 
 #: Directory names whose contents are never part of a project snapshot.

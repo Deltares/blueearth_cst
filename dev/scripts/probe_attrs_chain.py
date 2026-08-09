@@ -16,10 +16,10 @@ Run: ``pixi run python dev/scripts/probe_attrs_chain.py``. It prints a table
 and a one-line localization verdict; it writes nothing and moves no baseline.
 """
 
-import sys
-from os.path import dirname, join, realpath
-import tempfile
 import os
+import sys
+import tempfile
+from os.path import dirname, join, realpath
 
 import numpy as np
 import pandas as pd

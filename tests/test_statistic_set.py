@@ -12,7 +12,6 @@ from blueearth_cst.projections.get_change_climate_proj import (
     quantile_label,
 )
 
-
 # --- J1: the default set is exactly three -------------------------------------
 
 

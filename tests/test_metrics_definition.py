@@ -12,7 +12,6 @@ Testing pattern (M02c convention; see dev/milestones/phase-1/m02c/test-coverage-
 
 from __future__ import annotations
 
-
 import numpy as np
 import pandas as pd
 import pytest

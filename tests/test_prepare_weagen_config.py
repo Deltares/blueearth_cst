@@ -166,8 +166,8 @@ def test_f7_the_template_is_a_declared_input_of_rule_3_10():
     so a `params:` mention alone cannot satisfy it -- that is the exact state
     F7 described.
     """
-    from pathlib import Path
     import re
+    from pathlib import Path
 
     snakefile = (
         Path(__file__).resolve().parents[1] / "Snakefile_climate_experiment"

@@ -44,9 +44,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-import yaml
-
 import cross_workflow_inputs
+import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG = REPO_ROOT / "config/workflows/snake_config_model_test.yml"

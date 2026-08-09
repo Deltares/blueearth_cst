@@ -20,10 +20,10 @@ Skipped by default, and self-skips if the data mirror or Julia is absent.
 import os
 import shutil
 import subprocess
-from os.path import join, dirname, realpath, exists, getsize
+from os.path import dirname, exists, getsize, join, realpath
 
-import yaml
 import pytest
+import yaml
 
 TESTDIR = dirname(realpath(__file__))
 SNAKEDIR = join(TESTDIR, "..")

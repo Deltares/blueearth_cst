@@ -71,14 +71,12 @@ import sys
 from math import floor, log10
 from pathlib import Path
 
-import numpy as np
-
 # Force netCDF4 to load before xarray's lazy backend triggers it. On
 # Windows under pixi, xarray's deferred `import netCDF4` inside its
 # backend fails with a DLL load error, but a direct top-level import
 # succeeds and primes the loader so subsequent imports work.
 import netCDF4  # noqa: F401
-
+import numpy as np
 import pandas as pd
 import xarray as xr
 import yaml

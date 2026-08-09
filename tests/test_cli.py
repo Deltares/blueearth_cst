@@ -1,13 +1,13 @@
 """Test some snake command line interface (CLI) for validity of snakefiles."""
 
 import os
-import sys
-from os.path import join, dirname, realpath
-from pathlib import Path
 import subprocess
+import sys
+from os.path import dirname, join, realpath
+from pathlib import Path
 
-import yaml
 import pytest
+import yaml
 
 TESTDIR = dirname(realpath(__file__))
 SNAKEDIR = join(TESTDIR, "..")

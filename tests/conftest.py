@@ -1,8 +1,9 @@
 """Global test attributes and fixtures"""
 
-from os.path import join, dirname, realpath
-import yaml
+from os.path import dirname, join, realpath
+
 import pytest
+import yaml
 
 # The repo root is on sys.path via `pythonpath = ["."]` in pyproject.toml
 # [tool.pytest.ini_options] (O-14 decision 1), applied before conftest is

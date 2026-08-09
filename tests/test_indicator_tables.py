@@ -25,7 +25,6 @@ from blueearth_cst.shared.indicator_tables import (
     variable_token,
 )
 
-
 ALL_SIX = list(VARIABLE_TOKENS)
 
 

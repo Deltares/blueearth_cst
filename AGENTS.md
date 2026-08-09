@@ -330,10 +330,29 @@ re-proves what the previous run already proved.
 | While iterating | Only the tests covering the file you changed (`pytest tests/test_<module>.py`). Nothing else. |
 | Before a commit | Add `pytest tests/test_cli.py` **if** a Snakefile or a `script:` signature changed; otherwise the module's own tests are the gate. If you wrote Python, `pixi run lint` and `pixi run format-check` — both are CI gates, and both take ~1 s. `pixi run format` fixes the second. |
 | Before merging the branch | `pytest tests/` once. |
+| **After a push** | **Read the run it triggered** — `gh run list -L 1` / `gh run watch`. See below; this is not optional. |
 | Before a milestone seal / after touching numeric outputs | `check_baseline.py check`, plus `semantic_tree_diff.py` if the tree shape moved. |
 
 - `--dry-run` before running and after editing any rule, to validate the DAG.
 - If a run crashed and the workdir reports as locked, `--unlock` before retrying.
+
+### Read the CI run after you push
+
+**CI was red on `main` for ten days and nobody noticed** (t2608071205): seven
+runs failing the ruff gate from 2026-07-30, then — once that was fixed — three
+more failing the ubuntu leg's unit suite, a *different* defect that had been
+hiding behind the first. Nothing alerted; the gate simply went unread.
+
+Two things follow, and they are complementary rather than alternatives.
+
+- A **pre-push hook** runs the two ruff checks (~2 s) so that class cannot leave
+  the machine. Install it once per clone: `git config core.hooksPath .githooks`.
+  It is not installed by cloning — check `git config core.hooksPath` if unsure.
+- **Read the run anyway.** The hook is blind to everything platform-specific,
+  which is exactly what the second outage was: four tests asserting Windows path
+  spelling, green locally and red on ubuntu forever. A green local suite is not
+  evidence about the other leg, and the ubuntu leg is the only place linux-64 is
+  exercised at all (`dev/roadmap.md`, "Deferred: Linux replication").
 
 ### Figures are terminal artifacts
 
