@@ -9,7 +9,7 @@
 BlueEarth Climate Stress Test — a multi-language (Python + R + Julia) scientific
 workflow toolbox stitched together by Snakemake. The three `Snakefile_*` files at
 the repo root are the only entry points; there is no package CLI. Full narrative
-in `README.rst`.
+in `README.md`.
 
 ## Background
 
@@ -429,7 +429,7 @@ figure-local.
 
 ## References
 
-- `README.rst` — the overall pipeline and how the three workflows fit together;
+- `README.md` — the overall pipeline and how the three workflows fit together;
   start here.
 - `docs/cst-toolbox-technical-note-2025.md` — stress-test method and design
   rationale; read before changing *what* a workflow computes.
