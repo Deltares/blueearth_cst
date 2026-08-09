@@ -22,6 +22,7 @@ correctness defect on the production path, not a synthetic artefact. The rows
 are wired strict-xfail and routed to a split task; the norm they assert is the
 correct (calendar-invariant) 20.0 / 2.0 answer.
 """
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -42,8 +43,9 @@ def _monthly_time(years, calendar=None):
     n = len(years) * 12
     if calendar is None:
         return pd.date_range(start=start, periods=n, freq="MS")
-    return xr.date_range(start=start, periods=n, freq="MS", use_cftime=True,
-                         calendar=calendar)
+    return xr.date_range(
+        start=start, periods=n, freq="MS", use_cftime=True, calendar=calendar
+    )
 
 
 def _make_time_ds(
@@ -211,11 +213,11 @@ def test_row_P_asymmetric_members_should_raise():
 @pytest.mark.parametrize(
     "value, expected",
     [
-        ([1980, 2010], ("1980", "2010")),      # R01 list form
-        ("1980, 2010", ("1980", "2010")),      # legacy comma-separated string
+        ([1980, 2010], ("1980", "2010")),  # R01 list form
+        ("1980, 2010", ("1980", "2010")),  # legacy comma-separated string
         ([2030, 2060], ("2030", "2060")),
         (["1980", "2010"], ("1980", "2010")),  # already-str list
-        ((1980, 2010), ("1980", "2010")),      # tuple input
+        ((1980, 2010), ("1980", "2010")),  # tuple input
     ],
 )
 def test_to_str_tuple_list_and_string(value, expected):
@@ -230,4 +232,3 @@ def test_to_str_tuple_empty_list():
 # --------------------------------------------------------------------------- #
 # `test_get_change_clim_projections_grid_change` stood here. S8-08(c) removed
 # the cellwise grid change it exercised, together with the gridded branch.
-

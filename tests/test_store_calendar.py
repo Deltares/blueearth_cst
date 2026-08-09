@@ -24,7 +24,10 @@ def _zmetadata(calendar):
     attrs = {"units": "hours since 1850-01-16 12:00:00.000000"}
     if calendar is not None:
         attrs["calendar"] = calendar
-    return {"metadata": {"time/.zattrs": attrs, ".zattrs": {}}, "zarr_consolidated_format": 1}
+    return {
+        "metadata": {"time/.zattrs": attrs, ".zattrs": {}},
+        "zarr_consolidated_format": 1,
+    }
 
 
 @pytest.mark.parametrize(

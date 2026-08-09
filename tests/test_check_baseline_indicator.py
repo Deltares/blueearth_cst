@@ -6,6 +6,7 @@ ATOL from the reference's own mean, RTOL as a large-value tightener -- so the
 cases here are deliberately the same cases, plus the ones that only exist
 because an indicator table stacks many series in one file.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -35,6 +36,7 @@ def test_comparator_column_assumptions_match_the_writer():
 # Helpers
 # --------------------------------------------------------------------------
 
+
 def _table(rows: list[dict]) -> pd.DataFrame:
     """Build a table in the canonical column order, values numeric."""
     df = pd.DataFrame(rows, columns=list(INDICATOR_COLUMNS))
@@ -45,19 +47,34 @@ def _table(rows: list[dict]) -> pd.DataFrame:
     return df
 
 
-def _row(metric="q_mean", st_id="st_00", temp="0.0", precip="1.0",
-         rlz="0", location="101", value=10.0) -> dict:
+def _row(
+    metric="q_mean",
+    st_id="st_00",
+    temp="0.0",
+    precip="1.0",
+    rlz="0",
+    location="101",
+    value=10.0,
+) -> dict:
     return {
-        "metric": metric, "st_id": st_id, "temp_change": temp,
-        "precip_change": precip, "realization_id": rlz,
-        "location": location, "value": value,
+        "metric": metric,
+        "st_id": st_id,
+        "temp_change": temp,
+        "precip_change": precip,
+        "realization_id": rlz,
+        "location": location,
+        "value": value,
     }
 
 
 def _grid(metric: str, location: str, base: float, n: int = 6) -> list[dict]:
     return [
-        _row(metric=metric, location=location, st_id=f"st_{i:02d}",
-             value=base * (1.0 + 0.1 * i))
+        _row(
+            metric=metric,
+            location=location,
+            st_id=f"st_{i:02d}",
+            value=base * (1.0 + 0.1 * i),
+        )
         for i in range(n)
     ]
 
@@ -65,6 +82,7 @@ def _grid(metric: str, location: str, base: float, n: int = 6) -> list[dict]:
 # --------------------------------------------------------------------------
 # The comparator, in isolation
 # --------------------------------------------------------------------------
+
 
 def test_identical_tables_pass():
     ref = _table(_grid("q_mean", "101", 10.0))
@@ -96,13 +114,15 @@ def test_relative_tightener_catches_a_large_value_move():
     The row's value is far above the group ATOL, so the relative clause governs
     -- the indicator analogue of the discharge low-flow tightener.
     """
-    ref = _table([
-        _row(value=1000.0, st_id="st_00"),
-        _row(value=1000.0, st_id="st_01"),
-        _row(value=1000.0, st_id="st_02"),
-    ])
+    ref = _table(
+        [
+            _row(value=1000.0, st_id="st_00"),
+            _row(value=1000.0, st_id="st_01"),
+            _row(value=1000.0, st_id="st_02"),
+        ]
+    )
     cur = ref.copy()
-    cur.loc[1, "value"] = 1100.0          # +10%, RTOL is 1%
+    cur.loc[1, "value"] = 1100.0  # +10%, RTOL is 1%
     report = cb.compare_indicator_table(ref, cur)
     assert not report["ok"] and report["n_fail"] == 1
     assert report["max_rel"] == pytest.approx(0.1)
@@ -126,7 +146,7 @@ def test_tolerance_is_per_group_not_per_file():
     ref = _table(_grid("gev_rl100", "101", 5000.0) + _grid("q_low", "101", 0.5))
     cur = ref.copy()
     small = cur.index[cur["metric"] == "q_low"]
-    cur.loc[small[0], "value"] += 0.5           # +100% of a ~0.5 value
+    cur.loc[small[0], "value"] += 0.5  # +100% of a ~0.5 value
 
     file_wide_atol = cb.INDICATOR_ATOL_FRAC * float(ref["value"].abs().mean())
     assert 0.5 < file_wide_atol, "test premise: the move hides under a global ATOL"
@@ -151,6 +171,7 @@ def test_locations_are_separate_groups():
 # Structural checks — any hit is a FAIL, never a numeric pass
 # --------------------------------------------------------------------------
 
+
 def test_structural_column_added():
     ref = _table(_grid("q_mean", "101", 10.0))
     cur = ref.copy()
@@ -158,7 +179,7 @@ def test_structural_column_added():
     report = cb.compare_indicator_table(ref, cur)
     assert not report["ok"]
     assert any("column mismatch" in s for s in report["structural"])
-    assert report["n_fail"] is None       # never scored numerically
+    assert report["n_fail"] is None  # never scored numerically
 
 
 def test_structural_column_reorder_is_caught_separately():
@@ -171,7 +192,7 @@ def test_structural_column_reorder_is_caught_separately():
 
 def test_structural_duplicate_row_keys():
     rows = _grid("q_mean", "101", 10.0, n=3)
-    rows.append(dict(rows[0]))            # exact duplicate key
+    rows.append(dict(rows[0]))  # exact duplicate key
     ref = _table(rows)
     report = cb.compare_indicator_table(ref, ref.copy())
     assert not report["ok"]
@@ -208,7 +229,7 @@ def test_a_filtered_frame_does_not_mis_index():
     silently mis-index. Both sides are normalized on entry; pin it from the
     REFERENCE side, which the reorder test above does not exercise."""
     full = _table(_grid("q_mean", "101", 10.0, n=6))
-    ref = full[full["st_id"] != "st_00"]          # index 1..5, deliberately gappy
+    ref = full[full["st_id"] != "st_00"]  # index 1..5, deliberately gappy
     cur = ref.copy()
     assert list(ref.index) != list(range(len(ref)))  # premise
     assert cb.compare_indicator_table(ref, cur)["ok"]
@@ -233,6 +254,7 @@ def test_float_key_columns_are_compared_as_written():
 # Reader
 # --------------------------------------------------------------------------
 
+
 def test_reader_rejects_a_table_with_no_value_column(tmp_path):
     p = tmp_path / "bad.csv"
     p.write_text("metric,st_id\nq_mean,st_00\n")
@@ -255,17 +277,25 @@ def test_reader_keeps_key_columns_as_written(tmp_path):
 # record / check round trip through the CLI entry points
 # --------------------------------------------------------------------------
 
+
 def _record_ns(project_dir, manifest_path, workflow=None):
     return argparse.Namespace(
-        cmd="record", project_dir=project_dir, manifest=manifest_path,
-        workflow=workflow, include_figures=False,
+        cmd="record",
+        project_dir=project_dir,
+        manifest=manifest_path,
+        workflow=workflow,
+        include_figures=False,
     )
 
 
 def _check_ns(project_dir, manifest_path, workflow=None, tolerance=0.0):
     return argparse.Namespace(
-        cmd="check", project_dir=project_dir, manifest=manifest_path,
-        tolerance=tolerance, workflow=workflow, include_figures=False,
+        cmd="check",
+        project_dir=project_dir,
+        manifest=manifest_path,
+        tolerance=tolerance,
+        workflow=workflow,
+        include_figures=False,
     )
 
 
@@ -297,11 +327,15 @@ def experiment_only_project(tmp_path):
     project_dir = str(tmp_path)
     indicator = _write_climate_experiment_targets(project_dir)
     manifest_path = tmp_path / "manifest.json"
-    manifest_path.write_text(json.dumps({
-        "version": cb.MANIFEST_VERSION,
-        "project_dir": project_dir,
-        "targets": {"sentinel/wf1.csv": {"type": "csv", "sha256": "deadbeef"}},
-    }))
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "version": cb.MANIFEST_VERSION,
+                "project_dir": project_dir,
+                "targets": {"sentinel/wf1.csv": {"type": "csv", "sha256": "deadbeef"}},
+            }
+        )
+    )
     rc = cb.cmd_record(
         _record_ns(project_dir, manifest_path, workflow=["climate_experiment"])
     )
@@ -314,7 +348,7 @@ def test_roundtrip_records_reference_table_and_checks_clean(
 ):
     project_dir, manifest_path, _ = experiment_only_project
     targets = json.loads(Path(manifest_path).read_text())["targets"]
-    assert "sentinel/wf1.csv" in targets          # other workflows preserved
+    assert "sentinel/wf1.csv" in targets  # other workflows preserved
     rows = [r for r in targets.values() if r.get("type") == "indicator"]
     assert len(rows) == 1
     row = rows[0]

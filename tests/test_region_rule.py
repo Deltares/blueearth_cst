@@ -10,6 +10,7 @@ the three workflow declarations of ``delineate_region`` may differ only in
 ``message`` / ``log`` / ``benchmark``. Same shape, and the same reason, as
 ``tests/test_climate_store_contract.py``.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -164,8 +165,7 @@ def test_declarations_are_identical(declarations):
     assert not differences, (
         f"{RULE_NAME} differs across the three workflows on "
         f"{len(differences)} comparison(s). Only message/log/benchmark may "
-        "differ; everything else must come from region_rule.\n"
-        + "\n".join(differences)
+        "differ; everything else must come from region_rule.\n" + "\n".join(differences)
     )
 
 
@@ -174,8 +174,8 @@ def test_the_output_is_the_shared_artifact(declarations):
     for label, rule in declarations.items():
         paths = [str(path) for path in rule.output]
         assert len(paths) == 1, f"{label}: {paths}"
-        assert paths[0].replace("\\", "/").endswith(
-            "/data/spatial/geoms/region.geojson"
+        assert (
+            paths[0].replace("\\", "/").endswith("/data/spatial/geoms/region.geojson")
         ), f"{label}: {paths[0]}"
 
 

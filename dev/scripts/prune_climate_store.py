@@ -71,9 +71,7 @@ def find_orphans(project_dir: Path, active_key: str) -> list[Path]:
     root = project_dir / STORE_ROOT
     if not root.is_dir():
         return []
-    return sorted(
-        p for p in root.iterdir() if p.is_dir() and p.name != active_key
-    )
+    return sorted(p for p in root.iterdir() if p.is_dir() and p.name != active_key)
 
 
 def _dir_size(path: Path) -> int:
@@ -111,8 +109,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if not (root / active).is_dir():
-        print("    NOTE     the active store is absent; it will be extracted "
-              "on the next run")
+        print(
+            "    NOTE     the active store is absent; it will be extracted "
+            "on the next run"
+        )
 
     orphans = find_orphans(project_dir, active)
     print(f"orphans        : {len(orphans)}")

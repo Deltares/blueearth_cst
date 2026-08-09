@@ -22,7 +22,9 @@ def test_basin_ids_are_deterministic_under_row_shuffle():
     )
 
     first = assign_basin_ids(basins).set_index("source")
-    shuffled = assign_basin_ids(basins.sample(frac=1, random_state=7)).set_index("source")
+    shuffled = assign_basin_ids(basins.sample(frac=1, random_state=7)).set_index(
+        "source"
+    )
 
     pd.testing.assert_series_equal(first["basin_id"], shuffled["basin_id"])
     assert first.loc["large", "basin_code"] == "B001"
@@ -34,10 +36,38 @@ def test_subbasin_ids_follow_downstream_then_branch_tie_breaks():
     """Numbering is downstream-first, then area, row, and column."""
     subbasins = pd.DataFrame(
         [
-            {"name": "branch_b", "basin_id": 1, "downstream_steps": 2, "upstream_area": 10, "outlet_row": 2, "outlet_col": 1},
-            {"name": "outlet", "basin_id": 1, "downstream_steps": 0, "upstream_area": 100, "outlet_row": 9, "outlet_col": 9},
-            {"name": "branch_a", "basin_id": 1, "downstream_steps": 2, "upstream_area": 20, "outlet_row": 8, "outlet_col": 4},
-            {"name": "middle", "basin_id": 1, "downstream_steps": 1, "upstream_area": 60, "outlet_row": 5, "outlet_col": 5},
+            {
+                "name": "branch_b",
+                "basin_id": 1,
+                "downstream_steps": 2,
+                "upstream_area": 10,
+                "outlet_row": 2,
+                "outlet_col": 1,
+            },
+            {
+                "name": "outlet",
+                "basin_id": 1,
+                "downstream_steps": 0,
+                "upstream_area": 100,
+                "outlet_row": 9,
+                "outlet_col": 9,
+            },
+            {
+                "name": "branch_a",
+                "basin_id": 1,
+                "downstream_steps": 2,
+                "upstream_area": 20,
+                "outlet_row": 8,
+                "outlet_col": 4,
+            },
+            {
+                "name": "middle",
+                "basin_id": 1,
+                "downstream_steps": 1,
+                "upstream_area": 60,
+                "outlet_row": 5,
+                "outlet_col": 5,
+            },
         ]
     )
 
@@ -119,21 +149,26 @@ def test_wflow_ids_group_by_basin_and_order_by_subbasin():
     rows = []
     for basin_id in (1, 2):
         for local_subbasin in (1, 2):
-            rows.append({
-                "basin_id": basin_id,
-                "basin_code": f"B{basin_id:03d}",
-                "basin_name": f"basin_{basin_id:03d}",
-                "subbasin_id": basin_id * 100 + local_subbasin,
-                "subbasin_code": f"B{basin_id:03d}-S{local_subbasin:02d}",
-                "subbasin_name": "unit",
-                "local_subbasin_number": local_subbasin,
-                "station_name": f"P{basin_id}{local_subbasin}",
-                "location_role": "control",
-                "is_primary": True,
-                "original_x": 1.0, "original_y": 2.0,
-                "snapped_x": 1.0, "snapped_y": 2.0,
-                "snapped_row": 3, "snapped_col": 4,
-            })
+            rows.append(
+                {
+                    "basin_id": basin_id,
+                    "basin_code": f"B{basin_id:03d}",
+                    "basin_name": f"basin_{basin_id:03d}",
+                    "subbasin_id": basin_id * 100 + local_subbasin,
+                    "subbasin_code": f"B{basin_id:03d}-S{local_subbasin:02d}",
+                    "subbasin_name": "unit",
+                    "local_subbasin_number": local_subbasin,
+                    "station_name": f"P{basin_id}{local_subbasin}",
+                    "location_role": "control",
+                    "is_primary": True,
+                    "original_x": 1.0,
+                    "original_y": 2.0,
+                    "snapped_x": 1.0,
+                    "snapped_y": 2.0,
+                    "snapped_row": 3,
+                    "snapped_col": 4,
+                }
+            )
     resolved = assign_location_ids(pd.DataFrame(rows))
 
     assert resolved["wflow_id"].tolist() == [1010, 1020, 2010, 2020]
@@ -143,10 +178,10 @@ def test_wflow_ids_group_by_basin_and_order_by_subbasin():
 def test_a_tenth_additional_location_in_one_subbasin_raises():
     """The collision boundary, not a preference: m=10 lands on the next
     subbasin's primary (`sub*10 + 10 == (sub+1)*10`)."""
-    base = _locations().iloc[1].to_dict()          # the primary
-    extra = _locations().iloc[0].to_dict()          # an additional point
+    base = _locations().iloc[1].to_dict()  # the primary
+    extra = _locations().iloc[0].to_dict()  # an additional point
     rows = [base]
-    for n in range(10):                             # ten additional -> m = 1..10
+    for n in range(10):  # ten additional -> m = 1..10
         row = dict(extra)
         row["station_name"] = f"Extra{n:02d}"
         row["snapped_row"] = 10 + n
@@ -163,7 +198,9 @@ def test_location_ids_are_deterministic_under_row_shuffle():
         _locations().sample(frac=1, random_state=9)
     ).sort_values("station_name")
 
-    pd.testing.assert_frame_equal(first.reset_index(drop=True), shuffled.reset_index(drop=True))
+    pd.testing.assert_frame_equal(
+        first.reset_index(drop=True), shuffled.reset_index(drop=True)
+    )
 
 
 def test_supplied_wflow_id_must_match_resolved_registry():

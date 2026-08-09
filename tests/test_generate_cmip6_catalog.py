@@ -9,6 +9,7 @@ These tests are offline: ``gcsfs`` is never contacted. A fake filesystem stands
 in for the bucket so the resolution logic, the multi-match case, and the
 one-crawl coupling between catalog and index are checkable in CI.
 """
+
 from __future__ import annotations
 
 import importlib.util
@@ -101,9 +102,7 @@ def test_records_every_match_when_the_glob_is_ambiguous(gen):
 
 def test_multiple_grid_labels_are_both_recorded(gen):
     """Grid label is globbed away too — `gn` and `gr` are different stores."""
-    fs = FakeFS(
-        _bucket(pr={"gn": ["v1"], "gr": ["v1"]}, tas={"gn": ["v1"]})
-    )
+    fs = FakeFS(_bucket(pr={"gn": ["v1"], "gr": ["v1"]}, tas={"gn": ["v1"]}))
     payload = gen.pin_stores(fs, INVENTORY)
 
     entry = "cmip6_INST/MODEL_historical_{member}"
@@ -127,9 +126,7 @@ def test_absent_store_yields_an_empty_pin_not_an_error(gen):
 
 def test_only_certified_variables_are_pinned(gen):
     """`kin`/`press_msl` are best-effort, never pinned — they were never checked."""
-    fs = FakeFS(
-        _bucket(pr={"gn": ["v1"]}, tas={"gn": ["v1"]}, rsds={"gn": ["v1"]})
-    )
+    fs = FakeFS(_bucket(pr={"gn": ["v1"]}, tas={"gn": ["v1"]}, rsds={"gn": ["v1"]}))
     payload = gen.pin_stores(fs, INVENTORY)
 
     entry = "cmip6_INST/MODEL_historical_{member}"
@@ -159,7 +156,9 @@ def test_catalog_and_index_are_written_from_one_crawl_date(gen, tmp_path, monkey
     import json
 
     monkeypatch.setattr(
-        gen.gcsfs, "GCSFileSystem", lambda *a, **k: FakeFS(_bucket(pr={"gn": ["v1"]}, tas={"gn": ["v1"]}))
+        gen.gcsfs,
+        "GCSFileSystem",
+        lambda *a, **k: FakeFS(_bucket(pr={"gn": ["v1"]}, tas={"gn": ["v1"]})),
     )
     monkeypatch.setattr(gen, "crawl", lambda fs: INVENTORY)
     out = tmp_path / "cmip6_data.yml"
@@ -185,7 +184,9 @@ def test_catalog_and_index_are_written_from_one_crawl_date(gen, tmp_path, monkey
 def test_no_index_flag_leaves_the_index_untouched(gen, tmp_path, monkeypatch):
     """``--no-index`` writes only the catalog, and says the index is now stale."""
     monkeypatch.setattr(
-        gen.gcsfs, "GCSFileSystem", lambda *a, **k: FakeFS(_bucket(pr={"gn": ["v1"]}, tas={"gn": ["v1"]}))
+        gen.gcsfs,
+        "GCSFileSystem",
+        lambda *a, **k: FakeFS(_bucket(pr={"gn": ["v1"]}, tas={"gn": ["v1"]})),
     )
     monkeypatch.setattr(gen, "crawl", lambda fs: INVENTORY)
     out = tmp_path / "cmip6_data.yml"

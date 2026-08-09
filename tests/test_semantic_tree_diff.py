@@ -22,6 +22,7 @@ import semantic_tree_diff as std  # noqa: E402
 # .nc element-wise comparator
 # ---------------------------------------------------------------------------
 
+
 def _write_nc(path, data, x=(0, 1, 2), attrs=None):
     ds = xr.Dataset(
         {"var": (("x",), np.asarray(data, dtype=float))},
@@ -150,19 +151,20 @@ def test_inherited_cmip6_attrs_still_compared_everywhere_else(tmp_path):
 # .toml normalized comparator
 # ---------------------------------------------------------------------------
 
+
 def test_toml_key_order_and_comments_pass(tmp_path):
     a = tmp_path / "a.toml"
     b = tmp_path / "b.toml"
-    a.write_text('# comment A\n[s]\nx = 1\ny = 2\n')
-    b.write_text('[s]\ny = 2\nx = 1\n# comment B\n')  # reordered + diff comment
+    a.write_text("# comment A\n[s]\nx = 1\ny = 2\n")
+    b.write_text("[s]\ny = 2\nx = 1\n# comment B\n")  # reordered + diff comment
     assert std.compare_toml(str(a), str(b)) == []
 
 
 def test_toml_value_change_fails(tmp_path):
     a = tmp_path / "a.toml"
     b = tmp_path / "b.toml"
-    a.write_text('[s]\nx = 1\n')
-    b.write_text('[s]\nx = 2\n')
+    a.write_text("[s]\nx = 1\n")
+    b.write_text("[s]\nx = 2\n")
     diffs = std.compare_toml(str(a), str(b))
     assert diffs and "s.x" in diffs[0]
 
@@ -170,6 +172,7 @@ def test_toml_value_change_fails(tmp_path):
 # ---------------------------------------------------------------------------
 # copied-config YAML normalize-then-compare
 # ---------------------------------------------------------------------------
+
 
 def _write_yaml(path, doc):
     path.write_text(yaml.safe_dump(doc))
@@ -189,26 +192,36 @@ def test_copied_config_all_four_keys_normalize(tmp_path):
     """data_sources_climate is in the map (commit-2 as-built inventory)."""
     ref = tmp_path / "ref.yml"
     cur = tmp_path / "cur.yml"
-    _write_yaml(ref, {
-        "project": {
-            "data_sources": "config/deltares_data.yml",
-            "data_sources_climate": "config/cmip6_data.yml",
+    _write_yaml(
+        ref,
+        {
+            "project": {
+                "data_sources": "config/deltares_data.yml",
+                "data_sources_climate": "config/cmip6_data.yml",
+            },
+            "workflows": {
+                "model_creation": {
+                    "model_build_config": "config/wflow_build_model.yml",
+                    "waterbodies_config": "config/wflow_update_waterbodies.yml",
+                }
+            },
         },
-        "workflows": {"model_creation": {
-            "model_build_config": "config/wflow_build_model.yml",
-            "waterbodies_config": "config/wflow_update_waterbodies.yml",
-        }},
-    })
-    _write_yaml(cur, {
-        "project": {
-            "data_sources": "config/catalogs/deltares_data.yml",
-            "data_sources_climate": "config/catalogs/cmip6_data.yml",
+    )
+    _write_yaml(
+        cur,
+        {
+            "project": {
+                "data_sources": "config/catalogs/deltares_data.yml",
+                "data_sources_climate": "config/catalogs/cmip6_data.yml",
+            },
+            "workflows": {
+                "model_creation": {
+                    "model_build_config": "config/templates/wflow_build_model.yml",
+                    "waterbodies_config": "config/templates/wflow_update_waterbodies.yml",
+                }
+            },
         },
-        "workflows": {"model_creation": {
-            "model_build_config": "config/templates/wflow_build_model.yml",
-            "waterbodies_config": "config/templates/wflow_update_waterbodies.yml",
-        }},
-    })
+    )
     assert std.compare_copied_config(str(ref), str(cur)) == []
 
 
@@ -217,12 +230,15 @@ def test_copied_config_reflexive_self_compare_clean(tmp_path):
     clean. Pins the bug the self-smoke caught -- the directional normalize must
     not false-fail on identical inputs."""
     x = tmp_path / "x.yml"
-    _write_yaml(x, {
-        "project": {
-            "data_sources": "config/deltares_data.yml",
-            "data_sources_climate": "config/cmip6_data.yml",
+    _write_yaml(
+        x,
+        {
+            "project": {
+                "data_sources": "config/deltares_data.yml",
+                "data_sources_climate": "config/cmip6_data.yml",
+            },
         },
-    })
+    )
     assert std.compare_copied_config(str(x), str(x)) == []
 
 
@@ -230,10 +246,20 @@ def test_copied_config_nonpath_value_change_fails(tmp_path):
     """A non-path value change is a real FAIL even with a valid path rewrite."""
     ref = tmp_path / "ref.yml"
     cur = tmp_path / "cur.yml"
-    _write_yaml(ref, {"project": {"data_sources": "config/deltares_data.yml"},
-                      "shared": {"clim_historical": "era5"}})
-    _write_yaml(cur, {"project": {"data_sources": "config/catalogs/deltares_data.yml"},
-                      "shared": {"clim_historical": "chirps"}})  # drift
+    _write_yaml(
+        ref,
+        {
+            "project": {"data_sources": "config/deltares_data.yml"},
+            "shared": {"clim_historical": "era5"},
+        },
+    )
+    _write_yaml(
+        cur,
+        {
+            "project": {"data_sources": "config/catalogs/deltares_data.yml"},
+            "shared": {"clim_historical": "chirps"},
+        },
+    )  # drift
     diffs = std.compare_copied_config(str(ref), str(cur))
     assert diffs and any("clim_historical" in d for d in diffs)
 
@@ -252,10 +278,13 @@ def test_copied_config_unmapped_path_value_fails(tmp_path):
 # walker: self-compare clean; a perturbed file fails; exclusions honored
 # ---------------------------------------------------------------------------
 
+
 def test_diff_trees_self_compare_clean(tmp_path):
     root = tmp_path / "tree"
     (root / "config").mkdir(parents=True)
-    _write_yaml(root / "config" / "snake.yml", {"project": {"data_sources": "config/x.yml"}})
+    _write_yaml(
+        root / "config" / "snake.yml", {"project": {"data_sources": "config/x.yml"}}
+    )
     (root / "a.toml").write_text("[s]\nx = 1\n")
     _write_nc(root / "d.nc", [1.0, 2.0, 3.0])
     report = std.diff_trees(str(root), str(root), tol=0.0)
@@ -310,8 +339,12 @@ def test_diff_trees_reports_missing_and_extra(tmp_path):
 P31_MAP = std.build_p31_path_map("experiment", "era5_20000101_20201231")
 
 
-def _write_run_toml(path, path_static, path_forcing="../realization_1/x.nc",
-                    path_input="../../../hydrology_model/instate/instates.nc"):
+def _write_run_toml(
+    path,
+    path_static,
+    path_forcing="../realization_1/x.nc",
+    path_input="../../../hydrology_model/instate/instates.nc",
+):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         "[input]\n"
@@ -332,13 +365,20 @@ def test_toml_path_static_relocation_passes(tmp_path):
     cur_root = tmp_path / "cur"
     ref_toml = ref_root / "hydrology_model" / "run_climate_experiment" / "a.toml"
     cur_toml = cur_root / "experiments" / "experiment" / "model_runs" / "a.toml"
-    _write_run_toml(ref_toml, "../staticmaps.nc",
-                    path_forcing="../../climate_experiment/realization_1/x.nc",
-                    path_input="../instate/instates.nc")
+    _write_run_toml(
+        ref_toml,
+        "../staticmaps.nc",
+        path_forcing="../../climate_experiment/realization_1/x.nc",
+        path_input="../instate/instates.nc",
+    )
     _write_run_toml(cur_toml, "../../../hydrology_model/staticmaps.nc")
-    diffs = std.compare_toml(str(ref_toml), str(cur_toml),
-                             ref_root=str(ref_root), cur_root=str(cur_root),
-                             path_map=P31_MAP)
+    diffs = std.compare_toml(
+        str(ref_toml),
+        str(cur_toml),
+        ref_root=str(ref_root),
+        cur_root=str(cur_root),
+        path_map=P31_MAP,
+    )
     assert diffs == [], diffs
 
 
@@ -351,17 +391,27 @@ def test_toml_path_forcing_prefix_map_passes(tmp_path):
     cur_root = tmp_path / "cur"
     ref_toml = ref_root / "hydrology_model" / "run_climate_experiment" / "a.toml"
     cur_toml = cur_root / "experiments" / "experiment" / "model_runs" / "a.toml"
-    _write_run_toml(ref_toml, "../staticmaps.nc",
-                    path_forcing="../../climate_experiment/realization_1/inmaps_rlz_1_cst_1.nc",
-                    path_input="../instate/instates.nc")
-    _write_run_toml(cur_toml, "../../../hydrology_model/staticmaps.nc",
-                    path_forcing="../realization_1/inmaps_rlz_1_cst_1.nc")
+    _write_run_toml(
+        ref_toml,
+        "../staticmaps.nc",
+        path_forcing="../../climate_experiment/realization_1/inmaps_rlz_1_cst_1.nc",
+        path_input="../instate/instates.nc",
+    )
+    _write_run_toml(
+        cur_toml,
+        "../../../hydrology_model/staticmaps.nc",
+        path_forcing="../realization_1/inmaps_rlz_1_cst_1.nc",
+    )
     # the forcing target exists in neither tree (temp()-deleted)
     assert not (ref_root / "climate_experiment").exists()
     assert not (cur_root / "experiments" / "experiment" / "realization_1").exists()
-    diffs = std.compare_toml(str(ref_toml), str(cur_toml),
-                             ref_root=str(ref_root), cur_root=str(cur_root),
-                             path_map=P31_MAP)
+    diffs = std.compare_toml(
+        str(ref_toml),
+        str(cur_toml),
+        ref_root=str(ref_root),
+        cur_root=str(cur_root),
+        path_map=P31_MAP,
+    )
     assert diffs == [], diffs
 
 
@@ -372,13 +422,20 @@ def test_toml_path_static_mis_repoint_fails(tmp_path):
     cur_root = tmp_path / "cur"
     ref_toml = ref_root / "hydrology_model" / "run_climate_experiment" / "a.toml"
     cur_toml = cur_root / "experiments" / "experiment" / "model_runs" / "a.toml"
-    _write_run_toml(ref_toml, "../staticmaps.nc",
-                    path_forcing="../../climate_experiment/realization_1/x.nc",
-                    path_input="../instate/instates.nc")
+    _write_run_toml(
+        ref_toml,
+        "../staticmaps.nc",
+        path_forcing="../../climate_experiment/realization_1/x.nc",
+        path_input="../instate/instates.nc",
+    )
     _write_run_toml(cur_toml, "../../../hydrology_model/staticmaps_WRONG.nc")
-    diffs = std.compare_toml(str(ref_toml), str(cur_toml),
-                             ref_root=str(ref_root), cur_root=str(cur_root),
-                             path_map=P31_MAP)
+    diffs = std.compare_toml(
+        str(ref_toml),
+        str(cur_toml),
+        ref_root=str(ref_root),
+        cur_root=str(cur_root),
+        path_map=P31_MAP,
+    )
     assert diffs and any("path_static" in d and "mis-repoint" in d for d in diffs)
 
 
@@ -389,14 +446,22 @@ def test_diff_trees_path_map_pairs_moved_files(tmp_path):
     cur = tmp_path / "cur"
     (ref / "climate_experiment" / "model_results").mkdir(parents=True)
     (cur / "experiments" / "experiment" / "model_results").mkdir(parents=True)
-    (ref / "climate_experiment" / "model_results" / "Qstats.csv").write_text("a,b\n1,2\n")
-    (cur / "experiments" / "experiment" / "model_results" / "Qstats.csv").write_text("a,b\n1,2\n")
+    (ref / "climate_experiment" / "model_results" / "Qstats.csv").write_text(
+        "a,b\n1,2\n"
+    )
+    (cur / "experiments" / "experiment" / "model_results" / "Qstats.csv").write_text(
+        "a,b\n1,2\n"
+    )
     (ref / "climate_historical" / "raw_data").mkdir(parents=True)
     (cur / "climate_historical" / "era5_20000101_20201231").mkdir(parents=True)
-    _write_nc(ref / "climate_historical" / "raw_data" / "extract_historical.nc",
-              [1.0, 2.0, 3.0])
-    _write_nc(cur / "climate_historical" / "era5_20000101_20201231" / "extract_historical.nc",
-              [1.0, 2.0, 3.0])
+    _write_nc(
+        ref / "climate_historical" / "raw_data" / "extract_historical.nc",
+        [1.0, 2.0, 3.0],
+    )
+    _write_nc(
+        cur / "climate_historical" / "era5_20000101_20201231" / "extract_historical.nc",
+        [1.0, 2.0, 3.0],
+    )
     report = std.diff_trees(str(ref), str(cur), tol=0.0, path_map=P31_MAP)
     assert report["passed"], std.format_report(report)
     assert report["n_compared"] == 2
@@ -408,8 +473,12 @@ def test_diff_trees_path_map_value_diff_still_fails(tmp_path):
     cur = tmp_path / "cur"
     (ref / "climate_experiment" / "model_results").mkdir(parents=True)
     (cur / "experiments" / "experiment" / "model_results").mkdir(parents=True)
-    (ref / "climate_experiment" / "model_results" / "Qstats.csv").write_text("a,b\n1,2\n")
-    (cur / "experiments" / "experiment" / "model_results" / "Qstats.csv").write_text("a,b\n1,999\n")
+    (ref / "climate_experiment" / "model_results" / "Qstats.csv").write_text(
+        "a,b\n1,2\n"
+    )
+    (cur / "experiments" / "experiment" / "model_results" / "Qstats.csv").write_text(
+        "a,b\n1,999\n"
+    )
     report = std.diff_trees(str(ref), str(cur), tol=0.0, path_map=P31_MAP)
     assert not report["passed"]
     assert report["failures"] and not report["missing"] and not report["extra"]
@@ -425,15 +494,19 @@ def test_diff_trees_allowlist_gate_contract(tmp_path):
     (cur / "experiments" / "experiment").mkdir(parents=True)
     (cur / "climate_historical" / "era5_20000101_20201231").mkdir(parents=True)
     (cur / "experiments" / "experiment" / ".project_consistency_ok").write_text("ok")
-    (cur / "climate_historical" / "era5_20000101_20201231" / ".guard_ok").write_text("ok")
-    report = std.diff_trees(str(ref), str(cur), tol=0.0,
-                            path_map=P31_MAP, allowlist=allow)
+    (cur / "climate_historical" / "era5_20000101_20201231" / ".guard_ok").write_text(
+        "ok"
+    )
+    report = std.diff_trees(
+        str(ref), str(cur), tol=0.0, path_map=P31_MAP, allowlist=allow
+    )
     assert report["passed"], std.format_report(report)
     assert len(report["allowed"]) == 2
     # now an unexplained extra appears -> gate FAILURE
     (cur / "experiments" / "experiment" / "unexplained.csv").write_text("a\n1\n")
-    report = std.diff_trees(str(ref), str(cur), tol=0.0,
-                            path_map=P31_MAP, allowlist=allow)
+    report = std.diff_trees(
+        str(ref), str(cur), tol=0.0, path_map=P31_MAP, allowlist=allow
+    )
     assert not report["passed"]
     assert report["extra"] == ["experiments/experiment/unexplained.csv"]
 
@@ -443,12 +516,20 @@ def test_diff_trees_self_compare_clean_with_p31_map(tmp_path):
     active is clean (old-layout prefixes match nothing; map is a no-op)."""
     root = tmp_path / "tree"
     (root / "experiments" / "experiment" / "model_results").mkdir(parents=True)
-    (root / "experiments" / "experiment" / "model_results" / "Qstats.csv").write_text("a,b\n1,2\n")
-    _write_run_toml(root / "experiments" / "experiment" / "model_runs" / "a.toml",
-                    "../../../hydrology_model/staticmaps.nc")
-    report = std.diff_trees(str(root), str(root), tol=0.0, path_map=P31_MAP,
-                            allowlist=std.build_p31_allowlist(
-                                "experiment", "era5_20000101_20201231"))
+    (root / "experiments" / "experiment" / "model_results" / "Qstats.csv").write_text(
+        "a,b\n1,2\n"
+    )
+    _write_run_toml(
+        root / "experiments" / "experiment" / "model_runs" / "a.toml",
+        "../../../hydrology_model/staticmaps.nc",
+    )
+    report = std.diff_trees(
+        str(root),
+        str(root),
+        tol=0.0,
+        path_map=P31_MAP,
+        allowlist=std.build_p31_allowlist("experiment", "era5_20000101_20201231"),
+    )
     assert report["passed"], std.format_report(report)
 
 
@@ -456,6 +537,7 @@ def test_diff_trees_self_compare_clean_with_p31_map(tmp_path):
 # P3-1 commit 5b: cross-root YAML path normalization + run-log file exclusion
 # (adjudicated milestone-diff classes; dev/milestones/p31/baseline_diffs.md)
 # ---------------------------------------------------------------------------
+
 
 def test_yaml_cross_root_path_leaves_pass(tmp_path):
     """A yml whose string leaves differ ONLY by each tree's own root token +
@@ -469,19 +551,33 @@ def test_yaml_cross_root_path_leaves_pass(tmp_path):
     cur_yml = cur_root / "experiments" / "experiment" / "weathergen_config.yml"
     ref_yml.parent.mkdir(parents=True)
     cur_yml.parent.mkdir(parents=True)
-    _write_yaml(ref_yml, {
-        "project_dir": ref_root.as_posix(),
-        "output": {"path": f"{ref_root.as_posix()}/climate_experiment/realization_1/"},
-        "seed": 123,
-    })
-    _write_yaml(cur_yml, {
-        "project_dir": cur_root.as_posix(),
-        "output": {"path": f"{cur_root.as_posix()}/experiments/experiment/realization_1/"},
-        "seed": 123,
-    })
+    _write_yaml(
+        ref_yml,
+        {
+            "project_dir": ref_root.as_posix(),
+            "output": {
+                "path": f"{ref_root.as_posix()}/climate_experiment/realization_1/"
+            },
+            "seed": 123,
+        },
+    )
+    _write_yaml(
+        cur_yml,
+        {
+            "project_dir": cur_root.as_posix(),
+            "output": {
+                "path": f"{cur_root.as_posix()}/experiments/experiment/realization_1/"
+            },
+            "seed": 123,
+        },
+    )
     diffs = std.compare_yaml(
-        str(ref_yml), str(cur_yml), cur_yml.relative_to(cur_root),
-        ref_root=str(ref_root), cur_root=str(cur_root), path_map=P31_MAP,
+        str(ref_yml),
+        str(cur_yml),
+        cur_yml.relative_to(cur_root),
+        ref_root=str(ref_root),
+        cur_root=str(cur_root),
+        path_map=P31_MAP,
     )
     assert diffs == [], diffs
 
@@ -495,17 +591,31 @@ def test_yaml_cross_root_nonpath_value_still_fails(tmp_path):
     cur_yml = cur_root / "experiments" / "experiment" / "weathergen_config.yml"
     ref_yml.parent.mkdir(parents=True)
     cur_yml.parent.mkdir(parents=True)
-    _write_yaml(ref_yml, {
-        "output": {"path": f"{ref_root.as_posix()}/climate_experiment/realization_1/"},
-        "seed": 123,
-    })
-    _write_yaml(cur_yml, {
-        "output": {"path": f"{cur_root.as_posix()}/experiments/experiment/realization_1/"},
-        "seed": 456,  # drift
-    })
+    _write_yaml(
+        ref_yml,
+        {
+            "output": {
+                "path": f"{ref_root.as_posix()}/climate_experiment/realization_1/"
+            },
+            "seed": 123,
+        },
+    )
+    _write_yaml(
+        cur_yml,
+        {
+            "output": {
+                "path": f"{cur_root.as_posix()}/experiments/experiment/realization_1/"
+            },
+            "seed": 456,  # drift
+        },
+    )
     diffs = std.compare_yaml(
-        str(ref_yml), str(cur_yml), cur_yml.relative_to(cur_root),
-        ref_root=str(ref_root), cur_root=str(cur_root), path_map=P31_MAP,
+        str(ref_yml),
+        str(cur_yml),
+        cur_yml.relative_to(cur_root),
+        ref_root=str(ref_root),
+        cur_root=str(cur_root),
+        path_map=P31_MAP,
     )
     assert diffs and any("seed" in d for d in diffs)
 
@@ -519,13 +629,21 @@ def test_yaml_backslash_absolute_uri_normalizes(tmp_path):
     cur_yml = cur_root / "experiments" / "experiment" / "cat.yml"
     ref_yml.parent.mkdir(parents=True)
     cur_yml.parent.mkdir(parents=True)
-    ref_abs = str(ref_root.resolve() / "climate_experiment" / "realization_1" / "x.nc").replace("/", "\\")
-    cur_abs = str(cur_root.resolve() / "experiments" / "experiment" / "realization_1" / "x.nc").replace("/", "\\")
+    ref_abs = str(
+        ref_root.resolve() / "climate_experiment" / "realization_1" / "x.nc"
+    ).replace("/", "\\")
+    cur_abs = str(
+        cur_root.resolve() / "experiments" / "experiment" / "realization_1" / "x.nc"
+    ).replace("/", "\\")
     _write_yaml(ref_yml, {"rlz": {"uri": ref_abs}})
     _write_yaml(cur_yml, {"rlz": {"uri": cur_abs}})
     diffs = std.compare_yaml(
-        str(ref_yml), str(cur_yml), cur_yml.relative_to(cur_root),
-        ref_root=str(ref_root), cur_root=str(cur_root), path_map=P31_MAP,
+        str(ref_yml),
+        str(cur_yml),
+        cur_yml.relative_to(cur_root),
+        ref_root=str(ref_root),
+        cur_root=str(cur_root),
+        path_map=P31_MAP,
     )
     assert diffs == [], diffs
 
@@ -558,6 +676,7 @@ def test_diff_trees_excludes_run_log_files(tmp_path):
 # store that disappeared.
 # ---------------------------------------------------------------------------
 
+
 def _merge_trees(tmp_path, wf1_data, key_data, survivor_data):
     """Two ref stores (wf1_raw + <key>) collapsing to one current store."""
     ref = tmp_path / "ref"
@@ -565,25 +684,29 @@ def _merge_trees(tmp_path, wf1_data, key_data, survivor_data):
     (ref / "climate_historical" / "wf1_raw").mkdir(parents=True)
     (ref / "climate_historical" / "k1").mkdir(parents=True)
     (cur / "climate_historical" / "k1").mkdir(parents=True)
-    _write_nc(ref / "climate_historical" / "wf1_raw" / "extract_historical.nc",
-              wf1_data)
-    _write_nc(ref / "climate_historical" / "k1" / "extract_historical.nc",
-              key_data)
-    _write_nc(cur / "climate_historical" / "k1" / "extract_historical.nc",
-              survivor_data)
+    _write_nc(
+        ref / "climate_historical" / "wf1_raw" / "extract_historical.nc", wf1_data
+    )
+    _write_nc(ref / "climate_historical" / "k1" / "extract_historical.nc", key_data)
+    _write_nc(
+        cur / "climate_historical" / "k1" / "extract_historical.nc", survivor_data
+    )
     return ref, cur
 
 
-_MERGE = [(
-    "climate_historical/k1/extract_historical.nc",
-    ["climate_historical/wf1_raw/extract_historical.nc",
-     "climate_historical/k1/extract_historical.nc"],
-)]
+_MERGE = [
+    (
+        "climate_historical/k1/extract_historical.nc",
+        [
+            "climate_historical/wf1_raw/extract_historical.nc",
+            "climate_historical/k1/extract_historical.nc",
+        ],
+    )
+]
 
 
 def test_merge_passes_when_survivor_matches_every_source(tmp_path):
-    ref, cur = _merge_trees(tmp_path, [1.0, 2.0, 3.0], [1.0, 2.0, 3.0],
-                            [1.0, 2.0, 3.0])
+    ref, cur = _merge_trees(tmp_path, [1.0, 2.0, 3.0], [1.0, 2.0, 3.0], [1.0, 2.0, 3.0])
     rep = std.diff_trees(str(ref), str(cur), tol=0.0, merges=_MERGE)
     assert rep["passed"], std.format_report(rep)
     # Both sides are compared, not just the one that happens to share a path.
@@ -595,8 +718,7 @@ def test_merge_fails_when_only_one_source_matches(tmp_path):
     """The property arch-2 / risk-2 were about: a merge is proven by BOTH
     comparisons. The survivor here is bit-identical to the <key> store but
     differs from wf1_raw -- a one-sided check would call this clean."""
-    ref, cur = _merge_trees(tmp_path, [9.0, 9.0, 9.0], [1.0, 2.0, 3.0],
-                            [1.0, 2.0, 3.0])
+    ref, cur = _merge_trees(tmp_path, [9.0, 9.0, 9.0], [1.0, 2.0, 3.0], [1.0, 2.0, 3.0])
     rep = std.diff_trees(str(ref), str(cur), tol=0.0, merges=_MERGE)
     assert not rep["passed"], std.format_report(rep)
     labels = [lbl for lbl, _ in rep["failures"]]
@@ -609,8 +731,7 @@ def test_merge_fails_when_only_one_source_matches(tmp_path):
 def test_merge_sources_are_not_reported_missing(tmp_path):
     """Without the merge class, wf1_raw/* reads as MISSING and the survivor as
     EXTRA -- the failure mode the stale migration map papered over."""
-    ref, cur = _merge_trees(tmp_path, [1.0, 2.0, 3.0], [1.0, 2.0, 3.0],
-                            [1.0, 2.0, 3.0])
+    ref, cur = _merge_trees(tmp_path, [1.0, 2.0, 3.0], [1.0, 2.0, 3.0], [1.0, 2.0, 3.0])
     bare = std.diff_trees(str(ref), str(cur), tol=0.0)
     assert any("wf1_raw" in m for m in bare["missing"])
     merged = std.diff_trees(str(ref), str(cur), tol=0.0, merges=_MERGE)
@@ -622,8 +743,7 @@ def test_merge_survivor_absent_fails(tmp_path):
     (cur / "climate_historical" / "k1" / "extract_historical.nc").unlink()
     rep = std.diff_trees(str(ref), str(cur), tol=0.0, merges=_MERGE)
     assert not rep["passed"]
-    assert any("survivor missing" in r
-               for _, rs in rep["failures"] for r in rs)
+    assert any("survivor missing" in r for _, rs in rep["failures"] for r in rs)
 
 
 def test_merge_declared_source_absent_fails(tmp_path):
@@ -633,8 +753,9 @@ def test_merge_declared_source_absent_fails(tmp_path):
     (ref / "climate_historical" / "wf1_raw" / "extract_historical.nc").unlink()
     rep = std.diff_trees(str(ref), str(cur), tol=0.0, merges=_MERGE)
     assert not rep["passed"]
-    assert any("declared merge source missing" in r
-               for _, rs in rep["failures"] for r in rs)
+    assert any(
+        "declared merge source missing" in r for _, rs in rep["failures"] for r in rs
+    )
 
 
 def test_path_map_collision_still_raises_and_names_the_merge_fix(tmp_path):
@@ -653,41 +774,51 @@ def test_path_map_collision_still_raises_and_names_the_merge_fix(tmp_path):
 # filename into a directory, which no prefix or exact rule can express).
 # ---------------------------------------------------------------------------
 
+
 def test_r07_regex_rules_move_index_from_filename_to_directory():
     m = std.build_r07_path_map("experiment", "k1")
     got = std.apply_path_map(
-        "experiments/experiment/realization_2/inmaps_rlz_2_cst_3.nc", m)
+        "experiments/experiment/realization_2/inmaps_rlz_2_cst_3.nc", m
+    )
     assert got == (
-        "experiments/experiment/hydrology_runs/rlz_2/forcing/inmaps_cst_3.nc")
+        "experiments/experiment/hydrology_runs/rlz_2/forcing/inmaps_cst_3.nc"
+    )
     got = std.apply_path_map(
-        "experiments/experiment/model_runs/wflow_sbm_rlz_4_cst_7.toml", m)
-    assert got == (
-        "experiments/experiment/hydrology_runs/rlz_4/config/cst_7.toml")
+        "experiments/experiment/model_runs/wflow_sbm_rlz_4_cst_7.toml", m
+    )
+    assert got == ("experiments/experiment/hydrology_runs/rlz_4/config/cst_7.toml")
     got = std.apply_path_map(
-        "experiments/experiment/model_runs/outstates_rlz_1_cst_2.nc", m)
+        "experiments/experiment/model_runs/outstates_rlz_1_cst_2.nc", m
+    )
     assert got == (
-        "experiments/experiment/hydrology_runs/rlz_1/output/outstates_cst_2.nc")
+        "experiments/experiment/hydrology_runs/rlz_1/output/outstates_cst_2.nc"
+    )
 
 
 def test_r07_weathergen_artifacts_split_output_vs_work():
     m = std.build_r07_path_map("experiment", "k1")
     # generator products -> output/ (G1 ruling OQ-4)
-    assert std.apply_path_map(
-        "experiments/experiment/realization_1/rlz_1_cst_2.nc", m
-    ) == "experiments/experiment/weather_generator/output/rlz_1_cst_2.nc"
-    assert std.apply_path_map(
-        "experiments/experiment/sim_dates.csv", m
-    ) == "experiments/experiment/weather_generator/output/sim_dates.csv"
+    assert (
+        std.apply_path_map("experiments/experiment/realization_1/rlz_1_cst_2.nc", m)
+        == "experiments/experiment/weather_generator/output/rlz_1_cst_2.nc"
+    )
+    assert (
+        std.apply_path_map("experiments/experiment/sim_dates.csv", m)
+        == "experiments/experiment/weather_generator/output/sim_dates.csv"
+    )
     # per-member configs -> _work/
     assert std.apply_path_map(
         "experiments/experiment/realization_1/weathergen_config_rlz_1_cst_2.yml",
         m,
-    ) == ("experiments/experiment/weather_generator/_work/"
-          "weathergen_config_rlz_1_cst_2.yml")
+    ) == (
+        "experiments/experiment/weather_generator/_work/"
+        "weathergen_config_rlz_1_cst_2.yml"
+    )
     # cst_*.csv is RETAINED under _work/, not deleted (B6)
-    assert std.apply_path_map(
-        "experiments/experiment/stress_test/cst_3.csv", m
-    ) == "experiments/experiment/weather_generator/_work/cst_3.csv"
+    assert (
+        std.apply_path_map("experiments/experiment/stress_test/cst_3.csv", m)
+        == "experiments/experiment/weather_generator/_work/cst_3.csv"
+    )
 
 
 def test_r07_explicit_non_moves_stay_put():
@@ -719,22 +850,16 @@ def test_s8_figure_renames_resolve():
     m = std.build_r07_path_map("experiment", "k1", clim_project="cmip6")
     cp = "climate_projections/cmip6"
     cases = {
-        f"{cp}/plots/projected_climate_statistics.png":
-            f"{cp}/plots/cmip6_change_factor_cloud.png",
+        f"{cp}/plots/projected_climate_statistics.png": f"{cp}/plots/cmip6_change_factor_cloud.png",
         # "anomaly" was the ANNUAL view, not the anomaly quantity -- the
         # contradiction S8-07 fixed, so the mapping is not name-for-name.
-        f"{cp}/plots/precipitation_anomaly_projections_abs.png":
-            f"{cp}/plots/cmip6_precip_annual_absolute.png",
-        f"{cp}/plots/temperature_anomaly_projections_anom.png":
-            f"{cp}/plots/cmip6_temp_annual_change.png",
-        f"{cp}/plots/precipitation_monthly_projections_anom.png":
-            f"{cp}/plots/cmip6_precip_monthly_change.png",
-        f"{cp}/change_factors/annual.csv":
-            f"{cp}/summary/cmip6_change_factors_annual.csv",
+        f"{cp}/plots/precipitation_anomaly_projections_abs.png": f"{cp}/plots/cmip6_precip_annual_absolute.png",
+        f"{cp}/plots/temperature_anomaly_projections_anom.png": f"{cp}/plots/cmip6_temp_annual_change.png",
+        f"{cp}/plots/precipitation_monthly_projections_anom.png": f"{cp}/plots/cmip6_precip_monthly_change.png",
+        f"{cp}/change_factors/annual.csv": f"{cp}/summary/cmip6_change_factors_annual.csv",
         f"{cp}/provenance.json": f"{cp}/summary/provenance.json",
         # a DIRECTORY prefix rule: the filename grammar is unchanged
-        f"{cp}/series/cmip6_INM_INM-CM4-8_ssp245_r1i1p1f1.nc":
-            f"{cp}/scalar/cmip6_INM_INM-CM4-8_ssp245_r1i1p1f1.nc",
+        f"{cp}/series/cmip6_INM_INM-CM4-8_ssp245_r1i1p1f1.nc": f"{cp}/scalar/cmip6_INM_INM-CM4-8_ssp245_r1i1p1f1.nc",
     }
     for old, expected in cases.items():
         assert std.apply_path_map(old, m) == expected, old
@@ -759,9 +884,10 @@ def test_r07_bare_realization_dir_maps_to_the_generator_output_dir():
     regression rather than the pointer move it is.
     """
     m = std.build_r07_path_map("experiment", "k1")
-    assert std.apply_path_map(
-        "experiments/experiment/realization_3/", m
-    ) == "experiments/experiment/weather_generator/output/"
+    assert (
+        std.apply_path_map("experiments/experiment/realization_3/", m)
+        == "experiments/experiment/weather_generator/output/"
+    )
 
 
 def test_r07_run_toml_output_pointers_repoint_into_the_run_output_dir(tmp_path):
@@ -774,15 +900,35 @@ def test_r07_run_toml_output_pointers_repoint_into_the_run_output_dir(tmp_path):
     """
     ref_root = tmp_path / "ref"
     cur_root = tmp_path / "cur"
-    ref_toml = ref_root / "experiments" / "experiment" / "model_runs" / \
-        "wflow_sbm_rlz_1_cst_2.toml"
-    cur_toml = cur_root / "experiments" / "experiment" / "hydrology_runs" / \
-        "rlz_1" / "config" / "cst_2.toml"
+    ref_toml = (
+        ref_root
+        / "experiments"
+        / "experiment"
+        / "model_runs"
+        / "wflow_sbm_rlz_1_cst_2.toml"
+    )
+    cur_toml = (
+        cur_root
+        / "experiments"
+        / "experiment"
+        / "hydrology_runs"
+        / "rlz_1"
+        / "config"
+        / "cst_2.toml"
+    )
     for p, forcing, outstates, csv in (
-        (ref_toml, "../realization_1/inmaps_rlz_1_cst_2.nc",
-         "outstates_rlz_1_cst_2.nc", "output_rlz_1_cst_2.csv"),
-        (cur_toml, "../forcing/inmaps_cst_2.nc",
-         "../output/outstates_cst_2.nc", "../output/cst_2.csv"),
+        (
+            ref_toml,
+            "../realization_1/inmaps_rlz_1_cst_2.nc",
+            "outstates_rlz_1_cst_2.nc",
+            "output_rlz_1_cst_2.csv",
+        ),
+        (
+            cur_toml,
+            "../forcing/inmaps_cst_2.nc",
+            "../output/outstates_cst_2.nc",
+            "../output/cst_2.csv",
+        ),
     ):
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(
@@ -794,9 +940,13 @@ def test_r07_run_toml_output_pointers_repoint_into_the_run_output_dir(tmp_path):
             f'path = "{csv}"\n'
         )
     m = std.build_r07_path_map("experiment", "k1")
-    diffs = std.compare_toml(str(ref_toml), str(cur_toml),
-                             ref_root=str(ref_root), cur_root=str(cur_root),
-                             path_map=m)
+    diffs = std.compare_toml(
+        str(ref_toml),
+        str(cur_toml),
+        ref_root=str(ref_root),
+        cur_root=str(cur_root),
+        path_map=m,
+    )
     assert diffs == [], diffs
 
 
@@ -805,18 +955,34 @@ def test_r07_run_toml_mis_repointed_csv_still_fails(tmp_path):
     one (risk-4)."""
     ref_root = tmp_path / "ref"
     cur_root = tmp_path / "cur"
-    ref_toml = ref_root / "experiments" / "experiment" / "model_runs" / \
-        "wflow_sbm_rlz_1_cst_2.toml"
-    cur_toml = cur_root / "experiments" / "experiment" / "hydrology_runs" / \
-        "rlz_1" / "config" / "cst_2.toml"
+    ref_toml = (
+        ref_root
+        / "experiments"
+        / "experiment"
+        / "model_runs"
+        / "wflow_sbm_rlz_1_cst_2.toml"
+    )
+    cur_toml = (
+        cur_root
+        / "experiments"
+        / "experiment"
+        / "hydrology_runs"
+        / "rlz_1"
+        / "config"
+        / "cst_2.toml"
+    )
     ref_toml.parent.mkdir(parents=True, exist_ok=True)
     cur_toml.parent.mkdir(parents=True, exist_ok=True)
     ref_toml.write_text('[output.csv]\npath = "output_rlz_1_cst_2.csv"\n')
     # left in config/ instead of the sibling output/
     cur_toml.write_text('[output.csv]\npath = "cst_2.csv"\n')
-    diffs = std.compare_toml(str(ref_toml), str(cur_toml),
-                             ref_root=str(ref_root), cur_root=str(cur_root),
-                             path_map=std.build_r07_path_map("experiment", "k1"))
+    diffs = std.compare_toml(
+        str(ref_toml),
+        str(cur_toml),
+        ref_root=str(ref_root),
+        cur_root=str(cur_root),
+        path_map=std.build_r07_path_map("experiment", "k1"),
+    )
     assert diffs and "output.csv.path" in diffs[0]
 
 
@@ -841,9 +1007,11 @@ def test_r07_orography_merge_only_on_the_chirps_branch():
 # current tree were the same never-regenerated files.
 # ---------------------------------------------------------------------------
 
+
 def _write_geojson(path, coords, value=1):
     import geopandas as gpd
     from shapely.geometry import Polygon
+
     gpd.GeoDataFrame(
         {"value": [value]}, geometry=[Polygon(coords)], crs="EPSG:4326"
     ).to_file(path, driver="GeoJSON")
@@ -892,6 +1060,7 @@ def test_geojson_attribute_change_fails(tmp_path):
 # Every pre-existing call site must behave exactly as before.
 # ---------------------------------------------------------------------------
 
+
 def test_apply_path_map_matched_reports_fall_through():
     m = [("a/b.txt", "c/d.txt")]
     assert std.apply_path_map_matched("a/b.txt", m) == ("c/d.txt", True)
@@ -903,8 +1072,10 @@ def test_apply_path_map_matched_distinguishes_identity_from_fall_through():
     verdict."""
     ident = [("keep/me.txt", "keep/me.txt")]
     assert std.apply_path_map_matched("keep/me.txt", ident) == ("keep/me.txt", True)
-    assert std.apply_path_map_matched("keep/other.txt", ident) == \
-        ("keep/other.txt", False)
+    assert std.apply_path_map_matched("keep/other.txt", ident) == (
+        "keep/other.txt",
+        False,
+    )
 
 
 def test_apply_path_map_matched_never_reports_a_match_without_rules():
@@ -914,8 +1085,10 @@ def test_apply_path_map_matched_never_reports_a_match_without_rules():
     unconditionally -- the exact false pass the reporting parameter exists to
     prevent."""
     for empty in (None, []):
-        assert std.apply_path_map_matched("anything/at/all.nc", empty) == \
-            ("anything/at/all.nc", False)
+        assert std.apply_path_map_matched("anything/at/all.nc", empty) == (
+            "anything/at/all.nc",
+            False,
+        )
 
 
 def test_apply_path_map_matched_normalizes_backslashes_like_the_original():
@@ -943,6 +1116,7 @@ def test_apply_path_map_is_the_projection_of_the_reporting_sibling():
 def test_geojson_dispatches_by_suffix(tmp_path):
     """dispatch() routes .geojson to the semantic comparator, not the hash."""
     from pathlib import Path as _P
+
     a, b = tmp_path / "a.geojson", tmp_path / "b.geojson"
     _write_geojson(a, _SQUARE)
     _write_geojson(b, [(1, 1), (1, 0), (0, 0), (0, 1), (1, 1)])

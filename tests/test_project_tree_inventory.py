@@ -136,12 +136,12 @@ COVERED: dict[str, list[str]] = {
     ],
 }
 
-ALL_COVERED = [(section, rel)
-               for section, rows in COVERED.items() for rel in rows]
+ALL_COVERED = [(section, rel) for section, rows in COVERED.items() for rel in rows]
 
 
-@pytest.mark.parametrize("section,rel", ALL_COVERED,
-                         ids=[f"{s}:{r}" for s, r in ALL_COVERED])
+@pytest.mark.parametrize(
+    "section,rel", ALL_COVERED, ids=[f"{s}:{r}" for s, r in ALL_COVERED]
+)
 def test_every_produced_shape_is_covered(section, rel):
     """A clean run must classify entirely as IDENTITY — zero unmapped."""
     new, matched = std.apply_path_map_matched(rel, INVENTORY)
@@ -163,17 +163,17 @@ def test_coverage_is_not_trivially_satisfied():
 #: point, and each one sits under a root the inventory DOES cover, so a prefix
 #: written one level too broad would swallow it silently.
 UNDECLARED = [
-    "data/spatial/leftover_intermediate.nc",     # a settled dir: enumerated
-    "data/spatial/spatial_maps.tmp.nc",          # a crashed write
+    "data/spatial/leftover_intermediate.nc",  # a settled dir: enumerated
+    "data/spatial/spatial_maps.tmp.nc",  # a crashed write
     "models/hydrology/wflow/stray_output.nc",
     "models/hydrology/wflow/forcing/inmaps_2050.nc",
-    "config/runs/something_new.yml",             # not the two contract paths
+    "config/runs/something_new.yml",  # not the two contract paths
     "config/whatever_new_thing.yml",
     f"experiments/{E}/orphan_table.csv",
-    f"experiments/{E}/indicators/Qstats.csv",    # the pre-R9 name, now retired
+    f"experiments/{E}/indicators/Qstats.csv",  # the pre-R9 name, now retired
     "climate_historical/era5_20000101_20201231/extract_historical.nc",  # pre-R9
-    "hydrology_model/staticmaps.nc",             # pre-R9
-    "spatial/geoms/basins.geojson",              # pre-R9
+    "hydrology_model/staticmaps.nc",  # pre-R9
+    "spatial/geoms/basins.geojson",  # pre-R9
     "unknown_root/anything.txt",
 ]
 
@@ -204,6 +204,7 @@ def test_a_broad_data_prefix_would_empty_the_report():
 # ---------------------------------------------------------------------------
 # 3. The two maps are different questions
 # ---------------------------------------------------------------------------
+
 
 def test_the_r09_map_and_the_inventory_answer_different_eras():
     """`[R10-11]`'s finding, pinned so the two cannot be conflated again.

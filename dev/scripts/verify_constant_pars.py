@@ -29,6 +29,7 @@ Exit 0 iff every expected constant landed as a correct scalar with no shadowing.
 Run against the current (baseline) model it will report the 13 not-yet-restored
 constants as ABSENT and exit 1 — that is the expected "before" state.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -40,18 +41,22 @@ import yaml
 
 # Restored CSDMS names whose owning module can be inactive on a given basin.
 # Used only to annotate the report (an inert constant still must land correctly).
-GLACIER_PARS = frozenset({
-    "glacier_ice__degree_day_coefficient",
-    "glacier_firn_accumulation__snowpack_dry_snow_leq_depth_fraction",
-    "glacier_ice__melting_temperature_threshold",
-})
-SNOW_PARS = frozenset({
-    "snowpack__degree_day_coefficient",
-    "atmosphere_air__snowfall_temperature_threshold",
-    "atmosphere_air__snowfall_temperature_interval",
-    "snowpack__melting_temperature_threshold",
-    "snowpack__liquid_water_holding_capacity",
-})
+GLACIER_PARS = frozenset(
+    {
+        "glacier_ice__degree_day_coefficient",
+        "glacier_firn_accumulation__snowpack_dry_snow_leq_depth_fraction",
+        "glacier_ice__melting_temperature_threshold",
+    }
+)
+SNOW_PARS = frozenset(
+    {
+        "snowpack__degree_day_coefficient",
+        "atmosphere_air__snowfall_temperature_threshold",
+        "atmosphere_air__snowfall_temperature_interval",
+        "snowpack__melting_temperature_threshold",
+        "snowpack__liquid_water_holding_capacity",
+    }
+)
 
 FLOAT_RTOL = 1e-9
 
@@ -84,12 +89,20 @@ def main() -> int:
     p = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    p.add_argument("--model-dir", type=Path,
-                   default=Path("test_case/test_local/models/hydrology/wflow"),
-                   help="Built model dir (holds wflow_sbm.toml + staticmaps.nc)")
-    p.add_argument("--config", type=Path,
-                   default=Path("dev/decisions/0001-restore-wflow-constant-parameters/config_restored.yml"),
-                   help="Build config whose setup_constant_pars block is the reference")
+    p.add_argument(
+        "--model-dir",
+        type=Path,
+        default=Path("test_case/test_local/models/hydrology/wflow"),
+        help="Built model dir (holds wflow_sbm.toml + staticmaps.nc)",
+    )
+    p.add_argument(
+        "--config",
+        type=Path,
+        default=Path(
+            "dev/decisions/0001-restore-wflow-constant-parameters/config_restored.yml"
+        ),
+        help="Build config whose setup_constant_pars block is the reference",
+    )
     args = p.parse_args()
 
     toml_path = args.model_dir / "wflow_sbm.toml"
@@ -125,7 +138,9 @@ def main() -> int:
         if name in static_vars:
             notes.append(f"COLLISION: staticmaps.nc has a variable named '{name}'")
         if name in GLACIER_PARS and not glacier_on:
-            notes.append("inert here (glacier__flag=false) — certified by landing, not discharge")
+            notes.append(
+                "inert here (glacier__flag=false) — certified by landing, not discharge"
+            )
         if name in SNOW_PARS and not snow_on:
             notes.append("inert here (snow__flag=false)")
         note = ("  [" + "; ".join(notes) + "]") if notes else ""
@@ -135,7 +150,9 @@ def main() -> int:
         else:
             failures.append(name)
 
-    print(f"\n{ok}/{len(expected)} constant(s) landed correctly as scalars with no shadowing.")
+    print(
+        f"\n{ok}/{len(expected)} constant(s) landed correctly as scalars with no shadowing."
+    )
     if failures:
         print(f"NOT OK: {len(failures)} -> {failures}")
         return 1

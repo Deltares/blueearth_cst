@@ -29,6 +29,7 @@ Usage
 ``--mode open`` skips the transfer, so it isolates glob-resolution latency; it is
 the cheap form to re-run when asking "is the store slow today?".
 """
+
 from __future__ import annotations
 
 import argparse
@@ -59,7 +60,9 @@ def reduce_arithmetic(data):
         else:
             var_m = data[var].resample(time="MS").mean("time")
         var_m.mean([x_dim, y_dim]).round(decimals=2).load()
-        var_m.groupby("time.month").mean("time").round(decimals=2).mean([x_dim, y_dim]).load()
+        var_m.groupby("time.month").mean("time").round(decimals=2).mean(
+            [x_dim, y_dim]
+        ).load()
 
 
 def main() -> None:
@@ -74,7 +77,9 @@ def main() -> None:
     parser.add_argument("--region", type=Path, default=DEFAULT_REGION)
     parser.add_argument("--buffer", type=float, default=1.0)
     parser.add_argument("--variables", nargs="+", default=["precip", "temp"])
-    parser.add_argument("--out", type=Path, default=None, help="raw-slice dir (full mode)")
+    parser.add_argument(
+        "--out", type=Path, default=None, help="raw-slice dir (full mode)"
+    )
     args = parser.parse_args()
 
     import geopandas as gpd
@@ -121,7 +126,9 @@ def main() -> None:
             t0 = time.perf_counter()
             reduce_arithmetic(data)
             reduce_s = time.perf_counter() - t0
-            row += f"{fetch_s:10.1f}{reduce_s:10.1f}{raw_path.stat().st_size / 1e6:9.2f}"
+            row += (
+                f"{fetch_s:10.1f}{reduce_s:10.1f}{raw_path.stat().st_size / 1e6:9.2f}"
+            )
 
         # flush per row: a slow open must not hide behind buffering, and a killed
         # probe should still have reported every completed source.

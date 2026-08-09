@@ -79,7 +79,7 @@ def map_parameters(config: dict) -> dict:
         "project_dir": project["project_dir"],
         "experiment_name": experiment.get("experiment_name", "experiment"),
         "dataset_key": f"{shared['clim_historical']}_"
-                       + slugify_window(window["starttime"], window["endtime"]),
+        + slugify_window(window["starttime"], window["endtime"]),
         "clim_project": projections.get("clim_project", "cmip6"),
     }
 
@@ -113,7 +113,10 @@ def _git_commit(cwd: Path) -> str:
     try:
         return subprocess.run(
             ["git", "rev-parse", "--short", "HEAD"],
-            cwd=cwd, capture_output=True, text=True, check=True,
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            check=True,
         ).stdout.strip()
     except (OSError, subprocess.CalledProcessError):  # pragma: no cover
         return "unknown"
@@ -121,82 +124,95 @@ def _git_commit(cwd: Path) -> str:
 
 def build_header(config_path: Path, params: dict, n_paths: int) -> str:
     """The provenance block a reader needs to regenerate the snapshot."""
-    return "\n".join([
-        "# Project-tree snapshot --- a sorted list of project-relative paths.",
-        "#",
-        "# The OBSERVED tier of the two-tier inventory ruled in",
-        "# dev/milestones/r09/migration_project-tree.md, *The inventory the map",
-        "# is validated against*: the only tier that carries UNDECLARED engine",
-        "# artifacts (hydromt, Wflow.jl, weathergenr), which appear in no",
-        "# `output:` declaration and which --dry-run structurally cannot see.",
-        "#",
-        "# PROVENANCE",
-        f"#   generated   {date.today().isoformat()} by dev/scripts/{Path(__file__).name}",
-        # Two commits, because they can differ: the run checkout determines the
-        # tree shape, the tool checkout determines the map it is checked against.
-        f"#   run commit  {_git_commit(Path.cwd())}  ({Path.cwd().as_posix()})",
-        f"#   tool commit {_git_commit(REPO)}  ({REPO.as_posix()})",
-        f"#   config      {config_path.as_posix()}",
-        f"#   project_dir {params['project_dir']}",
-        f"#   experiment  {params['experiment_name']}",
-        f"#   store key   {params['dataset_key']}",
-        f"#   clim_project {params['clim_project']}",
-        f"#   paths       {n_paths}",
-        "#",
-        "# POSIX separators, sorted, deduplicated. `.snakemake/` is excluded:",
-        "# Snakemake bookkeeping, not a project artifact. Everything else is",
-        "# kept, including artifacts no rule declares --- that is the point.",
-        "#",
-        "# REGENERATE",
-        f"#   python dev/scripts/{Path(__file__).name} --config {config_path.as_posix()} \\",
-        "#       --out <this file>",
-        "",
-    ])
+    return "\n".join(
+        [
+            "# Project-tree snapshot --- a sorted list of project-relative paths.",
+            "#",
+            "# The OBSERVED tier of the two-tier inventory ruled in",
+            "# dev/milestones/r09/migration_project-tree.md, *The inventory the map",
+            "# is validated against*: the only tier that carries UNDECLARED engine",
+            "# artifacts (hydromt, Wflow.jl, weathergenr), which appear in no",
+            "# `output:` declaration and which --dry-run structurally cannot see.",
+            "#",
+            "# PROVENANCE",
+            f"#   generated   {date.today().isoformat()} by dev/scripts/{Path(__file__).name}",
+            # Two commits, because they can differ: the run checkout determines the
+            # tree shape, the tool checkout determines the map it is checked against.
+            f"#   run commit  {_git_commit(Path.cwd())}  ({Path.cwd().as_posix()})",
+            f"#   tool commit {_git_commit(REPO)}  ({REPO.as_posix()})",
+            f"#   config      {config_path.as_posix()}",
+            f"#   project_dir {params['project_dir']}",
+            f"#   experiment  {params['experiment_name']}",
+            f"#   store key   {params['dataset_key']}",
+            f"#   clim_project {params['clim_project']}",
+            f"#   paths       {n_paths}",
+            "#",
+            "# POSIX separators, sorted, deduplicated. `.snakemake/` is excluded:",
+            "# Snakemake bookkeeping, not a project artifact. Everything else is",
+            "# kept, including artifacts no rule declares --- that is the point.",
+            "#",
+            "# REGENERATE",
+            f"#   python dev/scripts/{Path(__file__).name} --config {config_path.as_posix()} \\",
+            "#       --out <this file>",
+            "",
+        ]
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--config", type=Path, required=True,
+        "--config",
+        type=Path,
+        required=True,
         help="the --configfile the project was run with; every map parameter "
-             "is derived from it",
+        "is derived from it",
     )
     parser.add_argument(
-        "--out", type=Path, default=None,
+        "--out",
+        type=Path,
+        default=None,
         help="write the snapshot here, with a provenance header. Omit to "
-             "inspect without writing anything (runbook step 0)",
+        "inspect without writing anything (runbook step 0)",
     )
     parser.add_argument(
-        "--no-check", action="store_true",
+        "--no-check",
+        action="store_true",
         help="snapshot only; skip the path-map check (and its exit code)",
     )
     parser.add_argument(
-        "--map", choices=("current", "r09"), default="current",
+        "--map",
+        choices=("current", "r09"),
+        default="current",
         help="which path map to check against. `current` (default) is the "
-             "POST-MIGRATION INVENTORY -- it asks 'does this tree hold "
-             "anything nobody declared?' and is the only one that can pass on "
-             "a tree in the layout R9 delivered. `r09` is the one-way "
-             "migration map (pre-R9 -> post-R9); use it to check a tree that "
-             "has NOT been migrated yet. See dev/followups-archive.md [R10-11]",
+        "POST-MIGRATION INVENTORY -- it asks 'does this tree hold "
+        "anything nobody declared?' and is the only one that can pass on "
+        "a tree in the layout R9 delivered. `r09` is the one-way "
+        "migration map (pre-R9 -> post-R9); use it to check a tree that "
+        "has NOT been migrated yet. See dev/followups-archive.md [R10-11]",
     )
     parser.add_argument(
-        "--gap-rules", action="store_true",
+        "--gap-rules",
+        action="store_true",
         help="append the PROPOSED rules for artifacts the R09 map does not "
-             "cover (semantic_tree_diff.R09_MAP_GAPS). Default OFF: the strict "
-             "map is what the gate reports against",
+        "cover (semantic_tree_diff.R09_MAP_GAPS). Default OFF: the strict "
+        "map is what the gate reports against",
     )
     parser.add_argument(
-        "--quiet", action="store_true",
+        "--quiet",
+        action="store_true",
         help="print only the UNMAPPED lines and the summary, not the full "
-             "per-path table. The MOVED/IDENTITY rows are the gate's evidence, "
-             "so omit this when producing that evidence",
+        "per-path table. The MOVED/IDENTITY rows are the gate's evidence, "
+        "so omit this when producing that evidence",
     )
     parser.add_argument(
-        "--project-dir", type=Path, default=None,
+        "--project-dir",
+        type=Path,
+        default=None,
         help="override the config's project_dir. A relative project_dir "
-             "resolves against the CURRENT DIRECTORY, as Snakemake resolves "
-             "it -- pass this when running the tool from somewhere other than "
-             "the checkout the workflows ran from",
+        "resolves against the CURRENT DIRECTORY, as Snakemake resolves "
+        "it -- pass this when running the tool from somewhere other than "
+        "the checkout the workflows ran from",
     )
     args = parser.parse_args(argv)
 
@@ -204,8 +220,11 @@ def main(argv: list[str] | None = None) -> int:
         config = yaml.safe_load(handle)
     params = map_parameters(config)
 
-    project_dir = (args.project_dir if args.project_dir is not None
-                   else resolve_project_dir(params["project_dir"]))
+    project_dir = (
+        args.project_dir
+        if args.project_dir is not None
+        else resolve_project_dir(params["project_dir"])
+    )
     if not project_dir.is_dir():
         parser.error(
             f"project_dir does not exist: {project_dir}\n"
@@ -224,8 +243,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.out:
         args.out.parent.mkdir(parents=True, exist_ok=True)
         args.out.write_text(
-            build_header(args.config, params, len(paths))
-            + "\n".join(paths) + "\n",
+            build_header(args.config, params, len(paths)) + "\n".join(paths) + "\n",
             encoding="utf-8",
         )
         print(f"wrote         : {args.out}")
@@ -252,7 +270,8 @@ def main(argv: list[str] | None = None) -> int:
     report = std.format_path_map_report(rows)
     if args.quiet:
         report = "\n".join(
-            line for line in report.splitlines()
+            line
+            for line in report.splitlines()
             if line.startswith(("UNMAPPED", "MAP CLEAN"))
         )
     print(report)

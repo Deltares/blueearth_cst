@@ -77,7 +77,7 @@ def test_A1_january_start_drops_no_months_at_either_end(series):
 
 @pytest.mark.parametrize("month", ["Feb", "Apr", "Jul", "Oct", "Dec"])
 def test_A1_any_other_start_month_yields_29(series, month):
-    """"for any other start month the window contains 29" — all of them."""
+    """ "for any other start month the window contains 29" — all of them."""
     _, _, n = hydrological_year_bounds(series, month)
     assert n == 29
 

@@ -27,21 +27,16 @@ def _write_r01_cfg(path, project_dir, experiment=None):
     Optional on purpose -- both WF3 branches are exercised below: the
     experiment scope, and the fallback when the key is absent.
     """
-    text = (
-        "project:\n"
-        f"  project_dir: {project_dir}\n"
-        "  static_dir: config\n"
-    )
+    text = f"project:\n  project_dir: {project_dir}\n  static_dir: config\n"
     if experiment is not None:
         text += (
-            "workflows:\n"
-            "  climate_experiment:\n"
-            f"    experiment_name: {experiment}\n"
+            f"workflows:\n  climate_experiment:\n    experiment_name: {experiment}\n"
         )
     path.write_text(text, encoding="utf-8")
 
 
 # --- workflow number -------------------------------------------------------
+
 
 @pytest.mark.parametrize(
     "snakefile, number",
@@ -66,6 +61,7 @@ def test_unknown_snakefile_names_the_valid_ones():
 
 
 # --- project_dir / project_name derivation ---------------------------------
+
 
 def test_absolute_project_dir_is_used_verbatim(tmp_path):
     cfg = tmp_path / "cfg.yml"
@@ -121,6 +117,7 @@ def test_missing_config_file_is_a_hard_error(tmp_path):
 
 # --- end-to-end output path ------------------------------------------------
 
+
 def test_output_lands_in_logs_dag_named_project_wfN(tmp_path, monkeypatch, capsys):
     cfg = tmp_path / "cfg.yml"
     project_dir = tmp_path / "gabon_0108"
@@ -139,9 +136,15 @@ def test_output_lands_in_logs_dag_named_project_wfN(tmp_path, monkeypatch, capsy
     monkeypatch.setattr(pwd.subprocess, "run", fake_run)
     monkeypatch.setattr(pwd.shutil, "which", lambda _: "dot-stub")
     monkeypatch.setattr(
-        sys, "argv",
-        ["plot_workflow_dag.py", "-s", "Snakefile_model_creation",
-         "--configfile", str(cfg)],
+        sys,
+        "argv",
+        [
+            "plot_workflow_dag.py",
+            "-s",
+            "Snakefile_model_creation",
+            "--configfile",
+            str(cfg),
+        ],
     )
 
     assert pwd.main() == 0
@@ -171,15 +174,29 @@ def test_rulegraph_mode_and_format_reach_the_filename(tmp_path, monkeypatch):
     monkeypatch.setattr(pwd.subprocess, "run", fake_run)
     monkeypatch.setattr(pwd.shutil, "which", lambda _: "dot-stub")
     monkeypatch.setattr(
-        sys, "argv",
-        ["plot_workflow_dag.py", "-s", "Snakefile_climate_experiment",
-         "--configfile", str(cfg), "--mode", "rulegraph", "--format", "svg"],
+        sys,
+        "argv",
+        [
+            "plot_workflow_dag.py",
+            "-s",
+            "Snakefile_climate_experiment",
+            "--configfile",
+            str(cfg),
+            "--mode",
+            "rulegraph",
+            "--format",
+            "svg",
+        ],
     )
 
     assert pwd.main() == 0
     assert "--rulegraph" in seen["snakemake"]
     assert seen["out"] == str(
-        project_dir / "experiments" / "experiment" / "logs" / "dag"
+        project_dir
+        / "experiments"
+        / "experiment"
+        / "logs"
+        / "dag"
         / "gabon_0108_wf3_rulegraph.svg"
     )
 
@@ -192,15 +209,18 @@ def test_missing_graphviz_reports_how_to_get_it(monkeypatch):
 
 def test_snakemake_failure_surfaces_its_stderr(monkeypatch):
     monkeypatch.setattr(
-        pwd.subprocess, "run",
+        pwd.subprocess,
+        "run",
         lambda *a, **k: FakeResult(returncode=1, stderr="MissingInputException: boom"),
     )
     with pytest.raises(pwd.DagPlotError, match="MissingInputException"):
-        pwd.build_graph("dag", pwd.Path("Snakefile_model_creation"),
-                        pwd.Path("cfg.yml"), "all", [])
+        pwd.build_graph(
+            "dag", pwd.Path("Snakefile_model_creation"), pwd.Path("cfg.yml"), "all", []
+        )
 
 
 # --- R9 P2 commit 4: the render sits at the PRODUCING RUN's scope (P7) ------
+
 
 def test_wf1_and_wf2_renders_are_project_scoped():
     """Project-scoped producers write to the project's own logs/dag/."""

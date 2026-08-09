@@ -27,7 +27,9 @@ def _dataset(start="2000-01-01", end="2004-12-31", chunk=False) -> xr.Dataset:
     ones = np.ones((time.size, ys.size, xs.size), dtype="float32")
 
     def _var(base, amp):
-        return ("time", "y", "x"), (base + amp * season[:, None, None] * ones).astype("float32")
+        return ("time", "y", "x"), (base + amp * season[:, None, None] * ones).astype(
+            "float32"
+        )
 
     ds = xr.Dataset(
         {"precip": _var(4.0, 3.0), "temp": _var(24.0, 3.0), "pet": _var(3.5, 1.0)},
@@ -37,6 +39,7 @@ def _dataset(start="2000-01-01", end="2004-12-31", chunk=False) -> xr.Dataset:
 
 
 # --- the declared name set -------------------------------------------------
+
 
 def test_figure_names_is_the_full_cross_product():
     names = cf.figure_names("source")
@@ -61,6 +64,7 @@ def test_unknown_dataset_is_rejected():
 
 
 # --- writing the set -------------------------------------------------------
+
 
 @pytest.mark.slow
 def test_writes_exactly_the_declared_names(tmp_path):
@@ -102,6 +106,7 @@ def test_overlays_are_optional_and_absent_entries_are_skipped(tmp_path):
 
 
 # --- the aggregation rules -------------------------------------------------
+
 
 def test_flux_and_state_aggregate_differently():
     """`sum` vs `mean` is not cosmetic: a summed temperature is meaningless and

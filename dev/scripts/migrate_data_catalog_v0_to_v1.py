@@ -23,6 +23,7 @@ v0 → v1 transformations (top-level meta):
 Usage:
     pixi run python dev/scripts/migrate_data_catalog_v0_to_v1.py <in.yml> <out.yml>
 """
+
 from __future__ import annotations
 
 import sys
@@ -163,7 +164,10 @@ def _migrate_top(d: dict) -> dict:
 
 def main(argv: list[str]) -> int:
     if len(argv) != 3:
-        print("usage: migrate_data_catalog_v0_to_v1.py <in.yml> <out.yml>", file=sys.stderr)
+        print(
+            "usage: migrate_data_catalog_v0_to_v1.py <in.yml> <out.yml>",
+            file=sys.stderr,
+        )
         return 2
     in_fn = Path(argv[1])
     out_fn = Path(argv[2])

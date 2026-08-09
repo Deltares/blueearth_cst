@@ -29,6 +29,7 @@ Usage
     python dev/scripts/stage_data.py --config dev/scripts/stage_data.yml
     python dev/scripts/stage_data.py --bbox 8 -1 12 2     # CLI overrides
 """
+
 from __future__ import annotations
 
 import argparse
@@ -127,9 +128,9 @@ class RunReport:
         """Print a glyph-prefixed entry line and record it for the TOTAL recap."""
         glyph_color = {
             WRITTEN: ("+", green),
-            EXISTS:  ("=", dim),
+            EXISTS: ("=", dim),
             SKIPPED: ("-", yellow),
-            FAILED:  ("x", red),
+            FAILED: ("x", red),
         }[status]
         glyph, color = glyph_color
         detail = _entry_detail(detail, size_bytes, status)
@@ -147,8 +148,7 @@ class RunReport:
     def total_output_bytes(self) -> int:
         """Return bytes for outputs that were written or already fresh."""
         return sum(
-            size for status, *_rest, size in self.results
-            if status in (WRITTEN, EXISTS)
+            size for status, *_rest, size in self.results if status in (WRITTEN, EXISTS)
         )
 
     def elapsed(self) -> float:
@@ -298,7 +298,9 @@ def _time_cover_fresh(dst: Path, fingerprint: dict, *, is_zarr: bool = False) ->
     if m is None:
         return False
     if (m.get("src"), m.get("bbox"), m.get("variables")) != (
-        fingerprint["src"], fingerprint["bbox"], fingerprint["variables"],
+        fingerprint["src"],
+        fingerprint["bbox"],
+        fingerprint["variables"],
     ):
         return False
     natural = m.get("natural_time")
@@ -500,9 +502,11 @@ def staged(
             if status == WRITTEN:
                 _write_manifest(dst, {**fp, **extras})
             return status, detail
+
         wrapper.__name__ = clip.__name__
         wrapper.__doc__ = clip.__doc__
         return wrapper
+
     return decorator
 
 
@@ -536,6 +540,7 @@ def staged_rebuild(*, fingerprint_keys: tuple[str, ...] = (), is_zarr: bool = Fa
     The clip receives the source dataset as ``ds`` (opened once by the
     dispatcher) and returns ``(status, detail[, extras])``.
     """
+
     def decorator(clip):
         def wrapper(src: Path, dst: Path, bbox, *, ds, **kwargs) -> tuple[str, str]:
             fp = _fingerprint(
@@ -558,9 +563,11 @@ def staged_rebuild(*, fingerprint_keys: tuple[str, ...] = (), is_zarr: bool = Fa
             if status == WRITTEN:
                 _write_manifest(dst, {**fp, **extras})
             return status, detail
+
         wrapper.__name__ = clip.__name__
         wrapper.__doc__ = clip.__doc__
         return wrapper
+
     return decorator
 
 
@@ -597,7 +604,9 @@ def _raster_tile_size(size: int) -> int | None:
     )
 
 
-def _raster_output_profile(profile: dict, *, height: int, width: int, transform) -> dict:
+def _raster_output_profile(
+    profile: dict, *, height: int, width: int, transform
+) -> dict:
     """Return a clipped raster output profile with efficient GeoTIFF tiling."""
     out = profile.copy()
     out.pop("blockxsize", None)
@@ -648,7 +657,9 @@ _MODIS_RE = re.compile(
 
 
 def _tile_bounds_from_name(
-    name: str, *, span: float = DEFAULT_TILE_SPAN,
+    name: str,
+    *,
+    span: float = DEFAULT_TILE_SPAN,
 ) -> tuple[float, float, float, float] | None:
     """Return (W, S, E, N) lon/lat bounds for a recognised tile filename.
 
@@ -882,7 +893,12 @@ def _align_spatial(existing: xr.Dataset, want: xr.Dataset) -> xr.Dataset:
 # (concat/merge drop `.encoding`).  Shape-dependent keys (chunksizes) are NOT
 # carried — the rebuilt time length differs from the source.
 PACK_ENCODING_KEYS = {
-    "dtype", "scale_factor", "add_offset", "_FillValue", "zlib", "complevel",
+    "dtype",
+    "scale_factor",
+    "add_offset",
+    "_FillValue",
+    "zlib",
+    "complevel",
 }
 
 
@@ -891,7 +907,8 @@ def _carry_packing(result: xr.Dataset, source: xr.Dataset) -> xr.Dataset:
     for name in result.data_vars:
         if name in source.data_vars:
             result[name].encoding = {
-                k: v for k, v in source[name].encoding.items()
+                k: v
+                for k, v in source[name].encoding.items()
                 if k in PACK_ENCODING_KEYS
             }
     return result
@@ -919,7 +936,7 @@ def _combine_reuse(want: xr.Dataset, existing: xr.Dataset, tdim: str) -> xr.Data
             kept = xr.concat([kept, delta], dim=tdim)
         pieces.append(kept)
     if add_vars:
-        pieces.append(want[add_vars])                            # source: new vars
+        pieces.append(want[add_vars])  # source: new vars
 
     result = xr.merge(pieces) if len(pieces) > 1 else pieces[0]
     result = result.sortby(tdim).sel({tdim: want_times})
@@ -951,7 +968,9 @@ def _download(ds: xr.Dataset, tdim) -> xr.Dataset:
         ds.isel({tdim: slice(i, i + DOWNLOAD_BLOCK_STEPS)}).load()
         for i in tqdm(
             range(0, n, DOWNLOAD_BLOCK_STEPS),
-            desc="    downloading", unit="blk", leave=False,
+            desc="    downloading",
+            unit="blk",
+            leave=False,
         )
     ]
     return _carry_packing(xr.concat(blocks, dim=tdim), ds)
@@ -1017,7 +1036,9 @@ def subset_zarr(
     sub = ds.sel({lat: lat_slice, lon: lon_slice})
     if sub.sizes.get(lat, 0) == 0 or sub.sizes.get(lon, 0) == 0:
         return SKIPPED, "no overlap"
-    result, reused = _resolve_incremental(sub, existing, time_range, variables, is_zarr=True)
+    result, reused = _resolve_incremental(
+        sub, existing, time_range, variables, is_zarr=True
+    )
     if result is None:
         return SKIPPED, "no time overlap"
     if reused:
@@ -1083,7 +1104,9 @@ def subset_netcdf(
     sub = ds.sel({lat: lat_slice, lon: lon_slice})
     if sub.sizes.get(lat, 0) == 0 or sub.sizes.get(lon, 0) == 0:
         return SKIPPED, "no overlap"
-    result, reused = _resolve_incremental(sub, existing, time_range, variables, is_zarr=False)
+    result, reused = _resolve_incremental(
+        sub, existing, time_range, variables, is_zarr=False
+    )
     if result is None:
         return SKIPPED, "no time overlap"
     if reused:
@@ -1117,8 +1140,12 @@ def subset_netcdf_file(
     with xr.open_dataset(src, chunks="auto") as ds:
         natural = _natural_time(ds)
         status, detail = _clip_netcdf_to_file(
-            ds, dst, bbox,
-            time_range=time_range, variables=variables, show_progress=False,
+            ds,
+            dst,
+            bbox,
+            time_range=time_range,
+            variables=variables,
+            show_progress=False,
         )
         if status != WRITTEN:
             return status, detail
@@ -1229,7 +1256,9 @@ def _print_filters(time_range=None, variables=None) -> None:
     if variables:
         rows.append(("variables filter", ", ".join(str(v) for v in variables)))
     for label, value in rows:
-        head = f"-> {label}:".ljust(22)   # pad plain text before colouring (aligns values)
+        head = f"-> {label}:".ljust(
+            22
+        )  # pad plain text before colouring (aligns values)
         print(f"      {cyan(head)}{bold(cyan(value))}")
 
 
@@ -1254,6 +1283,7 @@ def _describe_raster(src: Path) -> list[str]:
 def _describe_vector(src: Path) -> list[str]:
     try:
         import pyogrio  # type: ignore[import-untyped]
+
         info = pyogrio.read_info(src)
         crs = info.get("crs") or "<none>"
         n = info.get("features")
@@ -1277,8 +1307,12 @@ def _describe_xarray(ds: xr.Dataset) -> list[str]:
     """
     out = []
     try:
-        lat_name = next((c for c in ds.coords if c.lower() in ("lat", "latitude", "y")), None)
-        lon_name = next((c for c in ds.coords if c.lower() in ("lon", "longitude", "x")), None)
+        lat_name = next(
+            (c for c in ds.coords if c.lower() in ("lat", "latitude", "y")), None
+        )
+        lon_name = next(
+            (c for c in ds.coords if c.lower() in ("lon", "longitude", "x")), None
+        )
         time_name = next((c for c in ds.coords if c.lower() in ("time", "t")), None)
 
         spatial_bits = []
@@ -1309,7 +1343,9 @@ def _describe_xarray(ds: xr.Dataset) -> list[str]:
             out.append(f"time: {t0} -> {t1}   ({n} steps, freq: {freq})")
 
         vars_ = list(ds.data_vars)
-        sample = ", ".join(vars_[:8]) + (f", ... ({len(vars_)} total)" if len(vars_) > 8 else "")
+        sample = ", ".join(vars_[:8]) + (
+            f", ... ({len(vars_)} total)" if len(vars_) > 8 else ""
+        )
         out.append(f"variables: {sample}")
     except Exception as exc:
         out.append(f"(could not read metadata: {exc})")
@@ -1383,15 +1419,20 @@ def _stage_raster_glob(
         return
 
     suffix = f"   ({prefiltered} pre-filtered)" if prefiltered else ""
-    _print_metadata([
-        f"{len(all_files)} files matching {pattern}{suffix}   "
-        f"sample: {files[0].name}"
-    ])
+    _print_metadata(
+        [f"{len(all_files)} files matching {pattern}{suffix}   sample: {files[0].name}"]
+    )
     _print_metadata(_describe_raster(files[0]))
     workers = _raster_glob_workers(entry, file_count=len(files))
     _run_glob(
-        name, files, subset_raster, dst, bbox, report,
-        workers=workers, dataset_started=dataset_started,
+        name,
+        files,
+        subset_raster,
+        dst,
+        bbox,
+        report,
+        workers=workers,
+        dataset_started=dataset_started,
     )
 
 
@@ -1427,14 +1468,27 @@ def _run_glob(
     if workers == 1:
         for f in bar:
             _run_worker(
-                report, f.name, fn, f, dst / f.name, bbox,
-                _verbose=verbose, _counts=counts, **extra,
+                report,
+                f.name,
+                fn,
+                f,
+                dst / f.name,
+                bbox,
+                _verbose=verbose,
+                _counts=counts,
+                **extra,
             )
     else:
         with ThreadPoolExecutor(max_workers=workers) as executor:
             futures = [
                 executor.submit(
-                    _worker_result, f.name, fn, f, dst / f.name, bbox, **extra,
+                    _worker_result,
+                    f.name,
+                    fn,
+                    f,
+                    dst / f.name,
+                    bbox,
+                    **extra,
                 )
                 for f in files
             ]
@@ -1457,8 +1511,7 @@ def _run_glob(
         if workers > 1:
             summary = f"{summary}; workers: {workers}"
         summary = (
-            f"{summary}; elapsed: "
-            f"{_format_elapsed(perf_counter() - dataset_started)}"
+            f"{summary}; elapsed: {_format_elapsed(perf_counter() - dataset_started)}"
         )
         print()
         print(f"    {green('+')} {name}")
@@ -1531,9 +1584,9 @@ def _stage_netcdf_glob(
         return
 
     suffix = f"   ({dropped} outside time_range)" if dropped else ""
-    _print_metadata([
-        f"{len(files)} files matching {pattern}{suffix}   sample: {files[0].name}"
-    ])
+    _print_metadata(
+        [f"{len(files)} files matching {pattern}{suffix}   sample: {files[0].name}"]
+    )
     # Describe the first file once so the run log shows grid/time/vars; a
     # describe-only failure must not abort staging.
     try:
@@ -1546,8 +1599,15 @@ def _stage_netcdf_glob(
     extra = {k: entry[k] for k in ("time_range", "variables") if k in entry}
     workers = _raster_glob_workers(entry, file_count=len(files))
     _run_glob(
-        name, files, subset_netcdf_file, dst, bbox, report,
-        workers=workers, dataset_started=dataset_started, extra=extra,
+        name,
+        files,
+        subset_netcdf_file,
+        dst,
+        bbox,
+        report,
+        workers=workers,
+        dataset_started=dataset_started,
+        extra=extra,
     )
 
 
@@ -1657,7 +1717,7 @@ def _print_parameters(cfg: dict, config_path: Path) -> None:
 
     print(bold("inputs:"))
     rows = [
-        ("config",      fmt_path(config_path)),
+        ("config", fmt_path(config_path)),
         ("source_root", fmt_path(cfg["source_root"])),
         ("target_root", fmt_path(cfg["target_root"])),
     ]
@@ -1714,7 +1774,13 @@ def _print_total(report: RunReport) -> None:
         print(yellow(bold("nothing to do — no datasets matched.")))
     else:
         print()
-        print(red(bold(f"FAILED — {counts[FAILED]} output(s) did not stage; see recap below.")))
+        print(
+            red(
+                bold(
+                    f"FAILED — {counts[FAILED]} output(s) did not stage; see recap below."
+                )
+            )
+        )
 
     # Only failures get a detailed recap — they need action. Skipped outputs
     # (out-of-range files, no spatial overlap) are expected and only clutter the
@@ -1732,12 +1798,21 @@ def main() -> None:
     p = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    p.add_argument("--config", type=Path, default=CONFIG_DEFAULT,
-                   help=f"YAML config (default: {CONFIG_DEFAULT})")
+    p.add_argument(
+        "--config",
+        type=Path,
+        default=CONFIG_DEFAULT,
+        help=f"YAML config (default: {CONFIG_DEFAULT})",
+    )
     p.add_argument("--src", type=Path, help="override source_root from the config")
     p.add_argument("--dst", type=Path, help="override target_root from the config")
-    p.add_argument("--bbox", nargs=4, type=float, metavar=("W", "S", "E", "N"),
-                   help="override bbox from the config")
+    p.add_argument(
+        "--bbox",
+        nargs=4,
+        type=float,
+        metavar=("W", "S", "E", "N"),
+        help="override bbox from the config",
+    )
     args = p.parse_args()
 
     cfg = load_config(args.config)

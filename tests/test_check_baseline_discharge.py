@@ -4,6 +4,7 @@ Covers the pure `compare_discharge` (structural + absolute + relative-low-flow
 clauses, zero-safe handling) and the record -> check roundtrip plus the one-off
 `compare` subcommand — all with synthetic `output.csv` series, no Wflow build.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -23,7 +24,9 @@ def _times(n: int) -> list[str]:
     return [f"2000-01-{i + 1:02d}T00:00:00" for i in range(n)]
 
 
-def _write_output_csv(path: Path, times: list[str], q: list[float], col: str = "Q_1") -> None:
+def _write_output_csv(
+    path: Path, times: list[str], q: list[float], col: str = "Q_1"
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     lines = [f"time,{col}"]
     lines += [f"{t},{float(v)!r}" for t, v in zip(times, q)]
@@ -31,6 +34,7 @@ def _write_output_csv(path: Path, times: list[str], q: list[float], col: str = "
 
 
 # --- pure comparator -------------------------------------------------------
+
 
 def test_identical_series_pass():
     t = _times(20)
@@ -66,9 +70,9 @@ def test_relative_low_flow_tightener_is_material():
     on the relative clause even though it passes the absolute clause."""
     t = _times(50)
     q = np.full(50, 10.0)
-    q[3] = 0.05                     # low flow; mean stays ~9.9 so ATOL ~ 0.0099
+    q[3] = 0.05  # low flow; mean stays ~9.9 so ATOL ~ 0.0099
     cur = q.copy()
-    cur[3] = 0.05 * 1.05            # +5% at a step where Q_ref (0.05) >= ATOL
+    cur[3] = 0.05 * 1.05  # +5% at a step where Q_ref (0.05) >= ATOL
     # |dQ| = 0.0025 < ATOL(~0.0099) -> absolute clause passes; relative (5%>1%) fails.
     rep = cb.compare_discharge(t, q, t, cur)
     assert not rep["ok"]
@@ -81,9 +85,9 @@ def test_near_dry_below_atol_is_zero_safe():
     on a near-dry step is not material as long as the absolute move is < ATOL."""
     t = _times(50)
     q = np.full(50, 10.0)
-    q[9] = 1e-6                     # far below ATOL (~0.01)
+    q[9] = 1e-6  # far below ATOL (~0.01)
     cur = q.copy()
-    cur[9] = 5e-6                   # +400% relative, but |dQ| = 4e-6 << ATOL
+    cur[9] = 5e-6  # +400% relative, but |dQ| = 4e-6 << ATOL
     rep = cb.compare_discharge(t, q, t, cur)
     assert rep["ok"], rep
 
@@ -91,7 +95,7 @@ def test_near_dry_below_atol_is_zero_safe():
 def test_structural_duplicate_timestamps():
     t = _times(10)
     t_dup = t.copy()
-    t_dup[5] = t_dup[4]            # duplicate
+    t_dup[5] = t_dup[4]  # duplicate
     q = np.ones(10)
     rep = cb.compare_discharge(t_dup, q, t, q)
     assert not rep["ok"]
@@ -160,15 +164,16 @@ def test_reader_uses_outlet_crosswalk_when_registry_adds_q_columns(tmp_path):
 def test_reader_rejects_multiple_q_columns_without_outlet_crosswalk(tmp_path):
     output = tmp_path / "hydrology_model" / "run_default" / "output.csv"
     output.parent.mkdir(parents=True)
-    pd.DataFrame(
-        {"time": _times(2), "Q_101": [1.0, 2.0], "Q_102": [3.0, 4.0]}
-    ).to_csv(output, index=False)
+    pd.DataFrame({"time": _times(2), "Q_101": [1.0, 2.0], "Q_102": [3.0, 4.0]}).to_csv(
+        output, index=False
+    )
 
     with pytest.raises(ValueError, match="missing .*outlet_index.csv"):
         cb.read_discharge_series(str(output))
 
 
 # --- record -> check roundtrip + compare subcommand ------------------------
+
 
 def _record_ns(project_dir, manifest_path, workflow=None):
     return argparse.Namespace(
@@ -178,8 +183,11 @@ def _record_ns(project_dir, manifest_path, workflow=None):
 
 def _check_ns(project_dir, manifest_path, workflow=None, tolerance=0.0):
     return argparse.Namespace(
-        cmd="check", project_dir=project_dir, manifest=manifest_path,
-        tolerance=tolerance, workflow=workflow,
+        cmd="check",
+        project_dir=project_dir,
+        manifest=manifest_path,
+        tolerance=tolerance,
+        workflow=workflow,
     )
 
 
@@ -211,12 +219,18 @@ def discharge_only_project(tmp_path):
     project_dir = str(tmp_path)
     disch = _write_model_creation_targets(project_dir)
     manifest_path = tmp_path / "manifest.json"
-    manifest_path.write_text(json.dumps({
-        "version": cb.MANIFEST_VERSION,
-        "project_dir": project_dir,
-        "targets": {"sentinel/wf2.csv": {"type": "csv", "sha256": "deadbeef"}},
-    }))
-    rc = cb.cmd_record(_record_ns(project_dir, manifest_path, workflow=["model_creation"]))
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "version": cb.MANIFEST_VERSION,
+                "project_dir": project_dir,
+                "targets": {"sentinel/wf2.csv": {"type": "csv", "sha256": "deadbeef"}},
+            }
+        )
+    )
+    rc = cb.cmd_record(
+        _record_ns(project_dir, manifest_path, workflow=["model_creation"])
+    )
     assert rc == 0
     return project_dir, manifest_path, disch
 
@@ -231,7 +245,9 @@ def test_roundtrip_records_sidecar_and_checks_clean(discharge_only_project, caps
     sidecar = Path(manifest_path).parent / disch_rows[0]["ref_series"]
     assert sidecar.exists()
 
-    rc = cb.cmd_check(_check_ns(project_dir, manifest_path, workflow=["model_creation"]))
+    rc = cb.cmd_check(
+        _check_ns(project_dir, manifest_path, workflow=["model_creation"])
+    )
     out = capsys.readouterr().out
     assert rc == 0 and "OK - 2 target(s)" in out
 
@@ -244,7 +260,9 @@ def test_roundtrip_detects_material_move(discharge_only_project, capsys):
     q[10] += 5.0
     _write_output_csv(Path(disch), times, list(q), col=col)
 
-    rc = cb.cmd_check(_check_ns(project_dir, manifest_path, workflow=["model_creation"]))
+    rc = cb.cmd_check(
+        _check_ns(project_dir, manifest_path, workflow=["model_creation"])
+    )
     out = capsys.readouterr().out
     assert rc == 1
     assert disch in out
@@ -263,10 +281,14 @@ def test_compare_subcommand_pass_and_fail(tmp_path, capsys):
     bad[20] += 3.0
     _write_output_csv(cur_bad, t, bad)
 
-    rc_ok = cb.cmd_compare(argparse.Namespace(cmd="compare", ref=str(ref), cur=str(cur_ok)))
+    rc_ok = cb.cmd_compare(
+        argparse.Namespace(cmd="compare", ref=str(ref), cur=str(cur_ok))
+    )
     out_ok = capsys.readouterr().out
     assert rc_ok == 0 and "PASS" in out_ok
 
-    rc_bad = cb.cmd_compare(argparse.Namespace(cmd="compare", ref=str(ref), cur=str(cur_bad)))
+    rc_bad = cb.cmd_compare(
+        argparse.Namespace(cmd="compare", ref=str(ref), cur=str(cur_bad))
+    )
     out_bad = capsys.readouterr().out
     assert rc_bad == 1 and "FAIL (material)" in out_bad

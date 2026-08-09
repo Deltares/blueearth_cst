@@ -22,6 +22,7 @@ Data behind an unchanged catalog entry is deliberately OUT of scope (see
 ``dev/milestones/r07/migration_project-layout.md`` §2f); the escape hatch is
 ``snakemake --forcerun extract_historical_climate``.
 """
+
 from __future__ import annotations
 
 import re

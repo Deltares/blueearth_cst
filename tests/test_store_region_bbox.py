@@ -17,6 +17,7 @@ exists so the assertion holds for any region/resolution, not just the seed.
 Fixture-gated exactly as its predecessor was: it needs a completed run under
 ``test_case/test_local``. One skip retired, one skip added — net zero.
 """
+
 from __future__ import annotations
 
 from pathlib import Path

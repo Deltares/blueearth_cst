@@ -15,6 +15,7 @@ P0 being clean routes the localization upstream (design P0 note).
 Run: ``pixi run python dev/scripts/probe_attrs_chain.py``. It prints a table
 and a one-line localization verdict; it writes nothing and moves no baseline.
 """
+
 import sys
 from os.path import dirname, join, realpath
 import tempfile
@@ -51,8 +52,10 @@ def probe_get_stats_upstream():
     rows = []
     t = pd.date_range("2000-01-01", periods=24, freq="D")
     da = xr.DataArray(
-        np.ones((24, 3, 3)), dims=("time", "lat", "lon"),
-        coords={"time": t, "lat": [0, 1, 2], "lon": [0, 1, 2]}, name="precip",
+        np.ones((24, 3, 3)),
+        dims=("time", "lat", "lon"),
+        coords={"time": t, "lat": [0, 1, 2], "lon": [0, 1, 2]},
+        name="precip",
     )
     da.attrs = dict(KNOWN_ATTRS)
     _row("S0 input", da, rows)
@@ -98,16 +101,24 @@ def probe_merge():
     """Merge (summary_climate_proj path), M1-M2: open_mfdataset(coords=minimal,
     preprocess) + to_netcdf + reopen."""
     print("\n[merge] summary open_mfdataset + write chain (M1-M2)")
-    from blueearth_cst.projections.get_change_climate_proj_summary import preprocess_coords
+    from blueearth_cst.projections.get_change_climate_proj_summary import (
+        preprocess_coords,
+    )
 
     rows = []
     d = tempfile.mkdtemp()
 
     def mkfile(path, model):
         da = xr.DataArray(
-            np.ones((1, 1, 1, 1)), dims=("stats", "horizon", "scenario", "model"),
-            coords={"stats": ["mean"], "horizon": ["near"],
-                    "scenario": ["ssp245"], "model": [model]}, name="precip",
+            np.ones((1, 1, 1, 1)),
+            dims=("stats", "horizon", "scenario", "model"),
+            coords={
+                "stats": ["mean"],
+                "horizon": ["near"],
+                "scenario": ["ssp245"],
+                "model": [model],
+            },
+            name="precip",
         )
         da.attrs = dict(KNOWN_ATTRS)
         da.to_dataset().to_netcdf(path)

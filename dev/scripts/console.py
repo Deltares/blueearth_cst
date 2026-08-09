@@ -12,6 +12,7 @@ Public API:
     pad(text, width, color=None)                   left-pad plain text to width, then colour
     banner(label)                                  cyan-bold `━━ LABEL ━━`
 """
+
 from __future__ import annotations
 
 import os
@@ -25,6 +26,7 @@ def _enable_windows_ansi() -> bool:
         return True
     try:
         import ctypes
+
         kernel32 = ctypes.windll.kernel32
         h = kernel32.GetStdHandle(-11)  # STD_OUTPUT_HANDLE
         mode = ctypes.c_ulong()
@@ -51,12 +53,28 @@ def _c(text: str, code: str) -> str:
     return f"\033[{code}m{text}\033[0m" if USE_COLOR else text
 
 
-def green(s):  return _c(str(s), "32")
-def yellow(s): return _c(str(s), "33")
-def red(s):    return _c(str(s), "31")
-def cyan(s):   return _c(str(s), "36")
-def dim(s):    return _c(str(s), "2")
-def bold(s):   return _c(str(s), "1")
+def green(s):
+    return _c(str(s), "32")
+
+
+def yellow(s):
+    return _c(str(s), "33")
+
+
+def red(s):
+    return _c(str(s), "31")
+
+
+def cyan(s):
+    return _c(str(s), "36")
+
+
+def dim(s):
+    return _c(str(s), "2")
+
+
+def bold(s):
+    return _c(str(s), "1")
 
 
 def fmt_path(p) -> str:
@@ -64,7 +82,7 @@ def fmt_path(p) -> str:
     s = str(p).replace("\\", "/")
     home = str(Path.home()).replace("\\", "/")
     if s.startswith(home):
-        s = "~" + s[len(home):]
+        s = "~" + s[len(home) :]
     try:
         rel = os.path.relpath(p, Path.cwd()).replace("\\", "/")
     except ValueError:

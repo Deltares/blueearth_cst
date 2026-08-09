@@ -246,14 +246,19 @@ def test_the_scale_bar_yields_the_corner_the_locator_took():
     """Two artists in one corner is the collision this budgeting prevents."""
     central = _basin_covering(0.35, 0.35, 0.65, 0.65)  # every corner equally free
     taken = _scale_bar_corner(central, _UNIT_EXTENT, {_NORTH_ARROW_CORNER})
-    assert _scale_bar_corner(central, _UNIT_EXTENT, {_NORTH_ARROW_CORNER, taken}) != taken
+    assert (
+        _scale_bar_corner(central, _UNIT_EXTENT, {_NORTH_ARROW_CORNER, taken}) != taken
+    )
 
 
 def test_reserving_every_corner_still_returns_one():
     """Better a crowded bar than a crash: the fallback must not empty the list."""
-    assert _scale_bar_corner(
-        _basin_covering(0.35, 0.35, 0.65, 0.65), _UNIT_EXTENT, set(_CORNERS)
-    ) in _CORNERS
+    assert (
+        _scale_bar_corner(
+            _basin_covering(0.35, 0.35, 0.65, 0.65), _UNIT_EXTENT, set(_CORNERS)
+        )
+        in _CORNERS
+    )
 
 
 # --- locator inset ------------------------------------------------------------
@@ -376,9 +381,7 @@ def _basins_frame(*boxes):
 
 def test_a_multi_gauge_model_dissolves_to_one_outline():
     """Four gauge subcatchments must still draw ONE basin boundary."""
-    four = _basins_frame(
-        (0, 0, 1, 1), (1, 0, 2, 1), (0, 1, 1, 2), (1, 1, 2, 2)
-    )
+    four = _basins_frame((0, 0, 1, 1), (1, 0, 2, 1), (0, 1, 1, 2), (1, 1, 2, 2))
     assert len(four) == 4
     assert len(_basin_outline(four)) == 1
 
@@ -454,6 +457,7 @@ def test_ramp_endpoints_are_distinguishable_under_dichromacy():
     """
     ramp = _elevation_colormap()
     low, high = np.array(ramp(0.0)[:3]), np.array(ramp(1.0)[:3])
+
     def collapse(rgb):
         return np.array([rgb[:2].mean(), rgb[:2].mean(), rgb[2]])
 
@@ -862,7 +866,10 @@ def test_each_waterbody_enters_on_its_own_argument():
 
     layers = _layers()
     fig, ax = plot_basin_map(
-        layers["dem"], layers["rivers"], layers["basin"], reservoirs=layers["reservoirs"]
+        layers["dem"],
+        layers["rivers"],
+        layers["basin"],
+        reservoirs=layers["reservoirs"],
     )
     try:
         assert _legend_labels(ax) == ["river", "reservoirs"]
@@ -913,7 +920,7 @@ def test_the_returned_figure_is_already_laid_out():
 def test_the_colorbar_label_is_drawn_where_the_position_says(
     position, expect_title, expect_ylabel, restore_colorbar_label_position
 ):
-    """"top" is a horizontal title above the bar; "right" is the rotated label."""
+    """ "top" is a horizontal title above the bar; "right" is the rotated label."""
     import matplotlib.pyplot as plt
 
     plot_map.COLORBAR_LABEL_POSITION = position

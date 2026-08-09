@@ -27,12 +27,11 @@ VALID = {
 
 # --- the shipped file ------------------------------------------------------
 
+
 def test_the_shipped_file_is_where_the_constants_come_from():
     """Not a tautology: it reads the file from disk independently of the
     module-level load, so a constant left hardcoded would show up here."""
-    on_disk = yaml.safe_load(
-        su.ADVANCED_SETTINGS_PATH.read_text(encoding="utf-8")
-    )
+    on_disk = yaml.safe_load(su.ADVANCED_SETTINGS_PATH.read_text(encoding="utf-8"))
     assert su.MIN_HISTORICAL_YEARS == on_disk["constraints"]["min_historical_years"]
     assert su.DEFAULT_JULIA_THREADS == on_disk["defaults"]["julia_threads"]
 
@@ -54,15 +53,14 @@ def test_the_shipped_values_are_the_documented_ones():
 def test_schema_and_file_cover_exactly_the_same_keys():
     """The file and the schema must be edited together; this is what catches a
     setting added to one and not the other."""
-    on_disk = yaml.safe_load(
-        su.ADVANCED_SETTINGS_PATH.read_text(encoding="utf-8")
-    )
+    on_disk = yaml.safe_load(su.ADVANCED_SETTINGS_PATH.read_text(encoding="utf-8"))
     assert set(on_disk) == set(su._ADVANCED_SETTINGS_SCHEMA)
     for section, keys in su._ADVANCED_SETTINGS_SCHEMA.items():
         assert set(on_disk[section]) == set(keys), section
 
 
 # --- the loader's contract -------------------------------------------------
+
 
 def test_a_valid_file_round_trips(tmp_path):
     assert su.load_advanced_settings(_write(tmp_path, VALID)) == VALID
@@ -87,7 +85,9 @@ def test_unknown_key_is_rejected(tmp_path):
 
 def test_missing_section_is_rejected(tmp_path):
     with pytest.raises(ValueError, match="missing section 'defaults'"):
-        su.load_advanced_settings(_write(tmp_path, {"constraints": VALID["constraints"]}))
+        su.load_advanced_settings(
+            _write(tmp_path, {"constraints": VALID["constraints"]})
+        )
 
 
 def test_missing_key_is_rejected(tmp_path):

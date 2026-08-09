@@ -26,6 +26,7 @@ been handed — including the ones telling them to run this. PyYAML cannot
 preserve comments and a round-tripping parser is not worth a dependency here,
 so the write is a targeted insertion whose result is verified by reloading it.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -114,19 +115,31 @@ def _plan_edit(text: str) -> tuple[int, int, Callable[[str], list[str]]]:
         # Append the whole path at EOF. A config with no workflows: section is
         # not runnable anyway, but the dump this replaced accepted one.
         pad = [] if not lines or lines[-1].endswith(("\n", "\r")) else [nl]
-        return len(lines), 0, lambda name: pad + [
-            f"workflows:{nl}", f"  climate_experiment:{nl}",
-            f"    experiment_name: {name}{nl}",
-        ]
+        return (
+            len(lines),
+            0,
+            lambda name: (
+                pad
+                + [
+                    f"workflows:{nl}",
+                    f"  climate_experiment:{nl}",
+                    f"    experiment_name: {name}{nl}",
+                ]
+            ),
+        )
     wf_idx, wf_indent = found_wf
 
     found_ce = _find(wf_idx + 1, wf_indent, "climate_experiment")
     if found_ce is None:
         ci = " " * (wf_indent + 2)
-        return _block_end(wf_idx + 1, wf_indent), 0, lambda name: [
-            f"{ci}climate_experiment:{nl}",
-            f"{ci}  experiment_name: {name}{nl}",
-        ]
+        return (
+            _block_end(wf_idx + 1, wf_indent),
+            0,
+            lambda name: [
+                f"{ci}climate_experiment:{nl}",
+                f"{ci}  experiment_name: {name}{nl}",
+            ],
+        )
     ce_idx, ce_indent = found_ce
 
     # Indentation comes from the block's own first real line, so the edit
@@ -165,13 +178,16 @@ def _plan_edit(text: str) -> tuple[int, int, Callable[[str], list[str]]]:
                 indent, trailing = m.group(1), m.group(2)
                 # Keep any trailing comment on the line being filled in.
                 comment = (
-                    "  " + trailing[trailing.index("#"):].rstrip()
-                    if "#" in trailing else ""
+                    "  " + trailing[trailing.index("#") :].rstrip()
+                    if "#" in trailing
+                    else ""
                 )
-                eol = line[len(line.rstrip("\r\n")):] or nl
-                return i, 1, lambda name: [
-                    f"{indent}experiment_name: {name}{comment}{eol}"
-                ]
+                eol = line[len(line.rstrip("\r\n")) :] or nl
+                return (
+                    i,
+                    1,
+                    lambda name: [f"{indent}experiment_name: {name}{comment}{eol}"],
+                )
     if run_names_key and after_comment is None:
         after_comment = run_end + 1
     if first_child_indent is None:
@@ -193,7 +209,7 @@ def _write_experiment_name(path: Path, name: str) -> None:
     text = path.read_text(encoding="utf-8")
     lines = text.splitlines(keepends=True)
     idx, n_replaced, render = _plan_edit(text)
-    lines[idx:idx + n_replaced] = render(name)
+    lines[idx : idx + n_replaced] = render(name)
     new_text = "".join(lines)
 
     expected = yaml.safe_load(text) or {}
@@ -213,22 +229,27 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("config", help="path to the orchestration config YAML")
     ap.add_argument(
-        "--date", default=None, metavar="YYYYMMDD",
+        "--date",
+        default=None,
+        metavar="YYYYMMDD",
         help="date stamp to append (default: today). Explicit values keep the "
-             "command reproducible in tests and scripted setups",
+        "command reproducible in tests and scripted setups",
     )
     ap.add_argument(
-        "--name", default=None, metavar="NAME",
+        "--name",
+        default=None,
+        metavar="NAME",
         help="use this experiment name instead of the generated suggestion. A "
-             "name you choose is NEVER silently versioned: if it is already "
-             "taken the command fails, where a generated one would become "
-             "_v2. Validated by the same grammar the workflow enforces",
+        "name you choose is NEVER silently versioned: if it is already "
+        "taken the command fails, where a generated one would become "
+        "_v2. Validated by the same grammar the workflow enforces",
     )
     ap.add_argument(
-        "--dry-run", action="store_true",
+        "--dry-run",
+        action="store_true",
         help="print the suggestion and leave the config untouched. Reserves "
-             "nothing, so the name it prints may be taken by the time you use "
-             "it",
+        "nothing, so the name it prints may be taken by the time you use "
+        "it",
     )
     args = ap.parse_args(argv)
 
@@ -261,9 +282,9 @@ def main(argv: list[str] | None = None) -> int:
         print(name)
         return 0
 
-    existing = (
-        (doc.get("workflows") or {}).get("climate_experiment") or {}
-    ).get("experiment_name")
+    existing = ((doc.get("workflows") or {}).get("climate_experiment") or {}).get(
+        "experiment_name"
+    )
     if existing is not None:
         print(
             f"error: experiment_name is already set to {existing!r}; refusing "

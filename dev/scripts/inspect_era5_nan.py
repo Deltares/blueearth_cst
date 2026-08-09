@@ -8,6 +8,7 @@ if only the staged copy has them, subset_zarr() introduced them.
 Run from repo root:
     python dev/scripts/inspect_era5_nan.py
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -91,10 +92,14 @@ def _diff_table(
     src: dict[str, dict[int, tuple[int, int]]],
     dst: dict[str, dict[int, tuple[int, int]]],
 ) -> None:
-    print("\n=== diff (staged - source NaN counts; positive = introduced by staging) ===")
+    print(
+        "\n=== diff (staged - source NaN counts; positive = introduced by staging) ==="
+    )
     vars_ = sorted(set(src.keys()) | set(dst.keys()))
-    years = sorted({y for v in src.values() for y in v.keys()} |
-                   {y for v in dst.values() for y in v.keys()})
+    years = sorted(
+        {y for v in src.values() for y in v.keys()}
+        | {y for v in dst.values() for y in v.keys()}
+    )
     header = "year   " + "  ".join(f"{v:>10s}" for v in vars_)
     print(header)
     print("-" * len(header))

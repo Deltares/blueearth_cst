@@ -165,9 +165,7 @@ def test_netcdf_glob_type_dispatches_to_netcdf_glob_stager(monkeypatch) -> None:
         "type": "netcdf_glob",
         "path": "meteo/chirps_africa_daily_v2.0",
     }
-    stage_data._stage_dataset(
-        entry, Path("/src"), Path("/dst"), (0, 0, 1, 1), report
-    )
+    stage_data._stage_dataset(entry, Path("/src"), Path("/dst"), (0, 0, 1, 1), report)
 
     assert len(calls) == 1
     name, src, dst = calls[0]
@@ -181,11 +179,13 @@ def test_clip_window_intersects_request_with_natural_span() -> None:
     cw = stage_data._clip_window
     # Interior full year: a wider request leaves the window unchanged (-> skip).
     assert cw(["2005-01-01", "2005-12-31"], ["1990-01-01", "2020-12-31"]) == [
-        "2005-01-01", "2005-12-31",
+        "2005-01-01",
+        "2005-12-31",
     ]
     # Left-boundary partial year: request start clips into the file.
     assert cw(["2000-01-01", "2000-12-31"], ["2000-06-01", "2020-12-31"]) == [
-        "2000-06-01", "2000-12-31",
+        "2000-06-01",
+        "2000-12-31",
     ]
     # Out-of-range file: inverted window (start > end) -> "no time overlap".
     lo, hi = cw(["1995-01-01", "1995-12-31"], ["2000-01-01", "2020-12-31"])
@@ -199,26 +199,36 @@ def test_time_cover_fresh_skips_interior_but_restages_on_real_change(tmp_path) -
     dst.write_bytes(b"x")  # a time_cover output must exist to be considered fresh
     natural = ["2005-01-01", "2005-12-31"]
     fp0 = stage_data._fingerprint(
-        src=Path("s/2005.nc"), bbox=(0, 0, 2, 2),
-        time_range=["2000-01-01", "2010-12-31"], variables=None,
+        src=Path("s/2005.nc"),
+        bbox=(0, 0, 2, 2),
+        time_range=["2000-01-01", "2010-12-31"],
+        variables=None,
     )
     stage_data._write_manifest(
         dst,
-        {**fp0, "natural_time": natural,
-         "clip_time": stage_data._clip_window(natural, fp0["time_range"])},
+        {
+            **fp0,
+            "natural_time": natural,
+            "clip_time": stage_data._clip_window(natural, fp0["time_range"]),
+        },
     )
 
     def fp(**over):
-        base = dict(src=Path("s/2005.nc"), bbox=(0, 0, 2, 2),
-                    time_range=["1990-01-01", "2020-12-31"], variables=None)
+        base = dict(
+            src=Path("s/2005.nc"),
+            bbox=(0, 0, 2, 2),
+            time_range=["1990-01-01", "2020-12-31"],
+            variables=None,
+        )
         return stage_data._fingerprint(**{**base, **over})
 
     # Widened request, interior year unchanged -> fresh (skip, no rewrite).
     assert stage_data._time_cover_fresh(dst, fp()) is True
     # Request clips into the file's own span -> stale (must restage exactly).
-    assert stage_data._time_cover_fresh(
-        dst, fp(time_range=["2005-06-01", "2020-12-31"])
-    ) is False
+    assert (
+        stage_data._time_cover_fresh(dst, fp(time_range=["2005-06-01", "2020-12-31"]))
+        is False
+    )
     # Different bbox or variables -> stale regardless of time.
     assert stage_data._time_cover_fresh(dst, fp(bbox=(0, 0, 3, 3))) is False
     assert stage_data._time_cover_fresh(dst, fp(variables=["precip"])) is False
@@ -227,23 +237,38 @@ def test_time_cover_fresh_skips_interior_but_restages_on_real_change(tmp_path) -
 def test_time_cover_fresh_requires_existing_output(tmp_path) -> None:
     # No output file on disk -> never fresh even with a matching manifest.
     dst = tmp_path / "missing.nc"
-    assert stage_data._time_cover_fresh(dst, stage_data._fingerprint(
-        src=Path("s.nc"), bbox=(0, 0, 1, 1), time_range=None, variables=None,
-    )) is False
+    assert (
+        stage_data._time_cover_fresh(
+            dst,
+            stage_data._fingerprint(
+                src=Path("s.nc"),
+                bbox=(0, 0, 1, 1),
+                time_range=None,
+                variables=None,
+            ),
+        )
+        is False
+    )
 
 
 def test_reusable_requires_matching_src_and_bbox(tmp_path) -> None:
     dst = tmp_path / "store.nc"
     dst.write_bytes(b"x")
     fp = stage_data._fingerprint(
-        src=Path("s/f.nc"), bbox=(0, 0, 2, 2),
-        time_range=["2000-01-01", "2010-12-31"], variables=["a"],
+        src=Path("s/f.nc"),
+        bbox=(0, 0, 2, 2),
+        time_range=["2000-01-01", "2010-12-31"],
+        variables=["a"],
     )
     stage_data._write_manifest(dst, fp)
 
     def fp2(**over):
-        base = dict(src=Path("s/f.nc"), bbox=(0, 0, 2, 2),
-                    time_range=["1990-01-01", "2020-12-31"], variables=["a", "b"])
+        base = dict(
+            src=Path("s/f.nc"),
+            bbox=(0, 0, 2, 2),
+            time_range=["1990-01-01", "2020-12-31"],
+            variables=["a", "b"],
+        )
         return stage_data._fingerprint(**{**base, **over})
 
     # Same src+bbox but different time/vars -> reusable (those are the deltas).
@@ -273,12 +298,18 @@ def test_write_zarr_retries_transient_permission_error(tmp_path, monkeypatch) ->
             if calls["to_zarr"] < 3:  # fail twice, then succeed
                 raise PermissionError("[WinError 5] Access is denied")
 
-    monkeypatch.setattr(stage_data, "_remove", lambda p: calls.__setitem__("remove", calls["remove"] + 1))
-    monkeypatch.setattr(stage_data, "sleep", lambda s: calls.__setitem__("sleep", calls["sleep"] + 1))
+    monkeypatch.setattr(
+        stage_data,
+        "_remove",
+        lambda p: calls.__setitem__("remove", calls["remove"] + 1),
+    )
+    monkeypatch.setattr(
+        stage_data, "sleep", lambda s: calls.__setitem__("sleep", calls["sleep"] + 1)
+    )
 
     stage_data._write_zarr(_FakeResult(), tmp_path / "s.zarr", {}, serial=True)
-    assert calls["to_zarr"] == 3      # two failures + one success
-    assert calls["remove"] == 2       # partial store cleared before each retry
+    assert calls["to_zarr"] == 3  # two failures + one success
+    assert calls["remove"] == 2  # partial store cleared before each retry
     assert calls["sleep"] == 2
 
 
@@ -311,7 +342,9 @@ def test_filter_glob_years_drops_out_of_range_years() -> None:
     files = [Path(f"CHIRPS_rainfall_{yr}.nc") for yr in (1988, 1990, 2005, 2020, 2023)]
     kept, dropped = stage_data._filter_glob_years(files, ["1990-01-01", "2020-12-31"])
     assert [f.name for f in kept] == [
-        "CHIRPS_rainfall_1990.nc", "CHIRPS_rainfall_2005.nc", "CHIRPS_rainfall_2020.nc",
+        "CHIRPS_rainfall_1990.nc",
+        "CHIRPS_rainfall_2005.nc",
+        "CHIRPS_rainfall_2020.nc",
     ]
     assert dropped == 2  # 1988 (before) and 2023 (after)
     # No time_range -> keep everything.
@@ -349,15 +382,17 @@ def test_unpack_clip_result_accepts_two_or_three_tuples() -> None:
 def test_completion_detail_appends_elapsed_time() -> None:
     # The wall-clock `completed:` stamp was dropped; the signature is now
     # (detail, elapsed, *, status). A WRITTEN entry always appends elapsed.
-    assert stage_data._completion_detail(
-        "12.3 MB", 1.24, status=stage_data.WRITTEN
-    ) == "12.3 MB; elapsed: 1.2s"
+    assert (
+        stage_data._completion_detail("12.3 MB", 1.24, status=stage_data.WRITTEN)
+        == "12.3 MB; elapsed: 1.2s"
+    )
 
 
 def test_completion_detail_handles_empty_detail() -> None:
-    assert stage_data._completion_detail(
-        "", 61.0, status=stage_data.WRITTEN
-    ) == "elapsed: 1m01s"
+    assert (
+        stage_data._completion_detail("", 61.0, status=stage_data.WRITTEN)
+        == "elapsed: 1m01s"
+    )
 
 
 def test_format_bytes_uses_readable_units() -> None:

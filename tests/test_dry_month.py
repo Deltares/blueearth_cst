@@ -19,10 +19,18 @@ from blueearth_cst.projections.variable_spec import parse
 
 SEED_SPEC = parse(
     {
-        "precip": {"source": "precip", "canonical": "rate", "units": "mm/day",
-                   "change": "relative"},
-        "temp": {"source": "temp", "canonical": "state", "units": "degC",
-                 "change": "absolute"},
+        "precip": {
+            "source": "precip",
+            "canonical": "rate",
+            "units": "mm/day",
+            "change": "relative",
+        },
+        "temp": {
+            "source": "temp",
+            "canonical": "state",
+            "units": "degC",
+            "change": "absolute",
+        },
     }
 )
 
@@ -64,8 +72,14 @@ def test_N3_the_default_is_the_A2_value():
 # --- N4: an unknown relative variable must raise ------------------------------
 
 
-RUNOFF = {"runoff": {"source": "runoff", "canonical": "rate", "units": "m3/s",
-                     "change": "relative"}}
+RUNOFF = {
+    "runoff": {
+        "source": "runoff",
+        "canonical": "rate",
+        "units": "m3/s",
+        "change": "relative",
+    }
+}
 
 
 def test_N4_a_relative_variable_without_a_default_raises():

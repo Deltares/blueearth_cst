@@ -35,9 +35,7 @@ def test_short_digest_rejects_a_value_that_is_not_a_digest() -> None:
 def test_canonical_digest_is_mapping_order_independent() -> None:
     """Equivalent mappings hash identically regardless of insertion order."""
     first = {"nested": {"b": 2, "a": 1}, "items": [True, None, 1.5]}
-    second = OrderedDict(
-        [("items", [True, None, 1.5]), ("nested", {"a": 1, "b": 2})]
-    )
+    second = OrderedDict([("items", [True, None, 1.5]), ("nested", {"a": 1, "b": 2})])
 
     assert canonical_sha256(first) == canonical_sha256(second)
 

@@ -86,8 +86,7 @@ def test_the_return_levels_carry_their_return_period():
     assert q_metric_name("return_level_max", 10, 2) == "q_return_level_10yr_max"
     assert q_metric_name("return_level_max", 20, 5) == "q_return_level_20yr_max"
     assert (
-        q_metric_name("return_level_7day_min", 20, 5)
-        == "q_return_level_5yr_7day_min"
+        q_metric_name("return_level_7day_min", 20, 5) == "q_return_level_5yr_7day_min"
     )
 
 

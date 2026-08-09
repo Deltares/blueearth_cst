@@ -95,9 +95,10 @@ def test_every_member_log_describes_only_its_own_member():
     for log in _member_logs():
         own = MEMBER.search(log.stem)
         assert own, f"unexpected log name: {log.name}"
-        found = {m.group(0) for m in MEMBER.finditer(
-            log.read_text(encoding="utf-8", errors="replace")
-        )}
+        found = {
+            m.group(0)
+            for m in MEMBER.finditer(log.read_text(encoding="utf-8", errors="replace"))
+        }
         foreign = found - {own.group(0)}
         if foreign:
             offenders[log.name] = sorted(foreign)
@@ -116,9 +117,10 @@ def test_each_member_log_actually_identifies_itself():
     nothing. So each log must positively name its own member at least once.
     """
     silent = [
-        log.name for log in _member_logs()
-        if MEMBER.search(log.stem).group(0) not in
-        log.read_text(encoding="utf-8", errors="replace")
+        log.name
+        for log in _member_logs()
+        if MEMBER.search(log.stem).group(0)
+        not in log.read_text(encoding="utf-8", errors="replace")
     ]
     assert not silent, (
         f"logs that never name their own member, so attribution is untestable "

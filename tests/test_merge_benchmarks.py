@@ -11,7 +11,9 @@ _HEADER = "s\th:m:s\tmax_rss\tio_in\tcpu_time\tmean_load\n"
 
 def _write(path, s, rss, io_in, cpu, load):
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(_HEADER + f"{s}\t0:00:00\t{rss}\t{io_in}\t{cpu}\t{load}\n", encoding="utf-8")
+    path.write_text(
+        _HEADER + f"{s}\t0:00:00\t{rss}\t{io_in}\t{cpu}\t{load}\n", encoding="utf-8"
+    )
 
 
 def test_filters_by_workflow_prefix_and_appends_total(tmp_path):
@@ -31,7 +33,9 @@ def test_filters_by_workflow_prefix_and_appends_total(tmp_path):
     assert md.startswith("```text")  # code fence, so no H1 heading collision
     assert "BlueEarth-CST | project: gabon |" in md and "project dir:" in md
     assert "benchmark: wf1_benchmarks.md | generated " in md  # relabelled
-    assert "# BlueEarth-CST" not in md and "# log:" not in md  # not headings, not "log:"
+    assert (
+        "# BlueEarth-CST" not in md and "# log:" not in md
+    )  # not headings, not "log:"
     assert "# wf1 benchmarks" in md  # the single H1 title follows the header
     assert "| rule" in md  # a Markdown table
     assert "1.03_create_model" in md and "1.09_run_wflow" in md
@@ -51,7 +55,14 @@ def test_filters_by_workflow_prefix_and_appends_total(tmp_path):
 
 def test_nested_wildcard_parts_get_relative_rule_label(tmp_path):
     parts = tmp_path / "_parts"
-    _write(parts / "2.02_monthly_stats_hist" / "INM" / "GFDL.tsv", 5.0, 50.0, 0.0, 4.0, 40.0)
+    _write(
+        parts / "2.02_monthly_stats_hist" / "INM" / "GFDL.tsv",
+        5.0,
+        50.0,
+        0.0,
+        4.0,
+        40.0,
+    )
     out = tmp_path / "wf2_benchmarks.md"
     merge_benchmarks(str(parts), "2", str(out))
     assert "2.02_monthly_stats_hist/INM/GFDL" in out.read_text(encoding="utf-8")

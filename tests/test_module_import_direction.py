@@ -38,7 +38,8 @@ def _imported_modules(path: Path) -> set[str]:
 )
 def test_climate_analysis_does_not_import_the_model_package(module):
     offenders = {
-        m for m in _imported_modules(CLIMATE / module)
+        m
+        for m in _imported_modules(CLIMATE / module)
         if m.startswith("blueearth_cst.model")
     }
     assert not offenders, (
@@ -51,6 +52,7 @@ def test_climate_analysis_does_not_import_the_model_package(module):
 def test_the_parity_transform_is_reachable_from_shared():
     """Pin the new home, so a well-meaning revert is a failing test."""
     from blueearth_cst.shared.climate_parity import model_parity_climate
+
     assert callable(model_parity_climate)
 
 
@@ -58,7 +60,8 @@ def test_the_parity_transform_is_engine_neutral():
     """It earns its place in shared/ only while it imports no model code and
     touches no model object -- the P3-2a C1 criterion its docstring claims."""
     offenders = {
-        m for m in _imported_modules(PKG / "shared" / "climate_parity.py")
+        m
+        for m in _imported_modules(PKG / "shared" / "climate_parity.py")
         if m.startswith("blueearth_cst.model")
     }
     assert not offenders, f"climate_parity reaches into the model package: {offenders}"

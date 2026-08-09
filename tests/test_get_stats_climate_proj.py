@@ -8,6 +8,7 @@ It also auto-detects the x/y dims from XDIMS/YDIMS and averages over the grid
 to produce the scalar (``mean_stats_time``) series. Synthetic constant grids
 make every expected value self-evidently correct.
 """
+
 from os.path import join, dirname, realpath
 
 import numpy as np
@@ -97,5 +98,3 @@ def test_stats_dim_detection_alternate_names():
         )
         assert mean_stats_time["precip"].values.ravel().tolist() == [62.0], xname
         assert mean_stats_time["temp"].values.ravel().tolist() == [5.0], yname
-
-

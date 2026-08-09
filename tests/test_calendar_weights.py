@@ -28,7 +28,9 @@ def _monthly(year_start, n_months):
     """
     times = pd.date_range(f"{year_start}-01-01", periods=n_months, freq="MS")
     assert times[0].month == 1, "helper must start in January or the indices lie"
-    return xr.DataArray(np.arange(n_months, dtype="float64"), dims="time", coords={"time": times})
+    return xr.DataArray(
+        np.arange(n_months, dtype="float64"), dims="time", coords={"time": times}
+    )
 
 
 # --- G1: lengths come from the CALENDAR, never from the axis -------------------
@@ -43,7 +45,9 @@ def test_G1_noleap_february_is_28_even_across_leap_years():
     da = _monthly(2000, 60)  # 2000-2004, includes two Gregorian leap years
     w = month_length_weights(da, "noleap")
     februaries = w[1::12]
-    assert set(februaries) == {28.0}, f"noleap February must always be 28, got {set(februaries)}"
+    assert set(februaries) == {28.0}, (
+        f"noleap February must always be 28, got {set(februaries)}"
+    )
 
     # And prove the axis WOULD have lied, so this test cannot pass vacuously.
     axis_lengths = da["time"].dt.days_in_month.values[1::12]
@@ -54,7 +58,7 @@ def test_G1_gregorian_february_is_29_in_a_leap_year():
     """Same code path must still be right where Gregorian IS the model calendar."""
     da = _monthly(2000, 24)
     w = month_length_weights(da, "proleptic_gregorian")
-    assert w[1] == 29.0   # Feb 2000, a leap year
+    assert w[1] == 29.0  # Feb 2000, a leap year
     assert w[13] == 28.0  # Feb 2001
 
 
@@ -90,17 +94,27 @@ def test_G3_noleap_weighting_changes_the_annual_mean():
 def test_G4_weighted_annual_mean_matches_the_hand_computed_value():
     """G3 only proves something moved; this proves it moved to the right place."""
     values = np.arange(1.0, 13.0)
-    lengths = np.array([31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31], dtype="float64")
+    lengths = np.array(
+        [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31], dtype="float64"
+    )
     w = month_length_weights(_monthly(2001, 12), "noleap")
     np.testing.assert_array_equal(w, lengths)
     np.testing.assert_allclose(
-        np.average(values, weights=w), (values * lengths).sum() / lengths.sum(), rtol=1e-15
+        np.average(values, weights=w),
+        (values * lengths).sum() / lengths.sum(),
+        rtol=1e-15,
     )
 
 
 @pytest.mark.parametrize(
     "calendar,expected",
-    [("noleap", 365), ("365_day", 365), ("all_leap", 366), ("366_day", 366), ("360_day", 360)],
+    [
+        ("noleap", 365),
+        ("365_day", 365),
+        ("all_leap", 366),
+        ("366_day", 366),
+        ("360_day", 360),
+    ],
 )
 def test_G4_year_lengths_are_exact_for_every_fixed_calendar(calendar, expected):
     assert sum(days_in_month(2001, m, calendar) for m in range(1, 13)) == expected
@@ -118,7 +132,7 @@ def test_G5_unknown_calendar_raises_naming_the_source():
 
 
 def test_G5_empty_calendar_raises():
-    """"" is what the pre-schema-3 code wrote; it must not be weightable."""
+    """ "" is what the pre-schema-3 code wrote; it must not be weightable."""
     for value in ("", None, "   "):
         with pytest.raises(CalendarError, match="unknown"):
             assert_weightable(value)

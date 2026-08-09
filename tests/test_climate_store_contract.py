@@ -26,6 +26,7 @@ Two properties, deliberately separate:
 is content-determining and none participates in a rerun trigger (Snakemake
 records the log list but compares code, input, params, mtime and software-env).
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -68,6 +69,7 @@ def _parse_workflow(snakefile: str, config_path):
 
 
 # --- normalizers --------------------------------------------------------------
+
 
 def _iofile_signature(namedlist):
     """(positional paths, sorted keyword->path) for an input/output namedlist."""
@@ -182,9 +184,7 @@ def test_ruleinfo_field_universe_is_fully_bucketed():
         "structural-with-a-reason before the contract test can be trusted."
     )
     stale = sorted(buckets - fields)
-    assert not stale, (
-        f"buckets name directives this Snakemake does not have: {stale}"
-    )
+    assert not stale, f"buckets name directives this Snakemake does not have: {stale}"
     # The buckets must not overlap: a directive cannot be both compared and
     # permitted to differ.
     assert set(_COMPARED).isdisjoint(_ALLOWED_LOCAL)
@@ -232,9 +232,7 @@ def declarations(request, config_variants):
     # declared the producer only to obtain the region polygon, and the region is
     # now its own artifact. Kept here so the absence is ASSERTED rather than
     # silently untested.
-    out["wf2_workflow"] = _parse_workflow(
-        "Snakefile_climate_projections", config_path
-    )
+    out["wf2_workflow"] = _parse_workflow("Snakefile_climate_projections", config_path)
     return out
 
 
@@ -345,12 +343,10 @@ def test_outputs_are_the_store_artifacts(declarations):
         _workflow, rule = declarations[label]
         keys = sorted(rule.output.keys())
         assert keys == ["climate_nc"], f"{label}: {keys}"
-        assert str(rule.output.climate_nc).endswith(
-            "/extract_historical.nc"
-        ), label
-        assert not [
-            str(path) for path in rule.output if "store_region" in str(path)
-        ], label
+        assert str(rule.output.climate_nc).endswith("/extract_historical.nc"), label
+        assert not [str(path) for path in rule.output if "store_region" in str(path)], (
+            label
+        )
 
 
 @pytest.mark.workflow_contract

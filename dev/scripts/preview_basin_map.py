@@ -253,7 +253,9 @@ def resolve_project_dir(requested: str | None) -> Path:
     if explicit:
         path = Path(explicit).expanduser().resolve()
         if not (path / "models" / "hydrology" / "wflow" / "staticmaps.nc").is_file():
-            raise SystemExit(f"{path} does not hold a models/hydrology/wflow/staticmaps.nc")
+            raise SystemExit(
+                f"{path} does not hold a models/hydrology/wflow/staticmaps.nc"
+            )
         _warn_if_transient(path)
         return path
     roots = dict.fromkeys((_primary_checkout(), REPO_ROOT))  # ordered, deduped
@@ -266,7 +268,8 @@ def resolve_project_dir(requested: str | None) -> Path:
         "No project directory found. Pass --project-dir <dir> (the folder "
         "holding models/hydrology/wflow/), or set $BASIN_MAP_PROJECT_DIR. Tried: "
         + ", ".join(
-            str(root / c) for root, c in itertools.product(roots, _CANDIDATE_PROJECT_DIRS)
+            str(root / c)
+            for root, c in itertools.product(roots, _CANDIDATE_PROJECT_DIRS)
         )
     )
 

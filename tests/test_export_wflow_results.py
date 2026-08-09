@@ -20,7 +20,6 @@ annual mean, and nothing on disk supplies one. Same lesson as R9-4: a check
 that cannot fail on the fixture has to be written against a synthetic case.
 """
 
-
 import numpy as np
 import pandas as pd
 import pytest
@@ -56,7 +55,12 @@ def test_realization_index_comes_from_the_file_name(tmp_path, rlz):
     not the era.
     """
     csv = (
-        tmp_path / "experiments" / "e" / "hydrology" / "wflow" / "output"
+        tmp_path
+        / "experiments"
+        / "e"
+        / "hydrology"
+        / "wflow"
+        / "output"
         / f"rlz_{rlz}_st_3.csv"
     )
     csv.parent.mkdir(parents=True)
@@ -217,15 +221,23 @@ def test_incomplete_stress_test_grid_fails_loudly(tmp_path):
 def _write_design(tmp_path, st_num, extra_axis=False):
     """A stress_test_design.csv matching what `_reduce` builds, as 3.09 writes it."""
     width = len(str(st_num))
-    rows = [{"st_id": f"{0:0{width}d}", "temp_change": 0.0, "precip_change": 0.0,
-             "precip_variance_change": 0.0}]
-    for member in range(1, st_num + 1):
-        rows.append({
-            "st_id": f"{member:0{width}d}",
-            "temp_change": 0.5 * member,
-            "precip_change": (1.0 + 0.1 * member) * 100 - 100,
+    rows = [
+        {
+            "st_id": f"{0:0{width}d}",
+            "temp_change": 0.0,
+            "precip_change": 0.0,
             "precip_variance_change": 0.0,
-        })
+        }
+    ]
+    for member in range(1, st_num + 1):
+        rows.append(
+            {
+                "st_id": f"{member:0{width}d}",
+                "temp_change": 0.5 * member,
+                "precip_change": (1.0 + 0.1 * member) * 100 - 100,
+                "precip_variance_change": 0.0,
+            }
+        )
     if extra_axis:
         for row in rows:
             row["wind_change"] = 0.0
@@ -284,8 +296,13 @@ def test_the_header_is_seven_columns_and_does_not_grow_with_gauges(tmp_path):
     """
     q = _reduce(tmp_path)["q"]
     assert list(q.columns) == [
-        "metric", "st_id", "temp_change", "precip_change",
-        "realization_id", "location", "value",
+        "metric",
+        "st_id",
+        "temp_change",
+        "precip_change",
+        "realization_id",
+        "location",
+        "value",
     ]
     assert set(q.location.astype(str)) == {"101", "202"}
 
@@ -451,7 +468,9 @@ def test_the_cap_cannot_trip_the_baseline_gate():
     sys.path.insert(0, str(root / "dev" / "scripts"))
     import check_baseline as cb  # noqa: E402
 
-    ref = pd.read_csv(root / "dev" / "baseline" / "indicator_ref" / "74ed83c06b2e7e6c.csv")
+    ref = pd.read_csv(
+        root / "dev" / "baseline" / "indicator_ref" / "74ed83c06b2e7e6c.csv"
+    )
     assert not ref.empty
 
     worst = 0.0
@@ -470,6 +489,6 @@ def test_the_cap_cannot_trip_the_baseline_gate():
     # table honours that bound, then that the bound sits well inside the
     # comparator's RTOL -- so tightening RTOL fails HERE, at the argument, rather
     # than leaving a docstring that is quietly no longer true.
-    theoretical = 5 * 10 ** -VALUE_SIGNIFICANT_DIGITS
+    theoretical = 5 * 10**-VALUE_SIGNIFICANT_DIGITS
     assert worst <= theoretical, worst
     assert theoretical < cb.INDICATOR_RTOL / 10

@@ -42,6 +42,7 @@ def _mark_run(exp_dir):
 # The document
 # ---------------------------------------------------------------------------
 
+
 def test_the_document_is_the_id_plus_this_experiments_own_section():
     doc = build_experiment_config("gabon_dry", _CFG)
     assert doc["experiment_name"] == "gabon_dry"
@@ -58,6 +59,7 @@ def test_writing_produces_readable_yaml(tmp_path):
 # ---------------------------------------------------------------------------
 # Immutability — BOTH directions
 # ---------------------------------------------------------------------------
+
 
 def test_editable_before_the_first_successful_run(tmp_path):
     """The direction a creation-time freeze would break, asserted FIRST.
@@ -85,12 +87,14 @@ def test_frozen_after_the_first_successful_run(tmp_path):
     with pytest.raises(ExperimentConfigFrozenError) as excinfo:
         write_experiment_config(exp, out, "gabon_dry", dict(_CFG, Tpeak=25))
     msg = str(excinfo.value)
-    assert "Tpeak" in msg                      # what changed
-    assert "gabon_dry" in msg                  # which experiment
-    assert "new experiment" in msg.lower()     # what to do
+    assert "Tpeak" in msg  # what changed
+    assert "gabon_dry" in msg  # which experiment
+    assert "new experiment" in msg.lower()  # what to do
     # ...and the recorded file is untouched, so the results still describe it.
-    assert yaml.safe_load(out.read_text(encoding="utf-8"))["climate_experiment"][
-        "Tpeak"] == 10
+    assert (
+        yaml.safe_load(out.read_text(encoding="utf-8"))["climate_experiment"]["Tpeak"]
+        == 10
+    )
 
 
 def test_an_unchanged_rewrite_after_a_run_is_allowed(tmp_path):
@@ -135,6 +139,7 @@ def test_no_recorded_file_means_nothing_to_freeze(tmp_path):
 # Wiring
 # ---------------------------------------------------------------------------
 
+
 def test_the_rule_declares_the_file_and_reaches_rule_all():
     """The rule writes what it claims to, and something asks for it.
 
@@ -149,10 +154,13 @@ def test_the_rule_declares_the_file_and_reaches_rule_all():
     workflows -- so this rule's registration is covered more strongly than it
     was here, and without a number to keep in step.
     """
-    text = (Path(__file__).resolve().parents[1]
-            / "Snakefile_climate_experiment").read_text(encoding="utf-8")
+    text = (
+        Path(__file__).resolve().parents[1] / "Snakefile_climate_experiment"
+    ).read_text(encoding="utf-8")
     start = text.index("rule write_experiment_config:")
-    block = text[start: text.index("\nrule ", start + 1)]
-    assert "config/experiment.yml" in block[block.index("output:"):]
-    assert "experiment_config" in text[text.index("WF3_TARGETS = {"):
-                                       text.index("rule all:")]
+    block = text[start : text.index("\nrule ", start + 1)]
+    assert "config/experiment.yml" in block[block.index("output:") :]
+    assert (
+        "experiment_config"
+        in text[text.index("WF3_TARGETS = {") : text.index("rule all:")]
+    )

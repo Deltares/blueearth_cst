@@ -31,6 +31,7 @@ label form; both were wrong in ways that let a real failure sit unread, and two
 modules asserting one property by different parsers is how they came to
 disagree. Do not re-add a second parser — extend this one.
 """
+
 from __future__ import annotations
 
 import ast
@@ -115,7 +116,7 @@ def _label_from_log_path(log_path: str) -> str:
     """
     parts = PurePosixPath(str(log_path).replace("\\", "/")).parts
     index = parts.index(PARTS_DIR_NAME)
-    remainder = parts[index + 1:]
+    remainder = parts[index + 1 :]
     if len(remainder) == 1:
         return PurePosixPath(remainder[0]).stem
     return remainder[0]
@@ -127,9 +128,7 @@ def _labels_with_producers(snakefile: str) -> set[str]:
     labels = set()
     for rule in workflow.rules:
         for log_path in getattr(rule, "log", []) or []:
-            if PARTS_DIR_NAME in PurePosixPath(
-                str(log_path).replace("\\", "/")
-            ).parts:
+            if PARTS_DIR_NAME in PurePosixPath(str(log_path).replace("\\", "/")).parts:
                 labels.add(_label_from_log_path(log_path))
     return labels
 

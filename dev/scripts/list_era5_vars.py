@@ -3,6 +3,7 @@
 Reads only metadata — does not stream values. Useful when picking the
 correct variable names for stage_data.yml's `variables:` filter.
 """
+
 from __future__ import annotations
 
 from pathlib import Path

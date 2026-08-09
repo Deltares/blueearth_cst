@@ -6,6 +6,7 @@ historical file (used as template by generate_weather), and whether they
 get propagated to the realization output (used as template by
 impose_climate_change).
 """
+
 from pathlib import Path
 from netCDF4 import Dataset
 

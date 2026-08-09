@@ -91,6 +91,7 @@ def test_no_snakefile_hardcodes_a_julia_version():
 
 # --- the threads knob ------------------------------------------------------
 
+
 def test_default_threads_is_the_frozen_baseline_value():
     """P3-3's recorded baselines were all measured at the (-c 3, --threads 4,
     B=1) triple; changing this default silently invalidates them."""

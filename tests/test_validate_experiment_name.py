@@ -6,6 +6,7 @@ so a malformed or adversarial experiment_name can never introduce a path
 component, escape the experiments/ dir, or collide via normalization. Uppercase
 is REJECTED (never silently lowercased).
 """
+
 from __future__ import annotations
 
 
@@ -19,6 +20,7 @@ PROJECT_DIR = "/tmp/proj"  # value irrelevant; only its "experiments/" child mat
 
 # --- Accepted -----------------------------------------------------------------
 
+
 def test_valid_lowercase_snake_returns_unchanged():
     assert validate_experiment_name("experiment_a", PROJECT_DIR) == "experiment_a"
 
@@ -29,6 +31,7 @@ def test_various_valid_names_pass(name):
 
 
 # --- Rejected: grammar --------------------------------------------------------
+
 
 def test_uppercase_rejected_not_lowercased():
     # §2b/ext2-3: uppercase is a grammar violation, NOT silently normalized.
@@ -65,6 +68,7 @@ def test_dot_rejected():
 
 # --- Rejected: traversal / separators -----------------------------------------
 
+
 def test_dotdot_rejected():
     with pytest.raises(ValueError):
         validate_experiment_name("..", PROJECT_DIR)
@@ -83,6 +87,7 @@ def test_path_separators_rejected(name):
 
 # --- Rejected: absolute forms -------------------------------------------------
 
+
 @pytest.mark.parametrize("name", ["/abs", "\\abs", "C:\\x", "c:/x"])
 def test_absolute_forms_rejected(name):
     with pytest.raises(ValueError):
@@ -90,6 +95,7 @@ def test_absolute_forms_rejected(name):
 
 
 # --- Rejected: Windows-reserved device names (case- and extension-insensitive)-
+
 
 @pytest.mark.parametrize("name", ["con", "CON", "prn", "aux", "nul", "com1", "lpt9"])
 def test_windows_reserved_names_rejected(name):
@@ -104,6 +110,7 @@ def test_windows_reserved_with_extension_rejected():
 
 
 # --- Rejected: length + trailing space ----------------------------------------
+
 
 def test_length_cap_rejected():
     with pytest.raises(ValueError, match="limit"):
@@ -122,6 +129,7 @@ def test_trailing_space_rejected():
 
 
 # --- Containment assertion is independent of the grammar ----------------------
+
 
 def test_containment_direct_child_holds_for_valid_name(tmp_path):
     # A grammar-valid name resolves to a direct child of <project_dir>/experiments.

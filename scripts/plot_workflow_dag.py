@@ -95,9 +95,9 @@ def plot_subdir(number: int, config: dict) -> Path:
     """
     if number != 3:
         return PLOT_SUBDIR
-    experiment = (
-        (config.get("workflows") or {}).get("climate_experiment") or {}
-    ).get("experiment_name")
+    experiment = ((config.get("workflows") or {}).get("climate_experiment") or {}).get(
+        "experiment_name"
+    )
     if not experiment:
         return PLOT_SUBDIR
     return Path("experiments") / str(experiment) / "logs" / "dag"
@@ -160,8 +160,9 @@ def read_project(config_path: Path) -> tuple[Path, str, dict]:
     return project_dir, str(name), config
 
 
-def build_graph(mode: str, snakefile: Path, config_path: Path, target: str,
-                extra: list[str]) -> str:
+def build_graph(
+    mode: str, snakefile: Path, config_path: Path, target: str, extra: list[str]
+) -> str:
     """Return the DOT text of one non-executing snakemake graph mode.
 
     ``python -m snakemake`` rather than the console script, so the interpreter
@@ -169,10 +170,16 @@ def build_graph(mode: str, snakefile: Path, config_path: Path, target: str,
     reasoning as dev/scripts/rule_dag_levels.py).
     """
     command = [
-        sys.executable, "-m", "snakemake", target,
-        f"--{mode}", "dot",
-        "-s", str(snakefile),
-        "--configfile", str(config_path),
+        sys.executable,
+        "-m",
+        "snakemake",
+        target,
+        f"--{mode}",
+        "dot",
+        "-s",
+        str(snakefile),
+        "--configfile",
+        str(config_path),
         *extra,
     ]
     result = subprocess.run(command, cwd=REPO_ROOT, capture_output=True, text=True)
@@ -185,9 +192,7 @@ def build_graph(mode: str, snakefile: Path, config_path: Path, target: str,
     # from the `digraph` header on, so a stray stdout line cannot reach `dot`.
     start = result.stdout.find("digraph")
     if start < 0:
-        raise DagPlotError(
-            f"snakemake --{mode} produced no DOT graph on stdout"
-        )
+        raise DagPlotError(f"snakemake --{mode} produced no DOT graph on stdout")
     return result.stdout[start:]
 
 
@@ -202,7 +207,9 @@ def render(dot_text: str, output_path: Path, image_format: str) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     result = subprocess.run(
         [dot, f"-T{image_format}", "-o", str(output_path)],
-        input=dot_text, capture_output=True, text=True,
+        input=dot_text,
+        capture_output=True,
+        text=True,
     )
     if result.returncode != 0:
         raise DagPlotError(
@@ -215,26 +222,39 @@ def main() -> int:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument(
-        "-s", "--snakefile", type=Path, required=True,
+        "-s",
+        "--snakefile",
+        type=Path,
+        required=True,
         help="the Snakefile to graph (e.g. Snakefile_model_creation)",
     )
     parser.add_argument(
-        "--configfile", type=Path, required=True,
+        "--configfile",
+        type=Path,
+        required=True,
         help="the --configfile the workflow would be run with",
     )
     parser.add_argument(
-        "--mode", choices=("dag", "rulegraph"), default="dag",
+        "--mode",
+        choices=("dag", "rulegraph"),
+        default="dag",
         help="job-level DAG (default) or the rule-level graph",
     )
     parser.add_argument(
-        "--format", dest="image_format", default="png",
+        "--format",
+        dest="image_format",
+        default="png",
         help="graphviz output format (default: png)",
     )
     parser.add_argument(
-        "--target", default="all", help="target rule to graph (default: all)",
+        "--target",
+        default="all",
+        help="target rule to graph (default: all)",
     )
     parser.add_argument(
-        "extra", nargs="*", help="extra arguments forwarded to snakemake, after `--`",
+        "extra",
+        nargs="*",
+        help="extra arguments forwarded to snakemake, after `--`",
     )
     args = parser.parse_args()
 
@@ -242,7 +262,8 @@ def main() -> int:
         number = workflow_number(args.snakefile)
         project_dir, project_name, config = read_project(args.configfile)
         output_path = (
-            project_dir / plot_subdir(number, config)
+            project_dir
+            / plot_subdir(number, config)
             / f"{project_name}_wf{number}_{args.mode}.{args.image_format}"
         )
         dot_text = build_graph(

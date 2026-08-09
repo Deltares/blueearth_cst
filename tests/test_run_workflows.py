@@ -80,6 +80,7 @@ def _read_only_manifest(project_dir: Path) -> dict:
 
 # --- §7(g) assertion 1: all-true -> all three in fixed order -----------------
 
+
 def test_all_true_invokes_three_in_fixed_order(tmp_path, capture_runs):
     calls, _ = capture_runs
     cfg = tmp_path / "c.yml"
@@ -95,6 +96,7 @@ def test_all_true_invokes_three_in_fixed_order(tmp_path, capture_runs):
 
 # --- §7(g) assertion 2: --keep-going on projections only (flag parity) -------
 
+
 def test_keep_going_on_projections_only(tmp_path, capture_runs):
     calls, _ = capture_runs
     cfg = tmp_path / "c.yml"
@@ -107,6 +109,7 @@ def test_keep_going_on_projections_only(tmp_path, capture_runs):
 
 
 # --- §7(g) assertion 3: missing enabled: key -> nonzero, named --------------
+
 
 def test_missing_enabled_key_errors(tmp_path):
     cfg = tmp_path / "c.yml"
@@ -136,6 +139,7 @@ def test_missing_workflows_section_errors(tmp_path):
 
 # --- §7(g) assertion 4: parsed-value bool contract --------------------------
 
+
 @pytest.mark.parametrize("bad", ['"true"', '"false"', "1", "0"])
 def test_non_bool_enabled_rejected(tmp_path, bad):
     """Quoted strings and integers do NOT parse to bool -> rejected (contract c)."""
@@ -161,6 +165,7 @@ def test_unquoted_boolean_spellings_accepted(tmp_path, spelling):
 
 # --- §7(g) assertion 5: first nonzero -> stop, later not invoked, return code -
 
+
 def test_first_nonzero_stops_and_returns_code(tmp_path, capture_runs):
     calls, exits = capture_runs
     exits[0] = 7  # first invoked workflow (model_creation) fails
@@ -173,6 +178,7 @@ def test_first_nonzero_stops_and_returns_code(tmp_path, capture_runs):
 
 
 # --- §7(g) assertion 6: --cores / -- <extra> forwarded to EVERY invocation ---
+
 
 def test_cores_and_extra_forwarded_to_every_invocation(tmp_path, capture_runs):
     calls, _ = capture_runs
@@ -198,6 +204,7 @@ def test_cli_strips_double_dash_sentinel(tmp_path, capture_runs):
 
 
 # --- ext1-03: enabled:false skip test, FRESH tmp_path, boundary assertion ----
+
 
 def test_enabled_false_skips_at_subprocess_boundary(tmp_path, capture_runs):
     """Design §9 ext1-03: in a FRESH temp project_dir, disabling a workflow means

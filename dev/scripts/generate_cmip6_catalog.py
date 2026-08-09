@@ -129,7 +129,9 @@ def crawl(fs: gcsfs.GCSFileSystem) -> dict[tuple[str, str, str], list[str]]:
 
     def usable(item):
         (activity, model, experiment), member = item
-        present = set(ls(f"cmip6/CMIP6/{activity}/{model}/{experiment}/{member}/{TABLE}"))
+        present = set(
+            ls(f"cmip6/CMIP6/{activity}/{model}/{experiment}/{member}/{TABLE}")
+        )
         return (activity, model, experiment), member, REQUIRED_VARS <= present
 
     pairs = [(t, m) for t, ms in listed for m in ms]
@@ -194,11 +196,11 @@ def pin_stores(
 
     def resolve(target):
         activity, model, experiment, member, variable = target
-        base = f"cmip6/CMIP6/{activity}/{model}/{experiment}/{member}/{TABLE}/{variable}"
+        base = (
+            f"cmip6/CMIP6/{activity}/{model}/{experiment}/{member}/{TABLE}/{variable}"
+        )
         pairs = [
-            f"{grid}/{version}"
-            for grid in ls(base)
-            for version in ls(f"{base}/{grid}")
+            f"{grid}/{version}" for grid in ls(base) for version in ls(f"{base}/{grid}")
         ]
         return target, pairs
 

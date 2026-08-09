@@ -125,6 +125,7 @@ def _volatile_attrs_for(*paths: str) -> frozenset:
         return VOLATILE_NC_ATTRS | INHERITED_SINGLE_SOURCE_ATTRS
     return VOLATILE_NC_ATTRS
 
+
 # ---------------------------------------------------------------------------
 # Copied-config normalize map (ext2-01). The documented old->new path map that
 # commit 2 rewrote INSIDE every orchestration config -- so the copied snapshot
@@ -140,10 +141,8 @@ COPIED_CONFIG_PATH_MAP: dict[str, dict[str, str]] = {
     "data_sources": {
         "config/deltares_data.yml": "config/catalogs/deltares_data.yml",
         "config/deltares_data_linux.yml": "config/catalogs/deltares_data_linux.yml",
-        "config/deltares_data_climate_projections.yml":
-            "config/catalogs/deltares_data_climate_projections.yml",
-        "config/deltares_data_climate_projections_linux.yml":
-            "config/catalogs/deltares_data_climate_projections_linux.yml",
+        "config/deltares_data_climate_projections.yml": "config/catalogs/deltares_data_climate_projections.yml",
+        "config/deltares_data_climate_projections_linux.yml": "config/catalogs/deltares_data_climate_projections_linux.yml",
         "config/cmip6_data.yml": "config/catalogs/cmip6_data.yml",
     },
     "data_sources_climate": {
@@ -153,16 +152,15 @@ COPIED_CONFIG_PATH_MAP: dict[str, dict[str, str]] = {
         "config/wflow_build_model.yml": "config/templates/wflow_build_model.yml",
     },
     "waterbodies_config": {
-        "config/wflow_update_waterbodies.yml":
-            "config/templates/wflow_update_waterbodies.yml",
+        "config/wflow_update_waterbodies.yml": "config/templates/wflow_update_waterbodies.yml",
     },
     # --- R07 additions (migration_project-layout.md §2d) -------------------
     # Without these the phase-B gate goes red on the copied config snapshots
     # for pure path bookkeeping, which is indistinguishable from a real
     # content regression (repo-6, arch-11a).
     "project_dir": {
-        "examples/test_local": "test_case/test_local",   # O-20
-        "examples/Gabon": "test_case/gabon",             # O-20
+        "examples/test_local": "test_case/test_local",  # O-20
+        "examples/Gabon": "test_case/gabon",  # O-20
         # O-21 retargets snake_config.template.yml to an outside-the-tree
         # placeholder in commit 6. That template is not a copied *snapshot*
         # (no run writes it into project_dir), so it needs no entry here;
@@ -183,8 +181,7 @@ COPIED_CONFIG_PATH_MAP: dict[str, dict[str, str]] = {
     # here rather than allowlisted -- the value change is documented and
     # expected, and normalizing keeps a REAL content regression detectable.
     "input.path_forcing": {
-        "../climate_historical/wflow_data/inmaps_historical.nc":
-            "forcing/inmaps_historical.nc",
+        "../climate_historical/wflow_data/inmaps_historical.nc": "forcing/inmaps_historical.nc",
     },
 }
 
@@ -204,6 +201,7 @@ DEFAULT_TOLERANCE = 1e-9
 #   - exact-file rule: old does not end with "/" -- rewrites that one relpath.
 # First match wins. Direction is OLD (pre-P3-1 reference) -> NEW (current).
 # ---------------------------------------------------------------------------
+
 
 def build_p31_path_map(
     experiment_name: str, dataset_key: str | None
@@ -236,9 +234,7 @@ def build_p31_path_map(
     return rules
 
 
-def build_p31_allowlist(
-    experiment_name: str, dataset_key: str | None
-) -> list[str]:
+def build_p31_allowlist(experiment_name: str, dataset_key: str | None) -> list[str]:
     """EXTRA-by-design current-tree relpaths (risk-4 presence exemptions ONLY).
 
     Justifications live in dev/milestones/p31/migration_experiment-structure.md: the
@@ -258,6 +254,7 @@ def build_p31_allowlist(
 # form and `check_baseline.TARGETS` is rewritten from the same source).
 # ---------------------------------------------------------------------------
 
+
 def build_r07_path_map(
     experiment_name: str,
     dataset_key: str | None,
@@ -272,21 +269,30 @@ def build_r07_path_map(
     e = experiment_name
     rules: list[tuple[str | re.Pattern, str]] = [
         # -- B9: the project config snapshot splits four ways (commit 10) ----
-        ("config/snake_config_model_creation.yml",
-         "config/runs/snake_config_model_creation.yml"),
-        ("config/snake_config_climate_projections.yml",
-         "config/runs/snake_config_climate_projections.yml"),
+        (
+            "config/snake_config_model_creation.yml",
+            "config/runs/snake_config_model_creation.yml",
+        ),
+        (
+            "config/snake_config_climate_projections.yml",
+            "config/runs/snake_config_climate_projections.yml",
+        ),
         ("config/deltares_data.yml", "config/catalogs/deltares_data.yml"),
         ("config/cmip6_data.yml", "config/catalogs/cmip6_data.yml"),
-        ("config/wflow_build_model.yml",
-         "config/templates/wflow_build_model.yml"),
-        ("config/wflow_update_waterbodies.yml",
-         "config/templates/wflow_update_waterbodies.yml"),
+        ("config/wflow_build_model.yml", "config/templates/wflow_build_model.yml"),
+        (
+            "config/wflow_update_waterbodies.yml",
+            "config/templates/wflow_update_waterbodies.yml",
+        ),
         # generated at run time, not verbatim template snapshots (P3 rule)
-        ("config/wflow_build_model_run.yml",
-         "config/generated/wflow_build_model_run.yml"),
-        ("config/wflow_build_forcing_historical.yml",
-         "config/generated/wflow_build_forcing_historical.yml"),
+        (
+            "config/wflow_build_model_run.yml",
+            "config/generated/wflow_build_model_run.yml",
+        ),
+        (
+            "config/wflow_build_forcing_historical.yml",
+            "config/generated/wflow_build_forcing_historical.yml",
+        ),
         # -- B2: wflow forcing into the engine subtree (commit 8) ------------
         ("climate_historical/wflow_data/", "hydrology_model/forcing/"),
         # The run_default TOML is a copy of the model TOML placed one level
@@ -300,48 +306,79 @@ def build_r07_path_map(
         # matched before because both sides were equally fictional. This rule
         # keeps the two namespaces aligned so the comparator still catches a
         # REAL mis-repoint of this pointer instead of failing on the artifact.
-        ("hydrology_model/climate_historical/wflow_data/",
-         "hydrology_model/run_default/forcing/"),
+        (
+            "hydrology_model/climate_historical/wflow_data/",
+            "hydrology_model/run_default/forcing/",
+        ),
         # -- B10: wf1 figures leave the project-level plots/ tree (commit 12) -
         # Split by DEPICTED subject (P1), so these are per-file, not a prefix.
-        ("plots/wflow_model_performance/precip.png",
-         "hydrology_model/forcing/plots/precip.png"),
-        ("plots/wflow_model_performance/temp.png",
-         "hydrology_model/forcing/plots/temp.png"),
-        ("plots/wflow_model_performance/pet.png",
-         "hydrology_model/forcing/plots/pet.png"),
-        ("plots/wflow_model_performance/hydro_wflow_1.png",
-         "hydrology_model/evaluation/plots/hydro_wflow_1.png"),
-        ("plots/wflow_model_performance/clim_wflow_1_month.png",
-         "hydrology_model/evaluation/plots/clim_wflow_1_month.png"),
-        ("plots/wflow_model_performance/clim_wflow_1_year.png",
-         "hydrology_model/evaluation/plots/clim_wflow_1_year.png"),
+        (
+            "plots/wflow_model_performance/precip.png",
+            "hydrology_model/forcing/plots/precip.png",
+        ),
+        (
+            "plots/wflow_model_performance/temp.png",
+            "hydrology_model/forcing/plots/temp.png",
+        ),
+        (
+            "plots/wflow_model_performance/pet.png",
+            "hydrology_model/forcing/plots/pet.png",
+        ),
+        (
+            "plots/wflow_model_performance/hydro_wflow_1.png",
+            "hydrology_model/evaluation/plots/hydro_wflow_1.png",
+        ),
+        (
+            "plots/wflow_model_performance/clim_wflow_1_month.png",
+            "hydrology_model/evaluation/plots/clim_wflow_1_month.png",
+        ),
+        (
+            "plots/wflow_model_performance/clim_wflow_1_year.png",
+            "hydrology_model/evaluation/plots/clim_wflow_1_year.png",
+        ),
         # depicts the MODEL, not its evaluation
-        ("plots/wflow_model_performance/basin_area.png",
-         "hydrology_model/plots/basin_area.png"),
+        (
+            "plots/wflow_model_performance/basin_area.png",
+            "hydrology_model/plots/basin_area.png",
+        ),
         # a CSV leaves plots/ entirely (P1: plots/ holds figures only)
-        ("plots/wflow_model_performance/performance_metrics.csv",
-         "hydrology_model/evaluation/performance_metrics.csv"),
+        (
+            "plots/wflow_model_performance/performance_metrics.csv",
+            "hydrology_model/evaluation/performance_metrics.csv",
+        ),
         # -- S8-04/05/06/07: the result surface moved. Without these rows a
         # whole-tree diff against any pre-S8-04 reference reports ~14 deletions
         # plus ~14 additions instead of comparing element-wise -- the gate still
         # runs but stops discriminating exactly where the most changed.
-        (f"climate_projections/{clim_project}/change_factors/annual.csv",
-         f"climate_projections/{clim_project}/summary/{clim_project}_change_factors_annual.csv"),
-        (f"climate_projections/{clim_project}/change_factors/monthly.csv",
-         f"climate_projections/{clim_project}/summary/{clim_project}_change_factors_monthly.csv"),
-        (f"climate_projections/{clim_project}/provenance.json",
-         f"climate_projections/{clim_project}/summary/provenance.json"),
-        (f"climate_projections/{clim_project}/plots/projected_climate_statistics.png",
-         f"climate_projections/{clim_project}/plots/{clim_project}_change_factor_cloud.png"),
+        (
+            f"climate_projections/{clim_project}/change_factors/annual.csv",
+            f"climate_projections/{clim_project}/summary/{clim_project}_change_factors_annual.csv",
+        ),
+        (
+            f"climate_projections/{clim_project}/change_factors/monthly.csv",
+            f"climate_projections/{clim_project}/summary/{clim_project}_change_factors_monthly.csv",
+        ),
+        (
+            f"climate_projections/{clim_project}/provenance.json",
+            f"climate_projections/{clim_project}/summary/provenance.json",
+        ),
+        (
+            f"climate_projections/{clim_project}/plots/projected_climate_statistics.png",
+            f"climate_projections/{clim_project}/plots/{clim_project}_change_factor_cloud.png",
+        ),
         # The eight scalar figures: {precipitation,temperature} x {anomaly,monthly}
         # x {abs,anom} -> {precip,temp} x {annual,monthly} x {absolute,change}.
         # "anomaly" was the ANNUAL view, not the anomaly quantity -- which is the
         # contradiction S8-07 fixed, so the mapping is not name-for-name.
         *[
-            (f"climate_projections/{clim_project}/plots/{old_var}_{old_view}_projections_{old_q}.png",
-             f"climate_projections/{clim_project}/plots/{clim_project}_{new_var}_{new_view}_{new_q}.png")
-            for old_var, new_var in (("precipitation", "precip"), ("temperature", "temp"))
+            (
+                f"climate_projections/{clim_project}/plots/{old_var}_{old_view}_projections_{old_q}.png",
+                f"climate_projections/{clim_project}/plots/{clim_project}_{new_var}_{new_view}_{new_q}.png",
+            )
+            for old_var, new_var in (
+                ("precipitation", "precip"),
+                ("temperature", "temp"),
+            )
             for old_view, new_view in (("anomaly", "annual"), ("monthly", "monthly"))
             for old_q, new_q in (("abs", "absolute"), ("anom", "change"))
         ],
@@ -349,17 +386,27 @@ def build_r07_path_map(
         # prefix rule -- the filename grammar is unchanged, so every key maps
         # one-to-one and a pre-rename reference tree still compares element-wise
         # instead of reporting nine deletions and nine additions.
-        (f"climate_projections/{clim_project}/series/",
-         f"climate_projections/{clim_project}/scalar/"),
+        (
+            f"climate_projections/{clim_project}/series/",
+            f"climate_projections/{clim_project}/scalar/",
+        ),
         # -- B3: only the THREE summary files move; the PNGs stay (commit 9) -
-        (f"climate_projections/{clim_project}/gcm_timeseries.nc",
-         f"climate_projections/{clim_project}/timeseries/gcm_timeseries.nc"),
-        (f"climate_projections/{clim_project}/annual_change_scalar_stats_summary.nc",
-         f"climate_projections/{clim_project}/summary/annual_change_scalar_stats_summary.nc"),
-        (f"climate_projections/{clim_project}/annual_change_scalar_stats_summary.csv",
-         f"climate_projections/{clim_project}/summary/annual_change_scalar_stats_summary.csv"),
-        (f"climate_projections/{clim_project}/annual_change_scalar_stats_summary_mean.csv",
-         f"climate_projections/{clim_project}/summary/annual_change_scalar_stats_summary_mean.csv"),
+        (
+            f"climate_projections/{clim_project}/gcm_timeseries.nc",
+            f"climate_projections/{clim_project}/timeseries/gcm_timeseries.nc",
+        ),
+        (
+            f"climate_projections/{clim_project}/annual_change_scalar_stats_summary.nc",
+            f"climate_projections/{clim_project}/summary/annual_change_scalar_stats_summary.nc",
+        ),
+        (
+            f"climate_projections/{clim_project}/annual_change_scalar_stats_summary.csv",
+            f"climate_projections/{clim_project}/summary/annual_change_scalar_stats_summary.csv",
+        ),
+        (
+            f"climate_projections/{clim_project}/annual_change_scalar_stats_summary_mean.csv",
+            f"climate_projections/{clim_project}/summary/annual_change_scalar_stats_summary_mean.csv",
+        ),
         # -- B7: model_results/ -> indicators/ (commit 11) -------------------
         (f"experiments/{e}/model_results/", f"experiments/{e}/indicators/"),
         # B5 moved the weathergen root down one level. This is a LEAF value
@@ -367,56 +414,91 @@ def build_r07_path_map(
         # a file path -- so it must match the experiment dir EXACTLY. A prefix
         # rule here would swallow the whole experiment subtree; a regex rule
         # uses fullmatch, so it fires on this one value and on no real file.
-        (re.compile(rf"experiments/{re.escape(e)}/"),
-         f"experiments/{e}/weather_generator/"),
+        (
+            re.compile(rf"experiments/{re.escape(e)}/"),
+            f"experiments/{e}/weather_generator/",
+        ),
         # -- B5/B6: the experiment splits into two engine subtrees (commit 11)
         # realization_<r>/ dissolves; the index migrates from the FILENAME into
         # a DIRECTORY for the wflow-side artifacts, so these must be regexes.
-        (re.compile(rf"experiments/{re.escape(e)}/realization_(\d+)/"
-                    rf"inmaps_rlz_\1_cst_(\d+)\.nc"),
-         rf"experiments/{e}/hydrology_runs/rlz_\1/forcing/inmaps_cst_\2.nc"),
-        (re.compile(rf"experiments/{re.escape(e)}/realization_(\d+)/"
-                    rf"weathergen_config_rlz_\1_cst_(\d+)\.yml"),
-         rf"experiments/{e}/weather_generator/_work/"
-         rf"weathergen_config_rlz_\1_cst_\2.yml"),
+        (
+            re.compile(
+                rf"experiments/{re.escape(e)}/realization_(\d+)/"
+                rf"inmaps_rlz_\1_cst_(\d+)\.nc"
+            ),
+            rf"experiments/{e}/hydrology_runs/rlz_\1/forcing/inmaps_cst_\2.nc",
+        ),
+        (
+            re.compile(
+                rf"experiments/{re.escape(e)}/realization_(\d+)/"
+                rf"weathergen_config_rlz_\1_cst_(\d+)\.yml"
+            ),
+            rf"experiments/{e}/weather_generator/_work/"
+            rf"weathergen_config_rlz_\1_cst_\2.yml",
+        ),
         # `(.*)`, not `(.+)`: the same rule has to translate the BARE directory
         # string `experiments/<id>/realization_<r>/`, which is what the
         # per-member weagen configs carry as `imposeClimateChanges.output.path`
         # and which `compare_yaml`'s cross-root leaf normalization feeds through
         # this map. With `(.+)` that leaf maps to itself and reads as a content
         # regression.
-        (re.compile(rf"experiments/{re.escape(e)}/realization_(\d+)/(.*)"),
-         rf"experiments/{e}/weather_generator/output/\2"),
-        (re.compile(rf"experiments/{re.escape(e)}/model_runs/"
-                    rf"wflow_sbm_rlz_(\d+)_cst_(\d+)\.toml"),
-         rf"experiments/{e}/hydrology_runs/rlz_\1/config/cst_\2.toml"),
-        (re.compile(rf"experiments/{re.escape(e)}/model_runs/"
-                    rf"output_rlz_(\d+)_cst_(\d+)\.csv"),
-         rf"experiments/{e}/hydrology_runs/rlz_\1/output/cst_\2.csv"),
-        (re.compile(rf"experiments/{re.escape(e)}/model_runs/"
-                    rf"outstates_rlz_(\d+)_cst_(\d+)\.nc"),
-         rf"experiments/{e}/hydrology_runs/rlz_\1/output/outstates_cst_\2.nc"),
+        (
+            re.compile(rf"experiments/{re.escape(e)}/realization_(\d+)/(.*)"),
+            rf"experiments/{e}/weather_generator/output/\2",
+        ),
+        (
+            re.compile(
+                rf"experiments/{re.escape(e)}/model_runs/"
+                rf"wflow_sbm_rlz_(\d+)_cst_(\d+)\.toml"
+            ),
+            rf"experiments/{e}/hydrology_runs/rlz_\1/config/cst_\2.toml",
+        ),
+        (
+            re.compile(
+                rf"experiments/{re.escape(e)}/model_runs/"
+                rf"output_rlz_(\d+)_cst_(\d+)\.csv"
+            ),
+            rf"experiments/{e}/hydrology_runs/rlz_\1/output/cst_\2.csv",
+        ),
+        (
+            re.compile(
+                rf"experiments/{re.escape(e)}/model_runs/"
+                rf"outstates_rlz_(\d+)_cst_(\d+)\.nc"
+            ),
+            rf"experiments/{e}/hydrology_runs/rlz_\1/output/outstates_cst_\2.nc",
+        ),
         # cst_*.csv is RETAINED under _work/, not deleted -- it is the only
         # record of precip_variance and of monthly structure (B6 note).
-        (f"experiments/{e}/stress_test/",
-         f"experiments/{e}/weather_generator/_work/"),
-        (f"experiments/{e}/weathergen_config.yml",
-         f"experiments/{e}/weather_generator/config/weathergen_config.yml"),
-        (f"experiments/{e}/resampled_dates.csv",
-         f"experiments/{e}/weather_generator/output/resampled_dates.csv"),
-        (f"experiments/{e}/sim_dates.csv",
-         f"experiments/{e}/weather_generator/output/sim_dates.csv"),
+        (f"experiments/{e}/stress_test/", f"experiments/{e}/weather_generator/_work/"),
+        (
+            f"experiments/{e}/weathergen_config.yml",
+            f"experiments/{e}/weather_generator/config/weathergen_config.yml",
+        ),
+        (
+            f"experiments/{e}/resampled_dates.csv",
+            f"experiments/{e}/weather_generator/output/resampled_dates.csv",
+        ),
+        (
+            f"experiments/{e}/sim_dates.csv",
+            f"experiments/{e}/weather_generator/output/sim_dates.csv",
+        ),
     ]
-    for png in ("obs_power_spectra", "warm_annual_precip",
-                "warm_annual_stats", "warm_annual_wavelet"):
-        rules.append((f"experiments/{e}/{png}.png",
-                      f"experiments/{e}/weather_generator/plots/{png}.png"))
+    for png in (
+        "obs_power_spectra",
+        "warm_annual_precip",
+        "warm_annual_stats",
+        "warm_annual_wavelet",
+    ):
+        rules.append(
+            (
+                f"experiments/{e}/{png}.png",
+                f"experiments/{e}/weather_generator/plots/{png}.png",
+            )
+        )
     return rules
 
 
-def build_r07_allowlist(
-    experiment_name: str, dataset_key: str | None
-) -> list[str]:
+def build_r07_allowlist(experiment_name: str, dataset_key: str | None) -> list[str]:
     """EXTRA-by-design relpaths for R07 (migration map §4).
 
     A FULL set per gate invocation, not an increment: R07 retires none of
@@ -457,24 +539,28 @@ def build_r07_merges(
     """
     if not dataset_key:
         return []
-    merges = [(
-        f"climate_historical/{dataset_key}/extract_historical.nc",
-        [
-            "climate_historical/wf1_raw/extract_historical.nc",
+    merges = [
+        (
             f"climate_historical/{dataset_key}/extract_historical.nc",
-        ],
-    )]
+            [
+                "climate_historical/wf1_raw/extract_historical.nc",
+                f"climate_historical/{dataset_key}/extract_historical.nc",
+            ],
+        )
+    ]
     if clim_source in ("chirps", "chirps_global"):
         # The sidecar exists only on this branch, and the two stores name it
         # differently -- the collapse standardises on the clim_source-
         # independent `orography.nc` (repo-1).
-        merges.append((
-            f"climate_historical/{dataset_key}/orography.nc",
-            [
-                "climate_historical/wf1_raw/orography.nc",
-                f"climate_historical/{dataset_key}/{clim_source}_orography.nc",
-            ],
-        ))
+        merges.append(
+            (
+                f"climate_historical/{dataset_key}/orography.nc",
+                [
+                    "climate_historical/wf1_raw/orography.nc",
+                    f"climate_historical/{dataset_key}/{clim_source}_orography.nc",
+                ],
+            )
+        )
     return merges
 
 
@@ -498,6 +584,7 @@ def build_r07_merges(
 # empty the unmapped-path report by construction, since a fall-through and an
 # identity match would then look the same to `apply_path_map_matched`.
 # ---------------------------------------------------------------------------
+
 
 def build_r09_path_map(
     experiment_name: str,
@@ -543,8 +630,10 @@ def build_r09_path_map(
         # only the forcing config is generated -- so the row described an
         # artifact that cannot appear, and the map doc's SECOND named hazard was
         # a hazard about a retired file. Dropped (phase-1 report, G2).
-        ("config/generated/wflow_build_forcing_historical.yml",
-         "models/hydrology/wflow/config/build_historical_forcing.yml"),
+        (
+            "config/generated/wflow_build_forcing_historical.yml",
+            "models/hydrology/wflow/config/build_historical_forcing.yml",
+        ),
         # Wflow's own `log.txt`, which `[logging] path_log` writes beside the
         # TOML. It must precede any `hydrology_runs/rlz_(\d+)/config/(.*)`
         # rule, which would otherwise consume it and route it to `config/`.
@@ -556,63 +645,99 @@ def build_r09_path_map(
         # as a function. The destination therefore keeps the map doc's own
         # `<c>` placeholder verbatim. This never reaches `diff_trees`:
         # `_is_excluded` drops `.log` and `log.txt` before mapping.
-        (re.compile(rf"experiments/{exp}/hydrology_runs/rlz_(\d+)/config/log\.txt"),
-         rf"experiments/{e}/hydrology/wflow/output/rlz_\1_cst_<c>.log"),
-
+        (
+            re.compile(rf"experiments/{exp}/hydrology_runs/rlz_(\d+)/config/log\.txt"),
+            rf"experiments/{e}/hydrology/wflow/output/rlz_\1_cst_<c>.log",
+        ),
         # -- 2. The index relocation: directory -> filename -------------------
-        (re.compile(rf"experiments/{exp}/hydrology_runs/rlz_(\d+)/config/"
-                    rf"cst_(\d+)\.toml"),
-         rf"experiments/{e}/hydrology/wflow/config/rlz_\1_cst_\2.toml"),
-        (re.compile(rf"experiments/{exp}/hydrology_runs/rlz_(\d+)/forcing/"
-                    rf"inmaps_cst_(\d+)\.nc"),
-         rf"experiments/{e}/hydrology/wflow/forcing/inmaps_rlz_\1_cst_\2.nc"),
+        (
+            re.compile(
+                rf"experiments/{exp}/hydrology_runs/rlz_(\d+)/config/"
+                rf"cst_(\d+)\.toml"
+            ),
+            rf"experiments/{e}/hydrology/wflow/config/rlz_\1_cst_\2.toml",
+        ),
+        (
+            re.compile(
+                rf"experiments/{exp}/hydrology_runs/rlz_(\d+)/forcing/"
+                rf"inmaps_cst_(\d+)\.nc"
+            ),
+            rf"experiments/{e}/hydrology/wflow/forcing/inmaps_rlz_\1_cst_\2.nc",
+        ),
         # `outstates_` before the bare output rule: same directory, narrower
         # source pattern.
-        (re.compile(rf"experiments/{exp}/hydrology_runs/rlz_(\d+)/output/"
-                    rf"outstates_cst_(\d+)\.nc"),
-         rf"experiments/{e}/hydrology/wflow/output/outstates_rlz_\1_cst_\2.nc"),
-        (re.compile(rf"experiments/{exp}/hydrology_runs/rlz_(\d+)/output/"
-                    rf"cst_(\d+)\.csv"),
-         rf"experiments/{e}/hydrology/wflow/output/rlz_\1_cst_\2.csv"),
-
+        (
+            re.compile(
+                rf"experiments/{exp}/hydrology_runs/rlz_(\d+)/output/"
+                rf"outstates_cst_(\d+)\.nc"
+            ),
+            rf"experiments/{e}/hydrology/wflow/output/outstates_rlz_\1_cst_\2.nc",
+        ),
+        (
+            re.compile(
+                rf"experiments/{exp}/hydrology_runs/rlz_(\d+)/output/"
+                rf"cst_(\d+)\.csv"
+            ),
+            rf"experiments/{e}/hydrology/wflow/output/rlz_\1_cst_\2.csv",
+        ),
         # -- 3. Rule 3.11's rename, before the `_parts/` identity rows --------
         # `export_wflow_results` -> `derive_wflow_indicators`. Transient parts
         # only; both are merged and deleted every run. Registered at experiment
         # scope (where WF3's parts live) and at project root (the scope the map
         # doc's table writes them at).
-        (f"experiments/{e}/logs/_parts/3.11_export_wflow_results.log",
-         f"experiments/{e}/logs/_parts/3.11_derive_wflow_indicators.log"),
-        (f"experiments/{e}/benchmarks/_parts/3.11_export_wflow_results.tsv",
-         f"experiments/{e}/benchmarks/_parts/3.11_derive_wflow_indicators.tsv"),
-        ("logs/_parts/3.11_export_wflow_results.log",
-         "logs/_parts/3.11_derive_wflow_indicators.log"),
-        ("benchmarks/_parts/3.11_export_wflow_results.tsv",
-         "benchmarks/_parts/3.11_derive_wflow_indicators.tsv"),
-
+        (
+            f"experiments/{e}/logs/_parts/3.11_export_wflow_results.log",
+            f"experiments/{e}/logs/_parts/3.11_derive_wflow_indicators.log",
+        ),
+        (
+            f"experiments/{e}/benchmarks/_parts/3.11_export_wflow_results.tsv",
+            f"experiments/{e}/benchmarks/_parts/3.11_derive_wflow_indicators.tsv",
+        ),
+        (
+            "logs/_parts/3.11_export_wflow_results.log",
+            "logs/_parts/3.11_derive_wflow_indicators.log",
+        ),
+        (
+            "benchmarks/_parts/3.11_export_wflow_results.tsv",
+            "benchmarks/_parts/3.11_derive_wflow_indicators.tsv",
+        ),
         # -- 4. The experiment result surface + its catalog -------------------
         # The only two `rule all` filename renames in the whole map (naming.md
         # §7 rename record). `indicators/RT_*.csv` is NOT migrated -- see
         # `build_r09_deletions`.
-        (f"experiments/{e}/indicators/Qstats.csv",
-         f"experiments/{e}/results/q_indicators.csv"),
-        (f"experiments/{e}/indicators/basin.csv",
-         f"experiments/{e}/results/basin_indicators.csv"),
-        (f"experiments/{e}/data_catalog_climate_experiment.yml",
-         f"experiments/{e}/config/catalogs/data_catalog_climate_experiment.yml"),
-
+        (
+            f"experiments/{e}/indicators/Qstats.csv",
+            f"experiments/{e}/results/q_indicators.csv",
+        ),
+        (
+            f"experiments/{e}/indicators/basin.csv",
+            f"experiments/{e}/results/basin_indicators.csv",
+        ),
+        (
+            f"experiments/{e}/data_catalog_climate_experiment.yml",
+            f"experiments/{e}/config/catalogs/data_catalog_climate_experiment.yml",
+        ),
         # -- 5. weather_generator/ -> climate/weathergenr/ --------------------
         # One prefix per map row's directory. These are RELOCATIONS, not
         # identities, so a prefix cannot be confused with a fall-through.
         # `output/` carries both the generated series and the date tables
         # (two map rows, one destination directory).
-        (f"experiments/{e}/weather_generator/output/",
-         f"experiments/{e}/climate/weathergenr/output/"),
-        (f"experiments/{e}/weather_generator/config/",
-         f"experiments/{e}/climate/weathergenr/config/"),
-        (f"experiments/{e}/weather_generator/_work/",
-         f"experiments/{e}/climate/weathergenr/_work/"),
-        (f"experiments/{e}/weather_generator/plots/",
-         f"experiments/{e}/climate/weathergenr/plots/"),
+        (
+            f"experiments/{e}/weather_generator/output/",
+            f"experiments/{e}/climate/weathergenr/output/",
+        ),
+        (
+            f"experiments/{e}/weather_generator/config/",
+            f"experiments/{e}/climate/weathergenr/config/",
+        ),
+        (
+            f"experiments/{e}/weather_generator/_work/",
+            f"experiments/{e}/climate/weathergenr/_work/",
+        ),
+        (
+            f"experiments/{e}/weather_generator/plots/",
+            f"experiments/{e}/climate/weathergenr/plots/",
+        ),
         # The BARE directory string, registered AFTER the four subdirectory
         # rules so it can only catch what they do not.
         #
@@ -628,21 +753,23 @@ def build_r09_path_map(
         # (phase-2 report F3). A prefix, not a regex: `apply_path_map` matches
         # prefixes on the raw string, so this fires on the bare directory and,
         # harmlessly, on anything else directly beneath it.
-        (f"experiments/{e}/weather_generator/",
-         f"experiments/{e}/climate/weathergenr/"),
+        (
+            f"experiments/{e}/weather_generator/",
+            f"experiments/{e}/climate/weathergenr/",
+        ),
     ]
 
     # -- 6. experiments/<id>/ identity rows, ONE RULE PER MAP ROW -------------
     for same in (
         f"experiments/{e}/.project_consistency_ok",
         f"experiments/{e}/config/snake_config_climate_experiment.yml",
-        f"experiments/{e}/config/catalogs/",   # row: `config/catalogs/*`
+        f"experiments/{e}/config/catalogs/",  # row: `config/catalogs/*`
         # Row added 2026-08-04 by the P1 falsifier's F1c ruling: WF3 emits an
         # experiment-scoped digest bundle that no row and no design-tree line
         # covered. Ruled toward the code under principle P9.
-        f"experiments/{e}/config/runs/",       # row: `config/runs/<workflow>/<digest>/**`
-        f"experiments/{e}/logs/",              # rows: `logs/*` + new `logs/dag/`
-        f"experiments/{e}/benchmarks/",        # row: `benchmarks/*`
+        f"experiments/{e}/config/runs/",  # row: `config/runs/<workflow>/<digest>/**`
+        f"experiments/{e}/logs/",  # rows: `logs/*` + new `logs/dag/`
+        f"experiments/{e}/benchmarks/",  # row: `benchmarks/*`
     ):
         ident.append((same, same))
 
@@ -655,7 +782,7 @@ def build_r09_path_map(
             "wflow_sbm.toml",
             "hydromt.log",
             "hydromt_data.yml",
-            ".model_built",          # sentinel rule
+            ".model_built",  # sentinel rule
             ".outputs_configured",
             # NO ROW for ADR 0004's `.model_final`, deliberately. This list is
             # pre-R09 -> post-R09 RELOCATION, and `.model_final` has no pre-R09
@@ -708,14 +835,22 @@ def build_r09_path_map(
     rules.append(("spatial/geoms/", "data/spatial/geoms/"))
     if dataset_key:
         # Narrower than the generic store rule below, so it is registered first.
-        rules.append((f"climate_historical/{dataset_key}/",
-                      f"data/climate/historical/{dataset_key}/"))
+        rules.append(
+            (
+                f"climate_historical/{dataset_key}/",
+                f"data/climate/historical/{dataset_key}/",
+            )
+        )
     # The store key is RETAINED (map doc, Finding 3): it is a cache key, not
     # multi-window support. The row is keyed by a variable, so the rule is too;
     # this covers extract_historical.nc, store_region.geojson, plots/* and
     # .guard_ok in one go, which is exactly the four rows' shared destination.
-    rules.append((re.compile(r"climate_historical/([^/]+)/(.*)"),
-                  r"data/climate/historical/\1/\2"))
+    rules.append(
+        (
+            re.compile(r"climate_historical/([^/]+)/(.*)"),
+            r"data/climate/historical/\1/\2",
+        )
+    )
     proj = f"data/climate/projections/{cp}"
     rules += [
         (f"climate_projections/{cp}/raw/", f"{proj}/raw/"),
@@ -743,9 +878,9 @@ def build_r09_path_map(
     for same in (
         "config/runs/snake_config_model_creation.yml",
         "config/runs/snake_config_climate_projections.yml",
-        "config/catalogs/",              # row: `config/catalogs/*.yml`
-        "config/templates/",             # row: `config/templates/*.yml`
-        "config/observations/",          # row: `config/observations/*`
+        "config/catalogs/",  # row: `config/catalogs/*.yml`
+        "config/templates/",  # row: `config/templates/*.yml`
+        "config/observations/",  # row: `config/observations/*`
     ):
         ident.append((same, same))
     # Row: `config/runs/invocations/**`, added 2026-08-05 by the R9 follow-up
@@ -956,9 +1091,7 @@ def build_project_tree_rules(
     # Belt and braces on the experiment id: a tree may hold OTHER experiments
     # than the one this config names, and they are legitimate rather than
     # orphaned. Registered last so the named experiment's narrower rows win.
-    rules.append(
-        (re.compile(rf"(experiments/(?!{exp}/)[^/]+/.*)"), r"\1")
-    )
+    rules.append((re.compile(rf"(experiments/(?!{exp}/)[^/]+/.*)"), r"\1"))
     return rules
 
 
@@ -969,8 +1102,12 @@ def build_r09_deletions(experiment_name: str) -> list[re.Pattern]:
     Encoding that as a path-map rule would invent a destination; classifying it
     separately keeps the row covered without polluting the map.
     """
-    return [re.compile(rf"experiments/{re.escape(experiment_name)}/"
-                       rf"indicators/RT_.*\.csv")]
+    return [
+        re.compile(
+            rf"experiments/{re.escape(experiment_name)}/"
+            rf"indicators/RT_.*\.csv"
+        )
+    ]
 
 
 def classify_path_map(
@@ -1002,10 +1139,14 @@ def classify_path_map(
 
 def format_path_map_report(rows: list[tuple[str, str, str]]) -> str:
     """Render `classify_path_map` output: the old->new table, then the counts."""
-    lines = [f"{kind:<8} {old}" + (f"  ->  {new}" if kind == "MOVED" else "")
-             for old, new, kind in rows]
-    counts = {k: sum(1 for _, _, kind in rows if kind == k)
-              for k in ("MOVED", "IDENTITY", "DELETED", "UNMAPPED")}
+    lines = [
+        f"{kind:<8} {old}" + (f"  ->  {new}" if kind == "MOVED" else "")
+        for old, new, kind in rows
+    ]
+    counts = {
+        k: sum(1 for _, _, kind in rows if kind == k)
+        for k in ("MOVED", "IDENTITY", "DELETED", "UNMAPPED")
+    }
     unmapped = counts["UNMAPPED"]
     lines.append("")
     lines.append(
@@ -1049,7 +1190,7 @@ def apply_path_map_matched(
                 return m.expand(new), True
         elif old.endswith("/"):
             if rel.startswith(old):
-                return new + rel[len(old):], True
+                return new + rel[len(old) :], True
         elif rel == old:
             return new, True
     return rel, False
@@ -1082,6 +1223,7 @@ def apply_path_map(
 # ==), and tol>0 uses the same relative rule vectorized over arrays.
 # ---------------------------------------------------------------------------
 
+
 def _values_within_tol(ref: np.ndarray, cur: np.ndarray, tol: float) -> np.ndarray:
     """Element-wise boolean mask of |c-r| / max(|r|,|c|,1e-300) <= tol.
 
@@ -1094,7 +1236,9 @@ def _values_within_tol(ref: np.ndarray, cur: np.ndarray, tol: float) -> np.ndarr
     return np.abs(cur - ref) / denom <= tol
 
 
-def _compare_array(name: str, ref: np.ndarray, cur: np.ndarray, tol: float) -> list[str]:
+def _compare_array(
+    name: str, ref: np.ndarray, cur: np.ndarray, tol: float
+) -> list[str]:
     """Positional (NO realignment) element-wise compare of two arrays."""
     diffs: list[str] = []
     if ref.shape != cur.shape:
@@ -1129,7 +1273,9 @@ def _compare_array(name: str, ref: np.ndarray, cur: np.ndarray, tol: float) -> l
     return diffs
 
 
-def compare_nc(ref_path: str, cur_path: str, tol: float = DEFAULT_TOLERANCE) -> list[str]:
+def compare_nc(
+    ref_path: str, cur_path: str, tol: float = DEFAULT_TOLERANCE
+) -> list[str]:
     """ELEMENT-WISE NetCDF comparator (design §9 ext2-02).
 
     Dims (names+sizes), coordinate variables (labels AND stored order, no
@@ -1145,9 +1291,7 @@ def compare_nc(ref_path: str, cur_path: str, tol: float = DEFAULT_TOLERANCE) -> 
             diffs.append(f"dims {dict(cur.sizes)} vs {dict(ref.sizes)}")
         # Coordinates: identical sets, compared labels+order (no sort/realign)
         if set(ref.coords) != set(cur.coords):
-            diffs.append(
-                f"coord set {sorted(cur.coords)} vs {sorted(ref.coords)}"
-            )
+            diffs.append(f"coord set {sorted(cur.coords)} vs {sorted(ref.coords)}")
         else:
             for name in sorted(ref.coords):
                 diffs += _compare_array(
@@ -1308,6 +1452,7 @@ def _dict_diff(ref, cur, prefix: str) -> list[str]:
 # Copied-config YAML: normalize-then-compare (ext2-01).
 # ---------------------------------------------------------------------------
 
+
 def _normalize_config_paths(doc):
     """Apply COPIED_CONFIG_PATH_MAP to a parsed config, in place, recursively.
 
@@ -1367,6 +1512,7 @@ def compare_copied_config(ref_path: str, cur_path: str) -> list[str]:
 # still FAILs.
 # ---------------------------------------------------------------------------
 
+
 def _root_token_variants(root: str, extra: list[str] | None = None) -> list[str]:
     """Forward-slash string forms under which a tree's own project root can
     appear inside a written value: as given, absolute, plus any RECORDED
@@ -1401,7 +1547,7 @@ def _normalize_path_leaf(
         if s == v:
             return "<PROJECT_ROOT>"
         if s.startswith(v + "/"):
-            rest = s[len(v) + 1:]
+            rest = s[len(v) + 1 :]
             return "<PROJECT_ROOT>/" + apply_path_map(rest, path_map)
     return val
 
@@ -1409,8 +1555,7 @@ def _normalize_path_leaf(
 def _normalize_tree_root_paths(doc, variants, path_map):
     if isinstance(doc, dict):
         return {
-            k: _normalize_tree_root_paths(v, variants, path_map)
-            for k, v in doc.items()
+            k: _normalize_tree_root_paths(v, variants, path_map) for k, v in doc.items()
         }
     if isinstance(doc, list):
         return [_normalize_tree_root_paths(v, variants, path_map) for v in doc]
@@ -1442,7 +1587,8 @@ def compare_yaml(
             return []
     if ref_root is not None and cur_root is not None:
         ref = _normalize_tree_root_paths(
-            ref, _root_token_variants(ref_root, ref_root_tokens), path_map)
+            ref, _root_token_variants(ref_root, ref_root_tokens), path_map
+        )
         cur = _normalize_tree_root_paths(cur, _root_token_variants(cur_root), None)
     if ref != cur:
         return _dict_diff(ref, cur, prefix="")
@@ -1452,6 +1598,7 @@ def compare_yaml(
 # ---------------------------------------------------------------------------
 # Reused check_baseline.py comparators (imported, unchanged).
 # ---------------------------------------------------------------------------
+
 
 def compare_csv(ref_path: str, cur_path: str) -> list[str]:
     return cb.diff_hashed(cb.fingerprint_csv(ref_path), cb.fingerprint_csv(cur_path))
@@ -1468,7 +1615,9 @@ def compare_discharge_csv(ref_path: str, cur_path: str) -> list[str]:
     return [] if report.get("ok") else cb._discharge_report_lines(report)
 
 
-def compare_geojson(ref_path: str, cur_path: str, tol: float = DEFAULT_TOLERANCE) -> list[str]:
+def compare_geojson(
+    ref_path: str, cur_path: str, tol: float = DEFAULT_TOLERANCE
+) -> list[str]:
     """Compare two GeoJSON files by GEOMETRY, not by bytes.
 
     `.geojson` previously fell through to `compare_hashed`, which is
@@ -1535,6 +1684,7 @@ def compare_hashed(ref_path: str, cur_path: str) -> list[str]:
 # Walker + dispatch.
 # ---------------------------------------------------------------------------
 
+
 def _is_excluded(rel: Path) -> bool:
     if any(part in EXCLUDED_DIR_NAMES for part in rel.parts):
         return True
@@ -1566,8 +1716,9 @@ def dispatch(
     if suffix == ".toml":
         return compare_toml(ref_path, cur_path, ref_root, cur_root, path_map)
     if suffix in (".yml", ".yaml"):
-        return compare_yaml(ref_path, cur_path, rel, ref_root, cur_root,
-                            path_map, ref_root_tokens)
+        return compare_yaml(
+            ref_path, cur_path, rel, ref_root, cur_root, path_map, ref_root_tokens
+        )
     if suffix == ".png":
         return compare_png(ref_path, cur_path)
     if suffix == ".csv":
@@ -1647,9 +1798,13 @@ def diff_trees(
         + [f"EXTRA allowed: {k}" for k in raw_extra if k in allow]
     )
     missing = [
-        (k if translated[k].as_posix() == k
-         else f"{translated[k].as_posix()} (expected at {k})")
-        for k in raw_missing if k not in allow
+        (
+            k
+            if translated[k].as_posix() == k
+            else f"{translated[k].as_posix()} (expected at {k})"
+        )
+        for k in raw_missing
+        if k not in allow
     ]
     extra = [k for k in raw_extra if k not in allow]
     failures: list[tuple[str, list[str]]] = []
@@ -1658,13 +1813,19 @@ def diff_trees(
         rel_ref = translated[key]
         rel_cur = cur_keys[key]
         reasons = dispatch(
-            rel_cur, str(ref / rel_ref), str(cur / rel_cur), tol,
-            ref_root=ref_root, cur_root=cur_root, path_map=path_map,
+            rel_cur,
+            str(ref / rel_ref),
+            str(cur / rel_cur),
+            tol,
+            ref_root=ref_root,
+            cur_root=cur_root,
+            path_map=path_map,
             ref_root_tokens=ref_root_tokens,
         )
         if reasons:
-            label = (key if rel_ref.as_posix() == key
-                     else f"{rel_ref.as_posix()} -> {key}")
+            label = (
+                key if rel_ref.as_posix() == key else f"{rel_ref.as_posix()} -> {key}"
+            )
             if key in allow_content_set:
                 # An ADJUDICATED content difference: the reference side is
                 # known-bad for this file and the exception is written down.
@@ -1678,22 +1839,32 @@ def diff_trees(
     n_merge_compared = 0
     for survivor, sources in merges:
         if survivor not in cur_keys:
-            failures.append((f"merge {survivor}",
-                             [f"survivor missing from current tree: {survivor}"]))
+            failures.append(
+                (
+                    f"merge {survivor}",
+                    [f"survivor missing from current tree: {survivor}"],
+                )
+            )
             continue
         for src in sources:
             src_path = Path(src)
             if src_path not in ref_files:
                 failures.append(
-                    (f"merge {survivor} <- {src}",
-                     [f"declared merge source missing from reference tree: {src}"])
+                    (
+                        f"merge {survivor} <- {src}",
+                        [f"declared merge source missing from reference tree: {src}"],
+                    )
                 )
                 continue
             n_merge_compared += 1
             reasons = dispatch(
-                cur_keys[survivor], str(ref / src_path),
-                str(cur / cur_keys[survivor]), tol,
-                ref_root=ref_root, cur_root=cur_root, path_map=path_map,
+                cur_keys[survivor],
+                str(ref / src_path),
+                str(cur / cur_keys[survivor]),
+                tol,
+                ref_root=ref_root,
+                cur_root=cur_root,
+                path_map=path_map,
                 ref_root_tokens=ref_root_tokens,
             )
             if reasons:
@@ -1742,85 +1913,109 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--ref", help="reference (pre-move) project_dir tree")
     ap.add_argument("--cur", help="current (post-move) project_dir tree")
     ap.add_argument(
-        "--check-map", metavar="PATHLIST",
+        "--check-map",
+        metavar="PATHLIST",
         help="path-map falsifier mode: read project-relative paths (one per "
-             "line, '#' comments ignored) and classify each as MOVED / "
-             "IDENTITY / DELETED / UNMAPPED instead of diffing two trees. "
-             "Exit 1 if any path is UNMAPPED. --ref/--cur are not used",
+        "line, '#' comments ignored) and classify each as MOVED / "
+        "IDENTITY / DELETED / UNMAPPED instead of diffing two trees. "
+        "Exit 1 if any path is UNMAPPED. --ref/--cur are not used",
     )
     ap.add_argument(
-        "--tolerance", type=float, default=DEFAULT_TOLERANCE,
+        "--tolerance",
+        type=float,
+        default=DEFAULT_TOLERANCE,
         help="relative tolerance for element-wise numeric compare (0 = exact)",
     )
     ap.add_argument(
-        "--experiment-name", default="experiment",
+        "--experiment-name",
+        default="experiment",
         help="experiment_name for the P3-1 path map (default: experiment)",
     )
     ap.add_argument(
-        "--dataset-key", default=None,
+        "--dataset-key",
+        default=None,
         help="historical-store dataset key, e.g. era5_20000101_20201231 "
-             "(enables the climate_historical/raw_data/ -> <key>/ rule and the "
-             ".guard_ok allowlist entry)",
+        "(enables the climate_historical/raw_data/ -> <key>/ rule and the "
+        ".guard_ok allowlist entry)",
     )
     ap.add_argument(
-        "--no-path-map", action="store_true",
+        "--no-path-map",
+        action="store_true",
         help="disable the P3-1 path map + built-in allowlist (identical-relpath "
-             "keying only, the pre-P3-1 behavior)",
+        "keying only, the pre-P3-1 behavior)",
     )
     ap.add_argument(
-        "--allow", action="append", default=[],
+        "--allow",
+        action="append",
+        default=[],
         help="extra allowlisted MISSING/EXTRA relpath (repeatable; every entry "
-             "must be justified in the migration note)",
+        "must be justified in the migration note)",
     )
     ap.add_argument(
-        "--allow-content", action="append", default=[], metavar="RELPATH",
+        "--allow-content",
+        action="append",
+        default=[],
+        metavar="RELPATH",
         help="adjudicated CONTENT difference (repeatable): the file is still "
-             "compared and the exception is printed in the report, but it does "
-             "not fail the gate. Distinct from --allow, which covers "
-             "MISSING/EXTRA presence. Every entry must be justified in the "
-             "migration note",
+        "compared and the exception is printed in the report, but it does "
+        "not fail the gate. Distinct from --allow, which covers "
+        "MISSING/EXTRA presence. Every entry must be justified in the "
+        "migration note",
     )
     ap.add_argument(
-        "--ref-token", action="append", default=[], metavar="TOKEN",
+        "--ref-token",
+        action="append",
+        default=[],
+        metavar="TOKEN",
         help="project_dir token as RECORDED inside the reference tree's own "
-             "files, when it differs from where the tree is now read from "
-             "(repeatable). R07's fixture rename makes this necessary: the "
-             "pre-R07 reference embeds 'examples/test_local' wherever it is "
-             "held",
+        "files, when it differs from where the tree is now read from "
+        "(repeatable). R07's fixture rename makes this necessary: the "
+        "pre-R07 reference embeds 'examples/test_local' wherever it is "
+        "held",
     )
     ap.add_argument(
-        "--milestone", choices=("p31", "r07", "r09"), default="p31",
+        "--milestone",
+        choices=("p31", "r07", "r09"),
+        default="p31",
         help="which built-in path map + allowlist to use (default: p31)",
     )
     ap.add_argument(
-        "--r09-gap-rules", action="store_true",
+        "--r09-gap-rules",
+        action="store_true",
         help="append the PROPOSED rules for artifacts the R09 migration map "
-             "does not cover (semantic_tree_diff.R09_MAP_GAPS). Default OFF: "
-             "the strict map is what the phase-1 falsifier reports against, "
-             "and amending the map is an owner decision",
+        "does not cover (semantic_tree_diff.R09_MAP_GAPS). Default OFF: "
+        "the strict map is what the phase-1 falsifier reports against, "
+        "and amending the map is an owner decision",
     )
     ap.add_argument(
-        "--clim-project", default="cmip6",
+        "--clim-project",
+        default="cmip6",
         help="clim_project subdir under climate_projections/ (r07 B3 rules)",
     )
     ap.add_argument(
-        "--clim-source", default=None,
+        "--clim-source",
+        default=None,
         help="clim_source, e.g. era5 or chirps; the r07 orography merge is "
-             "declared only on the chirps / chirps_global branch",
+        "declared only on the chirps / chirps_global branch",
     )
     ap.add_argument(
-        "--map", action="append", default=[], metavar="OLD=NEW",
+        "--map",
+        action="append",
+        default=[],
+        metavar="OLD=NEW",
         help="extra path-map rule, appended after the built-in rules "
-             "(repeatable). A trailing '/' on OLD makes it a directory-prefix "
-             "rule; otherwise it is an exact-file rule",
+        "(repeatable). A trailing '/' on OLD makes it a directory-prefix "
+        "rule; otherwise it is an exact-file rule",
     )
     ap.add_argument(
-        "--merge", action="append", default=[],
+        "--merge",
+        action="append",
+        default=[],
         metavar="SURVIVOR=SRC1,SRC2",
         help="declare a many-to-one collapse (repeatable): SURVIVOR is a "
-             "current-tree relpath, SRC* are reference-tree relpaths. The "
-             "survivor is compared against EVERY source and the merge passes "
-             "only if all comparisons pass",
+        "current-tree relpath, SRC* are reference-tree relpaths. The "
+        "survivor is compared against EVERY source and the merge passes "
+        "only if all comparisons pass",
     )
     args = ap.parse_args(argv)
 
@@ -1852,16 +2047,19 @@ def main(argv: list[str] | None = None) -> int:
         path_map += extra_rules
         allowlist = list(args.allow)
     elif args.milestone == "r07":
-        path_map = build_r07_path_map(
-            args.experiment_name, args.dataset_key, args.clim_project
-        ) + extra_rules
+        path_map = (
+            build_r07_path_map(
+                args.experiment_name, args.dataset_key, args.clim_project
+            )
+            + extra_rules
+        )
         allowlist = build_r07_allowlist(args.experiment_name, args.dataset_key)
         allowlist += list(args.allow)
         merges = build_r07_merges(args.dataset_key, args.clim_source) + merges
     else:
-        path_map = build_p31_path_map(
-            args.experiment_name, args.dataset_key
-        ) + extra_rules
+        path_map = (
+            build_p31_path_map(args.experiment_name, args.dataset_key) + extra_rules
+        )
         allowlist = build_p31_allowlist(args.experiment_name, args.dataset_key)
         allowlist += list(args.allow)
     if args.check_map:
@@ -1870,25 +2068,35 @@ def main(argv: list[str] | None = None) -> int:
             for line in Path(args.check_map).read_text(encoding="utf-8").splitlines()
             if line.strip() and not line.lstrip().startswith("#")
         ]
-        absolute = [p for p in paths
-                    if p.startswith("/") or re.match(r"^[A-Za-z]:[\\/]", p)]
+        absolute = [
+            p for p in paths if p.startswith("/") or re.match(r"^[A-Za-z]:[\\/]", p)
+        ]
         if absolute:
             ap.error(
                 f"--check-map expects PROJECT-RELATIVE paths; {len(absolute)} "
                 f"absolute path(s) found, first: {absolute[0]!r}"
             )
-        deleted = (build_r09_deletions(args.experiment_name)
-                   if args.milestone == "r09" and not args.no_path_map else None)
+        deleted = (
+            build_r09_deletions(args.experiment_name)
+            if args.milestone == "r09" and not args.no_path_map
+            else None
+        )
         rows = classify_path_map(paths, path_map, deleted)
         print(format_path_map_report(rows))
         return 0 if not any(kind == "UNMAPPED" for _, _, kind in rows) else 1
 
     if not (args.ref and args.cur):
         ap.error("--ref and --cur are required unless --check-map is given")
-    report = diff_trees(args.ref, args.cur, args.tolerance,
-                        path_map=path_map, allowlist=allowlist, merges=merges,
-                        ref_root_tokens=list(args.ref_token),
-                        allow_content=list(args.allow_content))
+    report = diff_trees(
+        args.ref,
+        args.cur,
+        args.tolerance,
+        path_map=path_map,
+        allowlist=allowlist,
+        merges=merges,
+        ref_root_tokens=list(args.ref_token),
+        allow_content=list(args.allow_content),
+    )
     print(format_report(report))
     return 0 if report["passed"] else 1
 

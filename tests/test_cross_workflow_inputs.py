@@ -81,9 +81,14 @@ def _dry_run(snakefile: str, config_path: Path) -> subprocess.CompletedProcess:
     """
     return subprocess.run(
         [
-            "snakemake", "all", "-c", "1",
-            "-s", str(SNAKEDIR / snakefile),
-            "--configfile", str(config_path),
+            "snakemake",
+            "all",
+            "-c",
+            "1",
+            "-s",
+            str(SNAKEDIR / snakefile),
+            "--configfile",
+            str(config_path),
             "--dry-run",
         ],
         cwd=SNAKEDIR,

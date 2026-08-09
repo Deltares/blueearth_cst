@@ -16,6 +16,7 @@ shapes that actually occur rather than invented ones:
 
 All offline.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -53,9 +54,13 @@ def _statuses(combos):
 # the happy path and the union semantics
 # --------------------------------------------------------------------------
 
+
 def test_fully_published_combination_resolves():
     combos = res.resolve(
-        FULL, clim_project=CP, models=["AAA/M1"], scenarios=["ssp245"],
+        FULL,
+        clim_project=CP,
+        models=["AAA/M1"],
+        scenarios=["ssp245"],
         members=["r1i1p1f1"],
     )
     assert [c.status for c in combos] == [res.RESOLVED]
@@ -68,7 +73,10 @@ def test_requested_members_are_intersected_not_required():
     resolved point and one normal skip -- not an error.
     """
     combos = res.resolve(
-        FULL, clim_project=CP, models=["AAA/M1"], scenarios=["ssp585"],
+        FULL,
+        clim_project=CP,
+        models=["AAA/M1"],
+        scenarios=["ssp585"],
         members=["r1i1p1f1", "r2i1p1f1"],
     )
     got = _statuses(combos)
@@ -79,7 +87,10 @@ def test_requested_members_are_intersected_not_required():
 def test_one_row_per_REQUESTED_combination_not_per_resolved():
     """The skips are the point -- they are what makes composition.csv auditable."""
     combos = res.resolve(
-        FULL, clim_project=CP, models=["AAA/M1"], scenarios=["ssp245", "ssp585"],
+        FULL,
+        clim_project=CP,
+        models=["AAA/M1"],
+        scenarios=["ssp245", "ssp585"],
         members=["r1i1p1f1", "r2i1p1f1"],
     )
     assert len(combos) == 4  # 1 model x 2 scenarios x 2 members
@@ -90,9 +101,13 @@ def test_one_row_per_REQUESTED_combination_not_per_resolved():
 # the normal skips
 # --------------------------------------------------------------------------
 
+
 def test_scenario_not_published_is_a_normal_skip():
     combos = res.resolve(
-        FULL, clim_project=CP, models=["AAA/M1"], scenarios=["ssp370"],
+        FULL,
+        clim_project=CP,
+        models=["AAA/M1"],
+        scenarios=["ssp370"],
         members=["r1i1p1f1"],
     )
     assert [c.status for c in combos] == [res.SCENARIO_NOT_PUBLISHED]
@@ -107,7 +122,10 @@ def test_no_historical_entry_is_its_own_status():
     """
     catalog = _catalog({("BBB/M2", "ssp585"): ["r1i1p1f1"]})
     combos = res.resolve(
-        catalog, clim_project=CP, models=["BBB/M2"], scenarios=["ssp585"],
+        catalog,
+        clim_project=CP,
+        models=["BBB/M2"],
+        scenarios=["ssp585"],
         members=["r1i1p1f1"],
     )
     assert [c.status for c in combos] == [res.NO_HISTORICAL_ENTRY]
@@ -128,7 +146,10 @@ def test_reference_member_unpublished_implements_D7_pairing():
         }
     )
     combos = res.resolve(
-        catalog, clim_project=CP, models=["CCC/M3"], scenarios=["ssp245"],
+        catalog,
+        clim_project=CP,
+        models=["CCC/M3"],
+        scenarios=["ssp245"],
         members=["r1i1p1f2"],
     )
     assert [c.status for c in combos] == [res.REFERENCE_MEMBER_UNPUBLISHED]
@@ -138,11 +159,15 @@ def test_reference_member_unpublished_implements_D7_pairing():
 # the two config errors
 # --------------------------------------------------------------------------
 
+
 def test_unknown_model_is_a_config_error():
     """The only MODEL-level error, justified by C7: absent from the generated
     catalog means absent from the store -- a typo or a stale config."""
     combos = res.resolve(
-        FULL, clim_project=CP, models=["ZZZ/NOPE"], scenarios=["ssp245"],
+        FULL,
+        clim_project=CP,
+        models=["ZZZ/NOPE"],
+        scenarios=["ssp245"],
         members=["r1i1p1f1"],
     )
     assert [c.status for c in combos] == [res.MODEL_NOT_IN_CATALOG]
@@ -153,7 +178,10 @@ def test_unknown_model_is_distinguished_from_a_thin_one():
     """A model present but lacking the scenario must NOT be a config error."""
     catalog = _catalog({("DDD/M4", "historical"): ["r1i1p1f1"]})
     combos = res.resolve(
-        catalog, clim_project=CP, models=["DDD/M4"], scenarios=["ssp245"],
+        catalog,
+        clim_project=CP,
+        models=["DDD/M4"],
+        scenarios=["ssp245"],
         members=["r1i1p1f1"],
     )
     assert [c.status for c in combos] == [res.SCENARIO_NOT_PUBLISHED]
@@ -164,13 +192,17 @@ def test_unknown_model_is_distinguished_from_a_thin_one():
 # job arithmetic
 # --------------------------------------------------------------------------
 
+
 def test_references_are_DISTINCT_across_scenarios():
     """A reference is reduced once however many scenarios share it.
 
     This is why the seed config is 6 + 3 = 9 reduce jobs, not 12.
     """
     combos = res.resolve(
-        FULL, clim_project=CP, models=["AAA/M1"], scenarios=["ssp245", "ssp585"],
+        FULL,
+        clim_project=CP,
+        models=["AAA/M1"],
+        scenarios=["ssp245", "ssp585"],
         members=["r1i1p1f1"],
     )
     assert sum(c.resolved for c in combos) == 2
@@ -179,7 +211,10 @@ def test_references_are_DISTINCT_across_scenarios():
 
 def test_references_split_by_member():
     combos = res.resolve(
-        FULL, clim_project=CP, models=["AAA/M1"], scenarios=["ssp245"],
+        FULL,
+        clim_project=CP,
+        models=["AAA/M1"],
+        scenarios=["ssp245"],
         members=["r1i1p1f1", "r2i1p1f1"],
     )
     assert res.references(combos) == [
@@ -191,6 +226,7 @@ def test_references_split_by_member():
 # --------------------------------------------------------------------------
 # D12 — one crawl
 # --------------------------------------------------------------------------
+
 
 def test_index_from_a_different_crawl_raises():
     """R14: two artifacts from separate crawls could disagree undetectably."""
@@ -207,7 +243,10 @@ def test_matching_crawl_passes_and_missing_index_is_tolerated():
 def test_ambiguous_pin_is_reported():
     """D8/D12: ~6% of pinned stores really do match more than one grid/version."""
     combos = res.resolve(
-        FULL, clim_project=CP, models=["AAA/M1"], scenarios=["ssp245"],
+        FULL,
+        clim_project=CP,
+        models=["AAA/M1"],
+        scenarios=["ssp245"],
         members=["r1i1p1f1"],
     )
     index = {
@@ -226,7 +265,10 @@ def test_ambiguous_pin_is_reported():
 
 def test_unambiguous_pins_report_nothing():
     combos = res.resolve(
-        FULL, clim_project=CP, models=["AAA/M1"], scenarios=["ssp245"],
+        FULL,
+        clim_project=CP,
+        models=["AAA/M1"],
+        scenarios=["ssp245"],
         members=["r1i1p1f1"],
     )
     index = {
@@ -244,6 +286,7 @@ def test_unambiguous_pins_report_nothing():
 # A3 — the certified/best-effort tier
 # --------------------------------------------------------------------------
 
+
 def test_best_effort_variables_are_identified():
     rename = {"pr": "precip", "tas": "temp", "rsds": "kin", "psl": "press_msl"}
     assert res.best_effort_variables(["precip", "temp"], rename) == []
@@ -258,9 +301,13 @@ def test_best_effort_variables_are_identified():
 # the stderr summary
 # --------------------------------------------------------------------------
 
+
 def test_status_report_is_empty_when_everything_resolves():
     combos = res.resolve(
-        FULL, clim_project=CP, models=["AAA/M1"], scenarios=["ssp245"],
+        FULL,
+        clim_project=CP,
+        models=["AAA/M1"],
+        scenarios=["ssp245"],
         members=["r1i1p1f1"],
     )
     assert res.format_status_report(combos) == ""
@@ -268,7 +315,10 @@ def test_status_report_is_empty_when_everything_resolves():
 
 def test_status_report_names_each_skip_and_its_reason():
     combos = res.resolve(
-        FULL, clim_project=CP, models=["AAA/M1"], scenarios=["ssp370"],
+        FULL,
+        clim_project=CP,
+        models=["AAA/M1"],
+        scenarios=["ssp370"],
         members=["r1i1p1f1"],
     )
     report = res.format_status_report(combos)

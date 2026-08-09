@@ -12,6 +12,7 @@ only in ``message`` / ``log`` / ``benchmark``. Same shape, and the same reason,
 as ``tests/test_region_rule.py`` and ``tests/test_climate_store_contract.py`` —
 the third and last member of that family.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -44,6 +45,7 @@ def _rule(basin_overrides=None, **overrides):
 # The helper's shape
 # ---------------------------------------------------------------------------
 
+
 def test_the_six_vector_artifacts_keep_their_paths():
     """The split moves the PRODUCER, never the products (ADR 0003 §8)."""
     rule = _rule()
@@ -52,7 +54,9 @@ def test_the_six_vector_artifacts_keep_their_paths():
     assert rule.outputs["catchments"] == "/proj/data/spatial/geoms/catchments.geojson"
     assert rule.outputs["rivers"] == "/proj/data/spatial/geoms/rivers.geojson"
     assert rule.outputs["locations"] == "/proj/data/spatial/geoms/locations.geojson"
-    assert rule.outputs["location_registry"] == "/proj/data/spatial/location_registry.csv"
+    assert (
+        rule.outputs["location_registry"] == "/proj/data/spatial/location_registry.csv"
+    )
 
 
 def test_the_seventh_output_is_the_seam_intermediate():
@@ -145,9 +149,9 @@ def test_the_deprecated_model_creation_fallback_cannot_reach_the_rule():
 
     shared = parse_spatial_config({"region": {"basin": [0, 0]}})
     assert shared.gauge_points_path is None
-    assert "gauge_points" not in su.spatial_units_rule(
-        "/proj", shared, "cat.yml"
-    ).inputs
+    assert (
+        "gauge_points" not in su.spatial_units_rule("/proj", shared, "cat.yml").inputs
+    )
 
     # Both keys, same path: a staged migration still parses, and the canonical
     # value reaches the shared rule as an input.
@@ -155,20 +159,20 @@ def test_the_deprecated_model_creation_fallback_cannot_reach_the_rule():
         {"region": {"basin": [0, 0]}, "gauge_points": "C:/data/legacy.csv"},
         {"output_locations": "C:/data/legacy.csv"},
     )
-    assert "gauge_points" in su.spatial_units_rule(
-        "/proj", migrating, "cat.yml"
-    ).inputs
+    assert "gauge_points" in su.spatial_units_rule("/proj", migrating, "cat.yml").inputs
 
 
 def test_overrides_are_carried_through():
-    rule = _rule(basin_overrides={
-        "hydrography": "merit_hydro_1k",
-        "resolution": 0.05,
-        "river_uparea_km2": 50.0,
-        "gauge_snap_tolerance_m": 2500.0,
-        "automatic_subbasins": {"max_per_basin": 7},
-        "spatial_sources": {"rivers": "my_rivers"},
-    })
+    rule = _rule(
+        basin_overrides={
+            "hydrography": "merit_hydro_1k",
+            "resolution": 0.05,
+            "river_uparea_km2": 50.0,
+            "gauge_snap_tolerance_m": 2500.0,
+            "automatic_subbasins": {"max_per_basin": 7},
+            "spatial_sources": {"rivers": "my_rivers"},
+        }
+    )
     assert rule.params["hydrography"] == "merit_hydro_1k"
     assert rule.params["resolution"] == 0.05
     assert rule.params["river_uparea_km2"] == 50.0
@@ -203,8 +207,6 @@ def test_shared_does_not_import_spatial():
             imported.add(node.module)
     offenders = {name for name in imported if name.startswith("blueearth_cst.spatial")}
     assert not offenders, offenders
-
-
 
 
 # ---------------------------------------------------------------------------

@@ -54,12 +54,12 @@ SENTINEL_OWNER = "add_climate_forcing"
 #: it granted now belongs to the rule that absorbed it. `add_climate_forcing` was already
 #: listed, so the merge removes an entry rather than moving one.
 MODEL_ROOT_WRITERS = (
-    "build_wflow_model",             # 1.03 creates staticmaps.nc + the toml
-    "add_reservoirs_lakes_glaciers", # 1.04 mod.write()/mod.close()
-    "declare_wflow_outputs",        # 1.05 mod.write()/mod.close()
-    "add_climate_forcing",                   # 1.08 hydromt update -- rewrites all of it,
-                                     #      and since R10-1 also writes the
-                                     #      forcing yml 1.07 used to hand it
+    "build_wflow_model",  # 1.03 creates staticmaps.nc + the toml
+    "add_reservoirs_lakes_glaciers",  # 1.04 mod.write()/mod.close()
+    "declare_wflow_outputs",  # 1.05 mod.write()/mod.close()
+    "add_climate_forcing",  # 1.08 hydromt update -- rewrites all of it,
+    #      and since R10-1 also writes the
+    #      forcing yml 1.07 used to hand it
 )
 
 #: `rule all` names targets rather than reading them.
@@ -93,7 +93,7 @@ def _rule_bodies() -> dict[str, str]:
         if not m:
             continue
         body: list[str] = []
-        for candidate in lines[i + 1:]:
+        for candidate in lines[i + 1 :]:
             if candidate.strip() and not candidate[:1].isspace():
                 break
             body.append(candidate)
@@ -104,7 +104,8 @@ def _rule_bodies() -> dict[str, str]:
 BODIES = _rule_bodies()
 #: Rules whose body references the model root at all.
 TOUCHERS = sorted(
-    name for name, body in BODIES.items()
+    name
+    for name, body in BODIES.items()
     if "basin_dir" in body and name not in NOT_A_READER
 )
 READERS = [name for name in TOUCHERS if name not in MODEL_ROOT_WRITERS]
@@ -129,7 +130,8 @@ def test_the_sentinel_is_owned_by_exactly_one_rule():
     it -- this test says who owns it today, it cannot say who SHOULD.
     """
     owners = [
-        name for name, body in BODIES.items()
+        name
+        for name, body in BODIES.items()
         if re.search(rf"touch\(f?\"\{{basin_dir\}}/{re.escape(SENTINEL)}\"\)", body)
     ]
     assert owners == [SENTINEL_OWNER], (

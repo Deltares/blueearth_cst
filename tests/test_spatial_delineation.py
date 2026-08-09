@@ -43,7 +43,9 @@ def test_parent_outlet_and_downstream_steps_follow_flow_network():
     outlet = find_parent_outlet(flwdir, mask, area)
 
     assert outlet == np.ravel_multi_index((4, 4), flwdir.shape)
-    assert downstream_steps(flwdir, np.ravel_multi_index((0, 0), flwdir.shape), outlet) > 0
+    assert (
+        downstream_steps(flwdir, np.ravel_multi_index((0, 0), flwdir.shape), outlet) > 0
+    )
 
 
 def test_incremental_partition_and_full_catchments_have_distinct_semantics():

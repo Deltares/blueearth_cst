@@ -5,6 +5,7 @@ pairs — NO Snakemake, no rerun-triggers (that is gate 2b,
 ``test_guard_invalidation.py``). Design: dev/milestones/p31/experiment-structure-design.md
 §7 gate 2, §3b.
 """
+
 from __future__ import annotations
 
 import copy
@@ -109,8 +110,12 @@ def test_d_flat_vs_binned_paths_pass(tmp_path):
     live = copy.deepcopy(_BASE_CFG)
     live["project"]["data_sources"] = "config\\deltares_data.yml"
     live["project"]["data_sources_climate"] = "config\\cmip6_data.yml"
-    live["workflows"]["model_creation"]["model_build_config"] = "config\\wflow_build_model.yml"
-    live["workflows"]["model_creation"]["waterbodies_config"] = "config\\wflow_update_waterbodies.yml"
+    live["workflows"]["model_creation"]["model_build_config"] = (
+        "config\\wflow_build_model.yml"
+    )
+    live["workflows"]["model_creation"]["waterbodies_config"] = (
+        "config\\wflow_update_waterbodies.yml"
+    )
 
     diffs = compare_project_consistency(live, wf1, wf2_snapshot_path=None)
     assert diffs == []
@@ -120,8 +125,11 @@ def test_e_missing_wf1_snapshot_fails_with_run_first_message(tmp_path):
     missing = tmp_path / "does_not_exist.yml"
     diffs = compare_project_consistency(copy.deepcopy(_BASE_CFG), missing)
     assert diffs
-    assert any("run Snakefile_model_creation first" in d.lower() or
-               "run snakefile_model_creation first" in d.lower() for d in diffs)
+    assert any(
+        "run Snakefile_model_creation first" in d.lower()
+        or "run snakefile_model_creation first" in d.lower()
+        for d in diffs
+    )
 
 
 def test_f_mutated_historical_window_passes_not_guarded(snapshots):

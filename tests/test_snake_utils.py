@@ -255,8 +255,7 @@ def test_target_banner_relativizes_against_project_dir(monkeypatch):
         "C:/TESTS/CST/gabonx",
     )
     assert out == (
-        "2.00  all  [C:/TESTS/CST/gabonx]\n"
-        "    climate_projections/cmip6/summary/x.csv"
+        "2.00  all  [C:/TESTS/CST/gabonx]\n    climate_projections/cmip6/summary/x.csv"
     )
 
 
@@ -266,9 +265,7 @@ def test_target_banner_relativizes_a_native_separator_root(monkeypatch):
 
     monkeypatch.setattr(sys, "stderr", io.StringIO())
     monkeypatch.delenv("NO_COLOR", raising=False)
-    out = target_banner(
-        "1.00", "all", ["proj/logs/wf1.log"], os.path.join("proj")
-    )
+    out = target_banner("1.00", "all", ["proj/logs/wf1.log"], os.path.join("proj"))
     assert out.endswith("    logs/wf1.log")
 
 
@@ -278,9 +275,7 @@ def test_target_banner_leaves_a_path_outside_the_project_absolute(monkeypatch):
 
     monkeypatch.setattr(sys, "stderr", io.StringIO())
     monkeypatch.delenv("NO_COLOR", raising=False)
-    out = target_banner(
-        "2.00", "all", ["D:/data/catalog.yml"], "C:/TESTS/CST/gabonx"
-    )
+    out = target_banner("2.00", "all", ["D:/data/catalog.yml"], "C:/TESTS/CST/gabonx")
     assert "    D:/data/catalog.yml" in out
 
 
@@ -367,7 +362,9 @@ def test_tee_to_log_captures_preexisting_console_logging(tmp_path):
     lg.propagate = False  # isolate: only our handler emits, so no double-count
     handler = logging.StreamHandler(sys.stdout)  # bound to the current console
     handler.setFormatter(
-        logging.Formatter("%(asctime)s - %(name)s - %(module)s - %(levelname)s - %(message)s")
+        logging.Formatter(
+            "%(asctime)s - %(name)s - %(module)s - %(levelname)s - %(message)s"
+        )
     )
     lg.addHandler(handler)
     log = tmp_path / "rule.log"
@@ -378,7 +375,9 @@ def test_tee_to_log_captures_preexisting_console_logging(tmp_path):
         lg.removeHandler(handler)
     body = log.read_text(encoding="utf-8")
     # compacted row present exactly once, and the full hydromt timestamp is gone
-    assert len(re.findall(r"\d{2}:\d{2}:\d{2} - \w+ - INFO - built model grid", body)) == 1
+    assert (
+        len(re.findall(r"\d{2}:\d{2}:\d{2} - \w+ - INFO - built model grid", body)) == 1
+    )
     assert not re.search(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}", body)
 
 
@@ -386,9 +385,7 @@ def test_tee_to_log_compacts_hydromt_format(tmp_path):
     log = tmp_path / "rule.log"
     with tee_to_log(log):
         # a hydromt-format record (as hydromt's Python API emits) and a plain line
-        print(
-            "2026-07-21 18:03:38,474 - hydromt.model.model - model - INFO - built"
-        )
+        print("2026-07-21 18:03:38,474 - hydromt.model.model - model - INFO - built")
         print("plain progress line")
     text = log.read_text(encoding="utf-8")
     # the record row is exactly the compacted form: HH:MM:SS, no date/ms/name
@@ -436,7 +433,10 @@ def test_tee_to_log_reraises_and_still_restores(tmp_path):
         ("\r[## ] 10%\r[####] 20%", "[####] 20%"),  # keep last redraw
         # dask ends a redrawn line with a bare CR before the newline; the empty
         # trailing segment must be dropped, not kept (else the bar blanks out).
-        ("\r[#] 0%\r[####] 100% Completed | 7.08 s\r", "[####] 100% Completed | 7.08 s"),
+        (
+            "\r[#] 0%\r[####] 100% Completed | 7.08 s\r",
+            "[####] 100% Completed | 7.08 s",
+        ),
         ("\r", ""),  # only a bare CR -> nothing visible
     ],
 )
@@ -558,6 +558,7 @@ def test_tee_to_log_heartbeat_goes_to_console_not_log(tmp_path, capsys):
 # been exercised. These are the replacement.
 # ---------------------------------------------------------------------------
 
+
 def test_warn_in_repo_project_dir_warns(tmp_path):
     repo = tmp_path / "repo"
     (repo / "scratch_run").mkdir(parents=True)
@@ -573,9 +574,7 @@ def test_warn_exempt_test_case_is_silent(tmp_path):
     (repo / "test_case" / "test_local").mkdir(parents=True)
     with warnings.catch_warnings():
         warnings.simplefilter("error")  # any warning becomes a failure
-        fired = su.warn_if_project_dir_in_repo(
-            repo / "test_case" / "test_local", repo
-        )
+        fired = su.warn_if_project_dir_in_repo(repo / "test_case" / "test_local", repo)
     assert fired is False
 
 
@@ -727,10 +726,12 @@ def test_climate_store_rule_rejects_a_non_mapping_window():
 def test_climate_store_rule_rejects_a_sub_day_window():
     """The day-resolution store key cannot represent a sub-day window."""
     with pytest.raises(ValueError, match="time-of-day"):
-        _spec(historical_window={
-            "starttime": "2000-01-01T06:00:00",
-            "endtime": "2020-12-31T00:00:00",
-        })
+        _spec(
+            historical_window={
+                "starttime": "2000-01-01T06:00:00",
+                "endtime": "2020-12-31T00:00:00",
+            }
+        )
 
 
 def test_climate_store_rule_is_frozen():
@@ -858,7 +859,9 @@ def test_the_log_pointer_is_keyed_the_same_way_as_the_other_two():
     """
     src = (
         Path(__file__).resolve().parents[1]
-        / "blueearth_cst" / "experiment" / "downscale_climate_forcing.py"
+        / "blueearth_cst"
+        / "experiment"
+        / "downscale_climate_forcing.py"
     ).read_text(encoding="utf-8")
     assert '"logging.path_log": f"{out_prefix}{run_name}.log"' in src
     # Comments legitimately NAME the wflow default while explaining why it is

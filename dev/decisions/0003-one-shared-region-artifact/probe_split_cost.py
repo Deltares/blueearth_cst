@@ -142,7 +142,9 @@ def main() -> None:
     added_unsplit = added_by_split + avoided
 
     print(f"\n  {'-' * 52}")
-    print(f"  already paid by WF2/WF3 today   {already_paid:8.2f} s   (delineate_region)")
+    print(
+        f"  already paid by WF2/WF3 today   {already_paid:8.2f} s   (delineate_region)"
+    )
     print(f"  §8 ADDS to WF2/WF3              {added_by_split:8.2f} s")
     print(f"  unsplit would add instead       {added_unsplit:8.2f} s")
     print(

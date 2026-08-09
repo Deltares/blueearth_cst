@@ -4,6 +4,7 @@ Renders a historical-climate window to the dataset-store key component
 YYYYMMDD_YYYYMMDD (design §4/§4c/§4d), enforcing the day-resolution invariant:
 a nonzero time-of-day fails loud rather than colliding onto a shared day key.
 """
+
 from __future__ import annotations
 
 
@@ -52,7 +53,9 @@ def test_nonzero_time_of_day_raises(start, end):
         slugify_window(start, end)
 
 
-@pytest.mark.parametrize("start,end", [("not-a-date", "2020-12-31"), ("2020-13-40", "2020-12-31")])
+@pytest.mark.parametrize(
+    "start,end", [("not-a-date", "2020-12-31"), ("2020-13-40", "2020-12-31")]
+)
 def test_unparseable_date_raises(start, end):
     with pytest.raises(ValueError):
         slugify_window(start, end)

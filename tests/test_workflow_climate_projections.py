@@ -78,9 +78,7 @@ def test_climate_projections_end_to_end():
     if not exists(region):
         pytest.skip(f"missing {region}; run the model-creation workflow first")
     if not _gcs_reachable():
-        pytest.skip(
-            "Google Cloud Storage (storage.googleapis.com:443) not reachable"
-        )
+        pytest.skip("Google Cloud Storage (storage.googleapis.com:443) not reachable")
 
     os.chdir(SNAKEDIR)
     cmd = (

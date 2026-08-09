@@ -38,9 +38,7 @@ def _source_dataset(size: int = 6) -> tuple[xr.Dataset, gpd.GeoDataFrame]:
     source.raster.set_crs(3857)
     source["flwdir"].raster.set_nodata(247)
     source["elevtn"].raster.set_nodata(-9999.0)
-    region = gpd.GeoDataFrame(
-        geometry=[box(0, 0, size * 1000, size * 1000)], crs=3857
-    )
+    region = gpd.GeoDataFrame(geometry=[box(0, 0, size * 1000, size * 1000)], crs=3857)
     return source, region
 
 
@@ -93,9 +91,7 @@ def test_non_integer_upscale_ratio_is_rejected():
 def test_analysis_grid_trims_inactive_alignment_border():
     """Grid alignment cannot retain an empty row or column around the basin."""
     source, _ = _source_dataset()
-    region = gpd.GeoDataFrame(
-        geometry=[box(1000, 1000, 6000, 6000)], crs=3857
-    )
+    region = gpd.GeoDataFrame(geometry=[box(1000, 1000, 6000, 6000)], crs=3857)
 
     result, flow = prepare_hydrography(source, region, 1000, 2.0)
 

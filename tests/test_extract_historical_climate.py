@@ -5,6 +5,7 @@ configuration logic (driver options, variable lists, clim_source
 branching) and skip the deeper reprojection paths. The truncation
 warning xfail captures the R3 followup bug from dev/tasks/.
 """
+
 from __future__ import annotations
 
 import types
@@ -15,6 +16,7 @@ import pytest
 
 
 # --- Stubs for heavy deps (set up BEFORE importing the source module) ---
+
 
 class _FakeRasterAccessor:
     """Mimics ds.raster on an xarray-like dataset."""
@@ -53,7 +55,8 @@ class _FakeDataset:
         n = time_size or 100
         self.time = types.SimpleNamespace(
             size=n,
-            values=np.datetime64("1980-01-01") + np.arange(n) * np.timedelta64(365, "D"),
+            values=np.datetime64("1980-01-01")
+            + np.arange(n) * np.timedelta64(365, "D"),
         )
         self._tonetcdf_calls = []
         # ADR 0003: the producer stamps the extent provenance on the extraction
@@ -91,6 +94,7 @@ class _FakeDataset:
         class _Delayed:
             def compute(self_inner):
                 return None
+
         return _Delayed()
 
 
@@ -264,7 +268,9 @@ def test_era5_path_patches_driver_options_chunks_auto(tmp_path, fake_era5_catalo
     assert patched["driver"]["options"]["chunks"] == "auto"
 
 
-def test_era5_path_normalizes_string_driver_to_dict(tmp_path, fake_era5_string_driver_catalog):
+def test_era5_path_normalizes_string_driver_to_dict(
+    tmp_path, fake_era5_string_driver_catalog
+):
     """When the source's 'driver' is a bare string, the function must wrap it
     in {'name': <str>} before adding options.chunks. Regression for hydromt
     1.x catalog format support."""
@@ -287,7 +293,9 @@ def test_era5_path_normalizes_string_driver_to_dict(tmp_path, fake_era5_string_d
     assert patched["driver"]["options"]["chunks"] == "auto"
 
 
-def test_chirps_global_branch_requests_precip_only_from_chirps(tmp_path, fake_chirps_catalog):
+def test_chirps_global_branch_requests_precip_only_from_chirps(
+    tmp_path, fake_chirps_catalog
+):
     region = tmp_path / "region.geojson"
     region.write_text("{}")
     out_nc = tmp_path / "out.nc"
@@ -334,7 +342,8 @@ def test_starttime_and_endtime_passed_to_get_rasterdataset(tmp_path, fake_era5_c
 
     calls = _last_catalog().get_rasterdataset_calls
     assert calls[0]["time_range"] == (
-        "1995-06-15T00:00:00", "2005-06-15T00:00:00",
+        "1995-06-15T00:00:00",
+        "2005-06-15T00:00:00",
     )
 
 
@@ -383,6 +392,7 @@ def test_warns_when_extracted_window_is_shorter_than_requested(
 # tests/test_validate_historical_window.py; these cover what the staged source
 # ACTUALLY delivers, which is knowable only here.
 
+
 def _run_with_span(monkeypatch, tmp_path, time_size, catalog_cls):
     """Drive prep_historical_climate against a fake catalog of ``time_size``
     YEARLY steps, returning the warnings it raised."""
@@ -390,7 +400,9 @@ def _run_with_span(monkeypatch, tmp_path, time_size, catalog_cls):
     class _SpanDataCatalog(catalog_cls):
         def get_rasterdataset(self, source, **kwargs):
             self.get_rasterdataset_calls.append({"source": source, **kwargs})
-            return _FakeDataset(kwargs.get("variables", ["precip"]), time_size=time_size)
+            return _FakeDataset(
+                kwargs.get("variables", ["precip"]), time_size=time_size
+            )
 
     monkeypatch.setattr(ehc.hydromt, "DataCatalog", _SpanDataCatalog)
     region = tmp_path / "region.geojson"

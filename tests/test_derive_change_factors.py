@@ -125,8 +125,13 @@ def test_the_csv_is_a_projection_of_the_wider_record(tmp_path):
     for field in ("institution", "source_id", "dataset", "catalog_crawled_on"):
         assert field in COMPOSITION_FIELDS
     written = {name for name, _ in COMPOSITION_CSV_COLUMNS}
-    for dropped in ("institution", "dataset", "catalog_crawled_on",
-                    "reference_window_nominal", "reference_window_effective"):
+    for dropped in (
+        "institution",
+        "dataset",
+        "catalog_crawled_on",
+        "reference_window_nominal",
+        "reference_window_effective",
+    ):
         assert dropped not in written
 
 
@@ -146,6 +151,5 @@ def test_a_skip_row_stays_empty_in_the_projected_csv(tmp_path):
         rows = list(csv.DictReader(fh))
     skip = rows[1]
     assert skip["status"] == "scenario_not_published"
-    for column in ("series_key", "reference_series_key", "tier",
-                   "n_reference_years"):
+    for column in ("series_key", "reference_series_key", "tier", "n_reference_years"):
         assert skip[column] == ""

@@ -20,6 +20,7 @@
 Source of record: ``dev/milestones/p32b/interchange-contracts-design.md`` §5.5 and the two
 seam docs ``dev/reference/contracts/*-seam.md``.
 """
+
 import os
 from os.path import dirname, join, realpath
 
@@ -376,12 +377,15 @@ def test_hm5_synthetic_fail():
     assert ic.validate_hm5(df) != []
 
 
-def _hm7_row(metric, rlz, location="101", temp=0.0, precip=0.0, value=1.0,
-             st_id="0"):
+def _hm7_row(metric, rlz, location="101", temp=0.0, precip=0.0, value=1.0, st_id="0"):
     return {
-        "metric": metric, "st_id": st_id,
-        "temp_change": temp, "precip_change": precip,
-        "realization_id": rlz, "location": location, "value": value,
+        "metric": metric,
+        "st_id": st_id,
+        "temp_change": temp,
+        "precip_change": precip,
+        "realization_id": rlz,
+        "location": location,
+        "value": value,
     }
 
 
@@ -547,7 +551,7 @@ def test_hm7_reports_a_declared_member_that_produced_no_rows():
     warning, and this validator green. Every check above reads rows that exist,
     so nothing could see a member that produced none.
     """
-    tables = _hm7_good()                       # every row carries st_id "0"
+    tables = _hm7_good()  # every row carries st_id "0"
     design = _design(rows=(("0", 0.0, 0.0), ("1", 0.0, -30.0)))
     diffs = ic.validate_hm7(tables, rlz_num=2, design=design)
     assert diffs and "produced NO rows" in diffs[0]
@@ -559,8 +563,7 @@ def test_hm7_reports_a_declared_member_that_produced_no_rows():
 def test_hm7_accepts_a_design_table_every_member_of_which_produced_rows():
     """The complement: full coverage is silent, so the check cannot be a
     permanent red that everyone learns to ignore."""
-    rows = [_hm7_row("q_annual_mean", r, st_id=s)
-            for s in ("0", "1") for r in (1, 2)]
+    rows = [_hm7_row("q_annual_mean", r, st_id=s) for s in ("0", "1") for r in (1, 2)]
     rows += [_hm7_row("q_return_level_10yr_max", 0, st_id=s) for s in ("0", "1")]
     tables = {"q": pd.DataFrame(rows)}
     design = _design(rows=(("0", 0.0, 0.0), ("1", 0.0, 0.0)))
@@ -571,8 +574,14 @@ def test_hm7_sorts_missing_st_ids_numerically_and_survives_non_numeric():
     """st_id is zero-padded in filenames and bare in the table, and a project
     may yet carry a non-numeric one. Neither may make the report raise."""
     tables = _hm7_good()
-    design = _design(rows=(("0", 0.0, 0.0), ("2", 0.0, 0.0),
-                           ("10", 0.0, 0.0), ("baseline", 0.0, 0.0)))
+    design = _design(
+        rows=(
+            ("0", 0.0, 0.0),
+            ("2", 0.0, 0.0),
+            ("10", 0.0, 0.0),
+            ("baseline", 0.0, 0.0),
+        )
+    )
     diffs = ic.validate_hm7(tables, rlz_num=2, design=design)
     assert diffs
     # numeric before lexical, and 2 before 10 -- not string order
@@ -658,9 +667,9 @@ def test_wg4_crs_category_absent_is_ok():
 @pytest.mark.parametrize(
     "attrs",
     [
-        {"crs": 3857},                          # contradictory crs
-        {"category": "hydro"},                   # contradictory category
-        {"crs": 4326, "category": "hydro"},      # one right, one wrong
+        {"crs": 3857},  # contradictory crs
+        {"category": "hydro"},  # contradictory category
+        {"crs": 4326, "category": "hydro"},  # one right, one wrong
     ],
 )
 def test_wg4_contradictory_crs_category_still_fails(attrs):
@@ -730,10 +739,12 @@ def test_wg1_integration():
 
 @pytest.mark.skipif(not _fixture_present(), reason=_FIXTURE_ABSENT)
 def test_wg2_integration():
-    df = pd.read_csv(_member_artifact(
-        join(_WG_DIR, "_work", "st_1.csv"),
-        join(_WG_DIR, "_work", "cst_1.csv"),
-    ))
+    df = pd.read_csv(
+        _member_artifact(
+            join(_WG_DIR, "_work", "st_1.csv"),
+            join(_WG_DIR, "_work", "cst_1.csv"),
+        )
+    )
     assert ic.validate_wg2(df) == []
 
 
@@ -811,10 +822,13 @@ def test_hm4_integration():
     with open(join(_MODEL_DIR, "wflow_sbm.toml"), "rb") as f:
         base = tomllib.load(f)
     assert ic.validate_hm4(base) == []
-    with open(_member_artifact(
-        join(_RUNS_DIR, "config", "rlz_1_st_1.toml"),
-        join(_RUNS_DIR, "config", "rlz_1_cst_1.toml"),
-    ), "rb") as f:
+    with open(
+        _member_artifact(
+            join(_RUNS_DIR, "config", "rlz_1_st_1.toml"),
+            join(_RUNS_DIR, "config", "rlz_1_cst_1.toml"),
+        ),
+        "rb",
+    ) as f:
         per_member = tomllib.load(f)
     assert ic.validate_hm4(per_member) == []
 
@@ -824,10 +838,12 @@ def test_hm5_integration():
     # wf1 output.csv + a wf3 per-member run csv — both persist.
     wf1 = pd.read_csv(join(_MODEL_DIR, "run_default", "output.csv"))
     assert ic.validate_hm5(wf1) == []
-    wf3 = pd.read_csv(_member_artifact(
-        join(_RUNS_DIR, "output", "rlz_1_st_1.csv"),
-        join(_RUNS_DIR, "output", "rlz_1_cst_1.csv"),
-    ))
+    wf3 = pd.read_csv(
+        _member_artifact(
+            join(_RUNS_DIR, "output", "rlz_1_st_1.csv"),
+            join(_RUNS_DIR, "output", "rlz_1_cst_1.csv"),
+        )
+    )
     assert ic.validate_hm5(wf3) == []
 
 
@@ -875,15 +891,20 @@ def _gauge_identity_pairs():
 def test_gauge_identity_integration(rlz, st):
     import tomllib
 
-    with open(_member_artifact(
-        join(_RUNS_DIR, "config", f"rlz_{rlz}_st_{st}.toml"),
-        join(_RUNS_DIR, "config", f"rlz_{rlz}_cst_{st}.toml"),
-    ), "rb") as f:
+    with open(
+        _member_artifact(
+            join(_RUNS_DIR, "config", f"rlz_{rlz}_st_{st}.toml"),
+            join(_RUNS_DIR, "config", f"rlz_{rlz}_cst_{st}.toml"),
+        ),
+        "rb",
+    ) as f:
         toml_cfg = tomllib.load(f)
-    output_rlz = pd.read_csv(_member_artifact(
-        join(_RUNS_DIR, "output", f"rlz_{rlz}_st_{st}.csv"),
-        join(_RUNS_DIR, "output", f"rlz_{rlz}_cst_{st}.csv"),
-    ))
+    output_rlz = pd.read_csv(
+        _member_artifact(
+            join(_RUNS_DIR, "output", f"rlz_{rlz}_st_{st}.csv"),
+            join(_RUNS_DIR, "output", f"rlz_{rlz}_cst_{st}.csv"),
+        )
+    )
     qstats = pd.read_csv(join(_EXP, "results", "q_indicators.csv"))
     # Same stale-fixture condition as test_hm7_integration, and guarded the same
     # narrow way: on the PRE-R11 HEADER, never on the file being absent.

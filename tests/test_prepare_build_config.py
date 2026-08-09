@@ -57,6 +57,7 @@ def test_merge_raises_without_setup_basemaps(tmp_path):
 
 # --- R07 B1: the build/store hydrography cross-check --------------------------
 
+
 def _full_template(path):
     """Template declaring BOTH basin dataset keys, as the shipped one does."""
     path.write_text(

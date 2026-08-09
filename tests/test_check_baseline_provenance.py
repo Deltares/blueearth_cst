@@ -39,6 +39,7 @@ def test_provenance_is_best_effort_outside_a_repository(tmp_path):
 def test_provenance_survives_a_missing_git(monkeypatch, tmp_path):
     def _boom(*a, **k):
         raise OSError("git not found")
+
     monkeypatch.setattr(subprocess, "run", _boom)
     assert cb.git_provenance(tmp_path) is None
 
@@ -56,12 +57,17 @@ def test_format_is_readable_and_flags_dirty():
 
 def _manifest(tmp_path, recorded_by):
     m = tmp_path / "manifest.json"
-    m.write_text(json.dumps({
-        "version": cb.MANIFEST_VERSION,
-        "project_dir": "test_case/test_local",
-        "recorded_by": recorded_by,
-        "targets": {},
-    }), encoding="utf-8")
+    m.write_text(
+        json.dumps(
+            {
+                "version": cb.MANIFEST_VERSION,
+                "project_dir": "test_case/test_local",
+                "recorded_by": recorded_by,
+                "targets": {},
+            }
+        ),
+        encoding="utf-8",
+    )
     return m
 
 
@@ -69,9 +75,12 @@ def _check(manifest, tmp_path):
     """Run `check` against an empty target set so only provenance output
     varies; a manifest with no targets trivially matches."""
     import argparse
+
     args = argparse.Namespace(
-        manifest=manifest, project_dir=str(tmp_path / "proj"),
-        workflow=None, tolerance=0.0,
+        manifest=manifest,
+        project_dir=str(tmp_path / "proj"),
+        workflow=None,
+        tolerance=0.0,
     )
     (tmp_path / "proj").mkdir(exist_ok=True)
     return args
@@ -80,11 +89,14 @@ def _check(manifest, tmp_path):
 def test_check_warns_when_another_branch_recorded_the_manifest(tmp_path, capsys):
     """THE R7-3 SCENARIO, simulated: the manifest was written from a branch
     that is not the one being checked from."""
-    m = _manifest(tmp_path, {
-        "branch": "feat/outputs-figures",
-        "commit": "e917a8e" + "0" * 33,
-        "dirty": False,
-    })
+    m = _manifest(
+        tmp_path,
+        {
+            "branch": "feat/outputs-figures",
+            "commit": "e917a8e" + "0" * 33,
+            "dirty": False,
+        },
+    )
     rc = cb.cmd_check(_check(m, tmp_path))
     out = capsys.readouterr().out
     assert "WARNING" in out
@@ -95,9 +107,14 @@ def test_check_warns_when_another_branch_recorded_the_manifest(tmp_path, capsys)
 
 def test_same_branch_different_commit_is_a_softer_note(tmp_path, capsys):
     cur = cb.git_provenance()
-    m = _manifest(tmp_path, {
-        "branch": cur["branch"], "commit": "f" * 40, "dirty": False,
-    })
+    m = _manifest(
+        tmp_path,
+        {
+            "branch": cur["branch"],
+            "commit": "f" * 40,
+            "dirty": False,
+        },
+    )
     cb.cmd_check(_check(m, tmp_path))
     out = capsys.readouterr().out
     assert "Same branch, different commit" in out

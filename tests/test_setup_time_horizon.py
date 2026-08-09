@@ -5,6 +5,7 @@ for adding forcing to a wflow model; testable surface is the chunksize
 branching by staticmaps size and the precip-source branching (era5/eobs).
 R3 may rename the module; tests pin behavior, not names.
 """
+
 from __future__ import annotations
 
 import types
@@ -131,12 +132,12 @@ def test_chunksize_defaults_to_30_when_wflow_root_is_none(tmp_path):
 @pytest.mark.parametrize(
     "size,expected_chunksize",
     [
-        (2_000_000, 1),     # > 1e6
-        (500_000, 30),      # > 2.5e5
-        (200_000, 100),     # > 1e5
-        (50_000, 365),      # ≤ 1e5
-        (1_000_000, 30),    # boundary: not > 1e6, but > 2.5e5
-        (250_000, 100),     # boundary: not > 2.5e5, but > 1e5
+        (2_000_000, 1),  # > 1e6
+        (500_000, 30),  # > 2.5e5
+        (200_000, 100),  # > 1e5
+        (50_000, 365),  # ≤ 1e5
+        (1_000_000, 30),  # boundary: not > 1e6, but > 2.5e5
+        (250_000, 100),  # boundary: not > 2.5e5, but > 1e5
     ],
 )
 def test_chunksize_branches_by_staticmaps_size(tmp_path, size, expected_chunksize):

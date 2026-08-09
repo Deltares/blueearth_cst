@@ -15,6 +15,7 @@ Everything is hermetic: the fixtures are written by this module, so the suite
 needs no data mirror and no network (the figures are plain matplotlib — no
 cartopy basemap tiles).
 """
+
 from __future__ import annotations
 
 import shutil
@@ -61,9 +62,12 @@ def _orography(xs=None, ys=None, offset: float = 0.0) -> xr.DataArray:
     """
     xs = _XS if xs is None else xs
     ys = _YS if ys is None else ys
-    elev = 200.0 + 300.0 * np.sin(np.linspace(0, np.pi, ys.size))[:, None] * np.cos(
-        np.linspace(0, np.pi, xs.size)
-    )[None, :]
+    elev = (
+        200.0
+        + 300.0
+        * np.sin(np.linspace(0, np.pi, ys.size))[:, None]
+        * np.cos(np.linspace(0, np.pi, xs.size))[None, :]
+    )
     da = xr.DataArray(
         (elev + offset).astype("float32"),
         dims=("y", "x"),
@@ -87,7 +91,9 @@ def _extraction() -> xr.Dataset:
 
     ds = xr.Dataset(
         {
-            "precip": _var(np.clip(4.0 + 3.0 * season[:, None, None] + 2.0 * grid, 0, None)),
+            "precip": _var(
+                np.clip(4.0 + 3.0 * season[:, None, None] + 2.0 * grid, 0, None)
+            ),
             "temp": _var(24.0 + 3.0 * season[:, None, None] + grid),
             "temp_min": _var(20.0 + 3.0 * season[:, None, None] + grid),
             "temp_max": _var(29.0 + 3.0 * season[:, None, None] + grid),
@@ -199,7 +205,9 @@ def modelfree_project(tmp_path):
     # the figure targets to the model-build side would now be a
     # MissingInputException, not a silent dependency.
     absent_template = tmp_path / "absent" / "wflow_build_model.yml"
-    cfg["workflows"]["model_creation"]["model_build_config"] = absent_template.as_posix()
+    cfg["workflows"]["model_creation"]["model_build_config"] = (
+        absent_template.as_posix()
+    )
     cfg["workflows"]["model_creation"]["waterbodies_config"] = (
         tmp_path / "absent" / "wflow_update_waterbodies.yml"
     ).as_posix()

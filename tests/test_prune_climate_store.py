@@ -18,8 +18,9 @@ import prune_climate_store as pcs  # noqa: E402
 ACTIVE = "era5_20000101_20201231"
 
 
-def _config(project_dir, source="era5", start="2000-01-01T00:00:00",
-            end="2020-12-31T00:00:00"):
+def _config(
+    project_dir, source="era5", start="2000-01-01T00:00:00", end="2020-12-31T00:00:00"
+):
     return {
         "project": {"project_dir": str(project_dir).replace("\\", "/")},
         "shared": {
@@ -45,17 +46,24 @@ def _write_config(tmp_path, cfg):
 def test_active_store_key_matches_the_workflow_key():
     """Derived the same way `snake_utils.climate_store_rule` derives it."""
     assert pcs.active_store_key(_config("proj")) == ACTIVE
-    assert pcs.active_store_key(
-        _config("proj", source="chirps", start="1990-01-01T00:00:00",
-                end="2010-01-01T00:00:00")
-    ) == "chirps_19900101_20100101"
+    assert (
+        pcs.active_store_key(
+            _config(
+                "proj",
+                source="chirps",
+                start="1990-01-01T00:00:00",
+                end="2010-01-01T00:00:00",
+            )
+        )
+        == "chirps_19900101_20100101"
+    )
 
 
 def test_a_changed_window_strands_its_predecessor(tmp_path):
     """The failure mode the script exists for (design Finding 3)."""
     proj = tmp_path / "proj"
     _store(proj, ACTIVE)
-    _store(proj, "era5_19900101_20101231")   # the previous window
+    _store(proj, "era5_19900101_20101231")  # the previous window
     orphans = pcs.find_orphans(proj, ACTIVE)
     assert [p.name for p in orphans] == ["era5_19900101_20101231"]
 
@@ -64,8 +72,9 @@ def test_a_changed_source_strands_its_predecessor(tmp_path):
     proj = tmp_path / "proj"
     _store(proj, ACTIVE)
     _store(proj, "chirps_20000101_20201231")
-    assert [p.name for p in pcs.find_orphans(proj, ACTIVE)] == \
-        ["chirps_20000101_20201231"]
+    assert [p.name for p in pcs.find_orphans(proj, ACTIVE)] == [
+        "chirps_20000101_20201231"
+    ]
 
 
 def test_the_active_store_is_never_an_orphan(tmp_path):
@@ -107,9 +116,7 @@ def test_delete_flag_removes_only_the_orphans(tmp_path, capsys):
     assert "deleted 1 store(s)" in capsys.readouterr().out
 
 
-def test_an_absent_active_store_is_reported_not_treated_as_an_orphan(
-    tmp_path, capsys
-):
+def test_an_absent_active_store_is_reported_not_treated_as_an_orphan(tmp_path, capsys):
     """A project whose window just changed has no active store yet; the stale
     one is still the orphan, and the active key is merely noted as pending."""
     proj = tmp_path / "proj"
