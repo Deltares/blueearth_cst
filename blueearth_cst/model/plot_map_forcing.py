@@ -34,6 +34,7 @@ from typing import Optional, Union
 
 from blueearth_cst.climate_analysis.climate_figures import (
     CLIMATE_VARS,
+    load_spatial_overlays,
     plot_climate_figures,
 )
 
@@ -49,6 +50,7 @@ def plot_forcing(
     wflow_root: Union[str, Path],
     plot_dir: Optional[Union[str, Path]] = None,
     gauges_fn: Optional[Union[str, Path]] = None,
+    geoms_dir: Optional[Union[str, Path]] = None,
 ):
     """Write the canonical climate figure set for the wflow forcing.
 
@@ -61,14 +63,16 @@ def plot_forcing(
         ``models/hydrology/wflow/forcing/plots`` so the figures sit beside the
         forcing they describe (R07 B10).
     gauges_fn : str | Path, optional
-        The config's ``output_locations`` PATH. The staticgeoms layer is
-        resolved from the model (``shared.gauges``) rather than derived from
-        this name, and a configured file whose layer cannot be found warns
-        instead of skipping quietly.
+        Retained for the rule's signature; the map overlays no longer come from
+        the model's own gauge layer (see ``geoms_dir``).
+    geoms_dir : str | Path, optional
+        ``data/spatial/geoms/`` — the ENGINE-NEUTRAL vector foundation from rule
+        1.03, and the SAME layers the source-grid maps draw. Both climate map
+        families read it so the two differ only in the raster underneath, which
+        is what makes "what did downscaling change?" answerable by putting the
+        two directories side by side.
     """
     from hydromt_wflow import WflowSbmModel
-
-    from blueearth_cst.shared.gauges import gauges_layer_name
 
     mod = WflowSbmModel(str(wflow_root), mode="r")
     if plot_dir is None:
@@ -76,7 +80,6 @@ def plot_forcing(
 
     forcing = mod.forcing.data
     staticmaps = mod.staticmaps.data
-    geoms = mod.geoms.data
 
     missing = [var for var in CLIMATE_VARS if var not in forcing]
     if missing:
@@ -91,15 +94,12 @@ def plot_forcing(
     inside = staticmaps["subcatchment"] >= 0
     ds = forcing[list(CLIMATE_VARS)].where(inside)
 
-    overlays = {"basins": mod.basins, "rivers": mod.rivers}
-    if "outlets" in geoms:
-        overlays["outlets"] = geoms["outlets"]
-    gauges_layer = gauges_layer_name(geoms, gauges_fn)
-    if gauges_layer is not None:
-        overlays["gauges"] = geoms[gauges_layer]
-
     return plot_climate_figures(
-        ds, plot_dir, "forcing", caveat=_CAVEAT, overlays=overlays
+        ds,
+        plot_dir,
+        "forcing",
+        caveat=_CAVEAT,
+        overlays=load_spatial_overlays(geoms_dir),
     )
 
 
@@ -120,6 +120,7 @@ if __name__ == "__main__":
                 wflow_root=model_dir,
                 plot_dir=f"{model_dir}/forcing/plots",
                 gauges_fn=getattr(sm.input, "output_locations", None),
+                geoms_dir=sm.params.geoms_dir,
             )
     else:
         plot_forcing(
