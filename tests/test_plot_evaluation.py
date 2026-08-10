@@ -30,6 +30,11 @@ from blueearth_cst.shared.plot_evaluation import (
     wettest_and_driest_year,
 )
 
+#: Every test in this module that saves a figure asserts its STRUCTURE — which
+#: sheets exist, what they are named, which panels they carry. None asserts on
+#: the export resolution, and 600 dpi costs seconds per sheet. See the fixture.
+pytestmark = pytest.mark.usefixtures("fast_figure_dpi")
+
 
 def _series(values, start="2001-01-01"):
     time = pd.date_range(start, periods=len(values), freq="D")

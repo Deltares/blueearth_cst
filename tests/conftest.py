@@ -20,6 +20,49 @@ SNAKEDIR = join(TESTDIR, "..")
 config_fn = join(TESTDIR, "snake_config_model_test.yml")
 
 
+#: Screen resolution, for tests that SAVE a figure to assert something about it.
+#: Low enough to be cheap, high enough that a render still exercises the same
+#: draw path; nothing here asserts on pixel counts.
+TEST_FIGURE_DPI = 100
+
+
+@pytest.fixture
+def fast_figure_dpi(monkeypatch):
+    """Write saved figures at screen resolution for the duration of one test.
+
+    A test that asserts a figure's STRUCTURE — which panels exist, what they are
+    called, which files were written — is answered identically at 100 dpi and at
+    the 600 dpi export default, and 600 dpi costs seconds per sheet because the
+    whole figure is rasterised at 4251 px wide. The resolution is a property of
+    the shipped artifact, not of the assertion.
+
+    Patched at EVERY binding site, because the export default is imported into
+    four module namespaces rather than read through one: ``plot_evaluation``
+    reads ``plot_style.RASTER_DPI`` at call time, while ``plot_map``,
+    ``plot_spatial_maps`` and ``climate_figures`` bound their own copies at
+    import. Patching one of them leaves the others at 600 and the test looks
+    like it got faster without having got faster. ``hasattr`` guards the loop so
+    a module that stops importing the name does not turn this into an error.
+
+    Opt in per module with ``pytestmark = pytest.mark.usefixtures(...)``, not
+    autouse: a test that DOES care about the export resolution should get the
+    real one, and an autouse fixture would take it away invisibly.
+
+    Opt in only where it MEASURES faster. ``test_plot_climate_source`` was
+    marked and then unmarked: its slow test costs 10 s in climate preparation,
+    not in rasterisation, and the marker bought nothing. ``climate_figures``
+    stays in the list below regardless — the list is what makes the patch
+    correct wherever it is used, not a record of who uses it.
+    """
+    from blueearth_cst.climate_analysis import climate_figures
+    from blueearth_cst.shared import plot_map, plot_spatial_maps, plot_style
+
+    for module in (plot_style, plot_map, plot_spatial_maps, climate_figures):
+        if hasattr(module, "RASTER_DPI"):
+            monkeypatch.setattr(module, "RASTER_DPI", TEST_FIGURE_DPI)
+    return TEST_FIGURE_DPI
+
+
 def pytest_addoption(parser):
     parser.addoption(
         "--run-integration",
