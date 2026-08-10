@@ -76,14 +76,29 @@ def update_wflow_gauges_outputs(
             raise ValueError(
                 "Wflow gauges_locations IDs disagree with location_registry"
             )
+        # Discharge ONLY. A `P` column used to be appended here unconditionally,
+        # independent of `wflow_outvars`, so a config asking for
+        # `['river discharge']` still got one precipitation column per gauge.
+        #
+        # It carried nothing either. This map takes no `reducer`, so wflow's
+        # default `only` applies and the column is a POINT sample at the gauge's
+        # own grid cell -- i.e. the forcing the model was handed, echoed back
+        # out of `forcing/inmaps_historical.nc`. Measured on a real basin
+        # 2026-08-10: all four gauges reported an identical value every step,
+        # because they share one coarse ERA5 cell, and the four P_ columns were
+        # 4 of the 9 in the file. Nothing reads them -- plot_results.py takes
+        # Q_outlets, the Q gauges variable and the `_basavg` extras, and
+        # export_wflow_results keeps only `Q_` columns.
+        #
+        # Basin-average precipitation is still available, through the designed
+        # route: put `precipitation` in `wflow_outvars` and the extras block
+        # below emits `precipitation_basavg` as a subcatchment MEAN, which is a
+        # derived quantity rather than the input handed back.
         mod.setup_config_output_timeseries(
             mapname="gauges_locations",
             toml_output="csv",
-            header=["Q", "P"],
-            param=[
-                river_q_csdms,
-                WFLOW_VARS["precipitation"],
-            ],
+            header=["Q"],
+            param=[river_q_csdms],
         )
 
     # Basin-average timeseries for any extra outputs (river discharge already
