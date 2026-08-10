@@ -791,7 +791,9 @@ def test_chirps_branch_declares_the_standardised_orography_sidecar(source):
     """R07 standardises on `orography.nc` (was `<clim_source>_orography.nc`)."""
     spec = _spec(clim_source=source)
     assert spec.outputs["oro_nc"] == f"{spec.store_dir}/orography.nc"
-    assert list(spec.outputs) == ["climate_nc", "oro_nc"]
+    # `basin_cells` joined the contract on 2026-08-10 and is source-independent:
+    # every extraction carries the mask, the chirps branch adds orography on top.
+    assert list(spec.outputs) == ["climate_nc", "basin_cells", "oro_nc"]
 
 
 def test_no_orography_output_outside_the_chirps_branch():

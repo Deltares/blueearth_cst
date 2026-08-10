@@ -1229,6 +1229,13 @@ def climate_store_rule(
 
     outputs = {
         "climate_nc": f"{store_dir}/extract_historical.nc",
+        # Which extracted cells the basin TOUCHES. Part of the store contract
+        # rather than a WF3-local artifact: the store is what both workflows
+        # share, and the mask is a property of this extraction's grid, so it is
+        # only derivable where the grid and the region polygon meet. Consumers
+        # (rule 3.11) average over exactly these cells instead of over every
+        # cell the bbox+buffer read happened to include.
+        "basin_cells": f"{store_dir}/basin_cells.csv",
     }
     if clim_source in ("chirps", "chirps_global"):
         # Resolved at parse time from clim_historical, so there are no dynamic

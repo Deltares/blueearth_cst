@@ -36,6 +36,90 @@ from blueearth_cst.shared.snake_utils import (
 )
 from blueearth_cst.spatial.delineate_region import delineate_region, read_region
 
+#: Grid cells kept AROUND the basin bbox when reading a source.
+#:
+#: Two, not one, since 2026-08-10. The store is becoming the forcing source for
+#: rule 1.10 instead of that rule re-reading the global dataset from the
+#: catalog, and hydromt reads precipitation for a model region with
+#: ``buffer=2`` (``hydromt_wflow/wflow_sbm.py:3288``,
+#: ``setup_precip_forcing``). A store built at ``buffer=1`` is one ring short of
+#: what that reader sees, so the regrid onto the model grid would differ at the
+#: basin edge -- silently, and worst on the small basins this toolbox targets.
+#:
+#: The ring is NOT free downstream: weathergenr averages every cell in the store
+#: (``compute_area_averages``, an unweighted mean over ``n_grids``), so widening
+#: alone would dilute the series driving the stress test. That is why the
+#: extraction also writes ``basin_cells.csv`` -- see ``write_basin_cell_mask``.
+BUFFER_CELLS = 2
+
+
+def write_basin_cell_mask(climate_nc, region_gdf, out_csv):
+    """List the store cells the basin TOUCHES, for weathergenr to average over.
+
+    weathergenr resamples on a spatial mean of every cell handed to it
+    (``compute_area_averages``: ``daily_mat / n_grids``, no mask, no weights).
+    The store is a bbox read plus ``BUFFER_CELLS``, so most of those cells can
+    lie outside the basin, and the wider buffer the forcing path needs makes
+    that worse. Measured on gabon_1008: the basin spans 0.80 x 0.53 ERA5 cells,
+    the ``buffer=1`` store held 6, and the basin touches 2 -- so two thirds of
+    the series driving that stress test was neighbouring climate.
+
+    Selection is INTERSECTS, and the reason is the same basin: a
+    centre-in-polygon test picks **zero** cells there, because the basin is
+    smaller than one 0.25-degree cell and contains no cell centre. Centre tests
+    are the obvious implementation and they fail exactly on the small basins CST
+    exists for.
+
+    Every selected cell counts EQUALLY (owner ruling 2026-08-10). No fractional
+    area weighting: the cell either touches the basin or it does not, which
+    avoids area arithmetic entirely and leaves weathergenr's own unweighted mean
+    CORRECT for the subset it is given.
+
+    Writes ``latitude,longitude`` for the kept cells. The consumer matches on
+    those coordinates rather than on index order, so it cannot be silently
+    broken by a change in how either side enumerates the grid.
+    """
+    import xarray as xr
+    from shapely.geometry import box
+
+    with xr.open_dataset(climate_nc) as ds:
+        lats = [float(v) for v in ds["latitude"].values]
+        lons = [float(v) for v in ds["longitude"].values]
+
+    geom = region_gdf.union_all() if hasattr(region_gdf, "union_all") else region_gdf.unary_union
+    half_lat = abs(lats[1] - lats[0]) / 2 if len(lats) > 1 else 0.0
+    half_lon = abs(lons[1] - lons[0]) / 2 if len(lons) > 1 else 0.0
+
+    kept = [
+        (la, lo)
+        for la in lats
+        for lo in lons
+        if geom.intersects(box(lo - half_lon, la - half_lat, lo + half_lon, la + half_lat))
+    ]
+    if not kept:
+        # Unreachable for a region inside its own bbox read, but a store whose
+        # grid degenerated to a single cell has zero half-width above and the
+        # boxes collapse to points. Falling back to the nearest centre keeps the
+        # contract non-empty; an empty list would hand weathergenr no data at
+        # all, twenty rules from anything that could explain it.
+        centre = geom.centroid
+        kept = [
+            min(
+                ((la, lo) for la in lats for lo in lons),
+                key=lambda c: abs(c[0] - centre.y) + abs(c[1] - centre.x),
+            )
+        ]
+
+    frame = pd.DataFrame(kept, columns=["latitude", "longitude"])
+    Path(out_csv).parent.mkdir(parents=True, exist_ok=True)
+    frame.to_csv(out_csv, index=False)
+    log_row(
+        f"Basin touches {len(frame)} of {len(lats) * len(lons)} store cells "
+        f"-> {os.path.basename(str(out_csv))}",
+        module="extract",
+    )
+    return frame
+
 
 def _check_window_coverage(ds, starttime, endtime, clim_source):
     """Check what the extraction ACTUALLY covers against three expectations.
@@ -176,7 +260,7 @@ def prep_historical_climate(
             clim_source,
             bbox=bbox,
             time_range=(starttime, endtime),
-            buffer=1,
+            buffer=BUFFER_CELLS,
             variables=["precip"],
         ).to_dataset()
         # Get clim
@@ -184,7 +268,7 @@ def prep_historical_climate(
             "era5",
             bbox=bbox,
             time_range=(starttime, endtime),
-            buffer=1,
+            buffer=BUFFER_CELLS,
             variables=["temp", "temp_min", "temp_max", "kin", "kout", "press_msl"],
         )
         # Prepare orography data corresponding to chirps from merit hydro DEM
@@ -197,7 +281,7 @@ def prep_historical_climate(
             "merit_hydro",
             bbox=bbox,
             time_range=(starttime, endtime),
-            buffer=1,
+            buffer=BUFFER_CELLS,
             variables=["elevtn"],
         )
         dem = dem.raster.reproject_like(ds, method="average")
@@ -248,7 +332,7 @@ def prep_historical_climate(
             clim_source,
             bbox=bbox,
             time_range=(starttime, endtime),
-            buffer=1,
+            buffer=BUFFER_CELLS,
             variables=[
                 "precip",
                 "temp",
@@ -324,6 +408,13 @@ if __name__ == "__main__":
                 region_sha256=file_sha256(region_fn),
                 region_source=region_fn,
             )
+            # Which of the extracted cells the basin actually touches. Written
+            # HERE rather than derived by the consumer because this is the only
+            # place holding both the grid and the region polygon, and because R
+            # has no geometry library in this env (no sf/terra/sp) -- so a
+            # consumer-side mask would need a new dependency to do what one CSV
+            # answers.
+            write_basin_cell_mask(sm.output.climate_nc, gdf, sm.output.basin_cells)
     else:
         # Standalone demo (no Snakemake). Point the paths and the region at your
         # own project before running; the shape mirrors the rule above.

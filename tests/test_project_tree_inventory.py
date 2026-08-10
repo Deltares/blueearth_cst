@@ -82,6 +82,8 @@ COVERED: dict[str, list[str]] = {
         # ADR 0007: basin_area depicts elevation, so it sits with the data.
         "data/spatial/plots/basin_area.png",
         f"data/climate/historical/{KEY}/extract_historical.nc",
+        # The basin-cell mask that ships with every extraction (2026-08-10).
+        f"data/climate/historical/{KEY}/basin_cells.csv",
         f"data/climate/historical/{KEY}/.guard_ok",
         f"data/climate/historical/{KEY}/plots/source_precip_map.png",
         # A SECOND store key is legitimate: the key is a cache key, so a project
