@@ -110,7 +110,9 @@ COVERED: dict[str, list[str]] = {
         "models/hydrology/wflow/staticgeoms/outlet_index.csv",
         "models/hydrology/wflow/staticgeoms/gauges_locations.geojson",
         "models/hydrology/wflow/run_default/output.csv",
-        "models/hydrology/wflow/run_default/log.txt",
+        # run_default/log.txt is gone: rule 1.14 declares Wflow's own log as a
+        # temp() output, so a successful run leaves none. It survives a FAILED
+        # run, which is why this inventory cannot simply assert its absence.
         "models/hydrology/wflow/run_default/outstate/outstates.nc",
         "models/hydrology/wflow/evaluation/performance_metrics.csv",
         "models/hydrology/wflow/evaluation/plots/hydro_wflow_1.png",

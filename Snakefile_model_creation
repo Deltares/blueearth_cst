@@ -652,7 +652,27 @@ rule run_wflow:
         # has to re-derive.
         model_final = ancient(f"{basin_dir}/.model_final"),
     output:
-        csv_path = f"{basin_dir}/run_default/output.csv"
+        csv_path = f"{basin_dir}/run_default/output.csv",
+        # Wflow's own log, DECLARED so it can be temp()'d away. Wflow has no
+        # switch to disable file logging -- `[logging]` offers only `silent`
+        # (terminal), `loglevel` and `path_log` (where), and the file write is
+        # part of `Wflow.run(tomlpath)` -- so removing it is the only option,
+        # and declaring it beats deleting it in the shell: Snakemake drops a
+        # temp() output on success and KEEPS it when the job fails, which is
+        # the only run whose log anyone reads.
+        #
+        # Safe to discard here because it is a duplicate: the built TOML sets
+        # `loglevel = "info"`, at which Wflow sends the same records to the
+        # terminal and the file, and run_logged.py already captures the
+        # terminal into logs/wf1_model_creation.log.
+        #
+        # This does NOT generalize to wf3. There, `logging.path_log` is keyed
+        # PER MEMBER (downscale_climate_forcing.py) because rule 3.15 batches
+        # members concurrently onto one model directory; dropping that keying
+        # put twelve members on one path, each truncating it, and destroyed
+        # eleven logs (R9 P2, measured 2026-08-05). Those files are the
+        # attribution mechanism, not redundant output.
+        wflow_log = temp(f"{basin_dir}/run_default/log.txt"),
     params:
         toml_path = f"{basin_dir}/wflow_sbm.toml"
     log:
