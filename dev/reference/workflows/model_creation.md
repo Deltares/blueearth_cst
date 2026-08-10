@@ -33,9 +33,11 @@ and `blueearth_cst/spatial/`.
   over (rule 1.10): the forcing prepared for it and the wflow TOML's `[time]`
   window, which are necessarily the same span. **Optional**; absent means exact
   passthrough of `historical_window`, so a config predating the key is
-  unaffected. Independent of the record by design — the forcing is resolved
-  from the data catalog, not from the extracted store — so neither window need
-  contain the other, and no length floor applies.
+  unaffected. Must sit INSIDE the record: rule 1.10 builds the forcing from the
+  extracted store, so a simulation period outside it has no data behind it.
+  (This was unconstrained when the key shipped, while the forcing still came
+  from the data catalog.) No length floor applies — the ≥16-year minimum is
+  weathergenr's, on the record.
 - `shared.clim_historical` — historical climate source (e.g. `era5`).
 
 ## Reads from `project`

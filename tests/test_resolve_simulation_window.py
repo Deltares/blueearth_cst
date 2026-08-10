@@ -1,9 +1,12 @@
 """`workflows.model_creation.simulation_window` — the model RUN period.
 
 Split from `shared.historical_window` on 2026-08-10. The record a project
-extracts for analysis and the period it simulates are different questions, and
-nothing couples them: rule 1.10 declares no climate-store input, so the forcing
-comes from the data catalog rather than from the extraction.
+extracts for analysis and the period it simulates are different questions.
+
+They are not independent, though — the simulation window must sit INSIDE the
+record, because rule 1.10 builds its forcing from the extracted store. The key
+shipped unconstrained, correctly at the time: the forcing then came from the
+data catalog and the extraction was not in its path at all.
 
 The load-bearing property here is the passthrough. Every config written before
 this key existed carries only `historical_window`, so "absent" has to mean
@@ -55,17 +58,36 @@ def test_an_explicit_window_wins_over_the_historical_one():
     assert got == sim
 
 
-def test_the_simulation_window_need_not_sit_inside_the_record():
-    """Deliberately unconstrained. The forcing is resolved from the DATA
-    CATALOG (setup_precip_forcing), not from the extracted store, so a project
-    may analyse one period and simulate another with no overlap at all. A
-    subset check here would reject the separation this key exists to express.
+def test_the_simulation_window_must_sit_inside_the_record():
+    """Constrained since rule 1.10 began building forcing FROM the store.
+
+    This asserted the opposite when the key shipped, and that was right then:
+    the forcing came from the data catalog, so the two windows were independent.
+    Sourcing the forcing from the extraction couples them — a simulation period
+    outside the record now has no data behind it.
     """
     sim = _window("2021-01-01", "2023-12-31")  # entirely after the record
-    got = resolve_simulation_window(
-        _shared("2000-01-01", "2020-12-31"), {"simulation_window": sim}
-    )
-    assert got == sim
+    with pytest.raises(ValueError, match="not inside shared.historical_window"):
+        resolve_simulation_window(
+            _shared("2000-01-01", "2020-12-31"), {"simulation_window": sim}
+        )
+
+
+def test_a_window_overhanging_either_end_is_rejected():
+    record = _shared("2000-01-01", "2020-12-31")
+    for sim in (
+        _window("1999-01-01", "2010-01-01"),
+        _window("2010-01-01", "2021-06-01"),
+    ):
+        with pytest.raises(ValueError, match="not inside"):
+            resolve_simulation_window(record, {"simulation_window": sim})
+
+
+def test_a_window_equal_to_the_record_is_accepted():
+    """Inside is inclusive — the default case is exactly this window."""
+    record = _shared("2000-01-01", "2020-12-31")
+    sim = _window("2000-01-01", "2020-12-31")
+    assert resolve_simulation_window(record, {"simulation_window": sim}) == sim
 
 
 def test_a_short_simulation_window_is_allowed():

@@ -29,9 +29,20 @@ covering it directly — the merge moves the *invocation*, not the logic.
 # and raises at rule run time. Every `script:` module in this repo omits it.
 import os
 import subprocess
+from pathlib import Path
 from typing import Sequence, Union
 
+from blueearth_cst.climate_analysis.prepare_climate_data_catalog import (
+    prepare_clim_data_catalog,
+)
 from blueearth_cst.shared.setup_time_horizon import prep_hydromt_update_forcing_config
+
+
+def _as_list(data_catalog):
+    """The catalogs as a plain list, whether one path or several came in."""
+    if isinstance(data_catalog, (list, tuple)):
+        return [os.fspath(item) for item in data_catalog]
+    return [os.fspath(data_catalog)]
 
 
 def _catalog_flags(data_catalog):
@@ -79,14 +90,41 @@ def add_climate_forcing(
     basin_dir: Union[str, os.PathLike],
     data_catalog,
     forcing_yml: Union[str, os.PathLike],
+    climate_nc: Union[str, os.PathLike, None] = None,
+    store_catalog: Union[str, os.PathLike, None] = None,
 ) -> None:
-    """Write the forcing recipe, then apply it to the model with hydromt."""
+    """Write the forcing recipe, then apply it to the model with hydromt.
+
+    When ``climate_nc`` is given the forcing is built from the CLIMATE STORE --
+    the extraction rule 1.04 already produced -- instead of re-reading the
+    global dataset from the catalog. That read was the second full pass over the
+    same source in one workflow, and the store is a basin-sized clip of it.
+
+    The store is handed to hydromt the way every other source is: as a catalog
+    entry, generated here from the real source's entry so units and renames are
+    inherited rather than hand-written (``prepare_clim_data_catalog`` drops the
+    unit adapters, which is correct -- the extraction already applied them, and
+    keeping them would convert twice).
+    """
+    store_source = None
+    if climate_nc is not None:
+        prepare_clim_data_catalog(
+            fns=[climate_nc],
+            data_libs_like=data_catalog,
+            source_like=clim_source,
+            fn_out=store_catalog,
+        )
+        # `prepare_clim_data_catalog` keys each entry on the file stem.
+        store_source = Path(climate_nc).stem
+        data_catalog = [*_as_list(data_catalog), store_catalog]
+
     prep_hydromt_update_forcing_config(
         starttime=starttime,
         endtime=endtime,
         fn_yml=forcing_yml,
         precip_source=clim_source,
         wflow_root=basin_dir,
+        store_source=store_source,
     )
     _run_streaming(
         [
@@ -115,6 +153,8 @@ if __name__ == "__main__":
                 basin_dir=sm.params.basin_dir,
                 data_catalog=sm.params.data_catalog,
                 forcing_yml=sm.output.forcing_yml,
+                climate_nc=sm.input.climate_nc,
+                store_catalog=sm.output.store_catalog,
             )
             log_row(
                 f"Added climate forcing {sm.params.starttime}..{sm.params.endtime} "

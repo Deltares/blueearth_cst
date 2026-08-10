@@ -729,11 +729,14 @@ def resolve_simulation_window(shared_cfg, model_cfg):
       same span: forcing outside the run period is built and never read, and a
       run period outside the forcing has nothing to read.
 
-    Nothing couples them. Rule 1.10 declares no climate-store input — its
-    forcing comes from ``setup_precip_forcing: {precip_fn: <clim_source>}``,
-    which hydromt resolves from the DATA CATALOG and clips to the times below.
-    So a project may legitimately analyse 1990-2010 while simulating 2000-2020,
-    and this deliberately does NOT require one window to contain the other.
+    The simulation window must sit INSIDE the record, and that is a change from
+    how this shipped on 2026-08-10. It was written unconstrained, correctly at
+    the time: rule 1.10 declared no climate-store input and read its forcing
+    from the data catalog, so the two windows were genuinely independent. Rule
+    1.10 now builds the forcing FROM the store, to stop re-reading the same
+    source twice, and a simulation period outside the extraction therefore has
+    no data behind it. Caught here, at parse time, rather than as a truncated or
+    empty forcing twenty rules downstream.
 
     ``MIN_HISTORICAL_YEARS`` is likewise not applied here. It exists for
     weathergenr's record, so a project can now run a short simulation while
@@ -775,6 +778,17 @@ def resolve_simulation_window(shared_cfg, model_cfg):
         raise ValueError(
             f"workflows.model_creation.simulation_window {start.date()} .. "
             f"{end.date()} ends on or before it starts — check the order"
+        )
+    record = get_config(shared_cfg, "historical_window", optional=False)
+    rec_start, rec_end = historical_window_bounds(record)
+    if start < rec_start or end > rec_end:
+        raise ValueError(
+            f"workflows.model_creation.simulation_window {start.date()} .. "
+            f"{end.date()} is not inside shared.historical_window "
+            f"{rec_start.date()} .. {rec_end.date()}. The forcing is built from "
+            "the extracted climate store, so a simulation period outside the "
+            "record has no data behind it — widen historical_window, or narrow "
+            "the simulation window to fit inside it"
         )
     return window
 

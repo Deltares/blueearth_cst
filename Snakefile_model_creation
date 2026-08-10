@@ -622,6 +622,12 @@ rule add_climate_forcing:
     message: rule_banner("1.10", "add_climate_forcing")
     input:
         outputs_configured = f"{basin_dir}/.outputs_configured",
+        # The climate store, as the forcing SOURCE (2026-08-10). This rule used
+        # to re-read the global dataset from the catalog, a second full pass
+        # over the source rule 1.04 had already clipped to this basin. Declaring
+        # it makes the reuse a DAG edge rather than a convention, and is why
+        # `simulation_window` must now sit inside `historical_window`.
+        climate_nc = CLIMATE_STORE.outputs["climate_nc"],
     output:
         # Generated build YAML is provenance OF THE MODEL IT BUILT, so it lives
         # in the model's own config/ rather than a project-level generated/
@@ -629,6 +635,10 @@ rule add_climate_forcing:
         # and the R9 path map both pin this path, and it is the record of what
         # the forcing was built from.
         forcing_yml = f"{basin_dir}/config/build_historical_forcing.yml",
+        # The one-entry catalog pointing hydromt at the store. DECLARED, not
+        # incidental: the script writes it, so an undeclared file here would be
+        # invisible to Snakemake exactly as `output_gwr.csv` was.
+        store_catalog = f"{basin_dir}/config/climate_store_catalog.yml",
         forcing_path = f"{basin_dir}/forcing/inmaps_historical.nc",
         # TERMINAL BUILD SENTINEL (ADR 0004). `hydromt update wflow_sbm` calls
         # mod.write(), which rewrites the WHOLE model root -- measured on the R9

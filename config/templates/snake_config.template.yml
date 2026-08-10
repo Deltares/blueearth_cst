@@ -53,10 +53,11 @@ workflows:
     # for it AND the wflow TOML's [time] window, which are necessarily equal.
     # OPTIONAL — omit and it follows shared.historical_window exactly.
     #
-    # Independent of that window by design: the forcing is read from the data
-    # catalog, not from the extracted store, so neither has to contain the
-    # other. A project may analyse 1990-2020 and simulate 2000-2020. The
-    # >= 16-year floor applies to the RECORD only, so a short run is allowed.
+    # Must sit INSIDE shared.historical_window: the forcing is built from the
+    # extracted climate store, so a simulation period outside the record has no
+    # data behind it. Analysing 1990-2020 and simulating 2000-2020 is the
+    # intended shape. The >= 16-year floor applies to the RECORD only, so a
+    # short run is allowed.
     # Editing this rebuilds the forcing and re-runs the model.
     #simulation_window:
     #  starttime: "2000-01-01T00:00:00"                    # ISO datetime

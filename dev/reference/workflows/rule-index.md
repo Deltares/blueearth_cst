@@ -517,9 +517,14 @@ TOML.
 
 The window is `workflows.model_creation.simulation_window`, falling back to
 `shared.historical_window` when unset (2026-08-10). That is the SIMULATION
-period, not the extraction period: this rule declares no climate-store input,
-and `setup_precip_forcing` resolves `clim_historical` from the data catalog, so
-the record a project analyses and the period it simulates are independent.
+period, not the extraction period, and it must sit inside the record.
+
+**Reads the climate store, not the catalog.** This rule declares
+`extract_historical.nc` as an input and generates a one-entry catalog
+(`config/climate_store_catalog.yml`) pointing hydromt at it, so the forcing is
+built from the extraction rule 1.04 already made rather than from a second full
+pass over the global dataset. `dem_forcing_fn` still resolves from the main
+catalog — the store holds no orography.
 
 **Writes.** `<model>/forcing/inmaps_historical.nc` ·
 `<model>/config/build_historical_forcing.yml` (the recipe, kept as provenance of
