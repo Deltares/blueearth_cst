@@ -757,9 +757,15 @@ _basavg_pngs = [
 # `Q_<id>` columns in wflow's internal order, full float precision — is an
 # interface with that reader and stays untouched (AGENTS.md: do not
 # re-engineer how hydromt handles data). The tables here are a product beside
-# it: 5 significant digits, plain decimal (no `9.86e-5` for Excel to render as
-# `9.87E-05`), space-separated timestamps Excel parses as dates instead of
-# text, and bare station ids sorted numerically.
+# it: 5 decimal places, plain decimal (no `9.86e-5` for Excel to render as
+# `9.87E-05`), date-only `YYYY-MM-DD` stamps, and bare station ids sorted
+# numerically.
+#
+# Date-only rather than the `2000-01-02 00:00:00` this shipped with until
+# 2026-08-10: that form parses as a DATETIME, which Excel then re-renders in
+# the reader's locale, so one file read as `02-01-2000 00:00` on another
+# machine. Dropping a time-of-day that is always midnight removes what the
+# locale had to reformat.
 #
 # Being a product is also what makes the per-variable split safe. The variable
 # moves into the FILENAME, which is what lets a column be `1010` rather than

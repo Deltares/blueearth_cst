@@ -24,8 +24,16 @@ basin (``C:/TESTS/CST/gabon_1008``, 2026-08-10):
 * **No scientific notation.** 502 of 7670 rows held values like ``9.86e-5``.
   Excel renders those as ``9.87E-05``, which is a display most people then have
   to fight. The decimal cap removes the need for it entirely.
-* **Timestamps Excel parses.** ``2000-01-02T00:00:00`` imports as TEXT, not a
-  date, because of the ``T``. A space makes it a datetime everywhere.
+* **Dates, not timestamps.** ``2000-01-02T00:00:00`` imports as TEXT, not a
+  date, because of the ``T``. Dropping the time part entirely gives ``2000-01-02``,
+  which Excel parses as a date.
+
+  The intermediate form -- ``2000-01-02 00:00:00``, a space instead of the ``T``
+  -- was worse than either, and shipped until 2026-08-10. It parses as a
+  DATETIME, and a datetime is then re-rendered in the reader's locale: the same
+  file shows ``2000-01-02`` on one machine and ``02-01-2000 00:00`` on the next,
+  which is what the owner hit. A date-only string is unambiguous under
+  ISO-8601 and carries no zero time-of-day for a locale to reformat.
 
 Columns are sorted numerically, not lexically: as text, ``1010`` sorts before
 ``101``, and station ids are integers.
@@ -117,7 +125,25 @@ def tidy_tables(
     being written, and a float column would be re-expanded by pandas on write.
     """
     time_col = frame.columns[0]
-    stamps = pd.to_datetime(frame[time_col]).dt.strftime("%Y-%m-%d %H:%M:%S")
+    moments = pd.to_datetime(frame[time_col])
+
+    # Date-only is safe ONLY at a daily-or-coarser timestep. Wflow's
+    # `timestepsecs` is config-driven, so a sub-daily run would collapse 24
+    # distinct rows onto one repeated date -- silent data loss in a file whose
+    # whole purpose is being read by a human in Excel. Raise instead of quietly
+    # switching format: a table whose SCHEMA depends on its data is worse for a
+    # spreadsheet consumer than a loud failure, and the seam already declares
+    # this axis daily (interchange_contracts.validate_hm5, HM-5).
+    intraday = moments.dt.normalize() != moments
+    if intraday.any():
+        first = moments[intraday].iloc[0]
+        raise ValueError(
+            f"{time_col!r} carries a sub-daily timestamp ({first}); the derived "
+            "tables are date-only and would collapse rows. Widen the format here "
+            "if sub-daily wflow runs become supported."
+        )
+
+    stamps = moments.dt.strftime("%Y-%m-%d")
 
     tables = {}
     for var, names in split_columns(frame.columns).items():

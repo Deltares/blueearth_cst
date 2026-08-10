@@ -107,12 +107,29 @@ def test_one_table_per_variable_with_bare_sorted_ids():
     assert list(tables["P"].columns) == ["time", "1040"]
 
 
-def test_timestamps_are_space_separated_for_excel():
-    """Excel imports '2000-01-02T00:00:00' as TEXT because of the T."""
+def test_stamps_are_date_only():
+    """Date-only, so no locale can re-render it.
+
+    `2000-01-02T00:00:00` imports as TEXT (the `T`), and the space-separated
+    form this replaced imports as a DATETIME, which Excel re-renders per locale
+    -- the same file read as `02-01-2000 00:00` elsewhere.
+    """
     assert tidy_tables(_frame())["Q"]["time"].tolist() == [
-        "2000-01-02 00:00:00",
-        "2000-01-03 00:00:00",
+        "2000-01-02",
+        "2000-01-03",
     ]
+
+
+def test_sub_daily_stamps_raise_rather_than_collapse():
+    """Date-only would silently merge 24 hourly rows onto one date."""
+    frame = pd.DataFrame(
+        {
+            "time": ["2000-01-02T00:00:00", "2000-01-02T06:00:00"],
+            "Q_101": [1.0, 2.0],
+        }
+    )
+    with pytest.raises(ValueError, match="sub-daily"):
+        tidy_tables(frame)
 
 
 def test_no_row_is_dropped():
