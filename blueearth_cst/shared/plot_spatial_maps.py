@@ -27,7 +27,9 @@ Two things every figure here does NOT have, and both are deliberate:
 * **no title.** The colourbar label or the class legend already names the
   quantity, and a title over the map costs panel height on every sheet. The
   FILENAME is what names the figure, which is why the stems read as the
-  quantity (``soil_ph_topsoil``) rather than as a position in a set.
+  quantity (``soil_ph_topsoil``) rather than as a position in a set. The one
+  thing the title did carry and a filename cannot — the product credit — moved
+  to a footnote under the axes; see :data:`SOURCE_CREDITS`.
 * **no overlay key.** Rivers, the basin outline, the divides and the points of
   interest are still DRAWN — that is what ties ten rasters to one basin — but
   they get no legend entries. ``basin_area``, in this same folder, carries the
@@ -108,6 +110,23 @@ BASIN_MASK_VARIABLE = "subbasin_id"
 #: Where the figures are written, relative to the spatial directory. The same
 #: folder ``basin_area`` uses — this family is the rest of that figure's set.
 PLOTS_DIRNAME = "plots"
+
+#: Product credits, keyed by the catalog entry name each layer records in its
+#: own ``source`` attribute. The attr is OUR plumbing ("vito"); a figure credits
+#: the PRODUCT, with the reference the catalog already carries
+#: (``metadata.paper_ref`` / ``source_version``), so the footnote and the
+#: catalog cannot say different things about the same layer.
+#:
+#: This is the one piece of provenance the figures still show. It used to ride
+#: on the title; dropping titles took it with them, and a filename cannot carry
+#: it, so it moved to a footnote under the axes — smaller, out of the way, and
+#: still on the sheet when the sheet is the only thing a reader has.
+SOURCE_CREDITS = {
+    "merit_hydro_ihu": "MERIT Hydro IHU (Eilander et al., 2020)",
+    "vito": "Copernicus Global Land Cover v2.0.2 (Buchhorn et al., 2020)",
+    "modis_lai": "MODIS MCD15A3H V006 (Myneni et al., 2015)",
+    "soilgrids": "SoilGrids (ISRIC, 2017)",
+}
 
 # ---------------------------------------------------------------------------
 # CLASS TABLES FOR THE NOMINAL LAYERS
@@ -552,6 +571,21 @@ def _is_degenerate(layer):
     return False, ""
 
 
+def source_caveat(layer):
+    """``"Source: <product>."`` for the footnote, or ``None`` if unattributed.
+
+    An UNMAPPED source falls back to the catalog key rather than dropping the
+    line. "Source: vito." is our plumbing showing through and reads badly, but a
+    figure that silently loses its attribution because a catalog gained an entry
+    is worse — the ugly version is visible and gets fixed, the missing one is
+    not. ``None`` is only for a layer that records no source at all.
+    """
+    source = layer.attrs.get("source")
+    if not source:
+        return None
+    return f"Source: {SOURCE_CREDITS.get(source, source)}."
+
+
 # ---------------------------------------------------------------------------
 # RENDERING
 # ---------------------------------------------------------------------------
@@ -624,6 +658,10 @@ def plot_spatial_maps(spatial_dir, plot_dir=None, variables=None, dpi=None, form
             gauges=layers.get("gauges"),
             style=style,
             expected_units=figure.expected_units,
+            # The product credit, as a footnote under the axes. Read from the
+            # LAYER's own `source` attr rather than from the registry entry, so
+            # a catalog change cannot leave a figure crediting the wrong product.
+            caveat=source_caveat(layer),
             # No title: the filename names the figure (see SpatialFigure.stem).
             # No overlay key either — the layers are still DRAWN, tying the set
             # to one basin, but ``basin_area`` in this same folder carries the

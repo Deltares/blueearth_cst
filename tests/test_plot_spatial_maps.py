@@ -251,6 +251,38 @@ def test_the_land_cover_codes_are_unique_and_ordered():
     assert codes == sorted(set(codes))
 
 
+# --- the source footnote ------------------------------------------------------
+
+
+def _layer(source):
+    return xr.DataArray(np.zeros((2, 2)), dims=("y", "x"), attrs={"source": source})
+
+
+def test_the_footnote_credits_the_product_not_the_catalog_key():
+    """ "vito" is our plumbing; a figure credits Copernicus."""
+    assert (
+        family.source_caveat(_layer("soilgrids")) == "Source: SoilGrids (ISRIC, 2017)."
+    )
+    assert "Copernicus" in family.source_caveat(_layer("vito"))
+
+
+def test_every_source_the_family_can_meet_has_a_credit():
+    """A layer whose catalog key is unmapped falls back to the key itself."""
+    for key in ("merit_hydro_ihu", "vito", "modis_lai", "soilgrids"):
+        assert key not in family.source_caveat(_layer(key))
+
+
+def test_an_unmapped_source_still_gets_a_line():
+    """Ugly and visible beats silently unattributed -- the first gets fixed."""
+    assert family.source_caveat(_layer("some_new_catalog_entry")) == (
+        "Source: some_new_catalog_entry."
+    )
+
+
+def test_a_layer_with_no_source_gets_no_footnote():
+    assert family.source_caveat(xr.DataArray(np.zeros((2, 2)), dims=("y", "x"))) is None
+
+
 # --- layer preparation --------------------------------------------------------
 
 
