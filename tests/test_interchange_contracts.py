@@ -834,10 +834,8 @@ def test_hm4_integration():
 
 
 @pytest.mark.skipif(not _fixture_present(), reason=_FIXTURE_ABSENT)
-def test_hm5_integration():
-    # wf1 output.csv + a wf3 per-member run csv — both persist.
-    wf1 = pd.read_csv(join(_MODEL_DIR, "run_default", "output.csv"))
-    assert ic.validate_hm5(wf1) == []
+def test_hm5_integration_wf3():
+    # The wf3 per-member run csv PERSISTS -- unconditional, no temp() guard.
     wf3 = pd.read_csv(
         _member_artifact(
             join(_RUNS_DIR, "output", "rlz_1_st_1.csv"),
@@ -845,6 +843,25 @@ def test_hm5_integration():
         )
     )
     assert ic.validate_hm5(wf3) == []
+
+
+@pytest.mark.skipif(not _fixture_present(), reason=_FIXTURE_ABSENT)
+def test_hm5_integration_wf1():
+    """wf1's half of HM-5, which is temp() from 2026-08-10.
+
+    Split from the wf3 case rather than guarded inside it: a `pytest.skip` in a
+    combined test reports the WHOLE test as skipped, so the persisted wf3
+    assertion would silently stop counting whenever the wf1 artifact was
+    absent -- which is now the normal state after a run.
+
+    This read was unguarded until the temp() change and passed only on a
+    fixture still holding a pre-change `output.csv`; on a correct run it would
+    have raised FileNotFoundError.
+    """
+    wf1_csv = join(_MODEL_DIR, "run_default", "output.csv")
+    if not os.path.exists(wf1_csv):
+        pytest.skip(_TEMP_ABSENT)
+    assert ic.validate_hm5(pd.read_csv(wf1_csv)) == []
 
 
 @pytest.mark.skipif(not _fixture_present(), reason=_FIXTURE_ABSENT)

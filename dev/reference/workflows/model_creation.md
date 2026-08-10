@@ -137,7 +137,13 @@ workflows 2/3; not in this `rule all`):
 - `{basin_dir}/staticgeoms/outlets.geojson`
 - `{basin_dir}/wflow_sbm.toml`
 - `{basin_dir}/forcing/inmaps_historical.nc`
-- `{basin_dir}/run_default/output.csv`
+
+*`{basin_dir}/run_default/output.csv` was listed here and is not a
+downstream-contract artifact: `dev/scripts/cross_workflow_inputs.py` stages only
+the TOML, `.outputs_configured` and `region.geojson`, so no WF2/WF3 rule ever
+consumed it. Since 2026-08-10 rule 1.14 declares it `temp()` and a successful
+run does not leave it at all — the readable per-variable tables (rule 1.14b)
+are what `run_default/` holds. Removed 2026-08-10.*
 
 **Spatial-foundation contract** (`blueearth-cst-spatial-v1`):
 

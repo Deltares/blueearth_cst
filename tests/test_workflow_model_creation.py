@@ -39,6 +39,11 @@ SNAKEDIR = join(TESTDIR, "..")
 # rather than reaching its own data-mirror skip. Corrected 2026-08-09 against
 # the paths on disk and the baseline manifest's own wf1 discharge target.
 CONFIG = "test_case/snake_config_model_test.yml"
+# The DERIVED table, not wflow's `output.csv`: since 2026-08-10 rule 1.14
+# declares the raw csv as temp(), so this rule-`all` run consumes it in 1.14b
+# and 1.15 and then drops it. Asserting the raw file here would fail on a
+# correct run. This is the better target anyway -- it is the deliverable, and
+# it is non-empty only if the wflow run that fed it produced rows.
 OUTPUT_CSV = join(
     SNAKEDIR,
     "test_case",
@@ -47,7 +52,7 @@ OUTPUT_CSV = join(
     "hydrology",
     "wflow",
     "run_default",
-    "output.csv",
+    "output_q.csv",
 )
 
 pytestmark = pytest.mark.integration

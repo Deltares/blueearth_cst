@@ -188,8 +188,12 @@ Rendered one subsection per artifact.
   (`Q_vars = [x for x in sim.columns if x.startswith("Q_")]`, line 61) and
   basin-average columns by a `basavg` substring (line 62) — so the TOML `header`
   values are load-bearing **beyond mere identity**.
-- **temp() lifecycle:** not `temp()` — persists (both wf1 `output.csv` and wf3
-  `output_rlz_*` CSVs).
+- **temp() lifecycle:** SPLIT since 2026-08-10. wf1 `output.csv` **is** `temp()`
+  (rule 1.14): it is an intermediate feeding rule 1.14b's derived per-variable
+  tables and rule 1.15's metrics, and Snakemake drops it once both have run. A
+  swapper must therefore treat the wf1 artifact as existing only *within* the
+  run — `--notemp` is what materialises it, and the baseline procedure uses that
+  flag for exactly this reason. The wf3 `output_rlz_*` CSVs still persist.
 - **deliberately unpinned:** numeric discharge values (not a contract; they
   change per run).
 - **validator:** `validate_hm5` (per-artifact column-identity); cross-file
@@ -451,7 +455,7 @@ executes on **every** checkout, fixture or not. HM-2 unit attrs are asserted
 | `validate_hm2` | HM-2 (+ WG-6 twin) | `models/hydrology/wflow/forcing/inmaps_historical.nc`; wf3 twin `<exp>/hydrology/wflow/forcing/inmaps_rlz_<n>_st_<m>.nc` | **yes** for wf1 `inmaps_historical.nc`; wf3 twin (WG-6) `temp()` → skip-until-captured |
 | `validate_hm3` | HM-3 | `models/hydrology/wflow/staticgeoms/{region.geojson, outlets.geojson, outlet_index.csv}` | **yes** (persists) |
 | `validate_hm4` | HM-4 | `models/hydrology/wflow/wflow_sbm.toml`; `<exp>/hydrology/wflow/config/rlz_<n>_st_<m>.toml` | **yes** (both base + per-cst TOMLs persist) |
-| `validate_hm5` | HM-5 | wf1 `run_default/output.csv`; wf3 `<exp>/hydrology/wflow/output/rlz_<n>_st_<m>.csv` | **yes** (both persist; the wf3 per-cst CSVs are NOT `temp()`) |
+| `validate_hm5` | HM-5 | wf1 `run_default/output.csv`; wf3 `<exp>/hydrology/wflow/output/rlz_<n>_st_<m>.csv` | wf1 `output.csv` is `temp()` since 2026-08-10 → skip-until-captured, or run with `--notemp`; **yes** for the wf3 per-cst CSVs (NOT `temp()`) |
 | `validate_hm_gauge_column_identity` (relational) | HM-4 → HM-5 → HM-7 gauge-column identity | per-cst TOMLs + the per-cst run CSVs + `q_indicators.csv` | **yes** (all inputs persist) |
 | *(HM-6a)* | HM-6a | `models/hydrology/wflow/run_default/outstate/outstates.nc` | **no validator** — existence pinned transitively via HM-4's `[state].path_output` |
 | `validate_hm6b` | HM-6b | `<exp>/hydrology/wflow/output/outstates_rlz_<n>_st_<m>.nc` | **no** — `temp()` content absent; skip-until-captured on disk, synthetic-proven every suite |

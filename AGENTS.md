@@ -348,6 +348,14 @@ re-proves what the previous run already proved.
 
 - `--dry-run` before running and after editing any rule, to validate the DAG.
 - If a run crashed and the workdir reports as locked, `--unlock` before retrying.
+- **Run WF1 with `--notemp` when the run feeds `check_baseline.py`.** Rule 1.14
+  declares wflow's `run_default/output.csv` as `temp()`, so a normal run deletes
+  it once rules 1.14b and 1.15 have consumed it — and that file is the manifest's
+  wf1 discharge target. Without the flag the gate fails "target missing on disk",
+  which reads as a defect and is not one. The derived `output_q.csv` is not a
+  substitute: it is rounded to 5 decimals, coarser than the drift the tolerance
+  comparator exists to catch. `--notemp` is also the flag for iterating on a
+  rule-1.15 evaluation figure, which otherwise re-runs the whole model.
 
 ### Read the CI run after you push
 

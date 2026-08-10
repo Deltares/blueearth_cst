@@ -621,7 +621,11 @@ from `climate_figures.figure_names("forcing")`, all declared.
 **Does.** Runs Wflow.jl once on that historical forcing, driven by the model's
 own TOML.
 
-**Writes.** `<model>/run_default/output.csv`.
+**Writes.** `<model>/run_default/output.csv` — `temp()`, so a successful run
+does not leave it: rule 1.14b derives the readable per-variable tables from it
+and rule 1.15 reads it for the metrics, then Snakemake drops it. Run with
+`--notemp` to keep it (the baseline gate pins it, and iterating on a 1.15 figure
+otherwise re-runs the whole model).
 
 #### 1.15 · `plot_wflow_evaluation`
 

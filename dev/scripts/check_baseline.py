@@ -6,7 +6,17 @@ roadmap and the pipeline-regression-testing skill: per-variable summary
 stats for netCDF, normalized SHA256 for CSV/YAML, size-only for PNG.
 
 One target is special: the workflow-1 Wflow **discharge** series
-(`models/hydrology/wflow/run_default/output.csv`). It is NOT a `rule all` target of
+(`models/hydrology/wflow/run_default/output.csv`).
+
+**Produce the run with `--notemp`.** Since 2026-08-10 rule 1.14 declares that
+file as `temp()`, so an ordinary run deletes it once rules 1.14b and 1.15 have
+consumed it and this target then fails "target missing on disk" — a gate
+failure that indicates no defect. The derived `output_q.csv` beside it is NOT a
+substitute: it is rounded to 5 decimal places, and on discharge running
+1e-5..1e-1 that is around three significant figures, coarser than the drift the
+tolerance comparator below exists to detect.
+
+It is NOT a `rule all` target of
 Snakefile_model_creation (whose `rule all` lists only the 3 PNGs + config
 snapshot + outlet_index.csv); it is fingerprinted beyond `rule all` for
 constant-parameter-preservation coverage (ADR 0001, t260719a). A byte-hash is

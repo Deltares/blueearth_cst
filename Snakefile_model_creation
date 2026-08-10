@@ -667,7 +667,28 @@ rule run_wflow:
         # has to re-derive.
         model_final = ancient(f"{basin_dir}/.model_final"),
     output:
-        csv_path = f"{basin_dir}/run_default/output.csv",
+        # temp() since 2026-08-10 (owner ruling). Wflow's raw csv is an
+        # INTERMEDIATE, not a deliverable: rule 1.14b derives the readable
+        # per-variable tables from it and rule 1.15 reads it for the evaluation
+        # metrics, but nothing downstream of those wants it and it left
+        # `run_default/` showing a 0.9 MB file at 21-character precision beside
+        # the 0.5 MB table meant to be read. Snakemake drops it once BOTH
+        # consumers have run, which is the ordering the ask describes ("removed
+        # after creating output_q.csv") expressed as a DAG property rather than
+        # as a delete in someone's script.
+        #
+        # Two costs, both real and neither a blocker:
+        #
+        # * Re-running 1.15 alone re-runs 1.14 -- the whole Wflow model -- since
+        #   its input no longer exists. Iterating on an evaluation FIGURE is
+        #   exactly that case, so use `--notemp` when doing it.
+        # * A baseline run needs `--notemp` too. `dev/baseline/manifest.json`
+        #   pins this file as the wf1 discharge target at FULL precision, and
+        #   check_baseline fails hard ("target missing on disk") without it.
+        #   The derived table is not a substitute: 5 decimals on discharge
+        #   running 1e-5..1e-1 is ~3 significant figures, which is coarser than
+        #   the drift the tolerance comparator exists to catch.
+        csv_path = temp(f"{basin_dir}/run_default/output.csv"),
         # Wflow's own log, DECLARED so it can be temp()'d away. Wflow has no
         # switch to disable file logging -- `[logging]` offers only `silent`
         # (terminal), `loglevel` and `path_log` (where), and the file write is

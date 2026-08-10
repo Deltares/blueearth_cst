@@ -108,9 +108,13 @@ COVERED: dict[str, list[str]] = {
         "models/hydrology/wflow/forcing/plots/forcing_precip_map.png",
         "models/hydrology/wflow/staticgeoms/outlet_index.csv",
         "models/hydrology/wflow/staticgeoms/gauges_locations.geojson",
-        "models/hydrology/wflow/run_default/output.csv",
-        # The derived Excel-ready table (rule 1.14b), beside the raw csv it
-        # comes from. Not a replacement: output.csv stays as wflow wrote it.
+        # The derived Excel-ready table (rule 1.14b). Since 2026-08-10 it is
+        # what `run_default/` holds INSTEAD of the raw csv, not beside it:
+        # rule 1.14 declares `output.csv` as temp(), so a successful run leaves
+        # none once 1.14b and 1.15 have consumed it. Same reasoning as
+        # `log.txt` below -- and the same caveat, that a FAILED run leaves it,
+        # so this inventory cannot simply assert its absence either. A run made
+        # with `--notemp` (the baseline procedure) keeps it too.
         "models/hydrology/wflow/run_default/output_q.csv",
         # run_default/log.txt is gone: rule 1.14 declares Wflow's own log as a
         # temp() output, so a successful run leaves none. It survives a FAILED
