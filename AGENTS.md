@@ -263,7 +263,8 @@ Linux — data-catalog paths differ from Windows. `scripts/run_snake_test.cmd`
 `scripts/run_workflows.py` invokes the enabled workflows in fixed order (model →
 projections → experiment), reading `workflows.<name>.enabled` from a
 full-orchestration config — the single-workflow `snake_config_projections_*.yml`
-files have no `workflows:` section and are not wrapper inputs. A missing or
+files (parked under `config/workflows/archive/`, unmaintained) have no
+`workflows:` section and are not wrapper inputs. A missing or
 non-boolean `enabled:` is a hard error; the wrapper stops on the first nonzero
 Snakemake exit and returns that code. `enabled: false` only skips the invocation —
 prior outputs are neither deleted nor refreshed, so a downstream workflow consumes

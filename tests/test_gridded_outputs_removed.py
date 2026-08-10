@@ -98,7 +98,11 @@ def test_snakefile_rejects_a_removed_gridded_key(tmp_path, seed_config):
 
 
 def test_no_shipped_config_carries_a_gridded_key():
-    for cfg_path in sorted((REPO / "config/workflows").glob("*.yml")):
+    # rglob, not glob: `archive/` holds unmaintained single-workflow configs,
+    # and a non-recursive glob would drop them from this check the moment they
+    # were moved there -- silently, since the assertion is over whatever the
+    # glob happens to return.
+    for cfg_path in sorted((REPO / "config/workflows").rglob("*.yml")):
         text = cfg_path.read_text(encoding="utf-8")
         for key in ("save_grids:", "save_gridded:"):
             assert key not in text, f"{cfg_path.name} still carries the dead key"

@@ -238,8 +238,9 @@ Contract:
 - Accepts **full-orchestration configs only** — a config carrying a `workflows:`
   section with all three subsections, each with an `enabled:` key (the
   `snake_config_model_test*.yml` / `snake_config.template.yml` class). The
-  single-workflow `snake_config_projections_*.yml` configs carry no `workflows:`
-  section and are run directly with `snakemake -s` instead.
+  single-workflow `snake_config_projections_*.yml` configs — parked under
+  `config/workflows/archive/` and unmaintained — carry no `workflows:` section
+  and are run directly with `snakemake -s` instead.
 - A missing `workflows:` section or `<name>.enabled` key is a **hard error**
   naming the absent key, not a silent default.
 - `enabled:` must parse to a real boolean: unquoted `true` / `false` / `yes` /
