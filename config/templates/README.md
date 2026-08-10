@@ -36,6 +36,95 @@ Drop the `_template` suffix when you copy.
 
 ---
 
+# Why the template's defaults are what they are
+
+`snake_config.template.yml` states only types and allowed values. The reasoning
+behind the non-obvious defaults lives here.
+
+### `historical_window` — minimum 16 years
+
+Enforced at WF1 parse time and again at extraction. weathergenr's wavelet
+decomposition needs at least 16 annual observations, so a shorter record cannot
+support a stress test at all. The floor is `constraints.min_historical_years` in
+`config/advanced_settings.yml` and is **not** overridable per project. This
+window was 6 years until 2026-08-01 and would now be rejected.
+
+### `members` — why four labels, not one
+
+Not every model publishes `r1i1p1f1`. CNRM-\*, MIROC-ES2L, UKESM1-0-LL and
+MCM-UA-1-0 use `f2`; HadGEM3-GC31-\* use `f3`; CanESM5-CanOE uses `p2f1`. Pinning
+`r1i1p1f1` alone silently drops them — 38 of 45 usable models. A label a model
+does not publish is simply skipped, because the catalog declares exactly what
+exists.
+
+The four shipped labels were chosen empirically over the generated catalog: they
+reach 45 models across the tier-1 SSPs. Adding further physics variants (`p3f1`,
+`p5f1`, `r1i1000p1f1`, …) reaches *fewer*, because they make a model's historical
+and future member sets differ. When those differ, the change-factor stage raises
+`asymmetric hist/clim members` rather than quietly using the intersection. With
+this list that affects CAMS-CSM1-0, CanESM5, EC-Earth3 (ssp245), GISS-E2-1-G,
+GISS-E2-1-H, IPSL-CM6A-LR (ssp434/460), MCM-UA-1-0 and NorESM2-LM (ssp245) — for
+those, narrow `members:` to the one label the model shares across your scenarios.
+
+Per-model member counts: `dev/reference/workflows/wf2-cmip6-monthly-members.csv`.
+
+### `historical_year_range` — why 1985–2014
+
+Thirty years ending at the last year the CMIP6 historical experiment covers
+(owner ruling OQ-4, 2026-07-29).
+
+- 30 years is the WMO climatological normal, and the workflow warns below 20. A
+  shorter reference makes every derived statistic noisier and the tail quantiles
+  unsupportable — which is why those are opt-in via `stats:`.
+- 2014 ends the historical experiment. Asking for more is not an error: the
+  window is **clipped** to 2014 and the run says so on stderr. Scenario data is
+  never spliced in to fill the gap, so the extra years simply do not arrive.
+- The range is inclusive, so 1985–2014 is thirty calendar years — and with the
+  default `start_month_hyd_year: Jan`, thirty complete hydrological years. Any
+  other start month yields 29, the partial years at both ends dropped. Every
+  artifact reports the effective window and count beside the nominal one.
+
+### `experiment_name` — why it is absent rather than set
+
+Left unset, WF3 names the directory from the project's own name plus the date the
+experiment was first created, and later runs **reuse** that directory rather than
+minting today's date — which is what keeps incremental reruns idempotent. A
+placeholder value in the template would instead put every project copied from it
+into one shared `experiments/experiment/`.
+
+To pin a deliberate name, run this once before the first climate-experiment run:
+
+```console
+pixi run python scripts/suggest_experiment_name.py <your config>
+pixi run python scripts/suggest_experiment_name.py <your config> --name dry_scenario
+```
+
+It reserves the directory atomically, versions a generated collision to `_v2`,
+and refuses to overwrite a name already set — which would strand a completed
+experiment's outputs under a name nothing points at.
+
+### `julia_threads` — how it interacts with `--cores`
+
+Wflow parallelizes over grid **cells**, so raising it pays on a large basin and
+does nothing on a small one. It is not Snakemake's `--cores`: the two multiply,
+so keep `--cores N × julia_threads <= logical CPUs`.
+
+### `batch_size` / `batch_size_max`
+
+WF3 groups stress-test members into batches for the Wflow run. Disk is the
+binding constraint on large `RLZ_NUM × ST_NUM` sweeps, because concurrent batches
+are resident at once — so `batch_size_max` (default 8) bounds the footprint,
+while an explicit `batch_size` wins outright. Both fail at parse time, naming the
+offending key, if set below 1.
+
+### `hydrography` / `basin_index`
+
+Catalog **entry names**, not paths. They must match `setup_basemaps` in the
+`model_build_config` template, or rule 1.02 fails loudly naming both files and
+both values.
+
+---
+
 # Observation inputs
 
 The two CSV scaffolds above are the optional observation inputs of workflow 1

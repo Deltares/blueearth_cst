@@ -1,193 +1,121 @@
-# Snake config template for blueearth_cst (R01 schema).
+# Config template for blueearth_cst.
 #
-# Three top-level sections:
-#   project:        paths and external resources (every workflow reads)
-#   shared:         cross-workflow scientific knobs (≥2 workflows read)
-#   workflows.<n>:  per-workflow opts (only that workflow reads)
+# Copy this file, fill it in, and point Snakemake at your copy:
+#   snakemake all -c 3 -s Snakefile_model_creation --configfile <your copy>
 #
-# Each workflows.<name> section has an `enabled:` flag (documentary in
-# R01; will become operational at R6+ structural refactor).
+# Paths are relative to the directory you RUN from (the repo root), or absolute.
+# Commented-out keys are optional and show their default.
 #
-# Per-workflow contract docs (dev/reference/workflows/<name>.md) are written at
-# the opening of R3/R4/R5, not in R01 (2026-07-17 amendment).
+# Why the defaults are what they are: config/templates/README.md.
+# A filled-in example: test_case/snake_config_model_test.yml.
 
 project:
-  # Output root for this run. Point this OUTSIDE the repository tree so
-  # generated model + result artifacts stay separate from the toolbox source
-  # -- an absolute path is expected here, and the workflows warn at parse time
-  # if project_dir resolves inside the repo. The single exemption is the
-  # in-repo `test_case/` fixture, which exists because the baseline seed config
-  # is tracked and a tracked config cannot carry a machine-specific absolute
-  # path. Replace the placeholder below with your own location.
-  project_dir: /path/to/my_project
-  # Static config dir (templates referenced by workflows)
-  static_dir: config
-  # Hydromt data catalog (era5, merit_hydro, etc.)
-  data_sources: config/catalogs/deltares_data.yml
-  # Hydromt data catalog for CMIP6 (climate projections workflow)
-  data_sources_climate: config/catalogs/cmip6_data.yml
+  project_dir: /path/to/my_project                        # path — absolute, outside the repo
+  static_dir: config                                      # path
+  data_sources: config/catalogs/deltares_data.yml         # path
+  data_sources_climate: config/catalogs/cmip6_data.yml    # path
 
 shared:
   basin:
-    # hydromt region spec (string with dict syntax — see hydromt docs)
-    region: "{'subbasin': [9.666, 0.4476], 'uparea': 100}"
-    # Grid resolution in degrees (≥ source hydrography res, e.g. merit_hydro_ihu = 0.00833)
-    resolution: 0.00833
-    # Optional: catalog ENTRY NAMES (not paths) used to delineate the basin for
-    # the shared historical-climate store. Defaults are shown; they must match
-    # setup_basemaps in the model_build_config template below, or rule 1.02
-    # fails loud naming both files and both values. Uncomment only to override.
-    #hydrography: merit_hydro_ihu
-    #basin_index: merit_hydro_index
-    # Optional gauge/control locations. Internal points define subbasins;
-    # parents without usable internal points use the automatic fallback.
-    # Use an absolute path for real project data.
-    gauge_points: null
+    region: "{'subbasin': [9.666, 0.4476], 'uparea': 100}"  # text — hydromt region spec
+    resolution: 0.00833                                   # numeric — degrees
+    #hydrography: merit_hydro_ihu                         # text — catalog entry name
+    #basin_index: merit_hydro_index                       # text — catalog entry name
+    gauge_points: null                                    # path | null
     automatic_subbasins:
-      # Global ceiling for automatically generated subbasins. User-directed
-      # gauge subbasins are not silently pruned by this limit.
-      max_per_basin: 11
-    # Maximum point-to-river snapping distance [m].
-    gauge_snap_tolerance_m: 10000
-    # Upstream-area threshold [km2] for the analysis river mask.
-    river_uparea_km2: 32
-    spatial_sources:
+      max_per_basin: 11                                   # integer
+    gauge_snap_tolerance_m: 10000                         # numeric — metres
+    river_uparea_km2: 32                                  # numeric — km2
+    spatial_sources:                                      # text — catalog entry names
       rivers: rivers_lin2019_v1
       lulc: vito
       lai: modis_lai
       soil: soilgrids
   historical_window:
-    # ISO datetime strings — wflow forcing window.
-    # MINIMUM 16 YEARS, enforced at WF1 parse time and again at extraction:
-    # weathergenr's wavelet decomposition needs at least 16 annual
-    # observations, so a shorter record cannot support a climate stress test.
-    # The floor is `constraints.min_historical_years` in
-    # config/advanced_settings.yml and is NOT overridable per project.
-    # This window was 6 years until 2026-08-01 and would now be rejected.
-    starttime: "2000-01-01T00:00:00"
-    endtime: "2020-12-31T00:00:00"
-  # Historical climate source (must exist in project.data_sources catalog)
-  clim_historical: era5
-  # Optional: Wflow.jl `--threads`. Overrides `defaults.julia_threads` in
-  # config/advanced_settings.yml (4). Wflow parallelizes over grid CELLS, so
-  # raising this pays on a large basin and does nothing on a small one. It is
-  # NOT Snakemake's --cores: the two multiply, so keep
-  # `--cores N x julia_threads <= logical CPUs` (dev/milestones/p33 §5.6).
-  #julia_threads: 4
+    starttime: "2000-01-01T00:00:00"                      # ISO datetime
+    endtime: "2020-12-31T00:00:00"                        # ISO datetime — span >= 16 years
+  clim_historical: era5                                   # text — entry in data_sources
+  #julia_threads: 4                                       # integer
 
 workflows:
   model_creation:
-    enabled: true
-    # Hydromt build config template
-    model_build_config: config/templates/wflow_build_model.yml
-    # Hydromt update config for waterbodies (optional; defaults below)
-    waterbodies_config: config/templates/wflow_update_waterbodies.yml
-    # Wflow output variables to save (read only by model_creation). Extras beyond
-    # 'river discharge' are written as basin-average <var>_basavg columns and
-    # plotted by plot_results (valid: overland flow, actual evapotranspiration,
-    # groundwater recharge, snow).
+    enabled: true                                         # boolean
+    model_build_config: config/templates/wflow_build_model.yml         # path
+    waterbodies_config: config/templates/wflow_update_waterbodies.yml  # path
+    # list — any of: river discharge, overland flow, actual evapotranspiration,
+    #                groundwater recharge, snow
     wflow_outvars: ["river discharge", "actual evapotranspiration"]
-    # Optional: csv with observed discharge timeseries per station
-    observations_timeseries: null
+    observations_timeseries: null                         # path | null — needs gauge_points
+
   climate_projections:
-    enabled: true
-    clim_project: cmip6
+    enabled: true                                         # boolean
+    clim_project: cmip6                                   # text — cmip6
+    # list — Institution/Source. All 65 with a historical member:
+    #   AS-RCEC/TaiESM1  AWI/AWI-CM-1-1-MR  AWI/AWI-ESM-1-1-LR  BCC/BCC-CSM2-MR
+    #   BCC/BCC-ESM1  CAMS/CAMS-CSM1-0  CAS/CAS-ESM2-0  CAS/FGOALS-f3-L
+    #   CAS/FGOALS-g3  CCCR-IITM/IITM-ESM  CCCma/CanESM5  CCCma/CanESM5-CanOE
+    #   CMCC/CMCC-CM2-HR4  CMCC/CMCC-CM2-SR5  CMCC/CMCC-ESM2  CNRM-CERFACS/CNRM-CM6-1
+    #   CNRM-CERFACS/CNRM-CM6-1-HR  CNRM-CERFACS/CNRM-ESM2-1  CSIRO/ACCESS-ESM1-5
+    #   CSIRO-ARCCSS/ACCESS-CM2  E3SM-Project/E3SM-1-0  E3SM-Project/E3SM-1-1
+    #   E3SM-Project/E3SM-1-1-ECA  EC-Earth-Consortium/EC-Earth3
+    #   EC-Earth-Consortium/EC-Earth3-AerChem  EC-Earth-Consortium/EC-Earth3-CC
+    #   EC-Earth-Consortium/EC-Earth3-Veg  EC-Earth-Consortium/EC-Earth3-Veg-LR
+    #   FIO-QLNM/FIO-ESM-2-0  HAMMOZ-Consortium/MPI-ESM-1-2-HAM  INM/INM-CM4-8
+    #   INM/INM-CM5-0  IPSL/IPSL-CM5A2-INCA  IPSL/IPSL-CM6A-LR  IPSL/IPSL-CM6A-LR-INCA
+    #   KIOST/KIOST-ESM  MIROC/MIROC-ES2H  MIROC/MIROC-ES2L  MIROC/MIROC6
+    #   MOHC/HadGEM3-GC31-LL  MOHC/HadGEM3-GC31-MM  MOHC/UKESM1-0-LL  MPI-M/ICON-ESM-LR
+    #   MPI-M/MPI-ESM1-2-HR  MPI-M/MPI-ESM1-2-LR  MRI/MRI-ESM2-0  NASA-GISS/GISS-E2-1-G
+    #   NASA-GISS/GISS-E2-1-G-CC  NASA-GISS/GISS-E2-1-H  NASA-GISS/GISS-E2-2-H
+    #   NCAR/CESM2  NCAR/CESM2-FV2  NCAR/CESM2-WACCM  NCAR/CESM2-WACCM-FV2
+    #   NCC/NorCPM1  NCC/NorESM2-LM  NCC/NorESM2-MM  NIMS-KMA/KACE-1-0-G
+    #   NIMS-KMA/UKESM1-0-LL  NOAA-GFDL/GFDL-CM4  NOAA-GFDL/GFDL-ESM4  NUIST/NESM3
+    #   SNU/SAM0-UNICON  THU/CIESM  UA/MCM-UA-1-0
     models:
       - NOAA-GFDL/GFDL-ESM4
       - INM/INM-CM5-0
       - CMCC/CMCC-ESM2
+    # list — any of: ssp119, ssp126, ssp245, ssp370, ssp434, ssp460,
+    #                ssp534-over, ssp585
     scenarios: [ssp245, ssp585]
-    # Ensemble members, tried against every model in `models:`. Not every model
-    # publishes r1i1p1f1 — CNRM-*, MIROC-ES2L, UKESM1-0-LL and MCM-UA-1-0 use
-    # f2, HadGEM3-GC31-* use f3, CanESM5-CanOE uses p2f1 — so pinning r1i1p1f1
-    # silently drops them (38 of 45 usable models). A label a model does not
-    # publish is skipped, because the catalog declares exactly what exists.
-    # Chosen empirically over the generated catalog: these four reach 45 models
-    # across the tier-1 SSPs; adding the remaining physics variants (p3f1, p5f1,
-    # r1i1000p1f1, …) reaches fewer, because they make a model's historical and
-    # future member sets differ.
-    # When they differ, monthly_change raises `asymmetric hist/clim members`
-    # rather than quietly using the intersection. With this list that affects
-    # CAMS-CSM1-0, CanESM5, EC-Earth3 (ssp245), GISS-E2-1-G, GISS-E2-1-H,
-    # IPSL-CM6A-LR (ssp434/460), MCM-UA-1-0 and NorESM2-LM (ssp245) — for those,
-    # narrow `members:` to the one label the model shares across your scenarios.
-    # Per-model member lists: dev/reference/workflows/wf2-cmip6-monthly-members.csv.
-    members: [r1i1p1f1, r1i1p1f2, r1i1p1f3, r1i1p2f1]
+    members: [r1i1p1f1, r1i1p1f2, r1i1p1f3, r1i1p2f1]      # list — variant labels
+    # mapping per variable. canonical: rate | state ; change: relative | absolute
     variables:
       precip: {source: precip, canonical: rate, units: mm/day, change: relative}
       temp: {source: temp, canonical: state, units: degC, change: absolute}
-    start_month_hyd_year: Jan
-    # CMIP6 monthly stats historical year range (different precision than
-    # shared.historical_window — that one uses ISO datetimes for wflow forcing).
-    #
-    # RECOMMENDED: 1985–2014, thirty years ending at the last year the CMIP6
-    # historical experiment covers (owner ruling OQ-4, 2026-07-29).
-    #
-    # Why these bounds specifically:
-    #   * 30 years is the WMO climatological normal, and the workflow warns below
-    #     20 — a shorter reference makes every statistic derived from it noisier,
-    #     and the tail quantiles unsupportable (which is why they are opt-in).
-    #   * 2014 is the end of the historical experiment. Asking for more is not an
-    #     error — the window is CLIPPED to 2014 and the run says so on stderr —
-    #     but scenario data is never spliced in to fill the gap, so the extra
-    #     years simply do not arrive.
-    #   * The range is INCLUSIVE: 1985–2014 is thirty calendar years, and with the
-    #     default `start_month_hyd_year: Jan` that is thirty complete
-    #     hydrological years. Any other start month yields 29, the partial years
-    #     at both ends dropped; every artifact reports the effective window and
-    #     count beside the nominal one, so the difference is never silent.
-    historical_year_range: [1985, 2014]
-    future_horizons:
+    start_month_hyd_year: Jan                             # text — three-letter month
+    historical_year_range: [1985, 2014]                   # [integer, integer] — inclusive, clipped at 2014
+    future_horizons:                                      # mapping: name -> [integer, integer]
       near: [2030, 2060]
       far: [2070, 2100]
-    # Save gridded outputs in addition to basin averages
+    #stats: [mean, median, std]                           # list | null
+    #relative_change:
+    #  min_reference: {precip: 0.1}                       # mapping: variable -> numeric
+    #  max_flagged_months: 3                              # integer
 
   climate_experiment:
-    enabled: true
-    # experiment_name names the directory every wf3 artifact hangs off
-    # (experiments/<name>/). It is OPTIONAL and left unset here: unset, the
-    # workflow uses the project's own name plus the date the experiment was
-    # first created, so a project_dir of .../gabon_0108 gives
-    # experiments/gabon_0108_20260805/. Later runs REUSE that directory rather
-    # than minting the current date, which is what keeps incremental reruns
-    # working. (A placeholder value here instead would put every project copied
-    # from this template into one shared experiments/experiment/.)
-    #
-    # To pin a deliberate name — a scenario label, or a second experiment
-    # beside the first — run this once, before the first climate-experiment
-    # run:
-    #
-    #     pixi run python scripts/suggest_experiment_name.py <this config>
-    #     pixi run python scripts/suggest_experiment_name.py <this config> --name dry_scenario
-    #
-    # It reserves the directory atomically, versions a generated collision to
-    # _v2, and inserts the key just below (leaving these comments intact). It
-    # REFUSES to overwrite a name already set, since that would strand a
-    # completed experiment's outputs under a name nothing points at.
-    realizations_num: 2
-    # Future midpoint year for the climate experiment
-    horizontime_climate: 2050
-    # Length of future run in years
-    run_length: 20
-    # Run historical (st_0) realization through wflow as well
-    run_historical: false
+    enabled: true                                         # boolean
+    #experiment_name: my_experiment                       # text — unset auto-names from project_dir + date
+    realizations_num: 2                                   # integer
+    horizontime_climate: 2050                             # integer — year
+    run_length: 20                                        # integer — years
+    run_historical: false                                 # boolean
     stress_test:
       temp:
-        step_num: 1
-        transient_change: true
-        mean:
+        step_num: 1                                       # integer
+        transient_change: true                            # boolean
+        mean:                                             # 12 numerics (Jan-Dec) — degC offset
           min: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
           max: [3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0]
       precip:
-        step_num: 2
-        transient_change: true
-        mean:
+        step_num: 2                                       # integer
+        transient_change: true                            # boolean
+        mean:                                             # 12 numerics (Jan-Dec) — multiplier
           min: [0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7]
           max: [1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3]
-        variance:
+        variance:                                         # 12 numerics (Jan-Dec) — multiplier
           min: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
           max: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
-    # Drought / flood return periods (years)
-    Tlow: 2
-    Tpeak: 10
-    # Aggregate realizations before computing statistics
+    Tlow: 2                                               # integer — years, drought return period
+    Tpeak: 10                                             # integer — years, flood return period
+    #batch_size: 4                                        # integer
+    #batch_size_max: 8                                    # integer
