@@ -1182,6 +1182,109 @@ def test_a_diverging_temperature_ramp_is_centred_on_zero_not_on_the_data():
     assert resolve_temperature_style(_ramp(-2.0, 30.0)).diverging_center == 0.0
 
 
+def test_the_diverging_style_keeps_the_quantitys_own_step_ladder():
+    """Rebuilding a style field by field is how `step_ladder` got dropped, so a
+    diverging temperature bar stepped in 0.15 degC off the general ladder."""
+    crossing = resolve_temperature_style(_ramp(-8.0, 14.0))
+    assert crossing.step_ladder == RASTER_STYLES["temp"].step_ladder
+
+
+def test_a_declared_midpoint_does_nothing_until_the_field_spans_it():
+    """A one-sided field would spend half its palette on values that do not
+    occur. The centre is DECLARED on the style and ACTIVATED per raster."""
+    style = RasterStyle(
+        label="pH", palette="YlGnBu", diverging_at=7.0, diverging_palette="RdYlBu"
+    )
+    acidic = carto.resolve_diverging_style(_ramp(4.7, 5.5), style)
+    assert acidic.diverging_center is None and acidic.palette == "YlGnBu"
+
+    both = carto.resolve_diverging_style(_ramp(4.2, 8.9), style)
+    assert both.diverging_center == 7.0 and both.palette == "RdYlBu"
+
+
+def test_resolving_an_already_resolved_style_changes_nothing():
+    """`plot_raster_map` resolves unconditionally; climate_figures resolves too."""
+    style = RASTER_STYLES["temp"]
+    once = carto.resolve_diverging_style(_ramp(-8.0, 14.0), style)
+    twice = carto.resolve_diverging_style(_ramp(-8.0, 14.0), once)
+    assert (twice.palette, twice.diverging_center) == (
+        once.palette,
+        once.diverging_center,
+    )
+
+
+# --- diverging class boundaries ----------------------------------------------
+# The whole encoding rests on ONE invariant: the centre is a class BOUNDARY. A
+# diverging palette's pale middle sits at the join between two classes, so a
+# centre that is not that join puts the pale colour somewhere else -- and the
+# map then says freezing is at 3 degC while looking perfectly reasonable.
+
+
+@pytest.mark.parametrize(
+    "low, high, centre, ladder",
+    [
+        (-8.0, 14.0, 0.0, (2.5, 5.0, 10.0)),
+        (-2.0, 30.0, 0.0, (2.5, 5.0, 10.0)),  # barely crosses
+        (-40.0, 5.0, 0.0, (2.5, 5.0, 10.0)),  # barely crosses, other side
+        (4.2, 8.9, 7.0, None),  # centre is not a step multiple
+        (6.93, 7.04, 7.0, None),  # a hair either side
+        (3.1, 9.7, 7.0, None),
+    ],
+)
+def test_the_centre_is_always_a_class_boundary(low, high, centre, ladder):
+    levels = carto._diverging_levels(low, high, centre, ladder)
+    assert np.isclose(levels, centre).any()
+
+
+@pytest.mark.parametrize(
+    "low, high, centre, ladder",
+    [(-8.0, 14.0, 0.0, (2.5, 5.0, 10.0)), (4.2, 8.9, 7.0, None), (3.1, 9.7, 7.0, None)],
+)
+def test_the_diverging_boundaries_cover_the_data(low, high, centre, ladder):
+    """Not symmetric about the centre — deliberately. Forcing that gave a
+    -50..+50 four-class bar for a field spanning -2..30, which is a worse figure
+    than the sequential one it replaced. Symmetry lives in the COLOUR domain.
+    """
+    levels = carto._diverging_levels(low, high, centre, ladder)
+    assert levels[0] <= low and levels[-1] >= high
+
+
+def test_the_diverging_tick_cap_is_enforced():
+    assert len(carto._diverging_levels(-400.0, 900.0, 0.0)) <= carto._COLORBAR_MAX_TICKS
+
+
+def test_the_pale_middle_of_a_diverging_ramp_lands_on_the_centre():
+    """The two classes touching the centre must sample either side of the
+    ramp's midpoint. If they do not, the pale colour is somewhere else.
+    """
+    style = RASTER_STYLES["temp"].replace(
+        palette=carto.TEMPERATURE_DIVERGING_PALETTE, diverging_center=0.0
+    )
+    levels = carto._diverging_levels(-8.0, 14.0, 0.0, style.step_ladder)
+    cmap = carto._diverging_colormap(style, levels, "neither")
+    centre_index = int(np.argmin(np.abs(np.asarray(levels) - 0.0)))
+    below = np.array(cmap(centre_index - 1)[:3])
+    above = np.array(cmap(centre_index)[:3])
+    # RdBu_r runs blue -> red, so the class below freezing is the BLUER of the
+    # two and the one above is the redder. Both pale, being next to the join.
+    assert below[2] > below[0], "sub-zero class should be the blue side"
+    assert above[0] > above[2], "above-zero class should be the red side"
+    # Pale means close to the ramp's own midpoint colour.
+    midpoint = np.array(carto._style_colormap(style)(0.5)[:3])
+    assert np.abs(below - midpoint).max() < 0.35
+    assert np.abs(above - midpoint).max() < 0.35
+
+
+def test_a_one_sided_field_never_reaches_the_diverging_classifier():
+    """The sequential path must be untouched: elevation and precipitation draw
+    through the equal-interval / equal-area rules this branch sits in front of.
+    """
+    warm = resolve_temperature_style(_ramp(12.0, 28.0))
+    assert warm.diverging_center is None
+    levels = _class_levels(_ramp(12.0, 28.0), warm)
+    assert not np.isclose(levels, 0.0).any()
+
+
 # --- classification ----------------------------------------------------------
 
 

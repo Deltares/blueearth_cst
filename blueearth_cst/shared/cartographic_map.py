@@ -702,6 +702,15 @@ _EXTENT_BUFFER_DEG = 0.02
 # is used only where a midpoint is real, and never as a default.
 
 
+#: Palette and centre used for temperature that crosses freezing. Below 0 is
+#: ice and above is not, so the midpoint is physical rather than chosen — which
+#: is the only thing that licenses a diverging ramp. Named constants rather than
+#: literals in the style below, because ``climate_figures`` and the tests both
+#: assert against them.
+TEMPERATURE_DIVERGING_PALETTE = "RdBu_r"
+TEMPERATURE_DIVERGING_CENTER = 0.0
+
+
 class RasterStyle:
     """How one quantity is drawn: palette, label, classification, relief.
 
@@ -719,6 +728,8 @@ class RasterStyle:
         relief=False,
         interpolation="none",
         diverging_center=None,
+        diverging_at=None,
+        diverging_palette=None,
         reserve_low_for=None,
         low_clip=0.45,
         step_ladder=None,
@@ -744,9 +755,25 @@ class RasterStyle:
         #: precipitation field would render gradients as topography.
         self.relief = relief
         self.interpolation = interpolation
-        #: Value the palette is centred on, for a diverging palette. ``None``
-        #: means the palette is sequential and no centre applies.
+        #: The ACTIVE centre. Set only by :func:`resolve_diverging_style`, and
+        #: only for a field that actually straddles the midpoint. Everything
+        #: downstream — the class boundaries, the colour sampling — keys off
+        #: this one field, so "is this figure diverging?" has exactly one
+        #: answer and an unresolved style cannot half-behave like one.
         self.diverging_center = diverging_center
+        #: The DECLARED candidate midpoint: a value that is physical rather than
+        #: chosen — 0 degC (ice or not), pH 7 (acid or alkaline). Declaring it
+        #: does not make the figure diverging; straddling it does.
+        #:
+        #: The two are separate fields on purpose. A diverging ramp is only
+        #: honest where the midpoint is INSIDE the data: a field entirely below
+        #: the centre would spend half its palette on values that do not occur
+        #: and compress the ones that do. So a style declares the midpoint it
+        #: WOULD centre on, and the resolver decides per raster.
+        self.diverging_at = diverging_at
+        #: The ramp to use once the centre is active. The sequential ``palette``
+        #: stays as the fallback, which is what a non-straddling field gets.
+        self.diverging_palette = diverging_palette
         #: Reserve the palette's palest end for values at or below this.
         #: Precipitation is the case: white reads as DRY, so a basin whose
         #: lowest class is 2725 mm/y must not paint that class white — it
@@ -809,6 +836,8 @@ class RasterStyle:
             relief=self.relief,
             interpolation=self.interpolation,
             diverging_center=self.diverging_center,
+            diverging_at=self.diverging_at,
+            diverging_palette=self.diverging_palette,
             reserve_low_for=self.reserve_low_for,
             low_clip=self.low_clip,
             step_ladder=self.step_ladder,
@@ -860,6 +889,12 @@ RASTER_STYLES = {
         # a temperature bar. The general ladder would also offer 0.15 and 0.2,
         # which read as arbitrary on a thermometer.
         step_ladder=(2.5, 5.0, 10.0),
+        # Below 0 is ice and above is not, so the midpoint is physical rather
+        # than chosen — which is the only thing that licenses a diverging ramp.
+        # Declared, not active: a basin that never freezes keeps the warm
+        # sequential ramp. See ``resolve_diverging_style``.
+        diverging_at=TEMPERATURE_DIVERGING_CENTER,
+        diverging_palette=TEMPERATURE_DIVERGING_PALETTE,
     ),
     #: Evaporative demand: warm, but a different hue family from temperature so
     #: the two figures are not confused at a glance. dL* 10.7 greyscale, 10.0
@@ -870,12 +905,6 @@ RASTER_STYLES = {
         zero_baseline=True,
     ),
 }
-
-#: Palette and centre used for temperature that crosses freezing. Below 0 is
-#: ice and above is not, so the midpoint is physical rather than chosen — which
-#: is the only thing that licenses a diverging ramp.
-TEMPERATURE_DIVERGING_PALETTE = "RdBu_r"
-TEMPERATURE_DIVERGING_CENTER = 0.0
 
 #: Optional figure title and footnote, drawn INSIDE the constrained-layout
 #: budget. The climate figures carry both; the basin map carries neither —
@@ -1115,30 +1144,113 @@ def _style_colormap(style, levels=None, floor=None):
     return ramp if levels is None else ramp.resampled(levels)
 
 
+def _diverging_colormap(style, levels, extend):
+    """One colour per class, sampled where that class SITS on the ramp.
+
+    The sequential path asks the colormap for N evenly-spaced colours
+    (``ramp.resampled(N)``), which is right when the only thing that matters is
+    that adjacent classes differ. It is not enough here: a diverging ramp's pale
+    middle has to land on the centre, and ``resampled`` knows nothing about
+    where the centre is. Worse, ``_colorbar_extend`` adds a colour at one or
+    both ends, so an evenly-resampled ramp shifts by half a class the moment one
+    arrow appears — the centre would move depending on whether the basin
+    happened to contain an outlier.
+
+    So each class takes the colour at its OWN midpoint's position along a domain
+    that IS symmetric about the centre — ``centre +/- half``, where the half-span
+    is whichever side of the bar reaches further. Symmetry of the domain rather
+    than of the boundaries is what the encoding needs: the two classes either
+    side of the centre then sample just below and just above 0.5, so the pale
+    middle falls exactly between them, while the boundaries stay free to cover
+    the data at a useful resolution.
+
+    The consequence on a one-sided-ish field is correct rather than unfortunate.
+    A basin spanning -2 to 30 degC samples the cold half only in its palest few
+    percent, because it barely goes below freezing — which is what the reader
+    should see.
+    """
+    ramp = _style_colormap(style)
+    centre = float(style.diverging_center)
+    half = max(centre - float(levels[0]), float(levels[-1]) - centre, 1e-12)
+    step = float(levels[1] - levels[0]) if len(levels) > 1 else half
+
+    def at(value):
+        return ramp(float(np.clip((value - (centre - half)) / (2.0 * half), 0.0, 1.0)))
+
+    boundaries = np.asarray(levels, dtype=float)
+    colours = [at(value) for value in (boundaries[:-1] + boundaries[1:]) / 2.0]
+    # The arrows continue the ramp rather than jumping to its extreme end: one
+    # more half-step out, which is where the next class's midpoint would sit.
+    if extend in ("min", "both"):
+        colours.insert(0, at(boundaries[0] - step / 2.0))
+    if extend in ("max", "both"):
+        colours.append(at(boundaries[-1] + step / 2.0))
+    return colors.ListedColormap(colours)
+
+
+def _classified_colormap(style, levels, extend):
+    """The colour ramp for one classified raster, whichever rule applies."""
+    if getattr(style, "diverging_center", None) is not None:
+        return _diverging_colormap(style, levels, extend)
+    extra = {"neither": 0, "min": 1, "max": 1, "both": 2}[extend]
+    return _style_colormap(style, len(levels) - 1 + extra, floor=levels[0])
+
+
+def resolve_diverging_style(raster, style):
+    """Activate a style's declared midpoint, but only for a field that spans it.
+
+    A diverging ramp asserts that its pale middle is a MEANINGFUL value. That is
+    true of 0 degC (ice or not) and pH 7 (acid or alkaline), and it is true only
+    while the field actually reaches both sides of it: a basin whose soil runs
+    4.7-5.5 has no alkaline ground, so an absolute pH ramp would spend half its
+    colours on values that do not occur and compress the ones that do into two
+    classes. Such a field keeps the sequential ramp, which is not a compromise —
+    it is the honest encoding of a one-sided quantity.
+
+    Centring a diverging ramp on the data's own mean instead is the standard way
+    this rule gets broken. The centre here is always the DECLARED physical
+    value, never derived, and the only decision this function makes is whether
+    to use it at all.
+
+    Idempotent: a style already resolved carries the diverging palette and still
+    declares the same ``diverging_at``, so resolving it again returns the same
+    thing. That is what lets ``plot_raster_map`` resolve unconditionally without
+    caring whether its caller already did.
+    """
+    centre, palette = style.diverging_at, style.diverging_palette
+    if centre is None or palette is None:
+        return style
+    values = np.asarray(raster.values)
+    values = values[np.isfinite(values)]
+    if values.size == 0 or values.min() >= centre or values.max() <= centre:
+        return style
+    return style.replace(
+        palette=palette,
+        diverging_center=float(centre),
+        # Both belong to a one-sided scale and mean nothing on a centred one:
+        # the baseline IS the centre, and the pale end is the middle rather
+        # than an end to reserve.
+        zero_baseline=False,
+        reserve_low_for=None,
+    )
+
+
 def resolve_temperature_style(raster, style=None):
     """The temperature style, switched to diverging when the field crosses 0.
 
-    Absolute temperature has no meaningful midpoint, so it takes a sequential
-    warm ramp — until the field spans freezing, at which point 0 degC IS a
-    midpoint and a diverging palette centred on it is the honest encoding.
-    Centring a diverging ramp on the data's own mean instead is the standard
-    way this rule gets broken, so the centre is pinned to zero rather than
-    derived.
+    Kept as its own name because ``climate_figures`` has called it since the
+    2026-08 map sweep and because temperature is where the rule was first
+    written down. The rule itself is now general — see
+    :func:`resolve_diverging_style`; this only supplies the default style.
+
+    It used to rebuild the style field by field and dropped ``step_ladder`` in
+    the process, so a diverging temperature bar silently stepped in 0.15 degC
+    off the general ladder instead of the 0.25/0.5/1 the sequential one uses.
+    That is the exact defect ``replace`` exists to prevent, and the resolver
+    goes through it.
     """
-    style = RASTER_STYLES["temp"] if style is None else style
-    values = np.asarray(raster.values)
-    values = values[np.isfinite(values)]
-    if values.size == 0 or values.min() >= 0.0 or values.max() <= 0.0:
-        return style
-    return RasterStyle(
-        label=style.label,
-        palette=TEMPERATURE_DIVERGING_PALETTE,
-        classification=style.classification,
-        clip_quantiles=style.clip_quantiles,
-        zero_baseline=False,
-        relief=style.relief,
-        interpolation=style.interpolation,
-        diverging_center=TEMPERATURE_DIVERGING_CENTER,
+    return resolve_diverging_style(
+        raster, RASTER_STYLES["temp"] if style is None else style
     )
 
 
@@ -1210,6 +1322,46 @@ def _equal_interval_levels(lower, upper, zero_baseline=None, ladder=None):
             return floor + step * np.arange(count + 1)
         step = _next_step_up(step, ladder)
     return floor + step * np.arange(count + 1)
+
+
+def _diverging_levels(lower, upper, centre, ladder=None):
+    """Class boundaries on a round step, counted OUT FROM ``centre``.
+
+    Its own function rather than a branch inside ``_equal_interval_levels``,
+    because that rule is hostile to a pinned value: it drops the baseline to
+    zero, and it snaps the floor to ``floor(baseline/step)*step``, which moves
+    the centre off a boundary the moment the centre is not a multiple of the
+    step. pH 7 on a 0.15 step is exactly that case.
+
+    The one invariant: ``centre`` IS a boundary. A diverging palette's pale
+    middle sits at the join between two classes, so if the centre is not that
+    join the pale colour lands somewhere else and the map says freezing is at
+    3 degC. Counting the boundaries out from the centre rather than up from a
+    floor is what guarantees it, for any centre and any step.
+
+    The levels are NOT forced symmetric about the centre, and the first version
+    of this made them so. Measured on a field spanning -2 to 30 degC — a warm
+    basin with a few frosty cells — symmetry gave a bar running -50 to +50 in
+    four classes, because the half-span is set by whichever side reaches
+    further. That is a worse figure than the sequential one it replaced. The
+    boundaries here cover the DATA, so the same field gets a 5 degC step across
+    its own range; what stays symmetric is the COLOUR DOMAIN, which is where
+    symmetry was actually doing the work — see ``_diverging_colormap``.
+    """
+    span = max(upper - lower, 1e-12)
+    step = _nice_step_up(span / max(_COLORBAR_LEVELS, 1), ladder)
+    max_ticks = max(int(_COLORBAR_MAX_TICKS), 3)
+    low_index, high_index = -1, 1
+    for _ in range(_STEP_WIDEN_ATTEMPTS):
+        # floor/ceil so the outermost classes CONTAIN the extremes rather than
+        # ending at them; min/max so the centre is always inside the range even
+        # for a field that barely reaches across it.
+        low_index = min(int(np.floor((lower - centre) / step)), -1)
+        high_index = max(int(np.ceil((upper - centre) / step)), 1)
+        if high_index - low_index + 1 <= max_ticks:
+            break
+        step = _next_step_up(step, ladder)
+    return float(centre) + step * np.arange(low_index, high_index + 1)
 
 
 def _ladder_values(lower, upper):
@@ -1341,6 +1493,15 @@ def _class_levels(raster, style):
     )
     if not np.isfinite(upper) or not np.isfinite(lower) or upper <= lower:
         upper = lower + 1.0
+
+    # An ACTIVE centre takes its own rule, before the classification branch:
+    # both rules below optimise the class widths for the data's own histogram,
+    # and neither can keep a boundary pinned to a value while doing it. Only
+    # `resolve_diverging_style` sets this, and only for a field that spans the
+    # centre, so an unresolved style never reaches here.
+    centre = getattr(style, "diverging_center", None)
+    if centre is not None:
+        return _diverging_levels(lower, upper, centre, ladder)
 
     if style.classification not in _ELEVATION_CLASSIFICATIONS:
         raise ValueError(
@@ -2379,7 +2540,7 @@ def _overlay_contrast(raster, style):
         levels = _class_levels(raster, style)
         values, weights = _finite_cells(raster)
         shares = _class_area_shares(values, levels, weights)
-        cmap = _style_colormap(style, len(levels) - 1, floor=levels[0])
+        cmap = _classified_colormap(style, levels, "neither")
         lightness = np.array(
             [_relative_luminance(cmap(i)) for i in range(len(levels) - 1)]
         )
@@ -2458,8 +2619,7 @@ def _draw_raster(
     extend = _colorbar_extend(raster, levels)
     # BoundaryNorm wants one colour per class, PLUS one per extended end — the
     # arrow is a colour, not a decoration, so the ramp has to carry it.
-    extra = {"neither": 0, "min": 1, "max": 1, "both": 2}[extend]
-    cmap = _style_colormap(style, len(levels) - 1 + extra, floor=levels[0])
+    cmap = _classified_colormap(style, levels, extend)
     norm = colors.BoundaryNorm(levels, cmap.N, extend=extend)
     x_dim, y_dim = spatial_dim_names(raster)
     field = (
@@ -2961,6 +3121,12 @@ def plot_raster_map(
     # items convert degrees to metres, so a projected layer renders a wrong map
     # rather than failing. See ``check_geographic_inputs``.
     style = RASTER_STYLES["elevation"] if style is None else style
+    # Resolved HERE, unconditionally, rather than left to the caller: whether a
+    # figure diverges depends on the raster in front of it, so a caller can only
+    # get it right by asking the same question this function is about to ask.
+    # Idempotent, so a caller that already resolved (climate_figures does) loses
+    # nothing, and a caller that forgot cannot ship a mis-centred ramp.
+    style = resolve_diverging_style(raster, style)
     check_geographic_inputs(
         raster,
         {

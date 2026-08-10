@@ -287,20 +287,26 @@ BULK_DENSITY_STYLE = RasterStyle(
     zero_baseline=False,
 )
 
-#: Soil pH. Sequential, running pale (more acidic) to dark blue-green (less), so
-#: the direction matches the universal acid-red / alkaline-blue semantics
-#: without pretending to a pinned midpoint.
+#: Soil pH, on whichever of two encodings the basin earns.
 #:
-#: A DIVERGING ramp centred on pH 7 is the textbook encoding and is deliberately
-#: not used: ``RasterStyle.diverging_center`` is carried but not yet consumed by
-#: the classifier, so the centre would land wherever the data's own range put
-#: it. Centring a diverging ramp on the data instead of on the physical midpoint
-#: is exactly the failure the temperature style documents. Revisit when the
-#: classifier honours the centre.
+#: pH 7 is a PHYSICAL midpoint — acid below, alkaline above — which is what
+#: licenses a diverging ramp, and ``RdYlBu`` puts acid in red and alkaline in
+#: blue, the near-universal soil convention. But it is only honest for a basin
+#: that reaches both sides: one running 4.7-5.5 has no alkaline ground, so an
+#: absolute ramp would spend half its colours on values that do not occur and
+#: flatten the real variation into two classes.
+#:
+#: So the midpoint is DECLARED and activated per raster
+#: (``resolve_diverging_style``). A basin spanning pH 7 gets the diverging map
+#: with white pinned to neutral; a one-sided basin keeps ``YlGnBu``, pale (more
+#: acidic) to dark blue-green (less), which runs in the same direction as the
+#: convention without claiming a midpoint the data does not contain.
 SOIL_PH_STYLE = RasterStyle(
     label="Soil pH (H$_2$O)",
     palette="YlGnBu",
     zero_baseline=False,
+    diverging_at=7.0,
+    diverging_palette="RdYlBu",
 )
 
 #: Depth to bedrock. Neutral, distinct from every other soil ramp in the family
