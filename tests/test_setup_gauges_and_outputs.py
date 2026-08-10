@@ -13,6 +13,7 @@ from blueearth_cst.model.setup_gauges_and_outputs import (
 from blueearth_cst.model.setup_gauges_and_outputs import (
     update_wflow_gauges_outputs,  # noqa: E402
 )
+from blueearth_cst.shared.wflow_outputs import code_for
 
 
 def test_raises_on_unknown_outvar():
@@ -39,6 +40,7 @@ def test_extras_selection_and_csdms_mapping(monkeypatch):
             self.staticmaps = SimpleNamespace(
                 data=xr.Dataset({"outlets": (("y", "x"), np.array([[101.0]]))})
             )
+            self.config = SimpleNamespace(remove=lambda *a, **k: None)
 
         def setup_config_output_timeseries(self, **k):
             calls.setdefault("timeseries", []).append(k)
@@ -61,10 +63,7 @@ def test_extras_selection_and_csdms_mapping(monkeypatch):
     assert calls["timeseries"][0]["mapname"] == "outlets"
     assert calls["timeseries"][0]["param"] == [WFLOW_VARS["river discharge"]]
     # extras drop river discharge; header + param stay in order and are mapped
-    assert calls["timeseries"][1]["header"] == [
-        "snow_basavg",
-        "overland flow_basavg",
-    ]
+    assert calls["timeseries"][1]["header"] == ["swe", "qof"]
     assert calls["timeseries"][1]["param"] == [
         WFLOW_VARS["snow"],
         WFLOW_VARS["overland flow"],
@@ -81,9 +80,14 @@ def _record_calls(monkeypatch, with_registry=False):
     if with_registry:
         maps["gauges_locations"] = (("y", "x"), np.array([[1010.0]]))
 
+    class _FakeConfig:
+        def remove(self, *args, **kwargs):
+            calls.setdefault("removed", []).append(args)
+
     class _FakeMod:
         def __init__(self, *a, **k):
             self.staticmaps = SimpleNamespace(data=xr.Dataset(maps))
+            self.config = _FakeConfig()
 
         def setup_config_output_timeseries(self, **k):
             calls.setdefault("timeseries", []).append(k)
@@ -116,7 +120,7 @@ def test_every_configurable_outvar_reaches_a_declaration(monkeypatch, var):
 
     basavg = [c for c in calls["timeseries"] if c["mapname"] == "subcatchment"]
     assert len(basavg) == 1, f"{var} produced no basin-average declaration"
-    assert basavg[0]["header"] == [f"{var}_basavg"]
+    assert basavg[0]["header"] == [code_for(var)]
     assert basavg[0]["param"] == [WFLOW_VARS[var]]
     assert basavg[0]["reducer"] == ["mean"]
 
@@ -161,3 +165,20 @@ def test_the_gauge_block_emits_discharge_only(monkeypatch):
             "river discharge must produce discharge and nothing else"
         )
         assert call["param"] == [WFLOW_VARS["river discharge"]]
+
+
+def test_stale_column_declarations_are_cleared_first(monkeypatch):
+    """Declarations must be a pure function of wflow_outvars, not cumulative.
+
+    `setup_config_output_timeseries` APPENDS, so without this the TOML keeps
+    every header the model was ever built with. Measured 2026-08-10: renaming
+    the recharge header left both declarations in place and output.csv carried
+    eight recharge columns, the same numbers under two names. Dropping a
+    variable from wflow_outvars was equally permanent.
+    """
+    calls = _record_calls(monkeypatch)
+    update_wflow_gauges_outputs(wflow_root="x", outputs=["river discharge", "snow"])
+    assert ("output.csv.column",) in calls.get("removed", []), (
+        "the previous csv column declarations must be cleared before new ones "
+        "are written, or stale headers accumulate across rebuilds"
+    )

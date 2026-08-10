@@ -18,6 +18,7 @@ from blueearth_cst.climate_analysis.climate_figures import (
 # Recognises both "unset" spellings (YAML null and the legacy "None" string),
 # so an unset observation key never becomes a declared input.
 from blueearth_cst.shared.gauges import is_unset
+from blueearth_cst.shared.wflow_outputs import CODES as WFLOW_OUTPUT_CODES
 
 # Windows: make Snakemake's benchmark memory/IO/CPU metrics work (else all NA).
 patch_psutil_windows_benchmark()
@@ -735,7 +736,7 @@ rule extract_historical_climate:
 # included.
 _WFLOW_OUTVARS_WITHOUT_BASAVG_PLOT = ("river discharge", "precipitation")
 _basavg_pngs = [
-    f"{basin_dir}/evaluation/plots/{var}_basavg.png"
+    f"{basin_dir}/evaluation/plots/{WFLOW_OUTPUT_CODES[var]}_subcatchment.png"
     for var in wflow_outvars
     if var not in _WFLOW_OUTVARS_WITHOUT_BASAVG_PLOT
 ]

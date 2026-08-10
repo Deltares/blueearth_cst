@@ -20,6 +20,8 @@ WFLOW_VARS = {
     "snow": "snowpack_liquid_water__depth",
 }
 
+from blueearth_cst.shared.wflow_outputs import code_for  # noqa: E402
+
 
 def update_wflow_gauges_outputs(
     wflow_root: Union[str, Path],
@@ -48,6 +50,20 @@ def update_wflow_gauges_outputs(
     mod = WflowSbmModel(wflow_root, mode="r+", data_libs=data_catalog)
 
     river_q_csdms = WFLOW_VARS["river discharge"]
+
+    # Clear any previously declared csv columns FIRST, so what this rule writes
+    # is a pure function of `wflow_outvars` rather than the union of every
+    # config the model was ever built with.
+    #
+    # `setup_config_output_timeseries` APPENDS. Nothing removed a stale entry,
+    # so editing wflow_outvars only ever added: a model rebuilt after renaming
+    # the recharge header carried BOTH declarations, and its output.csv held
+    # eight recharge columns -- four under each name, the same numbers twice
+    # (measured 2026-08-10). Dropping a variable from wflow_outvars likewise
+    # kept emitting it forever. `errors="ignore"` because a first build has no
+    # such key to remove.
+    mod.config.remove("output.csv.column", errors="ignore")
+
     staticmaps = mod.staticmaps.data
     if "outlets" not in staticmaps:
         raise ValueError("Built Wflow model lacks the P1-inherited outlets map")
@@ -106,10 +122,15 @@ def update_wflow_gauges_outputs(
     # entry is a known WFLOW_VARS key.
     extras = [v for v in outputs if v != "river discharge"]
     if extras:
+        # SHORT CODES, not the semantic label. The header used to be
+        # f"{v}_basavg", so `groundwater recharge` produced columns named
+        # `groundwater recharge_basavg_101` -- 32 characters and a space before
+        # the id, which then propagated into figure filenames. The code map is
+        # shared/wflow_outputs.CODES; `gwr_101` says the same thing.
         mod.setup_config_output_timeseries(
             mapname="subcatchment",
             toml_output="csv",
-            header=[f"{v}_basavg" for v in extras],
+            header=[code_for(v) for v in extras],
             param=[WFLOW_VARS[v] for v in extras],
             reducer=["mean"] * len(extras),
         )

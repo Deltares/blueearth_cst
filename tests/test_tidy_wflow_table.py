@@ -3,7 +3,7 @@
 The raw ``output.csv`` is an interface with hydromt's reader, so these tables are
 DERIVED. What matters is that the derivation is lossless where it claims to be
 (station identity, row count, ordering) and lossy only where it intends to be
-(significant digits).
+(five decimal places).
 """
 
 import pandas as pd
@@ -31,40 +31,56 @@ def _frame():
     )
 
 
-# --- significant digits, not decimal places ---------------------------------
+# --- decimal places, with a deliberate floor --------------------------------
 
 
 @pytest.mark.parametrize(
     "value, expected",
     [
-        (0.00343887581965451, "0.0034389"),
-        # 5 significant digits, then trailing zeros dropped: the zero in
-        # 0.000098660 carries no information and only widens the column.
-        (9.865960861963168e-5, "0.00009866"),  # never e-notation
+        (0.00343887581965451, "0.00344"),
+        (9.865960861963168e-5, "0.0001"),  # 5 dp, trailing zeros trimmed
         (16.010000228881836, "16.01"),
         (0.0, "0"),
-        (123456.789, "123460"),
+        (123456.789, "123456.789"),
     ],
 )
-def test_format_value_is_plain_decimal_at_five_significant_digits(value, expected):
+def test_format_value_is_plain_decimal_at_five_places(value, expected):
     assert _format_value(value, 5) == expected
 
 
-def test_format_value_never_emits_scientific_notation():
+def test_no_scientific_notation_anywhere():
     """The failure this exists to prevent: Excel showing 9.87E-05.
 
-    `f"{v:.5g}"` -- the obvious implementation -- fails exactly here, which is
-    why the module formats through a Decimal instead.
+    `f"{v:.5g}"` -- the obvious implementation -- fails exactly here.
+
+    "Anywhere" holds because the cap is on DECIMAL PLACES: a value too small to
+    write out in five places is zero, not an exponent, so there is no magnitude
+    at which the decimal form becomes unreadable.
     """
-    for value in (1e-12, 9.865960861963168e-5, 1e20):
+    for value in (9.865960861963168e-5, 0.007245, 1.0, 38.55, 123456.789):
         assert "e" not in _format_value(value, 5).lower()
 
 
-def test_small_values_survive_rounding():
-    """A decimal-places round would destroy these; a significant-digit cap must not."""
-    assert float(_format_value(9.865960861963168e-5, 5)) == pytest.approx(
-        9.866e-5, rel=1e-4
-    )
+def test_values_below_the_decimal_floor_read_as_zero():
+    """Five decimal places puts a deliberate floor under floating-point noise.
+
+    wflow's recharge spins up through ~1e-39. Under a significant-digit cap that
+    rendered as `0.000000000000000000000000000000000000001054` -- 44 characters
+    in a table whose purpose is readability. Owner ruling 2026-08-10: a value
+    that small IS zero at any hydrological scale, so it prints as `0`.
+    """
+    for value in (1.054e-39, 3.2491e-42, 1e-7, -1e-9):
+        assert _format_value(value, 5) == "0"
+
+
+def test_the_floor_is_a_stated_trade_and_is_raisable():
+    """The cost is real: 9.87e-5 rounds to 0.0001 rather than 0.00009866.
+
+    Acceptable on a basin whose discharge runs 1e-5..1e-1, and recoverable by
+    raising `decimals` -- which is why it is a parameter and not a constant.
+    """
+    assert _format_value(9.865960861963168e-5, 5) == "0.0001"
+    assert _format_value(9.865960861963168e-5, 8) == "0.00009866"
 
 
 # --- column grammar ----------------------------------------------------------
@@ -123,7 +139,7 @@ def test_write_emits_one_file_per_variable(tmp_path):
 
     q = pd.read_csv(written[1], dtype=str)
     assert list(q.columns) == ["time", "101", "1010", "1040"]
-    assert q["101"].tolist() == ["0.007245", "0.00009866"]
+    assert q["101"].tolist() == ["0.00724", "0.0001"]
 
 
 def test_write_leaves_the_source_untouched(tmp_path):
@@ -167,3 +183,45 @@ def test_slugify_collapses_runs_and_trims():
         "groundwater recharge_basavg"
     ) == "groundwater_recharge_basavg".replace(" ", "_")
     assert slugify("Q") == "q"
+
+
+def test_no_cell_is_ever_absurdly_wide():
+    """The concrete regression: a 48-character cell in a readability table."""
+    for value in (1.054e-39, 3.2491e-42, 5.3913e-36, 1e-300):
+        assert len(_format_value(value, 5)) <= 8
+
+
+def test_ordinary_hydrological_values_stay_decimal():
+    """The floor must not swallow the range these files actually carry.
+
+    Measured on a real run: discharge ~1e-3..1e-1, recharge -5.1..38.6.
+    """
+    for value in (0.007245, 38.55, -5.098, 0.029752):
+        rendered = _format_value(value, 5)
+        assert "e" not in rendered.lower()
+        assert rendered != "0"
+
+
+def test_stale_tables_are_removed(tmp_path):
+    """The set on disk is a function of the CURRENT config, not cumulative."""
+    src = tmp_path / "output.csv"
+    out = tmp_path / "out"
+    _frame().to_csv(src, index=False)
+    write_tidy_tables(src, out)
+
+    orphan = out / "output_retired_name.csv"
+    orphan.write_text("time,101\n2000-01-02 00:00:00,1\n", encoding="utf-8")
+    write_tidy_tables(src, out)
+    assert not orphan.exists(), "a table for a dropped variable must not survive"
+    assert (out / "output_q.csv").exists()
+
+
+def test_the_raw_wflow_csv_is_never_removed_as_stale(tmp_path):
+    """`output.csv` is wflow's own and hydromt reads it; the glob must miss it."""
+    out = tmp_path / "out"
+    out.mkdir()
+    src = out / "output.csv"
+    _frame().to_csv(src, index=False)
+
+    write_tidy_tables(src, out)
+    assert src.exists(), "the raw csv was deleted as a stale derived table"

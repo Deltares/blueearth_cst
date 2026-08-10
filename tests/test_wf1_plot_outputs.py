@@ -132,9 +132,7 @@ def test_delete_all_output_removes_the_declared_plot_outputs(fabricated_project)
 
 #: What rule 1.11 derives from wflow_outvars: the CSV column name verbatim,
 #: spaces and all (func_plot_signature.plot_basavg writes f"{dvar}.png").
-_BASAVG_REL = (
-    "models/hydrology/wflow/evaluation/plots/actual evapotranspiration_basavg.png"
-)
+_BASAVG_REL = "models/hydrology/wflow/evaluation/plots/aet_subcatchment.png"
 
 
 @pytest.fixture()

@@ -21,19 +21,13 @@ from blueearth_cst.shared.snake_utils import save_figure
 
 
 # %%
-# Supported wflow outputs
-WFLOW_VARS = {
-    "overland flow": {"resample": "mean", "legend": "Overland Flow (m$^3$s$^{-1}$)"},
-    "actual evapotranspiration": {
-        "resample": "sum",
-        "legend": "Actual Evapotranspiration (mm month$^{-1}$)",
-    },
-    "groundwater recharge": {
-        "resample": "sum",
-        "legend": "groundwater recharge (mm month$^{-1}$)",
-    },
-    "snow": {"resample": "sum", "legend": "Snowpack (mm month$^{-1}$)"},
-}
+# Supported wflow outputs. The resample rule and axis legend live beside the
+# code map they are keyed by, in shared/wflow_outputs.py — one table rather than
+# two that had to be kept in agreement by hand.
+from blueearth_cst.shared.wflow_outputs import (  # noqa: E402
+    PLOT_META,
+    code_from_variable,
+)
 
 
 # --- publication figure style -------------------------------------------
@@ -716,41 +710,63 @@ def plot_hydro(
 
 
 def plot_basavg(ds, Folder_out, fs=10):
-    dvars = [dvar for dvar in ds.data_vars]
-    n = len(dvars)
+    """One monthly-climatology panel PER SUBCATCHMENT, per variable.
 
-    for i in range(n):
-        dvar = dvars[i]
+    These series are per-subcatchment means (wflow's `subcatchment` map with
+    `reducer = "mean"`), so on a basin with four control points there are four
+    of them, not one. This drew them as a single object until 2026-08-10, which
+    worked only while a basin had ONE subcatchment: `plot_results` squeezes a
+    size-1 index away, so the array arrived 1-D and the line plot was correct by
+    accident. With four, `.plot()` saw a 2-D (index, time) array, dispatched to
+    `pcolormesh`, and raised on wflow's unsorted index -- and `fill_between`
+    would have broken next, since it assumes exactly 12 values.
 
-        fig, ax = plt.subplots(1, 1, sharex=True, figsize=(11, 4))
-        # axes = [axes] if n == 1 else axes
+    Faceting rather than one file per subcatchment is a Snakemake constraint,
+    not a preference: the subcatchment count is not known at DAG-parse time, so
+    N separate PNGs could not be declared as outputs. One file per variable
+    keeps the declaration in `_basavg_pngs` exact.
+    """
+    month_labels = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
 
-        if WFLOW_VARS[dvar.split("_")[0]]["resample"] == "sum":
-            sum_monthly = ds[dvar].resample(time="ME").sum("time")
-        else:  # assume mean
-            sum_monthly = ds[dvar].resample(time="ME").mean("time")
-        sum_monthly_mean = sum_monthly.groupby("time.month").mean("time")
-        sum_monthly_q25 = sum_monthly.groupby("time.month").quantile(0.25, "time")
-        sum_monthly_q75 = sum_monthly.groupby("time.month").quantile(0.75, "time")
-
-        # plot
-        sum_monthly_mean.plot(ax=ax, color="darkblue")
-        ax.fill_between(
-            np.arange(1, 13), sum_monthly_q25, sum_monthly_q75, color="lightblue"
+    for dvar in ds.data_vars:
+        meta = PLOT_META[code_from_variable(dvar)]
+        series = ds[dvar]
+        resampled = (
+            series.resample(time="ME").sum("time")
+            if meta["resample"] == "sum"
+            else series.resample(time="ME").mean("time")
         )
-        legend = WFLOW_VARS[dvar.split("_")[0]]["legend"]
-        ax.set_ylabel(legend, fontsize=fs)
 
-        ax.tick_params(axis="both", labelsize=fs)
-        ax.set_xlabel("", fontsize=fs)
-        ax.set_title("")
-        ax.grid(alpha=0.5)
+        # Sorted, so the panels read in subcatchment order rather than wflow's
+        # internal one (measured [103, 101, 104, 102] on a four-point basin).
+        units = (
+            sorted(np.atleast_1d(series["index"].values).tolist())
+            if "index" in series.dims
+            else [None]
+        )
+        fig, axes = plt.subplots(
+            len(units), 1, sharex=True, figsize=(11, 3 * len(units)), squeeze=False
+        )
 
-        month_labels = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
-        ax.set_xticks(ticks=np.arange(1, 13), labels=month_labels, fontsize=fs)
+        for ax, unit in zip(axes[:, 0], units):
+            one = resampled if unit is None else resampled.sel(index=unit)
+            grouped = one.groupby("time.month")
+            ax.plot(np.arange(1, 13), grouped.mean("time"), color="darkblue")
+            ax.fill_between(
+                np.arange(1, 13),
+                grouped.quantile(0.25, "time"),
+                grouped.quantile(0.75, "time"),
+                color="lightblue",
+            )
+            ax.set_ylabel(meta["legend"], fontsize=fs)
+            ax.tick_params(axis="both", labelsize=fs)
+            ax.set_xlabel("")
+            ax.grid(alpha=0.5)
+            if unit is not None:
+                ax.set_title(f"subcatchment {int(unit)}", fontsize=fs)
 
+        axes[-1, 0].set_xticks(ticks=np.arange(1, 13), labels=month_labels, fontsize=fs)
         plt.tight_layout()
-        fig.set_tight_layout(True)
         save_figure(os.path.join(Folder_out, f"{dvar}.png"), dpi=300)
 
 

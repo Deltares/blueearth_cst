@@ -15,12 +15,15 @@ positional outlet (the ambiguity ``shared/gauges.py`` exists to prevent).
 Three differences from the raw file, each fixing something measured on a real
 basin (``C:/TESTS/CST/gabon_1008``, 2026-08-10):
 
-* **Significant digits.** Values carried up to 21 characters
-  (``0.00343887581965451``). Sub-metre-per-second precision on discharge from an
-  uncalibrated global-data model is noise, and it cost 58% of the file.
+* **Five decimal places.** Values carried up to 21 characters
+  (``0.00343887581965451``). Sub-millimetre precision on discharge from an
+  uncalibrated global-data model is noise, and it cost 58% of the file. The cap
+  is on DECIMAL PLACES rather than significant digits, so wflow's spin-up
+  values around 1e-39 read as ``0`` instead of as forty leading zeros -- see
+  ``_format_value``.
 * **No scientific notation.** 502 of 7670 rows held values like ``9.86e-5``.
   Excel renders those as ``9.87E-05``, which is a display most people then have
-  to fight.
+  to fight. The decimal cap removes the need for it entirely.
 * **Timestamps Excel parses.** ``2000-01-02T00:00:00`` imports as TEXT, not a
   date, because of the ``T``. A space makes it a datetime everywhere.
 
@@ -38,29 +41,37 @@ import pandas as pd
 #: (docs/wflow-user-guide/03-toml-file.md, the `[[output.csv.column]]` section).
 _COLUMN = re.compile(r"^(?P<var>.+?)_(?P<station>\d+)$")
 
-#: Significant digits kept in a derived table. Not decimal places: `round(5)`
-#: turns 9.86e-5 into 0.0001 and destroys small flows, while a significant-digit
-#: cap is scale-invariant. Same reasoning as `export_wflow_results._format_value`.
-DEFAULT_SIGNIFICANT_DIGITS = 5
+#: Decimal places kept in a derived table. Five is the owner ruling: it puts a
+#: hard floor under the noise wflow emits during spin-up, so a 1e-39 recharge
+#: reads as `0` rather than as forty leading zeros.
+DEFAULT_DECIMALS = 5
 
 
-def _format_value(value, digits: int) -> str:
-    """Render one value as PLAIN DECIMAL text with ``digits`` significant digits.
+def _format_value(value, decimals: int) -> str:
+    """Render one value as plain decimal text, capped at ``decimals`` places.
 
-    ``f"{v:.5g}"`` is the obvious spelling and is wrong here: it still emits
-    ``9.8596e-05``. Formatting through a Decimal quantized to the significant
-    figure keeps small values readable as decimals, which is the whole point.
+    DECIMAL PLACES, not significant digits. Significant digits keep every value
+    at constant relative precision, which sounds better and reads worse here:
+    wflow's recharge spins up through ~1e-39, and five significant digits of
+    that is ``0.000000000000000000000000000000000000001054`` -- 44 characters of
+    floating-point noise, in a table whose whole purpose is being readable. A
+    value that small IS zero at any hydrological scale, and a decimal cap says
+    so (owner ruling, 2026-08-10).
+
+    The cost, stated because it is real: anything under 5e-6 renders as ``0``.
+    On this basin discharge runs 1e-5..1e-1 and recharge -5.1..38.6, so nothing
+    meaningful is lost -- but a catchment with genuinely microscopic flows would
+    want `decimals` raised, which is why it stays a parameter.
+
+    Trailing zeros are trimmed, so the column is as narrow as its values allow
+    rather than padded to a fixed width.
     """
     if pd.isna(value):
         return ""
-    value = float(value)
-    if value == 0:
+    text = f"{float(value):.{decimals}f}"
+    # Catches the underflow case AND normalises "-0.00000" to a bare "0".
+    if float(text) == 0:
         return "0"
-    from decimal import Decimal
-
-    quantized = float(f"%.{digits}g" % value)
-    text = format(Decimal(repr(quantized)), "f")
-    # Decimal keeps a trailing ".0" on integral values; drop it for readability.
     return text.rstrip("0").rstrip(".") if "." in text else text
 
 
@@ -97,7 +108,7 @@ def split_columns(columns) -> Dict[str, List[str]]:
 
 
 def tidy_tables(
-    frame: pd.DataFrame, digits: int = DEFAULT_SIGNIFICANT_DIGITS
+    frame: pd.DataFrame, decimals: int = DEFAULT_DECIMALS
 ) -> Dict[str, pd.DataFrame]:
     """One Excel-ready frame per variable, keyed by the variable name.
 
@@ -112,7 +123,7 @@ def tidy_tables(
     for var, names in split_columns(frame.columns).items():
         data = {
             _COLUMN.match(name)["station"]: [
-                _format_value(v, digits) for v in frame[name]
+                _format_value(v, decimals) for v in frame[name]
             ]
             for name in names
         }
@@ -123,7 +134,7 @@ def tidy_tables(
 
 
 def write_tidy_tables(
-    csv_path, out_dir, prefix: str = "output", digits: int = DEFAULT_SIGNIFICANT_DIGITS
+    csv_path, out_dir, prefix: str = "output", decimals: int = DEFAULT_DECIMALS
 ) -> List[Path]:
     """Read wflow's csv and write ``<prefix>_<var>.csv`` per variable.
 
@@ -137,10 +148,23 @@ def write_tidy_tables(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     written = []
-    for var, table in tidy_tables(frame, digits).items():
+    for var, table in tidy_tables(frame, decimals).items():
         path = out_dir / f"{prefix}_{slugify(var)}.csv"
         table.to_csv(path, index=False)
         written.append(path)
+
+    # Drop tables this run did NOT produce, so the set on disk is a function of
+    # the current config rather than the union of every config ever run. Rule
+    # 1.14b declares only the discharge table, so Snakemake cannot clean the
+    # rest: renaming the recharge header left `output_groundwater_recharge_
+    # basavg.csv` (0.32 MB) beside its replacement, holding the same numbers
+    # under the retired name (measured 2026-08-10). The glob needs the
+    # underscore -- `output.csv` is wflow's own and must never be touched here.
+    keep = {p.name for p in written}
+    for stale in out_dir.glob(f"{prefix}_*.csv"):
+        if stale.name not in keep:
+            stale.unlink()
+
     return sorted(written)
 
 
