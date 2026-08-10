@@ -68,11 +68,10 @@ REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 
 import hydromt  # noqa: E402  (registers the .raster accessor)
-from blueearth_cst.model.climate_parity import model_parity_climate  # noqa: E402
-
 from blueearth_cst.climate_analysis.subcatchment_climate import (  # noqa: E402
     climate_forcing_by_subcatchment,
 )
+from blueearth_cst.model.climate_parity import model_parity_climate  # noqa: E402
 
 # era5-branch grid-level parity tolerances (design §5.2: float32 +
 # domain-clip headroom; the parity path and the build run the same functions

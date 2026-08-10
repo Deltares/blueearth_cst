@@ -13,8 +13,8 @@ run already left behind, and calls the same plotting function the rule calls.
     # render everything available, into a scratch dir
     pixi run python dev/scripts/preview_plots.py --all
 
-    # render two families and open the output folder
-    pixi run python dev/scripts/preview_plots.py clim-year hydro --open
+    # render one family and open the output folder
+    pixi run python dev/scripts/preview_plots.py hydro --open
 
 Renders land in ``--out-dir`` (a gitignored scratch tree by default) and NEVER
 in a project's own ``plots/``: a preview must not be able to take the place of a
@@ -22,8 +22,8 @@ run product that the baseline fingerprints. Same rule as
 ``preview_basin_map.py``, which owns the basin map and is not duplicated here.
 
 **Coverage is deliberately partial.** A family appears below only when its
-inputs can be rebuilt HONESTLY from a finished run. Two are excluded for stated
-reasons rather than forgotten:
+inputs can be rebuilt HONESTLY from a finished run. Three are excluded for
+stated reasons rather than forgotten:
 
 * ``signatures`` needs observed discharge, and observations live outside the
   repository by design (``config/templates/observations/`` holds header-only
@@ -34,12 +34,12 @@ reasons rather than forgotten:
   rather than a file on disk. Rebuilding that assembly here would duplicate the
   rule's logic, and a preview that drifts from the rule is worse than no
   preview.
-
-The climate families rebuild ``ds_clim`` by aggregating the model's own forcing
-per subcatchment. A production run inserts an elevation-parity transform first,
-which shifts values slightly — structure and record length are real, the exact
-numbers on the axes are not. That is the right trade for judging a design, and
-it is stated here so nobody reads a preview as a numerical check.
+* ``clim-year`` / ``clim-month`` were the per-subcatchment climate signatures.
+  ADR 0006 retired that family along with its producer
+  (``climate_analysis/subcatchment_climate.py``) and ``plot_clim``, so there is
+  no longer a rule-side function for a preview to call. The climate a reader
+  wants is the map/series family under ``forcing/plots/``, which is the second
+  exclusion above.
 """
 
 from __future__ import annotations
@@ -61,29 +61,6 @@ MODEL_SUBDIR = Path("models") / "hydrology" / "wflow"
 
 def _model_dir(project_dir: Path) -> Path:
     return project_dir / MODEL_SUBDIR
-
-
-def _load_ds_clim(project_dir: Path):
-    """Per-subcatchment climate series, rebuilt from the model's own forcing."""
-    import xarray as xr
-
-    from blueearth_cst.climate_analysis.subcatchment_climate import (
-        climate_forcing_by_subcatchment,
-    )
-
-    model = _model_dir(project_dir)
-    forcing = xr.open_dataset(model / "forcing" / "inmaps_historical.nc")
-    static = xr.open_dataset(model / "staticmaps.nc")
-    return climate_forcing_by_subcatchment(forcing, static["subcatchment"])
-
-
-def _render_clim(project_dir: Path, out_dir: Path, period: str) -> list[Path]:
-    from blueearth_cst.shared.func_plot_signature import plot_clim
-
-    ds_clim = _load_ds_clim(project_dir)
-    index = ds_clim.index.values[0]
-    plot_clim(ds_clim.sel(index=index), str(out_dir), f"wflow_{index}", period)
-    return sorted(out_dir.glob(f"clim_wflow_{index}_{period}.png"))
 
 
 def _render_hydro(project_dir: Path, out_dir: Path) -> list[Path]:
@@ -115,16 +92,6 @@ def _render_hydro(project_dir: Path, out_dir: Path) -> list[Path]:
 #: The probe is what ``--list`` reports on, so a missing fixture is named as a
 #: missing FILE rather than surfacing later as an exception inside a plot call.
 RENDERERS = {
-    "clim-year": (
-        "Annual climate signature per station (T, P, Ep)",
-        lambda p: _model_dir(p) / "forcing" / "inmaps_historical.nc",
-        lambda p, o: _render_clim(p, o, "year"),
-    ),
-    "clim-month": (
-        "Monthly climate signature per station",
-        lambda p: _model_dir(p) / "forcing" / "inmaps_historical.nc",
-        lambda p, o: _render_clim(p, o, "month"),
-    ),
     "hydro": (
         "Simulated hydrograph at the first discharge column",
         lambda p: _model_dir(p) / "run_default" / "output.csv",
