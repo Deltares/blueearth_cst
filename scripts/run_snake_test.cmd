@@ -27,7 +27,7 @@ rem non-interactively.
 rem ===========================================================================
 setlocal
 
-set CFG=config/workflows/snake_config_model_test.yml
+set CFG=test_case/snake_config_model_test.yml
 set CORES=3
 rem O-02: DAG renders belong with the artifacts of the config that produced
 rem them, not at the repository root. Backslashes are required -- cmd.exe's

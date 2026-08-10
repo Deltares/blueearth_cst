@@ -133,7 +133,7 @@ def resolve_gauge_points_path(
             "fallback, and the run would fail much later comparing observation "
             "station IDs against a registry built without them.\n"
             "Migrating a project also renumbers wflow_id: see "
-            "config/templates/observations/README.md."
+            "config/templates/README.md."
         )
     return None
 

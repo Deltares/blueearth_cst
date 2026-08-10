@@ -50,9 +50,7 @@ def _dry_run(config_path):
 @pytest.fixture
 def seed_config():
     return yaml.safe_load(
-        (REPO / "config/workflows/snake_config_dev_fast.yml").read_text(
-            encoding="utf-8"
-        )
+        (REPO / "test_case/snake_config_dev_fast.yml").read_text(encoding="utf-8")
     )
 
 
@@ -98,7 +96,21 @@ def test_snakefile_rejects_a_removed_gridded_key(tmp_path, seed_config):
 
 
 def test_no_shipped_config_carries_a_gridded_key():
-    for cfg_path in sorted((REPO / "config/workflows").glob("*.yml")):
+    # Both roots, and rglob rather than glob. This assertion is over whatever
+    # the search returns, so ANY config that falls outside it stops being
+    # checked without the test failing -- it just checks fewer files and still
+    # passes. That has now bitten twice: once when `archive/` was created under
+    # a non-recursive glob, and again when the configs moved out of
+    # `config/workflows/` entirely and the old root stopped existing (a glob
+    # over a missing directory yields nothing at all). Hence the explicit
+    # emptiness guard below.
+    roots = (REPO / "config/templates", REPO / "test_case")
+    cfg_paths = sorted(p for root in roots for p in root.rglob("snake_config*.yml"))
+    assert len(cfg_paths) >= 5, (
+        f"expected to find the shipped configs, found {len(cfg_paths)}: "
+        f"{[str(p) for p in cfg_paths]} -- if they moved again, update `roots`"
+    )
+    for cfg_path in cfg_paths:
         text = cfg_path.read_text(encoding="utf-8")
         for key in ("save_grids:", "save_gridded:"):
             assert key not in text, f"{cfg_path.name} still carries the dead key"

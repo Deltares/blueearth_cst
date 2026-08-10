@@ -1,12 +1,6 @@
-# Canonical example config for blueearth_cst — R01 sectioned schema.
-# Doubles as the TRACKED baseline seed: dev/baseline/manifest.json is
-# recorded from a fresh run of this config into project.project_dir
-# (test_case/test_local). Keep it reproducible — never point the baseline
-# at an untracked *_local.yml again.
-#
-# Small/fast test setup: 3 CMIP6 models, a single "far" horizon, matched
-# 20-year historical/future windows. For a clean template see
-# config/snake_config.template.yml.
+# Worked example, and the TRACKED baseline seed dev/baseline/manifest.json is
+# recorded from. Paths are relative to the repo root (where you run Snakemake),
+# not to this file.
 
 project:
   project_dir: test_case/test_local
@@ -18,12 +12,14 @@ shared:
   basin:
     region: "{'subbasin': [9.666, 0.4476], 'uparea': 100}"
     resolution: 0.00833
-    gauge_points: null
+    gauge_points: test_case/test_data/output_locations.csv
     automatic_subbasins:
       max_per_basin: 11
   historical_window:
+    # 17 calendar years — one clear of the 16-year weathergenr floor
+    # (constraints.min_historical_years). Shortened 2026-08-10 to trim WF1.
     starttime: "2000-01-01T00:00:00"
-    endtime: "2020-12-31T00:00:00"
+    endtime: "2016-12-31T00:00:00"
   clim_historical: era5
 
 workflows:
@@ -31,12 +27,8 @@ workflows:
     enabled: true
     model_build_config: config/templates/wflow_build_model.yml
     waterbodies_config: config/templates/wflow_update_waterbodies.yml
-    # Kept discharge-only on purpose: this is the baseline-recording seed, and
-    # extra outputs would only churn the copied-config fingerprint without adding
-    # any fingerprinted target. The shipped default (template / Snakefile) does
-    # include 'actual evapotranspiration'.
-    wflow_outvars: ["river discharge"]
-    observations_timeseries: null
+    wflow_outvars: ["river discharge", "groundwater recharge"]
+    observations_timeseries: test_case/test_data/observations_timeseries.csv
   climate_projections:
     enabled: true
     clim_project: cmip6
@@ -50,7 +42,12 @@ workflows:
       precip: {source: precip, canonical: rate, units: mm/day, change: relative}
       temp: {source: temp, canonical: state, units: degC, change: absolute}
     start_month_hyd_year: Jan
-    historical_year_range: [1990, 2010]
+    # Ends 2014, not 2016: the CMIP6 historical experiment stops there, so a
+    # later end is CLIPPED to it — and clipping a range that equalled
+    # shared.historical_window is what raises the "no longer aligns" warning.
+    historical_year_range: [2000, 2014]
+    # Matches WF3's forcing window exactly (horizontime_climate ± run_length/2
+    # = 2078 ± 8 = 2070-2086), which is computed independently of this key.
     future_horizons:
       far: [2070, 2090]
 
@@ -58,19 +55,11 @@ workflows:
     enabled: true
     experiment_name: experiment
     realizations_num: 2
-    horizontime_climate: 2080
-    run_length: 20
-    # R11 P3, 2026-08-08: was `false`. Turning it on runs the st_0 unperturbed
-    # baseline member, which is NOT optional for this seed config:
-    #   - Q5 fixes the wettest/driest month once from the st_0 baseline and
-    #     evaluates it for every member, so with no st_0 run the class-C metrics
-    #     (`q_wettest_month_mean`, `q_driest_month_mean`) are skipped ENTIRELY --
-    #     silently, since export_wflow_results only guards on `0 in runs`.
-    #   - [R9-5] ruled the baseline is a member of the response surface.
-    # Measured before the change: 576 rows / 9 metrics / st_id 1-6, against a
-    # design table declaring st_id 0-6. Both month metrics were present in the
-    # pre-R11 table under this same config, so leaving it `false` would have
-    # recorded a regression into the baseline.
+    # 2078 ± 8 = a 2070-2086 forcing window, inside the far horizon above and
+    # inside the generated series (weathergen spans 2010 + 78 = 2010-2087).
+    # Was 2080/20; shortened 2026-08-10 — WF3's wflow time scales with run_length.
+    horizontime_climate: 2078
+    run_length: 16
     run_historical: true
     stress_test:
       temp:

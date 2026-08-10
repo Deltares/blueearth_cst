@@ -19,7 +19,7 @@ from blueearth_cst.experiment.check_project_consistency import (  # noqa: E402
 )
 
 # A minimal but structurally faithful full config (R01 sectioned schema),
-# mirroring config/workflows/snake_config_model_test.yml at the guarded
+# mirroring test_case/snake_config_model_test.yml at the guarded
 # sections. The experiment sections that vary per experiment are present but
 # deliberately NOT guarded.
 _BASE_CFG = {

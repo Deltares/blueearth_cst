@@ -140,8 +140,12 @@ def gauge_columns(columns) -> dict[str, str]:
     ``Q_130000086`` → ``130000086``. The bare id is what the ``location`` column
     carries: it is the subcatchment id wflow itself emits, so it joins to
     ``outlet_index.csv`` without a crosswalk, and it lets one location carry
-    several variables (a registry gauge emits both ``Q_`` and ``P_`` at the same
-    point) which the wide format could not express.
+    several variables which the wide format could not express.
+
+    The prefix filter is deliberate rather than incidental. A gauge used to emit
+    a ``P_`` column beside its ``Q_`` one; that is gone since 2026-08-10 (see
+    ``setup_gauges_and_outputs``), but ``wflow_outvars`` can still add
+    ``<var>_basavg`` columns, and those are not per-gauge discharge.
     """
     return {c: c[2:] for c in columns if c.startswith("Q_")}
 

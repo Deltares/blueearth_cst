@@ -155,7 +155,7 @@ def test_the_template_config_does_not_hardcode_an_experiment_name():
     landed in the same ``experiments/experiment/`` and the command that exists
     to name the directory could never run. The key must start out ABSENT."""
     template = yaml.safe_load(
-        (SNAKEDIR / "config/workflows/snake_config.template.yml").read_text(
+        (SNAKEDIR / "config/templates/snake_config.template.yml").read_text(
             encoding="utf-8"
         )
     )
@@ -170,10 +170,12 @@ def test_the_template_config_does_not_hardcode_an_experiment_name():
 def test_the_test_fixtures_deliberately_KEEP_a_fixed_name():
     """The gate needs a fixed experiments/<name>/ path, so the seed configs
     keep theirs. Only the user-facing template drops the key."""
-    for name in ("snake_config_model_test.yml", "snake_config_dev_fast.yml"):
-        doc = yaml.safe_load(
-            (SNAKEDIR / "config/workflows" / name).read_text(encoding="utf-8")
-        )
+    # Both seeds now sit beside the projects they write into, under test_case/.
+    for rel in (
+        "test_case/snake_config_model_test.yml",
+        "test_case/snake_config_dev_fast.yml",
+    ):
+        doc = yaml.safe_load((SNAKEDIR / rel).read_text(encoding="utf-8"))
         assert doc["workflows"]["climate_experiment"]["experiment_name"]
 
 
@@ -288,7 +290,7 @@ def test_the_shipped_template_is_editable_by_this_command(tmp_path):
     it cannot edit would break the one path a new user is told to take."""
     import shutil
 
-    src = SNAKEDIR / "config/workflows/snake_config.template.yml"
+    src = SNAKEDIR / "config/templates/snake_config.template.yml"
     cfg = tmp_path / "tmpl.yml"
     shutil.copy(src, cfg)
     doc = yaml.safe_load(cfg.read_text(encoding="utf-8"))

@@ -109,7 +109,7 @@ def test_legacy_only_rejection_quotes_the_migrated_key_and_path():
     assert "shared:" in message and "basin:" in message
     # The second half of the migration -- the ids move too, and a user who
     # only moves the key hits the wflow_id assertion next.
-    assert "config/templates/observations/README.md" in message
+    assert "config/templates/README.md" in message
 
 
 def test_matching_canonical_and_legacy_gauge_paths_are_allowed():
