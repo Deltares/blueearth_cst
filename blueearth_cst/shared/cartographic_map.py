@@ -2572,6 +2572,11 @@ def _category_handles(entries):
 
     Patches rather than a colourbar, because a bar asserts an ORDER and these
     classes have none: "urban" does not sit between "cropland" and "water".
+
+    A class whose label is ``None`` is DRAWN but not listed. That is how a table
+    with more classes than a 40 mm panel can carry asks for the fill without the
+    key — the alternative, a legend running off the top of the page, explains
+    nothing a reader wanted.
     """
     return [
         mpatches.Patch(
@@ -2581,6 +2586,7 @@ def _category_handles(entries):
             label=label,
         )
         for _, colour, label in entries
+        if label is not None
     ]
 
 
@@ -2833,6 +2839,7 @@ def plot_raster_map(
     title=None,
     caveat=None,
     expected_units=None,
+    vector_legend=True,
 ):
     """Draw a basin map: shaded relief, rivers, boundaries, points, waterbodies.
 
@@ -2888,6 +2895,17 @@ def plot_raster_map(
         constrained layout reserves room for them.
     expected_units : sequence of str, optional
         Units the label claims. A mismatch warns; see ``check_geographic_inputs``.
+    vector_legend : bool
+        Whether the OVERLAY layers — rivers, boundary, divides, points — get
+        legend entries. The layers are drawn either way; this governs only
+        whether they are explained.
+
+        ``False`` is for a SET of figures over one basin, where the overlay is
+        identical on every sheet and one figure in the set already carries the
+        key. Repeating four entries on thirteen maps costs panel height that a
+        land-cover legend needs and teaches the reader nothing after the first
+        sheet. A raster's own classes are never suppressed by this — they are
+        the figure's subject, not its furniture.
 
     Returns
     -------
@@ -2950,18 +2968,24 @@ def plot_raster_map(
         # against. Nine land-cover classes make a legend twice the height of the
         # vector-only one, and the layout has to see that.
         categories = category_entries(raster, style) if style.categories else []
-        handles = _category_handles(categories) + _legend_handles(
-            styles,
-            rivers=rivers,
-            basin=basin,
-            subbasins=subbasins,
-            outlets=outlets,
-            gauges=gauges,
-            waterbodies=waterbodies,
-        )
-        legend = _add_legend(ax, handles)
+        handles = list(_category_handles(categories))
+        if vector_legend:
+            handles += _legend_handles(
+                styles,
+                rivers=rivers,
+                basin=basin,
+                subbasins=subbasins,
+                outlets=outlets,
+                gauges=gauges,
+                waterbodies=waterbodies,
+            )
+        # No handles at all — a continuous raster with the overlay key
+        # suppressed — means NO legend, not an empty one. matplotlib draws the
+        # frame and the title for a legend with nothing in it, so the panel
+        # would carry a blank box under the colourbar.
+        legend = _add_legend(ax, handles) if handles else None
 
-        measured = _measure_legend(fig, legend, extent)
+        measured = _measure_legend(fig, legend, extent) if legend else (0.0, 0.0)
         if measured is None:
             measured = (0.0, _legend_height_fraction(extent, len(handles)))
         # The title wraps to the PANEL ITEM width — what the legend and the

@@ -135,6 +135,77 @@ def test_output_stems_are_unique():
     assert len(stems) == len(set(stems))
 
 
+def test_no_stem_collides_with_the_basin_map_in_the_same_folder():
+    """One rule writes both into ``data/spatial/plots``."""
+    assert "basin_area" not in {figure.stem for figure in family.SPATIAL_MAP_FIGURES}
+
+
+def test_every_soil_stem_records_its_depth_slice():
+    """The filename is the only place the slice is written down now that the
+    figures carry no title, and ``sl1`` is one of seven the source ships."""
+    for figure in family.SPATIAL_MAP_FIGURES:
+        if figure.variable.startswith("soil_") and "sl1" in figure.variable:
+            assert figure.stem.endswith("_topsoil"), figure.stem
+
+
+def test_the_figure_set_declares_exactly_what_the_rule_promises():
+    """The Snakefile builds rule 1.12's outputs from this list, so a registry
+    edit that is not matched by a re-run leaves the rule promising files that
+    are never written. Pinning the count makes the edit visible in review."""
+    assert len(family.SPATIAL_MAP_FIGURES) == 10
+
+
+def test_only_source_stable_variables_are_declared_as_rule_outputs():
+    """A declared output the data cannot produce fails the RULE, not the figure.
+
+    ``soil_BDTICM_M_250m_ll`` is soilgrids v1.0's own filename -- the catalog
+    does not rename it, and soilgrids_2020 has no equivalent entry -- so a
+    project on the other soil source would stop with "missing output files".
+    """
+    ungiven = {f.variable for f in family.SPATIAL_MAP_FIGURES if not f.guaranteed}
+    assert ungiven == {"soil_BDTICM_M_250m_ll"}
+
+
+def test_the_rule_output_list_is_png_and_pdf_for_every_declared_figure():
+    paths = family.figure_paths("P/plots")
+    declared = [f for f in family.SPATIAL_MAP_FIGURES if f.guaranteed]
+    assert len(paths) == 2 * len(declared)
+    assert "P/plots/land_cover.png" in paths and "P/plots/land_cover.pdf" in paths
+    assert "P/plots/soil_depth_to_bedrock.png" not in paths
+
+
+def test_the_undeclared_figures_are_still_drawn():
+    """`guaranteed=False` keeps a figure out of the rule's promise, not out of
+    the run -- it is the difference between a lost figure and a failed workflow."""
+    everything = family.figure_paths("P/plots", declared_only=False)
+    assert "P/plots/soil_depth_to_bedrock.png" in everything
+
+
+def test_a_constant_layer_is_noted_but_still_drawn():
+    """Skipping it would make the rule's promise conditional on the data: a
+    project whose bedrock depth is uniform would fail on a missing output."""
+    maps = _dataset()
+    maps["land_cover"] = (("latitude", "longitude"), np.full((2, 2), 30.0))
+    figure = family.SpatialFigure("land_cover", "s", classes=())
+    layer = family.prepare_layer(maps, figure, None)
+    assert family._is_degenerate(layer)[0] is True  # reported...
+    assert np.isfinite(layer.values).all()  # ...and still a drawable field
+
+
+def test_too_many_subbasins_drops_the_key_but_keeps_the_fill():
+    """A forty-row legend beside a 40 mm panel explains nothing a reader wanted;
+    the colours still separate the units, which is what the figure is for."""
+    codes = list(range(101, 101 + family._MAX_LEGEND_SUBBASINS + 5))
+    classes = family.subbasin_classes(_codes(codes, nx=1))
+    assert len(classes) == len(codes)
+    assert all(label is None for _, _, label in classes)
+    entries = category_entries(
+        _codes(codes, nx=1),
+        RasterStyle(label="x", palette=None, categories=classes),
+    )
+    assert _category_handles(entries) == []
+
+
 def test_variables_are_unique():
     stems = [figure.variable for figure in family.SPATIAL_MAP_FIGURES]
     assert len(stems) == len(set(stems))
@@ -209,7 +280,7 @@ def test_a_thematic_layer_is_clipped_to_the_basin():
     reads as a box drawn over a larger dataset.
     """
     maps = _dataset()
-    figure = family.SpatialFigure("land_cover", "s", "t", classes=())
+    figure = family.SpatialFigure("land_cover", "s", classes=())
     layer = family.prepare_layer(maps, figure, family._basin_mask(maps))
     assert np.isnan(layer.values[1, 0])  # the cell where subbasin_id == 0
     assert layer.values[0, 0] == 30.0
@@ -217,19 +288,15 @@ def test_a_thematic_layer_is_clipped_to_the_basin():
 
 def test_a_hydrography_layer_is_left_alone():
     maps = _dataset()
-    figure = family.SpatialFigure(
-        "land_cover", "s", "t", classes=(), mask_to_basin=False
-    )
+    figure = family.SpatialFigure("land_cover", "s", classes=(), mask_to_basin=False)
     layer = family.prepare_layer(maps, figure, family._basin_mask(maps))
     assert np.isfinite(layer.values).all()
 
 
 def test_a_seasonal_layer_is_reduced_to_its_annual_mean():
-    """Stated in the title, because a silent seasonal average is not assumable."""
+    """Stated in the FILENAME, because a silent seasonal average is not assumable."""
     maps = _dataset()
-    figure = family.SpatialFigure(
-        "leaf_area_index", "s", "t", style=RasterStyle("x", "YlGn")
-    )
+    figure = family.SpatialFigure("leaf_area_index", "s", RasterStyle("x", "YlGn"))
     layer = family.prepare_layer(maps, figure, None)
     assert layer.dims == ("latitude", "longitude")
     assert layer.values.max() == pytest.approx(2.0)
@@ -253,28 +320,7 @@ def test_a_varying_layer_is_not_degenerate():
     assert family._is_degenerate(varied)[0] is False
 
 
-# --- ordinal classes ----------------------------------------------------------
-
-
-def test_an_ordinal_raster_gets_one_swatch_per_integer_present():
-    """A colourbar would tick at 1.5 and 2.5 for a quantity with no such values."""
-    classes = family.ordinal_classes("Blues", "Order")(_codes([1, 2, 4, 4]))
-    assert [code for code, _, _ in classes] == [1, 2, 4]
-    assert [label for _, _, label in classes] == ["Order 1", "Order 2", "Order 4"]
-
-
-def test_an_ordinal_ramp_keeps_its_first_swatch_off_white():
-    """On a white page an off-white swatch reads as nodata, not as class one."""
-    classes = family.ordinal_classes("Blues", "Order")(_codes([1, 2, 3, 4]))
-    first = classes[0][1]
-    assert first != "#f7fbff"  # Blues' own palest end
-
-
-def test_too_many_ordinal_values_returns_no_table():
-    """The caller skips the figure rather than printing a 40-row legend."""
-    assert (
-        family.ordinal_classes("Blues", "Order", limit=3)(_codes([1, 2, 3, 4])) is None
-    )
+# --- derived class tables -----------------------------------------------------
 
 
 def test_subbasin_classes_are_derived_from_the_raster_not_declared():

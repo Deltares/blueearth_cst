@@ -105,7 +105,7 @@ def main(argv=None) -> int:
     parser.add_argument(
         "--list",
         action="store_true",
-        help="print the registry — variable, output stem, title — then exit",
+        help="print the registry — variable, output stem, whether declared — then exit",
     )
     parser.add_argument(
         "--project-dir",
@@ -134,7 +134,10 @@ def main(argv=None) -> int:
 
     if args.list:
         for figure in SPATIAL_MAP_FIGURES:
-            print(f"{figure.variable:24s} -> {figure.stem:34s} {figure.title}")
+            declared = (
+                "" if figure.guaranteed else "  (drawn, not a declared rule output)"
+            )
+            print(f"{figure.variable:24s} -> {figure.stem}{declared}")
         return 0
 
     spatial_dir = resolve_spatial_dir(args.project_dir)
