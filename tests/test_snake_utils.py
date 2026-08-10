@@ -976,3 +976,66 @@ def test_the_log_pointer_is_keyed_the_same_way_as_the_other_two():
     # VALUE. A blunter substring check fails on the rationale for the fix.
     code = "\n".join(line.split("#", 1)[0] for line in src.splitlines())
     assert "log.txt" not in code, "the wflow default log name must not be a value"
+
+
+# --- the tee outlives its log file (2026-08-10) -------------------------------
+
+
+def test_a_tee_write_after_close_does_not_raise(tmp_path):
+    """A tee OUTLIVES its log file, and a late write must not blow up.
+
+    `tee_to_log` closes the log when its `with open(...)` exits; anything still
+    holding the tee then points at a dead sink. Raising there is the expensive
+    kind of failure: these writes happen during interpreter finalization, where
+    the exception cannot be reported and CPython prints the bare
+    `Error in sys.excepthook:` / `Original exception was:` pair instead.
+    """
+    from blueearth_cst.shared.snake_utils import _Tee
+
+    console = io.StringIO()
+    handle = open(tmp_path / "t.log", "w", encoding="utf-8")
+    tee = _Tee(console, handle)
+    tee.write("during\n")
+    tee.close()
+    handle.close()
+
+    tee.write("after close\n")  # must not raise
+    tee.flush()  # logging.shutdown() flushes every handler at exit
+    assert "after close" in console.getvalue()  # console is still the right sink
+
+
+def test_close_is_idempotent(tmp_path):
+    from blueearth_cst.shared.snake_utils import _Tee
+
+    handle = open(tmp_path / "t2.log", "w", encoding="utf-8")
+    tee = _Tee(io.StringIO(), handle)
+    tee.close()
+    handle.close()
+    tee.close()  # second close must not touch the closed handle
+
+
+def test_a_handler_created_inside_the_block_is_not_left_on_the_tee(tmp_path):
+    """The snapshot `_redirect_console_log_handlers` takes cannot see it.
+
+    Libraries configure logging lazily inside the rule body -- hydromt installs
+    a StreamHandler per data catalog -- binding to whatever `sys.stdout` was at
+    that moment, which is the tee. Nothing restored those, so they outlived the
+    log file they wrote into.
+    """
+    import logging
+
+    from blueearth_cst.shared.snake_utils import _Tee, tee_to_log
+
+    logger = logging.getLogger("cst_probe_lazy_handler")
+    logger.handlers.clear()
+    try:
+        with tee_to_log(tmp_path / "h.log", heartbeat_interval=0):
+            handler = logging.StreamHandler(sys.stdout)
+            logger.addHandler(handler)
+            assert isinstance(handler.stream, _Tee)  # bound to the tee, as feared
+        assert not isinstance(handler.stream, _Tee), (
+            "handler still points at the tee after the block"
+        )
+        logger.warning("must not raise")  # the record has somewhere real to go
+    finally:
+        logger.handlers.clear()
