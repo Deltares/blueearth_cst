@@ -16,9 +16,7 @@ sys.path.insert(0, join(SNAKEDIR, "dev", "scripts"))
 import cross_workflow_inputs as cwi  # noqa: E402
 
 config_fn = join(TESTDIR, "snake_config_model_test.yml")
-linux_config_fn = join(
-    SNAKEDIR, "config", "workflows", "snake_config_model_test_linux.yml"
-)
+linux_config_fn = join(SNAKEDIR, "test_case", "snake_config_model_test_linux.yml")
 
 
 def _dry_run(snakefile, cfg=config_fn):

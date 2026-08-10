@@ -124,7 +124,7 @@ dask-worker-space/
 # be re-included: git cannot un-ignore a file whose PARENT DIRECTORY is excluded,
 # and the directory form would silently keep it untracked.
 test_case/*
-!test_case/snake_config_model_test.yml
+!test_case/snake_config_*.yml
 .Rproj.user
 
 # R-related files

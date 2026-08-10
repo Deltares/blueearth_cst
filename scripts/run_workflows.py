@@ -475,7 +475,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--config",
         required=True,
-        help="path to a full-orchestration snake config (config/workflows/...)",
+        help="path to a full-orchestration snake config (see test_case/ for examples)",
     )
     ap.add_argument(
         "--cores",

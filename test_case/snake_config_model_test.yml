@@ -6,10 +6,10 @@
 #
 # Small/fast test setup: 3 CMIP6 models, a single "far" horizon, matched
 # 20-year historical/future windows. For a clean template see
-# config/workflows/snake_config.template.yml.
+# config/templates/snake_config.template.yml.
 #
-# Lives here, not under config/workflows/, so it sits beside the project it
-# writes into. Every path below stays relative to the REPO ROOT — the directory
+# Lives here, beside the project it writes into, rather than with the config
+# scaffold. Every path below stays relative to the REPO ROOT — the directory
 # you run Snakemake from — not to this file. Do not rewrite them as if they
 # were relative to test_case/; `project_dir: test_case/test_local` is correct
 # as written. This is the one tracked file under test_case/ (.gitignore uses

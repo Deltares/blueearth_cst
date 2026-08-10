@@ -1,12 +1,12 @@
 # Archived data catalogs
 
 hydromt data catalogs (`-d` targets) whose only consumers were the archived
-single-workflow configs under `config/workflows/archive/`. Parked here on
+single-workflow configs under `config/templates/archive/`. Parked here on
 2026-08-10, alongside those configs, so the two halves stay together.
 
 | File | Consumers |
 | --- | --- |
-| `deltares_data_climate_projections.yml` | `../../workflows/archive/snake_config_projections_cmip5_full.yml`, `…_isimip3.yml` |
+| `deltares_data_climate_projections.yml` | `../../templates/archive/snake_config_projections_cmip5_full.yml`, `…_isimip3.yml` |
 | `deltares_data_climate_projections_linux.yml` | the `_linux` siblings of both |
 
 The archived configs were rewired to these paths at the same commit, so that

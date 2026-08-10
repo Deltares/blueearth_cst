@@ -139,12 +139,14 @@ The toolbox provides three [Snakemake](https://snakemake.github.io/) workflows:
   applies stress-test perturbations, and runs the hydrological model on each
   realization × stress combination.
 
-Configuration is YAML-driven. Start from `config/workflows/snake_config.template.yml`;
-a filled-in worked example is `test_case/snake_config_model_test.yml`, which sits
-beside the project it writes into rather than under `config/workflows/`, the same
-way a real project keeps its config next to its `project_dir`. Data catalogs live
-under `config/catalogs/` and hydromt/wflow/weathergen build templates under
-`config/templates/`.
+Configuration is YAML-driven. Start from `config/templates/snake_config.template.yml`,
+which annotates every option inline; a filled-in worked example is
+`test_case/snake_config_model_test.yml`. Each of the shipped example configs sits
+beside the project it writes into, the same way a real project keeps its config
+next to its `project_dir`. Data catalogs live under `config/catalogs/`, and
+`config/templates/` holds both the config scaffold above and the hydromt / wflow /
+weathergen build templates that rules consume — `config/templates/README.md` says
+which is which.
 
 Paths inside a config are resolved against the **working directory** you run
 Snakemake from (the repo root), not against the config's own location — so
@@ -246,7 +248,7 @@ Contract:
   section with all three subsections, each with an `enabled:` key (the
   `snake_config_model_test*.yml` / `snake_config.template.yml` class). The
   single-workflow `snake_config_projections_*.yml` configs — parked under
-  `config/workflows/archive/` and unmaintained — carry no `workflows:` section
+  `config/templates/archive/` and unmaintained — carry no `workflows:` section
   and are run directly with `snakemake -s` instead.
 - A missing `workflows:` section or `<name>.enabled` key is a **hard error**
   naming the absent key, not a silent default.

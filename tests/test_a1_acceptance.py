@@ -121,7 +121,7 @@ def test_the_template_config_recommends_the_30_year_window():
 
     template = (
         Path(__file__).resolve().parents[1]
-        / "config/workflows/snake_config.template.yml"
+        / "config/templates/snake_config.template.yml"
     ).read_text(encoding="utf-8")
     m = re.search(r"historical_year_range:\s*\[\s*(\d{4})\s*,\s*(\d{4})\s*\]", template)
     assert m, "template must declare historical_year_range"

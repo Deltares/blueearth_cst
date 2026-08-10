@@ -1,6 +1,44 @@
-# Observation input templates
+# Config templates
 
-Header-only schemas for the two optional observation inputs of workflow 1
+Two different kinds of file share this directory. The distinction matters,
+because only one kind is read by a running workflow.
+
+## Consumed by the pipeline
+
+Referenced from a config and read by a rule. Changing one changes a run.
+
+| File | Consumer |
+| --- | --- |
+| `wflow_build_model.yml` | `Snakefile_model_creation` — default for `workflows.model_creation.model_build_config`; rule 1.06 `prepare_spatial_maps` and rule 1.07 `build_wflow_model` |
+| `wflow_update_waterbodies.yml` | `Snakefile_model_creation` — default for `waterbodies_config`; rule 1.08 `add_reservoirs_lakes_glaciers` |
+| `weathergen_config.yml` | `Snakefile_climate_experiment` — `default_config` for rule 3.10 `prepare_weathergen_config` |
+
+## Scaffolds you copy
+
+Never read by a run. Copy, fill in, point a config at your copy.
+
+| File | Purpose |
+| --- | --- |
+| `snake_config.template.yml` | The annotated starting point for a new project's config. A filled-in worked example is `test_case/snake_config_model_test.yml`. |
+| `output_locations_template.csv` | Header-only schema for gauge/output locations |
+| `observed_daily_discharge_template.csv` | Header-only schema for observed discharge |
+| `archive/` | Unmaintained single-workflow configs; see its own README |
+
+`wflow_sbm.toml` sits here as a **reference copy only** — no Snakefile, script or
+test reads it. Rule 1.07 has hydromt generate the project's own TOML from
+hydromt_wflow's defaults. Treat this file as documentation, and expect it to lag:
+measured 2026-08-10, it was 126 lines against the 149 a real build emitted.
+
+**Rename after copying.** Layer names inside the model are derived from your
+file's basename (`blueearth_cst/shared/gauges.py`), so a file still called
+`output_locations_template.csv` yields layers named `output-locations-template`.
+Drop the `_template` suffix when you copy.
+
+---
+
+# Observation inputs
+
+The two CSV scaffolds above are the optional observation inputs of workflow 1
 (`Snakefile_model_creation`). Copy them next to your basin data and point the
 config at the copies by **absolute path** — real basin data lives in the project
 folder, never in this repository (see `AGENTS.md` § Repo Map, the two-tier
@@ -16,6 +54,10 @@ workflows:
   model_creation:
     observations_timeseries: null
 ```
+
+**They work as a pair.** `observations_timeseries` without `gauge_points` has
+nothing to key against: the series columns are matched by resolved `wflow_id`,
+and those ids only exist once gauge points have driven the delineation.
 
 **Config migration — the old key no longer works on its own.**
 `shared.basin.gauge_points` replaces `workflows.model_creation.output_locations`
@@ -37,7 +79,7 @@ Older configs may also write an unquoted `None`, which YAML parses to the Python
 **string** `"None"` rather than to null. That remains an accepted unset spelling
 during the compatibility release. Prefer a real YAML `null` in new configs.
 
-## `output_locations.csv`
+## `output_locations_template.csv`
 
 Gauge/output locations, **comma**-separated:
 
@@ -71,24 +113,24 @@ station and its neighbour sat four orders of magnitude apart in the same column.
 | basin 1, subbasin 2, primary | `102` | `1020` |
 
 **What you have to do.** Both files are keyed by `wflow_id`, so **renumber the
-`output_locations.csv` `wflow_id` column and the `observations_timeseries.csv`
-column headers together.** Neither failure is silent: a pinned `wflow_id` that
-no longer matches the resolved hierarchy stops preparation with an explicit
-old-ID → resolved-ID crosswalk, and an observation header carrying ids the
-registry does not know fails the WF1 header check by name.
+locations file's `wflow_id` column and the discharge file's column headers
+together.** Neither failure is silent: a pinned `wflow_id` that no longer matches
+the resolved hierarchy stops preparation with an explicit old-ID → resolved-ID
+crosswalk, and an observation header carrying ids the registry does not know
+fails the WF1 header check by name.
 
-The simplest migration is to **delete the `wflow_id` column** from
-`output_locations.csv`, run WF1 once, and read the assigned ids out of
-`data/spatial/location_registry.csv` — the column is optional, and pinning it is
-only worth doing when you need the ids to stay fixed across rebuilds.
+The simplest migration is to **delete the `wflow_id` column**, run WF1 once, and
+read the assigned ids out of `data/spatial/location_registry.csv` — the column is
+optional, and pinning it is only worth doing when you need the ids to stay fixed
+across rebuilds.
 
 `location_code` is unchanged (`B001-S01-L01`): codes are for reading, `wflow_id`
 is the integer for joining and for scanning a CSV header.
 
-## `observations_timeseries.csv`
+## `observed_daily_discharge_template.csv`
 
 Observed discharge, **semicolon**-separated — deliberately a different
-separator from `output_locations.csv`; both are read with explicit `sep=`
+separator from the locations file; both are read with explicit `sep=`
 arguments, so keep each file's separator as shipped.
 
 - First column `time`, ISO-8601 timestamps (`2000-01-01T00:00:00`).
