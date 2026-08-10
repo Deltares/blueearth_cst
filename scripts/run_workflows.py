@@ -45,7 +45,7 @@ downstream consumes.
 
 Usage::
 
-    python scripts/run_workflows.py --config config/workflows/snake_config_model_test.yml
+    python scripts/run_workflows.py --config test_case/snake_config_model_test.yml
     python scripts/run_workflows.py --config <cfg> --cores 4 -- --dry-run
 """
 

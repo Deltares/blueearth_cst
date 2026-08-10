@@ -134,8 +134,7 @@ def test_the_seed_fixture_is_deliberately_NOT_changed():
     from pathlib import Path
 
     seed = (
-        Path(__file__).resolve().parents[1]
-        / "config/workflows/snake_config_model_test.yml"
+        Path(__file__).resolve().parents[1] / "test_case/snake_config_model_test.yml"
     ).read_text(encoding="utf-8")
     m = re.search(r"historical_year_range:\s*\[\s*(\d{4})\s*,\s*(\d{4})\s*\]", seed)
     assert [int(m.group(1)), int(m.group(2))] == [1990, 2010]

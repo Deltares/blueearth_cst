@@ -170,10 +170,13 @@ def test_the_template_config_does_not_hardcode_an_experiment_name():
 def test_the_test_fixtures_deliberately_KEEP_a_fixed_name():
     """The gate needs a fixed experiments/<name>/ path, so the seed configs
     keep theirs. Only the user-facing template drops the key."""
-    for name in ("snake_config_model_test.yml", "snake_config_dev_fast.yml"):
-        doc = yaml.safe_load(
-            (SNAKEDIR / "config/workflows" / name).read_text(encoding="utf-8")
-        )
+    # The two seeds no longer share a directory: the baseline seed sits beside
+    # the project it writes into, dev_fast stays with the other configs.
+    for rel in (
+        "test_case/snake_config_model_test.yml",
+        "config/workflows/snake_config_dev_fast.yml",
+    ):
+        doc = yaml.safe_load((SNAKEDIR / rel).read_text(encoding="utf-8"))
         assert doc["workflows"]["climate_experiment"]["experiment_name"]
 
 

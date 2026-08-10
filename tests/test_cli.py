@@ -130,7 +130,7 @@ def test_in_repo_project_dir_warning_reaches_the_stream(tmp_path):
 def test_baseline_seed_config_does_not_warn():
     """The exemption holds for the config the baseline gate actually runs.
 
-    That is config/workflows/snake_config_model_test.yml (project_dir:
+    That is test_case/snake_config_model_test.yml (project_dir:
     test_case/test_local) -- NOT tests/snake_config_model_test.yml, which
     points at tests/test_project and therefore warns correctly: it is an
     in-repo project_dir outside the single exemption. The exemption exists
@@ -138,7 +138,7 @@ def test_baseline_seed_config_does_not_warn():
     carry a machine-specific absolute path; it does not extend to every
     convenient in-repo scratch dir.
     """
-    seed_cfg = join(SNAKEDIR, "config", "workflows", "snake_config_model_test.yml")
+    seed_cfg = join(SNAKEDIR, "test_case", "snake_config_model_test.yml")
     result = _dry_run("Snakefile_model_creation", cfg=seed_cfg)
     combined = (result.stdout or "") + (result.stderr or "")
     assert "inside the repository tree" not in combined, combined[-3000:]
