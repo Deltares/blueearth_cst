@@ -22,6 +22,9 @@ from matplotlib import colors
 from blueearth_cst.shared import cartographic_map as carto
 from blueearth_cst.shared import plot_map
 from blueearth_cst.shared.cartographic_map import (
+    _CORNERS,
+    _EXTENT_BUFFER_DEG,
+    _NORTH_ARROW_CORNER,
     FIGURE_WIDTH_MM,
     GRATICULE_MAX_TICKS,
     MM_PER_INCH,
@@ -30,12 +33,10 @@ from blueearth_cst.shared.cartographic_map import (
     RasterStyle,
     _class_levels,
     _colorbar_inset,
-    _CORNERS,
     _corner_occupancy,
     _divide_linework,
     _elevation_colormap,
     _equal_interval_levels,
-    _EXTENT_BUFFER_DEG,
     _figure_size,
     _finite_cells,
     _graticule_ticks,
@@ -44,7 +45,6 @@ from blueearth_cst.shared.cartographic_map import (
     _metres_per_degree,
     _nice_round_length,
     _nice_step_up,
-    _NORTH_ARROW_CORNER,
     _overlay_contrast,
     _publication_rc,
     _river_linewidths,

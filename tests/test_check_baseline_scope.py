@@ -18,8 +18,8 @@ series lands under `<manifest_dir>/discharge_ref/`. No real Snakemake run.
 from __future__ import annotations
 
 import argparse
-import pathlib
 import json
+import pathlib
 import sys
 from collections import Counter
 from pathlib import Path

@@ -31,7 +31,6 @@ from pathlib import Path
 
 import yaml
 
-
 _NETCDF_DRIVER_BY_TYPE = {
     "RasterDataset": "raster_xarray",
     "GeoDataset": "geodataset_xarray",

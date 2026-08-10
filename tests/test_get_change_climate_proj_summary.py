@@ -9,7 +9,7 @@ Heavy deps (``open_mfdataset``, seaborn ``JointGrid``/``savefig``) run in the
 real pixi env per the M02c discipline (dask cannot be stubbed at module level).
 """
 
-from os.path import join, dirname, realpath
+from os.path import dirname, join, realpath
 
 import numpy as np
 import xarray as xr

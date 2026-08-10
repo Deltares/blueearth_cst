@@ -3,7 +3,7 @@ list/string horizon normalization contract. These cover logic that
 dry-runs and skip-by-default integration tests do not reach.
 """
 
-from os.path import join, dirname, realpath
+from os.path import dirname, join, realpath
 
 import pytest
 

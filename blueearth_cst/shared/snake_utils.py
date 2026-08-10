@@ -15,6 +15,7 @@ import subprocess
 import sys
 import threading
 import time
+import traceback
 import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -1717,7 +1718,12 @@ def tee_to_log(log_path, heartbeat_interval=60.0):
       past the ``with`` block even if the body raises;
     - the exception is **re-raised** (not swallowed), so the traceback still
       reaches Snakemake and the rule fails loudly rather than leaving an empty
-      log that Snakemake would read as a finished product.
+      log that Snakemake would read as a finished product;
+    - on failure the formatted **traceback is written into the log part** before
+      unwinding. Snakemake prints ``check log file(s) for error details`` and
+      nothing more, so a log that stops mid-rule actively misdirects: it sends
+      an operator to the one file that cannot explain the failure. A deliberate
+      ``SystemExit(0)`` is a success and writes nothing (see ``_is_clean_exit``).
 
     A silence watchdog (``_Heartbeat``) prints an elapsed-time notice to the
     live console when the rule goes quiet for ``heartbeat_interval`` seconds, so
@@ -1761,6 +1767,29 @@ def tee_to_log(log_path, heartbeat_interval=60.0):
         heartbeat.start()
         try:
             yield
+        except BaseException as exc:  # noqa: BLE001 - re-raised below, never swallowed
+            # Write the traceback INTO the log part before unwinding. Snakemake
+            # prints `check log file(s) for error details` and nothing else, so
+            # without this the one artifact it names ends mid-rule with no
+            # reason -- the cause reaches the interactive console and is absent
+            # from the file a user would send you ([R10-13], t2608071219).
+            #
+            # Written to ``handle`` directly, NOT through ``stderr_tee``: the
+            # interpreter prints its own traceback to the real stderr once the
+            # exception leaves this manager, so teeing would put two copies on
+            # the console. Direct writes bypass the tee, so relativize here to
+            # match the path spelling of every other line in the file.
+            if not _is_clean_exit(exc):
+                handle.write(
+                    _relativize_paths(
+                        "\n" + "".join(
+                            traceback.format_exception(type(exc), exc, exc.__traceback__)
+                        ),
+                        project_root,
+                    )
+                )
+                handle.flush()
+            raise
         finally:
             # Restore log handlers first (before their target tees close), stop
             # the watchdog (console-only summary), flush trailing partial lines

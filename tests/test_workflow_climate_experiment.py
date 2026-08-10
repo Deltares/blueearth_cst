@@ -32,10 +32,10 @@ under ``--forceall``). Tracked in ``dev/tasks/`` under R3.
 import os
 import shutil
 import subprocess
-from os.path import join, dirname, realpath, exists, getsize
+from os.path import dirname, exists, getsize, join, realpath
 
-import yaml
 import pytest
+import yaml
 
 TESTDIR = dirname(realpath(__file__))
 SNAKEDIR = join(TESTDIR, "..")
@@ -109,7 +109,15 @@ def test_climate_experiment_end_to_end():
         f"snakemake exited {result.returncode}\n"
         f"--- stderr (tail) ---\n{(result.stderr or '')[-4000:]}"
     )
-    for name in ("q_indicators.csv", "basin_indicators.csv"):
+    # One LONG table per output variable since R11 CR-2, and the seed config
+    # declares `wflow_outvars: ["river discharge"]` -- so q_indicators.csv is
+    # the whole expected set. `basin_indicators.csv` was asserted here until
+    # 2026-08-09 (t2608082010); post-CR-2 nothing writes it, so this assertion
+    # would have FAILED a real integration run. It never did, because the whole
+    # case is --run-integration-gated and has not been run since. A stale
+    # expectation behind an opt-in gate is invisible in exactly the way a stale
+    # path behind an exists() guard is.
+    for name in ("q_indicators.csv",):
         out = join(SNAKEDIR, project_dir, "experiments", experiment, "results", name)
         assert exists(out), f"expected output not created: {out}"
         assert getsize(out) > 0, f"output is empty: {out}"

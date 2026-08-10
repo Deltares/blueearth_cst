@@ -882,8 +882,18 @@ def test_hm7_integration():
 
 
 def _gauge_identity_pairs():
-    """The 12 fixture (toml, output_rlz) pairs (rlz {1,2} x st {1..6})."""
-    return [(n, m) for n in (1, 2) for m in range(1, 7)]
+    """The 14 fixture (toml, output_rlz) pairs (rlz {1,2} x st {0..6}).
+
+    `st_0` is the unperturbed baseline. It was excluded here until 2026-08-09
+    (t2608082010) because the pre-R9-5 pipeline did not emit it under every
+    shape -- but R11 implemented that ruling, so the fixture now carries
+    `rlz_{1,2}_st_0` and `q_indicators.csv` carries its (0, 0) rows. Excluding
+    it meant this case checked 12 of 14 members while reading as full coverage,
+    and the baseline is the member most worth checking: it is the origin every
+    downstream consumer anchors on, and the one grain-class C fixes its month
+    from.
+    """
+    return [(n, m) for n in (1, 2) for m in range(0, 7)]
 
 
 @pytest.mark.skipif(not _fixture_present(), reason=_FIXTURE_ABSENT)

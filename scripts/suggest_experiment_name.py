@@ -48,7 +48,6 @@ from blueearth_cst.shared.snake_utils import (  # noqa: E402
     validate_experiment_name,
 )
 
-
 _KEY_RE = re.compile(r"^(\s*)experiment_name\s*:(.*)$")
 
 

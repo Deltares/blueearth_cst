@@ -2,7 +2,7 @@
 title: Land feat/signature-figure-redesign once the rendered figure has been judged
 type: todo-item
 status: blocked
-branch: feat/signature-figure-redesign
+branch: feat/plotting-standardization
 effort: 1
 area: plotting
 queue:
@@ -19,8 +19,13 @@ updated: 2026-08-09
 
 - [ ] <first step>
 
-## Refs
+**Consolidated 2026-08-09.** `feat/signature-figure-redesign` was merged into
+`feat/plotting-standardization` (edd2219) and deleted, so all plotting work now
+lives on one branch and one worktree. The verdict below is unchanged, but the gate
+it blocks moved: it is now due before the PLOTTING branch merges to main, not
+before the figure lands on its own.
 
+## Refs
 **Render recipe** — reproduces both panels without a WF1 run, from the seeded fixture:
 
 1. Inputs, both already in `test_case/test_local/models/hydrology/wflow/`:
@@ -28,16 +33,17 @@ updated: 2026-08-09
    `staticmaps.nc` (for `subcatchment`).
 2. `climate_forcing_by_subcatchment(forcing, static["subcatchment"])` →
    `ds_clim` with `index` × `time`; take `ds_clim.sel(index=101)`.
-3. Render *before* by calling `plot_clim(ds_i, out_dir, "wflow_1", "year")` on
-   `main`'s `shared/func_plot_signature.py`.
-4. Render *after* by writing the branch's copy of that one file
-   (`git show feat/signature-figure-redesign:blueearth_cst/shared/func_plot_signature.py`)
+3. Render *after* straight from this worktree — the redesign is merged, so the
+   working-tree file IS the after version. Call
+   `plot_clim(ds_i, out_dir, "wflow_1", "year")`.
+4. Render *before* by writing `git show main:blueearth_cst/shared/func_plot_signature.py`
    to a scratch path and loading it with `importlib.util.spec_from_file_location`.
-   The rest of the package comes from the checkout — the branch's diff touches
+   The rest of the package still comes from the checkout, and the redesign touches
    this file only, so the pair differs by exactly the design change.
 
-Why `importlib` rather than checking the branch out: the branch's worktree has no
-pixi env, and building one costs minutes to render two PNGs.
+Written the other way round before the branches were consolidated, pulling *after*
+from `feat/signature-figure-redesign`; that branch no longer exists. Commit
+`a04fcde` stays reachable from this branch if the raw diff is wanted.
 
 **Related**
 - [[t2608091006]] — the toolbox-wide plotting standardization this blocks. That

@@ -11,13 +11,12 @@ from __future__ import annotations
 import copy
 from pathlib import Path
 
-import yaml
 import pytest
+import yaml
 
 from blueearth_cst.experiment.check_project_consistency import (  # noqa: E402
     compare_project_consistency,
 )
-
 
 # A minimal but structurally faithful full config (R01 sectioned schema),
 # mirroring config/workflows/snake_config_model_test.yml at the guarded

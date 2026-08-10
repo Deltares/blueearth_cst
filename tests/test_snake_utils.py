@@ -7,6 +7,7 @@ is provably identity-preserving rather than merely green on a smoke test.
 
 import io
 import os
+import re
 import sys
 import time
 import warnings
@@ -14,14 +15,12 @@ from pathlib import Path
 
 import pytest
 
-import re
-
 import blueearth_cst.shared.snake_utils as su  # noqa: E402
 from blueearth_cst.shared.snake_utils import (  # noqa: E402
-    _Heartbeat,
     _compact_log_line,
     _cr_overwrite,
     _fmt_elapsed,
+    _Heartbeat,
     _log_path_parts,
     _relativize_paths,
     get_config,
@@ -423,6 +422,94 @@ def test_tee_to_log_reraises_and_still_restores(tmp_path):
     assert "before-error" in log.read_text(encoding="utf-8")
 
 
+# --- failure tracebacks land in the log part (t2608071219 / [R10-13]) --------
+#
+# Snakemake prints `check log file(s) for error details` and nothing else when a
+# `script:` rule fails. Before this, the named log stopped mid-rule with no
+# reason: the traceback reached the interactive console and was absent from the
+# artifact a user would send you, so the message actively misdirected.
+
+
+def test_tee_to_log_writes_the_traceback_into_the_log(tmp_path):
+    log = tmp_path / "rule.log"
+    with pytest.raises(KeyError):
+        with tee_to_log(log):
+            print("progress line")
+            raise KeyError("missing_column")
+    text = log.read_text(encoding="utf-8")
+    assert "progress line" in text  # body still there
+    assert "Traceback (most recent call last):" in text
+    assert "KeyError" in text and "missing_column" in text
+
+
+def test_the_logged_traceback_carries_the_exception_message(tmp_path):
+    """[R10-13]'s specific ask: the useful part must survive, not just a type.
+
+    `check_model_reference` raises `ModelDriftError` naming the changed input,
+    and that naming is the part an operator needs. It rides in ``str(exc)``, so
+    the formatted traceback carries it -- asserted here so a future exception
+    that hides its detail in unrendered attributes fails this instead of quietly
+    reinstating the useless-log problem.
+    """
+
+    class ModelDriftLike(RuntimeError):
+        pass
+
+    log = tmp_path / "rule.log"
+    with pytest.raises(ModelDriftLike):
+        with tee_to_log(log):
+            raise ModelDriftLike("staticmaps.nc changed since the reference was taken")
+    assert "staticmaps.nc changed since the reference was taken" in log.read_text(
+        encoding="utf-8"
+    )
+
+
+def test_a_clean_systemexit_writes_no_traceback(tmp_path):
+    """The regression this fix could cause, on the busiest path in the repo.
+
+    Every WF2 cache-hit job leaves its body via ``raise SystemExit(0)`` -- see
+    ``_is_clean_exit``, which exists because treating that as a failure printed
+    ``failed after Ns`` for jobs Snakemake then reported as ``Finished``. A
+    SystemExit(0) is a SUCCESS and must leave the log traceback-free.
+    """
+    log = tmp_path / "rule.log"
+    with pytest.raises(SystemExit):
+        with tee_to_log(log):
+            print("cache hit, nothing to do")
+            raise SystemExit(0)
+    text = log.read_text(encoding="utf-8")
+    assert "cache hit, nothing to do" in text
+    assert "Traceback" not in text
+    assert "SystemExit" not in text
+
+
+def test_a_nonzero_systemexit_is_a_failure_and_is_logged(tmp_path):
+    """Only the exit CODE decides -- ``SystemExit(1)`` is a real failure."""
+    log = tmp_path / "rule.log"
+    with pytest.raises(SystemExit):
+        with tee_to_log(log):
+            raise SystemExit(1)
+    text = log.read_text(encoding="utf-8")
+    assert "Traceback" in text and "SystemExit" in text
+
+
+def test_the_logged_traceback_has_paths_relativized(tmp_path):
+    """The traceback is written straight to the file, bypassing the tee.
+
+    So it must be relativized here, or the log would mix shortened paths in its
+    body with full absolute ones in its traceback. The repo root is the prefix
+    every frame of an in-repo traceback carries.
+    """
+    log = tmp_path / "rule.log"
+    with pytest.raises(ValueError):
+        with tee_to_log(log):
+            raise ValueError("boom")
+    text = log.read_text(encoding="utf-8")
+    assert "Traceback" in text
+    assert str(su._REPO_ROOT) not in text, "absolute repo paths must not reach the log"
+    assert "<repo>" in text
+
+
 # --- carriage-return progress-bar collapse -----------------------------------
 
 
@@ -765,6 +852,24 @@ def test_an_installed_dependency_path_collapses_to_its_package():
     )
 
 
+# The three cases below assert how a WINDOWS path renders: a drive letter, a
+# backslash separator, or pixi's win-64 `Lib/site-packages` (linux-64 lays that
+# out as `lib/python3.12/site-packages`, so the match falls through to the
+# <repo> branch instead). The abbreviation LOGIC is platform-neutral and stays
+# covered on both legs by the other cases in this section; only these spellings
+# are Windows-specific.
+#
+# They ran red on the ubuntu leg for three CI runs before anyone looked
+# (t2608071205). Skipping is a deliberate coverage reduction, not a fix --
+# t2608071221 tracks Linux being unexercised, and these are the first thing to
+# revisit when a real Linux run becomes available.
+windows_path_spelling = pytest.mark.skipif(
+    sys.platform != "win32",
+    reason="asserts Windows path spelling; revisit under t2608071221",
+)
+
+
+@windows_path_spelling
 def test_a_project_path_becomes_project_relative():
     line = r"Writing geoms to C:\TESTS\CST\gabon_0108\hydrology_model\basins.geojson"
     assert _rel(line) == r"Writing geoms to hydrology_model\basins.geojson"
@@ -785,6 +890,7 @@ def test_a_path_outside_all_three_is_left_alone():
     assert _rel(line) == line
 
 
+@windows_path_spelling
 def test_site_packages_is_matched_before_the_repo():
     """The pixi env lives INSIDE the repo, so the order is load-bearing: a
     repo-relative rewrite would otherwise hide the package name."""
@@ -794,6 +900,7 @@ def test_site_packages_is_matched_before_the_repo():
     assert _rel(line) == f"x <site-packages>/hydromt{os.sep}a.py"
 
 
+@windows_path_spelling
 def test_forward_slash_spelling_is_handled_too():
     """hydromt emits either separator."""
     line = "Writing to C:/TESTS/CST/gabon_0108/hydrology_model/basins.geojson"

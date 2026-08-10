@@ -1,7 +1,7 @@
 """Test functions from the model creation workflow."""
 
 import os
-from os.path import join, dirname, realpath
+from os.path import dirname, join, realpath
 
 from blueearth_cst.model import copy_config_files
 

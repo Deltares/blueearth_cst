@@ -9,11 +9,9 @@ is REJECTED (never silently lowercased).
 
 from __future__ import annotations
 
-
 import pytest
 
 from blueearth_cst.shared.snake_utils import validate_experiment_name  # noqa: E402
-
 
 PROJECT_DIR = "/tmp/proj"  # value irrelevant; only its "experiments/" child matters
 

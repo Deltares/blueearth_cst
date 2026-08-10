@@ -6,33 +6,67 @@ import numpy as np
 
 from hydromt_wflow import WflowSbmModel
 
-from blueearth_cst.shared.snake_utils import member_pointer_base, tee_to_log
+from blueearth_cst.shared.snake_utils import member_pointer_base
 
-# This script reads the snakemake global at module top level (no __name__
-# guard), so the tee_to_log wrap must enclose the whole body — the top-level
-# snakemake.* reads run at import before any function.
-with tee_to_log(snakemake.log[0]):
-    # Snakemake parameters
-    config_out_fn = snakemake.output.toml
-    fn_out = Path(snakemake.output.nc)
-    fn_in = snakemake.input.nc
-    data_libs = snakemake.input.data_sources
-    model_root = snakemake.params.model_dir
 
-    precip_source = snakemake.params.clim_source
+def forcing_window(horizontime_climate, wflow_run_length):
+    """Return the ``(starttime, endtime)`` pair centred on ``horizontime_climate``.
 
-    horizontime_climate = snakemake.params.horizontime_climate
-    wflow_run_length = snakemake.params.run_length
+    The window is ``wflow_run_length`` years wide, split around the horizon year
+    and snapped to whole years: ``ceil`` backwards, ``round`` forwards, so an odd
+    run length puts the extra year at the end.
+    """
     startyear = int(horizontime_climate - np.ceil(wflow_run_length / 2))
     endyear = int(horizontime_climate + np.round(wflow_run_length / 2))
-    starttime = f"{startyear}-01-01T00:00:00"
-    endtime = f"{endyear}-12-31T00:00:00"
+    return f"{startyear}-01-01T00:00:00", f"{endyear}-12-31T00:00:00"
+
+
+def forcing_chunksize(size):
+    """Pick a time-chunk size for a staticmaps grid of ``size`` cells.
+
+    Bigger grids get shorter time chunks so one chunk stays a workable size in
+    memory. Thresholds are the ones this workflow has always used.
+    """
+    if size > 1e6:
+        return 1
+    if size > 2.5e5:
+        return 30
+    if size > 1e5:
+        return 100
+    return 365
+
+
+def pet_method_for(precip_source):
+    """Return the PET method matching ``precip_source``.
+
+    E-OBS carries no radiation, so it takes Makkink; everything else takes
+    De Bruin.
+    """
+    return "makkink" if precip_source == "eobs" else "debruin"
+
+
+def downscale_climate_forcing(
+    config_out_fn,
+    fn_out,
+    fn_in,
+    data_libs,
+    model_root,
+    precip_source,
+    horizontime_climate,
+    wflow_run_length,
+):
+    """Downscale one member's forcing onto the wflow grid and write its run TOML."""
+    fn_out = Path(fn_out)
+    starttime, endtime = forcing_window(horizontime_climate, wflow_run_length)
 
     oro_source = f"{precip_source}_orography"
-    pet_method = "makkink" if precip_source == "eobs" else "debruin"
+    pet_method = pet_method_for(precip_source)
 
-    fn_in_path = Path(fn_in, resolve_path=True)
-    climate_name = os.path.basename(fn_in_path).split(".")[0]
+    # Only the basename is used, so no resolution is needed. This read
+    # `Path(fn_in, resolve_path=True)` until the [R7-22] conversion: pathlib
+    # ignores the keyword, deprecates it in 3.12 and REMOVES it in 3.14, so it
+    # bought nothing and was scheduled to start raising.
+    climate_name = os.path.basename(Path(fn_in)).split(".")[0]
 
     config_out_fn = Path(config_out_fn)
     config_out_root = os.path.dirname(config_out_fn)
@@ -56,15 +90,7 @@ with tee_to_log(snakemake.log[0]):
     # per-realization run directory by rebinding root.
     mod = WflowSbmModel(root=model_root, mode="r+", data_libs=data_libs)
 
-    size = mod.staticmaps.data.raster.size
-    if size > 1e6:
-        chunksize = 1
-    elif size > 2.5e5:
-        chunksize = 30
-    elif size > 1e5:
-        chunksize = 100
-    else:
-        chunksize = 365
+    chunksize = forcing_chunksize(mod.staticmaps.data.raster.size)
 
     mod.setup_config(
         data={
@@ -152,3 +178,23 @@ with tee_to_log(snakemake.log[0]):
         config_root=Path(config_out_root).resolve(),
     )
     mod.close()  # commit any deferred writes
+
+
+if __name__ == "__main__":
+    if "snakemake" in globals():
+        sm = globals()["snakemake"]
+        from blueearth_cst.shared.snake_utils import tee_to_log
+
+        with tee_to_log(sm.log[0]):
+            downscale_climate_forcing(
+                config_out_fn=sm.output.toml,
+                fn_out=sm.output.nc,
+                fn_in=sm.input.nc,
+                data_libs=sm.input.data_sources,
+                model_root=sm.params.model_dir,
+                precip_source=sm.params.clim_source,
+                horizontime_climate=sm.params.horizontime_climate,
+                wflow_run_length=sm.params.run_length,
+            )
+    else:
+        raise ValueError("This script should be run from a snakemake environment")
