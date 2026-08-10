@@ -334,6 +334,7 @@ LOG_RULES = [
     "1.12_plot_basin_map",
     "1.13_plot_forcing",
     "1.14_run_wflow",
+    "1.14b_export_wflow_tables",
     "1.15_plot_wflow_evaluation",
 ]
 
@@ -348,6 +349,10 @@ LOG_RULES = [
 # independently of the build and needs no gather waiting on it) and the two
 # gather outputs themselves.
 WF1_TERMINALS = [
+    # The Excel-ready discharge table (1.14b). A product of the workflow rather
+    # than an incidental by-product, so it is a rule-`all` member like the
+    # figures — nothing downstream consumes it, so without this it never builds.
+    f"{basin_dir}/run_default/output_q.csv",
     f"{basin_dir}/evaluation/plots/hydro_wflow_1.png",
     f"{spatial_dir}/plots/basin_area.png",
     # One representative of each canonical climate set: the rules produce their
@@ -734,6 +739,39 @@ _basavg_pngs = [
     for var in wflow_outvars
     if var not in _WFLOW_OUTVARS_WITHOUT_BASAVG_PLOT
 ]
+
+# 1.14b  export_wflow_tables — Excel-ready per-variable tables derived from 1.14
+#
+# DERIVED, not a rewrite. `output.csv` is read back by rule 1.15 through
+# hydromt's own `WflowSbmModel.output_csv`, so its layout — ISO-8601 stamps,
+# `Q_<id>` columns in wflow's internal order, full float precision — is an
+# interface with that reader and stays untouched (AGENTS.md: do not
+# re-engineer how hydromt handles data). The tables here are a product beside
+# it: 5 significant digits, plain decimal (no `9.86e-5` for Excel to render as
+# `9.87E-05`), space-separated timestamps Excel parses as dates instead of
+# text, and bare station ids sorted numerically.
+#
+# Being a product is also what makes the per-variable split safe. The variable
+# moves into the FILENAME, which is what lets a column be `1010` rather than
+# `Q_1010` without reviving the ambiguity `shared/gauges.py` exists to prevent.
+#
+# Sub-lettered like 3.01c: this belongs to 1.14's output, not after 1.15.
+rule export_wflow_tables:
+    message: rule_banner("1.14b", "export_wflow_tables")
+    input:
+        csv_path = f"{basin_dir}/run_default/output.csv",
+    output:
+        # Discharge is the only per-station variable a shipped config produces:
+        # 1.05's extras are subcatchment means (`<var>_basavg`) with no station
+        # id, so they are not per-station tables. Declared as the one file
+        # rather than a directory() so Snakemake tracks it like any other.
+        q_table = f"{basin_dir}/run_default/output_q.csv",
+    log:
+        f"{LOG_PARTS_DIR}/1.14b_export_wflow_tables.log",
+    benchmark:
+        f"{project_dir}/benchmarks/_parts/1.14b_export_wflow_tables.tsv",
+    script:
+        "blueearth_cst/shared/tidy_wflow_table.py"
 
 rule plot_wflow_evaluation:
    message: rule_banner("1.15", "plot_wflow_evaluation")
