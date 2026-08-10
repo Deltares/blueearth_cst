@@ -348,6 +348,13 @@ COLOR_MARKER_EDGE = "white"
 #: Halo drawn behind furniture text so it stays legible over any terrain.
 COLOR_HALO = "white"
 
+#: Fill and wording for cells of a CATEGORICAL raster whose code the style's
+#: table does not declare. They are drawn, in one neutral grey, and warned
+#: about — dropping them would take real ground off the map and leave a hole a
+#: reader parses as nodata. See ``RasterStyle.categories``.
+COLOR_UNCLASSIFIED = "#bdbdbd"
+LABEL_UNCLASSIFIED = "Unclassified"
+
 #: Waterbody fills, as (facecolor, edgecolor). Keyed by the staticgeoms layer.
 WATERBODY_COLORS = {
     "lakes": ("#a8d0e6", "#3d5a6c"),
@@ -382,6 +389,10 @@ WIDTH_BASIN_OUTLINE = 0.9  #: the dissolved outer boundary — the map's key lin
 WIDTH_SUBCATCHMENT = 0.7
 WIDTH_WATERBODY_EDGE = 0.5
 WIDTH_MARKER_EDGE = 0.4
+#: Outline around a categorical class swatch in the legend. Thin, but never
+#: zero: the Copernicus legend contains near-white classes (snow, moss) that
+#: would otherwise be an invisible gap in the swatch column.
+_CATEGORY_SWATCH_EDGE_WIDTH = 0.4
 WIDTH_AXES_SPINE = 0.6
 WIDTH_GRATICULE = 0.3
 #: Dash pattern for the subcatchment divides, matplotlib ``(offset, (on, off))``.
@@ -713,6 +724,7 @@ class RasterStyle:
         step_ladder=None,
         levels=None,
         series_color=None,
+        categories=None,
     ):
         #: Colourbar label, including units. The caller owns it, because the
         #: units belong to the data rather than to the style.
@@ -764,6 +776,19 @@ class RasterStyle:
         #: 0.45 the driest swatch is L*=72, clearly blue; 0.32 measured L*=82,
         #: which still reads white against a white page.
         self.low_clip = low_clip
+        #: ``((code, colour, label), ...)`` when the raster is NOMINAL — land
+        #: cover, a soil taxonomy, a subbasin identifier. Setting it switches the
+        #: whole encoding: no ramp, no classifier, no colourbar. The classes go
+        #: in the legend as swatches instead, because a colourbar asserts an
+        #: ORDER, and "urban" is not between "cropland" and "water".
+        #:
+        #: Declare it from the SOURCE PRODUCT's published legend wherever one
+        #: exists (Copernicus CGLS-LC100 ships per-code colours). A reader who
+        #: knows the product then recognises the map, which no palette of ours
+        #: can buy. Codes the raster carries but the table does not are drawn in
+        #: one grey and WARNED about — never dropped, which would erase real
+        #: ground from the map without saying so.
+        self.categories = None if categories is None else tuple(categories)
 
 
     def replace(self, **changes):
@@ -789,6 +814,7 @@ class RasterStyle:
             step_ladder=self.step_ladder,
             levels=self.levels,
             series_color=self.series_color,
+            categories=self.categories,
         )
         fields.update(changes)
         return RasterStyle(**fields)
@@ -2506,6 +2532,118 @@ def _draw_raster(
     )
 
 
+def category_entries(raster, style):
+    """The classes ``raster`` actually contains, as ``[(codes, colour, label)]``.
+
+    Two jobs, both about honesty rather than looks.
+
+    * Only classes PRESENT are returned. A global land-cover legend declares 23
+      classes and a single basin carries a handful; listing the other seventeen
+      in the legend would describe ground the map does not show.
+    * Codes present but NOT declared are collected into one grey entry and
+      warned about. Silently dropping them renders real ground transparent,
+      which reads exactly like nodata — the one failure this figure must not
+      have. ``codes`` is a TUPLE for that reason: the catch-all entry stands for
+      several codes at once.
+    """
+    values = np.asarray(raster.values, dtype="float64")
+    present = {int(value) for value in np.unique(values[np.isfinite(values)])}
+    declared = tuple(style.categories or ())
+    entries = [
+        ((int(code),), colour, label)
+        for code, colour, label in declared
+        if int(code) in present
+    ]
+    unlisted = tuple(sorted(present.difference(int(code) for code, _, _ in declared)))
+    if unlisted:
+        warnings.warn(
+            f"categorical raster carries codes the style does not declare: "
+            f"{list(unlisted)}; drawn as {LABEL_UNCLASSIFIED.lower()}",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        listed = ", ".join(str(code) for code in unlisted)
+        entries.append((unlisted, COLOR_UNCLASSIFIED, f"{LABEL_UNCLASSIFIED} ({listed})"))
+    return entries
+
+
+def _category_handles(entries):
+    """Legend swatches for a categorical raster's classes, in declared order.
+
+    Patches rather than a colourbar, because a bar asserts an ORDER and these
+    classes have none: "urban" does not sit between "cropland" and "water".
+    """
+    return [
+        mpatches.Patch(
+            facecolor=colour,
+            edgecolor=COLOR_BASIN_OUTLINE,
+            linewidth=_CATEGORY_SWATCH_EDGE_WIDTH,
+            label=label,
+        )
+        for _, colour, label in entries
+    ]
+
+
+def _draw_categorical_raster(ax, raster, entries):
+    """Paint a nominal raster from its class table — no ramp, no colourbar.
+
+    The codes are remapped onto contiguous indices before drawing. Handing the
+    raw codes to a ``BoundaryNorm`` instead would space the classes by their
+    NUMERIC gaps, so land cover 30/40/50/80/90/112/114/116/126 would be drawn as
+    if 90 and 112 were nearly the same class and 50 and 80 far apart. Codes are
+    labels; the arithmetic on them is meaningless.
+
+    Cells matching no listed code stay NaN and render transparent, which is
+    correct: after ``category_entries`` the only cells left over are nodata.
+    """
+    values = np.asarray(raster.values, dtype="float64")
+    indexed = np.full(values.shape, np.nan)
+    for index, (codes, _, _) in enumerate(entries):
+        for code in codes:
+            indexed[values == code] = index
+    field = xr.DataArray(indexed, coords=raster.coords, dims=raster.dims)
+    cmap = colors.ListedColormap([colour for _, colour, _ in entries])
+    norm = colors.BoundaryNorm(np.arange(len(entries) + 1) - 0.5, cmap.N)
+    x_dim, y_dim = spatial_dim_names(raster)
+    field.plot.imshow(
+        ax=ax,
+        x=x_dim,
+        y=y_dim,
+        transform=ccrs.PlateCarree(),
+        zorder=Z_RELIEF,
+        add_labels=False,
+        # Never resampled. A nominal raster interpolated between classes invents
+        # codes that do not exist, and the invented ones land on whatever class
+        # sits between them in the index table.
+        interpolation="none",
+        cmap=cmap,
+        norm=norm,
+        add_colorbar=False,
+    )
+
+
+def _categorical_overlay_contrast(raster, entries):
+    """``_overlay_contrast``'s answer for a nominal raster.
+
+    Same question — is the ground under the divides dark or pale? — measured the
+    same way, over the class colours actually painted rather than over a ramp
+    the categorical path never builds.
+    """
+    values = np.asarray(raster.values, dtype="float64")
+    weights = np.array(
+        [float(np.isin(values, codes).sum()) for codes, _, _ in entries]
+    )
+    total = weights.sum()
+    if total <= 0:
+        return COLOR_SUBCATCHMENT, COLOR_HALO
+    lightness = np.array(
+        [_relative_luminance(colors.to_rgba(colour)) for _, colour, _ in entries]
+    )
+    if float((lightness * weights).sum() / total) >= _DARK_RASTER_LIGHTNESS:
+        return COLOR_SUBCATCHMENT, COLOR_HALO
+    return COLOR_HALO, COLOR_SUBCATCHMENT
+
+
 def _point_handle(facecolor, label, marker):
     """A legend entry for a point layer, built by hand.
 
@@ -2806,7 +2944,13 @@ def plot_raster_map(
         waterbodies = _waterbody_entries(
             {"lakes": lakes, "reservoirs": reservoirs, "glaciers": glaciers}
         )
-        handles = _legend_handles(
+        # A nominal raster puts its classes in the LEGEND, not on a colourbar,
+        # so they have to be resolved here — before the legend is built, because
+        # the legend's measured size is what the rest of the panel is laid out
+        # against. Nine land-cover classes make a legend twice the height of the
+        # vector-only one, and the layout has to see that.
+        categories = category_entries(raster, style) if style.categories else []
+        handles = _category_handles(categories) + _legend_handles(
             styles,
             rivers=rivers,
             basin=basin,
@@ -2836,17 +2980,23 @@ def plot_raster_map(
         label_lines = wrapped_label.count("\n") + 1
         layout = _panel_layout(extent, label_lines, measured)
 
-        # --- elevation, as shaded relief -------------------------------------
-        _draw_raster(
-            fig,
-            ax,
-            raster,
-            style,
-            centre_latitude,
-            layout["colorbar"],
-            basin if _present(basin) else None,
-            label_width_inches=panel_width_in,
-        )
+        # --- the raster ------------------------------------------------------
+        # Two encodings, one figure. A nominal raster took its whole legend
+        # above and needs no colourbar; everything else takes the classified
+        # ramp and the side panel's bar.
+        if categories:
+            _draw_categorical_raster(ax, raster, categories)
+        else:
+            _draw_raster(
+                fig,
+                ax,
+                raster,
+                style,
+                centre_latitude,
+                layout["colorbar"],
+                basin if _present(basin) else None,
+                label_width_inches=panel_width_in,
+            )
 
         # --- hydrography ------------------------------------------------------
         if _present(rivers):
@@ -2859,7 +3009,11 @@ def plot_raster_map(
         # Subcatchment divides first and lighter, then the outline over them, so
         # the two are never confusable at the same weight.
         if _present(subbasins):
-            divide_color, divide_halo = _overlay_contrast(raster, style)
+            divide_color, divide_halo = (
+                _categorical_overlay_contrast(raster, categories)
+                if categories
+                else _overlay_contrast(raster, style)
+            )
             styles["divide"]["color"] = divide_color
             _divide_linework(subbasins).plot(
                 ax=ax,
