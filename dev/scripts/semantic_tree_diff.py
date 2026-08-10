@@ -1035,6 +1035,9 @@ def build_project_tree_rules(
     ):
         same(f"data/spatial/{leaf}")
     same("data/spatial/geoms/")
+    # ADR 0007: basin_area depicts elevation, so it is drawn from the spatial
+    # foundation and lands beside it rather than inside the model tree.
+    same("data/spatial/plots/")
     # The climate store is keyed by <clim_source>_<window>; the key is a CACHE
     # KEY, so the rule is keyed by a variable exactly as the R9 map's is.
     same(f"data/climate/historical/{dataset_key}/")
@@ -1063,9 +1066,11 @@ def build_project_tree_rules(
         "forcing/plots/",
         "run_default/",
         "evaluation/",
-        "plots/",
     ):
         same(f"{wflow}/{directory}")
+    # `{wflow}/plots/` is deliberately absent: ADR 0007 moved its only member,
+    # basin_area, to `data/spatial/plots/`. A leftover directory there is stale
+    # output from a pre-0007 run and SHOULD report as undeclared.
 
     # -- experiments/<id>/ ----------------------------------------------------
     for leaf in (

@@ -551,7 +551,8 @@ ADVANCED_SETTINGS = load_advanced_settings()
 #: ``extract_historical_climate._check_window_coverage``.
 #:
 #: It subsumes the other length requirement in the tree: rule 1.11
-#: ``plot_results`` writes ``clim_wflow_1_{month,year}.png`` only from >= 365
+#: (Retired 2026-08-09, ADR 0006.) ``plot_results`` wrote the subcatchment
+#: climate figures only from >= 365
 #: TIMESTEPS, which 16 years clears for any daily source (dev/followups-archive.md
 #: R7-6).
 MIN_HISTORICAL_YEARS = ADVANCED_SETTINGS["constraints"]["min_historical_years"]
@@ -788,16 +789,16 @@ DEFAULT_BASIN_INDEX = "merit_hydro_index"
 #: (``script:`` resolves against ``workflow.basedir``).
 CLIMATE_STORE_SCRIPT = "blueearth_cst/climate_analysis/extract_historical_climate.py"
 
-#: The region producer's script (ADR 0003), same resolution rule as above.
+#: The region producer's script (ADR 0006), same resolution rule as above.
 REGION_SCRIPT = "blueearth_cst/spatial/delineate_region.py"
 
-#: The vector-foundation producer's script (ADR 0003 §8), same rule again.
+#: The vector-foundation producer's script (ADR 0006 §8), same rule again.
 SPATIAL_UNITS_SCRIPT = "blueearth_cst/spatial/delineate_spatial_units.py"
 
 
 @dataclass(frozen=True)
 class RegionRule:
-    """The producer contract for the one project region artifact (ADR 0003).
+    """The producer contract for the one project region artifact (ADR 0006).
 
     Same shape and same purpose as :class:`ClimateStoreRule`: all three
     workflows declare ``delineate_region`` from this object, so the three rule
@@ -822,7 +823,7 @@ def region_rule(
 
     ONE rule definition, declared in all three workflows (``1.01b`` / ``2.03b``
     / ``3.01b``), over the ONE delineation of ``shared.basin.region``. Before
-    ADR 0003 the polygon was derived twice — by rule 1.02 on its way to
+    ADR 0006 the polygon was derived twice — by rule 1.02 on its way to
     ``basins.geojson``, and per climate-store key as ``store_region.geojson`` —
     and WF2 ran the whole climate-store producer to obtain it.
 
@@ -876,7 +877,7 @@ def region_rule(
 
 @dataclass(frozen=True)
 class SpatialUnitsRule:
-    """The producer contract for the shared vector foundation (ADR 0003 §8).
+    """The producer contract for the shared vector foundation (ADR 0006 §8).
 
     The THIRD member of the shared-rule family, beside :class:`RegionRule` and
     :class:`ClimateStoreRule` and with the same shape. All three workflows
@@ -910,7 +911,7 @@ def spatial_units_rule(project_dir, spatial_config, data_sources) -> SpatialUnit
 
     ONE rule definition, declared in all three workflows (``1.01c`` / ``2.03c``
     / ``3.01f``), over the vector half of what rule 1.02 used to do alone.
-    Before ADR 0003 §8, WF2 and WF3 could not reach the basin and subbasin
+    Before ADR 0006 §8, WF2 and WF3 could not reach the basin and subbasin
     boundaries without declaring ``prepare_spatial_maps`` — whose real product
     is ``spatial_maps.nc`` — so a projections-only run would have resampled
     ``vito``, ``modis_lai`` and ``soilgrids`` to draw a subbasin outline.
@@ -1172,7 +1173,7 @@ def climate_store_rule(
     return ClimateStoreRule(
         store_dir=store_dir,
         script=CLIMATE_STORE_SCRIPT,
-        # Two declared inputs since ADR 0003. The catalog is the store's
+        # Two declared inputs since ADR 0006. The catalog is the store's
         # freshness boundary (ext2-01); the region is the extent it cuts to,
         # produced once per project by `delineate_region` rather than
         # re-delineated per store key. `region_rule` owns the path, so the two

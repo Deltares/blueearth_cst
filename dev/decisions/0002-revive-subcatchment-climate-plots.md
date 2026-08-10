@@ -1,10 +1,16 @@
-Status: accepted
+Status: superseded by 0006-retire-subcatchment-climate-plots.md (2026-08-09)
 Date: 2026-07-21
 Deciders: Ümit Taner
 Consulted: Observation 4 investigation + correction (test/pre06 gabon run;
            plot_results.log); commit af38068 (honest-message fix that surfaced
            the dormant path); existing plot_forcing precedent (plot_map_forcing.py)
 Supersedes: none
+Superseded-by: 0006-retire-subcatchment-climate-plots.md — the canonical
+           climate figure set now answers this question for both gridded
+           products, so the subcatchment figures were duplication. The
+           diagnosis below (the branch was dead and reported its skip
+           misleadingly) remains accurate and is why it was fixed rather
+           than deleted at the time.
 Revisions:
   - 2026-07-21: initial draft (scoping only). Proposed wiring wflow OUTPUT
     variables (extend WFLOW_VARS, emit *_subcatchment CSV columns, opt-in).

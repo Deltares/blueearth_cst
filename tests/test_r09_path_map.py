@@ -334,6 +334,9 @@ MAP_ROWS: dict[str, list[tuple[str, str]]] = {
             "models/hydrology/wflow/evaluation/plots/hydro_wflow_1.png",
         ),
         (
+            # R9 moved this to models/...; ADR 0007 later moved it again to
+            # data/spatial/plots/. This map records R9 and stays as it was —
+            # a one-way migration map describes the move it performed.
             "hydrology_model/plots/basin_area.png",
             "models/hydrology/wflow/plots/basin_area.png",
         ),

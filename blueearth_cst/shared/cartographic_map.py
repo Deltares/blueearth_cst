@@ -226,7 +226,7 @@ _COLORBAR_LEVELS = 6
 #: dialled in exactly: asking for 4 classes over a 0-140 m range yields 4 or 3
 #: depending on which ladder rung the width lands on, and only the cap
 #: guarantees the bar never comes back with eight.
-_COLORBAR_MAX_TICKS = 7
+_COLORBAR_MAX_TICKS = 9
 
 #: How many times the step may be widened chasing that cap before the result is
 #: taken as it stands. A bound, not a tuning knob: each rung roughly doubles the
@@ -710,6 +710,9 @@ class RasterStyle:
         diverging_center=None,
         reserve_low_for=None,
         low_clip=0.45,
+        step_ladder=None,
+        levels=None,
+        series_color=None,
     ):
         #: Colourbar label, including units. The caller owns it, because the
         #: units belong to the data rather than to the style.
@@ -740,12 +743,55 @@ class RasterStyle:
         #: instead of at 0, so white stays available for what it means.
         #: ``None`` uses the whole ramp always.
         self.reserve_low_for = reserve_low_for
+        #: Class-width rungs for this quantity, overriding ``_STEP_LADDER``.
+        #: Temperature takes its own so a bar steps in 0.25/0.5/1 degC rather
+        #: than picking up 0.15 or 0.2 from the general ladder.
+        self.step_ladder = step_ladder
+        #: The one colour this quantity takes in a NON-map figure — its annual
+        #: series, its monthly climatology. ``None`` derives it from the map's
+        #: own ramp, which is the point: a reader meets precipitation as blue on
+        #: the map and must meet it as the same blue on the line beside it.
+        #: Deriving rather than declaring is what stops the two drifting when a
+        #: palette changes.
+        self.series_color = series_color
+        #: Explicit class boundaries, bypassing the classifier entirely. This is
+        #: what lets two figures share one bar: the first computes them, the
+        #: second is handed them. ``None`` classifies from the data.
+        self.levels = levels
         #: Where the ramp starts when the low end is reserved, 0-1. 0.32 is
         #: far enough up Blues that the driest class reads as a light BLUE
         #: rather than as an off-white a reader still parses as 'dry'. At
         #: 0.45 the driest swatch is L*=72, clearly blue; 0.32 measured L*=82,
         #: which still reads white against a white page.
         self.low_clip = low_clip
+
+
+    def replace(self, **changes):
+        """A copy of this style with ``changes`` applied.
+
+        Use this instead of rebuilding a style field by field. A caller that
+        listed the fields by hand dropped ``step_ladder`` and
+        ``reserve_low_for`` the moment they were added, so temperature bars
+        stepped in 0.15 degC and rainfall reserved no white — both silently,
+        because a missing field looks exactly like a default.
+        """
+        fields = dict(
+            label=self.label,
+            palette=self.palette,
+            classification=self.classification,
+            clip_quantiles=self.clip_quantiles,
+            zero_baseline=self.zero_baseline,
+            relief=self.relief,
+            interpolation=self.interpolation,
+            diverging_center=self.diverging_center,
+            reserve_low_for=self.reserve_low_for,
+            low_clip=self.low_clip,
+            step_ladder=self.step_ladder,
+            levels=self.levels,
+            series_color=self.series_color,
+        )
+        fields.update(changes)
+        return RasterStyle(**fields)
 
 
 #: The styles this toolbox ships. Add a quantity by adding an entry, not by
@@ -784,6 +830,10 @@ RASTER_STYLES = {
         label="Air temperature ($\\degree$C)",
         palette="YlOrRd",
         zero_baseline=False,
+        # 0.25 / 0.5 / 1 degC and their decades — the steps a reader expects of
+        # a temperature bar. The general ladder would also offer 0.15 and 0.2,
+        # which read as arbitrary on a thermometer.
+        step_ladder=(2.5, 5.0, 10.0),
     ),
     #: Evaporative demand: warm, but a different hue family from temperature so
     #: the two figures are not confused at a glance. dL* 10.7 greyscale, 10.0
@@ -1065,16 +1115,20 @@ def resolve_temperature_style(raster, style=None):
     )
 
 
-#: Mantissas a class WIDTH may take. Wider than the 1/2/5 used for the scale
-#: bar: with a capped tick count the step is what controls how many classes the
-#: bar gets, and 1/2/5 leaves gaps too coarse to land in. Over 0-140 m it can
-#: only offer 20 (eight labels, over the cap) or 50 (four) — 40 gives the five
-#: the cap allows, and 0/40/80/120/160 is as readable as any of them. 2.5 and 4
-#: are ordinary contour-interval values, not invented precision.
-_STEP_LADDER = (1.0, 2.0, 2.5, 4.0, 5.0, 10.0)
+#: Mantissas a class WIDTH may take, as a decade ladder. Wider than the 1/2/5
+#: used for the scale bar: with a capped tick count the step is what controls
+#: how many classes the bar gets, and 1/2/5 leaves gaps too coarse to land in.
+#:
+#: These rungs give the steps a reader expects of each quantity — 25/50/100/
+#: 150/200 mm for rainfall, 0.25/0.5/1 degC for temperature — at every decade,
+#: because the ladder is multiplicative. ``4`` was dropped when the tick cap
+#: rose to 9: it existed only so a five-tick bar over 0-140 m could land on 40,
+#: and it put 40 mm and 0.4 degC in reach of quantities that never want them.
+#: A style may override the ladder with its own (``RasterStyle.step_ladder``).
+_STEP_LADDER = (1.0, 1.5, 2.0, 2.5, 5.0, 10.0)
 
 
-def _nice_step_up(value):
+def _nice_step_up(value, ladder=None):
     """Round a class width UP to the next ``_STEP_LADDER`` rung x 10^n.
 
     Up, not down: ``_nice_round_length`` rounds down, which for a class width
@@ -1083,15 +1137,16 @@ def _nice_step_up(value):
     """
     if value <= 0:
         return 1.0
+    rungs = tuple(ladder) if ladder else _STEP_LADDER
     exponent = np.floor(np.log10(value))
     fraction = value / 10.0**exponent
-    step = next((rung for rung in _STEP_LADDER if fraction <= rung), 10.0)
+    step = next((rung for rung in rungs if fraction <= rung), 10.0)
     return float(step * 10.0**exponent)
 
 
-def _next_step_up(step):
+def _next_step_up(step, ladder=None):
     """The ladder rung above ``step`` — used to force the tick count down."""
-    return _nice_step_up(step * (1.0 + 1e-9))
+    return _nice_step_up(step * (1.0 + 1e-9), ladder)
 
 
 def _zero_baseline(lower, upper, enabled=None):
@@ -1105,7 +1160,7 @@ def _zero_baseline(lower, upper, enabled=None):
     return lower
 
 
-def _equal_interval_levels(lower, upper, zero_baseline=None):
+def _equal_interval_levels(lower, upper, zero_baseline=None, ladder=None):
     """Evenly spaced class boundaries on a round step — the default rule.
 
     The step comes from ``_COLORBAR_LEVELS`` but is then widened, a ladder rung
@@ -1114,7 +1169,7 @@ def _equal_interval_levels(lower, upper, zero_baseline=None):
     exactly, so the target sets the ambition and the cap sets the limit.
     """
     baseline = _zero_baseline(lower, upper, zero_baseline)
-    step = _nice_step_up((upper - baseline) / max(_COLORBAR_LEVELS, 1))
+    step = _nice_step_up((upper - baseline) / max(_COLORBAR_LEVELS, 1), ladder)
     max_ticks = max(int(_COLORBAR_MAX_TICKS), 2)
     for _ in range(_STEP_WIDEN_ATTEMPTS):
         # Put the boundaries on multiples of the step, so a basin floor of
@@ -1126,7 +1181,7 @@ def _equal_interval_levels(lower, upper, zero_baseline=None):
         count = int(np.ceil((upper - floor) / step))
         if count + 1 <= max_ticks:
             return floor + step * np.arange(count + 1)
-        step = _next_step_up(step)
+        step = _next_step_up(step, ladder)
     return floor + step * np.arange(count + 1)
 
 
@@ -1249,6 +1304,11 @@ def _class_levels(raster, style):
     classification mode read from the style rather than from elevation's
     constants. See ``_elevation_levels`` for what the rules are and why.
     """
+    if getattr(style, "levels", None) is not None:
+        # Handed in, not derived: the caller is pinning this bar to another
+        # figure's. See ``climate_figures`` and its shared-levels sidecar.
+        return np.asarray(style.levels, dtype=float)
+    ladder = getattr(style, "step_ladder", None)
     lower, upper = (
         float(value) for value in raster.quantile(list(style.clip_quantiles)).compute()
     )
@@ -1260,7 +1320,7 @@ def _class_levels(raster, style):
             f"classification={style.classification!r}; expected one of "
             f"{_ELEVATION_CLASSIFICATIONS}"
         )
-    equal_interval = _equal_interval_levels(lower, upper, style.zero_baseline)
+    equal_interval = _equal_interval_levels(lower, upper, style.zero_baseline, ladder)
     if style.classification == "equal_interval":
         return equal_interval
 
@@ -1416,6 +1476,92 @@ def check_geographic_inputs(raster, layers, value_label=None, expected_units=Non
             f"{label!r}. Pass value_label= to match the data.",
             stacklevel=2,
         )
+
+
+
+def extent_from_layer(layer, buffer_deg=_EXTENT_BUFFER_DEG):
+    """``[lon_min, lon_max, lat_min, lat_max]`` covering a vector layer.
+
+    The companion to :func:`map_extent`, which frames a map on its RASTER. Two
+    maps of the same area drawn from different grids frame differently that way
+    — the wflow forcing is masked to the basin, the source extraction is a
+    handful of reanalysis cells reaching far beyond it — so the pair cannot be
+    read side by side. Framing both on the same VECTOR layer is what makes them
+    comparable, and the basin is the subject of both.
+    """
+    if not _present(layer):
+        return None
+    lon_min, lat_min, lon_max, lat_max = layer.total_bounds
+    return np.array(
+        [
+            lon_min - buffer_deg,
+            lon_max + buffer_deg,
+            lat_min - buffer_deg,
+            lat_max + buffer_deg,
+        ]
+    )
+
+
+
+def _raster_within(raster, extent):
+    """``raster`` cut to ``extent``, keeping the cells that touch its edges.
+
+    The colourbar classifies whatever it is handed, so a raster reaching past
+    the frame puts values the reader cannot see into the class breaks — the
+    source-grid extraction spans several degrees around a basin a fraction of a
+    degree wide, and framed on the basin its bar described mostly off-frame
+    cells. A bar must describe the map it sits on.
+
+    Cells are kept when they INTERSECT the frame — half a cell of padding on
+    each side — because a cell straddling the edge is genuinely part of the
+    picture. A centre-in-frame test was tried and is wrong here: on a 0.25 deg
+    reanalysis grid under a 0.15 deg basin exactly one centre falls inside, so
+    the range collapsed to a single value and the classifier invented 0.2 mm
+    steps around it.
+    """
+    try:
+        x_dim, y_dim = spatial_dim_names(raster)
+        res_x, res_y = (abs(v) / 2.0 for v in pixel_resolution(raster))
+    except ValueError:
+        return raster
+    lon_min, lon_max, lat_min, lat_max = (float(v) for v in extent)
+    x, y = raster[x_dim], raster[y_dim]
+    touching = raster.sel(
+        {
+            x_dim: x[(x >= lon_min - res_x) & (x <= lon_max + res_x)],
+            y_dim: y[(y >= lat_min - res_y) & (y <= lat_max + res_y)],
+        }
+    )
+    return touching if touching.size else raster
+
+
+
+#: Where along a style's ramp its series colour is taken from. High enough to
+#: read as a line on white, low enough not to be the near-black end of a
+#: sequential palette.
+_SERIES_COLOR_POSITION = 0.72
+
+
+def style_series_color(style):
+    """The single colour this quantity takes outside a map.
+
+    Drawn from the style's own ramp so a variable keeps one identity across the
+    figure set: the blue a reader meets on the precipitation map is the blue of
+    its annual series. A style may pin ``series_color`` instead.
+    """
+    if getattr(style, "series_color", None) is not None:
+        return style.series_color
+    return _style_colormap(style)(_SERIES_COLOR_POSITION)
+
+
+def series_figure_size(aspect=0.42):
+    """Figure size in inches for a NON-map figure at the shared page width.
+
+    Same declared width as every map, so a report setting these side by side
+    gets one column width rather than three.
+    """
+    width_in = FIGURE_WIDTH_MM / MM_PER_INCH
+    return width_in, width_in * aspect
 
 
 def _mask_nodata(da):
@@ -2128,6 +2274,18 @@ def _wrap_label(fig, text, max_width_inches, fontsize):
         artist = mtext.Text(0, 0, line, fontsize=fontsize, figure=fig)
         return artist.get_window_extent(renderer).width / fig.dpi
 
+    if width_of(text) <= max_width_inches:
+        return text
+
+    # Break at the UNIT first. A quantity's name and its unit are the two things
+    # a reader parses separately, so "Precipitation" over "(mm y-1)" reads as one
+    # label on two lines, where greedy wrapping gives "Precipitation (mm" over
+    # "y-1)" — which splits the unit itself into two half-thoughts.
+    head, opener, tail = str(text).partition("(")
+    head = head.rstrip()
+    if head and tail and width_of(head) <= max_width_inches:
+        return f"{head}\n{opener}{tail}"
+
     lines, current = [], words[0]
     for word in words[1:]:
         candidate = f"{current} {word}"
@@ -2620,6 +2778,10 @@ def plot_raster_map(
     )
     if extent is None:
         extent = map_extent(raster)
+    else:
+        # An extent the CALLER chose can be far smaller than the raster — the
+        # source-grid climate framed on the basin is. Classify what is shown.
+        raster = _raster_within(raster, extent)
     proj = ccrs.PlateCarree()
     centre_latitude = 0.5 * float(extent[2] + extent[3])
 

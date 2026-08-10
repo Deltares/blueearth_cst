@@ -12,7 +12,7 @@ where it killed rule 1.11 outright after the 2026-08-01 fix to
 first place — the collision had been masked by the gauges never being found.
 
 The outlet label must WIN the collision: rule 1.11 declares
-``hydro_wflow_1.png`` and ``clim_wflow_1_{month,year}.png`` as Snakemake
+``hydro_wflow_1.png`` as a Snakemake
 outputs and every figure is written as ``<kind>_{station_name}.png``, so a
 user name winning on the first outlet trades the MergeError for a
 MissingOutputException.

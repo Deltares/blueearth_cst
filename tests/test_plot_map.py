@@ -515,16 +515,60 @@ def test_the_ramp_can_be_cut_into_discrete_classes():
 
 @pytest.mark.parametrize(
     "value, expected",
-    [(0.9, 1.0), (1.0, 1.0), (1.7, 2.0), (2.4, 2.5), (3.0, 4.0), (16.9, 20.0)],
+    [
+        (0.9, 1.0),
+        (1.0, 1.0),
+        (1.2, 1.5),
+        (1.7, 2.0),
+        (2.4, 2.5),
+        (3.0, 5.0),
+        (16.9, 20.0),
+    ],
 )
 def test_a_class_width_rounds_UP_to_a_ladder_rung(value, expected):
     """Down would give MORE classes than asked for -- the opposite of the point.
 
-    The ladder gained 2.5 and 4 when the tick count was capped: with only
-    1/2/5 the step jumps from 20 to 50, and a cap of five ticks over a
-    0-140 m range is then unreachable.
+    The rungs give each quantity the steps a reader expects -- 25/50/100/150/
+    200 mm of rainfall, 0.25/0.5/1 degC -- at every decade, because the ladder
+    is multiplicative. ``4`` was dropped when the tick cap rose to 9: it existed
+    only so a five-tick bar over 0-140 m could land on 40, and it put 40 mm and
+    0.4 degC in reach of quantities that never want them.
     """
     assert _nice_step_up(value) == expected
+
+
+def test_a_style_may_carry_its_own_ladder():
+    """Temperature steps in 0.25/0.5/1, not in the general ladder's 0.15."""
+    assert _nice_step_up(0.19, RASTER_STYLES["temp"].step_ladder) == 0.25
+    assert _nice_step_up(0.19) == 0.2
+
+
+def test_replacing_a_style_field_keeps_every_other_one():
+    """Rebuilding a style by hand dropped whatever was added later.
+
+    That is how the temperature ladder never reached the figure and rainfall
+    reserved no white: a missing field looks exactly like a default.
+    """
+    original = RASTER_STYLES["precip"]
+    copy = original.replace(label="Other (mm)")
+    assert copy.label == "Other (mm)"
+    for field in (
+        "palette",
+        "classification",
+        "zero_baseline",
+        "reserve_low_for",
+        "low_clip",
+        "step_ladder",
+        "relief",
+    ):
+        assert getattr(copy, field) == getattr(original, field), field
+
+
+def test_explicit_levels_bypass_the_classifier():
+    """The sidecar's whole mechanism: a bar handed in, not derived."""
+    pinned = [0.0, 10.0, 20.0, 30.0]
+    style = RASTER_STYLES["precip"].replace(levels=pinned)
+    assert list(_class_levels(_ramp(2700.0, 2900.0), style)) == pinned
 
 
 def _dem_spanning(low, high):

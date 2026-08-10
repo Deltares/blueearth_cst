@@ -2,7 +2,7 @@
 
 * ``test_delete_all_output_removes_the_declared_plot_outputs`` — O-24. Before
   R07, rule 1.13 wrote three PNGs and declared one, and rule 1.11 wrote
-  ``clim_wflow_1_{month,year}.png`` + ``performance_metrics.csv`` and declared
+  ``performance_metrics.csv`` and declared
   none of them; undeclared outputs survive ``--delete-all-output`` and are
   invisible to the baseline. The claim is scoped to configs without extra
   gauges: ``signatures_{station}.png`` and the per-station
@@ -51,12 +51,10 @@ CONFIG_FN = TESTDIR / "snake_config_model_test.yml"
 #: change to the canonical set cannot leave this list quietly behind.
 DECLARED_PLOT_OUTPUTS = (
     "models/hydrology/wflow/evaluation/plots/hydro_wflow_1.png",
-    "models/hydrology/wflow/evaluation/plots/clim_wflow_1_month.png",
-    "models/hydrology/wflow/evaluation/plots/clim_wflow_1_year.png",
     "models/hydrology/wflow/evaluation/performance_metrics.csv",
     # Rule 1.12 renders once and writes both: PDF for publication, PNG preview.
-    "models/hydrology/wflow/plots/basin_area.pdf",
-    "models/hydrology/wflow/plots/basin_area.png",
+    "data/spatial/plots/basin_area.pdf",
+    "data/spatial/plots/basin_area.png",
 ) + tuple(
     f"models/hydrology/wflow/forcing/plots/{name}" for name in _figure_names("forcing")
 )

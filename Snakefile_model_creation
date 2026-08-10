@@ -11,7 +11,10 @@ from blueearth_cst.spatial.config import parse_spatial_config
 # The canonical climate figure set (rules 1.13 and 1.15 both draw it). Imported
 # for figure_names() ONLY, so every figure is declared from the same list the
 # plotter writes from and the two cannot drift.
-from blueearth_cst.climate_analysis.climate_figures import figure_names
+from blueearth_cst.climate_analysis.climate_figures import (
+    LEVELS_FILENAME,
+    figure_names,
+)
 # Recognises both "unset" spellings (YAML null and the legacy "None" string),
 # so an unset observation key never becomes a declared input.
 from blueearth_cst.shared.gauges import is_unset
@@ -199,7 +202,7 @@ CLIMATE_STORE = climate_store_rule(
 )
 store_dir = CLIMATE_STORE.store_dir
 
-# --- The one project region artifact (ADR 0003) -------------------------------
+# --- The one project region artifact (ADR 0006) -------------------------------
 # Same pattern, same reason: ONE producer contract, built here and identically
 # in the other two workflows, splatted into rule 1.02 below. Only
 # message/log/benchmark are workflow-local, and
@@ -215,7 +218,7 @@ REGION = region_rule(
     basin_index=basin_index,
 )
 
-# --- The shared vector foundation (ADR 0003 §8) -------------------------------
+# --- The shared vector foundation (ADR 0006 §8) -------------------------------
 # Third and last of the shared producer contracts, same pattern again: built
 # here and identically in the other two workflows, splatted into rule 1.03
 # below, and tests/test_spatial_units_rule.py parses all three workflows and
@@ -346,7 +349,7 @@ LOG_RULES = [
 # gather outputs themselves.
 WF1_TERMINALS = [
     f"{basin_dir}/evaluation/plots/hydro_wflow_1.png",
-    f"{basin_dir}/plots/basin_area.png",
+    f"{spatial_dir}/plots/basin_area.png",
     # One representative of each canonical climate set: the rules produce their
     # nine figures as a unit, so naming every one here would add no edge.
     f"{FORCING_PLOTS_DIR}/forcing_precip_map.png",
@@ -403,7 +406,7 @@ rule snapshot_config:
     script:
         "blueearth_cst/model/copy_config_files.py"
 
-# 1.02  delineate_region — the one project region artifact (ADR 0003).
+# 1.02  delineate_region — the one project region artifact (ADR 0006).
 # Byte-identical to 2.02 and 3.03 except message/log/benchmark; everything
 # else is splatted from REGION so the three cannot drift.
 rule delineate_region:
@@ -420,7 +423,7 @@ rule delineate_region:
         f"{project_dir}/benchmarks/_parts/1.02_delineate_region.tsv",
     script: REGION.script
 
-# 1.03  delineate_spatial_units — the shared vector foundation (ADR 0003 §8).
+# 1.03  delineate_spatial_units — the shared vector foundation (ADR 0006 §8).
 # Byte-identical to 2.03 and 3.04 except message/log/benchmark; everything
 # else is splatted from SPATIAL_UNITS so the three cannot drift.
 rule delineate_spatial_units:
@@ -439,7 +442,7 @@ rule delineate_spatial_units:
 
 # 1.06  prepare_spatial_maps — the thematic raster stack, WF1 ONLY
 #
-# The raster half of ADR 0003 §8. The vector layers and the registry come from
+# The raster half of ADR 0006 §8. The vector layers and the registry come from
 # 1.03 now; this rule folds LULC/LAI/soil onto the grid 1.03 handed it and
 # writes the model-build interface. `hydrography` is the SEAM INTERMEDIATE
 # (§8a): the whole hydrography grid stack used to cross this boundary in
@@ -687,15 +690,9 @@ rule extract_historical_climate:
     script:
         CLIMATE_STORE.script
 
-# 1.15  plot_wflow_evaluation — analyse + plot the wflow run (parallel leaf with 1.12/1.13)
-# The climate plots read the shared store's extraction (rule 1.04) at model
-# parity — not the inmaps forcing (P3-2a re-source; was ADR 0002). On chirps/
-# chirps_global the extraction's orography sidecar is a declared input with a
-# real producer edge (ext2-1); producer and consumer resolve that branch from
-# the same clim_historical key via CLIMATE_STORE, so they cannot disagree.
-_wf1_plot_clim_inputs = {"climate_nc": CLIMATE_STORE.outputs["climate_nc"]}
-if clim_source in ("chirps", "chirps_global"):
-    _wf1_plot_clim_inputs["oro_nc"] = CLIMATE_STORE.outputs["oro_nc"]
+# 1.15  plot_wflow_evaluation — analyse + plot the wflow RUN (parallel leaf
+# with 1.12/1.13). Discharge only since ADR 0006; the climate figures it used
+# to draw are the map/series family under forcing/plots/ now.
 
 # O-24, basin-average half. The ONE plot_wflow_evaluation family that is a pure
 # function of config, so it is declared rather than left undeclared.
@@ -725,7 +722,9 @@ rule plot_wflow_evaluation:
        # ADR 0004; transitively ordered after 1.10 via 1.14, declared for the
        # same reason as there.
        model_final = ancient(f"{basin_dir}/.model_final"),
-       **_wf1_plot_clim_inputs,
+       # The climate-store inputs went with the subcatchment climate figures
+       # (ADR 0006). This rule evaluates DISCHARGE now, so it no longer waits
+       # on rule 1.04 at all.
        # Both observation files, when configured: this rule reads the gauge
        # positions AND the observed series, so either changing must re-evaluate.
        **_locations_input,
@@ -756,17 +755,13 @@ rule plot_wflow_evaluation:
    # rule-shape change, not the enumeration R7-5 imagined. `--delete-all-output`
    # completeness therefore still holds only for configs without extra gauges.
    #
-   # KNOWN CONSEQUENCE of declaring the two clim_wflow_1_* figures: they are
-   # written only when the store's extraction is present AND covers >= 365
-   # days (plot_results.py's climate branch). A config with a sub-year
-   # historical_window now fails here with MissingOutputException instead of
-   # logging a skip. Every shipped config spans years, so no shipped config is
-   # affected; recorded because it is a NEW failure mode, not just a
-   # declaration.
+   # The two clim_wflow_1_* figures were declared here until 2026-08-09 and are
+   # gone with the branch that wrote them (ADR 0006). Their removal also
+   # retires the failure mode declaring them introduced: a config with a
+   # sub-year historical_window failed here with MissingOutputException where
+   # it used to log a skip.
    output:
        output_png = f"{basin_dir}/evaluation/plots/hydro_wflow_1.png",
-       clim_month_png = f"{basin_dir}/evaluation/plots/clim_wflow_1_month.png",
-       clim_year_png = f"{basin_dir}/evaluation/plots/clim_wflow_1_year.png",
        metrics_csv = f"{basin_dir}/evaluation/performance_metrics.csv",
        basavg_pngs = _basavg_pngs,
    params:
@@ -776,8 +771,6 @@ rule plot_wflow_evaluation:
        # which made the model's location a fact spelled in two places; this move
        # is what forced the question, and passing it is the answer.
        model_dir = basin_dir,
-       data_sources = DATA_SOURCES,
-       clim_source = clim_source,
    log:
        f"{LOG_PARTS_DIR}/1.15_plot_wflow_evaluation.log",
    benchmark:
@@ -788,46 +781,21 @@ rule plot_wflow_evaluation:
 rule plot_basin_map:
     message: rule_banner("1.12", "plot_basin_map")
     input:
-        gauges_path = f"{basin_dir}/staticgeoms/outlets.geojson",
-        # RACE FIX, 2026-08-04. This rule reads staticmaps.nc straight off disk
-        # (plot_map.load_basin_layers -- it stopped asking hydromt at R7) but
-        # declared only the gauges layer, so nothing ordered it after rule 1.08
-        # add_reservoirs_lakes_glaciers. Under `-c 1` they never overlap and the
-        # ordering held by accident; a cold `-c 3` run schedules them together
-        # and 1.12 dies with NO Python traceback. That silence is the tell:
-        # `HDF5_USE_FILE_LOCKING = "FALSE"` in the pixi env means a concurrent
-        # read while another process writes is unprotected, so it aborts below
-        # Python. Reproduced three times at `-c 3`; 18/18 at `-c 1`.
-        #
-        # The ordering anchor is the SENTINEL, not staticmaps.nc. Declaring
-        # staticmaps.nc alone does not fix it -- rule 1.08 writes that file as
-        # an UNDECLARED SIDE EFFECT (its only declared output is
-        # reservoirs_lakes_glaciers.txt), so Snakemake attributes staticmaps.nc
-        # to 1.07 build_wflow_model and orders 1.12 after 1.07, which is exactly
-        # where it already was. `.outputs_configured` is rule 1.09's completion
-        # marker and 1.09 runs after 1.08, so it is the earliest edge that means
-        # "every writer of staticmaps.nc is done" -- the same use rule 1.10
-        # already makes of it (it was 1.07's until R10-1 merged the two).
-        #
-        # Both are declared: the sentinel for ORDERING, staticmaps.nc because
-        # this rule genuinely reads it and a declaration that says so is what
-        # stops the next reader from re-deriving all of the above. `ancient()`
-        # on both supplies the edge without a timestamp rerun-trigger, so no
-        # rebuild cascade appears.
-        model_final = ancient(f"{basin_dir}/.model_final"),
-        basin_nc = ancient(f"{basin_dir}/staticmaps.nc"),
-        **_locations_input,
-    # R07 B10: basin_area depicts the MODEL, not its evaluation (P1), so it
-    # sits at the model root's plots/. Two formats, one render: the PDF is the
-    # publication deliverable (vector line art, embedded TrueType), the PNG the
-    # preview every other consumer reads (baseline fingerprint, quick review).
+        # ADR 0007: basin_area depicts ELEVATION, which is data rather than a
+        # model result, so it is drawn from the shared spatial foundation and
+        # not from the wflow model. That also retires this rule's HDF5 race
+        # workaround wholesale — it no longer opens staticmaps.nc, so it no
+        # longer has to be ordered behind every writer of that file (the
+        # sentinel edge, the ancient() staticmaps declaration, and the -c 3
+        # abort-below-Python they existed to prevent, all gone).
+        hydrography_nc = SPATIAL_UNITS.hydrography_nc,
+        **{name: SPATIAL_UNITS.outputs[name] for name in
+           ("basins", "subbasins", "rivers", "locations")},
     output:
-        output_map_pdf = f"{basin_dir}/plots/basin_area.pdf",
-        output_map_png = f"{basin_dir}/plots/basin_area.png",
+        basin_png = f"{spatial_dir}/plots/basin_area.png",
+        basin_pdf = f"{spatial_dir}/plots/basin_area.pdf",
     params:
-        project_dir = f"{project_dir}",
-        # Rule-owned model root; see rule 1.15's note.
-        model_dir = basin_dir,
+        spatial_dir = f"{spatial_dir}",
     log:
         f"{LOG_PARTS_DIR}/1.12_plot_basin_map.log",
     benchmark:
@@ -851,6 +819,10 @@ rule plot_forcing:
         # by side. The model's own staticgeoms would reintroduce the divergence.
         **{name: SPATIAL_UNITS.outputs[name] for name in
            ("basins", "subbasins", "rivers", "locations")},
+        # The colourbar boundaries rule 1.05 recorded. Declared so the edge is
+        # in the DAG: these figures adopt that bar, so they are stale when it
+        # changes. One-way by design — 1.05 never waits on the model.
+        shared_levels = f"{store_dir}/plots/{LEVELS_FILENAME}",
     # R07 B10 + O-24: the forcing/model-input QA figures sit beside the forcing
     # they describe, and ALL of them are declared — variable x kind is a fixed
     # cross-product, so the list comes from climate_figures.figure_names()
@@ -862,6 +834,7 @@ rule plot_forcing:
         # Rule-owned model root; see rule 1.15's note.
         model_dir = basin_dir,
         geoms_dir = SPATIAL_UNITS.spatial_dir + "/geoms",
+        source_plot_dir = f"{store_dir}/plots",
     log:
         f"{LOG_PARTS_DIR}/1.13_plot_forcing.log",
     benchmark:
@@ -921,6 +894,8 @@ rule plot_climate_source:
         **_source_plot_inputs,
     output:
         [f"{store_dir}/plots/{name}" for name in figure_names("source")],
+        # Read by rule 1.13; see its input note.
+        f"{store_dir}/plots/{LEVELS_FILENAME}",
     params:
         plot_dir = f"{store_dir}/plots",
         data_sources = DATA_SOURCES,

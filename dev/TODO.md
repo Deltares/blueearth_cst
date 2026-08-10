@@ -21,6 +21,7 @@
 | [t2608091006](tasks/t2608091006-standardize-plotting-across-the-toolbox-with-shared-templates-then-sweep-the-existing-figures-onto-them.md) | Standardize plotting across the toolbox with shared templates, then sweep the existing figures onto them       | plotting         |        |     | backlog |
 | [t2608091028](tasks/t2608091028-land-feat-signature-figure-redesign-once-the-rendered-figure-has-been-judged.md)                            | Land feat/signature-figure-redesign once the rendered figure has been judged                                   | plotting         |        |     | blocked |
 | [t2608091116](tasks/t2608091116-ruff-import-sorting.md)                                                                                     | Adopt ruff's I rule family — import sorting — in two stages, like ADR 0005                                     | formatting       | R7     |     | backlog |
+| [t2608091730](tasks/t2608091730-produce-waterbody-layers-data-side-so-basin-area-can-show-them-again.md)                                    | Produce waterbody layers data-side so basin_area can show them again                                           | plotting         |        |     | backlog |
 
 ## Watching
 

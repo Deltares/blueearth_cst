@@ -41,6 +41,7 @@ grid.
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from typing import Optional, Union
@@ -248,7 +249,7 @@ def load_spatial_overlays(geoms_dir: Optional[Union[str, Path]]) -> dict:
     return overlays
 
 
-def _render_map(da, spec, title, caveat, overlays):
+def _render_map(da, spec, title, caveat, overlays, levels=None, levels_out=None):
     """Climatological field as a cartographic map.
 
     A caller of ``shared.cartographic_map.plot_raster_map``, so this figure carries
@@ -260,7 +261,7 @@ def _render_map(da, spec, title, caveat, overlays):
     """
     from blueearth_cst.shared.cartographic_map import (
         RASTER_STYLES,
-        RasterStyle,
+        extent_from_layer,
         plot_raster_map,
         resolve_temperature_style,
     )
@@ -273,18 +274,11 @@ def _render_map(da, spec, title, caveat, overlays):
     base = RASTER_STYLES[spec["style"]]
     # The unit belongs to the DATA, not to the style: `how` decides whether the
     # field is a yearly total or a mean, so the label is built here.
-    style = RasterStyle(
-        label=f"{label.capitalize()} ({axis_unit})",
-        palette=base.palette,
-        classification=base.classification,
-        clip_quantiles=base.clip_quantiles,
-        zero_baseline=base.zero_baseline,
-        relief=base.relief,
-        interpolation=base.interpolation,
-        diverging_center=base.diverging_center,
-    )
+    style = base.replace(label=f"{label.capitalize()} ({axis_unit})")
     if spec["style"] == "temp":
         style = resolve_temperature_style(field, style)
+    if levels is not None:
+        style.levels = levels
 
     # Every overlay is optional, and the two datasets supply them from
     # different products: the FORCING maps take the wflow model's staticgeoms
@@ -315,6 +309,12 @@ def _render_map(da, spec, title, caveat, overlays):
         # either product instead of silently flattening to one weight.
         river_order_column=_river_order_column(rivers),
         style=style,
+        # Framed on the BASIN, not on each raster's own footprint. The forcing
+        # is masked to the basin and the source extraction is a few reanalysis
+        # cells reaching far past it, so raster-framed the pair cannot be read
+        # side by side — which is the one thing these two families exist to
+        # support.
+        extent=extent_from_layer(basins) if has_basins else None,
         # No figure title. A published figure carries its title in the caption,
         # and nothing is lost here: the colourbar names the quantity and the
         # footnote names the dataset. ``title`` stays available on the template
@@ -326,63 +326,197 @@ def _render_map(da, spec, title, caveat, overlays):
         # than warn on every run about metadata nothing here reads.
         expected_units=(),
     )
+    if levels_out is not None:
+        # Report back what this bar ended up using, so a later figure of the
+        # same quantity can be pinned to it. Read from the style when it was
+        # handed in, and recomputed from the FRAMED raster otherwise — the same
+        # restriction plot_raster_map applies, so the two cannot disagree.
+        levels_out[:] = (
+            list(levels)
+            if levels is not None
+            else [float(v) for v in _levels_actually_used(field, style, basins)]
+        )
     return fig
 
 
-def _render_annual(da, spec, title, caveat, overlays):
-    """Domain-mean value per year, with the period mean for reference."""
+def _levels_actually_used(field, style, basins):
+    """The class boundaries ``plot_raster_map`` would derive for this figure."""
+    from blueearth_cst.shared.cartographic_map import (
+        _class_levels,
+        _raster_within,
+        extent_from_layer,
+    )
+
+    extent = extent_from_layer(basins) if basins is not None and len(basins) else None
+    framed = _raster_within(field, extent) if extent is not None else field
+    return _class_levels(framed, style)
+
+
+#: Month labels for the seasonal chart. Initials alone are ambiguous (J/J/J);
+#: three letters fit at this width and read at a glance.
+MONTH_LABELS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+#: In-plot annotations: the period mean, the trend, the box-plot key.
+FONT_SIZE_ANNOTATION = 6.0
+
+
+def _style_series_axes(ax) -> None:
+    """The axis treatment every non-map figure in this set shares.
+
+    An L-frame with a horizontal-only grid: on a time series the vertical
+    gridlines compete with the data for the reader's eye, and the top and right
+    spines close a box around nothing.
+    """
+    ax.grid(axis="y", alpha=0.25, lw=0.5)
+    ax.set_axisbelow(True)
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+
+
+def _series_style(spec):
+    """The style this variable's non-map figures take, label and colour."""
+    from blueearth_cst.shared.cartographic_map import RASTER_STYLES, style_series_color
+
+    base = RASTER_STYLES[spec["style"]]
+    return base, style_series_color(base)
+
+
+def _series_axes(caveat, aspect=0.42):
+    """A figure sized and styled like the maps, with the caveat in the layout.
+
+    Constrained layout, not ``tight_layout``: the maps are built on it, and a
+    figure family that mixes the two cannot be made to agree on margins. It is
+    also what reserves room for the footnote instead of overprinting the axis.
+    """
+    from blueearth_cst.shared.cartographic_map import (
+        COLOR_CAVEAT,
+        FONT_SIZE_CAVEAT,
+        _publication_rc,
+        series_figure_size,
+    )
+
+    with plt.rc_context(_publication_rc()):
+        fig = plt.figure(figsize=series_figure_size(aspect), layout="constrained")
+        ax = fig.add_subplot()
+        if caveat:
+            fig.supxlabel(caveat, fontsize=FONT_SIZE_CAVEAT, color=COLOR_CAVEAT,
+                          wrap=True)
+    return fig, ax
+
+
+def _decadal_trend(years, values):
+    """Least-squares slope per decade, or ``None`` when it cannot be fitted.
+
+    Deliberately plain OLS and deliberately unlabelled as significant: on the
+    two decades these figures cover, the slope is a description of what the
+    record did, not evidence about climate. Reported per decade because per
+    year is unreadably small for rainfall.
+    """
+    finite = np.isfinite(values)
+    if finite.sum() < 3:
+        return None, None
+    slope, intercept = np.polyfit(years[finite], values[finite], 1)
+    return float(slope), float(intercept)
+
+
+def _render_annual(da, spec, title, caveat, overlays, **_):
+    """Domain-mean value per year, with its trend and the period mean."""
     how, label, unit = spec["how"], spec["label"], spec["unit"]
     series = _yearly(da.mean(dim=_space_dims(da)), how).compute()
     axis_unit = f"{unit} y$^{{-1}}$" if how == "sum" else unit
-    years = series["time"].dt.year.values
-    values = series.values
+    years = series["time"].dt.year.values.astype(float)
+    values = series.values.astype(float)
+    _, colour = _series_style(spec)
 
-    fig, ax = plt.subplots(figsize=(8, 4))
-    colour = "steelblue" if how == "sum" else "firebrick"
-    ax.plot(years, values, color=colour, marker="o", lw=1.1, ms=3.5)
+    fig, ax = _series_axes(caveat)
+    ax.plot(years, values, color=colour, marker="o", lw=1.1, ms=3.5, zorder=3)
+
     if values.size:
         mean = float(np.nanmean(values))
-        ax.axhline(mean, color="dimgray", lw=0.9, ls="--")
+        ax.axhline(mean, color="0.45", lw=0.8, ls=(0, (4, 2)), zorder=2)
         ax.annotate(
             f"period mean {mean:,.1f}",
-            xy=(years[-1], mean),
-            xytext=(-4, 4),
+            xy=(years[0], mean),
+            xytext=(4, 4),
             textcoords="offset points",
-            ha="right",
-            fontsize=7,
-            color="dimgray",
+            ha="left",
+            va="bottom",
+            fontsize=FONT_SIZE_ANNOTATION,
+            color="0.35",
         )
-    ax.set_xlabel("year")
-    ax.set_ylabel(f"{label} [{axis_unit}]")
-    ax.set_title(f"{label} — annual series, domain mean\n{title}", fontsize=9)
+        slope, intercept = _decadal_trend(years, values)
+        if slope is not None:
+            ax.plot(years, slope * years + intercept, color=colour, lw=1.4,
+                    ls=(0, (6, 2.5)), alpha=0.85, zorder=4)
+            ax.annotate(
+                f"trend {slope * 10:+,.1f} {axis_unit.split(' ')[0]}/decade",
+                xy=(years[-1], slope * years[-1] + intercept),
+                xytext=(-4, -4),
+                textcoords="offset points",
+                ha="right",
+                va="top",
+                fontsize=FONT_SIZE_ANNOTATION,
+                color=colour,
+            )
+
+    ax.set_xlabel("Year")
+    ax.set_ylabel(f"{label.capitalize()} ({axis_unit})")
     # Years are integers; the default locator happily labels them 2002.5.
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-    ax.grid(alpha=0.3)
-    _footer(fig, caveat)
+    _style_series_axes(ax)
     return fig
 
 
-def _render_monthly(da, spec, title, caveat, overlays):
-    """Monthly climatology of the domain mean."""
+def _render_monthly(da, spec, title, caveat, overlays, **_):
+    """Monthly climatology of the domain mean, and its year-to-year spread.
+
+    The mean alone answered "when is the wet season?" and nothing about how
+    reliably — two basins with the same climatology and very different
+    interannual spread drew the same figure. The boxes are the distribution
+    ACROSS YEARS for each calendar month, so the reader sees both.
+    """
     how, label, unit = spec["how"], spec["label"], spec["unit"]
     domain = da.mean(dim=_space_dims(da)).resample(time="ME")
-    monthly = domain.sum("time") if how == "sum" else domain.mean("time")
-    monthly = monthly.groupby("time.month").mean("time").compute()
+    per_month = (domain.sum("time") if how == "sum" else domain.mean("time")).compute()
     months = np.arange(1, 13)
-    values = monthly.reindex(month=months).values
+    grouped = per_month.groupby("time.month")
+    spread = [
+        np.asarray(grouped[m].values, dtype=float) if m in grouped.groups else np.array([])
+        for m in months
+    ]
+    spread = [values[np.isfinite(values)] for values in spread]
     axis_unit = f"{unit} month$^{{-1}}$" if how == "sum" else unit
+    _, colour = _series_style(spec)
 
-    fig, ax = plt.subplots(figsize=(6.5, 4))
-    if how == "sum":
-        ax.bar(months, values, color="steelblue")
-    else:
-        ax.plot(months, values, color="firebrick", marker="o", lw=0.9, ms=3)
+    fig, ax = _series_axes(caveat, aspect=0.40)
+    populated = [i for i, values in enumerate(spread) if values.size]
+    if populated:
+        ax.boxplot(
+            [spread[i] for i in populated],
+            positions=[months[i] for i in populated],
+            widths=0.62,
+            showfliers=False,
+            patch_artist=True,
+            medianprops=dict(color="white", lw=1.1),
+            boxprops=dict(facecolor=colour, edgecolor=colour, lw=0.6),
+            whiskerprops=dict(color=colour, lw=0.8),
+            capprops=dict(color=colour, lw=0.8),
+        )
+        means = [float(np.mean(spread[i])) for i in populated]
+        ax.plot(
+            [months[i] for i in populated], means,
+            color="0.2", marker="D", ms=2.6, lw=0.9, ls="-", zorder=5,
+        )
+        # No legend. Box-whiskers over a monthly axis are a convention the
+        # audience reads without a key, and the caption carries what the boxes
+        # are — the same reason the figures carry no title.
     ax.set_xticks(months)
-    ax.set_xlabel("month")
-    ax.set_ylabel(f"{label} [{axis_unit}]")
-    ax.set_title(f"{label} — monthly climatology, domain mean\n{title}", fontsize=9)
-    ax.grid(alpha=0.3)
-    _footer(fig, caveat)
+    ax.set_xticklabels(MONTH_LABELS)
+    ax.set_xlim(0.4, 12.6)
+    ax.set_xlabel("Month")
+    ax.set_ylabel(f"{label.capitalize()} ({axis_unit})")
+    _style_series_axes(ax)
     return fig
 
 
@@ -393,6 +527,44 @@ _RENDERERS = {
 }
 
 
+
+#: Sidecar written beside the SOURCE figures and read by the FORCING ones, so a
+#: variable's two maps carry the same colourbar and can be read against each
+#: other. Direction matters and is one-way: the source rule (1.05) is
+#: independent of the model build and writes; the forcing rule (1.13) is
+#: downstream of it anyway and reads. The reverse would make the source figures
+#: wait on a wflow model, which they exist to precede.
+LEVELS_FILENAME = "climate_levels.json"
+
+
+def read_shared_levels(levels_file: Optional[Union[str, Path]]) -> dict:
+    """Class boundaries recorded by an earlier figure set, keyed by variable.
+
+    Returns an empty dict when the file is absent or unreadable — a figure with
+    its own bar is still correct, and refusing to plot because a convenience
+    sidecar is missing would be the wrong trade.
+    """
+    if levels_file is None:
+        return {}
+    path = Path(levels_file)
+    if not path.is_file():
+        return {}
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        log_row(f"shared levels unreadable, ignored: {path}", module="plot")
+        return {}
+    return {k: v for k, v in loaded.items() if isinstance(v, list) and len(v) > 1}
+
+
+def write_shared_levels(levels_file: Union[str, Path], levels: dict) -> None:
+    """Record the class boundaries this figure set used, for its pair to adopt."""
+    path = Path(levels_file)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(levels, indent=2, sort_keys=True), encoding="utf-8")
+    log_row(f"Wrote shared colourbar levels: {path}", module="plot")
+
+
 def plot_climate_figures(
     ds: xr.Dataset,
     plot_dir: Union[str, Path],
@@ -400,6 +572,8 @@ def plot_climate_figures(
     *,
     caveat: Optional[str] = None,
     overlays: Optional[dict] = None,
+    levels_file: Optional[Union[str, Path]] = None,
+    write_levels: bool = False,
 ) -> list[Path]:
     """Write the canonical figure set for one gridded climate dataset.
 
@@ -449,15 +623,29 @@ def plot_climate_figures(
     plot_dir = Path(plot_dir)
     os.makedirs(plot_dir, exist_ok=True)
     title = DATASETS[dataset]
+    shared = {} if write_levels else read_shared_levels(levels_file)
     written = []
     for var, spec in CLIMATE_VARS.items():
         da = ds[var]
+        captured = []
         for kind in FIGURE_KINDS:
             out_path = plot_dir / f"{dataset}_{var}_{kind}.png"
-            fig = _RENDERERS[kind](da, spec, title, caveat, overlays)
+            fig = _RENDERERS[kind](
+                da,
+                spec,
+                title,
+                caveat,
+                overlays,
+                levels=shared.get(var),
+                levels_out=captured if write_levels else None,
+            )
             save_figure(out_path, dpi=RASTER_DPI)
             plt.close(fig)
             written.append(out_path)
+        if write_levels and captured:
+            shared[var] = list(captured)
+    if write_levels and levels_file is not None:
+        write_shared_levels(levels_file, shared)
     log_row(
         f"Wrote {len(written)} canonical climate figures ({dataset}) to {plot_dir}",
         module="plot",

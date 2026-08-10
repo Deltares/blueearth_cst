@@ -9,7 +9,6 @@ from os.path import join
 from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
-import hydromt
 from hydromt.readers import open_timeseries_from_table
 from hydromt_wflow import WflowSbmModel
 
@@ -19,11 +18,8 @@ from blueearth_cst.shared.func_plot_signature import (
     plot_signatures,
     plot_hydro,
     compute_metrics,
-    plot_clim,
     plot_basavg,
 )
-from blueearth_cst.climate_analysis.subcatchment_climate import climate_forcing_by_subcatchment
-from blueearth_cst.shared.climate_parity import model_parity_climate
 from blueearth_cst.shared.gauges import gauges_layer_name, gauges_variable_name
 from blueearth_cst.shared.snake_utils import log_row
 from blueearth_cst.model.observation_validation import (
@@ -53,7 +49,7 @@ def merge_outlet_and_gauge_series(qsim, qsim_gauges, log=_log):
     2026-08-02 on a real basin whose outlet gauge is id 101).
 
     The OUTLET label wins on a collision. It is not a matter of taste: rule
-    1.11 declares ``hydro_wflow_1.png`` and ``clim_wflow_1_{month,year}.png``
+    1.11 declares ``hydro_wflow_1.png``
     as Snakemake outputs, and every figure is written as
     ``<kind>_{station_name}.png``. Letting the user's name win on the first
     outlet trades a MergeError for a MissingOutputException. Nothing is lost
@@ -100,10 +96,6 @@ def analyse_wflow_historical(
     observations_fn: Union[Path, str] = None,
     gauges_locs: Union[Path, str] = None,
     location_registry: Union[Path, str] = None,
-    climate_nc: Union[Path, str] = None,
-    oro_nc: Union[Path, str] = None,
-    data_sources: Union[Path, str] = None,
-    clim_source: str = "era5",
 ):
     """
     Analyse and plot wflow model performance for historical run.
@@ -112,13 +104,12 @@ def analyse_wflow_historical(
     from ``project_dir``: where the model lives is the Snakefile's fact, and
     spelling it in both places is how the two drift (R9 P2 commit 1).
     Model results should include the discharge keys Q_outlets and, if gauges are
-    provided, Q_gauges_{basename(gauges_locs)}. The climate plots (P/T/EP) are
-    derived from the shared store's gridded climate extraction (``climate_nc``,
-    rule 1.10 ``extract_climate_grid``)
-    brought to model parity (the build's own regrid + corrections + PET method)
-    and aggregated per subcatchment — decoupled from the model's stored inmaps
-    forcing artifact (P3-2a re-source; supersedes the ADR-0002 interim
-    coupling) and not from wflow outputs.
+    provided, Q_gauges_{basename(gauges_locs)}.
+
+    Per-subcatchment climate figures were removed 2026-08-09 (ADR 0006): the
+    climate a reader wants is the map and series family under
+    ``models/hydrology/wflow/forcing/plots/``, and drawing it twice from two
+    code paths was the duplication that decision retires.
 
 
     Outputs:
@@ -130,8 +121,6 @@ def analyse_wflow_historical(
       are available, they are added as well.
     - plot of signature plots if wflow run is longer than a year and if observations
       are available.
-    - plot of climate data per year and per month at the subcatchment level if wflow run
-      is longer than a year.
     - plot of basin average outputs (e.g. soil moisture, snow, etc.). The variables to
       include should have the postfix _basavg in the wflow output file.
     - compute performance metrics (daily and monthly KGE, NSE, NSElog, RMSE, MSE, Pbias,
@@ -159,22 +148,6 @@ def analyse_wflow_historical(
         Separator is , and decimal is .
     location_registry : Union[Path, str], optional
         Resolved P1 registry used to validate observation station IDs.
-    climate_nc : Union[Path, str], optional
-        Path to the shared store's climate extraction
-        (``data/climate/historical/<key>/extract_historical.nc``, R07 B1). When
-        absent the climate plots are skipped.
-    oro_nc : Union[Path, str], optional
-        chirps/chirps_global only: the extraction's orography sidecar (the
-        declared rule-1.10/3.02 ``oro_nc`` output, ``<key>/orography.nc``).
-        Mandatory on that branch — it is
-        the DEM the parity transform must reference to invert the extraction's
-        embedded lapse correction (design ext1-1). None on era5, where the
-        orography comes from the data catalog instead.
-    data_sources : Union[Path, str], optional
-        Data catalog(s) for the era5-branch orography fetch.
-    clim_source : str
-        ``clim_historical`` source name (era5 / chirps / chirps_global; eobs is
-        excluded from this path at DAG-parse time).
     """
     ### 1. Prepare output and plotting options ###
 
@@ -237,9 +210,6 @@ def analyse_wflow_historical(
             [f"wflow_{i + 1}" for i in range(qsim["index"].size)],
         )
     )
-    # Map subcatchment id -> positional station_name (wflow_1..N) so the climate
-    # plots share the discharge station labels instead of raw subcatchment ids.
-    station_by_id = dict(zip(qsim["index"].values, qsim["station_name"].values))
     # Discharge at the gauges_locs if present. Both names are resolved from the
     # MODEL rather than from the filename: hydromt_wflow renames
     # output_locations -> output-locations, so deriving them here found neither
@@ -265,49 +235,6 @@ def analyse_wflow_historical(
             )
             qsim = merge_outlet_and_gauge_series(qsim, qsim_gauges, log=_log)
 
-    # Climate data (P/T/EP) per subcatchment, derived from the RAW gridded
-    # climate extracted for the basin over the historical window (rule 1.10),
-    # brought to model parity — the build's own regrid + lapse/pressure
-    # corrections + PET method — so the plots show the climate that actually
-    # drives the model while staying decoupled from the stored inmaps forcing
-    # artifact (P3-2a re-source; supersedes the ADR-0002 interim coupling).
-    # Model-artifact loading (staticmaps variables) stays model-side here; the
-    # aggregation itself takes plain xarray objects (criterion C1). Skip
-    # cleanly if the extraction is absent so the hydrograph plot still ships.
-    _parity_vars = ("precip", "temp", "press_msl", "kin", "kout")
-    if climate_nc is not None and os.path.exists(climate_nc):
-        ds_raw = xr.open_dataset(climate_nc)
-    else:
-        ds_raw = xr.Dataset()
-    if ds_raw.data_vars and all(v in ds_raw for v in _parity_vars):
-        dem_model = mod.staticmaps.data["land_elevation"]
-        # setup_time_horizon.py mapping: eobs -> (eobs_orography, makkink) is
-        # excluded from this path at DAG-parse time (ext2-3); every supported
-        # source maps to (era5_orography, debruin).
-        pet_method = "debruin"
-        if oro_nc is not None:
-            # chirps/chirps_global: the extraction's sidecar DEM, received as
-            # the declared rule input — never discovered as a sibling file
-            # (ext2-1). meteo.temp's MSL-shift algebra inverts the correction
-            # the extraction embedded against this same DEM (ext1-1).
-            dem_forcing = xr.open_dataarray(oro_nc)
-        else:
-            # era5: fetch the orography source exactly as the forcing build
-            # does (wflow_sbm.py setup_temp_pet_forcing).
-            data_catalog = hydromt.DataCatalog(data_libs=data_sources)
-            dem_forcing = data_catalog.get_rasterdataset(
-                "era5_orography",
-                geom=ds_raw.raster.box,  # clip dem with forcing bbox for full coverage
-                buffer=2,
-                variables=["elevtn"],
-            ).squeeze()
-        ds_parity = model_parity_climate(ds_raw, dem_model, dem_forcing, pet_method)
-        ds_clim = climate_forcing_by_subcatchment(
-            ds_parity, mod.staticmaps.data["subcatchment"]
-        )
-    else:
-        ds_clim = xr.Dataset()
-
     basavg_vars = [dvar for dvar in results if "_basavg" in dvar]
     if basavg_vars:
         ds_basin = xr.merge([results[dvar] for dvar in basavg_vars]).squeeze(drop=True)
@@ -316,33 +243,9 @@ def analyse_wflow_historical(
     else:
         ds_basin = xr.Dataset()
 
-    ### 4. Plot climate data ###
-    # Two distinct skip reasons — keep them separate so the log is honest:
-    #  (a) ds_clim empty: no raw climate extraction (or it lacks the parity
-    #      input variables), so there is nothing to aggregate. This is NOT a
-    #      data-length condition — the discharge run may span many years — so
-    #      it must never be reported as "less than 1 year".
-    #  (b) climate present but shorter than a year: skip the yearly plots.
-    if "time" not in ds_clim.dims:
-        _log("No raw climate extraction available; skipping climate plots.")
-    elif len(ds_clim.time) < 365:
-        _log(
-            "Less than 1 year of climate data is available; "
-            "no yearly climate plots are made."
-        )
-    else:
-        for index in ds_clim.index.values:
-            # Positional station label (wflow_1..N) to match the discharge plots;
-            # fall back to the raw id if a subcatchment has no discharge station.
-            station = station_by_id.get(index, f"wflow_{index}")
-            _log(f"Plot climatic data at {station}")
-            ds_clim_i = ds_clim.sel(index=index)
-            # Plot per year
-            plot_clim(ds_clim_i, Folder_plots, station, "year")
-            plt.close()
-            # Plot per month
-            plot_clim(ds_clim_i, Folder_plots, station, "month")
-            plt.close()
+    # Section 4 (per-subcatchment climate plots) removed 2026-08-09 — see
+    # dev/decisions/0006-retire-subcatchment-climate-plots.md. The climate
+    # a reader wants is now the map/series family under forcing/plots/.
 
     ### 5. Plot other basin average outputs ###
     if ds_basin.data_vars:
@@ -452,11 +355,7 @@ if __name__ == "__main__":
                 observations_fn=getattr(sm.input, "observations_timeseries", None),
                 gauges_locs=getattr(sm.input, "output_locations", None),
                 location_registry=sm.input.location_registry,
-                climate_nc=sm.input.climate_nc,
                 # declared only on the chirps/chirps_global branch (ext2-1)
-                oro_nc=getattr(sm.input, "oro_nc", None),
-                data_sources=sm.params.data_sources,
-                clim_source=sm.params.clim_source,
             )
     else:
         analyse_wflow_historical(

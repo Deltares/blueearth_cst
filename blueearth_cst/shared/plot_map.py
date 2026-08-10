@@ -67,6 +67,25 @@ STATICGEOMS_DIRNAME = "staticgeoms"
 #: The DEM variable inside ``staticmaps.nc`` (a CSDMS Standard Name).
 ELEVATION_VARIABLE = "land_elevation"
 
+# --- the engine-neutral spatial products (ADR 0007) --------------------------
+# basin_area depicts ELEVATION, which is data rather than a model result, so it
+# is drawn from the shared spatial foundation instead of from the wflow model.
+
+#: Project-relative home of the shared spatial products (rule 1.03 / 1.06).
+SPATIAL_DIRNAME = "data/spatial"
+#: The hydrography grid stack; carries ``elevation`` on the model's own grid.
+HYDROGRAPHY_FILENAME = "hydrography.nc"
+#: The DEM variable inside it. Spelled plainly here, not as a CSDMS name:
+#: this file is ours, not hydromt_wflow's.
+SPATIAL_ELEVATION_VARIABLE = "elevation"
+#: Vector layers the figure draws, mapped to the argument each one feeds.
+SPATIAL_MAP_LAYERS = {
+    "basins": "basins",
+    "subbasins": "subbasins",
+    "rivers": "rivers",
+    "gauges": "locations",
+}
+
 #: Layers the figure cannot be drawn without; everything else is optional.
 REQUIRED_GEOM_LAYERS = ("rivers", "basins")
 
@@ -176,6 +195,78 @@ def plot_basin_map(dem, rivers, basin, *, elevation_label=ELEVATION_LABEL, **kwa
     return plot_raster_map(dem, rivers, basin, style=style, **kwargs)
 
 
+
+def load_spatial_basin_layers(spatial_dir):
+    """Read the shared spatial products into the layers the template draws.
+
+    The model-free counterpart of :func:`load_basin_layers`. Everything comes
+    from ``data/spatial/`` — the elevation grid from ``hydrography.nc`` and the
+    vectors from ``geoms/`` — so this figure needs no wflow model and can be
+    drawn before one exists.
+
+    What is NOT here, and is the known cost of the move: waterbodies. Lakes,
+    reservoirs and glaciers reach ``staticgeoms/`` from rule 1.08, a MODEL rule,
+    and the shared foundation carries none of them. Producing them data-side is
+    the fix, tracked separately — see ADR 0007.
+    """
+    spatial_dir = Path(spatial_dir)
+    hydrography = spatial_dir / HYDROGRAPHY_FILENAME
+    geoms_dir = spatial_dir / "geoms"
+    if not hydrography.is_file():
+        raise FileNotFoundError(f"no {HYDROGRAPHY_FILENAME} in {spatial_dir}")
+    with xr.open_dataset(hydrography) as dataset:
+        if SPATIAL_ELEVATION_VARIABLE not in dataset:
+            raise KeyError(
+                f"{hydrography} has no {SPATIAL_ELEVATION_VARIABLE!r}; it holds "
+                f"{sorted(dataset.data_vars)}"
+            )
+        elevation = _mask_nodata(dataset[SPATIAL_ELEVATION_VARIABLE].load())
+
+    layers = {}
+    for argument, stem in SPATIAL_MAP_LAYERS.items():
+        path = geoms_dir / f"{stem}.geojson"
+        if path.is_file():
+            layers[argument] = gpd.read_file(path)
+    missing = [n for n in ("basins", "rivers") if n not in layers]
+    if missing:
+        raise FileNotFoundError(f"{geoms_dir} is missing {missing}")
+    return elevation, layers
+
+
+def plot_basin_map_from_spatial(spatial_dir, plot_dir=None):
+    """Render basin_area.{pdf,png} from the shared spatial products.
+
+    Replaces ``plot_basin_map_from_model`` as rule 1.12's entry point. Reading
+    the foundation rather than the model also retires that rule's HDF5 race
+    workaround: it no longer opens ``staticmaps.nc``, so it no longer has to be
+    ordered behind every writer of that file.
+    """
+    spatial_dir = Path(spatial_dir)
+    if plot_dir is None:
+        plot_dir = spatial_dir / "plots"
+    elevation, layers = load_spatial_basin_layers(spatial_dir)
+    basins = layers["basins"]
+    fig, _ = plot_basin_map(
+        elevation,
+        layers.get("rivers"),
+        _basin_outline(basins),
+        subbasins=layers.get("subbasins"),
+        gauges=layers.get("gauges"),
+    )
+    save_figure(
+        os.path.join(str(plot_dir), "basin_area.pdf"),
+        fig=fig,
+        metadata={"CreationDate": None},
+    )
+    save_figure(
+        os.path.join(str(plot_dir), "basin_area.png"),
+        fig=fig,
+        dpi=RASTER_DPI,
+        metadata={"Software": None},
+    )
+    plt.close(fig)
+
+
 def plot_basin_map_from_model(project_dir, gauges_fn, plot_dir=None, model_dir=None):
     """Render basin_area.{pdf,png} for a wflow model on disk.
 
@@ -247,8 +338,4 @@ if __name__ == "__main__":
         from blueearth_cst.shared.snake_utils import tee_to_log
 
         with tee_to_log(sm.log[0]):
-            plot_basin_map_from_model(
-                project_dir=sm.params.project_dir,
-                model_dir=sm.params.model_dir,
-                gauges_fn=getattr(sm.input, "output_locations", None),
-            )
+            plot_basin_map_from_spatial(spatial_dir=sm.params.spatial_dir)
