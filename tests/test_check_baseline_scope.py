@@ -89,7 +89,7 @@ def _check_ns(
 
 @pytest.fixture
 def project(tmp_path):
-    """A synthetic project dir with all 13 targets present + a recorded manifest.
+    """A synthetic project dir with all 12 targets present + a recorded manifest.
 
     Returns (project_dir, manifest_path). Both point under tmp_path.
     """
@@ -106,9 +106,14 @@ def project(tmp_path):
 
 
 def test_targets_tagged_with_expected_cardinality():
-    """The shipping TARGETS carry the 5/6/2 workflow tags the count math relies on.
+    """The shipping TARGETS carry the 4/6/2 workflow tags the count math relies on.
 
-    `model_creation` gained the beyond-`rule all` discharge target.
+    `model_creation` gained the beyond-`rule all` discharge target, then dropped
+    one again on 2026-08-10: the evaluation hydrograph is keyed by `wflow_id`
+    now, so no per-station figure has a config-invariant NAME and none can be a
+    template target. Its `png` kind is still exercised by `basin_area.png` and
+    `forcing_precip_map.png`, and the run's NUMBERS are covered by `output.csv`
+    and `performance_metrics.csv`, which the baseline does track.
     `climate_experiment` dropped from 3 to 2 at R11 CR-2: `basin_indicators.csv`
     no longer exists, and the seed config declares only `river discharge`, so it
     emits one indicator table. A project configuring more output variables gets
@@ -117,7 +122,7 @@ def test_targets_tagged_with_expected_cardinality():
     """
     counts = Counter(workflow for workflow, _kind, _template in cb.TARGETS)
     assert counts == {
-        "model_creation": 5,
+        "model_creation": 4,
         "climate_projections": 6,
         "climate_experiment": 2,
     }
@@ -125,7 +130,7 @@ def test_targets_tagged_with_expected_cardinality():
 
 def test_scoped_count_is_selected_not_full(project, capsys):
     """`--workflow model_creation --workflow climate_projections` reports 11
-    of the 13 targets, not the full set."""
+    of the 12 targets, not the full set."""
     project_dir, manifest_path = project
     rc = cb.cmd_check(
         _check_ns(
@@ -137,7 +142,7 @@ def test_scoped_count_is_selected_not_full(project, capsys):
     )
     out = capsys.readouterr().out
     assert rc == 0
-    assert "OK - 11 target(s)" in out
+    assert "OK - 10 target(s)" in out
 
 
 def test_selected_missing_target_fails(project, capsys):
@@ -179,14 +184,14 @@ def test_unselected_missing_target_ignored(project, capsys):
     )
     out = capsys.readouterr().out
     assert rc == 0
-    assert "OK - 11 target(s)" in out
+    assert "OK - 10 target(s)" in out
 
 
 def test_unscoped_record_writes_all_targets(project):
-    """An unscoped record with --include-figures writes all 13 (overwrite)."""
+    """An unscoped record with --include-figures writes all 12 (overwrite)."""
     project_dir, manifest_path = project
     written = json.loads(Path(manifest_path).read_text())
-    assert len(written["targets"]) == 13
+    assert len(written["targets"]) == 12
     assert written["version"] == cb.MANIFEST_VERSION
 
 
@@ -222,7 +227,7 @@ def test_record_workflow_merges_and_preserves_other_slices(project):
     assert rc == 0
     after = json.loads(Path(manifest_path).read_text())["targets"]
 
-    assert len(after) == 13  # nothing dropped
+    assert len(after) == 12  # nothing dropped
     assert after[cp_path] == cp_before  # wf2 row preserved verbatim
     assert after[exp_path] == exp_before  # wf3 row preserved verbatim
     # wf1 discharge row re-recorded against the mutated series.
@@ -231,14 +236,14 @@ def test_record_workflow_merges_and_preserves_other_slices(project):
 
 
 def test_unscoped_check_spans_all_targets(project, capsys):
-    """`check --include-figures` with no `--workflow` spans all 13 targets."""
+    """`check --include-figures` with no `--workflow` spans all 12 targets."""
     project_dir, manifest_path = project
     rc = cb.cmd_check(
         _check_ns(project_dir, manifest_path, workflow=None, include_figures=True)
     )
     out = capsys.readouterr().out
     assert rc == 0
-    assert "OK - 13 target(s)" in out
+    assert "OK - 12 target(s)" in out
 
 
 # --- figure targets are excluded by default (2026-08-03) ----------------------

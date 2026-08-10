@@ -15,6 +15,10 @@ from blueearth_cst.climate_analysis.climate_figures import (
     LEVELS_FILENAME,
     figure_names,
 )
+# The thematic map family rule 1.12 draws beside basin_area. Same reason as
+# above: the output list comes from the registry the plotter iterates, so a
+# figure cannot be added in one place and forgotten in the other.
+from blueearth_cst.shared.plot_spatial_maps import figure_paths
 # Recognises both "unset" spellings (YAML null and the legacy "None" string),
 # so an unset observation key never becomes a declared input.
 from blueearth_cst.shared.gauges import is_unset
@@ -348,7 +352,12 @@ LOG_RULES = [
 # independently of the build and needs no gather waiting on it) and the two
 # gather outputs themselves.
 WF1_TERMINALS = [
-    f"{basin_dir}/evaluation/plots/hydro_wflow_1.png",
+    # The evaluation rule's terminal is its METRICS TABLE, not one of its
+    # figures: since 2026-08-10 the figures are keyed by wflow_id and none of
+    # their names is knowable at parse time. The table is written by the same
+    # rule and is config-invariant, so the gather rules wait on exactly what
+    # they waited on before.
+    f"{basin_dir}/evaluation/performance_metrics.csv",
     f"{spatial_dir}/plots/basin_area.png",
     # One representative of each canonical climate set: the rules produce their
     # nine figures as a unit, so naming every one here would add no edge.
@@ -760,8 +769,15 @@ rule plot_wflow_evaluation:
    # retires the failure mode declaring them introduced: a config with a
    # sub-year historical_window failed here with MissingOutputException where
    # it used to log a skip.
+   #
+   # No per-station FIGURE is declared any more. They are keyed by wflow_id
+   # since 2026-08-10 — `hydrograph_1010.png` — and a wflow_id is a product of
+   # the model build, so it is not knowable at parse time. `hydro_wflow_1.png`
+   # only worked as a declared output because plot_results.py forced the first
+   # outlet's label to that literal, which is the naming inconsistency the
+   # rename removes. The metrics table is this rule's config-invariant artifact
+   # and takes over as its terminal.
    output:
-       output_png = f"{basin_dir}/evaluation/plots/hydro_wflow_1.png",
        metrics_csv = f"{basin_dir}/evaluation/performance_metrics.csv",
        basavg_pngs = _basavg_pngs,
    params:
@@ -777,7 +793,15 @@ rule plot_wflow_evaluation:
        f"{project_dir}/benchmarks/_parts/1.15_plot_wflow_evaluation.tsv",
    script: "blueearth_cst/model/plot_results.py"
 
-# 1.12  plot_basin_map — plot basin, rivers, gauges and DEM on a map (parallel leaf)
+# 1.12  plot_basin_map — every figure the spatial foundation supports: the
+# basin/DEM map plus the thematic family beside it (parallel leaf).
+#
+# ONE rule for both, because they are one deliverable. The thematic maps draw
+# the same overlay and suppress its legend precisely BECAUSE basin_area carries
+# it, so a run that produced one set without the other would ship ten maps whose
+# linework nothing explains. Splitting them would also duplicate the vector
+# inputs and the plots directory across two rules for no scheduling gain — both
+# halves are leaves.
 rule plot_basin_map:
     message: rule_banner("1.12", "plot_basin_map")
     input:
@@ -791,16 +815,33 @@ rule plot_basin_map:
         hydrography_nc = SPATIAL_UNITS.hydrography_nc,
         **{name: SPATIAL_UNITS.outputs[name] for name in
            ("basins", "subbasins", "rivers", "locations")},
+        # The thematic half's raster stack. This is a NEW EDGE: 1.12 used to
+        # depend on rule 1.03 alone and could run as soon as the vectors
+        # existed; it now waits for 1.06 as well. That costs nothing in
+        # practice — 1.06 is upstream of the model build, so nothing downstream
+        # waits on this leaf — and it is the honest dependency: the family is
+        # drawn FROM this file.
+        spatial_maps = f"{spatial_dir}/spatial_maps.nc",
     output:
+        # PNG only since 2026-08-10 (owner's call): nothing in the toolbox
+        # or the platform read the vector deliverable, and 600 dpi at 180 mm
+        # carries the figure everywhere it is used.
         basin_png = f"{spatial_dir}/plots/basin_area.png",
-        basin_pdf = f"{spatial_dir}/plots/basin_area.pdf",
+        # From the registry the plotter iterates, not restated here — the same
+        # contract rule 1.13 has with climate_figures.figure_names(). Only the
+        # figures whose source variable exists for EVERY shipped catalog source
+        # are declared; `soil_depth_to_bedrock` is drawn but left out, because
+        # its variable is soilgrids v1.0's and a project on soilgrids_2020 would
+        # fail this rule on "missing output files" rather than lose one figure.
+        # See SpatialFigure.guaranteed.
+        spatial_figures = figure_paths(f"{spatial_dir}/plots"),
     params:
         spatial_dir = f"{spatial_dir}",
     log:
         f"{LOG_PARTS_DIR}/1.12_plot_basin_map.log",
     benchmark:
         f"{project_dir}/benchmarks/_parts/1.12_plot_basin_map.tsv",
-    script: "blueearth_cst/shared/plot_map.py"
+    script: "blueearth_cst/shared/plot_spatial_maps.py"
 
 # 1.13  plot_forcing — the canonical climate set for the wflow forcing
 # (parallel leaf). Same figures as rule 1.15 draws for the source grid, so the

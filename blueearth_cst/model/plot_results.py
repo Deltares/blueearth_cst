@@ -15,11 +15,10 @@ from hydromt_wflow import WflowSbmModel
 from typing import Union
 
 from blueearth_cst.shared.func_plot_signature import (
-    plot_signatures,
-    plot_hydro,
     compute_metrics,
     plot_basavg,
 )
+from blueearth_cst.shared.plot_evaluation import Station, plot_station_evaluation
 from blueearth_cst.shared.gauges import gauges_layer_name, gauges_variable_name
 from blueearth_cst.shared.snake_utils import log_row
 from blueearth_cst.model.observation_validation import (
@@ -30,6 +29,79 @@ from blueearth_cst.model.observation_validation import (
 def _log(message):
     """Emit one standard-format log row (module tag ``plot``) for this rule."""
     log_row(message, module="plot")
+
+
+def resolve_stations(qsim, location_registry, log=_log):
+    """Map every plotted series onto the ``wflow_id`` the rest of the run uses.
+
+    The series arrive keyed two different ways. A gauge series is indexed by its
+    ``wflow_id`` already (``Q_1010``); the OUTLET series is indexed by its
+    subcatchment id (``Q_101``), which is not a wflow_id at all. The location
+    registry closes the gap: every subbasin has exactly one PRIMARY location,
+    and that location's ``wflow_id`` is what names the outlet.
+
+    Two consequences worth stating, because both used to be defects:
+
+    * A gauge sitting on a model outlet is now recognised as ONE point even when
+      the two series carry different index values — 101 and 1010 are the same
+      cell here. ``merge_outlet_and_gauge_series`` can only see the collision
+      when the raw indices coincide, so a project with output_locations at its
+      outlet drew that station's figures twice, under two names.
+    * A series whose index resolves to nothing keeps its own index as the id and
+      says so. Guessing would be worse: the figures would be named after
+      something no other artifact of the run recognises.
+
+    Returns ``{index: Station}``.
+    """
+    by_subbasin, by_wflow_id = {}, {}
+    if location_registry is not None:
+        registry = pd.read_csv(location_registry)
+        # `.get(col, True)` returns the SCALAR default when the column is
+        # absent, which has no `.astype` — so the fallback is built explicitly.
+        # Every registry this repo writes carries `is_primary`; a defensive
+        # branch that raises is worse than no branch at all.
+        if "is_primary" in registry:
+            primary = registry.loc[registry["is_primary"].astype(bool)]
+        else:
+            primary = registry
+        for row in primary.itertuples(index=False):
+            by_subbasin[int(row.subbasin_id)] = row
+        for row in registry.itertuples(index=False):
+            by_wflow_id[int(row.wflow_id)] = row
+
+    stations, seen = {}, {}
+    for index, name in zip(qsim["index"].values, qsim["station_name"].values):
+        index = int(index)
+        # wflow_id first: a series already keyed that way is not ambiguous, and
+        # the subbasin lookup is the fallback the outlet needs. Explicit
+        # membership rather than `a or b` — a row is a namedtuple, and relying
+        # on its truthiness is a trap the day one has no fields.
+        row = by_wflow_id.get(index)
+        if row is None:
+            row = by_subbasin.get(index)
+        if row is None:
+            log(
+                f"series {index} is in neither the location registry's wflow_id "
+                f"nor its subbasin_id column; naming its figures after {index}."
+            )
+            stations[index] = Station(index, station_name=str(name))
+            continue
+        station = Station(
+            wflow_id=int(row.wflow_id),
+            subbasin_id=int(row.subbasin_id),
+            # The registry's own name, not the synthetic `wflow_N` the outlet
+            # series carries -- that counter exists nowhere else.
+            station_name=None if pd.isna(row.station_name) else str(row.station_name),
+        )
+        if station.wflow_id in seen:
+            log(
+                f"series {index} and {seen[station.wflow_id]} are the same model "
+                f"cell (wflow_id {station.wflow_id}); plotting it once."
+            )
+            continue
+        seen[station.wflow_id] = index
+        stations[index] = station
+    return stations
 
 
 def merge_outlet_and_gauge_series(qsim, qsim_gauges, log=_log):
@@ -48,13 +120,19 @@ def merge_outlet_and_gauge_series(qsim, qsim_gauges, log=_log):
     disagrees ("conflicting values for variable 'station_name'", observed
     2026-08-02 on a real basin whose outlet gauge is id 101).
 
-    The OUTLET label wins on a collision. It is not a matter of taste: rule
-    1.11 declares ``hydro_wflow_1.png``
-    as Snakemake outputs, and every figure is written as
-    ``<kind>_{station_name}.png``. Letting the user's name win on the first
-    outlet trades a MergeError for a MissingOutputException. Nothing is lost
-    but the label — the colliding entries are the same model cell, so the two
-    series hold the same discharge.
+    The OUTLET series wins on a collision. Until 2026-08-10 that mattered for
+    a filename — rule 1.15 declared ``hydro_wflow_1.png`` and every figure was
+    written as ``<kind>_{station_name}.png``, so a user name winning on the
+    first outlet traded a MergeError for a MissingOutputException. The figures
+    are keyed by ``wflow_id`` now and nothing is declared, so the choice is no
+    longer load-bearing; it stays because a merge needs a deterministic winner
+    and nothing is lost by it — the colliding entries are the same model cell,
+    so the two series hold the same discharge.
+
+    This only sees a collision when the two INDEX values coincide. An outlet
+    and a gauge on one cell can also carry different indices (101 and 1010 are
+    the same point on the test fixture), and that case is caught downstream by
+    ``resolve_stations``, which dedupes on the resolved ``wflow_id``.
 
     Parameters
     ----------
@@ -164,15 +242,9 @@ def analyse_wflow_historical(
     # DECLARED outputs get their parents pre-created by Snakemake.
     os.makedirs(Folder_plots, exist_ok=True)
 
-    # Plotting options
-    fs = 7
-    lw = 0.8
-
-    # Other plot options
-    label = "simulated"  # "observed"
-    color = "steelblue"  # "red"
-    linestyle = "-"
-    marker = "o"
+    # Style is not decided here any more. Font sizes, line weights, colours and
+    # the printed page all live in `shared/plot_evaluation.py` beside the code
+    # that draws with them; this rule chooses WHAT to plot, not how.
 
     ### 2. Read the observations ###
     # check if user provided observations
@@ -282,60 +354,53 @@ def analyse_wflow_historical(
         qsim = qsim.sel(time=slice(start, end))
         qobs = qobs.sel(time=slice(start, end))
 
-    # Loop over the stations
-    for station_id, station_name in zip(qsim.index.values, qsim.station_name.values):
-        # Select the station
-        qsim_i = qsim.sel(index=station_id)
-        qobs_i = None
-        if has_observations:
-            if station_id in qobs.index.values:
-                qobs_i = qobs.sel(index=station_id)
+    # Every plotted series, keyed by the wflow_id the rest of the run uses. A
+    # series that resolves onto a wflow_id already claimed is dropped here, so
+    # an outlet and a gauge on the same cell produce one set of figures.
+    stations = resolve_stations(qsim, location_registry)
 
-        # a) Plot hydrographs
-        _log(f"Plot hydrographs at wflow station {station_name}")
-        plot_hydro(
-            qsim=qsim_i,
-            qobs=qobs_i,
-            Folder_out=Folder_plots,
-            station_name=station_name,
-            label=label,
-            color=color,
-            lw=lw,
-            fs=fs,
-        )
-        plt.close()
-        # b) Signature plot and performance metrics
+    for station_id in qsim.index.values:
+        station = stations.get(int(station_id))
+        if station is None:
+            continue  # a duplicate of a cell already plotted; resolve_stations said so
+        qsim_i = qsim.sel(index=station_id)
+        # Observations are keyed by wflow_id (the file's `wflow_id` column), so
+        # they are matched on the RESOLVED id, not on the series index. Those
+        # differ for the outlet — index 101, wflow_id 1010 — which is why an
+        # observation at the basin outlet used to match nothing at all and the
+        # station was silently evaluated as if it had none. Found 2026-08-10 by
+        # running this rule against a synthetic observation file; the fixture
+        # ships none, so nothing here could have surfaced it.
+        qobs_i = None
+        if has_observations and station.wflow_id in qobs.index.values:
+            qobs_i = qobs.sel(index=station.wflow_id)
+
+        # The metrics table is computed BEFORE the figures because the
+        # performance sheet renders it rather than recomputing it — the figure
+        # and performance_metrics.csv cannot disagree that way.
+        metrics = None
         if do_signatures and qobs_i is not None:
-            _log("observed timeseries are available - making signature plots.")
-            # Plot signatures
-            plot_signatures(
-                qsim=qsim_i,
-                qobs=qobs_i,
-                Folder_out=Folder_plots,
-                station_name=station_name,
-                label=label,
-                color=color,
-                linestyle=linestyle,
-                marker=marker,
-                fs=fs,
-                lw=lw,
-            )
-            plt.close()
-            # Compute performance metrics
             df_perf = compute_metrics(
                 qsim=qsim_i,
                 qobs=qobs_i,
-                station_name=station_name,
+                # The CSV is keyed by wflow_id too, so a reader can join the
+                # table to a figure, to a map label, to an output.csv column.
+                station_name=str(station.wflow_id),
             )
-            # Join with other stations
-            if df_perf_all.empty:
-                df_perf_all = df_perf
-            else:
-                df_perf_all = df_perf_all.join(df_perf)
-        else:
-            _log(
-                "observed timeseries are not available " "no signature plots are made."
-            )
+            metrics = df_perf[str(station.wflow_id)].unstack("time_type")
+            df_perf_all = df_perf if df_perf_all.empty else df_perf_all.join(df_perf)
+
+        _log(f"Plot evaluation figures for wflow_id {station.wflow_id}")
+        plot_station_evaluation(
+            simulated=qsim_i,
+            observed=qobs_i,
+            station=station,
+            plot_dir=Folder_plots,
+            metrics=metrics,
+            signatures=do_signatures and qobs_i is not None,
+            log=_log,
+        )
+        plt.close("all")
 
     # Save performance metrics to csv (evaluation/, not evaluation/plots/ — P1)
     df_perf_all.to_csv(os.path.join(Folder_eval, "performance_metrics.csv"))

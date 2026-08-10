@@ -55,6 +55,32 @@ import cartopy.crs as ccrs
 from cartopy.mpl.ticker import LatitudeFormatter, LongitudeFormatter
 from shapely.geometry import box as shapely_box
 
+from blueearth_cst.shared import plot_style
+
+# The toolbox-wide page/typography settings. Bound HERE, in this module's
+# globals, so the drawing code below reads them by bare name and
+# `dev/scripts/preview_basin_map.py --set` can rebind them -- see the tunable
+# block and `plot_style`'s docstring.
+#
+# RASTER_DPI is a deliberate re-export, not a leftover: `shared/plot_map.py`
+# imports it from here, and that file is a Snakemake `script:` target
+# (Snakefile_model_creation rule 1.12), so editing it would fire the `code`
+# rerun trigger on every project_dir for no behavioural gain. It moves to a
+# direct `plot_style` import in the plotting sweep, alongside a change to that
+# file that is worth the invalidation.
+from blueearth_cst.shared.plot_style import RASTER_DPI  # noqa: F401
+from blueearth_cst.shared.plot_style import (
+    COLOR_CAVEAT,
+    FIGURE_WIDTH_MM,
+    FONT_FAMILY,
+    FONT_SIZE_BASE,
+    FONT_SIZE_CAVEAT,
+    FONT_SIZE_LEGEND,
+    FONT_SIZE_TICK,
+    FONT_SIZE_TITLE,
+    MM_PER_INCH,
+)
+
 
 # ===========================================================================
 # TUNABLE CONSTANTS
@@ -77,33 +103,18 @@ from shapely.geometry import box as shapely_box
 # ---------------------------------------------------------------------------
 
 # --- page and export -------------------------------------------------------
-
-#: Figure width in MILLIMETRES — converted once, here, and never re-guessed
-#: downstream. 180 mm is the double-column width that Elsevier (190), AGU (190)
-#: and Copernicus (170) all accept without downscaling. Set this to your target
-#: journal's column width; every other size is chosen to work at it.
-FIGURE_WIDTH_MM = 180.0
-MM_PER_INCH = 25.4
-
-#: Resolution of the PNG. The figure is built at its final PHYSICAL size, so
-#: this changes the pixel count and nothing else — type, line weights and the
-#: map all stay the size they will be on the page.
-#:
-#: 600 because this is COMBINATION artwork: a raster (the DEM) under line art
-#: and type. Publishers ask more of that than of either alone — 300 dpi is the
-#: pure-halftone minimum, while Elsevier asks 500 and AGU/Wiley 600 for
-#: combination figures. 600 clears all of them, and 180 mm at 600 dpi is
-#: 4252 px, which is still a small file for a map this sparse.
-#:
-#: It also covers PowerPoint. matplotlib writes the resolution into the PNG's
-#: ``pHYs`` chunk, so PowerPoint and Word insert the image at its true 180 mm
-#: width instead of assuming 96 dpi and dropping in something 750 mm wide. That
-#: is the part that actually breaks when a figure is exported without dpi
-#: metadata, and it is verified rather than assumed (checked 2026-08-09).
-#:
-#: The PDF remains the deliverable for print: it is vector, so it has no
-#: resolution to get wrong.
-RASTER_DPI = 600
+#
+# FIGURE_WIDTH_MM, MM_PER_INCH, RASTER_DPI, the FONT_SIZE_* names below marked
+# "(shared)" and FONT_FAMILY are the TOOLBOX-WIDE settings, imported from
+# `shared/plot_style.py` so every figure family agrees on them. Change one
+# THERE to move every figure; rebind one here (which is what
+# `dev/scripts/preview_basin_map.py --set` does) to move only the map. The
+# import binds each name in THIS module's globals, so the drawing code below
+# and the preview's `setattr` both keep working unchanged.
+#
+# What stays here is map furniture — the scale bar, north arrow, gauge labels
+# and colourbar sizes, which no non-map figure reads. `plot_style`'s docstring
+# carries the test for which side a new constant belongs on.
 
 # --- typography ------------------------------------------------------------
 
@@ -111,25 +122,14 @@ RASTER_DPI = 600
 #: ``rc_context`` so the process-wide rcParams the other plotting rules inherit
 #: are left untouched. Raise every value together to scale the labelling; raise
 #: one to re-balance it.
-#: Fallback for anything not named below — which, as the figure currently
-#: stands, is NOTHING: every text element carries its own size, the title is
-#: empty and the axes have no labels. Changing it alone therefore renders
-#: identical bytes. It matters only once a text element is added without a size
-#: of its own. Verified 2026-08-03 with ``dev/scripts/preview_basin_map.py``.
-FONT_SIZE_BASE = 8.0
-FONT_SIZE_TICK = 7.0  #: coordinate tick labels
-FONT_SIZE_LEGEND = 6.5  #: legend entries and its title
+#:
+#: FONT_SIZE_BASE / _TICK / _LEGEND are shared (imported above). The four below
+#: are map furniture and live here.
 FONT_SIZE_COLORBAR_LABEL = 7.0  #: the colourbar's title
 FONT_SIZE_COLORBAR_TICK = 5.5  #: the numbers beside the colourbar
 FONT_SIZE_GAUGE_LABEL = 5.5  #: the wflow_id beside each gauge marker
 FONT_SIZE_SCALE_BAR = 6.0  #: the 0 / 2.5 / 5 km numbers
 FONT_SIZE_NORTH_ARROW = 7.5  #: the "N"
-
-#: Font family. ``None`` keeps matplotlib's default (DejaVu Sans, which embeds
-#: cleanly in the PDF). Set e.g. ``"Arial"`` or ``["Helvetica", "Arial"]`` to
-#: match a manuscript — but check the exported PDF, because a missing family
-#: falls back SILENTLY.
-FONT_FAMILY = None
 
 # --- layout ----------------------------------------------------------------
 
@@ -348,6 +348,13 @@ COLOR_MARKER_EDGE = "white"
 #: Halo drawn behind furniture text so it stays legible over any terrain.
 COLOR_HALO = "white"
 
+#: Fill and wording for cells of a CATEGORICAL raster whose code the style's
+#: table does not declare. They are drawn, in one neutral grey, and warned
+#: about — dropping them would take real ground off the map and leave a hole a
+#: reader parses as nodata. See ``RasterStyle.categories``.
+COLOR_UNCLASSIFIED = "#bdbdbd"
+LABEL_UNCLASSIFIED = "Unclassified"
+
 #: Waterbody fills, as (facecolor, edgecolor). Keyed by the staticgeoms layer.
 WATERBODY_COLORS = {
     "lakes": ("#a8d0e6", "#3d5a6c"),
@@ -382,6 +389,10 @@ WIDTH_BASIN_OUTLINE = 0.9  #: the dissolved outer boundary — the map's key lin
 WIDTH_SUBCATCHMENT = 0.7
 WIDTH_WATERBODY_EDGE = 0.5
 WIDTH_MARKER_EDGE = 0.4
+#: Outline around a categorical class swatch in the legend. Thin, but never
+#: zero: the Copernicus legend contains near-white classes (snow, moss) that
+#: would otherwise be an invisible gap in the swatch column.
+_CATEGORY_SWATCH_EDGE_WIDTH = 0.4
 WIDTH_AXES_SPINE = 0.6
 WIDTH_GRATICULE = 0.3
 #: Dash pattern for the subcatchment divides, matplotlib ``(offset, (on, off))``.
@@ -691,6 +702,15 @@ _EXTENT_BUFFER_DEG = 0.02
 # is used only where a midpoint is real, and never as a default.
 
 
+#: Palette and centre used for temperature that crosses freezing. Below 0 is
+#: ice and above is not, so the midpoint is physical rather than chosen — which
+#: is the only thing that licenses a diverging ramp. Named constants rather than
+#: literals in the style below, because ``climate_figures`` and the tests both
+#: assert against them.
+TEMPERATURE_DIVERGING_PALETTE = "RdBu_r"
+TEMPERATURE_DIVERGING_CENTER = 0.0
+
+
 class RasterStyle:
     """How one quantity is drawn: palette, label, classification, relief.
 
@@ -708,11 +728,14 @@ class RasterStyle:
         relief=False,
         interpolation="none",
         diverging_center=None,
+        diverging_at=None,
+        diverging_palette=None,
         reserve_low_for=None,
         low_clip=0.45,
         step_ladder=None,
         levels=None,
         series_color=None,
+        categories=None,
     ):
         #: Colourbar label, including units. The caller owns it, because the
         #: units belong to the data rather than to the style.
@@ -732,9 +755,25 @@ class RasterStyle:
         #: precipitation field would render gradients as topography.
         self.relief = relief
         self.interpolation = interpolation
-        #: Value the palette is centred on, for a diverging palette. ``None``
-        #: means the palette is sequential and no centre applies.
+        #: The ACTIVE centre. Set only by :func:`resolve_diverging_style`, and
+        #: only for a field that actually straddles the midpoint. Everything
+        #: downstream — the class boundaries, the colour sampling — keys off
+        #: this one field, so "is this figure diverging?" has exactly one
+        #: answer and an unresolved style cannot half-behave like one.
         self.diverging_center = diverging_center
+        #: The DECLARED candidate midpoint: a value that is physical rather than
+        #: chosen — 0 degC (ice or not), pH 7 (acid or alkaline). Declaring it
+        #: does not make the figure diverging; straddling it does.
+        #:
+        #: The two are separate fields on purpose. A diverging ramp is only
+        #: honest where the midpoint is INSIDE the data: a field entirely below
+        #: the centre would spend half its palette on values that do not occur
+        #: and compress the ones that do. So a style declares the midpoint it
+        #: WOULD centre on, and the resolver decides per raster.
+        self.diverging_at = diverging_at
+        #: The ramp to use once the centre is active. The sequential ``palette``
+        #: stays as the fallback, which is what a non-straddling field gets.
+        self.diverging_palette = diverging_palette
         #: Reserve the palette's palest end for values at or below this.
         #: Precipitation is the case: white reads as DRY, so a basin whose
         #: lowest class is 2725 mm/y must not paint that class white — it
@@ -764,6 +803,19 @@ class RasterStyle:
         #: 0.45 the driest swatch is L*=72, clearly blue; 0.32 measured L*=82,
         #: which still reads white against a white page.
         self.low_clip = low_clip
+        #: ``((code, colour, label), ...)`` when the raster is NOMINAL — land
+        #: cover, a soil taxonomy, a subbasin identifier. Setting it switches the
+        #: whole encoding: no ramp, no classifier, no colourbar. The classes go
+        #: in the legend as swatches instead, because a colourbar asserts an
+        #: ORDER, and "urban" is not between "cropland" and "water".
+        #:
+        #: Declare it from the SOURCE PRODUCT's published legend wherever one
+        #: exists (Copernicus CGLS-LC100 ships per-code colours). A reader who
+        #: knows the product then recognises the map, which no palette of ours
+        #: can buy. Codes the raster carries but the table does not are drawn in
+        #: one grey and WARNED about — never dropped, which would erase real
+        #: ground from the map without saying so.
+        self.categories = None if categories is None else tuple(categories)
 
 
     def replace(self, **changes):
@@ -784,11 +836,14 @@ class RasterStyle:
             relief=self.relief,
             interpolation=self.interpolation,
             diverging_center=self.diverging_center,
+            diverging_at=self.diverging_at,
+            diverging_palette=self.diverging_palette,
             reserve_low_for=self.reserve_low_for,
             low_clip=self.low_clip,
             step_ladder=self.step_ladder,
             levels=self.levels,
             series_color=self.series_color,
+            categories=self.categories,
         )
         fields.update(changes)
         return RasterStyle(**fields)
@@ -834,6 +889,12 @@ RASTER_STYLES = {
         # a temperature bar. The general ladder would also offer 0.15 and 0.2,
         # which read as arbitrary on a thermometer.
         step_ladder=(2.5, 5.0, 10.0),
+        # Below 0 is ice and above is not, so the midpoint is physical rather
+        # than chosen — which is the only thing that licenses a diverging ramp.
+        # Declared, not active: a basin that never freezes keeps the warm
+        # sequential ramp. See ``resolve_diverging_style``.
+        diverging_at=TEMPERATURE_DIVERGING_CENTER,
+        diverging_palette=TEMPERATURE_DIVERGING_PALETTE,
     ),
     #: Evaporative demand: warm, but a different hue family from temperature so
     #: the two figures are not confused at a glance. dL* 10.7 greyscale, 10.0
@@ -845,17 +906,12 @@ RASTER_STYLES = {
     ),
 }
 
-#: Palette and centre used for temperature that crosses freezing. Below 0 is
-#: ice and above is not, so the midpoint is physical rather than chosen — which
-#: is the only thing that licenses a diverging ramp.
-TEMPERATURE_DIVERGING_PALETTE = "RdBu_r"
-TEMPERATURE_DIVERGING_CENTER = 0.0
-
 #: Optional figure title and footnote, drawn INSIDE the constrained-layout
-#: budget. The climate figures carry both; the basin map carries neither.
-FONT_SIZE_TITLE = 9.0
-FONT_SIZE_CAVEAT = 6.0
-COLOR_CAVEAT = "0.35"
+#: budget. The climate figures carry both; the basin map carries neither —
+#: which is why FONT_SIZE_TITLE / FONT_SIZE_CAVEAT / COLOR_CAVEAT are shared
+#: rather than map furniture, and live in ``plot_style`` (imported at the top).
+#: They are re-exported here because ``climate_figures`` still reaches for them
+#: through this module; that import moves in the plotting sweep.
 
 
 #: The vendored Natural Earth extract the locator inset draws. Provenance,
@@ -1008,24 +1064,24 @@ def _panel_locator_box(extent, target_width=None):
 
 
 def _publication_rc():
-    """The rcParams the figure is drawn under, from the FONT_SIZE_*/WIDTH_*."""
-    return {
-        "font.size": FONT_SIZE_BASE,
-        "axes.titlesize": FONT_SIZE_BASE + 1.0,
-        "axes.labelsize": FONT_SIZE_BASE,
-        "xtick.labelsize": FONT_SIZE_TICK,
-        "ytick.labelsize": FONT_SIZE_TICK,
-        "legend.fontsize": FONT_SIZE_LEGEND,
-        "legend.title_fontsize": FONT_SIZE_LEGEND,
-        "axes.linewidth": WIDTH_AXES_SPINE,
-        "xtick.major.width": WIDTH_AXES_SPINE,
-        "ytick.major.width": WIDTH_AXES_SPINE,
-        # 42 = TrueType. The default (Type 3) is not editable in Illustrator and
-        # is rejected outright by several publishers' preflight.
-        "pdf.fonttype": 42,
-        "ps.fonttype": 42,
-        **({"font.family": FONT_FAMILY} if FONT_FAMILY else {}),
-    }
+    """The rcParams the figure is drawn under, from the FONT_SIZE_*/WIDTH_*.
+
+    The page-level half comes from ``plot_style.rcparams`` so every figure
+    family shares it; ``WIDTH_AXES_SPINE`` is map furniture and is passed in.
+
+    Every value is handed over EXPLICITLY rather than letting ``plot_style``
+    read its own globals. The names below resolve in this module's namespace,
+    which is what ``dev/scripts/preview_basin_map.py --set`` rebinds; a value
+    read inside ``plot_style`` would be that module's own copy, which no
+    override touches — the figure would silently ignore the knob.
+    """
+    return plot_style.rcparams(
+        font_size_base=FONT_SIZE_BASE,
+        font_size_tick=FONT_SIZE_TICK,
+        font_size_legend=FONT_SIZE_LEGEND,
+        font_family=FONT_FAMILY,
+        axes_linewidth=WIDTH_AXES_SPINE,
+    )
 
 
 def _metres_per_degree(latitude_deg):
@@ -1088,30 +1144,113 @@ def _style_colormap(style, levels=None, floor=None):
     return ramp if levels is None else ramp.resampled(levels)
 
 
+def _diverging_colormap(style, levels, extend):
+    """One colour per class, sampled where that class SITS on the ramp.
+
+    The sequential path asks the colormap for N evenly-spaced colours
+    (``ramp.resampled(N)``), which is right when the only thing that matters is
+    that adjacent classes differ. It is not enough here: a diverging ramp's pale
+    middle has to land on the centre, and ``resampled`` knows nothing about
+    where the centre is. Worse, ``_colorbar_extend`` adds a colour at one or
+    both ends, so an evenly-resampled ramp shifts by half a class the moment one
+    arrow appears — the centre would move depending on whether the basin
+    happened to contain an outlier.
+
+    So each class takes the colour at its OWN midpoint's position along a domain
+    that IS symmetric about the centre — ``centre +/- half``, where the half-span
+    is whichever side of the bar reaches further. Symmetry of the domain rather
+    than of the boundaries is what the encoding needs: the two classes either
+    side of the centre then sample just below and just above 0.5, so the pale
+    middle falls exactly between them, while the boundaries stay free to cover
+    the data at a useful resolution.
+
+    The consequence on a one-sided-ish field is correct rather than unfortunate.
+    A basin spanning -2 to 30 degC samples the cold half only in its palest few
+    percent, because it barely goes below freezing — which is what the reader
+    should see.
+    """
+    ramp = _style_colormap(style)
+    centre = float(style.diverging_center)
+    half = max(centre - float(levels[0]), float(levels[-1]) - centre, 1e-12)
+    step = float(levels[1] - levels[0]) if len(levels) > 1 else half
+
+    def at(value):
+        return ramp(float(np.clip((value - (centre - half)) / (2.0 * half), 0.0, 1.0)))
+
+    boundaries = np.asarray(levels, dtype=float)
+    colours = [at(value) for value in (boundaries[:-1] + boundaries[1:]) / 2.0]
+    # The arrows continue the ramp rather than jumping to its extreme end: one
+    # more half-step out, which is where the next class's midpoint would sit.
+    if extend in ("min", "both"):
+        colours.insert(0, at(boundaries[0] - step / 2.0))
+    if extend in ("max", "both"):
+        colours.append(at(boundaries[-1] + step / 2.0))
+    return colors.ListedColormap(colours)
+
+
+def _classified_colormap(style, levels, extend):
+    """The colour ramp for one classified raster, whichever rule applies."""
+    if getattr(style, "diverging_center", None) is not None:
+        return _diverging_colormap(style, levels, extend)
+    extra = {"neither": 0, "min": 1, "max": 1, "both": 2}[extend]
+    return _style_colormap(style, len(levels) - 1 + extra, floor=levels[0])
+
+
+def resolve_diverging_style(raster, style):
+    """Activate a style's declared midpoint, but only for a field that spans it.
+
+    A diverging ramp asserts that its pale middle is a MEANINGFUL value. That is
+    true of 0 degC (ice or not) and pH 7 (acid or alkaline), and it is true only
+    while the field actually reaches both sides of it: a basin whose soil runs
+    4.7-5.5 has no alkaline ground, so an absolute pH ramp would spend half its
+    colours on values that do not occur and compress the ones that do into two
+    classes. Such a field keeps the sequential ramp, which is not a compromise —
+    it is the honest encoding of a one-sided quantity.
+
+    Centring a diverging ramp on the data's own mean instead is the standard way
+    this rule gets broken. The centre here is always the DECLARED physical
+    value, never derived, and the only decision this function makes is whether
+    to use it at all.
+
+    Idempotent: a style already resolved carries the diverging palette and still
+    declares the same ``diverging_at``, so resolving it again returns the same
+    thing. That is what lets ``plot_raster_map`` resolve unconditionally without
+    caring whether its caller already did.
+    """
+    centre, palette = style.diverging_at, style.diverging_palette
+    if centre is None or palette is None:
+        return style
+    values = np.asarray(raster.values)
+    values = values[np.isfinite(values)]
+    if values.size == 0 or values.min() >= centre or values.max() <= centre:
+        return style
+    return style.replace(
+        palette=palette,
+        diverging_center=float(centre),
+        # Both belong to a one-sided scale and mean nothing on a centred one:
+        # the baseline IS the centre, and the pale end is the middle rather
+        # than an end to reserve.
+        zero_baseline=False,
+        reserve_low_for=None,
+    )
+
+
 def resolve_temperature_style(raster, style=None):
     """The temperature style, switched to diverging when the field crosses 0.
 
-    Absolute temperature has no meaningful midpoint, so it takes a sequential
-    warm ramp — until the field spans freezing, at which point 0 degC IS a
-    midpoint and a diverging palette centred on it is the honest encoding.
-    Centring a diverging ramp on the data's own mean instead is the standard
-    way this rule gets broken, so the centre is pinned to zero rather than
-    derived.
+    Kept as its own name because ``climate_figures`` has called it since the
+    2026-08 map sweep and because temperature is where the rule was first
+    written down. The rule itself is now general — see
+    :func:`resolve_diverging_style`; this only supplies the default style.
+
+    It used to rebuild the style field by field and dropped ``step_ladder`` in
+    the process, so a diverging temperature bar silently stepped in 0.15 degC
+    off the general ladder instead of the 0.25/0.5/1 the sequential one uses.
+    That is the exact defect ``replace`` exists to prevent, and the resolver
+    goes through it.
     """
-    style = RASTER_STYLES["temp"] if style is None else style
-    values = np.asarray(raster.values)
-    values = values[np.isfinite(values)]
-    if values.size == 0 or values.min() >= 0.0 or values.max() <= 0.0:
-        return style
-    return RasterStyle(
-        label=style.label,
-        palette=TEMPERATURE_DIVERGING_PALETTE,
-        classification=style.classification,
-        clip_quantiles=style.clip_quantiles,
-        zero_baseline=False,
-        relief=style.relief,
-        interpolation=style.interpolation,
-        diverging_center=TEMPERATURE_DIVERGING_CENTER,
+    return resolve_diverging_style(
+        raster, RASTER_STYLES["temp"] if style is None else style
     )
 
 
@@ -1183,6 +1322,46 @@ def _equal_interval_levels(lower, upper, zero_baseline=None, ladder=None):
             return floor + step * np.arange(count + 1)
         step = _next_step_up(step, ladder)
     return floor + step * np.arange(count + 1)
+
+
+def _diverging_levels(lower, upper, centre, ladder=None):
+    """Class boundaries on a round step, counted OUT FROM ``centre``.
+
+    Its own function rather than a branch inside ``_equal_interval_levels``,
+    because that rule is hostile to a pinned value: it drops the baseline to
+    zero, and it snaps the floor to ``floor(baseline/step)*step``, which moves
+    the centre off a boundary the moment the centre is not a multiple of the
+    step. pH 7 on a 0.15 step is exactly that case.
+
+    The one invariant: ``centre`` IS a boundary. A diverging palette's pale
+    middle sits at the join between two classes, so if the centre is not that
+    join the pale colour lands somewhere else and the map says freezing is at
+    3 degC. Counting the boundaries out from the centre rather than up from a
+    floor is what guarantees it, for any centre and any step.
+
+    The levels are NOT forced symmetric about the centre, and the first version
+    of this made them so. Measured on a field spanning -2 to 30 degC — a warm
+    basin with a few frosty cells — symmetry gave a bar running -50 to +50 in
+    four classes, because the half-span is set by whichever side reaches
+    further. That is a worse figure than the sequential one it replaced. The
+    boundaries here cover the DATA, so the same field gets a 5 degC step across
+    its own range; what stays symmetric is the COLOUR DOMAIN, which is where
+    symmetry was actually doing the work — see ``_diverging_colormap``.
+    """
+    span = max(upper - lower, 1e-12)
+    step = _nice_step_up(span / max(_COLORBAR_LEVELS, 1), ladder)
+    max_ticks = max(int(_COLORBAR_MAX_TICKS), 3)
+    low_index, high_index = -1, 1
+    for _ in range(_STEP_WIDEN_ATTEMPTS):
+        # floor/ceil so the outermost classes CONTAIN the extremes rather than
+        # ending at them; min/max so the centre is always inside the range even
+        # for a field that barely reaches across it.
+        low_index = min(int(np.floor((lower - centre) / step)), -1)
+        high_index = max(int(np.ceil((upper - centre) / step)), 1)
+        if high_index - low_index + 1 <= max_ticks:
+            break
+        step = _next_step_up(step, ladder)
+    return float(centre) + step * np.arange(low_index, high_index + 1)
 
 
 def _ladder_values(lower, upper):
@@ -1314,6 +1493,15 @@ def _class_levels(raster, style):
     )
     if not np.isfinite(upper) or not np.isfinite(lower) or upper <= lower:
         upper = lower + 1.0
+
+    # An ACTIVE centre takes its own rule, before the classification branch:
+    # both rules below optimise the class widths for the data's own histogram,
+    # and neither can keep a boundary pinned to a value while doing it. Only
+    # `resolve_diverging_style` sets this, and only for a field that spans the
+    # centre, so an unresolved style never reaches here.
+    centre = getattr(style, "diverging_center", None)
+    if centre is not None:
+        return _diverging_levels(lower, upper, centre, ladder)
 
     if style.classification not in _ELEVATION_CLASSIFICATIONS:
         raise ValueError(
@@ -2352,7 +2540,7 @@ def _overlay_contrast(raster, style):
         levels = _class_levels(raster, style)
         values, weights = _finite_cells(raster)
         shares = _class_area_shares(values, levels, weights)
-        cmap = _style_colormap(style, len(levels) - 1, floor=levels[0])
+        cmap = _classified_colormap(style, levels, "neither")
         lightness = np.array(
             [_relative_luminance(cmap(i)) for i in range(len(levels) - 1)]
         )
@@ -2431,8 +2619,7 @@ def _draw_raster(
     extend = _colorbar_extend(raster, levels)
     # BoundaryNorm wants one colour per class, PLUS one per extended end — the
     # arrow is a colour, not a decoration, so the ramp has to carry it.
-    extra = {"neither": 0, "min": 1, "max": 1, "both": 2}[extend]
-    cmap = _style_colormap(style, len(levels) - 1 + extra, floor=levels[0])
+    cmap = _classified_colormap(style, levels, extend)
     norm = colors.BoundaryNorm(levels, cmap.N, extend=extend)
     x_dim, y_dim = spatial_dim_names(raster)
     field = (
@@ -2503,6 +2690,124 @@ def _draw_raster(
     colorbar_axes.tick_params(
         labelsize=FONT_SIZE_COLORBAR_TICK, length=TICK_LENGTH, pad=TICK_PAD
     )
+
+
+def category_entries(raster, style):
+    """The classes ``raster`` actually contains, as ``[(codes, colour, label)]``.
+
+    Two jobs, both about honesty rather than looks.
+
+    * Only classes PRESENT are returned. A global land-cover legend declares 23
+      classes and a single basin carries a handful; listing the other seventeen
+      in the legend would describe ground the map does not show.
+    * Codes present but NOT declared are collected into one grey entry and
+      warned about. Silently dropping them renders real ground transparent,
+      which reads exactly like nodata — the one failure this figure must not
+      have. ``codes`` is a TUPLE for that reason: the catch-all entry stands for
+      several codes at once.
+    """
+    values = np.asarray(raster.values, dtype="float64")
+    present = {int(value) for value in np.unique(values[np.isfinite(values)])}
+    declared = tuple(style.categories or ())
+    entries = [
+        ((int(code),), colour, label)
+        for code, colour, label in declared
+        if int(code) in present
+    ]
+    unlisted = tuple(sorted(present.difference(int(code) for code, _, _ in declared)))
+    if unlisted:
+        warnings.warn(
+            f"categorical raster carries codes the style does not declare: "
+            f"{list(unlisted)}; drawn as {LABEL_UNCLASSIFIED.lower()}",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        listed = ", ".join(str(code) for code in unlisted)
+        entries.append((unlisted, COLOR_UNCLASSIFIED, f"{LABEL_UNCLASSIFIED} ({listed})"))
+    return entries
+
+
+def _category_handles(entries):
+    """Legend swatches for a categorical raster's classes, in declared order.
+
+    Patches rather than a colourbar, because a bar asserts an ORDER and these
+    classes have none: "urban" does not sit between "cropland" and "water".
+
+    A class whose label is ``None`` is DRAWN but not listed. That is how a table
+    with more classes than a 40 mm panel can carry asks for the fill without the
+    key — the alternative, a legend running off the top of the page, explains
+    nothing a reader wanted.
+    """
+    return [
+        mpatches.Patch(
+            facecolor=colour,
+            edgecolor=COLOR_BASIN_OUTLINE,
+            linewidth=_CATEGORY_SWATCH_EDGE_WIDTH,
+            label=label,
+        )
+        for _, colour, label in entries
+        if label is not None
+    ]
+
+
+def _draw_categorical_raster(ax, raster, entries):
+    """Paint a nominal raster from its class table — no ramp, no colourbar.
+
+    The codes are remapped onto contiguous indices before drawing. Handing the
+    raw codes to a ``BoundaryNorm`` instead would space the classes by their
+    NUMERIC gaps, so land cover 30/40/50/80/90/112/114/116/126 would be drawn as
+    if 90 and 112 were nearly the same class and 50 and 80 far apart. Codes are
+    labels; the arithmetic on them is meaningless.
+
+    Cells matching no listed code stay NaN and render transparent, which is
+    correct: after ``category_entries`` the only cells left over are nodata.
+    """
+    values = np.asarray(raster.values, dtype="float64")
+    indexed = np.full(values.shape, np.nan)
+    for index, (codes, _, _) in enumerate(entries):
+        for code in codes:
+            indexed[values == code] = index
+    field = xr.DataArray(indexed, coords=raster.coords, dims=raster.dims)
+    cmap = colors.ListedColormap([colour for _, colour, _ in entries])
+    norm = colors.BoundaryNorm(np.arange(len(entries) + 1) - 0.5, cmap.N)
+    x_dim, y_dim = spatial_dim_names(raster)
+    field.plot.imshow(
+        ax=ax,
+        x=x_dim,
+        y=y_dim,
+        transform=ccrs.PlateCarree(),
+        zorder=Z_RELIEF,
+        add_labels=False,
+        # Never resampled. A nominal raster interpolated between classes invents
+        # codes that do not exist, and the invented ones land on whatever class
+        # sits between them in the index table.
+        interpolation="none",
+        cmap=cmap,
+        norm=norm,
+        add_colorbar=False,
+    )
+
+
+def _categorical_overlay_contrast(raster, entries):
+    """``_overlay_contrast``'s answer for a nominal raster.
+
+    Same question — is the ground under the divides dark or pale? — measured the
+    same way, over the class colours actually painted rather than over a ramp
+    the categorical path never builds.
+    """
+    values = np.asarray(raster.values, dtype="float64")
+    weights = np.array(
+        [float(np.isin(values, codes).sum()) for codes, _, _ in entries]
+    )
+    total = weights.sum()
+    if total <= 0:
+        return COLOR_SUBCATCHMENT, COLOR_HALO
+    lightness = np.array(
+        [_relative_luminance(colors.to_rgba(colour)) for _, colour, _ in entries]
+    )
+    if float((lightness * weights).sum() / total) >= _DARK_RASTER_LIGHTNESS:
+        return COLOR_SUBCATCHMENT, COLOR_HALO
+    return COLOR_HALO, COLOR_SUBCATCHMENT
 
 
 def _point_handle(facecolor, label, marker):
@@ -2676,6 +2981,49 @@ def _add_legend(ax, handles):
     return legend
 
 
+def _align_caveat_to_panel(fig, footnote, panel_items):
+    """Right-align the footnote to the SIDE PANEL's right edge.
+
+    Centred under the whole figure — matplotlib's default for ``supxlabel`` —
+    the line sits under the map-plus-panel midpoint, which is nothing the reader
+    can see: slightly right of the map's centre, slightly left of the panel's,
+    aligned to neither. The panel's right edge IS a visible edge, shared by the
+    locator inset and the legend, so a footnote flushed to it reads as belonging
+    to the sheet rather than as having drifted.
+
+    The edge is MEASURED off the drawn panel items, not computed from
+    ``_PANEL_LEFT`` plus the panel's available width. That was the first
+    version and it overshot: with no legend to measure, the available width is
+    the whole strip ``_LAYOUT_RIGHT`` leaves, which is wider than anything
+    actually drawn in it — so the line ran past the locator's edge, which is the
+    one edge the reader can see. What is drawn is the only thing worth aligning
+    to.
+
+    Only ``x`` and the alignment are set. Constrained layout repositions a
+    ``supxlabel`` on every draw, but it rewrites the Y ONLY and carries the x
+    through, so this survives the saves that follow.
+
+    Leaves the default centring when nothing measurable is in the panel (no
+    locator, no legend) or when the backend cannot produce a renderer.
+    """
+    if footnote is None:
+        return
+    try:
+        renderer = fig.canvas.get_renderer()
+    except AttributeError:
+        return
+    edges = [
+        item.get_window_extent(renderer).x1
+        for item in panel_items
+        if item is not None
+    ]
+    if not edges:
+        return
+    right_edge = fig.transFigure.inverted().transform((max(edges), 0.0))[0]
+    footnote.set_x(float(right_edge))
+    footnote.set_horizontalalignment("right")
+
+
 def plot_raster_map(
     raster,
     rivers=None,
@@ -2694,6 +3042,7 @@ def plot_raster_map(
     title=None,
     caveat=None,
     expected_units=None,
+    vector_legend=True,
 ):
     """Draw a basin map: shaded relief, rivers, boundaries, points, waterbodies.
 
@@ -2749,6 +3098,17 @@ def plot_raster_map(
         constrained layout reserves room for them.
     expected_units : sequence of str, optional
         Units the label claims. A mismatch warns; see ``check_geographic_inputs``.
+    vector_legend : bool
+        Whether the OVERLAY layers — rivers, boundary, divides, points — get
+        legend entries. The layers are drawn either way; this governs only
+        whether they are explained.
+
+        ``False`` is for a SET of figures over one basin, where the overlay is
+        identical on every sheet and one figure in the set already carries the
+        key. Repeating four entries on thirteen maps costs panel height that a
+        land-cover legend needs and teaches the reader nothing after the first
+        sheet. A raster's own classes are never suppressed by this — they are
+        the figure's subject, not its furniture.
 
     Returns
     -------
@@ -2761,6 +3121,12 @@ def plot_raster_map(
     # items convert degrees to metres, so a projected layer renders a wrong map
     # rather than failing. See ``check_geographic_inputs``.
     style = RASTER_STYLES["elevation"] if style is None else style
+    # Resolved HERE, unconditionally, rather than left to the caller: whether a
+    # figure diverges depends on the raster in front of it, so a caller can only
+    # get it right by asking the same question this function is about to ask.
+    # Idempotent, so a caller that already resolved (climate_figures does) loses
+    # nothing, and a caller that forgot cannot ship a mis-centred ramp.
+    style = resolve_diverging_style(raster, style)
     check_geographic_inputs(
         raster,
         {
@@ -2805,27 +3171,38 @@ def plot_raster_map(
         waterbodies = _waterbody_entries(
             {"lakes": lakes, "reservoirs": reservoirs, "glaciers": glaciers}
         )
-        handles = _legend_handles(
-            styles,
-            rivers=rivers,
-            basin=basin,
-            subbasins=subbasins,
-            outlets=outlets,
-            gauges=gauges,
-            waterbodies=waterbodies,
-        )
-        legend = _add_legend(ax, handles)
+        # A nominal raster puts its classes in the LEGEND, not on a colourbar,
+        # so they have to be resolved here — before the legend is built, because
+        # the legend's measured size is what the rest of the panel is laid out
+        # against. Nine land-cover classes make a legend twice the height of the
+        # vector-only one, and the layout has to see that.
+        categories = category_entries(raster, style) if style.categories else []
+        handles = list(_category_handles(categories))
+        if vector_legend:
+            handles += _legend_handles(
+                styles,
+                rivers=rivers,
+                basin=basin,
+                subbasins=subbasins,
+                outlets=outlets,
+                gauges=gauges,
+                waterbodies=waterbodies,
+            )
+        # No handles at all — a continuous raster with the overlay key
+        # suppressed — means NO legend, not an empty one. matplotlib draws the
+        # frame and the title for a legend with nothing in it, so the panel
+        # would carry a blank box under the colourbar.
+        legend = _add_legend(ax, handles) if handles else None
 
-        measured = _measure_legend(fig, legend, extent)
+        measured = _measure_legend(fig, legend, extent) if legend else (0.0, 0.0)
         if measured is None:
             measured = (0.0, _legend_height_fraction(extent, len(handles)))
         # The title wraps to the PANEL ITEM width — what the legend and the
         # locator inset span — not to the panel's full available width. That is
         # the edge the reader sees the three blocks share, so a title running
         # past it is what reads as overflowing even while it is still on canvas.
-        panel_width_in = (
-            measured[0] or _panel_available_width()
-        ) * _map_width_inches()
+        panel_width_axes = measured[0] or _panel_available_width()
+        panel_width_in = panel_width_axes * _map_width_inches()
         # Wrapped BEFORE the layout is computed: how many lines the colourbar's
         # title takes is what the bar is positioned against, so measuring it
         # afterwards would place the bar against a title that no longer fits.
@@ -2835,17 +3212,23 @@ def plot_raster_map(
         label_lines = wrapped_label.count("\n") + 1
         layout = _panel_layout(extent, label_lines, measured)
 
-        # --- elevation, as shaded relief -------------------------------------
-        _draw_raster(
-            fig,
-            ax,
-            raster,
-            style,
-            centre_latitude,
-            layout["colorbar"],
-            basin if _present(basin) else None,
-            label_width_inches=panel_width_in,
-        )
+        # --- the raster ------------------------------------------------------
+        # Two encodings, one figure. A nominal raster took its whole legend
+        # above and needs no colourbar; everything else takes the classified
+        # ramp and the side panel's bar.
+        if categories:
+            _draw_categorical_raster(ax, raster, categories)
+        else:
+            _draw_raster(
+                fig,
+                ax,
+                raster,
+                style,
+                centre_latitude,
+                layout["colorbar"],
+                basin if _present(basin) else None,
+                label_width_inches=panel_width_in,
+            )
 
         # --- hydrography ------------------------------------------------------
         if _present(rivers):
@@ -2858,7 +3241,11 @@ def plot_raster_map(
         # Subcatchment divides first and lighter, then the outline over them, so
         # the two are never confusable at the same weight.
         if _present(subbasins):
-            divide_color, divide_halo = _overlay_contrast(raster, style)
+            divide_color, divide_halo = (
+                _categorical_overlay_contrast(raster, categories)
+                if categories
+                else _overlay_contrast(raster, style)
+            )
             styles["divide"]["color"] = divide_color
             _divide_linework(subbasins).plot(
                 ax=ax,
@@ -2911,7 +3298,11 @@ def plot_raster_map(
         _add_north_arrow(ax)
         # Sized to the legend's measured width, so the panel's top and bottom
         # blocks share a right edge as well as a left one.
-        _add_locator_inset(ax, extent, subject, locator_corner, layout["locator"])
+        # Kept, not discarded: it is the panel's widest item, so it is what the
+        # source footnote is right-aligned to.
+        locator_axes = _add_locator_inset(
+            ax, extent, subject, locator_corner, layout["locator"]
+        )
         ax.set_title("")
         # Title and footnote go through the FIGURE-level artists that
         # constrained layout knows about. The climate figures previously drew
@@ -2921,8 +3312,9 @@ def plot_raster_map(
         # rather than as a misplaced caption.
         if title:
             fig.suptitle(title, fontsize=FONT_SIZE_TITLE)
+        footnote = None
         if caveat:
-            fig.supxlabel(
+            footnote = fig.supxlabel(
                 caveat, fontsize=FONT_SIZE_CAVEAT, color=COLOR_CAVEAT, wrap=True
             )
 
@@ -2934,6 +3326,10 @@ def plot_raster_map(
         # savefig would not, so the figure is settled BEFORE it is handed back.
         for _ in range(_LAYOUT_SETTLE_PASSES):
             fig.draw_without_rendering()
+
+        # AFTER the passes, because it measures the panel items where they
+        # FINALLY landed — constrained layout is still moving them until here.
+        _align_caveat_to_panel(fig, footnote, (locator_axes, legend))
 
     return fig, ax
 

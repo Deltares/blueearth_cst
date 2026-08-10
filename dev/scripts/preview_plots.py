@@ -72,7 +72,7 @@ def _render_hydro(project_dir: Path, out_dir: Path) -> list[Path]:
     import pandas as pd
     import xarray as xr
 
-    from blueearth_cst.shared.func_plot_signature import plot_hydro
+    from blueearth_cst.shared.plot_evaluation import Station, plot_hydrograph
 
     csv = _model_dir(project_dir) / "run_default" / "output.csv"
     frame = pd.read_csv(csv, index_col=0, parse_dates=True)
@@ -83,8 +83,14 @@ def _render_hydro(project_dir: Path, out_dir: Path) -> list[Path]:
         dims=("time",),
         name="Q",
     )
-    plot_hydro(qsim, str(out_dir), station_name=column)
-    return sorted(out_dir.glob("hydro*.png"))
+    # The column id, taken as the station id. This script reads output.csv
+    # alone, with no location registry to resolve an outlet's subcatchment id
+    # onto its wflow_id — so a preview of Q_101 is titled 101 where the workflow
+    # would title it 1010. Fine for a preview, and stated so nobody reads the
+    # difference as a bug.
+    station = Station(int(column.removeprefix("Q_")))
+    plot_hydrograph(qsim, station, str(out_dir))
+    return sorted(out_dir.glob("hydrograph*.png"))
 
 
 #: name -> (one-line description, input probe, renderer)

@@ -57,13 +57,21 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from blueearth_cst.shared import cartographic_map, plot_map  # noqa: E402
+from blueearth_cst.shared import cartographic_map, plot_map, plot_style  # noqa: E402
 
 #: Where the tunables live. The cartography moved out of ``plot_map`` in
 #: 2026-08; overriding a name on ``plot_map`` that is only re-exported there
 #: would set a copy and change nothing, which is the exact failure this
 #: script's own docstring warns about. Read and write the real home.
 _TUNABLE_MODULE = cartographic_map
+
+#: Sources scanned for each tunable's ``#:`` comment. The VALUES all come from
+#: ``_TUNABLE_MODULE``'s namespace (``vars``), so a name imported there from
+#: ``plot_style`` is listed, overridable and sweepable exactly like a local one.
+#: Its explanatory comment, though, lives in the file that DEFINES it — and
+#: ``--list`` reads those comments out of source rather than duplicating them.
+#: Scan both, or every shared page/typography tunable silently lists blank.
+_DOC_SOURCE_MODULES = (plot_style, cartographic_map)
 
 #: Names in ``cartographic_map`` that count as tunables: SHOUTING_CASE, optionally
 #: private. Mixed-case imports (``LatitudeFormatter``, ``Line2D``) do not match,
@@ -125,14 +133,8 @@ def _comments_by_line(source: str) -> dict:
     }
 
 
-def _tunable_docs() -> dict:
-    """The ``#:`` comment on each tunable, as one flat line.
-
-    Read from the source rather than duplicated here, so ``--list`` cannot drift
-    from what the block actually says. Both spellings are picked up: the comment
-    block ABOVE an assignment, and the trailing comment on its own line.
-    """
-    source = Path(_TUNABLE_MODULE.__file__).read_text(encoding="utf-8")
+def _docs_from_source(source: str) -> dict:
+    """The ``#:`` comment on each assignment in one module's source."""
     comments = _comments_by_line(source)
     docs = {}
     for node in ast.parse(source).body:
@@ -153,6 +155,26 @@ def _tunable_docs() -> dict:
         text = " ".join(part for part in parts if part)
         for name in _assigned_names(node):
             docs[name] = text
+    return docs
+
+
+def _tunable_docs() -> dict:
+    """The ``#:`` comment on each tunable, as one flat line.
+
+    Read from the source rather than duplicated here, so ``--list`` cannot drift
+    from what the block actually says. Both spellings are picked up: the comment
+    block ABOVE an assignment, and the trailing comment on its own line.
+
+    Every module in ``_DOC_SOURCE_MODULES`` is scanned, because a tunable's
+    VALUE and its EXPLANATION no longer always live in the same file — the
+    shared page and typography settings are defined in ``plot_style`` and only
+    bound into ``cartographic_map``. Later modules win on a name collision, so
+    a constant genuinely redefined in ``cartographic_map`` keeps its own words.
+    """
+    docs = {}
+    for module in _DOC_SOURCE_MODULES:
+        source = Path(module.__file__).read_text(encoding="utf-8")
+        docs.update(_docs_from_source(source))
     return docs
 
 
@@ -330,7 +352,8 @@ def render(project_dir: Path, out_dir: Path, values: dict, suffix: str) -> list:
             plot_dir=str(out_dir),
         )
     written = []
-    for extension in (".png", ".pdf"):
+    # PNG only: the figure stopped being written as a PDF on 2026-08-10.
+    for extension in (".png",):
         produced = out_dir / f"{_FIGURE_STEM}{extension}"
         if not produced.is_file():
             continue

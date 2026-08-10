@@ -50,10 +50,12 @@ CONFIG_FN = TESTDIR / "snake_config_model_test.yml"
 #: forcing entries come from climate_figures rather than being restated, so a
 #: change to the canonical set cannot leave this list quietly behind.
 DECLARED_PLOT_OUTPUTS = (
-    "models/hydrology/wflow/evaluation/plots/hydro_wflow_1.png",
+    # No per-station FIGURE is declared: they are keyed by wflow_id, which is
+    # a product of the model build and so unknowable at parse time. The
+    # metrics table is rule 1.15's config-invariant artifact.
     "models/hydrology/wflow/evaluation/performance_metrics.csv",
-    # Rule 1.12 renders once and writes both: PDF for publication, PNG preview.
-    "data/spatial/plots/basin_area.pdf",
+    # Rule 1.12's basin map. PNG only since 2026-08-10; the vector deliverable
+    # was dropped because nothing read it.
     "data/spatial/plots/basin_area.png",
 ) + tuple(
     f"models/hydrology/wflow/forcing/plots/{name}" for name in _figure_names("forcing")

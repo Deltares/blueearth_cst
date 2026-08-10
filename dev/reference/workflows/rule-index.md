@@ -348,7 +348,7 @@ The store reaches WF1's *figures* (1.05, 1.15), never its forcing.
 | 1.09 | `declare_wflow_outputs` | Declares the `[output.csv]` block: which timeseries Wflow emits. |
 | 1.10 | `add_climate_forcing` | Assembles the hydromt recipe and applies it: builds the forcing. |
 | 1.11 | `write_outlet_index` | Crosswalk from Wflow outlet IDs to named stations. |
-| 1.12 | `plot_basin_map` | Basin, rivers, gauges and DEM on one map. |
+| 1.12 | `plot_basin_map` | Every figure the spatial foundation supports: the basin/DEM map and the thematic family. |
 | 1.13 | `plot_forcing` | The same figures on the model's own forcing grid. |
 | 1.14 | `run_wflow` | Runs Wflow.jl once. |
 | 1.15 | `plot_wflow_evaluation` | The evaluation figures, and the metrics table. |
@@ -567,15 +567,45 @@ a hydromt `r+` mutation — it *adds* an edge.
 
 #### 1.12 · `plot_basin_map`
 
-**Does.** Plots basin, rivers, gauges and DEM on one map. Reads `staticmaps.nc`
-straight off disk, so it is ordered behind 1.10's `.model_final` sentinel —
-without that anchor a concurrent `-c 3` run aborts below Python on an unlocked
-HDF5 read, with no traceback, because the pixi env sets
-`HDF5_USE_FILE_LOCKING="FALSE"`.
+**Does.** Draws every figure the shared spatial foundation supports: `basin_area`
+— basin, rivers, gauges and the DEM on one map — plus the thematic family beside
+it, the subbasin delineation, land cover, leaf area index and the topsoil
+properties.
 
-**Writes.** `<model>/plots/basin_area.pdf` and `basin_area.png` — one render, two
-formats: the PDF is the publication deliverable (vector, embedded fonts), the PNG
-the preview every other consumer reads.
+ONE rule for both, because they are one deliverable. The thematic maps draw the
+same vector overlay and deliberately suppress its legend *because* `basin_area`
+carries the key; a run that produced one set without the other would ship ten
+maps whose linework nothing explains. Both halves are leaves, so splitting them
+would duplicate the vector inputs and the plots directory for no scheduling gain.
+
+**Reads.** The spatial foundation only — `hydrography.nc` and the vector layers
+from 1.03, and `spatial_maps.nc` from 1.06. The 1.06 edge arrived with the
+thematic family; before it, this rule depended on 1.03 alone. It costs nothing,
+since 1.06 is upstream of the model build and nothing downstream waits on this
+leaf.
+
+ADR 0007 already retired this rule's `staticmaps.nc` read, and with it the
+`.model_final` sentinel edge that existed to stop a concurrent `-c 3` run
+aborting below Python on an unlocked HDF5 read. It opens no model file at all.
+
+**Writes.** `data/spatial/plots/`, **PNG only** since 2026-08-10. The vector
+deliverable was dropped across the whole figure set because nothing in the
+toolbox or the platform read it; 600 dpi at 180 mm carries the figure everywhere
+it is used, and not serialising each one twice halves the rule's render time.
+`figure_paths()` still takes a `formats` argument, so a caller preparing a
+manuscript can ask for a PDF. The thematic list is declared from that function,
+the same contract 1.13 has with `climate_figures.figure_names()`.
+
+Not every figure is *declared*. A figure whose source variable is specific to one
+catalog source — `soil_depth_to_bedrock`, which reads soilgrids v1.0's own
+`BDTICM` filename and has no soilgrids_2020 equivalent — is drawn but left out of
+`output:`. Declaring it would fail the RULE on a project that merely chose the
+other soil source, which is a workflow crash in exchange for one figure.
+`data/spatial/plots/` is a directory in the tree inventory, so the undeclared
+renders are still accounted for.
+
+**No title, no overlay key**, on the thematic half only. The filename names the
+figure and `basin_area` carries the legend; see `shared/plot_spatial_maps.py`.
 
 #### 1.13 · `plot_forcing`
 
@@ -596,19 +626,30 @@ own TOML.
 #### 1.15 · `plot_wflow_evaluation`
 
 **Does.** Scores the Wflow run against observations where they exist and draws
-the evaluation figures — hydrographs, climate comparison at model parity,
-basin-average series, and signature plots. One rule, both products.
+the evaluation figures — four sheets per station plus the basin-average series.
+One rule, both products.
 
-**Writes.** `<model>/evaluation/performance_metrics.csv` ·
-`<model>/evaluation/plots/hydro_wflow_1.png` ·
-`clim_wflow_1_{month,year}.png` · one `<var>_basavg.png` per basin-average
-`wflow_outvars` entry.
+**Writes.** `<model>/evaluation/performance_metrics.csv` · one
+`<var>_basavg.png` per basin-average `wflow_outvars` entry.
 
-**Writes (undeclared).** `hydro_<station>.png`,
-`clim_<station>_{month,year}.png`, `signatures_<station>.png`. Their count is a
-product of the model build (outlets and subcatchments), not of config, so they
-cannot be enumerated at parse time; `signatures_*` also needs observations and a
-run longer than a year.
+**Writes (undeclared).** Per station, keyed by `wflow_id`:
+`hydrograph_<id>`, `signatures_peaks_<id>`, `signatures_lows_<id>` and
+`performance_<id>`, one PNG each. Their count is a product of the model
+build (outlets and subcatchments), not of config, so they cannot be enumerated
+at parse time — and since 2026-08-10 neither can their NAMES, because a wflow_id
+is assigned by rule 1.03. Only the hydrograph is drawn without observations; the
+other three need them, and the two extremes sheets additionally need a run
+longer than a year.
+
+**Why no figure is declared** — `hydro_wflow_1.png` was, until 2026-08-10, and
+it worked only because `plot_results.py` forced the first outlet's label to that
+literal counter. Every other artifact of a run names a point by its `wflow_id`,
+so the figures do too, and the metrics table takes over as this rule's terminal
+in `WF1_TERMINALS`. The rename also closed two defects the old key hid: an
+outlet and a gauge on one cell were plotted twice under two names, and an
+observation at the basin outlet matched nothing at all, because observations are
+keyed by `wflow_id` while the outlet series is keyed by its subcatchment id.
+`plot_results.resolve_stations` is where both are now handled.
 
 **Why the metrics and the figures share a rule** — `[R10-2]` proposed splitting
 them, since `performance_metrics.csv` is baseline-covered data while the figures

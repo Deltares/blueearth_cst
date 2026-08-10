@@ -236,11 +236,22 @@ def load_spatial_basin_layers(spatial_dir):
 def plot_basin_map_from_spatial(spatial_dir, plot_dir=None):
     """Render basin_area.{pdf,png} from the shared spatial products.
 
-    Replaces ``plot_basin_map_from_model`` as rule 1.12's entry point. Reading
-    the foundation rather than the model also retires that rule's HDF5 race
+    Reading the foundation rather than the model retired this rule's HDF5 race
     workaround: it no longer opens ``staticmaps.nc``, so it no longer has to be
-    ordered behind every writer of that file.
+    ordered behind every writer of that file. Since 2026-08 it is no longer the
+    rule's entry point either — ``plot_spatial_maps.plot_spatial_figure_set``
+    is, and calls this first — because basin_area and the thematic family are
+    one deliverable.
+
+    It carries the same source footnote as the rest of that set, so the folder
+    credits its data uniformly. The credit table is imported from the family
+    module rather than duplicated: it is ONE table, and two copies would drift
+    the moment a catalog entry changed. Imported inside the function because the
+    family module imports this one in the same way — neither owns the other, and
+    deferring both keeps module import order irrelevant.
     """
+    from blueearth_cst.shared.plot_spatial_maps import source_caveat
+
     spatial_dir = Path(spatial_dir)
     if plot_dir is None:
         plot_dir = spatial_dir / "plots"
@@ -252,12 +263,13 @@ def plot_basin_map_from_spatial(spatial_dir, plot_dir=None):
         _basin_outline(basins),
         subbasins=layers.get("subbasins"),
         gauges=layers.get("gauges"),
+        caveat=source_caveat(elevation),
     )
-    save_figure(
-        os.path.join(str(plot_dir), "basin_area.pdf"),
-        fig=fig,
-        metadata={"CreationDate": None},
-    )
+    # PNG only since 2026-08-10 (owner's call). The PDF was the vector,
+    # embedded-font deliverable and nothing in the toolbox or the platform read
+    # it; at 600 dpi and 180 mm the PNG carries the figure everywhere it is
+    # actually used. Dropping it also halves this rule's render time, since the
+    # figure was serialised twice.
     save_figure(
         os.path.join(str(plot_dir), "basin_area.png"),
         fig=fig,
@@ -315,12 +327,9 @@ def plot_basin_map_from_model(project_dir, gauges_fn, plot_dir=None, model_dir=N
     # No bbox_inches="tight": it re-crops to the drawn content, which throws
     # away the declared 180 mm width. Constrained layout already fits the
     # furniture inside that width.
-    save_figure(
-        os.path.join(plot_dir, "basin_area.pdf"),
-        fig=fig,
-        # Drop the timestamp so two identical runs produce identical bytes.
-        metadata={"CreationDate": None},
-    )
+    #
+    # PNG only, matching `plot_basin_map_from_spatial` above — the two write the
+    # same figure and should not disagree about its formats.
     save_figure(
         os.path.join(plot_dir, "basin_area.png"),
         fig=fig,
