@@ -192,8 +192,7 @@ a migration note (§7).**
   read `tavg` / `prcp`; see §7. Aliases that look like drift but are NOT — each is
   owned by an external schema and adapted at a named seam, so leave them alone:
   `tas` / `pr` (CMIP6, renamed by the catalog's `data_adapter.rename`),
-  `P_subcatchment` / `T_subcatchment` / `EP_subcatchment` (`plot_clim` keys,
-  adapted by `subcatchment_climate.FORCING_TO_CLIM`), `Q` / `P` (wflow
+  `Q` / `P` (wflow
   `[output.csv]` headers), `precipitation` (a `WFLOW_VARS` display label, tier 2
   above), and weathergenr's `temp_delta` / `precip_mean_factor` (tier 1).
 
