@@ -18,7 +18,10 @@ shared:
   basin:
     region: "{'subbasin': [9.666, 0.4476], 'uparea': 100}"
     resolution: 0.00833
-    gauge_points: null
+    # Four control points; each defines a subbasin, replacing the automatic
+    # partition. Repo-relative like project_dir above — test_case/ is the
+    # in-repo dev/test exemption, so the tracked config stays portable.
+    gauge_points: test_case/test_data/output_locations.csv
     automatic_subbasins:
       max_per_basin: 11
   historical_window:
@@ -36,7 +39,9 @@ workflows:
     # any fingerprinted target. The shipped default (template / Snakefile) does
     # include 'actual evapotranspiration'.
     wflow_outvars: ["river discharge"]
-    observations_timeseries: null
+    # Observed discharge, semicolon-separated, one column per resolved wflow_id.
+    # Enables the observation joins in rule 1.15 plot_wflow_evaluation.
+    observations_timeseries: test_case/test_data/observations_timeseries.csv
   climate_projections:
     enabled: true
     clim_project: cmip6
