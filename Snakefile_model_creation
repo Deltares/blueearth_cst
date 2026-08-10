@@ -760,6 +760,10 @@ rule export_wflow_tables:
     message: rule_banner("1.14b", "export_wflow_tables")
     input:
         csv_path = f"{basin_dir}/run_default/output.csv",
+        # ADR 0004. Ordered after 1.10 transitively through csv_path, declared
+        # anyway for the same reason 1.14 and 1.15 declare it: the invariant is
+        # LOCAL, not something a reader has to re-derive from a chain.
+        model_final = ancient(f"{basin_dir}/.model_final"),
     output:
         # Discharge is the only per-station variable a shipped config produces:
         # 1.05's extras are subcatchment means (`<var>_basavg`) with no station

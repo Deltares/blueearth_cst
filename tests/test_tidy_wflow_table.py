@@ -11,6 +11,7 @@ import pytest
 
 from blueearth_cst.shared.tidy_wflow_table import (
     _format_value,
+    slugify,
     split_columns,
     tidy_tables,
     write_tidy_tables,
@@ -141,3 +142,28 @@ def test_a_csv_without_station_columns_writes_nothing(tmp_path):
         src, index=False
     )
     assert write_tidy_tables(src, tmp_path / "out") == []
+
+
+def test_a_variable_with_spaces_becomes_a_safe_filename(tmp_path):
+    """`groundwater recharge` is a real wflow_outvars value; its columns arrive
+    as `groundwater recharge_basavg_101`, which must not become a filename with
+    a space in it."""
+    src = tmp_path / "output.csv"
+    pd.DataFrame(
+        {
+            "time": ["2000-01-02T00:00:00"],
+            "Q_101": [1.0],
+            "groundwater recharge_basavg_101": [0.5],
+        }
+    ).to_csv(src, index=False)
+
+    names = [p.name for p in write_tidy_tables(src, tmp_path / "out")]
+    assert names == ["output_groundwater_recharge_basavg.csv", "output_q.csv"]
+    assert all(" " not in n for n in names)
+
+
+def test_slugify_collapses_runs_and_trims():
+    assert slugify(
+        "groundwater recharge_basavg"
+    ) == "groundwater_recharge_basavg".replace(" ", "_")
+    assert slugify("Q") == "q"

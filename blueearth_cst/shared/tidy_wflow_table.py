@@ -28,10 +28,9 @@ Columns are sorted numerically, not lexically: as text, ``1010`` sorts before
 ``101``, and station ids are integers.
 """
 
-from __future__ import annotations
-
 import re
 from pathlib import Path
+from typing import Dict, List
 
 import pandas as pd
 
@@ -65,14 +64,25 @@ def _format_value(value, digits: int) -> str:
     return text.rstrip("0").rstrip(".") if "." in text else text
 
 
-def split_columns(columns) -> dict[str, list[str]]:
+def slugify(variable: str) -> str:
+    """Filename-safe form of a wflow column's variable part.
+
+    Wflow headers carry the SEMANTIC label verbatim, spaces included -- a config
+    asking for ``groundwater recharge`` yields columns named
+    ``groundwater recharge_basavg_101``. Left alone that produces a filename with
+    a space in it, which contradicts naming.md and is awkward on every shell.
+    """
+    return re.sub(r"[^a-z0-9]+", "_", str(variable).lower()).strip("_")
+
+
+def split_columns(columns) -> Dict[str, List[str]]:
     """Group ``<var>_<station>`` column names by variable, stations sorted.
 
     Columns that do not match the grammar (``time``, and any ``<var>_basavg``
     aggregate, which is per-subcatchment rather than per-station) are left out:
     they have no station id to key on, so they cannot join a per-station table.
     """
-    grouped: dict[str, list[tuple[int, str]]] = {}
+    grouped = {}
     for name in columns:
         match = _COLUMN.match(str(name))
         if not match:
@@ -88,7 +98,7 @@ def split_columns(columns) -> dict[str, list[str]]:
 
 def tidy_tables(
     frame: pd.DataFrame, digits: int = DEFAULT_SIGNIFICANT_DIGITS
-) -> dict[str, pd.DataFrame]:
+) -> Dict[str, pd.DataFrame]:
     """One Excel-ready frame per variable, keyed by the variable name.
 
     The index is the formatted timestamp; columns are bare station ids in
@@ -98,7 +108,7 @@ def tidy_tables(
     time_col = frame.columns[0]
     stamps = pd.to_datetime(frame[time_col]).dt.strftime("%Y-%m-%d %H:%M:%S")
 
-    tables: dict[str, pd.DataFrame] = {}
+    tables = {}
     for var, names in split_columns(frame.columns).items():
         data = {
             _COLUMN.match(name)["station"]: [
@@ -114,7 +124,7 @@ def tidy_tables(
 
 def write_tidy_tables(
     csv_path, out_dir, prefix: str = "output", digits: int = DEFAULT_SIGNIFICANT_DIGITS
-) -> list[Path]:
+) -> List[Path]:
     """Read wflow's csv and write ``<prefix>_<var>.csv`` per variable.
 
     Returns the paths written, sorted. A run whose csv holds no
@@ -128,7 +138,7 @@ def write_tidy_tables(
 
     written = []
     for var, table in tidy_tables(frame, digits).items():
-        path = out_dir / f"{prefix}_{var.lower()}.csv"
+        path = out_dir / f"{prefix}_{slugify(var)}.csv"
         table.to_csv(path, index=False)
         written.append(path)
     return sorted(written)
