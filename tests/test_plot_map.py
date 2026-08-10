@@ -919,6 +919,43 @@ def test_the_minimal_call_draws_a_figure_and_writes_nothing(tmp_path):
         plt.close(fig)
 
 
+def test_the_source_footnote_is_flush_with_the_panel_not_centred_under_the_page():
+    """Centred, a ``supxlabel`` lands under the map-plus-panel midpoint, which is
+    an edge nothing on the figure has. The panel's right edge is one the reader
+    can see, so the footnote is flushed to it.
+
+    Measured against the LEGEND's own right edge rather than a constant: the
+    first version computed the edge from ``_PANEL_LEFT`` plus the panel's
+    AVAILABLE width and overshot whatever was actually drawn there.
+    """
+    import matplotlib.pyplot as plt
+
+    layers = _layers()
+    fig, ax = plot_basin_map(
+        layers["dem"], layers["rivers"], layers["basin"], caveat="Source: X (Y, 2020)."
+    )
+    try:
+        footnote = fig._supxlabel
+        assert footnote.get_horizontalalignment() == "right"
+        renderer = fig.canvas.get_renderer()
+        legend_right = ax.get_legend().get_window_extent(renderer).x1
+        footnote_right = fig.transFigure.transform((footnote.get_position()[0], 0.0))[0]
+        assert footnote_right == pytest.approx(legend_right, abs=2.0)
+    finally:
+        plt.close(fig)
+
+
+def test_a_figure_without_a_caveat_grows_no_footnote():
+    import matplotlib.pyplot as plt
+
+    layers = _layers()
+    fig, _ = plot_basin_map(layers["dem"], layers["rivers"], layers["basin"])
+    try:
+        assert fig._supxlabel is None
+    finally:
+        plt.close(fig)
+
+
 def test_every_layer_together_renders():
     import matplotlib.pyplot as plt
 

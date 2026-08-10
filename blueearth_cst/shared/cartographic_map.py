@@ -2821,6 +2821,49 @@ def _add_legend(ax, handles):
     return legend
 
 
+def _align_caveat_to_panel(fig, footnote, panel_items):
+    """Right-align the footnote to the SIDE PANEL's right edge.
+
+    Centred under the whole figure — matplotlib's default for ``supxlabel`` —
+    the line sits under the map-plus-panel midpoint, which is nothing the reader
+    can see: slightly right of the map's centre, slightly left of the panel's,
+    aligned to neither. The panel's right edge IS a visible edge, shared by the
+    locator inset and the legend, so a footnote flushed to it reads as belonging
+    to the sheet rather than as having drifted.
+
+    The edge is MEASURED off the drawn panel items, not computed from
+    ``_PANEL_LEFT`` plus the panel's available width. That was the first
+    version and it overshot: with no legend to measure, the available width is
+    the whole strip ``_LAYOUT_RIGHT`` leaves, which is wider than anything
+    actually drawn in it — so the line ran past the locator's edge, which is the
+    one edge the reader can see. What is drawn is the only thing worth aligning
+    to.
+
+    Only ``x`` and the alignment are set. Constrained layout repositions a
+    ``supxlabel`` on every draw, but it rewrites the Y ONLY and carries the x
+    through, so this survives the saves that follow.
+
+    Leaves the default centring when nothing measurable is in the panel (no
+    locator, no legend) or when the backend cannot produce a renderer.
+    """
+    if footnote is None:
+        return
+    try:
+        renderer = fig.canvas.get_renderer()
+    except AttributeError:
+        return
+    edges = [
+        item.get_window_extent(renderer).x1
+        for item in panel_items
+        if item is not None
+    ]
+    if not edges:
+        return
+    right_edge = fig.transFigure.inverted().transform((max(edges), 0.0))[0]
+    footnote.set_x(float(right_edge))
+    footnote.set_horizontalalignment("right")
+
+
 def plot_raster_map(
     raster,
     rivers=None,
@@ -2992,9 +3035,8 @@ def plot_raster_map(
         # locator inset span — not to the panel's full available width. That is
         # the edge the reader sees the three blocks share, so a title running
         # past it is what reads as overflowing even while it is still on canvas.
-        panel_width_in = (
-            measured[0] or _panel_available_width()
-        ) * _map_width_inches()
+        panel_width_axes = measured[0] or _panel_available_width()
+        panel_width_in = panel_width_axes * _map_width_inches()
         # Wrapped BEFORE the layout is computed: how many lines the colourbar's
         # title takes is what the bar is positioned against, so measuring it
         # afterwards would place the bar against a title that no longer fits.
@@ -3090,7 +3132,11 @@ def plot_raster_map(
         _add_north_arrow(ax)
         # Sized to the legend's measured width, so the panel's top and bottom
         # blocks share a right edge as well as a left one.
-        _add_locator_inset(ax, extent, subject, locator_corner, layout["locator"])
+        # Kept, not discarded: it is the panel's widest item, so it is what the
+        # source footnote is right-aligned to.
+        locator_axes = _add_locator_inset(
+            ax, extent, subject, locator_corner, layout["locator"]
+        )
         ax.set_title("")
         # Title and footnote go through the FIGURE-level artists that
         # constrained layout knows about. The climate figures previously drew
@@ -3100,8 +3146,9 @@ def plot_raster_map(
         # rather than as a misplaced caption.
         if title:
             fig.suptitle(title, fontsize=FONT_SIZE_TITLE)
+        footnote = None
         if caveat:
-            fig.supxlabel(
+            footnote = fig.supxlabel(
                 caveat, fontsize=FONT_SIZE_CAVEAT, color=COLOR_CAVEAT, wrap=True
             )
 
@@ -3113,6 +3160,10 @@ def plot_raster_map(
         # savefig would not, so the figure is settled BEFORE it is handed back.
         for _ in range(_LAYOUT_SETTLE_PASSES):
             fig.draw_without_rendering()
+
+        # AFTER the passes, because it measures the panel items where they
+        # FINALLY landed — constrained layout is still moving them until here.
+        _align_caveat_to_panel(fig, footnote, (locator_axes, legend))
 
     return fig, ax
 
