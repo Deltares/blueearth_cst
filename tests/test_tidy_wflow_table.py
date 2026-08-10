@@ -159,6 +159,41 @@ def test_write_emits_one_file_per_variable(tmp_path):
     assert q["101"].tolist() == ["0.00724", "0.0001"]
 
 
+def test_a_subcatchment_coded_variable_gets_its_own_table(tmp_path):
+    """`wflow_outvars` extras produce a table, and rule 1.14b must declare it.
+
+    Rule 1.09 emits every non-discharge output as `<code>_<subcatchment>` on
+    the subcatchment map (`gwr_101`), which matches the same grammar `Q_101`
+    does. That is easy to miss because these columns were once spelled
+    `<var>_basavg`, carried no numeric id and so produced no table at all --
+    the reasoning under which 1.14b declared `output_q.csv` alone while
+    `write_tidy_tables` wrote and pruned `output_gwr.csv` behind Snakemake's
+    back.
+
+    The filename here is what `Snakefile_model_creation`'s WFLOW_TABLE_PATHS
+    reconstructs from `wflow_outvars` + `wflow_outputs.CODES`. If this name
+    changes, that derivation must change with it or the rule fails on a
+    missing declared output.
+    """
+    src = tmp_path / "output.csv"
+    pd.DataFrame(
+        {
+            "time": ["2000-01-02T00:00:00", "2000-01-03T00:00:00"],
+            "Q_101": [1.0, 2.0],
+            "gwr_101": [3.0, 4.0],
+            "gwr_102": [5.0, 6.0],
+        }
+    ).to_csv(src, index=False)
+
+    written = write_tidy_tables(src, tmp_path / "out")
+    assert [p.name for p in written] == ["output_gwr.csv", "output_q.csv"]
+
+    gwr = pd.read_csv(written[0], dtype=str)
+    # Bare SUBCATCHMENT ids here, not gauge stations -- same shape, different
+    # domain, which is exactly why the variable belongs in the filename.
+    assert list(gwr.columns) == ["time", "101", "102"]
+
+
 def test_write_leaves_the_source_untouched(tmp_path):
     """The raw csv is hydromt's to read; deriving must not perturb it."""
     src = tmp_path / "output.csv"

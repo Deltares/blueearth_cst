@@ -95,11 +95,18 @@ def slugify(variable: str) -> str:
 
 
 def split_columns(columns) -> Dict[str, List[str]]:
-    """Group ``<var>_<station>`` column names by variable, stations sorted.
+    """Group ``<var>_<id>`` column names by variable, ids sorted.
 
-    Columns that do not match the grammar (``time``, and any ``<var>_basavg``
-    aggregate, which is per-subcatchment rather than per-station) are left out:
-    they have no station id to key on, so they cannot join a per-station table.
+    The id is not always a GAUGE. Rule 1.09 declares two kinds of column and
+    both match this grammar: ``Q_<station>`` on the outlets/gauges maps, and
+    ``<code>_<subcatchment>`` for every other ``wflow_outvars`` entry, on the
+    subcatchment map with a mean reducer. So ``gwr_101`` groups here exactly as
+    ``Q_101`` does, and yields ``output_gwr.csv`` whose columns are
+    SUBCATCHMENT ids.
+
+    That is a change from the original ``<var>_basavg`` spelling, which carried
+    no numeric id and so was skipped by this function. Nothing is skipped for
+    being an aggregate any more -- only ``time``, which has no id at all.
     """
     grouped = {}
     for name in columns:
@@ -197,4 +204,8 @@ def write_tidy_tables(
 if __name__ == "__main__":
     # Snakemake `script:` entry point: reads snakemake.input/output, never argv.
     sm = snakemake  # noqa: F821 - injected by Snakemake
-    write_tidy_tables(sm.input.csv_path, Path(sm.output.q_table).parent)
+    # `sm.output[0]` rather than a named output: rule 1.14b declares the whole
+    # table set now (one per configured variable), and every member shares the
+    # directory this needs. Indexing position 0 stays correct however many
+    # there are, and does not have to track the declaration's name.
+    write_tidy_tables(sm.input.csv_path, Path(sm.output[0]).parent)

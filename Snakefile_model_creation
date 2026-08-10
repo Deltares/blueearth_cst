@@ -360,9 +360,12 @@ WF1_TERMINALS = [
     # rule and is config-invariant, so the gather rules wait on exactly what
     # they waited on before.
     f"{basin_dir}/evaluation/performance_metrics.csv",
-    # The Excel-ready discharge table (1.14b). A product of the workflow rather
-    # than an incidental by-product, so it is a rule-`all` member like the
-    # figures — nothing downstream consumes it, so without this it never builds.
+    # The Excel-ready tables (1.14b). A product of the workflow rather than an
+    # incidental by-product, so they are rule-`all` members like the figures —
+    # nothing downstream consumes them, so without this they never build.
+    # ONE representative is enough, as with the nine figures below: 1.14b writes
+    # the whole set (WFLOW_TABLE_PATHS) in a single job, so requesting the
+    # discharge table schedules every other table with it.
     f"{basin_dir}/run_default/output_q.csv",
     f"{spatial_dir}/plots/basin_area.png",
     # One representative of each canonical climate set: the rules produce their
@@ -771,6 +774,32 @@ _basavg_pngs = [
     if var not in _WFLOW_OUTVARS_WITHOUT_BASAVG_PLOT
 ]
 
+# The COMPLETE set of tables rule 1.14b writes, derived from the same config
+# key. Rule 1.09 declares exactly two kinds of `[output.csv]` column, and both
+# reach a derived table because both carry a numeric id:
+#
+# * `Q` on the `outlets` map (plus the `gauges_locations` map when the project
+#   has a location registry) -- declared UNCONDITIONALLY by
+#   setup_gauges_and_outputs, i.e. even when `river discharge` is absent from
+#   `wflow_outvars`, so `output_q.csv` is always produced;
+# * one SHORT CODE per remaining `wflow_outvars` entry, on the `subcatchment`
+#   map with a mean reducer -- `gwr_101`.
+#
+# That second kind is why this list has to exist. 1.14b used to declare
+# `output_q.csv` alone, on the reasoning that extras were `<var>_basavg` and so
+# carried no id to key on. True once; the short-code change (shared/
+# wflow_outputs.CODES) renamed them to `<code>_<subcatchment_id>`, which
+# `tidy_wflow_table.split_columns` matches exactly as it matches a gauge
+# column. So `write_tidy_tables` wrote `output_gwr.csv` -- and PRUNED it on a
+# later run -- while no rule declared it. Undeclared output is invisible to
+# Snakemake: nothing rebuilds it when deleted, and since rule 1.14's
+# `output.csv` became temp() the only way back was re-running the whole model.
+WFLOW_TABLE_PATHS = [f"{basin_dir}/run_default/output_q.csv"] + [
+    f"{basin_dir}/run_default/output_{WFLOW_OUTPUT_CODES[var]}.csv"
+    for var in wflow_outvars
+    if var != "river discharge"
+]
+
 # 1.14b  export_wflow_tables — Excel-ready per-variable tables derived from 1.14
 #
 # DERIVED, not a rewrite. `output.csv` is read back by rule 1.15 through
@@ -802,11 +831,10 @@ rule export_wflow_tables:
         # LOCAL, not something a reader has to re-derive from a chain.
         model_final = ancient(f"{basin_dir}/.model_final"),
     output:
-        # Discharge is the only per-station variable a shipped config produces:
-        # 1.05's extras are subcatchment means (`<var>_basavg`) with no station
-        # id, so they are not per-station tables. Declared as the one file
-        # rather than a directory() so Snakemake tracks it like any other.
-        q_table = f"{basin_dir}/run_default/output_q.csv",
+        # EVERY table, derived from the config -- not just discharge. Declared
+        # as the individual files rather than a directory() so Snakemake tracks
+        # each one like any other output.
+        tables = WFLOW_TABLE_PATHS,
     log:
         f"{LOG_PARTS_DIR}/1.14b_export_wflow_tables.log",
     benchmark:
