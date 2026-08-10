@@ -81,7 +81,6 @@ COVERED: dict[str, list[str]] = {
         "data/spatial/geoms/subbasins.geojson",
         # ADR 0007: basin_area depicts elevation, so it sits with the data.
         "data/spatial/plots/basin_area.png",
-        "data/spatial/plots/basin_area.pdf",
         f"data/climate/historical/{KEY}/extract_historical.nc",
         f"data/climate/historical/{KEY}/.guard_ok",
         f"data/climate/historical/{KEY}/plots/source_precip_map.png",
@@ -113,7 +112,11 @@ COVERED: dict[str, list[str]] = {
         "models/hydrology/wflow/run_default/log.txt",
         "models/hydrology/wflow/run_default/outstate/outstates.nc",
         "models/hydrology/wflow/evaluation/performance_metrics.csv",
-        "models/hydrology/wflow/evaluation/plots/hydro_wflow_1.png",
+        # Keyed by wflow_id since 2026-08-10; four sheets per station.
+        "models/hydrology/wflow/evaluation/plots/hydrograph_1010.png",
+        "models/hydrology/wflow/evaluation/plots/signatures_peaks_1010.png",
+        "models/hydrology/wflow/evaluation/plots/signatures_lows_1010.png",
+        "models/hydrology/wflow/evaluation/plots/performance_1010.png",
     ],
     "experiments": [
         f"experiments/{E}/.project_consistency_ok",

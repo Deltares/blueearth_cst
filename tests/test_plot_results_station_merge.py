@@ -11,11 +11,12 @@ where it killed rule 1.11 outright after the 2026-08-01 fix to
 ``blueearth_cst/shared/gauges.py`` made the gauge series resolvable in the
 first place — the collision had been masked by the gauges never being found.
 
-The outlet label must WIN the collision: rule 1.11 declares
-``hydro_wflow_1.png`` as a Snakemake
-outputs and every figure is written as ``<kind>_{station_name}.png``, so a
-user name winning on the first outlet trades the MergeError for a
-MissingOutputException.
+The outlet series must WIN the collision. That was once a filename
+requirement — rule 1.15 declared ``hydro_wflow_1.png`` and every figure was
+written as ``<kind>_{station_name}.png`` — and since 2026-08-10 the figures are
+keyed by ``wflow_id`` and none is declared. What the tests below pin is the
+MERGE itself: a deterministic winner, the outlet's values surviving, and the
+gauge-only stations coming through untouched.
 """
 
 from __future__ import annotations
@@ -71,7 +72,7 @@ def test_gauge_on_the_outlet_keeps_the_outlet_label():
     merged = merge_outlet_and_gauge_series(outlets, gauges, log=lambda msg: None)
 
     assert list(merged["index"].values) == [101, 102, 103, 104]
-    # The declared output hydro_wflow_1.png is named after THIS label.
+    # The outlet's label survives; `resolve_stations` maps it onto a wflow_id.
     assert merged["station_name"].sel(index=101).item() == "wflow_1"
     assert merged["station_name"].sel(index=104).item() == "south_tributary"
     # The outlet series is the one that survives, values included.

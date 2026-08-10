@@ -352,7 +352,8 @@ def render(project_dir: Path, out_dir: Path, values: dict, suffix: str) -> list:
             plot_dir=str(out_dir),
         )
     written = []
-    for extension in (".png", ".pdf"):
+    # PNG only: the figure stopped being written as a PDF on 2026-08-10.
+    for extension in (".png",):
         produced = out_dir / f"{_FIGURE_STEM}{extension}"
         if not produced.is_file():
             continue

@@ -227,11 +227,10 @@ VOLATILE_NC_ATTRS = frozenset(
 TARGETS: list[tuple[str, str, str]] = [
     # Snakefile_model_creation -- B10 (commit 12) splits the project-level
     # plots/ tree by DEPICTED subject: model inputs, the model, the run.
-    (
-        "model_creation",
-        "png",
-        "{project_dir}/models/hydrology/wflow/evaluation/plots/hydro_wflow_1.png",
-    ),
+    # Per-station evaluation figures are keyed by wflow_id (2026-08-10), so no
+    # single name is config-invariant. FIGURE_KINDS targets are excluded from
+    # the gate by default anyway; the run's numbers are covered by output.csv
+    # and performance_metrics.csv.
     (
         "model_creation",
         "png",

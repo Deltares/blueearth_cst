@@ -352,7 +352,12 @@ LOG_RULES = [
 # independently of the build and needs no gather waiting on it) and the two
 # gather outputs themselves.
 WF1_TERMINALS = [
-    f"{basin_dir}/evaluation/plots/hydro_wflow_1.png",
+    # The evaluation rule's terminal is its METRICS TABLE, not one of its
+    # figures: since 2026-08-10 the figures are keyed by wflow_id and none of
+    # their names is knowable at parse time. The table is written by the same
+    # rule and is config-invariant, so the gather rules wait on exactly what
+    # they waited on before.
+    f"{basin_dir}/evaluation/performance_metrics.csv",
     f"{spatial_dir}/plots/basin_area.png",
     # One representative of each canonical climate set: the rules produce their
     # nine figures as a unit, so naming every one here would add no edge.
@@ -764,8 +769,15 @@ rule plot_wflow_evaluation:
    # retires the failure mode declaring them introduced: a config with a
    # sub-year historical_window failed here with MissingOutputException where
    # it used to log a skip.
+   #
+   # No per-station FIGURE is declared any more. They are keyed by wflow_id
+   # since 2026-08-10 — `hydrograph_1010.png` — and a wflow_id is a product of
+   # the model build, so it is not knowable at parse time. `hydro_wflow_1.png`
+   # only worked as a declared output because plot_results.py forced the first
+   # outlet's label to that literal, which is the naming inconsistency the
+   # rename removes. The metrics table is this rule's config-invariant artifact
+   # and takes over as its terminal.
    output:
-       output_png = f"{basin_dir}/evaluation/plots/hydro_wflow_1.png",
        metrics_csv = f"{basin_dir}/evaluation/performance_metrics.csv",
        basavg_pngs = _basavg_pngs,
    params:
@@ -811,8 +823,10 @@ rule plot_basin_map:
         # drawn FROM this file.
         spatial_maps = f"{spatial_dir}/spatial_maps.nc",
     output:
+        # PNG only since 2026-08-10 (owner's call): nothing in the toolbox
+        # or the platform read the vector deliverable, and 600 dpi at 180 mm
+        # carries the figure everywhere it is used.
         basin_png = f"{spatial_dir}/plots/basin_area.png",
-        basin_pdf = f"{spatial_dir}/plots/basin_area.pdf",
         # From the registry the plotter iterates, not restated here — the same
         # contract rule 1.13 has with climate_figures.figure_names(). Only the
         # figures whose source variable exists for EVERY shipped catalog source

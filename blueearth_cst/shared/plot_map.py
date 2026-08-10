@@ -265,11 +265,11 @@ def plot_basin_map_from_spatial(spatial_dir, plot_dir=None):
         gauges=layers.get("gauges"),
         caveat=source_caveat(elevation),
     )
-    save_figure(
-        os.path.join(str(plot_dir), "basin_area.pdf"),
-        fig=fig,
-        metadata={"CreationDate": None},
-    )
+    # PNG only since 2026-08-10 (owner's call). The PDF was the vector,
+    # embedded-font deliverable and nothing in the toolbox or the platform read
+    # it; at 600 dpi and 180 mm the PNG carries the figure everywhere it is
+    # actually used. Dropping it also halves this rule's render time, since the
+    # figure was serialised twice.
     save_figure(
         os.path.join(str(plot_dir), "basin_area.png"),
         fig=fig,
@@ -327,12 +327,9 @@ def plot_basin_map_from_model(project_dir, gauges_fn, plot_dir=None, model_dir=N
     # No bbox_inches="tight": it re-crops to the drawn content, which throws
     # away the declared 180 mm width. Constrained layout already fits the
     # furniture inside that width.
-    save_figure(
-        os.path.join(plot_dir, "basin_area.pdf"),
-        fig=fig,
-        # Drop the timestamp so two identical runs produce identical bytes.
-        metadata={"CreationDate": None},
-    )
+    #
+    # PNG only, matching `plot_basin_map_from_spatial` above — the two write the
+    # same figure and should not disagree about its formats.
     save_figure(
         os.path.join(plot_dir, "basin_area.png"),
         fig=fig,

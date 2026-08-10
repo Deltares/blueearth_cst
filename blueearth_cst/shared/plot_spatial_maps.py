@@ -444,7 +444,7 @@ SPATIAL_MAP_FIGURES = (
 )
 
 
-def figure_paths(plots_dir, formats=("png", "pdf"), declared_only=True):
+def figure_paths(plots_dir, formats=("png",), declared_only=True):
     """The figure files this family writes under ``plots_dir``.
 
     Rule 1.12's ``output:`` comes from here rather than restating the stems, the
@@ -454,6 +454,14 @@ def figure_paths(plots_dir, formats=("png", "pdf"), declared_only=True):
     ``declared_only`` keeps the source-specific figures out of the rule's
     promise; see :attr:`SpatialFigure.guaranteed` for why that is not a
     shortcut. It does NOT stop them being drawn.
+
+    PNG ONLY since 2026-08-10 (owner's call, applied first to ``basin_area`` and
+    then to the whole deliverable). The PDF was the vector, embedded-font
+    publication copy and nothing in the toolbox or the platform read it; at
+    600 dpi and 180 mm the PNG carries the figure everywhere it is used. It also
+    halved this rule's render time, which serialised every figure twice.
+    ``formats`` stays a parameter because a caller preparing a manuscript can
+    still ask for one.
     """
     return [
         f"{plots_dir}/{figure.stem}.{extension}"
@@ -597,7 +605,7 @@ def source_caveat(layer):
 # ---------------------------------------------------------------------------
 
 
-def plot_spatial_maps(spatial_dir, plot_dir=None, variables=None, dpi=None, formats=("png", "pdf")):
+def plot_spatial_maps(spatial_dir, plot_dir=None, variables=None, dpi=None, formats=("png",)):
     """Render the family into ``<spatial_dir>/plots``, returning what it wrote.
 
     ``variables`` selects a subset by variable name, and also REACHES layers the
@@ -677,18 +685,15 @@ def plot_spatial_maps(spatial_dir, plot_dir=None, variables=None, dpi=None, form
         )
         for extension in formats:
             path = os.path.join(str(plot_dir), f"{figure.stem}.{extension}")
-            save_figure(
-                path,
-                fig=fig,
-                # Same reason as basin_area: drop the timestamp and the
-                # matplotlib version so two identical runs produce identical
-                # bytes and an env bump does not move a fingerprint.
-                **(
-                    {"metadata": {"CreationDate": None}}
-                    if extension == "pdf"
-                    else {"dpi": dpi or RASTER_DPI, "metadata": {"Software": None}}
-                ),
+            # PDF takes no dpi and needs its timestamp scrubbed; PNG takes dpi
+            # and needs the matplotlib version scrubbed. Either way the point is
+            # that two identical runs produce identical bytes.
+            scrub = (
+                {"metadata": {"CreationDate": None}}
+                if extension == "pdf"
+                else {"dpi": dpi or RASTER_DPI, "metadata": {"Software": None}}
             )
+            save_figure(path, fig=fig, **scrub)
             written.append(Path(path))
         plt.close(fig)
 

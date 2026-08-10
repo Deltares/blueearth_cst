@@ -166,12 +166,20 @@ def test_only_source_stable_variables_are_declared_as_rule_outputs():
     assert ungiven == {"soil_BDTICM_M_250m_ll"}
 
 
-def test_the_rule_output_list_is_png_and_pdf_for_every_declared_figure():
+def test_the_rule_output_list_is_one_png_per_declared_figure():
+    """PNG only since 2026-08-10 — the vector copy went unread. `formats` is
+    still a parameter, so a caller preparing a manuscript can ask for a PDF."""
     paths = family.figure_paths("P/plots")
     declared = [f for f in family.SPATIAL_MAP_FIGURES if f.guaranteed]
-    assert len(paths) == 2 * len(declared)
-    assert "P/plots/land_cover.png" in paths and "P/plots/land_cover.pdf" in paths
+    assert len(paths) == len(declared)
+    assert "P/plots/land_cover.png" in paths
+    assert not any(path.endswith(".pdf") for path in paths)
     assert "P/plots/soil_depth_to_bedrock.png" not in paths
+
+
+def test_a_caller_can_still_ask_for_a_pdf():
+    paths = family.figure_paths("P/plots", formats=("png", "pdf"))
+    assert "P/plots/land_cover.pdf" in paths
 
 
 def test_the_undeclared_figures_are_still_drawn():

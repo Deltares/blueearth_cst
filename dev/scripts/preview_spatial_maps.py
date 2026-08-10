@@ -125,11 +125,6 @@ def main(argv=None) -> int:
     parser.add_argument(
         "--dpi", type=int, help="PNG resolution (default: the export dpi)"
     )
-    parser.add_argument(
-        "--png-only",
-        action="store_true",
-        help="skip the PDF, which is most of the render time on a large family",
-    )
     args = parser.parse_args(argv)
 
     if args.list:
@@ -147,7 +142,6 @@ def main(argv=None) -> int:
         plot_dir=args.out_dir,
         variables=args.variable or None,
         dpi=args.dpi,
-        formats=("png",) if args.png_only else ("png", "pdf"),
     )
     print(f"wrote   : {len(written)} file(s)")
     return 0
