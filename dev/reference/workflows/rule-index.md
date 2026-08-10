@@ -515,6 +515,12 @@ which builds the forcing for the model grid and — through the recipe's
 `setup_config` step — writes the run window and forcing pointer into the model
 TOML.
 
+The window is `workflows.model_creation.simulation_window`, falling back to
+`shared.historical_window` when unset (2026-08-10). That is the SIMULATION
+period, not the extraction period: this rule declares no climate-store input,
+and `setup_precip_forcing` resolves `clim_historical` from the data catalog, so
+the record a project analyses and the period it simulates are independent.
+
 **Writes.** `<model>/forcing/inmaps_historical.nc` ·
 `<model>/config/build_historical_forcing.yml` (the recipe, kept as provenance of
 the model it built) · `<model>/.model_final` (sentinel).

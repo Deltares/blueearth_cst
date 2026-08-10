@@ -6,7 +6,7 @@ from pathlib import Path
 # See dev/milestones/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
 from blueearth_cst.shared.provenance import short_digest, snapshot_bundle_digest
-from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_JULIA_THREADS, climate_store_rule, get_config, julia_prefix, patch_psutil_windows_benchmark, region_rule, rule_banner, spatial_units_rule, target_banner, validate_historical_window, warn_if_project_dir_in_repo
+from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_JULIA_THREADS, climate_store_rule, get_config, julia_prefix, patch_psutil_windows_benchmark, region_rule, resolve_simulation_window, rule_banner, spatial_units_rule, target_banner, validate_historical_window, warn_if_project_dir_in_repo
 from blueearth_cst.spatial.config import parse_spatial_config
 # The canonical climate figure set (rules 1.13 and 1.15 both draw it). Imported
 # for figure_names() ONLY, so every figure is declared from the same list the
@@ -72,6 +72,15 @@ historical_window = get_config(shared_cfg, "historical_window", optional=False)
 # stance as the eobs rejection below. Whether the staged source actually COVERS
 # the requested window is a different question, checked at rule 1.04.
 validate_historical_window(historical_window)
+# The period the MODEL IS RUN over, which is a different question from how much
+# record to extract (above). Optional; absent means exact passthrough of
+# historical_window, so every config predating this key is unaffected. Resolved
+# and validated at parse time for the same reason the window above is.
+#
+# Editing it re-runs rule 1.10 through Snakemake's params trigger, which
+# rebuilds the forcing and so re-runs 1.14 — and since 1.14's output.csv is
+# temp(), that is the whole model. Correct, but not cheap.
+simulation_window = resolve_simulation_window(shared_cfg, my_cfg)
 clim_source = get_config(shared_cfg, "clim_historical", optional=False)
 # Wflow.jl thread count for rule 1.14. OPTIONAL — the default is P3-3's frozen
 # baseline value, so an existing config is unaffected. Config-driven rather than
@@ -648,8 +657,13 @@ rule add_climate_forcing:
         # writer of the model root, so the anchor is unchanged.
         model_final = touch(f"{basin_dir}/.model_final"),
     params:
-        starttime = get_config(shared_cfg["historical_window"], "starttime", optional=False),
-        endtime = get_config(shared_cfg["historical_window"], "endtime", optional=False),
+        # The SIMULATION window, not the extraction window. These two params set
+        # both halves of the same span: the forcing hydromt builds, and the
+        # wflow TOML's `[time]` starttime/endtime it runs over
+        # (shared/setup_time_horizon.py). They are one key precisely because
+        # forcing and run period cannot legitimately differ.
+        starttime = get_config(simulation_window, "starttime", optional=False),
+        endtime = get_config(simulation_window, "endtime", optional=False),
         clim_source = get_config(shared_cfg, "clim_historical", optional=False),
         basin_dir = basin_dir,
         data_catalog = DATA_SOURCES,

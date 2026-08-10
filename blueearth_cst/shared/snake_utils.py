@@ -713,6 +713,72 @@ def validate_historical_window(historical_window) -> int:
     return days
 
 
+def resolve_simulation_window(shared_cfg, model_cfg):
+    """The window the hydrological model SIMULATES, which is not the record.
+
+    Two different questions were one config key until 2026-08-10:
+
+    * ``shared.historical_window`` — how much climate record to EXTRACT. It
+      feeds the climate store, the climate figures, and (through that store)
+      weathergenr, whose wavelet decomposition sets ``MIN_HISTORICAL_YEARS``.
+      This is analysis input, and it is what a future standalone climate
+      workflow would be parameterised on.
+    * ``workflows.model_creation.simulation_window`` — the period the model is
+      RUN over. It sets the forcing hydromt prepares and the ``[time]``
+      ``starttime``/``endtime`` in the wflow TOML, which are necessarily the
+      same span: forcing outside the run period is built and never read, and a
+      run period outside the forcing has nothing to read.
+
+    Nothing couples them. Rule 1.10 declares no climate-store input — its
+    forcing comes from ``setup_precip_forcing: {precip_fn: <clim_source>}``,
+    which hydromt resolves from the DATA CATALOG and clips to the times below.
+    So a project may legitimately analyse 1990-2010 while simulating 2000-2020,
+    and this deliberately does NOT require one window to contain the other.
+
+    ``MIN_HISTORICAL_YEARS`` is likewise not applied here. It exists for
+    weathergenr's record, so a project can now run a short simulation while
+    keeping the >=16-year record a stress test needs — which the single-key
+    form could not express.
+
+    OPTIONAL, and absent means EXACT passthrough of ``historical_window`` — not
+    a default that happens to coincide. Every config written before this key
+    existed therefore behaves identically.
+
+    Returns a mapping with ``starttime``/``endtime``; raises ``ValueError``
+    naming the offending key if the window is malformed.
+    """
+    window = get_config(model_cfg, "simulation_window", None)
+    if window is None:
+        return get_config(shared_cfg, "historical_window", optional=False)
+    if not isinstance(window, Mapping):
+        raise ValueError(
+            f"workflows.model_creation.simulation_window must be a mapping "
+            f"with starttime/endtime, got {window!r}"
+        )
+    for key in ("starttime", "endtime"):
+        if key not in window:
+            raise ValueError(
+                f"workflows.model_creation.simulation_window is missing {key!r}"
+            )
+        try:
+            datetime.fromisoformat(str(window[key]).strip())
+        except ValueError:
+            raise ValueError(
+                f"workflows.model_creation.simulation_window.{key} is not an "
+                f"ISO datetime: {window[key]!r}"
+            ) from None
+    start, end = (
+        datetime.fromisoformat(str(window["starttime"]).strip()),
+        datetime.fromisoformat(str(window["endtime"]).strip()),
+    )
+    if end <= start:
+        raise ValueError(
+            f"workflows.model_creation.simulation_window {start.date()} .. "
+            f"{end.date()} ends on or before it starts — check the order"
+        )
+    return window
+
+
 def slugify_window(start, end) -> str:
     """Render a window ``(start, end)`` to a compact ``YYYYMMDD_YYYYMMDD`` slug.
 
