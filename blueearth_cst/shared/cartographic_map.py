@@ -55,6 +55,32 @@ import cartopy.crs as ccrs
 from cartopy.mpl.ticker import LatitudeFormatter, LongitudeFormatter
 from shapely.geometry import box as shapely_box
 
+from blueearth_cst.shared import plot_style
+
+# The toolbox-wide page/typography settings. Bound HERE, in this module's
+# globals, so the drawing code below reads them by bare name and
+# `dev/scripts/preview_basin_map.py --set` can rebind them -- see the tunable
+# block and `plot_style`'s docstring.
+#
+# RASTER_DPI is a deliberate re-export, not a leftover: `shared/plot_map.py`
+# imports it from here, and that file is a Snakemake `script:` target
+# (Snakefile_model_creation rule 1.12), so editing it would fire the `code`
+# rerun trigger on every project_dir for no behavioural gain. It moves to a
+# direct `plot_style` import in the plotting sweep, alongside a change to that
+# file that is worth the invalidation.
+from blueearth_cst.shared.plot_style import RASTER_DPI  # noqa: F401
+from blueearth_cst.shared.plot_style import (
+    COLOR_CAVEAT,
+    FIGURE_WIDTH_MM,
+    FONT_FAMILY,
+    FONT_SIZE_BASE,
+    FONT_SIZE_CAVEAT,
+    FONT_SIZE_LEGEND,
+    FONT_SIZE_TICK,
+    FONT_SIZE_TITLE,
+    MM_PER_INCH,
+)
+
 
 # ===========================================================================
 # TUNABLE CONSTANTS
@@ -77,33 +103,18 @@ from shapely.geometry import box as shapely_box
 # ---------------------------------------------------------------------------
 
 # --- page and export -------------------------------------------------------
-
-#: Figure width in MILLIMETRES — converted once, here, and never re-guessed
-#: downstream. 180 mm is the double-column width that Elsevier (190), AGU (190)
-#: and Copernicus (170) all accept without downscaling. Set this to your target
-#: journal's column width; every other size is chosen to work at it.
-FIGURE_WIDTH_MM = 180.0
-MM_PER_INCH = 25.4
-
-#: Resolution of the PNG. The figure is built at its final PHYSICAL size, so
-#: this changes the pixel count and nothing else — type, line weights and the
-#: map all stay the size they will be on the page.
-#:
-#: 600 because this is COMBINATION artwork: a raster (the DEM) under line art
-#: and type. Publishers ask more of that than of either alone — 300 dpi is the
-#: pure-halftone minimum, while Elsevier asks 500 and AGU/Wiley 600 for
-#: combination figures. 600 clears all of them, and 180 mm at 600 dpi is
-#: 4252 px, which is still a small file for a map this sparse.
-#:
-#: It also covers PowerPoint. matplotlib writes the resolution into the PNG's
-#: ``pHYs`` chunk, so PowerPoint and Word insert the image at its true 180 mm
-#: width instead of assuming 96 dpi and dropping in something 750 mm wide. That
-#: is the part that actually breaks when a figure is exported without dpi
-#: metadata, and it is verified rather than assumed (checked 2026-08-09).
-#:
-#: The PDF remains the deliverable for print: it is vector, so it has no
-#: resolution to get wrong.
-RASTER_DPI = 600
+#
+# FIGURE_WIDTH_MM, MM_PER_INCH, RASTER_DPI, the FONT_SIZE_* names below marked
+# "(shared)" and FONT_FAMILY are the TOOLBOX-WIDE settings, imported from
+# `shared/plot_style.py` so every figure family agrees on them. Change one
+# THERE to move every figure; rebind one here (which is what
+# `dev/scripts/preview_basin_map.py --set` does) to move only the map. The
+# import binds each name in THIS module's globals, so the drawing code below
+# and the preview's `setattr` both keep working unchanged.
+#
+# What stays here is map furniture — the scale bar, north arrow, gauge labels
+# and colourbar sizes, which no non-map figure reads. `plot_style`'s docstring
+# carries the test for which side a new constant belongs on.
 
 # --- typography ------------------------------------------------------------
 
@@ -111,25 +122,14 @@ RASTER_DPI = 600
 #: ``rc_context`` so the process-wide rcParams the other plotting rules inherit
 #: are left untouched. Raise every value together to scale the labelling; raise
 #: one to re-balance it.
-#: Fallback for anything not named below — which, as the figure currently
-#: stands, is NOTHING: every text element carries its own size, the title is
-#: empty and the axes have no labels. Changing it alone therefore renders
-#: identical bytes. It matters only once a text element is added without a size
-#: of its own. Verified 2026-08-03 with ``dev/scripts/preview_basin_map.py``.
-FONT_SIZE_BASE = 8.0
-FONT_SIZE_TICK = 7.0  #: coordinate tick labels
-FONT_SIZE_LEGEND = 6.5  #: legend entries and its title
+#:
+#: FONT_SIZE_BASE / _TICK / _LEGEND are shared (imported above). The four below
+#: are map furniture and live here.
 FONT_SIZE_COLORBAR_LABEL = 7.0  #: the colourbar's title
 FONT_SIZE_COLORBAR_TICK = 5.5  #: the numbers beside the colourbar
 FONT_SIZE_GAUGE_LABEL = 5.5  #: the wflow_id beside each gauge marker
 FONT_SIZE_SCALE_BAR = 6.0  #: the 0 / 2.5 / 5 km numbers
 FONT_SIZE_NORTH_ARROW = 7.5  #: the "N"
-
-#: Font family. ``None`` keeps matplotlib's default (DejaVu Sans, which embeds
-#: cleanly in the PDF). Set e.g. ``"Arial"`` or ``["Helvetica", "Arial"]`` to
-#: match a manuscript — but check the exported PDF, because a missing family
-#: falls back SILENTLY.
-FONT_FAMILY = None
 
 # --- layout ----------------------------------------------------------------
 
@@ -852,10 +852,11 @@ TEMPERATURE_DIVERGING_PALETTE = "RdBu_r"
 TEMPERATURE_DIVERGING_CENTER = 0.0
 
 #: Optional figure title and footnote, drawn INSIDE the constrained-layout
-#: budget. The climate figures carry both; the basin map carries neither.
-FONT_SIZE_TITLE = 9.0
-FONT_SIZE_CAVEAT = 6.0
-COLOR_CAVEAT = "0.35"
+#: budget. The climate figures carry both; the basin map carries neither —
+#: which is why FONT_SIZE_TITLE / FONT_SIZE_CAVEAT / COLOR_CAVEAT are shared
+#: rather than map furniture, and live in ``plot_style`` (imported at the top).
+#: They are re-exported here because ``climate_figures`` still reaches for them
+#: through this module; that import moves in the plotting sweep.
 
 
 #: The vendored Natural Earth extract the locator inset draws. Provenance,
@@ -1008,24 +1009,24 @@ def _panel_locator_box(extent, target_width=None):
 
 
 def _publication_rc():
-    """The rcParams the figure is drawn under, from the FONT_SIZE_*/WIDTH_*."""
-    return {
-        "font.size": FONT_SIZE_BASE,
-        "axes.titlesize": FONT_SIZE_BASE + 1.0,
-        "axes.labelsize": FONT_SIZE_BASE,
-        "xtick.labelsize": FONT_SIZE_TICK,
-        "ytick.labelsize": FONT_SIZE_TICK,
-        "legend.fontsize": FONT_SIZE_LEGEND,
-        "legend.title_fontsize": FONT_SIZE_LEGEND,
-        "axes.linewidth": WIDTH_AXES_SPINE,
-        "xtick.major.width": WIDTH_AXES_SPINE,
-        "ytick.major.width": WIDTH_AXES_SPINE,
-        # 42 = TrueType. The default (Type 3) is not editable in Illustrator and
-        # is rejected outright by several publishers' preflight.
-        "pdf.fonttype": 42,
-        "ps.fonttype": 42,
-        **({"font.family": FONT_FAMILY} if FONT_FAMILY else {}),
-    }
+    """The rcParams the figure is drawn under, from the FONT_SIZE_*/WIDTH_*.
+
+    The page-level half comes from ``plot_style.rcparams`` so every figure
+    family shares it; ``WIDTH_AXES_SPINE`` is map furniture and is passed in.
+
+    Every value is handed over EXPLICITLY rather than letting ``plot_style``
+    read its own globals. The names below resolve in this module's namespace,
+    which is what ``dev/scripts/preview_basin_map.py --set`` rebinds; a value
+    read inside ``plot_style`` would be that module's own copy, which no
+    override touches — the figure would silently ignore the knob.
+    """
+    return plot_style.rcparams(
+        font_size_base=FONT_SIZE_BASE,
+        font_size_tick=FONT_SIZE_TICK,
+        font_size_legend=FONT_SIZE_LEGEND,
+        font_family=FONT_FAMILY,
+        axes_linewidth=WIDTH_AXES_SPINE,
+    )
 
 
 def _metres_per_degree(latitude_deg):

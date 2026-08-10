@@ -52,7 +52,7 @@ import numpy as np
 import xarray as xr
 from matplotlib.ticker import MaxNLocator
 
-from blueearth_cst.shared.cartographic_map import RASTER_DPI
+from blueearth_cst.shared.plot_style import RASTER_DPI
 from blueearth_cst.shared.snake_utils import log_row, save_figure
 
 #: One entry per variable: label and unit for the axes, and how the variable
@@ -390,11 +390,10 @@ def _series_axes(caveat, aspect=0.42):
     also what reserves room for the footnote instead of overprinting the axis.
     """
     from blueearth_cst.shared.cartographic_map import (
-        COLOR_CAVEAT,
-        FONT_SIZE_CAVEAT,
         _publication_rc,
         series_figure_size,
     )
+    from blueearth_cst.shared.plot_style import COLOR_CAVEAT, FONT_SIZE_CAVEAT
 
     with plt.rc_context(_publication_rc()):
         fig = plt.figure(figsize=series_figure_size(aspect), layout="constrained")
