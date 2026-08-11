@@ -4,8 +4,9 @@
 > integrated change to the WF2 figure contract. It now specifies a **design
 > prototype**: render the proposed figure set outside the workflow, publish it as
 > an Artifact, and obtain an owner ruling. **No code integration.** The
-> integration in `dc40a22` predates this reframing; its disposition (keep, or
-> revert to a prototype) is a separate owner decision and is not in scope here.
+> integration that had landed as `dc40a22` was reverted at `e89b3fb`, so the
+> tree now matches this brief. `dc40a22` is where a future integration starts if
+> the design is adopted; nothing in the WF2 figure contract is touched meanwhile.
 
 ### Context
 
