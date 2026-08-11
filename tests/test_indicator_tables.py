@@ -20,6 +20,7 @@ from blueearth_cst.shared.indicator_tables import (
     basin_reduction,
     indicator_table_filename,
     indicator_tables,
+    output_code,
     q_metric_name,
     refuse_retired_experiment_keys,
     variable_token,
@@ -133,7 +134,7 @@ def test_overland_flow_reduces_with_a_mean_not_a_sum():
     assert basin_metric_name("overland_flow") == "overland_flow_annual_mean"
 
 
-@pytest.mark.parametrize("token", ["aet", "recharge", "precip"])
+@pytest.mark.parametrize("token", ["aet", "gwr", "precip"])
 def test_fluxes_keep_their_annual_total_in_mm_per_year(token):
     """A daily sum of a mm Δt⁻¹ flux is a legitimate time-integral. Ruled
     2026-08-08 as scoped to overland flow, so these are deliberately NOT
@@ -154,6 +155,21 @@ def test_the_three_tokens_that_were_deliberately_not_abbreviated(outvar, token):
     """Each of these had a shorter candidate rejected for a stated reason; a
     silent change here would reintroduce the ambiguity the ruling removed."""
     assert variable_token(outvar) == token
+
+
+def test_groundwater_recharge_borrows_the_code_it_already_had():
+    """The other half of the minting rule: where a canonical short name EXISTS,
+    take it rather than mint a second one.
+
+    `recharge` was the violation -- `gwr` is what `wflow_outputs.CODES` already
+    writes into the TOML and therefore into every run csv header, so the token
+    was a spelling the repo did not need. Renamed 2026-08-11; the table is
+    `gwr_indicators.csv` and the metric `gwr_annual_total`.
+    """
+    assert variable_token("groundwater recharge") == "gwr"
+    assert output_code("gwr") == "gwr"
+    assert indicator_table_filename("groundwater recharge") == "gwr_indicators.csv"
+    assert basin_metric_name("gwr") == "gwr_annual_total"
 
 
 # --- retired config keys (Q7) -------------------------------------------------

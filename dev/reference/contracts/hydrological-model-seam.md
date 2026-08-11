@@ -293,7 +293,7 @@ Rendered one subsection per artifact.
   | river discharge | `q` | `q_indicators.csv` |
   | precipitation | `precip` | `precip_indicators.csv` |
   | actual evapotranspiration | `aet` | `aet_indicators.csv` |
-  | groundwater recharge | `recharge` | `recharge_indicators.csv` |
+  | groundwater recharge | `gwr` | `gwr_indicators.csv` |
   | overland flow | `overland_flow` | `overland_flow_indicators.csv` |
   | snow | `snow` | `snow_indicators.csv` |
 
@@ -301,7 +301,19 @@ Rendered one subsection per artifact.
   mint where none exists; disambiguate against names in use. Hence `precip` not
   `p` (`naming.md` §6 tier 2), `aet` not `et` (`pet` is canonical and one letter
   away), `snow` not `swe` (the CSDMS name is `snowpack_liquid_water__depth` —
-  snowpack *liquid water*, so `swe` would assert a claim upstream does not make).
+  snowpack *liquid water*, so `swe` would assert a claim upstream does not make),
+  and `gwr` not `recharge` — the *first* clause of the rule rather than the
+  others' "only mint where none exists": `gwr` is the `wflow_outputs.CODES` code
+  already in every run csv header, so `recharge` was a spelling the repo did not
+  need. **Renamed 2026-08-11**; the metric moved with the table
+  (`recharge_annual_total` → `gwr_annual_total`), since the metric is composed
+  `<token>_<statistic>`. Record: `dev/milestones/r11/migration_indicator-tables.md`.
+
+  Every spelling of every variable — config label, CSDMS name, csv code, token,
+  metric, axis legend — is tabulated in `dev/reference/indicator-glossary.md`,
+  which `tests/test_indicator_glossary.py` checks against the code tables. This
+  table stays the CONTRACT for the token column; the glossary is the wider,
+  derived view.
 
 - **`rlz_id`, and the grain it encodes:** `0` means **pooled over realizations**;
   `1..RLZ_NUM` name one. Metrics linear in years are emitted per realization; the

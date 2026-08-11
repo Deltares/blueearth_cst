@@ -172,8 +172,11 @@ def subcatchment_columns(columns, token: str) -> dict[str, str]:
     ``outlet_index.csv`` without a crosswalk.
 
     Matched on ``wflow_outputs.CODES`` — the code the model build actually writes
-    into the TOML ``header`` — not on our indicator token, which differs for four
-    of the five variables (``recharge`` is emitted as ``gwr``). The trailing
+    into the TOML ``header`` — not on our indicator token, which differs for most
+    variables (``precip`` is emitted as ``p``, ``snow`` as ``swe``). The two are
+    tabulated side by side in ``dev/reference/indicator-glossary.md``; they are
+    not restated here, because a count of how many differ is one more thing to
+    get wrong when a variable is added. The trailing
     ``isdigit()`` is what keeps the prefix test honest: ``q`` would otherwise claim
     ``qof_101``, the same over-claiming the retired matcher's docstring worried
     about for ``snow``/``snowmelt``.

@@ -256,7 +256,8 @@ def _run_csv(path, seed, offset, basavg=True):
     ``gwr_101``). The reducer's matcher was never updated, so the fixture and the
     code agreed with each other and with nothing else — every test here stayed
     green while a real run wrote ``aet_indicators.csv`` and
-    ``recharge_indicators.csv`` empty. A fixture that invents its producer's
+    ``recharge_indicators.csv`` (``gwr_indicators.csv`` since the 2026-08-11
+    token rename) empty. A fixture that invents its producer's
     output format cannot fail when the producer changes it, so this one is now a
     literal copy of a real run's header.
     """
@@ -421,22 +422,25 @@ def test_a_non_discharge_variable_gets_its_own_table_per_subcatchment(tmp_path):
 
 
 def test_the_column_code_is_matched_not_the_indicator_token(tmp_path):
-    """`recharge` is emitted as `gwr_<id>`, and four of five tokens differ likewise.
+    """`precip` is emitted as `p_<id>`, and three of five tokens differ likewise.
 
     The regression this pins: a matcher keyed on the indicator token finds `aet`
-    and silently finds nothing for `recharge`, `precip`, `snow` or `overland_flow`
-    -- so the one variable a naive fix is tested against is the one variable it
-    happens to work for.
+    and `gwr` and silently finds nothing for `precip`, `snow` or `overland_flow`
+    -- so the variables a naive fix is tested against are the ones it happens to
+    work for. The 2026-08-11 `recharge` -> `gwr` rename made that trap WIDER, not
+    narrower: two of five tokens now coincide with their code, so this test keeps
+    its assertions on tokens that do not.
     """
     rng = np.random.default_rng(0)
     idx = pd.date_range("2000-01-01", periods=365, freq="D")
     columns = pd.DataFrame(
-        {"gwr_101": rng.gamma(2, 1, len(idx)), "qof_101": rng.gamma(2, 1, len(idx))},
+        {"p_101": rng.gamma(2, 1, len(idx)), "qof_101": rng.gamma(2, 1, len(idx))},
         index=idx,
     ).columns
-    assert subcatchment_columns(columns, "recharge") == {"gwr_101": "101"}
+    assert subcatchment_columns(columns, "precip") == {"p_101": "101"}
     assert subcatchment_columns(columns, "overland_flow") == {"qof_101": "101"}
-    # ...and `q` does not claim `qof_101` on a bare prefix test.
+    # `p_` does not over-claim `qof_101`, and a requested variable the run never
+    # emitted returns nothing rather than borrowing another variable's columns.
     assert subcatchment_columns(columns, "aet") == {}
 
 

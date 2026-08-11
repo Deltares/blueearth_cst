@@ -29,14 +29,26 @@ implementation detail.
 
 The rule for minting future tokens, so they are not chosen ad hoc: **where the
 repo already has a canonical short name, use it; only mint where none exists; and
-disambiguate against names already in use.** Its three consequences are why
+disambiguate against names already in use.** Its four consequences are why
 ``precip`` is not ``p`` (``naming.md`` §6 tier 2 declares ``precip`` canonical, and
 ``p`` would be a seventh spelling), why ``aet`` is not ``et`` (``pet`` is already
 canonical here and one letter apart in the same file is a misreading waiting to
-happen), and why ``snow`` is not ``swe`` (the CSDMS name is
+happen), why ``snow`` is not ``swe`` (the CSDMS name is
 ``snowpack_liquid_water__depth`` — snowpack *liquid water*, not total water
 equivalent, so minting ``swe`` would assert a physical claim upstream does not
-make, which ``AGENTS.md`` puts out of scope).
+make, which ``AGENTS.md`` puts out of scope), and — since 2026-08-11 — why
+groundwater recharge is ``gwr`` rather than ``recharge``: ``gwr`` is the code
+``wflow_outputs.CODES`` already writes into the TOML and therefore into every
+run csv header, so the first clause of the rule applies and ``recharge`` was the
+violation. That rename is the one case where the rule *removed* a spelling
+instead of choosing between two new ones; see ``OUTPUT_CODES`` below, where the
+token and the code now coincide for this variable.
+
+The published table of all of these, one row per variable and one column per
+spelling, is ``dev/reference/indicator-glossary.md``. It is DERIVED from the
+dicts here and in ``wflow_outputs`` — ``tests/test_indicator_glossary.py`` parses
+it and fails when the two disagree — so extend the dicts first and the glossary
+second, never the reverse.
 """
 
 from __future__ import annotations
@@ -56,7 +68,7 @@ VARIABLE_TOKENS = {
     "river discharge": "q",
     "precipitation": "precip",
     "actual evapotranspiration": "aet",
-    "groundwater recharge": "recharge",
+    "groundwater recharge": "gwr",
     "overland flow": "overland_flow",
     "snow": "snow",
 }
@@ -66,16 +78,21 @@ VARIABLE_TOKENS = {
 #: **A fourth spelling, and unlike the other three it is not ours to choose.** The
 #: code is `wflow_outputs.CODES`, which reaches the csv header via the TOML the
 #: model build writes (``gwr_101``, ``aet_101``); the token is what this file
-#: mints for filenames and metric names. Four of the five differ — ``recharge``
-#: is ``gwr``, ``precip`` is ``p``, ``snow`` is ``swe``, ``overland_flow`` is
-#: ``qof`` — so a reducer that reuses the token as the column prefix reads exactly
-#: one variable (``aet``) and silently finds nothing for the rest.
+#: mints for filenames and metric names. Three of the five still differ —
+#: ``precip`` is ``p``, ``snow`` is ``swe``, ``overland_flow`` is ``qof`` — so a
+#: reducer that reuses the token as the column prefix reads exactly the two where
+#: they coincide (``aet``, ``gwr``) and silently finds nothing for the rest.
+#: **Two agreeing tokens is worse than one for a naive fix**, not better: it
+#: doubles the chance that whichever variable a hand-written test reaches for is
+#: one the broken matcher happens to work on.
 #:
 #: DERIVED from the two tables rather than hand-written, because a third
 #: hand-maintained copy of the variable list is how this drifted in the first
 #: place: 8bd51de changed the header scheme and the reducer's own matcher kept
 #: looking for the retired ``<label>_basavg`` spelling, which emptied
-#: ``aet_indicators.csv`` and ``recharge_indicators.csv`` with the run green. Both
+#: ``aet_indicators.csv`` and ``recharge_indicators.csv`` (as the recharge table
+#: was then named — it is ``gwr_indicators.csv`` since 2026-08-11) with the run
+#: green. Both
 #: tables are keyed by the SEMANTIC LABEL a config writes, which is what lets them
 #: be joined here; a label in one and not the other raises at import.
 OUTPUT_CODES = {VARIABLE_TOKENS[label]: code for label, code in _WFLOW_CODES.items()}
@@ -206,7 +223,7 @@ Q_METRIC_SUFFIXES = {
 #:    ways. The q vocabulary makes the mean-over-years step visible; these do not.
 BASIN_METRIC_SUFFIXES = {
     "aet": ("annual_total", "sum"),
-    "recharge": ("annual_total", "sum"),
+    "gwr": ("annual_total", "sum"),
     "precip": ("annual_total", "sum"),
     "snow": ("annual_max", "max"),
     "overland_flow": ("annual_mean", "mean"),
@@ -231,7 +248,7 @@ def basin_metric_name(token: str) -> str:
 
 
 def output_code(token: str) -> str:
-    """The wflow csv column code for one indicator token (``'recharge'`` → ``'gwr'``)."""
+    """The wflow csv column code for one indicator token (``'precip'`` → ``'p'``)."""
     return OUTPUT_CODES[token]
 
 

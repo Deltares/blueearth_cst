@@ -12,6 +12,44 @@
 > here — the wide→long reshape, the `aggregate_rlz` retirement, the grain
 > classes, the no-migration support decision — is unaffected by that reorder.
 
+> **The groundwater-recharge token moved too.** Also on 2026-08-11, the token
+> `recharge` became **`gwr`**, so `<exp>/results/recharge_indicators.csv` is now
+> `<exp>/results/gwr_indicators.csv` and the metric it carries is
+> `gwr_annual_total`, not `recharge_annual_total`. **The metric moved because the
+> filename did** — a metric is composed `<token>_<statistic>`, so the two cannot
+> be renamed independently without either a special-case filename map or a file
+> whose name and rows disagree.
+>
+> The reason is the minting rule this note's own token list is governed by:
+> *where the repo already has a canonical short name, use it.* `gwr` is the
+> `wflow_outputs.CODES` code the model build writes into the TOML and that
+> therefore appears in every run csv header (`gwr_101`); `recharge` was a second
+> spelling of the same thing, invented here. The rename removes it, and the token
+> and the code now coincide for this variable (as they already did for `aet`).
+>
+> Same support decision as the reshape below: **no in-place migration.** An
+> experiment already on disk keeps `recharge_indicators.csv` with
+> `recharge_annual_total` rows, and nothing reads or rewrites it — re-run the
+> experiment to get the new name. On a project tree that has run before, the old
+> file is an orphan `tree-check` will report as undeclared; delete it by hand.
+>
+> This is a `naming.md` §7 event on two of that section's clauses at once — a
+> `rule all` output filename, and a value inside a `rule all` output table.
+> The second is not literally enumerated in §7 (which lists column *labels*), but
+> it is the same hazard: a consumer that survived the filename change can still
+> break on the metric string. Old → new, in full:
+>
+> | before | after |
+> | --- | --- |
+> | `<exp>/results/recharge_indicators.csv` | `<exp>/results/gwr_indicators.csv` |
+> | `metric` value `recharge_annual_total` | `metric` value `gwr_annual_total` |
+> | rule 3.16 output key `recharge_indicators` | rule 3.16 output key `gwr_indicators` |
+>
+> Unchanged, and deliberately so: the `wflow_outvars` config label stays
+> **`groundwater recharge`** (a `naming.md` §6 tier-2 display name — no config
+> edit is needed anywhere), and the csv column code stays `gwr`. The full
+> per-variable spelling table is `dev/reference/indicator-glossary.md`.
+
 Rename/reshape record per `naming.md` §7. Landed 2026-08-08 on
 `feat/r11-p1-tables`. Specification: `dev/milestones/r09/wf3-change-requests.md`
 CR-2 and its `### Decision —` blocks; scope and rulings:
