@@ -43,8 +43,8 @@ _BASE_CFG = {
     "workflows": {
         "model_creation": {
             "enabled": True,
-            "model_build_config": "config/templates/wflow_build_model.yml",
-            "waterbodies_config": "config/templates/wflow_update_waterbodies.yml",
+            "model_build_config": "config/defaults/wflow_build_model.yml",
+            "waterbodies_config": "config/defaults/wflow_update_waterbodies.yml",
             "wflow_outvars": ["river discharge"],
         },
         "climate_projections": {

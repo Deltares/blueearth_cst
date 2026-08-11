@@ -148,11 +148,16 @@ COPIED_CONFIG_PATH_MAP: dict[str, dict[str, str]] = {
     "data_sources_climate": {
         "config/cmip6_data.yml": "config/catalogs/cmip6_data.yml",
     },
+    # TWO old spellings each: these moved pre-R6 flat -> config/templates/ ->
+    # config/defaults/ (2026-08-11 templates/ split). A reference tree recorded
+    # in either earlier era must still normalize onto the current path.
     "model_build_config": {
-        "config/wflow_build_model.yml": "config/templates/wflow_build_model.yml",
+        "config/wflow_build_model.yml": "config/defaults/wflow_build_model.yml",
+        "config/templates/wflow_build_model.yml": "config/defaults/wflow_build_model.yml",
     },
     "waterbodies_config": {
-        "config/wflow_update_waterbodies.yml": "config/templates/wflow_update_waterbodies.yml",
+        "config/wflow_update_waterbodies.yml": "config/defaults/wflow_update_waterbodies.yml",
+        "config/templates/wflow_update_waterbodies.yml": "config/defaults/wflow_update_waterbodies.yml",
     },
     # --- R07 additions (migration_project-layout.md §2d) -------------------
     # Without these the phase-B gate goes red on the copied config snapshots

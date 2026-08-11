@@ -63,12 +63,20 @@ _COPIED_CONFIG_PATH_MAP: dict[str, dict[str, str]] = {
     "data_sources_climate": {
         "config\\cmip6_data.yml": "config/catalogs/cmip6_data.yml",
     },
+    # TWO old spellings each, because these files have moved twice: pre-R6 flat,
+    # then config/templates/, then config/defaults/ (2026-08-11, when templates/
+    # was split so it holds only files you copy). Both must normalize onto the
+    # current path or a config from either era fails against a fresh snapshot.
     "model_build_config": {
-        "config\\wflow_build_model.yml": "config/templates/wflow_build_model.yml",
+        "config\\wflow_build_model.yml": "config/defaults/wflow_build_model.yml",
+        "config/templates/wflow_build_model.yml":
+            "config/defaults/wflow_build_model.yml",
     },
     "waterbodies_config": {
         "config\\wflow_update_waterbodies.yml":
-            "config/templates/wflow_update_waterbodies.yml",
+            "config/defaults/wflow_update_waterbodies.yml",
+        "config/templates/wflow_update_waterbodies.yml":
+            "config/defaults/wflow_update_waterbodies.yml",
     },
 }
 

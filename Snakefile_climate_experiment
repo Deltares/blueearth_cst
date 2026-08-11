@@ -763,12 +763,12 @@ rule prepare_weathergen_config:
         # so every downstream timestamp stayed consistent. The template carries
         # general.variables, warm.sample.num and warm.variable, all of which
         # change what the generator produces.
-        default_config = "config/templates/weathergen_config.yml",
+        default_config = "config/defaults/weathergen_config.yml",
     output:
         weagen_config = f"{wg_dir}/config/weathergen_config.yml",
     params:
         snake_config = config_path,
-        default_config = "config/templates/weathergen_config.yml",
+        default_config = "config/defaults/weathergen_config.yml",
         # The generator ROOT, not a write dir: generate_weather.R derives
         # output/ (products) and plots/ (figures) from it, because
         # weathergenr::generate_weather writes both classes into ONE out_dir

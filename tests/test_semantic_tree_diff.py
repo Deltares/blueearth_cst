@@ -215,10 +215,42 @@ def test_copied_config_all_four_keys_normalize(tmp_path):
             },
             "workflows": {
                 "model_creation": {
+                    "model_build_config": "config/defaults/wflow_build_model.yml",
+                    "waterbodies_config": "config/defaults/wflow_update_waterbodies.yml",
+                }
+            },
+        },
+    )
+    assert std.compare_copied_config(str(ref), str(cur)) == []
+
+
+def test_copied_config_normalizes_the_intermediate_templates_era(tmp_path):
+    """These two keys have moved TWICE (pre-R6 flat -> config/templates/ ->
+    config/defaults/, 2026-08-11), so a reference tree recorded in the middle
+    era must normalize onto the current path just as a pre-R6 one does. Without
+    the second hop in COPIED_CONFIG_PATH_MAP this compares as a real drift."""
+    ref = tmp_path / "ref.yml"
+    cur = tmp_path / "cur.yml"
+    _write_yaml(
+        ref,
+        {
+            "workflows": {
+                "model_creation": {
                     "model_build_config": "config/templates/wflow_build_model.yml",
                     "waterbodies_config": "config/templates/wflow_update_waterbodies.yml",
                 }
-            },
+            }
+        },
+    )
+    _write_yaml(
+        cur,
+        {
+            "workflows": {
+                "model_creation": {
+                    "model_build_config": "config/defaults/wflow_build_model.yml",
+                    "waterbodies_config": "config/defaults/wflow_update_waterbodies.yml",
+                }
+            }
         },
     )
     assert std.compare_copied_config(str(ref), str(cur)) == []

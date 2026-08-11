@@ -6,7 +6,7 @@ does the source climate look like?"* from the store alone, so its whole
 subgraph is the B1 producer (whose sole input is the tracked data catalog) plus
 itself: the three figures build with **neither** ``models/hydrology/wflow/``
 **nor**
-``config/templates/wflow_build_model.yml`` on disk. That is the P4 assertion,
+``config/defaults/wflow_build_model.yml`` on disk. That is the P4 assertion,
 pinned by ``tests/test_plot_climate_source.py``.
 
 Three climate-figure families coexist (design § B4). This module owns the first

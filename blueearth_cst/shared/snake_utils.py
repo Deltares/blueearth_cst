@@ -858,7 +858,7 @@ def slugify_window(start, end) -> str:
 
 
 #: Catalog ENTRY NAMES the model-free basin delineation defaults to. Equal to
-#: the shipped ``config/templates/wflow_build_model.yml`` ``setup_basemaps``
+#: the shipped ``config/defaults/wflow_build_model.yml`` ``setup_basemaps``
 #: values, so an existing config that declares neither key keeps building the
 #: same basin (and rule 3.00b's guard digest stays byte-identical, since the
 #: digest serializes the config dict as-is).

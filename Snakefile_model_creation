@@ -104,8 +104,12 @@ if clim_source == "eobs":
 
 # Workflow-owned
 wflow_outvars = get_config(my_cfg, "wflow_outvars", ['river discharge', 'actual evapotranspiration'])
-model_build_config = get_config(my_cfg, "model_build_config", f"{static_dir}/templates/wflow_build_model.yml")
-waterbodies_config = get_config(my_cfg, "waterbodies_config", f"{static_dir}/templates/wflow_update_waterbodies.yml")
+# `defaults/`, not `templates/` — these are read by rules 1.06/1.07/1.08, and the
+# 2026-08-11 split moved them out of the copy-me directory. The `_snapshot_reference`
+# calls below still say "templates": that is the PROJECT snapshot bin, a different
+# meaning of the word, and it did not move.
+model_build_config = get_config(my_cfg, "model_build_config", f"{static_dir}/defaults/wflow_build_model.yml")
+waterbodies_config = get_config(my_cfg, "waterbodies_config", f"{static_dir}/defaults/wflow_update_waterbodies.yml")
 output_locations = spatial_cfg.gauge_points_path
 observations_timeseries = get_config(my_cfg, "observations_timeseries", None)
 
@@ -1045,7 +1049,7 @@ rule gather_benchmarks:
 #
 # The whole subgraph of these figures is rule 1.04 (whose sole input is the
 # tracked data catalog) plus this rule, so they build with NEITHER
-# models/hydrology/wflow/ NOR config/templates/wflow_build_model.yml on disk — the P4
+# models/hydrology/wflow/ NOR config/defaults/wflow_build_model.yml on disk — the P4
 # assertion, pinned by tests/test_plot_climate_source.py.
 #
 # The data catalog rides in `params`, not `input`: the era5 branch resolves

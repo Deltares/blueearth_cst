@@ -35,7 +35,7 @@ shared:
   # figures and (through the store) weathergenr. NOT the model run period; see
   # workflows.model_creation.simulation_window.
   historical_window:
-    starttime: "2000-01-01T00:00:00"                      # ISO datetime
+    starttime: "1990-01-01T00:00:00"                      # ISO datetime
     endtime: "2020-12-31T00:00:00"                        # ISO datetime — span >= 16 years
   clim_historical: era5                                   # text — entry in data_sources
   #julia_threads: 4                                       # integer
@@ -43,8 +43,8 @@ shared:
 workflows:
   model_creation:
     enabled: true                                         # boolean
-    model_build_config: config/templates/wflow_build_model.yml         # path
-    waterbodies_config: config/templates/wflow_update_waterbodies.yml  # path
+    model_build_config: config/defaults/wflow_build_model.yml          # path
+    waterbodies_config: config/defaults/wflow_update_waterbodies.yml   # path
     # list — any of: river discharge, overland flow, actual evapotranspiration,
     #                groundwater recharge, snow
     wflow_outvars: ["river discharge", "actual evapotranspiration"]

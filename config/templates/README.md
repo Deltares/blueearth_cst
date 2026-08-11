@@ -1,21 +1,11 @@
 # Config templates
 
-Two different kinds of file share this directory. The distinction matters,
-because only one kind is read by a running workflow.
+**Scaffolds you copy. Nothing here is read by a running workflow.** Copy, fill
+in, point a config at your copy.
 
-## Consumed by the pipeline
-
-Referenced from a config and read by a rule. Changing one changes a run.
-
-| File | Consumer |
-| --- | --- |
-| `wflow_build_model.yml` | `Snakefile_model_creation` — default for `workflows.model_creation.model_build_config`; rule 1.06 `prepare_spatial_maps` and rule 1.07 `build_wflow_model` |
-| `wflow_update_waterbodies.yml` | `Snakefile_model_creation` — default for `waterbodies_config`; rule 1.08 `add_reservoirs_lakes_glaciers` |
-| `weathergen_config.yml` | `Snakefile_climate_experiment` — `default_config` for rule 3.10 `prepare_weathergen_config` |
-
-## Scaffolds you copy
-
-Never read by a run. Copy, fill in, point a config at your copy.
+The configs a rule actually *reads* live in **`config/defaults/`**. Until
+2026-08-11 both kinds shared this directory, so its name described only half of
+what it held; see `config/defaults/README.md`.
 
 | File | Purpose |
 | --- | --- |

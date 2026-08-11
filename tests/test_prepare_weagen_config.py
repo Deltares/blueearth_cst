@@ -19,10 +19,12 @@ from blueearth_cst.experiment.prepare_weagen_config import (
 
 REPO_ROOT = os.path.join(os.path.dirname(__file__), "..")
 # The path rule 3.04 (Snakefile_climate_experiment:131) hands to
-# prepare_weagen_config as ``default_config``. After the R06 config split this
-# lives under config/templates/. This literal must track that Snakefile param.
+# prepare_weagen_config as ``default_config``. It lives under config/defaults/:
+# the 2026-08-11 split moved the three rule-read configs out of
+# config/templates/, which now holds only files you copy. This literal must
+# track that Snakefile param.
 DEFAULT_WEAGEN_CONFIG = os.path.join(
-    REPO_ROOT, "config", "templates", "weathergen_config.yml"
+    REPO_ROOT, "config", "defaults", "weathergen_config.yml"
 )
 
 
@@ -44,14 +46,14 @@ def test_seed_year_math_value():
     assert compute_nr_years(2080, 20) == 82
 
 
-def test_default_weagen_config_resolves_at_templates_path():
-    """R06 config-split smoke (--dry-run-blind): the moved weathergen_config.yml
-    must resolve at config/templates/. Snakefile_climate_experiment:131 passes
-    this path as the ``default_config`` param; rule 3.04 reads it via read_yml.
-    A green --dry-run / test_cli would NOT catch a broken move here because the
-    param is not a declared input:."""
+def test_default_weagen_config_resolves_at_defaults_path():
+    """Config-split smoke (--dry-run-blind): weathergen_config.yml must resolve
+    at config/defaults/. Snakefile_climate_experiment:131 passes this path as
+    the ``default_config`` param; rule 3.04 reads it via read_yml. A green
+    --dry-run / test_cli would NOT catch a broken move here because the param is
+    not a declared input:."""
     assert os.path.isfile(DEFAULT_WEAGEN_CONFIG), (
-        "config/templates/weathergen_config.yml missing — the R06 template move "
+        "config/defaults/weathergen_config.yml missing — the 2026-08-11 split "
         "or the Snakefile_climate_experiment:131 default_config param is broken"
     )
     cfg = read_yml(DEFAULT_WEAGEN_CONFIG)
@@ -177,7 +179,7 @@ def test_f7_the_template_is_a_declared_input_of_rule_3_10():
     )
     assert rule, "rule prepare_weathergen_config not found"
     inputs = re.search(r"\n    input:(.*)", rule.group(0), re.S).group(1)
-    assert "config/templates/weathergen_config.yml" in inputs, (
+    assert "config/defaults/weathergen_config.yml" in inputs, (
         "F7 regression: the weathergen template is not declared as an input of "
         "rule 3.10, so editing it will not re-trigger the rule"
     )
