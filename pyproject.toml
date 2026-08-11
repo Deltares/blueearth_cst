@@ -22,6 +22,11 @@
 # Where tests live, so a bare `pytest` behaves like the documented `pytest tests/`.
 testpaths = ["tests"]
 
+# Out of the repo root and into the one ignored scratch directory (.gitignore's
+# `.tmp/`), which is already where `pytest --basetemp` output goes. Keep in step
+# with [tool.ruff] `cache-dir` below.
+cache_dir = ".tmp/pytest_cache"
+
 # Repo root on sys.path. This is the supported declarative replacement for the
 # 29 `sys.path.insert(0, <repo root>)` lines in tests/ -- pytest prepends these
 # before collection, so `import blueearth_cst...` resolves without each module
@@ -62,8 +67,11 @@ xfail_strict = true
 
 # Keep collection out of trees that are not source: the untracked run fixture
 # (renamed from examples/ in R07), the pixi env, and build scratch.
+# `.tmp` is listed because setting this key REPLACES pytest's default, which
+# includes the blanket `.*` — so the scratch dir (now holding this cache, plus
+# any --basetemp run) would otherwise be walked by a bare `pytest .`.
 norecursedirs = [
-    ".git", ".pixi", ".snakemake", "test_case", "examples",
+    ".git", ".pixi", ".snakemake", ".tmp", "test_case", "examples",
     "docs", "dev", "*.egg-info", "__pycache__",
 ]
 
@@ -78,6 +86,11 @@ norecursedirs = [
 # `python = ">=3.12,<3.13"` in pixi.toml -- keep the two in step.
 target-version = "py312"
 
+# Out of the repo root, alongside the pytest cache above. Note the knock-on in
+# `extend-exclude`: ruff's built-in excludes name `.ruff_cache` / `.pytest_cache`
+# literally, so neither is default-excluded once it lives under `.tmp/`.
+cache-dir = ".tmp/ruff_cache"
+
 # Added to ruff's built-in excludes (.git, build/, dist/, ...), which do NOT
 # cover these. Mirrors the pytest `norecursedirs` above, minus `dev` -- dev/scripts/
 # is our code and is linted (it is where the F402 shadowing below was found).
@@ -85,7 +98,10 @@ target-version = "py312"
 #              notebooks. AGENTS.md forbids patching vendored upstream material,
 #              so linting it could only produce findings we are not allowed to act on.
 #   test_case/ untracked run fixture, not source.
-extend-exclude = ["docs", "test_case", ".pixi", ".snakemake"]
+#   .tmp/      the ignored scratch dir, which now holds both tool caches (see
+#              `cache-dir` above). `respect-gitignore` already covers the walk;
+#              this also covers an explicitly-named path, given force-exclude.
+extend-exclude = ["docs", "test_case", ".pixi", ".snakemake", ".tmp"]
 
 # Apply the excludes to explicitly-named paths too, not only to a directory
 # walk. Without it `ruff format blueearth_cst/<file>.py` reformats a file the

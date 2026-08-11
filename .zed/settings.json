@@ -23,6 +23,9 @@
     "**/.settings",
     "**/.pixi",
     "**/.snakemake",
+    // Both caches now live under .tmp/ (pyproject.toml cache_dir / cache-dir);
+    // the two literal names stay for a tool run that bypasses the repo config.
+    "**/.tmp",
     "**/.pytest_cache",
     "**/.ruff_cache",
     "**/__pycache__",

@@ -54,7 +54,8 @@ repo-root `.tmp/` — one ignored directory for everything: probe output,
 `scaffold_project_tree.py`'s default target (`.tmp/scaffold`), and any
 `pytest --basetemp`. `dev/tmp/` was merged into it on 2026-08-02; there is no
 second scratch location, and nothing in `dev/` is a place to park disposables.
-Tool caches (`.pytest_cache/`, `.ruff_cache/`) stay at their own defaults.
+The pytest and ruff caches were redirected into it on 2026-08-11
+(`.tmp/pytest_cache`, `.tmp/ruff_cache`), set in `pyproject.toml`.
 
 Shard `tasks/` or `reviews/` into `<year>/` subfolders only if a flat folder
 ever grows unwieldy. Generated results, figures, and model outputs go in the
