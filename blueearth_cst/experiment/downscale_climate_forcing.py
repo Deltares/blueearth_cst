@@ -1,4 +1,5 @@
 """Update a wflow model with downscaled climate forcing for one realization."""
+
 import os
 from pathlib import Path
 
@@ -117,7 +118,9 @@ def downscale_climate_forcing(
             # vendored make_config_paths_relative; design §5/§5a).
             # state.path_input is inert under reinit=true but set for future
             # warm-state safety.
-            "state.path_input": str(Path(model_root, "instate", "instates.nc").resolve()),
+            "state.path_input": str(
+                Path(model_root, "instate", "instates.nc").resolve()
+            ),
             "state.path_output": f"{out_prefix}outstates_{run_name}.nc",
             "input.path_static": str(Path(model_root, "staticmaps.nc").resolve()),
             "input.path_forcing": str(fn_out.resolve()),

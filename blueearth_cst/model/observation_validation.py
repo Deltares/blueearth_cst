@@ -34,7 +34,9 @@ def validate_observation_station_ids(
 
     labels = [label.strip() for label in header[1:]]
     if not labels or any(not label for label in labels):
-        raise ValueError("observation timeseries must contain non-empty station columns")
+        raise ValueError(
+            "observation timeseries must contain non-empty station columns"
+        )
     invalid = sorted({label for label in labels if not label.isdecimal()})
     if invalid:
         raise ValueError(

@@ -103,9 +103,7 @@ def resolve_gauge_points_path(
 
     if has_canonical and has_legacy:
         canonical_path = _path_value(canonical, "shared.basin.gauge_points")
-        legacy_path = _path_value(
-            legacy, "workflows.model_creation.output_locations"
-        )
+        legacy_path = _path_value(legacy, "workflows.model_creation.output_locations")
         if _normalized_path(canonical_path) != _normalized_path(legacy_path):
             raise ValueError(
                 "Conflicting gauge-point paths: shared.basin.gauge_points="
@@ -117,9 +115,7 @@ def resolve_gauge_points_path(
     if has_canonical:
         return _path_value(canonical, "shared.basin.gauge_points")
     if has_legacy:
-        legacy_path = _path_value(
-            legacy, "workflows.model_creation.output_locations"
-        )
+        legacy_path = _path_value(legacy, "workflows.model_creation.output_locations")
         raise ValueError(
             "workflows.model_creation.output_locations is no longer honoured on "
             "its own: move the path to shared.basin.gauge_points.\n\n"
@@ -260,9 +256,7 @@ def parse_spatial_config(
             maximum=MAX_LOCAL_SUBBASIN_NUMBER,
         ),
         gauge_snap_tolerance_m=_positive_float(
-            basin_cfg.get(
-                "gauge_snap_tolerance_m", DEFAULT_GAUGE_SNAP_TOLERANCE_M
-            ),
+            basin_cfg.get("gauge_snap_tolerance_m", DEFAULT_GAUGE_SNAP_TOLERANCE_M),
             "shared.basin.gauge_snap_tolerance_m",
         ),
         river_uparea_km2=_positive_float(

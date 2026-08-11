@@ -18,6 +18,7 @@ carries year and month exactly, which is all that is needed alongside it.
 
 Falsifiers: `dev/milestones/r08/2026-07-30_wf2-5b-falsifier.md`.
 """
+
 from __future__ import annotations
 
 import numpy as np

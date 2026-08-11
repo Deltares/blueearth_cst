@@ -175,8 +175,8 @@ def prep_cst_parameters(
                     # Percent, matching precip_change: both are factors in the
                     # parameter file, and one table must not mix conventions.
                     "precip_variance_change": (
-                        annual_perturbation(persisted, "precip_variance", csv_fn)
-                        * 100 - 100
+                        annual_perturbation(persisted, "precip_variance", csv_fn) * 100
+                        - 100
                     ),
                 }
             )

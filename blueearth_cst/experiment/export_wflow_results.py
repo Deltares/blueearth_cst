@@ -183,9 +183,9 @@ def subcatchment_columns(columns, token: str) -> dict[str, str]:
     """
     prefix = f"{output_code(token)}_"
     return {
-        column: column[len(prefix):]
+        column: column[len(prefix) :]
         for column in columns
-        if column.startswith(prefix) and column[len(prefix):].isdigit()
+        if column.startswith(prefix) and column[len(prefix) :].isdigit()
     }
 
 
@@ -261,7 +261,9 @@ def _format_value(value: float) -> str:
     )
 
 
-def _return_level_from_blocks(blocks: pd.DataFrame, period: int, mode: str) -> pd.Series:
+def _return_level_from_blocks(
+    blocks: pd.DataFrame, period: int, mode: str
+) -> pd.Series:
     """Fit a GEV to a POOLED block sample and read one return level off it.
 
     ``frequency_analysis`` blocks a time series internally, which forces the
@@ -320,8 +322,15 @@ def _rows(metric, st_id, temp, precip, realization, values, locations) -> list[t
     orders differ deliberately — the reorder happens here, once.
     """
     return [
-        (metric, locations[column], st_id, realization,
-         temp, precip, float(values[column]))
+        (
+            metric,
+            locations[column],
+            st_id,
+            realization,
+            temp,
+            precip,
+            float(values[column]),
+        )
         for column in values.index
     ]
 
@@ -369,8 +378,11 @@ def analyze_wflow_results(
     # check.
     design = pd.read_csv(design_path, dtype={"st_id": str})
     extra_axes = [
-        c for c in design.columns
-        if c != "st_id" and c.endswith("_change") and c not in DESIGN_AXES
+        c
+        for c in design.columns
+        if c != "st_id"
+        and c.endswith("_change")
+        and c not in DESIGN_AXES
         and c != "precip_variance_change"
     ]
     if extra_axes:
@@ -464,7 +476,12 @@ def analyze_wflow_results(
                 for statistic, values in annual.items():
                     rows["q"] += _rows(
                         q_metric_name(statistic, Tpeak, Tlow),
-                        st_id, temp, precip, rlz, values, q_locations,
+                        st_id,
+                        temp,
+                        precip,
+                        rlz,
+                        values,
+                        q_locations,
                     )
 
             # Class B: pooled blocks, never a spliced series.
@@ -481,7 +498,10 @@ def analyze_wflow_results(
             ):
                 rows["q"] += _rows(
                     q_metric_name(statistic, Tpeak, Tlow),
-                    st_id, temp, precip, POOLED_REALIZATION,
+                    st_id,
+                    temp,
+                    precip,
+                    POOLED_REALIZATION,
                     _return_level_from_blocks(blocks, period, mode),
                     q_locations,
                 )
@@ -495,8 +515,12 @@ def analyze_wflow_results(
                 ):
                     rows["q"] += _rows(
                         q_metric_name(statistic, Tpeak, Tlow),
-                        st_id, temp, precip, POOLED_REALIZATION,
-                        _month_mean(pooled, month), q_locations,
+                        st_id,
+                        temp,
+                        precip,
+                        POOLED_REALIZATION,
+                        _month_mean(pooled, month),
+                        q_locations,
                     )
 
         # ---- the per-subcatchment variables ----------------------------------
@@ -555,9 +579,7 @@ if __name__ == "__main__":
                 results_dir=sm.params.results_dir,
                 st_num=sm.params.st_num,
                 indicator_tokens=tokens,
-                table_paths={
-                    t: getattr(sm.output, f"{t}_indicators") for t in tokens
-                },
+                table_paths={t: getattr(sm.output, f"{t}_indicators") for t in tokens},
                 Tpeak=sm.params.Tpeak,
                 Tlow=sm.params.Tlow,
             )

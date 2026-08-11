@@ -20,6 +20,7 @@ NOTE: no ``from __future__`` import here — Snakemake's ``script:`` runner
 prepends a preamble to the script file, so a ``__future__`` import would no
 longer be the first statement and raises ``SyntaxError`` at rule time.
 """
+
 import sys
 from pathlib import Path
 
@@ -54,10 +55,8 @@ _COPIED_CONFIG_PATH_MAP: dict[str, dict[str, str]] = {
     "data_sources": {
         "config\\deltares_data.yml": "config/catalogs/deltares_data.yml",
         "config\\deltares_data_linux.yml": "config/catalogs/deltares_data_linux.yml",
-        "config\\deltares_data_climate_projections.yml":
-            "config/catalogs/deltares_data_climate_projections.yml",
-        "config\\deltares_data_climate_projections_linux.yml":
-            "config/catalogs/deltares_data_climate_projections_linux.yml",
+        "config\\deltares_data_climate_projections.yml": "config/catalogs/deltares_data_climate_projections.yml",
+        "config\\deltares_data_climate_projections_linux.yml": "config/catalogs/deltares_data_climate_projections_linux.yml",
         "config\\cmip6_data.yml": "config/catalogs/cmip6_data.yml",
     },
     "data_sources_climate": {
@@ -69,14 +68,11 @@ _COPIED_CONFIG_PATH_MAP: dict[str, dict[str, str]] = {
     # current path or a config from either era fails against a fresh snapshot.
     "model_build_config": {
         "config\\wflow_build_model.yml": "config/defaults/wflow_build_model.yml",
-        "config/templates/wflow_build_model.yml":
-            "config/defaults/wflow_build_model.yml",
+        "config/templates/wflow_build_model.yml": "config/defaults/wflow_build_model.yml",
     },
     "waterbodies_config": {
-        "config\\wflow_update_waterbodies.yml":
-            "config/defaults/wflow_update_waterbodies.yml",
-        "config/templates/wflow_update_waterbodies.yml":
-            "config/defaults/wflow_update_waterbodies.yml",
+        "config\\wflow_update_waterbodies.yml": "config/defaults/wflow_update_waterbodies.yml",
+        "config/templates/wflow_update_waterbodies.yml": "config/defaults/wflow_update_waterbodies.yml",
     },
 }
 
@@ -170,8 +166,7 @@ def compare_project_consistency(
     wf1_path = Path(wf1_snapshot_path)
     if not wf1_path.is_file():
         return [
-            f"No project snapshot at {wf1_path}; "
-            "run Snakefile_model_creation first."
+            f"No project snapshot at {wf1_path}; run Snakefile_model_creation first."
         ]
     wf1_snapshot = yaml.safe_load(wf1_path.read_text(encoding="utf-8"))
 
@@ -206,9 +201,7 @@ def check_project_consistency(
     (fresh sentinel) and ``extract_climate_grid`` (``ancient()`` guard
     artifact) — stay blocked on failure (design §3a/§3b).
     """
-    diffs = compare_project_consistency(
-        live_cfg, wf1_snapshot_path, wf2_snapshot_path
-    )
+    diffs = compare_project_consistency(live_cfg, wf1_snapshot_path, wf2_snapshot_path)
     if diffs:
         detail = "\n  - ".join(diffs)
         raise ValueError(

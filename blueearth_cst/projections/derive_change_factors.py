@@ -198,7 +198,10 @@ def derive_one_point(
     # the annual file rather than returned, so the merge step handles both the
     # same way and a failure leaves neither half-written.
     monthly_change = get_change_monthly_clim_proj(
-        ds_hist_time, ds_clim_time, stats=stats, variable_spec=variable_spec,
+        ds_hist_time,
+        ds_clim_time,
+        stats=stats,
+        variable_spec=variable_spec,
         min_reference=min_reference,
     )
     monthly_change = monthly_change.assign_coords(
@@ -390,22 +393,24 @@ if "snakemake" in globals():
                         f"annual_change_scalar_stats-{point['point_key']}"
                         f"_{horizon_name}.nc",
                     )
-                    ref_start, ref_end, ref_n_years, hor_start, hor_end = derive_one_point(
-                        series_path_hist=point["series_path_hist"],
-                        series_path=point["series_path"],
-                        change_nc_out=out_nc,
-                        time_tuple_hist=_to_str_tuple(sm.params.time_horizon_hist),
-                        time_tuple_fut=_to_str_tuple(horizon_window),
-                        name_horizon=horizon_name,
-                        name_model=point["model"],
-                        name_scenario=point["scenario"],
-                        region_fp=region_fp,
-                        digest_components_hist=point["digest_components_hist"],
-                        digest_components_fut=point["digest_components_fut"],
-                        stats=sm.params.stats,
-                        variable_spec=VARIABLE_SPEC,
-                        min_reference=sm.params.min_reference,
-                        clim_project_dir=clim_project_dir,
+                    ref_start, ref_end, ref_n_years, hor_start, hor_end = (
+                        derive_one_point(
+                            series_path_hist=point["series_path_hist"],
+                            series_path=point["series_path"],
+                            change_nc_out=out_nc,
+                            time_tuple_hist=_to_str_tuple(sm.params.time_horizon_hist),
+                            time_tuple_fut=_to_str_tuple(horizon_window),
+                            name_horizon=horizon_name,
+                            name_model=point["model"],
+                            name_scenario=point["scenario"],
+                            region_fp=region_fp,
+                            digest_components_hist=point["digest_components_hist"],
+                            digest_components_fut=point["digest_components_fut"],
+                            stats=sm.params.stats,
+                            variable_spec=VARIABLE_SPEC,
+                            min_reference=sm.params.min_reference,
+                            clim_project_dir=clim_project_dir,
+                        )
                     )
                     change_files.append(out_nc)
                     monthly_files.append(out_nc.replace(".nc", "_monthly.nc"))
@@ -502,10 +507,15 @@ if "snakemake" in globals():
             if p["point_key"] in resolved_facts
             and (p["point_key"], horizon_name) in horizon_facts
         }
-        rows = tidy_rows(merged, window_facts=window_facts, row_facts=row_facts,
-                         variable_spec=VARIABLE_SPEC)
-        write_table(str(sm.output.change_factors_annual), rows,
-                    columns=TABLE_COLUMNS_ANNUAL)
+        rows = tidy_rows(
+            merged,
+            window_facts=window_facts,
+            row_facts=row_facts,
+            variable_spec=VARIABLE_SPEC,
+        )
+        write_table(
+            str(sm.output.change_factors_annual), rows, columns=TABLE_COLUMNS_ANNUAL
+        )
 
         monthly_rows = []
         for month in sorted(int(m) for m in monthly_merged["month"].values):
@@ -518,8 +528,11 @@ if "snakemake" in globals():
                     variable_spec=VARIABLE_SPEC,
                 )
             )
-        write_table(str(sm.output.change_factors_monthly), monthly_rows,
-                    columns=TABLE_COLUMNS_MONTHLY)
+        write_table(
+            str(sm.output.change_factors_monthly),
+            monthly_rows,
+            columns=TABLE_COLUMNS_MONTHLY,
+        )
         log_row(
             f"tidy monthly change-factor table: {len(monthly_rows)} rows "
             f"-> {os.path.basename(str(sm.output.change_factors_monthly))}",
@@ -569,16 +582,15 @@ if "snakemake" in globals():
                     "effective": resolved_facts[p["point_key"]][
                         "reference_window_effective"
                     ],
-                    "n_years": resolved_facts[p["point_key"]][
-                        "n_hyd_years_reference"
-                    ],
+                    "n_years": resolved_facts[p["point_key"]]["n_hyd_years_reference"],
                 }
                 for p in points
                 if p["point_key"] in resolved_facts
             },
             catalog_crawled_on=sm.params.catalog_crawled_on,
             reducer_module_hash=next(
-                (a.get("cst_reducer_module_hash", "") for a in series_attrs.values()), ""
+                (a.get("cst_reducer_module_hash", "") for a in series_attrs.values()),
+                "",
             ),
             effective_config_sha256=sm.params.effective_config_sha256,
             region_fingerprint=region_fp,
@@ -593,13 +605,22 @@ if "snakemake" in globals():
         flagged_counts = {}
         for row in monthly_rows:
             if row["status"] == FLAGGED_STATUS:
-                key = (row["dataset"], row["scenario"], row["member"],
-                       row["horizon"], row["variable"])
+                key = (
+                    row["dataset"],
+                    row["scenario"],
+                    row["member"],
+                    row["horizon"],
+                    row["variable"],
+                )
                 flagged_counts[key] = flagged_counts.get(key, 0) + 1
         document["flagged_months"] = [
             {
-                "dataset": k[0], "scenario": k[1], "member": k[2],
-                "horizon": k[3], "variable": k[4], "n_flagged_months": n,
+                "dataset": k[0],
+                "scenario": k[1],
+                "member": k[2],
+                "horizon": k[3],
+                "variable": k[4],
+                "n_flagged_months": n,
                 "exceeds_max": combination_is_flagged(n, sm.params.max_flagged_months),
             }
             for k, n in sorted(flagged_counts.items())
@@ -619,7 +640,9 @@ if "snakemake" in globals():
                 figures=list(sm.params.figure_names),
             ),
         )
-        log_row(f"report -> {os.path.basename(str(sm.output.report_md))}", module="change")
+        log_row(
+            f"report -> {os.path.basename(str(sm.output.report_md))}", module="change"
+        )
         log_row(
             f"provenance: {len(document['sources'])} sources, "
             f"{document['composition']['resolved']}/{document['composition']['requested']} resolved "

@@ -38,6 +38,7 @@ says which sections its run actually covers. Absent is NORMAL, not a fault: a
 rule already up to date does not re-run and writes no part, and a rule shared
 between workflows (WF2's 2.11 is WF1's 1.10) usually logged over there.
 """
+
 import os
 import re
 

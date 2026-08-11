@@ -95,7 +95,9 @@ if "snakemake" in globals():
         expected_raw_digest = series_identity.raw_digest(components, region_fp)
 
         # --- revalidation before touching the network (D9's argument, one layer up)
-        if series_identity.cache_hit([raw_nc_out], expected_raw_digest, digest_attr="cst_raw_digest"):
+        if series_identity.cache_hit(
+            [raw_nc_out], expected_raw_digest, digest_attr="cst_raw_digest"
+        ):
             log_row(
                 f"raw cache_hit digest={expected_raw_digest[:12]} ({raw_nc_out})",
                 module="fetch",
@@ -191,7 +193,9 @@ if "snakemake" in globals():
             (components.get("pins") or {}).get(member, {}),
         )
         if pin_uri is None:
-            log_row("no single pin for this source; keeping the URI glob", module="fetch")
+            log_row(
+                "no single pin for this source; keeping the URI glob", module="fetch"
+            )
             data_catalog = hydromt.DataCatalog(data_libs=catalog_path)
         else:
             pinned_spec = dict(entry_spec)
@@ -290,7 +294,10 @@ if "snakemake" in globals():
             if store_uri
             else series_identity.CALENDAR_UNKNOWN
         )
-        log_row(f"store calendar={store_calendar} ({calendar_var or 'no pin'})", module="fetch")
+        log_row(
+            f"store calendar={store_calendar} ({calendar_var or 'no pin'})",
+            module="fetch",
+        )
 
         entry_meta = (components.get("entry_identity") or {}).get(member, {})
         first, last = (str(index[0]), str(index[-1])) if index is not None else ("", "")

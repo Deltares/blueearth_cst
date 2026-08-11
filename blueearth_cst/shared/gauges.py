@@ -129,7 +129,9 @@ def hydromt_basename(gauges_fn) -> Optional[str]:
     return os.path.basename(str(gauges_fn)).split(".")[0].replace("_", "-")
 
 
-def _resolve(candidates: Iterable[str], gauges_fn, kind: str, prefix: str) -> Optional[str]:
+def _resolve(
+    candidates: Iterable[str], gauges_fn, kind: str, prefix: str
+) -> Optional[str]:
     """Shared resolution: exact match first, then sole-candidate discovery."""
     if is_unset(gauges_fn):
         return None
@@ -177,4 +179,6 @@ def gauges_variable_name(results, gauges_fn, variable: str = "Q") -> Optional[st
         The wflow output header, ``Q`` (discharge) or ``P`` (precipitation);
         rule 1.05 configures both for gauges.
     """
-    return _resolve(results, gauges_fn, f"{variable} variable", f"{variable}_{GAUGES_PREFIX}")
+    return _resolve(
+        results, gauges_fn, f"{variable} variable", f"{variable}_{GAUGES_PREFIX}"
+    )

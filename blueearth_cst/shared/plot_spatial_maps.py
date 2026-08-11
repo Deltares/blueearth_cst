@@ -546,7 +546,11 @@ def prepare_layer(maps, figure, basin_mask=None):
     is the kind of thing a reader assumes did not happen.
     """
     layer = _mask_nodata(maps[figure.variable]).astype("float64")
-    extra = [dim for dim in layer.dims if dim not in ("x", "y", "lat", "lon", "latitude", "longitude")]
+    extra = [
+        dim
+        for dim in layer.dims
+        if dim not in ("x", "y", "lat", "lon", "latitude", "longitude")
+    ]
     if extra:
         layer = layer.mean(dim=extra, skipna=True)
     if figure.mask_to_basin and basin_mask is not None:
@@ -605,7 +609,9 @@ def source_caveat(layer):
 # ---------------------------------------------------------------------------
 
 
-def plot_spatial_maps(spatial_dir, plot_dir=None, variables=None, dpi=None, formats=("png",)):
+def plot_spatial_maps(
+    spatial_dir, plot_dir=None, variables=None, dpi=None, formats=("png",)
+):
     """Render the family into ``<spatial_dir>/plots``, returning what it wrote.
 
     ``variables`` selects a subset by variable name, and also REACHES layers the
@@ -624,7 +630,9 @@ def plot_spatial_maps(spatial_dir, plot_dir=None, variables=None, dpi=None, form
 
     # Checked BEFORE anything is opened: a typo in --variable should not cost a
     # read of the whole raster stack before it is reported.
-    unknown = sorted(set(variables or ()).difference(f.variable for f in SPATIAL_MAP_FIGURES))
+    unknown = sorted(
+        set(variables or ()).difference(f.variable for f in SPATIAL_MAP_FIGURES)
+    )
     if unknown:
         raise KeyError(
             f"{unknown} are not in the spatial map registry; declare them in "
@@ -648,7 +656,9 @@ def plot_spatial_maps(spatial_dir, plot_dir=None, variables=None, dpi=None, form
             # output, which would fail the rule -- and that is the right
             # failure: it means the registry and ``prepare_spatial_maps``
             # disagree about what the foundation contains.
-            print(f"skip {figure.stem}: {SPATIAL_MAPS_FILENAME} has no {figure.variable!r}")
+            print(
+                f"skip {figure.stem}: {SPATIAL_MAPS_FILENAME} has no {figure.variable!r}"
+            )
             continue
         layer = prepare_layer(maps, figure, basin_mask)
         degenerate, reason = _is_degenerate(layer)
@@ -658,7 +668,9 @@ def plot_spatial_maps(spatial_dir, plot_dir=None, variables=None, dpi=None, form
 
         style = figure.style
         if figure.classes is not None:
-            classes = figure.classes(layer) if callable(figure.classes) else figure.classes
+            classes = (
+                figure.classes(layer) if callable(figure.classes) else figure.classes
+            )
             # The label is unused on a nominal figure — there is no colourbar to
             # put it on — but it is what ``check_geographic_inputs`` names when
             # the units disagree, so it stays the quantity rather than empty.
@@ -703,7 +715,9 @@ def plot_spatial_maps(spatial_dir, plot_dir=None, variables=None, dpi=None, form
 
 def plot_spatial_maps_from_project(project_dir, plot_dir=None, **kwargs):
     """``plot_spatial_maps`` for a project directory rather than a spatial one."""
-    return plot_spatial_maps(Path(project_dir) / SPATIAL_DIRNAME, plot_dir=plot_dir, **kwargs)
+    return plot_spatial_maps(
+        Path(project_dir) / SPATIAL_DIRNAME, plot_dir=plot_dir, **kwargs
+    )
 
 
 def plot_spatial_figure_set(spatial_dir, plot_dir=None, **kwargs):

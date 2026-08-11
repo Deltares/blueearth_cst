@@ -816,7 +816,6 @@ class RasterStyle:
         #: ground from the map without saying so.
         self.categories = None if categories is None else tuple(categories)
 
-
     def replace(self, **changes):
         """A copy of this style with ``changes`` applied.
 
@@ -916,7 +915,12 @@ RASTER_STYLES = {
 #: The vendored Natural Earth extract the locator inset draws. Provenance,
 #: licence and the rebuild recipe are in that folder's README. Committed rather
 #: than fetched so the figure needs no network — see the module docstring.
-BASEMAP_PATH = Path(__file__).resolve().parents[2] / "config" / "basemap" / "natural_earth_50m.gpkg"
+BASEMAP_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "config"
+    / "basemap"
+    / "natural_earth_50m.gpkg"
+)
 
 #: Dimension names treated as easting/northing, lowercased. hydromt's ``.raster``
 #: accessor sniffed these for us; reading the file directly means saying which
@@ -1058,8 +1062,6 @@ def _panel_locator_box(extent, target_width=None):
         # Back-derive the width so the box stays square on the page.
         width = min(height * lat_span / lon_span, _panel_available_width())
     return [_PANEL_LEFT, 1.0 - height, width, height]
-
-
 
 
 def _publication_rc():
@@ -1373,7 +1375,8 @@ def _ladder_values(lower, upper):
     """
     lower = max(float(lower), 1e-9)
     exponents = range(
-        int(np.floor(np.log10(lower))) - 1, int(np.ceil(np.log10(max(upper, lower)))) + 1
+        int(np.floor(np.log10(lower))) - 1,
+        int(np.ceil(np.log10(max(upper, lower)))) + 1,
     )
     return np.unique(
         np.concatenate([np.array(_BREAK_LADDER) * 10.0**e for e in exponents])
@@ -1424,9 +1427,7 @@ def _equal_area_levels(values, lower, upper, weights=None, zero_baseline=None):
     if weights is None:
         quantiles = np.quantile(values[inside], probabilities)
     else:
-        quantiles = _weighted_quantiles(
-            values[inside], weights[inside], probabilities
-        )
+        quantiles = _weighted_quantiles(values[inside], weights[inside], probabilities)
     rungs = _ladder_values(lower, upper)
     floor = _zero_baseline(lower, upper, zero_baseline)
     levels = [0.0 if floor <= 0.0 else _snap_to_ladder(floor, rungs, "down")]
@@ -1515,14 +1516,13 @@ def _class_levels(raster, style):
     if values.size == 0:
         return equal_interval
     shares = _class_area_shares(values, equal_interval, weights)
-    if shares.max() <= _MAX_CLASS_AREA_SHARE and not (
-        shares < _EMPTY_CLASS_AREA_SHARE
-    ).any():
+    if (
+        shares.max() <= _MAX_CLASS_AREA_SHARE
+        and not (shares < _EMPTY_CLASS_AREA_SHARE).any()
+    ):
         return equal_interval
 
-    equal_area = _equal_area_levels(
-        values, lower, upper, weights, style.zero_baseline
-    )
+    equal_area = _equal_area_levels(values, lower, upper, weights, style.zero_baseline)
     # A field with only a handful of distinct values — the wflow forcing on a
     # basin driven by a 2x3 reanalysis grid is one — collapses most of its
     # snapped breaks into each other. Equal interval is then the better of two
@@ -1530,8 +1530,6 @@ def _class_levels(raster, style):
     if len(equal_area) - 1 < _MIN_CLASSES:
         return equal_interval
     return equal_area
-
-
 
 
 def _vertical_exaggeration(elevation, dx_metres, dy_metres, valid=None):
@@ -1587,7 +1585,9 @@ def pixel_resolution(da):
     for dim in (x_dim, y_dim):
         coord = da[dim].values
         if coord.size < 2:
-            raise ValueError(f"cannot derive a resolution from a {dim} of length {coord.size}")
+            raise ValueError(
+                f"cannot derive a resolution from a {dim} of length {coord.size}"
+            )
         resolutions.append(float(coord[1] - coord[0]))
     return tuple(resolutions)
 
@@ -1635,7 +1635,9 @@ def check_geographic_inputs(raster, layers, value_label=None, expected_units=Non
     wrong_crs = {
         name: str(layer.crs)
         for name, layer in layers.items()
-        if layer is not None and len(layer) > 0 and layer.crs is not None
+        if layer is not None
+        and len(layer) > 0
+        and layer.crs is not None
         and layer.crs.to_epsg() != REQUIRED_CRS_EPSG
     }
     if wrong_crs:
@@ -1665,7 +1667,6 @@ def check_geographic_inputs(raster, layers, value_label=None, expected_units=Non
         )
 
 
-
 def extent_from_layer(layer, buffer_deg=_EXTENT_BUFFER_DEG):
     """``[lon_min, lon_max, lat_min, lat_max]`` covering a vector layer.
 
@@ -1687,7 +1688,6 @@ def extent_from_layer(layer, buffer_deg=_EXTENT_BUFFER_DEG):
             lat_max + buffer_deg,
         ]
     )
-
 
 
 def _raster_within(raster, extent):
@@ -1720,7 +1720,6 @@ def _raster_within(raster, extent):
         }
     )
     return touching if touching.size else raster
-
 
 
 #: Where along a style's ramp its series colour is taken from. High enough to
@@ -1762,8 +1761,6 @@ def _mask_nodata(da):
     if fill is None or (isinstance(fill, float) and np.isnan(fill)):
         return da
     return da.where(da != fill)
-
-
 
 
 def _shaded_relief(da, cmap, norm, latitude_deg):
@@ -1853,9 +1850,7 @@ def _legend_height_fraction(extent, entries):
     rows = max(int(entries), 0) + (1 if _LEGEND_TITLE else 0)
     if rows == 0:
         return 0.0
-    points = FONT_SIZE_LEGEND * (
-        rows * _LEGEND_ROW_FACTOR + 2.0 * _LEGEND_BORDER_PAD
-    )
+    points = FONT_SIZE_LEGEND * (rows * _LEGEND_ROW_FACTOR + 2.0 * _LEGEND_BORDER_PAD)
     return (points / 72.0) / max(_map_height_inches(extent), 1e-6)
 
 
@@ -2170,9 +2165,7 @@ def _locator_span(extent):
     """
     if _LOCATOR_SPAN_DEG != "auto":
         return float(_LOCATOR_SPAN_DEG)
-    basin_span = max(
-        float(extent[1] - extent[0]), float(extent[3] - extent[2]), 1e-9
-    )
+    basin_span = max(float(extent[1] - extent[0]), float(extent[3] - extent[2]), 1e-9)
     half_width = basin_span / (2.0 * max(_LOCATOR_TARGET_BASIN_FRACTION, 1e-6))
     # A basin bigger than the target implies must still fit inside its window.
     half_width = max(half_width, basin_span * _LOCATOR_MIN_SPAN_MARGIN)
@@ -2221,9 +2214,7 @@ def _locator_box(extent, corner):
     if height > 1.0 - 2.0 * _LOCATOR_MARGIN:
         height = 1.0 - 2.0 * _LOCATOR_MARGIN
         width = height * lat_span / lon_span
-    left = (
-        _LOCATOR_MARGIN if corner.endswith("left") else 1.0 - _LOCATOR_MARGIN - width
-    )
+    left = _LOCATOR_MARGIN if corner.endswith("left") else 1.0 - _LOCATOR_MARGIN - width
     bottom = (
         1.0 - _LOCATOR_MARGIN - height
         if corner.startswith("upper")
@@ -2238,9 +2229,11 @@ def _read_basemap(layer, window):
     ``bbox`` pushes the filter down into the driver, so a render reads the few
     hundred features it draws rather than the global layer.
     """
-    return gpd.read_file(BASEMAP_PATH, layer=layer, bbox=tuple(
-        (window[0], window[2], window[1], window[3])
-    ))
+    return gpd.read_file(
+        BASEMAP_PATH,
+        layer=layer,
+        bbox=tuple((window[0], window[2], window[1], window[3])),
+    )
 
 
 def _locator_cities(window):
@@ -2304,7 +2297,7 @@ def _add_locator_inset(ax, extent, basin, corner, box=None):
             city.geometry.x,
             city.geometry.y,
             marker="o",
-            markersize=_LOCATOR_CITY_MARKER_SIZE ** 0.5,
+            markersize=_LOCATOR_CITY_MARKER_SIZE**0.5,
             color=COLOR_LOCATOR_CITY,
             transform=ccrs.PlateCarree(),
         )
@@ -2336,9 +2329,7 @@ def _add_locator_inset(ax, extent, basin, corner, box=None):
         # commonest case because basins and cities share rivers. The white ring
         # is what separates it from all three without enlarging it.
         path_effects=[
-            pe.withStroke(
-                linewidth=HALO_WIDTH_LOCATOR_BASIN, foreground=COLOR_HALO
-            )
+            pe.withStroke(linewidth=HALO_WIDTH_LOCATOR_BASIN, foreground=COLOR_HALO)
         ],
     )
 
@@ -2375,8 +2366,6 @@ def _add_north_arrow(ax):
         ),
         path_effects=[pe.withStroke(linewidth=HALO_WIDTH_TEXT, foreground=COLOR_HALO)],
     )
-
-
 
 
 def _clip_to_basin(layer, basin):
@@ -2434,7 +2423,6 @@ def _river_linewidths(gdf_riv, column=RIVER_ORDER_COLUMN):
         return np.full(order.shape, RIVER_WIDTH_UNIFORM)
     span = RIVER_WIDTH_MAX - RIVER_WIDTH_MIN
     return RIVER_WIDTH_MIN + span * (order - lowest) / (highest - lowest)
-
 
 
 def _wrap_label(fig, text, max_width_inches, fontsize):
@@ -2503,7 +2491,6 @@ def _colorbar_extend(dem, levels):
     if below and above:
         return "both"
     return "max" if above else ("min" if below else "neither")
-
 
 
 #: Lightness (CIE L*) above which the raster under the overlays counts as PALE.
@@ -2622,9 +2609,7 @@ def _draw_raster(
     norm = colors.BoundaryNorm(levels, cmap.N, extend=extend)
     x_dim, y_dim = spatial_dim_names(raster)
     field = (
-        _shaded_relief(raster, cmap, norm, centre_latitude)
-        if style.relief
-        else raster
+        _shaded_relief(raster, cmap, norm, centre_latitude) if style.relief else raster
     )
     image = field.plot.imshow(
         ax=ax,
@@ -2722,7 +2707,9 @@ def category_entries(raster, style):
             stacklevel=2,
         )
         listed = ", ".join(str(code) for code in unlisted)
-        entries.append((unlisted, COLOR_UNCLASSIFIED, f"{LABEL_UNCLASSIFIED} ({listed})"))
+        entries.append(
+            (unlisted, COLOR_UNCLASSIFIED, f"{LABEL_UNCLASSIFIED} ({listed})")
+        )
     return entries
 
 
@@ -2795,9 +2782,7 @@ def _categorical_overlay_contrast(raster, entries):
     the categorical path never builds.
     """
     values = np.asarray(raster.values, dtype="float64")
-    weights = np.array(
-        [float(np.isin(values, codes).sum()) for codes, _, _ in entries]
-    )
+    weights = np.array([float(np.isin(values, codes).sum()) for codes, _, _ in entries])
     total = weights.sum()
     if total <= 0:
         return COLOR_SUBCATCHMENT, COLOR_HALO
@@ -3012,9 +2997,7 @@ def _align_caveat_to_panel(fig, footnote, panel_items):
     except AttributeError:
         return
     edges = [
-        item.get_window_extent(renderer).x1
-        for item in panel_items
-        if item is not None
+        item.get_window_extent(renderer).x1 for item in panel_items if item is not None
     ]
     if not edges:
         return
@@ -3259,12 +3242,8 @@ def plot_raster_map(
         if _present(basin):
             basin.boundary.plot(ax=ax, zorder=Z_BASIN_OUTLINE, **styles["basin"])
 
-        _draw_points(
-            ax, outlets, COLOR_OUTLET, MARKER_SHAPE_OUTLET, zorder=Z_OUTLET
-        )
-        _draw_points(
-            ax, gauges, COLOR_GAUGE, MARKER_SHAPE_GAUGE, gauge_label_column
-        )
+        _draw_points(ax, outlets, COLOR_OUTLET, MARKER_SHAPE_OUTLET, zorder=Z_OUTLET)
+        _draw_points(ax, gauges, COLOR_GAUGE, MARKER_SHAPE_GAUGE, gauge_label_column)
 
         # --- waterbodies ------------------------------------------------------
         _draw_waterbodies(ax, waterbodies)
@@ -3331,6 +3310,3 @@ def plot_raster_map(
         _align_caveat_to_panel(fig, footnote, (locator_axes, legend))
 
     return fig, ax
-
-
-

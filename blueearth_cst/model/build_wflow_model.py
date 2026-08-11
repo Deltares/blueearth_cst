@@ -38,7 +38,9 @@ def _catalog_paths(value: str | os.PathLike[str] | Sequence[object]) -> list[str
     return [os.fspath(item) for item in value]
 
 
-def read_parameter_steps(path: str | os.PathLike[str]) -> list[tuple[str, dict[str, Any]]]:
+def read_parameter_steps(
+    path: str | os.PathLike[str],
+) -> list[tuple[str, dict[str, Any]]]:
     """Read the Wflow-only setup steps and reject competing domain setup."""
     with Path(path).open(encoding="utf-8") as stream:
         config = yaml.safe_load(stream)
@@ -81,7 +83,9 @@ def arcgis_d8_to_wflow_ldd(
     valid_codes = {0, 1, 2, 4, 8, 16, 32, 64, 128}
     active_codes = {int(value) for value in np.unique(values[active])}
     if not active_codes.issubset(valid_codes):
-        raise ValueError(f"P1 flow_direction contains invalid ArcGIS D8 codes: {active_codes}")
+        raise ValueError(
+            f"P1 flow_direction contains invalid ArcGIS D8 codes: {active_codes}"
+        )
     d8 = xr.DataArray(
         np.where(active, values, core_d8._mv).astype("uint8"),
         coords=flow_direction.coords,
@@ -163,7 +167,9 @@ def _validate_registry(registry: pd.DataFrame, locations: gpd.GeoDataFrame) -> N
     # "ends in 0", which is also what tells a reader that 1010 is a subbasin
     # outlet and 1011 a gauge inside it.
     primary = registry[registry["location_id"].astype(int).eq(1)]
-    misnumbered = primary.loc[primary["wflow_id"].astype(int) % 10 != 0, "location_code"]
+    misnumbered = primary.loc[
+        primary["wflow_id"].astype(int) % 10 != 0, "location_code"
+    ]
     if not misnumbered.empty:
         raise ValueError(
             "every primary location wflow_id must end in 0 (ADR 0003 §12: "
@@ -171,7 +177,9 @@ def _validate_registry(registry: pd.DataFrame, locations: gpd.GeoDataFrame) -> N
             f"primary); offenders: {sorted(misnumbered.astype(str))}"
         )
     if set(locations["wflow_id"].astype(int)) != set(registry["wflow_id"].astype(int)):
-        raise ValueError("P1 locations geometry and location_registry wflow_id values disagree")
+        raise ValueError(
+            "P1 locations geometry and location_registry wflow_id values disagree"
+        )
 
 
 def _p1_hydrography(maps: xr.Dataset) -> xr.Dataset:
@@ -214,7 +222,9 @@ def _apply_parameter_steps(
                 **kwargs,
             )
         elif name == "setup_lulcmaps":
-            source_name = str(kwargs.pop("lulc_fn", maps.attrs.get("lulc_source", "vito")))
+            source_name = str(
+                kwargs.pop("lulc_fn", maps.attrs.get("lulc_source", "vito"))
+            )
             kwargs.setdefault("lulc_mapping_fn", f"{source_name}_mapping_default")
             model.setup_lulcmaps(
                 lulc_fn=maps["land_cover"].rename("landuse"),
@@ -232,7 +242,9 @@ def _apply_parameter_steps(
 
 def _positive_ids(data: xr.DataArray) -> set[int]:
     values = np.asarray(data.values)
-    return {int(value) for value in np.unique(values[np.isfinite(values) & (values > 0)])}
+    return {
+        int(value) for value in np.unique(values[np.isfinite(values) & (values > 0)])
+    }
 
 
 def _validate_written_model(
@@ -289,7 +301,11 @@ def build_wflow_model(
         name: p1_catalog.get_geodataframe(name)
         for name in ("basins", "subbasins", "catchments", "rivers", "locations")
     }
-    if maps is None or registry is None or any(value is None for value in geoms.values()):
+    if (
+        maps is None
+        or registry is None
+        or any(value is None for value in geoms.values())
+    ):
         raise ValueError("P1 spatial catalog contains an unreadable required entry")
     _validate_registry(registry, geoms["locations"])
 

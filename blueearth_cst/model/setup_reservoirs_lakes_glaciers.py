@@ -10,6 +10,7 @@ Removal trigger: fold these methods back into create_model's build config and
 delete this module once upstream hydromt handles per-method no-data gracefully
 during build. (Tracked upstream; no issue number recorded yet.)
 """
+
 import os
 from os.path import join
 from pathlib import Path
@@ -82,9 +83,7 @@ def update_wflow_waterbodies_glaciers(
     with open(config_fn, "r") as f:
         config = yaml.safe_load(f) or {}
 
-    results = _run_waterbody_methods(
-        mod, config, (NoDataException, FileNotFoundError)
-    )
+    results = _run_waterbody_methods(mod, config, (NoDataException, FileNotFoundError))
 
     if any(r["status"] == "ok" for r in results):
         mod.write()

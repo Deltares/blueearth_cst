@@ -35,6 +35,7 @@ Two consequences worth knowing before editing:
 
 Falsifiers for every claim above: ``dev/milestones/r08/2026-07-30_wf2-5a-falsifier.md``.
 """
+
 from __future__ import annotations
 
 import numpy as np

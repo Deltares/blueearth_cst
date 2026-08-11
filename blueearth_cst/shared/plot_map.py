@@ -194,7 +194,6 @@ def plot_basin_map(dem, rivers, basin, *, elevation_label=ELEVATION_LABEL, **kwa
     return plot_raster_map(dem, rivers, basin, style=style, **kwargs)
 
 
-
 def load_spatial_basin_layers(spatial_dir):
     """Read the shared spatial products into the layers the template draws.
 

@@ -32,6 +32,7 @@ series after a reduction-logic change.
 Everything here is stdlib plus the geopandas stack already in the environment —
 no new dependency (design OQ-7 / constraint C5).
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -707,9 +708,7 @@ def write_netcdf_atomic(ds, path: str | os.PathLike) -> None:
     path = os.fspath(path)
     tmp = f"{path}.tmp-{os.getpid()}"
     encoding = {
-        str(name): {"zlib": True}
-        for name, var in ds.data_vars.items()
-        if var.ndim
+        str(name): {"zlib": True} for name, var in ds.data_vars.items() if var.ndim
     }
     try:
         ds.to_netcdf(tmp, encoding=encoding or None)

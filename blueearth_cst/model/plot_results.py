@@ -153,7 +153,9 @@ def merge_outlet_and_gauge_series(qsim, qsim_gauges, log=_log):
     if dropped:
         # Plain Python in the message: numpy scalars render as np.int32(101),
         # which is noise in a user-facing log line.
-        gauge_names = [str(n) for n in qsim_gauges["station_name"].sel(index=dropped).values]
+        gauge_names = [
+            str(n) for n in qsim_gauges["station_name"].sel(index=dropped).values
+        ]
         outlet_names = [str(n) for n in qsim["station_name"].sel(index=dropped).values]
         log(
             f"Gauge(s) {[int(i) for i in dropped]} ({', '.join(gauge_names)}) "
@@ -352,7 +354,7 @@ def analyse_wflow_historical(
         _log("Skipping the first year of the wflow run (warm-up period)")
         qsim = qsim.sel(
             time=slice(
-                f"{qsim['time.year'][0].values+1}-{qsim['time.month'][0].values}-{qsim['time.day'][0].values}",
+                f"{qsim['time.year'][0].values + 1}-{qsim['time.month'][0].values}-{qsim['time.day'][0].values}",
                 None,
             )
         )

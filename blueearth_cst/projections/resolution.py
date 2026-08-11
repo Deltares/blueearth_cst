@@ -24,6 +24,7 @@ publishes three, is the expected shape of a correct run. Only two conditions are
 configuration errors that stop the DAG build: a model absent from the catalog
 entirely, and a run where nothing resolves at all.
 """
+
 from __future__ import annotations
 
 from typing import Iterable, Mapping, NamedTuple, Sequence
@@ -42,7 +43,7 @@ REFERENCE_MEMBER_UNPUBLISHED = "reference_member_unpublished"
 class Combination(NamedTuple):
     """One requested (model, scenario, member) and how it resolved."""
 
-    dataset: str          # institution/source_id, as configured
+    dataset: str  # institution/source_id, as configured
     scenario: str
     member: str
     status: str
@@ -123,21 +124,30 @@ def resolve(
                 if not known:
                     out.append(
                         Combination(
-                            model, scenario, member, MODEL_NOT_IN_CATALOG,
+                            model,
+                            scenario,
+                            member,
+                            MODEL_NOT_IN_CATALOG,
                             "no catalog entry for this model under any experiment",
                         )
                     )
                 elif not scen_members:
                     out.append(
                         Combination(
-                            model, scenario, member, SCENARIO_NOT_PUBLISHED,
+                            model,
+                            scenario,
+                            member,
+                            SCENARIO_NOT_PUBLISHED,
                             f"no entry {scen_key}",
                         )
                     )
                 elif member not in scen_members:
                     out.append(
                         Combination(
-                            model, scenario, member, MEMBER_NOT_PUBLISHED,
+                            model,
+                            scenario,
+                            member,
+                            MEMBER_NOT_PUBLISHED,
                             f"published: {', '.join(scen_members[:6])}"
                             + (" …" if len(scen_members) > 6 else ""),
                         )
@@ -147,7 +157,10 @@ def resolve(
                     # members and zero historical members.
                     out.append(
                         Combination(
-                            model, scenario, member, NO_HISTORICAL_ENTRY,
+                            model,
+                            scenario,
+                            member,
+                            NO_HISTORICAL_ENTRY,
                             f"no entry {hist_key}; a scenario point cannot be "
                             "referenced",
                         )
@@ -158,7 +171,10 @@ def resolve(
                     # differ in FORCING VARIANT as well as scenario.
                     out.append(
                         Combination(
-                            model, scenario, member, REFERENCE_MEMBER_UNPUBLISHED,
+                            model,
+                            scenario,
+                            member,
+                            REFERENCE_MEMBER_UNPUBLISHED,
                             f"historical publishes: {', '.join(hist_members[:6])}"
                             + (" …" if len(hist_members) > 6 else ""),
                         )
@@ -170,9 +186,7 @@ def resolve(
 
 def unknown_models(combinations: Iterable[Combination]) -> list[str]:
     """Models that are absent from the catalog — the one model-level error."""
-    return sorted(
-        {c.dataset for c in combinations if c.status == MODEL_NOT_IN_CATALOG}
-    )
+    return sorted({c.dataset for c in combinations if c.status == MODEL_NOT_IN_CATALOG})
 
 
 def references(combinations: Iterable[Combination]) -> list[tuple[str, str]]:

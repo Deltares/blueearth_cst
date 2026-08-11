@@ -12,6 +12,7 @@ The word after ``--`` onward is the command, passed through verbatim (no shell
 re-tokenization). Rationale and the masking bug it fixes: see
 ``blueearth_cst/shared/snake_utils.run_and_tee`` (t260721a; dev/tasks/).
 """
+
 import os
 import sys
 
@@ -22,9 +23,7 @@ import sys
 # repo root — the parent of the ``blueearth_cst`` package.
 sys.path.insert(
     0,
-    os.path.dirname(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    ),
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
 )
 from blueearth_cst.shared.snake_utils import run_and_tee  # noqa: E402
 
@@ -36,7 +35,7 @@ def main(argv):
         sys.stderr.write(_USAGE)
         return 2
     sep = argv.index("--")
-    before, command = argv[:sep], argv[sep + 1:]
+    before, command = argv[:sep], argv[sep + 1 :]
     if len(before) != 1 or not command:
         sys.stderr.write(_USAGE)
         return 2

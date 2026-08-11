@@ -96,7 +96,9 @@ def assign_subbasin_ids(subbasins: pd.DataFrame) -> pd.DataFrame:
         ["basin_id", "outlet_row", "outlet_col"], keep=False
     )
     if duplicate_outlets.any():
-        raise ValueError("subbasins in one parent basin cannot share an outlet grid cell")
+        raise ValueError(
+            "subbasins in one parent basin cannot share an outlet grid cell"
+        )
     ordered = ordered.sort_values(
         ordering,
         ascending=[True, True, False, True, True],
@@ -111,8 +113,7 @@ def assign_subbasin_ids(subbasins: pd.DataFrame) -> pd.DataFrame:
             "subbasins under the Bnnn-Snn identity scheme"
         )
     ordered["subbasin_id"] = (
-        ordered["basin_id"].astype("int64") * 100
-        + ordered["local_subbasin_number"]
+        ordered["basin_id"].astype("int64") * 100 + ordered["local_subbasin_number"]
     )
     _validate_positive_int32(ordered["subbasin_id"], "subbasin_id")
     ordered["subbasin_id"] = ordered["subbasin_id"].astype("int32")
@@ -127,7 +128,9 @@ def assign_subbasin_ids(subbasins: pd.DataFrame) -> pd.DataFrame:
         ordered["subbasin_name"] = None
     supplied = ordered["subbasin_name"].astype("string").str.strip()
     fallback = ordered["local_subbasin_number"].map(lambda value: f"auto_{value:02d}")
-    ordered["subbasin_name"] = supplied.where(supplied.notna() & supplied.ne(""), fallback)
+    ordered["subbasin_name"] = supplied.where(
+        supplied.notna() & supplied.ne(""), fallback
+    )
     return ordered
 
 
@@ -191,9 +194,7 @@ def assign_location_ids(locations: pd.DataFrame) -> pd.DataFrame:
     )
     ordered["location_id"] = ordered["local_location_number"].astype("int32")
     ordered["location_code"] = ordered.apply(
-        lambda row: (
-            f"{row['subbasin_code']}-L{int(row['local_location_number']):02d}"
-        ),
+        lambda row: f"{row['subbasin_code']}-L{int(row['local_location_number']):02d}",
         axis=1,
     )
     # ADR 0003 §12: `wflow_id = basin_id*1000 + local_subbasin_number*10 + m`,
@@ -214,9 +215,7 @@ def assign_location_ids(locations: pd.DataFrame) -> pd.DataFrame:
         raise ValueError("each subbasin's primary location must sort first")
     too_many = member > MAX_ADDITIONAL_LOCATIONS
     if too_many.any():
-        crowded = sorted(
-            set(ordered.loc[too_many, "subbasin_code"].astype(str))
-        )
+        crowded = sorted(set(ordered.loc[too_many, "subbasin_code"].astype(str)))
         raise ValueError(
             f"a subbasin cannot hold more than {MAX_ADDITIONAL_LOCATIONS} "
             f"additional locations beside its primary under the ADR 0003 §12 "

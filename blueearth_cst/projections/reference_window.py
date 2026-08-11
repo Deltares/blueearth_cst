@@ -27,6 +27,7 @@ intended alignment and did not get it.
 
 Falsifiers: ``dev/milestones/r08/2026-07-30_wf2-5e-falsifier.md`` K3–K6.
 """
+
 from __future__ import annotations
 
 from typing import NamedTuple
@@ -137,7 +138,9 @@ def window_warnings(window: ReferenceWindow, shared_window=None) -> list[str]:
     return lines
 
 
-def dropped_months(data_start, data_end, effective_start, effective_end) -> tuple[int, int]:
+def dropped_months(
+    data_start, data_end, effective_start, effective_end
+) -> tuple[int, int]:
     """Months discarded at each end by the complete-hydrological-year policy.
 
     A1 requires artifacts stating an analysis window to state the **per-end

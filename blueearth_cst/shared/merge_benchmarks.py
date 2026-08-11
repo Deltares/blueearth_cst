@@ -20,6 +20,7 @@ rowed nor deleted. The filtered list is the SAME list ``_remove_parts`` deletes 
 keep it that way, or a filter that gates only the table would have WF1's gather
 silently eating WF3's parts.
 """
+
 import glob
 import os
 
@@ -28,9 +29,9 @@ import pandas as pd
 from blueearth_cst.shared.snake_utils import _log_header_lines
 
 # How the TOTAL row aggregates each Snakemake benchmark column.
-_SUM = ["s", "io_in", "io_out", "cpu_time"]          # additive across jobs
+_SUM = ["s", "io_in", "io_out", "cpu_time"]  # additive across jobs
 _MAX = ["max_rss", "max_vms", "max_uss", "max_pss"]  # peak across jobs
-_MEAN = ["mean_load"]                                # average across jobs
+_MEAN = ["mean_load"]  # average across jobs
 
 # Legend appended under the table. Snakemake's benchmark columns are a fixed set
 # (psutil-sampled); this explains what each means and how to read it.
@@ -67,7 +68,10 @@ def merge_benchmarks(parts_dir, workflow_num, out_path):
     tsvs = sorted(
         p
         for p in glob.glob(os.path.join(parts_dir, "**", "*.tsv"), recursive=True)
-        if os.path.relpath(p, parts_dir).replace("\\", "/").split("/")[0].startswith(prefix)
+        if os.path.relpath(p, parts_dir)
+        .replace("\\", "/")
+        .split("/")[0]
+        .startswith(prefix)
     )
     parent = os.path.dirname(out_path)
     if parent:
@@ -83,9 +87,13 @@ def merge_benchmarks(parts_dir, workflow_num, out_path):
     if not frames:  # no parts (e.g. nothing ran)
         with open(out_path, "w", encoding="utf-8") as handle:
             handle.write(  # same provenance header as rule logs, rendered for Markdown
-                _log_header_lines(out_path, kind="benchmark", time_label="generated", markdown=True)
+                _log_header_lines(
+                    out_path, kind="benchmark", time_label="generated", markdown=True
+                )
             )
-            handle.write(f"# wf{workflow_num} benchmarks\n\n(no benchmark parts found)\n")
+            handle.write(
+                f"# wf{workflow_num} benchmarks\n\n(no benchmark parts found)\n"
+            )
         return
 
     merged = pd.concat(frames, ignore_index=True)
@@ -106,7 +114,9 @@ def merge_benchmarks(parts_dir, workflow_num, out_path):
     merged.loc[merged["rule"] == "TOTAL", "rule"] = "**TOTAL**"  # emphasise the total
     with open(out_path, "w", encoding="utf-8") as handle:
         handle.write(  # same provenance header as rule logs, rendered for Markdown
-            _log_header_lines(out_path, kind="benchmark", time_label="generated", markdown=True)
+            _log_header_lines(
+                out_path, kind="benchmark", time_label="generated", markdown=True
+            )
         )
         handle.write(f"# wf{workflow_num} benchmarks\n\n")
         handle.write(merged.to_markdown(index=False, floatfmt=".2f"))

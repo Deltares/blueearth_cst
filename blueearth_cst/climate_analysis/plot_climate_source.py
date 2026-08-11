@@ -63,6 +63,7 @@ _PET_CAVEAT = (
     "is derived on the model grid from the model DEM."
 )
 
+
 def _drop_nonspatial(dem: xr.DataArray) -> xr.DataArray:
     """Strip scalar leftovers (notably ``time``) from a DEM, keeping ``spatial_ref``.
 
@@ -159,7 +160,6 @@ def source_grid_climate(
     )
 
 
-
 def plot_climate_source(
     climate_nc: Union[str, Path],
     plot_dir: Union[str, Path],
@@ -202,7 +202,9 @@ def plot_climate_source(
         is deliberately loud: the rule declares three outputs, so a silent skip
         would surface as an opaque ``MissingOutputException`` instead.
     """
-    log_row(f"Reading climate store extraction ({clim_source}): {climate_nc}", module="plot")
+    log_row(
+        f"Reading climate store extraction ({clim_source}): {climate_nc}", module="plot"
+    )
     ds_raw = xr.open_dataset(climate_nc)
     missing = [v for v in PARITY_VARS if v not in ds_raw]
     if missing:

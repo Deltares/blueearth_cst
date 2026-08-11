@@ -161,7 +161,6 @@ if __name__ == "__main__":
         from blueearth_cst.shared.snake_utils import tee_to_log
 
         with tee_to_log(sm.log[0]):
-
             # Snakemake options
             project_dir = sm.params.project_dir
             region_path = sm.input.region_path
@@ -241,7 +240,9 @@ if __name__ == "__main__":
             # This is what preserves the property ancient() used to buy, while
             # checking content instead of assuming it.
             region_fp = series_identity.region_fingerprint(region_path)
-            expected_digest = series_identity.series_digest(digest_components, region_fp)
+            expected_digest = series_identity.series_digest(
+                digest_components, region_fp
+            )
             declared_outputs = [str(p) for p in sm.output]
 
             if series_identity.cache_hit(declared_outputs, expected_digest):
@@ -279,13 +280,17 @@ if __name__ == "__main__":
                 if isinstance(sm.input.raw_nc, (list, tuple))
                 else [str(sm.input.raw_nc)]
             )
-            expected_raw_digest = series_identity.raw_digest(digest_components, region_fp)
+            expected_raw_digest = series_identity.raw_digest(
+                digest_components, region_fp
+            )
 
             ds_members_mean_stats_time = []
 
             for name_member, raw_path in zip(name_members, raw_paths):
                 log_row(f"{name_member}", module="stats")
-                entry = f"{name_clim_project}_{name_model}_{name_scenario}_{name_member}"
+                entry = (
+                    f"{name_clim_project}_{name_model}_{name_scenario}_{name_member}"
+                )
                 raw_label = f"{entry} ({os.path.basename(raw_path)})"
 
                 series_identity.assert_raw_identity(
@@ -382,8 +387,15 @@ if __name__ == "__main__":
                         digest_components.get("pins", {}), sort_keys=True
                     ),
                     "cst_crs": str(
-                        (entry_meta.get(digest_components.get("members", [""])[0], {})
-                         if entry_meta else {}).get("metadata", {}).get("crs", "")
+                        (
+                            entry_meta.get(
+                                digest_components.get("members", [""])[0], {}
+                            )
+                            if entry_meta
+                            else {}
+                        )
+                        .get("metadata", {})
+                        .get("crs", "")
                     ),
                     # Step 5a (D10): spherical cell-area weighting from midpoint
                     # edges, replacing "unweighted_mean_pre_5a". A series always
@@ -401,7 +413,9 @@ if __name__ == "__main__":
             # otherwise carry it forward (R9 P2 F4).
             series_identity.drop_inherited_single_source_attrs(nc_mean_stats_time)
 
-            log_row(f"writing series to {os.path.basename(series_nc_out)}", module="stats")
+            log_row(
+                f"writing series to {os.path.basename(series_nc_out)}", module="stats"
+            )
             os.makedirs(os.path.dirname(series_nc_out), exist_ok=True)
             delayed_obj = nc_mean_stats_time.to_netcdf(
                 series_nc_out,
@@ -412,6 +426,4 @@ if __name__ == "__main__":
                 delayed_obj.compute()
 
     else:
-        raise RuntimeError(
-            "get_stats_climate_proj.py runs only as a Snakemake script:"
-        )
+        raise RuntimeError("get_stats_climate_proj.py runs only as a Snakemake script:")

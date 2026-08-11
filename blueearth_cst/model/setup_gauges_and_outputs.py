@@ -1,4 +1,5 @@
 """Function to update a wflow model and add gauges and outputs."""
+
 import os
 from os.path import join
 from pathlib import Path

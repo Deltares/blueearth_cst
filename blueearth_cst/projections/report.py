@@ -24,6 +24,7 @@ prints its negative — "no months flagged (threshold 0.1 mm/day)" — which is 
 same lesson 6b's N6 records: on this fixture "nothing to report" is the correct
 output *and* what a dead code path emits.
 """
+
 from __future__ import annotations
 
 #: The approximation D10's weighting carries, named so the reader can judge it.
@@ -49,25 +50,34 @@ def disclaimer_block(provenance, thresholds=None, max_flagged_months=None) -> li
     flagged = provenance.get("flagged_months", [])
 
     effective = next(
-        (s.get("reference_window_effective") for s in sources
-         if s.get("reference_window_effective")), "?"
+        (
+            s.get("reference_window_effective")
+            for s in sources
+            if s.get("reference_window_effective")
+        ),
+        "?",
     )
     n_years = next(
-        (s.get("n_hyd_years_reference") for s in sources
-         if s.get("n_hyd_years_reference") not in (None, "")), "?"
+        (
+            s.get("n_hyd_years_reference")
+            for s in sources
+            if s.get("n_hyd_years_reference") not in (None, "")
+        ),
+        "?",
     )
 
     lines = ["## Disclaimers", ""]
     lines.append(f"- **Reference window** — {_fmt_window(reference)}.")
     lines.append(
-        f"  Effective window `{effective}`, "
-        f"{n_years} complete hydrological years."
+        f"  Effective window `{effective}`, {n_years} complete hydrological years."
     )
 
     alignment = reference.get("reference_alignment", "?")
     shared = reference.get("shared_historical_window", "?")
     if alignment == "matches":
-        lines.append(f"- **Alignment** — matches `shared.historical_window` ({shared}).")
+        lines.append(
+            f"- **Alignment** — matches `shared.historical_window` ({shared})."
+        )
     else:
         lines.append(
             f"- **Alignment** — **differs** from `shared.historical_window` "
@@ -174,8 +184,7 @@ def build(provenance, *, thresholds=None, max_flagged_months=None, figures=None)
         "- `summary/provenance.json` — sources, digests, windows and settings for "
         "this run.",
         "",
-        "Precipitation is reported in **mm/day** in every artifact, figures "
-        "included.",
+        "Precipitation is reported in **mm/day** in every artifact, figures included.",
         "",
     ]
     return "\n".join(lines) + "\n"

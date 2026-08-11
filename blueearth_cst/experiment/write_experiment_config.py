@@ -72,7 +72,8 @@ def check_not_frozen(run_marker, out_path, document: dict) -> None:
     if recorded == document:
         return
     changed = sorted(
-        key for key in set(recorded.get("climate_experiment", {}))
+        key
+        for key in set(recorded.get("climate_experiment", {}))
         | set(document.get("climate_experiment", {}))
         if recorded.get("climate_experiment", {}).get(key)
         != document.get("climate_experiment", {}).get(key)

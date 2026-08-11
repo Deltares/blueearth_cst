@@ -142,15 +142,12 @@ select = ["E4", "E7", "E9", "F", "I"]
 # Black-compatible, and a CI gate since ADR 0005 (2026-08-09).
 quote-style = "double"
 
-# Scoped to `format` only, NOT [tool.ruff] extend-exclude -- both stay linted.
-#   blueearth_cst/  the Snakemake `script:` layer. Reformatting it fires the
-#                   `code` rerun trigger on every project_dir, so ADR 0005 holds
-#                   it for stage 2. TEMPORARY; removing it is stage 2's whole
-#                   config change (dev/tasks/, hung on R12).
+# Scoped to `format` only, NOT [tool.ruff] extend-exclude -- the excluded tree
+# stays linted.
 #   *.md            ruff formats fenced Python inside Markdown, which would
 #                   rewrite documents hash-frozen in
 #                   dev/reference/sealed-records.yml. Permanent.
-exclude = ["blueearth_cst/**", "*.md"]
+exclude = ["*.md"]
 
 
 # ---------------------------------------------------------------------------
