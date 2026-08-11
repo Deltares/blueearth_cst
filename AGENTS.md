@@ -289,8 +289,11 @@ one the baseline was recorded from. When that distinction actually matters — a
 baseline re-record — take the primary deliberately, with no other session live,
 which `worktree_policy: always` is what enforces.
 
-Both `.pixi/` and `.ruff_cache/` self-ignore through a `.gitignore` the tools
-write themselves, so neither needs a repo rule.
+`.pixi/` self-ignores through a `.gitignore` the tool writes itself, so it needs
+no repo rule. The pytest and ruff caches were redirected out of the root on
+2026-08-11 (`pyproject.toml` `cache_dir` / `cache-dir`) and now sit under the
+ignored `.tmp/`; they still self-ignore, which is what covers a `--isolated`
+run that recreates them at the root.
 
 Use `test_case/*_linux.yml` + `config/catalogs/*_linux.yml` variants on
 Linux — data-catalog paths differ from Windows. `scripts/run_snake_test.cmd`
