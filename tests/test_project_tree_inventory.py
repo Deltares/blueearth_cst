@@ -68,6 +68,11 @@ COVERED: dict[str, list[str]] = {
     "config": [
         "config/runs/snake_config_model_creation.yml",
         "config/runs/snake_config_climate_projections.yml",
+        # The wrapper's per-invocation manifest. Not reachable through the
+        # `config/runs/<workflow>/<digest>/` regex below -- it sits DIRECTLY
+        # under `invocations/`, with no digest level -- so it carries its own
+        # row (2026-08-11).
+        "config/runs/invocations/20260811T142556.501Z-83c05db9c855.json",
         "config/runs/model_creation/1a22a14838f3/effective.yml",
         "config/runs/model_creation/1a22a14838f3/referenced-files.json",
         "config/runs/model_creation/1a22a14838f3/source.yml",
@@ -115,6 +120,9 @@ COVERED: dict[str, list[str]] = {
         # ADR 0004's terminal build sentinel.
         "models/hydrology/wflow/.model_final",
         "models/hydrology/wflow/config/build_historical_forcing.yml",
+        # Rule 1.10's second declared config output, beside the build YAML
+        # (2026-08-11).
+        "models/hydrology/wflow/config/climate_store_catalog.yml",
         "models/hydrology/wflow/forcing/inmaps_historical.nc",
         "models/hydrology/wflow/forcing/plots/forcing_precip_map.png",
         "models/hydrology/wflow/staticgeoms/outlet_index.csv",
@@ -198,6 +206,14 @@ UNDECLARED = [
     "models/hydrology/wflow/forcing/inmaps_2050.nc",
     "config/runs/something_new.yml",  # not the two contract paths
     "config/whatever_new_thing.yml",
+    # Guards on the two rows added 2026-08-11. `invocations/` is a PREFIX
+    # because its filenames are open, so this proves it did not widen into a
+    # `config/runs/` catch-all that would swallow the contract paths and the
+    # stray above. `climate_store_catalog.yml` is an ENUMERATED leaf, so the
+    # model's config/ must still report a genuinely new file -- if this row
+    # ever starts mapping, someone replaced the leaf list with a prefix.
+    "config/runs/invocations.json",  # a FILE named invocations, not the dir
+    "models/hydrology/wflow/config/some_new_generated.yml",
     f"experiments/{E}/orphan_table.csv",
     f"experiments/{E}/indicators/Qstats.csv",  # the pre-R9 name, now retired
     # The pre-2026-08-11 WF3 run records. Stale output from an earlier run, and

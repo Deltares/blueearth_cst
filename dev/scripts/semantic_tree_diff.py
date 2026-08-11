@@ -1026,6 +1026,25 @@ def build_project_tree_rules(
     # prefix: its members are named `<hash>-<original>` per referenced input.
     same("config/runs/snake_config_model_creation.yml")
     same("config/runs/snake_config_climate_projections.yml")
+    # `scripts/run_workflows.py`'s invocation manifest, one immutable file per
+    # wrapper run. A PREFIX, because the set is genuinely open — the filename is
+    # `<utc stamp>-<uuid12>.json`, so a new one appears every run.
+    #
+    # It needs its own row and cannot ride the workflow regex below: that regex
+    # requires a `<digest>/` directory between the workflow name and the file,
+    # and a manifest sits DIRECTLY under `invocations/`. `invocations` is not a
+    # workflow anyway — it is a SIBLING of the `<workflow>/<digest>/` bundles,
+    # since an invocation spans workflows (`run_workflows.py`, R9 follow-up
+    # ruling of 2026-08-05). Registered BEFORE the regex to match the R9 map's
+    # ordering and its reasoning, though here the two are disjoint outright.
+    #
+    # MISSED UNTIL 2026-08-11 because no tree the gate was pointed at had one:
+    # the wrapper is not a rule, so the declared tier cannot see it, and
+    # `test_local`'s runs were all direct `snakemake` calls. It surfaced the
+    # first time a fixture (`test_rapid`) was rebuilt THROUGH the wrapper. The
+    # R9 map has carried the equivalent row since 2026-08-05; this is the
+    # mirror that was never made.
+    same("config/runs/invocations/")
     same_rx(r"config/runs/[a-z_]+/[0-9a-f]{8,}/.*")
     same("config/catalogs/")
     same("config/templates/")
@@ -1066,6 +1085,18 @@ def build_project_tree_rules(
         # ADR 0004's terminal build sentinel.
         ".model_final",
         "config/build_historical_forcing.yml",
+        # The one-entry catalog pointing hydromt at the climate store — a
+        # DECLARED, non-temp() output of rule 1.10 beside the build YAML from
+        # the same rule (`Snakefile_model_creation`, `store_catalog`). Added
+        # 2026-08-11: `test_local`'s WF1 predates the output, so no tree the
+        # gate was pointed at held one until `test_rapid` was rebuilt.
+        #
+        # An ENUMERATED leaf, not a `config/` prefix — the model's `config/`
+        # holds a fixed set, so a genuinely new file there should still report.
+        # And deliberately NO row in `build_r09_path_map`: it has no pre-R9
+        # form, so a relocation row could never fire — the same argument that
+        # file already makes for `.model_final`.
+        "config/climate_store_catalog.yml",
         "forcing/inmaps_historical.nc",
     ):
         same(f"{wflow}/{leaf}")
