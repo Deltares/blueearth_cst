@@ -223,6 +223,51 @@ does. Two clean resolutions, **owner ruling required**:
 > `build_p31_path_map` stays as the `--milestone` default so a bare
 > `semantic_tree_diff.py` run behaves exactly as the ladder describes. Sequenced
 > after the §4 coverage work (owner ruling, same date).
+>
+> **HELD at execution, same day — the ruling was made on incomplete evidence.**
+> See §6a-bis below. Not overturned; awaiting a second ruling.
+
+#### §6a-bis — what the reference sweep found, and why it reframes the question
+
+The pre-ruling evidence searched for **consumers** of the maps and correctly
+found none. It did **not** search `dev/milestones/` for *decisions about* them —
+that path was filtered out of the very first grep. It is where the relevant
+evidence lives.
+
+**R11 — sealed three days ago, on 2026-08-08 — considered these maps when the
+tree shape moved under them, and chose FREEZE rather than retire.** Stated three
+times, in two task briefs and a migration record:
+
+- `r11/phase-1-result-tables-task-brief.md:67` — *"~~`dev/scripts/semantic_tree_diff.py`~~ — **no change needed; verified 2026-08-08.** The two literal result-table paths there belong to `build_r09_path_map`, the **one-way historical migration map**, which records a past move and **must not be rewritten**."*
+- `r11/phase-2-run-identification-task-brief.md:153` — *"**The R9 path map stays frozen.** … `test_r09_path_map.py` exercises it against pre/post-R9 trees, neither of which is a P2 tree."*
+- `r11/migration_indicator-tables.md:327` — *"`build_r09_path_map` stays frozen."*
+
+Two further signals:
+
+- **`[R9-1]` proposes editing it.** The open backlog item's option (b) is
+  *"document in the seam contract **and the R9 path map** which directory is
+  authoritative for which question"*. It is the second of three options and
+  option (a) is preferred, so this is not a blocker — but it is a live proposal
+  to extend the artifact, not retire it.
+- `r10/rule-naming-design.md:453` frames `dev/milestones/` as *"an **archive**:
+  the p31, p32b, r05, r07 and r09 records…"*, the same family AGENTS.md's *"seal
+  a superseded reference document; never migrate its paths"* convention governs.
+  `build_r09_path_map` is the **executable form** of
+  `dev/milestones/r09/migration_project-tree.md`. (That document is not in
+  `dev/reference/sealed-records.yml`, so the convention is not formally binding
+  here — checked.)
+
+**None of this is a hard blocker.** "Frozen" answers *"should I edit this for my
+change?"* — not *"should it exist?"* — and the archive convention is about
+documents rather than `dev/scripts/` code. Every factual claim in §6a stands: no
+runtime consumer, no surviving pre-migration tree, `R09_MAP_GAPS` empty.
+
+But the maps are **not kept for a consumer; they are kept as an executable
+record**, deliberately and repeatedly. That changes the question from *"is this
+dead code?"* (it is) to *"is an executable historical record worth 640 source
+lines and ~106 test items?"* — a judgment about what the repo keeps, not a
+finding about what it uses. That belongs to the owner, and the first ruling was
+not asked it.
 
 #### ⚠ Check first: `[R9-1]` is an open backlog item that names the path map
 
