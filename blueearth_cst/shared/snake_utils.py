@@ -25,7 +25,6 @@ from pathlib import Path
 
 import yaml
 
-
 # hydromt formats every log record as
 # ``<ts> - <name> - <module> - <LEVEL> - <message>`` (its hardcoded
 # ``_LOG_FORMAT``; no CLI/env/config override exists). ``<ts>`` is a full

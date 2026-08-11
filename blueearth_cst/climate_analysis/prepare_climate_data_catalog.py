@@ -1,9 +1,10 @@
 import os
-import yaml
-import hydromt
 from copy import deepcopy
 from pathlib import Path
-from typing import Union, List
+from typing import List, Union
+
+import hydromt
+import yaml
 
 
 def prepare_clim_data_catalog(

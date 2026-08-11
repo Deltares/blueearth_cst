@@ -38,21 +38,21 @@ Three rules the whole module depends on, worth knowing before changing anything:
 import warnings
 from pathlib import Path
 
+import cartopy.crs as ccrs
 import geopandas as gpd
 import matplotlib
 import matplotlib.patches as mpatches
 import matplotlib.patheffects as pe
 import matplotlib.pyplot as plt
+import matplotlib.text as mtext
 import numpy as np
 import xarray as xr
+from cartopy.mpl.ticker import LatitudeFormatter, LongitudeFormatter
 from matplotlib import colors, rc_context
 from matplotlib.cm import ScalarMappable
 from matplotlib.lines import Line2D
-import matplotlib.text as mtext
 from matplotlib.path import Path as MplPath
 from matplotlib.ticker import MaxNLocator
-import cartopy.crs as ccrs
-from cartopy.mpl.ticker import LatitudeFormatter, LongitudeFormatter
 from shapely.geometry import box as shapely_box
 
 from blueearth_cst.shared import plot_style
@@ -68,7 +68,6 @@ from blueearth_cst.shared import plot_style
 # rerun trigger on every project_dir for no behavioural gain. It moves to a
 # direct `plot_style` import in the plotting sweep, alongside a change to that
 # file that is worth the invalidation.
-from blueearth_cst.shared.plot_style import RASTER_DPI  # noqa: F401
 from blueearth_cst.shared.plot_style import (
     COLOR_CAVEAT,
     FIGURE_WIDTH_MM,
@@ -79,8 +78,8 @@ from blueearth_cst.shared.plot_style import (
     FONT_SIZE_TICK,
     FONT_SIZE_TITLE,
     MM_PER_INCH,
+    RASTER_DPI,  # noqa: F401
 )
-
 
 # ===========================================================================
 # TUNABLE CONSTANTS

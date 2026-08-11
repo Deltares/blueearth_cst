@@ -5,17 +5,18 @@ Created on Tue Feb  1 14:34:58 2022
 @author: bouaziz
 """
 # %%
-import hydromt  # noqa: F401 -- registers the xarray .raster accessor (pr/tas.raster.box below)
 import os
+
+import hydromt  # noqa: F401 -- registers the xarray .raster accessor (pr/tas.raster.box below)
 import matplotlib.pyplot as plt
-import pandas as pd
-import xarray as xr
+
 # S8-08(c): cartopy and matplotlib.colors went with the gridded map
 # figures. This script now draws only the eight scalar figures.
 import numpy as np
+import pandas as pd
+import xarray as xr
 
 from blueearth_cst.shared.snake_utils import log_row
-
 
 
 def plot_combination_traces(frame, colors=None, label_prefix="", alpha=0.85):

@@ -74,8 +74,8 @@ def update_wflow_waterbodies_glaciers(
     """
     # Lazy import: heavy plugin deps, only needed to touch the model. Keeps this
     # module importable (e.g. for unit tests) without hydromt installed/stubbed.
-    from hydromt_wflow import WflowSbmModel
     from hydromt.error import NoDataException
+    from hydromt_wflow import WflowSbmModel
 
     mod = WflowSbmModel(wflow_root, mode="r+", data_libs=data_catalog)
 

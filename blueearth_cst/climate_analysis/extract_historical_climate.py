@@ -19,12 +19,11 @@ import os
 import warnings
 from os.path import join
 from pathlib import Path
+from typing import Optional, Union
+
 import geopandas as gpd
 import hydromt
 import pandas as pd
-
-from typing import Optional, Union
-
 from dask.diagnostics import ProgressBar
 from hydromt.model.processes.meteo import temp
 

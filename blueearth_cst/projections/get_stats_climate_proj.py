@@ -14,10 +14,9 @@ import os
 # warning per call before falling back. Disable the probe; reads still work.
 os.environ.setdefault("GCSFS_EXPERIMENTAL_ZB_HNS_SUPPORT", "false")
 
-import hydromt  # noqa: F401 -- registers the xarray .raster accessor used below
 import geopandas as gpd
+import hydromt  # noqa: F401 -- registers the xarray .raster accessor used below
 import xarray as xr
-
 from dask.diagnostics import ProgressBar
 
 from blueearth_cst.projections import series_identity

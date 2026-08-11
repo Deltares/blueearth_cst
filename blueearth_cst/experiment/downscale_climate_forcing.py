@@ -3,7 +3,6 @@ import os
 from pathlib import Path
 
 import numpy as np
-
 from hydromt_wflow import WflowSbmModel
 
 from blueearth_cst.shared.snake_utils import member_pointer_base

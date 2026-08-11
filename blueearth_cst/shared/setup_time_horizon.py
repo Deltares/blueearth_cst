@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Optional, Union
 
 import yaml
-
 from hydromt_wflow import WflowSbmModel
 
 

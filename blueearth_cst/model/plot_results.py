@@ -3,31 +3,31 @@
 Plot wflow results and compare to observations if any
 """
 
-import xarray as xr
 import os
 from os.path import join
 from pathlib import Path
-import matplotlib.pyplot as plt
-import pandas as pd
-from hydromt.readers import open_timeseries_from_table
-from hydromt_wflow import WflowSbmModel
-from blueearth_cst.shared.wflow_outputs import (
-    SUBCATCHMENT_SUFFIX,
-    code_for,
-    is_basin_average,
-)
-
 from typing import Union
 
+import matplotlib.pyplot as plt
+import pandas as pd
+import xarray as xr
+from hydromt.readers import open_timeseries_from_table
+from hydromt_wflow import WflowSbmModel
+
+from blueearth_cst.model.observation_validation import (
+    validate_observation_station_ids,
+)
 from blueearth_cst.shared.func_plot_signature import (
     compute_metrics,
     plot_basavg,
 )
-from blueearth_cst.shared.plot_evaluation import Station, plot_station_evaluation
 from blueearth_cst.shared.gauges import gauges_layer_name, gauges_variable_name
+from blueearth_cst.shared.plot_evaluation import Station, plot_station_evaluation
 from blueearth_cst.shared.snake_utils import log_row
-from blueearth_cst.model.observation_validation import (
-    validate_observation_station_ids,
+from blueearth_cst.shared.wflow_outputs import (
+    SUBCATCHMENT_SUFFIX,
+    code_for,
+    is_basin_average,
 )
 
 

@@ -48,7 +48,6 @@ from blueearth_cst.shared.cartographic_map import (
 )
 from blueearth_cst.shared.snake_utils import save_figure
 
-
 # ---------------------------------------------------------------------------
 # Model layout on disk. These four names are hydromt_wflow's write conventions,
 # not ours -- they are stated here, as constants, precisely BECAUSE this module

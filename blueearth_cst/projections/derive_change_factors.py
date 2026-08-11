@@ -42,6 +42,8 @@ import tempfile
 
 import xarray as xr
 
+from blueearth_cst.projections import provenance as _prov
+from blueearth_cst.projections import report as _report
 from blueearth_cst.projections import series_identity
 from blueearth_cst.projections.calendar_weights import CalendarError, assert_weightable
 from blueearth_cst.projections.change_factor_table import (
@@ -52,9 +54,6 @@ from blueearth_cst.projections.change_factor_table import (
     write_table,
 )
 from blueearth_cst.projections.dry_month import FLAGGED_STATUS, combination_is_flagged
-from blueearth_cst.projections import provenance as _prov
-from blueearth_cst.projections import report as _report
-from blueearth_cst.projections.variable_spec import VariableSpec
 from blueearth_cst.projections.get_change_climate_proj import (
     _to_str_tuple,
     get_change_annual_clim_proj,
@@ -64,6 +63,7 @@ from blueearth_cst.projections.get_change_climate_proj import (
 from blueearth_cst.projections.get_change_climate_proj_summary import (
     summary_climate_proj,
 )
+from blueearth_cst.projections.variable_spec import VariableSpec
 from blueearth_cst.shared.snake_utils import log_row, tee_to_log
 
 XDIMS = ("x", "longitude", "lon", "long")

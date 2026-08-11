@@ -8,8 +8,9 @@ year math is reachable without a live ``snakemake`` global. Behavior-neutral:
 the same dict is assembled and written.
 """
 
-import os
 import math
+import os
+
 import yaml
 
 

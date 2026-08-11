@@ -7,7 +7,6 @@ from typing import List, Union
 import numpy as np
 import pandas as pd
 
-
 # Map user-facing semantic names to Wflow.jl 1.x CSDMS variable names.
 # Mapping derived from
 # .pixi/envs/default/Lib/site-packages/hydromt_wflow/version_upgrade.py.

@@ -1,9 +1,9 @@
 """Snapshot source and effective workflow configuration into ``project_dir``."""
 import json
 import os
+import shutil
 from os.path import join
 from pathlib import Path
-import shutil
 from typing import Mapping, Optional, Union
 
 import yaml

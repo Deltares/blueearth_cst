@@ -18,17 +18,16 @@ config-derivable family with their own declared outputs.
 """
 
 # %%
-from hydromt.stats import skills
-import numpy as np
-import matplotlib.pyplot as plt
 import os
-import scipy.stats as stats
-import pandas as pd
-import xarray as xr
 
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import scipy.stats as stats
+import xarray as xr
+from hydromt.stats import skills
 
 from blueearth_cst.shared.snake_utils import save_figure
-
 
 # %%
 # Supported wflow outputs. The resample rule and axis legend live beside the

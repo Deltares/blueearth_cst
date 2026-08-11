@@ -15,7 +15,6 @@ from pathlib import Path
 
 import yaml
 
-
 #: (template key under ``setup_basemaps``, ``shared.basin`` key) pairs the
 #: store's delineation and the model build must agree on (R07 B1 / ext1-01).
 #: ``setup_rivers.hydrography_fn`` stays an intra-template concern, out of scope.

@@ -13,7 +13,6 @@ import yaml
 from hydromt.gis import flw
 from pyflwdir import core_d8, core_ldd
 
-
 _BASE_CONFIG = {
     "input": {
         "path_static": "staticmaps.nc",

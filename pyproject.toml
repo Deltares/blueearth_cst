@@ -128,14 +128,6 @@ select = ["E4", "E7", "E9", "F", "I"]
 # modules now read the injected object via the guarded
 # `if "snakemake" in globals()` idiom, which keeps them importable for unit
 # tests. A new module needing an F821 ignore is a module that skipped the idiom.
-#
-# I001 in blueearth_cst/ is TEMPORARY, and the same deferral as
-# [tool.ruff.format]'s exclude below: this is the Snakemake `script:` layer, so
-# re-sorting its imports fires the `code` rerun trigger on every project_dir.
-# Both halves are held for the same sitting -- see dev/tasks/ t2608091116 and
-# t2608090907a. The 42 files OUTSIDE this layer are sorted and gated now, which
-# is what stops the set growing while it waits.
-"blueearth_cst/**" = ["I001"]
 
 # E402 (import not at top) is load-bearing here, not an oversight: the module
 # sets GDAL_CACHEMAX / VSI_CACHE / GDAL_DISABLE_READDIR_ON_OPEN via
