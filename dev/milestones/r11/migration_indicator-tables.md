@@ -1,5 +1,17 @@
 # Migration — WF3 indicator tables, wide → long (R11 P1)
 
+> **The header moved again after this record was written.** On 2026-08-11 the
+> seven columns were reordered identifier-first and `realization_id` was renamed
+> `rlz_id`, giving
+> `metric, location, st_id, rlz_id, temp_change, precip_change, value`.
+> This document is the R11 era record and its header listings below are left as
+> they were — they describe what R11 P1 produced, which is the shape a table from
+> that era actually has. For the CURRENT header, read
+> `dev/reference/contracts/hydrological-model-seam.md` §HM-7 or
+> `blueearth_cst/shared/indicator_tables.py::INDICATOR_COLUMNS`. Everything else
+> here — the wide→long reshape, the `aggregate_rlz` retirement, the grain
+> classes, the no-migration support decision — is unaffected by that reorder.
+
 Rename/reshape record per `naming.md` §7. Landed 2026-08-08 on
 `feat/r11-p1-tables`. Specification: `dev/milestones/r09/wf3-change-requests.md`
 CR-2 and its `### Decision —` blocks; scope and rulings:

@@ -378,13 +378,15 @@ def test_hm5_synthetic_fail():
 
 
 def _hm7_row(metric, rlz, location="101", temp=0.0, precip=0.0, value=1.0, st_id="0"):
+    """One HM-7 row. Key order IS column order — `pd.DataFrame` takes it from the
+    first dict, and `validate_hm7` asserts the header exactly and in order."""
     return {
         "metric": metric,
+        "location": location,
         "st_id": st_id,
+        "rlz_id": rlz,
         "temp_change": temp,
         "precip_change": precip,
-        "realization_id": rlz,
-        "location": location,
         "value": value,
     }
 
@@ -448,9 +450,9 @@ def test_hm7_rejects_an_unrecognised_metric():
 
 
 def test_hm7_enforces_the_grain_invariant():
-    """`realization_id = 0` is a numeric sentinel in a numeric key column. It is
+    """`rlz_id = 0` is a numeric sentinel in a numeric key column. It is
     safe ONLY because no metric emits both grains -- otherwise a
-    `groupby('realization_id')` folds pooled rows in as another realization.
+    `groupby('rlz_id')` folds pooled rows in as another realization.
     Since 0 cannot announce itself, the validator asserts it."""
     pooled_as_member = [_hm7_row("q_return_level_10yr_max", 1)]
     diffs = ic.validate_hm7({"q": pd.DataFrame(pooled_as_member)}, rlz_num=2)
@@ -461,7 +463,7 @@ def test_hm7_enforces_the_grain_invariant():
     assert diffs and "per-realization" in diffs[0]
 
 
-def test_hm7_rejects_a_realization_id_outside_the_declared_range():
+def test_hm7_rejects_a_rlz_id_outside_the_declared_range():
     rows = [_hm7_row("q_annual_mean", 7)]
     diffs = ic.validate_hm7({"q": pd.DataFrame(rows)}, rlz_num=2)
     assert diffs and "outside" in diffs[0]

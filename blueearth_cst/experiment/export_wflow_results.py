@@ -7,7 +7,7 @@ variable — so the header grew with the gauge count and a reader had to know wh
 columns were locations. This emits **one table per output variable**, each with a
 **fixed seven-column header** that does not grow with anything:
 
-    metric, st_id, temp_change, precip_change, realization_id, location, value
+    metric, location, st_id, rlz_id, temp_change, precip_change, value
 
 ``metric`` is a composite ``<variable>_<statistic>`` (``q_mean_annual_7day_min``),
 so a result file is self-contained once it leaves the project tree —
@@ -22,7 +22,7 @@ published contract.
   values average back to the pooled value exactly. Nothing is lost by emitting
   the finer grain, and ``aggregate_rlz`` existed only to choose between grains
   that are not actually different.
-- **B — non-linear fit.** Pooled only (``realization_id = 0``). A GEV fit over one
+- **B — non-linear fit.** Pooled only (``rlz_id = 0``). A GEV fit over one
   short realization is ill-conditioned; pooling multiplies the block sample by
   ``RLZ_NUM``.
 - **C — selects a category.** Pooled only. ``idxmax()`` picks ONE month, so
@@ -308,10 +308,17 @@ def perturbation_axes(
 
 
 def _rows(metric, st_id, temp, precip, realization, values, locations) -> list[tuple]:
-    """One long-format row per location, for one metric at one member."""
+    """One long-format row per location, for one metric at one member.
+
+    The tuple order is ``INDICATOR_COLUMNS`` and must stay that way: these tuples
+    are handed to ``pd.DataFrame(rows, columns=INDICATOR_COLUMNS)``, which assigns
+    names POSITIONALLY and would silently mislabel every column rather than raise.
+    The signature keeps its argument order for its callers' sake, so the two
+    orders differ deliberately — the reorder happens here, once.
+    """
     return [
-        (metric, st_id, temp, precip, realization,
-         locations[column], float(values[column]))
+        (metric, locations[column], st_id, realization,
+         temp, precip, float(values[column]))
         for column in values.index
     ]
 
@@ -521,7 +528,7 @@ def analyze_wflow_results(
         # hash. What `_format_value` adds below is NOT that rounding returning —
         # see its docstring for why a significant-digit cap is a different thing.
         table["value"] = table["value"].astype("float32")
-        table["realization_id"] = table["realization_id"].astype("int64")
+        table["rlz_id"] = table["rlz_id"].astype("int64")
         # Format ONLY the value column. `to_csv(float_format=...)` would apply to
         # every float column, rewriting temp_change/precip_change from `0.0` to
         # `0` — bytes that consumers join on and that the baseline comparator

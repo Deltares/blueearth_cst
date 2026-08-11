@@ -91,13 +91,26 @@ _TABLE_SUFFIX = "_indicators.csv"
 #: need it, and ``shared/`` may not import from ``experiment/``. Stating it once is
 #: also what stops the producer and its validator disagreeing about the header,
 #: which is the specific failure this pairing exists to prevent.
+#:
+#: **Ordered identifier-first, owner ruling 2026-08-11.** The columns now read
+#: *what* (``metric``, ``location``), then *which member* (``st_id``, ``rlz_id``),
+#: then *where on the surface* (``temp_change``, ``precip_change``), then the
+#: number. That groups the two id columns adjacently instead of splitting them
+#: around the perturbation axes, which is how a reader scans a long table: pick the
+#: series, then the member, then read across. Same seven columns and the same
+#: fixity — this is a reorder and one rename, not a shape change.
+#:
+#: ``realization_id`` became ``rlz_id`` in the same ruling, matching the ``rlz_``
+#: member token already carried by the run filenames (``rlz_1_st_0.csv``) and by
+#: ``RLZ_NUM``. It also sets the two id columns to the same ``<thing>_id`` width,
+#: which is what makes the adjacency above read as a pair.
 INDICATOR_COLUMNS = (
     "metric",
+    "location",
     "st_id",
+    "rlz_id",
     "temp_change",
     "precip_change",
-    "realization_id",
-    "location",
     "value",
 )
 
@@ -109,10 +122,9 @@ INDICATOR_COLUMNS = (
 #: silent: the writer raises when a design table carries an axis outside this set.
 DESIGN_AXES = ("temp_change", "precip_change")
 
-#: ``realization_id`` for a pooled row. A numeric sentinel in a numeric key
-#: column is safe ONLY because no metric emits both grains; if that ever changes
-#: it must become a string, or ``groupby("realization_id")`` folds pooled rows in
-#: as another realization.
+#: ``rlz_id`` for a pooled row. A numeric sentinel in a numeric key column is safe
+#: ONLY because no metric emits both grains; if that ever changes it must become a
+#: string, or ``groupby("rlz_id")`` folds pooled rows in as another realization.
 POOLED_REALIZATION = 0
 
 #: The reserved ``location`` for a basin-scalar value (Q11, 2026-08-07): emitted
@@ -158,7 +170,7 @@ BASIN_LOCATION = "basin"
 #: ``validate_hm7`` matches a PATTERN rather than an enumeration.
 #:
 #: Grain classes (CR-2): **A** is emitted per realization, **B** and **C** only
-#: pooled (``realization_id = 0``). See ``METRIC_CLASSES``.
+#: pooled (``rlz_id = 0``). See ``METRIC_CLASSES``.
 Q_METRIC_SUFFIXES = {
     "mean": ("annual_mean", "A"),
     "max": ("mean_annual_max", "A"),
@@ -201,7 +213,7 @@ BASIN_METRIC_SUFFIXES = {
 }
 
 #: Grain per class. `0` means pooled over realizations; see the
-#: `realization_id = 0` decision, and note the sentinel is only safe because no
+#: `rlz_id = 0` decision, and note the sentinel is only safe because no
 #: metric emits both grains — if that ever changes, it must become a string.
 METRIC_CLASSES = {"A": "per-realization", "B": "pooled", "C": "pooled"}
 

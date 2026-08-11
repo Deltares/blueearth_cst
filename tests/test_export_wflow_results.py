@@ -310,11 +310,11 @@ def test_the_header_is_seven_columns_and_does_not_grow_with_gauges(tmp_path):
     q = _reduce(tmp_path)["q"]
     assert list(q.columns) == [
         "metric",
+        "location",
         "st_id",
+        "rlz_id",
         "temp_change",
         "precip_change",
-        "realization_id",
-        "location",
         "value",
     ]
     assert set(q.location.astype(str)) == {"101", "202"}
@@ -331,7 +331,13 @@ def test_st_id_is_the_padded_member_token(tmp_path):
     """
     _reduce(tmp_path, st=12)
     text = (tmp_path / "q_indicators.csv").read_text(encoding="utf-8")
-    written = {line.split(",")[1] for line in text.splitlines()[1:]}
+    lines = text.splitlines()
+    # Locate the column by NAME in the header rather than hard-coding its index:
+    # this read is positional by necessity (the padding only exists in the bytes),
+    # and a fixed index silently reads the neighbouring column after a reorder --
+    # which is exactly what the 2026-08-11 reorder did to the literal `[1]` here.
+    st_col = lines[0].split(",").index("st_id")
+    written = {line.split(",")[st_col] for line in lines[1:]}
     assert written == {f"{m:02d}" for m in range(0, 13)}
 
 
@@ -367,7 +373,7 @@ def test_the_unperturbed_baseline_is_a_row_at_the_origin(tmp_path):
 
 def test_class_a_is_per_realization_while_b_and_c_are_pooled(tmp_path):
     q = _reduce(tmp_path, rlz=2)["q"]
-    per_rlz = q[q.metric == "q_annual_mean"].realization_id
+    per_rlz = q[q.metric == "q_annual_mean"].rlz_id
     assert set(per_rlz) == {1, 2}
     for pooled_metric in (
         "q_return_level_10yr_max",
@@ -375,7 +381,7 @@ def test_class_a_is_per_realization_while_b_and_c_are_pooled(tmp_path):
         "q_wettest_month_mean",
         "q_driest_month_mean",
     ):
-        assert set(q[q.metric == pooled_metric].realization_id) == {0}
+        assert set(q[q.metric == pooled_metric].rlz_id) == {0}
 
 
 def test_values_are_not_rounded(tmp_path):
@@ -411,7 +417,7 @@ def test_a_non_discharge_variable_gets_its_own_table_per_subcatchment(tmp_path):
     aet = tables["aet"]
     assert list(aet.metric.unique()) == ["aet_annual_total"]
     assert set(aet.location.astype(str)) == {"101", "202"}
-    assert set(aet.realization_id) == {1, 2}
+    assert set(aet.rlz_id) == {1, 2}
 
 
 def test_the_column_code_is_matched_not_the_indicator_token(tmp_path):

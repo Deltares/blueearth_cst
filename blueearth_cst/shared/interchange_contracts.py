@@ -698,16 +698,26 @@ def validate_hm7(
     """HM-7 — response-surface reduction, ONE LONG TABLE PER OUTPUT VARIABLE.
 
     ``tables`` maps variable token to parsed table (``{"q": df, "aet": df}``).
-    ``rlz_num`` is optional; supply it to check the ``realization_id`` domain.
+    ``rlz_num`` is optional; supply it to check the ``rlz_id`` domain.
     ``design`` is the parsed ``stress_test_design.csv``; supply it to check C28's
     consistency obligation.
 
-    **R11 CR-2 replaced the two wide tables with a fixed six-column long shape:**
-    ``metric, temp_change, precip_change, realization_id, location, value``. The
-    header no longer grows with the gauge count, which is why this validator can
-    assert it exactly rather than by membership — the previous version had to
-    widen to a membership test precisely because the shape was config-dependent
-    in the wrong dimension.
+    **The header this asserts, exactly and in order:**
+
+        metric, location, st_id, rlz_id, temp_change, precip_change, value
+
+    R11 CR-2 replaced the two wide tables with a fixed SIX-column long shape
+    (``metric, temp_change, precip_change, realization_id, location, value``);
+    C28 added ``st_id`` to make it seven, and the 2026-08-11 owner ruling reordered
+    those seven identifier-first and renamed ``realization_id`` to ``rlz_id``. The
+    counts in that sentence are the historical ones and are not a typo — the shape
+    was genuinely six wide before C28.
+
+    What has held throughout is the property that matters: the header no longer
+    grows with the gauge count, which is why this validator can assert it exactly
+    rather than by membership — the previous version had to widen to a membership
+    test precisely because the shape was config-dependent in the wrong dimension.
+    A reorder does not touch that property, which is why it is a cheap change.
 
     Three things it asserts that nothing else can:
 
@@ -717,7 +727,7 @@ def validate_hm7(
     - **The vocabulary, as a PATTERN.** Two suffixes interpolate ``Tpeak``/``Tlow``,
       so enumerating names would reject every project whose return periods differ
       from the fixture's.
-    - **The grain invariant.** ``realization_id = 0`` means pooled — a numeric
+    - **The grain invariant.** ``rlz_id = 0`` means pooled — a numeric
       sentinel in a numeric key column, which is safe only because no metric
       emits both grains. If that ever stops holding, the sentinel must become a
       string, and this check is what would catch it.
@@ -804,16 +814,16 @@ def validate_hm7(
 
         if rlz_num is not None:
             allowed = {POOLED_REALIZATION} | set(range(1, int(rlz_num) + 1))
-            stray = sorted({int(r) for r in table["realization_id"]} - allowed)
+            stray = sorted({int(r) for r in table["rlz_id"]} - allowed)
             if stray:
                 diffs.append(
-                    f"{label}: {name} has realization_id {stray}, outside "
+                    f"{label}: {name} has rlz_id {stray}, outside "
                     f"{{0}} and 1..{rlz_num}"
                 )
 
-        # The grain invariant. `realization_id = 0` is a numeric sentinel in a
+        # The grain invariant. `rlz_id = 0` is a numeric sentinel in a
         # numeric key column, which is safe ONLY because no metric emits both
-        # grains -- otherwise `groupby('realization_id')` folds pooled rows in as
+        # grains -- otherwise `groupby('rlz_id')` folds pooled rows in as
         # another realization. Asserted here because 0 cannot announce itself.
         for metric in metrics:
             grain = metric_grain(token, metric)
@@ -821,18 +831,18 @@ def validate_hm7(
                 continue
             ids = {
                 int(r)
-                for r, m in zip(table["realization_id"], table["metric"])
+                for r, m in zip(table["rlz_id"], table["metric"])
                 if str(m) == metric
             }
             if grain == "pooled" and ids != {POOLED_REALIZATION}:
                 diffs.append(
                     f"{label}: {name} metric {metric!r} is pooled-only but carries "
-                    f"realization_id {sorted(ids)}; expected {{0}} alone"
+                    f"rlz_id {sorted(ids)}; expected {{0}} alone"
                 )
             if grain == "per-realization" and POOLED_REALIZATION in ids:
                 diffs.append(
                     f"{label}: {name} metric {metric!r} is per-realization but "
-                    f"carries the pooled sentinel realization_id 0"
+                    f"carries the pooled sentinel rlz_id 0"
                 )
     # -- C28: the cached axis columns must agree with the design table --------
     if design is not None:

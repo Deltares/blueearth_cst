@@ -31,11 +31,11 @@
     "test_case/test_local/experiments/experiment/results/q_indicators.csv": {
       "columns": [
         "metric",
+        "location",
         "st_id",
+        "rlz_id",
         "temp_change",
         "precip_change",
-        "realization_id",
-        "location",
         "value"
       ],
       "n_groups": 66,

@@ -61,7 +61,7 @@ def _row(
         "st_id": st_id,
         "temp_change": temp,
         "precip_change": precip,
-        "realization_id": rlz,
+        "rlz_id": rlz,
         "location": location,
         "value": value,
     }
@@ -265,7 +265,7 @@ def test_reader_rejects_a_table_with_no_value_column(tmp_path):
 def test_reader_keeps_key_columns_as_written(tmp_path):
     p = tmp_path / "t.csv"
     p.write_text(
-        "metric,st_id,temp_change,precip_change,realization_id,location,value\n"
+        "metric,st_id,temp_change,precip_change,rlz_id,location,value\n"
         "q_mean,st_00,1.3000000000000003,1.0,0,101,12.5\n"
     )
     df = cb.read_indicator_table(str(p))

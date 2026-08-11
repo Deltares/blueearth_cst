@@ -267,9 +267,18 @@ Rendered one subsection per artifact.
   `export_wflow_results` at R9 P3; the *module* it runs keeps the old name, so
   the `export_wflow_results.py:NN` citations below are current).
 - **consumer:** CST-API / GUI (terminal in-repo).
-- **pinned surface:** every table carries **exactly six columns, in this order**:
+- **pinned surface:** every table carries **exactly seven columns, in this order**:
 
-      metric, st_id, temp_change, precip_change, realization_id, location, value
+      metric, location, st_id, rlz_id, temp_change, precip_change, value
+
+  Reordered identifier-first and `realization_id` renamed to `rlz_id` by owner
+  ruling 2026-08-11. The order is *what* (`metric`, `location`), *which member*
+  (`st_id`, `rlz_id`), *where on the surface* (`temp_change`, `precip_change`),
+  then the number — so the two id columns sit adjacent instead of being split
+  around the perturbation axes. `rlz_id` matches the `rlz_` member token the run
+  filenames already carry (`rlz_1_st_0.csv`) and `RLZ_NUM`. Same seven columns,
+  same fixity: a reorder and one rename, not a shape change. (The count said
+  "six" here until that ruling, having gone stale when C28 added `st_id`.)
 
   The header does not grow with the gauge count — locations are ROWS. `metric` is
   a composite `<token>_<statistic>`, so a result file is self-contained once it
@@ -294,13 +303,13 @@ Rendered one subsection per artifact.
   away), `snow` not `swe` (the CSDMS name is `snowpack_liquid_water__depth` —
   snowpack *liquid water*, so `swe` would assert a claim upstream does not make).
 
-- **`realization_id`, and the grain it encodes:** `0` means **pooled over
-  realizations**; `1..RLZ_NUM` name one. Metrics linear in years are emitted per
-  realization; the two GEV fits and the two month-selecting metrics are pooled
-  only. The numeric sentinel is safe **only because no metric emits both grains**
-  — if that ever changes it must become a string, or `groupby("realization_id")`
-  folds pooled rows in as another realization. `validate_hm7` asserts it, since
-  `0` cannot announce itself.
+- **`rlz_id`, and the grain it encodes:** `0` means **pooled over realizations**;
+  `1..RLZ_NUM` name one. Metrics linear in years are emitted per realization; the
+  two GEV fits and the two month-selecting metrics are pooled only. The numeric
+  sentinel is safe **only because no metric emits both grains** — if that ever
+  changes it must become a string, or `groupby("rlz_id")` folds pooled rows in as
+  another realization. `validate_hm7` asserts it, since `0` cannot announce
+  itself. (Spelled `realization_id` before the 2026-08-11 ruling.)
 
 - **`location`:** the **bare** id (`130000086`, not `Q_130000086`), which is the
   id wflow emits, so it joins `outlet_index.csv` with no crosswalk. In
