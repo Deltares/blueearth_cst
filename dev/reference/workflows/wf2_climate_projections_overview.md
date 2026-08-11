@@ -76,8 +76,9 @@ until 2.09 and 2.08 have run.
 | Direction | Item | Producer |
 | --- | --- | --- |
 | in | `{CPD}/summary/{proj}_change_factors_{annual,monthly}.csv` | 2.06 |
-| in | `{CPD}/plots/{proj}_change_factor_cloud.png` | 2.06 |
-| in | `{CPD}/plots/{proj}_{precip,temp}_annual_absolute.png` | 2.07 |
+| in | `{CPD}/plots/overview/change-factor-cloud.png` | 2.06 |
+| in | `{CPD}/plots/overview/annual-{precipitation,temperature}.png` | 2.07 |
+| in | `{CPD}/plots/windows/<horizon>-<start>-<end>/monthly-change-factors.png` | 2.07 |
 | in | `{PD}/config/runs/snake_config_climate_projections.yml` | 2.04 |
 | in | `{PD}/logs/wf2_climate_projections.log` | 2.09 |
 | in | `{PD}/benchmarks/wf2_benchmarks.md` | 2.08 |
@@ -133,7 +134,7 @@ change factors for every `(point, horizon)`, and writes every result artifact.
   from the config cannot rejoin through a leftover file), plus `store_region.geojson`.
 - **Out:** `{CPD}/summary/{proj}_change_factors_{annual,monthly}.csv`,
   `{CPD}/summary/composition.csv`, `{CPD}/summary/provenance.json`,
-  `{CPD}/report.md`, `{CPD}/plots/{proj}_change_factor_cloud.png`.
+  `{CPD}/report.md`, `{CPD}/plots/overview/change-factor-cloud.png`.
 - **Job-internal:** the per-point change netCDFs and the wide
   `annual_change_scalar_stats_summary.nc` live in a `TemporaryDirectory`. The wide
   file is written and read back so the tidy table describes what was persisted;
@@ -149,12 +150,19 @@ change factors for every `(point, horizon)`, and writes every result artifact.
 
 ### 2.07 `plot_gcm_timeseries` — gather
 
-Reopens all scalar series and renders the eight figures. Figure-only since S8-02.
+Reopens every scalar series and renders two full-period annual overviews. It
+also reads the authoritative monthly change-factor table and renders one
+horizon-specific monthly figure per configured window. Figure-only since S8-02.
 
-- **In:** `{CPD}/summary/{proj}_change_factors_annual.csv` (declared, unread — an
-  ordering edge), all historical and scenario `scalar/*.nc`.
-- **Out (all declared since 7-i):** the eight
-  `{CPD}/plots/{proj}_{precip,temp}_{annual,monthly}_{absolute,change}.png`.
+- **In:** `{CPD}/summary/{proj}_change_factors_annual.csv` (ordering edge),
+  `{CPD}/summary/{proj}_change_factors_monthly.csv` (read for monthly values),
+  and all historical and scenario `scalar/*.nc`.
+- **Out (all declared):** `{CPD}/plots/overview/annual-precipitation.png`,
+  `{CPD}/plots/overview/annual-temperature.png`, and one
+  `{CPD}/plots/windows/<sanitized-horizon>-<start>-<end>/monthly-change-factors.png`
+  per configured horizon. Each annual figure combines absolute and anomaly
+  panels; each monthly figure combines precipitation (%) and temperature
+  (°C) change panels.
 
 ### 2.09 `gather_logs`
 
@@ -226,10 +234,10 @@ says what happened.
                  ├─► summary/{proj}_change_factors_{annual,monthly}.csv│
                  ├─► summary/composition.csv, summary/provenance.json  │
                  ├─► report.md                                         │
-                 └─► plots/{proj}_change_factor_cloud.png              │
+                 └─► plots/overview/change-factor-cloud.png            │
                  │                                                     │
                  ▼ (ordering edge; the CSV is declared, unread)        │
-        2.07 plot_gcm_timeseries ─► plots/*.png  ──────────────┤
+        2.07 plot_gcm_timeseries ─► plots/{overview,windows}/… ─┤
                  │                                                     │
                  ├─► 2.09 gather_logs ─► logs/wf2_climate_projections.log
                  │        (+ deletes logs/_parts/)                     │

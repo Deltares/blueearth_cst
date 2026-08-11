@@ -7,7 +7,7 @@ effort: 2
 area: plotting
 queue:
 created: 2026-08-09
-updated: 2026-08-10
+updated: 2026-08-11
 ---
 
 > [!note] Overview
@@ -17,12 +17,10 @@ updated: 2026-08-10
 
 ## Progress
 
-**Half 2 is underway for ONE family; half 1 has not been started.** Ten commits
-landed on `main` across three merges (`adf4ab1`, `79a1dc4`, `e0e3b6f`), all of
-them sweeping the CLIMATE MAP family onto a consistent look. No shared template
-module exists yet, so that consistency currently lives in
-`shared/cartographic_map.py` and each caller — which is the coupling this item
-was filed to remove, not the fix.
+**Half 1 is complete; half 2 now covers the climate-map and WF2 projection
+families.** The climate-map sweep supplied the worked example, and `6d3ec75`
+then extracted the shared page and typography contract to
+`shared/plot_style.py`.
 
 Read the order as accidental rather than planned: the map family got swept first
 because that is where the owner was looking, and the template it implies has to
@@ -36,12 +34,13 @@ with a worked example, not a greenfield design.
 - [x] Colourbar title breaks at its unit; seasonal key dropped — `ab31ecc`
 - [x] Retire the subcatchment climate plots (ADR 0006) — `700caa8`
 - [x] Draw `basin_area` from the spatial foundation (ADR 0007) — `8cf2901`
-- [ ] **Half 1: extract the shared template/style module** from what
-      `cartographic_map.py` and `climate_figures.py` already agree on
-      (typography, palette, figure size, colourbar placement, export settings)
+- [x] **Half 1: extract the shared template/style module** — `6d3ec75` added
+      `shared/plot_style.py` for page size, typography and export settings
 - [ ] **Half 2, remainder — the surfaces still styled independently:**
-  - [ ] `projections/get_change_climate_proj_summary.py`
-  - [ ] `projections/plot_proj_timeseries.py`
+  - [x] `projections/get_change_climate_proj_summary.py` — faceted
+        scenario-colour cloud on the shared page/export conventions
+  - [x] `projections/plot_proj_timeseries.py` — combined annual panels and
+        horizon-specific monthly panels on the shared conventions
   - [ ] `shared/func_plot_signature.py` (`plot_signatures`, `plot_hydro`,
         `plot_basavg` — `plot_clim` is gone, ADR 0006)
   - [ ] `dev/scripts/basin_map_example.py`

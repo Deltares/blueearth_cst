@@ -738,11 +738,11 @@ STAGE 2 — PRODUCT                                 │                  │
               │                                                      │
               ├──► summary/*_change_factors_{annual,monthly}.csv     │
               │    composition.csv · provenance.json · report.md     │
-              │    plots/*_change_factor_cloud.png                   │
+              │    plots/overview/change-factor-cloud.png            │
               ▼                                                      │
 STAGE 3 — FIGURES + RECORDS                                          │
 ──────────────────────────────────────────────────────────────────   │
-    2.07 plot_gcm_timeseries   (reads 2.05's series, not 2.06)       │
+    2.07 plot_gcm_timeseries   (series + 2.06 monthly table)          │
               │                                                      │
               ▼                                                      ▼
     2.08 gather_benchmarks · 2.09 gather_logs ◄───────────────────────
@@ -750,8 +750,8 @@ STAGE 3 — FIGURES + RECORDS                                          │
 
 The region polygon feeds **four** rules — 2.03, 2.04, 2.05 and 2.06 all declare
 it — because stage B recomputes every expected digest, including the polygon
-fingerprint. 2.07's edge from 2.06 is an **ordering edge only**; it plots the
-per-member series from 2.05 and never opens the change-factor table.
+fingerprint. 2.07 plots the per-member annual series from 2.05 and reads 2.06's
+authoritative monthly change-factor table for the horizon-specific figures.
 
 **2.03 is a leaf, and both gather rules declare it explicitly.** Nothing in WF2
 consumes the vector layers yet (ADR 0003 §10 leaves the consuming rules
@@ -769,7 +769,7 @@ reachable at all: an undeclared leaf is simply never scheduled.
 | 2.04 | `fetch_gcm_slice` | Acquires one raw CMIP6 slice. The only remote read. |
 | 2.05 | `reduce_gcm_series` | Stage A: one local slice → one monthly series. |
 | 2.06 | `derive_change_factors` | Stage B, one job. WF2's terminal product. |
-| 2.07 | `plot_gcm_timeseries` | The eight projection figures. |
+| 2.07 | `plot_gcm_timeseries` | Annual overviews plus one monthly figure per horizon. |
 | 2.08 | `gather_benchmarks` | Merges the timing parts. |
 | 2.09 | `gather_logs` | Merges the log parts. |
 
@@ -850,18 +850,18 @@ report. Kept as one rule deliberately: the design gives stage B no fan-out.
 **Writes.** `<proj>/summary/<clim_project>_change_factors_annual.csv` ·
 `_monthly.csv` · `<proj>/summary/composition.csv` ·
 `<proj>/summary/provenance.json` · `<proj>/report.md` ·
-`<proj>/plots/<clim_project>_change_factor_cloud.png`.
+`<proj>/plots/overview/change-factor-cloud.png`.
 
 #### 2.07 · `plot_gcm_timeseries`
 
-**Does.** Plots the projected series — absolute levels and changes, annual and
-monthly, for temperature and precipitation — from the per-member series of 2.05.
-Its stage-B input is an **ordering edge only**; this rule never opens it.
+**Does.** Plots full-period annual absolute levels and anomalies for temperature
+and precipitation from every per-member series of 2.05. It reads 2.06's monthly
+table for matching-calendar-month, configured-horizon change factors.
 
-**Writes.** Eight PNGs under `<proj>/plots/`, named
-`<clim_project>_{precip,temp}_{annual,monthly}_{absolute,change}.png`. All eight
-are declared; five used to be written but undeclared, and so were invisible to
-Snakemake.
+**Writes.** `<proj>/plots/overview/annual-{precipitation,temperature}.png` and
+one `<proj>/plots/windows/<sanitized-horizon>-<start>-<end>/monthly-change-factors.png`
+per configured horizon. Each file combines its related panels and every output
+is declared to Snakemake.
 
 #### 2.08 · `gather_benchmarks`
 

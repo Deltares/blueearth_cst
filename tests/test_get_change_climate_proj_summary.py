@@ -18,6 +18,7 @@ TESTDIR = dirname(realpath(__file__))
 SNAKEDIR = join(TESTDIR, "..")
 
 from blueearth_cst.projections.get_change_climate_proj_summary import (  # noqa: E402
+    plot_change_factor_cloud,
     preprocess_coords,
 )
 
@@ -122,3 +123,47 @@ def test_merge_consumes_every_file_it_is_given(tmp_path):
         [str(a), str(b)], coords="minimal", preprocess=preprocess_coords
     )
     assert sorted(str(m) for m in ds.model.values) == ["A", "B"]
+
+
+def test_change_factor_cloud_facets_horizons_and_keeps_every_point():
+    """Two horizons become two equal-scale panels, with no marginal axes."""
+    import matplotlib.pyplot as plt
+    import pandas as pd
+
+    frame = pd.DataFrame(
+        [
+            {
+                "model": model,
+                "scenario": scenario,
+                "member": member,
+                "horizon": horizon,
+                "precip": precip,
+                "temp": temp,
+            }
+            for horizon, precip, temp in (("near", 10.0, 1.0), ("far", 30.0, 3.0))
+            for model, scenario, member in (
+                ("A", "ssp245", "r1"),
+                ("B", "ssp585", "r2"),
+            )
+        ]
+    )
+
+    fig = plot_change_factor_cloud(
+        frame,
+        horizons={"near": [2030, 2060], "far": [2070, 2090]},
+        scenarios=["ssp245", "ssp585"],
+    )
+    try:
+        assert len(fig.axes) == 2
+        assert [
+            sum(len(collection.get_offsets()) for collection in ax.collections)
+            for ax in fig.axes
+        ] == [2, 2]
+        assert fig.axes[0].get_xlim() == fig.axes[1].get_xlim()
+        assert fig.axes[0].get_ylim() == fig.axes[1].get_ylim()
+        assert [text.get_text() for text in fig.legends[0].get_texts()] == [
+            "SSP2-4.5",
+            "SSP5-8.5",
+        ]
+    finally:
+        plt.close(fig)
