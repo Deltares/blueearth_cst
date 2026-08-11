@@ -64,8 +64,8 @@ The tree is self-explanatory; these are the parts that are not.
   `wflow_update_waterbodies.yml`, `weathergen_config.yml`) and scaffolds you copy
   (`snake_config.template.yml`, the two `*_template.csv` observation schemas, and
   `archive/` for unmaintained single-workflow configs). The tracked
-  `wflow_sbm.toml` is reference only — nothing reads it, and it lags what a build
-  emits. Real basin data lives in the project folder, referenced by absolute
+  `wflow_sbm.reference.toml` is reference only — nothing reads it, and it lags
+  what a build emits; the infix says so, since the bare name read as an input. Real basin data lives in the project folder, referenced by absolute
   path, never in this repository.
   The fourth bin, `config/basemap/`, holds `natural_earth_50m.gpkg` — the ONLY
   geographic data committed here. The basin map's locator inset draws land,

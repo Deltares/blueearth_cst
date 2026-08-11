@@ -24,10 +24,12 @@ Never read by a run. Copy, fill in, point a config at your copy.
 | `observed_daily_discharge_template.csv` | Header-only schema for observed discharge |
 | `archive/` | Unmaintained single-workflow configs; see its own README |
 
-`wflow_sbm.toml` sits here as a **reference copy only** — no Snakefile, script or
-test reads it. Rule 1.07 has hydromt generate the project's own TOML from
-hydromt_wflow's defaults. Treat this file as documentation, and expect it to lag:
-measured 2026-08-10, it was 126 lines against the 149 a real build emitted.
+`wflow_sbm.reference.toml` sits here as a **reference copy only** — no Snakefile,
+script or test reads it. Rule 1.07 has hydromt generate the project's own TOML
+from hydromt_wflow's defaults. Treat this file as documentation, and expect it to
+lag: measured 2026-08-10, it was 126 lines against the 149 a real build emitted.
+The `.reference.` infix is there because the bare name `wflow_sbm.toml` read as a
+build input, which is exactly what it is not.
 
 **Rename after copying.** Layer names inside the model are derived from your
 file's basename (`blueearth_cst/shared/gauges.py`), so a file still called
