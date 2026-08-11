@@ -24,8 +24,16 @@ basin (``C:/TESTS/CST/gabon_1008``, 2026-08-10):
 * **No scientific notation.** 502 of 7670 rows held values like ``9.86e-5``.
   Excel renders those as ``9.87E-05``, which is a display most people then have
   to fight. The decimal cap removes the need for it entirely.
-* **Timestamps Excel parses.** ``2000-01-02T00:00:00`` imports as TEXT, not a
-  date, because of the ``T``. A space makes it a datetime everywhere.
+* **Dates, not timestamps.** ``2000-01-02T00:00:00`` imports as TEXT, not a
+  date, because of the ``T``. Dropping the time part entirely gives ``2000-01-02``,
+  which Excel parses as a date.
+
+  The intermediate form -- ``2000-01-02 00:00:00``, a space instead of the ``T``
+  -- was worse than either, and shipped until 2026-08-10. It parses as a
+  DATETIME, and a datetime is then re-rendered in the reader's locale: the same
+  file shows ``2000-01-02`` on one machine and ``02-01-2000 00:00`` on the next,
+  which is what the owner hit. A date-only string is unambiguous under
+  ISO-8601 and carries no zero time-of-day for a locale to reformat.
 
 Columns are sorted numerically, not lexically: as text, ``1010`` sorts before
 ``101``, and station ids are integers.
@@ -87,11 +95,18 @@ def slugify(variable: str) -> str:
 
 
 def split_columns(columns) -> Dict[str, List[str]]:
-    """Group ``<var>_<station>`` column names by variable, stations sorted.
+    """Group ``<var>_<id>`` column names by variable, ids sorted.
 
-    Columns that do not match the grammar (``time``, and any ``<var>_basavg``
-    aggregate, which is per-subcatchment rather than per-station) are left out:
-    they have no station id to key on, so they cannot join a per-station table.
+    The id is not always a GAUGE. Rule 1.09 declares two kinds of column and
+    both match this grammar: ``Q_<station>`` on the outlets/gauges maps, and
+    ``<code>_<subcatchment>`` for every other ``wflow_outvars`` entry, on the
+    subcatchment map with a mean reducer. So ``gwr_101`` groups here exactly as
+    ``Q_101`` does, and yields ``output_gwr.csv`` whose columns are
+    SUBCATCHMENT ids.
+
+    That is a change from the original ``<var>_basavg`` spelling, which carried
+    no numeric id and so was skipped by this function. Nothing is skipped for
+    being an aggregate any more -- only ``time``, which has no id at all.
     """
     grouped = {}
     for name in columns:
@@ -117,7 +132,25 @@ def tidy_tables(
     being written, and a float column would be re-expanded by pandas on write.
     """
     time_col = frame.columns[0]
-    stamps = pd.to_datetime(frame[time_col]).dt.strftime("%Y-%m-%d %H:%M:%S")
+    moments = pd.to_datetime(frame[time_col])
+
+    # Date-only is safe ONLY at a daily-or-coarser timestep. Wflow's
+    # `timestepsecs` is config-driven, so a sub-daily run would collapse 24
+    # distinct rows onto one repeated date -- silent data loss in a file whose
+    # whole purpose is being read by a human in Excel. Raise instead of quietly
+    # switching format: a table whose SCHEMA depends on its data is worse for a
+    # spreadsheet consumer than a loud failure, and the seam already declares
+    # this axis daily (interchange_contracts.validate_hm5, HM-5).
+    intraday = moments.dt.normalize() != moments
+    if intraday.any():
+        first = moments[intraday].iloc[0]
+        raise ValueError(
+            f"{time_col!r} carries a sub-daily timestamp ({first}); the derived "
+            "tables are date-only and would collapse rows. Widen the format here "
+            "if sub-daily wflow runs become supported."
+        )
+
+    stamps = moments.dt.strftime("%Y-%m-%d")
 
     tables = {}
     for var, names in split_columns(frame.columns).items():
@@ -171,4 +204,8 @@ def write_tidy_tables(
 if __name__ == "__main__":
     # Snakemake `script:` entry point: reads snakemake.input/output, never argv.
     sm = snakemake  # noqa: F821 - injected by Snakemake
-    write_tidy_tables(sm.input.csv_path, Path(sm.output.q_table).parent)
+    # `sm.output[0]` rather than a named output: rule 1.14b declares the whole
+    # table set now (one per configured variable), and every member shares the
+    # directory this needs. Indexing position 0 stays correct however many
+    # there are, and does not have to track the declaration's name.
+    write_tidy_tables(sm.input.csv_path, Path(sm.output[0]).parent)

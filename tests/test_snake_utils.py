@@ -5,6 +5,7 @@ conftest) had before they were collapsed into blueearth_cst/shared/snake_utils.p
 is provably identity-preserving rather than merely green on a smoke test.
 """
 
+import gc
 import io
 import os
 import re
@@ -791,7 +792,9 @@ def test_chirps_branch_declares_the_standardised_orography_sidecar(source):
     """R07 standardises on `orography.nc` (was `<clim_source>_orography.nc`)."""
     spec = _spec(clim_source=source)
     assert spec.outputs["oro_nc"] == f"{spec.store_dir}/orography.nc"
-    assert list(spec.outputs) == ["climate_nc", "oro_nc"]
+    # `basin_cells` joined the contract on 2026-08-10 and is source-independent:
+    # every extraction carries the mask, the chirps branch adds orography on top.
+    assert list(spec.outputs) == ["climate_nc", "basin_cells", "oro_nc"]
 
 
 def test_no_orography_output_outside_the_chirps_branch():
@@ -976,3 +979,111 @@ def test_the_log_pointer_is_keyed_the_same_way_as_the_other_two():
     # VALUE. A blunter substring check fails on the rationale for the fix.
     code = "\n".join(line.split("#", 1)[0] for line in src.splitlines())
     assert "log.txt" not in code, "the wflow default log name must not be a value"
+
+
+# --- the tee outlives its log file (2026-08-10) -------------------------------
+
+
+def test_a_tee_write_after_close_does_not_raise(tmp_path):
+    """A tee OUTLIVES its log file, and a late write must not blow up.
+
+    `tee_to_log` closes the log when its `with open(...)` exits; anything still
+    holding the tee then points at a dead sink. Raising there is the expensive
+    kind of failure: these writes happen during interpreter finalization, where
+    the exception cannot be reported and CPython prints the bare
+    `Error in sys.excepthook:` / `Original exception was:` pair instead.
+    """
+    from blueearth_cst.shared.snake_utils import _Tee
+
+    console = io.StringIO()
+    handle = open(tmp_path / "t.log", "w", encoding="utf-8")
+    tee = _Tee(console, handle)
+    tee.write("during\n")
+    tee.close()
+    handle.close()
+
+    tee.write("after close\n")  # must not raise
+    tee.flush()  # logging.shutdown() flushes every handler at exit
+    assert "after close" in console.getvalue()  # console is still the right sink
+
+
+def test_close_is_idempotent(tmp_path):
+    from blueearth_cst.shared.snake_utils import _Tee
+
+    handle = open(tmp_path / "t2.log", "w", encoding="utf-8")
+    tee = _Tee(io.StringIO(), handle)
+    tee.close()
+    handle.close()
+    tee.close()  # second close must not touch the closed handle
+
+
+def test_a_handler_created_inside_the_block_is_not_left_on_the_tee(tmp_path):
+    """The snapshot `_redirect_console_log_handlers` takes cannot see it.
+
+    Libraries configure logging lazily inside the rule body -- hydromt installs
+    a StreamHandler per data catalog -- binding to whatever `sys.stdout` was at
+    that moment, which is the tee. Nothing restored those, so they outlived the
+    log file they wrote into.
+    """
+    import logging
+
+    from blueearth_cst.shared.snake_utils import _Tee, tee_to_log
+
+    logger = logging.getLogger("cst_probe_lazy_handler")
+    logger.handlers.clear()
+    try:
+        with tee_to_log(tmp_path / "h.log", heartbeat_interval=0):
+            handler = logging.StreamHandler(sys.stdout)
+            logger.addHandler(handler)
+            assert isinstance(handler.stream, _Tee)  # bound to the tee, as feared
+        assert not isinstance(handler.stream, _Tee), (
+            "handler still points at the tee after the block"
+        )
+        logger.warning("must not raise")  # the record has somewhere real to go
+    finally:
+        logger.handlers.clear()
+
+
+def test_a_reference_cycle_from_the_body_is_collected_on_the_way_out(tmp_path):
+    """`tee_to_log` collects cycles while the interpreter is still healthy.
+
+    hydromt's catalog and model objects reference each other, so what holds a
+    rule's GDAL/rasterio handles is a reference CYCLE — freed only by the cyclic
+    collector. Left to interpreter finalization, tearing those handles down at
+    once on Windows makes a stderr write fail, and CPython prints the bare
+    `Error in sys.excepthook:` / `Original exception was:` pair with empty
+    bodies after a rule that SUCCEEDED (rules 1.03/1.04/1.07, observed
+    2026-08-11).
+
+    A rule body's catalog is a frame local of the function it called, so it is
+    unreachable-but-uncollected by the time this block exits — exactly what the
+    collect is for. Modelled here with a self-referencing object holding a
+    finalizer, which only the cyclic collector can reach.
+    """
+    from blueearth_cst.shared.snake_utils import tee_to_log
+
+    released = []
+
+    class _CatalogLike:
+        """Self-referencing, like a hydromt catalog <-> model pair."""
+
+        def __init__(self):
+            self.self_ref = self  # the cycle: refcounting alone never frees it
+
+        def __del__(self):
+            released.append("closed")
+
+    def rule_body():
+        _CatalogLike()  # a frame local, dropped when this function returns
+
+    gc.disable()  # so nothing collects it incidentally before the block exits
+    try:
+        with tee_to_log(tmp_path / "cycle.log", heartbeat_interval=0):
+            rule_body()
+            assert not released, "refcounting alone must not free a cycle"
+        assert released == ["closed"], (
+            "the cycle survived tee_to_log and would be torn down during "
+            "interpreter finalization instead"
+        )
+    finally:
+        gc.enable()

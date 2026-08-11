@@ -766,6 +766,10 @@ rule generate_weather_realizations:
     message: rule_banner("3.11", "generate_weather_realizations")
     input:
         climate_nc = ancient(f"{store_dir}/extract_historical.nc"),
+        # Which store cells the basin touches. `ancient` for the same reason
+        # climate_nc is: both are store artifacts whose re-extraction must not
+        # by itself re-run the generator.
+        basin_cells = ancient(f"{store_dir}/basin_cells.csv"),
         weagen_config = f"{wg_dir}/config/weathergen_config.yml",
     output:
         temp([f"{wg_dir}/output/rlz_{rlz_ix(n)}_st_{ST_BASELINE}.nc" for n in np.arange(1, RLZ_NUM+1)])
@@ -780,7 +784,7 @@ rule generate_weather_realizations:
     benchmark:
         f"{exp_dir}/benchmarks/_parts/3.11_generate_weather_realizations.tsv",
     shell:
-        """python -u "{run_logged}" "{log}" -- Rscript --vanilla blueearth_cst/weathergen/generate_weather.R {input.climate_nc} {input.weagen_config} {params.rlz_width} {params.st_width}"""
+        """python -u "{run_logged}" "{log}" -- Rscript --vanilla blueearth_cst/weathergen/generate_weather.R {input.climate_nc} {input.weagen_config} {params.rlz_width} {params.st_width} {input.basin_cells}"""
 
 # 3.12  perturb_climate_realization — impose perturbations per rlz/cst (st_num >= 1)
 rule perturb_climate_realization:

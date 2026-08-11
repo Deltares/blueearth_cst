@@ -75,6 +75,16 @@ def _render_hydro(project_dir: Path, out_dir: Path) -> list[Path]:
     from blueearth_cst.shared.plot_evaluation import Station, plot_hydrograph
 
     csv = _model_dir(project_dir) / "run_default" / "output.csv"
+    # Rule 1.14 declares this temp() since 2026-08-10, so an ordinary WF1 run
+    # leaves none and a bare FileNotFoundError here reads as a broken project
+    # rather than as the expected state. Full precision is wanted -- the derived
+    # `output_q.csv` carries bare station ids, not the `Q_` prefix selected below.
+    if not csv.exists():
+        raise SystemExit(
+            f"{csv} not found. Rule 1.14 declares it temp(), so a normal run "
+            "removes it once rules 1.14b and 1.15 have read it. Re-run WF1 with "
+            "`--notemp` to keep it for previewing."
+        )
     frame = pd.read_csv(csv, index_col=0, parse_dates=True)
     column = next(c for c in frame.columns if c.startswith("Q_"))
     qsim = xr.DataArray(

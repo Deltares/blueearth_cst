@@ -26,7 +26,18 @@ and `blueearth_cst/spatial/`.
 - `shared.basin.river_uparea_km2` — analysis river threshold (default 32 km²).
 - `shared.basin.spatial_sources.{rivers,lulc,lai,soil}` — catalog entries for
   the model-neutral thematic products.
-- `shared.historical_window.starttime`, `shared.historical_window.endtime` — forcing time range.
+- `shared.historical_window.starttime`, `shared.historical_window.endtime` — how
+  much climate record to EXTRACT (rule 1.04, the climate store, the climate
+  figures). Subject to `MIN_HISTORICAL_YEARS`, which is weathergenr's floor.
+- `workflows.model_creation.simulation_window` — the period the model is RUN
+  over (rule 1.10): the forcing prepared for it and the wflow TOML's `[time]`
+  window, which are necessarily the same span. **Optional**; absent means exact
+  passthrough of `historical_window`, so a config predating the key is
+  unaffected. Must sit INSIDE the record: rule 1.10 builds the forcing from the
+  extracted store, so a simulation period outside it has no data behind it.
+  (This was unconstrained when the key shipped, while the forcing still came
+  from the data catalog.) No length floor applies — the ≥16-year minimum is
+  weathergenr's, on the record.
 - `shared.clim_historical` — historical climate source (e.g. `era5`).
 
 ## Reads from `project`
@@ -137,7 +148,13 @@ workflows 2/3; not in this `rule all`):
 - `{basin_dir}/staticgeoms/outlets.geojson`
 - `{basin_dir}/wflow_sbm.toml`
 - `{basin_dir}/forcing/inmaps_historical.nc`
-- `{basin_dir}/run_default/output.csv`
+
+*`{basin_dir}/run_default/output.csv` was listed here and is not a
+downstream-contract artifact: `dev/scripts/cross_workflow_inputs.py` stages only
+the TOML, `.outputs_configured` and `region.geojson`, so no WF2/WF3 rule ever
+consumed it. Since 2026-08-10 rule 1.14 declares it `temp()` and a successful
+run does not leave it at all — the readable per-variable tables (rule 1.14b)
+are what `run_default/` holds. Removed 2026-08-10.*
 
 **Spatial-foundation contract** (`blueearth-cst-spatial-v1`):
 

@@ -515,6 +515,17 @@ which builds the forcing for the model grid and — through the recipe's
 `setup_config` step — writes the run window and forcing pointer into the model
 TOML.
 
+The window is `workflows.model_creation.simulation_window`, falling back to
+`shared.historical_window` when unset (2026-08-10). That is the SIMULATION
+period, not the extraction period, and it must sit inside the record.
+
+**Reads the climate store, not the catalog.** This rule declares
+`extract_historical.nc` as an input and generates a one-entry catalog
+(`config/climate_store_catalog.yml`) pointing hydromt at it, so the forcing is
+built from the extraction rule 1.04 already made rather than from a second full
+pass over the global dataset. `dem_forcing_fn` still resolves from the main
+catalog — the store holds no orography.
+
 **Writes.** `<model>/forcing/inmaps_historical.nc` ·
 `<model>/config/build_historical_forcing.yml` (the recipe, kept as provenance of
 the model it built) · `<model>/.model_final` (sentinel).
@@ -621,7 +632,11 @@ from `climate_figures.figure_names("forcing")`, all declared.
 **Does.** Runs Wflow.jl once on that historical forcing, driven by the model's
 own TOML.
 
-**Writes.** `<model>/run_default/output.csv`.
+**Writes.** `<model>/run_default/output.csv` — `temp()`, so a successful run
+does not leave it: rule 1.14b derives the readable per-variable tables from it
+and rule 1.15 reads it for the metrics, then Snakemake drops it. Run with
+`--notemp` to keep it (the baseline gate pins it, and iterating on a 1.15 figure
+otherwise re-runs the whole model).
 
 #### 1.15 · `plot_wflow_evaluation`
 

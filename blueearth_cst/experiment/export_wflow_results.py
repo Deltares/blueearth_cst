@@ -7,7 +7,7 @@ variable — so the header grew with the gauge count and a reader had to know wh
 columns were locations. This emits **one table per output variable**, each with a
 **fixed seven-column header** that does not grow with anything:
 
-    metric, st_id, temp_change, precip_change, realization_id, location, value
+    metric, location, st_id, rlz_id, temp_change, precip_change, value
 
 ``metric`` is a composite ``<variable>_<statistic>`` (``q_mean_annual_7day_min``),
 so a result file is self-contained once it leaves the project tree —
@@ -22,7 +22,7 @@ published contract.
   values average back to the pooled value exactly. Nothing is lost by emitting
   the finer grain, and ``aggregate_rlz`` existed only to choose between grains
   that are not actually different.
-- **B — non-linear fit.** Pooled only (``realization_id = 0``). A GEV fit over one
+- **B — non-linear fit.** Pooled only (``rlz_id = 0``). A GEV fit over one
   short realization is ill-conditioned; pooling multiplies the block sample by
   ``RLZ_NUM``.
 - **C — selects a category.** Pooled only. ``idxmax()`` picks ONE month, so
@@ -50,13 +50,13 @@ import pandas as pd
 
 import blueearth_cst.shared.metrics_definition as md
 from blueearth_cst.shared.indicator_tables import (
-    BASIN_LOCATION,
     BASIN_METRIC_SUFFIXES,
     DESIGN_AXES,
     INDICATOR_COLUMNS,
     POOLED_REALIZATION,
     basin_metric_name,
     basin_reduction,
+    output_code,
     q_metric_name,
 )
 from blueearth_cst.shared.snake_utils import log_row
@@ -150,31 +150,40 @@ def gauge_columns(columns) -> dict[str, str]:
     return {c: c[2:] for c in columns if c.startswith("Q_")}
 
 
-def basavg_column(columns, token: str) -> str | None:
-    """The basin-average column for one variable token, if the run emitted it."""
-    for column in columns:
-        if column.endswith("_basavg") and _matches_token(column, token):
-            return column
-    return None
+class MissingOutputColumnError(ValueError):
+    """``wflow_outvars`` requested a variable the run csvs carry no column for.
 
-
-def _matches_token(column: str, token: str) -> bool:
-    """Whether a ``<something>_basavg`` column belongs to this variable token.
-
-    wflow names these from the SEMANTIC label ("actual evapotranspiration_basavg"),
-    not from our token, so the match is on the label's own words rather than on
-    the token string. Kept narrow deliberately: a substring test on ``snow``
-    would also claim ``snowmelt_basavg`` if wflow ever emitted one.
+    Raised rather than skipped, for the reason ``UnknownOutputVariableError``
+    gives about its own case: a silently skipped variable produces a table that is
+    a header and nothing else, and an empty table is indistinguishable from "that
+    variable was never requested". That is not hypothetical here — it is the exact
+    failure this class was added for. 8bd51de renamed the csv headers from
+    ``<label>_basavg`` to ``<code>_<subcatchment>``; the matcher below kept looking
+    for the retired spelling, and two of three configured tables were written empty
+    with every rule green and no line in any log.
     """
-    label = column[: -len("_basavg")].strip().lower()
+
+
+def subcatchment_columns(columns, token: str) -> dict[str, str]:
+    """Per-subcatchment columns for one variable token → their BARE subcatchment id.
+
+    ``aet_101`` → ``101``, which is what the ``location`` column carries, so these
+    rows key the same way the per-gauge discharge rows do and join
+    ``outlet_index.csv`` without a crosswalk.
+
+    Matched on ``wflow_outputs.CODES`` — the code the model build actually writes
+    into the TOML ``header`` — not on our indicator token, which differs for four
+    of the five variables (``recharge`` is emitted as ``gwr``). The trailing
+    ``isdigit()`` is what keeps the prefix test honest: ``q`` would otherwise claim
+    ``qof_101``, the same over-claiming the retired matcher's docstring worried
+    about for ``snow``/``snowmelt``.
+    """
+    prefix = f"{output_code(token)}_"
     return {
-        "aet": label in {"actual evapotranspiration", "aet"},
-        "recharge": label in {"groundwater recharge", "recharge"},
-        "precip": label in {"precipitation", "precip"},
-        "snow": label in {"snow", "snowpack"},
-        "overland_flow": label in {"overland flow", "overland_flow"},
-        "q": label in {"river discharge", "q", "discharge"},
-    }.get(token, False)
+        column: column[len(prefix):]
+        for column in columns
+        if column.startswith(prefix) and column[len(prefix):].isdigit()
+    }
 
 
 def _annual(series: pd.Series, how: str) -> pd.Series:
@@ -299,10 +308,17 @@ def perturbation_axes(
 
 
 def _rows(metric, st_id, temp, precip, realization, values, locations) -> list[tuple]:
-    """One long-format row per location, for one metric at one member."""
+    """One long-format row per location, for one metric at one member.
+
+    The tuple order is ``INDICATOR_COLUMNS`` and must stay that way: these tuples
+    are handed to ``pd.DataFrame(rows, columns=INDICATOR_COLUMNS)``, which assigns
+    names POSITIONALLY and would silently mislabel every column rather than raise.
+    The signature keeps its argument order for its callers' sake, so the two
+    orders differ deliberately — the reorder happens here, once.
+    """
     return [
-        (metric, st_id, temp, precip, realization,
-         locations[column], float(values[column]))
+        (metric, locations[column], st_id, realization,
+         temp, precip, float(values[column]))
         for column in values.index
     ]
 
@@ -378,6 +394,28 @@ def analyze_wflow_results(
 
     first = read(csv_fns[0])
     q_locations = gauge_columns(first.columns)
+
+    # -- resolve every non-discharge variable's columns, ONCE, before reducing --
+    # Fail here rather than inside the member loop: a variable whose columns are
+    # absent can only ever produce an empty table, and finding that out before any
+    # work is done is the difference between a run that stops with the reason and
+    # a run that finishes green with a header-only deliverable.
+    subcatchment_locations: dict[str, dict[str, str]] = {}
+    for token in indicator_tokens:
+        if token == "q" or token not in BASIN_METRIC_SUFFIXES:
+            continue
+        found = subcatchment_columns(first.columns, token)
+        if not found:
+            raise MissingOutputColumnError(
+                f"wflow_outvars requested {token!r}, but {csv_fns[0]} carries no "
+                f"{output_code(token)}_<subcatchment> column. Its columns are "
+                f"{sorted(first.columns)}. The csv header comes from the "
+                f"'[[output.csv.column]]' entries the model build writes, so "
+                f"either the variable was added to wflow_outvars after the model "
+                f"was built (rebuild it) or the header code has changed and "
+                f"blueearth_cst/shared/wflow_outputs.py no longer matches it."
+            )
+        subcatchment_locations[token] = found
 
     # -- the class-C month, fixed once from the pooled baseline ---------------
     # Q5: pick from st_0, then evaluate that month for every member, so the
@@ -458,23 +496,27 @@ def analyze_wflow_results(
                         _month_mean(pooled, month), q_locations,
                     )
 
-        # ---- basin-scalar variables -----------------------------------------
+        # ---- the per-subcatchment variables ----------------------------------
         # Per realization, for the same reason class A is: these are "annual
         # statistic, then mean over years", so the finest grain is available and
         # ruling (b1) says the table carries it and lets downstream aggregate.
-        for token in indicator_tokens:
-            if token == "q" or token not in BASIN_METRIC_SUFFIXES:
-                continue
+        #
+        # And per LOCATION, for a reason that is not a preference: the model
+        # declares these with `map = "subcatchment"`, so a run emits one column per
+        # subcatchment and no whole-basin column exists to reduce. Q11 forbids
+        # manufacturing one here by area-weighting -- whether subcatchments nest or
+        # tile decides whether that mean is even valid -- so the finest grain the
+        # run offers is the grain the table carries, on both axes.
+        for token, locations in subcatchment_locations.items():
             metric = basin_metric_name(token)
             how = basin_reduction(token)
             for rlz, path in sorted(by_rlz.items()):
                 sim = read(path)
-                column = basavg_column(sim.columns, token)
-                if column is None:
-                    continue
-                value = float(_annual(sim[column], how).mean())
-                rows[token].append(
-                    (metric, st_id, temp, precip, rlz, BASIN_LOCATION, value)
+                values = pd.Series(
+                    {c: float(_annual(sim[c], how).mean()) for c in locations}
+                )
+                rows[token] += _rows(
+                    metric, st_id, temp, precip, rlz, values, locations
                 )
 
     # -- write ----------------------------------------------------------------
@@ -486,7 +528,7 @@ def analyze_wflow_results(
         # hash. What `_format_value` adds below is NOT that rounding returning —
         # see its docstring for why a significant-digit cap is a different thing.
         table["value"] = table["value"].astype("float32")
-        table["realization_id"] = table["realization_id"].astype("int64")
+        table["rlz_id"] = table["rlz_id"].astype("int64")
         # Format ONLY the value column. `to_csv(float_format=...)` would apply to
         # every float column, rewriting temp_change/precip_change from `0.0` to
         # `0` — bytes that consumers join on and that the baseline comparator

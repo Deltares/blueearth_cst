@@ -6,7 +6,7 @@ from pathlib import Path
 # See dev/milestones/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
 from blueearth_cst.shared.provenance import short_digest, snapshot_bundle_digest
-from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_JULIA_THREADS, climate_store_rule, get_config, julia_prefix, patch_psutil_windows_benchmark, region_rule, rule_banner, spatial_units_rule, target_banner, validate_historical_window, warn_if_project_dir_in_repo
+from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_JULIA_THREADS, climate_store_rule, get_config, julia_prefix, patch_psutil_windows_benchmark, region_rule, resolve_simulation_window, rule_banner, spatial_units_rule, target_banner, validate_historical_window, warn_if_project_dir_in_repo
 from blueearth_cst.spatial.config import parse_spatial_config
 # The canonical climate figure set (rules 1.13 and 1.15 both draw it). Imported
 # for figure_names() ONLY, so every figure is declared from the same list the
@@ -72,6 +72,15 @@ historical_window = get_config(shared_cfg, "historical_window", optional=False)
 # stance as the eobs rejection below. Whether the staged source actually COVERS
 # the requested window is a different question, checked at rule 1.04.
 validate_historical_window(historical_window)
+# The period the MODEL IS RUN over, which is a different question from how much
+# record to extract (above). Optional; absent means exact passthrough of
+# historical_window, so every config predating this key is unaffected. Resolved
+# and validated at parse time for the same reason the window above is.
+#
+# Editing it re-runs rule 1.10 through Snakemake's params trigger, which
+# rebuilds the forcing and so re-runs 1.14 — and since 1.14's output.csv is
+# temp(), that is the whole model. Correct, but not cheap.
+simulation_window = resolve_simulation_window(shared_cfg, my_cfg)
 clim_source = get_config(shared_cfg, "clim_historical", optional=False)
 # Wflow.jl thread count for rule 1.14. OPTIONAL — the default is P3-3's frozen
 # baseline value, so an existing config is unaffected. Config-driven rather than
@@ -360,9 +369,12 @@ WF1_TERMINALS = [
     # rule and is config-invariant, so the gather rules wait on exactly what
     # they waited on before.
     f"{basin_dir}/evaluation/performance_metrics.csv",
-    # The Excel-ready discharge table (1.14b). A product of the workflow rather
-    # than an incidental by-product, so it is a rule-`all` member like the
-    # figures — nothing downstream consumes it, so without this it never builds.
+    # The Excel-ready tables (1.14b). A product of the workflow rather than an
+    # incidental by-product, so they are rule-`all` members like the figures —
+    # nothing downstream consumes them, so without this they never build.
+    # ONE representative is enough, as with the nine figures below: 1.14b writes
+    # the whole set (WFLOW_TABLE_PATHS) in a single job, so requesting the
+    # discharge table schedules every other table with it.
     f"{basin_dir}/run_default/output_q.csv",
     f"{spatial_dir}/plots/basin_area.png",
     # One representative of each canonical climate set: the rules produce their
@@ -610,6 +622,12 @@ rule add_climate_forcing:
     message: rule_banner("1.10", "add_climate_forcing")
     input:
         outputs_configured = f"{basin_dir}/.outputs_configured",
+        # The climate store, as the forcing SOURCE (2026-08-10). This rule used
+        # to re-read the global dataset from the catalog, a second full pass
+        # over the source rule 1.04 had already clipped to this basin. Declaring
+        # it makes the reuse a DAG edge rather than a convention, and is why
+        # `simulation_window` must now sit inside `historical_window`.
+        climate_nc = CLIMATE_STORE.outputs["climate_nc"],
     output:
         # Generated build YAML is provenance OF THE MODEL IT BUILT, so it lives
         # in the model's own config/ rather than a project-level generated/
@@ -617,6 +635,10 @@ rule add_climate_forcing:
         # and the R9 path map both pin this path, and it is the record of what
         # the forcing was built from.
         forcing_yml = f"{basin_dir}/config/build_historical_forcing.yml",
+        # The one-entry catalog pointing hydromt at the store. DECLARED, not
+        # incidental: the script writes it, so an undeclared file here would be
+        # invisible to Snakemake exactly as `output_gwr.csv` was.
+        store_catalog = f"{basin_dir}/config/climate_store_catalog.yml",
         forcing_path = f"{basin_dir}/forcing/inmaps_historical.nc",
         # TERMINAL BUILD SENTINEL (ADR 0004). `hydromt update wflow_sbm` calls
         # mod.write(), which rewrites the WHOLE model root -- measured on the R9
@@ -645,8 +667,13 @@ rule add_climate_forcing:
         # writer of the model root, so the anchor is unchanged.
         model_final = touch(f"{basin_dir}/.model_final"),
     params:
-        starttime = get_config(shared_cfg["historical_window"], "starttime", optional=False),
-        endtime = get_config(shared_cfg["historical_window"], "endtime", optional=False),
+        # The SIMULATION window, not the extraction window. These two params set
+        # both halves of the same span: the forcing hydromt builds, and the
+        # wflow TOML's `[time]` starttime/endtime it runs over
+        # (shared/setup_time_horizon.py). They are one key precisely because
+        # forcing and run period cannot legitimately differ.
+        starttime = get_config(simulation_window, "starttime", optional=False),
+        endtime = get_config(simulation_window, "endtime", optional=False),
         clim_source = get_config(shared_cfg, "clim_historical", optional=False),
         basin_dir = basin_dir,
         data_catalog = DATA_SOURCES,
@@ -667,7 +694,28 @@ rule run_wflow:
         # has to re-derive.
         model_final = ancient(f"{basin_dir}/.model_final"),
     output:
-        csv_path = f"{basin_dir}/run_default/output.csv",
+        # temp() since 2026-08-10 (owner ruling). Wflow's raw csv is an
+        # INTERMEDIATE, not a deliverable: rule 1.14b derives the readable
+        # per-variable tables from it and rule 1.15 reads it for the evaluation
+        # metrics, but nothing downstream of those wants it and it left
+        # `run_default/` showing a 0.9 MB file at 21-character precision beside
+        # the 0.5 MB table meant to be read. Snakemake drops it once BOTH
+        # consumers have run, which is the ordering the ask describes ("removed
+        # after creating output_q.csv") expressed as a DAG property rather than
+        # as a delete in someone's script.
+        #
+        # Two costs, both real and neither a blocker:
+        #
+        # * Re-running 1.15 alone re-runs 1.14 -- the whole Wflow model -- since
+        #   its input no longer exists. Iterating on an evaluation FIGURE is
+        #   exactly that case, so use `--notemp` when doing it.
+        # * A baseline run needs `--notemp` too. `dev/baseline/manifest.json`
+        #   pins this file as the wf1 discharge target at FULL precision, and
+        #   check_baseline fails hard ("target missing on disk") without it.
+        #   The derived table is not a substitute: 5 decimals on discharge
+        #   running 1e-5..1e-1 is ~3 significant figures, which is coarser than
+        #   the drift the tolerance comparator exists to catch.
+        csv_path = temp(f"{basin_dir}/run_default/output.csv"),
         # Wflow's own log, DECLARED so it can be temp()'d away. Wflow has no
         # switch to disable file logging -- `[logging]` offers only `silent`
         # (terminal), `loglevel` and `path_log` (where), and the file write is
@@ -750,6 +798,32 @@ _basavg_pngs = [
     if var not in _WFLOW_OUTVARS_WITHOUT_BASAVG_PLOT
 ]
 
+# The COMPLETE set of tables rule 1.14b writes, derived from the same config
+# key. Rule 1.09 declares exactly two kinds of `[output.csv]` column, and both
+# reach a derived table because both carry a numeric id:
+#
+# * `Q` on the `outlets` map (plus the `gauges_locations` map when the project
+#   has a location registry) -- declared UNCONDITIONALLY by
+#   setup_gauges_and_outputs, i.e. even when `river discharge` is absent from
+#   `wflow_outvars`, so `output_q.csv` is always produced;
+# * one SHORT CODE per remaining `wflow_outvars` entry, on the `subcatchment`
+#   map with a mean reducer -- `gwr_101`.
+#
+# That second kind is why this list has to exist. 1.14b used to declare
+# `output_q.csv` alone, on the reasoning that extras were `<var>_basavg` and so
+# carried no id to key on. True once; the short-code change (shared/
+# wflow_outputs.CODES) renamed them to `<code>_<subcatchment_id>`, which
+# `tidy_wflow_table.split_columns` matches exactly as it matches a gauge
+# column. So `write_tidy_tables` wrote `output_gwr.csv` -- and PRUNED it on a
+# later run -- while no rule declared it. Undeclared output is invisible to
+# Snakemake: nothing rebuilds it when deleted, and since rule 1.14's
+# `output.csv` became temp() the only way back was re-running the whole model.
+WFLOW_TABLE_PATHS = [f"{basin_dir}/run_default/output_q.csv"] + [
+    f"{basin_dir}/run_default/output_{WFLOW_OUTPUT_CODES[var]}.csv"
+    for var in wflow_outvars
+    if var != "river discharge"
+]
+
 # 1.14b  export_wflow_tables — Excel-ready per-variable tables derived from 1.14
 #
 # DERIVED, not a rewrite. `output.csv` is read back by rule 1.15 through
@@ -757,9 +831,15 @@ _basavg_pngs = [
 # `Q_<id>` columns in wflow's internal order, full float precision — is an
 # interface with that reader and stays untouched (AGENTS.md: do not
 # re-engineer how hydromt handles data). The tables here are a product beside
-# it: 5 significant digits, plain decimal (no `9.86e-5` for Excel to render as
-# `9.87E-05`), space-separated timestamps Excel parses as dates instead of
-# text, and bare station ids sorted numerically.
+# it: 5 decimal places, plain decimal (no `9.86e-5` for Excel to render as
+# `9.87E-05`), date-only `YYYY-MM-DD` stamps, and bare station ids sorted
+# numerically.
+#
+# Date-only rather than the `2000-01-02 00:00:00` this shipped with until
+# 2026-08-10: that form parses as a DATETIME, which Excel then re-renders in
+# the reader's locale, so one file read as `02-01-2000 00:00` on another
+# machine. Dropping a time-of-day that is always midnight removes what the
+# locale had to reformat.
 #
 # Being a product is also what makes the per-variable split safe. The variable
 # moves into the FILENAME, which is what lets a column be `1010` rather than
@@ -775,11 +855,10 @@ rule export_wflow_tables:
         # LOCAL, not something a reader has to re-derive from a chain.
         model_final = ancient(f"{basin_dir}/.model_final"),
     output:
-        # Discharge is the only per-station variable a shipped config produces:
-        # 1.05's extras are subcatchment means (`<var>_basavg`) with no station
-        # id, so they are not per-station tables. Declared as the one file
-        # rather than a directory() so Snakemake tracks it like any other.
-        q_table = f"{basin_dir}/run_default/output_q.csv",
+        # EVERY table, derived from the config -- not just discharge. Declared
+        # as the individual files rather than a directory() so Snakemake tracks
+        # each one like any other output.
+        tables = WFLOW_TABLE_PATHS,
     log:
         f"{LOG_PARTS_DIR}/1.14b_export_wflow_tables.log",
     benchmark:

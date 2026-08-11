@@ -10,9 +10,9 @@ library(yaml)
 # downstream. Placed after source(global.R) so the arity stop() is the first
 # thing to touch args.
 args <- commandArgs(trailingOnly = TRUE)
-if (length(args) != 4L) {
-  stop("generate_weather.R expects 4 args: <climate_nc> <weagen_config_yaml> ",
-       "<rlz_index_width> <st_index_width>")
+if (length(args) != 5L) {
+  stop("generate_weather.R expects 5 args: <climate_nc> <weagen_config_yaml> ",
+       "<rlz_index_width> <st_index_width> <basin_cells_csv>")
 }
 climate_nc_path    <- args[[1]]
 weagen_config_path <- args[[2]]
@@ -28,6 +28,11 @@ if (is.na(rlz_index_width) || is.na(st_index_width) ||
   stop("generate_weather.R needs positive integer index widths, got: ",
        args[[3]], " / ", args[[4]])
 }
+# The store's basin-cell mask (rule 1.04/3.08 writes it beside the extraction).
+# Passed as a path rather than recomputed here: R has no geometry library in
+# this env, and the producer is the only place holding both the grid and the
+# region polygon.
+basin_cells_path   <- args[[5]]
 pad <- function(value, width) sprintf(paste0("%0", width, "d"), as.integer(value))
 # The reserved unperturbed baseline this rule writes, padded like any member.
 st_baseline <- pad(0L, st_index_width)
@@ -52,12 +57,45 @@ weathergen_plots_path <- paste0(weathergen_root, "plots/")
 message("[generate_weather] Reading weather netcdf: ", climate_nc_path)
 ncdata <- weathergenr::read_netcdf(climate_nc_path)
 
+# Step 1b) Restrict the RESAMPLING to the cells the basin touches.
+#
+# weathergenr picks which years to resample from a spatial mean of every cell it
+# is handed (`compute_area_averages`: sum over n_grids, divided by n_grids -- no
+# mask, no weights). The store is a bbox read plus a buffer, so those cells
+# include neighbouring climate the basin never sees. On gabon_1008 the basin
+# spans 0.80 x 0.53 ERA5 cells and touches 2 of the store's cells, so most of
+# the signal steering that stress test came from outside the basin.
+#
+# The mask is a FILTER, not a weighting (owner ruling 2026-08-10): a cell either
+# touches the basin or it does not, and the ones that do count equally. That is
+# exactly what weathergenr's own unweighted mean computes -- once it is given
+# the right subset -- so nothing upstream needs changing, which matters because
+# weathergenr is a vendored package we do not patch.
+#
+# Coordinates are matched, never indices: both sides enumerate the grid their
+# own way and an index convention would break silently.
+basin_cells <- utils::read.csv(basin_cells_path)
+grid_key <- paste(round(ncdata$grid$y, 6), round(ncdata$grid$x, 6))
+mask_key <- paste(round(basin_cells$latitude, 6), round(basin_cells$longitude, 6))
+keep <- which(grid_key %in% mask_key)
+if (length(keep) == 0L) {
+  stop("basin_cells.csv matched no cell in ", climate_nc_path,
+       " -- the mask and the store disagree about the grid")
+}
+message("[generate_weather] Resampling on ", length(keep), " basin cell(s) of ",
+        length(ncdata$data), " in the store")
+obs_data_basin <- ncdata$data[keep]
+obs_grid_basin <- ncdata$grid[keep, , drop = FALSE]
+
 # Step 2) Generate new weather realizations
 message("[generate_weather] Generating ", historical_realizations_num,
         " weather realization(s)")
 stochastic_weather <- weathergenr::generate_weather(
-    obs_data         = ncdata$data,
-    obs_grid         = ncdata$grid,
+    # The BASIN subset: this call decides WHICH DAYS get resampled, and that
+    # decision should reflect the basin's climate, not the buffer's. The full
+    # grid is re-attached below, where the realizations are built.
+    obs_data         = obs_data_basin,
+    obs_grid         = obs_grid_basin,
     obs_dates        = ncdata$date,
     vars             = yaml$general$variables,
     n_years          = yaml$generateWeatherSeries$sim.year.num,
@@ -106,7 +144,14 @@ for (n in 1:historical_realizations_num) {
   rlz_dates <- stochastic_weather$resampled[[paste0("rlz_", n)]]
   day_order <- match(rlz_dates, ncdata$date)
 
-  # Obtain stochastic series by re-ordering historical data
+  # Obtain stochastic series by re-ordering historical data.
+  #
+  # The FULL grid, deliberately -- not the basin subset the resampling ran on.
+  # The day order is a basin decision; the cells carried through are a
+  # downscaling requirement, because rule 3.14 regrids these realizations onto
+  # the wflow grid and needs the surrounding ring for the same reason rule 1.10
+  # does. Subsetting here instead would fix the climate signal and break the
+  # downscaling.
   stochastic_rlz <- lapply(ncdata$data, function(x) x[day_order, ])
 
   # save to netcdf. Every realization NC lands flat in

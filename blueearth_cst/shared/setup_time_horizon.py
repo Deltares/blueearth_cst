@@ -14,8 +14,20 @@ def prep_hydromt_update_forcing_config(
     fn_yml: Union[str, Path] = "wflow_build_forcing_historical.yml",
     precip_source: str = "era5",
     wflow_root: Optional[Union[str, Path]] = None,
+    store_source: Optional[str] = None,
 ):
-    """Write a hydromt 1.x `steps:`-format YAML to add forcing to a wflow model."""
+    """Write a hydromt 1.x `steps:`-format YAML to add forcing to a wflow model.
+
+    ``store_source`` names the catalog entry the forcing is READ from, when that
+    differs from the source it came from. Rule 1.10 passes the climate store's
+    entry so the forcing is built from the extraction rule 1.04 already made,
+    instead of re-reading the global dataset from the catalog a second time.
+
+    It is a separate argument rather than a substituted ``precip_source``
+    because the branch below keys on the real source: eobs picks a different
+    orography and PET method, and passing the store's name would silently take
+    the era5 branch. What is read and what it IS are two different questions.
+    """
     if precip_source == "eobs":
         clim_source = "eobs"
         oro_source = "eobs_orography"
@@ -56,13 +68,18 @@ def prep_hydromt_update_forcing_config(
             },
             {
                 "setup_precip_forcing": {
-                    "precip_fn": precip_source,
+                    # The store carries precip AND the climate variables in one
+                    # file (the extraction merges them for a precip-only source
+                    # like chirps), so both steps read the same entry when it is
+                    # in play. `dem_forcing_fn` below still resolves from the
+                    # main catalog -- the store holds no orography.
+                    "precip_fn": store_source or precip_source,
                     "chunksize": chunksize,
                 }
             },
             {
                 "setup_temp_pet_forcing": {
-                    "temp_pet_fn": clim_source,
+                    "temp_pet_fn": store_source or clim_source,
                     "press_correction": True,
                     "temp_correction": True,
                     "dem_forcing_fn": oro_source,

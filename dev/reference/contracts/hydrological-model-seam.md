@@ -183,13 +183,32 @@ Rendered one subsection per artifact.
   `[output.csv].column` → `output_rlz` → q_indicators** as one degree of freedom — the
   key bounded-substitution invariant, checked end-to-end by
   `validate_hm_gauge_column_identity` (below).
-- **consumer-prefix reliance (grounded, `export_wflow_results.py:61-62`):** rule
-  3.16 selects gauge columns by a **hard-coded `Q_` prefix**
-  (`Q_vars = [x for x in sim.columns if x.startswith("Q_")]`, line 61) and
-  basin-average columns by a `basavg` substring (line 62) — so the TOML `header`
-  values are load-bearing **beyond mere identity**.
-- **temp() lifecycle:** not `temp()` — persists (both wf1 `output.csv` and wf3
-  `output_rlz_*` CSVs).
+- **consumer-prefix reliance (grounded, `export_wflow_results.py`):** rule 3.16
+  selects gauge columns by a **hard-coded `Q_` prefix** (`gauge_columns`) and
+  every other variable's columns by its `wflow_outputs.CODES` code plus a numeric
+  subcatchment id (`subcatchment_columns`) — so the TOML `header` values are
+  load-bearing **beyond mere identity**.
+
+  **This reliance broke, undetected, and how it broke is the point.** 8bd51de
+  (2026-08-10) changed the basin-average header from `<label>_basavg` to
+  `<code>_<subcatchment>`; the consumer kept matching the retired spelling, found
+  no column, and `continue`d — writing `aet_indicators.csv` and
+  `recharge_indicators.csv` as a header and zero rows, with every rule green and
+  nothing in any log. Three things had to fail together: the producer changed a
+  header the consumer parses without either being a declared shared surface; the
+  consumer treated "no column" as *skip* rather than *raise*; and
+  `test_export_wflow_results.py`'s fixture wrote the `_basavg` header itself, so
+  the unit suite agreed with the consumer and with nothing else. The matcher is
+  now keyed off `CODES` — the same table the model build writes the TOML from —
+  and a requested variable with no matching column raises `MissingOutputColumnError`
+  rather than emptying its table. See also the `validate_hm7` note below: it has
+  a "no rows" check that would have caught this, but is never invoked at run time.
+- **temp() lifecycle:** SPLIT since 2026-08-10. wf1 `output.csv` **is** `temp()`
+  (rule 1.14): it is an intermediate feeding rule 1.14b's derived per-variable
+  tables and rule 1.15's metrics, and Snakemake drops it once both have run. A
+  swapper must therefore treat the wf1 artifact as existing only *within* the
+  run — `--notemp` is what materialises it, and the baseline procedure uses that
+  flag for exactly this reason. The wf3 `output_rlz_*` CSVs still persist.
 - **deliberately unpinned:** numeric discharge values (not a contract; they
   change per run).
 - **validator:** `validate_hm5` (per-artifact column-identity); cross-file
@@ -248,9 +267,18 @@ Rendered one subsection per artifact.
   `export_wflow_results` at R9 P3; the *module* it runs keeps the old name, so
   the `export_wflow_results.py:NN` citations below are current).
 - **consumer:** CST-API / GUI (terminal in-repo).
-- **pinned surface:** every table carries **exactly six columns, in this order**:
+- **pinned surface:** every table carries **exactly seven columns, in this order**:
 
-      metric, st_id, temp_change, precip_change, realization_id, location, value
+      metric, location, st_id, rlz_id, temp_change, precip_change, value
+
+  Reordered identifier-first and `realization_id` renamed to `rlz_id` by owner
+  ruling 2026-08-11. The order is *what* (`metric`, `location`), *which member*
+  (`st_id`, `rlz_id`), *where on the surface* (`temp_change`, `precip_change`),
+  then the number — so the two id columns sit adjacent instead of being split
+  around the perturbation axes. `rlz_id` matches the `rlz_` member token the run
+  filenames already carry (`rlz_1_st_0.csv`) and `RLZ_NUM`. Same seven columns,
+  same fixity: a reorder and one rename, not a shape change. (The count said
+  "six" here until that ruling, having gone stale when C28 added `st_id`.)
 
   The header does not grow with the gauge count — locations are ROWS. `metric` is
   a composite `<token>_<statistic>`, so a result file is self-contained once it
@@ -275,21 +303,29 @@ Rendered one subsection per artifact.
   away), `snow` not `swe` (the CSDMS name is `snowpack_liquid_water__depth` —
   snowpack *liquid water*, so `swe` would assert a claim upstream does not make).
 
-- **`realization_id`, and the grain it encodes:** `0` means **pooled over
-  realizations**; `1..RLZ_NUM` name one. Metrics linear in years are emitted per
-  realization; the two GEV fits and the two month-selecting metrics are pooled
-  only. The numeric sentinel is safe **only because no metric emits both grains**
-  — if that ever changes it must become a string, or `groupby("realization_id")`
-  folds pooled rows in as another realization. `validate_hm7` asserts it, since
-  `0` cannot announce itself.
+- **`rlz_id`, and the grain it encodes:** `0` means **pooled over realizations**;
+  `1..RLZ_NUM` name one. Metrics linear in years are emitted per realization; the
+  two GEV fits and the two month-selecting metrics are pooled only. The numeric
+  sentinel is safe **only because no metric emits both grains** — if that ever
+  changes it must become a string, or `groupby("rlz_id")` folds pooled rows in as
+  another realization. `validate_hm7` asserts it, since `0` cannot announce
+  itself. (Spelled `realization_id` before the 2026-08-11 ruling.)
 
-- **`location`:** the **bare** gauge id (`130000086`, not `Q_130000086`), which is
-  the subcatchment id wflow emits, so it joins `outlet_index.csv` with no
-  crosswalk. `basin` is **reserved** for a basin-scalar value, emitted
-  independently rather than derived from per-location values (Q11): whether
-  subcatchments nest or tile decides whether an area-weighted mean is valid at
-  all, and a derived value would silently encode whichever answer the implementer
-  assumed.
+- **`location`:** the **bare** id (`130000086`, not `Q_130000086`), which is the
+  id wflow emits, so it joins `outlet_index.csv` with no crosswalk. In
+  `q_indicators.csv` those are the outlets- and gauges-map ids; in every other
+  table they are **subcatchment** ids, since those variables are declared
+  `map = "subcatchment"` and a run emits one column per subcatchment. The two id
+  sets are not 1:1 and need not be — a basin can have more gauges than
+  subcatchments or the reverse.
+
+  `basin` is **reserved** for a basin-scalar value, emitted independently rather
+  than derived from per-location values (Q11): whether subcatchments nest or tile
+  decides whether an area-weighted mean is valid at all, and a derived value would
+  silently encode whichever answer the implementer assumed. **Nothing emits it
+  today**, and Q11 is exactly why the reducer does not start: producing a genuine
+  basin scalar means declaring a whole-basin column in the TOML, which is a WF1
+  change rather than a reduction one.
 
 - **`aggregate_rlz` is retired** (ruling b1). In the long shape "aggregated" is
   not a *shape* choice, so the table always carries the finest grain available and
@@ -451,7 +487,7 @@ executes on **every** checkout, fixture or not. HM-2 unit attrs are asserted
 | `validate_hm2` | HM-2 (+ WG-6 twin) | `models/hydrology/wflow/forcing/inmaps_historical.nc`; wf3 twin `<exp>/hydrology/wflow/forcing/inmaps_rlz_<n>_st_<m>.nc` | **yes** for wf1 `inmaps_historical.nc`; wf3 twin (WG-6) `temp()` → skip-until-captured |
 | `validate_hm3` | HM-3 | `models/hydrology/wflow/staticgeoms/{region.geojson, outlets.geojson, outlet_index.csv}` | **yes** (persists) |
 | `validate_hm4` | HM-4 | `models/hydrology/wflow/wflow_sbm.toml`; `<exp>/hydrology/wflow/config/rlz_<n>_st_<m>.toml` | **yes** (both base + per-cst TOMLs persist) |
-| `validate_hm5` | HM-5 | wf1 `run_default/output.csv`; wf3 `<exp>/hydrology/wflow/output/rlz_<n>_st_<m>.csv` | **yes** (both persist; the wf3 per-cst CSVs are NOT `temp()`) |
+| `validate_hm5` | HM-5 | wf1 `run_default/output.csv`; wf3 `<exp>/hydrology/wflow/output/rlz_<n>_st_<m>.csv` | wf1 `output.csv` is `temp()` since 2026-08-10 → skip-until-captured, or run with `--notemp`; **yes** for the wf3 per-cst CSVs (NOT `temp()`) |
 | `validate_hm_gauge_column_identity` (relational) | HM-4 → HM-5 → HM-7 gauge-column identity | per-cst TOMLs + the per-cst run CSVs + `q_indicators.csv` | **yes** (all inputs persist) |
 | *(HM-6a)* | HM-6a | `models/hydrology/wflow/run_default/outstate/outstates.nc` | **no validator** — existence pinned transitively via HM-4's `[state].path_output` |
 | `validate_hm6b` | HM-6b | `<exp>/hydrology/wflow/output/outstates_rlz_<n>_st_<m>.nc` | **no** — `temp()` content absent; skip-until-captured on disk, synthetic-proven every suite |

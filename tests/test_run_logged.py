@@ -135,3 +135,46 @@ def test_cli_runs_command_and_returns_code(tmp_path):
     log = tmp_path / "cli.log"
     rc = main([str(log), "--", sys.executable, "-c", "import sys; sys.exit(5)"])
     assert rc == 5
+
+
+def test_run_and_tee_collapses_a_cascade_that_is_not_trailing(tmp_path):
+    """The `-c 3` case: another job's line lands after the cascade.
+
+    Until 2026-08-10 the buffered block was flushed VERBATIM whenever real
+    content followed, so the collapse fired only when the noise happened to end
+    the stream. Concurrent jobs make that the uncommon case, which is why the
+    filter looked present and did nothing in a real run.
+    """
+    log = tmp_path / "midstream.log"
+    snippet = (
+        "import sys\n"
+        "sys.stderr.write('first job line\\n')\n"
+        "[sys.stderr.write('Error in sys.excepthook:\\n\\n"
+        "Original exception was:\\n\\n') for _ in range(4)]\n"
+        "sys.stderr.write('another job line\\n')\n"
+    )
+    rc = run_and_tee([sys.executable, "-c", snippet], log)
+    text = log.read_text(encoding="utf-8")
+    assert rc == 0
+    assert "first job line" in text and "another job line" in text
+    assert "[run_logged] collapsed 16 benign" in text
+    assert "mid-run" in text
+    assert text.count("Error in sys.excepthook:") == 1
+
+
+def test_run_and_tee_still_keeps_a_real_traceback_mid_stream(tmp_path):
+    """The mid-stream collapse must stay as conservative as the trailing one."""
+    log = tmp_path / "midreal.log"
+    snippet = (
+        "import sys\n"
+        "sys.stderr.write('Error in sys.excepthook:\\n')\n"
+        "sys.stderr.write('ValueError: boom\\n')\n"
+        "sys.stderr.write('Original exception was:\\n')\n"
+        "sys.stderr.write('RuntimeError: real\\n')\n"
+        "sys.stderr.write('trailing normal line\\n')\n"
+    )
+    rc = run_and_tee([sys.executable, "-c", snippet], log)
+    text = log.read_text(encoding="utf-8")
+    assert rc == 0
+    assert "ValueError: boom" in text and "RuntimeError: real" in text
+    assert "[run_logged] collapsed" not in text

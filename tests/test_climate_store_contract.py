@@ -333,16 +333,24 @@ def test_the_single_input_is_the_catalog(declarations):
 
 @pytest.mark.workflow_contract
 def test_outputs_are_the_store_artifacts(declarations):
-    """The era5 seed branch declares the extraction and nothing else.
+    """The era5 seed branch declares the extraction and its basin-cell mask.
 
     ADR 0003 retired the per-store-key ``store_region.geojson``: the polygon is
     one project artifact, declared here as an INPUT, and the store's extent
     provenance moved into the extraction's own attributes.
+
+    ``basin_cells.csv`` joined on 2026-08-10 and is part of the contract for
+    both workflows, not a WF3-local artifact: it says which extracted cells the
+    basin touches, which is a property of THIS extraction's grid and derivable
+    only where that grid meets the region polygon. Rule 3.11 averages over
+    exactly those cells instead of over every cell the bbox+buffer read
+    happened to include.
     """
     for label in ("wf1", "wf3"):
         _workflow, rule = declarations[label]
         keys = sorted(rule.output.keys())
-        assert keys == ["climate_nc"], f"{label}: {keys}"
+        assert keys == ["basin_cells", "climate_nc"], f"{label}: {keys}"
+        assert str(rule.output.basin_cells).endswith("/basin_cells.csv"), label
         assert str(rule.output.climate_nc).endswith("/extract_historical.nc"), label
         assert not [str(path) for path in rule.output if "store_region" in str(path)], (
             label

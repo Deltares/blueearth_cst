@@ -8,6 +8,7 @@ own directory to ``sys.path`` before importing — see
 """
 
 import contextlib
+import gc
 import logging
 import os
 import re
@@ -713,6 +714,86 @@ def validate_historical_window(historical_window) -> int:
     return days
 
 
+def resolve_simulation_window(shared_cfg, model_cfg):
+    """The window the hydrological model SIMULATES, which is not the record.
+
+    Two different questions were one config key until 2026-08-10:
+
+    * ``shared.historical_window`` — how much climate record to EXTRACT. It
+      feeds the climate store, the climate figures, and (through that store)
+      weathergenr, whose wavelet decomposition sets ``MIN_HISTORICAL_YEARS``.
+      This is analysis input, and it is what a future standalone climate
+      workflow would be parameterised on.
+    * ``workflows.model_creation.simulation_window`` — the period the model is
+      RUN over. It sets the forcing hydromt prepares and the ``[time]``
+      ``starttime``/``endtime`` in the wflow TOML, which are necessarily the
+      same span: forcing outside the run period is built and never read, and a
+      run period outside the forcing has nothing to read.
+
+    The simulation window must sit INSIDE the record, and that is a change from
+    how this shipped on 2026-08-10. It was written unconstrained, correctly at
+    the time: rule 1.10 declared no climate-store input and read its forcing
+    from the data catalog, so the two windows were genuinely independent. Rule
+    1.10 now builds the forcing FROM the store, to stop re-reading the same
+    source twice, and a simulation period outside the extraction therefore has
+    no data behind it. Caught here, at parse time, rather than as a truncated or
+    empty forcing twenty rules downstream.
+
+    ``MIN_HISTORICAL_YEARS`` is likewise not applied here. It exists for
+    weathergenr's record, so a project can now run a short simulation while
+    keeping the >=16-year record a stress test needs — which the single-key
+    form could not express.
+
+    OPTIONAL, and absent means EXACT passthrough of ``historical_window`` — not
+    a default that happens to coincide. Every config written before this key
+    existed therefore behaves identically.
+
+    Returns a mapping with ``starttime``/``endtime``; raises ``ValueError``
+    naming the offending key if the window is malformed.
+    """
+    window = get_config(model_cfg, "simulation_window", None)
+    if window is None:
+        return get_config(shared_cfg, "historical_window", optional=False)
+    if not isinstance(window, Mapping):
+        raise ValueError(
+            f"workflows.model_creation.simulation_window must be a mapping "
+            f"with starttime/endtime, got {window!r}"
+        )
+    for key in ("starttime", "endtime"):
+        if key not in window:
+            raise ValueError(
+                f"workflows.model_creation.simulation_window is missing {key!r}"
+            )
+        try:
+            datetime.fromisoformat(str(window[key]).strip())
+        except ValueError:
+            raise ValueError(
+                f"workflows.model_creation.simulation_window.{key} is not an "
+                f"ISO datetime: {window[key]!r}"
+            ) from None
+    start, end = (
+        datetime.fromisoformat(str(window["starttime"]).strip()),
+        datetime.fromisoformat(str(window["endtime"]).strip()),
+    )
+    if end <= start:
+        raise ValueError(
+            f"workflows.model_creation.simulation_window {start.date()} .. "
+            f"{end.date()} ends on or before it starts — check the order"
+        )
+    record = get_config(shared_cfg, "historical_window", optional=False)
+    rec_start, rec_end = historical_window_bounds(record)
+    if start < rec_start or end > rec_end:
+        raise ValueError(
+            f"workflows.model_creation.simulation_window {start.date()} .. "
+            f"{end.date()} is not inside shared.historical_window "
+            f"{rec_start.date()} .. {rec_end.date()}. The forcing is built from "
+            "the extracted climate store, so a simulation period outside the "
+            "record has no data behind it — widen historical_window, or narrow "
+            "the simulation window to fit inside it"
+        )
+    return window
+
+
 def slugify_window(start, end) -> str:
     """Render a window ``(start, end)`` to a compact ``YYYYMMDD_YYYYMMDD`` slug.
 
@@ -1163,6 +1244,13 @@ def climate_store_rule(
 
     outputs = {
         "climate_nc": f"{store_dir}/extract_historical.nc",
+        # Which extracted cells the basin TOUCHES. Part of the store contract
+        # rather than a WF3-local artifact: the store is what both workflows
+        # share, and the mask is a property of this extraction's grid, so it is
+        # only derivable where the grid and the region polygon meet. Consumers
+        # (rule 3.11) average over exactly these cells instead of over every
+        # cell the bbox+buffer read happened to include.
+        "basin_cells": f"{store_dir}/basin_cells.csv",
     }
     if clim_source in ("chirps", "chirps_global"):
         # Resolved at parse time from clim_historical, so there are no dynamic
@@ -1456,12 +1544,31 @@ class _Tee:
         self._project_root = project_root
         self._on_activity = on_activity  # called on each write (heartbeat reset)
         self._pending = ""  # current, not-yet-newline-terminated log line
+        # Set by ``close``. A tee OUTLIVES its log file: ``tee_to_log`` closes
+        # the file when its `with open(...)` exits, and anything still holding a
+        # reference to this object then has a live handle onto a dead sink.
+        # That is not hypothetical -- a library configuring logging lazily
+        # inside the rule body (hydromt does, per data catalog) installs a
+        # StreamHandler bound to whatever ``sys.stdout`` was AT THAT MOMENT,
+        # which is this tee, and nothing restores a handler that did not exist
+        # when the redirect was set up.
+        self._closed = False
 
     def write(self, text):
         if self._on_activity is not None:
             self._on_activity()
         out = _relativize_paths(_compact_log_line(text), self._project_root)
         self._live.write(out)  # verbatim: keeps the live console animation
+        # After close the console is still open and still the right place for
+        # this text; only the log file is gone. Writing to a closed file raises
+        # ValueError, and a raise HERE is the expensive kind: these late writes
+        # happen during interpreter finalization, where the exception cannot be
+        # reported (module globals are already torn down) and CPython prints the
+        # bare `Error in sys.excepthook:` / `Original exception was:` pair with
+        # EMPTY bodies instead. Degrading to console-only keeps the output and
+        # removes that whole failure class.
+        if self._closed:
+            return len(text)
         buf = self._pending + out
         lines = buf.split("\n")
         self._pending = lines.pop()  # trailing fragment, no newline yet
@@ -1474,15 +1581,21 @@ class _Tee:
         # Flush the sinks but NOT ``_pending``: emitting a mid-progress fragment
         # would re-clutter the log with every partial redraw.
         self._live.flush()
-        self._logfile.flush()
+        # Same reasoning as ``write``: ``logging.shutdown`` flushes every handler
+        # at exit, so a handler left pointing here must not raise.
+        if not self._closed:
+            self._logfile.flush()
 
     def close(self):
         # Flush any trailing partial line (e.g. a progress bar cut short by an
         # error before its final newline) so nothing is silently dropped.
+        if self._closed:
+            return
         if self._pending:
             self._logfile.write(_cr_overwrite(self._pending) + "\n")
             self._pending = ""
         self._logfile.flush()
+        self._closed = True
 
     def isatty(self):
         return False
@@ -1605,8 +1718,13 @@ def run_and_tee(command, log_path):
                 if _is_shutdown_noise(line):
                     pending.append(line)
                     continue
-                for buffered in pending:
-                    emit(buffered)
+                # Collapse here too, not just at end of stream. The block was
+                # flushed verbatim until 2026-08-10, which made the filter fire
+                # only when the cascade happened to be the LAST thing in the
+                # stream. Under `-c 3` it usually is not: several jobs finalize
+                # concurrently, another job's line lands after the markers, and
+                # the collapse the log needed never ran.
+                _flush_pending(pending, emit)
                 pending = []
                 emit(line)
             rc = proc.wait()
@@ -1616,19 +1734,28 @@ def run_and_tee(command, log_path):
         return rc
 
 
-def _flush_pending(pending, emit, rc):
-    """Emit the trailing candidate block: collapse a real cascade, else verbatim.
+def _flush_pending(pending, emit, rc=None):
+    """Emit a candidate block: collapse a real cascade, else verbatim.
 
     Collapse only when the block holds at least two markers (one full
-    ``excepthook``/``original`` unit); a smaller or marker-free tail is emitted
+    ``excepthook``/``original`` unit); a smaller or marker-free block is emitted
     unchanged so nothing real is dropped.
+
+    Called BOTH mid-stream (``rc=None`` — the child is still running) and once
+    the stream ends (``rc`` known). The exit code is worth naming in the summary
+    because the whole point of the collapse is that this noise follows a
+    SUCCESSFUL run; mid-stream that is not yet knowable, so the summary says
+    where it happened instead.
     """
+    if not pending:
+        return
     marker_count = sum(1 for ln in pending if ln.strip() in _EXCEPTHOOK_MARKERS)
     if marker_count >= 2:
+        where = "mid-run" if rc is None else f"child rc={rc}"
         emit(
             f"[run_logged] collapsed {len(pending)} benign interpreter-shutdown "
             f"lines (repeated 'Error in sys.excepthook:' / 'Original exception "
-            f"was:'; child rc={rc})\n"
+            f"was:'; {where})\n"
         )
     else:
         for buffered in pending:
@@ -1684,6 +1811,37 @@ def _restore_log_handlers(saved):
     """Undo ``_redirect_console_log_handlers`` (restore each handler's stream)."""
     for handler, stream in saved:
         _set_handler_stream(handler, stream)
+
+
+def _detach_handlers_bound_to(tees, orig_out, orig_err):
+    """Repoint any handler still bound to a tee back at the real console.
+
+    ``_restore_log_handlers`` can only undo what ``_redirect_console_log_handlers``
+    SAVED, and that snapshot is taken on entry. A handler created *during* the
+    rule body is invisible to it — and libraries do exactly that: hydromt
+    installs a StreamHandler when it parses a data catalog, which happens inside
+    the body, bound to the tee that ``sys.stdout`` then was.
+
+    Left alone, such a handler outlives the log file it points into. Every later
+    record through it is dropped, and its exit-time flush touches a closed file.
+    Sweeping by stream IDENTITY (never by logger name) repoints exactly those and
+    nothing else, so a genuine FileHandler is untouched.
+    """
+    targets = {id(tee) for tee in tees}
+    loggers = [logging.getLogger()]
+    loggers += [
+        lg
+        for lg in logging.Logger.manager.loggerDict.values()
+        if isinstance(lg, logging.Logger)
+    ]
+    for lg in loggers:
+        for handler in getattr(lg, "handlers", []):
+            stream = getattr(handler, "stream", None)
+            if id(stream) not in targets:
+                continue
+            _set_handler_stream(
+                handler, orig_err if stream is tees[-1] else orig_out
+            )
 
 
 def _is_clean_exit(exc) -> bool:
@@ -1791,11 +1949,42 @@ def tee_to_log(log_path, heartbeat_interval=60.0):
                 handle.flush()
             raise
         finally:
+            # Collect FIRST, while the interpreter is healthy and this block is
+            # still fully set up. A `script:` rule's data catalogs and model
+            # objects are frame locals of the function the body just called, so
+            # by now they are unreachable — but hydromt's catalog and model
+            # objects reference each other, so what holds their GDAL/rasterio
+            # handles is a REFERENCE CYCLE. A cycle is freed only by the cyclic
+            # collector, and if that does not run until interpreter finalization
+            # the handles are all torn down there instead. On Windows that makes
+            # a stderr write fail, CPython's excepthook cannot run that late
+            # (module globals are already gone), and it prints a bare
+            # `Error in sys.excepthook:` / `Original exception was:` pair with
+            # EMPTY bodies, repeatedly, after a rule that SUCCEEDED.
+            #
+            # Here rather than per-rule because the population is every `script:`
+            # rule, present and future. Three modules carry a local
+            # `gc.collect()` and it was measured to work in only one of them
+            # (`delineate_region.py`, 14 lines -> 0); the other two collect with
+            # the catalog still BOUND, so the collector cannot claim it. This is
+            # the one place that sees every rule after its frame has gone.
+            #
+            # Ordering matters: before the handler restore and the tee close, so
+            # that a ``__del__`` which logs or warns during collection still
+            # lands in the rule's log instead of on the bare console — the exact
+            # late-write class the tee-close fix addressed.
+            gc.collect()
             # Restore log handlers first (before their target tees close), stop
             # the watchdog (console-only summary), flush trailing partial lines
             # while ``handle`` is open, then restore the streams — all always run,
             # even if the body raised.
             _restore_log_handlers(saved_handlers)
+            # ...then the ones that snapshot could not know about, which are the
+            # ones that would otherwise still be writing into a closed log file
+            # after this block returns.
+            _detach_handlers_bound_to(
+                (stdout_tee, stderr_tee), orig_out, orig_err
+            )
             _exc = sys.exc_info()[1]
             heartbeat.stop(failed=_exc is not None and not _is_clean_exit(_exc))
             for tee in (stdout_tee, stderr_tee):

@@ -67,7 +67,16 @@ def run_prepare_spatial_maps(
     finally:
         # Rasterio/GDAL-backed lazy arrays otherwise survive until interpreter
         # shutdown on Windows and can emit a large benign sys.excepthook cascade.
+        #
+        # `del catalog` is not decoration: this collect ran with `catalog` still
+        # BOUND until 2026-08-11, so the object holding the GDAL handles was
+        # still reachable and the collector could not claim it — the comment
+        # above promised a mitigation the code could not deliver.
+        # `tee_to_log` now collects again on the way out, which covers whatever
+        # is released after this point; this one still runs first, so the
+        # handles go while the rule is at its healthiest.
         maps.close()
+        del catalog
         gc.collect()
 
 

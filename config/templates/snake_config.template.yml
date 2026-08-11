@@ -31,6 +31,9 @@ shared:
       lulc: vito
       lai: modis_lai
       soil: soilgrids
+  # How much climate record to EXTRACT — drives the climate store, the climate
+  # figures and (through the store) weathergenr. NOT the model run period; see
+  # workflows.model_creation.simulation_window.
   historical_window:
     starttime: "2000-01-01T00:00:00"                      # ISO datetime
     endtime: "2020-12-31T00:00:00"                        # ISO datetime — span >= 16 years
@@ -46,6 +49,19 @@ workflows:
     #                groundwater recharge, snow
     wflow_outvars: ["river discharge", "actual evapotranspiration"]
     observations_timeseries: null                         # path | null — needs gauge_points
+    # The period the hydrological model is RUN over: sets the forcing prepared
+    # for it AND the wflow TOML's [time] window, which are necessarily equal.
+    # OPTIONAL — omit and it follows shared.historical_window exactly.
+    #
+    # Must sit INSIDE shared.historical_window: the forcing is built from the
+    # extracted climate store, so a simulation period outside the record has no
+    # data behind it. Analysing 1990-2020 and simulating 2000-2020 is the
+    # intended shape. The >= 16-year floor applies to the RECORD only, so a
+    # short run is allowed.
+    # Editing this rebuilds the forcing and re-runs the model.
+    #simulation_window:
+    #  starttime: "2000-01-01T00:00:00"                    # ISO datetime
+    #  endtime: "2020-12-31T00:00:00"                      # ISO datetime
 
   climate_projections:
     enabled: true                                         # boolean
