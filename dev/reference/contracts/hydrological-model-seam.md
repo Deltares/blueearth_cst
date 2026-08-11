@@ -183,11 +183,26 @@ Rendered one subsection per artifact.
   `[output.csv].column` → `output_rlz` → q_indicators** as one degree of freedom — the
   key bounded-substitution invariant, checked end-to-end by
   `validate_hm_gauge_column_identity` (below).
-- **consumer-prefix reliance (grounded, `export_wflow_results.py:61-62`):** rule
-  3.16 selects gauge columns by a **hard-coded `Q_` prefix**
-  (`Q_vars = [x for x in sim.columns if x.startswith("Q_")]`, line 61) and
-  basin-average columns by a `basavg` substring (line 62) — so the TOML `header`
-  values are load-bearing **beyond mere identity**.
+- **consumer-prefix reliance (grounded, `export_wflow_results.py`):** rule 3.16
+  selects gauge columns by a **hard-coded `Q_` prefix** (`gauge_columns`) and
+  every other variable's columns by its `wflow_outputs.CODES` code plus a numeric
+  subcatchment id (`subcatchment_columns`) — so the TOML `header` values are
+  load-bearing **beyond mere identity**.
+
+  **This reliance broke, undetected, and how it broke is the point.** 8bd51de
+  (2026-08-10) changed the basin-average header from `<label>_basavg` to
+  `<code>_<subcatchment>`; the consumer kept matching the retired spelling, found
+  no column, and `continue`d — writing `aet_indicators.csv` and
+  `recharge_indicators.csv` as a header and zero rows, with every rule green and
+  nothing in any log. Three things had to fail together: the producer changed a
+  header the consumer parses without either being a declared shared surface; the
+  consumer treated "no column" as *skip* rather than *raise*; and
+  `test_export_wflow_results.py`'s fixture wrote the `_basavg` header itself, so
+  the unit suite agreed with the consumer and with nothing else. The matcher is
+  now keyed off `CODES` — the same table the model build writes the TOML from —
+  and a requested variable with no matching column raises `MissingOutputColumnError`
+  rather than emptying its table. See also the `validate_hm7` note below: it has
+  a "no rows" check that would have caught this, but is never invoked at run time.
 - **temp() lifecycle:** SPLIT since 2026-08-10. wf1 `output.csv` **is** `temp()`
   (rule 1.14): it is an intermediate feeding rule 1.14b's derived per-variable
   tables and rule 1.15's metrics, and Snakemake drops it once both have run. A
@@ -287,13 +302,21 @@ Rendered one subsection per artifact.
   folds pooled rows in as another realization. `validate_hm7` asserts it, since
   `0` cannot announce itself.
 
-- **`location`:** the **bare** gauge id (`130000086`, not `Q_130000086`), which is
-  the subcatchment id wflow emits, so it joins `outlet_index.csv` with no
-  crosswalk. `basin` is **reserved** for a basin-scalar value, emitted
-  independently rather than derived from per-location values (Q11): whether
-  subcatchments nest or tile decides whether an area-weighted mean is valid at
-  all, and a derived value would silently encode whichever answer the implementer
-  assumed.
+- **`location`:** the **bare** id (`130000086`, not `Q_130000086`), which is the
+  id wflow emits, so it joins `outlet_index.csv` with no crosswalk. In
+  `q_indicators.csv` those are the outlets- and gauges-map ids; in every other
+  table they are **subcatchment** ids, since those variables are declared
+  `map = "subcatchment"` and a run emits one column per subcatchment. The two id
+  sets are not 1:1 and need not be — a basin can have more gauges than
+  subcatchments or the reverse.
+
+  `basin` is **reserved** for a basin-scalar value, emitted independently rather
+  than derived from per-location values (Q11): whether subcatchments nest or tile
+  decides whether an area-weighted mean is valid at all, and a derived value would
+  silently encode whichever answer the implementer assumed. **Nothing emits it
+  today**, and Q11 is exactly why the reducer does not start: producing a genuine
+  basin scalar means declaring a whole-basin column in the TOML, which is a WF1
+  change rather than a reduction one.
 
 - **`aggregate_rlz` is retired** (ruling b1). In the long shape "aggregated" is
   not a *shape* choice, so the table always carries the finest grain available and

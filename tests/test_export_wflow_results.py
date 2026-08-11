@@ -26,10 +26,12 @@ import pytest
 
 from blueearth_cst.experiment.export_wflow_results import (  # noqa: E402
     VALUE_SIGNIFICANT_DIGITS,
+    MissingOutputColumnError,
     _format_value,
     analyze_wflow_results,
     annual_perturbation,
     member_from_run_csv,
+    subcatchment_columns,
 )
 
 
@@ -246,7 +248,18 @@ def _write_design(tmp_path, st_num, extra_axis=False):
 
 
 def _run_csv(path, seed, offset, basavg=True):
-    """A wflow run CSV: two gauges, optionally one basin-average column."""
+    """A wflow run CSV: two gauges, optionally two subcatchments' worth of AET.
+
+    **The header is the one wflow actually emits**, which this fixture got wrong
+    from R11 until 2026-08-11: it wrote ``actual evapotranspiration_basavg``, a
+    spelling 8bd51de retired in favour of ``<code>_<subcatchment>`` (``aet_101``,
+    ``gwr_101``). The reducer's matcher was never updated, so the fixture and the
+    code agreed with each other and with nothing else — every test here stayed
+    green while a real run wrote ``aet_indicators.csv`` and
+    ``recharge_indicators.csv`` empty. A fixture that invents its producer's
+    output format cannot fail when the producer changes it, so this one is now a
+    literal copy of a real run's header.
+    """
     rng = np.random.default_rng(seed)
     idx = pd.date_range("2000-01-01", periods=365 * 4, freq="D")
     data = {
@@ -254,7 +267,8 @@ def _run_csv(path, seed, offset, basavg=True):
         "Q_202": rng.gamma(2, 3, len(idx)) + offset,
     }
     if basavg:
-        data["actual evapotranspiration_basavg"] = rng.gamma(2, 1, len(idx))
+        data["aet_101"] = rng.gamma(2, 1, len(idx))
+        data["aet_202"] = rng.gamma(2, 1, len(idx))
     path.parent.mkdir(parents=True, exist_ok=True)
     pd.DataFrame(data, index=idx).rename_axis("time").to_csv(path)
 
@@ -382,24 +396,57 @@ def test_the_class_c_month_is_the_same_for_every_member(tmp_path):
     assert len(wet) == q.temp_change.nunique()
 
 
-def test_a_basin_variable_gets_its_own_table_at_the_reserved_location(tmp_path):
-    """Q11: the basin value is emitted independently under `location = basin`,
-    not derived from per-location values, because whether subcatchments nest
-    decides whether an area-weighted mean is valid at all."""
+def test_a_non_discharge_variable_gets_its_own_table_per_subcatchment(tmp_path):
+    """The table carries the finest grain the run offers, on BOTH axes.
+
+    Per realization because these metrics are linear in years (ruling b1), and per
+    SUBCATCHMENT because the model declares them with `map = "subcatchment"` -- so
+    a run emits one column per subcatchment and no whole-basin column exists to
+    read. Q11 is why the reducer does not manufacture one by area-weighting these:
+    whether subcatchments nest or tile decides whether that mean is valid at all.
+    `BASIN_LOCATION` stays reserved for a genuine basin-scalar column, which is a
+    WF1/TOML change to produce.
+    """
     tables = _reduce(tmp_path, tokens=("q", "aet"))
     aet = tables["aet"]
     assert list(aet.metric.unique()) == ["aet_annual_total"]
-    assert list(aet.location.unique()) == ["basin"]
+    assert set(aet.location.astype(str)) == {"101", "202"}
     assert set(aet.realization_id) == {1, 2}
 
 
-def test_a_variable_the_run_never_emitted_yields_an_empty_table(tmp_path):
-    """The rule declares a table per CONFIGURED variable. If the model did not
-    emit it, the table exists and is empty rather than the run failing -- the
-    mismatch is `check_model_reference`'s to catch, not this reduction's."""
-    tables = _reduce(tmp_path, tokens=("q", "snow"), basavg=False)
-    assert tables["snow"].empty
-    assert list(tables["snow"].columns)[0] == "metric"
+def test_the_column_code_is_matched_not_the_indicator_token(tmp_path):
+    """`recharge` is emitted as `gwr_<id>`, and four of five tokens differ likewise.
+
+    The regression this pins: a matcher keyed on the indicator token finds `aet`
+    and silently finds nothing for `recharge`, `precip`, `snow` or `overland_flow`
+    -- so the one variable a naive fix is tested against is the one variable it
+    happens to work for.
+    """
+    rng = np.random.default_rng(0)
+    idx = pd.date_range("2000-01-01", periods=365, freq="D")
+    columns = pd.DataFrame(
+        {"gwr_101": rng.gamma(2, 1, len(idx)), "qof_101": rng.gamma(2, 1, len(idx))},
+        index=idx,
+    ).columns
+    assert subcatchment_columns(columns, "recharge") == {"gwr_101": "101"}
+    assert subcatchment_columns(columns, "overland_flow") == {"qof_101": "101"}
+    # ...and `q` does not claim `qof_101` on a bare prefix test.
+    assert subcatchment_columns(columns, "aet") == {}
+
+
+def test_a_variable_the_run_never_emitted_is_refused_by_name(tmp_path):
+    """An empty table is indistinguishable from "never requested", so it raises.
+
+    This reverses the pre-2026-08-11 behaviour, which wrote the header-only table
+    and deferred the mismatch to `check_model_reference`. That deferral does not
+    hold: that rule compares the live model's digest against the one the
+    experiment recorded, so it fires when the model CHANGES and is silent about a
+    `wflow_outvars` entry the model never emitted a column for. Nothing else was
+    watching, which is how the `_basavg` rename emptied two of three configured
+    tables with every rule green.
+    """
+    with pytest.raises(MissingOutputColumnError, match="swe_<subcatchment>"):
+        _reduce(tmp_path, tokens=("q", "snow"), basavg=False)
 
 
 # --- written number format (t2608090806) ------------------------------------

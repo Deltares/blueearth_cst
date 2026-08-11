@@ -43,6 +43,8 @@ from __future__ import annotations
 
 import re
 
+from blueearth_cst.shared.wflow_outputs import CODES as _WFLOW_CODES
+
 #: Semantic name (as it appears in ``workflows.model_creation.wflow_outvars``)
 #: → short token used in filenames and in the composite ``metric``.
 #:
@@ -58,6 +60,25 @@ VARIABLE_TOKENS = {
     "overland flow": "overland_flow",
     "snow": "snow",
 }
+
+#: Indicator token → the CODE that variable's columns carry in a wflow run csv.
+#:
+#: **A fourth spelling, and unlike the other three it is not ours to choose.** The
+#: code is `wflow_outputs.CODES`, which reaches the csv header via the TOML the
+#: model build writes (``gwr_101``, ``aet_101``); the token is what this file
+#: mints for filenames and metric names. Four of the five differ — ``recharge``
+#: is ``gwr``, ``precip`` is ``p``, ``snow`` is ``swe``, ``overland_flow`` is
+#: ``qof`` — so a reducer that reuses the token as the column prefix reads exactly
+#: one variable (``aet``) and silently finds nothing for the rest.
+#:
+#: DERIVED from the two tables rather than hand-written, because a third
+#: hand-maintained copy of the variable list is how this drifted in the first
+#: place: 8bd51de changed the header scheme and the reducer's own matcher kept
+#: looking for the retired ``<label>_basavg`` spelling, which emptied
+#: ``aet_indicators.csv`` and ``recharge_indicators.csv`` with the run green. Both
+#: tables are keyed by the SEMANTIC LABEL a config writes, which is what lets them
+#: be joined here; a label in one and not the other raises at import.
+OUTPUT_CODES = {VARIABLE_TOKENS[label]: code for label, code in _WFLOW_CODES.items()}
 
 #: Filename suffix shared by every indicator table. ``q_indicators.csv`` keeps the
 #: name it was given in R9, which is why the pattern is token-first.
@@ -97,6 +118,13 @@ POOLED_REALIZATION = 0
 #: The reserved ``location`` for a basin-scalar value (Q11, 2026-08-07): emitted
 #: independently rather than derived from per-location values, because whether
 #: subcatchments nest or tile decides whether an area-weighted mean is even valid.
+#:
+#: **Reserved, and currently unemitted.** Since 8bd51de the model's csv columns are
+#: per-subcatchment means (``map = "subcatchment"``), so no whole-basin column
+#: exists in a run to carry this value — the reducer emits one row per subcatchment
+#: id, exactly as it does per gauge. Q11 is why it stays that way rather than being
+#: area-weighted into a basin row here: filling this constant needs a whole-basin
+#: column declared in the TOML, which is a WF1 change, not a reduction one.
 BASIN_LOCATION = "basin"
 
 
@@ -188,6 +216,11 @@ def basin_metric_name(token: str) -> str:
     """Composite metric name for one basin-scalar variable."""
     suffix, _ = BASIN_METRIC_SUFFIXES[token]
     return f"{token}_{suffix}"
+
+
+def output_code(token: str) -> str:
+    """The wflow csv column code for one indicator token (``'recharge'`` → ``'gwr'``)."""
+    return OUTPUT_CODES[token]
 
 
 def basin_reduction(token: str) -> str:
