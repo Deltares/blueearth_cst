@@ -25,6 +25,13 @@ updated: 2026-08-11
 
 ## Refs
 
+Re-confirmed 2026-08-11 19:48 on `fix/improvements`, after the WF3 run-record
+move: `snakemake all -s Snakefile_climate_experiment --configfile
+test_case/snake_config_rapid.yml` still dies at rule 3.01 on the same nine
+fields, 2 of 34 steps in. Nothing has drifted and nothing new is blocked — the
+end-to-end check that run was for was taken on `snake_config_model_test.yml`
+instead, which passes 3.01 and completed 39/39.
+
 Surfaced 2026-08-11 while verifying the `recharge` → `gwr` indicator-token rename
 on `fix/improvements`. The rename itself was verified another way (the reducer
 driven directly over the eight real member CSVs in
