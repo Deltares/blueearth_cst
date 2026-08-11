@@ -4,30 +4,14 @@ Open monthly change files for all models/scenarios/horizon and compute/plot stat
 
 import hydromt  # noqa: F401 -- registers the xarray .raster accessor (ds.raster.vars below)
 import os
-import math
 from pathlib import Path
-import matplotlib.pyplot as plt
-import pandas as pd
+import seaborn as sns
 import xarray as xr
 import numpy as np
-from matplotlib.lines import Line2D
 
 from typing import Union, List, Dict
 
 from blueearth_cst.shared.snake_utils import log_row
-from blueearth_cst.shared.plot_style import (
-    FONT_SIZE_TITLE,
-    RASTER_DPI,
-    figure_width_inches,
-    rcparams,
-)
-from blueearth_cst.shared.snake_utils import save_figure
-from blueearth_cst.projections.plot_proj_timeseries import (
-    parse_horizon_period,
-    scenario_label,
-    scenario_palette,
-    style_projection_axes,
-)
 
 
 def preprocess_coords(ds: xr.Dataset) -> xr.Dataset:
@@ -59,174 +43,11 @@ def preprocess_coords(ds: xr.Dataset) -> xr.Dataset:
     return ds
 
 
-def change_factor_cloud_frame(table: pd.DataFrame) -> pd.DataFrame:
-    """Pivot the annual tidy table into one cloud row per combination/horizon."""
-    required = {
-        "model",
-        "scenario",
-        "member",
-        "horizon",
-        "variable",
-        "statistic",
-        "relative_value",
-    }
-    missing = sorted(required - set(table.columns))
-    if missing:
-        raise ValueError(f"annual change-factor table is missing columns {missing}")
-    selected = table.loc[table["statistic"].astype(str) == "mean"].copy()
-    selected["relative_value"] = pd.to_numeric(
-        selected["relative_value"], errors="coerce"
-    )
-    frame = (
-        selected.pivot(
-            index=["model", "scenario", "member", "horizon"],
-            columns="variable",
-            values="relative_value",
-        )
-        .reset_index()
-        .rename_axis(columns=None)
-    )
-    missing_variables = sorted({"precip", "temp"} - set(frame.columns))
-    if missing_variables:
-        raise ValueError(
-            f"annual change-factor table is missing variables {missing_variables}"
-        )
-    return frame
-
-
-def _cloud_limits(values: pd.Series) -> tuple[float, float]:
-    """Return a common finite axis range that includes zero."""
-    array = pd.to_numeric(values, errors="coerce").to_numpy(dtype=float)
-    if not np.isfinite(array).all():
-        raise ValueError("change-factor cloud contains non-finite mean values")
-    low = min(0.0, float(array.min()))
-    high = max(0.0, float(array.max()))
-    span = high - low
-    padding = 0.05 * span if span else 1.0
-    return low - padding, high + padding
-
-
-def plot_change_factor_cloud(
-    frame: pd.DataFrame,
-    *,
-    horizons: Dict,
-    scenarios: List[str] | None = None,
-):
-    """Facet the annual ΔP/ΔT cloud by horizon with scenario-only identity."""
-    required = {"model", "scenario", "member", "horizon", "precip", "temp"}
-    missing = sorted(required - set(frame.columns))
-    if missing:
-        raise ValueError(f"change-factor cloud is missing columns {missing}")
-    if not horizons:
-        raise ValueError("at least one future horizon is required")
-
-    scenarios = list(
-        dict.fromkeys(
-            str(value)
-            for value in (
-                scenarios
-                if scenarios is not None
-                else frame["scenario"].drop_duplicates().tolist()
-            )
-        )
-    )
-    palette = scenario_palette(scenarios)
-    unknown = sorted(set(frame["scenario"].astype(str)) - set(palette))
-    if unknown:
-        raise ValueError(f"cloud contains unconfigured scenarios {unknown}")
-
-    n_panels = len(horizons)
-    ncols = min(3, n_panels)
-    nrows = math.ceil(n_panels / ncols)
-    width = figure_width_inches()
-    x_limits = _cloud_limits(frame["precip"])
-    y_limits = _cloud_limits(frame["temp"])
-
-    with plt.rc_context(rcparams()):
-        fig, axes_array = plt.subplots(
-            nrows,
-            ncols,
-            figsize=(width, width * (0.48 * nrows)),
-            squeeze=False,
-            sharex=True,
-            sharey=True,
-        )
-        fig.subplots_adjust(
-            left=0.10, right=0.98, bottom=0.16, top=0.75, hspace=0.42, wspace=0.08
-        )
-        axes = list(axes_array.flat)
-        for axis in axes[n_panels:]:
-            fig.delaxes(axis)
-        axes = axes[:n_panels]
-
-        for axis, (horizon, period) in zip(axes, horizons.items()):
-            subset = frame.loc[frame["horizon"].astype(str) == str(horizon)]
-            if subset.empty:
-                raise ValueError(f"cloud has no points for configured horizon {horizon!r}")
-            plotted = 0
-            for scenario in scenarios:
-                points = subset.loc[subset["scenario"].astype(str) == scenario]
-                if points.empty:
-                    continue
-                axis.scatter(
-                    points["precip"],
-                    points["temp"],
-                    color=palette[scenario],
-                    s=22,
-                    alpha=0.72,
-                    edgecolors="none",
-                )
-                plotted += len(points)
-            if plotted != len(subset):
-                raise AssertionError(
-                    f"{horizon!r}: plotted {plotted} of {len(subset)} combinations"
-                )
-            start, end = parse_horizon_period(period)
-            axis.set_title(f"{horizon} ({start}–{end})")
-            axis.axvline(0.0, color="0.35", lw=0.7, ls=(0, (3, 2)))
-            axis.axhline(0.0, color="0.35", lw=0.7, ls=(0, (3, 2)))
-            axis.set_xlim(x_limits)
-            axis.set_ylim(y_limits)
-            style_projection_axes(axis)
-
-        for row in range(nrows):
-            index = row * ncols
-            if index < len(axes):
-                axes[index].set_ylabel("Temperature change (°C)")
-        bottom_row_start = (nrows - 1) * ncols
-        for index, axis in enumerate(axes):
-            if index >= bottom_row_start:
-                axis.set_xlabel("Precipitation change (%)")
-
-        handles = [
-            Line2D(
-                [],
-                [],
-                color=palette[scenario],
-                marker="o",
-                linestyle="none",
-                markersize=4.5,
-            )
-            for scenario in scenarios
-        ]
-        fig.legend(
-            handles,
-            [scenario_label(scenario) for scenario in scenarios],
-            loc="upper center",
-            bbox_to_anchor=(0.5, 0.91),
-            ncol=max(1, len(handles)),
-            frameon=False,
-        )
-        fig.suptitle("Change-factor cloud", fontsize=FONT_SIZE_TITLE, y=0.985)
-    return fig
-
-
 def summary_climate_proj(
     clim_dir: Union[Path, str],
     clim_files: List[Union[Path, str]],
     horizons: Dict,
     wide_dir: Union[Path, str, None] = None,
-    cloud_path: Union[Path, str, None] = None,
 ):
     """
     Compute climate change statitistics for all models/scenario/horizons.
@@ -302,18 +123,63 @@ def summary_climate_proj(
         encoding={k: {"zlib": True} for k in dvars},
     )
 
-    # One point per resolved combination and horizon. The dataframe stays wide
-    # here because the annual tidy table is written immediately after this
-    # helper returns; :func:`change_factor_cloud_frame` supplies the equivalent
-    # direct-preview path from that durable table.
-    df = ds.sel(stats="mean").to_dataframe().reset_index()
-    scenarios = [str(value) for value in df["scenario"].drop_duplicates()]
-    fig = plot_change_factor_cloud(df, horizons=horizons, scenarios=scenarios)
-    cloud_path = cloud_path or (
-        Path(clim_dir) / "plots" / "overview" / "change-factor-cloud.png"
+    # just keep mean for temp and precip for response surface plots
+    df = ds.sel(stats="mean").to_dataframe()
+
+    # plot change
+    if not os.path.exists(os.path.join(clim_dir, "plots")):
+        os.mkdir(os.path.join(clim_dir, "plots"))
+
+    # Rename horizon names to the middle year of the period
+    hz_list = df.index.levels[df.index.names.index("horizon")].tolist()
+    for hz in horizons:
+        # Get start and end year.
+        # R01 delivers future_horizons as lists ([2030, 2060]); pre-R01 configs
+        # delivered comma-separated strings ("2030, 2060"). Accept both.
+        period = horizons[hz]
+        period = period.split(",") if isinstance(period, str) else period
+        period = [int(i) for i in period]
+        horizon_year = int((period[0] + period[1]) / 2)
+        # Replace hz values by horizon_year in hz_list
+        hz_list = [horizon_year if h == hz else h for h in hz_list]
+
+    # Set new values in multiindex dataframe
+    df.index = df.index.set_levels(hz_list, level="horizon")
+
+    scenarios = np.unique(df.index.get_level_values("scenario"))
+    clrs = []
+    for s in scenarios:
+        if s == "ssp126":
+            clrs.append("#003466")
+        if s == "ssp245":
+            clrs.append("#f69320")
+        if s == "ssp370":
+            clrs.append("#df0000")
+        elif s == "ssp585":
+            clrs.append("#980002")
+    g = sns.JointGrid(
+        data=df,
+        x="precip",
+        y="temp",
+        hue="scenario",
     )
-    save_figure(cloud_path, fig=fig, dpi=RASTER_DPI)
-    plt.close(fig)
+    g.plot_joint(
+        sns.scatterplot, s=100, alpha=0.5, data=df, style="horizon", palette=clrs
+    )
+    g.plot_marginals(sns.kdeplot, palette=clrs)
+    g.set_axis_labels(
+        xlabel="Change in mean precipitation (%)",
+        ylabel="Change in mean temperature (degC)",
+    )
+    g.ax_joint.grid()
+    g.ax_joint.legend(loc="right", bbox_to_anchor=(1.5, 0.5))
+    # S8-07: `{proj}_change_factor_cloud.png`. "projected_climate_statistics" said
+    # almost nothing about what is plotted; this is the DeltaT/DeltaP cloud, one
+    # point per combination, and the design's own phrase for it.
+    clim_project = os.path.basename(os.path.normpath(str(clim_dir)))
+    g.savefig(
+        os.path.join(clim_dir, "plots", f"{clim_project}_change_factor_cloud.png")
+    )
 
 
 # NOTE: this module no longer runs as a Snakemake `script:`. Step 4d merged rules

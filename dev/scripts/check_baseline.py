@@ -271,22 +271,21 @@ TARGETS: list[tuple[str, str, str]] = [
         "csv",
         "{clim_project_dir}/summary/{clim_project}_change_factors_monthly.csv",
     ),
-    # WF2 plotting standardization combines the former absolute/change pairs
-    # into one overview figure per variable and facets the cloud by horizon.
+    # S8-07 renamed all three figures.
     (
         "climate_projections",
         "png",
-        "{clim_project_dir}/plots/overview/change-factor-cloud.png",
+        "{clim_project_dir}/plots/{clim_project}_change_factor_cloud.png",
     ),
     (
         "climate_projections",
         "png",
-        "{clim_project_dir}/plots/overview/annual-precipitation.png",
+        "{clim_project_dir}/plots/{clim_project}_precip_annual_absolute.png",
     ),
     (
         "climate_projections",
         "png",
-        "{clim_project_dir}/plots/overview/annual-temperature.png",
+        "{clim_project_dir}/plots/{clim_project}_temp_annual_absolute.png",
     ),
     (
         "climate_projections",

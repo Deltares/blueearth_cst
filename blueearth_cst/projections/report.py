@@ -149,10 +149,8 @@ def build(provenance, *, thresholds=None, max_flagged_months=None, figures=None)
     lines += disclaimer_block(provenance, thresholds, max_flagged_months)
 
     lines += ["## Figures", ""]
-    # Figure names are paths relative to plots/: overview figures stay shallow,
-    # while each configured horizon owns its monthly figure under windows/.
-    for relative_path in figures or []:
-        lines.append(f"- `plots/{relative_path}`")
+    for name in figures or []:
+        lines.append(f"- `plots/{name}`")
     lines.append("")
 
     # S8-04/05/06: every result artifact now lives under summary/, and the tables

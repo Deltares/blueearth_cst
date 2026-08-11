@@ -17,16 +17,24 @@ updated: 2026-08-11
 
 ## Progress
 
-**Half 1 is complete; half 2 now covers the climate-map and WF2 projection
-families.** The climate-map sweep supplied the worked example, and `6d3ec75`
-then extracted the shared page and typography contract to
-`shared/plot_style.py`.
+**Half 1 is complete; half 2 covers the climate-map family only.** The
+climate-map sweep supplied the worked example, and `6d3ec75` then extracted the
+shared page and typography contract to `shared/plot_style.py`.
 
 Read the order as accidental rather than planned: the map family got swept first
 because that is where the owner was looking, and the template it implies has to
 be extracted from what those commits converged on rather than designed ahead of
-them. That is a fine way round, but it means half 1 is now an EXTRACTION job
-with a worked example, not a greenfield design.
+them. That is a fine way round, but it means half 1 was an EXTRACTION job with a
+worked example, not a greenfield design.
+
+**The WF2 projection sweep is now a design question, not a sweep.** It was
+implemented and landed on this branch as `dc40a22`, then reverted on 2026-08-11
+at the owner's direction: the figure design should be ruled on before any
+producer, Snakefile, report, test or output-contract change lands. The work is
+respecified as a prototype in `dev/wf2-plot-standardization-task-brief.md` —
+a renderer under `dev/scripts/` plus an Artifact, no code integration. The two
+WF2 boxes below stay open until that ruling comes back, and the reverted commit
+is where a future integration starts rather than a blank page.
 
 - [x] Frame both climate map families on the basin — `11ffcc4`
 - [x] Share colourbar levels across each source/forcing pair — `403b55e`
@@ -37,10 +45,9 @@ with a worked example, not a greenfield design.
 - [x] **Half 1: extract the shared template/style module** — `6d3ec75` added
       `shared/plot_style.py` for page size, typography and export settings
 - [ ] **Half 2, remainder — the surfaces still styled independently:**
-  - [x] `projections/get_change_climate_proj_summary.py` — faceted
-        scenario-colour cloud on the shared page/export conventions
-  - [x] `projections/plot_proj_timeseries.py` — combined annual panels and
-        horizon-specific monthly panels on the shared conventions
+  - [ ] `projections/get_change_climate_proj_summary.py` — prototype pending,
+        see `dev/wf2-plot-standardization-task-brief.md`
+  - [ ] `projections/plot_proj_timeseries.py` — prototype pending, same brief
   - [ ] `shared/func_plot_signature.py` (`plot_signatures`, `plot_hydro`,
         `plot_basavg` — `plot_clim` is gone, ADR 0006)
   - [ ] `dev/scripts/basin_map_example.py`
@@ -62,6 +69,8 @@ with a worked example, not a greenfield design.
 - `dev/decisions/0006-retire-subcatchment-climate-plots.md`,
   `dev/decisions/0007-draw-basin-area-from-the-spatial-foundation.md` — the two
   rulings taken during the map sweep. 0007's cost is tracked as [[t2608091730]].
+- `dev/wf2-plot-standardization-task-brief.md` — the WF2 projection figures,
+  respecified as a prototype-only design question after `dc40a22` was reverted.
 - `dev/scripts/preview_plots.py`, `dev/scripts/preview_basin_map.py` — render a
   family without a workflow run. The figure gate is: render it, publish the PNG
   as an Artifact, look at it. Never byte-compare, never run the baseline.
