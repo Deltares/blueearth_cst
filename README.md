@@ -195,14 +195,22 @@ regenerated on every run:
 - **Snakefile_model_creation** — `logs/wf1_model_creation.log`
 - **Snakefile_climate_projections** — `logs/wf2_climate_projections.log`
 - **Snakefile_climate_experiment** —
-  `experiments/<name>/logs/wf3_climate_experiment.log`
+  `logs/wf3_climate_experiment_<experiment>.log`
 
-Rules log to `logs/_parts/` while they run; a final `gather_logs` rule merges
-the parts into the single log — one `== W.NN  rule_name` section per rule — then
-deletes them. Benchmarks work the same way, into
-`benchmarks/wf<N>_benchmarks.md`. See `docs/migration-r08-wf2.md` ("One log per
-workflow") for the format and for cleaning up per-rule logs left by earlier
-runs.
+All three land in the project's own `logs/`, so one run's records sit side by
+side. WF3 is experiment-scoped, so its records carry the experiment id in the
+**filename** rather than under `experiments/<name>/`; that subtree holds only the
+experiment's own inputs and products (`config/`, `climate/`, `hydrology/`,
+`results/`).
+
+Rules log to `logs/_parts/` while they run — WF3 one level deeper, under
+`logs/_parts/<experiment>/`, so two experiments can never merge each other's
+parts. A final `gather_logs` rule merges the parts into the single log — one
+`== W.NN  rule_name` section per rule — then deletes them. Benchmarks work the
+same way, into `benchmarks/wf<N>_benchmarks.md` and
+`benchmarks/wf3_benchmarks_<experiment>.md`. See `docs/migration-r08-wf2.md`
+("One log per workflow") for the format and for cleaning up per-rule logs left by
+earlier runs.
 
 ### Running from pixi shell
 
@@ -330,10 +338,10 @@ $ snakemake all -c 1 -s Snakefile_model_creation --configfile test_case/snake_co
 ```
 
 The first command renders a DAG visualization (requires Graphviz's `dot`). It
-writes at the scope of the run that would produce it, under that scope's `logs/`
--- `<project_dir>/logs/dag/` for workflows 1 and 2, and
-`<project_dir>/experiments/<id>/logs/dag/` for workflow 3 -- creating the
-directory itself. It renders the graph and runs nothing. The second command
+writes into `<project_dir>/logs/dag/`, creating the directory itself, named
+after the run that would produce it: `<project_name>_wf<N>_dag.png`, with
+workflow 3 carrying its experiment id (`<project_name>_wf3_<experiment>_dag.png`)
+the same way its log and benchmark table do. It renders the graph and runs nothing. The second command
 clears any leftover working-directory lock from a prior crash. The third runs
 the workflow.
 

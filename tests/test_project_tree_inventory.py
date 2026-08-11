@@ -50,11 +50,20 @@ COVERED: dict[str, list[str]] = {
     "root": [
         "logs/wf1_model_creation.log",
         "logs/wf2_climate_projections.log",
+        # WF3's run records joined the project's own logs/ + benchmarks/ on
+        # 2026-08-11, keyed by experiment in the FILENAME; its scratch parts
+        # stay experiment-scoped one level down, so two experiments cannot
+        # merge each other's.
+        f"logs/wf3_climate_experiment_{E}.log",
         "logs/_parts/1.01b_delineate_region.log",
+        f"logs/_parts/{E}/3.11_generate_weather_realizations.log",
         "logs/dag/test_wf1_dag.png",
+        f"logs/dag/test_wf3_{E}_dag.png",
         "benchmarks/wf1_benchmarks.md",
         "benchmarks/wf2_benchmarks.md",
+        f"benchmarks/wf3_benchmarks_{E}.md",
         "benchmarks/_parts/1.02_prepare_spatial_maps.tsv",
+        f"benchmarks/_parts/{E}/3.16_derive_wflow_indicators.tsv",
     ],
     "config": [
         "config/runs/snake_config_model_creation.yml",
@@ -136,9 +145,9 @@ COVERED: dict[str, list[str]] = {
         f"experiments/{E}/config/experiment.yml",
         f"experiments/{E}/config/catalogs/data_catalog_climate_experiment.yml",
         f"experiments/{E}/config/runs/climate_experiment/278159763309/effective.yml",
-        f"experiments/{E}/logs/wf3_climate_experiment.log",
-        f"experiments/{E}/logs/_parts/3.11_generate_weather_realizations.log",
-        f"experiments/{E}/benchmarks/wf3_benchmarks.md",
+        # The experiment's own logs/ and benchmarks/ are GONE (2026-08-11) --
+        # their rows moved to "root" above, and a file left at the old location
+        # must now report UNMAPPED (see UNDECLARED below).
         f"experiments/{E}/results/q_indicators.csv",
         # `results/basin_indicators.csv` sat here until 2026-08-09
         # (t2608082010). R11 CR-2 replaced the two WIDE tables with one LONG
@@ -191,6 +200,15 @@ UNDECLARED = [
     "config/whatever_new_thing.yml",
     f"experiments/{E}/orphan_table.csv",
     f"experiments/{E}/indicators/Qstats.csv",  # the pre-R9 name, now retired
+    # The pre-2026-08-11 WF3 run records. Stale output from an earlier run, and
+    # the guard on the new "root" rows: an inventory that kept the old
+    # experiment-scoped prefixes "to be safe" would report a clean tree while
+    # every WF3 run left a second copy behind.
+    f"experiments/{E}/logs/wf3_climate_experiment.log",
+    f"experiments/{E}/benchmarks/wf3_benchmarks.md",
+    # ...and the new root rows must not be so wide they swallow a stray file.
+    "logs/wf3_anything.log",
+    "benchmarks/wf3_benchmarks.md",  # unkeyed: no experiment can produce it
     "climate_historical/era5_20000101_20201231/extract_historical.nc",  # pre-R9
     "hydrology_model/staticmaps.nc",  # pre-R9
     "spatial/geoms/basins.geojson",  # pre-R9

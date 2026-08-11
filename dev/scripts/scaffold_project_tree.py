@@ -139,19 +139,31 @@ def _log_paths(snakefile: str, experiment: str) -> list[str]:
     `--summary`'s log column reports only logs that already EXIST on disk (it
     prints `-` otherwise), so it is useless against a fresh project_dir. Reading
     the declarations instead keeps the scaffold honest about BOTH the numbering
-    and the root: WF3 writes under ``{exp_dir}``, not the project root, so
-    synthesizing ``logs/<W.NN>_<rule>.log`` would have misplaced all 13 of them.
+    and the root: WF3's parts sit under ``logs/_parts/<experiment>/``, not
+    directly under ``logs/_parts/``, so synthesizing ``logs/<W.NN>_<rule>.log``
+    would have misplaced all 15 of them.
     """
     text = (REPO_ROOT / snakefile).read_text(encoding="utf-8")
     roots = {"project_dir": "", "exp_dir": f"experiments/{experiment}/"}
 
+    def _resolve_experiment(value: str) -> str:
+        """Substitute the ONE parse-time binding these declarations interpolate.
+
+        WF3's log paths and its merged-log name carry ``{experiment}``, which is
+        a value resolved at parse time, not a Snakemake wildcard. Left in, the
+        blanket wildcard substitution at the end would render it as ``1`` and
+        the scaffold would build ``logs/_parts/1/`` — a plausible-looking tree
+        under a directory no run writes.
+        """
+        return value.replace("{experiment}", experiment)
+
     # ONE LEVEL OF INDIRECTION, resolved from the same file. Rules no longer
     # interpolate `project_dir` directly -- they interpolate `LOG_PARTS_DIR`,
     # itself assigned f"{project_dir}/logs/_parts" (WF1/WF2) or
-    # f"{exp_dir}/logs/_parts" (WF3). Matching only the two ROOT names therefore
-    # matched nothing and every workflow silently scaffolded ZERO logs: the same
-    # failure mode as the stale staging above -- a helper left behind by a
-    # refactor, reporting success while producing a wrong tree.
+    # f"{project_dir}/logs/_parts/{experiment}" (WF3). Matching only the two ROOT
+    # names therefore matched nothing and every workflow silently scaffolded ZERO
+    # logs: the same failure mode as the stale staging above -- a helper left
+    # behind by a refactor, reporting success while producing a wrong tree.
     for name, base, tail in re.findall(
         r"""^(\w+)\s*=\s*f["']\{(\w+)\}/([^"']+)["']""", text, re.M
     ):
@@ -160,17 +172,27 @@ def _log_paths(snakefile: str, experiment: str) -> list[str]:
         # would replace the seeded value with one still carrying a wildcard --
         # which the substitution below then renders as `experiments/1/`.
         if base in roots and name not in roots:
-            roots[name] = roots[base] + tail.rstrip("/") + "/"
-    # Bare `.log` string constants (WORKFLOW_LOG_NAME = "wf1_model_creation.log")
-    # are interpolated into the merged-log path, which would otherwise reduce to
-    # `logs/1` under the wildcard substitution below and be dropped.
-    consts = dict(re.findall(r"""^(\w+)\s*=\s*["']([^"'{}]+\.log)["']""", text, re.M))
+            roots[name] = roots[base] + _resolve_experiment(tail).rstrip("/") + "/"
+    # `.log` NAME constants (WORKFLOW_LOG_NAME = "wf1_model_creation.log", and
+    # WF3's f-string f"wf3_climate_experiment_{experiment}.log") are interpolated
+    # into the merged-log path, which would otherwise reduce to `logs/1` under
+    # the wildcard substitution below and be dropped.
+    #
+    # `[^"'/]` excludes `/`, which keeps this to bare FILENAMES: without it the
+    # f-string form would also capture a path constant like
+    # f"{LOG_PARTS_DIR}/x.log" and substitute it into unrelated paths.
+    consts = {
+        name: _resolve_experiment(value)
+        for name, value in re.findall(
+            r"""^(\w+)\s*=\s*f?["']([^"'/]+\.log)["']""", text, re.M
+        )
+    }
 
     logs = []
     # Three declaration forms are in use across the Snakefiles and all three
     # must be read, or a workflow silently loses logs from the scaffold:
     #   f"{LOG_PARTS_DIR}/2.05_….log"                          (plain f-string)
-    #   f"{exp_dir}/logs/3.07_…/" + "rlz_{rlz_num}_….log"      (f-string + concat)
+    #   f"{LOG_PARTS_DIR}/3.12_…/" + "rlz_{rlz_num}_….log"     (f-string + concat)
     #   project_dir + "/logs/_parts/2.02_…/{model}.log"        (bare concat)
     #
     # The tail is NOT anchored to `logs/` -- with LOG_PARTS_DIR resolved above,

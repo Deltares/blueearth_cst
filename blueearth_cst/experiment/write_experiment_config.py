@@ -21,14 +21,21 @@ by the last rule in WF3 and is one of ``rule all``'s targets, so it exists only
 after a complete run: a run that failed midway never reaches the merge. The
 marker is read from the filesystem rather than declared as an input, because
 declaring it would invert the DAG — this file is written long before the log.
+
+**The marker PATH is passed in, never rebuilt here.** It used to be a module
+constant joined onto ``exp_dir``, which the 2026-08-11 move of WF3's run records
+to ``{project_dir}/logs/wf3_climate_experiment_<experiment>.log`` invalidated:
+the log is no longer under the experiment at all. A marker path this module
+composes for itself is a second spelling of a name the Snakefile owns, and when
+the two drift the failure is SILENT — ``has_run_successfully`` returns ``False``
+forever and the freeze guard stops firing, which is the one thing this module
+exists to do. Rule 3.07 hands over the same string rule 3.18 declares as its
+``output:``.
 """
 
 from pathlib import Path
 
 import yaml
-
-#: Written by WF3's last rule; present only after a complete successful run.
-RUN_MARKER = "logs/wf3_climate_experiment.log"
 
 
 class ExperimentConfigFrozenError(RuntimeError):
@@ -43,12 +50,15 @@ def build_experiment_config(experiment: str, experiment_cfg) -> dict:
     }
 
 
-def has_run_successfully(exp_dir) -> bool:
-    """Whether a complete WF3 run has produced this experiment's merged log."""
-    return (Path(exp_dir) / RUN_MARKER).is_file()
+def has_run_successfully(run_marker) -> bool:
+    """Whether a complete WF3 run has produced this experiment's merged log.
+
+    ``run_marker`` is the merged log's full path, as rule 3.18 declares it.
+    """
+    return Path(run_marker).is_file()
 
 
-def check_not_frozen(exp_dir, out_path, document: dict) -> None:
+def check_not_frozen(run_marker, out_path, document: dict) -> None:
     """Raise if the experiment has run and the configuration has changed.
 
     An unchanged rewrite is always allowed: Snakemake may re-run this rule for
@@ -56,7 +66,7 @@ def check_not_frozen(exp_dir, out_path, document: dict) -> None:
     would make the guard fire on its own bookkeeping.
     """
     out_path = Path(out_path)
-    if not out_path.is_file() or not has_run_successfully(exp_dir):
+    if not out_path.is_file() or not has_run_successfully(run_marker):
         return
     recorded = yaml.safe_load(out_path.read_text(encoding="utf-8")) or {}
     if recorded == document:
@@ -77,10 +87,12 @@ def check_not_frozen(exp_dir, out_path, document: dict) -> None:
     )
 
 
-def write_experiment_config(exp_dir, out_path, experiment: str, experiment_cfg) -> dict:
+def write_experiment_config(
+    run_marker, out_path, experiment: str, experiment_cfg
+) -> dict:
     """Write the experiment's configuration record, refusing a frozen change."""
     document = build_experiment_config(experiment, experiment_cfg)
-    check_not_frozen(exp_dir, out_path, document)
+    check_not_frozen(run_marker, out_path, document)
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(
@@ -97,7 +109,7 @@ if __name__ == "__main__":
 
         with tee_to_log(sm.log[0]):
             doc = write_experiment_config(
-                exp_dir=sm.params.exp_dir,
+                run_marker=sm.params.run_marker,
                 out_path=sm.output.experiment_config,
                 experiment=sm.params.experiment,
                 experiment_cfg=sm.params.experiment_cfg,

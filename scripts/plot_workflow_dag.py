@@ -10,16 +10,24 @@ project's run, so it belongs under that config's own ``project_dir``, carrying
 the project name and the workflow number:
 
     <project_dir>/logs/dag/<project_name>_wf<N>_dag.png              (wf1, wf2)
-    <project_dir>/experiments/<id>/logs/dag/<name>_wf3_dag.png        (wf3)
+    <project_dir>/logs/dag/<project_name>_wf3_<experiment>_dag.png   (wf3)
 
-**At the producing run's scope, under ``logs/``** (R9 design v10, principles P4
-and P7). R7 put this under ``config/dag/`` on the reasoning that a run is
+**In the project's own ``logs/``, under ``logs/dag/``** (R9 design v10, principles
+P4 and P7). R7 put this under ``config/dag/`` on the reasoning that a run is
 determined by the config plus the Snakefile, so a rendering of the second
 belonged beside the snapshot of the first. R9 overrules that: ``config/`` is the
 project's *editable + generated-provenance* root and P4 keeps generated run
 records out of it, while P7 places every artifact at the scope of the producer
 that wrote it. A DAG render is a generated record OF A RUN, so it goes with the
-run's other records -- and WF3's belongs to its experiment, not to the project.
+run's other records.
+
+WF3's render was experiment-scoped (``experiments/<id>/logs/dag/``) until
+2026-08-11, when WF3's run records moved up to the project's ``logs/`` and
+``benchmarks/`` and the experiment lost those two directories. P7 still holds --
+the render still names its producing run -- but the experiment id now rides in
+the FILENAME, exactly as it does for the merged log and the benchmark table. It
+has to: one project's ``logs/dag/`` holds every experiment's graph, so a name
+without the id would have two experiments overwriting one file.
 
 The old rationale's supporting claim still holds and is simply no longer
 load-bearing: nothing digests the project's ``config/`` tree by listing it, so
@@ -76,31 +84,36 @@ WORKFLOW_NUMBER = {
     "Snakefile_climate_experiment": 3,
 }
 
-# Where under project_dir the graph lands. Scope-dependent since R9 (P7): WF1
-# and WF2 are project-scoped producers, WF3 is experiment-scoped.
+# Where under project_dir the graph lands. One directory for all three
+# workflows since 2026-08-11 -- WF3's is told apart by its filename, not by a
+# directory level.
 PLOT_SUBDIR = Path("logs") / "dag"
 
 
-def plot_subdir(number: int, config: dict) -> Path:
-    """The DAG render's directory under ``project_dir``, at the run's scope.
+def plot_relpath(
+    number: int, project_name: str, config: dict, mode: str, image_format: str
+) -> Path:
+    """The DAG render's path relative to ``project_dir``.
 
-    WF1 and WF2 write project-scoped records, so their graphs join the project's
-    own ``logs/dag/``. WF3 is experiment-scoped -- its DAG describes one
-    experiment's run -- so it lands in that experiment's ``logs/dag/``,
-    alongside the merged ``wf3_climate_experiment.log`` (design v10, P7).
+    ``logs/dag/<project_name>_wf<N>_<mode>.<fmt>``, with WF3 carrying its
+    ``experiment_name`` between the workflow number and the mode -- the same
+    scheme the merged log (``wf3_climate_experiment_<experiment>.log``) and the
+    benchmark table (``wf3_benchmarks_<experiment>.md``) use. Directory and
+    filename are built together because for WF3 they are one decision: the id
+    has to appear in exactly one of them, and it is the name.
 
-    Falls back to the project scope when a WF3 config carries no experiment
-    name: the render is a convenience artifact and must not fail a user's
-    command over a missing optional key.
+    A WF3 config carrying no experiment name yields the plain ``_wf3_`` stem:
+    the render is a convenience artifact and must not fail a user's command over
+    a missing optional key.
     """
-    if number != 3:
-        return PLOT_SUBDIR
-    experiment = ((config.get("workflows") or {}).get("climate_experiment") or {}).get(
-        "experiment_name"
-    )
-    if not experiment:
-        return PLOT_SUBDIR
-    return Path("experiments") / str(experiment) / "logs" / "dag"
+    stem = f"{project_name}_wf{number}"
+    if number == 3:
+        experiment = (
+            (config.get("workflows") or {}).get("climate_experiment") or {}
+        ).get("experiment_name")
+        if experiment:
+            stem = f"{stem}_{experiment}"
+    return PLOT_SUBDIR / f"{stem}_{mode}.{image_format}"
 
 
 class DagPlotError(Exception):
@@ -261,10 +274,8 @@ def main() -> int:
     try:
         number = workflow_number(args.snakefile)
         project_dir, project_name, config = read_project(args.configfile)
-        output_path = (
-            project_dir
-            / plot_subdir(number, config)
-            / f"{project_name}_wf{number}_{args.mode}.{args.image_format}"
+        output_path = project_dir / plot_relpath(
+            number, project_name, config, args.mode, args.image_format
         )
         dot_text = build_graph(
             args.mode, args.snakefile, args.configfile, args.target, args.extra

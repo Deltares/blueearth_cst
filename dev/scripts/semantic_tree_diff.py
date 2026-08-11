@@ -1006,10 +1006,18 @@ def build_project_tree_rules(
         rules.append((re.compile(f"({pattern})"), r"\1"))
 
     # -- project root ---------------------------------------------------------
+    # All three workflows' run records live here since 2026-08-11. WF3's are
+    # experiment-keyed in the FILENAME, so they get their own rows rather than
+    # widening the wf1/wf2 ones to `wf[123]` — the experiment fragment is what
+    # distinguishes them, and a row that does not say so would accept
+    # `wf3_anything.log`. `[a-z0-9_]+` is validate_experiment_name's grammar.
+    # The two `_parts/` prefixes already cover WF3's `<experiment>/` level.
     same_rx(r"logs/wf[12]_[^/]+\.log")
+    same_rx(r"logs/wf3_climate_experiment_[a-z0-9_]+\.log")
     same("logs/_parts/")
     same("logs/dag/")
     same_rx(r"benchmarks/wf[12]_benchmarks\.md")
+    same_rx(r"benchmarks/wf3_benchmarks_[a-z0-9_]+\.md")
     same("benchmarks/_parts/")
 
     # -- config/ --------------------------------------------------------------
@@ -1086,13 +1094,16 @@ def build_project_tree_rules(
     for directory in (
         "config/catalogs/",
         "config/runs/",
-        "logs/",
-        "benchmarks/",
         "results/",
         "climate/weathergenr/",
         "hydrology/wflow/",
     ):
         same(f"experiments/{e}/{directory}")
+    # `logs/` and `benchmarks/` are deliberately ABSENT since 2026-08-11: WF3's
+    # run records moved to the project's own logs/ and benchmarks/, keyed by
+    # experiment in the filename. A file under `experiments/<id>/logs/` is now
+    # stale output from an earlier run and SHOULD report as undeclared — the same
+    # reasoning `{wflow}/plots/` carries above.
     # Belt and braces on the experiment id: a tree may hold OTHER experiments
     # than the one this config names, and they are legitimate rather than
     # orphaned. Registered last so the named experiment's narrower rows win.

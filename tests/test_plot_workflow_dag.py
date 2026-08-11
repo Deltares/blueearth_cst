@@ -205,12 +205,7 @@ def test_rulegraph_mode_and_format_reach_the_filename(tmp_path, monkeypatch):
     assert pwd.main() == 0
     assert "--rulegraph" in seen["snakemake"]
     assert seen["out"] == str(
-        project_dir
-        / "experiments"
-        / "experiment"
-        / "logs"
-        / "dag"
-        / "gabon_0108_wf3_rulegraph.svg"
+        project_dir / "logs" / "dag" / "gabon_0108_wf3_experiment_rulegraph.svg"
     )
 
 
@@ -235,19 +230,41 @@ def test_snakemake_failure_surfaces_its_stderr(monkeypatch):
 # --- R9 P2 commit 4: the render sits at the PRODUCING RUN's scope (P7) ------
 
 
-def test_wf1_and_wf2_renders_are_project_scoped():
-    """Project-scoped producers write to the project's own logs/dag/."""
+def _rel(number, cfg, name="test"):
+    return pwd.plot_relpath(number, name, cfg, "dag", "png")
+
+
+def test_every_render_lands_in_the_projects_own_logs_dag():
+    """One directory for all three workflows since 2026-08-11."""
     cfg = {"workflows": {"climate_experiment": {"experiment_name": "e"}}}
-    assert pwd.plot_subdir(1, cfg) == pwd.Path("logs") / "dag"
-    assert pwd.plot_subdir(2, cfg) == pwd.Path("logs") / "dag"
+    for number in (1, 2, 3):
+        assert _rel(number, cfg).parent == pwd.Path("logs") / "dag"
 
 
-def test_wf3_render_is_experiment_scoped():
-    """WF3's DAG describes ONE experiment's run, so it goes with that
-    experiment's other run records -- beside wf3_climate_experiment.log."""
+def test_wf1_and_wf2_renders_are_named_for_the_project_alone():
+    cfg = {"workflows": {"climate_experiment": {"experiment_name": "e"}}}
+    assert _rel(1, cfg).name == "test_wf1_dag.png"
+    assert _rel(2, cfg).name == "test_wf2_dag.png"
+
+
+def test_wf3_render_carries_its_experiment_in_the_name():
+    """WF3's DAG describes ONE experiment's run, and its records are now keyed
+    by name rather than by directory -- as the merged log and benchmark table
+    are. Without the id, two experiments in one project overwrite one file."""
     cfg = {"workflows": {"climate_experiment": {"experiment_name": "gabon_dry"}}}
-    assert pwd.plot_subdir(3, cfg) == (
-        pwd.Path("experiments") / "gabon_dry" / "logs" / "dag"
+    assert _rel(3, cfg).name == "test_wf3_gabon_dry_dag.png"
+    other = {"workflows": {"climate_experiment": {"experiment_name": "gabon_wet"}}}
+    assert _rel(3, cfg) != _rel(3, other)
+
+
+def test_the_mode_and_format_reach_the_filename():
+    cfg = {"workflows": {"climate_experiment": {"experiment_name": "gabon_dry"}}}
+    assert (
+        pwd.plot_relpath(3, "test", cfg, "rulegraph", "svg").name
+        == "test_wf3_gabon_dry_rulegraph.svg"
+    )
+    assert pwd.plot_relpath(1, "test", cfg, "rulegraph", "svg").name == (
+        "test_wf1_rulegraph.svg"
     )
 
 
@@ -260,14 +277,14 @@ def test_wf3_render_is_experiment_scoped():
         {"workflows": {"climate_experiment": {}}},
     ],
 )
-def test_wf3_falls_back_to_project_scope_without_an_experiment_name(cfg):
+def test_wf3_falls_back_to_the_bare_name_without_an_experiment_name(cfg):
     """A convenience render must not fail a user's command over a missing
     optional key -- including the several ways YAML spells "absent"."""
-    assert pwd.plot_subdir(3, cfg) == pwd.Path("logs") / "dag"
+    assert _rel(3, cfg) == pwd.Path("logs") / "dag" / "test_wf3_dag.png"
 
 
 def test_the_render_never_lands_under_the_editable_config_root():
     """The P4 property the move exists for, asserted directly."""
     cfg = {"workflows": {"climate_experiment": {"experiment_name": "e"}}}
     for number in (1, 2, 3):
-        assert "config" not in pwd.plot_subdir(number, cfg).parts
+        assert "config" not in _rel(number, cfg).parts

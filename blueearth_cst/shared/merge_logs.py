@@ -5,11 +5,11 @@ This gather step -- one job per workflow, scheduled after every logging rule --
 concatenates those parts, in rule order, into a single ``<logs>/<workflow>.log``,
 then deletes the parts it merged. All three workflows use it:
 
-===========================  ==========================================
-``Snakefile_model_creation``      ``logs/wf1_model_creation.log`` (1.16)
-``Snakefile_climate_projections`` ``logs/wf2_climate_projections.log`` (2.07)
-``Snakefile_climate_experiment``  ``<exp>/logs/wf3_climate_experiment.log`` (3.13)
-===========================  ==========================================
+================================= ==================================================
+``Snakefile_model_creation``      ``logs/wf1_model_creation.log`` (1.17)
+``Snakefile_climate_projections`` ``logs/wf2_climate_projections.log`` (2.09)
+``Snakefile_climate_experiment``  ``logs/wf3_climate_experiment_<experiment>.log`` (3.18)
+================================= ==================================================
 
 Shape of the merged file (the same pattern ``merge_benchmarks.py`` applies to the
 benchmark tables):
@@ -129,12 +129,18 @@ def _remove_parts(paths, parts_dir):
     call. Directory pruning only ever removes *empty* dirs, ``parts_dir`` itself
     included, which is what makes ``logs/_parts/`` disappear on a clean full run.
 
-    Pruning ``parts_dir`` is where this DIVERGES from
-    ``merge_benchmarks._remove_parts``, which pointedly keeps its own: all three
-    workflows share ONE ``benchmarks/_parts/``, whereas each workflow's log parts
-    sit in a directory only it writes (WF1 and WF2 under ``<project_dir>/logs``,
-    WF3 under ``<exp_dir>/logs``). Point two workflows at one log ``_parts`` and
-    that guard has to come back.
+    Pruning ``parts_dir`` is safe here only because a caller's ``parts_dir``
+    holds nothing another run owns. WF1 and WF2 do share
+    ``<project_dir>/logs/_parts``, so each prunes a dir the other may be about to
+    write -- harmless, because pruning removes only EMPTY dirs and each run
+    recreates what it needs. WF3 is given its own
+    ``<project_dir>/logs/_parts/<experiment>``, which is stronger: its part names
+    are rule numbers, identical across experiments, so a shared dir would let one
+    experiment's stranded part be merged into another's log and deleted with it.
+
+    ``merge_benchmarks._remove_parts`` pointedly does NOT prune its own
+    ``parts_dir`` -- the same reasoning reaching a different answer, since all
+    three workflows write into one ``benchmarks/_parts/``.
     """
     for path in paths:
         try:

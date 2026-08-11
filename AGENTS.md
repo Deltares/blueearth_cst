@@ -170,9 +170,9 @@ snakemake all -c 3 -s Snakefile_climate_experiment  --configfile test_case/snake
 # Or drive all enabled workflows through the wrapper:
 pixi run python scripts/run_workflows.py --config test_case/snake_config_rapid.yml
 
-# Render a workflow's DAG into the config's own project_dir, at the PRODUCING
-# RUN's scope (never into the repo root): logs/dag/<project_name>_wf<N>_dag.png
-# for wf1/wf2, experiments/<id>/logs/dag/ for wf3:
+# Render a workflow's DAG into the config's own project_dir (never into the repo
+# root): logs/dag/<project_name>_wf<N>_dag.png, with wf3 carrying its experiment
+# id in the name — logs/dag/<project_name>_wf3_<experiment>_dag.png:
 pixi run python scripts/plot_workflow_dag.py -s Snakefile_model_creation --configfile <cfg>
 
 # Snapshot a project tree as a path list and check that it holds nothing

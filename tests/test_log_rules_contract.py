@@ -57,6 +57,10 @@ PARTS_DIR_NAME = "_parts"
 #: The ``LOG_RULES = [ ... ]`` block, closing bracket anchored at column 0.
 _LOG_RULES_BLOCK = re.compile(r"^LOG_RULES\s*=\s*(\[.*?^\])", re.MULTILINE | re.DOTALL)
 
+#: A label starts with its rule number -- `3.12_perturb_climate_realization`.
+#: The same `<W.NN>` grammar `merge_logs._RULE_NUMBER` recognises.
+_LABEL_PREFIX = re.compile(r"^\d+\.\d+[a-z]?_")
+
 
 def _declared_log_rules(snakefile: str) -> list[str]:
     """Read the ``LOG_RULES`` literal out of a Snakefile without executing it.
@@ -108,18 +112,32 @@ def _parse_workflow(snakefile: str):
 def _label_from_log_path(log_path: str) -> str:
     """Derive a rule's log label from one declared ``log:`` path.
 
-    Two shapes exist, and the label is the path component directly under
-    ``logs/_parts/`` in both:
+    Two shapes exist below the label, and the label itself is recognised by the
+    ``<W.NN>_`` rule-number prefix every part carries:
 
-    * ``logs/_parts/<label>.log``           — one part per run
-    * ``logs/_parts/<label>/<wildcards>.log`` — one part per fanned-out job
+    * ``.../_parts/<label>.log``             — one part per run
+    * ``.../_parts/<label>/<wildcards>.log`` — one part per fanned-out job
+
+    **Found by the prefix, not by position.** The label used to be read as the
+    component directly under ``_parts/``, which broke the moment WF3's parts
+    moved to ``logs/_parts/<experiment>/`` (2026-08-11): every WF3 rule reported
+    the label ``experiment``, and the contract this module exists to enforce
+    became one assertion about a directory name. Matching the numbering
+    convention instead makes the derivation independent of how many scoping
+    levels sit between ``_parts/`` and the label.
     """
     parts = PurePosixPath(str(log_path).replace("\\", "/")).parts
     index = parts.index(PARTS_DIR_NAME)
-    remainder = parts[index + 1 :]
-    if len(remainder) == 1:
-        return PurePosixPath(remainder[0]).stem
-    return remainder[0]
+    for component in parts[index + 1 :]:
+        # Strip only the `.log` extension. NOT `PurePosixPath.stem`, which reads
+        # the rule number's own dot as a suffix and turns `2.04_fetch_gcm_slice`
+        # into `2`.
+        label = component[: -len(".log")] if component.endswith(".log") else component
+        if _LABEL_PREFIX.match(label):
+            return label
+    raise AssertionError(
+        f"no <W.NN>_<rule> component under {PARTS_DIR_NAME}/ in {log_path!r}"
+    )
 
 
 def _labels_with_producers(snakefile: str) -> set[str]:
