@@ -5,7 +5,7 @@ status: backlog
 effort: 1
 area: test fixtures
 origin: t2608111659 rapid rebuild
-queue: 3
+queue: 2
 created: 2026-08-11
 updated: 2026-08-11
 ---
