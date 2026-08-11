@@ -48,8 +48,9 @@ The tree is self-explanatory; these are the parts that are not.
   reducers) and `weathergen/` for the R weather generator.
 - `config/` — three bins plus `advanced_settings.yml`. There is **no
   `workflows/` bin**: every shipped `--configfile` target lives beside the project
-  it writes into, under `test_case/` (`snake_config_model_test.yml`, its `_linux`
-  twin, `snake_config_dev_fast.yml`), which is how a real project is laid out too.
+  it writes into, under `test_case/` (`snake_config_rapid.yml`,
+  `snake_config_model_test.yml`, its `_linux` twin, `snake_config_dev_fast.yml`
+  — which one to run is under Workflow), which is how a real project is laid out too.
   Those are the ONLY tracked files under the otherwise-ignored `test_case/`, which
   is why `.gitignore` reads `test_case/*` plus `!test_case/snake_config_*.yml` —
   the directory form `test_case/` cannot work, since git refuses to un-ignore a
@@ -159,13 +160,15 @@ Run everything inside `pixi shell`, or prefix each command with `pixi run`, so
 pixi install          # conda-forge + PyPI deps (Python stack, R toolchain, snakemake)
 pixi run install      # + weathergenr (R, via remotes) and Julia env (Pkg.instantiate)
 
-# Run the three workflows IN ORDER (climate_experiment needs model_creation artifacts):
-snakemake all -c 3 -s Snakefile_model_creation      --configfile test_case/snake_config_model_test.yml
-snakemake all -c 3 -s Snakefile_climate_projections --configfile test_case/snake_config_model_test.yml --keep-going
-snakemake all -c 3 -s Snakefile_climate_experiment  --configfile test_case/snake_config_model_test.yml
+# Run the three workflows IN ORDER (climate_experiment needs model_creation
+# artifacts). snake_config_rapid.yml is the DEFAULT config; swap in
+# snake_config_model_test.yml only for the runs listed under Workflow:
+snakemake all -c 3 -s Snakefile_model_creation      --configfile test_case/snake_config_rapid.yml
+snakemake all -c 3 -s Snakefile_climate_projections --configfile test_case/snake_config_rapid.yml --keep-going
+snakemake all -c 3 -s Snakefile_climate_experiment  --configfile test_case/snake_config_rapid.yml
 
 # Or drive all enabled workflows through the wrapper:
-pixi run python scripts/run_workflows.py --config test_case/snake_config_model_test.yml
+pixi run python scripts/run_workflows.py --config test_case/snake_config_rapid.yml
 
 # Render a workflow's DAG into the config's own project_dir, at the PRODUCING
 # RUN's scope (never into the repo root): logs/dag/<project_name>_wf<N>_dag.png
@@ -379,6 +382,34 @@ re-proves what the previous run already proved.
   substitute: it is rounded to 5 decimals, coarser than the drift the tolerance
   comparator exists to catch. `--notemp` is also the flag for iterating on a
   rule-1.15 evaluation figure, which otherwise re-runs the whole model.
+
+### Which config to run — rapid by default, comprehensive selectively
+
+The ladder above governs `pytest`; this governs the pipeline itself. Default to
+`test_case/snake_config_rapid.yml` and reach for `snake_config_model_test.yml`
+only when the run's NUMBERS are the point.
+
+| Config | `project_dir` | Run it for |
+|---|---|---|
+| `snake_config_rapid.yml` | `test_case/test_rapid` | anything you want to watch EXECUTE — a rule you edited, a DAG check, a WF3 smoke run, a figure render |
+| `snake_config_model_test.yml` | `test_case/test_local` | recording or checking `dev/baseline/manifest.json`, `tree-check`, a milestone seal, any number you will quote |
+| `snake_config_dev_fast.yml` | `test_case/test_dev` | WF2 code iteration only — 2 series, and it drops `st_0` |
+
+Rapid costs ~2.6× less wflow time (10 members × 9 forcing years, vs 14 × 17) and
+~1.7× less weather generation (46 generated years, vs 78). **The horizon, not
+`run_length`, is what moves the second number**: `compute_nr_years` anchors the
+generated series at 2010, so it spans 2010 → `horizontime_climate` +
+`run_length`/2 and shortening the run alone barely touches it.
+
+Rapid is CHEAP, not NARROW, and the difference is load-bearing. It keeps
+`run_historical: true`, because `st_0` is what the two class-C month indicators
+are derived *from* — `false` drops 2 of 11 `q` metrics with nothing reporting it
+(the R11 P3 case `interchange_contracts.py` was hardened against) — and it keeps
+two CMIP6 models, because a one-model config never runs the ensemble reduction.
+A config that gives up coverage must say which, as `dev_fast` does.
+
+The baseline is recorded from `snake_config_model_test.yml` and nothing else;
+never point `check_baseline.py` at the rapid tree.
 
 ### Read the CI run after you push
 

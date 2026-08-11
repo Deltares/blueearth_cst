@@ -141,7 +141,9 @@ The toolbox provides three [Snakemake](https://snakemake.github.io/) workflows:
 
 Configuration is YAML-driven. Start from `config/templates/snake_config.template.yml`,
 which annotates every option inline; a filled-in worked example is
-`test_case/snake_config_model_test.yml`. Each of the shipped example configs sits
+`test_case/snake_config_model_test.yml`, and `test_case/snake_config_rapid.yml`
+is the same basin sized for a quick end-to-end run rather than for results.
+Each of the shipped example configs sits
 beside the project it writes into, the same way a real project keeps its config
 next to its `project_dir`. Data catalogs live under `config/catalogs/`, and
 `config/templates/` holds both the config scaffold above and the hydromt / wflow /
