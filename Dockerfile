@@ -7,7 +7,11 @@
 # inside it are exercised when the deferred milestone resumes.
 
 # --- julia binaries ---------------------------------------------------------
-ARG julia_version=1.12.6
+# Must satisfy Project.toml's `julia = "~1.11"` compat bound: Wflow.jl v1.0.x
+# hangs at JIT under 1.12.x (Wflow.jl#884). Kept equal to
+# config/advanced_settings.yml `runtime.julia_version`, which is what the
+# workflows select on a juliaup host.
+ARG julia_version=1.11.7
 FROM julia:${julia_version} AS jul
 
 # --- source files staging ---------------------------------------------------
