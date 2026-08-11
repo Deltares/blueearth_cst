@@ -280,6 +280,14 @@ instructs leaving it alone. **Flagged, not proposed.** It also carries two
 unescaped `"config\deltares_data.yml"` backslash literals that only work by
 accident of `\d` not being a recognised escape.
 
+> **WITHDRAWN 2026-08-11, same day.** A concurrent session's `d2be272`
+> (`refactor(config): split config/templates into templates/ and defaults/`)
+> added a **second hop** to this map and to its `semantic_tree_diff.py` twin
+> `COPIED_CONFIG_PATH_MAP`. It is an actively maintained surface, not residue.
+> This does **not** touch §6a: the hop went into the two small copied-config
+> dicts, not into `build_{p31,r07,r09}_path_map`, which are untouched and remain
+> retirable.
+
 ## 7. Tier 2 — consolidate, or leave alone (no coverage change)
 
 114 files for 102 source modules, and the split does not follow the modules:

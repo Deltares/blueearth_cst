@@ -20,6 +20,7 @@ before acting on it; this table goes stale exactly like its contents.
 | `2026-07-30_process-review-critique-gpt.md` | 102 | **Keep** | Same |
 | `2026-07-30_design-loop-efficiency-review-brief.md` | 236 | **Keep** | Cited by `critique-fable.md`; also the record of the blind two-reviewer protocol |
 | `2026-07-31_post-r8-self-check.md` | 625 | **Keep whole** | Closed and fully dispositioned, but its own outcome section states it is "a derived overview, not a substitute" for the entries |
+| `2026-08-11_test-suite-bloat-assessment.md` | 354 | **Keep — not closed** | Carries the 2026-08-11 owner ruling on §6a (retire the r09+r07 path maps, keep p31 as the `--milestone` default) and that retirement is **not yet executed**; §4's coverage gaps are 2 of 8 closed. Unfinished, not stale — same case as `post-r7-self-check`. Reassess once §6a lands and §4 is dispositioned; the durable half is then the ruling, which belongs on the board or in a commit message, not here |
 
 Removed on 2026-08-02:
 
