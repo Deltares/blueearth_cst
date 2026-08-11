@@ -2,8 +2,9 @@
 //
 // Named tasks are thin shims over `pixi.toml [tasks]` -- the command itself is
 // defined once there, so Zed, VS Code, and the bare CLI run the identical thing.
-// Add a new named task to pixi.toml, then a two-line entry here and in
-// .vscode/tasks.json.
+// Add a new named task to pixi.toml, then a two-line entry here. There is no
+// tracked .vscode/tasks.json to mirror it into -- .vscode/ is gitignored
+// per-user state -- so pixi.toml stays the one definition everything shims.
 //
 // The file/cursor-scoped tasks at the bottom cannot live in pixi.toml (they need
 // editor variables), so they spell out `pixi run <tool>` instead. Never invoke

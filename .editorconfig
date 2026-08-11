@@ -5,7 +5,8 @@
 # equally shared -- lint in pyproject.toml [tool.ruff], type checking in
 # [tool.pyright], tests in [tool.pytest.ini_options], commands in pixi.toml
 # [tasks]. Only genuinely per-editor ergonomics (search exclusions, theme,
-# keybindings) remain in .zed/ and .vscode/.
+# keybindings) remain in .zed/ -- the one editor config this repo tracks. A
+# .vscode/ is gitignored per-user state, so it holds nothing shared.
 #
 # DELIBERATELY ABSENT: `end_of_line`. .gitattributes already owns line endings
 # and does it better -- it distinguishes *.sh (must be LF, runs in Docker) from
