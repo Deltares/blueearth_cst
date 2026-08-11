@@ -16,12 +16,56 @@ updated: 2026-08-11
 
 ## Progress
 
-- [ ] Establish which side is authoritative — was `test_rapid` built by an earlier revision of `snake_config_rapid.yml`, or seeded by copying a gabon tree that never matched it?
-- [ ] Confirm the `deltares_data` catalog and the observation CSVs the config names are reachable, since a rebuild needs both
-- [ ] Decide: re-run WF1 into `test_rapid`, or re-point the config at the tree's actual provenance
-- [ ] Apply the decision, and confirm a WF3 `--dry-run` gets past rule 3.01
-- [ ] Run WF3 end to end and confirm all three indicator tables land populated
-- [ ] Re-check that AGENTS.md's "which config to run" table still tells the truth
+- [x] Establish which side is authoritative — was `test_rapid` built by an earlier revision of `snake_config_rapid.yml`, or seeded by copying a gabon tree that never matched it?
+- [x] Confirm the `deltares_data` catalog and the observation CSVs the config names are reachable, since a rebuild needs both
+- [x] Decide: re-run WF1 into `test_rapid`, or re-point the config at the tree's actual provenance
+- [x] Apply the decision, and confirm a WF3 `--dry-run` gets past rule 3.01
+- [x] Run WF3 end to end and confirm all three indicator tables land populated
+- [x] Re-check that AGENTS.md's "which config to run" table still tells the truth
+
+## Outcome (2026-08-11)
+
+**Neither side was "an earlier revision of the rapid config".** All 207 files
+dated from 2026-08-11 14:45, so `test_rapid` was a real WF1 build — but from an
+ad-hoc config: an older revision of the seed (its header still says
+`examples/test_local`, the pre-R9 path) with `project_dir` swapped and
+observations pointed at `C:/TESTS/CST/observations/gabon/`. Only one invocation
+record exists and it is the 14:25 **dry** run; the real build bypassed
+`run_workflows.py`, which is why the provenance had to be reconstructed by hand.
+
+**The tracked config wins, and it was never really a choice.** The invariant is
+visible in the healthy tree: `test_local`'s WF1 snapshot is byte-identical to
+its tracked `snake_config_model_test.yml`. `test_rapid` violated it. And
+"re-point the config at the tree" fails on its own terms — no tracked config can
+name `C:/TESTS/CST/...` and stay reproducible for anyone else, so a WF1 re-run
+was forced either way. The only open question was which settings it used.
+
+Rebuilt all three workflows through `scripts/run_workflows.py` (so this time
+there IS an invocation record). Both snapshots now match the tracked config
+byte-for-byte, and WF3 completes 34/34 with `q`/`aet`/`gwr` indicator tables.
+
+**A second defect, found while costing the rebuild and NOT in the original
+diagnosis.** WF2's snapshot regenerated but its *products* did not: after the
+full wrapper run the summary still carried 3 models, the `far` horizon and a
+1990-2010 reference window, against the config's 2 models / `mid` / 2000-2014.
+`raw/` and `scalar/` are keyed by (model, scenario, member) and are genuinely
+window-independent, so only stage B (2.06) had to re-run — and it did not,
+because this `.snakemake` has no metadata for the 14:45 build (`12 jobs have
+missing provenance/metadata`), so the params trigger cannot fire and mtime says
+`summary/` is newer than `scalar/`.
+
+Rule 3.01 cannot catch this: it compares **config sections**, not products. So
+the tree passed the guard while its CMIP6 overlay described a different
+experiment than the config asked for. Fixed with
+`--forcerun derive_change_factors plot_gcm_timeseries` (network-free — the raw
+slices stay valid), then `prune_series_cache.py --delete` for the 5 series the
+model/scenario narrowing orphaned. The rebuilt tree also exposed two tree-inventory
+map gaps, boarded separately as
+[[t2608112047-cover-the-two-declared-artifacts-the-post-r9-tree-inventory-misses]].
+
+`experiments/experiment_rapid_v2/` was dropped on the owner's ruling: its
+purpose (the `gwr` rename verification) is spent and committed, and it pinned a
+model digest the rebuild destroyed.
 
 ## Refs
 
