@@ -55,7 +55,12 @@ Artifact. The deliverable is a **design decision**, not a merged output contract
 - No new or renamed durable figure paths. Nothing is written under any
   `project_dir` — not the fixture's, not a project's.
 - No cross-model/member statistics, envelopes, medians, or aggregation.
-- No model/member visual distinction or legend entries.
+- No model/member visual ENCODING and no legend entries naming one — no model
+  gets its own colour, marker or line style. **Amended 2026-08-11 (owner):** the
+  change-factor cloud labels each point with its model name. A direct annotation
+  identifies a point without making model a visual channel, so the rule this
+  non-goal protects is intact; the earlier blanket wording ("no model/member
+  label") is withdrawn and applies to legends only.
 - No changes to change-factor tables, provenance, climate extraction, or
   regridding; no WF3 contact.
 - No stress-test-grid overlay in the WF2 change-factor cloud.
@@ -124,7 +129,8 @@ combination count — not the layer-richness rule that governs the basin map.
    overview/
    ├── annual-precipitation.png
    ├── annual-temperature.png
-   └── change-factor-cloud.png
+   ├── change-factor-cloud.png
+   └── change-factor-cloud-combined.png
    windows/
    └── <horizon>-<start>-<end>/
        └── monthly-change-factors.png
@@ -136,13 +142,35 @@ combination count — not the layer-richness rule that governs the basin map.
    models or members. State the anomaly reference window and label the
    historical/future transition.
 4. The change-factor cloud carries every combination, no marginal KDEs, scenario
-   color only, and zero-reference lines. Facet by horizon with identical axes;
-   one panel when only one horizon exists.
+   color only, and zero-reference lines, in **two views**: faceted by horizon on
+   identical axes (one panel when only one horizon exists), and all horizons
+   combined on one pair of axes with marker encoding horizon. Both label each
+   point with its model name. The combined view answers "how far does the cloud
+   travel between horizons", which the faceted one cannot.
 5. Each horizon figure carries precipitation change (%) and temperature change
    (°C) panels, computed against the corresponding **historical calendar month**
    using only that horizon's years, with every combination, scenario color only,
-   a zero line, and `Jan`–`Dec` labels.
-6. Close figures after saving.
+   a zero line, and month labels.
+6. **No titles on any figure** — panels carry `a)`, `b)` labels instead. What a
+   title would have said goes where a journal figure keeps it: the variable and
+   its unit in the y-label, and the horizon, reference window and trace counts in
+   the caveat line.
+7. Close figures after saving.
+
+**Owner rulings, 2026-08-11**, taken on the first rendered set and folded into
+the list above:
+
+- No titles above figures, anywhere in the toolbox — `a)`/`b)` panel labels
+  instead (item 6). This is a toolbox-wide convention, not a WF2 one.
+- Match the WF1 figure spec exactly, not approximately. That means
+  `cartographic_map._publication_rc()`, `series_figure_size()`, CONSTRAINED
+  layout and `fig.supxlabel(..., wrap=True)` for the caveat — the four decisions
+  `climate_figures.py` makes. `tight_layout` is specifically wrong: the WF1 maps
+  are built on constrained layout and a family that mixes the two cannot agree
+  on its margins.
+- Label each cloud point with its model name (item 4, and see the amended
+  non-goal above).
+- Keep the combined all-horizons scatter alongside the faceted one (item 4).
 
 ### Validation
 
@@ -172,7 +200,9 @@ does not remove the obligation.
   combinations. State both counts. Fewer marks disproves the
   no-aggregation/no-dropping claim.
 - **Scenario-only identity** — legend labels equal historical plus configured
-  scenarios. Any model/member label or model-specific style fails the contract.
+  scenarios, and no model or member gets its own colour, marker or line style.
+  Amended 2026-08-11: a model NAME annotated beside a cloud point is permitted
+  and expected; a model in a legend, or encoded in the ink, still fails.
 - **Multi-window navigation** — the two-horizon input produces both window
   directories and matching cloud panels. A missing or mixed window fails.
 - **Read-only** — if a real project tree is the source, hash it before and after
@@ -183,7 +213,10 @@ does not remove the obligation.
 - The Artifact shows every figure in the proposed set, at final size and legible
   at 180 mm width, including the two-horizon case.
 - All combinations remain visible, with scenario as the only visual grouping;
-  legends contain no model/member names; cloud marginals are absent.
+  legends contain no model/member names; cloud marginals are absent. Cloud points
+  carry model-name annotations, and those annotations do not overprint each
+  other, the markers, or the legend.
+- No figure carries a title; every multi-panel figure carries `a)`/`b)` labels.
 - Monthly changes agree with the authoritative horizon-specific change-factor
   tables for precipitation and temperature, with the agreement shown.
 - Figures visually match WF1 typography, dimensions, grids, labeling, and export

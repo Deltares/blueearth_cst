@@ -31,15 +31,43 @@ It is not registered as a ``preview_plots.py`` family and it does not call the
 rule-side plotting functions. It cannot: the whole point of the prototype is
 that ``plot_proj_timeseries.py`` and ``get_change_climate_proj_summary.py`` do
 not implement the design being proposed. Reaching for that registry would
-re-couple the prototype to the code it exists to bypass. Everything below draws
-with its own matplotlib calls, on the shared page contract imported from
-``shared/plot_style.py`` (read, never written).
+re-couple the prototype to the code it exists to bypass.
+
+The WF1 page contract, reused rather than re-derived
+----------------------------------------------------
+Everything below draws under ``cartographic_map._publication_rc()`` at
+``series_figure_size(...)``, in CONSTRAINED layout, with the caveat carried by
+``fig.supxlabel(..., wrap=True)`` — the same four decisions
+``climate_analysis/climate_figures.py`` makes for the WF1 series figures. That
+is not incidental tidiness:
+
+* ``layout="constrained"`` rather than ``tight_layout`` because the WF1 maps are
+  built on it, and a figure family that mixes the two cannot be made to agree on
+  its margins.
+* ``supxlabel`` rather than a hand-placed ``fig.text`` because it is part of the
+  layout, so a long caveat re-flows instead of being drawn off the canvas.
+  ``fig.text`` does not clip — it silently loses the tail, which is how the
+  first version of this script dropped "CMIP6 is a plausibility overlay, not a
+  stress-test driver" off the right-hand edge of every figure.
+
+Both helpers are called THROUGH the module (``cartographic_map._publication_rc()``)
+rather than imported by name, because ``dev/scripts/preview_basin_map.py --set``
+rebinds those globals at runtime; a ``from ... import`` would snapshot them at
+import and silently ignore an override.
+
+No titles anywhere
+------------------
+Owner ruling, 2026-08-11, and it applies to every figure this toolbox draws:
+panels carry ``a)``/``b)`` labels instead of titles. What a title used to say is
+routed to the places a journal figure keeps it — the variable and its unit go in
+the y-label (WF1's ``f"{label.capitalize()} ({axis_unit})"`` convention), and the
+horizon, reference window and trace counts go in the caveat line.
 
 What the proposal changes
 -------------------------
-1. Nine independently styled figures become four, on one page contract:
-   two annual overviews, one change-factor cloud, and one monthly figure per
-   configured horizon.
+1. Nine independently styled figures become five, on one page contract: two
+   annual overviews, two views of the change-factor cloud, and one monthly
+   figure per configured horizon.
 2. Monthly change is computed against the CORRESPONDING HISTORICAL CALENDAR
    MONTH, over that horizon's years only. The shipped figures compare a future
    month with the historical ANNUAL mean, and average the full 2015-2100 series
@@ -47,9 +75,10 @@ What the proposal changes
    The change-factor TABLES already use the corrected definition, which is what
    makes them the cross-check here rather than a second opinion: every render
    reproduces them from the series and reports the largest disagreement.
-3. Only scenario carries a visual identity. Models and members are separate
-   traces and points but are never in a legend and never get their own colour,
-   marker or line style.
+3. Scenario is the only visual ENCODING — no model or member gets its own
+   colour, marker or line style, and no legend names one. The cloud additionally
+   labels each point with its model name (owner ruling, 2026-08-11): a direct
+   annotation identifies a point without making model a visual channel.
 
 The two-horizon case
 --------------------
@@ -66,7 +95,6 @@ from __future__ import annotations
 import argparse
 import subprocess
 import sys
-import textwrap
 from pathlib import Path
 
 import matplotlib
@@ -76,12 +104,13 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402 -- must follow the Agg backend selection
 import pandas as pd  # noqa: E402
 import xarray as xr  # noqa: E402
+from matplotlib.ticker import MaxNLocator  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from blueearth_cst.shared import plot_style  # noqa: E402 -- needs the sys.path above
+from blueearth_cst.shared import cartographic_map, plot_style  # noqa: E402
 
 DEFAULT_PROJECT_DIR = REPO_ROOT / "test_case" / "test_local"
 DEFAULT_OUT = REPO_ROOT / ".tmp" / "preview-wf2-projection-plots"
@@ -89,7 +118,7 @@ CLIM_SUBDIR = Path("data") / "climate" / "projections"
 
 #: Scenario ink. Carried over from the shipped producers verbatim so the
 #: prototype is judged on layout and semantics rather than on a palette change
-#: nobody asked for. Scenario is the ONLY visual identity in the whole set.
+#: nobody asked for. Scenario is the only visual ENCODING in the whole set.
 SCENARIO_COLORS = {
     "ssp126": "#003466",
     "ssp245": "#f69320",
@@ -103,20 +132,17 @@ SCENARIO_LABELS = {
     "ssp585": "SSP5-8.5",
 }
 COLOR_HISTORICAL = "0.55"
-MONTH_LABELS = [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
-]
+
+#: Marker per horizon, for the combined cloud only. Horizon is not model or
+#: member, so encoding it costs nothing the scenario-only rule protects.
+HORIZON_MARKERS = ["o", "s", "^", "D", "v"]
+
+MONTH_LABELS = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
+
+#: Point size of a panel's ``a)`` label and of the model annotations on the
+#: cloud. ``climate_figures.FONT_SIZE_ANNOTATION`` is the WF1 value for text
+#: that sits inside the axes rather than labelling them.
+FONT_SIZE_ANNOTATION = 6.0
 
 #: Variables, in the order they appear on every two-panel figure.
 VARIABLES = {
@@ -231,10 +257,6 @@ def parse_horizon(text: str) -> tuple[str, int, int]:
 # ===========================================================================
 
 
-def combination_key(frame: pd.DataFrame) -> pd.Series:
-    return frame["model"] + " " + frame["scenario"] + " " + frame["member"]
-
-
 def monthly_reference(series: pd.DataFrame, ref: tuple[int, int]) -> pd.DataFrame:
     """Historical mean per (model, member, calendar month) over the reference window.
 
@@ -347,17 +369,93 @@ def shipped_monthly_change(series: pd.DataFrame, ref: tuple[int, int]) -> pd.Dat
 
 
 # ===========================================================================
-# THE FIGURES
+# PAGE FURNITURE
 # ===========================================================================
 
 
-def scenario_legend(ax, scenarios, *, with_historical=True) -> None:
-    """One compact legend: historical plus scenarios, and nothing else.
+def new_figure(aspect: float, nrows: int = 1, ncols: int = 1, **kwargs):
+    """A figure at the shared page width, in the WF1 rc and constrained layout.
 
-    Built from proxy handles rather than from the drawn artists, because the
-    drawn artists are one per COMBINATION — labelling those is how "one trace
-    per combination" becomes a legend naming every model, which is the contract
-    this figure set is here to hold.
+    ``aspect`` is chosen per figure SHAPE rather than left at
+    ``series_figure_size``'s 0.42 default, which sizes a single-axes series: a
+    stacked pair needs most of double that height, a side-by-side pair needs
+    about the single height with squarer panels.
+    """
+    size = cartographic_map.series_figure_size(aspect)
+    return plt.subplots(nrows, ncols, figsize=size, layout="constrained", **kwargs)
+
+
+def style_series_axes(ax) -> None:
+    """The WF1 series treatment: an L-frame with a horizontal-only grid.
+
+    Mirrors ``climate_figures._style_series_axes``. Deliberately re-stated here
+    rather than imported: that one is private to the WF1 module, and this is a
+    prototype that must not reach into it. Keep the two in step by eye — the
+    values are three lines, and coupling a prototype to a private helper costs
+    more than restating it.
+    """
+    ax.grid(axis="y", alpha=0.25, lw=0.5)
+    ax.set_axisbelow(True)
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+
+
+def style_scatter_axes(ax) -> None:
+    """As above, but gridded on BOTH axes.
+
+    A deliberate departure from the series treatment: on the change-factor cloud
+    both coordinates carry meaning and both zero lines are drawn, so a
+    horizontal-only grid would imply the x position is the approximate one.
+    """
+    ax.grid(alpha=0.25, lw=0.5)
+    ax.set_axisbelow(True)
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+
+
+def panel_label(ax, letter: str) -> None:
+    """``a)``, ``b)`` … at the panel's top-left corner.
+
+    Owner ruling, 2026-08-11: no titles above figures anywhere in this toolbox.
+    The letter sits just outside the axes so it cannot collide with data or with
+    the legend, and it carries no descriptive text — what the title used to say
+    is in the y-label and the caveat.
+    """
+    ax.annotate(
+        f"{letter})",
+        xy=(0, 1),
+        xycoords="axes fraction",
+        xytext=(0, 4),
+        textcoords="offset points",
+        ha="left",
+        va="bottom",
+        fontsize=plot_style.FONT_SIZE_BASE,
+        fontweight="bold",
+    )
+
+
+def caveat(fig, text: str) -> None:
+    """The provenance line under the panels, as part of the layout.
+
+    ``supxlabel`` with ``wrap=True``, the WF1 mechanism: constrained layout
+    reserves room for it and long text re-flows. A ``fig.text`` at a hand-picked
+    position does neither — it draws off the canvas and loses its tail without
+    raising anything.
+    """
+    fig.supxlabel(
+        text,
+        fontsize=plot_style.FONT_SIZE_CAVEAT,
+        color=plot_style.COLOR_CAVEAT,
+        wrap=True,
+    )
+
+
+def scenario_handles(scenarios, *, with_historical=True):
+    """Legend proxies: historical plus scenarios, and nothing else.
+
+    Proxies rather than the drawn artists, because the drawn artists are one per
+    COMBINATION — labelling those is how "one trace per combination" becomes a
+    legend naming every model, which is the contract this figure set holds.
     """
     handles = []
     if with_historical:
@@ -374,53 +472,129 @@ def scenario_legend(ax, scenarios, *, with_historical=True) -> None:
                 label=SCENARIO_LABELS.get(scenario, scenario),
             )
         )
-    ax.legend(handles=handles, loc="upper left", frameon=False, ncols=len(handles))
+    return handles
 
 
-def footnote(fig, text: str, *, width: int = 138) -> float:
-    """Wrap a caveat under the panels and return the figure fraction it occupies.
+#: Where a model label may sit relative to its point, in points, best first.
+#: Tried in order until one lands clear of the labels already placed.
+LABEL_OFFSETS = [
+    (5, 3),
+    (-5, 3),
+    (5, -9),
+    (-5, -9),
+    (0, 8),
+    (0, -12),
+    (10, -3),
+    (-10, -3),
+]
 
-    Wrapped rather than trusted to fit: ``fig.text`` does not clip, it draws
-    straight off the canvas, so an unwrapped caveat SILENTLY loses its tail —
-    the first render of this set lost "CMIP6 is a plausibility overlay, not a
-    stress-test driver", which is the one sentence on the figure that says what
-    the figure is not for.
 
-    The return value is the ``bottom`` a caller passes to ``tight_layout``'s
-    ``rect``, so the reservation follows the number of wrapped lines instead of
-    being a constant that a longer caveat quietly overruns. Call this BEFORE
-    ``tight_layout``; matplotlib's layout engines ignore ``fig.text``.
+def label_points(ax, frame, blockers=()) -> None:
+    """Annotate every cloud point with its model name, avoiding overprints.
+
+    Owner ruling, 2026-08-11. This is the one place a model name appears on a
+    figure, and it is a DIRECT ANNOTATION rather than a visual channel: the
+    point keeps its scenario colour and the shared marker, so nothing about the
+    ink encodes which model it is.
+
+    Placement is greedy against the real rendered extents rather than a fixed
+    rotation of offsets. A rotation looks like it works and does not: it keys on
+    the row's ORDER, while collisions are a fact about the row's POSITION, so
+    the two ``far``-panel models that differ by one percentage point drew their
+    labels on top of each other while models at opposite corners were carefully
+    given different offsets. Each label is drawn, measured, and moved to the next
+    candidate if it overlaps one already placed; the first candidate is kept when
+    none is clear, which is better than dropping a label silently.
+
+    Three things count as occupied and are seeded into the blocker list before
+    any label is placed: the markers themselves, the labels already placed, and
+    whatever artists the caller passes in ``blockers`` — in practice the legend,
+    which a label will otherwise happily print underneath.
+
+    **Call this last, after the axis limits are final.** Extents are measured in
+    display space, so a later ``set_xlim`` moves every point out from under the
+    labels this placed.
     """
-    wrapped = textwrap.fill(text, width=width)
-    fig.text(
-        0.006,
-        0.006,
-        wrapped,
-        ha="left",
-        va="bottom",
-        fontsize=plot_style.FONT_SIZE_CAVEAT,
-        color=plot_style.COLOR_CAVEAT,
-    )
-    line_height_points = plot_style.FONT_SIZE_CAVEAT * 1.4
-    lines = wrapped.count("\n") + 1
-    return min(lines * line_height_points / (fig.get_figheight() * 72.0) + 0.012, 0.3)
+    figure = ax.figure
+    figure.canvas.draw()
+    renderer = figure.canvas.get_renderer()
+
+    placed = [artist.get_window_extent(renderer) for artist in blockers]
+    # The markers. A label overprinting the point it names is the one collision
+    # that makes the figure actively misleading rather than merely crowded.
+    marker_pad = 6.0 * figure.dpi / 72.0
+    for _, row in frame.iterrows():
+        x, y = ax.transData.transform((row["precip_change"], row["temp_change"]))
+        placed.append(
+            matplotlib.transforms.Bbox.from_extents(
+                x - marker_pad, y - marker_pad, x + marker_pad, y + marker_pad
+            )
+        )
+
+    for _, row in frame.iterrows():
+        point = (row["precip_change"], row["temp_change"])
+        text = None
+        for dx, dy in LABEL_OFFSETS:
+            text = ax.annotate(
+                row["model"],
+                xy=point,
+                xytext=(dx, dy),
+                textcoords="offset points",
+                ha="left" if dx > 0 else ("right" if dx < 0 else "center"),
+                va="bottom" if dy > 0 else "top",
+                fontsize=FONT_SIZE_ANNOTATION,
+                color="0.25",
+            )
+            extent = text.get_window_extent(renderer).expanded(1.04, 1.2)
+            if not any(extent.overlaps(other) for other in placed):
+                placed.append(extent)
+                break
+            text.remove()
+            text = None
+        if text is None:
+            # Every candidate collided — keep the first rather than lose the
+            # label, and let the overlap be visible instead of the name absent.
+            dx, dy = LABEL_OFFSETS[0]
+            text = ax.annotate(
+                row["model"],
+                xy=point,
+                xytext=(dx, dy),
+                textcoords="offset points",
+                ha="left",
+                va="bottom",
+                fontsize=FONT_SIZE_ANNOTATION,
+                color="0.25",
+            )
+            placed.append(text.get_window_extent(renderer).expanded(1.04, 1.2))
+
+
+# ===========================================================================
+# THE FIGURES
+# ===========================================================================
 
 
 def figure_annual(
     annual: pd.DataFrame, variable: str, ref: tuple[int, int], out_path: Path, dpi: int
 ) -> int:
-    """Absolute and anomaly panels over the full historical/future series."""
+    """Absolute (a) and anomaly (b) panels over the full historical/future series."""
     meta = VARIABLES[variable]
     scenarios = sorted(s for s in annual["scenario"].unique() if s != "historical")
-    width = plot_style.figure_width_inches()
 
-    with plt.rc_context(plot_style.rcparams()):
-        fig, axes = plt.subplots(2, 1, figsize=(width, width * 0.62), sharex=True)
+    with plt.rc_context(cartographic_map._publication_rc()):
+        # 0.78 rather than 2x0.42: the panels share an x axis, so the pair needs
+        # one set of tick labels rather than two.
+        fig, axes = new_figure(0.78, nrows=2, sharex=True)
         traces = 0
-        for panel, column, units in (
-            (axes[0], variable, meta["absolute_units"]),
-            (axes[1], f"{variable}_anomaly", meta["change_units"]),
-        ):
+        panels = (
+            (axes[0], variable, f"{meta['name']} ({meta['absolute_units']})", "a"),
+            (
+                axes[1],
+                f"{variable}_anomaly",
+                f"{meta['name']} anomaly ({meta['change_units']})",
+                "b",
+            ),
+        )
+        for panel, column, ylabel, letter in panels:
             for _, group in annual.groupby(["model", "scenario", "member"], sort=True):
                 scenario = group["scenario"].iloc[0]
                 color = (
@@ -429,123 +603,198 @@ def figure_annual(
                     else SCENARIO_COLORS.get(scenario, "0.2")
                 )
                 panel.plot(
-                    group["year"],
-                    group[column],
-                    color=color,
-                    lw=0.7,
-                    alpha=0.85,
-                    zorder=2,
+                    group["year"], group[column], color=color, lw=0.7, alpha=0.85
                 )
                 traces += 1
-            panel.grid(True, lw=0.4, color="0.85", zorder=0)
-            panel.set_axisbelow(True)
-            panel.set_ylabel(units)
+            style_series_axes(panel)
+            panel.set_ylabel(ylabel)
+            panel_label(panel, letter)
 
-        axes[1].axhline(0.0, color="0.3", lw=0.7, zorder=1)
-        # The historical/future transition, labelled rather than left to be
-        # inferred from where the grey stops.
+        axes[1].axhline(0.0, color="0.3", lw=0.6)
+        # The historical/future handover, marked rather than left to be inferred
+        # from where the grey stops.
         transition = annual.loc[annual["scenario"] == "historical", "year"].max() + 0.5
         for panel in axes:
-            panel.axvline(transition, color="0.4", lw=0.7, ls=(0, (4, 3)), zorder=1)
-        axes[0].annotate(
-            "historical | future",
-            xy=(transition, 1.0),
-            xytext=(3, -9),
-            textcoords="offset points",
-            xycoords=("data", "axes fraction"),
-            fontsize=plot_style.FONT_SIZE_CAVEAT,
-            color="0.4",
-        )
-        axes[0].set_title(f"{meta['name']}, annual mean", loc="left")
-        axes[1].set_title(
-            f"Anomaly against {ref[0]}–{ref[1]}, each model against its own historical",
-            loc="left",
-        )
+            panel.axvline(transition, color="0.45", lw=0.6, ls=(0, (4, 3)))
         axes[1].set_xlabel("Year")
-        scenario_legend(axes[0], scenarios)
-        bottom = footnote(
+        axes[1].xaxis.set_major_locator(MaxNLocator(integer=True))
+        axes[0].legend(
+            handles=scenario_handles(scenarios),
+            loc="upper left",
+            frameon=False,
+            ncols=len(scenarios) + 1,
+        )
+        caveat(
             fig,
-            f"One trace per (model, scenario, member); {traces // 2} traces per panel. "
+            f"a) annual mean. b) anomaly against {ref[0]}–{ref[1]}, each model differenced "
+            f"against its own historical run; the dashed rule marks the historical/future "
+            f"handover. One trace per (model, scenario, member): {traces // 2} per panel. "
             "Colour encodes scenario only — models and members are not distinguished. "
             "CMIP6 is a plausibility overlay, not a stress-test driver.",
         )
-        fig.tight_layout(rect=(0, bottom, 1, 1))
         fig.savefig(out_path, dpi=dpi)
         plt.close(fig)
     return traces // 2
 
 
-def figure_cloud(
+def figure_cloud_faceted(
     changes: dict[str, pd.DataFrame],
     horizons: dict[str, tuple[int, int]],
     out_path: Path,
     dpi: int,
 ) -> int:
-    """The change-factor cloud, faceted by horizon on identical axes.
+    """The change-factor cloud, one panel per horizon on identical axes.
 
-    No marginal KDEs: a kernel density over six points asserts a distribution
-    the design does not construct, and the brief's first non-goal is exactly
-    that. One panel when only one horizon exists.
+    No marginal KDEs: a kernel density over six points asserts a distribution the
+    design does not construct. One panel when only one horizon exists.
     """
     names = list(horizons)
     scenarios = sorted(
         {s for frame in changes.values() for s in frame["scenario"].unique()}
     )
-    width = plot_style.figure_width_inches()
-    panel_width = width / max(len(names), 1)
 
-    with plt.rc_context(plot_style.rcparams()):
-        fig, axes = plt.subplots(
-            1,
-            len(names),
-            figsize=(width, min(panel_width * 1.05 + 0.5, width * 0.55)),
-            squeeze=False,
+    with plt.rc_context(cartographic_map._publication_rc()):
+        # Squarer than a series figure: both coordinates are changes in the same
+        # sense, so the panel should not privilege one axis by stretching it.
+        fig, axes = new_figure(
+            0.50 if len(names) > 1 else 0.62, ncols=len(names), squeeze=False
         )
         all_precip = pd.concat(frame["precip_change"] for frame in changes.values())
         all_temp = pd.concat(frame["temp_change"] for frame in changes.values())
         # Identical axes across facets: a horizon that looks calmer must BE
-        # calmer, not merely be drawn on a kinder scale.
-        pad_x = max((all_precip.max() - all_precip.min()) * 0.15, 0.5)
-        pad_y = max((all_temp.max() - all_temp.min()) * 0.15, 0.1)
+        # calmer, not merely be drawn on a kinder scale. The padding is generous
+        # because every point now carries a text label beside it.
+        pad_x = max((all_precip.max() - all_precip.min()) * 0.22, 1.0)
+        pad_y = max((all_temp.max() - all_temp.min()) * 0.22, 0.2)
         xlim = (min(all_precip.min(), 0) - pad_x, max(all_precip.max(), 0) + pad_x)
         ylim = (min(all_temp.min(), 0) - pad_y, max(all_temp.max(), 0) + pad_y)
 
         points = 0
-        for axis, name in zip(axes[0], names):
+        for index, (axis, name) in enumerate(zip(axes[0], names)):
             frame = changes[name]
             for scenario in scenarios:
                 subset = frame[frame["scenario"] == scenario]
                 axis.scatter(
                     subset["precip_change"],
                     subset["temp_change"],
-                    s=26,
+                    s=24,
                     color=SCENARIO_COLORS.get(scenario, "0.2"),
-                    alpha=0.85,
+                    alpha=0.9,
                     edgecolor="white",
                     linewidth=0.4,
                     zorder=3,
                 )
                 points += len(subset)
-            axis.axhline(0.0, color="0.35", lw=0.7, zorder=1)
-            axis.axvline(0.0, color="0.35", lw=0.7, zorder=1)
-            axis.grid(True, lw=0.4, color="0.88", zorder=0)
-            axis.set_axisbelow(True)
+            axis.axhline(0.0, color="0.35", lw=0.6)
+            axis.axvline(0.0, color="0.35", lw=0.6)
+            style_scatter_axes(axis)
             axis.set_xlim(*xlim)
             axis.set_ylim(*ylim)
-            start, end = horizons[name]
-            axis.set_title(f"{name} ({start}–{end})", loc="left")
             axis.set_xlabel("Change in mean precipitation (%)")
+            panel_label(axis, "abcde"[index])
         axes[0][0].set_ylabel("Change in mean temperature (°C)")
         for axis in axes[0][1:]:
             axis.tick_params(labelleft=False)
-        scenario_legend(axes[0][0], scenarios, with_historical=False)
-        bottom = footnote(
-            fig,
-            f"One point per (model, scenario, member) per horizon; {points} points drawn. "
-            "Axes are shared across horizons, so a calmer-looking horizon is a calmer one. "
-            "Marginal densities removed: these points are not a distribution.",
+        legend = axes[0][0].legend(
+            handles=scenario_handles(scenarios, with_historical=False),
+            loc="upper left",
+            frameon=False,
         )
-        fig.tight_layout(rect=(0, bottom, 1, 1))
+        # Last, and after every limit is final: label placement is measured in
+        # display space, so anything that moves the points invalidates it.
+        for index, (axis, name) in enumerate(zip(axes[0], names)):
+            label_points(axis, changes[name], blockers=[legend] if index == 0 else ())
+        panels = ", ".join(
+            f"{letter}) {name} {horizons[name][0]}–{horizons[name][1]}"
+            for letter, name in zip("abcde", names)
+        )
+        caveat(
+            fig,
+            f"Panels: {panels}. One point per (model, scenario, member) per horizon; "
+            f"{points} points drawn. Axes are shared across panels, so a calmer-looking "
+            "horizon is a calmer one. Each point is annotated with its model; colour still "
+            "encodes scenario alone. Marginal densities removed: these points are not a "
+            "distribution.",
+        )
+        fig.savefig(out_path, dpi=dpi)
+        plt.close(fig)
+    return points
+
+
+def figure_cloud_combined(
+    changes: dict[str, pd.DataFrame],
+    horizons: dict[str, tuple[int, int]],
+    out_path: Path,
+    dpi: int,
+) -> int:
+    """Every horizon on ONE pair of axes, horizon by marker shape.
+
+    Retained at the owner's request alongside the faceted view: the faceted one
+    answers "what does this horizon look like", this one answers "how far does
+    the cloud travel between horizons", and the second question is the reason
+    the overlay existed in the shipped figure. Marker encodes horizon — which is
+    neither model nor member, so the scenario-only rule is untouched.
+    """
+    names = list(horizons)
+    scenarios = sorted(
+        {s for frame in changes.values() for s in frame["scenario"].unique()}
+    )
+
+    with plt.rc_context(cartographic_map._publication_rc()):
+        fig, axis = new_figure(0.62)
+        points = 0
+        for index, name in enumerate(names):
+            frame = changes[name]
+            marker = HORIZON_MARKERS[index % len(HORIZON_MARKERS)]
+            for scenario in scenarios:
+                subset = frame[frame["scenario"] == scenario]
+                axis.scatter(
+                    subset["precip_change"],
+                    subset["temp_change"],
+                    s=26,
+                    marker=marker,
+                    color=SCENARIO_COLORS.get(scenario, "0.2"),
+                    alpha=0.9,
+                    edgecolor="white",
+                    linewidth=0.4,
+                    zorder=3,
+                )
+                points += len(subset)
+        axis.axhline(0.0, color="0.35", lw=0.6)
+        axis.axvline(0.0, color="0.35", lw=0.6)
+        style_scatter_axes(axis)
+        axis.set_xlabel("Change in mean precipitation (%)")
+        axis.set_ylabel("Change in mean temperature (°C)")
+        # Margins widened before labelling: the annotations sit outside the data
+        # extent, and autoscale does not know they exist.
+        axis.margins(0.14)
+
+        handles = scenario_handles(scenarios, with_historical=False)
+        for index, name in enumerate(names):
+            start, end = horizons[name]
+            handles.append(
+                plt.Line2D(
+                    [],
+                    [],
+                    color="0.35",
+                    lw=0,
+                    marker=HORIZON_MARKERS[index % len(HORIZON_MARKERS)],
+                    markersize=4,
+                    label=f"{name} {start}–{end}",
+                )
+            )
+        legend = axis.legend(handles=handles, loc="upper left", frameon=False, ncols=2)
+        # One call over ALL horizons, not one per horizon: every point on these
+        # axes has to be visible to the placer, or a `near` label lands on a
+        # `far` point that the placer for `near` never knew about.
+        label_points(axis, pd.concat(changes.values()), blockers=[legend])
+        caveat(
+            fig,
+            f"All horizons on one pair of axes; {points} points, one per (model, scenario, "
+            "member) per horizon. Colour encodes scenario and marker encodes horizon — "
+            "neither encodes model, which is annotated directly instead. Companion to the "
+            "faceted cloud: this view shows how far the cloud travels between horizons.",
+        )
         fig.savefig(out_path, dpi=dpi)
         plt.close(fig)
     return points
@@ -559,17 +808,17 @@ def figure_monthly(
     out_path: Path,
     dpi: int,
 ) -> int:
-    """Precipitation (%) and temperature (degC) change by calendar month."""
+    """Precipitation (a) and temperature (b) change by calendar month."""
     scenarios = sorted(changes["scenario"].unique())
-    width = plot_style.figure_width_inches()
 
-    with plt.rc_context(plot_style.rcparams()):
-        fig, axes = plt.subplots(1, 2, figsize=(width, width * 0.36))
+    with plt.rc_context(cartographic_map._publication_rc()):
+        fig, axes = new_figure(0.38, ncols=2)
         traces = 0
-        for axis, column, label in (
-            (axes[0], "precip_change", "Change in precipitation (%)"),
-            (axes[1], "temp_change", "Change in temperature (°C)"),
-        ):
+        panels = (
+            (axes[0], "precip_change", "Precipitation change (%)", "a"),
+            (axes[1], "temp_change", "Temperature change (°C)", "b"),
+        )
+        for axis, column, ylabel, letter in panels:
             for _, group in changes.groupby(["model", "scenario", "member"], sort=True):
                 group = group.sort_values("month")
                 axis.plot(
@@ -577,34 +826,30 @@ def figure_monthly(
                     group[column],
                     color=SCENARIO_COLORS.get(group["scenario"].iloc[0], "0.2"),
                     lw=0.9,
-                    alpha=0.85,
+                    alpha=0.9,
                     marker="o",
-                    markersize=2.2,
-                    zorder=2,
+                    markersize=2.0,
                 )
                 traces += 1
-            axis.axhline(0.0, color="0.35", lw=0.7, zorder=1)
-            axis.grid(True, lw=0.4, color="0.88", zorder=0)
-            axis.set_axisbelow(True)
+            axis.axhline(0.0, color="0.35", lw=0.6)
+            style_series_axes(axis)
             axis.set_xticks(range(1, 13), MONTH_LABELS)
-            axis.set_ylabel(label)
-        scenario_legend(axes[0], scenarios, with_historical=False)
-        fig.suptitle(
-            f"Monthly change factors — {name} ({horizon[0]}–{horizon[1]}) "
-            f"against {ref[0]}–{ref[1]}",
-            fontsize=plot_style.FONT_SIZE_TITLE,
-            x=0.006,
-            y=0.995,
-            va="top",
-            ha="left",
+            axis.set_xlabel("Month")
+            axis.set_ylabel(ylabel)
+            panel_label(axis, letter)
+        axes[0].legend(
+            handles=scenario_handles(scenarios, with_historical=False),
+            loc="upper left",
+            frameon=False,
+            ncols=len(scenarios),
         )
-        bottom = footnote(
+        caveat(
             fig,
-            f"One trace per (model, scenario, member); {traces // 2} traces per panel. Each future "
-            f"calendar month is differenced against the SAME historical calendar month, using only "
-            f"{horizon[0]}–{horizon[1]}.",
+            f"Horizon {name} ({horizon[0]}–{horizon[1]}) against {ref[0]}–{ref[1]}. Each "
+            "future calendar month is differenced against the SAME historical calendar "
+            f"month, using only {horizon[0]}–{horizon[1]}. One trace per (model, scenario, "
+            f"member): {traces // 2} per panel, colour encoding scenario alone.",
         )
-        fig.tight_layout(rect=(0, bottom, 1, 1))
         fig.savefig(out_path, dpi=dpi)
         plt.close(fig)
     return traces // 2
@@ -622,13 +867,11 @@ def figure_falsifier(
 ) -> None:
     """One combination, three definitions: proposal, shipped figure, and the table.
 
-    Not part of the proposed set. It exists so the monthly-semantics claim can
-    be judged as a picture and a number rather than taken on trust — the
-    proposal must sit ON the table's markers, and the shipped definition must
-    visibly not.
+    Not part of the proposed set. It exists so the monthly-semantics claim can be
+    judged as a picture and a number rather than taken on trust — the proposal
+    must sit ON the table's markers, and the shipped definition must visibly not.
     """
     model, scenario, member = combination
-    width = plot_style.figure_width_inches()
 
     def pick(frame):
         return frame[
@@ -643,15 +886,15 @@ def figure_falsifier(
         & (table["scenario"] == scenario)
         & (table["member"] == member)
         & (table["horizon"] == horizon_name)
-    ].sort_values("month")
+    ]
 
-    with plt.rc_context(plot_style.rcparams()):
-        fig, axes = plt.subplots(1, 2, figsize=(width, width * 0.36))
+    with plt.rc_context(cartographic_map._publication_rc()):
+        fig, axes = new_figure(0.38, ncols=2)
         panels = (
-            (axes[0], "precip", "Change in precipitation (%)"),
-            (axes[1], "temp", "Change in temperature (°C)"),
+            (axes[0], "precip", "Precipitation change (%)", "a"),
+            (axes[1], "temp", "Temperature change (°C)", "b"),
         )
-        for axis, variable, label in panels:
+        for axis, variable, ylabel, letter in panels:
             column = f"{variable}_change"
             # The table states precipitation change as `relative_value` but
             # carries no temperature DELTA column — that one is derived from the
@@ -669,7 +912,6 @@ def figure_falsifier(
                 lw=1.0,
                 ls=(0, (4, 3)),
                 label="Shipped figure definition",
-                zorder=2,
             )
             axis.plot(
                 prop["month"],
@@ -677,40 +919,32 @@ def figure_falsifier(
                 color=SCENARIO_COLORS.get(scenario, "0.2"),
                 lw=1.2,
                 label="Proposed definition",
-                zorder=3,
             )
             axis.scatter(
                 rows["month"],
                 table_values,
-                s=30,
+                s=26,
                 facecolor="none",
                 edgecolor="black",
-                linewidth=0.8,
+                linewidth=0.7,
                 label="Change-factor table",
                 zorder=4,
             )
-            axis.axhline(0.0, color="0.35", lw=0.7, zorder=1)
-            axis.grid(True, lw=0.4, color="0.88", zorder=0)
-            axis.set_axisbelow(True)
+            axis.axhline(0.0, color="0.35", lw=0.6)
+            style_series_axes(axis)
             axis.set_xticks(range(1, 13), MONTH_LABELS)
-            axis.set_ylabel(label)
-        axes[0].legend(loc="best", frameon=False)
-        fig.suptitle(
-            f"Monthly semantics — {model} {SCENARIO_LABELS.get(scenario, scenario)} "
-            f"{member}, {horizon_name} ({horizon[0]}–{horizon[1]})",
-            fontsize=plot_style.FONT_SIZE_TITLE,
-            x=0.006,
-            y=0.995,
-            va="top",
-            ha="left",
-        )
-        bottom = footnote(
+            axis.set_xlabel("Month")
+            axis.set_ylabel(ylabel)
+            panel_label(axis, letter)
+        axes[0].legend(loc="lower left", frameon=False)
+        caveat(
             fig,
-            "The proposal reproduces the authoritative table. The shipped figure differences "
-            "each future month against the historical ANNUAL mean and averages 2015–2100 "
-            "instead of the horizon, so it disagrees with the table it sits beside.",
+            f"{model} {SCENARIO_LABELS.get(scenario, scenario)} {member}, horizon "
+            f"{horizon_name} ({horizon[0]}–{horizon[1]}). The proposal reproduces the "
+            "authoritative table. The shipped figure differences each future month against "
+            "the historical ANNUAL mean and averages 2015–2100 instead of the horizon, so it "
+            "disagrees with the table it sits beside.",
         )
-        fig.tight_layout(rect=(0, bottom, 1, 1))
         fig.savefig(out_path, dpi=dpi)
         plt.close(fig)
 
@@ -818,22 +1052,25 @@ def render(args: argparse.Namespace) -> int:
     (out_dir / "overview").mkdir(parents=True, exist_ok=True)
 
     annual = annual_series(series, ref)
-    counts = {}
     for variable in VARIABLES:
         target = (
             out_dir / "overview" / f"annual-{VARIABLES[variable]['name'].lower()}.png"
         )
-        counts[target.name] = figure_annual(annual, variable, ref, target, args.dpi)
-        print(
-            f"wrote {target.relative_to(out_dir)}  ({counts[target.name]} traces/panel)"
-        )
+        count = figure_annual(annual, variable, ref, target, args.dpi)
+        print(f"wrote {target.relative_to(out_dir)}  ({count} traces/panel)")
 
     changes = {
         name: annual_change(series, ref, span) for name, span in horizons.items()
     }
-    cloud = out_dir / "overview" / "change-factor-cloud.png"
-    counts[cloud.name] = figure_cloud(changes, horizons, cloud, args.dpi)
-    print(f"wrote {cloud.relative_to(out_dir)}  ({counts[cloud.name]} points)")
+    for target, draw in (
+        (out_dir / "overview" / "change-factor-cloud.png", figure_cloud_faceted),
+        (
+            out_dir / "overview" / "change-factor-cloud-combined.png",
+            figure_cloud_combined,
+        ),
+    ):
+        count = draw(changes, horizons, target, args.dpi)
+        print(f"wrote {target.relative_to(out_dir)}  ({count} points)")
 
     proposed = {}
     for name, span in horizons.items():
@@ -841,12 +1078,8 @@ def render(args: argparse.Namespace) -> int:
         window_dir = out_dir / "windows" / f"{name}-{span[0]}-{span[1]}"
         window_dir.mkdir(parents=True, exist_ok=True)
         target = window_dir / "monthly-change-factors.png"
-        counts[target.name] = figure_monthly(
-            proposed[name], name, span, ref, target, args.dpi
-        )
-        print(
-            f"wrote {target.relative_to(out_dir)}  ({counts[target.name]} traces/panel)"
-        )
+        count = figure_monthly(proposed[name], name, span, ref, target, args.dpi)
+        print(f"wrote {target.relative_to(out_dir)}  ({count} traces/panel)")
 
     # The falsifier, drawn for whichever horizon the tables can actually check.
     checkable = [n for n in horizons if n in set(monthly_table["horizon"])]
