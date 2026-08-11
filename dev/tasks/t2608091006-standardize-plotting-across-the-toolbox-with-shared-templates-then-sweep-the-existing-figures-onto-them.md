@@ -36,6 +36,30 @@ a renderer under `dev/scripts/` plus an Artifact, no code integration. The two
 WF2 boxes below stay open until that ruling comes back, and the reverted commit
 is where a future integration starts rather than a blank page.
 
+**PAUSED 2026-08-11 awaiting the owner's ruling — resume here.** The prototype
+is built (`a80e47e`) and revised once against four owner rulings (`9f18b97`);
+the review page is
+[Artifact b04f34e3](https://claude.ai/code/artifact/b04f34e3-5268-4269-beeb-8a022a73f8f6).
+
+- **Run it:** `pixi run python dev/scripts/preview_wf2_projection_plots.py
+  --horizon near=2040-2060 --horizon far=2070-2090`. Renders to `.tmp/`, reads
+  the project tree read-only, and prints the agreement check.
+- **What is decided:** no titles anywhere (`a)`/`b)` panel labels — a
+  TOOLBOX-WIDE convention, not a WF2 one); the WF1 page spec is
+  `_publication_rc()` + `series_figure_size()` + constrained layout +
+  `supxlabel(wrap=True)`, not `tight_layout`; model names annotated on cloud
+  points; the combined all-horizons scatter kept beside the faceted one.
+- **What is still open:** (1) adopt / amend / reject the set as the WF2 output
+  contract; (2) whether the cloud's axes flip to ΔT on x, per the
+  decision-scaling convention — deliberately not bundled, and it now applies to
+  both cloud views so it is one decision rather than two.
+- **If adopted**, integration is `dc40a22` restored and re-validated, not
+  rewritten — but the figure code in it predates all four rulings above, so the
+  prototype's drawing functions are the newer source.
+- **Watch:** the two "no titles" and "WF1 page spec" rulings are toolbox-wide.
+  The three surfaces still unswept below inherit them, and so does any figure
+  work outside this item.
+
 - [x] Frame both climate map families on the basin — `11ffcc4`
 - [x] Share colourbar levels across each source/forcing pair — `403b55e`
 - [x] Bring the annual and monthly charts into the figure family — `d8f8ca8`
@@ -45,9 +69,9 @@ is where a future integration starts rather than a blank page.
 - [x] **Half 1: extract the shared template/style module** — `6d3ec75` added
       `shared/plot_style.py` for page size, typography and export settings
 - [ ] **Half 2, remainder — the surfaces still styled independently:**
-  - [ ] `projections/get_change_climate_proj_summary.py` — prototype pending,
-        see `dev/wf2-plot-standardization-task-brief.md`
-  - [ ] `projections/plot_proj_timeseries.py` — prototype pending, same brief
+  - [ ] `projections/get_change_climate_proj_summary.py` — prototype built and
+        revised; awaiting the owner's ruling, see the resume note above
+  - [ ] `projections/plot_proj_timeseries.py` — same prototype, same ruling
   - [ ] `shared/func_plot_signature.py` (`plot_signatures`, `plot_hydro`,
         `plot_basavg` — `plot_clim` is gone, ADR 0006)
   - [ ] `dev/scripts/basin_map_example.py`
