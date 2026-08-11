@@ -8,6 +8,7 @@ own directory to ``sys.path`` before importing — see
 """
 
 import contextlib
+import gc
 import logging
 import os
 import re
@@ -1948,6 +1949,31 @@ def tee_to_log(log_path, heartbeat_interval=60.0):
                 handle.flush()
             raise
         finally:
+            # Collect FIRST, while the interpreter is healthy and this block is
+            # still fully set up. A `script:` rule's data catalogs and model
+            # objects are frame locals of the function the body just called, so
+            # by now they are unreachable — but hydromt's catalog and model
+            # objects reference each other, so what holds their GDAL/rasterio
+            # handles is a REFERENCE CYCLE. A cycle is freed only by the cyclic
+            # collector, and if that does not run until interpreter finalization
+            # the handles are all torn down there instead. On Windows that makes
+            # a stderr write fail, CPython's excepthook cannot run that late
+            # (module globals are already gone), and it prints a bare
+            # `Error in sys.excepthook:` / `Original exception was:` pair with
+            # EMPTY bodies, repeatedly, after a rule that SUCCEEDED.
+            #
+            # Here rather than per-rule because the population is every `script:`
+            # rule, present and future. Three modules carry a local
+            # `gc.collect()` and it was measured to work in only one of them
+            # (`delineate_region.py`, 14 lines -> 0); the other two collect with
+            # the catalog still BOUND, so the collector cannot claim it. This is
+            # the one place that sees every rule after its frame has gone.
+            #
+            # Ordering matters: before the handler restore and the tee close, so
+            # that a ``__del__`` which logs or warns during collection still
+            # lands in the rule's log instead of on the bare console — the exact
+            # late-write class the tee-close fix addressed.
+            gc.collect()
             # Restore log handlers first (before their target tees close), stop
             # the watchdog (console-only summary), flush trailing partial lines
             # while ``handle`` is open, then restore the streams — all always run,

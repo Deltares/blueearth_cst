@@ -5,6 +5,7 @@ conftest) had before they were collapsed into blueearth_cst/shared/snake_utils.p
 is provably identity-preserving rather than merely green on a smoke test.
 """
 
+import gc
 import io
 import os
 import re
@@ -1041,3 +1042,48 @@ def test_a_handler_created_inside_the_block_is_not_left_on_the_tee(tmp_path):
         logger.warning("must not raise")  # the record has somewhere real to go
     finally:
         logger.handlers.clear()
+
+
+def test_a_reference_cycle_from_the_body_is_collected_on_the_way_out(tmp_path):
+    """`tee_to_log` collects cycles while the interpreter is still healthy.
+
+    hydromt's catalog and model objects reference each other, so what holds a
+    rule's GDAL/rasterio handles is a reference CYCLE — freed only by the cyclic
+    collector. Left to interpreter finalization, tearing those handles down at
+    once on Windows makes a stderr write fail, and CPython prints the bare
+    `Error in sys.excepthook:` / `Original exception was:` pair with empty
+    bodies after a rule that SUCCEEDED (rules 1.03/1.04/1.07, observed
+    2026-08-11).
+
+    A rule body's catalog is a frame local of the function it called, so it is
+    unreachable-but-uncollected by the time this block exits — exactly what the
+    collect is for. Modelled here with a self-referencing object holding a
+    finalizer, which only the cyclic collector can reach.
+    """
+    from blueearth_cst.shared.snake_utils import tee_to_log
+
+    released = []
+
+    class _CatalogLike:
+        """Self-referencing, like a hydromt catalog <-> model pair."""
+
+        def __init__(self):
+            self.self_ref = self  # the cycle: refcounting alone never frees it
+
+        def __del__(self):
+            released.append("closed")
+
+    def rule_body():
+        _CatalogLike()  # a frame local, dropped when this function returns
+
+    gc.disable()  # so nothing collects it incidentally before the block exits
+    try:
+        with tee_to_log(tmp_path / "cycle.log", heartbeat_interval=0):
+            rule_body()
+            assert not released, "refcounting alone must not free a cycle"
+        assert released == ["closed"], (
+            "the cycle survived tee_to_log and would be torn down during "
+            "interpreter finalization instead"
+        )
+    finally:
+        gc.enable()
