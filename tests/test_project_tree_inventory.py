@@ -256,25 +256,25 @@ def test_a_broad_data_prefix_would_empty_the_report():
 
 
 # ---------------------------------------------------------------------------
-# 3. The two maps are different questions
+# 3. The inventory describes ONE era — today's
 # ---------------------------------------------------------------------------
 
 
-def test_the_r09_map_and_the_inventory_answer_different_eras():
-    """`[R10-11]`'s finding, pinned so the two cannot be conflated again.
+def test_a_pre_migration_path_is_unmapped_rather_than_quietly_accepted():
+    """`[R10-11]`'s finding, from the surviving side.
 
-    A post-R9 path is covered by the inventory and UNMAPPED under the migration
-    map; a pre-R9 path is the exact inverse. Neither map is wrong — they answer
-    about different eras, and `tree-check` was asking the wrong one.
+    This used to be a two-map test: a post-R9 path was covered here and
+    UNMAPPED under `build_r09_path_map`, a pre-R9 path the exact inverse.
+    Neither map was wrong — they answered about different eras, and
+    `tree-check` was asking the wrong one. The migration map was retired
+    2026-08-11 (`dev/reviews/2026-08-11_test-suite-bloat-assessment.md` §6a),
+    so what remains testable is the half that can still regress: the inventory
+    must NOT silently absorb an old-layout path. A tree still holding one has
+    not been migrated, and saying so is the report's job.
     """
-    r09 = std.build_r09_path_map(E, KEY, CP)
-    post = "data/spatial/spatial_maps.nc"
-    pre = "spatial/spatial_maps.nc"
-
-    assert std.apply_path_map_matched(post, INVENTORY)[1] is True
-    assert std.apply_path_map_matched(post, r09)[1] is False
-    assert std.apply_path_map_matched(pre, INVENTORY)[1] is False
-    assert std.apply_path_map_matched(pre, r09) == (post, True)
+    assert std.apply_path_map_matched("data/spatial/spatial_maps.nc", INVENTORY)[1]
+    assert not std.apply_path_map_matched("spatial/spatial_maps.nc", INVENTORY)[1]
+    assert _kind("spatial/spatial_maps.nc") == "UNMAPPED"
 
 
 def test_other_experiments_are_covered_but_not_the_project_root():

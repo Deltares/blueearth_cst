@@ -113,8 +113,9 @@ The tree is self-explanatory; these are the parts that are not.
   `prune_series_cache.py` (orphaned WF2 series), `prune_climate_store.py`
   (stale `<source>_<window>` climate stores, R9) and `snapshot_project_tree.py`
   (a tree as a path list, checked against the post-migration inventory — also
-  `pixi run tree-check`; `--map r09` selects the one-way migration map, which
-  only a pre-move tree can satisfy, `[R10-11]`). Deleting is an explicit owner action via `--delete`, and pruning
+  `pixi run tree-check`. Its `--map r09` alternative, the one-way migration map
+  only a pre-move tree could satisfy, was retired 2026-08-11 with the R07 one;
+  `[R10-11]` is why the default stopped being it). Deleting is an explicit owner action via `--delete`, and pruning
   must run **before** any reference snapshot, or the snapshot bakes the orphans
   in and the gate compares them instead of the live artifacts. Neither prune
   tool sees everything: R9 P2 found stale files only an mtime sweep caught,
@@ -148,7 +149,8 @@ the pipeline, `dev/scripts/` inspects or maintains the repository and is never p
 of a run.
 
 **`dev/scripts/` is not only executables.** It also holds small LIBRARIES that
-`tests/` imports via `sys.path` — `semantic_tree_diff.py` (the R9 path map) and
+`tests/` imports via `sys.path` — `semantic_tree_diff.py` (the tree comparators
+and the project-tree inventory) and
 `cross_workflow_inputs.py` (the one definition of the wf1 leaves WF2/WF3 need
 staged). "Never part of a run" still holds — no Snakefile touches them — but
 "dev-only" does not: a bare-checkout CI run imports them, so an import-time
@@ -180,9 +182,8 @@ pixi run python scripts/run_workflows.py --config test_case/snake_config_rapid.y
 pixi run python scripts/plot_workflow_dag.py -s Snakefile_model_creation --configfile <cfg>
 
 # Snapshot a project tree as a path list and check that it holds nothing
-# undeclared (add --out to record it; nothing is written otherwise). The default
-# map is the POST-MIGRATION INVENTORY; `--map r09` runs the one-way R9 migration
-# map instead, for a tree that has not been moved yet:
+# undeclared (add --out to record it; nothing is written otherwise). It checks
+# against the POST-MIGRATION INVENTORY, which is now the only map there is:
 pixi run tree-check --config <cfg>
 
 # Report orphaned artifacts. Both DRY RUN by default; --delete is explicit:

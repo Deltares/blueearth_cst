@@ -224,8 +224,17 @@ does. Two clean resolutions, **owner ruling required**:
 > `semantic_tree_diff.py` run behaves exactly as the ladder describes. Sequenced
 > after the §4 coverage work (owner ruling, same date).
 >
-> **HELD at execution, same day — the ruling was made on incomplete evidence.**
-> See §6a-bis below. Not overturned; awaiting a second ruling.
+> **HELD at execution, then RE-RULED and EXECUTED the same day.** The hold and
+> its evidence are §6a-bis below; the owner ruled *proceed* with that evidence in
+> hand. Landed: `build_r07_*` and `build_r09_*` removed from
+> `semantic_tree_diff.py` (2,157 → 1,437 lines), `--milestone` narrowed to
+> `("p31",)`, `--r09-gap-rules` and `snapshot_project_tree.py --map r09` gone,
+> `tests/test_r09_path_map.py` deleted, and the r07 block plus the two gap-rule
+> cases removed from the two tree test files. Suite **2,105 → 1,997**
+> collected: 97 + 9 + 2 = 108 items, reconciling exactly.
+> Gate: `pixi run tree-check` MAP CLEAN on `test_local` — 237 paths, 0
+> unmapped — which is the check that matters, since it exercises the one
+> map left against the real fixture tree.
 
 #### §6a-bis — what the reference sweep found, and why it reframes the question
 

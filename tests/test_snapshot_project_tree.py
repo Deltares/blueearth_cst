@@ -1,4 +1,4 @@
-"""Unit tests for dev/scripts/snapshot_project_tree.py (R09 phase 1).
+"""Unit tests for dev/scripts/snapshot_project_tree.py.
 
 The wrapper's whole value is that it derives the map parameters from the config
 instead of taking them on the command line -- a mistyped `--dataset-key` turns a
@@ -128,44 +128,48 @@ def test_relative_project_dir_resolves_against_the_cwd_not_the_tool_repo(tmp_pat
 
 
 def _tree(tmp_path):
-    """A miniature pre-migration tree: one mapped file, one orphan."""
+    """A miniature project tree: one declared artifact, one orphan.
+
+    Both sides are in TODAY's layout. Until 2026-08-11 this fixture was
+    pre-migration and these tests passed `--map r09`; that one-way map is
+    retired (`dev/reviews/2026-08-11_test-suite-bloat-assessment.md` §6a) and
+    the only map left is the post-migration inventory.
+    """
     proj = tmp_path / "proj"
-    _touch(proj, "hydrology_model/staticmaps.nc")
+    _touch(proj, "data/spatial/spatial_maps.nc")
     _touch(proj, "logs/1.03_create_model.log")  # pre-_parts orphan shape
     return proj
 
 
 def test_reports_unmapped_and_exits_nonzero(tmp_path, capsys):
-    """`--map r09`: this fixture is a PRE-migration tree.
-
-    The default became the post-migration inventory with `[R10-11]`, so a test
-    feeding `hydrology_model/...` has to say which era it is asking about.
-    """
+    """An undeclared artifact fails the gate and is named in the report."""
     proj = _tree(tmp_path)
     cfg = _write_config(tmp_path, _config(proj))
-    assert spt.main(["--config", str(cfg), "--map", "r09"]) == 1
+    assert spt.main(["--config", str(cfg)]) == 1
     out = capsys.readouterr().out
     assert "UNMAPPED logs/1.03_create_model.log" in out
-    assert "MOVED    hydrology_model/staticmaps.nc" in out
+    assert "IDENTITY data/spatial/spatial_maps.nc" in out
     assert "either a leftover ORPHAN" in out
 
 
 def test_a_clean_tree_exits_zero(tmp_path, capsys):
-    """`--map r09`: a pre-migration path the migration map fully covers."""
+    """A tree holding only declared artifacts passes."""
     proj = tmp_path / "proj"
-    _touch(proj, "hydrology_model/staticmaps.nc")
+    _touch(proj, "data/spatial/spatial_maps.nc")
     cfg = _write_config(tmp_path, _config(proj))
-    assert spt.main(["--config", str(cfg), "--map", "r09"]) == 0
+    assert spt.main(["--config", str(cfg)]) == 0
     assert "MAP CLEAN" in capsys.readouterr().out
 
 
-def test_the_default_map_is_the_post_migration_inventory(tmp_path, capsys):
-    """`[R10-11]`: the DEFAULT must pass on a tree in today's layout.
+def test_the_map_is_the_post_migration_inventory(tmp_path, capsys):
+    """`[R10-11]`: the gate must pass on a tree in today's layout.
 
-    Before this, `tree-check` ran the one-way R9 migration map against a
-    migrated tree and reported every relocated artifact as unmapped -- exit 1
-    on every correct tree. The same path proves both halves: covered under the
-    default, unmapped under `--map r09`, which is the era mismatch itself.
+    Before that finding, `tree-check` ran the one-way R9 migration map against
+    a migrated tree and reported every relocated artifact as unmapped -- exit 1
+    on every correct tree. The map was retired on 2026-08-11, so the era
+    mismatch is now structurally impossible rather than merely defaulted away;
+    what survives is the half that can still regress, and the banner naming
+    which map ran.
     """
     proj = tmp_path / "proj"
     _touch(proj, "data/spatial/spatial_maps.nc")
@@ -175,8 +179,6 @@ def test_the_default_map_is_the_post_migration_inventory(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "map           : current" in out
     assert "MAP CLEAN" in out
-
-    assert spt.main(["--config", str(cfg), "--map", "r09"]) == 1
 
 
 def test_the_default_map_still_reports_an_undeclared_artifact(tmp_path, capsys):
@@ -224,49 +226,6 @@ def test_no_check_skips_the_gate_and_always_exits_zero(tmp_path, capsys):
     cfg = _write_config(tmp_path, _config(proj))
     assert spt.main(["--config", str(cfg), "--no-check"]) == 0
     assert "UNMAPPED" not in capsys.readouterr().out
-
-
-def test_the_gap_rule_set_is_empty_and_the_flag_is_a_no_op(tmp_path, capsys):
-    """Every candidate is closed, so `--gap-rules` currently changes nothing.
-
-    Three were ruled into the map (phase-1 report F1a-F1c) and two were settled
-    negatively by the observed-tier run (F2). Asserted rather than assumed: a
-    non-empty set here would mean an unruled row had crept back in.
-    """
-    assert spt.std.build_r09_gap_rules("experiment") == []
-    assert spt.std.R09_MAP_GAPS == ()
-
-    proj = tmp_path / "proj"
-    _touch(proj, "hydrology_model/staticmaps.nc")
-    cfg = _write_config(tmp_path, _config(proj))
-    assert spt.main(["--config", str(cfg), "--map", "r09"]) == 0
-    assert spt.main(["--config", str(cfg), "--map", "r09", "--gap-rules"]) == 0
-
-
-def test_gap_rules_still_wire_through_when_the_set_is_non_empty(
-    tmp_path, capsys, monkeypatch
-):
-    """The MECHANISM, pinned independently of any particular candidate.
-
-    The set is empty today; the next inventory may raise a sixth candidate, and
-    what must keep working is that an opt-in rule is off by default and applied
-    on the flag. Tested against a stand-in so this cannot rot the way the old
-    `instate/` case did when its candidate was retired.
-    """
-    monkeypatch.setattr(
-        spt.std,
-        "build_r09_gap_rules",
-        lambda _e: [("some_future_dir/", "data/some_future_dir/")],
-    )
-    proj = tmp_path / "proj"
-    _touch(proj, "some_future_dir/thing.nc")
-    cfg = _write_config(tmp_path, _config(proj))
-
-    assert spt.main(["--config", str(cfg)]) == 1
-    assert "UNMAPPED some_future_dir/thing.nc" in capsys.readouterr().out
-
-    assert spt.main(["--config", str(cfg), "--gap-rules"]) == 0
-    assert "MAP CLEAN" in capsys.readouterr().out
 
 
 def test_quiet_keeps_the_unmapped_lines_and_the_summary(tmp_path, capsys):
