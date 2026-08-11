@@ -11,6 +11,11 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from hydromt.readers import open_timeseries_from_table
 from hydromt_wflow import WflowSbmModel
+from blueearth_cst.shared.wflow_outputs import (
+    SUBCATCHMENT_SUFFIX,
+    code_for,
+    is_basin_average,
+)
 
 from typing import Union
 
@@ -218,7 +223,7 @@ def analyse_wflow_historical(
         Required columns: time, wflow_id IDs of the locations as in ``gauges_locs``.
         Separator is **;** and decimal is . -- deliberately different from
         ``gauges_locs`` below, which is comma-separated. Both are read with an
-        explicit ``sep=``; see ``config/templates/observations/README.md``.
+        explicit ``sep=``; see ``config/templates/README.md``.
     gauges_locs : Union[Path, str], optional
         Path to gauges/observations locations file, by default None
         Required columns: wflow_id, station_name, x, y.
@@ -307,11 +312,19 @@ def analyse_wflow_historical(
             )
             qsim = merge_outlet_and_gauge_series(qsim, qsim_gauges, log=_log)
 
-    basavg_vars = [dvar for dvar in results if "_basavg" in dvar]
+    # Identified by hydromt's `<header>_<mapname>` suffix, not by the header:
+    # the header is now a short code (`gwr`), so a `"_basavg" in dvar` test
+    # would silently match nothing and skip every basin-average figure.
+    basavg_vars = [dvar for dvar in results if is_basin_average(dvar)]
     if basavg_vars:
-        ds_basin = xr.merge([results[dvar] for dvar in basavg_vars]).squeeze(drop=True)
-        if "precipitation_basavg" in ds_basin:
-            ds_basin = ds_basin.drop_vars("precipitation_basavg")
+        # NOT .squeeze(drop=True). Squeezing collapsed a single subcatchment's
+        # index away, which is the only reason plot_basavg's 1-D assumption ever
+        # held; keeping the dim makes the shape uniform at 1 subcatchment and at
+        # four, and plot_basavg now facets over it.
+        ds_basin = xr.merge([results[dvar] for dvar in basavg_vars])
+        precip = f"{code_for('precipitation')}{SUBCATCHMENT_SUFFIX}"
+        if precip in ds_basin:
+            ds_basin = ds_basin.drop_vars(precip)
     else:
         ds_basin = xr.Dataset()
 

@@ -17,6 +17,7 @@ import xarray as xr
 
 from blueearth_cst.projections.get_change_climate_proj import hydrological_year_bounds
 from blueearth_cst.projections.reference_window import (
+    HISTORICAL_END_YEAR,
     SHORT_WINDOW_YEARS,
     clip_reference_window,
     dropped_months,
@@ -121,21 +122,44 @@ def test_the_template_config_recommends_the_30_year_window():
 
     template = (
         Path(__file__).resolve().parents[1]
-        / "config/workflows/snake_config.template.yml"
+        / "config/templates/snake_config.template.yml"
     ).read_text(encoding="utf-8")
     m = re.search(r"historical_year_range:\s*\[\s*(\d{4})\s*,\s*(\d{4})\s*\]", template)
     assert m, "template must declare historical_year_range"
     assert [int(m.group(1)), int(m.group(2))] == OQ4_WINDOW
 
 
-def test_the_seed_fixture_is_deliberately_NOT_changed():
-    """§8: "Test fixtures unchanged" — 5f must move no number."""
+def test_the_seed_fixture_keeps_its_own_shorter_window():
+    """OQ-4 is the TEMPLATE's ruling; the seed runs a deliberately smaller window.
+
+    This assertion used to freeze the seed at ``[1990, 2010]`` to prove step 5f
+    "moved no number". 5f is closed, and the seed was deliberately shortened on
+    2026-08-10 to speed the fixture up, so that freeze is a fossil rather than a
+    live invariant.
+
+    What still matters, and what this now checks, is the property the seed has to
+    hold whatever its numbers are: it must not END AFTER the CMIP6 historical
+    experiment. A later end is silently clipped to 2014, and if the clipped range
+    had equalled ``shared.historical_window`` the run also warns that the two no
+    longer align — which is exactly the trap a "make the windows consistent" edit
+    walks into.
+    """
     import re
     from pathlib import Path
 
     seed = (
-        Path(__file__).resolve().parents[1]
-        / "config/workflows/snake_config_model_test.yml"
+        Path(__file__).resolve().parents[1] / "test_case/snake_config_model_test.yml"
     ).read_text(encoding="utf-8")
     m = re.search(r"historical_year_range:\s*\[\s*(\d{4})\s*,\s*(\d{4})\s*\]", seed)
-    assert [int(m.group(1)), int(m.group(2))] == [1990, 2010]
+    assert m, "seed must declare historical_year_range"
+    start, end = int(m.group(1)), int(m.group(2))
+
+    assert end <= HISTORICAL_END_YEAR, (
+        f"seed historical_year_range ends {end}, after the CMIP6 historical "
+        f"experiment ({HISTORICAL_END_YEAR}); it would be clipped silently"
+    )
+    assert [start, end] != OQ4_WINDOW, (
+        "the seed is the small/fast fixture and should not adopt the template's "
+        "30-year OQ-4 window"
+    )
+    assert not clip_reference_window([start, end]).clipped

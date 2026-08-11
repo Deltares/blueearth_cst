@@ -26,7 +26,7 @@ workflows:
   model_creation:
     enabled: true
     # Optional observed-discharge series. Gauge/control points live at
-    # shared.basin.gauge_points; schemas: config/templates/observations/.
+    # shared.basin.gauge_points; schemas: config/templates/.
     observations_timeseries: null
   climate_projections:
     enabled: true

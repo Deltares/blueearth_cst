@@ -49,7 +49,7 @@ OUTLETS_LAYER = "outlets"
 GAUGES_PREFIX = "gauges_"
 
 #: Lowest ``wflow_id`` a user gauge should carry
-#: (``config/templates/observations/README.md``). These ids become wflow output
+#: (``config/templates/README.md``). These ids become wflow output
 #: columns (``Q_101``) and burned-in values in the derived
 #: ``subcatchment_<name>`` map, sharing a namespace with the model's own outlet
 #: subcatchment ids (large, from the hydrography) and with the positional

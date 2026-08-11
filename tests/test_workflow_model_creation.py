@@ -38,7 +38,7 @@ SNAKEDIR = join(TESTDIR, "..")
 # two -- `_catalog_root()` opens it, so the module ERRORED on a missing file
 # rather than reaching its own data-mirror skip. Corrected 2026-08-09 against
 # the paths on disk and the baseline manifest's own wf1 discharge target.
-CONFIG = "config/workflows/snake_config_model_test.yml"
+CONFIG = "test_case/snake_config_model_test.yml"
 OUTPUT_CSV = join(
     SNAKEDIR,
     "test_case",

@@ -7,7 +7,7 @@
 # resolves **2** series, which makes an iteration loop minutes instead of tens of
 # minutes.
 #
-# Differences from config/workflows/snake_config_model_test.yml, and ONLY these:
+# Differences from test_case/snake_config_model_test.yml, and ONLY these:
 #   - project_dir: test_case/test_dev   (its own tree; never touches the
 #     baseline fixture, whose manifested summary/plots are derived from all
 #     3 models and would be wrong if regenerated from 1)

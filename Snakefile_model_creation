@@ -22,6 +22,7 @@ from blueearth_cst.shared.plot_spatial_maps import figure_paths
 # Recognises both "unset" spellings (YAML null and the legacy "None" string),
 # so an unset observation key never becomes a declared input.
 from blueearth_cst.shared.gauges import is_unset
+from blueearth_cst.shared.wflow_outputs import CODES as WFLOW_OUTPUT_CODES
 
 # Windows: make Snakemake's benchmark memory/IO/CPU metrics work (else all NA).
 patch_psutil_windows_benchmark()
@@ -338,6 +339,7 @@ LOG_RULES = [
     "1.12_plot_basin_map",
     "1.13_plot_forcing",
     "1.14_run_wflow",
+    "1.14b_export_wflow_tables",
     "1.15_plot_wflow_evaluation",
 ]
 
@@ -358,6 +360,10 @@ WF1_TERMINALS = [
     # rule and is config-invariant, so the gather rules wait on exactly what
     # they waited on before.
     f"{basin_dir}/evaluation/performance_metrics.csv",
+    # The Excel-ready discharge table (1.14b). A product of the workflow rather
+    # than an incidental by-product, so it is a rule-`all` member like the
+    # figures — nothing downstream consumes it, so without this it never builds.
+    f"{basin_dir}/run_default/output_q.csv",
     f"{spatial_dir}/plots/basin_area.png",
     # One representative of each canonical climate set: the rules produce their
     # nine figures as a unit, so naming every one here would add no edge.
@@ -661,7 +667,27 @@ rule run_wflow:
         # has to re-derive.
         model_final = ancient(f"{basin_dir}/.model_final"),
     output:
-        csv_path = f"{basin_dir}/run_default/output.csv"
+        csv_path = f"{basin_dir}/run_default/output.csv",
+        # Wflow's own log, DECLARED so it can be temp()'d away. Wflow has no
+        # switch to disable file logging -- `[logging]` offers only `silent`
+        # (terminal), `loglevel` and `path_log` (where), and the file write is
+        # part of `Wflow.run(tomlpath)` -- so removing it is the only option,
+        # and declaring it beats deleting it in the shell: Snakemake drops a
+        # temp() output on success and KEEPS it when the job fails, which is
+        # the only run whose log anyone reads.
+        #
+        # Safe to discard here because it is a duplicate: the built TOML sets
+        # `loglevel = "info"`, at which Wflow sends the same records to the
+        # terminal and the file, and run_logged.py already captures the
+        # terminal into logs/wf1_model_creation.log.
+        #
+        # This does NOT generalize to wf3. There, `logging.path_log` is keyed
+        # PER MEMBER (downscale_climate_forcing.py) because rule 3.15 batches
+        # members concurrently onto one model directory; dropping that keying
+        # put twelve members on one path, each truncating it, and destroyed
+        # eleven logs (R9 P2, measured 2026-08-05). Those files are the
+        # attribution mechanism, not redundant output.
+        wflow_log = temp(f"{basin_dir}/run_default/log.txt"),
     params:
         toml_path = f"{basin_dir}/wflow_sbm.toml"
     log:
@@ -719,10 +745,47 @@ rule extract_historical_climate:
 # included.
 _WFLOW_OUTVARS_WITHOUT_BASAVG_PLOT = ("river discharge", "precipitation")
 _basavg_pngs = [
-    f"{basin_dir}/evaluation/plots/{var}_basavg.png"
+    f"{basin_dir}/evaluation/plots/{WFLOW_OUTPUT_CODES[var]}_subcatchment.png"
     for var in wflow_outvars
     if var not in _WFLOW_OUTVARS_WITHOUT_BASAVG_PLOT
 ]
+
+# 1.14b  export_wflow_tables — Excel-ready per-variable tables derived from 1.14
+#
+# DERIVED, not a rewrite. `output.csv` is read back by rule 1.15 through
+# hydromt's own `WflowSbmModel.output_csv`, so its layout — ISO-8601 stamps,
+# `Q_<id>` columns in wflow's internal order, full float precision — is an
+# interface with that reader and stays untouched (AGENTS.md: do not
+# re-engineer how hydromt handles data). The tables here are a product beside
+# it: 5 significant digits, plain decimal (no `9.86e-5` for Excel to render as
+# `9.87E-05`), space-separated timestamps Excel parses as dates instead of
+# text, and bare station ids sorted numerically.
+#
+# Being a product is also what makes the per-variable split safe. The variable
+# moves into the FILENAME, which is what lets a column be `1010` rather than
+# `Q_1010` without reviving the ambiguity `shared/gauges.py` exists to prevent.
+#
+# Sub-lettered like 3.01c: this belongs to 1.14's output, not after 1.15.
+rule export_wflow_tables:
+    message: rule_banner("1.14b", "export_wflow_tables")
+    input:
+        csv_path = f"{basin_dir}/run_default/output.csv",
+        # ADR 0004. Ordered after 1.10 transitively through csv_path, declared
+        # anyway for the same reason 1.14 and 1.15 declare it: the invariant is
+        # LOCAL, not something a reader has to re-derive from a chain.
+        model_final = ancient(f"{basin_dir}/.model_final"),
+    output:
+        # Discharge is the only per-station variable a shipped config produces:
+        # 1.05's extras are subcatchment means (`<var>_basavg`) with no station
+        # id, so they are not per-station tables. Declared as the one file
+        # rather than a directory() so Snakemake tracks it like any other.
+        q_table = f"{basin_dir}/run_default/output_q.csv",
+    log:
+        f"{LOG_PARTS_DIR}/1.14b_export_wflow_tables.log",
+    benchmark:
+        f"{project_dir}/benchmarks/_parts/1.14b_export_wflow_tables.tsv",
+    script:
+        "blueearth_cst/shared/tidy_wflow_table.py"
 
 rule plot_wflow_evaluation:
    message: rule_banner("1.15", "plot_wflow_evaluation")
