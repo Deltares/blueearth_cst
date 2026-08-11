@@ -341,20 +341,23 @@ pinned by `tests/test_run_workflows.py`.
   hydromt via `-d`. Never hardcode data paths in a Snakefile.
 - `dev/` vs `docs/`: put a new file where its audience is — design notes and one-off
   probes under `dev/` (planning, not shipped), install/usage docs under `docs/`.
-- **Seal a superseded reference document; never migrate its paths.** A document
-  kept as the baseline a past milestone's commits were checked against is
-  valuable *because* it is unedited. Freshening its paths is worse than leaving
-  it: the line numbers, rule names and module locations still lie, while the
-  document now looks maintained. Instead give it a banner at its head —
-  `> **SUPERSEDED — … (sealed YYYY-MM-DD).**` naming what superseded it and
-  where current truth lives — and register it in
-  `dev/reference/sealed-records.yml`, which freezes its hash so a later edit
-  fails `tests/test_sealed_records.py` instead of landing. **At every milestone
-  close, ask which reference documents that milestone superseded** and seal them
-  then; the registry cannot infer it, and `climate_experiment.md` went four
-  milestones reading as a live WF3 contract because nobody asked (R9 P5 F2).
-  Read a document's head before editing it — a path grep cannot see a banner,
-  because a banner contains no paths.
+- **Keep configuration references current.** Paths, filenames, config keys and
+  commands are updated wherever they are read as guidance — `docs/`, `README.md`,
+  this file, and code comments — whenever the thing they name moves. A stale path
+  in a document someone reads to do their job is a defect, not a record, and is
+  not preserved for historical fidelity. When a rename or move lands, grep the
+  old spelling and fix every live reference in the same commit. Migration maps
+  for their own sake are not kept: `docs/migration-r06.md` was deleted on
+  2026-08-11 rather than carried forward, since git history already records what
+  moved.
+  The one exception is `dev/` milestone and review records, which exist to be the
+  baseline a past milestone's commits were checked against and are valuable
+  *because* they are unedited. Those carry a
+  `> **SUPERSEDED — … (sealed YYYY-MM-DD).**` banner and an entry in
+  `dev/reference/sealed-records.yml`, which freezes the hash so an edit fails
+  `tests/test_sealed_records.py`. **That registry is the entire list** — a
+  document not in it gets its paths kept current like everything else, so read
+  the registry rather than guessing from a document's age.
 - [Python] `script:` modules read `snakemake.input/output/params`, not `sys.argv`.
   [R] `Rscript --vanilla` scripts take positional args via `commandArgs(trailingOnly=TRUE)`.
 - netCDF (`.nc`) is the interchange format across R/Python/Julia. Wrap intermediate

@@ -468,7 +468,6 @@ Fork-specific (development):
   `dev/milestones/p33/` — sealed Phase 3 milestone designs, review records and
   evidence notes.
 - `dev/tasks/` — the open backlog, with closed items retained and dated.
-- `docs/migration-r06.md` — the R6 rename map (old path → new path).
 - `CHANGELOG.md` — release history (release-level; milestone detail lives in
   `dev/roadmap.md`).
 
