@@ -243,6 +243,29 @@ concurrent-lock corruption this section already warns about, arriving through th
 test suite instead of through a deliberate run. A copy is an independent
 `project_dir`; a link is a shared one.
 
+**The agent-config directories are the opposite case, and are SYMLINKED.**
+`.claude/`, `.codex/` and `.agents/` are gitignored per-user state, so no
+worktree gets them either — but they are read, not written, and one shared
+definition is the whole point. `.claude/skills` and `.agents/skills` are
+themselves symlinks into `~/workspace/brain/artifacts/`, which a copy would
+dereference into a private fork that then answers with last week's version.
+
+Their absence does not fail, it **downgrades**: measured 2026-08-11, a worktree
+session resolved only 4 of the 18 project skills — every generic process skill
+still came from `~/.claude/skills`, so the 14 domain ones (`hydromt`,
+`snakemake`, `wflow`, `cst-run-control`, `climate-stress-testing`, …) were
+missing with nothing reporting it. Codex is worse: `.codex/agents/*.toml` are
+regular files with no brain fallback, so a Codex session there has no personas
+at all.
+
+Both lists are declared in `.git-workflow.yml` (`worktree_seed:` copies,
+`worktree_link:` links) and applied by the launcher at `git worktree add` time.
+For a worktree created before that, reapply both from the primary's config:
+
+```bash
+python ~/workspace/brain/artifacts/skills/git-workflow/scripts/worktree-session.py sync
+```
+
 **Do NOT borrow the primary checkout to run a branch's gate.** The obvious
 alternative to seeding — `git checkout --detach <branch>` in the primary, run,
 `git checkout main` — parses as safe and is not, because a long test run holds

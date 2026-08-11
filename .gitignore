@@ -140,10 +140,14 @@ test_case/*
 # Tests
 tests/test_project
 
-# AI tooling local state (per-user; never committed)
-.claude/
-.agents/
-.codex/
+# AI tooling local state (per-user; never committed). No trailing slash: in a
+# worktree these are SYMLINKS to the primary's copies (`worktree_link:` in
+# .git-workflow.yml), and git sees a symlink as a file, so a `dir/` pattern
+# stops matching and the link shows up as untracked -- one `git add -A` from
+# committing a machine-specific absolute path.
+.claude
+.agents
+.codex
 
 # Local-only config variants (per-user; never committed)
 *_local.yml
