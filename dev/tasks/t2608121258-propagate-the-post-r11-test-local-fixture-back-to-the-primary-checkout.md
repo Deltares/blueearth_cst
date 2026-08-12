@@ -39,14 +39,40 @@ The test itself is not at fault and needs no change: it skips only on the
 so a new-but-broken shape still fails. This fixture is neither — it is a third,
 intermediate shape.
 
+### Copying the worktree's tree back is NOT the fix
+
+Measured 2026-08-12, before attempting it. The two trees differ in **104 entries**
+— 57 under `experiments/experiment`, 32 under `models/hydrology`, plus
+`data/spatial/spatial_maps.nc`, an extra ERA5 climate store, and differing run
+records. They are two different runs under different configs, not two versions of
+one artifact. Against `dev/baseline/manifest.json`:
+
+| Manifest target | expects | primary | improvements |
+|---|---|---|---|
+| `q_indicators.csv` columns | `metric, location, st_id, rlz_id, temp_change, precip_change, value` | **pre-R11 order** ✗ | matches ✓ |
+| `q_indicators.csv` `n_rows` | 756 | 630 ✗ | 630 ✗ |
+| `run_default/output.csv` `n_rows` | 7670 | **7670** ✓ | 6209 ✗ |
+| `run_default/output.csv` `mean_ref` | 10.94766158 | **10.94766158** ✓ | 10.58012255 ✗ |
+
+So each tree satisfies what the other fails, and **neither matches the manifest's
+WF3 row count**. Copying the worktree's tree over the primary would fix
+`test_hm7_integration` and break the one baseline target the primary currently
+passes exactly — trading a red for a red while making provenance worse. The
+worktree's shorter discharge series (6209 rows) is consistent with a run under a
+shortened config, not with `snake_config_model_test.yml`.
+
 ## Progress
 
-- [ ] Decide the propagation rule: does a worktree that regenerates a fixture copy
-      it back to the primary, or is the primary the only place WF3 may be re-run?
-      `AGENTS.md` already reserves the primary for integration runs, which argues
-      for the second.
-- [ ] Refresh the primary's `test_local` accordingly (copy back, or re-run WF3
-      there with `--notemp`), then reseed the two lanes
-      (`worktree-session.py --cwd <lane> sync`) and re-run `test_hm7_integration`.
-- [ ] Consider whether the untracked fixture needs a provenance marker, so its age
-      is legible without diffing headers across checkouts.
+- [ ] **Do not copy either tree onto the other.** The fix is one deliberate
+      re-run in the PRIMARY on `snake_config_model_test.yml` with `--notemp`
+      (rule 1.14 declares the discharge target `temp()`), covering WF1 and WF3 so
+      tree, code and manifest agree for the first time since R11.
+- [ ] Then `check_baseline.py check`, and decide whether the WF3 `n_rows`
+      756 → 630 change is an accepted result change (re-record) or a defect. It
+      predates this finding — neither tree produces 756.
+- [ ] Reseed the lanes afterwards (`worktree-session.py --cwd <lane> sync`, after
+      deleting the stale seed) and confirm `test_hm7_integration` goes green.
+- [ ] Decide the standing rule: is the primary the only place a fixture may be
+      regenerated? `AGENTS.md` already reserves it for integration runs, which
+      argues yes — and a worktree run that silently produces a divergent fixture
+      is what created this.
