@@ -326,8 +326,29 @@ def metric_grain(token: str, metric: str) -> str | None:
 #: retirements come from different milestones and a single pointer would send a
 #: reader to the wrong record. It was one constant while only R11 had retired
 #: anything.
+#:
+#: ``existing_results`` answers the ONE question the experiment freeze needs and
+#: cannot work out for itself: **did removing this key change what results
+#: already on disk mean?** Only whoever retires the key knows, so it is declared
+#: here rather than inferred (`t2608072234`).
+#:
+#: * ``"redefined"`` — the removal changed the computation. An experiment that has
+#:   run cannot continue; it is re-run as a new one. ``aggregate_rlz`` is this:
+#:   retiring it changed the table's GRAIN, so the old rows genuinely mean
+#:   something else.
+#: * ``"unchanged"`` — the removal was value-preserving, so the recorded results
+#:   are still exactly what they were. ``Tpeak``/``Tlow`` are this: both shipped at
+#:   the values that became the constants, so no emitted name or number moved.
+#:
+#: A key with no entry here counts as ``"redefined"``. That default is the point:
+#: forgetting to register a retirement must fail loud, exactly as
+#: :func:`refuse_retired_experiment_keys` does, rather than silently unfreezing
+#: every experiment in the project.
+EXISTING_RESULTS_STATES = ("unchanged", "redefined")
+
 RETIRED_EXPERIMENT_KEYS = {
     "aggregate_rlz": {
+        "existing_results": "redefined",
         "why": (
             "In the long table shape 'aggregated' is no longer a SHAPE choice, "
             "which is the only reason this flag existed. Every table now carries "
@@ -339,6 +360,7 @@ RETIRED_EXPERIMENT_KEYS = {
         "note": "dev/milestones/r11/migration_indicator-tables.md",
     },
     "Tpeak": {
+        "existing_results": "unchanged",
         "why": (
             "A return period is a property of the indicator set the toolbox "
             "defines, not of a project, so it moved to "
@@ -350,6 +372,7 @@ RETIRED_EXPERIMENT_KEYS = {
         "note": "dev/reviews/2026-08-11_test-suite-bloat-assessment.md",
     },
     "Tlow": {
+        "existing_results": "unchanged",
         "why": (
             "As Tpeak: now indicator_tables.RETURN_PERIOD_LOW_YR (2). Delete the line."
         ),
@@ -360,6 +383,37 @@ RETIRED_EXPERIMENT_KEYS = {
 #: Kept as a name because the R11 tests and the migration note both cite it. It
 #: is now the note for ONE entry rather than for the registry.
 MIGRATION_NOTE = RETIRED_EXPERIMENT_KEYS["aggregate_rlz"]["note"]
+
+# Validated at IMPORT, not where it is read. A typo in `existing_results` would
+# otherwise fall through to the "redefined" default and merely over-refuse --
+# safe, but silently wrong about a declaration whose whole purpose is to be
+# explicit. Every entry must also carry all three fields.
+for _key, _entry in RETIRED_EXPERIMENT_KEYS.items():
+    _missing = {"existing_results", "why", "note"} - set(_entry)
+    if _missing:
+        raise ValueError(
+            f"RETIRED_EXPERIMENT_KEYS[{_key!r}] is missing {sorted(_missing)}"
+        )
+    if _entry["existing_results"] not in EXISTING_RESULTS_STATES:
+        raise ValueError(
+            f"RETIRED_EXPERIMENT_KEYS[{_key!r}]['existing_results'] is "
+            f"{_entry['existing_results']!r}; expected one of "
+            f"{EXISTING_RESULTS_STATES}"
+        )
+del _key, _entry, _missing
+
+
+def retirement_preserves_results(key: str) -> bool:
+    """Whether removing ``key`` left existing results meaning what they did.
+
+    ``False`` for an unregistered key, which is what makes forgetting to
+    register a retirement fail loud rather than unfreeze every experiment in
+    the project. Read by the experiment freeze (`t2608072234`); the refusal in
+    :func:`refuse_retired_experiment_keys` does not branch on it, because a
+    config still DECLARING a retired key is wrong either way.
+    """
+    entry = RETIRED_EXPERIMENT_KEYS.get(key)
+    return bool(entry) and entry["existing_results"] == "unchanged"
 
 
 class RetiredConfigKeyError(ValueError):

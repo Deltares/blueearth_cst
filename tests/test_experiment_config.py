@@ -256,3 +256,124 @@ def test_the_merged_log_is_keyed_by_the_experiment():
     text = _SNAKEFILE.read_text(encoding="utf-8")
     line = next(ln for ln in text.splitlines() if ln.startswith("WORKFLOW_LOG_NAME"))
     assert "{experiment}" in line, line
+
+
+# --- toolbox-side retirements vs user edits (t2608072234) ---------------------
+#
+# The freeze compares a key UNION, so a key the toolbox retired reads as changed
+# and every already-run experiment refused. That was ruled per-milestone twice --
+# correctly for `aggregate_rlz` (its removal changed the table's grain, so the old
+# rows really do mean something else) and wrongly for `Tpeak`/`Tlow` (value-
+# preserving). Since 2026-08-12 the registry declares which, per key.
+
+
+def _frozen_with(tmp_path, recorded_cfg, name="gabon_dry"):
+    """An experiment that HAS RUN, with ``recorded_cfg`` frozen into its record."""
+    exp = _exp(tmp_path, name)
+    out = exp / "config" / "experiment.yml"
+    write_experiment_config(_marker(tmp_path, name), out, name, recorded_cfg)
+    _mark_run(tmp_path, name)
+    return out
+
+
+def test_a_value_preserving_retirement_does_not_freeze_the_experiment(tmp_path):
+    """The false positive this fixes.
+
+    `Tpeak`/`Tlow` shipped at exactly the values that became the constants, so
+    the recorded results are bit-for-bit what they always were. Refusing here
+    would strand a completed experiment over a change the user did not make and
+    that changed nothing about their numbers.
+    """
+    out = _frozen_with(tmp_path, dict(_CFG, Tpeak=10, Tlow=2))
+
+    write_experiment_config(_marker(tmp_path), out, "gabon_dry", _CFG)  # allowed
+
+
+def test_the_record_migrates_forward_and_drops_the_retired_keys(tmp_path):
+    """Allowing the rewrite is only half of it -- the record must stop carrying
+    keys the toolbox no longer has, or every future run re-derives the same
+    exemption from a file that is drifting further from the config."""
+    out = _frozen_with(tmp_path, dict(_CFG, Tpeak=10, Tlow=2))
+
+    write_experiment_config(_marker(tmp_path), out, "gabon_dry", _CFG)
+
+    recorded = yaml.safe_load(out.read_text(encoding="utf-8"))["climate_experiment"]
+    assert "Tpeak" not in recorded and "Tlow" not in recorded
+    assert recorded == _CFG
+
+
+def test_a_grain_changing_retirement_still_freezes(tmp_path):
+    """`aggregate_rlz` is the case the freeze is RIGHT about, and R11 ruled it so.
+
+    Retiring it changed the table's grain, so an experiment that ran under the
+    old shape cannot continue under the new one. Widening the exemption to every
+    retired key would have silently un-refused exactly this.
+    """
+    out = _frozen_with(tmp_path, dict(_CFG, aggregate_rlz=True))
+
+    with pytest.raises(ExperimentConfigFrozenError) as excinfo:
+        write_experiment_config(_marker(tmp_path), out, "gabon_dry", _CFG)
+    assert "aggregate_rlz" in str(excinfo.value)
+
+
+def test_an_unregistered_disappearing_key_still_freezes(tmp_path):
+    """The default, and the reason it is the default.
+
+    A retirement nobody registered is indistinguishable here from a key that
+    vanished for an unknown reason. Refusing makes the omission loud; exempting
+    it would silently unfreeze every experiment in the project -- the same
+    failure mode as the retired-key registry going unwritten.
+    """
+    out = _frozen_with(tmp_path, dict(_CFG, some_forgotten_key=7))
+
+    with pytest.raises(ExperimentConfigFrozenError) as excinfo:
+        write_experiment_config(_marker(tmp_path), out, "gabon_dry", _CFG)
+    assert "some_forgotten_key" in str(excinfo.value)
+
+
+def test_a_real_edit_alongside_a_transparent_retirement_still_freezes(tmp_path):
+    """The exemption must not become cover for a genuine change that rides with it.
+
+    Only the real change is named: reporting the retired key too would send the
+    user looking for an edit they did not make.
+    """
+    out = _frozen_with(tmp_path, dict(_CFG, Tpeak=10))
+
+    with pytest.raises(ExperimentConfigFrozenError) as excinfo:
+        write_experiment_config(
+            _marker(tmp_path), out, "gabon_dry", dict(_CFG, horizontime_climate=2085)
+        )
+    message = str(excinfo.value)
+    assert "horizontime_climate" in message
+    assert "Tpeak" not in message
+
+
+def test_a_retired_name_still_present_in_the_config_is_a_user_edit(tmp_path):
+    """The exemption is for a key the config no longer DECLARES.
+
+    A name that is in the registry but still present in the current section is a
+    live setting whatever the registry says, so a difference in its value is the
+    user's edit and freezes. (Reachable only in principle -- the DAG-time
+    `refuse_retired_experiment_keys` stops such a config earlier -- but the guard
+    must not depend on that other guard having run.)
+    """
+    out = _frozen_with(tmp_path, dict(_CFG, Tpeak=10))
+
+    with pytest.raises(ExperimentConfigFrozenError) as excinfo:
+        write_experiment_config(
+            _marker(tmp_path), out, "gabon_dry", dict(_CFG, Tpeak=25)
+        )
+    assert "Tpeak" in str(excinfo.value)
+
+
+def test_an_unexplained_top_level_key_freezes(tmp_path):
+    """An older record shape is not a retirement and must not be dropped
+    silently: `build_experiment_config` emits exactly two top-level keys."""
+    out = _frozen_with(tmp_path, _CFG)
+    doc = yaml.safe_load(out.read_text(encoding="utf-8"))
+    doc["schema_from_the_future"] = 1
+    out.write_text(yaml.safe_dump(doc), encoding="utf-8")
+
+    with pytest.raises(ExperimentConfigFrozenError) as excinfo:
+        write_experiment_config(_marker(tmp_path), out, "gabon_dry", _CFG)
+    assert "schema_from_the_future" in str(excinfo.value)
