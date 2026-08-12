@@ -83,15 +83,22 @@ def build_weagen_config(
     experiment_cfg = yml_snake["workflows"]["climate_experiment"]
 
     yml_dict = read_yml(default_config_path)
-    yml_add = {
-        "output.path": output_path,
-        "sim.year.start": 2010,
-        "sim.year.num": compute_nr_years(middle_year, sim_years),
-        "nc.file.prefix": nc_file_prefix,
-        "realizations_num": experiment_cfg["realizations_num"],
-    }
-    for k, v in yml_add.items():
-        yml_dict["generateWeatherSeries"][k] = v
+    # Section and key names are weathergenr 1.2.0's own function and argument
+    # names (renamed 2026-08-12 from `generateWeatherSeries`, a function 1.2.0
+    # does not export). The four values below are the per-run ones the template
+    # cannot carry; every other argument comes from the template verbatim.
+    yml_dict["generate_weather"].update(
+        {
+            "out_dir": output_path,
+            "start_year": 2010,
+            "n_years": compute_nr_years(middle_year, sim_years),
+            "n_realizations": experiment_cfg["realizations_num"],
+        }
+    )
+    # Belongs to write_netcdf, not to the generator: it names the realization
+    # files rule 3.06 emits. Kept under `generateWeatherSeries` until the 1.2.0
+    # rename, where it had no matching argument.
+    yml_dict["write_netcdf"]["file_prefix"] = nc_file_prefix
 
     # Read by impose_climate_change.R (rule 3.07). Only the flags, not the
     # perturbation magnitudes — those live in st_<m>.csv and are read from there.

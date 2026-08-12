@@ -57,8 +57,8 @@ def test_default_weagen_config_resolves_at_defaults_path():
         "or the Snakefile_climate_experiment:131 default_config param is broken"
     )
     cfg = read_yml(DEFAULT_WEAGEN_CONFIG)
-    assert "generateWeatherSeries" in cfg
-    assert cfg["generateWeatherSeries"]["seed"] == 123
+    assert "generate_weather" in cfg
+    assert cfg["generate_weather"]["seed"] == 123
 
 
 def test_build_weagen_config_generate_reads_moved_default(tmp_path):
@@ -66,9 +66,9 @@ def test_build_weagen_config_generate_reads_moved_default(tmp_path):
     generate branch read_yml(default_config_path) against the moved template."""
     out = build_weagen_config(**_generate_kwargs(tmp_path))
     # Seeded from the moved default template, then overridden by snake config.
-    assert out["generateWeatherSeries"]["seed"] == 123
-    assert out["generateWeatherSeries"]["realizations_num"] == 2
-    assert out["generateWeatherSeries"]["sim.year.num"] == 82
+    assert out["generate_weather"]["seed"] == 123
+    assert out["generate_weather"]["n_realizations"] == 2
+    assert out["generate_weather"]["n_years"] == 82
 
 
 def _generate_kwargs(tmp_path, stress_test=None):
@@ -186,9 +186,21 @@ def test_f7_the_template_is_a_declared_input_of_rule_3_10():
 
 
 @pytest.mark.parametrize(
-    "key,value", [("save.plots", True), ("pet.method", "hargreaves")]
+    "section,key,value",
+    [
+        ("generate_weather", "save_plots", True),
+        ("apply_climate_perturbations", "pet_method", "hargreaves"),
+        ("apply_climate_perturbations", "qm_fit_method", "mme"),
+        ("apply_climate_perturbations", "diagnostic", False),
+        (
+            "generate_weather",
+            "relax_priority",
+            ["wavelet", "sd", "tail_low", "tail_high", "mean"],
+        ),
+        ("write_netcdf", "calendar", "noleap"),
+    ],
 )
-def test_c34_surfaced_arguments_reach_the_generated_config(tmp_path, key, value):
+def test_surfaced_arguments_reach_the_generated_config(tmp_path, section, key, value):
     """C34: a surfaced argument is worthless if it does not reach the R.
 
     `build_weagen_config` seeds from the template wholesale, so a key added
@@ -196,7 +208,7 @@ def test_c34_surfaced_arguments_reach_the_generated_config(tmp_path, key, value)
     (an explicit copy list) is what would silently drop it.
     """
     out = build_weagen_config(**_generate_kwargs(tmp_path))
-    assert out["generateWeatherSeries"][key] == value
+    assert out[section][key] == value
 
 
 def test_c34_retired_the_dead_evaluate_keys(tmp_path):
@@ -207,6 +219,8 @@ def test_c34_retired_the_dead_evaluate_keys(tmp_path):
     setting is worse than removing it.
     """
     out = build_weagen_config(**_generate_kwargs(tmp_path))
-    gws = out["generateWeatherSeries"]
-    assert "evaluate.model" not in gws
-    assert "evaluate.grid.num" not in gws
+    gw = out["generate_weather"]
+    assert "evaluate.model" not in gw
+    assert "evaluate.grid.num" not in gw
+    # The whole pre-1.2.0 spelling is gone, not just those two.
+    assert "generateWeatherSeries" not in out

@@ -161,13 +161,14 @@ def test_wg2_synthetic_fail():
 
 
 def _wg3_good():
-    return {
-        "general": {"variables": ["precip", "temp"]},
-        "generateWeatherSeries": {k: 0 for k in ic._WG3_GWS_KEYS},
-        # C29 moved these here from the retired per-member config.
-        "temp": {"transient_change": True},
-        "precip": {"transient_change": True},
-    }
+    # One section per weathergenr 1.2.0 function (renamed 2026-08-12).
+    cfg = {section: {k: 0 for k in keys} for section, keys in ic._WG3_SECTIONS.items()}
+    # `vars` is type-pinned as a list, so the 0 placeholder will not do.
+    cfg["generate_weather"]["vars"] = ["precip", "temp"]
+    # C29 moved these here from the retired per-member config.
+    cfg["temp"] = {"transient_change": True}
+    cfg["precip"] = {"transient_change": True}
+    return cfg
 
 
 def test_wg3_synthetic_pass():
@@ -176,8 +177,29 @@ def test_wg3_synthetic_pass():
 
 def test_wg3_synthetic_fail():
     cfg = _wg3_good()
-    del cfg["generateWeatherSeries"]["seed"]  # a required key removed
+    del cfg["generate_weather"]["seed"]  # a required key removed
     assert ic.validate_wg3(cfg) != []
+
+
+def test_wg3_requires_vars_to_be_a_list():
+    """A scalar reaches generate_weather as a length-1 vector and silently
+    generates one variable, so the type is pinned, not just the presence."""
+    cfg = _wg3_good()
+    cfg["generate_weather"]["vars"] = "precip"
+    diffs = ic.validate_wg3(cfg)
+    assert diffs and any("generate_weather.vars" in d for d in diffs)
+
+
+@pytest.mark.parametrize(
+    "section", ["generate_weather", "apply_climate_perturbations", "write_netcdf"]
+)
+def test_wg3_requires_every_function_section(section):
+    """Each section is one weathergenr function's argument set. A missing
+    section means every one of its arguments reaches R as NULL."""
+    cfg = _wg3_good()
+    del cfg[section]
+    diffs = ic.validate_wg3(cfg)
+    assert diffs and any(section in d for d in diffs)
 
 
 @pytest.mark.parametrize("section", ["temp", "precip"])
@@ -194,19 +216,32 @@ def test_wg3_requires_the_transient_flags(section):
     assert diffs and any(f"{section}.transient_change" in d for d in diffs)
 
 
-@pytest.mark.parametrize("key", ["save.plots", "pet.method"])
-def test_wg3_requires_the_c34_surfaced_arguments(key):
+@pytest.mark.parametrize(
+    "section,key",
+    [
+        ("generate_weather", "save_plots"),
+        ("apply_climate_perturbations", "pet_method"),
+        # The 1.2.0 rename surfaced these four the same way C34 surfaced the two
+        # above: each was previously unreachable or hardcoded in the R.
+        ("generate_weather", "warm_filter_bounds"),
+        ("generate_weather", "relax_priority"),
+        ("apply_climate_perturbations", "qm_fit_method"),
+        ("apply_climate_perturbations", "diagnostic"),
+    ],
+)
+def test_wg3_requires_the_surfaced_arguments(section, key):
     """C34: an argument surfaced into the config must be PINNED there.
 
     The whole point of surfacing was that an unexamined default is not a choice.
     If the key can silently vanish from the generated config, the R reads NULL
     and weathergenr takes its own default again -- which is the state C34 exists
-    to end, restored without anything noticing.
+    to end, restored without anything noticing. `diagnostic` is the sharpest
+    case: NULL there changes the RETURN SHAPE and rule 3.07 fails outright.
     """
     cfg = _wg3_good()
-    del cfg["generateWeatherSeries"][key]
+    del cfg[section][key]
     diffs = ic.validate_wg3(cfg)
-    assert diffs and any(key in d for d in diffs)
+    assert diffs and any(f"{section}.{key}" in d for d in diffs)
 
 
 def _catalog_entry_good(uri="X:/rlz.nc"):
@@ -797,15 +832,16 @@ def test_wg2_integration():
 def test_wg3_integration():
     with open(join(_WG_DIR, "config", "weathergen_config.yml")) as f:
         cfg = yaml.safe_load(f)
-    # C34 surfaced `save.plots` and `pet.method`, so the pinned key set grew.
-    # The fixture's config is regenerated only when WF3 re-runs, which P2 does
-    # not do. Skip on the SPECIFIC pre-C34 shape -- the retired `evaluate.model`
-    # key present where the new ones are missing -- never on the file's absence.
-    gws = cfg.get("generateWeatherSeries", {})
-    if "evaluate.model" in gws and "save.plots" not in gws:
+    # The weathergenr 1.2.0 rename (2026-08-12) replaced the single
+    # `generateWeatherSeries` section with one section per weathergenr function.
+    # The fixture's config is regenerated only when WF3 re-runs, so skip on the
+    # SPECIFIC pre-rename shape -- that section being present -- never on the
+    # file's absence. This subsumes the earlier pre-C34 skip: a config old
+    # enough to carry `evaluate.model` carries `generateWeatherSeries` too.
+    if "generateWeatherSeries" in cfg:
         pytest.skip(
-            "fixture weathergen_config.yml predates R11 P2 C34 (evaluate.model, "
-            "no save.plots); regenerated by P3's WF3 re-run"
+            "fixture weathergen_config.yml predates the weathergenr 1.2.0 "
+            "rename (generateWeatherSeries section); regenerated by a WF3 re-run"
         )
     assert ic.validate_wg3(cfg) == []
 

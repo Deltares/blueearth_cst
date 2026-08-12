@@ -49,6 +49,11 @@ nc_file_suffix <- sub("^.*_", "", output_stem)
 temp_change_transient   <- yaml$temp$transient_change
 precip_change_transient <- yaml$precip$transient_change
 
+# Section and key names are weathergenr 1.2.0's own function and argument names
+# (renamed 2026-08-12 from `generateWeatherSeries`), so these are pass-throughs.
+acp <- yaml$apply_climate_perturbations
+wnc <- yaml$write_netcdf
+
 
 # PARAMETERS CHANGING PER RUN ##################################################
 
@@ -66,22 +71,38 @@ rlz_future <- weathergenr::apply_climate_perturbations(
    temp_delta         = cst_data$temp_mean,
    temp_transient     = temp_change_transient,
    precip_transient   = precip_change_transient,
-   compute_pet        = TRUE,
-   qm_fit_method      = "mme",
-   diagnostic         = FALSE,
+   precip_occurrence_transient = acp$precip_occurrence_transient,
+   precip_intensity_threshold  = acp$precip_intensity_threshold,
+   compute_pet        = acp$compute_pet,
+   qm_fit_method      = acp$qm_fit_method,
+   scale_var_with_mean = acp$scale_var_with_mean,
+   enforce_target_mean = acp$enforce_target_mean,
+   exaggerate_extremes = acp$exaggerate_extremes,
+   extreme_prob_threshold = acp$extreme_prob_threshold,
+   extreme_k          = acp$extreme_k,
+   precip_cap_mm_day  = acp$precip_cap_mm_day,
+   precip_floor_mm_day = acp$precip_floor_mm_day,
+   precip_cap_quantile = acp$precip_cap_quantile,
+   verbose            = acp$verbose,
+   # LOAD-BEARING, and the config says so. `diagnostic = FALSE` makes the return
+   # a list of per-cell data.frames, which write_netcdf below consumes directly
+   # (the same shape the old imposeClimateChanges returned). TRUE -- weathergenr's
+   # own default -- returns a diagnostic structure and the next call fails.
+   diagnostic         = acp$diagnostic,
    # C34/F15. Generation is seeded and the perturbation was not, so the two
    # halves of one experiment had different reproducibility guarantees and
    # nobody chose that. Passing the SAME seed the generator uses makes the whole
    # chain reproducible; if the function turns out to be deterministic this is a
    # no-op, and either way the asymmetry is now a decision rather than an
-   # oversight.
-   seed               = yaml$generateWeatherSeries$seed,
+   # oversight. There is deliberately no seed key in the
+   # `apply_climate_perturbations` config section -- one seed cannot diverge.
+   seed               = yaml$generate_weather$seed,
    # C34/F16. PET is computed twice in this chain -- here, and again from the
    # perturbed temperature by rule 3.14's setup_temp_pet_forcing -- by two
    # different methods, neither of which was chosen. Surfaced at weathergenr's
    # own default so this step's method is now stated; whether the first result
    # is used at all is the open half of F16 and is NOT settled here.
-   pet_method         = yaml$generateWeatherSeries$pet.method
+   pet_method         = acp$pet_method
 )
 
 # Save to netcdf file
@@ -91,10 +112,15 @@ weathergenr::write_netcdf(
    grid          = rlz_input$grid,
    out_dir       = output_path,
    origin_date   = rlz_input$date[1],
-   calendar      = "noleap",
+   calendar      = wnc$calendar,
    template_path = rlz_path,
-   compression   = 4,
-   spatial_ref   = "spatial_ref",
+   compression   = wnc$compression,
+   spatial_ref   = wnc$spatial_ref,
+   signif_digits = wnc$signif_digits,
+   verbose       = wnc$verbose,
+   # Derived from this rule's declared output above, NOT from
+   # write_netcdf.file_prefix -- that key carries the generation step's prefix
+   # (rule 3.06), and the perturbed series is named for its own member.
    file_prefix   = nc_file_prefix,
    file_suffix   = nc_file_suffix
 )
