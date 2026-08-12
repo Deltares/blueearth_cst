@@ -115,18 +115,25 @@ def figure_names(dataset: str) -> list[str]:
     ]
 
 
+#: A January water year — the calendar year these figures used before
+#: `shared.water_year_start` reached them, and identical to a bare "YE".
+DEFAULT_ANCHOR = "YE-DEC"
+
+
 def _space_dims(da: xr.DataArray) -> list[str]:
     """The non-time dimensions of ``da`` (the spatial ones, on any grid)."""
     return [d for d in da.dims if d != "time"]
 
 
-def _yearly(series: xr.DataArray, how: str) -> xr.DataArray:
+def _yearly(
+    series: xr.DataArray, how: str, anchor: str = DEFAULT_ANCHOR
+) -> xr.DataArray:
     """Per-year aggregate of a 1-D time series, incomplete years dropped.
 
     Only ``sum`` needs the completeness filter -- a mean over a partial year is
     still a valid mean of what was observed, while a total is not a total.
     """
-    grouped = series.resample(time="YE")
+    grouped = series.resample(time=anchor)
     values = grouped.sum("time") if how == "sum" else grouped.mean("time")
     if how != "sum":
         return values.compute()
@@ -137,16 +144,18 @@ def _yearly(series: xr.DataArray, how: str) -> xr.DataArray:
     # off the netCDF, so leaving this lazy fails on the PET figures only --
     # which is exactly how it presented: six figures written, then a KeyError.
     values = values.compute()
-    counts = series.resample(time="YE").count("time").compute()
+    counts = series.resample(time=anchor).count("time").compute()
     if counts.size:
         modal = int(np.median(counts.values))
         values = values.where(counts >= modal * _COMPLETE_YEAR_FRACTION, drop=True)
     return values
 
 
-def _climatological_field(da: xr.DataArray, how: str) -> xr.DataArray:
-    """The map panel's field: per-year aggregate, then averaged over years."""
-    grouped = da.resample(time="YE")
+def _climatological_field(
+    da: xr.DataArray, how: str, anchor: str = DEFAULT_ANCHOR
+) -> xr.DataArray:
+    """The map panel's field: per-water-year aggregate, averaged over years."""
+    grouped = da.resample(time=anchor)
     field = (grouped.sum("time") if how == "sum" else grouped.mean("time")).mean("time")
     if how == "sum":
         # Zero-accumulation cells are outside the domain, not dry.
@@ -246,7 +255,16 @@ def load_spatial_overlays(geoms_dir: Optional[Union[str, Path]]) -> dict:
     return overlays
 
 
-def _render_map(da, spec, title, caveat, overlays, levels=None, levels_out=None):
+def _render_map(
+    da,
+    spec,
+    title,
+    caveat,
+    overlays,
+    levels=None,
+    levels_out=None,
+    anchor=DEFAULT_ANCHOR,
+):
     """Climatological field as a cartographic map.
 
     A caller of ``shared.cartographic_map.plot_raster_map``, so this figure carries
@@ -265,7 +283,7 @@ def _render_map(da, spec, title, caveat, overlays, levels=None, levels_out=None)
     from blueearth_cst.shared.plot_map import _basin_outline
 
     how, label, unit = spec["how"], spec["label"], spec["unit"]
-    field = _climatological_field(da, how)
+    field = _climatological_field(da, how, anchor)
     axis_unit = f"{unit} y$^{{-1}}$" if how == "sum" else unit
 
     base = RASTER_STYLES[spec["style"]]
@@ -429,10 +447,10 @@ def _decadal_trend(years, values):
     return float(slope), float(intercept)
 
 
-def _render_annual(da, spec, title, caveat, overlays, **_):
+def _render_annual(da, spec, title, caveat, overlays, anchor=DEFAULT_ANCHOR, **_):
     """Domain-mean value per year, with its trend and the period mean."""
     how, label, unit = spec["how"], spec["label"], spec["unit"]
-    series = _yearly(da.mean(dim=_space_dims(da)), how).compute()
+    series = _yearly(da.mean(dim=_space_dims(da)), how, anchor).compute()
     axis_unit = f"{unit} y$^{{-1}}$" if how == "sum" else unit
     years = series["time"].dt.year.values.astype(float)
     values = series.values.astype(float)
@@ -597,6 +615,7 @@ def plot_climate_figures(
     overlays: Optional[dict] = None,
     levels_file: Optional[Union[str, Path]] = None,
     write_levels: bool = False,
+    anchor: str = DEFAULT_ANCHOR,
 ) -> list[Path]:
     """Write the canonical figure set for one gridded climate dataset.
 
@@ -661,6 +680,7 @@ def plot_climate_figures(
                 overlays,
                 levels=shared.get(var),
                 levels_out=captured if write_levels else None,
+                anchor=anchor,
             )
             save_figure(out_path, dpi=RASTER_DPI)
             plt.close(fig)

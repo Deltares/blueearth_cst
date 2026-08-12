@@ -1026,6 +1026,11 @@ rule derive_wflow_indicators:
         # disagree about which tables exist.
         indicator_tokens = list(INDICATOR_TABLES),
         st_num = ST_NUM,
+        # The annual reductions below are the RESPONSE SURFACE, so the
+        # basin's own water year has to reach them rather than a hardcoded
+        # calendar year: a Jan-Dec year splits a flood season crossing New
+        # Year across two years and understates the annual maximum.
+        water_year_start = WATER_YEAR_START,
     log:
         f"{LOG_PARTS_DIR}/3.16_derive_wflow_indicators.log",
     benchmark:
