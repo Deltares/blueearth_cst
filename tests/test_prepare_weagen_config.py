@@ -192,11 +192,7 @@ def test_f7_the_template_is_a_declared_input_of_rule_3_10():
         ("apply_climate_perturbations", "pet_method", "hargreaves"),
         ("apply_climate_perturbations", "qm_fit_method", "mme"),
         ("apply_climate_perturbations", "diagnostic", False),
-        (
-            "generate_weather",
-            "relax_priority",
-            ["wavelet", "sd", "tail_low", "tail_high", "mean"],
-        ),
+        ("run_weather_generator", "eval_max_grids", 25),
         ("write_netcdf", "calendar", "noleap"),
     ],
 )

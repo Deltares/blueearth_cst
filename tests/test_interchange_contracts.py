@@ -191,7 +191,13 @@ def test_wg3_requires_vars_to_be_a_list():
 
 
 @pytest.mark.parametrize(
-    "section", ["generate_weather", "apply_climate_perturbations", "write_netcdf"]
+    "section",
+    [
+        "run_weather_generator",
+        "generate_weather",
+        "apply_climate_perturbations",
+        "write_netcdf",
+    ],
 )
 def test_wg3_requires_every_function_section(section):
     """Each section is one weathergenr function's argument set. A missing
@@ -224,7 +230,7 @@ def test_wg3_requires_the_transient_flags(section):
         # The 1.2.0 rename surfaced these four the same way C34 surfaced the two
         # above: each was previously unreachable or hardcoded in the R.
         ("generate_weather", "warm_filter_bounds"),
-        ("generate_weather", "relax_priority"),
+        ("run_weather_generator", "eval_max_grids"),
         ("apply_climate_perturbations", "qm_fit_method"),
         ("apply_climate_perturbations", "diagnostic"),
     ],

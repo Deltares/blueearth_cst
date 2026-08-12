@@ -267,7 +267,10 @@ _WG3_GENERATE_WEATHER_KEYS = (
     "warm_signif",
     "warm_pool_size",
     "warm_filter_bounds",
-    "relax_priority",
+    # `relax_priority` is deliberately NOT pinned. It is a generate_weather
+    # argument, but rule 3.06 calls run_weather_generator, and that wrapper
+    # forwards every generate_weather argument except this one -- so pinning it
+    # would require a key that reaches nothing. Restore if upstream forwards it.
     "annual_knn_n",
     "wet_q",
     "extreme_q",
@@ -318,8 +321,17 @@ _WG3_WRITE_NETCDF_KEYS = (
     "file_prefix",
 )
 
-#: The three pinned sections, by weathergenr function name.
+#: WG-3 ``run_weather_generator`` surface — the wrapper rule 3.06 calls. It runs
+#: generate_weather and then the evaluation pass; ``_WG3_GENERATE_WEATHER_KEYS``
+#: above is handed to it verbatim as its ``config`` argument.
+_WG3_RUN_KEYS = (
+    "eval_max_grids",
+    "log_messages",
+)
+
+#: The four pinned sections, by weathergenr function name.
 _WG3_SECTIONS = {
+    "run_weather_generator": _WG3_RUN_KEYS,
     "generate_weather": _WG3_GENERATE_WEATHER_KEYS,
     "apply_climate_perturbations": _WG3_PERTURBATION_KEYS,
     "write_netcdf": _WG3_WRITE_NETCDF_KEYS,

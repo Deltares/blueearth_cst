@@ -17,7 +17,19 @@
 # setting and reaches nothing, which is the defect C34 found in the retired
 # `evaluate.model`.
 
-# weathergenr::generate_weather — stochastic realization generation (rule 3.06).
+# weathergenr::run_weather_generator — what rule 3.06 actually CALLS. It wraps
+# generate_weather and adds the evaluation pass (prepare_evaluation_data +
+# evaluate_weather_generator), whose diagnostic plots land in plots/ beside the
+# generator's own. The `generate_weather:` section below is handed to it
+# verbatim as its `config` argument, which is why that section's keys are
+# generate_weather's argument names.
+run_weather_generator:
+  eval_max_grids: 25         # cap on grid cells the evaluation pass plots
+  log_messages: false        # true writes log_<timestamp>.txt into out_dir;
+                             # rule 3.06 already tees its own log, so off here
+
+# weathergenr::generate_weather — the generation arguments, passed through
+# run_weather_generator's `config` argument (rule 3.06).
 generate_weather:
   vars: [precip, temp, temp_min, temp_max]  # variables to generate
 
@@ -30,9 +42,13 @@ generate_weather:
                              # not `{}` — R's YAML reader turns `{}` into a
                              # NAMED empty list, which is not the `list()` the
                              # argument defaults to.
-  relax_priority: [wavelet, sd, tail_low, tail_high, mean]
-                             # order the accept bounds are relaxed in when the
-                             # pool underfills
+                             #
+                             # `relax_priority` is deliberately ABSENT. It is a
+                             # generate_weather argument, but rule 3.06 calls
+                             # run_weather_generator, and that wrapper forwards
+                             # every generate_weather argument EXCEPT this one —
+                             # so a key here would read as a setting and reach
+                             # nothing. Restore it if upstream forwards it.
 
   # Daily resampling and Markov chain.
   annual_knn_n: 100          # repeated samples per simulated year (suggested 100–120)
