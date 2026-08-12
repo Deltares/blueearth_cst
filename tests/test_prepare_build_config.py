@@ -152,7 +152,7 @@ def test_shipped_template_excludes_competing_domain_setup():
     """P2 consumes P1 and cannot independently delineate through basemaps."""
     repo = Path(__file__).resolve().parents[1]
     template = yaml.safe_load(
-        (repo / "config" / "templates" / "wflow_build_model.yml").read_text(
+        (repo / "config" / "defaults" / "wflow_build_model.yml").read_text(
             encoding="utf-8"
         )
     )

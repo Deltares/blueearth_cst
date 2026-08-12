@@ -42,7 +42,7 @@ def test_shipped_template_retains_only_wflow_parameter_steps():
     path = (
         Path(__file__).resolve().parents[1]
         / "config"
-        / "templates"
+        / "defaults"
         / "wflow_build_model.yml"
     )
 
