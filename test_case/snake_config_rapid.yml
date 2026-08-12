@@ -58,7 +58,6 @@ workflows:
     variables:
       precip: {source: precip, canonical: rate, units: mm/day, change: relative}
       temp: {source: temp, canonical: state, units: degC, change: absolute}
-    start_month_hyd_year: Jan
     # Ends 2014, where the CMIP6 historical experiment stops; a later end is
     # clipped to it, and clipping a range equal to historical_window is what
     # raises the "no longer aligns" warning.

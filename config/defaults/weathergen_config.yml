@@ -60,7 +60,6 @@ generate_weather:
   annual_knn_n: 100          # repeated samples per simulated year (suggested 100–120)
   wet_q: 0.2                 # quantile threshold defining wet weather
   extreme_q: 0.8             # quantile threshold defining very wet weather
-  year_start_month: 1        # first month of the hydrological year (1–12)
   dry_spell_factor: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
                              # monthly coefficient adjusting dry spell length
   wet_spell_factor: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
@@ -92,7 +91,12 @@ generate_weather:
   save_plots: true           # emit the generator's diagnostic plots (C34)
 
   # Injected per run by rule 3.10 (prepare_weagen_config.py):
-  #   n_years, start_year, n_realizations, out_dir, seed
+  #   n_years, start_year, n_realizations, out_dir, seed, year_start_month
+  #
+  # `year_start_month` comes from `shared.water_year_start`, the ONE key WF2,
+  # the WF3 indicators and the WF1 climate figures also read. It is a month
+  # NUMBER here because that is weathergenr's argument; the config spells it
+  # `Oct`, converted at the seam.
 
 # weathergenr::apply_climate_perturbations — the stress-test perturbation
 # (rule 3.12). Values below were hardcoded in impose_climate_change.R until

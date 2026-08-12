@@ -433,7 +433,11 @@ ADVANCED_SETTINGS_PATH = (
 #: A new setting is added HERE and in the file together.
 _ADVANCED_SETTINGS_SCHEMA = {
     "constraints": {"min_historical_years": "positive_int"},
-    "defaults": {"julia_threads": "positive_int", "seed": "nonnegative_int"},
+    "defaults": {
+        "julia_threads": "positive_int",
+        "seed": "nonnegative_int",
+        "water_year_start": "month_abbrev",
+    },
     "runtime": {"julia_version": "version_string"},
 }
 
@@ -462,6 +466,36 @@ def _nonnegative_int(value, where: str) -> int:
     return value
 
 
+#: Three-letter month abbreviations, index + 1 == calendar month number. The
+#: config surface for the water year is this spelling rather than an integer:
+#: ``Oct`` cannot be misread, whereas ``10`` invites "tenth month" vs "offset of
+#: ten", and it is the spelling ``start_month_hyd_year`` already used.
+_MONTH_ABBREVS = (
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+)  # fmt: skip
+
+
+def _month_abbrev(value, where: str) -> str:
+    """A three-letter month name, normalized to ``Jan``-style capitalization.
+
+    Defined up here with the other settings validators rather than beside the
+    water-year helpers below: ``_VALIDATORS`` is built at module level, so a
+    later definition would be a NameError at import.
+    """
+    if not isinstance(value, str):
+        raise ValueError(
+            f"{where} must be a three-letter month name like 'Oct', got "
+            f"{value!r} ({type(value).__name__})"
+        )
+    token = value.strip().capitalize()
+    if token not in _MONTH_ABBREVS:
+        raise ValueError(
+            f"{where} must be one of {', '.join(_MONTH_ABBREVS)}, got {value!r}"
+        )
+    return token
+
+
 def _version_string(value, where: str) -> str:
     """A quoted three-part version.
 
@@ -482,6 +516,7 @@ def _version_string(value, where: str) -> str:
 _VALIDATORS = {
     "positive_int": _positive_int,
     "nonnegative_int": _nonnegative_int,
+    "month_abbrev": _month_abbrev,
     "version_string": _version_string,
 }
 
@@ -658,6 +693,46 @@ def resolve_seed(value, experiment_name: str) -> int:
             )
         return derive_seed(experiment_name)
     return _nonnegative_int(value, "shared.seed")
+
+
+#: First month of the water (hydrological) year, for EVERY workflow that
+#: aggregates to an annual value. The VALUE lives in
+#: ``config/advanced_settings.yml`` under ``defaults:``; a project overrides it
+#: with ``shared.water_year_start``.
+#:
+#: One key, because the alternative is what this replaced: WF2 read
+#: ``workflows.climate_projections.start_month_hyd_year`` (and silently ignored
+#: it), WF3's generator read ``year_start_month`` as an integer, and the WF3
+#: indicators and WF1 figures had no concept at all — four consumers of one
+#: physical idea, agreeing by accident when they agreed.
+DEFAULT_WATER_YEAR_START = ADVANCED_SETTINGS["defaults"]["water_year_start"]
+
+
+def resolve_water_year_start(value) -> str:
+    """Resolve ``shared.water_year_start`` to a canonical ``Jan``-style month."""
+    if value is None:
+        value = DEFAULT_WATER_YEAR_START
+    return _month_abbrev(value, "shared.water_year_start")
+
+
+def water_year_start_number(month: str) -> int:
+    """Calendar month number 1..12 — what weathergenr's ``year_start_month`` takes."""
+    return _MONTH_ABBREVS.index(_month_abbrev(month, "water_year_start")) + 1
+
+
+def water_year_end_anchor(month: str) -> str:
+    """The pandas resample anchor for a water year STARTING in ``month``.
+
+    A year that starts in October ends in September, so the anchor is the month
+    BEFORE the start — ``YE-SEP``. The off-by-one is the whole reason this is a
+    function: ``YE-OCT`` would silently aggregate Nov→Oct and every annual
+    extreme would be attributed to the wrong year.
+
+    A January water year yields ``YE-DEC``, which pandas treats as identical to
+    a bare ``YE`` — so adopting this helper at the default changes no number.
+    """
+    index = _MONTH_ABBREVS.index(_month_abbrev(month, "water_year_start"))
+    return f"YE-{_MONTH_ABBREVS[(index - 1) % 12].upper()}"
 
 
 def julia_prefix(threads=DEFAULT_JULIA_THREADS) -> str:

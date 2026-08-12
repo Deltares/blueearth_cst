@@ -78,6 +78,22 @@ defaults:
   # prefer the per-project override, exactly as for julia_threads above.
   seed: 123
 
+  # First month of the water (hydrological) year, as a three-letter name.
+  # Overridable per project via `shared.water_year_start`.
+  #
+  # Every workflow that reduces to an ANNUAL value reads it: WF2's change
+  # factors, WF3's weather generation, WF3's hydrological indicators and WF1's
+  # climate figures. It is one key because these are one physical idea — before
+  # 2026-08-12 they were four independent behaviours that agreed only by
+  # accident, and two of them could not be configured at all.
+  #
+  # `Jan` is the calendar year and is what every recorded result used, so it is
+  # value-neutral: a January water year ends in December, which is exactly the
+  # aggregation the code did before. A non-Jan value MOVES annual extremes, by
+  # design — that is the point of a water year for a basin whose flood season
+  # crosses New Year — and therefore invalidates a baseline recorded under Jan.
+  water_year_start: Jan
+
 runtime:
 
   # The juliaup version selector every workflow Julia invocation carries

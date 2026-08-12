@@ -50,6 +50,20 @@ shared:
   # Not a per-invocation random draw. That would rewrite the generator config on
   # every run and re-execute the whole stress test each time.
   #seed: auto                                             # integer | auto
+  # First month of the water (hydrological) year. Optional — absent, it takes
+  # `defaults.water_year_start` (Jan) from config/advanced_settings.yml.
+  #
+  # ONE key for every workflow that reduces to an annual value: WF2's change
+  # factors, WF3's weather generation, WF3's hydrological indicators and WF1's
+  # climate figures. Replaced `workflows.climate_projections.start_month_hyd_year`,
+  # which is now refused — it never reached the arithmetic.
+  #
+  # Set it to the month your basin's hydrological year begins (e.g. Oct for a
+  # northern-hemisphere water year). It matters most for the annual EXTREMES in
+  # the response surface: a Jan-Dec year splits a flood season that crosses New
+  # Year across two years and understates the annual maximum. A non-Jan value
+  # moves those numbers by design.
+  #water_year_start: Oct                                  # Jan..Dec
   #julia_threads: 4                                       # integer
 
 workflows:
@@ -110,7 +124,6 @@ workflows:
     variables:
       precip: {source: precip, canonical: rate, units: mm/day, change: relative}
       temp: {source: temp, canonical: state, units: degC, change: absolute}
-    start_month_hyd_year: Jan                             # text — three-letter month
     historical_year_range: [1985, 2014]                   # [integer, integer] — inclusive, clipped at 2014
     future_horizons:                                      # mapping: name -> [integer, integer]
       near: [2030, 2060]

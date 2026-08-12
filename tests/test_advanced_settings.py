@@ -20,7 +20,7 @@ def _write(tmp_path, payload):
 
 VALID = {
     "constraints": {"min_historical_years": 16},
-    "defaults": {"julia_threads": 4, "seed": 123},
+    "defaults": {"julia_threads": 4, "seed": 123, "water_year_start": "Jan"},
     "runtime": {"julia_version": "1.11.7"},
 }
 
@@ -35,6 +35,7 @@ def test_the_shipped_file_is_where_the_constants_come_from():
     assert su.MIN_HISTORICAL_YEARS == on_disk["constraints"]["min_historical_years"]
     assert su.DEFAULT_JULIA_THREADS == on_disk["defaults"]["julia_threads"]
     assert su.DEFAULT_SEED == on_disk["defaults"]["seed"]
+    assert su.DEFAULT_WATER_YEAR_START == on_disk["defaults"]["water_year_start"]
 
 
 def test_the_shipped_file_lives_under_config():
@@ -53,6 +54,9 @@ def test_the_shipped_values_are_the_documented_ones():
     # here invalidates every baseline comparison — override per project with
     # `shared.seed` instead, exactly as for julia_threads.
     assert su.DEFAULT_SEED == 123
+    # Jan is the calendar year, which is what every recorded result used; a
+    # non-Jan default would move annual extremes for every existing project.
+    assert su.DEFAULT_WATER_YEAR_START == "Jan"
 
 
 def test_schema_and_file_cover_exactly_the_same_keys():
@@ -82,7 +86,7 @@ def test_unknown_key_is_rejected(tmp_path):
     otherwise be ignored and the built-in 16 would silently stand."""
     payload = {
         "constraints": {"min_historical_years": 16, "min_historical_year": 8},
-        "defaults": {"julia_threads": 4, "seed": 123},
+        "defaults": {"julia_threads": 4, "seed": 123, "water_year_start": "Jan"},
     }
     with pytest.raises(ValueError, match="unknown key"):
         su.load_advanced_settings(_write(tmp_path, payload))
@@ -124,7 +128,7 @@ def test_an_unquoted_two_part_version_reaches_the_validator_as_a_float(tmp_path)
     path = tmp_path / "advanced_settings.yml"
     path.write_text(
         "constraints:\n  min_historical_years: 16\n"
-        "defaults:\n  julia_threads: 4\n  seed: 123\n"
+        "defaults:\n  julia_threads: 4\n  seed: 123\n  water_year_start: Jan\n"
         "runtime:\n  julia_version: 1.11\n",
         encoding="utf-8",
     )

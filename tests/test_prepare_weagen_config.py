@@ -100,6 +100,7 @@ def _generate_kwargs(tmp_path, stress_test=None):
         middle_year=2080,
         sim_years=20,
         seed=123,
+        water_year_start="Jan",
     )
 
 
