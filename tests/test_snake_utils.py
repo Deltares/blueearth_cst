@@ -12,6 +12,7 @@ import re
 import sys
 import time
 import warnings
+import zlib
 from pathlib import Path
 
 import pytest
@@ -1087,3 +1088,75 @@ def test_a_reference_cycle_from_the_body_is_collected_on_the_way_out(tmp_path):
         )
     finally:
         gc.enable()
+
+
+# --- shared.seed resolution ------------------------------------------------
+#
+# One seed for every stochastic step, defaulted in advanced_settings.yml and
+# overridable per project. `auto` derives from the experiment name so that a
+# re-run of one experiment is bit-identical while a different experiment gets
+# a different draw -- the property the whole design rests on.
+
+
+def test_seed_absent_takes_the_advanced_settings_default():
+    assert su.resolve_seed(None, "any_experiment") == su.DEFAULT_SEED
+
+
+def test_seed_accepts_an_explicit_integer():
+    assert su.resolve_seed(7, "any_experiment") == 7
+
+
+def test_seed_accepts_zero():
+    """0 is a legitimate seed; `_positive_int` would have rejected it."""
+    assert su.resolve_seed(0, "any_experiment") == 0
+
+
+@pytest.mark.parametrize("token", ["auto", "AUTO", " auto "])
+def test_seed_auto_is_case_and_space_insensitive(token):
+    assert su.resolve_seed(token, "exp_a") == su.derive_seed("exp_a")
+
+
+def test_seed_auto_is_stable_for_one_experiment():
+    """The idempotence property: same name in, same seed out, every process.
+
+    If this ever fails, WF3 stops converging -- rule 3.10 rewrites its output,
+    3.11 regenerates every realization, and every wflow run below re-executes.
+    """
+    assert su.derive_seed("gabon_20260812") == su.derive_seed("gabon_20260812")
+
+
+def test_seed_auto_differs_between_experiments():
+    assert su.derive_seed("gabon_20260812") != su.derive_seed("gabon_20260901")
+
+
+def test_seed_auto_does_not_use_the_salted_builtin_hash():
+    """`hash()` is salted per process by PYTHONHASHSEED, so a derivation built
+    on it would return a different seed in every interpreter while looking
+    reproducible within one. Pin the actual value to catch that substitution."""
+    assert su.derive_seed("experiment") == zlib.crc32(b"experiment") % 2**31
+
+
+def test_seed_auto_fits_r_integer_range():
+    """R's integer tops out at 2**31 - 1 and set.seed takes an integer; a wider
+    value would arrive as a double and warn or truncate."""
+    for name in ("a", "experiment", "gabon_20260812", "x" * 500):
+        assert 0 <= su.derive_seed(name) <= 2**31 - 1
+
+
+@pytest.mark.parametrize("bad", ["random", "123", "", "auto-ish"])
+def test_seed_refuses_a_string_that_is_not_auto(bad):
+    """Refused rather than coerced: `"123"` would work by accident and
+    `random` would reach weathergenr as NULL."""
+    with pytest.raises(ValueError, match="shared.seed"):
+        su.resolve_seed(bad, "exp")
+
+
+@pytest.mark.parametrize("bad", [-1, 1.5, True])
+def test_seed_refuses_non_integers_and_negatives(bad):
+    with pytest.raises(ValueError, match="shared.seed"):
+        su.resolve_seed(bad, "exp")
+
+
+def test_seed_auto_needs_an_experiment_name():
+    with pytest.raises(ValueError, match="experiment_name"):
+        su.resolve_seed("auto", "")

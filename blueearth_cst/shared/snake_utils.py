@@ -18,6 +18,7 @@ import threading
 import time
 import traceback
 import warnings
+import zlib
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
@@ -432,7 +433,7 @@ ADVANCED_SETTINGS_PATH = (
 #: A new setting is added HERE and in the file together.
 _ADVANCED_SETTINGS_SCHEMA = {
     "constraints": {"min_historical_years": "positive_int"},
-    "defaults": {"julia_threads": "positive_int"},
+    "defaults": {"julia_threads": "positive_int", "seed": "nonnegative_int"},
     "runtime": {"julia_version": "version_string"},
 }
 
@@ -447,6 +448,17 @@ def _positive_int(value, where: str) -> int:
         raise ValueError(f"{where} must be an integer, got {value!r}")
     if value < 1:
         raise ValueError(f"{where} must be >= 1, got {value}")
+    return value
+
+
+def _nonnegative_int(value, where: str) -> int:
+    """A whole number >= 0. Separate from ``_positive_int`` because 0 is a
+    legitimate randomization seed, and rejecting it would be an arbitrary hole
+    in the accepted range rather than a constraint anything needs."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{where} must be an integer, got {value!r}")
+    if value < 0:
+        raise ValueError(f"{where} must be >= 0, got {value}")
     return value
 
 
@@ -467,7 +479,11 @@ def _version_string(value, where: str) -> str:
     return value
 
 
-_VALIDATORS = {"positive_int": _positive_int, "version_string": _version_string}
+_VALIDATORS = {
+    "positive_int": _positive_int,
+    "nonnegative_int": _nonnegative_int,
+    "version_string": _version_string,
+}
 
 
 def load_advanced_settings(path=None) -> dict:
@@ -583,6 +599,65 @@ def validate_julia_threads(value) -> int:
     file's own ``defaults.julia_threads`` is held to.
     """
     return _positive_int(value, "shared.julia_threads")
+
+
+#: Default randomization seed for every stochastic step. The VALUE lives in
+#: ``config/advanced_settings.yml`` under ``defaults:``; a project overrides it
+#: with ``shared.seed``, which also accepts the literal ``auto``.
+#:
+#: One key, deliberately, rather than a seed per stochastic component. Today the
+#: only consumer is weathergenr (generation AND perturbation, C34/F15), but a
+#: second one reading its own key is how two halves of a run end up with
+#: different reproducibility guarantees that nobody chose.
+DEFAULT_SEED = ADVANCED_SETTINGS["defaults"]["seed"]
+
+#: ``derive_seed`` reduces modulo this. R's integer type tops out at 2**31 - 1
+#: and ``set.seed`` takes an integer, so a larger value would arrive in R as a
+#: double and either warn or truncate.
+_SEED_MODULUS = 2**31
+
+
+def derive_seed(experiment_name: str) -> int:
+    """The seed ``shared.seed: auto`` resolves to, from the experiment name.
+
+    Deterministic on the name alone: the same experiment re-runs with the same
+    seed (so nothing downstream re-runs), a different experiment gets a
+    different one, and "what seed did experiment X use?" stays answerable
+    forever without reading any artifact.
+
+    **``zlib.crc32``, never the builtin ``hash``.** ``hash`` is salted per
+    process by ``PYTHONHASHSEED``, so it would return a different seed for the
+    same experiment in every interpreter — silently breaking the one property
+    this function exists to provide, and doing it in a way that looks like
+    reproducible behaviour until two runs are compared.
+    """
+    if not isinstance(experiment_name, str) or not experiment_name:
+        raise ValueError(
+            f"cannot derive a seed from experiment_name={experiment_name!r}: "
+            "`shared.seed: auto` needs the experiment's name, which WF3 always "
+            "resolves before rule 3.10 runs"
+        )
+    return zlib.crc32(experiment_name.encode("utf-8")) % _SEED_MODULUS
+
+
+def resolve_seed(value, experiment_name: str) -> int:
+    """Resolve ``shared.seed`` to the integer the generator is handed.
+
+    ``None`` (key absent) takes ``defaults.seed``; ``auto`` derives from the
+    experiment name; anything else must be a non-negative integer. A string
+    that is not ``auto`` is refused rather than coerced — ``seed: "123"`` and
+    ``seed: random`` would otherwise both reach weathergenr, one working by
+    accident and one as ``NULL``.
+    """
+    if value is None:
+        value = DEFAULT_SEED
+    if isinstance(value, str):
+        if value.strip().lower() != "auto":
+            raise ValueError(
+                f"shared.seed must be an integer or the literal 'auto', got {value!r}"
+            )
+        return derive_seed(experiment_name)
+    return _nonnegative_int(value, "shared.seed")
 
 
 def julia_prefix(threads=DEFAULT_JULIA_THREADS) -> str:

@@ -58,7 +58,11 @@ def test_default_weagen_config_resolves_at_defaults_path():
     )
     cfg = read_yml(DEFAULT_WEAGEN_CONFIG)
     assert "generate_weather" in cfg
-    assert cfg["generate_weather"]["seed"] == 123
+    assert cfg["generate_weather"]["warm_var"] == "precip"
+    # The seed is NOT in the template: its default lives in
+    # config/advanced_settings.yml (`defaults.seed`) and rule 3.10 injects
+    # the resolved value. A `seed:` here would be a second default.
+    assert "seed" not in cfg["generate_weather"]
 
 
 def test_build_weagen_config_generate_reads_moved_default(tmp_path):
@@ -66,7 +70,7 @@ def test_build_weagen_config_generate_reads_moved_default(tmp_path):
     generate branch read_yml(default_config_path) against the moved template."""
     out = build_weagen_config(**_generate_kwargs(tmp_path))
     # Seeded from the moved default template, then overridden by snake config.
-    assert out["generate_weather"]["seed"] == 123
+    assert out["generate_weather"]["seed"] == 123  # injected, not templated
     assert out["generate_weather"]["n_realizations"] == 2
     assert out["generate_weather"]["n_years"] == 82
 
@@ -95,6 +99,7 @@ def _generate_kwargs(tmp_path, stress_test=None):
         default_config_path=DEFAULT_WEAGEN_CONFIG,
         middle_year=2080,
         sim_years=20,
+        seed=123,
     )
 
 

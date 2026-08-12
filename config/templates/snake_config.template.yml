@@ -38,6 +38,18 @@ shared:
     starttime: "1990-01-01T00:00:00"                      # ISO datetime
     endtime: "2020-12-31T00:00:00"                        # ISO datetime — span >= 16 years
   clim_historical: era5                                   # text — entry in data_sources
+  # Randomization seed for every stochastic step (today: the weather generator,
+  # for both realization generation and the perturbation). Optional — absent, it
+  # takes `defaults.seed` from config/advanced_settings.yml.
+  #
+  #   <integer>  the same realizations every run, on any machine
+  #   auto       derived from the experiment name: different experiments get
+  #              different realizations, and re-running one reproduces it
+  #              exactly. Recompute it any time from the name alone.
+  #
+  # Not a per-invocation random draw. That would rewrite the generator config on
+  # every run and re-execute the whole stress test each time.
+  #seed: auto                                             # integer | auto
   #julia_threads: 4                                       # integer
 
 workflows:

@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(workflow.basedir)))
 from blueearth_cst.experiment.allocate import resolve_default_experiment_name
 from blueearth_cst.shared.indicator_tables import indicator_tables, refuse_retired_experiment_keys
 from blueearth_cst.shared.provenance import short_digest, snapshot_bundle_digest
-from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_rule, file_digest_or_absent, get_config, index_width, member_index_regex, patch_psutil_windows_benchmark, project_slug, region_rule, rule_banner, spatial_units_rule, stress_test_grid, target_banner, validate_experiment_name, warn_if_project_dir_in_repo
+from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_rule, file_digest_or_absent, get_config, index_width, member_index_regex, patch_psutil_windows_benchmark, project_slug, region_rule, rule_banner, spatial_units_rule, resolve_seed, stress_test_grid, target_banner, validate_experiment_name, warn_if_project_dir_in_repo
 from blueearth_cst.spatial.config import parse_spatial_config
 
 # Windows: make Snakemake's benchmark memory/IO/CPU metrics work (else all NA).
@@ -84,6 +84,17 @@ else:
 # validation, not a project-state check) — a malformed name makes the whole DAG
 # ill-defined, so failing under --dry-run is intended.
 experiment = validate_experiment_name(experiment, project_dir)
+
+# The randomization seed every stochastic step uses, resolved ONCE here so one
+# value is fixed for the whole DAG. `shared.seed` is optional: absent it takes
+# `defaults.seed` from config/advanced_settings.yml, and `auto` derives it from
+# the experiment name -- which is why this must sit AFTER the name is resolved
+# and validated above. Deriving from the name rather than the clock is what
+# keeps re-runs idempotent: a seed that changed per invocation would rewrite
+# rule 3.10's output every time and re-run all of WF3, the same trap
+# `resolve_default_experiment_name` documents for dated experiment names.
+SEED = resolve_seed(get_config(shared_cfg, "seed"), experiment)
+
 RLZ_NUM = get_config(my_cfg, "realizations_num", 1)
 
 # Stress test step counts live under stress_test.<temp|precip>.step_num.
@@ -776,6 +787,7 @@ rule prepare_weathergen_config:
         output_path = f"{wg_dir}/",
         middle_year = horizontime_climate,
         sim_years = wflow_run_length,
+        seed = SEED,
         nc_file_prefix = "rlz"
     log:
         f"{LOG_PARTS_DIR}/3.10_prepare_weathergen_config.log",

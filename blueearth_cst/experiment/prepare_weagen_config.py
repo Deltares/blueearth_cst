@@ -56,6 +56,7 @@ def build_weagen_config(
     default_config_path,
     middle_year,
     sim_years,
+    seed,
 ):
     """Assemble the ONE weathergenr config the experiment uses.
 
@@ -93,6 +94,11 @@ def build_weagen_config(
             "start_year": 2010,
             "n_years": compute_nr_years(middle_year, sim_years),
             "n_realizations": experiment_cfg["realizations_num"],
+            # Resolved by the Snakefile from `shared.seed` (integer or `auto`)
+            # against `defaults.seed`. Injected rather than templated so there
+            # is ONE default: a `seed:` left in the weagen template would be a
+            # second one, and the two would drift the first time either moved.
+            "seed": seed,
         }
     )
     # Belongs to write_netcdf, not to the generator: it names the realization
@@ -137,6 +143,7 @@ if __name__ == "__main__":
                 default_config_path=sm.params.default_config,
                 middle_year=sm.params.middle_year,
                 sim_years=sm.params.sim_years,
+                seed=sm.params.seed,
             )
             write_weagen_config(yml_dict, weagen_config)
     else:

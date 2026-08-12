@@ -67,11 +67,18 @@ generate_weather:
                              # monthly coefficient adjusting wet spell length
 
   # Execution.
-  seed: 123                  # randomization seed (integer). Also handed to
+                             # `seed` is INJECTED, not set here — see the
+                             # injected list at the end of this section. Its
+                             # default lives in `config/advanced_settings.yml`
+                             # under `defaults.seed`, and a project overrides it
+                             # with `shared.seed` (an integer, or `auto` to
+                             # derive it from the experiment name). One key, so
+                             # a second stochastic step anywhere in the toolbox
+                             # cannot end up with a seed of its own that drifts
+                             # from this one. It is also handed to
                              # apply_climate_perturbations below, deliberately:
                              # one seed makes generation AND perturbation
-                             # reproducible together (C34/F15). There is no
-                             # second seed key, so the two cannot diverge.
+                             # reproducible together (C34/F15).
   parallel: false
   n_cores: null              # null = weathergenr chooses; only read when parallel: true
   verbose: true              # full generator console output. run_weather_generator
@@ -85,7 +92,7 @@ generate_weather:
   save_plots: true           # emit the generator's diagnostic plots (C34)
 
   # Injected per run by rule 3.10 (prepare_weagen_config.py):
-  #   n_years, start_year, n_realizations, out_dir
+  #   n_years, start_year, n_realizations, out_dir, seed
 
 # weathergenr::apply_climate_perturbations — the stress-test perturbation
 # (rule 3.12). Values below were hardcoded in impose_climate_change.R until
