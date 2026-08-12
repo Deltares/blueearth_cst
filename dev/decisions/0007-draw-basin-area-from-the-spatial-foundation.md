@@ -50,14 +50,27 @@ exists, the same property rule 1.05's source-climate figures have.
   reach `staticgeoms/` from rule 1.08, a model rule; the foundation carries
   none. This basin has none so nothing changes here, but on a basin with a
   major reservoir `basin_area` would silently omit it. Tracked as
-  `dev/tasks/t2608091730-*`: produce those layers data-side and have 1.08
-  consume them. The shortcut — 1.08 also writing into `data/spatial/` — is
-  rejected: a model rule writing there makes the tree model-dependent and
-  undoes this decision.
-- The R9 path map (`tests/test_r09_path_map.py`) still maps the figure to its
-  old `models/hydrology/wflow/plots/` home. That is correct: it is a one-way
-  migration map describing the move R9 performed, and this is a later,
-  separate move.
+  `dev/tasks/t2608091730-*`.
+
+  **Corrected 2026-08-12.** This bullet said the fix was to "produce those
+  layers data-side and have 1.08 consume them". The second half is superseded:
+  the owner ruled 2026-08-11 that the figure draws **physical, unfiltered**
+  waterbodies, so rule 1.08 keeps naming the catalog sources exactly as it does
+  today and is **not modified at all** — which is also what keeps this task off
+  the baseline. Rule **1.03 `delineate_spatial_units`** owns the new producer
+  (ruled 2026-08-12): it already clips `rivers` from the catalog to `basins` and
+  writes `data/spatial/geoms/`, and being shared by all three workflows is the
+  point rather than the cost — a WF1-only producer would make the foundation's
+  layer set depend on which workflow last wrote it, while the figure reads that
+  directory by name. The shortcut — 1.08 also writing into `data/spatial/` — is
+  still rejected, for the reason this ADR gives: a model rule writing there
+  makes the tree model-dependent and undoes this decision.
+- The figure's old `models/hydrology/wflow/plots/` home was covered by the R9
+  one-way migration map, which correctly described R9's move rather than this
+  later, separate one. That map (`tests/test_r09_path_map.py`) was **retired
+  2026-08-11** (`dev/reviews/2026-08-11_test-suite-bloat-assessment.md` §6a);
+  what survives is `tests/test_project_tree_inventory.py`, which asserts the
+  inventory does not silently absorb an old-layout path.
 
 ### Alternatives considered
 
