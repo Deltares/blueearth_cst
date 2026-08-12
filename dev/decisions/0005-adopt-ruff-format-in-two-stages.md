@@ -1,6 +1,6 @@
 ADR 0005 — Adopt `ruff format`, in two stages split on the Snakemake code rerun trigger
 
-Status: accepted (stage 1 landed 2026-08-09; stage 2 open)
+Status: accepted (stage 1 landed 2026-08-09; stage 2 landed 2026-08-11)
 Date: 2026-08-07
 Deciders: Ümit Taner
 Consulted: —
@@ -22,6 +22,21 @@ Revisions:
     ADR's residual risk, and a board item is the thing that actually gets read.
     Stage 1 landed 122 files rather than the 119 measured on `5bc3d6a`; the set
     grew by three in two days, as the Context predicted it would.
+  - 2026-08-11: **stage 2 landed** (`3f7c660`), 53 modules rather than the 51
+    last measured — the set grew again, on the same drift this ADR predicted.
+    Released early on an owner ruling rather than waiting for the R12 re-run
+    the board item was hung on: the Decision's trigger was an optimisation, and
+    holding the debt for a date nobody had set was costing more than the
+    invalidation would. The `I001` half (`t2608091116`, commit `73c57df`) landed
+    in the same sitting for the reason the split predicts — both rewrite the
+    same `script:` layer, so one re-run absorbs both, where two sittings would
+    pay the full invalidation twice. `[tool.ruff.format] exclude` is now `*.md`
+    alone, the one exclusion this ADR calls permanent, and both temporary
+    carve-outs are gone from `pyproject.toml`.
+    Still outstanding, and the reason `t2608090907a` stays open: the
+    `check_baseline.py check` this ADR requires **after** the next full re-run,
+    which must compare equal. Formatting changes no artifact; proving that is
+    what the check is for.
 
 ### Context
 
