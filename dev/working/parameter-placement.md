@@ -1,4 +1,18 @@
-# Where a parameter lives
+# Where a parameter lives — DRAFT / PROPOSAL
+
+> **Not agreed. Do not cite this as a rule.**
+>
+> A working document. The placement rule below is a **proposal**; the four
+> misfits are **recommendations awaiting an owner ruling**. None is applied.
+>
+> While it lives here nothing in the repo points at it as authority — AGENTS.md
+> deliberately carries no reference to it. When the rule is agreed and the
+> misfit rulings are made, it moves to
+> `dev/reference/parameter-placement.md`, and AGENTS.md's Conventions gains a
+> pointer *then*, not before.
+>
+> The INVENTORY is a separate matter: the five homes, the key counts and the
+> misfits themselves are measured, and stand whatever is decided about the rule.
 
 Assessment and placement rule for every configurable value in the toolbox.
 Written 2026-08-12, after three parameters (`shared.seed`,
