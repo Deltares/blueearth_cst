@@ -39,9 +39,15 @@ st_baseline <- pad(0L, st_index_width)
 
 yaml <- yaml::read_yaml(weagen_config_path)
 
-# Parse global parameters from the yaml configuration file
-historical_realizations_num <- yaml$generateWeatherSeries$realizations_num
-# `output.path` is the generator subtree ROOT --
+# Parse global parameters from the yaml configuration file. Section and key
+# names are weathergenr 1.2.0's own function and argument names (renamed
+# 2026-08-12 from the pre-1.2.0 `generateWeatherSeries` spelling), so the
+# assignments below are a pass-through rather than a translation table.
+gw <- yaml$generate_weather
+wnc <- yaml$write_netcdf
+rwg <- yaml$run_weather_generator
+historical_realizations_num <- gw$n_realizations
+# `out_dir` is the generator subtree ROOT --
 # experiments/<id>/climate/weathergenr/ -- not a write directory (R07 B5 set
 # the split; R9 P2 moved the subtree under climate/ and gave it the engine's
 # own name).
@@ -49,7 +55,7 @@ historical_realizations_num <- yaml$generateWeatherSeries$realizations_num
 # date CSVs into a single out_dir; the R07 layout separates products from
 # figures, so the split is done here -- on our side of the seam -- rather than
 # by asking upstream for two output directories.
-weathergen_root <- yaml$generateWeatherSeries$output.path
+weathergen_root <- gw$out_dir
 weathergen_output_path <- paste0(weathergen_root, "output/")
 weathergen_plots_path <- paste0(weathergen_root, "plots/")
 
@@ -90,48 +96,60 @@ obs_grid_basin <- ncdata$grid[keep, , drop = FALSE]
 # Step 2) Generate new weather realizations
 message("[generate_weather] Generating ", historical_realizations_num,
         " weather realization(s)")
-stochastic_weather <- weathergenr::generate_weather(
+# run_weather_generator, not generate_weather: the wrapper runs the SAME
+# generation and then the evaluation pass (prepare_evaluation_data +
+# evaluate_weather_generator), whose diagnostic plots are the point of using it.
+# It takes the generation arguments as ONE `config` list, and because the config
+# section is named for generate_weather's arguments, that list IS the section --
+# no translation table, which is what the 1.2.0 rename bought.
+#
+# `config$out_dir` is not read by the wrapper (out_dir is its own argument), but
+# it is not dead either: OUR code above derives the output/ and plots/ split
+# from it.
+#
+# C34. weathergenr 1.2.0 split evaluation into its own exports, so the config's
+# old `evaluate.model` reached NOTHING -- plot emission is `save_plots`, which
+# defaulted TRUE. Setting evaluate.model: FALSE therefore did not stop the
+# plots, which is what the key claimed to do. It now governs BOTH the generation
+# figures and the evaluation ones, since the wrapper forwards it to each.
+weathergen_run <- weathergenr::run_weather_generator(
     # The BASIN subset: this call decides WHICH DAYS get resampled, and that
     # decision should reflect the basin's climate, not the buffer's. The full
     # grid is re-attached below, where the realizations are built.
-    obs_data         = obs_data_basin,
-    obs_grid         = obs_grid_basin,
-    obs_dates        = ncdata$date,
-    vars             = yaml$general$variables,
-    n_years          = yaml$generateWeatherSeries$sim.year.num,
-    start_year       = yaml$generateWeatherSeries$sim.year.start,
-    year_start_month = yaml$generateWeatherSeries$month.start,
-    n_realizations   = historical_realizations_num,
-    warm_var         = yaml$generateWeatherSeries$warm.variable,
-    warm_signif      = yaml$generateWeatherSeries$warm.signif.level,
-    warm_pool_size   = yaml$generateWeatherSeries$warm.sample.num,
-    annual_knn_n     = yaml$generateWeatherSeries$knn.sample.num,
-    wet_q            = yaml$generateWeatherSeries$mc.wet.quantile,
-    extreme_q        = yaml$generateWeatherSeries$mc.extreme.quantile,
-    dry_spell_factor = yaml$generateWeatherSeries$dry.spell.change,
-    wet_spell_factor = yaml$generateWeatherSeries$wet.spell.change,
-    out_dir          = weathergen_output_path,
-    seed             = yaml$generateWeatherSeries$seed,
-    parallel         = yaml$generateWeatherSeries$compute.parallel,
-    # C34. weathergenr 1.2.0 split evaluation into its own exports, so the
-    # config's old `evaluate.model` reached NOTHING -- plot emission is
-    # `save_plots`, which defaulted TRUE. Setting evaluate.model: FALSE
-    # therefore did not stop the plots, which is what the key claimed to do.
-    save_plots       = yaml$generateWeatherSeries$save.plots
+    obs_data       = obs_data_basin,
+    obs_grid       = obs_grid_basin,
+    obs_dates      = ncdata$date,
+    out_dir        = weathergen_output_path,
+    config         = gw,
+    eval_max_grids = rwg$eval_max_grids,
+    log_messages   = rwg$log_messages
 )
+# The wrapper returns list(gen_output=, evaluation=, log_path=); everything
+# below consumes the generation half, which is what generate_weather returned
+# directly before the swap.
+stochastic_weather <- weathergen_run$gen_output
 
-# Step 2b) Move the generator's diagnostic figures into plots/. The two date
-# CSVs (sim_dates.csv, resampled_dates.csv) are generator PRODUCTS and stay in
-# output/, where generate_weather already wrote them. Each ggsave upstream sits
-# in its own tryCatch, so a missing figure is a legitimate state, not an error.
-weathergen_figures <- c("obs_power_spectra.png", "warm_annual_precip.png",
-                        "warm_annual_stats.png", "warm_annual_wavelet.png")
+# Step 2b) Move the diagnostic figures into plots/. weathergenr writes figures
+# and products into ONE out_dir; the R07 layout separates them, so the split is
+# done here rather than by asking upstream for two output directories.
+#
+# Globbed by EXTENSION, not by a name list. The four generation figures were
+# named literally until the run_weather_generator swap (2026-08-12); the
+# evaluation pass that swap added builds its filenames dynamically, so there is
+# no list to extend -- and a name list silently leaves behind anything upstream
+# adds or renames. Everything that is not an image stays put: the two date CSVs
+# (sim_dates.csv, resampled_dates.csv) and the realization .nc files are
+# generator PRODUCTS and belong in output/.
 dir.create(weathergen_plots_path, recursive = TRUE, showWarnings = FALSE)
+weathergen_figures <- list.files(
+  weathergen_output_path, pattern = "[.](png|pdf)$", ignore.case = TRUE,
+  full.names = FALSE
+)
+message("[generate_weather] Moving ", length(weathergen_figures),
+        " figure(s) to ", weathergen_plots_path)
 for (fig in weathergen_figures) {
-  src <- file.path(weathergen_output_path, fig)
-  if (file.exists(src)) {
-    file.rename(src, file.path(weathergen_plots_path, fig))
-  }
+  file.rename(file.path(weathergen_output_path, fig),
+              file.path(weathergen_plots_path, fig))
 }
 
 # STEP 3) Save each stochastic realization back to a netcdf file
@@ -163,11 +181,13 @@ for (n in 1:historical_realizations_num) {
         grid          = ncdata$grid,
         out_dir       = rlz_out_dir,
         origin_date   = stochastic_weather$dates[1],
-        calendar      = "noleap",
+        calendar      = wnc$calendar,
         template_path = climate_nc_path,
-        compression   = 4,
-        spatial_ref   = "spatial_ref",
-        file_prefix   = yaml$generateWeatherSeries$nc.file.prefix,
+        compression   = wnc$compression,
+        spatial_ref   = wnc$spatial_ref,
+        signif_digits = wnc$signif_digits,
+        verbose       = wnc$verbose,
+        file_prefix   = wnc$file_prefix,
         file_suffix   = paste0(pad(n, rlz_index_width), "_st_", st_baseline)
   )
 

@@ -69,7 +69,7 @@ def build_weagen_config(
     RLZ_NUM x ST_NUM files, each with its own log and benchmark — and the only
     thing that varied between them was the OUTPUT FILENAME, split into a prefix
     and a suffix because ``weathergenr::write_netcdf`` takes them separately.
-    Snakemake already knows that path: it is rule 3.07's own declared output, so
+    Snakemake already knows that path: it is rule 3.12's own declared output, so
     it is now passed as an argument and the rule is gone.
 
     The per-member file also copied in the whole ``stress_test.temp`` and
@@ -83,17 +83,24 @@ def build_weagen_config(
     experiment_cfg = yml_snake["workflows"]["climate_experiment"]
 
     yml_dict = read_yml(default_config_path)
-    yml_add = {
-        "output.path": output_path,
-        "sim.year.start": 2010,
-        "sim.year.num": compute_nr_years(middle_year, sim_years),
-        "nc.file.prefix": nc_file_prefix,
-        "realizations_num": experiment_cfg["realizations_num"],
-    }
-    for k, v in yml_add.items():
-        yml_dict["generateWeatherSeries"][k] = v
+    # Section and key names are weathergenr 1.2.0's own function and argument
+    # names (renamed 2026-08-12 from `generateWeatherSeries`, a function 1.2.0
+    # does not export). The four values below are the per-run ones the template
+    # cannot carry; every other argument comes from the template verbatim.
+    yml_dict["generate_weather"].update(
+        {
+            "out_dir": output_path,
+            "start_year": 2010,
+            "n_years": compute_nr_years(middle_year, sim_years),
+            "n_realizations": experiment_cfg["realizations_num"],
+        }
+    )
+    # Belongs to write_netcdf, not to the generator: it names the realization
+    # files rule 3.11 emits. Kept under `generateWeatherSeries` until the 1.2.0
+    # rename, where it had no matching argument.
+    yml_dict["write_netcdf"]["file_prefix"] = nc_file_prefix
 
-    # Read by impose_climate_change.R (rule 3.07). Only the flags, not the
+    # Read by impose_climate_change.R (rule 3.12). Only the flags, not the
     # perturbation magnitudes — those live in st_<m>.csv and are read from there.
     stress_test_cfg = experiment_cfg["stress_test"]
     yml_dict["temp"] = {"transient_change": _transient_flag(stress_test_cfg, "temp")}

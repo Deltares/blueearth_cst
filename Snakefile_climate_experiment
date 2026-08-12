@@ -761,8 +761,8 @@ rule prepare_weathergen_config:
         # generating realizations from superseded settings. It propagated
         # silently precisely BECAUSE the generated config is properly declared,
         # so every downstream timestamp stayed consistent. The template carries
-        # general.variables, warm.sample.num and warm.variable, all of which
-        # change what the generator produces.
+        # generate_weather.{vars,warm_pool_size,warm_var}, all of which change
+        # what the generator produces.
         default_config = "config/defaults/weathergen_config.yml",
     output:
         weagen_config = f"{wg_dir}/config/weathergen_config.yml",

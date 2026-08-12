@@ -1,22 +1,142 @@
+# Weather generator settings — weathergenr 1.2.0.
+#
+# Each section is a weathergenr FUNCTION name and each key is one of that
+# function's ARGUMENT names, so any key here can be checked against `?<section>`
+# in R. Renamed 2026-08-12 from the pre-1.2.0 `generateWeatherSeries` spelling:
+# that function no longer exists upstream and its dot.case keys
+# (`warm.signif.level`, `knn.sample.num`, …) matched no 1.2.0 argument, so every
+# one of them was hand-translated in generate_weather.R.
+#
+# Arguments absent from a section are supplied at RUNTIME, never from config:
+#   - observed data, grid and dates, read from the climate store
+#   - the perturbation factors, read from st_<m>.csv
+#   - values rule 3.10 injects per run (marked "injected" below)
+#
+# Every key here is passed through. Do not add one without wiring it in
+# generate_weather.R or impose_climate_change.R — an unwired key reads as a
+# setting and reaches nothing, which is the defect C34 found in the retired
+# `evaluate.model`.
 
-###########################################################################################
-################################## Weather Generator Advanced settings ####################
+# weathergenr::run_weather_generator — what rule 3.11 actually CALLS. It wraps
+# generate_weather and adds the evaluation pass (prepare_evaluation_data +
+# evaluate_weather_generator), whose diagnostic plots land in plots/ beside the
+# generator's own. The `generate_weather:` section below is handed to it
+# verbatim as its `config` argument, which is why that section's keys are
+# generate_weather's argument names.
+run_weather_generator:
+  eval_max_grids: 25         # cap on grid cells the evaluation pass plots
+  log_messages: false        # Deliberately OFF, and not the way to get a log.
+                             # It writes weathergenr's own log_<timestamp>.txt
+                             # into out_dir — a NON-DETERMINISTIC filename inside
+                             # project_dir, which `tree-check` would report as
+                             # undeclared on every run. The console output is
+                             # already captured by rule 3.11's run_logged.py tee
+                             # (see generate_weather.verbose), so this would
+                             # duplicate it into an untracked file.
 
+# weathergenr::generate_weather — the generation arguments, passed through
+# run_weather_generator's `config` argument (rule 3.11).
+generate_weather:
+  vars: [precip, temp, temp_min, temp_max]  # variables to generate
 
-general:
-  variables: [precip, temp, temp_min, temp_max]
+  # Wavelet / WARM low-frequency modelling.
+  warm_var: precip           # variable driving the wavelet analysis (do not change)
+  warm_signif: 0.80          # signal significance level (suggested 0.80–0.95)
+  warm_pool_size: 25000      # initial annual precip series generated (suggested 10,000–30,000)
+  warm_filter_bounds: []     # per-criterion accept bounds; [] = weathergenr's
+                             # own filter_warm_bounds_defaults(). MUST be `[]`,
+                             # not `{}` — R's YAML reader turns `{}` into a
+                             # NAMED empty list, which is not the `list()` the
+                             # argument defaults to.
+                             #
+                             # `relax_priority` is deliberately ABSENT. It is a
+                             # generate_weather argument, but rule 3.11 calls
+                             # run_weather_generator, and that wrapper forwards
+                             # every generate_weather argument EXCEPT this one —
+                             # so a key here would read as a setting and reach
+                             # nothing. Restore it if upstream forwards it.
 
-generateWeatherSeries:
-  warm.signif.level: 0.80      # Low-frequency signal statistical significance level (suggested: 0.80 - 0.95)
-  warm.sample.num: 25000       # Number of initial annual precip series to be generated (suggested: 10,000 - 30,000)
-  knn.sample.num: 100          # Number of repeated samples for each simulated year (suggested: 100-120)
-  month.start: 1               # First month of the hydrological year (1 to 12)
-  warm.variable: precip        # Variable to be used for wavelet analysis & modeling (do not change)
-  mc.wet.quantile: 0.2         # quantile threshold to define wet weather
-  mc.extreme.quantile: 0.8     # quantile threshold to define very wet weather
-  seed: 123                    # Randomization seed (needs to be an integer value)
-  save.plots: TRUE             # Should the generator's diagnostic plots be written? (C34)
-  pet.method: hargreaves       # PET method for the PERTURBATION step (C34/F16; hargreaves is weathergenr's own default)
-  compute.parallel: FALSE      # Should the code run in parallel mode? 
-  dry.spell.change: [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]  # monthly coefficient to adjust dry spell length
-  wet.spell.change: [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]  # monthly coefficient to adjust wet spell length
+  # Daily resampling and Markov chain.
+  annual_knn_n: 100          # repeated samples per simulated year (suggested 100–120)
+  wet_q: 0.2                 # quantile threshold defining wet weather
+  extreme_q: 0.8             # quantile threshold defining very wet weather
+  year_start_month: 1        # first month of the hydrological year (1–12)
+  dry_spell_factor: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+                             # monthly coefficient adjusting dry spell length
+  wet_spell_factor: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+                             # monthly coefficient adjusting wet spell length
+
+  # Execution.
+  seed: 123                  # randomization seed (integer). Also handed to
+                             # apply_climate_perturbations below, deliberately:
+                             # one seed makes generation AND perturbation
+                             # reproducible together (C34/F15). There is no
+                             # second seed key, so the two cannot diverge.
+  parallel: false
+  n_cores: null              # null = weathergenr chooses; only read when parallel: true
+  verbose: true              # full generator console output. run_weather_generator
+                             # has no verbose argument of its own — it forwards
+                             # THIS key to generate_weather and to
+                             # prepare_evaluation_data, so it is the single lever
+                             # for the whole call. Captured, not just printed:
+                             # rule 3.11 runs the R through run_logged.py, which
+                             # tees combined stdout+stderr to the console AND to
+                             # logs/parts/3.11_generate_weather_realizations.log.
+  save_plots: true           # emit the generator's diagnostic plots (C34)
+
+  # Injected per run by rule 3.10 (prepare_weagen_config.py):
+  #   n_years, start_year, n_realizations, out_dir
+
+# weathergenr::apply_climate_perturbations — the stress-test perturbation
+# (rule 3.12). Values below were hardcoded in impose_climate_change.R until
+# 2026-08-12; surfacing them makes each one a stated choice rather than an
+# accident, which is the same reason C34 surfaced pet_method.
+apply_climate_perturbations:
+  compute_pet: true
+  pet_method: hargreaves     # PET method for the PERTURBATION step. PET is
+                             # computed again downstream by rule 3.14 with a
+                             # different method; which result is used is the
+                             # open half of F16 and is NOT settled here.
+  qm_fit_method: mme         # quantile-mapping fit method
+  scale_var_with_mean: true
+  enforce_target_mean: true
+  precip_intensity_threshold: 0
+  precip_occurrence_transient: true
+
+  # Extreme-tail treatment. Off by default; the thresholds are inert while
+  # exaggerate_extremes is false.
+  exaggerate_extremes: false
+  extreme_prob_threshold: 0.95
+  extreme_k: 1.2
+
+  # Precipitation clamps. null = unclamped.
+  precip_cap_mm_day: null
+  precip_floor_mm_day: null
+  precip_cap_quantile: null
+
+  verbose: false
+  diagnostic: false          # LOAD-BEARING — do not set true. false makes the
+                             # return a list of per-cell data.frames, which is
+                             # what write_netcdf below consumes directly; true
+                             # returns a diagnostic structure instead and rule
+                             # 3.12 fails on the next call. weathergenr's own
+                             # default is TRUE, so this must stay set.
+
+  # Supplied at runtime, never here: data / grid / date (the realization
+  # netCDF), precip_mean_factor / precip_var_factor / temp_delta (st_<m>.csv),
+  # temp_transient and precip_transient (the two `transient_change` flags rule
+  # 3.04 injects), and seed (shared from generate_weather above).
+
+# weathergenr::write_netcdf — realization and perturbed-series output. Read by
+# BOTH rule 3.11 and rule 3.12, which is why it is one shared section.
+write_netcdf:
+  calendar: noleap
+  compression: 4
+  spatial_ref: spatial_ref
+  signif_digits: null        # null = full precision
+  verbose: true
+
+  # Supplied at runtime: data / grid / out_dir / origin_date / template_path,
+  # and file_suffix (the zero-padded member index). file_prefix is injected by
+  # rule 3.10 for the generation step and passed as a CLI argument for the
+  # perturbation step.

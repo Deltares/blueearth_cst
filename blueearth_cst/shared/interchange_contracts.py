@@ -248,36 +248,110 @@ def validate_wg2(df: Any) -> list[str]:
 
 
 #: WG-3 config surface — the key set the R side reads (design §5.2, read-only
-#: from weathergen/{global.R,generate_weather.R}). Upstream-spelled dot.case
-#: keys preserved verbatim (naming.md §2 — YAML under an upstream schema).
-_WG3_GWS_KEYS = (
-    "knn.sample.num",
-    "month.start",
-    "warm.variable",
+#: from weathergen/{global.R,generate_weather.R,impose_climate_change.R}).
+#:
+#: Sections are weathergenr FUNCTION names and keys are their ARGUMENT names.
+#: Renamed 2026-08-12 from the single ``generateWeatherSeries`` section: that
+#: function is not exported by weathergenr 1.2.0 and its dot.case keys matched
+#: no 1.2.0 argument, so the R hand-translated every one. The "upstream-spelled
+#: dot.case preserved verbatim" rationale this list used to carry (naming.md §2)
+#: is what the rename RESTORES — upstream now spells them snake_case.
+#:
+#: Every key is pinned for the same reason the transient flags are: the R reads
+#: it, and an omission reaches weathergenr as NULL, silently restoring whatever
+#: upstream defaults to. That is the C34 defect, and a contract is how it stays
+#: fixed.
+_WG3_GENERATE_WEATHER_KEYS = (
+    "vars",
+    "warm_var",
+    "warm_signif",
+    "warm_pool_size",
+    "warm_filter_bounds",
+    # `relax_priority` is deliberately NOT pinned. It is a generate_weather
+    # argument, but rule 3.11 calls run_weather_generator, and that wrapper
+    # forwards every generate_weather argument except this one -- so pinning it
+    # would require a key that reaches nothing. Restore if upstream forwards it.
+    "annual_knn_n",
+    "wet_q",
+    "extreme_q",
+    "year_start_month",
+    "dry_spell_factor",
+    "wet_spell_factor",
     "seed",
-    "dry.spell.change",
-    "wet.spell.change",
-    "output.path",
-    "sim.year.start",
-    "sim.year.num",
-    "nc.file.prefix",
-    "realizations_num",
-    # C34 (R11 P2): surfaced weathergenr arguments. Pinned for the same reason
-    # the transient flags are -- the R reads them, and an omission would reach
-    # the generator as NULL and silently take whatever upstream defaults to.
-    "save.plots",
-    "pet.method",
+    "parallel",
+    "n_cores",
+    "verbose",
+    "save_plots",
+    # Injected per run by rule 3.10 (prepare_weagen_config.build_weagen_config).
+    "n_years",
+    "start_year",
+    "n_realizations",
+    "out_dir",
 )
+
+#: WG-3 ``apply_climate_perturbations`` surface (rule 3.12). Hardcoded in
+#: impose_climate_change.R until the 1.2.0 rename surfaced them.
+_WG3_PERTURBATION_KEYS = (
+    "compute_pet",
+    "pet_method",
+    "qm_fit_method",
+    "scale_var_with_mean",
+    "enforce_target_mean",
+    "precip_intensity_threshold",
+    "precip_occurrence_transient",
+    "exaggerate_extremes",
+    "extreme_prob_threshold",
+    "extreme_k",
+    "precip_cap_mm_day",
+    "precip_floor_mm_day",
+    "precip_cap_quantile",
+    "verbose",
+    # LOAD-BEARING: false is what makes the return shape write_netcdf-compatible.
+    "diagnostic",
+)
+
+#: WG-3 ``write_netcdf`` surface — read by BOTH rule 3.11 and rule 3.12.
+_WG3_WRITE_NETCDF_KEYS = (
+    "calendar",
+    "compression",
+    "spatial_ref",
+    "signif_digits",
+    "verbose",
+    # Injected per run; the generation step's realization-file prefix.
+    "file_prefix",
+)
+
+#: WG-3 ``run_weather_generator`` surface — the wrapper rule 3.11 calls. It runs
+#: generate_weather and then the evaluation pass; ``_WG3_GENERATE_WEATHER_KEYS``
+#: above is handed to it verbatim as its ``config`` argument.
+_WG3_RUN_KEYS = (
+    "eval_max_grids",
+    "log_messages",
+)
+
+#: The four pinned sections, by weathergenr function name.
+_WG3_SECTIONS = {
+    "run_weather_generator": _WG3_RUN_KEYS,
+    "generate_weather": _WG3_GENERATE_WEATHER_KEYS,
+    "apply_climate_perturbations": _WG3_PERTURBATION_KEYS,
+    "write_netcdf": _WG3_WRITE_NETCDF_KEYS,
+}
 
 
 def validate_wg3(cfg: Any) -> list[str]:
     """WG-3 — weathergenr config surface (``weathergen_config.yml``).
 
-    Pinned surface (design §5.2, OQ-6): the *key set* the R side reads —
-    top-level ``general.variables`` (a list), the ``generateWeatherSeries``
-    key set, and the two ``transient_change`` flags — NOT weathergenr's config
-    *semantics* or value ranges. A replacement generator may define its own
-    config surface entirely; this pins the *current* generator's contract.
+    Pinned surface (design §5.2, OQ-6): the *key set* the R side reads — one
+    section per weathergenr function (``generate_weather``,
+    ``apply_climate_perturbations``, ``write_netcdf``), plus the two
+    ``transient_change`` flags — NOT weathergenr's config *semantics* or value
+    ranges. A replacement generator may define its own config surface entirely;
+    this pins the *current* generator's contract.
+
+    **Renamed 2026-08-12 for weathergenr 1.2.0.** The single
+    ``generateWeatherSeries`` section named a function 1.2.0 does not export,
+    and ``general.variables`` is now ``generate_weather.vars`` — the argument's
+    own name.
 
     **ONE file since C29 (2026-08-05).** This used to cover a second, per-member
     ``weathergen_config_rlz_<n>_cst_<m>.yml`` as well. That file carried nothing
@@ -289,21 +363,23 @@ def validate_wg3(cfg: Any) -> list[str]:
     diffs: list[str] = []
     if not isinstance(cfg, Mapping):
         return [f"{label}: config is not a mapping ({type(cfg).__name__})"]
-    general = cfg.get("general")
-    if not isinstance(general, Mapping) or "variables" not in general:
-        diffs.append(f"{label}: 'general.variables' section absent")
-    elif not isinstance(general["variables"], list):
+    for section, keys in _WG3_SECTIONS.items():
+        block = cfg.get(section)
+        if not isinstance(block, Mapping):
+            diffs.append(f"{label}: '{section}' section absent")
+            continue
+        for key in keys:
+            if key not in block:
+                diffs.append(f"{label}: '{section}.{key}' absent")
+    # `vars` carries the variable list the whole chain is generated over, so its
+    # TYPE is pinned as well as its presence: a scalar here would reach
+    # generate_weather as a length-1 vector and silently generate one variable.
+    gw = cfg.get("generate_weather")
+    if isinstance(gw, Mapping) and "vars" in gw and not isinstance(gw["vars"], list):
         diffs.append(
-            f"{label}: 'general.variables' must be a list, got "
-            f"{type(general['variables']).__name__}"
+            f"{label}: 'generate_weather.vars' must be a list, got "
+            f"{type(gw['vars']).__name__}"
         )
-    gws = cfg.get("generateWeatherSeries")
-    if not isinstance(gws, Mapping):
-        diffs.append(f"{label}: 'generateWeatherSeries' section absent")
-    else:
-        for key in _WG3_GWS_KEYS:
-            if key not in gws:
-                diffs.append(f"{label}: 'generateWeatherSeries.{key}' absent")
     # The perturbation-step flags (C29). Read by impose_climate_change.R; absent,
     # the R hands NULL to apply_climate_perturbations and the ramp-vs-step
     # behaviour is whatever weathergenr defaults to.
