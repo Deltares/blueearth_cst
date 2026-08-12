@@ -56,6 +56,178 @@ os.environ.setdefault("GCSFS_EXPERIMENTAL_ZB_HNS_SUPPORT", "false")
 from blueearth_cst.projections import series_identity
 from blueearth_cst.shared.snake_utils import log_row, tee_to_log
 
+# ---------------------------------------------------------------------------
+# The decisions, lifted out of the `script:` body so they can be tested.
+#
+# Everything below is PURE -- no network, no filesystem, no hydromt. The
+# remaining inline body is the remote read itself, which is exercised only by
+# `--run-integration`. Extracted 2026-08-12 by the same argument `[R7-22]`
+# made for `downscale_climate_forcing.py`: a decision that lives only inside
+# `if "snakemake" in globals():` is invisible to every unit test, so it is
+# checked by running the pipeline or not at all.
+# ---------------------------------------------------------------------------
+
+
+def hns_switch_row(value):
+    """``(message, level)`` reporting the gcsfs extended-filesystem switch.
+
+    WARNING when the effective value is not the one this module needs, so a slow
+    run explains itself: an inherited ``"true"`` turns a 58 s job into a
+    14-minute one, and before this there was nothing in the log to say why.
+    Reported rather than enforced -- see the `setdefault` note at the top.
+    """
+    return (
+        f"gcsfs extended-filesystem switch = {value!r}"
+        + ("" if value == "false" else "  <-- expect ~14x slower remote opens"),
+        "INFO" if value == "false" else "WARNING",
+    )
+
+
+def resolve_entry_name(catalog_entry, member):
+    """The catalog's own name for one member's source.
+
+    The generated catalog expands placeholders at generation time, so the member
+    is part of the entry NAME (``get_stats_climate_proj.py:236``). Use the
+    catalog's own grammar rather than string surgery.
+    """
+    return (
+        catalog_entry.format(member=member)
+        if "{member}" in catalog_entry
+        else f"{catalog_entry}_{member}"
+    )
+
+
+def stale_units(dataset, variable_units):
+    """Variables whose recorded ``units`` disagree with the configured ones.
+
+    S8-08(a): a slice cached BEFORE the units fix still claims the
+    pre-conversion units. Only variables PRESENT in the dataset are reported --
+    a configured variable the slice does not carry is not stale, it is absent.
+    """
+    return {
+        name: units
+        for name, units in variable_units.items()
+        if name in dataset and dataset[name].attrs.get("units") != units
+    }
+
+
+def check_time_axis(entry, index, driver_index, acquisition_window):
+    """Raise if the selected time axis is ambiguous or empty.
+
+    Two failure modes, both of which every check downstream would pass:
+
+    * **duplicates (D8)** -- the catalog URI globs ``{grid_label}/{version}`` and
+      ~6% of pinned stores match more than one. Two concatenated stores give a
+      duplicated time axis, which halves the effective record while looking
+      fine.
+    * **an empty window** -- ``.load()`` succeeds, the duplicate test is
+      trivially true (0 == 0), and the attrs block then dies on ``index[0]``
+      with a bare ``IndexError`` naming neither the source nor the window.
+      Reachable on real input -- a historical run starting after 1950, or a
+      truncated ssp store -- and **invisible to the fixture gate**, whose three
+      models all cover their windows.
+
+    Called BEFORE ``.load()``: coordinates are read at open, so this costs
+    nothing lazily and an ambiguous or empty source fails without first
+    transferring every selected chunk (~19 s on the benchmark source).
+
+    ``driver_index`` is the axis as the DRIVER returned it, before ``.sel()``
+    narrowed it -- reporting both is what tells "the store is short" apart from
+    "the window is wrong".
+    """
+    if index is not None and len(index) != len(set(index)):
+        raise RuntimeError(
+            f"{entry}: time axis has {len(index) - len(set(index))} duplicate "
+            "step(s), so the catalog glob matched more than one store. Pin the "
+            "version in the catalog rather than reading an ambiguous source."
+        )
+    if index is not None and len(index) == 0:
+        covered = (
+            f"{driver_index[0]}..{driver_index[-1]}"
+            if driver_index is not None and len(driver_index)
+            else "no steps at all"
+        )
+        raise RuntimeError(
+            f"{entry}: no time steps inside the acquisition window "
+            f"{acquisition_window[0]}..{acquisition_window[1]} (the driver "
+            f"returned {covered}). This store does not cover the window this "
+            "experiment acquires, so it cannot produce a raw slice."
+        )
+
+
+def calendar_pin(pins_for_member):
+    """Which variable's store to ask for the model's true calendar.
+
+    Prefer a CERTIFIED variable: the crawl proved ``pr``/``tas`` present, and
+    any other name is best-effort (A3), so its store may not exist. Falls back
+    to whatever the member does pin, and to ``""`` when it pins nothing.
+    """
+    return next(
+        (v for v in ("tas", "pr") if v in pins_for_member),
+        next(iter(pins_for_member), ""),
+    )
+
+
+def calendar_store_uri(template, member, calendar_var, pins_for_member):
+    """Address ONE store directly, so the calendar read lists no bucket.
+
+    Returns ``""`` when there is nothing to ask -- no pinned variable, or a
+    globbed URI the pins cannot resolve to a single location -- and the caller
+    then records :data:`series_identity.CALENDAR_UNKNOWN` rather than guessing.
+    """
+    if not calendar_var:
+        return ""
+    store_uri = template.format(member=member, variable=calendar_var)
+    if store_uri.endswith(series_identity.STORE_GLOB_SUFFIX):
+        matches = pins_for_member.get(calendar_var) or []
+        store_uri = (
+            store_uri[: -len(series_identity.STORE_GLOB_SUFFIX)] + "/" + matches[-1]
+            if matches
+            else ""
+        )
+    return store_uri
+
+
+def raw_slice_attrs(
+    components,
+    member,
+    expected_raw_digest,
+    acquisition_window,
+    first,
+    last,
+    store_calendar,
+    bbox,
+    region_fp,
+    buffer,
+):
+    """The ``cst_*`` block stamped on a raw slice -- the seam with the reduce stage.
+
+    ``series_identity.assert_raw_identity`` reads these back, which is what lets
+    the reduce stage make ZERO remote calls. Two keys are deliberately ABSENT:
+    ``cst_series_digest`` and ``cst_reducer_module_hash``. A raw slice is
+    pre-reduction and must not claim an identity that implies arithmetic was
+    applied -- and ``cst_raw_digest`` excluding the reducer hash is exactly what
+    makes a formula edit free.
+    """
+    entry_meta = (components.get("entry_identity") or {}).get(member, {})
+    return {
+        "cst_schema_version": series_identity.SCHEMA_VERSION,
+        "cst_raw_digest": expected_raw_digest,
+        "cst_catalog_entry": components.get("catalog_entry", ""),
+        "cst_acquisition_window": " / ".join(acquisition_window),
+        "cst_time_first": first,
+        "cst_time_last": last,
+        # From the STORE, not from the index -- the index no longer knows.
+        "cst_calendar": store_calendar,
+        "cst_region_bounds": ", ".join(f"{b:.9g}" for b in bbox),
+        "cst_region_fingerprint": region_fp,
+        "cst_buffer_degrees": buffer,
+        "cst_members": member,
+        "cst_source_paths": json.dumps(components.get("pins", {}), sort_keys=True),
+        "cst_crs": str((entry_meta.get("metadata", {}) or {}).get("crs", "")),
+    }
+
+
 if "snakemake" in globals():
     sm = globals()["snakemake"]
 
@@ -67,13 +239,10 @@ if "snakemake" in globals():
         # an inherited "true" turned a 58 s job into a 14-minute one with nothing in
         # the log to say why. One row, WARNING when the effective value is not the
         # one this module needs, so a slow run explains itself.
-        _hns = os.environ.get("GCSFS_EXPERIMENTAL_ZB_HNS_SUPPORT", "")
-        log_row(
-            f"gcsfs extended-filesystem switch = {_hns!r}"
-            + ("" if _hns == "false" else "  <-- expect ~14x slower remote opens"),
-            module="fetch",
-            level="INFO" if _hns == "false" else "WARNING",
+        _row, _level = hns_switch_row(
+            os.environ.get("GCSFS_EXPERIMENTAL_ZB_HNS_SUPPORT", "")
         )
+        log_row(_row, module="fetch", level=_level)
 
         region_path = sm.input.region_path
         raw_nc_out = str(sm.output.raw_nc)
@@ -114,11 +283,7 @@ if "snakemake" in globals():
             import xarray as _xr
 
             with _xr.open_dataset(raw_nc_out) as _cached:
-                stale = {
-                    name: units
-                    for name, units in variable_units.items()
-                    if name in _cached and _cached[name].attrs.get("units") != units
-                }
+                stale = stale_units(_cached, variable_units)
                 repaired = _cached.load() if stale else None
             if stale:
                 for name, units in stale.items():
@@ -168,11 +333,7 @@ if "snakemake" in globals():
         # The generated catalog expands placeholders at generation time, so the
         # member is part of the entry NAME (get_stats_climate_proj.py:236). Use the
         # catalog's own grammar rather than string surgery.
-        entry = (
-            catalog_entry.format(member=member)
-            if "{member}" in catalog_entry
-            else f"{catalog_entry}_{member}"
-        )
+        entry = resolve_entry_name(catalog_entry, member)
 
         # --- spend the D12 pin instead of listing the bucket ------------------
         # The URI ends /{variable}/*/* , so resolving it lists the store to expand
@@ -229,32 +390,7 @@ if "snakemake" in globals():
         # transferring every selected chunk (~19 s on the benchmark source). Kept
         # AFTER `.sel()` so duplicates outside the acquisition window stay out of it.
         index = data.indexes.get("time")
-        if index is not None and len(index) != len(set(index)):
-            raise RuntimeError(
-                f"{entry}: time axis has {len(index) - len(set(index))} duplicate "
-                "step(s), so the catalog glob matched more than one store. Pin the "
-                "version in the catalog rather than reading an ambiguous source."
-            )
-
-        # A window that does not overlap the store leaves ZERO steps, and every
-        # check downstream passes it: `.load()` succeeds, the duplicate test is
-        # trivially true (0 == 0), and the attrs block then dies on `index[0]` with
-        # a bare IndexError naming neither the source nor the window. Reachable on
-        # real input -- a historical run starting after 1950, or a truncated ssp
-        # store -- and invisible to the fixture gate, whose three models all cover
-        # their windows. Raised here, so it also costs no transfer.
-        if index is not None and len(index) == 0:
-            covered = (
-                f"{driver_index[0]}..{driver_index[-1]}"
-                if driver_index is not None and len(driver_index)
-                else "no steps at all"
-            )
-            raise RuntimeError(
-                f"{entry}: no time steps inside the acquisition window "
-                f"{acquisition_window[0]}..{acquisition_window[1]} (the driver "
-                f"returned {covered}). This store does not cover the window this "
-                "experiment acquires, so it cannot produce a raw slice."
-            )
+        check_time_axis(entry, index, driver_index, acquisition_window)
 
         # Eager, and not only for speed: a lazy slice written by to_netcdf reads from
         # dask's thread pool and deadlocks on the HDF5 lock (measured, commit
@@ -272,23 +408,13 @@ if "snakemake" in globals():
         pins_for_member = (components.get("pins") or {}).get(member, {})
         # Prefer a CERTIFIED variable: the crawl proved pr/tas present, and any
         # other name is best-effort (A3), so its store may not exist.
-        calendar_var = next(
-            (v for v in ("tas", "pr") if v in pins_for_member),
-            next(iter(pins_for_member), ""),
+        calendar_var = calendar_pin(pins_for_member)
+        store_uri = calendar_store_uri(
+            pin_uri or str(entry_spec.get("uri", "")),
+            member,
+            calendar_var,
+            pins_for_member,
         )
-        store_uri = ""
-        if calendar_var:
-            template = pin_uri or str(entry_spec.get("uri", ""))
-            store_uri = template.format(member=member, variable=calendar_var)
-            if store_uri.endswith(series_identity.STORE_GLOB_SUFFIX):
-                matches = pins_for_member.get(calendar_var) or []
-                store_uri = (
-                    store_uri[: -len(series_identity.STORE_GLOB_SUFFIX)]
-                    + "/"
-                    + matches[-1]
-                    if matches
-                    else ""
-                )
         store_calendar = (
             series_identity.read_store_calendar(store_uri)
             if store_uri
@@ -299,34 +425,24 @@ if "snakemake" in globals():
             module="fetch",
         )
 
-        entry_meta = (components.get("entry_identity") or {}).get(member, {})
         first, last = (str(index[0]), str(index[-1])) if index is not None else ("", "")
         for _name, _units in variable_units.items():
             if _name in data:
                 data[_name].attrs["units"] = _units
 
         data.attrs.update(
-            {
-                "cst_schema_version": series_identity.SCHEMA_VERSION,
-                "cst_raw_digest": expected_raw_digest,
-                "cst_catalog_entry": components.get("catalog_entry", ""),
-                "cst_acquisition_window": " / ".join(acquisition_window),
-                "cst_time_first": first,
-                "cst_time_last": last,
-                # From the STORE, not from the index -- the index no longer knows.
-                "cst_calendar": store_calendar,
-                "cst_region_bounds": ", ".join(f"{b:.9g}" for b in bbox),
-                "cst_region_fingerprint": region_fp,
-                "cst_buffer_degrees": buffer,
-                "cst_members": member,
-                "cst_source_paths": json.dumps(
-                    components.get("pins", {}), sort_keys=True
-                ),
-                "cst_crs": str((entry_meta.get("metadata", {}) or {}).get("crs", "")),
-                # Deliberately absent: cst_series_digest and
-                # cst_reducer_module_hash. A raw slice is pre-reduction and must not
-                # claim an identity that implies arithmetic was applied.
-            }
+            raw_slice_attrs(
+                components,
+                member,
+                expected_raw_digest,
+                acquisition_window,
+                first,
+                last,
+                store_calendar,
+                bbox,
+                region_fp,
+                buffer,
+            )
         )
         # ...and drop the inherited attrs that describe ONE source file. This
         # slice merges pr and tas, so a single `variable_id` is wrong whichever
