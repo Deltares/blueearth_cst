@@ -1,139 +1,209 @@
-# Where a parameter lives — DRAFT / PROPOSAL
+# Configuration surface — problem statement and inventory (DRAFT)
 
-> **Not agreed. Do not cite this as a rule.**
+> **DRAFT / PROPOSAL — not agreed. Do not cite this as a rule.**
 >
-> A working document. The placement rule below is a **proposal**; the four
-> misfits are **recommendations awaiting an owner ruling**. None is applied.
+> A working document. §4 is a **statement of the problem**; §5 is a *tentative*
+> direction, deliberately subordinate and not to be applied. The misfits in §6
+> are recommendations awaiting an owner ruling.
 >
-> While it lives here nothing in the repo points at it as authority — AGENTS.md
-> deliberately carries no reference to it. When the rule is agreed and the
-> misfit rulings are made, it moves to
-> `dev/reference/parameter-placement.md`, and AGENTS.md's Conventions gains a
-> pointer *then*, not before.
+> Nothing in the repo points at this while it lives here — AGENTS.md carries no
+> reference to it by design. It moves to `dev/reference/` and gains an AGENTS.md
+> pointer only once the problem statement is accepted and a direction is chosen.
 >
-> The INVENTORY is a separate matter: the five homes, the key counts and the
-> misfits themselves are measured, and stand whatever is decided about the rule.
+> The INVENTORY (§1–§3, and the appendix) is **measured** and stands on its own
+> whatever is decided.
 
-Assessment and placement rule for every configurable value in the toolbox.
 Written 2026-08-12, after three parameters (`shared.seed`,
 `shared.water_year_start`, the two spell factors) were placed in one session by
-reasoning from precedent rather than from a rule — which works until two
-precedents disagree, which is exactly what `max_per_basin` exposed.
+reasoning from precedent rather than from a rule.
 
-## The five homes
+---
 
-| # | Home | What it holds today |
+## 1. The three tiers
+
+Configuration in this toolbox is not one surface, it is three, and they differ
+in who owns them, who writes them, and what a change means.
+
+| Tier | Owner | Written by | A change means |
+|---|---|---|---|
+| **T1 Toolbox** | the toolbox | a maintainer, in-repo | every project's behaviour changes |
+| **T2 Project** | the project | the user, per basin | this project's results change |
+| **T3 Generated** | the run | a rule, into `project_dir` | nothing — it is a RECORD of what ran |
+
+Most of the confusion this document exists to resolve is T1-vs-T2. T3 is
+well-defined already and is included because it is a third of the surface and
+is routinely mistaken for input.
+
+## 2. T1 — toolbox configuration (tracked, in-repo)
+
+36 tracked config files. Grouped by what they actually are:
+
+| Group | Files | Role |
 |---|---|---|
-| 1 | `config/advanced_settings.yml` | 5 keys: `constraints` (1), `defaults` (3), `runtime` (1). Closed schema — an unknown key is rejected at parse time. |
-| 2 | project config `shared.*` | 13 leaf keys. Read by two or more workflows. |
-| 3 | project config `workflows.<wf>.*` | 38 leaf keys, plus 4 under `project`. |
-| 4 | `config/defaults/*.yml` | 3 engine-native templates (wflow build, waterbodies, weathergen). |
-| 5 | Python `DEFAULT_*` constants | 14, of which 3 merely re-export home 1. |
+| **Toolbox knobs** | `config/advanced_settings.yml` | 5 keys: `constraints` (1) · `defaults` (3) · `runtime` (1). Closed schema. |
+| **Engine templates** | `config/defaults/` × 3 — `wflow_build_model.yml`, `wflow_update_waterbodies.yml`, `weathergen_config.yml` | Rule INPUTS in the engines' own vocabulary. Changing one changes a run. |
+| **Data catalogs** | `config/catalogs/` × 3 live + 2 archived; `tests/data/tests_data_catalog.yml` | hydromt `-d` targets. `cmip6_data.yml` (3919 lines) is **generated** by a crawl. |
+| **Scaffolds** | `config/templates/snake_config.template.yml`, `wflow_sbm.reference.toml`, 5 archived single-workflow configs | Copied, never read by a rule. |
+| **Shipped example projects** | `test_case/snake_config_*.yml` × 4, `tests/snake_config_fixture.yml` | T2 documents that happen to live in-repo. |
+| **Process / build** | `pixi.toml`, `pyproject.toml`, `Project.toml`, `Manifest.toml`, `.github/workflows/ci.yml`, `profiles/default/config.yaml`, `.testing-policy.yml`, `.git-workflow.yml`, `dev/reference/sealed-records.yml`, `dev/scripts/{stage_data,scaffold_extras}.yml` | Not pipeline parameters. Listed so the count is honest. |
 
-55 leaf keys in the project config; 17 of them required (`optional=False`).
+**A sixth, invisible group: Python `DEFAULT_*` constants — 14 of them.** Three
+re-export `advanced_settings`; the rest are defaults a user cannot see without
+reading source. This group is the problem's centre of gravity.
 
-## The rule
+## 3. T2 — project configuration
 
-Two questions, in order.
+One `--configfile` YAML. **55 leaf keys**, 17 required:
 
-**Q1 — does changing the value change the NUMBERS?**
-
-**Q2 — is the right value basin- or project-specific, or the same everywhere?**
-
-| Q1 | Q2 | Home |
+| Section | Leaves | Contents |
 |---|---|---|
-| yes | project-specific | **Project config.** `shared.*` if two or more workflows read it, `workflows.<wf>.*` if one does. |
-| yes | universal (a method constant) | **`advanced_settings.defaults`**, overridable per project by a named key. |
-| no (speed, verbosity, paths) | — | **`advanced_settings.defaults`**, or `runtime` for an external toolchain pin. |
-| — | must never be relaxed | **`advanced_settings.constraints`**. |
-| — | expressed in an engine's own vocabulary | **`config/defaults/<engine>.yml`.** Forced: AGENTS.md's hard constraint says hydromt / wflow / weathergenr schemas are used verbatim. |
+| `project` | 4 | `project_dir`, `static_dir`, two catalog paths |
+| `shared` | 13 | basin definition, catalog bindings, delineation tolerances, window, `clim_historical` |
+| `workflows.*` | 38 | per-workflow; `climate_experiment` alone holds the stress-test grid |
 
-And the rule that decides the cases actually in dispute:
+Full listing: appendix.
 
-> **A `DEFAULT_*` constant in Python is only correct when the value has NO
-> config surface at all.** The moment a config key can set it, its default
-> belongs in `advanced_settings.defaults`, beside the key's documentation,
-> where a user can read it without opening the source.
+## 4. The problem, stated
 
-That is what separates `max_per_basin` (a config key whose default hides in
-`spatial/config.py`) from `DEFAULT_DECIMALS` (an internal formatting choice no
-config exposes, correctly a constant).
+Not "some parameters are in the wrong place". Four distinct failures, each
+observed:
 
-Q1 is the load-bearing question, and it is what makes `max_per_basin` a project
-parameter rather than a tool knob despite feeling like one: it changes **what
-the results are reported over**. `julia_threads` changes only how fast the same
-numbers arrive. Both are "knobs"; only one moves a number.
+**P1 — A parameter's DEFAULT and its KEY live in different tiers, inconsistently.**
+`seed`, `water_year_start`, `julia_threads` publish their defaults in T1
+`advanced_settings`. `max_per_basin`, `gauge_snap_tolerance_m`, `hydrography`,
+`basin_index`, `stats` and the spell factors keep theirs in Python. Same class
+of value, two conventions, decided by whichever session added it. A user
+reading the config cannot discover what a key defaults to.
 
-## Misfits
+**P2 — There is no test that a declared parameter reaches anything.**
+Twice in one session a key was found that a config could set and nothing read:
+WF2's `start_month_hyd_year` (read, passed to rule 2.06, never used — every
+change factor was Jan–Dec regardless) and `relax_priority` (the wrapper does not
+forward it). Both were found by hand. `static_dir` is a live third: WF3 reads it
+as required and never uses it. The C34 finding was a fourth. **Four inert or
+partly-inert parameters, four manual discoveries, zero mechanical detection.**
 
-Ordered by how much they can bite. Each is a proposal, not an applied change.
+**P3 — One concept, several spellings, because nothing forces convergence.**
+The water year was `start_month_hyd_year` (T2, string, inert), `year_start_month`
+(T1 engine template, integer, live), and hardcoded calendar years in two more
+places. Nothing detected the divergence; it was found by reading.
 
-### M1 — `project.static_dir` is required by two workflows, used by one, and can only ever be `config`
+**P4 — Grouping is by history, not by kind.** `shared.basin` holds the basin's
+definition (`region`, `resolution`), catalog bindings (`spatial_sources.*`) and
+delineation tolerances (`max_per_basin`, `gauge_snap_tolerance_m`,
+`river_uparea_km2`) under one heading. That is why `max_per_basin` reads as
+misplaced: it is not in the wrong tier, it is grouped with things unlike it.
 
-`Snakefile_model_creation:54` reads it (required) and uses it at 115–116 as the
-fallback base for `model_build_config` / `waterbodies_config`.
-`Snakefile_climate_experiment:41` reads it (required) and **never uses it** —
-WF3 fails without a key it ignores. WF2 does not read it.
+**What "convenient, future-looking, efficient" would mean here**
 
-The fallbacks resolve to `{static_dir}/defaults/wflow_build_model.yml`, which is
-a **toolbox file inside the repo**. So the only value that works is `config`; any
-other points at nothing. Every shipped config also sets both keys explicitly, so
-the fallback is rarely taken at all.
+- *Convenient* — a user can find every knob that affects their basin, and see
+  its default, without reading Python.
+- *Future-looking* — adding a parameter has one obvious home, and adding a
+  second stochastic step or a third stress axis does not require re-litigating.
+- *Efficient* — the same value is declared once. P3 is what its absence costs.
 
-**Proposal:** delete the key. Replace the two fallbacks with the literal
-`config/defaults/…` paths. A project wanting its own build config already has
-the documented route — set `model_build_config:` directly.
-**Cost:** 2 Snakefile reads, 5 configs, the template, and
-`tests/test_guard_invalidation.py:241`, which uses `static_dir` as its example
-of a `_WF1_GUARDED` key and needs a different one. Breaking for any config that
-sets it — which is all of them — but the removal is mechanical.
+**The sharpest test of any proposal: would it have caught P2 mechanically?**
+That is the failure with real consequences — results computed under settings
+nobody chose.
 
-### M2 — `DEFAULT_ANCHOR = "YE-DEC"` is defined twice
+## 5. Tentative direction — NOT agreed
 
-`shared/metrics_definition.py:18` and `climate_analysis/climate_figures.py:120`.
-One value, two sources of truth, introduced in this session's water-year work —
-the exact drift the rule exists to prevent, committed while writing the rule.
+Recorded so the next discussion starts somewhere, not as a decision.
 
-**Proposal:** single-source it. The value derives from
-`advanced_settings.defaults.water_year_start`, so
-`snake_utils.water_year_end_anchor(DEFAULT_WATER_YEAR_START)` is the one
-definition; both modules import it. **Cost:** trivial, non-breaking.
+Two questions place a parameter: **does changing it change the NUMBERS**, and
+**is the right value project-specific or universal**. Engine-native vocabulary
+is a forced case (hydromt/wflow/weathergenr schemas are used verbatim per
+AGENTS.md's hard constraint), so those stay in `config/defaults/`.
 
-### M3 — defaults for config keys that live in Python instead of `advanced_settings`
+The clause that settles the live disputes:
 
-| Constant | Backs |
-|---|---|
-| `DEFAULT_SPELL_FACTOR` | `stress_test.{dry,wet}_spell_factor` |
-| `DEFAULT_MAX_SUBBASINS_PER_BASIN` (11) | `shared.basin.automatic_subbasins.max_per_basin` |
-| `DEFAULT_GAUGE_SNAP_TOLERANCE_M` | `shared.basin.gauge_snap_tolerance_m` |
-| `DEFAULT_HYDROGRAPHY`, `DEFAULT_BASIN_INDEX` | `shared.basin.{hydrography,basin_index}` |
-| `DEFAULT_STATS` | `workflows.climate_projections.stats` |
+> A Python `DEFAULT_*` is correct **only** when the value has no config surface
+> at all. Once a config key can set it, the default belongs where the key is
+> documented.
 
-Each is a config key whose default a user cannot see without reading source,
-while `seed`, `water_year_start` and `julia_threads` publish theirs. Same class
-of value, two conventions — decided by which session added it.
+Open, and not answered here: whether that home should be `advanced_settings`
+(one file, closed schema, already tested) or a per-key default declared beside
+the key in the template (closer to the user, no second file to consult). The
+first is the existing precedent; the second is arguably more *convenient* by the
+definition above. **This is the decision to make.**
 
-**Proposal:** move all five defaults into `advanced_settings.defaults`, keeping
-every override key exactly where it is. This is the answer to "should
-`max_per_basin` move?" — the *key* stays under `shared.basin` (it changes
-results and is basin-specific, Q1+Q2), the *default* moves.
-**Cost:** five schema entries and their tests; non-breaking for project configs.
+Also unaddressed: a mechanical answer to P2. A "declared keys ⊆ read keys"
+check, in the spirit of `interchange_contracts`, would have caught all four
+inert parameters. Whether that is feasible against Snakemake's `params:`
+indirection is unknown and worth a probe before promising it.
 
-### M4 — `shared.basin` mixes three kinds of value
+## 6. Misfits found
 
-`region` and `resolution` are the basin's definition. `spatial_sources.*` name
-catalog entries — data-source bindings. `gauge_snap_tolerance_m`,
-`river_uparea_km2` and `max_per_basin` are delineation tolerances. All three
-kinds sit flat under one heading, which is why `max_per_basin` reads as
-misplaced: it is not misplaced *relative to the config*, it is grouped with
-things it is unlike.
+Proposals only; none applied.
 
-**Proposal:** left open deliberately. Regrouping is breaking for every project
-config and buys legibility only — worth doing with a schema version bump if one
-happens for another reason, not on its own.
+| # | Misfit | Proposal | Cost |
+|---|---|---|---|
+| M1 | `project.static_dir` — required by WF1 and WF3, used by WF1 only, ignored by WF3, and can only ever be `config` because the fallbacks it feeds resolve to in-repo toolbox files | delete; use literal `config/defaults/…` | 2 Snakefiles, 5 configs, template, `test_guard_invalidation.py:241` (uses it as its `_WF1_GUARDED` example). Breaking for every config. |
+| M2 | `DEFAULT_ANCHOR = "YE-DEC"` defined **twice** (`metrics_definition.py:18`, `climate_figures.py:120`) — introduced by this session's water-year work, the exact drift P3 describes | single-source from `water_year_end_anchor(DEFAULT_WATER_YEAR_START)` | trivial, non-breaking |
+| M3 | Five config-key defaults in Python (`DEFAULT_SPELL_FACTOR`, `DEFAULT_MAX_SUBBASINS_PER_BASIN`, `DEFAULT_GAUGE_SNAP_TOLERANCE_M`, `DEFAULT_HYDROGRAPHY`/`DEFAULT_BASIN_INDEX`, `DEFAULT_STATS`) | move the DEFAULTS; keys stay put | 5 schema entries + tests; non-breaking |
+| M4 | `shared.basin` mixes three kinds (P4) | regroup | breaking for every config; legibility only — pair with a schema version bump, not standalone |
 
-## Applying it
+M2 is the only one that is unambiguously correct regardless of how §5 resolves.
 
-The rule earns its keep only if the next parameter is placed by citing it.
-Suggested: add one line to AGENTS.md's Conventions pointing here, and treat a
-new `DEFAULT_*` backing a config key as a review smell.
+---
+
+## Appendix — parameter sets per file
+
+### `config/advanced_settings.yml` (5)
+`constraints.min_historical_years` · `defaults.julia_threads` ·
+`defaults.seed` · `defaults.water_year_start` · `runtime.julia_version`
+
+### Project config — `project` (4)
+`project_dir`* · `static_dir`* · `data_sources`* · `data_sources_climate`*
+
+### Project config — `shared` (13)
+`basin.region`* · `basin.resolution` · `basin.gauge_points` ·
+`basin.automatic_subbasins.max_per_basin` · `basin.gauge_snap_tolerance_m` ·
+`basin.river_uparea_km2` · `basin.spatial_sources.{rivers,lulc,lai,soil}` ·
+`historical_window.{starttime,endtime}`* · `clim_historical`*
+· *(optional, undocumented in the template: `basin.hydrography`,
+`basin.basin_index`)*
+
+### Project config — `workflows.model_creation`
+`enabled` · `model_build_config` · `waterbodies_config` · `wflow_outvars` ·
+`observations_timeseries` · `simulation_window.{starttime,endtime}`*
+
+### Project config — `workflows.climate_projections`
+`enabled` · `clim_project`* · `models`* · `scenarios`* · `members`* ·
+`variables`* · `historical_year_range`* · `future_horizons`* · `stats` ·
+`save_grids` *(`start_month_hyd_year` retired 2026-08-12 — now refused)*
+
+### Project config — `workflows.climate_experiment`
+`enabled` · `experiment_name` · `realizations_num` · `horizontime_climate`* ·
+`run_length` · `run_historical` · `stress_test.{temp,precip}.{step_num,
+transient_change,mean.{min,max},variance.{min,max}}` ·
+`stress_test.{dry,wet}_spell_factor`
+
+### `config/defaults/weathergen_config.yml` (4 sections)
+`run_weather_generator` (2) · `generate_weather` (16 + 6 injected) ·
+`apply_climate_perturbations` (15) · `write_netcdf` (5). Sections are
+weathergenr 1.2.0 function names; keys are their argument names.
+
+### `config/defaults/wflow_build_model.yml` / `wflow_update_waterbodies.yml`
+hydromt `setup_*` blocks, verbatim in hydromt_wflow's schema.
+
+### Python `DEFAULT_*` (14)
+Re-exports T1: `DEFAULT_JULIA_THREADS`, `DEFAULT_SEED`,
+`DEFAULT_WATER_YEAR_START`.
+Back a config key (**M3**): `DEFAULT_SPELL_FACTOR`,
+`DEFAULT_MAX_SUBBASINS_PER_BASIN`, `DEFAULT_GAUGE_SNAP_TOLERANCE_M`,
+`DEFAULT_HYDROGRAPHY`, `DEFAULT_BASIN_INDEX`, `DEFAULT_STATS`.
+Duplicated (**M2**): `DEFAULT_ANCHOR` ×2.
+No config surface, correctly constants: `DEFAULT_DECIMALS`,
+`DEFAULT_MIN_REFERENCE`, `DEFAULT_MAX_FLAGGED_MONTHS`.
+
+### T3 — generated, per `project_dir` (record, never input)
+`config/runs/<workflow>/<digest>/{source.yml, effective.yml,
+referenced-files.json, files/**}` — content-addressed run snapshots ·
+`config/catalogs/*` · `config/templates/*` ·
+`experiments/<id>/{experiment.yml, model_reference.yml,
+snake_config_climate_experiment.yml, catalogs/*, runs/**}` ·
+`experiments/<id>/climate/weathergenr/config/weathergen_config.yml` ·
+`models/hydrology/wflow/{wflow_sbm.toml, config/*}`
+
+`*` = required (`optional=False`).
