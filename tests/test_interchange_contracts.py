@@ -29,7 +29,10 @@ import pytest
 import yaml
 
 from blueearth_cst.shared import interchange_contracts as ic  # noqa: E402
-from blueearth_cst.shared.snake_utils import stress_test_grid  # noqa: E402
+from blueearth_cst.shared.snake_utils import (  # noqa: E402
+    slugify_window,
+    stress_test_grid,
+)
 
 # --- Fixture location + the single named skip reason -----------------------
 
@@ -753,10 +756,28 @@ def _open_ds(path):
     return xr.open_dataset(path)
 
 
+def _store_key() -> str:
+    """Derive the historical-store key from the config the FIXTURE recorded.
+
+    This was the literal ``era5_20000101_20201231`` until 2026-08-12, which
+    pinned the test to one window rather than to the fixture. The 2026-08-10
+    config trim (``endtime`` 2020-12-31 -> 2016-12-31) moved the store to
+    ``era5_20000101_20161231``, and the test kept passing only because the
+    superseded store was still lying on disk beside the live one. It failed the
+    moment `prune_climate_store.py --delete` removed the orphan — on a fixture
+    that was correct. Same lesson as the `_STORE_ROOT` block above: derive the
+    location, never spell it.
+    """
+    with open(join(_FIXTURE, "config", "runs", "snake_config_model_creation.yml")) as f:
+        shared = yaml.safe_load(f)["shared"]
+    window = shared["historical_window"]
+    slug = slugify_window(window["starttime"], window["endtime"])
+    return f"{shared['clim_historical']}_{slug}"
+
+
 @pytest.mark.skipif(not _fixture_present(), reason=_FIXTURE_ABSENT)
 def test_wg1_integration():
-    key = "era5_20000101_20201231"
-    path = join(_STORE_ROOT, key, "extract_historical.nc")
+    path = join(_STORE_ROOT, _store_key(), "extract_historical.nc")
     with _open_ds(path) as ds:
         assert ic.validate_wg1(ds) == []
 
