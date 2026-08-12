@@ -337,6 +337,13 @@ pinned by `tests/test_run_workflows.py`.
 - Snakefiles are config-driven: each parses one `--configfile` YAML via a shared
   `get_config(config, key, default, optional)` helper. A new config key must mirror
   that contract (raise on missing required, return the default for optional).
+- **Where a new parameter goes is a rule, not a judgement call**:
+  `dev/reference/parameter-placement.md`. Two questions decide it — does changing
+  the value change the NUMBERS, and is the right value project-specific or
+  universal. The case that keeps recurring: a `DEFAULT_*` constant in Python is
+  correct ONLY when the value has no config surface at all; the moment a config
+  key can set it, its default belongs in `advanced_settings.defaults` where a
+  user can read it. Five current keys break that and are listed there.
 - Each Snakefile takes the `--configfile` path from `workflow.configfiles[0]` and
   forwards it as `config_path` to downstream R scripts — keep that forwarding even
   though the Snakefile itself reads the parsed `config`.
