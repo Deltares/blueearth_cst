@@ -140,7 +140,30 @@ def test_baseline_seed_config_does_not_warn():
     result = _dry_run("Snakefile_model_creation", cfg=seed_cfg)
     combined = (result.stdout or "") + (result.stderr or "")
     assert "inside the repository tree" not in combined, combined[-3000:]
-    assert result.returncode == 0, combined[-3000:]
+
+    # The exemption above is what this test is named for, and it holds in every
+    # checkout. BUILDING the DAG is a different matter, and it is NOT a property
+    # of the config alone: the seed config's `gauge_points` CSV lives under the
+    # untracked `test_case/test_data/` (`.gitignore` line `test_case/*`), so the
+    # dry-run resolves only where that file exists OR where the outputs it feeds
+    # are already on disk and no job needs it. A bare `returncode == 0` asserted
+    # neither, and both CI legs failed on it from 2026-08-10 to 2026-08-12 with a
+    # MissingInputException that says nothing about the exemption.
+    #
+    # So classify the failure rather than predict it. Skipping was the obvious
+    # alternative and is worse: it makes "the gauge CSV is untracked here"
+    # indistinguishable from "the DAG is broken" -- the skip-on-absence false
+    # green this repo has been bitten by before (R9-4, and the fixture layer
+    # AGENTS.md describes). Deriving the path from the config rather than
+    # spelling it is the same lesson the store-key literal in
+    # test_interchange_contracts.py taught on 2026-08-12.
+    if result.returncode != 0:
+        with open(seed_cfg) as f:
+            gauge_points = yaml.safe_load(f)["shared"]["basin"]["gauge_points"]
+        norm = combined.replace("\\", "/")
+        assert "MissingInputException" in norm, combined[-3000:]
+        assert gauge_points in norm, combined[-3000:]
+        assert not os.path.exists(join(SNAKEDIR, gauge_points)), combined[-3000:]
 
 
 def test_observation_configs_use_yaml_null():
