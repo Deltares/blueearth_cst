@@ -124,8 +124,27 @@ The genuine gaps, in priority order:
    `tests/test_script_module_importability.py` as a sweep over all 28 `script:`
    targets, plus its complement (26 library modules legally carry one; a future
    sweep must not "fix" them). The invariant held but was unenforced.
-3. **`projections/fetch_gcm_raw.py`** (336 lines, 0 functions). Untestable as
-   written; would need extraction first. Worth an item, not an urgent one.
+3. ~~**`projections/fetch_gcm_raw.py`**~~ **CLOSED 2026-08-12** —
+   `tests/test_fetch_gcm_raw.py`, 44 tests, after the extraction this gap was
+   waiting on. Seven pure decisions lifted out of the `script:` body by the
+   `[R7-22]` argument, each a **verbatim** move (including the two that read
+   oddly and were deliberately not clarified in the same commit: the store-URI
+   conditional binding as `(A + "/" + matches[-1]) if matches else ""`, and
+   `calendar_pin`'s eagerly-evaluated `next(iter(...), "")` default).
+      The two that carry the most: `check_time_axis`'s empty-window guard — which
+   the source itself calls *"invisible to the fixture gate, whose three models
+   all cover their windows"* — covered including the branch a naive extraction
+   drops (`driver_index` None or empty, where `f"{driver_index[0]}"` raises
+   *inside* the error handler and replaces a named failure with an anonymous
+   one); and `raw_slice_attrs`, pinned by what it must **not** contain, since
+   stamping `cst_series_digest` would let `assert_raw_identity` accept a
+   pre-reduction file as post-reduction. Falsified: seven seeded regressions,
+   all seven caught by the test naming the property.
+      **The remote read stays uncovered on purpose** — the `DataCatalog`,
+   `get_rasterdataset`, `.load()` and the store-calendar fetch are still ~150
+   inline lines, exercised by `--run-integration` and by real runs. The gap
+   moves from *no coverage* to *its decision logic is pinned*, which is not the
+   same as covered, and the test module says so.
 4. `plot_proj_timeseries.py` / `plot_map_forcing.py` — figure modules, and
    AGENTS.md's figure policy says verify by rendering. Low priority, but note
    both draw through code that is *not* `cartographic_map.py`, so they get
@@ -389,11 +408,14 @@ essentially none.
 
 Ranked by value:
 
-1. **Close the coverage gaps in §4** — *in progress; the top two closed
-   2026-08-11* (+37 tests, and one repo-wide invariant that was unenforced).
+1. **Close the coverage gaps in §4** — *in progress; three of five closed*
+   (2026-08-11: `func_plot_signature`, `add_climate_forcing`, +37 tests and one
+   repo-wide invariant that was unenforced; 2026-08-12: `fetch_gcm_raw`, +44).
    This is the only item that changes what the suite can catch. Remaining:
-   `fetch_gcm_raw.py` (needs extraction first), `plot_proj_timeseries.py`,
-   `plot_map_forcing.py`.
+   `plot_proj_timeseries.py` and `plot_map_forcing.py` — both figure modules, so
+   the first question is a policy one, not a coding one (AGENTS.md says verify a
+   figure by rendering it, but neither draws through `cartographic_map.py`, so
+   neither gets the figure gate either).
 2. **Tier 1a, option 1** — removes a whole conceptual category ("which era of the
    tree does this map answer?") from the repo, not just tests.
 3. **Tier 1b** — one test, and it stops a fixture-tree mutation.
