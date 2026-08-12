@@ -558,10 +558,24 @@ Two things follow, and they are complementary rather than alternatives.
   evidence about the other leg, and the ubuntu leg is the only place linux-64 is
   exercised at all (`dev/roadmap.md`, "Deferred: Linux replication").
 
-**`gh run list` does not work in this repo.** It exits 0 and prints nothing,
-with 20 runs on the server (observed 2026-08-09, gh 2.94.0). Read that output
-literally and you conclude CI has never run — which is worse than not looking.
-Go to the API instead:
+**`gh` talks to the WRONG REPO here until you tell it otherwise, and fails
+silently when it does.** This clone has two remotes — `origin`
+(`tanerumit/blueearth_cst`, where CI runs) and `upstream`
+(`Deltares/blueearth_cst`) — and `gh` resolves to `upstream`. So a bare
+`gh run list` queries Deltares, exits 0 and prints nothing, with runs sitting
+on origin. Read that literally and you conclude CI has never run, which is
+worse than not looking. Diagnosed 2026-08-12; it is what the earlier note
+"`gh run list` does not work in this repo" was actually describing.
+
+Fix it once per clone, next to `core.hooksPath`:
+
+```bash
+gh repo set-default tanerumit/blueearth_cst   # writes remote.origin.gh-resolved
+```
+
+After that every `gh` verb works bare. Until then — and in any script that
+must not depend on local config — pass `--repo tanerumit/blueearth_cst`
+explicitly, or go to the API:
 
 ```bash
 # the latest run, whatever branch it was on
