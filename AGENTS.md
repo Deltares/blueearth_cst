@@ -466,21 +466,26 @@ failure mode to avoid — it re-proves what the previous run already proved.
 | When | Run |
 |---|---|
 | While iterating | Only the tests covering the file you changed (`pytest tests/test_<module>.py`). Nothing else. |
-| Before a commit | Add `pytest tests/test_cli.py` **if** a Snakefile or a `script:` signature changed; otherwise the module's own tests are the gate. If you wrote Python, `pixi run lint` and `pixi run format-check` — both are CI gates, and both take ~1 s. `pixi run format` fixes the second. |
-| Before merging the branch | `pixi run test-fast` once — **1:29**. Skip it entirely for a docs-, `dev/`- or config-scaffold-only branch, which no test imports. |
-| **Before pushing `main` to `origin`** | `pixi run test-full` — **7:07**. The authoritative gate, and the only one that runs the workflow/process-contract tier. |
+| Before a commit | Add `pytest tests/test_cli.py` **if** a Snakefile, a `script:` signature, or **a rule's declared input** changed — the last one because `test_cli` dry-runs all three Snakefiles, so it is the only place a malformed `config/defaults/*.yml` surfaces; no fast-tier test parses those. Otherwise the module's own tests are the gate. If you wrote Python, `pixi run lint` and `pixi run format-check` — both are CI gates, and both are near-instant. `pixi run format` fixes the second. |
+| Before merging the branch | `pixi run test-fast` once — **a few minutes**. Skip it entirely for a docs-, `dev/`- or config-scaffold-only branch, which no test imports. |
+| **Before pushing `main` to `origin`** | `pixi run test-full` — **~10–15 min**. The authoritative gate, and the only one that runs the workflow/process-contract tier. |
 | **After a push** | **Read the run it triggered** — `gh run list -L 1` / `gh run watch`. See below; this is not optional. |
 | Before a milestone seal / after touching numeric outputs | `check_baseline.py check`, plus `semantic_tree_diff.py` if the tree shape moved. |
 
-**Why the split lands there.** Measured 2026-08-11: `test-full` is 1991 tests in
-427 s, `test-fast` is 1936 of them in 89 s. The 55 tests `test-fast` deselects —
-2.8% of the suite — cost **79% of the runtime**, and they are exactly the
-`workflow_contract` and `process_isolation` markers. Paying 5× for the last 2.8%
-on every merge, when `worktree_policy: always` makes every task a merge, is the
-cost that was actually being paid. Selecting "only the relevant test files"
-instead would save at most another ~60 s over running all 1936, in exchange for
-a judgment call per task and the cross-module regressions that judgment misses —
+**Why the split lands there.** `test-fast` deselects **55 tests — under 3% of
+the suite — and they cost the large majority of the runtime**. They are exactly
+the `workflow_contract` and `process_isolation` markers. Paying several times
+the wall-clock for that last 3% on every merge, when every task is a merge, is
+the cost that was actually being paid. Selecting "only the relevant test files"
+instead would save little over running the whole cheap tier, in exchange for a
+judgment call per task and the cross-module regressions that judgment misses —
 so run everything cheap, and tier the expensive part.
+
+Times here are **orders of magnitude, deliberately**. Earlier revisions pinned
+them to the second (`1:29`, `7:07`, `427 s`); by 2026-08-12 every one was off by
+2–3×, and a stale number is worse than a vague one precisely because someone
+uses it to decide whether a gate is affordable. Do not restore exact seconds —
+the test count and the marker names are the durable facts, the clock is not.
 
 A push is the escalation trigger because it is where work leaves this machine:
 before it, `main` is local and revertible; after it, CI, the other platform leg,
@@ -491,10 +496,10 @@ and anyone else's clone are downstream. The pin in `.testing-policy.yml`
 **The residual risk, stated plainly:** a `workflow_contract` regression can now
 sit on local `main` across several merged branches until the next push, so
 bisecting it spans those branches rather than one. That is the deliberate trade
-for the 5× — and `auto_push: false` means the push is a decision you make, which
-is precisely when the 7 minutes are worth spending. Run `test-full` at the merge
-anyway, not just at the push, when a branch touched a Snakefile, a `script:`
-signature, or `shared/`; those are the paths that tier exists to guard.
+for the speedup — and `auto_push: false` means the push is a decision you make,
+which is precisely when the extra minutes are worth spending. Run `test-full` at
+the merge anyway, not just at the push, when a branch touched a Snakefile, a
+`script:` signature, or `shared/`; those are the paths that tier exists to guard.
 
 - `--dry-run` before running and after editing any rule, to validate the DAG.
 - If a run crashed and the workdir reports as locked, `--unlock` before retrying.
