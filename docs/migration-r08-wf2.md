@@ -325,10 +325,17 @@ downstream analysis over `change_factors/*` — deliberately not computed here.
 
 `snake_config.template.yml` now recommends **1985–2014**: thirty years ending at
 the last year the CMIP6 historical experiment covers. The range is inclusive, and
-with the default `start_month_hyd_year: Jan` that is thirty complete hydrological
-years. Any other start month yields 29, with the partial years at both ends
-dropped — every artifact reports the effective window and count beside the
-nominal one, so the difference is never silent.
+with the default water year starting in January that is thirty complete
+hydrological years. Any other start month yields 29, with the partial years at
+both ends dropped — every artifact reports the effective window and count beside
+the nominal one, so the difference is never silent.
+
+> **Key renamed since this guide was written.** The setting was
+> `workflows.climate_projections.start_month_hyd_year`; it moved to
+> `shared.water_year_start` on 2026-08-12 and the old spelling is now a
+> parse-time error. It was also **inert** until that date — the change-factor
+> arithmetic always used January whatever the key said — so for any non-Jan
+> project the paragraph above described the intent, not the behaviour.
 
 Test fixtures keep `[1990, 2010]` deliberately, so the recommendation change moves
 no test number.
