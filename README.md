@@ -141,7 +141,7 @@ The toolbox provides three [Snakemake](https://snakemake.github.io/) workflows:
 
 Configuration is YAML-driven. Start from `config/templates/snake_config.template.yml`,
 which annotates every option inline; a filled-in worked example is
-`test_case/snake_config_model_test.yml`, and `test_case/snake_config_rapid.yml`
+`test_case/snake_config_baseline.yml`, and `test_case/snake_config_rapid.yml`
 is the same basin sized for a quick end-to-end run rather than for results.
 Each of the shipped example configs sits
 beside the project it writes into, the same way a real project keeps its config
@@ -221,7 +221,7 @@ your choice:
 $ pixi shell
 $ cd blueearth_cst
 $ snakemake all -c 1 -s Snakefile_model_creation \
-    --configfile test_case/snake_config_model_test.yml
+    --configfile test_case/snake_config_baseline.yml
 ```
 
 See the per-workflow sections below for the recommended sequences (DAG
@@ -249,14 +249,14 @@ experiment):
 
 ```console
 $ pixi run python scripts/run_workflows.py \
-    --config test_case/snake_config_model_test.yml
+    --config test_case/snake_config_baseline.yml
 ```
 
 Contract:
 
 - Accepts **full-orchestration configs only** — a config carrying a `workflows:`
   section with all three subsections, each with an `enabled:` key (the
-  `snake_config_model_test*.yml` / `snake_config.template.yml` class). The
+  `snake_config_baseline*.yml` / `snake_config.template.yml` class). The
   single-workflow `snake_config_projections_*.yml` configs — parked under
   `config/templates/archive/` and unmaintained — carry no `workflows:` section
   and are run directly with `snakemake -s` instead.
@@ -332,9 +332,9 @@ Builds a hydrological Wflow model and runs / analyses it for a historical
 period.
 
 ```console
-$ python scripts/plot_workflow_dag.py -s Snakefile_model_creation --configfile test_case/snake_config_model_test.yml
-$ snakemake --unlock -s Snakefile_model_creation --configfile test_case/snake_config_model_test.yml
-$ snakemake all -c 1 -s Snakefile_model_creation --configfile test_case/snake_config_model_test.yml
+$ python scripts/plot_workflow_dag.py -s Snakefile_model_creation --configfile test_case/snake_config_baseline.yml
+$ snakemake --unlock -s Snakefile_model_creation --configfile test_case/snake_config_baseline.yml
+$ snakemake all -c 1 -s Snakefile_model_creation --configfile test_case/snake_config_baseline.yml
 ```
 
 The first command renders a DAG visualization (requires Graphviz's `dot`). It
@@ -351,9 +351,9 @@ Derives future climate statistics (expected temperature and precipitation
 change) for selected CMIP scenarios and GCMs.
 
 ```console
-$ python scripts/plot_workflow_dag.py -s Snakefile_climate_projections --configfile test_case/snake_config_model_test.yml
-$ snakemake --unlock -s Snakefile_climate_projections --configfile test_case/snake_config_model_test.yml
-$ snakemake all -c 1 -s Snakefile_climate_projections --configfile test_case/snake_config_model_test.yml --keep-going
+$ python scripts/plot_workflow_dag.py -s Snakefile_climate_projections --configfile test_case/snake_config_baseline.yml
+$ snakemake --unlock -s Snakefile_climate_projections --configfile test_case/snake_config_baseline.yml
+$ snakemake all -c 1 -s Snakefile_climate_projections --configfile test_case/snake_config_baseline.yml --keep-going
 ```
 
 ### Snakefile_climate_experiment
@@ -392,9 +392,9 @@ completed run's outputs are addressed by, so silently renaming it would strand
 them. Clear the key by hand to go back to the default.
 
 ```console
-$ python scripts/plot_workflow_dag.py -s Snakefile_climate_experiment --configfile test_case/snake_config_model_test.yml
-$ snakemake --unlock -s Snakefile_climate_experiment --configfile test_case/snake_config_model_test.yml
-$ snakemake all -c 1 -s Snakefile_climate_experiment --configfile test_case/snake_config_model_test.yml
+$ python scripts/plot_workflow_dag.py -s Snakefile_climate_experiment --configfile test_case/snake_config_baseline.yml
+$ snakemake --unlock -s Snakefile_climate_experiment --configfile test_case/snake_config_baseline.yml
+$ snakemake all -c 1 -s Snakefile_climate_experiment --configfile test_case/snake_config_baseline.yml
 ```
 
 ## Testing

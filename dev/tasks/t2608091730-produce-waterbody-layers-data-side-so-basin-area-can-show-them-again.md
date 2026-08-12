@@ -16,16 +16,52 @@ updated: 2026-08-11
 
 ## Progress
 
-*Blocked — the three source datasets are not on this machine. `C:\data\wflow_global\hydromt\hydrography\` holds only `rivers_lin2019`; `reservoirs/`, `lakes/` and `rgi/` are gone, though the 2026-08-10 WF1 log shows all three being read that day. Without them no producer can emit a layer and the figure gate (render it and look at it) cannot be met. Unblocks when that data root is restored.*
+*Blocked — the three source datasets are not on this machine. `C:\data\wflow_global\hydromt\hydrography\` holds only `rivers_lin2019`. Without them no producer can emit a layer and the figure gate (render it and look at it) cannot be met. Unblocks when that data root is restored.*
+
+**The blocker is older than this note said, and the log evidence for "they were
+there on 2026-08-10" does not hold (corrected 2026-08-12).** hydromt logs the
+RESOLVED URI before opening it, and then treats a missing source file exactly
+like an empty result. Today's WF1 run shows all three "Reading …" lines followed
+by `Skipping method, as no data has been found`, with the files provably absent:
+`hydrography/` has a LastWriteTime of 24 July, and a recursive search of
+`C:\data` finds no `reservoir-db.gpkg`, `lake-db.gpkg` or `rgi.gpkg` anywhere.
+So a "Reading X from Y" line is not evidence that Y exists. See
+`t2608121606` — that conflation is a defect in its own right, and it is why the
+producer written here must fail loudly on a missing SOURCE while writing an
+empty layer for an empty RESULT.
 
 - [x] Decide whether the figure shows physical or modelled waterbodies — owner ruling 2026-08-11: **physical, unfiltered**. Rule 1.08 keeps naming the catalog sources exactly as today and is not modified
-- [ ] Decide which rule owns the data-side producer (see Open question)
+- [x] Decide which rule owns the data-side producer — owner ruling 2026-08-12: **1.03 `delineate_spatial_units`**
 - [ ] Write the producer: clip the three sources to `basins`, write `geoms/{reservoirs,lakes,glaciers}.geojson`, register them in `spatial_catalog.yml` beside the existing layers
 - [ ] Add the three layers to `SPATIAL_MAP_LAYERS` in `shared/plot_map.py` — `plot_raster_map` already accepts all three keys and needs no change
 - [ ] Verify by rendering `basin_area` on a basin that HAS a reservoir; the fixture basin has none, so a green suite says nothing
 - [ ] Correct ADR 0007's consequences, which still describe the rejected "1.08 consumes them" plan
 
-## Open question — which rule produces them
+## Which rule produces them — RULED 2026-08-12: 1.03
+
+**`1.03 delineate_spatial_units`**, and the deciding argument is not the one this
+section framed it on. Consistency-versus-read-cost was never a fair trade,
+because the WF1-only option reproduces the exact failure mode this whole task
+exists to remove: `data/spatial/geoms/` would hold a different layer set
+depending on which workflow last wrote it, while the figure reads that directory
+by name — so a WF2-first project silently draws a study-area map with no
+waterbodies, which is where we came in.
+
+Two facts settled it, both measured on 2026-08-12:
+
+- **The blast radius is real.** `SPATIAL_UNITS = spatial_units_rule(...)` is
+  defined in all three Snakefiles (`Snakefile_climate_projections:228`,
+  `Snakefile_climate_experiment:198`, and WF1) and splatted into a rule in each,
+  so producing waterbodies in 1.03 does produce them in WF2 and WF3.
+- **The read cost cannot be measured on this machine, and no number should be
+  quoted from it.** Not only are the three sources missing — the local `rivers`
+  source is a 0.5 MB test extract, so 1.03's measured 33.4 s says nothing about
+  what three real global geopackages would cost. Expectation, explicitly not a
+  measurement: the clips are geometry-filtered and index-accelerated, so cost
+  scales with features-in-basin rather than file size. Confirm on real data
+  before anyone relies on it.
+
+## Original framing — kept for the record
 
 Not a free choice, because the obvious home is shared:
 

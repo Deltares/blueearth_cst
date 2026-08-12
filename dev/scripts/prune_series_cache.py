@@ -23,7 +23,7 @@ produce while being a few KB to keep.
 
 Usage (from the repo root, inside pixi)::
 
-    python dev/scripts/prune_series_cache.py --config config/workflows/snake_config_model_test.yml
+    python dev/scripts/prune_series_cache.py --config test_case/snake_config_baseline.yml
     python dev/scripts/prune_series_cache.py --config <cfg> --delete
 
 Not part of a run: this inspects and maintains a project tree

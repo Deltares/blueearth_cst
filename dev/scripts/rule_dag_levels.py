@@ -32,7 +32,7 @@ levels as dependency depth, never as "these run together and nothing else does".
 Usage (from the repo root, inside pixi)::
 
     python dev/scripts/rule_dag_levels.py -s Snakefile_climate_projections \\
-        --configfile config/workflows/snake_config_model_test.yml
+        --configfile test_case/snake_config_baseline.yml
 
     # anything after `--` is forwarded to snakemake verbatim
     python dev/scripts/rule_dag_levels.py -s Snakefile_model_creation \\
