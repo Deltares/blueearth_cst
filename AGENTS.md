@@ -367,10 +367,32 @@ pinned by `tests/test_run_workflows.py`.
 
 ## Workflow
 
+### Standing lanes — two permanent worktrees, partitioned by concern
+
+This repo keeps two long-lived lanes instead of a worktree per task, so the
+partition is stable and the 46 MB `worktree_seed` fixture is paid once:
+
+| Lane | Branch | Owns |
+|---|---|---|
+| `.worktrees/blueearth_cst/improvements` | `fix/improvements` | scripts, workflow rules, tests, repo-meta — ad-hoc and planned improvements |
+| `.worktrees/blueearth_cst/plotting-standardization` | `feat/plotting-standardization` | figures and visualization only |
+
+A change belongs to the lane that owns the file it edits; one that genuinely
+spans both is split at the file boundary rather than made from whichever lane is
+open. Never edit the same file from both lanes — the disjoint partition is the
+whole reason two lanes are cheaper than one.
+
+Both lanes are **standing lanes** under `git-workflow`: resync from `main` right
+after landing (`git merge --ff-only main`) and again before resuming work, land
+small increments rather than accumulating, and keep an upstream so months of
+work are not one disk away from gone. They never auto-land despite
+`isolation_landing: auto` — that setting covers isolation branches, and a lane
+is not one.
+
 ### Validation ladder — match the check to the blast radius
 
-Every task runs in its own branch and worktree, so a mistake is contained and
-cheap to revert. Spend validation time accordingly: **unit tests while
+Each lane is isolated from the other, so a mistake is contained and cheap to
+revert. Spend validation time accordingly: **unit tests while
 iterating, broader checks once, at the commit.** Re-running the full suite after
 each incremental edit is the failure mode to avoid — it costs ~8 min a turn and
 re-proves what the previous run already proved.
