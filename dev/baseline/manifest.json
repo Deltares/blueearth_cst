@@ -2,30 +2,30 @@
   "project_dir": "test_case/test_local",
   "recorded_by": {
     "branch": "main",
-    "commit": "d3b6da70dfc219f58fa2ccaaaa48287ffb26f380",
+    "commit": "9285ae6e16bf1bdfdf476afbfb018944b34200d5",
     "dirty": true
   },
   "targets": {
     "test_case/test_local/config/runs/snake_config_climate_projections.yml": {
-      "sha256": "7fdf3eb34e3566257a3984e86a3b233e20e71a0ad5d32bd426e2e2316b825887",
+      "sha256": "4015ec5580865c0427f82d0825c66c79a1e4c8d83f2e3ce456661f7100ae1767",
       "type": "yaml"
     },
     "test_case/test_local/config/runs/snake_config_model_creation.yml": {
-      "sha256": "7fdf3eb34e3566257a3984e86a3b233e20e71a0ad5d32bd426e2e2316b825887",
+      "sha256": "4015ec5580865c0427f82d0825c66c79a1e4c8d83f2e3ce456661f7100ae1767",
       "type": "yaml"
     },
     "test_case/test_local/data/climate/projections/cmip6/summary/cmip6_change_factors_annual.csv": {
-      "sha256": "a85e3d49efc50c1c89c22e77490e97ef1f802fe2caefc0a30444f83ef6e73f8e",
-      "size_bytes": 4550,
+      "sha256": "c69d6e0c7ba5d10dc1a05946cdd17a37fd42e00fd822762b3ca647a5dc07fb5a",
+      "size_bytes": 4544,
       "type": "csv"
     },
     "test_case/test_local/data/climate/projections/cmip6/summary/cmip6_change_factors_monthly.csv": {
-      "sha256": "7c1d173406fef2648930f9c804ff88b96be0fb068f8146797fae0cedb3c85f1b",
-      "size_bytes": 53935,
+      "sha256": "833353ea72cefdc9ce041cafc83fb966576ddf5656893656a600bf89cc2eba91",
+      "size_bytes": 53875,
       "type": "csv"
     },
     "test_case/test_local/experiments/experiment/config/snake_config_climate_experiment.yml": {
-      "sha256": "7fdf3eb34e3566257a3984e86a3b233e20e71a0ad5d32bd426e2e2316b825887",
+      "sha256": "4015ec5580865c0427f82d0825c66c79a1e4c8d83f2e3ce456661f7100ae1767",
       "type": "yaml"
     },
     "test_case/test_local/experiments/experiment/results/q_indicators.csv": {
@@ -38,15 +38,15 @@
         "precip_change",
         "value"
       ],
-      "n_groups": 66,
-      "n_rows": 756,
+      "n_groups": 55,
+      "n_rows": 630,
       "ref_table": "indicator_ref/74ed83c06b2e7e6c.csv",
       "type": "indicator"
     },
     "test_case/test_local/models/hydrology/wflow/run_default/output.csv": {
       "column": "Q_101",
-      "mean_ref": 10.94766158,
-      "n_rows": 7670,
+      "mean_ref": 10.58012255,
+      "n_rows": 6209,
       "ref_series": "discharge_ref/9baa48f90ceaf138.csv",
       "type": "discharge"
     }
