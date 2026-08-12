@@ -17,7 +17,7 @@ weagen_config_path <- args[[2]]
 stress_csv_path    <- args[[3]]
 output_nc_path     <- args[[4]]
 
-# Config file — the ONE shared weathergen config from rule 3.04. C29 retired the
+# Config file — the ONE shared weathergen config from rule 3.10. C29 retired the
 # per-member weathergen_config_rlz_<n>_cst_<m>.yml: it carried nothing that
 # varied except the output filename, which Snakemake already knows because it is
 # this rule's own declared output, so it now arrives as args[[4]].
@@ -120,7 +120,7 @@ weathergenr::write_netcdf(
    verbose       = wnc$verbose,
    # Derived from this rule's declared output above, NOT from
    # write_netcdf.file_prefix -- that key carries the generation step's prefix
-   # (rule 3.06), and the perturbed series is named for its own member.
+   # (rule 3.11), and the perturbed series is named for its own member.
    file_prefix   = nc_file_prefix,
    file_suffix   = nc_file_suffix
 )

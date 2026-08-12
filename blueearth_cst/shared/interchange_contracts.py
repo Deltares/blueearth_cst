@@ -268,7 +268,7 @@ _WG3_GENERATE_WEATHER_KEYS = (
     "warm_pool_size",
     "warm_filter_bounds",
     # `relax_priority` is deliberately NOT pinned. It is a generate_weather
-    # argument, but rule 3.06 calls run_weather_generator, and that wrapper
+    # argument, but rule 3.11 calls run_weather_generator, and that wrapper
     # forwards every generate_weather argument except this one -- so pinning it
     # would require a key that reaches nothing. Restore if upstream forwards it.
     "annual_knn_n",
@@ -282,14 +282,14 @@ _WG3_GENERATE_WEATHER_KEYS = (
     "n_cores",
     "verbose",
     "save_plots",
-    # Injected per run by rule 3.04 (prepare_weagen_config.build_weagen_config).
+    # Injected per run by rule 3.10 (prepare_weagen_config.build_weagen_config).
     "n_years",
     "start_year",
     "n_realizations",
     "out_dir",
 )
 
-#: WG-3 ``apply_climate_perturbations`` surface (rule 3.07). Hardcoded in
+#: WG-3 ``apply_climate_perturbations`` surface (rule 3.12). Hardcoded in
 #: impose_climate_change.R until the 1.2.0 rename surfaced them.
 _WG3_PERTURBATION_KEYS = (
     "compute_pet",
@@ -310,7 +310,7 @@ _WG3_PERTURBATION_KEYS = (
     "diagnostic",
 )
 
-#: WG-3 ``write_netcdf`` surface — read by BOTH rule 3.06 and rule 3.07.
+#: WG-3 ``write_netcdf`` surface — read by BOTH rule 3.11 and rule 3.12.
 _WG3_WRITE_NETCDF_KEYS = (
     "calendar",
     "compression",
@@ -321,7 +321,7 @@ _WG3_WRITE_NETCDF_KEYS = (
     "file_prefix",
 )
 
-#: WG-3 ``run_weather_generator`` surface — the wrapper rule 3.06 calls. It runs
+#: WG-3 ``run_weather_generator`` surface — the wrapper rule 3.11 calls. It runs
 #: generate_weather and then the evaluation pass; ``_WG3_GENERATE_WEATHER_KEYS``
 #: above is handed to it verbatim as its ``config`` argument.
 _WG3_RUN_KEYS = (
