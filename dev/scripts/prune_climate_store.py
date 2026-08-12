@@ -26,7 +26,7 @@ download to produce.
 
 Usage (from the repo root, inside pixi)::
 
-    python dev/scripts/prune_climate_store.py --config config/workflows/snake_config_model_test.yml
+    python dev/scripts/prune_climate_store.py --config test_case/snake_config_baseline.yml
     python dev/scripts/prune_climate_store.py --config <cfg> --delete
 
 Not part of a run: this inspects and maintains a project tree

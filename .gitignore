@@ -127,6 +127,15 @@ dask-worker-space/
 # and the directory form would silently keep it untracked.
 test_case/*
 !test_case/snake_config_*.yml
+# The basin inputs those configs name. Untracked until 2026-08-12, which broke
+# both CI legs from 08-10: the seed config's `gauge_points` is a rule input, so
+# a bare checkout could not resolve the wf1 DAG at all (MissingInputException,
+# classified in tests/test_cli.py rather than predicted). Same two-step as the
+# configs, one level deeper -- git will not descend into an excluded DIRECTORY,
+# so `!test_case/test_data/*.csv` on its own matches nothing.
+!test_case/test_data/
+test_case/test_data/*
+!test_case/test_data/*.csv
 .Rproj.user
 
 # R-related files

@@ -49,12 +49,20 @@ The tree is self-explanatory; these are the parts that are not.
 - `config/` — four bins plus `advanced_settings.yml`. There is **no
   `workflows/` bin**: every shipped `--configfile` target lives beside the project
   it writes into, under `test_case/` (`snake_config_rapid.yml`,
-  `snake_config_model_test.yml`, its `_linux` twin, `snake_config_dev_fast.yml`
+  `snake_config_baseline.yml`, its `_linux` twin, `snake_config_wf2_fast.yml`
   — which one to run is under Workflow), which is how a real project is laid out too.
-  Those are the ONLY tracked files under the otherwise-ignored `test_case/`, which
-  is why `.gitignore` reads `test_case/*` plus `!test_case/snake_config_*.yml` —
-  the directory form `test_case/` cannot work, since git refuses to un-ignore a
-  file whose parent DIRECTORY is excluded.
+  Those, plus the two basin-input CSVs under `test_case/test_data/`, are the ONLY
+  tracked files in the otherwise-ignored `test_case/`, which is why `.gitignore`
+  reads `test_case/*` plus `!test_case/snake_config_*.yml` and then repeats the
+  pattern one level deeper for `test_data/` — the directory form `test_case/`
+  cannot work, since git refuses to un-ignore a file whose parent DIRECTORY is
+  excluded, and that is equally why the CSVs take three lines (un-ignore the
+  directory, re-exclude its contents, re-include `*.csv`) rather than one.
+  Those CSVs were untracked until 2026-08-12, which broke both CI legs from
+  08-10: `gauge_points` is a rule input, so a bare checkout could not resolve
+  the wf1 DAG at all. **Keep the `snake_config_` prefix on any new seed
+  config** — a name outside that glob is silently untracked, with `git status`
+  reporting the old path as deleted and never listing the new one.
   `catalogs/` (hydromt data catalogs, the `-d` targets, plus an `archive/` of
   those whose only consumers were the archived configs; `cmip6_data.yml`
   is **generated** by `dev/scripts/generate_cmip6_catalog.py` from a live
@@ -168,7 +176,7 @@ pixi run install      # + weathergenr (R, via remotes) and Julia env (Pkg.instan
 
 # Run the three workflows IN ORDER (climate_experiment needs model_creation
 # artifacts). snake_config_rapid.yml is the DEFAULT config; swap in
-# snake_config_model_test.yml only for the runs listed under Workflow:
+# snake_config_baseline.yml only for the runs listed under Workflow:
 snakemake all -c 3 -s Snakefile_model_creation      --configfile test_case/snake_config_rapid.yml
 snakemake all -c 3 -s Snakefile_climate_projections --configfile test_case/snake_config_rapid.yml --keep-going
 snakemake all -c 3 -s Snakefile_climate_experiment  --configfile test_case/snake_config_rapid.yml
@@ -499,14 +507,14 @@ signature, or `shared/`; those are the paths that tier exists to guard.
 ### Which config to run — rapid by default, comprehensive selectively
 
 The ladder above governs `pytest`; this governs the pipeline itself. Default to
-`test_case/snake_config_rapid.yml` and reach for `snake_config_model_test.yml`
+`test_case/snake_config_rapid.yml` and reach for `snake_config_baseline.yml`
 only when the run's NUMBERS are the point.
 
 | Config | `project_dir` | Run it for |
 |---|---|---|
 | `snake_config_rapid.yml` | `test_case/test_rapid` | anything you want to watch EXECUTE — a rule you edited, a DAG check, a WF3 smoke run, a figure render |
-| `snake_config_model_test.yml` | `test_case/test_local` | recording or checking `dev/baseline/manifest.json`, `tree-check`, a milestone seal, any number you will quote |
-| `snake_config_dev_fast.yml` | `test_case/test_dev` | WF2 code iteration only — 2 series, and it drops `st_0` |
+| `snake_config_baseline.yml` | `test_case/test_local` | recording or checking `dev/baseline/manifest.json`, `tree-check`, a milestone seal, any number you will quote |
+| `snake_config_wf2_fast.yml` | `test_case/test_dev` | WF2 code iteration only — 2 series, and it drops `st_0` |
 
 Rapid costs ~2.6× less wflow time (10 members × 9 forcing years, vs 14 × 17) and
 ~1.7× less weather generation (46 generated years, vs 78). **The horizon, not
@@ -519,9 +527,9 @@ Rapid is CHEAP, not NARROW, and the difference is load-bearing. It keeps
 are derived *from* — `false` drops 2 of 11 `q` metrics with nothing reporting it
 (the R11 P3 case `interchange_contracts.py` was hardened against) — and it keeps
 two CMIP6 models, because a one-model config never runs the ensemble reduction.
-A config that gives up coverage must say which, as `dev_fast` does.
+A config that gives up coverage must say which, as `wf2_fast` does.
 
-The baseline is recorded from `snake_config_model_test.yml` and nothing else;
+The baseline is recorded from `snake_config_baseline.yml` and nothing else;
 never point `check_baseline.py` at the rapid tree.
 
 ### Read the CI run after you push

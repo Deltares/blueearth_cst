@@ -68,7 +68,7 @@ datasets:
   # --- Meteo / climate forcing sources ---------------------------------------
   # Source coverage + native->wflow variable names are noted per dataset. wflow
   # historical forcing here is `clim_historical: era5` with `variables:
-  # [precip, temp]` over 2000-2020 (see config/workflows/snake_config_*.yml);
+  # [precip, temp]` over 2000-2020 (see test_case/snake_config_*.yml);
   # CHIRPS/E-OBS are staged as alternative forcing sources for the same window.
 
   - name: era5_daily

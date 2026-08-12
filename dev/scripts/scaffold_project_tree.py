@@ -48,7 +48,7 @@ import cross_workflow_inputs
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_CONFIG = REPO_ROOT / "config/workflows/snake_config_model_test.yml"
+DEFAULT_CONFIG = REPO_ROOT / "test_case/snake_config_baseline.yml"
 DEFAULT_EXTRAS = Path(__file__).resolve().parent / "scaffold_extras.yml"
 DEFAULT_OUT = REPO_ROOT / ".tmp/scaffold"
 
