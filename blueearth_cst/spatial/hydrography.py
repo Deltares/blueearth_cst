@@ -71,7 +71,11 @@ def _topography(
 ) -> xr.Dataset:
     """Resample elevation and slope to the analysis grid."""
     elevation = source_ds["elevtn"]
-    slope = source_ds["lndslp"] if "lndslp" in source_ds else _slope_from_elevation(elevation)
+    slope = (
+        source_ds["lndslp"]
+        if "lndslp" in source_ds
+        else _slope_from_elevation(elevation)
+    )
     topo = xr.merge(
         [
             elevation.raster.reproject_like(grid, method="average").rename("elevation"),
@@ -185,13 +189,21 @@ def prepare_hydrography(
         np.where(mask_values, upstream_area, -9999.0),
         coords=flow_grid.raster.coords,
         dims=flow_grid.raster.dims,
-        attrs={"long_name": "upstream contributing area", "units": "km2", "_FillValue": -9999.0},
+        attrs={
+            "long_name": "upstream contributing area",
+            "units": "km2",
+            "_FillValue": -9999.0,
+        },
     )
     output_ds["flow_accumulation"] = xr.DataArray(
         np.where(mask_values, accumulation, 0),
         coords=flow_grid.raster.coords,
         dims=flow_grid.raster.dims,
-        attrs={"long_name": "upstream contributing cell count", "units": "cell", "_FillValue": 0},
+        attrs={
+            "long_name": "upstream contributing cell count",
+            "units": "cell",
+            "_FillValue": 0,
+        },
     )
     cell_area = gis_utils.area_grid(
         flow_grid.raster.transform,

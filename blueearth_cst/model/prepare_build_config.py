@@ -10,11 +10,11 @@ delineates its basin from `shared.basin.hydrography` / `basin_index`, the Wflow
 build takes its hydrography from the template's `setup_basemaps`, and this rule
 (1.02, the first build step) raises if the two ever name different datasets.
 """
+
 import ast
 from pathlib import Path
 
 import yaml
-
 
 #: (template key under ``setup_basemaps``, ``shared.basin`` key) pairs the
 #: store's delineation and the model build must agree on (R07 B1 / ext1-01).

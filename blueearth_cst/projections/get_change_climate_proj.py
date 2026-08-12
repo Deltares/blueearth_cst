@@ -16,6 +16,7 @@ from blueearth_cst.shared.collection_utils import intersection
 
 # %%
 
+
 def _to_datetime_index(ds):
     """Convert an object-dtype (cftime) time index to a proleptic-Gregorian
     DatetimeIndex.
@@ -164,7 +165,9 @@ def get_change_monthly_clim_proj(
     hist_start, hist_end, n_ref_years = hydrological_year_bounds(
         ds_hist_time, start_month_hyd_year
     )
-    clim_start, clim_end, _ = hydrological_year_bounds(ds_clim_time, start_month_hyd_year)
+    clim_start, clim_end, _ = hydrological_year_bounds(
+        ds_clim_time, start_month_hyd_year
+    )
 
     ds = []
     for var in intersection(ds_hist_time.data_vars, ds_clim_time.data_vars):
@@ -214,12 +217,16 @@ def get_change_monthly_clim_proj(
                     flagged = hist_stat < threshold
                     change = change.where(~flagged)
                     ds.append(
-                        _labelled(flagged.astype("int8").rename(f"{var}__flagged"),
-                                  stat_name, n_ref_years).to_dataset()
+                        _labelled(
+                            flagged.astype("int8").rename(f"{var}__flagged"),
+                            stat_name,
+                            n_ref_years,
+                        ).to_dataset()
                     )
                     ds.append(
-                        _labelled(absolute.rename(f"{var}__absolute"),
-                                  stat_name, n_ref_years).to_dataset()
+                        _labelled(
+                            absolute.rename(f"{var}__absolute"), stat_name, n_ref_years
+                        ).to_dataset()
                     )
             else:
                 change = absolute
@@ -344,25 +351,21 @@ def get_change_annual_clim_proj(
         # independent properties could never disagree.
         if canonical_kind(variable_spec, var) == "rate":
             # a rate integrates over the year
-            hist = (
-                _annual(
-                    ds_hist_time[var].sel(
-                        time=slice(start_hyd_year_hist, end_hyd_year_hist)
-                    ),
-                    f"YS-{start_month_hyd_year.upper()[:3]}",
-                    "sum",
-                ).sel(
-                    scenario=ds_hist_time.scenario.values[0],
-                )
+            hist = _annual(
+                ds_hist_time[var].sel(
+                    time=slice(start_hyd_year_hist, end_hyd_year_hist)
+                ),
+                f"YS-{start_month_hyd_year.upper()[:3]}",
+                "sum",
+            ).sel(
+                scenario=ds_hist_time.scenario.values[0],
             )
-            clim = (
-                _annual(
-                    ds_clim_time[var].sel(
-                        time=slice(start_hyd_year_clim, end_hyd_year_clim)
-                    ),
-                    f"YS-{start_month_hyd_year.upper()[:3]}",
-                    "sum",
-                )
+            clim = _annual(
+                ds_clim_time[var].sel(
+                    time=slice(start_hyd_year_clim, end_hyd_year_clim)
+                ),
+                f"YS-{start_month_hyd_year.upper()[:3]}",
+                "sum",
             )
             # S8-07 (owner ruling: mm/day everywhere): the change above is a ratio
             # of annual INTEGRALS, but the LEVEL reported beside it must be in the
@@ -385,25 +388,21 @@ def get_change_annual_clim_proj(
             ).sel(scenario=ds_hist_time.scenario.values[0])
         else:  # for temp
             # additive for temp
-            hist = (
-                _annual(
-                    ds_hist_time[var].sel(
-                        time=slice(start_hyd_year_hist, end_hyd_year_hist)
-                    ),
-                    f"YS-{start_month_hyd_year.upper()[:3]}",
-                    "mean",
-                ).sel(
-                    scenario=ds_hist_time.scenario.values[0],
-                )
+            hist = _annual(
+                ds_hist_time[var].sel(
+                    time=slice(start_hyd_year_hist, end_hyd_year_hist)
+                ),
+                f"YS-{start_month_hyd_year.upper()[:3]}",
+                "mean",
+            ).sel(
+                scenario=ds_hist_time.scenario.values[0],
             )
-            clim = (
-                _annual(
-                    ds_clim_time[var].sel(
-                        time=slice(start_hyd_year_clim, end_hyd_year_clim)
-                    ),
-                    f"YS-{start_month_hyd_year.upper()[:3]}",
-                    "mean",
-                )
+            clim = _annual(
+                ds_clim_time[var].sel(
+                    time=slice(start_hyd_year_clim, end_hyd_year_clim)
+                ),
+                f"YS-{start_month_hyd_year.upper()[:3]}",
+                "mean",
             )
             # A state is already a duration-weighted mean in its own units.
             clim_level = clim
@@ -463,9 +462,11 @@ def get_change_annual_clim_proj(
                 .broadcast_like(level_stat)
             )
             for stat, suffix in ((level_stat, "level"), (reference_stat, "reference")):
-                companion = stat.rename(f"{var}{COMPANION_SEP}{suffix}").assign_coords(
-                    {"stats": quantile_label(stat_name, n_ref_years)}
-                ).expand_dims("stats")
+                companion = (
+                    stat.rename(f"{var}{COMPANION_SEP}{suffix}")
+                    .assign_coords({"stats": quantile_label(stat_name, n_ref_years)})
+                    .expand_dims("stats")
+                )
                 if "quantile" in companion.coords:
                     companion = companion.drop_vars("quantile")
                 ds.append(companion.to_dataset())

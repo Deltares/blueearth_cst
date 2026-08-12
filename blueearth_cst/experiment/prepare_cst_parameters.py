@@ -2,11 +2,11 @@ import os
 import sys
 from os.path import join
 from pathlib import Path
-import pandas as pd
-import numpy as np
-import yaml
+from typing import List, Union
 
-from typing import Union, List
+import numpy as np
+import pandas as pd
+import yaml
 
 # Import the shared grid helper regardless of the working directory. The
 # Snakefile prepends its basedir to sys.path before invoking script: rules, but
@@ -15,7 +15,6 @@ from typing import Union, List
 # root); parent.parent stopped at the package dir, from which
 # `import blueearth_cst.shared...` cannot resolve (O-07).
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from blueearth_cst.shared.snake_utils import index_width, stress_test_grid
 # The SAME twelve-to-one reduction the indicator tables use (month-length
 # weighted mean). Imported rather than reimplemented: C28 makes `validate_hm7`
 # assert that a results row's temp_change/precip_change equals the design
@@ -25,6 +24,7 @@ from blueearth_cst.experiment.export_wflow_results import (
     annual_perturbation,
     perturbation_axes,
 )
+from blueearth_cst.shared.snake_utils import index_width, stress_test_grid
 
 #: The stress-test axes this module knows how to enumerate. A third axis needs a
 #: new design-table column AND a new results column, so it must arrive as a
@@ -175,8 +175,8 @@ def prep_cst_parameters(
                     # Percent, matching precip_change: both are factors in the
                     # parameter file, and one table must not mix conventions.
                     "precip_variance_change": (
-                        annual_perturbation(persisted, "precip_variance", csv_fn)
-                        * 100 - 100
+                        annual_perturbation(persisted, "precip_variance", csv_fn) * 100
+                        - 100
                     ),
                 }
             )

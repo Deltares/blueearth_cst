@@ -156,9 +156,7 @@ def reserve_experiment(project_dir, name: str) -> Path:
     return target
 
 
-def allocate_experiment_name(
-    project_dir, base: str, user_supplied: bool
-) -> str:
+def allocate_experiment_name(project_dir, base: str, user_supplied: bool) -> str:
     """Choose and reserve a name for a NEW experiment.
 
     Parameters

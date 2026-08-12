@@ -8,8 +8,9 @@ year math is reachable without a live ``snakemake`` global. Behavior-neutral:
 the same dict is assembled and written.
 """
 
-import os
 import math
+import os
+
 import yaml
 
 
@@ -96,7 +97,9 @@ def build_weagen_config(
     # perturbation magnitudes — those live in st_<m>.csv and are read from there.
     stress_test_cfg = experiment_cfg["stress_test"]
     yml_dict["temp"] = {"transient_change": _transient_flag(stress_test_cfg, "temp")}
-    yml_dict["precip"] = {"transient_change": _transient_flag(stress_test_cfg, "precip")}
+    yml_dict["precip"] = {
+        "transient_change": _transient_flag(stress_test_cfg, "precip")
+    }
 
     return yml_dict
 

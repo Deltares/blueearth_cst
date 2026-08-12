@@ -24,6 +24,7 @@ The rule (A2, closing OQ-9):
   precipitation's 0.1 would apply a rainfall threshold to an unrelated quantity in
   unrelated units.
 """
+
 from __future__ import annotations
 
 #: A2, closing OQ-9. Keyed by the variable's canonical name, in its canonical

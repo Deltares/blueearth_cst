@@ -113,9 +113,7 @@ def split_columns(columns) -> Dict[str, List[str]]:
         match = _COLUMN.match(str(name))
         if not match:
             continue
-        grouped.setdefault(match["var"], []).append(
-            (int(match["station"]), str(name))
-        )
+        grouped.setdefault(match["var"], []).append((int(match["station"]), str(name)))
     return {
         var: [name for _, name in sorted(pairs)]
         for var, pairs in sorted(grouped.items())

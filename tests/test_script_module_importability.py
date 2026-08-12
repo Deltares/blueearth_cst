@@ -21,8 +21,10 @@ an import-time side effect that needs a run directory, a top-level read of a
 config file -- not only on an undefined name.
 """
 
+import ast
 import importlib
 import pkgutil
+import re
 from pathlib import Path
 
 import pytest
@@ -30,6 +32,7 @@ import pytest
 import blueearth_cst
 
 PKG_ROOT = Path(blueearth_cst.__file__).resolve().parent
+REPO = PKG_ROOT.parent
 
 
 def _module_names():
@@ -63,8 +66,6 @@ def test_no_module_reads_snakemake_at_module_scope():
     module whose top-level read happens to be inside a `try:` that swallows the
     NameError, which the dynamic sweep above would let through.
     """
-    import ast
-
     offenders = []
     for path in sorted(PKG_ROOT.rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
@@ -83,3 +84,78 @@ def test_no_module_reads_snakemake_at_module_scope():
         "these read the injected `snakemake` object at module scope; move the "
         f"read inside the `if __name__ == '__main__':` guard: {offenders}"
     )
+
+
+# ---------------------------------------------------------------------------
+# The mirror-image rule: a `script:` target must NOT carry a __future__ import
+# ---------------------------------------------------------------------------
+
+
+def _script_targets():
+    """Every module a Snakefile names in a `script:` directive."""
+    targets = set()
+    for snakefile in sorted(REPO.glob("Snakefile_*")):
+        targets |= set(
+            re.findall(
+                r"blueearth_cst/[a-z_0-9/]*\.py", snakefile.read_text(encoding="utf-8")
+            )
+        )
+    return sorted(targets)
+
+
+def _future_import_line(path):
+    """The line number of a real `from __future__ import ...`, or None.
+
+    Parsed rather than grepped: three modules DISCUSS the rule in a comment
+    (`add_climate_forcing.py` is the one that explains it), and a text search
+    reports those as violations.
+    """
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    for node in tree.body:
+        if isinstance(node, ast.ImportFrom) and node.module == "__future__":
+            return node.lineno
+    return None
+
+
+def test_the_script_target_sweep_actually_finds_targets():
+    """A guard on the guard, as above: an empty sweep asserts nothing."""
+    targets = _script_targets()
+    assert len(targets) > 20, f"expected the full script: layer, found {targets}"
+
+
+@pytest.mark.parametrize("rel", _script_targets())
+def test_no_script_target_carries_a_future_import(rel):
+    """Snakemake's `script:` preamble displaces it, and it then raises.
+
+    A `__future__` import must be the first statement of a module. Snakemake
+    prepends its own preamble to a `script:` module before executing it, so the
+    import is no longer first and the rule dies at RUN time with a SyntaxError —
+    after the DAG is built, and invisible to every check that merely imports the
+    module (where the file is first again and the import is legal).
+
+    The complement of the rule is fine and widely used: 26 modules under
+    `blueearth_cst/` carry the import today and none of them is a `script:`
+    target. This test is what keeps that split true as modules move between the
+    two roles — promoting a library module to a `script:` target is exactly the
+    edit that breaks it, and nothing else would report it.
+    """
+    lineno = _future_import_line(REPO / rel)
+    assert lineno is None, (
+        f"{rel}:{lineno} is a `script:` target and carries a `__future__` import; "
+        "Snakemake's preamble displaces it and the rule fails at run time. "
+        "Drop the import (see blueearth_cst/model/add_climate_forcing.py)."
+    )
+
+
+def test_a_library_module_may_still_carry_one():
+    """The rule is scoped to `script:` targets, not to the package.
+
+    Stated as a test so a future sweep does not "fix" the 26 legal ones.
+    """
+    carriers = [
+        p.relative_to(REPO).as_posix()
+        for p in sorted(PKG_ROOT.rglob("*.py"))
+        if _future_import_line(p) is not None
+    ]
+    assert carriers, "expected library modules to use the import"
+    assert not (set(carriers) & set(_script_targets()))

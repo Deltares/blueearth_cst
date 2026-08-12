@@ -22,6 +22,11 @@
 # Where tests live, so a bare `pytest` behaves like the documented `pytest tests/`.
 testpaths = ["tests"]
 
+# Out of the repo root and into the one ignored scratch directory (.gitignore's
+# `.tmp/`), which is already where `pytest --basetemp` output goes. Keep in step
+# with [tool.ruff] `cache-dir` below.
+cache_dir = ".tmp/pytest_cache"
+
 # Repo root on sys.path. This is the supported declarative replacement for the
 # 29 `sys.path.insert(0, <repo root>)` lines in tests/ -- pytest prepends these
 # before collection, so `import blueearth_cst...` resolves without each module
@@ -62,8 +67,11 @@ xfail_strict = true
 
 # Keep collection out of trees that are not source: the untracked run fixture
 # (renamed from examples/ in R07), the pixi env, and build scratch.
+# `.tmp` is listed because setting this key REPLACES pytest's default, which
+# includes the blanket `.*` — so the scratch dir (now holding this cache, plus
+# any --basetemp run) would otherwise be walked by a bare `pytest .`.
 norecursedirs = [
-    ".git", ".pixi", ".snakemake", "test_case", "examples",
+    ".git", ".pixi", ".snakemake", ".tmp", "test_case", "examples",
     "docs", "dev", "*.egg-info", "__pycache__",
 ]
 
@@ -78,6 +86,11 @@ norecursedirs = [
 # `python = ">=3.12,<3.13"` in pixi.toml -- keep the two in step.
 target-version = "py312"
 
+# Out of the repo root, alongside the pytest cache above. Note the knock-on in
+# `extend-exclude`: ruff's built-in excludes name `.ruff_cache` / `.pytest_cache`
+# literally, so neither is default-excluded once it lives under `.tmp/`.
+cache-dir = ".tmp/ruff_cache"
+
 # Added to ruff's built-in excludes (.git, build/, dist/, ...), which do NOT
 # cover these. Mirrors the pytest `norecursedirs` above, minus `dev` -- dev/scripts/
 # is our code and is linted (it is where the F402 shadowing below was found).
@@ -85,7 +98,10 @@ target-version = "py312"
 #              notebooks. AGENTS.md forbids patching vendored upstream material,
 #              so linting it could only produce findings we are not allowed to act on.
 #   test_case/ untracked run fixture, not source.
-extend-exclude = ["docs", "test_case", ".pixi", ".snakemake"]
+#   .tmp/      the ignored scratch dir, which now holds both tool caches (see
+#              `cache-dir` above). `respect-gitignore` already covers the walk;
+#              this also covers an explicitly-named path, given force-exclude.
+extend-exclude = ["docs", "test_case", ".pixi", ".snakemake", ".tmp"]
 
 # Apply the excludes to explicitly-named paths too, not only to a directory
 # walk. Without it `ruff format blueearth_cst/<file>.py` reformats a file the
@@ -112,14 +128,6 @@ select = ["E4", "E7", "E9", "F", "I"]
 # modules now read the injected object via the guarded
 # `if "snakemake" in globals()` idiom, which keeps them importable for unit
 # tests. A new module needing an F821 ignore is a module that skipped the idiom.
-#
-# I001 in blueearth_cst/ is TEMPORARY, and the same deferral as
-# [tool.ruff.format]'s exclude below: this is the Snakemake `script:` layer, so
-# re-sorting its imports fires the `code` rerun trigger on every project_dir.
-# Both halves are held for the same sitting -- see dev/tasks/ t2608091116 and
-# t2608090907a. The 42 files OUTSIDE this layer are sorted and gated now, which
-# is what stops the set growing while it waits.
-"blueearth_cst/**" = ["I001"]
 
 # E402 (import not at top) is load-bearing here, not an oversight: the module
 # sets GDAL_CACHEMAX / VSI_CACHE / GDAL_DISABLE_READDIR_ON_OPEN via
@@ -134,15 +142,12 @@ select = ["E4", "E7", "E9", "F", "I"]
 # Black-compatible, and a CI gate since ADR 0005 (2026-08-09).
 quote-style = "double"
 
-# Scoped to `format` only, NOT [tool.ruff] extend-exclude -- both stay linted.
-#   blueearth_cst/  the Snakemake `script:` layer. Reformatting it fires the
-#                   `code` rerun trigger on every project_dir, so ADR 0005 holds
-#                   it for stage 2. TEMPORARY; removing it is stage 2's whole
-#                   config change (dev/tasks/, hung on R12).
+# Scoped to `format` only, NOT [tool.ruff] extend-exclude -- the excluded tree
+# stays linted.
 #   *.md            ruff formats fenced Python inside Markdown, which would
 #                   rewrite documents hash-frozen in
 #                   dev/reference/sealed-records.yml. Permanent.
-exclude = ["blueearth_cst/**", "*.md"]
+exclude = ["*.md"]
 
 
 # ---------------------------------------------------------------------------

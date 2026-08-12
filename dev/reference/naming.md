@@ -175,9 +175,12 @@ rename path, not even a migration note.**
 **Tier 2 — established BlueEarth contracts. Grandfather; rename only with
 a migration note (§7).**
 
-- User-facing config keys and table labels: `Tlow`, `Tpeak`. (`Qstats` was the
-  third example until R9 P3 renamed `Qstats.csv` to `q_indicators.csv`; no
-  filename relies on this tier any more — see §7 and §8.)
+- User-facing table labels: `BFI`, return-period tokens such as `10yr` / `2yr`
+  inside a metric name. (`Qstats` was an example until R9 P3 renamed
+  `Qstats.csv` to `q_indicators.csv`; `Tlow` and `Tpeak` were two more until
+  2026-08-12, when they stopped being config keys and became
+  `indicator_tables.RETURN_PERIOD_{PEAK,LOW}_YR`. No filename relies on this
+  tier any more — see §7 and §8.)
 - HydroMT data-catalog *source names* (`era5`, `merit_hydro`,
   `cmip6_<model>_<scenario>_<member>`) — BlueEarth-minted lookup keys
   that form a catalog-lookup contract. (Their schema is tier 1.)
@@ -263,9 +266,10 @@ for `dev/` markdown.** The form is fixed by this section; §8 does not apply to
 it. (Stated because two consecutive milestones hit the ambiguity.)
 
 **Scientific abbreviations are allowed in config keys and column/row labels**
-even though they break the acronym-lowercase rule: `Tlow`, `Tpeak`,
-return-period `T2` / `T10`, `BFI`. These are established domain vocabulary;
-keep them.
+even though they break the acronym-lowercase rule: return-period `T2` / `T10`,
+`BFI`. These are established domain vocabulary; keep them. (`Tlow` and `Tpeak`
+stood here until 2026-08-12; they are module constants now, and a Python
+constant takes the ordinary `UPPER_SNAKE` form.)
 
 **Narrowed at R9 (was: "in user-facing output filenames").** The carve-out
 existed for `Qstats.csv`, and R9 renamed it to `q_indicators.csv` — after which
@@ -303,7 +307,7 @@ Two exemptions, both narrow, both stated so a reader does not "correct" them:
    `NOAA-GFDL/GFDL-ESM4`, which carry hyphens, slashes and mixed case — are
    never normalized. These are §6 tier-1 identifiers.
 2. **Config keys and data labels are out of reach.** The rule governs filenames
-   and directory names only. Column and row labels (`Tlow`, `Tpeak`, `BFI`) and
+   and directory names only. Column and row labels (`BFI`, `T10`) and
    config keys keep their domain spelling — see §7's narrowed carve-out.
 
 **The rule is CLASS-SCOPED and must not be generalised.** It governs generated

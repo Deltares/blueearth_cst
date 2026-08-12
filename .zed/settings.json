@@ -4,8 +4,10 @@
 // here: lint in pyproject.toml [tool.ruff], type checking in [tool.pyright]
 // (basedpyright reads that table, so strictness matches VS Code), tests in
 // [tool.pytest.ini_options], whitespace in .editorconfig, line endings in
-// .gitattributes, commands in pixi.toml [tasks]. .vscode/settings.json is the
-// same shim for VS Code -- keep the two in step.
+// .gitattributes, commands in pixi.toml [tasks]. That shared half is what a
+// VS Code or PyCharm user picks up automatically; there is no tracked
+// .vscode/ counterpart to keep in step, because .gitignore treats it as
+// per-user state.
 {
   // Keep the .pixi env (tens of thousands of files), Snakemake's state dir, the
   // untracked run fixture, and caches out of the file tree, project search, and
@@ -23,6 +25,9 @@
     "**/.settings",
     "**/.pixi",
     "**/.snakemake",
+    // Both caches now live under .tmp/ (pyproject.toml cache_dir / cache-dir);
+    // the two literal names stay for a tool run that bypasses the repo config.
+    "**/.tmp",
     "**/.pytest_cache",
     "**/.ruff_cache",
     "**/__pycache__",
@@ -43,7 +48,7 @@
     // reformatted (~7.8k diff lines), so format-on-save would turn every
     // one-line tweak into a whole-file reformat in the diff. `formatter` is
     // still declared so an explicit ctrl-shift-i uses ruff and honours the
-    // repo's [tool.ruff.format] settings. .vscode/settings.json mirrors this.
+    // repo's [tool.ruff.format] settings.
     "Python": {
       "format_on_save": "off",
       "formatter": { "language_server": { "name": "ruff" } }

@@ -111,9 +111,7 @@ def figure_names(dataset: str) -> list[str]:
             f"unknown dataset {dataset!r}; expected one of {sorted(DATASETS)}"
         )
     return [
-        f"{dataset}_{var}_{kind}.png"
-        for var in CLIMATE_VARS
-        for kind in FIGURE_KINDS
+        f"{dataset}_{var}_{kind}.png" for var in CLIMATE_VARS for kind in FIGURE_KINDS
     ]
 
 
@@ -194,7 +192,6 @@ def _label_points(ax, gdf) -> None:
             fontweight="bold",
             zorder=6,
         )
-
 
 
 #: Stream-order column names, in the order they are tried. wflow writes
@@ -354,8 +351,20 @@ def _levels_actually_used(field, style, basins):
 
 #: Month labels for the seasonal chart. Initials alone are ambiguous (J/J/J);
 #: three letters fit at this width and read at a glance.
-MONTH_LABELS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+MONTH_LABELS = (
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+)
 
 #: In-plot annotations: the period mean, the trend, the box-plot key.
 FONT_SIZE_ANNOTATION = 6.0
@@ -399,8 +408,9 @@ def _series_axes(caveat, aspect=0.42):
         fig = plt.figure(figsize=series_figure_size(aspect), layout="constrained")
         ax = fig.add_subplot()
         if caveat:
-            fig.supxlabel(caveat, fontsize=FONT_SIZE_CAVEAT, color=COLOR_CAVEAT,
-                          wrap=True)
+            fig.supxlabel(
+                caveat, fontsize=FONT_SIZE_CAVEAT, color=COLOR_CAVEAT, wrap=True
+            )
     return fig, ax
 
 
@@ -446,8 +456,15 @@ def _render_annual(da, spec, title, caveat, overlays, **_):
         )
         slope, intercept = _decadal_trend(years, values)
         if slope is not None:
-            ax.plot(years, slope * years + intercept, color=colour, lw=1.4,
-                    ls=(0, (6, 2.5)), alpha=0.85, zorder=4)
+            ax.plot(
+                years,
+                slope * years + intercept,
+                color=colour,
+                lw=1.4,
+                ls=(0, (6, 2.5)),
+                alpha=0.85,
+                zorder=4,
+            )
             ax.annotate(
                 f"trend {slope * 10:+,.1f} {axis_unit.split(' ')[0]}/decade",
                 xy=(years[-1], slope * years[-1] + intercept),
@@ -481,7 +498,9 @@ def _render_monthly(da, spec, title, caveat, overlays, **_):
     months = np.arange(1, 13)
     grouped = per_month.groupby("time.month")
     spread = [
-        np.asarray(grouped[m].values, dtype=float) if m in grouped.groups else np.array([])
+        np.asarray(grouped[m].values, dtype=float)
+        if m in grouped.groups
+        else np.array([])
         for m in months
     ]
     spread = [values[np.isfinite(values)] for values in spread]
@@ -504,8 +523,14 @@ def _render_monthly(da, spec, title, caveat, overlays, **_):
         )
         means = [float(np.mean(spread[i])) for i in populated]
         ax.plot(
-            [months[i] for i in populated], means,
-            color="0.2", marker="D", ms=2.6, lw=0.9, ls="-", zorder=5,
+            [months[i] for i in populated],
+            means,
+            color="0.2",
+            marker="D",
+            ms=2.6,
+            lw=0.9,
+            ls="-",
+            zorder=5,
         )
         # No legend. Box-whiskers over a monthly axis are a convention the
         # audience reads without a key, and the caption carries what the boxes
@@ -524,7 +549,6 @@ _RENDERERS = {
     "annual": _render_annual,
     "monthly": _render_monthly,
 }
-
 
 
 #: Sidecar written beside the SOURCE figures and read by the FORCING ones, so a

@@ -1,21 +1,11 @@
 # Config templates
 
-Two different kinds of file share this directory. The distinction matters,
-because only one kind is read by a running workflow.
+**Scaffolds you copy. Nothing here is read by a running workflow.** Copy, fill
+in, point a config at your copy.
 
-## Consumed by the pipeline
-
-Referenced from a config and read by a rule. Changing one changes a run.
-
-| File | Consumer |
-| --- | --- |
-| `wflow_build_model.yml` | `Snakefile_model_creation` — default for `workflows.model_creation.model_build_config`; rule 1.06 `prepare_spatial_maps` and rule 1.07 `build_wflow_model` |
-| `wflow_update_waterbodies.yml` | `Snakefile_model_creation` — default for `waterbodies_config`; rule 1.08 `add_reservoirs_lakes_glaciers` |
-| `weathergen_config.yml` | `Snakefile_climate_experiment` — `default_config` for rule 3.10 `prepare_weathergen_config` |
-
-## Scaffolds you copy
-
-Never read by a run. Copy, fill in, point a config at your copy.
+The configs a rule actually *reads* live in **`config/defaults/`**. Until
+2026-08-11 both kinds shared this directory, so its name described only half of
+what it held; see `config/defaults/README.md`.
 
 | File | Purpose |
 | --- | --- |
@@ -24,10 +14,12 @@ Never read by a run. Copy, fill in, point a config at your copy.
 | `observed_daily_discharge_template.csv` | Header-only schema for observed discharge |
 | `archive/` | Unmaintained single-workflow configs; see its own README |
 
-`wflow_sbm.toml` sits here as a **reference copy only** — no Snakefile, script or
-test reads it. Rule 1.07 has hydromt generate the project's own TOML from
-hydromt_wflow's defaults. Treat this file as documentation, and expect it to lag:
-measured 2026-08-10, it was 126 lines against the 149 a real build emitted.
+`wflow_sbm.reference.toml` sits here as a **reference copy only** — no Snakefile,
+script or test reads it. Rule 1.07 has hydromt generate the project's own TOML
+from hydromt_wflow's defaults. Treat this file as documentation, and expect it to
+lag: measured 2026-08-10, it was 126 lines against the 149 a real build emitted.
+The `.reference.` infix is there because the bare name `wflow_sbm.toml` read as a
+build input, which is exactly what it is not.
 
 **Rename after copying.** Layer names inside the model are derived from your
 file's basename (`blueearth_cst/shared/gauges.py`), so a file still called

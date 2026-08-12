@@ -13,6 +13,7 @@ from blueearth_cst.shared.indicator_tables import (
     BASIN_METRIC_SUFFIXES,
     MIGRATION_NOTE,
     Q_METRIC_SUFFIXES,
+    RETIRED_EXPERIMENT_KEYS,
     VARIABLE_TOKENS,
     RetiredConfigKeyError,
     UnknownOutputVariableError,
@@ -20,6 +21,7 @@ from blueearth_cst.shared.indicator_tables import (
     basin_reduction,
     indicator_table_filename,
     indicator_tables,
+    output_code,
     q_metric_name,
     refuse_retired_experiment_keys,
     variable_token,
@@ -82,17 +84,14 @@ def test_tokens_are_distinct_so_two_variables_cannot_share_a_table():
 def test_the_return_levels_carry_their_return_period():
     """Tpeak/Tlow appeared in no column and no name before R11, so two runs with
     different settings produced identical-looking rows meaning different things."""
-    assert q_metric_name("return_level_max", 10, 2) == "q_return_level_10yr_max"
-    assert q_metric_name("return_level_max", 20, 5) == "q_return_level_20yr_max"
-    assert (
-        q_metric_name("return_level_7day_min", 20, 5) == "q_return_level_5yr_7day_min"
-    )
+    assert q_metric_name("return_level_max") == "q_return_level_10yr_max"
+    assert q_metric_name("return_level_7day_min") == "q_return_level_2yr_7day_min"
 
 
 def test_q95_is_named_p95_because_the_conventional_name_means_the_opposite():
     """Ours is the mean annual 95th percentile, a HIGH flow. Conventional Q95 is
     the flow exceeded 95% of the time — a LOW-flow drought index."""
-    assert q_metric_name("q95", 10, 2) == "q_mean_annual_p95"
+    assert q_metric_name("q95") == "q_mean_annual_p95"
 
 
 @pytest.mark.parametrize(
@@ -121,7 +120,7 @@ def test_every_metric_name_starts_with_its_variable_token():
     """The invariant `validate_hm7` asserts, since composing the variable into
     the metric is what normalisation would have given for free."""
     for statistic in Q_METRIC_SUFFIXES:
-        assert q_metric_name(statistic, 10, 2).startswith("q_")
+        assert q_metric_name(statistic).startswith("q_")
     for token in BASIN_METRIC_SUFFIXES:
         assert basin_metric_name(token).startswith(f"{token}_")
 
@@ -133,7 +132,7 @@ def test_overland_flow_reduces_with_a_mean_not_a_sum():
     assert basin_metric_name("overland_flow") == "overland_flow_annual_mean"
 
 
-@pytest.mark.parametrize("token", ["aet", "recharge", "precip"])
+@pytest.mark.parametrize("token", ["aet", "gwr", "precip"])
 def test_fluxes_keep_their_annual_total_in_mm_per_year(token):
     """A daily sum of a mm Δt⁻¹ flux is a legitimate time-integral. Ruled
     2026-08-08 as scoped to overland flow, so these are deliberately NOT
@@ -156,6 +155,21 @@ def test_the_three_tokens_that_were_deliberately_not_abbreviated(outvar, token):
     assert variable_token(outvar) == token
 
 
+def test_groundwater_recharge_borrows_the_code_it_already_had():
+    """The other half of the minting rule: where a canonical short name EXISTS,
+    take it rather than mint a second one.
+
+    `recharge` was the violation -- `gwr` is what `wflow_outputs.CODES` already
+    writes into the TOML and therefore into every run csv header, so the token
+    was a spelling the repo did not need. Renamed 2026-08-11; the table is
+    `gwr_indicators.csv` and the metric `gwr_annual_total`.
+    """
+    assert variable_token("groundwater recharge") == "gwr"
+    assert output_code("gwr") == "gwr"
+    assert indicator_table_filename("groundwater recharge") == "gwr_indicators.csv"
+    assert basin_metric_name("gwr") == "gwr_annual_total"
+
+
 # --- retired config keys (Q7) -------------------------------------------------
 
 
@@ -175,6 +189,36 @@ def test_a_stale_aggregate_rlz_is_refused_not_ignored():
     # `variable_spec.parse` precedent.
     assert MIGRATION_NOTE in message
     assert "Delete the line" in message
+
+
+def test_every_retired_key_is_refused_with_its_own_migration_note():
+    """Retirements come from different milestones, so one shared pointer would
+    send a reader to the wrong record.
+
+    `Tpeak`/`Tlow` were removed from every config and from the reader on
+    2026-08-12 WITHOUT an entry here, which for one commit gave a project
+    declaring `Tpeak: 25` exactly the silent no-op this registry exists to
+    prevent. Nothing catches that omission automatically -- the removal makes
+    the key unread, which is indistinguishable from it never existing -- so the
+    check is that every registered key refuses and names where to read about it.
+    """
+    for key, entry in RETIRED_EXPERIMENT_KEYS.items():
+        with pytest.raises(RetiredConfigKeyError) as excinfo:
+            refuse_retired_experiment_keys({key: 1, "realizations_num": 2})
+        message = str(excinfo.value)
+        assert key in message
+        assert entry["note"] in message
+
+
+def test_the_return_period_keys_name_the_constant_that_replaced_them():
+    """A refusal that only says 'gone' leaves the user with no way forward. The
+    replacement is a toolbox constant, so the error has to say which one."""
+    with pytest.raises(RetiredConfigKeyError) as excinfo:
+        refuse_retired_experiment_keys({"Tpeak": 25, "Tlow": 5})
+    message = str(excinfo.value)
+    assert "2 retired key(s)" in message
+    assert "RETURN_PERIOD_PEAK_YR" in message
+    assert "RETURN_PERIOD_LOW_YR" in message
 
 
 def test_the_refusal_fires_on_the_value_being_present_not_truthy():

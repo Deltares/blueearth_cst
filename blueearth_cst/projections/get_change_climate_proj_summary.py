@@ -2,14 +2,14 @@
 Open monthly change files for all models/scenarios/horizon and compute/plot statistics
 """
 
-import hydromt  # noqa: F401 -- registers the xarray .raster accessor (ds.raster.vars below)
 import os
 from pathlib import Path
+from typing import Dict, List, Union
+
+import hydromt  # noqa: F401 -- registers the xarray .raster accessor (ds.raster.vars below)
+import numpy as np
 import seaborn as sns
 import xarray as xr
-import numpy as np
-
-from typing import Union, List, Dict
 
 from blueearth_cst.shared.snake_utils import log_row
 

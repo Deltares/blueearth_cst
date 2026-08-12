@@ -261,7 +261,9 @@ def _reference_line(ax, high):
     instead. The line is still correct in data coordinates, which is what a
     reader compares points against.
     """
-    ax.plot([0, high], [0, high], color=COLOR_REFERENCE, ls=(0, (4, 2)), lw=0.6, zorder=1)
+    ax.plot(
+        [0, high], [0, high], color=COLOR_REFERENCE, ls=(0, (4, 2)), lw=0.6, zorder=1
+    )
     ax.set_xlim(0, high)
     ax.set_ylim(0, high)
 
@@ -312,7 +314,9 @@ def _draw_fdc(ax, simulated, observed, log_scale):
     if log_scale:
         ax.set_yscale("log")
         positive = simulated.where(simulated > 0)
-        floor = float(np.nanpercentile(positive, 1)) if positive.notnull().any() else 0.0
+        floor = (
+            float(np.nanpercentile(positive, 1)) if positive.notnull().any() else 0.0
+        )
         ax.set_ylim(bottom=max(_LOG_FDC_FLOOR, floor))
 
 
@@ -572,7 +576,13 @@ def plot_extremes(simulated, observed, station, plot_dir, kind, caveat=None):
 
 #: Row positions of the metrics table, in axes fractions: the group band, the
 #: metric names, then daily / monthly / ideal.
-_TABLE_ROWS = {"group": 0.92, "header": 0.68, "daily": 0.44, "monthly": 0.25, "ideal": 0.06}
+_TABLE_ROWS = {
+    "group": 0.92,
+    "header": 0.68,
+    "daily": 0.44,
+    "monthly": 0.25,
+    "ideal": 0.06,
+}
 #: Where the row labels sit, and where the metric columns start.
 _TABLE_LABEL_X = 0.0
 _TABLE_FIRST_X = 0.135
@@ -718,8 +728,15 @@ def plot_performance(simulated, observed, station, plot_dir, metrics, caveat=Non
 
         high = float(np.ceil(max(observed.max(), simulated.max())))
         ax_scatter.plot(
-            observed, simulated, "o", ms=1.6, mfc=COLOR_SIMULATED, mec="none",
-            alpha=0.5, ls="none", zorder=2,
+            observed,
+            simulated,
+            "o",
+            ms=1.6,
+            mfc=COLOR_SIMULATED,
+            mec="none",
+            alpha=0.5,
+            ls="none",
+            zorder=2,
         )
         _reference_line(ax_scatter, high)
         _panel(ax_scatter, "a", "Daily discharge")
@@ -769,8 +786,14 @@ def r_squared(observed, simulated):
 
 
 def plot_station_evaluation(
-    simulated, station, plot_dir, observed=None, metrics=None, signatures=False,
-    caveat=None, log=print,
+    simulated,
+    station,
+    plot_dir,
+    observed=None,
+    metrics=None,
+    signatures=False,
+    caveat=None,
+    log=print,
 ):
     """Every sheet this station's data supports, in reading order.
 

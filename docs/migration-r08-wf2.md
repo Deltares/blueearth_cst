@@ -271,7 +271,7 @@ Each workflow now writes exactly one log:
 | --- | --- | --- |
 | `Snakefile_model_creation` | `logs/wf1_model_creation.log` | 1.16 `gather_logs` |
 | `Snakefile_climate_projections` | `logs/wf2_climate_projections.log` | 2.07 `gather_logs` |
-| `Snakefile_climate_experiment` | `<exp_dir>/logs/wf3_climate_experiment.log` | 3.13 `gather_logs` |
+| `Snakefile_climate_experiment` | `logs/wf3_climate_experiment_<experiment>.log` | 3.18 `gather_logs` |
 
 Every rule logs into `logs/_parts/`, the gather rule merges the parts, then
 deletes them and prunes the emptied directories — so after a clean full run there

@@ -31,9 +31,7 @@ def find_parent_outlet(
     return int(candidates[order[0]])
 
 
-def downstream_steps(
-    flwdir: FlwdirRaster, start_index: int, target_index: int
-) -> int:
+def downstream_steps(flwdir: FlwdirRaster, start_index: int, target_index: int) -> int:
     """Return downstream cell steps from a control point to its parent outlet."""
     target = np.zeros(flwdir.shape, dtype=bool)
     target.ravel()[target_index] = True

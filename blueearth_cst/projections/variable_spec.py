@@ -28,6 +28,7 @@ variables:
 Falsifier K7: a variable named something other than ``precip``, declared
 ``change: relative``, must be treated as relative.
 """
+
 from __future__ import annotations
 
 from typing import NamedTuple
@@ -72,7 +73,9 @@ def parse(variables) -> dict[str, VariableSpec]:
             "variable was silently differenced as if it were a temperature."
         )
     if not isinstance(variables, dict) or not variables:
-        raise ValueError(f"climate_projections.variables must be a non-empty mapping; got {variables!r}")
+        raise ValueError(
+            f"climate_projections.variables must be a non-empty mapping; got {variables!r}"
+        )
 
     spec: dict[str, VariableSpec] = {}
     for name, body in variables.items():

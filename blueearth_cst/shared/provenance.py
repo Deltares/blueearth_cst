@@ -205,9 +205,7 @@ def _canonical_mapping(value: Mapping[Any, Any]) -> dict[str, Any]:
     items.sort(key=lambda item: item[0])
     return {
         "type": "mapping",
-        "items": [
-            {"key": key, "value": item_value} for _, key, item_value in items
-        ],
+        "items": [{"key": key, "value": item_value} for _, key, item_value in items],
     }
 
 

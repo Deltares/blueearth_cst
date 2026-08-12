@@ -4,6 +4,10 @@ Wflow = "d48b7d99-76e7-47ae-b1d5-ff0c1cf9a818"
 [compat]
 Wflow = "1"
 # Wflow.jl v1.0.x has a JIT compilation hang under Julia 1.12.x at the
-# leaf_area_index loading step (Wflow.jl#884). Pin to 1.11.x until upstream
+# leaf_area_index loading step (Wflow.jl#884). Hold at 1.11.x until upstream
 # resolves it.
-julia = "1.11"
+#
+# TILDE, not a bare bound: Julia's compat syntax defaults to caret, so `1.11`
+# means [1.11.0, 2.0.0) and would admit the very 1.12.x this excludes. `~1.11`
+# means [1.11.0, 1.12.0). tests/test_julia_runtime.py asserts both halves.
+julia = "~1.11"

@@ -1,13 +1,26 @@
 """Merge a workflow's per-rule Snakemake benchmark TSVs into one Markdown table.
 
 Snakemake writes one benchmark TSV per rule (per job) under
-``benchmarks/_parts/<W.NN_rule>[/…].tsv`` (TSV is Snakemake's fixed benchmark
+``<parts_dir>/<W.NN_rule>[/…].tsv`` (TSV is Snakemake's fixed benchmark
 format). This gather step (one job per workflow) collects that workflow's parts
 into a single readable ``benchmarks/wf<W>_benchmarks.md`` — a Markdown table with
-a ``rule`` column and a bold ``TOTAL`` row — regenerated fresh each run. All
-three workflows share one ``benchmarks/_parts`` dir, so parts are filtered by the
-``W.`` numbering prefix.
+a ``rule`` column and a bold ``TOTAL`` row — regenerated fresh each run.
+
+WF1 and WF2 both pass ``benchmarks/_parts``, so parts are filtered by the ``W.``
+numbering prefix on the first path component under ``parts_dir``. WF3 passes
+``benchmarks/_parts/<experiment>`` instead: its part names are rule numbers,
+identical across experiments, so a shared directory would let one experiment's
+stranded part be merged into another's table and deleted with it.
+
+That nests WF3's parts INSIDE the directory WF1 and WF2 share, which is safe
+only because the prefix filter is applied to the glob before anything else uses
+it: WF1's gather sees ``<experiment>/3.16_….tsv`` as first component
+``<experiment>``, which does not start with ``1.``, so those parts are neither
+rowed nor deleted. The filtered list is the SAME list ``_remove_parts`` deletes —
+keep it that way, or a filter that gates only the table would have WF1's gather
+silently eating WF3's parts.
 """
+
 import glob
 import os
 
@@ -16,9 +29,9 @@ import pandas as pd
 from blueearth_cst.shared.snake_utils import _log_header_lines
 
 # How the TOTAL row aggregates each Snakemake benchmark column.
-_SUM = ["s", "io_in", "io_out", "cpu_time"]          # additive across jobs
+_SUM = ["s", "io_in", "io_out", "cpu_time"]  # additive across jobs
 _MAX = ["max_rss", "max_vms", "max_uss", "max_pss"]  # peak across jobs
-_MEAN = ["mean_load"]                                # average across jobs
+_MEAN = ["mean_load"]  # average across jobs
 
 # Legend appended under the table. Snakemake's benchmark columns are a fixed set
 # (psutil-sampled); this explains what each means and how to read it.
@@ -55,7 +68,10 @@ def merge_benchmarks(parts_dir, workflow_num, out_path):
     tsvs = sorted(
         p
         for p in glob.glob(os.path.join(parts_dir, "**", "*.tsv"), recursive=True)
-        if os.path.relpath(p, parts_dir).replace("\\", "/").split("/")[0].startswith(prefix)
+        if os.path.relpath(p, parts_dir)
+        .replace("\\", "/")
+        .split("/")[0]
+        .startswith(prefix)
     )
     parent = os.path.dirname(out_path)
     if parent:
@@ -71,9 +87,13 @@ def merge_benchmarks(parts_dir, workflow_num, out_path):
     if not frames:  # no parts (e.g. nothing ran)
         with open(out_path, "w", encoding="utf-8") as handle:
             handle.write(  # same provenance header as rule logs, rendered for Markdown
-                _log_header_lines(out_path, kind="benchmark", time_label="generated", markdown=True)
+                _log_header_lines(
+                    out_path, kind="benchmark", time_label="generated", markdown=True
+                )
             )
-            handle.write(f"# wf{workflow_num} benchmarks\n\n(no benchmark parts found)\n")
+            handle.write(
+                f"# wf{workflow_num} benchmarks\n\n(no benchmark parts found)\n"
+            )
         return
 
     merged = pd.concat(frames, ignore_index=True)
@@ -94,7 +114,9 @@ def merge_benchmarks(parts_dir, workflow_num, out_path):
     merged.loc[merged["rule"] == "TOTAL", "rule"] = "**TOTAL**"  # emphasise the total
     with open(out_path, "w", encoding="utf-8") as handle:
         handle.write(  # same provenance header as rule logs, rendered for Markdown
-            _log_header_lines(out_path, kind="benchmark", time_label="generated", markdown=True)
+            _log_header_lines(
+                out_path, kind="benchmark", time_label="generated", markdown=True
+            )
         )
         handle.write(f"# wf{workflow_num} benchmarks\n\n")
         handle.write(merged.to_markdown(index=False, floatfmt=".2f"))
@@ -109,9 +131,10 @@ def _remove_parts(tsvs, parts_dir):
 
     The merged ``.md`` is the durable artifact; the per-rule TSV parts are
     scratch. Only ``tsvs`` (already prefix-filtered to this workflow) are
-    removed — the three workflows share ``_parts`` — and directory pruning only
-    ever removes *empty* dirs. The shared root is therefore removed only after
-    its last workflow part is merged.
+    removed — WF1 and WF2 share ``_parts`` and WF3 sits in a subdir of it — and
+    directory pruning only ever removes *empty* dirs. A shared root is therefore
+    removed only after its last workflow part is merged, and WF1 pruning an
+    emptied ``_parts/<experiment>/`` is harmless: the next WF3 run recreates it.
     Note: a later *partial* re-run regenerates parts only for the rules that
     re-ran, so its merged table reflects just those (a full run stays complete).
     """

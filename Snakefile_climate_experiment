@@ -212,10 +212,11 @@ basin_dir = f"{project_dir}/models/hydrology/wflow"
 # Per-experiment root (design §2/§2a): every wf3-owned output that was
 # project-global moves under experiments/<name>/. Redefining this one binding
 # carries all exp_dir-derived output/params paths (incl. the three params paths
-# on prepare_weathergen_config, derive_wflow_indicators)
-# the guard sentinel. The remaining project_dir-rooted wf3 paths (log:, the
-# benchmark _parts/ tree, gather output + parts_dir param, the config snapshot)
-# are hand-edited to experiments/<name>/ below.
+# on prepare_weathergen_config, derive_wflow_indicators) and the guard sentinel.
+#
+# The two RUN RECORDS are the deliberate exception and stay project-rooted, keyed
+# by experiment in the FILENAME rather than by directory — see the log/benchmark
+# layout block below.
 exp_dir = f"{project_dir}/experiments/{experiment}"
 
 
@@ -346,12 +347,34 @@ wf2_snapshot_digest = file_digest_or_absent(wf2_snapshot_path)
 # deliberate sweep. Convention: dev/reference/naming.md §9; full map:
 # dev/reference/workflows/rule-index.md § What changed.
 
-# --- log layout ---------------------------------------------------------------
-# EVERY WF3 rule that logs writes a PART under <exp_dir>/logs/_parts/, and rule
-# 3.18 merges the parts into ONE <exp_dir>/logs/wf3_climate_experiment.log, then
-# deletes them. So the only file left in the experiment's logs/ after a full run
-# is that merged log — matching WF1 (1.17) and WF2 (2.09), and the deal
-# benchmarks/wf3_benchmarks.md already had.
+# --- log and benchmark layout -------------------------------------------------
+# WF3's two RUN RECORDS are PROJECT-scoped, and carry the experiment id in the
+# filename instead of in a directory level (2026-08-11):
+#
+#   {project_dir}/logs/wf3_climate_experiment_<experiment>.log
+#   {project_dir}/benchmarks/wf3_benchmarks_<experiment>.md
+#
+# So all three workflows' logs sit in one logs/ and all three benchmark tables in
+# one benchmarks/, which is what makes a run comparable across workflows without
+# walking into experiments/. The experiment subtree keeps only what is genuinely
+# experiment-shaped (config/, climate/, hydrology/, results/) and holds no
+# logs/ or benchmarks/ directory at all.
+#
+# The SCRATCH parts stay experiment-scoped, one level down:
+#
+#   {project_dir}/logs/_parts/<experiment>/<W.NN>_<rule>[/<member>].log
+#   {project_dir}/benchmarks/_parts/<experiment>/<W.NN>_<rule>[/<member>].tsv
+#
+# NOT optional tidiness. Every WF3 part is named by rule number, so two
+# experiments sharing one parts dir would collide: a part stranded by experiment
+# A's failed run would be merged into experiment B's log and then deleted with
+# it. Today that is structurally impossible because the parts live under
+# exp_dir; the <experiment> level is what preserves it after the move.
+#
+# EVERY WF3 rule that logs writes a PART under LOG_PARTS_DIR, and rule 3.18
+# merges the parts into ONE merged log, then deletes them and prunes the emptied
+# dirs — matching WF1 (1.17) and WF2 (2.09), and the deal the benchmark table
+# already had.
 #
 # LOG_RULES is the merge order: rule LABELS, not part paths. merge_logs lists each
 # label's part dir to find its members, which matters most here: 3.12/3.14 fan
@@ -382,8 +405,10 @@ wf2_snapshot_digest = file_digest_or_absent(wf2_snapshot_path)
 # 3.15's label is the SINGULAR `3.15_run_wflow` while its rule identifiers are
 # `run_wflow_batch_<b>`, one per batch. Deliberate (P3-3 keys logs by batch id),
 # and it survives renumbering — do not "fix" it.
-WORKFLOW_LOG_NAME = "wf3_climate_experiment.log"
-LOG_PARTS_DIR = f"{exp_dir}/logs/_parts"
+WORKFLOW_LOG_NAME = f"wf3_climate_experiment_{experiment}.log"
+BENCHMARKS_NAME = f"wf3_benchmarks_{experiment}.md"
+LOG_PARTS_DIR = f"{project_dir}/logs/_parts/{experiment}"
+BENCH_PARTS_DIR = f"{project_dir}/benchmarks/_parts/{experiment}"
 LOG_RULES = [
     "3.01_check_project_consistency",
     "3.03_delineate_region",
@@ -446,8 +471,10 @@ WF3_TARGETS = {
     # input below too, or the leaf would run parallel to the merge and strand
     # its log part.
     "spatial_basins": SPATIAL_UNITS.outputs["basins"],
-    "workflow_log": f"{exp_dir}/logs/{WORKFLOW_LOG_NAME}",
-    "benchmarks": f"{exp_dir}/benchmarks/wf3_benchmarks.md",
+    # PROJECT-scoped, experiment id in the filename (see the log/benchmark
+    # layout block above) — the two WF3 targets that do NOT live under exp_dir.
+    "workflow_log": f"{project_dir}/logs/{WORKFLOW_LOG_NAME}",
+    "benchmarks": f"{project_dir}/benchmarks/{BENCHMARKS_NAME}",
 }
 
 rule all:
@@ -486,7 +513,7 @@ rule check_project_consistency:
     log:
         f"{LOG_PARTS_DIR}/3.01_check_project_consistency.log",
     benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.01_check_project_consistency.tsv",
+        f"{BENCH_PARTS_DIR}/3.01_check_project_consistency.tsv",
     script:
         "blueearth_cst/experiment/check_project_consistency.py"
 
@@ -523,7 +550,7 @@ rule delineate_region:
     log:
         f"{LOG_PARTS_DIR}/3.03_delineate_region.log",
     benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.03_delineate_region.tsv",
+        f"{BENCH_PARTS_DIR}/3.03_delineate_region.tsv",
     script: REGION.script
 
 # 3.05  write_model_reference — record WHICH model state this experiment used
@@ -553,7 +580,7 @@ rule write_model_reference:
     log:
         f"{LOG_PARTS_DIR}/3.05_write_model_reference.log",
     benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.05_write_model_reference.tsv",
+        f"{BENCH_PARTS_DIR}/3.05_write_model_reference.tsv",
     script: "blueearth_cst/experiment/write_model_reference.py"
 
 # 3.06  check_model_reference — refuse to simulate against a changed model.
@@ -610,7 +637,7 @@ rule check_model_reference:
     log:
         f"{LOG_PARTS_DIR}/3.06_check_model_reference.log",
     benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.06_check_model_reference.tsv",
+        f"{BENCH_PARTS_DIR}/3.06_check_model_reference.tsv",
     script: "blueearth_cst/experiment/check_model_reference.py"
 
 # 3.07  write_experiment_config — the experiment's OWN parameters, recorded
@@ -627,12 +654,18 @@ rule check_model_reference:
 # targets, so it exists only after a COMPLETE run. It is read from the
 # filesystem rather than declared as an input: declaring it would invert the
 # DAG, since this file is written long before the log.
+#
+# The marker path is PASSED IN, spelled exactly as rule 3.18's `output:`. It used
+# to be rebuilt inside the script from `exp_dir` plus a hardcoded relative name,
+# which the 2026-08-11 move to a project-scoped, experiment-keyed log broke: the
+# join no longer reaches the log at all, and a marker that can never be found
+# silently disables the freeze guard rather than failing.
 rule write_experiment_config:
     message: rule_banner("3.07", "write_experiment_config")
     input:
         consistency_ok = f"{exp_dir}/.project_consistency_ok",
     params:
-        exp_dir = exp_dir,
+        run_marker = f"{project_dir}/logs/{WORKFLOW_LOG_NAME}",
         experiment = experiment,
         experiment_cfg = my_cfg,
     output:
@@ -640,7 +673,7 @@ rule write_experiment_config:
     log:
         f"{LOG_PARTS_DIR}/3.07_write_experiment_config.log",
     benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.07_write_experiment_config.tsv",
+        f"{BENCH_PARTS_DIR}/3.07_write_experiment_config.tsv",
     script: "blueearth_cst/experiment/write_experiment_config.py"
 
 # 3.04  delineate_spatial_units — the shared vector foundation (ADR 0003 §8).
@@ -661,7 +694,7 @@ rule delineate_spatial_units:
     log:
         f"{LOG_PARTS_DIR}/3.04_delineate_spatial_units.log",
     benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.04_delineate_spatial_units.tsv",
+        f"{BENCH_PARTS_DIR}/3.04_delineate_spatial_units.tsv",
     script: SPATIAL_UNITS.script
 
 # 3.08  extract_historical_climate — the SHARED historical-climate store producer
@@ -691,7 +724,7 @@ rule extract_historical_climate:
     log:
         f"{LOG_PARTS_DIR}/3.08_extract_historical_climate.log",
     benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.08_extract_historical_climate.tsv",
+        f"{BENCH_PARTS_DIR}/3.08_extract_historical_climate.tsv",
     script:
         CLIMATE_STORE.script
 
@@ -713,7 +746,7 @@ rule prepare_stress_test_grid:
     log:
         f"{LOG_PARTS_DIR}/3.09_prepare_stress_test_grid.log",
     benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.09_prepare_stress_test_grid.tsv",
+        f"{BENCH_PARTS_DIR}/3.09_prepare_stress_test_grid.tsv",
     script:
         "blueearth_cst/experiment/prepare_cst_parameters.py"
 
@@ -730,12 +763,12 @@ rule prepare_weathergen_config:
         # so every downstream timestamp stayed consistent. The template carries
         # general.variables, warm.sample.num and warm.variable, all of which
         # change what the generator produces.
-        default_config = "config/templates/weathergen_config.yml",
+        default_config = "config/defaults/weathergen_config.yml",
     output:
         weagen_config = f"{wg_dir}/config/weathergen_config.yml",
     params:
         snake_config = config_path,
-        default_config = "config/templates/weathergen_config.yml",
+        default_config = "config/defaults/weathergen_config.yml",
         # The generator ROOT, not a write dir: generate_weather.R derives
         # output/ (products) and plots/ (figures) from it, because
         # weathergenr::generate_weather writes both classes into ONE out_dir
@@ -747,7 +780,7 @@ rule prepare_weathergen_config:
     log:
         f"{LOG_PARTS_DIR}/3.10_prepare_weathergen_config.log",
     benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.10_prepare_weathergen_config.tsv",
+        f"{BENCH_PARTS_DIR}/3.10_prepare_weathergen_config.tsv",
     script:
         "blueearth_cst/experiment/prepare_weagen_config.py"
 
@@ -782,7 +815,7 @@ rule generate_weather_realizations:
     log:
         f"{LOG_PARTS_DIR}/3.11_generate_weather_realizations.log",
     benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.11_generate_weather_realizations.tsv",
+        f"{BENCH_PARTS_DIR}/3.11_generate_weather_realizations.tsv",
     shell:
         """python -u "{run_logged}" "{log}" -- Rscript --vanilla blueearth_cst/weathergen/generate_weather.R {input.climate_nc} {input.weagen_config} {params.rlz_width} {params.st_width} {input.basin_cells}"""
 
@@ -810,7 +843,7 @@ rule perturb_climate_realization:
     log:
         f"{LOG_PARTS_DIR}/3.12_perturb_climate_realization/" + "rlz_{rlz_num}_st_{st_num}.log",
     benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.12_perturb_climate_realization/" + "rlz_{rlz_num}_st_{st_num}.tsv",
+        f"{BENCH_PARTS_DIR}/3.12_perturb_climate_realization/" + "rlz_{rlz_num}_st_{st_num}.tsv",
     shell:
         """python -u "{run_logged}" "{log}" -- Rscript --vanilla blueearth_cst/weathergen/impose_climate_change.R {input.rlz_nc} {input.weagen_config} {input.st_csv} {output.rlz_st_nc}"""
 
@@ -837,7 +870,7 @@ rule write_climate_data_catalog:
     log:
         f"{LOG_PARTS_DIR}/3.13_write_climate_data_catalog.log",
     benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.13_write_climate_data_catalog.tsv",
+        f"{BENCH_PARTS_DIR}/3.13_write_climate_data_catalog.tsv",
     script:
         "blueearth_cst/climate_analysis/prepare_climate_data_catalog.py"
 
@@ -866,7 +899,7 @@ rule downscale_climate_realization:
     log:
         f"{LOG_PARTS_DIR}/3.14_downscale_climate_realization/" + "rlz_{rlz_num}_st_{st_num}.log",
     benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.14_downscale_climate_realization/" + "rlz_{rlz_num}_st_{st_num}.tsv",
+        f"{BENCH_PARTS_DIR}/3.14_downscale_climate_realization/" + "rlz_{rlz_num}_st_{st_num}.tsv",
     script:
         "blueearth_cst/experiment/downscale_climate_forcing.py"
 
@@ -942,7 +975,7 @@ for _b, _members in _batches.items():
         log:
             f"{LOG_PARTS_DIR}/3.15_run_wflow/batch_{_b}.log",
         benchmark:
-            f"{exp_dir}/benchmarks/_parts/3.15_run_wflow/batch_{_b}.tsv",
+            f"{BENCH_PARTS_DIR}/3.15_run_wflow/batch_{_b}.tsv",
         shell:
             """python -u "{run_logged}" "{log}" -- julia +1.11.7 --project=. --threads 4 "{params.driver}" {input.tomls}"""
 
@@ -975,19 +1008,17 @@ rule derive_wflow_indicators:
         # disagree about which tables exist.
         indicator_tokens = list(INDICATOR_TABLES),
         st_num = ST_NUM,
-        Tlow = get_config(my_cfg, "Tlow", 2),
-        Tpeak = get_config(my_cfg, "Tpeak", 10),
     log:
         f"{LOG_PARTS_DIR}/3.16_derive_wflow_indicators.log",
     benchmark:
-        f"{exp_dir}/benchmarks/_parts/3.16_derive_wflow_indicators.tsv",
+        f"{BENCH_PARTS_DIR}/3.16_derive_wflow_indicators.tsv",
     script:
         "blueearth_cst/experiment/export_wflow_results.py"
 
 # --- benchmark gather ---------------------------------------------------------
-# Merge WF3's per-rule benchmark parts (benchmarks/_parts/3.*) into one
-# benchmarks/wf3_benchmarks.md (rule column + TOTAL row) once the final
-# results are built (all WF3 rules ran).
+# Merge WF3's per-rule benchmark parts (benchmarks/_parts/<experiment>/3.*) into
+# one benchmarks/wf3_benchmarks_<experiment>.md (rule column + TOTAL row) once
+# the final results are built (all WF3 rules ran).
 rule gather_benchmarks:
     message: rule_banner("3.17", "gather_benchmarks")
     input:
@@ -998,9 +1029,9 @@ rule gather_benchmarks:
         # `_parts/` row would miss the run.
         SPATIAL_UNITS.outputs["basins"],
     output:
-        f"{exp_dir}/benchmarks/wf3_benchmarks.md",
+        f"{project_dir}/benchmarks/{BENCHMARKS_NAME}",
     params:
-        parts_dir = f"{exp_dir}/benchmarks/_parts",
+        parts_dir = BENCH_PARTS_DIR,
         workflow_num = 3,
     script: "blueearth_cst/shared/merge_benchmarks.py"
 
@@ -1015,9 +1046,10 @@ rule gather_benchmarks:
 # would demand them as buildable targets.
 #
 # This is the workflow where the merge earns most: 3.12/3.14 write one part per
-# (rlz, cst) and 3.15 one per batch, so the experiment's logs/ held hundreds
+# (rlz, cst) and 3.15 one per batch, so this experiment's part dir holds hundreds
 # of files across four subdirectories. The merge DELETES the parts it consumed and
-# prunes the emptied dirs, so a clean full run leaves one file. After a PARTIAL
+# prunes the emptied dirs — including the `<experiment>/` level itself, since
+# that dir is written by this experiment's run alone. After a PARTIAL
 # re-run only the re-run rules have parts, so the rewritten log marks the rest
 # "no part from this run" — the same trade `merge_benchmarks` makes (R7-9).
 rule gather_logs:
@@ -1028,7 +1060,7 @@ rule gather_logs:
         # merge has to wait for it or its part is stranded under `_parts/`.
         SPATIAL_UNITS.outputs["basins"],
     output:
-        f"{exp_dir}/logs/{WORKFLOW_LOG_NAME}",
+        f"{project_dir}/logs/{WORKFLOW_LOG_NAME}",
     params:
         rules = LOG_RULES,
         parts_dir = LOG_PARTS_DIR,

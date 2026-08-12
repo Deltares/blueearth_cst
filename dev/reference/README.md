@@ -10,6 +10,7 @@ This is the **stays-true** tier. What happened lives in `../milestones/`,
 | Path | Holds |
 |---|---|
 | `naming.md` | Prescriptive style guide for identifiers and files, with `MUST` / `SHOULD` / `MAY` normative force |
+| `indicator-glossary.md` | Every spelling of every WF3 output variable — config label, CSDMS name, csv code, token, table, metric — plus the metric vocabulary. **Derived** from the code's dicts and checked against them by `tests/test_indicator_glossary.py` |
 | `agent-activation.md` | How roles and skills become available to Claude Code and Codex here, and why the two runtimes differ |
 | `git-conventions.md` | Durable-ref inventory, plus the branching, tagging, and commit-message conventions |
 | `contracts/` | The two substitution seams — hydrological model, weather generator — pinned as machine-checked contracts (P3-2b) |

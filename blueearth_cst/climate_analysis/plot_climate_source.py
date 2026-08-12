@@ -6,7 +6,7 @@ does the source climate look like?"* from the store alone, so its whole
 subgraph is the B1 producer (whose sole input is the tracked data catalog) plus
 itself: the three figures build with **neither** ``models/hydrology/wflow/``
 **nor**
-``config/templates/wflow_build_model.yml`` on disk. That is the P4 assertion,
+``config/defaults/wflow_build_model.yml`` on disk. That is the P4 assertion,
 pinned by ``tests/test_plot_climate_source.py``.
 
 Three climate-figure families coexist (design § B4). This module owns the first
@@ -62,6 +62,7 @@ _PET_CAVEAT = (
     "Source-grid PET: differs from the model's PET input by design — that one "
     "is derived on the model grid from the model DEM."
 )
+
 
 def _drop_nonspatial(dem: xr.DataArray) -> xr.DataArray:
     """Strip scalar leftovers (notably ``time``) from a DEM, keeping ``spatial_ref``.
@@ -159,7 +160,6 @@ def source_grid_climate(
     )
 
 
-
 def plot_climate_source(
     climate_nc: Union[str, Path],
     plot_dir: Union[str, Path],
@@ -202,7 +202,9 @@ def plot_climate_source(
         is deliberately loud: the rule declares three outputs, so a silent skip
         would surface as an opaque ``MissingOutputException`` instead.
     """
-    log_row(f"Reading climate store extraction ({clim_source}): {climate_nc}", module="plot")
+    log_row(
+        f"Reading climate store extraction ({clim_source}): {climate_nc}", module="plot"
+    )
     ds_raw = xr.open_dataset(climate_nc)
     missing = [v for v in PARITY_VARS if v not in ds_raw]
     if missing:

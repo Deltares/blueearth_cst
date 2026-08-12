@@ -70,6 +70,36 @@ def test_nested_wildcard_parts_get_relative_rule_label(tmp_path):
     assert not parts.exists()
 
 
+def test_wf1s_gather_neither_rows_nor_deletes_wf3s_nested_parts(tmp_path):
+    """WF3's parts sit INSIDE the `_parts/` WF1 and WF2 share (2026-08-11).
+
+    The recursive glob reaches them, so the `W.` prefix filter is the only thing
+    keeping WF1's gather off them -- and it has to gate the DELETION too, since
+    `_remove_parts` works off the same list. If it ever gates only the table,
+    WF1's run eats WF3's parts and WF3's next table reports "no part from this
+    run" for rules that did run: silent, and only visible in a table nobody
+    diffs.
+    """
+    parts = tmp_path / "_parts"
+    _write(parts / "1.02_prepare_spatial_maps.tsv", 5.0, 50.0, 0.0, 4.0, 40.0)
+    wf3 = parts / "gabon_dry" / "3.16_derive_wflow_indicators.tsv"
+    _write(wf3, 7.0, 70.0, 0.0, 6.0, 60.0)
+
+    out = tmp_path / "wf1_benchmarks.md"
+    merge_benchmarks(str(parts), "1", str(out))
+
+    text = out.read_text(encoding="utf-8")
+    assert "1.02_prepare_spatial_maps" in text
+    assert "3.16_derive_wflow_indicators" not in text
+    assert "gabon_dry" not in text
+    assert wf3.is_file(), "WF1's gather deleted WF3's benchmark part"
+
+    # ...and WF3's own gather, pointed at its own subdir, still finds it.
+    wf3_out = tmp_path / "wf3_benchmarks_gabon_dry.md"
+    merge_benchmarks(str(parts / "gabon_dry"), "3", str(wf3_out))
+    assert "3.16_derive_wflow_indicators" in wf3_out.read_text(encoding="utf-8")
+
+
 def test_no_parts_writes_placeholder(tmp_path):
     out = tmp_path / "wf3_benchmarks.md"
     merge_benchmarks(str(tmp_path / "_parts"), "3", str(out))

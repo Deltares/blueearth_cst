@@ -48,6 +48,7 @@ ratio and keeps the informative difference, and the difference is
 This module is a **reshape, not a recomputation** — every value it emits comes
 from the dataset stage B persisted (falsifier M3).
 """
+
 from __future__ import annotations
 
 from blueearth_cst.projections.dry_month import FLAGGED_STATUS
@@ -147,7 +148,9 @@ def tidy_rows(ds, *, month=None, window_facts=None, row_facts=None, variable_spe
 
         entry = spec.get(variable)
         units = getattr(entry, "units", "") if entry is not None else ""
-        change_kind = getattr(entry, "change", "absolute") if entry is not None else "absolute"
+        change_kind = (
+            getattr(entry, "change", "absolute") if entry is not None else "absolute"
+        )
         relative_units = PERCENT if change_kind == "relative" else units
 
         for idx in range(stacked.sizes["_row"]):
@@ -196,7 +199,9 @@ def tidy_rows(ds, *, month=None, window_facts=None, row_facts=None, variable_spe
             # Step 6b: a flagged month lost its ratio. Read from the companion
             # rather than recomputed, so the table cannot disagree with the
             # computation about which months were flagged.
-            if flagged_da is not None and bool(_scalar(flagged_da.isel(_row=idx).values)):
+            if flagged_da is not None and bool(
+                _scalar(flagged_da.isel(_row=idx).values)
+            ):
                 row["status"] = FLAGGED_STATUS
             rows.append(row)
 

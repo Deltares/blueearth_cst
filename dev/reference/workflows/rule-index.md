@@ -1206,15 +1206,24 @@ to `--dry-run`.
 
 **Does.** As WF1 1.16, for WF3.
 
-**Writes.** `<exp>/benchmarks/wf3_benchmarks.md`.
+**Writes.** `benchmarks/wf3_benchmarks_<experiment>.md`, merging
+`benchmarks/_parts/<experiment>/3.*`.
 
 #### 3.18 · `gather_logs`
 
 **Does.** As WF1 1.17, for WF3 — where the merge earns most: 3.12 and 3.14 write
-one part per (rlz, cst) and 3.15 one per batch, so the experiment's `logs/` held
-hundreds of files across several subdirectories. A clean full run leaves one.
+one part per (rlz, cst) and 3.15 one per batch, so the part dir held hundreds of
+files across several subdirectories. A clean full run leaves one.
 
-**Writes.** `<exp>/logs/wf3_climate_experiment.log`.
+**Writes.** `logs/wf3_climate_experiment_<experiment>.log`, merging
+`logs/_parts/<experiment>/3.*`.
+
+> Both are **project-scoped** since 2026-08-11, keyed by experiment in the
+> filename, so all three workflows' run records sit in one `logs/` and one
+> `benchmarks/`. The experiment subtree no longer has either directory. The
+> scratch `_parts/` stay experiment-scoped one level down — WF3 part names are
+> rule numbers, identical across experiments, so a shared part dir would let one
+> experiment's stranded part be merged into another's log.
 
 ---
 

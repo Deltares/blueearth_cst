@@ -25,7 +25,6 @@ from pathlib import Path
 
 import yaml
 
-
 # hydromt formats every log record as
 # ``<ts> - <name> - <module> - <LEVEL> - <message>`` (its hardcoded
 # ``_LOG_FORMAT``; no CLI/env/config override exists). ``<ts>`` is a full
@@ -73,7 +72,7 @@ def _log_path_parts(log_path):
         if anchor in parts:
             i = parts.index(anchor)
             root = os.sep.join(parts[:i]) if i > 0 else ""
-            log_id = "/".join(parts[i + 1:]) or os.path.basename(log_path)
+            log_id = "/".join(parts[i + 1 :]) or os.path.basename(log_path)
             return root, log_id
     return "", os.path.basename(log_path)
 
@@ -254,9 +253,7 @@ def warn_if_project_dir_in_repo(project_dir, repo_root) -> bool:
     # commonpath, not startswith: "test_caseX" must not read as inside
     # "test_case", and str-prefix comparisons get that wrong.
     try:
-        inside = os.path.commonpath([pd_resolved, root_resolved]) == str(
-            root_resolved
-        )
+        inside = os.path.commonpath([pd_resolved, root_resolved]) == str(root_resolved)
     except ValueError:  # different drives on Windows -> definitively outside
         return False
     if not inside:
@@ -385,9 +382,7 @@ def validate_experiment_name(name: str, project_dir) -> str:
     offending input.
     """
     if not isinstance(name, str) or not name.strip():
-        raise ValueError(
-            f"experiment_name must be a non-empty string, got {name!r}"
-        )
+        raise ValueError(f"experiment_name must be a non-empty string, got {name!r}")
     if len(name) > _EXPERIMENT_NAME_MAX_LEN:
         raise ValueError(
             f"experiment_name {name!r} exceeds the {_EXPERIMENT_NAME_MAX_LEN}-char "
@@ -464,13 +459,11 @@ def _version_string(value, where: str) -> str:
     """
     if not isinstance(value, str):
         raise ValueError(
-            f"{where} must be a quoted string like \"1.11.7\", got {value!r} "
+            f'{where} must be a quoted string like "1.11.7", got {value!r} '
             f"({type(value).__name__}) — an unquoted X.Y is parsed as a number"
         )
     if not _VERSION_RE.match(value):
-        raise ValueError(
-            f"{where} must be a three-part version X.Y.Z, got {value!r}"
-        )
+        raise ValueError(f"{where} must be a three-part version X.Y.Z, got {value!r}")
     return value
 
 
@@ -526,9 +519,7 @@ def load_advanced_settings(path=None) -> dict:
         resolved[section] = {}
         for key, validator in keys.items():
             if key not in body:
-                raise ValueError(
-                    f"{settings_path}: missing {section}.{key}"
-                )
+                raise ValueError(f"{settings_path}: missing {section}.{key}")
             resolved[section][key] = _VALIDATORS[validator](
                 body[key], f"{section}.{key}"
             )
@@ -705,11 +696,7 @@ def validate_historical_window(historical_window) -> int:
             f"{MIN_HISTORICAL_YEARS} annual observations, so a shorter record "
             f"cannot support a climate stress test. Widen "
             f"shared.historical_window to >= {MIN_HISTORICAL_YEARS} years"
-            + (
-                ""
-                if days >= 0
-                else " (endtime is BEFORE starttime — check the order)"
-            )
+            + ("" if days >= 0 else " (endtime is BEFORE starttime — check the order)")
         )
     return days
 
@@ -826,6 +813,7 @@ def slugify_window(start, end) -> str:
         If an endpoint is not parseable at day resolution, or carries a nonzero
         time-of-day component.
     """
+
     def _day_slug(value, which):
         text = str(value).strip()
         # Split date from an optional time-of-day on the 'T' separator (or a space).
@@ -858,7 +846,7 @@ def slugify_window(start, end) -> str:
 
 
 #: Catalog ENTRY NAMES the model-free basin delineation defaults to. Equal to
-#: the shipped ``config/templates/wflow_build_model.yml`` ``setup_basemaps``
+#: the shipped ``config/defaults/wflow_build_model.yml`` ``setup_basemaps``
 #: values, so an existing config that declares neither key keeps building the
 #: same basin (and rule 3.00b's guard digest stays byte-identical, since the
 #: digest serializes the config dict as-is).
@@ -1152,9 +1140,7 @@ def member_pointer_base(config_out_fn) -> tuple[str, str]:
     config_out_fn = Path(config_out_fn)
     config_out_root = os.path.dirname(config_out_fn)
     run_output_dir = Path(config_out_root).parent / "output"
-    out_prefix = (
-        Path(os.path.relpath(run_output_dir, config_out_root)).as_posix() + "/"
-    )
+    out_prefix = Path(os.path.relpath(run_output_dir, config_out_root)).as_posix() + "/"
     return config_out_fn.stem, out_prefix
 
 
@@ -1418,9 +1404,13 @@ def member_index_regex(width: int) -> str:
         width 2 -> [1-9][0-9]|0[1-9]        (10..99 and 01..09, never 00)
     """
     if isinstance(width, bool) or not isinstance(width, int) or width < 1:
-        raise ValueError(f"member_index_regex needs a positive int width, got {width!r}")
+        raise ValueError(
+            f"member_index_regex needs a positive int width, got {width!r}"
+        )
     branches = [
-        f"0{{{k}}}[1-9][0-9]{{{width - 1 - k}}}".replace("0{0}", "").replace("[0-9]{0}", "")
+        f"0{{{k}}}[1-9][0-9]{{{width - 1 - k}}}".replace("0{0}", "").replace(
+            "[0-9]{0}", ""
+        )
         for k in range(width)
     ]
     return branches[0] if width == 1 else "(?:" + "|".join(branches) + ")"
@@ -1665,7 +1655,7 @@ def run_and_tee(command, log_path):
     project_root, log_id = _log_path_parts(log_path)
     label = os.path.splitext(log_id)[0]
     if label.startswith("_parts/"):
-        label = label[len("_parts/"):]
+        label = label[len("_parts/") :]
     with open(log_path, "w", encoding="utf-8", errors="replace") as log:
         log.write(_log_header_lines(log_path))  # header to file only, not console
         log.flush()
@@ -1787,9 +1777,12 @@ def _redirect_console_log_handlers(orig_out, orig_err, stdout_tee, stderr_tee):
     stream is a file, never ``is`` the console) are untouched. Returns a list of
     ``(handler, original_stream)`` for ``_restore_log_handlers`` to undo.
     """
-    loggers = [logging.getLogger()]  # root, then every concrete (non-placeholder) logger
+    loggers = [
+        logging.getLogger()
+    ]  # root, then every concrete (non-placeholder) logger
     loggers += [
-        lg for lg in logging.Logger.manager.loggerDict.values()
+        lg
+        for lg in logging.Logger.manager.loggerDict.values()
         if isinstance(lg, logging.Logger)
     ]
     saved = []
@@ -1839,9 +1832,7 @@ def _detach_handlers_bound_to(tees, orig_out, orig_err):
             stream = getattr(handler, "stream", None)
             if id(stream) not in targets:
                 continue
-            _set_handler_stream(
-                handler, orig_err if stream is tees[-1] else orig_out
-            )
+            _set_handler_stream(handler, orig_err if stream is tees[-1] else orig_out)
 
 
 def _is_clean_exit(exc) -> bool:
@@ -1911,17 +1902,23 @@ def tee_to_log(log_path, heartbeat_interval=60.0):
     project_root, log_id = _log_path_parts(log_path)
     label = os.path.splitext(log_id)[0]
     if label.startswith("_parts/"):
-        label = label[len("_parts/"):]
+        label = label[len("_parts/") :]
     with open(log_path, "w", encoding="utf-8") as handle:
         handle.write(_log_header_lines(log_path))  # header to file only
         handle.flush()
         # heartbeat writes to the real console (orig_err), never the log handle
         heartbeat = _Heartbeat(label, orig_err, interval=heartbeat_interval)
-        stdout_tee = _Tee(orig_out, handle, project_root=project_root, on_activity=heartbeat.touch)
-        stderr_tee = _Tee(orig_err, handle, project_root=project_root, on_activity=heartbeat.touch)
+        stdout_tee = _Tee(
+            orig_out, handle, project_root=project_root, on_activity=heartbeat.touch
+        )
+        stderr_tee = _Tee(
+            orig_err, handle, project_root=project_root, on_activity=heartbeat.touch
+        )
         sys.stdout, sys.stderr = stdout_tee, stderr_tee
         # route library logging (hydromt) bound to the old console through the tee
-        saved_handlers = _redirect_console_log_handlers(orig_out, orig_err, stdout_tee, stderr_tee)
+        saved_handlers = _redirect_console_log_handlers(
+            orig_out, orig_err, stdout_tee, stderr_tee
+        )
         heartbeat.start()
         try:
             yield
@@ -1940,8 +1937,11 @@ def tee_to_log(log_path, heartbeat_interval=60.0):
             if not _is_clean_exit(exc):
                 handle.write(
                     _relativize_paths(
-                        "\n" + "".join(
-                            traceback.format_exception(type(exc), exc, exc.__traceback__)
+                        "\n"
+                        + "".join(
+                            traceback.format_exception(
+                                type(exc), exc, exc.__traceback__
+                            )
                         ),
                         project_root,
                     )
@@ -1982,9 +1982,7 @@ def tee_to_log(log_path, heartbeat_interval=60.0):
             # ...then the ones that snapshot could not know about, which are the
             # ones that would otherwise still be writing into a closed log file
             # after this block returns.
-            _detach_handlers_bound_to(
-                (stdout_tee, stderr_tee), orig_out, orig_err
-            )
+            _detach_handlers_bound_to((stdout_tee, stderr_tee), orig_out, orig_err)
             _exc = sys.exc_info()[1]
             heartbeat.stop(failed=_exc is not None and not _is_clean_exit(_exc))
             for tee in (stdout_tee, stderr_tee):

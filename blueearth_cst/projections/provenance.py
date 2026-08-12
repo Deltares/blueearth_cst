@@ -16,6 +16,7 @@ span beside `n_years` as a hydrological count, and the effective window reported
 two ways. The falsifier for this file (M6) is therefore not "are the fields
 present" but "are they the same objects the other artifacts used".
 """
+
 from __future__ import annotations
 
 import json

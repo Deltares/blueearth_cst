@@ -19,12 +19,11 @@ import os
 import warnings
 from os.path import join
 from pathlib import Path
+from typing import Optional, Union
+
 import geopandas as gpd
 import hydromt
 import pandas as pd
-
-from typing import Optional, Union
-
 from dask.diagnostics import ProgressBar
 from hydromt.model.processes.meteo import temp
 
@@ -86,7 +85,11 @@ def write_basin_cell_mask(climate_nc, region_gdf, out_csv):
         lats = [float(v) for v in ds["latitude"].values]
         lons = [float(v) for v in ds["longitude"].values]
 
-    geom = region_gdf.union_all() if hasattr(region_gdf, "union_all") else region_gdf.unary_union
+    geom = (
+        region_gdf.union_all()
+        if hasattr(region_gdf, "union_all")
+        else region_gdf.unary_union
+    )
     half_lat = abs(lats[1] - lats[0]) / 2 if len(lats) > 1 else 0.0
     half_lon = abs(lons[1] - lons[0]) / 2 if len(lons) > 1 else 0.0
 
@@ -94,7 +97,9 @@ def write_basin_cell_mask(climate_nc, region_gdf, out_csv):
         (la, lo)
         for la in lats
         for lo in lons
-        if geom.intersects(box(lo - half_lon, la - half_lat, lo + half_lon, la + half_lat))
+        if geom.intersects(
+            box(lo - half_lon, la - half_lat, lo + half_lon, la + half_lat)
+        )
     ]
     if not kept:
         # Unreachable for a region inside its own bbox read, but a store whose
@@ -286,7 +291,10 @@ def prep_historical_climate(
         )
         dem = dem.raster.reproject_like(ds, method="average")
         # Resample other variables and add to ds_precip
-        log_row(f"Downscaling era5 variables to the resolution of {clim_source}", module="extract")
+        log_row(
+            f"Downscaling era5 variables to the resolution of {clim_source}",
+            module="extract",
+        )
         for var in ["press_msl", "kin", "kout"]:
             ds[var] = ds_clim[var].raster.reproject_like(ds, method="nearest_index")
 

@@ -145,7 +145,9 @@ def _parent_basins(
             {
                 "source_feature": int(source_feature),
                 "basin_name": row[source_name_column] if source_name_column else None,
-                "upstream_area": float(maps["upstream_area"].values.ravel()[outlet_index]),
+                "upstream_area": float(
+                    maps["upstream_area"].values.ravel()[outlet_index]
+                ),
                 "outlet_row": int(outlet_row),
                 "outlet_col": int(outlet_col),
                 "outlet_index": outlet_index,
@@ -186,13 +188,17 @@ def read_gauge_points(path: str | os.PathLike[str] | None) -> gpd.GeoDataFrame:
     """Read optional EPSG:4326 gauge/control points with explicit roles."""
     columns = ["station_name", "x", "y", "location_role", "provided_wflow_id"]
     if path is None:
-        return gpd.GeoDataFrame(columns=columns + ["geometry"], geometry="geometry", crs=4326)
+        return gpd.GeoDataFrame(
+            columns=columns + ["geometry"], geometry="geometry", crs=4326
+        )
     frame = pd.read_csv(path, sep=",")
     missing = sorted({"station_name", "x", "y"}.difference(frame.columns))
     if missing:
         raise ValueError(f"gauge_points is missing required columns: {missing}")
     if frame.empty:
-        return gpd.GeoDataFrame(columns=columns + ["geometry"], geometry="geometry", crs=4326)
+        return gpd.GeoDataFrame(
+            columns=columns + ["geometry"], geometry="geometry", crs=4326
+        )
     if frame[["x", "y"]].isna().any().any():
         raise ValueError("gauge_points x/y coordinates cannot be missing")
     frame["station_name"] = frame["station_name"].astype("string").str.strip()
@@ -201,9 +207,15 @@ def read_gauge_points(path: str | os.PathLike[str] | None) -> gpd.GeoDataFrame:
     if "location_role" not in frame:
         frame["location_role"] = "control"
     frame["location_role"] = (
-        frame["location_role"].fillna("control").astype("string").str.strip().str.lower()
+        frame["location_role"]
+        .fillna("control")
+        .astype("string")
+        .str.strip()
+        .str.lower()
     )
-    invalid_roles = sorted(set(frame["location_role"]).difference({"control", "observation"}))
+    invalid_roles = sorted(
+        set(frame["location_role"]).difference({"control", "observation"})
+    )
     if invalid_roles:
         raise ValueError(
             f"gauge_points location_role values must be control or observation: {invalid_roles}"
@@ -255,8 +267,7 @@ def _snap_gauge_points(
     if duplicate_points.any():
         duplicate_indices = sorted(set(snapped[duplicate_points].tolist()))
         raise ValueError(
-            "gauge points snap to duplicate river cells: "
-            f"{duplicate_indices}"
+            f"gauge points snap to duplicate river cells: {duplicate_indices}"
         )
 
     snapped_x, snapped_y = maps.raster.idx_to_xy(snapped)
@@ -284,9 +295,7 @@ def _snap_gauge_points(
     return result
 
 
-def _mask_flwdir(
-    maps: xr.Dataset, parent_mask: np.ndarray
-) -> FlwdirRaster:
+def _mask_flwdir(maps: xr.Dataset, parent_mask: np.ndarray) -> FlwdirRaster:
     """Create a parent-local flow network on the shared analysis grid."""
     mask = xr.DataArray(
         parent_mask,
@@ -319,7 +328,14 @@ def _delineate_spatial_units(
     outlet_by_basin: dict[int, int],
     gauges: gpd.GeoDataFrame,
     max_subbasins_per_basin: int,
-) -> tuple[xr.DataArray, gpd.GeoDataFrame, gpd.GeoDataFrame, gpd.GeoDataFrame, pd.DataFrame, dict[int, str]]:
+) -> tuple[
+    xr.DataArray,
+    gpd.GeoDataFrame,
+    gpd.GeoDataFrame,
+    gpd.GeoDataFrame,
+    pd.DataFrame,
+    dict[int, str],
+]:
     """Resolve gauge-driven or automatic partitions independently per parent.
 
     ADR 0003 §11: the ceiling is PER PARENT, so every automatic parent gets the
@@ -380,9 +396,7 @@ def _delineate_spatial_units(
             temporary_label = basin_id * 1000 + local_label
             temporary_map[partition == local_label] = temporary_label
             row, col = np.unravel_index(outlet_index, maps.raster.shape)
-            matching_control = controls.loc[
-                controls["snapped_index"].eq(outlet_index)
-            ]
+            matching_control = controls.loc[controls["snapped_index"].eq(outlet_index)]
             supplied_name = (
                 matching_control.iloc[0]["station_name"]
                 if not matching_control.empty
@@ -411,9 +425,13 @@ def _delineate_spatial_units(
             )
             if matching_control.empty:
                 snapped_x, snapped_y = maps.raster.idx_to_xy([outlet_index])
-                point = gpd.GeoSeries(
-                    gpd.points_from_xy(snapped_x, snapped_y), crs=maps.raster.crs
-                ).to_crs(4326).iloc[0]
+                point = (
+                    gpd.GeoSeries(
+                        gpd.points_from_xy(snapped_x, snapped_y), crs=maps.raster.crs
+                    )
+                    .to_crs(4326)
+                    .iloc[0]
+                )
                 primary_seeds.append(
                     {
                         "temporary_label": temporary_label,
@@ -456,7 +474,11 @@ def _delineate_spatial_units(
         coords=maps.raster.coords,
         dims=maps.raster.dims,
         name="subbasin_id",
-        attrs={"long_name": "incremental subbasin identifier", "units": "1", "_FillValue": 0},
+        attrs={
+            "long_name": "incremental subbasin identifier",
+            "units": "1",
+            "_FillValue": 0,
+        },
     )
     subbasin_map.raster.set_crs(maps.raster.crs)
     subbasin_map.raster.set_nodata(0)
@@ -590,9 +612,7 @@ def _resample_source(
         reprojected = reprojected.rename(dim0="month").assign_coords(
             month=np.arange(1, 13, dtype="int16")
         )
-        reprojected["month"].attrs.update(
-            long_name="calendar month", units="1"
-        )
+        reprojected["month"].attrs.update(long_name="calendar month", units="1")
     renamed: dict[str, str] = {}
     names = list(reprojected.data_vars)
     for name in names:
@@ -830,7 +850,9 @@ def spatial_report(
     assumed.
     """
     per_basin = subbasins.groupby("basin_id", sort=True)["delineation_method"]
-    ambiguous = sorted(int(value) for value in per_basin.nunique().loc[lambda s: s > 1].index)
+    ambiguous = sorted(
+        int(value) for value in per_basin.nunique().loc[lambda s: s > 1].index
+    )
     if ambiguous:
         raise ValueError(
             f"parent basins carry more than one delineation method: {ambiguous}"
@@ -846,12 +868,18 @@ def spatial_report(
             subbasins["delineation_method"].eq("automatic").sum()
         ),
         "gauge_subbasins": int(subbasins["delineation_method"].eq("gauge").sum()),
-        "basin_id_range": [int(basins["basin_id"].min()), int(basins["basin_id"].max())],
+        "basin_id_range": [
+            int(basins["basin_id"].min()),
+            int(basins["basin_id"].max()),
+        ],
         "subbasin_id_range": [
             int(subbasins["subbasin_id"].min()),
             int(subbasins["subbasin_id"].max()),
         ],
-        "wflow_id_range": [int(registry["wflow_id"].min()), int(registry["wflow_id"].max())],
+        "wflow_id_range": [
+            int(registry["wflow_id"].min()),
+            int(registry["wflow_id"].max()),
+        ],
     }
 
 
@@ -868,13 +896,19 @@ def _catalog_dict() -> dict[str, Any]:
             "data_type": "RasterDataset",
             "uri": "spatial_maps.nc",
             "driver": {"name": "raster_xarray"},
-            "metadata": {"category": "topography", "contract": SPATIAL_CONTRACT_VERSION},
+            "metadata": {
+                "category": "topography",
+                "contract": SPATIAL_CONTRACT_VERSION,
+            },
         },
         "location_registry": {
             "data_type": "DataFrame",
             "uri": "location_registry.csv",
             "driver": {"name": "pandas"},
-            "metadata": {"category": "hydrography", "contract": SPATIAL_CONTRACT_VERSION},
+            "metadata": {
+                "category": "hydrography",
+                "contract": SPATIAL_CONTRACT_VERSION,
+            },
         },
     }
     for name in ("basins", "subbasins", "catchments", "rivers", "locations"):
@@ -961,7 +995,9 @@ def _validate_flow_topology(maps: xr.Dataset) -> None:
     accumulation = np.asarray(maps["flow_accumulation"].values).ravel()
     if not np.isfinite(accumulation[active_indices]).all():
         raise ValueError("active basin cells contain missing flow accumulation")
-    if np.any(accumulation[downstream[internal]] < accumulation[active_indices[internal]]):
+    if np.any(
+        accumulation[downstream[internal]] < accumulation[active_indices[internal]]
+    ):
         raise ValueError("flow accumulation decreases along a downstream D8 edge")
 
 
@@ -1017,15 +1053,15 @@ def validate_written_spatial_products(output_dir: str | Path) -> None:
         raise ValueError("written spatial_maps has no readable CRS")
     if registry is None or subbasins is None:
         raise ValueError("written registry or subbasins catalog entry is unreadable")
-    unreadable = [name for name, frame in geoms.items() if frame is None or frame.crs is None]
+    unreadable = [
+        name for name, frame in geoms.items() if frame is None or frame.crs is None
+    ]
     if unreadable:
         raise ValueError(f"written spatial geometries are unreadable: {unreadable}")
     if any(frame.crs.to_epsg() != 4326 for frame in geoms.values()):
         raise ValueError("written spatial geometries must use EPSG:4326")
     for name, data in maps.data_vars.items():
-        missing = sorted(
-            {"source", "resolution", "units"}.difference(data.attrs)
-        )
+        missing = sorted({"source", "resolution", "units"}.difference(data.attrs))
         if missing:
             raise ValueError(f"written spatial map {name!r} lacks metadata: {missing}")
         if data.raster.nodata is None:

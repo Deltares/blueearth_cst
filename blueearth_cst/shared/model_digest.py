@@ -184,9 +184,7 @@ def model_digest_entries(
     entries: list[tuple[str, str]] = []
     for rel in model_file_set(model_root, toml_name):
         target = model_root / rel
-        entries.append(
-            (rel, _sha256_file(target) if target.is_file() else ABSENT)
-        )
+        entries.append((rel, _sha256_file(target) if target.is_file() else ABSENT))
     return entries
 
 

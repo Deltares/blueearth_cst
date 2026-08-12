@@ -75,8 +75,9 @@ runtime:
   #                    lock was actually resolved against. Do not hand-edit;
   #                    re-run `pixi run install-julia` to regenerate.
   #
-  # `Project.toml`'s `julia = "1.11"` compat bound is deliberately looser (and
-  # documents why 1.12.x is excluded); it is only checked for compatibility.
+  # `Project.toml`'s `julia = "~1.11"` compat bound is deliberately looser (a
+  # range; it documents why 1.12.x is excluded). It is only checked for shape
+  # and for admitting this pin — the tilde is what does the excluding.
   #
   # Must be a QUOTED three-part string. Unquoted `1.11` is a YAML float, and a
   # two-part selector lets juliaup resolve a different patch than the manifest

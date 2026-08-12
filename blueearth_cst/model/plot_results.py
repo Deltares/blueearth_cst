@@ -3,31 +3,31 @@
 Plot wflow results and compare to observations if any
 """
 
-import xarray as xr
 import os
 from os.path import join
 from pathlib import Path
-import matplotlib.pyplot as plt
-import pandas as pd
-from hydromt.readers import open_timeseries_from_table
-from hydromt_wflow import WflowSbmModel
-from blueearth_cst.shared.wflow_outputs import (
-    SUBCATCHMENT_SUFFIX,
-    code_for,
-    is_basin_average,
-)
-
 from typing import Union
 
+import matplotlib.pyplot as plt
+import pandas as pd
+import xarray as xr
+from hydromt.readers import open_timeseries_from_table
+from hydromt_wflow import WflowSbmModel
+
+from blueearth_cst.model.observation_validation import (
+    validate_observation_station_ids,
+)
 from blueearth_cst.shared.func_plot_signature import (
     compute_metrics,
     plot_basavg,
 )
-from blueearth_cst.shared.plot_evaluation import Station, plot_station_evaluation
 from blueearth_cst.shared.gauges import gauges_layer_name, gauges_variable_name
+from blueearth_cst.shared.plot_evaluation import Station, plot_station_evaluation
 from blueearth_cst.shared.snake_utils import log_row
-from blueearth_cst.model.observation_validation import (
-    validate_observation_station_ids,
+from blueearth_cst.shared.wflow_outputs import (
+    SUBCATCHMENT_SUFFIX,
+    code_for,
+    is_basin_average,
 )
 
 
@@ -153,7 +153,9 @@ def merge_outlet_and_gauge_series(qsim, qsim_gauges, log=_log):
     if dropped:
         # Plain Python in the message: numpy scalars render as np.int32(101),
         # which is noise in a user-facing log line.
-        gauge_names = [str(n) for n in qsim_gauges["station_name"].sel(index=dropped).values]
+        gauge_names = [
+            str(n) for n in qsim_gauges["station_name"].sel(index=dropped).values
+        ]
         outlet_names = [str(n) for n in qsim["station_name"].sel(index=dropped).values]
         log(
             f"Gauge(s) {[int(i) for i in dropped]} ({', '.join(gauge_names)}) "
@@ -352,7 +354,7 @@ def analyse_wflow_historical(
         _log("Skipping the first year of the wflow run (warm-up period)")
         qsim = qsim.sel(
             time=slice(
-                f"{qsim['time.year'][0].values+1}-{qsim['time.month'][0].values}-{qsim['time.day'][0].values}",
+                f"{qsim['time.year'][0].values + 1}-{qsim['time.month'][0].values}-{qsim['time.day'][0].values}",
                 None,
             )
         )

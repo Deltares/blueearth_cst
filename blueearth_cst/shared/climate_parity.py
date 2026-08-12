@@ -99,7 +99,11 @@ def model_parity_climate(
         reproj_method="nearest_index",
     )
 
-    pet_vars = ["press_msl", "kin", "kout"] if pet_method == "debruin" else ["press_msl", "kin"]
+    pet_vars = (
+        ["press_msl", "kin", "kout"]
+        if pet_method == "debruin"
+        else ["press_msl", "kin"]
+    )
     pet_out = meteo.pet(
         ds_raw[pet_vars].astype("float32"),
         temp=temp_in,

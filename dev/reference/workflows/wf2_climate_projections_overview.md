@@ -180,8 +180,8 @@ terminal artifact set, so the rule is scheduled after every logging rule.
 
 The rule is shared verbatim by all three workflows — WF1 1.17
 (`logs/wf1_model_creation.log`), WF3 3.18
-(`{exp_dir}/logs/wf3_climate_experiment.log`) — differing only in the label list,
-the parts dir and the output name.
+(`logs/wf3_climate_experiment_<experiment>.log`) — differing only in the label
+list, the parts dir and the output name.
 
 Same partial-re-run caveat as 2.08: only the rules that re-ran have parts, so the
 rewritten log marks the rest `# (no part from this run — rule was already up to date)`. The artifact

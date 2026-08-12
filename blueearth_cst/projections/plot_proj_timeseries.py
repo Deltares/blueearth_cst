@@ -4,18 +4,20 @@ Created on Tue Feb  1 14:34:58 2022
 
 @author: bouaziz
 """
+
 # %%
-import hydromt  # noqa: F401 -- registers the xarray .raster accessor (pr/tas.raster.box below)
 import os
+
+import hydromt  # noqa: F401 -- registers the xarray .raster accessor (pr/tas.raster.box below)
 import matplotlib.pyplot as plt
-import pandas as pd
-import xarray as xr
+
 # S8-08(c): cartopy and matplotlib.colors went with the gridded map
 # figures. This script now draws only the eight scalar figures.
 import numpy as np
+import pandas as pd
+import xarray as xr
 
 from blueearth_cst.shared.snake_utils import log_row
-
 
 
 def plot_combination_traces(frame, colors=None, label_prefix="", alpha=0.85):
@@ -57,8 +59,6 @@ def todatetimeindex_dropvars(ds):
     return ds
 
 
-
-
 if __name__ == "__main__":
     if "snakemake" in globals():
         sm = globals()["snakemake"]
@@ -77,10 +77,8 @@ if __name__ == "__main__":
             clim_project = os.path.basename(clim_project_dir)
             QUANTITY = {"abs": "absolute", "anom": "change"}
 
-
             # %% Historical
             log_row("Opening historical gcm timeseries", module="plot")
-
 
             # Step 4c: the three "did this file have data?" loops are gone. They
             # removed the dummy empty netCDFs stage A used to write for absent
@@ -132,7 +130,9 @@ if __name__ == "__main__":
             q_tas_mnmn = gcm_tas_mnmn  # 6c: per-combination, no cross-model reduction
             gcm_tas_mnref = gcm_tas_mnmn.mean()
             gcm_tas_mnanom = gcm_tas_mnmn - gcm_tas_mnref
-            q_tas_mnanom = gcm_tas_mnanom  # 6c: per-combination, no cross-model reduction
+            q_tas_mnanom = (
+                gcm_tas_mnanom  # 6c: per-combination, no cross-model reduction
+            )
             # annual mean
             gcm_tas_annmn = gcm_tas.resample("YE").mean()
             q_tas_annmn = gcm_tas_annmn  # 6c: per-combination, no cross-model reduction
@@ -177,7 +177,9 @@ if __name__ == "__main__":
                 qtas_fut_abs.append([])
             # read files
             for i in range(len(rcps)):
-                log_row(f"Opening future gcm timeseries for rcp {rcps[i]}", module="plot")
+                log_row(
+                    f"Opening future gcm timeseries for rcp {rcps[i]}", module="plot"
+                )
                 fns_rcp = [fn for fn in fns_future if rcps[i] in fn]
                 # Eager for the same reason as ds_hist above.
                 ds_rcp = xr.open_mfdataset(
@@ -221,16 +223,22 @@ if __name__ == "__main__":
                 pr_futmonth = pr_fut[i].groupby(pr_fut[i].index.month).mean()
                 qpr_futmonth[i] = pr_futmonth  # 6c: per-combination
                 pr_futmonth_anom = (pr_futmonth - fut_pr_ref) / fut_pr_ref * 100
-                qpr_futmonth_anom[i] = pr_futmonth_anom.dropna(axis=1, how="all")  # 6c: per-combination
+                qpr_futmonth_anom[i] = pr_futmonth_anom.dropna(
+                    axis=1, how="all"
+                )  # 6c: per-combination
 
                 tas_futmonth = tas_fut[i].groupby(tas_fut[i].index.month).mean()
                 qtas_futmonth[i] = tas_futmonth  # 6c: per-combination
                 tas_futmonth_anom = tas_futmonth - fut_tas_ref
-                qtas_futmonth_anom[i] = tas_futmonth_anom.dropna(axis=1, how="all")  # 6c: per-combination
+                qtas_futmonth_anom[i] = tas_futmonth_anom.dropna(
+                    axis=1, how="all"
+                )  # 6c: per-combination
             # annual
             for i in range(len(anom_pr_fut)):
                 qpr_fut[i] = pr_fut[i].resample("YE").mean()  # 6c: per-combination
-                anom_pr_fut[i] = (pr_fut[i].resample("YE").mean() - fut_pr_ref) / fut_pr_ref * 100
+                anom_pr_fut[i] = (
+                    (pr_fut[i].resample("YE").mean() - fut_pr_ref) / fut_pr_ref * 100
+                )
                 qanom_pr_fut[i] = anom_pr_fut[i]  # 6c: per-combination
 
                 qtas_fut[i] = tas_fut[i].resample("YE").mean()  # 6c: per-combination
@@ -350,7 +358,8 @@ if __name__ == "__main__":
                     )
                 plt.ylabel(y_label)
                 plt.xticks(
-                    np.arange(1, 13), ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
+                    np.arange(1, 13),
+                    ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"],
                 )
                 plt.legend()
                 plt.grid()
@@ -379,7 +388,8 @@ if __name__ == "__main__":
                 )
                 plt.ylabel(f"{y_label}")
                 plt.xticks(
-                    np.arange(1, 13), ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
+                    np.arange(1, 13),
+                    ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"],
                 )
                 for i in range(len(qtas)):
                     plot_combination_traces(
@@ -398,9 +408,6 @@ if __name__ == "__main__":
                     bbox_inches="tight",
                 )
 
-
             # %%
     else:
-        raise RuntimeError(
-            "plot_proj_timeseries.py runs only as a Snakemake script:"
-        )
+        raise RuntimeError("plot_proj_timeseries.py runs only as a Snakemake script:")

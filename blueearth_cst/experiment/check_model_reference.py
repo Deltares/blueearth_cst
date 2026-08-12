@@ -52,9 +52,7 @@ def compare_reference(reference: dict, model_dir) -> list[str]:
             f"experiment rather than reading across the change."
         ]
     toml_name = reference.get("model_toml", "wflow_sbm.toml")
-    diffs = compare_model_digest(
-        model_dir, reference.get("inputs", {}), toml_name
-    )
+    diffs = compare_model_digest(model_dir, reference.get("inputs", {}), toml_name)
     if not diffs:
         # Belt and braces: the entry list agreeing implies the digest agrees,
         # so a disagreement here would mean the digest function changed without

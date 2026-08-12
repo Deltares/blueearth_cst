@@ -13,8 +13,9 @@ declaration and the only one the workflows read. ``pixi.toml`` and
 single-sourcing is not available here, and pretending otherwise would leave the
 drift undetected.
 
-``Project.toml``'s ``julia = "1.11"`` compat bound is deliberately looser (a
-range, and the reason for the range is documented there) and is NOT compared.
+``Project.toml``'s ``julia = "~1.11"`` compat bound is deliberately looser (a
+range, and the reason for the range is documented there), so it is not compared
+for equality — only checked for shape and coverage.
 """
 
 import re
@@ -66,12 +67,24 @@ def test_manifest_was_resolved_against_the_same_version():
     assert match.group(1) == JULIA_VERSION
 
 
-def test_project_compat_bound_covers_the_pin():
-    """The bound is looser on purpose, but it must still admit the pin."""
+def test_project_compat_bound_admits_the_pin_and_excludes_1_12():
+    """The bound is a range rather than the pin, but it must do both jobs.
+
+    Julia's compat syntax defaults to CARET, so a bare ``1.11`` resolves to
+    [1.11.0, 2.0.0) — it would admit the 1.12.x that Wflow.jl#884 is the whole
+    reason for excluding, while reading as if it did not. ``~1.11`` is
+    [1.11.0, 1.12.0). Asserted because the failure is silent: nothing else
+    checks the bound's shape, and the exclusion is claimed in prose in two
+    files (Project.toml, config/advanced_settings.yml).
+    """
     text = (REPO / "Project.toml").read_text(encoding="utf-8")
     match = re.search(r'^julia = "([^"]+)"', text, re.M)
     assert match, "Project.toml carries no julia compat bound"
-    assert JULIA_VERSION.startswith(match.group(1) + ".")
+    bound = match.group(1)
+    assert bound.startswith("~"), (
+        f'julia compat is "{bound}"; a bare or caret bound admits 1.12.x'
+    )
+    assert JULIA_VERSION.startswith(bound.removeprefix("~") + ".")
 
 
 def test_no_snakefile_hardcodes_a_julia_version():

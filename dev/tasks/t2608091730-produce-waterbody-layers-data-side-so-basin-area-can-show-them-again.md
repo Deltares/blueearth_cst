@@ -1,28 +1,50 @@
 ---
 title: Produce waterbody layers data-side so basin_area can show them again
 type: todo-item
-status: backlog
-effort: 2
+status: blocked
+effort: 1
 area: plotting
 queue:
 created: 2026-08-09
-updated: 2026-08-09
+updated: 2026-08-11
 ---
 
 > [!note] Overview
-> **What** — Lakes, reservoirs and glaciers reach `models/hydrology/wflow/staticgeoms/` from rule 1.08 `add_reservoirs_lakes_glaciers`, a MODEL rule. The shared spatial foundation (`data/spatial/geoms/`) carries none of them. ADR 0007 moved `basin_area` onto that foundation, so the figure no longer draws waterbodies at all. Fix: produce those layers data-side, from the same catalog source, in rule 1.03/1.06 territory, and have rule 1.08 CONSUME them rather than produce them. Then add `lakes`/`reservoirs`/`glaciers` back to `SPATIAL_MAP_LAYERS` in `shared/plot_map.py` — `plot_raster_map` already accepts all three and needs no change.
-> **Why** — Recorded as the known cost of ADR 0007 rather than left implicit. On a basin with a major reservoir, `basin_area` is arguably the one figure that must show it, and today it silently would not. The obvious shortcut — have rule 1.08 also write into `data/spatial/geoms/` — is WRONG and is why this is its own item: a model rule writing into `data/spatial/` makes that tree model-dependent, which re-couples `basin_area` to the model build and undoes the move. The producer has to relocate, not fan out.
-> **Effort** — medium. One producer relocation plus a consumer change in 1.08; the figure side is a three-line dict edit.
+> **What** — `basin_area.png` is the study-area map: elevation, the basin outline, rivers and gauges. It draws no lakes, reservoirs or glaciers, because the only thing that produces those layers is rule 1.08 `add_reservoirs_lakes_glaciers`, which runs inside the wflow model build and writes into the model's own `staticgeoms/`. The figure was moved off the model onto the shared spatial foundation (`data/spatial/`, ADR 0007), and that foundation carries no waterbodies. Fix: add a data-side producer that clips the same three catalog sources (`hydro_reservoirs`, `hydro_lakes`, `rgi`) to the basin and writes them into `data/spatial/geoms/`, then have the figure draw them.
+> **Why** — On a basin with a major reservoir, the study-area map is arguably the one figure that must show it, and today it silently would not. The obvious shortcut — letting rule 1.08 also write into `data/spatial/` — is WRONG and is why this is its own item: a model rule writing there makes the shared foundation model-dependent, so the figure could no longer be drawn before a model exists, which is the property ADR 0007 bought.
+> **Effort** — Small now that the design is settled (2026-08-11 ruling below): one new producer following the `rivers` precedent, plus a three-line dict edit on the figure side. Rule 1.08 is not touched at all, so the model build and the baseline cannot move. The one remaining design question is which rule owns the producer, and it is not a free choice — see Open question below.
 
 ## Progress
 
-- [ ] Decide which rule owns the data-side waterbody layers (1.03 delineate_spatial_units vs 1.06 prepare_spatial_maps)
-- [ ] Relocate the producer and repoint rule 1.08 to consume
-- [ ] Add the three layers to `SPATIAL_MAP_LAYERS`; verify on a basin that HAS a reservoir
-- [ ] Note the closure in ADR 0007's consequences
+*Blocked — the three source datasets are not on this machine. `C:\data\wflow_global\hydromt\hydrography\` holds only `rivers_lin2019`; `reservoirs/`, `lakes/` and `rgi/` are gone, though the 2026-08-10 WF1 log shows all three being read that day. Without them no producer can emit a layer and the figure gate (render it and look at it) cannot be met. Unblocks when that data root is restored.*
+
+- [x] Decide whether the figure shows physical or modelled waterbodies — owner ruling 2026-08-11: **physical, unfiltered**. Rule 1.08 keeps naming the catalog sources exactly as today and is not modified
+- [ ] Decide which rule owns the data-side producer (see Open question)
+- [ ] Write the producer: clip the three sources to `basins`, write `geoms/{reservoirs,lakes,glaciers}.geojson`, register them in `spatial_catalog.yml` beside the existing layers
+- [ ] Add the three layers to `SPATIAL_MAP_LAYERS` in `shared/plot_map.py` — `plot_raster_map` already accepts all three keys and needs no change
+- [ ] Verify by rendering `basin_area` on a basin that HAS a reservoir; the fixture basin has none, so a green suite says nothing
+- [ ] Correct ADR 0007's consequences, which still describe the rejected "1.08 consumes them" plan
+
+## Open question — which rule produces them
+
+Not a free choice, because the obvious home is shared:
+
+- **1.03 `delineate_spatial_units`** already does exactly this for rivers
+  (`spatial/products.py:726`, `catalog.get_geodataframe(rivers_source, geom=basins)`)
+  and already writes `data/spatial/geoms/`. But its inputs/params/outputs are
+  splatted from one `SPATIAL_UNITS` definition into **2.03 and 3.04 as well**, so
+  producing waterbodies here produces them in WF2 and WF3 too, and charges every
+  workflow the catalog read.
+- **1.06 `prepare_spatial_maps`** is WF1-only, which avoids that cost — but then
+  `data/spatial/geoms/` holds a different set of layers depending on which
+  workflow last wrote it, and the figure reads that directory by name.
+
+Consistency probably wins over the read cost, but the cost has not been measured
+and the WF2/WF3 blast radius has not been checked.
 
 ## Refs
 
-- `dev/decisions/0007-draw-basin-area-from-the-spatial-foundation.md` — records the move and names this as the gap.
+- `dev/decisions/0007-draw-basin-area-from-the-spatial-foundation.md` — records the move and names this as its known cost. Its consequences still say the fix is to have 1.08 consume the layers; the 2026-08-11 ruling supersedes that, and the ADR needs the one-line correction listed above.
 - `blueearth_cst/shared/plot_map.py::load_spatial_basin_layers` — its docstring points here.
-- The test fixtures have no waterbodies, so a green suite says nothing about this. Verify on a real basin with one.
+- **`lakes` is a stale name model-side.** hydromt_wflow 1.0.2 has no `lakes` geom: `setup_lakes` became `setup_reservoirs_no_control`, and the geoms it writes are `meta_reservoirs_no_control`, `meta_reservoirs_simple_control` and `glaciers`. Data-side the names come from the SOURCES instead (`hydro_lakes` → `lakes`, `hydro_reservoirs` → `reservoirs`, `rgi` → `glaciers`) and are physically meaningful — a further argument for drawing the figure from the foundation rather than from the model's vocabulary.
+- Rule 1.08 does far more than emit vectors: it derives rating curves, storage curves and demand parameters onto `staticmaps.nc`. Leaving it untouched is what keeps this task off the baseline.

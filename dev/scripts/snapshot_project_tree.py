@@ -1,4 +1,9 @@
-"""Snapshot a project tree as a path list and check it against the R09 path map.
+"""Snapshot a project tree as a path list and check it holds nothing undeclared.
+
+The check runs against `semantic_tree_diff.build_project_tree_rules`, the
+post-migration INVENTORY. (The one-way R9 migration map this tool also drove
+was retired 2026-08-11 -- `dev/reviews/2026-08-11_test-suite-bloat-assessment.md`
+§6a -- so `--map` now has one choice.)
 
 Wraps steps 0, 3 and 4 of `dev/milestones/r09/observed-tier-runbook.md` in one
 command, and derives every map parameter from the config instead of asking for
@@ -31,7 +36,7 @@ Usage (from the repo root, inside pixi)::
 
     # steps 3-4 -- record the snapshot and check it
     python dev/scripts/snapshot_project_tree.py --config <cfg> \
-        --out dev/milestones/r09/observed_inventory.txt
+        --out <path>/observed_inventory.txt
 
 Exit 0 when every path is classified, 1 when any path is UNMAPPED.
 
@@ -62,7 +67,7 @@ EXCLUDED_DIRS = frozenset({".snakemake"})
 
 
 def map_parameters(config: dict) -> dict:
-    """Derive every R09 map parameter from the config.
+    """Derive every path-map parameter from the config.
 
     Built the same way the workflows build them, so a snapshot cannot disagree
     with the tree it describes: the store key mirrors
@@ -182,21 +187,15 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--map",
-        choices=("current", "r09"),
+        choices=("current",),
         default="current",
-        help="which path map to check against. `current` (default) is the "
+        help="which path map to check against. `current` is the "
         "POST-MIGRATION INVENTORY -- it asks 'does this tree hold "
-        "anything nobody declared?' and is the only one that can pass on "
-        "a tree in the layout R9 delivered. `r09` is the one-way "
-        "migration map (pre-R9 -> post-R9); use it to check a tree that "
-        "has NOT been migrated yet. See dev/followups-archive.md [R10-11]",
-    )
-    parser.add_argument(
-        "--gap-rules",
-        action="store_true",
-        help="append the PROPOSED rules for artifacts the R09 map does not "
-        "cover (semantic_tree_diff.R09_MAP_GAPS). Default OFF: the strict "
-        "map is what the gate reports against",
+        "anything nobody declared?'. The `r09` alternative, the one-way "
+        "pre-R9 -> post-R9 migration map, was retired 2026-08-11 "
+        "(dev/reviews/2026-08-11_test-suite-bloat-assessment.md); no "
+        "un-migrated tree survives to point it at. See also "
+        "dev/followups-archive.md [R10-11]",
     )
     parser.add_argument(
         "--quiet",
@@ -251,19 +250,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.no_check:
         return 0
 
-    if args.map == "current":
-        path_map = std.build_project_tree_rules(
-            params["experiment_name"], params["dataset_key"], params["clim_project"]
-        )
-    else:
-        path_map = std.build_r09_path_map(
-            params["experiment_name"], params["dataset_key"], params["clim_project"]
-        )
-    if args.gap_rules:
-        path_map = path_map + std.build_r09_gap_rules(params["experiment_name"])
-    rows = std.classify_path_map(
-        paths, path_map, std.build_r09_deletions(params["experiment_name"])
+    path_map = std.build_project_tree_rules(
+        params["experiment_name"], params["dataset_key"], params["clim_project"]
     )
+    # No DELETED class: the one that existed (`indicators/RT_*.csv`, deleted
+    # rather than migrated) belonged to the retired R9 map. The inventory is
+    # identity-only, so every declared path is IDENTITY and everything else is
+    # UNMAPPED -- which is the whole question this gate asks.
+    rows = std.classify_path_map(paths, path_map, None)
     print(f"map           : {args.map}")
 
     print()
@@ -282,7 +276,8 @@ def main(argv: list[str] | None = None) -> int:
             f"\n{len(unmapped)} path(s) the map does not cover. Each is either a "
             "leftover ORPHAN (prune it -- see prune_series_cache.py, "
             "prune_climate_store.py, and the hand list in "
-            "dev/milestones/r09/observed-tier-runbook.md) or a real MAP GAP "
+            "dev/milestones/r09/observed-tier-runbook.md) or a real INVENTORY "
+            "GAP "
             "(stop and report it: amending the map is an owner decision)."
         )
     return 1 if unmapped else 0

@@ -1,9 +1,10 @@
 """Snapshot source and effective workflow configuration into ``project_dir``."""
+
 import json
 import os
+import shutil
 from os.path import join
 from pathlib import Path
-import shutil
 from typing import Mapping, Optional, Union
 
 import yaml
@@ -76,9 +77,7 @@ def copy_config_files(
         if source_path.is_file():
             destination_dir = Path(dest_dir)
             destination_dir.mkdir(parents=True, exist_ok=True)
-            log_row(
-                f"Copying {source_path.name} to {destination_dir}", module="config"
-            )
+            log_row(f"Copying {source_path.name} to {destination_dir}", module="config")
             shutil.copyfile(source_path, destination_dir / source_path.name)
 
     snapshot_values = (
@@ -116,9 +115,7 @@ def _write_snapshot_bundle(
     snapshot_dir.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(source_config_path, snapshot_dir / "source.yml")
 
-    effective_document = effective_config_document(
-        effective_config, advanced_settings
-    )
+    effective_document = effective_config_document(effective_config, advanced_settings)
     effective_document["effective_config_sha256"] = effective_config_digest(
         effective_config, advanced_settings
     )
@@ -161,9 +158,7 @@ def _write_snapshot_bundle(
                 }
             )
         else:
-            reference_descriptors.append(
-                {"kind": kind, "identifier": source_text}
-            )
+            reference_descriptors.append({"kind": kind, "identifier": source_text})
             entries.append(
                 {
                     "archived_path": None,

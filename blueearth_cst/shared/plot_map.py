@@ -48,7 +48,6 @@ from blueearth_cst.shared.cartographic_map import (
 )
 from blueearth_cst.shared.snake_utils import save_figure
 
-
 # ---------------------------------------------------------------------------
 # Model layout on disk. These four names are hydromt_wflow's write conventions,
 # not ours -- they are stated here, as constants, precisely BECAUSE this module
@@ -193,7 +192,6 @@ def plot_basin_map(dem, rivers, basin, *, elevation_label=ELEVATION_LABEL, **kwa
             diverging_center=style.diverging_center,
         )
     return plot_raster_map(dem, rivers, basin, style=style, **kwargs)
-
 
 
 def load_spatial_basin_layers(spatial_dir):

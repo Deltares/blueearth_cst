@@ -49,6 +49,7 @@ dependency. This module is imported by ``tests/test_interchange_contracts.py``
 and by **no** Snakefile rule: it is DAG-invisible and changes no pipeline
 behavior (design C2).
 """
+
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
@@ -123,9 +124,7 @@ def _check_global_attr(ds: Any, key: str, value: Any, label: str) -> list[str]:
     if key not in attrs:
         return [f"{label}: expected global attr {key!r}={value!r} absent"]
     if str(attrs[key]) != str(value):
-        return [
-            f"{label}: global attr {key!r}={attrs[key]!r} != expected {value!r}"
-        ]
+        return [f"{label}: global attr {key!r}={attrs[key]!r} != expected {value!r}"]
     return []
 
 
@@ -143,9 +142,7 @@ def _check_global_attr_if_present(
     if key not in attrs:
         return []
     if str(attrs[key]) != str(value):
-        return [
-            f"{label}: global attr {key!r}={attrs[key]!r} != expected {value!r}"
-        ]
+        return [f"{label}: global attr {key!r}={attrs[key]!r} != expected {value!r}"]
     return []
 
 
@@ -205,9 +202,7 @@ def validate_wg1(ds: Any) -> list[str]:
     # Coord dtypes (float32 lat/lon is the pinned surface).
     for coord, dtype in (("latitude", "float32"), ("longitude", "float32")):
         if coord in getattr(ds, "coords", {}) and str(ds[coord].dtype) != dtype:
-            diffs.append(
-                f"{label}: coord {coord!r} dtype {ds[coord].dtype} != {dtype}"
-            )
+            diffs.append(f"{label}: coord {coord!r} dtype {ds[coord].dtype} != {dtype}")
     diffs += _check_data_vars(ds, tuple(_WG1_VARS_UNITS), label)
     for var, units in _WG1_VARS_UNITS.items():
         diffs += _check_var_dtype(ds, var, "float32", label)
@@ -241,9 +236,7 @@ def validate_wg2(df: Any) -> list[str]:
     diffs: list[str] = []
     cols = _columns(df)
     if tuple(cols) != _WG2_HEADER:
-        diffs.append(
-            f"{label}: header {cols} != expected {list(_WG2_HEADER)}"
-        )
+        diffs.append(f"{label}: header {cols} != expected {list(_WG2_HEADER)}")
     n = int(getattr(df, "shape", (0,))[0])
     if n != 12:
         diffs.append(f"{label}: expected 12 rows (month 1..12), got {n}")
@@ -310,9 +303,7 @@ def validate_wg3(cfg: Any) -> list[str]:
     else:
         for key in _WG3_GWS_KEYS:
             if key not in gws:
-                diffs.append(
-                    f"{label}: 'generateWeatherSeries.{key}' absent"
-                )
+                diffs.append(f"{label}: 'generateWeatherSeries.{key}' absent")
     # The perturbation-step flags (C29). Read by impose_climate_change.R; absent,
     # the R hands NULL to apply_climate_perturbations and the ramp-vs-step
     # behaviour is whatever weathergenr defaults to.
@@ -367,8 +358,7 @@ def _validate_catalog_entry(key: str, entry: Any, label: str) -> list[str]:
     else:
         if str(metadata.get("crs")) != "4326":
             diffs.append(
-                f"{label}: entry {key!r} metadata.crs "
-                f"{metadata.get('crs')!r} != 4326"
+                f"{label}: entry {key!r} metadata.crs {metadata.get('crs')!r} != 4326"
             )
         if metadata.get("category") != "meteo":
             diffs.append(
@@ -441,9 +431,7 @@ def validate_hm1(ds: Any) -> list[str]:
     diffs += _check_coords(ds, ("latitude", "longitude"), label)
     for coord, dtype in (("latitude", "float64"), ("longitude", "float64")):
         if coord in getattr(ds, "coords", {}) and str(ds[coord].dtype) != dtype:
-            diffs.append(
-                f"{label}: coord {coord!r} dtype {ds[coord].dtype} != {dtype}"
-            )
+            diffs.append(f"{label}: coord {coord!r} dtype {ds[coord].dtype} != {dtype}")
     diffs += _check_data_vars(ds, _HM1_REFERENCED, label)
     diffs += _check_crs_4326(ds, label)
     return diffs
@@ -483,18 +471,14 @@ def validate_hm2(ds: Any) -> list[str]:
     diffs += _check_coords(ds, ("time", "latitude", "longitude"), label)
     for coord, dtype in (("latitude", "float64"), ("longitude", "float64")):
         if coord in getattr(ds, "coords", {}) and str(ds[coord].dtype) != dtype:
-            diffs.append(
-                f"{label}: coord {coord!r} dtype {ds[coord].dtype} != {dtype}"
-            )
+            diffs.append(f"{label}: coord {coord!r} dtype {ds[coord].dtype} != {dtype}")
     diffs += _check_data_vars(ds, _HM2_VARS, label)
     for var in _HM2_VARS:
         diffs += _check_var_dtype(ds, var, "float32", label)
         if var in getattr(ds, "data_vars", {}):
             gm = ds[var].attrs.get("grid_mapping")
             if gm != "spatial_ref":
-                diffs.append(
-                    f"{label}: {var!r} grid_mapping {gm!r} != 'spatial_ref'"
-                )
+                diffs.append(f"{label}: {var!r} grid_mapping {gm!r} != 'spatial_ref'")
     # Units asserted-if-present only (never required).
     for var, attr_key, value in _HM2_UNIT_ATTRS:
         if var in getattr(ds, "data_vars", {}):
@@ -530,19 +514,15 @@ def validate_hm3(
     region_types = set(region_gdf.geom_type)
     if not region_types <= {"Polygon", "MultiPolygon"}:
         diffs.append(
-            f"{label}: region.geojson geom types {sorted(region_types)} "
-            "are not Polygon"
+            f"{label}: region.geojson geom types {sorted(region_types)} are not Polygon"
         )
     # outlets: Point, EPSG:4326
     if str(getattr(outlets_gdf, "crs", None)) not in ("EPSG:4326", "epsg:4326"):
-        diffs.append(
-            f"{label}: outlets.geojson CRS {outlets_gdf.crs} != EPSG:4326"
-        )
+        diffs.append(f"{label}: outlets.geojson CRS {outlets_gdf.crs} != EPSG:4326")
     outlet_types = set(outlets_gdf.geom_type)
     if not outlet_types <= {"Point", "MultiPoint"}:
         diffs.append(
-            f"{label}: outlets.geojson geom types {sorted(outlet_types)} "
-            "are not Point"
+            f"{label}: outlets.geojson geom types {sorted(outlet_types)} are not Point"
         )
     # outlet_index: the subcatchment-id mapping column must be present.
     oi_cols = _columns(outlet_index_df)
@@ -637,9 +617,7 @@ def _output_csv_diffs(cfg: Mapping, label: str) -> list[str]:
     else:
         for i, entry in enumerate(column):
             if not isinstance(entry, Mapping) or "header" not in entry:
-                diffs.append(
-                    f"{label}: '[output.csv].column[{i}]' missing 'header'"
-                )
+                diffs.append(f"{label}: '[output.csv].column[{i}]' missing 'header'")
     return diffs
 
 
@@ -692,9 +670,7 @@ _PERTURBATION_AXIS = ("temp_change", "precip_change")
 HM7_COLUMNS = INDICATOR_COLUMNS
 
 
-def validate_hm7(
-    tables: dict, rlz_num: int | None = None, design=None
-) -> list[str]:
+def validate_hm7(tables: dict, rlz_num: int | None = None, design=None) -> list[str]:
     """HM-7 — response-surface reduction, ONE LONG TABLE PER OUTPUT VARIABLE.
 
     ``tables`` maps variable token to parsed table (``{"q": df, "aet": df}``).
@@ -724,9 +700,11 @@ def validate_hm7(
     - **``metric`` agrees with the table it is in.** The composite carries the
       variable, so no ``variable`` column exists; the redundancy is safe only if
       something checks it, which is what normalisation would have given free.
-    - **The vocabulary, as a PATTERN.** Two suffixes interpolate ``Tpeak``/``Tlow``,
-      so enumerating names would reject every project whose return periods differ
-      from the fixture's.
+    - **The vocabulary.** Enumerated since 2026-08-12. It was a pattern while the
+      two return-level suffixes interpolated the ``Tpeak``/``Tlow`` config keys,
+      because enumerating would have rejected every project whose return periods
+      differed from the fixture's; those keys are now toolbox constants, so the
+      set of legal names is closed.
     - **The grain invariant.** ``rlz_id = 0`` means pooled — a numeric
       sentinel in a numeric key column, which is safe only because no metric
       emits both grains. If that ever stops holding, the sentinel must become a
@@ -867,7 +845,8 @@ def validate_hm7(
                     )
                     continue
                 for column, value in (
-                    ("temp_change", temp), ("precip_change", precip),
+                    ("temp_change", temp),
+                    ("precip_change", precip),
                 ):
                     expected = float(design_row[column])
                     if not _close(float(value), expected):
@@ -1117,8 +1096,7 @@ def validate_hm_gauge_column_identity(
                 )
         elif exp not in out_cols:
             diffs.append(
-                f"{label}: declared column {exp!r} absent from output "
-                f"(have {out_cols})"
+                f"{label}: declared column {exp!r} absent from output (have {out_cols})"
             )
 
     # Check 2: map-typed gauge columns carry the Q_ prefix rule 3.11 hard-codes.
@@ -1194,9 +1172,7 @@ def validate_wg5_catalog_grid(
         for n in range(1, rlz_num + 1)
         for m in range(0, st_num + 1)
     }
-    present = {
-        k for k in catalog_cfg if isinstance(k, str) and k.startswith("rlz_")
-    }
+    present = {k for k in catalog_cfg if isinstance(k, str) and k.startswith("rlz_")}
     diffs: list[str] = []
     for key in sorted(expected - present):
         diffs.append(f"{label}: expected catalog entry {key!r} missing")
