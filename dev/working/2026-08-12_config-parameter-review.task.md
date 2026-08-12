@@ -119,8 +119,44 @@ delete, nor arrange names that Q4 would change.
      that contradicts the code as a defect of the same class as an inert
      parameter, because both mislead a user who acts on them.
 
+   **Beyond conformance — is the name any GOOD?** A key can satisfy every rule
+   in naming.md and still fail to communicate. That half is judgement, not
+   grep, and it is the half a user actually meets. Assess each name for:
+   - **Word class matches value class.** A boolean should read as a predicate
+     — `run_historical` says "run historical", which collides with
+     `historical_window` and does not say it means "include the unperturbed
+     baseline". A quantity should be a noun carrying its unit: `run_length` —
+     length of what, measured in what? A path follows naming.md §5's
+     `_path`/`_dir`.
+   - **Is it English?** `horizontime_climate` is not a word, and states
+     neither the quantity nor its unit.
+   - **Abbreviation load, judged per case.** `st_num`, `clim_historical`,
+     `wflow_outvars`, `nc_file_prefix`: which are established domain
+     vocabulary a hydrologist reads fluently, and which are merely short?
+     `st_` is pinned by naming.md §4 as a stable wildcard token and is not up
+     for debate; the others are.
+   - **Word order and qualifier position.** `clim_historical` puts the
+     qualifier last while `historical_window` puts it first, for adjacent
+     concepts. `data_sources` / `data_sources_climate` suffix a qualifier
+     where two distinct names might read better.
+   - **Does the leaf stand alone, or lean on its parent?** `max_per_basin`
+     means nothing by itself; `automatic_subbasins.max_per_basin` is clear.
+     Leaning on the path is legitimate, but it should be a consistent policy
+     rather than an accident — and it fails the moment the key is quoted in a
+     log line or an error message without its path.
+   - **Does the name agree with what it points at?** `basin.gauge_points`
+     resolves to a file called `output_locations.csv`. One of those two nouns
+     is wrong.
+   - **The reader test, which decides the rest:** would a hydrologist new to
+     this toolbox correctly guess the key's meaning, type and unit from its
+     name alone? Where the answer is no, record **what they would guess
+     instead** — the plausible wrong reading is the finding, and is far more
+     useful than "this name is unclear".
+
    Naming is a contract surface: any rename proposal must state its migration
-   cost per naming.md §7. Recommend, do not rename.
+   cost per naming.md §7, and must distinguish a name that is **wrong** from
+   one that is merely **not what you would choose today**. Grandfathered names
+   are worth breaking only for the first. Recommend, do not rename.
 
 5. **Q5 · Organisation — is the hierarchy right for a user?**
    Answer each, with a recommendation:
