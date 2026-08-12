@@ -183,3 +183,95 @@ No Results delta: nothing executes, so no results change.
   holds.)
 - **Gate 3** — on completion, PAUSE. No follow-on implementation without an
   explicit new instruction.
+
+---
+
+## Appendix — parameter sets per file
+
+A **dated snapshot, measured 2026-08-12**, reproduced here so the brief is
+self-contained. It is the same measurement as the appendix in
+`dev/working/parameter-placement.md`.
+
+**Re-measure it; do not trust it.** Two copies of one inventory is precisely
+the duplication Q3 exists to find, so the copy is only defensible if it is
+checked: confirming these counts against the tree is the review's first act,
+and any correction is itself a finding. `*` = required (`optional=False`).
+
+### `config/advanced_settings.yml` — 5
+`constraints.min_historical_years` · `defaults.julia_threads` ·
+`defaults.seed` · `defaults.water_year_start` · `runtime.julia_version`
+
+### Project config — `project` — 4
+`project_dir`* · `static_dir`* · `data_sources`* · `data_sources_climate`*
+
+### Project config — `shared` — 13
+`basin.region`* · `basin.resolution` · `basin.gauge_points` ·
+`basin.automatic_subbasins.max_per_basin` · `basin.gauge_snap_tolerance_m` ·
+`basin.river_uparea_km2` · `basin.spatial_sources.{rivers,lulc,lai,soil}` ·
+`historical_window.{starttime,endtime}`* · `clim_historical`*
+— plus two optional keys the template does not document:
+`basin.hydrography`, `basin.basin_index` (a Q2 candidate in themselves).
+
+### Project config — `workflows.model_creation`
+`enabled` · `model_build_config` · `waterbodies_config` · `wflow_outvars` ·
+`observations_timeseries` · `simulation_window.{starttime,endtime}`*
+
+### Project config — `workflows.climate_projections`
+`enabled` · `clim_project`* · `models`* · `scenarios`* · `members`* ·
+`variables`* · `historical_year_range`* · `future_horizons`* · `stats` ·
+`save_grids` — `start_month_hyd_year` was retired 2026-08-12 and is now
+refused at parse time.
+
+### Project config — `workflows.climate_experiment`
+`enabled` · `experiment_name` · `realizations_num` · `horizontime_climate`* ·
+`run_length` · `run_historical` ·
+`stress_test.{temp,precip}.{step_num, transient_change, mean.{min,max},
+variance.{min,max}}` · `stress_test.{dry,wet}_spell_factor`
+
+### `config/defaults/weathergen_config.yml` — 4 sections
+`run_weather_generator` (2) · `generate_weather` (16 set + 6 injected) ·
+`apply_climate_perturbations` (15) · `write_netcdf` (5). Sections are
+weathergenr 1.2.0 function names, keys are their argument names — in scope to
+describe, out of scope to restructure.
+
+### `config/defaults/wflow_build_model.yml`, `wflow_update_waterbodies.yml`
+hydromt `setup_*` blocks, verbatim in hydromt_wflow's schema. Same scope note.
+
+### Data catalogs
+`config/catalogs/` — `deltares_data.yml` (2596 lines), `deltares_data_linux.yml`
+(1894), `cmip6_data.yml` (3919, **generated** by
+`dev/scripts/generate_cmip6_catalog.py`), 2 archived ·
+`tests/data/tests_data_catalog.yml` (112). Entry names are the contract; entry
+bodies are hydromt's schema.
+
+### Python `DEFAULT_*` — 14
+Re-export tier 1: `DEFAULT_JULIA_THREADS`, `DEFAULT_SEED`,
+`DEFAULT_WATER_YEAR_START`.
+Back a config key — the Q3/Q1 candidates: `DEFAULT_SPELL_FACTOR`,
+`DEFAULT_MAX_SUBBASINS_PER_BASIN`, `DEFAULT_GAUGE_SNAP_TOLERANCE_M`,
+`DEFAULT_HYDROGRAPHY`, `DEFAULT_BASIN_INDEX`, `DEFAULT_STATS`.
+Duplicated: `DEFAULT_ANCHOR` ×2 (`shared/metrics_definition.py:18`,
+`climate_analysis/climate_figures.py:120`).
+No config surface, correctly constants: `DEFAULT_DECIMALS`,
+`DEFAULT_MIN_REFERENCE`, `DEFAULT_MAX_FLAGGED_MONTHS`.
+
+### Process / build config — named for completeness, OUT OF SCOPE
+`pixi.toml` · `pyproject.toml` · `Project.toml` · `Manifest.toml` ·
+`.github/workflows/ci.yml` · `profiles/default/config.yaml` ·
+`.testing-policy.yml` · `.git-workflow.yml` ·
+`dev/reference/sealed-records.yml` · `dev/scripts/{stage_data,scaffold_extras}.yml`
+· `config/templates/wflow_sbm.reference.toml` (reference only, nothing reads it)
+· 5 archived single-workflow configs under `config/templates/archive/`.
+
+### Tier 3 — generated per `project_dir`, a RECORD not an input
+`config/runs/<workflow>/<digest>/{source.yml, effective.yml,
+referenced-files.json, files/**}` (content-addressed run snapshots) ·
+`config/catalogs/*` · `config/templates/*` ·
+`experiments/<id>/{experiment.yml, model_reference.yml,
+snake_config_climate_experiment.yml, catalogs/*, runs/**}` ·
+`experiments/<id>/climate/weathergenr/config/weathergen_config.yml` ·
+`models/hydrology/wflow/{wflow_sbm.toml, config/*}`
+
+Tier 3 is in scope for **one** question only: does anything read a tier-3 file
+back as an INPUT? If so, that is a Q1 finding of a different kind — a record
+being used as configuration.

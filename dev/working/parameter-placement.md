@@ -149,6 +149,13 @@ M2 is the only one that is unambiguously correct regardless of how §5 resolves.
 
 ## Appendix — parameter sets per file
 
+> Reproduced verbatim in
+> `dev/working/2026-08-12_config-parameter-review.task.md`, so that brief is
+> self-contained. Both are the same 2026-08-12 measurement; the review is
+> instructed to re-measure rather than trust either. If one is corrected,
+> correct both or delete this one — two copies of an inventory is the exact
+> duplication that review's Q3 exists to find.
+
 ### `config/advanced_settings.yml` (5)
 `constraints.min_historical_years` · `defaults.julia_threads` ·
 `defaults.seed` · `defaults.water_year_start` · `runtime.julia_version`
