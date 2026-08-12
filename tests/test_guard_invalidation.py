@@ -33,7 +33,7 @@ pytestmark = pytest.mark.workflow_contract
 
 TESTDIR = Path(__file__).resolve().parent
 SNAKEDIR = TESTDIR.parent
-CONFIG_FN = TESTDIR / "snake_config_model_test.yml"
+CONFIG_FN = TESTDIR / "snake_config_fixture.yml"
 
 sys.path.insert(0, str(SNAKEDIR / "dev" / "scripts"))
 import cross_workflow_inputs as cwi  # noqa: E402

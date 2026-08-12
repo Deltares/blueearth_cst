@@ -138,9 +138,9 @@ format-check = { cmd = "ruff format --check .", description = "Fail if anything 
 # DAG validation, one per workflow. `--configfile` is pinned to the tracked test
 # config so the task is runnable from a fresh clone; pass a different one on the
 # CLI when working against another project config (see test_case/ for the shipped examples).
-dag-wf1 = { cmd = "snakemake all -c 3 -s Snakefile_model_creation --configfile test_case/snake_config_model_test.yml --dry-run", description = "Dry-run wf1 (model creation) to validate the DAG" }
-dag-wf2 = { cmd = "snakemake all -c 3 -s Snakefile_climate_projections --configfile test_case/snake_config_model_test.yml --dry-run", description = "Dry-run wf2 (climate projections) to validate the DAG" }
-dag-wf3 = { cmd = "snakemake all -c 3 -s Snakefile_climate_experiment --configfile test_case/snake_config_model_test.yml --dry-run", description = "Dry-run wf3 (climate experiment) to validate the DAG" }
+dag-wf1 = { cmd = "snakemake all -c 3 -s Snakefile_model_creation --configfile test_case/snake_config_baseline.yml --dry-run", description = "Dry-run wf1 (model creation) to validate the DAG" }
+dag-wf2 = { cmd = "snakemake all -c 3 -s Snakefile_climate_projections --configfile test_case/snake_config_baseline.yml --dry-run", description = "Dry-run wf2 (climate projections) to validate the DAG" }
+dag-wf3 = { cmd = "snakemake all -c 3 -s Snakefile_climate_experiment --configfile test_case/snake_config_baseline.yml --dry-run", description = "Dry-run wf3 (climate experiment) to validate the DAG" }
 
 # Project-tree inspection (R09). Same shape as the dag-* tasks: `--config` is
 # pinned to the tracked test config so the task runs from a fresh clone, and a
@@ -153,4 +153,4 @@ dag-wf3 = { cmd = "snakemake all -c 3 -s Snakefile_climate_experiment --configfi
 # run in the primary checkout while the comparator lives in a task worktree),
 # pass `--project-dir` with an absolute path. See
 # dev/milestones/r09/observed-tier-runbook.md.
-tree-check = { cmd = "python dev/scripts/snapshot_project_tree.py --config test_case/snake_config_model_test.yml", description = "Snapshot a project_dir as a path list and check every path against the R09 path map (add --out to record it; nothing is written otherwise)" }
+tree-check = { cmd = "python dev/scripts/snapshot_project_tree.py --config test_case/snake_config_baseline.yml", description = "Snapshot a project_dir as a path list and check every path against the R09 path map (add --out to record it; nothing is written otherwise)" }

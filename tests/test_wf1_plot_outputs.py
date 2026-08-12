@@ -43,7 +43,7 @@ _GEOMS = {"basins", "rivers", "outlets", _GAUGES_LAYER}
 
 TESTDIR = Path(__file__).resolve().parent
 SNAKEDIR = TESTDIR.parent
-CONFIG_FN = TESTDIR / "snake_config_model_test.yml"
+CONFIG_FN = TESTDIR / "snake_config_fixture.yml"
 
 
 #: The config-invariant subset O-24 declares, project-root-relative. The

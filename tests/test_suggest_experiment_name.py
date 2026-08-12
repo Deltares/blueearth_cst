@@ -172,8 +172,8 @@ def test_the_test_fixtures_deliberately_KEEP_a_fixed_name():
     keep theirs. Only the user-facing template drops the key."""
     # Both seeds now sit beside the projects they write into, under test_case/.
     for rel in (
-        "test_case/snake_config_model_test.yml",
-        "test_case/snake_config_dev_fast.yml",
+        "test_case/snake_config_baseline.yml",
+        "test_case/snake_config_wf2_fast.yml",
     ):
         doc = yaml.safe_load((SNAKEDIR / rel).read_text(encoding="utf-8"))
         assert doc["workflows"]["climate_experiment"]["experiment_name"]

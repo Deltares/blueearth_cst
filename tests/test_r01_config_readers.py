@@ -10,7 +10,7 @@ import pytest
 TESTDIR = dirname(realpath(__file__))
 SNAKEDIR = join(TESTDIR, "..")
 
-CONFIG = join(TESTDIR, "snake_config_model_test.yml")
+CONFIG = join(TESTDIR, "snake_config_fixture.yml")
 
 
 def test_prep_cst_parameters_reads_sectioned_config(tmp_path):

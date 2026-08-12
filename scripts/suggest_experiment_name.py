@@ -2,7 +2,7 @@
 
 R07 B8. Run once, deliberately, before the first climate-experiment run::
 
-    python scripts/suggest_experiment_name.py test_case/snake_config_model_test.yml
+    python scripts/suggest_experiment_name.py test_case/snake_config_baseline.yml
 
 Reads ``project.project_dir``, slugifies its basename, appends today's date,
 validates the result through the same grammar the workflow enforces, and writes

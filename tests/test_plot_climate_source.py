@@ -30,7 +30,7 @@ import yaml
 
 TESTDIR = Path(__file__).resolve().parent
 SNAKEDIR = TESTDIR.parent
-CONFIG_FN = TESTDIR / "snake_config_model_test.yml"
+CONFIG_FN = TESTDIR / "snake_config_fixture.yml"
 
 
 # The synthetic domain: a small era5-like grid around the test basin.

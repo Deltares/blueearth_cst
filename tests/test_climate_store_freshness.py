@@ -37,7 +37,7 @@ pytestmark = pytest.mark.workflow_contract
 
 TESTDIR = Path(__file__).resolve().parent
 SNAKEDIR = TESTDIR.parent
-CONFIG_FN = TESTDIR / "snake_config_model_test.yml"
+CONFIG_FN = TESTDIR / "snake_config_fixture.yml"
 CATALOG_FN = TESTDIR / "data" / "tests_data_catalog.yml"
 
 SNAKEFILES = ("Snakefile_model_creation", "Snakefile_climate_experiment")

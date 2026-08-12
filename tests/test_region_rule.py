@@ -21,7 +21,7 @@ from blueearth_cst.shared import snake_utils as su
 
 TESTDIR = Path(__file__).resolve().parent
 SNAKEDIR = TESTDIR.parent
-CONFIG_FN = TESTDIR / "snake_config_model_test.yml"
+CONFIG_FN = TESTDIR / "snake_config_fixture.yml"
 
 RULE_NAME = "delineate_region"
 

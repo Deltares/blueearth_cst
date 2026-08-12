@@ -41,7 +41,7 @@ from pathlib import Path, PurePosixPath
 import pytest
 
 SNAKEDIR = Path(__file__).resolve().parents[1]
-CONFIG_FN = Path(__file__).resolve().parent / "snake_config_model_test.yml"
+CONFIG_FN = Path(__file__).resolve().parent / "snake_config_fixture.yml"
 
 #: Every entry point, with the module-level list naming its log sections.
 WORKFLOWS = [

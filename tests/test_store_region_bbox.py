@@ -28,7 +28,7 @@ import yaml
 SNAKEDIR = Path(__file__).resolve().parents[1]
 from blueearth_cst.shared.snake_utils import region_rule  # noqa: E402
 
-SEED_CONFIG = SNAKEDIR / "test_case" / "snake_config_model_test.yml"
+SEED_CONFIG = SNAKEDIR / "test_case" / "snake_config_baseline.yml"
 
 
 def _seed_paths():

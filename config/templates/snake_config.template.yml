@@ -7,7 +7,7 @@
 # Commented-out keys are optional and show their default.
 #
 # Why the defaults are what they are: config/templates/README.md.
-# A filled-in example: test_case/snake_config_model_test.yml.
+# A filled-in example: test_case/snake_config_baseline.yml.
 
 project:
   project_dir: /path/to/my_project                        # path — absolute, outside the repo

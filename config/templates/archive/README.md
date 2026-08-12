@@ -35,7 +35,7 @@ the current schema, which is why the reconciliation above is on you.
 ## Live configs
 
 `../snake_config.template.yml` is the clean starting point;
-`../../../test_case/snake_config_model_test.yml` is the tracked baseline seed and
+`../../../test_case/snake_config_baseline.yml` is the tracked baseline seed and
 the worked example. Neither is a single-workflow config: both carry a `workflows:`
 section
 and drive `scripts/run_workflows.py`, which the files here deliberately do not.

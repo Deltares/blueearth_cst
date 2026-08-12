@@ -34,7 +34,7 @@ from pathlib import Path
 import pytest
 
 SNAKEDIR = Path(__file__).resolve().parents[1]
-CONFIG_FN = Path(__file__).resolve().parent / "snake_config_model_test.yml"
+CONFIG_FN = Path(__file__).resolve().parent / "snake_config_fixture.yml"
 RULE_NAME = "extract_historical_climate"
 
 #: Sentinel for "the built Rule carries no such attribute on this Snakemake".

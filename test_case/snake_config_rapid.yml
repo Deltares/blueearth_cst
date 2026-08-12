@@ -1,5 +1,5 @@
 # RAPID config — the DEFAULT for iterating on the workflows end to end.
-# `snake_config_model_test.yml` is the comprehensive one; use that for the
+# `snake_config_baseline.yml` is the comprehensive one; use that for the
 # baseline, a milestone seal, or any run whose numbers get read.
 #
 # Cheap where the cost is, full where a code path would otherwise be skipped:
