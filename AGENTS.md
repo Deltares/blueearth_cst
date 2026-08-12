@@ -111,7 +111,10 @@ The tree is self-explanatory; these are the parts that are not.
   manifest, and dev-process helpers under `dev/scripts/`. Not shipped, not
   user-facing. **Open work lives on the todo-board**: one note per item under
   `dev/tasks/`, closures in `dev/LOG.md`, and `dev/TODO.md` is **generated**
-  (`todoboard render` — do not hand-edit it, edit the note). A note is a
+  (`python dev/scripts/todoboard.py render` — do not hand-edit it, edit the
+  note. The bare `todoboard` is on nobody's `PATH`: the CLI lives inside the
+  per-user, gitignored `todo-board` skill bundle, so the wrapper is how it is
+  reached). A note is a
   `todo-item` (work) or a `watch-item` (true and worth seeing, but no action
   intended — it carries a **Trigger** naming what would make it work). This
   replaced `dev/followups.md` on 2026-08-07; everything closed before that is
