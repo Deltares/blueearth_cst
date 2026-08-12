@@ -20,7 +20,7 @@ premise; do not treat it as decided).
 
 ### Goal
 
-Answer four questions with evidence, so that a later design decision on
+Answer five questions with evidence, so that a later design decision on
 parameter organisation rests on a complete and checked picture rather than on
 precedent. Produce findings and recommendations only.
 
@@ -29,7 +29,7 @@ precedent. Produce findings and recommendations only.
 - **No code, config, schema or test changes.** Not a single edit to a runtime
   file. Recommendations are written down, not applied.
 - No decision on where defaults should live — that is the *output* of this
-  review, informed by Q4, not an input.
+  review, informed by Q4 and Q5, not an input.
 - No restructuring proposal for engine-native templates.
 - Not a design document. If the answers imply an architecture change, say so
   and stop; `design-document` owns that.
@@ -50,8 +50,9 @@ the review's own conclusions rather than editing it).
 
 ### Required changes (checklist)
 
-The four questions, sharpened so they do not overlap. Answer in order — Q4
-must not reorganise parameters that Q1–Q3 would delete.
+The five questions, sharpened so each turns on one axis and they do not
+overlap. Answer in order: Q5 must not reorganise parameters that Q1–Q3 would
+delete, nor arrange names that Q4 would change.
 
 1. **Q1 · Reach — which declared parameters never reach the computation?**
    Classify every one of the 55 project-config leaf keys and the
@@ -90,7 +91,74 @@ must not reorganise parameters that Q1–Q3 would delete.
      is consulted;
    - a value derivable from another already present (state the derivation).
 
-4. **Q4 · Organisation — is the hierarchy right for a user?**
+4. **Q4 · Naming and documentation — are parameters named and described
+   consistently?**
+   Audit against `dev/reference/naming.md`, which already binds config keys
+   (§2: snake_case keys, lowercase booleans, MUST for new keys; §7: rename a
+   contract surface only with a migration note). Report separately:
+   - **Where the convention is BROKEN** — cite the rule and the key.
+   - **Where the convention is SILENT** — that is a finding in itself, and
+     likely the larger one. It says nothing about units in names, about
+     abbreviation (`realizations_num` vs `n_realizations` vs `RLZ_NUM` — three
+     spellings of one quantity across the three tiers), or about word order
+     (`start_month_hyd_year` vs `year_start_month`: same words, opposite
+     order, different type).
+   - **One concept, several names across tiers.** Every T2→T1 translation is a
+     place a reader must hold two vocabularies. List them and say which are
+     forced (an engine's own argument name, fixed by the hard constraint) and
+     which are ours to fix.
+   - **Units and types.** `gauge_snap_tolerance_m` and `river_uparea_km2` carry
+     their unit; `resolution` (degrees) does not; `horizontime_climate` states
+     neither quantity nor unit. Where is the unit — in the name, in a comment,
+     or nowhere?
+   - **Documentation completeness**, per key: is it in the template at all
+     (`basin.hydrography` and `basin.basin_index` are not); is its default
+     visible without reading Python (six are not); is required-vs-optional
+     marked consistently; does its comment describe CURRENT behaviour?
+     Several stale comments were found by hand this session — treat a comment
+     that contradicts the code as a defect of the same class as an inert
+     parameter, because both mislead a user who acts on them.
+
+   **Beyond conformance — is the name any GOOD?** A key can satisfy every rule
+   in naming.md and still fail to communicate. That half is judgement, not
+   grep, and it is the half a user actually meets. Assess each name for:
+   - **Word class matches value class.** A boolean should read as a predicate
+     — `run_historical` says "run historical", which collides with
+     `historical_window` and does not say it means "include the unperturbed
+     baseline". A quantity should be a noun carrying its unit: `run_length` —
+     length of what, measured in what? A path follows naming.md §5's
+     `_path`/`_dir`.
+   - **Is it English?** `horizontime_climate` is not a word, and states
+     neither the quantity nor its unit.
+   - **Abbreviation load, judged per case.** `st_num`, `clim_historical`,
+     `wflow_outvars`, `nc_file_prefix`: which are established domain
+     vocabulary a hydrologist reads fluently, and which are merely short?
+     `st_` is pinned by naming.md §4 as a stable wildcard token and is not up
+     for debate; the others are.
+   - **Word order and qualifier position.** `clim_historical` puts the
+     qualifier last while `historical_window` puts it first, for adjacent
+     concepts. `data_sources` / `data_sources_climate` suffix a qualifier
+     where two distinct names might read better.
+   - **Does the leaf stand alone, or lean on its parent?** `max_per_basin`
+     means nothing by itself; `automatic_subbasins.max_per_basin` is clear.
+     Leaning on the path is legitimate, but it should be a consistent policy
+     rather than an accident — and it fails the moment the key is quoted in a
+     log line or an error message without its path.
+   - **Does the name agree with what it points at?** `basin.gauge_points`
+     resolves to a file called `output_locations.csv`. One of those two nouns
+     is wrong.
+   - **The reader test, which decides the rest:** would a hydrologist new to
+     this toolbox correctly guess the key's meaning, type and unit from its
+     name alone? Where the answer is no, record **what they would guess
+     instead** — the plausible wrong reading is the finding, and is far more
+     useful than "this name is unclear".
+
+   Naming is a contract surface: any rename proposal must state its migration
+   cost per naming.md §7, and must distinguish a name that is **wrong** from
+   one that is merely **not what you would choose today**. Grandfathered names
+   are worth breaking only for the first. Recommend, do not rename.
+
+5. **Q5 · Organisation — is the hierarchy right for a user?**
    Answer each, with a recommendation:
    - Are three tiers the right tiers, or does the split hide something?
    - Within the project config, is `project` / `shared` / `workflows.*` the
@@ -106,10 +174,10 @@ must not reorganise parameters that Q1–Q3 would delete.
    - Where should a key's default be *visible* to the user? Give a
      recommendation and the argument against it.
 
-5. **Rank every finding** by consequence, not by count: what could produce a
+6. **Rank every finding** by consequence, not by count: what could produce a
    wrong number, versus what is only untidy.
 
-6. **Answer the P2 question the draft left open:** could Q1's classification be
+7. **Answer the P2 question the draft left open:** could Q1's classification be
    produced *mechanically* rather than by reading? Say whether a "declared keys
    ⊆ read keys" check is feasible against Snakemake's `params:` indirection,
    and if not, what the cheapest partial check would be. A judgement with
@@ -120,7 +188,8 @@ must not reorganise parameters that Q1–Q3 would delete.
 - [ ] Q1 reach classification
 - [ ] Q2 necessity
 - [ ] Q3 duplication
-- [ ] Q4 organisation + user-oriented test
+- [ ] Q4 naming + documentation audit
+- [ ] Q5 organisation + user-oriented test
 - [ ] Ranking and P2 feasibility
 
 ### Validation
@@ -145,7 +214,7 @@ No test suite applies — nothing executes. Validation is **evidence per claim**
 
 ### Acceptance criteria
 
-- All four questions answered, each finding evidenced and ranked by
+- All five questions answered, each finding evidenced and ranked by
   consequence.
 - Complete coverage per Validation 3; no key silently skipped.
 - Every recommendation states its cost and whether it breaks existing project
@@ -159,7 +228,7 @@ No test suite applies — nothing executes. Validation is **evidence per claim**
 
 One markdown file: `dev/working/2026-08-12_config-parameter-review.md`.
 
-Structure: findings per question (Q1–Q4), then a single ranked recommendation
+Structure: findings per question (Q1–Q5), then a single ranked recommendation
 table — *finding · consequence · proposed action · cost · breaking?* — then
 open questions.
 
@@ -177,7 +246,7 @@ No Results delta: nothing executes, so no results change.
 - **Gate 1** — after Q1's classification, PAUSE. If it finds inert parameters
   beyond the four already known, the owner decides whether the review widens to
   cover them or records and continues.
-- **Gate 2** — before writing Q4's recommendations, PAUSE for the owner to
+- **Gate 2** — before writing Q5's recommendations, PAUSE for the owner to
   confirm whether breaking changes to the project-config schema may be
   proposed. (Latitude was granted for the earlier draft; confirm it still
   holds.)
@@ -259,7 +328,8 @@ No config surface, correctly constants: `DEFAULT_DECIMALS`,
 `pixi.toml` · `pyproject.toml` · `Project.toml` · `Manifest.toml` ·
 `.github/workflows/ci.yml` · `profiles/default/config.yaml` ·
 `.testing-policy.yml` · `.git-workflow.yml` ·
-`dev/reference/sealed-records.yml` · `dev/scripts/{stage_data,scaffold_extras}.yml`
+`dev/reference/sealed-records.yml` ·
+`dev/scripts/{stage_data,scaffold_extras}.yml`
 · `config/templates/wflow_sbm.reference.toml` (reference only, nothing reads it)
 · 5 archived single-workflow configs under `config/templates/archive/`.
 
