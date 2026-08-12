@@ -148,7 +148,7 @@ def test_the_seed_fixture_keeps_its_own_shorter_window():
     from pathlib import Path
 
     seed = (
-        Path(__file__).resolve().parents[1] / "test_case/snake_config_model_test.yml"
+        Path(__file__).resolve().parents[1] / "test_case/snake_config_baseline.yml"
     ).read_text(encoding="utf-8")
     m = re.search(r"historical_year_range:\s*\[\s*(\d{4})\s*,\s*(\d{4})\s*\]", seed)
     assert m, "seed must declare historical_year_range"

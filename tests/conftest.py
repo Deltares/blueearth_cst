@@ -17,7 +17,7 @@ from blueearth_cst.shared.snake_utils import get_config  # shared helper (R3 §3
 TESTDIR = dirname(realpath(__file__))
 SNAKEDIR = join(TESTDIR, "..")
 
-config_fn = join(TESTDIR, "snake_config_model_test.yml")
+config_fn = join(TESTDIR, "snake_config_fixture.yml")
 
 
 #: Screen resolution, for tests that SAVE a figure to assert something about it.

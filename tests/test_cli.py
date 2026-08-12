@@ -15,8 +15,8 @@ SNAKEDIR = join(TESTDIR, "..")
 sys.path.insert(0, join(SNAKEDIR, "dev", "scripts"))
 import cross_workflow_inputs as cwi  # noqa: E402
 
-config_fn = join(TESTDIR, "snake_config_model_test.yml")
-linux_config_fn = join(SNAKEDIR, "test_case", "snake_config_model_test_linux.yml")
+config_fn = join(TESTDIR, "snake_config_fixture.yml")
+linux_config_fn = join(SNAKEDIR, "test_case", "snake_config_baseline_linux.yml")
 
 
 def _dry_run(snakefile, cfg=config_fn):
@@ -128,15 +128,15 @@ def test_in_repo_project_dir_warning_reaches_the_stream(tmp_path):
 def test_baseline_seed_config_does_not_warn():
     """The exemption holds for the config the baseline gate actually runs.
 
-    That is test_case/snake_config_model_test.yml (project_dir:
-    test_case/test_local) -- NOT tests/snake_config_model_test.yml, which
+    That is test_case/snake_config_baseline.yml (project_dir:
+    test_case/test_local) -- NOT tests/snake_config_fixture.yml, which
     points at tests/test_project and therefore warns correctly: it is an
     in-repo project_dir outside the single exemption. The exemption exists
     because the baseline seed config is TRACKED and a tracked config cannot
     carry a machine-specific absolute path; it does not extend to every
     convenient in-repo scratch dir.
     """
-    seed_cfg = join(SNAKEDIR, "test_case", "snake_config_model_test.yml")
+    seed_cfg = join(SNAKEDIR, "test_case", "snake_config_baseline.yml")
     result = _dry_run("Snakefile_model_creation", cfg=seed_cfg)
     combined = (result.stdout or "") + (result.stderr or "")
     assert "inside the repository tree" not in combined, combined[-3000:]

@@ -24,7 +24,7 @@ from blueearth_cst.spatial.config import parse_spatial_config
 
 TESTDIR = Path(__file__).resolve().parent
 SNAKEDIR = TESTDIR.parent
-CONFIG_FN = TESTDIR / "snake_config_model_test.yml"
+CONFIG_FN = TESTDIR / "snake_config_fixture.yml"
 
 RULE_NAME = "delineate_spatial_units"
 

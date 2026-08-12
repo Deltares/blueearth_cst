@@ -31,7 +31,7 @@ ALL_SIX = list(VARIABLE_TOKENS)
 
 
 def test_the_seed_config_yields_only_the_discharge_table():
-    """`snake_config_model_test.yml` requests one variable, so one table."""
+    """A config requesting only `river discharge` yields the q table alone."""
     assert indicator_tables(["river discharge"]) == {"q": "q_indicators.csv"}
 
 

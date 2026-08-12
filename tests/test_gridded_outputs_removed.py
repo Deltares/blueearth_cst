@@ -50,7 +50,7 @@ def _dry_run(config_path):
 @pytest.fixture
 def seed_config():
     return yaml.safe_load(
-        (REPO / "test_case/snake_config_dev_fast.yml").read_text(encoding="utf-8")
+        (REPO / "test_case/snake_config_wf2_fast.yml").read_text(encoding="utf-8")
     )
 
 

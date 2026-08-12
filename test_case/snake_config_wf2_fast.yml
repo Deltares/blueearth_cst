@@ -7,7 +7,7 @@
 # resolves **2** series, which makes an iteration loop minutes instead of tens of
 # minutes.
 #
-# Differences from test_case/snake_config_model_test.yml, and ONLY these:
+# Differences from test_case/snake_config_baseline.yml, and ONLY these:
 #   - project_dir: test_case/test_dev   (its own tree; never touches the
 #     baseline fixture, whose manifested summary/plots are derived from all
 #     3 models and would be wrong if regenerated from 1)
@@ -15,7 +15,7 @@
 #   - scenarios: one scenario (ssp245)
 #
 # NOT a baseline seed. `dev/baseline/manifest.json` is recorded from
-# snake_config_model_test.yml and nothing else; never point check_baseline here.
+# snake_config_baseline.yml and nothing else; never point check_baseline here.
 # The first run pays a one-off climate-store extraction for the new project_dir.
 
 project:

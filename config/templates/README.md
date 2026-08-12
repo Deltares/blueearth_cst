@@ -9,7 +9,7 @@ what it held; see `config/defaults/README.md`.
 
 | File | Purpose |
 | --- | --- |
-| `snake_config.template.yml` | The annotated starting point for a new project's config. A filled-in worked example is `test_case/snake_config_model_test.yml`. |
+| `snake_config.template.yml` | The annotated starting point for a new project's config. A filled-in worked example is `test_case/snake_config_baseline.yml`. |
 | `output_locations_template.csv` | Header-only schema for gauge/output locations |
 | `observed_daily_discharge_template.csv` | Header-only schema for observed discharge |
 | `archive/` | Unmaintained single-workflow configs; see its own README |

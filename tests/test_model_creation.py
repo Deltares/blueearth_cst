@@ -8,7 +8,7 @@ from blueearth_cst.model import copy_config_files
 TESTDIR = dirname(realpath(__file__))
 SNAKEDIR = join(TESTDIR, "..")
 
-config_fn = join(TESTDIR, "snake_config_model_test.yml")
+config_fn = join(TESTDIR, "snake_config_fixture.yml")
 
 
 def test_copy_config(project_dir, data_sources, model_build_config):
