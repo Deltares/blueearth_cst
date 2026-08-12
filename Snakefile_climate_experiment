@@ -1008,8 +1008,6 @@ rule derive_wflow_indicators:
         # disagree about which tables exist.
         indicator_tokens = list(INDICATOR_TABLES),
         st_num = ST_NUM,
-        Tlow = get_config(my_cfg, "Tlow", 2),
-        Tpeak = get_config(my_cfg, "Tpeak", 10),
     log:
         f"{LOG_PARTS_DIR}/3.16_derive_wflow_indicators.log",
     benchmark:

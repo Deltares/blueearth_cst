@@ -700,9 +700,11 @@ def validate_hm7(tables: dict, rlz_num: int | None = None, design=None) -> list[
     - **``metric`` agrees with the table it is in.** The composite carries the
       variable, so no ``variable`` column exists; the redundancy is safe only if
       something checks it, which is what normalisation would have given free.
-    - **The vocabulary, as a PATTERN.** Two suffixes interpolate ``Tpeak``/``Tlow``,
-      so enumerating names would reject every project whose return periods differ
-      from the fixture's.
+    - **The vocabulary.** Enumerated since 2026-08-12. It was a pattern while the
+      two return-level suffixes interpolated the ``Tpeak``/``Tlow`` config keys,
+      because enumerating would have rejected every project whose return periods
+      differed from the fixture's; those keys are now toolbox constants, so the
+      set of legal names is closed.
     - **The grain invariant.** ``rlz_id = 0`` means pooled — a numeric
       sentinel in a numeric key column, which is safe only because no metric
       emits both grains. If that ever stops holding, the sentinel must become a

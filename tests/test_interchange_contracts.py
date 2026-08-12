@@ -434,12 +434,34 @@ def test_hm7_rejects_a_metric_that_disagrees_with_its_own_table():
     assert diffs and "do not begin with" in diffs[0]
 
 
-def test_hm7_matches_the_vocabulary_as_a_pattern_not_an_enumeration():
-    """Tpeak/Tlow are config values interpolated into two metric names, so an
-    enumerated check would reject every project whose return periods differ from
-    the fixture's -- the same fixture-shaped defect the wide validator had."""
-    rows = [_hm7_row("q_return_level_50yr_max", 0), _hm7_row("q_annual_mean", 1)]
+def test_hm7_accepts_the_return_levels_at_the_toolbox_periods():
+    """The vocabulary is CLOSED as of 2026-08-12.
+
+    This asserted the opposite until then -- that `q_return_level_50yr_max`
+    validates -- because `Tpeak`/`Tlow` were config keys and an enumerated check
+    would have rejected every project whose return periods differed from the
+    fixture's. Retiring those keys makes the enumeration correct, and the
+    off-vocabulary name is now a finding rather than a false positive: that half
+    is pinned by `test_hm7_rejects_a_return_level_at_an_unconfigured_period`.
+    """
+    rows = [
+        _hm7_row("q_return_level_10yr_max", 0),
+        _hm7_row("q_return_level_2yr_7day_min", 0),
+        _hm7_row("q_annual_mean", 1),
+    ]
     assert ic.validate_hm7({"q": pd.DataFrame(rows)}, rlz_num=1) == []
+
+
+def test_hm7_rejects_a_return_level_at_an_unconfigured_period():
+    """The other side of closing the vocabulary, and the reason it is worth it.
+
+    A table claiming a 50-year flood level can only come from a tree built by a
+    toolbox with different constants, which is exactly the mismatch a seam check
+    exists to catch. Under the old pattern it passed silently.
+    """
+    rows = [_hm7_row("q_return_level_50yr_max", 0)]
+    diffs = ic.validate_hm7({"q": pd.DataFrame(rows)}, rlz_num=1)
+    assert diffs and "unrecognised metric" in diffs[0]
 
 
 def test_hm7_rejects_an_unrecognised_metric():

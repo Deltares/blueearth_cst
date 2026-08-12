@@ -53,8 +53,6 @@ second, never the reverse.
 
 from __future__ import annotations
 
-import re
-
 from blueearth_cst.shared.wflow_outputs import CODES as _WFLOW_CODES
 
 #: Semantic name (as it appears in ``workflows.model_creation.wflow_outvars``)
@@ -179,12 +177,28 @@ BASIN_LOCATION = "basin"
 #: ``hydrological-indicators`` note uses throughout. The statistic keys below were
 #: renamed off the inherited ``returninterval`` spelling for that reason.
 #:
-#: The two return levels interpolate ``Tpeak``/``Tlow``. Those are config values
-#: that appeared in no column and no name before R11, so two runs with different
-#: ``Tpeak`` produced identical-looking rows meaning different things — a 10-year
-#: and a 20-year flood level, indistinguishable once the file left the project
-#: folder. Because the vocabulary is therefore partly config-derived,
-#: ``validate_hm7`` matches a PATTERN rather than an enumeration.
+#: Return periods, in years, that the two GEV return-level indicators are
+#: evaluated at. **Toolbox constants since 2026-08-12, not config values.**
+#:
+#: They were the ``Tpeak`` / ``Tlow`` keys of ``workflows.climate_experiment``
+#: until then, and the owner retired them from the project config: a return
+#: period is a property of the indicator set this toolbox defines, and indicator
+#: definitions live here rather than in a per-project scaffold. Both keys shipped
+#: at these values in every config the repo carried, so retiring them changed no
+#: emitted name and no number.
+#:
+#: A project that genuinely needs a different design standard changes them here,
+#: which is a toolbox edit and re-names two indicators — deliberately visible,
+#: rather than a per-project knob that silently redefines what a column means.
+RETURN_PERIOD_PEAK_YR = 10
+RETURN_PERIOD_LOW_YR = 2
+
+#: The two return levels still carry their return period in the NAME, which is
+#: the property R11 bought: before it, two runs at different periods produced
+#: identical-looking rows meaning different things — a 10-year and a 20-year
+#: flood level, indistinguishable once the file left the project folder. The
+#: period is no longer a config value (see :data:`RETURN_PERIOD_PEAK_YR`), so
+#: the vocabulary is now a fixed enumeration rather than a pattern.
 #:
 #: Grain classes (CR-2): **A** is emitted per realization, **B** and **C** only
 #: pooled (``rlz_id = 0``). See ``METRIC_CLASSES``.
@@ -196,8 +210,11 @@ Q_METRIC_SUFFIXES = {
     "Q7day_max": ("mean_annual_7day_max", "A"),
     "Q7day_min": ("mean_annual_7day_min", "A"),
     "BaseFlowIndex": ("baseflow_index", "A"),
-    "return_level_max": ("return_level_{Tpeak}yr_max", "B"),
-    "return_level_7day_min": ("return_level_{Tlow}yr_7day_min", "B"),
+    "return_level_max": (f"return_level_{RETURN_PERIOD_PEAK_YR}yr_max", "B"),
+    "return_level_7day_min": (
+        f"return_level_{RETURN_PERIOD_LOW_YR}yr_7day_min",
+        "B",
+    ),
     "wetmonth_mean": ("wettest_month_mean", "C"),
     "drymonth_mean": ("driest_month_mean", "C"),
 }
@@ -235,10 +252,14 @@ BASIN_METRIC_SUFFIXES = {
 METRIC_CLASSES = {"A": "per-realization", "B": "pooled", "C": "pooled"}
 
 
-def q_metric_name(statistic: str, tpeak: int, tlow: int) -> str:
-    """Composite metric name for one discharge statistic."""
+def q_metric_name(statistic: str) -> str:
+    """Composite metric name for one discharge statistic.
+
+    Took ``tpeak``/``tlow`` arguments until 2026-08-12, when the return periods
+    stopped being config values; the names they produced are unchanged.
+    """
     suffix, _ = Q_METRIC_SUFFIXES[statistic]
-    return f"q_{suffix.format(Tpeak=tpeak, Tlow=tlow)}"
+    return f"q_{suffix}"
 
 
 def basin_metric_name(token: str) -> str:
@@ -260,21 +281,19 @@ def basin_reduction(token: str) -> str:
 def metric_grain(token: str, metric: str) -> str | None:
     """``'per-realization'`` / ``'pooled'`` for a metric name, or ``None`` if unknown.
 
-    Matched as a PATTERN, not looked up in an enumeration, because two suffixes
-    interpolate ``Tpeak``/``Tlow``: a validator that enumerated names would reject
-    every project whose return periods differ from the fixture's. The
-    interpolation points become ``\\d+`` and everything else is literal, so
-    ``q_return_level_50yr_max`` validates while ``q_return_level_fifty`` does not.
+    A plain enumeration since 2026-08-12. It was a PATTERN — the two return-level
+    suffixes interpolated ``Tpeak``/``Tlow``, so their names were partly
+    config-derived and an enumerating validator would have rejected every project
+    whose return periods differed from the fixture's. Retiring those config keys
+    (:data:`RETURN_PERIOD_PEAK_YR`) makes the vocabulary closed, so the check can
+    say exactly which names are legal instead of which shapes are.
 
     Returning ``None`` rather than raising lets the caller report *which* metric is
     unrecognised alongside its other findings, instead of dying on the first one.
     """
     if token == "q":
         for suffix, grain_class in Q_METRIC_SUFFIXES.values():
-            pattern = re.escape(f"q_{suffix}")
-            pattern = pattern.replace(re.escape("{Tpeak}"), r"\d+")
-            pattern = pattern.replace(re.escape("{Tlow}"), r"\d+")
-            if re.fullmatch(pattern, metric):
+            if metric == f"q_{suffix}":
                 return METRIC_CLASSES[grain_class]
         return None
     if token in BASIN_METRIC_SUFFIXES:

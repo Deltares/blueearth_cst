@@ -131,7 +131,5 @@ workflows:
         variance:                                         # 12 numerics (Jan-Dec) — multiplier
           min: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
           max: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
-    Tlow: 2                                               # integer — years, drought return period
-    Tpeak: 10                                             # integer — years, flood return period
     #batch_size: 4                                        # integer
     #batch_size_max: 8                                    # integer

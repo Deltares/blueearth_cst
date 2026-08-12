@@ -98,16 +98,19 @@ once it leaves the project tree and needs no separate `variable` column.
 | `q_mean_annual_7day_max` | annual max of the 7-day mean, meaned over years | per-realization |
 | `q_mean_annual_7day_min` | annual min of the 7-day mean, meaned over years | per-realization |
 | `q_baseflow_index` | baseflow index | per-realization |
-| `q_return_level_{Tpeak}yr_max` | GEV return level of the annual maximum | pooled (`rlz_id = 0`) |
-| `q_return_level_{Tlow}yr_7day_min` | GEV return level of the annual 7-day minimum | pooled (`rlz_id = 0`) |
+| `q_return_level_10yr_max` | GEV return level of the annual maximum | pooled (`rlz_id = 0`) |
+| `q_return_level_2yr_7day_min` | GEV return level of the annual 7-day minimum | pooled (`rlz_id = 0`) |
 | `q_wettest_month_mean` | mean flow in the wettest month, chosen once from the pooled baseline | pooled (`rlz_id = 0`) |
 | `q_driest_month_mean` | mean flow in the driest month, same rule | pooled (`rlz_id = 0`) |
 
-`{Tpeak}` and `{Tlow}` **interpolate config values**, so the two return-level
-names are partly config-derived: a project with `Tpeak: 50` emits
-`q_return_level_50yr_max`. `validate_hm7` therefore matches a *pattern*, not an
-enumeration — a validator that enumerated names would reject every project whose
-return periods differ from the fixture's.
+The two return periods were the `Tpeak` / `Tlow` config keys until 2026-08-12,
+which made these two names partly config-derived — a project with `Tpeak: 50`
+emitted `q_return_level_50yr_max`, so `validate_hm7` had to match a *pattern*
+rather than an enumeration. The owner retired those keys: a return period is a
+property of the indicator set the toolbox defines, not of a project. Both shipped
+at 10 and 2 everywhere, so no name changed. They are now
+`indicator_tables.RETURN_PERIOD_PEAK_YR` / `RETURN_PERIOD_LOW_YR`, the vocabulary
+is closed, and `validate_hm7` enumerates.
 
 Three wordings in that list are deliberate and were each chosen against a
 shorter alternative:

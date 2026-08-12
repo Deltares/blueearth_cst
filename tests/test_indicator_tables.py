@@ -83,17 +83,14 @@ def test_tokens_are_distinct_so_two_variables_cannot_share_a_table():
 def test_the_return_levels_carry_their_return_period():
     """Tpeak/Tlow appeared in no column and no name before R11, so two runs with
     different settings produced identical-looking rows meaning different things."""
-    assert q_metric_name("return_level_max", 10, 2) == "q_return_level_10yr_max"
-    assert q_metric_name("return_level_max", 20, 5) == "q_return_level_20yr_max"
-    assert (
-        q_metric_name("return_level_7day_min", 20, 5) == "q_return_level_5yr_7day_min"
-    )
+    assert q_metric_name("return_level_max") == "q_return_level_10yr_max"
+    assert q_metric_name("return_level_7day_min") == "q_return_level_2yr_7day_min"
 
 
 def test_q95_is_named_p95_because_the_conventional_name_means_the_opposite():
     """Ours is the mean annual 95th percentile, a HIGH flow. Conventional Q95 is
     the flow exceeded 95% of the time — a LOW-flow drought index."""
-    assert q_metric_name("q95", 10, 2) == "q_mean_annual_p95"
+    assert q_metric_name("q95") == "q_mean_annual_p95"
 
 
 @pytest.mark.parametrize(
@@ -122,7 +119,7 @@ def test_every_metric_name_starts_with_its_variable_token():
     """The invariant `validate_hm7` asserts, since composing the variable into
     the metric is what normalisation would have given for free."""
     for statistic in Q_METRIC_SUFFIXES:
-        assert q_metric_name(statistic, 10, 2).startswith("q_")
+        assert q_metric_name(statistic).startswith("q_")
     for token in BASIN_METRIC_SUFFIXES:
         assert basin_metric_name(token).startswith(f"{token}_")
 

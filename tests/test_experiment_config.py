@@ -22,7 +22,18 @@ from blueearth_cst.experiment.write_experiment_config import (  # noqa: E402
     write_experiment_config,
 )
 
-_CFG = {"realizations_num": 2, "run_length": 20, "Tlow": 2, "Tpeak": 10}
+#: A resolved ``workflows.climate_experiment`` section, in miniature. Every key
+#: is a LIVE one: the drift cases below change ``horizontime_climate`` and
+#: ``run_historical``, which were ``Tpeak`` and ``Tlow`` until 2026-08-12. A
+#: guard demonstrated on a key no config declares still passes -- the recorded
+#: section is whatever it is handed -- but it stops being evidence that the
+#: guard fires on a change anyone can actually make.
+_CFG = {
+    "realizations_num": 2,
+    "run_length": 20,
+    "horizontime_climate": 2050,
+    "run_historical": False,
+}
 
 _SNAKEFILE = Path(__file__).resolve().parents[1] / "Snakefile_climate_experiment"
 
@@ -102,16 +113,18 @@ def test_frozen_after_the_first_successful_run(tmp_path):
 
     with pytest.raises(ExperimentConfigFrozenError) as excinfo:
         write_experiment_config(
-            _marker(tmp_path), out, "gabon_dry", dict(_CFG, Tpeak=25)
+            _marker(tmp_path), out, "gabon_dry", dict(_CFG, horizontime_climate=2085)
         )
     msg = str(excinfo.value)
-    assert "Tpeak" in msg  # what changed
+    assert "horizontime_climate" in msg  # what changed
     assert "gabon_dry" in msg  # which experiment
     assert "new experiment" in msg.lower()  # what to do
     # ...and the recorded file is untouched, so the results still describe it.
     assert (
-        yaml.safe_load(out.read_text(encoding="utf-8"))["climate_experiment"]["Tpeak"]
-        == 10
+        yaml.safe_load(out.read_text(encoding="utf-8"))["climate_experiment"][
+            "horizontime_climate"
+        ]
+        == 2050
     )
 
 
@@ -141,7 +154,7 @@ def test_the_marker_is_a_completed_run_not_a_started_one(tmp_path):
 
     assert not has_run_successfully(_marker(tmp_path))
     write_experiment_config(
-        _marker(tmp_path), out, "gabon_dry", dict(_CFG, Tlow=3)
+        _marker(tmp_path), out, "gabon_dry", dict(_CFG, run_historical=True)
     )  # allowed
 
 
@@ -160,7 +173,10 @@ def test_another_experiments_merged_log_does_not_freeze_this_one(tmp_path):
 
     assert not has_run_successfully(_marker(tmp_path, "gabon_wet"))
     write_experiment_config(
-        _marker(tmp_path, "gabon_wet"), out, "gabon_wet", dict(_CFG, Tlow=3)
+        _marker(tmp_path, "gabon_wet"),
+        out,
+        "gabon_wet",
+        dict(_CFG, run_historical=True),
     )  # allowed
 
 

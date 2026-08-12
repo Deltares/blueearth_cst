@@ -54,6 +54,8 @@ from blueearth_cst.shared.indicator_tables import (
     DESIGN_AXES,
     INDICATOR_COLUMNS,
     POOLED_REALIZATION,
+    RETURN_PERIOD_LOW_YR,
+    RETURN_PERIOD_PEAK_YR,
     basin_metric_name,
     basin_reduction,
     output_code,
@@ -343,8 +345,6 @@ def analyze_wflow_results(
     st_num: int,
     indicator_tokens: List[str],
     table_paths: dict,
-    Tpeak: int = 10,
-    Tlow: int = 2,
 ):
     """Reduce every stress-test run into one long table per configured variable.
 
@@ -475,7 +475,7 @@ def analyze_wflow_results(
                 }
                 for statistic, values in annual.items():
                     rows["q"] += _rows(
-                        q_metric_name(statistic, Tpeak, Tlow),
+                        q_metric_name(statistic),
                         st_id,
                         temp,
                         precip,
@@ -493,11 +493,16 @@ def analyze_wflow_results(
                 ignore_index=True,
             )
             for statistic, blocks, period, mode in (
-                ("return_level_max", high_blocks, Tpeak, "max"),
-                ("return_level_7day_min", low_blocks, Tlow, "min"),
+                ("return_level_max", high_blocks, RETURN_PERIOD_PEAK_YR, "max"),
+                (
+                    "return_level_7day_min",
+                    low_blocks,
+                    RETURN_PERIOD_LOW_YR,
+                    "min",
+                ),
             ):
                 rows["q"] += _rows(
-                    q_metric_name(statistic, Tpeak, Tlow),
+                    q_metric_name(statistic),
                     st_id,
                     temp,
                     precip,
@@ -514,7 +519,7 @@ def analyze_wflow_results(
                     ("drymonth_mean", dry_month),
                 ):
                     rows["q"] += _rows(
-                        q_metric_name(statistic, Tpeak, Tlow),
+                        q_metric_name(statistic),
                         st_id,
                         temp,
                         precip,
@@ -580,8 +585,6 @@ if __name__ == "__main__":
                 st_num=sm.params.st_num,
                 indicator_tokens=tokens,
                 table_paths={t: getattr(sm.output, f"{t}_indicators") for t in tokens},
-                Tpeak=sm.params.Tpeak,
-                Tlow=sm.params.Tlow,
             )
     else:
         raise ValueError("This script should be run from a snakemake environment")

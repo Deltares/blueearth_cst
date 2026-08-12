@@ -138,9 +138,11 @@ def test_the_legend_table_agrees_with_plot_meta():
 
 
 def test_every_discharge_metric_is_documented_with_its_grain():
-    """Including the two whose names interpolate `Tpeak`/`Tlow` -- the glossary
-    carries the braced form, which is what a reader needs in order to recognise
-    `q_return_level_50yr_max` as the same metric."""
+    """Including the two return levels, whose period is part of the name.
+
+    The glossary carried a braced `{Tpeak}` form while the period was a config
+    key; since 2026-08-12 it is a toolbox constant, so the documented name is
+    literal and must match what `Q_METRIC_SUFFIXES` emits exactly."""
     rows = _rows(_text(), "`q_annual_mean`")
     header, *body = rows
     assert header == ["metric", "statistic", "grain"]

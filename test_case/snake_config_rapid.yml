@@ -95,5 +95,3 @@ workflows:
           max: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
     # Return periods read off 18 pooled annual blocks (2 rlz x 9 years) —
     # enough to exercise the GEV fit, not a number to interpret.
-    Tlow: 2
-    Tpeak: 10

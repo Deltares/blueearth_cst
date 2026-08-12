@@ -294,8 +294,6 @@ def _reduce(tmp_path, tokens=("q",), rlz=2, st=2, basavg=True, extra_axis=False)
         st_num=st,
         indicator_tokens=list(tokens),
         table_paths=paths,
-        Tpeak=10,
-        Tlow=2,
     )
     return {t: pd.read_csv(p) for t, p in paths.items()}
 
