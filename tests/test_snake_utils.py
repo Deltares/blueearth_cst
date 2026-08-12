@@ -1160,3 +1160,40 @@ def test_seed_refuses_non_integers_and_negatives(bad):
 def test_seed_auto_needs_an_experiment_name():
     with pytest.raises(ValueError, match="experiment_name"):
         su.resolve_seed("auto", "")
+
+
+# --- stress_test spell factors ---------------------------------------------
+#
+# Moved out of the weathergen template into the project config, beside the two
+# perturbation axes. The LENGTH check is the point: weathergenr indexes these
+# by month, so R would recycle or truncate a wrong-length list rather than
+# reject it, and the run would silently perturb the wrong months.
+
+
+def test_spell_factor_absent_is_the_identity():
+    assert su.validate_spell_factor(None, "x") == [1.0] * 12
+
+
+def test_spell_factor_accepts_twelve_numbers_and_floats_them():
+    out = su.validate_spell_factor([1] * 12, "x")
+    assert out == [1.0] * 12
+    assert all(isinstance(v, float) for v in out)
+
+
+@pytest.mark.parametrize("n", [0, 11, 13, 24])
+def test_spell_factor_refuses_a_wrong_length(n):
+    with pytest.raises(ValueError, match="12 entries"):
+        su.validate_spell_factor([1.0] * n, "stress_test.dry_spell_factor")
+
+
+@pytest.mark.parametrize("bad", ["1.0", 1.0, 5, {"jan": 1.0}])
+def test_spell_factor_refuses_a_non_list(bad):
+    with pytest.raises(ValueError, match="12 monthly coefficients"):
+        su.validate_spell_factor(bad, "stress_test.dry_spell_factor")
+
+
+def test_spell_factor_refuses_a_non_numeric_entry():
+    values = [1.0] * 12
+    values[6] = "high"
+    with pytest.raises(ValueError, match=r"\[7\]"):
+        su.validate_spell_factor(values, "stress_test.wet_spell_factor")

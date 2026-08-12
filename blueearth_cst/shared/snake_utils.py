@@ -19,7 +19,7 @@ import time
 import traceback
 import warnings
 import zlib
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -1479,6 +1479,40 @@ def stress_test_grid(stress_test_cfg: Mapping) -> tuple[int, int, int]:
     temp_step_count = _require_step_num(stress_test_cfg, "temp") + 1
     precip_step_count = _require_step_num(stress_test_cfg, "precip") + 1
     return temp_step_count, precip_step_count, temp_step_count * precip_step_count
+
+
+#: Twelve 1.0s — no spell-length adjustment, the identity for both factors.
+DEFAULT_SPELL_FACTOR = [1.0] * 12
+
+
+def validate_spell_factor(value, where: str) -> list[float]:
+    """Validate a monthly spell-length coefficient list from ``stress_test``.
+
+    Twelve numbers, one per calendar month. ``None`` (key absent) yields the
+    identity, because "no adjustment" is a defensible default in a way that,
+    say, ``transient_change`` is not — there the house rule is to refuse.
+
+    The LENGTH check is the point. weathergenr indexes these by month, so a
+    ten-element list would be recycled or truncated by R rather than rejected,
+    and the run would silently perturb the wrong months.
+    """
+    if value is None:
+        return list(DEFAULT_SPELL_FACTOR)
+    if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
+        raise ValueError(
+            f"{where} must be a list of 12 monthly coefficients, got "
+            f"{value!r} ({type(value).__name__})"
+        )
+    if len(value) != 12:
+        raise ValueError(
+            f"{where} must have 12 entries, one per month, got {len(value)}"
+        )
+    out = []
+    for index, item in enumerate(value, start=1):
+        if isinstance(item, bool) or not isinstance(item, (int, float)):
+            raise ValueError(f"{where}[{index}] must be a number, got {item!r}")
+        out.append(float(item))
+    return out
 
 
 def index_width(count: int) -> int:

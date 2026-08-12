@@ -31,6 +31,12 @@ from blueearth_cst.shared.snake_utils import index_width, stress_test_grid
 #: refusal rather than as a silently missing dimension (C28's second obligation).
 _KNOWN_AXES = ("temp", "precip")
 
+#: Keys that live under `stress_test` but are NOT perturbation axes: they are
+#: monthly spell-length coefficients handed to the weather generator, with no
+#: design-table column and no grid contribution. Listed so the axis guard
+#: below still refuses a typo'd or genuinely new AXIS while admitting these.
+_NON_AXIS_KEYS = ("dry_spell_factor", "wet_spell_factor")
+
 #: Design-table header (C23/C24). `st_id` is the DESIGNED axis; `realization` is
 #: the sampled one and deliberately absent -- run identity is `(rlz, st)`, and a
 #: draw has no design parameters to record.
@@ -68,11 +74,12 @@ def prep_cst_parameters(
     # table (C28). The grid arithmetic, the CSV loop and DESIGN_COLUMNS below all
     # assume exactly two axes; adding one without touching them would emit a
     # table that describes a different experiment than the one that ran.
-    unknown_axes = sorted(set(stress_test_cfg) - set(_KNOWN_AXES))
+    unknown_axes = sorted(set(stress_test_cfg) - set(_KNOWN_AXES) - set(_NON_AXIS_KEYS))
     if unknown_axes:
         raise ValueError(
             f"stress_test carries unsupported axes {unknown_axes}: this module "
-            f"enumerates exactly {list(_KNOWN_AXES)}. Adding a dimension means "
+            f"enumerates exactly {list(_KNOWN_AXES)} (plus the non-axis keys "
+            f"{list(_NON_AXIS_KEYS)}). Adding a dimension means "
             f"adding a design-table column and a results column together (C28); "
             f"see dev/milestones/r09/wf3-change-requests.md."
         )

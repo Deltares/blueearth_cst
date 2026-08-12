@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(workflow.basedir)))
 from blueearth_cst.experiment.allocate import resolve_default_experiment_name
 from blueearth_cst.shared.indicator_tables import indicator_tables, refuse_retired_experiment_keys
 from blueearth_cst.shared.provenance import short_digest, snapshot_bundle_digest
-from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_rule, file_digest_or_absent, get_config, index_width, member_index_regex, patch_psutil_windows_benchmark, project_slug, region_rule, rule_banner, spatial_units_rule, resolve_seed, resolve_water_year_start, stress_test_grid, target_banner, validate_experiment_name, warn_if_project_dir_in_repo
+from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_rule, file_digest_or_absent, get_config, index_width, member_index_regex, patch_psutil_windows_benchmark, project_slug, region_rule, rule_banner, spatial_units_rule, resolve_seed, resolve_water_year_start, stress_test_grid, validate_spell_factor, target_banner, validate_experiment_name, warn_if_project_dir_in_repo
 from blueearth_cst.spatial.config import parse_spatial_config
 
 # Windows: make Snakemake's benchmark memory/IO/CPU metrics work (else all NA).
@@ -109,6 +109,21 @@ RLZ_NUM = get_config(my_cfg, "realizations_num", 1)
 # silently inventing a grid; that leniency is removed (output-neutral hardening).
 stress_test_cfg = my_cfg["stress_test"]
 _, _, ST_NUM = stress_test_grid(stress_test_cfg)
+
+# Monthly spell-length coefficients, beside the two perturbation axes because
+# that is what they are -- stress-test knobs, not toolbox defaults. Optional:
+# absent, both are twelve 1.0s (no adjustment), which is the identity and so a
+# defensible default, unlike `transient_change` which is refused when missing.
+# Validated here, at parse time, because a wrong-length list reaches R as a
+# recycled or truncated vector and silently perturbs the wrong months.
+DRY_SPELL_FACTOR = validate_spell_factor(
+    stress_test_cfg.get("dry_spell_factor"),
+    "workflows.climate_experiment.stress_test.dry_spell_factor",
+)
+WET_SPELL_FACTOR = validate_spell_factor(
+    stress_test_cfg.get("wet_spell_factor"),
+    "workflows.climate_experiment.stress_test.wet_spell_factor",
+)
 
 run_hist = get_config(my_cfg, "run_historical", False)
 ST_START = 0 if run_hist else 1
@@ -794,6 +809,8 @@ rule prepare_weathergen_config:
         sim_years = wflow_run_length,
         seed = SEED,
         water_year_start = WATER_YEAR_START,
+        dry_spell_factor = DRY_SPELL_FACTOR,
+        wet_spell_factor = WET_SPELL_FACTOR,
         nc_file_prefix = "rlz"
     log:
         f"{LOG_PARTS_DIR}/3.10_prepare_weathergen_config.log",

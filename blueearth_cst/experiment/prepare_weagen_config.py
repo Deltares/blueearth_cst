@@ -60,6 +60,8 @@ def build_weagen_config(
     sim_years,
     seed,
     water_year_start,
+    dry_spell_factor,
+    wet_spell_factor,
 ):
     """Assemble the ONE weathergenr config the experiment uses.
 
@@ -106,6 +108,11 @@ def build_weagen_config(
             # three-letter name, which is the spelling every other consumer
             # of `shared.water_year_start` uses. Converted here, at the seam.
             "year_start_month": water_year_start_number(water_year_start),
+            # Moved out of the weathergen template 2026-08-12: these are
+            # stress-test knobs, so they live beside temp/precip under
+            # `stress_test`, and the Snakefile validates their length.
+            "dry_spell_factor": dry_spell_factor,
+            "wet_spell_factor": wet_spell_factor,
         }
     )
     # Belongs to write_netcdf, not to the generator: it names the realization
@@ -152,6 +159,8 @@ if __name__ == "__main__":
                 sim_years=sm.params.sim_years,
                 seed=sm.params.seed,
                 water_year_start=sm.params.water_year_start,
+                dry_spell_factor=sm.params.dry_spell_factor,
+                wet_spell_factor=sm.params.wet_spell_factor,
             )
             write_weagen_config(yml_dict, weagen_config)
     else:

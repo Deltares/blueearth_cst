@@ -60,10 +60,6 @@ generate_weather:
   annual_knn_n: 100          # repeated samples per simulated year (suggested 100–120)
   wet_q: 0.2                 # quantile threshold defining wet weather
   extreme_q: 0.8             # quantile threshold defining very wet weather
-  dry_spell_factor: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
-                             # monthly coefficient adjusting dry spell length
-  wet_spell_factor: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
-                             # monthly coefficient adjusting wet spell length
 
   # Execution.
                              # `seed` is INJECTED, not set here — see the
@@ -91,7 +87,13 @@ generate_weather:
   save_plots: true           # emit the generator's diagnostic plots (C34)
 
   # Injected per run by rule 3.10 (prepare_weagen_config.py):
-  #   n_years, start_year, n_realizations, out_dir, seed, year_start_month
+  #   n_years, start_year, n_realizations, out_dir, seed, year_start_month,
+  #   dry_spell_factor, wet_spell_factor
+  #
+  # The two spell factors come from the PROJECT config, under
+  # `workflows.climate_experiment.stress_test` beside `temp:` and `precip:` —
+  # they are stress-test perturbation knobs, not toolbox defaults. Absent
+  # there, both default to twelve 1.0s (no adjustment).
   #
   # `year_start_month` comes from `shared.water_year_start`, the ONE key WF2,
   # the WF3 indicators and the WF1 climate figures also read. It is a month

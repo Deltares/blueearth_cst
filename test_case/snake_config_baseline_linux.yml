@@ -68,3 +68,11 @@ workflows:
         variance:
           min: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
           max: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+
+      # Monthly spell-length coefficients handed to the weather generator: they
+      # scale the length of dry and wet spells per calendar month. Optional;
+      # absent, both are twelve 1.0s, i.e. no adjustment. NOT perturbation axes
+      # -- they add no member to the grid and no design-table column, which is
+      # why they sit beside `temp:`/`precip:` rather than under them.
+      dry_spell_factor: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+      wet_spell_factor: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
