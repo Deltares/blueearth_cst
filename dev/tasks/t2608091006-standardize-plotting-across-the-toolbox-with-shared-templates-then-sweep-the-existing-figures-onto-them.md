@@ -2,13 +2,21 @@
 title: Standardize plotting across the toolbox with shared templates, then sweep the existing figures onto them
 type: todo-item
 status: active
-branch: feat/plotting-standardization
+branch:
 effort: 2
 area: plotting
 queue:
 created: 2026-08-09
-updated: 2026-08-11
+updated: 2026-08-12
 ---
+
+> [!warning] This is a sweep, not a lane
+> `feat/plotting-standardization` was retired on 2026-08-12 when the standing
+> lanes were redrawn by territory (AGENTS.md, *Standing lanes*). Its landed
+> content — the prototype preview script and the brief — is on `main`. The
+> remaining work edits call sites in both territories by definition, so it
+> resumes on a **transient branch cut from `main`** that lands and is deleted,
+> never on a parked branch beside the lanes.
 
 > [!note] Overview
 > **What** — Two halves. (1) Introduce shared plotting templates/style primitives so figures across the toolbox agree on typography, palette, figure size, colourbar placement and export settings, instead of each module deciding independently. (2) Sweep the existing figure producers onto them. Current plotting surface -- 8 modules under blueearth_cst/ plus 2 dev scripts. climate_analysis/climate_figures.py, climate_analysis/plot_climate_source.py, model/plot_results.py, projections/get_change_climate_proj_summary.py, projections/plot_proj_timeseries.py, shared/func_plot_signature.py, shared/plot_map.py, shared/snake_utils.py (plotting primitives), dev/scripts/basin_map_example.py, dev/scripts/preview_basin_map.py. No R-side plotting exists.
