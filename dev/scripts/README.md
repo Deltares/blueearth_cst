@@ -50,6 +50,12 @@ re-run when a similar symptom appears. Not part of any workflow.
 |---|---|
 | [`check_baseline.py`](check_baseline.py) | Record / check fingerprints for `rule all` targets across the three Snakefiles. Manifest at `dev/baseline/manifest.json`. `record` overwrites the manifest; `check` recomputes and diffs (exits non-zero on drift). Per-variable summary stats for netCDF, normalized SHA256 for CSV/YAML, size-only for PNG. See `dev/milestones/phase-1/m02b/baseline_diffs.md` for the as-shipped M2b drift report. |
 
+## Todo board
+
+| Script | What it does |
+|---|---|
+| [`todoboard.py`](todoboard.py) | Run the `todoboard` CLI that backs `dev/tasks/` and the GENERATED `dev/TODO.md` — `python dev/scripts/todoboard.py render \| list \| add "Title" \| done <id>`. Every verb and flag is the CLI's own; this only locates it and delegates. The CLI ships inside the `todo-board` **skill bundle**, which is per-user, gitignored and symlinked, so its path cannot be committed and `todoboard` is on nobody's `PATH` — which is how a board note landed on 2026-08-12 with the table left a row stale: the CLI was simply unreachable and nothing said so. Searches `.claude/skills` → `.agents/skills` → the brain artifacts dir → `~/.claude/skills`. `TODOBOARD_SKILL_DIR` overrides it, and a wrong one is **refused rather than fallen back from**, so a deliberate override cannot silently resolve to a different skill version. `lane/devmeta` owns the board — only it runs `render`. |
+
 ## Shared helpers
 
 Two of these are imported by `tests/` (via `sys.path`), so they are **contract
