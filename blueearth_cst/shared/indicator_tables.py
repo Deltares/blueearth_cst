@@ -303,7 +303,9 @@ def metric_grain(token: str, metric: str) -> str | None:
     return None
 
 
-#: Config keys R11 retired, and what to tell someone whose config still has one.
+#: Config keys ``workflows.climate_experiment`` no longer has, and what to tell
+#: someone whose config still declares one. Keyed by config key; each entry is
+#: ``{"why": <what to do about it>, "note": <where the migration is written>}``.
 #:
 #: Refused rather than ignored, per the ``variable_spec.parse`` precedent. The
 #: hazard is specific to this repo's config handling: **workflow configs silently
@@ -311,23 +313,57 @@ def metric_grain(token: str, metric: str) -> str | None:
 #: does not take effect — it leaves a user believing a setting is in force while
 #: it does nothing. A refusal that states the migration is strictly better than a
 #: setting that lies.
+#:
+#: **Registering a retirement here is not optional.** It was, in effect, until
+#: 2026-08-12: ``Tpeak``/``Tlow`` were removed from every config and from the
+#: reader without an entry, so for the length of one commit a project declaring
+#: ``Tpeak: 25`` got exactly the silent no-op this registry exists to prevent.
+#: Nothing catches the omission — the removal itself makes the key unread, which
+#: is indistinguishable from it never having existed. The obligation is on
+#: whoever retires the key.
+#:
+#: The migration note is PER ENTRY rather than one module constant, because
+#: retirements come from different milestones and a single pointer would send a
+#: reader to the wrong record. It was one constant while only R11 had retired
+#: anything.
 RETIRED_EXPERIMENT_KEYS = {
-    "aggregate_rlz": (
-        "In the long table shape 'aggregated' is no longer a SHAPE choice, which "
-        "is the only reason this flag existed. Every table now carries the finest "
-        "grain available -- metrics linear in years per realization, the GEV fits "
-        "and month-selecting metrics pooled -- and downstream aggregates as it "
-        "likes. Delete the line; nothing replaces it."
-    ),
+    "aggregate_rlz": {
+        "why": (
+            "In the long table shape 'aggregated' is no longer a SHAPE choice, "
+            "which is the only reason this flag existed. Every table now carries "
+            "the finest grain available -- metrics linear in years per "
+            "realization, the GEV fits and month-selecting metrics pooled -- and "
+            "downstream aggregates as it likes. Delete the line; nothing "
+            "replaces it."
+        ),
+        "note": "dev/milestones/r11/migration_indicator-tables.md",
+    },
+    "Tpeak": {
+        "why": (
+            "A return period is a property of the indicator set the toolbox "
+            "defines, not of a project, so it moved to "
+            "indicator_tables.RETURN_PERIOD_PEAK_YR (10 -- the value every "
+            "shipped config carried, so no emitted name or number changed). "
+            "Delete the line. A different design standard is a toolbox edit, "
+            "which re-names the indicator and is meant to be visible."
+        ),
+        "note": "dev/reviews/2026-08-11_test-suite-bloat-assessment.md",
+    },
+    "Tlow": {
+        "why": (
+            "As Tpeak: now indicator_tables.RETURN_PERIOD_LOW_YR (2). Delete the line."
+        ),
+        "note": "dev/reviews/2026-08-11_test-suite-bloat-assessment.md",
+    },
 }
 
-#: Where the migration is written down. Named in the error rather than described,
-#: because the reshape has more to it than the one key.
-MIGRATION_NOTE = "dev/milestones/r11/migration_indicator-tables.md"
+#: Kept as a name because the R11 tests and the migration note both cite it. It
+#: is now the note for ONE entry rather than for the registry.
+MIGRATION_NOTE = RETIRED_EXPERIMENT_KEYS["aggregate_rlz"]["note"]
 
 
 class RetiredConfigKeyError(ValueError):
-    """A project config still declares a key R11 removed."""
+    """A project config still declares a key the toolbox has removed."""
 
 
 def refuse_retired_experiment_keys(experiment_cfg) -> None:
@@ -338,16 +374,17 @@ def refuse_retired_experiment_keys(experiment_cfg) -> None:
     """
     if not isinstance(experiment_cfg, dict):
         return
-    found = [key for key in RETIRED_EXPERIMENT_KEYS if key in experiment_cfg]
+    found = sorted(key for key in RETIRED_EXPERIMENT_KEYS if key in experiment_cfg)
     if not found:
         return
     lines = [
-        f"workflows.climate_experiment declares {len(found)} key(s) removed in "
-        f"R11: {', '.join(sorted(found))}."
+        f"workflows.climate_experiment declares {len(found)} retired key(s): "
+        f"{', '.join(found)}."
     ]
-    for key in sorted(found):
-        lines.append(f"\n  {key}: {RETIRED_EXPERIMENT_KEYS[key]}")
-    lines.append(f"\n\nMigration: {MIGRATION_NOTE}")
+    for key in found:
+        entry = RETIRED_EXPERIMENT_KEYS[key]
+        lines.append(f"\n  {key}: {entry['why']}")
+        lines.append(f"\n    migration: {entry['note']}")
     raise RetiredConfigKeyError("".join(lines))
 
 

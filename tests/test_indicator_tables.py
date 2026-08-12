@@ -13,6 +13,7 @@ from blueearth_cst.shared.indicator_tables import (
     BASIN_METRIC_SUFFIXES,
     MIGRATION_NOTE,
     Q_METRIC_SUFFIXES,
+    RETIRED_EXPERIMENT_KEYS,
     VARIABLE_TOKENS,
     RetiredConfigKeyError,
     UnknownOutputVariableError,
@@ -188,6 +189,36 @@ def test_a_stale_aggregate_rlz_is_refused_not_ignored():
     # `variable_spec.parse` precedent.
     assert MIGRATION_NOTE in message
     assert "Delete the line" in message
+
+
+def test_every_retired_key_is_refused_with_its_own_migration_note():
+    """Retirements come from different milestones, so one shared pointer would
+    send a reader to the wrong record.
+
+    `Tpeak`/`Tlow` were removed from every config and from the reader on
+    2026-08-12 WITHOUT an entry here, which for one commit gave a project
+    declaring `Tpeak: 25` exactly the silent no-op this registry exists to
+    prevent. Nothing catches that omission automatically -- the removal makes
+    the key unread, which is indistinguishable from it never existing -- so the
+    check is that every registered key refuses and names where to read about it.
+    """
+    for key, entry in RETIRED_EXPERIMENT_KEYS.items():
+        with pytest.raises(RetiredConfigKeyError) as excinfo:
+            refuse_retired_experiment_keys({key: 1, "realizations_num": 2})
+        message = str(excinfo.value)
+        assert key in message
+        assert entry["note"] in message
+
+
+def test_the_return_period_keys_name_the_constant_that_replaced_them():
+    """A refusal that only says 'gone' leaves the user with no way forward. The
+    replacement is a toolbox constant, so the error has to say which one."""
+    with pytest.raises(RetiredConfigKeyError) as excinfo:
+        refuse_retired_experiment_keys({"Tpeak": 25, "Tlow": 5})
+    message = str(excinfo.value)
+    assert "2 retired key(s)" in message
+    assert "RETURN_PERIOD_PEAK_YR" in message
+    assert "RETURN_PERIOD_LOW_YR" in message
 
 
 def test_the_refusal_fires_on_the_value_being_present_not_truthy():
