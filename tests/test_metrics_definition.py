@@ -106,3 +106,91 @@ def test_drymonth_mean_finds_august_when_august_is_dry():
     result = metrics_definition.drymonth_mean(df)
 
     assert result.iloc[0] == pytest.approx(0.0)
+
+
+# --- the water year actually reaches the arithmetic ------------------------
+#
+# These metrics ARE the response surface, so a water-year parameter that
+# silently did nothing would be the worst kind of inert key. Two properties:
+# the default reproduces the calendar year exactly, and a non-Jan year moves
+# the number it is supposed to move.
+
+
+def _new_year_peak():
+    """Daily flow whose only peak straddles 31 December.
+
+    A calendar year cuts this peak in half and books each half to a different
+    year, understating BOTH annual maxima. An October water year contains it
+    whole -- which is the entire reason a basin sets one.
+    """
+    idx = pd.date_range("2000-01-01", "2004-12-31", freq="D")
+    s = pd.Series(1.0, index=idx)
+    for year in (2000, 2001, 2002, 2003):
+        peak = pd.date_range(f"{year}-12-26", f"{year + 1}-01-05", freq="D")
+        s.loc[s.index.intersection(peak)] = 100.0
+    return s.to_frame("Q")
+
+
+def test_default_anchor_reproduces_the_calendar_year():
+    """YE-DEC is pandas' bare YE, so adopting the parameter moved no number."""
+    df = _new_year_peak()
+    assert metrics_definition.DEFAULT_ANCHOR == "YE-DEC"
+    assert metrics_definition.Q7d_maxyear(df).equals(
+        df.rolling(7).mean().resample("YE").max().mean()
+    )
+
+
+def test_an_october_water_year_changes_the_annual_maximum():
+    """The parameter is wired, not decorative.
+
+    Difference only — deliberately no assertion about DIRECTION. ``Q7d_maxyear``
+    averages the per-year maxima, so moving the boundary changes both which
+    peaks fall whole inside a year AND which edge years are partial. On this
+    fixture the second effect dominates (an October year adds two peak-free part
+    years at the ends, pulling the mean down), so "a water year raises the
+    annual maximum" is false for this statistic even though it is true for a
+    single complete year. Asserting the appealing direction would have pinned a
+    claim the metric does not make.
+    """
+    df = _new_year_peak()
+    calendar = metrics_definition.Q7d_maxyear(df, "YE-DEC").iloc[0]
+    water = metrics_definition.Q7d_maxyear(df, "YE-SEP").iloc[0]
+    assert water != calendar
+
+
+@pytest.mark.parametrize(
+    "fn",
+    [
+        "Q7d_maxyear",
+        "Q7d_min",
+        "BFI",
+        "highpulse",
+        "lowpulse",
+        "wetmonth_mean",
+        "drymonth_mean",
+    ],
+)
+def test_every_annual_metric_accepts_the_anchor(fn):
+    """A metric that forgot the keyword would silently keep the calendar year."""
+    df = _new_year_peak()
+    getattr(metrics_definition, fn)(df, "YE-SEP")
+
+
+def test_the_month_metrics_are_water_year_invariant():
+    """`wetmonth_mean` / `drymonth_mean` take the anchor but cannot be moved by it.
+
+    A calendar month never straddles a water-year boundary, so the chosen
+    month's per-year mean is identical however the year is cut. Pinned so a
+    future refactor cannot quietly make them anchor-sensitive — which would be a
+    behaviour change disguised as a cleanup — and so the parameter is not
+    mistaken for an inert one.
+    """
+    idx = pd.date_range("2000-01-01", "2004-12-31", freq="D")
+    rng = np.random.default_rng(0)
+    s = pd.Series(rng.gamma(2, 2, len(idx)), index=idx)
+    s[s.index.month == 1] += 50
+    df = s.to_frame("Q")
+    for fn in ("wetmonth_mean", "drymonth_mean"):
+        jan = getattr(metrics_definition, fn)(df, "YE-DEC").iloc[0]
+        oct_ = getattr(metrics_definition, fn)(df, "YE-SEP").iloc[0]
+        assert jan == pytest.approx(oct_), fn

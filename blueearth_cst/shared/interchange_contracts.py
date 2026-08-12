@@ -274,7 +274,6 @@ _WG3_GENERATE_WEATHER_KEYS = (
     "annual_knn_n",
     "wet_q",
     "extreme_q",
-    "year_start_month",
     "dry_spell_factor",
     "wet_spell_factor",
     "seed",
@@ -283,6 +282,7 @@ _WG3_GENERATE_WEATHER_KEYS = (
     "verbose",
     "save_plots",
     # Injected per run by rule 3.10 (prepare_weagen_config.build_weagen_config).
+    "year_start_month",
     "n_years",
     "start_year",
     "n_realizations",

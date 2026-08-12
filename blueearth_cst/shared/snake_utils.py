@@ -18,7 +18,8 @@ import threading
 import time
 import traceback
 import warnings
-from collections.abc import Mapping
+import zlib
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -432,7 +433,11 @@ ADVANCED_SETTINGS_PATH = (
 #: A new setting is added HERE and in the file together.
 _ADVANCED_SETTINGS_SCHEMA = {
     "constraints": {"min_historical_years": "positive_int"},
-    "defaults": {"julia_threads": "positive_int"},
+    "defaults": {
+        "julia_threads": "positive_int",
+        "seed": "nonnegative_int",
+        "water_year_start": "month_abbrev",
+    },
     "runtime": {"julia_version": "version_string"},
 }
 
@@ -448,6 +453,47 @@ def _positive_int(value, where: str) -> int:
     if value < 1:
         raise ValueError(f"{where} must be >= 1, got {value}")
     return value
+
+
+def _nonnegative_int(value, where: str) -> int:
+    """A whole number >= 0. Separate from ``_positive_int`` because 0 is a
+    legitimate randomization seed, and rejecting it would be an arbitrary hole
+    in the accepted range rather than a constraint anything needs."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{where} must be an integer, got {value!r}")
+    if value < 0:
+        raise ValueError(f"{where} must be >= 0, got {value}")
+    return value
+
+
+#: Three-letter month abbreviations, index + 1 == calendar month number. The
+#: config surface for the water year is this spelling rather than an integer:
+#: ``Oct`` cannot be misread, whereas ``10`` invites "tenth month" vs "offset of
+#: ten", and it is the spelling ``start_month_hyd_year`` already used.
+_MONTH_ABBREVS = (
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+)  # fmt: skip
+
+
+def _month_abbrev(value, where: str) -> str:
+    """A three-letter month name, normalized to ``Jan``-style capitalization.
+
+    Defined up here with the other settings validators rather than beside the
+    water-year helpers below: ``_VALIDATORS`` is built at module level, so a
+    later definition would be a NameError at import.
+    """
+    if not isinstance(value, str):
+        raise ValueError(
+            f"{where} must be a three-letter month name like 'Oct', got "
+            f"{value!r} ({type(value).__name__})"
+        )
+    token = value.strip().capitalize()
+    if token not in _MONTH_ABBREVS:
+        raise ValueError(
+            f"{where} must be one of {', '.join(_MONTH_ABBREVS)}, got {value!r}"
+        )
+    return token
 
 
 def _version_string(value, where: str) -> str:
@@ -467,7 +513,12 @@ def _version_string(value, where: str) -> str:
     return value
 
 
-_VALIDATORS = {"positive_int": _positive_int, "version_string": _version_string}
+_VALIDATORS = {
+    "positive_int": _positive_int,
+    "nonnegative_int": _nonnegative_int,
+    "month_abbrev": _month_abbrev,
+    "version_string": _version_string,
+}
 
 
 def load_advanced_settings(path=None) -> dict:
@@ -583,6 +634,105 @@ def validate_julia_threads(value) -> int:
     file's own ``defaults.julia_threads`` is held to.
     """
     return _positive_int(value, "shared.julia_threads")
+
+
+#: Default randomization seed for every stochastic step. The VALUE lives in
+#: ``config/advanced_settings.yml`` under ``defaults:``; a project overrides it
+#: with ``shared.seed``, which also accepts the literal ``auto``.
+#:
+#: One key, deliberately, rather than a seed per stochastic component. Today the
+#: only consumer is weathergenr (generation AND perturbation, C34/F15), but a
+#: second one reading its own key is how two halves of a run end up with
+#: different reproducibility guarantees that nobody chose.
+DEFAULT_SEED = ADVANCED_SETTINGS["defaults"]["seed"]
+
+#: ``derive_seed`` reduces modulo this. R's integer type tops out at 2**31 - 1
+#: and ``set.seed`` takes an integer, so a larger value would arrive in R as a
+#: double and either warn or truncate.
+_SEED_MODULUS = 2**31
+
+
+def derive_seed(experiment_name: str) -> int:
+    """The seed ``shared.seed: auto`` resolves to, from the experiment name.
+
+    Deterministic on the name alone: the same experiment re-runs with the same
+    seed (so nothing downstream re-runs), a different experiment gets a
+    different one, and "what seed did experiment X use?" stays answerable
+    forever without reading any artifact.
+
+    **``zlib.crc32``, never the builtin ``hash``.** ``hash`` is salted per
+    process by ``PYTHONHASHSEED``, so it would return a different seed for the
+    same experiment in every interpreter — silently breaking the one property
+    this function exists to provide, and doing it in a way that looks like
+    reproducible behaviour until two runs are compared.
+    """
+    if not isinstance(experiment_name, str) or not experiment_name:
+        raise ValueError(
+            f"cannot derive a seed from experiment_name={experiment_name!r}: "
+            "`shared.seed: auto` needs the experiment's name, which WF3 always "
+            "resolves before rule 3.10 runs"
+        )
+    return zlib.crc32(experiment_name.encode("utf-8")) % _SEED_MODULUS
+
+
+def resolve_seed(value, experiment_name: str) -> int:
+    """Resolve ``shared.seed`` to the integer the generator is handed.
+
+    ``None`` (key absent) takes ``defaults.seed``; ``auto`` derives from the
+    experiment name; anything else must be a non-negative integer. A string
+    that is not ``auto`` is refused rather than coerced — ``seed: "123"`` and
+    ``seed: random`` would otherwise both reach weathergenr, one working by
+    accident and one as ``NULL``.
+    """
+    if value is None:
+        value = DEFAULT_SEED
+    if isinstance(value, str):
+        if value.strip().lower() != "auto":
+            raise ValueError(
+                f"shared.seed must be an integer or the literal 'auto', got {value!r}"
+            )
+        return derive_seed(experiment_name)
+    return _nonnegative_int(value, "shared.seed")
+
+
+#: First month of the water (hydrological) year, for EVERY workflow that
+#: aggregates to an annual value. The VALUE lives in
+#: ``config/advanced_settings.yml`` under ``defaults:``; a project overrides it
+#: with ``shared.water_year_start``.
+#:
+#: One key, because the alternative is what this replaced: WF2 read
+#: ``workflows.climate_projections.start_month_hyd_year`` (and silently ignored
+#: it), WF3's generator read ``year_start_month`` as an integer, and the WF3
+#: indicators and WF1 figures had no concept at all — four consumers of one
+#: physical idea, agreeing by accident when they agreed.
+DEFAULT_WATER_YEAR_START = ADVANCED_SETTINGS["defaults"]["water_year_start"]
+
+
+def resolve_water_year_start(value) -> str:
+    """Resolve ``shared.water_year_start`` to a canonical ``Jan``-style month."""
+    if value is None:
+        value = DEFAULT_WATER_YEAR_START
+    return _month_abbrev(value, "shared.water_year_start")
+
+
+def water_year_start_number(month: str) -> int:
+    """Calendar month number 1..12 — what weathergenr's ``year_start_month`` takes."""
+    return _MONTH_ABBREVS.index(_month_abbrev(month, "water_year_start")) + 1
+
+
+def water_year_end_anchor(month: str) -> str:
+    """The pandas resample anchor for a water year STARTING in ``month``.
+
+    A year that starts in October ends in September, so the anchor is the month
+    BEFORE the start — ``YE-SEP``. The off-by-one is the whole reason this is a
+    function: ``YE-OCT`` would silently aggregate Nov→Oct and every annual
+    extreme would be attributed to the wrong year.
+
+    A January water year yields ``YE-DEC``, which pandas treats as identical to
+    a bare ``YE`` — so adopting this helper at the default changes no number.
+    """
+    index = _MONTH_ABBREVS.index(_month_abbrev(month, "water_year_start"))
+    return f"YE-{_MONTH_ABBREVS[(index - 1) % 12].upper()}"
 
 
 def julia_prefix(threads=DEFAULT_JULIA_THREADS) -> str:
@@ -1329,6 +1479,40 @@ def stress_test_grid(stress_test_cfg: Mapping) -> tuple[int, int, int]:
     temp_step_count = _require_step_num(stress_test_cfg, "temp") + 1
     precip_step_count = _require_step_num(stress_test_cfg, "precip") + 1
     return temp_step_count, precip_step_count, temp_step_count * precip_step_count
+
+
+#: Twelve 1.0s — no spell-length adjustment, the identity for both factors.
+DEFAULT_SPELL_FACTOR = [1.0] * 12
+
+
+def validate_spell_factor(value, where: str) -> list[float]:
+    """Validate a monthly spell-length coefficient list from ``stress_test``.
+
+    Twelve numbers, one per calendar month. ``None`` (key absent) yields the
+    identity, because "no adjustment" is a defensible default in a way that,
+    say, ``transient_change`` is not — there the house rule is to refuse.
+
+    The LENGTH check is the point. weathergenr indexes these by month, so a
+    ten-element list would be recycled or truncated by R rather than rejected,
+    and the run would silently perturb the wrong months.
+    """
+    if value is None:
+        return list(DEFAULT_SPELL_FACTOR)
+    if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
+        raise ValueError(
+            f"{where} must be a list of 12 monthly coefficients, got "
+            f"{value!r} ({type(value).__name__})"
+        )
+    if len(value) != 12:
+        raise ValueError(
+            f"{where} must have 12 entries, one per month, got {len(value)}"
+        )
+    out = []
+    for index, item in enumerate(value, start=1):
+        if isinstance(item, bool) or not isinstance(item, (int, float)):
+            raise ValueError(f"{where}[{index}] must be a number, got {item!r}")
+        out.append(float(item))
+    return out
 
 
 def index_width(count: int) -> int:

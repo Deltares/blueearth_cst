@@ -191,9 +191,13 @@ def subcatchment_columns(columns, token: str) -> dict[str, str]:
     }
 
 
-def _annual(series: pd.Series, how: str) -> pd.Series:
-    """One value per calendar year, by the variable's own reduction."""
-    resampled = series.resample("YE")
+def _annual(series: pd.Series, how: str, anchor: str) -> pd.Series:
+    """One value per WATER year, by the variable's own reduction.
+
+    ``anchor`` is the pandas end-anchor for `shared.water_year_start`; at the
+    Jan default it is ``YE-DEC``, identical to the bare ``YE`` used before.
+    """
+    resampled = series.resample(anchor)
     return {"sum": resampled.sum, "max": resampled.max, "mean": resampled.mean}[how]()
 
 
@@ -211,9 +215,9 @@ def _category_month(pooled: pd.DataFrame, which: str) -> int:
     return int(chosen.iloc[0])
 
 
-def _month_mean(frame: pd.DataFrame, month: int) -> pd.Series:
-    """Mean flow in one fixed calendar month, averaged over years."""
-    return frame[frame.index.month == month].resample("YE").mean().mean()
+def _month_mean(frame: pd.DataFrame, month: int, anchor: str) -> pd.Series:
+    """Mean flow in one fixed calendar month, averaged over water years."""
+    return frame[frame.index.month == month].resample(anchor).mean().mean()
 
 
 #: Significant digits kept in the written ``value`` column. Not decimal places —
@@ -345,12 +349,17 @@ def analyze_wflow_results(
     st_num: int,
     indicator_tokens: List[str],
     table_paths: dict,
+    anchor: str = md.DEFAULT_ANCHOR,
 ):
     """Reduce every stress-test run into one long table per configured variable.
 
     ``table_paths`` maps token to output path, threaded from the rule's declared
     outputs rather than rebuilt here, so the DAG and the writer cannot disagree
     about which tables exist or where they go.
+
+    ``anchor`` is the pandas water-year end-anchor from
+    ``shared.water_year_start``. It defaults to a January year, which is the
+    calendar year these reductions used before and changes no recorded number.
     """
     results_dir = Path(results_dir)
     results_dir.mkdir(parents=True, exist_ok=True)
@@ -465,13 +474,13 @@ def analyze_wflow_results(
             # averages back to the pooled value exactly and nothing is lost.
             for rlz, sim in per_rlz.items():
                 annual = {
-                    "mean": sim.resample("YE").mean().mean(),
-                    "max": sim.resample("YE").max().mean(),
-                    "min": sim.resample("YE").min().mean(),
-                    "q95": sim.resample("YE").quantile(0.95).mean(),
-                    "Q7day_max": md.Q7d_maxyear(sim),
-                    "Q7day_min": md.Q7d_min(sim),
-                    "BaseFlowIndex": md.BFI(sim),
+                    "mean": sim.resample(anchor).mean().mean(),
+                    "max": sim.resample(anchor).max().mean(),
+                    "min": sim.resample(anchor).min().mean(),
+                    "q95": sim.resample(anchor).quantile(0.95).mean(),
+                    "Q7day_max": md.Q7d_maxyear(sim, anchor),
+                    "Q7day_min": md.Q7d_min(sim, anchor),
+                    "BaseFlowIndex": md.BFI(sim, anchor),
                 }
                 for statistic, values in annual.items():
                     rows["q"] += _rows(
@@ -486,10 +495,11 @@ def analyze_wflow_results(
 
             # Class B: pooled blocks, never a spliced series.
             high_blocks = pd.concat(
-                [s.resample("YE").max() for s in per_rlz.values()], ignore_index=True
+                [s.resample(anchor).max() for s in per_rlz.values()],
+                ignore_index=True,
             )
             low_blocks = pd.concat(
-                [s.rolling(7).mean().resample("YE").min() for s in per_rlz.values()],
+                [s.rolling(7).mean().resample(anchor).min() for s in per_rlz.values()],
                 ignore_index=True,
             )
             for statistic, blocks, period, mode in (
@@ -524,7 +534,7 @@ def analyze_wflow_results(
                         temp,
                         precip,
                         POOLED_REALIZATION,
-                        _month_mean(pooled, month),
+                        _month_mean(pooled, month, anchor),
                         q_locations,
                     )
 
@@ -545,7 +555,7 @@ def analyze_wflow_results(
             for rlz, path in sorted(by_rlz.items()):
                 sim = read(path)
                 values = pd.Series(
-                    {c: float(_annual(sim[c], how).mean()) for c in locations}
+                    {c: float(_annual(sim[c], how, anchor).mean()) for c in locations}
                 )
                 rows[token] += _rows(
                     metric, st_id, temp, precip, rlz, values, locations
@@ -573,7 +583,10 @@ def analyze_wflow_results(
 if __name__ == "__main__":
     if "snakemake" in globals():
         sm = globals()["snakemake"]
-        from blueearth_cst.shared.snake_utils import tee_to_log
+        from blueearth_cst.shared.snake_utils import (
+            tee_to_log,
+            water_year_end_anchor,
+        )
 
         with tee_to_log(sm.log[0]):
             tokens = list(sm.params.indicator_tokens)
@@ -585,6 +598,7 @@ if __name__ == "__main__":
                 st_num=sm.params.st_num,
                 indicator_tokens=tokens,
                 table_paths={t: getattr(sm.output, f"{t}_indicators") for t in tokens},
+                anchor=water_year_end_anchor(sm.params.water_year_start),
             )
     else:
         raise ValueError("This script should be run from a snakemake environment")

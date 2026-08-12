@@ -13,6 +13,8 @@ import os
 
 import yaml
 
+from blueearth_cst.shared.snake_utils import water_year_start_number
+
 
 def read_yml(yml_path):
     """Read a yml file and return a dictionary."""
@@ -56,6 +58,10 @@ def build_weagen_config(
     default_config_path,
     middle_year,
     sim_years,
+    seed,
+    water_year_start,
+    dry_spell_factor,
+    wet_spell_factor,
 ):
     """Assemble the ONE weathergenr config the experiment uses.
 
@@ -85,7 +91,7 @@ def build_weagen_config(
     yml_dict = read_yml(default_config_path)
     # Section and key names are weathergenr 1.2.0's own function and argument
     # names (renamed 2026-08-12 from `generateWeatherSeries`, a function 1.2.0
-    # does not export). The four values below are the per-run ones the template
+    # does not export). The values below are the per-run ones the template
     # cannot carry; every other argument comes from the template verbatim.
     yml_dict["generate_weather"].update(
         {
@@ -93,6 +99,20 @@ def build_weagen_config(
             "start_year": 2010,
             "n_years": compute_nr_years(middle_year, sim_years),
             "n_realizations": experiment_cfg["realizations_num"],
+            # Resolved by the Snakefile from `shared.seed` (integer or `auto`)
+            # against `defaults.seed`. Injected rather than templated so there
+            # is ONE default: a `seed:` left in the weagen template would be a
+            # second one, and the two would drift the first time either moved.
+            "seed": seed,
+            # weathergenr wants the month NUMBER; the config carries the
+            # three-letter name, which is the spelling every other consumer
+            # of `shared.water_year_start` uses. Converted here, at the seam.
+            "year_start_month": water_year_start_number(water_year_start),
+            # Moved out of the weathergen template 2026-08-12: these are
+            # stress-test knobs, so they live beside temp/precip under
+            # `stress_test`, and the Snakefile validates their length.
+            "dry_spell_factor": dry_spell_factor,
+            "wet_spell_factor": wet_spell_factor,
         }
     )
     # Belongs to write_netcdf, not to the generator: it names the realization
@@ -137,6 +157,10 @@ if __name__ == "__main__":
                 default_config_path=sm.params.default_config,
                 middle_year=sm.params.middle_year,
                 sim_years=sm.params.sim_years,
+                seed=sm.params.seed,
+                water_year_start=sm.params.water_year_start,
+                dry_spell_factor=sm.params.dry_spell_factor,
+                wet_spell_factor=sm.params.wet_spell_factor,
             )
             write_weagen_config(yml_dict, weagen_config)
     else:

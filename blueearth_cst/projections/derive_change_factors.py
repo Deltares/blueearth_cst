@@ -94,6 +94,7 @@ def derive_one_point(
     variable_spec=None,
     min_reference=None,
     clim_project_dir=None,
+    water_year_start="Jan",
 ):
     """Change factors for one (model, scenario, member) at one horizon.
 
@@ -140,26 +141,26 @@ def derive_one_point(
     # arithmetic uses, after the same slice. Not a recomputation: one function,
     # called twice on one dataset.
     #
-    # Deliberately called with the DEFAULT start month, matching the line below:
-    # `get_change_annual_clim_proj` is invoked without `start_month_hyd_year`, so
-    # the arithmetic always uses "Jan" regardless of the config key. That looks
-    # like a pre-existing defect (the rule reads the key and the old job never
-    # forwarded it), but 4d is value-neutral, so this reports the window actually
-    # used rather than the one the config asks for. Forwarding the key would change
-    # results for any non-Jan config and belongs in its own commit with its own
-    # gate. Recorded in the composition record's own terms: `reference_window_
-    # nominal` is what was requested, `_effective` is what was used.
-    ref_start, ref_end, ref_n_years = hydrological_year_bounds(ds_hist_time)
+    # The configured water year, matching the arithmetic below. Until
+    # 2026-08-12 both were hardcoded to "Jan": the Snakefile read
+    # `start_month_hyd_year` and passed it to this rule, and this module never
+    # read the param, so every change factor was computed Jan-Dec whatever the
+    # config said. That deferral ("belongs in its own commit with its own
+    # gate") is this commit. `shared.water_year_start` now reaches the
+    # arithmetic, and the legacy key is refused at parse time rather than
+    # silently starting to work.
+    ref_start, ref_end, ref_n_years = hydrological_year_bounds(
+        ds_hist_time, water_year_start
+    )
     # The SAME call on the scenario slice. `get_change_annual_clim_proj` already
     # makes it internally (it needs the bounds to aggregate) and then discards the
     # result, which is why `horizon_window` used to report the config's nominal
     # years while `reference_window` reported the window the arithmetic used. Two
     # columns, two meanings, two formats. Now both report the effective window.
-    # DEFAULT start month here too, for the reason given above: forwarding the
-    # config key belongs in the commit that fixes the arithmetic. Reporting a
+    # Same water year as the reference above and as the arithmetic: reporting a
     # window under a start month the arithmetic did not use would be a worse
-    # defect than the one being held.
-    hor_start, hor_end, _ = hydrological_year_bounds(ds_clim_time)
+    # defect than the one this replaced.
+    hor_start, hor_end, _ = hydrological_year_bounds(ds_clim_time, water_year_start)
     # Step 5b: weight each month by its length in the MODEL's calendar. Read off
     # the series (propagated there from the raw slice, which got it from the store
     # -- the axis itself cannot say, having been converted to datetime64 upstream).
@@ -181,6 +182,7 @@ def derive_one_point(
         calendar=calendar,
         stats=stats,
         variable_spec=variable_spec,
+        start_month_hyd_year=water_year_start,
     )
     stats_annual_change = stats_annual_change.assign_coords(
         {"horizon": f"{name_horizon}"}
@@ -407,6 +409,7 @@ if "snakemake" in globals():
                             digest_components_hist=point["digest_components_hist"],
                             digest_components_fut=point["digest_components_fut"],
                             stats=sm.params.stats,
+                            water_year_start=sm.params.water_year_start,
                             variable_spec=VARIABLE_SPEC,
                             min_reference=sm.params.min_reference,
                             clim_project_dir=clim_project_dir,

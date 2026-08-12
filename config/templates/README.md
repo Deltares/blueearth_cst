@@ -72,9 +72,12 @@ Thirty years ending at the last year the CMIP6 historical experiment covers
   window is **clipped** to 2014 and the run says so on stderr. Scenario data is
   never spliced in to fill the gap, so the extra years simply do not arrive.
 - The range is inclusive, so 1985–2014 is thirty calendar years — and with the
-  default `start_month_hyd_year: Jan`, thirty complete hydrological years. Any
+  default `shared.water_year_start: Jan`, thirty complete hydrological years. Any
   other start month yields 29, the partial years at both ends dropped. Every
   artifact reports the effective window and count beside the nominal one.
+  (The key was `workflows.climate_projections.start_month_hyd_year` until
+  2026-08-12; that spelling is now a parse-time error, and it never reached the
+  change-factor arithmetic, which always used January.)
 
 ### `experiment_name` — why it is absent rather than set
 

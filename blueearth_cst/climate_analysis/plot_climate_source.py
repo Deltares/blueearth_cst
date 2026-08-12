@@ -42,12 +42,13 @@ from typing import Optional, Union
 import xarray as xr
 
 from blueearth_cst.climate_analysis.climate_figures import (
+    DEFAULT_ANCHOR,
     LEVELS_FILENAME,
     load_spatial_overlays,
     plot_climate_figures,
 )
 from blueearth_cst.shared.climate_parity import model_parity_climate
-from blueearth_cst.shared.snake_utils import log_row
+from blueearth_cst.shared.snake_utils import log_row, water_year_end_anchor
 
 #: Variables the parity/PET machinery needs off the extraction.
 PARITY_VARS = ("precip", "temp", "press_msl", "kin", "kout")
@@ -167,6 +168,7 @@ def plot_climate_source(
     data_sources: Optional[Union[str, Path]] = None,
     clim_source: str = "era5",
     geoms_dir: Optional[Union[str, Path]] = None,
+    anchor: str = DEFAULT_ANCHOR,
 ):
     """Write the canonical climate figure set from the shared climate store.
 
@@ -251,4 +253,5 @@ if __name__ == "__main__":
                 data_sources=sm.params.data_sources,
                 clim_source=sm.params.clim_source,
                 geoms_dir=sm.params.geoms_dir,
+                anchor=water_year_end_anchor(sm.params.water_year_start),
             )

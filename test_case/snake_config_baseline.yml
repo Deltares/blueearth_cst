@@ -41,7 +41,6 @@ workflows:
     variables:
       precip: {source: precip, canonical: rate, units: mm/day, change: relative}
       temp: {source: temp, canonical: state, units: degC, change: absolute}
-    start_month_hyd_year: Jan
     # Ends 2014, not 2016: the CMIP6 historical experiment stops there, so a
     # later end is CLIPPED to it — and clipping a range that equalled
     # shared.historical_window is what raises the "no longer aligns" warning.
@@ -77,3 +76,11 @@ workflows:
         variance:
           min: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
           max: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+
+      # Monthly spell-length coefficients handed to the weather generator: they
+      # scale the length of dry and wet spells per calendar month. Optional;
+      # absent, both are twelve 1.0s, i.e. no adjustment. NOT perturbation axes
+      # -- they add no member to the grid and no design-table column, which is
+      # why they sit beside `temp:`/`precip:` rather than under them.
+      dry_spell_factor: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+      wet_spell_factor: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
