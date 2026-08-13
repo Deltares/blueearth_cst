@@ -24,6 +24,7 @@
 | [t2608112239](tasks/t2608112239-rename-the-project-dir-config-templates-snapshot-bin-to-say-what-it-holds.md)                               | Rename the project-dir config/templates snapshot bin to say what it holds                                      | naming                   |                                                |     | backlog |
 | [t2608121258](tasks/t2608121258-propagate-the-post-r11-test-local-fixture-back-to-the-primary-checkout.md)                                  | Propagate the post-R11 test_local fixture back to the primary checkout                                         | test fixtures            | 2026-08-12 standing-lane split                 |     | backlog |
 | [t2608122022](tasks/t2608122022-verify-the-newly-honoured-water-year-and-sweep-for-projects-it-moves.md)                                    | Verify the newly-honoured water year, and sweep for projects whose results it moves                            | wf2 projections / config | shared.water_year_start promotion (2026-08-12) |     | backlog |
+| [t2608130215](tasks/t2608130215-fix-the-confirmed-config-defects-found-by-the-dual-parameter-review.md)                                     | Fix the confirmed config defects found by the dual parameter review                                            | config / cross-workflow  | dual parameter review (2026-08-12)             |     | backlog |
 
 ## Watching
 
