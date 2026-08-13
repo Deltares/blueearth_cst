@@ -168,6 +168,13 @@ tests/test_project
 # Standing lanes.
 .lane-claim
 
+# Baked toolbox commit, written by the Dockerfile from ARG TOOLBOX_COMMIT.
+# The image carries no .git, so this file is how a deployed run learns its own
+# revision. It must be ABSENT in a normal checkout: provenance.toolbox_identity()
+# resolves git first and falls back to this file, so a committed copy would let
+# a stale sha outrank the live one.
+.toolbox-commit
+
 # Local-only config variants (per-user; never committed)
 *_local.yml
 *_gabon.yml
