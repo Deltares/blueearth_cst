@@ -139,7 +139,7 @@ def _snapshot_references(
     the record does not churn on dictionary iteration order.
     """
     entries: list[dict] = []
-    claimed: dict[Path, str] = {}
+    claimed: dict[str, str] = {}
     for config_file, dest_dir in sorted(
         references.items(), key=lambda item: (str(item[1]), str(item[0]))
     ):
@@ -181,14 +181,22 @@ def _snapshot_references(
 
         destination_dir = Path(dest_dir)
         destination = destination_dir / f"{role}{source_path.suffix}"
-        previous = claimed.get(destination.resolve())
+        # normcase, not resolve(): on Windows `resolve()` reports the real
+        # on-disk casing for a path that EXISTS and preserves the given casing
+        # for one that does not, so two destinations differing only in case
+        # would collide on a re-run and silently overwrite on a fresh one --
+        # the same file lost, but only sometimes. normcase folds case on
+        # win32 and is a no-op on POSIX, so the answer stops depending on
+        # whether a previous run left the file behind.
+        key = os.path.normcase(os.path.abspath(destination))
+        previous = claimed.get(key)
         if previous is not None:
             raise ValueError(
                 f"two referenced config files both map to {destination}: "
                 f"{previous!r} and {origin!r}. Copying both would lose one of "
                 "them silently; give them distinct roles instead."
             )
-        claimed[destination.resolve()] = origin
+        claimed[key] = origin
 
         destination_dir.mkdir(parents=True, exist_ok=True)
         log_row(f"Copying {source_path.name} to {destination_dir}", module="config")

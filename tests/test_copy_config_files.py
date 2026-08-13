@@ -6,6 +6,7 @@ beside it, so it could not serve four destinations (runs/, catalogs/,
 templates/, generated/). These pin the new contract.
 """
 
+import os
 from pathlib import Path
 
 import pytest
@@ -302,8 +303,53 @@ def test_a_tracked_clean_toolbox_file_is_recorded_not_copied(tmp_path, sources):
     assert entry["recoverable"] is True
     assert entry["git_blob"]
     assert entry["archived_path"] is None
-    assert entry["origin"] == tracked.name or "/" in entry["origin"]
+    # The repo-relative posix path exactly: this is the field a reader uses to
+    # find the file back in the toolbox, so "some string with a slash" is not
+    # the assertion worth making.
+    assert entry["origin"] == tracked.relative_to(ccf._REPO_ROOT).as_posix()
     assert not (cfg / "templates").exists()
+
+
+def test_a_case_only_destination_collision_still_raises(tmp_path, sources):
+    """On Windows two destinations differing only in case are ONE file.
+
+    Regression guard for an answer that used to depend on history: keyed on
+    ``Path.resolve()``, a case-only pair collided on a re-run (the first file
+    now existed, so resolve reported its real casing) but not on a fresh one,
+    where the second silently overwrote the first.
+    """
+    snake, _catalog, _template = sources
+    cfg = tmp_path / "project" / "config"
+    first_dir = tmp_path / "a"
+    second_dir = tmp_path / "b"
+    first_dir.mkdir()
+    second_dir.mkdir()
+    (first_dir / "one.csv").write_text("first\n", encoding="utf-8")
+    (second_dir / "two.csv").write_text("second\n", encoding="utf-8")
+
+    def run():
+        copy_config_files(
+            config=snake,
+            config_out_path=cfg / "runs" / "snake.yml",
+            other_config_files={
+                str(first_dir / "one.csv"): str(cfg / "observations"),
+                str(second_dir / "two.csv"): str(cfg / "observations"),
+            },
+            reference_roles={
+                str(first_dir / "one.csv"): "observations",
+                str(second_dir / "two.csv"): "OBSERVATIONS",
+            },
+        )
+
+    if os.path.normcase("A") != os.path.normcase("a"):
+        pytest.skip("case-sensitive filesystem: the two destinations are distinct")
+
+    with pytest.raises(ValueError, match="both map to"):
+        run()
+    # And again against a tree where the first destination already exists, the
+    # case that used to be the only one that raised.
+    with pytest.raises(ValueError, match="both map to"):
+        run()
 
 
 def test_degraded_mode_copies_everything(tmp_path, sources, monkeypatch):
