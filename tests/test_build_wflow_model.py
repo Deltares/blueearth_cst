@@ -301,6 +301,96 @@ def test_a_P1_grid_without_its_river_threshold_is_refused():
         _apply_parameter_steps(FakeModel(), [("setup_rivers", {})], maps, _no_rivers())
 
 
+def test_the_record_shows_the_DERIVED_mapping_not_the_template_value():
+    """The falsifier for "the record equals what hydromt received".
+
+    R3 asks for the actual values used, and the template is not it:
+    `lulc_mapping_fn` is derived at call time and appears in no file on disk.
+    The decisive case is the defect this repo actually shipped -- a template
+    naming `vito` while P1 supplied `corine` -- so a record built from the
+    template would have shown `vito_mapping_default` for a run that used
+    `corine_mapping_default`. Wrong numbers, recorded as if correct.
+    """
+
+    class FakeModel:
+        def setup_lulcmaps(self, **kwargs):
+            pass
+
+    maps = _p1_grid(lulc_source="corine")
+    records = _apply_parameter_steps(
+        FakeModel(), [("setup_lulcmaps", {"lulc_fn": "vito"})], maps, _no_rivers()
+    )
+
+    recorded = dict(records)["setup_lulcmaps"]
+    assert recorded["lulc_mapping_fn"] == "corine_mapping_default"
+    # The template key that lost must not survive into the record either: it
+    # never reached hydromt, so recording it would describe a call that did
+    # not happen.
+    assert "lulc_fn" not in recorded or recorded["lulc_fn"] != "vito"
+
+
+def test_the_record_describes_injected_P1_objects_by_reference():
+    """An xarray repr is not provenance -- it is unstable and unreadable.
+
+    The record has to say WHICH P1 product was handed over, so a reader can go
+    find it, and it has to stay diffable between two runs.
+    """
+
+    class FakeModel:
+        def setup_rivers(self, **kwargs):
+            pass
+
+    records = dict(
+        _apply_parameter_steps(
+            FakeModel(),
+            [("setup_rivers", {"hydrography_fn": "global", "min_rivwth": 30})],
+            _p1_grid(),
+            _no_rivers(),
+        )
+    )
+
+    recorded = records["setup_rivers"]
+    assert recorded["hydrography_fn"] == {
+        "injected_from": "p1_spatial_maps",
+        "product": "hydrography",
+    }
+    assert recorded["river_geom_fn"] == {
+        "injected_from": "p1_spatial_catalog",
+        "product": "rivers",
+    }
+    # Plain configured values pass through untouched, and the coupled
+    # threshold is recorded as the number hydromt actually got.
+    assert recorded["min_rivwth"] == 30
+    assert recorded["river_upa"] == 32.0
+
+
+def test_the_record_is_yaml_serializable():
+    """It is written as YAML, so an unserializable value fails the rule.
+
+    Cheap to assert here and expensive to discover in a run: safe_dump raises
+    on any object it does not know, which would be a mid-build crash rather
+    than a bad record.
+    """
+
+    class FakeModel:
+        def setup_rivers(self, **kwargs):
+            pass
+
+        def setup_lulcmaps(self, **kwargs):
+            pass
+
+    records = _apply_parameter_steps(
+        FakeModel(),
+        [("setup_rivers", {}), ("setup_lulcmaps", {})],
+        _p1_grid(),
+        _no_rivers(),
+    )
+
+    dumped = yaml.safe_dump({name: kwargs for name, kwargs in records})
+
+    assert "injected_from" in dumped
+
+
 def test_the_shipped_template_declares_neither_coupled_key():
     """The loser must be ABSENT, not merely ignored.
 
