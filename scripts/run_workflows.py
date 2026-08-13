@@ -75,7 +75,9 @@ if str(_REPO_ROOT_PATH) not in sys.path:
 
 from blueearth_cst.shared.provenance import (  # noqa: E402
     effective_config_digest,
+    environment_file_hashes,
     file_sha256,
+    toolbox_identity,
 )
 from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS  # noqa: E402
 
@@ -359,7 +361,11 @@ def _initialize_manifest(
             "sha256": file_sha256(source_path),
         },
         "effective_config": {
-            "sha256": effective_config_digest(cfg, ADVANCED_SETTINGS),
+            # projection=None: the wrapper spans all three workflows, so no
+            # single workflow's consumed-key projection is the right scope
+            # here. A Snakefile passes its own; this manifest keeps the whole
+            # config, which is what its "scope" field has always declared.
+            "sha256": effective_config_digest(cfg, ADVANCED_SETTINGS, None),
             "scope": "source_config_plus_resolved_advanced_settings",
             "includes_cli_config_overrides": False,
         },
@@ -372,8 +378,8 @@ def _initialize_manifest(
         "dry_run": "--dry-run" in extra or "-n" in extra,
         "no_op": not any(flags.values()),
         "workflows": workflows,
-        "git": _git_metadata(),
-        "environment_files": _environment_file_hashes(),
+        "git": toolbox_identity(),
+        "environment_files": environment_file_hashes(),
         "runtime": _runtime_versions(),
     }
     return runs_dir / filename, manifest
@@ -421,42 +427,14 @@ def _utc_now() -> str:
     )
 
 
-def _git_metadata() -> dict[str, str | bool | None]:
-    """Return the checkout commit and tracked/untracked dirty state."""
-    commit_result = _run_metadata_command(["git", "rev-parse", "HEAD"])
-    status_result = _run_metadata_command(["git", "status", "--porcelain"])
-    commit = None
-    if commit_result is not None:
-        commit = commit_result.strip() or None
-    dirty = None if status_result is None else bool(status_result.strip())
-    return {"commit": commit, "dirty": dirty}
-
-
-def _run_metadata_command(command: list[str]) -> str | None:
-    """Run a cheap metadata query without making provenance capture fragile."""
-    try:
-        result = subprocess.run(
-            command,
-            cwd=REPO_ROOT,
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return None
-    if result.returncode != 0:
-        return None
-    return getattr(result, "stdout", "")
-
-
-def _environment_file_hashes() -> dict[str, str]:
-    """Hash tracked environment lock files when present."""
-    hashes = {}
-    for name in ("pixi.lock", "Manifest.toml"):
-        path = _REPO_ROOT_PATH / name
-        if path.is_file():
-            hashes[name] = file_sha256(path)
-    return hashes
+# Toolbox and environment identity moved to blueearth_cst.shared.provenance
+# (imported above). They were defined here first, but a Snakefile now needs the
+# same answers, and a second definition is how the two drift -- the wrapper
+# saying one thing about the checkout while the run record says another.
+#
+# toolbox_identity() is not a rename of _git_metadata(): it adds commit_source
+# and a baked-commit fallback, so a container run -- which has no .git -- can
+# report its revision instead of a bare null.
 
 
 def _runtime_versions() -> dict[str, str | None]:

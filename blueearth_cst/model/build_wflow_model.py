@@ -227,45 +227,153 @@ def _p1_source(maps: xr.Dataset, attr: str) -> str:
     return value
 
 
+def _p1_river_threshold(maps: xr.Dataset) -> float:
+    """The upstream-area threshold P1 actually delineated rivers with.
+
+    ``river_upa`` and ``shared.basin.river_uparea_km2`` were two live knobs for
+    one physical quantity: the first reached hydromt intact, the second drove
+    P1's delineation, and nothing coupled them. Both default to 32 km2, so they
+    agreed until a project moved one -- at which point the wflow river map and
+    the P1 river mask disagree about which cells are river, with nothing
+    reporting it.
+
+    Read off ``river_mask``'s own attribute (``spatial/hydrography.py``) rather
+    than from the config, for the same reason :func:`_p1_source` reads the
+    grid: what has to agree is the model and the DATA it is handed, not the
+    model and a config value that may have moved since the grid was built.
+    """
+    if "river_mask" not in maps:
+        raise ValueError(
+            "the P1 grid carries no 'river_mask'; blueearth-cst-spatial-v1 "
+            "guarantees it (blueearth_cst/spatial/hydrography.py). Rebuild the "
+            "spatial products rather than assuming a river threshold here."
+        )
+    value = maps["river_mask"].attrs.get("upstream_area_threshold_km2")
+    if value is None:
+        raise ValueError(
+            "the P1 grid's 'river_mask' carries no "
+            "'upstream_area_threshold_km2' attribute; rebuild the spatial "
+            "products rather than assuming a river threshold here."
+        )
+    return float(value)
+
+
+class _Injected:
+    """A P1 object handed to hydromt, carrying how the record should name it.
+
+    The record must say WHICH P1 product a step received -- an xarray or
+    geopandas ``repr`` is neither stable between runs nor useful to a reader.
+    Wrapping the object lets one kwargs mapping serve both consumers: hydromt
+    gets ``.value``, the record gets the reference.
+    """
+
+    __slots__ = ("value", "injected_from", "product")
+
+    def __init__(self, value: Any, injected_from: str, product: str) -> None:
+        self.value = value
+        self.injected_from = injected_from
+        self.product = product
+
+    def reference(self) -> dict[str, str]:
+        return {"injected_from": self.injected_from, "product": self.product}
+
+
+def _step_call_kwargs(
+    name: str,
+    configured: dict[str, Any],
+    maps: xr.Dataset,
+    rivers: gpd.GeoDataFrame,
+) -> dict[str, Any]:
+    """Normalize one template step into exactly what hydromt will be handed.
+
+    ONE construction path, because the record and the call must not be able to
+    disagree. A record built from a second traversal of the template would
+    describe the configured values rather than the used ones -- which is the
+    whole defect R3 exists to close: `lulc_mapping_fn` is DERIVED here and
+    appears in no file on disk.
+    """
+    kwargs = configured.copy()
+    if name == "setup_rivers":
+        kwargs.pop("hydrography_fn", None)
+        kwargs.pop("river_geom_fn", None)
+        # The threshold follows the grid, not the template -- see
+        # `_p1_river_threshold`. `river_upa` was removed from
+        # config/defaults/wflow_build_model.yml on 2026-08-13, so it is
+        # normally absent here; popping it keeps a project's own build
+        # config from reinstating the divergence.
+        kwargs.pop("river_upa", None)
+        # Read the threshold BEFORE assembling the hydrography: it is the
+        # cheap contract check, and evaluating it first means a grid missing
+        # the attribute fails with that as the reason rather than part-way
+        # through building a dataset it was never going to use.
+        kwargs["river_upa"] = _p1_river_threshold(maps)
+        kwargs["hydrography_fn"] = _Injected(
+            _p1_hydrography(maps), "p1_spatial_maps", "hydrography"
+        )
+        kwargs["river_geom_fn"] = _Injected(rivers, "p1_spatial_catalog", "rivers")
+    elif name == "setup_lulcmaps":
+        # The mapping table must name the source the RASTER actually came
+        # from, and that is P1's -- `maps["land_cover"]` below. Until
+        # 2026-08-13 the source name was taken from the template's `lulc_fn`
+        # instead, so `shared.basin.spatial_sources.lulc: corine` produced
+        # CORINE land cover interpreted through `vito_mapping_default`.
+        # Wrong numbers, not a missing setting.
+        source_name = _p1_source(maps, "lulc_source")
+        kwargs.pop("lulc_fn", None)
+        kwargs.setdefault("lulc_mapping_fn", f"{source_name}_mapping_default")
+        kwargs["lulc_fn"] = _Injected(
+            maps["land_cover"].rename("landuse"), "p1_spatial_maps", "land_cover"
+        )
+    elif name == "setup_laimaps":
+        kwargs.pop("lai_fn", None)
+        lai = maps["leaf_area_index"].rename("LAI")
+        if "month" in lai.dims:
+            lai = lai.rename(month="time")
+        kwargs["lai_fn"] = _Injected(lai, "p1_spatial_maps", "leaf_area_index")
+    elif name == "setup_soilmaps":
+        # Unlike lulc and lai, hydromt reads the soil data itself from the
+        # catalog -- `soil_fn` is a SOURCE NAME, not a raster, so nothing is
+        # injected here. What is coupled is the name: P1 resamples
+        # `shared.basin.spatial_sources.soil` into the `soil_*` grid variables
+        # rule 1.12 plots, so leaving the template free to name a different
+        # source let the basin report describe one dataset while the model ran
+        # on another. Both defaulted to soilgrids, so the two agreed until a
+        # project changed one.
+        kwargs.pop("soil_fn", None)
+        kwargs["soil_fn"] = _p1_source(maps, "soil_source")
+    return kwargs
+
+
+def _record_kwargs(kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Render one step's call kwargs as YAML-safe provenance."""
+    return {
+        key: value.reference() if isinstance(value, _Injected) else value
+        for key, value in kwargs.items()
+    }
+
+
 def _apply_parameter_steps(
     model: Any,
     steps: list[tuple[str, dict[str, Any]]],
     maps: xr.Dataset,
     rivers: gpd.GeoDataFrame,
-) -> None:
-    """Run the Wflow-owned setup methods against the initialized P1 grid."""
+) -> list[tuple[str, dict[str, Any]]]:
+    """Run the Wflow-owned setup methods against the initialized P1 grid.
+
+    Returns the post-normalization values each method was handed, in call
+    order -- the "actual values used" record (R3), built from the SAME mapping
+    the call consumed.
+    """
+    records: list[tuple[str, dict[str, Any]]] = []
     for name, configured in steps:
-        kwargs = configured.copy()
-        if name == "setup_rivers":
-            kwargs.pop("hydrography_fn", None)
-            kwargs.pop("river_geom_fn", None)
-            model.setup_rivers(
-                hydrography_fn=_p1_hydrography(maps),
-                river_geom_fn=rivers,
-                **kwargs,
-            )
-        elif name == "setup_lulcmaps":
-            # The mapping table must name the source the RASTER actually came
-            # from, and that is P1's -- `maps["land_cover"]` below. Until
-            # 2026-08-13 the source name was taken from the template's
-            # `lulc_fn` instead, so `shared.basin.spatial_sources.lulc: corine`
-            # produced CORINE land cover interpreted through
-            # `vito_mapping_default`. Wrong numbers, not a missing setting.
-            source_name = _p1_source(maps, "lulc_source")
-            kwargs.pop("lulc_fn", None)
-            kwargs.setdefault("lulc_mapping_fn", f"{source_name}_mapping_default")
-            model.setup_lulcmaps(
-                lulc_fn=maps["land_cover"].rename("landuse"),
-                **kwargs,
-            )
-        elif name == "setup_laimaps":
-            kwargs.pop("lai_fn", None)
-            lai = maps["leaf_area_index"].rename("LAI")
-            if "month" in lai.dims:
-                lai = lai.rename(month="time")
-            model.setup_laimaps(lai_fn=lai, **kwargs)
-        else:
-            getattr(model, name)(**kwargs)
+        kwargs = _step_call_kwargs(name, configured, maps, rivers)
+        records.append((name, _record_kwargs(kwargs)))
+        call = {
+            key: value.value if isinstance(value, _Injected) else value
+            for key, value in kwargs.items()
+        }
+        getattr(model, name)(**call)
+    return records
 
 
 def _positive_ids(data: xr.DataArray) -> set[int]:
@@ -309,11 +417,41 @@ def _validate_written_model(
     reopened.close()
 
 
+def write_values_used(
+    path: str | os.PathLike[str],
+    records: list[tuple[str, dict[str, Any]]],
+    parameter_template: str | os.PathLike[str],
+) -> None:
+    """Record the post-normalization values hydromt was handed.
+
+    The parameter template is NOT this record: arguments are popped, P1 objects
+    are injected in their place, and `lulc_mapping_fn` is derived at call time
+    from the grid's own source attribute, so it appears in no file on disk.
+    Reading the template to learn what a build used therefore answers with the
+    configured values rather than the used ones -- and the two provably
+    disagreed in this repo until 2026-08-13.
+
+    Written as a list rather than a mapping because step ORDER is part of what
+    ran: hydromt's setup methods mutate the model in sequence, and the same
+    steps in another order are a different build.
+    """
+    document = {
+        "schema_version": 1,
+        "parameter_template": str(parameter_template),
+        "steps": [{"method": name, "values_used": kwargs} for name, kwargs in records],
+    }
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with target.open("w", encoding="utf-8", newline="\n") as stream:
+        yaml.safe_dump(document, stream, sort_keys=False, allow_unicode=True)
+
+
 def build_wflow_model(
     spatial_catalog: str | os.PathLike[str],
     parameter_template: str | os.PathLike[str],
     data_catalogs: str | os.PathLike[str] | Sequence[object],
     wflow_root: str | os.PathLike[str],
+    values_used_path: str | os.PathLike[str] | None = None,
 ) -> None:
     """Build and validate Wflow-SBM from the generated P1 spatial catalog."""
     from hydromt import DataCatalog
@@ -345,7 +483,9 @@ def build_wflow_model(
         model.geoms.set(geoms[name], name=name)
     model.setup_config(_BASE_CONFIG)
     model.set_flwdir(ftype="ldd")
-    _apply_parameter_steps(model, steps, maps, geoms["rivers"])
+    records = _apply_parameter_steps(model, steps, maps, geoms["rivers"])
+    if values_used_path is not None:
+        write_values_used(values_used_path, records, parameter_template)
     model.setup_gauges(
         gauges_fn=geoms["locations"],
         index_col="wflow_id",
@@ -371,4 +511,5 @@ if __name__ == "__main__" and "snakemake" in globals():
             parameter_template=sm.input.parameter_template,
             data_catalogs=sm.input.data_catalogs,
             wflow_root=Path(sm.output.staticmaps).parent,
+            values_used_path=sm.output.values_used,
         )

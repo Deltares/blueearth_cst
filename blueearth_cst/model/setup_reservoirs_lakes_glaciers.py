@@ -29,14 +29,46 @@ def _run_waterbody_methods(mod, config, no_data_errors):
     results = []
     for method, kwargs in config.items():
         kwargs = kwargs or {}
+        # ONE mapping, used for the call and for the record -- the same
+        # discipline as build_wflow_model's steps. Nothing is normalized here
+        # (these kwargs reach hydromt as configured), but recording them from a
+        # second read of the config file would let the two drift the moment
+        # normalization is ever added.
+        entry = {"method": method, "status": "ok", "reason": "", "values_used": kwargs}
         try:
             getattr(mod, method)(**kwargs)
-            results.append({"method": method, "status": "ok", "reason": ""})
         except no_data_errors as error:
-            results.append(
-                {"method": method, "status": "skipped", "reason": str(error)}
-            )
+            entry["status"] = "skipped"
+            entry["reason"] = str(error)
+        results.append(entry)
     return results
+
+
+def write_values_used(path, results, config_fn):
+    """Record what each waterbody method was handed, and whether it ran.
+
+    The status is half the provenance: a skipped method leaves no trace in the
+    model, so a record of values alone would describe reservoirs and lakes that
+    were never added. "Skipped" here is a legitimate outcome -- the basin has
+    no such water bodies in the source -- not a failure.
+    """
+    document = {
+        "schema_version": 1,
+        "waterbodies_config": str(config_fn),
+        "steps": [
+            {
+                "method": entry["method"],
+                "status": entry["status"],
+                "reason": entry["reason"],
+                "values_used": entry["values_used"],
+            }
+            for entry in results
+        ],
+    }
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with target.open("w", encoding="utf-8", newline="\n") as stream:
+        yaml.safe_dump(document, stream, sort_keys=False, allow_unicode=True)
 
 
 def write_sentinel(path, results):
@@ -57,6 +89,7 @@ def update_wflow_waterbodies_glaciers(
     wflow_root: Union[str, Path],
     config_fn: Union[str, Path],
     data_catalog: Union[str, Path] = "deltares_data",
+    values_used_path: Union[str, Path, None] = None,
 ):
     """Update a wflow model with reservoirs, lakes and glaciers.
 
@@ -93,6 +126,9 @@ def update_wflow_waterbodies_glaciers(
         join(wflow_root, "staticgeoms", "reservoirs_lakes_glaciers.txt"), results
     )
 
+    if values_used_path is not None:
+        write_values_used(values_used_path, results, config_fn)
+
 
 if __name__ == "__main__":
     if "snakemake" in globals():
@@ -104,6 +140,7 @@ if __name__ == "__main__":
                 wflow_root=os.path.dirname(sm.input.basin_nc),
                 data_catalog=sm.params.data_catalog,
                 config_fn=sm.params.config,
+                values_used_path=sm.output.values_used,
             )
     else:
         update_wflow_waterbodies_glaciers(

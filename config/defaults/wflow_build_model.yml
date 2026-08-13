@@ -5,8 +5,11 @@ steps:
   # from the generated blueearth-cst-spatial-v1 catalog. The project adapter
   # supplies those objects to the public setup methods below; setup_basemaps is
   # deliberately absent because it would delineate the basin a second time.
+  # `river_upa` is NOT declared here: the threshold follows the one P1 actually
+  # delineated with (`shared.basin.river_uparea_km2`, carried on the grid's
+  # river_mask). Declared in both places, the two could disagree and the wflow
+  # river map and the P1 river mask would call different cells river.
   - setup_rivers:
-      river_upa: 32                     # minimum upstream area threshold for the river map [km2]
       slope_len: 2000                   # length over which to calculate river slope [m]
       rivdph_method: powlaw             # method to estimate depth {'powlaw', 'manning', 'gvf'}
       min_rivdph: 0.5                   # minimum river depth [m]
@@ -24,8 +27,11 @@ steps:
   # setting and reached nothing.
   - setup_laimaps: {}
 
+  # `soil_fn` is NOT declared here: it names the source a SECOND time. P1
+  # resamples `shared.basin.spatial_sources.soil` into the soil_* maps rule 1.12
+  # plots, so a template naming a different source let the basin report
+  # describe one dataset while the model ran on another.
   - setup_soilmaps:
-      soil_fn: soilgrids                # source for soilmaps: {soilgrids}
       ptf_ksatver: brakensiek           # pedotransfer function to calculate hydraulic conductivity: {brakensiek, cosby}
 
   # Restore the upstream Deltares-template constant parameters under Wflow.jl 1.x

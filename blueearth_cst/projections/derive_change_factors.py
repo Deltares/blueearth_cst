@@ -596,6 +596,9 @@ if "snakemake" in globals():
                 "",
             ),
             effective_config_sha256=sm.params.effective_config_sha256,
+            configuration_inputs_sha256=getattr(
+                sm.params, "configuration_inputs_sha256", None
+            ),
             region_fingerprint=region_fp,
             horizons={k: " / ".join(_to_str_tuple(v)) for k, v in horizons.items()},
             weighting_scheme=next(

@@ -1,4 +1,5 @@
 import hashlib
+import uuid
 import json
 import numpy as np
 import sys
@@ -10,8 +11,8 @@ from pathlib import Path
 # See dev/milestones/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
 from blueearth_cst.experiment.allocate import resolve_default_experiment_name
+from blueearth_cst.shared.provenance import append_journal_line, configuration_inputs_digest, effective_config_digest, environment_file_hashes, file_sha256, journal_event, referenced_inputs_for_digest, toolbox_identity
 from blueearth_cst.shared.indicator_tables import indicator_tables, refuse_retired_experiment_keys
-from blueearth_cst.shared.provenance import short_digest, snapshot_bundle_digest
 from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_rule, DEFAULT_JULIA_THREADS, DEFAULT_WFLOW_OUTVARS, file_digest_or_absent, get_config, julia_prefix, index_width, member_index_regex, patch_psutil_windows_benchmark, project_slug, region_rule, rule_banner, spatial_units_rule, resolve_seed, resolve_water_year_start, stress_test_grid, validate_spell_factor, target_banner, validate_experiment_name, warn_if_project_dir_in_repo
 from blueearth_cst.spatial.config import parse_spatial_config
 
@@ -268,28 +269,13 @@ basin_dir = f"{project_dir}/models/hydrology/wflow"
 exp_dir = f"{project_dir}/experiments/{experiment}"
 
 
-def _snapshot_reference(kind, identifier):
-    """Describe a local file or logical catalog identifier for provenance."""
-    source = str(identifier)
-    reference = {"kind": kind, "identifier": source}
-    if Path(source).is_file():
-        reference["path"] = source
-    return reference
-
-
-_catalogs = DATA_SOURCES if isinstance(DATA_SOURCES, (list, tuple)) else [DATA_SOURCES]
-_config_snapshot_references = [
-    _snapshot_reference("catalogs", source) for source in _catalogs
-]
-CONFIG_SNAPSHOT_DIGEST = snapshot_bundle_digest(
-    config,
-    ADVANCED_SETTINGS,
-    config_path,
-    _config_snapshot_references,
-)
-CONFIG_SNAPSHOT_DIR = (
-    f"{exp_dir}/config/runs/climate_experiment/{short_digest(CONFIG_SNAPSHOT_DIGEST)}"
-)
+# The content-addressed config bundle was removed here (config-snapshot
+# redesign, 2026-08-13) -- no readers, and a digest over the whole config, so
+# any other workflow's edit minted a fresh directory. `run_record.yml` replaces
+# it. It sits directly in the experiment's own config bin rather than under a
+# `runs/` sub-bin: per arch-10 the WF3 snapshot stays inside the experiment,
+# which IS the partition here (R2).
+RUN_RECORD = f"{exp_dir}/config/run_record.yml"
 
 # --- The two symmetric engine subtrees inside the experiment ------------------
 # CURRENT SHAPE. Each engine owns its own config, working and product
@@ -365,6 +351,37 @@ guarded_sections_digest = hashlib.sha256(
         default=str,
     ).encode("utf-8")
 ).hexdigest()
+
+# WF3's consumed-key projection is DERIVED, not written out beside the guard
+# tuple. WF3 genuinely reads other workflows' sections -- `wflow_outvars` comes
+# out of `workflows.model_creation` -- and `guarded_sections` is already the
+# maintained list of those cross-section reads. Restating it here would be
+# proximity, not enforcement: the two would drift the first time the guard
+# tuple gained an entry. `shared.basin` widens to `shared` because the guard
+# narrows to `basin` only to stay experiment-invariant, while WF3 reads other
+# `shared` keys.
+CONFIG_PROJECTION = tuple(sorted(
+    {section.split(".")[0] if section == "shared.basin" else section
+     for section in guarded_sections}
+    | {"workflows.climate_experiment"}
+))
+
+CONFIG_REFERENCES = [
+    ("data_catalog", source) for source in
+    (DATA_SOURCES if isinstance(DATA_SOURCES, (list, tuple)) else [DATA_SOURCES])
+]
+
+EFFECTIVE_CONFIG_DIGEST = effective_config_digest(
+    config, ADVANCED_SETTINGS, CONFIG_PROJECTION
+)
+# Threaded through rule 3.02's params: so the record re-fires when the
+# checkout, the lock files, or a referenced catalog's bytes move.
+CONFIGURATION_INPUTS_DIGEST = configuration_inputs_digest(
+    EFFECTIVE_CONFIG_DIGEST,
+    toolbox_identity(),
+    environment_file_hashes(),
+    referenced_inputs_for_digest(CONFIG_REFERENCES),
+)
 # Project snapshots the guard compares against. wf1 is a mandatory ancient()
 # rule input (absence -> rule-level MissingInputException); wf2 is a params
 # path, existence-checked in the guard script (the projections overlay is
@@ -504,6 +521,10 @@ WF3_TARGETS = {
     **{f"{token}_indicators": f"{results_dir}/{fname}"
        for token, fname in INDICATOR_TABLES.items()},
     "snake_config": f"{exp_dir}/config/snake_config_climate_experiment.yml",
+    # The staleness sidecar (3.16b). A target entry, not merely a declared
+    # output: no rule reads a sidecar, so without this it would never build --
+    # the same reachability argument the design table makes below.
+    "run_metadata": f"{results_dir}/run_metadata.json",
     "model_reference": f"{exp_dir}/config/model_reference.yml",
     "experiment_config": f"{exp_dir}/config/experiment.yml",
     # C23. A target entry, not merely a declared output of 3.09: nothing
@@ -574,6 +595,10 @@ rule snapshot_config:
     params:
         data_catalogs = DATA_SOURCES,
         workflow_name = "climate_experiment",
+        config_projection = CONFIG_PROJECTION,
+        # A string digest, so the params trigger compares a value. This is what
+        # keeps the record fresh when the CHECKOUT moves; see its definition.
+        configuration_inputs_sha256 = CONFIGURATION_INPUTS_DIGEST,
         # arch-10: the wf3 snapshot does NOT join config/runs/ -- it stays
         # inside the experiment. Only its CONTENT changes.
         config_dir = f"{exp_dir}/config",
@@ -581,7 +606,7 @@ rule snapshot_config:
         advanced_settings = ADVANCED_SETTINGS,
     output:
         config_snake_out = f"{exp_dir}/config/snake_config_climate_experiment.yml",
-        snapshot_bundle = directory(CONFIG_SNAPSHOT_DIR),
+        run_record = RUN_RECORD,
     script:
         "blueearth_cst/model/copy_config_files.py"
 
@@ -1072,6 +1097,31 @@ rule derive_wflow_indicators:
     script:
         "blueearth_cst/experiment/export_wflow_results.py"
 
+# 3.16b write_run_metadata -- the staleness sidecar (design §5.8).
+#
+# `3.16b`, not `3.17`: that number is gather_benchmarks, and
+# `dev/reference/naming.md` §8b forbids renumbering to insert a rule. Placed
+# before the gather rules so a future log part of its own is still gathered.
+#
+# It takes the indicator tables as INPUT rather than writing into them:
+# `results/q_indicators.csv` is baseline-fingerprinted, so embedding the
+# digests there would falsify the design's no-re-record claim.
+rule write_run_metadata:
+    message: rule_banner("3.16b", "write_run_metadata")
+    input:
+        [f"{results_dir}/{fname}" for fname in INDICATOR_TABLES.values()],
+    params:
+        workflow_name = "climate_experiment",
+        effective_config_sha256 = EFFECTIVE_CONFIG_DIGEST,
+        configuration_inputs_sha256 = CONFIGURATION_INPUTS_DIGEST,
+        # WF3 names its experiment rather than leaving a reader to match
+        # digests: this is the workflow where per-run identity matters most.
+        experiment = experiment,
+    output:
+        run_metadata = f"{results_dir}/run_metadata.json",
+    script:
+        "blueearth_cst/shared/write_run_metadata.py"
+
 # --- benchmark gather ---------------------------------------------------------
 # Merge WF3's per-rule benchmark parts (benchmarks/_parts/<experiment>/3.*) into
 # one benchmarks/wf3_benchmarks_<experiment>.md (rule column + TOTAL row) once
@@ -1122,3 +1172,46 @@ rule gather_logs:
         rules = LOG_RULES,
         parts_dir = LOG_PARTS_DIR,
     script: "blueearth_cst/shared/merge_logs.py"
+
+
+# --- Run journal (design §5.7) ------------------------------------------------
+#
+# Workflow-level handlers, never a rule -- see the same block in
+# Snakefile_model_creation for why, and for the scope the P0 probe established:
+# they fire only when at least one job executed, which is what R5 was narrowed
+# to on 2026-08-13.
+#
+# ONE journal per project, not per experiment: WF3's partition rides in the
+# line's `experiment` field rather than in a second file, so a project's whole
+# run history stays readable in one place.
+JOURNAL_PATH = f"{project_dir}/config/runs/journal.jsonl"
+INVOCATION_ID = uuid.uuid4().hex
+_JOURNAL_TOOLBOX = toolbox_identity()
+
+
+def _journal(event):
+    append_journal_line(
+        JOURNAL_PATH,
+        journal_event(
+            invocation_id=INVOCATION_ID,
+            workflow="climate_experiment",
+            event=event,
+            toolbox=_JOURNAL_TOOLBOX,
+            effective_config_sha256=EFFECTIVE_CONFIG_DIGEST,
+            configuration_inputs_sha256=CONFIGURATION_INPUTS_DIGEST,
+            source_config_sha256=file_sha256(config_path),
+            experiment=experiment,
+        ),
+    )
+
+
+onstart:
+    _journal("started")
+
+
+onsuccess:
+    _journal("success")
+
+
+onerror:
+    _journal("failed")

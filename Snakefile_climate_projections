@@ -4,6 +4,7 @@ import json
 import os
 import re
 import sys
+import uuid
 from pathlib import Path
 
 import yaml
@@ -13,7 +14,7 @@ from snakemake.exceptions import WorkflowError
 # directory by prepending this Snakefile's own directory to sys.path.
 # See dev/milestones/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
-from blueearth_cst.shared.provenance import effective_config_digest, short_digest, snapshot_bundle_digest
+from blueearth_cst.shared.provenance import append_journal_line, configuration_inputs_digest, effective_config_digest, environment_file_hashes, file_sha256, journal_event, referenced_inputs_for_digest, toolbox_identity
 from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, get_config, patch_psutil_windows_benchmark, region_rule, resolve_water_year_start, rule_banner, spatial_units_rule, target_banner, warn_if_project_dir_in_repo
 from blueearth_cst.spatial.config import parse_spatial_config
 from blueearth_cst.projections.gridded_outputs import RemovedGriddedOutputsError, validate_removed_gridded_options
@@ -38,28 +39,33 @@ warn_if_project_dir_in_repo(project_dir, workflow.basedir)
 DATA_SOURCES = get_config(project_cfg, "data_sources_climate", optional=False)
 
 
-def _snapshot_reference(kind, identifier):
-    """Describe a local file or logical catalog identifier for provenance."""
-    source = str(identifier)
-    reference = {"kind": kind, "identifier": source}
-    if Path(source).is_file():
-        reference["path"] = source
-    return reference
+# The content-addressed config bundle was removed here (config-snapshot
+# redesign, 2026-08-13) -- no readers, and a digest over the whole config, so
+# any other workflow's edit minted a fresh directory. `run_record.yml` replaces
+# it: current-only and one per workflow.
+RUN_RECORD = f"{project_dir}/config/runs/climate_projections/run_record.yml"
 
+# The consumed-key PROJECTION -- the config paths this workflow actually reads.
+# Digesting it rather than the whole file is what stops a WF1- or WF3-only edit
+# from re-firing WF2's record.
+CONFIG_PROJECTION = ("project", "shared", "workflows.climate_projections")
 
-_catalogs = DATA_SOURCES if isinstance(DATA_SOURCES, (list, tuple)) else [DATA_SOURCES]
-_config_snapshot_references = [
-    _snapshot_reference("catalogs", source) for source in _catalogs
+CONFIG_REFERENCES = [
+    ("data_catalog", source) for source in
+    (DATA_SOURCES if isinstance(DATA_SOURCES, (list, tuple)) else [DATA_SOURCES])
 ]
-CONFIG_SNAPSHOT_DIGEST = snapshot_bundle_digest(
-    config,
-    ADVANCED_SETTINGS,
-    config_path,
-    _config_snapshot_references,
+
+EFFECTIVE_CONFIG_DIGEST = effective_config_digest(
+    config, ADVANCED_SETTINGS, CONFIG_PROJECTION
 )
-EFFECTIVE_CONFIG_DIGEST = effective_config_digest(config, ADVANCED_SETTINGS)
-CONFIG_SNAPSHOT_DIR = (
-    f"{project_dir}/config/runs/climate_projections/{short_digest(CONFIG_SNAPSHOT_DIGEST)}"
+# Threaded through rule 2.01's params: so the record re-fires when the
+# checkout, the lock files, or a referenced catalog's bytes move -- not only
+# when the config is edited.
+CONFIGURATION_INPUTS_DIGEST = configuration_inputs_digest(
+    EFFECTIVE_CONFIG_DIGEST,
+    toolbox_identity(),
+    environment_file_hashes(),
+    referenced_inputs_for_digest(CONFIG_REFERENCES),
 )
 
 # The region delineation reads project.data_sources (deltares), NOT the CMIP6
@@ -747,9 +753,13 @@ rule snapshot_config:
         config_dir = f"{project_dir}/config",
         effective_config = config,
         advanced_settings = ADVANCED_SETTINGS,
+        config_projection = CONFIG_PROJECTION,
+        # A string digest, so the params trigger compares a value. This is what
+        # keeps the record fresh when the CHECKOUT moves; see its definition.
+        configuration_inputs_sha256 = CONFIGURATION_INPUTS_DIGEST,
     output:
         config_snake_out = f"{project_dir}/config/runs/snake_config_climate_projections.yml",
-        snapshot_bundle = directory(CONFIG_SNAPSHOT_DIR),
+        run_record = RUN_RECORD,
     script:
         "blueearth_cst/model/copy_config_files.py"
 
@@ -908,6 +918,12 @@ rule derive_change_factors:
         stats = stats,
         stage_b_hash = STAGE_B_HASH,
         effective_config_sha256 = EFFECTIVE_CONFIG_DIGEST,
+        # WF2 needs no new sidecar file: summary/provenance.json already
+        # carries the narrow digest, so it gains the WIDE one beside it. That
+        # is the field the staleness test uses -- the narrow one cannot see a
+        # toolbox move or an in-place catalog edit. Verified not to be in
+        # dev/baseline/manifest.json, so this does not touch the baseline.
+        configuration_inputs_sha256 = CONFIGURATION_INPUTS_DIGEST,
         min_reference = MIN_REFERENCE,
         # The figure set, by NAME. Stage B runs before the plot rule, so it
         # cannot take them as inputs -- but they are declared, so naming them
@@ -1082,3 +1098,42 @@ rule gather_benchmarks:
         parts_dir = f"{project_dir}/benchmarks/_parts",
         workflow_num = 2,
     script: "blueearth_cst/shared/merge_benchmarks.py"
+
+
+# --- Run journal (design §5.7) ------------------------------------------------
+#
+# Workflow-level handlers, never a rule: a rule that is up to date does not
+# execute, and a rule DECLARING the journal would have it deleted before the
+# job ran, truncating the ledger to one line every run. See the same block in
+# Snakefile_model_creation for the scope the P0 probe established -- these fire
+# only when at least one job executed, which is what R5 was narrowed to.
+JOURNAL_PATH = f"{project_dir}/config/runs/journal.jsonl"
+INVOCATION_ID = uuid.uuid4().hex
+_JOURNAL_TOOLBOX = toolbox_identity()
+
+
+def _journal(event):
+    append_journal_line(
+        JOURNAL_PATH,
+        journal_event(
+            invocation_id=INVOCATION_ID,
+            workflow="climate_projections",
+            event=event,
+            toolbox=_JOURNAL_TOOLBOX,
+            effective_config_sha256=EFFECTIVE_CONFIG_DIGEST,
+            configuration_inputs_sha256=CONFIGURATION_INPUTS_DIGEST,
+            source_config_sha256=file_sha256(config_path),
+        ),
+    )
+
+
+onstart:
+    _journal("started")
+
+
+onsuccess:
+    _journal("success")
+
+
+onerror:
+    _journal("failed")

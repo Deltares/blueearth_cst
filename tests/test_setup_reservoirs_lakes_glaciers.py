@@ -4,9 +4,12 @@ Hermetic: exercises method dispatch + no-data capture + structured sentinel
 without hydromt (the heavy import is lazy inside the main function).
 """
 
+import yaml
+
 from blueearth_cst.model.setup_reservoirs_lakes_glaciers import (  # noqa: E402
     _run_waterbody_methods,
     write_sentinel,
+    write_values_used,
 )
 
 
@@ -31,13 +34,49 @@ def test_run_waterbody_methods_captures_ok_and_skipped():
     }
     results = _run_waterbody_methods(_FakeModel(), config, (_FakeNoData,))
     assert results == [
-        {"method": "setup_reservoirs_simple_control", "status": "ok", "reason": ""},
+        {
+            "method": "setup_reservoirs_simple_control",
+            "status": "ok",
+            "reason": "",
+            "values_used": {"min_area": 1.0},
+        },
         {
             "method": "setup_glaciers",
             "status": "skipped",
             "reason": "no glaciers in basin",
+            "values_used": {},
         },
     ]
+
+
+def test_values_used_record_separates_a_method_that_ran_from_one_skipped(tmp_path):
+    """A skipped method leaves no trace in the model.
+
+    Recording values without the outcome would describe reservoirs and lakes
+    that were never added -- the record would be confidently wrong about what
+    the model contains. Skipping is legitimate here (the basin has no such
+    water bodies in the source), which is precisely why it must be stated
+    rather than inferred from an absence.
+    """
+    config = {
+        "setup_reservoirs_simple_control": {"min_area": 1.0},
+        "setup_glaciers": None,
+    }
+    results = _run_waterbody_methods(_FakeModel(), config, (_FakeNoData,))
+    path = tmp_path / "hydromt_update_waterbodies.yml"
+
+    write_values_used(path, results, "config/defaults/wflow_update_waterbodies.yml")
+
+    document = yaml.safe_load(path.read_text(encoding="utf-8"))
+    by_method = {step["method"]: step for step in document["steps"]}
+
+    assert document["waterbodies_config"].endswith("wflow_update_waterbodies.yml")
+    assert by_method["setup_reservoirs_simple_control"]["status"] == "ok"
+    assert by_method["setup_reservoirs_simple_control"]["values_used"] == {
+        "min_area": 1.0
+    }
+    assert by_method["setup_glaciers"]["status"] == "skipped"
+    assert by_method["setup_glaciers"]["reason"] == "no glaciers in basin"
 
 
 def test_write_sentinel_is_structured_tsv(tmp_path):

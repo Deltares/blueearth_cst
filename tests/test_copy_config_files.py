@@ -6,14 +6,14 @@ beside it, so it could not serve four destinations (runs/, catalogs/,
 templates/, generated/). These pin the new contract.
 """
 
-import json
+import os
 from pathlib import Path
 
 import pytest
 import yaml
 
+from blueearth_cst.model import copy_config_files as ccf  # noqa: E402
 from blueearth_cst.model.copy_config_files import copy_config_files  # noqa: E402
-from blueearth_cst.shared.provenance import SHORT_DIGEST_CHARS  # noqa: E402
 
 
 @pytest.fixture()
@@ -152,128 +152,362 @@ def test_the_snapshot_is_a_faithful_copy(tmp_path, sources):
 
 
 # --------------------------------------------------------------------------- #
-# Immutable effective-config bundle
+# The copy predicate, the run record, and collision safety
 # --------------------------------------------------------------------------- #
 
-
-def test_writes_effective_config_bundle_and_archives_references(tmp_path, sources):
-    """The durable bundle records resolved settings and immutable file copies."""
-    snake, catalog, template = sources
-    cfg = tmp_path / "project" / "config"
-    snapshot_dir = cfg / "runs" / "model_creation" / "bundle-digest"
-    effective_config = {"project": {"project_dir": "somewhere"}, "values": [1, 2]}
-    advanced_settings = {
-        "constraints": {"min_historical_years": 16},
-        "defaults": {"julia_threads": 4},
-        "runtime": {"julia_version": "1.11.7"},
-    }
-
-    copy_config_files(
-        config=snake,
-        config_out_path=cfg / "runs" / "snake_config_model_creation.yml",
-        other_config_files={
-            str(catalog): str(cfg / "catalogs"),
-            str(template): str(cfg / "templates"),
-            "artifact_data": str(cfg / "catalogs"),
-        },
-        snapshot_dir=snapshot_dir,
-        effective_config=effective_config,
-        advanced_settings=advanced_settings,
-        workflow_name="model_creation",
-    )
-
-    assert (snapshot_dir / "source.yml").read_text(encoding="utf-8") == (
-        snake.read_text(encoding="utf-8")
-    )
-    effective = yaml.safe_load(
-        (snapshot_dir / "effective.yml").read_text(encoding="utf-8")
-    )
-    assert effective["project_config"] == effective_config
-    assert effective["advanced_settings"] == advanced_settings
-    assert len(effective["effective_config_sha256"]) == 64
-
-    manifest = json.loads(
-        (snapshot_dir / "referenced-files.json").read_text(encoding="utf-8")
-    )
-    assert manifest["workflow"] == "model_creation"
-    assert manifest["effective_config_sha256"] == effective["effective_config_sha256"]
-    assert manifest["source_config"]["sha256"]
-    assert manifest["source_config"]["archived_path"] == "source.yml"
-
-    by_source = {entry["source"]: entry for entry in manifest["referenced_files"]}
-    catalog_entry = by_source[str(catalog)]
-    assert catalog_entry["kind"] == "catalogs"
-    assert catalog_entry["status"] == "archived"
-    assert (snapshot_dir / catalog_entry["archived_path"]).read_text(
-        encoding="utf-8"
-    ) == catalog.read_text(encoding="utf-8")
-
-    logical_entry = by_source["artifact_data"]
-    assert logical_entry["status"] == "logical_identifier"
-    assert logical_entry["archived_path"] is None
-    assert logical_entry["sha256"] is None
-
-    # An archived file is named by the SHARED naming length, not by a literal
-    # 12 that could drift away from the directory it sits in.
-    archived_name = Path(catalog_entry["archived_path"]).name
-    assert archived_name == (
-        f"{catalog_entry['sha256'][:SHORT_DIGEST_CHARS]}-{catalog.name}"
-    )
+_ADVANCED = {
+    "constraints": {"min_historical_years": 16},
+    "defaults": {"julia_threads": 4},
+    "runtime": {"julia_version": "1.11.7"},
+}
 
 
-def test_the_bundle_announces_itself(tmp_path, sources, capsys):
-    """The bundle used to be written in silence, so it was found by accident."""
+def _record(tmp_path, sources, **overrides):
+    """Run the writer with a run record and return the parsed record."""
     snake, catalog, _template = sources
     cfg = tmp_path / "project" / "config"
-    snapshot_dir = cfg / "runs" / "model_creation" / "bundle-digest"
+    record_path = cfg / "runs" / "model_creation" / "run_record.yml"
+    kwargs = {
+        "config": snake,
+        "config_out_path": cfg / "runs" / "snake_config_model_creation.yml",
+        "other_config_files": {str(catalog): str(cfg / "catalogs")},
+        "run_record_path": record_path,
+        "effective_config": {"project": {"project_dir": "somewhere"}},
+        "advanced_settings": _ADVANCED,
+        "workflow_name": "model_creation",
+    }
+    kwargs.update(overrides)
+    copy_config_files(**kwargs)
+    return yaml.safe_load(record_path.read_text(encoding="utf-8"))
+
+
+def test_no_bundle_directory_is_created_by_any_path(tmp_path, sources):
+    """The content-addressed bundle is gone; nothing may recreate it."""
+    _record(tmp_path, sources)
+    cfg = tmp_path / "project" / "config"
+
+    assert not list(cfg.rglob("referenced-files.json"))
+    assert not list(cfg.rglob("source.yml"))
+    assert not list(cfg.rglob("effective.yml"))
+
+
+def test_run_record_carries_the_design_schema(tmp_path, sources):
+    """The record is the project's answer to 'what did the last run use'."""
+    record = _record(tmp_path, sources)
+
+    assert record["schema_version"] == 2
+    assert record["workflow"] == "model_creation"
+    assert record["advanced_settings"] == _ADVANCED
+    assert record["effective_config"] == {"project": {"project_dir": "somewhere"}}
+    assert len(record["effective_config_sha256"]) == 64
+    assert len(record["configuration_inputs_sha256"]) == 64
+    assert set(record["toolbox"]) == {"commit", "commit_source", "dirty"}
+    assert set(record["environment"]) == {"pixi.lock", "Manifest.toml"}
+    assert record["source_config"]["sha256"]
+
+
+def test_run_record_leaves_no_temporary_behind(tmp_path, sources):
+    """It is written temp-then-replace, so a reader never sees a partial file."""
+    _record(tmp_path, sources)
+    record_dir = tmp_path / "project" / "config" / "runs" / "model_creation"
+
+    assert [p.name for p in record_dir.iterdir()] == ["run_record.yml"]
+
+
+def test_a_file_outside_the_checkout_is_copied(tmp_path, sources):
+    """R4's else-branch: the toolbox cannot give back what it never held."""
+    _snake, catalog, _template = sources
+    record = _record(tmp_path, sources)
+    entry = next(e for e in record["referenced_inputs"] if e["origin"] == str(catalog))
+
+    assert entry["recoverable"] is False
+    assert entry["git_blob"] is None
+    assert entry["archived_path"]
+    assert Path(entry["archived_path"]).is_file()
+
+
+def _fake_git(*, tracked=True, dirty=False, blob="b" * 40):
+    """A stand-in for the three tracking queries, one branch at a time."""
+
+    def query(command):
+        if "ls-files" in command:
+            return "" if tracked else None
+        if "status" in command:
+            return " M path\n" if dirty else ""
+        if "rev-parse" in command:
+            return f"{blob}\n"
+        return None
+
+    return query
+
+
+def test_predicate_says_recoverable_only_when_tracked_and_clean(monkeypatch):
+    """All three git branches, deterministically -- a real file cannot give them.
+
+    A tracked file's cleanliness depends on what the working tree happens to
+    look like when the suite runs, so driving the queries directly is the only
+    way to reach every branch on every machine. The integration test below
+    still proves the queries are wired to a real repository.
+    """
+    toolbox = {"commit": "a" * 40, "commit_source": "git", "dirty": False}
+    inside = ccf._REPO_ROOT / "pyproject.toml"
+
+    monkeypatch.setattr(ccf, "_git_query", _fake_git())
+    assert ccf._tracked_blob(inside, toolbox) == "b" * 40
+
+    monkeypatch.setattr(ccf, "_git_query", _fake_git(dirty=True))
+    assert ccf._tracked_blob(inside, toolbox) is None, "a modified file must be copied"
+
+    monkeypatch.setattr(ccf, "_git_query", _fake_git(tracked=False))
+    assert ccf._tracked_blob(inside, toolbox) is None, "an untracked file is copied"
+
+    monkeypatch.setattr(ccf, "_git_query", _fake_git())
+    assert ccf._tracked_blob(inside, {"commit": None}) is None, "no commit, no claim"
+
+
+def test_a_file_outside_the_checkout_is_never_recoverable(monkeypatch, tmp_path):
+    """Even with every git query succeeding, an outside path cannot be tracked."""
+    monkeypatch.setattr(ccf, "_git_query", _fake_git())
+    outside = tmp_path / "site_specific_catalog.yml"
+    outside.write_text("meta: {}\n", encoding="utf-8")
+
+    assert ccf._tracked_blob(outside, {"commit": "a" * 40}) is None
+
+
+def test_a_tracked_clean_toolbox_file_is_recorded_not_copied(tmp_path, sources):
+    """The same predicate against the real repository, end to end.
+
+    Picks a tracked file that git reports clean right now, so it exercises the
+    actual queries. Skips when the tree offers none -- an exported tree has no
+    tracking to query at all, and the predicate's contract there is to fall
+    back to copying, which the degraded-mode test covers.
+    """
+    tracked = None
+    for candidate in ("LICENSE", "pyproject.toml", "blueearth_cst/shared/gauges.py"):
+        path = ccf._REPO_ROOT / candidate
+        status = ccf._git_query(["git", "status", "--porcelain", "--", str(path)])
+        if path.is_file() and status is not None and not status.strip():
+            tracked = path
+            break
+    if tracked is None:
+        pytest.skip("no clean tracked file available to exercise the predicate")
+
+    cfg = tmp_path / "project" / "config"
+    record = _record(
+        tmp_path,
+        sources,
+        other_config_files={str(tracked): str(cfg / "templates")},
+    )
+    entry = record["referenced_inputs"][0]
+
+    assert entry["recoverable"] is True
+    assert entry["git_blob"]
+    assert entry["archived_path"] is None
+    # The repo-relative posix path exactly: this is the field a reader uses to
+    # find the file back in the toolbox, so "some string with a slash" is not
+    # the assertion worth making.
+    assert entry["origin"] == tracked.relative_to(ccf._REPO_ROOT).as_posix()
+    assert not (cfg / "templates").exists()
+
+
+def test_a_case_only_destination_collision_still_raises(tmp_path, sources):
+    """On Windows two destinations differing only in case are ONE file.
+
+    Regression guard for an answer that used to depend on history: keyed on
+    ``Path.resolve()``, a case-only pair collided on a re-run (the first file
+    now existed, so resolve reported its real casing) but not on a fresh one,
+    where the second silently overwrote the first.
+    """
+    snake, _catalog, _template = sources
+    cfg = tmp_path / "project" / "config"
+    first_dir = tmp_path / "a"
+    second_dir = tmp_path / "b"
+    first_dir.mkdir()
+    second_dir.mkdir()
+    (first_dir / "one.csv").write_text("first\n", encoding="utf-8")
+    (second_dir / "two.csv").write_text("second\n", encoding="utf-8")
+
+    def run():
+        copy_config_files(
+            config=snake,
+            config_out_path=cfg / "runs" / "snake.yml",
+            other_config_files={
+                str(first_dir / "one.csv"): str(cfg / "observations"),
+                str(second_dir / "two.csv"): str(cfg / "observations"),
+            },
+            reference_roles={
+                str(first_dir / "one.csv"): "observations",
+                str(second_dir / "two.csv"): "OBSERVATIONS",
+            },
+        )
+
+    if os.path.normcase("A") != os.path.normcase("a"):
+        pytest.skip("case-sensitive filesystem: the two destinations are distinct")
+
+    with pytest.raises(ValueError, match="both map to"):
+        run()
+    # And again against a tree where the first destination already exists, the
+    # case that used to be the only one that raised.
+    with pytest.raises(ValueError, match="both map to"):
+        run()
+
+
+def test_degraded_mode_copies_everything(tmp_path, sources, monkeypatch):
+    """A deployed image has no .git, so every referenced file must be copied.
+
+    This is the predicate's else-branch reached by construction rather than by
+    a special case: with no commit, step 2 can never be satisfied.
+    """
+    monkeypatch.setattr(
+        ccf,
+        "toolbox_identity",
+        lambda *_, **__: {
+            "commit": None,
+            "commit_source": None,
+            "dirty": None,
+        },
+    )
+    tracked = Path(__file__).resolve()
+    cfg = tmp_path / "project" / "config"
+    record = _record(
+        tmp_path,
+        sources,
+        other_config_files={str(tracked): str(cfg / "templates")},
+    )
+
+    assert record["toolbox"] == {
+        "commit": None,
+        "commit_source": None,
+        "dirty": None,
+    }
+    entry = record["referenced_inputs"][0]
+    assert entry["recoverable"] is False
+    assert Path(entry["archived_path"]).is_file()
+
+
+def test_two_references_sharing_a_destination_raise(tmp_path, sources):
+    """The falsifier for 'no input is silently lost'.
+
+    Two configured observation paths can share a basename -- they are arbitrary
+    absolute paths. The old writer copied both to `dest / source.name` and the
+    second overwrote the first, leaving a project that claimed to hold an input
+    it had lost.
+    """
+    snake, _catalog, _template = sources
+    cfg = tmp_path / "project" / "config"
+    first_dir = tmp_path / "a"
+    second_dir = tmp_path / "b"
+    first_dir.mkdir()
+    second_dir.mkdir()
+    (first_dir / "data.csv").write_text("first\n", encoding="utf-8")
+    (second_dir / "data.csv").write_text("second\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="both map to"):
+        copy_config_files(
+            config=snake,
+            config_out_path=cfg / "runs" / "snake.yml",
+            other_config_files={
+                str(first_dir / "data.csv"): str(cfg / "observations"),
+                str(second_dir / "data.csv"): str(cfg / "observations"),
+            },
+        )
+
+
+def test_declared_roles_keep_same_named_files_apart(tmp_path, sources):
+    """Roles are how two same-basename inputs both survive the snapshot."""
+    snake, _catalog, _template = sources
+    cfg = tmp_path / "project" / "config"
+    first_dir = tmp_path / "a"
+    second_dir = tmp_path / "b"
+    first_dir.mkdir()
+    second_dir.mkdir()
+    (first_dir / "data.csv").write_text("locations\n", encoding="utf-8")
+    (second_dir / "data.csv").write_text("series\n", encoding="utf-8")
+
+    copy_config_files(
+        config=snake,
+        config_out_path=cfg / "runs" / "snake.yml",
+        other_config_files={
+            str(first_dir / "data.csv"): str(cfg / "observations"),
+            str(second_dir / "data.csv"): str(cfg / "observations"),
+        },
+        reference_roles={
+            str(first_dir / "data.csv"): "output_locations",
+            str(second_dir / "data.csv"): "observations_timeseries",
+        },
+    )
+
+    observations = cfg / "observations"
+    assert (observations / "output_locations.csv").read_text(
+        encoding="utf-8"
+    ) == "locations\n"
+    assert (observations / "observations_timeseries.csv").read_text(
+        encoding="utf-8"
+    ) == "series\n"
+
+
+def test_a_logical_identifier_is_recorded_without_a_copy(tmp_path, sources):
+    """hydromt's predefined catalogs are named, not pathed: nothing to copy."""
+    cfg = tmp_path / "project" / "config"
+    record = _record(
+        tmp_path, sources, other_config_files={"artifact_data": str(cfg / "catalogs")}
+    )
+    entry = record["referenced_inputs"][0]
+
+    assert entry["origin"] == "artifact_data"
+    assert entry["archived_path"] is None
+    assert entry["sha256"] is None
+
+
+def test_run_record_requires_its_companions(tmp_path, sources):
+    """A record missing its config would describe nothing."""
+    snake, _catalog, _template = sources
+    cfg = tmp_path / "project" / "config"
+
+    with pytest.raises(ValueError, match="must be provided together"):
+        copy_config_files(
+            config=snake,
+            config_out_path=cfg / "runs" / "snake.yml",
+            run_record_path=cfg / "runs" / "run_record.yml",
+        )
+
+
+def test_the_runs_bin_carries_its_own_readme(tmp_path, sources):
+    """The one genuine trap in this bin: it all looks like configuration.
+
+    Everything under config/runs/ is written by the run, so an edit is
+    silently overwritten on the next execution. Someone will eventually open
+    the copy nearest the outputs and change it, which is why the warning ships
+    beside the files rather than only in the repo README.
+    """
+    snake, _catalog, _template = sources
+    cfg = tmp_path / "project" / "config"
 
     copy_config_files(
         config=snake,
         config_out_path=cfg / "runs" / "snake_config_model_creation.yml",
-        other_config_files={str(catalog): str(cfg / "catalogs")},
-        snapshot_dir=snapshot_dir,
-        effective_config={"project": {"project_dir": "somewhere"}},
-        advanced_settings={"constraints": {}, "defaults": {}, "runtime": {}},
-        workflow_name="model_creation",
     )
 
-    manifest = json.loads(
-        (snapshot_dir / "referenced-files.json").read_text(encoding="utf-8")
-    )
-    row = [
-        line
-        for line in capsys.readouterr().out.splitlines()
-        if "Config snapshot bundle" in line
-    ]
-    assert len(row) == 1
-    # Both forms: the path to go look at, and the full digest the manifest
-    # records — the short directory name alone cannot be compared to another
-    # bundle's identity.
-    assert str(snapshot_dir) in row[0]
-    assert manifest["snapshot_bundle_sha256"] in row[0]
+    readme = (cfg / "runs" / "README.md").read_text(encoding="utf-8")
+
+    assert "written by the run" in readme
+    assert "journal.jsonl" in readme
+    # The two claims a reader would otherwise get wrong.
+    assert "lower bound on invocations" in readme
+    assert "scientific data identity" in readme
 
 
-def test_snapshot_bundle_is_deterministic(tmp_path, sources):
-    """Writing the same snapshot twice produces byte-identical metadata."""
-    snake, catalog, _ = sources
+def test_the_runs_readme_is_refreshed_not_preserved(tmp_path, sources):
+    """It is shipped documentation, so an old project should get the new text."""
+    snake, _catalog, _template = sources
     cfg = tmp_path / "project" / "config"
-    kwargs = {
-        "config": snake,
-        "config_out_path": cfg / "runs" / "snake.yml",
-        "other_config_files": {str(catalog): str(cfg / "catalogs")},
-        "effective_config": {"b": 2, "a": 1},
-        "advanced_settings": {"defaults": {"threads": 4}},
-        "workflow_name": "model_creation",
-    }
-    first = tmp_path / "first"
-    second = tmp_path / "second"
+    stale = cfg / "runs" / "README.md"
+    stale.parent.mkdir(parents=True)
+    stale.write_text("notes I typed here\n", encoding="utf-8")
 
-    copy_config_files(snapshot_dir=first, **kwargs)
-    copy_config_files(snapshot_dir=second, **kwargs)
+    copy_config_files(
+        config=snake,
+        config_out_path=cfg / "runs" / "snake_config_model_creation.yml",
+    )
 
-    assert (first / "effective.yml").read_bytes() == (
-        second / "effective.yml"
-    ).read_bytes()
-    assert (first / "referenced-files.json").read_bytes() == (
-        second / "referenced-files.json"
-    ).read_bytes()
+    assert "notes I typed here" not in stale.read_text(encoding="utf-8")
