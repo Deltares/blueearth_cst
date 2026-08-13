@@ -6,7 +6,7 @@ from pathlib import Path
 # See dev/milestones/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
 from blueearth_cst.shared.provenance import short_digest, snapshot_bundle_digest
-from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_JULIA_THREADS, climate_store_rule, get_config, julia_prefix, patch_psutil_windows_benchmark, region_rule, resolve_simulation_window, resolve_water_year_start, rule_banner, spatial_units_rule, target_banner, validate_historical_window, warn_if_project_dir_in_repo
+from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_JULIA_THREADS, DEFAULT_WFLOW_OUTVARS, climate_store_rule, get_config, julia_prefix, patch_psutil_windows_benchmark, region_rule, resolve_simulation_window, resolve_water_year_start, rule_banner, spatial_units_rule, target_banner, validate_historical_window, warn_if_project_dir_in_repo
 from blueearth_cst.spatial.config import parse_spatial_config
 # The canonical climate figure set (rules 1.13 and 1.15 both draw it). Imported
 # for figure_names() ONLY, so every figure is declared from the same list the
@@ -107,7 +107,7 @@ if clim_source == "eobs":
     )
 
 # Workflow-owned
-wflow_outvars = get_config(my_cfg, "wflow_outvars", ['river discharge', 'actual evapotranspiration'])
+wflow_outvars = get_config(my_cfg, "wflow_outvars", DEFAULT_WFLOW_OUTVARS)
 # `defaults/`, not `templates/` — these are read by rules 1.06/1.07/1.08, and the
 # 2026-08-11 split moved them out of the copy-me directory. The `_snapshot_reference`
 # calls below still say "templates": that is the PROJECT snapshot bin, a different

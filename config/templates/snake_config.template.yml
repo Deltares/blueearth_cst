@@ -18,7 +18,7 @@ project:
 shared:
   basin:
     region: "{'subbasin': [9.666, 0.4476], 'uparea': 100}"  # text — hydromt region spec
-    resolution: 0.00833                                   # numeric — degrees
+    resolution: 0.00833333                                # numeric — degrees (1/120 = 30 arcsec)
     #hydrography: merit_hydro_ihu                         # text — catalog entry name
     #basin_index: merit_hydro_index                       # text — catalog entry name
     gauge_points: null                                    # path | null

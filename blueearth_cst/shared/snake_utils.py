@@ -1436,6 +1436,44 @@ def climate_store_rule(
     )
 
 
+#: The sub-keys each stress-test axis accepts. Temperature has NO ``variance``:
+#: only precipitation variance reaches the generator
+#: (``prepare_cst_parameters`` reads ``precip.variance.{min,max}`` and
+#: ``DESIGN_COLUMNS`` carries only ``precip_variance_change``). Owner ruling
+#: 2026-08-13: temperature variance is not a supported dimension.
+#:
+#: Closed per axis, not just at the top level. The axis guard in
+#: ``prepare_cst_parameters`` already refused an unknown AXIS, but a sub-key of
+#: a known axis passed unexamined — so ``stress_test.temp.variance`` was
+#: accepted in silence and changed nothing.
+_AXIS_SUBKEYS = {
+    "temp": frozenset({"step_num", "transient_change", "mean"}),
+    "precip": frozenset({"step_num", "transient_change", "mean", "variance"}),
+}
+
+
+def _reject_unknown_axis_subkeys(stress_test_cfg: Mapping) -> None:
+    """Refuse a sub-key no axis reads, naming it and what the axis accepts."""
+    for axis, allowed in _AXIS_SUBKEYS.items():
+        axis_cfg = stress_test_cfg.get(axis)
+        if not isinstance(axis_cfg, Mapping):
+            continue
+        unknown = sorted(set(axis_cfg) - allowed)
+        if not unknown:
+            continue
+        detail = ""
+        if axis == "temp" and "variance" in unknown:
+            detail = (
+                " Temperature variance is not a supported stress dimension: "
+                "only precipitation variance reaches the weather generator. "
+                "Remove it rather than expecting it to perturb anything."
+            )
+        raise ValueError(
+            f"workflows.climate_experiment.stress_test.{axis} carries "
+            f"unsupported key(s) {unknown}; it accepts {sorted(allowed)}.{detail}"
+        )
+
+
 def _require_step_num(axis_cfg, axis_name):
     """Read and validate a required ``step_num`` from a stress-test axis section.
 
@@ -1488,10 +1526,19 @@ def stress_test_grid(stress_test_cfg: Mapping) -> tuple[int, int, int]:
     ValueError
         If a ``step_num`` is not a non-negative integer.
     """
+    _reject_unknown_axis_subkeys(stress_test_cfg)
     temp_step_count = _require_step_num(stress_test_cfg, "temp") + 1
     precip_step_count = _require_step_num(stress_test_cfg, "precip") + 1
     return temp_step_count, precip_step_count, temp_step_count * precip_step_count
 
+
+#: The wflow output variables a model produces when a config names none.
+#: ONE definition because WF1 and WF3 both default it: WF1 to these two,
+#: WF3 to `[]` until 2026-08-13 — and `[]` means zero indicator tables with
+#: no error, so a config omitting the key ran to completion and wrote
+#: nothing. `snake_config_baseline_linux.yml` omits it, so that was a
+#: shipped reproducer.
+DEFAULT_WFLOW_OUTVARS = ["river discharge", "actual evapotranspiration"]
 
 #: Twelve 1.0s — no spell-length adjustment, the identity for both factors.
 DEFAULT_SPELL_FACTOR = [1.0] * 12

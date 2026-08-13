@@ -95,11 +95,13 @@ def test_no_snakefile_hardcodes_a_julia_version():
         for path in REPO.glob("Snakefile_*")
         if re.search(r"julia \+\d+\.\d+\.\d+", path.read_text(encoding="utf-8"))
     }
-    # Snakefile_climate_experiment still carries its own pin: it is the same
-    # hardcode as WF1's was, left for the WF3 pass (a concurrent worktree owns
-    # that file). Listed explicitly so adopting julia_prefix there SHRINKS this
-    # set rather than silently satisfying a vague assertion.
-    assert offenders <= {"Snakefile_climate_experiment"}, offenders
+    # Empty since 2026-08-13. Snakefile_climate_experiment was the one tolerated
+    # offender -- the same hardcode WF1 had, deferred to the WF3 pass -- and it
+    # now uses julia_prefix like every other Julia call. The allowance is
+    # REMOVED rather than left permissive: it was listed so that adopting
+    # julia_prefix would shrink the set, and a tolerance kept after its cause
+    # is gone is how the next inline pin slips in unnoticed.
+    assert offenders == set(), offenders
 
 
 # --- the threads knob ------------------------------------------------------
