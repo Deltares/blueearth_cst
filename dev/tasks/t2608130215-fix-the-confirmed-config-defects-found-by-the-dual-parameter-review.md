@@ -8,7 +8,7 @@ updated: 2026-08-13
 ---
 
 > [!note] Overview
-> **What** — Seven defects where a declared parameter does not do what it says. All verified in-session against the tree, not relayed from a reviewer.
+> **What** — Eight defects where a declared parameter does not do what it says. All verified in-session against the tree, not relayed from a reviewer.
 > **Why** — One of them makes a SHIPPED config produce an empty experiment with no error. The rest are silent divergences between what a config declares and what runs.
 > **Effort** — S each; A and C change results and need their own gates. Bundled because they share one cause, one verification method, and one review.
 
@@ -87,6 +87,38 @@ Separately, it can only ever hold `config`, because the WF1 fallbacks it feeds
 resolve to in-repo toolbox files. Full analysis: M1 in
 `dev/working/parameter-placement.md`.
 
+### H — P1 spatial sources and the Wflow template disagree about who owns what
+
+Verified 2026-08-13, promoted out of the unverified list. Three pairs, three
+**different** failure modes — the reviewer's "duplication" framing understates
+it:
+
+- **`setup_laimaps.lai_fn` is inert.** `build_wflow_model.py:234` pops it with
+  a `None` default and discards the value; LAI comes from
+  `maps["leaf_area_index"]`. The template's `lai_fn: modis_lai` reaches
+  nothing. This is the fifth inert parameter.
+- **`setup_lulcmaps.lulc_fn` is silently REPURPOSED, and this is the hazard.**
+  `:226` pops it, but the value survives as `source_name` and derives
+  `lulc_mapping_fn = f"{source_name}_mapping_default"` (`:227`). The raster
+  comes from P1's `maps["land_cover"]`; the **mapping table** still comes from
+  the template. Set `shared.basin.spatial_sources.lulc: corine` and you get
+  CORINE land cover interpreted through `vito_mapping_default`. The
+  `maps.attrs.get("lulc_source", …)` fallback that would have caught it is
+  never reached, because the template always supplies `lulc_fn`.
+  Worse than inert: an inert key does nothing, this one does something wrong
+  while looking right.
+- **`setup_rivers.river_upa` and `shared.basin.river_uparea_km2` are two live
+  knobs for one physical threshold.** `river_upa: 32` is forwarded to hydromt
+  intact (only `hydrography_fn` / `river_geom_fn` are popped, `:214-215`);
+  `river_uparea_km2` (default `DEFAULT_RIVER_UPAREA_KM2 = 32.0`,
+  `spatial/config.py:262-264`) drives P1 delineation. Equal today, uncoupled.
+  Change either alone and the P1 river mask disagrees with the wflow river map.
+
+Consequence: the only defect in this bundle that can produce **wrong model
+numbers** rather than missing or unchanged ones. Check `soil_fn` the same way
+before fixing — it takes the generic `getattr(model, name)(**kwargs)` path
+(`:236`), so it is forwarded intact and pairs with `spatial_sources.soil`.
+
 ### G — `DEFAULT_ANCHOR` is defined twice
 
 `shared/metrics_definition.py:18` and
@@ -113,6 +145,12 @@ Ordered easiest and safest first; A and C are last because they change results.
       against the hardcoded version literal.
 - [ ] **C** — pick one canonical `resolution` default. Value-changing for any
       config omitting the key; needs its own gate.
+- [ ] **H** — decide who owns each spatial source, then make the loser
+      absent rather than ignored: delete `lai_fn`, couple `lulc_mapping_fn`
+      to the source P1 actually used (`maps.attrs['lulc_source']`), and
+      derive `river_upa` from `river_uparea_km2` or vice versa. Verify
+      `soil_fn` first. Value-changing only for a config that already
+      diverges — which is the bug; own gate, baseline check.
 - [ ] **A** — align the two `wflow_outvars` defaults, or make WF3 refuse an
       empty set rather than emit nothing. Value-changing; own gate; add a test
       that a config omitting the key still produces indicator tables.
@@ -121,15 +159,9 @@ Ordered easiest and safest first; A and C are last because they change results.
 
 Each comes from one reviewer only and was not confirmed in-session:
 
-- `setup_laimaps.lai_fn` forwarded then dropped (GPT) — a possible fifth
-  inert engine parameter.
 - `realizations_num`'s documented default `1` unreachable, because rule 3.10
   re-reads the YAML with a bare subscript and raises `KeyError` on absence
   (Fable).
-- **T2 spatial sources duplicated inside the Wflow engine template** (GPT) —
-  ranked its #1 by consequence, claiming divergent river masks or soil
-  parameters could produce wrong numbers. Unverified and the largest claim in
-  either report; verify before believing or dismissing.
 - PET computed twice under two methods (already known as F16; not new).
 
 ## The meta-finding
