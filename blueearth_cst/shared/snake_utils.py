@@ -2311,19 +2311,108 @@ def patch_psutil_windows_benchmark():
     psutil.Process.memory_full_info = _with_pss
 
 
-def rule_banner(number, name):
+def rule_banner(number, name, context=None):
     """Return a rule's ``message:`` string: a bold, numbered console banner.
 
     Shows ``<W.NN>  <name>`` (the ``W.NN`` matching the rule's log/benchmark
     filenames) so the live Snakemake console is easy to track. The number+name
     are wrapped in bold cyan **only** when stderr is a TTY and ``NO_COLOR`` is
     unset — so piping/redirecting the console to a file leaves no escape codes.
-    Evaluated once at Snakefile parse time (a plain string, no wildcards).
+
+    ``context`` appends a dim per-job suffix, and is the answer for FAN-OUT
+    rules. This helper is evaluated once at Snakefile parse time, so without it
+    every member of a fanned-out rule prints an IDENTICAL banner: on a
+    multi-hour WF3 run the console says *something is running*, never *which
+    member*. The return value becomes ``message:``, which Snakemake formats per
+    job — so a ``context`` holding ``{wildcards.<name>}`` resolves per member
+    even though the banner itself was built once.
+
+    Two constraints on what a caller may pass:
+
+    * Only wildcards the rule actually declares. The message is formatted
+      against that job's namespace, so a stray field fails at RUN time, not at
+      parse time — `tests/test_snake_utils.py` pins the shape, and
+      `tests/test_cli.py`'s dry-run is what exercises the real namespaces.
+    * **ASCII only.** A Windows console defaults to cp1252 and raises
+      ``UnicodeEncodeError`` on the typographic separators that would read
+      better here. Use ``|``, not ``·``.
+
+    A rule with no wildcards may still pass a constant context; only the
+    *interpolation* needs a wildcard, not the suffix itself.
     """
     tag = f"{number}  {name}"
-    if sys.stderr.isatty() and not os.environ.get("NO_COLOR"):
-        return f"\033[1;36m{tag}\033[0m"  # bold cyan
-    return tag
+    color = sys.stderr.isatty() and not os.environ.get("NO_COLOR")
+    if color:
+        tag = f"\033[1;36m{tag}\033[0m"  # bold cyan
+    if not context:
+        return tag
+    return f"{tag}  \033[2m{context}\033[0m" if color else f"{tag}  {context}"
+
+
+def format_elapsed(seconds):
+    """``h:mm:ss`` for a duration, matching the benchmark tables' own column."""
+    seconds = int(max(0, seconds))
+    hours, rem = divmod(seconds, 3600)
+    minutes, secs = divmod(rem, 60)
+    return f"{hours}:{minutes:02d}:{secs:02d}"
+
+
+def run_summary(
+    workflow,
+    project_dir,
+    log_name,
+    benchmarks_name,
+    elapsed_seconds=None,
+    failed=False,
+    log_parts_dir=None,
+):
+    """Return the end-of-run console block for an ``onsuccess``/``onerror``.
+
+    Snakemake ends a run with its own one-line verdict and nothing about what
+    the run PRODUCED. Two artifacts every run of this toolbox writes are
+    consequently invisible unless you already know they exist: the merged log
+    (rule W.17/W.18 folds the per-rule parts into one file, then deletes them)
+    and the benchmark table (a rule column plus a TOTAL row). This names both.
+
+    Reported as PATHS rather than contents: they are the two things a person
+    needs in order to answer "what happened", and printing either inline would
+    reproduce on every run the noise these console changes exist to remove.
+
+    ``elapsed_seconds`` is optional because a Snakefile has to measure it
+    itself -- Snakemake exposes no run duration to these handlers. It is
+    wall-clock from Snakefile PARSE, so it includes DAG construction; that is a
+    second or two on these workflows and is not worth a second clock.
+
+    Deliberately absent: a job count. Neither handler is given one, and
+    reconstructing it from the DAG would report jobs SCHEDULED rather than jobs
+    RUN -- a number that reads as authoritative and is wrong whenever anything
+    was already up to date.
+
+    The failure form names the log-parts directory as well, because on failure
+    the merged log does not exist yet: rule W.17 is a normal rule and does not
+    run when an upstream job fails, so the per-rule parts are still the only
+    record. ``show-failed-logs`` (profiles/default/config.yaml) prints the
+    failing job's own log inline; this points at everything around it.
+
+    ``log_parts_dir`` is passed rather than derived: WF3 keys its parts by
+    experiment (``logs/_parts/<experiment>``), so a derived ``logs/_parts``
+    would send the reader to the parent of the directory they want.
+    """
+    project_dir = os.fspath(project_dir)
+    lines = []
+    verdict = "FAILED" if failed else "done"
+    head = f"{workflow} {verdict}"
+    if elapsed_seconds is not None:
+        head = f"{head} in {format_elapsed(elapsed_seconds)}"
+    lines.append(head)
+    if failed:
+        parts = os.fspath(log_parts_dir or f"{project_dir}/logs/_parts")
+        lines.append(f"  log parts   {parts}/")
+        lines.append("  the failing job's own log is printed above")
+    else:
+        lines.append(f"  log         {project_dir}/logs/{log_name}")
+        lines.append(f"  benchmarks  {project_dir}/benchmarks/{benchmarks_name}")
+    return "\n".join(lines)
 
 
 def target_banner(number, name, targets, project_dir=None):

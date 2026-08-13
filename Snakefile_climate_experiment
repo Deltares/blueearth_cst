@@ -3,6 +3,7 @@ import uuid
 import json
 import numpy as np
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -13,7 +14,7 @@ sys.path.insert(0, str(Path(workflow.basedir)))
 from blueearth_cst.experiment.allocate import resolve_default_experiment_name
 from blueearth_cst.shared.provenance import append_journal_line, configuration_inputs_digest, effective_config_digest, environment_file_hashes, file_sha256, journal_event, referenced_inputs_for_digest, toolbox_identity
 from blueearth_cst.shared.indicator_tables import indicator_tables, refuse_retired_experiment_keys
-from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_rule, DEFAULT_JULIA_THREADS, DEFAULT_WFLOW_OUTVARS, file_digest_or_absent, get_config, julia_prefix, index_width, member_index_regex, patch_psutil_windows_benchmark, project_slug, region_rule, rule_banner, spatial_units_rule, resolve_seed, resolve_water_year_start, stress_test_grid, validate_spell_factor, target_banner, validate_experiment_name, warn_if_project_dir_in_repo
+from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_rule, DEFAULT_JULIA_THREADS, DEFAULT_WFLOW_OUTVARS, file_digest_or_absent, get_config, julia_prefix, index_width, member_index_regex, patch_psutil_windows_benchmark, project_slug, region_rule, rule_banner, run_summary, spatial_units_rule, resolve_seed, resolve_water_year_start, stress_test_grid, validate_spell_factor, target_banner, validate_experiment_name, warn_if_project_dir_in_repo
 from blueearth_cst.spatial.config import parse_spatial_config
 
 # Windows: make Snakemake's benchmark memory/IO/CPU metrics work (else all NA).
@@ -898,7 +899,7 @@ rule generate_weather_realizations:
 
 # 3.12  perturb_climate_realization — impose perturbations per rlz/cst (st_num >= 1)
 rule perturb_climate_realization:
-    message: rule_banner("3.12", "perturb_climate_realization")
+    message: rule_banner("3.12", "perturb_climate_realization", "rlz {wildcards.rlz_num} | st {wildcards.st_num}")
     # Constrain st_num to strictly positive integers on THIS rule so its output
     # wildcard rlz_{rlz_num}_st_{st_num}.nc can never resolve st_num to 0. Left
     # unconstrained, the rule would be a second eligible producer of st_0.nc
@@ -953,7 +954,7 @@ rule write_climate_data_catalog:
 
 # 3.14  downscale_climate_realization — downscale climate forcing to wflow grid
 rule downscale_climate_realization:
-    message: rule_banner("3.14", "downscale_climate_realization")
+    message: rule_banner("3.14", "downscale_climate_realization", "rlz {wildcards.rlz_num} | st {wildcards.st_num}")
     # R07 B5 puts rlz_num in a DIRECTORY position for the first time. Snakemake's
     # default wildcard regex is `.+`, which matches "/" -- constrain both indices
     # to digits so a path can never be split across the rlz_<r>/ boundary.
@@ -1032,10 +1033,30 @@ _batches = {bid: _k_members[i:i + batch_size]
             for bid, i in enumerate(range(0, len(_k_members), batch_size))}
 _batch_driver = str(Path(workflow.basedir) / "blueearth_cst" / "experiment" / "run_wflow_batch.jl")
 
+
+def _member_span(members):
+    """``rlz a-b | st c-d`` for one batch's members, for the console banner.
+
+    3.15's rules are loop-generated per batch and carry NO wildcards -- members
+    are a parse-time list -- so `rule_banner`'s per-job interpolation cannot
+    reach them and the context has to be baked in here instead. Ranges rather
+    than an enumeration: a batch is up to `batch_size_max` members, and the
+    console needs to say WHERE the run is, not to reproduce the member list the
+    log part already carries.
+    """
+    rlz = sorted({r for (r, _) in members})
+    st = sorted({c for (_, c) in members})
+
+    def span(values):
+        lo, hi = values[0], values[-1]
+        return str(lo) if lo == hi else f"{lo}-{hi}"
+
+    return f"rlz {span(rlz)} | st {span(st)}"
+
 for _b, _members in _batches.items():
     rule:
         name: f"run_wflow_batch_{_b}"
-        message: rule_banner("3.15", f"run_wflow_batch_{_b}")
+        message: rule_banner("3.15", f"run_wflow_batch_{_b}", f"{len(_members)} members | {_member_span(_members)}")
         input:
             forcing = [f"{runs_dir}/forcing/inmaps_rlz_{rlz_ix(r)}_st_{st_ix(c)}.nc"
                        for (r, c) in _members],
@@ -1205,13 +1226,47 @@ def _journal(event):
     )
 
 
+# Wall clock for the end-of-run summary. Taken at PARSE, not in `onstart`:
+# Snakemake exposes no run duration to these handlers, and parse-to-finish is
+# the interval a person actually waited. It therefore includes DAG
+# construction -- a second or two here, and not worth a second clock.
+_RUN_STARTED = time.monotonic()
+
+
+def _summary(failed):
+    """Print the end-of-run block to STDERR, beside Snakemake's own output.
+
+    stderr because that is where Snakemake writes its console, so a redirect
+    that captures one captures both -- and `run_logged` already tees rule
+    output there. Never raises: a summary that broke a successful run would be
+    the worst possible trade for a convenience.
+    """
+    try:
+        print(
+            run_summary(
+                "wf3 climate_experiment",
+                project_dir,
+                WORKFLOW_LOG_NAME,
+                BENCHMARKS_NAME,
+                elapsed_seconds=time.monotonic() - _RUN_STARTED,
+                failed=failed,
+                log_parts_dir=LOG_PARTS_DIR,
+            ),
+            file=sys.stderr,
+        )
+    except Exception as exc:  # noqa: BLE001 -- never break a run over a banner
+        print(f"(run summary unavailable: {exc})", file=sys.stderr)
+
+
 onstart:
     _journal("started")
 
 
 onsuccess:
     _journal("success")
+    _summary(failed=False)
 
 
 onerror:
     _journal("failed")
+    _summary(failed=True)
