@@ -94,17 +94,30 @@ Sequencing and blocking edges are in `master.task.md`; this is the surface.
       Each step's call kwargs are built ONCE and consumed twice — unwrapped for
       hydromt, rendered for the record. The three falsifiers were written
       before the refactor and observed to fail first.
-- [ ] **P4** — Snakefile wiring: projections, parse-time digests, params
-      threading, hooks, rules `1.15b`/`3.16b`. Needs P3. Item 1 already landed
-      with P2; the hooks are now scoped by the narrowed R5 above.
-      **Until it lands, `run_record.yml` carries `projection: null`** — the
-      rules declare no `config_projection` param yet, so the record covers the
-      whole config. Over-inclusive, not wrong; not a bug to chase.
-- [x] **P5 (devmeta half)** — `.gitignore` entry for `.toolbox-commit`,
-      `e006e34`. The `Dockerfile` half stays open in `lane/pipeline`.
-- [ ] **P6** — cleanup tool + tree inventory + fixture. **Gate 2** before any
-      `--delete`. Carries the program's one baseline check.
-- [ ] **P7** — `README.md` bundle section, new `config/runs/README.md`.
+- [x] **P4** — Snakefile wiring: projections, parse-time digests, params
+      threading, hooks, rules `1.15b`/`3.16b`. Landed `197fbd2`.
+      Two defects found while wiring and fixed in the same commit:
+      `_reference_identity` fell back to `role` (a CLASS several references
+      share) before `origin`, collapsing two pathless catalogs into one digest
+      term; and a `script:` target may not carry `from __future__ import
+      annotations`, which the repo's own contract tests caught.
+- [x] **P5** — both halves: `.gitignore` `e006e34` (devmeta), `Dockerfile`
+      `ARG TOOLBOX_COMMIT` `74861d1` (pipeline). The Docker BUILD was not run —
+      the brief excludes it from this phase's gate.
+- [x] **P7** — `README.md` + `AGENTS.md` `1baa472` (devmeta); the in-project
+      `config/runs/README.md` writer `40c2b11` (pipeline).
+- [ ] **P6** — cleanup tool + tree inventory + fixture. **THE ONLY PHASE LEFT.**
+      Blocked on two things, both the owner's:
+      **Gate 2** (the one destructive action in this program — the dry-run
+      target list must be reviewed before any `--delete`), and the **primary
+      checkout**, since `tree-check` and `check_baseline.py` run against
+      `test_case/test_local` and AGENTS.md reserves pipeline runs for the
+      primary. Ordering inside the phase is load-bearing: clean the fixture
+      BEFORE rewriting the inventory tests, or the rewritten tests bake the
+      orphans in as expected state.
+      Also outstanding from P4: its rung-5 end-to-end
+      `scripts/run_workflows.py --config test_case/snake_config_rapid.yml`,
+      likewise a primary-checkout run.
 
 ## Before starting
 
