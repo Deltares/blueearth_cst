@@ -22,7 +22,7 @@ toolbox repository cannot give back.
 
 | Phase | Lane | Input | Expected output |
 |---|---|---|---|
-| P0 | pipeline | design §5.2 step 0 | Probe report: do `onstart`/`onsuccess`/`onerror` fire on normal, no-op, failed, and `--dry-run` invocations on the pinned Snakemake |
+| P0 | devmeta | design §5.2 step 0 | Probe report: do `onstart`/`onsuccess`/`onerror` fire on normal, no-op, failed, and `--dry-run` invocations on the pinned Snakemake |
 | P1 | pipeline | design §5.2–5.4, §5.7 | `shared/provenance.py`: projection document, two digests, `toolbox_identity()`, `environment_file_hashes()`, `append_journal_line()`; helpers moved out of `run_workflows.py` |
 | P2 | pipeline | P1 | `copy_config_files.py`: bundle removed, `run_record.yml` written atomically, R4 per-file predicate, collision refusal |
 | P3 | pipeline | design §5.6 | Post-normalization values-used records from rules 1.07 and 1.08 |
@@ -36,6 +36,11 @@ toolbox repository cannot give back.
 - **P0 first, blocking P4 only.** The journal contract is specified against
   observed handler behaviour; if the probe contradicts §5.2, P4's hook design
   changes and the design's open item 10 must be revisited before wiring.
+  **It did** (2026-08-13, `p0-probe-result.md`): handlers do not fire on a
+  "Nothing to be done" no-op, so hooks cover only invocations in which a job
+  executed. P4 and §5.2/§5.7 await an owner decision; P1–P3 are unaffected.
+  P0 ran in **devmeta**, not pipeline — its brief scopes the probe to `.tmp/`
+  and its only committed artifact to `dev/working/`, both devmeta territory.
 - **P1 blocks P2, P4, P5** — all three consume its function contracts.
 - **P2 and P3 may run concurrently**: disjoint files (`copy_config_files.py` vs
   `build_wflow_model.py` + `setup_reservoirs_lakes_glaciers.py`).
@@ -96,7 +101,7 @@ toolbox repository cannot give back.
 
 | Phase | Brief | State |
 |---|---|---|
-| P0 | `p0-probe.task.md` | not started |
+| P0 | `p0-probe.task.md` | **done — `p0-probe-result.md`. Gate 1 TRIPPED: handlers do not fire on a no-op.** |
 | P1 | `p1-provenance-core.task.md` | not started |
 | P2 | `p2-snapshot-writer.task.md` | not started |
 | P3 | `p3-values-used.task.md` | not started |

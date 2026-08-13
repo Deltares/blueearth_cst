@@ -1,13 +1,13 @@
 ---
 title: Implement the config-snapshot redesign — current-only run record replaces the write-only bundle
 type: todo-item
-status: backlog
+status: active
 effort: 2
 area: config / provenance
 origin: config-snapshot design review (2026-08-13)
 queue:
 created: 2026-08-13
-updated: 2026-08-13
+updated: 2026-08-13  # P0 done, Gate 1 tripped
 ---
 
 > [!note] Overview
@@ -67,8 +67,14 @@ pair. Use **`1.15b`** and **`3.16b`**, before the gather rules, per
 
 Sequencing and blocking edges are in `master.task.md`; this is the surface.
 
-- [ ] **P0** — probe Snakemake lifecycle handlers on the pinned version.
-      Blocks P4. **Gate 1**: if handlers do not fire on a no-op, STOP.
+- [x] **P0** — probe Snakemake lifecycle handlers on the pinned version.
+      Done 2026-08-13, `p0-probe-result.md`. **Gate 1 TRIPPED — stopped.**
+      On Snakemake 9.6.2 a "Nothing to be done" no-op fires *no* handler:
+      `workflow.py:1375-1377` returns before `_onstart`, unguarded by any flag.
+      Hooks therefore cover only invocations in which ≥1 job executed — the set
+      params threading already covers — so R5's "record every invocation" is
+      unmet exactly where it was needed. Awaiting an owner decision on the
+      journal mechanism; P1–P3 are unaffected and can proceed.
 - [ ] **P1** — `shared/provenance.py`: projection document, two digests,
       `toolbox_identity()`, `environment_file_hashes()`,
       `append_journal_line()`. Blocks P2, P4, P5.
