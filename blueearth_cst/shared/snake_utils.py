@@ -735,6 +735,18 @@ def water_year_end_anchor(month: str) -> str:
     return f"YE-{_MONTH_ABBREVS[(index - 1) % 12].upper()}"
 
 
+#: The resample anchor for the DEFAULT water year — the fallback every annual
+#: reduction carries when a caller passes none. Derived, never written out, so
+#: it cannot drift from ``defaults.water_year_start``: it was literal
+#: ``"YE-DEC"`` in two modules until 2026-08-13, which is two declarations of
+#: "January" that nothing kept in step.
+#:
+#: Named for what it anchors. The bare ``DEFAULT_ANCHOR`` it replaces said
+#: neither *what* was anchored nor that the value is a pandas/xarray frequency
+#: alias, and it read as a generic knob at module scope.
+DEFAULT_WATER_YEAR_ANCHOR = water_year_end_anchor(DEFAULT_WATER_YEAR_START)
+
+
 def julia_prefix(threads=DEFAULT_JULIA_THREADS) -> str:
     """The ``julia ... `` prefix both Wflow-running rules share.
 

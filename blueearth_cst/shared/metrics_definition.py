@@ -14,12 +14,11 @@ default someone forgot.
 functions used before, so the default changes no recorded number.
 """
 
-#: A January water year: the calendar year, and what every recorded result used.
-DEFAULT_ANCHOR = "YE-DEC"
+from blueearth_cst.shared.snake_utils import DEFAULT_WATER_YEAR_ANCHOR
 
 
 ## High flows
-def Q7d_maxyear(df, anchor=DEFAULT_ANCHOR):
+def Q7d_maxyear(df, anchor=DEFAULT_WATER_YEAR_ANCHOR):
     return df.rolling(7).mean().resample(anchor).max().mean()
 
 
@@ -27,11 +26,11 @@ def Q7d_total(df):
     return df.rolling(7).mean()
 
 
-def highpulse(df, anchor=DEFAULT_ANCHOR):
+def highpulse(df, anchor=DEFAULT_WATER_YEAR_ANCHOR):
     return df[df > df.quantile(0.75)].resample(anchor).count().mean()
 
 
-def wetmonth_mean(df, anchor=DEFAULT_ANCHOR):
+def wetmonth_mean(df, anchor=DEFAULT_WATER_YEAR_ANCHOR):
     """Mean flow in the wettest month, averaged over years.
 
     Takes ``anchor`` for uniformity, but is water-year INVARIANT by
@@ -47,15 +46,15 @@ def wetmonth_mean(df, anchor=DEFAULT_ANCHOR):
 
 
 ## Low flows
-def Q7d_min(df, anchor=DEFAULT_ANCHOR):
+def Q7d_min(df, anchor=DEFAULT_WATER_YEAR_ANCHOR):
     return df.rolling(7).mean().resample(anchor).min().mean()
 
 
-def lowpulse(df, anchor=DEFAULT_ANCHOR):
+def lowpulse(df, anchor=DEFAULT_WATER_YEAR_ANCHOR):
     return df[df < df.quantile(0.25)].resample(anchor).count().mean()
 
 
-def drymonth_mean(df, anchor=DEFAULT_ANCHOR):
+def drymonth_mean(df, anchor=DEFAULT_WATER_YEAR_ANCHOR):
     """Mean flow in the drytest month, averaged over years.
 
     Takes ``anchor`` for uniformity, but is water-year INVARIANT by
@@ -70,7 +69,7 @@ def drymonth_mean(df, anchor=DEFAULT_ANCHOR):
     return df_drymonth.resample(anchor).mean().mean()
 
 
-def BFI(df, anchor=DEFAULT_ANCHOR):
+def BFI(df, anchor=DEFAULT_WATER_YEAR_ANCHOR):
     Q7d = df.rolling(7).mean().resample(anchor).min()
     annmean = df.resample(anchor).mean()
     return (Q7d / annmean).mean()
