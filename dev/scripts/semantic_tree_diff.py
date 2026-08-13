@@ -471,8 +471,16 @@ def build_project_tree_rules(
     ):
         same(f"experiments/{e}/{leaf}")
     for directory in (
+        # Still a prefix: it holds the GENERATED experiment catalog, and a
+        # project may also have copies here from before the R4 predicate.
         "config/catalogs/",
-        "config/runs/",
+        # `config/runs/` is GONE from this list (2026-08-13). WF3's record moved
+        # to `config/run_record.yml` above -- the experiment IS the partition, so
+        # it needs no per-workflow subdirectory -- and the bundles that were the
+        # directory's only other occupants are retired. Keeping the prefix would
+        # declare a directory nothing writes, which is how an orphan goes
+        # unreported: the retired bundle under it stayed GREEN while its WF1 and
+        # WF2 siblings correctly went red.
         "results/",
         "climate/weathergenr/",
         "hydrology/wflow/",
