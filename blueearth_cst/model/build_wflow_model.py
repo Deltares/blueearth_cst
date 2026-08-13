@@ -227,6 +227,37 @@ def _p1_source(maps: xr.Dataset, attr: str) -> str:
     return value
 
 
+def _p1_river_threshold(maps: xr.Dataset) -> float:
+    """The upstream-area threshold P1 actually delineated rivers with.
+
+    ``river_upa`` and ``shared.basin.river_uparea_km2`` were two live knobs for
+    one physical quantity: the first reached hydromt intact, the second drove
+    P1's delineation, and nothing coupled them. Both default to 32 km2, so they
+    agreed until a project moved one -- at which point the wflow river map and
+    the P1 river mask disagree about which cells are river, with nothing
+    reporting it.
+
+    Read off ``river_mask``'s own attribute (``spatial/hydrography.py``) rather
+    than from the config, for the same reason :func:`_p1_source` reads the
+    grid: what has to agree is the model and the DATA it is handed, not the
+    model and a config value that may have moved since the grid was built.
+    """
+    if "river_mask" not in maps:
+        raise ValueError(
+            "the P1 grid carries no 'river_mask'; blueearth-cst-spatial-v1 "
+            "guarantees it (blueearth_cst/spatial/hydrography.py). Rebuild the "
+            "spatial products rather than assuming a river threshold here."
+        )
+    value = maps["river_mask"].attrs.get("upstream_area_threshold_km2")
+    if value is None:
+        raise ValueError(
+            "the P1 grid's 'river_mask' carries no "
+            "'upstream_area_threshold_km2' attribute; rebuild the spatial "
+            "products rather than assuming a river threshold here."
+        )
+    return float(value)
+
+
 def _apply_parameter_steps(
     model: Any,
     steps: list[tuple[str, dict[str, Any]]],
@@ -239,9 +270,21 @@ def _apply_parameter_steps(
         if name == "setup_rivers":
             kwargs.pop("hydrography_fn", None)
             kwargs.pop("river_geom_fn", None)
+            # The threshold follows the grid, not the template -- see
+            # `_p1_river_threshold`. `river_upa` was removed from
+            # config/defaults/wflow_build_model.yml on 2026-08-13, so it is
+            # normally absent here; popping it keeps a project's own build
+            # config from reinstating the divergence.
+            kwargs.pop("river_upa", None)
+            # Read the threshold BEFORE assembling the hydrography: it is the
+            # cheap contract check, and evaluating it first means a grid
+            # missing the attribute fails with that as the reason rather than
+            # part-way through building a dataset it was never going to use.
+            river_upa = _p1_river_threshold(maps)
             model.setup_rivers(
                 hydrography_fn=_p1_hydrography(maps),
                 river_geom_fn=rivers,
+                river_upa=river_upa,
                 **kwargs,
             )
         elif name == "setup_lulcmaps":
@@ -264,6 +307,17 @@ def _apply_parameter_steps(
             if "month" in lai.dims:
                 lai = lai.rename(month="time")
             model.setup_laimaps(lai_fn=lai, **kwargs)
+        elif name == "setup_soilmaps":
+            # Unlike lulc and lai, hydromt reads the soil data itself from the
+            # catalog -- `soil_fn` is a SOURCE NAME, not a raster, so nothing
+            # is injected here. What is coupled is the name: P1 resamples
+            # `shared.basin.spatial_sources.soil` into the `soil_*` grid
+            # variables rule 1.12 plots, so leaving the template free to name a
+            # different source let the basin report describe one dataset while
+            # the model ran on another. Both defaulted to soilgrids, so the two
+            # agreed until a project changed one.
+            kwargs.pop("soil_fn", None)
+            model.setup_soilmaps(soil_fn=_p1_source(maps, "soil_source"), **kwargs)
         else:
             getattr(model, name)(**kwargs)
 

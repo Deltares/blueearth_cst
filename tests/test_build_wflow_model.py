@@ -31,13 +31,37 @@ def _no_rivers():
     return gpd.GeoDataFrame(geometry=[], crs=4326)
 
 
-def _p1_grid(lulc_source="vito"):
-    """A minimal P1 grid, with or without its stamped source attr."""
+def _p1_grid(lulc_source="vito", soil_source="soilgrids", river_upa=32.0):
+    """A minimal P1 grid, with or without its stamped source attrs.
+
+    ``river_upa=None`` omits the threshold attribute, and either source set to
+    ``None`` omits that attr -- the three ways a grid can violate
+    ``blueearth-cst-spatial-v1`` and so the three refusals worth pinning.
+    """
     coords = {"y": [1.5, 0.5], "x": [0.5, 1.5]}
     shape = (2, 2)
-    attrs = {} if lulc_source is None else {"lulc_source": lulc_source}
+    attrs = {}
+    if lulc_source is not None:
+        attrs["lulc_source"] = lulc_source
+    if soil_source is not None:
+        attrs["soil_source"] = soil_source
+    river_attrs = (
+        {} if river_upa is None else {"upstream_area_threshold_km2": river_upa}
+    )
     maps = xr.Dataset(
-        {"land_cover": (("y", "x"), np.ones(shape, dtype="int16"))},
+        {
+            "land_cover": (("y", "x"), np.ones(shape, dtype="int16")),
+            "river_mask": (
+                ("y", "x"),
+                np.ones(shape, dtype="uint8"),
+                river_attrs,
+            ),
+            # The four layers `_p1_hydrography` assembles for setup_rivers.
+            "flow_direction": (("y", "x"), np.ones(shape, dtype="uint8")),
+            "basin_id": (("y", "x"), np.ones(shape, dtype="int32")),
+            "upstream_area": (("y", "x"), np.ones(shape)),
+            "elevation": (("y", "x"), np.ones(shape)),
+        },
         coords=coords,
         attrs=attrs,
     )
@@ -146,9 +170,14 @@ def test_parameter_steps_use_p1_objects_and_keep_soil_catalog_owned():
                 ("month", "y", "x"),
                 np.ones((12, *shape), dtype="float32"),
             ),
+            "river_mask": (
+                ("y", "x"),
+                np.ones(shape, dtype="uint8"),
+                {"upstream_area_threshold_km2": 32.0},
+            ),
         },
         coords={**coords, "month": range(1, 13)},
-        attrs={"lulc_source": "vito"},
+        attrs={"lulc_source": "vito", "soil_source": "soilgrids"},
     )
     maps.raster.set_crs(4326)
     rivers = gpd.GeoDataFrame(geometry=[], crs=4326)
@@ -170,6 +199,7 @@ def test_parameter_steps_use_p1_objects_and_keep_soil_catalog_owned():
     assert isinstance(by_name["setup_lulcmaps"]["lulc_fn"], xr.DataArray)
     assert by_name["setup_lulcmaps"]["lulc_mapping_fn"] == "vito_mapping_default"
     assert isinstance(by_name["setup_laimaps"]["lai_fn"], xr.DataArray)
+    assert by_name["setup_rivers"]["river_upa"] == 32.0
     assert by_name["setup_soilmaps"] == {"soil_fn": "soilgrids"}
 
 
@@ -212,3 +242,75 @@ def test_a_P1_grid_without_its_source_attr_is_refused():
         _apply_parameter_steps(
             FakeModel(), [("setup_lulcmaps", {})], maps, _no_rivers()
         )
+
+
+def test_river_threshold_follows_P1_not_the_template():
+    """Defect H: one physical threshold, one owner.
+
+    `river_upa` reached hydromt intact while `shared.basin.river_uparea_km2`
+    drove P1's delineation, and nothing coupled them. Both default to 32, so a
+    project moving one got a wflow river map and a P1 river mask that disagree
+    about which cells are river -- with nothing reporting it.
+    """
+    calls: list[tuple[str, dict]] = []
+
+    class FakeModel:
+        def setup_rivers(self, **kwargs):
+            calls.append(("setup_rivers", kwargs))
+
+    maps = _p1_grid(river_upa=80.0)
+    # A template still naming the old 32 must NOT win.
+    _apply_parameter_steps(
+        FakeModel(), [("setup_rivers", {"river_upa": 32})], maps, _no_rivers()
+    )
+
+    assert dict(calls)["setup_rivers"]["river_upa"] == 80.0
+
+
+def test_soil_source_follows_P1_not_the_template():
+    """Defect H: the model and the basin report must describe one dataset.
+
+    hydromt reads the soil data itself, so `soil_fn` is a source NAME rather
+    than a raster -- but P1 resamples the same choice into the `soil_*` maps
+    rule 1.12 plots. Left free, the template could name a source the figures
+    never showed.
+    """
+    calls: list[tuple[str, dict]] = []
+
+    class FakeModel:
+        def setup_soilmaps(self, **kwargs):
+            calls.append(("setup_soilmaps", kwargs))
+
+    maps = _p1_grid(soil_source="soilgrids_2020")
+    _apply_parameter_steps(
+        FakeModel(), [("setup_soilmaps", {"soil_fn": "soilgrids"})], maps, _no_rivers()
+    )
+
+    assert dict(calls)["setup_soilmaps"]["soil_fn"] == "soilgrids_2020"
+
+
+def test_a_P1_grid_without_its_river_threshold_is_refused():
+    """Same discipline as the source attrs: refuse rather than assume 32."""
+
+    class FakeModel:
+        def setup_rivers(self, **kwargs):  # pragma: no cover - must not run
+            raise AssertionError("should have refused before calling the model")
+
+    maps = _p1_grid(river_upa=None)
+    with pytest.raises(ValueError, match="upstream_area_threshold_km2"):
+        _apply_parameter_steps(FakeModel(), [("setup_rivers", {})], maps, _no_rivers())
+
+
+def test_the_shipped_template_declares_neither_coupled_key():
+    """The loser must be ABSENT, not merely ignored.
+
+    A key that is popped and discarded still reads as a setting to whoever
+    edits the file -- the whole defect class this bundle closes.
+    """
+    template = (
+        Path(__file__).resolve().parents[1] / "config/defaults/wflow_build_model.yml"
+    )
+    text = template.read_text(encoding="utf-8")
+
+    for key in ("river_upa:", "soil_fn:", "lulc_fn:", "lai_fn:"):
+        assert key not in text, f"{key} is coupled to P1 and must not be declared"
