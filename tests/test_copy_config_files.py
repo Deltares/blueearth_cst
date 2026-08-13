@@ -495,6 +495,13 @@ def test_the_runs_bin_carries_its_own_readme(tmp_path, sources):
     # The two claims a reader would otherwise get wrong.
     assert "lower bound on invocations" in readme
     assert "scientific data identity" in readme
+    # The bin's SECOND trap, added 2026-08-13 after the owner hit it: the
+    # per-workflow filename reads as a per-workflow scope, and the file is the
+    # whole config. Asserted here because the mitigation for that confusion is
+    # this text and nothing else -- the filename itself cannot be fixed (the
+    # WF1 copy is a mandatory declared input of WF3's guard rule).
+    assert "not that workflow's section of it" in readme
+    assert "projection" in readme
 
 
 def test_the_runs_readme_is_refreshed_not_preserved(tmp_path, sources):
