@@ -4,7 +4,7 @@ type: todo-item
 area: config / cross-workflow
 origin: dual parameter review (2026-08-12)
 created: 2026-08-13
-updated: 2026-08-13  # 7 of 8 fixed; H part-done
+updated: 2026-08-13  # all 8 fixed
 ---
 
 > [!note] Overview
@@ -147,12 +147,19 @@ Ordered easiest and safest first; A and C are last because they change results.
       config omitting the key; needs its own gate.
 - [x] **H (lulc, lai)** — mapping table follows P1's source; both
       duplicated `*_fn` keys removed from the template (b31b9a3).
-- [ ] **H (soil, river_upa)** — decide who owns each spatial source, then make the loser
-      absent rather than ignored: delete `lai_fn`, couple `lulc_mapping_fn`
-      to the source P1 actually used (`maps.attrs['lulc_source']`), and
-      derive `river_upa` from `river_uparea_km2` or vice versa. Verify
-      `soil_fn` first. Value-changing only for a config that already
-      diverges — which is the bug; own gate, baseline check.
+- [x] **H (soil, river_upa)** — owner ruling 2026-08-13: the project-level key
+      owns both. `river_upa` now comes from `river_mask`'s own
+      `upstream_area_threshold_km2` attribute (the threshold P1 actually
+      delineated with), `soil_fn` from P1's `soil_source`; both deleted from
+      the template so the loser is ABSENT. Landed `1464868`.
+      **`soil_fn` was NOT the shape this note predicted** — hydromt reads the
+      soil data itself, so nothing is injected. The coupling matters for a
+      different reason: `_resample_source` namespaces every variable of
+      `spatial_sources.soil` with a `soil` prefix, producing the `soil_*` maps
+      **rule 1.12 plots**. A grep for the layer finds no reader and the figures
+      depend on it anyway. Left free, the template could name a source the
+      basin report never showed. Value-neutral on every shipped config
+      (32 == 32, soilgrids == soilgrids).
 - [x] **A** — align the two `wflow_outvars` defaults, or make WF3 refuse an
       empty set rather than emit nothing. Value-changing; own gate; add a test
       that a config omitting the key still produces indicator tables.
