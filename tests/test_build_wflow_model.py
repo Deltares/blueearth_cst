@@ -13,6 +13,8 @@ from shapely.geometry import Point
 from blueearth_cst.model.build_wflow_model import (
     _BASE_CONFIG,
     _apply_parameter_steps,
+    _record_kwargs,
+    _step_call_kwargs,
     _validate_registry,
     arcgis_d8_to_wflow_ldd,
     read_parameter_steps,
@@ -61,8 +63,12 @@ def _p1_grid(lulc_source="vito", soil_source="soilgrids", river_upa=32.0):
             "basin_id": (("y", "x"), np.ones(shape, dtype="int32")),
             "upstream_area": (("y", "x"), np.ones(shape)),
             "elevation": (("y", "x"), np.ones(shape)),
+            "leaf_area_index": (
+                ("month", "y", "x"),
+                np.ones((12, *shape), dtype="float32"),
+            ),
         },
-        coords=coords,
+        coords={**coords, "month": range(1, 13)},
         attrs=attrs,
     )
     maps.raster.set_crs(4326)
@@ -389,6 +395,32 @@ def test_the_record_is_yaml_serializable():
     dumped = yaml.safe_dump({name: kwargs for name, kwargs in records})
 
     assert "injected_from" in dumped
+
+
+def test_the_SHIPPED_template_produces_a_serializable_record():
+    """The fixture cannot reach this path, and safe_dump raises mid-build.
+
+    The record is written after the setup steps have already mutated the
+    model, so an unserializable value is not a bad record -- it is a crash
+    with a half-built model on disk. The shipped template's steps are the ones
+    that actually run, including `setup_constant_pars`' thirteen CSDMS-named
+    floats through the untouched `else` branch, so they are what must be
+    proven dumpable.
+    """
+    template = (
+        Path(__file__).resolve().parents[1] / "config/defaults/wflow_build_model.yml"
+    )
+    maps = _p1_grid()
+
+    records = [
+        (name, _record_kwargs(_step_call_kwargs(name, configured, maps, _no_rivers())))
+        for name, configured in read_parameter_steps(template)
+    ]
+
+    dumped = yaml.safe_dump([{name: kwargs} for name, kwargs in records])
+
+    assert "lulc_mapping_fn" in dumped
+    assert yaml.safe_load(dumped) is not None
 
 
 def test_the_shipped_template_declares_neither_coupled_key():
