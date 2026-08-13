@@ -24,11 +24,20 @@ from blueearth_cst.shared.snake_utils import log_row
 #: Repository root, three levels up from ``blueearth_cst/model/copy_config_files.py``.
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
-#: Dropped beside the run record, because this bin has one genuine trap.
+#: Dropped beside the run record, because this bin has two genuine traps.
 #:
 #: Everything here LOOKS like configuration and is not: it is written by the
 #: run, so an edit is silently overwritten the next time the workflow executes.
 #: Someone will eventually open the copy nearest the outputs and change it.
+#:
+#: And the per-workflow name promises a scope the content does not deliver --
+#: `snake_config_model_creation.yml` is the WHOLE config, so the two copies are
+#: byte-identical whenever both workflows ran under the same one. Measured
+#: 2026-08-13: the owner opened them, read the identical bytes as duplication,
+#: and asked. The `projection` field of `run_record.yml` is the scoped view;
+#: the copies keep whole-config content because their paths are
+#: baseline-fingerprinted AND the WF1 copy is a mandatory declared input of
+#: WF3's guard rule, so the name cannot be fixed by renaming the file.
 _RUNS_README = """\
 # What is in this directory
 
@@ -40,10 +49,27 @@ To change what a run does, edit the **source config** you pass to
 
 | File | What it is |
 |---|---|
-| `snake_config_<workflow>.yml` | verbatim copy of the config this run used |
+| `snake_config_<workflow>.yml` | the **whole** source config, copied verbatim -- see below |
 | `<workflow>/run_record.yml` | what the run resolved to: toolbox commit, environment hashes, the settings actually consumed, and the external inputs referenced |
 | `journal.jsonl` | append-only ledger, two lines per run (start and outcome) |
 | `invocations/` | one manifest per `scripts/run_workflows.py` invocation |
+
+## Why the `snake_config_<workflow>.yml` files look identical
+
+Each one is the **whole** source config, not that workflow's section of it. The
+per-workflow name records **which workflow last wrote the file**, not what is
+inside -- so all of them carry every section, including the two workflows' that
+did not write them.
+
+Byte-identical copies are therefore the healthy case: it means both workflows
+last ran under the same config. They diverge when one workflow has run since the
+config changed and the other has not, and that divergence is exactly what WF3's
+consistency guard reads to refuse an experiment whose model was built under
+different settings.
+
+For the settings a given workflow actually **consumed**, read the `projection`
+and `effective_config` fields of its `run_record.yml` -- that is the
+workflow-scoped view this file's name suggests but does not provide.
 
 ## Reading `run_record.yml`
 
