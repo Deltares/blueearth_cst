@@ -73,12 +73,18 @@ COVERED: dict[str, list[str]] = {
         # under `invocations/`, with no digest level -- so it carries its own
         # row (2026-08-11).
         "config/runs/invocations/20260811T142556.501Z-83c05db9c855.json",
-        "config/runs/model_creation/1a22a14838f3/effective.yml",
-        "config/runs/model_creation/1a22a14838f3/referenced-files.json",
-        "config/runs/model_creation/1a22a14838f3/source.yml",
-        "config/runs/model_creation/1a22a14838f3/.snakemake_timestamp",
-        "config/runs/model_creation/1a22a14838f3/files/catalogs/459d6135261e-deltares_data.yml",
-        "config/runs/climate_projections/61868971c618/effective.yml",
+        # The content-addressed bundles these replaced are GONE (2026-08-13):
+        # one record per workflow at an enumerated path, so there is no digest
+        # level left for a regex to match. A surviving bundle in an existing
+        # project now reports as undeclared -- which is the migration's signal,
+        # and dev/scripts/prune_config_snapshots.py is what clears it.
+        "config/runs/model_creation/run_record.yml",
+        "config/runs/climate_projections/run_record.yml",
+        # Written by the workflow's lifecycle handlers rather than by a rule,
+        # so the declared tier structurally cannot see it and the inventory
+        # whitelists it by hand.
+        "config/runs/journal.jsonl",
+        "config/runs/README.md",
         "config/catalogs/deltares_data.yml",
         "config/templates/wflow_build_model.yml",
         "config/observations/output_locations.csv",
@@ -145,6 +151,11 @@ COVERED: dict[str, list[str]] = {
         "models/hydrology/wflow/evaluation/plots/signatures_peaks_1010.png",
         "models/hydrology/wflow/evaluation/plots/signatures_lows_1010.png",
         "models/hydrology/wflow/evaluation/plots/performance_1010.png",
+        # The staleness sidecar (rule 1.15b) and the two values-used records
+        # (rules 1.07 and 1.08) -- see design §5.6 and §5.8.
+        "models/hydrology/wflow/evaluation/run_metadata.json",
+        "models/hydrology/wflow/hydromt_build_config.yml",
+        "models/hydrology/wflow/hydromt_update_waterbodies.yml",
     ],
     "experiments": [
         f"experiments/{E}/.project_consistency_ok",
@@ -152,7 +163,12 @@ COVERED: dict[str, list[str]] = {
         f"experiments/{E}/config/model_reference.yml",
         f"experiments/{E}/config/experiment.yml",
         f"experiments/{E}/config/catalogs/data_catalog_climate_experiment.yml",
-        f"experiments/{E}/config/runs/climate_experiment/278159763309/effective.yml",
+        # WF3's record sits DIRECTLY in the experiment's config bin, not under
+        # config/runs/ like WF1's and WF2's: per arch-10 the WF3 snapshot stays
+        # inside the experiment, which IS the partition here. It therefore has
+        # its own inventory row rather than riding the config/runs/ prefix.
+        f"experiments/{E}/config/run_record.yml",
+        f"experiments/{E}/results/run_metadata.json",
         # The experiment's own logs/ and benchmarks/ are GONE (2026-08-11) --
         # their rows moved to "root" above, and a file left at the old location
         # must now report UNMAPPED (see UNDECLARED below).
