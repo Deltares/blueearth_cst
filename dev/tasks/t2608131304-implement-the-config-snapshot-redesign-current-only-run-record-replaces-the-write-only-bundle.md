@@ -75,15 +75,31 @@ Sequencing and blocking edges are in `master.task.md`; this is the surface.
       params threading already covers — so R5's "record every invocation" is
       unmet exactly where it was needed. Awaiting an owner decision on the
       journal mechanism; P1–P3 are unaffected and can proceed.
-- [ ] **P1** — `shared/provenance.py`: projection document, two digests,
+- [x] **P1** — `shared/provenance.py`: projection document, two digests,
       `toolbox_identity()`, `environment_file_hashes()`,
-      `append_journal_line()`. Blocks P2, P4, P5.
-- [ ] **P2** — `copy_config_files.py`: bundle removed, `run_record.yml`,
-      R4 per-file predicate, collision refusal. Concurrent with P3.
-- [ ] **P3** — values-used records from rules 1.07 and 1.08. Concurrent with P2.
+      `append_journal_line()`. Landed `906bd69`.
+      `projection` defaults to `None` (whole config) rather than being
+      required: the two pre-existing callers acquire theirs in P2 and P4, and
+      each phase has to leave the tree working on its own. The default is the
+      safe direction — over-inclusive, so noisy rather than blind.
+- [x] **P2** — `copy_config_files.py`: bundle removed, `run_record.yml`,
+      R4 per-file predicate, collision refusal. Landed `4d4243a` + `3a1d270`.
+      **Carries P4's checklist item 1** (drop `CONFIG_SNAPSHOT_DIR` and the
+      `snapshot_bundle` output from all three Snakefiles), pulled forward on an
+      owner ruling — without it every workflow fails at its FIRST rule with
+      `MissingOutputException` for the whole time P4 stays blocked.
+- [ ] **P3** — values-used records from rules 1.07 and 1.08.
+      **HELD** — collides with defect H's remainder in `_apply_parameter_steps`
+      ([[t2608130215-fix-the-confirmed-config-defects-found-by-the-dual-parameter-review]]),
+      which needs the soil / `river_upa` ownership ruling first.
 - [ ] **P4** — Snakefile wiring: projections, parse-time digests, params
-      threading, hooks, rules `1.15b`/`3.16b`. Needs P0–P3.
-- [ ] **P5** — `Dockerfile` `.toolbox-commit` + `.gitignore`. Spans both lanes.
+      threading, hooks, rules `1.15b`/`3.16b`. Needs P3. Item 1 already landed
+      with P2; the hooks are now scoped by the narrowed R5 above.
+      **Until it lands, `run_record.yml` carries `projection: null`** — the
+      rules declare no `config_projection` param yet, so the record covers the
+      whole config. Over-inclusive, not wrong; not a bug to chase.
+- [x] **P5 (devmeta half)** — `.gitignore` entry for `.toolbox-commit`,
+      `e006e34`. The `Dockerfile` half stays open in `lane/pipeline`.
 - [ ] **P6** — cleanup tool + tree inventory + fixture. **Gate 2** before any
       `--delete`. Carries the program's one baseline check.
 - [ ] **P7** — `README.md` bundle section, new `config/runs/README.md`.
