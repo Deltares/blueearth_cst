@@ -4,7 +4,7 @@ type: todo-item
 area: config / cross-workflow
 origin: dual parameter review (2026-08-12)
 created: 2026-08-13
-updated: 2026-08-13
+updated: 2026-08-13  # 7 of 8 fixed; H part-done
 ---
 
 > [!note] Overview
@@ -129,29 +129,31 @@ session's own water-year work.
 
 Ordered easiest and safest first; A and C are last because they change results.
 
-- [ ] **G** — single-source `DEFAULT_ANCHOR` from
+- [x] **G** — single-source `DEFAULT_ANCHOR` from
       `water_year_end_anchor(DEFAULT_WATER_YEAR_START)`. Trivial,
       non-breaking, no value change.
-- [ ] **E, F** — remove the two required-but-unused reads. Non-breaking for
+- [x] **E, F** — remove the two required-but-unused reads. Non-breaking for
       behaviour; F additionally deletes the key (see M1 for its cost, incl.
       `tests/test_guard_invalidation.py:241`, which uses it as its
       `_WF1_GUARDED` example).
-- [ ] **D** — make the axis guard check sub-keys, or reject
+- [x] **D** — make the axis guard check sub-keys, or reject
       `temp.variance` explicitly. Decide first whether temperature variance
       *should* be supported; refusing it is honest, implementing it is a new
       stress dimension and out of scope here.
-- [ ] **B** — call `julia_prefix()` in rule 3.15. Confirm value-neutrality
+- [x] **B** — call `julia_prefix()` in rule 3.15. Confirm value-neutrality
       (threads 4 → 4) before landing, and check `test_julia_runtime.py`
       against the hardcoded version literal.
-- [ ] **C** — pick one canonical `resolution` default. Value-changing for any
+- [x] **C** — pick one canonical `resolution` default. Value-changing for any
       config omitting the key; needs its own gate.
-- [ ] **H** — decide who owns each spatial source, then make the loser
+- [x] **H (lulc, lai)** — mapping table follows P1's source; both
+      duplicated `*_fn` keys removed from the template (b31b9a3).
+- [ ] **H (soil, river_upa)** — decide who owns each spatial source, then make the loser
       absent rather than ignored: delete `lai_fn`, couple `lulc_mapping_fn`
       to the source P1 actually used (`maps.attrs['lulc_source']`), and
       derive `river_upa` from `river_uparea_km2` or vice versa. Verify
       `soil_fn` first. Value-changing only for a config that already
       diverges — which is the bug; own gate, baseline check.
-- [ ] **A** — align the two `wflow_outvars` defaults, or make WF3 refuse an
+- [x] **A** — align the two `wflow_outvars` defaults, or make WF3 refuse an
       empty set rather than emit nothing. Value-changing; own gate; add a test
       that a config omitting the key still produces indicator tables.
 
