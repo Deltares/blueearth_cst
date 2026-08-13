@@ -1,7 +1,7 @@
 ---
 title: Implement the config-snapshot redesign — current-only run record replaces the write-only bundle
 type: todo-item
-status: active
+status: active  # P0-P7 done; only P4's end-to-end rung outstanding
 effort: 2
 area: config / provenance
 origin: config-snapshot design review (2026-08-13)
@@ -106,18 +106,23 @@ Sequencing and blocking edges are in `master.task.md`; this is the surface.
       the brief excludes it from this phase's gate.
 - [x] **P7** — `README.md` + `AGENTS.md` `1baa472` (devmeta); the in-project
       `config/runs/README.md` writer `40c2b11` (pipeline).
-- [ ] **P6** — cleanup tool + tree inventory + fixture. **THE ONLY PHASE LEFT.**
-      Blocked on two things, both the owner's:
-      **Gate 2** (the one destructive action in this program — the dry-run
-      target list must be reviewed before any `--delete`), and the **primary
-      checkout**, since `tree-check` and `check_baseline.py` run against
-      `test_case/test_local` and AGENTS.md reserves pipeline runs for the
-      primary. Ordering inside the phase is load-bearing: clean the fixture
-      BEFORE rewriting the inventory tests, or the rewritten tests bake the
-      orphans in as expected state.
-      Also outstanding from P4: its rung-5 end-to-end
-      `scripts/run_workflows.py --config test_case/snake_config_rapid.yml`,
-      likewise a primary-checkout run.
+- [x] **P6** — cleanup tool + tree inventory + fixture. Landed `a0e6356`
+      (tool + inventory), `14d3cca` (tests), `4a4b0a5` (dead prefix).
+      **Gate 2 passed 2026-08-13**: the owner reviewed the dry-run list and
+      approved all 10 items, plus a one-off removal of a stale copy of a
+      shipped default.
+      Results, both recorded as the brief requires:
+      **`tree-check` 45 unmapped → `MAP CLEAN`, 0 unmapped.** Every one of the
+      45 was bundle content and nothing else, so the transition is exactly the
+      migration and not a coincidence.
+      **`check_baseline.py check` → `OK - 7 target(s) match manifest`.** The
+      falsifier for the design's no-re-record claim did not fire.
+      `pixi run test-fast` in the PRIMARY, against the cleaned fixture:
+      2119 passed, 0 failures.
+      The dry-run found one thing the design did not predict: the inventory
+      still declared `experiments/<id>/config/runs/`, so the experiment's
+      bundle stayed green while its WF1/WF2 siblings correctly went red. A
+      prefix that outlives its writer is how an orphan goes unreported.
 
 ## Before starting
 
