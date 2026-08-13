@@ -116,6 +116,14 @@ rejects `save_grids: true` and that rejection stands.
 - `upstream/fao:snakemake/Snakefile_climate_historical.smk`,
   `Snakefile_historical_hydrology.smk` — shape only.
 - `dev/roadmap.md` — "climate analysis subworkflow"; `dev/decisions/0006`.
-- Related: [[t2608131847-repair-and-extend-the-workflow-notebooks]] — do that
-  first; its config-surface read is effectively this item's input, and this
-  split adds a fourth notebook.
+- Related: t2608131847 — **done** (closed 2026-08-13, `ca4c9df` + `1958747`).
+  The three notebooks are the pattern a fourth follows: intro numbering what
+  the Snakefile does, the shipped rapid config printed and narrated block by
+  block, input-schema cells, a rule-by-rule table naming the config keys that
+  tune each rule, then results read rather than displayed. **The fourth
+  notebook is this item's obligation** — it was the one Progress line
+  t2608131847 could not discharge, and it is deferred here rather than left
+  open there. Keep the `rendered against <sha>` banner and the ordering links,
+  and add the new notebook to `docs/notebooks/README.md`; the re-render
+  counterweight is
+  [[t2608132100-re-render-the-workflow-notebooks-when-their-banner-sha-falls-behind]].
