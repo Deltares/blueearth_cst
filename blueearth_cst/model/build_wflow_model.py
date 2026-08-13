@@ -204,6 +204,29 @@ def _p1_hydrography(maps: xr.Dataset) -> xr.Dataset:
     return hydrography
 
 
+def _p1_source(maps: xr.Dataset, attr: str) -> str:
+    """The catalog source P1 actually used, off the grid it produced.
+
+    P1 stamps `lulc_source` / `lai_source` / `soil_source` / `river_source`
+    onto the merged grid (`spatial/products.py`), resolved from
+    `shared.basin.spatial_sources.*`. Reading them here is what keeps the
+    model's derived arguments tied to the data it is actually handed.
+
+    Raises rather than falling back to a literal: a silent default is how the
+    template's own copy of the source name came to override P1's in the first
+    place, and a grid without the attr violates the spatial contract.
+    """
+    value = maps.attrs.get(attr)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(
+            f"the P1 grid carries no {attr!r} attribute; "
+            "blueearth-cst-spatial-v1 guarantees it "
+            "(blueearth_cst/spatial/products.py). Rebuild the spatial products "
+            "rather than assuming a source name here."
+        )
+    return value
+
+
 def _apply_parameter_steps(
     model: Any,
     steps: list[tuple[str, dict[str, Any]]],
@@ -222,9 +245,14 @@ def _apply_parameter_steps(
                 **kwargs,
             )
         elif name == "setup_lulcmaps":
-            source_name = str(
-                kwargs.pop("lulc_fn", maps.attrs.get("lulc_source", "vito"))
-            )
+            # The mapping table must name the source the RASTER actually came
+            # from, and that is P1's -- `maps["land_cover"]` below. Until
+            # 2026-08-13 the source name was taken from the template's
+            # `lulc_fn` instead, so `shared.basin.spatial_sources.lulc: corine`
+            # produced CORINE land cover interpreted through
+            # `vito_mapping_default`. Wrong numbers, not a missing setting.
+            source_name = _p1_source(maps, "lulc_source")
+            kwargs.pop("lulc_fn", None)
             kwargs.setdefault("lulc_mapping_fn", f"{source_name}_mapping_default")
             model.setup_lulcmaps(
                 lulc_fn=maps["land_cover"].rename("landuse"),

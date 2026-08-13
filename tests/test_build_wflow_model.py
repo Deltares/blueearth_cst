@@ -27,6 +27,24 @@ def _template(path: Path, steps: list[dict]) -> Path:
     return path
 
 
+def _no_rivers():
+    return gpd.GeoDataFrame(geometry=[], crs=4326)
+
+
+def _p1_grid(lulc_source="vito"):
+    """A minimal P1 grid, with or without its stamped source attr."""
+    coords = {"y": [1.5, 0.5], "x": [0.5, 1.5]}
+    shape = (2, 2)
+    attrs = {} if lulc_source is None else {"lulc_source": lulc_source}
+    maps = xr.Dataset(
+        {"land_cover": (("y", "x"), np.ones(shape, dtype="int16"))},
+        coords=coords,
+        attrs=attrs,
+    )
+    maps.raster.set_crs(4326)
+    return maps
+
+
 def test_parameter_template_rejects_setup_basemaps(tmp_path):
     path = _template(tmp_path / "build.yml", [{"setup_basemaps": {}}])
 
@@ -153,3 +171,44 @@ def test_parameter_steps_use_p1_objects_and_keep_soil_catalog_owned():
     assert by_name["setup_lulcmaps"]["lulc_mapping_fn"] == "vito_mapping_default"
     assert isinstance(by_name["setup_laimaps"]["lai_fn"], xr.DataArray)
     assert by_name["setup_soilmaps"] == {"soil_fn": "soilgrids"}
+
+
+def test_lulc_mapping_follows_P1_not_the_template():
+    """Defect H: the mapping table must name the source the RASTER came from.
+
+    Until 2026-08-13 the source name was taken from the template's `lulc_fn`,
+    while the raster came from P1 — so a project selecting `corine` got CORINE
+    land cover interpreted through `vito_mapping_default`. Wrong numbers, not a
+    missing setting, which is why this is pinned rather than left to the
+    template's absence.
+    """
+    calls: list[tuple[str, dict]] = []
+
+    class FakeModel:
+        def setup_lulcmaps(self, **kwargs):
+            calls.append(("setup_lulcmaps", kwargs))
+
+    maps = _p1_grid(lulc_source="corine")
+    # A stale template still naming vito must NOT win.
+    _apply_parameter_steps(
+        FakeModel(), [("setup_lulcmaps", {"lulc_fn": "vito"})], maps, _no_rivers()
+    )
+    assert dict(calls)["setup_lulcmaps"]["lulc_mapping_fn"] == "corine_mapping_default"
+
+
+def test_a_P1_grid_without_its_source_attr_is_refused():
+    """A silent literal fallback is how the template's copy came to win.
+
+    `blueearth-cst-spatial-v1` guarantees the attr, so its absence is a
+    contract violation worth a loud failure rather than a guess at "vito".
+    """
+
+    class FakeModel:
+        def setup_lulcmaps(self, **kwargs):  # pragma: no cover - must not run
+            raise AssertionError("should have refused before calling the model")
+
+    maps = _p1_grid(lulc_source=None)
+    with pytest.raises(ValueError, match="lulc_source"):
+        _apply_parameter_steps(
+            FakeModel(), [("setup_lulcmaps", {})], maps, _no_rivers()
+        )
