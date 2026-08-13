@@ -357,7 +357,28 @@ def build_project_tree_rules(
     # R9 map has carried the equivalent row since 2026-08-05; this is the
     # mirror that was never made.
     same("config/runs/invocations/")
-    same_rx(r"config/runs/[a-z_]+/[0-9a-f]{8,}/.*")
+    # The content-addressed bundles are GONE (config-snapshot redesign,
+    # 2026-08-13); the regex that matched
+    # `config/runs/<workflow>/<digest>/...` went with them, so a surviving
+    # bundle in an existing project now reports as undeclared. That is the
+    # migration's own signal, and `dev/scripts/prune_config_snapshots.py` is
+    # what clears it.
+    #
+    # What replaces them is ONE record per workflow, at an enumerated path --
+    # no digest level, so nothing needs a regex.
+    same("config/runs/model_creation/run_record.yml")
+    same("config/runs/climate_projections/run_record.yml")
+    # The run journal. An UNDECLARED SIDE EFFECT and the only one in this tree:
+    # it is written by the workflow's lifecycle handlers, not by a rule, so the
+    # declared tier cannot see it and it has to be whitelisted here by hand. It
+    # is deliberately not a rule output -- Snakemake deletes those before a job
+    # runs, which would truncate the ledger to one line every time.
+    same("config/runs/journal.jsonl")
+    # The bin's own README, rewritten by rule X.01 on every run.
+    same("config/runs/README.md")
+    # Both still receive copies, but only of files the toolbox repository
+    # cannot give back: a tracked, unmodified catalog or template is recorded
+    # by git blob id instead. In a normal checkout these are usually EMPTY.
     same("config/catalogs/")
     same("config/templates/")
     same("config/observations/")
@@ -410,6 +431,15 @@ def build_project_tree_rules(
         # that map already made for `.model_final`.
         "config/climate_store_catalog.yml",
         "forcing/inmaps_historical.nc",
+        # The values hydromt was ACTUALLY handed, from rules 1.07 and 1.08
+        # (config-snapshot redesign §5.6). Not copies of the build templates:
+        # arguments are replaced with the P1 spatial products and some are
+        # derived at call time, so these record what the template cannot.
+        # Enumerated leaves for the same reason as the store catalog above --
+        # the model root holds a fixed set, so a genuinely new file here
+        # should still report.
+        "hydromt_build_config.yml",
+        "hydromt_update_waterbodies.yml",
     ):
         same(f"{wflow}/{leaf}")
     for directory in (
@@ -432,6 +462,12 @@ def build_project_tree_rules(
         # R11 P2 C23: the stress-test design table, beside the config snapshot
         # whose settings produced it.
         "config/stress_test_design.csv",
+        # WF3's run record. It sits DIRECTLY in the experiment's config bin,
+        # not under `config/runs/` like WF1's and WF2's: per arch-10 the WF3
+        # snapshot stays inside the experiment, which IS the partition here.
+        # So it needs its own row and cannot ride the `config/runs/` prefix
+        # below.
+        "config/run_record.yml",
     ):
         same(f"experiments/{e}/{leaf}")
     for directory in (
