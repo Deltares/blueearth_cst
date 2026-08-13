@@ -11,7 +11,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(workflow.basedir)))
 from blueearth_cst.experiment.allocate import resolve_default_experiment_name
 from blueearth_cst.shared.indicator_tables import indicator_tables, refuse_retired_experiment_keys
-from blueearth_cst.shared.provenance import short_digest, snapshot_bundle_digest
 from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_rule, DEFAULT_JULIA_THREADS, DEFAULT_WFLOW_OUTVARS, file_digest_or_absent, get_config, julia_prefix, index_width, member_index_regex, patch_psutil_windows_benchmark, project_slug, region_rule, rule_banner, spatial_units_rule, resolve_seed, resolve_water_year_start, stress_test_grid, validate_spell_factor, target_banner, validate_experiment_name, warn_if_project_dir_in_repo
 from blueearth_cst.spatial.config import parse_spatial_config
 
@@ -268,28 +267,13 @@ basin_dir = f"{project_dir}/models/hydrology/wflow"
 exp_dir = f"{project_dir}/experiments/{experiment}"
 
 
-def _snapshot_reference(kind, identifier):
-    """Describe a local file or logical catalog identifier for provenance."""
-    source = str(identifier)
-    reference = {"kind": kind, "identifier": source}
-    if Path(source).is_file():
-        reference["path"] = source
-    return reference
-
-
-_catalogs = DATA_SOURCES if isinstance(DATA_SOURCES, (list, tuple)) else [DATA_SOURCES]
-_config_snapshot_references = [
-    _snapshot_reference("catalogs", source) for source in _catalogs
-]
-CONFIG_SNAPSHOT_DIGEST = snapshot_bundle_digest(
-    config,
-    ADVANCED_SETTINGS,
-    config_path,
-    _config_snapshot_references,
-)
-CONFIG_SNAPSHOT_DIR = (
-    f"{exp_dir}/config/runs/climate_experiment/{short_digest(CONFIG_SNAPSHOT_DIGEST)}"
-)
+# The content-addressed config bundle was removed here (config-snapshot
+# redesign, 2026-08-13) -- no readers, and a digest over the whole config, so
+# any other workflow's edit minted a fresh directory. `run_record.yml` replaces
+# it. It sits directly in the experiment's own config bin rather than under a
+# `runs/` sub-bin: per arch-10 the WF3 snapshot stays inside the experiment,
+# which IS the partition here (R2).
+RUN_RECORD = f"{exp_dir}/config/run_record.yml"
 
 # --- The two symmetric engine subtrees inside the experiment ------------------
 # CURRENT SHAPE. Each engine owns its own config, working and product
@@ -581,7 +565,7 @@ rule snapshot_config:
         advanced_settings = ADVANCED_SETTINGS,
     output:
         config_snake_out = f"{exp_dir}/config/snake_config_climate_experiment.yml",
-        snapshot_bundle = directory(CONFIG_SNAPSHOT_DIR),
+        run_record = RUN_RECORD,
     script:
         "blueearth_cst/model/copy_config_files.py"
 

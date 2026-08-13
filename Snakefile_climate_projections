@@ -13,7 +13,7 @@ from snakemake.exceptions import WorkflowError
 # directory by prepending this Snakefile's own directory to sys.path.
 # See dev/milestones/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
-from blueearth_cst.shared.provenance import effective_config_digest, short_digest, snapshot_bundle_digest
+from blueearth_cst.shared.provenance import effective_config_digest
 from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, get_config, patch_psutil_windows_benchmark, region_rule, resolve_water_year_start, rule_banner, spatial_units_rule, target_banner, warn_if_project_dir_in_repo
 from blueearth_cst.spatial.config import parse_spatial_config
 from blueearth_cst.projections.gridded_outputs import RemovedGriddedOutputsError, validate_removed_gridded_options
@@ -38,29 +38,12 @@ warn_if_project_dir_in_repo(project_dir, workflow.basedir)
 DATA_SOURCES = get_config(project_cfg, "data_sources_climate", optional=False)
 
 
-def _snapshot_reference(kind, identifier):
-    """Describe a local file or logical catalog identifier for provenance."""
-    source = str(identifier)
-    reference = {"kind": kind, "identifier": source}
-    if Path(source).is_file():
-        reference["path"] = source
-    return reference
-
-
-_catalogs = DATA_SOURCES if isinstance(DATA_SOURCES, (list, tuple)) else [DATA_SOURCES]
-_config_snapshot_references = [
-    _snapshot_reference("catalogs", source) for source in _catalogs
-]
-CONFIG_SNAPSHOT_DIGEST = snapshot_bundle_digest(
-    config,
-    ADVANCED_SETTINGS,
-    config_path,
-    _config_snapshot_references,
-)
+# The content-addressed config bundle was removed here (config-snapshot
+# redesign, 2026-08-13) -- no readers, and a digest over the whole config, so
+# any other workflow's edit minted a fresh directory. `run_record.yml` replaces
+# it: current-only and one per workflow.
 EFFECTIVE_CONFIG_DIGEST = effective_config_digest(config, ADVANCED_SETTINGS)
-CONFIG_SNAPSHOT_DIR = (
-    f"{project_dir}/config/runs/climate_projections/{short_digest(CONFIG_SNAPSHOT_DIGEST)}"
-)
+RUN_RECORD = f"{project_dir}/config/runs/climate_projections/run_record.yml"
 
 # The region delineation reads project.data_sources (deltares), NOT the CMIP6
 # catalog above: delineating a basin is a hydrography read, not a projections
@@ -749,7 +732,7 @@ rule snapshot_config:
         advanced_settings = ADVANCED_SETTINGS,
     output:
         config_snake_out = f"{project_dir}/config/runs/snake_config_climate_projections.yml",
-        snapshot_bundle = directory(CONFIG_SNAPSHOT_DIR),
+        run_record = RUN_RECORD,
     script:
         "blueearth_cst/model/copy_config_files.py"
 
