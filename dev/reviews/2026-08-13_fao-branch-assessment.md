@@ -1,6 +1,7 @@
 # Assessment — the upstream `fao` branch (Deltares/blueearth_cst)
 
-*Written 2026-08-13. Read-only assessment; no code changed.*
+*Written 2026-08-13. Read-only assessment; no code changed. Two owner rulings
+taken the same day are recorded inline at §3 and §6.3.*
 
 **Question asked:** the `fao` branch extends the workflow set and splits model
 creation into historical climate + historical hydrology. That is the direction
@@ -10,12 +11,16 @@ we want. What is worth learning or reusing, especially from
 **Short answer.** The *shape* is worth adopting and is cheaper than it looks —
 main is already most of the way to the climate/hydrology split. The *code* is
 largely not portable: `fao` is pinned to hydromt 0.9–0.10, hydromt_wflow 0.6 and
-Wflow.jl v0, and main is on v1 of all three. The single largest thing on `fao`
-that main does not have in any form is the **delta-change future-hydrology
-workflow**, and adopting it requires an explicit method ruling first, because it
-is top-down impact modelling in a repo whose stated method is bottom-up. The
-notebooks are the strongest documentation artifact on either branch and main's
-three equivalents are currently broken.
+Wflow.jl v0, and main is on v1 of all three. The largest thing on `fao` that main
+lacks entirely — the **delta-change future-hydrology workflow** — has been
+**declined** (§3): it is top-down impact modelling in a repo whose method is
+bottom-up. What is adopted is the workflow split, the forcing-selection layer
+around it, and the notebook pattern; main's three notebooks are currently broken
+and are the cheapest place to start.
+
+**Rulings taken 2026-08-13** — §3 delta-change arm: *not adopted, stay strictly
+bottom-up*. §6.3 notebook rot control: *commit outputs with a dated
+"rendered against `<sha>`" banner*.
 
 ---
 
@@ -77,7 +82,21 @@ climate plots outright in favour of the canonical climate figure set. So the
 `mod.forcing.data` coupling the roadmap item worried about is gone, and nothing
 in that entry now argues against the split.
 
-## 3. The method boundary — read before recommending the delta-change workflow
+## 3. The method boundary — RULED: stay strictly bottom-up
+
+> **Owner ruling, 2026-08-13 — the delta-change hydrology workflow is NOT
+> adopted.** CST stays strictly bottom-up: WF2 remains a plausibility overlay,
+> and no top-down GCM-scenario impact arm is added. `AGENTS.md` § Background
+> stands unchanged and needs no amendment.
+>
+> Consequences: harvest items **9, 10 and 11 are closed as not-adopted**, the
+> S8-08c gridded-branch removal (§5.2) **stands** and `save_grids: true` keeps
+> raising, and `run_wflow_change_factors.jl` is not rewritten. §4.1 and §5.2 are
+> kept as the record of what was assessed and why it was declined — not as
+> pending work.
+
+The reasoning behind the ruling, kept because a future reader will re-encounter
+`fao` and ask the same question:
 
 `AGENTS.md` § Background states that CST is bottom-up (decision-scaling / DMDU),
 that stress-test scenarios come from the weather generator, and that CMIP6 output
@@ -87,19 +106,15 @@ is *"a plausibility overlay only … never drive a stress-test run."*
 modelling**. It runs Wflow under GCM×SSP×horizon change factors and reports
 projected change. That is structurally the thing the framing excludes.
 
-This is not a reason to reject it — a delta-change arm is a standard CRIDA /
-Decision Tree Framework companion, and it answers a question stakeholders always
-ask ("what do the models say for my basin?"). But adopting it requires an
-explicit ruling with a stated non-coupling rule:
-
-> A delta-change hydrology workflow is a **parallel fourth workflow**. It
-> consumes WF2's gridded change factors and emits its own impact products. It
-> never feeds WF3's perturbation grid, and no stress-test result is conditioned
-> on it.
-
-Without that sentence written down, the two arms will drift into each other the
-first time someone wants "the plausible corner of the response surface", and the
-repo's own method section will contradict its own DAG.
+The case *for* adopting it was that a delta-change arm is a standard CRIDA /
+Decision Tree Framework companion and answers a question stakeholders always ask
+("what do the models say for my basin?"). The case against, which won: it would
+have to be walled off by an explicit non-coupling rule, and a wall is only as
+good as the discipline maintaining it. The two arms drift into each other the
+first time someone wants "the plausible corner of the response surface" — at
+which point the repo's method section contradicts its own DAG. Declining is the
+cheaper way to keep that from happening, and it costs no capability the
+stress test itself needs.
 
 ## 4. Portability — the stack gap is real and verified
 
@@ -174,12 +189,12 @@ survive any reimplementation:
 | 3 | Station-observation climate evaluation | `sample_climate_historical.py`, `plot_climate_location.py`, `plot_climate_basin.py` | ports (xarray/pandas) | absent — no `climate_locations` surface | **Yes** |
 | 4 | SPI, dry-days, heat-days, frost-days | `plot_scalar_climate.py` (816 ln) | ports | **absent** (verified: no `spi` in `blueearth_cst/`) | Yes, selectively |
 | 5 | Budyko screening | `plot_utils/plot_budyko.py` (239 ln) | idea only (uses `hydromt.flw`, v0 `WflowModel`) | **absent** (no `budyko`, no `aridity`) | **Yes** — cheap, high diagnostic value |
-| 6 | MODIS snow-cover validation | `plot_results_grid.py`, `observations_snow:` | idea only | **absent** (`modis` in main is LAI only) | Defer |
+| 6 | MODIS snow-cover validation | `plot_results_grid.py`, `observations_snow:` | idea only | **absent** (`modis` in main is LAI only) | Defer — no ruling needed |
 | 7 | Statistics heatmap tables | `plot_utils/plot_table_statistics.py` (293 ln) | **ports cleanly** — pure pandas/seaborn | absent as a heatmap; `shared/indicator_tables.py` is a different thing | **Yes** — cheapest useful win |
-| 8 | Change-statistics engine | `compute_change_statistics.py` (662 ln) | ports partially (needs `wflow_utils`, xclim) | absent (WF3 has its own indicator path) | With #10 |
-| 9 | Gridded monthly change factors | `save_grids: TRUE` branch in WF2 | **n/a — see §5.2** | main **had** this and removed it by owner ruling; `save_grids: true` now raises | Revisit the ruling, don't port |
-| 10 | Delta-change hydrology workflow | `Snakefile_future_hydrology_delta_change` + `run_wflow_change_factors.jl` | **idea only** (§4.1) | absent | **Only after the §3 ruling** |
-| 11 | near→far state chaining | `setup_toml_far` | design | n/a | Yes, with #10 |
+| 8 | Change-statistics engine | `compute_change_statistics.py` (662 ln) | ports partially (needs `wflow_utils`, xclim) | absent (WF3 has its own indicator path) | **No** — its consumer was #10 |
+| 9 | Gridded monthly change factors | `save_grids: TRUE` branch in WF2 | n/a — see §5.2 | main **had** this and removed it by ruling; `save_grids: true` raises | **No** — ruled §3; S8-08c stands |
+| 10 | Delta-change hydrology workflow | `Snakefile_future_hydrology_delta_change` + `run_wflow_change_factors.jl` | idea only (§4.1) | absent | **No** — ruled §3 |
+| 11 | near→far state chaining | `setup_toml_far` | design | n/a | **No** — falls with #10, but see §4.2 |
 | 12 | Notebook set | `docs/notebooks/` ×5 | design + prose | 3 broken notebooks (§6) | **Yes** — see §6 |
 | 13 | Dry-month change-factor handling | `change_drymonth_threshold` / `_maxchange` (cap) | — | `projections/dry_month.py` (flag + NaN + status) | **No** — ours is better; see §5.2 |
 | 14 | Return-period metrics | `metrics_definition.returninterval*` | — | `frequency_analysis` already in `export_wflow_results.py`; `metrics_definition.py` has the pulse/7-day family with a **water-year anchor** `fao` lacks | **No** |
@@ -299,7 +314,14 @@ of the same pattern, without the results half. Verified defects:
 So this is not "adopt a new pattern" — it is "the pattern is already here,
 half-built and rotted". That reframes the cost.
 
-### 6.3 The cost to adopt, stated honestly — and one owner decision
+### 6.3 The cost to adopt — RULED: option C
+
+> **Owner ruling, 2026-08-13 — rot control is option C below.** Notebooks commit
+> their rendered outputs and carry a dated **"rendered against `<sha>`"** banner,
+> with a periodic re-render as a board item. Staleness is made visible rather
+> than prevented, which is the trade that fits a repo whose pipeline runs locally.
+
+The options as assessed:
 
 `fao`'s five notebooks total **15.6 MB** with outputs committed (largest: 6.4 MB).
 They also hardcode `os.chdir(r'c:\repos\blueearth_cst')`, and nothing executes
@@ -351,32 +373,34 @@ not carry them across:
 
 ## 8. Recommendation
 
-Sequenced so each step is independently useful and nothing is blocked on the
-method ruling except the thing that needs it.
+With the §3 ruling taken, the expensive branch is closed and what remains is
+three items, sequenced so each is independently useful.
 
-1. **Fix and extend the notebooks** (`docs/**`, this lane). Repair the three
-   broken ones against the current tree, adopt `fao`'s structure — config-first
-   `%%writefile`, input-schema cells, rule-by-rule narrative naming config keys,
-   results-with-interpretation, forward links — and pick a rot-control option
-   from §6.3. Independent of every other item, immediately visible, and it forces
-   a read of the current config surface that will inform items 2–3.
-2. **Split `Snakefile_climate_historical` out of WF1.** Cheap per §2.1; delivers
-   the direction asked about. Fold in items 2, 3 and 5 from the harvest table
-   (multi-forcing runs, station-observation evaluation, Budyko) as the new
-   workflow's evaluation layer — they are one capability, not three.
-3. **Port `plot_table_statistics.py`** (harvest #7). Pure pandas/seaborn, drops
-   in, and the heatmap is useful to WF2 and WF3 immediately.
-4. **Get the §3 method ruling.** If it is yes, the delta-change arm follows as a
-   parallel fourth workflow with the non-coupling rule written into `AGENTS.md`
-   § Background — and its first step is **revisiting the S8-08c ruling** (§5.2),
-   because the gridded change factors it needs were removed for want of exactly
-   this consumer. Budget the Julia driver as a **rewrite** against Wflow v1, and
-   the gridded branch as a **revert-and-adapt** from `fb0186c^`, not a port from
-   `fao`. This is the only expensive item on the list; the ruling is what decides
-   whether it is worth starting.
+1. **Fix and extend the notebooks** (`docs/**`, `lane/devmeta`). Repair the three
+   broken ones against the current tree (§6.2), then adopt `fao`'s structure —
+   config-first `%%writefile` pointed at a real seed config, input-schema cells,
+   rule-by-rule narrative naming the config keys that tune each rule,
+   results-with-interpretation, forward links — under §6.3's ruling: outputs
+   committed, dated `rendered against <sha>` banner, re-render as a board item.
+   Independent of everything else, immediately visible, and it forces a read of
+   the current config surface that will inform item 2.
+2. **Split `Snakefile_climate_historical` out of WF1** (`lane/pipeline`). Cheap
+   per §2.1; this is the direction the assessment was asked about. Fold harvest
+   items 2, 3 and 5 (multi-forcing runs, station-observation evaluation, Budyko)
+   into the new workflow's evaluation layer — per §5.1 they are one capability,
+   not three, and together they answer *which forcing dataset should this basin
+   use?*, which an uncalibrated rapid assessment has no other support for.
+3. **Port `plot_table_statistics.py`** (harvest #7, `lane/pipeline`). Pure
+   pandas/seaborn, drops in, and the heatmap is useful to WF2 and WF3 whether or
+   not item 2 has landed.
 
-**Recommended starting point: 1**, because it is in this lane's territory, costs
-least, and its output is the specification for 2.
+**Recommended starting point: 1** — this lane's territory, lowest cost, and its
+output is effectively the specification for 2. Item 2 is the substantial one and
+deserves a design pass before implementation.
+
+Harvest #4 (SPI / dry-day / heat-day indices) and #6 (MODIS snow cover) are
+genuine gaps that no ruling closes; they are cheap follow-ons to item 2 rather
+than items in their own right.
 
 ## Refs
 
