@@ -111,6 +111,23 @@ if ("id" %in% names(obs_grid_basin)) {
   obs_grid_basin$id <- seq_len(nrow(obs_grid_basin))
 }
 
+# Assert the contract the renumbering above exists to hold: the grid describes
+# exactly the cells in the data list, in the same order. weathergenr states this
+# only as a downstream failure -- "'grid_ids' must match names or indices of
+# obs_data" -- raised deep inside the evaluation pass, AFTER ~54 seconds of
+# generation, with nothing naming the subset as the cause. Checking it here
+# costs nothing and fails at the point the mistake is made.
+if (nrow(obs_grid_basin) != length(obs_data_basin)) {
+  stop("basin subset is inconsistent: ", nrow(obs_grid_basin),
+       " grid rows vs ", length(obs_data_basin), " data cells")
+}
+if ("id" %in% names(obs_grid_basin) &&
+    !identical(as.integer(obs_grid_basin$id), seq_along(obs_data_basin))) {
+  stop("basin subset grid ids do not index its data list: ids are ",
+       paste(utils::head(obs_grid_basin$id, 5), collapse = ", "),
+       " for ", length(obs_data_basin), " cells")
+}
+
 # Step 2) Generate new weather realizations
 message("[generate_weather] Generating ", historical_realizations_num,
         " weather realization(s)")
