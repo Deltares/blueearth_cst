@@ -755,26 +755,39 @@ rule run_wflow:
         #   running 1e-5..1e-1 is ~3 significant figures, which is coarser than
         #   the drift the tolerance comparator exists to catch.
         csv_path = temp(f"{basin_dir}/run_default/output.csv"),
-        # Wflow's own log, DECLARED so it can be temp()'d away. Wflow has no
-        # switch to disable file logging -- `[logging]` offers only `silent`
-        # (terminal), `loglevel` and `path_log` (where), and the file write is
-        # part of `Wflow.run(tomlpath)` -- so removing it is the only option,
-        # and declaring it beats deleting it in the shell: Snakemake drops a
-        # temp() output on success and KEEPS it when the job fails, which is
-        # the only run whose log anyone reads.
+        # Wflow's own log. DECLARED but no longer temp(): it is now the ONLY
+        # copy of Wflow's records.
         #
-        # Safe to discard here because it is a duplicate: the built TOML sets
-        # `loglevel = "info"`, at which Wflow sends the same records to the
-        # terminal and the file, and run_logged.py already captures the
-        # terminal into logs/wf1_model_creation.log.
+        # It was temp()'d from 2026-08-10 on the explicit ground that it was a
+        # DUPLICATE -- the built TOML set `loglevel = "info"`, at which Wflow
+        # sends the same records to the terminal and the file, and
+        # run_logged.py captured the terminal into logs/wf1_model_creation.log.
+        # `_BASE_CONFIG` now also sets `[logging] silent = true`, which turns
+        # off the terminal half to stop Julia's box-drawing blocks from
+        # swamping the console. That removes the duplication the temp()
+        # depended on, so keeping it would delete Wflow's log outright on every
+        # successful run.
         #
-        # This does NOT generalize to wf3. There, `logging.path_log` is keyed
+        # This is the earlier ruling's own premise changing, not a reversal of
+        # it: the ruling was "discard the copy", and after `silent` there is no
+        # copy to discard. Relying on "Snakemake keeps a temp() output when the
+        # job fails" instead was considered and rejected -- that would make the
+        # log's survival depend on failure semantics for the one artifact you
+        # need when diagnosing one.
+        #
+        # `run_default/log.txt` is already excluded by name from the tree
+        # inventory and the baseline comparator (semantic_tree_diff
+        # `_is_excluded`), as timestamp-laden and never value-comparable, so
+        # its reappearance moves no gate.
+        #
+        # wf3 was never affected either way: there `logging.path_log` is keyed
         # PER MEMBER (downscale_climate_forcing.py) because rule 3.15 batches
         # members concurrently onto one model directory; dropping that keying
         # put twelve members on one path, each truncating it, and destroyed
         # eleven logs (R9 P2, measured 2026-08-05). Those files are the
-        # attribution mechanism, not redundant output.
-        wflow_log = temp(f"{basin_dir}/run_default/log.txt"),
+        # attribution mechanism, and `silent` is what makes them the only
+        # readable record of a batched run.
+        wflow_log = f"{basin_dir}/run_default/log.txt",
     params:
         toml_path = f"{basin_dir}/wflow_sbm.toml"
     log:

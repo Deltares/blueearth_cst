@@ -7,3 +7,15 @@
 # debug *why* a job re-ran. The `Job N:` banner and progress line are kept.
 quiet:
   - reason
+
+# show-failed-logs: true — print the failing job's log file CONTENT, not just
+# its path. Snakemake's default on failure is "check log file(s) for error
+# details" and nothing more, which is one manual `cat` away from the answer
+# every single time.
+#
+# It shows the right file here because both logging paths write to the path
+# Snakemake would name: `shell:` rules go through run_logged.py "{log}", and
+# `script:` rules through tee_to_log(snakemake.log[0]). A rule whose real
+# diagnostics went somewhere other than its declared `log:` would print an
+# empty or misleading block instead — none currently does.
+show-failed-logs: true

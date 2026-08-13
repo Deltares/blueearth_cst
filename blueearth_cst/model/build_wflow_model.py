@@ -20,7 +20,42 @@ _BASE_CONFIG = {
         "subbasin_location__count": "subcatchment",
         "river_location__mask": "river_mask",
         "static": {"land_surface__slope": "land_slope"},
-    }
+    },
+    # Wflow logs to the terminal AND to a file by default. `silent` turns off
+    # only the TERMINAL half; `path_log` still receives every record at
+    # `loglevel` (docs/wflow-user-guide/03-toml-file.md), so this suppresses a
+    # duplicate rather than discarding information.
+    #
+    # Set HERE, in the one base config, rather than as a `setup_config:` step in
+    # `config/defaults/wflow_build_model.yml`: `_SUPPORTED_PARAMETER_STEPS`
+    # below is a closed allowlist of PARAMETER steps and rejects anything else,
+    # so a `setup_config` entry in that template would fail the build. This also
+    # reaches WF3 for free -- `downscale_climate_forcing.py` opens THIS model
+    # root with `mode="r+"` and layers per-member deltas onto its TOML, so every
+    # member inherits `[logging] silent` and only overrides `path_log`.
+    #
+    # WF3 is where the console cost actually is: rule 3.15 batches members
+    # concurrently through one `run_logged` tee, so N members interleave their
+    # Julia records into a single stream that attributes none of them. The
+    # per-member `path_log` files are the attribution mechanism and are
+    # untouched by this.
+    #
+    # NOT a performance change. P33 probe 1b measured `silent=true` against
+    # production `loglevel="info"` and found run2/run3 unchanged at 35-36 s --
+    # logging is not a per-run cost on this basin, which is why P33 dropped
+    # `loglevel` as a speed lever. This is a console-readability change only.
+    #
+    # DOTTED, not nested, and the difference is load-bearing. `setup_config`
+    # MERGES a dotted leaf into an existing table and REPLACES the table when
+    # given a nested dict. hydromt_wflow's own default TOML ships
+    # `[logging] loglevel = "info"`, so `{"logging": {"silent": True}}` drops
+    # `loglevel` -- measured on hydromt_wflow 1.0.2:
+    #     dotted -> {'loglevel': 'info', 'silent': True}
+    #     nested -> {'silent': True}
+    # Harmless in behaviour (info IS the documented default) but it silently
+    # removes a key from the emitted TOML, which is a config surface. Prefer the
+    # dotted form for any key added to a table hydromt already populates.
+    "logging.silent": True,
 }
 _SUPPORTED_PARAMETER_STEPS = {
     "setup_rivers",
