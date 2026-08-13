@@ -62,6 +62,42 @@ not an automated gate.
 If you edit a notebook's prose without re-running it, leave the banner alone —
 it describes the outputs, not the text.
 
+### Re-rendering
+
+From the primary checkout, on a commit that already carries the prose you want
+rendered:
+
+```bash
+pixi run jupyter nbconvert --to notebook --execute --inplace \
+  --ExecutePreprocessor.timeout=3600 "docs/notebooks/Model building.ipynb"
+```
+
+Then update each banner to name the commit that was executed, and commit the
+outputs with it.
+
+Two things to know before you run it:
+
+- A run against an already up-to-date project reports "nothing to be done", so
+  the run cells render empty of work. Deleting the terminal outputs first — the
+  `plots/` directories, `performance_metrics.csv`, `experiments/*/results/` —
+  makes those rules re-execute without redoing the model build or the CMIP6
+  fetches.
+- Deleting `performance_metrics.csv` re-runs Wflow. Rule 1.15's input is
+  `run_default/output.csv`, which rule 1.14 declares as `temp()`, so a completed
+  run has already removed it. That is expected, not a cascade bug.
+
+Verify by checking the executed notebooks rather than by reading them: no cell
+carries an `error` output, and no cell's captured text contains `Error in rule`
+or `Exiting because a job execution failed`. The `run()` helper returns the
+subprocess exit code and nothing acts on it, so a failed Snakemake call inside a
+notebook otherwise reads as a successful cell.
+
+To read a rendered notebook as a web page:
+
+```bash
+pixi run jupyter nbconvert --to html --embed-images "docs/notebooks/<name>.ipynb"
+```
+
 ## Data
 
 The rapid config builds a small test basin from global datasets, registered in
