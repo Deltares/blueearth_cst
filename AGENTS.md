@@ -75,7 +75,10 @@ The tree is self-explanatory; these are the parts that are not.
   (`snake_config.template.yml`, the two `*_template.csv` observation schemas, and
   `archive/` for unmaintained single-workflow configs). Each has its own README.
   `<project_dir>/config/templates/` did NOT move — it is a generated snapshot
-  bin, a different meaning of the word. The tracked
+  bin, a different meaning of the word. Since 2026-08-13 it is normally EMPTY:
+  a referenced file is copied into the project only when the toolbox repo
+  cannot give it back, so a shipped default is recorded by git blob id and the
+  bin receives a file only when a project points the key at its own. The tracked
   `wflow_sbm.reference.toml` is reference only — nothing reads it, and it lags
   what a build emits; the infix says so, since the bare name read as an input. Real basin data lives in the project folder, referenced by absolute
   path, never in this repository.

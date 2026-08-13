@@ -164,30 +164,65 @@ only.)
 ### Configuration and run provenance
 
 Each workflow keeps its established current config copy for project-consistency
-checks and also writes a content-addressed snapshot bundle. The bundle contains
-the original YAML, Snakemake's merged effective config, the resolved
-toolbox-wide advanced settings, and hashed copies of referenced catalogs,
-templates, and observation files. Project-level bundles live under
-`<project_dir>/config/runs/<workflow>/<snapshot-digest>/`; climate-experiment
-bundles live under the same path inside the experiment directory. Changing a
-setting or referenced file produces a new bundle instead of overwriting its
-history.
+checks, and writes one **`run_record.yml`** describing the run it just did:
 
-The directory is named by the first 12 characters of the bundle's SHA-256, the
-same short form used for the archived files inside it. The full digest is kept
-in the bundle's `referenced-files.json` as `snapshot_bundle_sha256`, and the
-short name is a prefix of it. The name has to be derived from content: the
-bundle directory is a Snakemake output whose path is computed while the DAG is
-built, so a timestamp or a run counter would make every parse see a missing
-output and re-snapshot forever. Rule `snapshot_config` logs the bundle path and
-its full digest, so a run tells you where its configuration was recorded.
+- `<project_dir>/config/runs/model_creation/run_record.yml`
+- `<project_dir>/config/runs/climate_projections/run_record.yml`
+- `<exp_dir>/config/run_record.yml` — inside the experiment, which is WF3's
+  natural partition
+
+The record is **current-only**: it describes the most recent run and is
+replaced, not accumulated. It carries the toolbox commit (and whether the
+checkout was dirty), the `pixi.lock` and `Manifest.toml` hashes, the source
+config's own digest, the resolved `advanced_settings` — which appear in no
+other file in the project — and one entry per referenced external input.
+
+It also carries **two digests, answering different questions**.
+`effective_config_sha256` is configuration identity: the settings the workflow
+was asked to run under. `configuration_inputs_sha256` is wider — it folds in
+the toolbox commit, the lock files, and the bytes of every referenced catalog
+and template, so it answers "did this run see the same configuration-side
+inputs as that one". Use the wide one to compare runs; the narrow one moves
+only when the settings move. **Neither covers scientific data identity**: a
+remote or mutable dataset can change under an unchanged catalog entry without
+moving either digest.
+
+Only the keys a workflow actually reads go into its digests, so editing the
+`climate_experiment` section does not invalidate the model-creation record.
+
+**A referenced file is copied into the project only when the toolbox repository
+cannot give it back.** A catalog or template that lives in the checkout, is
+tracked, and is unmodified is recorded by its git blob id rather than copied —
+duplicating what version control already holds serves nobody. Anything else is
+copied, including everything in a deployed container, which has no `.git` to
+interrogate and so cannot prove a file is recoverable.
+
+**`<project_dir>/config/runs/journal.jsonl`** is the append-only ledger: two
+lines per run, sharing an `invocation_id`, recording start and outcome. One
+journal per project; WF3 lines name their experiment. It records **executed**
+runs — a `snakemake` invocation that finds everything up to date does no work
+and appends nothing, so a gap in the dates means nothing needed doing, not that
+nobody looked.
+
+To tell whether outputs are current, compare the sidecar beside them with the
+record: `<basin_dir>/evaluation/run_metadata.json` (WF1),
+`<exp_dir>/results/run_metadata.json` (WF3), and WF2's existing
+`summary/provenance.json`. A `configuration_inputs_sha256` that differs from
+the run record's means the outputs predate the recorded configuration; the
+journal then names the runs on either side.
+
+For the model build, `models/hydrology/wflow/hydromt_build_config.yml` and
+`hydromt_update_waterbodies.yml` record the values hydromt was **actually
+handed** — which is not the same as the build template, because arguments are
+replaced with the spatial products P1 produced and some are derived at call
+time.
 
 Runs launched through `scripts/run_workflows.py` additionally write one
 immutable invocation manifest under `<project_dir>/config/runs/invocations/`. It
 records enabled workflows, sanitized arguments, start/end status, config and
-lock-file digests, and Git/runtime identity. Direct `snakemake` invocations
-still receive the configuration snapshot, but only the wrapper can record the
-complete invocation lifecycle, including failures and no-op runs.
+lock-file digests, and Git/runtime identity. A direct `snakemake` invocation
+still writes its run record, journal line and sidecars — only the
+across-workflow invocation manifest is the wrapper's.
 
 Each workflow records itself in **one log and one benchmark table**, both
 regenerated on every run:
@@ -273,8 +308,8 @@ Contract:
 - Every valid wrapper invocation, including a dry-run, no-op, or failed child,
   receives a unique atomically finalized manifest under
   `<project_dir>/config/runs/invocations/`. Passthrough `--config` overrides are
-  sanitized and recorded there; the workflow snapshot remains authoritative for
-  the merged Snakemake config.
+  sanitized and recorded there; each workflow's own `run_record.yml` remains
+  authoritative for the merged Snakemake config.
 
 **Skip semantics.** `enabled: false` means the wrapper does not invoke that
 Snakefile, so its outputs are not produced. It does **not** delete that
