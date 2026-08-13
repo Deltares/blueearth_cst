@@ -34,11 +34,11 @@ from typing import Optional, Union
 
 from blueearth_cst.climate_analysis.climate_figures import (
     CLIMATE_VARS,
-    DEFAULT_ANCHOR,
     LEVELS_FILENAME,
     load_spatial_overlays,
     plot_climate_figures,
 )
+from blueearth_cst.shared.snake_utils import DEFAULT_WATER_YEAR_ANCHOR
 
 #: Rendered on every forcing figure, so it survives the file being copied out.
 _CAVEAT = (
@@ -54,7 +54,7 @@ def plot_forcing(
     gauges_fn: Optional[Union[str, Path]] = None,
     geoms_dir: Optional[Union[str, Path]] = None,
     source_plot_dir: Optional[Union[str, Path]] = None,
-    anchor: str = DEFAULT_ANCHOR,
+    anchor: str = DEFAULT_WATER_YEAR_ANCHOR,
 ):
     """Write the canonical climate figure set for the wflow forcing.
 

@@ -134,9 +134,40 @@ def _new_year_peak():
 def test_default_anchor_reproduces_the_calendar_year():
     """YE-DEC is pandas' bare YE, so adopting the parameter moved no number."""
     df = _new_year_peak()
-    assert metrics_definition.DEFAULT_ANCHOR == "YE-DEC"
+    assert metrics_definition.DEFAULT_WATER_YEAR_ANCHOR == "YE-DEC"
     assert metrics_definition.Q7d_maxyear(df).equals(
         df.rolling(7).mean().resample("YE").max().mean()
+    )
+
+
+def test_the_default_anchor_is_DERIVED_from_the_configured_water_year():
+    """Pins the mechanism, not just the value.
+
+    The value assertion above passes equally well against a hardcoded literal —
+    which is exactly the state this replaced, where `"YE-DEC"` was written out
+    in two modules and nothing kept them in step. This asserts the anchor is
+    *computed* from `defaults.water_year_start`, so reintroducing a literal
+    fails here even while it still reads "YE-DEC".
+    """
+    from blueearth_cst.shared import snake_utils as su
+
+    assert metrics_definition.DEFAULT_WATER_YEAR_ANCHOR == su.water_year_end_anchor(
+        su.DEFAULT_WATER_YEAR_START
+    )
+
+
+def test_every_module_sees_ONE_anchor():
+    """The figures and the indicators must agree about what a year is.
+
+    They held separate literals until 2026-08-13. Same object, one source.
+    """
+    from blueearth_cst.climate_analysis import climate_figures
+    from blueearth_cst.shared import snake_utils as su
+
+    assert (
+        metrics_definition.DEFAULT_WATER_YEAR_ANCHOR
+        == climate_figures.DEFAULT_WATER_YEAR_ANCHOR
+        == su.DEFAULT_WATER_YEAR_ANCHOR
     )
 
 

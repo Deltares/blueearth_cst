@@ -53,7 +53,11 @@ import xarray as xr
 from matplotlib.ticker import MaxNLocator
 
 from blueearth_cst.shared.plot_style import RASTER_DPI
-from blueearth_cst.shared.snake_utils import log_row, save_figure
+from blueearth_cst.shared.snake_utils import (
+    DEFAULT_WATER_YEAR_ANCHOR,
+    log_row,
+    save_figure,
+)
 
 #: One entry per variable: label and unit for the axes, and how the variable
 #: aggregates in time. ``sum`` is a flux that accumulates (a yearly TOTAL);
@@ -115,18 +119,13 @@ def figure_names(dataset: str) -> list[str]:
     ]
 
 
-#: A January water year — the calendar year these figures used before
-#: `shared.water_year_start` reached them, and identical to a bare "YE".
-DEFAULT_ANCHOR = "YE-DEC"
-
-
 def _space_dims(da: xr.DataArray) -> list[str]:
     """The non-time dimensions of ``da`` (the spatial ones, on any grid)."""
     return [d for d in da.dims if d != "time"]
 
 
 def _yearly(
-    series: xr.DataArray, how: str, anchor: str = DEFAULT_ANCHOR
+    series: xr.DataArray, how: str, anchor: str = DEFAULT_WATER_YEAR_ANCHOR
 ) -> xr.DataArray:
     """Per-year aggregate of a 1-D time series, incomplete years dropped.
 
@@ -152,7 +151,7 @@ def _yearly(
 
 
 def _climatological_field(
-    da: xr.DataArray, how: str, anchor: str = DEFAULT_ANCHOR
+    da: xr.DataArray, how: str, anchor: str = DEFAULT_WATER_YEAR_ANCHOR
 ) -> xr.DataArray:
     """The map panel's field: per-water-year aggregate, averaged over years."""
     grouped = da.resample(time=anchor)
@@ -263,7 +262,7 @@ def _render_map(
     overlays,
     levels=None,
     levels_out=None,
-    anchor=DEFAULT_ANCHOR,
+    anchor=DEFAULT_WATER_YEAR_ANCHOR,
 ):
     """Climatological field as a cartographic map.
 
@@ -447,7 +446,9 @@ def _decadal_trend(years, values):
     return float(slope), float(intercept)
 
 
-def _render_annual(da, spec, title, caveat, overlays, anchor=DEFAULT_ANCHOR, **_):
+def _render_annual(
+    da, spec, title, caveat, overlays, anchor=DEFAULT_WATER_YEAR_ANCHOR, **_
+):
     """Domain-mean value per year, with its trend and the period mean."""
     how, label, unit = spec["how"], spec["label"], spec["unit"]
     series = _yearly(da.mean(dim=_space_dims(da)), how, anchor).compute()
@@ -615,7 +616,7 @@ def plot_climate_figures(
     overlays: Optional[dict] = None,
     levels_file: Optional[Union[str, Path]] = None,
     write_levels: bool = False,
-    anchor: str = DEFAULT_ANCHOR,
+    anchor: str = DEFAULT_WATER_YEAR_ANCHOR,
 ) -> list[Path]:
     """Write the canonical figure set for one gridded climate dataset.
 

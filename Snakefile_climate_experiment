@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(workflow.basedir)))
 from blueearth_cst.experiment.allocate import resolve_default_experiment_name
 from blueearth_cst.shared.indicator_tables import indicator_tables, refuse_retired_experiment_keys
 from blueearth_cst.shared.provenance import short_digest, snapshot_bundle_digest
-from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_rule, file_digest_or_absent, get_config, index_width, member_index_regex, patch_psutil_windows_benchmark, project_slug, region_rule, rule_banner, spatial_units_rule, resolve_seed, resolve_water_year_start, stress_test_grid, validate_spell_factor, target_banner, validate_experiment_name, warn_if_project_dir_in_repo
+from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_rule, DEFAULT_JULIA_THREADS, DEFAULT_WFLOW_OUTVARS, file_digest_or_absent, get_config, julia_prefix, index_width, member_index_regex, patch_psutil_windows_benchmark, project_slug, region_rule, rule_banner, spatial_units_rule, resolve_seed, resolve_water_year_start, stress_test_grid, validate_spell_factor, target_banner, validate_experiment_name, warn_if_project_dir_in_repo
 from blueearth_cst.spatial.config import parse_spatial_config
 
 # Windows: make Snakemake's benchmark memory/IO/CPU metrics work (else all NA).
@@ -38,7 +38,13 @@ project_dir = get_config(project_cfg, "project_dir", optional=False)
 # O-22: make the two-tier project_dir rule mechanical rather than
 # documentary. Warns, never raises; test_case/ is the one exemption.
 warn_if_project_dir_in_repo(project_dir, workflow.basedir)
-static_dir = get_config(project_cfg, "static_dir", optional=False)
+# `project.static_dir` is deliberately NOT read here. It exists to build WF1's
+# fallback paths for `model_build_config` / `waterbodies_config`; WF3 has no
+# such fallback. It was read `optional=False` and never used, so a config
+# omitting it failed WF3 for a value WF3 ignores. Removed 2026-08-13 (defect
+# E/F). The key itself is still read by WF1 and still part of the `project`
+# section the consistency guard digests -- deleting it outright is a separate,
+# breaking change (M1 in dev/working/parameter-placement.md).
 DATA_SOURCES = get_config(project_cfg, "data_sources", optional=False)
 
 # experiment_name is OPTIONAL, and defaults to the project's own name plus the
@@ -99,6 +105,17 @@ SEED = resolve_seed(get_config(shared_cfg, "seed"), experiment)
 # figures read. weathergenr takes it as a month NUMBER, so the conversion
 # happens at that seam rather than by asking the config for a second spelling.
 WATER_YEAR_START = resolve_water_year_start(get_config(shared_cfg, "water_year_start"))
+
+# The Julia invocation for rule 3.15's wflow batch, built the same way WF1
+# builds its own (Snakefile_model_creation:94-97). Until 2026-08-13 this rule
+# hardcoded the whole invocation inline -- version pin, --project and a literal
+# thread count -- so BOTH shared.julia_threads
+# and runtime.julia_version missed the WF3 batch -- RLZ_NUM x ST_NUM runs, the
+# bulk of the toolbox's compute. tests/test_julia_runtime.py listed this file
+# as the one tolerated offender precisely so adopting julia_prefix would shrink
+# that set; it is now empty.
+julia_threads = get_config(shared_cfg, "julia_threads", DEFAULT_JULIA_THREADS)
+wflow_julia = julia_prefix(julia_threads)
 
 RLZ_NUM = get_config(my_cfg, "realizations_num", 1)
 
@@ -475,7 +492,7 @@ refuse_retired_experiment_keys(my_cfg)
 
 INDICATOR_TABLES = indicator_tables(
     get_config(config.get("workflows", {}).get("model_creation", {}) or {},
-               "wflow_outvars", [], optional=True)
+               "wflow_outvars", DEFAULT_WFLOW_OUTVARS, optional=True)
 )
 
 # 3.00  all — target aggregator: the experiment's indicator tables
@@ -1012,7 +1029,7 @@ for _b, _members in _batches.items():
         benchmark:
             f"{BENCH_PARTS_DIR}/3.15_run_wflow/batch_{_b}.tsv",
         shell:
-            """python -u "{run_logged}" "{log}" -- julia +1.11.7 --project=. --threads 4 "{params.driver}" {input.tomls}"""
+            """python -u "{run_logged}" "{log}" -- {wflow_julia} "{params.driver}" {input.tomls}"""
 
 # 3.16  derive_wflow_indicators — reduce runs to the two indicator tables
 rule derive_wflow_indicators:

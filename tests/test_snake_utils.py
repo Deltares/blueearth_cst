@@ -1197,3 +1197,63 @@ def test_spell_factor_refuses_a_non_numeric_entry():
     values[6] = "high"
     with pytest.raises(ValueError, match=r"\[7\]"):
         su.validate_spell_factor(values, "stress_test.wet_spell_factor")
+
+
+# --- stress_test axis sub-key closure (defect D) ----------------------------
+
+
+def test_stress_test_refuses_temperature_variance():
+    """Owner ruling 2026-08-13: temperature variance is not a dimension.
+
+    It was ACCEPTED and silently ignored -- only `precip.variance` reaches the
+    generator. The axis guard checked top-level axes only, so a sub-key of a
+    valid axis passed unexamined and a user could configure it and get
+    unchanged results.
+    """
+    cfg = {
+        "temp": {
+            "step_num": 1,
+            "transient_change": True,
+            "variance": {"min": [1.0] * 12, "max": [1.0] * 12},
+        },
+        "precip": {"step_num": 1, "transient_change": True},
+    }
+    with pytest.raises(ValueError, match="not a supported stress dimension"):
+        su.stress_test_grid(cfg)
+
+
+def test_stress_test_refuses_a_typo_in_an_axis():
+    """The closure is general, not a one-off ban on `variance`."""
+    cfg = {
+        "temp": {"step_num": 1, "transient_change": True, "meen": {}},
+        "precip": {"step_num": 1, "transient_change": True},
+    }
+    with pytest.raises(ValueError, match=r"unsupported key\(s\) \['meen'\]"):
+        su.stress_test_grid(cfg)
+
+
+def test_precip_variance_is_still_accepted():
+    """Only TEMPERATURE variance is refused; precip variance is live."""
+    cfg = {
+        "temp": {"step_num": 1, "transient_change": True},
+        "precip": {
+            "step_num": 1,
+            "transient_change": True,
+            "variance": {"min": [1.0] * 12, "max": [1.0] * 12},
+        },
+    }
+    assert su.stress_test_grid(cfg) == (2, 2, 4)
+
+
+# --- one wflow_outvars default (defect A) -----------------------------------
+
+
+def test_wflow_outvars_default_is_not_empty():
+    """`[]` meant zero indicator tables and no error.
+
+    WF3 defaulted to it while WF1 defaulted to two variables, so a config
+    omitting the key ran to completion and wrote nothing --
+    `snake_config_baseline_linux.yml` omits it, so that was shipped.
+    """
+    assert su.DEFAULT_WFLOW_OUTVARS
+    assert "river discharge" in su.DEFAULT_WFLOW_OUTVARS

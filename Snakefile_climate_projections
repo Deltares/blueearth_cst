@@ -75,7 +75,12 @@ model_region = get_config(basin_cfg, "region", optional=False)
 basin_hydrography = get_config(basin_cfg, "hydrography", DEFAULT_HYDROGRAPHY)
 basin_index = get_config(basin_cfg, "basin_index", DEFAULT_BASIN_INDEX)
 historical_window = get_config(shared_cfg, "historical_window", optional=False)
-clim_source = get_config(shared_cfg, "clim_historical", optional=False)
+# `shared.clim_historical` is deliberately NOT read here. WF2 has no climate
+# store and no rule that consumes the observed source: it read the key
+# `optional=False` and never used the value, so a config omitting it failed WF2
+# for a setting WF2 does not have. Removed 2026-08-13 (defect E). The key stays
+# required where it is actually used -- WF1 and the shared climate-store
+# producer -- so this loosens nothing that matters.
 
 clim_project = get_config(my_cfg, "clim_project", optional=False)
 models = get_config(my_cfg, "models", optional=False)

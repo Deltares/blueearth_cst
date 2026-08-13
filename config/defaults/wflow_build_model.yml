@@ -13,11 +13,16 @@ steps:
       min_rivwth: 30                    # minimum river width [m]
       smooth_len: 5000                  # length over which to smooth river depth and river width [m]
 
-  - setup_lulcmaps:
-      lulc_fn: vito                     # source for lulc maps: {globcover, vito, corine}
+  # The land-cover RASTER and the source name behind its mapping table both
+  # come from P1 (`shared.basin.spatial_sources.lulc`). `lulc_fn` is NOT
+  # declared here: it named the source a SECOND time, and the two could
+  # disagree — a corine raster read through vito's mapping table.
+  - setup_lulcmaps: {}
 
-  - setup_laimaps:
-      lai_fn: modis_lai                 # source for LAI: {modis_lai}
+  # LAI comes from P1 as an array (`shared.basin.spatial_sources.lai`).
+  # `lai_fn` is NOT declared here: it was popped and discarded, so it read as a
+  # setting and reached nothing.
+  - setup_laimaps: {}
 
   - setup_soilmaps:
       soil_fn: soilgrids                # source for soilmaps: {soilgrids}

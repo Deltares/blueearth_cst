@@ -61,7 +61,7 @@ from blueearth_cst.shared.indicator_tables import (
     output_code,
     q_metric_name,
 )
-from blueearth_cst.shared.snake_utils import log_row
+from blueearth_cst.shared.snake_utils import DEFAULT_WATER_YEAR_ANCHOR, log_row
 
 #: ``rlz_<n>_st_<m>`` in a wflow run CSV's stem. Anchored at the start so a
 #: directory component can never satisfy it, and both indices are captured --
@@ -349,7 +349,7 @@ def analyze_wflow_results(
     st_num: int,
     indicator_tokens: List[str],
     table_paths: dict,
-    anchor: str = md.DEFAULT_ANCHOR,
+    anchor: str = DEFAULT_WATER_YEAR_ANCHOR,
 ):
     """Reduce every stress-test run into one long table per configured variable.
 
