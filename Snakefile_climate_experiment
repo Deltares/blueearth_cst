@@ -874,7 +874,7 @@ rule prepare_weathergen_config:
 
 # 3.11  generate_weather_realizations — weathergenr stochastic realizations (st_0)
 rule generate_weather_realizations:
-    message: rule_banner("3.11", "generate_weather_realizations")
+    message: rule_banner("3.11", "generate_weather_realizations", summary="generate stochastic weather with weathergenr")
     input:
         climate_nc = ancient(f"{store_dir}/extract_historical.nc"),
         # Which store cells the basin touches. `ancient` for the same reason
@@ -899,7 +899,7 @@ rule generate_weather_realizations:
 
 # 3.12  perturb_climate_realization — impose perturbations per rlz/cst (st_num >= 1)
 rule perturb_climate_realization:
-    message: rule_banner("3.12", "perturb_climate_realization", "rlz {wildcards.rlz_num} | st {wildcards.st_num}")
+    message: rule_banner("3.12", "perturb_climate_realization", "rlz {wildcards.rlz_num} | st {wildcards.st_num}", summary="apply one stress-test member to one realization")
     # Constrain st_num to strictly positive integers on THIS rule so its output
     # wildcard rlz_{rlz_num}_st_{st_num}.nc can never resolve st_num to 0. Left
     # unconstrained, the rule would be a second eligible producer of st_0.nc
@@ -954,7 +954,7 @@ rule write_climate_data_catalog:
 
 # 3.14  downscale_climate_realization — downscale climate forcing to wflow grid
 rule downscale_climate_realization:
-    message: rule_banner("3.14", "downscale_climate_realization", "rlz {wildcards.rlz_num} | st {wildcards.st_num}")
+    message: rule_banner("3.14", "downscale_climate_realization", "rlz {wildcards.rlz_num} | st {wildcards.st_num}", summary="downscale the perturbed climate onto the model grid")
     # R07 B5 puts rlz_num in a DIRECTORY position for the first time. Snakemake's
     # default wildcard regex is `.+`, which matches "/" -- constrain both indices
     # to digits so a path can never be split across the rlz_<r>/ boundary.
@@ -1056,7 +1056,7 @@ def _member_span(members):
 for _b, _members in _batches.items():
     rule:
         name: f"run_wflow_batch_{_b}"
-        message: rule_banner("3.15", f"run_wflow_batch_{_b}", f"{len(_members)} members | {_member_span(_members)}")
+        message: rule_banner("3.15", f"run_wflow_batch_{_b}", f"{len(_members)} members | {_member_span(_members)}", summary="run Wflow for this batch of members")
         input:
             forcing = [f"{runs_dir}/forcing/inmaps_rlz_{rlz_ix(r)}_st_{st_ix(c)}.nc"
                        for (r, c) in _members],
@@ -1079,7 +1079,7 @@ for _b, _members in _batches.items():
 
 # 3.16  derive_wflow_indicators — reduce runs to the two indicator tables
 rule derive_wflow_indicators:
-    message: rule_banner("3.16", "derive_wflow_indicators")
+    message: rule_banner("3.16", "derive_wflow_indicators", summary="reduce the runs to the response-surface indicators")
     input:
         rlz_csv_fns = expand((f"{runs_dir}/output/rlz_"+"{rlz_num}"+"_st_"+"{st_num}"+".csv"), rlz_num=[rlz_ix(n) for n in np.arange(1, RLZ_NUM+1)], st_num=[st_ix(m) for m in np.arange(ST_START, ST_NUM+1)]),
         # R07 B6: the perturbation grid was an UNDECLARED runtime read

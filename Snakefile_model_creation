@@ -532,7 +532,7 @@ rule prepare_spatial_maps:
 
 # 1.07  build_wflow_model — parameterize Wflow-SBM on the P1 spatial foundation
 rule build_wflow_model:
-    message: rule_banner("1.07", "build_wflow_model")
+    message: rule_banner("1.07", "build_wflow_model", summary="parameterize Wflow-SBM from global data")
     input:
         parameter_template = model_build_config,
         spatial_maps = f"{spatial_dir}/spatial_maps.nc",
@@ -578,7 +578,7 @@ rule build_wflow_model:
 # 1.08  add_reservoirs_lakes_glaciers — add waterbodies to the built model
 # (temporary hydromt fix; can fold back into build_wflow_model when supported)
 rule add_reservoirs_lakes_glaciers:
-    message: rule_banner("1.08", "add_reservoirs_lakes_glaciers")
+    message: rule_banner("1.08", "add_reservoirs_lakes_glaciers", summary="add waterbodies to the model")
     input:
         # ancient(): this rule COMMITS writes back into staticmaps.nc, so a
         # plain input would re-trigger it on its own output. Ordering and
@@ -659,7 +659,7 @@ rule write_outlet_index:
 # halves were one of each; the hydromt command issued is byte-identical to the
 # one this rule ran before.
 rule add_climate_forcing:
-    message: rule_banner("1.10", "add_climate_forcing")
+    message: rule_banner("1.10", "add_climate_forcing", summary="build the forcing netCDF for the run period")
     input:
         outputs_configured = f"{basin_dir}/.outputs_configured",
         # The climate store, as the forcing SOURCE (2026-08-10). This rule used
@@ -725,7 +725,7 @@ rule add_climate_forcing:
 
 # 1.14  run_wflow — run the Wflow.jl model on historical forcing
 rule run_wflow:
-    message: rule_banner("1.14", "run_wflow")
+    message: rule_banner("1.14", "run_wflow", summary="run the model over the simulation window")
     input:
         forcing_path = f"{basin_dir}/forcing/inmaps_historical.nc",
         # ADR 0004. Already ordered after 1.10 through forcing_path; declared
@@ -812,7 +812,7 @@ rule run_wflow:
 # is forbidden. The catalog input is deliberately PLAIN, not ancient(): it is
 # the store's freshness boundary (ext2-01).
 rule extract_historical_climate:
-    message: rule_banner("1.04", "extract_historical_climate")
+    message: rule_banner("1.04", "extract_historical_climate", summary="clip the global climate dataset to the basin")
     input:
         **CLIMATE_STORE.inputs,
     params:

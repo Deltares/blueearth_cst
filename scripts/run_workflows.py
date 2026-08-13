@@ -79,7 +79,10 @@ from blueearth_cst.shared.provenance import (  # noqa: E402
     file_sha256,
     toolbox_identity,
 )
-from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS  # noqa: E402
+from blueearth_cst.shared.snake_utils import (  # noqa: E402
+    ADVANCED_SETTINGS,
+    log_row,
+)
 
 # Fixed run order (model -> projections -> experiment). Each maps to its
 # Snakefile and the per-workflow flags preserved verbatim from the runners
@@ -225,20 +228,22 @@ def run(config_path: str, cores: int, extra: list[str]) -> int:
         for name in WORKFLOW_ORDER:
             workflow = manifest["workflows"][name]
             if not flags[name]:
-                print(f"[run_workflows] skipping {name} (enabled: false)")
+                log_row(f"skipping {name} (enabled: false)", module="run_workflows")
                 continue
             cmd = build_command(name, config_path, cores, extra)
             workflow["command"] = sanitize_argv(cmd)
             workflow["status"] = "running"
-            print(f"[run_workflows] {name}: {' '.join(sanitize_argv(cmd))}")
+            log_row(f"{name}: {' '.join(sanitize_argv(cmd))}", module="run_workflows")
             result = subprocess.run(cmd, cwd=REPO_ROOT)
             workflow["exit_code"] = result.returncode
             if result.returncode != 0:
                 workflow["status"] = "failed"
                 exit_code = result.returncode
-                print(
-                    f"[run_workflows] {name} exited {result.returncode}; stopping "
-                    f"(later workflows not invoked)."
+                log_row(
+                    f"{name} exited {result.returncode}; stopping "
+                    f"(later workflows not invoked).",
+                    module="run_workflows",
+                    level="ERROR",
                 )
                 break
             workflow["status"] = "succeeded"

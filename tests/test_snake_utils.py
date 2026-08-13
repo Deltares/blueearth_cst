@@ -307,10 +307,16 @@ def test_log_path_parts_project_root_and_id(tmp_path):
 
 
 def test_relativize_strips_project_root_both_separators():
+    """Both spellings of the root are stripped, and the REMAINDER is normalized.
+
+    The remainder used to keep whatever separator the producing library
+    happened to use, so a single log carried two spellings of one tree and they
+    read as different locations at a glance. Forward slashes on both platforms.
+    """
     root = os.path.normpath("C:/TESTS/gabon")
     native = f"Writing geoms to {root}{os.sep}hydrology_model{os.sep}basins.geojson.\n"
     assert _relativize_paths(native, root) == (
-        f"Writing geoms to hydrology_model{os.sep}basins.geojson.\n"
+        "Writing geoms to hydrology_model/basins.geojson.\n"
     )
     fwd_root = root.replace(os.sep, "/")
     forward = f"Writing config to {fwd_root}/hydrology_model/wflow_sbm.toml.\n"
@@ -332,7 +338,8 @@ def test_tee_to_log_relativizes_project_paths(tmp_path):
     with tee_to_log(log):
         print(f"Saved figure: {abs_png}")
     text = log.read_text(encoding="utf-8")
-    assert "Saved figure: " + os.path.join("plots", "map.png") in text
+    # Forward slash regardless of platform: the stripped remainder is normalized.
+    assert "Saved figure: plots/map.png" in text
     assert abs_png not in text  # absolute project path relativized away
 
 
@@ -876,7 +883,7 @@ windows_path_spelling = pytest.mark.skipif(
 @windows_path_spelling
 def test_a_project_path_becomes_project_relative():
     line = r"Writing geoms to C:\TESTS\CST\gabon_0108\hydrology_model\basins.geojson"
-    assert _rel(line) == r"Writing geoms to hydrology_model\basins.geojson"
+    assert _rel(line) == "Writing geoms to hydrology_model/basins.geojson"
 
 
 def test_a_repo_path_is_marked_rather_than_bared():
@@ -885,7 +892,7 @@ def test_a_repo_path_is_marked_rather_than_bared():
     from blueearth_cst.shared.snake_utils import _REPO_ROOT
 
     line = f"script at {_REPO_ROOT}{os.sep}blueearth_cst{os.sep}shared{os.sep}x.py"
-    assert _rel(line) == f"script at <repo>/blueearth_cst{os.sep}shared{os.sep}x.py"
+    assert _rel(line) == "script at <repo>/blueearth_cst/shared/x.py"
 
 
 def test_a_path_outside_all_three_is_left_alone():

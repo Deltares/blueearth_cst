@@ -21,7 +21,7 @@ import warnings
 import zlib
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import yaml
@@ -89,12 +89,36 @@ _REPO_ROOT = str(Path(__file__).resolve().parents[2])
 _SITE_PACKAGES_RE = re.compile(r"[A-Za-z]:[\\/](?:[^\\/\s]+[\\/])*?site-packages[\\/]")
 
 
+#: The path-looking run immediately after a stripped prefix. Stops at
+#: whitespace and at the quote/bracket characters that end a path in a
+#: traceback (``File "C:\\...\\x.py", line 3``) or a log message.
+_STRIPPED_TAIL_RE = r"[^\s\"'<>|,;)\]}]*"
+
+
 def _strip_prefix(text, prefix, replacement=""):
-    """Drop ``prefix`` from ``text`` in both native and forward-slash spellings."""
+    """Drop ``prefix`` from ``text`` in both native and forward-slash spellings.
+
+    The remainder is normalized to FORWARD SLASHES. Without that, one log mixes
+    both spellings of the same tree -- ``data/climate/historical/...`` from a
+    library that builds paths with ``/`` beside
+    ``data\\climate\\historical\\...\\source_precip_map.png`` from one that used
+    ``os.path.join`` -- and the two read as different locations at a glance.
+
+    Normalization is deliberately scoped to the run of text FOLLOWING a stripped
+    prefix, not applied to the whole line. A log line is prose as well as paths,
+    and a blanket replace would rewrite Windows paths this function deliberately
+    leaves absolute (a data catalog under ``C:\\data\\``, whose location is the
+    information), regex escapes, and any other literal backslash.
+    """
     if not prefix:
         return text
-    text = text.replace(prefix + os.sep, replacement)
-    return text.replace(prefix.replace(os.sep, "/") + "/", replacement)
+    for spelling in (prefix + os.sep, prefix.replace(os.sep, "/") + "/"):
+        text = re.sub(
+            re.escape(spelling) + f"({_STRIPPED_TAIL_RE})",
+            lambda m: replacement + m.group(1).replace("\\", "/"),
+            text,
+        )
+    return text
 
 
 def _relativize_paths(text, project_root):
@@ -1701,9 +1725,48 @@ class _Heartbeat:
             self._interval = float(interval)
         self._enabled = self._interval > 0
         self._start = time.monotonic()
+        self._wall_start = datetime.now()
         self._last = self._start
+        #: Closed quiet periods as ``(monotonic_start, monotonic_end)``. Appended
+        #: only by the watchdog thread and read only after ``stop()`` has joined
+        #: it, so the list needs no lock.
+        self._quiet = []
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._run, daemon=True)
+
+    def _wall_at(self, monotonic_value):
+        """Wall-clock ``HH:MM:SS`` for a monotonic stamp taken by this watchdog.
+
+        The class times with ``monotonic`` (immune to clock changes) but a log
+        reader needs a wall clock to line a gap up against the rows around it,
+        so one offset is captured at construction and applied here.
+        """
+        return (
+            self._wall_start + timedelta(seconds=monotonic_value - self._start)
+        ).strftime("%H:%M:%S")
+
+    def quiet_rows(self):
+        """One ``log_row``-shaped line per quiet period, for the rule's log file.
+
+        The console notice is live and ephemeral; this is the same fact made
+        durable. Without it a stall is invisible in the file someone sends you —
+        it shows only as a GAP between two timestamps, which the reader has to
+        notice and then infer, and which is indistinguishable from a rule that
+        simply logged nothing while working.
+
+        Emitted at ``stop()`` rather than inline at the moment of the stall, and
+        that is a thread-safety decision, not a preference: the watchdog runs on
+        a daemon thread while the rule body writes through the tee on the main
+        one, so an inline write would interleave mid-line with whatever the rule
+        was printing. By ``stop()`` the thread is joined and the main thread owns
+        the handle. The rows carry their own start/end times, so position is
+        preserved even though placement is not.
+        """
+        return [
+            f"... quiet for {_fmt_elapsed(end - start)} "
+            f"({self._wall_at(start)} -> {self._wall_at(end)})"
+            for start, end in self._quiet
+        ]
 
     def touch(self):
         self._last = time.monotonic()
@@ -1716,10 +1779,28 @@ class _Heartbeat:
             pass  # console I/O must never break the job
 
     def _run(self):
+        # `quiet_since` is the timestamp of the last real write BEFORE the
+        # current silence, i.e. where the gap starts. It is carried across
+        # iterations so one contiguous silence yields ONE recorded period no
+        # matter how many notices it prints.
+        quiet_since = None
         while not self._stop.wait(self._interval):
-            if time.monotonic() - self._last >= self._interval:
-                elapsed = _fmt_elapsed(time.monotonic() - self._start)
+            now = time.monotonic()
+            last = self._last
+            if now - last >= self._interval:
+                if quiet_since is None:
+                    quiet_since = last
+                elapsed = _fmt_elapsed(now - self._start)
                 self._emit(f"   ... {self._label}: still running, {elapsed} elapsed\n")
+            elif quiet_since is not None:
+                # Output resumed: `last` is when, so the gap closes there.
+                self._quiet.append((quiet_since, last))
+                quiet_since = None
+        if quiet_since is not None:
+            # Still silent when the rule ended -- close the period at the stop,
+            # not at `_last`, or the final and usually most interesting gap is
+            # recorded as ending when the silence BEGAN.
+            self._quiet.append((quiet_since, time.monotonic()))
 
     def start(self):
         if self._enabled:
@@ -2228,9 +2309,40 @@ def tee_to_log(log_path, heartbeat_interval=60.0):
             _detach_handlers_bound_to((stdout_tee, stderr_tee), orig_out, orig_err)
             _exc = sys.exc_info()[1]
             heartbeat.stop(failed=_exc is not None and not _is_clean_exit(_exc))
+            # The stalls the watchdog announced on the console, made durable in
+            # the log. `stop()` has joined the watchdog thread, so this is the
+            # main thread writing alone -- the reason it happens here and not at
+            # the moment of the stall. Written to `handle` directly for the same
+            # reason as the traceback above: the tees are about to close, and a
+            # console copy would duplicate a notice already printed live.
+            for _row in heartbeat.quiet_rows():
+                handle.write(f"{datetime.now():%H:%M:%S} - heartbeat - INFO - {_row}\n")
+            handle.flush()
             for tee in (stdout_tee, stderr_tee):
                 tee.close()
             sys.stdout, sys.stderr = orig_out, orig_err
+
+
+#: Rank for the ``CST_LOG_LEVEL`` floor. Names and order follow ``logging``'s,
+#: so an operator who knows one knows the other.
+_LOG_LEVEL_RANK = {
+    "DEBUG": 10,
+    "INFO": 20,
+    "WARNING": 30,
+    "WARN": 30,
+    "ERROR": 40,
+    "CRITICAL": 50,
+}
+
+
+def log_level_floor():
+    """The minimum rank ``log_row`` will emit, from ``CST_LOG_LEVEL``.
+
+    Unset or unrecognized means ``DEBUG`` — i.e. emit everything, the behaviour
+    every caller had before the floor existed. Read per call rather than cached
+    so the variable can be set inside a session without a reimport.
+    """
+    return _LOG_LEVEL_RANK.get(os.environ.get("CST_LOG_LEVEL", "").strip().upper(), 10)
 
 
 def log_row(message, module="cst", level="INFO"):
@@ -2242,7 +2354,25 @@ def log_row(message, module="cst", level="INFO"):
     bare, timestamp-less text. Use this instead of a plain ``print`` for anything
     meant to appear in a rule log. The row is already compact, so the tee passes
     it through (only any project paths in it are relativized).
+
+    Rows below ``CST_LOG_LEVEL`` are dropped, which is the toolbox's quiet mode:
+    ``CST_LOG_LEVEL=WARNING`` leaves only warnings and errors. Two properties
+    make that safe to add to an existing caller population:
+
+    * **Unset means emit everything**, so nothing changes until someone opts in.
+    * **An unrecognized ``level`` is never suppressed.** A caller passing a
+      level this table does not know keeps printing — a filter that silently
+      swallowed an unfamiliar level would hide exactly the unusual row worth
+      seeing.
+
+    Still ``print`` rather than ``logging``, deliberately: the tee captures
+    ``sys.stdout``, so a row that went through a logging handler would bypass
+    the mechanism that puts it in the rule's log file. The floor therefore
+    belongs INSIDE this function, not in a migration to ``logging``.
     """
+    rank = _LOG_LEVEL_RANK.get(str(level).strip().upper())
+    if rank is not None and rank < log_level_floor():
+        return
     print(f"{datetime.now():%H:%M:%S} - {module} - {level} - {message}")
 
 
@@ -2311,7 +2441,7 @@ def patch_psutil_windows_benchmark():
     psutil.Process.memory_full_info = _with_pss
 
 
-def rule_banner(number, name, context=None):
+def rule_banner(number, name, context=None, summary=None):
     """Return a rule's ``message:`` string: a bold, numbered console banner.
 
     Shows ``<W.NN>  <name>`` (the ``W.NN`` matching the rule's log/benchmark
@@ -2339,11 +2469,26 @@ def rule_banner(number, name, context=None):
 
     A rule with no wildcards may still pass a constant context; only the
     *interpolation* needs a wildcard, not the suffix itself.
+
+    ``summary`` is a plain-language clause saying what the rule DOES, for the
+    rules a person waits on: ``1.14  run_wflow`` is an identifier, and someone
+    watching a multi-hour run should not have to know the codebase to read the
+    console. Applied to the LONG-RUNNING rules only, per the parked note this
+    discharges — a sentence on all 47 would lengthen every line to say what the
+    fast ones already say by name, and the value is precisely in the rules where
+    you are waiting and wondering. It is constant, so unlike ``context`` it must
+    not contain a wildcard.
+
+    Order is ``<number>  <name> - <summary>  <context>``: identifier first
+    because it is what the log filenames, the benchmark table and this file's
+    own rule comments all key on.
     """
     tag = f"{number}  {name}"
     color = sys.stderr.isatty() and not os.environ.get("NO_COLOR")
     if color:
         tag = f"\033[1;36m{tag}\033[0m"  # bold cyan
+    if summary:
+        tag = f"{tag} - {summary}" if not color else f"{tag} \033[0;36m{summary}\033[0m"
     if not context:
         return tag
     return f"{tag}  \033[2m{context}\033[0m" if color else f"{tag}  {context}"
