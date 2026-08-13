@@ -54,4 +54,22 @@ RUN pixi run install
 # Workflow source code
 COPY --from=local_files /root/code /root/work/
 
+# Toolbox revision, BAKED because the image carries no .git -- the sources are
+# ADDed individually above, so `git rev-parse` in a container returns nothing
+# and every run record would report a null commit with no way to say why.
+# `provenance.toolbox_identity()` resolves git first and falls back to this
+# file, reporting `commit_source: baked`.
+#
+# Build with:
+#     docker build --build-arg TOOLBOX_COMMIT=$(git rev-parse HEAD) .
+#
+# An UNSET arg must leave the file ABSENT rather than empty, which is what the
+# conditional is for: an empty file would be a commit nobody can look up, while
+# an absent one resolves to `commit: null, commit_source: null` -- a record that
+# says plainly the revision is unwitnessed instead of one that lies.
+ARG TOOLBOX_COMMIT=""
+RUN if [ -n "$TOOLBOX_COMMIT" ]; then \
+        printf '%s\n' "$TOOLBOX_COMMIT" > /root/work/.toolbox-commit; \
+    fi
+
 ENTRYPOINT ["pixi", "run"]
