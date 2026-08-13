@@ -470,3 +470,44 @@ def test_run_record_requires_its_companions(tmp_path, sources):
             config_out_path=cfg / "runs" / "snake.yml",
             run_record_path=cfg / "runs" / "run_record.yml",
         )
+
+
+def test_the_runs_bin_carries_its_own_readme(tmp_path, sources):
+    """The one genuine trap in this bin: it all looks like configuration.
+
+    Everything under config/runs/ is written by the run, so an edit is
+    silently overwritten on the next execution. Someone will eventually open
+    the copy nearest the outputs and change it, which is why the warning ships
+    beside the files rather than only in the repo README.
+    """
+    snake, _catalog, _template = sources
+    cfg = tmp_path / "project" / "config"
+
+    copy_config_files(
+        config=snake,
+        config_out_path=cfg / "runs" / "snake_config_model_creation.yml",
+    )
+
+    readme = (cfg / "runs" / "README.md").read_text(encoding="utf-8")
+
+    assert "written by the run" in readme
+    assert "journal.jsonl" in readme
+    # The two claims a reader would otherwise get wrong.
+    assert "lower bound on invocations" in readme
+    assert "scientific data identity" in readme
+
+
+def test_the_runs_readme_is_refreshed_not_preserved(tmp_path, sources):
+    """It is shipped documentation, so an old project should get the new text."""
+    snake, _catalog, _template = sources
+    cfg = tmp_path / "project" / "config"
+    stale = cfg / "runs" / "README.md"
+    stale.parent.mkdir(parents=True)
+    stale.write_text("notes I typed here\n", encoding="utf-8")
+
+    copy_config_files(
+        config=snake,
+        config_out_path=cfg / "runs" / "snake_config_model_creation.yml",
+    )
+
+    assert "notes I typed here" not in stale.read_text(encoding="utf-8")

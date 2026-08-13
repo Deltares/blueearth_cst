@@ -24,6 +24,75 @@ from blueearth_cst.shared.snake_utils import log_row
 #: Repository root, three levels up from ``blueearth_cst/model/copy_config_files.py``.
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
+#: Dropped beside the run record, because this bin has one genuine trap.
+#:
+#: Everything here LOOKS like configuration and is not: it is written by the
+#: run, so an edit is silently overwritten the next time the workflow executes.
+#: Someone will eventually open the copy nearest the outputs and change it.
+_RUNS_README = """\
+# What is in this directory
+
+Everything here is **written by the run**. Editing any of it changes nothing:
+the next execution overwrites it.
+
+To change what a run does, edit the **source config** you pass to
+`--configfile`, then run the workflow again.
+
+| File | What it is |
+|---|---|
+| `snake_config_<workflow>.yml` | verbatim copy of the config this run used |
+| `<workflow>/run_record.yml` | what the run resolved to: toolbox commit, environment hashes, the settings actually consumed, and the external inputs referenced |
+| `journal.jsonl` | append-only ledger, two lines per run (start and outcome) |
+| `invocations/` | one manifest per `scripts/run_workflows.py` invocation |
+
+## Reading `run_record.yml`
+
+It is **current-only** -- it describes the most recent run of that workflow and
+is replaced, not accumulated. `journal.jsonl` is the history.
+
+Two digests, answering different questions:
+
+- `effective_config_sha256` -- the settings the workflow was asked to run under.
+- `configuration_inputs_sha256` -- those settings **plus** the toolbox commit,
+  the lock files, and the bytes of every referenced catalog and template.
+
+Compare runs with the **wide** one: the narrow one does not move when the code
+or a referenced file changes. Neither covers scientific data identity, because
+a remote or mutable dataset can change under an unchanged catalog entry.
+
+Two records assert the same CODE only when both have a non-null `commit` and
+`dirty: false`. With `dirty: true`, the commit does not fully identify what ran.
+
+## Reading `journal.jsonl`
+
+It records **executed** runs. An invocation that finds everything up to date
+does no work and appends nothing, so the line count is an exact count of
+executions and a lower bound on invocations -- a gap in the dates means no work
+was done in that period, not that nobody ran the command.
+
+## Why some referenced files are here and others are not
+
+A file is copied into the project only when the toolbox repository cannot give
+it back. A catalog or template that is tracked and unmodified in the checkout is
+recorded by its git blob id instead; `run_record.yml` lists every reference
+either way, so nothing goes unrecorded.
+"""
+
+
+def _write_runs_readme(directory: Path) -> None:
+    """Write the bin's own README, unconditionally.
+
+    Unconditionally rather than only-when-absent: this file is documentation
+    the toolbox ships, so a stale copy in an old project should be refreshed,
+    and nothing a user writes here is meant to survive anyway -- which is
+    precisely what it says.
+    """
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / "README.md").write_text(_RUNS_README, encoding="utf-8")
+    except OSError as error:  # never fail a run over a README
+        log_row(f"could not write {directory}/README.md: {error}", module="config")
+
 
 def copy_config_files(
     config: Union[str, Path],
@@ -98,6 +167,10 @@ def copy_config_files(
         module="config",
     )
     shutil.copyfile(source_config_path, current_config_path)
+    # Beside the flat config copy, which is the bin a user actually opens --
+    # not beside the record, which sits one level down under a per-workflow
+    # subdirectory (and, for WF3, in the experiment's own config dir).
+    _write_runs_readme(current_config_path.parent)
 
     references = dict(other_config_files or {})
     roles = {str(key): value for key, value in (reference_roles or {}).items()}
