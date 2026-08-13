@@ -51,7 +51,7 @@ Layout also differs entirely: `fao` keeps `src/` + `snakemake/*.smk`, main keeps
 | `Snakefile_climate_historical` | *(part of WF1)* | **Split we want.** Climate-source extraction, station/subregion sampling, trends, comparison plots |
 | `Snakefile_historical_hydrology` | `Snakefile_model_creation` (WF1) | Same job. `fao` runs the model once **per forcing dataset**; main runs one |
 | `Snakefile_climate_projections` | `Snakefile_climate_projections` (WF2) | Same job; main is far more developed, but `fao` emits **gridded** monthly change factors, which main removed by ruling (§5.2) |
-| `Snakefile_future_hydrology_delta_change` | *(absent)* | **New capability.** Top-down delta-change impact runs |
+| `Snakefile_future_hydrology_delta_change` | *(absent)* | Top-down delta-change impact runs — **assessed and declined**, §3 |
 | `Snakefile_climate_experiment` | `Snakefile_climate_experiment` (WF3) | Same job; main is far ahead (186 lines vs 1217) |
 
 Sizes are worth stating plainly: every `fao` Snakefile is 167–208 lines; every
