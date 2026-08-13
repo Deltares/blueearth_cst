@@ -37,6 +37,7 @@ def build(
     catalog_crawled_on,
     reducer_module_hash,
     effective_config_sha256,
+    configuration_inputs_sha256=None,
     region_fingerprint,
     horizons,
     weighting_scheme,
@@ -111,6 +112,13 @@ def build(
         "region_fingerprint": region_fingerprint,
         "reducer_module_hash": reducer_module_hash,
         "effective_config_sha256": effective_config_sha256,
+        # The WIDE digest, and the one a staleness check must compare: the
+        # narrow field above moves only when the SETTINGS move, so a toolbox
+        # commit, a changed custom template or an in-place catalog edit would
+        # leave stale outputs matching a fresh run record and reading as
+        # current. WF2 needs no separate sidecar file because this document
+        # already exists and is not baseline-fingerprinted.
+        "configuration_inputs_sha256": configuration_inputs_sha256,
         "weighting_scheme": weighting_scheme,
         "variable_spec": {
             name: dict(zip(("name", "source", "canonical", "units", "change"), fields))

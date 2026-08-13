@@ -1,10 +1,12 @@
 import sys
+import uuid
 from pathlib import Path
 
 # Shared helpers live in blueearth_cst/; make them importable regardless of the working
 # directory by prepending this Snakefile's own directory to sys.path.
 # See dev/milestones/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
+from blueearth_cst.shared.provenance import append_journal_line, configuration_inputs_digest, effective_config_digest, environment_file_hashes, file_sha256, journal_event, referenced_inputs_for_digest, toolbox_identity
 from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_JULIA_THREADS, DEFAULT_WFLOW_OUTVARS, climate_store_rule, get_config, julia_prefix, patch_psutil_windows_benchmark, region_rule, resolve_simulation_window, resolve_water_year_start, rule_banner, spatial_units_rule, target_banner, validate_historical_window, warn_if_project_dir_in_repo
 from blueearth_cst.spatial.config import parse_spatial_config
 # The canonical climate figure set (rules 1.13 and 1.15 both draw it). Imported
@@ -155,9 +157,43 @@ _observations_input = (
 # The content-addressed config bundle was removed here (config-snapshot
 # redesign, 2026-08-13). It had no readers, and naming its directory after a
 # digest over the WHOLE config meant an edit to any other workflow's section
-# minted a fresh one. What replaces it is `run_record.yml`: current-only, one
-# per workflow, and scoped in a later phase to the keys this workflow reads.
+# minted a fresh one. What replaces it is `run_record.yml`: current-only and
+# one per workflow.
 RUN_RECORD = f"{project_dir}/config/runs/model_creation/run_record.yml"
+
+# The consumed-key PROJECTION: the config paths this workflow actually reads.
+# Digesting the projection rather than the whole file is what stops a WF3-only
+# edit from re-firing WF1's record. A path this config lacks raises at parse
+# time -- the declaration is a claim about what the workflow reads, so a typo
+# must not quietly narrow the digest.
+CONFIG_PROJECTION = ("project", "shared", "workflows.model_creation")
+
+# Every external file this workflow's configuration points at. Hashed at parse
+# time so the digest below moves when one is edited IN PLACE -- the recorded
+# hash alone would move without re-firing anything.
+CONFIG_REFERENCES = [
+    ("model_build_config", model_build_config),
+    ("waterbodies_config", waterbodies_config),
+    *[("data_catalog", source) for source in
+      (DATA_SOURCES if isinstance(DATA_SOURCES, (list, tuple)) else [DATA_SOURCES])],
+    *[("output_locations", source) for source in _locations_input.values()],
+    *[("observations_timeseries", source) for source in _observations_input.values()],
+]
+
+EFFECTIVE_CONFIG_DIGEST = effective_config_digest(
+    config, ADVANCED_SETTINGS, CONFIG_PROJECTION
+)
+# Threaded through rule 1.01's params: below. Snakemake's params rerun-trigger
+# then re-executes it whenever ANY component moves -- a new commit, a dirty
+# flip, a lock-file change, an in-place catalog edit. Without this the record
+# would keep the previous commit after a code-only change, which is the defect
+# both design reviewers found independently.
+CONFIGURATION_INPUTS_DIGEST = configuration_inputs_digest(
+    EFFECTIVE_CONFIG_DIGEST,
+    toolbox_identity(),
+    environment_file_hashes(),
+    referenced_inputs_for_digest(CONFIG_REFERENCES),
+)
 
 # R9 P2 commit 1: the live HydroMT model root moves under `models/`, the tree's
 # home for engine-shaped model artifacts (design v10). ONE definition per
@@ -373,6 +409,11 @@ WF1_TERMINALS = [
     # P1 spatial foundation. One representative output schedules the complete
     # multi-output rule and makes both gather rules wait for its log/benchmark.
     f"{spatial_dir}/spatial_catalog.yml",
+    # The staleness sidecar (1.15b). A terminal in its own right: it consumes
+    # the metrics table and nothing consumes it, and listing it here is what
+    # schedules it at all -- no rule reads a sidecar, so without this it would
+    # never build.
+    f"{basin_dir}/evaluation/run_metadata.json",
 ]
 
 # 1.00  all — target aggregator: full historical build + performance plots
@@ -412,6 +453,10 @@ rule snapshot_config:
         config_dir = f"{project_dir}/config",
         effective_config = config,
         advanced_settings = ADVANCED_SETTINGS,
+        config_projection = CONFIG_PROJECTION,
+        # A string digest, so the params trigger compares a value rather than
+        # a structure. This is what keeps the record FRESH; see its definition.
+        configuration_inputs_sha256 = CONFIGURATION_INPUTS_DIGEST,
     output:
         config_snake_out = f"{project_dir}/config/runs/snake_config_model_creation.yml",
         run_record = RUN_RECORD,
@@ -929,6 +974,34 @@ rule plot_wflow_evaluation:
        f"{project_dir}/benchmarks/_parts/1.15_plot_wflow_evaluation.tsv",
    script: "blueearth_cst/model/plot_results.py"
 
+# 1.15b write_run_metadata — the staleness sidecar (design §5.8).
+#
+# `1.15b`, not `1.16`: that number is gather_benchmarks and `dev/reference/
+# naming.md` §8b forbids renumbering to insert a rule. Placed BEFORE the two
+# gather rules so its log part -- if it ever grows one -- is still gathered.
+#
+# It takes the metrics table as input rather than writing into it: that table
+# and WF3's indicator CSV are baseline-fingerprinted, so embedding the digests
+# in either would falsify the design's no-baseline-re-record claim.
+rule write_run_metadata:
+    message: rule_banner("1.15b", "write_run_metadata")
+    input:
+        metrics_csv = f"{basin_dir}/evaluation/performance_metrics.csv",
+        # ADR 0004: a rule reading under the model root waits on the terminal
+        # marker, because rule 1.08 rewrites the whole directory. The metrics
+        # table already orders this rule after 1.15, so the marker adds no edge
+        # in practice -- it is declared because the convention is mechanical,
+        # and a reader exempted by an argument is how the next one gets missed.
+        model_final = ancient(f"{basin_dir}/.model_final"),
+    params:
+        workflow_name = "model_creation",
+        effective_config_sha256 = EFFECTIVE_CONFIG_DIGEST,
+        configuration_inputs_sha256 = CONFIGURATION_INPUTS_DIGEST,
+    output:
+        run_metadata = f"{basin_dir}/evaluation/run_metadata.json",
+    script:
+        "blueearth_cst/shared/write_run_metadata.py"
+
 # 1.12  plot_basin_map — every figure the spatial foundation supports: the
 # basin/DEM map plus the thematic family beside it (parallel leaf).
 #
@@ -1109,3 +1182,52 @@ rule gather_logs:
         rules = LOG_RULES,
         parts_dir = LOG_PARTS_DIR,
     script: "blueearth_cst/shared/merge_logs.py"
+
+
+# --- Run journal (design §5.7) ------------------------------------------------
+#
+# Emitted from WORKFLOW-LEVEL HANDLERS, never from a rule: a rule that is up to
+# date does not execute, so it cannot record an invocation, and a rule that
+# DECLARED the journal would have it deleted before the job ran -- Snakemake
+# removes declared outputs first, truncating the ledger to one line every run,
+# silently. A one-line journal looks exactly like a young one.
+#
+# SCOPE (R5 as narrowed 2026-08-13, after the P0 probe): these handlers cover
+# invocations in which at least one job executed. On Snakemake 9.6.2 a "Nothing
+# to be done" no-op fires NONE of them -- workflow.py:1375-1377 returns before
+# _onstart, guarded by no flag -- so the journal counts executed runs, and a gap
+# in the dates means no work was done rather than that nobody looked. Do not add
+# a parse-time or atexit emitter to reach past this; the owner ruled against it.
+JOURNAL_PATH = f"{project_dir}/config/runs/journal.jsonl"
+INVOCATION_ID = uuid.uuid4().hex
+
+# One toolbox read per invocation, shared by both handlers, so a line pair
+# cannot straddle a commit.
+_JOURNAL_TOOLBOX = toolbox_identity()
+
+
+def _journal(event):
+    append_journal_line(
+        JOURNAL_PATH,
+        journal_event(
+            invocation_id=INVOCATION_ID,
+            workflow="model_creation",
+            event=event,
+            toolbox=_JOURNAL_TOOLBOX,
+            effective_config_sha256=EFFECTIVE_CONFIG_DIGEST,
+            configuration_inputs_sha256=CONFIGURATION_INPUTS_DIGEST,
+            source_config_sha256=file_sha256(config_path),
+        ),
+    )
+
+
+onstart:
+    _journal("started")
+
+
+onsuccess:
+    _journal("success")
+
+
+onerror:
+    _journal("failed")

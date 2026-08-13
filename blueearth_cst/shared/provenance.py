@@ -8,6 +8,7 @@ import logging
 import math
 import subprocess
 from collections.abc import Iterable, Mapping, Sequence
+from datetime import datetime, timezone
 from pathlib import Path, PurePath
 from typing import Any
 
@@ -453,6 +454,47 @@ def append_journal_line(path: str | Path, record: Mapping[str, Any]) -> None:
         logger.warning("could not append to run journal %s: %s", path, error)
 
 
+def journal_event(
+    *,
+    invocation_id: str,
+    workflow: str,
+    event: str,
+    toolbox: Mapping[str, Any],
+    effective_config_sha256: str,
+    configuration_inputs_sha256: str,
+    source_config_sha256: str | None = None,
+    experiment: str | None = None,
+) -> dict[str, Any]:
+    """Build one journal line.
+
+    ``event`` is ``started``, ``success`` or ``failed``. The TERMINAL line is
+    the contract; ``started`` is best-effort crash tracing, so an invocation
+    killed hard leaves a ``started`` with no partner, which is itself the
+    diagnostic.
+
+    WF3 lines carry ``experiment``: the workflow where per-run identity matters
+    most should not depend on digest-matching to name its own experiment.
+    """
+    record = {
+        "ts": datetime.now(timezone.utc)
+        .isoformat(timespec="seconds")
+        .replace("+00:00", "Z"),
+        "invocation_id": invocation_id,
+        "workflow": workflow,
+        "event": event,
+        "commit": toolbox.get("commit"),
+        "commit_source": toolbox.get("commit_source"),
+        "dirty": toolbox.get("dirty"),
+        "effective_config_sha256": effective_config_sha256,
+        "configuration_inputs_sha256": configuration_inputs_sha256,
+    }
+    if source_config_sha256 is not None:
+        record["source_config_sha256"] = source_config_sha256
+    if experiment is not None:
+        record["experiment"] = experiment
+    return record
+
+
 def read_journal_lines(path: str | Path) -> list[dict[str, Any]]:
     """Read a run journal, tolerating a torn final line.
 
@@ -540,14 +582,49 @@ def _reference_identity(reference: Mapping[str, Any]) -> str:
         value = reference.get(field)
         if isinstance(value, str) and value:
             return f"{field}:{value}"
-    for field in ("role", "origin", "identifier"):
+    # origin before role: the role is a CLASS ("data_catalog") and several
+    # references can share one, so falling back to it first would give two
+    # different pathless catalogs the same identity and collapse them in the
+    # digest. The origin is what distinguishes them.
+    for field in ("origin", "identifier", "role"):
         value = reference.get(field)
         if isinstance(value, str) and value:
             return f"identifier:{value}"
     raise ValueError(
         "a referenced input needs a 'sha256', a 'git_blob', or an identifying "
-        f"'role'/'origin'/'identifier'; got {sorted(reference)}"
+        f"'origin'/'identifier'/'role'; got {sorted(reference)}"
     )
+
+
+def referenced_inputs_for_digest(
+    items: Iterable[tuple[str, Any]],
+) -> list[dict[str, Any]]:
+    """Describe a workflow's referenced config inputs at Snakefile PARSE time.
+
+    Hash what is on disk, name what is not -- hydromt's predefined catalogs are
+    identifiers with no path. This runs on every invocation before the DAG is
+    built, which is what lets a rule's ``params:`` carry the result: an
+    in-place edit to a referenced catalog then re-fires the rule that records
+    it, closing the gap where only the recorded hash moved and nothing re-ran.
+
+    Costs milliseconds -- these are small YAML and CSV files.
+
+    Args:
+        items: ``(role, path_or_identifier)`` pairs. Roles may repeat; the
+            origin is what distinguishes two references sharing one.
+    """
+    entries: list[dict[str, Any]] = []
+    for role, identifier in items:
+        origin = str(identifier)
+        entry: dict[str, Any] = {"role": role, "origin": origin}
+        path = Path(origin)
+        try:
+            if path.is_file():
+                entry["sha256"] = file_sha256(path)
+        except OSError:
+            pass
+        entries.append(entry)
+    return entries
 
 
 def _canonical_float(value: float) -> str:
