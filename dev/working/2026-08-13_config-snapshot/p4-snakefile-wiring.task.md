@@ -45,6 +45,11 @@ No changes to the writer or the provenance helpers (P1/P2 own them).
    **The journal is never a declared output** — Snakemake deletes declared
    outputs before a job runs, which would truncate it to one line every time,
    silently.
+   **Scope, per the narrowed R5 (§4):** these handlers fire only when at least
+   one job executes — a no-op invocation records nothing, and that is the
+   accepted behaviour, not a defect to engineer around (`p0-probe-result.md`,
+   design §7 item 11). Do **not** add a parse-time or `atexit` emitter to reach
+   past it; the owner ruled against that on 2026-08-13.
 6. Add rules **`1.15b`** and **`3.16b`** `write_run_metadata` emitting
    `run_metadata.json` sidecars; extend WF2's existing `provenance.json`.
 
@@ -70,9 +75,18 @@ reaches:**
 - *"the record refreshes when the checkout moves"* — run WF1, commit an
   unrelated code change, re-run without touching the config; a `run_record.yml`
   still carrying the **old** commit disproves it.
-- *"the journal accumulates"* — run any workflow twice with no config change;
-  a `journal.jsonl` with one line, or with a terminal line missing for the
-  second run, disproves it.
+- *"the journal accumulates"* — **amended 2026-08-13 after the P0 probe; the
+  original wording tested the one case that cannot work.** It said "run any
+  workflow twice with no config change", but with no change the second run is a
+  "Nothing to be done" no-op, which fires no handler and appends nothing
+  (`p0-probe-result.md`) — so the original falsifier would fire on correct code.
+  Run it instead as: **run any workflow, then re-run it with `--forcerun` on any
+  rule** (or after touching one input), so the second invocation executes at
+  least one job. A `journal.jsonl` with one line, or with a terminal line
+  missing for the second run, disproves accumulation.
+  The **complementary** check, now that R5 is narrowed (§4): a genuine no-op
+  re-run must append **nothing** — a line appearing there would mean the
+  journal is being written from somewhere other than the handlers.
 
 ### Acceptance criteria
 

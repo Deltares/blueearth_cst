@@ -39,6 +39,13 @@ tutorial on provenance.
 2. New `config/runs/README.md`: "everything here is written by the run; edit the
    source config instead", naming `run_record.yml` as the projection-bearing
    artifact.
+   **Must also state what the journal is a ledger OF** (design §5.7, R5 as
+   narrowed 2026-08-13): **executed** invocations. A "Nothing to be done" run
+   appends nothing, so the line count is an exact count of executions and a
+   *lower bound* on invocations — a gap in the dates means no work was done,
+   not that nobody ran the command. Stating this is the whole mitigation for
+   the residual the owner accepted at design §7 item 11; leaving it implicit
+   would let a reader over-read the file.
 3. Grep the tree for surviving references to the removed names and fix every
    live one in the same commit:
    `grep -rn "referenced-files\|snapshot_bundle\|source\.yml\|effective\.yml"`

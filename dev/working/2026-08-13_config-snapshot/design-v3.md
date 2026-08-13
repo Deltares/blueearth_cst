@@ -170,8 +170,15 @@ P8 → §5.5; P9 → §5.4; P11 → §5.2 + §5.5.
   values used** for that execution.
 - **R4.** General principle: **copy a referenced file into the project only when
   the toolbox repository cannot give it back.**
-- **R5 (ruled 2026-08-13).** An append-only, one-line-per-run journal is
-  **permitted** — R1 forbids the content-addressed bundle, not a bounded ledger.
+- **R5 (ruled 2026-08-13; narrowed 2026-08-13 after the P0 probe).** An
+  append-only, one-line-per-run journal is **permitted** — R1 forbids the
+  content-addressed bundle, not a bounded ledger. **Scope:** the journal records
+  invocations **in which at least one job executed or was attempted**, not every
+  command typed. The pinned Snakemake fires no lifecycle handler on a "Nothing
+  to be done" no-op (`p0-probe-result.md`), and the owner ruled against adding a
+  mechanism to reach past it — R5 permitted a ledger, it never mandated
+  universal coverage, and params threading already ensures any invocation whose
+  configuration, code, environment or referenced inputs moved does execute.
 - **R6 (ruled 2026-08-13).** The values-used record is written by the rule
   that consumes the values, into the model's own output directory — not into a
   config snapshot bin.
@@ -280,22 +287,40 @@ mechanisms, each covering a case the other cannot. They are both required:
   and costs milliseconds. What params threading **cannot** do: record an
   invocation that executed nothing (X.01 up to date ⇒ no write), or record
   failure — a rule output has no way to say "this run crashed".
-- **Lifecycle hooks record every invocation and its outcome.** Journal
-  emission (§5.7) moves **out of rule X.01 entirely** into workflow-level
-  `onstart:` / `onsuccess:` / `onerror:` handlers, which Snakemake executes for
-  every non-dry invocation regardless of whether any job ran. This is what
-  covers the cases params threading cannot: the no-op invocation, the failed
-  invocation, the same-config re-run. What hooks **cannot** do: rewrite
+- **Lifecycle hooks record every *executed* invocation and its outcome.**
+  Journal emission (§5.7) moves **out of rule X.01 entirely** into
+  workflow-level `onstart:` / `onsuccess:` / `onerror:` handlers.
+  **Amended 2026-08-13 after the P0 probe** (`p0-probe-result.md`) — this
+  paragraph previously claimed handlers fire "for every non-dry invocation
+  regardless of whether any job ran", and that is **false** on the pinned
+  Snakemake 9.6.2: a "Nothing to be done" invocation fires none of the three
+  (`workflow.py:1375-1377` returns before `_onstart`, unguarded by any flag).
+  Hooks therefore cover the **failed invocation** and any invocation in which at
+  least one job executed, and **not** the no-op or the byte-identical re-run.
+  R5 is narrowed to match (owner ruling, 2026-08-13, §4): the journal is a
+  ledger of executed invocations, not of every command typed. The narrowing is
+  affordable because params threading folds toolbox identity, environment
+  hashes and referenced-input bytes into the trigger — so any invocation whose
+  *inputs moved at all* re-executes X.01 and is therefore recorded. What is
+  lost is the invocation where config, code, environment and referenced inputs
+  are all identical to the previous run, which carries no information beyond
+  "the command was re-typed". What hooks **cannot** do: rewrite
   `run_record.yml` — a hook mutating a rule's declared output behind
   Snakemake's back would corrupt its up-to-date reasoning, which is why the
   record's freshness must come from the params trigger and not from a hook.
 
 Implementation step 0 (**probe, before any code**): confirm on the pinned
 Snakemake that (a) the three handlers fire on a normal invocation and on a
-"Nothing to be done" no-op, (b) none fires under `--dry-run`. The design's
-contract is the **terminal** line (`onsuccess`/`onerror`); the `onstart` line
-is best-effort crash tracing (§5.7), so if the probe shows `onstart` skipping
-no-op invocations, the contract still holds unchanged.
+"Nothing to be done" no-op, (b) none fires under `--dry-run`.
+
+**Probe result, 2026-08-13** (`p0-probe-result.md`, Snakemake 9.6.2): (b)
+holds; (a) holds for the normal invocation and **fails for the no-op**. Two
+further legs beyond the four required: a `--forcerun` of an up-to-date target
+fires both handlers (confirming the trigger is *job execution*, not
+invocation), and a DAG-build failure (`MissingInputException`) fires **nothing**
+— not even `onerror`, since it is raised before the handler block is reached.
+That last one is a residual of this design, accepted at §7 item 11: a Snakefile
+wired to declare an output no script writes fails unrecorded.
 
 ### 5.3 Scope by consumed keys — declared, tested, and honest about enforcement
 
@@ -569,7 +594,16 @@ three handlers all see):
 `event` ∈ `started | success | failed` (`onstart`/`onsuccess`/`onerror`). The
 **terminal line is the contract**; the `started` line is best-effort crash
 tracing — an invocation killed hard (SIGKILL, power loss) leaves a `started`
-line with no terminal partner, which is itself the diagnostic. WF3 lines carry
+line with no terminal partner, which is itself the diagnostic.
+
+**What the journal is a ledger OF** (narrowed 2026-08-13, R5 in §4; probe
+evidence in `p0-probe-result.md`): **executed** invocations — those in which at
+least one job ran or was attempted. A no-op invocation ("Nothing to be done")
+appends nothing, because the pinned Snakemake fires no handler for it. This must
+be stated in `config/runs/README.md` (P7): a reader counting journal lines to
+answer "how often was this project run" gets executed runs, and an absence of
+lines across a period means no work was done in it — not that nobody looked. The
+line count is a lower bound on invocations and an exact count of executions. WF3 lines carry
 `"experiment"` (round-2 minor): the workflow where per-run identity matters
 most must not depend on digest-matching to name its experiment. ~500 bytes per
 invocation.
@@ -719,7 +753,11 @@ the house pattern.
 
 **Step 0 — probe** the lifecycle-handler behaviour on the pinned Snakemake
 (§5.2): normal, no-op, failed, and `--dry-run` invocations. Cheap, and the
-journal contract depends on it.
+journal contract depends on it. **Done 2026-08-13** — it cost the design a
+claim: handlers do not fire on a no-op, so R5 was narrowed to executed
+invocations rather than a mechanism added (`p0-probe-result.md`, §4 R5,
+§7 item 11). The probe paid for itself; the contract it corrected would
+otherwise have shipped as an untested assumption inside P4.
 
 - `blueearth_cst/shared/provenance.py` — consumed-key projection document; the
   two digests (§5.4); `toolbox_identity()` and `environment_file_hashes()`
@@ -829,3 +867,14 @@ journal contract depends on it.
 10. **Hard-kill invocations** (SIGKILL, power loss) leave a `started` journal
     line with no terminal partner (§5.7) — a trace, not a record of outcome.
     Accepted; matches `run_workflows.py`'s own manifest behaviour.
+11. **Two invocation classes the journal cannot see** (added 2026-08-13 from the
+    P0 probe; ruled accepted by the owner the same day, R5 narrowed to match):
+    the **no-op** invocation, where nothing needed doing and Snakemake returns
+    before any handler runs; and the **DAG-build failure**, raised earlier still
+    (`MissingInputException`), which fires not even `onerror`. The first is
+    accepted because params threading makes it informationally empty — an
+    invocation whose inputs moved is never a no-op. The second is a real loss:
+    a Snakefile wired to declare an output no script writes fails without a
+    journal line, which is exactly the P4 wiring error the master brief flags.
+    Mitigation is the ordinary one, `pytest tests/test_cli.py`, which dry-runs
+    all three Snakefiles and surfaces that class before it reaches a run.
