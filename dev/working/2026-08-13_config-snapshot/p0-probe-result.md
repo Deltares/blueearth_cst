@@ -96,10 +96,20 @@ failure mode as a live risk for P4.
 - **Blocks P4** (Snakefile wiring — the hooks are wired there) and the §5.2 /
   §5.7 text, plus design open item 10.
 - **Does not block P1, P2, P3.** `append_journal_line()` is a caller-agnostic
-  helper; only *who calls it, and when* is in question. Rows A, C and F show the
-  handler plumbing itself works and the undeclared-path append accumulates
-  correctly across invocations (§5.7's mandatory accumulation test passes here:
-  six lines from three successful and one failed invocation).
+  helper; only *who calls it, and when* is in question. Its one residual is
+  existential rather than structural — a decision that drops the journal makes
+  the helper dead code, but no decision changes its signature.
+  Checked against §5.4: neither digest is defined in terms of the journal. The
+  coupling runs the other way — §5.7's line schema *embeds*
+  `effective_config_sha256` and `configuration_inputs_sha256`, while §5.4 defines
+  both over the §5.3 projection, `advanced_settings`, toolbox identity, the
+  environment hashes and the §5.5 referenced inputs. So P1's digest contracts,
+  and P2's and P3's consumption of them, are untouched by whatever the owner
+  decides here.
+  Rows A, C and F show the handler plumbing itself works and the
+  undeclared-path append accumulates correctly across invocations (§5.7's
+  mandatory accumulation test passes here: six lines from three successful and
+  one failed invocation).
 
 No workaround is proposed, per the brief and Gate 1.
 
