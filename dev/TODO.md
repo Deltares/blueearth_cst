@@ -27,6 +27,7 @@
 | [t2608131304](tasks/t2608131304-implement-the-config-snapshot-redesign-current-only-run-record-replaces-the-write-only-bundle.md)           | Implement the config-snapshot redesign — current-only run record replaces the write-only bundle                | config / provenance      | config-snapshot design review (2026-08-13)     |     | active  |
 | [t2608131847a](tasks/t2608131847a-split-historical-climate-out-of-wf1.md)                                                                   | Split the historical-climate workflow out of WF1, with a forcing-selection evaluation layer                    | wf1 / workflow split     | fao branch assessment (2026-08-13)             |     | backlog |
 | [t2608131847b](tasks/t2608131847b-statistics-heatmap-tables.md)                                                                             | Add statistics heatmap tables, ported from the fao branch                                                      | plotting                 | fao branch assessment (2026-08-13)             |     | backlog |
+| [t2608132140](tasks/t2608132140-make-the-notebooks-run-helper-fail-loudly-on-a-nonzero-exit.md)                                             | Make the notebooks' run() helper fail loudly on a nonzero exit                                                 | docs / notebooks         | t2608131847 residue                            |     | backlog |
 
 ## Watching
 

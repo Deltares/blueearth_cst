@@ -92,11 +92,18 @@ or `Exiting because a job execution failed`. The `run()` helper returns the
 subprocess exit code and nothing acts on it, so a failed Snakemake call inside a
 notebook otherwise reads as a successful cell.
 
-To read a rendered notebook as a web page:
+To read a rendered notebook as a web page. Pass `--output-dir`, or nbconvert
+writes a ~7 MB untracked `.html` beside the notebook, inside the tracked
+`docs/notebooks/`:
 
 ```bash
-pixi run jupyter nbconvert --to html --embed-images "docs/notebooks/<name>.ipynb"
+pixi run jupyter nbconvert --to html --embed-images \
+  --output-dir .tmp/notebooks-html "docs/notebooks/<name>.ipynb"
 ```
+
+Add `--template basic` for a fragment with no external references at all; the
+default template pulls MathJax, mermaid and require.js from a CDN, which is
+harmless in a browser but not offline-clean.
 
 ## Data
 
