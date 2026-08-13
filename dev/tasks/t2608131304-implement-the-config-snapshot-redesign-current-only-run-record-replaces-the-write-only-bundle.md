@@ -88,10 +88,12 @@ Sequencing and blocking edges are in `master.task.md`; this is the surface.
       `snapshot_bundle` output from all three Snakefiles), pulled forward on an
       owner ruling — without it every workflow fails at its FIRST rule with
       `MissingOutputException` for the whole time P4 stays blocked.
-- [ ] **P3** — values-used records from rules 1.07 and 1.08.
-      **HELD** — collides with defect H's remainder in `_apply_parameter_steps`
-      ([[t2608130215-fix-the-confirmed-config-defects-found-by-the-dual-parameter-review]]),
-      which needs the soil / `river_upa` ownership ruling first.
+- [x] **P3** — values-used records from rules 1.07 and 1.08. Landed `27754cd`
+      + `61d38d7`, after defect H's remainder cleared the collision in
+      `_apply_parameter_steps` (that item is now closed; see `dev/LOG.md`).
+      Each step's call kwargs are built ONCE and consumed twice — unwrapped for
+      hydromt, rendered for the record. The three falsifiers were written
+      before the refactor and observed to fail first.
 - [ ] **P4** — Snakefile wiring: projections, parse-time digests, params
       threading, hooks, rules `1.15b`/`3.16b`. Needs P3. Item 1 already landed
       with P2; the hooks are now scoped by the narrowed R5 above.
