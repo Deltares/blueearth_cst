@@ -266,7 +266,14 @@ def test_success_manifest_is_initialized_before_first_workflow_and_finalized(
     assert manifest["dry_run"] is True
     assert manifest["source_config"]["sha256"] == rw.file_sha256(cfg)
     assert manifest["effective_config"]["sha256"]
-    assert manifest["git"] == {"commit": "abc123", "dirty": False}
+    # commit_source arrived with the move to provenance.toolbox_identity(). The
+    # wrapper's own helper could report a commit or a null and nothing else, so
+    # a container run reading a baked sha was indistinguishable from a checkout.
+    assert manifest["git"] == {
+        "commit": "abc123",
+        "commit_source": "git",
+        "dirty": False,
+    }
     assert manifest["runtime"]["python"]
     assert [item["status"] for item in manifest["workflows"].values()] == [
         "succeeded",

@@ -4,10 +4,40 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
-from collections.abc import Iterable, Mapping
+import subprocess
+from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path, PurePath
 from typing import Any
+
+logger = logging.getLogger(__name__)
+
+#: Repository root, three levels up from ``blueearth_cst/shared/provenance.py``.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
+#: Commit baked into a deployed image by the ``Dockerfile``.
+#:
+#: The image carries no ``.git`` -- sources are ADDed individually -- so a
+#: container has no checkout to interrogate. Gitignored, and therefore absent in
+#: a normal checkout, which is what keeps :func:`toolbox_identity`'s git branch
+#: authoritative wherever a checkout exists.
+TOOLBOX_COMMIT_FILE = ".toolbox-commit"
+
+#: Lock files whose bytes identify the resolved dependency set.
+#:
+#: These survive the absence of git, so they are the identity that still holds
+#: in a deployed image whose ``.toolbox-commit`` was never baked.
+ENVIRONMENT_FILES = ("pixi.lock", "Manifest.toml")
+
+#: Schema of the effective-config document (:func:`effective_config_document`).
+#:
+#: 2 -- the document carries a declared consumed-key PROJECTION rather than the
+#: whole parsed configfile, so a reader can tell a rescoped digest from a
+#: changed config across the transition. A version-1 document digested every
+#: key in the file, which made an unrelated workflow's edit move this
+#: workflow's digest.
+EFFECTIVE_CONFIG_SCHEMA_VERSION = 2
 
 _CANONICAL_JSON_OPTIONS = {
     "allow_nan": False,
@@ -120,8 +150,77 @@ def file_sha256(path: str | Path) -> str:
     return digest.hexdigest()
 
 
+def project_config(
+    config: Mapping[Any, Any], projection: Sequence[str]
+) -> dict[str, Any]:
+    """Select a workflow's declared consumed-key paths from a config mapping.
+
+    A projection is the explicit list of dotted config paths a workflow reads,
+    including cross-section ones -- ``("project", "shared",
+    "workflows.model_creation")`` for WF1. Digesting the projection instead of
+    the whole file is what stops an edit to one workflow's section from moving
+    another workflow's digest.
+
+    Args:
+        config: Parsed configuration mapping.
+        projection: Dotted paths to select. No path may be a prefix of another;
+            declaring both ``shared`` and ``shared.basin`` is ambiguous about
+            which one the digest covers.
+
+    Returns:
+        A nested mapping holding only the selected paths, shaped like the
+        source config so a reader sees familiar structure.
+
+    Raises:
+        TypeError: If ``config`` is not a mapping, or a path is not a
+            non-empty string.
+        ValueError: If two paths overlap.
+        KeyError: If a declared path is absent from ``config``. This is loud on
+            purpose: the projection is a DECLARATION by the Snakefile author
+            about what the workflow reads, so a missing path is either a typo'd
+            declaration or a config missing a section the workflow needs.
+            Silently omitting it would produce a digest that fails to move when
+            that section changes -- a provenance record that quietly stops
+            recording.
+    """
+    if not isinstance(config, Mapping):
+        raise TypeError("config must be a mapping")
+    paths = list(projection)
+    for path in paths:
+        if not isinstance(path, str) or not path:
+            raise TypeError("each projection path must be a non-empty string")
+    for path in paths:
+        for other in paths:
+            if path is not other and other.startswith(f"{path}."):
+                raise ValueError(
+                    f"projection paths overlap: {path!r} contains {other!r}; "
+                    "declare one or the other, not both"
+                )
+
+    projected: dict[str, Any] = {}
+    for path in paths:
+        parts = path.split(".")
+        source: Any = config
+        walked: list[str] = []
+        for part in parts:
+            walked.append(part)
+            if not isinstance(source, Mapping) or part not in source:
+                raise KeyError(
+                    f"projection path {path!r} is not present in the config "
+                    f"(missing at {'.'.join(walked)!r})"
+                )
+            source = source[part]
+        target = projected
+        for part in parts[:-1]:
+            target = target.setdefault(part, {})
+        target[parts[-1]] = source
+    return projected
+
+
 def effective_config_document(
-    config: Mapping[Any, Any], advanced_settings: Mapping[Any, Any]
+    config: Mapping[Any, Any],
+    advanced_settings: Mapping[Any, Any],
+    projection: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     """Build the scientific configuration document used for digesting.
 
@@ -129,23 +228,108 @@ def effective_config_document(
     in this document. ``config`` is the configuration mapping actually resolved
     for the workflow, while ``advanced_settings`` is the validated toolbox-wide
     settings mapping.
+
+    Args:
+        config: Parsed configuration mapping.
+        advanced_settings: Validated toolbox-wide settings mapping. These stay
+            INSIDE the document: they are configuration -- constraints and
+            defaults that shape the run -- and they are recorded nowhere else
+            in a project tree.
+        projection: Declared consumed-key paths (see :func:`project_config`),
+            or ``None`` to cover the whole config. ``None`` is right for a
+            caller with no single workflow scope, such as the
+            ``run_workflows.py`` wrapper manifest that spans all three.
+
+            It defaults to ``None`` so that adding this parameter does not
+            break the callers that predate it -- the Snakefiles and
+            ``copy_config_files.py`` acquire their projections in later phases,
+            and each phase has to leave the tree working on its own. The
+            default is also the SAFE direction: an omitted projection digests
+            more than necessary, so the record is noisy rather than blind. The
+            enforcement that each Snakefile actually declares one lives in the
+            Snakefile-side tests, not in this signature.
     """
     if not isinstance(config, Mapping):
         raise TypeError("config must be a mapping")
     if not isinstance(advanced_settings, Mapping):
         raise TypeError("advanced_settings must be a mapping")
+    scoped = config if projection is None else project_config(config, projection)
     return {
-        "schema_version": 1,
-        "project_config": config,
+        "schema_version": EFFECTIVE_CONFIG_SCHEMA_VERSION,
+        "projection": None if projection is None else sorted(projection),
+        "project_config": scoped,
         "advanced_settings": advanced_settings,
     }
 
 
 def effective_config_digest(
-    config: Mapping[Any, Any], advanced_settings: Mapping[Any, Any]
+    config: Mapping[Any, Any],
+    advanced_settings: Mapping[Any, Any],
+    projection: Sequence[str] | None = None,
 ) -> str:
-    """Return the canonical SHA-256 of the effective scientific config."""
-    return canonical_sha256(effective_config_document(config, advanced_settings))
+    """Return the canonical SHA-256 of the effective scientific config.
+
+    This is CONFIGURATION IDENTITY: "the settings the workflow was asked to run
+    under". It deliberately says nothing about the code, the environment, or
+    the referenced input files -- :func:`configuration_inputs_digest` is the
+    wider question.
+    """
+    return canonical_sha256(
+        effective_config_document(config, advanced_settings, projection)
+    )
+
+
+def configuration_inputs_digest(
+    effective_config_sha256: str,
+    toolbox: Mapping[str, Any],
+    environment: Mapping[str, Any],
+    referenced_inputs: Iterable[Mapping[str, Any]] = (),
+) -> str:
+    """Digest configuration identity together with code, environment and inputs.
+
+    Answers "did this run see the same CONFIGURATION-SIDE inputs as that one".
+    Threading it through a rule's ``params:`` is what makes the run record
+    refresh when the checkout moves, not only when the config is edited.
+
+    **What this deliberately does NOT cover:** the contents of scientific
+    datasets addressed *through* a catalog. A remote or mutable dataset can
+    change under an unchanged catalog entry and this digest will not move. It
+    is configuration-input identity, never scientific run identity -- the name
+    says ``configuration_inputs`` rather than ``run_inputs`` for exactly that
+    reason. Generated intermediate inputs are likewise excluded.
+
+    **Comparability:** two values assert same-code only when both records have
+    a non-null ``commit`` and ``dirty`` false. With ``commit: None`` (a
+    git-less deployment with no baked commit) or ``dirty: True``, equal digests
+    do not imply equal code -- the environment hashes still pin the dependency
+    set, but the toolbox source itself is unwitnessed.
+
+    Args:
+        effective_config_sha256: Output of :func:`effective_config_digest`. The
+            digest string is folded in rather than the document it covers; the
+            two are the same identity, and the string keeps this function
+            independent of the document's shape.
+        toolbox: Output of :func:`toolbox_identity`.
+        environment: Output of :func:`environment_file_hashes`.
+        referenced_inputs: Descriptors for external files the run consumes. A
+            recoverable file contributes its git blob id, a copied one its byte
+            hash, and a logical identifier with no path contributes its
+            identifier string -- so the digest tracks CONTENT, whichever way
+            the file is retained. Order does not affect the result.
+    """
+    if not isinstance(effective_config_sha256, str):
+        raise TypeError("effective_config_sha256 must be a string")
+    identities = sorted(_reference_identity(item) for item in referenced_inputs)
+    document = {
+        "schema_version": EFFECTIVE_CONFIG_SCHEMA_VERSION,
+        "effective_config_sha256": effective_config_sha256,
+        "toolbox": {
+            key: toolbox.get(key) for key in ("commit", "commit_source", "dirty")
+        },
+        "environment": {name: environment.get(name) for name in ENVIRONMENT_FILES},
+        "referenced_inputs": identities,
+    }
+    return canonical_sha256(document)
 
 
 def snapshot_bundle_digest(
@@ -175,11 +359,195 @@ def snapshot_bundle_digest(
     references.sort(key=_canonical_json)
     document = {
         "schema_version": 1,
-        "effective_config": effective_config_document(config, advanced_settings),
+        # projection=None keeps this legacy digest over the whole config, which
+        # is what it has always covered. The bundle it names is removed in P2;
+        # rescoping it on the way out would change a digest nobody reads.
+        "effective_config": effective_config_document(config, advanced_settings, None),
         "source_config_sha256": file_sha256(source_config_path),
         "referenced_inputs": references,
     }
     return canonical_sha256(document)
+
+
+def toolbox_identity(repo_root: str | Path | None = None) -> dict[str, Any]:
+    """Resolve which revision of the toolbox is running.
+
+    Resolution order, first hit wins:
+
+    1. ``git rev-parse HEAD`` plus ``git status --porcelain`` -- the live
+       checkout. ``commit_source: "git"``.
+    2. ``.toolbox-commit`` in the repo root -- a commit baked into a deployed
+       image, which carries no ``.git``. ``commit_source: "baked"``, and
+       ``dirty`` is ``None`` because a baked file cannot know.
+    3. Nothing. All three fields ``None``.
+
+    Every failure is swallowed: a provenance helper must never crash a run.
+    An unresolvable identity is recorded as ``None`` rather than guessed, so a
+    record that cannot witness its own code says so instead of lying.
+
+    Returns:
+        ``{"commit": ..., "commit_source": ..., "dirty": ...}``. ``dirty``
+        being ``True`` means the commit does NOT fully identify the code that
+        ran; ``None`` means it was unknowable.
+    """
+    root = Path(repo_root) if repo_root is not None else _REPO_ROOT
+    commit_result = _run_metadata_command(["git", "rev-parse", "HEAD"], root)
+    if commit_result is not None and commit_result.strip():
+        status_result = _run_metadata_command(["git", "status", "--porcelain"], root)
+        return {
+            "commit": commit_result.strip(),
+            "commit_source": "git",
+            "dirty": None if status_result is None else bool(status_result.strip()),
+        }
+
+    baked = _read_baked_commit(root / TOOLBOX_COMMIT_FILE)
+    if baked is not None:
+        return {"commit": baked, "commit_source": "baked", "dirty": None}
+
+    return {"commit": None, "commit_source": None, "dirty": None}
+
+
+def environment_file_hashes(repo_root: str | Path | None = None) -> dict[str, Any]:
+    """Hash the lock files that identify the resolved dependency set.
+
+    Returns:
+        One entry per :data:`ENVIRONMENT_FILES`, its byte SHA-256 or ``None``
+        when the file is absent. The key is always present: an explicit
+        ``None`` records "this file was not there", which an omitted key
+        cannot distinguish from "nobody looked".
+    """
+    root = Path(repo_root) if repo_root is not None else _REPO_ROOT
+    hashes: dict[str, Any] = {}
+    for name in ENVIRONMENT_FILES:
+        path = root / name
+        try:
+            hashes[name] = file_sha256(path) if path.is_file() else None
+        except OSError:
+            hashes[name] = None
+    return hashes
+
+
+def append_journal_line(path: str | Path, record: Mapping[str, Any]) -> None:
+    """Append one JSON line to a run journal.
+
+    The journal is an append-only ledger of EXECUTED invocations. It must never
+    be a declared output of any Snakemake rule: Snakemake deletes a rule's
+    declared outputs before executing the job, which would truncate the journal
+    to one line on every run -- silently, since a one-line journal is
+    indistinguishable from a young one.
+
+    The whole line is written in a single ``write()`` under ``O_APPEND`` (mode
+    ``"a"``), which is what keeps concurrent writers from interleaving within a
+    line. Failures are swallowed for the same reason as in
+    :func:`toolbox_identity`: losing a journal line must never fail a run that
+    otherwise succeeded.
+    """
+    line = json.dumps(dict(record), **_CANONICAL_JSON_OPTIONS)
+    try:
+        target = Path(path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with target.open("a", encoding="utf-8", newline="\n") as handle:
+            handle.write(f"{line}\n")
+            handle.flush()
+    except OSError as error:
+        logger.warning("could not append to run journal %s: %s", path, error)
+
+
+def read_journal_lines(path: str | Path) -> list[dict[str, Any]]:
+    """Read a run journal, tolerating a torn final line.
+
+    An invocation killed mid-write can leave a partial last line. The file's
+    value is its accumulated history, so a torn tail must not poison it: any
+    line that fails to parse is skipped with a warning rather than raising.
+
+    Returns:
+        The parsed lines, in file order. A missing file reads as empty.
+    """
+    target = Path(path)
+    if not target.is_file():
+        return []
+    records: list[dict[str, Any]] = []
+    with target.open("r", encoding="utf-8") as handle:
+        for number, line in enumerate(handle, start=1):
+            text = line.strip()
+            if not text:
+                continue
+            try:
+                record = json.loads(text)
+            except json.JSONDecodeError:
+                logger.warning(
+                    "skipping unparsable journal line %d in %s", number, path
+                )
+                continue
+            if isinstance(record, dict):
+                records.append(record)
+            else:
+                logger.warning(
+                    "skipping non-object journal line %d in %s", number, path
+                )
+    return records
+
+
+def _read_baked_commit(path: Path) -> str | None:
+    """Return the first non-empty line of a baked commit file, if any."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped:
+            return stripped
+    return None
+
+
+def _run_metadata_command(command: list[str], cwd: Path) -> str | None:
+    """Run a cheap metadata query without making provenance capture fragile."""
+    try:
+        result = subprocess.run(
+            command,
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    return getattr(result, "stdout", "")
+
+
+def _reference_identity(reference: Mapping[str, Any]) -> str:
+    """Reduce one referenced-input descriptor to its content identity.
+
+    A file is identified by its byte hash, and a logical reference with no
+    bytes -- a catalog source name -- by its own identifier.
+
+    **Deviation from design-v3 §5.4, deliberate and flagged for review.** The
+    design says recoverable files contribute their *git blob id* and copied
+    ones their byte hash. Every descriptor carries ``sha256`` regardless
+    (§5.2's schema), so preferring it uniformly costs nothing and buys one
+    property the split rule loses: the digest then follows CONTENT alone.
+    Under the split rule, re-classifying a file from recoverable to copied
+    moves the digest without any byte changing -- a policy change masquerading
+    as an input change, in the one digest whose job is to say whether the
+    inputs differ. ``git_blob`` is still honoured when no hash is present.
+    """
+    if not isinstance(reference, Mapping):
+        raise TypeError("each referenced input must be a mapping")
+    for field in ("sha256", "git_blob"):
+        value = reference.get(field)
+        if isinstance(value, str) and value:
+            return f"{field}:{value}"
+    for field in ("role", "origin", "identifier"):
+        value = reference.get(field)
+        if isinstance(value, str) and value:
+            return f"identifier:{value}"
+    raise ValueError(
+        "a referenced input needs a 'sha256', a 'git_blob', or an identifying "
+        f"'role'/'origin'/'identifier'; got {sorted(reference)}"
+    )
 
 
 def _canonical_float(value: float) -> str:
