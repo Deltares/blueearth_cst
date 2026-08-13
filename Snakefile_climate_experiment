@@ -38,7 +38,13 @@ project_dir = get_config(project_cfg, "project_dir", optional=False)
 # O-22: make the two-tier project_dir rule mechanical rather than
 # documentary. Warns, never raises; test_case/ is the one exemption.
 warn_if_project_dir_in_repo(project_dir, workflow.basedir)
-static_dir = get_config(project_cfg, "static_dir", optional=False)
+# `project.static_dir` is deliberately NOT read here. It exists to build WF1's
+# fallback paths for `model_build_config` / `waterbodies_config`; WF3 has no
+# such fallback. It was read `optional=False` and never used, so a config
+# omitting it failed WF3 for a value WF3 ignores. Removed 2026-08-13 (defect
+# E/F). The key itself is still read by WF1 and still part of the `project`
+# section the consistency guard digests -- deleting it outright is a separate,
+# breaking change (M1 in dev/working/parameter-placement.md).
 DATA_SOURCES = get_config(project_cfg, "data_sources", optional=False)
 
 # experiment_name is OPTIONAL, and defaults to the project's own name plus the
