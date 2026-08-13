@@ -93,6 +93,24 @@ message("[generate_weather] Resampling on ", length(keep), " basin cell(s) of ",
 obs_data_basin <- ncdata$data[keep]
 obs_grid_basin <- ncdata$grid[keep, , drop = FALSE]
 
+# Renumber the subset's cell ids to 1..n, matching the data list handed over
+# with it.
+#
+# `read_netcdf` stamps `id = seq_len(nrow(grid))` across the FULL store grid, so
+# a row subset keeps the ORIGINAL ids -- cells 7 and 12 of 20 stay 7 and 12 --
+# while `ncdata$data[keep]` is renumbered 1..2 by the subset itself. The two
+# then disagree.
+#
+# It went unnoticed until the 2026-08-13 swap to `run_weather_generator`:
+# `generate_weather` never reads `grid$id` (it assigns its own when absent), but
+# the wrapper's evaluation pass derives `grid_ids` from that column and requires
+# them to index `obs_data`. Rule 3.11 failed with "'grid_ids' must match names
+# or indices of obs_data" on any basin that is not the whole store -- i.e. every
+# real basin. Reproduced and fixed against a 20-cell grid subset to 2.
+if ("id" %in% names(obs_grid_basin)) {
+  obs_grid_basin$id <- seq_len(nrow(obs_grid_basin))
+}
+
 # Step 2) Generate new weather realizations
 message("[generate_weather] Generating ", historical_realizations_num,
         " weather realization(s)")
