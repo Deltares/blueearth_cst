@@ -45,7 +45,7 @@ Layout also differs entirely: `fao` keeps `src/` + `snakemake/*.smk`, main keeps
 |---|---|---|
 | `Snakefile_climate_historical` | *(part of WF1)* | **Split we want.** Climate-source extraction, station/subregion sampling, trends, comparison plots |
 | `Snakefile_historical_hydrology` | `Snakefile_model_creation` (WF1) | Same job. `fao` runs the model once **per forcing dataset**; main runs one |
-| `Snakefile_climate_projections` | `Snakefile_climate_projections` (WF2) | Same job; main is far more developed, plus `fao` emits **gridded** monthly change factors |
+| `Snakefile_climate_projections` | `Snakefile_climate_projections` (WF2) | Same job; main is far more developed, but `fao` emits **gridded** monthly change factors, which main removed by ruling (§5.2) |
 | `Snakefile_future_hydrology_delta_change` | *(absent)* | **New capability.** Top-down delta-change impact runs |
 | `Snakefile_climate_experiment` | `Snakefile_climate_experiment` (WF3) | Same job; main is far ahead (186 lines vs 1217) |
 
@@ -66,12 +66,16 @@ This is the most useful finding in this document.
 
 So the climate arm of WF1 is already model-independent by construction. Carving
 `Snakefile_climate_historical` out of `Snakefile_model_creation` is a **Snakefile
-partition plus a new observation-evaluation layer** — not a re-architecture. This
-also matches the modularization direction already recorded in `dev/roadmap.md`
-("climate analysis subworkflow"), and resolves in favour of the position that ADR
-0002's `mod.forcing.data` sourcing was the wrong seam.
+partition plus a new observation-evaluation layer** — not a re-architecture.
 
-`fao`'s structure is therefore a **target shape, not a migration path**.
+`fao`'s structure is therefore a **target shape, not a migration path**. It also
+matches the modularization direction recorded in `dev/roadmap.md` ("climate
+analysis subworkflow" — run climate analysis model-independently from region +
+catalog). The tension that item records against ADR 0002 is already closed: ADR
+0002 was **superseded by 0006** on 2026-08-09, which retired the subcatchment
+climate plots outright in favour of the canonical climate figure set. So the
+`mod.forcing.data` coupling the roadmap item worried about is gone, and nothing
+in that entry now argues against the split.
 
 ## 3. The method boundary — read before recommending the delta-change workflow
 
@@ -173,7 +177,7 @@ survive any reimplementation:
 | 6 | MODIS snow-cover validation | `plot_results_grid.py`, `observations_snow:` | idea only | **absent** (`modis` in main is LAI only) | Defer |
 | 7 | Statistics heatmap tables | `plot_utils/plot_table_statistics.py` (293 ln) | **ports cleanly** — pure pandas/seaborn | absent as a heatmap; `shared/indicator_tables.py` is a different thing | **Yes** — cheapest useful win |
 | 8 | Change-statistics engine | `compute_change_statistics.py` (662 ln) | ports partially (needs `wflow_utils`, xclim) | absent (WF3 has its own indicator path) | With #10 |
-| 9 | Gridded monthly change factors | `save_grids: TRUE` branch in WF2 | ports (xarray) | main WF2 emits scalar change factors | **Yes** — prerequisite for #10 |
+| 9 | Gridded monthly change factors | `save_grids: TRUE` branch in WF2 | **n/a — see §5.2** | main **had** this and removed it by owner ruling; `save_grids: true` now raises | Revisit the ruling, don't port |
 | 10 | Delta-change hydrology workflow | `Snakefile_future_hydrology_delta_change` + `run_wflow_change_factors.jl` | **idea only** (§4.1) | absent | **Only after the §3 ruling** |
 | 11 | near→far state chaining | `setup_toml_far` | design | n/a | Yes, with #10 |
 | 12 | Notebook set | `docs/notebooks/` ×5 | design + prose | 3 broken notebooks (§6) | **Yes** — see §6 |
@@ -193,7 +197,37 @@ step.
 
 This is item 2 + 3 + 5 as one coherent capability, not three separate features.
 
-### 5.2 Where main is ahead — do not regress these
+### 5.2 The gridded change factors are a reversal, not a gap
+
+Worth stating separately because it is the one place where "adopt from `fao`" is
+the wrong verb.
+
+Main's WF2 **had** a gridded branch and removed it — commit `fb0186c`
+*"refactor(wf2)!: remove the gridded branch, fix the units attribute (S8-08)"*,
+an owner ruling. `blueearth_cst/projections/gridded_outputs.py` now exists solely
+to **reject** `save_grids: true` / `save_gridded: true` with a hard error (warning
+on `false`).
+
+The removal rationale is precise, and one clause of it is the whole point here:
+
+> `raw/{series_key}.nc` already IS the basin slice on the source grid … the
+> gridded series would have been a near-copy of a file every run already writes.
+> **`grids/change/` was the only genuinely new artifact and no rule ever declared
+> it to Snakemake.**
+
+So the gridded *series* was correctly removed as a duplicate, and the gridded
+*change factors* were removed as collateral — because at that moment nothing
+consumed them. **A delta-change hydrology arm is exactly the consumer that did
+not exist.** Three consequences:
+
+1. Harvest #9 is not a port from `fao`. The implementation is in our own history
+   (`fb0186c^`), written against our stack, and would be a **revert-and-adapt**.
+2. It is a reversal of a recorded owner ruling, so it needs the ruling revisited
+   with the new consumer as the evidence — not a quiet re-add.
+3. It sequences *after* the §3 method ruling, not before: if the delta-change arm
+   is not adopted, the S8-08c ruling stands unchanged and correct.
+
+### 5.3 Where main is ahead — do not regress these
 
 Recorded so a future adoption pass does not import a downgrade:
 
@@ -332,10 +366,14 @@ method ruling except the thing that needs it.
    workflow's evaluation layer — they are one capability, not three.
 3. **Port `plot_table_statistics.py`** (harvest #7). Pure pandas/seaborn, drops
    in, and the heatmap is useful to WF2 and WF3 immediately.
-4. **Get the §3 method ruling**, then design the delta-change arm (harvest #9,
-   #10, #11) as a parallel fourth workflow with the non-coupling rule written
-   into `AGENTS.md` § Background. Budget it as a **rewrite** of the Julia driver
-   against Wflow v1, not a port.
+4. **Get the §3 method ruling.** If it is yes, the delta-change arm follows as a
+   parallel fourth workflow with the non-coupling rule written into `AGENTS.md`
+   § Background — and its first step is **revisiting the S8-08c ruling** (§5.2),
+   because the gridded change factors it needs were removed for want of exactly
+   this consumer. Budget the Julia driver as a **rewrite** against Wflow v1, and
+   the gridded branch as a **revert-and-adapt** from `fb0186c^`, not a port from
+   `fao`. This is the only expensive item on the list; the ruling is what decides
+   whether it is worth starting.
 
 **Recommended starting point: 1**, because it is in this lane's territory, costs
 least, and its output is the specification for 2.
@@ -351,3 +389,7 @@ least, and its output is the specification for 2.
   `spines`; `modis` matches LAI sources only.
 - Notebook staleness in §6.2 verified against `test_case/test_local` and
   `scripts/plot_workflow_dag.py`.
+- §2.1's ADR status read from `dev/decisions/index.md` and ADR 0002's own
+  `Superseded-by:` header, not inferred from `roadmap.md`.
+- §5.2 quotes commit `fb0186c`'s message directly; the rejection lives in
+  `blueearth_cst/projections/gridded_outputs.py`.
