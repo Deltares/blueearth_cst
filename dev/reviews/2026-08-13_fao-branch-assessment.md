@@ -374,7 +374,15 @@ not carry them across:
 ## 8. Recommendation
 
 With the §3 ruling taken, the expensive branch is closed and what remains is
-three items, sequenced so each is independently useful.
+three items, sequenced so each is independently useful. All three were admitted
+to the board on 2026-08-13, **unranked** — their order relative to existing work
+is the owner's call, not this document's:
+
+| Item | Board note |
+|---|---|
+| 1 | `t2608131847` — repair and extend the workflow notebooks |
+| 2 | `t2608131847a` — split the historical-climate workflow out of WF1 |
+| 3 | `t2608131847b` — statistics heatmap tables |
 
 1. **Fix and extend the notebooks** (`docs/**`, `lane/devmeta`). Repair the three
    broken ones against the current tree (§6.2), then adopt `fao`'s structure —
