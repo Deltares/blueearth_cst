@@ -48,6 +48,29 @@ _HYDROMT_LOG_RE = re.compile(
 _COMPONENT_PREFIX_RE = re.compile(r"^\w+\.(\w+): (.*)$")
 
 
+def _log_row_text(hms, module, level, message):
+    """Assemble one log row: ``HH:MM:SS - <module> - <message>``.
+
+    **The level is shown only when it is not INFO**, and that is the point
+    rather than a saving. On a full WF1 build 259 of 272 rows are INFO, so the
+    field is a constant column on all but a handful — and a WARNING or an ERROR,
+    the rows someone is scanning for, hides inside a wall of identical
+    ``- INFO -``. Omitting the common case makes the uncommon one visible:
+
+        11:13:01 - geoms - Writing geoms to basins.geojson.
+        11:13:04 - states - WARNING - state file not found, using cold start
+
+    Absence therefore MEANS ``INFO``; the log header says so. Every row in these
+    logs goes through here -- :func:`_compact_log_line` for hydromt's records,
+    :func:`log_row` for our own, and the heartbeat's stall markers -- because
+    three emitters with three spellings of one grammar is how the grammar stops
+    being one.
+    """
+    if str(level).strip().upper() == "INFO":
+        return f"{hms} - {module} - {message}"
+    return f"{hms} - {module} - {level} - {message}"
+
+
 def _compact_log_line(text):
     """Compact a hydromt-format log line: ``HH:MM:SS`` stamp, drop dotted name.
 
@@ -60,7 +83,8 @@ def _compact_log_line(text):
     ``<component>`` is the ``<module>`` column — the same rule that drops the
     dotted ``<name>``, applied one field along: a row states its subsystem once.
     ``geoms - INFO - wflow_sbm.geoms: Writing geoms to x.geojson`` becomes
-    ``geoms - INFO - Writing geoms to x.geojson``.
+    ``geoms - Writing geoms to x.geojson`` (the level goes too -- see
+    :func:`_log_row_text`).
 
     The prefix is KEPT when the two differ, which is a third of them:
     ``spatial - INFO - wflow_sbm.staticmaps: ...`` names hydromt's code module
@@ -81,7 +105,7 @@ def _compact_log_line(text):
     prefixed = _COMPONENT_PREFIX_RE.match(message)
     if prefixed and prefixed.group(1) == module:
         message = prefixed.group(2)
-    return f"{hms} - {module} - {level} - {message}" + ("\n" if had_newline else "")
+    return _log_row_text(hms, module, level, message) + ("\n" if had_newline else "")
 
 
 def _log_path_parts(log_path):
@@ -189,6 +213,12 @@ def _log_header_lines(path, kind="log", time_label="started", markdown=False):
     block so they render as one metadata box in a ``.md`` file instead of as a
     stack of ``#`` H1 headings; otherwise each line is a ``#`` comment (a log's
     plain-text convention).
+
+    A log also gets a one-line legend for its rows, because
+    :func:`_log_row_text` omits the level on the INFO rows that are almost all
+    of them: a reader who does not know that reads the absence as a defect, and
+    the next person to "fix" it puts the constant column back. Logs only — a
+    benchmark table has no rows of this shape.
     """
     now = datetime.now()
     root, log_id = _log_path_parts(path)
@@ -198,6 +228,8 @@ def _log_header_lines(path, kind="log", time_label="started", markdown=False):
     if root:
         lines.append(f"project dir: {root.replace(os.sep, '/')}")
     lines.append(f"{kind}: {log_id} | {time_label} {now:%H:%M:%S}")
+    if kind == "log":
+        lines.append("rows: HH:MM:SS - module - message | level shown unless INFO")
     if markdown:
         body = "\n".join(lines)
         return f"```text\n{body}\n```\n\n"
@@ -2341,7 +2373,12 @@ def tee_to_log(log_path, heartbeat_interval=60.0):
             # reason as the traceback above: the tees are about to close, and a
             # console copy would duplicate a notice already printed live.
             for _row in heartbeat.quiet_rows():
-                handle.write(f"{datetime.now():%H:%M:%S} - heartbeat - INFO - {_row}\n")
+                handle.write(
+                    _log_row_text(
+                        f"{datetime.now():%H:%M:%S}", "heartbeat", "INFO", _row
+                    )
+                    + "\n"
+                )
             handle.flush()
             for tee in (stdout_tee, stderr_tee):
                 tee.close()
@@ -2373,10 +2410,11 @@ def log_level_floor():
 def log_row(message, module="cst", level="INFO"):
     """Print one log row in the standard compact format used across rule logs.
 
-    ``HH:MM:SS - <module> - <LEVEL> - <message>`` — the same shape
-    ``_compact_log_line`` produces for hydromt records, so a ``script:`` rule's
-    own messages sit uniformly among the hydromt/library lines rather than as
-    bare, timestamp-less text. Use this instead of a plain ``print`` for anything
+    ``HH:MM:SS - <module> - <message>``, with the level shown only when it is
+    not INFO (:func:`_log_row_text`) — the same shape ``_compact_log_line``
+    produces for hydromt records, so a ``script:`` rule's own messages sit
+    uniformly among the hydromt/library lines rather than as bare,
+    timestamp-less text. Use this instead of a plain ``print`` for anything
     meant to appear in a rule log. The row is already compact, so the tee passes
     it through (only any project paths in it are relativized).
 
@@ -2398,7 +2436,7 @@ def log_row(message, module="cst", level="INFO"):
     rank = _LOG_LEVEL_RANK.get(str(level).strip().upper())
     if rank is not None and rank < log_level_floor():
         return
-    print(f"{datetime.now():%H:%M:%S} - {module} - {level} - {message}")
+    print(_log_row_text(f"{datetime.now():%H:%M:%S}", module, level, message))
 
 
 def save_figure(path, module="plot", fig=None, **kwargs):
@@ -2406,7 +2444,7 @@ def save_figure(path, module="plot", fig=None, **kwargs):
 
     Centralizes the "write a figure + log one line" pattern for the plotting
     ``script:`` rules: every produced map/plot appears in the rule's log as a
-    standard row ``HH:MM:SS - <module> - INFO - Saved figure: <path>`` (via
+    standard row ``HH:MM:SS - <module> - Saved figure: <path>`` (via
     ``log_row``) instead of the log being empty or showing only upstream
     library chatter. Parent directories are created. ``kwargs`` pass through to
     ``Figure.savefig`` (e.g. ``dpi``, ``bbox_inches``). matplotlib is

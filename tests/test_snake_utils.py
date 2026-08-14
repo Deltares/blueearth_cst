@@ -78,7 +78,7 @@ def test_compact_shortens_timestamp_and_drops_dotted_name():
     )
     # date + milliseconds dropped -> HH:MM:SS; dotted name dropped; module kept
     assert _compact_log_line(line) == (
-        "18:03:38 - model - INFO - Initializing wflow_sbm model.\n"
+        "18:03:38 - model - Initializing wflow_sbm model.\n"
     )
 
 
@@ -89,7 +89,7 @@ def test_compact_preserves_dashes_in_message():
     )
     # message (with its own ' - ') is kept whole; only ts + dotted name change
     assert _compact_log_line(line) == (
-        "18:03:20 - model - INFO - setup_rivers.river_routing=kinematic - wave - x\n"
+        "18:03:20 - model - setup_rivers.river_routing=kinematic - wave - x\n"
     )
 
 
@@ -110,7 +110,7 @@ def test_compact_drops_a_component_prefix_that_repeats_the_module():
         "wflow_sbm.geoms: Writing geoms to staticgeoms/basins.geojson.\n"
     )
     assert _compact_log_line(line) == (
-        "11:13:01 - geoms - INFO - Writing geoms to staticgeoms/basins.geojson.\n"
+        "11:13:01 - geoms - Writing geoms to staticgeoms/basins.geojson.\n"
     )
 
 
@@ -121,7 +121,7 @@ def test_compact_keeps_a_component_prefix_that_says_something_else():
         "wflow_sbm.staticmaps: Writing region to staticgeoms/region.geojson.\n"
     )
     assert _compact_log_line(line) == (
-        "11:13:01 - spatial - INFO - wflow_sbm.staticmaps: Writing region to "
+        "11:13:01 - spatial - wflow_sbm.staticmaps: Writing region to "
         "staticgeoms/region.geojson.\n"
     )
 
@@ -133,7 +133,7 @@ def test_compact_leaves_an_ordinary_colon_in_the_message_alone():
         "Reading model config file from wflow_sbm.toml: found 4 sections\n"
     )
     assert _compact_log_line(line) == (
-        "11:13:01 - model - INFO - Reading model config file from "
+        "11:13:01 - model - Reading model config file from "
         "wflow_sbm.toml: found 4 sections\n"
     )
 
@@ -144,7 +144,7 @@ def test_compact_keeps_a_bare_prefix_with_no_message_after_it():
         "2026-08-14 11:13:01,204 - hydromt_wflow.wflow_base - geoms - INFO - "
         "wflow_sbm.geoms:\n"
     )
-    assert _compact_log_line(line) == "11:13:01 - geoms - INFO - wflow_sbm.geoms:\n"
+    assert _compact_log_line(line) == "11:13:01 - geoms - wflow_sbm.geoms:\n"
 
 
 @pytest.mark.parametrize(
@@ -183,13 +183,43 @@ def test_save_figure_writes_creates_parent_and_announces(tmp_path, capsys):
 def test_log_row_standard_format(capsys):
     log_row("hello world", module="plot")
     out = capsys.readouterr().out.strip()
-    assert re.match(r"^\d{2}:\d{2}:\d{2} - plot - INFO - hello world$", out)
+    assert re.match(r"^\d{2}:\d{2}:\d{2} - plot - hello world$", out)
 
 
 def test_log_row_row_survives_compaction_unchanged():
     # a log_row line is already compact -> the tee's _compact_log_line is a no-op
-    row = "21:56:12 - plot - INFO - Saved figure: x.png\n"
+    row = "21:56:12 - plot - Saved figure: x.png\n"
     assert _compact_log_line(row) == row
+
+
+# --- _log_row_text (the level is shown only when it is not INFO) --------------
+
+
+def test_log_row_text_omits_info():
+    """259 of 272 rows on a full WF1 build are INFO -- a constant column."""
+    assert su._log_row_text("11:13:01", "geoms", "INFO", "writing") == (
+        "11:13:01 - geoms - writing"
+    )
+
+
+@pytest.mark.parametrize("level", ["WARNING", "ERROR", "CRITICAL", "DEBUG"])
+def test_log_row_text_keeps_every_other_level(level):
+    """The point of dropping INFO is that these stop hiding among it."""
+    assert su._log_row_text("11:13:04", "states", level, "cold start") == (
+        f"11:13:04 - states - {level} - cold start"
+    )
+
+
+def test_log_row_text_recognizes_info_in_any_spelling():
+    """A caller passing `info` must not produce a row shaped unlike its peers."""
+    assert su._log_row_text("11:13:01", "cst", " info ", "x") == "11:13:01 - cst - x"
+
+
+def test_log_row_prints_a_warning_with_its_level(capsys):
+    out = capsys.readouterr()  # drain
+    log_row("state file not found", module="states", level="WARNING")
+    out = capsys.readouterr().out.strip()
+    assert re.match(r"^\d{2}:\d{2}:\d{2} - states - WARNING - state file", out), out
 
 
 # --- psutil benchmark shim ---------------------------------------------------
@@ -427,9 +457,7 @@ def test_tee_to_log_captures_preexisting_console_logging(tmp_path):
         lg.removeHandler(handler)
     body = log.read_text(encoding="utf-8")
     # compacted row present exactly once, and the full hydromt timestamp is gone
-    assert (
-        len(re.findall(r"\d{2}:\d{2}:\d{2} - \w+ - INFO - built model grid", body)) == 1
-    )
+    assert len(re.findall(r"\d{2}:\d{2}:\d{2} - \w+ - built model grid", body)) == 1
     assert not re.search(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}", body)
 
 
@@ -441,8 +469,8 @@ def test_tee_to_log_compacts_hydromt_format(tmp_path):
         print("plain progress line")
     text = log.read_text(encoding="utf-8")
     # the record row is exactly the compacted form: HH:MM:SS, no date/ms/name
-    row = next(line for line in text.splitlines() if "INFO - built" in line)
-    assert row == "18:03:38 - model - INFO - built"
+    row = next(line for line in text.splitlines() if line.endswith("- built"))
+    assert row == "18:03:38 - model - built"
     assert "hydromt.model.model" not in text  # dotted name dropped
     assert "plain progress line" in text  # non-hydromt line untouched
 
@@ -459,8 +487,9 @@ def test_tee_to_log_writes_project_header(tmp_path):
     assert "project: gabon" in head[0]
     assert head[1].startswith("# project dir:") and head[1].rstrip().endswith("gabon")
     assert "1.07_build_wflow_model.log" in head[2] and "started" in head[2]
-    assert head[3] == ""  # blank line separates header from body
-    assert head[4] == "body line"
+    assert head[3].startswith("# rows:")  # the row-grammar legend
+    assert head[4] == ""  # blank line separates header from body
+    assert head[5] == "body line"
 
 
 def test_tee_to_log_reraises_and_still_restores(tmp_path):
