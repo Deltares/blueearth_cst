@@ -25,7 +25,7 @@ def _write_cfg(tmp_path, *, temp_step=1, precip_step=2, var_min=1.0, var_max=1.0
     """Write a synthetic snake config and return its path (str)."""
     cfg = {
         "workflows": {
-            "climate_experiment": {
+            "run_stress_test": {
                 "stress_test": {
                     "temp": {
                         "step_num": temp_step,
@@ -229,7 +229,7 @@ def test_a_third_stress_axis_refuses_naming_c28(tmp_path):
 
     cfg_path = _write_cfg(tmp_path, temp_step=1, precip_step=2)
     cfg = _yaml.safe_load(open(cfg_path, encoding="utf-8"))
-    cfg["workflows"]["climate_experiment"]["stress_test"]["wind"] = {
+    cfg["workflows"]["run_stress_test"]["stress_test"]["wind"] = {
         "step_num": 1,
         "mean": {"min": _twelve(0.0), "max": _twelve(1.0)},
     }

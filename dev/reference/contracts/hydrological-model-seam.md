@@ -3,7 +3,7 @@
 > **Genre:** dev-facing interchange contract. **Audience:** a future *swapper* —
 > someone replacing Wflow-SBM with an alternative hydrological engine, or the R6
 > model-flexibility work — read end-to-end. Not an end-user doc (hence `dev/`,
-> not `docs/`; precedent `dev/reference/workflows/climate_experiment.md`).
+> not `docs/`; precedent `dev/reference/workflows/run_stress_test.md`).
 > **Source of record:** `dev/milestones/p32b/interchange-contracts-design.md` (ACCEPTED
 > 2026-07-24, §5.3 / §5.4 / §5.6 / §5.5). Every load-bearing fact below cites a
 > Snakefile line, a script line, or an observed fixture artifact; do not add a
@@ -260,7 +260,7 @@ Rendered one subsection per artifact.
 ## HM-7 — response-surface reduction (one indicator table per variable)
 
 - **path pattern:** `<exp>/results/<token>_indicators.csv`, **one per variable in
-  `workflows.model_creation.wflow_outvars`** (R11 CR-2). `basin_indicators.csv` is
+  `workflows.build_model.wflow_outvars`** (R11 CR-2). `basin_indicators.csv` is
   gone; its contents are now per-variable tables. The set is config-dependent, so
   the DAG derives it — see the token vocabulary below.
 - **producer:** rule 3.16 `derive_wflow_indicators` (renamed from

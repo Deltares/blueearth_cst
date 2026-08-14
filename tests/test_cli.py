@@ -36,9 +36,9 @@ def _dry_run(snakefile, cfg=config_fn):
 def config_with_staged_region(tmp_path):
     """Config whose project_dir is a temp dir pre-staged with the wf1 leaves.
 
-    Historically climate_projections declared `{project_dir}/hydrology_model/
+    Historically analyze_projections declared `{project_dir}/hydrology_model/
     staticgeoms/region.geojson` as an `ancient(...)` input produced by
-    model_creation — a cross-workflow contract Snakemake will not satisfy on its
+    build_model — a cross-workflow contract Snakemake will not satisfy on its
     own — so the fixture staged a minimal valid region file under a **test-owned
     tmp project_dir** (never the tracked baseline dir). Since ADR 0003 the extent
     is model-free and BOTH downstream workflows delineate their own
@@ -47,9 +47,9 @@ def config_with_staged_region(tmp_path):
     because removing it belongs with the wider staging consolidation (R9 P5 F3).
     The staged path follows the R9 model root. tmp_path is torn down by pytest.
 
-    Since P3-1 commit 1, climate_experiment's drift guard (rule
+    Since P3-1 commit 1, run_stress_test's drift guard (rule
     check_project_consistency) additionally declares the wf1 config snapshot
-    `{project_dir}/config/runs/snake_config_model_creation.yml` as a mandatory
+    `{project_dir}/config/runs/snake_config_build_model.yml` as a mandatory
     `ancient(...)` input — the same class of cross-workflow contract, staged
     the same way. The staged snapshot is serialized from the SAME parsed
     config the dry-run consumes, so the guard's comparands match by
@@ -74,14 +74,14 @@ def config_with_staged_region(tmp_path):
 
 
 @pytest.mark.workflow_contract
-def test_snakefile_cli_model_creation():
+def test_snakefile_cli_build_model():
     """Workflow 1 dry-run builds a clean DAG on the test config."""
     result = _dry_run("build_model.smk")
     assert result.returncode == 0, (result.stdout or "") + (result.stderr or "")
 
 
 @pytest.mark.workflow_contract
-def test_snakefile_cli_model_creation_linux_config():
+def test_snakefile_cli_build_model_linux_config():
     """The Linux config must still build a DAG after O-01 retired `data/`.
 
     R07 deletes the tracked `data/` tree, whose only live consumers were this
@@ -184,10 +184,10 @@ def test_observation_configs_use_yaml_null():
         with open(cfg_path) as f:
             cfg = yaml.safe_load(f)
         basin = cfg["shared"]["basin"]
-        mc = cfg["workflows"]["model_creation"]
+        mc = cfg["workflows"]["build_model"]
         values = {
             "shared.basin.gauge_points": basin["gauge_points"],
-            "workflows.model_creation.observations_timeseries": mc[
+            "workflows.build_model.observations_timeseries": mc[
                 "observations_timeseries"
             ],
         }
@@ -287,10 +287,10 @@ def test_short_window_fails_wf1_dry_run_at_parse_time(tmp_path, endtime, label):
 
 
 @pytest.mark.workflow_contract
-def test_snakefile_cli_climate_projections(config_with_staged_region):
+def test_snakefile_cli_analyze_projections(config_with_staged_region):
     """Workflow 2 dry-run builds a clean DAG once its WF1 region input is staged.
 
-    climate_projections declares region.geojson (a model_creation output) as an
+    analyze_projections declares region.geojson (a build_model output) as an
     `ancient(...)` input Snakemake will not build itself — correct behavior. R3
     stages it in a test-owned tmp project_dir (see the fixture) rather than
     weakening the contract; workflow 2's Snakefile is untouched (R4 territory).
@@ -300,7 +300,7 @@ def test_snakefile_cli_climate_projections(config_with_staged_region):
     assert result.returncode == 0, (result.stdout or "") + (result.stderr or "")
 
 
-def test_climate_projections_owns_its_region():
+def test_analyze_projections_owns_its_region():
     """Pin WF2's region contract to what it actually is.
 
     This guard used to assert that `staticgeoms/region.geojson` appears in
@@ -326,7 +326,7 @@ def test_climate_projections_owns_its_region():
 
 
 @pytest.mark.workflow_contract
-def test_snakefile_cli_climate_experiment(config_with_staged_region):
+def test_snakefile_cli_run_stress_test(config_with_staged_region):
     """Workflow 3 dry-run builds a clean DAG on the test config (R5 fixed the cycle).
 
     Pre-R5 this tripped a CyclicGraphException at rule

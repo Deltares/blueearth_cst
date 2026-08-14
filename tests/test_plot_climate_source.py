@@ -205,10 +205,8 @@ def modelfree_project(tmp_path):
     # the figure targets to the model-build side would now be a
     # MissingInputException, not a silent dependency.
     absent_template = tmp_path / "absent" / "wflow_build_model.yml"
-    cfg["workflows"]["model_creation"]["model_build_config"] = (
-        absent_template.as_posix()
-    )
-    cfg["workflows"]["model_creation"]["waterbodies_config"] = (
+    cfg["workflows"]["build_model"]["model_build_config"] = absent_template.as_posix()
+    cfg["workflows"]["build_model"]["waterbodies_config"] = (
         tmp_path / "absent" / "wflow_update_waterbodies.yml"
     ).as_posix()
     cfg_path = tmp_path / "snake_config_modelfree.yml"

@@ -199,7 +199,7 @@ def test_copied_config_all_four_keys_normalize(tmp_path):
                 "data_sources_climate": "config/cmip6_data.yml",
             },
             "workflows": {
-                "model_creation": {
+                "build_model": {
                     "model_build_config": "config/wflow_build_model.yml",
                     "waterbodies_config": "config/wflow_update_waterbodies.yml",
                 }
@@ -214,7 +214,7 @@ def test_copied_config_all_four_keys_normalize(tmp_path):
                 "data_sources_climate": "config/catalogs/cmip6_data.yml",
             },
             "workflows": {
-                "model_creation": {
+                "build_model": {
                     "model_build_config": "config/defaults/wflow_build_model.yml",
                     "waterbodies_config": "config/defaults/wflow_update_waterbodies.yml",
                 }
@@ -235,7 +235,7 @@ def test_copied_config_normalizes_the_intermediate_templates_era(tmp_path):
         ref,
         {
             "workflows": {
-                "model_creation": {
+                "build_model": {
                     "model_build_config": "config/templates/wflow_build_model.yml",
                     "waterbodies_config": "config/templates/wflow_update_waterbodies.yml",
                 }
@@ -246,7 +246,7 @@ def test_copied_config_normalizes_the_intermediate_templates_era(tmp_path):
         cur,
         {
             "workflows": {
-                "model_creation": {
+                "build_model": {
                     "model_build_config": "config/defaults/wflow_build_model.yml",
                     "waterbodies_config": "config/defaults/wflow_update_waterbodies.yml",
                 }
@@ -394,12 +394,12 @@ def test_toml_path_static_relocation_passes(tmp_path):
     project-relative hydrology_model/staticmaps.nc (no map entry needed)."""
     ref_root = tmp_path / "ref"
     cur_root = tmp_path / "cur"
-    ref_toml = ref_root / "hydrology_model" / "run_climate_experiment" / "a.toml"
+    ref_toml = ref_root / "hydrology_model" / "run_run_stress_test" / "a.toml"
     cur_toml = cur_root / "experiments" / "experiment" / "model_runs" / "a.toml"
     _write_run_toml(
         ref_toml,
         "../staticmaps.nc",
-        path_forcing="../../climate_experiment/realization_1/x.nc",
+        path_forcing="../../run_stress_test/realization_1/x.nc",
         path_input="../instate/instates.nc",
     )
     _write_run_toml(cur_toml, "../../../hydrology_model/staticmaps.nc")
@@ -415,17 +415,17 @@ def test_toml_path_static_relocation_passes(tmp_path):
 
 def test_toml_path_forcing_prefix_map_passes(tmp_path):
     """§6a positive: path_forcing target moved with exp_dir; the DIRECTORY-PREFIX
-    rule climate_experiment/ -> experiments/experiment/ translates the ref
+    rule run_stress_test/ -> experiments/experiment/ translates the ref
     target onto the cur one. The target is a temp() file existing in NEITHER
     tree -- asserts the prefix-rewrite form of the map, not a per-file table."""
     ref_root = tmp_path / "ref"
     cur_root = tmp_path / "cur"
-    ref_toml = ref_root / "hydrology_model" / "run_climate_experiment" / "a.toml"
+    ref_toml = ref_root / "hydrology_model" / "run_run_stress_test" / "a.toml"
     cur_toml = cur_root / "experiments" / "experiment" / "model_runs" / "a.toml"
     _write_run_toml(
         ref_toml,
         "../staticmaps.nc",
-        path_forcing="../../climate_experiment/realization_1/inmaps_rlz_1_cst_1.nc",
+        path_forcing="../../run_stress_test/realization_1/inmaps_rlz_1_cst_1.nc",
         path_input="../instate/instates.nc",
     )
     _write_run_toml(
@@ -434,7 +434,7 @@ def test_toml_path_forcing_prefix_map_passes(tmp_path):
         path_forcing="../realization_1/inmaps_rlz_1_cst_1.nc",
     )
     # the forcing target exists in neither tree (temp()-deleted)
-    assert not (ref_root / "climate_experiment").exists()
+    assert not (ref_root / "run_stress_test").exists()
     assert not (cur_root / "experiments" / "experiment" / "realization_1").exists()
     diffs = std.compare_toml(
         str(ref_toml),
@@ -451,12 +451,12 @@ def test_toml_path_static_mis_repoint_fails(tmp_path):
     target fails, naming the field (mis-repoint caught, not hidden)."""
     ref_root = tmp_path / "ref"
     cur_root = tmp_path / "cur"
-    ref_toml = ref_root / "hydrology_model" / "run_climate_experiment" / "a.toml"
+    ref_toml = ref_root / "hydrology_model" / "run_run_stress_test" / "a.toml"
     cur_toml = cur_root / "experiments" / "experiment" / "model_runs" / "a.toml"
     _write_run_toml(
         ref_toml,
         "../staticmaps.nc",
-        path_forcing="../../climate_experiment/realization_1/x.nc",
+        path_forcing="../../run_stress_test/realization_1/x.nc",
         path_input="../instate/instates.nc",
     )
     _write_run_toml(cur_toml, "../../../hydrology_model/staticmaps_WRONG.nc")
@@ -475,11 +475,9 @@ def test_diff_trees_path_map_pairs_moved_files(tmp_path):
     not MISSING+EXTRA."""
     ref = tmp_path / "ref"
     cur = tmp_path / "cur"
-    (ref / "climate_experiment" / "model_results").mkdir(parents=True)
+    (ref / "run_stress_test" / "model_results").mkdir(parents=True)
     (cur / "experiments" / "experiment" / "model_results").mkdir(parents=True)
-    (ref / "climate_experiment" / "model_results" / "Qstats.csv").write_text(
-        "a,b\n1,2\n"
-    )
+    (ref / "run_stress_test" / "model_results" / "Qstats.csv").write_text("a,b\n1,2\n")
     (cur / "experiments" / "experiment" / "model_results" / "Qstats.csv").write_text(
         "a,b\n1,2\n"
     )
@@ -502,11 +500,9 @@ def test_diff_trees_path_map_value_diff_still_fails(tmp_path):
     """The map pairs moved files but does NOT mask a value change (risk-4)."""
     ref = tmp_path / "ref"
     cur = tmp_path / "cur"
-    (ref / "climate_experiment" / "model_results").mkdir(parents=True)
+    (ref / "run_stress_test" / "model_results").mkdir(parents=True)
     (cur / "experiments" / "experiment" / "model_results").mkdir(parents=True)
-    (ref / "climate_experiment" / "model_results" / "Qstats.csv").write_text(
-        "a,b\n1,2\n"
-    )
+    (ref / "run_stress_test" / "model_results" / "Qstats.csv").write_text("a,b\n1,2\n")
     (cur / "experiments" / "experiment" / "model_results" / "Qstats.csv").write_text(
         "a,b\n1,999\n"
     )
@@ -578,7 +574,7 @@ def test_yaml_cross_root_path_leaves_pass(tmp_path):
     project_dir-snapshot classes from the milestone diff."""
     ref_root = tmp_path / "ref"
     cur_root = tmp_path / "cur"
-    ref_yml = ref_root / "climate_experiment" / "weathergen_config.yml"
+    ref_yml = ref_root / "run_stress_test" / "weathergen_config.yml"
     cur_yml = cur_root / "experiments" / "experiment" / "weathergen_config.yml"
     ref_yml.parent.mkdir(parents=True)
     cur_yml.parent.mkdir(parents=True)
@@ -586,9 +582,7 @@ def test_yaml_cross_root_path_leaves_pass(tmp_path):
         ref_yml,
         {
             "project_dir": ref_root.as_posix(),
-            "output": {
-                "path": f"{ref_root.as_posix()}/climate_experiment/realization_1/"
-            },
+            "output": {"path": f"{ref_root.as_posix()}/run_stress_test/realization_1/"},
             "seed": 123,
         },
     )
@@ -618,16 +612,14 @@ def test_yaml_cross_root_nonpath_value_still_fails(tmp_path):
     under the SAME root/layout moves is still a real FAIL."""
     ref_root = tmp_path / "ref"
     cur_root = tmp_path / "cur"
-    ref_yml = ref_root / "climate_experiment" / "weathergen_config.yml"
+    ref_yml = ref_root / "run_stress_test" / "weathergen_config.yml"
     cur_yml = cur_root / "experiments" / "experiment" / "weathergen_config.yml"
     ref_yml.parent.mkdir(parents=True)
     cur_yml.parent.mkdir(parents=True)
     _write_yaml(
         ref_yml,
         {
-            "output": {
-                "path": f"{ref_root.as_posix()}/climate_experiment/realization_1/"
-            },
+            "output": {"path": f"{ref_root.as_posix()}/run_stress_test/realization_1/"},
             "seed": 123,
         },
     )
@@ -656,12 +648,12 @@ def test_yaml_backslash_absolute_uri_normalizes(tmp_path):
     normalize to the same <PROJECT_ROOT>-relative target."""
     ref_root = tmp_path / "ref"
     cur_root = tmp_path / "cur"
-    ref_yml = ref_root / "climate_experiment" / "cat.yml"
+    ref_yml = ref_root / "run_stress_test" / "cat.yml"
     cur_yml = cur_root / "experiments" / "experiment" / "cat.yml"
     ref_yml.parent.mkdir(parents=True)
     cur_yml.parent.mkdir(parents=True)
     ref_abs = str(
-        ref_root.resolve() / "climate_experiment" / "realization_1" / "x.nc"
+        ref_root.resolve() / "run_stress_test" / "realization_1" / "x.nc"
     ).replace("/", "\\")
     cur_abs = str(
         cur_root.resolve() / "experiments" / "experiment" / "realization_1" / "x.nc"
@@ -915,7 +907,7 @@ def test_apply_path_map_is_the_projection_of_the_reporting_sibling():
     for rel in (
         "models/hydrology/wflow/staticmaps.nc",
         "data/climate/projections/cmip6/series/x.nc",
-        "logs/wf1_model_creation.log",
+        "logs/wf1_build_model.log",
         "nothing/matches/this.txt",
     ):
         assert std.apply_path_map(rel, m) == std.apply_path_map_matched(rel, m)[0]

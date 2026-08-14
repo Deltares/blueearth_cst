@@ -17,7 +17,7 @@ and guards the two silent modes the ADR names:
       constants (glacier on a `glacier__flag=false` basin) are read correctly.
 
 It is a diagnostic, NOT a standing test: `test_cli.py` is dry-run only and
-`test_model_creation.py` does not build, so this has no home in the suite (ADR
+`test_build_model.py` does not build, so this has no home in the suite (ADR
 step 3). Run it against a restored build during implementation and paste the
 report into dev/decisions/0001-restore-wflow-constant-parameters/baseline_diffs.md.
 

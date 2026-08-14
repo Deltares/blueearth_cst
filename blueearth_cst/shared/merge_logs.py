@@ -5,11 +5,11 @@ This gather step -- one job per workflow, scheduled after every logging rule --
 concatenates those parts, in rule order, into a single ``<logs>/<workflow>.log``,
 then deletes the parts it merged. All three workflows use it:
 
-================================= ==================================================
-``build_model.smk``      ``logs/wf1_model_creation.log`` (1.17)
-``analyze_projections.smk`` ``logs/wf2_climate_projections.log`` (2.09)
-``run_stress_test.smk``  ``logs/wf3_climate_experiment_<experiment>.log`` (3.18)
-================================= ==================================================
+=========================== ==================================================
+``build_model.smk``         ``logs/wf1_build_model.log`` (1.17)
+``analyze_projections.smk`` ``logs/wf2_analyze_projections.log`` (2.09)
+``run_stress_test.smk``     ``logs/wf3_run_stress_test_<experiment>.log`` (3.18)
+=========================== ==================================================
 
 Shape of the merged file (the same pattern ``merge_benchmarks.py`` applies to the
 benchmark tables):

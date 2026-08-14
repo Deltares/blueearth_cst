@@ -3,7 +3,7 @@
 > **Genre:** dev-facing interchange contract. **Audience:** a future *swapper* —
 > someone replacing `weathergenr` with an alternative weather generator, or the
 > R6 model-flexibility work — read end-to-end. Not an end-user doc (hence `dev/`,
-> not `docs/`; precedent `dev/reference/workflows/climate_experiment.md`).
+> not `docs/`; precedent `dev/reference/workflows/run_stress_test.md`).
 > **Source of record:** `dev/milestones/p32b/interchange-contracts-design.md` (ACCEPTED
 > 2026-07-24, §5.2 / §5.4 / §5.6 / §5.5). Every load-bearing fact below cites a
 > Snakefile line, a script line, or an observed fixture artifact; do not add a
@@ -206,7 +206,7 @@ WG-3 is the *current* generator's contract, not a universal one.
 
 ## WG-5 — hydromt climate data catalog (side channel)
 
-- **path pattern:** `<exp>/config/catalogs/data_catalog_climate_experiment.yml` (rule-3.08 side
+- **path pattern:** `<exp>/config/catalogs/data_catalog_run_stress_test.yml` (rule-3.08 side
   channel).
 - **producer:** rule 3.13 `write_climate_data_catalog`
   (`blueearth_cst/climate_analysis/prepare_climate_data_catalog.py`).
@@ -330,8 +330,8 @@ executes on **every** checkout, fixture or not.
 | `validate_wg2` | WG-2 | `<exp>/climate/weathergenr/_work/st_<m>.csv` | **yes** (persists) |
 | `validate_wg3` | WG-3 | `<exp>/climate/weathergenr/config/weathergen_config.yml` (the per-member config is gone — C29) | **yes** (persists) |
 | `validate_wg4` | WG-4 | `<exp>/climate/weathergenr/output/rlz_<n>_st_<m>.nc` | **captured 2026-07-25** — `temp()` content, absent until a `--notemp` capture; green on the real artifact **after** the `crs`/`category` correction; synthetic-proven every suite |
-| `validate_wg5` | WG-5 | `<exp>/config/catalogs/data_catalog_climate_experiment.yml` | **yes** (catalog persists) |
-| `validate_wg5_catalog_grid` (relational) | WG-5 entry-key grid vs intended `rlz × cst` (incl. `st_0`) | `<exp>/config/catalogs/data_catalog_climate_experiment.yml` + the run's config snapshot | **yes** (all inputs persist) |
+| `validate_wg5` | WG-5 | `<exp>/config/catalogs/data_catalog_run_stress_test.yml` | **yes** (catalog persists) |
+| `validate_wg5_catalog_grid` (relational) | WG-5 entry-key grid vs intended `rlz × cst` (incl. `st_0`) | `<exp>/config/catalogs/data_catalog_run_stress_test.yml` + the run's config snapshot | **yes** (all inputs persist) |
 | `validate_wg6` | WG-6 | `<exp>/hydrology/wflow/forcing/inmaps_rlz_<n>_st_<m>.nc` | **captured 2026-07-25** — `temp()` content, absent until a `--notemp` capture; green on the real artifact unchanged; synthetic-proven every suite |
 
 `validate_wg5_catalog_grid(catalog_cfg, rlz_num, st_num) -> list[str]` checks the
@@ -340,7 +340,7 @@ WG-5 entry-key set against the **intended** grid: expected keys exactly
 3.13 consumes both the st_0 list and the perturbed `expand` grid,
 `run_stress_test.smk:318-319`). Missing and unexpected keys are each
 reported. The intended grid is derived from the run's *recorded* P3-1 config
-snapshot (`<exp>/config/snake_config_climate_experiment.yml`) via the same
+snapshot (`<exp>/config/snake_config_run_stress_test.yml`) via the same
 `stress_test_grid` helper the Snakefile uses (`shared/snake_utils.py:336`), so
 the check is self-consistent with the tree even if the tracked test config later
 drifts. A dropped or extra catalog entry is invisible to per-artifact

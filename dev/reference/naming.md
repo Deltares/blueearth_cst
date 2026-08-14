@@ -101,7 +101,7 @@ so lexical order matches run order: `st_01 … st_12` for a twelve-point grid,
 `st_001` past ninety-nine, and no padding at all below ten, where `st_1 … st_6`
 already sort correctly. `rlz_` and `st_` pad independently, each from its own
 count. The width is a pure function of `ST_NUM` / `RLZ_NUM`, both of which live
-in the `climate_experiment` section `experiment.yml` freezes, so a grid change
+in the `run_stress_test` section `experiment.yml` freezes, so a grid change
 that would move the width already forces a new experiment — no tree is ever
 renamed underneath itself. One helper owns it (`snake_utils.index_width`), and
 `member_index_regex` builds the matching `wildcard_constraints` so an *unpadded*
@@ -389,8 +389,8 @@ Full rationale and the twelve-rename audit:
 ## 9. Rule numbering (`W.NN` reference scheme)
 
 Each rule in the three `Snakefile_*` entry points carries a `W.NN`
-reference number — `W` = workflow (`1` model_creation, `2`
-climate_projections, `3` climate_experiment), `NN` = a zero-padded
+reference number — `W` = workflow (`1` build_model, `2`
+analyze_projections, `3` run_stress_test), `NN` = a zero-padded
 **position in that workflow's logical order**: data first, then model
 build, then run, then records. It exists in exactly two places, both
 cheap:

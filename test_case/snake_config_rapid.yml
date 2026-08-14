@@ -35,7 +35,7 @@ shared:
   clim_historical: era5
 
 workflows:
-  model_creation:
+  build_model:
     enabled: true
     model_build_config: config/defaults/wflow_build_model.yml
     waterbodies_config: config/defaults/wflow_update_waterbodies.yml
@@ -47,7 +47,7 @@ workflows:
       starttime: "2010-01-01T00:00:00"
       endtime: "2016-12-31T00:00:00"
 
-  climate_projections:
+  analyze_projections:
     enabled: true
     clim_project: cmip6
     models:
@@ -67,7 +67,7 @@ workflows:
     future_horizons:
       mid: [2046, 2054]
 
-  climate_experiment:
+  run_stress_test:
     enabled: true
     experiment_name: experiment_rapid
     realizations_num: 2

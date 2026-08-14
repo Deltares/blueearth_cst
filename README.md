@@ -166,8 +166,8 @@ only.)
 Each workflow keeps its established current config copy for project-consistency
 checks, and writes one **`run_record.yml`** describing the run it just did:
 
-- `<project_dir>/config/runs/model_creation/run_record.yml`
-- `<project_dir>/config/runs/climate_projections/run_record.yml`
+- `<project_dir>/config/runs/build_model/run_record.yml`
+- `<project_dir>/config/runs/analyze_projections/run_record.yml`
 - `<exp_dir>/config/run_record.yml` — inside the experiment, which is WF3's
   natural partition
 
@@ -188,7 +188,7 @@ remote or mutable dataset can change under an unchanged catalog entry without
 moving either digest.
 
 Only the keys a workflow actually reads go into its digests, so editing the
-`climate_experiment` section does not invalidate the model-creation record.
+`run_stress_test` section does not invalidate the model-creation record.
 
 **A referenced file is copied into the project only when the toolbox repository
 cannot give it back.** A catalog or template that lives in the checkout, is
@@ -227,10 +227,10 @@ across-workflow invocation manifest is the wrapper's.
 Each workflow records itself in **one log and one benchmark table**, both
 regenerated on every run:
 
-- **build_model.smk** — `logs/wf1_model_creation.log`
-- **analyze_projections.smk** — `logs/wf2_climate_projections.log`
+- **build_model.smk** — `logs/wf1_build_model.log`
+- **analyze_projections.smk** — `logs/wf2_analyze_projections.log`
 - **run_stress_test.smk** —
-  `logs/wf3_climate_experiment_<experiment>.log`
+  `logs/wf3_run_stress_test_<experiment>.log`
 
 All three land in the project's own `logs/`, so one run's records sit side by
 side. WF3 is experiment-scoped, so its records carry the experiment id in the
@@ -420,7 +420,7 @@ $ pixi run python scripts/suggest_experiment_name.py <your config> --name dry_sc
 
 It reserves the directory atomically (versioning a *generated* collision to
 `_v2`; a name you chose is never silently renamed) and writes
-`workflows.climate_experiment.experiment_name` back into the config, leaving its
+`workflows.run_stress_test.experiment_name` back into the config, leaving its
 comments and layout intact. `--dry-run` prints the suggestion without writing.
 An **existing value is never overwritten**: the experiment directory is what a
 completed run's outputs are addressed by, so silently renaming it would strand

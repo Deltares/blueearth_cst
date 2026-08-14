@@ -33,7 +33,7 @@ shared:
       soil: soilgrids
   # How much climate record to EXTRACT — drives the climate store, the climate
   # figures and (through the store) weathergenr. NOT the model run period; see
-  # workflows.model_creation.simulation_window.
+  # workflows.build_model.simulation_window.
   historical_window:
     starttime: "1990-01-01T00:00:00"                      # ISO datetime
     endtime: "2020-12-31T00:00:00"                        # ISO datetime — span >= 16 years
@@ -55,7 +55,7 @@ shared:
   #
   # ONE key for every workflow that reduces to an annual value: WF2's change
   # factors, WF3's weather generation, WF3's hydrological indicators and WF1's
-  # climate figures. Replaced `workflows.climate_projections.start_month_hyd_year`,
+  # climate figures. Replaced `workflows.analyze_projections.start_month_hyd_year`,
   # which is now refused — it never reached the arithmetic.
   #
   # Set it to the month your basin's hydrological year begins (e.g. Oct for a
@@ -67,7 +67,7 @@ shared:
   #julia_threads: 4                                       # integer
 
 workflows:
-  model_creation:
+  build_model:
     enabled: true                                         # boolean
     model_build_config: config/defaults/wflow_build_model.yml          # path
     waterbodies_config: config/defaults/wflow_update_waterbodies.yml   # path
@@ -89,7 +89,7 @@ workflows:
     #  starttime: "2000-01-01T00:00:00"                    # ISO datetime
     #  endtime: "2020-12-31T00:00:00"                      # ISO datetime
 
-  climate_projections:
+  analyze_projections:
     enabled: true                                         # boolean
     clim_project: cmip6                                   # text — cmip6
     # list — Institution/Source. All 65 with a historical member:
@@ -133,7 +133,7 @@ workflows:
     #  min_reference: {precip: 0.1}                       # mapping: variable -> numeric
     #  max_flagged_months: 3                              # integer
 
-  climate_experiment:
+  run_stress_test:
     enabled: true                                         # boolean
     #experiment_name: my_experiment                       # text — unset auto-names from project_dir + date
     realizations_num: 2                                   # integer

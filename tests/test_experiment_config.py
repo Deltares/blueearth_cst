@@ -22,7 +22,7 @@ from blueearth_cst.experiment.write_experiment_config import (  # noqa: E402
     write_experiment_config,
 )
 
-#: A resolved ``workflows.climate_experiment`` section, in miniature. Every key
+#: A resolved ``workflows.run_stress_test`` section, in miniature. Every key
 #: is a LIVE one: the drift cases below change ``horizontime_climate`` and
 #: ``run_historical``, which were ``Tpeak`` and ``Tlow`` until 2026-08-12. A
 #: guard demonstrated on a key no config declares still passes -- the recorded
@@ -54,7 +54,7 @@ def _marker(tmp_path, name="gabon_dry"):
     forever and nothing raises. That is why the wiring test below checks this
     literal against rule 3.18's own ``output:`` rather than trusting it.
     """
-    return tmp_path / "logs" / f"wf3_climate_experiment_{name}.log"
+    return tmp_path / "logs" / f"wf3_run_stress_test_{name}.log"
 
 
 def _mark_run(tmp_path, name="gabon_dry"):
@@ -71,7 +71,7 @@ def _mark_run(tmp_path, name="gabon_dry"):
 def test_the_document_is_the_id_plus_this_experiments_own_section():
     doc = build_experiment_config("gabon_dry", _CFG)
     assert doc["experiment_name"] == "gabon_dry"
-    assert doc["climate_experiment"] == _CFG
+    assert doc["run_stress_test"] == _CFG
 
 
 def test_writing_produces_readable_yaml(tmp_path):
@@ -102,7 +102,7 @@ def test_editable_before_the_first_successful_run(tmp_path):
     doc = write_experiment_config(
         _marker(tmp_path), out, "gabon_dry", changed
     )  # must not raise
-    assert doc["climate_experiment"]["realizations_num"] == 5
+    assert doc["run_stress_test"]["realizations_num"] == 5
 
 
 def test_frozen_after_the_first_successful_run(tmp_path):
@@ -121,7 +121,7 @@ def test_frozen_after_the_first_successful_run(tmp_path):
     assert "new experiment" in msg.lower()  # what to do
     # ...and the recorded file is untouched, so the results still describe it.
     assert (
-        yaml.safe_load(out.read_text(encoding="utf-8"))["climate_experiment"][
+        yaml.safe_load(out.read_text(encoding="utf-8"))["run_stress_test"][
             "horizontime_climate"
         ]
         == 2050
@@ -162,7 +162,7 @@ def test_another_experiments_merged_log_does_not_freeze_this_one(tmp_path):
     """The marker is per EXPERIMENT, and after the move to a shared project
     `logs/` that is carried by the filename alone.
 
-    A name-blind marker -- `logs/wf3_climate_experiment.log`, or a glob -- would
+    A name-blind marker -- `logs/wf3_run_stress_test.log`, or a glob -- would
     make the first experiment to complete freeze every other experiment in the
     project, which is the failure the id in the filename exists to prevent.
     """
@@ -297,7 +297,7 @@ def test_the_record_migrates_forward_and_drops_the_retired_keys(tmp_path):
 
     write_experiment_config(_marker(tmp_path), out, "gabon_dry", _CFG)
 
-    recorded = yaml.safe_load(out.read_text(encoding="utf-8"))["climate_experiment"]
+    recorded = yaml.safe_load(out.read_text(encoding="utf-8"))["run_stress_test"]
     assert "Tpeak" not in recorded and "Tlow" not in recorded
     assert recorded == _CFG
 

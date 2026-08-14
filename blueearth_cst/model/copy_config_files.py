@@ -50,7 +50,7 @@ ALWAYS_ARCHIVED_ROLES = frozenset({"output_locations", "observations_timeseries"
 #: Someone will eventually open the copy nearest the outputs and change it.
 #:
 #: And the per-workflow name promises a scope the content does not deliver --
-#: `snake_config_model_creation.yml` is the WHOLE config, so the two copies are
+#: `snake_config_build_model.yml` is the WHOLE config, so the two copies are
 #: byte-identical whenever both workflows ran under the same one. Measured
 #: 2026-08-13: the owner opened them, read the identical bytes as duplication,
 #: and asked. The `projection` field of `run_record.yml` is the scoped view;
@@ -545,7 +545,7 @@ if __name__ == "__main__":
         # else keeps its own stem.
         reference_roles = {}
         data_sources = sm.params.data_catalogs
-        if workflow_name == "model_creation":
+        if workflow_name == "build_model":
             other_config_files[sm.input.config_build] = templates_dir
             other_config_files[sm.input.config_waterbodies] = templates_dir
             reference_roles[str(sm.input.config_build)] = "model_build_config"
@@ -563,7 +563,7 @@ if __name__ == "__main__":
         # typo -- and a silently skipped typo is precisely the failure mode
         # that cost this workflow its whole evaluation output once already
         # (dev/tasks/, the gauge-name entry).
-        if workflow_name == "model_creation":
+        if workflow_name == "build_model":
             # sm.INPUT, not sm.params: both keys became declared inputs on
             # 2026-08-02 so a file EDIT retriggers the rules that read them.
             # An unset key contributes no entry at all, so getattr's default is

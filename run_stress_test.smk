@@ -34,7 +34,7 @@ run_logged = str(Path(workflow.basedir) / "blueearth_cst" / "shared" / "run_logg
 # R01 schema
 project_cfg = config["project"]
 shared_cfg = config["shared"]
-my_cfg = config["workflows"]["climate_experiment"]
+my_cfg = config["workflows"]["run_stress_test"]
 
 project_dir = get_config(project_cfg, "project_dir", optional=False)
 # O-22: make the two-tier project_dir rule mechanical rather than
@@ -74,7 +74,7 @@ if _name is None or (isinstance(_name, str) and not _name.strip()):
         )
     except ValueError as exc:
         raise ValueError(
-            f"workflows.climate_experiment.experiment_name is not set and no "
+            f"workflows.run_stress_test.experiment_name is not set and no "
             f"default can be derived: {exc}. Set the key, or run:\n\n"
             f"    pixi run python scripts/suggest_experiment_name.py "
             f"{config_path} --name <name>\n"
@@ -137,11 +137,11 @@ _, _, ST_NUM = stress_test_grid(stress_test_cfg)
 # recycled or truncated vector and silently perturbs the wrong months.
 DRY_SPELL_FACTOR = validate_spell_factor(
     stress_test_cfg.get("dry_spell_factor"),
-    "workflows.climate_experiment.stress_test.dry_spell_factor",
+    "workflows.run_stress_test.stress_test.dry_spell_factor",
 )
 WET_SPELL_FACTOR = validate_spell_factor(
     stress_test_cfg.get("wet_spell_factor"),
-    "workflows.climate_experiment.stress_test.wet_spell_factor",
+    "workflows.run_stress_test.stress_test.wet_spell_factor",
 )
 
 run_hist = get_config(my_cfg, "run_historical", False)
@@ -243,7 +243,7 @@ REGION = region_rule(
 # which is what makes the shared declaration safe in the first place.
 #
 # `parse_spatial_config(basin_cfg)` takes NO model section (§8b): a params
-# payload drawn from `workflows.model_creation` would differ per invoking
+# payload drawn from `workflows.build_model` would differ per invoking
 # workflow, and this file's config need not carry that section at all.
 SPATIAL_UNITS = spatial_units_rule(
     project_dir=project_dir,
@@ -314,7 +314,7 @@ runs_dir = f"{exp_dir}/hydrology/wflow"
 # snapshot rather than sitting loose at the experiment root (migration map, v6
 # ruling). It DESCRIBES data this experiment produced, so it is a catalog
 # snapshot in the same sense as the project-scope config/catalogs/.
-exp_catalog = f"{exp_dir}/config/catalogs/data_catalog_climate_experiment.yml"
+exp_catalog = f"{exp_dir}/config/catalogs/data_catalog_run_stress_test.yml"
 # B7: "indicators" is the CST term for the reduction's response-surface tables.
 # "outputs" was rejected -- the hydrology side also holds outputs.
 # R9 P3: machine-readable experiment products live in `results/`, and the
@@ -332,8 +332,8 @@ results_dir = f"{exp_dir}/results"
 # (§3b/§3d; config_path is deliberately NOT a guard param — it varies per
 # experiment and would thrash the shared artifact on A<->B alternation).
 guarded_sections = (
-    "project", "shared.basin", "workflows.model_creation",
-    "workflows.climate_projections",
+    "project", "shared.basin", "workflows.build_model",
+    "workflows.analyze_projections",
 )
 # SHA-256 of a canonical sorted-key JSON serialization of the guarded live
 # sections: an in-place edit to any guarded value flips this string and trips
@@ -344,8 +344,8 @@ guarded_sections_digest = hashlib.sha256(
         {
             "project": config.get("project"),
             "shared.basin": config.get("shared", {}).get("basin"),
-            "workflows.model_creation": config.get("workflows", {}).get("model_creation"),
-            "workflows.climate_projections": config.get("workflows", {}).get("climate_projections"),
+            "workflows.build_model": config.get("workflows", {}).get("build_model"),
+            "workflows.analyze_projections": config.get("workflows", {}).get("analyze_projections"),
         },
         sort_keys=True,
         ensure_ascii=False,
@@ -355,7 +355,7 @@ guarded_sections_digest = hashlib.sha256(
 
 # WF3's consumed-key projection is DERIVED, not written out beside the guard
 # tuple. WF3 genuinely reads other workflows' sections -- `wflow_outvars` comes
-# out of `workflows.model_creation` -- and `guarded_sections` is already the
+# out of `workflows.build_model` -- and `guarded_sections` is already the
 # maintained list of those cross-section reads. Restating it here would be
 # proximity, not enforcement: the two would drift the first time the guard
 # tuple gained an entry. `shared.basin` widens to `shared` because the guard
@@ -364,7 +364,7 @@ guarded_sections_digest = hashlib.sha256(
 CONFIG_PROJECTION = tuple(sorted(
     {section.split(".")[0] if section == "shared.basin" else section
      for section in guarded_sections}
-    | {"workflows.climate_experiment"}
+    | {"workflows.run_stress_test"}
 ))
 
 CONFIG_REFERENCES = [
@@ -391,8 +391,8 @@ CONFIGURATION_INPUTS_DIGEST = configuration_inputs_digest(
 # snapshot-only content change re-trigger the guard despite ancient() (§3c
 # case (b)), while keeping a fresh project parse/--dry-run/--unlock clean
 # (ext2-2).
-wf1_snapshot_path = f"{project_dir}/config/runs/snake_config_model_creation.yml"
-wf2_snapshot_path = f"{project_dir}/config/runs/snake_config_climate_projections.yml"
+wf1_snapshot_path = f"{project_dir}/config/runs/snake_config_build_model.yml"
+wf2_snapshot_path = f"{project_dir}/config/runs/snake_config_analyze_projections.yml"
 wf1_snapshot_digest = file_digest_or_absent(wf1_snapshot_path)
 wf2_snapshot_digest = file_digest_or_absent(wf2_snapshot_path)
 
@@ -417,7 +417,7 @@ wf2_snapshot_digest = file_digest_or_absent(wf2_snapshot_path)
 # WF3's two RUN RECORDS are PROJECT-scoped, and carry the experiment id in the
 # filename instead of in a directory level (2026-08-11):
 #
-#   {project_dir}/logs/wf3_climate_experiment_<experiment>.log
+#   {project_dir}/logs/wf3_run_stress_test_<experiment>.log
 #   {project_dir}/benchmarks/wf3_benchmarks_<experiment>.md
 #
 # So all three workflows' logs sit in one logs/ and all three benchmark tables in
@@ -482,7 +482,7 @@ declare_path_tokens(
     experiment=exp_dir,
 )
 
-WORKFLOW_LOG_NAME = f"wf3_climate_experiment_{experiment}.log"
+WORKFLOW_LOG_NAME = f"wf3_run_stress_test_{experiment}.log"
 BENCHMARKS_NAME = f"wf3_benchmarks_{experiment}.md"
 LOG_PARTS_DIR = f"{project_dir}/logs/_parts/{experiment}"
 BENCH_PARTS_DIR = f"{project_dir}/benchmarks/_parts/{experiment}"
@@ -507,7 +507,7 @@ LOG_RULES = [
 # --- the experiment's indicator tables ----------------------------------------
 # CR-2: ONE table per output variable, so the set is config-dependent and must be
 # derived before the DAG is built. `wflow_outvars` lives under
-# `workflows.model_creation` -- WF3 already reads that section (it is one of the
+# `workflows.build_model` -- WF3 already reads that section (it is one of the
 # `guarded_sections` hashed below), but only as an opaque blob; this is the first
 # time WF3 depends on the MEANING of a key inside it.
 #
@@ -520,7 +520,7 @@ LOG_RULES = [
 refuse_retired_experiment_keys(my_cfg)
 
 INDICATOR_TABLES = indicator_tables(
-    get_config(config.get("workflows", {}).get("model_creation", {}) or {},
+    get_config(config.get("workflows", {}).get("build_model", {}) or {},
                "wflow_outvars", DEFAULT_WFLOW_OUTVARS, optional=True)
 )
 
@@ -532,7 +532,7 @@ INDICATOR_TABLES = indicator_tables(
 WF3_TARGETS = {
     **{f"{token}_indicators": f"{results_dir}/{fname}"
        for token, fname in INDICATOR_TABLES.items()},
-    "snake_config": f"{exp_dir}/config/snake_config_climate_experiment.yml",
+    "snake_config": f"{exp_dir}/config/snake_config_run_stress_test.yml",
     # The staleness sidecar (3.16b). A target entry, not merely a declared
     # output: no rule reads a sidecar, so without this it would never build --
     # the same reachability argument the design table makes below.
@@ -565,7 +565,7 @@ rule all:
 
 # 3.01 check_project_consistency — drift guard: fail loud if this experiment
 # config's project-level sections (project, shared.basin,
-# workflows.model_creation, workflows.climate_projections) diverge from the
+# workflows.build_model, workflows.analyze_projections) diverge from the
 # wf1/wf2 project snapshots. Runs at rule time (not parse) so --dry-run and
 # --unlock stay usable (design §3). Two outputs, one per sharing class (§3a,
 # ext2-1): the per-experiment sentinel is a FRESH input of the four
@@ -606,7 +606,7 @@ rule snapshot_config:
         consistency_ok = f"{exp_dir}/.project_consistency_ok",
     params:
         data_catalogs = DATA_SOURCES,
-        workflow_name = "climate_experiment",
+        workflow_name = "run_stress_test",
         config_projection = CONFIG_PROJECTION,
         # A string digest, so the params trigger compares a value. This is what
         # keeps the record fresh when the CHECKOUT moves; see its definition.
@@ -617,7 +617,7 @@ rule snapshot_config:
         effective_config = config,
         advanced_settings = ADVANCED_SETTINGS,
     output:
-        config_snake_out = f"{exp_dir}/config/snake_config_climate_experiment.yml",
+        config_snake_out = f"{exp_dir}/config/snake_config_run_stress_test.yml",
         run_record = RUN_RECORD,
     script:
         "blueearth_cst/model/copy_config_files.py"
@@ -1026,7 +1026,7 @@ def _positive_batch_key(key, value):
     value = int(value)
     if value < 1:
         raise ValueError(
-            f"workflows.climate_experiment.{key} must be >= 1, got {value}"
+            f"workflows.run_stress_test.{key} must be >= 1, got {value}"
         )
     return value
 
@@ -1143,7 +1143,7 @@ rule write_run_metadata:
     input:
         [f"{results_dir}/{fname}" for fname in INDICATOR_TABLES.values()],
     params:
-        workflow_name = "climate_experiment",
+        workflow_name = "run_stress_test",
         effective_config_sha256 = EFFECTIVE_CONFIG_DIGEST,
         configuration_inputs_sha256 = CONFIGURATION_INPUTS_DIGEST,
         # WF3 names its experiment rather than leaving a reader to match
@@ -1226,7 +1226,7 @@ def _journal(event):
         JOURNAL_PATH,
         journal_event(
             invocation_id=INVOCATION_ID,
-            workflow="climate_experiment",
+            workflow="run_stress_test",
             event=event,
             toolbox=_JOURNAL_TOOLBOX,
             effective_config_sha256=EFFECTIVE_CONFIG_DIGEST,
@@ -1255,7 +1255,7 @@ def _summary(failed):
     try:
         print(
             run_summary(
-                "wf3 climate_experiment",
+                "wf3 run_stress_test",
                 project_dir,
                 WORKFLOW_LOG_NAME,
                 BENCHMARKS_NAME,
@@ -1284,7 +1284,7 @@ def _header():
     try:
         print(
             run_header(
-                "wf3 climate_experiment",
+                "wf3 run_stress_test",
                 project_dir,
                 config_path,
                 experiment=experiment,

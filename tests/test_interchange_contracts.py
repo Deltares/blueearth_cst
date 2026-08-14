@@ -63,7 +63,7 @@ _WG_DIR = join(_EXP, "climate", "weathergenr")
 _RUNS_DIR = join(_EXP, "hydrology", "wflow")
 # The generated climate catalog joins the experiment's own config dir (R9
 # arch-10), it is not loose at the experiment root.
-_EXP_CATALOG = join(_EXP, "config", "catalogs", "data_catalog_climate_experiment.yml")
+_EXP_CATALOG = join(_EXP, "config", "catalogs", "data_catalog_run_stress_test.yml")
 
 _FIXTURE_ABSENT = (
     "untracked test_case/test_local fixture tree not present "
@@ -809,7 +809,7 @@ def _store_key() -> str:
     that was correct. Same lesson as the `_STORE_ROOT` block above: derive the
     location, never spell it.
     """
-    with open(join(_FIXTURE, "config", "runs", "snake_config_model_creation.yml")) as f:
+    with open(join(_FIXTURE, "config", "runs", "snake_config_build_model.yml")) as f:
         shared = yaml.safe_load(f)["shared"]
     window = shared["historical_window"]
     slug = slugify_window(window["starttime"], window["endtime"])
@@ -863,9 +863,9 @@ def test_wg5_integration():
 def test_wg5_catalog_grid_integration():
     with open(_EXP_CATALOG) as f:
         catalog = yaml.safe_load(f)
-    with open(join(_EXP, "config", "snake_config_climate_experiment.yml")) as f:
+    with open(join(_EXP, "config", "snake_config_run_stress_test.yml")) as f:
         snap = yaml.safe_load(f)
-    exp_cfg = snap["workflows"]["climate_experiment"]
+    exp_cfg = snap["workflows"]["run_stress_test"]
     rlz_num = exp_cfg["realizations_num"]
     _, _, st_num = stress_test_grid(exp_cfg["stress_test"])
     # The catalog KEYS carry the member token, so P2's rename moves them. Same

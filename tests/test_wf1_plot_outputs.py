@@ -149,7 +149,7 @@ def project_with_basavg_outvar(tmp_path):
     project_dir = tmp_path / "proj"
     project_dir.mkdir()
     cfg["project"]["project_dir"] = project_dir.as_posix()
-    cfg["workflows"]["model_creation"]["wflow_outvars"] = [
+    cfg["workflows"]["build_model"]["wflow_outvars"] = [
         "river discharge",
         "actual evapotranspiration",
     ]

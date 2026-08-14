@@ -55,8 +55,8 @@ Tags are permanent rollback points; they never move.
 | `r01-contracts`   | 2026-07-18 | Phase 2 seal: sectioned config schema (project/shared/workflows); suite 51/3/2. Sealed on invariance-by-construction — M2b baseline left untouched (stale; see `dev/milestones/r01/baseline_diffs.md`). |
 | `r02-naming`      | 2026-07-19 | Phase 2 seal: naming style guide (`dev/reference/naming.md`). Docs-only; existing names grandfathered; suite 51/3/2. |
 | `r03-model-builder` | 2026-07-19 | Phase 2 seal: workflow-1 (model builder) cleanup — shared `snake_utils` (`get_config`/`tee_to_log`), per-rule log/benchmark, `outlet_index.csv`, gauges hardening, structured waterbodies sentinel. Behavior-preserving (14/14); suite 73/3/2. |
-| `r04-projections` | 2026-07-20 | Phase 2 seal: workflow-2 (climate projections) cleanup, inheriting the R3 patterns. Contract doc `dev/reference/workflows/climate_projections.md`; 11 commits. |
-| `r05-experiment`  | 2026-07-20 | Phase 2 seal: workflow-3 (climate experiment) + the R weathergen layer cleaned up, inheriting the R3/R4 patterns. Contract doc `dev/reference/workflows/climate_experiment.md`; 12 commits. |
+| `r04-projections` | 2026-07-20 | Phase 2 seal: workflow-2 (climate projections) cleanup, inheriting the R3 patterns. Contract doc `dev/reference/workflows/analyze_projections.md`; 11 commits. |
+| `r05-experiment`  | 2026-07-20 | Phase 2 seal: workflow-3 (climate experiment) + the R weathergen layer cleaned up, inheriting the R3/R4 patterns. Contract doc `dev/reference/workflows/run_stress_test.md`; 12 commits. |
 | `r06-refactor`    | 2026-07-23 | Phase 2 seal: structural refactor — `src/` → `blueearth_cst/` package, `config/` three-bin split, runners → `scripts/`, `enabled:`-aware wrapper, `MIGRATION.md` (51 renames). Behavior-preserving (run-relative baseline + full-tree semantic diff clean). |
 | `p31-experiments` | 2026-07-24 | Phase 3 seal: project/experiment structure. |
 | `p32a-climate-analysis` | 2026-07-24 | Phase 3 seal: model-independent climate analysis. |
@@ -159,7 +159,7 @@ This step is a judgment and cannot be automated: nothing can infer from a
 document's content that it is a record. `tests/test_sealed_records.py` enforces
 only what the registry already lists — that each entry keeps its banner and
 still hashes to what was sealed. Skipping the question is how
-`climate_experiment.md` spent four milestones reading as a live WF3 contract
+`run_stress_test.md` spent four milestones reading as a live WF3 contract
 (R9 P5 F2).
 
 ---

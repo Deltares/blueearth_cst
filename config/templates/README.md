@@ -75,7 +75,7 @@ Thirty years ending at the last year the CMIP6 historical experiment covers
   default `shared.water_year_start: Jan`, thirty complete hydrological years. Any
   other start month yields 29, the partial years at both ends dropped. Every
   artifact reports the effective window and count beside the nominal one.
-  (The key was `workflows.climate_projections.start_month_hyd_year` until
+  (The key was `workflows.analyze_projections.start_month_hyd_year` until
   2026-08-12; that spelling is now a parse-time error, and it never reached the
   change-factor arithmetic, which always used January.)
 
@@ -135,7 +135,7 @@ shared:
   basin:
     gauge_points: null
 workflows:
-  model_creation:
+  build_model:
     observations_timeseries: null
 ```
 
@@ -144,12 +144,12 @@ nothing to key against: the series columns are matched by resolved `wflow_id`,
 and those ids only exist once gauge points have driven the delineation.
 
 **Config migration — the old key no longer works on its own.**
-`shared.basin.gauge_points` replaces `workflows.model_creation.output_locations`
+`shared.basin.gauge_points` replaces `workflows.build_model.output_locations`
 because the points now control the model-neutral basin/subbasin layout as well
 as Wflow outputs, and **only the canonical key reaches the rule that delineates
 it** (1.03 `delineate_spatial_units`, whose params are `shared.basin` alone per
 ADR 0003 §8b — it is declared by all three workflows and the other two carry no
-`workflows.model_creation` section).
+`workflows.build_model` section).
 
 A config that sets ONLY the legacy key therefore fails at parse time with the
 migrated key spelled out. This used to be a `FutureWarning` that returned the

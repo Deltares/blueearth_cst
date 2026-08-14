@@ -74,7 +74,7 @@ def staged_project(tmp_path):
     base = yaml.safe_load(CONFIG_FN.read_text(encoding="utf-8"))
     pdir = tmp_path / "proj"
     base["project"]["project_dir"] = str(pdir).replace("\\", "/")
-    experiment = base["workflows"]["climate_experiment"]["experiment_name"]
+    experiment = base["workflows"]["run_stress_test"]["experiment_name"]
 
     # THE LEAF SET IS NOT MAINTAINED HERE any more. It lives in
     # `cross_workflow_inputs` with the other two stagers, and
@@ -97,8 +97,8 @@ def staged_project(tmp_path):
     config_text = yaml.safe_dump(base)
     cwi.stage(pdir, config_text, extras=(cwi.EXTRA_REGION, cwi.EXTRA_WF2_SNAPSHOT))
     snap_dir = pdir / "config" / "runs"
-    wf1 = snap_dir / "snake_config_model_creation.yml"
-    wf2 = snap_dir / "snake_config_climate_projections.yml"
+    wf1 = snap_dir / "snake_config_build_model.yml"
+    wf2 = snap_dir / "snake_config_analyze_projections.yml"
 
     cfg_path = tmp_path / "snake_config_staged.yml"
     cfg_path.write_text(yaml.safe_dump(base), encoding="utf-8")
@@ -168,7 +168,7 @@ def test_guard_invalidation_i_to_l(staged_project):
     # (k) mutate the wf2 snapshot content -> scheduled (wf2 digest param).
     orig_wf2 = wf2.read_text(encoding="utf-8")
     wf2_doc = yaml.safe_load(orig_wf2)
-    wf2_doc["workflows"]["climate_projections"]["scenarios"] = ["ssp126"]
+    wf2_doc["workflows"]["analyze_projections"]["scenarios"] = ["ssp126"]
     wf2.write_text(yaml.safe_dump(wf2_doc), encoding="utf-8")
     out = _dry_run_output(cfg_path, sentinel)
     assert "Params have changed" in out, out
@@ -201,7 +201,7 @@ def test_2c_fresh_project_missing_wf1_snapshot(staged_project):
     combined = (result.stdout or "") + (result.stderr or "")
     assert result.returncode != 0, combined
     assert "MissingInputException" in combined, combined
-    assert "snake_config_model_creation.yml" in combined, combined
+    assert "snake_config_build_model.yml" in combined, combined
     assert "Traceback" not in combined, combined
 
     # (ii) --unlock with the snapshot absent. DEVIATION from design gate

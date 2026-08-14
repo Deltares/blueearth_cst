@@ -2,7 +2,7 @@
 
 hydromt_wflow 1.x labels outlets with basin-derived subcatchment IDs (e.g.
 130000086), but this project uses a stable positional ``wflow_{1..N}`` naming
-for plots and manifest paths (see dev/reference/workflows/model_creation.md). This rule
+for plots and manifest paths (see dev/reference/workflows/build_model.md). This rule
 emits an unconditional, machine-readable mapping between the two, derived
 directly from outlets.geojson and populated on **every** run — unlike
 performance_metrics.csv, which is empty without observations.

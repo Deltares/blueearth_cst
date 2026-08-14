@@ -53,7 +53,7 @@ def expected_keys(config: dict) -> tuple[set[str], str, str]:
     would skip counts as an orphan rather than as expected-but-missing.
     """
     project = config["project"]
-    my = config["workflows"]["climate_projections"]
+    my = config["workflows"]["analyze_projections"]
     clim_project = my["clim_project"]
     catalog_path = project["data_sources_climate"]
 

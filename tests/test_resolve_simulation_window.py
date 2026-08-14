@@ -1,4 +1,4 @@
-"""`workflows.model_creation.simulation_window` — the model RUN period.
+"""`workflows.build_model.simulation_window` — the model RUN period.
 
 Split from `shared.historical_window` on 2026-08-10. The record a project
 extracts for analysis and the period it simulates are different questions.

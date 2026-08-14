@@ -691,7 +691,7 @@ def prepare_spatial_units(
     ``parse_spatial_config`` resolves from ``shared.basin`` ALONE — spelled out
     rather than taken as a ``SpatialConfig`` so §8b's requirement is visible in
     the signature: the rule is declared by all three workflows, so anything that
-    could differ per invoking workflow (``workflows.model_creation``, the
+    could differ per invoking workflow (``workflows.build_model``, the
     ``--configfile`` path) cannot reach it. The thematic source names are
     deliberately absent: they belong to the raster half.
 

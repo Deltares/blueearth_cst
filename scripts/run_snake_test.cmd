@@ -2,7 +2,7 @@
 rem ===========================================================================
 rem run_snake_test.cmd -- Windows convenience runner for the three CST workflows
 rem on the tracked test config, in the required order:
-rem     model_creation -> climate_projections -> climate_experiment
+rem     build_model -> analyze_projections -> run_stress_test
 rem
 rem Everything runs through `pixi run`, so no environment needs activating first
 rem (this replaced a `call activate cst` conda step) and `dot` resolves from the
@@ -47,13 +47,13 @@ rem `%*` through to :workflow would hand snakemake the label and Snakefile name
 rem as positional targets.
 set FWD=%*
 
-call :workflow model_creation      build_model.smk      ""
+call :workflow build_model      build_model.smk      ""
 if errorlevel 1 exit /b 1
 rem projections keeps --keep-going: one unavailable CMIP6 model must not abort
 rem the whole ensemble.
-call :workflow climate_projections analyze_projections.smk "--keep-going"
+call :workflow analyze_projections analyze_projections.smk "--keep-going"
 if errorlevel 1 exit /b 1
-call :workflow climate_experiment  run_stress_test.smk  ""
+call :workflow run_stress_test  run_stress_test.smk  ""
 if errorlevel 1 exit /b 1
 
 echo.

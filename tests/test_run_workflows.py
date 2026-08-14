@@ -115,14 +115,14 @@ def test_missing_enabled_key_errors(tmp_path):
     cfg = tmp_path / "c.yml"
     cfg.write_text(
         "workflows:\n"
-        "  model_creation:\n    enabled: true\n"
-        "  climate_projections:\n    enabled: true\n"
-        "  climate_experiment:\n    other: 1\n",  # no enabled:
+        "  build_model:\n    enabled: true\n"
+        "  analyze_projections:\n    enabled: true\n"
+        "  run_stress_test:\n    other: 1\n",  # no enabled:
         encoding="utf-8",
     )
     with pytest.raises(rw.ConfigError) as exc:
         rw.read_enabled_flags(str(cfg))
-    assert "climate_experiment.enabled" in str(exc.value)
+    assert "run_stress_test.enabled" in str(exc.value)
     # And the CLI surfaces it as a nonzero exit.
     rc = rw.main(["--config", str(cfg)])
     assert rc != 0
@@ -145,11 +145,11 @@ def test_non_bool_enabled_rejected(tmp_path, bad):
     """Quoted strings and integers do NOT parse to bool -> rejected (contract c)."""
     cfg = tmp_path / "c.yml"
     flags = {n: "true" for n in rw.WORKFLOW_ORDER}
-    flags["model_creation"] = bad
+    flags["build_model"] = bad
     _write_cfg(cfg, flags)
     with pytest.raises(rw.ConfigError) as exc:
         rw.read_enabled_flags(str(cfg))
-    assert "model_creation.enabled" in str(exc.value)
+    assert "build_model.enabled" in str(exc.value)
 
 
 @pytest.mark.parametrize("spelling", ["yes", "on", "true", "True"])
@@ -157,10 +157,10 @@ def test_unquoted_boolean_spellings_accepted(tmp_path, spelling):
     """Unquoted yes/on/true resolve to True under YAML 1.1 -> accepted (contract c)."""
     cfg = tmp_path / "c.yml"
     flags = {n: "true" for n in rw.WORKFLOW_ORDER}
-    flags["model_creation"] = spelling
+    flags["build_model"] = spelling
     _write_cfg(cfg, flags)
     parsed = rw.read_enabled_flags(str(cfg))
-    assert parsed["model_creation"] is True
+    assert parsed["build_model"] is True
 
 
 # --- §7(g) assertion 5: first nonzero -> stop, later not invoked, return code -
@@ -168,7 +168,7 @@ def test_unquoted_boolean_spellings_accepted(tmp_path, spelling):
 
 def test_first_nonzero_stops_and_returns_code(tmp_path, capture_runs):
     calls, exits = capture_runs
-    exits[0] = 7  # first invoked workflow (model_creation) fails
+    exits[0] = 7  # first invoked workflow (build_model) fails
     cfg = tmp_path / "c.yml"
     _write_cfg(cfg, {n: "true" for n in rw.WORKFLOW_ORDER})
     rc = rw.run(str(cfg), cores=3, extra=[])
@@ -216,7 +216,7 @@ def test_enabled_false_skips_at_subprocess_boundary(tmp_path, capture_runs):
     project_dir.mkdir()
     cfg = tmp_path / "c.yml"
     flags = {n: "true" for n in rw.WORKFLOW_ORDER}
-    flags["climate_projections"] = "false"
+    flags["analyze_projections"] = "false"
     _write_cfg(cfg, flags, project_dir=str(project_dir))
 
     rc = rw.run(str(cfg), cores=3, extra=[])
@@ -314,10 +314,10 @@ def test_failure_manifest_records_stop_boundary(tmp_path, capture_runs):
     assert rw.run(str(cfg), cores=3, extra=[]) == 9
 
     workflows = _read_only_manifest(project_dir)["workflows"]
-    assert workflows["model_creation"]["status"] == "failed"
-    assert workflows["model_creation"]["exit_code"] == 9
-    assert workflows["climate_projections"]["status"] == "not_run"
-    assert workflows["climate_experiment"]["status"] == "not_run"
+    assert workflows["build_model"]["status"] == "failed"
+    assert workflows["build_model"]["exit_code"] == 9
+    assert workflows["analyze_projections"]["status"] == "not_run"
+    assert workflows["run_stress_test"]["status"] == "not_run"
 
 
 def test_subprocess_exception_finalizes_failure_manifest(tmp_path, monkeypatch):
@@ -340,8 +340,8 @@ def test_subprocess_exception_finalizes_failure_manifest(tmp_path, monkeypatch):
     assert manifest["status"] == "failed"
     assert manifest["exit_code"] is None
     assert manifest["error_type"] == "OSError"
-    assert manifest["workflows"]["model_creation"]["status"] == "failed"
-    assert manifest["workflows"]["climate_projections"]["status"] == "not_run"
+    assert manifest["workflows"]["build_model"]["status"] == "failed"
+    assert manifest["workflows"]["analyze_projections"]["status"] == "not_run"
 
 
 def test_manifest_sanitizes_sensitive_extra_args(tmp_path, capture_runs):
@@ -380,7 +380,7 @@ def test_sensitive_args_are_redacted_from_console(tmp_path, capture_runs, capsys
     project_dir = tmp_path / "project"
     cfg = tmp_path / "c.yml"
     flags = {n: "false" for n in rw.WORKFLOW_ORDER}
-    flags["model_creation"] = "true"
+    flags["build_model"] = "true"
     _write_cfg(cfg, flags, project_dir)
 
     rw.run(str(cfg), cores=3, extra=["--config", "api_token=visible-secret"])

@@ -55,11 +55,11 @@ from __future__ import annotations
 
 from blueearth_cst.shared.wflow_outputs import CODES as _WFLOW_CODES
 
-#: Semantic name (as it appears in ``workflows.model_creation.wflow_outvars``)
+#: Semantic name (as it appears in ``workflows.build_model.wflow_outvars``)
 #: → short token used in filenames and in the composite ``metric``.
 #:
 #: Authoritative source for the semantic names: the ``WFLOW_VARS`` map in
-#: ``dev/reference/workflows/model_creation.md``. **Six entries, not five** —
+#: ``dev/reference/workflows/build_model.md``. **Six entries, not five** —
 #: ``precipitation`` is one of them, emitted at registry locations with header
 #: ``P`` when a ``location_registry`` is configured.
 VARIABLE_TOKENS = {
@@ -180,7 +180,7 @@ BASIN_LOCATION = "basin"
 #: Return periods, in years, that the two GEV return-level indicators are
 #: evaluated at. **Toolbox constants since 2026-08-12, not config values.**
 #:
-#: They were the ``Tpeak`` / ``Tlow`` keys of ``workflows.climate_experiment``
+#: They were the ``Tpeak`` / ``Tlow`` keys of ``workflows.run_stress_test``
 #: until then, and the owner retired them from the project config: a return
 #: period is a property of the indicator set this toolbox defines, and indicator
 #: definitions live here rather than in a per-project scaffold. Both keys shipped
@@ -303,7 +303,7 @@ def metric_grain(token: str, metric: str) -> str | None:
     return None
 
 
-#: Config keys ``workflows.climate_experiment`` no longer has, and what to tell
+#: Config keys ``workflows.run_stress_test`` no longer has, and what to tell
 #: someone whose config still declares one. Keyed by config key; each entry is
 #: ``{"why": <what to do about it>, "note": <where the migration is written>}``.
 #:
@@ -421,7 +421,7 @@ class RetiredConfigKeyError(ValueError):
 
 
 def refuse_retired_experiment_keys(experiment_cfg) -> None:
-    """Raise if ``workflows.climate_experiment`` still declares a retired key.
+    """Raise if ``workflows.run_stress_test`` still declares a retired key.
 
     Called at DAG-construction time so the run stops before producing anything,
     rather than after a sweep whose grain silently ignored the setting.
@@ -432,7 +432,7 @@ def refuse_retired_experiment_keys(experiment_cfg) -> None:
     if not found:
         return
     lines = [
-        f"workflows.climate_experiment declares {len(found)} retired key(s): "
+        f"workflows.run_stress_test declares {len(found)} retired key(s): "
         f"{', '.join(found)}."
     ]
     for key in found:

@@ -29,9 +29,7 @@ def _write_r01_cfg(path, project_dir, experiment=None):
     """
     text = f"project:\n  project_dir: {project_dir}\n  static_dir: config\n"
     if experiment is not None:
-        text += (
-            f"workflows:\n  climate_experiment:\n    experiment_name: {experiment}\n"
-        )
+        text += f"workflows:\n  run_stress_test:\n    experiment_name: {experiment}\n"
     path.write_text(text, encoding="utf-8")
 
 
@@ -56,7 +54,7 @@ def test_workflow_number_is_by_basename_not_full_path():
 
 def test_unknown_snakefile_names_the_valid_ones():
     with pytest.raises(pwd.DagPlotError) as excinfo:
-        pwd.workflow_number(pwd.Path("Snakefile_nope"))
+        pwd.workflow_number(pwd.Path("nope.smk"))
     assert "build_model.smk" in str(excinfo.value)
 
 
@@ -236,13 +234,13 @@ def _rel(number, cfg, name="test"):
 
 def test_every_render_lands_in_the_projects_own_logs_dag():
     """One directory for all three workflows since 2026-08-11."""
-    cfg = {"workflows": {"climate_experiment": {"experiment_name": "e"}}}
+    cfg = {"workflows": {"run_stress_test": {"experiment_name": "e"}}}
     for number in (1, 2, 3):
         assert _rel(number, cfg).parent == pwd.Path("logs") / "dag"
 
 
 def test_wf1_and_wf2_renders_are_named_for_the_project_alone():
-    cfg = {"workflows": {"climate_experiment": {"experiment_name": "e"}}}
+    cfg = {"workflows": {"run_stress_test": {"experiment_name": "e"}}}
     assert _rel(1, cfg).name == "test_wf1_dag.png"
     assert _rel(2, cfg).name == "test_wf2_dag.png"
 
@@ -251,14 +249,14 @@ def test_wf3_render_carries_its_experiment_in_the_name():
     """WF3's DAG describes ONE experiment's run, and its records are now keyed
     by name rather than by directory -- as the merged log and benchmark table
     are. Without the id, two experiments in one project overwrite one file."""
-    cfg = {"workflows": {"climate_experiment": {"experiment_name": "gabon_dry"}}}
+    cfg = {"workflows": {"run_stress_test": {"experiment_name": "gabon_dry"}}}
     assert _rel(3, cfg).name == "test_wf3_gabon_dry_dag.png"
-    other = {"workflows": {"climate_experiment": {"experiment_name": "gabon_wet"}}}
+    other = {"workflows": {"run_stress_test": {"experiment_name": "gabon_wet"}}}
     assert _rel(3, cfg) != _rel(3, other)
 
 
 def test_the_mode_and_format_reach_the_filename():
-    cfg = {"workflows": {"climate_experiment": {"experiment_name": "gabon_dry"}}}
+    cfg = {"workflows": {"run_stress_test": {"experiment_name": "gabon_dry"}}}
     assert (
         pwd.plot_relpath(3, "test", cfg, "rulegraph", "svg").name
         == "test_wf3_gabon_dry_rulegraph.svg"
@@ -273,8 +271,8 @@ def test_the_mode_and_format_reach_the_filename():
     [
         {},
         {"workflows": None},
-        {"workflows": {"climate_experiment": None}},
-        {"workflows": {"climate_experiment": {}}},
+        {"workflows": {"run_stress_test": None}},
+        {"workflows": {"run_stress_test": {}}},
     ],
 )
 def test_wf3_falls_back_to_the_bare_name_without_an_experiment_name(cfg):
@@ -285,6 +283,6 @@ def test_wf3_falls_back_to_the_bare_name_without_an_experiment_name(cfg):
 
 def test_the_render_never_lands_under_the_editable_config_root():
     """The P4 property the move exists for, asserted directly."""
-    cfg = {"workflows": {"climate_experiment": {"experiment_name": "e"}}}
+    cfg = {"workflows": {"run_stress_test": {"experiment_name": "e"}}}
     for number in (1, 2, 3):
         assert "config" not in _rel(number, cfg).parts

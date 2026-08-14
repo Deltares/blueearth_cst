@@ -102,7 +102,7 @@ bbox-clipped subset of the Deltares data onto the local SSD.
 
 ### What gets staged
 
-Each spatial dataset the model_creation workflow reads is clipped to the bbox
+Each spatial dataset the build_model workflow reads is clipped to the bbox
 and mirrored under a local root. Default bbox is
 `[8.5, -0.5, 11.0, 1.5]` (~1.5° pad around the test point at `(9.666, 0.4476)`).
 Default destination is `C:\data\wflow_global\hydromt`.
@@ -158,7 +158,7 @@ Use `config/deltares_data_local.yml` (a copy of `deltares_data.yml` with
 
 ### Limits
 
-The script only stages spatial datasets the **model_creation** workflow
+The script only stages spatial datasets the **build_model** workflow
 touches. CMIP6 data used by `analyze_projections.smk` /
 `run_stress_test.smk` lives in `cmip6_data.yml` and is not yet
 mirrored — extend the script when you need those flows.

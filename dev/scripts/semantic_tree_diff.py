@@ -118,8 +118,8 @@ VOLATILE_NC_ATTRS = cb.VOLATILE_NC_ATTRS
 #: new-vs-old comparison would report them present on one side and absent on the
 #: other. Retire this only once no reference tree in use predates the fix.
 _INHERITED_ATTR_PATH_MARKERS = (
-    "climate_projections/cmip6/raw/",
-    "climate_projections/cmip6/scalar/",
+    "analyze_projections/cmip6/raw/",
+    "analyze_projections/cmip6/scalar/",
     "climate/projections/cmip6/raw/",
     "climate/projections/cmip6/scalar/",
 )
@@ -152,8 +152,8 @@ COPIED_CONFIG_PATH_MAP: dict[str, dict[str, str]] = {
     "data_sources": {
         "config/deltares_data.yml": "config/catalogs/deltares_data.yml",
         "config/deltares_data_linux.yml": "config/catalogs/deltares_data_linux.yml",
-        "config/deltares_data_climate_projections.yml": "config/catalogs/deltares_data_climate_projections.yml",
-        "config/deltares_data_climate_projections_linux.yml": "config/catalogs/deltares_data_climate_projections_linux.yml",
+        "config/deltares_data_analyze_projections.yml": "config/catalogs/deltares_data_analyze_projections.yml",
+        "config/deltares_data_analyze_projections_linux.yml": "config/catalogs/deltares_data_analyze_projections_linux.yml",
         "config/cmip6_data.yml": "config/catalogs/cmip6_data.yml",
     },
     "data_sources_climate": {
@@ -231,8 +231,8 @@ def build_p31_path_map(
     """
     rules: list[tuple[str, str]] = [
         (
-            "config/snake_config_climate_experiment.yml",
-            f"experiments/{experiment_name}/config/snake_config_climate_experiment.yml",
+            "config/snake_config_run_stress_test.yml",
+            f"experiments/{experiment_name}/config/snake_config_run_stress_test.yml",
         ),
         (
             f"hydrology_model/run_climate_{experiment_name}/",
@@ -325,7 +325,7 @@ def build_project_tree_rules(
     # `wf3_anything.log`. `[a-z0-9_]+` is validate_experiment_name's grammar.
     # The two `_parts/` prefixes already cover WF3's `<experiment>/` level.
     same_rx(r"logs/wf[12]_[^/]+\.log")
-    same_rx(r"logs/wf3_climate_experiment_[a-z0-9_]+\.log")
+    same_rx(r"logs/wf3_run_stress_test_[a-z0-9_]+\.log")
     same("logs/_parts/")
     same("logs/dag/")
     same_rx(r"benchmarks/wf[12]_benchmarks\.md")
@@ -336,8 +336,8 @@ def build_project_tree_rules(
     # The two snapshot CONTRACT PATHS are enumerated; the digest bundles are a
     # regex because the digest is content-derived. `files/` inside a bundle is a
     # prefix: its members are named `<hash>-<original>` per referenced input.
-    same("config/runs/snake_config_model_creation.yml")
-    same("config/runs/snake_config_climate_projections.yml")
+    same("config/runs/snake_config_build_model.yml")
+    same("config/runs/snake_config_analyze_projections.yml")
     # `scripts/run_workflows.py`'s invocation manifest, one immutable file per
     # wrapper run. A PREFIX, because the set is genuinely open — the filename is
     # `<utc stamp>-<uuid12>.json`, so a new one appears every run.
@@ -366,8 +366,8 @@ def build_project_tree_rules(
     #
     # What replaces them is ONE record per workflow, at an enumerated path --
     # no digest level, so nothing needs a regex.
-    same("config/runs/model_creation/run_record.yml")
-    same("config/runs/climate_projections/run_record.yml")
+    same("config/runs/build_model/run_record.yml")
+    same("config/runs/analyze_projections/run_record.yml")
     # The run journal. An UNDECLARED SIDE EFFECT and the only one in this tree:
     # it is written by the workflow's lifecycle handlers, not by a rule, so the
     # declared tier cannot see it and it has to be whitelisted here by hand. It
@@ -456,7 +456,7 @@ def build_project_tree_rules(
     # -- experiments/<id>/ ----------------------------------------------------
     for leaf in (
         ".project_consistency_ok",
-        "config/snake_config_climate_experiment.yml",
+        "config/snake_config_run_stress_test.yml",
         "config/model_reference.yml",
         "config/experiment.yml",
         # R11 P2 C23: the stress-test design table, beside the config snapshot
@@ -1372,7 +1372,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--clim-project",
         default="cmip6",
-        help="clim_project subdir under climate_projections/",
+        help="clim_project subdir under analyze_projections/",
     )
     ap.add_argument(
         "--clim-source",

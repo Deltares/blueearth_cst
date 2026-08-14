@@ -6,8 +6,8 @@ single-workflow configs under `config/templates/archive/`. Parked here on
 
 | File | Consumers |
 | --- | --- |
-| `deltares_data_climate_projections.yml` | `../../templates/archive/snake_config_projections_cmip5_full.yml`, `…_isimip3.yml` |
-| `deltares_data_climate_projections_linux.yml` | the `_linux` siblings of both |
+| `deltares_data_analyze_projections.yml` | `../../templates/archive/snake_config_projections_cmip5_full.yml`, `…_isimip3.yml` |
+| `deltares_data_analyze_projections_linux.yml` | the `_linux` siblings of both |
 
 The archived configs were rewired to these paths at the same commit, so that
 pairing still resolves. Nothing else in the repository reads either file.

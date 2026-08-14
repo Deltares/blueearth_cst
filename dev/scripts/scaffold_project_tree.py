@@ -173,8 +173,8 @@ def _log_paths(snakefile: str, experiment: str) -> list[str]:
         # which the substitution below then renders as `experiments/1/`.
         if base in roots and name not in roots:
             roots[name] = roots[base] + _resolve_experiment(tail).rstrip("/") + "/"
-    # `.log` NAME constants (WORKFLOW_LOG_NAME = "wf1_model_creation.log", and
-    # WF3's f-string f"wf3_climate_experiment_{experiment}.log") are interpolated
+    # `.log` NAME constants (WORKFLOW_LOG_NAME = "wf1_build_model.log", and
+    # WF3's f-string f"wf3_run_stress_test_{experiment}.log") are interpolated
     # into the merged-log path, which would otherwise reduce to `logs/1` under
     # the wildcard substitution below and be dropped.
     #
@@ -340,7 +340,7 @@ def main(argv: list[str] | None = None) -> int:
     experiment = (
         yaml.safe_load(args.config.read_text(encoding="utf-8"))
         .get("workflows", {})
-        .get("climate_experiment", {})
+        .get("run_stress_test", {})
         .get("experiment_name", "experiment")
     )
 

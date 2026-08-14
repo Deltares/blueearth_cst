@@ -138,7 +138,7 @@ def data_sources(config):
 def model_build_config(config):
     """Return model build config"""
     model_build_config = get_config(
-        config["workflows"]["model_creation"], "model_build_config", optional=False
+        config["workflows"]["build_model"], "model_build_config", optional=False
     )
     model_build_config = join(SNAKEDIR, model_build_config)
     return model_build_config

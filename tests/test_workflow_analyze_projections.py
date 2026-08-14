@@ -1,6 +1,6 @@
 """End-to-end smoke test for the climate-projections workflow (workflow 2).
 
-Like ``test_workflow_model_creation.py`` but for workflow 2: it runs
+Like ``test_workflow_build_model.py`` but for workflow 2: it runs
 ``snakemake all`` on ``analyze_projections.smk`` to completion and checks
 that the CMIP6 change-factor summary is produced.
 
@@ -12,7 +12,7 @@ run the model-creation workflow (or its smoke test) first.
 
 Run it with::
 
-    pixi run pytest tests/test_workflow_climate_projections.py --run-integration
+    pixi run pytest tests/test_workflow_analyze_projections.py --run-integration
 
 Skipped by default, and self-skips if ``region.geojson`` is missing or GCS is
 unreachable.
@@ -35,11 +35,11 @@ pytestmark = pytest.mark.integration
 
 
 # R01 sectioned schema: project_dir lives under `project`, clim_project under
-# `workflows.climate_projections`. Read lazily (inside the test), never at
+# `workflows.analyze_projections`. Read lazily (inside the test), never at
 # import time, so the migration cannot break collection of the whole suite.
 _CFG_PATHS = {
     "project_dir": ("project", "project_dir"),
-    "clim_project": ("workflows", "climate_projections", "clim_project"),
+    "clim_project": ("workflows", "analyze_projections", "clim_project"),
 }
 
 
@@ -60,7 +60,7 @@ def _gcs_reachable():
         return False
 
 
-def test_climate_projections_end_to_end():
+def test_analyze_projections_end_to_end():
     """Force a full rebuild of workflow 2 and assert the change summary is produced."""
     project_dir = _cfg("project_dir")
     clim_project = _cfg("clim_project")
@@ -70,7 +70,7 @@ def test_climate_projections_end_to_end():
     summary_csv = join(
         SNAKEDIR,
         project_dir,
-        "climate_projections",
+        "analyze_projections",
         clim_project,
         "summary",
         "annual_change_scalar_stats_summary.csv",

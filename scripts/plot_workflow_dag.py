@@ -77,7 +77,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Snakefile -> workflow number. The `wf<N>` labelling is the repo's existing
 # convention for per-workflow artifacts; keep this in step with the merged-log
-# names in blueearth_cst/shared/merge_logs.py (logs/wf1_model_creation.log ...).
+# names in blueearth_cst/shared/merge_logs.py (logs/wf1_build_model.log ...).
 WORKFLOW_NUMBER = {
     "build_model.smk": 1,
     "analyze_projections.smk": 2,
@@ -97,7 +97,7 @@ def plot_relpath(
 
     ``logs/dag/<project_name>_wf<N>_<mode>.<fmt>``, with WF3 carrying its
     ``experiment_name`` between the workflow number and the mode -- the same
-    scheme the merged log (``wf3_climate_experiment_<experiment>.log``) and the
+    scheme the merged log (``wf3_run_stress_test_<experiment>.log``) and the
     benchmark table (``wf3_benchmarks_<experiment>.md``) use. Directory and
     filename are built together because for WF3 they are one decision: the id
     has to appear in exactly one of them, and it is the name.
@@ -108,9 +108,9 @@ def plot_relpath(
     """
     stem = f"{project_name}_wf{number}"
     if number == 3:
-        experiment = (
-            (config.get("workflows") or {}).get("climate_experiment") or {}
-        ).get("experiment_name")
+        experiment = ((config.get("workflows") or {}).get("run_stress_test") or {}).get(
+            "experiment_name"
+        )
         if experiment:
             stem = f"{stem}_{experiment}"
     return PLOT_SUBDIR / f"{stem}_{mode}.{image_format}"

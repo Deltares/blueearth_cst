@@ -1,9 +1,9 @@
 """Enabled-aware wrapper over the three CST Snakefiles (design §7).
 
 Reads a full-orchestration `--configfile` YAML, checks each
-`workflows.<name>.enabled` flag, and invokes `snakemake -s Snakefile_<name>
+`workflows.<name>.enabled` flag, and invokes `snakemake -s <name>.smk
 --configfile <cfg> ...` for exactly the enabled workflows, in the fixed order
-model_creation -> climate_projections -> climate_experiment.
+build_model -> analyze_projections -> run_stress_test.
 
 This is the evolution of the run_snake_test.cmd / run_snake_docker.sh runners --
 a *runner over* the three Snakefiles, NOT a fourth Snakemake entry point. The
@@ -28,7 +28,7 @@ Contract (pinned, design §7 (a)-(g)):
      sentinel are appended verbatim to every invocation. --configfile is
      supplied by the wrapper.
  (f) Per-workflow flags are preserved from a hardcoded map matching the runners:
-     --keep-going on climate_projections only.
+     --keep-going on analyze_projections only.
  (g) Every valid wrapper invocation creates and atomically finalizes a unique
      `<project_dir>/config/runs/invocations/*.json` lifecycle manifest -- a
      SIBLING of the per-workflow `config/runs/<workflow>/<digest>/` bundles,
@@ -86,19 +86,19 @@ from blueearth_cst.shared.snake_utils import (  # noqa: E402
 
 # Fixed run order (model -> projections -> experiment). Each maps to its
 # Snakefile and the per-workflow flags preserved verbatim from the runners
-# (design §7(f)): --keep-going on climate_projections only.
-WORKFLOW_ORDER = ("model_creation", "climate_projections", "climate_experiment")
+# (design §7(f)): --keep-going on analyze_projections only.
+WORKFLOW_ORDER = ("build_model", "analyze_projections", "run_stress_test")
 
 SNAKEFILE = {
-    "model_creation": "build_model.smk",
-    "climate_projections": "analyze_projections.smk",
-    "climate_experiment": "run_stress_test.smk",
+    "build_model": "build_model.smk",
+    "analyze_projections": "analyze_projections.smk",
+    "run_stress_test": "run_stress_test.smk",
 }
 
 PER_WORKFLOW_FLAGS = {
-    "model_creation": [],
-    "climate_projections": ["--keep-going"],
-    "climate_experiment": [],
+    "build_model": [],
+    "analyze_projections": ["--keep-going"],
+    "run_stress_test": [],
 }
 
 # Repo root = parent of scripts/. Snakefiles and config paths are repo-root

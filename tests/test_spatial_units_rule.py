@@ -126,7 +126,7 @@ def test_params_carry_only_shared_basin_fields():
     assert rule.params["rivers_source"] == "rivers_lin2019_v1"
 
 
-def test_the_deprecated_model_creation_fallback_cannot_reach_the_rule():
+def test_the_deprecated_build_model_fallback_cannot_reach_the_rule():
     """§8b's stated consequence, and why the legacy key now has to raise.
 
     The shared rule is resolved WITHOUT a model section -- the five

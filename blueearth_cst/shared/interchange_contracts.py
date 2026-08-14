@@ -445,7 +445,7 @@ def _validate_catalog_entry(key: str, entry: Any, label: str) -> list[str]:
 
 
 def validate_wg5(cfg: Any) -> list[str]:
-    """WG-5 — hydromt climate data catalog (``data_catalog_climate_experiment.yml``).
+    """WG-5 — hydromt climate data catalog (``data_catalog_run_stress_test.yml``).
 
     Pinned-as-reliance (design §5.2): OUR emitted subset of the hydromt
     data-catalog schema — for every ``rlz_<n>_st_<m>`` entry the driver /
@@ -1007,7 +1007,7 @@ def validate_wg4(ds: Any) -> list[str]:
     attrs: its CRS travels the CF/rioxarray way, in the ``spatial_ref``
     coordinate's ``crs_wkt`` (``ID["EPSG",4326]``), while ``crs: 4326`` and
     ``category: meteo`` are supplied by the generated **data catalog** —
-    ``data_catalog_climate_experiment.yml``, which is exactly where hydromt reads
+    ``data_catalog_run_stress_test.yml``, which is exactly where hydromt reads
     them and exactly what ``validate_wg5`` already pins
     (``metadata.crs`` / ``metadata.category``). Requiring them as file-level
     global attrs asserted the right values on the wrong surface; the pipeline

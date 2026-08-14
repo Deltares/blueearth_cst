@@ -108,13 +108,13 @@ def project(tmp_path):
 def test_targets_tagged_with_expected_cardinality():
     """The shipping TARGETS carry the 4/6/2 workflow tags the count math relies on.
 
-    `model_creation` gained the beyond-`rule all` discharge target, then dropped
+    `build_model` gained the beyond-`rule all` discharge target, then dropped
     one again on 2026-08-10: the evaluation hydrograph is keyed by `wflow_id`
     now, so no per-station figure has a config-invariant NAME and none can be a
     template target. Its `png` kind is still exercised by `basin_area.png` and
     `forcing_precip_map.png`, and the run's NUMBERS are covered by `output.csv`
     and `performance_metrics.csv`, which the baseline does track.
-    `climate_experiment` dropped from 3 to 2 at R11 CR-2: `basin_indicators.csv`
+    `run_stress_test` dropped from 3 to 2 at R11 CR-2: `basin_indicators.csv`
     no longer exists, and the seed config declares only `river discharge`, so it
     emits one indicator table. A project configuring more output variables gets
     more tables — but this list describes the SEED tree, which is why the number
@@ -122,21 +122,21 @@ def test_targets_tagged_with_expected_cardinality():
     """
     counts = Counter(workflow for workflow, _kind, _template in cb.TARGETS)
     assert counts == {
-        "model_creation": 4,
-        "climate_projections": 6,
-        "climate_experiment": 2,
+        "build_model": 4,
+        "analyze_projections": 6,
+        "run_stress_test": 2,
     }
 
 
 def test_scoped_count_is_selected_not_full(project, capsys):
-    """`--workflow model_creation --workflow climate_projections` reports 11
+    """`--workflow build_model --workflow analyze_projections` reports 11
     of the 12 targets, not the full set."""
     project_dir, manifest_path = project
     rc = cb.cmd_check(
         _check_ns(
             project_dir,
             manifest_path,
-            workflow=["model_creation", "climate_projections"],
+            workflow=["build_model", "analyze_projections"],
             include_figures=True,
         )
     )
@@ -158,7 +158,7 @@ def test_selected_missing_target_fails(project, capsys):
         _check_ns(
             project_dir,
             manifest_path,
-            workflow=["model_creation", "climate_projections"],
+            workflow=["build_model", "analyze_projections"],
             include_figures=True,
         )
     )
@@ -178,7 +178,7 @@ def test_unselected_missing_target_ignored(project, capsys):
         _check_ns(
             project_dir,
             manifest_path,
-            workflow=["model_creation", "climate_projections"],
+            workflow=["build_model", "analyze_projections"],
             include_figures=True,
         )
     )
@@ -196,7 +196,7 @@ def test_unscoped_record_writes_all_targets(project):
 
 
 def test_record_workflow_merges_and_preserves_other_slices(project):
-    """`record --workflow model_creation` re-records only wf1 rows and preserves
+    """`record --workflow build_model` re-records only wf1 rows and preserves
     the wf2/wf3 rows verbatim (ADR step 7 merge semantics — no silent clobber)."""
     project_dir, manifest_path = project
     before = json.loads(Path(manifest_path).read_text())["targets"]
@@ -221,9 +221,7 @@ def test_record_workflow_merges_and_preserves_other_slices(project):
         + "\n"
     )
 
-    rc = cb.cmd_record(
-        _record_ns(project_dir, manifest_path, workflow=["model_creation"])
-    )
+    rc = cb.cmd_record(_record_ns(project_dir, manifest_path, workflow=["build_model"]))
     assert rc == 0
     after = json.loads(Path(manifest_path).read_text())["targets"]
 
@@ -266,8 +264,8 @@ def test_include_figures_restores_the_full_universe():
 
 
 def test_the_workflow_and_figure_filters_compose():
-    scoped = cb.active_targets({"model_creation"})
-    assert {w for w, _k, _t in scoped} == {"model_creation"}
+    scoped = cb.active_targets({"build_model"})
+    assert {w for w, _k, _t in scoped} == {"build_model"}
     assert all(kind not in cb.FIGURE_KINDS for _w, kind, _t in scoped)
 
 

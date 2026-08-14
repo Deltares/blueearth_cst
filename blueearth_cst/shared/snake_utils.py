@@ -1,6 +1,6 @@
 """Shared helpers for the BlueEarth-CST Snakefiles.
 
-Imported by all three ``Snakefile_*`` entry points (and ``tests/conftest.py``)
+Imported by all three ``*.smk`` entry points (and ``tests/conftest.py``)
 so the ``get_config`` contract lives in exactly one place. Each Snakefile makes
 this module importable regardless of the working directory by prepending its
 own directory to ``sys.path`` before importing — see
@@ -979,7 +979,7 @@ def resolve_seed(value, experiment_name: str) -> int:
 #: with ``shared.water_year_start``.
 #:
 #: One key, because the alternative is what this replaced: WF2 read
-#: ``workflows.climate_projections.start_month_hyd_year`` (and silently ignored
+#: ``workflows.analyze_projections.start_month_hyd_year`` (and silently ignored
 #: it), WF3's generator read ``year_start_month`` as an integer, and the WF3
 #: indicators and WF1 figures had no concept at all — four consumers of one
 #: physical idea, agreeing by accident when they agreed.
@@ -1151,7 +1151,7 @@ def resolve_simulation_window(shared_cfg, model_cfg):
       weathergenr, whose wavelet decomposition sets ``MIN_HISTORICAL_YEARS``.
       This is analysis input, and it is what a future standalone climate
       workflow would be parameterised on.
-    * ``workflows.model_creation.simulation_window`` — the period the model is
+    * ``workflows.build_model.simulation_window`` — the period the model is
       RUN over. It sets the forcing hydromt prepares and the ``[time]``
       ``starttime``/``endtime`` in the wflow TOML, which are necessarily the
       same span: forcing outside the run period is built and never read, and a
@@ -1183,19 +1183,19 @@ def resolve_simulation_window(shared_cfg, model_cfg):
         return get_config(shared_cfg, "historical_window", optional=False)
     if not isinstance(window, Mapping):
         raise ValueError(
-            f"workflows.model_creation.simulation_window must be a mapping "
+            f"workflows.build_model.simulation_window must be a mapping "
             f"with starttime/endtime, got {window!r}"
         )
     for key in ("starttime", "endtime"):
         if key not in window:
             raise ValueError(
-                f"workflows.model_creation.simulation_window is missing {key!r}"
+                f"workflows.build_model.simulation_window is missing {key!r}"
             )
         try:
             datetime.fromisoformat(str(window[key]).strip())
         except ValueError:
             raise ValueError(
-                f"workflows.model_creation.simulation_window.{key} is not an "
+                f"workflows.build_model.simulation_window.{key} is not an "
                 f"ISO datetime: {window[key]!r}"
             ) from None
     start, end = (
@@ -1204,14 +1204,14 @@ def resolve_simulation_window(shared_cfg, model_cfg):
     )
     if end <= start:
         raise ValueError(
-            f"workflows.model_creation.simulation_window {start.date()} .. "
+            f"workflows.build_model.simulation_window {start.date()} .. "
             f"{end.date()} ends on or before it starts — check the order"
         )
     record = get_config(shared_cfg, "historical_window", optional=False)
     rec_start, rec_end = historical_window_bounds(record)
     if start < rec_start or end > rec_end:
         raise ValueError(
-            f"workflows.model_creation.simulation_window {start.date()} .. "
+            f"workflows.build_model.simulation_window {start.date()} .. "
             f"{end.date()} is not inside shared.historical_window "
             f"{rec_start.date()} .. {rec_end.date()}. The forcing is built from "
             "the extracted climate store, so a simulation period outside the "
@@ -1434,13 +1434,13 @@ def spatial_units_rule(project_dir, spatial_config, data_sources) -> SpatialUnit
 
     **The params are a pure function of ``project`` + ``shared.basin`` (§8b),
     and that is a requirement, not a convenience.** The five projections-only
-    configs contain no ``workflows.model_creation`` keys at all, so a params
+    configs contain no ``workflows.build_model`` keys at all, so a params
     payload drawn from that section would differ per invoking workflow — the
     input/params asymmetry ``ext1-02`` forbade for the climate store — and
     ``config_path`` itself differs between a full config and a single-workflow
     one, so declaring it as an input would thrash this rule on every WF1/WF2
     alternation. Hence: no ``config_snake`` input, and the deprecated
-    ``workflows.model_creation.output_locations`` fallback in
+    ``workflows.build_model.output_locations`` fallback in
     ``resolve_gauge_points_path`` CANNOT feed this rule. Callers must resolve
     ``spatial_config`` with ``parse_spatial_config(basin_cfg)`` — no model
     section. What makes that safe is rule 3.00b, which already guarantees
@@ -1747,7 +1747,7 @@ def _reject_unknown_axis_subkeys(stress_test_cfg: Mapping) -> None:
                 "Remove it rather than expecting it to perturb anything."
             )
         raise ValueError(
-            f"workflows.climate_experiment.stress_test.{axis} carries "
+            f"workflows.run_stress_test.stress_test.{axis} carries "
             f"unsupported key(s) {unknown}; it accepts {sorted(allowed)}.{detail}"
         )
 
@@ -1789,7 +1789,7 @@ def stress_test_grid(stress_test_cfg: Mapping) -> tuple[int, int, int]:
     Parameters
     ----------
     stress_test_cfg : Mapping
-        The ``workflows.climate_experiment.stress_test`` config section, with
+        The ``workflows.run_stress_test.stress_test`` config section, with
         ``temp`` and ``precip`` axis sub-sections each carrying ``step_num``.
 
     Returns
@@ -1867,7 +1867,7 @@ def index_width(count: int) -> int:
     a consumer joining a plot to its run needs no integer coercion.
 
     **The width is stable for an experiment's life.** It is a function of
-    ``ST_NUM`` / ``RLZ_NUM``, and both live in the ``climate_experiment``
+    ``ST_NUM`` / ``RLZ_NUM``, and both live in the ``run_stress_test``
     section that ``experiment.yml`` freezes at first successful run — so a grid
     change that would move the width already forces a new experiment via
     ``check_not_frozen``. No existing tree can be renamed underneath itself.

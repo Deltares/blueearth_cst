@@ -158,7 +158,7 @@ def project_config(
 
     A projection is the explicit list of dotted config paths a workflow reads,
     including cross-section ones -- ``("project", "shared",
-    "workflows.model_creation")`` for WF1. Digesting the projection instead of
+    "workflows.build_model")`` for WF1. Digesting the projection instead of
     the whole file is what stops an edit to one workflow's section from moving
     another workflow's digest.
 

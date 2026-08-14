@@ -12,7 +12,7 @@ Method:   anonymous gcsfs directory listing of
           Last-Modified 2022-06-28).
 ```
 
-Companion documents: `wf2_climate_projections_overview.md` (rule-level map of WF2
+Companion documents: `wf2_analyze_projections_overview.md` (rule-level map of WF2
 today), `wf2-climate-analysis-v2-design.md` (the rework this feeds).
 
 ---

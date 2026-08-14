@@ -6,11 +6,11 @@
     "dirty": true
   },
   "targets": {
-    "test_case/test_local/config/runs/snake_config_climate_projections.yml": {
+    "test_case/test_local/config/runs/snake_config_analyze_projections.yml": {
       "sha256": "4015ec5580865c0427f82d0825c66c79a1e4c8d83f2e3ce456661f7100ae1767",
       "type": "yaml"
     },
-    "test_case/test_local/config/runs/snake_config_model_creation.yml": {
+    "test_case/test_local/config/runs/snake_config_build_model.yml": {
       "sha256": "4015ec5580865c0427f82d0825c66c79a1e4c8d83f2e3ce456661f7100ae1767",
       "type": "yaml"
     },
@@ -24,7 +24,7 @@
       "size_bytes": 53875,
       "type": "csv"
     },
-    "test_case/test_local/experiments/experiment/config/snake_config_climate_experiment.yml": {
+    "test_case/test_local/experiments/experiment/config/snake_config_run_stress_test.yml": {
       "sha256": "4015ec5580865c0427f82d0825c66c79a1e4c8d83f2e3ce456661f7100ae1767",
       "type": "yaml"
     },

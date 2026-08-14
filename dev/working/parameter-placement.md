@@ -59,7 +59,7 @@ One `--configfile` YAML. **55 leaf keys**, 17 required:
 |---|---|---|
 | `project` | 4 | `project_dir`, `static_dir`, two catalog paths |
 | `shared` | 13 | basin definition, catalog bindings, delineation tolerances, window, `clim_historical` |
-| `workflows.*` | 38 | per-workflow; `climate_experiment` alone holds the stress-test grid |
+| `workflows.*` | 38 | per-workflow; `run_stress_test` alone holds the stress-test grid |
 
 Full listing: appendix.
 
@@ -171,16 +171,16 @@ M2 is the only one that is unambiguously correct regardless of how §5 resolves.
 · *(optional, undocumented in the template: `basin.hydrography`,
 `basin.basin_index`)*
 
-### Project config — `workflows.model_creation`
+### Project config — `workflows.build_model`
 `enabled` · `model_build_config` · `waterbodies_config` · `wflow_outvars` ·
 `observations_timeseries` · `simulation_window.{starttime,endtime}`*
 
-### Project config — `workflows.climate_projections`
+### Project config — `workflows.analyze_projections`
 `enabled` · `clim_project`* · `models`* · `scenarios`* · `members`* ·
 `variables`* · `historical_year_range`* · `future_horizons`* · `stats` ·
 `save_grids` *(`start_month_hyd_year` retired 2026-08-12 — now refused)*
 
-### Project config — `workflows.climate_experiment`
+### Project config — `workflows.run_stress_test`
 `enabled` · `experiment_name` · `realizations_num` · `horizontime_climate`* ·
 `run_length` · `run_historical` · `stress_test.{temp,precip}.{step_num,
 transient_change,mean.{min,max},variance.{min,max}}` ·
@@ -209,7 +209,7 @@ No config surface, correctly constants: `DEFAULT_DECIMALS`,
 referenced-files.json, files/**}` — content-addressed run snapshots ·
 `config/catalogs/*` · `config/templates/*` ·
 `experiments/<id>/{experiment.yml, model_reference.yml,
-snake_config_climate_experiment.yml, catalogs/*, runs/**}` ·
+snake_config_run_stress_test.yml, catalogs/*, runs/**}` ·
 `experiments/<id>/climate/weathergenr/config/weathergen_config.yml` ·
 `models/hydrology/wflow/{wflow_sbm.toml, config/*}`
 

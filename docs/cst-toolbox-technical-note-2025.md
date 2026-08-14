@@ -1309,7 +1309,7 @@ Next, the script *project_creation.py* uses the information in the project.yml f
 <td>Historical climate forcing data (netcdf) in native and downscaled resolution</td>
 </tr>
 <tr>
-<td>/climate_projections</td>
+<td>/analyze_projections</td>
 <td>Extracted climate projections</td>
 </tr>
 <tr>
@@ -1365,7 +1365,7 @@ Based on the settings provided, the workflow carries out the following sequentia
 1.  Monthly time series are extracted from the climate projections dataset.
 2.  Relevant statistics are calculated for all variables from the climate models and scenarios (historical and future).
 3.  Change factors are calculated as the relative change in the statistics in the future period regarding the historical period. This is repeated for all selected climate variables and climate models/RCP scenario combinations.
-4.  Calculated change factors across different model runs and variables are combined into a single spreadsheet file, e.g., *climate_projections_summary.csv*.
+4.  Calculated change factors across different model runs and variables are combined into a single spreadsheet file, e.g., *analyze_projections_summary.csv*.
 
 After the four-step process, a copy of the data_catalogue.yml is made. All model-dataset information is then removed, while the climate-dataset information is extended with climate statistics for the basin. Finally, the file is saved as climate_catalogue.yml. Statistical time series will be stored in a separate netcdf file next to the climate_catalogue.yml. The gridded climate projection data can be removed if desired after the statistics are extracted.
 

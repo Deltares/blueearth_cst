@@ -180,7 +180,7 @@ Run everything inside `pixi shell`, or prefix each command with `pixi run`, so
 pixi install          # conda-forge + PyPI deps (Python stack, R toolchain, snakemake)
 pixi run install      # + weathergenr (R, via remotes) and Julia env (Pkg.instantiate)
 
-# Run the three workflows IN ORDER (climate_experiment needs model_creation
+# Run the three workflows IN ORDER (run_stress_test needs build_model
 # artifacts). snake_config_rapid.yml is the DEFAULT config; swap in
 # snake_config_baseline.yml only for the runs listed under Workflow:
 snakemake all -c 3 -s build_model.smk      --configfile test_case/snake_config_rapid.yml
@@ -208,7 +208,7 @@ snakemake ... --dry-run           # inspect the DAG before running or after edit
 snakemake --unlock -s <Snakefile> --configfile <cfg>   # Snakemake locks the workdir on crash
 
 pytest tests/test_cli.py          # cheapest sanity check: dry-runs all three Snakefiles
-pytest tests/                     # full suite (test_model_creation.py is slow)
+pytest tests/                     # full suite (test_build_model.py is slow)
 ```
 
 **Run the workflows from the PRIMARY checkout, not from a task worktree.**

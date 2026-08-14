@@ -64,9 +64,9 @@ how the residual was closed, not a description of the current gate.)
 
 Usage:
     python dev/scripts/check_baseline.py record
-    python dev/scripts/check_baseline.py record --workflow model_creation   # merge one slice
+    python dev/scripts/check_baseline.py record --workflow build_model   # merge one slice
     python dev/scripts/check_baseline.py check
-    python dev/scripts/check_baseline.py check --workflow model_creation
+    python dev/scripts/check_baseline.py check --workflow build_model
     python dev/scripts/check_baseline.py compare --ref A/output.csv --cur B/output.csv
     python dev/scripts/check_baseline.py {record,check} --project-dir test_case/test
 """
@@ -242,24 +242,24 @@ TARGETS: list[tuple[str, str, str]] = [
     # the gate by default anyway; the run's numbers are covered by output.csv
     # and performance_metrics.csv.
     (
-        "model_creation",
+        "build_model",
         "png",
         "{project_dir}/data/spatial/plots/basin_area.png",
     ),
     (
-        "model_creation",
+        "build_model",
         "png",
         "{project_dir}/models/hydrology/wflow/forcing/plots/forcing_precip_map.png",
     ),
     (
-        "model_creation",
+        "build_model",
         "yaml",
-        "{project_dir}/config/runs/snake_config_model_creation.yml",
+        "{project_dir}/config/runs/snake_config_build_model.yml",
     ),
     # Unmoved within the tree (prefix change only) -- and exception 3(d)
     # requires it to stay that way: if discharge moves at all, stop.
     (
-        "model_creation",
+        "build_model",
         "discharge",
         "{project_dir}/models/hydrology/wflow/run_default/output.csv",
     ),
@@ -272,41 +272,41 @@ TARGETS: list[tuple[str, str, str]] = [
     # carry strictly more -- both values per row, per-row provenance, and the
     # future level the wide form never held.
     (
-        "climate_projections",
+        "analyze_projections",
         "csv",
         "{clim_project_dir}/summary/{clim_project}_change_factors_annual.csv",
     ),
     (
-        "climate_projections",
+        "analyze_projections",
         "csv",
         "{clim_project_dir}/summary/{clim_project}_change_factors_monthly.csv",
     ),
     # S8-07 renamed all three figures.
     (
-        "climate_projections",
+        "analyze_projections",
         "png",
         "{clim_project_dir}/plots/{clim_project}_change_factor_cloud.png",
     ),
     (
-        "climate_projections",
+        "analyze_projections",
         "png",
         "{clim_project_dir}/plots/{clim_project}_precip_annual_absolute.png",
     ),
     (
-        "climate_projections",
+        "analyze_projections",
         "png",
         "{clim_project_dir}/plots/{clim_project}_temp_annual_absolute.png",
     ),
     (
-        "climate_projections",
+        "analyze_projections",
         "yaml",
-        "{project_dir}/config/runs/snake_config_climate_projections.yml",
+        "{project_dir}/config/runs/snake_config_analyze_projections.yml",
     ),
     # run_stress_test.smk. R9 P3 renames the two tables and moves them
     # from indicators/ to results/. The wf3 config snapshot does NOT join
     # config/runs/: it stays inside the experiment (arch-10), content only.
     # R11 CR-2: ONE table per output variable, so this set follows the SEED
-    # config's `workflows.model_creation.wflow_outvars`, which is
+    # config's `workflows.build_model.wflow_outvars`, which is
     # `["river discharge"]` -> `q_indicators.csv` alone. `basin_indicators.csv`
     # no longer exists; its contents are now per-variable tables, and the seed
     # requests no basin variables.
@@ -321,15 +321,15 @@ TARGETS: list[tuple[str, str, str]] = [
     # on numeric noise that indicates no defect. Compared against a stored
     # reference table with a per-group tolerance instead -- see the indicator
     # block and INDICATOR_ATOL_FRAC.
-    ("climate_experiment", "indicator", "{exp_dir}/results/q_indicators.csv"),
+    ("run_stress_test", "indicator", "{exp_dir}/results/q_indicators.csv"),
     (
-        "climate_experiment",
+        "run_stress_test",
         "yaml",
-        "{exp_dir}/config/snake_config_climate_experiment.yml",
+        "{exp_dir}/config/snake_config_run_stress_test.yml",
     ),
 ]
 
-WORKFLOWS = ("model_creation", "climate_projections", "climate_experiment")
+WORKFLOWS = ("build_model", "analyze_projections", "run_stress_test")
 
 #: Fingerprint kinds that are FIGURES rather than data. Excluded by default.
 #:

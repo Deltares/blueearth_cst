@@ -94,7 +94,13 @@ def test_no_module_reads_snakemake_at_module_scope():
 def _script_targets():
     """Every module a Snakefile names in a `script:` directive."""
     targets = set()
-    for snakefile in sorted(REPO.glob("Snakefile_*")):
+    # `*.smk`, and asserted non-empty: this globbed `Snakefile_*` until the
+    # 2026-08-14 rename, after which it matched nothing and this function
+    # returned an empty target set -- so every `script:` module went unchecked
+    # and the test still passed.
+    entry_points = sorted(REPO.glob("*.smk"))
+    assert entry_points, f"no workflow entry points (*.smk) under {REPO}"
+    for snakefile in entry_points:
         targets |= set(
             re.findall(
                 r"blueearth_cst/[a-z_0-9/]*\.py", snakefile.read_text(encoding="utf-8")

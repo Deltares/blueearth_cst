@@ -31,7 +31,7 @@ config_path = workflow.configfiles[0]
 # R01 schema
 project_cfg = config["project"]
 shared_cfg = config["shared"]
-my_cfg = config["workflows"]["climate_projections"]
+my_cfg = config["workflows"]["analyze_projections"]
 
 project_dir = get_config(project_cfg, "project_dir", optional=False)
 # O-22: make the two-tier project_dir rule mechanical rather than
@@ -44,12 +44,12 @@ DATA_SOURCES = get_config(project_cfg, "data_sources_climate", optional=False)
 # redesign, 2026-08-13) -- no readers, and a digest over the whole config, so
 # any other workflow's edit minted a fresh directory. `run_record.yml` replaces
 # it: current-only and one per workflow.
-RUN_RECORD = f"{project_dir}/config/runs/climate_projections/run_record.yml"
+RUN_RECORD = f"{project_dir}/config/runs/analyze_projections/run_record.yml"
 
 # The consumed-key PROJECTION -- the config paths this workflow actually reads.
 # Digesting it rather than the whole file is what stops a WF1- or WF3-only edit
 # from re-firing WF2's record.
-CONFIG_PROJECTION = ("project", "shared", "workflows.climate_projections")
+CONFIG_PROJECTION = ("project", "shared", "workflows.analyze_projections")
 
 CONFIG_REFERENCES = [
     ("data_catalog", source) for source in
@@ -108,7 +108,7 @@ variables = _vs.source_names(VARIABLE_SPEC)
 # Water-year start, from the SHARED key so WF2, WF3 and the climate figures
 # cannot disagree about what an annual value is.
 #
-# The old `workflows.climate_projections.start_month_hyd_year` is REFUSED, not
+# The old `workflows.analyze_projections.start_month_hyd_year` is REFUSED, not
 # quietly honoured. It never reached the arithmetic: the Snakefile read it and
 # passed it to rule 2.06, and derive_change_factors.py never read the param, so
 # every change factor has always been computed Jan-Dec whatever the key said.
@@ -119,7 +119,7 @@ variables = _vs.source_names(VARIABLE_SPEC)
 _legacy_hyd = my_cfg.get("start_month_hyd_year")
 if _legacy_hyd is not None:
     raise ValueError(
-        "workflows.climate_projections.start_month_hyd_year has moved to "
+        "workflows.analyze_projections.start_month_hyd_year has moved to "
         f"shared.water_year_start (it is now honoured by WF2, WF3 and the "
         f"climate figures alike). Remove it and set:\n\n"
         f"    shared:\n      water_year_start: {_legacy_hyd}\n\n"
@@ -146,7 +146,7 @@ from blueearth_cst.projections import reference_window as _rw
 REFERENCE_WINDOW = _rw.clip_reference_window(time_horizon_hist)
 _SHARED_WINDOW = [historical_window["starttime"], historical_window["endtime"]]
 for _line in _rw.window_warnings(REFERENCE_WINDOW, shared_window=_SHARED_WINDOW):
-    print(f"WARNING climate_projections: {_line}", file=sys.stderr)
+    print(f"WARNING analyze_projections: {_line}", file=sys.stderr)
 
 # The durable record. D1 names provenance.json and report.md as its homes; neither
 # exists yet (6a and 7 respectively), so stage B logs it and 6a moves it. Recorded
@@ -256,7 +256,7 @@ region_path = REGION.region_geojson
 #
 # `parse_spatial_config(basin_cfg)` takes NO model section: §8b requires the
 # shared rule's params to be a pure function of `project` + `shared.basin`, and
-# this workflow has no `workflows.model_creation` to offer anyway — which is
+# this workflow has no `workflows.build_model` to offer anyway — which is
 # exactly why the asymmetry would have been fatal.
 SPATIAL_UNITS = spatial_units_rule(
     project_dir=project_dir,
@@ -421,7 +421,7 @@ COMBINATIONS = _res.resolve(
 _unknown = _res.unknown_models(COMBINATIONS)
 if _unknown:
     raise WorkflowError(
-        "climate_projections: model(s) not present in "
+        "analyze_projections: model(s) not present in "
         f"{DATA_SOURCES} under any experiment: {', '.join(_unknown)}. "
         "The catalog is generated from a live crawl of the store, so a name "
         "absent from it is absent from the store. Check for a typo, or "
@@ -433,7 +433,7 @@ if _unknown:
 # downstream judgement (S6, N10), not a threshold this workflow encodes.
 if not any(c.resolved for c in COMBINATIONS):
     raise WorkflowError(
-        "climate_projections: no requested combination resolved against "
+        "analyze_projections: no requested combination resolved against "
         f"{DATA_SOURCES}.\n" + _res.format_status_report(COMBINATIONS)
     )
 
@@ -448,7 +448,7 @@ if _skip_report:
 _ambiguous = _res.ambiguous_pins(_INDEX, COMBINATIONS, clim_project)
 if _ambiguous:
     raise WorkflowError(
-        "climate_projections: ambiguous store pins -- the catalog's "
+        "analyze_projections: ambiguous store pins -- the catalog's "
         "/{variable}/*/* glob matches more than one {grid_label}/{version} for:\n  "
         + "\n  ".join(_ambiguous)
         + "\nThe read would not be a single identifiable store. Pin the version "
@@ -463,7 +463,7 @@ for _key, _entry in _CATALOG.items():
         break
 for _var in _res.best_effort_variables(variables, _rename):
     logger.warning(
-        f"climate_projections: variable {_var!r} is BEST-EFFORT, not "
+        f"analyze_projections: variable {_var!r} is BEST-EFFORT, not "
         "catalog-certified. The crawl proved only pr/tas present, so a listed "
         f"member may not publish {_var!r} -- it will fail at read time rather "
         "than skip at resolution (design §5.5, ruling A3)."
@@ -575,7 +575,7 @@ def series_digest_components(model, experiment, member):
 
 ### Dictionary elements from the config based on wildcards
 def get_horizon(wildcards):
-    return config["workflows"]["climate_projections"]["future_horizons"][wildcards.horizon]
+    return config["workflows"]["analyze_projections"]["future_horizons"][wildcards.horizon]
 
 # Rule numbering (comment headers + log/benchmark filenames) uses `W.NN` = the
 # rule's position in this workflow's LOGICAL order — data, then the product,
@@ -594,7 +594,7 @@ def get_horizon(wildcards):
 
 # --- log layout ---------------------------------------------------------------
 # EVERY WF2 rule that logs writes a PART under logs/_parts/, and rule 2.09 merges
-# the parts into ONE logs/wf2_climate_projections.log, then deletes them. So the
+# the parts into ONE logs/wf2_analyze_projections.log, then deletes them. So the
 # only WF2 file left in logs/ after a full run is that merged log — the same deal
 # benchmarks/wf2_benchmarks.md already gets from `gather_benchmarks`.
 #
@@ -626,7 +626,7 @@ def get_horizon(wildcards):
 # this run" section to every merged WF2 log. WF2 builds no climate store,
 # standalone or otherwise: it reads the region polygon from `delineate_region`.
 # Both directions are now mechanically checked for all three workflows.
-WORKFLOW_LOG_NAME = "wf2_climate_projections.log"
+WORKFLOW_LOG_NAME = "wf2_analyze_projections.log"
 LOG_PARTS_DIR = f"{project_dir}/logs/_parts"
 
 # The run's key folders, stated once -- see the same block in
@@ -672,7 +672,7 @@ WF2_TARGETS = {
     # log part under `_parts/`, which is the defect the LOG_RULES block above
     # documents three times over.
     "spatial_basins": SPATIAL_UNITS.outputs["basins"],
-    "snake_config": f"{project_dir}/config/runs/snake_config_climate_projections.yml",
+    "snake_config": f"{project_dir}/config/runs/snake_config_analyze_projections.yml",
     # ONE merged log for the whole workflow (was: one per fan-out stage,
     # alongside four rules writing logs/2.NN_*.log directly -- five files a
     # reader had to open in the right order to follow one run). Every rule
@@ -759,7 +759,7 @@ rule snapshot_config:
         config_snake = config_path,
     params:
         data_catalogs = DATA_SOURCES,
-        workflow_name = "climate_projections",
+        workflow_name = "analyze_projections",
         config_dir = f"{project_dir}/config",
         effective_config = config,
         advanced_settings = ADVANCED_SETTINGS,
@@ -768,7 +768,7 @@ rule snapshot_config:
         # keeps the record fresh when the CHECKOUT moves; see its definition.
         configuration_inputs_sha256 = CONFIGURATION_INPUTS_DIGEST,
     output:
-        config_snake_out = f"{project_dir}/config/runs/snake_config_climate_projections.yml",
+        config_snake_out = f"{project_dir}/config/runs/snake_config_analyze_projections.yml",
         run_record = RUN_RECORD,
     script:
         "blueearth_cst/model/copy_config_files.py"
@@ -1127,7 +1127,7 @@ def _journal(event):
         JOURNAL_PATH,
         journal_event(
             invocation_id=INVOCATION_ID,
-            workflow="climate_projections",
+            workflow="analyze_projections",
             event=event,
             toolbox=_JOURNAL_TOOLBOX,
             effective_config_sha256=EFFECTIVE_CONFIG_DIGEST,
@@ -1155,7 +1155,7 @@ def _summary(failed):
     try:
         print(
             run_summary(
-                "wf2 climate_projections",
+                "wf2 analyze_projections",
                 project_dir,
                 WORKFLOW_LOG_NAME,
                 "wf2_benchmarks.md",
@@ -1183,7 +1183,7 @@ def _header():
     """
     try:
         print(
-            run_header("wf2 climate_projections", project_dir, config_path),
+            run_header("wf2 analyze_projections", project_dir, config_path),
             file=sys.stderr,
         )
     except Exception as exc:  # noqa: BLE001 -- never break a run over a banner

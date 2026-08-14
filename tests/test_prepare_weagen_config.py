@@ -84,7 +84,7 @@ def _generate_kwargs(tmp_path, stress_test=None):
         }
     snake_cfg = {
         "workflows": {
-            "climate_experiment": {
+            "run_stress_test": {
                 "realizations_num": 2,
                 "stress_test": stress_test,
             }
@@ -179,9 +179,9 @@ def test_f7_the_template_is_a_declared_input_of_rule_3_10():
     import re
     from pathlib import Path
 
-    snakefile = (
-        Path(__file__).resolve().parents[1] / "run_stress_test.smk"
-    ).read_text(encoding="utf-8")
+    snakefile = (Path(__file__).resolve().parents[1] / "run_stress_test.smk").read_text(
+        encoding="utf-8"
+    )
     rule = re.search(
         r"rule prepare_weathergen_config:.*?\n    output:", snakefile, re.S
     )

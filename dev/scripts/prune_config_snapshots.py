@@ -124,7 +124,7 @@ def find_bundles(project_dir: Path) -> list[Path]:
     """Retired content-addressed bundle directories, project-wide.
 
     Includes the experiment trees, whose bundles lived at
-    ``experiments/<id>/config/runs/climate_experiment/<digest>/`` -- those are
+    ``experiments/<id>/config/runs/run_stress_test/<digest>/`` -- those are
     retired too. The exclusion that matters is ``<exp_dir>/config/catalogs/``,
     which is a different directory entirely and is never a bundle.
     """

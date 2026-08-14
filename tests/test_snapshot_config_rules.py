@@ -33,19 +33,19 @@ def _rule_block(snakefile: Path, name: str) -> str:
     [
         (
             "build_model.smk",
-            "config/runs/snake_config_model_creation.yml",
-            "config/runs/model_creation/run_record.yml",
+            "config/runs/snake_config_build_model.yml",
+            "config/runs/build_model/run_record.yml",
         ),
         (
             "analyze_projections.smk",
-            "config/runs/snake_config_climate_projections.yml",
-            "config/runs/climate_projections/run_record.yml",
+            "config/runs/snake_config_analyze_projections.yml",
+            "config/runs/analyze_projections/run_record.yml",
         ),
         (
             # WF3's record sits directly in the experiment's config bin, not
             # under a runs/ sub-bin: the experiment IS the partition (R2).
             "run_stress_test.smk",
-            "config/snake_config_climate_experiment.yml",
+            "config/snake_config_run_stress_test.yml",
             "config/run_record.yml",
         ),
     ],
@@ -111,11 +111,11 @@ def test_the_run_record_is_one_file_per_workflow(snakefile_name):
     [
         (
             "build_model.smk",
-            '("project", "shared", "workflows.model_creation")',
+            '("project", "shared", "workflows.build_model")',
         ),
         (
             "analyze_projections.smk",
-            '("project", "shared", "workflows.climate_projections")',
+            '("project", "shared", "workflows.analyze_projections")',
         ),
     ],
 )
@@ -138,7 +138,7 @@ def test_wf3_derives_its_projection_from_the_guard_tuple():
 
     assert "CONFIG_PROJECTION = tuple(sorted(" in text
     assert "for section in guarded_sections" in text
-    assert '{"workflows.climate_experiment"}' in text
+    assert '{"workflows.run_stress_test"}' in text
 
 
 def test_wf3_projection_equals_the_derived_union():
@@ -151,23 +151,23 @@ def test_wf3_projection_equals_the_derived_union():
     guarded = (
         "project",
         "shared.basin",
-        "workflows.model_creation",
-        "workflows.climate_projections",
+        "workflows.build_model",
+        "workflows.analyze_projections",
     )
 
     derived = tuple(
         sorted(
             {s.split(".")[0] if s == "shared.basin" else s for s in guarded}
-            | {"workflows.climate_experiment"}
+            | {"workflows.run_stress_test"}
         )
     )
 
     assert derived == (
         "project",
         "shared",
-        "workflows.climate_experiment",
-        "workflows.climate_projections",
-        "workflows.model_creation",
+        "workflows.run_stress_test",
+        "workflows.analyze_projections",
+        "workflows.build_model",
     )
 
 
