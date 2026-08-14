@@ -162,12 +162,15 @@ def test_wf3_projection_equals_the_derived_union():
         )
     )
 
+    # Alphabetical, because `derived` is `sorted(...)`. The 2026-08-14 workflow
+    # rename reordered this: under the old names the union sorted as
+    # experiment, projections, creation.
     assert derived == (
         "project",
         "shared",
-        "workflows.run_stress_test",
         "workflows.analyze_projections",
         "workflows.build_model",
+        "workflows.run_stress_test",
     )
 
 

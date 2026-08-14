@@ -118,8 +118,8 @@ VOLATILE_NC_ATTRS = cb.VOLATILE_NC_ATTRS
 #: new-vs-old comparison would report them present on one side and absent on the
 #: other. Retire this only once no reference tree in use predates the fix.
 _INHERITED_ATTR_PATH_MARKERS = (
-    "analyze_projections/cmip6/raw/",
-    "analyze_projections/cmip6/scalar/",
+    "climate_projections/cmip6/raw/",
+    "climate_projections/cmip6/scalar/",
     "climate/projections/cmip6/raw/",
     "climate/projections/cmip6/scalar/",
 )
@@ -152,8 +152,8 @@ COPIED_CONFIG_PATH_MAP: dict[str, dict[str, str]] = {
     "data_sources": {
         "config/deltares_data.yml": "config/catalogs/deltares_data.yml",
         "config/deltares_data_linux.yml": "config/catalogs/deltares_data_linux.yml",
-        "config/deltares_data_analyze_projections.yml": "config/catalogs/deltares_data_analyze_projections.yml",
-        "config/deltares_data_analyze_projections_linux.yml": "config/catalogs/deltares_data_analyze_projections_linux.yml",
+        "config/deltares_data_climate_projections.yml": "config/catalogs/deltares_data_climate_projections.yml",
+        "config/deltares_data_climate_projections_linux.yml": "config/catalogs/deltares_data_climate_projections_linux.yml",
         "config/cmip6_data.yml": "config/catalogs/cmip6_data.yml",
     },
     "data_sources_climate": {
@@ -231,7 +231,10 @@ def build_p31_path_map(
     """
     rules: list[tuple[str, str]] = [
         (
-            "config/snake_config_run_stress_test.yml",
+            # LEFT is the pre-P3-1 tree and keeps its historical spelling; only
+            # RIGHT describes the tree as it is today, so only RIGHT follows the
+            # 2026-08-14 workflow rename.
+            "config/snake_config_climate_experiment.yml",
             f"experiments/{experiment_name}/config/snake_config_run_stress_test.yml",
         ),
         (
@@ -1372,7 +1375,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--clim-project",
         default="cmip6",
-        help="clim_project subdir under analyze_projections/",
+        help="clim_project subdir under climate_projections/",
     )
     ap.add_argument(
         "--clim-source",
