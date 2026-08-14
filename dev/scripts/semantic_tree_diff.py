@@ -327,11 +327,11 @@ def build_project_tree_rules(
     # distinguishes them, and a row that does not say so would accept
     # `wf3_anything.log`. `[a-z0-9_]+` is validate_experiment_name's grammar.
     # The two `_parts/` prefixes already cover WF3's `<experiment>/` level.
-    same_rx(r"logs/wf[12]_[^/]+\.log")
+    same_rx(r"logs/wf[012]_[^/]+\.log")
     same_rx(r"logs/wf3_run_stress_test_[a-z0-9_]+\.log")
     same("logs/_parts/")
     same("logs/dag/")
-    same_rx(r"benchmarks/wf[12]_benchmarks\.md")
+    same_rx(r"benchmarks/wf[012]_benchmarks\.md")
     same_rx(r"benchmarks/wf3_benchmarks_[a-z0-9_]+\.md")
     same("benchmarks/_parts/")
 
@@ -339,6 +339,7 @@ def build_project_tree_rules(
     # The two snapshot CONTRACT PATHS are enumerated; the digest bundles are a
     # regex because the digest is content-derived. `files/` inside a bundle is a
     # prefix: its members are named `<hash>-<original>` per referenced input.
+    same("config/runs/snake_config_analyze_climate.yml")
     same("config/runs/snake_config_build_model.yml")
     same("config/runs/snake_config_analyze_projections.yml")
     # `scripts/run_workflows.py`'s invocation manifest, one immutable file per
@@ -369,6 +370,7 @@ def build_project_tree_rules(
     #
     # What replaces them is ONE record per workflow, at an enumerated path --
     # no digest level, so nothing needs a regex.
+    same("config/runs/analyze_climate/run_record.yml")
     same("config/runs/build_model/run_record.yml")
     same("config/runs/analyze_projections/run_record.yml")
     # The run journal. An UNDECLARED SIDE EFFECT and the only one in this tree:

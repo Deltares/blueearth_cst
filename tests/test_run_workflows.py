@@ -78,16 +78,17 @@ def _read_only_manifest(project_dir: Path) -> dict:
     return json.loads(manifests[0].read_text(encoding="utf-8"))
 
 
-# --- §7(g) assertion 1: all-true -> all three in fixed order -----------------
+# --- §7(g) assertion 1: all-true -> all four in fixed order ------------------
 
 
-def test_all_true_invokes_three_in_fixed_order(tmp_path, capture_runs):
+def test_all_true_invokes_four_in_fixed_order(tmp_path, capture_runs):
     calls, _ = capture_runs
     cfg = tmp_path / "c.yml"
     _write_cfg(cfg, {n: "true" for n in rw.WORKFLOW_ORDER})
     rc = rw.run(str(cfg), cores=3, extra=[])
     assert rc == 0
     assert _snakefiles_invoked(calls) == [
+        "analyze_climate.smk",
         "build_model.smk",
         "analyze_projections.smk",
         "run_stress_test.smk",
@@ -106,6 +107,7 @@ def test_keep_going_on_projections_only(tmp_path, capture_runs):
     assert "--keep-going" in by_sf["analyze_projections.smk"]
     assert "--keep-going" not in by_sf["build_model.smk"]
     assert "--keep-going" not in by_sf["run_stress_test.smk"]
+    assert "--keep-going" not in by_sf["analyze_climate.smk"]
 
 
 # --- §7(g) assertion 3: missing enabled: key -> nonzero, named --------------
@@ -115,6 +117,10 @@ def test_missing_enabled_key_errors(tmp_path):
     cfg = tmp_path / "c.yml"
     cfg.write_text(
         "workflows:\n"
+        # Every required section present but one: the closed set is all-or-
+        # error, so an incomplete config would otherwise fail on whichever
+        # section came first rather than on the one this test is about.
+        "  analyze_climate:\n    enabled: true\n"
         "  build_model:\n    enabled: true\n"
         "  analyze_projections:\n    enabled: true\n"
         "  run_stress_test:\n    other: 1\n",  # no enabled:
@@ -168,13 +174,13 @@ def test_unquoted_boolean_spellings_accepted(tmp_path, spelling):
 
 def test_first_nonzero_stops_and_returns_code(tmp_path, capture_runs):
     calls, exits = capture_runs
-    exits[0] = 7  # first invoked workflow (build_model) fails
+    exits[0] = 7  # first invoked workflow (analyze_climate) fails
     cfg = tmp_path / "c.yml"
     _write_cfg(cfg, {n: "true" for n in rw.WORKFLOW_ORDER})
     rc = rw.run(str(cfg), cores=3, extra=[])
     assert rc == 7
     # Only the first workflow was invoked; projections/experiment were not.
-    assert _snakefiles_invoked(calls) == ["build_model.smk"]
+    assert _snakefiles_invoked(calls) == ["analyze_climate.smk"]
 
 
 # --- §7(g) assertion 6: --cores / -- <extra> forwarded to EVERY invocation ---
@@ -185,7 +191,7 @@ def test_cores_and_extra_forwarded_to_every_invocation(tmp_path, capture_runs):
     cfg = tmp_path / "c.yml"
     _write_cfg(cfg, {n: "true" for n in rw.WORKFLOW_ORDER})
     rw.run(str(cfg), cores=8, extra=["--dry-run", "--unlock"])
-    assert len(calls) == 3
+    assert len(calls) == 4
     for cmd in calls:
         assert cmd[cmd.index("-c") + 1] == "8"
         assert "--dry-run" in cmd
@@ -223,16 +229,20 @@ def test_enabled_false_skips_at_subprocess_boundary(tmp_path, capture_runs):
     assert rc == 0
     invoked = _snakefiles_invoked(calls)
     assert "analyze_projections.smk" not in invoked
-    assert invoked == ["build_model.smk", "run_stress_test.smk"]
+    assert invoked == [
+        "analyze_climate.smk",
+        "build_model.smk",
+        "run_stress_test.smk",
+    ]
 
 
 def test_all_enabled_inverse_all_invoked(tmp_path, capture_runs):
-    """The inverse of the skip test: all true -> all three invoked."""
+    """The inverse of the skip test: all true -> all four invoked."""
     calls, _ = capture_runs
     cfg = tmp_path / "c.yml"
     _write_cfg(cfg, {n: "true" for n in rw.WORKFLOW_ORDER})
     rw.run(str(cfg), cores=3, extra=[])
-    assert len(_snakefiles_invoked(calls)) == 3
+    assert len(_snakefiles_invoked(calls)) == 4
 
 
 def test_success_manifest_is_initialized_before_first_workflow_and_finalized(
@@ -275,12 +285,13 @@ def test_success_manifest_is_initialized_before_first_workflow_and_finalized(
         "dirty": False,
     }
     assert manifest["runtime"]["python"]
+    # Derived from WORKFLOW_ORDER rather than restated: a literal list is what
+    # made this the last of nine tests to fail when the set widened to four,
+    # each for the same reason.
     assert [item["status"] for item in manifest["workflows"].values()] == [
-        "succeeded",
-        "succeeded",
-        "succeeded",
-    ]
-    assert len(calls) == 3
+        "succeeded"
+    ] * len(rw.WORKFLOW_ORDER)
+    assert len(calls) == len(rw.WORKFLOW_ORDER)
 
 
 def test_no_op_invocations_each_get_an_immutable_manifest(tmp_path, capture_runs):
@@ -314,8 +325,10 @@ def test_failure_manifest_records_stop_boundary(tmp_path, capture_runs):
     assert rw.run(str(cfg), cores=3, extra=[]) == 9
 
     workflows = _read_only_manifest(project_dir)["workflows"]
-    assert workflows["build_model"]["status"] == "failed"
-    assert workflows["build_model"]["exit_code"] == 9
+    # analyze_climate leads WORKFLOW_ORDER, so it is the one exits[0] hits.
+    assert workflows["analyze_climate"]["status"] == "failed"
+    assert workflows["analyze_climate"]["exit_code"] == 9
+    assert workflows["build_model"]["status"] == "not_run"
     assert workflows["analyze_projections"]["status"] == "not_run"
     assert workflows["run_stress_test"]["status"] == "not_run"
 
@@ -340,7 +353,7 @@ def test_subprocess_exception_finalizes_failure_manifest(tmp_path, monkeypatch):
     assert manifest["status"] == "failed"
     assert manifest["exit_code"] is None
     assert manifest["error_type"] == "OSError"
-    assert manifest["workflows"]["build_model"]["status"] == "failed"
+    assert manifest["workflows"]["analyze_climate"]["status"] == "failed"
     assert manifest["workflows"]["analyze_projections"]["status"] == "not_run"
 
 

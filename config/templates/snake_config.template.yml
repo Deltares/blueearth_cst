@@ -67,6 +67,16 @@ shared:
   #julia_threads: 4                                       # integer
 
 workflows:
+  # WF0 — historical climate analysis. Model-free: it needs only the region and
+  # a data catalog, so it runs before (or without) the hydrology model.
+  analyze_climate:
+    enabled: true                                         # boolean
+    # OPTIONAL. Extra gridded datasets to characterise ALONGSIDE
+    # `shared.clim_historical`, which is always included and always first.
+    # Supported: era5, chirps, chirps_global. Each lands in its own
+    # data/climate/historical/<source>_<window>/ store, so a candidate that
+    # wins the comparison is already extracted when you switch to it.
+    # candidate_sources: [chirps]                         # list of source names
   build_model:
     enabled: true                                         # boolean
     model_build_config: config/defaults/wflow_build_model.yml          # path

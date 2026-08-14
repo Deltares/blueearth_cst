@@ -3,7 +3,7 @@
 Reads a full-orchestration `--configfile` YAML, checks each
 `workflows.<name>.enabled` flag, and invokes `snakemake -s <name>.smk
 --configfile <cfg> ...` for exactly the enabled workflows, in the fixed order
-build_model -> analyze_projections -> run_stress_test.
+analyze_climate -> build_model -> analyze_projections -> run_stress_test.
 
 This is the evolution of the run_snake_test.cmd / run_snake_docker.sh runners --
 a *runner over* the three Snakefiles, NOT a fourth Snakemake entry point. The
@@ -11,13 +11,22 @@ Snakefiles do not read `enabled:`; the flag governs this wrapper only.
 
 Contract (pinned, design §7 (a)-(g)):
 
- (a) Full-orchestration configs only: a `workflows:` section with all three
+ (a) Full-orchestration configs only: a `workflows:` section with all FOUR
      subsections each carrying an `enabled:` key. The single-workflow
      projections configs (no `workflows:` section) are direct `snakemake -s`
      inputs, not wrapper inputs.
+
+     The set widened from three to four on 2026-08-14 with `analyze_climate`,
+     and it stayed a CLOSED, all-required set deliberately. Treating an absent
+     subsection as "disabled" would have let existing three-workflow configs
+     keep working untouched, and was rejected: the hazard clause (b) exists to
+     prevent is SILENCE, not polarity. Under that rule a section misspelled
+     `analyse_climate`, or dropped during an edit, skips a workflow while the
+     wrapper exits 0 -- which is the same class of failure as the silent
+     default-to-true, arriving from the other direction.
  (b) A missing `workflows:` section or a missing `<name>.enabled` subkey is a
      HARD ERROR (nonzero exit, message naming the absent key) -- never a silent
-     default to true.
+     default to true, and never a silent default to false.
  (c) Each `enabled:` value must PARSE to a real boolean (isinstance(v, bool) on
      the post-yaml.safe_load value). YAML 1.1 resolves unquoted
      true/false/yes/no/on/off to booleans, so all those spellings are accepted;
@@ -84,18 +93,31 @@ from blueearth_cst.shared.snake_utils import (  # noqa: E402
     log_row,
 )
 
-# Fixed run order (model -> projections -> experiment). Each maps to its
-# Snakefile and the per-workflow flags preserved verbatim from the runners
+# Fixed run order (climate -> model -> projections -> experiment). Each maps to
+# its Snakefile and the per-workflow flags preserved verbatim from the runners
 # (design §7(f)): --keep-going on analyze_projections only.
-WORKFLOW_ORDER = ("build_model", "analyze_projections", "run_stress_test")
+#
+# `analyze_climate` leads because it is model-free and the other three are not:
+# it produces the shared region, vector foundation and climate store that
+# build_model reads, so running it first means those exist before the model
+# build asks for them. The order is fixed, not derived -- the wrapper does no
+# freshness checking (see the module docstring).
+WORKFLOW_ORDER = (
+    "analyze_climate",
+    "build_model",
+    "analyze_projections",
+    "run_stress_test",
+)
 
 SNAKEFILE = {
+    "analyze_climate": "analyze_climate.smk",
     "build_model": "build_model.smk",
     "analyze_projections": "analyze_projections.smk",
     "run_stress_test": "run_stress_test.smk",
 }
 
 PER_WORKFLOW_FLAGS = {
+    "analyze_climate": [],
     "build_model": [],
     "analyze_projections": ["--keep-going"],
     "run_stress_test": [],

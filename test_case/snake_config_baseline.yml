@@ -23,6 +23,12 @@ shared:
   clim_historical: era5
 
 workflows:
+  # WF0 — the basin's historical climate, WITHOUT building a hydrology model.
+  # Every key below is optional; with none set this draws the canonical figure
+  # set for `shared.clim_historical` and nothing else, which is exactly what
+  # WF1 already produces. `candidate_sources` is what makes it a comparison.
+  analyze_climate:
+    enabled: true
   build_model:
     enabled: true
     model_build_config: config/defaults/wflow_build_model.yml

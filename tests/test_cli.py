@@ -73,6 +73,77 @@ def config_with_staged_region(tmp_path):
     return cfg_path
 
 
+def _job_counts(result):
+    """Parse Snakemake's `Job stats:` table into {rule: count}.
+
+    The table is alphabetical and says WHAT will run, never in what order --
+    which is exactly what a set comparison wants.
+    """
+    counts = {}
+    lines = (result.stdout or "").splitlines()
+    for i, line in enumerate(lines):
+        if line.strip().startswith("job") and "count" in line:
+            for row in lines[i + 2 :]:
+                parts = row.split()
+                if len(parts) != 2 or not parts[1].isdigit():
+                    break
+                counts[parts[0]] = int(parts[1])
+            break
+    return counts
+
+
+@pytest.mark.workflow_contract
+def test_analyze_climate_adds_no_job_to_build_model(tmp_path):
+    """THE ADDITIVITY CLAIM, checked rather than asserted in a design doc.
+
+    The fourth workflow was designed to be purely ADDITIVE: it declares the
+    same shared producer rules WF1 already declares, so WF1 keeps every rule it
+    had and gains no edge. If that is true, WF1's planned job set against a
+    fresh project_dir is identical whether or not `analyze_climate` exists --
+    and since the two are separate files, the only way it could change is
+    through the config, which is the thing this checks.
+
+    A regression here means the carve stopped being additive and WF1 has
+    started depending on WF0 -- the exact failure mode that would make
+    `analyze_climate.enabled: false` break the model build.
+    """
+    cfg = yaml.safe_load(Path(config_fn).read_text(encoding="utf-8"))
+    cfg["project"]["project_dir"] = (tmp_path / "proj").as_posix()
+
+    with_wf0 = tmp_path / "with_wf0.yml"
+    with_wf0.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+
+    # The same config with the fourth workflow's section removed entirely --
+    # the state every project config was in before 2026-08-14.
+    without = yaml.safe_load(Path(config_fn).read_text(encoding="utf-8"))
+    without["project"]["project_dir"] = (tmp_path / "proj").as_posix()
+    without["workflows"].pop("analyze_climate")
+    without_wf0 = tmp_path / "without_wf0.yml"
+    without_wf0.write_text(yaml.safe_dump(without), encoding="utf-8")
+
+    a = _dry_run("build_model.smk", cfg=str(with_wf0))
+    b = _dry_run("build_model.smk", cfg=str(without_wf0))
+    assert a.returncode == 0, (a.stdout or "") + (a.stderr or "")
+    assert b.returncode == 0, (b.stdout or "") + (b.stderr or "")
+
+    counts = _job_counts(a)
+    assert counts, "could not parse a Job stats table from the WF1 dry-run"
+    assert counts == _job_counts(b)
+
+
+@pytest.mark.workflow_contract
+def test_snakefile_cli_analyze_climate():
+    """Workflow 0 dry-run builds a clean DAG on the test config.
+
+    NO staged cross-workflow leaves, deliberately, and that is the assertion:
+    this workflow is model-free, so unlike WF2 and WF3 it needs nothing on disk
+    that it does not itself produce. If it ever gained a leaf, the fixture
+    config would stop resolving here rather than at someone's first real run.
+    """
+    result = _dry_run("analyze_climate.smk")
+    assert result.returncode == 0, (result.stdout or "") + (result.stderr or "")
+
+
 @pytest.mark.workflow_contract
 def test_snakefile_cli_build_model():
     """Workflow 1 dry-run builds a clean DAG on the test config."""

@@ -45,12 +45,13 @@ CONFIG_FN = Path(__file__).resolve().parent / "snake_config_fixture.yml"
 
 #: Every entry point, with the module-level list naming its log sections.
 WORKFLOWS = [
+    "analyze_climate.smk",
     "build_model.smk",
     "analyze_projections.smk",
     "run_stress_test.smk",
 ]
 
-#: The directory every per-rule log part lives under, in all three workflows.
+#: The directory every per-rule log part lives under, in all four workflows.
 PARTS_DIR_NAME = "_parts"
 
 

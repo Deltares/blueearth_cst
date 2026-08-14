@@ -79,6 +79,11 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 # convention for per-workflow artifacts; keep this in step with the merged-log
 # names in blueearth_cst/shared/merge_logs.py (logs/wf1_build_model.log ...).
 WORKFLOW_NUMBER = {
+    # 0 because analyze_climate runs BEFORE model creation. `W` is a workflow
+    # id, not a position (naming.md §9), and ids need not start at 1 -- so the
+    # newcomer takes 0 and `ls logs/` still sorts in execution order, which
+    # renumbering the other three would have cost a migration to achieve.
+    "analyze_climate.smk": 0,
     "build_model.smk": 1,
     "analyze_projections.smk": 2,
     "run_stress_test.smk": 3,

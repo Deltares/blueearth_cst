@@ -210,10 +210,11 @@ def test_shared_does_not_import_spatial():
 
 
 # ---------------------------------------------------------------------------
-# The three declarations
+# The four declarations
 # ---------------------------------------------------------------------------
 
 _SNAKEFILES = (
+    ("wf0", "analyze_climate.smk"),
     ("wf1", "build_model.smk"),
     ("wf2", "analyze_projections.smk"),
     ("wf3", "run_stress_test.smk"),

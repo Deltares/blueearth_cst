@@ -428,3 +428,110 @@ def test_chirps_branch_declares_and_consumes_one_orography_path(tmp_path):
     # wf1 declares the same sidecar output on the same branch.
     wf1 = _parse_workflow("build_model.smk", cfg_path)
     assert str(wf1.get_rule(RULE_NAME).output.oro_nc) == oro_out
+
+
+# ---------------------------------------------------------------------------
+# WF0 — equivalence under binding, not byte-identity
+# ---------------------------------------------------------------------------
+#
+# `analyze_climate.smk` is the one workflow that does NOT carry a byte-identical
+# copy of the store declaration. It GENERATES one concrete rule per candidate
+# source, because `climate_store_rule` returns an `oro_nc` output for chirps and
+# none for era5, and a Snakemake rule has a fixed output set -- so a single
+# wildcard rule cannot cover both families and a wildcard split would hard-code
+# a source taxonomy the factory already knows.
+#
+# The invariant that replaces byte-identity: BINDING THE GENERATED RULE TO
+# `shared.clim_historical` MUST YIELD THE SHARED CONTRACT. If it does not, WF0
+# and WF1 would extract into the same directory from different params -- the
+# re-extraction oscillation the shared contract exists to prevent, arriving
+# through a rule name instead of through a diverging input set.
+
+
+def _wf0_rule(workflow, source):
+    """The generated store rule for one candidate source."""
+    return workflow.get_rule(f"{RULE_NAME}_{source}")
+
+
+@pytest.mark.slow
+@pytest.mark.workflow_contract
+def test_wf0_primary_source_rule_equals_the_shared_contract(tmp_path):
+    """WF0's generated rule for the project's own source == WF1's declaration."""
+    import yaml
+
+    cfg_path = CONFIG_FN
+    wf0 = _parse_workflow("analyze_climate.smk", cfg_path)
+    wf1 = _parse_workflow("build_model.smk", cfg_path)
+
+    cfg = yaml.safe_load(CONFIG_FN.read_text(encoding="utf-8"))
+    primary = cfg["shared"]["clim_historical"]
+
+    generated = _wf0_rule(wf0, primary)
+    shared = wf1.get_rule(RULE_NAME)
+
+    # Script, inputs, outputs and params -- everything content- or
+    # execution-determining. The rule NAME differs by construction and is the
+    # one difference this test allows.
+    assert Path(generated.script).name == Path(shared.script).name
+    assert sorted(map(str, generated.input)) == sorted(map(str, shared.input))
+    assert sorted(map(str, generated.output)) == sorted(map(str, shared.output))
+    for key in shared.params.keys():
+        assert str(generated.params[key]) == str(shared.params[key]), (
+            f"params.{key}: wf0 {generated.params[key]!r} != wf1 {shared.params[key]!r}"
+        )
+
+
+@pytest.mark.slow
+@pytest.mark.workflow_contract
+def test_wf0_candidate_source_gets_its_own_store_and_family_outputs(tmp_path):
+    """A second source mints a second store, with ITS family's output set.
+
+    era5 carries no orography sidecar and chirps does, which is precisely why
+    these are generated rules rather than one wildcard rule. Asserting both in
+    one DAG is what proves the generation reads the spec rather than a taxonomy
+    written into the Snakefile.
+    """
+    import yaml
+
+    cfg = yaml.safe_load(CONFIG_FN.read_text(encoding="utf-8"))
+    assert cfg["shared"]["clim_historical"] == "era5"
+    cfg["workflows"]["analyze_climate"]["candidate_sources"] = ["chirps"]
+    cfg_path = tmp_path / "snake_config_two_sources.yml"
+    cfg_path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+
+    wf0 = _parse_workflow("analyze_climate.smk", cfg_path)
+    era5 = _wf0_rule(wf0, "era5")
+    chirps = _wf0_rule(wf0, "chirps")
+
+    # Distinct stores, both under the ONE historical bin -- a candidate that
+    # wins the comparison is then already extracted where WF1 would look.
+    era5_nc = str(era5.output.climate_nc)
+    chirps_nc = str(chirps.output.climate_nc)
+    assert era5_nc != chirps_nc
+    assert "/data/climate/historical/era5_" in era5_nc.replace("\\", "/")
+    assert "/data/climate/historical/chirps_" in chirps_nc.replace("\\", "/")
+
+    # The family split the output set encodes.
+    assert not hasattr(era5.output, "oro_nc") or "oro_nc" not in era5.output.keys()
+    assert "oro_nc" in chirps.output.keys()
+
+
+@pytest.mark.workflow_contract
+def test_wf0_rejects_an_unsupported_candidate_source(tmp_path):
+    """An unsupported candidate fails at PARSE time, naming the config key.
+
+    Deferring it to the generated rule would surface the failure under a rule
+    name that does not say which config key put the source there.
+    """
+    import yaml
+
+    cfg = yaml.safe_load(CONFIG_FN.read_text(encoding="utf-8"))
+    cfg["workflows"]["analyze_climate"]["candidate_sources"] = ["eobs"]
+    cfg_path = tmp_path / "snake_config_bad_source.yml"
+    cfg_path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+
+    with pytest.raises(Exception) as exc:
+        _parse_workflow("analyze_climate.smk", cfg_path)
+    message = str(exc.value)
+    assert "eobs" in message
+    assert "candidate_sources" in message
