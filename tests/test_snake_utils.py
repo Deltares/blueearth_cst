@@ -313,6 +313,24 @@ def test_rule_banner_respects_no_color_env(monkeypatch):
     assert rule_banner("2.04", "monthly_change") == "2.04  monthly_change"
 
 
+def test_rule_banner_summary_is_grey_not_a_third_colour(monkeypatch):
+    """Two colours on a line: the identity, and everything qualifying it."""
+    monkeypatch.setattr(sys, "stderr", _FakeTTY())
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    out = rule_banner("1.14", "run_wflow", summary="run the model")
+    assert out == ("\033[1;36m1.14  run_wflow\033[0m \033[2mrun the model\033[0m"), (
+        repr(out)
+    )
+
+
+def test_rule_banner_context_is_the_same_grey_as_the_summary(monkeypatch):
+    """One grey, not two shades -- the eye has a single thing to land on."""
+    monkeypatch.setattr(sys, "stderr", _FakeTTY())
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    out = rule_banner("3.12", "perturb", summary="apply one member", context="rlz 1")
+    assert out.count("\033[2m") == 2 and "\033[0;36m" not in out, repr(out)
+
+
 # --- target_banner (rule `all` message) --------------------------------------
 
 
@@ -1638,6 +1656,53 @@ def test_console_the_start_memo_is_bounded():
     # The oldest go first: the most recent job is always still tracked.
     assert su._CONSOLE_MAX_TRACKED_JOBS + 49 in handler._started
     assert 0 not in handler._started
+
+
+class _TTYStringIO(io.StringIO):
+    """A StringIO the console handler treats as a terminal."""
+
+    def isatty(self):
+        return True
+
+
+def _colour_handler():
+    base = _logging.StreamHandler(_TTYStringIO())
+    base.name = "DefaultStreamHandler"
+    base.setFormatter(_logging.Formatter("%(message)s"))
+    return su._ConsoleHandler(base)
+
+
+def test_console_finish_line_colours_the_identity_and_greys_the_rest(monkeypatch):
+    """The pair must look alike: this line is built from the finish record, so
+    its identity is coloured here rather than inherited from the banner."""
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    su._RULE_NUMBERS["perturb_climate_realization"] = "3.12"
+    handler = _colour_handler()
+    out = _emit(
+        handler,
+        _job_info(9, "perturb_climate_realization", "banner", {"rlz": "1", "st": "2"}),
+        _console_record(event="job_finished", job_id=9),
+        _console_record(event="progress", done=5, total=8),
+    )
+    done = out.splitlines()[1]
+    assert "\033[1;36m3.12  perturb_climate_realization\033[0m" in done, repr(done)
+    assert "\033[2mrlz 1 | st 2\033[0m" in done, repr(done)
+    assert "\033[2m[5/8]\033[0m" in done, repr(done)
+
+
+def test_console_the_run_and_done_markers_are_never_coloured():
+    """They stay at the terminal's default weight, which is what keeps them
+    legible between a bright identity and a grey body."""
+    handler = _colour_handler()
+    out = _emit(
+        handler,
+        _job_info(1, "seed", "9.01  seed"),
+        _console_record(event="job_finished", job_id=1),
+        _console_record(event="progress", done=1, total=1),
+    )
+    for line in out.splitlines():
+        marker = "  run   " if "  run   " in line else "  done  "
+        assert marker in line and "\033" not in marker, repr(line)
 
 
 def test_rule_banner_registers_its_number_for_the_finish_line(monkeypatch):

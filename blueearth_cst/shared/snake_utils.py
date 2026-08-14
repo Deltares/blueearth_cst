@@ -2543,6 +2543,31 @@ def patch_psutil_windows_benchmark():
     psutil.Process.memory_full_info = _with_pss
 
 
+# Two colours and no more, so a console line has one place the eye lands.
+#
+# ``_ANSI_IDENTITY`` marks the ONE thing a reader is looking for -- the
+# ``W.NN  <rule name>`` that keys the log files, the benchmark table and the
+# rule comments. ``_ANSI_BODY`` greys down everything the identity is qualified
+# by: the plain-language summary, the per-job context, the elapsed time, the
+# progress counter, the timestamp. Nothing else on the line is coloured, which
+# is what leaves the ``run``/``done`` markers legible at their default weight
+# and what keeps Snakemake's own red errors the loudest thing on screen.
+#
+# ``2m`` (faint) rather than ``90m`` (bright black) for the body: faint DIMS
+# whatever colour the terminal already uses, so it stays readable on a light
+# theme, where a fixed grey can land close to the background. A terminal that
+# ignores faint renders the line plain -- no styling, never unreadable. Swap
+# this one constant if the dim proves too subtle in practice.
+_ANSI_IDENTITY = "1;36"  # bold cyan
+_ANSI_BODY = "2"  # faint / grey
+_ANSI_RESET = "\033[0m"
+
+
+def _ansi(text, code):
+    """Wrap ``text`` in an SGR code. Callers decide WHETHER to colour."""
+    return f"\033[{code}m{text}{_ANSI_RESET}"
+
+
 # Rule name -> its ``W.NN`` number, filled by every ``rule_banner`` call at
 # Snakefile PARSE time. The console handler below needs the number when a job
 # FINISHES, and Snakemake's finish record carries only a jobid and a rule name
@@ -2604,12 +2629,14 @@ def rule_banner(number, name, context=None, summary=None):
     tag = f"{number}  {name}"
     color = sys.stderr.isatty() and not os.environ.get("NO_COLOR")
     if color:
-        tag = f"\033[1;36m{tag}\033[0m"  # bold cyan
+        tag = _ansi(tag, _ANSI_IDENTITY)
     if summary:
-        tag = f"{tag} - {summary}" if not color else f"{tag} \033[0;36m{summary}\033[0m"
+        tag = (
+            f"{tag} - {summary}" if not color else f"{tag} {_ansi(summary, _ANSI_BODY)}"
+        )
     if not context:
         return tag
-    return f"{tag}  \033[2m{context}\033[0m" if color else f"{tag}  {context}"
+    return f"{tag}  {_ansi(context, _ANSI_BODY)}" if color else f"{tag}  {context}"
 
 
 def format_elapsed(seconds):
@@ -2958,9 +2985,12 @@ class _ConsoleHandler(logging.StreamHandler):
             identity = f"{number}  {rule_name}" if number else rule_name
         else:
             identity = f"job {jobid}"
-        parts = [identity]
+        # The identity is coloured HERE, not inherited from the start line's
+        # banner: this line is built from the finish record, and the two must
+        # look alike or a pair reads as two unrelated events.
+        parts = [self._identity(identity)]
         if wildcards:
-            parts.append(wildcards)
+            parts.append(self._dim(wildcards))
         tail = []
         if started is not None and time.monotonic() - started >= 1:
             # Measured from the START record, which Snakemake logs at submission
@@ -2982,8 +3012,11 @@ class _ConsoleHandler(logging.StreamHandler):
     def _stamp(self):
         return self._dim(f"{datetime.now():%H:%M:%S}")
 
+    def _identity(self, text):
+        return _ansi(text, _ANSI_IDENTITY) if self._color and text else text
+
     def _dim(self, text):
-        return f"\033[2m{text}\033[0m" if self._color and text else text
+        return _ansi(text, _ANSI_BODY) if self._color and text else text
 
 
 def install_console_style():
