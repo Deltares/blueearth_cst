@@ -4,7 +4,18 @@
 #
 # quiet: reason  — suppress the verbose per-job "Reason:" block (missing/updated
 # input paths). Drop this (or run `--quiet` without `reason`) when you need to
-# debug *why* a job re-ran. The `Job N:` banner and progress line are kept.
+# debug *why* a job re-ran.
+#
+# The rest of the console grammar is NOT set here, and cannot be: the noisiest
+# lines are not separately filterable. `--quiet progress` would take the
+# progress counter and the finish line together, and the bare
+# `[Thu Aug 13 23:26:41 2026]` above every job is part of another record's
+# formatted string rather than a record of its own. Snakefile `onstart` calls
+# `install_console_style()` (blueearth_cst/shared/snake_utils.py), which
+# replaces Snakemake's terminal handler outright and renders one line per job
+# start and end. Anything that function does not recognize still prints in
+# Snakemake's own style, and `.snakemake/log/*.snakemake.log` keeps the full
+# verbose record either way.
 quiet:
   - reason
 

@@ -1264,3 +1264,300 @@ def test_wflow_outvars_default_is_not_empty():
     """
     assert su.DEFAULT_WFLOW_OUTVARS
     assert "river discharge" in su.DEFAULT_WFLOW_OUTVARS
+
+
+# --- console style (_ConsoleHandler / install_console_style) -----------------
+#
+# Every case here is a synthetic LogRecord carrying the `extra=` shape
+# Snakemake's own emitters attach (`scheduler.py`, `workflow.py`, `dag.py`), so
+# the grammar is pinned without a pipeline run. Events are plain strings on
+# purpose: `LogEvent` is a StrEnum, so `LogEvent.JOB_INFO == "job_info"`, and
+# the handler never imports it.
+
+import logging as _logging  # noqa: E402 -- module-level imports are grouped above
+
+
+def _console_handler():
+    """A handler over a StringIO, standing in for Snakemake's own."""
+    base = _logging.StreamHandler(io.StringIO())
+    base.name = "DefaultStreamHandler"
+    base.setFormatter(_logging.Formatter("%(message)s"))
+    return su._ConsoleHandler(base)
+
+
+def _console_record(msg="", level=_logging.INFO, **extra):
+    record = _logging.LogRecord("snakemake", level, __file__, 0, msg, (), None)
+    record.__dict__.update(extra)
+    return record
+
+
+def _job_info(jobid, rule_name, rule_msg, wildcards=None):
+    return _console_record(
+        event="job_info",
+        jobid=jobid,
+        rule_name=rule_name,
+        rule_msg=rule_msg,
+        wildcards=dict(wildcards or {}),
+    )
+
+
+def _emit(handler, *records):
+    for record in records:
+        handler.emit(record)
+    return handler.stream.getvalue()
+
+
+def test_console_start_line_is_one_line_with_a_short_stamp():
+    """Snakemake spends three lines here: blank, `[Thu Aug 13 ...]`, `Job 8: ...`."""
+    handler = _console_handler()
+    out = _emit(handler, _job_info(8, "run_wflow", "1.14  run_wflow - run the model"))
+    assert re.fullmatch(
+        r"\d\d:\d\d:\d\d  run   1\.14  run_wflow - run the model\n", out
+    ), out
+
+
+def test_console_finish_line_carries_number_wildcards_elapsed_and_counter():
+    """The finish record names only a jobid, so every other field is recovered."""
+    su._RULE_NUMBERS["downscale_climate_realization"] = "3.14"
+    handler = _console_handler()
+    _emit(
+        handler,
+        _job_info(
+            3,
+            "downscale_climate_realization",
+            "3.14  downscale_climate_realization  rlz 1 | st 0",
+            {"rlz": "1", "st": "0"},
+        ),
+    )
+    # Backdate the memoized start rather than sleeping: the duration is the
+    # point of the assertion, and 71 seconds of it is not affordable in a test.
+    name, wildcards, started = handler._started[3]
+    handler._started[3] = (name, wildcards, started - 71)
+    out = _emit(
+        handler,
+        _console_record(event="job_finished", job_id=3),
+        _console_record(event="progress", done=27, total=37),
+    )
+    done = out.splitlines()[1]
+    assert re.fullmatch(
+        r"\d\d:\d\d:\d\d  done  3\.14  downscale_climate_realization  "
+        r"rlz 1 \| st 0  0:01:11  \[27/37\]",
+        done,
+    ), done
+
+
+def test_console_finish_line_uses_the_banner_wildcard_grammar():
+    """`rlz 1 | st 0`, not Snakemake's `rlz=1, st=0` -- one grammar, two lines."""
+    handler = _console_handler()
+    out = _emit(
+        handler,
+        _job_info(1, "r", "x", {"rlz": "1", "st": "0"}),
+        _console_record(event="job_finished", job_id=1),
+        _console_record(event="progress", done=1, total=1),
+    )
+    assert "rlz 1 | st 0" in out and "rlz=1" not in out
+
+
+def test_console_a_wave_of_finishes_counts_up_to_the_progress_total():
+    """Three held lines flushed at `done=15` are 13, 14, 15 -- in finish order."""
+    handler = _console_handler()
+    records = []
+    for jobid in (10, 11, 12):
+        records.append(_job_info(jobid, f"rule_{jobid}", f"9.0{jobid}  rule_{jobid}"))
+    for jobid in (10, 11, 12):
+        records.append(_console_record(event="job_finished", job_id=jobid))
+    records.append(_console_record(event="progress", done=15, total=37))
+    out = _emit(handler, *records)
+    finished = [line for line in out.splitlines() if "  done  " in line]
+    assert [line.split("  ")[-1] for line in finished] == [
+        "[13/37]",
+        "[14/37]",
+        "[15/37]",
+    ], finished
+    assert [line.split("  done  ")[1].split("  ")[0] for line in finished] == [
+        "rule_10",
+        "rule_11",
+        "rule_12",
+    ]
+
+
+def test_console_a_held_finish_is_flushed_uncounted_if_progress_never_comes():
+    """A held line must not be lost when the next record is not a progress one."""
+    handler = _console_handler()
+    out = _emit(
+        handler,
+        _job_info(4, "generate_weather_realizations", "3.11  generate"),
+        _console_record(event="job_finished", job_id=4),
+        _job_info(5, "next_rule", "3.12  next"),
+    )
+    lines = out.splitlines()
+    assert "  done  " in lines[1] and "[" not in lines[1], lines
+    assert "  run   3.12  next" in lines[2]
+
+
+def test_console_progress_alone_prints_nothing():
+    """The counter is a property of a finish line, never a line of its own."""
+    handler = _console_handler()
+    assert _emit(handler, _console_record(event="progress", done=1, total=9)) == ""
+
+
+def test_console_scheduler_chatter_is_muted():
+    handler = _console_handler()
+    muted = [
+        _console_record("Select jobs to execute..."),
+        _console_record("Execute 8 jobs...", event="job_started", jobs=[1]),
+        _console_record("Removing temporary output x/y/rlz_1_st_0.nc."),
+        _console_record("Touching output file x/.model_reference_ok."),
+    ]
+    assert _emit(handler, *muted) == ""
+
+
+def test_console_the_preamble_is_left_alone():
+    """It is printed before `onstart`, so muting it would be a dead rule."""
+    handler = _console_handler()
+    out = _emit(
+        handler, _console_record("Assuming unrestricted shared filesystem usage.")
+    )
+    assert out == "Assuming unrestricted shared filesystem usage.\n"
+
+
+def test_console_muting_never_reaches_a_warning_or_an_error():
+    """A prefix match must not be able to silence a diagnostic."""
+    handler = _console_handler()
+    out = _emit(
+        handler,
+        _console_record("Select jobs to execute...", level=_logging.WARNING),
+        _console_record("Removing temporary output boom.", level=_logging.ERROR),
+    )
+    assert out.splitlines() == [
+        "Select jobs to execute...",
+        "Removing temporary output boom.",
+    ]
+
+
+def test_console_unknown_records_are_delegated_verbatim():
+    """Errors and anything unrecognized keep Snakemake's own formatting."""
+    handler = _console_handler()
+    out = _emit(
+        handler,
+        _console_record("Building DAG of jobs..."),
+        _console_record("Error in rule x:\n    jobid: 3", event="job_error", jobid=3),
+    )
+    assert out == "Building DAG of jobs...\nError in rule x:\n    jobid: 3\n"
+
+
+def test_console_a_rule_without_a_message_keeps_the_default_block():
+    """Its input/output/jobid block is all a reader gets for that rule."""
+    handler = _console_handler()
+    record = _job_info(2, "some_rule", "")
+    record.msg = "rule some_rule:\n    output: a.nc"
+    assert _emit(handler, record) == "rule some_rule:\n    output: a.nc\n"
+
+
+def test_console_a_rule_without_a_message_still_gets_a_named_finish_line():
+    """Delegating the START line must not cost the job its identity at the END."""
+    handler = _console_handler()
+    record = _job_info(2, "some_rule", "")
+    record.msg = "rule some_rule:"
+    out = _emit(
+        handler,
+        record,
+        _console_record(event="job_finished", job_id=2),
+        _console_record(event="progress", done=9, total=10),
+    )
+    assert out.splitlines()[-1].endswith("done  some_rule  [9/10]"), out
+
+
+def test_console_a_sub_second_job_shows_no_duration():
+    """`0:00:00` reads as a broken clock, and bookkeeping rules are most of them."""
+    su._RULE_NUMBERS["write_experiment_config"] = "3.07"
+    handler = _console_handler()
+    out = _emit(
+        handler,
+        _job_info(1, "write_experiment_config", "3.07  write_experiment_config"),
+        _console_record(event="job_finished", job_id=1),
+        _console_record(event="progress", done=3, total=37),
+    )
+    done = out.splitlines()[1]
+    assert done.endswith("3.07  write_experiment_config  [3/37]"), done
+
+
+def test_console_no_escape_codes_when_the_stream_is_not_a_tty():
+    handler = _console_handler()
+    out = _emit(
+        handler,
+        _job_info(1, "r", "1.01  r"),
+        _console_record(event="job_finished", job_id=1),
+        _console_record(event="progress", done=1, total=1),
+    )
+    assert "\033" not in out
+
+
+def test_rule_banner_registers_its_number_for_the_finish_line(monkeypatch):
+    """The finish record carries a rule NAME only; the number comes from here."""
+    monkeypatch.setattr(sys, "stderr", io.StringIO())
+    rule_banner("2.07", "a_freshly_named_rule")
+    assert su._RULE_NUMBERS["a_freshly_named_rule"] == "2.07"
+
+
+def test_install_console_style_replaces_only_the_stream_handler(monkeypatch):
+    """The log-file handler writes the verbose durable record -- leave it alone."""
+    import types
+
+    import snakemake.logging as snakemake_logging
+
+    stream = _logging.StreamHandler(io.StringIO())
+    stream.name = "DefaultStreamHandler"
+    logfile = _logging.StreamHandler(io.StringIO())
+    logfile.name = "DefaultLogFileHandler"
+    listener = types.SimpleNamespace(handlers=(stream, logfile))
+    monkeypatch.setattr(
+        snakemake_logging.logger_manager, "queue_listener", listener, raising=False
+    )
+
+    assert su.install_console_style() is True
+    assert isinstance(listener.handlers[0], su._ConsoleHandler)
+    assert listener.handlers[1] is logfile
+
+    # Idempotent: a second call (a second Snakefile in one process) is a no-op.
+    already = listener.handlers[0]
+    assert su.install_console_style() is True
+    assert listener.handlers[0] is already
+
+
+def test_install_console_style_fails_open(monkeypatch):
+    """No console styling is worth ending a run over, so every miss is silent."""
+    import types
+
+    import snakemake.logging as snakemake_logging
+
+    for listener in (None, types.SimpleNamespace(handlers=()), object()):
+        monkeypatch.setattr(
+            snakemake_logging.logger_manager, "queue_listener", listener, raising=False
+        )
+        assert su.install_console_style() is False
+
+
+def test_run_header_shape_matches_run_summary():
+    """Same head-then-indented-rows block, so a run opens and closes alike."""
+    out = su.run_header(
+        "wf3 climate_experiment",
+        "test_case/test_rapid2",
+        "test_case/snake_config_rapid.yml",
+        experiment="experiment_rapid",
+    )
+    assert out.splitlines() == [
+        "wf3 climate_experiment",
+        "  project     test_case/test_rapid2",
+        "  config      test_case/snake_config_rapid.yml",
+        "  experiment  experiment_rapid",
+    ]
+
+
+def test_run_header_omits_rows_a_workflow_does_not_have():
+    """WF1 and WF2 pass no experiment; the block shrinks rather than showing a blank."""
+    out = su.run_header("wf1 model_creation", "test_case/test_rapid")
+    assert out.splitlines() == [
+        "wf1 model_creation",
+        "  project  test_case/test_rapid",
+    ]

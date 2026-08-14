@@ -2441,6 +2441,17 @@ def patch_psutil_windows_benchmark():
     psutil.Process.memory_full_info = _with_pss
 
 
+# Rule name -> its ``W.NN`` number, filled by every ``rule_banner`` call at
+# Snakefile PARSE time. The console handler below needs the number when a job
+# FINISHES, and Snakemake's finish record carries only a jobid and a rule name
+# -- never the ``message:`` the start record carried. Recovering the number by
+# parsing the assembled banner would mean parsing prose (the summary clause and
+# the per-job context both sit in that one string); a registry keyed on the one
+# field both records DO share costs nothing and cannot misparse. One Snakefile
+# is parsed per process, so a name maps to one number.
+_RULE_NUMBERS = {}
+
+
 def rule_banner(number, name, context=None, summary=None):
     """Return a rule's ``message:`` string: a bold, numbered console banner.
 
@@ -2482,7 +2493,12 @@ def rule_banner(number, name, context=None, summary=None):
     Order is ``<number>  <name> - <summary>  <context>``: identifier first
     because it is what the log filenames, the benchmark table and this file's
     own rule comments all key on.
+
+    Side effect: records ``name -> number`` in ``_RULE_NUMBERS`` so
+    :func:`install_console_style` can put the number on a job's FINISH line,
+    which Snakemake reports by rule name only. See that registry's comment.
     """
+    _RULE_NUMBERS[name] = str(number)
     tag = f"{number}  {name}"
     color = sys.stderr.isatty() and not os.environ.get("NO_COLOR")
     if color:
@@ -2600,3 +2616,309 @@ def target_banner(number, name, targets, project_dir=None):
         banner = f"{banner}  [{root.replace(os.sep, '/')}]"
     body = "\n".join(f"    {target}" for target in listed)
     return f"{banner}\n{body}" if body else banner
+
+
+# --------------------------------------------------------------------------
+# Console style: Snakemake's own terminal output, in this toolbox's grammar
+# --------------------------------------------------------------------------
+
+# Plain INFO lines Snakemake emits that tell a reader of THIS console nothing.
+# Matched on leading text because Snakemake attaches neither an event nor a
+# quietness class to them -- there is nothing structural to key on. Matching
+# prose is fragile across Snakemake versions, and it fails in the SAFE
+# direction: a reworded line stops matching and simply prints, which is the
+# behaviour we started from.
+#
+# `Removing temporary output` is the one with volume: WF3 wraps every
+# per-realization netCDF in `temp()`, so a full run prints hundreds of them.
+# They stay in `.snakemake/log/*.snakemake.log`, which this handler does not
+# touch -- muted on the terminal, not lost.
+#
+# Snakemake's fixed PREAMBLE (`Assuming unrestricted shared filesystem usage.`,
+# `host: ...`, `Provided cores: N`) is deliberately absent: it is printed before
+# `onstart`, so no Snakefile hook can be installed early enough to mute it. It
+# is a handful of lines once per run; the volume was never there.
+_CONSOLE_MUTED_PREFIXES = (
+    "Select jobs to execute...",
+    "Removing temporary output ",
+    "Would remove temporary output ",
+    "Touching output file ",
+)
+
+
+def _console_wildcards(wildcards):
+    """Render a job's wildcards in the banner's own grammar (``rlz 1 | st 0``).
+
+    Snakemake's ``format_wildcards`` spells these ``rlz=1, st=0``; the finish
+    line sits directly under a start line whose context clause reads
+    ``rlz 1 | st 0``, and two spellings of one fact on adjacent lines is exactly
+    the inconsistency the console work has been removing. Derived from the
+    job's wildcards rather than parsed back out of the banner, so no prose is
+    ever parsed.
+    """
+    try:
+        items = list(wildcards.items())
+    except AttributeError:
+        return ""
+    return " | ".join(f"{key} {value}" for key, value in items)
+
+
+class _ConsoleHandler(logging.StreamHandler):
+    """Snakemake's terminal handler, restyled: one line per job start and end.
+
+    Snakemake spends SIX console lines on a job -- a blank separator, a bare
+    ``[Thu Aug 13 23:26:41 2026]``, ``Job 8: <message>``, a second bare
+    timestamp, ``Finished jobid: 8 (Rule: check_project_consistency)`` and
+    ``1 of 37 steps (3%) done`` -- plus ``Select jobs to execute...`` and
+    ``Execute N jobs...`` per scheduling wave. On a WF3 run that is thousands
+    of lines in which one line per job is ours. This renders two::
+
+        23:26:44  run   3.11  generate_weather_realizations - generate ...
+        23:27:14  done  3.11  generate_weather_realizations  0:00:30  [8/37]
+
+    Both lines carry the same ``W.NN  name`` identifier the merged log, the
+    benchmark table and the rule comments key on, so one grep finds a rule's
+    whole story. Timestamps are ``HH:MM:SS``, matching :func:`log_row` rather
+    than introducing ``time.asctime`` as a second clock format.
+
+    **Only the terminal changes.** Snakemake's own
+    ``.snakemake/log/*.snakemake.log`` is written by a separate handler this
+    never touches, so the verbose record survives for anyone who wants it.
+
+    **Errors are delegated, never reformatted.** ``JOB_ERROR`` /
+    ``GROUP_ERROR`` and every unrecognized record go to Snakemake's own
+    formatter, which is what carries the ``show-failed-logs`` inline log dump
+    and the input/output/shellcmd block a failure report needs. This class
+    reshapes the routine path and stays out of the way on the one that matters.
+
+    Events are compared as PLAIN STRINGS. ``LogEvent`` is a ``StrEnum``, so
+    ``record.event == "job_info"`` holds for the member itself -- which keeps
+    this class importable, and unit-testable, without snakemake installed.
+    """
+
+    def __init__(self, base):
+        super().__init__(stream=getattr(base, "stream", sys.stderr))
+        # Inherit the handler being replaced rather than reconstructing it:
+        # its formatter and filter were built from the run's real settings
+        # (`quiet`, `show_failed_logs`, `printshellcmds`, `dryrun`), which are
+        # not reachable from a Snakefile.
+        self.name = getattr(base, "name", None)
+        formatter = getattr(base, "formatter", None)
+        if formatter is not None:
+            self.setFormatter(formatter)
+        for inherited in list(getattr(base, "filters", ()) or ()):
+            self.addFilter(inherited)
+        self._started = {}  # jobid -> (rule name, wildcards, monotonic start)
+        self._finished = []  # jobids awaiting the progress record's counter
+        self._emit_lock = threading.Lock()
+        isatty = getattr(self.stream, "isatty", None)
+        self._color = bool(isatty and isatty()) and not os.environ.get("NO_COLOR")
+
+    # -- emission ----------------------------------------------------------
+
+    def emit(self, record):
+        try:
+            with self._emit_lock:
+                text = self._render(record)
+            if not text:
+                return
+            self.stream.write(text + self.terminator)
+            self.flush()
+        except BrokenPipeError:
+            raise
+        except (KeyboardInterrupt, SystemExit):
+            pass
+        except Exception:  # noqa: BLE001 -- a console style must never end a run
+            self.handleError(record)
+
+    def close(self):
+        """Flush any finish line still waiting for its progress counter."""
+        try:
+            pending = "\n".join(self._drain(None, None))
+            if pending:
+                self.stream.write(pending + self.terminator)
+                self.flush()
+        except Exception:  # noqa: BLE001 -- teardown must not raise
+            pass
+        super().close()
+
+    # -- rendering ---------------------------------------------------------
+
+    def _render(self, record):
+        fields = record.__dict__
+        event = fields.get("event")
+        event = None if event is None else str(event)
+
+        # A finish line is HELD until the progress record that follows it, which
+        # is the only place Snakemake reports the done/total counter. Holding
+        # rather than counting ourselves keeps one authority for the number: an
+        # independent counter drifts the moment a job is restarted, grouped, or
+        # already up to date. The scheduler emits progress immediately after
+        # each finish (`scheduler.py`), and anything else arriving first drains
+        # the queue uncounted, so a held line cannot be lost.
+        if event == "job_finished":
+            self._finished.append(fields.get("job_id"))
+            return None
+
+        if event == "progress":
+            lines = self._drain(fields.get("done"), fields.get("total"))
+        else:
+            lines = self._drain(None, None)
+            if event == "job_info":
+                lines.append(self._start_line(fields, record))
+            elif event == "job_started":
+                pass  # "Execute N jobs..." -- scheduler bookkeeping
+            elif not self._muted(record, event):
+                lines.append(self.format(record))
+
+        return "\n".join(line for line in lines if line) or None
+
+    def _muted(self, record, event):
+        """Whether a plain INFO line is one of the muted ones.
+
+        Restricted to event-less records at INFO or below, so a warning or an
+        error can never be silenced by a prefix that happens to match.
+        """
+        if event is not None or record.levelno > logging.INFO:
+            return False
+        return str(record.msg or "").startswith(_CONSOLE_MUTED_PREFIXES)
+
+    def _start_line(self, fields, record):
+        # Memoized BEFORE the branch below, so a rule with no `message:` still
+        # gets a finish line naming it. Skipping the memo left those jobs
+        # finishing as a bare `done  job 9`, which is the one thing the finish
+        # line exists to avoid.
+        self._started[fields.get("jobid")] = (
+            fields.get("rule_name"),
+            _console_wildcards(fields.get("wildcards")),
+            time.monotonic(),
+        )
+        message = fields.get("rule_msg")
+        if not message:
+            # A rule with no `message:`. Snakemake's default block names its
+            # input/output/jobid, which is the whole of what a reader gets for
+            # that rule -- reshaping it into one line would delete it.
+            return self.format(record)
+        return f"{self._stamp()}  run   {message}"
+
+    def _drain(self, done, total):
+        if not self._finished:
+            return []
+        finished, self._finished = self._finished, []
+        # `done` counts every job finished so far, so a batch of held lines
+        # ends AT it and counts backwards from there.
+        first = None if done is None else done - len(finished) + 1
+        return [
+            self._done_line(jobid, None if first is None else first + offset, total)
+            for offset, jobid in enumerate(finished)
+        ]
+
+    def _done_line(self, jobid, counter, total):
+        rule_name, wildcards, started = self._started.pop(jobid, (None, "", None))
+        number = _RULE_NUMBERS.get(rule_name)
+        if rule_name:
+            identity = f"{number}  {rule_name}" if number else rule_name
+        else:
+            identity = f"job {jobid}"  # started before this handler was installed
+        parts = [identity]
+        if wildcards:
+            parts.append(wildcards)
+        tail = []
+        if started is not None and time.monotonic() - started >= 1:
+            # Measured from the START record, which Snakemake logs at submission
+            # rather than at first instruction. The difference is the scheduler's
+            # own dispatch, well under a second on these workflows; the
+            # `benchmark:` TSVs remain the authority for a quotable duration.
+            #
+            # A sub-second job shows NO duration rather than `0:00:00`, which
+            # reads as a broken clock. Many rules here are bookkeeping that
+            # finishes instantly, so this is the common case, not an edge one.
+            tail.append(format_elapsed(time.monotonic() - started))
+        if counter is not None and total:
+            tail.append(f"[{counter}/{total}]")
+        line = f"{self._stamp()}  done  " + "  ".join(parts)
+        return f"{line}  {self._dim('  '.join(tail))}" if tail else line
+
+    # -- decoration --------------------------------------------------------
+
+    def _stamp(self):
+        return self._dim(f"{datetime.now():%H:%M:%S}")
+
+    def _dim(self, text):
+        return f"\033[2m{text}\033[0m" if self._color and text else text
+
+
+def install_console_style():
+    """Restyle Snakemake's terminal output; return whether it took effect.
+
+    **Call it from ``onstart:``, not from the top of the Snakefile.** That is
+    measured, not stylistic: Snakemake parses the workflow BEFORE it builds its
+    logging stack, so at parse time ``logger_manager.queue_listener`` is still
+    ``None`` and this returns ``False`` having done nothing (probed
+    2026-08-14 -- the first attempt put the call beside
+    :func:`patch_psutil_windows_benchmark`, and every run came out in
+    Snakemake's own style with nothing reporting why). By ``onstart`` the
+    listener exists and no job record has been emitted yet, so the whole
+    execution phase is covered; only the fixed preamble above it is not.
+    ``queue_listener.handlers`` is read per record inside
+    ``QueueListener.handle``, so replacing the tuple takes effect immediately
+    and needs no restart.
+
+    Selection is by ``handler.name == "DefaultStreamHandler"``, and that
+    exactness is load-bearing: the same listener also holds
+    ``DefaultLogFileHandler``, which writes ``.snakemake/log/*.snakemake.log``.
+    Restyling that one would destroy the verbose durable record whose whole
+    value is being verbose.
+
+    Everything is guarded and FAIL-OPEN. None of this is public API, so a
+    Snakemake upgrade that renames the handler or restructures the manager
+    leaves the console exactly as Snakemake ships it and the run proceeds --
+    a cosmetic layer must never be able to stop a workflow. The return value
+    is for tests; no caller should branch on it.
+
+    Not a Snakemake logger plugin, deliberately. That interface
+    (``--logger <name>``) resolves through installed entry points, so using it
+    would mean shipping and depending on a separate package to restyle our own
+    console -- a new dependency for a cosmetic layer.
+    """
+    try:
+        from snakemake.logging import logger_manager
+
+        listener = getattr(logger_manager, "queue_listener", None)
+        handlers = list(getattr(listener, "handlers", None) or ())
+        for index, handler in enumerate(handlers):
+            if getattr(handler, "name", None) != "DefaultStreamHandler":
+                continue
+            if isinstance(handler, _ConsoleHandler):
+                return True  # a second Snakefile in one process (tests)
+            handlers[index] = _ConsoleHandler(handler)
+            listener.handlers = tuple(handlers)
+            return True
+    except Exception:  # noqa: BLE001 -- never fail a run over console styling
+        return False
+    return False
+
+
+def run_header(workflow, project_dir, config_path=None, **details):
+    """Return the start-of-run console block: what run this is, in one place.
+
+    The mirror image of :func:`run_summary`, and the same shape (a head line,
+    then two-space-indented ``key   value`` rows) so a run opens and closes in
+    one grammar. Snakemake's own preamble names the host and the job counts but
+    never the PROJECT -- so a console scrolled back to, or pasted into a
+    message, could not be attributed to a project, a config or an experiment
+    without asking. The merged log has carried this header for some time; the
+    terminal had nothing.
+
+    ``details`` are extra rows in call order (WF3 passes ``experiment=``),
+    keeping the block to what a workflow actually has rather than a fixed set
+    with blanks in it.
+    """
+    rows = [("project", os.fspath(project_dir))]
+    if config_path:
+        rows.append(("config", os.fspath(config_path)))
+    rows.extend((key, str(value)) for key, value in details.items())
+    width = max(len(key) for key, _ in rows)
+    lines = [workflow]
+    lines.extend(f"  {key.ljust(width)}  {value}" for key, value in rows)
+    return "\n".join(lines)
