@@ -1657,8 +1657,16 @@ def test_rule_banner_never_colours_even_on_a_tty():
     assert "\033" not in out
 
 
-def test_console_paints_a_start_line_white_and_a_finish_line_orange():
-    """Three tiers by LINE KIND: white started, orange finished, grey between."""
+def test_console_paints_a_start_and_a_finish_in_two_different_tiers():
+    """Three tiers by LINE KIND -- started, finished, and everything between.
+
+    Written against the CONSTANTS, not against the codes they hold. The three
+    values are documented as the one place to swap when a terminal renders them
+    badly, and a test spelling `\\033[94m` would make that swap a test failure --
+    which is how a cosmetic knob acquires a gate it does not deserve. What must
+    hold is structural: each line wrapped WHOLE, one pair of escapes, and a
+    start distinguishable from a finish.
+    """
     handler = _colour_handler()
     su._RULE_NUMBERS["seed"] = "9.01"
     out = _emit(
@@ -1668,16 +1676,17 @@ def test_console_paints_a_start_line_white_and_a_finish_line_orange():
         _console_record(event="progress", done=1, total=4),
     )
     run_line, done_line = out.splitlines()
-    assert run_line.startswith("\033[97m") and run_line.endswith("\033[0m"), run_line
-    assert "\033" not in run_line[5:-4], run_line
-    assert done_line.startswith("\033[38;5;208m"), done_line
-    assert "\033" not in done_line[11:-4], done_line
+    assert su._ANSI_RUN != su._ANSI_DONE != su._ANSI_BODY
+    for line, code in ((run_line, su._ANSI_RUN), (done_line, su._ANSI_DONE)):
+        opener = f"\033[{code}m"
+        assert line.startswith(opener) and line.endswith("\033[0m"), line
+        assert "\033" not in line[len(opener) : -4], line
 
 
-def test_console_greys_an_informational_snakemake_line():
+def test_console_paints_an_informational_snakemake_line_in_the_body_tier():
     handler = _colour_handler()
     out = _emit(handler, _console_record("Building DAG of jobs..."))
-    assert out == "\033[2mBuilding DAG of jobs...\033[0m\n", repr(out)
+    assert out == f"\033[{su._ANSI_BODY}mBuilding DAG of jobs...\033[0m\n", repr(out)
 
 
 def test_console_never_recolours_a_warning_or_an_error():
@@ -1761,7 +1770,7 @@ def test_run_header_omits_rows_a_workflow_does_not_have():
     ]
 
 
-# --- console grey for rule output (_Tee / _grey_for_console) -----------------
+# --- console body tier for rule output (_Tee / _paint_body) ------------------
 
 
 class _TTYWriter(io.StringIO):
@@ -1769,29 +1778,30 @@ class _TTYWriter(io.StringIO):
         return True
 
 
-def test_grey_for_console_leaves_a_progress_bar_alone():
+def test_paint_body_leaves_a_progress_bar_alone():
     """A carriage-return chunk is an in-place redraw: an SGR pair per frame
     would flicker, and a reset landing mid-bar would break it."""
     bar = "\r[####################] | 100% Completed | 102.06 ms"
-    assert su._grey_for_console(bar, True) == bar
+    assert su._paint_body(bar, True) == bar
 
 
-def test_grey_for_console_leaves_whitespace_alone():
+def test_paint_body_leaves_whitespace_alone():
     """`print` arrives as two writes; colouring a bare newline wraps nothing."""
-    assert su._grey_for_console("\n", True) == "\n"
+    assert su._paint_body("\n", True) == "\n"
 
 
-def test_grey_for_console_wraps_each_line_of_a_multi_line_chunk():
+def test_paint_body_wraps_each_line_of_a_multi_line_chunk():
     """A chunk can hold several lines; no colour may span a newline."""
-    out = su._grey_for_console("first\nsecond\n", True)
-    assert out == "\033[2mfirst\033[0m\n\033[2msecond\033[0m\n", repr(out)
+    out = su._paint_body("first\nsecond\n", True)
+    body = su._ANSI_BODY
+    assert out == f"\033[{body}mfirst\033[0m\n\033[{body}msecond\033[0m\n", repr(out)
 
 
-def test_grey_for_console_is_a_no_op_without_colour():
-    assert su._grey_for_console("plain text", False) == "plain text"
+def test_paint_body_is_a_no_op_without_colour():
+    assert su._paint_body("plain text", False) == "plain text"
 
 
-def test_tee_greys_the_console_and_never_the_log_file(tmp_path):
+def test_tee_paints_the_console_and_never_the_log_file(tmp_path):
     """The split this rests on: one call, two sinks, one of them a file read
     months later by merge_logs -- where an escape code is corruption."""
     log = tmp_path / "rule.log"
@@ -1803,7 +1813,7 @@ def test_tee_greys_the_console_and_never_the_log_file(tmp_path):
     # The reset lands BEFORE the newline: a colour spanning the break would
     # carry across a terminal reflow.
     assert console.getvalue() == (
-        "\033[2m13:42:17 - stats - deriving digest=7dc9315280ff\033[0m\n"
+        f"\033[{su._ANSI_BODY}m13:42:17 - stats - deriving digest=7dc9315280ff\033[0m\n"
     )
     assert "\033" not in log.read_text(encoding="utf-8")
 

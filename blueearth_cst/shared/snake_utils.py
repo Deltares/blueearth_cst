@@ -1831,8 +1831,8 @@ class _Heartbeat:
     def _emit(self, text):
         try:
             # Console-only by design (`quiet_rows` is the durable copy), so the
-            # grey here can never reach a file.
-            self._stream.write(_grey_for_console(text, _console_colour(self._stream)))
+            # colour here can never reach a file.
+            self._stream.write(_paint_body(text, _console_colour(self._stream)))
             self._stream.flush()
         except Exception:
             pass  # console I/O must never break the job
@@ -1913,7 +1913,7 @@ class _Tee:
 
     def __init__(self, live, logfile, project_root="", on_activity=None):
         self._live = live
-        # Decided once, against the REAL console this tee wraps -- and it greys
+        # Decided once, against the REAL console this tee wraps -- and it paints
         # the live copy ONLY. The log file must never receive an escape code:
         # it is read months later, by tools and by `merge_logs`, where a colour
         # is corruption rather than styling.
@@ -1936,10 +1936,10 @@ class _Tee:
         if self._on_activity is not None:
             self._on_activity()
         out = _relativize_paths(_compact_log_line(text), self._project_root)
-        # Greyed, but still verbatim in shape -- `_grey_for_console` passes a
+        # Painted, but still verbatim in shape -- `_paint_body` passes a
         # carriage-return chunk straight through, so the live console animation
         # this sink exists to preserve is untouched.
-        self._live.write(_grey_for_console(out, self._colour))
+        self._live.write(_paint_body(out, self._colour))
         # After close the console is still open and still the right place for
         # this text; only the log file is gone. Writing to a closed file raises
         # ValueError, and a raise HERE is the expensive kind: these late writes
@@ -2058,9 +2058,9 @@ def run_and_tee(command, log_path):
             # show project files relative to the project dir; non-hydromt lines
             # and out-of-project paths pass through unchanged.
             text = _relativize_paths(_compact_log_line(text), project_root)
-            # Greyed for the console only: a shell rule's output is detail, and
+            # Body tier on the console only: a shell rule's output is detail, and
             # `log` below must stay free of escape codes.
-            shown = _grey_for_console(text, colour)
+            shown = _paint_body(text, colour)
             # The log file is UTF-8. The live console mirror may be a legacy
             # code page (cp1252 on Windows) that cannot encode glyphs the child
             # emits (e.g. Julia/Wflow progress-bar blocks); fall back to a lossy
@@ -2561,12 +2561,13 @@ def patch_psutil_windows_benchmark():
 # Colour by WHAT KIND OF LINE it is, not by which field it is -- three tiers,
 # whole lines, so a run scrolling past reads as structure rather than text.
 #
-# * ``_ANSI_RUN`` (white) -- a job STARTED. The brightest thing on screen,
-#   because it is the line that says what you are now waiting for.
-# * ``_ANSI_DONE`` (orange) -- a job FINISHED. Distinct at a glance from a
-#   start without competing with it, and the line carrying the counter.
-# * ``_ANSI_BODY`` (grey) -- everything in between: a rule's own output, the
-#   heartbeat's status notices, and Snakemake's informational lines. This is
+# * ``_ANSI_RUN`` (blue) -- a job STARTED. The line that says what you are now
+#   waiting for, so it is the one the eye goes to.
+# * ``_ANSI_DONE`` (green) -- a job FINISHED. Green because that is what green
+#   means everywhere else a machine reports on work, and the pair then reads
+#   without a legend: blue is in flight, green is behind you.
+# * ``_ANSI_BODY`` (light grey) -- everything in between: a rule's own output,
+#   the heartbeat's status notices, and Snakemake's informational lines. This is
 #   the bulk of the output and it recedes.
 #
 # Superseded the earlier per-FIELD scheme (bold cyan identity, grey qualifiers)
@@ -2577,15 +2578,21 @@ def patch_psutil_windows_benchmark():
 # WARNING and ERROR records are never recoloured, so Snakemake's own red stays
 # the loudest thing on screen -- three tiers describe the ROUTINE path only.
 #
-# ``2m`` (faint) rather than ``90m`` (bright black) for the body: faint DIMS
-# whatever colour the terminal already uses, so it stays readable on a light
-# theme, where a fixed grey can land close to the background. A terminal that
-# ignores faint renders the line plain -- no styling, never unreadable.
-# ``38;5;208`` is 256-colour orange; there is no 8-colour orange, and the
-# nearest (yellow) is what a warning uses. All three are swappable here.
-_ANSI_RUN = "97"  # bright white
-_ANSI_DONE = "38;5;208"  # orange
-_ANSI_BODY = "2"  # faint / grey
+# The body is a FIXED light grey (256-colour 250) rather than the ``2m`` faint
+# it was until 2026-08-14. Faint has one real advantage -- it dims whatever
+# colour the terminal already uses, so it cannot land close to the background on
+# a light theme -- and one practical cost, which is that on a dark terminal it
+# dims far enough to be work to read, which is what a body tier must not be when
+# it is most of the output. A fixed grey is the deliberate trade, and it is
+# **one constant to swap** if it reads wrong on your terminal: back to ``2``, or
+# to ``90`` (bright black) for something between the two.
+#
+# The other two are the bright 8-colour codes, which follow the terminal's own
+# palette rather than pinning an exact hue -- so they stay in whatever key the
+# theme is written in. All three are swappable here and nowhere else.
+_ANSI_RUN = "94"  # bright blue
+_ANSI_DONE = "92"  # bright green
+_ANSI_BODY = "38;5;250"  # light grey
 _ANSI_RESET = "\033[0m"
 
 
@@ -2605,8 +2612,13 @@ def _console_colour(stream):
     return bool(isatty and isatty()) and not os.environ.get("NO_COLOR")
 
 
-def _grey_for_console(text, colour):
-    """Grey a console-bound chunk. Returns ``text`` unchanged when not colouring.
+def _paint_body(text, colour):
+    """Paint a console-bound chunk in the body tier (``_ANSI_BODY``).
+
+    Returns ``text`` unchanged when not colouring. Named for the TIER and
+    not for the hue: the colour is one constant away from being something
+    else, and the name this replaced said "grey" while ``_ANSI_BODY`` was
+    what actually decided.
 
     **Chunks containing a carriage return pass through untouched.** Those are
     in-place progress bars (dask's ``[####] | 100% Completed``), which redraw
@@ -2662,7 +2674,7 @@ def rule_banner(number, name, context=None, summary=None):
 
     **Returns PLAIN TEXT — it never colours.** Colour belongs to whoever writes
     the line, and this string is written to three places with three answers:
-    the console (where ``_ConsoleHandler`` paints the whole start line white),
+    the console (where ``_ConsoleHandler`` paints the whole start line blue),
     ``.snakemake/log/*.snakemake.log`` (a file, which must stay clean), and
     Snakemake's ``JOB_ERROR`` block (where red is the point and our styling
     would fight it). It coloured its own fields until 2026-08-14, which made
@@ -2904,9 +2916,9 @@ class _ConsoleHandler(logging.StreamHandler):
     things: the first ends the stamp, the second introduces the rule's
     plain-language summary.
 
-    Start lines are painted white and finish lines orange, WHOLE-LINE, with
-    everything else on the console grey (``_ANSI_RUN`` / ``_ANSI_DONE`` /
-    ``_ANSI_BODY``). Colour is applied here rather than inside ``rule_banner``
+    Start lines are painted blue and finish lines green, WHOLE-LINE, with
+    everything else on the console light grey (``_ANSI_RUN`` / ``_ANSI_DONE``
+    / ``_ANSI_BODY``). Colour is applied here rather than inside ``rule_banner``
     because the banner string also reaches a log file and an error block, where
     an escape code is corruption in one and a fight with red in the other.
 
@@ -3016,7 +3028,7 @@ class _ConsoleHandler(logging.StreamHandler):
             elif event == "job_started":
                 pass  # "Execute N jobs..." -- scheduler bookkeeping
             elif not self._muted(record, event):
-                # Grey only what is informational. A WARNING or an ERROR keeps
+                # Body tier for what is informational only. A WARNING or an ERROR keeps
                 # Snakemake's own colouring, which is the one thing on this
                 # console that must stay louder than a start line.
                 shown = self.format(record)
