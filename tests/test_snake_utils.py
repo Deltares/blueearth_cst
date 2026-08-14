@@ -397,7 +397,7 @@ def test_relativize_strips_project_root_both_separators():
     happened to use, so a single log carried two spellings of one tree and they
     read as different locations at a glance. Forward slashes on both platforms.
     """
-    root = os.path.normpath("C:/TESTS/gabon")
+    root = _abs("TESTS/gabon")
     native = f"Writing geoms to {root}{os.sep}hydrology_model{os.sep}basins.geojson.\n"
     assert _relativize_paths(native, root) == (
         "Writing geoms to hydrology_model/basins.geojson.\n"
@@ -407,6 +407,48 @@ def test_relativize_strips_project_root_both_separators():
     assert _relativize_paths(forward, root) == (
         "Writing config to hydrology_model/wflow_sbm.toml.\n"
     )
+
+
+def _abs(path):
+    """A path that is genuinely absolute on BOTH platforms.
+
+    `declare_path_tokens` stores `os.path.abspath(...)`, and a `C:/...` literal
+    is NOT absolute on POSIX -- abspath silently prepends the runner's CWD, so
+    the stored token stops matching the line under test and the tokenizer does
+    nothing at all.
+
+    CI caught this on 2026-08-14: three failures on ubuntu-latest, green on
+    windows-latest. Worse than the three, and the reason every affected test is
+    converted rather than only the ones that went red: two more passed for the
+    WRONG REASON. Both assert that something is left UNCHANGED, which is
+    exactly what a token that never matches produces -- so on Linux they were
+    asserting the absence of an effect that could not have occurred.
+
+    `C:` on Windows, `/` elsewhere; pass a root-relative path.
+    """
+    prefix = "C:/" if os.name == "nt" else "/"
+    return os.path.normpath(prefix + str(path).lstrip("/"))
+
+
+def test_abs_helper_survives_abspath_on_this_platform():
+    """The property whose absence caused the 2026-08-14 ubuntu failures.
+
+    `declare_path_tokens` stores `os.path.abspath(folder)`. If a test's literal
+    is not already absolute, abspath rewrites it and the stored token no longer
+    matches the line under test -- silently, because a token that matches
+    nothing simply leaves the text alone.
+
+    Asserting the fixed point is platform-independent, so this guard runs on
+    BOTH legs and would have gone red on windows too had `_abs` been wrong
+    there. A test that only checked `os.path.isabs` would not: `C:/x` IS
+    absolute on Windows, which is precisely why the defect was invisible here.
+    """
+    for raw in ("TESTS/gabon", "data/wflow_global/hydromt"):
+        got = _abs(raw)
+        assert os.path.abspath(got) == got, (
+            f"_abs({raw!r}) -> {got!r} is rewritten by abspath to "
+            f"{os.path.abspath(got)!r}; a token declared from it would never match"
+        )
 
 
 @pytest.fixture
@@ -431,14 +473,14 @@ def test_declared_folders_become_tokens_in_one_line(declare_folders):
     tokens are applied after the project strip, because by then the model path
     has already lost the root a token is registered with.
     """
-    root = os.path.normpath("C:/TESTS/gabon")
+    root = _abs("TESTS/gabon")
     declare_folders(
-        data=os.path.normpath("C:/data/wflow_global/hydromt"),
+        data=_abs("data/wflow_global/hydromt"),
         model=os.path.join(root, "models", "hydrology", "wflow"),
     )
     tokens = su._path_tokens()
     line = (
-        f"copied {os.path.normpath('C:/data/wflow_global/hydromt/rgi/rgi.gpkg')} "
+        f"copied {_abs('data/wflow_global/hydromt/rgi/rgi.gpkg')} "
         f"to {os.path.join(root, 'models', 'hydrology', 'wflow', 'staticmaps.nc')}\n"
     )
     assert su._relativize_paths(line, root, tokens) == (
@@ -449,7 +491,7 @@ def test_declared_folders_become_tokens_in_one_line(declare_folders):
 def test_a_declared_folder_named_on_its_own_is_tokenized(declare_folders):
     """`Write model data to <model dir>` -- no trailing separator, and the one
     line that states the folder rather than something under it."""
-    model = os.path.normpath("C:/TESTS/gabon/models/hydrology/wflow")
+    model = _abs("TESTS/gabon/models/hydrology/wflow")
     declare_folders(model=model)
     out = su._relativize_paths(f"Write model data to {model}\n", "", su._path_tokens())
     assert out == "Write model data to <model>\n"
@@ -457,7 +499,7 @@ def test_a_declared_folder_named_on_its_own_is_tokenized(declare_folders):
 
 def test_a_token_does_not_claim_a_sibling_that_starts_with_it(declare_folders):
     """`.../wflow` must not turn `.../wflow_extra` into `<model>_extra`."""
-    model = os.path.normpath("C:/TESTS/gabon/models/hydrology/wflow")
+    model = _abs("TESTS/gabon/models/hydrology/wflow")
     declare_folders(model=model)
     out = su._relativize_paths(f"reading {model}_extra/x.nc\n", "", su._path_tokens())
     assert out == f"reading {model}_extra/x.nc\n"
@@ -466,7 +508,7 @@ def test_a_token_does_not_claim_a_sibling_that_starts_with_it(declare_folders):
 def test_the_longest_declared_folder_wins(declare_folders):
     """An experiment dir sits under the project and a model dir can sit under
     either; a shorter root claiming a longer one would mislabel every path."""
-    root = os.path.normpath("C:/TESTS/gabon")
+    root = _abs("TESTS/gabon")
     declare_folders(
         climate=os.path.join(root, "data"),
         experiment=os.path.join(root, "data", "experiments", "exp_a"),
@@ -523,8 +565,8 @@ def test_the_header_defines_a_token_under_a_relative_project_dir(declare_folders
 
 
 def test_relativize_leaves_out_of_project_paths_absolute():
-    root = os.path.normpath("C:/TESTS/gabon")
-    line = f"Reading data from {os.path.normpath('C:/data/wflow_global/x.tif')}\n"
+    root = _abs("TESTS/gabon")
+    line = f"Reading data from {_abs('data/wflow_global/x.tif')}\n"
     assert _relativize_paths(line, root) == line  # not under project -> untouched
 
 
@@ -1882,14 +1924,14 @@ def test_run_header_states_the_declared_folders(declare_folders):
     reason. The rows keep DECLARATION order -- matching wants longest-path
     first, and that order in a header is arbitrary to a reader.
     """
-    project = os.path.normpath("C:/TESTS/gabon")
+    project = _abs("TESTS/gabon")
     declare_folders(
-        data=os.path.normpath("C:/data/wflow_global/hydromt"),
+        data=_abs("data/wflow_global/hydromt"),
         model=os.path.join(project, "models", "hydrology", "wflow"),
     )
     rows = su.run_header("wf1 build_model", project).splitlines()[1:]
     assert [row.split()[0] for row in rows] == ["project", "<data>", "<model>"]
-    assert rows[1].endswith("C:/data/wflow_global/hydromt")
+    assert rows[1].endswith("data/wflow_global/hydromt")
     assert rows[2].endswith("models/hydrology/wflow")
 
 
