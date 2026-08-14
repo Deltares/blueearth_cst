@@ -154,7 +154,7 @@ test-full = { cmd = "pytest tests/", description = "Run the authoritative full n
 # env's interpreter directly instead would drop [activation.env] above
 # (HDF5_USE_FILE_LOCKING, GCSFS_EXPERIMENTAL_ZB_HNS_SUPPORT) and, on win-64, the
 # graphviz alias script.
-test-cli = { cmd = "pytest tests/test_cli.py", description = "Dry-run all three Snakefiles -- the cheapest sanity check after editing a rule or script signature" }
+test-cli = { cmd = "pytest tests/test_cli.py", description = "Dry-run all four workflow entry points -- the cheapest sanity check after editing a rule or script signature" }
 lint = { cmd = "ruff check .", description = "Lint the repo with the [tool.ruff] config in pyproject.toml" }
 format = { cmd = "ruff format .", description = "Format the repo -- scope and exclusions in [tool.ruff.format]" }
 format-check = { cmd = "ruff format --check .", description = "Fail if anything in the formatter's scope is unformatted; the CI gate" }
@@ -162,6 +162,7 @@ format-check = { cmd = "ruff format --check .", description = "Fail if anything 
 # DAG validation, one per workflow. `--configfile` is pinned to the tracked test
 # config so the task is runnable from a fresh clone; pass a different one on the
 # CLI when working against another project config (see test_case/ for the shipped examples).
+dag-wf0 = { cmd = "snakemake all -c 3 -s analyze_climate.smk --configfile test_case/snake_config_baseline.yml --dry-run", description = "Dry-run wf0 (historical climate analysis) to validate the DAG" }
 dag-wf1 = { cmd = "snakemake all -c 3 -s build_model.smk --configfile test_case/snake_config_baseline.yml --dry-run", description = "Dry-run wf1 (model creation) to validate the DAG" }
 dag-wf2 = { cmd = "snakemake all -c 3 -s analyze_projections.smk --configfile test_case/snake_config_baseline.yml --dry-run", description = "Dry-run wf2 (climate projections) to validate the DAG" }
 dag-wf3 = { cmd = "snakemake all -c 3 -s run_stress_test.smk --configfile test_case/snake_config_baseline.yml --dry-run", description = "Dry-run wf3 (climate experiment) to validate the DAG" }
@@ -187,7 +188,7 @@ tree-check = { cmd = "python dev/scripts/snapshot_project_tree.py --config test_
 # non-zero when incomplete.
 env-check = { cmd = "python dev/scripts/check_env.py", description = "Report whether this checkout's env can run the workflows (--all: every worktree)" }
 
-# The runner over the three Snakefiles, reachable without spelling out its path:
+# The runner over the four workflow entry points, reachable without spelling out its path:
 #     pixi run run-workflows --config test_case/snake_config_rapid.yml
 #     pixi run run-workflows --config <cfg> --cores 4 -- --dry-run
 #
