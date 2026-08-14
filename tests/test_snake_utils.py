@@ -292,45 +292,6 @@ class _FakeTTY:
         return True
 
 
-def test_rule_banner_bold_on_tty(monkeypatch):
-    monkeypatch.setattr(sys, "stderr", _FakeTTY())
-    monkeypatch.delenv("NO_COLOR", raising=False)
-    assert rule_banner("1.09", "run_wflow") == "\033[1;36m1.09  run_wflow\033[0m"
-
-
-def test_rule_banner_plain_when_not_tty(monkeypatch):
-    import io
-
-    monkeypatch.setattr(sys, "stderr", io.StringIO())  # isatty() -> False
-    monkeypatch.delenv("NO_COLOR", raising=False)
-    out = rule_banner("1.09", "run_wflow")
-    assert out == "1.09  run_wflow" and "\033" not in out  # no escape codes
-
-
-def test_rule_banner_respects_no_color_env(monkeypatch):
-    monkeypatch.setattr(sys, "stderr", _FakeTTY())
-    monkeypatch.setenv("NO_COLOR", "1")
-    assert rule_banner("2.04", "monthly_change") == "2.04  monthly_change"
-
-
-def test_rule_banner_summary_is_grey_not_a_third_colour(monkeypatch):
-    """Two colours on a line: the identity, and everything qualifying it."""
-    monkeypatch.setattr(sys, "stderr", _FakeTTY())
-    monkeypatch.delenv("NO_COLOR", raising=False)
-    out = rule_banner("1.14", "run_wflow", summary="run the model")
-    assert out == ("\033[1;36m1.14  run_wflow\033[0m \033[2mrun the model\033[0m"), (
-        repr(out)
-    )
-
-
-def test_rule_banner_context_is_the_same_grey_as_the_summary(monkeypatch):
-    """One grey, not two shades -- the eye has a single thing to land on."""
-    monkeypatch.setattr(sys, "stderr", _FakeTTY())
-    monkeypatch.delenv("NO_COLOR", raising=False)
-    out = rule_banner("3.12", "perturb", summary="apply one member", context="rlz 1")
-    assert out.count("\033[2m") == 2 and "\033[0;36m" not in out, repr(out)
-
-
 # --- target_banner (rule `all` message) --------------------------------------
 
 
@@ -343,19 +304,6 @@ def test_target_banner_puts_one_target_per_line(monkeypatch):
     out = target_banner("2.00", "all", ["a/x.csv", "b/y.png"])
     assert out == "2.00  all\n    a/x.csv\n    b/y.png"
     assert ", " not in out
-
-
-def test_target_banner_keeps_the_rule_banner_colouring(monkeypatch):
-    """The banner half is rule_banner's, escape codes and all -- only the banner.
-
-    A target path must never be wrapped in escape codes: the message is what a
-    reader copies a path out of.
-    """
-    monkeypatch.setattr(sys, "stderr", _FakeTTY())
-    monkeypatch.delenv("NO_COLOR", raising=False)
-    out = target_banner("1.00", "all", ["p/q.nc"])
-    assert out.startswith("\033[1;36m1.00  all\033[0m\n")
-    assert "\033" not in out.split("\n", 1)[1]
 
 
 def test_target_banner_accepts_a_dict_values_view(monkeypatch):
@@ -1672,37 +1620,53 @@ def _colour_handler():
     return su._ConsoleHandler(base)
 
 
-def test_console_finish_line_colours_the_identity_and_greys_the_rest(monkeypatch):
-    """The pair must look alike: this line is built from the finish record, so
-    its identity is coloured here rather than inherited from the banner."""
-    monkeypatch.delenv("NO_COLOR", raising=False)
-    su._RULE_NUMBERS["perturb_climate_realization"] = "3.12"
-    handler = _colour_handler()
-    out = _emit(
-        handler,
-        _job_info(9, "perturb_climate_realization", "banner", {"rlz": "1", "st": "2"}),
-        _console_record(event="job_finished", job_id=9),
-        _console_record(event="progress", done=5, total=8),
-    )
-    done = out.splitlines()[1]
-    assert "\033[1;36m3.12  perturb_climate_realization\033[0m" in done, repr(done)
-    assert "\033[2mrlz 1 | st 2\033[0m" in done, repr(done)
-    assert "\033[2m[5/8]\033[0m" in done, repr(done)
+def test_rule_banner_never_colours_even_on_a_tty():
+    """The banner string reaches a log file and an error block, not just a
+    console -- so colour belongs to whoever writes the line, not to this."""
+    import blueearth_cst.shared.snake_utils as _su
+
+    real = sys.stderr
+    sys.stderr = _FakeTTY()
+    try:
+        out = _su.rule_banner("1.09", "run_wflow", summary="run it", context="rlz 1")
+    finally:
+        sys.stderr = real
+    assert out == "1.09  run_wflow - run it  rlz 1"
+    assert "\033" not in out
 
 
-def test_console_the_run_and_done_markers_are_never_coloured():
-    """They stay at the terminal's default weight, which is what keeps them
-    legible between a bright identity and a grey body."""
+def test_console_paints_a_start_line_white_and_a_finish_line_orange():
+    """Three tiers by LINE KIND: white started, orange finished, grey between."""
     handler = _colour_handler()
+    su._RULE_NUMBERS["seed"] = "9.01"
     out = _emit(
         handler,
-        _job_info(1, "seed", "9.01  seed"),
+        _job_info(1, "seed", "9.01  seed - prepare one realization"),
         _console_record(event="job_finished", job_id=1),
-        _console_record(event="progress", done=1, total=1),
+        _console_record(event="progress", done=1, total=4),
     )
-    for line in out.splitlines():
-        marker = "  run   " if "  run   " in line else "  done  "
-        assert marker in line and "\033" not in marker, repr(line)
+    run_line, done_line = out.splitlines()
+    assert run_line.startswith("\033[97m") and run_line.endswith("\033[0m"), run_line
+    assert "\033" not in run_line[5:-4], run_line
+    assert done_line.startswith("\033[38;5;208m"), done_line
+    assert "\033" not in done_line[11:-4], done_line
+
+
+def test_console_greys_an_informational_snakemake_line():
+    handler = _colour_handler()
+    out = _emit(handler, _console_record("Building DAG of jobs..."))
+    assert out == "\033[2mBuilding DAG of jobs...\033[0m\n", repr(out)
+
+
+def test_console_never_recolours_a_warning_or_an_error():
+    """Snakemake's own red must stay the loudest thing on the console."""
+    handler = _colour_handler()
+    out = _emit(
+        handler,
+        _console_record("state file missing", level=_logging.WARNING),
+        _console_record("Error in rule x:", level=_logging.ERROR, event="job_error"),
+    )
+    assert "\033" not in out, repr(out)
 
 
 def test_rule_banner_registers_its_number_for_the_finish_line(monkeypatch):
@@ -1773,3 +1737,60 @@ def test_run_header_omits_rows_a_workflow_does_not_have():
         "wf1 model_creation",
         "  project  test_case/test_rapid",
     ]
+
+
+# --- console grey for rule output (_Tee / _grey_for_console) -----------------
+
+
+class _TTYWriter(io.StringIO):
+    def isatty(self):
+        return True
+
+
+def test_grey_for_console_leaves_a_progress_bar_alone():
+    """A carriage-return chunk is an in-place redraw: an SGR pair per frame
+    would flicker, and a reset landing mid-bar would break it."""
+    bar = "\r[####################] | 100% Completed | 102.06 ms"
+    assert su._grey_for_console(bar, True) == bar
+
+
+def test_grey_for_console_leaves_whitespace_alone():
+    """`print` arrives as two writes; colouring a bare newline wraps nothing."""
+    assert su._grey_for_console("\n", True) == "\n"
+
+
+def test_grey_for_console_wraps_each_line_of_a_multi_line_chunk():
+    """A chunk can hold several lines; no colour may span a newline."""
+    out = su._grey_for_console("first\nsecond\n", True)
+    assert out == "\033[2mfirst\033[0m\n\033[2msecond\033[0m\n", repr(out)
+
+
+def test_grey_for_console_is_a_no_op_without_colour():
+    assert su._grey_for_console("plain text", False) == "plain text"
+
+
+def test_tee_greys_the_console_and_never_the_log_file(tmp_path):
+    """The split this rests on: one call, two sinks, one of them a file read
+    months later by merge_logs -- where an escape code is corruption."""
+    log = tmp_path / "rule.log"
+    console = _TTYWriter()
+    with open(log, "w", encoding="utf-8") as handle:
+        tee = su._Tee(console, handle)
+        tee.write("13:42:17 - stats - deriving digest=7dc9315280ff\n")
+        tee.close()
+    # The reset lands BEFORE the newline: a colour spanning the break would
+    # carry across a terminal reflow.
+    assert console.getvalue() == (
+        "\033[2m13:42:17 - stats - deriving digest=7dc9315280ff\033[0m\n"
+    )
+    assert "\033" not in log.read_text(encoding="utf-8")
+
+
+def test_tee_does_not_colour_a_console_that_is_not_a_terminal(tmp_path):
+    log = tmp_path / "rule.log"
+    console = io.StringIO()  # isatty() -> False
+    with open(log, "w", encoding="utf-8") as handle:
+        tee = su._Tee(console, handle)
+        tee.write("plain row\n")
+        tee.close()
+    assert console.getvalue() == "plain row\n"

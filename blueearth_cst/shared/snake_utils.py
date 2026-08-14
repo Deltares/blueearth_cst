@@ -1830,7 +1830,9 @@ class _Heartbeat:
 
     def _emit(self, text):
         try:
-            self._stream.write(text)
+            # Console-only by design (`quiet_rows` is the durable copy), so the
+            # grey here can never reach a file.
+            self._stream.write(_grey_for_console(text, _console_colour(self._stream)))
             self._stream.flush()
         except Exception:
             pass  # console I/O must never break the job
@@ -1911,6 +1913,11 @@ class _Tee:
 
     def __init__(self, live, logfile, project_root="", on_activity=None):
         self._live = live
+        # Decided once, against the REAL console this tee wraps -- and it greys
+        # the live copy ONLY. The log file must never receive an escape code:
+        # it is read months later, by tools and by `merge_logs`, where a colour
+        # is corruption rather than styling.
+        self._colour = _console_colour(live)
         self._logfile = logfile
         self._project_root = project_root
         self._on_activity = on_activity  # called on each write (heartbeat reset)
@@ -1929,7 +1936,10 @@ class _Tee:
         if self._on_activity is not None:
             self._on_activity()
         out = _relativize_paths(_compact_log_line(text), self._project_root)
-        self._live.write(out)  # verbatim: keeps the live console animation
+        # Greyed, but still verbatim in shape -- `_grey_for_console` passes a
+        # carriage-return chunk straight through, so the live console animation
+        # this sink exists to preserve is untouched.
+        self._live.write(_grey_for_console(out, self._colour))
         # After close the console is still open and still the right place for
         # this text; only the log file is gone. Writing to a closed file raises
         # ValueError, and a raise HERE is the expensive kind: these late writes
@@ -2041,20 +2051,25 @@ def run_and_tee(command, log_path):
         log.write(_log_header_lines(log_path))  # header to file only, not console
         log.flush()
 
+        colour = _console_colour(sys.stdout)
+
         def emit(text):
             # Compact hydromt's redundant log format (see _compact_log_line) and
             # show project files relative to the project dir; non-hydromt lines
             # and out-of-project paths pass through unchanged.
             text = _relativize_paths(_compact_log_line(text), project_root)
+            # Greyed for the console only: a shell rule's output is detail, and
+            # `log` below must stay free of escape codes.
+            shown = _grey_for_console(text, colour)
             # The log file is UTF-8. The live console mirror may be a legacy
             # code page (cp1252 on Windows) that cannot encode glyphs the child
             # emits (e.g. Julia/Wflow progress-bar blocks); fall back to a lossy
             # encode for the console only — the log always gets the real text.
             try:
-                sys.stdout.write(text)
+                sys.stdout.write(shown)
             except UnicodeEncodeError:
                 enc = getattr(sys.stdout, "encoding", None) or "utf-8"
-                sys.stdout.write(text.encode(enc, "replace").decode(enc))
+                sys.stdout.write(shown.encode(enc, "replace").decode(enc))
             sys.stdout.flush()
             log.write(text)
             log.flush()
@@ -2543,22 +2558,33 @@ def patch_psutil_windows_benchmark():
     psutil.Process.memory_full_info = _with_pss
 
 
-# Two colours and no more, so a console line has one place the eye lands.
+# Colour by WHAT KIND OF LINE it is, not by which field it is -- three tiers,
+# whole lines, so a run scrolling past reads as structure rather than text.
 #
-# ``_ANSI_IDENTITY`` marks the ONE thing a reader is looking for -- the
-# ``W.NN  <rule name>`` that keys the log files, the benchmark table and the
-# rule comments. ``_ANSI_BODY`` greys down everything the identity is qualified
-# by: the plain-language summary, the per-job context, the elapsed time, the
-# progress counter, the timestamp. Nothing else on the line is coloured, which
-# is what leaves the ``run``/``done`` markers legible at their default weight
-# and what keeps Snakemake's own red errors the loudest thing on screen.
+# * ``_ANSI_RUN`` (white) -- a job STARTED. The brightest thing on screen,
+#   because it is the line that says what you are now waiting for.
+# * ``_ANSI_DONE`` (orange) -- a job FINISHED. Distinct at a glance from a
+#   start without competing with it, and the line carrying the counter.
+# * ``_ANSI_BODY`` (grey) -- everything in between: a rule's own output, the
+#   heartbeat's status notices, and Snakemake's informational lines. This is
+#   the bulk of the output and it recedes.
+#
+# Superseded the earlier per-FIELD scheme (bold cyan identity, grey qualifiers)
+# on 2026-08-14: within one line the identity did stand out, but across a long
+# run every line looked alike, and what a reader scrolls for is "where did this
+# job start" / "what finished", not a field.
+#
+# WARNING and ERROR records are never recoloured, so Snakemake's own red stays
+# the loudest thing on screen -- three tiers describe the ROUTINE path only.
 #
 # ``2m`` (faint) rather than ``90m`` (bright black) for the body: faint DIMS
 # whatever colour the terminal already uses, so it stays readable on a light
 # theme, where a fixed grey can land close to the background. A terminal that
-# ignores faint renders the line plain -- no styling, never unreadable. Swap
-# this one constant if the dim proves too subtle in practice.
-_ANSI_IDENTITY = "1;36"  # bold cyan
+# ignores faint renders the line plain -- no styling, never unreadable.
+# ``38;5;208`` is 256-colour orange; there is no 8-colour orange, and the
+# nearest (yellow) is what a warning uses. All three are swappable here.
+_ANSI_RUN = "97"  # bright white
+_ANSI_DONE = "38;5;208"  # orange
 _ANSI_BODY = "2"  # faint / grey
 _ANSI_RESET = "\033[0m"
 
@@ -2566,6 +2592,43 @@ _ANSI_RESET = "\033[0m"
 def _ansi(text, code):
     """Wrap ``text`` in an SGR code. Callers decide WHETHER to colour."""
     return f"\033[{code}m{text}{_ANSI_RESET}"
+
+
+def _console_colour(stream):
+    """Whether to colour output written to ``stream``.
+
+    A live terminal and no ``NO_COLOR``. Asked of the REAL console stream, never
+    of a tee -- ``_Tee.isatty`` reports False by design, so a tee asked about
+    itself would answer "not a terminal" while writing to one.
+    """
+    isatty = getattr(stream, "isatty", None)
+    return bool(isatty and isatty()) and not os.environ.get("NO_COLOR")
+
+
+def _grey_for_console(text, colour):
+    """Grey a console-bound chunk. Returns ``text`` unchanged when not colouring.
+
+    **Chunks containing a carriage return pass through untouched.** Those are
+    in-place progress bars (dask's ``[####] | 100% Completed``), which redraw
+    many times a second: wrapping each redraw would put an SGR pair around every
+    frame, and a reset landing mid-bar flickers. They stay uncoloured and stay
+    animated, which is the trade the tee already makes for them.
+
+    Whitespace-only chunks are left alone too -- ``print`` commonly arrives as
+    two writes, the text then the newline, and colouring a bare newline emits an
+    escape pair around nothing.
+
+    Wrapping is per LINE within the chunk, never around the whole of it, so a
+    colour never spans a newline. A chunk is frequently ``"...text\\n"`` and can
+    hold several lines; wrapping it whole would leave the reset sitting at the
+    start of the NEXT line, so a terminal reflowing on resize carries the styling
+    across the break.
+    """
+    if not colour or "\r" in text or not text.strip():
+        return text
+    return "\n".join(
+        _ansi(line, _ANSI_BODY) if line.strip() else line for line in text.split("\n")
+    )
 
 
 # Rule name -> its ``W.NN`` number, filled by every ``rule_banner`` call at
@@ -2580,14 +2643,21 @@ _RULE_NUMBERS = {}
 
 
 def rule_banner(number, name, context=None, summary=None):
-    """Return a rule's ``message:`` string: a bold, numbered console banner.
+    """Return a rule's ``message:`` string: a numbered console banner.
 
     Shows ``<W.NN>  <name>`` (the ``W.NN`` matching the rule's log/benchmark
-    filenames) so the live Snakemake console is easy to track. The number+name
-    are wrapped in bold cyan **only** when stderr is a TTY and ``NO_COLOR`` is
-    unset — so piping/redirecting the console to a file leaves no escape codes.
+    filenames) so the live Snakemake console is easy to track.
 
-    ``context`` appends a dim per-job suffix, and is the answer for FAN-OUT
+    **Returns PLAIN TEXT — it never colours.** Colour belongs to whoever writes
+    the line, and this string is written to three places with three answers:
+    the console (where ``_ConsoleHandler`` paints the whole start line white),
+    ``.snakemake/log/*.snakemake.log`` (a file, which must stay clean), and
+    Snakemake's ``JOB_ERROR`` block (where red is the point and our styling
+    would fight it). It coloured its own fields until 2026-08-14, which made
+    the second of those a file with escape codes in it whenever stderr happened
+    to be a terminal.
+
+    ``context`` appends a per-job suffix, and is the answer for FAN-OUT
     rules. This helper is evaluated once at Snakefile parse time, so without it
     every member of a fanned-out rule prints an IDENTICAL banner: on a
     multi-hour WF3 run the console says *something is running*, never *which
@@ -2627,16 +2697,11 @@ def rule_banner(number, name, context=None, summary=None):
     """
     _RULE_NUMBERS[name] = str(number)
     tag = f"{number}  {name}"
-    color = sys.stderr.isatty() and not os.environ.get("NO_COLOR")
-    if color:
-        tag = _ansi(tag, _ANSI_IDENTITY)
     if summary:
-        tag = (
-            f"{tag} - {summary}" if not color else f"{tag} {_ansi(summary, _ANSI_BODY)}"
-        )
+        tag = f"{tag} - {summary}"
     if not context:
         return tag
-    return f"{tag}  {_ansi(context, _ANSI_BODY)}" if color else f"{tag}  {context}"
+    return f"{tag}  {context}"
 
 
 def format_elapsed(seconds):
@@ -2807,6 +2872,12 @@ class _ConsoleHandler(logging.StreamHandler):
         23:26:44  run   3.11  generate_weather_realizations - generate ...
         23:27:14  done  3.11  generate_weather_realizations  0:00:30  [8/37]
 
+    Start lines are painted white and finish lines orange, WHOLE-LINE, with
+    everything else on the console grey (``_ANSI_RUN`` / ``_ANSI_DONE`` /
+    ``_ANSI_BODY``). Colour is applied here rather than inside ``rule_banner``
+    because the banner string also reaches a log file and an error block, where
+    an escape code is corruption in one and a fight with red in the other.
+
     Both lines carry the same ``W.NN  name`` identifier the merged log, the
     benchmark table and the rule comments key on, so one grep finds a rule's
     whole story. Timestamps are ``HH:MM:SS``, matching :func:`log_row` rather
@@ -2913,7 +2984,13 @@ class _ConsoleHandler(logging.StreamHandler):
             elif event == "job_started":
                 pass  # "Execute N jobs..." -- scheduler bookkeeping
             elif not self._muted(record, event):
-                lines.append(self.format(record))
+                # Grey only what is informational. A WARNING or an ERROR keeps
+                # Snakemake's own colouring, which is the one thing on this
+                # console that must stay louder than a start line.
+                shown = self.format(record)
+                if record.levelno <= logging.INFO:
+                    shown = self._paint(shown, _ANSI_BODY)
+                lines.append(shown)
 
         return "\n".join(line for line in lines if line) or None
 
@@ -2951,7 +3028,7 @@ class _ConsoleHandler(logging.StreamHandler):
             # input/output/jobid, which is the whole of what a reader gets for
             # that rule -- reshaping it into one line would delete it.
             return self.format(record)
-        return f"{self._stamp()}  run   {message}"
+        return self._paint(f"{self._now()}  run   {message}", _ANSI_RUN)
 
     def _drain(self, done, total):
         if not self._finished:
@@ -2975,11 +3052,8 @@ class _ConsoleHandler(logging.StreamHandler):
             # a grouped job never emits one. Snakemake's own text still names
             # the rule, which is the whole point of the line; it gets our stamp
             # and the counter and nothing else.
-            return f"{self._stamp()}  {fallback}" + (
-                f"  {self._dim(f'[{counter}/{total}]')}"
-                if counter is not None and total
-                else ""
-            )
+            tail = f"  [{counter}/{total}]" if counter is not None and total else ""
+            return self._paint(f"{self._now()}  {fallback}{tail}", _ANSI_DONE)
         number = _RULE_NUMBERS.get(rule_name)
         if rule_name:
             identity = f"{number}  {rule_name}" if number else rule_name
@@ -2988,9 +3062,9 @@ class _ConsoleHandler(logging.StreamHandler):
         # The identity is coloured HERE, not inherited from the start line's
         # banner: this line is built from the finish record, and the two must
         # look alike or a pair reads as two unrelated events.
-        parts = [self._identity(identity)]
+        parts = [identity]
         if wildcards:
-            parts.append(self._dim(wildcards))
+            parts.append(wildcards)
         tail = []
         if started is not None and time.monotonic() - started >= 1:
             # Measured from the START record, which Snakemake logs at submission
@@ -3004,19 +3078,19 @@ class _ConsoleHandler(logging.StreamHandler):
             tail.append(format_elapsed(time.monotonic() - started))
         if counter is not None and total:
             tail.append(f"[{counter}/{total}]")
-        line = f"{self._stamp()}  done  " + "  ".join(parts)
-        return f"{line}  {self._dim('  '.join(tail))}" if tail else line
+        line = f"{self._now()}  done  " + "  ".join(parts)
+        if tail:
+            line = f"{line}  " + "  ".join(tail)
+        return self._paint(line, _ANSI_DONE)
 
     # -- decoration --------------------------------------------------------
 
-    def _stamp(self):
-        return self._dim(f"{datetime.now():%H:%M:%S}")
+    def _now(self):
+        return f"{datetime.now():%H:%M:%S}"
 
-    def _identity(self, text):
-        return _ansi(text, _ANSI_IDENTITY) if self._color and text else text
-
-    def _dim(self, text):
-        return _ansi(text, _ANSI_BODY) if self._color and text else text
+    def _paint(self, text, code):
+        """Colour a WHOLE line. Nothing here paints a field."""
+        return _ansi(text, code) if self._color and text else text
 
 
 def install_console_style():
