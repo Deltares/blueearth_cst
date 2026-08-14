@@ -35,7 +35,7 @@ _CFG = {
     "run_historical": False,
 }
 
-_SNAKEFILE = Path(__file__).resolve().parents[1] / "Snakefile_climate_experiment"
+_SNAKEFILE = Path(__file__).resolve().parents[1] / "run_stress_test.smk"
 
 
 def _exp(tmp_path, name="gabon_dry"):

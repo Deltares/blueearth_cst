@@ -85,7 +85,7 @@ def test_model_creation_end_to_end():
 
     os.chdir(SNAKEDIR)
     cmd = (
-        f"snakemake all -c 1 -s Snakefile_model_creation "
+        f"snakemake all -c 1 -s build_model.smk "
         f"--configfile {CONFIG} --forceall"
     )
     result = subprocess.run(cmd, shell=True, capture_output=True, text=True)

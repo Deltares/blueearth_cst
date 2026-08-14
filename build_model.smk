@@ -222,7 +222,7 @@ _forcing_climate_pngs = [f"{FORCING_PLOTS_DIR}/{name}" for name in figure_names(
 
 # --- The shared historical-climate store (R07 B1) -----------------------------
 # ONE producer contract, built here and identically in
-# Snakefile_climate_experiment, and splatted into rule 1.04 / rule 3.08 below.
+# run_stress_test.smk, and splatted into rule 1.04 / rule 3.08 below.
 # Everything content- or execution-determining (script, the single catalog
 # input, outputs, params) comes from this object; only message/log/benchmark are
 # workflow-local. tests/test_climate_store_contract.py parses both workflows and
@@ -810,7 +810,7 @@ rule run_wflow:
         """python -u "{run_logged}" "{log}" -- {wflow_julia} -e "using Wflow; Wflow.run()" "{params.toml_path}" """
 
 # 1.04  extract_historical_climate — the SHARED historical-climate store producer
-# (R07 B1). This declaration and rule 3.08 in Snakefile_climate_experiment are
+# (R07 B1). This declaration and rule 3.08 in run_stress_test.smk are
 # the same rule: identical name, script, single catalog input, outputs and
 # params, all splatted from CLIMATE_STORE. Only message/log/benchmark are
 # workflow-local. wf1's old `climate_historical/wf1_raw/` store and its

@@ -37,7 +37,7 @@ def _dry_run(config_path):
             "all",
             "-n",
             "-s",
-            str(REPO / "Snakefile_climate_projections"),
+            str(REPO / "analyze_projections.smk"),
             "--configfile",
             str(config_path),
         ],
@@ -117,5 +117,5 @@ def test_no_shipped_config_carries_a_gridded_key():
 
 
 def test_no_rule_declares_a_grids_path():
-    text = (REPO / "Snakefile_climate_projections").read_text(encoding="utf-8")
+    text = (REPO / "analyze_projections.smk").read_text(encoding="utf-8")
     assert '"/grids/' not in text and "'/grids/" not in text

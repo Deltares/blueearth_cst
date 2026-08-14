@@ -109,7 +109,7 @@ SEED = resolve_seed(get_config(shared_cfg, "seed"), experiment)
 WATER_YEAR_START = resolve_water_year_start(get_config(shared_cfg, "water_year_start"))
 
 # The Julia invocation for rule 3.15's wflow batch, built the same way WF1
-# builds its own (Snakefile_model_creation:94-97). Until 2026-08-13 this rule
+# builds its own (build_model.smk:94-97). Until 2026-08-13 this rule
 # hardcoded the whole invocation inline -- version pin, --project and a literal
 # thread count -- so BOTH shared.julia_threads
 # and runtime.julia_version missed the WF3 batch -- RLZ_NUM x ST_NUM runs, the
@@ -194,7 +194,7 @@ basin_index = get_config(basin_cfg, "basin_index", DEFAULT_BASIN_INDEX)
 historical_window_cfg = get_config(shared_cfg, "historical_window", optional=False)
 
 # --- The shared historical-climate store (R07 B1) -----------------------------
-# ONE producer contract, built here and identically in Snakefile_model_creation,
+# ONE producer contract, built here and identically in build_model.smk,
 # and splatted into rule 3.08 / rule 1.04. The store stays a PROJECT-LEVEL,
 # dataset+window-keyed dir (design §4/§4c/§4d): two experiments sharing
 # clim_historical + historical_window resolve to the same key and reuse the
@@ -472,7 +472,7 @@ wf2_snapshot_digest = file_digest_or_absent(wf2_snapshot_path)
 # `run_wflow_batch_<b>`, one per batch. Deliberate (P3-3 keys logs by batch id),
 # and it survives renumbering — do not "fix" it.
 # The run's key folders, stated once -- see the same block in
-# Snakefile_model_creation. `experiment` is declared alongside `model` and is
+# build_model.smk. `experiment` is declared alongside `model` and is
 # the longer of the two roots under the project, which is why the token reader
 # sorts longest-first: a WF3 run writes almost everything below it.
 declare_path_tokens(
@@ -783,7 +783,7 @@ rule delineate_spatial_units:
     script: SPATIAL_UNITS.script
 
 # 3.08  extract_historical_climate — the SHARED historical-climate store producer
-# (R07 B1). This declaration and rule 1.04 in Snakefile_model_creation are the
+# (R07 B1). This declaration and rule 1.04 in build_model.smk are the
 # same rule: identical name, script, single catalog input, outputs and params,
 # all splatted from CLIMATE_STORE. Only message/log/benchmark are
 # workflow-local, and tests/test_climate_store_contract.py fails on ANY other
@@ -1209,7 +1209,7 @@ rule gather_logs:
 # --- Run journal (design §5.7) ------------------------------------------------
 #
 # Workflow-level handlers, never a rule -- see the same block in
-# Snakefile_model_creation for why, and for the scope the P0 probe established:
+# build_model.smk for why, and for the scope the P0 probe established:
 # they fire only when at least one job executed, which is what R5 was narrowed
 # to on 2026-08-13.
 #

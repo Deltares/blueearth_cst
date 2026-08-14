@@ -1,7 +1,7 @@
 # Config template for blueearth_cst.
 #
 # Copy this file, fill it in, and point Snakemake at your copy:
-#   snakemake all -c 3 -s Snakefile_model_creation --configfile <your copy>
+#   snakemake all -c 3 -s build_model.smk --configfile <your copy>
 #
 # Paths are relative to the directory you RUN from (the repo root), or absolute.
 # Commented-out keys are optional and show their default.

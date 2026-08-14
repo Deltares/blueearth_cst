@@ -325,7 +325,7 @@ def test_chirps_global_branch_requests_precip_only_from_chirps(
 def test_starttime_and_endtime_passed_to_get_rasterdataset(tmp_path, fake_era5_catalog):
     """The function MUST pass its starttime/endtime params through to hydromt.
     Note: this tests the FUNCTION's behavior, not the Snakefile rule that
-    invokes it. The rule-level bug (Snakefile_climate_experiment hardcoding
+    invokes it. The rule-level bug (run_stress_test.smk hardcoding
     dates) is separately tracked in dev/tasks/ R5 and belongs to an
     integration test, not this unit."""
     region = tmp_path / "region.geojson"

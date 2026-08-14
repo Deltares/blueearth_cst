@@ -1,8 +1,8 @@
 # Workflow: model_creation
 
-Contract for `Snakefile_model_creation` (workflow 1). Format per
+Contract for `build_model.smk` (workflow 1). Format per
 `dev/milestones/r01/modularity-contracts-design.md` §4. Records current behavior
-and is grounded in `Snakefile_model_creation`, the templates under
+and is grounded in `build_model.smk`, the templates under
 `config/templates/`, and the rule-called modules under `blueearth_cst/model/`
 and `blueearth_cst/spatial/`.
 
@@ -53,7 +53,7 @@ and `blueearth_cst/spatial/`.
 `prepare_spatial_maps` is a no-wildcard target and can be requested directly:
 
 ```powershell
-snakemake prepare_spatial_maps -c 1 -s Snakefile_model_creation --configfile <config.yml>
+snakemake prepare_spatial_maps -c 1 -s build_model.smk --configfile <config.yml>
 ```
 
 It resolves every parent feature independently, snaps configured gauge/control
@@ -192,10 +192,10 @@ exposes every artifact through HydroMT without containing Wflow configuration.
 
 ## Downstream consumers
 
-- **Workflow 2** (`Snakefile_climate_projections`) reads
+- **Workflow 2** (`analyze_projections.smk`) reads
   `staticgeoms/region.geojson` (as an `ancient(...)` input to
   `monthly_stats_hist`/`_fut`).
-- **Workflow 3** (`Snakefile_climate_experiment`) reads the built model,
+- **Workflow 3** (`run_stress_test.smk`) reads the built model,
   its `wflow_sbm.toml`, and the forcing layout.
 
 ## Outlet-naming convention (R3 §4 decision)

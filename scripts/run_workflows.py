@@ -90,9 +90,9 @@ from blueearth_cst.shared.snake_utils import (  # noqa: E402
 WORKFLOW_ORDER = ("model_creation", "climate_projections", "climate_experiment")
 
 SNAKEFILE = {
-    "model_creation": "Snakefile_model_creation",
-    "climate_projections": "Snakefile_climate_projections",
-    "climate_experiment": "Snakefile_climate_experiment",
+    "model_creation": "build_model.smk",
+    "climate_projections": "analyze_projections.smk",
+    "climate_experiment": "run_stress_test.smk",
 }
 
 PER_WORKFLOW_FLAGS = {

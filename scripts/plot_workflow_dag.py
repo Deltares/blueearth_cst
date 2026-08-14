@@ -2,7 +2,7 @@
 
 The hand-rolled one-liner everyone reaches for::
 
-    snakemake -s Snakefile_model_creation --configfile <cfg> --dag | dot -Tpng > dag_model.png
+    snakemake -s build_model.smk --configfile <cfg> --dag | dot -Tpng > dag_model.png
 
 writes ``dag_model.png`` wherever the shell happens to be -- in practice the
 repo root -- and names it after nothing in particular. The graph describes ONE
@@ -41,12 +41,12 @@ config; every ``dev/scripts/`` tool reports on the repository instead
 
 Usage (inside ``pixi shell``, or via ``pixi run``, from the repo root)::
 
-    python scripts/plot_workflow_dag.py -s Snakefile_model_creation --configfile <cfg>
-    python scripts/plot_workflow_dag.py -s Snakefile_climate_experiment --configfile <cfg> \\
+    python scripts/plot_workflow_dag.py -s build_model.smk --configfile <cfg>
+    python scripts/plot_workflow_dag.py -s run_stress_test.smk --configfile <cfg> \\
         --mode rulegraph --format svg
 
     # anything after `--` is forwarded to snakemake verbatim
-    python scripts/plot_workflow_dag.py -s Snakefile_climate_projections --configfile <cfg> \\
+    python scripts/plot_workflow_dag.py -s analyze_projections.smk --configfile <cfg> \\
         -- --config foo=bar
 
 Not a Snakemake rule and deliberately so: a rule that renders the DAG would sit
@@ -79,9 +79,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 # convention for per-workflow artifacts; keep this in step with the merged-log
 # names in blueearth_cst/shared/merge_logs.py (logs/wf1_model_creation.log ...).
 WORKFLOW_NUMBER = {
-    "Snakefile_model_creation": 1,
-    "Snakefile_climate_projections": 2,
-    "Snakefile_climate_experiment": 3,
+    "build_model.smk": 1,
+    "analyze_projections.smk": 2,
+    "run_stress_test.smk": 3,
 }
 
 # Where under project_dir the graph lands. One directory for all three
@@ -239,7 +239,7 @@ def main() -> int:
         "--snakefile",
         type=Path,
         required=True,
-        help="the Snakefile to graph (e.g. Snakefile_model_creation)",
+        help="the Snakefile to graph (e.g. build_model.smk)",
     )
     parser.add_argument(
         "--configfile",

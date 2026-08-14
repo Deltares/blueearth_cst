@@ -31,11 +31,11 @@ levels as dependency depth, never as "these run together and nothing else does".
 
 Usage (from the repo root, inside pixi)::
 
-    python dev/scripts/rule_dag_levels.py -s Snakefile_climate_projections \\
+    python dev/scripts/rule_dag_levels.py -s analyze_projections.smk \\
         --configfile test_case/snake_config_baseline.yml
 
     # anything after `--` is forwarded to snakemake verbatim
-    python dev/scripts/rule_dag_levels.py -s Snakefile_model_creation \\
+    python dev/scripts/rule_dag_levels.py -s build_model.smk \\
         --configfile <cfg> -- --config project_dir=/tmp/probe
 
 Not part of a run: this inspects a workflow, it never executes one
@@ -216,7 +216,7 @@ def main() -> None:
         "--snakefile",
         type=Path,
         required=True,
-        help="the Snakefile to inspect (e.g. Snakefile_climate_projections)",
+        help="the Snakefile to inspect (e.g. analyze_projections.smk)",
     )
     parser.add_argument(
         "--configfile",

@@ -32,7 +32,7 @@ from pathlib import Path
 
 import pytest
 
-SNAKEFILE = Path(__file__).resolve().parents[1] / "Snakefile_model_creation"
+SNAKEFILE = Path(__file__).resolve().parents[1] / "build_model.smk"
 
 #: The sentinel, and the rule that must own it: the LAST writer of the model
 #: root. Both are asserted, because the sentinel is only meaningful while it is

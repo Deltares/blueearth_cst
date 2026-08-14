@@ -6,7 +6,7 @@ instead of the two fixed tables (``q_indicators.csv`` + ``basin_indicators.csv``
 that preceded it. The set is therefore config-dependent, and four places need to
 agree on it before any of them can run:
 
-- ``Snakefile_climate_experiment`` — ``WF3_TARGETS`` and rule 3.16's ``output:``,
+- ``run_stress_test.smk`` — ``WF3_TARGETS`` and rule 3.16's ``output:``,
   at DAG-construction time;
 - ``blueearth_cst/experiment/export_wflow_results.py`` — what it writes, and the
   ``variable`` half of each composite ``metric``;

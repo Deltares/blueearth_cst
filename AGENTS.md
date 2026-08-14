@@ -183,9 +183,9 @@ pixi run install      # + weathergenr (R, via remotes) and Julia env (Pkg.instan
 # Run the three workflows IN ORDER (climate_experiment needs model_creation
 # artifacts). snake_config_rapid.yml is the DEFAULT config; swap in
 # snake_config_baseline.yml only for the runs listed under Workflow:
-snakemake all -c 3 -s Snakefile_model_creation      --configfile test_case/snake_config_rapid.yml
-snakemake all -c 3 -s Snakefile_climate_projections --configfile test_case/snake_config_rapid.yml --keep-going
-snakemake all -c 3 -s Snakefile_climate_experiment  --configfile test_case/snake_config_rapid.yml
+snakemake all -c 3 -s build_model.smk      --configfile test_case/snake_config_rapid.yml
+snakemake all -c 3 -s analyze_projections.smk --configfile test_case/snake_config_rapid.yml --keep-going
+snakemake all -c 3 -s run_stress_test.smk  --configfile test_case/snake_config_rapid.yml
 
 # Or drive all enabled workflows through the wrapper:
 pixi run python scripts/run_workflows.py --config test_case/snake_config_rapid.yml
@@ -193,7 +193,7 @@ pixi run python scripts/run_workflows.py --config test_case/snake_config_rapid.y
 # Render a workflow's DAG into the config's own project_dir (never into the repo
 # root): logs/dag/<project_name>_wf<N>_dag.png, with wf3 carrying its experiment
 # id in the name — logs/dag/<project_name>_wf3_<experiment>_dag.png:
-pixi run python scripts/plot_workflow_dag.py -s Snakefile_model_creation --configfile <cfg>
+pixi run python scripts/plot_workflow_dag.py -s build_model.smk --configfile <cfg>
 
 # Snapshot a project tree as a path list and check that it holds nothing
 # undeclared (add --out to record it; nothing is written otherwise). It checks
@@ -343,7 +343,7 @@ pinned by `tests/test_run_workflows.py`.
 - Each Snakefile takes the `--configfile` path from `workflow.configfiles[0]` and
   forwards it as `config_path` to downstream R scripts — keep that forwarding even
   though the Snakefile itself reads the parsed `config`.
-- `Snakefile_climate_projections` no longer carries a `ruleorder:`. It was retained
+- `analyze_projections.smk` no longer carries a `ruleorder:`. It was retained
   as stale insurance — a 2026-07 dry-run on the pinned Snakemake showed it
   constrained nothing on the tests fixture or a reduced config — with removal
   deferred to a task that first encoded ambiguity-sensitive config shapes as

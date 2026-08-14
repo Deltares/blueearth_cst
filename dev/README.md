@@ -73,7 +73,7 @@ deleting one breaks provenance silently and no test fails.
 
 This is not hypothetical. On 2026-08-02, 27 files were promoted out of
 `working/` — eighteen to `milestones/r08/` alone — and eight of them were cited
-by shipped modules, `Snakefile_climate_projections`, and `pixi.toml`.
+by shipped modules, `analyze_projections.smk`, and `pixi.toml`.
 
 Never let `working/` or `tmp/` hold the only copy of a primary source: `tmp/`
 is gitignored and one `git clean -fdX` from gone.

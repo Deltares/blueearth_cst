@@ -11,7 +11,7 @@
 
 ## Scope and method
 
-The **weather-generator seam** is the point in `Snakefile_climate_experiment`
+The **weather-generator seam** is the point in `run_stress_test.smk`
 (wf3) where the stochastic weather generator could be swapped for an alternative
 without re-architecting the rest of the pipeline. `weathergenr` (R) is the
 current occupant, but **this contract is generator-agnostic**: it pins what wf3
@@ -57,8 +57,8 @@ per artifact (a literal 14-column table is illegible).
   `<key> = <clim_source>_<startYYYYMMDD>_<endYYYYMMDD>` (P3-1 keyed store).
 - **producer:** rule `extract_historical_climate`
   (`blueearth_cst/climate_analysis/extract_historical_climate.py`) — ONE rule,
-  declared identically in `Snakefile_climate_experiment` (3.08) and
-  `Snakefile_model_creation` (1.04) from `snake_utils.climate_store_rule`
+  declared identically in `run_stress_test.smk` (3.08) and
+  `build_model.smk` (1.04) from `snake_utils.climate_store_rule`
   (R07 B1). Its inputs are the data catalog and the project region artifact
   `spatial/geoms/region.geojson`; the extent is still model-free, but it is
   delineated once per project by rule `delineate_region` (ADR 0003) rather
@@ -302,7 +302,7 @@ A drop-in generator (design §5.6) must:
   EPSG:4326 raster with ≥ `precip`, `temp` and `crs=4326` / `category=meteo`, so
   the hydromt catalog (WG-5) loads it via `raster_xarray` + `harmonise_dims`.
 - **Repo files it replaces:** rules 3.10–3.12 `shell:` / `script:` targets in
-  `Snakefile_climate_experiment` (the two `Rscript --vanilla` bodies pointing at
+  `run_stress_test.smk` (the two `Rscript --vanilla` bodies pointing at
   `weathergen/*.R`, plus the two config-prep scripts if the WG-3 config surface
   changes).
 - **Files it must NOT change (the pinned boundaries):** rule 3.08 (WG-1
@@ -338,7 +338,7 @@ executes on **every** checkout, fixture or not.
 WG-5 entry-key set against the **intended** grid: expected keys exactly
 `{rlz_<n>_st_<m> : n ∈ 1..rlz_num, m ∈ 0..st_num}` (**st_0 included** — rule
 3.13 consumes both the st_0 list and the perturbed `expand` grid,
-`Snakefile_climate_experiment:318-319`). Missing and unexpected keys are each
+`run_stress_test.smk:318-319`). Missing and unexpected keys are each
 reported. The intended grid is derived from the run's *recorded* P3-1 config
 snapshot (`<exp>/config/snake_config_climate_experiment.yml`) via the same
 `stress_test_grid` helper the Snakefile uses (`shared/snake_utils.py:336`), so
@@ -373,7 +373,7 @@ artifact paths are actually needed (`rlz_1_st_1`), so naming them as targets is
 enough and avoids re-running the batches that are already up to date:
 
 ```bash
-snakemake -c 3 -s Snakefile_climate_experiment \
+snakemake -c 3 -s run_stress_test.smk \
   --configfile config/workflows/snake_config_model_test.yml --notemp \
   test_case/test_local/experiments/experiment/climate/weathergenr/output/rlz_1_st_1.nc \
   test_case/test_local/experiments/experiment/hydrology/wflow/forcing/inmaps_rlz_1_st_1.nc \
@@ -388,7 +388,7 @@ twelve 3.12 jobs plus `run_wflow_batch_0`; there is no cheaper single-cst path.
 model exists — wf3 needs `models/hydrology/wflow/` artifacts):
 
 ```bash
-snakemake all -c 3 -s Snakefile_climate_experiment \
+snakemake all -c 3 -s run_stress_test.smk \
   --configfile config/workflows/snake_config_model_test.yml --notemp
 ```
 

@@ -643,7 +643,7 @@ def validate_experiment_name(name: str, project_dir) -> str:
 
     Centralized slug validation for the wf3 experiment subtree
     (dev/milestones/p31/experiment-structure-design.md §2b). Called once at
-    ``Snakefile_climate_experiment`` parse time, BEFORE ``exp_dir`` (and every
+    ``run_stress_test.smk`` parse time, BEFORE ``exp_dir`` (and every
     derived output/params path) is built, so all paths are constructed only from
     a vetted value. Parse-time is correct here: a malformed name makes the entire
     DAG ill-defined, so failing under ``--dry-run`` is the intended behavior
@@ -1112,7 +1112,7 @@ def historical_window_bounds(historical_window):
 def validate_historical_window(historical_window) -> int:
     """Reject a ``shared.historical_window`` shorter than ``MIN_HISTORICAL_YEARS``.
 
-    Called at ``Snakefile_model_creation`` parse time, so a window that cannot
+    Called at ``build_model.smk`` parse time, so a window that cannot
     support a full CST run is rejected BEFORE any rule executes — the same
     parse-time stance as ``clim_historical: eobs`` and
     ``validate_experiment_name``, and for the same reason: no execution can
@@ -1596,8 +1596,8 @@ def climate_store_rule(
     """Build the one producer contract for ``data/climate/historical/<key>/``
     (R07 B1).
 
-    ONE rule definition, declared in **both** ``Snakefile_model_creation``
-    (rule 1.10) and ``Snakefile_climate_experiment`` (rule 3.02), over the
+    ONE rule definition, declared in **both** ``build_model.smk``
+    (rule 1.10) and ``run_stress_test.smk`` (rule 3.02), over the
     model-independent region specification + data catalog. wf1's `wf1_raw/`
     store and its `staticmaps.nc`-derived bbox are retired: the extent is now a
     pure function of ``shared.basin`` + the catalog, so a climate-only run needs
@@ -1777,7 +1777,7 @@ def stress_test_grid(stress_test_cfg: Mapping) -> tuple[int, int, int]:
     """Return ``(temp_step_count, precip_step_count, st_num)`` for a stress_test cfg.
 
     Single source of truth for the stress-test grid arithmetic, which was
-    previously derived twice (inline in ``Snakefile_climate_experiment`` and in
+    previously derived twice (inline in ``run_stress_test.smk`` and in
     ``blueearth_cst/experiment/prepare_cst_parameters.py``). Both call sites now read this helper.
 
     STRICT: ``temp.step_num`` and ``precip.step_num`` are REQUIRED — a missing
@@ -1894,7 +1894,7 @@ def member_index_regex(width: int) -> str:
     1. **Bar the reserved baseline.** ``st_0`` (``st_00`` at width 2) is written
        by ``generate_weather_realizations``; rule 3.12 must never become a
        second producer of it, which surfaces as a ``CyclicGraphException``
-       (``Snakefile_climate_experiment``, rule 3.12's own comment).
+       (``run_stress_test.smk``, rule 3.12's own comment).
     2. **Reject an UNPADDED name outright.** At width 2, ``st_1`` fails to match
        and Snakemake raises ``MissingRuleException`` rather than routing it.
        A lax pattern would accept both spellings, so a producer that forgot to

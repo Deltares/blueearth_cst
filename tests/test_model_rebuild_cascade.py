@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 
 SNAKEDIR = Path(__file__).resolve().parents[1]
-SNAKEFILE = SNAKEDIR / "Snakefile_model_creation"
+SNAKEFILE = SNAKEDIR / "build_model.smk"
 CFG = SNAKEDIR / "test_case" / "snake_config_baseline.yml"
 
 

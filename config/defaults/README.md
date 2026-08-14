@@ -6,9 +6,9 @@ your own edited copy elsewhere).
 
 | File | Consumer |
 | --- | --- |
-| `wflow_build_model.yml` | `Snakefile_model_creation` — default for `workflows.model_creation.model_build_config`; rule 1.06 `prepare_spatial_maps` and rule 1.07 `build_wflow_model` |
-| `wflow_update_waterbodies.yml` | `Snakefile_model_creation` — default for `waterbodies_config`; rule 1.08 `add_reservoirs_lakes_glaciers` |
-| `weathergen_config.yml` | `Snakefile_climate_experiment` — `default_config` for rule 3.10 `prepare_weathergen_config`, declared as BOTH an `input:` and a `params:` |
+| `wflow_build_model.yml` | `build_model.smk` — default for `workflows.model_creation.model_build_config`; rule 1.06 `prepare_spatial_maps` and rule 1.07 `build_wflow_model` |
+| `wflow_update_waterbodies.yml` | `build_model.smk` — default for `waterbodies_config`; rule 1.08 `add_reservoirs_lakes_glaciers` |
+| `weathergen_config.yml` | `run_stress_test.smk` — `default_config` for rule 3.10 `prepare_weathergen_config`, declared as BOTH an `input:` and a `params:` |
 
 `weathergen_config.yml` carries the `input:` declaration for a reason: it was a
 params-only read until 2026-08-05, so editing it changed nothing until something

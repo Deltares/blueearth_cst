@@ -125,7 +125,7 @@ def test_e_missing_wf1_snapshot_fails_with_run_first_message(tmp_path):
     diffs = compare_project_consistency(copy.deepcopy(_BASE_CFG), missing)
     assert diffs
     assert any(
-        "run Snakefile_model_creation first" in d.lower()
+        "run build_model.smk first" in d.lower()
         or "run snakefile_model_creation first" in d.lower()
         for d in diffs
     )

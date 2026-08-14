@@ -1226,7 +1226,7 @@ def validate_wg5_catalog_grid(
 
     Expected entry keys exactly ``{rlz_<n>_st_<m> : n in 1..rlz_num,
     m in 0..st_num}`` — **st_0 included** (rule 3.08 consumes both the st_0
-    list and the perturbed ``expand`` grid, ``Snakefile_climate_experiment:318-319``).
+    list and the perturbed ``expand`` grid, ``run_stress_test.smk:318-319``).
     Both missing AND unexpected keys are reported. A dropped or extra catalog
     entry is invisible to per-artifact ``validate_wg5`` (each remaining entry is
     well-formed) but breaks the realization x cst fan-out rule 3.09 depends on.

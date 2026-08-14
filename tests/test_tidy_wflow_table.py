@@ -170,7 +170,7 @@ def test_a_subcatchment_coded_variable_gets_its_own_table(tmp_path):
     `write_tidy_tables` wrote and pruned `output_gwr.csv` behind Snakemake's
     back.
 
-    The filename here is what `Snakefile_model_creation`'s WFLOW_TABLE_PATHS
+    The filename here is what `build_model.smk`'s WFLOW_TABLE_PATHS
     reconstructs from `wflow_outvars` + `wflow_outputs.CODES`. If this name
     changes, that derivation must change with it or the rule fails on a
     missing declared output.

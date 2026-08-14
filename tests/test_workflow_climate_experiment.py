@@ -1,7 +1,7 @@
 """End-to-end smoke test for the climate-experiment workflow (workflow 3).
 
 Like the workflow 1 and 2 smoke tests, this actually runs ``snakemake all`` to
-completion — here on ``Snakefile_climate_experiment``: it extracts historical
+completion — here on ``run_stress_test.smk``: it extracts historical
 climate for the basin, generates stochastic weather realizations (weathergenr,
 R), perturbs them across the stress-test grid, runs Wflow.jl for every
 realization x stress-test combination, and reduces the runs to the Qstats/basin
@@ -100,7 +100,7 @@ def test_climate_experiment_end_to_end():
 
     os.chdir(SNAKEDIR)
     cmd = (
-        f"snakemake all -c 1 -s Snakefile_climate_experiment "
+        f"snakemake all -c 1 -s run_stress_test.smk "
         f"--configfile {CONFIG} --forceall"
     )
     result = subprocess.run(cmd, shell=True, capture_output=True, text=True)

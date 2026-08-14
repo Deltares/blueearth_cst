@@ -76,7 +76,7 @@ def config_with_staged_region(tmp_path):
 @pytest.mark.workflow_contract
 def test_snakefile_cli_model_creation():
     """Workflow 1 dry-run builds a clean DAG on the test config."""
-    result = _dry_run("Snakefile_model_creation")
+    result = _dry_run("build_model.smk")
     assert result.returncode == 0, (result.stdout or "") + (result.stderr or "")
 
 
@@ -91,7 +91,7 @@ def test_snakefile_cli_model_creation_linux_config():
     config-declared path, so a dangling `gauge_points` would surface here.
     Runs on both CI legs.
     """
-    result = _dry_run("Snakefile_model_creation", cfg=linux_config_fn)
+    result = _dry_run("build_model.smk", cfg=linux_config_fn)
     assert result.returncode == 0, (result.stdout or "") + (result.stderr or "")
 
 
@@ -114,7 +114,7 @@ def test_in_repo_project_dir_warning_reaches_the_stream(tmp_path):
         cfg_path = tmp_path / "snake_config_in_repo.yml"
         cfg_path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
 
-        result = _dry_run("Snakefile_model_creation", cfg=str(cfg_path))
+        result = _dry_run("build_model.smk", cfg=str(cfg_path))
         combined = (result.stdout or "") + (result.stderr or "")
         assert "inside the repository tree" in combined, combined[-3000:]
         assert result.returncode == 0, combined[-3000:]
@@ -137,7 +137,7 @@ def test_baseline_seed_config_does_not_warn():
     convenient in-repo scratch dir.
     """
     seed_cfg = join(SNAKEDIR, "test_case", "snake_config_baseline.yml")
-    result = _dry_run("Snakefile_model_creation", cfg=seed_cfg)
+    result = _dry_run("build_model.smk", cfg=seed_cfg)
     combined = (result.stdout or "") + (result.stderr or "")
     assert "inside the repository tree" not in combined, combined[-3000:]
 
@@ -240,7 +240,7 @@ def test_eobs_config_fails_wf1_dry_run_at_parse_time(tmp_path):
     cfg_path = tmp_path / "snake_config_eobs.yml"
     cfg_path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
 
-    result = _dry_run("Snakefile_model_creation", cfg=str(cfg_path))
+    result = _dry_run("build_model.smk", cfg=str(cfg_path))
     combined = (result.stdout or "") + (result.stderr or "")
     assert result.returncode != 0, "eobs config must fail the wf1 dry-run"
     assert (
@@ -278,7 +278,7 @@ def test_short_window_fails_wf1_dry_run_at_parse_time(tmp_path, endtime, label):
     cfg_path = tmp_path / f"snake_config_{label}.yml"
     cfg_path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
 
-    result = _dry_run("Snakefile_model_creation", cfg=str(cfg_path))
+    result = _dry_run("build_model.smk", cfg=str(cfg_path))
     combined = (result.stdout or "") + (result.stderr or "")
     assert result.returncode != 0, f"{label} window must fail the wf1 dry-run"
     assert "16-year minimum" in combined, combined[-3000:]
@@ -296,7 +296,7 @@ def test_snakefile_cli_climate_projections(config_with_staged_region):
     weakening the contract; workflow 2's Snakefile is untouched (R4 territory).
     Was a MissingInputException ratchet pre-R3 (dev/tasks/).
     """
-    result = _dry_run("Snakefile_climate_projections", cfg=config_with_staged_region)
+    result = _dry_run("analyze_projections.smk", cfg=config_with_staged_region)
     assert result.returncode == 0, (result.stdout or "") + (result.stderr or "")
 
 
@@ -304,7 +304,7 @@ def test_climate_projections_owns_its_region():
     """Pin WF2's region contract to what it actually is.
 
     This guard used to assert that `staticgeoms/region.geojson` appears in
-    Snakefile_climate_projections, standing in for a wf1 -> wf2 cross-workflow
+    analyze_projections.smk, standing in for a wf1 -> wf2 cross-workflow
     input. That input is gone: since ADR 0003 the extent is model-free and WF2
     delineates its OWN `data/spatial/geoms/region.geojson`. The literal string
     still occurred in the file — in a comment recording that WF2 was *freed*
@@ -314,7 +314,7 @@ def test_climate_projections_owns_its_region():
     What is worth pinning is the current shape: WF2 produces the model-free
     region, and reads nothing from the wf1 model root.
     """
-    text = Path(SNAKEDIR, "Snakefile_climate_projections").read_text()
+    text = Path(SNAKEDIR, "analyze_projections.smk").read_text()
     assert "data/spatial/geoms/region.geojson" not in text, (
         "the region path belongs in snake_utils.region_rule, not inline here"
     )
@@ -339,5 +339,5 @@ def test_snakefile_cli_climate_experiment(config_with_staged_region):
     unbuilt cross-workflow leaf). Was a CyclicGraphException ratchet pre-R5
     (dev/tasks/ § R3).
     """
-    result = _dry_run("Snakefile_climate_experiment", cfg=config_with_staged_region)
+    result = _dry_run("run_stress_test.smk", cfg=config_with_staged_region)
     assert result.returncode == 0, (result.stdout or "") + (result.stderr or "")

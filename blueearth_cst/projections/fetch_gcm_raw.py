@@ -27,7 +27,7 @@ Contract with the reduce stage:
 * the reduce job refuses a slice whose digest, schema, variables, time axis or
   recorded window disagree with what it expects.
 
-Invoked from ``Snakefile_climate_projections`` via ``script:``; reads
+Invoked from ``analyze_projections.smk`` via ``script:``; reads
 ``snakemake.input/output/params``, never ``sys.argv``.
 """
 # NOTE: no `from __future__ import annotations` here. Snakemake's `script:`

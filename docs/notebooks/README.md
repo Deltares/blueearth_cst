@@ -6,9 +6,9 @@ graph, runs it, and then *reads* the results rather than only displaying them.
 
 | # | Notebook | Workflow | What it covers |
 |---|---|---|---|
-| 1 | [Model building](<Model building.ipynb>) | `Snakefile_model_creation` | Delineates the basin, extracts a historical climate store, builds and forces a Wflow-SBM model with hydromt, runs it once, and evaluates it against observed discharge. |
-| 2 | [Climate projections](<Climate projections.ipynb>) | `Snakefile_climate_projections` | Fetches CMIP6 slices for the basin and derives monthly and annual change factors per model, scenario and horizon — the plausibility overlay, not a driver of the stress test. |
-| 3 | [Climate stress test](<Climate Stress Test.ipynb>) | `Snakefile_climate_experiment` | Generates stochastic weather realizations, perturbs them across a temperature × precipitation grid, runs Wflow for every combination, and reduces the result to a response surface. |
+| 1 | [Model building](<Model building.ipynb>) | `build_model.smk` | Delineates the basin, extracts a historical climate store, builds and forces a Wflow-SBM model with hydromt, runs it once, and evaluates it against observed discharge. |
+| 2 | [Climate projections](<Climate projections.ipynb>) | `analyze_projections.smk` | Fetches CMIP6 slices for the basin and derives monthly and annual change factors per model, scenario and horizon — the plausibility overlay, not a driver of the stress test. |
+| 3 | [Climate stress test](<Climate Stress Test.ipynb>) | `run_stress_test.smk` | Generates stochastic weather realizations, perturbs them across a temperature × precipitation grid, runs Wflow for every combination, and reduces the result to a response surface. |
 
 Run them in order. Notebook 3 does not rebuild the model — it binds to the one
 notebook 1 left behind, and refuses to run against a stale build.

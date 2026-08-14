@@ -95,7 +95,7 @@ def test_no_snakefile_hardcodes_a_julia_version():
         for path in REPO.glob("Snakefile_*")
         if re.search(r"julia \+\d+\.\d+\.\d+", path.read_text(encoding="utf-8"))
     }
-    # Empty since 2026-08-13. Snakefile_climate_experiment was the one tolerated
+    # Empty since 2026-08-13. run_stress_test.smk was the one tolerated
     # offender -- the same hardcode WF1 had, deferred to the WF3 pass -- and it
     # now uses julia_prefix like every other Julia call. The allowance is
     # REMOVED rather than left permissive: it was listed so that adopting

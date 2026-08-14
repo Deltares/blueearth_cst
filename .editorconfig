@@ -26,7 +26,7 @@ indent_size = 4
 trim_trailing_whitespace = true
 insert_final_newline = true
 
-# Snakefiles are extensionless (Snakefile_model_creation, ...) and are Python.
+# Snakefiles are extensionless (build_model.smk, ...) and are Python.
 [{*.py,Snakefile*,*.smk}]
 indent_size = 4
 max_line_length = 88

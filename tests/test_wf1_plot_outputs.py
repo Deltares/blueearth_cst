@@ -112,7 +112,7 @@ def test_delete_all_output_removes_the_declared_plot_outputs(fabricated_project)
 
     result = subprocess.run(
         "snakemake all --delete-all-output --workflow-profile none -c 1 "
-        f'-s Snakefile_model_creation --configfile "{cfg_path}"',
+        f'-s build_model.smk --configfile "{cfg_path}"',
         shell=True,
         capture_output=True,
         text=True,
@@ -175,7 +175,7 @@ def test_delete_all_output_removes_a_basavg_figure(project_with_basavg_outvar):
 
     result = subprocess.run(
         "snakemake all --delete-all-output --workflow-profile none -c 1 "
-        f'-s Snakefile_model_creation --configfile "{cfg_path}"',
+        f'-s build_model.smk --configfile "{cfg_path}"',
         shell=True,
         capture_output=True,
         text=True,
@@ -200,7 +200,7 @@ def test_river_discharge_alone_derives_no_basavg_figure():
     the basin-average setup), and 'precipitation' gets one that plot_results
     drops before plotting — so neither may contribute a declared output.
     """
-    source = (SNAKEDIR / "Snakefile_model_creation").read_text(encoding="utf-8")
+    source = (SNAKEDIR / "build_model.smk").read_text(encoding="utf-8")
     # Read the derivation out of the Snakefile rather than restating it here,
     # so a change to the exclusion tuple is caught instead of duplicated.
     namespace = {}

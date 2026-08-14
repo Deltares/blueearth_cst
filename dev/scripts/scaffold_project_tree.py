@@ -53,9 +53,9 @@ DEFAULT_EXTRAS = Path(__file__).resolve().parent / "scaffold_extras.yml"
 DEFAULT_OUT = REPO_ROOT / ".tmp/scaffold"
 
 SNAKEFILES = {
-    1: "Snakefile_model_creation",
-    2: "Snakefile_climate_projections",
-    3: "Snakefile_climate_experiment",
+    1: "build_model.smk",
+    2: "analyze_projections.smk",
+    3: "run_stress_test.smk",
 }
 
 _LOG_PLACEHOLDER = """\

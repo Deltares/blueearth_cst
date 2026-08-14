@@ -41,9 +41,9 @@ def _write_r01_cfg(path, project_dir, experiment=None):
 @pytest.mark.parametrize(
     "snakefile, number",
     [
-        ("Snakefile_model_creation", 1),
-        ("Snakefile_climate_projections", 2),
-        ("Snakefile_climate_experiment", 3),
+        ("build_model.smk", 1),
+        ("analyze_projections.smk", 2),
+        ("run_stress_test.smk", 3),
     ],
 )
 def test_workflow_number_covers_all_three(snakefile, number):
@@ -51,13 +51,13 @@ def test_workflow_number_covers_all_three(snakefile, number):
 
 
 def test_workflow_number_is_by_basename_not_full_path():
-    assert pwd.workflow_number(pwd.Path("/some/repo/Snakefile_model_creation")) == 1
+    assert pwd.workflow_number(pwd.Path("/some/repo/build_model.smk")) == 1
 
 
 def test_unknown_snakefile_names_the_valid_ones():
     with pytest.raises(pwd.DagPlotError) as excinfo:
         pwd.workflow_number(pwd.Path("Snakefile_nope"))
-    assert "Snakefile_model_creation" in str(excinfo.value)
+    assert "build_model.smk" in str(excinfo.value)
 
 
 # --- project_dir / project_name derivation ---------------------------------
@@ -154,7 +154,7 @@ def test_output_lands_in_logs_dag_named_project_wfN(tmp_path, monkeypatch, capsy
         [
             "plot_workflow_dag.py",
             "-s",
-            "Snakefile_model_creation",
+            "build_model.smk",
             "--configfile",
             str(cfg),
         ],
@@ -192,7 +192,7 @@ def test_rulegraph_mode_and_format_reach_the_filename(tmp_path, monkeypatch):
         [
             "plot_workflow_dag.py",
             "-s",
-            "Snakefile_climate_experiment",
+            "run_stress_test.smk",
             "--configfile",
             str(cfg),
             "--mode",
@@ -223,7 +223,7 @@ def test_snakemake_failure_surfaces_its_stderr(monkeypatch):
     )
     with pytest.raises(pwd.DagPlotError, match="MissingInputException"):
         pwd.build_graph(
-            "dag", pwd.Path("Snakefile_model_creation"), pwd.Path("cfg.yml"), "all", []
+            "dag", pwd.Path("build_model.smk"), pwd.Path("cfg.yml"), "all", []
         )
 
 

@@ -213,8 +213,8 @@ MAX_FLAGGED_MONTHS = _relative_cfg.get(
 # working once repointed at the new root.
 clim_project_dir = f"{project_dir}/data/climate/projections/{clim_project}"
 
-# ONE producer contract, built here and identically in Snakefile_model_creation
-# and Snakefile_climate_experiment, and splatted into rule 1.02 / 2.02 / 3.03.
+# ONE producer contract, built here and identically in build_model.smk
+# and run_stress_test.smk, and splatted into rule 1.02 / 2.02 / 3.03.
 # Everything content- or execution-determining comes from this object; only
 # message/log/benchmark are workflow-local. tests/test_region_rule.py parses all
 # three workflows and fails on ANY other difference.
@@ -630,7 +630,7 @@ WORKFLOW_LOG_NAME = "wf2_climate_projections.log"
 LOG_PARTS_DIR = f"{project_dir}/logs/_parts"
 
 # The run's key folders, stated once -- see the same block in
-# Snakefile_model_creation. `data` is the DELTARES catalog's root, not the CMIP6
+# build_model.smk. `data` is the DELTARES catalog's root, not the CMIP6
 # one: `data_sources_climate` points at a `gs://` store, which has no local
 # prefix to shorten. No `model` row -- WF2 builds none.
 declare_path_tokens(
@@ -897,7 +897,7 @@ rule derive_change_factors:
         # S8-05: the three wide `annual_change_scalar_stats_summary*` files are
         # GONE. The tidy tables below supersede them -- same numbers, long format,
         # per-row provenance, plus the future level the wide form never carried.
-        # Verified before removal: Snakefile_climate_experiment and
+        # Verified before removal: run_stress_test.smk and
         # blueearth_cst/experiment/ referenced them zero times, and rule 2.07
         # declared the `.nc` as an input it never opened. The `.nc` survives as a
         # job-internal intermediate, because the tidy reshape reads it back.
@@ -1115,7 +1115,7 @@ rule gather_benchmarks:
 # Workflow-level handlers, never a rule: a rule that is up to date does not
 # execute, and a rule DECLARING the journal would have it deleted before the
 # job ran, truncating the ledger to one line every run. See the same block in
-# Snakefile_model_creation for the scope the P0 probe established -- these fire
+# build_model.smk for the scope the P0 probe established -- these fire
 # only when at least one job executed, which is what R5 was narrowed to.
 JOURNAL_PATH = f"{project_dir}/config/runs/journal.jsonl"
 INVOCATION_ID = uuid.uuid4().hex

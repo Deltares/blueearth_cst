@@ -11,8 +11,8 @@
 
 ## Scope and method
 
-The **hydrological-model seam** spans `Snakefile_model_creation` (wf1 build) and
-`Snakefile_climate_experiment` (wf3 run) — the point where the hydrological
+The **hydrological-model seam** spans `build_model.smk` (wf1 build) and
+`run_stress_test.smk` (wf3 run) — the point where the hydrological
 engine could be swapped without re-architecting the pipeline. Wflow-SBM (built by
 hydromt) is the current occupant, but **this contract is model-agnostic**: it
 pins what the pipeline hands *in* (forcing + static grid + run config) and
@@ -525,7 +525,7 @@ a contracts-only milestone. The procedure below is the one-command lift a
 model exists — wf3 needs `models/hydrology/wflow/` artifacts):
 
 ```bash
-snakemake all -c 3 -s Snakefile_climate_experiment \
+snakemake all -c 3 -s run_stress_test.smk \
   --configfile config/workflows/snake_config_model_test.yml --notemp
 ```
 

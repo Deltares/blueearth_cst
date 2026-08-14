@@ -229,7 +229,7 @@ def _snakemake(args, cfg_path):
     """Invoke snakemake on wf1 with the repo workflow profile disabled."""
     cmd = (
         f"snakemake {args} --workflow-profile none -c 1 "
-        f'-s Snakefile_model_creation --configfile "{cfg_path}"'
+        f'-s build_model.smk --configfile "{cfg_path}"'
     )
     return subprocess.run(
         cmd, shell=True, capture_output=True, text=True, cwd=str(SNAKEDIR)

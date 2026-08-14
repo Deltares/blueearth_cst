@@ -2,7 +2,7 @@
 
 Pure unit tests -- no snakemake invocation, no project tree, so they run on a
 bare checkout in CI. The DOT fixtures below are verbatim excerpts of what
-snakemake 9.6.2 emitted for `Snakefile_climate_projections` on 2026-07-31.
+snakemake 9.6.2 emitted for `analyze_projections.smk` on 2026-07-31.
 """
 
 from __future__ import annotations

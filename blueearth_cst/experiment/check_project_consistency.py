@@ -155,7 +155,7 @@ def compare_project_consistency(
     directly on staged config/snapshot pairs.
 
     - The wf1 snapshot is MANDATORY: when missing, a single "run
-      Snakefile_model_creation first" message is returned (the friendlier
+      build_model.smk first" message is returned (the friendlier
       duplicate of the rule-level ``MissingInputException``, design §3b).
     - ``project``, ``shared.basin``, ``workflows.model_creation`` are compared
       against the wf1 snapshot.
@@ -166,7 +166,7 @@ def compare_project_consistency(
     wf1_path = Path(wf1_snapshot_path)
     if not wf1_path.is_file():
         return [
-            f"No project snapshot at {wf1_path}; run Snakefile_model_creation first."
+            f"No project snapshot at {wf1_path}; run build_model.smk first."
         ]
     wf1_snapshot = yaml.safe_load(wf1_path.read_text(encoding="utf-8"))
 

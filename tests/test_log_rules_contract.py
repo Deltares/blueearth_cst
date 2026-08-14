@@ -45,9 +45,9 @@ CONFIG_FN = Path(__file__).resolve().parent / "snake_config_fixture.yml"
 
 #: Every entry point, with the module-level list naming its log sections.
 WORKFLOWS = [
-    "Snakefile_model_creation",
-    "Snakefile_climate_projections",
-    "Snakefile_climate_experiment",
+    "build_model.smk",
+    "analyze_projections.smk",
+    "run_stress_test.smk",
 ]
 
 #: The directory every per-rule log part lives under, in all three workflows.
@@ -191,7 +191,7 @@ def test_declared_labels_read_in_rule_number_order(snakefile):
 
     Deferred until `[R10-5]` and added with it, which is the whole point of the
     delay. Before the renumber this file's own note recorded why it could not be
-    asserted: `Snakefile_climate_projections` said "Order is by RULE NUMBER"
+    asserted: `analyze_projections.smk` said "Order is by RULE NUMBER"
     while its list opened ``2.03b``, ``2.01``, ``2.02`` — correct by EXECUTION
     order, wrong by number. Which of the two the list should follow was a ruling
     nobody had made, and asserting either would have encoded a convention by

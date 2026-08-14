@@ -285,7 +285,7 @@ guides (function lengths, comment conventions).
 
 ### R3 — Workflow 1: model builder (sealed 2026-07-19)
 
-**Status.** Sealed 2026-07-19 — `Snakefile_model_creation` + its scripts
+**Status.** Sealed 2026-07-19 — `build_model.smk` + its scripts
 cleaned up: shared `get_config` and `tee_to_log` in `src/snake_utils.py`
 (the cross-cutting patterns R4/R5 inherit), per-rule `log:`/`benchmark:` on
 every non-trivial rule, deprecated path labels renamed, `setup_gauges` hardened
@@ -301,7 +301,7 @@ baseline move); the workflow-3 `CyclicGraphException` `test_cli` ratchet is
 retained for R5. Full design, external GPT-5.6 review, and integration-
 verification record in `dev/milestones/r03/`. Merged to `main` 2026-07-19.
 
-**Goal.** Clean up `Snakefile_model_creation` and the scripts it
+**Goal.** Clean up `build_model.smk` and the scripts it
 calls — orchestration *and* analytical code. Establish the
 cross-cutting Snakefile patterns that R4 and R5 inherit.
 
@@ -318,7 +318,7 @@ cross-cutting Snakefile patterns that R4 and R5 inherit.
 - Opening act, before code changes: write
   `dev/reference/workflows/model_creation.md` (contract doc deferred from R1;
   format in `dev/milestones/r01/modularity-contracts-design.md` §4).
-- Any load-bearing `ruleorder:` in `Snakefile_model_creation` either
+- Any load-bearing `ruleorder:` in `build_model.smk` either
   tightened (preferred) or commented in-place with the reason.
 - Per-rule `log:` and `benchmark:` directives on every non-trivial
   rule in this Snakefile.
@@ -341,16 +341,16 @@ cross-cutting Snakefile patterns that R4 and R5 inherit.
 - `dev/reference/workflows/model_creation.md` contract doc committed.
 
 **Out of scope.**
-- `Snakefile_climate_projections` content changes (R4) — except the
+- `analyze_projections.smk` content changes (R4) — except the
   shared helper import.
-- `Snakefile_climate_experiment` content changes (R5) — same caveat.
+- `run_stress_test.smk` content changes (R5) — same caveat.
 - Repo-wide directory restructuring (R6).
 
 **Tag.** `r03-model-builder`.
 
 ### R4 — Workflow 2: climate projections (sealed 2026-07-20)
 
-**Status.** Sealed 2026-07-20 — `Snakefile_climate_projections` + its four
+**Status.** Sealed 2026-07-20 — `analyze_projections.smk` + its four
 `src/` scripts cleaned up, inheriting the R3 patterns. Design accepted via a
 `design-review-loop` run (3-lens internal panel + 3 external GPT rounds +
 round-cap arbitration; 24/24 findings closed) at `dev/milestones/r04/`. Landed in 11
@@ -380,7 +380,7 @@ loss, probe-localized to the hydromt catalog read, a dependency op (task
 flips its test xfail→xpass and fails the suite until the owning task removes the
 marker. Full design, reviews, audit, and probe in `dev/milestones/r04/`.
 
-**Goal.** Clean up `Snakefile_climate_projections` and the scripts it
+**Goal.** Clean up `analyze_projections.smk` and the scripts it
 calls. Inherit the patterns established in R3 (shared helper,
 configfile mechanism, log/benchmark conventions).
 
@@ -389,7 +389,7 @@ configfile mechanism, log/benchmark conventions).
   `dev/reference/workflows/climate_projections.md` (contract doc deferred from
   R1; format in `dev/milestones/r01/modularity-contracts-design.md` §4).
 - The load-bearing `ruleorder:` directive in
-  `Snakefile_climate_projections` either tightened or commented
+  `analyze_projections.smk` either tightened or commented
   in-place with the reason.
 - Per-rule `log:` and `benchmark:` on every non-trivial rule in this
   Snakefile.
@@ -417,7 +417,7 @@ configfile mechanism, log/benchmark conventions).
 
 ### R5 — Workflow 3: climate experiment (sealed 2026-07-20)
 
-**Status.** Sealed 2026-07-20 — `Snakefile_climate_experiment` + its `src/`
+**Status.** Sealed 2026-07-20 — `run_stress_test.smk` + its `src/`
 scripts + the R weathergen layer (`src/weathergen/generate_weather.R`,
 `impose_climate_change.R`) cleaned up, inheriting the R3/R4 patterns. Design
 accepted via a `design-review-loop` run (3-lens internal panel + 2 external GPT
@@ -487,7 +487,7 @@ layer is gated end-to-end by the milestone baseline run + the `test_cli` dry-run
 with the §5a arity checks as the R-layer's correctness net. Full design, reviews,
 and dispositions in `dev/milestones/r05/`.
 
-**Goal.** Clean up `Snakefile_climate_experiment` and the scripts it
+**Goal.** Clean up `run_stress_test.smk` and the scripts it
 calls — including the R weathergen layer. Inherit the patterns from
 R3.
 
@@ -1035,7 +1035,7 @@ statistics are ex-post (R3′/R3″); v2.0 is monthly GCM projections analysis w
 no observed-data comparison (R4); the basin-averaged monthly series per run is a
 declared deliverable (R5). Arbitration: 30 calendar years 1985–2014 (A1), picked
 dry-month defaults (A2), non-`pr`/`tas` variables selectable but best-effort
-(A3). Open questions settled 2026-07-29: extend `Snakefile_climate_projections`
+(A3). Open questions settled 2026-07-29: extend `analyze_projections.smk`
 in place rather than opening a 4th entry point (OQ-1); rename `save_grids` →
 `save_gridded` at step 5e (OQ-12).
 
@@ -1208,7 +1208,7 @@ rather than relocating a file, and R9 must budget it as new capability.
 `dev/milestones/r09/project-tree-task-brief.md`. The complexity gate classified
 R9 as several independently verifiable subsystems rather than one unit, so it is
 a master brief plus five phase briefs, matching R7's shape. Phases are strictly
-sequential — every phase but P1 edits `Snakefile_climate_experiment`, so they
+sequential — every phase but P1 edits `run_stress_test.smk`, so they
 cannot run in parallel worktrees — and P1 (the `semantic_tree_diff` comparator)
 deliberately precedes the migration, because a move made before its comparator
 exists has no regression detector. Three human gates: comparator, scientific
@@ -1597,7 +1597,7 @@ Scope one before it becomes board items.
   *Direction raised by Ümit 2026-07-21 (test/pre06, Observation re: WF1's 11
   rules).* NOT covered by R6's current lock list (which is repo/directory
   layout + `enabled:`); this is rule-level composition *within* a workflow — a
-  new R6 axis. WF1 today has 12 rules (1.01–1.12; see `Snakefile_model_creation`
+  new R6 axis. WF1 today has 12 rules (1.01–1.12; see `build_model.smk`
   and naming.md §9): copy_config, prepare_build_config, create_model,
   add_reservoirs_lakes_glaciers, add_gauges_and_outputs, write_outlet_index,
   setup_runtime, add_forcing, run_wflow, plot_results, plot_map, plot_forcing.

@@ -40,7 +40,7 @@ import cross_workflow_inputs as cwi  # noqa: E402
 
 
 def _run(args, cfg_path):
-    """Invoke snakemake on Snakefile_climate_experiment; return the process.
+    """Invoke snakemake on run_stress_test.smk; return the process.
 
     ``args`` (targets/flags) go BEFORE ``--configfile`` — a positional target
     after it would be swallowed by ``--configfile``'s greedy nargs. The repo's
@@ -50,7 +50,7 @@ def _run(args, cfg_path):
     """
     cmd = (
         f"snakemake {args} --workflow-profile none -c 1 "
-        f'-s Snakefile_climate_experiment --configfile "{cfg_path}"'
+        f'-s run_stress_test.smk --configfile "{cfg_path}"'
     )
     return subprocess.run(
         cmd, shell=True, capture_output=True, text=True, cwd=str(SNAKEDIR)
@@ -103,7 +103,7 @@ def staged_project(tmp_path):
     cfg_path = tmp_path / "snake_config_staged.yml"
     cfg_path.write_text(yaml.safe_dump(base), encoding="utf-8")
 
-    # exp_dir as defined in Snakefile_climate_experiment (commit 2 moved it to
+    # exp_dir as defined in run_stress_test.smk (commit 2 moved it to
     # experiments/<name>/).
     sentinel = pdir / "experiments" / experiment / ".project_consistency_ok"
     # Key-level guard artifact lives under the dataset+window keyed store dir

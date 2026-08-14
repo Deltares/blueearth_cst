@@ -1,7 +1,7 @@
 # Rule index — every Snakemake rule, all three workflows
 
-One page listing every rule in `Snakefile_model_creation`,
-`Snakefile_climate_projections` and `Snakefile_climate_experiment`, what each
+One page listing every rule in `build_model.smk`,
+`analyze_projections.smk` and `run_stress_test.smk`, what each
 one does, what it writes, and how they connect.
 
 > **This page describes what is on disk.** The R10 step-6 sweep landed
@@ -64,7 +64,7 @@ declared in more than one workflow — `all`, `snapshot_config`,
 `gather_benchmarks` three times each, `extract_historical_climate` twice — which
 is 13 declarations beyond their first. 47 − 13 = 34.)
 
-**WF1** — `Snakefile_model_creation`
+**WF1** — `build_model.smk`
 
 | new | rule | was |
 |---|---|---|
@@ -97,7 +97,7 @@ is 13 declarations beyond their first. 47 − 13 = 34.)
 > `ancient()` is why it was easy to miss: it hides the rerun-trigger, not the
 > edge.
 
-**WF2** — `Snakefile_climate_projections`
+**WF2** — `analyze_projections.smk`
 
 | new | rule | was |
 |---|---|---|
@@ -120,7 +120,7 @@ is 13 declarations beyond their first. 47 − 13 = 34.)
 > workflows, so the three read alike and `gather_logs` is the last-numbered rule
 > everywhere.
 
-**WF3** — `Snakefile_climate_experiment`
+**WF3** — `run_stress_test.smk`
 
 | new | rule | was |
 |---|---|---|
@@ -243,7 +243,7 @@ Paths are relative to `project_dir`, with these shorthands:
 
 ---
 
-# WF1 — model creation (`Snakefile_model_creation`)
+# WF1 — model creation (`build_model.smk`)
 
 Builds a distributed Wflow-SBM model from global datasets via hydromt and runs it
 once on historical forcing. No calibration — rapid deployment.
@@ -717,7 +717,7 @@ consumed once, by 1.03, and everything after that reads its derived identities:
 
 ---
 
-# WF2 — climate projections (`Snakefile_climate_projections`)
+# WF2 — climate projections (`analyze_projections.smk`)
 
 A plausibility overlay, not a driver. Computes monthly CMIP6 change factors that
 situate the stress-test grid in projection space. **Nothing here feeds a
@@ -895,7 +895,7 @@ their order.
 
 ---
 
-# WF3 — climate experiment (`Snakefile_climate_experiment`)
+# WF3 — climate experiment (`run_stress_test.smk`)
 
 The stress test itself. Generates stochastic weather realizations, perturbs each
 across a temperature × precipitation grid, runs every member through Wflow, and

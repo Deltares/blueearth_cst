@@ -130,12 +130,12 @@ docker pull containers.deltares.nl/CST/cst_workflows:0.1.0
 
 The toolbox provides three [Snakemake](https://snakemake.github.io/) workflows:
 
-- **Snakefile_model_creation** — builds a Wflow model from global data for the
+- **build_model.smk** — builds a Wflow model from global data for the
   selected region and runs / analyses it for a historical period.
-- **Snakefile_climate_projections** — derives future climate statistics
+- **analyze_projections.smk** — derives future climate statistics
   (temperature and precipitation change) for a chosen set of CMIP scenarios and
   GCMs.
-- **Snakefile_climate_experiment** — generates future weather realizations,
+- **run_stress_test.smk** — generates future weather realizations,
   applies stress-test perturbations, and runs the hydrological model on each
   realization × stress combination.
 
@@ -227,9 +227,9 @@ across-workflow invocation manifest is the wrapper's.
 Each workflow records itself in **one log and one benchmark table**, both
 regenerated on every run:
 
-- **Snakefile_model_creation** — `logs/wf1_model_creation.log`
-- **Snakefile_climate_projections** — `logs/wf2_climate_projections.log`
-- **Snakefile_climate_experiment** —
+- **build_model.smk** — `logs/wf1_model_creation.log`
+- **analyze_projections.smk** — `logs/wf2_climate_projections.log`
+- **run_stress_test.smk** —
   `logs/wf3_climate_experiment_<experiment>.log`
 
 All three land in the project's own `logs/`, so one run's records sit side by
@@ -255,7 +255,7 @@ your choice:
 ```console
 $ pixi shell
 $ cd blueearth_cst
-$ snakemake all -c 1 -s Snakefile_model_creation \
+$ snakemake all -c 1 -s build_model.smk \
     --configfile test_case/snake_config_baseline.yml
 ```
 
@@ -361,15 +361,15 @@ drift or if hydromt gains a documented way to pin forcing encoding.
 
 A script is available to run via Docker: `scripts/run_snake_docker.sh`.
 
-### Snakefile_model_creation
+### build_model.smk
 
 Builds a hydrological Wflow model and runs / analyses it for a historical
 period.
 
 ```console
-$ python scripts/plot_workflow_dag.py -s Snakefile_model_creation --configfile test_case/snake_config_baseline.yml
-$ snakemake --unlock -s Snakefile_model_creation --configfile test_case/snake_config_baseline.yml
-$ snakemake all -c 1 -s Snakefile_model_creation --configfile test_case/snake_config_baseline.yml
+$ python scripts/plot_workflow_dag.py -s build_model.smk --configfile test_case/snake_config_baseline.yml
+$ snakemake --unlock -s build_model.smk --configfile test_case/snake_config_baseline.yml
+$ snakemake all -c 1 -s build_model.smk --configfile test_case/snake_config_baseline.yml
 ```
 
 The first command renders a DAG visualization (requires Graphviz's `dot`). It
@@ -380,18 +380,18 @@ the same way its log and benchmark table do. It renders the graph and runs nothi
 clears any leftover working-directory lock from a prior crash. The third runs
 the workflow.
 
-### Snakefile_climate_projections
+### analyze_projections.smk
 
 Derives future climate statistics (expected temperature and precipitation
 change) for selected CMIP scenarios and GCMs.
 
 ```console
-$ python scripts/plot_workflow_dag.py -s Snakefile_climate_projections --configfile test_case/snake_config_baseline.yml
-$ snakemake --unlock -s Snakefile_climate_projections --configfile test_case/snake_config_baseline.yml
-$ snakemake all -c 1 -s Snakefile_climate_projections --configfile test_case/snake_config_baseline.yml --keep-going
+$ python scripts/plot_workflow_dag.py -s analyze_projections.smk --configfile test_case/snake_config_baseline.yml
+$ snakemake --unlock -s analyze_projections.smk --configfile test_case/snake_config_baseline.yml
+$ snakemake all -c 1 -s analyze_projections.smk --configfile test_case/snake_config_baseline.yml --keep-going
 ```
 
-### Snakefile_climate_experiment
+### run_stress_test.smk
 
 Prepares future weather realizations and stress-test perturbations, runs them
 through the hydrological model, and aggregates the discharge statistics.
@@ -427,9 +427,9 @@ completed run's outputs are addressed by, so silently renaming it would strand
 them. Clear the key by hand to go back to the default.
 
 ```console
-$ python scripts/plot_workflow_dag.py -s Snakefile_climate_experiment --configfile test_case/snake_config_baseline.yml
-$ snakemake --unlock -s Snakefile_climate_experiment --configfile test_case/snake_config_baseline.yml
-$ snakemake all -c 1 -s Snakefile_climate_experiment --configfile test_case/snake_config_baseline.yml
+$ python scripts/plot_workflow_dag.py -s run_stress_test.smk --configfile test_case/snake_config_baseline.yml
+$ snakemake --unlock -s run_stress_test.smk --configfile test_case/snake_config_baseline.yml
+$ snakemake all -c 1 -s run_stress_test.smk --configfile test_case/snake_config_baseline.yml
 ```
 
 ## Testing

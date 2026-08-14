@@ -1,7 +1,7 @@
 """End-to-end smoke test for the climate-projections workflow (workflow 2).
 
 Like ``test_workflow_model_creation.py`` but for workflow 2: it runs
-``snakemake all`` on ``Snakefile_climate_projections`` to completion and checks
+``snakemake all`` on ``analyze_projections.smk`` to completion and checks
 that the CMIP6 change-factor summary is produced.
 
 Workflow 2 reads CMIP6 monthly data from Google Cloud Storage (``gs://cmip6/...``
@@ -82,7 +82,7 @@ def test_climate_projections_end_to_end():
 
     os.chdir(SNAKEDIR)
     cmd = (
-        f"snakemake all -c 1 -s Snakefile_climate_projections "
+        f"snakemake all -c 1 -s analyze_projections.smk "
         f"--configfile {CONFIG} --forceall"
     )
     result = subprocess.run(cmd, shell=True, capture_output=True, text=True)

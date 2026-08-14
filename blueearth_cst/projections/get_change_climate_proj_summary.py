@@ -105,7 +105,7 @@ def summary_climate_proj(
     # `{clim_project}_change_factors_{annual,monthly}.csv` supersede them: same
     # numbers, long format, per-row provenance, plus the future level the wide
     # form never carried. Verified before removal that nothing outside this
-    # workflow read them -- `Snakefile_climate_experiment` and
+    # workflow read them -- `run_stress_test.smk` and
     # `blueearth_cst/experiment/` reference them zero times, and rule 2.06
     # declared the `.nc` as an input it never opened.
     #

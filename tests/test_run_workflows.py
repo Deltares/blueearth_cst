@@ -88,9 +88,9 @@ def test_all_true_invokes_three_in_fixed_order(tmp_path, capture_runs):
     rc = rw.run(str(cfg), cores=3, extra=[])
     assert rc == 0
     assert _snakefiles_invoked(calls) == [
-        "Snakefile_model_creation",
-        "Snakefile_climate_projections",
-        "Snakefile_climate_experiment",
+        "build_model.smk",
+        "analyze_projections.smk",
+        "run_stress_test.smk",
     ]
 
 
@@ -103,9 +103,9 @@ def test_keep_going_on_projections_only(tmp_path, capture_runs):
     _write_cfg(cfg, {n: "true" for n in rw.WORKFLOW_ORDER})
     rw.run(str(cfg), cores=3, extra=[])
     by_sf = {cmd[cmd.index("-s") + 1]: cmd for cmd in calls}
-    assert "--keep-going" in by_sf["Snakefile_climate_projections"]
-    assert "--keep-going" not in by_sf["Snakefile_model_creation"]
-    assert "--keep-going" not in by_sf["Snakefile_climate_experiment"]
+    assert "--keep-going" in by_sf["analyze_projections.smk"]
+    assert "--keep-going" not in by_sf["build_model.smk"]
+    assert "--keep-going" not in by_sf["run_stress_test.smk"]
 
 
 # --- §7(g) assertion 3: missing enabled: key -> nonzero, named --------------
@@ -174,7 +174,7 @@ def test_first_nonzero_stops_and_returns_code(tmp_path, capture_runs):
     rc = rw.run(str(cfg), cores=3, extra=[])
     assert rc == 7
     # Only the first workflow was invoked; projections/experiment were not.
-    assert _snakefiles_invoked(calls) == ["Snakefile_model_creation"]
+    assert _snakefiles_invoked(calls) == ["build_model.smk"]
 
 
 # --- §7(g) assertion 6: --cores / -- <extra> forwarded to EVERY invocation ---
@@ -222,8 +222,8 @@ def test_enabled_false_skips_at_subprocess_boundary(tmp_path, capture_runs):
     rc = rw.run(str(cfg), cores=3, extra=[])
     assert rc == 0
     invoked = _snakefiles_invoked(calls)
-    assert "Snakefile_climate_projections" not in invoked
-    assert invoked == ["Snakefile_model_creation", "Snakefile_climate_experiment"]
+    assert "analyze_projections.smk" not in invoked
+    assert invoked == ["build_model.smk", "run_stress_test.smk"]
 
 
 def test_all_enabled_inverse_all_invoked(tmp_path, capture_runs):

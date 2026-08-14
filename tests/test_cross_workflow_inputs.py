@@ -42,8 +42,8 @@ import cross_workflow_inputs as cwi  # noqa: E402
 
 #: The workflows that consume wf1 artifacts. WF1 produces them, so it is not here.
 DOWNSTREAM = {
-    "wf2": "Snakefile_climate_projections",
-    "wf3": "Snakefile_climate_experiment",
+    "wf2": "analyze_projections.smk",
+    "wf3": "run_stress_test.smk",
 }
 
 #: Every leaf currently belongs to WF3 (rules 3.00b and 3.01c); WF2 has consumed

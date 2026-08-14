@@ -33,7 +33,7 @@ path_static = "staticmaps.nc"
 path_forcing = "forcing/inmaps_historical.nc"
 """
 
-SNAKEFILE = Path(__file__).resolve().parents[1] / "Snakefile_climate_experiment"
+SNAKEFILE = Path(__file__).resolve().parents[1] / "run_stress_test.smk"
 
 
 def _model(tmp_path):

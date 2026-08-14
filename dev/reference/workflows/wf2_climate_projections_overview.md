@@ -1,4 +1,4 @@
-# WF2 — rule-level overview (`Snakefile_climate_projections`)
+# WF2 — rule-level overview (`analyze_projections.smk`)
 
 Working aid for the planned efficiency/modularity rework of workflow 2. Records
 **current** behavior, rule by rule: what each rule does, what it consumes, what
@@ -9,7 +9,7 @@ Scope split — this file is strictly **rule/DAG level**. The behavioral contrac
 known metadata regression, downstream-consumer semantics) lives in
 `dev/reference/workflows/climate_projections.md` and is **not** repeated here.
 
-Grounded in `Snakefile_climate_projections`,
+Grounded in `analyze_projections.smk`,
 `blueearth_cst/projections/*.py`, `blueearth_cst/shared/merge_{logs,benchmarks}.py`,
 `blueearth_cst/model/copy_config_files.py`, and the seed config
 `config/workflows/snake_config_model_test.yml`.

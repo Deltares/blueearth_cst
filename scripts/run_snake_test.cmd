@@ -47,13 +47,13 @@ rem `%*` through to :workflow would hand snakemake the label and Snakefile name
 rem as positional targets.
 set FWD=%*
 
-call :workflow model_creation      Snakefile_model_creation      ""
+call :workflow model_creation      build_model.smk      ""
 if errorlevel 1 exit /b 1
 rem projections keeps --keep-going: one unavailable CMIP6 model must not abort
 rem the whole ensemble.
-call :workflow climate_projections Snakefile_climate_projections "--keep-going"
+call :workflow climate_projections analyze_projections.smk "--keep-going"
 if errorlevel 1 exit /b 1
-call :workflow climate_experiment  Snakefile_climate_experiment  ""
+call :workflow climate_experiment  run_stress_test.smk  ""
 if errorlevel 1 exit /b 1
 
 echo.

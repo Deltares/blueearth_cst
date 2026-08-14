@@ -420,7 +420,7 @@ def build_project_tree_rules(
         "config/build_historical_forcing.yml",
         # The one-entry catalog pointing hydromt at the climate store — a
         # DECLARED, non-temp() output of rule 1.10 beside the build YAML from
-        # the same rule (`Snakefile_model_creation`, `store_catalog`). Added
+        # the same rule (`build_model.smk`, `store_catalog`). Added
         # 2026-08-11: `test_local`'s WF1 predates the output, so no tree the
         # gate was pointed at held one until `test_rapid` was rebuilt.
         #

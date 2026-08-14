@@ -123,7 +123,7 @@ both values.
 # Observation inputs
 
 The two CSV scaffolds above are the optional observation inputs of workflow 1
-(`Snakefile_model_creation`). Copy them next to your basin data and point the
+(`build_model.smk`). Copy them next to your basin data and point the
 config at the copies by **absolute path** — real basin data lives in the project
 folder, never in this repository (see `AGENTS.md` § Repo Map, the two-tier
 `project_dir` rule).
