@@ -350,6 +350,20 @@ def _relativize_paths(text, project_root, tokens=()):
     text = _SITE_PACKAGES_RE.sub("<site-packages>/", text)
     for token, path in tokens:
         text = _tokenize_prefix(text, path, token)
+    # BOTH spellings of the project root, absolute first. `project_dir` is
+    # relative in every shipped config (`test_case/test_rapid`), and the two
+    # emitters disagree about which form they print: hydromt resolves, so it
+    # prints `C:\...\pipeline\test_case\test_rapid\models\...`, while `log_row`
+    # prints the configured `test_case\test_rapid\config\runs` as given.
+    #
+    # Stripping only the relative form was actively WRONG on the absolute one:
+    # `_strip_prefix` is unanchored, so it excised the root from the MIDDLE and
+    # left the head, which the repo rewrite below then labelled -- turning
+    # `<...>/test_case/test_rapid/models/hydrology/wflow` into
+    # `<repo>/models/hydrology/wflow`, a path that does not exist, presented
+    # as if it did. Absolute first because it is the longer of the two.
+    if project_root:
+        text = _strip_prefix(text, os.path.abspath(os.fspath(project_root)))
     text = _strip_prefix(text, project_root)
     return _strip_prefix(text, _REPO_ROOT, "<repo>/")
 
@@ -363,7 +377,13 @@ def _folder_rows(project_root, tokens=None):
     carrying these rows always states the project dir itself, so the two forms
     cannot be confused.
     """
-    root = os.path.normpath(os.fspath(project_root)) if project_root else ""
+    # ABSOLUTE, because the tokens are: `project_dir` is relative in every
+    # shipped config, and stripping a relative root off an absolute token
+    # excises it from the middle -- the `<model>` row then read
+    # `C:/.../pipeline/models/hydrology/wflow`, a path that does not exist,
+    # offered as the definition of the token. abspath resolves against the
+    # working directory, which is where Snakemake resolves `project_dir` too.
+    root = os.path.abspath(os.fspath(project_root)) if project_root else ""
     rows = []
     for token, path in _declared_tokens() if tokens is None else tokens:
         shown = _strip_prefix(path, root) if root else path

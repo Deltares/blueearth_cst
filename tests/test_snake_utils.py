@@ -493,6 +493,35 @@ def test_path_tokens_fails_open_on_a_malformed_declaration(monkeypatch):
         assert su._path_tokens() == ()
 
 
+def test_a_relative_project_root_still_strips_an_absolute_path():
+    """The shipped configs' shape, and it used to produce a path that lied.
+
+    `project_dir` is relative in every shipped config (`test_case/test_rapid`)
+    while hydromt resolves before it logs, so the text is absolute and the root
+    is not. `_strip_prefix` is unanchored, so the root came out of the MIDDLE
+    and left the head -- which the repo rewrite then labelled, turning
+    `<...>/test_case/test_rapid/models/x.nc` into `<repo>/models/x.nc`: a path
+    that does not exist, spelled like one that does.
+    """
+    root = os.path.normpath("test_case/test_rapid")
+    absolute = os.path.abspath(os.path.join(root, "models", "hydrology", "wflow"))
+    out = su._relativize_paths(f"Write model data to {absolute}\n", root)
+    assert out == "Write model data to models/hydrology/wflow\n"
+    assert "<repo>" not in out
+
+
+def test_the_header_defines_a_token_under_a_relative_project_dir(declare_folders):
+    """Same mismatch, one level up: tokens are stored ABSOLUTE.
+
+    Stripping a relative root off an absolute token left the head in place, so
+    the row offered `C:/.../pipeline/models/hydrology/wflow` as the definition
+    of `<model>` -- pointing outside the project it belongs to.
+    """
+    declare_folders(model="test_case/test_rapid/models/hydrology/wflow")
+    rows = su.run_header("wf1 model_creation", "test_case/test_rapid").splitlines()
+    assert rows[-1].split() == ["<model>", "models/hydrology/wflow"]
+
+
 def test_relativize_leaves_out_of_project_paths_absolute():
     root = os.path.normpath("C:/TESTS/gabon")
     line = f"Reading data from {os.path.normpath('C:/data/wflow_global/x.tif')}\n"
