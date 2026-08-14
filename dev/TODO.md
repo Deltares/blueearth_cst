@@ -30,7 +30,6 @@
 | [t2608132341](tasks/t2608132341-heartbeat-backoff-on-silent-wflow-rules.md)                                                                 | Verify heartbeat cadence on the silent Wflow rules; add backoff if it floods                                   | logging / console        | console-output assessment #2 (2026-08-13), item 1    |     | backlog |
 | [t2608132341a](tasks/t2608132341a-run-workflows-banners-and-invocation-summary.md)                                                          | Give run_workflows.py workflow-level banners and an end-of-invocation summary                                  | logging / console        | console-output assessment #2 (2026-08-13), item 2    |     | backlog |
 | [t2608132341b](tasks/t2608132341b-console-polish-colors-batch-span-brackets.md)                                                             | Console polish: color failure and stall verdicts, fix the batch-span context, bracket the context in no-color  | logging / console        | console-output assessment #2 (2026-08-13), items 3-4 |     | backlog |
-| [t2608141633](tasks/t2608141633-rename-the-project-dir-config-observations-bin-to-config-basin-data.md)                                     | Rename the project-dir config/observations bin to config/basin_data                                            | naming                   | owner question on the config bins (2026-08-14)       |     | backlog |
 
 ## Watching
 
