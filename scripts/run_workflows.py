@@ -127,7 +127,19 @@ def read_enabled_flags(config_path: str) -> dict[str, bool]:
 
 def _read_config(config_path: str) -> Mapping[str, Any]:
     """Load a wrapper source config as a YAML mapping."""
-    with open(config_path, "r", encoding="utf-8") as handle:
+    path = Path(config_path).expanduser()
+    if not path.is_file():
+        # Name the ABSOLUTE path that was tried. `pixi run run-workflows`
+        # executes at the manifest root whatever directory it was invoked from,
+        # so a relative --config resolves against the repo root rather than the
+        # caller's cwd -- and pixi exposes no INIT_CWD to recover that cwd, so
+        # the only cure is showing where the lookup actually went.
+        raise ConfigError(
+            f"{config_path}: config not found at {path.resolve()} "
+            f"(a relative --config resolves against the current directory, which "
+            f"is the repo root under `pixi run`; pass an absolute path instead)"
+        )
+    with open(path, "r", encoding="utf-8") as handle:
         config = yaml.safe_load(handle)
     if not isinstance(config, Mapping):
         raise ConfigError(f"{config_path}: config is not a mapping")

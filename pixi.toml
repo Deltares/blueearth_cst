@@ -186,3 +186,25 @@ tree-check = { cmd = "python dev/scripts/snapshot_project_tree.py --config test_
 # `git worktree list` and answers for all of them at once. Read-only, exits
 # non-zero when incomplete.
 env-check = { cmd = "python dev/scripts/check_env.py", description = "Report whether this checkout's env can run the workflows (--all: every worktree)" }
+
+# The runner over the three Snakefiles, reachable without spelling out its path:
+#     pixi run run-workflows --config test_case/snake_config_rapid.yml
+#     pixi run run-workflows --config <cfg> --cores 4 -- --dry-run
+#
+# `--config` is deliberately NOT pinned, unlike dag-* and tree-check above.
+# Those are dry-run or read-only, so a bare invocation is harmless; this one
+# starts a REAL run that writes into `project_dir` and finalizes an invocation
+# manifest, and a bare `pixi run run-workflows` must not launch one against
+# whichever config happened to be pinned here.
+#
+# Pixi executes a task at the MANIFEST ROOT no matter where it was invoked from,
+# which is what makes this work from any subdirectory -- and also means a
+# relative `--config` resolves against the repo root, not the caller's cwd.
+# From elsewhere, pass an absolute path; the runner reports the path it tried.
+#
+# It runs in THIS checkout, so inside a lane worktree it drives the pipeline
+# from that worktree -- which AGENTS.md forbids (divergent `.snakemake` state,
+# concurrent workdir locks). To pin it to the primary checkout from anywhere on
+# the machine, wrap it: `pixi run --manifest-path <primary>/pixi.toml
+# run-workflows ...`.
+run-workflows = { cmd = "python scripts/run_workflows.py", description = "Run the enabled workflows in fixed order (model -> projections -> experiment); requires --config" }
