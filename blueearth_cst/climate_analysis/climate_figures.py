@@ -690,8 +690,12 @@ def plot_climate_figures(
             shared[var] = list(captured)
     if write_levels and levels_file is not None:
         write_shared_levels(levels_file, shared)
+    # The directory is deliberately NOT repeated here: every figure above came
+    # through `save_figure`, whose first row of the group already states it.
+    # What this row adds is the COUNT -- "did I get all nine" without counting
+    # rows -- and which dataset they belong to.
     log_row(
-        f"Wrote {len(written)} canonical climate figures ({dataset}) to {plot_dir}",
+        f"Wrote {len(written)} canonical climate figures ({dataset})",
         module="plot",
     )
     return written

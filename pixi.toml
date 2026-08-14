@@ -91,6 +91,31 @@ HDF5_USE_FILE_LOCKING = "FALSE"
 # for every process in the env (snakemake jobs, dev probes, pytest).
 GCSFS_EXPERIMENTAL_ZB_HNS_SUPPORT = "false"
 
+# Unset SSL_CERT_DIR, which conda-forge's openssl activation
+# (etc/conda/activate.d/openssl_activate-win.*) otherwise points at
+# `<env>/Library/ssl/certs` -- a directory the win-64 build ships EMPTY (one
+# `.keep`). Nothing verifies from it: the CAs come from SSL_CERT_FILE, the
+# `cacert.pem` sitting beside it, which activation sets in the same breath.
+#
+# The symptom is one warning per nested invocation:
+#
+#     WARN ignoring `SSL_CERT_DIR`: no certificates found in ...\ssl\certs
+#
+# pixi checks an INHERITED SSL_CERT_DIR and warns when it holds no certs. A
+# bare `pixi run` never trips it -- activation happens after the check. What
+# trips it is nesting: `pixi run snakemake` exports the empty dir, and every
+# `pixi run` a rule makes inside that inherits it. Unsetting at the outer layer
+# is therefore the fix for the whole chain, not a cosmetic mute.
+#
+# Verified with the var genuinely unset: 156 CAs load from SSL_CERT_FILE, HTTPS
+# to pypi.org returns 200, and an anonymous gcsfs listing of gs://cmip6 -- the
+# TLS path WF2 actually depends on -- succeeds.
+#
+# One case this does NOT cover, deliberately: a shell that already exports
+# SSL_CERT_DIR (an activated conda env) wins over this, because pixi keeps an
+# inherited value. Fixing that belongs to whoever set it, not to this project.
+SSL_CERT_DIR = ""
+
 # Windows-only: recreate the ffi.dll / cairo.dll aliases graphviz needs.
 [target.win-64.activation]
 scripts = ["dev/scripts/pixi_activate.bat"]
@@ -99,20 +124,19 @@ scripts = ["dev/scripts/pixi_activate.bat"]
 #     pixi install         # native deps from pixi.toml
 #     pixi run install     # R + Julia layers wired below
 [tasks]
-# SSL_CERT_DIR/SSL_CERT_FILE are cleared for this task only: conda-forge's
-# openssl activation points them at the pixi env cert store, but that store's
-# certs/ subdir is empty on win-64, so every Rscript call warns
-# "ignoring SSL_CERT_DIR: no certificates found". Empty is treated as unset, so
-# R's libcurl (Schannel on Windows) falls back to the OS trust store for the
-# GitHub tarball download. Task-scoped so Python/hydromt TLS keep their certs.
+# SSL_CERT_FILE is cleared for this task only, so R's libcurl (Schannel on
+# Windows) falls back to the OS trust store for the GitHub tarball download.
+# SSL_CERT_DIR is cleared here too, and that is now belt-and-braces --
+# [activation.env] above unsets it for the whole env. Kept so the task stays
+# correct on its own terms if that ever changes.
 install-rdeps = { cmd = "Rscript --vanilla dev/scripts/install_weathergenr.R", description = "Install weathergenr v1.2.0 via remotes (idempotent; lands in .libPaths()[1])", env = { SSL_CERT_DIR = "", SSL_CERT_FILE = "" } }
-# SSL_CERT_DIR/SSL_CERT_FILE are cleared for this task only: conda-forge's
-# openssl activation (etc/conda/activate.d/openssl_activate-win.*) points them at
-# the pixi env cert store, and Julia forwards SSL_CERT_DIR to libcurl as CAPATH.
-# Julia's Windows libcurl uses the Schannel backend, which does NOT support CAPATH
-# -> a `curl_easy_setopt: 4` (CURLE_NOT_BUILT_IN) error on every Pkg download.
-# Empty is treated as unset by NetworkOptions, so Julia falls back to its bundled
-# CA (share/julia/cert.pem). Task-scoped so Python/hydromt TLS keep their certs.
+# SSL_CERT_FILE is cleared for this task only, so Julia falls back to its
+# bundled CA (share/julia/cert.pem) -- NetworkOptions treats empty as unset.
+# SSL_CERT_DIR matters more here than anywhere: Julia forwards it to libcurl as
+# CAPATH, and Julia's Windows libcurl uses the Schannel backend, which does NOT
+# support CAPATH -> `curl_easy_setopt: 4` (CURLE_NOT_BUILT_IN) on every Pkg
+# download. [activation.env] above now unsets it env-wide; this clearing stays
+# so the task cannot regress if that line is ever removed.
 install-julia = { cmd = "julia +1.11.7 --project=. -e 'using Pkg; Pkg.instantiate()'", description = "Instantiate the Julia env from Manifest.toml (needs juliaup-managed Julia 1.11.7 on PATH: `juliaup add 1.11.7`; conda-forge has no win-64 julia build)", env = { SSL_CERT_DIR = "", SSL_CERT_FILE = "" } }
 install       = { depends-on = ["install-rdeps", "install-julia"], description = "Install weathergenr + instantiate Julia env on top of pixi install" }
 
@@ -154,3 +178,11 @@ dag-wf3 = { cmd = "snakemake all -c 3 -s Snakefile_climate_experiment --configfi
 # pass `--project-dir` with an absolute path. See
 # dev/milestones/r09/observed-tier-runbook.md.
 tree-check = { cmd = "python dev/scripts/snapshot_project_tree.py --config test_case/snake_config_baseline.yml", description = "Snapshot a project_dir as a path list and check every path against the R09 path map (add --out to record it; nothing is written otherwise)" }
+
+# `pixi install` does not install everything a run needs -- weathergenr comes
+# from `pixi run install` (remotes), as does the Julia env, and a console script
+# can be missing while pixi reports success. Every WORKTREE builds its own
+# `.pixi/`, so each lane needs that second layer separately; `--all` walks
+# `git worktree list` and answers for all of them at once. Read-only, exits
+# non-zero when incomplete.
+env-check = { cmd = "python dev/scripts/check_env.py", description = "Report whether this checkout's env can run the workflows (--all: every worktree)" }

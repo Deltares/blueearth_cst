@@ -78,7 +78,7 @@ def test_compact_shortens_timestamp_and_drops_dotted_name():
     )
     # date + milliseconds dropped -> HH:MM:SS; dotted name dropped; module kept
     assert _compact_log_line(line) == (
-        "18:03:38 - model - INFO - Initializing wflow_sbm model.\n"
+        "18:03:38 - model - Initializing wflow_sbm model.\n"
     )
 
 
@@ -89,7 +89,7 @@ def test_compact_preserves_dashes_in_message():
     )
     # message (with its own ' - ') is kept whole; only ts + dotted name change
     assert _compact_log_line(line) == (
-        "18:03:20 - model - INFO - setup_rivers.river_routing=kinematic - wave - x\n"
+        "18:03:20 - model - setup_rivers.river_routing=kinematic - wave - x\n"
     )
 
 
@@ -101,6 +101,50 @@ def test_compact_keeps_level_and_no_trailing_newline():
     assert _compact_log_line(line) == (
         "18:03:18 - basemaps - WARNING - Model resolution mismatch"
     )
+
+
+def test_compact_drops_a_component_prefix_that_repeats_the_module():
+    """`geoms - INFO - wflow_sbm.geoms:` names one subsystem twice."""
+    line = (
+        "2026-08-14 11:13:01,204 - hydromt_wflow.wflow_base - geoms - INFO - "
+        "wflow_sbm.geoms: Writing geoms to staticgeoms/basins.geojson.\n"
+    )
+    assert _compact_log_line(line) == (
+        "11:13:01 - geoms - Writing geoms to staticgeoms/basins.geojson.\n"
+    )
+
+
+def test_compact_keeps_a_component_prefix_that_says_something_else():
+    """`spatial` is hydromt's module, `staticmaps` the component -- two facts."""
+    line = (
+        "2026-08-14 11:13:01,204 - hydromt_wflow.wflow_base - spatial - INFO - "
+        "wflow_sbm.staticmaps: Writing region to staticgeoms/region.geojson.\n"
+    )
+    assert _compact_log_line(line) == (
+        "11:13:01 - spatial - wflow_sbm.staticmaps: Writing region to "
+        "staticgeoms/region.geojson.\n"
+    )
+
+
+def test_compact_leaves_an_ordinary_colon_in_the_message_alone():
+    """Only a dotted prefix in the leading position is a component prefix."""
+    line = (
+        "2026-08-14 11:13:01,204 - hydromt.model.model - model - INFO - "
+        "Reading model config file from wflow_sbm.toml: found 4 sections\n"
+    )
+    assert _compact_log_line(line) == (
+        "11:13:01 - model - Reading model config file from "
+        "wflow_sbm.toml: found 4 sections\n"
+    )
+
+
+def test_compact_keeps_a_bare_prefix_with_no_message_after_it():
+    """`wflow_sbm.geoms:` alone is the whole message; dropping it leaves nothing."""
+    line = (
+        "2026-08-14 11:13:01,204 - hydromt_wflow.wflow_base - geoms - INFO - "
+        "wflow_sbm.geoms:\n"
+    )
+    assert _compact_log_line(line) == "11:13:01 - geoms - wflow_sbm.geoms:\n"
 
 
 @pytest.mark.parametrize(
@@ -119,18 +163,62 @@ def test_compact_passes_through_non_hydromt(line):
 # --- save_figure -------------------------------------------------------------
 
 
-def test_save_figure_writes_creates_parent_and_announces(tmp_path, capsys):
+def _figure(tmp_path, name, subdir="plots"):
+    """Write one throwaway figure through `save_figure`, returning its path."""
     import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    out = tmp_path / "plots" / "basin_area.png"  # parent does not exist yet
+    out = tmp_path / subdir / name
     plt.figure()
     plt.plot([0, 1], [0, 1])
     save_figure(str(out), dpi=50)
+    return out
+
+
+def test_save_figure_writes_creates_parent_and_announces(tmp_path, capsys):
+    su._LAST_FIGURE_DIR = None
+    out = _figure(tmp_path, "basin_area.png")  # parent does not exist yet
     assert out.exists()
-    assert f"Saved figure: {out}" in capsys.readouterr().out
+    printed = capsys.readouterr().out.strip()
+    assert printed.endswith(f"- plot - {out}"), printed
+
+
+def test_save_figure_states_a_directory_once(tmp_path, capsys):
+    """A plotting rule writes 9-17 figures into ONE directory."""
+    su._LAST_FIGURE_DIR = None
+    first = _figure(tmp_path, "hydrograph_1030.png")
+    _figure(tmp_path, "performance_1030.png")
+    _figure(tmp_path, "signatures_peaks_1030.png")
+    rows = [line.split(" - ", 2)[2] for line in capsys.readouterr().out.splitlines()]
+    assert rows == [
+        str(first),
+        "  performance_1030.png",
+        "  signatures_peaks_1030.png",
+    ], rows
+
+
+def test_save_figure_restates_the_directory_when_it_changes(tmp_path, capsys):
+    """Elision must never make a row name a directory it did not go to."""
+    su._LAST_FIGURE_DIR = None
+    _figure(tmp_path, "a.png", subdir="plots")
+    other = _figure(tmp_path, "b.png", subdir="maps")
+    back = _figure(tmp_path, "c.png", subdir="plots")
+    rows = [line.split(" - ", 2)[2] for line in capsys.readouterr().out.splitlines()]
+    assert rows[1] == str(other) and rows[2] == str(back), rows
+
+
+def test_a_new_log_restates_the_directory(tmp_path, capsys):
+    """The invariant is per FILE: a log's first figure row always has its path."""
+    su._LAST_FIGURE_DIR = None
+    _figure(tmp_path, "first.png")
+    capsys.readouterr()
+    with tee_to_log(tmp_path / "logs" / "rule.log"):
+        second = _figure(tmp_path, "second.png")
+    body = (tmp_path / "logs" / "rule.log").read_text(encoding="utf-8")
+    assert os.path.basename(str(second)) in body
+    assert "  second.png" not in body  # not elided into a bare continuation row
 
 
 # --- log_row -----------------------------------------------------------------
@@ -139,13 +227,43 @@ def test_save_figure_writes_creates_parent_and_announces(tmp_path, capsys):
 def test_log_row_standard_format(capsys):
     log_row("hello world", module="plot")
     out = capsys.readouterr().out.strip()
-    assert re.match(r"^\d{2}:\d{2}:\d{2} - plot - INFO - hello world$", out)
+    assert re.match(r"^\d{2}:\d{2}:\d{2} - plot - hello world$", out)
 
 
 def test_log_row_row_survives_compaction_unchanged():
     # a log_row line is already compact -> the tee's _compact_log_line is a no-op
-    row = "21:56:12 - plot - INFO - Saved figure: x.png\n"
+    row = "21:56:12 - plot - plots/x.png\n"
     assert _compact_log_line(row) == row
+
+
+# --- _log_row_text (the level is shown only when it is not INFO) --------------
+
+
+def test_log_row_text_omits_info():
+    """259 of 272 rows on a full WF1 build are INFO -- a constant column."""
+    assert su._log_row_text("11:13:01", "geoms", "INFO", "writing") == (
+        "11:13:01 - geoms - writing"
+    )
+
+
+@pytest.mark.parametrize("level", ["WARNING", "ERROR", "CRITICAL", "DEBUG"])
+def test_log_row_text_keeps_every_other_level(level):
+    """The point of dropping INFO is that these stop hiding among it."""
+    assert su._log_row_text("11:13:04", "states", level, "cold start") == (
+        f"11:13:04 - states - {level} - cold start"
+    )
+
+
+def test_log_row_text_recognizes_info_in_any_spelling():
+    """A caller passing `info` must not produce a row shaped unlike its peers."""
+    assert su._log_row_text("11:13:01", "cst", " info ", "x") == "11:13:01 - cst - x"
+
+
+def test_log_row_prints_a_warning_with_its_level(capsys):
+    out = capsys.readouterr()  # drain
+    log_row("state file not found", module="states", level="WARNING")
+    out = capsys.readouterr().out.strip()
+    assert re.match(r"^\d{2}:\d{2}:\d{2} - states - WARNING - state file", out), out
 
 
 # --- psutil benchmark shim ---------------------------------------------------
@@ -174,27 +292,6 @@ class _FakeTTY:
         return True
 
 
-def test_rule_banner_bold_on_tty(monkeypatch):
-    monkeypatch.setattr(sys, "stderr", _FakeTTY())
-    monkeypatch.delenv("NO_COLOR", raising=False)
-    assert rule_banner("1.09", "run_wflow") == "\033[1;36m1.09  run_wflow\033[0m"
-
-
-def test_rule_banner_plain_when_not_tty(monkeypatch):
-    import io
-
-    monkeypatch.setattr(sys, "stderr", io.StringIO())  # isatty() -> False
-    monkeypatch.delenv("NO_COLOR", raising=False)
-    out = rule_banner("1.09", "run_wflow")
-    assert out == "1.09  run_wflow" and "\033" not in out  # no escape codes
-
-
-def test_rule_banner_respects_no_color_env(monkeypatch):
-    monkeypatch.setattr(sys, "stderr", _FakeTTY())
-    monkeypatch.setenv("NO_COLOR", "1")
-    assert rule_banner("2.04", "monthly_change") == "2.04  monthly_change"
-
-
 # --- target_banner (rule `all` message) --------------------------------------
 
 
@@ -207,19 +304,6 @@ def test_target_banner_puts_one_target_per_line(monkeypatch):
     out = target_banner("2.00", "all", ["a/x.csv", "b/y.png"])
     assert out == "2.00  all\n    a/x.csv\n    b/y.png"
     assert ", " not in out
-
-
-def test_target_banner_keeps_the_rule_banner_colouring(monkeypatch):
-    """The banner half is rule_banner's, escape codes and all -- only the banner.
-
-    A target path must never be wrapped in escape codes: the message is what a
-    reader copies a path out of.
-    """
-    monkeypatch.setattr(sys, "stderr", _FakeTTY())
-    monkeypatch.delenv("NO_COLOR", raising=False)
-    out = target_banner("1.00", "all", ["p/q.nc"])
-    assert out.startswith("\033[1;36m1.00  all\033[0m\n")
-    assert "\033" not in out.split("\n", 1)[1]
 
 
 def test_target_banner_accepts_a_dict_values_view(monkeypatch):
@@ -336,10 +420,10 @@ def test_tee_to_log_relativizes_project_paths(tmp_path):
     log = proj / "logs" / "1.15_plot_wflow_evaluation.log"
     abs_png = os.path.join(str(proj), "plots", "map.png")
     with tee_to_log(log):
-        print(f"Saved figure: {abs_png}")
+        print(abs_png)
     text = log.read_text(encoding="utf-8")
     # Forward slash regardless of platform: the stripped remainder is normalized.
-    assert "Saved figure: plots/map.png" in text
+    assert "plots/map.png" in text
     assert abs_png not in text  # absolute project path relativized away
 
 
@@ -383,9 +467,7 @@ def test_tee_to_log_captures_preexisting_console_logging(tmp_path):
         lg.removeHandler(handler)
     body = log.read_text(encoding="utf-8")
     # compacted row present exactly once, and the full hydromt timestamp is gone
-    assert (
-        len(re.findall(r"\d{2}:\d{2}:\d{2} - \w+ - INFO - built model grid", body)) == 1
-    )
+    assert len(re.findall(r"\d{2}:\d{2}:\d{2} - \w+ - built model grid", body)) == 1
     assert not re.search(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}", body)
 
 
@@ -397,8 +479,8 @@ def test_tee_to_log_compacts_hydromt_format(tmp_path):
         print("plain progress line")
     text = log.read_text(encoding="utf-8")
     # the record row is exactly the compacted form: HH:MM:SS, no date/ms/name
-    row = next(line for line in text.splitlines() if "INFO - built" in line)
-    assert row == "18:03:38 - model - INFO - built"
+    row = next(line for line in text.splitlines() if line.endswith("- built"))
+    assert row == "18:03:38 - model - built"
     assert "hydromt.model.model" not in text  # dotted name dropped
     assert "plain progress line" in text  # non-hydromt line untouched
 
@@ -415,8 +497,9 @@ def test_tee_to_log_writes_project_header(tmp_path):
     assert "project: gabon" in head[0]
     assert head[1].startswith("# project dir:") and head[1].rstrip().endswith("gabon")
     assert "1.07_build_wflow_model.log" in head[2] and "started" in head[2]
-    assert head[3] == ""  # blank line separates header from body
-    assert head[4] == "body line"
+    assert head[3].startswith("# rows:")  # the row-grammar legend
+    assert head[4] == ""  # blank line separates header from body
+    assert head[5] == "body line"
 
 
 def test_tee_to_log_reraises_and_still_restores(tmp_path):
@@ -1264,3 +1347,450 @@ def test_wflow_outvars_default_is_not_empty():
     """
     assert su.DEFAULT_WFLOW_OUTVARS
     assert "river discharge" in su.DEFAULT_WFLOW_OUTVARS
+
+
+# --- console style (_ConsoleHandler / install_console_style) -----------------
+#
+# Every case here is a synthetic LogRecord carrying the `extra=` shape
+# Snakemake's own emitters attach (`scheduler.py`, `workflow.py`, `dag.py`), so
+# the grammar is pinned without a pipeline run. Events are plain strings on
+# purpose: `LogEvent` is a StrEnum, so `LogEvent.JOB_INFO == "job_info"`, and
+# the handler never imports it.
+
+import logging as _logging  # noqa: E402 -- module-level imports are grouped above
+
+
+def _console_handler():
+    """A handler over a StringIO, standing in for Snakemake's own."""
+    base = _logging.StreamHandler(io.StringIO())
+    base.name = "DefaultStreamHandler"
+    base.setFormatter(_logging.Formatter("%(message)s"))
+    return su._ConsoleHandler(base)
+
+
+def _console_record(msg="", level=_logging.INFO, **extra):
+    record = _logging.LogRecord("snakemake", level, __file__, 0, msg, (), None)
+    record.__dict__.update(extra)
+    return record
+
+
+def _job_info(jobid, rule_name, rule_msg, wildcards=None):
+    return _console_record(
+        event="job_info",
+        jobid=jobid,
+        rule_name=rule_name,
+        rule_msg=rule_msg,
+        wildcards=dict(wildcards or {}),
+    )
+
+
+def _emit(handler, *records):
+    for record in records:
+        handler.emit(record)
+    return handler.stream.getvalue()
+
+
+def test_console_start_line_is_one_line_with_a_short_stamp():
+    """Snakemake spends three lines here: blank, `[Thu Aug 13 ...]`, `Job 8: ...`."""
+    handler = _console_handler()
+    out = _emit(handler, _job_info(8, "run_wflow", "1.14  run_wflow - run the model"))
+    assert re.fullmatch(
+        r"\d\d:\d\d:\d\d  run   1\.14  run_wflow - run the model\n", out
+    ), out
+
+
+def test_console_finish_line_carries_number_wildcards_elapsed_and_counter():
+    """The finish record names only a jobid, so every other field is recovered."""
+    su._RULE_NUMBERS["downscale_climate_realization"] = "3.14"
+    handler = _console_handler()
+    _emit(
+        handler,
+        _job_info(
+            3,
+            "downscale_climate_realization",
+            "3.14  downscale_climate_realization  rlz 1 | st 0",
+            {"rlz": "1", "st": "0"},
+        ),
+    )
+    # Backdate the memoized start rather than sleeping: the duration is the
+    # point of the assertion, and 71 seconds of it is not affordable in a test.
+    name, wildcards, started = handler._started[3]
+    handler._started[3] = (name, wildcards, started - 71)
+    out = _emit(
+        handler,
+        _console_record(event="job_finished", job_id=3),
+        _console_record(event="progress", done=27, total=37),
+    )
+    done = out.splitlines()[1]
+    assert re.fullmatch(
+        r"\d\d:\d\d:\d\d  done  3\.14  downscale_climate_realization  "
+        r"rlz 1 \| st 0  0:01:11  \[27/37\]",
+        done,
+    ), done
+
+
+def test_console_finish_line_uses_the_banner_wildcard_grammar():
+    """`rlz 1 | st 0`, not Snakemake's `rlz=1, st=0` -- one grammar, two lines."""
+    handler = _console_handler()
+    out = _emit(
+        handler,
+        _job_info(1, "r", "x", {"rlz": "1", "st": "0"}),
+        _console_record(event="job_finished", job_id=1),
+        _console_record(event="progress", done=1, total=1),
+    )
+    assert "rlz 1 | st 0" in out and "rlz=1" not in out
+
+
+def test_console_a_wave_of_finishes_counts_up_to_the_progress_total():
+    """Three held lines flushed at `done=15` are 13, 14, 15 -- in finish order."""
+    handler = _console_handler()
+    records = []
+    for jobid in (10, 11, 12):
+        records.append(_job_info(jobid, f"rule_{jobid}", f"9.0{jobid}  rule_{jobid}"))
+    for jobid in (10, 11, 12):
+        records.append(_console_record(event="job_finished", job_id=jobid))
+    records.append(_console_record(event="progress", done=15, total=37))
+    out = _emit(handler, *records)
+    finished = [line for line in out.splitlines() if "  done  " in line]
+    assert [line.split("  ")[-1] for line in finished] == [
+        "[13/37]",
+        "[14/37]",
+        "[15/37]",
+    ], finished
+    assert [line.split("  done  ")[1].split("  ")[0] for line in finished] == [
+        "rule_10",
+        "rule_11",
+        "rule_12",
+    ]
+
+
+def test_console_a_held_finish_is_flushed_uncounted_if_progress_never_comes():
+    """A held line must not be lost when the next record is not a progress one."""
+    handler = _console_handler()
+    out = _emit(
+        handler,
+        _job_info(4, "generate_weather_realizations", "3.11  generate"),
+        _console_record(event="job_finished", job_id=4),
+        _job_info(5, "next_rule", "3.12  next"),
+    )
+    lines = out.splitlines()
+    assert "  done  " in lines[1] and "[" not in lines[1], lines
+    assert "  run   3.12  next" in lines[2]
+
+
+def test_console_progress_alone_prints_nothing():
+    """The counter is a property of a finish line, never a line of its own."""
+    handler = _console_handler()
+    assert _emit(handler, _console_record(event="progress", done=1, total=9)) == ""
+
+
+def test_console_scheduler_chatter_is_muted():
+    handler = _console_handler()
+    muted = [
+        _console_record("Select jobs to execute..."),
+        _console_record("Execute 8 jobs...", event="job_started", jobs=[1]),
+        _console_record("Removing temporary output x/y/rlz_1_st_0.nc."),
+        _console_record("Touching output file x/.model_reference_ok."),
+    ]
+    assert _emit(handler, *muted) == ""
+
+
+def test_console_the_preamble_is_left_alone():
+    """It is printed before `onstart`, so muting it would be a dead rule."""
+    handler = _console_handler()
+    out = _emit(
+        handler, _console_record("Assuming unrestricted shared filesystem usage.")
+    )
+    assert out == "Assuming unrestricted shared filesystem usage.\n"
+
+
+def test_console_muting_never_reaches_a_warning_or_an_error():
+    """A prefix match must not be able to silence a diagnostic."""
+    handler = _console_handler()
+    out = _emit(
+        handler,
+        _console_record("Select jobs to execute...", level=_logging.WARNING),
+        _console_record("Removing temporary output boom.", level=_logging.ERROR),
+    )
+    assert out.splitlines() == [
+        "Select jobs to execute...",
+        "Removing temporary output boom.",
+    ]
+
+
+def test_console_unknown_records_are_delegated_verbatim():
+    """Errors and anything unrecognized keep Snakemake's own formatting."""
+    handler = _console_handler()
+    out = _emit(
+        handler,
+        _console_record("Building DAG of jobs..."),
+        _console_record("Error in rule x:\n    jobid: 3", event="job_error", jobid=3),
+    )
+    assert out == "Building DAG of jobs...\nError in rule x:\n    jobid: 3\n"
+
+
+def test_console_a_rule_without_a_message_keeps_the_default_block():
+    """Its input/output/jobid block is all a reader gets for that rule."""
+    handler = _console_handler()
+    record = _job_info(2, "some_rule", "")
+    record.msg = "rule some_rule:\n    output: a.nc"
+    assert _emit(handler, record) == "rule some_rule:\n    output: a.nc\n"
+
+
+def test_console_a_rule_without_a_message_still_gets_a_named_finish_line():
+    """Delegating the START line must not cost the job its identity at the END."""
+    handler = _console_handler()
+    record = _job_info(2, "some_rule", "")
+    record.msg = "rule some_rule:"
+    out = _emit(
+        handler,
+        record,
+        _console_record(event="job_finished", job_id=2),
+        _console_record(event="progress", done=9, total=10),
+    )
+    assert out.splitlines()[-1].endswith("done  some_rule  [9/10]"), out
+
+
+def test_console_a_sub_second_job_shows_no_duration():
+    """`0:00:00` reads as a broken clock, and bookkeeping rules are most of them."""
+    su._RULE_NUMBERS["write_experiment_config"] = "3.07"
+    handler = _console_handler()
+    out = _emit(
+        handler,
+        _job_info(1, "write_experiment_config", "3.07  write_experiment_config"),
+        _console_record(event="job_finished", job_id=1),
+        _console_record(event="progress", done=3, total=37),
+    )
+    done = out.splitlines()[1]
+    assert done.endswith("3.07  write_experiment_config  [3/37]"), done
+
+
+def test_console_no_escape_codes_when_the_stream_is_not_a_tty():
+    handler = _console_handler()
+    out = _emit(
+        handler,
+        _job_info(1, "r", "1.01  r"),
+        _console_record(event="job_finished", job_id=1),
+        _console_record(event="progress", done=1, total=1),
+    )
+    assert "\033" not in out
+
+
+def test_console_a_finish_with_no_start_falls_back_to_snakemakes_own_text():
+    """`--quiet rules` drops the start record; the finish must still name the rule.
+
+    Rendering `done  job 5` there would be strictly worse than what Snakemake
+    prints unaided, which is the one outcome a console layer must not produce.
+    """
+    handler = _console_handler()
+    out = _emit(
+        handler,
+        _console_record(
+            "Finished jobid: 5 (Rule: seed)", event="job_finished", job_id=5
+        ),
+        _console_record(event="progress", done=4, total=10),
+    )
+    assert re.fullmatch(
+        r"\d\d:\d\d:\d\d  Finished jobid: 5 \(Rule: seed\)  \[4/10\]\n", out
+    ), out
+
+
+def test_console_the_start_memo_is_bounded():
+    """`--quiet progress` drops every finish, so nothing would ever pop an entry."""
+    handler = _console_handler()
+    for jobid in range(su._CONSOLE_MAX_TRACKED_JOBS + 50):
+        handler.emit(_job_info(jobid, "member", f"9.02  member  n {jobid}"))
+    assert len(handler._started) == su._CONSOLE_MAX_TRACKED_JOBS
+    # The oldest go first: the most recent job is always still tracked.
+    assert su._CONSOLE_MAX_TRACKED_JOBS + 49 in handler._started
+    assert 0 not in handler._started
+
+
+class _TTYStringIO(io.StringIO):
+    """A StringIO the console handler treats as a terminal."""
+
+    def isatty(self):
+        return True
+
+
+def _colour_handler():
+    base = _logging.StreamHandler(_TTYStringIO())
+    base.name = "DefaultStreamHandler"
+    base.setFormatter(_logging.Formatter("%(message)s"))
+    return su._ConsoleHandler(base)
+
+
+def test_rule_banner_never_colours_even_on_a_tty():
+    """The banner string reaches a log file and an error block, not just a
+    console -- so colour belongs to whoever writes the line, not to this."""
+    import blueearth_cst.shared.snake_utils as _su
+
+    real = sys.stderr
+    sys.stderr = _FakeTTY()
+    try:
+        out = _su.rule_banner("1.09", "run_wflow", summary="run it", context="rlz 1")
+    finally:
+        sys.stderr = real
+    assert out == "1.09  run_wflow - run it  rlz 1"
+    assert "\033" not in out
+
+
+def test_console_paints_a_start_line_white_and_a_finish_line_orange():
+    """Three tiers by LINE KIND: white started, orange finished, grey between."""
+    handler = _colour_handler()
+    su._RULE_NUMBERS["seed"] = "9.01"
+    out = _emit(
+        handler,
+        _job_info(1, "seed", "9.01  seed - prepare one realization"),
+        _console_record(event="job_finished", job_id=1),
+        _console_record(event="progress", done=1, total=4),
+    )
+    run_line, done_line = out.splitlines()
+    assert run_line.startswith("\033[97m") and run_line.endswith("\033[0m"), run_line
+    assert "\033" not in run_line[5:-4], run_line
+    assert done_line.startswith("\033[38;5;208m"), done_line
+    assert "\033" not in done_line[11:-4], done_line
+
+
+def test_console_greys_an_informational_snakemake_line():
+    handler = _colour_handler()
+    out = _emit(handler, _console_record("Building DAG of jobs..."))
+    assert out == "\033[2mBuilding DAG of jobs...\033[0m\n", repr(out)
+
+
+def test_console_never_recolours_a_warning_or_an_error():
+    """Snakemake's own red must stay the loudest thing on the console."""
+    handler = _colour_handler()
+    out = _emit(
+        handler,
+        _console_record("state file missing", level=_logging.WARNING),
+        _console_record("Error in rule x:", level=_logging.ERROR, event="job_error"),
+    )
+    assert "\033" not in out, repr(out)
+
+
+def test_rule_banner_registers_its_number_for_the_finish_line(monkeypatch):
+    """The finish record carries a rule NAME only; the number comes from here."""
+    monkeypatch.setattr(sys, "stderr", io.StringIO())
+    rule_banner("2.07", "a_freshly_named_rule")
+    assert su._RULE_NUMBERS["a_freshly_named_rule"] == "2.07"
+
+
+def test_install_console_style_replaces_only_the_stream_handler(monkeypatch):
+    """The log-file handler writes the verbose durable record -- leave it alone."""
+    import types
+
+    import snakemake.logging as snakemake_logging
+
+    stream = _logging.StreamHandler(io.StringIO())
+    stream.name = "DefaultStreamHandler"
+    logfile = _logging.StreamHandler(io.StringIO())
+    logfile.name = "DefaultLogFileHandler"
+    listener = types.SimpleNamespace(handlers=(stream, logfile))
+    monkeypatch.setattr(
+        snakemake_logging.logger_manager, "queue_listener", listener, raising=False
+    )
+
+    assert su.install_console_style() is True
+    assert isinstance(listener.handlers[0], su._ConsoleHandler)
+    assert listener.handlers[1] is logfile
+
+    # Idempotent: a second call (a second Snakefile in one process) is a no-op.
+    already = listener.handlers[0]
+    assert su.install_console_style() is True
+    assert listener.handlers[0] is already
+
+
+def test_install_console_style_fails_open(monkeypatch):
+    """No console styling is worth ending a run over, so every miss is silent."""
+    import types
+
+    import snakemake.logging as snakemake_logging
+
+    for listener in (None, types.SimpleNamespace(handlers=()), object()):
+        monkeypatch.setattr(
+            snakemake_logging.logger_manager, "queue_listener", listener, raising=False
+        )
+        assert su.install_console_style() is False
+
+
+def test_run_header_shape_matches_run_summary():
+    """Same head-then-indented-rows block, so a run opens and closes alike."""
+    out = su.run_header(
+        "wf3 climate_experiment",
+        "test_case/test_rapid2",
+        "test_case/snake_config_rapid.yml",
+        experiment="experiment_rapid",
+    )
+    assert out.splitlines() == [
+        "wf3 climate_experiment",
+        "  project     test_case/test_rapid2",
+        "  config      test_case/snake_config_rapid.yml",
+        "  experiment  experiment_rapid",
+    ]
+
+
+def test_run_header_omits_rows_a_workflow_does_not_have():
+    """WF1 and WF2 pass no experiment; the block shrinks rather than showing a blank."""
+    out = su.run_header("wf1 model_creation", "test_case/test_rapid")
+    assert out.splitlines() == [
+        "wf1 model_creation",
+        "  project  test_case/test_rapid",
+    ]
+
+
+# --- console grey for rule output (_Tee / _grey_for_console) -----------------
+
+
+class _TTYWriter(io.StringIO):
+    def isatty(self):
+        return True
+
+
+def test_grey_for_console_leaves_a_progress_bar_alone():
+    """A carriage-return chunk is an in-place redraw: an SGR pair per frame
+    would flicker, and a reset landing mid-bar would break it."""
+    bar = "\r[####################] | 100% Completed | 102.06 ms"
+    assert su._grey_for_console(bar, True) == bar
+
+
+def test_grey_for_console_leaves_whitespace_alone():
+    """`print` arrives as two writes; colouring a bare newline wraps nothing."""
+    assert su._grey_for_console("\n", True) == "\n"
+
+
+def test_grey_for_console_wraps_each_line_of_a_multi_line_chunk():
+    """A chunk can hold several lines; no colour may span a newline."""
+    out = su._grey_for_console("first\nsecond\n", True)
+    assert out == "\033[2mfirst\033[0m\n\033[2msecond\033[0m\n", repr(out)
+
+
+def test_grey_for_console_is_a_no_op_without_colour():
+    assert su._grey_for_console("plain text", False) == "plain text"
+
+
+def test_tee_greys_the_console_and_never_the_log_file(tmp_path):
+    """The split this rests on: one call, two sinks, one of them a file read
+    months later by merge_logs -- where an escape code is corruption."""
+    log = tmp_path / "rule.log"
+    console = _TTYWriter()
+    with open(log, "w", encoding="utf-8") as handle:
+        tee = su._Tee(console, handle)
+        tee.write("13:42:17 - stats - deriving digest=7dc9315280ff\n")
+        tee.close()
+    # The reset lands BEFORE the newline: a colour spanning the break would
+    # carry across a terminal reflow.
+    assert console.getvalue() == (
+        "\033[2m13:42:17 - stats - deriving digest=7dc9315280ff\033[0m\n"
+    )
+    assert "\033" not in log.read_text(encoding="utf-8")
+
+
+def test_tee_does_not_colour_a_console_that_is_not_a_terminal(tmp_path):
+    log = tmp_path / "rule.log"
+    console = io.StringIO()  # isatty() -> False
+    with open(log, "w", encoding="utf-8") as handle:
+        tee = su._Tee(console, handle)
+        tee.write("plain row\n")
+        tee.close()
+    assert console.getvalue() == "plain row\n"

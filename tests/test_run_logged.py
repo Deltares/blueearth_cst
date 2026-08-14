@@ -119,7 +119,7 @@ def test_run_and_tee_compacts_hydromt_log_format(tmp_path):
     rc = run_and_tee([sys.executable, "-c", snippet], log)
     text = log.read_text(encoding="utf-8")
     assert rc == 0
-    assert "18:03:38 - model - INFO - Initializing wflow_sbm model." in text
+    assert "18:03:38 - model - Initializing wflow_sbm model." in text
     assert "hydromt.model.model" not in text
 
 

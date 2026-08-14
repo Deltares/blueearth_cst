@@ -78,8 +78,9 @@ def _strip_part_header(text):
     Only strips when the part actually starts with one (``# BlueEarth-CST``):
     parts written by R scripts, or by a job that died before its first write,
     have no header and must survive untouched. Body rows are
-    ``HH:MM:SS - module - LEVEL - msg`` (``_compact_log_line``), so consuming the
-    leading run of ``#`` lines cannot eat log content.
+    ``HH:MM:SS - module - msg`` (``_compact_log_line``, which shows the level
+    only when it is not INFO), so consuming the leading run of ``#`` lines
+    cannot eat log content.
     """
     if not text.startswith(_HEADER_MARK):
         return text
