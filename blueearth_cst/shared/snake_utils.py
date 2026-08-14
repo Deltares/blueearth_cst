@@ -9,6 +9,7 @@ own directory to ``sys.path`` before importing — see
 
 import contextlib
 import gc
+import json
 import logging
 import os
 import re
@@ -170,7 +171,150 @@ def _strip_prefix(text, prefix, replacement=""):
     return text
 
 
-def _relativize_paths(text, project_root):
+#: Where a workflow's declared key folders travel. A rule's output is written by
+#: a CHILD of the process that parses the Snakefile -- a ``script:`` module, or
+#: an R/Julia command under ``run_logged.py`` -- and none of them is handed the
+#: config. An env var is what crosses that boundary without threading a
+#: parameter through fifteen ``tee_to_log`` call sites, and it is inherited by
+#: every child for free.
+_PATH_TOKENS_ENV = "CST_PATH_TOKENS"
+
+
+def declare_path_tokens(**folders):
+    """Declare a workflow's key folders once, by short name. Returns the pairs.
+
+    Called at Snakefile PARSE time, before any rule runs. Two things then read
+    the declaration and they must not disagree, which is why it is one call:
+
+    * :func:`run_header` and :func:`_log_header_lines` print the folders, so the
+      console and every rule log open by saying where the run's data lives.
+    * :func:`_relativize_paths` rewrites each declared folder to ``<name>`` in
+      every line that mentions it, so the same twelve directory components stop
+      being repeated on line after line of a rule's output.
+
+    Together those are the point: a path is stated in FULL once, at the top, and
+    referred to by name after that. A token with no header row would be worse
+    than the long path it replaced -- an undefined symbol in a log someone reads
+    months later -- so nothing tokenizes that is not also declared.
+
+    Empty and ``None`` values are dropped rather than declared, so a workflow
+    passes what it has (WF2 has no model) without a caller-side conditional.
+    Paths are stored ABSOLUTE and normalized: a rule's output names a resolved
+    path, and a relative ``project_dir`` from the config would never match it.
+    """
+    tokens = {}
+    for name, folder in folders.items():
+        if folder is None or not str(folder).strip():
+            continue
+        tokens[name] = os.path.normpath(os.path.abspath(os.fspath(folder)))
+    os.environ[_PATH_TOKENS_ENV] = json.dumps(tokens)
+    return tokens
+
+
+def catalog_root(data_sources):
+    """Return a data catalog's local root directory, or ``""`` when it has none.
+
+    The external data tree is the one folder in this toolbox a project does not
+    own and cannot derive: it is declared inside the hydromt catalog, as
+    ``meta.roots``, and every ``Reading <source> data from ...`` line a build
+    prints is under it. Reading it here is what lets that folder be named once
+    in the header instead of repeated on every one of those lines.
+
+    Accepts the config's own shape, which is a path or a list of them, and takes
+    the FIRST local root: a catalog whose root is remote (``gs://``, ``s3://``)
+    has no prefix worth shortening. Fail-open in every direction — an
+    unreadable, malformed or rootless catalog yields ``""``, and the paths
+    simply print in full.
+    """
+    if isinstance(data_sources, (list, tuple)):
+        data_sources = next((item for item in data_sources if item), "")
+    if not data_sources:
+        return ""
+    try:
+        with open(os.fspath(data_sources), "r", encoding="utf-8") as handle:
+            document = yaml.safe_load(handle) or {}
+    except (OSError, yaml.YAMLError, TypeError):
+        return ""
+    meta = document.get("meta") if isinstance(document, Mapping) else None
+    if not isinstance(meta, Mapping):
+        return ""
+    roots = meta.get("roots") or meta.get("root") or []
+    if isinstance(roots, str):
+        roots = [roots]
+    for root in roots:
+        if isinstance(root, str) and root.strip() and "://" not in root:
+            return root
+    return ""
+
+
+def _declared_tokens(environ=None):
+    """Read the declared folders as ``(name, path)`` in DECLARATION order.
+
+    The order a workflow declared them in is the order they read best in a
+    header -- external data, then the model, then the run's own outputs -- and
+    it survives the round trip because both ``dict`` and JSON objects preserve
+    insertion order. Matching wants a different order entirely; see
+    :func:`_path_tokens`.
+    """
+    raw = (os.environ if environ is None else environ).get(_PATH_TOKENS_ENV)
+    if not raw:
+        return ()
+    try:
+        tokens = json.loads(raw)
+    except ValueError:
+        return ()
+    if not isinstance(tokens, dict):
+        return ()
+    return tuple(
+        (str(name), str(path))
+        for name, path in tokens.items()
+        if isinstance(path, str) and path.strip()
+    )
+
+
+def _path_tokens(environ=None):
+    """Read the declared folders as ``(name, path)``, LONGEST PATH FIRST.
+
+    The order is the whole reason this is not a plain dict iteration: an
+    experiment directory sits under the project and a model directory can sit
+    under either, so a shorter path that prefixes a longer one would claim it
+    first and ``<experiment>/hydrology/wflow`` would come out as
+    ``<project>/experiments/x/hydrology/wflow``. Longest first, always.
+
+    Fail-open: an absent or malformed variable yields no tokens and every path
+    prints in full, which is the behaviour this whole mechanism improves on.
+    """
+    pairs = _declared_tokens(environ)
+    return tuple(sorted(pairs, key=lambda pair: len(pair[1]), reverse=True))
+
+
+def _tokenize_prefix(text, prefix, token):
+    """Replace ``prefix`` (and anything below it) with ``<token>/...``.
+
+    Unlike :func:`_strip_prefix` this also matches the directory NAMED ON ITS
+    OWN, with no trailing separator -- ``Write model data to <...>/wflow`` is
+    one of the commonest lines a build prints, and a rewrite that needed a
+    separator would leave exactly the line that states the folder untouched
+    while shortening every line below it.
+
+    The trailing lookahead is what stops ``<...>/wflow`` from also claiming
+    ``<...>/wflow_extra``: with no separator-led tail, the character after the
+    prefix must be one that cannot continue a path.
+    """
+    if not prefix:
+        return text
+    tail = f"([\\\\/]{_STRIPPED_TAIL_RE})?"
+    guard = r"(?![^\s\"'<>|,;)\]}])"
+    for spelling in (prefix, prefix.replace(os.sep, "/")):
+        text = re.sub(
+            re.escape(spelling) + tail + guard,
+            lambda m: f"<{token}>" + (m.group(1) or "").replace("\\", "/"),
+            text,
+        )
+    return text
+
+
+def _relativize_paths(text, project_root, tokens=()):
     """Shorten the three absolute prefixes that dominate a log line.
 
     Every rule log is full of paths whose leading two-thirds are the same on
@@ -194,10 +338,37 @@ def _relativize_paths(text, project_root):
     matched FIRST or a repo-relative rewrite would hide it. A path in none of
     the three (a data catalog under ``C:\\data\\``) is left absolute — its
     location is the information.
+
+    ``tokens`` are the run's DECLARED key folders (see
+    :func:`declare_path_tokens`), and they are applied BEFORE the project strip
+    for a mechanical reason: by then a path under the project has already lost
+    its root, so a token registered in absolute form — which is the only form
+    that can match what a rule prints — would find nothing left to match. They
+    are also what makes an external data root shortenable at all; the paragraph
+    above is still true of an UNDECLARED one.
     """
     text = _SITE_PACKAGES_RE.sub("<site-packages>/", text)
+    for token, path in tokens:
+        text = _tokenize_prefix(text, path, token)
     text = _strip_prefix(text, project_root)
     return _strip_prefix(text, _REPO_ROOT, "<repo>/")
+
+
+def _folder_rows(project_root, tokens=None):
+    """Return ``(<name>, path)`` rows defining the run's declared key folders.
+
+    A folder under the project is shown PROJECT-RELATIVE, because that is
+    exactly how every path below it prints in the body, and one that is not
+    (an external data root) is shown absolute for the same reason. The header
+    carrying these rows always states the project dir itself, so the two forms
+    cannot be confused.
+    """
+    root = os.path.normpath(os.fspath(project_root)) if project_root else ""
+    rows = []
+    for token, path in _declared_tokens() if tokens is None else tokens:
+        shown = _strip_prefix(path, root) if root else path
+        rows.append((f"<{token}>", shown.replace(os.sep, "/")))
+    return rows
 
 
 def _log_header_lines(path, kind="log", time_label="started", markdown=False):
@@ -229,6 +400,12 @@ def _log_header_lines(path, kind="log", time_label="started", markdown=False):
         lines.append(f"project dir: {root.replace(os.sep, '/')}")
     lines.append(f"{kind}: {log_id} | {time_label} {now:%H:%M:%S}")
     if kind == "log":
+        # The declared key folders, because the rows below refer to them by
+        # name. A `<model>/staticmaps.nc` in a log read months from now is
+        # strictly worse than the long path it replaced unless the log itself
+        # says what `<model>` was -- so the definition travels with the rows,
+        # not just with the console that scrolled away.
+        lines.extend(f"{label}: {value}" for label, value in _folder_rows(root))
         lines.append("rows: HH:MM:SS - module - message | level shown unless INFO")
     if markdown:
         body = "\n".join(lines)
@@ -1911,8 +2088,14 @@ class _Tee:
     so a bar redrawing for hours never grows the buffer beyond one line.
     """
 
-    def __init__(self, live, logfile, project_root="", on_activity=None):
+    def __init__(self, live, logfile, project_root="", on_activity=None, tokens=None):
         self._live = live
+        # The declared key folders, resolved ONCE per tee rather than per line.
+        # Per line it would be a global read on the hot path of every write, and
+        # a test that declared tokens would leak into the next one; here the
+        # value is fixed when the redirect is set up, which is also when the
+        # header naming those folders is written.
+        self._tokens = _path_tokens() if tokens is None else tuple(tokens)
         # Decided once, against the REAL console this tee wraps -- and it paints
         # the live copy ONLY. The log file must never receive an escape code:
         # it is read months later, by tools and by `merge_logs`, where a colour
@@ -1935,7 +2118,9 @@ class _Tee:
     def write(self, text):
         if self._on_activity is not None:
             self._on_activity()
-        out = _relativize_paths(_compact_log_line(text), self._project_root)
+        out = _relativize_paths(
+            _compact_log_line(text), self._project_root, self._tokens
+        )
         # Painted, but still verbatim in shape -- `_paint_body` passes a
         # carriage-return chunk straight through, so the live console animation
         # this sink exists to preserve is untouched.
@@ -2052,12 +2237,15 @@ def run_and_tee(command, log_path):
         log.flush()
 
         colour = _console_colour(sys.stdout)
+        # Resolved once per RUN, for the same reason the tee resolves once per
+        # construction: `emit` is called per line.
+        tokens = _path_tokens()
 
         def emit(text):
             # Compact hydromt's redundant log format (see _compact_log_line) and
             # show project files relative to the project dir; non-hydromt lines
             # and out-of-project paths pass through unchanged.
-            text = _relativize_paths(_compact_log_line(text), project_root)
+            text = _relativize_paths(_compact_log_line(text), project_root, tokens)
             # Body tier on the console only: a shell rule's output is detail, and
             # `log` below must stay free of escape codes.
             shown = _paint_body(text, colour)
@@ -2346,6 +2534,7 @@ def tee_to_log(log_path, heartbeat_interval=60.0):
                             )
                         ),
                         project_root,
+                        stdout_tee._tokens,
                     )
                 )
                 handle.flush()
@@ -2836,7 +3025,8 @@ def target_banner(number, name, targets, project_dir=None):
     listed = [os.fspath(target) for target in targets]
     if project_dir:
         root = os.path.normpath(os.fspath(project_dir))
-        listed = [_relativize_paths(target, root) for target in listed]
+        tokens = _path_tokens()
+        listed = [_relativize_paths(target, root, tokens) for target in listed]
         banner = f"{banner}  [{root.replace(os.sep, '/')}]"
     body = "\n".join(f"    {target}" for target in listed)
     return f"{banner}\n{body}" if body else banner
@@ -3204,11 +3394,20 @@ def run_header(workflow, project_dir, config_path=None, **details):
     ``details`` are extra rows in call order (WF3 passes ``experiment=``),
     keeping the block to what a workflow actually has rather than a fixed set
     with blanks in it.
+
+    The run's DECLARED key folders (:func:`declare_path_tokens`) close the
+    block, and they are read from the declaration rather than passed in: these
+    same names are what every path in every rule's output is rewritten to, so a
+    header row and a body line that disagreed would be worse than no header at
+    all. One declaration, two readers.
     """
-    rows = [("project", os.fspath(project_dir))]
+    # Forward slashes, like every path the folder rows below and the log
+    # headers print: one block mixing `C:\a\b` with `a/b` reads as two trees.
+    rows = [("project", os.fspath(project_dir).replace(os.sep, "/"))]
     if config_path:
         rows.append(("config", os.fspath(config_path)))
     rows.extend((key, str(value)) for key, value in details.items())
+    rows.extend(_folder_rows(project_dir))
     width = max(len(key) for key, _ in rows)
     lines = [workflow]
     lines.extend(f"  {key.ljust(width)}  {value}" for key, value in rows)

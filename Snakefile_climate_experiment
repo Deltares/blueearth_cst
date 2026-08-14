@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(workflow.basedir)))
 from blueearth_cst.experiment.allocate import resolve_default_experiment_name
 from blueearth_cst.shared.provenance import append_journal_line, configuration_inputs_digest, effective_config_digest, environment_file_hashes, file_sha256, journal_event, referenced_inputs_for_digest, toolbox_identity
 from blueearth_cst.shared.indicator_tables import indicator_tables, refuse_retired_experiment_keys
-from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_rule, DEFAULT_JULIA_THREADS, DEFAULT_WFLOW_OUTVARS, file_digest_or_absent, get_config, julia_prefix, index_width, member_index_regex, patch_psutil_windows_benchmark, project_slug, region_rule, rule_banner, run_summary, spatial_units_rule, resolve_seed, resolve_water_year_start, stress_test_grid, validate_spell_factor, target_banner, validate_experiment_name, warn_if_project_dir_in_repo, install_console_style, run_header
+from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, catalog_root, declare_path_tokens, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_rule, DEFAULT_JULIA_THREADS, DEFAULT_WFLOW_OUTVARS, file_digest_or_absent, get_config, julia_prefix, index_width, member_index_regex, patch_psutil_windows_benchmark, project_slug, region_rule, rule_banner, run_summary, spatial_units_rule, resolve_seed, resolve_water_year_start, stress_test_grid, validate_spell_factor, target_banner, validate_experiment_name, warn_if_project_dir_in_repo, install_console_style, run_header
 from blueearth_cst.spatial.config import parse_spatial_config
 
 # Windows: make Snakemake's benchmark memory/IO/CPU metrics work (else all NA).
@@ -471,6 +471,17 @@ wf2_snapshot_digest = file_digest_or_absent(wf2_snapshot_path)
 # 3.15's label is the SINGULAR `3.15_run_wflow` while its rule identifiers are
 # `run_wflow_batch_<b>`, one per batch. Deliberate (P3-3 keys logs by batch id),
 # and it survives renumbering — do not "fix" it.
+# The run's key folders, stated once -- see the same block in
+# Snakefile_model_creation. `experiment` is declared alongside `model` and is
+# the longer of the two roots under the project, which is why the token reader
+# sorts longest-first: a WF3 run writes almost everything below it.
+declare_path_tokens(
+    data=catalog_root(DATA_SOURCES),
+    model=basin_dir,
+    climate=store_dir,
+    experiment=exp_dir,
+)
+
 WORKFLOW_LOG_NAME = f"wf3_climate_experiment_{experiment}.log"
 BENCHMARKS_NAME = f"wf3_benchmarks_{experiment}.md"
 LOG_PARTS_DIR = f"{project_dir}/logs/_parts/{experiment}"

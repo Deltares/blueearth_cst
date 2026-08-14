@@ -409,6 +409,90 @@ def test_relativize_strips_project_root_both_separators():
     )
 
 
+@pytest.fixture
+def declare_folders(monkeypatch):
+    """Declare key folders with the process-wide effect undone afterwards.
+
+    `declare_path_tokens` writes an env var by design -- a rule's output is
+    written by a CHILD of the process that parses the Snakefile. Isolation is
+    `monkeypatch.setenv`, NOT `delenv`: delenv on an absent variable records
+    nothing to undo, so a declaration made after it leaks into every test that
+    follows (three run-header tests, measured).
+    """
+    monkeypatch.setenv(su._PATH_TOKENS_ENV, "")
+    return su.declare_path_tokens
+
+
+def test_declared_folders_become_tokens_in_one_line(declare_folders):
+    """The interleaved case: an external data root and a model dir in one line.
+
+    This is the shape a build actually prints -- `Reading <x> data from <data
+    root>` and `Writing grid data to <model dir>` -- and the one that breaks if
+    tokens are applied after the project strip, because by then the model path
+    has already lost the root a token is registered with.
+    """
+    root = os.path.normpath("C:/TESTS/gabon")
+    declare_folders(
+        data=os.path.normpath("C:/data/wflow_global/hydromt"),
+        model=os.path.join(root, "models", "hydrology", "wflow"),
+    )
+    tokens = su._path_tokens()
+    line = (
+        f"copied {os.path.normpath('C:/data/wflow_global/hydromt/rgi/rgi.gpkg')} "
+        f"to {os.path.join(root, 'models', 'hydrology', 'wflow', 'staticmaps.nc')}\n"
+    )
+    assert su._relativize_paths(line, root, tokens) == (
+        "copied <data>/rgi/rgi.gpkg to <model>/staticmaps.nc\n"
+    )
+
+
+def test_a_declared_folder_named_on_its_own_is_tokenized(declare_folders):
+    """`Write model data to <model dir>` -- no trailing separator, and the one
+    line that states the folder rather than something under it."""
+    model = os.path.normpath("C:/TESTS/gabon/models/hydrology/wflow")
+    declare_folders(model=model)
+    out = su._relativize_paths(f"Write model data to {model}\n", "", su._path_tokens())
+    assert out == "Write model data to <model>\n"
+
+
+def test_a_token_does_not_claim_a_sibling_that_starts_with_it(declare_folders):
+    """`.../wflow` must not turn `.../wflow_extra` into `<model>_extra`."""
+    model = os.path.normpath("C:/TESTS/gabon/models/hydrology/wflow")
+    declare_folders(model=model)
+    out = su._relativize_paths(f"reading {model}_extra/x.nc\n", "", su._path_tokens())
+    assert out == f"reading {model}_extra/x.nc\n"
+
+
+def test_the_longest_declared_folder_wins(declare_folders):
+    """An experiment dir sits under the project and a model dir can sit under
+    either; a shorter root claiming a longer one would mislabel every path."""
+    root = os.path.normpath("C:/TESTS/gabon")
+    declare_folders(
+        climate=os.path.join(root, "data"),
+        experiment=os.path.join(root, "data", "experiments", "exp_a"),
+    )
+    line = f"wrote {os.path.join(root, 'data', 'experiments', 'exp_a', 'q.csv')}\n"
+    assert (
+        su._relativize_paths(line, root, su._path_tokens())
+        == "wrote <experiment>/q.csv\n"
+    )
+
+
+def test_declare_path_tokens_drops_what_a_workflow_does_not_have(declare_folders):
+    """WF2 declares no model. A blank must not become a token matching everything."""
+    tokens = declare_folders(data="", model=None, projections="proj/x")
+    assert set(tokens) == {"projections"}
+    assert os.path.isabs(tokens["projections"])
+
+
+def test_path_tokens_fails_open_on_a_malformed_declaration(monkeypatch):
+    """Every path prints in full -- which is what this mechanism improves on,
+    so a broken variable can only cost the improvement, never the run."""
+    for raw in ("", "not json", "[1, 2]", '{"model": 7}'):
+        monkeypatch.setenv(su._PATH_TOKENS_ENV, raw)
+        assert su._path_tokens() == ()
+
+
 def test_relativize_leaves_out_of_project_paths_absolute():
     root = os.path.normpath("C:/TESTS/gabon")
     line = f"Reading data from {os.path.normpath('C:/data/wflow_global/x.tif')}\n"
@@ -1759,6 +1843,35 @@ def test_run_header_shape_matches_run_summary():
         "  config      test_case/snake_config_rapid.yml",
         "  experiment  experiment_rapid",
     ]
+
+
+def test_run_header_states_the_declared_folders(declare_folders):
+    """Every token that appears in a body line is defined here, in full.
+
+    A folder under the project is shown project-relative because that is how
+    paths below it print; the external data root is shown absolute for the same
+    reason. The rows keep DECLARATION order -- matching wants longest-path
+    first, and that order in a header is arbitrary to a reader.
+    """
+    project = os.path.normpath("C:/TESTS/gabon")
+    declare_folders(
+        data=os.path.normpath("C:/data/wflow_global/hydromt"),
+        model=os.path.join(project, "models", "hydrology", "wflow"),
+    )
+    rows = su.run_header("wf1 model_creation", project).splitlines()[1:]
+    assert [row.split()[0] for row in rows] == ["project", "<data>", "<model>"]
+    assert rows[1].endswith("C:/data/wflow_global/hydromt")
+    assert rows[2].endswith("models/hydrology/wflow")
+
+
+def test_a_rule_log_header_defines_every_token_its_rows_use(declare_folders, tmp_path):
+    """The console scrolls away; the log is read months later. A `<model>/x.nc`
+    row in a file that never says what `<model>` was is worse than the long
+    path it replaced -- so the definition travels with the rows."""
+    project = tmp_path / "gabon"
+    declare_folders(model=project / "models" / "hydrology" / "wflow")
+    header = su._log_header_lines(str(project / "logs" / "1.07_build.log"))
+    assert "# <model>: models/hydrology/wflow" in header.splitlines()
 
 
 def test_run_header_omits_rows_a_workflow_does_not_have():
