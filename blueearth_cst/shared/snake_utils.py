@@ -41,6 +41,12 @@ _HYDROMT_LOG_RE = re.compile(
     r"^\d{4}-\d{2}-\d{2} (\d{2}:\d{2}:\d{2}),\d{3} - \S+ - (\S+) - (\w+) - (.*)$"
 )
 
+# hydromt_wflow ALSO prefixes many messages with the model component they write:
+# ``wflow_sbm.geoms: Writing geoms to ...``. Where that prefix's leaf repeats the
+# ``<module>`` column the row already carries, one row names the same subsystem
+# twice — measured on a full WF1 build, 35 of 272 rows (and 31 of them `geoms`).
+_COMPONENT_PREFIX_RE = re.compile(r"^\w+\.(\w+): (.*)$")
+
 
 def _compact_log_line(text):
     """Compact a hydromt-format log line: ``HH:MM:SS`` stamp, drop dotted name.
@@ -49,6 +55,22 @@ def _compact_log_line(text):
     ``<HH:MM:SS> - <module> - <LEVEL> - <msg>``. A trailing newline is preserved.
     Non-matching text is returned unchanged, so the tee stays faithful for all
     output that is not a single hydromt log record.
+
+    A message-leading ``<model>.<component>: `` prefix is dropped when
+    ``<component>`` is the ``<module>`` column — the same rule that drops the
+    dotted ``<name>``, applied one field along: a row states its subsystem once.
+    ``geoms - INFO - wflow_sbm.geoms: Writing geoms to x.geojson`` becomes
+    ``geoms - INFO - Writing geoms to x.geojson``.
+
+    The prefix is KEPT when the two differ, which is a third of them:
+    ``spatial - INFO - wflow_sbm.staticmaps: ...`` names hydromt's code module
+    and the model component being written, and those are two different facts.
+
+    Trimming the message rather than the ``<module>`` column is deliberate. The
+    column is what makes every row in these logs the same four fields, which is
+    what a reader scans and what ``merge_logs`` and ``log_row`` both assume;
+    dropping it only on the rows that happen to carry a prefix would make the
+    shape conditional to buy the same characters.
     """
     had_newline = text.endswith("\n")
     core = text[:-1] if had_newline else text
@@ -56,6 +78,9 @@ def _compact_log_line(text):
     if not match:
         return text
     hms, module, level, message = match.groups()
+    prefixed = _COMPONENT_PREFIX_RE.match(message)
+    if prefixed and prefixed.group(1) == module:
+        message = prefixed.group(2)
     return f"{hms} - {module} - {level} - {message}" + ("\n" if had_newline else "")
 
 

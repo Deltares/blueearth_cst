@@ -103,6 +103,50 @@ def test_compact_keeps_level_and_no_trailing_newline():
     )
 
 
+def test_compact_drops_a_component_prefix_that_repeats_the_module():
+    """`geoms - INFO - wflow_sbm.geoms:` names one subsystem twice."""
+    line = (
+        "2026-08-14 11:13:01,204 - hydromt_wflow.wflow_base - geoms - INFO - "
+        "wflow_sbm.geoms: Writing geoms to staticgeoms/basins.geojson.\n"
+    )
+    assert _compact_log_line(line) == (
+        "11:13:01 - geoms - INFO - Writing geoms to staticgeoms/basins.geojson.\n"
+    )
+
+
+def test_compact_keeps_a_component_prefix_that_says_something_else():
+    """`spatial` is hydromt's module, `staticmaps` the component -- two facts."""
+    line = (
+        "2026-08-14 11:13:01,204 - hydromt_wflow.wflow_base - spatial - INFO - "
+        "wflow_sbm.staticmaps: Writing region to staticgeoms/region.geojson.\n"
+    )
+    assert _compact_log_line(line) == (
+        "11:13:01 - spatial - INFO - wflow_sbm.staticmaps: Writing region to "
+        "staticgeoms/region.geojson.\n"
+    )
+
+
+def test_compact_leaves_an_ordinary_colon_in_the_message_alone():
+    """Only a dotted prefix in the leading position is a component prefix."""
+    line = (
+        "2026-08-14 11:13:01,204 - hydromt.model.model - model - INFO - "
+        "Reading model config file from wflow_sbm.toml: found 4 sections\n"
+    )
+    assert _compact_log_line(line) == (
+        "11:13:01 - model - INFO - Reading model config file from "
+        "wflow_sbm.toml: found 4 sections\n"
+    )
+
+
+def test_compact_keeps_a_bare_prefix_with_no_message_after_it():
+    """`wflow_sbm.geoms:` alone is the whole message; dropping it leaves nothing."""
+    line = (
+        "2026-08-14 11:13:01,204 - hydromt_wflow.wflow_base - geoms - INFO - "
+        "wflow_sbm.geoms:\n"
+    )
+    assert _compact_log_line(line) == "11:13:01 - geoms - INFO - wflow_sbm.geoms:\n"
+
+
 @pytest.mark.parametrize(
     "line",
     [
