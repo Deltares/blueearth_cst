@@ -119,20 +119,47 @@ model runs deferred to a follow-on), and the existing rule digits 1/2/3 stay put
       1.02 and 1.03 as well — both shared producer contracts, so three symmetry
       tests go four-way — and rule 1.13 declares 1.05's `climate_levels.json` as
       a real input. Do not re-run this.
-- [ ] Landing A — the rename. **Must run in the PRIMARY checkout**: the fixture
-      trees carry the renamed paths as data, and the fixture-dependent layer
-      skips rather than fails in a worktree, so a lane gate would prove nothing.
-- [ ] Split the Snakefile — **additive, not a subtraction**. WF1 keeps 1.02–1.05
-      exactly as they are; the new workflow declares the same shared rules
-      generated per candidate source. Design §5.2 / §5.4.
+- [x] Landing A — the rename (2026-08-14, merged `c629d05`, 4 commits on a
+      transient `sweep/workflow-rename`). Gate: `test-full` 2229/7/1, byte-identical
+      to the pre-rename run; `tree-check` 210 paths / 2 unmapped, also identical;
+      `check_baseline` re-recorded (`7124d1d`) touching only the three
+      config-snapshot hashes — **every data and numeric target unchanged**, which
+      is the evidence that the rename moved no number. Both fixture trees migrated.
+      Three defects it surfaced, all fixed: three tests globbed `Snakefile_*` and
+      would have matched nothing (two of them build COVERAGE SETS from that glob,
+      so every `script:` module would have gone unchecked while green — they now
+      glob `*.smk` and assert non-empty); the blanket sweep rewrote records,
+      including this design's own was/becomes table, into nonsense; and it could
+      not tell a CURRENT path from a HISTORICAL one in `semantic_tree_diff.py`,
+      repointing a map at filenames that do not exist and turning
+      `run_climate_experiment/` into `run_run_stress_test/`.
+- [x] Split the Snakefile — **additive, not a subtraction** (2026-08-14,
+      `591c155`). WF1 keeps 1.02–1.05 untouched; `analyze_climate.smk` declares
+      the same shared rules, GENERATED one per candidate source. Settles design
+      O-1 (the loop idiom works: a two-source DAG plans 10 jobs, era5 and chirps
+      each with their own family's output set) and O-3 (`WORKFLOW_ORDER` drives
+      the validator, so the closed set widened 3→4 with both hard-error clauses
+      untouched). Additivity is now CHECKED, not asserted:
+      `test_cli::test_analyze_climate_adds_no_job_to_build_model` plans WF1 with
+      and without the new config section and compares job sets. Gate: `test-full`
+      2238/7/1.
+- [x] `scripts/run_workflows.py` ordering + `workflows.<name>.enabled`; the
+      wf0 digit map, `dag-wf0`, the four-way symmetry tests, and the tree
+      inventory's `wf[012]` coverage went with it.
+- [x] Docs (`1f6c1ae`) — `AGENTS.md` Overview table, Background, Key Commands;
+      `README.md`; `docs/migration-workflow-names.md`.
+- [ ] Station/subregion sampling + observation comparison (rules 0.06–0.08).
+      Needs two new WF0-owned config keys, `climate_locations` and
+      `climate_locations_timeseries`, plus their csv templates.
+- [ ] Budyko screening (rule 0.09). **BLOCKED on design O-2**: it needs the
+      observed discharge series, currently `workflows.build_model.
+      observations_timeseries`. Two workflows reading it argues for `shared:`,
+      but that is a second breaking config change within a day of the rename.
 - [ ] Multi-forcing model runs — **deferred out of this item** by the 2026-08-14
       ruling. Raise as its own note at Landing B's closure.
-- [ ] Station/subregion sampling + observation comparison.
-- [ ] Budyko screening.
-- [ ] `scripts/run_workflows.py` ordering + `workflows.<name>.enabled` for the
-      new workflow; its contract is pinned clause-by-clause by
-      `tests/test_run_workflows.py`.
 - [ ] Follow-ons: SPI/dry-day/heat-day indices; MODIS snow cover.
+- [ ] The fourth notebook (`docs/notebooks/`), inherited from the closed
+      `t2608131847`, with its `rendered against <sha>` banner and README entry.
 
 ## Before starting
 
