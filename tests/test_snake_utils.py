@@ -1493,6 +1493,36 @@ def test_console_no_escape_codes_when_the_stream_is_not_a_tty():
     assert "\033" not in out
 
 
+def test_console_a_finish_with_no_start_falls_back_to_snakemakes_own_text():
+    """`--quiet rules` drops the start record; the finish must still name the rule.
+
+    Rendering `done  job 5` there would be strictly worse than what Snakemake
+    prints unaided, which is the one outcome a console layer must not produce.
+    """
+    handler = _console_handler()
+    out = _emit(
+        handler,
+        _console_record(
+            "Finished jobid: 5 (Rule: seed)", event="job_finished", job_id=5
+        ),
+        _console_record(event="progress", done=4, total=10),
+    )
+    assert re.fullmatch(
+        r"\d\d:\d\d:\d\d  Finished jobid: 5 \(Rule: seed\)  \[4/10\]\n", out
+    ), out
+
+
+def test_console_the_start_memo_is_bounded():
+    """`--quiet progress` drops every finish, so nothing would ever pop an entry."""
+    handler = _console_handler()
+    for jobid in range(su._CONSOLE_MAX_TRACKED_JOBS + 50):
+        handler.emit(_job_info(jobid, "member", f"9.02  member  n {jobid}"))
+    assert len(handler._started) == su._CONSOLE_MAX_TRACKED_JOBS
+    # The oldest go first: the most recent job is always still tracked.
+    assert su._CONSOLE_MAX_TRACKED_JOBS + 49 in handler._started
+    assert 0 not in handler._started
+
+
 def test_rule_banner_registers_its_number_for_the_finish_line(monkeypatch):
     """The finish record carries a rule NAME only; the number comes from here."""
     monkeypatch.setattr(sys, "stderr", io.StringIO())

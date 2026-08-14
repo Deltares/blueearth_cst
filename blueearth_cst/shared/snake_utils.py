@@ -2638,6 +2638,8 @@ def target_banner(number, name, targets, project_dir=None):
 # `host: ...`, `Provided cores: N`) is deliberately absent: it is printed before
 # `onstart`, so no Snakefile hook can be installed early enough to mute it. It
 # is a handful of lines once per run; the volume was never there.
+_CONSOLE_MAX_TRACKED_JOBS = 4096
+
 _CONSOLE_MUTED_PREFIXES = (
     "Select jobs to execute...",
     "Removing temporary output ",
@@ -2694,6 +2696,15 @@ class _ConsoleHandler(logging.StreamHandler):
     Events are compared as PLAIN STRINGS. ``LogEvent`` is a ``StrEnum``, so
     ``record.event == "job_info"`` holds for the member itself -- which keeps
     this class importable, and unit-testable, without snakemake installed.
+
+    **``--quiet`` still means what it means**, because the inherited filter runs
+    BEFORE this handler and can remove either half of a pair. ``--quiet rules``
+    drops the start records, so a finish falls back to Snakemake's own
+    ``Finished jobid: N (Rule: x)`` text plus our stamp and counter -- still one
+    line, still naming the rule. ``--quiet progress`` drops the finish records
+    entirely, leaving only start lines, which is what asking for no progress
+    reporting should give; the start memo is capped so that mode cannot grow a
+    dict without bound. Neither combination was hypothetical: both were run.
     """
 
     def __init__(self, base):
@@ -2757,7 +2768,11 @@ class _ConsoleHandler(logging.StreamHandler):
         # each finish (`scheduler.py`), and anything else arriving first drains
         # the queue uncounted, so a held line cannot be lost.
         if event == "job_finished":
-            self._finished.append(fields.get("job_id"))
+            # The record's own text is kept as a fallback identity. Under
+            # `--quiet rules` the inherited filter drops JOB_INFO, so there is
+            # no memo to look up and `Finished jobid: 5 (Rule: seed)` is the
+            # only thing naming the job -- see `_done_line`.
+            self._finished.append((fields.get("job_id"), str(record.msg or "")))
             return None
 
         if event == "progress":
@@ -2793,6 +2808,14 @@ class _ConsoleHandler(logging.StreamHandler):
             _console_wildcards(fields.get("wildcards")),
             time.monotonic(),
         )
+        # Bounded, because under `--quiet progress` the inherited filter drops
+        # JOB_FINISHED and nothing ever pops an entry -- an unbounded dict on a
+        # run with thousands of jobs. Insertion order makes the oldest entry the
+        # one least likely to still be running. The cap is far above any real
+        # in-flight count (WF3's widest fan-out is one job per rlz x st), so a
+        # normal run never reaches it.
+        while len(self._started) > _CONSOLE_MAX_TRACKED_JOBS:
+            self._started.pop(next(iter(self._started)))
         message = fields.get("rule_msg")
         if not message:
             # A rule with no `message:`. Snakemake's default block names its
@@ -2809,17 +2832,30 @@ class _ConsoleHandler(logging.StreamHandler):
         # ends AT it and counts backwards from there.
         first = None if done is None else done - len(finished) + 1
         return [
-            self._done_line(jobid, None if first is None else first + offset, total)
-            for offset, jobid in enumerate(finished)
+            self._done_line(
+                jobid, fallback, None if first is None else first + offset, total
+            )
+            for offset, (jobid, fallback) in enumerate(finished)
         ]
 
-    def _done_line(self, jobid, counter, total):
+    def _done_line(self, jobid, fallback, counter, total):
         rule_name, wildcards, started = self._started.pop(jobid, (None, "", None))
+        if rule_name is None and fallback:
+            # No start line was seen for this job, so there is nothing to render
+            # in our grammar -- under `--quiet rules` the filter dropped it, and
+            # a grouped job never emits one. Snakemake's own text still names
+            # the rule, which is the whole point of the line; it gets our stamp
+            # and the counter and nothing else.
+            return f"{self._stamp()}  {fallback}" + (
+                f"  {self._dim(f'[{counter}/{total}]')}"
+                if counter is not None and total
+                else ""
+            )
         number = _RULE_NUMBERS.get(rule_name)
         if rule_name:
             identity = f"{number}  {rule_name}" if number else rule_name
         else:
-            identity = f"job {jobid}"  # started before this handler was installed
+            identity = f"job {jobid}"
         parts = [identity]
         if wildcards:
             parts.append(wildcards)
