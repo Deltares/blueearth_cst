@@ -310,6 +310,81 @@ def test_a_tracked_clean_toolbox_file_is_recorded_not_copied(tmp_path, sources):
     assert not (cfg / "templates").exists()
 
 
+def _inside_the_checkout(monkeypatch, tmp_path):
+    """Make ``tmp_path`` the toolbox root, with every git query answering yes.
+
+    The tracked-and-clean branch cannot otherwise be reached hermetically: a
+    file must resolve INSIDE ``_REPO_ROOT`` for the predicate to consult git at
+    all, so a real tracked file would be the only alternative — and then the
+    test's answer would depend on whether that file happens to be clean, and on
+    whether `test_case/` was seeded into this worktree. Both faked together, so
+    the assertion is about the POLICY and nothing else.
+    """
+    monkeypatch.setattr(ccf, "_REPO_ROOT", tmp_path.resolve())
+    monkeypatch.setattr(ccf, "_git_query", _fake_git())
+
+
+def test_observation_inputs_are_archived_even_when_recoverable(
+    tmp_path, sources, monkeypatch
+):
+    """The exception the predicate does not get a say in.
+
+    An observation input is the project's record of what the model was
+    evaluated against, so it is archived whether or not the toolbox could hand
+    it back. Before this, a project whose `gauge_points` pointed at a tracked
+    CSV inside the checkout — the test fixture case — got no
+    `config/observations/` bin at all, and nothing said so.
+    """
+    _inside_the_checkout(monkeypatch, tmp_path)
+    cfg = tmp_path / "project" / "config"
+    locations = tmp_path / "basin" / "gauges.csv"
+    locations.parent.mkdir(parents=True, exist_ok=True)
+    locations.write_text("wflow_id,station_name,x,y\n", encoding="utf-8")
+
+    record = _record(
+        tmp_path,
+        sources,
+        other_config_files={str(locations): str(cfg / "observations")},
+        # The ROLE decides, not the filename -- which is why the source here is
+        # called something else entirely.
+        reference_roles={str(locations): "output_locations"},
+    )
+    entry = record["referenced_inputs"][0]
+
+    assert (cfg / "observations" / "output_locations.csv").is_file()
+    assert entry["archived_path"].endswith("config/observations/output_locations.csv")
+    # `recoverable` and `archived_path` are now INDEPENDENT: this file is both.
+    assert entry["recoverable"] is True
+    assert entry["git_blob"] == "b" * 40
+
+
+def test_a_non_observation_tracked_file_is_still_not_copied(
+    tmp_path, sources, monkeypatch
+):
+    """The guard against the change being over-broad.
+
+    Same tracked-and-clean setup, a role that is not an observation input: the
+    record-by-blob-id branch still applies and the bin is still never created.
+    """
+    _inside_the_checkout(monkeypatch, tmp_path)
+    cfg = tmp_path / "project" / "config"
+    catalog = tmp_path / "site" / "site_specific_catalog.yml"
+    catalog.parent.mkdir(parents=True, exist_ok=True)
+    catalog.write_text("meta: {}\n", encoding="utf-8")
+
+    record = _record(
+        tmp_path,
+        sources,
+        other_config_files={str(catalog): str(cfg / "catalogs")},
+    )
+    entry = record["referenced_inputs"][0]
+
+    assert entry["recoverable"] is True
+    assert entry["archived_path"] is None
+    assert not (cfg / "catalogs").exists()
+    assert not (cfg / "templates").exists()
+
+
 def test_a_case_only_destination_collision_still_raises(tmp_path, sources):
     """On Windows two destinations differing only in case are ONE file.
 

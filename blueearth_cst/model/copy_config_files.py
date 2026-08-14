@@ -24,6 +24,25 @@ from blueearth_cst.shared.snake_utils import log_row
 #: Repository root, three levels up from ``blueearth_cst/model/copy_config_files.py``.
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
+#: Roles archived into the project unconditionally, recoverable or not.
+#:
+#: R4's predicate asks whether the TOOLBOX can give a file back. For the two
+#: observation inputs that is the wrong question: they are the project's record
+#: of what the model was evaluated against, and a finished project must be able
+#: to state that on its own. The predicate also makes the bin invisible exactly
+#: when the inputs happen to live inside the checkout -- the test fixture case,
+#: where `gauge_points` and `observations_timeseries` point at tracked
+#: `test_case/test_data/` CSVs and nothing is ever written.
+#:
+#: The duplication is ACCEPTED, not overlooked: a gauge record can be large
+#: (435 KB in the test fixture, more on a real basin). Do not "optimize" this
+#: back into a predicate -- that is exactly the behaviour it replaced.
+#:
+#: Role-keyed rather than bin-keyed on purpose: §5.5's argument that copying is
+#: a property of the FILE still holds, and `__main__` already assigns exactly
+#: these two role names.
+ALWAYS_ARCHIVED_ROLES = frozenset({"output_locations", "observations_timeseries"})
+
 #: Dropped beside the run record, because this bin has two genuine traps.
 #:
 #: Everything here LOOKS like configuration and is not: it is written by the
@@ -98,10 +117,17 @@ was done in that period, not that nobody ran the command.
 
 ## Why some referenced files are here and others are not
 
-A file is copied into the project only when the toolbox repository cannot give
-it back. A catalog or template that is tracked and unmodified in the checkout is
-recorded by its git blob id instead; `run_record.yml` lists every reference
-either way, so nothing goes unrecorded.
+A catalog or template is copied into the project only when the toolbox
+repository cannot give it back; one that is tracked and unmodified in the
+checkout is recorded by its git blob id instead. `run_record.yml` lists every
+reference either way, so nothing goes unrecorded.
+
+The **observation inputs are an exception and are always copied**, into
+`config/observations/`. They are this project's record of what the model was
+evaluated against, and a finished project should be able to state that without
+the toolbox checkout beside it -- so for them "can the toolbox give it back?"
+is the wrong question. Their entries carry `archived_path` AND, when the file
+was also tracked, `recoverable: true` and a `git_blob`.
 """
 
 
@@ -140,12 +166,13 @@ def copy_config_files(
     change, not a rename: one output_dir cannot serve four destinations.
 
     A referenced file is copied only when the toolbox repository cannot give it
-    back (see :func:`_tracked_blob`). Whether a file is copied is therefore a
-    property of the FILE, not of the bin it lands in: ``data_sources``,
-    ``model_build_config`` and ``waterbodies_config`` hold arbitrary paths, so
-    a project may name a site-specific catalog that lives nowhere in the
-    toolbox, and a bin-level rule would discard exactly the file the policy
-    exists to protect.
+    back (see :func:`_tracked_blob`) — except for the roles in
+    :data:`ALWAYS_ARCHIVED_ROLES`, which are archived either way. Whether a file
+    is copied is therefore a property of the FILE and its ROLE, never of the bin
+    it lands in: ``data_sources``, ``model_build_config`` and
+    ``waterbodies_config`` hold arbitrary paths, so a project may name a
+    site-specific catalog that lives nowhere in the toolbox, and a bin-level
+    rule would discard exactly the file the policy exists to protect.
 
     Parameters
     ----------
@@ -264,7 +291,7 @@ def _snapshot_references(
             continue
 
         blob = _tracked_blob(source_path, toolbox)
-        if blob is not None:
+        if blob is not None and role not in ALWAYS_ARCHIVED_ROLES:
             entries.append(
                 {
                     "role": role,
@@ -303,10 +330,17 @@ def _snapshot_references(
         entries.append(
             {
                 "role": role,
+                # `recoverable` and `archived_path` used to be mutually
+                # exclusive -- a file was recorded OR copied. They are now
+                # independent, because an always-archived role can be both:
+                # `recoverable` keeps its own meaning (the toolbox can
+                # reproduce this file) and `archived_path` becomes the only
+                # field that says where the copy is. `blob` is in scope and is
+                # strictly more information than the `None` this hardcoded.
                 "origin": origin,
-                "recoverable": False,
+                "recoverable": blob is not None,
                 "archived_path": destination.as_posix(),
-                "git_blob": None,
+                "git_blob": blob,
                 "sha256": file_sha256(source_path),
                 "size_bytes": source_path.stat().st_size,
             }
