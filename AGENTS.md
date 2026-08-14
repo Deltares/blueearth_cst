@@ -7,9 +7,22 @@
 ## Overview
 
 BlueEarth Climate Stress Test — a multi-language (Python + R + Julia) scientific
-workflow toolbox stitched together by Snakemake. The three `*.smk` files at
+workflow toolbox stitched together by Snakemake. The four `*.smk` files at
 the repo root are the only entry points; there is no package CLI. Full narrative
 in `README.md`.
+
+| entry point | id | does |
+|---|---|---|
+| `analyze_climate.smk` | wf0 | the basin's historical climate — **model-free** |
+| `build_model.smk` | wf1 | builds the Wflow-SBM model, runs it on historical forcing |
+| `analyze_projections.smk` | wf2 | CMIP6 change factors — a plausibility overlay |
+| `run_stress_test.smk` | wf3 | the stress test |
+
+All four were `Snakefile_<noun>` and extensionless until 2026-08-14, and the
+`workflows.<name>` config keys carry the same names as the files. Migration for
+an existing project: `docs/migration-workflow-names.md`. wf0 is numbered 0
+rather than renumbering the other three — `W` is a workflow id, not a position
+(`dev/reference/naming.md` §9), so `ls logs/` still sorts in execution order.
 
 ## Background
 
@@ -22,7 +35,11 @@ Method context that changes how code here should be edited (rationale:
   weather generator — never couple the experiment workflow to CMIP scenarios.
 - CMIP6 output (wf2) is a plausibility overlay only: its change factors situate the
   perturbation grid in projection space; they never drive a stress-test run.
-- Pipeline: wf1 builds a distributed Wflow-SBM model from global datasets via
+- Pipeline: wf0 characterises the basin's historical climate from one or more
+  gridded datasets **without building a model** — the forcing-selection question,
+  which matters here precisely because CST does no local calibration, so forcing
+  choice is the dominant lever on the historical run; wf1 builds a distributed
+  Wflow-SBM model from global datasets via
   hydromt and runs it once on historical forcing (rapid deployment, no local
   calibration); wf2 computes monthly change factors per (model, scenario, horizon);
   wf3 is the stress test — weathergenr generates `RLZ_NUM` realizations, each
@@ -180,9 +197,15 @@ Run everything inside `pixi shell`, or prefix each command with `pixi run`, so
 pixi install          # conda-forge + PyPI deps (Python stack, R toolchain, snakemake)
 pixi run install      # + weathergenr (R, via remotes) and Julia env (Pkg.instantiate)
 
-# Run the three workflows IN ORDER (run_stress_test needs build_model
+# Run the four workflows IN ORDER (run_stress_test needs build_model
 # artifacts). snake_config_rapid.yml is the DEFAULT config; swap in
-# snake_config_baseline.yml only for the runs listed under Workflow:
+# snake_config_baseline.yml only for the runs listed under Workflow.
+#
+# wf0 is OPTIONAL for the pipeline: it produces the region, vector layers and
+# climate store wf1 also declares, so running it first just means those exist
+# before the build asks. Run it ALONE when the question is which forcing
+# dataset to use -- it needs no model, and nothing it writes is model-shaped.
+snakemake all -c 3 -s analyze_climate.smk     --configfile test_case/snake_config_rapid.yml
 snakemake all -c 3 -s build_model.smk         --configfile test_case/snake_config_rapid.yml
 snakemake all -c 3 -s analyze_projections.smk --configfile test_case/snake_config_rapid.yml --keep-going
 snakemake all -c 3 -s run_stress_test.smk     --configfile test_case/snake_config_rapid.yml
@@ -207,7 +230,7 @@ pixi run python dev/scripts/prune_climate_store.py --config <cfg>   # stale clim
 snakemake ... --dry-run           # inspect the DAG before running or after editing rules
 snakemake --unlock -s <Snakefile> --configfile <cfg>   # Snakemake locks the workdir on crash
 
-pytest tests/test_cli.py          # cheapest sanity check: dry-runs all three Snakefiles
+pytest tests/test_cli.py          # cheapest sanity check: dry-runs all four entry points
 pytest tests/                     # full suite (test_build_model.py is slow)
 ```
 
@@ -469,7 +492,7 @@ failure mode to avoid — it re-proves what the previous run already proved.
 | When | Run |
 |---|---|
 | While iterating | Only the tests covering the file you changed (`pytest tests/test_<module>.py`). Nothing else. |
-| Before a commit | Add `pytest tests/test_cli.py` **if** a Snakefile, a `script:` signature, or **a rule's declared input** changed — the last one because `test_cli` dry-runs all three Snakefiles, so it is the only place a malformed `config/defaults/*.yml` surfaces; no fast-tier test parses those. Otherwise the module's own tests are the gate. If you wrote Python, `pixi run lint` and `pixi run format-check` — both are CI gates, and both are near-instant. `pixi run format` fixes the second. |
+| Before a commit | Add `pytest tests/test_cli.py` **if** a Snakefile, a `script:` signature, or **a rule's declared input** changed — the last one because `test_cli` dry-runs all four entry points, so it is the only place a malformed `config/defaults/*.yml` surfaces; no fast-tier test parses those. Otherwise the module's own tests are the gate. If you wrote Python, `pixi run lint` and `pixi run format-check` — both are CI gates, and both are near-instant. `pixi run format` fixes the second. |
 | Before merging the branch | `pixi run test-fast` once — **a few minutes**. Skip it entirely for a docs-, `dev/`- or config-scaffold-only branch, which no test imports. |
 | **Before pushing `main` to `origin`** | `pixi run test-full` — **~10–15 min**. The authoritative gate, and the only one that runs the workflow/process-contract tier. |
 | **After a push** | **Read the run it triggered** — `gh run list -L 1` / `gh run watch`. See below; this is not optional. |
@@ -650,7 +673,7 @@ figure-local.
 
 ## References
 
-- `README.md` — the overall pipeline and how the three workflows fit together;
+- `README.md` — the overall pipeline and how the four workflows fit together;
   start here.
 - `docs/cst-toolbox-technical-note-2025.md` — stress-test method and design
   rationale; read before changing *what* a workflow computes.

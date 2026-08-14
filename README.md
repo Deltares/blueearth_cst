@@ -128,8 +128,12 @@ docker pull containers.deltares.nl/CST/cst_workflows:0.1.0
 
 ## Running
 
-The toolbox provides three [Snakemake](https://snakemake.github.io/) workflows:
+The toolbox provides four [Snakemake](https://snakemake.github.io/) workflows:
 
+- **analyze_climate.smk** — characterises the basin's historical climate from
+  one or more gridded datasets, **without building a hydrology model**. Run it
+  alone to answer *which forcing dataset should this basin use?*, which matters
+  because the toolbox does no local calibration.
 - **build_model.smk** — builds a Wflow model from global data for the
   selected region and runs / analyses it for a historical period.
 - **analyze_projections.smk** — derives future climate statistics
@@ -227,12 +231,13 @@ across-workflow invocation manifest is the wrapper's.
 Each workflow records itself in **one log and one benchmark table**, both
 regenerated on every run:
 
+- **analyze_climate.smk** — `logs/wf0_analyze_climate.log`
 - **build_model.smk** — `logs/wf1_build_model.log`
 - **analyze_projections.smk** — `logs/wf2_analyze_projections.log`
 - **run_stress_test.smk** —
   `logs/wf3_run_stress_test_<experiment>.log`
 
-All three land in the project's own `logs/`, so one run's records sit side by
+All four land in the project's own `logs/`, so one run's records sit side by
 side. WF3 is experiment-scoped, so its records carry the experiment id in the
 **filename** rather than under `experiments/<name>/`; that subtree holds only the
 experiment's own inputs and products (`config/`, `climate/`, `hydrology/`,
