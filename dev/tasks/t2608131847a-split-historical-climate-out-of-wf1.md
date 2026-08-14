@@ -1,13 +1,13 @@
 ---
 title: Split the historical-climate workflow out of WF1, with a forcing-selection evaluation layer
 type: todo-item
-status: backlog
+status: active
 effort: 2
-area: wf1 / workflow split
+area: wf1 / workflow split + workflow rename
 origin: fao branch assessment (2026-08-13)
 queue:
 created: 2026-08-13
-updated: 2026-08-13
+updated: 2026-08-14
 ---
 
 > [!note] Overview
@@ -81,14 +81,52 @@ let the gridded change factors, the delta-change Julia driver, or `save_grids`
 re-enter through this item — `blueearth_cst/projections/gridded_outputs.py`
 rejects `save_grids: true` and that rejection stands.
 
+## Scope grew on 2026-08-14 — this now carries a rename migration
+
+The design pass took three owner rulings, and one of them widened the item.
+**All four workflow entry points are renamed** to verb-first `.smk` files, with
+the `workflows.<name>` config keys and every derived path following:
+
+| was | becomes |
+|---|---|
+| *(new)* | `analyze_climate.smk` — wf**0**, sorts and runs first |
+| `Snakefile_model_creation` | `build_model.smk` |
+| `Snakefile_climate_projections` | `analyze_projections.smk` |
+| `Snakefile_climate_experiment` | `run_stress_test.smk` |
+
+It landed here rather than as its own note because adding a fourth workflow
+already forces edits to `run_workflows.py`'s `WORKFLOW_ORDER` and its clause
+(a)/(b) contract, `test_cli.py`, `plot_workflow_dag.py`'s digit map, the shared
+producer symmetry tests, `check_baseline` and the config template — every one of
+which the rename also touches. Two passes would pay that twice.
+
+The other two rulings: the carve is **climate-only and model-free** (multi-forcing
+model runs deferred to a follow-on), and the existing rule digits 1/2/3 stay put
+— the new workflow takes **0**, so there is no renumber.
+
 ## Progress
 
-- [ ] Design pass. Workflow boundary, the `forcing_options` config surface, what
-      1.04/1.05 keep vs. what moves, and rule numbering for the new workflow.
-- [ ] Confirm the separability claim empirically — dry-run the carved workflow
-      with no wflow model on disk, not just read the docstring.
-- [ ] Split the Snakefile; keep `extract_historical_climate` shared.
-- [ ] Multi-forcing runs (`forcing_options:`).
+- [x] Design pass — `dev/working/2026-08-14_climate-workflow-split/design.md`
+      (2026-08-14). Workflow boundary, the `candidate_sources` config surface,
+      rule numbering, the rename migration, a 10-commit plan in two landings, and
+      six open items for the owner.
+- [x] Confirm the separability claim empirically — **done, and it corrected the
+      assessment.** A dry-run against an empty `project_dir`, with the build
+      templates pointed at paths that do not exist, schedules exactly **four**
+      jobs: 1.02 `delineate_region`, 1.03 `delineate_spatial_units`, 1.04
+      `extract_historical_climate`, 1.05 `plot_climate_source`. Nothing
+      model-side. Two corrections that changed the design: the subgraph needs
+      1.02 and 1.03 as well — both shared producer contracts, so three symmetry
+      tests go four-way — and rule 1.13 declares 1.05's `climate_levels.json` as
+      a real input. Do not re-run this.
+- [ ] Landing A — the rename. **Must run in the PRIMARY checkout**: the fixture
+      trees carry the renamed paths as data, and the fixture-dependent layer
+      skips rather than fails in a worktree, so a lane gate would prove nothing.
+- [ ] Split the Snakefile — **additive, not a subtraction**. WF1 keeps 1.02–1.05
+      exactly as they are; the new workflow declares the same shared rules
+      generated per candidate source. Design §5.2 / §5.4.
+- [ ] Multi-forcing model runs — **deferred out of this item** by the 2026-08-14
+      ruling. Raise as its own note at Landing B's closure.
 - [ ] Station/subregion sampling + observation comparison.
 - [ ] Budyko screening.
 - [ ] `scripts/run_workflows.py` ordering + `workflows.<name>.enabled` for the
@@ -104,13 +142,25 @@ rejects `save_grids: true` and that rejection stands.
   a stale path there survives every gate a branch can run — R9 left 22 such
   failures, three behind an `os.path.exists` guard that turned a wrong path into
   a silent skip.
-- A new workflow means a new `--configfile` seed under `test_case/`. **Keep the
-  `snake_config_` prefix** or it is silently untracked.
+- ~~A new workflow means a new `--configfile` seed under `test_case/`.~~
+  **Mostly wrong, corrected by the design (§9 O-5):** the fourth workflow is a
+  fourth `workflows:` subsection in the existing seeds, not a new file. A new
+  seed is warranted only for the evaluation-layer exercise at Landing B's last
+  commit — and there the caution stands: **keep the `snake_config_` prefix** or
+  it is silently untracked.
+- **Landing A belongs in the primary checkout, Landing B in `lane/pipeline`,**
+  and the docs half of both in `lane/devmeta` (design §6). The rename also
+  invalidates `lane/pipeline`'s own claim glob `Snakefile_*`, which becomes
+  `*.smk` in the same commit as the renames (§9 O-3b).
 - `pixi run test-full` at the merge, not just at the push: this touches a
   Snakefile and `shared/`, which is the case that tier guards.
 
 ## Refs
 
+- **`dev/working/2026-08-14_climate-workflow-split/design.md` — the design, and
+  the source of record for everything above.** Read §5.2 (why the carve is
+  additive), §5.4 (how N candidate sources are declared) and §9 (six open items
+  needing an owner ruling) before starting either landing.
 - `dev/reviews/2026-08-13_fao-branch-assessment.md` §2.1, §5.1, §5.3, and the
   §3 ruling that bounds this.
 - `upstream/fao:snakemake/Snakefile_climate_historical.smk`,
