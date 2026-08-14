@@ -18,6 +18,7 @@ FROM julia:${julia_version} AS jul
 FROM alpine:latest AS local_files
 WORKDIR /root/code
 ADD src src
+ADD analyze_climate.smk analyze_climate.smk
 ADD build_model.smk build_model.smk
 ADD run_stress_test.smk run_stress_test.smk
 ADD analyze_projections.smk analyze_projections.smk
