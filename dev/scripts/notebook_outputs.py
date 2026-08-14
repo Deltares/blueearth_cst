@@ -89,9 +89,30 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("paths", nargs="*", type=Path)
     args = ap.parse_args(argv)
 
+    explicit = bool(args.paths)
     paths = [Path(p) for p in args.paths] or default_paths()
     offenders: list[tuple[Path, int]] = []
     stripped: list[Path] = []
+
+    # A path the CALLER named and we cannot read is an error, never a skip.
+    #
+    # This is the layer that should have caught the pre-commit hook's
+    # word-splitting bug on 2026-08-14 and did not: the hook handed over
+    # `docs/notebooks/Climate`, `Stress`, `Test.ipynb`, none of which exists,
+    # and a silent skip turned "checked nothing" into "ok". Skipping is only
+    # right for the DEFAULT glob, where a non-notebook simply is not our
+    # business.
+    if explicit:
+        missing = [p for p in paths if not p.is_file()]
+        if missing:
+            print(
+                "cannot read the path(s) given:\n"
+                + "".join(f"  {p}\n" for p in missing)
+                + "If these look like fragments of a filename, the caller "
+                "word-split a path containing spaces.",
+                file=sys.stderr,
+            )
+            return 2
 
     for path in paths:
         if path.suffix != ".ipynb" or not path.is_file():

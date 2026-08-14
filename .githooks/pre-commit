@@ -13,23 +13,28 @@
 #
 # Only STAGED notebooks are checked, so an unstaged working copy you are
 # actively running does not block an unrelated commit.
+#
+# NUL-DELIMITED, and that is not fastidiousness. The first version of this hook
+# captured the file list into a variable and passed it unquoted, so the shell
+# word-split it: `docs/notebooks/Climate Stress Test.ipynb` arrived as three
+# fragments, none of which exists. The checker skipped them and the hook printed
+# "ok". Two of the three tracked notebooks have spaces in their names, so the
+# hook passed while checking NOTHING -- caught the same day, by noticing it
+# reported 7 notebooks in a directory holding 3.
 
 set -e
 
-staged_notebooks=$(git diff --cached --name-only --diff-filter=ACM | grep '\.ipynb$' || true)
-
-if [ -z "$staged_notebooks" ]; then
+if git diff --cached --name-only --diff-filter=ACM -z -- '*.ipynb' | grep -qz .; then
+    echo "pre-commit: notebook outputs ..."
+else
     exit 0
 fi
 
-echo "pre-commit: notebook outputs ..."
-
-# `xargs -d` is not portable; the loop is, and the list is three files.
-# shellcheck disable=SC2086
-if ! pixi run python dev/scripts/notebook_outputs.py --check $staged_notebooks; then
+if ! git diff --cached --name-only --diff-filter=ACM -z -- '*.ipynb' \
+    | xargs -0 pixi run python dev/scripts/notebook_outputs.py --check; then
     echo ""
     echo "pre-commit: REJECTED. Strip them and stage again:"
     echo "    pixi run python dev/scripts/notebook_outputs.py --strip"
-    echo "    git add $staged_notebooks"
+    echo "    git add docs/notebooks/"
     exit 1
 fi
