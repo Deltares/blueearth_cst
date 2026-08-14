@@ -46,21 +46,39 @@ Snakemake keeps its up-to-date metadata under the working directory, so one
 project driven from two checkouts gets two stores that disagree, and each holds
 its own lock while writing the same outputs.
 
-## Committed outputs, and how they go stale
+## Outputs are NOT committed
 
-Each notebook is committed **with its outputs** and carries a dated
-*rendered against `<sha>`* banner at the top. That is deliberate: the
-interpretation these notebooks exist to teach needs the rendered figures and
-tables in front of the reader, and nothing in CI can produce them — a bare
-checkout has neither the project tree nor the data access.
+Each notebook is committed as **source only**: every cell's outputs and
+execution counts are cleared. Two mechanisms, and the split between them
+matters:
 
-So staleness is made **visible** rather than prevented. The banner tells you
-which commit the numbers came from; if the pipeline has moved since, the prose
-is still current but the numbers are not. Re-rendering is a tracked board item,
-not an automated gate.
+- `dev/scripts/notebook_outputs.py --strip` clears them, and `--check` reports.
+- `tests/test_notebook_outputs.py` is **the gate**, because it runs on both CI
+  legs and on every checkout. The `.githooks/pre-commit` hook is the fast local
+  echo of it, not the gate — `core.hooksPath` is a per-clone setting that
+  cloning does not install, so a hook alone protects only the machines that
+  opted in.
 
-If you edit a notebook's prose without re-running it, leave the banner alone —
-it describes the outputs, not the text.
+**This reverses the 2026-08-13 ruling** (fao assessment §6.3, option C: commit
+outputs with a dated `rendered against <sha>` banner). What changed is the
+measured cost. A notebook carrying figures embeds them as base64 PNG and so does
+not delta-compress: every edit mints a fresh multi-megabyte blob that stays in
+history forever. On 2026-08-14 `Model building.ipynb` was 6.43 MB with **82 blob
+versions already in history**, and a rename sweep that rewrote three short
+strings inside the three notebooks turned a few hundred KB of text change into a
+**7.1 MB push**. Stripping took the set from 8.8 MB to 0.08 MB.
+
+The ruling was buying something real, and it is not simply given up: the point
+of committed outputs was that a reader sees the results without running the
+pipeline (assessment §6.1 point 6 — *"they teach the reading of the output"*).
+That is preserved by **publishing a rendered copy as an Artifact** instead of
+committing it, which is option D from the same table. Render with the nbconvert
+command below and publish the HTML; the repo keeps the source, the reader still
+gets the figures.
+
+Staleness moves with it. There is no longer a `<sha>` banner to trust or
+distrust, because there are no committed numbers to be stale — the prose is the
+only thing in the file, and it is kept current like any other document.
 
 ### Re-rendering
 
@@ -72,8 +90,16 @@ pixi run jupyter nbconvert --to notebook --execute --inplace \
   --ExecutePreprocessor.timeout=3600 "docs/notebooks/Model building.ipynb"
 ```
 
-Then update each banner to name the commit that was executed, and commit the
-outputs with it.
+`--inplace` writes the outputs back into the **tracked** file, which is exactly
+what must not be committed. So publish the rendered result as an Artifact, then
+strip the notebook again before committing:
+
+```bash
+pixi run python dev/scripts/notebook_outputs.py --strip
+```
+
+The pre-commit hook catches it if you forget; `tests/test_notebook_outputs.py`
+catches it if the hook is not installed.
 
 Two things to know before you run it:
 

@@ -320,6 +320,21 @@ half-built and rotted". That reframes the cost.
 > their rendered outputs and carry a dated **"rendered against `<sha>`"** banner,
 > with a periodic re-render as a board item. Staleness is made visible rather
 > than prevented, which is the trade that fits a repo whose pipeline runs locally.
+>
+> **REVERSED 2026-08-14 — option C is out, option D is in.** Outputs are no
+> longer committed; a rendered copy is published as an Artifact instead. The
+> reversal was cost, not principle: a notebook carrying figures does not
+> delta-compress, so `Model building.ipynb` reached 6.43 MB with **82 blob
+> versions in history**, and the workflow-rename sweep — which rewrote three
+> short strings inside the notebooks — turned a few hundred KB of text change
+> into a **7.1 MB push**. Option C priced the outputs once (§6.3 notes fao's five
+> at 15.6 MB); the real cost is that much again on **every sweep that touches
+> them**, in a repo where sweeps are routine. Stripping the three took the set
+> from 8.8 MB to 0.08 MB. What option C was buying — a reader seeing results
+> without running the pipeline (§6.1 point 6) — is preserved by the Artifact.
+> Enforced by `tests/test_notebook_outputs.py` on both CI legs, with
+> `.githooks/pre-commit` as the local echo; convention in
+> `docs/notebooks/README.md`.
 
 The options as assessed:
 

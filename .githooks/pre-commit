@@ -1,0 +1,35 @@
+#!/bin/sh
+# Reject a commit that would add rendered outputs to a tracked notebook.
+#
+# A notebook carrying outputs embeds every figure as base64 PNG and so does not
+# delta-compress: each edit mints a fresh multi-megabyte blob that stays in
+# history. See dev/scripts/notebook_outputs.py for the measurements.
+#
+# THIS HOOK IS THE FAST LOCAL ECHO, NOT THE GATE. `core.hooksPath` is per-clone
+# and cloning does not install it, so the gate is tests/test_notebook_outputs.py,
+# which runs on both CI legs. Install this one alongside the ruff pre-push hook:
+#
+#     git config core.hooksPath .githooks
+#
+# Only STAGED notebooks are checked, so an unstaged working copy you are
+# actively running does not block an unrelated commit.
+
+set -e
+
+staged_notebooks=$(git diff --cached --name-only --diff-filter=ACM | grep '\.ipynb$' || true)
+
+if [ -z "$staged_notebooks" ]; then
+    exit 0
+fi
+
+echo "pre-commit: notebook outputs ..."
+
+# `xargs -d` is not portable; the loop is, and the list is three files.
+# shellcheck disable=SC2086
+if ! pixi run python dev/scripts/notebook_outputs.py --check $staged_notebooks; then
+    echo ""
+    echo "pre-commit: REJECTED. Strip them and stage again:"
+    echo "    pixi run python dev/scripts/notebook_outputs.py --strip"
+    echo "    git add $staged_notebooks"
+    exit 1
+fi
