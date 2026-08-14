@@ -8,6 +8,12 @@ Author: Claude, 2026-08-14. Supersedes: none.
 Revisions:
 - 2026-08-14: first draft. Separability probe run before drafting (§2.3);
   three owner rulings taken during scoping and recorded in §4.
+- 2026-08-14 (v1.1, self-review): §5.4 replaces the two-family
+  `wildcard_constraints` partition with per-source rule generation, after
+  finding WF3 already uses that idiom for its batch fan-out; §5.3 adds the
+  fan-out log/benchmark convention WF0 inherits from WF3; O-3 reverses its
+  recommendation to keep `run_workflows.py`'s loud-failure contract intact;
+  O-3b adds the lane-claim glob the rename invalidates.
 
 ---
 
@@ -245,6 +251,26 @@ emits both `basin_*.nc` and `point_*.nc` from a single rule, so a subregion-only
 change re-runs the station sampling — listed as an anti-pattern in the
 assessment §7 and not imported.
 
+**WF0 is the second workflow in this repo with fan-out, and it inherits WF3's
+machinery, not WF1's.** Rules 0.04–0.08 are generated one per candidate source
+(§5.4), so their bookkeeping follows `Snakefile_climate_experiment`'s rule 3.15
+rather than WF1's flat form:
+
+- **Log and benchmark parts go in a subdirectory named for the label**, with one
+  file per fan-out member — `logs/_parts/0.04_extract_historical_climate/<source>.log`,
+  `benchmarks/_parts/0.04_extract_historical_climate/<source>.tsv`. This is
+  `naming.md` §9's rule for wildcard rules ("the prefix goes on the
+  subdirectory"), and `merge_logs` lists a label's part dir to discover its
+  members, so the fan-out width lives only in the rule that owns it.
+- **`LOG_RULES` carries the SINGULAR label** — `0.04_extract_historical_climate`,
+  not one entry per source — exactly as WF3 lists `3.15_run_wflow` while its rule
+  identifiers are `run_wflow_batch_<b>`. `tests/test_log_rules_contract.py`
+  asserts the list in both directions and in rule-number order, so this is a
+  correctness constraint, not a formatting one.
+- The two rules generated at **0.04** and **0.05** keep those numbers across all
+  their per-source instances; a genuinely new rule inserted between them takes a
+  letter suffix (`0.04b`), never a renumber.
+
 0.06–0.09 schedule only when their optional observation inputs are configured,
 using the same `is_unset` / `**_input` splat idiom WF1 already uses for
 `gauge_points` and `observations_timeseries`. A project with no station data
@@ -259,53 +285,60 @@ then **already extracted**, and WF1 picks it up as up to date. Switching the
 forcing dataset after the comparison costs nothing. `prune_climate_store.py`
 already reports on exactly this directory family.
 
-**The wrinkle: the store's output set is not the same for every source.**
-`climate_store_rule` returns an `oro_nc` output only for `chirps` /
-`chirps_global`; `era5` has none and resolves orography through the catalog
-instead. A Snakemake rule has a fixed output set, so a **single** wildcard rule
-cannot cover both families.
+**The wrinkle that rules out a wildcard: the store's output set is not the same
+for every source.** `climate_store_rule` returns an `oro_nc` output only for
+`chirps` / `chirps_global`; `era5` has none and resolves orography through the
+catalog instead. A Snakemake rule has a fixed output set, so **one wildcard rule
+cannot cover both families**, and partitioning into two rules by
+`wildcard_constraints` would hard-code a source taxonomy into the Snakefile.
 
-**Decision: two family rules, partitioned by `wildcard_constraints`.**
+**Decision: one concrete rule per candidate source, generated in a Python loop.**
+This is not a new mechanism — WF3 already does exactly this for its batch fan-out
+(`Snakefile_climate_experiment:1067-1070`):
 
 ```python
-# in analyze_climate.smk only
-wildcard_constraints:
-    clim_source = "|".join(CANDIDATE_SOURCES)
-
-rule extract_historical_climate:        # era5 family — no orography output
-    wildcard_constraints: clim_source = "era5"
-    ...
-
-rule extract_historical_climate_orog:   # chirps family — orography sidecar
-    wildcard_constraints: clim_source = "chirps|chirps_global"
-    ...
+# analyze_climate.smk
+for _src in CANDIDATE_SOURCES:
+    _spec = climate_store_rule(project_dir=project_dir, clim_source=_src, ...)
+    rule:
+        name: f"extract_historical_climate_{_src}"
+        message: rule_banner("0.04", f"extract_historical_climate_{_src}", ...)
+        input:  **_spec.inputs
+        params: **_spec.params
+        output: **_spec.outputs
+        log:       f"{LOG_PARTS_DIR}/0.04_extract_historical_climate/{_src}.log"
+        benchmark: f"{project_dir}/benchmarks/_parts/0.04_extract_historical_climate/{_src}.tsv"
+        script: _spec.script
 ```
 
-The source vocabulary is already **closed** — WF1 rejects `eobs` at parse time
-and supports exactly `era5`, `chirps`, `chirps_global` — so two families cover
-it, and a new source is a deliberate edit in both places. Same treatment for
-0.05.
+Everything the wildcard approach made awkward falls away: the per-source output
+shape comes from the factory, so era5 and chirps need no taxonomy in the
+Snakefile; there are no wildcard constraints to get subtly wrong; and no path is
+claimable by two rules, so no ambiguity and no `ruleorder:`. Rule 0.05 takes the
+same treatment.
 
-**Consequence for the symmetry tests, stated plainly.** `analyze_climate.smk` is
-the one workflow that does *not* carry a byte-identical `CLIMATE_STORE`
-declaration; it carries a **generalisation**. So the enumeration in
-`tests/test_climate_store_contract.py` does not simply become four-way. The
-invariant to pin instead is *equivalence under binding*: binding the wildcard to
-`shared.clim_historical` must yield the same inputs, params, outputs and script
-as the shared contract. That is a new test, and it is the honest form of the
-claim.
+**Consequence for the symmetry tests — smaller than a wildcard would have
+made it.** For the primary source, the generated rule is built from *the same
+factory call with the same arguments* as WF1's 1.04, so equivalence holds **by
+construction** rather than by assertion. `tests/test_climate_store_contract.py`
+still gains a WF0 case, but it is the ordinary one: the rule named
+`extract_historical_climate_<clim_historical>` must match the shared contract on
+inputs, params, outputs and script. `test_region_rule.py` and
+`test_spatial_units_rule.py` become straightforwardly four-way — 0.02 and 0.03
+are single declarations with no fan-out at all.
 
-`test_region_rule.py` and `test_spatial_units_rule.py` **do** become four-way —
-0.02 and 0.03 take no wildcard.
+**Rejected alternatives, recorded because both look attractive:**
 
-**Rejected alternative (recorded because it looks attractive):** declare the
-fixed shared rule for the primary source *and* a wildcard rule constrained to
-exclude it, via a negative-lookahead regex interpolating `clim_historical`. That
-preserves byte-identity and keeps the enumeration three-plus-one. Rejected as
-fragile: the constraint becomes config-dependent, and a source name that is a
-prefix of another would silently mis-partition. Declaring both a fixed and a
-wildcard producer for the same path inside one Snakefile is also exactly the
-ambiguity `AGENTS.md` removed the last `ruleorder:` to avoid.
+- **Two family rules partitioned by `wildcard_constraints`** (`era5` vs
+  `chirps|chirps_global`). Rejected once the loop idiom was found: it puts a
+  source taxonomy in the Snakefile that the factory already knows, so adding a
+  source means editing two places instead of none.
+- **A fixed shared rule for the primary plus a wildcard rule constrained to
+  exclude it**, via a negative-lookahead regex interpolating `clim_historical`.
+  Rejected as fragile — a config-dependent constraint, and a source name that is
+  a prefix of another mis-partitions silently. Declaring a fixed and a wildcard
+  producer for one path inside one Snakefile is also precisely the ambiguity
+  `AGENTS.md` removed the last `ruleorder:` to avoid.
 
 ### 5.5 `climate_levels.json` — no new cross-workflow leaf
 
@@ -450,8 +483,10 @@ Two landings. Each commit is independently green.
    `check_baseline.WORKFLOWS` + the manifest keys, `plot_workflow_dag`'s map.
 4. Migrate the two fixture trees; `check_baseline check` and `tree-check` prove
    nothing numeric moved.
-5. Docs sweep: `AGENTS.md`, `README.md`, `docs/`, notebooks; migration note under
-   `dev/`.
+5. Docs sweep: `AGENTS.md` — including the `lane/pipeline` claim glob
+   `Snakefile_*` → `*.smk` and the Overview's "three `Snakefile_*` files"
+   sentence (O-3b) — plus `README.md`, `docs/`, notebooks; migration note under
+   `dev/`. This step is `lane/devmeta` territory; steps 1–4 are `lane/pipeline`.
 
 **Landing B — the fourth workflow** (`lane/pipeline`):
 
@@ -463,9 +498,11 @@ Two landings. Each commit is independently green.
 8. Station sampling + observation comparison (0.06, 0.07, 0.08), the two config
    keys, the two csv templates, `observations_timeseries` moved to `shared:`.
 9. Budyko screening (0.09).
-10. A `snake_config_` seed exercising the evaluation layer, the fourth notebook
-    (the obligation deferred here from the closed `t2608131847`), and
-    `docs/notebooks/README.md`.
+10. A `snake_config_` seed exercising the evaluation layer (`lane/pipeline`),
+    then — **split at the file boundary, in `lane/devmeta`** — the fourth
+    notebook (the obligation deferred here from the closed `t2608131847`) and
+    its entry in `docs/notebooks/README.md`, carrying the
+    `rendered against <sha>` banner and the ordering links the other three use.
 
 Follow-ons (SPI / dry-day / heat-day; MODIS snow) are a separate board note
 raised at Landing B's closure, not commits here.
@@ -515,8 +552,13 @@ historical climate at all.
 Closed by ruling R1. Would become preferable when the hydrograph-fit line of
 evidence is wanted, which is the deferred follow-on.
 
-**A4 — negative-lookahead wildcard constraint** preserving byte-identity for the
-primary source. Rejected in §5.4.
+**A4 — express the candidate sources as wildcards** rather than as generated
+rules, either as two family rules split by `wildcard_constraints` or as a fixed
+rule plus a negative-lookahead-constrained wildcard rule. Both rejected in §5.4,
+once WF3's existing rule-generation idiom made a wildcard unnecessary. Either
+would become preferable if the candidate set ever stopped being knowable at
+parse time — it is not, and cannot be: the store paths must be declared before
+the DAG is built.
 
 **A5 — renumber the rule digits to 1/2/3/4.** Closed by ruling R3.
 
@@ -527,22 +569,40 @@ R2.
 
 ## 9. Open items and residuals the owner should see
 
-- **O-1 (needs a probe at implementation).** The two-family wildcard partition in
-  §5.4 is standard Snakemake, but it has not been probed in this repo. Landing
-  B's commit 7 should dry-run it before the rules are fleshed out. If Snakemake
-  resolves it awkwardly, A4 is the fallback.
+- **O-1 (low risk, verify anyway).** The per-source rule generation in §5.4 is
+  already in production here — WF3's batch fan-out uses the same
+  `for ... rule: name: f"..."` idiom — so the mechanism is proven, not
+  speculative. Landing B's commit 7 should still dry-run it with two candidate
+  sources before the rules are fleshed out, to confirm the generated names and
+  the log-part subdirectories resolve as expected.
 - **O-2 (config change beyond the rename).** `observations_timeseries` moves from
   `workflows.model_creation` to `shared:`. Ruling wanted: fold it into the
   rename migration (recommended — one breaking change, not two), or keep it
   workflow-owned and have WF0 read WF1's section.
-- **O-3.** `run_workflows.py` contract clause (a) currently requires all
-  subsections present. Recommended amendment: require every **declared**
-  subsection to carry a boolean `enabled:`, and treat an absent subsection as
-  disabled — so an existing three-workflow config keeps working and gains
-  `analyze_climate` only when it asks for it. This weakens clause (b)'s
-  "never a silent default" for absent *sections* while keeping it for absent
-  *keys*. `tests/test_run_workflows.py` pins this clause by clause and must be
-  updated deliberately.
+- **O-3.** `run_workflows.py` contract clause (a) currently requires all three
+  subsections present, and (b) makes a missing `enabled:` a hard error.
+  **Recommended amendment: widen the closed set from three to four and keep both
+  clauses exactly as they are** — every one of the four workflows must be present
+  with a boolean `enabled:`.
+
+  Stated as a rejected alternative because it is the tempting one: *"treat an
+  absent subsection as disabled, so existing three-workflow configs keep
+  working."* That reintroduces the defect clause (b) exists to prevent. The
+  hazard clause (b) names is **silence**, not polarity — under that amendment a
+  section misspelled `analyse_climate`, or dropped during an edit, silently
+  skips a workflow and the wrapper exits 0. Landing A already edits every
+  tracked seed and the template for the rename, so the cost of requiring the
+  fourth key is a line per config, paid once, in exchange for keeping the loud
+  failure. `tests/test_run_workflows.py` pins these clauses one by one and must
+  be updated deliberately.
+- **O-3b (lane routing, created by the rename).** `AGENTS.md`'s lane table gives
+  `lane/pipeline` the glob **`Snakefile_*`**. After Landing A that matches
+  nothing, and the four entry points fall into "a path in neither claim" — which
+  `AGENTS.md` says is routed by an owner ruling, never by nearest fit. The glob
+  becomes `*.smk` in Landing A, in the same commit as the renames, and the
+  Overview sentence *"The three `Snakefile_*` files at the repo root are the only
+  entry points"* becomes four `.smk` files. (`.git-workflow.yml` carries no lane
+  claims — only `worktree_seed` and `worktree_link` — so it needs no edit.)
 - **O-4.** Whether the follow-on indices (SPI, dry-day, heat-day, frost-day) land
   with Landing B or as a separate note. Recommended: separate — Landing B is
   already five commits.
