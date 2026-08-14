@@ -2301,6 +2301,12 @@ def tee_to_log(log_path, heartbeat_interval=60.0):
             orig_out, orig_err, stdout_tee, stderr_tee
         )
         heartbeat.start()
+        # A new log starts a new figure group, so its first `save_figure` row
+        # carries the directory even if an earlier block in this process already
+        # wrote figures there. Makes that invariant a property of the FILE,
+        # which is the unit a reader has in front of them.
+        global _LAST_FIGURE_DIR
+        _LAST_FIGURE_DIR = None
         try:
             yield
         except BaseException as exc:  # noqa: BLE001 - re-raised below, never swallowed
@@ -2439,17 +2445,42 @@ def log_row(message, module="cst", level="INFO"):
     print(_log_row_text(f"{datetime.now():%H:%M:%S}", module, level, message))
 
 
+# The directory of the figure most recently written by `save_figure`, so a run
+# of figures into one directory states it once. Reset by `tee_to_log`, which
+# makes the invariant per LOG FILE rather than per process: the first figure row
+# in any log always carries its directory, whatever ran before it.
+_LAST_FIGURE_DIR = None
+
+
 def save_figure(path, module="plot", fig=None, **kwargs):
     """Save a matplotlib figure to ``path`` and announce it cleanly.
 
     Centralizes the "write a figure + log one line" pattern for the plotting
-    ``script:`` rules: every produced map/plot appears in the rule's log as a
-    standard row ``HH:MM:SS - <module> - Saved figure: <path>`` (via
-    ``log_row``) instead of the log being empty or showing only upstream
+    ``script:`` rules: every produced map/plot appears in the rule's log
+    (via ``log_row``) instead of the log being empty or showing only upstream
     library chatter. Parent directories are created. ``kwargs`` pass through to
     ``Figure.savefig`` (e.g. ``dpi``, ``bbox_inches``). matplotlib is
     imported lazily so this module stays light for the Snakefiles that import it
     only for ``get_config`` / ``stress_test_grid``.
+
+    **The row is the path and nothing else, and the directory is stated once.**
+    A plotting rule writes 9 to 17 figures into ONE directory, so the old
+    ``Saved figure: <full path>`` repeated a deep prefix on every row and buried
+    the only part that differed::
+
+        11:43:44 - plot - models/hydrology/wflow/evaluation/plots/hydrograph_1030.png
+        11:43:45 - plot -   performance_1030.png
+        11:43:45 - plot -   signatures_peaks_1030.png
+
+    The ``Saved figure:`` label went because it says what the row already says:
+    the module column is ``plot`` and the value is a ``.png``. Subsequent
+    figures into the same directory show the file name alone, indented to read
+    as a continuation of the row above.
+
+    Eliding rather than dropping the directory is the deliberate half. A log is
+    the artifact someone sends you when a run went wrong, and bare file names
+    would leave "where did they go" answerable only from the Snakefile. Stated
+    once, it costs one row and stays answerable.
 
     ``fig`` defaults to the current figure, which is what every historical
     caller relies on. Pass it explicitly when one plot writes MORE THAN ONE
@@ -2457,13 +2488,21 @@ def save_figure(path, module="plot", fig=None, **kwargs):
     resolve "current figure" through global pyplot state are a silent
     correctness trap the moment any intervening code creates a figure.
     """
+    global _LAST_FIGURE_DIR
     import matplotlib.pyplot as plt
 
     parent = os.path.dirname(path)
     if parent:
         os.makedirs(parent, exist_ok=True)
     (fig if fig is not None else plt.gcf()).savefig(path, **kwargs)
-    log_row(f"Saved figure: {path}", module=module)
+    # Compared as an ABSOLUTE path, so two callers spelling one directory
+    # differently (relative vs absolute, `./plots` vs `plots`) still group.
+    directory = os.path.dirname(os.path.abspath(path))
+    if directory == _LAST_FIGURE_DIR:
+        log_row(f"  {os.path.basename(path)}", module=module)
+    else:
+        _LAST_FIGURE_DIR = directory
+        log_row(os.fspath(path), module=module)
 
 
 def patch_psutil_windows_benchmark():

@@ -163,18 +163,62 @@ def test_compact_passes_through_non_hydromt(line):
 # --- save_figure -------------------------------------------------------------
 
 
-def test_save_figure_writes_creates_parent_and_announces(tmp_path, capsys):
+def _figure(tmp_path, name, subdir="plots"):
+    """Write one throwaway figure through `save_figure`, returning its path."""
     import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    out = tmp_path / "plots" / "basin_area.png"  # parent does not exist yet
+    out = tmp_path / subdir / name
     plt.figure()
     plt.plot([0, 1], [0, 1])
     save_figure(str(out), dpi=50)
+    return out
+
+
+def test_save_figure_writes_creates_parent_and_announces(tmp_path, capsys):
+    su._LAST_FIGURE_DIR = None
+    out = _figure(tmp_path, "basin_area.png")  # parent does not exist yet
     assert out.exists()
-    assert f"Saved figure: {out}" in capsys.readouterr().out
+    printed = capsys.readouterr().out.strip()
+    assert printed.endswith(f"- plot - {out}"), printed
+
+
+def test_save_figure_states_a_directory_once(tmp_path, capsys):
+    """A plotting rule writes 9-17 figures into ONE directory."""
+    su._LAST_FIGURE_DIR = None
+    first = _figure(tmp_path, "hydrograph_1030.png")
+    _figure(tmp_path, "performance_1030.png")
+    _figure(tmp_path, "signatures_peaks_1030.png")
+    rows = [line.split(" - ", 2)[2] for line in capsys.readouterr().out.splitlines()]
+    assert rows == [
+        str(first),
+        "  performance_1030.png",
+        "  signatures_peaks_1030.png",
+    ], rows
+
+
+def test_save_figure_restates_the_directory_when_it_changes(tmp_path, capsys):
+    """Elision must never make a row name a directory it did not go to."""
+    su._LAST_FIGURE_DIR = None
+    _figure(tmp_path, "a.png", subdir="plots")
+    other = _figure(tmp_path, "b.png", subdir="maps")
+    back = _figure(tmp_path, "c.png", subdir="plots")
+    rows = [line.split(" - ", 2)[2] for line in capsys.readouterr().out.splitlines()]
+    assert rows[1] == str(other) and rows[2] == str(back), rows
+
+
+def test_a_new_log_restates_the_directory(tmp_path, capsys):
+    """The invariant is per FILE: a log's first figure row always has its path."""
+    su._LAST_FIGURE_DIR = None
+    _figure(tmp_path, "first.png")
+    capsys.readouterr()
+    with tee_to_log(tmp_path / "logs" / "rule.log"):
+        second = _figure(tmp_path, "second.png")
+    body = (tmp_path / "logs" / "rule.log").read_text(encoding="utf-8")
+    assert os.path.basename(str(second)) in body
+    assert "  second.png" not in body  # not elided into a bare continuation row
 
 
 # --- log_row -----------------------------------------------------------------
@@ -188,7 +232,7 @@ def test_log_row_standard_format(capsys):
 
 def test_log_row_row_survives_compaction_unchanged():
     # a log_row line is already compact -> the tee's _compact_log_line is a no-op
-    row = "21:56:12 - plot - Saved figure: x.png\n"
+    row = "21:56:12 - plot - plots/x.png\n"
     assert _compact_log_line(row) == row
 
 
@@ -410,10 +454,10 @@ def test_tee_to_log_relativizes_project_paths(tmp_path):
     log = proj / "logs" / "1.15_plot_wflow_evaluation.log"
     abs_png = os.path.join(str(proj), "plots", "map.png")
     with tee_to_log(log):
-        print(f"Saved figure: {abs_png}")
+        print(abs_png)
     text = log.read_text(encoding="utf-8")
     # Forward slash regardless of platform: the stripped remainder is normalized.
-    assert "Saved figure: plots/map.png" in text
+    assert "plots/map.png" in text
     assert abs_png not in text  # absolute project path relativized away
 
 
